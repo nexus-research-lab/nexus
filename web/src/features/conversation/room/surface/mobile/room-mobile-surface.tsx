@@ -226,17 +226,19 @@ export function RoomMobileSurface({
         )}
       />
 
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-        {isDm ? chatSurface : (
-          <GroupThreadContextProvider>
-            {chatSurface}
-            <RoomMobileThreadOverlay />
-          </GroupThreadContextProvider>
-        )}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <WorkspaceTaskPanel
           key={conversationId ?? "mobile-conversation-tasks"}
           todos={currentTodos}
         />
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+          {isDm ? chatSurface : (
+            <GroupThreadContextProvider>
+              {chatSurface}
+              <RoomMobileThreadOverlay />
+            </GroupThreadContextProvider>
+          )}
+        </div>
       </div>
 
       <RoomMobileConversationSwitcher

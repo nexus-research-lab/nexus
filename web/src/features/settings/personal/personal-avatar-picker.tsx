@@ -44,7 +44,6 @@ export function PersonalAvatarPicker({
               !disabled && "group-hover:border-[color:color-mix(in_srgb,var(--primary)_35%,var(--surface-avatar-border))] group-hover:shadow-[0_8px_20px_color-mix(in_srgb,var(--shadow-color)_12%,transparent)]",
             )}
             name={name}
-            shape="rounded"
             size="xl"
           />
           <span

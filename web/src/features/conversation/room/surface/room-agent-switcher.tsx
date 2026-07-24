@@ -102,7 +102,7 @@ function RoomAgentAvatar({
   const avatarSrc = getIconAvatarSrc(member.avatar);
   return (
     <span className={cn(
-      "flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
+      "flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
       className,
     )}>
       {avatarSrc ? (

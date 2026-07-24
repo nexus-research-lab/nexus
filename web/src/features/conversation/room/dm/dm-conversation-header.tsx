@@ -65,6 +65,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
           size="sm"
         />
       )}
+      leadingClassName="h-10 w-10"
       onChangeTab={onChangeTab}
       onDismissActiveTab={onCloseActiveTab}
       navigationTrailing={(

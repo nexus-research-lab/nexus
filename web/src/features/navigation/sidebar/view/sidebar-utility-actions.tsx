@@ -28,8 +28,39 @@ interface SidebarUtilityActionsProps {
   variant: "rail" | "panel";
 }
 
-export function SidebarUtilityActions(props: SidebarUtilityActionsProps) {
-  const primaryActions = (
+export function SidebarHeaderActions(props: SidebarUtilityActionsProps) {
+  if (!props.showLogout && !props.showPanelToggle) {
+    return null;
+  }
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-center",
+        props.variant === "rail" ? "flex-col gap-1" : "gap-1",
+      )}
+    >
+      {props.showLogout ? (
+        <UtilityButton
+          icon={LogOut}
+          label={props.labels.logout}
+          onClick={props.onLogout}
+        />
+      ) : null}
+      {props.showPanelToggle ? (
+        <UtilityButton
+          icon={props.variant === "rail" ? PanelLeftOpen : PanelLeftClose}
+          label={
+            props.variant === "rail" ? props.labels.expand : props.labels.collapse
+          }
+          onClick={props.variant === "rail" ? props.onExpand : props.onCollapse}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+export function SidebarFooterActions(props: SidebarUtilityActionsProps) {
+  const actions = (
     <>
       {props.showSettings ? (
         <UtilityLink
@@ -48,40 +79,16 @@ export function SidebarUtilityActions(props: SidebarUtilityActionsProps) {
       />
     </>
   );
-  const panelActions = (
-    <>
-      {props.showLogout ? (
-        <UtilityButton
-          icon={LogOut}
-          label={props.labels.logout}
-          onClick={props.onLogout}
-        />
-      ) : null}
-      {props.showPanelToggle ? (
-        <UtilityButton
-          icon={props.variant === "rail" ? PanelLeftOpen : PanelLeftClose}
-          label={
-            props.variant === "rail" ? props.labels.expand : props.labels.collapse
-          }
-          onClick={props.variant === "rail" ? props.onExpand : props.onCollapse}
-        />
-      ) : null}
-    </>
-  );
-
   if (props.variant === "rail") {
     return (
       <div className="shell-region-footer flex flex-col items-center gap-1.5 py-3">
-        {primaryActions}
-        {panelActions}
+        {actions}
       </div>
     );
   }
   return (
-    <div className="shell-region-footer relative -mr-1.5 flex items-center justify-between gap-2.5 px-3 py-3 max-lg:px-4 max-lg:py-4">
-      <div className="flex items-center gap-2.5">{primaryActions}</div>
-      <div className="min-w-0 flex-1" />
-      <div className="flex items-center gap-2.5">{panelActions}</div>
+    <div className="shell-region-footer relative -mr-1.5 flex items-center gap-2.5 px-3 py-3 max-lg:px-4 max-lg:py-4">
+      {actions}
     </div>
   );
 }

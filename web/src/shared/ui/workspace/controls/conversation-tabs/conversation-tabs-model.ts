@@ -1,11 +1,10 @@
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
-// 中文注释：图标胶囊基础宽度为 40px，并保留与标签带之间的 6px 间距。
-const CREATE_CONVERSATION_BUTTON_SPACE = 46;
-// 中文注释：真实溢出时在同一胶囊内追加 36px 的会话概览分区。
+// 中文注释：创建入口固定占据统一托盘右端的 40px 分区。
+const CREATE_CONVERSATION_BUTTON_SPACE = 40;
+// 中文注释：真实溢出时，会话概览固定占据统一托盘左端的 36px 分区。
 const CONVERSATION_OVERVIEW_BUTTON_SPACE = 36;
 const CONVERSATION_TAB_GAP = 2;
-const TRACK_HORIZONTAL_PADDING = 4;
 
 export const ACTIVE_TAB_MIN_WIDTH = 156;
 export const CONVERSATION_TABS_VIEWPORT_INSET = 5;
@@ -418,7 +417,7 @@ function getAvailableConversationTabWidth({
 }): number {
   return Math.max(
     0,
-    trackWidth - TRACK_HORIZONTAL_PADDING - CONVERSATION_TABS_VIEWPORT_INSET * 2 - (
+    trackWidth - CONVERSATION_TABS_VIEWPORT_INSET * 2 - (
       hasCreateButton ? CREATE_CONVERSATION_BUTTON_SPACE : 0
     ) - (
       hasOverviewButton ? CONVERSATION_OVERVIEW_BUTTON_SPACE : 0

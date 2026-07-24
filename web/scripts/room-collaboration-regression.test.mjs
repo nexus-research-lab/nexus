@@ -66,8 +66,49 @@ test("会话纵览只按稳定宽度约束显示", async () => {
       orderedConversations: [{ conversation_id: "single" }],
       trackWidth: 400,
     }).get("single"),
-    340,
-    "单个标签也应扣除托盘两端留白，避免标题覆盖阴影圆角",
+    350,
+    "单个标签应扣除右端固定创建入口和中央留白，不再为独立动作胶囊预留间距",
+  );
+});
+
+test("会话标签暴露稳定的活动与非活动状态类", async () => {
+  const { resolveWorkspaceConversationTabPresentation } =
+    await server.ssrLoadModule(
+      "/src/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab-model.ts",
+    );
+  const active = resolveWorkspaceConversationTabPresentation({
+    canClose: true,
+    externalSessionLabel: null,
+    isActive: true,
+    title: "active",
+  });
+  const inactive = resolveWorkspaceConversationTabPresentation({
+    canClose: true,
+    externalSessionLabel: null,
+    isActive: false,
+    title: "inactive",
+  });
+
+  assert.match(
+    active.rootClassName,
+    /\bworkspace-surface-header-conversation-tab\b/,
+  );
+  assert.match(active.rootClassName, /\bworkspace-surface-header-active-tab\b/);
+  assert.doesNotMatch(
+    active.rootClassName,
+    /\bworkspace-surface-header-inactive-tab\b/,
+  );
+  assert.match(
+    inactive.rootClassName,
+    /\bworkspace-surface-header-conversation-tab\b/,
+  );
+  assert.match(
+    inactive.rootClassName,
+    /\bworkspace-surface-header-inactive-tab\b/,
+  );
+  assert.doesNotMatch(
+    inactive.rootClassName,
+    /\bworkspace-surface-header-active-tab\b/,
   );
 });
 

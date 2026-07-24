@@ -2,17 +2,17 @@
  * theme-background-pattern.ts
  *
  * 生成 SVG 平铺背景纹理，通过 CSS custom property 注入 body。
- * 统一使用等边三角形 isometric grid 骨架，仅通过色调/透明度区分主题：
- *   - light：暖白描边（embossed）—— 柔和、通透
+ * 深色主题使用等边三角形 isometric grid 骨架，浅色主题保持纯净画布：
+ *   - light：Claude 风格中性灰白底，不叠加纹理
  *   - dark ：深色描边（engraved）—— 深邃、精密
  *   - rain ：深色轻描边（etched）—— 内敛、沉静
  *
- * 统一几何骨架 + 纯色 alpha 变体，
- * 线条与背景保持低对比，"感觉得到但不抢内容"。
+ * 深色线条与背景保持低对比，"感觉得到但不抢内容"。
  */
 
 type BackgroundTheme = "light" | "dark" | "sunny" | "rain";
 type PatternVariant = "light" | "dark" | "rain";
+type TexturedPatternVariant = Exclude<PatternVariant, "light">;
 
 /* 等边三角形网格参数 — 边长 80px，tile 160 × 138.56 */
 const SIDE = 80;
@@ -45,11 +45,6 @@ function buildGridSvg(strokeColor: string, strokeWidth: number): string {
     `<path d='${d}' fill='none' stroke='${strokeColor}' stroke-width='${strokeWidth}'/>`,
     `</svg>`,
   ].join("");
-}
-
-/* Light — 暖白 embossed 描边，在浅暖灰底上保持轻微亮度差 */
-function buildLightSvg(): string {
-  return buildGridSvg("rgba(255,252,245,0.34)", 0.6);
 }
 
 /* Dark — 深色 engraved 描边，在 #131316 上形成微弱阴刻质感 */
@@ -88,16 +83,18 @@ const BACKGROUNDS: Record<PatternVariant, string> = {
   rain: "#39424d",
 };
 
-const BUILDERS: Record<PatternVariant, () => string> = {
-  light: buildLightSvg,
+const BUILDERS: Record<TexturedPatternVariant, () => string> = {
   dark: buildDarkSvg,
   rain: buildRainSvg,
 };
 
 // memoize encoded SVGs — they never change at runtime
-const cache = new Map<PatternVariant, string>();
+const cache = new Map<TexturedPatternVariant, string>();
 
 function buildPatternUrl(variant: PatternVariant): string {
+  if (variant === "light") {
+    return "none";
+  }
   let url = cache.get(variant);
   if (!url) {
     const svg = BUILDERS[variant]();

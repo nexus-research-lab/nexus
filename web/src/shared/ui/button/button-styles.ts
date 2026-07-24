@@ -18,7 +18,7 @@ interface UiIconButtonStyleOptions {
 }
 
 const BUTTON_BASE_CLASS_NAME =
-  "inline-flex items-center justify-center gap-1.5 border font-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]";
+  "inline-flex items-center justify-center gap-1.5 border font-semibold transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 
 const BUTTON_SIZE_CLASS_MAP: Record<UiButtonSize, string> = {
   xs: "min-h-7 radius-control-xs px-2 py-1 text-[11px]",
@@ -32,7 +32,7 @@ const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone
     default:
       "border-(--modal-btn-secondary-border) bg-(--modal-btn-secondary-background) text-(--text-default) hover:border-(--modal-btn-secondary-hover-border) hover:bg-(--modal-btn-secondary-hover-background) hover:text-(--text-strong)",
     primary:
-      "border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-btn-secondary-border))] bg-[color:color-mix(in_srgb,var(--primary)_8%,var(--modal-btn-secondary-background))] text-(--primary) hover:border-[color:color-mix(in_srgb,var(--primary)_34%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--primary)_12%,var(--modal-btn-secondary-hover-background))]",
+      "border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--modal-btn-secondary-border))] bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--modal-btn-secondary-background))] text-(--brand-action) hover:border-[color:color-mix(in_srgb,var(--brand-action)_34%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--brand)_12%,var(--modal-btn-secondary-hover-background))]",
     danger:
       "border-[color:color-mix(in_srgb,var(--destructive)_18%,var(--modal-btn-secondary-border))] bg-(--modal-btn-secondary-background) text-(--destructive) hover:border-[color:color-mix(in_srgb,var(--destructive)_28%,var(--modal-btn-secondary-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_9%,var(--modal-btn-secondary-hover-background))]",
   },
@@ -48,7 +48,7 @@ const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone
     default:
       "border-transparent bg-transparent text-(--text-default) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     primary:
-      "border-transparent bg-transparent text-(--primary) hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--surface-interactive-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--primary)_8%,var(--surface-interactive-hover-background))]",
+      "border-transparent bg-transparent text-(--brand-action) hover:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
     danger:
       "border-transparent bg-transparent text-(--destructive) hover:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
   },
@@ -56,14 +56,14 @@ const BUTTON_VARIANT_TONE_CLASS_MAP: Record<UiButtonVariant, Record<UiButtonTone
     default:
       "border-transparent bg-transparent text-(--text-muted) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     primary:
-      "border-transparent bg-transparent text-(--primary) hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--surface-interactive-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--primary)_8%,var(--surface-interactive-hover-background))]",
+      "border-transparent bg-transparent text-(--brand-action) hover:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
     danger:
       "border-transparent bg-transparent text-(--destructive) hover:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
   },
 };
 
 const ICON_BUTTON_BASE_CLASS_NAME =
-  "inline-flex items-center justify-center border transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]";
+  "inline-flex items-center justify-center border transition-[background,border-color,color,box-shadow] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 
 const ICON_BUTTON_SIZE_CLASS_MAP: Record<UiIconButtonSize, string> = {
   xs: "h-6 w-6 radius-control-xs",
@@ -79,7 +79,7 @@ const ICON_BUTTON_VARIANT_TONE_CLASS_MAP: Record<Exclude<UiButtonVariant, "text"
     default:
       "border-transparent bg-transparent text-(--icon-default) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
     primary:
-      "border-transparent bg-transparent text-(--primary) hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--surface-interactive-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--primary)_8%,var(--surface-interactive-hover-background))]",
+      "border-transparent bg-transparent text-(--brand-action) hover:border-[color:color-mix(in_srgb,var(--brand-action)_24%,var(--surface-interactive-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--brand)_8%,var(--surface-interactive-hover-background))]",
     danger:
       "border-transparent bg-transparent text-(--destructive) hover:border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--surface-interactive-hover-border))] hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,var(--surface-interactive-hover-background))]",
   },

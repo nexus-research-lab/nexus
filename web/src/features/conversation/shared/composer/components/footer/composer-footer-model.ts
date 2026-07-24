@@ -85,7 +85,7 @@ export function projectComposerFooterStatus({
       : null,
     isGoalCreating
       ? {
-        className: "text-(--primary)",
+        className: "text-(--brand-action)",
         frames: PREPARING_FRAMES,
         hint: null,
         message: copy.goalCreating,
@@ -124,7 +124,7 @@ function buildActiveStatus(
   hint: string | null,
 ): ComposerFooterStatusProjection {
   return {
-    className: "text-(--success)",
+    className: "text-(--brand-action)",
     frames: ACTIVE_FRAMES,
     hint,
     message,

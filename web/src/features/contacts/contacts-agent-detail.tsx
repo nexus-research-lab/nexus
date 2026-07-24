@@ -163,6 +163,7 @@ export function ContactsAgentDetail({
             size="sm"
           />
         }
+        leadingClassName="h-10 w-10"
         onChangeTab={setActiveTab}
         tabs={configTabs}
         title={agent.name}

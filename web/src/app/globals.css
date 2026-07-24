@@ -8,7 +8,6 @@
  */
 
 /* 中文注释：全局入口只负责组装样式层次，不承载具体视觉细节。 */
-@import url("https://fontsapi.zeoseven.com/309/main/result.css");
 @import "./styles/brand-fonts.css";
 
 @import "tailwindcss";

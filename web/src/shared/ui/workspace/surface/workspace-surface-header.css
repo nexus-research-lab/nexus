@@ -5,10 +5,13 @@
   --workspace-header-control-gap: 2px;
   --workspace-header-control-height: 36px;
   --workspace-header-control-shadow: var(--surface-control-shadow);
-  --workspace-header-view-tab-radius: 999px;
-  --workspace-session-tab-radius: 10px;
+  --workspace-header-tool-cluster-radius: 12px;
+  --workspace-header-view-tab-radius: 8px;
+  --workspace-session-tab-radius: 8px;
+  --workspace-session-tray-radius: 10px;
   container-name: workspace-surface-header;
   container-type: inline-size;
+  box-shadow: none;
 }
 
 .workspace-surface-header-inner {
@@ -30,7 +33,7 @@
   overflow: visible;
   padding: 2px;
   border: 1px solid var(--workspace-header-control-border);
-  border-radius: 999px;
+  border-radius: var(--workspace-header-tool-cluster-radius);
   background: var(--workspace-header-control-background);
   box-shadow: var(--workspace-header-control-shadow);
 }
@@ -210,33 +213,91 @@
 }
 
 .workspace-surface-header-session-tabs-track {
+  border: 1px solid color-mix(
+    in srgb,
+    var(--divider-strong-color) 82%,
+    var(--divider-subtle-color) 18%
+  );
+  border-radius: var(--workspace-session-tray-radius);
+  background: color-mix(
+    in srgb,
+    var(--surface-shell-navigation-background) 58%,
+    var(--surface-control-background) 42%
+  );
+  box-shadow: none;
   overflow: visible !important;
 }
 
 .workspace-surface-header-session-tabs-viewport-shell {
-  border-radius: var(--workspace-session-tab-radius);
+  border-radius: 0;
   background: transparent;
 }
 
-.workspace-surface-header-session-tabs-viewport-shell::before {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  border: 1px solid color-mix(
+.workspace-surface-header-session-tabs-edge-action {
+  background: transparent;
+  box-shadow: none;
+}
+
+.workspace-surface-header-session-tabs-edge-action:hover {
+  background: var(--surface-interactive-hover-background);
+}
+
+.workspace-surface-header-session-tabs-overview {
+  border-right: 1px solid var(--divider-subtle-color);
+}
+
+.workspace-surface-header-session-tabs-create {
+  border-left: 1px solid var(--divider-subtle-color);
+}
+
+.workspace-surface-header-session-tabs-viewport
+  .workspace-surface-header-active-tab {
+  border-color: color-mix(
     in srgb,
-    var(--divider-subtle-color) 44%,
-    transparent
+    var(--divider-strong-color) 82%,
+    var(--divider-subtle-color) 18%
   );
+  background: var(--surface-paper-background);
+  box-shadow: none;
+}
+
+.workspace-surface-header-session-tabs-viewport
+  .workspace-surface-header-active-tab:hover {
+  background: var(--surface-paper-background);
+}
+
+.workspace-surface-header-session-tabs-viewport
+  .workspace-surface-header-inactive-tab
+  + .workspace-surface-header-inactive-tab::before {
+  position: absolute;
+  top: 50%;
+  left: -1px;
+  width: 1px;
+  height: 16px;
+  pointer-events: none;
+  border-radius: 999px;
   background: color-mix(
     in srgb,
-    var(--surface-shell-header-background) 22%,
+    var(--divider-strong-color) 84%,
     transparent
   );
-  filter: drop-shadow(
-    0 5px 7px color-mix(in srgb, var(--text-strong) 6%, transparent)
-  );
   content: "";
+  opacity: 1;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+
+.workspace-surface-header-session-tabs-viewport
+  .workspace-surface-header-inactive-tab:hover::before,
+.workspace-surface-header-session-tabs-viewport
+  .workspace-surface-header-inactive-tab:focus-within::before,
+.workspace-surface-header-session-tabs-viewport
+  .workspace-surface-header-inactive-tab:hover
+  + .workspace-surface-header-inactive-tab::before,
+.workspace-surface-header-session-tabs-viewport
+  .workspace-surface-header-inactive-tab:focus-within
+  + .workspace-surface-header-inactive-tab::before {
+  opacity: 0;
 }
 
 .workspace-surface-header-session-tabs-viewport {
@@ -362,11 +423,6 @@
     display: none;
   }
 
-  .workspace-surface-header-session-tabs-actions > button:last-child {
-    width: 4.625rem;
-    min-width: 4.625rem;
-    padding-inline: 0.5rem;
-  }
 }
 
 @container workspace-surface-header (max-width: 700px) {
@@ -389,12 +445,6 @@
 @container workspace-surface-header (max-width: 560px) {
   .workspace-surface-header-inner {
     padding-inline: 0.625rem;
-  }
-
-  .workspace-surface-header-session-tabs-actions > button:last-child {
-    width: 3.5rem;
-    min-width: 3.5rem;
-    padding-inline: 0.375rem;
   }
 
   .workspace-conversation-create-label-full {

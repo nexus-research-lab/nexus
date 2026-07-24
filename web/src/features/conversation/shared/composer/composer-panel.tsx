@@ -17,6 +17,7 @@ import {
   type ComposerPanelProps,
 } from "./composer-model";
 import {
+  COMPOSER_COMPACT_LANE_CLASS_NAME,
   COMPOSER_SHELL_CLASS_NAME,
 } from "./composer-styles";
 import { useComposerController } from "./controller/use-composer-controller";
@@ -32,7 +33,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
       className={cn(
         "bg-transparent",
         props.compact
-          ? "mx-auto w-full max-w-[720px] px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+          ? `${COMPOSER_COMPACT_LANE_CLASS_NAME} px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2`
           : `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 pb-4 pt-2 sm:px-5 xl:px-6`,
       )}
     >

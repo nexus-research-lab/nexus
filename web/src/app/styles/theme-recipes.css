@@ -26,9 +26,21 @@
     position: relative;
     z-index: 10;
     isolation: isolate;
-    /* 中文注释：目录层保留环境纹理，通过暖色薄材质和宽阴影与主画布交接。 */
+    /* 中文注释：目录层使用主题底色建立层级；外缘线由置顶伪元素一次绘制，避免 Header/Footer 覆盖父级 shadow 后产生断线。 */
     background: var(--surface-shell-directory-background);
     box-shadow: var(--surface-shell-edge-shadow);
+  }
+
+  .desktop-rail[data-shell-split-edge="true"]::after {
+    position: absolute;
+    z-index: 20;
+    top: calc(-1 * var(--desktop-window-top-inset, 0px));
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    pointer-events: none;
+    background: var(--surface-shell-edge-divider);
+    content: "";
   }
 
   .shell-navigation-rail {
@@ -411,6 +423,36 @@
     background: color-mix(in srgb, var(--input-shell-focus-background, var(--material-input-focus-background)) 62%, transparent);
     border-color: color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 96%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 32%, transparent);
+  }
+
+  /* 中文注释：对话 Composer 使用独立的聚焦面，避免把更大的圆角和纵向节奏扩散到搜索框与表单输入。 */
+  .input-shell.nexus-chat-composer-shell {
+    border-radius: 20px;
+    border-color: color-mix(in srgb, var(--input-shell-border) 88%, transparent);
+    background: var(--input-shell-background);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.035);
+  }
+
+  .input-shell.nexus-chat-composer-shell:hover {
+    border-color: color-mix(in srgb, var(--surface-interactive-hover-border) 82%, var(--input-shell-border));
+    background: var(--input-shell-background);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.035);
+  }
+
+  .input-shell.nexus-chat-composer-shell:focus-within {
+    border-color: color-mix(
+      in srgb,
+      var(--input-shell-focus-border, var(--material-input-focus-border)) 72%,
+      var(--input-shell-border)
+    );
+    background: var(--input-shell-focus-background, var(--material-input-focus-background));
+    box-shadow:
+      0 4px 20px rgba(0, 0, 0, 0.035),
+      0 0 0 1px color-mix(
+        in srgb,
+        var(--input-shell-focus-border, var(--material-input-focus-border)) 18%,
+        transparent
+      );
   }
 
   .input-shell.ui-search-input-shell {
@@ -802,6 +844,12 @@
     container: nexus-chat-feed / inline-size;
   }
 
+  /* 中文注释：User 与 Assistant 共用正文首尾节奏，避免无气泡用户消息一端贴头像、一端又骤然收紧。 */
+  .nexus-chat-message-body-rhythm {
+    padding-top: 0.25rem;
+    padding-bottom: 0.5rem;
+  }
+
   /* 中文注释：左侧 DM / Room 摘要属于导航文字，统一使用侧栏界面字体，不继承正文的中文字体。 */
   .nexus-sidebar-conversation-summary,
   .nexus-sidebar-conversation-summary .message-cjk-text {
@@ -1013,8 +1061,14 @@
       line-height: 1rem;
     }
 
+    .nexus-chat-feed .nexus-chat-message-body-rhythm {
+      padding-top: 0.125rem;
+      padding-bottom: 0.375rem;
+    }
+
     .nexus-chat-feed .nexus-chat-user-content-shell {
-      padding: 0.5rem 0.625rem;
+      padding-right: 0.625rem;
+      padding-left: 0.625rem;
     }
 
     .nexus-chat-feed .nexus-chat-message-content,

@@ -22,7 +22,7 @@ export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
           className="flex min-h-[60px] w-full items-center gap-2.5 rounded-[8px] px-2 py-2 max-lg:min-h-[80px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-3"
           key={index}
         >
-          <span className="h-8 w-8 shrink-0 animate-pulse radius-control-sm bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)] max-lg:h-10 max-lg:w-10" />
+          <span className="h-10 w-10 shrink-0 animate-pulse radius-control-sm bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
           <span className="min-w-0 flex-1 space-y-2">
             <span className="block h-3.5 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
             <span className="block h-3 w-36 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
@@ -51,10 +51,9 @@ function ConversationRowLeading({
     return (
       <UiRoomAvatar
         avatar={item.avatar}
-        className="max-lg:h-10 max-lg:w-10 max-lg:rounded-[10px]"
         members={item.members}
         roomId={item.roomId}
-        size="sm"
+        size="md"
         title={item.title}
         isWorking={isWorking}
       />
@@ -63,10 +62,9 @@ function ConversationRowLeading({
   return (
     <UiAgentAvatar
       avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
-      className="max-lg:h-10 max-lg:w-10"
       isWorking={isWorking}
       name={item.members[0]?.name ?? item.title}
-      size="sm"
+      size="md"
     />
   );
 }
@@ -127,7 +125,7 @@ function ConversationRowStatus({
   return (
     <>
       {isWorking ? (
-        <UiBadge size="xs" tone="primary">
+        <UiBadge size="xs" tone="running">
           {workingLabel}
         </UiBadge>
       ) : null}
@@ -212,9 +210,8 @@ export function ContactRow({
       leading={(
         <UiAgentAvatar
           avatar={agent.avatar}
-          className="max-lg:h-10 max-lg:w-10"
           name={agent.name}
-          size="sm"
+          size="md"
         />
       )}
       onClick={onOpenDirectory}

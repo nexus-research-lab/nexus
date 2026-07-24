@@ -4,9 +4,7 @@ import type {
   ReactNode,
   RefObject,
 } from "react";
-import { Link } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CapabilitySidebarPanel } from "@/features/capability/sidebar/capability-sidebar-panel";
 import { ChatSidebarPanelContent } from "@/features/home/sidebar/chat-sidebar-panel";
 import { ContactsSidebarPanelContent } from "@/features/home/sidebar/contacts-sidebar-panel";
@@ -15,9 +13,13 @@ import { HOME_SIDEBAR_PADDING_CLASS } from "@/lib/layout/home-layout";
 import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
+import { SidebarBrandLink } from "./sidebar-brand-link";
 import { SidebarNexusButton } from "./sidebar-nexus-button";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";
-import { SidebarUtilityActions } from "./sidebar-utility-actions";
+import {
+  SidebarFooterActions,
+  SidebarHeaderActions,
+} from "./sidebar-utility-actions";
 import type {
   SidebarPrimaryTab,
   SidebarPrimaryTabItem,
@@ -31,17 +33,20 @@ interface SidebarExpandedPanelProps {
   nexus: {
     active: boolean;
     avatarSrc: string | null;
+    label: string;
     onClick: () => void;
-    prefersReducedMotion: boolean;
   };
   onPointerDown: PointerEventHandler<HTMLDivElement>;
   onPointerLeave: PointerEventHandler<HTMLDivElement>;
   onPointerMove: PointerEventHandler<HTMLDivElement>;
   onPointerUp: PointerEventHandler<HTMLDivElement>;
   onSelectTab: (tab: SidebarPrimaryTab) => void;
+  resizable: boolean;
   resizeHotzoneActive: boolean;
   rootRef: RefObject<HTMLDivElement | null>;
+  selectedPrimaryTab: SidebarPrimaryTab | null;
   settingsNavigation?: ReactNode;
+  showSplitEdge: boolean;
   tabs: SidebarPrimaryTabItem[];
   utility: {
     guideOpen: boolean;
@@ -74,9 +79,12 @@ export function SidebarExpandedPanel({
   onPointerMove,
   onPointerUp,
   onSelectTab,
+  resizable,
   resizeHotzoneActive,
   rootRef,
+  selectedPrimaryTab,
   settingsNavigation,
+  showSplitEdge,
   tabs,
   utility,
   width,
@@ -87,56 +95,25 @@ export function SidebarExpandedPanel({
       className={cn(
         "desktop-rail relative flex h-full shrink-0 flex-col",
         HOME_SIDEBAR_PADDING_CLASS,
-        resizeHotzoneActive && "cursor-col-resize",
+        resizable && resizeHotzoneActive && "cursor-col-resize",
       )}
-      onPointerDown={onPointerDown}
-      onPointerLeave={onPointerLeave}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      ref={rootRef}
+      onPointerDown={resizable ? onPointerDown : undefined}
+      onPointerLeave={resizable ? onPointerLeave : undefined}
+      onPointerMove={resizable ? onPointerMove : undefined}
+      onPointerUp={resizable ? onPointerUp : undefined}
+      ref={resizable ? rootRef : undefined}
+      data-shell-split-edge={showSplitEdge ? "true" : undefined}
       style={{ width }}
     >
       <div
         className={cn(
-          "shell-region-header -mr-1.5 grid grid-cols-[46px_minmax(0,1fr)] items-center gap-1.5 px-3",
+          "shell-region-header -mr-1.5 flex items-center gap-2 pl-3 pr-[18px]",
           WORKSPACE_HEADER_HEIGHT_CLASS,
           "max-lg:px-4",
         )}
       >
-        <SidebarNexusButton {...nexus} variant="panel" />
-        <Link
-          className="block min-w-0"
-          data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
-          title={launcherLabel}
-          to={AppRouteBuilders.launcher()}
-        >
-          <p
-            className="relative isolate whitespace-nowrap px-4 text-[22px] uppercase leading-none tracking-[0.42em]"
-            style={{
-              fontFamily: '"Panchang", var(--font-sans)',
-              fontWeight: 420,
-            }}
-          >
-            <span
-              aria-hidden="true"
-              className="absolute inset-x-4 top-0 translate-y-[1.5px] text-[color:color-mix(in_srgb,var(--text-strong)_38%,transparent)] opacity-60 blur-[0.2px]"
-            >
-              NEXUS
-            </span>
-            <span
-              className="relative bg-clip-text text-transparent"
-              style={{
-                backgroundImage:
-                  "linear-gradient(180deg, color-mix(in srgb, var(--text-strong) 94%, white 6%) 4%, var(--text-default) 48%, color-mix(in srgb, var(--text-muted) 72%, var(--text-strong) 28%) 100%)",
-                filter:
-                  "drop-shadow(0 1px 0 color-mix(in srgb, white 38%, transparent)) drop-shadow(0 4px 6px color-mix(in srgb, var(--text-strong) 12%, transparent))",
-                WebkitBackgroundClip: "text",
-              }}
-            >
-              NEXUS
-            </span>
-          </p>
-        </Link>
+        <SidebarBrandLink label={launcherLabel} variant="panel" />
+        <SidebarHeaderActions {...utility} variant="panel" />
       </div>
       {settingsNavigation ? (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -144,17 +121,21 @@ export function SidebarExpandedPanel({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1">
-          <nav className="shell-navigation-rail flex w-[60px] shrink-0 flex-col">
+          <nav
+            aria-label={nexus.label}
+            className="shell-navigation-rail flex w-[60px] shrink-0 flex-col"
+          >
             <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
               <SidebarPrimaryTabs
-                activeTab={activeTab}
+                activeTab={selectedPrimaryTab}
                 items={tabs}
+                leading={<SidebarNexusButton {...nexus} variant="dock" />}
                 onSelect={onSelectTab}
                 variant="dock"
               />
             </div>
             {dockUtilities ? (
-              <SidebarUtilityActions {...utility} variant="rail" />
+              <SidebarFooterActions {...utility} variant="rail" />
             ) : null}
           </nav>
           <div className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-2.5">
@@ -163,7 +144,7 @@ export function SidebarExpandedPanel({
         </div>
       )}
       {dockUtilities ? null : (
-        <SidebarUtilityActions {...utility} variant="panel" />
+        <SidebarFooterActions {...utility} variant="panel" />
       )}
     </div>
   );

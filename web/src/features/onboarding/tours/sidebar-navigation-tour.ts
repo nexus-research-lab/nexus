@@ -35,17 +35,17 @@ export function buildSidebarNavigationTour(
         ],
       },
       {
-        id: "nexus-agent",
-        title: t("sidebar.tour_nexus_agent_title"),
-        description: t("sidebar.tour_nexus_agent_description"),
-        target: SIDEBAR_TOUR_ANCHORS.nexus_agent,
-        placement: "right",
-      },
-      {
         id: "launcher",
         title: t("sidebar.tour_launcher_title"),
         description: t("sidebar.tour_launcher_description"),
         target: SIDEBAR_TOUR_ANCHORS.launcher,
+        placement: "right",
+      },
+      {
+        id: "nexus-agent",
+        title: t("sidebar.tour_nexus_agent_title"),
+        description: t("sidebar.tour_nexus_agent_description"),
+        target: SIDEBAR_TOUR_ANCHORS.nexus_agent,
         placement: "right",
       },
       {

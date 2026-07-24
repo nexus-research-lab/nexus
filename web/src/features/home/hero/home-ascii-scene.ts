@@ -75,10 +75,17 @@ export function createHomeAsciiScene(
   if (!context) {
     return null;
   }
-  const styles = getComputedStyle(document.documentElement);
+  const styles = getComputedStyle(section);
+  const rootStyles = getComputedStyle(document.documentElement);
   return new HomeAsciiScene(section, canvas, context, {
-    clockInk: styles.getPropertyValue("--text-strong").trim() || DEFAULT_CLOCK_INK,
-    heroInk: styles.getPropertyValue("--primary").trim() || DEFAULT_HERO_INK,
+    clockInk:
+      styles.getPropertyValue("--home-ascii-clock-ink").trim() ||
+      rootStyles.getPropertyValue("--text-strong").trim() ||
+      DEFAULT_CLOCK_INK,
+    heroInk:
+      styles.getPropertyValue("--home-ascii-hero-ink").trim() ||
+      rootStyles.getPropertyValue("--primary").trim() ||
+      DEFAULT_HERO_INK,
   });
 }
 

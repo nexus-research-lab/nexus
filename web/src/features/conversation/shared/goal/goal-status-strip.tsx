@@ -110,10 +110,9 @@ export function GoalStatusStrip({
 
   return (
     <div
-      className={cn(
-        GOAL_PANEL_STRIP_CLASS_NAME,
-        compact && GOAL_PANEL_COMPACT_CLASS_NAME,
-      )}
+      className={
+        compact ? GOAL_PANEL_COMPACT_CLASS_NAME : GOAL_PANEL_STRIP_CLASS_NAME
+      }
     >
       <div className={GOAL_PANEL_SURFACE_CLASS_NAME}>
         <div className={GOAL_PANEL_ROW_CLASS_NAME}>
@@ -171,7 +170,10 @@ function GoalStatusSummary({
         <GoalExecutionState model={model} />
         {statusExtra}
       </div>
-      <div className="mt-0.5 line-clamp-1 text-[12px] font-medium leading-5 text-(--text-strong)">
+      <div
+        className="mt-0.5 line-clamp-1 text-[12px] font-medium leading-5 text-(--text-strong)"
+        title={objective}
+      >
         {objective}
       </div>
     </div>

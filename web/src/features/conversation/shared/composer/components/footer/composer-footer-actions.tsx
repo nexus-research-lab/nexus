@@ -84,7 +84,7 @@ export function ComposerFooterActions({
         aria-expanded={isActionMenuOpen}
         aria-haspopup="menu"
         aria-label={t("composer.open_actions")}
-        className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
         onClick={onActionMenuToggle}
         type="button"
       >
@@ -142,9 +142,17 @@ function buildActionItems({
       item: {
         active: isGoalMode,
         disabled: !canCreateGoal || isGoalCreating,
-        icon: <Target className="h-4 w-4 text-(--primary)" />,
+        icon: (
+          <Target
+            className={
+              isGoalMode
+                ? "h-4 w-4 text-(--brand-action)"
+                : "h-4 w-4 text-(--icon-muted)"
+            }
+          />
+        ),
         label: labels.goal,
-        tone: "primary",
+        tone: isGoalMode ? "primary" : "default",
         trailing: goalSwitch,
         value: "goal",
       },

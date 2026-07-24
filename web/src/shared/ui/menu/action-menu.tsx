@@ -74,20 +74,20 @@ function getItemStateClassName(item: UiActionMenuItem) {
     return "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]";
   }
   if (item.active && item.tone === "primary") {
-    return "bg-(--surface-interactive-active-background) font-semibold text-(--primary) hover:bg-(--surface-interactive-hover-background)";
+    return "bg-[color:color-mix(in_srgb,var(--brand)_9%,var(--surface-interactive-active-background))] font-semibold text-(--brand-action) hover:bg-[color:color-mix(in_srgb,var(--brand)_12%,var(--surface-interactive-hover-background))]";
   }
   if (item.active) {
     return "bg-(--surface-interactive-active-background) font-semibold text-(--text-strong) hover:bg-(--surface-interactive-hover-background)";
   }
   if (item.tone === "primary") {
-    return "text-(--primary) hover:bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)]";
+    return "text-(--brand-action) hover:bg-[color:color-mix(in_srgb,var(--brand)_9%,transparent)]";
   }
   return "text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
 }
 
 function getItemBodyClassName(item: UiActionMenuItem) {
   return cn(
-    "flex w-full cursor-pointer items-center justify-between gap-3 radius-control-md px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
+    "flex w-full cursor-pointer items-center justify-between gap-3 radius-control-md px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
     item.description ? "min-h-11 py-2" : "min-h-9 py-1.5",
     item.disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
     getItemStateClassName(item),
@@ -96,7 +96,7 @@ function getItemBodyClassName(item: UiActionMenuItem) {
 
 function getItemLabelClassName(tone: UiActionMenuItem["tone"], active?: boolean) {
   if (tone === "primary") {
-    return "text-(--primary)";
+    return "text-(--brand-action)";
   }
   if (tone === "danger") {
     return "text-(--destructive)";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, type CSSProperties } from "react";
 
 import { getDesktopRuntimeConfig } from "@/config/desktop-runtime";
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
@@ -8,6 +8,21 @@ import { useTheme } from "@/shared/theme/theme-context";
 
 import { HOME_HERO_LABEL } from "./home-ascii-scene";
 import { useHomeAsciiScene } from "./use-home-ascii-scene";
+
+type HomeAsciiHeroStyle = CSSProperties & {
+  "--home-ascii-clock-ink"?: string;
+  "--home-ascii-hero-ink"?: string;
+  "--home-ascii-surface-background"?: string;
+  "--home-ascii-surface-border"?: string;
+};
+
+const PRESERVED_LIGHT_HERO_STYLE: HomeAsciiHeroStyle = {
+  "--home-ascii-clock-ink": "#14202c",
+  "--home-ascii-hero-ink": "#5b72ff",
+  "--home-ascii-surface-background":
+    "linear-gradient(180deg, rgba(251, 253, 255, 0.68), rgba(246, 249, 253, 0.6) 100%), #ebeae4",
+  "--home-ascii-surface-border": "rgba(255, 255, 255, 0.32)",
+};
 
 function shouldReduceHomeHeroMotion(prefersReducedMotion: boolean): boolean {
   if (!prefersReducedMotion) {
@@ -24,6 +39,10 @@ export function HomeAsciiHero() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const prefersReducedMotion = usePrefersReducedMotion();
   const shouldReduceMotion = shouldReduceHomeHeroMotion(prefersReducedMotion);
+  const preservedVisualStyle =
+    theme === "light" || theme === "sunny"
+      ? PRESERVED_LIGHT_HERO_STYLE
+      : undefined;
 
   useHomeAsciiScene({
     canvasRef,
@@ -37,14 +56,18 @@ export function HomeAsciiHero() {
       ref={sectionRef}
       className="surface-radius-md relative h-full w-full overflow-hidden border"
       style={{
-        background: "var(--surface-canvas-background)",
-        borderColor: "var(--surface-canvas-border)",
+        ...preservedVisualStyle,
+        background:
+          "var(--home-ascii-surface-background, var(--surface-canvas-background))",
+        borderColor:
+          "var(--home-ascii-surface-border, var(--surface-canvas-border))",
       }}
     >
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          background: "radial-gradient(ellipse 60% 50% at 50% 50%, color-mix(in srgb, var(--primary) 12%, transparent), transparent)",
+          background:
+            "radial-gradient(ellipse 60% 50% at 50% 50%, color-mix(in srgb, var(--home-ascii-hero-ink, var(--primary)) 12%, transparent), transparent)",
         }}
       />
 
@@ -53,7 +76,9 @@ export function HomeAsciiHero() {
       {shouldReduceMotion ? (
         <div
           className="absolute inset-0 flex items-center justify-center font-mono text-6xl font-light italic leading-none sm:text-7xl lg:text-8xl"
-          style={{ color: "var(--primary)" }}
+          style={{
+            color: "var(--home-ascii-hero-ink, var(--primary))",
+          }}
         >
           {HOME_HERO_LABEL}
         </div>

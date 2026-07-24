@@ -37,7 +37,7 @@ export function ConversationTabsOverview({
         aria-haspopup="menu"
         aria-label={t("room.switch_conversation")}
         className={cn(
-          "inline-flex h-full w-9 shrink-0 items-center justify-center bg-transparent text-(--icon-default) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)]",
+          "workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-overview inline-flex h-full w-9 shrink-0 items-center justify-center rounded-l-[var(--workspace-session-tray-radius)] bg-transparent text-(--icon-default) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)]",
           isOpen && "text-(--text-strong)",
         )}
         onClick={() => setIsOpen((current) => !current)}

@@ -11,49 +11,49 @@
 @property --background {
   syntax: "<color>";
   inherits: true;
-  initial-value: #e8e6e3;
+  initial-value: #f9f9f7;
 }
 
 @property --foreground {
   syntax: "<color>";
   inherits: true;
-  initial-value: #1a1f28;
+  initial-value: #131313;
 }
 
 @property --primary {
   syntax: "<color>";
   inherits: true;
-  initial-value: #6c63ef;
+  initial-value: #0b0b0b;
 }
 
 @property --secondary {
   syntax: "<color>";
   inherits: true;
-  initial-value: #eae8e5;
+  initial-value: #f0efec;
 }
 
 @property --accent {
   syntax: "<color>";
   inherits: true;
-  initial-value: #c49a6c;
+  initial-value: #0073e6;
 }
 
 @property --muted {
   syntax: "<color>";
   inherits: true;
-  initial-value: #e5e3e0;
+  initial-value: #e7e6e1;
 }
 
 @property --border {
   syntax: "<color>";
   inherits: true;
-  initial-value: rgba(155, 158, 166, 0.26);
+  initial-value: rgba(11, 11, 11, 0.1);
 }
 
 @property --input {
   syntax: "<color>";
   inherits: true;
-  initial-value: rgba(253, 252, 250, 0.98);
+  initial-value: #ffffff;
 }
 
 /* 中文注释：这里只放元素基线和浏览器层的默认行为，不承载组件视觉。 */
@@ -109,20 +109,14 @@
     font: inherit;
   }
 
-  /* 中文注释：聊天正文让英文使用比例字体，中文片段再单独回到京华老宋体；等宽字体只留给代码。 */
+  /* 中文注释：聊天正文统一使用系统比例字体，保持中英混排一致；等宽字体只留给代码。 */
   .message-cjk-font {
     font-family: var(--font-sans);
     font-synthesis: style;
   }
 
   .message-cjk-text {
-    font-family:
-      "KingHwaOldSong",
-      "PingFang SC",
-      "Hiragino Sans GB",
-      "Source Han Serif SC",
-      "Songti SC",
-      serif;
+    font-family: var(--font-sans);
     font-synthesis: style;
   }
 
@@ -133,12 +127,10 @@
 
   .message-cjk-code-font {
     font-family:
-      "KingHwaOldSong",
       var(--font-mono),
       "PingFang SC",
       "Hiragino Sans GB",
-      "Source Han Serif SC",
-      "Songti SC",
+      "Microsoft YaHei",
       monospace;
   }
 

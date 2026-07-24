@@ -49,7 +49,6 @@ export function IdentityAvatarPicker({
               "transition-[border-color,box-shadow,transform] duration-(--motion-duration-fast) group-hover:border-[color:color-mix(in_srgb,var(--primary)_35%,var(--surface-avatar-border))] group-hover:shadow-[0_8px_20px_color-mix(in_srgb,var(--shadow-color)_12%,transparent)]",
             )}
             name={name || avatarAlt}
-            shape="rounded"
             size="xl"
           />
           <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-2.5 text-[11.5px] font-semibold text-(--primary) transition-[background,border-color] group-hover:border-[color:color-mix(in_srgb,var(--primary)_32%,var(--divider-subtle-color))] group-hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)]">

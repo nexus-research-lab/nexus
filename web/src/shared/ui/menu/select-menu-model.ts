@@ -68,7 +68,7 @@ const SELECT_MENU_LABEL_LAYOUT_CONFIG = {
     minimumOptionHeight: 0,
     optionButtonLayoutClassName: "items-center",
     optionLabelClassName: "truncate",
-    triggerLabelClassName: "truncate",
+    triggerLabelClassName: "truncate leading-normal",
   },
   wrap: {
     minimumOptionHeight: 46,

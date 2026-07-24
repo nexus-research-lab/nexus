@@ -12,7 +12,6 @@ import {
 } from "@/config/runtime-options";
 import { useChatCompletionNotifications } from "@/features/home/notifications/use-chat-completion-notifications";
 import { useGuideCenterController } from "@/features/onboarding/guide-center/use-guide-center-controller";
-import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { getIconAvatarSrc } from "@/lib/avatar";
 import { useAuth } from "@/shared/auth/auth-context";
@@ -40,7 +39,7 @@ export function useSidebarWidePanelController({
   navigationOnly?: boolean;
 } = {}) {
   const { t } = useI18n();
-  const { logout } = useAuth();
+  const { logout, status: authStatus } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const agents = useAgentStore((state) => state.agents);
@@ -53,14 +52,22 @@ export function useSidebarWidePanelController({
   );
   const setWidePanelWidth = useSidebarStore((state) => state.set_wide_panel_width);
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
+  const widePanelCollapseSource = useSidebarStore(
+    (state) => state.wide_panel_collapse_source,
+  );
   const widePanelWidth = useSidebarStore((state) => state.wide_panel_width);
   const activeTab = deriveSidebarPrimaryTab(pathname);
   const defaultAgentId = getDefaultAgentId();
   const desktopRuntime = isDesktopRuntime();
   const settingsMode = pathname === AppRouteBuilders.settings();
-  const prefersReducedMotion = usePrefersReducedMotion();
   const nexusAgent = agents.find((agent) => isMainAgent(agent.agent_id)) ?? null;
   const nexusAvatar = nexusAgent?.avatar?.trim() || getDefaultAgentAvatar();
+  const nexusActive = isNexusSidebarItemActive(
+    activePanelItemId,
+    nexusRoomId,
+    SIDEBAR_SYSTEM_ITEM_IDS.nexus,
+  );
+  const selectedPrimaryTab = nexusActive ? null : activeTab;
 
   useChatCompletionNotifications();
   const guideCenter = useGuideCenterController({
@@ -100,7 +107,7 @@ export function useSidebarWidePanelController({
           : AppRouteBuilders.skills());
       },
       chat: () => {
-        if (!pathname.startsWith("/rooms/")) {
+        if (selectedPrimaryTab !== "chat") {
           navigate(AppRouteBuilders.home());
         }
       },
@@ -110,15 +117,16 @@ export function useSidebarWidePanelController({
       },
     };
     actions[tab]();
-  }, [navigate, navigationOnly, pathname, setActivePanelItem]);
+  }, [navigate, navigationOnly, selectedPrimaryTab, setActivePanelItem]);
 
   const tabs = useMemo(
-    () => buildSidebarPrimaryTabs(t, activeTab, chatBadgeCount),
-    [activeTab, chatBadgeCount, t],
+    () => buildSidebarPrimaryTabs(t, selectedPrimaryTab, chatBadgeCount),
+    [chatBadgeCount, selectedPrimaryTab, t],
   );
   const utilityLabels = useMemo(() => buildSidebarUtilityLabels(t), [t]);
 
   return {
+    collapseSource: widePanelCollapseSource,
     collapsed: widePanelCollapsed,
     expanded: {
       launcherLabel: t("sidebar.back_to_launcher"),
@@ -134,15 +142,12 @@ export function useSidebarWidePanelController({
     settingsMode,
     shared: {
       activeTab,
+      selectedPrimaryTab,
       nexus: {
-        active: isNexusSidebarItemActive(
-          activePanelItemId,
-          nexusRoomId,
-          SIDEBAR_SYSTEM_ITEM_IDS.nexus,
-        ),
+        active: nexusActive,
         avatarSrc: getIconAvatarSrc(nexusAvatar),
+        label: t("sidebar.workspace_title"),
         onClick: openNexus,
-        prefersReducedMotion,
       },
       onSelectTab: selectPrimaryTab,
       tabs,
@@ -154,7 +159,11 @@ export function useSidebarWidePanelController({
         onLogout: () => void logout(),
         onOpenGuide: guideCenter.openGuideCenter,
         settingsActive: pathname.startsWith(AppRouteBuilders.settings()),
-        showLogout: !desktopRuntime,
+        showLogout:
+          !desktopRuntime
+          && authStatus?.auth_required === true
+          && authStatus.password_login_enabled
+          && authStatus.authenticated,
         showPanelToggle: !navigationOnly,
         showSettings: !settingsMode,
       },

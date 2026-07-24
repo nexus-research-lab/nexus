@@ -21,7 +21,7 @@ interface WorkspaceConversationTabsProps {
 }
 
 const TRACK_CLASS_NAME =
-  "workspace-surface-header-session-tabs-track flex h-10 w-full min-w-0 items-center gap-1.5 overflow-hidden px-0.5";
+  "workspace-surface-header-session-tabs-track relative flex h-10 w-full min-w-0 items-center";
 
 export function WorkspaceConversationTabs({
   conversations,
@@ -47,6 +47,14 @@ export function WorkspaceConversationTabs({
       data-tour-anchor={tourAnchor}
       ref={controller.trackRef}
     >
+      {controller.hasTabsOverflow ? (
+        <ConversationTabsOverview
+          activeConversationId={controller.activeConversationId}
+          conversations={controller.recentConversations}
+          onSelectConversation={controller.selectConversation}
+        />
+      ) : null}
+
       <div className="workspace-surface-header-session-tabs-viewport-shell relative min-w-0 flex-1 self-stretch">
         <div
           className={cn(
@@ -90,37 +98,23 @@ export function WorkspaceConversationTabs({
         ) : null}
       </div>
 
-      <div className="workspace-surface-header-session-tabs-actions flex shrink-0 items-center">
-        {controller.hasTabsOverflow || onCreateConversation ? (
-          <div className="workspace-surface-header-control-shell inline-flex h-10 shrink-0 items-stretch overflow-hidden rounded-full border transition-[background-color,border-color,box-shadow] duration-(--motion-duration-fast)">
-            {controller.hasTabsOverflow ? (
-              <ConversationTabsOverview
-                activeConversationId={controller.activeConversationId}
-                conversations={controller.recentConversations}
-                onSelectConversation={controller.selectConversation}
-              />
-            ) : null}
-
-            {onCreateConversation ? (
-              <button
-                aria-label={t("room.new_conversation")}
-                className="relative inline-flex h-full w-10 shrink-0 items-center justify-center bg-transparent leading-none text-(--icon-default) transition-colors duration-(--motion-duration-fast) ease-out hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] disabled:opacity-60"
-                disabled={controller.isCreating}
-                onClick={() => {
-                  void controller.createConversation();
-                }}
-                title={t("room.new_conversation")}
-                type="button"
-              >
-                <Plus className={cn(
-                  "h-3.5 w-3.5 shrink-0",
-                  controller.isCreating && "animate-spin",
-                )} />
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      {onCreateConversation ? (
+        <button
+          aria-label={t("room.new_conversation")}
+          className="workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-create relative inline-flex h-full w-10 shrink-0 items-center justify-center rounded-r-[var(--workspace-session-tray-radius)] bg-transparent leading-none text-(--icon-default) transition-colors duration-(--motion-duration-fast) ease-out hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] disabled:opacity-60"
+          disabled={controller.isCreating}
+          onClick={() => {
+            void controller.createConversation();
+          }}
+          title={t("room.new_conversation")}
+          type="button"
+        >
+          <Plus className={cn(
+            "h-3.5 w-3.5 shrink-0",
+            controller.isCreating && "animate-spin",
+          )} />
+        </button>
+      ) : null}
     </nav>
   );
 }

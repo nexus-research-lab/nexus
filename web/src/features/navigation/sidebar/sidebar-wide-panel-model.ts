@@ -49,7 +49,7 @@ export function deriveSidebarPrimaryTab(pathname: string): SidebarPrimaryTab {
 
 export function buildSidebarPrimaryTabs(
   t: I18nContextValue["t"],
-  activeTab: SidebarPrimaryTab,
+  activeTab: SidebarPrimaryTab | null,
   chatBadgeCount: number,
 ): SidebarPrimaryTabItem[] {
   return PRIMARY_TAB_DEFINITIONS.map((definition) => ({

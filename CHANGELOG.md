@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved the Nexus Agent entry into the primary sidebar navigation, kept the top bar for the NEXUS wordmark and session controls, replaced the chat directory with a compact labeled Focus navigation inside the Nexus workspace, and aligned the Goal status strip with the narrower Composer lane.
+- Aligned User message header-to-body and message-tail spacing with Assistant replies across desktop and compact conversation layouts.
+- Reshaped the conversation Composer into a shorter, taller Claude-style focus surface with a 20px radius, a restrained 800px desktop lane, more vertical writing space, and an undivided action footer.
+- Recast the light and sunny application shell around a `#f9f9f7` neutral canvas, grayscale navigation and content surfaces with a single continuous sidebar edge hairline, Nexus-blue primary actions and active focus states, neutral secondary tools, semantic red/green/amber feedback, and Chrome-style Session tabs and header tools that use restrained 8–12px corners, fill, hairline contrast, and short separators instead of pill silhouettes or active-tab shadows, while preserving the Home ASCII scene's existing palette.
 - Replaced the application shell's full-height and full-width divider lines with theme-aware tonal navigation, directory, and workspace materials plus broad low-contrast edge shadows across light, dark, and rain backgrounds.
 - Moved persistent state under `.nexus/app` and `users/<owner>/`, added idempotent startup migration for legacy `.nexus` data, and injects the same owner-scoped runtime root into nxs and Claude Code.
 - Authenticated deployments now require archive upload for local Skill imports instead of accepting arbitrary host `local_path` values.

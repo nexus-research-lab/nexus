@@ -110,7 +110,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
             title={headerTitle}
           />
         )}
-        leadingClassName="radius-control-sm"
+        leadingClassName="h-10 w-10 rounded-[10px]"
         onChangeTab={onChangeTab}
         onDismissActiveTab={onCloseActiveTab}
         navigationTrailing={(

@@ -47,7 +47,7 @@ export function ComposerAttachmentList({
             className={COMPOSER_ATTACHMENT_CLASS_NAME}
             title={`${presentation.label}：${attachment.file.name}`}
           >
-            <AttachmentIcon size={16} className="text-accent" />
+            <AttachmentIcon size={16} className="text-(--icon-default)" />
             <span className="max-w-[120px] truncate text-xs text-foreground/70">
               {attachment.file.name}
             </span>

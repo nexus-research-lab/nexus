@@ -98,7 +98,7 @@ function getGlassSwitchPresentation({
     thumbHeight,
     thumbWidth,
     trackStyle: {
-      backgroundColor: checked ? "rgba(59,191,78,0.93333)" : "rgba(198,201,210,0.82)",
+      backgroundColor: checked ? "var(--brand-action)" : "rgba(198,201,210,0.82)",
       height: `${trackHeight}px`,
       width: `${trackWidth}px`,
     },
@@ -130,7 +130,7 @@ export function GlassSwitch({
       {...interaction.buttonHandlers}
       aria-checked={checked}
       className={cn(
-        "relative inline-flex shrink-0 items-center overflow-visible rounded-full transition-[background-color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(88,196,94,0.32)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+        "relative inline-flex shrink-0 items-center overflow-visible rounded-full transition-[background-color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
         disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
         className,
       )}

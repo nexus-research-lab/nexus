@@ -100,6 +100,7 @@ export function SelectMenuView({
               "min-w-0 font-semibold text-(--text-strong)",
               presentation.triggerLabelClassName,
             )}
+            title={presentation.activeLabel}
           >
             {presentation.activeLabel}
           </span>

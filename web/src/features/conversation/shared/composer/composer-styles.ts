@@ -31,7 +31,10 @@ export const COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME =
   getUiIconButtonClassName({ size: "lg", tone: "danger", variant: "surface" }, "shrink-0");
 
 export const COMPOSER_SHELL_CLASS_NAME =
-  "input-shell workbench-input-shell overflow-hidden rounded-[10px]";
+  "input-shell nexus-chat-composer-shell workbench-input-shell overflow-hidden rounded-[20px]";
+
+export const COMPOSER_COMPACT_LANE_CLASS_NAME =
+  "mx-auto w-full max-w-[720px]";
 
 export const COMPOSER_FOOTER_CLASS_NAME =
-  "flex items-center justify-between gap-3 border-t border-(--divider-subtle-color) px-2.5 py-1.5 text-(--text-soft)";
+  "flex items-center justify-between gap-3 px-3.5 py-2 text-(--text-soft)";

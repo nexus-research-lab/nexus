@@ -84,7 +84,7 @@ function SkillsHeaderCompactActions({
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("common.more_actions")}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
+        className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-(--icon-default) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
         data-tour-anchor={SKILLS_TOUR_ANCHORS.import_skill}
         onClick={() => setIsOpen((current) => !current)}
         title={t("common.more_actions")}

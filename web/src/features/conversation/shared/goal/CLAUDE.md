@@ -8,3 +8,4 @@
 - `goal-panel.tsx` 只组合状态条、编辑弹窗和单一确认弹窗，不直接调用 API。
 - `goal-model.ts` 统一 Goal 状态、预算、表单、控制器可见性、动作规则与外部活动版本的纯投影。
 - `goal-status-strip.tsx` 只渲染状态模型并把动作分发给控制器，不解释 Goal 运行规则。
+- 非紧凑 Goal 状态条必须复用 Composer lane；长目标保持单行截断并保留完整 DOM 文本与悬停标题，不能用更宽的消息阅读 lane 把运行控制条铺满画布。

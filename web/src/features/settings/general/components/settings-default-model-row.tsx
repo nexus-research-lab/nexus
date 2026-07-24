@@ -15,10 +15,11 @@ import {
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
-  SETTINGS_ROW_CLASS_NAME,
   SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
 } from "../../shared/settings-panel-ui";
+
+const SETTINGS_DEFAULT_MODEL_ROW_CLASS_NAME = "grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(300px,360px)] md:items-center";
 
 interface SettingsDefaultModelRowProps {
   disabled: boolean;
@@ -52,7 +53,7 @@ export function SettingsDefaultModelRow({
   const { t } = useI18n();
 
   return (
-    <div className={SETTINGS_ROW_CLASS_NAME}>
+    <div className={SETTINGS_DEFAULT_MODEL_ROW_CLASS_NAME}>
       <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
         <div className={SETTINGS_ICON_CLASS_NAME}>
           {icon}
@@ -81,7 +82,7 @@ export function SettingsDefaultModelRow({
             || options.length === 0
           }
           leading={savingRole === modelCategory ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-          menuClassName="min-w-[260px]"
+          menuMinWidth={360}
           onChange={(nextValue) => onChange(nextValue, modelCategory)}
           options={options}
           placeholder={providerOptionsLoading

@@ -18,21 +18,25 @@
   --nexus-page-pattern-dark: none;
   --nexus-page-pattern-rain: none;
   --background: var(--nexus-page-background-light);
-  --foreground: #17212c;
-  --primary: #5b72ff;
-  --primary-rgb: 91, 114, 255;
-  --primary-foreground: #f9fbff;
-  --secondary: #edf2f1;
-  --secondary-foreground: #1d2935;
+  --foreground: #131313;
+  --primary: #0b0b0b;
+  --primary-rgb: 11, 11, 11;
+  --primary-foreground: #ffffff;
+  --brand: #5b72ff;
+  --brand-action: #5266e6;
+  --brand-action-hover: #4859cf;
+  --brand-foreground: #ffffff;
+  --secondary: #f0efec;
+  --secondary-foreground: #20201f;
   --accent: #4fa29f;
   --accent-foreground: #f6fbfb;
-  --card: rgba(250, 252, 255, 0.74);
-  --card-foreground: #17212c;
-  --muted: #dbe2e1;
-  --muted-foreground: #677485;
-  --border: rgba(122, 135, 152, 0.24);
-  --input: rgba(252, 254, 255, 0.74);
-  --ring: rgba(91, 114, 255, 0.18);
+  --card: rgba(255, 255, 255, 0.72);
+  --card-foreground: #131313;
+  --muted: #e7e6e1;
+  --muted-foreground: #6d6b67;
+  --border: rgba(11, 11, 11, 0.10);
+  --input: #ffffff;
+  --ring: rgba(91, 114, 255, 0.24);
   --destructive: #df5d62;
   --destructive-foreground: #ffffff;
   --success: #2fb884;
@@ -45,109 +49,97 @@
   --motion-duration-fast: 160ms;
   --motion-duration-normal: 220ms;
   --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
-  --scrollbar-thumb: rgba(95, 108, 124, 0.22);
-  --scrollbar-thumb-hover: rgba(95, 108, 124, 0.34);
+  --scrollbar-thumb: rgba(11, 11, 11, 0.16);
+  --scrollbar-thumb-hover: rgba(11, 11, 11, 0.28);
   --ambient-page-pattern-size: var(--nexus-page-pattern-size);
   --ambient-page-pattern:
     var(--nexus-page-pattern-light);
-  --material-panel-border: rgba(255, 255, 255, 0.54);
+  --material-panel-border: rgba(11, 11, 11, 0.10);
   --material-panel-shadow:
-    0 18px 42px rgba(94, 108, 127, 0.12),
-    0 2px 10px rgba(94, 108, 127, 0.05);
-  --material-shell-navigation-background: rgba(205, 201, 190, 0.3);
-  --material-shell-directory-background: rgba(250, 247, 238, 0.22);
-  --material-shell-header-background: rgba(250, 247, 238, 0.18);
-  --material-shell-edge-shadow:
-    10px 0 30px rgba(76, 66, 49, 0.055);
-  --material-shell-inner-shadow:
-    7px 0 22px rgba(76, 66, 49, 0.035);
+    0 8px 24px rgba(11, 11, 11, 0.06),
+    0 2px 6px rgba(11, 11, 11, 0.04);
+  --material-shell-navigation-background: rgba(240, 239, 236, 0.92);
+  --material-shell-directory-background: rgba(246, 246, 244, 0.9);
+  --material-shell-header-background: rgba(249, 249, 247, 0.92);
+  --material-shell-edge-shadow: none;
+  --material-shell-inner-shadow: none;
+  --material-shell-edge-divider: #e5e5e2;
   --material-shell-header-shadow:
-    0 9px 26px rgba(76, 66, 49, 0.045);
+    0 1px 0 rgba(11, 11, 11, 0.055);
   --material-shell-footer-shadow:
-    0 -8px 24px rgba(76, 66, 49, 0.04);
+    0 -1px 0 rgba(11, 11, 11, 0.055);
 
-  --material-canvas-background:
-    linear-gradient(180deg, rgba(251, 253, 255, 0.68), rgba(246, 249, 253, 0.6) 100%);
-  --material-canvas-border: rgba(255, 255, 255, 0.32);
+  --material-canvas-background: rgba(252, 252, 251, 0.64);
+  --material-canvas-border: rgba(11, 11, 11, 0.06);
 
-  --material-chip-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(247, 250, 255, 0.46) 100%);
-  --material-chip-border: rgba(255, 255, 255, 0.34);
-  --material-chip-shadow:
-    0 6px 12px rgba(94, 108, 127, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  --material-chip-background: #f3f3f0;
+  --material-chip-border: rgba(11, 11, 11, 0.10);
+  --material-chip-shadow: none;
 
-  --material-popover-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(247, 250, 254, 0.9) 100%);
-  --material-popover-border: rgba(214, 224, 237, 0.82);
+  --material-popover-background: #ffffff;
+  --material-popover-border: rgba(11, 11, 11, 0.10);
   --material-popover-shadow:
-    0 26px 64px rgba(66, 82, 104, 0.18),
-    0 4px 18px rgba(66, 82, 104, 0.08);
+    0 8px 24px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.08);
 
-  --material-dialog-surface-border: rgba(199, 211, 225, 0.72);
+  --material-dialog-surface-border: rgba(11, 11, 11, 0.10);
   --material-dialog-surface-shadow:
-    0 22px 58px rgba(66, 82, 104, 0.16),
-    0 3px 12px rgba(66, 82, 104, 0.08);
-  --dialog-backdrop-color: rgba(23, 33, 44, 0.16);
+    0 16px 42px rgba(0, 0, 0, 0.14),
+    0 3px 10px rgba(0, 0, 0, 0.07);
+  --dialog-backdrop-color: rgba(11, 11, 11, 0.18);
 
-  --material-input-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(244, 247, 252, 0.88) 100%);
-  --material-input-border: rgba(214, 224, 237, 0.72);
-  --material-input-focus-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 255, 0.94) 100%);
-  --material-input-focus-border: rgba(99, 121, 255, 0.34);
+  --material-input-background: #ffffff;
+  --material-input-border: rgba(11, 11, 11, 0.15);
+  --material-input-focus-background: #ffffff;
+  --material-input-focus-border: rgba(91, 114, 255, 0.46);
 
-  --material-avatar-background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.995), rgba(243, 247, 252, 0.98) 100%);
-  --material-avatar-border: rgba(214, 224, 237, 0.96);
+  --material-avatar-background: #ffffff;
+  --material-avatar-border: rgba(11, 11, 11, 0.10);
   --material-avatar-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.46),
-    0 8px 18px rgba(94, 108, 127, 0.08);
+    0 2px 8px rgba(11, 11, 11, 0.06);
 
   --material-paper-background: #ffffff;
-  --material-paper-border: rgba(117, 131, 149, 0.18);
-  --material-paper-foreground: #17212c;
-  --material-paper-muted: rgba(66, 81, 98, 0.72);
+  --material-paper-border: rgba(11, 11, 11, 0.10);
+  --material-paper-foreground: #131313;
+  --material-paper-muted: #6d6b67;
   --material-paper-shadow:
-    0 20px 60px rgba(15, 23, 42, 0.10),
-    0 2px 10px rgba(15, 23, 42, 0.05);
+    0 8px 24px rgba(0, 0, 0, 0.08),
+    0 2px 6px rgba(0, 0, 0, 0.05);
 
-  --divider-subtle-color: rgba(117, 131, 149, 0.16);
-  --divider-strong-color: rgba(117, 131, 149, 0.24);
+  --divider-subtle-color: rgba(11, 11, 11, 0.08);
+  --divider-strong-color: rgba(11, 11, 11, 0.12);
   --border-200-color: hsl(48deg 12.5% 39.2%);
 
-  --text-strong: #14202c;
-  --text-default: rgba(35, 49, 63, 0.9);
-  --text-muted: rgba(66, 81, 98, 0.76);
-  --text-soft: rgba(96, 108, 123, 0.62);
-  --icon-strong: rgba(26, 40, 55, 0.9);
-  --icon-default: rgba(70, 84, 101, 0.78);
-  --icon-muted: rgba(110, 123, 139, 0.62);
+  --text-strong: #131313;
+  --text-default: #383835;
+  --text-muted: #5f5e5a;
+  --text-soft: #7b7974;
+  --icon-strong: #20201f;
+  --icon-default: #52514e;
+  --icon-muted: #898781;
 
-  --interaction-hover-background: rgba(255, 255, 255, 0.34);
-  --interaction-hover-border: rgba(255, 255, 255, 0.42);
-  --interaction-active-background: rgba(242, 239, 231, 0.76);
-  --interaction-active-border: rgba(132, 120, 100, 0.18);
-  --interaction-active-shadow:
-    inset 0 0 0 1px var(--interaction-active-border),
-    0 1px 2px rgba(76, 66, 49, 0.05),
-    0 6px 16px rgba(76, 66, 49, 0.06);
+  --interaction-hover-background: #f3f3f0;
+  --interaction-hover-border: rgba(11, 11, 11, 0.10);
+  --interaction-active-background: #f0efec;
+  --interaction-active-border: rgba(11, 11, 11, 0.10);
+  --interaction-active-shadow: none;
 
-  --text-kbd-color: #5c6979;
-  --surface-kbd-background: rgba(255, 255, 255, 0.58);
-  --divider-kbd-border: rgba(122, 135, 152, 0.18);
-  --surface-kbd-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.48),
-    0 6px 12px rgba(94, 108, 127, 0.08);
-  --glow-lilac: rgba(112, 127, 255, 0.16);
-  --glow-green: rgba(47, 184, 132, 0.14);
-  --glow-peach: rgba(237, 169, 88, 0.16);
-  --glow-mist: rgba(255, 255, 255, 0.24);
+  --text-kbd-color: #52514e;
+  --surface-kbd-background: #f0efec;
+  --divider-kbd-border: rgba(11, 11, 11, 0.10);
+  --surface-kbd-shadow: none;
+  --glow-lilac: rgba(255, 255, 255, 0.34);
+  --glow-green: rgba(11, 11, 11, 0.025);
+  --glow-peach: rgba(255, 255, 255, 0.22);
+  --glow-mist: rgba(255, 255, 255, 0.42);
 
   /* 中文注释：info 软背景系列 — 用于信息/活跃状态徽标（取代硬编码 #cfe0ff / #27539d 等） */
   --status-info-soft-bg: rgba(59, 130, 246, 0.10);
   --status-info-soft-border: rgba(59, 130, 246, 0.22);
   --status-info-soft-text: #2d5da8;
+  --status-running-soft-bg: rgba(91, 107, 128, 0.08);
+  --status-running-soft-border: rgba(91, 107, 128, 0.20);
+  --status-running-soft-text: #59697d;
 
   --message-user-background: rgba(76, 66, 49, 0.07);
 
@@ -160,6 +152,10 @@
   --primary: #8ea4ff;
   --primary-rgb: 142, 164, 255;
   --primary-foreground: #08111d;
+  --brand: #8ea4ff;
+  --brand-action: #8ea4ff;
+  --brand-action-hover: #9bafff;
+  --brand-foreground: #08111d;
   --secondary: #16202b;
   --secondary-foreground: #ebf0f6;
   --accent: #67d0c2;
@@ -195,6 +191,7 @@
     10px 0 30px rgba(0, 4, 10, 0.28);
   --material-shell-inner-shadow:
     7px 0 22px rgba(0, 4, 10, 0.18);
+  --material-shell-edge-divider: #24282f;
   --material-shell-header-shadow:
     0 9px 26px rgba(0, 4, 10, 0.22);
   --material-shell-footer-shadow:
@@ -277,6 +274,9 @@
   --status-info-soft-bg: rgba(96, 165, 250, 0.12);
   --status-info-soft-border: rgba(96, 165, 250, 0.20);
   --status-info-soft-text: #93bbfc;
+  --status-running-soft-bg: rgba(153, 169, 191, 0.12);
+  --status-running-soft-border: rgba(153, 169, 191, 0.22);
+  --status-running-soft-text: #a8b5c7;
 
   --message-user-background: rgba(255, 255, 255, 0.07);
 
@@ -289,6 +289,10 @@
   --primary: #9ab7ff;
   --primary-rgb: 154, 183, 255;
   --primary-foreground: #08111d;
+  --brand: #9ab7ff;
+  --brand-action: #9ab7ff;
+  --brand-action-hover: #a7c0ff;
+  --brand-foreground: #08111d;
   --secondary: #33404e;
   --secondary-foreground: #eef3f8;
   --accent: #74d9cb;
@@ -324,6 +328,7 @@
     10px 0 30px rgba(8, 13, 21, 0.24);
   --material-shell-inner-shadow:
     7px 0 22px rgba(8, 13, 21, 0.16);
+  --material-shell-edge-divider: #4b5662;
   --material-shell-header-shadow:
     0 9px 26px rgba(8, 13, 21, 0.2);
   --material-shell-footer-shadow:
@@ -406,6 +411,9 @@
   --status-info-soft-bg: rgba(96, 165, 250, 0.10);
   --status-info-soft-border: rgba(96, 165, 250, 0.18);
   --status-info-soft-text: #7eaef8;
+  --status-running-soft-bg: rgba(170, 185, 202, 0.12);
+  --status-running-soft-border: rgba(170, 185, 202, 0.20);
+  --status-running-soft-text: #b8c3d1;
 
   --message-user-background: rgba(255, 255, 255, 0.08);
 
@@ -430,12 +438,13 @@
   --surface-panel-shadow: var(--material-panel-shadow);
   --surface-panel-subtle-background: transparent;
   --surface-panel-subtle-border: var(--divider-subtle-color);
-  /* 中文注释：应用壳层以同色系明暗和宽阴影分区，避免用贯穿画面的硬分割线。 */
+  /* 中文注释：应用壳层以同色系明暗分区，主侧栏外缘只保留一根不透明且连续的结构 hairline。 */
   --surface-shell-navigation-background: var(--material-shell-navigation-background);
   --surface-shell-directory-background: var(--material-shell-directory-background);
   --surface-shell-header-background: var(--material-shell-header-background);
   --surface-shell-edge-shadow: var(--material-shell-edge-shadow);
   --surface-shell-inner-shadow: var(--material-shell-inner-shadow);
+  --surface-shell-edge-divider: var(--material-shell-edge-divider);
   --surface-shell-header-shadow: var(--material-shell-header-shadow);
   --surface-shell-footer-shadow: var(--material-shell-footer-shadow);
   --surface-canvas-background: var(--material-canvas-background);
@@ -590,11 +599,11 @@
   --chip-default-border: var(--material-chip-border);
   --chip-default-shadow: var(--material-chip-shadow);
 
-  --button-primary-background: color-mix(in srgb, var(--primary) 82%, white 18%);
-  --button-primary-border: color-mix(in srgb, var(--primary) 68%, white 32%);
-  --button-primary-color: var(--primary-foreground);
-  --button-primary-hover-background: color-mix(in srgb, var(--primary) 88%, white 12%);
-  --button-primary-hover-border: color-mix(in srgb, var(--primary) 76%, white 24%);
+  --button-primary-background: var(--brand-action);
+  --button-primary-border: color-mix(in srgb, var(--brand-action) 88%, black 12%);
+  --button-primary-color: var(--brand-foreground);
+  --button-primary-hover-background: var(--brand-action-hover);
+  --button-primary-hover-border: color-mix(in srgb, var(--brand-action-hover) 84%, black 16%);
   --button-tonal-background: color-mix(in srgb, var(--material-chip-background) 88%, transparent);
   --button-tonal-border: var(--material-chip-border);
   --button-tonal-color: var(--text-default);
@@ -629,6 +638,9 @@
   --color-primary: var(--primary);
   --color-primary-rgb: var(--primary-rgb);
   --color-primary-foreground: var(--primary-foreground);
+  --color-brand: var(--brand);
+  --color-brand-action: var(--brand-action);
+  --color-brand-foreground: var(--brand-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);

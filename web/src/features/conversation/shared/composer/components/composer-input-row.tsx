@@ -67,7 +67,7 @@ export function ComposerInputRow({
           ref={textareaRef}
           aria-label={input.placeholder}
           className={cn(
-            "multiline-cursor soft-scrollbar min-h-6 w-full min-w-0 max-h-[200px] resize-none overflow-y-auto overscroll-contain bg-transparent text-[14px] leading-6 text-(--text-strong) outline-none shadow-none ring-0",
+            "multiline-cursor soft-scrollbar block min-h-8 w-full min-w-0 max-h-[200px] resize-none overflow-y-auto overscroll-contain bg-transparent px-1.5 py-1 text-[15px] leading-6 text-(--text-strong) outline-none shadow-none ring-0",
             "placeholder:text-(--text-soft)",
             "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
             "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",

@@ -1,7 +1,7 @@
 import { cn } from "@/shared/ui/class-name";
 import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 
-export type SidebarPrimaryTabsVariant = "dock" | "rail" | "panel";
+export type SidebarPrimaryTabsVariant = "dock" | "focus" | "rail";
 
 interface SidebarPrimaryTabVariantPresentation {
   badgeClassName: string;
@@ -42,15 +42,15 @@ const SIDEBAR_PRIMARY_TAB_VARIANTS = {
     showLabel: true,
     useAriaLabel: false,
   },
-  panel: {
-    badgeClassName: "absolute -right-2.5 -top-2 h-4 min-w-4 px-1 text-[10px]",
+  focus: {
+    badgeClassName: "absolute -right-2 -top-2 h-4 min-w-4 px-1 text-[10px]",
     buttonActiveClassName: cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),
-    buttonBaseClassName: "flex h-9 items-center justify-center gap-1.5 rounded-[8px] text-[13px] font-medium transition-[background,color] duration-(--motion-duration-fast) max-lg:h-12 max-lg:gap-2 max-lg:rounded-[12px] max-lg:text-[15px]",
-    buttonInactiveClassName: "text-(--text-muted) hover:text-(--text-strong)",
-    containerClassName: "grid grid-cols-3 gap-0 bg-transparent",
-    iconBaseClassName: "h-3.5 w-3.5 max-lg:h-4 max-lg:w-4",
-    iconFrameClassName: "relative flex h-4 w-4 items-center justify-center max-lg:h-5 max-lg:w-5",
-    labelClassName: "",
+    buttonBaseClassName: "relative flex h-10 w-[192px] items-center gap-2 rounded-[10px] px-3 text-[12px] font-medium transition-[background,color] duration-(--motion-duration-fast)",
+    buttonInactiveClassName: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+    containerClassName: "flex flex-col items-center gap-1 px-2 py-2",
+    iconBaseClassName: "h-[18px] w-[18px]",
+    iconFrameClassName: "relative flex h-5 w-5 items-center justify-center",
+    labelClassName: "min-w-0 truncate leading-none",
     showLabel: true,
     useAriaLabel: false,
   },

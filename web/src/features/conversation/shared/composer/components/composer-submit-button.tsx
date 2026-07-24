@@ -100,7 +100,7 @@ function projectComposerSubmitButton(
       ariaLabel: props.sendLabel,
       className: cn(
         COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-        "gap-1.5 min-[760px]:w-auto min-[760px]:px-3",
+        "gap-1.5 disabled:border-(--button-tonal-border) disabled:bg-(--button-tonal-background) disabled:text-(--icon-muted) min-[760px]:w-auto min-[760px]:px-3",
       ),
       disabled: props.isDisabled,
       inlineLabel: props.enterLabel,

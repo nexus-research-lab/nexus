@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前会话投影出的任务列表。
+ * OUTPUT: 位于聊天画布正常布局流中的任务摘要与可展开明细。
+ * POS: Workspace 会话级任务状态条；不得绝对悬浮并遮挡消息内容。
+ */
 "use client";
 
 import { ChevronDown, ChevronUp, Circle, CircleCheck, ListChecks } from "lucide-react";
@@ -58,15 +63,16 @@ export function WorkspaceTaskPanel({
     <aside
       aria-label={t("tasks.label")}
       aria-live="polite"
+      data-workspace-task-panel
       className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-2 top-2 z-30 flex items-start justify-end px-2.5 sm:px-3",
+        "relative z-10 flex shrink-0 items-start justify-end px-2.5 py-2 sm:px-3",
         className,
       )}
     >
       {isExpanded ? (
         <section
           className={cn(
-            "pointer-events-auto flex max-h-full w-[300px] max-w-full flex-col overflow-hidden rounded-[10px]",
+            "flex max-h-[min(320px,42vh)] w-[300px] max-w-full flex-col overflow-hidden rounded-[10px]",
             TASK_PANEL_SURFACE_CLASS_NAME,
           )}
         >
@@ -146,7 +152,7 @@ export function WorkspaceTaskPanel({
         <button
           aria-label={t("tasks.expand_panel")}
           className={cn(
-            "pointer-events-auto inline-flex h-7 items-center gap-1.5 radius-control-sm px-2.5 text-[11px] font-semibold text-(--text-default) transition-[background,border-color,color,box-shadow] hover:text-(--text-strong)",
+            "inline-flex h-7 items-center gap-1.5 radius-control-sm px-2.5 text-[11px] font-semibold text-(--text-default) transition-[background,border-color,color,box-shadow] hover:text-(--text-strong)",
             TASK_PANEL_SURFACE_CLASS_NAME,
           )}
           onClick={() => setIsExpanded(true)}

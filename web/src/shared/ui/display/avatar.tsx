@@ -11,7 +11,6 @@ import {
 import { cn } from "@/shared/ui/class-name";
 
 type UiAvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
-type UiAvatarShape = "round" | "rounded";
 type UiRoomAvatarSize = "sm" | "md" | "lg";
 
 interface UiAvatarMember {
@@ -26,7 +25,6 @@ interface UiAgentAvatarProps extends HTMLAttributes<HTMLSpanElement> {
   imageClassName?: string;
   isWorking?: boolean;
   name: string;
-  shape?: UiAvatarShape;
   size?: UiAvatarSize;
 }
 
@@ -47,6 +45,22 @@ const AVATAR_SIZE_CLASS_MAP: Record<UiAvatarSize, string> = {
   md: "h-10 w-10 text-[12px]",
   lg: "h-14 w-14 text-[15px]",
   xl: "h-16 w-16 text-[17px]",
+};
+
+const AVATAR_RADIUS_CLASS_MAP: Record<UiAvatarSize, string> = {
+  xs: "rounded-[6px]",
+  sm: "rounded-[8px]",
+  md: "rounded-[10px]",
+  lg: "rounded-[12px]",
+  xl: "rounded-[14px]",
+};
+
+const AVATAR_HALO_RADIUS_CLASS_MAP: Record<UiAvatarSize, string> = {
+  xs: "after:rounded-[9px]",
+  sm: "after:rounded-[11px]",
+  md: "after:rounded-[13px]",
+  lg: "after:rounded-[15px]",
+  xl: "after:rounded-[17px]",
 };
 
 const ROOM_AVATAR_SIZE_CLASS_MAP: Record<UiRoomAvatarSize, string> = {
@@ -77,12 +91,11 @@ export function UiAgentAvatar({
   imageClassName: imageClassName,
   isWorking: isWorking = false,
   name,
-  shape = "round",
   size = "md",
   ...props
 }: UiAgentAvatarProps) {
   const avatarSrc = getIconAvatarSrc(avatar);
-  const roundedClassName = shape === "round" ? "rounded-full" : "rounded-[10px]";
+  const roundedClassName = AVATAR_RADIUS_CLASS_MAP[size];
 
   return (
     <span
@@ -90,7 +103,10 @@ export function UiAgentAvatar({
         "relative flex shrink-0 items-center justify-center border border-(--surface-avatar-border) bg-(--surface-avatar-background) font-semibold text-(--surface-avatar-foreground) shadow-(--surface-avatar-shadow)",
         AVATAR_SIZE_CLASS_MAP[size],
         roundedClassName,
-        isWorking && "after:pointer-events-none after:absolute after:inset-[-3px] after:rounded-full after:border after:border-[color:color-mix(in_srgb,var(--primary)_48%,transparent)] after:shadow-[0_0_0_3px_color-mix(in_srgb,var(--primary)_8%,transparent)]",
+        isWorking && cn(
+          "after:pointer-events-none after:absolute after:inset-[-3px] after:border after:border-[color:var(--status-running-soft-border)] after:shadow-[0_0_0_3px_var(--status-running-soft-bg)]",
+          AVATAR_HALO_RADIUS_CLASS_MAP[size],
+        ),
         className,
       )}
       {...props}
@@ -122,6 +138,7 @@ export function UiRoomAvatar({
 }: UiRoomAvatarProps) {
   const visibleMembers = members.slice(0, maxMembers);
   const gridSize = roomAvatarGridSize(visibleMembers.length);
+  const isMemberPair = visibleMembers.length === 2;
 
   if (visibleMembers.length === 0) {
     const roomAvatarId = getRoomAvatarIconId(roomId ?? title, title, avatar);
@@ -132,7 +149,7 @@ export function UiRoomAvatar({
         className={cn(
           "relative flex shrink-0 items-center justify-center overflow-hidden border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-muted) shadow-(--surface-avatar-shadow)",
           ROOM_AVATAR_SIZE_CLASS_MAP[size],
-          isWorking && "ring-2 ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] ring-offset-1 ring-offset-(--background)",
+          isWorking && "ring-2 ring-[color:var(--status-running-soft-border)] ring-offset-1 ring-offset-(--background)",
           className,
         )}
         {...props}
@@ -149,23 +166,32 @@ export function UiRoomAvatar({
   return (
     <span
       className={cn(
-        "relative grid shrink-0 gap-[2px] overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_78%,var(--surface-panel-background)_22%)] p-[2px]",
+        "relative shrink-0 overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--background)_78%,var(--surface-panel-background)_22%)]",
         ROOM_AVATAR_SIZE_CLASS_MAP[size],
-        ROOM_AVATAR_GRID_CLASS_MAP[gridSize],
-        visibleMembers.length === 2 && "grid-rows-1",
-        isWorking && "ring-2 ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] ring-offset-1 ring-offset-(--background)",
+        isMemberPair
+          ? "block"
+          : cn("grid gap-[2px] p-[2px]", ROOM_AVATAR_GRID_CLASS_MAP[gridSize]),
+        isWorking && "ring-2 ring-[color:var(--status-running-soft-border)] ring-offset-1 ring-offset-(--background)",
         className,
       )}
       {...props}
     >
-      {visibleMembers.map((member) => (
-        <span className="min-h-0 min-w-0 overflow-hidden radius-control-xs" key={member.id}>
+      {visibleMembers.map((member, memberIndex) => (
+        <span
+          className={cn(
+            "min-h-0 min-w-0 overflow-hidden rounded-[5px]",
+            isMemberPair &&
+              "absolute h-[56%] w-[56%] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
+            isMemberPair && memberIndex === 0 && "left-[5%] top-[12%] z-[1]",
+            isMemberPair && memberIndex === 1 && "right-[5%] bottom-[12%] z-[2]",
+          )}
+          key={member.id}
+        >
           <UiAgentAvatar
             avatar={member.avatar}
-            className="h-full w-full radius-control-xs border-0 shadow-none"
-            imageClassName="radius-control-xs"
+            className="h-full w-full !rounded-[5px] border-0 shadow-none"
+            imageClassName="!rounded-[5px]"
             name={member.name}
-            shape="rounded"
             size="md"
           />
         </span>

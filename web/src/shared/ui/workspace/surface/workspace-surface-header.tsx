@@ -114,7 +114,7 @@ function WorkspaceSurfaceIdentity({
     <div className="workspace-surface-header-title flex min-w-0 shrink items-center gap-2.5">
       {leading ? (
         <div className={cn(
-          "workspace-surface-header-identity-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default)",
+          "workspace-surface-header-identity-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default)",
           leadingClassName,
         )}>
           {leading}
