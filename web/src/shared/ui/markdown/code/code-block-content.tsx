@@ -15,6 +15,51 @@ interface CodeBlockContentProps {
 }
 
 const MESSAGE_CODE_FONT_FAMILY = "var(--font-mono)";
+const LIGHT_CODE_COLOR = "rgb(20, 24, 31)";
+const LIGHT_PUNCTUATION_COLOR = "rgb(43, 48, 59)";
+const LIGHT_KEYWORD_COLOR = "rgb(129, 0, 194)";
+const LIGHT_STRING_COLOR = "rgb(0, 128, 0)";
+const LIGHT_FUNCTION_COLOR = "rgb(0, 81, 194)";
+const LIGHT_LITERAL_COLOR = "rgb(0, 128, 128)";
+const LIGHT_PARAMETER_COLOR = "rgb(184, 79, 5)";
+
+/** 中文注释：浅色代码色板与阅读区基准保持一致，语义色只负责区分 token，不借用品牌交互色。 */
+const lightSyntaxStyle = {
+  ...oneLight,
+  "code[class*=\"language-\"]": {
+    ...oneLight["code[class*=\"language-\"]"],
+    background: "transparent",
+    color: LIGHT_CODE_COLOR,
+    lineHeight: "1.625",
+  },
+  "pre[class*=\"language-\"]": {
+    ...oneLight["pre[class*=\"language-\"]"],
+    background: "transparent",
+    color: LIGHT_CODE_COLOR,
+    lineHeight: "1.625",
+  },
+  doctype: { color: LIGHT_CODE_COLOR },
+  punctuation: { color: LIGHT_PUNCTUATION_COLOR },
+  entity: { color: LIGHT_PUNCTUATION_COLOR },
+  keyword: { color: LIGHT_KEYWORD_COLOR },
+  operator: { color: LIGHT_KEYWORD_COLOR },
+  string: { color: LIGHT_STRING_COLOR },
+  char: { color: LIGHT_STRING_COLOR },
+  selector: { color: LIGHT_STRING_COLOR },
+  "attr-value": { color: LIGHT_STRING_COLOR },
+  regex: { color: LIGHT_STRING_COLOR },
+  inserted: { color: LIGHT_STRING_COLOR },
+  function: { color: LIGHT_FUNCTION_COLOR },
+  "class-name": { color: LIGHT_FUNCTION_COLOR },
+  builtin: { color: LIGHT_FUNCTION_COLOR },
+  boolean: { color: LIGHT_LITERAL_COLOR },
+  constant: { color: LIGHT_LITERAL_COLOR },
+  number: { color: LIGHT_LITERAL_COLOR },
+  symbol: { color: LIGHT_LITERAL_COLOR },
+  variable: { color: LIGHT_PARAMETER_COLOR },
+  parameter: { color: LIGHT_PARAMETER_COLOR },
+  "attr-name": { color: LIGHT_PARAMETER_COLOR },
+};
 
 export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
   const { theme } = useTheme();
@@ -31,6 +76,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
       className="group"
       rightSlot={(
         <button
+          aria-label="Copy to clipboard"
           className="content-code-action"
           data-copied={copied ? "true" : undefined}
           onClick={handleCopy}
@@ -38,9 +84,9 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
           type="button"
         >
           {copied ? (
-            <Check className="h-3 w-3" />
+            <Check className="h-4 w-4" />
           ) : (
-            <Copy className="h-3 w-3" />
+            <Copy className="h-4 w-4" />
           )}
         </button>
       )}
@@ -49,7 +95,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
       <div className="relative min-w-0">
         <SyntaxHighlighter
           language={language || "text"}
-          style={isDarkTheme ? vscDarkPlus : oneLight}
+          style={isDarkTheme ? vscDarkPlus : lightSyntaxStyle}
           codeTagProps={{
             className: "message-code-font",
             style: {
@@ -58,13 +104,12 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
           }}
           customStyle={{
             margin: 0,
-            padding: "0.65rem 0.75rem 0.7rem",
+            padding: "0.875rem",
             background: "transparent",
             fontFamily: MESSAGE_CODE_FONT_FAMILY,
-            fontSize: "0.78rem",
-            lineHeight: "1.5",
-            width: "max-content",
-            minWidth: "100%",
+            fontSize: "0.875rem",
+            lineHeight: "1.625",
+            borderRadius: "var(--radius-md)",
             whiteSpace: "pre",
           }}
         >

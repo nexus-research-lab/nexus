@@ -16,7 +16,6 @@ import { cn } from "@/shared/ui/class-name";
 interface CodeShellProps {
   language?: string;
   rightSlot?: ReactNode;
-  headerVisible?: boolean;
   contentClassName?: string;
   className?: string;
   children: ReactNode;
@@ -26,37 +25,31 @@ interface CodeShellProps {
 export function CodeShell({
   language,
   rightSlot: rightSlot,
-  headerVisible = false,
   contentClassName: contentClassName,
   className: className,
   children,
 }: CodeShellProps) {
+  const accessibleLanguage = language?.trim() || "text";
+
   return (
     <div
       className={cn(
-        "content-code-shell relative",
+        "content-code-shell group/copy relative",
         className,
       )}
-      data-code-header-visible={headerVisible ? "true" : undefined}
+      aria-label={`${accessibleLanguage} code`}
+      role="group"
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- 代码壳需要键盘聚焦以复现操作层的 focus-within 行为。
+      tabIndex={0}
     >
-      {language || rightSlot ? (
-        <div
-          className="content-code-header"
-        >
-          {language ? (
-            <span
-              className="content-code-label message-code-font"
-            >
-              {language}
-            </span>
-          ) : null}
-          {rightSlot ? (
-            <div className="shrink-0">
-              {rightSlot}
-            </div>
-          ) : null}
+      {rightSlot ? (
+        <div className="content-code-copy-layer">
+          <div className="content-code-copy-actions">
+            {rightSlot}
+          </div>
         </div>
       ) : null}
+      {language ? <div className="content-code-label">{language}</div> : null}
       <div className={contentClassName}>
         {children}
       </div>

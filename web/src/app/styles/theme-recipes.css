@@ -159,78 +159,92 @@
   }
 
   .content-code-shell {
+    position: relative;
     overflow: hidden;
-    border-radius: var(--content-radius-surface);
-    border: 1px solid var(--content-code-border);
-    background: var(--content-code-background);
+    border-radius: var(--radius-md);
+    border: 0.5px solid var(--divider-strong-color);
+    background: color-mix(in srgb, var(--surface-panel-background) 50%, transparent);
+    outline: none;
   }
 
-  .content-code-header {
-    position: absolute;
-    z-index: 1;
-    top: 0.5rem;
-    right: 0.5rem;
-    display: flex;
-    min-height: 1.75rem;
-    align-items: center;
-    gap: 0.25rem;
-    border: 1px solid transparent;
-    border-radius: var(--content-radius-control-xs);
-    background: color-mix(in srgb, var(--content-code-background) 92%, transparent);
-    padding: 0 0.125rem 0 0.375rem;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--motion-duration-fast) var(--motion-ease-standard);
-  }
-
-  .content-code-shell:hover .content-code-header,
-  .content-code-shell:focus-within .content-code-header,
-  .content-code-shell[data-code-header-visible="true"] .content-code-header {
-    opacity: 1;
-    pointer-events: auto;
+  .content-code-shell:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 38%, transparent);
   }
 
   .content-code-label {
+    display: block;
     min-width: 0;
     overflow: hidden;
-    font-size: 0.625rem;
-    letter-spacing: 0.08em;
-    line-height: 1;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    padding: 0.875rem 0.875rem 0;
     text-overflow: ellipsis;
-    text-transform: lowercase;
     white-space: nowrap;
     color: var(--text-muted);
   }
 
+  .content-code-copy-layer {
+    position: sticky;
+    z-index: 1;
+    top: 0.5rem;
+    float: right;
+    width: 0;
+    height: 3rem;
+    padding: 0.5rem 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease-in-out;
+  }
+
+  .content-code-shell:hover .content-code-copy-layer,
+  .content-code-shell:focus-within .content-code-copy-layer {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .content-code-copy-actions {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 10;
+    display: inline-flex;
+    height: 1.75rem;
+    align-items: center;
+    padding: 0 0.875rem;
+  }
+
   .content-code-action {
+    position: relative;
     display: inline-flex;
     width: 1.75rem;
     height: 1.75rem;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    border-radius: var(--content-radius-control-xs, 6px);
-    border: 1px solid transparent;
+    border: 0 solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    padding: 0;
     color: var(--text-muted);
-    opacity: 0.72;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1;
+    backdrop-filter: blur(12px);
     transition:
-      background-color var(--motion-duration-fast) var(--motion-ease-standard),
-      border-color var(--motion-duration-fast) var(--motion-ease-standard),
-      color var(--motion-duration-fast) var(--motion-ease-standard),
-      opacity var(--motion-duration-fast) var(--motion-ease-standard);
+      background-color 300ms cubic-bezier(0.165, 0.85, 0.45, 1),
+      color 300ms cubic-bezier(0.165, 0.85, 0.45, 1);
   }
 
-  .content-code-shell:hover .content-code-action,
+  .content-code-action:hover,
   .content-code-action:focus-visible {
     background: var(--surface-interactive-hover-background);
-    border-color: var(--surface-interactive-hover-border);
     color: var(--text-strong);
-    opacity: 1;
+    outline: none;
   }
 
   .content-code-action[data-copied="true"] {
-    background: color-mix(in srgb, var(--success) 12%, transparent);
     color: var(--success);
-    opacity: 1;
   }
 
   .content-table-scroll {
@@ -711,59 +725,40 @@
     box-shadow: var(--surface-card-shadow);
   }
 
-  /* 中文注释：消息 Markdown 列表使用固定 marker 栅格，避免序号在不同缩放和屏宽下压住正文。 */
+  /* 中文注释：列表保留浏览器原生 marker；外层与条目内缩固定，序号和正文在不同缩放下仍稳定对齐。 */
   .markdown-list {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
     max-width: 100%;
     margin: 0 0 0.75rem;
-    padding: 0;
+    padding-left: 2rem;
     color: color-mix(in srgb, var(--foreground) 90%, transparent);
-    list-style: none;
+    list-style-position: outside;
   }
 
   .markdown-list-ordered {
-    counter-reset: markdown-list-item;
+    list-style-type: decimal;
+  }
+
+  .markdown-list-unordered {
+    list-style-type: disc;
   }
 
   .markdown-list-item {
-    display: grid;
-    grid-template-columns: 2rem minmax(0, 1fr);
-    column-gap: 0.5rem;
-    align-items: start;
+    margin-top: 0.25rem;
+    margin-bottom: 0;
+    padding-left: 0.5rem;
     min-width: 0;
     max-width: 100%;
     overflow-wrap: anywhere;
     line-height: 1.65rem;
   }
 
-  .markdown-list-ordered>.markdown-list-item {
-    counter-increment: markdown-list-item;
-  }
-
-  .markdown-list-item::before {
-    grid-column: 1;
-    justify-self: end;
-    min-width: 1.4rem;
+  .markdown-list-item::marker {
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .markdown-list-ordered>.markdown-list-item::before {
-    content: counter(markdown-list-item) ".";
-  }
-
-  .markdown-list-unordered>.markdown-list-item::before {
-    content: "•";
-  }
-
-  .markdown-list-item>* {
-    grid-column: 2;
-    min-width: 0;
-    max-width: 100%;
+    font-weight: 400;
   }
 
   .markdown-list-item-body {
@@ -781,8 +776,9 @@
   }
 
   .markdown-list-item-body>.markdown-list {
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
     margin-bottom: 0;
+    padding-bottom: 0.25rem;
   }
 }
 
@@ -878,8 +874,6 @@
   }
 
   .nexus-chat-feed .nexus-markdown-body .markdown-list-item {
-    grid-template-columns: 2rem minmax(0, 1fr);
-    column-gap: 0.5rem;
     line-height: 1.65rem;
   }
 
@@ -893,7 +887,7 @@
     line-height: inherit;
   }
 
-  .nexus-chat-feed .nexus-markdown-body .markdown-list-item::before {
+  .nexus-chat-feed .nexus-markdown-body .markdown-list-item::marker {
     color: var(--text-default);
     font-weight: 400;
   }
@@ -947,8 +941,7 @@
   }
 
   .nexus-workspace-file-markdown .markdown-list-item {
-    grid-template-columns: 1.65rem minmax(0, 1fr);
-    column-gap: 0.125rem;
+    padding-left: 0.5rem;
     line-height: 1.5;
   }
 
@@ -958,9 +951,9 @@
     line-height: inherit;
   }
 
-  .nexus-workspace-file-markdown .markdown-list-item::before {
+  .nexus-workspace-file-markdown .markdown-list-item::marker {
     color: var(--text-default);
-    font-weight: 500;
+    font-weight: 400;
   }
 
   .nexus-workspace-file-markdown blockquote {
@@ -1039,15 +1032,6 @@
     .nexus-chat-feed .nexus-chat-message-content {
       padding-top: 0.125rem;
       padding-bottom: 0.375rem;
-    }
-
-    .nexus-chat-feed .nexus-chat-markdown .markdown-list-item {
-      grid-template-columns: 1.5rem minmax(0, 1fr);
-      column-gap: 0.375rem;
-    }
-
-    .nexus-chat-feed .nexus-chat-markdown .markdown-list-item::before {
-      min-width: 1rem;
     }
 
     .nexus-chat-feed .nexus-chat-block-stack > :not(:last-child) {

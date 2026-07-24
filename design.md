@@ -353,8 +353,8 @@ conversation round
 
 **列表、链接与引用**
 
-- 列表 marker 必须占独立 `32px` 栅格列，正文再留 `8px` 间距；有序列表使用 tabular number，marker 使用 `--text-default`，不是品牌蓝。
-- Chat 列表项使用正文相同行高，条目间只增加 `4px + 4px` 的最小节奏；嵌套列表只增加缩进和最小间距，不能形成层层 card。
+- 列表使用浏览器原生 `disc` / `decimal` marker：外层固定 `32px` 缩进、条目自身再留 `8px`，正文从列表边缘 `40px` 处起排；有序列表使用 tabular number，marker 使用 `--text-default`，不是品牌蓝。
+- Chat 列表项使用正文相同行高，列表 `gap` 与条目上方各使用 `4px`，形成克制的 `8px` 条目节奏；嵌套列表只增加缩进和最小间距，不能形成层层 card。
 - 普通链接使用 Nexus 蓝文字；默认保持可辨识，hover / focus 再提供下划线或局部底色。外部链接、workspace 文件、Agent mention 必须保留各自语义图标或标签。
 - quote 使用中性 `4px` 左边界、`8px` 左外缩与 `16px` 内缩；背景保持透明，引用正文使用次级文字色，不使用大面积蓝底或强制 italic。
 - `mark` 用低饱和暖色或搜索语义色，不能和 error / warning 混用。
@@ -370,8 +370,8 @@ conversation round
 **code block**
 
 - code block 是低对比工具面，不是高饱和暗色“开发者卡片”。light theme 使用偏暖灰或近白表面、细边界、`content` 圆角；dark theme 同样避免强发光和厚阴影。
-- 静态 code block 默认不设横向语言栏或行号；语言、复制、折叠或打开等必要操作只在 hover / focus 显现。流式 fence 可保留一个紧凑的运行标记，但不能变成工具栏。
-- 代码正文使用 `12–13px / 1.5–1.6` Mono，保留横向滚动、缩进和可复制性；行号只在长代码或文件预览中出现。
+- 静态 code block 使用 `0.5px` 边界、`8px` 圆角和低对比半透明底色；语言标签直接使用 `12px / 16px`、`14px` 内边距并固定在左上。复制、折叠或打开等必要操作只在 hover / focus 时浮到右上，操作容器为 `h-12`，按钮为 `28px` 方形、`6px` 圆角、`16px` 图标；按钮与语言标签共享中心线，并在左右两侧保持 `14px` 对称内缩，不做成厚重工具栏。
+- 代码正文使用 `14px / 1.625` Mono 与 `14px` 四向内边距，保留横向滚动、缩进和可复制性；行号只在长代码或文件预览中出现。流式 fence 可保留一个紧凑的运行标记，但不能变成工具栏。
 - 流式 code fence 在闭合前保持稳定 shell 与轻量 loading 状态，不在每个 token 到达时重排整个代码块。
 
 **table**
