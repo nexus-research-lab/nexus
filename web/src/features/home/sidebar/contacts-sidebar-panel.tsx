@@ -7,7 +7,10 @@ import { buildChatNotificationTargetKey } from "@/features/home/notifications/ch
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
-import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
+import {
+  SidebarSearchAction,
+  SidebarSearchField,
+} from "@/shared/ui/form/sidebar-search-field";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { useSidebarStore } from "@/store/sidebar";
 
@@ -70,14 +73,12 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
     >
       <SidebarSearchField
         action={(
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) max-lg:h-12 max-lg:w-12 max-lg:rounded-[12px]"
+          <SidebarSearchAction
             onClick={openContacts}
             title={t("sidebar.manage_contacts")}
-            type="button"
           >
             <UserPlus className="h-4 w-4 max-lg:h-5 max-lg:w-5" />
-          </button>
+          </SidebarSearchAction>
         )}
         onChange={setQuery}
         placeholder={t("sidebar.search_contacts")}

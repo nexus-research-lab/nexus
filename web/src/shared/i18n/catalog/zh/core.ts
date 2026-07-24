@@ -30,7 +30,7 @@ export const zhCoreMessages = {
   "common.icon_picker_scroll": "滚动头像选项",
   "common.icon_picker_next": "向后浏览头像",
   "common.coming_soon": "此功能即将推出，敬请期待。",
-  "common.search_agents": "搜索成员...",
+  "common.search_agents": "搜索智能体...",
   "status.online": "在线",
   "status.sending": "发送中",
   "status.replying": "回复中",

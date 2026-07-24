@@ -5,7 +5,10 @@ import { CreateRoomDialog } from "@/features/conversation/room/members/create-ro
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
-import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
+import {
+  SidebarSearchAction,
+  SidebarSearchField,
+} from "@/shared/ui/form/sidebar-search-field";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 
 import {
@@ -38,11 +41,10 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     >
       <SidebarSearchField
         action={(
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] leading-none text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default) max-lg:h-12 max-lg:w-12 max-lg:rounded-[12px]"
+          <SidebarSearchAction
+            className="leading-none"
             onClick={controller.create.open}
             title={t("home.create_room")}
-            type="button"
           >
             <span
               aria-hidden="true"
@@ -51,7 +53,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
               <span className="absolute left-1/2 top-1/2 h-[2px] w-[14px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current max-lg:w-4" />
               <span className="absolute left-1/2 top-1/2 h-[14px] w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current max-lg:h-4" />
             </span>
-          </button>
+          </SidebarSearchAction>
         )}
         onChange={controller.list.setQuery}
         placeholder={t("sidebar.search_conversations")}

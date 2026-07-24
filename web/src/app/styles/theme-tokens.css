@@ -390,6 +390,33 @@
   --surface-panel-subtle-border: var(--divider-subtle-color);
   --surface-canvas-background: var(--material-canvas-background);
   --surface-canvas-border: var(--material-canvas-border);
+  --surface-control-background: color-mix(
+    in srgb,
+    var(--background) 82%,
+    var(--surface-panel-background) 18%
+  );
+  --surface-control-border: color-mix(
+    in srgb,
+    var(--surface-interactive-active-border) 48%,
+    var(--divider-subtle-color) 52%
+  );
+  --surface-control-shadow:
+    0 1px 2px color-mix(in srgb, var(--text-strong) 5%, transparent),
+    0 5px 14px color-mix(in srgb, var(--text-strong) 4%, transparent);
+  --surface-control-hover-background: color-mix(
+    in srgb,
+    var(--surface-control-background) 64%,
+    var(--surface-interactive-hover-background) 36%
+  );
+  --surface-control-hover-border: var(--surface-interactive-hover-border);
+  --surface-control-field-background: color-mix(
+    in srgb,
+    var(--surface-control-background) 88%,
+    var(--surface-panel-background) 12%
+  );
+  --surface-control-field-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-strong) 3%, transparent),
+    0 1px 2px color-mix(in srgb, var(--text-strong) 3%, transparent);
   --surface-popover-background: var(--material-popover-background);
   --surface-popover-border: var(--material-popover-border);
   --surface-popover-shadow: var(--material-popover-shadow);
