@@ -127,7 +127,7 @@ function GroupAgentStatusCardInner({
   return (
     <div
       className={cn(
-        "group/card grid min-w-0 cursor-pointer grid-cols-[40px_minmax(0,1fr)] gap-3 px-2 py-3 transition-colors duration-(--motion-duration-normal)",
+        "nexus-chat-message-round-expanded nexus-chat-assistant-grid-expanded group/card grid min-w-0 cursor-pointer grid-cols-[40px_minmax(0,1fr)] gap-3 py-3 transition-colors duration-(--motion-duration-normal)",
         isThreadActive
           ? "bg-primary/5"
           : "hover:bg-(--interaction-hover-background)",

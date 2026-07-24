@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Aligned in-progress Room Agent cards with completed assistant replies by removing the nested recentering lane and reusing the shared responsive message baseline.
 - Unified AskUserQuestion cards, options, custom answers, and submission controls with the warm layered surface and elevation system used by the rest of the conversation UI.
 - Unified surface search fields behind one shared warm input treatment so capability filters, sidebars, catalogs, and other search entry points no longer carry page-specific borders or backgrounds.
 - Enlarged page-level workspace tab capsules with a more comfortable control height, icon scale, and horizontal rhythm while keeping Session headers and compact layouts dense.

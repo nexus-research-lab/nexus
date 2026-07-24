@@ -5,6 +5,7 @@
 - `group-round-card-model.ts` 聚合一轮内的用户消息、Agent 执行身份、权限和权威展示顺序。
 - `group-round-card-group.tsx` 按统一 entries 顺序编排用户消息、完成回复和进行中 slot 卡片，不拆成两段重排。
 - `group-completed-reply.tsx` 与 `group-agent-status-card.tsx` 只渲染各自状态，不重新筛选轮次数据。
+- 进行中的 Agent 卡片复用 assistant 消息通道的宽度与响应式基线，禁止在 feed 通道内再次居中或叠加横向缩进。
 - `thread-action-button.tsx` 是主 Feed 中 Thread 开关的唯一视觉实现。
 
 ## 边界

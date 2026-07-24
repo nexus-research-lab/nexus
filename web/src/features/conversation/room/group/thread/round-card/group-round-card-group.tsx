@@ -7,7 +7,9 @@
 
 import { Fragment, memo, useCallback, useMemo } from "react";
 
+import { CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
+import { cn } from "@/shared/ui/class-name";
 import type { Message } from "@/types/conversation/message/entity";
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
@@ -132,8 +134,13 @@ function GroupRoundCardGroupInner({
               />
             ) : (
               <div className="border-b border-(--divider-subtle-color)">
-                <div className="w-full px-2 sm:px-3">
-                  <div className="mx-auto w-full max-w-[980px]">
+                <div className="nexus-chat-message-section w-full px-2 sm:px-3">
+                  <div
+                    className={cn(
+                      "w-full",
+                      CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME,
+                    )}
+                  >
                     <GroupAgentStatusCard
                       agentAvatar={entry.agentAvatar}
                       agentId={entry.agent_id}
