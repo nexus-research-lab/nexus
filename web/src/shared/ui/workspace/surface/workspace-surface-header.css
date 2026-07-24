@@ -5,8 +5,8 @@
   --workspace-header-control-gap: 2px;
   --workspace-header-control-height: 36px;
   --workspace-header-control-shadow: var(--surface-control-shadow);
-  --workspace-header-active-tab-radius: 10px;
-  --workspace-session-tab-radius: var(--workspace-header-active-tab-radius);
+  --workspace-header-view-tab-radius: calc(var(--workspace-header-control-height) / 2);
+  --workspace-session-tab-radius: 10px;
   container-name: workspace-surface-header;
   container-type: inline-size;
 }
@@ -124,7 +124,7 @@
   height: var(--workspace-header-control-height);
   padding-inline: 10px;
   border: 0;
-  border-radius: var(--workspace-header-active-tab-radius);
+  border-radius: var(--workspace-header-view-tab-radius);
   background: transparent;
   box-shadow: none;
   transition:
@@ -141,7 +141,6 @@
 .workspace-surface-header-active-tab,
 .workspace-surface-header-view-tab[aria-pressed="true"] {
   border: 1px solid var(--surface-interactive-active-border);
-  border-radius: var(--workspace-header-active-tab-radius);
   background: var(--surface-interactive-active-background);
   box-shadow: var(--surface-interactive-active-shadow);
 }
@@ -154,7 +153,7 @@
 .workspace-surface-header-control-segment {
   position: relative;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--workspace-header-view-tab-radius);
   background: transparent;
   box-shadow: none;
 }
@@ -178,6 +177,7 @@
 
 .workspace-surface-header-view-tabs .ui-underline-tab-dismiss {
   right: 5px;
+  z-index: 2;
   opacity: 0.72;
 }
 

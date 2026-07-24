@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Unified active Session and workspace-view tabs behind one shared border, radius, background, and shadow recipe so About, Workspace, and Subagents no longer diverge from the selected Session treatment.
+- Unified active Session and workspace-view tabs behind one shared border, background, and shadow recipe while keeping each host's intended geometry; workspace tabs, History, Members, and overflow controls now follow the surrounding capsule's inset curve, and active-tab close controls remain clickable above the surface.
 - Aligned in-progress Room Agent cards with completed assistant replies by removing the nested recentering lane and reusing the shared responsive message baseline.
 - Unified AskUserQuestion cards, options, custom answers, and submission controls with the warm layered surface and elevation system used by the rest of the conversation UI.
 - Unified surface search fields behind one shared warm input treatment so capability filters, sidebars, catalogs, and other search entry points no longer carry page-specific borders or backgrounds.
