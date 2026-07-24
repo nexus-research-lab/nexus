@@ -5,7 +5,6 @@ import { PrismAsyncLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
-import { cn } from "@/shared/ui/class-name";
 import { useTheme } from "@/shared/theme/theme-context";
 
 import { CodeShell } from "./code-shell";
@@ -32,13 +31,8 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
       className="group"
       rightSlot={(
         <button
-          className={cn(
-            "inline-flex h-3 w-3 items-center justify-center rounded-[6px] border border-transparent transition-colors duration-(--motion-duration-fast)",
-            copied && "bg-[color:color-mix(in_srgb,var(--success)_12%,transparent)] text-(--success)",
-          )}
-          style={copied ? undefined : {
-            color: "var(--text-muted)",
-          }}
+          className="content-code-action"
+          data-copied={copied ? "true" : undefined}
           onClick={handleCopy}
           title={copied ? "已复制" : `复制 ${language || "text"} 代码`}
           type="button"
@@ -73,15 +67,6 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
             minWidth: "100%",
             whiteSpace: "pre",
           }}
-          lineNumberStyle={{
-            fontFamily: MESSAGE_CODE_FONT_FAMILY,
-            minWidth: "1.25rem",
-            paddingRight: "0.35rem",
-            color: "var(--text-faint)",
-            fontSize: "0.65rem",
-            userSelect: "none",
-          }}
-          showLineNumbers
         >
           {value}
         </SyntaxHighlighter>

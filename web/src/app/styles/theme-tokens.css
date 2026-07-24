@@ -114,6 +114,7 @@
 
   --divider-subtle-color: rgba(117, 131, 149, 0.16);
   --divider-strong-color: rgba(117, 131, 149, 0.24);
+  --border-200-color: hsl(48deg 12.5% 39.2%);
 
   --text-strong: #14202c;
   --text-default: rgba(35, 49, 63, 0.9);
@@ -147,6 +148,8 @@
   --status-info-soft-bg: rgba(59, 130, 246, 0.10);
   --status-info-soft-border: rgba(59, 130, 246, 0.22);
   --status-info-soft-text: #2d5da8;
+
+  --message-user-background: rgba(76, 66, 49, 0.07);
 
   --disabled-opacity: 0.50;
 }
@@ -245,6 +248,7 @@
 
   --divider-subtle-color: rgba(171, 189, 214, 0.1);
   --divider-strong-color: rgba(171, 189, 214, 0.16);
+  --border-200-color: hsl(48deg 12.5% 68%);
   --text-strong: #edf3fb;
   --text-default: rgba(218, 227, 240, 0.92);
   --text-muted: rgba(165, 180, 198, 0.82);
@@ -273,6 +277,8 @@
   --status-info-soft-bg: rgba(96, 165, 250, 0.12);
   --status-info-soft-border: rgba(96, 165, 250, 0.20);
   --status-info-soft-text: #93bbfc;
+
+  --message-user-background: rgba(255, 255, 255, 0.07);
 
   --disabled-opacity: 0.50;
 }
@@ -371,6 +377,7 @@
 
   --divider-subtle-color: rgba(205, 220, 240, 0.1);
   --divider-strong-color: rgba(205, 220, 240, 0.16);
+  --border-200-color: hsl(48deg 12.5% 72%);
   --text-strong: #eef3f8;
   --text-default: rgba(221, 231, 242, 0.92);
   --text-muted: rgba(179, 194, 211, 0.84);
@@ -399,6 +406,8 @@
   --status-info-soft-bg: rgba(96, 165, 250, 0.10);
   --status-info-soft-border: rgba(96, 165, 250, 0.18);
   --status-info-soft-text: #7eaef8;
+
+  --message-user-background: rgba(255, 255, 255, 0.08);
 
   --disabled-opacity: 0.50;
 }
@@ -465,6 +474,8 @@
   --surface-avatar-border: var(--material-avatar-border);
   --surface-avatar-foreground: var(--text-default);
   --surface-avatar-shadow: var(--material-avatar-shadow);
+  /* 中文注释：用户请求使用暖中性底色与 Assistant 正文区分，不借用品牌蓝或卡片阴影。 */
+  --surface-message-user-background: var(--message-user-background);
   --surface-paper-background: var(--material-paper-background);
   --surface-paper-border: var(--material-paper-border);
   --surface-paper-foreground: var(--material-paper-foreground);
@@ -472,6 +483,72 @@
   --surface-paper-shadow: var(--material-paper-shadow);
   --surface-progress-track: color-mix(in srgb, var(--divider-strong-color) 88%, transparent);
   --surface-progress-fill: color-mix(in srgb, var(--primary) 74%, white 10%);
+
+  /* 中文注释：内容渲染只在可执行或独立阅读时上浮，正文中的 code、quote 和 table 统一使用低噪音语义表面。 */
+  --content-radius-inline: 6px;
+  --content-radius-control-xs: 6px;
+  --content-radius-control: var(--radius-md);
+  --content-radius-surface: var(--radius-lg);
+  --content-inline-code-background: color-mix(
+    in srgb,
+    var(--surface-panel-background) 78%,
+    var(--background)
+  );
+  --content-inline-code-border: color-mix(
+    in srgb,
+    var(--divider-subtle-color) 86%,
+    transparent
+  );
+  --content-inline-code-color: color-mix(
+    in srgb,
+    var(--primary) 78%,
+    var(--text-strong)
+  );
+  --content-workspace-file-background: color-mix(
+    in srgb,
+    var(--primary) 8%,
+    var(--surface-panel-background)
+  );
+  --content-workspace-file-border: color-mix(
+    in srgb,
+    var(--primary) 22%,
+    var(--divider-subtle-color)
+  );
+  --content-workspace-file-hover-background: color-mix(
+    in srgb,
+    var(--primary) 13%,
+    var(--surface-panel-background)
+  );
+  --content-quote-background: color-mix(
+    in srgb,
+    var(--surface-panel-background) 64%,
+    transparent
+  );
+  --content-quote-border: var(--divider-strong-color);
+  --content-quote-color: var(--text-default);
+  --content-code-background: color-mix(
+    in srgb,
+    var(--surface-panel-background) 88%,
+    transparent
+  );
+  --content-code-border: var(--divider-subtle-color);
+  --content-divider-color: color-mix(in srgb, var(--border-200-color) 62%, transparent);
+  --content-table-heading-border: color-mix(in srgb, var(--text-muted) 44%, transparent);
+  --content-table-cell-border: color-mix(in srgb, var(--text-muted) 22%, transparent);
+  --content-media-border: var(--divider-subtle-color);
+  --content-highlight-background: color-mix(in srgb, var(--warning) 18%, transparent);
+  --content-artifact-background: var(--content-code-background);
+  --content-artifact-border: var(--divider-subtle-color);
+  --content-artifact-hover-background: color-mix(
+    in srgb,
+    var(--surface-interactive-hover-background) 78%,
+    var(--content-artifact-background)
+  );
+  --content-artifact-icon-background: color-mix(
+    in srgb,
+    var(--surface-panel-background) 76%,
+    var(--divider-subtle-color)
+  );
 
   --input-shell-background: var(--material-input-background);
   --input-shell-border: var(--material-input-border);
@@ -583,6 +660,13 @@
     "Noto Sans CJK SC",
     ui-sans-serif,
     sans-serif;
+  --font-prose:
+    "Iowan Old Style",
+    "Palatino Linotype",
+    "Book Antiqua",
+    Georgia,
+    "Times New Roman",
+    serif;
   --font-mono:
     "PT Mono",
     "SFMono-Regular",

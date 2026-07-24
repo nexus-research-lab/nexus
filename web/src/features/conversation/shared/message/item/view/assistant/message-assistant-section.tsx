@@ -3,14 +3,10 @@ import { useCallback } from "react";
 import { cn } from "@/shared/ui/class-name";
 
 import { AssistantMessageContent } from "./assistant-message-content";
-import {
-  AssistantMessageAvatar,
-  AssistantMessageHeader,
-} from "./assistant-message-header";
+import { AssistantMessageHeader } from "./assistant-message-header";
 import {
   resolveAssistantMessageLayout,
   resolveAssistantMessageScope,
-  resolveAssistantDisplayName,
   type AssistantFooterState,
   type MessageAssistantSectionProps,
 } from "./assistant-message-model";
@@ -44,72 +40,58 @@ export function MessageAssistantSection({
     return null;
   }
 
-  const displayName = resolveAssistantDisplayName(currentAgentName);
-
   return (
     <div className={cn("nexus-chat-message-section w-full", layout.section)}>
       <div className={cn("w-full", layout.inner)}>
-        <div
-          className={cn(
-            "nexus-chat-assistant-grid group grid min-w-0",
-            layout.grid,
-          )}
-        >
-          <AssistantSideAvatar
+        <div className="nexus-chat-assistant group relative min-w-0">
+          <AssistantMessageHeader
             avatarUrl={currentAgentAvatar}
-            displayName={displayName}
+            canStop={assistant.header.canStop}
+            compact={compact}
+            headerAction={assistantHeaderAction}
+            model={assistant.header.model}
+            name={currentAgentName}
             onOpenContact={openContact}
-            visible={layout.showSideAvatar}
+            onStop={assistant.header.stop}
+            showMetadata={layout.showMetadata}
+            timestamp={assistant.header.timestamp}
           />
 
-          <div className="relative min-w-0">
-            <AssistantMessageHeader
-              avatarUrl={currentAgentAvatar}
-              canStop={assistant.header.canStop}
-              compact={compact}
-              headerAction={assistantHeaderAction}
-              model={assistant.header.model}
-              name={currentAgentName}
-              onOpenContact={openContact}
-              onStop={assistant.header.stop}
-              timestamp={assistant.header.timestamp}
-            />
-
-            <div
-              className={cn(
-                "nexus-chat-message-content min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-left",
-                layout.content,
-              )}
-              ref={assistant.layout.contentAreaRef}
-              style={assistant.layout.contentAreaStyle}
-            >
-              <AssistantMessageContent
-                activity={assistant.activity}
-                direct={assistant.direct}
-                environment={{
-                  canRespondToPermissions,
-                  hiddenToolNames,
-                  mode: assistantContentMode,
-                  onOpenWorkspaceFile,
-                  onPermissionResponse,
-                  permissionReadOnlyReason,
-                  workspaceAgentId: scope.contentWorkspaceAgentId,
-                  agentMentionDirectory,
-                  onOpenAgentContact,
-                }}
-                final={assistant.final}
-                permissions={assistant.permissions}
-                process={assistant.process}
-                showMaxTokensWarning={assistant.showMaxTokensWarning}
-              />
-            </div>
-
-            <AssistantFooter
-              activityShowCursor={assistant.activity.showCursor}
-              compact={compact}
-              footer={assistant.footer}
+          <div
+            className={cn(
+              "nexus-chat-message-content min-w-0 max-w-full overflow-x-hidden pb-2 text-left",
+              layout.content,
+            )}
+            ref={assistant.layout.contentAreaRef}
+            style={assistant.layout.contentAreaStyle}
+          >
+            <AssistantMessageContent
+              activity={assistant.activity}
+              direct={assistant.direct}
+              environment={{
+                canRespondToPermissions,
+                hiddenToolNames,
+                mode: assistantContentMode,
+                onOpenWorkspaceFile,
+                onPermissionResponse,
+                permissionReadOnlyReason,
+                workspaceAgentId: scope.contentWorkspaceAgentId,
+                agentMentionDirectory,
+                onOpenAgentContact,
+              }}
+              final={assistant.final}
+              permissions={assistant.permissions}
+              process={assistant.process}
+              showMaxTokensWarning={assistant.showMaxTokensWarning}
             />
           </div>
+
+          <AssistantFooter
+            activityShowCursor={assistant.activity.showCursor}
+            compact={compact}
+            footer={assistant.footer}
+            model={assistant.header.model}
+          />
         </div>
       </div>
     </div>
@@ -128,37 +110,16 @@ function useOpenAgentContact(
   return scope.canOpenContact ? handleOpenAgentContact : undefined;
 }
 
-function AssistantSideAvatar({
-  avatarUrl,
-  displayName,
-  onOpenContact,
-  visible,
-}: {
-  avatarUrl?: string | null;
-  displayName: string;
-  onOpenContact?: () => void;
-  visible: boolean;
-}) {
-  if (!visible) {
-    return null;
-  }
-  return (
-    <AssistantMessageAvatar
-      avatarUrl={avatarUrl}
-      displayName={displayName}
-      onOpenContact={onOpenContact}
-    />
-  );
-}
-
 function AssistantFooter({
   activityShowCursor,
   compact,
   footer,
+  model,
 }: {
   activityShowCursor: boolean;
   compact: boolean;
   footer: AssistantFooterState;
+  model?: string;
 }) {
   if (!footer.visible) {
     return null;
@@ -170,6 +131,7 @@ function AssistantFooter({
       onCopy={footer.onCopy}
       stats={footer.stats}
       streaming={activityShowCursor}
+      model={model}
     />
   );
 }

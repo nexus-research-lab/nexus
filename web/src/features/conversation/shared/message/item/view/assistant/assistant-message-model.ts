@@ -11,7 +11,7 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 
-import { CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME } from "../../../../conversation-panel-styles";
+import { CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME } from "../../../../conversation-panel-styles";
 import type { AssistantContentMode, ContentProjection } from "../../message-item-projection";
 import type { MessageActivityState } from "../../activity/message-activity-state";
 
@@ -154,25 +154,18 @@ function resolveContentWorkspaceAgentId(
   return assistantAgentId ?? workspaceAgentId;
 }
 
-export function resolveAssistantDisplayName(name?: string | null): string {
-  return name || "协作成员";
-}
-
 const ASSISTANT_LAYOUTS = {
   compact: {
-    content: "text-[15px] leading-6",
-    grid: "grid-cols-[minmax(0,1fr)]",
+    content: "pt-1 text-[15px] leading-6",
     inner: "max-w-full",
     section: "px-0",
-    showSideAvatar: false,
+    showMetadata: true,
   },
   expanded: {
-    content: "text-[16px] leading-7",
-    grid:
-      "nexus-chat-assistant-grid-expanded grid-cols-[40px_minmax(0,1fr)] gap-3",
-    inner: CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME,
+    content: "w-full max-w-full pt-2 text-[16px] leading-7",
+    inner: CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME,
     section: "px-2 sm:px-3",
-    showSideAvatar: true,
+    showMetadata: false,
   },
 } as const;
 

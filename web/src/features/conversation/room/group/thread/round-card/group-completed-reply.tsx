@@ -29,7 +29,7 @@ export function GroupCompletedReply({
   agentMentionDirectory,
 }: GroupCompletedReplyProps) {
   return (
-    <div className="border-b border-(--divider-subtle-color)">
+    <>
       <MessageItem
         assistantContentMode="room_result"
         assistantHeaderAction={(
@@ -38,7 +38,6 @@ export function GroupCompletedReply({
             onClick={onClickThread}
           />
         )}
-        className="border-b-0"
         currentAgentAvatar={entry.agentAvatar}
         currentAgentName={entry.agentName}
         agentMentionDirectory={agentMentionDirectory}
@@ -50,6 +49,7 @@ export function GroupCompletedReply({
         roundId={`${roundId}:${entry.entry_id}`}
         workspaceAgentId={entry.agent_id}
       />
-    </div>
+      <hr aria-hidden="true" className="conversation-round-divider" />
+    </>
   );
 }

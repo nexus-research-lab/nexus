@@ -16,6 +16,7 @@ export const StreamingCodeBlock = memo(function StreamingCodeBlock({
   return (
     <CodeShell
       language={language}
+      headerVisible
       rightSlot={(
         <span className="message-code-font text-[11px]" style={{ color: "var(--text-muted)" }}>
           输出中

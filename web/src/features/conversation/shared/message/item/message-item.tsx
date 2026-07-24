@@ -18,7 +18,6 @@ function MessageItemInner({
   currentAgentName,
   currentAgentAvatar,
   workspaceAgentId,
-  currentUserAvatar,
   roundId,
   messages,
   isLastRound,
@@ -63,7 +62,6 @@ function MessageItemInner({
       {state.userMessages.map((message) => (
         <MessageUserSection
           compact={compact}
-          currentUserAvatar={currentUserAvatar}
           agentMentionDirectory={agentMentionDirectory}
           key={message.message_id}
           message={message}

@@ -21,7 +21,6 @@ import { useUserMessageEditor } from "./use-user-message-editor";
 
 interface MessageUserSectionProps {
   compact: boolean;
-  currentUserAvatar?: string | null;
   agentMentionDirectory?: AgentMentionDirectory;
   message: UserMessage;
   onEditUserMessage?: (messageId: string, newContent: string) => void;
@@ -32,7 +31,6 @@ interface MessageUserSectionProps {
 
 export function MessageUserSection({
   compact,
-  currentUserAvatar,
   agentMentionDirectory,
   message,
   onEditUserMessage,
@@ -45,6 +43,9 @@ export function MessageUserSection({
   const handleCopy = useCallback(async () => {
     await copy(message.content);
   }, [copy, message.content]);
+  const handleRerun = useCallback(() => {
+    void onEditUserMessage?.(message.round_id, message.content);
+  }, [message.content, message.round_id, onEditUserMessage]);
   const submitEditedContent = useCallback((content: string) => {
     onEditUserMessage?.(message.round_id, content);
   }, [message.round_id, onEditUserMessage]);
@@ -71,9 +72,9 @@ export function MessageUserSection({
       data-conversation-round-user-anchor="true"
     >
       <div className="w-full">
-        <div className={cn("group flex min-w-0 justify-end", presentation.rowClassName)}>
+        <div className={cn("flex min-w-0 justify-end", presentation.rowClassName)}>
           <div
-            className="relative ml-auto w-fit max-w-[min(100%,720px)] data-[editing=true]:w-full"
+            className="group relative ml-auto w-fit max-w-[min(100%,720px)] data-[editing=true]:w-full"
             data-editing={String(editor.isEditing)}
           >
             {editor.isEditing ? (
@@ -88,16 +89,6 @@ export function MessageUserSection({
               />
             ) : (
               <>
-                <UserMessageHeader
-                  copied={copied}
-                  currentUserAvatar={currentUserAvatar}
-                  onCopy={handleCopy}
-                  onEdit={projectAvailableUserMessageAction(
-                    Boolean(onEditUserMessage),
-                    editor.start,
-                  )}
-                  presentation={presentation}
-                />
                 <UserMessageContent
                   agentMentions={message.agent_mentions}
                   agentMentionDirectory={agentMentionDirectory}
@@ -107,6 +98,19 @@ export function MessageUserSection({
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
                   presentation={presentation}
                   workspaceAgentId={workspaceAgentId}
+                />
+                <UserMessageHeader
+                  copied={copied}
+                  onCopy={handleCopy}
+                  onEdit={projectAvailableUserMessageAction(
+                    Boolean(onEditUserMessage),
+                    editor.start,
+                  )}
+                  onRerun={projectAvailableUserMessageAction(
+                    Boolean(onEditUserMessage),
+                    handleRerun,
+                  )}
+                  presentation={presentation}
                 />
               </>
             )}

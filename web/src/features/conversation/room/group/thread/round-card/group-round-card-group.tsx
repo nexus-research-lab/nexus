@@ -133,7 +133,7 @@ function GroupRoundCardGroupInner({
                 roundId={roundId}
               />
             ) : (
-              <div className="border-b border-(--divider-subtle-color)">
+              <>
                 <div className="nexus-chat-message-section w-full px-2 sm:px-3">
                   <div
                     className={cn(
@@ -162,7 +162,8 @@ function GroupRoundCardGroupInner({
                     />
                   </div>
                 </div>
-              </div>
+                <hr aria-hidden="true" className="conversation-round-divider" />
+              </>
             )}
           </Fragment>
         );

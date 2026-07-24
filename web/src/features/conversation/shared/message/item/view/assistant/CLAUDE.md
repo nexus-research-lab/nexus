@@ -3,8 +3,8 @@
 - `assistant-message-model.ts`: 声明消费侧窄状态，并投影 Agent 作用域与紧凑/展开布局。
 - `message-assistant-section.tsx`: 只组合助手外壳、头部、正文和统计。
 - `assistant-message-content.tsx`: 按活动、直接内容、过程、最终回复、警告和权限顺序组合正文段。
-- `assistant-message-header.tsx`: 分离身份、模型、时间、外部动作与停止动作。
-- `assistant-message-stats.tsx`: 负责结果统计、复制动作和流式游标，使用消费侧窄统计契约。
+- `assistant-message-header.tsx`: 组合 32px、8px 圆角的头像与垂直居中的名称；展开态不混入时间和模型，紧凑态才显示它们，并保留外部动作与停止动作。
+- `assistant-message-stats.tsx`: 负责结果统计、缓存后的模型、复制动作和流式游标，使用消费侧窄统计契约。
 - `assistant-process-callchain.tsx`: 独立管理过程折叠、过程内容和收起态生成文件。
 - `pending-permission-list.tsx`: 把未匹配权限请求适配为唯一的待确认工具块列表。
 

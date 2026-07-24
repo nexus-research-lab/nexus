@@ -16,6 +16,7 @@ import { cn } from "@/shared/ui/class-name";
 interface CodeShellProps {
   language?: string;
   rightSlot?: ReactNode;
+  headerVisible?: boolean;
   contentClassName?: string;
   className?: string;
   children: ReactNode;
@@ -25,6 +26,7 @@ interface CodeShellProps {
 export function CodeShell({
   language,
   rightSlot: rightSlot,
+  headerVisible = false,
   contentClassName: contentClassName,
   className: className,
   children,
@@ -32,25 +34,22 @@ export function CodeShell({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[8px] border",
+        "content-code-shell relative",
         className,
       )}
-      style={{
-        background: "color-mix(in srgb, var(--surface-panel-background) 82%, transparent)",
-        borderColor: "color-mix(in srgb, var(--surface-panel-subtle-border) 80%, transparent)",
-      }}
+      data-code-header-visible={headerVisible ? "true" : undefined}
     >
       {language || rightSlot ? (
         <div
-          className="flex items-center justify-between gap-2 border-b px-2.5"
-          style={{ borderColor: "var(--divider-subtle-color)" }}
+          className="content-code-header"
         >
-          <span
-            className="message-code-font truncate text-[10px] lowpercase tracking-[0.08em]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {language || "text"}
-          </span>
+          {language ? (
+            <span
+              className="content-code-label message-code-font"
+            >
+              {language}
+            </span>
+          ) : null}
           {rightSlot ? (
             <div className="shrink-0">
               {rightSlot}

@@ -44,7 +44,7 @@ export function ImageBlock({
     <figure className="my-3 min-w-0 max-w-full">
       <button
         className={cn(
-          "block w-fit max-w-full rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) p-1 text-left shadow-[0_1px_0_rgba(0,0,0,0.03)]",
+          "content-artifact-image w-fit text-left",
           projection.openClassName,
         )}
         disabled={!projection.canOpen}
@@ -54,7 +54,7 @@ export function ImageBlock({
       >
         <img
           alt={projection.alt}
-          className="max-h-[420px] w-auto max-w-full rounded-[6px] object-contain sm:max-w-[560px]"
+          className="content-artifact-image-preview max-h-[420px] w-auto max-w-full object-contain sm:max-w-[560px]"
           loading="lazy"
           src={projection.source.src}
         />
@@ -62,7 +62,7 @@ export function ImageBlock({
       <ImageArtifactCaption caption={block.alt} />
       <WorkspaceArtifactExternalActionButton
         action={projection.action}
-        className="mt-2 inline-flex items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) px-2 py-1 text-[11px] font-medium text-(--text-muted) transition-colors hover:border-primary/25 hover:bg-primary/8 hover:text-primary"
+        className="content-artifact-external-action mt-1.5 px-2 py-1 text-[11px] font-medium"
         iconClassName="h-3.5 w-3.5"
       />
     </figure>
@@ -84,7 +84,7 @@ function openImageArtifact(
 
 function MissingImageArtifact() {
   return (
-    <div className="my-2 flex max-w-md items-center gap-2 rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) px-3 py-2 text-[13px] text-(--text-muted)">
+    <div className="content-artifact-empty my-2 flex max-w-md items-center gap-2 px-3 py-2 text-[13px]">
       <ImageIcon className="h-4 w-4 shrink-0" />
       图片内容缺少可展示的数据
     </div>

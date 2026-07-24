@@ -298,27 +298,29 @@ function ThreadRound({
   round: ConversationThreadRoundModel;
 }) {
   return (
-    <MessageItem
-      assistantContentMode="room_thread"
-      className={cn(
-        "max-w-full overflow-x-hidden",
-        round.showDivider && "border-b border-(--divider-subtle-color)",
-      )}
-      compact
-      currentAgentAvatar={messageContext.agentAvatar}
-      currentAgentName={messageContext.agentName}
-      currentUserAvatar={messageContext.userAvatar}
-      defaultProcessExpanded
-      isLastRound={round.isLast}
-      isLoading={round.isLoading}
-      messages={round.messages}
-      onOpenWorkspaceFile={messageContext.onOpenWorkspaceFile}
-      onPermissionResponse={messageContext.onPermissionResponse}
-      onStopMessage={messageContext.onStopMessage}
-      pendingPermissions={round.pendingPermissions}
-      roundId={round.roundId}
-      workspaceAgentId={messageContext.workspaceAgentId}
-    />
+    <>
+      <MessageItem
+        assistantContentMode="room_thread"
+        className="max-w-full overflow-x-hidden"
+        compact
+        currentAgentAvatar={messageContext.agentAvatar}
+        currentAgentName={messageContext.agentName}
+        currentUserAvatar={messageContext.userAvatar}
+        defaultProcessExpanded
+        isLastRound={round.isLast}
+        isLoading={round.isLoading}
+        messages={round.messages}
+        onOpenWorkspaceFile={messageContext.onOpenWorkspaceFile}
+        onPermissionResponse={messageContext.onPermissionResponse}
+        onStopMessage={messageContext.onStopMessage}
+        pendingPermissions={round.pendingPermissions}
+        roundId={round.roundId}
+        workspaceAgentId={messageContext.workspaceAgentId}
+      />
+      {round.showDivider ? (
+        <hr aria-hidden="true" className="conversation-round-divider" />
+      ) : null}
+    </>
   );
 }
 

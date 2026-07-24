@@ -4,10 +4,16 @@ import { getIconAvatarSrc } from "@/lib/avatar";
 import { cn } from "@/shared/ui/class-name";
 
 type MessageAvatarSize = "full" | "compact";
+type MessageAvatarRadius = "content" | "control";
 
 const AVATAR_SIZE_CLASS_MAP: Record<MessageAvatarSize, string> = {
-  full: "h-10 w-10 surface-radius-md",
-  compact: "h-6 w-6 radius-control-sm",
+  full: "h-10 w-10",
+  compact: "h-6 w-6",
+};
+
+const AVATAR_RADIUS_CLASS_MAP: Record<MessageAvatarRadius, string> = {
+  content: "surface-radius-md",
+  control: "radius-control-sm",
 };
 
 export function MessageAvatar({
@@ -16,6 +22,7 @@ export function MessageAvatar({
   children,
   className,
   onClick,
+  radius,
   size = "full",
   title,
 }: {
@@ -24,6 +31,7 @@ export function MessageAvatar({
   children?: ReactNode;
   className?: string;
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  radius?: MessageAvatarRadius;
   size?: MessageAvatarSize;
   title?: string;
 }) {
@@ -33,6 +41,7 @@ export function MessageAvatar({
     "transition-[border-color,background-color] duration-(--motion-duration-fast) ease-out",
     "motion-safe:hover:border-(--surface-interactive-active-border)",
     AVATAR_SIZE_CLASS_MAP[size],
+    AVATAR_RADIUS_CLASS_MAP[radius ?? resolveAvatarRadius(size)],
     className,
   );
   const content = (
@@ -59,6 +68,10 @@ export function MessageAvatar({
       {content}
     </StaticMessageAvatar>
   );
+}
+
+function resolveAvatarRadius(size: MessageAvatarSize): MessageAvatarRadius {
+  return size === "compact" ? "control" : "content";
 }
 
 function MessageAvatarContent({

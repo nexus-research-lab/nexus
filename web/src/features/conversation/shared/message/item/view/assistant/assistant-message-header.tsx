@@ -16,12 +16,13 @@ interface AssistantMessageHeaderProps {
   name?: string | null;
   onOpenContact?: () => void;
   onStop: () => void;
+  showMetadata: boolean;
   timestamp?: number;
 }
 
 const HEADER_LAYOUTS = {
   compact: "min-h-6 pb-0",
-  expanded: "h-7 pb-0.5",
+  expanded: "min-h-8 pb-0",
 } as const;
 
 export function AssistantMessageHeader({
@@ -33,6 +34,7 @@ export function AssistantMessageHeader({
   name,
   onOpenContact,
   onStop,
+  showMetadata,
   timestamp,
 }: AssistantMessageHeaderProps) {
   const displayName = name || "协作成员";
@@ -44,17 +46,21 @@ export function AssistantMessageHeader({
         layout,
       )}
     >
-      <CompactAssistantAvatar
+      <AssistantHeaderAvatar
         avatarUrl={avatarUrl}
+        compact={compact}
         displayName={displayName}
         onOpenContact={onOpenContact}
-        visible={compact}
       />
       <span className="nexus-chat-author shrink-0 text-sm font-medium text-(--text-strong)">
         {displayName}
       </span>
-      <AssistantTimestamp timestamp={timestamp} />
-      <AssistantModel model={model} />
+      {showMetadata ? (
+        <>
+          <AssistantTimestamp timestamp={timestamp} />
+          <AssistantModel model={model} />
+        </>
+      ) : null}
       <div className="flex-1" />
       <AssistantHeaderAction action={headerAction} />
       <AssistantStopAction canStop={canStop} onStop={onStop} />
@@ -62,24 +68,21 @@ export function AssistantMessageHeader({
   );
 }
 
-function CompactAssistantAvatar({
+function AssistantHeaderAvatar({
   avatarUrl,
+  compact,
   displayName,
   onOpenContact,
-  visible,
 }: {
   avatarUrl?: string | null;
+  compact: boolean;
   displayName: string;
   onOpenContact?: () => void;
-  visible: boolean;
 }) {
-  if (!visible) {
-    return null;
-  }
   return (
     <AssistantMessageAvatar
       avatarUrl={avatarUrl}
-      compact
+      compact={compact}
       displayName={displayName}
       onOpenContact={onOpenContact}
     />
@@ -147,12 +150,12 @@ const AVATAR_PRESENTATION = {
   },
   full: {
     bot: "h-4 w-4",
-    className: "nexus-chat-avatar",
+    className: "nexus-chat-avatar h-8 w-8 shrink-0",
     size: "full",
   },
 } as const;
 
-export function AssistantMessageAvatar({
+function AssistantMessageAvatar({
   avatarUrl,
   compact = false,
   displayName,
@@ -170,6 +173,7 @@ export function AssistantMessageAvatar({
       avatarUrl={avatarUrl}
       className={presentation.className}
       onClick={onOpenContact}
+      radius="control"
       size={presentation.size}
       title={`打开 ${displayName} 的联络`}
     >
