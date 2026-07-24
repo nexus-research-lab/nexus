@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Matched the Session-strip shadow tray to the Session tag radius and changed its soft lift to follow the rounded contour, eliminating rectangular shadow corners at either end of wide or compressed tab rows.
 - Reflowed the inline Agent identity overview into a balanced two-row responsive grid so profile and vibe fields share the first row, model selection fills the second row, and the profile description no longer starts below an unexplained desktop whitespace band.
 - Replaced bright white utility and catalog icon buttons with one theme-aware warm control surface across sidebar search fields and actions, Agent creation, workspace headers, and the conversation scroll control; renamed the Contacts directory surface to Agent Management and removed its redundant `Agents / AGENTS` heading so navigation and page responsibilities remain distinct.
 - Unified workspace view, history, Room-member, and overflow actions inside one warm segmented browser-style capsule while preserving their established order, retained a separate Session-action group, aligned the structure in Agent details, centered controls against the usable header height, and gave identity avatars a defined two-level lift; active Session and sidebar conversation rows now use a complete fine edge plus appropriately scaled soft lift while inactive conversations remain fully transparent and borderless.
