@@ -41,7 +41,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
       : agents;
   }, [agents, query]);
 
-  const openContacts = useCallback(() => {
+  const openContactsDirectory = useCallback(() => {
     setActiveItem(null);
     const target = location.pathname === AppRouteBuilders.contacts()
       ? AppRouteBuilders.contactsManage()
@@ -50,6 +50,11 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
       navigate(target);
     }
   }, [location.pathname, location.search, navigate, setActiveItem]);
+
+  const openAgentCreation = useCallback(() => {
+    setActiveItem(null);
+    navigate(AppRouteBuilders.contactsCreate());
+  }, [navigate, setActiveItem]);
 
   const openAgentDetail = useCallback((agentId: string) => {
     setActiveItem(agentId);
@@ -74,8 +79,8 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
       <SidebarSearchField
         action={(
           <SidebarSearchAction
-            onClick={openContacts}
-            title={t("sidebar.manage_contacts")}
+            onClick={openAgentCreation}
+            title={t("contacts.new_agent")}
           >
             <UserPlus className="h-4 w-4 max-lg:h-5 max-lg:w-5" />
           </SidebarSearchAction>
@@ -106,7 +111,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
               actionLabel={t("sidebar.manage_contacts")}
               description={t("sidebar.contacts_empty_description")}
               icon={Users2}
-              onAction={openContacts}
+              onAction={openContactsDirectory}
               title={query ? t("sidebar.no_matching_contacts") : t("sidebar.no_contacts")}
             />
           )}

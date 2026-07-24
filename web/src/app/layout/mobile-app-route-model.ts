@@ -67,6 +67,7 @@ export function resolveMobileAppRoute({
     const opensContactContent = (
       searchParams.has("agent")
       || searchParams.get("view") === "manage"
+      || searchParams.get("view") === "create"
     );
     return opensContactContent
       ? {

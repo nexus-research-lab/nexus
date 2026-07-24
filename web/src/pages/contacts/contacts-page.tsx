@@ -34,6 +34,8 @@ export function ContactsPage() {
     agents: controller.contactAgents,
     loading: controller.loading,
     confirmDeleteAgent: controller.confirmDeleteAgent,
+    closeAgentEditor: controller.editor.close,
+    openCreateAgent: controller.editor.openCreate,
   });
 
   const presentation = getContactsPagePresentation({
@@ -66,7 +68,7 @@ export function ContactsPage() {
       />
 
       <AgentOptionsDialog
-        onClose={controller.editor.close}
+        onClose={navigation.closeEditor}
         onDelete={controller.requestDeleteAgent}
         onSave={controller.editor.save}
         onValidateName={controller.editor.validateName}

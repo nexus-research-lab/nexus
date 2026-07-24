@@ -34,6 +34,7 @@ export const AppRouteBuilders = {
     `/rooms/${encodeURIComponent(roomId)}/conversations/${encodeURIComponent(conversationId)}`,
   contacts: () => APP_ROUTE_PATHS.contacts,
   contactAgent: (agentId: string) => `${APP_ROUTE_PATHS.contacts}?agent=${encodeURIComponent(agentId)}`,
+  contactsCreate: () => `${APP_ROUTE_PATHS.contacts}?view=create`,
   contactsManage: () => `${APP_ROUTE_PATHS.contacts}?view=manage`,
   capability: () => APP_ROUTE_PATHS.capability,
   skills: () => APP_ROUTE_PATHS.skills,
