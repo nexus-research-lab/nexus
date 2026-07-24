@@ -26,7 +26,7 @@
 .workspace-surface-header-tool-cluster {
   height: 40px;
   gap: 0;
-  overflow: hidden;
+  overflow: visible;
   padding: 2px;
   border: 1px solid var(--workspace-header-control-border);
   border-radius: 999px;
@@ -107,7 +107,9 @@
 }
 
 .workspace-surface-header-view-tab[aria-pressed="true"] {
+  z-index: 1;
   padding-right: 30px;
+  border: 1px solid var(--surface-interactive-active-border);
   background: var(--surface-interactive-active-background);
   box-shadow: var(--surface-interactive-active-shadow);
 }

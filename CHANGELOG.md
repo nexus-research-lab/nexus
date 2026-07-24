@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Strengthened the active About, Workspace, and Subagents header tabs with the same complete edge and unclipped warm elevation used by active Session tabs.
 - Added consistent spacing between the Identity, Tools, and Skills navigation blocks in the Agent editor across desktop and constrained layouts.
 - Preserved Claude Code subagent transcript projection through its runtime-managed output symlink using a double-confined read path, and restored session metadata writes when a valid Agent workspace has not been created yet.
 - Fixed the Contacts sidebar add button navigating to an inert management query on desktop; it now opens the shared Agent creation editor directly and preserves the same flow in the phone layout.
