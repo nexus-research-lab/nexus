@@ -538,6 +538,12 @@
   --surface-interactive-active-background: var(--interaction-active-background);
   --surface-interactive-active-border: var(--interaction-active-border);
   --surface-interactive-active-shadow: var(--interaction-active-shadow);
+  /* 中文注释：侧栏选中态只用中性浅灰底区分层级，不绘制卡片边框或浮起阴影。 */
+  --surface-sidebar-active-background: color-mix(
+    in srgb,
+    var(--text-muted) 13%,
+    transparent
+  );
 }
 
 @theme inline {

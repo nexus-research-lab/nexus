@@ -11,6 +11,7 @@ import { getUiListRowPresentation } from "./list-row-model";
 interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
   active?: boolean;
+  activeTone?: "default" | "sidebar";
   children?: ReactNode;
   className?: string;
   description?: ReactNode;
@@ -26,6 +27,7 @@ interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
 export function UiListRow({
   actions,
   active = false,
+  activeTone = "default",
   children,
   className,
   description,
@@ -40,6 +42,7 @@ export function UiListRow({
 }: UiListRowProps) {
   const presentation = getUiListRowPresentation({
     active,
+    activeTone,
     className,
     inactiveTone,
     interactive: Boolean(onClick),

@@ -1,4 +1,5 @@
 import { cn } from "@/shared/ui/class-name";
+import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 
 interface UiListRowPresentation {
   className: string;
@@ -8,23 +9,26 @@ interface UiListRowPresentation {
 
 const LIST_ROW_STATE_CLASS_NAMES = {
   active: "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background) text-(--text-strong) shadow-[inset_0_0_0_1px_var(--surface-interactive-active-border),0_2px_5px_color-mix(in_srgb,var(--text-strong)_5%,transparent),0_10px_24px_color-mix(in_srgb,var(--text-strong)_7%,transparent)]",
+  activeSidebar: cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),
   idleDefault: "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
   idleMuted: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
 } as const;
 
 export function getUiListRowPresentation({
   active,
+  activeTone,
   className,
   inactiveTone,
   interactive,
 }: {
   active: boolean;
+  activeTone: "default" | "sidebar";
   className?: string;
   inactiveTone: "default" | "muted";
   interactive: boolean;
 }): UiListRowPresentation {
   const state = active
-    ? "active"
+    ? activeTone === "sidebar" ? "activeSidebar" : "active"
     : inactiveTone === "muted"
       ? "idleMuted"
       : "idleDefault";

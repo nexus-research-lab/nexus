@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Matched active workspace tabs to their enclosing pill geometry, standardized sidebar selections on a clear neutral-gray surface without floating shadows, softened Session emphasis, and removed internal divider lines from header controls and inactive Session tabs.
 - Unified sidebar contact rows and management-directory Agent cards behind the same routed detail editor, removing the duplicate existing-Agent dialog path.
 - Removed the hard horizontal divider above inline Agent actions so the profile surface remains visually continuous.
 - Flattened active chat-directory rows into a restrained theme-aware warm gray without the raised card border or shadow, keeping the current conversation legible while visually attached to the sidebar.

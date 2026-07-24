@@ -349,7 +349,7 @@ function WorkspaceSurfaceCompactTabs<TTabKey extends string>({
       {canDismissActive ? (
         <button
           aria-label={dismissActiveTabLabel}
-          className="flex h-full w-7 shrink-0 items-center justify-center border-l border-(--divider-subtle-color) text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+          className="flex h-full w-7 shrink-0 items-center justify-center text-(--icon-muted) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
           onClick={() => onDismissActiveTab?.(activeTab as TTabKey)}
           title={dismissActiveTabLabel}
           type="button"

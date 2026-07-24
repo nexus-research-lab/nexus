@@ -10,7 +10,6 @@ interface WorkspaceConversationTabProps {
   isActive: boolean;
   onClose: () => void;
   onSelect: () => void;
-  showSeparator: boolean;
   tabWidth?: number;
   title: string;
 }
@@ -23,7 +22,6 @@ export function WorkspaceConversationTab({
   isActive,
   onClose,
   onSelect,
-  showSeparator,
   tabWidth,
   title,
 }: WorkspaceConversationTabProps) {
@@ -31,7 +29,6 @@ export function WorkspaceConversationTab({
     canClose,
     externalSessionLabel,
     isActive,
-    showSeparator,
     tabWidth,
     title,
   });
