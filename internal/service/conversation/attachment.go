@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -161,12 +162,23 @@ func ResolveWorkspaceAttachmentPath(workspacePath string, relativePath string) (
 	if targetPath != root && !strings.HasPrefix(targetPath, rootWithSeparator) {
 		return "", errors.New("attachment path escapes workspace")
 	}
-	info, err := os.Stat(targetPath)
+	rootFS, err := confinedfs.Open(root)
 	if err != nil {
 		return "", err
 	}
-	if info.IsDir() {
-		return "", fmt.Errorf("attachment path is a directory: %s", normalizedPath)
+	defer rootFS.Close()
+	info, err := rootFS.Lstat(filepath.ToSlash(normalizedPath))
+	if err != nil {
+		return "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return "", errors.New("attachment symlink is not allowed")
+	}
+	if !info.Mode().IsRegular() {
+		if info.IsDir() {
+			return "", fmt.Errorf("attachment path is a directory: %s", normalizedPath)
+		}
+		return "", fmt.Errorf("attachment path is not a regular file: %s", normalizedPath)
 	}
 	return targetPath, nil
 }
@@ -189,7 +201,7 @@ func imageAttachmentBlock(attachment protocol.ChatAttachment, absolutePath strin
 		return nil, fmt.Errorf("unsupported runtime image attachment: %s", filepath.Base(absolutePath))
 	}
 
-	data, err := os.ReadFile(absolutePath)
+	data, err := readConfinedAbsoluteFile(absolutePath)
 	if err != nil {
 		return nil, err
 	}
@@ -206,6 +218,19 @@ func imageAttachmentBlock(attachment protocol.ChatAttachment, absolutePath strin
 		},
 	}
 	return block, nil
+}
+
+func readConfinedAbsoluteFile(absolutePath string) ([]byte, error) {
+	absolutePath = filepath.Clean(strings.TrimSpace(absolutePath))
+	if absolutePath == "" || absolutePath == "." {
+		return nil, errors.New("attachment path is required")
+	}
+	root, err := confinedfs.Open(filepath.Dir(absolutePath))
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return root.ReadFile(filepath.Base(absolutePath))
 }
 
 func runtimeImageBlockMIMEType(attachment protocol.ChatAttachment, absolutePath string) (string, bool) {

@@ -9,10 +9,11 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 func (s *Service) postJSONWithRetries(ctx context.Context, endpoint string, token string, payload any, output any) error {
@@ -36,7 +37,7 @@ func (s *Service) postMultipartWithRetries(
 	endpoint string,
 	token string,
 	fields map[string]string,
-	files map[string]string,
+	files map[string]multipartFileRef,
 	output any,
 ) error {
 	return s.doWithRetries(func() error {
@@ -47,8 +48,8 @@ func (s *Service) postMultipartWithRetries(
 				return err
 			}
 		}
-		for name, path := range files {
-			if err := appendMultipartFile(writer, name, path); err != nil {
+		for name, fileRef := range files {
+			if err := appendMultipartFile(writer, name, fileRef); err != nil {
 				return err
 			}
 		}
@@ -65,13 +66,23 @@ func (s *Service) postMultipartWithRetries(
 	})
 }
 
-func appendMultipartFile(writer *multipart.Writer, name string, path string) error {
-	file, err := os.Open(path)
+type multipartFileRef struct {
+	WorkspacePath string
+	RelativePath  string
+}
+
+func appendMultipartFile(writer *multipart.Writer, name string, fileRef multipartFileRef) error {
+	root, err := confinedfs.Open(fileRef.WorkspacePath)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	file, err := root.Open(fileRef.RelativePath)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	part, err := writer.CreateFormFile(name, filepath.Base(path))
+	part, err := writer.CreateFormFile(name, filepath.Base(fileRef.RelativePath))
 	if err != nil {
 		return err
 	}

@@ -45,7 +45,12 @@ func (s *AgentHistoryStore) DeleteTranscriptSession(workspacePath string, sessio
 		return false, err
 	}
 
-	if err := os.Remove(transcriptPath); err != nil {
+	root, relative, _, err := openTranscriptPath(workspacePath, transcriptPath)
+	if err != nil {
+		return false, err
+	}
+	defer root.Close()
+	if err := root.Remove(relative); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
@@ -53,9 +58,8 @@ func (s *AgentHistoryStore) DeleteTranscriptSession(workspacePath string, sessio
 	}
 
 	s.invalidateTranscriptCache(transcriptPath)
-	if err := removeDirectoryIfEmpty(filepath.Dir(transcriptPath)); err != nil {
-		return true, err
-	}
+	// 仅尝试删除空的 project 目录；失败时保留目录，不影响 session 删除。
+	_ = root.Remove(filepath.ToSlash(filepath.Dir(relative)))
 	return true, nil
 }
 
@@ -69,13 +73,17 @@ func (s *AgentHistoryStore) DeleteTranscriptProject(workspacePath string) (bool,
 	if strings.TrimSpace(projectDir) == "" {
 		return false, nil
 	}
-	if _, err := os.Stat(projectDir); errors.Is(err, os.ErrNotExist) {
+	projectsRoot := transcriptProjectsDirForWorkspace(canonicalPath)
+	root, relative, err := relativeStorePathWithCreate(projectsRoot, projectDir, false)
+	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
-	} else if err != nil {
+	}
+	if err != nil {
 		return false, err
 	}
+	defer root.Close()
 
-	if err := os.RemoveAll(projectDir); err != nil {
+	if err := root.RemoveAll(relative); err != nil {
 		return false, err
 	}
 	s.invalidateTranscriptCachePrefix(projectDir)

@@ -19,11 +19,11 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 
 ```
 <directory>
-cmd/        - 可执行入口（nexus-server 服务 + 自动迁移；nexusctl 命令行）
+cmd/        - 可执行入口（nexus-server 服务 + 自动迁移；nexusctl；Linux runtime launcher）
 web/        - React 前端（features / store / shared / lib，见 web/CLAUDE.md）
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal 模型与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
-  runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 会话/round 生命周期）
+  runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook）
   service/    - 业务服务（agent / dm / room / room/realtime / session / workspace / skills / connectors / automation / llm ...）
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器
@@ -33,7 +33,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   cli/        - nexusctl 命令装配（按领域文件组织）
   app/        - HTTP 服务装配与生命周期
   mcp/ connectors/ workspace/ - 能力域
-  config/ storage/ infra/ migration/ version/ - 装配、一次性迁移与基础
+  config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
 docs/       - 跨切面设计文档
 </directory>
 ```
@@ -45,6 +45,8 @@ docs/       - 跨切面设计文档
 - `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`。
 - 用户数据位于 `.nexus/users/<owner>/`：`workspace/` 保存 Agent 工作目录，`runtime/` 同时作为该 owner 的 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`。
 - 旧版根目录迁移由 `internal/migration/state_layout.go` 和 `workspace_layout.go` 在启动时分阶段、幂等执行；新增宿主或 runtime 文件时必须同步更新迁移分类与测试。
+- Linux 多用户强隔离由 root-owned `nexus-runtime-launcher` 执行；产品 server 保持 `nexus-host` 普通用户，runtime 只获得自己的私有 GID 和当前项目组。
+- 宿主代 runtime 操作 workspace、transcript、artifact 或用户 Skill 时必须使用 `internal/infra/confinedfs`；owner 校验后不得重新把用户可控绝对路径直接交给 `os.*`。
 
 ## 后端依赖方向
 

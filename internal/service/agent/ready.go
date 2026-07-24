@@ -23,7 +23,7 @@ func (s *Service) ensureReady(ctx context.Context) error {
 	if err := appfs.EnsureUserRuntimeLayout(ownerUserID); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(UserWorkspaceBasePath(s.config, ownerUserID), 0o700); err != nil {
+	if err := os.MkdirAll(UserWorkspaceBasePath(s.config, ownerUserID), agentWorkspaceDirectoryMode()); err != nil {
 		return err
 	}
 
@@ -33,7 +33,7 @@ func (s *Service) ensureReady(ctx context.Context) error {
 	}
 	if agent == nil {
 		record := BuildDefaultMainAgentRecord(s.config, ownerUserID)
-		if err = os.MkdirAll(record.WorkspacePath, 0o700); err != nil {
+		if err = os.MkdirAll(record.WorkspacePath, agentWorkspaceDirectoryMode()); err != nil {
 			return err
 		}
 		if err = EnsureRuntimeEmotionState(record.WorkspacePath); err != nil {
@@ -44,7 +44,7 @@ func (s *Service) ensureReady(ctx context.Context) error {
 			return err
 		}
 	}
-	if err = os.MkdirAll(agent.WorkspacePath, 0o700); err != nil {
+	if err = os.MkdirAll(agent.WorkspacePath, agentWorkspaceDirectoryMode()); err != nil {
 		return err
 	}
 	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {

@@ -219,3 +219,17 @@ func TestResolveWorkspaceAttachmentPathRejectsEscape(t *testing.T) {
 		t.Fatal("expected escaping attachment path to be rejected")
 	}
 }
+
+func TestResolveWorkspaceAttachmentPathRejectsSymlink(t *testing.T) {
+	workspacePath := t.TempDir()
+	outsidePath := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outsidePath, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outsidePath, filepath.Join(workspacePath, "attachment.txt")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	if _, err := ResolveWorkspaceAttachmentPath(workspacePath, "attachment.txt"); err == nil {
+		t.Fatal("workspace attachment symlink should be rejected")
+	}
+}

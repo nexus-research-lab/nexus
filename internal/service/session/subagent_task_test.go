@@ -352,6 +352,32 @@ func TestReadSubagentTaskThreadUsesCCOutputSymlinkAsTranscript(t *testing.T) {
 	}
 }
 
+func TestReadSubagentTaskThreadRejectsCCOutputSymlinkOutsideWorkspace(t *testing.T) {
+	root := t.TempDir()
+	outsideRoot := t.TempDir()
+	transcriptPath := filepath.Join(outsideRoot, "child.jsonl")
+	transcript := `{"type":"assistant","uuid":"assistant-final","parentUuid":null,"isSidechain":true,"agentId":"child-1","timestamp":"2026-07-10T10:00:02Z","message":{"role":"assistant","id":"assistant-message","model":"claude","content":[{"type":"text","text":"不应读取"}],"stop_reason":"end_turn"}}` + "\n"
+	if err := os.WriteFile(transcriptPath, []byte(transcript), 0o600); err != nil {
+		t.Fatalf("写入 workspace 外 transcript 失败: %v", err)
+	}
+	outputPath := filepath.Join(root, "task-output")
+	if err := os.Symlink(transcriptPath, outputPath); err != nil {
+		t.Fatalf("创建越界 output_file 符号链接失败: %v", err)
+	}
+
+	service := &Service{history: workspacestore.NewAgentHistoryStore(root)}
+	messages, outputIsTranscript, err := service.readSubagentTaskThread(SubagentTask{
+		TaskID:      "task-cc",
+		SessionKey:  "agent:host:ws:dm:conversation-1",
+		HostAgentID: "host",
+		TaskType:    "local_agent",
+		OutputFile:  outputPath,
+	}, root)
+	if err != nil || outputIsTranscript || len(messages) != 0 {
+		t.Fatalf("workspace 外 CC output_file 不应被读取: used=%v messages=%+v err=%v", outputIsTranscript, messages, err)
+	}
+}
+
 func TestReadSubagentTaskThreadFallsBackFromPlainOutput(t *testing.T) {
 	root := t.TempDir()
 	outputPath := filepath.Join(root, "task-output.txt")
@@ -370,7 +396,7 @@ func TestReadSubagentTaskThreadFallsBackFromPlainOutput(t *testing.T) {
 	if err != nil || outputIsTranscript || len(messages) != 0 {
 		t.Fatalf("普通 output 不应被当作 transcript: used=%v messages=%+v err=%v", outputIsTranscript, messages, err)
 	}
-	output, err := readSubagentOutputFile(outputPath)
+	output, err := readSubagentOutputFile(outputPath, root)
 	if err != nil || output != "普通任务输出" {
 		t.Fatalf("普通 output 回退失败: output=%q err=%v", output, err)
 	}

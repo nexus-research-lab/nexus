@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"unicode"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
@@ -141,7 +143,7 @@ func (s *Service) GetSubagentTaskMessages(ctx context.Context, rawSessionKey str
 	}
 	output := ""
 	if !outputIsTranscript {
-		output, err = readSubagentOutputFile(task.OutputFile)
+		output, err = readSubagentOutputFile(task.OutputFile, workspacePath)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
@@ -174,7 +176,7 @@ func (s *Service) readSubagentTaskThread(
 	if strings.EqualFold(strings.TrimSpace(task.TaskType), "local_agent") {
 		outputPath := strings.TrimSpace(task.OutputFile)
 		if outputPath != "" {
-			messages, err := s.history.ReadTranscriptPathMessages(
+			messages, err := s.history.ReadTranscriptLinkMessages(
 				outputPath,
 				workspacePath,
 				task.SessionKey,
@@ -692,12 +694,22 @@ func updateSubagentTaskString(target *string, source map[string]any, key string)
 	}
 }
 
-func readSubagentOutputFile(path string) (string, error) {
+func readSubagentOutputFile(path string, workspacePath string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return "", nil
 	}
-	file, err := os.Open(path)
+	rootPath := filepath.Clean(strings.TrimSpace(workspacePath))
+	relativePath, err := filepath.Rel(rootPath, filepath.Clean(path))
+	if err != nil || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return "", errors.New("subagent output path escapes workspace")
+	}
+	root, err := confinedfs.Open(rootPath)
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
+	file, err := root.Open(filepath.ToSlash(relativePath))
 	if err != nil {
 		return "", err
 	}

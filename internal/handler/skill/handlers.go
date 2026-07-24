@@ -132,6 +132,10 @@ func (h *Handlers) HandleImportLocalSkill(writer http.ResponseWriter, request *h
 		item, err = h.skills.ImportLocalPath(request.Context(), localPath)
 	}
 	if err != nil {
+		if errors.Is(err, skillspkg.ErrLocalPathImportUnavailable) {
+			h.api.WriteFailure(writer, http.StatusForbidden, err.Error())
+			return
+		}
 		if errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "SKILL.md") {
 			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 			return

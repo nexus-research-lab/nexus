@@ -34,7 +34,11 @@ func NewRoomHistoryStore(root string) *RoomHistoryStore {
 
 // AppendInlineMessage 追加一条 Room inline overlay。
 func (s *RoomHistoryStore) AppendInlineMessage(conversationID string, message protocol.Message) error {
-	return s.files.appendJSONL(s.paths.RoomConversationOverlayPath(conversationID), message)
+	return s.files.appendJSONLAt(
+		s.paths.HomeRoot,
+		s.paths.RoomConversationOverlayPath(conversationID),
+		message,
+	)
 }
 
 // AppendTranscriptReference 追加一条 transcript 引用。
@@ -49,7 +53,11 @@ func (s *RoomHistoryStore) AppendTranscriptReference(
 	if row == nil {
 		return s.AppendInlineMessage(conversationID, message)
 	}
-	return s.files.appendJSONL(s.paths.RoomConversationOverlayPath(conversationID), row)
+	return s.files.appendJSONLAt(
+		s.paths.HomeRoot,
+		s.paths.RoomConversationOverlayPath(conversationID),
+		row,
+	)
 }
 
 // ReadMessages 读取 Room 共享历史。
@@ -97,7 +105,10 @@ func (s *RoomHistoryStore) ReadMessagesPage(
 }
 
 func (s *RoomHistoryStore) readResolvedRows(conversationID string) ([]protocol.Message, error) {
-	rows, err := s.files.readJSONL(s.paths.RoomConversationOverlayPath(conversationID))
+	rows, err := s.files.readJSONLAt(
+		s.paths.HomeRoot,
+		s.paths.RoomConversationOverlayPath(conversationID),
+	)
 	if errors.Is(err, os.ErrNotExist) {
 		return []protocol.Message{}, nil
 	}

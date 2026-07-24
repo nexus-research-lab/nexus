@@ -4,13 +4,14 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 func (s *Service) writeRunArtifact(
@@ -37,18 +38,25 @@ func (s *Service) writeRunArtifact(
 	}
 
 	relativePath := automationRunArtifactPath(job.JobID, runID)
-	targetPath := filepath.Clean(filepath.Join(workspacePath, filepath.FromSlash(relativePath)))
-	root := filepath.Clean(workspacePath)
-	if targetPath != root && !strings.HasPrefix(targetPath, root+string(os.PathSeparator)) {
-		s.loggerFor(ctx).Warn("自动化任务运行产物路径越界", "job_id", job.JobID, "run_id", runID)
+	confinedRoot, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		s.loggerFor(ctx).Warn("打开自动化任务运行产物根失败", "job_id", job.JobID, "run_id", runID, "err", err)
 		return nil
 	}
-	if err = os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+	defer confinedRoot.Close()
+	if err = confinedRoot.MkdirAll(
+		filepath.Dir(relativePath),
+		appfs.RuntimeCollaborativeDirectoryMode(0o755),
+	); err != nil {
 		s.loggerFor(ctx).Warn("创建自动化任务运行产物目录失败", "job_id", job.JobID, "run_id", runID, "err", err)
 		return nil
 	}
 	content := renderRunArtifact(job, runID, roundID, sessionKey, finishedAt, status, observation, errorMessage, deliveryStatus, deliveryError, deliveryTo)
-	if err = os.WriteFile(targetPath, []byte(content), 0o644); err != nil {
+	if err = confinedRoot.WriteFileAtomic(
+		relativePath,
+		[]byte(content),
+		appfs.RuntimeCollaborativeFileMode(0o644),
+	); err != nil {
 		s.loggerFor(ctx).Warn("写入自动化任务运行产物失败", "job_id", job.JobID, "run_id", runID, "err", err)
 		return nil
 	}

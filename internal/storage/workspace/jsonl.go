@@ -7,14 +7,34 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 func (s *SessionFileStore) appendJSONL(path string, row map[string]any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	root, relative, err := s.openStorePath(path, true)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return appendJSONLAtRoot(root, relative, row)
+}
+
+func (s *SessionFileStore) appendJSONLAt(rootPath string, path string, row map[string]any) error {
+	root, relative, err := relativeStorePath(rootPath, path)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return appendJSONLAtRoot(root, relative, row)
+}
+
+func appendJSONLAtRoot(root *confinedfs.Root, relative string, row map[string]any) error {
+	if err := root.MkdirAll(filepath.Dir(relative), storageDirectoryMode()); err != nil {
 		return err
 	}
 
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	file, err := root.OpenFile(relative, os.O_CREATE|os.O_APPEND|os.O_WRONLY, storageFileMode(0o644))
 	if err != nil {
 		return err
 	}
@@ -31,55 +51,84 @@ func (s *SessionFileStore) appendJSONL(path string, row map[string]any) error {
 }
 
 func (s *SessionFileStore) replaceJSONL(path string, rows []map[string]any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-
-	file, err := os.CreateTemp(filepath.Dir(path), ".overlay-rewrite-*.jsonl")
+	root, relative, err := s.openStorePath(path, true)
 	if err != nil {
 		return err
 	}
-	tempPath := file.Name()
-	committed := false
-	defer func() {
-		if !committed {
-			_ = os.Remove(tempPath)
-		}
-	}()
+	defer root.Close()
+	if err = root.MkdirAll(filepath.Dir(relative), storageDirectoryMode()); err != nil {
+		return err
+	}
 
-	writer := bufio.NewWriter(file)
+	var builder strings.Builder
+	writer := bufio.NewWriter(&builder)
 	for _, row := range rows {
 		payload, err := json.Marshal(row)
 		if err != nil {
-			_ = file.Close()
 			return err
 		}
 		if _, err = fmt.Fprintf(writer, "%s\n", payload); err != nil {
-			_ = file.Close()
 			return err
 		}
 	}
 	if err = writer.Flush(); err != nil {
-		_ = file.Close()
 		return err
 	}
-	if err = file.Close(); err != nil {
+	return root.WriteFileAtomic(relative, []byte(builder.String()), storageFileMode(0o644))
+}
+
+func (s *SessionFileStore) replaceJSONLAt(rootPath string, path string, rows []map[string]any) error {
+	root, relative, err := relativeStorePath(rootPath, path)
+	if err != nil {
 		return err
 	}
-	if err = os.Rename(tempPath, path); err != nil {
+	defer root.Close()
+	var builder strings.Builder
+	writer := bufio.NewWriter(&builder)
+	for _, row := range rows {
+		payload, err := json.Marshal(row)
+		if err != nil {
+			return err
+		}
+		if _, err = fmt.Fprintf(writer, "%s\n", payload); err != nil {
+			return err
+		}
+	}
+	if err = writer.Flush(); err != nil {
 		return err
 	}
-	committed = true
-	return nil
+	return root.WriteFileAtomic(relative, []byte(builder.String()), storageFileMode(0o644))
 }
 
 func (s *SessionFileStore) readJSONL(path string) ([]map[string]any, error) {
-	file, err := os.Open(path)
+	root, relative, err := s.openStorePath(path, false)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	file, err := root.Open(relative)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
+	return readJSONLFile(file)
+}
 
+func (s *SessionFileStore) readJSONLAt(rootPath string, path string) ([]map[string]any, error) {
+	root, relative, err := relativeStorePathWithCreate(rootPath, path, false)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	file, err := root.Open(relative)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return readJSONLFile(file)
+}
+
+func readJSONLFile(file *os.File) ([]map[string]any, error) {
 	reader := bufio.NewScanner(file)
 	reader.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 

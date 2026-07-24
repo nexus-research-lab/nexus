@@ -11,6 +11,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
@@ -51,22 +52,30 @@ func syncUserSkillLibrary(cfg config.Config, ownerUserID string, refreshMirror b
 	lock.Lock()
 	defer lock.Unlock()
 
-	agentsRoot := filepath.Join(root, ".agents", "skills")
-	if err := os.MkdirAll(agentsRoot, 0o755); err != nil {
+	if err := os.MkdirAll(root, workspaceDirectoryMode()); err != nil {
 		return err
 	}
+	confinedRoot, err := confinedfs.Open(root)
+	if err != nil {
+		return err
+	}
+	defer confinedRoot.Close()
+	if err = confinedRoot.MkdirAll(".agents/skills", workspaceDirectoryMode()); err != nil {
+		return err
+	}
+	agentsRoot := filepath.Join(root, ".agents", "skills")
 	claudeRoot := filepath.Join(root, ".claude", "skills")
 	relativeTarget := filepath.Join("..", ".agents", "skills")
-	if currentTarget, err := os.Readlink(claudeRoot); err == nil {
+	if currentTarget, err := confinedRoot.Readlink(".claude/skills"); err == nil {
 		if currentTarget == relativeTarget {
 			return nil
 		}
-	} else if info, statErr := os.Stat(claudeRoot); statErr == nil && info.IsDir() && !refreshMirror {
+	} else if info, statErr := confinedRoot.Stat(".claude/skills"); statErr == nil && info.IsDir() && !refreshMirror {
 		return nil
 	}
-	if err := ensureRelativeSymlink(claudeRoot, relativeTarget); err == nil {
+	if err := ensureRelativeSymlink(root, claudeRoot, relativeTarget); err == nil {
 		return nil
-	} else if mirrorErr := mirrorDirectory(agentsRoot, claudeRoot); mirrorErr != nil {
+	} else if mirrorErr := mirrorDirectory(root, agentsRoot, claudeRoot); mirrorErr != nil {
 		return fmt.Errorf("创建用户 Skill Claude 入口失败: %w；镜像目录也失败: %v", err, mirrorErr)
 	}
 	return nil
@@ -74,20 +83,67 @@ func syncUserSkillLibrary(cfg config.Config, ownerUserID string, refreshMirror b
 
 // ReplaceDirectory 原子替换一个 Skill 源目录，避免 runtime 读到半份文件。
 func ReplaceDirectory(sourceRoot string, targetRoot string) error {
-	return replaceDirectory(sourceRoot, targetRoot)
+	return ReplaceDirectoryWithin(filepath.Dir(targetRoot), sourceRoot, targetRoot)
 }
 
-func mirrorDirectory(sourceRoot string, targetRoot string) error {
-	if err := os.MkdirAll(filepath.Dir(targetRoot), 0o755); err != nil {
-		return err
+// ReplaceDirectoryWithin 在固定 owner/app 边界内原子替换目录。
+func ReplaceDirectoryWithin(boundaryRoot string, sourceRoot string, targetRoot string) error {
+	if runtimeIsolationEnforced() {
+		if err := normalizeWorkspaceTree(sourceRoot); err != nil {
+			return err
+		}
 	}
-	temporaryRoot, err := os.MkdirTemp(filepath.Dir(targetRoot), ".user-skill-mirror-")
+	return replaceDirectoryWithin(boundaryRoot, sourceRoot, targetRoot)
+}
+
+// RemoveEntryWithin 删除固定 owner/app 边界内的单个目录树。
+func RemoveEntryWithin(boundaryRoot string, targetPath string) error {
+	root, err := confinedfs.Open(boundaryRoot)
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(temporaryRoot)
+	defer root.Close()
+	relativePath, err := relativePathWithin(boundaryRoot, targetPath)
+	if err != nil {
+		return err
+	}
+	return root.RemoveAll(relativePath)
+}
+
+func mirrorDirectory(boundaryRoot string, sourceRoot string, targetRoot string) error {
+	root, err := confinedfs.Open(boundaryRoot)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	temporaryRelative, err := root.MkdirTemp(".settings/skill-staging", ".user-skill-mirror-", 0o700)
+	if err != nil {
+		return err
+	}
+	temporaryRoot := filepath.Join(boundaryRoot, filepath.FromSlash(temporaryRelative))
+	defer root.RemoveAll(temporaryRelative)
 	if err = copyDirectoryTree(sourceRoot, temporaryRoot); err != nil {
 		return err
 	}
-	return replaceDirectory(temporaryRoot, targetRoot)
+	if runtimeIsolationEnforced() {
+		if err = normalizeWorkspaceTree(temporaryRoot); err != nil {
+			return err
+		}
+	}
+	return replaceDirectoryWithin(boundaryRoot, temporaryRoot, targetRoot)
+}
+
+func normalizeWorkspaceTree(root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if info.IsDir() {
+			return os.Chmod(path, workspaceDirectoryMode())
+		}
+		return os.Chmod(path, workspaceCopyFileMode(info.Mode()))
+	})
 }

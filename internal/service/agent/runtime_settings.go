@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -20,8 +21,7 @@ func EnsureRuntimeSettingsProjection(agentValue protocol.Agent) error {
 	if workspacePath == "" {
 		return errors.New("Agent workspace 不能为空")
 	}
-	path := filepath.Join(workspacePath, filepath.FromSlash(runtimeSettingsRelativePath))
-	settings, err := readRuntimeSettingsProjection(path)
+	settings, err := readRuntimeSettingsProjection(workspacePath)
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,12 @@ func EnsureRuntimeSettingsProjection(agentValue protocol.Agent) error {
 	if string(original) == string(updated) {
 		return nil
 	}
-	return writeRuntimeSettingsProjection(path, settings)
+	return writeRuntimeSettingsProjection(workspacePath, settings)
+}
+
+// LoadRuntimeSettingsProjection 从受限 workspace 根读取 nxs settings。
+func LoadRuntimeSettingsProjection(workspacePath string) (map[string]any, error) {
+	return readRuntimeSettingsProjection(workspacePath)
 }
 
 // RuntimeSettingsPath 返回指定 Agent 的 nxs project settings 路径。
@@ -53,11 +58,10 @@ func RuntimeSettingsPath(workspacePath string) string {
 
 // EnsureRuntimeVisionSettingsProjection 把用户选择的非敏感视觉路由同步给 nxs。
 func EnsureRuntimeVisionSettingsProjection(workspacePath string, providerRef string, model string) error {
-	path := RuntimeSettingsPath(workspacePath)
-	if path == "" {
+	if strings.TrimSpace(workspacePath) == "" {
 		return errors.New("Agent workspace 不能为空")
 	}
-	settings, err := readRuntimeSettingsProjection(path)
+	settings, err := readRuntimeSettingsProjection(workspacePath)
 	if err != nil {
 		return err
 	}
@@ -82,11 +86,16 @@ func EnsureRuntimeVisionSettingsProjection(workspacePath string, providerRef str
 	if string(original) == string(updated) {
 		return nil
 	}
-	return writeRuntimeSettingsProjection(path, settings)
+	return writeRuntimeSettingsProjection(workspacePath, settings)
 }
 
-func readRuntimeSettingsProjection(path string) (map[string]any, error) {
-	payload, err := os.ReadFile(path)
+func readRuntimeSettingsProjection(workspacePath string) (map[string]any, error) {
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	payload, err := root.ReadFile(runtimeSettingsRelativePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return map[string]any{}, nil
@@ -148,30 +157,19 @@ func setOptionalString(settings map[string]any, key string, value string) {
 	settings[key] = value
 }
 
-func writeRuntimeSettingsProjection(path string, settings map[string]any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+func writeRuntimeSettingsProjection(workspacePath string, settings map[string]any) error {
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
 		return err
 	}
+	defer root.Close()
 	payload, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
 	}
-	file, err := os.CreateTemp(filepath.Dir(path), ".settings-*.json")
-	if err != nil {
-		return err
-	}
-	tempPath := file.Name()
-	defer func() { _ = os.Remove(tempPath) }()
-	if err = file.Chmod(0o600); err != nil {
-		_ = file.Close()
-		return err
-	}
-	if _, err = file.Write(append(payload, '\n')); err != nil {
-		_ = file.Close()
-		return err
-	}
-	if err = file.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tempPath, path)
+	return root.WriteFileAtomic(
+		runtimeSettingsRelativePath,
+		append(payload, '\n'),
+		agentWorkspaceFileMode(0o600),
+	)
 }

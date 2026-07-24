@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
 
@@ -179,7 +179,16 @@ func dashScopeWorkspaceImage(workspacePath string, imagePath string) (string, er
 	if err != nil {
 		return "", err
 	}
-	payload, err := os.ReadFile(fullPath)
+	relativePath, err := filepath.Rel(filepath.Clean(workspacePath), fullPath)
+	if err != nil {
+		return "", err
+	}
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
+	payload, err := root.ReadFile(filepath.ToSlash(relativePath))
 	if err != nil {
 		return "", err
 	}

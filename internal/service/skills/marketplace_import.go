@@ -298,15 +298,15 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 		return nil, err
 	}
 	root := s.registryRoot(ctx)
-	if err = os.MkdirAll(root, 0o755); err != nil {
-		return nil, err
-	}
 	targetDir := filepath.Join(root, parsed.Name)
-	stagingDir, err := os.MkdirTemp(root, ".external-skill-")
+	boundaryRoot := workspacesvc.UserSkillLibraryRoot(s.config, ownerUserID)
+	stagingDir, err := createPrivateSkillStaging(boundaryRoot)
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(stagingDir)
+	defer func() {
+		_ = workspacesvc.RemoveEntryWithin(boundaryRoot, stagingDir)
+	}()
 	if err = copyDirectory(filepath.Dir(skillMDPath), stagingDir); err != nil {
 		return nil, err
 	}
@@ -326,14 +326,21 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 	if err = os.WriteFile(filepath.Join(stagingDir, ".nexus-skill.json"), payload, 0o644); err != nil {
 		return nil, err
 	}
-	if err = workspacesvc.ReplaceDirectory(stagingDir, targetDir); err != nil {
+	if err = workspacesvc.ReplaceDirectoryWithin(
+		boundaryRoot,
+		stagingDir,
+		targetDir,
+	); err != nil {
 		return nil, err
 	}
 	if err = workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID); err != nil {
 		return nil, err
 	}
 	if err = s.upsertImportedSkillRecord(ctx, targetDir, manifest, parsed); err != nil {
-		removeErr := os.RemoveAll(targetDir)
+		removeErr := workspacesvc.RemoveEntryWithin(
+			workspacesvc.UserSkillLibraryRoot(s.config, ownerUserID),
+			targetDir,
+		)
 		refreshErr := workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID)
 		return nil, errors.Join(err, removeErr, refreshErr)
 	}
@@ -348,7 +355,7 @@ func (s *Service) ensureExternalSkillNameAvailable(ctx context.Context, name str
 	if containsSkillName(internalSkillNames, trimmed) {
 		return errors.New("内部 Skill 名称不能被外部来源覆盖")
 	}
-	for _, root := range builtinSearchRoots(projectRoot()) {
+	for _, root := range builtinSearchRootsForContext(ctx, projectRoot()) {
 		exists, searchErr := skillNameExists(root, trimmed)
 		if searchErr != nil {
 			return searchErr
@@ -358,10 +365,11 @@ func (s *Service) ensureExternalSkillNameAvailable(ctx context.Context, name str
 		}
 	}
 	root := s.registryRoot(ctx)
-	entries, err := os.ReadDir(root)
-	if err != nil && !os.IsNotExist(err) {
+	confinedRoot, _, entries, err := readSkillRegistryDirectories(root)
+	if err != nil {
 		return err
 	}
+	defer confinedRoot.Close()
 	for _, entry := range entries {
 		if strings.EqualFold(entry.Name(), trimmed) && entry.Name() != trimmed {
 			return errors.New("已有外部 Skill 使用仅大小写不同的名称")
@@ -401,7 +409,7 @@ func skillNameExists(root string, target string) (bool, error) {
 }
 
 func (s *Service) readManifest(skillDir string) (externalManifest, error) {
-	payload, err := os.ReadFile(filepath.Join(skillDir, ".nexus-skill.json"))
+	payload, err := readSkillDirectoryFile(skillDir, ".nexus-skill.json")
 	if err != nil {
 		return externalManifest{}, err
 	}

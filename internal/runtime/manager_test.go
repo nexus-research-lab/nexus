@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +33,16 @@ type fakeRuntimeClient struct {
 	messages           <-chan sdkprotocol.ReceivedMessage
 	receiveStarted     chan struct{}
 	receiveStopped     chan struct{}
+}
+
+type fakeOwnerProcessReaper struct {
+	owners []string
+	err    error
+}
+
+func (r *fakeOwnerProcessReaper) ReapOwnerProcesses(_ context.Context, ownerUserID string) error {
+	r.owners = append(r.owners, ownerUserID)
+	return r.err
 }
 
 type fakeTaskMessage struct {
@@ -251,6 +262,33 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	}
 	if client.lastOptions.Env["NEXUS_OPENAI_PROTOCOL"] != "responses" {
 		t.Fatalf("Reconfigure 未收到 Responses 协议更新: %+v", client.lastOptions.Env)
+	}
+}
+
+func TestManagerRejectsSessionReuseAcrossOwners(t *testing.T) {
+	client := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	sessionKey := "agent:nexus:ws:dm:owner-boundary"
+
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"},
+	}); err != nil {
+		t.Fatalf("创建 owner-a runtime 失败: %v", err)
+	}
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-b"},
+	}); err == nil || !strings.Contains(err.Error(), "runtime session owner mismatch") {
+		t.Fatalf("跨 owner 复用应失败，err=%v", err)
+	}
+	if _, err := manager.GetOrCreate(
+		context.Background(),
+		sessionKey,
+		agentclient.Options{},
+	); err == nil || !strings.Contains(err.Error(), "runtime session owner mismatch") {
+		t.Fatalf("缺失 owner 的请求也不能复用已绑定 session，err=%v", err)
+	}
+	if client.reconfigureCalls != 0 {
+		t.Fatalf("跨 owner 请求不应进入旧 client: calls=%d", client.reconfigureCalls)
 	}
 }
 
@@ -993,6 +1031,87 @@ func TestManagerCloseIdleSessionsClosesOnlyIdleClients(t *testing.T) {
 	}
 	if got := manager.GetRunningRoundIDs(activeKey); len(got) != 1 || got[0] != "round-active" {
 		t.Fatalf("active round 不应被清理: %+v", got)
+	}
+}
+
+func TestManagerCloseOwnerSessionsClosesOnlyMatchingOwner(t *testing.T) {
+	clientA1 := &fakeRuntimeClient{}
+	clientA2 := &fakeRuntimeClient{}
+	clientB := &fakeRuntimeClient{}
+	reaper := &fakeOwnerProcessReaper{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{
+		clientA1,
+		clientA2,
+		clientB,
+	}})
+	manager.SetOwnerProcessReaper(reaper)
+	optionsForOwner := func(ownerUserID string) agentclient.Options {
+		return agentclient.Options{
+			Env: map[string]string{"NEXUS_RUNTIME_USER_ID": ownerUserID},
+		}
+	}
+	for _, input := range []struct {
+		sessionKey  string
+		ownerUserID string
+	}{
+		{sessionKey: "session-a-1", ownerUserID: "owner-a"},
+		{sessionKey: "session-a-2", ownerUserID: "owner-a"},
+		{sessionKey: "session-b", ownerUserID: "owner-b"},
+	} {
+		if _, err := manager.GetOrCreate(
+			context.Background(),
+			input.sessionKey,
+			optionsForOwner(input.ownerUserID),
+		); err != nil {
+			t.Fatalf("创建 %s runtime 失败: %v", input.sessionKey, err)
+		}
+	}
+	roundCanceled := false
+	manager.StartRound("session-a-1", "round-a", func() { roundCanceled = true })
+
+	closed, err := manager.CloseOwnerSessions(context.Background(), "owner-a")
+	if err != nil {
+		t.Fatalf("关闭 owner runtime 失败: %v", err)
+	}
+	if closed != 2 {
+		t.Fatalf("关闭数量=%d，want 2", closed)
+	}
+	if !roundCanceled {
+		t.Fatal("owner runtime 回收必须取消运行中的 round")
+	}
+	if clientA1.disconnectCalls != 1 || clientA2.disconnectCalls != 1 {
+		t.Fatalf(
+			"owner-a clients 未全部关闭: first=%d second=%d",
+			clientA1.disconnectCalls,
+			clientA2.disconnectCalls,
+		)
+	}
+	if clientB.disconnectCalls != 0 || !manager.HasSession("session-b") {
+		t.Fatalf(
+			"owner-b runtime 不应受影响: disconnect=%d exists=%v",
+			clientB.disconnectCalls,
+			manager.HasSession("session-b"),
+		)
+	}
+	if !slices.Equal(reaper.owners, []string{"owner-a"}) {
+		t.Fatalf("owner cgroup 回收调用=%v，want [owner-a]", reaper.owners)
+	}
+}
+
+func TestManagerCloseOwnerSessionsReapsOwnerWithoutTrackedSession(t *testing.T) {
+	reaper := &fakeOwnerProcessReaper{}
+	manager := NewManager()
+	manager.SetOwnerProcessReaper(reaper)
+
+	closed, err := manager.CloseOwnerSessions(context.Background(), "owner-orphan")
+	if err != nil {
+		t.Fatalf("回收 orphan owner 失败: %v", err)
+	}
+	if closed != 0 {
+		t.Fatalf("没有 tracked session 时 closed=%d，want 0", closed)
+	}
+	if !slices.Equal(reaper.owners, []string{"owner-orphan"}) {
+		t.Fatalf("owner cgroup 回收调用=%v，want [owner-orphan]", reaper.owners)
 	}
 }
 

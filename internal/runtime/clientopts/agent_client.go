@@ -12,7 +12,9 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
@@ -37,6 +39,7 @@ type RuntimeConfigForRuntimeResolver interface {
 // AgentClientOptionsInput 表示构造 SDK options 所需的统一输入。
 type AgentClientOptionsInput struct {
 	WorkspacePath     string
+	OwnerUserID       string
 	RuntimeKind       string
 	Provider          string
 	Model             string
@@ -62,6 +65,8 @@ type AgentClientOptionsInput struct {
 	AgentSDKDiagnosticsEnabled bool
 	ToolSearchEnabled          bool
 	WebSearch                  preferencessvc.WebSearchSettings
+	RuntimeIsolationMode       string
+	RuntimeLauncherPath        string
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -81,6 +86,16 @@ func BuildAgentClientOptionsWithConfig(
 	resolver RuntimeConfigResolver,
 	input AgentClientOptionsInput,
 ) (agentclient.Options, *RuntimeConfig, error) {
+	ownerUserID := strings.TrimSpace(input.OwnerUserID)
+	if contextOwner, ok := authctx.CurrentUserID(ctx); ok &&
+		ownerUserID != "" && ownerUserID != strings.TrimSpace(contextOwner) {
+		return agentclient.Options{}, nil, errors.New("runtime owner 与认证上下文不一致")
+	}
+	if ownerUserID == "" {
+		// 老的后台调用方可能只把 owner 放在认证上下文里；统一解析后，
+		// 配置目录、环境变量和 workspace policy 必须使用同一个 owner。
+		ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
+	}
 	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
 	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model, effectiveRuntimeKind)
 	if err != nil {
@@ -101,12 +116,12 @@ func BuildAgentClientOptionsWithConfig(
 	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx, ownerUserID))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, webSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 	runtimeEnv = mergeRuntimeEnv(
 		runtimeEnv,
-		managedUserRuntimeEnv(ctx, input.WorkspacePath, effectiveRuntimeKind),
+		managedUserRuntimeEnv(ownerUserID, input.WorkspacePath, effectiveRuntimeKind),
 	)
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
@@ -153,6 +168,23 @@ func BuildAgentClientOptionsWithConfig(
 	}
 	if len(input.MCPServers) > 0 {
 		options.MCP.Servers = cloneMCPServers(input.MCPServers)
+	}
+	options, err = workspaceisolation.Apply(
+		ctx,
+		options,
+		workspaceisolation.Config{
+			Mode:         workspaceisolation.Mode(input.RuntimeIsolationMode),
+			LauncherPath: input.RuntimeLauncherPath,
+		},
+		workspaceisolation.Input{
+			OwnerUserID: ownerUserID,
+			RuntimeKind: effectiveRuntimeKind,
+			CWD:         input.WorkspacePath,
+			ReadRoots:   input.SkillDirectories,
+		},
+	)
+	if err != nil {
+		return agentclient.Options{}, nil, fmt.Errorf("装配 runtime workspace isolation: %w", err)
 	}
 	return options, runtimeConfig, nil
 }

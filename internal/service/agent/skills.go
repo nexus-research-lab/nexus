@@ -1,10 +1,12 @@
 package agent
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -41,12 +43,20 @@ func countDeployedSkills(workspacePath string, selectedNames ...string) (int, er
 			skillNames[normalized] = struct{}{}
 		}
 	}
+	confinedRoot, err := confinedfs.Open(root)
+	if os.IsNotExist(err) {
+		return len(skillNames), nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	defer confinedRoot.Close()
 	for _, parent := range []string{
-		filepath.Join(root, ".agents", "skills"),
-		filepath.Join(root, ".agents"),
-		filepath.Join(root, ".claude", "skills"),
+		".agents/skills",
+		".agents",
+		".claude/skills",
 	} {
-		entries, err := os.ReadDir(parent)
+		entries, err := fs.ReadDir(confinedRoot.FS(), parent)
 		if os.IsNotExist(err) {
 			continue
 		}
@@ -54,8 +64,8 @@ func countDeployedSkills(workspacePath string, selectedNames ...string) (int, er
 			return 0, err
 		}
 		for _, entry := range entries {
-			skillDir := filepath.Join(parent, entry.Name())
-			if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md")); err != nil {
+			skillFile := filepath.ToSlash(filepath.Join(parent, entry.Name(), "SKILL.md"))
+			if _, err := confinedRoot.Stat(skillFile); err != nil {
 				continue
 			}
 			skillNames[entry.Name()] = struct{}{}

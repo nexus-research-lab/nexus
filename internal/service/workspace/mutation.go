@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 // UpdateFile 更新 workspace 文件内容。
@@ -15,17 +17,22 @@ func (s *Service) UpdateFile(ctx context.Context, agentID string, relativePath s
 	if err != nil {
 		return nil, err
 	}
-	targetPath, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
+	_, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
 	if err != nil {
 		return nil, err
 	}
-	if err = os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	if err != nil {
+		return nil, err
+	}
+	defer confinedRoot.Close()
+	if err = confinedRoot.MkdirAll(filepath.Dir(normalizedPath), workspaceDirectoryMode()); err != nil {
 		return nil, err
 	}
 	if s.live != nil {
 		s.live.SuppressWatcher(agentValue.AgentID, normalizedPath)
 	}
-	if err = os.WriteFile(targetPath, []byte(content), 0o644); err != nil {
+	if err = confinedRoot.WriteFileAtomic(normalizedPath, []byte(content), workspaceFileMode()); err != nil {
 		return nil, err
 	}
 	if s.live != nil {
@@ -40,26 +47,31 @@ func (s *Service) CreateEntry(ctx context.Context, agentID string, relativePath 
 	if err != nil {
 		return nil, err
 	}
-	targetPath, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
+	_, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
 	if err != nil {
 		return nil, err
 	}
-	if _, err = os.Stat(targetPath); err == nil {
+	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	if err != nil {
+		return nil, err
+	}
+	defer confinedRoot.Close()
+	if _, err = confinedRoot.Lstat(normalizedPath); err == nil {
 		return nil, errors.New("目标已存在")
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
 	switch strings.TrimSpace(entryType) {
 	case "directory":
-		err = os.MkdirAll(targetPath, 0o755)
+		err = confinedRoot.MkdirAll(normalizedPath, workspaceDirectoryMode())
 	case "file":
 		if s.live != nil {
 			s.live.SuppressWatcher(agentValue.AgentID, normalizedPath)
 		}
-		if err = os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+		if err = confinedRoot.MkdirAll(filepath.Dir(normalizedPath), workspaceDirectoryMode()); err != nil {
 			return nil, err
 		}
-		err = os.WriteFile(targetPath, []byte(content), 0o644)
+		err = confinedRoot.WriteFileAtomic(normalizedPath, []byte(content), workspaceFileMode())
 	default:
 		return nil, errors.New("仅支持创建 file 或 directory")
 	}
@@ -90,6 +102,7 @@ type workspaceEntryRename struct {
 	service          *Service
 	agentID          string
 	workspacePath    string
+	confinedRoot     *confinedfs.Root
 	sourcePath       string
 	targetPath       string
 	normalizedSource string
@@ -102,6 +115,12 @@ func (r *workspaceEntryRename) run(relativePath string, newPath string) (*EntryR
 	if err := r.resolvePaths(relativePath, newPath); err != nil {
 		return nil, err
 	}
+	confinedRoot, err := confinedfs.Open(r.workspacePath)
+	if err != nil {
+		return nil, err
+	}
+	r.confinedRoot = confinedRoot
+	defer r.confinedRoot.Close()
 	if err := r.validateMove(); err != nil {
 		return nil, err
 	}
@@ -128,15 +147,18 @@ func (r *workspaceEntryRename) validateMove() error {
 	if r.normalizedSource == r.normalizedTarget {
 		return errors.New("新旧路径不能相同")
 	}
-	info, err := os.Stat(r.sourcePath)
+	info, err := r.confinedRoot.Lstat(r.normalizedSource)
 	if os.IsNotExist(err) {
 		return ErrFileNotFound
 	}
 	if err != nil {
 		return err
 	}
+	if !info.IsDir() && !info.Mode().IsRegular() {
+		return errors.New("只能重命名普通文件或目录")
+	}
 	r.sourceInfo = info
-	if _, err = os.Stat(r.targetPath); err == nil {
+	if _, err = r.confinedRoot.Lstat(r.normalizedTarget); err == nil {
 		return errors.New("目标已存在")
 	}
 	if !os.IsNotExist(err) {
@@ -149,7 +171,7 @@ func (r *workspaceEntryRename) captureFileContent() {
 	if !r.isFile() {
 		return
 	}
-	content, err := os.ReadFile(r.sourcePath)
+	content, err := r.confinedRoot.ReadFile(r.normalizedSource)
 	if err != nil {
 		return
 	}
@@ -166,10 +188,10 @@ func (r *workspaceEntryRename) suppressFileWatchers() {
 }
 
 func (r *workspaceEntryRename) move() error {
-	if err := os.MkdirAll(filepath.Dir(r.targetPath), 0o755); err != nil {
+	if err := r.confinedRoot.MkdirAll(filepath.Dir(r.normalizedTarget), workspaceDirectoryMode()); err != nil {
 		return err
 	}
-	return os.Rename(r.sourcePath, r.targetPath)
+	return r.confinedRoot.Rename(r.normalizedSource, r.normalizedTarget)
 }
 
 func (r *workspaceEntryRename) emitFileMove() {
@@ -183,7 +205,7 @@ func (r *workspaceEntryRename) emitFileMove() {
 }
 
 func (r *workspaceEntryRename) isFile() bool {
-	return r.sourceInfo != nil && !r.sourceInfo.IsDir()
+	return r.sourceInfo != nil && r.sourceInfo.Mode().IsRegular()
 }
 
 // DeleteEntry 删除 workspace 条目。
@@ -192,11 +214,16 @@ func (s *Service) DeleteEntry(ctx context.Context, agentID string, relativePath 
 	if err != nil {
 		return nil, err
 	}
-	targetPath, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
+	_, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
 	if err != nil {
 		return nil, err
 	}
-	info, err := os.Stat(targetPath)
+	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	if err != nil {
+		return nil, err
+	}
+	defer confinedRoot.Close()
+	info, err := confinedRoot.Lstat(normalizedPath)
 	if os.IsNotExist(err) {
 		return nil, ErrFileNotFound
 	}
@@ -207,9 +234,9 @@ func (s *Service) DeleteEntry(ctx context.Context, agentID string, relativePath 
 		s.live.SuppressWatcher(agentValue.AgentID, normalizedPath)
 	}
 	if info.IsDir() {
-		err = os.RemoveAll(targetPath)
+		err = confinedRoot.RemoveAll(normalizedPath)
 	} else {
-		err = os.Remove(targetPath)
+		err = confinedRoot.Remove(normalizedPath)
 	}
 	if err != nil {
 		return nil, err

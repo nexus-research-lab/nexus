@@ -185,17 +185,18 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	if err != nil {
 		return nil, err
 	}
-	fileInfo, err := os.Stat(transcriptPath)
+	root, relative, fileInfo, err := openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
 		return nil, err
 	}
+	defer root.Close()
 
 	roundMarkerFingerprint := fingerprintTranscriptRoundMarkers(roundMarkers)
 	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint); ok {
 		return cachedRows, nil
 	}
 
-	entries, err := s.readTranscriptEntries(transcriptPath)
+	entries, err := s.readTranscriptEntriesAt(root, relative)
 	if err != nil {
 		return nil, err
 	}
@@ -218,14 +219,15 @@ func (s *AgentHistoryStore) ReadTranscriptPathMessages(
 	if transcriptPath == "" {
 		return []protocol.Message{}, nil
 	}
-	fileInfo, err := os.Stat(transcriptPath)
+	root, relative, fileInfo, err := openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
 		return nil, err
 	}
+	defer root.Close()
 	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, explicitTranscriptCacheKey); ok {
 		return cachedRows, nil
 	}
-	entries, err := s.readTranscriptEntries(transcriptPath)
+	entries, err := s.readTranscriptEntriesAt(root, relative)
 	if err != nil {
 		return nil, err
 	}
@@ -234,4 +236,19 @@ func (s *AgentHistoryStore) ReadTranscriptPathMessages(
 	projectedRows = normalizeHistoryRows(projectedRows, nil)
 	s.writeTranscriptCache(transcriptPath, fileInfo, explicitTranscriptCacheKey, projectedRows)
 	return projectedRows, nil
+}
+
+// ReadTranscriptLinkMessages 投影 runtime 明确返回的 transcript 符号链接。
+// 链接入口与最终目标分别绑定到授权根，普通 transcript 读取仍拒绝符号链接。
+func (s *AgentHistoryStore) ReadTranscriptLinkMessages(
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	targetPath, err := resolveTranscriptLinkTarget(workspacePath, transcriptPath)
+	if err != nil {
+		return nil, err
+	}
+	return s.ReadTranscriptPathMessages(targetPath, workspacePath, sessionKey, agentID)
 }

@@ -51,10 +51,10 @@ func (s *Service) loadExternalRecordsFromDB(ctx context.Context, root string) (m
 
 func (s *Service) buildExternalRecordFromEntity(root string, record skillstore.ImportedSkillEntity) catalogRecord {
 	skillDir := filepath.Join(root, record.SkillName)
-	content, _, fallbackName, err := readSkillSource(skillDir)
+	contentBytes, err := readSkillRegistryFile(root, record.SkillName, "SKILL.md")
 	parsed := parseSkillFrontmatter("", record.SkillName)
 	if err == nil {
-		parsed = parseSkillFrontmatter(content, fallbackName)
+		parsed = parseSkillFrontmatter(string(contentBytes), record.SkillName)
 	}
 	tags := jsoncodec.ParseStringSlice(record.TagsJSON)
 	if tags == nil {
@@ -199,7 +199,7 @@ func (s *Service) importedSkillSourceID(manifest externalManifest) string {
 }
 
 func hashSkillContent(skillDir string) string {
-	payload, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md"))
+	payload, err := readSkillDirectoryFile(skillDir, "SKILL.md")
 	if err != nil {
 		return ""
 	}
@@ -213,20 +213,25 @@ func buildSkillSourceID(kind string, sourceURL string) string {
 }
 
 func (s *Service) loadExternalRecordsFromRoot(root string) (map[string]catalogRecord, error) {
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, err
-	}
 	result := map[string]catalogRecord{}
-	entries, err := os.ReadDir(root)
+	confinedRoot, relativeRoot, entries, err := readSkillRegistryDirectories(root)
 	if err != nil {
 		return nil, err
 	}
+	defer confinedRoot.Close()
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		skillDirRelative := filepath.ToSlash(filepath.Join(relativeRoot, entry.Name()))
+		info, statErr := confinedRoot.Lstat(skillDirRelative)
+		if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 			continue
 		}
 		skillDir := filepath.Join(root, entry.Name())
-		payload, readErr := os.ReadFile(filepath.Join(skillDir, ".nexus-skill.json"))
+		manifestPath := filepath.ToSlash(filepath.Join(skillDirRelative, ".nexus-skill.json"))
+		manifestInfo, statErr := confinedRoot.Lstat(manifestPath)
+		if statErr != nil || manifestInfo.Mode()&os.ModeSymlink != 0 || !manifestInfo.Mode().IsRegular() {
+			continue
+		}
+		payload, readErr := confinedRoot.ReadFile(manifestPath)
 		if readErr != nil {
 			continue
 		}
@@ -237,10 +242,17 @@ func (s *Service) loadExternalRecordsFromRoot(root string) (map[string]catalogRe
 		if !strings.EqualFold(strings.TrimSpace(manifest.SourceType), sourceTypeExternal) {
 			continue
 		}
-		content, _, skillName, sourceErr := readSkillSource(skillDir)
+		skillPath := filepath.ToSlash(filepath.Join(skillDirRelative, "SKILL.md"))
+		skillInfo, statErr := confinedRoot.Lstat(skillPath)
+		if statErr != nil || skillInfo.Mode()&os.ModeSymlink != 0 || !skillInfo.Mode().IsRegular() {
+			continue
+		}
+		contentBytes, sourceErr := confinedRoot.ReadFile(skillPath)
 		if sourceErr != nil {
 			continue
 		}
+		content := string(contentBytes)
+		skillName := entry.Name()
 		parsed := parseSkillFrontmatter(content, skillName)
 		canonicalName := firstNonEmpty(manifest.Name, parsed.Name)
 		if validateSkillName(canonicalName) != nil {

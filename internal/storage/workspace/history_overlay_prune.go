@@ -18,7 +18,7 @@ func (s *AgentHistoryStore) RemoveOverlayRounds(
 	}
 
 	overlayPath := s.paths.SessionOverlayPath(workspacePath, sessionKey)
-	rows, err := s.files.readJSONL(overlayPath)
+	rows, err := s.files.readJSONLAt(workspacePath, overlayPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return 0, nil
 	}
@@ -38,7 +38,7 @@ func (s *AgentHistoryStore) RemoveOverlayRounds(
 	if removed == 0 {
 		return 0, nil
 	}
-	if err = s.files.replaceJSONL(overlayPath, nextRows); err != nil {
+	if err = s.files.replaceJSONLAt(workspacePath, overlayPath, nextRows); err != nil {
 		return 0, err
 	}
 	return removed, nil

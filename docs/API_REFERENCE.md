@@ -129,6 +129,19 @@
 
 Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置目录，`resource` 由用户填写资源级 Base URL，`custom` 使用完整自定义端点。内置 Azure OpenAI 预设属于 `resource`：接受资源根地址、`/openai/` 或 `/openai/v1` 并统一保存为 v1 Base URL；Azure 请求中的 `model` 必须使用实际 deployment name，因此该预设关闭远端模型同步，使用“添加模型”录入 deployment name。历史上以 `provider=azure` 保存、且地址可安全归一化的 Custom Provider 会在读取时投影为内置 Azure preset，下一次保存后正式持久化；其他自定义 Azure operation URL 保持原配置。
 
+### 共享项目 ACL
+
+仅在 Linux `NEXUS_RUNTIME_ISOLATION_MODE=enforce` 下可用；其他部署返回 `501`。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/projects` | owner/admin 查看完整 registry；普通成员只看到自己已加入的项目，成员表仅保留自身 |
+| POST | `/projects` | owner/admin 创建或 ensure 项目，body: `{ project_id }` |
+| PUT | `/projects/{project_id}/members/{owner_user_id}` | admin 设置成员权限，body: `{ access: "read" \| "write" \| "none" }` |
+
+新项目会由 root-owned launcher 原子授予创建者 `write`；对已存在项目执行
+`POST /projects` 不会自动加入调用者。
+
 ---
 
 ## 4. Agent 管理
@@ -233,7 +246,7 @@ JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富
 |------|------|------|---------|
 | GET | `/skills` | 全部技能（query: `agent_id`,`category_key`,`source_type`,`scope`,`q`） | `getAvailableSkillsApi` |
 | GET | `/skills/{skill_name}` | 技能详情（query: `agent_id`） | `getSkillDetailApi` |
-| POST | `/skills/import/local` | 导入本地技能（FormData: `file` 或 `local_path`） | `importLocalSkillApi` |
+| POST | `/skills/import/local` | 导入本地技能；认证部署仅允许 FormData `file`，未认证本地单用户部署兼容 `local_path` | `importLocalSkillApi` |
 | POST | `/skills/import/git` | 从 Git 仓库导入（body: `{ url, branch, path }`） | `importGitSkillApi` |
 | GET | `/skills/search/external` | 搜索社区技能（query: `q`,`include_readme`） | `searchExternalSkillsApi` |
 | GET | `/skills/external/preview` | 社区技能预览（query: `detail_url`） | `getExternalSkillPreviewApi` |

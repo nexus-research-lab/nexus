@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -46,7 +47,8 @@ func (s *AgentHistoryStore) ReadRoundIndex(
 	activeRoundIDs []string,
 ) (protocol.SessionRoundIndex, error) {
 	active := normalizeActiveRoundIDs(activeRoundIDs)
-	return readRoundIndexFromJSONL(
+	return readRoundIndexFromJSONLAt(
+		workspacePath,
 		s.paths.SessionOverlayPath(workspacePath, sessionValue.SessionKey),
 		active,
 		false,
@@ -59,7 +61,8 @@ func (s *RoomHistoryStore) ReadRoundIndex(
 	conversationID string,
 	activeRoundIDs []string,
 ) (protocol.SessionRoundIndex, error) {
-	return readRoundIndexFromJSONL(
+	return readRoundIndexFromJSONLAt(
+		s.paths.HomeRoot,
 		s.paths.RoomConversationOverlayPath(conversationID),
 		normalizeActiveRoundIDs(activeRoundIDs),
 		true,
@@ -67,13 +70,29 @@ func (s *RoomHistoryStore) ReadRoundIndex(
 	)
 }
 
-func readRoundIndexFromJSONL(
+func readRoundIndexFromJSONLAt(
+	rootPath string,
 	path string,
 	activeRoundIDs map[string]struct{},
 	collapseRoomAgentRounds bool,
 	defaultAgentID string,
 ) (protocol.SessionRoundIndex, error) {
-	file, err := os.Open(path)
+	root, relative, err := relativeStorePath(rootPath, path)
+	if err != nil {
+		return protocol.SessionRoundIndex{}, err
+	}
+	defer root.Close()
+	return readRoundIndexFromRoot(root, relative, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
+}
+
+func readRoundIndexFromRoot(
+	root *confinedfs.Root,
+	relative string,
+	activeRoundIDs map[string]struct{},
+	collapseRoomAgentRounds bool,
+	defaultAgentID string,
+) (protocol.SessionRoundIndex, error) {
+	file, err := root.Open(relative)
 	if errors.Is(err, os.ErrNotExist) {
 		return protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{}}, nil
 	}

@@ -6,6 +6,7 @@ package workspace
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -278,7 +280,15 @@ func (s *RoomPublicHandoffStore) Pending(conversationID string) ([]RoomPublicHan
 func (s *RoomPublicHandoffStore) PendingAll() ([]RoomPublicHandoff, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	entries, err := os.ReadDir(s.paths.RoomConversationRoot())
+	root, err := confinedfs.Open(s.paths.HomeRoot)
+	if errors.Is(err, os.ErrNotExist) {
+		return []RoomPublicHandoff{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	entries, err := fs.ReadDir(root.FS(), filepath.ToSlash(filepath.Join("rooms")))
 	if errors.Is(err, os.ErrNotExist) {
 		return []RoomPublicHandoff{}, nil
 	}
@@ -291,7 +301,10 @@ func (s *RoomPublicHandoffStore) PendingAll() ([]RoomPublicHandoff, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		rows, readErr := s.files.readJSONL(filepath.Join(s.paths.RoomConversationRoot(), entry.Name(), "public_handoffs.jsonl"))
+		rows, readErr := s.files.readJSONLAt(
+			s.paths.HomeRoot,
+			filepath.Join(s.paths.RoomConversationRoot(), entry.Name(), "public_handoffs.jsonl"),
+		)
 		if errors.Is(readErr, os.ErrNotExist) {
 			continue
 		}
@@ -359,7 +372,7 @@ func (s *RoomPublicHandoffStore) appendLocked(conversationID string, action stri
 	if conversationID == "" {
 		return errors.New("conversation_id is required")
 	}
-	return s.files.appendJSONL(s.paths.RoomPublicHandoffsPath(conversationID), map[string]any{
+	return s.files.appendJSONLAt(s.paths.HomeRoot, s.paths.RoomPublicHandoffsPath(conversationID), map[string]any{
 		"action":    action,
 		"handoff":   handoff,
 		"timestamp": time.Now().UnixMilli(),
@@ -367,7 +380,10 @@ func (s *RoomPublicHandoffStore) appendLocked(conversationID string, action stri
 }
 
 func (s *RoomPublicHandoffStore) replayLocked(conversationID string) (map[string]RoomPublicHandoff, error) {
-	rows, err := s.files.readJSONL(s.paths.RoomPublicHandoffsPath(strings.TrimSpace(conversationID)))
+	rows, err := s.files.readJSONLAt(
+		s.paths.HomeRoot,
+		s.paths.RoomPublicHandoffsPath(strings.TrimSpace(conversationID)),
+	)
 	if errors.Is(err, os.ErrNotExist) {
 		return map[string]RoomPublicHandoff{}, nil
 	}

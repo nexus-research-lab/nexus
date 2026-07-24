@@ -27,6 +27,13 @@ func validateSkillName(name string) error {
 
 func readSkillSource(sourceDir string) (string, string, string, error) {
 	skillMDPath := filepath.Join(sourceDir, "SKILL.md")
+	info, err := os.Lstat(skillMDPath)
+	if err != nil {
+		return "", "", "", err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return "", "", "", errors.New("SKILL.md 必须是普通文件，不能是符号链接")
+	}
 	content, err := os.ReadFile(skillMDPath)
 	if err != nil {
 		return "", "", "", err
@@ -48,6 +55,12 @@ func copyDirectory(sourceDir string, targetDir string) error {
 		}
 		if relativePath == "." {
 			return nil
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return errors.New("skill 源不能包含符号链接")
+		}
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return errors.New("skill 源只能包含普通文件和目录")
 		}
 		targetPath := filepath.Join(targetDir, relativePath)
 		if info.IsDir() {

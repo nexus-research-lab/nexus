@@ -14,7 +14,7 @@ import (
 
 // AppendOverlayMessage 追加一条 Nexus overlay 消息。
 func (s *AgentHistoryStore) AppendOverlayMessage(workspacePath string, sessionKey string, message protocol.Message) error {
-	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), message)
+	return s.files.appendJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey), message)
 }
 
 // AppendExternalDeliveryReceipt 追加一条外部 IM 投递回执 overlay 控制行。
@@ -130,7 +130,7 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
 			row["metadata"] = metadata
 		}
 	}
-	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
+	return s.files.appendJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
 }
 
 // AppendRoomPublicCursor 追加 Room 公区消费位置控制行。
@@ -149,7 +149,7 @@ func (s *AgentHistoryStore) AppendRoomPublicCursor(workspacePath string, session
 		"last_public_timestamp":  cursor.LastPublicTimestamp,
 		"timestamp":              cursor.Timestamp,
 	}
-	return s.files.appendJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
+	return s.files.appendJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey), row)
 }
 
 // ReadRoomPublicCursor 读取 Room agent 最新公区消费位置。
@@ -159,7 +159,7 @@ func (s *AgentHistoryStore) ReadRoomPublicCursor(
 	conversationID string,
 	agentID string,
 ) (RoomPublicCursor, bool, error) {
-	rows, err := s.files.readJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey))
+	rows, err := s.files.readJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey))
 	if errors.Is(err, os.ErrNotExist) {
 		return RoomPublicCursor{}, false, nil
 	}
@@ -216,7 +216,7 @@ func (s *AgentHistoryStore) readOverlayHistoryState(
 	workspacePath string,
 	sessionKey string,
 ) (overlayHistoryState, error) {
-	rows, err := s.files.readJSONL(s.paths.SessionOverlayPath(workspacePath, sessionKey))
+	rows, err := s.files.readJSONLAt(workspacePath, s.paths.SessionOverlayPath(workspacePath, sessionKey))
 	if errors.Is(err, os.ErrNotExist) {
 		return overlayHistoryState{
 			MessageRows:  []protocol.Message{},

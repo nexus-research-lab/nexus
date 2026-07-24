@@ -8,16 +8,20 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/message"
 )
 
-func (s *AgentHistoryStore) readTranscriptEntries(path string) ([]transcriptEntry, error) {
-	file, err := os.Open(path)
+func (s *AgentHistoryStore) readTranscriptEntriesAt(root *confinedfs.Root, relative string) ([]transcriptEntry, error) {
+	file, err := root.Open(relative)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
+	return readTranscriptEntriesFile(file)
+}
 
+func readTranscriptEntriesFile(file *os.File) ([]transcriptEntry, error) {
 	reader := bufio.NewScanner(file)
 	reader.Buffer(make([]byte, 0, transcriptReadBufferBytes), transcriptScannerBufferBytes)
 

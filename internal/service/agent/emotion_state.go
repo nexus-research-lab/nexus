@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 const runtimeEmotionStateRelativePath = ".agents/emotion.json"
@@ -95,19 +97,27 @@ func LoadRuntimeEmotionView(workspacePath string, contextID string, now time.Tim
 
 // EnsureRuntimeEmotionState 保证 agent workspace 内存在情绪状态文件。
 func EnsureRuntimeEmotionState(workspacePath string) error {
-	path := runtimeEmotionStatePath(workspacePath)
-	if path == "" {
+	if strings.TrimSpace(workspacePath) == "" {
 		return nil
 	}
-	if _, err := os.Stat(path); err == nil {
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if _, err := root.Lstat(runtimeEmotionStateRelativePath); err == nil {
 		return nil
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := root.MkdirAll(filepath.Dir(runtimeEmotionStateRelativePath), agentWorkspaceDirectoryMode()); err != nil {
 		return err
 	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	file, err := root.OpenFile(
+		runtimeEmotionStateRelativePath,
+		os.O_CREATE|os.O_EXCL|os.O_WRONLY,
+		agentWorkspaceFileMode(0o644),
+	)
 	if err != nil {
 		if os.IsExist(err) {
 			return nil
@@ -177,11 +187,15 @@ func ClearRuntimeEmotionContext(workspacePath string, contextID string) (Runtime
 
 func loadRuntimeEmotionState(workspacePath string, now time.Time) RuntimeEmotionState {
 	state := defaultRuntimeEmotionState(now)
-	path := runtimeEmotionStatePath(workspacePath)
-	if path == "" {
+	if strings.TrimSpace(workspacePath) == "" {
 		return state
 	}
-	payload, err := os.ReadFile(path)
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return state
+	}
+	defer root.Close()
+	payload, err := root.ReadFile(runtimeEmotionStateRelativePath)
 	if err != nil {
 		return state
 	}
@@ -193,34 +207,26 @@ func loadRuntimeEmotionState(workspacePath string, now time.Time) RuntimeEmotion
 }
 
 func writeRuntimeEmotionState(workspacePath string, state RuntimeEmotionState) error {
-	path := runtimeEmotionStatePath(workspacePath)
-	if path == "" {
+	if strings.TrimSpace(workspacePath) == "" {
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if err := root.MkdirAll(filepath.Dir(runtimeEmotionStateRelativePath), agentWorkspaceDirectoryMode()); err != nil {
 		return err
 	}
 	payload, err := json.MarshalIndent(normalizeRuntimeEmotionState(state, time.Now()), "", "  ")
 	if err != nil {
 		return err
 	}
-	dir := filepath.Dir(path)
-	file, err := os.CreateTemp(dir, ".emotion-*.json")
-	if err != nil {
-		return err
-	}
-	tempPath := file.Name()
-	defer func() {
-		_ = os.Remove(tempPath)
-	}()
-	if _, err = file.Write(append(payload, '\n')); err != nil {
-		_ = file.Close()
-		return err
-	}
-	if err = file.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tempPath, path)
+	return root.WriteFileAtomic(
+		runtimeEmotionStateRelativePath,
+		append(payload, '\n'),
+		agentWorkspaceFileMode(0o600),
+	)
 }
 
 func runtimeEmotionStatePath(workspacePath string) string {

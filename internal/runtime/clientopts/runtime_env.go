@@ -364,19 +364,18 @@ func explicitNXSProcessRuntimeEnv(runtimeKind string) map[string]string {
 	return env
 }
 
-func buildScopedRuntimeEnv(ctx context.Context) map[string]string {
+func buildScopedRuntimeEnv(ctx context.Context, ownerUserID string) map[string]string {
 	state, hasState := authctx.StateFromContext(ctx)
-	userID, ok := authctx.CurrentUserID(ctx)
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	env := map[string]string{}
-	if ok {
-		trimmedUserID := strings.TrimSpace(userID)
-		if trimmedUserID != "" {
-			env[nexusctlUserIDEnvName] = trimmedUserID
-			env[nexusRuntimeUserIDEnvName] = trimmedUserID
+	if ownerUserID != "" {
+		env[nexusctlUserIDEnvName] = ownerUserID
+		env[nexusRuntimeUserIDEnvName] = ownerUserID
+		if ownerUserID != authctx.SystemUserID || state.AuthRequired || authctx.PrincipalFromContext(ctx) != nil {
 			env[nexusRuntimeScopeModeEnvName] = "user_scoped"
+		} else {
+			env[nexusRuntimeScopeModeEnvName] = "single_user"
 		}
-	}
-	if len(env) > 0 {
 		return env
 	}
 	if hasState && !state.AuthRequired {
@@ -451,11 +450,11 @@ func scrubInheritedRuntimeEnv() map[string]string {
 // 空值覆盖用于切断旧的 host root、数据库和密钥；路径则全部落在
 // users/<owner>/runtime，且 ExtraEnv 无法改写当前 workspace。
 func managedUserRuntimeEnv(
-	ctx context.Context,
+	ownerUserID string,
 	workspacePath string,
 	runtimeKind string,
 ) map[string]string {
-	runtimeRoot := appfs.UserRuntimeRoot(authctx.OwnerUserID(ctx))
+	runtimeRoot := appfs.UserRuntimeRoot(ownerUserID)
 	homeRoot := filepath.Join(runtimeRoot, "home")
 	env := map[string]string{
 		appfs.NexusStateRootEnvName:        "",

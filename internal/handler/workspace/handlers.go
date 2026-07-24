@@ -205,7 +205,7 @@ func (h *Handlers) HandleUploadWorkspaceFile(writer http.ResponseWriter, request
 
 // HandleDownloadWorkspaceFile 下载工作区文件。
 func (h *Handlers) HandleDownloadWorkspaceFile(writer http.ResponseWriter, request *http.Request) {
-	filePath, fileName, err := h.workspace.GetFileForDownload(
+	file, fileName, err := h.workspace.OpenFileForDownload(
 		request.Context(),
 		chi.URLParam(request, "agent_id"),
 		request.URL.Query().Get("path"),
@@ -222,11 +222,17 @@ func (h *Handlers) HandleDownloadWorkspaceFile(writer http.ResponseWriter, reque
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
+	defer file.Close()
 	writer.Header().Set(
 		"Content-Disposition",
 		buildWorkspaceFileDispositionHeader(fileName, request.URL.Query().Get("disposition")),
 	)
-	http.ServeFile(writer, request, filePath)
+	info, err := file.Stat()
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	http.ServeContent(writer, request, fileName, info.ModTime(), file)
 }
 
 // HandleRevealWorkspaceFile 在桌面端文件管理器中定位工作区文件。

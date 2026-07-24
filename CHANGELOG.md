@@ -7,21 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added opt-in Linux runtime isolation for both nxs and Claude Code: stable per-owner OS UID/private GID mappings, setgid/default POSIX ACLs, explicit shared-project read/write grants, a root-owned launcher, mandatory PreToolUse path policy, environment scrubbing, and a final Landlock filesystem boundary. Direct `nexusctl` calls are rejected early by policy, and the packaged container denies CLI execution to runtime UIDs until a scoped host broker is available.
+- Added an owner-scoped shared-project API, an Operations UI for project creation and member ACL management, and directory-fd-confined host file access for workspace files, transcripts, runtime artifacts, preferences, and user Skill registries. Project membership changes now cancel the affected owner's active rounds and recycle all hot runtimes so stale project GIDs are not reused.
+- Added opt-in Linux cgroup v2 owner process-tree reaping: runtime processes inherit a root-owned per-user cgroup, and permission revocation or final session close can call `cgroup.kill` through the trusted launcher.
+
 ### Changed
 
 - Replaced the application shell's full-height and full-width divider lines with theme-aware tonal navigation, directory, and workspace materials plus broad low-contrast edge shadows across light, dark, and rain backgrounds.
 - Moved persistent state under `.nexus/app` and `users/<owner>/`, added idempotent startup migration for legacy `.nexus` data, and injects the same owner-scoped runtime root into nxs and Claude Code.
+- Authenticated deployments now require archive upload for local Skill imports instead of accepting arbitrary host `local_path` values.
 - Deepened only the light theme's warm ambient page background while preserving the existing blue-gray surfaces, controls, borders, text, and dark/rain themes.
 - Kept Room conversation tabs in stable creation order while restoring each Room's last explicitly active tab when users return; explicit Conversation URLs and unread targets continue to take precedence.
 
 ### Fixed
 
+- Preserved Claude Code subagent transcript projection through its runtime-managed output symlink using a double-confined read path, and restored session metadata writes when a valid Agent workspace has not been created yet.
 - Fixed the Contacts sidebar add button navigating to an inert management query on desktop; it now opens the shared Agent creation editor directly and preserves the same flow in the phone layout.
 - Matched the Session-strip shadow tray to the Session tag radius and changed its soft lift to follow the rounded contour, eliminating rectangular shadow corners at either end of wide or compressed tab rows.
 - Reflowed the inline Agent identity overview into a balanced two-row responsive grid so profile and vibe fields share the first row, model selection fills the second row, and the profile description no longer starts below an unexplained desktop whitespace band.
 - Replaced bright white utility and catalog icon buttons with one theme-aware warm control surface across sidebar search fields and actions, Agent creation, workspace headers, and the conversation scroll control; renamed the Contacts directory surface to Agent Management and removed its redundant `Agents / AGENTS` heading so navigation and page responsibilities remain distinct.
 - Unified workspace view, history, Room-member, and overflow actions inside one warm segmented browser-style capsule while preserving their established order, retained a separate Session-action group, aligned the structure in Agent details, centered controls against the usable header height, and gave identity avatars a defined two-level lift; active Session and sidebar conversation rows now use a complete fine edge plus appropriately scaled soft lift while inactive conversations remain fully transparent and borderless.
 - Unified DM and Group Room header rhythm with shared identity, conversation, workspace-tool, and collaboration spacing; removed the redundant divider after the already framed conversation controls, aligned view, history, member, and overflow actions to one control-height baseline, and progressively moves About, Workspace, then Subagents into the overflow menu instead of replacing all three with a separate Panels dropdown.
+- Kept the state-layout completion marker in the app-owned migration ledger.
+- Fixed state-layout migration failing on transient `ENOENT` while an active runtime cleaned up or moved a legacy transcript entry, or while macOS Finder regenerated conflicting `.DS_Store` metadata; Room append-only overlays now merge provable source/target subsets and equivalent timestamp refreshes, while genuine content conflicts remain protected.
 - Fixed unauthenticated App/Web requests falling back to an unscoped Agent or automation query; single-user requests now resolve to `__system__`, while explicit maintenance contexts retain their separate cross-owner path.
 - Fixed Room slot interruption by removing the global Composer stop action, binding the stop button to the corresponding `agent_round_id`, preserving that identity through streaming placeholders, and projecting one monotonic stopped slot instead of a `Request stopped` message plus a duplicate empty card.
 - Isolated DM and Room input-queue replay by execution scope and prevented Room subscription recovery from dispatching DM queue items through a Room runtime, so a DM resume cannot be reused by a different Room configuration.

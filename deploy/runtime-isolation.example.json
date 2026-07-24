@@ -1,0 +1,20 @@
+{
+  "state_root": "/var/lib/nexus",
+  "host_uid": 1001,
+  "host_gid": 1001,
+  "uid_min": 20000,
+  "uid_max": 59999,
+  "ticket_ttl_seconds": 86400,
+  "landlock_required": true,
+  "cgroup_root": "",
+  "cgroup_required": false,
+  "runtime_executables": {
+    "nxs": "/opt/nexus/bin/nxs",
+    "claude": "/usr/local/bin/claude"
+  },
+  "read_only_roots": [
+    "/opt/nexus",
+    "/var/lib/nexus/app/.agents/bin",
+    "/var/lib/nexus/app/platform-skills"
+  ]
+}

@@ -4,6 +4,7 @@
 package migration
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,6 +16,11 @@ func TestRunStateLayoutMigratesLegacyEntries(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "data", "nexus.db"), "database\n")
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "config", "runtime-settings.json"), "{}\n")
+	writeMigrationTestFile(
+		t,
+		filepath.Join(stateRoot, ".migrations", "20260723_migrate_v0_1_27_skill_storage"),
+		"completed\n",
+	)
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "logs", "logger.log"), "host-log\n")
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "logs", "debug", "runtime.log"), "runtime-log\n")
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "projects", "session.jsonl"), "{}\n")
@@ -56,6 +62,16 @@ func TestRunStateLayoutMigratesLegacyEntries(t *testing.T) {
 		t,
 		filepath.Join(stateRoot, "app", "config", "runtime-settings.json"),
 		"{}\n",
+	)
+	assertMigrationFileContent(
+		t,
+		filepath.Join(
+			stateRoot,
+			"app",
+			".migrations",
+			"20260723_migrate_v0_1_27_skill_storage",
+		),
+		"completed\n",
 	)
 	assertMigrationFileContent(
 		t,
@@ -188,10 +204,40 @@ func TestRunStateLayoutMigratesLegacyEntries(t *testing.T) {
 	assertMigrationPathMissing(t, filepath.Join(stateRoot, "data"))
 	assertMigrationPathMissing(t, filepath.Join(stateRoot, "projects"))
 
-	markerPath := filepath.Join(stateRoot, ".layout-migrations", stateLayoutMigrationName)
+	markerPath := filepath.Join(stateRoot, "app", ".migrations", stateLayoutMigrationName)
 	assertLayoutMigrationMarker(t, markerPath)
+	assertMigrationPathMissing(t, filepath.Join(stateRoot, ".layout-migrations"))
 	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
 		t.Fatalf("重复执行状态根布局迁移失败: %v", err)
+	}
+}
+
+func TestRunStateLayoutPreservesCompletedTreePermissions(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	runtimeFile := filepath.Join(
+		stateRoot,
+		"users",
+		authctx.SystemUserID,
+		"runtime",
+		"settings.json",
+	)
+	writeMigrationTestFile(t, filepath.Join(stateRoot, "settings.json"), "{}\n")
+	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("执行状态根布局迁移失败: %v", err)
+	}
+	if err := os.Chmod(runtimeFile, 0o660); err != nil {
+		t.Fatalf("模拟 runtime 私有组权限失败: %v", err)
+	}
+
+	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("完成迁移后的重复启动失败: %v", err)
+	}
+	info, err := os.Stat(runtimeFile)
+	if err != nil {
+		t.Fatalf("读取 runtime 文件权限失败: %v", err)
+	}
+	if info.Mode().Perm() != 0o660 {
+		t.Fatalf("完成标记后不应重新收紧 runtime ACL mask: %o", info.Mode().Perm())
 	}
 }
 
@@ -210,6 +256,111 @@ func TestRunStateLayoutMergesIdenticalDestinations(t *testing.T) {
 	assertMigrationPathMissing(t, filepath.Join(stateRoot, "data"))
 	assertMigrationFileContent(t, targetPath, "same\n")
 	assertMigrationFileContent(t, filepath.Join(stateRoot, "app", "data", "new.db"), "new\n")
+}
+
+func TestRunStateLayoutIgnoresConflictingFinderMetadata(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	writeMigrationTestFile(t, filepath.Join(stateRoot, "rooms", ".DS_Store"), "legacy-finder-cache\n")
+	writeMigrationTestFile(t, filepath.Join(stateRoot, "app", "rooms", ".DS_Store"), "current-finder-cache\n")
+
+	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("Finder 元数据冲突不应阻断迁移: %v", err)
+	}
+
+	assertMigrationFileContent(
+		t,
+		filepath.Join(stateRoot, "app", "rooms", ".DS_Store"),
+		"current-finder-cache\n",
+	)
+	assertMigrationPathMissing(t, filepath.Join(stateRoot, "rooms"))
+}
+
+func TestRunStateLayoutMergesRoomOverlaySuperset(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	sourcePath := filepath.Join(stateRoot, "rooms", "room-1", "overlay.jsonl")
+	targetPath := filepath.Join(stateRoot, "app", "rooms", "room-1", "overlay.jsonl")
+	writeMigrationTestFile(t, sourcePath, "source-1\nsource-2\n")
+	writeMigrationTestFile(t, targetPath, "source-1\n")
+
+	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("Room overlay 子集合并不应阻断迁移: %v", err)
+	}
+
+	assertMigrationFileContent(t, targetPath, "source-1\nsource-2\n")
+	assertMigrationPathMissing(t, sourcePath)
+}
+
+func TestRunStateLayoutAcceptsRoomOverlayTimestampRefresh(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	sourcePath := filepath.Join(stateRoot, "rooms", "room-1", "overlay.jsonl")
+	targetPath := filepath.Join(stateRoot, "app", "rooms", "room-1", "overlay.jsonl")
+	writeMigrationTestFile(
+		t,
+		sourcePath,
+		`{"message_id":"message-1","role":"user","content":"hello","timestamp":100}`+"\n",
+	)
+	writeMigrationTestFile(
+		t,
+		targetPath,
+		`{"message_id":"message-1","role":"user","content":"hello","timestamp":200}`+"\n",
+	)
+
+	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("Room overlay 时间戳刷新不应阻断迁移: %v", err)
+	}
+
+	assertMigrationFileContent(
+		t,
+		targetPath,
+		`{"message_id":"message-1","role":"user","content":"hello","timestamp":200}`+"\n",
+	)
+	assertMigrationPathMissing(t, sourcePath)
+}
+
+func TestRunStateLayoutPreservesRoomOverlayConflict(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	sourcePath := filepath.Join(stateRoot, "rooms", "room-1", "overlay.jsonl")
+	targetPath := filepath.Join(stateRoot, "app", "rooms", "room-1", "overlay.jsonl")
+	writeMigrationTestFile(t, sourcePath, "source\n")
+	writeMigrationTestFile(t, targetPath, "target\n")
+
+	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err == nil {
+		t.Fatal("无法证明包含关系的 Room overlay 冲突应保留并阻断迁移")
+	}
+
+	assertMigrationFileContent(t, sourcePath, "source\n")
+	assertMigrationFileContent(t, targetPath, "target\n")
+}
+
+func TestRunStateLayoutPreservesRoomOverlayNumericConflict(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	sourcePath := filepath.Join(stateRoot, "rooms", "room-1", "overlay.jsonl")
+	targetPath := filepath.Join(stateRoot, "app", "rooms", "room-1", "overlay.jsonl")
+	writeMigrationTestFile(
+		t,
+		sourcePath,
+		`{"message_id":"message-1","sequence":9007199254740992,"timestamp":100}`+"\n",
+	)
+	writeMigrationTestFile(
+		t,
+		targetPath,
+		`{"message_id":"message-1","sequence":9007199254740993,"timestamp":200}`+"\n",
+	)
+
+	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err == nil {
+		t.Fatal("Room overlay 非时间戳数值不同必须保留并阻断迁移")
+	}
+
+	assertMigrationFileContent(
+		t,
+		sourcePath,
+		`{"message_id":"message-1","sequence":9007199254740992,"timestamp":100}`+"\n",
+	)
+	assertMigrationFileContent(
+		t,
+		targetPath,
+		`{"message_id":"message-1","sequence":9007199254740993,"timestamp":200}`+"\n",
+	)
 }
 
 func TestMoveLayoutEntrySamePathIsNoop(t *testing.T) {
@@ -239,7 +390,7 @@ func TestRunStateLayoutRejectsConflictingDestination(t *testing.T) {
 
 	assertMigrationFileContent(t, sourcePath, "legacy\n")
 	assertMigrationFileContent(t, targetPath, "current\n")
-	if _, err := os.Stat(filepath.Join(stateRoot, ".layout-migrations", stateLayoutMigrationName)); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(stateRoot, "app", ".migrations", stateLayoutMigrationName)); !os.IsNotExist(err) {
 		t.Fatalf("失败迁移不应写完成标记: %v", err)
 	}
 }
@@ -358,6 +509,52 @@ func TestRunStateLayoutHardensSharedWorkspacePermissions(t *testing.T) {
 	}
 	if fileInfo.Mode().Perm() != 0o600 {
 		t.Fatalf("共享文件权限错误: %o", fileInfo.Mode().Perm())
+	}
+}
+
+func TestRetryMissingLayoutSourceTreatsRemovedSourceAsCompleted(t *testing.T) {
+	sourcePath := filepath.Join(t.TempDir(), "source")
+	writeMigrationTestFile(t, sourcePath, "legacy\n")
+	calls := 0
+
+	moved, err := retryMissingLayoutSource(sourcePath, func() (bool, error) {
+		calls++
+		if removeErr := os.Remove(sourcePath); removeErr != nil {
+			return false, removeErr
+		}
+		return false, fmt.Errorf("打开源文件: %w", os.ErrNotExist)
+	})
+	if err != nil {
+		t.Fatalf("源路径已被并发移除时不应失败: %v", err)
+	}
+	if moved {
+		t.Fatal("源路径已被并发移除时不应报告本次移动")
+	}
+	if calls != 1 {
+		t.Fatalf("源路径消失后应立即结束，实际调用次数: %d", calls)
+	}
+}
+
+func TestRetryMissingLayoutSourceRetriesWhenSourceRemains(t *testing.T) {
+	sourcePath := filepath.Join(t.TempDir(), "source")
+	writeMigrationTestFile(t, sourcePath, "legacy\n")
+	calls := 0
+
+	moved, err := retryMissingLayoutSource(sourcePath, func() (bool, error) {
+		calls++
+		if calls == 1 {
+			return true, fmt.Errorf("rename: %w", os.ErrNotExist)
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Fatalf("源路径仍存在时应重试并完成: %v", err)
+	}
+	if !moved {
+		t.Fatal("重试前已经产生移动时应保留 moved 结果")
+	}
+	if calls != 2 {
+		t.Fatalf("瞬态 ENOENT 应重试一次，实际调用次数: %d", calls)
 	}
 }
 

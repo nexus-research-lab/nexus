@@ -52,7 +52,7 @@ func (s *RoomDirectedMessageWakeStore) Schedule(wake RoomDirectedMessageWake) er
 	if wake.CreatedAt == 0 {
 		wake.CreatedAt = time.Now().UnixMilli()
 	}
-	return s.files.appendJSONL(s.paths.RoomDirectedMessageWakesPath(), map[string]any{
+	return s.files.appendJSONLAt(s.paths.HomeRoot, s.paths.RoomDirectedMessageWakesPath(), map[string]any{
 		"action":    roomWakeActionSchedule,
 		"wake":      wake,
 		"timestamp": time.Now().UnixMilli(),
@@ -67,7 +67,7 @@ func (s *RoomDirectedMessageWakeStore) Complete(wakeID string) error {
 	if wakeID == "" {
 		return nil
 	}
-	return s.files.appendJSONL(s.paths.RoomDirectedMessageWakesPath(), map[string]any{
+	return s.files.appendJSONLAt(s.paths.HomeRoot, s.paths.RoomDirectedMessageWakesPath(), map[string]any{
 		"action":    roomWakeActionComplete,
 		"wake_id":   wakeID,
 		"timestamp": time.Now().UnixMilli(),
@@ -78,7 +78,7 @@ func (s *RoomDirectedMessageWakeStore) Complete(wakeID string) error {
 func (s *RoomDirectedMessageWakeStore) Pending() ([]RoomDirectedMessageWake, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rows, err := s.files.readJSONL(s.paths.RoomDirectedMessageWakesPath())
+	rows, err := s.files.readJSONLAt(s.paths.HomeRoot, s.paths.RoomDirectedMessageWakesPath())
 	if errors.Is(err, os.ErrNotExist) {
 		return []RoomDirectedMessageWake{}, nil
 	}

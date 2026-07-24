@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) error {
@@ -20,7 +22,16 @@ func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) err
 	if !sourceUnderAgents && !sourceUnderClaudeSkills {
 		return errors.New("workspace skill path is outside supported skill directories")
 	}
-	if err := os.RemoveAll(sourcePath); err != nil {
+	root, err := confinedfs.Open(workspaceRoot)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	sourceRelative, err := filepath.Rel(workspaceRoot, sourcePath)
+	if err != nil {
+		return err
+	}
+	if err = root.RemoveAll(filepath.ToSlash(sourceRelative)); err != nil {
 		return err
 	}
 	skillNames := []string{record.Detail.Name, filepath.Base(sourcePath)}
@@ -35,8 +46,11 @@ func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) err
 		}
 		seen[trimmedName] = struct{}{}
 		if sourceUnderAgents {
-			linkPath := filepath.Join(claudeSkillsRoot, trimmedName)
-			if err := os.RemoveAll(linkPath); err != nil && !os.IsNotExist(err) {
+			linkPath, relativeErr := filepath.Rel(workspaceRoot, filepath.Join(claudeSkillsRoot, trimmedName))
+			if relativeErr != nil {
+				return relativeErr
+			}
+			if err := root.RemoveAll(filepath.ToSlash(linkPath)); err != nil && !os.IsNotExist(err) {
 				return err
 			}
 		}

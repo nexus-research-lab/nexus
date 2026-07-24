@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -22,7 +24,7 @@ func (s *AgentHistoryStore) resolveTranscriptPath(workspacePath string, sessionI
 	projectDir := findTranscriptProjectDirAt(projectsRoot, canonicalPath)
 	if projectDir != "" {
 		path := filepath.Join(projectDir, sessionID+".jsonl")
-		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+		if transcriptFileIsNonEmpty(canonicalPath, path) {
 			return path, nil
 		}
 	}
@@ -36,25 +38,11 @@ func (s *AgentHistoryStore) resolveTranscriptPath(workspacePath string, sessionI
 			continue
 		}
 		path := filepath.Join(worktreeDir, sessionID+".jsonl")
-		if info, err := os.Stat(path); err == nil && info.Size() > 0 {
+		if transcriptFileIsNonEmpty(worktreePath, path) {
 			return path, nil
 		}
 	}
 	return "", os.ErrNotExist
-}
-
-func removeDirectoryIfEmpty(path string) error {
-	entries, err := os.ReadDir(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if len(entries) > 0 {
-		return nil
-	}
-	return os.Remove(path)
 }
 
 func transcriptConfigHomeDir() string {
@@ -167,18 +155,32 @@ func TranscriptProjectDirectoryNames(workspacePath string) []string {
 }
 
 func findTranscriptProjectDirAt(projectsRoot string, projectPath string) string {
-	exact := filepath.Join(projectsRoot, TranscriptProjectDirectoryName(projectPath))
-	if isDirectory(exact) {
-		return exact
+	root, err := confinedfs.Open(projectsRoot)
+	if err != nil {
+		return ""
 	}
+	defer root.Close()
+
 	sanitized := TranscriptProjectDirectoryName(projectPath)
+	exactName := sanitized
+	if info, statErr := root.Lstat(exactName); statErr == nil &&
+		info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
+		return filepath.Join(projectsRoot, exactName)
+	}
 	if len(sanitized) <= maxTranscriptSanitizedLength {
 		return ""
 	}
 	prefix := sanitized[:maxTranscriptSanitizedLength]
-	for _, entry := range readDirectories(projectsRoot) {
-		if strings.HasPrefix(filepath.Base(entry), prefix+"-") {
-			return entry
+	entries, readErr := fs.ReadDir(root.FS(), ".")
+	if readErr != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSymlink != 0 || !entry.IsDir() {
+			continue
+		}
+		if strings.HasPrefix(entry.Name(), prefix+"-") {
+			return filepath.Join(projectsRoot, entry.Name())
 		}
 	}
 	return ""
@@ -232,21 +234,11 @@ func sanitizeTranscriptPath(path string) string {
 	return sanitized[:maxTranscriptSanitizedLength] + "-" + transcriptProjectHashSuffix(path)
 }
 
-func readDirectories(root string) []string {
-	entries, err := os.ReadDir(root)
+func transcriptFileIsNonEmpty(workspacePath string, path string) bool {
+	root, relative, info, err := openTranscriptPath(workspacePath, path)
 	if err != nil {
-		return nil
+		return false
 	}
-	results := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
-			results = append(results, filepath.Join(root, entry.Name()))
-		}
-	}
-	return results
-}
-
-func isDirectory(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.IsDir()
+	defer root.Close()
+	return info.Mode().IsRegular() && info.Size() > 0 && relative != ""
 }

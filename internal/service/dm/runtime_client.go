@@ -102,6 +102,7 @@ func (s *Service) ensureClient(
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              agentValue.WorkspacePath,
+		OwnerUserID:                agentValue.OwnerUserID,
 		RuntimeKind:                runtimeSelection.RuntimeKind,
 		Provider:                   runtimeSelection.Provider,
 		Model:                      runtimeSelection.Model,
@@ -122,6 +123,8 @@ func (s *Service) ensureClient(
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 		WebSearch:                  runtimeSelection.WebSearch,
+		RuntimeIsolationMode:       s.config.RuntimeIsolationMode,
+		RuntimeLauncherPath:        s.config.RuntimeLauncherPath,
 	})
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err

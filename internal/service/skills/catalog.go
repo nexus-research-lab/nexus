@@ -3,12 +3,15 @@ package skills
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 )
@@ -47,7 +50,7 @@ func (s *Service) addWorkspaceLocalRecords(workspacePath string, records map[str
 			installedNames[skillName] = true
 			continue
 		}
-		record, err := buildWorkspaceRecord(skillDirs[skillName])
+		record, err := buildWorkspaceRecord(workspacePath, skillDirs[skillName])
 		if err != nil {
 			continue
 		}
@@ -63,14 +66,25 @@ func (s *Service) addWorkspaceLocalRecords(workspacePath string, records map[str
 func discoverWorkspaceSkillDirs(workspacePath string) map[string]string {
 	root := strings.TrimSpace(workspacePath)
 	result := map[string]string{}
+	confinedRoot, err := confinedfs.Open(root)
+	if err != nil {
+		return result
+	}
+	defer confinedRoot.Close()
 	addSkillDirs := func(parent string) {
-		entries, err := os.ReadDir(parent)
+		entries, err := fs.ReadDir(confinedRoot.FS(), parent)
 		if err != nil {
 			return
 		}
 		for _, entry := range entries {
-			skillDir := filepath.Join(parent, entry.Name())
-			if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md")); err != nil {
+			skillDir := filepath.ToSlash(filepath.Join(parent, entry.Name()))
+			info, statErr := confinedRoot.Lstat(skillDir)
+			if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+				continue
+			}
+			skillFile := filepath.ToSlash(filepath.Join(skillDir, "SKILL.md"))
+			skillInfo, statErr := confinedRoot.Lstat(skillFile)
+			if statErr != nil || skillInfo.Mode()&os.ModeSymlink != 0 || !skillInfo.Mode().IsRegular() {
 				continue
 			}
 			if _, exists := result[entry.Name()]; !exists {
@@ -78,9 +92,9 @@ func discoverWorkspaceSkillDirs(workspacePath string) map[string]string {
 			}
 		}
 	}
-	addSkillDirs(filepath.Join(root, ".agents", "skills"))
-	addSkillDirs(filepath.Join(root, ".agents"))
-	addSkillDirs(filepath.Join(root, ".claude", "skills"))
+	addSkillDirs(".agents/skills")
+	addSkillDirs(".agents")
+	addSkillDirs(".claude/skills")
 	return result
 }
 
@@ -158,7 +172,7 @@ func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRec
 		records[skillName] = record
 	}
 	platformRoot := filepath.Clean(filepath.Join(projectRoot(), "skills"))
-	for _, root := range builtinSearchRoots(projectRoot()) {
+	for _, root := range builtinSearchRootsForContext(ctx, projectRoot()) {
 		entries, err := os.ReadDir(root)
 		if err != nil && !os.IsNotExist(err) {
 			return nil, err
@@ -270,11 +284,19 @@ func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }
 
-func buildWorkspaceRecord(sourceDir string) (catalogRecord, error) {
-	content, _, skillName, err := readSkillSource(sourceDir)
+func buildWorkspaceRecord(workspacePath string, relativeSourceDir string) (catalogRecord, error) {
+	root, err := confinedfs.Open(workspacePath)
 	if err != nil {
 		return catalogRecord{}, err
 	}
+	defer root.Close()
+	contentBytes, err := root.ReadFile(filepath.ToSlash(filepath.Join(relativeSourceDir, "SKILL.md")))
+	if err != nil {
+		return catalogRecord{}, err
+	}
+	content := string(contentBytes)
+	skillName := filepath.Base(relativeSourceDir)
+	sourceDir := filepath.Join(workspacePath, filepath.FromSlash(relativeSourceDir))
 	parsed := parseSkillFrontmatter(content, skillName)
 	detail := Detail{
 		Info: Info{
@@ -347,4 +369,11 @@ func builtinSearchRoots(root string) []string {
 		result = append(result, clean)
 	}
 	return result
+}
+
+func builtinSearchRootsForContext(ctx context.Context, root string) []string {
+	if state, ok := authctx.StateFromContext(ctx); ok && state.AuthRequired {
+		return []string{filepath.Join(root, "skills")}
+	}
+	return builtinSearchRoots(root)
 }

@@ -72,6 +72,8 @@ type Config struct {
 	RuntimeRoundIdleTimeoutSeconds   int
 	RuntimeIdleSessionTTLSeconds     int
 	RuntimeIdleSessionSweepSeconds   int
+	RuntimeIsolationMode             string
+	RuntimeLauncherPath              string
 	ConnectorCredentialsKey          string
 	ConnectorGitHubClientID          string
 	ConnectorGitHubClientSecret      string
@@ -201,6 +203,8 @@ func Load() Config {
 		RuntimeRoundIdleTimeoutSeconds:   parseIntEnv(getEnv("RUNTIME_ROUND_IDLE_TIMEOUT_SECONDS", "1200"), 1200),
 		RuntimeIdleSessionTTLSeconds:     parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_TTL_SECONDS", "600"), 600),
 		RuntimeIdleSessionSweepSeconds:   parseIntEnv(getEnv("RUNTIME_IDLE_SESSION_SWEEP_SECONDS", "120"), 120),
+		RuntimeIsolationMode:             getEnv("NEXUS_RUNTIME_ISOLATION_MODE", "off"),
+		RuntimeLauncherPath:              getEnv("NEXUS_RUNTIME_LAUNCHER_PATH", "/usr/local/libexec/nexus-runtime-launcher"),
 		ConnectorCredentialsKey:          getEnv("CONNECTOR_CREDENTIALS_KEY", ""),
 		ConnectorGitHubClientID:          getEnv("CONNECTOR_GITHUB_CLIENT_ID", ""),
 		ConnectorGitHubClientSecret:      getEnv("CONNECTOR_GITHUB_CLIENT_SECRET", ""),

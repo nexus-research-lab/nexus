@@ -167,6 +167,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	}
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
+		OwnerUserID:                e.agent.OwnerUserID,
 		RuntimeKind:                selection.RuntimeKind,
 		Provider:                   selection.Provider,
 		Model:                      selection.Model,
@@ -190,6 +191,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          selection.ToolSearchEnabled,
 		WebSearch:                  selection.WebSearch,
+		RuntimeIsolationMode:       e.service.config.RuntimeIsolationMode,
+		RuntimeLauncherPath:        e.service.config.RuntimeLauncherPath,
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err

@@ -40,7 +40,12 @@ func (s *AgentHistoryStore) ResolveTranscriptRoundTail(
 	if err != nil {
 		return TranscriptRoundTail{}, err
 	}
-	entries, err := s.readTranscriptEntries(transcriptPath)
+	root, relative, _, err := openTranscriptPath(workspacePath, transcriptPath)
+	if err != nil {
+		return TranscriptRoundTail{}, err
+	}
+	defer root.Close()
+	entries, err := s.readTranscriptEntriesAt(root, relative)
 	if err != nil {
 		return TranscriptRoundTail{}, err
 	}
