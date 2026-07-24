@@ -98,7 +98,7 @@ export function SidebarExpandedPanel({
     >
       <div
         className={cn(
-          "-mr-1.5 grid grid-cols-[46px_minmax(0,1fr)] items-center gap-1.5 border-b divider-subtle px-3",
+          "shell-region-header -mr-1.5 grid grid-cols-[46px_minmax(0,1fr)] items-center gap-1.5 px-3",
           WORKSPACE_HEADER_HEIGHT_CLASS,
           "max-lg:px-4",
         )}
@@ -144,7 +144,7 @@ export function SidebarExpandedPanel({
         </div>
       ) : (
         <div className="flex min-h-0 flex-1">
-          <nav className="flex w-[60px] shrink-0 flex-col border-r divider-subtle">
+          <nav className="shell-navigation-rail flex w-[60px] shrink-0 flex-col">
             <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
               <SidebarPrimaryTabs
                 activeTab={activeTab}

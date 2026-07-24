@@ -11,7 +11,7 @@ import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/wor
 import "./workspace-surface-header.css";
 
 const SURFACE_HEADER_CLASS_NAME =
-  "workspace-surface-header border-b border-(--divider-subtle-color) bg-transparent";
+  "workspace-surface-header shell-region-header";
 
 interface WorkspaceSurfaceHeaderTab<TTabKey extends string> {
   anchor?: string;

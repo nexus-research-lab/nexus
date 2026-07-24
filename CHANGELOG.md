@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the application shell's full-height and full-width divider lines with theme-aware tonal navigation, directory, and workspace materials plus broad low-contrast edge shadows across light, dark, and rain backgrounds.
 - Moved persistent state under `.nexus/app` and `users/<owner>/`, added idempotent startup migration for legacy `.nexus` data, and injects the same owner-scoped runtime root into nxs and Claude Code.
 - Deepened only the light theme's warm ambient page background while preserving the existing blue-gray surfaces, controls, borders, text, and dark/rain themes.
 - Kept Room conversation tabs in stable creation order while restoring each Room's last explicitly active tab when users return; explicit Conversation URLs and unread targets continue to take precedence.

@@ -13,7 +13,7 @@ export function MobileAppPageHeader({
 }: MobileAppPageHeaderProps) {
   const { t } = useI18n();
   return (
-    <header className="shrink-0 border-b divider-subtle pt-[env(safe-area-inset-top)]">
+    <header className="shell-region-header shrink-0 pt-[env(safe-area-inset-top)]">
       <div className="flex h-[52px] items-center gap-2 px-2 sm:px-3">
         <button
           aria-label={t("common.back")}

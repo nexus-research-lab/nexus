@@ -54,6 +54,17 @@
   --material-panel-shadow:
     0 18px 42px rgba(94, 108, 127, 0.12),
     0 2px 10px rgba(94, 108, 127, 0.05);
+  --material-shell-navigation-background: rgba(205, 201, 190, 0.3);
+  --material-shell-directory-background: rgba(250, 247, 238, 0.22);
+  --material-shell-header-background: rgba(250, 247, 238, 0.18);
+  --material-shell-edge-shadow:
+    10px 0 30px rgba(76, 66, 49, 0.055);
+  --material-shell-inner-shadow:
+    7px 0 22px rgba(76, 66, 49, 0.035);
+  --material-shell-header-shadow:
+    0 9px 26px rgba(76, 66, 49, 0.045);
+  --material-shell-footer-shadow:
+    0 -8px 24px rgba(76, 66, 49, 0.04);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(251, 253, 255, 0.68), rgba(246, 249, 253, 0.6) 100%);
@@ -174,6 +185,17 @@
   --material-panel-shadow:
     0 22px 48px rgba(0, 5, 12, 0.34),
     0 4px 16px rgba(0, 5, 12, 0.16);
+  --material-shell-navigation-background: rgba(4, 8, 14, 0.38);
+  --material-shell-directory-background: rgba(29, 37, 49, 0.22);
+  --material-shell-header-background: rgba(29, 37, 49, 0.18);
+  --material-shell-edge-shadow:
+    10px 0 30px rgba(0, 4, 10, 0.28);
+  --material-shell-inner-shadow:
+    7px 0 22px rgba(0, 4, 10, 0.18);
+  --material-shell-header-shadow:
+    0 9px 26px rgba(0, 4, 10, 0.22);
+  --material-shell-footer-shadow:
+    0 -8px 24px rgba(0, 4, 10, 0.18);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(13, 19, 28, 0.82), rgba(10, 15, 22, 0.74) 100%);
@@ -289,6 +311,17 @@
   --material-panel-shadow:
     0 24px 48px rgba(9, 15, 24, 0.32),
     0 4px 16px rgba(9, 15, 24, 0.14);
+  --material-shell-navigation-background: rgba(22, 29, 38, 0.34);
+  --material-shell-directory-background: rgba(77, 89, 103, 0.2);
+  --material-shell-header-background: rgba(77, 89, 103, 0.17);
+  --material-shell-edge-shadow:
+    10px 0 30px rgba(8, 13, 21, 0.24);
+  --material-shell-inner-shadow:
+    7px 0 22px rgba(8, 13, 21, 0.16);
+  --material-shell-header-shadow:
+    0 9px 26px rgba(8, 13, 21, 0.2);
+  --material-shell-footer-shadow:
+    0 -8px 24px rgba(8, 13, 21, 0.16);
 
   --material-canvas-background:
     linear-gradient(180deg, rgba(42, 51, 62, 0.78), rgba(33, 42, 52, 0.7) 100%);
@@ -388,6 +421,14 @@
   --surface-panel-shadow: var(--material-panel-shadow);
   --surface-panel-subtle-background: transparent;
   --surface-panel-subtle-border: var(--divider-subtle-color);
+  /* 中文注释：应用壳层以同色系明暗和宽阴影分区，避免用贯穿画面的硬分割线。 */
+  --surface-shell-navigation-background: var(--material-shell-navigation-background);
+  --surface-shell-directory-background: var(--material-shell-directory-background);
+  --surface-shell-header-background: var(--material-shell-header-background);
+  --surface-shell-edge-shadow: var(--material-shell-edge-shadow);
+  --surface-shell-inner-shadow: var(--material-shell-inner-shadow);
+  --surface-shell-header-shadow: var(--material-shell-header-shadow);
+  --surface-shell-footer-shadow: var(--material-shell-footer-shadow);
   --surface-canvas-background: var(--material-canvas-background);
   --surface-canvas-border: var(--material-canvas-border);
   --surface-control-background: color-mix(
