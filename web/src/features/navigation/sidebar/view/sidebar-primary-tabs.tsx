@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 import { UiCounterBadge } from "@/shared/ui/display/badge";
 
 import {
@@ -15,7 +13,6 @@ import type {
 interface SidebarPrimaryTabsProps {
   activeTab: SidebarPrimaryTab | null;
   items: SidebarPrimaryTabItem[];
-  leading?: ReactNode;
   onSelect: (tab: SidebarPrimaryTab) => void;
   variant: SidebarPrimaryTabsVariant;
 }
@@ -23,13 +20,11 @@ interface SidebarPrimaryTabsProps {
 export function SidebarPrimaryTabs({
   activeTab,
   items,
-  leading,
   onSelect,
   variant,
 }: SidebarPrimaryTabsProps) {
   return (
     <div className={getSidebarPrimaryTabsClassName(variant)}>
-      {leading}
       {items.map((item) => (
         <PrimaryTabButton
           active={activeTab === item.key}

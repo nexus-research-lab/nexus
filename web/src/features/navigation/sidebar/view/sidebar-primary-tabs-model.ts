@@ -1,7 +1,7 @@
 import { cn } from "@/shared/ui/class-name";
 import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 
-export type SidebarPrimaryTabsVariant = "dock" | "focus" | "rail";
+export type SidebarPrimaryTabsVariant = "dock" | "rail";
 
 interface SidebarPrimaryTabVariantPresentation {
   badgeClassName: string;
@@ -37,18 +37,6 @@ const SIDEBAR_PRIMARY_TAB_VARIANTS = {
     iconBaseClassName: "h-[18px] w-[18px]",
     iconFrameClassName: "relative flex h-5 w-5 items-center justify-center",
     labelClassName: "max-w-full truncate px-1 leading-none",
-    showLabel: true,
-    useAriaLabel: false,
-  },
-  focus: {
-    badgeClassName: "absolute -right-2 -top-2 h-4 min-w-4 px-1 text-2xs",
-    buttonActiveClassName: cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),
-    buttonBaseClassName: "relative flex h-10 w-[192px] items-center gap-2 rounded-[10px] px-3 text-compact font-medium transition-[background,color] duration-(--motion-duration-fast)",
-    buttonInactiveClassName: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-    containerClassName: "flex flex-col items-center gap-1 px-2 py-2",
-    iconBaseClassName: "h-[18px] w-[18px]",
-    iconFrameClassName: "relative flex h-5 w-5 items-center justify-center",
-    labelClassName: "min-w-0 truncate leading-none",
     showLabel: true,
     useAriaLabel: false,
   },

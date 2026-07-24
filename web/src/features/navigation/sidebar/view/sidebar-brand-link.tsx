@@ -7,35 +7,23 @@ import { Link } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
-import { cn } from "@/shared/ui/class-name";
 
 export function SidebarBrandLink({
   label,
-  variant,
 }: {
   label: string;
-  variant: "focus" | "panel";
 }) {
-  const focus = variant === "focus";
   const wordmark = "NEXUS";
   return (
     <Link
       aria-label={label}
-      className={cn(
-        "group/brand relative isolate flex min-w-0 items-center",
-        "h-10 flex-1 overflow-hidden",
-      )}
+      className="group/brand relative isolate flex h-10 min-w-0 flex-1 items-center overflow-hidden"
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
       title={label}
       to={AppRouteBuilders.launcher()}
     >
       <span
-        className={cn(
-          "relative whitespace-nowrap uppercase leading-none",
-          focus
-            ? "text-md tracking-[0.26em]"
-            : "text-lg tracking-[0.34em]",
-        )}
+        className="relative whitespace-nowrap text-lg uppercase leading-none tracking-[0.34em]"
         style={{
           fontFamily: '"Panchang", var(--font-sans)',
           fontWeight: 420,

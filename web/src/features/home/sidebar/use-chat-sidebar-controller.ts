@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -10,7 +10,6 @@ import { useSidebarStore } from "@/store/sidebar";
 import { useActiveRoomIds } from "../room-activity-resource";
 import {
   buildConversationItems,
-  isMainAgentDmRoom,
   normalizeSidebarQuery,
   type SidebarConversationItem,
 } from "./sidebar-conversation-model";
@@ -42,7 +41,6 @@ export function useChatSidebarController({
   const clearRoomNotifications = useSidebarStore(
     (state) => state.clear_chat_notifications_for_room,
   );
-  const setNexusRoomId = useSidebarStore((state) => state.set_nexus_room_id);
   const activeRoomIds = useActiveRoomIds();
   const {
     agents,
@@ -55,10 +53,6 @@ export function useChatSidebarController({
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const nexusDmRoom = useMemo(
-    () => rooms.find((room) => isMainAgentDmRoom(room)) ?? null,
-    [rooms],
-  );
   const activeTarget = useMemo(
     () => getActiveChatTargetFromPath(location.pathname),
     [location.pathname],
@@ -82,10 +76,6 @@ export function useChatSidebarController({
     [items, query],
   );
 
-  useEffect(() => {
-    setNexusRoomId(nexusDmRoom?.id ?? null);
-  }, [nexusDmRoom, setNexusRoomId]);
-
   const openConversation = useCallback((item: SidebarConversationItem) => {
     const routeRoomId = item.routeRoomId ?? item.roomId;
     if (!routeRoomId) {
@@ -102,10 +92,6 @@ export function useChatSidebarController({
       : AppRouteBuilders.room(routeRoomId);
     navigate(route);
   }, [clearRoomNotifications, clearTargetNotifications, navigate, setActiveItem]);
-
-  const openContacts = useCallback(() => {
-    navigate(AppRouteBuilders.contacts());
-  }, [navigate]);
 
   const submitCreate = useCallback(async (submission: RoomDialogSubmission) => {
     setIsCreating(true);
@@ -173,7 +159,6 @@ export function useChatSidebarController({
     },
     directory: {
       agents,
-      hasAgents: agents.length > 0,
     },
     list: {
       isItemActive,
@@ -182,9 +167,6 @@ export function useChatSidebarController({
       openConversation,
       query,
       setQuery,
-    },
-    navigation: {
-      openContacts,
     },
   };
 }

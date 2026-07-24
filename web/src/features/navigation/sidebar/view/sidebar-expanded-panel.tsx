@@ -14,7 +14,6 @@ import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import { SidebarBrandLink } from "./sidebar-brand-link";
-import { SidebarNexusButton } from "./sidebar-nexus-button";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";
 import {
   SidebarFooterActions,
@@ -30,12 +29,7 @@ interface SidebarExpandedPanelProps {
   activeTab: SidebarPrimaryTab;
   dockUtilities: boolean;
   launcherLabel: string;
-  nexus: {
-    active: boolean;
-    avatarSrc: string | null;
-    label: string;
-    onClick: () => void;
-  };
+  navigationLabel: string;
   onPointerDown: PointerEventHandler<HTMLDivElement>;
   onPointerLeave: PointerEventHandler<HTMLDivElement>;
   onPointerMove: PointerEventHandler<HTMLDivElement>;
@@ -44,7 +38,6 @@ interface SidebarExpandedPanelProps {
   resizable: boolean;
   resizeHotzoneActive: boolean;
   rootRef: RefObject<HTMLDivElement | null>;
-  selectedPrimaryTab: SidebarPrimaryTab | null;
   settingsNavigation?: ReactNode;
   showSplitEdge: boolean;
   tabs: SidebarPrimaryTabItem[];
@@ -73,7 +66,7 @@ export function SidebarExpandedPanel({
   activeTab,
   dockUtilities,
   launcherLabel,
-  nexus,
+  navigationLabel,
   onPointerDown,
   onPointerLeave,
   onPointerMove,
@@ -82,7 +75,6 @@ export function SidebarExpandedPanel({
   resizable,
   resizeHotzoneActive,
   rootRef,
-  selectedPrimaryTab,
   settingsNavigation,
   showSplitEdge,
   tabs,
@@ -112,7 +104,7 @@ export function SidebarExpandedPanel({
           "max-lg:px-4",
         )}
       >
-        <SidebarBrandLink label={launcherLabel} variant="panel" />
+        <SidebarBrandLink label={launcherLabel} />
         <SidebarHeaderActions {...utility} variant="panel" />
       </div>
       {settingsNavigation ? (
@@ -122,14 +114,13 @@ export function SidebarExpandedPanel({
       ) : (
         <div className="flex min-h-0 flex-1">
           <nav
-            aria-label={nexus.label}
+            aria-label={navigationLabel}
             className="shell-navigation-rail flex w-[60px] shrink-0 flex-col"
           >
             <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
               <SidebarPrimaryTabs
-                activeTab={selectedPrimaryTab}
+                activeTab={activeTab}
                 items={tabs}
-                leading={<SidebarNexusButton {...nexus} variant="dock" />}
                 onSelect={onSelectTab}
                 variant="dock"
               />

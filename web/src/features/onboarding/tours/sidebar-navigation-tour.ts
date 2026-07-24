@@ -4,7 +4,6 @@ import type { OnboardingTourDefinition } from "@/shared/ui/onboarding/tour-contr
 export const SIDEBAR_NAVIGATION_TOUR_ID = "sidebar-navigation";
 
 export const SIDEBAR_TOUR_ANCHORS = {
-  nexus_agent: "sidebar-nexus-agent-entry",
   launcher: "sidebar-launcher-entry",
   chat_tab: "sidebar-chat-tab",
   contacts_tab: "sidebar-contacts-tab",
@@ -39,13 +38,6 @@ export function buildSidebarNavigationTour(
         title: t("sidebar.tour_launcher_title"),
         description: t("sidebar.tour_launcher_description"),
         target: SIDEBAR_TOUR_ANCHORS.launcher,
-        placement: "right",
-      },
-      {
-        id: "nexus-agent",
-        title: t("sidebar.tour_nexus_agent_title"),
-        description: t("sidebar.tour_nexus_agent_description"),
-        target: SIDEBAR_TOUR_ANCHORS.nexus_agent,
         placement: "right",
       },
       {

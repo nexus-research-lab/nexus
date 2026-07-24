@@ -118,6 +118,49 @@ func TestLauncherQueryAndSuggestions(t *testing.T) {
 	assertContainsConversationTitle(t, bootstrap.Conversations, "产品私聊")
 }
 
+func TestLauncherBootstrapEnsuresMainAgentDefaultChat(t *testing.T) {
+	cfg := newLauncherTestConfig(t)
+	migrateLauncherSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	roomService := roomsvc.NewService(cfg, agentService, roomrepo.NewSQLRepository("sqlite", db))
+	sessionService := sessionsvc.NewService(cfg, agentService, sessionrepo.NewSQLRepository("sqlite", db))
+	service := NewService(cfg, agentService, roomService, sessionService)
+
+	first, err := service.Bootstrap(context.Background())
+	if err != nil {
+		t.Fatalf("首次读取 launcher bootstrap 失败: %v", err)
+	}
+	if len(first.Agents) != 0 {
+		t.Fatalf("主智能体不应进入普通 Agent 目录: %+v", first.Agents)
+	}
+	mainRoom := findBootstrapRoomByAgentID(first.Rooms, cfg.DefaultAgentID)
+	if mainRoom == nil {
+		t.Fatalf("bootstrap 应创建主智能体默认聊天: %+v", first.Rooms)
+	}
+	if mainRoom.RoomType != protocol.RoomTypeDM {
+		t.Fatalf("主智能体默认聊天类型不正确: %+v", mainRoom)
+	}
+	if findBootstrapConversationByRoomID(first.Conversations, mainRoom.ID) == nil {
+		t.Fatalf("主智能体默认聊天缺少可导航会话: %+v", first.Conversations)
+	}
+
+	second, err := service.Bootstrap(context.Background())
+	if err != nil {
+		t.Fatalf("再次读取 launcher bootstrap 失败: %v", err)
+	}
+	reusedRoom := findBootstrapRoomByAgentID(second.Rooms, cfg.DefaultAgentID)
+	if reusedRoom == nil || reusedRoom.ID != mainRoom.ID {
+		t.Fatalf("bootstrap 应幂等复用主智能体默认聊天: first=%+v second=%+v", mainRoom, reusedRoom)
+	}
+}
+
 func assertContainsBootstrapRoomType(
 	t *testing.T,
 	items []BootstrapRoom,
@@ -147,6 +190,30 @@ func assertContainsConversationTitle(
 		}
 	}
 	t.Fatalf("bootstrap conversations 缺少标题 %q: %+v", title, items)
+}
+
+func findBootstrapRoomByAgentID(
+	items []BootstrapRoom,
+	agentID string,
+) *BootstrapRoom {
+	for index := range items {
+		if items[index].DMTargetAgentID == agentID {
+			return &items[index]
+		}
+	}
+	return nil
+}
+
+func findBootstrapConversationByRoomID(
+	items []BootstrapConversation,
+	roomID string,
+) *BootstrapConversation {
+	for index := range items {
+		if items[index].RoomID == roomID {
+			return &items[index]
+		}
+	}
+	return nil
 }
 
 func TestBuildBootstrapConversationsIncludesRuntimeState(t *testing.T) {

@@ -22,17 +22,6 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   const controller = useChatSidebarController({
     untitledRoomLabel: t("home.untitled_room"),
   });
-  const emptyCopy = controller.directory.hasAgents
-    ? {
-      action: t("home.rooms_empty_action"),
-      description: t("home.rooms_empty_description"),
-      onAction: controller.create.open,
-    }
-    : {
-      action: t("home.rooms_empty_no_agents_action"),
-      description: t("home.rooms_empty_no_agents_description"),
-      onAction: controller.navigation.openContacts,
-    };
 
   return (
     <div
@@ -76,10 +65,16 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
             ))
           ) : (
             <SidebarEmptyGuide
-              actionLabel={emptyCopy.action}
-              description={emptyCopy.description}
+              actionLabel={controller.list.query
+                ? undefined
+                : t("home.rooms_empty_action")}
+              description={controller.list.query
+                ? t("sidebar.no_matching_conversations_description")
+                : t("home.rooms_empty_description")}
               icon={MessageSquarePlus}
-              onAction={emptyCopy.onAction}
+              onAction={controller.list.query
+                ? undefined
+                : controller.create.open}
               title={controller.list.query
                 ? t("sidebar.no_matching_conversations")
                 : t("home.rooms_empty_title")}

@@ -13,9 +13,6 @@ const WIDE_PANEL_MIN_WIDTH = 264;
 const WIDE_PANEL_MAX_WIDTH = 400;
 const WIDE_PANEL_DEFAULT_WIDTH = 264;
 type WidePanelCollapseSource = "manual" | "right_panel_auto";
-export const SIDEBAR_SYSTEM_ITEM_IDS = {
-  nexus: "system:nexus",
-} as const;
 export const SIDEBAR_CAPABILITY_ITEM_IDS = {
   skills: "capability:skills",
   loops: "capability:loops",
@@ -55,10 +52,8 @@ export interface ChatNotificationTargetState {
 }
 
 interface SidebarState {
-  /** 宽面板中当前高亮的条目 ID（Room/DM/Agent/Skill） */
+  /** 宽面板中当前高亮的条目 ID（Room/DM/Skill） */
   active_panel_item_id: string | null;
-  /** 主智能体 DM 的真实 roomId，用于 header 入口和真实 room 路由共用同一激活语义。 */
-  nexus_room_id: string | null;
   /** 宽面板宽度（px），支持拖拽调整 */
   wide_panel_width: number;
   /** 宽面板是否处于收起状态。 */
@@ -81,7 +76,6 @@ interface SidebarState {
 
 interface SidebarActions {
   set_active_panel_item: (id: string | null) => void;
-  set_nexus_room_id: (roomId: string | null) => void;
   set_chat_badge_count: (count: number) => void;
   record_chat_notification: (target: ChatNotificationTargetState, messageId: string) => boolean;
   clear_chat_notifications_for_target: (targetKey: string | null | undefined) => void;
@@ -135,7 +129,6 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
   persist(
     (set) => ({
       active_panel_item_id: null,
-      nexus_room_id: null,
       wide_panel_width: WIDE_PANEL_DEFAULT_WIDTH,
       wide_panel_collapsed: false,
       wide_panel_collapse_source: null,
@@ -147,7 +140,6 @@ export const useSidebarStore = create<SidebarState & SidebarActions>()(
       collapsed_sections: {},
 
       set_active_panel_item: (id) => set({ active_panel_item_id: id }),
-      set_nexus_room_id: (roomId) => set({ nexus_room_id: roomId }),
       set_chat_badge_count: (count) => set({ chat_badge_count: Math.max(0, Math.floor(count)) }),
       record_chat_notification: (target, messageId) => {
         let didRecord = false;

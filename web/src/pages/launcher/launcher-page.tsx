@@ -3,14 +3,14 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { getDefaultAgentId, isMainAgent } from "@/config/runtime-options";
+import { getDefaultAgentId } from "@/config/runtime-options";
 import { LauncherConsole } from "@/features/launcher/console/launcher-console";
 import { getLauncherSurfaceThemeStyle } from "@/features/launcher/hero/launcher-surface-theme";
 import { useLauncherPageController } from "@/hooks/launcher/use-launcher-page-controller";
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { useTheme } from "@/shared/theme/theme-context";
 import { AppLoadingScreen } from "@/shared/ui/layout/app-loading-screen";
-import { SIDEBAR_SYSTEM_ITEM_IDS, useSidebarStore } from "@/store/sidebar";
+import { useSidebarStore } from "@/store/sidebar";
 
 export function LauncherPage() {
   const { theme } = useTheme();
@@ -30,19 +30,10 @@ export function LauncherPage() {
 
   const openAgentDm = useCallback(
     (agentId: string, initialPrompt?: string) => {
-      const nextActiveItemId = isMainAgent(agentId)
-        ? SIDEBAR_SYSTEM_ITEM_IDS.nexus
-        : agentId;
-      setActivePanelItem(nextActiveItemId);
-
       void resolveDirectRoomNavigationTarget(agentId, initialPrompt)
         .then(({ context, route }) => {
           controller.handle_select_agent(agentId);
-          setActivePanelItem(
-            isMainAgent(agentId)
-              ? SIDEBAR_SYSTEM_ITEM_IDS.nexus
-              : context.room.id,
-          );
+          setActivePanelItem(context.room.id);
           openNavigationRoute(route);
         })
         .catch((error) => {

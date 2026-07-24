@@ -74,12 +74,3 @@ export function buildSidebarUtilityLabels(
     settings: t("sidebar.settings"),
   };
 }
-
-export function isNexusSidebarItemActive(
-  activePanelItemId: string | null,
-  nexusRoomId: string | null,
-  nexusItemId: string,
-): boolean {
-  return activePanelItemId === nexusItemId
-    || Boolean(nexusRoomId && activePanelItemId === nexusRoomId);
-}

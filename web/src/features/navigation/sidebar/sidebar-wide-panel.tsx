@@ -15,12 +15,8 @@ export function SidebarWidePanel({
   navigationOnly = false,
 }: SidebarWidePanelProps) {
   const controller = useSidebarWidePanelController({ navigationOnly });
-  const nexusFocusMode =
-    !fillAvailableWidth &&
-    controller.collapseSource !== "manual" &&
-    controller.shared.nexus.active;
   const showCollapsedRail =
-    !fillAvailableWidth && (controller.collapsed || nexusFocusMode);
+    !fillAvailableWidth && controller.collapsed;
   const settingsNavigation = controller.settingsMode
     ? (
         <SettingsSidebarNavigation
@@ -34,8 +30,6 @@ export function SidebarWidePanel({
       {showCollapsedRail ? (
         <SidebarCollapsedRail
           {...controller.shared}
-          launcherLabel={controller.expanded.launcherLabel}
-          mode={nexusFocusMode ? "focus" : "collapsed"}
           settingsNavigation={settingsNavigation}
         />
       ) : (
