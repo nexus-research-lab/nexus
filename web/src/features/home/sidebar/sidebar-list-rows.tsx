@@ -40,6 +40,9 @@ interface ConversationRowProps {
   onDelete?: () => void;
 }
 
+const CONVERSATION_ROW_ACTIVE_CLASS_NAME =
+  "border-transparent bg-[color:color-mix(in_srgb,var(--surface-interactive-active-background)_88%,var(--text-muted)_12%)] shadow-none";
+
 function ConversationRowLeading({
   isWorking,
   item,
@@ -162,7 +165,10 @@ export function ConversationRow({
   return (
     <UiListRow
       active={isActive}
-      className="min-h-[60px] gap-2.5 rounded-[10px] px-2 py-2 max-lg:min-h-[80px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-3"
+      className={cn(
+        "min-h-[60px] gap-2.5 rounded-[10px] px-2 py-2 max-lg:min-h-[80px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-3",
+        isActive && CONVERSATION_ROW_ACTIVE_CLASS_NAME,
+      )}
       description={item.summary ? <ConversationRowSummary item={item} /> : undefined}
       inactiveTone="muted"
       leading={<ConversationRowLeading isWorking={isWorking} item={item} />}
