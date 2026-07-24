@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Unified workspace view, history, Room-member, and overflow actions inside one warm segmented browser-style capsule while preserving their established order, retained a separate Session-action group, aligned the structure in Agent details, centered controls against the usable header height, and gave identity avatars a defined two-level lift; active Session and sidebar conversation rows now use a complete fine edge plus appropriately scaled soft lift while inactive conversations remain fully transparent and borderless.
 - Unified DM and Group Room header rhythm with shared identity, conversation, workspace-tool, and collaboration spacing; removed the redundant divider after the already framed conversation controls, aligned view, history, member, and overflow actions to one control-height baseline, and progressively moves About, Workspace, then Subagents into the overflow menu instead of replacing all three with a separate Panels dropdown.
 - Fixed unauthenticated App/Web requests falling back to an unscoped Agent or automation query; single-user requests now resolve to `__system__`, while explicit maintenance contexts retain their separate cross-owner path.
 - Fixed Room slot interruption by removing the global Composer stop action, binding the stop button to the corresponding `agent_round_id`, preserving that identity through streaming placeholders, and projecting one monotonic stopped slot instead of a `Request stopped` message plus a duplicate empty card.

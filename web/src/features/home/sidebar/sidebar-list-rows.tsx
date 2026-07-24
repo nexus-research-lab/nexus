@@ -162,7 +162,7 @@ export function ConversationRow({
   return (
     <UiListRow
       active={isActive}
-      className="min-h-[60px] gap-2.5 rounded-[8px] px-2 py-2 max-lg:min-h-[80px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-3"
+      className="min-h-[60px] gap-2.5 rounded-[10px] px-2 py-2 max-lg:min-h-[80px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-3"
       description={item.summary ? <ConversationRowSummary item={item} /> : undefined}
       inactiveTone="muted"
       leading={<ConversationRowLeading isWorking={isWorking} item={item} />}
@@ -204,7 +204,7 @@ export function ContactRow({
   return (
     <UiListRow
       active={isActive}
-      className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5 max-lg:min-h-[72px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-2.5"
+      className="min-h-[54px] gap-2.5 rounded-[10px] px-2 py-1.5 max-lg:min-h-[72px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-2.5"
       description={subtitle}
       inactiveTone="muted"
       leading={(

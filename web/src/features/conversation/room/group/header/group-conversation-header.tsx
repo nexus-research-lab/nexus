@@ -114,29 +114,15 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
         onChangeTab={onChangeTab}
         onDismissActiveTab={onCloseActiveTab}
         navigationTrailing={(
-          <RoomHistoryMenu
-            conversationId={conversationId}
-            conversations={conversations}
-            onDeleteConversation={onDeleteConversation}
-            onSelectConversation={onSelectConversation}
-            onUpdateConversationTitle={onUpdateConversationTitle}
-          />
-        )}
-        tabs={roomTabs}
-        tabsLeading={(
-          <WorkspaceConversationTabs
-            conversationId={conversationId}
-            conversations={conversations}
-            onCloseConversation={onCloseConversation}
-            onCreateConversation={onCreateConversation}
-            onSelectConversation={onSelectConversation}
-            tourAnchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
-          />
-        )}
-        title={widePanelCollapsed ? headerTitle : undefined}
-        trailing={(
           <>
-            <div className="workspace-surface-header-member-action hidden lg:flex">
+            <RoomHistoryMenu
+              conversationId={conversationId}
+              conversations={conversations}
+              onDeleteConversation={onDeleteConversation}
+              onSelectConversation={onSelectConversation}
+              onUpdateConversationTitle={onUpdateConversationTitle}
+            />
+            <div className="hidden h-full items-center lg:flex">
               <GroupMemberAvatarStack
                 members={roomMembers}
                 onClick={() => void handleOpenMemberList()}
@@ -157,6 +143,18 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
             ) : null}
           </>
         )}
+        tabs={roomTabs}
+        tabsLeading={(
+          <WorkspaceConversationTabs
+            conversationId={conversationId}
+            conversations={conversations}
+            onCloseConversation={onCloseConversation}
+            onCreateConversation={onCreateConversation}
+            onSelectConversation={onSelectConversation}
+            tourAnchor={CONVERSATION_TOUR_ANCHORS.session_switcher}
+          />
+        )}
+        title={widePanelCollapsed ? headerTitle : undefined}
       />
 
       <RoomMemberManagerDialog

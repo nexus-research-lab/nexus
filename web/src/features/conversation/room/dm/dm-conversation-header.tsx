@@ -68,13 +68,24 @@ export const DmConversationHeader = memo(function DmConversationHeader({
       onChangeTab={onChangeTab}
       onDismissActiveTab={onCloseActiveTab}
       navigationTrailing={(
-        <RoomHistoryMenu
-          conversationId={conversationId}
-          conversations={conversations}
-          onDeleteConversation={onDeleteConversation}
-          onSelectConversation={onSelectConversation}
-          onUpdateConversationTitle={onUpdateConversationTitle}
-        />
+        <>
+          <RoomHistoryMenu
+            conversationId={conversationId}
+            conversations={conversations}
+            onDeleteConversation={onDeleteConversation}
+            onSelectConversation={onSelectConversation}
+            onUpdateConversationTitle={onUpdateConversationTitle}
+          />
+          {onReplayTour || collapsedRoomTabs.length > 0 ? (
+            <RoomHeaderGuideMenu
+              activeTab={activeTab}
+              collapsedTabs={collapsedRoomTabs}
+              onChangeTab={onChangeTab}
+              onCloseActiveTab={onCloseActiveTab}
+              onReplayTour={onReplayTour}
+            />
+          ) : null}
+        </>
       )}
       tabs={roomTabs}
       tabsLeading={(
@@ -88,15 +99,6 @@ export const DmConversationHeader = memo(function DmConversationHeader({
         />
       )}
       title={widePanelCollapsed ? headerTitle : undefined}
-      trailing={onReplayTour || collapsedRoomTabs.length > 0 ? (
-        <RoomHeaderGuideMenu
-          activeTab={activeTab}
-          collapsedTabs={collapsedRoomTabs}
-          onChangeTab={onChangeTab}
-          onCloseActiveTab={onCloseActiveTab}
-          onReplayTour={onReplayTour}
-        />
-      ) : undefined}
     />
   );
 });

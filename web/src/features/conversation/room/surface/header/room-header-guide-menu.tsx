@@ -65,9 +65,10 @@ export function RoomHeaderGuideMenu({
     <>
       <button
         ref={buttonRef}
+        aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("common.more_actions")}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        className="workspace-surface-header-control-segment workspace-surface-header-overflow-trigger inline-flex h-9 w-9 items-center justify-center text-(--icon-default) transition-[background,box-shadow,color] duration-(--motion-duration-fast) hover:text-(--text-strong)"
         onClick={() => setIsOpen((current) => !current)}
         title={t("common.more_actions")}
         type="button"
