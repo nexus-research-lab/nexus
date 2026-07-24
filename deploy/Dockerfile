@@ -46,7 +46,8 @@ COPY db /src/db
 RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     go build -o /out/nexus-server ./cmd/nexus-server && \
-    go build -o /out/nexusctl ./cmd/nexusctl
+    go build -o /out/nexusctl ./cmd/nexusctl && \
+    go build -o /out/nexus-runtime-launcher ./cmd/nexus-runtime-launcher
 
 FROM ${NODE_IMAGE} AS runtime-base
 
@@ -77,6 +78,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     fi && \
     apt-get update -o Acquire::Retries=3 && \
     apt-get install -y --no-install-recommends \
+    acl \
     bash \
     build-essential \
     ca-certificates \
@@ -110,7 +112,12 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store,sharing=locked \
     npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
     pnpm config set registry "${PNPM_REGISTRY}" && \
     pnpm config set store-dir /root/.local/share/pnpm/store && \
-    pnpm add -g @anthropic-ai/claude-code bun
+    pnpm add -g @anthropic-ai/claude-code bun && \
+    claude_path="$(command -v claude)" && \
+    test -x "${claude_path}" && \
+    if [ "${claude_path}" != "/usr/local/bin/claude" ]; then \
+        ln -sf "${claude_path}" /usr/local/bin/claude; \
+    fi
 
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     python3 -m pip install --break-system-packages \
@@ -131,6 +138,7 @@ WORKDIR /opt/app
 
 COPY --from=builder /out/nexus-server /usr/local/bin/nexus-server
 COPY --from=builder /out/nexusctl /usr/local/bin/nexusctl
+COPY --from=builder /out/nexus-runtime-launcher /usr/local/libexec/nexus-runtime-launcher
 COPY db /opt/app/db
 COPY skills /opt/app/skills
 COPY scripts/desktop/fetch-nxs-runtime.js /opt/app/scripts/desktop/fetch-nxs-runtime.js
@@ -144,8 +152,38 @@ RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
         --release "${NEXUS_NXS_RUNTIME_RELEASE}" \
         --output /opt/app/bin/nxs; \
     fi && \
+    test -x /usr/local/bin/claude && \
     chmod +x /opt/app/deploy/entrypoint.sh /usr/local/bin/nexus-apt-install && \
     chown root:root /usr/local/bin/nexus-apt-install && \
+    mkdir -p /etc/nexus && \
+    printf '%s\n' \
+    '{' \
+    '  "state_root": "/home/agent/.nexus",' \
+    '  "host_uid": 1001,' \
+    '  "host_gid": 1001,' \
+    '  "uid_min": 20000,' \
+	    '  "uid_max": 59999,' \
+	    '  "ticket_ttl_seconds": 86400,' \
+	    '  "landlock_required": true,' \
+	    '  "cgroup_root": "",' \
+	    '  "cgroup_required": false,' \
+	    '  "runtime_executables": {' \
+    '    "nxs": "/opt/app/bin/nxs",' \
+    '    "claude": "/usr/local/bin/claude"' \
+    '  },' \
+    '  "read_only_roots": [' \
+    '    "/opt/app",' \
+    '    "/home/agent/.nexus/app/.agents/bin",' \
+    '    "/home/agent/.nexus/app/platform-skills"' \
+    '  ]' \
+    '}' \
+    > /etc/nexus/runtime-isolation.json && \
+    chown root:root /etc/nexus/runtime-isolation.json && \
+    chmod 0644 /etc/nexus/runtime-isolation.json && \
+    chown root:agent /usr/local/bin/nexusctl && \
+    chmod 0750 /usr/local/bin/nexusctl && \
+    chown root:agent /usr/local/libexec/nexus-runtime-launcher && \
+    chmod 4750 /usr/local/libexec/nexus-runtime-launcher && \
     printf '%s\n' \
     'Defaults:agent !requiretty' \
     'Defaults:agent env_keep += "NEXUS_APT_ALLOWLIST"' \
@@ -153,7 +191,12 @@ RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
     > /etc/sudoers.d/nexus-agent && \
     chmod 0440 /etc/sudoers.d/nexus-agent && \
     visudo -cf /etc/sudoers.d/nexus-agent && \
-    chown -R agent:agent /opt/app /home/agent
+    chown -R agent:agent /opt/app /home/agent && \
+    chmod 0751 /home/agent && \
+    if [ -f /opt/app/bin/nxs ]; then \
+        chown root:root /opt/app/bin/nxs && \
+        chmod 0555 /opt/app/bin/nxs; \
+    fi
 
 USER agent
 

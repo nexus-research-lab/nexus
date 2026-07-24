@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
@@ -223,7 +224,7 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 		return nil, err
 	}
 	if err = EnsureRuntimeEmotionState(workspacePath); err != nil {
-		_ = os.RemoveAll(workspacePath)
+		_ = confinedfs.RemoveTree(workspacePath)
 		return nil, err
 	}
 	record := BuildCreateRecord(
@@ -238,7 +239,7 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 	)
 	created, err := s.repository.CreateAgent(ctx, record)
 	if err != nil {
-		_ = os.RemoveAll(workspacePath)
+		_ = confinedfs.RemoveTree(workspacePath)
 		return nil, err
 	}
 	if err = EnsureRuntimeSettingsProjection(*created); err != nil {
@@ -377,7 +378,7 @@ func updatedAgentText(current string, requested *string) string {
 
 func (u *agentUpdate) finalize(updated *protocol.Agent) error {
 	normalizeAgentAvatar(updated)
-	if err := os.MkdirAll(updated.WorkspacePath, 0o700); err != nil {
+	if err := os.MkdirAll(updated.WorkspacePath, agentWorkspaceDirectoryMode()); err != nil {
 		return err
 	}
 	if err := EnsureRuntimeSettingsProjection(*updated); err != nil {
@@ -413,7 +414,7 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 			return err
 		}
 	}
-	if err = os.RemoveAll(existing.WorkspacePath); err != nil {
+	if err = confinedfs.RemoveTree(existing.WorkspacePath); err != nil {
 		return err
 	}
 	deleteOwnerUserID := existing.OwnerUserID

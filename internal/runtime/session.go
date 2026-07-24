@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -27,17 +28,27 @@ func (m *Manager) GetOrCreateWithFactory(
 		factory = m.factory
 	}
 	runtimeKind := normalizedManagedRuntimeKind(options.Runtime.Kind)
+	ownerUserID := runtimeOwnerUserID(options)
 	m.mu.Lock()
 	state := m.sessions[sessionKey]
 	var existing Client
 	var existingKind agentclient.RuntimeKind
+	var existingOwnerUserID string
 	if state != nil && state.Client != nil {
 		existing = state.Client
 		existingKind = state.RuntimeKind
+		existingOwnerUserID = state.OwnerUserID
 		m.touchStateLocked(state)
 	}
 	m.mu.Unlock()
 	if existing != nil {
+		if runtimeOwnerMismatch(existingOwnerUserID, ownerUserID) {
+			return nil, fmt.Errorf(
+				"runtime session owner mismatch: existing=%s requested=%s",
+				existingOwnerUserID,
+				ownerUserID,
+			)
+		}
 		if existingKind != "" && existingKind != runtimeKind {
 			return m.replaceRuntimeClient(ctx, sessionKey, existing, options, factory)
 		}
@@ -47,7 +58,7 @@ func (m *Manager) GetOrCreateWithFactory(
 			}
 			return nil, err
 		}
-		m.setRuntimeKindIfCurrent(sessionKey, existing, runtimeKind)
+		m.setRuntimeMetadataIfCurrent(sessionKey, existing, runtimeKind, ownerUserID)
 		return existing, nil
 	}
 
@@ -56,20 +67,29 @@ func (m *Manager) GetOrCreateWithFactory(
 	if state.Client == nil {
 		state.Client = factory.New(options)
 		state.RuntimeKind = runtimeKind
+		state.OwnerUserID = ownerUserID
 		m.touchStateLocked(state)
 		m.mu.Unlock()
 		return state.Client, nil
 	}
 	client := state.Client
+	existingOwnerUserID = state.OwnerUserID
 	m.touchStateLocked(state)
 	m.mu.Unlock()
+	if runtimeOwnerMismatch(existingOwnerUserID, ownerUserID) {
+		return nil, fmt.Errorf(
+			"runtime session owner mismatch: existing=%s requested=%s",
+			existingOwnerUserID,
+			ownerUserID,
+		)
+	}
 	if err := client.Reconfigure(ctx, options); err != nil {
 		if shouldReplaceRuntimeClientAfterReconfigureError(err) {
 			return m.replaceRuntimeClient(ctx, sessionKey, client, options, factory)
 		}
 		return nil, err
 	}
-	m.setRuntimeKindIfCurrent(sessionKey, client, runtimeKind)
+	m.setRuntimeMetadataIfCurrent(sessionKey, client, runtimeKind, ownerUserID)
 	return client, nil
 }
 
@@ -85,13 +105,29 @@ func normalizedManagedRuntimeKind(kind agentclient.RuntimeKind) agentclient.Runt
 	}
 }
 
-func (m *Manager) setRuntimeKindIfCurrent(sessionKey string, client Client, kind agentclient.RuntimeKind) {
+func (m *Manager) setRuntimeMetadataIfCurrent(
+	sessionKey string,
+	client Client,
+	kind agentclient.RuntimeKind,
+	ownerUserID string,
+) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if state := m.sessions[sessionKey]; state != nil && state.Client == client {
 		state.RuntimeKind = kind
+		if ownerUserID != "" {
+			state.OwnerUserID = ownerUserID
+		}
 		m.touchStateLocked(state)
 	}
+}
+
+func runtimeOwnerUserID(options agentclient.Options) string {
+	return strings.TrimSpace(options.Env["NEXUS_RUNTIME_USER_ID"])
+}
+
+func runtimeOwnerMismatch(existing string, requested string) bool {
+	return existing != "" && existing != requested
 }
 
 func shouldReplaceRuntimeClientAfterReconfigureError(err error) bool {
@@ -121,6 +157,7 @@ func (m *Manager) replaceRuntimeClient(
 	}
 	state.Client = next
 	state.RuntimeKind = normalizedManagedRuntimeKind(options.Runtime.Kind)
+	state.OwnerUserID = runtimeOwnerUserID(options)
 	// 新进程不持有旧 task/thread；只有再次观测到 task 事件后才允许保活。
 	state.HasSubagentHistory = false
 	m.touchStateLocked(state)
@@ -207,14 +244,18 @@ func (m *Manager) HasSubagentHistory(sessionKey string) bool {
 
 // CloseSession 关闭指定 session。
 func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
+	var reaperErr error
 	m.mu.Lock()
 	state, ok := m.sessions[sessionKey]
 	if ok {
 		delete(m.sessions, sessionKey)
+		if state != nil {
+			reaperErr = m.reapOwnerIfLastLocked(ctx, state.OwnerUserID)
+		}
 	}
 	m.mu.Unlock()
-	if !ok || state.Client == nil {
-		return nil
+	if !ok || state == nil || state.Client == nil {
+		return reaperErr
 	}
 	if state.IdleMessageCancel != nil {
 		state.IdleMessageCancel()
@@ -224,5 +265,5 @@ func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
 			cancel()
 		}
 	}
-	return state.Client.Disconnect(ctx)
+	return errors.Join(reaperErr, state.Client.Disconnect(ctx))
 }

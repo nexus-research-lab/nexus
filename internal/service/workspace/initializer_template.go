@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 var workspaceFiles = map[string]string{
@@ -14,26 +16,26 @@ var workspaceFiles = map[string]string{
 	"tools":  "TOOLS.md",
 }
 
-func ensureWorkspaceTemplateFile(targetPath string, key string, content string) error {
+func ensureWorkspaceTemplateFile(root *confinedfs.Root, targetPath string, key string, content string) error {
 	rendered := strings.TrimSpace(content)
 	if rendered == "" {
 		return nil
 	}
-	if _, err := os.Stat(targetPath); err != nil {
+	if _, err := root.Lstat(targetPath); err != nil {
 		if os.IsNotExist(err) {
-			return os.WriteFile(targetPath, []byte(rendered+"\n"), 0o644)
+			return root.WriteFileAtomic(targetPath, []byte(rendered+"\n"), workspaceFileMode())
 		}
 		return err
 	}
 	if key != "agents" {
 		return nil
 	}
-	return repairAgentsScheduleGuidance(targetPath)
+	return repairAgentsScheduleGuidance(root, targetPath)
 }
 
-func repairAgentsScheduleGuidance(targetPath string) error {
+func repairAgentsScheduleGuidance(root *confinedfs.Root, targetPath string) error {
 	// TODO: 迁移期清理旧 AGENTS.md 里的 ScheduleWakeup 说明；确认旧 workspace 已覆盖后删除。
-	currentBytes, err := os.ReadFile(targetPath)
+	currentBytes, err := root.ReadFile(targetPath)
 	if err != nil {
 		return err
 	}
@@ -45,11 +47,11 @@ func repairAgentsScheduleGuidance(targetPath string) error {
 	if !ok || repaired == current {
 		return nil
 	}
-	return os.WriteFile(targetPath, []byte(strings.TrimRight(repaired, "\n")+"\n"), 0o644)
+	return root.WriteFileAtomic(targetPath, []byte(strings.TrimRight(repaired, "\n")+"\n"), workspaceFileMode())
 }
 
-func removeGeneratedMainAgentsPrompt(targetPath string) error {
-	contentBytes, err := os.ReadFile(targetPath)
+func removeGeneratedMainAgentsPrompt(root *confinedfs.Root, targetPath string) error {
+	contentBytes, err := root.ReadFile(targetPath)
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -60,11 +62,11 @@ func removeGeneratedMainAgentsPrompt(targetPath string) error {
 	if !looksLikeGeneratedMainAgentsPrompt(content) {
 		return nil
 	}
-	return os.Remove(targetPath)
+	return root.Remove(targetPath)
 }
 
-func removeGeneratedMainWorkspaceFile(targetPath string) error {
-	contentBytes, err := os.ReadFile(targetPath)
+func removeGeneratedMainWorkspaceFile(root *confinedfs.Root, targetPath string) error {
+	contentBytes, err := root.ReadFile(targetPath)
 	if os.IsNotExist(err) {
 		return nil
 	}
@@ -75,7 +77,7 @@ func removeGeneratedMainWorkspaceFile(targetPath string) error {
 	if !looksLikeGeneratedMainWorkspaceFile(filepath.Base(targetPath), content) {
 		return nil
 	}
-	return os.Remove(targetPath)
+	return root.Remove(targetPath)
 }
 
 func looksLikeGeneratedMainAgentsPrompt(content string) bool {

@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   Cable,
+  FolderKanban,
   ShieldCheck,
   UsersRound,
   type LucideIcon,
@@ -17,19 +18,22 @@ import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
+import { ProjectAdminPanel } from "./project-admin/project-admin-panel";
 import { SubscriptionAdminPanel } from "./subscription-admin/subscription-admin-panel";
 
 const OPERATIONS_TAB_KEYS = [
   "userSubscriptions",
   "subscriptionPlans",
   "subscriptionProviders",
+  "projects",
 ] as const;
 
 type OperationsTabKey = (typeof OPERATIONS_TAB_KEYS)[number];
 type OperationsTabLabelKey =
   | "operations.tabs.user_subscriptions"
   | "operations.tabs.subscription_plans"
-  | "operations.tabs.subscription_providers";
+  | "operations.tabs.subscription_providers"
+  | "operations.tabs.projects";
 
 interface OperationsTabDefinition {
   icon: LucideIcon;
@@ -57,6 +61,11 @@ const OPERATIONS_TAB_DEFINITIONS: Record<
     renderContent: () => (
       <ProviderSettingsPanel embedded visibilityScope="public" />
     ),
+  },
+  projects: {
+    labelKey: "operations.tabs.projects",
+    icon: FolderKanban,
+    renderContent: () => <ProjectAdminPanel />,
   },
 };
 

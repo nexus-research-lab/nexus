@@ -14,6 +14,7 @@ import (
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 var platformSkillLibraryState struct {
@@ -123,7 +124,11 @@ func replacePlatformSkillLibrary(sourceRoot string, targetRoot string, fingerpri
 		return err
 	}
 	claudeSkillsRoot := filepath.Join(temporaryRoot, ".claude", "skills")
-	if err := ensureRelativeSymlink(claudeSkillsRoot, filepath.Join("..", ".agents", "skills")); err != nil {
+	if err := ensureRelativeSymlink(
+		temporaryRoot,
+		claudeSkillsRoot,
+		filepath.Join("..", ".agents", "skills"),
+	); err != nil {
 		if copyErr := copyDirectoryTree(filepath.Join(temporaryRoot, ".agents", "skills"), claudeSkillsRoot); copyErr != nil {
 			return fmt.Errorf("创建 Claude Skill 入口失败: %w；镜像目录也失败: %v", err, copyErr)
 		}
@@ -131,10 +136,34 @@ func replacePlatformSkillLibrary(sourceRoot string, targetRoot string, fingerpri
 	if err := os.WriteFile(filepath.Join(temporaryRoot, platformSkillManifestName), []byte(fingerprint+"\n"), 0o644); err != nil {
 		return err
 	}
+	if runtimeIsolationEnforced() {
+		if err := normalizeRuntimeReadableTree(temporaryRoot); err != nil {
+			return err
+		}
+	}
 	if err := replaceDirectory(temporaryRoot, targetRoot); err != nil {
 		return err
 	}
 	return nil
+}
+
+func normalizeRuntimeReadableTree(root string) error {
+	return filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+		if info.IsDir() {
+			return os.Chmod(path, 0o755)
+		}
+		mode := os.FileMode(0o644)
+		if info.Mode().Perm()&0o111 != 0 {
+			mode = 0o755
+		}
+		return os.Chmod(path, mode)
+	})
 }
 
 func copyDirectoryTree(sourceRoot string, targetRoot string) error {
@@ -185,24 +214,46 @@ func copyDirectoryTree(sourceRoot string, targetRoot string) error {
 }
 
 func replaceDirectory(sourceRoot string, targetRoot string) error {
-	if err := os.MkdirAll(filepath.Dir(targetRoot), 0o755); err != nil {
+	sourceParent := filepath.Clean(filepath.Dir(sourceRoot))
+	targetParent := filepath.Clean(filepath.Dir(targetRoot))
+	if sourceParent != targetParent {
+		return fmt.Errorf("atomic directory replacement requires a shared parent")
+	}
+	return replaceDirectoryWithin(targetParent, sourceRoot, targetRoot)
+}
+
+func replaceDirectoryWithin(boundaryRoot string, sourceRoot string, targetRoot string) error {
+	if err := os.MkdirAll(boundaryRoot, 0o755); err != nil {
 		return err
 	}
-	if _, err := os.Lstat(targetRoot); os.IsNotExist(err) {
-		return os.Rename(sourceRoot, targetRoot)
+	root, err := confinedfs.Open(boundaryRoot)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	sourceRelative, err := relativePathWithin(boundaryRoot, sourceRoot)
+	if err != nil {
+		return err
+	}
+	targetRelative, err := relativePathWithin(boundaryRoot, targetRoot)
+	if err != nil {
+		return err
+	}
+	if _, err = root.Lstat(targetRelative); os.IsNotExist(err) {
+		return root.Rename(sourceRelative, targetRelative)
 	} else if err != nil {
 		return err
 	}
-	backupRoot := targetRoot + ".old"
-	if err := os.RemoveAll(backupRoot); err != nil {
+	backupRelative := targetRelative + ".old"
+	if err = root.RemoveAll(backupRelative); err != nil {
 		return err
 	}
-	if err := os.Rename(targetRoot, backupRoot); err != nil {
+	if err = root.Rename(targetRelative, backupRelative); err != nil {
 		return err
 	}
-	if err := os.Rename(sourceRoot, targetRoot); err != nil {
-		_ = os.Rename(backupRoot, targetRoot)
+	if err = root.Rename(sourceRelative, targetRelative); err != nil {
+		_ = root.Rename(backupRelative, targetRelative)
 		return err
 	}
-	return os.RemoveAll(backupRoot)
+	return root.RemoveAll(backupRelative)
 }

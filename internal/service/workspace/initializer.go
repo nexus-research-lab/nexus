@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
@@ -44,6 +45,7 @@ type workspaceInitializer struct {
 	root    string
 	isMain  bool
 	context map[string]string
+	rootFS  *confinedfs.Root
 }
 
 type mainWorkspaceFileInitializer func(*workspaceInitializer, string) error
@@ -58,6 +60,12 @@ func (i *workspaceInitializer) run() error {
 	if err := i.ensureDirectories(); err != nil {
 		return err
 	}
+	rootFS, err := confinedfs.Open(i.root)
+	if err != nil {
+		return err
+	}
+	i.rootFS = rootFS
+	defer rootFS.Close()
 	if err := agentsvc.EnsureRuntimeEmotionState(i.root); err != nil {
 		return err
 	}
@@ -71,11 +79,16 @@ func (i *workspaceInitializer) run() error {
 }
 
 func (i *workspaceInitializer) ensureDirectories() error {
-	if err := os.MkdirAll(i.root, 0o755); err != nil {
+	if err := os.MkdirAll(i.root, workspaceDirectoryMode()); err != nil {
 		return err
 	}
+	root, err := confinedfs.Open(i.root)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	for _, dir := range defaultDirs {
-		if err := os.MkdirAll(filepath.Join(i.root, dir), 0o755); err != nil {
+		if err := root.MkdirAll(filepath.ToSlash(dir), workspaceDirectoryMode()); err != nil {
 			return err
 		}
 	}
@@ -91,37 +104,37 @@ func (i *workspaceInitializer) ensureRuntimeTools() error {
 
 func (i *workspaceInitializer) ensureTemplateFiles() error {
 	for key, relativePath := range workspaceFiles {
-		if err := i.ensureTemplateFile(key, filepath.Join(i.root, relativePath)); err != nil {
+		if err := i.ensureTemplateFile(key, relativePath); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (i *workspaceInitializer) ensureTemplateFile(key string, targetPath string) error {
+func (i *workspaceInitializer) ensureTemplateFile(key string, relativePath string) error {
 	if i.isMain {
 		if initializer := mainWorkspaceFileInitializers[key]; initializer != nil {
-			return initializer(i, targetPath)
+			return initializer(i, relativePath)
 		}
 	}
 	content := renderTemplate(workspaceTemplate(key, i.isMain), i.context)
-	return ensureWorkspaceTemplateFile(targetPath, key, content)
+	return ensureWorkspaceTemplateFile(i.rootFS, relativePath, key, content)
 }
 
-func (i *workspaceInitializer) ensureMainAgentsFile(targetPath string) error {
-	if err := removeGeneratedMainAgentsPrompt(targetPath); err != nil {
+func (i *workspaceInitializer) ensureMainAgentsFile(relativePath string) error {
+	if err := removeGeneratedMainAgentsPrompt(i.rootFS, relativePath); err != nil {
 		return err
 	}
-	if _, err := os.Stat(targetPath); err == nil {
-		return repairAgentsScheduleGuidance(targetPath)
+	if _, err := i.rootFS.Lstat(relativePath); err == nil {
+		return repairAgentsScheduleGuidance(i.rootFS, relativePath)
 	} else if !os.IsNotExist(err) {
 		return err
 	}
 	return nil
 }
 
-func (i *workspaceInitializer) removeGeneratedMainFile(targetPath string) error {
-	return removeGeneratedMainWorkspaceFile(targetPath)
+func (i *workspaceInitializer) removeGeneratedMainFile(relativePath string) error {
+	return removeGeneratedMainWorkspaceFile(i.rootFS, relativePath)
 }
 
 func (i *workspaceInitializer) ensureSkills() error {

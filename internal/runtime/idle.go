@@ -9,6 +9,7 @@ import (
 
 type idleSessionTarget struct {
 	sessionKey        string
+	ownerUserID       string
 	client            Client
 	roundCancels      []context.CancelFunc
 	idleMessageCancel context.CancelFunc
@@ -25,6 +26,7 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 
 	now := m.nowTime().UTC()
 	targets := make([]idleSessionTarget, 0)
+	owners := make(map[string]struct{})
 
 	m.mu.Lock()
 	for sessionKey, state := range m.sessions {
@@ -41,19 +43,29 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 		}
 		if state.Client == nil {
 			delete(m.sessions, sessionKey)
+			owners[state.OwnerUserID] = struct{}{}
 			continue
 		}
 		targets = append(targets, idleSessionTarget{
 			sessionKey:        sessionKey,
+			ownerUserID:       state.OwnerUserID,
 			client:            state.Client,
 			roundCancels:      copyRoundCancels(state.RoundCancels),
 			idleMessageCancel: state.IdleMessageCancel,
 		})
+		owners[state.OwnerUserID] = struct{}{}
 		delete(m.sessions, sessionKey)
+	}
+	reaperErrs := make([]error, 0)
+	for ownerUserID := range owners {
+		if err := m.reapOwnerIfLastLocked(ctx, ownerUserID); err != nil {
+			reaperErrs = append(reaperErrs, fmt.Errorf("reap owner runtime processes: %w", err))
+		}
 	}
 	m.mu.Unlock()
 
-	errs := make([]error, 0, len(targets))
+	errs := make([]error, 0, len(targets)+len(reaperErrs))
+	errs = append(errs, reaperErrs...)
 	for _, target := range targets {
 		if target.idleMessageCancel != nil {
 			target.idleMessageCancel()

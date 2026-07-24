@@ -520,6 +520,17 @@ func TestImportLocalPathPersistsPrivateSourceMetadata(t *testing.T) {
 	}
 }
 
+func TestImportLocalPathRejectsAuthenticatedHostPath(t *testing.T) {
+	service := NewService(newSkillsTestConfig(t), nil, nil)
+	ctx := authctx.WithState(context.Background(), authctx.State{AuthRequired: true})
+	sourceRoot := filepath.Join(t.TempDir(), "private-skill")
+	writeTestSkillDir(t, sourceRoot, "private-skill", "Private Skill", false)
+
+	if _, err := service.ImportLocalPath(ctx, sourceRoot); !errors.Is(err, ErrLocalPathImportUnavailable) {
+		t.Fatalf("认证部署应拒绝宿主 local_path: %v", err)
+	}
+}
+
 func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)

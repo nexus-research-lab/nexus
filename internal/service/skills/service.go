@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -17,6 +16,11 @@ import (
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
+)
+
+var (
+	// ErrLocalPathImportUnavailable 表示认证服务端不能把宿主绝对路径当作用户能力。
+	ErrLocalPathImportUnavailable = errors.New("authenticated deployment requires archive upload instead of local_path")
 )
 
 // Service 提供技能目录、安装与卸载能力。
@@ -285,6 +289,9 @@ func (s *Service) setAgentSkillEnabled(ctx context.Context, agentValue *protocol
 
 // ImportLocalPath 从本地目录导入外部 skill。
 func (s *Service) ImportLocalPath(ctx context.Context, localPath string) (*Detail, error) {
+	if state, ok := authctx.StateFromContext(ctx); ok && state.AuthRequired {
+		return nil, ErrLocalPathImportUnavailable
+	}
 	if strings.TrimSpace(localPath) == "" {
 		return nil, errors.New("请提供本地 zip 上传文件或 local_path")
 	}
@@ -334,7 +341,10 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 			return err
 		}
 	}
-	if err = os.RemoveAll(record.SourcePath); err != nil {
+	if err = workspacesvc.RemoveEntryWithin(
+		workspacesvc.UserSkillLibraryRoot(s.config, authctx.OwnerUserID(ctx)),
+		record.SourcePath,
+	); err != nil {
 		return err
 	}
 	return workspacesvc.RefreshUserSkillLibrary(s.config, authctx.OwnerUserID(ctx))

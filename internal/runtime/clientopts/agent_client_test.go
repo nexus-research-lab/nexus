@@ -934,6 +934,20 @@ func TestBuildAgentClientOptionsInjectsScopedUserEnv(t *testing.T) {
 	}
 }
 
+func TestBuildAgentClientOptionsRejectsOwnerContextMismatch(t *testing.T) {
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID: "user-a",
+	})
+
+	_, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+		OwnerUserID:   "user-b",
+	})
+	if err == nil || !strings.Contains(err.Error(), "runtime owner 与认证上下文不一致") {
+		t.Fatalf("owner/context 不一致应拒绝 runtime 启动，err=%v", err)
+	}
+}
+
 func TestBuildAgentClientOptionsInjectsSingleUserScopeEnv(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_STATE_ROOT", stateRoot)

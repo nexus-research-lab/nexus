@@ -370,7 +370,7 @@ func TestReadSubagentTaskThreadFallsBackFromPlainOutput(t *testing.T) {
 	if err != nil || outputIsTranscript || len(messages) != 0 {
 		t.Fatalf("普通 output 不应被当作 transcript: used=%v messages=%+v err=%v", outputIsTranscript, messages, err)
 	}
-	output, err := readSubagentOutputFile(outputPath)
+	output, err := readSubagentOutputFile(outputPath, root)
 	if err != nil || output != "普通任务输出" {
 		t.Fatalf("普通 output 回退失败: output=%q err=%v", output, err)
 	}

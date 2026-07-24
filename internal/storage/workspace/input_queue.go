@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -118,7 +117,7 @@ func (s *InputQueueStore) inputQueueRowsLocked(location InputQueueLocation) ([]m
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.files.readJSONL(path)
+	rows, err := s.files.readJSONLAt(location.WorkspacePath, path)
 	if errors.Is(err, os.ErrNotExist) {
 		return []map[string]any{}, nil
 	}
@@ -133,10 +132,7 @@ func (s *InputQueueStore) appendActionLocked(location InputQueueLocation, row ma
 	if err != nil {
 		return err
 	}
-	if err = os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return s.files.appendJSONL(path, row)
+	return s.files.appendJSONLAt(location.WorkspacePath, path, row)
 }
 
 func (s *InputQueueStore) pathForLocation(location InputQueueLocation) (string, error) {

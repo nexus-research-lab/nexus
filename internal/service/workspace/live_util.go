@@ -3,10 +3,11 @@ package workspace
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 func (m *liveManager) snapshotListenersLocked(agentID string) []LiveListener {
@@ -54,11 +55,20 @@ func relativeLivePath(root string, absolutePath string) (string, bool) {
 	return normalized, true
 }
 
-func readWorkspaceSnapshot(path string, size int64) *string {
+func readWorkspaceSnapshot(rootPath string, relativePath string, size int64) *string {
 	if size > liveMaxSnapshotBytes {
 		return nil
 	}
-	content, err := os.ReadFile(path)
+	relativePath = normalizeLivePath(relativePath)
+	if relativePath == "" || relativePath == "." {
+		return nil
+	}
+	root, err := confinedfs.Open(rootPath)
+	if err != nil {
+		return nil
+	}
+	defer root.Close()
+	content, err := root.ReadFile(relativePath)
 	if err != nil {
 		return nil
 	}

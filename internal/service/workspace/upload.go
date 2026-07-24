@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 const maxUploadSize = 20 * 1024 * 1024
@@ -75,11 +76,16 @@ func uploadFileToRoot(
 	contentMD5 := md5Hex(content)
 
 	relativePath := buildUploadTargetPath(strings.TrimSpace(destination), safeName)
-	targetPath, normalizedPath, err := resolveWorkspacePath(root, relativePath)
+	_, normalizedPath, err := resolveWorkspacePath(root, relativePath)
 	if err != nil {
 		return nil, nil, err
 	}
-	if matched, err := fileMatchesMD5(targetPath, contentMD5, int64(len(content))); err != nil {
+	confinedRoot, err := confinedfs.Open(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer confinedRoot.Close()
+	if matched, err := fileMatchesMD5(confinedRoot, normalizedPath, contentMD5, int64(len(content))); err != nil {
 		return nil, nil, err
 	} else if matched {
 		return &UploadResult{
@@ -89,7 +95,7 @@ func uploadFileToRoot(
 		}, content, nil
 	}
 	if existingPath, matched, err := findDuplicateUploadedFile(
-		root,
+		confinedRoot,
 		normalizedPath,
 		contentMD5,
 		int64(len(content)),
@@ -103,16 +109,16 @@ func uploadFileToRoot(
 			Size: int64(len(content)),
 		}, content, nil
 	}
-	if normalizedPath, targetPath, err = ensureUniqueWorkspaceFile(targetPath, normalizedPath); err != nil {
+	if normalizedPath, err = ensureUniqueWorkspaceFile(confinedRoot, normalizedPath); err != nil {
 		return nil, nil, err
 	}
-	if err = os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+	if err = confinedRoot.MkdirAll(filepath.Dir(normalizedPath), workspaceDirectoryMode()); err != nil {
 		return nil, nil, err
 	}
 	if beforeWrite != nil {
 		beforeWrite(normalizedPath)
 	}
-	if err = os.WriteFile(targetPath, content, 0o644); err != nil {
+	if err = confinedRoot.WriteFileAtomic(normalizedPath, content, workspaceFileMode()); err != nil {
 		return nil, nil, err
 	}
 	return &UploadResult{

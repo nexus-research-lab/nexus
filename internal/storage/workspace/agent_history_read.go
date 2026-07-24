@@ -185,17 +185,18 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	if err != nil {
 		return nil, err
 	}
-	fileInfo, err := os.Stat(transcriptPath)
+	root, relative, fileInfo, err := openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
 		return nil, err
 	}
+	defer root.Close()
 
 	roundMarkerFingerprint := fingerprintTranscriptRoundMarkers(roundMarkers)
 	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint); ok {
 		return cachedRows, nil
 	}
 
-	entries, err := s.readTranscriptEntries(transcriptPath)
+	entries, err := s.readTranscriptEntriesAt(root, relative)
 	if err != nil {
 		return nil, err
 	}
@@ -218,14 +219,15 @@ func (s *AgentHistoryStore) ReadTranscriptPathMessages(
 	if transcriptPath == "" {
 		return []protocol.Message{}, nil
 	}
-	fileInfo, err := os.Stat(transcriptPath)
+	root, relative, fileInfo, err := openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
 		return nil, err
 	}
+	defer root.Close()
 	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, explicitTranscriptCacheKey); ok {
 		return cachedRows, nil
 	}
-	entries, err := s.readTranscriptEntries(transcriptPath)
+	entries, err := s.readTranscriptEntriesAt(root, relative)
 	if err != nil {
 		return nil, err
 	}

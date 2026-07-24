@@ -12,6 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -25,6 +26,7 @@ import (
 	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
 	memorymaintenancesvc "github.com/nexus-research-lab/nexus/internal/service/memorymaintenance"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
+	projectpermissionsvc "github.com/nexus-research-lab/nexus/internal/service/projectpermission"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
@@ -42,6 +44,7 @@ type AppServices struct {
 	Provider          *providercfg.Service
 	Subscription      *subscriptionsvc.Service
 	Workspace         *workspacepkg.Service
+	ProjectPermission *projectpermissionsvc.Service
 	Skills            *skillsvc.Service
 	Connectors        *connectorsvc.Service
 	Launcher          *launcher.Service
@@ -88,6 +91,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
+	projectPermissionService := projectpermissionsvc.NewService(cfg)
 	skillService := skillsvc.NewServiceWithDB(cfg, db, core.Agent, workspaceService)
 	core.Room.SetSkillCatalog(skillService)
 	connectorService := connectorsvc.NewService(cfg, db)
@@ -97,6 +101,11 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
+	runtimeManager.SetOwnerProcessReaper(workspaceisolation.OwnerProcessReaper{
+		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),
+		LauncherPath: cfg.RuntimeLauncherPath,
+	})
+	projectPermissionService.SetRuntimeSessionCloser(runtimeManager)
 	goalService.SetPreviewFiller(titleService)
 	goalObjectiveService := goalobjectivesvc.NewService(providerService, preferencesService)
 	goalObjectiveService.SetConversationResolvers(core.Agent, core.Room)
@@ -176,6 +185,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Subscription:      subscriptionService,
 		Preferences:       preferencesService,
 		Workspace:         workspaceService,
+		ProjectPermission: projectPermissionService,
 		Skills:            skillService,
 		Connectors:        connectorService,
 		Launcher:          launcherService,

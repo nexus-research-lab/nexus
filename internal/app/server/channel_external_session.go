@@ -9,6 +9,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 )
 
+// externalSessionRoomResyncBroadcaster 表示可广播外部会话相关的 DM room 重新同步事件的能力。
 type externalSessionRoomResyncBroadcaster interface {
 	BroadcastRoomResyncRequired(context.Context, string, string, string)
 }

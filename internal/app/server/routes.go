@@ -7,12 +7,23 @@ func (s *Server) mountRoutes() {
 	s.mountCoreRoutes()
 	s.mountProviderRoutes()
 	s.mountAdminRoutes()
+	s.mountProjectRoutes()
 	s.mountAgentRoutes()
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
 	s.mountGoalRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
+}
+
+// mountProjectRoutes 挂载共享项目 ACL 控制面。
+func (s *Server) mountProjectRoutes() {
+	s.router.Get(s.prefixPath("/projects"), s.handlers.project.HandleListProjects)
+	s.router.Post(s.prefixPath("/projects"), s.handlers.project.HandleEnsureProject)
+	s.router.Put(
+		s.prefixPath("/projects/{project_id}/members/{owner_user_id}"),
+		s.handlers.project.HandleGrantProjectMember,
+	)
 }
 
 // mountAdminRoutes 挂载管理员运营接口。

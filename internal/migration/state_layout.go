@@ -5,6 +5,7 @@ package migration
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,7 +17,18 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 )
 
-const stateLayoutMigrationName = "20260723_state_layout_v1"
+const (
+	stateLayoutMigrationName = "20260723_state_layout_v1"
+
+	// 迁移发生在 runtime 可能仍在清理旧 transcript 的窗口内。
+	// 少量重试足以覆盖 rename/unlink 的瞬态竞争，同时不会把真正的
+	// 权限、冲突或 I/O 错误吞掉。
+	layoutMoveRetryAttempts = 3
+
+	// Room overlay 是追加式 JSONL；限制一次迁移合并读取的大小，避免
+	// 异常文件让启动迁移占用不受控的内存。
+	maxRoomOverlayMergeBytes = 64 << 20
+)
 
 var stateLayoutHostEntries = []string{
 	"data",
@@ -26,6 +38,7 @@ var stateLayoutHostEntries = []string{
 	".agents",
 	"rooms",
 	".last-cleanup",
+	".migrations", // 旧版 Nexus 工作区迁移账本，属于 app 控制面。
 }
 
 var stateLayoutRuntimeEntries = []string{
@@ -141,8 +154,9 @@ var stateLayoutNestedHostEntries = map[string]struct{}{
 
 // RunStateLayout 执行宿主状态根布局迁移。
 //
-// 迁移只使用 rename 或不覆盖式合并，不会丢弃有差异的源数据。目标存在
-// 且内容不一致时直接返回冲突错误，调用方可处理后重试。
+// 迁移只使用 rename 或不覆盖式合并，不会丢弃有差异的业务源数据。
+// Finder 的 .DS_Store 可再生元数据是唯一例外；目标已存在时保留目标并
+// 丢弃旧缓存。其他目标冲突直接返回错误，调用方可处理后重试。
 func RunStateLayout(stateRoot string, logger *slog.Logger) error {
 	if logger == nil {
 		logger = slog.Default()
@@ -152,16 +166,19 @@ func RunStateLayout(stateRoot string, logger *slog.Logger) error {
 		return errors.New("状态根不能为空")
 	}
 
-	markerPath := filepath.Join(stateRoot, ".layout-migrations", stateLayoutMigrationName)
+	appRoot := filepath.Join(stateRoot, "app")
+	markerPath := filepath.Join(appRoot, ".migrations", stateLayoutMigrationName)
 	applied, err := layoutMigrationApplied(markerPath)
 	if err != nil {
 		return err
 	}
+	// 强隔离会在本迁移之后把状态树改成 root/runtime UID 所有。
+	// 完成标记必须在任何 mkdir/chmod 之前判断，避免普通宿主在二次启动时
+	// 重新收紧已经由 launcher 管理的 ACL。
 	if applied {
 		return nil
 	}
 
-	appRoot := filepath.Join(stateRoot, "app")
 	usersRoot := filepath.Join(stateRoot, "users")
 	sharedRoot := filepath.Join(stateRoot, "shared-workspaces")
 	systemRuntimeRoot := filepath.Join(usersRoot, authctx.SystemUserID, "runtime")
@@ -276,6 +293,9 @@ func moveLegacyLogs(sourcePath string, appTarget string, runtimeTarget string) (
 	}
 
 	entries, err := os.ReadDir(sourcePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -297,11 +317,17 @@ func moveLegacyLogs(sourcePath string, appTarget string, runtimeTarget string) (
 		}
 	}
 	remaining, err := os.ReadDir(sourcePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return affected, nil
+	}
 	if err != nil {
 		return affected, err
 	}
 	if len(remaining) == 0 {
 		if err = os.Remove(sourcePath); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return affected, nil
+			}
 			return affected, err
 		}
 	}
@@ -321,6 +347,12 @@ func boolToInt(value bool) int {
 // 这些文件不能让整个升级失败。差异内容保留为 .legacy-config 副本，
 // 不覆盖当前目标，也不删除旧数据。
 func moveLegacyHostConfig(sourcePath string, targetPath string) (bool, error) {
+	return retryMissingLayoutSource(sourcePath, func() (bool, error) {
+		return moveLegacyHostConfigOnce(sourcePath, targetPath)
+	})
+}
+
+func moveLegacyHostConfigOnce(sourcePath string, targetPath string) (bool, error) {
 	sourceInfo, sourceErr := os.Lstat(sourcePath)
 	if errors.Is(sourceErr, os.ErrNotExist) {
 		return false, nil
@@ -365,6 +397,9 @@ func moveLegacyHostConfig(sourcePath string, targetPath string) (bool, error) {
 
 func mergeLegacyHostConfigDirectories(sourcePath string, targetPath string) (bool, error) {
 	entries, err := os.ReadDir(sourcePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
@@ -380,11 +415,17 @@ func mergeLegacyHostConfigDirectories(sourcePath string, targetPath string) (boo
 		affected = affected || moved
 	}
 	remaining, err := os.ReadDir(sourcePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return affected, nil
+	}
 	if err != nil {
 		return false, err
 	}
 	if len(remaining) == 0 {
 		if err = os.Remove(sourcePath); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return affected, nil
+			}
 			return false, err
 		}
 	}
@@ -447,6 +488,12 @@ func migrateNestedRuntimeEntries(sourceRoot string, targetRoot string) (int, err
 // 通常是较新的运行态；遇到差异时保留旧版本副本，避免升级被无意义
 // 的配置冲突阻断，也不静默丢弃用户数据。
 func moveNestedRuntimeEntry(sourcePath string, targetPath string, _ string) (bool, error) {
+	return retryMissingLayoutSource(sourcePath, func() (bool, error) {
+		return moveNestedRuntimeEntryOnce(sourcePath, targetPath)
+	})
+}
+
+func moveNestedRuntimeEntryOnce(sourcePath string, targetPath string) (bool, error) {
 	sourceInfo, sourceErr := os.Lstat(sourcePath)
 	if errors.Is(sourceErr, os.ErrNotExist) {
 		return false, nil
@@ -517,11 +564,10 @@ func moveUnknownStateEntries(stateRoot string, systemRuntimeRoot string) error {
 	}
 
 	skip := map[string]struct{}{
-		"app":                {},
-		"users":              {},
-		"shared-workspaces":  {},
-		"workspace":          {},
-		".layout-migrations": {},
+		"app":               {},
+		"users":             {},
+		"shared-workspaces": {},
+		"workspace":         {},
 		// 桌面壳在 sidecar 启动前已经持有这些文件，启动中移动会破坏单实例锁语义。
 		"NexusDesktop.lock":     {},
 		"NexusSidecar.pid.json": {},
@@ -570,6 +616,9 @@ func hardenLayoutTree(root string) error {
 	}
 	return filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
+			if errors.Is(walkErr, os.ErrNotExist) {
+				return nil
+			}
 			return walkErr
 		}
 		modeType := entry.Type()
@@ -578,6 +627,9 @@ func hardenLayoutTree(root string) error {
 		}
 		info, infoErr := entry.Info()
 		if infoErr != nil {
+			if errors.Is(infoErr, os.ErrNotExist) {
+				return nil
+			}
 			return infoErr
 		}
 		permissions := info.Mode().Perm() & 0o700
@@ -590,6 +642,9 @@ func hardenLayoutTree(root string) error {
 		}
 		if info.Mode().Perm() != permissions {
 			if chmodErr := os.Chmod(path, permissions); chmodErr != nil {
+				if errors.Is(chmodErr, os.ErrNotExist) {
+					return nil
+				}
 				return chmodErr
 			}
 		}
@@ -609,6 +664,43 @@ func hardenStateRoot(stateRoot string) error {
 }
 
 func moveLayoutEntry(sourcePath string, targetPath string) (bool, error) {
+	return retryMissingLayoutSource(sourcePath, func() (bool, error) {
+		return moveLayoutEntryOnce(sourcePath, targetPath)
+	})
+}
+
+// retryMissingLayoutSource 将迁移期间的瞬态 ENOENT 与真实错误区分开。
+//
+// runtime 可能在迁移遍历目录时清理旧 session：目录项已经被 ReadDir
+// 返回，但下一次 Lstat、hash 或 rename 时源路径已消失。源确实消失时，
+// 说明另一个 writer 已经完成了删除/移动，本次迁移无需再阻断启动；
+// 如果源仍存在，则仅重试有限次数，保留原始错误便于定位。
+func retryMissingLayoutSource(sourcePath string, operation func() (bool, error)) (bool, error) {
+	moved := false
+	var lastErr error
+	for attempt := 0; attempt < layoutMoveRetryAttempts; attempt++ {
+		currentMoved, err := operation()
+		moved = moved || currentMoved
+		if err == nil {
+			return moved, nil
+		}
+		lastErr = err
+		if !errors.Is(err, os.ErrNotExist) {
+			return moved, err
+		}
+
+		_, sourceErr := os.Lstat(sourcePath)
+		if errors.Is(sourceErr, os.ErrNotExist) {
+			return moved, nil
+		}
+		if sourceErr != nil {
+			return moved, err
+		}
+	}
+	return moved, lastErr
+}
+
+func moveLayoutEntryOnce(sourcePath string, targetPath string) (bool, error) {
 	if sameLayoutPath(sourcePath, targetPath) {
 		return false, nil
 	}
@@ -632,6 +724,30 @@ func moveLayoutEntry(sourcePath string, targetPath string) (bool, error) {
 	}
 	if targetErr != nil {
 		return false, fmt.Errorf("读取目标路径 %q: %w", targetPath, targetErr)
+	}
+
+	if isRoomOverlayPath(sourcePath) &&
+		sourceInfo.Mode().IsRegular() &&
+		targetInfo.Mode().IsRegular() {
+		handled, moved, mergeErr := mergeRoomOverlayFiles(sourcePath, targetPath)
+		if mergeErr != nil {
+			return false, mergeErr
+		}
+		if handled {
+			return moved, nil
+		}
+	}
+
+	if isFinderMetadataPath(sourcePath) &&
+		sourceInfo.Mode().IsRegular() &&
+		targetInfo.Mode().IsRegular() {
+		// .DS_Store 是 Finder 可再生的目录布局缓存，不属于 Nexus
+		// 业务状态。目标已有一份时保留目标并丢弃旧源，避免不同
+		// 机器或不同时间生成的缓存阻断宿主迁移。
+		if removeErr := os.Remove(sourcePath); removeErr != nil {
+			return false, removeErr
+		}
+		return true, nil
 	}
 
 	if sourceInfo.IsDir() && targetInfo.IsDir() {
@@ -660,6 +776,178 @@ func moveLayoutEntry(sourcePath string, targetPath string) (bool, error) {
 		}
 	}
 	return false, fmt.Errorf("目标路径冲突且内容不同: source=%q target=%q", sourcePath, targetPath)
+}
+
+func isFinderMetadataPath(path string) bool {
+	return filepath.Base(path) == ".DS_Store"
+}
+
+func isRoomOverlayPath(path string) bool {
+	clean := filepath.Clean(path)
+	if filepath.Base(clean) != "overlay.jsonl" {
+		return false
+	}
+	roomDirectory := filepath.Dir(clean)
+	return filepath.Base(filepath.Dir(roomDirectory)) == "rooms"
+}
+
+// mergeRoomOverlayFiles 合并旧、新 Room overlay 的行集合。
+//
+// Room overlay 只追加消息和 transcript 引用，不执行 Agent overlay 的
+// rewrite/prune。迁移时保留目标现有内容，只追加源独有行，避免覆盖
+// 迁移期间目标侧的新写入；两边的独有历史都得到保留。无法证明一方
+// 包含另一方时不擅自猜测，交回通用冲突保护。
+func mergeRoomOverlayFiles(sourcePath string, targetPath string) (bool, bool, error) {
+	sourceInfo, err := os.Stat(sourcePath)
+	if err != nil {
+		return false, false, fmt.Errorf("读取 Room overlay 源文件 %q: %w", sourcePath, err)
+	}
+	targetInfo, err := os.Stat(targetPath)
+	if err != nil {
+		return false, false, fmt.Errorf("读取 Room overlay 目标文件 %q: %w", targetPath, err)
+	}
+	if sourceInfo.Size() > maxRoomOverlayMergeBytes ||
+		targetInfo.Size() > maxRoomOverlayMergeBytes {
+		return false, false, nil
+	}
+
+	sourceData, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return false, false, fmt.Errorf("读取 Room overlay 源内容 %q: %w", sourcePath, err)
+	}
+	targetData, err := os.ReadFile(targetPath)
+	if err != nil {
+		return false, false, fmt.Errorf("读取 Room overlay 目标内容 %q: %w", targetPath, err)
+	}
+	sourceLines := layoutTextLines(sourceData)
+	targetLines := layoutTextLines(targetData)
+
+	switch {
+	case containsLayoutLines(sourceLines, targetLines):
+		// 旧源已经包含目标的全部行；目标可能只是迁移期间预创建的
+		// 子集，追加源独有历史但不覆盖目标。
+		if err := appendMissingRoomOverlayLines(
+			targetPath,
+			targetData,
+			missingLayoutLines(sourceLines, targetLines),
+		); err != nil {
+			return false, false, err
+		}
+	case containsLayoutLines(targetLines, sourceLines):
+		// 目标已经包含旧源的全部行，不需要重写目标。
+	default:
+		if !equivalentRoomOverlayTimestamps(sourceLines, targetLines) {
+			return false, false, nil
+		}
+	}
+
+	if err := os.Remove(sourcePath); err != nil {
+		return false, false, fmt.Errorf("删除已合并的 Room overlay 源文件 %q: %w", sourcePath, err)
+	}
+	return true, true, nil
+}
+
+func equivalentRoomOverlayTimestamps(sourceLines []string, targetLines []string) bool {
+	if len(sourceLines) != len(targetLines) {
+		return false
+	}
+	for index := range sourceLines {
+		sourceKey, sourceOK := canonicalRoomOverlayLine(sourceLines[index])
+		targetKey, targetOK := canonicalRoomOverlayLine(targetLines[index])
+		if !sourceOK || !targetOK || sourceKey != targetKey {
+			return false
+		}
+	}
+	return true
+}
+
+func canonicalRoomOverlayLine(line string) (string, bool) {
+	var row map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(line), &row); err != nil {
+		return "", false
+	}
+	var messageID string
+	if err := json.Unmarshal(row["message_id"], &messageID); err != nil ||
+		strings.TrimSpace(messageID) == "" {
+		return "", false
+	}
+	delete(row, "timestamp")
+	payload, err := json.Marshal(row)
+	if err != nil {
+		return "", false
+	}
+	return string(payload), true
+}
+
+func layoutTextLines(data []byte) []string {
+	if len(data) == 0 {
+		return nil
+	}
+	text := strings.TrimSuffix(string(data), "\n")
+	if text == "" {
+		return nil
+	}
+	return strings.Split(text, "\n")
+}
+
+func containsLayoutLines(container []string, candidate []string) bool {
+	counts := make(map[string]int, len(container))
+	for _, line := range container {
+		counts[line]++
+	}
+	for _, line := range candidate {
+		if counts[line] == 0 {
+			return false
+		}
+		counts[line]--
+	}
+	return true
+}
+
+func missingLayoutLines(candidate []string, container []string) []string {
+	counts := make(map[string]int, len(container))
+	for _, line := range container {
+		counts[line]++
+	}
+	missing := make([]string, 0)
+	for _, line := range candidate {
+		if counts[line] > 0 {
+			counts[line]--
+			continue
+		}
+		missing = append(missing, line)
+	}
+	return missing
+}
+
+func appendMissingRoomOverlayLines(
+	path string,
+	existingData []byte,
+	lines []string,
+) error {
+	if len(lines) == 0 {
+		return nil
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
+		return fmt.Errorf("打开 Room overlay 目标文件 %q: %w", path, err)
+	}
+	defer file.Close()
+
+	if len(existingData) > 0 && existingData[len(existingData)-1] != '\n' {
+		if _, err = file.WriteString("\n"); err != nil {
+			return fmt.Errorf("补齐 Room overlay 行尾 %q: %w", path, err)
+		}
+	}
+	for _, line := range lines {
+		if _, err = file.WriteString(line + "\n"); err != nil {
+			return fmt.Errorf("追加 Room overlay 行 %q: %w", path, err)
+		}
+	}
+	if err = file.Sync(); err != nil {
+		return fmt.Errorf("同步 Room overlay 目标文件 %q: %w", path, err)
+	}
+	return nil
 }
 
 func sameLayoutPath(left string, right string) bool {

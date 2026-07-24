@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
@@ -31,8 +33,15 @@ func NewService(cfg config.Config) *Service {
 
 // Get 读取用户偏好，不存在时返回默认值。
 func (s *Service) Get(_ context.Context, ownerUserID string) (Preferences, error) {
-	path := s.preferencesPath(ownerUserID)
-	content, err := os.ReadFile(path)
+	root, err := s.openOwnerRoot(ownerUserID, false)
+	if errors.Is(err, os.ErrNotExist) {
+		return s.withWebSearchAPIKey(ownerUserID, DefaultPreferences()), nil
+	}
+	if err != nil {
+		return Preferences{}, err
+	}
+	defer root.Close()
+	content, err := root.ReadFile(".settings/preferences.json")
 	if errors.Is(err, os.ErrNotExist) {
 		return s.withWebSearchAPIKey(ownerUserID, DefaultPreferences()), nil
 	}
@@ -116,27 +125,23 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 }
 
 func (s *Service) write(ownerUserID string, item Preferences) error {
-	path := s.preferencesPath(ownerUserID)
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	root, err := s.openOwnerRoot(ownerUserID, true)
+	if err != nil {
 		return err
 	}
+	defer root.Close()
 	payload, err := json.MarshalIndent(item, "", "  ")
 	if err != nil {
 		return err
 	}
 	payload = append(payload, '\n')
-	tmpPath := path + ".tmp"
-	if err = os.WriteFile(tmpPath, payload, 0o600); err != nil {
+	if err = root.MkdirAll(".settings", 0o700); err != nil {
 		return err
 	}
-	if err = os.Chmod(tmpPath, 0o600); err != nil {
+	if err = root.WriteFileAtomic(".settings/preferences.json", payload, 0o600); err != nil {
 		return err
 	}
-	if err = os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	return os.Chmod(path, 0o600)
+	return root.Chmod(".settings/preferences.json", 0o600)
 }
 
 func (s *Service) preferencesPath(ownerUserID string) string {
@@ -171,7 +176,12 @@ func (s *Service) withWebSearchAPIKey(ownerUserID string, item Preferences) Pref
 }
 
 func (s *Service) readWebSearchCredential(ownerUserID string) (storedWebSearchCredential, bool) {
-	content, err := os.ReadFile(s.webSearchCredentialPath(ownerUserID))
+	root, err := s.openOwnerRoot(ownerUserID, false)
+	if err != nil {
+		return storedWebSearchCredential{}, false
+	}
+	defer root.Close()
+	content, err := root.ReadFile(".settings/web-search-api-key")
 	if err != nil {
 		return storedWebSearchCredential{}, false
 	}
@@ -189,16 +199,20 @@ func (s *Service) readWebSearchCredential(ownerUserID string) (storedWebSearchCr
 }
 
 func (s *Service) writeWebSearchCredential(ownerUserID string, provider string, apiKey string) error {
-	path := s.webSearchCredentialPath(ownerUserID)
+	root, err := s.openOwnerRoot(ownerUserID, true)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" {
-		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		if err := root.Remove(".settings/web-search-api-key"); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 		return nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	if err := root.MkdirAll(".settings", 0o700); err != nil {
 		return err
 	}
 	payload, err := json.Marshal(storedWebSearchCredential{
@@ -208,18 +222,20 @@ func (s *Service) writeWebSearchCredential(ownerUserID string, provider string, 
 	if err != nil {
 		return err
 	}
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, append(payload, '\n'), 0o600); err != nil {
+	if err = root.WriteFileAtomic(".settings/web-search-api-key", append(payload, '\n'), 0o600); err != nil {
 		return err
 	}
-	if err := os.Chmod(tmpPath, 0o600); err != nil {
-		return err
+	return root.Chmod(".settings/web-search-api-key", 0o600)
+}
+
+func (s *Service) openOwnerRoot(ownerUserID string, create bool) (*confinedfs.Root, error) {
+	rootPath := agentpkg.UserWorkspaceBasePath(s.config, ownerUserID)
+	if create {
+		if err := os.MkdirAll(rootPath, appfs.RuntimeCollaborativeDirectoryMode(0o700)); err != nil {
+			return nil, err
+		}
 	}
-	if err = os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	return os.Chmod(path, 0o600)
+	return confinedfs.Open(rootPath)
 }
 
 func decodePreferences(content []byte) (Preferences, error) {

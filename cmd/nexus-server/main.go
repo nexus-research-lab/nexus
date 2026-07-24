@@ -228,6 +228,11 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	if err := migration.RunRuntimeIdentitySync(context.Background(), cfg, logger); err != nil {
+		logger.Error("runtime OS identity 同步失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
 	// Provider scope 补偿只属于桌面 App 的本地 SQLite，Web/服务器部署不触碰用户数据。
 	if strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop") && storage.IsSQLiteSQLDriver(cfg.DatabaseDriver) {
 		if err := migration.RepairDesktopProviderScope(context.Background(), cfg, logger); err != nil {

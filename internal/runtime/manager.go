@@ -26,16 +26,23 @@ type sessionState struct {
 	IdleMessageCancel        context.CancelFunc
 	IdleMessageDrainID       int64
 	RuntimeKind              agentclient.RuntimeKind
+	OwnerUserID              string
 	HasSubagentHistory       bool
 	LastUsedAt               time.Time
 }
 
 // Manager 管理 session_key -> SDK client 与运行中 round。
 type Manager struct {
-	mu       sync.RWMutex
-	sessions map[string]*sessionState
-	factory  Factory
-	now      func() time.Time
+	mu                 sync.RWMutex
+	sessions           map[string]*sessionState
+	factory            Factory
+	now                func() time.Time
+	ownerProcessReaper OwnerProcessReaper
+}
+
+// OwnerProcessReaper 在 owner 权限撤销时回收脱离父进程的 runtime 子树。
+type OwnerProcessReaper interface {
+	ReapOwnerProcesses(context.Context, string) error
 }
 
 // NewManager 创建运行时管理器。
@@ -53,6 +60,16 @@ func NewManagerWithFactory(factory Factory) *Manager {
 		factory:  factory,
 		now:      time.Now,
 	}
+}
+
+// SetOwnerProcessReaper 注入 owner 级 cgroup 回收器。
+func (m *Manager) SetOwnerProcessReaper(reaper OwnerProcessReaper) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.ownerProcessReaper = reaper
+	m.mu.Unlock()
 }
 
 func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {

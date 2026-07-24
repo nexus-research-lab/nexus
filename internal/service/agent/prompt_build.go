@@ -13,6 +13,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -143,8 +144,12 @@ func hasSelectedSkill(scope promptBuildScope, skillName string) bool {
 	if strings.TrimSpace(scope.workspacePath) == "" {
 		return false
 	}
-	skillPath := filepath.Join(scope.workspacePath, ".agents", "skills", skillName, "SKILL.md")
-	_, err := os.Stat(skillPath)
+	root, err := confinedfs.Open(scope.workspacePath)
+	if err != nil {
+		return false
+	}
+	defer root.Close()
+	_, err = root.Stat(filepath.ToSlash(filepath.Join(".agents", "skills", skillName, "SKILL.md")))
 	return err == nil
 }
 
@@ -255,8 +260,15 @@ func loadWorkspacePromptSections(scope promptBuildScope) ([]string, error) {
 }
 
 func readOptionalWorkspacePromptFile(workspacePath string, fileName string) (string, error) {
-	targetPath := filepath.Join(strings.TrimSpace(workspacePath), fileName)
-	content, err := os.ReadFile(targetPath)
+	root, err := confinedfs.Open(strings.TrimSpace(workspacePath))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer root.Close()
+	content, err := root.ReadFile(filepath.ToSlash(fileName))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil

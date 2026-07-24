@@ -4,11 +4,14 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 // ListFiles 返回 Agent workspace 的文件树。
@@ -19,18 +22,34 @@ func (s *Service) ListFiles(ctx context.Context, agentID string) ([]FileEntry, e
 	}
 	entries := make([]FileEntry, 0, 32)
 	root := filepath.Clean(agentValue.WorkspacePath)
-	if err = filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+	confinedRoot, err := confinedfs.Open(root)
+	if err != nil {
+		return nil, err
+	}
+	defer confinedRoot.Close()
+	if err = confinedRoot.Walk(".", func(path string, dirEntry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if path == root {
+		if path == "." {
 			return nil
 		}
-		relativePath, err := filepath.Rel(root, path)
+		if dirEntry == nil {
+			return nil
+		}
+		// 不把符号链接当作目录继续展开；Root 已阻止其越出根，
+		// 但浏览器仍应只展示真实 workspace 节点。
+		if dirEntry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		info, err := dirEntry.Info()
 		if err != nil {
 			return err
 		}
-		normalizedPath := filepath.ToSlash(relativePath)
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return nil
+		}
+		normalizedPath := filepath.ToSlash(path)
 		if shouldHideWorkspaceBrowserEntry(normalizedPath) {
 			if info != nil && info.IsDir() {
 				return filepath.SkipDir
@@ -43,18 +62,18 @@ func (s *Service) ListFiles(ctx context.Context, agentID string) ([]FileEntry, e
 			}
 			return nil
 		}
-		entry := FileEntry{
+		fileEntry := FileEntry{
 			Path:       normalizedPath,
 			Name:       info.Name(),
 			IsDir:      info.IsDir(),
 			ModifiedAt: info.ModTime().Format(time.RFC3339),
 			Depth:      len(strings.Split(normalizedPath, "/")),
 		}
-		if !entry.IsDir {
+		if !fileEntry.IsDir {
 			size := info.Size()
-			entry.Size = &size
+			fileEntry.Size = &size
 		}
-		entries = append(entries, entry)
+		entries = append(entries, fileEntry)
 		return nil
 	}); err != nil {
 		return nil, err
@@ -77,21 +96,29 @@ func (s *Service) GetFile(ctx context.Context, agentID string, relativePath stri
 	if err != nil {
 		return nil, err
 	}
-	targetPath, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
+	_, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
 	if err != nil {
 		return nil, err
 	}
-	info, err := os.Stat(targetPath)
+	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	if err != nil {
+		return nil, err
+	}
+	defer confinedRoot.Close()
+	info, err := confinedRoot.Stat(normalizedPath)
 	if os.IsNotExist(err) {
 		return nil, ErrFileNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	if info.IsDir() {
-		return nil, errors.New("不能直接读取目录")
+	if !info.Mode().IsRegular() {
+		if info.IsDir() {
+			return nil, errors.New("不能直接读取目录")
+		}
+		return nil, errors.New("只能读取普通文件")
 	}
-	content, err := os.ReadFile(targetPath)
+	content, err := confinedRoot.ReadFile(normalizedPath)
 	if err != nil {
 		return nil, err
 	}
@@ -111,15 +138,68 @@ func (s *Service) GetFileForDownload(ctx context.Context, agentID string, relati
 	if err != nil {
 		return "", "", err
 	}
-	info, err := os.Stat(targetPath)
+	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	if err != nil {
+		return "", "", err
+	}
+	defer confinedRoot.Close()
+	info, err := confinedRoot.Stat(normalizedPath)
 	if os.IsNotExist(err) {
 		return "", "", ErrFileNotFound
 	}
 	if err != nil {
 		return "", "", err
 	}
-	if info.IsDir() {
-		return "", "", errors.New("不能下载目录")
+	if !info.Mode().IsRegular() {
+		if info.IsDir() {
+			return "", "", errors.New("不能下载目录")
+		}
+		return "", "", errors.New("只能下载普通文件")
 	}
 	return targetPath, filepath.Base(normalizedPath), nil
+}
+
+// OpenFileForDownload 在完成 owner/workspace 校验后返回已打开的文件。
+//
+// handler 必须消费并关闭返回的 fd，不应再根据返回路径调用 http.ServeFile；
+// 这样下载期间即使 workspace 发生 rename 或 symlink 替换，读取的仍是已校验 inode。
+func (s *Service) OpenFileForDownload(ctx context.Context, agentID string, relativePath string) (*os.File, string, error) {
+	agentValue, err := s.ensureAgentWorkspace(ctx, agentID)
+	if err != nil {
+		return nil, "", err
+	}
+	_, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
+	if err != nil {
+		return nil, "", err
+	}
+	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	if err != nil {
+		return nil, "", err
+	}
+	file, err := confinedRoot.Open(normalizedPath)
+	if err != nil {
+		confinedRoot.Close()
+		if os.IsNotExist(err) {
+			return nil, "", ErrFileNotFound
+		}
+		return nil, "", err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		confinedRoot.Close()
+		return nil, "", err
+	}
+	if !info.Mode().IsRegular() {
+		file.Close()
+		confinedRoot.Close()
+		if info.IsDir() {
+			return nil, "", errors.New("不能下载目录")
+		}
+		return nil, "", errors.New("只能下载普通文件")
+	}
+	// 文件已经由根 fd 校验并打开；后续 HTTP 读取直接使用文件 fd，
+	// 因此可以释放目录根而不重新解析用户可控路径。
+	_ = confinedRoot.Close()
+	return file, filepath.Base(normalizedPath), nil
 }

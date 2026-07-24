@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 type liveFSEventKind uint8
@@ -34,7 +36,7 @@ func (m *liveManager) startWatcherLocked(agentID string, workspacePath string) (
 		return nil, err
 	}
 	root := filepath.Clean(strings.TrimSpace(workspacePath))
-	if err = os.MkdirAll(root, 0o755); err != nil {
+	if err = os.MkdirAll(root, workspaceDirectoryMode()); err != nil {
 		_ = watcher.Close()
 		return nil, err
 	}
@@ -88,28 +90,39 @@ func (m *liveManager) addWatchersLocked(state *agentWatcher, root string) error 
 }
 
 func (m *liveManager) captureSnapshotsLocked(state *agentWatcher) error {
-	return filepath.Walk(state.Root, func(path string, info os.FileInfo, walkErr error) error {
+	root, err := confinedfs.Open(state.Root)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return root.Walk(".", func(relativePath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if info == nil {
+		if entry == nil {
 			return nil
 		}
-		relativePath, err := filepath.Rel(state.Root, path)
-		if err != nil {
-			return err
-		}
 		normalizedPath := normalizeLivePath(relativePath)
+		if entry.Type()&os.ModeSymlink != 0 {
+			if entry.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		info, infoErr := entry.Info()
+		if infoErr != nil {
+			return infoErr
+		}
 		if info.IsDir() {
 			if normalizedPath != "" && normalizedPath != "." && shouldHideWorkspaceEntry(normalizedPath) {
-				return filepath.SkipDir
+				return fs.SkipDir
 			}
 			return nil
 		}
 		if shouldHideWorkspaceEntry(normalizedPath) {
 			return nil
 		}
-		snapshot := readWorkspaceSnapshot(path, info.Size())
+		snapshot := readWorkspaceSnapshot(state.Root, normalizedPath, info.Size())
 		state.Snapshots[normalizedPath] = snapshot
 		if snapshot != nil {
 			state.Versions[normalizedPath] = 1
@@ -180,7 +193,12 @@ func (m *liveManager) resolveFSEvent(agentID string, event fsnotify.Event) (reso
 		return resolvedLiveFSEvent{}, false
 	}
 	resolved := resolvedLiveFSEvent{state: state, name: event.Name, relativePath: relativePath}
-	info, err := os.Stat(event.Name)
+	confinedRoot, rootErr := confinedfs.Open(state.Root)
+	if rootErr != nil {
+		return resolvedLiveFSEvent{}, false
+	}
+	defer confinedRoot.Close()
+	info, err := confinedRoot.Stat(relativePath)
 	switch {
 	case err == nil && info != nil && info.IsDir() && event.Has(fsnotify.Create):
 		resolved.kind = liveFSEventDirectoryCreated
@@ -190,7 +208,7 @@ func (m *liveManager) resolveFSEvent(agentID string, event fsnotify.Event) (reso
 		resolved.kind = liveFSEventIgnored
 	default:
 		resolved.kind = liveFSEventWritten
-		resolved.content = readWorkspaceSnapshot(event.Name, info.Size())
+		resolved.content = readWorkspaceSnapshot(state.Root, relativePath, info.Size())
 	}
 	return resolved, true
 }

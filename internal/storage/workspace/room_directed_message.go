@@ -37,12 +37,19 @@ func NewRoomDirectedMessageStore(root string) *RoomDirectedMessageStore {
 
 // AppendMessage 追加一条 Room directed message。
 func (s *RoomDirectedMessageStore) AppendMessage(message protocol.RoomDirectedMessageRecord) error {
-	return s.files.appendJSONL(s.paths.RoomConversationMessagesPath(message.ConversationID), roomDirectedMessageToRow(message))
+	return s.files.appendJSONLAt(
+		s.paths.HomeRoot,
+		s.paths.RoomConversationMessagesPath(message.ConversationID),
+		roomDirectedMessageToRow(message),
+	)
 }
 
 // ReadMessages 读取指定对话的全部 Room directed message。
 func (s *RoomDirectedMessageStore) ReadMessages(conversationID string) ([]protocol.RoomDirectedMessageRecord, error) {
-	rows, err := s.files.readJSONL(s.paths.RoomConversationMessagesPath(conversationID))
+	rows, err := s.files.readJSONLAt(
+		s.paths.HomeRoot,
+		s.paths.RoomConversationMessagesPath(conversationID),
+	)
 	if errors.Is(err, os.ErrNotExist) {
 		return []protocol.RoomDirectedMessageRecord{}, nil
 	}
@@ -121,7 +128,11 @@ func (s *RoomDirectedMessageStore) ReadContextMessagesThrough(
 
 // AppendMessageCursor 追加 Room directed message 消费位置控制行。
 func (s *RoomDirectedMessageStore) AppendMessageCursor(cursor RoomDirectedMessageCursor) error {
-	return s.files.appendJSONL(s.paths.RoomConversationMessageCursorsPath(cursor.ConversationID), roomDirectedMessageCursorToRow(cursor))
+	return s.files.appendJSONLAt(
+		s.paths.HomeRoot,
+		s.paths.RoomConversationMessageCursorsPath(cursor.ConversationID),
+		roomDirectedMessageCursorToRow(cursor),
+	)
 }
 
 // ReadMessageCursor 读取目标 agent 最新 Room directed message 消费位置。
@@ -141,7 +152,10 @@ func (s *RoomDirectedMessageStore) ReadMessageCursor(conversationID string, agen
 
 // ReadMessageCursors 读取每个 agent 最新的 Room directed message 消费位置。
 func (s *RoomDirectedMessageStore) ReadMessageCursors(conversationID string, agentID string) ([]RoomDirectedMessageCursor, error) {
-	rows, err := s.files.readJSONL(s.paths.RoomConversationMessageCursorsPath(conversationID))
+	rows, err := s.files.readJSONLAt(
+		s.paths.HomeRoot,
+		s.paths.RoomConversationMessageCursorsPath(conversationID),
+	)
 	if errors.Is(err, os.ErrNotExist) {
 		return []RoomDirectedMessageCursor{}, nil
 	}

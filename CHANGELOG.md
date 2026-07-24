@@ -7,13 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added opt-in Linux runtime isolation for both nxs and Claude Code: stable per-owner OS UID/private GID mappings, setgid/default POSIX ACLs, explicit shared-project read/write grants, a root-owned launcher, mandatory PreToolUse path policy, environment scrubbing, and a final Landlock filesystem boundary. Direct `nexusctl` calls are rejected early by policy, and the packaged container denies CLI execution to runtime UIDs until a scoped host broker is available.
+- Added an owner-scoped shared-project API, an Operations UI for project creation and member ACL management, and directory-fd-confined host file access for workspace files, transcripts, runtime artifacts, preferences, and user Skill registries. Project membership changes now cancel the affected owner's active rounds and recycle all hot runtimes so stale project GIDs are not reused.
+- Added opt-in Linux cgroup v2 owner process-tree reaping: runtime processes inherit a root-owned per-user cgroup, and permission revocation or final session close can call `cgroup.kill` through the trusted launcher.
+
 ### Changed
 
 - Moved persistent state under `.nexus/app` and `users/<owner>/`, added idempotent startup migration for legacy `.nexus` data, and injects the same owner-scoped runtime root into nxs and Claude Code.
+- Authenticated deployments now require archive upload for local Skill imports instead of accepting arbitrary host `local_path` values.
 - Deepened only the light theme's warm ambient page background while preserving the existing blue-gray surfaces, controls, borders, text, and dark/rain themes.
 
 ### Fixed
 
+- Kept the state-layout completion marker in the app-owned migration ledger.
+- Fixed state-layout migration failing on transient `ENOENT` while an active runtime cleaned up or moved a legacy transcript entry, or while macOS Finder regenerated conflicting `.DS_Store` metadata; Room append-only overlays now merge provable source/target subsets and equivalent timestamp refreshes, while genuine content conflicts remain protected.
 - Fixed unauthenticated App/Web requests falling back to an unscoped Agent or automation query; single-user requests now resolve to `__system__`, while explicit maintenance contexts retain their separate cross-owner path.
 - Fixed Room slot interruption by removing the global Composer stop action, binding the stop button to the corresponding `agent_round_id`, preserving that identity through streaming placeholders, and projecting one monotonic stopped slot instead of a `Request stopped` message plus a duplicate empty card.
 - Isolated DM and Room input-queue replay by execution scope and prevented Room subscription recovery from dispatching DM queue items through a Room runtime, so a DM resume cannot be reused by a different Room configuration.
