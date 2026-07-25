@@ -149,7 +149,8 @@ Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置�
 | 方法 | 路径 | 说明 | 请求体 / 参数 | 前端函数 |
 |------|------|------|---------------|---------|
 | GET | `/agents` | Agent 列表 | — | `getAgents` |
-| POST | `/agents` | 创建 Agent | `{ name, options, avatar, description, vibe_tags }` | `createAgentApi` |
+| POST | `/agents` | 创建 Agent，并将行为模板原子写入新 workspace 的 `AGENTS.md` | `{ name, options, avatar, description, profile_template, vibe_tags }` | `createAgentApi` |
+| GET | `/agents/profile-template` | 获取创建 Agent 使用的默认行为模板 | — | `getAgentProfileTemplateApi` |
 | GET | `/agents/validate/name` | 校验名称（query: `name`, `exclude_agent_id`） | — | `validateAgentNameApi` |
 | GET | `/agents/{agent_id}` | Agent 详情 | — | — |
 | PATCH | `/agents/{agent_id}` | 更新 Agent | `{ name, options, avatar, description, vibe_tags }` | `updateAgentApi` |
@@ -159,6 +160,8 @@ Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置�
 | GET | `/agents/{agent_id}/private-domain/threads/{thread_id}/events` | 私域线程事件 | — | — |
 
 `Agent.options.skill_ids` 保存平台 Skill 的稳定 ID，或用户级外部 Skill 的 `external:<skill_name>` 引用。平台 Skill 由全局兼容根提供；外部 Skill 共享 `<workspace>/<owner>/.agents/skills`（系统 owner 使用 `<workspace>/.agents/skills`）。Agent workspace 不保存它们的副本；只有 workspace-local Skill 保留 workspace 文件。
+
+`description` 是目录与提示词中的短摘要；`profile_template` 是创建期行为模板，两者不可互换。前端先从服务端读取默认模板，用户修改后随创建请求提交；传空时服务端仍使用同一默认模板。
 
 ### Agent 技能挂载
 

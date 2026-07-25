@@ -100,6 +100,7 @@ export function useSidebarWidePanelController({
       onPointerMove: resize.handlePointerMove,
       onPointerUp: resize.handlePointerUp,
       resizeHotzoneActive: resize.isResizeHotzoneActive,
+      resizing: resize.isResizing,
       rootRef: resize.rootRef,
       width: widePanelWidth,
     },

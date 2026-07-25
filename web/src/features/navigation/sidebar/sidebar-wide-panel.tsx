@@ -1,8 +1,7 @@
 import { GuideCenterDialog } from "@/features/onboarding/guide-center/guide-center-dialog";
 import { SettingsSidebarNavigation } from "@/features/settings/settings-sidebar-navigation";
 
-import { SidebarCollapsedRail } from "./view/sidebar-collapsed-rail";
-import { SidebarExpandedPanel } from "./view/sidebar-expanded-panel";
+import { SidebarPanel } from "./view/sidebar-panel";
 import { useSidebarWidePanelController } from "./use-sidebar-wide-panel-controller";
 
 interface SidebarWidePanelProps {
@@ -15,39 +14,37 @@ export function SidebarWidePanel({
   navigationOnly = false,
 }: SidebarWidePanelProps) {
   const controller = useSidebarWidePanelController({ navigationOnly });
-  const showCollapsedRail =
+  const collapsed =
     !fillAvailableWidth && controller.collapsed;
   const settingsNavigation = controller.settingsMode
     ? (
         <SettingsSidebarNavigation
-          variant={showCollapsedRail ? "rail" : "panel"}
+          variant={collapsed ? "rail" : "panel"}
         />
       )
     : undefined;
 
   return (
     <>
-      {showCollapsedRail ? (
-        <SidebarCollapsedRail
-          {...controller.shared}
-          settingsNavigation={settingsNavigation}
-        />
-      ) : (
-        <SidebarExpandedPanel
-          {...controller.shared}
-          {...controller.expanded}
-          dockUtilities={fillAvailableWidth}
-          resizable={!fillAvailableWidth}
-          resizeHotzoneActive={
-            fillAvailableWidth
-              ? false
-              : controller.expanded.resizeHotzoneActive
-          }
-          settingsNavigation={settingsNavigation}
-          showSplitEdge={!fillAvailableWidth}
-          width={fillAvailableWidth ? "100%" : controller.expanded.width}
-        />
-      )}
+      <SidebarPanel
+        {...controller.shared}
+        {...controller.expanded}
+        collapsed={collapsed}
+        expandedWidth={fillAvailableWidth ? "100%" : controller.expanded.width}
+        resizable={!fillAvailableWidth}
+        resizeHotzoneActive={
+          fillAvailableWidth
+            ? false
+            : controller.expanded.resizeHotzoneActive
+        }
+        resizing={
+          fillAvailableWidth
+            ? false
+            : controller.expanded.resizing
+        }
+        settingsNavigation={settingsNavigation}
+        showSplitEdge={!fillAvailableWidth}
+      />
       <GuideCenterDialog {...controller.guideCenterProps} />
     </>
   );

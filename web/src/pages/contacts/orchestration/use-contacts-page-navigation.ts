@@ -72,9 +72,6 @@ export function useContactsPageNavigation({
       navigate(AppRouteBuilders.contacts(), {replace: true});
     }
   }, [confirmDeleteAgent, navigate, selectedAgentId]);
-  const backToDirectory = useCallback(() => {
-    navigate(AppRouteBuilders.contacts());
-  }, [navigate]);
   const closeEditor = useCallback(() => {
     closeAgentEditor();
     if (createAgentRequested) {
@@ -84,7 +81,6 @@ export function useContactsPageNavigation({
 
   return {
     selectedAgent,
-    backToDirectory,
     closeEditor,
     openAgent,
     openDirectRoom,

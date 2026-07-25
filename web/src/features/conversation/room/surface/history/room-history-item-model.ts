@@ -9,7 +9,6 @@ export type RoomHistoryItemState = "active" | "idle";
 export interface RoomHistoryItemPresentation {
   actions: RoomHistoryItemAction[];
   activityLabel: string;
-  currentLabel: string;
   externalSessionLabel: string | null;
   mode: RoomHistoryItemMode;
   state: RoomHistoryItemState;
@@ -17,7 +16,6 @@ export interface RoomHistoryItemPresentation {
 }
 
 interface RoomHistoryItemCopy {
-  current: string;
   untitled: string;
 }
 
@@ -57,7 +55,6 @@ export function buildRoomHistoryItemPresentation(
   return {
     actions: itemActions(entry, isEditing),
     activityLabel: formatRelativeTime(entry.conversation.last_activity_at),
-    currentLabel: copy.current,
     externalSessionLabel: entry.externalSessionLabel,
     mode: itemMode(isEditing),
     state: itemState(entry.isActive),

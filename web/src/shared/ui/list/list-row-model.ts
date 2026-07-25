@@ -8,7 +8,7 @@ interface UiListRowPresentation {
 }
 
 const LIST_ROW_STATE_CLASS_NAMES = {
-  active: "border-(--surface-interactive-active-border) bg-(--surface-interactive-active-background) text-(--text-strong) shadow-[inset_0_0_0_1px_var(--surface-interactive-active-border),0_2px_5px_color-mix(in_srgb,var(--text-strong)_5%,transparent),0_10px_24px_color-mix(in_srgb,var(--text-strong)_7%,transparent)]",
+  active: "border-transparent bg-(--surface-interactive-active-background) text-(--text-strong) shadow-none",
   activeSidebar: cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),
   idleDefault: "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
   idleMuted: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",

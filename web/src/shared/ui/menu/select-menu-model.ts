@@ -1,4 +1,5 @@
 import { cn } from "@/shared/ui/class-name";
+import { getMenuItemStateClassName } from "@/shared/ui/menu/menu-styles";
 
 import {
   resolveAnchoredOverlayPosition,
@@ -85,26 +86,7 @@ const UNKNOWN_SELECTION_INDEX_BY_DIRECTION: Record<UiSelectMenuSelectionDirectio
 
 const SELECT_MENU_BUTTON_SURFACE_CLASS_NAMES: Record<UiSelectMenuSurface, string> = {
   dialog: "dialog-input shadow-none hover:border-[color:color-mix(in_srgb,var(--primary)_24%,var(--modal-input-border))] hover:bg-[color:color-mix(in_srgb,var(--modal-input-focus-background)_72%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
-  surface: "border border-[color:color-mix(in_srgb,var(--primary)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-(--surface-popover-shadow) hover:border-[color:color-mix(in_srgb,var(--primary)_38%,var(--divider-subtle-color))] focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
-};
-
-const SELECT_MENU_PANEL_SURFACE_CLASS_NAMES: Record<UiSelectMenuSurface, string> = {
-  dialog: "border-(--modal-card-border) bg-[color:color-mix(in_srgb,var(--background)_94%,white)] shadow-(--surface-popover-shadow)",
-  surface: "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] shadow-(--surface-popover-shadow) backdrop-blur",
-};
-
-const SELECT_MENU_OPTION_STATE_CLASS_NAMES: Record<
-  UiSelectMenuSurface,
-  Record<"active" | "inactive", string>
-> = {
-  dialog: {
-    active: "bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_16%,transparent)]",
-    inactive: "text-(--text-default) hover:bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] hover:text-(--text-strong)",
-  },
-  surface: {
-    active: "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]",
-    inactive: "text-(--text-default) hover:bg-(--surface-interactive-hover-background)",
-  },
+  surface: "border border-(--surface-control-border) bg-(--surface-control-field-background) shadow-(--surface-control-field-shadow) hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
 };
 
 export function getSelectMenuSizeConfig(size: UiSelectMenuSize) {
@@ -218,12 +200,9 @@ export function getSelectMenuButtonClassName({
   );
 }
 
-export function getSelectMenuPanelSurfaceClassName(surface: UiSelectMenuSurface): string {
-  return SELECT_MENU_PANEL_SURFACE_CLASS_NAMES[surface];
-}
-
-export function getSelectMenuOptionStateClassName(surface: UiSelectMenuSurface, isActive: boolean): string {
-  return SELECT_MENU_OPTION_STATE_CLASS_NAMES[surface][
-    isActive ? "active" : "inactive"
-  ];
+export function getSelectMenuOptionStateClassName(
+  _surface: UiSelectMenuSurface,
+  isActive: boolean,
+): string {
+  return getMenuItemStateClassName({ active: isActive });
 }

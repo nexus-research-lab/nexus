@@ -27,7 +27,6 @@ export function RoomHistoryItem({
     entry,
     editor.isEditing,
     {
-      current: t("room.current_conversation"),
       untitled: t("room.untitled_conversation"),
     },
   );

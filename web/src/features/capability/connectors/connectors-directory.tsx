@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ConnectorsRouteParams } from "@/types/app/route";
 import type { ConnectorDetail } from "@/types/capability/connector";
@@ -131,15 +131,10 @@ export function ConnectorsDirectory() {
             onDisconnect={(id) => void handleDisconnect(id)}
           />
         ) : (
-          <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
-            <div className="mb-4">
-              <h1 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
-                {t("capability.connectors_intro_title")}
-              </h1>
-              <p className="mt-0.5 max-w-[640px] text-compact leading-5 text-(--text-muted)">
-                {t("capability.connectors_intro_description")}
-              </p>
-            </div>
+          <CapabilityPageLayout
+            description={t("capability.connectors_intro_description")}
+            title={t("capability.connectors_intro_title")}
+          >
             <ConnectorsSearchBar
               activeCategory={controller.activeCategory}
               onCategoryChange={controller.setActiveCategory}
@@ -155,7 +150,7 @@ export function ConnectorsDirectory() {
               pendingAction={controller.pendingAction}
               searchQuery={controller.searchQuery}
             />
-          </div>
+          </CapabilityPageLayout>
         )}
       </WorkspaceSurfaceScaffold>
 

@@ -45,7 +45,6 @@ export function ContactsPage() {
     selectedAgent: navigation.selectedAgent,
   });
   const actions: ContactsPageActions = {
-    onBack: navigation.backToDirectory,
     onCreateAgent: controller.editor.openCreate,
     onCreateTeam: navigation.createTeam,
     onDeleteAgent: controller.requestDeleteAgent,
@@ -111,7 +110,6 @@ function ContactsPageContent({
         <WorkspacePageFrame contentPaddingClassName="p-0">
           <ContactsAgentDetail
             agent={state.agent}
-            onBack={actions.onBack}
             onCreateTeam={actions.onCreateTeam}
             onDeleteAgent={actions.onDeleteAgent}
             onOpenDirectRoom={actions.onOpenDirectRoom}

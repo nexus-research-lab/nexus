@@ -7,26 +7,34 @@ import { Link } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
+import { cn } from "@/shared/ui/class-name";
 
 export function SidebarBrandLink({
+  collapsed,
   label,
 }: {
+  collapsed: boolean;
   label: string;
 }) {
   const wordmark = "NEXUS";
   return (
     <Link
       aria-label={label}
-      className="group/brand relative isolate flex h-10 min-w-0 flex-1 items-center overflow-hidden"
+      aria-hidden={collapsed || undefined}
+      className={cn(
+        "group/brand relative isolate flex h-10 min-w-0 flex-1 items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
+        collapsed && "pointer-events-none opacity-0",
+      )}
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
+      tabIndex={collapsed ? -1 : undefined}
       title={label}
       to={AppRouteBuilders.launcher()}
     >
       <span
-        className="relative whitespace-nowrap text-lg uppercase leading-none tracking-[0.34em]"
+        className="relative whitespace-nowrap text-lg uppercase leading-none tracking-[0.98em]"
         style={{
           fontFamily: '"Panchang", var(--font-sans)',
-          fontWeight: 420,
+          fontWeight: 280,
         }}
       >
         <span

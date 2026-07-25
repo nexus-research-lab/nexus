@@ -17,7 +17,7 @@ import { SidebarBrandLink } from "./sidebar-brand-link";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";
 import {
   SidebarFooterActions,
-  SidebarHeaderActions,
+  SidebarPanelToggleAction,
 } from "./sidebar-utility-actions";
 import type {
   SidebarPrimaryTab,
@@ -25,9 +25,10 @@ import type {
   SidebarUtilityLabels,
 } from "./sidebar-wide-panel-types";
 
-interface SidebarExpandedPanelProps {
+interface SidebarPanelProps {
   activeTab: SidebarPrimaryTab;
-  dockUtilities: boolean;
+  collapsed: boolean;
+  expandedWidth: number | string;
   launcherLabel: string;
   navigationLabel: string;
   onPointerDown: PointerEventHandler<HTMLDivElement>;
@@ -37,6 +38,7 @@ interface SidebarExpandedPanelProps {
   onSelectTab: (tab: SidebarPrimaryTab) => void;
   resizable: boolean;
   resizeHotzoneActive: boolean;
+  resizing: boolean;
   rootRef: RefObject<HTMLDivElement | null>;
   settingsNavigation?: ReactNode;
   showSplitEdge: boolean;
@@ -53,8 +55,9 @@ interface SidebarExpandedPanelProps {
     showPanelToggle: boolean;
     showSettings: boolean;
   };
-  width: number | string;
 }
+
+const COLLAPSED_SIDEBAR_WIDTH = 52;
 
 const PANEL_CONTENT: Record<SidebarPrimaryTab, ComponentType> = {
   capabilities: CapabilityPanel,
@@ -62,9 +65,10 @@ const PANEL_CONTENT: Record<SidebarPrimaryTab, ComponentType> = {
   contacts: ContactsSidebarPanelContent,
 };
 
-export function SidebarExpandedPanel({
+export function SidebarPanel({
   activeTab,
-  dockUtilities,
+  collapsed,
+  expandedWidth,
   launcherLabel,
   navigationLabel,
   onPointerDown,
@@ -74,69 +78,91 @@ export function SidebarExpandedPanel({
   onSelectTab,
   resizable,
   resizeHotzoneActive,
+  resizing,
   rootRef,
   settingsNavigation,
   showSplitEdge,
   tabs,
   utility,
-  width,
-}: SidebarExpandedPanelProps) {
+}: SidebarPanelProps) {
   const ActivePanelContent = PANEL_CONTENT[activeTab];
+  const width = collapsed ? COLLAPSED_SIDEBAR_WIDTH : expandedWidth;
+  const resizeEnabled = resizable && !collapsed;
+
   return (
     <div
       className={cn(
-        "desktop-rail relative flex h-full shrink-0 flex-col",
+        "sidebar-panel-shell desktop-rail relative flex h-full shrink-0 flex-col overflow-hidden",
         HOME_SIDEBAR_PADDING_CLASS,
-        resizable && resizeHotzoneActive && "cursor-col-resize",
+        resizeEnabled && resizeHotzoneActive && "cursor-col-resize",
       )}
-      onPointerDown={resizable ? onPointerDown : undefined}
-      onPointerLeave={resizable ? onPointerLeave : undefined}
-      onPointerMove={resizable ? onPointerMove : undefined}
-      onPointerUp={resizable ? onPointerUp : undefined}
-      ref={resizable ? rootRef : undefined}
       data-shell-split-edge={showSplitEdge ? "true" : undefined}
+      data-sidebar-collapsed={collapsed ? "true" : undefined}
+      data-sidebar-resizing={
+        resizeEnabled && resizing ? "true" : undefined
+      }
+      onLostPointerCapture={resizeEnabled ? onPointerUp : undefined}
+      onPointerCancel={resizeEnabled ? onPointerUp : undefined}
+      onPointerDown={resizeEnabled ? onPointerDown : undefined}
+      onPointerLeave={resizeEnabled ? onPointerLeave : undefined}
+      onPointerMove={resizeEnabled ? onPointerMove : undefined}
+      onPointerUp={resizeEnabled ? onPointerUp : undefined}
+      ref={resizeEnabled ? rootRef : undefined}
       style={{ width }}
     >
       <div
         className={cn(
-          "shell-region-header -mr-1.5 flex items-center gap-2 pl-3 pr-[18px]",
+          "sidebar-panel-header shell-region-header -mr-1.5 flex shrink-0 items-center",
           WORKSPACE_HEADER_HEIGHT_CLASS,
+          collapsed ? "px-2" : "pl-3 pr-[14px]",
           "max-lg:px-4",
         )}
       >
-        <SidebarBrandLink label={launcherLabel} />
-        <SidebarHeaderActions {...utility} variant="panel" />
+        <SidebarBrandLink collapsed={collapsed} label={launcherLabel} />
+        <SidebarPanelToggleAction
+          labels={utility.labels}
+          onCollapse={utility.onCollapse}
+          onExpand={utility.onExpand}
+          showPanelToggle={utility.showPanelToggle}
+          variant={collapsed ? "rail" : "panel"}
+        />
       </div>
       {settingsNavigation ? (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col",
+            collapsed && "-mr-1.5",
+          )}
+        >
           {settingsNavigation}
         </div>
       ) : (
         <div className="flex min-h-0 flex-1">
           <nav
             aria-label={navigationLabel}
-            className="shell-navigation-rail flex w-[60px] shrink-0 flex-col"
+            className="shell-navigation-rail flex w-12 shrink-0 flex-col"
           >
             <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
               <SidebarPrimaryTabs
                 activeTab={activeTab}
                 items={tabs}
                 onSelect={onSelectTab}
-                variant="dock"
               />
             </div>
-            {dockUtilities ? (
-              <SidebarFooterActions {...utility} variant="rail" />
-            ) : null}
           </nav>
-          <div className="soft-scrollbar scrollbar-stable-gutter flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-2.5">
+          <div
+            aria-hidden={collapsed || undefined}
+            className={cn(
+              "sidebar-panel-directory soft-scrollbar scrollbar-stable-gutter flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-2.5",
+              collapsed && "pointer-events-none opacity-0",
+            )}
+            inert={collapsed ? true : undefined}
+          >
             <ActivePanelContent />
           </div>
         </div>
       )}
-      {dockUtilities ? null : (
-        <SidebarFooterActions {...utility} variant="panel" />
-      )}
+      <SidebarFooterActions {...utility} collapsed={collapsed} />
     </div>
   );
 }

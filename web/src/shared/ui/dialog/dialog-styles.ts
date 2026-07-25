@@ -12,12 +12,8 @@ export const DIALOG_HEADER_LEADING_CLASS_NAME = "flex min-w-0 items-center gap-2
 export const DIALOG_BACKDROP_CLASS_NAME =
   "dialog-backdrop animate-in fade-in duration-(--motion-duration-fast)";
 
-/** 统一 popover 面板 */
-export const DIALOG_POPOVER_CLASS_NAME =
-  "surface-popover surface-radius-lg overflow-hidden";
-
 export const DIALOG_HEADER_ICON_CLASS_NAME =
-  "flex h-9 w-9 shrink-0 items-center justify-center radius-control-md border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] text-(--text-strong)";
+  "flex h-8 w-8 shrink-0 items-center justify-center radius-control-sm bg-(--surface-interactive-hover-background) text-(--icon-default)";
 
 export const DIALOG_ICON_BUTTON_CLASS_NAME = getUiIconButtonClassName({
   size: "md",

@@ -14,6 +14,10 @@ interface CodeBlockContentProps {
   value: string;
 }
 
+interface SyntaxHighlightedCodeProps extends CodeBlockContentProps {
+  variant?: "block" | "workspace";
+}
+
 const MESSAGE_CODE_FONT_FAMILY = "var(--font-mono)";
 const LIGHT_CODE_COLOR = "rgb(20, 24, 31)";
 const LIGHT_PUNCTUATION_COLOR = "rgb(43, 48, 59)";
@@ -61,10 +65,44 @@ const lightSyntaxStyle = {
   "attr-name": { color: LIGHT_PARAMETER_COLOR },
 };
 
-export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
+export function SyntaxHighlightedCode({
+  language,
+  value,
+  variant = "block",
+}: SyntaxHighlightedCodeProps) {
   const { theme } = useTheme();
-  const { copied, copy } = useCopyToClipboard();
   const isDarkTheme = theme === "dark" || theme === "rain";
+
+  return (
+    <SyntaxHighlighter
+      language={language || "text"}
+      style={isDarkTheme ? vscDarkPlus : lightSyntaxStyle}
+      codeTagProps={{
+        className: "message-code-font",
+        style: {
+          fontFamily: MESSAGE_CODE_FONT_FAMILY,
+        },
+      }}
+      customStyle={{
+        margin: 0,
+        padding: variant === "workspace" ? 0 : "0.875rem",
+        minHeight: variant === "workspace" ? "100%" : undefined,
+        overflow: variant === "workspace" ? "visible" : undefined,
+        background: "transparent",
+        fontFamily: MESSAGE_CODE_FONT_FAMILY,
+        fontSize: "0.875rem",
+        lineHeight: "1.625",
+        borderRadius: variant === "workspace" ? 0 : "var(--radius-md)",
+        whiteSpace: "pre",
+      }}
+    >
+      {value}
+    </SyntaxHighlighter>
+  );
+}
+
+export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
+  const { copied, copy } = useCopyToClipboard();
 
   const handleCopy = () => {
     void copy(value);
@@ -93,28 +131,7 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
       contentClassName="relative min-w-0 overflow-x-auto overflow-y-hidden"
     >
       <div className="relative min-w-0">
-        <SyntaxHighlighter
-          language={language || "text"}
-          style={isDarkTheme ? vscDarkPlus : lightSyntaxStyle}
-          codeTagProps={{
-            className: "message-code-font",
-            style: {
-              fontFamily: MESSAGE_CODE_FONT_FAMILY,
-            },
-          }}
-          customStyle={{
-            margin: 0,
-            padding: "0.875rem",
-            background: "transparent",
-            fontFamily: MESSAGE_CODE_FONT_FAMILY,
-            fontSize: "0.875rem",
-            lineHeight: "1.625",
-            borderRadius: "var(--radius-md)",
-            whiteSpace: "pre",
-          }}
-        >
-          {value}
-        </SyntaxHighlighter>
+        <SyntaxHighlightedCode language={language} value={value} />
       </div>
     </CodeShell>
   );

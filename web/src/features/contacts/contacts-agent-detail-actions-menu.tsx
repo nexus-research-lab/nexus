@@ -2,6 +2,7 @@ import { MessageSquareText, MoreHorizontal, Users } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiIconButton } from "@/shared/ui/button/button";
 import {
   UiActionMenu,
   type UiActionMenuItem,
@@ -23,7 +24,6 @@ export function ContactsAgentDetailActionsMenu({
     {
       icon: <MessageSquareText className="h-4 w-4 text-(--icon-muted)" />,
       label: t("contacts.chat"),
-      tone: "primary",
       value: "chat",
     },
     {
@@ -35,18 +35,19 @@ export function ContactsAgentDetailActionsMenu({
 
   return (
     <>
-      <button
+      <UiIconButton
         ref={buttonRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={t("common.more_actions")}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] text-(--icon-default) transition hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
         onClick={() => setIsOpen((current) => !current)}
+        size="md"
         title={t("common.more_actions")}
         type="button"
+        variant="ghost"
       >
         <MoreHorizontal className="h-4 w-4" />
-      </button>
+      </UiIconButton>
       <UiActionMenu
         anchorRef={buttonRef}
         ariaLabel={t("common.more_actions")}

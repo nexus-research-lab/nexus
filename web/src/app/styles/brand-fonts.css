@@ -6,7 +6,7 @@
  * =====================================================
  */
 
-/* 中文注释：品牌字形使用随应用发布的本地文件，避免开发环境依赖第三方字体 CDN。 */
+/* 品牌字形使用随应用发布的本地文件，避免开发环境依赖第三方字体 CDN。 */
 @font-face {
   font-family: "Striper";
   src: url("/fonts/Striper-Regular.woff2") format("woff2");
@@ -15,7 +15,7 @@
   font-weight: 400;
 }
 
-/* 中文注释：Panchang 使用可变字重文件，覆盖侧边栏当前使用的 200 档。 */
+/* Panchang 使用可变字重文件，覆盖侧边栏当前使用的 200 档。 */
 @font-face {
   font-family: "Panchang";
   src: url("/fonts/Panchang-Variable.ttf") format("truetype");
@@ -24,7 +24,7 @@
   font-weight: 200 800;
 }
 
-/* 中文注释：代码与技术标识统一使用随应用发布的 PT Mono，避免依赖 Google Fonts。 */
+/* 代码与技术标识统一使用随应用发布的 PT Mono，避免依赖 Google Fonts。 */
 @font-face {
   font-family: "PT Mono";
   src: url("/fonts/PTMono-Regular.ttf") format("truetype");

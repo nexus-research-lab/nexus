@@ -2,13 +2,23 @@
 
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Clock3, History } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  History,
+} from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { cn } from "@/shared/ui/class-name";
 import { useSelectMenuOverlay } from "@/shared/ui/menu/use-select-menu-overlay";
 import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
+import {
+  ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+  OVERLAY_SURFACE_CLASS_NAME,
+} from "@/shared/ui/overlay/overlay-styles";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
@@ -26,7 +36,7 @@ interface RoomHistoryMenuProps {
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
-  triggerVariant?: "icon" | "label";
+  triggerVariant?: "history" | "session";
 }
 
 const HISTORY_MENU_MAX_HEIGHT = 560;
@@ -43,7 +53,7 @@ export function RoomHistoryMenu({
   onDeleteConversation,
   onSelectConversation,
   onUpdateConversationTitle,
-  triggerVariant = "label",
+  triggerVariant = "history",
 }: RoomHistoryMenuProps) {
   const { t } = useI18n();
   const [pageNumber, setPageNumber] = useState(0);
@@ -122,8 +132,10 @@ export function RoomHistoryMenu({
         aria-haspopup="dialog"
         aria-label={t("room.history")}
         className={cn(
-          "workspace-surface-header-control-segment workspace-surface-history-trigger inline-flex h-9 shrink-0 items-center gap-1.5 px-2 text-xs font-semibold text-(--text-default) transition-[background-color,color,box-shadow] duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
-          triggerVariant === "icon" && "h-9 w-9 justify-center gap-0 rounded-[8px] px-0",
+          "inline-flex shrink-0 items-center justify-center bg-transparent text-(--icon-default) transition-[background-color,color] duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset",
+          triggerVariant === "session"
+            ? "workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-history h-8 w-8 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)]"
+            : "workspace-surface-header-control-segment workspace-surface-history-trigger h-9 w-9 rounded-[8px] focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
           isOpen && "text-(--text-strong)",
         )}
         data-tour-anchor={CONVERSATION_TOUR_ANCHORS.history_menu}
@@ -133,17 +145,27 @@ export function RoomHistoryMenu({
         title={t("room.history")}
         type="button"
       >
-        <History className="h-3.5 w-3.5 shrink-0" />
-        {triggerVariant === "label" ? (
-          <span className="truncate">{t("room.history")}</span>
-        ) : null}
+        {triggerVariant === "session" ? (
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 transition-transform duration-(--motion-duration-fast)",
+              isOpen && "rotate-180",
+            )}
+          />
+        ) : (
+          <History className="h-3.5 w-3.5 shrink-0" />
+        )}
       </button>
 
       {isOpen && portalContainer ? createPortal(
         <div
           ref={menuRef}
           aria-labelledby={historyTitleId}
-          className="fixed z-[130] surface-radius-lg flex flex-col overflow-hidden border border-(--surface-popover-border) bg-(--surface-popover-background) shadow-(--surface-popover-shadow) backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1"
+          className={cn(
+            "fixed z-[130] flex flex-col overflow-hidden",
+            OVERLAY_SURFACE_CLASS_NAME,
+            ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+          )}
           data-placement={menuPosition?.placement ?? "bottom"}
           data-state="open"
           id={menuId}

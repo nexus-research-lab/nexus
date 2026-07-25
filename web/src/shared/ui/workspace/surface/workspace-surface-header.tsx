@@ -20,6 +20,8 @@ interface WorkspaceSurfaceHeaderTab<TTabKey extends string> {
   label: string;
 }
 
+type WorkspaceSurfaceHeaderLeadingVariant = "identity" | "section";
+
 type WorkspaceSurfaceHeaderMiddle =
   | { subtitle?: ReactNode; tabsLeading?: never }
   | { subtitle?: never; tabsLeading: ReactNode };
@@ -30,6 +32,7 @@ type WorkspaceSurfaceHeaderProps<TTabKey extends string> = {
   dismissActiveTabLabel?: string;
   leading?: ReactNode;
   leadingClassName?: string;
+  leadingVariant?: WorkspaceSurfaceHeaderLeadingVariant;
   onChangeTab?: (tab: TTabKey) => void;
   onDismissActiveTab?: (tab: TTabKey) => void;
   navigationTrailing?: ReactNode;
@@ -46,6 +49,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   dismissActiveTabLabel,
   leading,
   leadingClassName,
+  leadingVariant = "section",
   onChangeTab,
   onDismissActiveTab,
   navigationTrailing,
@@ -69,6 +73,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         <WorkspaceSurfaceIdentity
           leading={leading}
           leadingClassName={leadingClassName}
+          leadingVariant={leadingVariant}
           title={title}
           titleTrailing={titleTrailing}
         />
@@ -95,11 +100,13 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
 function WorkspaceSurfaceIdentity({
   leading,
   leadingClassName,
+  leadingVariant,
   title,
   titleTrailing,
 }: {
   leading?: ReactNode;
   leadingClassName?: string;
+  leadingVariant: WorkspaceSurfaceHeaderLeadingVariant;
   title?: string;
   titleTrailing?: ReactNode;
 }) {
@@ -109,7 +116,10 @@ function WorkspaceSurfaceIdentity({
     <div className="workspace-surface-header-title flex min-w-0 shrink items-center gap-2.5">
       {leading ? (
         <div className={cn(
-          "workspace-surface-header-identity-avatar flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default)",
+          "workspace-surface-header-leading flex shrink-0 items-center justify-center text-(--icon-default)",
+          leadingVariant === "identity"
+            ? "workspace-surface-header-identity-avatar h-10 w-10 rounded-[10px] border border-(--surface-avatar-border) bg-(--surface-avatar-background)"
+            : "workspace-surface-header-section-icon h-8 w-8 radius-control-sm bg-(--surface-interactive-hover-background)",
           leadingClassName,
         )}>
           {leading}

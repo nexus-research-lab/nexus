@@ -1,5 +1,11 @@
 export type AgentIdentityVariant = "dialog" | "inline";
 
+export const IDENTITY_FIELD_LABEL_CLASS_NAMES = {
+  dialog: "text-xs font-semibold text-(--text-muted)",
+  inline:
+    "text-xs font-semibold uppercase tracking-[0.12em] text-(--text-soft)",
+} as const satisfies Record<AgentIdentityVariant, string>;
+
 interface IdentityLayout {
   contentClassName: string;
   modelClassName: string;
@@ -10,10 +16,10 @@ interface IdentityLayout {
 export const IDENTITY_LAYOUTS: Record<AgentIdentityVariant, IdentityLayout> = {
   dialog: {
     contentClassName:
-      "grid grid-cols-1 gap-5 md:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.9fr)] md:gap-7",
-    modelClassName: "",
-    profileClassName: "space-y-4",
-    secondaryClassName: "space-y-5",
+      "grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1.08fr)_minmax(250px,0.92fr)] md:gap-6",
+    modelClassName: "min-w-0 md:col-span-2",
+    profileClassName: "space-y-3",
+    secondaryClassName: "min-w-0",
   },
   inline: {
     contentClassName:

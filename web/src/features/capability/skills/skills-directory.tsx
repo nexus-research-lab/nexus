@@ -4,10 +4,10 @@ import { useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
 import type { SkillsRouteParams } from "@/types/app/route";
@@ -108,16 +108,10 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
             updateSkill={operations.updateSkill}
           />
         ) : (
-          <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
-            <div className="mb-4">
-              <h1 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
-                {t("capability.skills_intro_title")}
-              </h1>
-              <p className="mt-0.5 max-w-[640px] text-compact leading-5 text-(--text-muted)">
-                {t("capability.skills_intro_description")}
-              </p>
-            </div>
-
+          <CapabilityPageLayout
+            description={t("capability.skills_intro_description")}
+            title={t("capability.skills_intro_title")}
+          >
             <div data-tour-anchor={SKILLS_TOUR_ANCHORS.search}>
               <SkillsSearchBar
                 activeCategory={catalog.activeCategory}
@@ -169,7 +163,7 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
                 </>
               )}
             </div>
-          </div>
+          </CapabilityPageLayout>
         )}
       </WorkspaceSurfaceScaffold>
 

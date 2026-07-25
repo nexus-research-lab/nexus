@@ -1,24 +1,24 @@
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
-// 中文注释：创建入口固定占据统一托盘右端的 40px 分区。
-const CREATE_CONVERSATION_BUTTON_SPACE = 40;
-// 中文注释：真实溢出时，会话概览固定占据统一托盘左端的 36px 分区。
-const CONVERSATION_OVERVIEW_BUTTON_SPACE = 36;
+// 中文注释：历史与创建入口共用轻量导航带的 32px 边缘占位。
+const CONVERSATION_EDGE_CONTROL_SPACE = 32;
 const CONVERSATION_TAB_GAP = 2;
 
 export const ACTIVE_TAB_MIN_WIDTH = 156;
-export const CONVERSATION_TABS_VIEWPORT_INSET = 5;
+export const CONVERSATION_TABS_VIEWPORT_INSET = 4;
 export const INACTIVE_TAB_MIN_WIDTH = 104;
 
 const ACTIVE_TAB_WIDTH_WEIGHT = 1.32;
 
-export function shouldShowConversationTabsOverview({
+export function hasConversationTabsOverflow({
   conversationCount,
   hasCreateButton,
+  hasLeadingControl,
   trackWidth,
 }: {
   conversationCount: number;
   hasCreateButton: boolean;
+  hasLeadingControl: boolean;
   trackWidth: number;
 }): boolean {
   if (!trackWidth || conversationCount <= 1) {
@@ -26,7 +26,7 @@ export function shouldShowConversationTabsOverview({
   }
   const tabViewportWidth = getAvailableConversationTabWidth({
     hasCreateButton,
-    hasOverviewButton: false,
+    hasLeadingControl,
     trackWidth,
   });
   const inactiveCount = conversationCount - 1;
@@ -34,19 +34,6 @@ export function shouldShowConversationTabsOverview({
     + INACTIVE_TAB_MIN_WIDTH * inactiveCount
     + CONVERSATION_TAB_GAP * inactiveCount;
   return minimumTabsWidth > tabViewportWidth;
-}
-
-export function getRecentConversationIds(
-  conversations: RoomConversationView[],
-): string[] {
-  return [...conversations]
-    .sort((left, right) => {
-      if (left.last_activity_at !== right.last_activity_at) {
-        return right.last_activity_at - left.last_activity_at;
-      }
-      return left.conversation_id.localeCompare(right.conversation_id);
-    })
-    .map((conversation) => conversation.conversation_id);
 }
 
 export function getConversationIdsByCreationTime(
@@ -296,13 +283,15 @@ export function getCloseFallbackConversationId(
 export function calculateConversationTabWidths({
   activeConversationId,
   hasCreateButton,
-  hasOverviewButton,
+  hasLeadingControl,
+  hasTabsOverflow,
   orderedConversations,
   trackWidth,
 }: {
   activeConversationId: string | null;
   hasCreateButton: boolean;
-  hasOverviewButton: boolean;
+  hasLeadingControl: boolean;
+  hasTabsOverflow: boolean;
   orderedConversations: RoomConversationView[];
   trackWidth: number;
 }): Map<string, number> {
@@ -313,7 +302,7 @@ export function calculateConversationTabWidths({
 
   const tabViewportWidth = getAvailableConversationTabWidth({
     hasCreateButton,
-    hasOverviewButton,
+    hasLeadingControl,
     trackWidth,
   });
   const availableWidth = tabViewportWidth
@@ -328,7 +317,7 @@ export function calculateConversationTabWidths({
 
   const inactiveCount = orderedConversations.length - 1;
   const minimumTotalWidth = ACTIVE_TAB_MIN_WIDTH + INACTIVE_TAB_MIN_WIDTH * inactiveCount;
-  if (availableWidth < minimumTotalWidth && hasOverviewButton) {
+  if (availableWidth < minimumTotalWidth && hasTabsOverflow) {
     return calculateOverflowConversationTabWidths({
       activeConversationId,
       orderedConversations,
@@ -408,19 +397,19 @@ function calculateOverflowConversationTabWidths({
 
 function getAvailableConversationTabWidth({
   hasCreateButton,
-  hasOverviewButton,
+  hasLeadingControl,
   trackWidth,
 }: {
   hasCreateButton: boolean;
-  hasOverviewButton: boolean;
+  hasLeadingControl: boolean;
   trackWidth: number;
 }): number {
   return Math.max(
     0,
     trackWidth - CONVERSATION_TABS_VIEWPORT_INSET * 2 - (
-      hasCreateButton ? CREATE_CONVERSATION_BUTTON_SPACE : 0
+      hasCreateButton ? CONVERSATION_EDGE_CONTROL_SPACE : 0
     ) - (
-      hasOverviewButton ? CONVERSATION_OVERVIEW_BUTTON_SPACE : 0
+      hasLeadingControl ? CONVERSATION_EDGE_CONTROL_SPACE : 0
     ),
   );
 }

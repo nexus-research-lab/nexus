@@ -44,7 +44,7 @@ export function RoomSettingsForm({
     })),
   ];
   return (
-    <div className="flex min-h-0 w-[280px] shrink-0 flex-col gap-5 max-md:w-full">
+    <div className="flex min-h-0 min-w-0 flex-col gap-4">
       <p className="dialog-label">{t("room.settings_title")}</p>
       <div className="flex items-start gap-3">
         <RoomAvatarPicker
@@ -54,11 +54,11 @@ export function RoomSettingsForm({
           name={state.name}
           onChange={setters.setAvatar}
         />
-        <label className="min-w-0 flex-1 space-y-1.5 pt-1">
+        <label className="min-w-0 flex-1 space-y-1.5">
           <span className="dialog-label">{t("room.name")}</span>
           <input
             aria-label={t("room.name")}
-            className="dialog-input min-w-0 w-full radius-control-md px-3 py-2 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
+            className="dialog-input h-10 min-w-0 w-full radius-control-md px-3 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
             data-autofocus="true"
             maxLength={64}
             onChange={(event) => setters.setName(event.target.value)}
@@ -74,7 +74,7 @@ export function RoomSettingsForm({
           />
         </label>
       </div>
-      <div className="flex flex-col gap-2 border-t divider-subtle pt-4">
+      <div className="flex flex-col gap-2 border-t divider-subtle pt-3">
         <div className="flex items-center gap-2">
           <div className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-(--text-muted)">
             <Crown className="h-3.5 w-3.5 text-primary" />

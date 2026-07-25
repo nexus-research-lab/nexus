@@ -10,9 +10,10 @@ import { cn } from "@/shared/ui/class-name";
 import type { UiAnchoredOverlayPosition } from "../overlay/anchored-overlay-model";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "../overlay/overlay-contract";
 import {
-  getSelectMenuPanelSurfaceClassName,
-  type UiSelectMenuSurface,
-} from "./select-menu-model";
+  ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+  OVERLAY_SURFACE_CLASS_NAME,
+} from "../overlay/overlay-styles";
+import type { UiSelectMenuSurface } from "./select-menu-model";
 
 export function SelectMenuTriggerContent({
   children,
@@ -77,9 +78,10 @@ export function SelectMenuPanel({
       ref={panelRef}
       aria-label={ariaLabel}
       className={cn(
-        "fixed z-[120] surface-radius-lg border animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
+        "fixed z-[120]",
+        OVERLAY_SURFACE_CLASS_NAME,
+        ANCHORED_OVERLAY_MOTION_CLASS_NAME,
         layoutClassName,
-        getSelectMenuPanelSurfaceClassName(surface),
         menuClassName,
       )}
       data-placement={placement ?? "bottom"}

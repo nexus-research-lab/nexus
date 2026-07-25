@@ -8,14 +8,14 @@
 
 Nexus 是让人、Agent 和任务持续协作的工作台：一张安静的工作纸，而不是装满卡片的控制台。
 
-> **安静的蓝色协作工作台：暖中性画布、编辑器式留白、单一任务焦点，以及只在需要行动时出现的 Nexus 蓝。**
+> **安静的蓝色协作工作台：暖中性画布、编辑器式留白、单一任务焦点，以及只在需要行动或确认实时协作状态时出现的 Nexus 蓝。**
 
 视觉语言由暖纸画布、克制字重与安静 chrome 构成；Nexus 蓝承担品牌行动色，京华老宋体承担对话中文正文的阅读识别。
 
 三个不变量：
 
 - **任务强于界面**：先读到对话、结果和下一步，而不是卡片、状态装饰或背景效果。
-- **蓝色只表达行动**：主操作、当前选择、键盘焦点、链接与可继续协作的入口使用 Nexus 蓝；蓝色不是填充色。
+- **蓝色只表达行动与精确信号**：主操作、表单勾选、键盘焦点、链接、进度与小型运行状态点使用 Nexus 蓝；当前位置与普通激活项保持中性。
 - **协作必须可扫描**：谁在工作、进展如何、需要谁决定，靠位置、文本和图标读懂，不只靠颜色或动画。
 
 | 维度 | 规则 |
@@ -55,7 +55,7 @@ Token 分四层：主题基础（`--primary`、`--border`、状态色）→ 语�
 
 ### 3.1 主题
 
-Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 就是行动蓝**。
+Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 就是行动蓝，不是导航选中色。**
 
 | 主题 | 画布 / 文字 | `--primary` | 规则 |
 | --- | --- | --- | --- |
@@ -65,7 +65,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 
 规则：
 
-- `--primary` 用于主操作、active、focus ring、链接、进度与 inline code 墨水；浅蓝背景一律用 `color-mix` 从蓝色推导，不另造浅蓝色系。实底按钮使用更深一档的 `--brand-action`。
+- `--primary` 用于主操作、表单勾选、focus ring、链接、进度与 inline code 墨水；浅蓝背景一律用 `color-mix` 从蓝色推导，不另造浅蓝色系。实底按钮使用更深一档的 `--brand-action`。
 - `--accent` 只用于文件、记忆等领域语义，不得与行动蓝争夺品牌注意力；成功、警告、危险保持语义色。
 - 禁止把蓝色大面积铺到 rail、页面背景、普通卡片或所有按钮上。
 - 颜色不是唯一状态信号：进行中、危险、禁用与选择态必须同时有文案、图标、边界或位置变化。
@@ -79,7 +79,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 | Serif 欢迎语 | 只在 Launcher / 新会话短欢迎语；CJK 继续用 Sans |
 | 无底图标、低对比 hover | hover 底色用暖中性，不把图标包进彩色方块 |
 | 白色 Composer、细边界、极轻阴影 | focus / 可发送状态用 Nexus 蓝 |
-| 暖灰 active row | 低对比；当前协作入口可叠加极浅蓝 |
+| 暖灰 active row | 清晰但克制的中性底 + 深文字；不叠加蓝色、边框、阴影或“当前”徽标 |
 
 禁止使用与协作状态无关的多色主操作、装饰性星芒、订阅胶囊语义或产品功能名作为视觉元素。
 
@@ -107,7 +107,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 | `desktop-rail` | 低对比表面 + 细分隔线；无常驻阴影 |
 | `surface-panel` | 只在承载独立任务或可操作内容时单层填充 + 轻边界 |
 | `surface-inset` / `surface-card` | 默认透明或低对比底；卡片必须有内容或交互职责 |
-| `surface-popover` | 高不透明度、清晰边界、单档阴影 |
+| `surface-popover` | menu、popover 与 dialog 共用的高不透明主题表面、清晰边界与同源阴影 |
 | `input-shell` | 背景、边界与轻 ring 建立焦点；不用玻璃或发光描边 |
 | `composer-shell` | 主动作表面；常规页面唯一允许明显上浮的白色 surface |
 
@@ -129,7 +129,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 
 - button、input、menu item 用 `control`；不用 `lg`、`xl` 或 pill 制造「高级感」，不把常规按钮和筛选项 pill 化。
 - 聊天 / 目录的人物头像是方形，圆角取 control 系（8–12px 随尺寸）；禁止 `full` 使头像近似圆形。
-- 常规 panel、rail、nav row 不使用外阴影；Composer 只用极轻边界与低透明阴影让白色 surface 脱离画布；popover / dialog 只一档更清晰的阴影，不用内阴影、双描边、发光或毛玻璃。
+- 常规 panel、rail、nav row 不使用外阴影；Composer 只用极轻边界与低透明阴影让白色 surface 脱离画布；menu / popover 使用同一档浮层阴影，dialog 只按尺寸加深同源阴影，不用内阴影、双描边、发光或毛玻璃。
 - 不新增无消费者的渐变；删除后信息层级不变的渐变默认删除。
 
 ### 5.3 按钮与图标操作
@@ -145,8 +145,19 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 | `icon` | 32px 方形命中区、图标 18–20px、无底无框默认 | 搜索、菜单、附件、关闭、编辑 | 圆形蓝底图标泛滥；图标与文字竞争 |
 | `icon compact` | 28px 命中区；只用于紧凑列表或 code chrome | 行内次级操作 | 移动端主操作 |
 
-状态统一：default 可读；hover 只轻微改背景 / 边界 / 文字明度；pressed 局部色深不位移整块布局；focus 2px Nexus 蓝 ring 并留隔离；disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与文案占位。
+交互状态必须先通过共享语义 token 投影，导航、列表、菜单与 ghost button 使用同一套层级：
 
+| 状态 | 背景 | 文字 / 图标 | 几何与提示 |
+| --- | --- | --- | --- |
+| inactive | 透明 | `--text-default` / `--icon-default`，常规或 medium | 保持可读，不伪装 disabled |
+| hover | `--surface-interactive-hover-background` | 提升到 `--text-strong` / `--icon-strong` | 不新增边框、阴影或尺寸变化 |
+| active / current | `--surface-interactive-active-background` | `--text-strong`，必要时 semibold | 不用蓝色、不显示“当前”徽标、不画侧边标记 |
+| pressed / expanded | 维持或略加深中性 active 底 | 保持 strong | 只做局部确认，不推动布局 |
+| focus-visible | 保持原状态底 | 保持原文字层级 | 2px Nexus 蓝 ring 并留隔离 |
+
+disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与文案占位。危险、成功与运行中等领域状态仍使用自己的语义色，不套用普通 active 规则。
+
+- 需要持续定位的侧栏 current 使用 `--surface-sidebar-active-background`，比通用 active / hover 深一档；仍不增加边框、阴影、蓝色或尺寸变化。
 - primary hover 只加深蓝，不换色相；secondary / ghost hover 用暖中性底。
 - label 用常规到 medium 字重；不用 `font-bold` 弥补层级不足。
 - 文本按钮水平 padding 12–14px；icon 与 label 间距 8px；触屏命中区至少 36px。
@@ -155,10 +166,10 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 ### 5.4 输入、选择器、菜单与提示
 
 - text input / select 默认 36px 高、`control` / `control-lg` 圆角、白色或轻暖灰底、`1px` 控制边界；focus 只强化蓝色 border / ring，不加高饱和蓝底或 glow；placeholder 用 `--text-muted` 且必须可读。
-- segmented control 是选择器不是导航标签墙；整体轻底，active 用白色或极浅蓝 surface，边界与阴影极轻。
+- segmented control 是选择器不是导航标签墙；整体轻底，active 用中性或白色 surface，边界与阴影极轻。
 - switch / checkbox / radio checked 时用 Nexus 蓝；label 与描述承担解释，颜色只确认状态。
-- menu / popover：`overlay` 圆角、白色高不透明度、`1px` 边界、单档阴影；条目 `control` 圆角、hover 暖灰。
-- dialog 只承载确认、编辑或短流程；标题、内容、footer 不重复套 card；危险操作保留明确文案与 destructive action。
+- menu / popover：`overlay` 圆角、高不透明主题底、`1px` 边界、同一档阴影；Select、Action Menu、日期与头像选择器不得重写材质。条目统一使用 `control` 圆角和中性 hover / active 底面。
+- dialog 与 menu / popover 共用底色、边界和 16px 外轮廓，只因尺寸使用更深一档同源阴影；dialog 只承载确认、编辑或短流程，标题、内容、footer 不重复套 card；危险操作保留明确文案与 destructive action。
 - tooltip 紧凑单行，只解释无文字的图标，不替代按钮 label。
 - chip / pill 只用于真实筛选、状态或可移除实体；没有交互或信息密度价值时不用。
 
@@ -166,15 +177,29 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 
 **导航与目录**
 
-- rail 只表达位置、切换、未读和简短运行态；当前项用中性浅灰底（可叠加极浅蓝），不靠粗体、大色块或填充图标。
+- rail 只表达位置、切换、未读和简短运行态；当前项用比 hover 清晰一档的中性灰底与更深文字，不靠蓝色、徽标、粗字重、大色块或填充图标。
+- 主侧栏展开与收起共用 48px Dock；收起后外层固定为 52px（含 4px 左侧留边），主 Tab 的 32×32px 图标交互面与聊天头像同尺度，18px 图标、短标签和中心轴保持不变，只裁切右侧目录。
 - icon 统一 18–20px、单色、细描边、与文字同色；不建独立的彩色 icon 系统。
 - 最近会话、文件或联系人保持纯文本列表；长内容截断，不额外添加摘要卡。
 - Nexus 主智能体与普通 DM 共用同一目录行，只保留“固定置顶、不可删除”两项产品差异；不得另建一级导航动作、专用 Focus 侧栏或第二套激活状态。
+- 品牌栏只承担品牌与侧栏收起；设置和引导留在底栏左侧，有效退出作为低频会话动作隔离在底栏右侧。折叠栏回落为同一底部单列，不把退出重新塞回顶部。
 
 **顶部 tab 与 header 工具**
 
-- tab 托盘只用极轻底与细分隔线；active tab 用白色 surface，inactive 之间仅用 hairline 分隔。
-- view 切换、历史等 header 工具默认无容器：hover 出暖灰底，active 用暖灰或极浅蓝底，不叠加边框囊与阴影。
+- Session 是无外框导航带，不做托盘或胶囊容器；历史清单固定在左端作为唯一会话切换面板，创建固定在右端。active 只用中性浅底、文字权重和蓝色状态点，inactive 之间仅用短 hairline 分隔。
+- Session 新建入口使用 32px 中性浅底图标面，必须比普通 ghost 工具更容易发现但不成为 primary；Session 与工作区 view 的关闭动作共用 24px 命中区、6px 圆角和同一危险态 hover，出现时不得改变标签宽度。
+- 没有 Session 导航的目录页用深中性底边指示当前 view，不借用品牌蓝，也不把页面级 tab 做成一组按钮。
+- view 切换等 header 工具默认无容器：hover 出轻暖灰底，active 使用更明确的一档中性底，不增加边框宽度，不叠加边框囊与阴影。
+- Header 中真实 Agent / Room 身份使用 40px rounded-square 头像；能力、设置与目录标题只用 32px 中性图标框，不借用身份头像的描边和阴影。
+
+**身份编辑**
+
+- 创建 Agent 与创建群聊共用标准 Dialog 骨架：32px 中性 Header 图标、紧凑标题层、固定 Footer 与可滚动 Body；表单导航和成员选择 active 使用中性浅底，不使用蓝色描边大卡、竖向蓝条、圆形 plus 或放大的头像按钮。
+- 内联 Agent 详情头像使用 56px rounded-square 作为识别锚点，不与页面标题争夺层级；“更换头像”是 28px 中性文字动作，只有 hover / expanded 出底色，不做蓝色描边 pill。
+- 名称、风格标签与模型共用同一套 label 配方和字段节奏；内联详情中的标签输入与添加按钮均为 36px，并让输入组自然填满可用列宽，与名称字段形成稳定的左右对齐。
+- 标签区按“字段标签 → 新增输入 → 已确认标签”排列，让操作先于结果；已确认标签使用 28px 中性 chip 并在下一行自然换行。颜色只在输入 focus ring 表达，不把普通标签染成品牌蓝。
+- 详情 Header 的聊天与发起群聊是同级 ghost 工具；已有常驻目录或应用级返回导航时，不重复渲染“返回列表”按钮。
+- 创建 Agent 的“行为模板”由服务端默认模板初始化，用户编辑后的 Markdown 必须在创建事务中直接落为该 Agent 的 `AGENTS.md`；不得把行为模板塞进列表摘要字段，也不得维护前后端两份默认模板。
 
 **Composer**
 
@@ -194,6 +219,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 
 - 文件标题、路径、编辑器工具栏和预览 chrome 由共享容器负责，内容渲染器不重复实现工具栏。
 - 代码、表格和预览保持工具界面，不套厚卡片。
+- 工作区源码预览复用消息代码块的语义高亮色板与等宽字体，但不复制语言 Header、外框或复制动作；未知纯文本保持无高亮，避免为了颜色误判文件语义。
 - Settings 用分组、分隔线和表单密度表达层级；不做 banner、渐变 hero 或卡片瀑布流。
 
 ## 6. 内容渲染
@@ -227,6 +253,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 - 链接用 Nexus 蓝文字，默认可辨识，hover / focus 再出下划线或局部底色；外部链接、workspace 文件、Agent mention 保留各自语义图标或标签。
 - quote 用中性左边界与次级文字色，背景透明；不用大面积蓝底或强制 italic。
 - Workspace 文件保持紧凑 `14px / 1.55`，标题按 `20 / 18 / 16px` 递减；不变成第二套博客主题。
+- Markdown 正文 Grid 始终 `align-content: start` 且行高由内容决定；短文档的剩余视口只能留在文末，不得摊进标题、段落或列表间距。
 - 流式文本按完整块稳定落位；不因 token 到达反复跳动、改写已稳定段落或挤动阅读位置。
 
 ### 6.3 Code、表格、媒体与 Artifact
@@ -254,13 +281,14 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 - 底部统计（时长、Token、费用、缓存、模型）与复制动作始终共享同一行；窄空间依次截断时长、Token、费用与缓存，模型英文名和复制动作保持完整且不换行。
 - Room 中不同 Agent 的可区分性优先来自名称、头像、顺序与状态；不为每个 Agent 分配独立品牌色。
 - system、guide、queue、wake 等控制信息是辅助行，不作为普通发言者，也不与最终答案竞争。
+- 会话任务摘要只占稳定的单行锚点；展开的任务明细是右对齐 popover，覆盖聊天画布但不改变消息视口高度、不推动正文，也不增加全画布遮罩。
 - 轮次级操作（复制、重试、展开）默认 hover / focus 露出，键盘可达；不在每段正文旁常驻一排图标。
 
 ### 6.6 响应式与动效
 
 - `620px` 以下收紧消息壳、标题和列表列宽；优先保留正文宽度、点击区域、滚动位置和 Composer。
 - 列表 marker 始终占独立列，不用负 margin 压进正文。
-- hover / focus 用 `--motion-duration-fast: 160ms`；面板与 overlay 用 `--motion-duration-normal: 220ms`；统一 `--motion-ease-standard`。
+- hover / focus 用 `--motion-duration-fast: 160ms`；面板与 overlay 用 `--motion-duration-normal: 220ms`；侧栏等真实布局轴变化使用 `--motion-duration-layout: 300ms` 与 `--motion-ease-layout`，只过渡宽度和必要动作坐标，不缩放导航图标。其余动效统一 `--motion-ease-standard`。
 - 内容流只允许三类动效：新轮次的微弱进入、过程项状态更新、展开 / 收起 detail；正文不做逐字弹跳或大范围 stagger。
 - `:focus-visible` 必须保留隔离线与 `--ring`；`prefers-reduced-motion` 下动画近乎即时。
 
@@ -281,7 +309,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 提交视觉改动前确认：
 
 1. 页面能否按「canvas → rail → 工作平面 → 聚焦 surface → 浮层」读懂，且只有一个主要工作焦点？
-2. 蓝色是否只服务行动、选择和焦点，而非背景装饰？
+2. 蓝色是否只服务行动、表单勾选、焦点与必要的实时信号，而非普通激活项或背景装饰？
 3. button、icon button、input、menu、dialog、chip 是否都使用既定高度、圆角与状态配方？
 4. Assistant 正文是否无 bubble、无卡片即可读；code、table、tool、question、Artifact 是否只在承担独立职责时上浮？
 5. 是否使用语义 token，而非复制 raw color、渐变、阴影或 `rounded-*` 近似值？

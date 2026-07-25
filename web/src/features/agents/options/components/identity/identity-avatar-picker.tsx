@@ -21,10 +21,10 @@ interface IdentityAvatarPickerProps {
   variant: AgentIdentityVariant;
 }
 
-const AVATAR_TRIGGER_CLASS: Record<AgentIdentityVariant, string> = {
-  dialog: "h-[72px] w-[72px] rounded-[16px]",
-  inline: "h-16 w-16 rounded-[14px]",
-};
+const AVATAR_TRIGGER_SIZE = {
+  dialog: "lg",
+  inline: "lg",
+} as const satisfies Record<AgentIdentityVariant, "lg" | "xl">;
 
 export function IdentityAvatarPicker({
   avatar,
@@ -44,14 +44,11 @@ export function IdentityAvatarPicker({
         <>
           <UiAgentAvatar
             avatar={avatar}
-            className={cn(
-              AVATAR_TRIGGER_CLASS[variant],
-              "transition-[border-color,box-shadow,transform] duration-(--motion-duration-fast) group-hover:border-[color:color-mix(in_srgb,var(--primary)_35%,var(--surface-avatar-border))] group-hover:shadow-[0_8px_20px_color-mix(in_srgb,var(--shadow-color)_12%,transparent)]",
-            )}
+            className="transition-[border-color] duration-(--motion-duration-fast) group-hover:border-(--surface-interactive-active-border)"
             name={name || avatarAlt}
-            size="xl"
+            size={AVATAR_TRIGGER_SIZE[variant]}
           />
-          <span className="inline-flex min-h-7 items-center gap-1 rounded-full border border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] px-2.5 text-compact font-semibold text-(--primary) transition-[background,border-color] group-hover:border-[color:color-mix(in_srgb,var(--primary)_32%,var(--divider-subtle-color))] group-hover:bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)]">
+          <span className="inline-flex h-7 items-center gap-1 radius-control-sm px-2 text-compact font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-interactive-hover-background) group-hover:text-(--text-strong)">
             {t("agent_options.identity.change_avatar")}
             <ChevronDown
               className={cn(
@@ -63,7 +60,7 @@ export function IdentityAvatarPicker({
         </>
       )}
       startIconId={AGENT_ICON_ID_START}
-      triggerClassName="group relative flex shrink-0 flex-col items-center gap-1.5 rounded-[18px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--background)"
+      triggerClassName="group relative flex shrink-0 flex-col items-center gap-1.5 rounded-[12px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--background)"
       value={avatar}
     />
   );

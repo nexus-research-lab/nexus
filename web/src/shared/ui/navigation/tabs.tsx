@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import { type LucideIcon, X } from "lucide-react";
 
 import {
+  getUiTabDismissClassName,
   getUiUnderlineTabClassName,
   getUiUnderlineTabsNavClassName,
   type UiTabsDensity,
@@ -52,15 +53,19 @@ export function UiUnderlineTabs<TValue extends string>({
       {options.map((option) => {
         const Icon = option.icon;
         const isActive = activeValue === option.value;
-        const wrapperClassName = `ui-underline-tab-item ${option.className ?? ""}`;
+        const wrapperClassName = [
+          "ui-underline-tab-item",
+          onDismissActive ? "ui-underline-tab-item-dismissible" : "",
+          option.className ?? "",
+        ].filter(Boolean).join(" ");
         const tabButton = (
           <button
             aria-current={isActive ? "page" : undefined}
             aria-pressed={isActive}
             className={getUiUnderlineTabClassName(
               { active: isActive, density },
-              isActive && onDismissActive
-                ? `${itemClassName ?? ""} pr-5`
+              onDismissActive
+                ? `${itemClassName ?? ""} pr-8`
                 : itemClassName,
             )}
             data-tour-anchor={option.anchor}
@@ -92,7 +97,9 @@ export function UiUnderlineTabs<TValue extends string>({
             {tabButton}
             <button
               aria-label={dismissActiveLabel}
-              className="ui-underline-tab-dismiss absolute right-0 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-(--icon-muted) transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
+              className={getUiTabDismissClassName(
+                "ui-underline-tab-dismiss absolute right-1 top-1/2 -translate-y-1/2",
+              )}
               onClick={(event) => {
                 event.stopPropagation();
                 onDismissActive(option.value);

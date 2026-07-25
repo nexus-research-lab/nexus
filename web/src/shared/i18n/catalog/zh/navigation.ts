@@ -49,7 +49,6 @@ export const zhNavigationMessages = {
   "contacts.title": "智能体管理",
   "contacts.new_agent": "新建智能体",
   "contacts.new_agent_description": "创建可加入聊天与群聊的 AI 成员",
-  "contacts.back_to_agents": "返回智能体列表",
   "contacts.chat": "聊天",
   "contacts.create_team": "发起群聊",
   "launcher.enter_app": "进入工作台",

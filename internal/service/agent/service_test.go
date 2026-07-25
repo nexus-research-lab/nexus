@@ -113,6 +113,13 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 		t.Fatalf("workspace 目录未创建: %v", err)
 	}
 	assertRuntimeEmotionStateFile(t, created.WorkspacePath)
+	profileTemplate, err := os.ReadFile(filepath.Join(created.WorkspacePath, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("创建 Agent 时应立即写入默认行为模板: %v", err)
+	}
+	if !strings.Contains(string(profileTemplate), "## Role") {
+		t.Fatalf("默认行为模板内容不正确: %s", profileTemplate)
+	}
 	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a"), 0o755); err != nil {
 		t.Fatalf("创建测试 skill-a 失败: %v", err)
 	}
@@ -153,6 +160,31 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 	if !validation.IsValid || !validation.IsAvailable {
 		t.Fatalf("重复名称应只作为展示名并允许复用: %+v", validation)
+	}
+}
+
+func TestCreateAgentPersistsCustomizedProfileTemplate(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	const customTemplate = "## Role\n\n- Purpose: 负责发布前质量审查\n"
+	created, err := service.CreateAgent(context.Background(), protocol.CreateRequest{
+		Name:            "质量审查助手",
+		ProfileTemplate: customTemplate,
+	})
+	if err != nil {
+		t.Fatalf("创建自定义模板 Agent 失败: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(created.WorkspacePath, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("读取自定义行为模板失败: %v", err)
+	}
+	if string(content) != customTemplate {
+		t.Fatalf("自定义行为模板未原样落盘: got=%q want=%q", content, customTemplate)
 	}
 }
 

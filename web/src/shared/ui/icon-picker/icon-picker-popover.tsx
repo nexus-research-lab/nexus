@@ -9,9 +9,14 @@ import {
 import { createPortal } from "react-dom";
 
 import type { AvatarIconFamily } from "@/lib/avatar";
+import { cn } from "@/shared/ui/class-name";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
 import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
+import {
+  ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+  OVERLAY_SURFACE_CLASS_NAME,
+} from "@/shared/ui/overlay/overlay-styles";
 
 import { IconPicker } from "./icon-picker";
 import type {
@@ -108,7 +113,11 @@ export function IconPickerPopover({
         <div
           ref={overlayRef}
           aria-label={ariaLabel}
-          className="fixed z-[140] overflow-y-auto rounded-[18px] border border-(--surface-popover-border) bg-(--surface-popover-background) p-3 shadow-[0_18px_42px_color-mix(in_srgb,var(--shadow-color)_18%,transparent)] backdrop-blur-xl animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1"
+          className={cn(
+            "fixed z-[140] overflow-y-auto p-3",
+            OVERLAY_SURFACE_CLASS_NAME,
+            ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+          )}
           data-placement={overlayPosition?.placement ?? "bottom"}
           role="dialog"
           style={overlayStyle}

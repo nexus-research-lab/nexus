@@ -12,7 +12,7 @@ export interface RoomHistoryEntry {
   canRename: boolean;
 }
 
-export const ROOM_HISTORY_PAGE_SIZE = 10;
+export const ROOM_HISTORY_PAGE_SIZE = 6;
 
 export interface RoomHistoryPage {
   entries: RoomHistoryEntry[];

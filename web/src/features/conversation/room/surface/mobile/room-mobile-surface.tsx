@@ -211,7 +211,7 @@ export function RoomMobileSurface({
               onDeleteConversation={onDeleteConversation}
               onSelectConversation={onSelectConversation}
               onUpdateConversationTitle={onUpdateConversationTitle}
-              triggerVariant="icon"
+              triggerVariant="history"
             />
             <RoomMobileActionsMenu
               canOpenSubagents={subagentTaskSource !== null}

@@ -6,6 +6,7 @@ import { UiTextarea } from "@/shared/ui/form/form-control";
 import type { AgentNameValidationResult, AgentProvider } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
 
+import type { AgentOptionsMode } from "../../agent-options-editor-model";
 import {
   IDENTITY_LAYOUTS,
   type AgentIdentityVariant,
@@ -28,6 +29,7 @@ interface AgentOptionsIdentityTabProps {
   onAvatarChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onModelChange: (value: string) => void;
+  onProfileTemplateChange: (value: string) => void;
   onProviderChange: (value: AgentProvider) => void;
   onTitleChange: (value: string) => void;
   onVibeTagsChange: (tags: string[]) => void;
@@ -35,7 +37,11 @@ interface AgentOptionsIdentityTabProps {
   providerOptions: ProviderOption[];
   providerOptionsError: string | null;
   providerOptionsLoading: boolean;
+  profileTemplate: string;
+  profileTemplateError: string | null;
+  profileTemplateLoading: boolean;
   scopeKey: string;
+  sourceMode: AgentOptionsMode;
   title: string;
   variant?: AgentIdentityVariant;
   vibeTags: string[];
@@ -54,6 +60,7 @@ export function AgentOptionsIdentityTab({
   onAvatarChange,
   onDescriptionChange,
   onModelChange,
+  onProfileTemplateChange,
   onProviderChange,
   onTitleChange,
   onVibeTagsChange,
@@ -61,7 +68,11 @@ export function AgentOptionsIdentityTab({
   providerOptions,
   providerOptionsError,
   providerOptionsLoading,
+  profileTemplate,
+  profileTemplateError,
+  profileTemplateLoading,
   scopeKey,
+  sourceMode,
   title,
   variant = "dialog",
   vibeTags,
@@ -69,7 +80,8 @@ export function AgentOptionsIdentityTab({
   const { t } = useI18n();
   const layout = IDENTITY_LAYOUTS[variant];
   const isInline = variant === "inline";
-  const shouldShowDescriptionField = !isInline || (!isMain && !agentId);
+  const shouldShowDescriptionField =
+    sourceMode !== "create" && (!isInline || (!isMain && !agentId));
   const modelSelector = (
     <IdentityModelSelector
       defaultModel={defaultModel}
@@ -121,21 +133,18 @@ export function AgentOptionsIdentityTab({
             tags={vibeTags}
             variant={variant}
           />
-          {!isInline ? modelSelector : null}
         </div>
 
-        {isInline ? (
-          <div className={layout.modelClassName}>
-            {modelSelector}
-          </div>
-        ) : null}
+        <div className={layout.modelClassName}>
+          {modelSelector}
+        </div>
       </div>
 
       {isInline && !isMain && agentId ? (
         <AgentProfileFileEditor
           agentId={agentId}
           key={agentId}
-          label={t("agent_options.identity.description")}
+          label={t("agent_options.identity.profile_template")}
         />
       ) : null}
       {shouldShowDescriptionField ? (
@@ -150,6 +159,35 @@ export function AgentOptionsIdentityTab({
             rows={3}
             value={description}
           />
+        </div>
+      ) : null}
+      {sourceMode === "create" ? (
+        <div className="space-y-2">
+          <div>
+            <label className="text-xs font-semibold text-(--text-muted)">
+              {t("agent_options.identity.profile_template")}
+            </label>
+            <p className="mt-1 text-compact leading-5 text-(--text-soft)">
+              {t("agent_options.identity.profile_template_hint")}
+            </p>
+          </div>
+          <UiTextarea
+            className="message-code-font min-h-[180px] surface-radius-lg text-sm leading-relaxed"
+            disabled={profileTemplateLoading}
+            onChange={(event) => onProfileTemplateChange(event.target.value)}
+            placeholder={
+              profileTemplateLoading
+                ? t("agent_options.identity.profile_template_loading")
+                : t("agent_options.identity.profile_template_placeholder")
+            }
+            rows={8}
+            value={profileTemplate}
+          />
+          {profileTemplateError ? (
+            <p className="text-compact leading-5 text-(--destructive)">
+              {profileTemplateError}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

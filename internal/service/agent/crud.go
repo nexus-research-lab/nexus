@@ -227,6 +227,10 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 		_ = confinedfs.RemoveTree(workspacePath)
 		return nil, err
 	}
+	if err = writeProfileTemplate(workspacePath, request.ProfileTemplate); err != nil {
+		_ = confinedfs.RemoveTree(workspacePath)
+		return nil, err
+	}
 	record := BuildCreateRecord(
 		s.config,
 		request,

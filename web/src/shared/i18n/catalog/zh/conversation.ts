@@ -64,7 +64,6 @@ export const zhConversationMessages = {
   "room.panels": "面板",
   "room.history": "历史",
   "room.history_empty_hint": "这里会保留这个聊天里的历史会话。",
-  "room.current_conversation": "当前",
   "room.history_page_previous": "上一页",
   "room.history_page_next": "下一页",
   "room.history_page_status": "第 {current} / {total} 页",

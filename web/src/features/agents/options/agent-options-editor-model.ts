@@ -19,6 +19,7 @@ export interface AgentOptionsEditorInitialValues {
   avatar: string;
   description: string;
   options: AgentEditorInitialOptions;
+  profileTemplate?: string;
   title: string;
   vibeTags: string[];
 }
@@ -49,6 +50,7 @@ export function buildAgentOptionsCreateSource(
       avatar: getRandomAgentAvatarIconId(),
       description: "",
       options,
+      profileTemplate: "",
       title: "",
       vibeTags: [],
     },

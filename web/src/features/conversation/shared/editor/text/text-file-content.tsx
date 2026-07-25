@@ -1,10 +1,17 @@
-import type { ComponentType } from "react";
+import {
+  lazy,
+  Suspense,
+  type ComponentType,
+} from "react";
 
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { LazyMermaidView } from "@/shared/ui/markdown/mermaid/lazy-mermaid-view";
 
 import { HtmlFilePreview } from "../media/html-file-preview";
-import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
+import {
+  getWorkspaceFileCodeLanguage,
+  type WorkspaceFilePreviewKind,
+} from "../workspace-file-preview-kind";
 
 interface TextRendererProps {
   content: string;
@@ -56,6 +63,34 @@ function PlainTextContent({ content }: TextRendererProps) {
   );
 }
 
+const LazySyntaxHighlightedCode = lazy(async () => {
+  const module = await import(
+    "@/shared/ui/markdown/code/code-block-content"
+  );
+  return { default: module.SyntaxHighlightedCode };
+});
+
+function SourceCodeContent(props: TextRendererProps) {
+  const { content, fileName } = props;
+  const language = getWorkspaceFileCodeLanguage(fileName);
+  if (!language) {
+    return <PlainTextContent {...props} />;
+  }
+  return (
+    <Suspense
+      fallback={(
+        <PlainTextContent {...props} />
+      )}
+    >
+      <LazySyntaxHighlightedCode
+        language={language}
+        value={content}
+        variant="workspace"
+      />
+    </Suspense>
+  );
+}
+
 const TEXT_RENDERERS: Partial<
   Record<WorkspaceFilePreviewKind, ComponentType<TextRendererProps>>
 > = {
@@ -78,7 +113,9 @@ export function TextFileContent({
       </div>
     );
   }
-  const Renderer = TEXT_RENDERERS[fileType] ?? PlainTextContent;
+  const Renderer = fileType === "text"
+    ? SourceCodeContent
+    : (TEXT_RENDERERS[fileType] ?? PlainTextContent);
   return (
     <Renderer
       content={content}

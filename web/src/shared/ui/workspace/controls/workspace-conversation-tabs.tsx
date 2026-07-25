@@ -1,11 +1,11 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { getExternalSessionConversationLabel } from "@/lib/conversation/external-session";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { ConversationTabsOverview } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-overview";
 import { ConversationTabsScrollRail } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-scroll-rail";
 import { useConversationTabsController } from "@/shared/ui/workspace/controls/conversation-tabs/use-conversation-tabs-controller";
 import { WorkspaceConversationTab } from "@/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab";
@@ -14,6 +14,7 @@ import { RoomConversationView } from "@/types/conversation/conversation";
 interface WorkspaceConversationTabsProps {
   conversations: RoomConversationView[];
   conversationId: string | null;
+  leadingControl?: ReactNode;
   tourAnchor?: string;
   onSelectConversation: (conversationId: string) => void;
   onCloseConversation?: (conversationId: string) => Promise<void>;
@@ -21,11 +22,12 @@ interface WorkspaceConversationTabsProps {
 }
 
 const TRACK_CLASS_NAME =
-  "workspace-surface-header-session-tabs-track relative flex h-10 w-full min-w-0 items-center";
+  "workspace-surface-header-session-tabs-track relative flex h-9 w-full min-w-0 items-center";
 
 export function WorkspaceConversationTabs({
   conversations,
   conversationId,
+  leadingControl,
   tourAnchor,
   onSelectConversation,
   onCloseConversation,
@@ -35,6 +37,7 @@ export function WorkspaceConversationTabs({
   const controller = useConversationTabsController({
     conversations,
     conversationId,
+    hasLeadingControl: Boolean(leadingControl),
     onCloseConversation,
     onCreateConversation,
     onSelectConversation,
@@ -47,13 +50,7 @@ export function WorkspaceConversationTabs({
       data-tour-anchor={tourAnchor}
       ref={controller.trackRef}
     >
-      {controller.hasTabsOverflow ? (
-        <ConversationTabsOverview
-          activeConversationId={controller.activeConversationId}
-          conversations={controller.recentConversations}
-          onSelectConversation={controller.selectConversation}
-        />
-      ) : null}
+      {leadingControl}
 
       <div className="workspace-surface-header-session-tabs-viewport-shell relative min-w-0 flex-1 self-stretch">
         <div
@@ -101,7 +98,7 @@ export function WorkspaceConversationTabs({
       {onCreateConversation ? (
         <button
           aria-label={t("room.new_conversation")}
-          className="workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-create relative inline-flex h-full w-10 shrink-0 items-center justify-center rounded-r-[var(--workspace-session-tray-radius)] bg-transparent leading-none text-(--icon-default) transition-colors duration-(--motion-duration-fast) ease-out hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] disabled:opacity-60"
+          className="workspace-surface-header-session-tabs-edge-action workspace-surface-header-session-tabs-create relative inline-flex h-8 w-8 shrink-0 items-center justify-center leading-none transition-colors duration-(--motion-duration-fast) ease-out focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_42%,transparent)] disabled:opacity-60"
           disabled={controller.isCreating}
           onClick={() => {
             void controller.createConversation();
@@ -110,7 +107,7 @@ export function WorkspaceConversationTabs({
           type="button"
         >
           <Plus className={cn(
-            "h-3.5 w-3.5 shrink-0",
+            "h-[18px] w-[18px] shrink-0",
             controller.isCreating && "animate-spin",
           )} />
         </button>

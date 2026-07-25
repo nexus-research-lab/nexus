@@ -79,7 +79,7 @@ export function AgentOptionsDialogEditor({
           activeTab={controller.activeTab}
           onTabChange={controller.onTabChange}
         />
-        <div className="min-h-0 flex-1 overflow-y-auto bg-transparent p-6 [overflow-anchor:none] [scrollbar-gutter:stable] max-xl:p-5 max-sm:p-4">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-transparent p-5 [overflow-anchor:none] [scrollbar-gutter:stable] max-sm:p-4">
           <AgentOptionsEditorContent
             activeTab={controller.activeTab}
             {...controller.content}
@@ -87,7 +87,7 @@ export function AgentOptionsDialogEditor({
           />
         </div>
       </div>
-      <div className="dialog-footer px-5 py-3.5">
+      <div className="dialog-footer">
         <AgentOptionsEditorActions
           {...controller.actions}
           cancelAction={cancelAction}

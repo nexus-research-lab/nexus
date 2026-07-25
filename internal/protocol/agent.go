@@ -38,11 +38,12 @@ type Agent struct {
 
 // CreateRequest 表示创建 Agent 请求。
 type CreateRequest struct {
-	Name        string   `json:"name"`
-	Options     *Options `json:"options,omitempty"`
-	Avatar      string   `json:"avatar,omitempty"`
-	Description string   `json:"description,omitempty"`
-	VibeTags    []string `json:"vibe_tags,omitempty"`
+	Name            string   `json:"name"`
+	Options         *Options `json:"options,omitempty"`
+	Avatar          string   `json:"avatar,omitempty"`
+	Description     string   `json:"description,omitempty"`
+	ProfileTemplate string   `json:"profile_template,omitempty"`
+	VibeTags        []string `json:"vibe_tags,omitempty"`
 }
 
 // UpdateRequest 表示更新 Agent 请求。
@@ -62,4 +63,9 @@ type ValidateNameResponse struct {
 	IsAvailable    bool   `json:"is_available"`
 	WorkspacePath  string `json:"workspace_path,omitempty"`
 	Reason         string `json:"reason,omitempty"`
+}
+
+// ProfileTemplateResponse 表示新建 Agent 时可编辑的默认行为模板。
+type ProfileTemplateResponse struct {
+	Content string `json:"content"`
 }

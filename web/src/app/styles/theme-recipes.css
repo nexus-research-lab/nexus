@@ -7,9 +7,9 @@
  * =====================================================
  */
 
-/* 中文注释：共享配方层只负责“材质语法”，业务组件只能组合这些规则，不再自己发明玻璃写法。 */
+/* 共享配方层只负责“材质语法”，业务组件只能组合这些规则，不再自己发明玻璃写法。 */
 @layer components {
-  /* 中文注释：表面原语只保留少数稳定语义，其他组件统一映射回来，避免继续堆近义 recipe。
+  /* 表面原语只保留少数稳定语义，其他组件统一映射回来，避免继续堆近义 recipe。
    * 1. desktop-rail：桌面侧栏底面
    * 2. surface-panel：主面板
    * 3. surface-inset / surface-card：次级内容面
@@ -26,9 +26,42 @@
     position: relative;
     z-index: 10;
     isolation: isolate;
-    /* 中文注释：目录层使用主题底色建立层级；外缘线由置顶伪元素一次绘制，避免 Header/Footer 覆盖父级 shadow 后产生断线。 */
+    /* 目录层使用主题底色建立层级；外缘线由置顶伪元素一次绘制，避免 Header/Footer 覆盖父级 shadow 后产生断线。 */
     background: var(--surface-shell-directory-background);
     box-shadow: var(--surface-shell-edge-shadow);
+  }
+
+  /* 折叠与展开共用同一个侧栏壳层，宽度只沿布局轴做一次有阻尼的过渡。 */
+  .sidebar-panel-shell {
+    transition: width var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  .sidebar-panel-shell[data-sidebar-resizing="true"] {
+    transition: none;
+  }
+
+  .sidebar-panel-directory {
+    transition: opacity var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .sidebar-panel-header {
+    transition: padding var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  .sidebar-panel-shell:not([data-sidebar-collapsed="true"]) .sidebar-panel-directory {
+    transition-delay: 80ms;
+  }
+
+  .sidebar-panel-footer {
+    transition: height var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  .sidebar-panel-footer-action {
+    position: absolute;
+    transition:
+      bottom var(--motion-duration-layout) var(--motion-ease-layout),
+      left var(--motion-duration-layout) var(--motion-ease-layout),
+      right var(--motion-duration-layout) var(--motion-ease-layout);
   }
 
   .desktop-rail[data-shell-split-edge="true"]::after {
@@ -67,7 +100,7 @@
   .surface-panel {
     position: relative;
     overflow: hidden;
-    /* 中文注释：主面板默认只保留一档克制圆角，特殊壳层再显式提升。 */
+    /* 主面板默认只保留一档克制圆角，特殊壳层再显式提升。 */
     border-radius: 12px;
     background: var(--card);
     border: 1px solid var(--surface-panel-border);
@@ -82,7 +115,7 @@
     box-shadow: none;
   }
 
-  /* 中文注释：正文内容默认不成卡；以下配方只给代码、引用、表格、媒体和文件动作提供最低限度的语义边界。 */
+  /* 正文内容默认不成卡；以下配方只给代码、引用、表格、媒体和文件动作提供最低限度的语义边界。 */
   .content-inline-code,
   .content-workspace-file {
     max-width: 100%;
@@ -260,7 +293,7 @@
   }
 
   .content-table-scroll {
-    /* 中文注释：表格跟随阅读列铺满；只有列的最小宽度超过列宽时才在自身内部横向滚动。 */
+    /* 表格跟随阅读列铺满；只有列的最小宽度超过列宽时才在自身内部横向滚动。 */
     width: 100%;
     max-width: 100%;
     margin: 0 0 1.5rem;
@@ -425,7 +458,7 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 32%, transparent);
   }
 
-  /* 中文注释：对话 Composer 使用独立的聚焦面，避免把更大的圆角和纵向节奏扩散到搜索框与表单输入。 */
+  /* 对话 Composer 使用独立的聚焦面，避免把更大的圆角和纵向节奏扩散到搜索框与表单输入。 */
   .input-shell.nexus-chat-composer-shell {
     border-radius: 20px;
     border-color: color-mix(in srgb, var(--input-shell-border) 88%, transparent);
@@ -490,6 +523,7 @@
     border-radius: 16px;
     background: var(--surface-popover-background);
     border: 1px solid var(--surface-popover-border);
+    background-clip: padding-box;
     box-shadow: var(--surface-popover-shadow);
   }
 
@@ -577,8 +611,8 @@
     align-items: center;
     justify-content: center;
     padding: 1.5rem;
-    backdrop-filter: blur(4px) saturate(104%);
-    -webkit-backdrop-filter: blur(4px) saturate(104%);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
     background: var(--dialog-backdrop-color);
   }
 
@@ -588,12 +622,12 @@
     justify-content: space-between;
     gap: 1rem;
     background: var(--modal-dialog-header-background);
-    border-bottom: 1px solid color-mix(in srgb, var(--modal-divider-color) 58%, transparent);
+    border-bottom: 1px solid var(--modal-divider-color);
     padding: 0.875rem 1.125rem;
   }
 
   .dialog-title {
-    font-size: 1.125rem;
+    font-size: 1.0625rem;
     font-weight: 600;
     letter-spacing: 0;
     line-height: 1.25;
@@ -601,7 +635,7 @@
   }
 
   .dialog-title[data-size="hero"] {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 600;
     letter-spacing: 0;
   }
@@ -619,7 +653,7 @@
 
   .dialog-body {
     background: var(--modal-dialog-body-background);
-    padding: 1rem 1.25rem;
+    padding: 1rem 1.125rem;
   }
 
   .dialog-body--scroll {
@@ -632,7 +666,7 @@
     justify-content: flex-end;
     gap: 0.75rem;
     background: var(--modal-dialog-footer-background);
-    border-top: 1px solid color-mix(in srgb, var(--modal-divider-color) 58%, transparent);
+    border-top: 1px solid var(--modal-divider-color);
     padding: 0.8125rem 1.125rem;
   }
 
@@ -650,7 +684,7 @@
     color: var(--text-soft);
   }
 
-  /* 中文注释：控件只允许四档圆角，避免业务组件继续出现 9/13/15px 等近似值。 */
+  /* 控件只允许四档圆角，避免业务组件继续出现 9/13/15px 等近似值。 */
   .radius-control-xs {
     border-radius: 6px;
   }
@@ -714,7 +748,7 @@
     border: 1px solid var(--surface-interactive-active-border);
   }
 
-  /* 中文注释：横排头像使用应用内滑轨，避免系统滚动条隐藏后失去可发现性。 */
+  /* 横排头像使用应用内滑轨，避免系统滚动条隐藏后失去可发现性。 */
   .icon-picker-scroll-range {
     appearance: none;
     height: 18px;
@@ -767,7 +801,7 @@
     box-shadow: var(--surface-card-shadow);
   }
 
-  /* 中文注释：列表保留浏览器原生 marker；外层与条目内缩固定，序号和正文在不同缩放下仍稳定对齐。 */
+  /* 列表保留浏览器原生 marker；外层与条目内缩固定，序号和正文在不同缩放下仍稳定对齐。 */
   .markdown-list {
     display: flex;
     flex-direction: column;
@@ -839,33 +873,35 @@
     scrollbar-width: none;
   }
 
-  /* 中文注释：聊天列在桌面分栏后也可能变窄，按容器宽度收紧消息排版，而不是只依赖移动端断点。 */
+  /* 聊天列在桌面分栏后也可能变窄，按容器宽度收紧消息排版，而不是只依赖移动端断点。 */
   .nexus-chat-feed {
     container: nexus-chat-feed / inline-size;
   }
 
-  /* 中文注释：京华老宋体只进入聊天中文正文，避免侧栏摘要、工作区文档与其他 UI 被正文风格污染。 */
+  /* 京华老宋体只进入聊天中文正文，避免侧栏摘要、工作区文档与其他 UI 被正文风格污染。 */
   .nexus-chat-feed .message-cjk-text {
     font-family: var(--font-prose);
     font-synthesis: style;
   }
 
-  /* 中文注释：User 与 Assistant 共用正文首尾节奏，避免无气泡用户消息一端贴头像、一端又骤然收紧。 */
+  /* User 与 Assistant 共用正文首尾节奏，避免无气泡用户消息一端贴头像、一端又骤然收紧。 */
   .nexus-chat-message-body-rhythm {
     padding-top: 0.25rem;
     padding-bottom: 0.5rem;
   }
 
-  /* 中文注释：左侧 DM / Room 摘要属于导航文字，统一使用侧栏界面字体，不继承正文的中文字体。 */
+  /* 左侧 DM / Room 摘要属于导航文字，统一使用侧栏界面字体，不继承正文的中文字体。 */
   .nexus-sidebar-conversation-summary,
   .nexus-sidebar-conversation-summary .message-cjk-text {
     font-family: var(--font-sans);
     font-synthesis: style;
   }
 
-  /* 中文注释：正文块使用 12px 栅格；标题只增加上方距离并收紧下方，阅读节奏不会像博客正文一样松散。 */
+  /* 正文块使用 12px 栅格；标题只增加上方距离并收紧下方，阅读节奏不会像博客正文一样松散。 */
   .nexus-markdown-body {
+    align-content: start;
     display: grid;
+    grid-auto-rows: max-content;
     grid-template-columns: minmax(0, 1fr);
     gap: 0.75rem;
   }
@@ -945,7 +981,7 @@
     font-weight: 400;
   }
 
-  /* 中文注释：工作区文件是次级阅读面板，使用紧凑但不拥挤的独立字号与段落节奏。 */
+  /* 工作区文件是次级阅读面板，使用紧凑但不拥挤的独立字号与段落节奏。 */
   .nexus-workspace-file-markdown.nexus-markdown-body {
     gap: 0.5rem;
     font-family: var(--font-sans);

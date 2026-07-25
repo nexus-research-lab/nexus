@@ -52,7 +52,6 @@ export const enNavigationMessages = {
   "contacts.title": "Agent Management",
   "contacts.new_agent": "New Agent",
   "contacts.new_agent_description": "Create an AI member for chats and teams",
-  "contacts.back_to_agents": "Back to agent list",
   "contacts.chat": "Chat",
   "contacts.create_team": "Create Team",
   "launcher.enter_app": "Open Workspace",

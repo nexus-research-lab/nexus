@@ -2,20 +2,14 @@
 
 import { Hash } from "lucide-react";
 
-import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
-  UiDialogCloseButton,
   UiDialogHeader,
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import {
-  DIALOG_HEADER_ICON_CLASS_NAME,
-  DIALOG_HEADER_LEADING_CLASS_NAME,
-  getDialogActionClassName,
-} from "@/shared/ui/dialog/dialog-styles";
+import { getDialogActionClassName } from "@/shared/ui/dialog/dialog-styles";
 
 import {
   buildRoomDialogInstanceKey,
@@ -90,39 +84,19 @@ function CreateRoomDialogContent({
         onClose={onCancel}
       >
         <UiDialogShell
-          className="pointer-events-auto max-h-[min(80vh,720px)] max-md:w-[clamp(304px,calc(100vw-64px),620px)] max-md:max-h-[min(820px,calc(100dvh-32px))] max-md:max-w-none"
-          size="lg"
+          className="pointer-events-auto max-h-[min(82dvh,740px)] max-md:w-[clamp(304px,calc(100vw-32px),620px)] max-md:max-h-[calc(100dvh-32px)] max-md:max-w-none"
+          size="xl"
         >
-          <UiDialogHeader>
-            <div
-              className={cn(
-                DIALOG_HEADER_LEADING_CLASS_NAME,
-                "min-w-0 flex-1 items-center",
-              )}
-            >
-              <div
-                className={cn(
-                  DIALOG_HEADER_ICON_CLASS_NAME,
-                  "h-11 w-11 radius-control-lg text-primary",
-                )}
-              >
-                <Hash className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <h2
-                  className="dialog-title truncate"
-                  id="create-room-dialog-title"
-                >
-                  {labels.title}
-                </h2>
-                <p className="dialog-subtitle truncate">{labels.subtitle}</p>
-              </div>
-            </div>
-            <UiDialogCloseButton onClose={onCancel} />
-          </UiDialogHeader>
+          <UiDialogHeader
+            icon={<Hash className="h-4 w-4" />}
+            onClose={onCancel}
+            subtitle={<span className="max-sm:hidden">{labels.subtitle}</span>}
+            title={labels.title}
+            titleId="create-room-dialog-title"
+          />
 
           <div className="dialog-body soft-scrollbar flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
-            <div className="flex min-h-0 gap-5 max-md:flex-col max-md:gap-6">
+            <div className="grid min-h-0 grid-cols-[minmax(260px,0.9fr)_minmax(0,1.1fr)] gap-6 max-md:grid-cols-1">
               <RoomSettingsForm
                 avatarFallbackTitle={labels.title}
                 canSubmit={canSubmit}

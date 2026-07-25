@@ -5,6 +5,11 @@ import { createPortal } from "react-dom";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
+import {
+  getMenuItemStateClassName,
+  MENU_ITEM_BASE_CLASS_NAME,
+} from "@/shared/ui/menu/menu-styles";
+import { OVERLAY_SURFACE_CLASS_NAME } from "@/shared/ui/overlay/overlay-styles";
 
 import {
   filterMentionTargets,
@@ -84,22 +89,21 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
 
   return createPortal(
     <div
-      className="fixed z-[9999] surface-radius-lg max-h-48 overflow-y-auto"
-      style={{
-        ...layout,
-        background: "var(--surface-popover-background)",
-        border: "1px solid var(--surface-popover-border)",
-        boxShadow: "var(--surface-popover-shadow)",
-      }}
+      className={cn(
+        "fixed z-[9999] max-h-48 overflow-y-auto",
+        OVERLAY_SURFACE_CLASS_NAME,
+      )}
+      style={layout}
     >
-      <div className="py-1" ref={listRef}>
+      <div className="p-1" ref={listRef}>
         {filteredItems.map((item, index) => (
           <button
             className={cn(
-              "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors duration-(--motion-duration-fast)",
-              index === visibleActiveIndex
-                ? "text-(--text-strong)"
-                : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+              MENU_ITEM_BASE_CLASS_NAME,
+              "flex items-center gap-2 px-2.5 py-2 text-sm",
+              getMenuItemStateClassName({
+                active: index === visibleActiveIndex,
+              }),
             )}
             key={item.id}
             onMouseDown={(event) => {
@@ -107,9 +111,6 @@ export const MentionTargetPopover = memo(function MentionTargetPopover({
               onSelect(item);
             }}
             onMouseEnter={() => setActiveIndex(index)}
-            style={index === visibleActiveIndex
-              ? { background: "var(--surface-interactive-active-background)" }
-              : undefined}
             type="button"
           >
             <span

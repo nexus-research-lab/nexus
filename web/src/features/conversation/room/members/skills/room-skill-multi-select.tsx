@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { Check, Loader2, Search, X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { MENU_ITEM_BASE_CLASS_NAME } from "@/shared/ui/menu/menu-styles";
 import {
   estimateSelectMenuHeight,
   getSelectMenuButtonClassName,
@@ -125,7 +126,8 @@ function RoomSkillOptionRow({
     <button
       aria-selected={isActive}
       className={cn(
-        "flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm transition-[background-color,color] duration-(--motion-duration-fast)",
+        MENU_ITEM_BASE_CLASS_NAME,
+        "flex items-center gap-2 px-2.5 py-2 text-sm",
         getSelectMenuOptionStateClassName("dialog", isActive),
       )}
       data-active={isActive ? "true" : undefined}

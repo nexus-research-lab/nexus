@@ -1,24 +1,21 @@
 import { cn } from "@/shared/ui/class-name";
 import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 
-export type SidebarPrimaryTabsVariant = "dock" | "rail";
-
-interface SidebarPrimaryTabVariantPresentation {
+interface SidebarPrimaryTabDefinition {
   badgeClassName: string;
   buttonActiveClassName: string;
   buttonBaseClassName: string;
   buttonInactiveClassName: string;
   containerClassName: string;
   iconBaseClassName: string;
+  iconFrameActiveClassName: string;
   iconFrameClassName: string;
+  iconFrameInactiveClassName: string;
   labelClassName: string;
-  showLabel: boolean;
-  useAriaLabel: boolean;
 }
 
 interface SidebarPrimaryTabPresentation {
   ariaCurrent: "page" | undefined;
-  ariaLabel: string | undefined;
   badgeClassName: string;
   buttonClassName: string;
   iconClassName: string;
@@ -27,55 +24,31 @@ interface SidebarPrimaryTabPresentation {
   showLabel: boolean;
 }
 
-const SIDEBAR_PRIMARY_TAB_VARIANTS = {
-  dock: {
-    badgeClassName: "absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-2xs",
-    buttonActiveClassName: cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),
-    buttonBaseClassName: "relative flex h-[54px] w-[52px] flex-col items-center justify-center gap-1 rounded-[10px] text-2xs font-medium transition-[background,color] duration-(--motion-duration-fast)",
-    buttonInactiveClassName: "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-    containerClassName: "flex flex-col items-center gap-1.5 px-1 py-2",
-    iconBaseClassName: "h-[18px] w-[18px]",
-    iconFrameClassName: "relative flex h-5 w-5 items-center justify-center",
-    labelClassName: "max-w-full truncate px-1 leading-none",
-    showLabel: true,
-    useAriaLabel: false,
-  },
-  rail: {
-    badgeClassName: "absolute -right-1 -top-1 h-4 min-w-4 px-1 text-2xs",
-    buttonActiveClassName: cn(SIDEBAR_SELECTION_CLASS_NAME, "text-(--text-strong)"),
-    buttonBaseClassName: "relative flex h-9 w-9 items-center justify-center rounded-full text-(--icon-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-    buttonInactiveClassName: "",
-    containerClassName: "mt-1 flex flex-col items-center gap-1.5",
-    iconBaseClassName: "h-4 w-4",
-    iconFrameClassName: "contents",
-    labelClassName: "",
-    showLabel: false,
-    useAriaLabel: true,
-  },
-} as const satisfies Record<
-  SidebarPrimaryTabsVariant,
-  SidebarPrimaryTabVariantPresentation
->;
+const SIDEBAR_PRIMARY_TAB_DEFINITION = {
+  badgeClassName: "absolute -right-1.5 -top-1.5 h-4 min-w-4 px-1 text-2xs",
+  buttonActiveClassName: "text-(--text-strong)",
+  buttonBaseClassName: "group/sidebar-tab relative flex h-[50px] w-10 flex-col items-center justify-center gap-0.5 text-2xs font-medium transition-colors duration-(--motion-duration-fast)",
+  buttonInactiveClassName: "text-(--text-muted) hover:text-(--text-strong)",
+  containerClassName: "flex flex-col items-center gap-1.5 px-1 py-2",
+  iconBaseClassName: "h-[18px] w-[18px]",
+  iconFrameActiveClassName: SIDEBAR_SELECTION_CLASS_NAME,
+  iconFrameClassName: "relative flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] transition-[background,color] duration-(--motion-duration-fast)",
+  iconFrameInactiveClassName: "group-hover/sidebar-tab:bg-(--surface-interactive-hover-background)",
+  labelClassName: "max-w-full truncate px-1 leading-none",
+} as const satisfies SidebarPrimaryTabDefinition;
 
-export function getSidebarPrimaryTabsClassName(
-  variant: SidebarPrimaryTabsVariant,
-): string {
-  return SIDEBAR_PRIMARY_TAB_VARIANTS[variant].containerClassName;
+export function getSidebarPrimaryTabsClassName(): string {
+  return SIDEBAR_PRIMARY_TAB_DEFINITION.containerClassName;
 }
 
 export function resolveSidebarPrimaryTabPresentation({
   active,
-  label,
-  variant,
 }: {
   active: boolean;
-  label: string;
-  variant: SidebarPrimaryTabsVariant;
 }): SidebarPrimaryTabPresentation {
-  const presentation = SIDEBAR_PRIMARY_TAB_VARIANTS[variant];
+  const presentation = SIDEBAR_PRIMARY_TAB_DEFINITION;
   return {
     ariaCurrent: active ? "page" : undefined,
-    ariaLabel: presentation.useAriaLabel ? label : undefined,
     badgeClassName: presentation.badgeClassName,
     buttonClassName: cn(
       presentation.buttonBaseClassName,
@@ -84,8 +57,13 @@ export function resolveSidebarPrimaryTabPresentation({
         : presentation.buttonInactiveClassName,
     ),
     iconClassName: presentation.iconBaseClassName,
-    iconFrameClassName: presentation.iconFrameClassName,
+    iconFrameClassName: cn(
+      presentation.iconFrameClassName,
+      active
+        ? presentation.iconFrameActiveClassName
+        : presentation.iconFrameInactiveClassName,
+    ),
     labelClassName: presentation.labelClassName,
-    showLabel: presentation.showLabel,
+    showLabel: true,
   };
 }

@@ -3,7 +3,6 @@
 import { useCallback, useMemo } from "react";
 import {
   Album,
-  ArrowLeft,
   Brain,
   Handshake,
   MessageSquareText,
@@ -23,10 +22,10 @@ import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import type {
   Agent,
   AgentIdentityDraft,
@@ -38,7 +37,6 @@ import { ContactsAgentDetailActionsMenu } from "./contacts-agent-detail-actions-
 
 interface ContactsAgentDetailProps {
   agent: Agent;
-  onBack: () => void;
   onCreateTeam: (agentId: string) => void;
   onDeleteAgent: (agentId: string) => void;
   onOpenDirectRoom: (agentId: string) => void;
@@ -59,7 +57,6 @@ type ContactDetailTabKey = AgentOptionsTabKey | "private_domain" | "memory";
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
   agent,
-  onBack,
   onCreateTeam,
   onDeleteAgent,
   onOpenDirectRoom,
@@ -117,22 +114,23 @@ export function ContactsAgentDetail({
       onOpenDirectRoom={() => onOpenDirectRoom(agent.agent_id)}
     />
   ) : (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      <WorkspaceSurfaceToolbarAction onClick={onBack}>
-        <ArrowLeft className="h-3.5 w-3.5" />
-        {t("contacts.back_to_agents")}
-      </WorkspaceSurfaceToolbarAction>
-      <WorkspaceSurfaceToolbarAction
+    <div className="flex shrink-0 items-center justify-end gap-0.5">
+      <UiButton
         onClick={() => onOpenDirectRoom(agent.agent_id)}
-        tone="primary"
+        size="sm"
+        variant="ghost"
       >
-        <MessageSquareText className="h-3.5 w-3.5" />
+        <MessageSquareText className="h-4 w-4" />
         {t("contacts.chat")}
-      </WorkspaceSurfaceToolbarAction>
-      <WorkspaceSurfaceToolbarAction onClick={() => onCreateTeam(agent.agent_id)}>
-        <Users className="h-3.5 w-3.5" />
+      </UiButton>
+      <UiButton
+        onClick={() => onCreateTeam(agent.agent_id)}
+        size="sm"
+        variant="ghost"
+      >
+        <Users className="h-4 w-4" />
         {t("contacts.create_team")}
-      </WorkspaceSurfaceToolbarAction>
+      </UiButton>
     </div>
   );
 
@@ -164,6 +162,7 @@ export function ContactsAgentDetail({
           />
         }
         leadingClassName="h-10 w-10"
+        leadingVariant="identity"
         onChangeTab={setActiveTab}
         tabs={configTabs}
         title={agent.name}

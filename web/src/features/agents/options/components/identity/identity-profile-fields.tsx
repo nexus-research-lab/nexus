@@ -2,7 +2,10 @@ import { UiInput } from "@/shared/ui/form/form-control";
 import type { AgentNameValidationResult } from "@/types/agent/agent";
 
 import { IdentityAvatarPicker } from "./identity-avatar-picker";
-import type { AgentIdentityVariant } from "./identity-layout";
+import {
+  IDENTITY_FIELD_LABEL_CLASS_NAMES,
+  type AgentIdentityVariant,
+} from "./identity-layout";
 
 interface IdentityProfileLayout {
   inputClassName: string;
@@ -11,11 +14,11 @@ interface IdentityProfileLayout {
 
 const PROFILE_LAYOUTS: Record<AgentIdentityVariant, IdentityProfileLayout> = {
   dialog: {
-    inputClassName: "h-11 radius-control-md",
-    rowClassName: "flex items-start gap-4",
+    inputClassName: "h-10 radius-control-md",
+    rowClassName: "flex items-start gap-3",
   },
   inline: {
-    inputClassName: "h-10 radius-control-md",
+    inputClassName: "h-9 radius-control-md",
     rowClassName: "flex items-start gap-3",
   },
 };
@@ -81,6 +84,7 @@ export function IdentityProfileFields({
   variant,
 }: IdentityProfileFieldsProps) {
   const layout = PROFILE_LAYOUTS[variant];
+  const labelClassName = IDENTITY_FIELD_LABEL_CLASS_NAMES[variant];
   const validationFeedback = resolveValidationFeedback({
     isValidatingName,
     nameAvailable,
@@ -98,8 +102,8 @@ export function IdentityProfileFields({
           onChange={onAvatarChange}
           variant={variant}
         />
-        <div className="min-w-0 flex-1 space-y-1.5 pt-1">
-          <label className="text-xs font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
+        <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+          <label className={labelClassName}>
             {nameLabel} <span className="text-(--destructive)">*</span>
           </label>
           <UiInput

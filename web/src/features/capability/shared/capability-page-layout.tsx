@@ -24,6 +24,11 @@ interface CapabilityFilterBarProps {
   className?: string;
 }
 
+interface CapabilityPageHeaderProps {
+  description: ReactNode;
+  title: ReactNode;
+}
+
 interface CapabilitySectionHeaderProps {
   count?: ReactNode;
   title: ReactNode;
@@ -61,16 +66,25 @@ export function CapabilityPageLayout({
 }: CapabilityPageLayoutProps) {
   return (
     <div className={cn(WORKSPACE_DETAIL_PAGE_CLASS_NAME, className)}>
-      <div className="mb-4">
-        <h1 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
-          {title}
-        </h1>
-        <p className="mt-0.5 max-w-[640px] text-compact leading-5 text-(--text-muted)">
-          {description}
-        </p>
-      </div>
+      <CapabilityPageHeader description={description} title={title} />
       {children}
     </div>
+  );
+}
+
+function CapabilityPageHeader({
+  description,
+  title,
+}: CapabilityPageHeaderProps) {
+  return (
+    <header className="mb-5 border-b border-(--divider-subtle-color) pb-3">
+      <h1 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
+        {title}
+      </h1>
+      <p className="mt-1 max-w-[680px] text-compact leading-5 text-(--text-muted)">
+        {description}
+      </p>
+    </header>
   );
 }
 

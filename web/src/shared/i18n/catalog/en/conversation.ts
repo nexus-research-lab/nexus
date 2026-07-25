@@ -67,7 +67,6 @@ export const enConversationMessages = {
   "room.panels": "Panels",
   "room.history": "History",
   "room.history_empty_hint": "Past conversations in this chat will appear here.",
-  "room.current_conversation": "Current",
   "room.history_page_previous": "Previous page",
   "room.history_page_next": "Next page",
   "room.history_page_status": "Page {current} / {total}",

@@ -24,6 +24,7 @@ export interface AgentOptionsDraft {
   disallowedTools: string[];
   model: string;
   permissionMode: string;
+  profileTemplate?: string;
   provider: AgentProvider;
   title: string;
   vibeTags: string[];
@@ -58,6 +59,7 @@ export function createAgentOptionsDraft({
     disallowedTools: initial.options.disallowed_tools ?? [],
     model,
     permissionMode: initial.options.permission_mode || DEFAULT_AGENT_PERMISSION_MODE,
+    profileTemplate: initial.profileTemplate,
     provider: resolveInitialProvider(model, initial.options.provider),
     title: initial.title || defaultTitle,
     vibeTags: initial.vibeTags,
@@ -97,6 +99,7 @@ export function buildAgentOptionsSubmission(
     identity: {
       avatar: draft.avatar,
       description: draft.description.trim(),
+      profile_template: draft.profileTemplate?.trim(),
       vibe_tags: draft.vibeTags,
     },
     options: {

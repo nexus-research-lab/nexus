@@ -9,6 +9,11 @@ import {
 const SIDEBAR_RESIZE_HOTZONE_WIDTH = 8;
 const MODAL_ROOT_SELECTOR = "[data-modal-root='true']";
 
+function isModalEventTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement
+    && target.closest(MODAL_ROOT_SELECTOR) !== null;
+}
+
 interface UseSidebarPanelResizeOptions {
   setWidth: (width: number) => void;
   width: number;
@@ -20,13 +25,14 @@ export function useSidebarPanelResize({
 }: UseSidebarPanelResizeOptions) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [isResizeHotzoneActive, setIsResizeHotzoneActive] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const isDraggingRef = useRef(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
 
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent) => {
-      if (event.target instanceof HTMLElement && event.target.closest(MODAL_ROOT_SELECTOR)) {
+      if (isModalEventTarget(event.target)) {
         return;
       }
       const rootElement = rootRef.current;
@@ -42,6 +48,7 @@ export function useSidebarPanelResize({
 
       event.preventDefault();
       isDraggingRef.current = true;
+      setIsResizing(true);
       startXRef.current = event.clientX;
       startWidthRef.current = width;
       setIsResizeHotzoneActive(true);
@@ -52,7 +59,7 @@ export function useSidebarPanelResize({
 
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent) => {
-      if (event.target instanceof HTMLElement && event.target.closest(MODAL_ROOT_SELECTOR)) {
+      if (isModalEventTarget(event.target)) {
         if (!isDraggingRef.current) {
           setIsResizeHotzoneActive(false);
         }
@@ -79,6 +86,7 @@ export function useSidebarPanelResize({
 
   const handlePointerUp = useCallback(() => {
     isDraggingRef.current = false;
+    setIsResizing(false);
     setIsResizeHotzoneActive(false);
   }, []);
 
@@ -105,6 +113,7 @@ export function useSidebarPanelResize({
     handlePointerMove,
     handlePointerUp,
     isResizeHotzoneActive,
+    isResizing,
     rootRef,
   };
 }

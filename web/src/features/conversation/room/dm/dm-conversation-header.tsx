@@ -66,17 +66,11 @@ export const DmConversationHeader = memo(function DmConversationHeader({
         />
       )}
       leadingClassName="h-10 w-10"
+      leadingVariant="identity"
       onChangeTab={onChangeTab}
       onDismissActiveTab={onCloseActiveTab}
       navigationTrailing={(
         <>
-          <RoomHistoryMenu
-            conversationId={conversationId}
-            conversations={conversations}
-            onDeleteConversation={onDeleteConversation}
-            onSelectConversation={onSelectConversation}
-            onUpdateConversationTitle={onUpdateConversationTitle}
-          />
           {onReplayTour || collapsedRoomTabs.length > 0 ? (
             <RoomHeaderGuideMenu
               activeTab={activeTab}
@@ -93,6 +87,16 @@ export const DmConversationHeader = memo(function DmConversationHeader({
         <WorkspaceConversationTabs
           conversationId={conversationId}
           conversations={conversations}
+          leadingControl={(
+            <RoomHistoryMenu
+              conversationId={conversationId}
+              conversations={conversations}
+              onDeleteConversation={onDeleteConversation}
+              onSelectConversation={onSelectConversation}
+              onUpdateConversationTitle={onUpdateConversationTitle}
+              triggerVariant="session"
+            />
+          )}
           onCloseConversation={onCloseConversation}
           onCreateConversation={onCreateConversation}
           onSelectConversation={onSelectConversation}

@@ -21,52 +21,56 @@ test.after(async () => {
   await server.close();
 });
 
-test("会话纵览只按稳定宽度约束显示", async () => {
+test("会话标签只按稳定宽度约束进入溢出态", async () => {
   const {
     calculateConversationTabWidths,
     CONVERSATION_TABS_VIEWPORT_INSET,
-    shouldShowConversationTabsOverview,
+    hasConversationTabsOverflow,
   } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model.ts",
   );
 
   assert.equal(
-    shouldShowConversationTabsOverview({
+    hasConversationTabsOverflow({
       conversationCount: 2,
       hasCreateButton: true,
+      hasLeadingControl: true,
       trackWidth: 400,
     }),
     false,
-    "标签仍可按最小可读宽度完整排布时不应闪现纵览入口",
+    "标签仍可按最小可读宽度完整排布时不应进入溢出态",
   );
   assert.equal(
-    shouldShowConversationTabsOverview({
+    hasConversationTabsOverflow({
       conversationCount: 4,
       hasCreateButton: true,
+      hasLeadingControl: true,
       trackWidth: 400,
     }),
     true,
-    "只有稳定宽度约束确认放不下全部标签时才显示纵览入口",
+    "只有稳定宽度约束确认放不下全部标签时才进入溢出态",
   );
   assert.equal(
-    shouldShowConversationTabsOverview({
+    hasConversationTabsOverflow({
       conversationCount: 4,
       hasCreateButton: true,
+      hasLeadingControl: true,
       trackWidth: 700,
     }),
     false,
-    "轨道扩宽后应直接收起纵览入口而不依赖动画中的 DOM 尺寸",
+    "轨道扩宽后应直接退出溢出态而不依赖动画中的 DOM 尺寸",
   );
-  assert.equal(CONVERSATION_TABS_VIEWPORT_INSET, 5);
+  assert.equal(CONVERSATION_TABS_VIEWPORT_INSET, 4);
   assert.equal(
     calculateConversationTabWidths({
       activeConversationId: "single",
       hasCreateButton: true,
-      hasOverviewButton: false,
+      hasLeadingControl: true,
+      hasTabsOverflow: false,
       orderedConversations: [{ conversation_id: "single" }],
       trackWidth: 400,
     }).get("single"),
-    350,
+    328,
     "单个标签应扣除右端固定创建入口和中央留白，不再为独立动作胶囊预留间距",
   );
 });
@@ -110,6 +114,41 @@ test("会话标签暴露稳定的活动与非活动状态类", async () => {
     inactive.rootClassName,
     /\bworkspace-surface-header-active-tab\b/,
   );
+});
+
+test("工作区源码文件复用 Markdown 代码语义高亮语言", async () => {
+  const {
+    getWorkspaceFileCodeLanguage,
+    getWorkspaceFilePreviewKind,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/editor/workspace-file-preview-kind.ts",
+  );
+
+  assert.equal(getWorkspaceFilePreviewKind("scripts/check.py"), "text");
+  assert.equal(getWorkspaceFileCodeLanguage("scripts/check.py"), "python");
+  assert.equal(getWorkspaceFileCodeLanguage("Dockerfile"), "docker");
+  assert.equal(getWorkspaceFileCodeLanguage("Dockerfile.release"), "docker");
+  assert.equal(getWorkspaceFileCodeLanguage(".env.local"), "bash");
+  assert.equal(getWorkspaceFileCodeLanguage("notes.txt"), null);
+});
+
+test("创建 Agent 时行为模板进入独立 API 字段", async () => {
+  const { buildCreateAgentMutationParams } = await server.ssrLoadModule(
+    "/src/features/agents/options/agent-options-mutation.ts",
+  );
+  const params = buildCreateAgentMutationParams(
+    "Reviewer",
+    { model: "model-a", provider: "provider-a" },
+    {
+      avatar: "1",
+      description: "",
+      profile_template: "## Role\\n\\n- Review code",
+      vibe_tags: ["严谨"],
+    },
+  );
+
+  assert.equal(params.profile_template, "## Role\\n\\n- Review code");
+  assert.equal(params.description, "");
 });
 
 test("会话标签按创建时间稳定排序并独立恢复活动项", async () => {

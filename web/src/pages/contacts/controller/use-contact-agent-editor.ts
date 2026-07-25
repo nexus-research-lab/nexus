@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { getInitialAgentOptions } from "@/config/runtime-options";
-import { buildAgentMutationParams } from "@/features/agents/options/agent-options-mutation";
+import { buildCreateAgentMutationParams } from "@/features/agents/options/agent-options-mutation";
 import { buildAgentOptionsCreateSource } from "@/features/agents/options/agent-options-editor-model";
 import type { AgentOptionsDialogState } from "@/features/agents/options/dialog/agent-options-dialog-model";
 import type {
@@ -38,7 +38,7 @@ export function useContactAgentEditor({
     if (state.kind !== "create") {
       return;
     }
-    await createAgent(buildAgentMutationParams(title, options, identity));
+    await createAgent(buildCreateAgentMutationParams(title, options, identity));
   }, [createAgent, state]);
 
   const validateName = useCallback(

@@ -1,4 +1,4 @@
-import { Check, Clock3, MessageSquare, X } from "lucide-react";
+import { Clock3, MessageSquare, X } from "lucide-react";
 
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -71,8 +71,10 @@ export function RoomMobileConversationSwitcher({
                 key={conversation.conversation_id}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "group relative flex min-h-[68px] w-full items-center gap-3 overflow-hidden rounded-[12px] border border-transparent px-3 py-2.5 text-left transition-[background-color,border-color] duration-(--motion-duration-fast) hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] hover:bg-(--surface-interactive-hover-background)",
-                  isActive && "border-[color:color-mix(in_srgb,var(--divider-strong-color)_76%,transparent)] bg-(--surface-interactive-active-background)",
+                  "group relative flex min-h-[68px] w-full items-center gap-3 overflow-hidden rounded-[12px] px-3 py-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast)",
+                  isActive
+                    ? "bg-(--surface-sidebar-active-background) text-(--text-strong)"
+                    : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                 )}
                 onClick={() => {
                   onSelect(conversation.conversation_id);
@@ -80,14 +82,6 @@ export function RoomMobileConversationSwitcher({
                 }}
                 type="button"
               >
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "absolute bottom-2 left-0 top-2 w-0.5 rounded-full",
-                    isActive ? "bg-(--primary)" : "bg-transparent",
-                  )}
-                />
-
                 <span className={cn(
                   "flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_50%,transparent)] text-(--icon-muted)",
                   isActive && "border-(--divider-strong-color) bg-(--surface-interactive-hover-background) text-(--icon-strong)",
@@ -96,21 +90,22 @@ export function RoomMobileConversationSwitcher({
                 </span>
 
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[14px] font-semibold text-(--text-strong)">
+                  <p className={cn(
+                    "truncate text-[14px]",
+                    isActive
+                      ? "font-semibold text-(--text-strong)"
+                      : "font-medium text-(--text-default) group-hover:text-(--text-strong)",
+                  )}>
                     {conversation.title?.trim() || t("room.untitled_conversation")}
                   </p>
-                  <span className="mt-1 flex items-center gap-1.5 text-xs text-(--text-soft)">
+                  <span className={cn(
+                    "mt-1 flex items-center gap-1.5 text-xs",
+                    isActive ? "text-(--text-muted)" : "text-(--text-soft)",
+                  )}>
                     <Clock3 className="h-3 w-3 shrink-0" />
                     {formatRelativeTime(conversation.last_activity_at)}
                   </span>
                 </div>
-
-                {isActive ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-[7px] border border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] px-1.5 py-1 text-2xs font-medium text-(--primary)">
-                    <Check className="h-3 w-3" />
-                    {t("room.current_conversation")}
-                  </span>
-                ) : null}
               </button>
             );
           })}

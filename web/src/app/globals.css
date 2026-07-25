@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-/* 中文注释：全局入口只负责组装样式层次，不承载具体视觉细节。 */
+/* 全局入口只负责组装样式层次，不承载具体视觉细节。 */
 @import url("https://fontsapi.zeoseven.com/309/main/result.css");
 @import "./styles/brand-fonts.css";
 
@@ -16,5 +16,5 @@
 @import "./styles/theme-base.css";
 @import "./styles/theme-recipes.css";
 
-/* 中文注释：Nexus 主题通过 data-theme 驱动，Tailwind dark 变体需要跟随同一合同。 */
+/* Nexus 主题通过 data-theme 驱动，Tailwind dark 变体需要跟随同一合同。 */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *, [data-theme="rain"], [data-theme="rain"] *));

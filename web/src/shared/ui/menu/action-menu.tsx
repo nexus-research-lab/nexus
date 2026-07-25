@@ -9,12 +9,20 @@ import { createPortal } from "react-dom";
 
 import { cn } from "@/shared/ui/class-name";
 
+import {
+  getMenuItemStateClassName,
+  MENU_ITEM_BASE_CLASS_NAME,
+} from "./menu-styles";
 import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
   resolveAnchoredOverlayPosition,
   type UiAnchoredOverlayPlacement,
 } from "../overlay/anchored-overlay-model";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "../overlay/overlay-contract";
+import {
+  ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+  OVERLAY_SURFACE_CLASS_NAME,
+} from "../overlay/overlay-styles";
 
 export interface UiActionMenuItem {
   value: string;
@@ -69,28 +77,16 @@ function resolveActionMenuPosition({
   });
 }
 
-function getItemStateClassName(item: UiActionMenuItem) {
-  if (item.tone === "danger") {
-    return "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]";
-  }
-  if (item.active && item.tone === "primary") {
-    return "bg-[color:color-mix(in_srgb,var(--brand)_9%,var(--surface-interactive-active-background))] font-semibold text-(--brand-action) hover:bg-[color:color-mix(in_srgb,var(--brand)_12%,var(--surface-interactive-hover-background))]";
-  }
-  if (item.active) {
-    return "bg-(--surface-interactive-active-background) font-semibold text-(--text-strong) hover:bg-(--surface-interactive-hover-background)";
-  }
-  if (item.tone === "primary") {
-    return "text-(--brand-action) hover:bg-[color:color-mix(in_srgb,var(--brand)_9%,transparent)]";
-  }
-  return "text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
-}
-
 function getItemBodyClassName(item: UiActionMenuItem) {
   return cn(
-    "flex w-full cursor-pointer items-center justify-between gap-3 radius-control-md px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
+    MENU_ITEM_BASE_CLASS_NAME,
+    "flex cursor-pointer items-center justify-between gap-3 px-2.5",
     item.description ? "min-h-11 py-2" : "min-h-9 py-1.5",
     item.disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
-    getItemStateClassName(item),
+    getMenuItemStateClassName({
+      active: item.active,
+      tone: item.tone,
+    }),
   );
 }
 
@@ -149,7 +145,9 @@ export function UiActionMenu({
       ref={menuRef}
       aria-label={ariaLabel}
       className={cn(
-        "fixed z-[130] surface-radius-lg overflow-y-auto border border-(--surface-popover-border) bg-(--surface-popover-background) p-1 shadow-(--surface-popover-shadow) backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
+        "fixed z-[130] overflow-y-auto p-1",
+        OVERLAY_SURFACE_CLASS_NAME,
+        ANCHORED_OVERLAY_MOTION_CLASS_NAME,
         className,
       )}
       data-placement={menuPosition?.placement ?? "bottom"}

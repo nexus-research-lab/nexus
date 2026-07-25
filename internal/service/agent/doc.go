@@ -3,7 +3,7 @@
 // L2 | 父级: internal/service（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - service.go / crud.go / prompt.go / ready.go /
+//   - service.go / crud.go / prompt.go / ready.go / profile_template.go /
 //     skills.go / workspace.go：Service、分阶段 Agent 更新、Skill ID 计数及各业务切面。
 //   - prompt_build.go / prompt_default.go：BuildRuntimePrompt 运行时附加提示词与默认模板。
 //   - repository.go / factory_record.go：持久化、默认平台 Skill 引用与记录构造。

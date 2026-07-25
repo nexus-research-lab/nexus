@@ -85,6 +85,7 @@ func (s *Server) mountProviderRoutes() {
 func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/agents"), s.handlers.agent.HandleListAgents)
 	s.router.Post(s.prefixPath("/agents"), s.handlers.agent.HandleCreateAgent)
+	s.router.Get(s.prefixPath("/agents/profile-template"), s.handlers.agent.HandleGetAgentProfileTemplate)
 	s.router.Get(s.prefixPath("/agents/validate/name"), s.handlers.agent.HandleValidateAgentName)
 	s.router.Get(s.prefixPath("/agents/{agent_id}"), s.handlers.agent.HandleGetAgent)
 	s.router.Patch(s.prefixPath("/agents/{agent_id}"), s.handlers.agent.HandleUpdateAgent)

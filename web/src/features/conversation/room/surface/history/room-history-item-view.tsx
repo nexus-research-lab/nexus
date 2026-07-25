@@ -1,6 +1,5 @@
 import {
   type ComponentType,
-  type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
   type RefObject,
@@ -34,34 +33,16 @@ interface RoomHistoryItemViewProps {
 
 interface ItemContentProps extends RoomHistoryItemViewProps {}
 
-interface EntryStyle {
-  articleClassName: string;
-  markerClassName: string;
-  style?: CSSProperties;
-}
-
 interface ActionStyle {
   ariaLabel: string;
   className: string;
   icon: ComponentType<{ className?: string }>;
 }
 
-const ENTRY_STYLES: Record<RoomHistoryItemState, EntryStyle> = {
-  active: {
-    articleClassName: "border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]",
-    markerClassName: "bg-(--primary)",
-    style: {
-      background: "color-mix(in srgb, var(--surface-interactive-active-background) 46%, transparent)",
-      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.56)",
-    },
-  },
-  idle: {
-    articleClassName: "border-transparent bg-transparent hover:border-[color:color-mix(in_srgb,var(--divider-subtle-color)_64%,transparent)] hover:bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_72%,transparent)]",
-    markerClassName: "hidden",
-  },
+const ENTRY_STYLES: Record<RoomHistoryItemState, string> = {
+  active: "bg-(--surface-sidebar-active-background) text-(--text-strong)",
+  idle: "bg-transparent text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
 };
-
-const ACTIVE_CURRENT_LABEL_CLASS_NAME = "border-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] text-(--primary)";
 
 const ACTION_STYLES: Record<RoomHistoryItemAction, ActionStyle> = {
   delete: {
@@ -113,14 +94,20 @@ function ReadingItemContent({
 }: ItemContentProps) {
   return (
     <button
-      className="block w-full rounded-[10px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_32%,transparent)]"
+      aria-current={presentation.state === "active" ? "page" : undefined}
+      className="block w-full rounded-[10px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
       onClick={onSelect}
       type="button"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
-            <p className="min-w-0 truncate text-compact font-semibold text-(--text-strong)">
+            <p className={cn(
+              "min-w-0 truncate text-compact",
+              presentation.state === "active"
+                ? "font-semibold text-(--text-strong)"
+                : "font-medium text-(--text-default) group-hover:text-(--text-strong)",
+            )}>
               {presentation.title}
             </p>
             <ExternalSessionLabel label={presentation.externalSessionLabel} />
@@ -203,19 +190,8 @@ function RoomHistoryItemActions({
   };
   return (
     <div className="relative grid shrink-0 place-items-center">
-      {presentation.state === "active" ? (
-        <span
-          aria-label={presentation.currentLabel}
-          className={cn(
-          "col-start-1 row-start-1 inline-flex items-center rounded-[6px] border px-1.5 py-0.5 text-[9px] font-medium transition-opacity duration-(--motion-duration-fast) group-hover:pointer-events-none group-hover:opacity-0",
-            ACTIVE_CURRENT_LABEL_CLASS_NAME,
-          )}
-        >
-          {presentation.currentLabel}
-        </span>
-      ) : null}
       {presentation.actions.length > 0 ? (
-        <div className="col-start-1 row-start-1 flex items-center gap-1 opacity-0 transition-opacity duration-(--motion-duration-fast) group-hover:opacity-100 focus-within:opacity-100">
+        <div className="flex items-center gap-1 opacity-0 transition-opacity duration-(--motion-duration-fast) group-hover:opacity-100 focus-within:opacity-100">
           {presentation.actions.map((action) => {
             const style = ACTION_STYLES[action];
             const Icon = style.icon;
@@ -242,23 +218,15 @@ function RoomHistoryItemActions({
 
 export function RoomHistoryItemView(props: RoomHistoryItemViewProps) {
   const { presentation } = props;
-  const style = ENTRY_STYLES[presentation.state];
+  const stateClassName = ENTRY_STYLES[presentation.state];
   const Content = CONTENT_VIEWS[presentation.mode];
   return (
     <article
       className={cn(
-        "group relative w-full overflow-hidden rounded-[10px] border px-2.5 py-1.5 text-left transition-[background-color,border-color,box-shadow] duration-(--motion-duration-fast) ease-out",
-        style.articleClassName,
+        "group relative w-full overflow-hidden rounded-[10px] px-2.5 py-1.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) ease-out",
+        stateClassName,
       )}
-      style={style.style}
     >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "absolute bottom-1.5 left-0 top-1.5 w-px rounded-full",
-          style.markerClassName,
-        )}
-      />
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <Content {...props} />

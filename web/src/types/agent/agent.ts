@@ -114,6 +114,7 @@ export interface CreateAgentParams {
     options?: Partial<AgentOptions>;
     avatar?: string;
     description?: string;
+    profile_template?: string;
     vibe_tags?: string[];
 }
 
@@ -129,7 +130,12 @@ export interface UpdateAgentParams {
 export interface AgentIdentityDraft {
     avatar?: string;
     description?: string;
+    profile_template?: string;
     vibe_tags?: string[];
+}
+
+export interface AgentProfileTemplateResponse {
+    content: string;
 }
 
 /** Agent 名称校验结果 */

@@ -51,7 +51,7 @@ export const TourOverlayCard = forwardRef<
 
   return (
     <div
-      className="surface-popover surface-radius-lg relative max-h-[calc(100vh-64px)] w-[min(336px,calc(100vw-32px))] overflow-y-auto px-4 py-3 shadow-[0_10px_24px_color-mix(in_srgb,var(--shadow-color)_12%,transparent)]"
+      className="surface-popover surface-radius-lg relative max-h-[calc(100vh-64px)] w-[min(336px,calc(100vw-32px))] overflow-y-auto px-4 py-3"
       ref={ref}
     >
       {step.image ? (

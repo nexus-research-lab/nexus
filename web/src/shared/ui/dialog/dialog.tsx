@@ -147,7 +147,7 @@ export function UiDialogShell({
   return (
     <section
       className={cn(
-        "dialog-shell surface-radius-md flex w-full flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)",
+        "dialog-shell surface-radius-lg flex w-full flex-col overflow-hidden animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-normal)",
         DIALOG_SIZE_CLASS_MAP[size],
         className,
       )}
@@ -168,7 +168,7 @@ export function UiDialogFormShell({
   return (
     <form
       className={cn(
-        "dialog-shell surface-radius-md flex w-full flex-col overflow-hidden animate-in zoom-in-95 duration-(--motion-duration-fast)",
+        "dialog-shell surface-radius-lg flex w-full flex-col overflow-hidden animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-normal)",
         DIALOG_SIZE_CLASS_MAP[size],
         className,
       )}

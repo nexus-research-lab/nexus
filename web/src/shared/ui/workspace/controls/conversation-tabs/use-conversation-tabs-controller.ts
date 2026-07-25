@@ -13,10 +13,9 @@ import {
   getConversationIdsByCreationTime,
   getCloseFallbackConversationId,
   getInitialOpenConversationIds,
-  getRecentConversationIds,
+  hasConversationTabsOverflow,
   reconcileOpenConversationIds,
   resolveActiveConversationId,
-  shouldShowConversationTabsOverview,
 } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";
 import { RoomConversationView } from "@/types/conversation/conversation";
 
@@ -25,6 +24,7 @@ import { useConversationTabsScroll } from "./use-conversation-tabs-scroll";
 interface ConversationTabsControllerOptions {
   conversations: RoomConversationView[];
   conversationId: string | null;
+  hasLeadingControl: boolean;
   onCloseConversation?: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
@@ -33,6 +33,7 @@ interface ConversationTabsControllerOptions {
 export function useConversationTabsController({
   conversations,
   conversationId,
+  hasLeadingControl,
   onCloseConversation,
   onCreateConversation,
   onSelectConversation,
@@ -47,10 +48,6 @@ export function useConversationTabsController({
   const hasCreateButton = Boolean(onCreateConversation);
   const orderedConversationIds = useMemo(
     () => getConversationIdsByCreationTime(conversations),
-    [conversations],
-  );
-  const recentConversationIds = useMemo(
-    () => getRecentConversationIds(conversations),
     [conversations],
   );
   const [openConversationIds, setOpenConversationIds] = useState<string[]>(() => (
@@ -72,24 +69,19 @@ export function useConversationTabsController({
       .filter((conversation): conversation is RoomConversationView => Boolean(conversation)),
     [conversationsById, openConversationIds],
   );
-  const recentConversations = useMemo(
-    () => recentConversationIds
-      .map((id) => conversationsById.get(id))
-      .filter((conversation): conversation is RoomConversationView => Boolean(conversation)),
-    [conversationsById, recentConversationIds],
-  );
   const activeConversationId = resolveActiveConversationId({
     conversationId,
     optimisticId: optimisticActiveId,
     orderedConversations,
   });
   const hasTabsOverflow = useMemo(
-    () => shouldShowConversationTabsOverview({
+    () => hasConversationTabsOverflow({
       conversationCount: orderedConversations.length,
       hasCreateButton,
+      hasLeadingControl,
       trackWidth,
     }),
-    [hasCreateButton, orderedConversations.length, trackWidth],
+    [hasCreateButton, hasLeadingControl, orderedConversations.length, trackWidth],
   );
   const tabsScroll = useConversationTabsScroll({
     activeConversationId,
@@ -98,12 +90,14 @@ export function useConversationTabsController({
   const tabWidths = useMemo(() => calculateConversationTabWidths({
     activeConversationId,
     hasCreateButton,
-    hasOverviewButton: hasTabsOverflow,
+    hasLeadingControl,
+    hasTabsOverflow,
     orderedConversations,
     trackWidth,
   }), [
     activeConversationId,
     hasCreateButton,
+    hasLeadingControl,
     hasTabsOverflow,
     orderedConversations,
     trackWidth,
@@ -227,7 +221,6 @@ export function useConversationTabsController({
     isCreating,
     orderedConversations,
     previewConversation,
-    recentConversations,
     selectConversation,
     tabsScroll,
     tabWidths,

@@ -184,6 +184,7 @@ function LandingWorkbenchSidebar() {
 function LandingWorkbenchChat() {
   return (
     <section className="landing-real-chat">
+      <WorkspaceTaskPanel todos={demoTodos} />
       <div className="landing-real-feed nexus-chat-feed soft-scrollbar">
         {demoRounds.map((round, index) => (
           <MessageItem
@@ -213,7 +214,6 @@ function LandingWorkbenchChat() {
           </button>
         </div>
       </div>
-      <WorkspaceTaskPanel todos={demoTodos} />
     </section>
   );
 }
@@ -229,6 +229,7 @@ function LandingWorkbenchMain() {
           <WorkspaceSurfaceHeader
             activeTab={activeTab}
             leading={<UiAgentAvatar avatar="/icon/agent/8.png" className="h-full w-full border-0 shadow-none" name="Amy" size="sm" />}
+            leadingVariant="identity"
             onChangeTab={setActiveTab}
             tabs={[
               { key: "history", label: "历史", icon: History },

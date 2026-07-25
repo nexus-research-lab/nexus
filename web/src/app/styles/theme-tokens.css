@@ -7,7 +7,7 @@
  * =====================================================
  */
 
-/* 中文注释：整套 /app 视觉只暴露 ambient / material / text / divider / interaction 五组语义令牌。 */
+/* 整套 /app 视觉只暴露 ambient / material / text / divider / interaction 五组语义令牌。 */
 :root,
 :root[data-theme="light"] {
   --nexus-page-background-light: transparent;
@@ -48,7 +48,9 @@
   --workspace-detail-max-width: 980px;
   --motion-duration-fast: 160ms;
   --motion-duration-normal: 220ms;
+  --motion-duration-layout: 300ms;
   --motion-ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-ease-layout: cubic-bezier(0.32, 0.72, 0, 1);
   --scrollbar-thumb: rgba(11, 11, 11, 0.16);
   --scrollbar-thumb-hover: rgba(11, 11, 11, 0.28);
   --ambient-page-pattern-size: var(--nexus-page-pattern-size);
@@ -58,7 +60,7 @@
   --material-panel-shadow:
     0 8px 24px rgba(11, 11, 11, 0.06),
     0 2px 6px rgba(11, 11, 11, 0.04);
-  /* 中文注释：头像等局部浮起阴影的统一墨色，供 color-mix 透明度推导。 */
+  /* 头像等局部浮起阴影的统一墨色，供 color-mix 透明度推导。 */
   --shadow-color: rgb(11 11 11);
   --material-shell-navigation-background: rgba(240, 239, 236, 0.92);
   --material-shell-directory-background: rgba(246, 246, 244, 0.9);
@@ -78,16 +80,16 @@
   --material-chip-border: rgba(11, 11, 11, 0.10);
   --material-chip-shadow: none;
 
-  --material-popover-background: #ffffff;
-  --material-popover-border: rgba(11, 11, 11, 0.10);
-  --material-popover-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.12),
-    0 2px 6px rgba(0, 0, 0, 0.08);
+  --material-overlay-background: #ffffff;
+  --material-overlay-border: rgba(11, 11, 11, 0.11);
+  --material-overlay-shadow: 0 12px 32px rgba(11, 11, 11, 0.14);
+  --material-popover-background: var(--material-overlay-background);
+  --material-popover-border: var(--material-overlay-border);
+  --material-popover-shadow: var(--material-overlay-shadow);
 
-  --material-dialog-surface-border: rgba(11, 11, 11, 0.10);
-  --material-dialog-surface-shadow:
-    0 16px 42px rgba(0, 0, 0, 0.14),
-    0 3px 10px rgba(0, 0, 0, 0.07);
+  --material-dialog-surface-background: var(--material-overlay-background);
+  --material-dialog-surface-border: var(--material-overlay-border);
+  --material-dialog-surface-shadow: 0 24px 64px rgba(11, 11, 11, 0.16);
   --dialog-backdrop-color: rgba(11, 11, 11, 0.18);
 
   --material-input-background: #ffffff;
@@ -131,7 +133,7 @@
   --divider-kbd-border: rgba(11, 11, 11, 0.10);
   --surface-kbd-shadow: none;
 
-  /* 中文注释：info 软背景系列 — 用于信息/活跃状态徽标（取代硬编码 #cfe0ff / #27539d 等） */
+  /* info 软背景系列 — 用于信息/活跃状态徽标（取代硬编码 #cfe0ff / #27539d 等） */
   --status-info-soft-bg: rgba(59, 130, 246, 0.10);
   --status-info-soft-border: rgba(59, 130, 246, 0.22);
   --status-info-soft-text: #2d5da8;
@@ -207,17 +209,16 @@
     0 8px 16px rgba(0, 5, 12, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
-  --material-popover-background:
-    linear-gradient(180deg, rgba(25, 32, 44, 0.985), rgba(12, 17, 25, 0.96) 100%);
-  --material-popover-border: rgba(182, 199, 223, 0.24);
-  --material-popover-shadow:
-    0 30px 80px rgba(0, 5, 12, 0.46),
-    0 8px 26px rgba(0, 5, 12, 0.22);
+  --material-overlay-background: rgba(18, 24, 34, 0.985);
+  --material-overlay-border: rgba(182, 199, 223, 0.22);
+  --material-overlay-shadow: 0 18px 48px rgba(0, 5, 12, 0.44);
+  --material-popover-background: var(--material-overlay-background);
+  --material-popover-border: var(--material-overlay-border);
+  --material-popover-shadow: var(--material-overlay-shadow);
 
-  --material-dialog-surface-border: rgba(182, 199, 223, 0.26);
-  --material-dialog-surface-shadow:
-    0 26px 68px rgba(0, 5, 12, 0.5),
-    0 6px 18px rgba(0, 5, 12, 0.24);
+  --material-dialog-surface-background: var(--material-overlay-background);
+  --material-dialog-surface-border: var(--material-overlay-border);
+  --material-dialog-surface-shadow: 0 28px 72px rgba(0, 5, 12, 0.5);
   --dialog-backdrop-color: rgba(2, 6, 14, 0.46);
 
   --material-input-background:
@@ -254,11 +255,9 @@
   --icon-muted: rgba(127, 142, 162, 0.66);
   --interaction-hover-background: rgba(255, 255, 255, 0.05);
   --interaction-hover-border: rgba(182, 199, 223, 0.16);
-  --interaction-active-background: rgba(142, 164, 255, 0.12);
-  --interaction-active-border: rgba(142, 164, 255, 0.24);
-  --interaction-active-shadow:
-    inset 0 0 0 1px var(--interaction-active-border),
-    0 6px 16px rgba(0, 5, 12, 0.18);
+  --interaction-active-background: rgba(255, 255, 255, 0.1);
+  --interaction-active-border: rgba(182, 199, 223, 0.16);
+  --interaction-active-shadow: none;
   --text-kbd-color: #d7e0ee;
   --surface-kbd-background: rgba(28, 36, 49, 0.84);
   --divider-kbd-border: rgba(182, 199, 223, 0.12);
@@ -341,17 +340,16 @@
     0 8px 16px rgba(9, 15, 24, 0.12),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
-  --material-popover-background:
-    linear-gradient(180deg, rgba(74, 86, 99, 0.97), rgba(45, 55, 66, 0.94) 100%);
-  --material-popover-border: rgba(205, 220, 240, 0.24);
-  --material-popover-shadow:
-    0 32px 84px rgba(9, 15, 24, 0.42),
-    0 8px 26px rgba(9, 15, 24, 0.22);
+  --material-overlay-background: rgba(51, 62, 76, 0.985);
+  --material-overlay-border: rgba(205, 220, 240, 0.22);
+  --material-overlay-shadow: 0 18px 48px rgba(9, 15, 24, 0.4);
+  --material-popover-background: var(--material-overlay-background);
+  --material-popover-border: var(--material-overlay-border);
+  --material-popover-shadow: var(--material-overlay-shadow);
 
-  --material-dialog-surface-border: rgba(205, 220, 240, 0.26);
-  --material-dialog-surface-shadow:
-    0 26px 68px rgba(9, 15, 24, 0.44),
-    0 6px 18px rgba(9, 15, 24, 0.22);
+  --material-dialog-surface-background: var(--material-overlay-background);
+  --material-dialog-surface-border: var(--material-overlay-border);
+  --material-dialog-surface-shadow: 0 28px 72px rgba(9, 15, 24, 0.46);
   --dialog-backdrop-color: rgba(9, 15, 24, 0.42);
 
   --material-input-background:
@@ -388,11 +386,9 @@
   --icon-muted: rgba(146, 162, 179, 0.66);
   --interaction-hover-background: rgba(255, 255, 255, 0.05);
   --interaction-hover-border: rgba(205, 220, 240, 0.16);
-  --interaction-active-background: rgba(154, 183, 255, 0.12);
-  --interaction-active-border: rgba(154, 183, 255, 0.24);
-  --interaction-active-shadow:
-    inset 0 0 0 1px var(--interaction-active-border),
-    0 6px 16px rgba(9, 15, 24, 0.16);
+  --interaction-active-background: rgba(255, 255, 255, 0.1);
+  --interaction-active-border: rgba(205, 220, 240, 0.16);
+  --interaction-active-shadow: none;
   --text-kbd-color: #dde7f4;
   --surface-kbd-background: rgba(60, 70, 82, 0.84);
   --divider-kbd-border: rgba(205, 220, 240, 0.12);
@@ -412,27 +408,27 @@
   --disabled-opacity: 0.50;
 }
 
-/* 中文注释：以下是兼容层，把高频旧变量收口到新的语义令牌，避免页面级组件继续分叉。 */
+/* 以下是兼容层，把高频旧变量收口到新的语义令牌，避免页面级组件继续分叉。 */
 :root,
 :root[data-theme="light"],
 :root[data-theme="dark"],
 :root[data-theme="rain"] {
   --surface-body-background: var(--ambient-page-pattern);
 
-  /* 中文注释：列表和侧栏复用同一层轻抬升表面，避免引用不存在的旧 token。 */
+  /* 列表和侧栏复用同一层轻抬升表面，避免引用不存在的旧 token。 */
   --surface-elevated-background: var(--card);
   --surface-inset-background: transparent;
   --surface-inset-border: var(--divider-subtle-color);
-  /* 中文注释：工作面使用单层卡片填充，页面底色保持纯色，纹理与功能表面各自独立。 */
+  /* 工作面使用单层卡片填充，页面底色保持纯色，纹理与功能表面各自独立。 */
   --surface-panel-background: var(--card);
   --surface-panel-border: var(--material-panel-border);
   --surface-panel-shadow: var(--material-panel-shadow);
   --surface-panel-subtle-background: transparent;
   --surface-panel-subtle-border: var(--divider-subtle-color);
-  /* 中文注释：设置页等次级区域的弱表面与危险文本，统一从基础 token 派生。 */
+  /* 设置页等次级区域的弱表面与危险文本，统一从基础 token 派生。 */
   --surface-muted-background: var(--secondary);
   --danger-text-color: var(--destructive);
-  /* 中文注释：应用壳层以同色系明暗分区，主侧栏外缘只保留一根不透明且连续的结构 hairline。 */
+  /* 应用壳层以同色系明暗分区，主侧栏外缘只保留一根不透明且连续的结构 hairline。 */
   --surface-shell-navigation-background: var(--material-shell-navigation-background);
   --surface-shell-directory-background: var(--material-shell-directory-background);
   --surface-shell-header-background: var(--material-shell-header-background);
@@ -477,7 +473,7 @@
   --surface-avatar-border: var(--material-avatar-border);
   --surface-avatar-foreground: var(--text-default);
   --surface-avatar-shadow: var(--material-avatar-shadow);
-  /* 中文注释：用户请求使用暖中性底色与 Assistant 正文区分，不借用品牌蓝或卡片阴影。 */
+  /* 用户请求使用暖中性底色与 Assistant 正文区分，不借用品牌蓝或卡片阴影。 */
   --surface-message-user-background: var(--message-user-background);
   --surface-paper-background: var(--material-paper-background);
   --surface-paper-border: var(--material-paper-border);
@@ -485,7 +481,7 @@
   --surface-paper-muted: var(--material-paper-muted);
   --surface-paper-shadow: var(--material-paper-shadow);
 
-  /* 中文注释：内容渲染只在可执行或独立阅读时上浮，正文中的 code、quote 和 table 统一使用低噪音语义表面。 */
+  /* 内容渲染只在可执行或独立阅读时上浮，正文中的 code、quote 和 table 统一使用低噪音语义表面。 */
   --content-radius-inline: 6px;
   --content-radius-control-xs: 6px;
   --content-radius-control: var(--radius-md);
@@ -561,21 +557,33 @@
   --card-default-border: var(--divider-subtle-color);
   --card-default-shadow: none;
 
-  --modal-dialog-surface-background: color-mix(in srgb, var(--background) 94%, white);
+  --modal-dialog-surface-background: var(--material-dialog-surface-background);
   --modal-dialog-header-background: transparent;
   --modal-dialog-body-background: transparent;
   --modal-dialog-footer-background: transparent;
   --modal-dialog-surface-border: var(--material-dialog-surface-border);
   --modal-dialog-surface-shadow: var(--material-dialog-surface-shadow);
-  --modal-nav-background: color-mix(in srgb, var(--background) 94%, white);
+  --modal-nav-background: color-mix(
+    in srgb,
+    var(--modal-dialog-surface-background) 94%,
+    var(--text-strong) 6%
+  );
   --modal-nav-border: color-mix(in srgb, var(--divider-subtle-color) 78%, transparent);
-  --modal-card-background: color-mix(in srgb, var(--background) 94%, white);
+  --modal-card-background: color-mix(
+    in srgb,
+    var(--modal-dialog-surface-background) 96%,
+    var(--text-strong) 4%
+  );
   --modal-card-border: color-mix(in srgb, var(--divider-subtle-color) 78%, transparent);
   --modal-card-shadow: none;
-  --modal-card-active-background: color-mix(in srgb, var(--primary) 13%, transparent);
-  --modal-card-active-border: color-mix(in srgb, var(--primary) 28%, transparent);
+  --modal-card-active-background: var(--interaction-active-background);
+  --modal-card-active-border: var(--interaction-active-border);
   --modal-card-active-shadow: none;
-  --modal-input-background: color-mix(in srgb, var(--background) 94%, white);
+  --modal-input-background: color-mix(
+    in srgb,
+    var(--modal-dialog-surface-background) 96%,
+    var(--text-strong) 4%
+  );
   --modal-input-border: color-mix(in srgb, var(--divider-subtle-color) 82%, transparent);
   --modal-input-shadow: none;
   --modal-input-focus-background: color-mix(in srgb, var(--primary) 4%, var(--modal-dialog-surface-background));
@@ -615,7 +623,7 @@
   --surface-interactive-active-background: var(--interaction-active-background);
   --surface-interactive-active-border: var(--interaction-active-border);
   --surface-interactive-active-shadow: var(--interaction-active-shadow);
-  /* 中文注释：侧栏选中态只用中性浅灰底区分层级，不绘制卡片边框或浮起阴影。 */
+  /* 侧栏选中态比通用 active 深一档，保证持续定位清晰，但仍不绘制卡片边框或浮起阴影。 */
   --surface-sidebar-active-background: color-mix(
     in srgb,
     var(--text-muted) 13%,
@@ -649,7 +657,7 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
 
-  /* 中文注释：语义化字号规范 — 替代散落的 text-[Npx] 任意值；Tailwind v4 的字号命名空间是 --text-*。 */
+  /* 语义化字号规范 — 替代散落的 text-[Npx] 任意值；Tailwind v4 的字号命名空间是 --text-*。 */
   --text-2xs: 10px;
   --text-xs: 11px;
   --text-compact: 12px;

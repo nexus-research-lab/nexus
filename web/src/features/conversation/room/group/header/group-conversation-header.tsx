@@ -111,17 +111,11 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
           />
         )}
         leadingClassName="h-10 w-10 rounded-[10px]"
+        leadingVariant="identity"
         onChangeTab={onChangeTab}
         onDismissActiveTab={onCloseActiveTab}
         navigationTrailing={(
           <>
-            <RoomHistoryMenu
-              conversationId={conversationId}
-              conversations={conversations}
-              onDeleteConversation={onDeleteConversation}
-              onSelectConversation={onSelectConversation}
-              onUpdateConversationTitle={onUpdateConversationTitle}
-            />
             <div className="hidden h-full items-center lg:flex">
               <GroupMemberAvatarStack
                 members={roomMembers}
@@ -148,6 +142,16 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
           <WorkspaceConversationTabs
             conversationId={conversationId}
             conversations={conversations}
+            leadingControl={(
+              <RoomHistoryMenu
+                conversationId={conversationId}
+                conversations={conversations}
+                onDeleteConversation={onDeleteConversation}
+                onSelectConversation={onSelectConversation}
+                onUpdateConversationTitle={onUpdateConversationTitle}
+                triggerVariant="session"
+              />
+            )}
             onCloseConversation={onCloseConversation}
             onCreateConversation={onCreateConversation}
             onSelectConversation={onSelectConversation}
