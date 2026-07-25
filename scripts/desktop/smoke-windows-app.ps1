@@ -7,6 +7,93 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class NexusWindowChromeProbe
+{
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rect
+    {
+        internal int Left;
+        internal int Top;
+        internal int Right;
+        internal int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Point
+    {
+        internal int X;
+        internal int Y;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out Rect value, int size);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hwnd, out Rect value);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(Point point);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsZoomed(IntPtr hwnd);
+
+    public static string ValidateResizeBoundary(IntPtr hwnd)
+    {
+        IntPtr previousDpi = SetThreadDpiAwarenessContext(new IntPtr(-4));
+        try
+        {
+            if (DwmGetWindowAttribute(hwnd, 9, out Rect bounds, Marshal.SizeOf<Rect>()) != 0 &&
+                !GetWindowRect(hwnd, out bounds))
+            {
+                return "cannot read window bounds";
+            }
+
+            var edges = new[]
+            {
+                (Name: "left", X: bounds.Left + 2, Y: (bounds.Top + bounds.Bottom) / 2, Hit: 10),
+                (Name: "right", X: bounds.Right - 2, Y: (bounds.Top + bounds.Bottom) / 2, Hit: 11),
+                (Name: "top", X: (bounds.Left + bounds.Right) / 2, Y: bounds.Top + 2, Hit: 12),
+                (Name: "bottom", X: (bounds.Left + bounds.Right) / 2, Y: bounds.Bottom - 2, Hit: 15),
+            };
+            foreach (var edge in edges)
+            {
+                if (WindowFromPoint(new Point { X = edge.X, Y = edge.Y }) != hwnd)
+                {
+                    return $"{edge.Name} edge is covered by a child HWND";
+                }
+
+                long packedPoint = ((long)(ushort)edge.Y << 16) | (ushort)edge.X;
+                long actualHit = SendMessage(hwnd, 0x0084, IntPtr.Zero, new IntPtr(packedPoint)).ToInt64();
+                if (actualHit != edge.Hit)
+                {
+                    return $"{edge.Name} edge returned hit code {actualHit}, expected {edge.Hit}";
+                }
+            }
+            return string.Empty;
+        }
+        finally
+        {
+            if (previousDpi != IntPtr.Zero)
+            {
+                _ = SetThreadDpiAwarenessContext(previousDpi);
+            }
+        }
+    }
+}
+'@
+
 function Resolve-RootDir {
   $scriptDir = Split-Path -Parent $PSCommandPath
   return (Resolve-Path (Join-Path $scriptDir "../..")).Path
@@ -56,6 +143,28 @@ function Resolve-Bool([string]$value, [bool]$defaultValue) {
   }
 
   throw "Invalid boolean value: $value"
+}
+
+function Find-CaptionButton([IntPtr]$Hwnd, [string]$Name) {
+  $root = [System.Windows.Automation.AutomationElement]::FromHandle($Hwnd)
+  $condition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::NameProperty,
+    $Name
+  )
+  $button = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+  if ($null -eq $button -or $button.Current.ControlType -ne [System.Windows.Automation.ControlType]::Button) {
+    throw "Missing caption button: $Name"
+  }
+  if ($button.Current.IsOffscreen -or $button.Current.BoundingRectangle.IsEmpty) {
+    throw "Caption button is not visible: $Name"
+  }
+  return $button
+}
+
+function Invoke-CaptionButton([IntPtr]$Hwnd, [string]$Name) {
+  $button = Find-CaptionButton $Hwnd $Name
+  $pattern = $button.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+  $pattern.Invoke()
 }
 
 $rootDir = Resolve-RootDir
@@ -125,6 +234,27 @@ try {
   if ($sidecars.Count -eq 0) {
     throw "Expected bundled nexus-server.exe sidecar process"
   }
+
+  Write-Host "==> Validating window chrome"
+  $process.Refresh()
+  $mainWindowHandle = [IntPtr]$process.MainWindowHandle
+  if ($mainWindowHandle -eq [IntPtr]::Zero) {
+    throw "Expected Nexus main window handle"
+  }
+  $chromeError = [NexusWindowChromeProbe]::ValidateResizeBoundary($mainWindowHandle)
+  if (-not [string]::IsNullOrEmpty($chromeError)) {
+    throw "Invalid window chrome: $chromeError"
+  }
+  [void](Find-CaptionButton $mainWindowHandle "最小化")
+  [void](Find-CaptionButton $mainWindowHandle "关闭")
+  Invoke-CaptionButton $mainWindowHandle "最大化"
+  Wait-Until {
+    return [NexusWindowChromeProbe]::IsZoomed($mainWindowHandle)
+  } 10 "window maximize"
+  Invoke-CaptionButton $mainWindowHandle "还原"
+  Wait-Until {
+    return -not [NexusWindowChromeProbe]::IsZoomed($mainWindowHandle)
+  } 10 "window restore"
 
   Write-Host "==> Closing app to tray"
   [void]$process.CloseMainWindow()

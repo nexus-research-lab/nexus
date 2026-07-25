@@ -153,7 +153,7 @@ public partial class MainWindow : System.Windows.Window
             }
         }
 
-        WebView2 nextWebView = new();
+        ChromeWebView2 nextWebView = new();
         ConfigureWebViewSurface(nextWebView);
         WebViewContainer.Children.Add(nextWebView);
         return nextWebView;
@@ -191,7 +191,7 @@ public partial class MainWindow : System.Windows.Window
 
             DisposeWebView();
             WebViewContainer.Children.Clear();
-            WebView2 replacement = new();
+            ChromeWebView2 replacement = new();
             ConfigureWebViewSurface(replacement);
             WebViewContainer.Children.Add(replacement);
             webViewHost = CreateWebViewHost(replacement);
@@ -380,6 +380,14 @@ public partial class MainWindow : System.Windows.Window
     }
 
     private static string MetadataDimension(double value) => ((int)Math.Round(value)).ToString();
+
+    private void MinimizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void MaximizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MaximizeWindow(this);
+
+    private void RestoreWindow(object sender, RoutedEventArgs e) => SystemCommands.RestoreWindow(this);
+
+    private void CloseWindow(object sender, RoutedEventArgs e) => SystemCommands.CloseWindow(this);
 
     private static void ConfigureWebViewSurface(WebView2 webView)
     {

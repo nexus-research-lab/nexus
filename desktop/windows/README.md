@@ -6,7 +6,7 @@
 
 - Native shell：C# + WPF，负责窗口、单实例、基础 `nexus://` 唤起和后续任务栏、系统菜单、通知、更新。
 - WebView：WebView2，只作为 React/Vite UI 的渲染面。
-- 窗口 chrome：WPF `WindowChrome` 用 60px 顶部玻璃框把 Web Header 延伸进非客户区并保留系统 caption controls，6px 外缘独占四边缩放命中；WebView2 的 `app-region` 只为 Header 空白处提供拖动、系统菜单和双击最大化，不自行重画窗口按钮，也不覆盖窗口缩放边界。
+- 窗口 chrome：WPF `WindowChrome` 用 60px 顶部玻璃框把 Web Header 延伸进非客户区，宿主绘制并执行最小化、最大化/还原和关闭控件；`ChromeWebView2` 从独立子 HWND 的可见区域扣除按钮区与 6px 外缘，使宿主控件和四边缩放始终先于 WebView2 命中。WebView2 的 `app-region` 只为 Header 空白处提供拖动、系统菜单和双击最大化。
 - Sidecar：复用当前 Go `nexus-server`，由 shell 随机端口启动并注入 `NEXUS_DESKTOP_SESSION_TOKEN`，正式包优先使用 `Resources\bin\nxs.exe` 作为 `nxs` runtime。
 - Web UI：复用 `web/dist/app.html`，默认路由为完整 launcher `/launcher`。
 - 主窗口保持 `1280×820` 默认启动尺寸；常规屏幕可缩小到 `360×520`，极小可用工作区回退到 `320×480`，由 Web 层切换为手机布局。

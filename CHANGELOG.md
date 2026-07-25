@@ -42,7 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Restored the Windows desktop system minimize, maximize, and close controls by retaining a 60px native glass frame above the shared Web Header, and restored four-edge window resizing by keeping the WebView out of `WindowChrome`'s 6px resize hit-test boundary.
+- Restored the Windows desktop minimize, maximize/restore, and close controls in the WPF host, and restored four-edge window resizing by clipping the WebView2 child HWND away from the caption controls and `WindowChrome`'s 6px resize boundary.
+- Moved the Windows desktop startup timeline out of the legacy `~/.nexus/logs` path and into the documented `~/.nexus/app/logs` host-data root.
 - Kept the conversation task summary at a stable height and moved its expanded progress list into an anchored popover, so opening task details no longer pushes the message canvas downward.
 - Added syntax highlighting to recognized workspace source files by reusing the chat code renderer's theme-aware semantic palette, while keeping unknown plain-text files uncolored and preserving the workspace preview chrome.
 - Kept short Markdown documents top-aligned inside full-height workspace previews so unused viewport height remains after the content instead of stretching headings, paragraphs, and list rows apart.
