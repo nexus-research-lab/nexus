@@ -1,8 +1,8 @@
 import { ReactNode } from "react";
 import { Outlet } from "react-router-dom";
 
-import { cn } from "@/shared/ui/class-name";
 import { HOME_PAGE_PADDING_CLASS } from "@/lib/layout/home-layout";
+import { cn } from "@/shared/ui/class-name";
 
 export function DesktopEntryLayout({
   children,
@@ -11,7 +11,12 @@ export function DesktopEntryLayout({
 }) {
   return (
     <main className="desktop-window-frame relative flex h-screen w-full overflow-hidden bg-transparent text-foreground">
-      <div className={cn("relative flex min-h-0 flex-1 flex-col overflow-hidden", HOME_PAGE_PADDING_CLASS)}>
+      <div
+        className={cn(
+          "desktop-entry-stage relative flex min-h-0 flex-1 flex-col overflow-hidden",
+          HOME_PAGE_PADDING_CLASS,
+        )}
+      >
         {children ?? <Outlet />}
       </div>
     </main>

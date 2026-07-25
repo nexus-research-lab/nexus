@@ -1,7 +1,10 @@
 import Foundation
 
 enum DesktopRuntimeScript {
-  static func make(runtime: SidecarRuntimeConfig) throws -> String {
+  static func make(
+    runtime: SidecarRuntimeConfig,
+    windowControlsLeadingInset: CGFloat
+  ) throws -> String {
     let payload: [String: Any] = [
       "api_base_url": runtime.apiBaseURL.absoluteString,
       "ws_url": runtime.webSocketURL.absoluteString,
@@ -11,7 +14,7 @@ enum DesktopRuntimeScript {
       "build_number": runtime.buildNumber,
       "platform": runtime.platform,
       "oauth_redirect_uri": runtime.oauthRedirectURL.absoluteString,
-      "desktop_window_top_inset": Double(DesktopWindowMetrics.dragRegionHeight),
+      "desktop_window_controls_inset": Double(windowControlsLeadingInset),
     ]
     let data = try JSONSerialization.data(withJSONObject: payload, options: [])
     guard let json = String(data: data, encoding: .utf8) else {

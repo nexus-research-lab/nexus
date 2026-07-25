@@ -18,8 +18,122 @@
    * 6. dialog-*：弹窗语义壳，材质必须回落到 surface / input / card 原语
    */
 
-  .desktop-window-frame {
-    padding-top: var(--desktop-window-top-inset, 0px);
+  [data-desktop-window-drag-region] {
+    app-region: drag;
+    -webkit-app-region: drag;
+  }
+
+  [data-desktop-window-drag-region] :is(
+    a[href],
+    button,
+    input,
+    label[for],
+    select,
+    summary,
+    textarea,
+    [contenteditable]:not([contenteditable="false"]),
+    [role="button"],
+    [role="checkbox"],
+    [role="menuitem"],
+    [role="radio"],
+    [role="switch"],
+    [role="tab"],
+    [data-desktop-window-no-drag]
+  ),
+  [data-desktop-window-no-drag] {
+    app-region: no-drag;
+    -webkit-app-region: no-drag;
+  }
+
+  :root[data-desktop-platform="macos"]
+    [data-desktop-window-controls-leading]::before {
+    content: "";
+    flex: 0 0 var(--desktop-window-controls-inset, 84px);
+  }
+
+  /*
+   * 系统保留宽度已经包含窗口按钮后的呼吸区；品牌栏自身的左 padding
+   * 不应再重复计入，否则字标左侧会明显宽于右侧收起动作。
+   */
+  :root[data-desktop-platform="macos"]
+    .sidebar-panel-header[data-desktop-window-controls-leading]::before {
+    margin-inline-start: -12px;
+  }
+
+  .sidebar-panel-collapsed-toggle {
+    position: fixed;
+    z-index: 70;
+    top: 14px;
+    left: 12px;
+    display: flex;
+  }
+
+  :root[data-desktop-platform="macos"] .sidebar-panel-collapsed-toggle {
+    top: 10px;
+    left: calc(var(--desktop-window-controls-inset, 84px) + 8px);
+  }
+
+  /* 原生窗口按钮中心位于 60px Header 的几何中心上方 4px。 */
+  :root[data-desktop-platform="macos"] :is(
+    .sidebar-panel-header,
+    .workspace-surface-header-inner
+  ) {
+    padding-bottom: 8px;
+  }
+
+  .launcher-console-spotlights {
+    top: 20px;
+    left: 20px;
+    width: 139px;
+    height: 16px;
+  }
+
+  :root[data-desktop-runtime="true"] .launcher-console-spotlights {
+    width: 104px;
+    height: 12px;
+  }
+
+  :root[data-desktop-platform="macos"] .launcher-console-spotlights {
+    left: var(--desktop-window-controls-inset, 84px);
+  }
+
+  .launcher-console-wordmark {
+    font-weight: 400;
+    letter-spacing: normal;
+  }
+
+  :root[data-desktop-runtime="true"] .launcher-console-wordmark {
+    font-weight: 400;
+    letter-spacing: 0.1em;
+  }
+
+  :root[data-desktop-platform="macos"]
+    .sidebar-panel-shell[data-sidebar-collapsed="true"]
+    + .desktop-app-stage
+    .workspace-surface-header-inner::before {
+    content: "";
+    flex: 0 0 var(--desktop-window-controls-inset, 84px);
+  }
+
+  :root[data-desktop-platform="macos"]
+    .desktop-entry-stage
+    .workspace-surface-header-inner::before {
+    content: "";
+    flex: 0 0 var(--desktop-window-controls-inset, 84px);
+  }
+
+  :root[data-desktop-platform="windows"]
+    .workspace-surface-header-inner::after {
+    content: "";
+    flex: 0 0 calc(var(--desktop-window-controls-inset, 144px) + 8px);
+  }
+
+  .home-desktop-drag-header {
+    display: none;
+  }
+
+  :root[data-desktop-runtime="true"] .home-desktop-drag-header {
+    display: block;
   }
 
   .desktop-rail {
@@ -33,7 +147,23 @@
 
   /* 折叠与展开共用同一个侧栏壳层，宽度只沿布局轴做一次有阻尼的过渡。 */
   .sidebar-panel-shell {
+    container-name: sidebar-panel;
+    container-type: inline-size;
     transition: width var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  @container sidebar-panel (max-width: 320px) {
+    .sidebar-brand-wordmark {
+      --sidebar-brand-font-size: 18px;
+      --sidebar-brand-letter-spacing: 0.58em;
+    }
+  }
+
+  @container sidebar-panel (max-width: 280px) {
+    .sidebar-brand-wordmark {
+      --sidebar-brand-font-size: 16px;
+      --sidebar-brand-letter-spacing: 0.32em;
+    }
   }
 
   .sidebar-panel-shell[data-sidebar-resizing="true"] {
@@ -46,6 +176,13 @@
 
   .sidebar-panel-header {
     transition: padding var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  @media (width < 64rem) {
+    :root[data-desktop-platform="macos"]
+      .sidebar-panel-header[data-desktop-window-controls-leading]::before {
+      margin-inline-start: -16px;
+    }
   }
 
   .sidebar-panel-shell:not([data-sidebar-collapsed="true"]) .sidebar-panel-directory {
@@ -67,13 +204,17 @@
   .desktop-rail[data-shell-split-edge="true"]::after {
     position: absolute;
     z-index: 20;
-    top: calc(-1 * var(--desktop-window-top-inset, 0px));
+    top: 0;
     right: 0;
     bottom: 0;
     width: 1px;
     pointer-events: none;
     background: var(--surface-shell-edge-divider);
     content: "";
+  }
+
+  .sidebar-panel-shell[data-sidebar-collapsed="true"][data-shell-split-edge="true"]::after {
+    top: 60px;
   }
 
   .shell-navigation-rail {

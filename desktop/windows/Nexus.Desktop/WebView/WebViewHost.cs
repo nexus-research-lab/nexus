@@ -1,6 +1,6 @@
-using System.Text.Json;
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using Nexus.Desktop.Bridge;
@@ -66,6 +66,7 @@ internal sealed class WebViewHost : IDisposable
         core.Settings.IsZoomControlEnabled = false;
         core.Settings.IsGeneralAutofillEnabled = false;
         core.Settings.IsPasswordAutosaveEnabled = false;
+        core.Settings.IsNonClientRegionSupportEnabled = true;
 
         InstallDesktopSessionCookie(core);
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopRuntimeScript.Make(runtime));

@@ -47,7 +47,7 @@ export function AppLayout({ showSidebar = true }: { showSidebar?: boolean }) {
       ) : null}
       {!isMobileDirectory ? (
         <div className={cn(
-          "relative flex min-h-0 flex-1 flex-col overflow-hidden",
+          "desktop-app-stage relative flex min-h-0 flex-1 flex-col overflow-hidden",
           !isMobileContent && HOME_PAGE_PADDING_CLASS,
         )}>
           {isMobileAppLayout && mobileRoute.mode === "detail" ? (

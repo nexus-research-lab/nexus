@@ -2,11 +2,23 @@
   x:Class="Nexus.Desktop.Window.MainWindow"
   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
   xmlns:webview="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
   Title="Nexus"
   Background="#F0F1EF"
+  ResizeMode="CanResize"
   WindowStartupLocation="CenterScreen">
+  <WindowChrome.WindowChrome>
+    <shell:WindowChrome
+      CaptionHeight="0"
+      CornerRadius="0"
+      GlassFrameThickness="0"
+      ResizeBorderThickness="6"
+      UseAeroCaptionButtons="True" />
+  </WindowChrome.WindowChrome>
   <Grid x:Name="WebViewContainer" Background="Transparent">
-    <webview:WebView2 x:Name="MainWebView" />
+    <webview:WebView2
+      x:Name="MainWebView"
+      shell:WindowChrome.IsHitTestVisibleInChrome="True" />
   </Grid>
 </Window>

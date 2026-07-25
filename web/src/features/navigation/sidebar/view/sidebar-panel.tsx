@@ -90,80 +90,101 @@ export function SidebarPanel({
   const resizeEnabled = resizable && !collapsed;
 
   return (
-    <div
-      className={cn(
-        "sidebar-panel-shell desktop-rail relative flex h-full shrink-0 flex-col overflow-hidden",
-        HOME_SIDEBAR_PADDING_CLASS,
-        resizeEnabled && resizeHotzoneActive && "cursor-col-resize",
-      )}
-      data-shell-split-edge={showSplitEdge ? "true" : undefined}
-      data-sidebar-collapsed={collapsed ? "true" : undefined}
-      data-sidebar-resizing={
-        resizeEnabled && resizing ? "true" : undefined
-      }
-      onLostPointerCapture={resizeEnabled ? onPointerUp : undefined}
-      onPointerCancel={resizeEnabled ? onPointerUp : undefined}
-      onPointerDown={resizeEnabled ? onPointerDown : undefined}
-      onPointerLeave={resizeEnabled ? onPointerLeave : undefined}
-      onPointerMove={resizeEnabled ? onPointerMove : undefined}
-      onPointerUp={resizeEnabled ? onPointerUp : undefined}
-      ref={resizeEnabled ? rootRef : undefined}
-      style={{ width }}
-    >
+    <>
+      {collapsed && utility.showPanelToggle ? (
+        <div className="sidebar-panel-collapsed-toggle">
+          <SidebarPanelToggleAction
+            labels={utility.labels}
+            onCollapse={utility.onCollapse}
+            onExpand={utility.onExpand}
+            showPanelToggle
+            variant="rail"
+          />
+        </div>
+      ) : null}
       <div
         className={cn(
-          "sidebar-panel-header shell-region-header -mr-1.5 flex shrink-0 items-center",
-          WORKSPACE_HEADER_HEIGHT_CLASS,
-          collapsed ? "px-2" : "pl-3 pr-[14px]",
-          "max-lg:px-4",
+          "sidebar-panel-shell desktop-rail relative flex h-full shrink-0 flex-col overflow-hidden",
+          HOME_SIDEBAR_PADDING_CLASS,
+          resizeEnabled && resizeHotzoneActive && "cursor-col-resize",
         )}
+        data-shell-split-edge={showSplitEdge ? "true" : undefined}
+        data-sidebar-collapsed={collapsed ? "true" : undefined}
+        data-sidebar-resizing={
+          resizeEnabled && resizing ? "true" : undefined
+        }
+        onLostPointerCapture={resizeEnabled ? onPointerUp : undefined}
+        onPointerCancel={resizeEnabled ? onPointerUp : undefined}
+        onPointerDown={resizeEnabled ? onPointerDown : undefined}
+        onPointerLeave={resizeEnabled ? onPointerLeave : undefined}
+        onPointerMove={resizeEnabled ? onPointerMove : undefined}
+        onPointerUp={resizeEnabled ? onPointerUp : undefined}
+        ref={resizeEnabled ? rootRef : undefined}
+        style={{ width }}
       >
-        <SidebarBrandLink collapsed={collapsed} label={launcherLabel} />
-        <SidebarPanelToggleAction
-          labels={utility.labels}
-          onCollapse={utility.onCollapse}
-          onExpand={utility.onExpand}
-          showPanelToggle={utility.showPanelToggle}
-          variant={collapsed ? "rail" : "panel"}
-        />
-      </div>
-      {settingsNavigation ? (
         <div
           className={cn(
-            "flex min-h-0 flex-1 flex-col",
-            collapsed && "-mr-1.5",
+            "sidebar-panel-header shell-region-header -mr-1.5 flex shrink-0 items-center",
+            WORKSPACE_HEADER_HEIGHT_CLASS,
+            collapsed ? "px-2" : "pl-3 pr-[14px]",
+            "max-lg:px-4",
           )}
+          data-desktop-window-controls-leading={
+            collapsed ? undefined : "true"
+          }
+          data-desktop-window-drag-region
         >
-          {settingsNavigation}
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1">
-          <nav
-            aria-label={navigationLabel}
-            className="shell-navigation-rail flex w-12 shrink-0 flex-col"
-          >
-            <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
-              <SidebarPrimaryTabs
-                activeTab={activeTab}
-                items={tabs}
-                onSelect={onSelectTab}
+          <SidebarBrandLink collapsed={collapsed} label={launcherLabel} />
+          {!collapsed ? (
+            <div className="sidebar-panel-header-toggle shrink-0">
+              <SidebarPanelToggleAction
+                labels={utility.labels}
+                onCollapse={utility.onCollapse}
+                onExpand={utility.onExpand}
+                showPanelToggle={utility.showPanelToggle}
+                variant="panel"
               />
             </div>
-          </nav>
-          <div
-            aria-hidden={collapsed || undefined}
-            className={cn(
-              "sidebar-panel-directory soft-scrollbar scrollbar-stable-gutter flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-2.5",
-              collapsed && "pointer-events-none opacity-0",
-            )}
-            inert={collapsed ? true : undefined}
-          >
-            <ActivePanelContent />
-          </div>
+          ) : null}
         </div>
-      )}
-      <SidebarFooterActions {...utility} collapsed={collapsed} />
-    </div>
+        {settingsNavigation ? (
+          <div
+            className={cn(
+              "flex min-h-0 flex-1 flex-col",
+              collapsed && "-mr-1.5",
+            )}
+          >
+            {settingsNavigation}
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1">
+            <nav
+              aria-label={navigationLabel}
+              className="shell-navigation-rail flex w-12 shrink-0 flex-col"
+            >
+              <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
+                <SidebarPrimaryTabs
+                  activeTab={activeTab}
+                  items={tabs}
+                  onSelect={onSelectTab}
+                />
+              </div>
+            </nav>
+            <div
+              aria-hidden={collapsed || undefined}
+              className={cn(
+                "sidebar-panel-directory soft-scrollbar scrollbar-stable-gutter flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto py-2.5",
+                collapsed && "pointer-events-none opacity-0",
+              )}
+              inert={collapsed ? true : undefined}
+            >
+              <ActivePanelContent />
+            </div>
+          </div>
+        )}
+        <SidebarFooterActions {...utility} collapsed={collapsed} />
+      </div>
+    </>
   );
 }
 
