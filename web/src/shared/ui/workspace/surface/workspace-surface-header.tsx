@@ -68,6 +68,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
         tabsLeading && "workspace-surface-header-with-session-tabs",
         WORKSPACE_HEADER_HEIGHT_CLASS,
       )}
+      data-desktop-window-drag-region
     >
       <div className="workspace-surface-header-inner flex h-full min-w-0 items-center justify-between px-5 xl:px-6">
         <WorkspaceSurfaceIdentity

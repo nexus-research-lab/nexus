@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Shell;
 using Microsoft.Web.WebView2.Wpf;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
@@ -384,6 +385,7 @@ public partial class MainWindow : System.Windows.Window
     private static void ConfigureWebViewSurface(WebView2 webView)
     {
         webView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
+        WindowChrome.SetIsHitTestVisibleInChrome(webView, true);
     }
 
     private static void ConfigureNativeWindowBackdrop(IntPtr hwnd)

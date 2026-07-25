@@ -235,12 +235,23 @@ Copy-Item -Force $sidecarPath (Join-Path $resourcesDir "nexus-server.exe")
 Copy-Item -Force $nexusctlPath (Join-Path $resourcesBinDir "nexusctl.exe")
 if ($bundleNXSRuntime) {
   $nxsPath = Join-Path $resourcesBinDir "nxs.exe"
+  $nxsRipgrepPath = Join-Path $resourcesBinDir "rg.exe"
   if (-not [string]::IsNullOrWhiteSpace($NXSRuntimePath)) {
     if (-not (Test-Path -LiteralPath $NXSRuntimePath)) {
       throw "Missing cached nxs runtime: $NXSRuntimePath"
     }
+    $resolvedNXSRuntimePath = (Resolve-Path -LiteralPath $NXSRuntimePath).Path
+    $cachedRipgrepPath = Join-Path (Split-Path -Parent $resolvedNXSRuntimePath) "rg.exe"
+    if (-not (Test-Path -LiteralPath $cachedRipgrepPath)) {
+      throw "Missing cached nxs ripgrep sidecar: $cachedRipgrepPath"
+    }
     Write-Host "==> Using cached bundled nxs runtime"
-    Copy-Item -Force (Resolve-Path -LiteralPath $NXSRuntimePath).Path $nxsPath
+    Copy-Item -Force $resolvedNXSRuntimePath $nxsPath
+    Copy-Item -Force (Resolve-Path -LiteralPath $cachedRipgrepPath).Path $nxsRipgrepPath
+    if (-not (Test-Path -LiteralPath $nxsRipgrepPath)) {
+      throw "Failed to bundle nxs ripgrep sidecar: $nxsRipgrepPath"
+    }
+    Write-Host "==> Bundled nxs ripgrep sidecar: $nxsRipgrepPath"
   } else {
     Write-Host "==> Downloading bundled nxs runtime"
     & node (Join-Path $rootDir "scripts/desktop/fetch-nxs-runtime.js") `

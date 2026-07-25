@@ -22,7 +22,7 @@ export function SidebarBrandLink({
       aria-label={label}
       aria-hidden={collapsed || undefined}
       className={cn(
-        "group/brand relative isolate flex h-10 min-w-0 flex-1 items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
+        "group/brand relative isolate flex h-10 min-w-0 flex-1 cursor-default items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
         collapsed && "pointer-events-none opacity-0",
       )}
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
@@ -31,10 +31,13 @@ export function SidebarBrandLink({
       to={AppRouteBuilders.launcher()}
     >
       <span
-        className="relative whitespace-nowrap text-lg uppercase leading-none tracking-[0.98em]"
+        className="sidebar-brand-wordmark relative cursor-pointer whitespace-nowrap uppercase leading-none"
         style={{
           fontFamily: '"Panchang", var(--font-sans)',
+          fontSize: "var(--sidebar-brand-font-size, var(--text-lg))",
           fontWeight: 280,
+          letterSpacing:
+            "var(--sidebar-brand-letter-spacing, 0.98em)",
         }}
       >
         <span

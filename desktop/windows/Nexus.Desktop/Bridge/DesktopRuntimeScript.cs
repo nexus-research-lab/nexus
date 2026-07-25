@@ -7,7 +7,7 @@ internal static class DesktopRuntimeScript
 {
     public static string Make(SidecarRuntimeConfig runtime)
     {
-        var payload = new Dictionary<string, string>
+        var payload = new Dictionary<string, object>
         {
             ["api_base_url"] = runtime.ApiBaseUrl,
             ["ws_url"] = runtime.WebSocketUrl,
@@ -17,6 +17,8 @@ internal static class DesktopRuntimeScript
             ["build_number"] = runtime.BuildNumber,
             ["platform"] = runtime.Platform,
             ["oauth_redirect_uri"] = runtime.OAuthRedirectUri,
+            ["desktop_window_controls_inset"] =
+                Math.Max(120, System.Windows.SystemParameters.WindowCaptionButtonWidth * 3),
         };
         return $"window.__NEXUS_DESKTOP_RUNTIME__ = {JsonSerializer.Serialize(payload)};";
     }

@@ -5,11 +5,13 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   private static let resumeProbeReloadThreshold = 2
 
   let webView: WKWebView
+  let windowInteractionState = DesktopWindowInteractionState()
   private let runtime: SidecarRuntimeConfig
   private let surfaceName: String
   private let startupTimeline: DesktopStartupTimeline?
   private let bridgeHandler: DesktopBridgeHandler
   private let lifecycleHandler: DesktopLifecycleHandler
+  private let windowInteractionHandler: DesktopWindowInteractionHandler
   private var lastRequestedURL: URL?
   private var lastRoute = DesktopWebRoute(path: "/launcher", entry: .app)
   private var resumeCheckInFlight = false
@@ -27,6 +29,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   init(
     runtime: SidecarRuntimeConfig,
     surfaceName: String,
+    windowControlsLeadingInset: CGFloat,
     startupTimeline: DesktopStartupTimeline? = nil,
     onWebReady: @escaping @MainActor () -> Void,
     openRoute: @escaping (DesktopWebRoute) -> Void,
@@ -53,12 +56,19 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
       startupTimeline: startupTimeline,
       onWebReady: onWebReady
     )
+    windowInteractionHandler = DesktopWindowInteractionHandler(
+      runtime: runtime,
+      startupTimeline: startupTimeline,
+      interactionState: windowInteractionState
+    )
     webView = WKWebView(
       frame: .zero,
       configuration: try WebViewConfigurationFactory.make(
         runtime: runtime,
+        windowControlsLeadingInset: windowControlsLeadingInset,
         bridgeHandler: bridgeHandler,
-        lifecycleHandler: lifecycleHandler
+        lifecycleHandler: lifecycleHandler,
+        windowInteractionHandler: windowInteractionHandler
       )
     )
     super.init()

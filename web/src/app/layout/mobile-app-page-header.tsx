@@ -13,8 +13,14 @@ export function MobileAppPageHeader({
 }: MobileAppPageHeaderProps) {
   const { t } = useI18n();
   return (
-    <header className="shell-region-header shrink-0 pt-[env(safe-area-inset-top)]">
-      <div className="flex h-[52px] items-center gap-2 px-2 sm:px-3">
+    <header
+      className="shell-region-header shrink-0 pt-[env(safe-area-inset-top)]"
+      data-desktop-window-drag-region
+    >
+      <div
+        className="flex h-[52px] items-center gap-2 px-2 sm:px-3"
+        data-desktop-window-controls-leading
+      >
         <button
           aria-label={t("common.back")}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-(--text-strong) transition hover:bg-(--interaction-hover-background)"

@@ -38,7 +38,7 @@ src/
 - API 客户端按 endpoint 所有权归入 `lib/api/{agent,account,capability,conversation,settings}/`，通用传输在 `core/` 按请求、响应、错误和鉴权事件拆分；消费者直接导入职责文件，不保留旧路径转发层
 - 共享 UI 基础组件按 `button/`、`form/`、`display/`、`list/` 与 `navigation/` 分组；消费者直接导入职责文件，不恢复根级聚合出口
 - Surface 搜索入口统一由 `UiSearchInput` 提供中性灰白底、hairline 边界及交互态；消费者只调整尺寸和布局，不得局部覆写背景、边框或阴影
-- Light/Sunny 壳层以 `#f9f9f7` 为页面真相源，导航、目录、主画布依靠相邻中性灰阶分区；主侧栏外缘只绘制一根从物理窗口顶端贯穿到底部的不透明 hairline，内部 Dock 不再叠加竖线或外投影。Nexus 品牌蓝只用于发送、保存、创建、连接等主行动，以及焦点、运行态和明确选中模式；普通导航与次级工具保持黑白灰，teal 只表达次级数据/文件类型，红绿黄只表达危险、成功和警告
+- Light/Sunny 壳层以 `#f9f9f7` 为页面真相源，导航、目录、主画布依靠相邻中性灰阶分区；主侧栏外缘只绘制一根不透明 hairline，展开态从物理窗口顶端贯穿到底部，折叠态从 Header 底部开始以避开原生窗口按钮，内部 Dock 不再叠加竖线或外投影。Nexus 品牌蓝只用于发送、保存、创建、连接等主行动，以及焦点、运行态和明确选中模式；普通导航与次级工具保持黑白灰，teal 只表达次级数据/文件类型，红绿黄只表达危险、成功和警告
 - 主侧栏品牌栏只保留 Launcher 字标与折叠控制；一级导航只承载聊天、联系人和能力，Nexus 主智能体以不可删除的默认 DM 固定在聊天目录顶部；底部统一承载设置、引导与按认证状态显示的退出，展开态将退出和常用入口分居两侧
 - Liquid Glass 由专用 Hook 持有能力启用与 Web Animation 生命周期，Filter 视图只描述 SVG 资源链；组件 render 阶段不得写状态，消费者不得通过目录 barrel 导入
 - 样式类名组合只由 `shared/ui/class-name.ts` 提供；时间、Token 和头像规则分别归 `lib/format/` 与 `lib/avatar.ts`，不得恢复混合 `lib/utils.ts`
@@ -89,6 +89,7 @@ src/
 - 定时任务运行历史由 `capability/scheduled/history/` 分离 Job 作用域资源、动作事务和纯视图；弹窗壳层不得直接请求 API 或维护单项命令状态
 - Goal 面板只通过 `shared/goal/use-goal-controller.ts` 读写状态；资源快照必须绑定会话键，刷新拒绝过期响应，所有写命令共享互斥入口
 - 桌面运行时只通过 `config/desktop-runtime/index.ts` 暴露稳定门面，消费者不得读取宿主原始全局对象或复制 URL 协议判断
+- 桌面标题栏与可见 Header 共面；窗口手势面统一使用 `data-desktop-window-drag-region`，macOS 宿主在短按点击与越阈值拖窗之间仲裁，只有输入、选择、文本编辑和显式排除项使用硬 `no-drag`；平台宿主负责系统窗口控制与双击缩放，页面不得重新添加顶部安全行或全宽点击遮罩。`/app` 的无内容拖动 Header 只在桌面宿主显示，Web 直接让工作画布贴合顶部
 - 根启动入口只编排运行时配置与渲染阶段；失败视图、chunk/auth 恢复、一次性重载和空白 watchdog 各自拥有独立边界
 - API/WebSocket 地址、用户作用域运行时快照和固定会话策略分别归 `config/runtime-endpoints.ts`、`config/runtime-options.ts` 与 `config/conversation-policy.ts`；配置层不得请求网络或依赖 Feature
 - 认证 Provider 归 `app/auth/`，登录/登出后的运行时配置刷新只通过 `app/runtime-options-resource.ts`；`shared/auth/` 只暴露 Context 契约和消费 Hook

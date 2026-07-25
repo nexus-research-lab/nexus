@@ -6,13 +6,14 @@ interface DesktopRuntimeConfig {
   appVersion?: string;
   authToken?: string;
   buildNumber?: string;
-  desktopWindowTopInset?: number;
+  desktopWindowControlsInset?: number;
   oauthRedirectUri?: string;
   platform?: string;
   wsUrl?: string;
 }
 
-const DESKTOP_WINDOW_TOP_INSET_PROPERTY = "--desktop-window-top-inset";
+const DESKTOP_WINDOW_CONTROLS_INSET_PROPERTY =
+  "--desktop-window-controls-inset";
 
 declare global {
   interface Window {
@@ -39,9 +40,9 @@ function normalizeDesktopRuntimeConfig(
     const value = runtimeConfig[sourceKey];
     if (typeof value === "string") normalized[targetKey] = value;
   });
-  const topInset = runtimeConfig.desktop_window_top_inset;
-  if (typeof topInset === "number" && Number.isFinite(topInset)) {
-    normalized.desktopWindowTopInset = topInset;
+  const controlsInset = runtimeConfig.desktop_window_controls_inset;
+  if (typeof controlsInset === "number" && Number.isFinite(controlsInset)) {
+    normalized.desktopWindowControlsInset = controlsInset;
   }
   return normalized;
 }
@@ -64,11 +65,11 @@ export function applyDesktopRuntimeDocumentFlags(): void {
   if (runtimeConfig.platform) {
     document.documentElement.dataset.desktopPlatform = runtimeConfig.platform;
   }
-  const topInset = runtimeConfig.desktopWindowTopInset;
-  if (typeof topInset === "number" && topInset >= 0) {
+  const controlsInset = runtimeConfig.desktopWindowControlsInset;
+  if (typeof controlsInset === "number" && controlsInset >= 0) {
     document.documentElement.style.setProperty(
-      DESKTOP_WINDOW_TOP_INSET_PROPERTY,
-      `${topInset}px`,
+      DESKTOP_WINDOW_CONTROLS_INSET_PROPERTY,
+      `${controlsInset}px`,
     );
   }
 }

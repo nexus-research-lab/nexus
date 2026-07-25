@@ -62,6 +62,7 @@ const nexusModelSupportsVisionEnvName = "NEXUS_MODEL_SUPPORTS_VISION"
 const nexusMultimodalUserContentEnvName = "NEXUS_MULTIMODAL_USER_CONTENT"
 const nexusMultimodalToolResultEnvName = "NEXUS_MULTIMODAL_TOOL_RESULT"
 const nexusRemoteImageURLEnvName = "NEXUS_REMOTE_IMAGE_URL"
+const nexusUsePowerShellToolEnvName = "NEXUS_USE_POWERSHELL_TOOL"
 
 // NexusRuntimeProviderEnvName 表示当前 SDK runtime 实际解析出的 provider key。
 const NexusRuntimeProviderEnvName = "NEXUS_RUNTIME_PROVIDER"
@@ -353,6 +354,7 @@ func explicitNXSProcessRuntimeEnv(runtimeKind string) map[string]string {
 		nexusOpenAIPromptCacheModeEnvName,
 		nexusOpenAIPromptCacheTTLEnvName,
 		nexusOpenAIPromptCacheRetentionEnvName,
+		nexusUsePowerShellToolEnvName,
 	} {
 		if value := strings.TrimSpace(os.Getenv(key)); value != "" {
 			env[key] = value

@@ -28,7 +28,11 @@ export function RoomMobileHeader({
     : null;
 
   return (
-    <header className="flex h-[52px] shrink-0 items-center gap-1.5 border-b divider-subtle px-2 sm:px-3">
+    <header
+      className="flex h-[52px] shrink-0 items-center gap-1.5 border-b divider-subtle px-2 sm:px-3"
+      data-desktop-window-controls-leading
+      data-desktop-window-drag-region
+    >
       <button
         aria-label={t("common.back")}
         className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-(--text-strong) transition hover:bg-(--interaction-hover-background)"

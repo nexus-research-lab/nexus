@@ -2,7 +2,6 @@ import AppKit
 
 final class DesktopWindowSurface: NSView {
   private let effectView = NSVisualEffectView()
-  private let dragRegionView = DesktopWindowDragRegionView()
   private let webContentView: NSView
 
   init(
@@ -43,9 +42,6 @@ final class DesktopWindowSurface: NSView {
     webContentView.translatesAutoresizingMaskIntoConstraints = false
     addSubview(webContentView)
 
-    dragRegionView.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(dragRegionView)
-
     NSLayoutConstraint.activate([
       effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
       effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
@@ -55,20 +51,6 @@ final class DesktopWindowSurface: NSView {
       webContentView.trailingAnchor.constraint(equalTo: trailingAnchor),
       webContentView.topAnchor.constraint(equalTo: topAnchor),
       webContentView.bottomAnchor.constraint(equalTo: bottomAnchor),
-      dragRegionView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: DesktopWindowMetrics.trafficLightReservedWidth),
-      dragRegionView.trailingAnchor.constraint(equalTo: trailingAnchor),
-      dragRegionView.topAnchor.constraint(equalTo: topAnchor),
-      dragRegionView.heightAnchor.constraint(equalToConstant: DesktopWindowMetrics.dragRegionHeight),
     ])
-  }
-}
-
-private final class DesktopWindowDragRegionView: NSView {
-  override var mouseDownCanMoveWindow: Bool {
-    true
-  }
-
-  override func mouseDown(with event: NSEvent) {
-    window?.performDrag(with: event)
   }
 }

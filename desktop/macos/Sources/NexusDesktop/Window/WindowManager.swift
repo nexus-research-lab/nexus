@@ -135,9 +135,38 @@ final class WindowManager: NSObject, NSWindowDelegate {
     do {
       startupTimeline.mark("main_window.create_begin")
       mainWindowRevealed = false
+      let windowSizing = Self.initialWindowSizing()
+      let window = DesktopWindow(
+        contentRect: windowSizing.frame,
+        styleMask: [
+          .titled,
+          .closable,
+          .miniaturizable,
+          .resizable,
+          .fullSizeContentView,
+        ],
+        backing: .buffered,
+        defer: false
+      )
+      window.title = "Nexus"
+      window.titleVisibility = .hidden
+      window.titlebarAppearsTransparent = true
+      window.titlebarSeparatorStyle = .none
+      let toolbar = NSToolbar(identifier: "NexusMainWindowToolbar")
+      toolbar.displayMode = .iconOnly
+      toolbar.sizeMode = .small
+      toolbar.allowsUserCustomization = false
+      toolbar.autosavesConfiguration = false
+      window.toolbar = toolbar
+      window.toolbarStyle = .unified
+      window.showsToolbarButton = false
+      window.contentView?.layoutSubtreeIfNeeded()
+      let windowControlsLeadingInset =
+        DesktopWindowMetrics.windowControlsLeadingInset(in: window)
       let host = try WebViewHost(
         runtime: runtime,
         surfaceName: "main",
+        windowControlsLeadingInset: windowControlsLeadingInset,
         startupTimeline: startupTimeline,
         onWebReady: { [weak self] in
           self?.revealMainWindowIfNeeded(source: "web.ready")
@@ -150,23 +179,14 @@ final class WindowManager: NSObject, NSWindowDelegate {
         globalShortcutAcceleratorUpdater: globalShortcutAcceleratorUpdater,
         globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter
       )
-      let windowSizing = Self.initialWindowSizing()
-      let window = NSWindow(
-        contentRect: windowSizing.frame,
-        styleMask: [.titled, .closable, .miniaturizable, .resizable],
-        backing: .buffered,
-        defer: false
-      )
-      window.title = "Nexus"
-      window.titleVisibility = .hidden
-      window.titlebarAppearsTransparent = true
-      window.styleMask.insert(.fullSizeContentView)
       window.minSize = windowSizing.minimumSize
       window.isReleasedWhenClosed = false
       window.delegate = self
       window.backgroundColor = .clear
       window.isOpaque = false
-      window.isMovableByWindowBackground = true
+      window.isMovable = true
+      window.isMovableByWindowBackground = false
+      window.interactionState = host.windowInteractionState
       window.alphaValue = 0
       window.contentView = DesktopWindowSurface(
         webContentView: host.webView,
@@ -180,6 +200,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
         "min_height": Self.metadataDimension(windowSizing.minimumSize.height),
         "min_width": Self.metadataDimension(windowSizing.minimumSize.width),
         "width": Self.metadataDimension(windowSizing.frame.width),
+        "window_controls_leading_inset": Self.metadataDimension(
+          windowControlsLeadingInset
+        ),
       ])
       host.load((route ?? defaultMainRoute()).url(runtime: runtime))
 

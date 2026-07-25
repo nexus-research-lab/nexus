@@ -576,6 +576,7 @@ func TestBuildAgentClientOptionsPassesExplicitNXSDebugEnv(t *testing.T) {
 	t.Setenv(runtimectx.AgentSDKDiagnosticsStreamProgressEnvName, "0")
 	t.Setenv(runtimectx.AgentSDKProviderDebugBodyEnvName, "full")
 	t.Setenv(nexusCachedMicrocompactEnvName, "1")
+	t.Setenv(nexusUsePowerShellToolEnvName, "1")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind: runtimeKindNXS,
 	})
@@ -593,6 +594,9 @@ func TestBuildAgentClientOptionsPassesExplicitNXSDebugEnv(t *testing.T) {
 	}
 	if options.Env[nexusCachedMicrocompactEnvName] != "1" {
 		t.Fatalf("cached microcompact env 未透传: %+v", options.Env)
+	}
+	if options.Env[nexusUsePowerShellToolEnvName] != "1" {
+		t.Fatalf("PowerShell tool env was not passed through: %+v", options.Env)
 	}
 }
 
@@ -1091,6 +1095,7 @@ func clearAmbientNXSProcessRuntimeEnv(t *testing.T) {
 		nexusOpenAIPromptCacheModeEnvName,
 		nexusOpenAIPromptCacheTTLEnvName,
 		nexusOpenAIPromptCacheRetentionEnvName,
+		nexusUsePowerShellToolEnvName,
 	} {
 		t.Setenv(key, "")
 	}

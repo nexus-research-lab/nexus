@@ -2,7 +2,15 @@ ENV_FILE ?= .env
 
 ifneq (,$(wildcard $(ENV_FILE)))
 include $(ENV_FILE)
+ifeq ($(OS),Windows_NT)
+export APP_WIN_BUNDLE_NXS_RUNTIME
+export NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME
+export NEXUS_DESKTOP_NXS_RUNTIME_PATH
+export NEXUS_STATE_ROOT
+export NEXUS_USE_POWERSHELL_TOOL
+else
 export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
+endif
 endif
 
 TAG ?= 0.1.28
@@ -148,10 +156,10 @@ build-dmg: app-dmg ## app-dmg 的别名
 app-check: app-smoke ## 构建并烟测 macOS .app
 
 app-win-build: ## 构建 Windows WPF/WebView2 桌面 app
-	pwsh scripts/desktop/build-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)"
+	pwsh scripts/desktop/build-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)" -NXSRuntimePath "$(NEXUS_DESKTOP_NXS_RUNTIME_PATH)"
 
 app-win-run: ## 构建并运行 Windows WPF/WebView2 桌面 app
-	pwsh scripts/desktop/run-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)" $(if $(filter 1 true yes on,$(APP_WIN_RUN_SKIP_BUILD)),-SkipBuild,) $(if $(filter 1 true yes on,$(APP_WIN_RUN_WAIT)),-Wait,)
+	pwsh scripts/desktop/run-windows-app.ps1 -BuildNumber "$(APP_WIN_BUILD_NUMBER)" -OutputDir "$(APP_WIN_OUTPUT_DIR)" -BundleNXSRuntime "$(APP_WIN_BUNDLE_NXS_RUNTIME)" -NXSRuntimePath "$(NEXUS_DESKTOP_NXS_RUNTIME_PATH)" $(if $(filter 1 true yes on,$(APP_WIN_RUN_SKIP_BUILD)),-SkipBuild,) $(if $(filter 1 true yes on,$(APP_WIN_RUN_WAIT)),-Wait,)
 
 app-win-smoke: ## 烟测已组装的 Windows WPF/WebView2 桌面 app
 	pwsh scripts/desktop/smoke-windows-app.ps1
