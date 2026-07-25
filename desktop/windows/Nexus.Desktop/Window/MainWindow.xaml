@@ -7,18 +7,18 @@
   Title="Nexus"
   Background="#F0F1EF"
   ResizeMode="CanResize"
+  WindowStyle="SingleBorderWindow"
   WindowStartupLocation="CenterScreen">
   <WindowChrome.WindowChrome>
+    <!-- 顶部玻璃框覆盖 60px Header；厚度为 0 会关闭系统 caption controls。 -->
     <shell:WindowChrome
       CaptionHeight="0"
       CornerRadius="0"
-      GlassFrameThickness="0"
+      GlassFrameThickness="0,60,0,0"
       ResizeBorderThickness="6"
       UseAeroCaptionButtons="True" />
   </WindowChrome.WindowChrome>
   <Grid x:Name="WebViewContainer" Background="Transparent">
-    <webview:WebView2
-      x:Name="MainWebView"
-      shell:WindowChrome.IsHitTestVisibleInChrome="True" />
+    <webview:WebView2 x:Name="MainWebView" />
   </Grid>
 </Window>
