@@ -128,14 +128,6 @@
     flex: 0 0 calc(var(--desktop-window-controls-inset, 144px) + 8px);
   }
 
-  .home-desktop-drag-header {
-    display: none;
-  }
-
-  :root[data-desktop-runtime="true"] .home-desktop-drag-header {
-    display: block;
-  }
-
   .desktop-rail {
     position: relative;
     z-index: 10;

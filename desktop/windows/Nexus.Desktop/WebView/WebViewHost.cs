@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
+using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using Nexus.Desktop.Bridge;
@@ -14,10 +15,11 @@ internal sealed class WebViewHost : IDisposable
 {
     private const int ResumeProbeRecreateThreshold = 2;
 
-    private readonly WebView2 webView;
+    private readonly WebView2CompositionControl webView;
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync;
+    private readonly Action<DesktopWindowRegionSet> updateWindowRegions;
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
     private bool resumeCheckInFlight;
@@ -28,15 +30,17 @@ internal sealed class WebViewHost : IDisposable
     private sealed record ResumeProbeResult(bool IsReady, DesktopWebRoute? CurrentRoute, string Snapshot);
 
     public WebViewHost(
-        WebView2 webView,
+        WebView2CompositionControl webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
-        Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync)
+        Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync,
+        Action<DesktopWindowRegionSet> updateWindowRegions)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
         this.recreateWebViewAsync = recreateWebViewAsync;
+        this.updateWindowRegions = updateWindowRegions;
     }
 
     public async Task InitializeAsync()
@@ -475,7 +479,64 @@ internal sealed class WebViewHost : IDisposable
                     await bridgeHandler.HandleAsync(payload);
                 }
                 break;
+            case "nexusDesktopWindow":
+                HandleWindowRegions(payload);
+                break;
         }
+    }
+
+    private void HandleWindowRegions(JsonElement payload)
+    {
+        if (JsonOptionalString(payload, "kind") != "regions_changed"
+            || !payload.TryGetProperty("schema_version", out JsonElement schemaVersion)
+            || !schemaVersion.TryGetInt32(out int version)
+            || version != 1)
+        {
+            return;
+        }
+
+        updateWindowRegions(new DesktopWindowRegionSet(
+            JsonRectangles(payload, "drag_regions"),
+            JsonRectangles(payload, "no_drag_regions")));
+    }
+
+    private static IReadOnlyList<Rect> JsonRectangles(
+        JsonElement payload,
+        string propertyName)
+    {
+        if (!payload.TryGetProperty(propertyName, out JsonElement records)
+            || records.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        List<Rect> rectangles = [];
+        foreach (JsonElement record in records.EnumerateArray().Take(512))
+        {
+            if (!TryJsonDouble(record, "x", out double x)
+                || !TryJsonDouble(record, "y", out double y)
+                || !TryJsonDouble(record, "width", out double width)
+                || !TryJsonDouble(record, "height", out double height)
+                || width <= 0
+                || height <= 0)
+            {
+                continue;
+            }
+            rectangles.Add(new Rect(x, y, width, height));
+        }
+        return rectangles;
+    }
+
+    private static bool TryJsonDouble(
+        JsonElement record,
+        string propertyName,
+        out double value)
+    {
+        value = 0;
+        return record.ValueKind == JsonValueKind.Object
+            && record.TryGetProperty(propertyName, out JsonElement element)
+            && element.TryGetDouble(out value)
+            && double.IsFinite(value);
     }
 
     private void HandleLifecycleMessage(JsonElement payload)
@@ -750,4 +811,11 @@ internal sealed class WebViewHost : IDisposable
         InstallDesktopSessionCookie(core);
         core.Navigate(url.ToString());
     }
+}
+
+internal sealed record DesktopWindowRegionSet(
+    IReadOnlyList<Rect> DragRegions,
+    IReadOnlyList<Rect> NoDragRegions)
+{
+    internal static DesktopWindowRegionSet Empty { get; } = new([], []);
 }

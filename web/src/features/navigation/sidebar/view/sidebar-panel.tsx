@@ -135,6 +135,7 @@ export function SidebarPanel({
           data-desktop-window-drag-region
         >
           <SidebarBrandLink collapsed={collapsed} label={launcherLabel} />
+          <div aria-hidden="true" className="min-w-0 flex-1 self-stretch" />
           {!collapsed ? (
             <div className="sidebar-panel-header-toggle shrink-0">
               <SidebarPanelToggleAction

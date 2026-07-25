@@ -26,6 +26,7 @@ public partial class MainWindow : System.Windows.Window
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly DesktopUpdateChecker updateChecker;
     private readonly DesktopTrayController trayController;
+    private readonly DesktopWindowInteraction windowInteraction;
     private readonly System.Windows.Threading.DispatcherTimer webViewHealthProbeTimer;
     private WebViewHost? webViewHost;
     private bool closed;
@@ -41,6 +42,7 @@ public partial class MainWindow : System.Windows.Window
         this.startupTimeline = startupTimeline;
         this.updateChecker = updateChecker;
         InitializeComponent();
+        windowInteraction = new DesktopWindowInteraction(this);
         ConfigureInitialWindowBounds();
         ConfigureWebViewSurface(MainWebView);
         trayController = new DesktopTrayController(
@@ -136,24 +138,30 @@ public partial class MainWindow : System.Windows.Window
     {
         webViewHost?.Dispose();
         webViewHost = null;
+        windowInteraction.UpdateRegions(DesktopWindowRegionSet.Empty);
     }
 
-    private WebViewHost CreateWebViewHost(WebView2 webView)
+    private WebViewHost CreateWebViewHost(WebView2CompositionControl webView)
     {
-        return new WebViewHost(webView, runtime, startupTimeline, RecreateWebViewAsync);
+        return new WebViewHost(
+            webView,
+            runtime,
+            startupTimeline,
+            RecreateWebViewAsync,
+            windowInteraction.UpdateRegions);
     }
 
-    private WebView2 GetOrCreateWebViewControl()
+    private WebView2CompositionControl GetOrCreateWebViewControl()
     {
         foreach (UIElement child in WebViewContainer.Children)
         {
-            if (child is WebView2 webView)
+            if (child is WebView2CompositionControl webView)
             {
                 return webView;
             }
         }
 
-        ChromeWebView2 nextWebView = new();
+        WebView2CompositionControl nextWebView = new();
         ConfigureWebViewSurface(nextWebView);
         WebViewContainer.Children.Add(nextWebView);
         return nextWebView;
@@ -191,7 +199,7 @@ public partial class MainWindow : System.Windows.Window
 
             DisposeWebView();
             WebViewContainer.Children.Clear();
-            ChromeWebView2 replacement = new();
+            WebView2CompositionControl replacement = new();
             ConfigureWebViewSurface(replacement);
             WebViewContainer.Children.Add(replacement);
             webViewHost = CreateWebViewHost(replacement);
@@ -389,9 +397,10 @@ public partial class MainWindow : System.Windows.Window
 
     private void CloseWindow(object sender, RoutedEventArgs e) => SystemCommands.CloseWindow(this);
 
-    private static void ConfigureWebViewSurface(WebView2 webView)
+    private void ConfigureWebViewSurface(WebView2CompositionControl webView)
     {
         webView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
+        windowInteraction.Attach(webView);
     }
 
     private static void ConfigureNativeWindowBackdrop(IntPtr hwnd)
@@ -404,10 +413,13 @@ public partial class MainWindow : System.Windows.Window
         TrySetDwmAttribute(hwnd, DwmWindowAttribute.SystemBackdropType, DwmSystemBackdropType.MainWindow);
         TrySetDwmAttribute(hwnd, DwmWindowAttribute.WindowCornerPreference, DwmWindowCornerPreference.Round);
         TrySetDwmAttribute(hwnd, DwmWindowAttribute.UseImmersiveDarkMode, 0);
-        TrySetDwmAttribute(hwnd, DwmWindowAttribute.CaptionColor, 0x00EFF1F0);
-        TrySetDwmAttribute(hwnd, DwmWindowAttribute.BorderColor, 0x00D8DDDA);
-        TrySetDwmAttribute(hwnd, DwmWindowAttribute.TextColor, 0x002C2117);
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.CaptionColor, DwmColor(0xF9, 0xF9, 0xF7));
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.BorderColor, DwmColor(0xD8, 0xDD, 0xDA));
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.TextColor, DwmColor(0x2C, 0x21, 0x17));
     }
+
+    private static int DwmColor(byte red, byte green, byte blue) =>
+        red | (green << 8) | (blue << 16);
 
     private static void TrySetDwmAttribute(IntPtr hwnd, int attribute, int value)
     {

@@ -8,6 +8,7 @@
 - `oauth.ts` 管理连接器 OAuth 回调与桌面回跳地址。
 - `lifecycle.ts` 管理 WebView ready、fatal、health 消息和诊断快照。
 - `desktop-location.ts` 统一 URL 与路径归一化，避免协议各自解释地址。
+- `window-regions.ts` 只向 Windows CompositionControl 宿主投影真实 Header 的拖动与交互矩形，不创建可见层或扩大手势面。
 
 ## 约定
 

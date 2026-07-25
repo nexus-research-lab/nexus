@@ -12,6 +12,7 @@ Add-Type -AssemblyName UIAutomationTypes
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 public static class NexusWindowChromeProbe
 {
@@ -47,6 +48,18 @@ public static class NexusWindowChromeProbe
     private static extern IntPtr SendMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetCursorPos(int x, int y);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+
+    [DllImport("user32.dll")]
     public static extern bool IsZoomed(IntPtr hwnd);
 
     public static string ValidateResizeBoundary(IntPtr hwnd)
@@ -66,6 +79,10 @@ public static class NexusWindowChromeProbe
                 (Name: "right", X: bounds.Right - 2, Y: (bounds.Top + bounds.Bottom) / 2, Hit: 11),
                 (Name: "top", X: (bounds.Left + bounds.Right) / 2, Y: bounds.Top + 2, Hit: 12),
                 (Name: "bottom", X: (bounds.Left + bounds.Right) / 2, Y: bounds.Bottom - 2, Hit: 15),
+                (Name: "top-left", X: bounds.Left + 2, Y: bounds.Top + 2, Hit: 13),
+                (Name: "top-right", X: bounds.Right - 2, Y: bounds.Top + 2, Hit: 14),
+                (Name: "bottom-left", X: bounds.Left + 2, Y: bounds.Bottom - 2, Hit: 16),
+                (Name: "bottom-right", X: bounds.Right - 2, Y: bounds.Bottom - 2, Hit: 17),
             };
             foreach (var edge in edges)
             {
@@ -80,6 +97,56 @@ public static class NexusWindowChromeProbe
                 {
                     return $"{edge.Name} edge returned hit code {actualHit}, expected {edge.Hit}";
                 }
+            }
+            return string.Empty;
+        }
+        finally
+        {
+            if (previousDpi != IntPtr.Zero)
+            {
+                _ = SetThreadDpiAwarenessContext(previousDpi);
+            }
+        }
+    }
+
+    public static string ValidateHeaderDrag(IntPtr hwnd)
+    {
+        IntPtr previousDpi = SetThreadDpiAwarenessContext(new IntPtr(-4));
+        try
+        {
+            if (!GetWindowRect(hwnd, out Rect before))
+            {
+                return "cannot read window bounds";
+            }
+
+            double scale = Math.Max(1, GetDpiForWindow(hwnd) / 96.0);
+            int startX = (before.Left + before.Right) / 2;
+            int startY = before.Top + (int)Math.Round(30 * scale);
+            int movement = (int)Math.Round(48 * scale);
+            int deltaX = before.Left > movement ? -movement : movement;
+
+            _ = SetForegroundWindow(hwnd);
+            _ = SetCursorPos(startX, startY);
+            mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
+            try
+            {
+                Thread.Sleep(100);
+                _ = SetCursorPos(startX + deltaX, startY);
+                Thread.Sleep(180);
+            }
+            finally
+            {
+                mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+            }
+            Thread.Sleep(250);
+
+            if (!GetWindowRect(hwnd, out Rect after))
+            {
+                return "cannot read moved window bounds";
+            }
+            if (Math.Abs(after.Left - before.Left) < movement / 2)
+            {
+                return $"launcher Header did not move the window: before={before.Left},{before.Top} after={after.Left},{after.Top}";
             }
             return string.Empty;
         }
@@ -240,6 +307,11 @@ try {
   $mainWindowHandle = [IntPtr]$process.MainWindowHandle
   if ($mainWindowHandle -eq [IntPtr]::Zero) {
     throw "Expected Nexus main window handle"
+  }
+  Start-Sleep -Milliseconds 500
+  $dragError = [NexusWindowChromeProbe]::ValidateHeaderDrag($mainWindowHandle)
+  if (-not [string]::IsNullOrEmpty($dragError)) {
+    throw "Invalid window drag region: $dragError"
   }
   $chromeError = [NexusWindowChromeProbe]::ValidateResizeBoundary($mainWindowHandle)
   if (-not [string]::IsNullOrEmpty($chromeError)) {

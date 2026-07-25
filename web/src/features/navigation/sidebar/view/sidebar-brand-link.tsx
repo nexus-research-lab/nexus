@@ -22,8 +22,10 @@ export function SidebarBrandLink({
       aria-label={label}
       aria-hidden={collapsed || undefined}
       className={cn(
-        "group/brand relative isolate flex h-10 min-w-0 flex-1 cursor-default items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
-        collapsed && "pointer-events-none opacity-0",
+        "group/brand relative isolate flex h-10 cursor-default items-center overflow-hidden transition-opacity duration-(--motion-duration-fast)",
+        collapsed
+          ? "min-w-0 flex-1 pointer-events-none opacity-0"
+          : "shrink-0",
       )}
       data-tour-anchor={SIDEBAR_TOUR_ANCHORS.launcher}
       tabIndex={collapsed ? -1 : undefined}

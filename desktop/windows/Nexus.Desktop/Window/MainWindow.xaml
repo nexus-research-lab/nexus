@@ -2,20 +2,20 @@
   x:Class="Nexus.Desktop.Window.MainWindow"
   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:local="clr-namespace:Nexus.Desktop.Window"
   xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
   xmlns:system="clr-namespace:System.Windows;assembly=PresentationFramework"
+  xmlns:webview="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
   Title="Nexus"
-  Background="#F0F1EF"
+  Background="#F9F9F7"
   ResizeMode="CanResize"
   WindowStyle="SingleBorderWindow"
   WindowStartupLocation="CenterScreen">
   <WindowChrome.WindowChrome>
-    <!-- Web Header 继续占据标题栏平面；窗口按钮由宿主绘制，避免 WebView2 HWND 遮住 DWM 图形。 -->
+    <!-- 客户区铺到物理顶边；拖动面由 Web Header 声明，宿主只保留缩放与窗口命令。 -->
     <shell:WindowChrome
       CaptionHeight="0"
       CornerRadius="0"
-      GlassFrameThickness="0,60,0,0"
+      GlassFrameThickness="0"
       ResizeBorderThickness="6"
       UseAeroCaptionButtons="False" />
   </WindowChrome.WindowChrome>
@@ -68,13 +68,13 @@
   </Window.Resources>
   <Grid Background="Transparent">
     <Grid x:Name="WebViewContainer" Background="Transparent">
-      <local:ChromeWebView2 x:Name="MainWebView" />
+      <webview:WebView2CompositionControl x:Name="MainWebView" />
     </Grid>
     <Grid
       Panel.ZIndex="1"
       HorizontalAlignment="Right"
       VerticalAlignment="Top"
-      Background="#F0F1EF"
+      Background="Transparent"
       shell:WindowChrome.IsHitTestVisibleInChrome="True">
       <Grid.Style>
         <Style TargetType="{x:Type Grid}">
