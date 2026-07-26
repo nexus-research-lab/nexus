@@ -129,6 +129,14 @@
     flex: 0 0 var(--desktop-window-controls-inset, 84px);
   }
 
+  .home-desktop-drag-header {
+    display: none;
+  }
+
+  :root[data-desktop-platform="macos"] .home-desktop-drag-header {
+    display: block;
+  }
+
   .desktop-rail {
     position: relative;
     z-index: 10;
