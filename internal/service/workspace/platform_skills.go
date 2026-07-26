@@ -172,10 +172,19 @@ func normalizeRuntimeReadableTree(root string) error {
 }
 
 func copyDirectoryTree(sourceRoot string, targetRoot string) error {
+	sourceInfo, err := os.Stat(sourceRoot)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(targetRoot, 0o755); err != nil {
 		return err
 	}
-	return filepath.Walk(sourceRoot, func(path string, info os.FileInfo, walkErr error) error {
+	type directoryPermission struct {
+		path string
+		mode os.FileMode
+	}
+	directories := []directoryPermission{{path: targetRoot, mode: sourceInfo.Mode().Perm()}}
+	err = filepath.Walk(sourceRoot, func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -188,7 +197,13 @@ func copyDirectoryTree(sourceRoot string, targetRoot string) error {
 		}
 		target := filepath.Join(targetRoot, relative)
 		if info.IsDir() {
-			return os.MkdirAll(target, info.Mode())
+			// 内置 Skill 源可能来自 root-owned 0555 镜像目录。暂存副本必须先
+			// 允许 server 写入子文件，所有内容复制完成后再恢复源目录权限。
+			if err = os.MkdirAll(target, 0o755); err != nil {
+				return err
+			}
+			directories = append(directories, directoryPermission{path: target, mode: info.Mode().Perm()})
+			return nil
 		}
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
@@ -216,6 +231,16 @@ func copyDirectoryTree(sourceRoot string, targetRoot string) error {
 		}
 		return os.Chmod(target, info.Mode())
 	})
+	if err != nil {
+		return err
+	}
+	for index := len(directories) - 1; index >= 0; index-- {
+		directory := directories[index]
+		if err = os.Chmod(directory.path, directory.mode); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func replaceDirectory(sourceRoot string, targetRoot string) error {

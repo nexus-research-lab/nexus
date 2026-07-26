@@ -60,3 +60,38 @@ func TestEnsurePlatformSkillLibraryPublishesRuntimeReadableTree(t *testing.T) {
 		t.Fatalf("遍历平台 Skill 根失败: %v", err)
 	}
 }
+
+func TestReplacePlatformSkillLibraryCopiesReadOnlySource(t *testing.T) {
+	sourceRoot := filepath.Join(t.TempDir(), "skills")
+	sourceSkill := filepath.Join(sourceRoot, "goal-manager")
+	if err := os.MkdirAll(sourceSkill, 0o755); err != nil {
+		t.Fatalf("创建测试 Skill 目录失败: %v", err)
+	}
+	sourceSkillFile := filepath.Join(sourceSkill, "SKILL.md")
+	if err := os.WriteFile(sourceSkillFile, []byte("goal\n"), 0o644); err != nil {
+		t.Fatalf("写入测试 Skill 文件失败: %v", err)
+	}
+	if err := os.Chmod(sourceSkillFile, 0o444); err != nil {
+		t.Fatalf("收紧测试 Skill 文件权限失败: %v", err)
+	}
+	if err := os.Chmod(sourceSkill, 0o555); err != nil {
+		t.Fatalf("收紧测试 Skill 目录权限失败: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(sourceSkill, 0o755)
+		_ = os.Chmod(sourceSkillFile, 0o644)
+	})
+
+	targetRoot := filepath.Join(t.TempDir(), "platform-skills")
+	if err := replacePlatformSkillLibrary(sourceRoot, targetRoot, "test-fingerprint"); err != nil {
+		t.Fatalf("只读源 Skill 应可发布到暂存目录: %v", err)
+	}
+	publishedSkill := filepath.Join(targetRoot, ".agents", "skills", "goal-manager", "SKILL.md")
+	content, err := os.ReadFile(publishedSkill)
+	if err != nil {
+		t.Fatalf("读取已发布 Skill 失败: %v", err)
+	}
+	if string(content) != "goal\n" {
+		t.Fatalf("已发布 Skill 内容 = %q, want goal", content)
+	}
+}
