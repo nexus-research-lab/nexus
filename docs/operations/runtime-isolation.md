@@ -5,6 +5,11 @@ root-owned launcher 负责创建不可登录的 runtime 用户、切换 UID/GID�
 POSIX ACL，并在 `exec` nxs 或 Claude 前设置 `no_new_privs`、进入 Landlock
 domain。
 
+`ensure-host`、`ensure-user`、项目授权和 policy prepare 等管理子命令会在
+校验 host 调用方与 launcher 文件后，将 real/effective/fs UID/GID 统一提升为
+root，再遍历和修复 ACL。普通 runtime argv 不经过该提升路径，仍直接降到
+owner UID/GID、清空非授权组并进入 Landlock。
+
 ## 启用条件
 
 - 原生 Linux 或具备可靠 POSIX ACL/xattr 语义的 Linux volume；

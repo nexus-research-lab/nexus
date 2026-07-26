@@ -19,6 +19,16 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var managementCommands = map[string]struct{}{
+	"ensure-host":    {},
+	"ensure-user":    {},
+	"prepare":        {},
+	"project-ensure": {},
+	"project-grant":  {},
+	"project-list":   {},
+	"stop-user":      {},
+}
+
 // Run 执行 root-owned launcher。返回值可直接交给 os.Exit。
 func Run(args []string, environ []string, stdout io.Writer, stderr io.Writer) int {
 	if len(args) == 1 && (args[0] == "-v" || args[0] == "--version" || args[0] == "version") {
@@ -36,6 +46,12 @@ func Run(args []string, environ []string, stdout io.Writer, stderr io.Writer) in
 	}
 	if len(args) == 0 {
 		return runRuntime(config, environ, nil, stderr)
+	}
+	if _, management := managementCommands[args[0]]; management {
+		if err = promoteManagementRootIdentity(); err != nil {
+			_, _ = fmt.Fprintln(stderr, err)
+			return 1
+		}
 	}
 	switch args[0] {
 	case "ensure-host":
@@ -62,6 +78,33 @@ func Run(args []string, environ []string, stdout io.Writer, stderr io.Writer) in
 		return 1
 	}
 	return 0
+}
+
+// promoteManagementRootIdentity 在受信任 host 调用方校验完成后，把 setuid
+// launcher 的 real/fs UID/GID 一并提升为 root。管理命令需要遍历历史私有
+// 目录；只保留 effective uid 会让部分容器内核按调用方 fsuid 执行 DAC 检查。
+// runtime argv 不走此路径，仍在 exec 前直接降到 owner UID/GID 并进入 Landlock。
+func promoteManagementRootIdentity() error {
+	if err := syscall.Setgroups([]int{0}); err != nil {
+		return fmt.Errorf("收紧 launcher management supplementary groups: %w", err)
+	}
+	if err := syscall.Setresgid(0, 0, 0); err != nil {
+		return fmt.Errorf("提升 launcher management gid: %w", err)
+	}
+	if err := syscall.Setresuid(0, 0, 0); err != nil {
+		return fmt.Errorf("提升 launcher management uid: %w", err)
+	}
+	if err := unix.Setfsgid(0); err != nil {
+		return fmt.Errorf("提升 launcher management fsgid: %w", err)
+	}
+	if err := unix.Setfsuid(0); err != nil {
+		return fmt.Errorf("提升 launcher management fsuid: %w", err)
+	}
+	if os.Getuid() != 0 || os.Geteuid() != 0 ||
+		os.Getgid() != 0 || os.Getegid() != 0 {
+		return errors.New("launcher management root 身份提升后校验失败")
+	}
+	return nil
 }
 
 func runEnsureHost(config launcherConfig, args []string, stdout io.Writer) error {
