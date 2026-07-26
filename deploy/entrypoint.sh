@@ -290,16 +290,18 @@ prepare_claude_settings() {
         SETTINGS="$(echo "${SETTINGS}" | jq '. + {skipDangerousModePermissionPrompt: true}')"
     fi
 
-    # 入口脚本可能先于 Nexus 的布局迁移执行。先合并旧根和已迁移配置，
-    # 再叠加本次宿主配置，保证升级不丢用户设置，也不允许旧值反覆盖
-    # 当前部署明确要求的安全与运行参数。
+    # 入口脚本运行在宿主 agent 身份，先合并既有配置，再叠加本次部署
+    # 明确要求的安全与运行参数。已有 runtime 文件的 ACL 由 launcher 管理，
+    # 入口脚本只负责写入内容，不重新 chmod 运行时 owner 的文件。
     local EXISTING_SETTINGS='{}'
+    local settings_exists=false
     if [[ -f "${legacy_settings}" ]]; then
         EXISTING_SETTINGS="$(merge_json_objects \
             <(printf '%s\n' "${EXISTING_SETTINGS}") \
             "${legacy_settings}")"
     fi
     if [[ -f "${runtime_root}/settings.json" ]]; then
+        settings_exists=true
         EXISTING_SETTINGS="$(merge_json_objects \
             <(printf '%s\n' "${EXISTING_SETTINGS}") \
             "${runtime_root}/settings.json")"
@@ -312,11 +314,15 @@ prepare_claude_settings() {
     previous_umask="$(umask)"
     umask 077
     printf '%s\n' "${SETTINGS}" > "${runtime_root}/settings.json"
-    chmod 0600 "${runtime_root}/settings.json"
+    if [[ "${settings_exists}" == false ]]; then
+        chmod 0600 "${runtime_root}/settings.json"
+    fi
     umask "${previous_umask}"
     echo "Settings written to ${runtime_root}/settings.json"
 
+    local claude_settings_exists=true
     if [[ ! -f "${runtime_root}/.claude.json" ]]; then
+        claude_settings_exists=false
         if [[ -f "${legacy_claude_file}" ]]; then
             cp "${legacy_claude_file}" "${runtime_root}/.claude.json"
         else
@@ -331,7 +337,9 @@ prepare_claude_settings() {
     normalize_json_object "${runtime_root}/.claude.json" |
         jq '. + {hasCompletedOnboarding: true}' |
         write_json_file_in_place "${runtime_root}/.claude.json"
-    chmod 0600 "${runtime_root}/.claude.json"
+    if [[ "${claude_settings_exists}" == false ]]; then
+        chmod 0600 "${runtime_root}/.claude.json"
+    fi
 }
 
 resolve_sqlite_database_path() {
