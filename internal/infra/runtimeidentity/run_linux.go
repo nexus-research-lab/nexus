@@ -134,6 +134,9 @@ func runEnsureHost(config launcherConfig, args []string, stdout io.Writer) error
 	if err = ensureCgroupHost(config); err != nil {
 		return fmt.Errorf("校验 cgroup v2: %w", err)
 	}
+	if err = validateRuntimeIsolationHardLinks(config.StateRoot); err != nil {
+		return err
+	}
 	if err := ensureHostLayout(config); err != nil {
 		return err
 	}

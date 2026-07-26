@@ -117,6 +117,10 @@ runtime 必须通过受控 launcher 或 worker 启动。launcher 至少校验：
 - 不允许调用方注入任意 `argv`、`LD_PRELOAD`、动态 loader 或额外文件描述符；
 - 启动后立即丢弃不必要的 capability。
 
+启动期的跨用户、跨项目和隔离根外硬链接校验也由已提升完整 root 身份的
+launcher 在修改 ACL 前完成；host app UID 不直接遍历 runtime 创建的 `0700`
+私有会话目录。
+
 不允许为了省去 launcher 而让整个 Nexus server 以 root 运行，也不允许挂载 Docker socket 让 runtime 自己创建容器。
 
 ### 5.3 App 与 Web 统一租户模型

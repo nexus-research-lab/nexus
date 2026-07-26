@@ -1,6 +1,6 @@
 //go:build linux
 
-package migration
+package runtimeidentity
 
 import (
 	"fmt"
@@ -26,8 +26,8 @@ type protectedInodeObservation struct {
 // validateRuntimeIsolationHardLinks 拒绝跨用户、跨项目或指向隔离根外的硬链接。
 //
 // ACL 和 chown 作用于 inode 而不是路径；若存量数据保留跨边界硬链接，最后迁移
-// 的 owner 会改变所有别名的权限。这里宁可阻止 enforce 启动，也不猜测性地复制
-// 用户数据或静默破坏硬链接语义。
+// 的 owner 会改变所有别名的权限。该检查必须由已提升完整 root 身份的 launcher
+// 执行，不能要求 host app UID 穿越 runtime 创建的 0700 私有目录。
 func validateRuntimeIsolationHardLinks(stateRoot string) error {
 	observations := map[protectedInodeKey]*protectedInodeObservation{}
 	for _, protectedRoot := range []struct {

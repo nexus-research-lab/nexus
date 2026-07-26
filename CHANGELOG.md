@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reconciled legacy project-level `.nexus` metadata directories into each runtime owner's private UID/GID so nxs can discover project commands after isolation is enabled.
 - Promoted verified launcher management commands to a complete root filesystem identity before ACL reconciliation, preventing setuid callers from failing on legacy private directories while runtime execution still drops directly into the owner UID/GID and Landlock.
 - Allowed the nxs session-memory worker to edit only its canonical owner-scoped `summary.md`, keeping all other runtime state outside ordinary tool write roots.
+- Moved protected-tree hard-link validation into the root launcher so restart checks can traverse runtime-created private session directories without widening app-process access.
 
 ## [0.1.29] - 2026-07-26
 

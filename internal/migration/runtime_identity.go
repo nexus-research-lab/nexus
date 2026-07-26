@@ -40,9 +40,6 @@ func RunRuntimeIdentitySync(
 	if runtime.GOOS != "linux" {
 		return fmt.Errorf("runtime isolation enforce 只支持 Linux")
 	}
-	if err = validateRuntimeIsolationHardLinks(appfs.StateRoot()); err != nil {
-		return err
-	}
 	launcherPath := filepath.Clean(strings.TrimSpace(cfg.RuntimeLauncherPath))
 	if !filepath.IsAbs(launcherPath) {
 		return fmt.Errorf("runtime launcher 必须是绝对路径: %q", cfg.RuntimeLauncherPath)

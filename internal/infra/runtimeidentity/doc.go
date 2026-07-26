@@ -9,6 +9,7 @@
 //   - registry_linux.go：稳定 identity/project registry 与启动票据。
 //   - accounts_linux.go：不可登录 OS 用户、私有组和 UID/GID 分配。
 //   - acl_linux.go：用户树与共享项目的 access/default POSIX ACL，以及无符号链接 fd 操作。
+//   - hardlinks_linux.go：root 身份下的跨用户、跨项目与隔离根外硬链接校验。
 //   - cgroup_linux.go：cgroup v2 per-user 进程继承与 cgroup.kill 回收。
 //   - project_linux.go：项目组创建、read/write 成员授权与撤销。
 //   - policy_linux.go：会话所需最小组与路径 policy 计算。
