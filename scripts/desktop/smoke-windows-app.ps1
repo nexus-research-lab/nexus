@@ -212,20 +212,36 @@ function Resolve-Bool([string]$value, [bool]$defaultValue) {
   throw "Invalid boolean value: $value"
 }
 
-function Find-CaptionButton([IntPtr]$Hwnd, [string]$Name) {
-  $root = [System.Windows.Automation.AutomationElement]::FromHandle($Hwnd)
-  $condition = [System.Windows.Automation.PropertyCondition]::new(
+function New-AutomationNameCondition([string]$Name) {
+  return [System.Windows.Automation.PropertyCondition]::new(
     [System.Windows.Automation.AutomationElement]::NameProperty,
     $Name
   )
-  $button = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
-  if ($null -eq $button -or $button.Current.ControlType -ne [System.Windows.Automation.ControlType]::Button) {
-    throw "Missing caption button: $Name"
+}
+
+function Find-VisibleControl(
+  [System.Windows.Automation.AutomationElement]$Root,
+  [System.Windows.Automation.Condition]$Condition,
+  [System.Windows.Automation.ControlType]$ControlType,
+  [string]$Description
+) {
+  $control = $Root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $Condition)
+  if ($null -eq $control -or $control.Current.ControlType -ne $ControlType) {
+    throw "Missing $Description"
   }
-  if ($button.Current.IsOffscreen -or $button.Current.BoundingRectangle.IsEmpty) {
-    throw "Caption button is not visible: $Name"
+  if ($control.Current.IsOffscreen -or $control.Current.BoundingRectangle.IsEmpty) {
+    throw "$Description is not visible"
   }
-  return $button
+  return $control
+}
+
+function Find-CaptionButton([IntPtr]$Hwnd, [string]$Name) {
+  $root = [System.Windows.Automation.AutomationElement]::FromHandle($Hwnd)
+  return Find-VisibleControl `
+    $root `
+    (New-AutomationNameCondition $Name) `
+    ([System.Windows.Automation.ControlType]::Button) `
+    "caption button: $Name"
 }
 
 function Invoke-CaptionButton([IntPtr]$Hwnd, [string]$Name) {
@@ -236,18 +252,40 @@ function Invoke-CaptionButton([IntPtr]$Hwnd, [string]$Name) {
 
 function Find-MenuItem([IntPtr]$Hwnd, [string]$Name) {
   $root = [System.Windows.Automation.AutomationElement]::FromHandle($Hwnd)
-  $condition = [System.Windows.Automation.PropertyCondition]::new(
-    [System.Windows.Automation.AutomationElement]::NameProperty,
-    $Name
+  return Find-VisibleControl `
+    $root `
+    (New-AutomationNameCondition $Name) `
+    ([System.Windows.Automation.ControlType]::MenuItem) `
+    "native menu item: $Name"
+}
+
+function Find-ApplicationMenuItem([int]$ProcessId, [string]$Name) {
+  $condition = [System.Windows.Automation.AndCondition]::new(
+    [System.Windows.Automation.PropertyCondition]::new(
+      [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
+      $ProcessId
+    ),
+    (New-AutomationNameCondition $Name)
   )
-  $menuItem = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
-  if ($null -eq $menuItem -or $menuItem.Current.ControlType -ne [System.Windows.Automation.ControlType]::MenuItem) {
-    throw "Missing native menu item: $Name"
+  return Find-VisibleControl `
+    ([System.Windows.Automation.AutomationElement]::RootElement) `
+    $condition `
+    ([System.Windows.Automation.ControlType]::MenuItem) `
+    "native popup menu item: $Name"
+}
+
+function Test-FileMenuPopup([IntPtr]$Hwnd, [int]$ProcessId) {
+  $fileMenu = Find-MenuItem $Hwnd "文件"
+  $expand = $fileMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+  $expand.Expand()
+  try {
+    Start-Sleep -Milliseconds 350
+    [void](Find-ApplicationMenuItem $ProcessId "关闭窗口")
+    [void](Find-ApplicationMenuItem $ProcessId "退出 Nexus")
+  } finally {
+    $expand.Collapse()
+    Start-Sleep -Milliseconds 250
   }
-  if ($menuItem.Current.IsOffscreen -or $menuItem.Current.BoundingRectangle.IsEmpty) {
-    throw "Native menu item is not visible: $Name"
-  }
-  return $menuItem
 }
 
 $rootDir = Resolve-RootDir
@@ -358,6 +396,7 @@ try {
   Wait-Until {
     return -not [NexusWindowChromeProbe]::IsZoomed($mainWindowHandle)
   } 10 "window restore"
+  Test-FileMenuPopup $mainWindowHandle $process.Id
 
   Write-Host "==> Closing app to tray"
   [void]$process.CloseMainWindow()

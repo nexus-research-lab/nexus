@@ -75,11 +75,180 @@
         </Trigger>
       </Style.Triggers>
     </Style>
+    <!-- 菜单仍由 WPF 维护键盘与焦点语义；模板只统一顶层入口和浮层的视觉边界。 -->
+    <SolidColorBrush x:Key="NativeMenuSurfaceBrush" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="NativeMenuBorderBrush" Color="#1C0B0B0B" />
+    <SolidColorBrush x:Key="NativeMenuDividerBrush" Color="#140B0B0B" />
+    <SolidColorBrush x:Key="NativeMenuTextBrush" Color="#FF383835" />
+    <SolidColorBrush x:Key="NativeMenuTextStrongBrush" Color="#FF131313" />
+    <SolidColorBrush x:Key="NativeMenuTextMutedBrush" Color="#FF5F5E5A" />
+    <SolidColorBrush x:Key="NativeMenuIconBrush" Color="#FF52514E" />
+    <SolidColorBrush x:Key="NativeMenuHoverBrush" Color="#FFF3F3F0" />
+    <SolidColorBrush x:Key="NativeMenuActiveBrush" Color="#FFF0EFEC" />
+    <SolidColorBrush x:Key="NativeMenuFocusBrush" Color="#3D5B72FF" />
+    <Style x:Key="TitleBarMenuFocusVisualStyle" TargetType="{x:Type Control}">
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type Control}">
+            <Border
+              Margin="4,1"
+              BorderBrush="{StaticResource NativeMenuFocusBrush}"
+              BorderThickness="2"
+              CornerRadius="8" />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <ControlTemplate x:Key="TitleBarMenuItemTemplate" TargetType="{x:Type MenuItem}">
+      <Grid x:Name="MenuItemRoot" SnapsToDevicePixels="True">
+        <Border
+          x:Name="MenuItemSurface"
+          MinHeight="32"
+          Margin="4,1"
+          Padding="10,0"
+          Background="Transparent"
+          CornerRadius="8">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" SharedSizeGroup="MenuGesture" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ContentPresenter
+              x:Name="HeaderContent"
+              VerticalAlignment="Center"
+              ContentSource="Header"
+              RecognizesAccessKey="True"
+              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+            <TextBlock
+              x:Name="GestureText"
+              Grid.Column="1"
+              Margin="28,0,2,0"
+              VerticalAlignment="Center"
+              FontSize="12"
+              Foreground="{StaticResource NativeMenuTextMutedBrush}"
+              Text="{TemplateBinding InputGestureText}" />
+            <TextBlock
+              x:Name="SubmenuArrow"
+              Grid.Column="2"
+              Margin="14,0,2,0"
+              VerticalAlignment="Center"
+              FontSize="17"
+              Foreground="{StaticResource NativeMenuIconBrush}"
+              Text="›"
+              Visibility="Collapsed" />
+          </Grid>
+        </Border>
+
+        <Popup
+          x:Name="PART_Popup"
+          AllowsTransparency="True"
+          Focusable="False"
+          HorizontalOffset="-2"
+          IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+          Placement="Right"
+          PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+          PopupAnimation="Fade"
+          StaysOpen="False"
+          VerticalOffset="-8">
+          <Grid MinWidth="220" Margin="8,4,12,12">
+            <Border
+              Background="{StaticResource NativeMenuSurfaceBrush}"
+              CornerRadius="16">
+              <Border.Effect>
+                <DropShadowEffect
+                  BlurRadius="32"
+                  Direction="270"
+                  Opacity="0.14"
+                  ShadowDepth="12"
+                  Color="#FF0B0B0B" />
+              </Border.Effect>
+            </Border>
+            <Border
+              Grid.IsSharedSizeScope="True"
+              Padding="4"
+              Background="{StaticResource NativeMenuSurfaceBrush}"
+              BorderBrush="{StaticResource NativeMenuBorderBrush}"
+              BorderThickness="1"
+              CornerRadius="16">
+              <ScrollViewer
+                CanContentScroll="True"
+                Focusable="False"
+                HorizontalScrollBarVisibility="Disabled"
+                VerticalScrollBarVisibility="Auto">
+                <ItemsPresenter
+                  x:Name="ItemsPresenter"
+                  KeyboardNavigation.DirectionalNavigation="Cycle"
+                  SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+              </ScrollViewer>
+            </Border>
+          </Grid>
+        </Popup>
+      </Grid>
+      <ControlTemplate.Triggers>
+        <Trigger Property="Role" Value="TopLevelHeader">
+          <Setter TargetName="MenuItemSurface" Property="MinHeight" Value="30" />
+          <Setter TargetName="MenuItemSurface" Property="Margin" Value="1,2" />
+          <Setter TargetName="MenuItemSurface" Property="Padding" Value="10,0" />
+          <Setter TargetName="MenuItemSurface" Property="CornerRadius" Value="8" />
+          <Setter TargetName="GestureText" Property="Visibility" Value="Collapsed" />
+          <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom" />
+          <Setter TargetName="PART_Popup" Property="HorizontalOffset" Value="-7" />
+          <Setter TargetName="PART_Popup" Property="VerticalOffset" Value="-2" />
+        </Trigger>
+        <Trigger Property="Role" Value="TopLevelItem">
+          <Setter TargetName="MenuItemSurface" Property="MinHeight" Value="30" />
+          <Setter TargetName="MenuItemSurface" Property="Margin" Value="1,2" />
+          <Setter TargetName="MenuItemSurface" Property="Padding" Value="10,0" />
+          <Setter TargetName="MenuItemSurface" Property="CornerRadius" Value="8" />
+          <Setter TargetName="GestureText" Property="Visibility" Value="Collapsed" />
+        </Trigger>
+        <Trigger Property="Role" Value="SubmenuHeader">
+          <Setter TargetName="GestureText" Property="Visibility" Value="Collapsed" />
+          <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible" />
+        </Trigger>
+        <Trigger Property="IsHighlighted" Value="True">
+          <Setter Property="Foreground" Value="{StaticResource NativeMenuTextStrongBrush}" />
+          <Setter
+            TargetName="MenuItemSurface"
+            Property="Background"
+            Value="{StaticResource NativeMenuHoverBrush}" />
+        </Trigger>
+        <Trigger Property="IsSubmenuOpen" Value="True">
+          <Setter Property="Foreground" Value="{StaticResource NativeMenuTextStrongBrush}" />
+          <Setter
+            TargetName="MenuItemSurface"
+            Property="Background"
+            Value="{StaticResource NativeMenuActiveBrush}" />
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter TargetName="MenuItemSurface" Property="Opacity" Value="0.50" />
+        </Trigger>
+      </ControlTemplate.Triggers>
+    </ControlTemplate>
     <Style x:Key="TitleBarMenuItemStyle" TargetType="{x:Type MenuItem}">
       <Setter Property="FontFamily" Value="Segoe UI" />
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="Foreground" Value="#FF292929" />
-      <Setter Property="Padding" Value="9,5" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="Foreground" Value="{StaticResource NativeMenuTextBrush}" />
+      <Setter Property="FocusVisualStyle" Value="{StaticResource TitleBarMenuFocusVisualStyle}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Template" Value="{StaticResource TitleBarMenuItemTemplate}" />
+    </Style>
+    <Style x:Key="TitleBarMenuSeparatorStyle" TargetType="{x:Type Separator}">
+      <Setter Property="Height" Value="9" />
+      <Setter Property="Margin" Value="16,1" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="{x:Type Separator}">
+            <Border
+              Height="1"
+              VerticalAlignment="Center"
+              Background="{StaticResource NativeMenuDividerBrush}"
+              SnapsToDevicePixels="True" />
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
   </Window.Resources>
   <Grid Background="Transparent">
@@ -171,13 +340,22 @@
           IsMainMenu="True"
           ItemContainerStyle="{StaticResource TitleBarMenuItemStyle}"
           shell:WindowChrome.IsHitTestVisibleInChrome="True">
+          <Menu.Resources>
+            <!-- 显式声明的子菜单不会继承 Menu.ItemContainerStyle，资源域负责统一递归层级。 -->
+            <Style
+              BasedOn="{StaticResource TitleBarMenuItemStyle}"
+              TargetType="{x:Type MenuItem}" />
+            <Style
+              BasedOn="{StaticResource TitleBarMenuSeparatorStyle}"
+              TargetType="{x:Type Separator}" />
+          </Menu.Resources>
           <MenuItem AutomationProperties.Name="文件" Header="_文件">
             <MenuItem
               AutomationProperties.Name="关闭窗口"
               Click="CloseWindow"
               Header="关闭窗口"
               InputGestureText="Alt+F4" />
-            <Separator />
+            <Separator Style="{StaticResource TitleBarMenuSeparatorStyle}" />
             <MenuItem
               AutomationProperties.Name="退出 Nexus"
               Click="ExitApplication"
@@ -196,7 +374,7 @@
               Header="重做"
               InputGestureText="Ctrl+Y"
               Tag="redo" />
-            <Separator />
+            <Separator Style="{StaticResource TitleBarMenuSeparatorStyle}" />
             <MenuItem
               AutomationProperties.Name="剪切"
               Click="ExecuteWebEditCommand"
@@ -215,7 +393,7 @@
               Header="粘贴"
               InputGestureText="Ctrl+V"
               Tag="paste" />
-            <Separator />
+            <Separator Style="{StaticResource TitleBarMenuSeparatorStyle}" />
             <MenuItem
               AutomationProperties.Name="全选"
               Click="ExecuteWebEditCommand"
@@ -236,7 +414,7 @@
               Click="NavigateForward"
               Header="前进"
               IsEnabled="False" />
-            <Separator />
+            <Separator Style="{StaticResource TitleBarMenuSeparatorStyle}" />
             <MenuItem
               AutomationProperties.Name="重新加载"
               Click="ReloadFromTitleBar"
@@ -252,7 +430,7 @@
               AutomationProperties.Name="检查更新"
               Click="CheckForUpdatesFromTitleBar"
               Header="检查更新" />
-            <Separator />
+            <Separator Style="{StaticResource TitleBarMenuSeparatorStyle}" />
             <MenuItem
               AutomationProperties.Name="关于 Nexus"
               Click="ShowAbout"
