@@ -24,14 +24,25 @@
   }
 
   [data-desktop-window-drag-region] :is(
+    a,
     audio[controls],
+    button,
     iframe,
     input,
     select,
+    summary,
     textarea,
     video[controls],
     [contenteditable]:not([contenteditable="false"]),
-    [data-desktop-window-no-drag]
+    [data-desktop-window-no-drag],
+    [draggable="true"],
+    [role="button"],
+    [role="checkbox"],
+    [role="link"],
+    [role="menuitem"],
+    [role="switch"],
+    [role="tab"],
+    [tabindex]:not([tabindex="-1"])
   ),
   [data-desktop-window-no-drag] {
     app-region: no-drag;

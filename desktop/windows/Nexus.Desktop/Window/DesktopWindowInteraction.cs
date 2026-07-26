@@ -1,47 +1,48 @@
-// INPUT: Web 页面投影的 Header 拖动区与硬排除区。
-// OUTPUT: WPF 窗口拖动与双击缩放手势。
-// POS: 只解释窗口手势，不拥有 DOM 规则或窗口按钮。
+// INPUT: Web Header 的 app-region 几何与窗口命中测试消息。
+// OUTPUT: Windows 原生 caption 命中结果。
+// POS: CompositionControl 与 WindowChrome 之间的非客户区适配层。
 
-using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Threading;
+using System.Windows.Shell;
 using Microsoft.Web.WebView2.Wpf;
 using Nexus.Desktop.WebView;
+using Point = System.Windows.Point;
+using Thickness = System.Windows.Thickness;
 
 namespace Nexus.Desktop.Window;
 
-internal sealed class DesktopWindowInteraction
+internal sealed class DesktopWindowInteraction : IDisposable
 {
-    private const double DragActivationDistance = 4;
     private const int HitTestCaption = 2;
-    private const int VirtualKeyLeftButton = 0x01;
-    private const int WindowMessageNonClientLeftButtonDown = 0x00A1;
+    private const int WindowMessageNonClientHitTest = 0x0084;
 
-    private readonly DispatcherTimer dragTimer;
     private readonly System.Windows.Window window;
-    private PendingDrag? pendingDrag;
     private DesktopWindowRegionSet regions = DesktopWindowRegionSet.Empty;
+    private HwndSource? windowSource;
+    private WebView2CompositionControl? webView;
 
     internal DesktopWindowInteraction(System.Windows.Window window)
     {
         this.window = window;
-        // WebView2 会接管后续 move；仅在候选按下期间采样物理指针，短按序列原样留给 Web。
-        dragTimer = new DispatcherTimer(DispatcherPriority.Input, window.Dispatcher)
-        {
-            Interval = TimeSpan.FromMilliseconds(8),
-        };
-        dragTimer.Tick += (_, _) => TrackPendingDrag();
     }
 
-    internal void Attach(WebView2CompositionControl webView)
+    internal void AttachWindow(IntPtr windowHandle)
     {
-        webView.AddHandler(
-            UIElement.PreviewMouseLeftButtonDownEvent,
-            new System.Windows.Input.MouseButtonEventHandler(
-                (_, args) => HandleLeftButtonDown(webView, args)),
-            handledEventsToo: true);
+        windowSource = HwndSource.FromHwnd(windowHandle);
+        windowSource?.AddHook(HandleWindowMessage);
+    }
+
+    internal void SetWebView(WebView2CompositionControl nextWebView)
+    {
+        webView = nextWebView;
+        regions = DesktopWindowRegionSet.Empty;
+    }
+
+    internal void ResetWebView()
+    {
+        webView = null;
+        regions = DesktopWindowRegionSet.Empty;
     }
 
     internal void UpdateRegions(DesktopWindowRegionSet nextRegions)
@@ -49,127 +50,73 @@ internal sealed class DesktopWindowInteraction
         regions = nextRegions;
     }
 
-    private void HandleLeftButtonDown(
-        WebView2CompositionControl webView,
-        MouseButtonEventArgs args)
+    public void Dispose()
     {
-        FinishPendingDrag();
-        System.Windows.Point point = args.GetPosition(webView);
-        if (!CanDragAt(point))
-        {
-            return;
-        }
-
-        if (args.ClickCount == 2)
-        {
-            args.Handled = true;
-            ToggleWindowState();
-            return;
-        }
-
-        pendingDrag = new PendingDrag(webView, point);
-        dragTimer.Start();
+        windowSource?.RemoveHook(HandleWindowMessage);
+        windowSource = null;
+        ResetWebView();
     }
 
-    private void TrackPendingDrag()
+    private IntPtr HandleWindowMessage(
+        IntPtr ignoredWindowHandle,
+        int message,
+        IntPtr ignoredWordParameter,
+        IntPtr longParameter,
+        ref bool handled)
     {
-        if (pendingDrag is not { } drag ||
-            !IsLeftButtonPressed() ||
-            !GetCursorPos(out NativePoint cursor))
+        if (message != WindowMessageNonClientHitTest ||
+            webView is not { IsVisible: true } currentWebView)
         {
-            FinishPendingDrag();
-            return;
+            return IntPtr.Zero;
         }
 
-        System.Windows.Point point = drag.WebView.PointFromScreen(
-            new System.Windows.Point(cursor.X, cursor.Y));
-        if (DragDistance(drag.Origin, point) < DragActivationDistance)
+        Point point = WebViewPoint(currentWebView, longParameter);
+        if (!IsInside(currentWebView, point) ||
+            IsResizeBoundary(currentWebView, point) ||
+            !CanDragAt(point))
         {
-            return;
+            return IntPtr.Zero;
         }
 
-        FinishPendingDrag();
-        IntPtr windowHandle = new WindowInteropHelper(window).Handle;
-        if (windowHandle == IntPtr.Zero)
-        {
-            return;
-        }
-
-        // 越阈值后交还系统非客户区移动循环，避开 WPF 对浏览器按下状态的错误判断。
-        _ = ReleaseCapture();
-        _ = SendMessage(
-            windowHandle,
-            WindowMessageNonClientLeftButtonDown,
-            new IntPtr(HitTestCaption),
-            PackedScreenPoint(cursor));
+        handled = true;
+        return new IntPtr(HitTestCaption);
     }
 
-    private void FinishPendingDrag()
-    {
-        pendingDrag = null;
-        dragTimer.Stop();
-    }
-
-    private bool CanDragAt(System.Windows.Point point)
+    private bool CanDragAt(Point point)
     {
         return regions.DragRegions.Any(region => region.Contains(point))
             && !regions.NoDragRegions.Any(region => region.Contains(point));
     }
 
-    private void ToggleWindowState()
+    private bool IsResizeBoundary(WebView2CompositionControl currentWebView, Point point)
     {
-        if (window.WindowState == WindowState.Maximized)
+        if (window.WindowState != WindowState.Normal)
         {
-            SystemCommands.RestoreWindow(window);
-            return;
+            return false;
         }
-        SystemCommands.MaximizeWindow(window);
+
+        Thickness border = WindowChrome.GetWindowChrome(window)?.ResizeBorderThickness
+            ?? new Thickness();
+        return point.X < border.Left
+            || point.X >= currentWebView.ActualWidth - border.Right
+            || point.Y >= currentWebView.ActualHeight - border.Bottom;
     }
 
-    private static double DragDistance(
-        System.Windows.Point origin,
-        System.Windows.Point point)
+    private static Point WebViewPoint(
+        WebView2CompositionControl currentWebView,
+        IntPtr packedScreenPoint)
     {
-        double deltaX = point.X - origin.X;
-        double deltaY = point.Y - origin.Y;
-        return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY));
+        long packed = packedScreenPoint.ToInt64();
+        int screenX = unchecked((short)(packed & 0xFFFF));
+        int screenY = unchecked((short)((packed >> 16) & 0xFFFF));
+        return currentWebView.PointFromScreen(new Point(screenX, screenY));
     }
 
-    private static bool IsLeftButtonPressed() =>
-        (GetAsyncKeyState(VirtualKeyLeftButton) & 0x8000) != 0;
-
-    private static IntPtr PackedScreenPoint(NativePoint point)
+    private static bool IsInside(WebView2CompositionControl currentWebView, Point point)
     {
-        int packed = (point.Y << 16) | (point.X & 0xFFFF);
-        return new IntPtr(packed);
+        return point.X >= 0
+            && point.Y >= 0
+            && point.X < currentWebView.ActualWidth
+            && point.Y < currentWebView.ActualHeight;
     }
-
-    [DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int virtualKey);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GetCursorPos(out NativePoint point);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool ReleaseCapture();
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(
-        IntPtr windowHandle,
-        int message,
-        IntPtr wordParameter,
-        IntPtr longParameter);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativePoint
-    {
-        internal int X;
-        internal int Y;
-    }
-
-    private sealed record PendingDrag(
-        WebView2CompositionControl WebView,
-        System.Windows.Point Origin);
 }

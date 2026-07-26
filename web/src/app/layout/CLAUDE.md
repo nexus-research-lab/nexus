@@ -1,7 +1,7 @@
 # 应用布局
 
 - `app-layout.tsx` 是路由壳层，负责保持应用导航常驻并承载子路由 Outlet。
-- 可见 Header 通过 `data-desktop-window-drag-region` 复用桌面宿主窗口契约；标签、按钮与链接由 macOS/Windows 宿主仲裁短按和越阈值拖动，只有编辑控件与显式排除项保持硬 `no-drag`，不得额外叠加透明拖动条。
+- 可见 Header 通过 `data-desktop-window-drag-region` 复用桌面宿主窗口契约；macOS 宿主仲裁短按与拖动，Windows 则让 Header 空白区参与原生命中测试并把标签、按钮、链接和编辑控件保持为 `no-drag`，不得额外叠加透明拖动条。
 - `/app` 不渲染无内容 Header；首页画布从 Web 视口顶部开始。macOS 将该视口延伸到统一标题栏，Windows 则由原生标题/菜单栏独占上一行，Web 不感知 caption controls 几何。
 - macOS 窄窗口 Header 必须同时声明 `data-desktop-window-controls-leading`，让返回与标题内容避开原生 traffic lights；不得用业务断点复制固定 padding。
 - `mobile-app-route-model.ts` 是手机布局的信息架构真相源：聊天、联系人、能力为一级目录，其余业务路由为带返回栏的全屏二级页面。

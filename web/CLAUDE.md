@@ -89,7 +89,7 @@ src/
 - 定时任务运行历史由 `capability/scheduled/history/` 分离 Job 作用域资源、动作事务和纯视图；弹窗壳层不得直接请求 API 或维护单项命令状态
 - Goal 面板只通过 `shared/goal/use-goal-controller.ts` 读写状态；资源快照必须绑定会话键，刷新拒绝过期响应，所有写命令共享互斥入口
 - 桌面运行时只通过 `config/desktop-runtime/index.ts` 暴露稳定门面，消费者不得读取宿主原始全局对象或复制 URL 协议判断
-- 窗口手势面统一使用 `data-desktop-window-drag-region`；macOS 与 Windows 宿主都在短按点击与越阈值拖窗之间仲裁，只有输入、选择、文本编辑和显式排除项使用硬 `no-drag`。macOS 让可见 Header 与原生 traffic lights 共面；Windows 在 WebView 上方保留独立原生标题/菜单栏，Web 不得为其预留右侧 caption 空域。平台宿主负责系统窗口控制与双击缩放，页面不得重新添加顶部安全行或全宽点击遮罩；`/app` 仍让工作画布贴合 Web 视口顶部
+- 窗口手势面统一使用 `data-desktop-window-drag-region`。macOS 宿主以 4px 阈值仲裁短按与拖窗，让可见 Header 与原生 traffic lights 共面；Windows 使用 WebView2 原生 `app-region`，Header 空白区进入系统命中测试，标签、按钮、链接、编辑控件与显式排除项保持 `no-drag`。Windows 独立原生标题/菜单栏位于 WebView 上方，Web 不得为其预留右侧 caption 空域；页面不得重新添加顶部安全行或全宽点击遮罩，`/app` 仍让工作画布贴合 Web 视口顶部
 - 根启动入口只编排运行时配置与渲染阶段；失败视图、chunk/auth 恢复、一次性重载和空白 watchdog 各自拥有独立边界
 - API/WebSocket 地址、用户作用域运行时快照和固定会话策略分别归 `config/runtime-endpoints.ts`、`config/runtime-options.ts` 与 `config/conversation-policy.ts`；配置层不得请求网络或依赖 Feature
 - 认证 Provider 归 `app/auth/`，登录/登出后的运行时配置刷新只通过 `app/runtime-options-resource.ts`；`shared/auth/` 只暴露 Context 契约和消费 Hook

@@ -13,6 +13,8 @@ import { CONVERSATION_TABS_VIEWPORT_INSET } from "./conversation-tabs-model";
 const SCROLL_EDGE_TOLERANCE = 2;
 const DRAG_START_THRESHOLD = 4;
 const TAB_WIDTH_TRANSITION_SETTLE_MS = 170;
+const WHEEL_DELTA_MODE_LINE = 1;
+const WHEEL_DELTA_MODE_PAGE = 2;
 const WHEEL_LINE_PIXELS = 16;
 
 export interface ConversationTabsScrollMetrics {
@@ -199,7 +201,7 @@ export function useConversationTabsScroll({
   };
 }
 
-function scrollConversationTabsByWheel(
+export function scrollConversationTabsByWheel(
   viewport: HTMLDivElement,
   event: WheelEvent,
 ): boolean {
@@ -232,10 +234,10 @@ function scaleWheelDelta(
   deltaMode: number,
   pageWidth: number,
 ): number {
-  if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+  if (deltaMode === WHEEL_DELTA_MODE_LINE) {
     return delta * WHEEL_LINE_PIXELS;
   }
-  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+  if (deltaMode === WHEEL_DELTA_MODE_PAGE) {
     return delta * pageWidth;
   }
   return delta;

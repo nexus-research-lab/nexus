@@ -23,6 +23,7 @@ internal sealed class WebViewHost : IDisposable
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
     private bool resumeCheckInFlight;
+    private bool windowInteractiveRegionsReported;
     private bool windowRegionsReported;
     private int consecutiveResumeProbeFailures;
     private DateTimeOffset lastResumeCheckAt = DateTimeOffset.MinValue;
@@ -71,8 +72,8 @@ internal sealed class WebViewHost : IDisposable
         core.Settings.IsZoomControlEnabled = false;
         core.Settings.IsGeneralAutofillEnabled = false;
         core.Settings.IsPasswordAutosaveEnabled = false;
-        // 窗口手势由 WPF 统一仲裁；WebView2 非客户区会截断越阈值前后的同一鼠标序列。
-        core.Settings.IsNonClientRegionSupportEnabled = false;
+        // 让 Header 直接参与系统命中测试，避免在 CompositionControl 外层重建鼠标序列。
+        core.Settings.IsNonClientRegionSupportEnabled = true;
 
         InstallDesktopSessionCookie(core);
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopRuntimeScript.Make(runtime));
@@ -506,15 +507,24 @@ internal sealed class WebViewHost : IDisposable
 
     private void ReportWindowRegionsReady(DesktopWindowRegionSet regions)
     {
-        if (windowRegionsReported || regions.DragRegions.Count == 0)
+        if (!windowRegionsReported && regions.DragRegions.Count > 0)
+        {
+            windowRegionsReported = true;
+            startupTimeline.Mark("desktop_window_regions.ready", new Dictionary<string, string>
+            {
+                ["drag_count"] = regions.DragRegions.Count.ToString(),
+                ["no_drag_count"] = regions.NoDragRegions.Count.ToString(),
+            });
+        }
+
+        if (windowInteractiveRegionsReported || regions.NoDragRegions.Count == 0)
         {
             return;
         }
 
-        windowRegionsReported = true;
-        startupTimeline.Mark("desktop_window_regions.ready", new Dictionary<string, string>
+        windowInteractiveRegionsReported = true;
+        startupTimeline.Mark("desktop_window_regions.interactive_ready", new Dictionary<string, string>
         {
-            ["drag_count"] = regions.DragRegions.Count.ToString(),
             ["no_drag_count"] = regions.NoDragRegions.Count.ToString(),
         });
     }

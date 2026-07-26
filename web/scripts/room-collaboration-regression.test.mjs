@@ -116,6 +116,46 @@ test("会话标签暴露稳定的活动与非活动状态类", async () => {
   );
 });
 
+test("会话标签显式映射滚轮与触控板并在边界放行", async () => {
+  const { scrollConversationTabsByWheel } = await server.ssrLoadModule(
+    "/src/shared/ui/workspace/controls/conversation-tabs/use-conversation-tabs-scroll.ts",
+  );
+  const viewport = {
+    clientWidth: 200,
+    scrollLeft: 100,
+    scrollWidth: 600,
+  };
+
+  assert.equal(
+    scrollConversationTabsByWheel(
+      viewport,
+      { deltaMode: 0, deltaX: 0, deltaY: 40 },
+    ),
+    true,
+  );
+  assert.equal(viewport.scrollLeft, 140, "纵向鼠标滚轮应映射到横向标签轨道");
+
+  assert.equal(
+    scrollConversationTabsByWheel(
+      viewport,
+      { deltaMode: 0, deltaX: -30, deltaY: 5 },
+    ),
+    true,
+  );
+  assert.equal(viewport.scrollLeft, 110, "触控板主横轴应保持原始方向");
+
+  viewport.scrollLeft = 400;
+  assert.equal(
+    scrollConversationTabsByWheel(
+      viewport,
+      { deltaMode: 0, deltaX: 0, deltaY: 40 },
+    ),
+    false,
+    "到达右边界后应把滚动交还外层页面",
+  );
+  assert.equal(viewport.scrollLeft, 400);
+});
+
 test("工作区源码文件复用 Markdown 代码语义高亮语言", async () => {
   const {
     getWorkspaceFileCodeLanguage,

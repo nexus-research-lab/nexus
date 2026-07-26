@@ -310,7 +310,8 @@ try {
     $current = $log.Substring($markerIndex)
     return $current.Contains("event=sidecar.health_ready") -and
       ($current.Contains("event=main_window.route_load") -and $current.Contains("path=/launcher")) -and
-      ($current.Contains("event=web.ready") -and $current.Contains("location_path=/launcher"))
+      ($current.Contains("event=web.ready") -and $current.Contains("location_path=/launcher")) -and
+      $current.Contains("event=desktop_window_regions.ready")
   } $TimeoutSeconds "launcher web.ready"
 
   $sidecars = @(Find-SidecarProcess $process.Id $AppDir)

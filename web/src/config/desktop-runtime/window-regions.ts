@@ -1,7 +1,7 @@
 /**
- * INPUT: 页面声明的桌面 Header 与其中可交互元素。
- * OUTPUT: Windows WPF 宿主可消费的拖动区和硬排除区矩形。
- * POS: 只投影 DOM 几何，不创建视觉层或执行窗口命令。
+ * INPUT: Header 的 app-region 计算样式。
+ * OUTPUT: Windows WPF 宿主可消费的拖动与交互矩形。
+ * POS: WebView2 WPF wrapper 的非客户区几何适配，不拥有手势。
  */
 
 interface DesktopWindowRegion {
@@ -24,16 +24,6 @@ interface DesktopWindowBridge {
 }
 
 const DRAG_REGION_SELECTOR = "[data-desktop-window-drag-region]";
-const HARD_NO_DRAG_SELECTOR = [
-  "audio[controls]",
-  "iframe",
-  "input",
-  "select",
-  "textarea",
-  "video[controls]",
-  "[contenteditable]:not([contenteditable='false'])",
-  "[data-desktop-window-no-drag]",
-].join(",");
 
 export function startWindowsWindowRegionSync(): void {
   const bridge = window as Window & DesktopWindowBridge;
@@ -61,11 +51,11 @@ function installWindowRegionSync(handler: DesktopWindowRegionHandler): void {
     const dragElements = Array.from(
       document.querySelectorAll(DRAG_REGION_SELECTOR),
     );
-    const noDragElements = uniqueElements(
+    const noDragElements = Array.from(new Set(
       dragElements.flatMap((region) =>
-        Array.from(region.querySelectorAll(HARD_NO_DRAG_SELECTOR)),
+        Array.from(region.querySelectorAll("*")).filter(isNoDragElement)
       ),
-    );
+    ));
     const nextObservedElements = [...dragElements, ...noDragElements];
     if (!sameElements(observedElements, nextObservedElements)) {
       resizeObserver.disconnect();
@@ -99,6 +89,8 @@ function installWindowRegionSync(handler: DesktopWindowRegionHandler): void {
       "controls",
       "data-desktop-window-drag-region",
       "data-desktop-window-no-drag",
+      "disabled",
+      "draggable",
       "hidden",
       "href",
       "role",
@@ -113,6 +105,13 @@ function installWindowRegionSync(handler: DesktopWindowRegionHandler): void {
   window.addEventListener("scroll", schedulePublish, true);
   void document.fonts?.ready.then(schedulePublish);
   schedulePublish();
+}
+
+function isNoDragElement(element: Element): boolean {
+  const style = window.getComputedStyle(element);
+  const appRegion = style.getPropertyValue("app-region")
+    || style.getPropertyValue("-webkit-app-region");
+  return appRegion.trim() === "no-drag";
 }
 
 function visibleRegions(elements: Element[]): DesktopWindowRegion[] {
@@ -164,15 +163,9 @@ function nodeContainsDragRegion(node: Node): boolean {
   );
 }
 
-function uniqueElements(elements: Element[]): Element[] {
-  return Array.from(new Set(elements));
-}
-
 function sameElements(left: Element[], right: Element[]): boolean {
-  return (
-    left.length === right.length
-    && left.every((element, index) => element === right[index])
-  );
+  return left.length === right.length
+    && left.every((element, index) => element === right[index]);
 }
 
 function normalized(value: number): number {

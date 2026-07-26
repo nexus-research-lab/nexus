@@ -68,7 +68,9 @@ public partial class MainWindow : System.Windows.Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        ConfigureNativeWindowBackdrop(new WindowInteropHelper(this).Handle);
+        IntPtr windowHandle = new WindowInteropHelper(this).Handle;
+        windowInteraction.AttachWindow(windowHandle);
+        ConfigureNativeWindowBackdrop(windowHandle);
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -90,6 +92,7 @@ public partial class MainWindow : System.Windows.Window
         webViewHealthProbeTimer.Stop();
         trayController.Dispose();
         DisposeWebView();
+        windowInteraction.Dispose();
         base.OnClosed(e);
 
         if (System.Windows.Application.Current?.Dispatcher.HasShutdownStarted == false)
@@ -141,9 +144,9 @@ public partial class MainWindow : System.Windows.Window
 
     public void DisposeWebView()
     {
+        windowInteraction.ResetWebView();
         webViewHost?.Dispose();
         webViewHost = null;
-        windowInteraction.UpdateRegions(DesktopWindowRegionSet.Empty);
         SetNavigationAvailability(canGoBack: false, canGoForward: false);
     }
 
@@ -500,7 +503,7 @@ public partial class MainWindow : System.Windows.Window
         webView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
         webView.NavigationCompleted += (_, _) => UpdateNavigationState(webView);
         webView.SourceChanged += (_, _) => UpdateNavigationState(webView);
-        windowInteraction.Attach(webView);
+        windowInteraction.SetWebView(webView);
     }
 
     private WebView2CompositionControl? GetActiveWebView() =>
