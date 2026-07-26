@@ -164,14 +164,9 @@ func buildRootCommand() *cobra.Command {
 }
 
 func runServer() error {
-	// 先加载宿主环境并完成文件系统布局迁移，再读取新的数据库与日志默认路径。
+	// 先加载宿主环境，再读取数据库与日志默认路径。
 	if err := config.LoadDotEnv(); err != nil {
 		return fmt.Errorf("加载环境配置失败: %w", err)
-	}
-	stateRoot := appfs.StateRoot()
-	if err := migration.RunStateLayout(stateRoot, slog.Default()); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		return err
 	}
 
 	cfg := config.Load()
@@ -209,18 +204,8 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
-	if err := migration.RunWorkspaceLayout(context.Background(), cfg, stateRoot, logger); err != nil {
-		logger.Error("workspace 布局迁移失败", "err", err)
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		return err
-	}
 	if err := migration.RunWorkspaceFiles(appfs.AppDir(), agentsvc.WorkspaceBasePath(cfg), logger); err != nil {
 		logger.Error("工作区文件迁移失败", "err", err)
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		return err
-	}
-	if err := migration.RunLegacySkillStorage(context.Background(), cfg, appfs.AppDir(), logger); err != nil {
-		logger.Error("旧版 Skill 存储迁移失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}

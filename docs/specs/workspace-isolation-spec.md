@@ -223,31 +223,11 @@ bridge 可以继续把 `CLAUDE_CONFIG_DIR` 与 `NEXUS_CONFIG_DIR` 保持同步�
 - `nexus/internal/runtime/clientopts/agent_client.go`
 - `nexus/deploy/docker-compose.yml`
 - `nexus/internal/infra/appfs/config_dir.go`
-- `nexus/internal/migration/state_layout.go` / `workspace_layout.go`
 
-旧版 `.nexus/config` 中已知的 Claude runtime 条目会先分流到
-`users/__system__/runtime`，旧全局 `projects` 会依据数据库中的
-`owner_user_id` 搬到对应用户 runtime；无法确定归属的 transcript 保留在
-系统用户目录，不会猜测性地授予某个用户。显式配置在用户目录之外的
-自定义 workspace 不带有可靠的 owner 路径语义，其历史 transcript 继续保留在
-系统 runtime，避免迁移时误授予用户。旧状态根中不属于已知 Nexus 宿主
-目录的未分类条目也保守迁入系统 runtime；Claude/nxs 新增用户文件时不会
-因为宿主迁移清单滞后而误落到 `app/`。
-
-启动顺序为：状态根文件迁移 → schema migration → workspace/Agent 路径与
-transcript 迁移 → 既有 workspace 文件迁移。每一步都有独立完成标记。
-
-状态根布局迁移的完成标记属于 Nexus 宿主控制面，统一写入
-`.nexus/app/.migrations/`。
-
-目标冲突时不覆盖，`.claude.json` 的旧冲突副本会保留为
-`runtime/.claude.json.legacy-config*`。桌面端或 Docker 在迁移前预创建的 runtime
-目标文件也不阻塞启动：若源目标内容不同，迁移器先保留带
-`.legacy-config*` 后缀的副本，再继续使用新 runtime 根。迁移遍历期间若
-runtime 同时清理或移动旧 transcript，源条目已经消失时视为该条目已由
-并发 writer 处理；源仍存在则只做有限重试，权限、I/O 和真实内容冲突仍然
-阻断迁移并保留源数据。macOS Finder 的 `.DS_Store` 仅作为可再生布局缓存
-处理：目标已有文件时保留目标并丢弃旧缓存，不把它当作业务内容冲突。
+当前版本只消费 canonical `.nexus/app`、`.nexus/users/<owner>` 与
+`.nexus/shared-workspaces` 布局；历史布局迁移不属于启动路径。目标冲突、
+旧根目录清理和迁移备份由升级运维在切换版本前完成，运行中的 server 不再
+猜测历史目录归属，也不在启动时搬运用户文件。
 Room 的追加式 `overlay.jsonl` 只有在能证明两侧行集合存在包含关系，
 或仅有带 `message_id` 行的时间戳刷新时才自动合并；其他业务内容差异
 仍然阻断迁移，避免静默覆盖历史。

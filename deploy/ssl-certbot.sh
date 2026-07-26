@@ -140,9 +140,9 @@ reload_nginx() {
         set -- --env-file "$env_file" "$@"
     fi
     # 中文注释：证书首次出现后需要重新生成 nginx 配置，再 reload 才会开始监听 HTTPS。
-    container_id=$(docker compose "$@" ps -q nginx 2>/dev/null || true)
+    container_id=$(HOST_DATA_DIR="$host_data_dir" docker compose "$@" ps -q nginx 2>/dev/null || true)
     [ -n "$container_id" ] || return 0
-    docker compose "$@" exec -T nginx \
+    HOST_DATA_DIR="$host_data_dir" docker compose "$@" exec -T nginx \
         sh -lc '/docker-entrypoint.d/10-nexus-nginx.sh && nginx -s reload'
 }
 

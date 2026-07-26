@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Linux runtime-isolation Docker images leaving application directories group-writable, which caused the `enforce` startup permission check to reject the bundled read-only application root.
 - Fixed Linux runtime-isolation sessions failing to read platform Skills from a private synchronization staging directory; platform libraries now publish before ACL setup, normalize every published tree as runtime-readable, and can stage copies from the read-only bundled Skill directory.
 - Fixed migrated runtime transcript project directories retaining host ownership after the identity layout was marked current, which prevented isolated nxs/Claude processes from writing transcripts and persisting resumable sessions.
+- Removed completed legacy state-layout, workspace-layout, and v0.1.27 Skill migrations from the normal startup path; deployments now require the canonical `.nexus/app` and `.nexus/users` layout.
+- Fixed Docker Compose data mounts silently resolving relative to `deploy/` when the root `.env` was not passed explicitly; `HOST_DATA_DIR` is now required and missing configuration fails fast.
 
 ## [0.1.29] - 2026-07-26
 

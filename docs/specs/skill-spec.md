@@ -40,14 +40,9 @@ workspace 布局，源文件直接位于 `<workspace>/.agents/skills`。
 
 安装外部 Skill 只向 Agent 记录 `external:<skill_id>`；workspace-local Skill 仍只属于当前 workspace，不进入平台或用户级源。
 
-从 v0.1.27 升级时，启动阶段只迁移该版本的
-`CACHE_FILE_DIR/skills/registry` owner registry、旧 Agent 外部副本和对应
-运行时记录；未发布版本的中间目录不属于兼容面。迁移完成后以
-`.migrations/20260723_migrate_v0_1_27_skill_storage` 作为一次性完成标记。
-若新 owner 根中已存在同名但缺少有效外部 manifest 的目录，迁移会先将它
-保留到 `<config>/.migration-backups/20260723_migrate_v0_1_27_skill_storage/`
-的对应 owner 路径，再迁移 registry 源并记录告警；两份内容都保留，不让单个
-Skill 冲突阻断服务启动。
+当前版本只消费 canonical 用户 Skill 源。旧版本 Skill registry、副本和
+迁移备份属于升级运维资产，不在 server 启动时再次扫描或搬运；生产切换前
+必须完成一次性数据整理，运行中只校验当前 owner 根和 manifest。
 
 目录来源与启用策略是两条独立维度。catalog 保留 `source_type=builtin` 的兼容值，
 并通过 `source_kind` 区分：`nexus_platform` 表示产品随包并同步到平台全局库，

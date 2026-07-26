@@ -21,6 +21,15 @@ SSL_EMAIL=
 
 `NGINX_SSL_CERTIFICATE` 和 `NGINX_SSL_CERTIFICATE_KEY` 是 nginx 容器内路径。宿主机证书实际存放在 `${HOST_DATA_DIR}/certs`，ACME HTTP-01 challenge 文件存放在 `${HOST_DATA_DIR}/acme`。
 
+Compose 不会因为 `env_file` 自动读取仓库根目录的 `.env` 来展开宿主机挂载路径。所有构建、启动和运维命令都显式传入根目录环境文件：
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.yml build
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
+```
+
+`HOST_DATA_DIR` 为必填项；未传入时 Compose 会直接失败，避免把数据误挂载到 `deploy/data`。
+
 `make build` / `make start` 会在构建前把 `nxs-stable` 解析成当前具体的 `nxs-v*` runtime release，再传给 Docker build。stable 指向新版 runtime 后，Docker build arg 会自动变化，旧 runtime 层缓存会失效；需要灰度或回滚时也可以直接把 `NEXUS_NXS_RUNTIME_RELEASE` 固定到具体 `nxs-v*`。
 
 ## 首次申请证书

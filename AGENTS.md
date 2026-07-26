@@ -45,7 +45,7 @@ docs/       - 跨切面设计文档
 
 - `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`。
 - 用户数据位于 `.nexus/users/<owner>/`：`workspace/` 保存 Agent 工作目录，`runtime/` 同时作为该 owner 的 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`。
-- 旧版根目录迁移由 `internal/migration/state_layout.go` 和 `workspace_layout.go` 在启动时分阶段、幂等执行；新增宿主或 runtime 文件时必须同步更新迁移分类与测试。
+- 启动只消费当前 canonical 布局；新增宿主或 runtime 文件时必须直接落在对应的 `app/` 或用户根目录，不再把历史目录迁移作为常规启动路径。
 - Linux 多用户强隔离由 root-owned `nexus-runtime-launcher` 执行；产品 server 保持 `nexus-host` 普通用户，runtime 只获得自己的私有 GID 和当前项目组。
 - 宿主代 runtime 操作 workspace、transcript、artifact 或用户 Skill 时必须使用 `internal/infra/confinedfs`；owner 校验后不得重新把用户可控绝对路径直接交给 `os.*`。
 
