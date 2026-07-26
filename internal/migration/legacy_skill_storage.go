@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -30,13 +31,16 @@ const (
 	legacyRegistryUsersDirName      = "users"
 	legacyRegistryMigratedDirName   = "legacy-migrated"
 	legacyRegistryUnassignedDirName = "legacy-unassigned"
+	legacySkillConflictBackupDir    = ".migration-backups"
 )
 
 type legacySkillStorageMigration struct {
-	ctx     context.Context
-	cfg     config.Config
-	db      *sql.DB
-	dialect storage.SQLDialect
+	ctx                context.Context
+	cfg                config.Config
+	db                 *sql.DB
+	dialect            storage.SQLDialect
+	logger             *slog.Logger
+	conflictBackupRoot string
 }
 
 type legacySkillAgent struct {
@@ -62,8 +66,9 @@ type skillUsageOwners map[string]map[string]struct{}
 
 // RunLegacySkillStorage 将 v0.1.27 的 Skill 数据迁移到当前 owner workspace。
 //
-// 文件和数据库引用全部成功后才写完成标记；目标已存在时要求它是完整外部
-// Skill，避免静默覆盖用户在升级过程中新写入的内容。
+// 文件和数据库引用全部成功后才写完成标记。目标若已有完整外部 Skill 则复用；
+// 若是同名的无效旧目录，则先移入宿主备份区，再迁移旧源，避免单个 Skill
+// 冲突阻断整个服务启动，也不静默覆盖或丢弃用户内容。
 func RunLegacySkillStorage(
 	ctx context.Context,
 	cfg config.Config,
@@ -90,10 +95,12 @@ func RunLegacySkillStorage(
 	defer db.Close()
 
 	migration := legacySkillStorageMigration{
-		ctx:     ctx,
-		cfg:     cfg,
-		db:      db,
-		dialect: storage.NewSQLDialect(cfg.DatabaseDriver),
+		ctx:                ctx,
+		cfg:                cfg,
+		db:                 db,
+		dialect:            storage.NewSQLDialect(cfg.DatabaseDriver),
+		logger:             logger,
+		conflictBackupRoot: filepath.Join(configRoot, legacySkillConflictBackupDir, legacySkillStorageMigrationName),
 	}
 	affected, err := migration.apply()
 	if err != nil {
@@ -426,7 +433,7 @@ func (m *legacySkillStorageMigration) copySkillToOwner(
 	ownerUserID string,
 ) (int, error) {
 	target := m.ownerSkillPath(ownerUserID, source.name)
-	copied, err := copyLegacySkillIfMissing(source.path, target)
+	copied, err := m.copySkillIfMissing(source.path, target, ownerUserID, source.name)
 	if err != nil {
 		return 0, fmt.Errorf("迁移 Skill %s 到 owner %s: %w", source.name, ownerUserID, err)
 	}
@@ -621,17 +628,33 @@ func isLegacyExternalSkillDir(path string) bool {
 	return ok
 }
 
-func copyLegacySkillIfMissing(sourcePath string, targetPath string) (bool, error) {
+func (m *legacySkillStorageMigration) copySkillIfMissing(
+	sourcePath string,
+	targetPath string,
+	ownerUserID string,
+	skillName string,
+) (bool, error) {
 	if isLegacyExternalSkillDir(targetPath) {
 		return false, nil
 	}
-	if _, err := os.Lstat(targetPath); err == nil {
-		return false, fmt.Errorf("目标目录已存在但不是有效外部 Skill: %s", targetPath)
-	} else if !os.IsNotExist(err) {
-		return false, err
-	}
 	if !isLegacyExternalSkillDir(sourcePath) {
 		return false, fmt.Errorf("源目录不是有效外部 Skill: %s", sourcePath)
+	}
+	if _, err := os.Lstat(targetPath); err == nil {
+		backupPath, backupErr := m.backupInvalidSkillTarget(ownerUserID, skillName, targetPath)
+		if backupErr != nil {
+			return false, backupErr
+		}
+		if m.logger != nil {
+			m.logger.Warn("旧版 Skill 迁移保留同名无效目标",
+				"owner_user_id", ownerUserID,
+				"skill", skillName,
+				"target", targetPath,
+				"backup", backupPath,
+			)
+		}
+	} else if !os.IsNotExist(err) {
+		return false, err
 	}
 	parent := filepath.Dir(targetPath)
 	if err := os.MkdirAll(parent, 0o755); err != nil {
@@ -656,6 +679,85 @@ func copyLegacySkillIfMissing(sourcePath string, targetPath string) (bool, error
 		return false, err
 	}
 	return true, nil
+}
+
+// backupInvalidSkillTarget 把无法识别为外部 Skill 的同名目标移出发现根。
+// 备份先完整落盘才删除原路径；这样即使旧 registry 源与现有目录内容不同，
+// 两份数据都保留，后续可按日志中的路径人工比较或恢复。
+func (m *legacySkillStorageMigration) backupInvalidSkillTarget(
+	ownerUserID string,
+	skillName string,
+	targetPath string,
+) (string, error) {
+	backupBasePath := filepath.Join(
+		m.conflictBackupRoot,
+		appfs.UserPathSegment(normalizedOwnerID(ownerUserID)),
+		skillName,
+	)
+	backupPath, err := nextAvailableLegacySkillBackupPath(backupBasePath)
+	if err != nil {
+		return "", err
+	}
+	if err = os.MkdirAll(filepath.Dir(backupPath), 0o700); err != nil {
+		return "", fmt.Errorf("创建 Skill 冲突备份目录: %w", err)
+	}
+	if err = moveLegacySkillConflict(targetPath, backupPath); err != nil {
+		return "", fmt.Errorf("备份同名无效 Skill 目标 %q: %w", targetPath, err)
+	}
+	return backupPath, nil
+}
+
+func nextAvailableLegacySkillBackupPath(basePath string) (string, error) {
+	for index := 1; index < 10000; index++ {
+		candidate := basePath
+		if index > 1 {
+			candidate = fmt.Sprintf("%s.%d", basePath, index)
+		}
+		if _, err := os.Lstat(candidate); os.IsNotExist(err) {
+			return candidate, nil
+		} else if err != nil {
+			return "", err
+		}
+	}
+	return "", fmt.Errorf("无法为 Skill 迁移生成唯一备份路径 %q", basePath)
+}
+
+func moveLegacySkillConflict(sourcePath string, targetPath string) error {
+	renameErr := os.Rename(sourcePath, targetPath)
+	if renameErr == nil {
+		return nil
+	}
+	if err := copyLegacySkillEntry(sourcePath, targetPath); err != nil {
+		return fmt.Errorf("重命名失败: %v；跨文件系统复制也失败: %w", renameErr, err)
+	}
+	if err := os.RemoveAll(sourcePath); err != nil {
+		return fmt.Errorf("重命名失败: %v；备份复制成功但清理原路径失败: %w", renameErr, err)
+	}
+	return nil
+}
+
+func copyLegacySkillEntry(sourcePath string, targetPath string) error {
+	info, err := os.Lstat(sourcePath)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		linkTarget, readErr := os.Readlink(sourcePath)
+		if readErr != nil {
+			return readErr
+		}
+		return os.Symlink(linkTarget, targetPath)
+	}
+	if info.IsDir() {
+		if err = os.Mkdir(targetPath, info.Mode().Perm()); err != nil {
+			return err
+		}
+		return copyLegacySkillTree(sourcePath, targetPath)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("Skill 冲突目标包含不支持的文件类型: %s", sourcePath)
+	}
+	return copyLegacySkillFile(sourcePath, targetPath, info.Mode().Perm())
 }
 
 func copyLegacySkillTree(sourceRoot string, targetRoot string) error {

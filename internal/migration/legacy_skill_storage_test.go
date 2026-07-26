@@ -181,6 +181,80 @@ func TestRunLegacySkillStorageMigratesV027DataOnly(t *testing.T) {
 	)
 }
 
+func TestRunLegacySkillStorageBacksUpInvalidOwnerSkillTarget(t *testing.T) {
+	root := t.TempDir()
+	stateRoot := filepath.Join(root, ".nexus")
+	configRoot := filepath.Join(stateRoot, "app")
+	workspaceRoot := filepath.Join(stateRoot, "users")
+	cacheRoot := filepath.Join(configRoot, "cache")
+	databaseURL := filepath.Join(configRoot, "data", "nexus.db")
+	ownerUserID := "owner/a"
+	ownerDirectory := appfs.UserPathSegment(ownerUserID)
+	if err := os.MkdirAll(filepath.Dir(databaseURL), 0o755); err != nil {
+		t.Fatalf("创建测试数据库目录失败: %v", err)
+	}
+
+	db, err := sql.Open("sqlite", databaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatalf("设置 goose 方言失败: %v", err)
+	}
+	if err = goose.Up(db, legacySkillMigrationDir(t)); err != nil {
+		t.Fatalf("执行基础 migration 失败: %v", err)
+	}
+
+	workspacePath := filepath.Join(workspaceRoot, ownerDirectory, "workspace", "agent-a")
+	insertLegacySkillMigrationAgent(t, db, "agent-a", ownerUserID, workspacePath, nil)
+	sourcePath := filepath.Join(
+		cacheRoot,
+		"skills",
+		"registry",
+		"users",
+		legacyOwnerSegment(ownerUserID),
+		"html-ppt",
+	)
+	writeLegacySkillMigrationSource(t, sourcePath, "html-ppt", "legacy source\n")
+	targetPath := filepath.Join(
+		workspaceRoot,
+		ownerDirectory,
+		"workspace",
+		".agents",
+		"skills",
+		"html-ppt",
+	)
+	writeMigrationTestFile(t, filepath.Join(targetPath, "SKILL.md"), "existing user content\n")
+	writeMigrationTestFile(t, filepath.Join(targetPath, "notes.txt"), "keep me\n")
+
+	cfg := config.Config{
+		DatabaseDriver: "sqlite",
+		DatabaseURL:    databaseURL,
+		WorkspacePath:  workspaceRoot,
+		CacheFileDir:   cacheRoot,
+	}
+	if err = RunLegacySkillStorage(t.Context(), cfg, configRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("同名无效 Skill 目标不应阻断迁移: %v", err)
+	}
+
+	assertMigrationFileContent(t, filepath.Join(targetPath, "SKILL.md"), "legacy source\n")
+	if !isLegacyExternalSkillDir(targetPath) {
+		t.Fatalf("迁移后的 owner Skill 应保留外部 manifest: %s", targetPath)
+	}
+	backupPath := filepath.Join(
+		configRoot,
+		legacySkillConflictBackupDir,
+		legacySkillStorageMigrationName,
+		ownerDirectory,
+		"html-ppt",
+	)
+	assertMigrationFileContent(t, filepath.Join(backupPath, "SKILL.md"), "existing user content\n")
+	assertMigrationFileContent(t, filepath.Join(backupPath, "notes.txt"), "keep me\n")
+	assertMigrationPathMissing(t, sourcePath)
+	assertCompletedMigrationMarker(t, configRoot, legacySkillStorageMigrationName)
+}
+
 func insertLegacySkillMigrationAgent(
 	t *testing.T,
 	db *sql.DB,
