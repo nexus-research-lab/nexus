@@ -1,7 +1,5 @@
 /** 桌面宿主注入配置的解析与文档级标记。 */
 
-import { startWindowsWindowRegionSync } from "./window-regions";
-
 interface DesktopRuntimeConfig {
   apiBaseUrl?: string;
   appMode?: string;
@@ -66,9 +64,6 @@ export function applyDesktopRuntimeDocumentFlags(): void {
   document.documentElement.dataset.desktopRuntime = "true";
   if (runtimeConfig.platform) {
     document.documentElement.dataset.desktopPlatform = runtimeConfig.platform;
-  }
-  if (runtimeConfig.platform === "windows") {
-    startWindowsWindowRegionSync();
   }
   const controlsInset = runtimeConfig.desktopWindowControlsInset;
   if (typeof controlsInset === "number" && controlsInset >= 0) {

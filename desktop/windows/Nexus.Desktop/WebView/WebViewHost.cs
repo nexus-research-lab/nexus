@@ -19,12 +19,9 @@ internal sealed class WebViewHost : IDisposable
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync;
-    private readonly Action<DesktopWindowRegionSet> updateWindowRegions;
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
     private bool resumeCheckInFlight;
-    private bool windowInteractiveRegionsReported;
-    private bool windowRegionsReported;
     private int consecutiveResumeProbeFailures;
     private DateTimeOffset lastResumeCheckAt = DateTimeOffset.MinValue;
     private DesktopWebRoute lastRoute = DesktopWebRoute.Launcher;
@@ -35,14 +32,12 @@ internal sealed class WebViewHost : IDisposable
         WebView2CompositionControl webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
-        Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync,
-        Action<DesktopWindowRegionSet> updateWindowRegions)
+        Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
         this.recreateWebViewAsync = recreateWebViewAsync;
-        this.updateWindowRegions = updateWindowRegions;
     }
 
     public async Task InitializeAsync()
@@ -72,8 +67,8 @@ internal sealed class WebViewHost : IDisposable
         core.Settings.IsZoomControlEnabled = false;
         core.Settings.IsGeneralAutofillEnabled = false;
         core.Settings.IsPasswordAutosaveEnabled = false;
-        // 让 Header 直接参与系统命中测试，避免在 CompositionControl 外层重建鼠标序列。
-        core.Settings.IsNonClientRegionSupportEnabled = true;
+        // Windows 的系统命令平面止于原生栏；WebView 内所有 Header 和内容保持客户区语义。
+        core.Settings.IsNonClientRegionSupportEnabled = false;
 
         InstallDesktopSessionCookie(core);
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopRuntimeScript.Make(runtime));
@@ -482,90 +477,7 @@ internal sealed class WebViewHost : IDisposable
                     await bridgeHandler.HandleAsync(payload);
                 }
                 break;
-            case "nexusDesktopWindow":
-                HandleWindowRegions(payload);
-                break;
         }
-    }
-
-    private void HandleWindowRegions(JsonElement payload)
-    {
-        if (JsonOptionalString(payload, "kind") != "regions_changed"
-            || !payload.TryGetProperty("schema_version", out JsonElement schemaVersion)
-            || !schemaVersion.TryGetInt32(out int version)
-            || version != 1)
-        {
-            return;
-        }
-
-        DesktopWindowRegionSet regions = new(
-            JsonRectangles(payload, "drag_regions"),
-            JsonRectangles(payload, "no_drag_regions"));
-        updateWindowRegions(regions);
-        ReportWindowRegionsReady(regions);
-    }
-
-    private void ReportWindowRegionsReady(DesktopWindowRegionSet regions)
-    {
-        if (!windowRegionsReported && regions.DragRegions.Count > 0)
-        {
-            windowRegionsReported = true;
-            startupTimeline.Mark("desktop_window_regions.ready", new Dictionary<string, string>
-            {
-                ["drag_count"] = regions.DragRegions.Count.ToString(),
-                ["no_drag_count"] = regions.NoDragRegions.Count.ToString(),
-            });
-        }
-
-        if (windowInteractiveRegionsReported || regions.NoDragRegions.Count == 0)
-        {
-            return;
-        }
-
-        windowInteractiveRegionsReported = true;
-        startupTimeline.Mark("desktop_window_regions.interactive_ready", new Dictionary<string, string>
-        {
-            ["no_drag_count"] = regions.NoDragRegions.Count.ToString(),
-        });
-    }
-
-    private static IReadOnlyList<Rect> JsonRectangles(
-        JsonElement payload,
-        string propertyName)
-    {
-        if (!payload.TryGetProperty(propertyName, out JsonElement records)
-            || records.ValueKind != JsonValueKind.Array)
-        {
-            return [];
-        }
-
-        List<Rect> rectangles = [];
-        foreach (JsonElement record in records.EnumerateArray().Take(512))
-        {
-            if (!TryJsonDouble(record, "x", out double x)
-                || !TryJsonDouble(record, "y", out double y)
-                || !TryJsonDouble(record, "width", out double width)
-                || !TryJsonDouble(record, "height", out double height)
-                || width <= 0
-                || height <= 0)
-            {
-                continue;
-            }
-            rectangles.Add(new Rect(x, y, width, height));
-        }
-        return rectangles;
-    }
-
-    private static bool TryJsonDouble(
-        JsonElement record,
-        string propertyName,
-        out double value)
-    {
-        value = 0;
-        return record.ValueKind == JsonValueKind.Object
-            && record.TryGetProperty(propertyName, out JsonElement element)
-            && element.TryGetDouble(out value)
-            && double.IsFinite(value);
     }
 
     private void HandleLifecycleMessage(JsonElement payload)
@@ -840,11 +752,4 @@ internal sealed class WebViewHost : IDisposable
         InstallDesktopSessionCookie(core);
         core.Navigate(url.ToString());
     }
-}
-
-internal sealed record DesktopWindowRegionSet(
-    IReadOnlyList<Rect> DragRegions,
-    IReadOnlyList<Rect> NoDragRegions)
-{
-    internal static DesktopWindowRegionSet Empty { get; } = new([], []);
 }

@@ -109,7 +109,11 @@ public static class NexusWindowChromeProbe
         }
     }
 
-    public static string ValidateDragAtOffset(IntPtr hwnd, double offsetDips, string surface)
+    public static string ValidateDragBehavior(
+        IntPtr hwnd,
+        double offsetDips,
+        string surface,
+        bool shouldMove)
     {
         IntPtr previousDpi = SetThreadDpiAwarenessContext(new IntPtr(-4));
         try
@@ -144,11 +148,47 @@ public static class NexusWindowChromeProbe
             {
                 return "cannot read moved window bounds";
             }
-            if (Math.Abs(after.Left - before.Left) < movement / 2)
+            bool moved = Math.Abs(after.Left - before.Left) >= movement / 2;
+            if (moved == shouldMove)
             {
-                return $"{surface} did not move the window: before={before.Left},{before.Top} after={after.Left},{after.Top}";
+                return string.Empty;
             }
-            return string.Empty;
+            return shouldMove
+                ? $"{surface} did not move the window: before={before.Left},{before.Top} after={after.Left},{after.Top}"
+                : $"{surface} moved the window unexpectedly: before={before.Left},{before.Top} after={after.Left},{after.Top}";
+        }
+        finally
+        {
+            if (previousDpi != IntPtr.Zero)
+            {
+                _ = SetThreadDpiAwarenessContext(previousDpi);
+            }
+        }
+    }
+
+    public static string ValidateClientAtOffset(IntPtr hwnd, double offsetDips, string surface)
+    {
+        IntPtr previousDpi = SetThreadDpiAwarenessContext(new IntPtr(-4));
+        try
+        {
+            if (!GetWindowRect(hwnd, out Rect bounds))
+            {
+                return "cannot read window bounds";
+            }
+
+            double scale = Math.Max(1, GetDpiForWindow(hwnd) / 96.0);
+            int x = (bounds.Left + bounds.Right) / 2;
+            int y = bounds.Top + (int)Math.Round(offsetDips * scale);
+            long packedPoint = ((long)(ushort)y << 16) | (ushort)x;
+            long actualHit = SendMessage(
+                hwnd,
+                0x0084,
+                IntPtr.Zero,
+                new IntPtr(packedPoint)
+            ).ToInt64();
+            return actualHit == 1
+                ? string.Empty
+                : $"{surface} returned hit code {actualHit}, expected client code 1";
         }
         finally
         {
@@ -274,6 +314,24 @@ function Find-ApplicationMenuItem([int]$ProcessId, [string]$Name) {
     "native popup menu item: $Name"
 }
 
+function Find-NexusDialog([int]$ProcessId) {
+  $condition = [System.Windows.Automation.AndCondition]::new(
+    [System.Windows.Automation.PropertyCondition]::new(
+      [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
+      $ProcessId
+    ),
+    [System.Windows.Automation.PropertyCondition]::new(
+      [System.Windows.Automation.AutomationElement]::AutomationIdProperty,
+      "NexusDialogWindow"
+    )
+  )
+  return Find-VisibleControl `
+    ([System.Windows.Automation.AutomationElement]::RootElement) `
+    $condition `
+    ([System.Windows.Automation.ControlType]::Window) `
+    "Nexus dialog"
+}
+
 function Test-FileMenuPopup([IntPtr]$Hwnd, [int]$ProcessId) {
   $fileMenu = Find-MenuItem $Hwnd "文件"
   $expand = $fileMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
@@ -282,6 +340,35 @@ function Test-FileMenuPopup([IntPtr]$Hwnd, [int]$ProcessId) {
     Start-Sleep -Milliseconds 350
     [void](Find-ApplicationMenuItem $ProcessId "关闭窗口")
     [void](Find-ApplicationMenuItem $ProcessId "退出 Nexus")
+  } finally {
+    $expand.Collapse()
+    Start-Sleep -Milliseconds 250
+  }
+}
+
+function Test-AboutDialog([IntPtr]$Hwnd, [int]$ProcessId) {
+  $helpMenu = Find-MenuItem $Hwnd "帮助"
+  $expand = $helpMenu.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+  $expand.Expand()
+  try {
+    Start-Sleep -Milliseconds 350
+    $aboutItem = Find-ApplicationMenuItem $ProcessId "关于 Nexus"
+    $aboutItem.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Wait-Until {
+      try {
+        [void](Find-NexusDialog $ProcessId)
+        return $true
+      } catch {
+        return $false
+      }
+    } 5 "Nexus about dialog"
+    $dialog = Find-NexusDialog $ProcessId
+    $closeButton = Find-VisibleControl `
+      $dialog `
+      (New-AutomationNameCondition "知道了") `
+      ([System.Windows.Automation.ControlType]::Button) `
+      "Nexus dialog action: 知道了"
+    $closeButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
   } finally {
     $expand.Collapse()
     Start-Sleep -Milliseconds 250
@@ -348,8 +435,7 @@ try {
     $current = $log.Substring($markerIndex)
     return $current.Contains("event=sidecar.health_ready") -and
       ($current.Contains("event=main_window.route_load") -and $current.Contains("path=/launcher")) -and
-      ($current.Contains("event=web.ready") -and $current.Contains("location_path=/launcher")) -and
-      $current.Contains("event=desktop_window_regions.ready")
+      ($current.Contains("event=web.ready") -and $current.Contains("location_path=/launcher"))
   } $TimeoutSeconds "launcher web.ready"
 
   $sidecars = @(Find-SidecarProcess $process.Id $AppDir)
@@ -364,18 +450,31 @@ try {
     throw "Expected Nexus main window handle"
   }
   Start-Sleep -Milliseconds 500
-  foreach ($dragSurface in @(
-    @{ Offset = 17; Name = "native title bar" },
-    @{ Offset = 64; Name = "Web Header" }
-  )) {
-    $dragError = [NexusWindowChromeProbe]::ValidateDragAtOffset(
-      $mainWindowHandle,
-      $dragSurface.Offset,
-      $dragSurface.Name
-    )
-    if (-not [string]::IsNullOrEmpty($dragError)) {
-      throw "Invalid window drag region: $dragError"
-    }
+  $dragError = [NexusWindowChromeProbe]::ValidateDragBehavior(
+    $mainWindowHandle,
+    17,
+    "native title bar",
+    $true
+  )
+  if (-not [string]::IsNullOrEmpty($dragError)) {
+    throw "Invalid window drag region: $dragError"
+  }
+  $clientError = [NexusWindowChromeProbe]::ValidateClientAtOffset(
+    $mainWindowHandle,
+    64,
+    "Web content"
+  )
+  if (-not [string]::IsNullOrEmpty($clientError)) {
+    throw "Invalid Web client region: $clientError"
+  }
+  $webDragError = [NexusWindowChromeProbe]::ValidateDragBehavior(
+    $mainWindowHandle,
+    64,
+    "Web content",
+    $false
+  )
+  if (-not [string]::IsNullOrEmpty($webDragError)) {
+    throw "Invalid Web drag behavior: $webDragError"
   }
   $chromeError = [NexusWindowChromeProbe]::ValidateResizeBoundary($mainWindowHandle)
   if (-not [string]::IsNullOrEmpty($chromeError)) {
@@ -397,6 +496,7 @@ try {
     return -not [NexusWindowChromeProbe]::IsZoomed($mainWindowHandle)
   } 10 "window restore"
   Test-FileMenuPopup $mainWindowHandle $process.Id
+  Test-AboutDialog $mainWindowHandle $process.Id
 
   Write-Host "==> Closing app to tray"
   [void]$process.CloseMainWindow()

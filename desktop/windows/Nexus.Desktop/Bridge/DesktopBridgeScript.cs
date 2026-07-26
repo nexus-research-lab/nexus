@@ -47,11 +47,6 @@ internal static class DesktopBridgeScript
       postToNative("nexusDesktop", message);
     },
   };
-  window.webkit.messageHandlers.nexusDesktopWindow = {
-    postMessage(message) {
-      postToNative("nexusDesktopWindow", message);
-    },
-  };
 
   window.__NEXUS_DESKTOP_BRIDGE__ = {
     invoke(message) {

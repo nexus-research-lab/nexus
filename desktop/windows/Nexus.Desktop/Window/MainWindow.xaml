@@ -3,6 +3,7 @@
   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+  xmlns:theme="clr-namespace:Nexus.Desktop.Theme"
   xmlns:webview="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
   Title="Nexus"
   Background="#F9F9F7"
@@ -76,23 +77,13 @@
       </Style.Triggers>
     </Style>
     <!-- 菜单仍由 WPF 维护键盘与焦点语义；模板只统一顶层入口和浮层的视觉边界。 -->
-    <SolidColorBrush x:Key="NativeMenuSurfaceBrush" Color="#FFFFFFFF" />
-    <SolidColorBrush x:Key="NativeMenuBorderBrush" Color="#1C0B0B0B" />
-    <SolidColorBrush x:Key="NativeMenuDividerBrush" Color="#140B0B0B" />
-    <SolidColorBrush x:Key="NativeMenuTextBrush" Color="#FF383835" />
-    <SolidColorBrush x:Key="NativeMenuTextStrongBrush" Color="#FF131313" />
-    <SolidColorBrush x:Key="NativeMenuTextMutedBrush" Color="#FF5F5E5A" />
-    <SolidColorBrush x:Key="NativeMenuIconBrush" Color="#FF52514E" />
-    <SolidColorBrush x:Key="NativeMenuHoverBrush" Color="#FFF3F3F0" />
-    <SolidColorBrush x:Key="NativeMenuActiveBrush" Color="#FFF0EFEC" />
-    <SolidColorBrush x:Key="NativeMenuFocusBrush" Color="#3D5B72FF" />
     <Style x:Key="TitleBarMenuFocusVisualStyle" TargetType="{x:Type Control}">
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="{x:Type Control}">
             <Border
               Margin="4,1"
-              BorderBrush="{StaticResource NativeMenuFocusBrush}"
+              BorderBrush="{x:Static theme:NexusNativeTheme.FocusBrush}"
               BorderThickness="2"
               CornerRadius="8" />
           </ControlTemplate>
@@ -126,7 +117,7 @@
               Margin="28,0,2,0"
               VerticalAlignment="Center"
               FontSize="12"
-              Foreground="{StaticResource NativeMenuTextMutedBrush}"
+              Foreground="{x:Static theme:NexusNativeTheme.TextMutedBrush}"
               Text="{TemplateBinding InputGestureText}" />
             <TextBlock
               x:Name="SubmenuArrow"
@@ -134,7 +125,7 @@
               Margin="14,0,2,0"
               VerticalAlignment="Center"
               FontSize="17"
-              Foreground="{StaticResource NativeMenuIconBrush}"
+              Foreground="{x:Static theme:NexusNativeTheme.IconDefaultBrush}"
               Text="›"
               Visibility="Collapsed" />
           </Grid>
@@ -151,24 +142,12 @@
           PopupAnimation="Fade"
           StaysOpen="False"
           VerticalOffset="-8">
-          <Grid MinWidth="220" Margin="8,4,12,12">
-            <Border
-              Background="{StaticResource NativeMenuSurfaceBrush}"
-              CornerRadius="16">
-              <Border.Effect>
-                <DropShadowEffect
-                  BlurRadius="32"
-                  Direction="270"
-                  Opacity="0.14"
-                  ShadowDepth="12"
-                  Color="#FF0B0B0B" />
-              </Border.Effect>
-            </Border>
+          <Grid MinWidth="220" Margin="0,4,0,0">
             <Border
               Grid.IsSharedSizeScope="True"
               Padding="4"
-              Background="{StaticResource NativeMenuSurfaceBrush}"
-              BorderBrush="{StaticResource NativeMenuBorderBrush}"
+              Background="{x:Static theme:NexusNativeTheme.OverlayBrush}"
+              BorderBrush="{x:Static theme:NexusNativeTheme.OverlayBorderBrush}"
               BorderThickness="1"
               CornerRadius="16">
               <ScrollViewer
@@ -193,7 +172,7 @@
           <Setter TargetName="MenuItemSurface" Property="CornerRadius" Value="8" />
           <Setter TargetName="GestureText" Property="Visibility" Value="Collapsed" />
           <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom" />
-          <Setter TargetName="PART_Popup" Property="HorizontalOffset" Value="-7" />
+          <Setter TargetName="PART_Popup" Property="HorizontalOffset" Value="0" />
           <Setter TargetName="PART_Popup" Property="VerticalOffset" Value="-2" />
         </Trigger>
         <Trigger Property="Role" Value="TopLevelItem">
@@ -208,18 +187,18 @@
           <Setter TargetName="SubmenuArrow" Property="Visibility" Value="Visible" />
         </Trigger>
         <Trigger Property="IsHighlighted" Value="True">
-          <Setter Property="Foreground" Value="{StaticResource NativeMenuTextStrongBrush}" />
+          <Setter Property="Foreground" Value="{x:Static theme:NexusNativeTheme.TextStrongBrush}" />
           <Setter
             TargetName="MenuItemSurface"
             Property="Background"
-            Value="{StaticResource NativeMenuHoverBrush}" />
+            Value="{x:Static theme:NexusNativeTheme.InteractiveHoverBrush}" />
         </Trigger>
         <Trigger Property="IsSubmenuOpen" Value="True">
-          <Setter Property="Foreground" Value="{StaticResource NativeMenuTextStrongBrush}" />
+          <Setter Property="Foreground" Value="{x:Static theme:NexusNativeTheme.TextStrongBrush}" />
           <Setter
             TargetName="MenuItemSurface"
             Property="Background"
-            Value="{StaticResource NativeMenuActiveBrush}" />
+            Value="{x:Static theme:NexusNativeTheme.InteractiveActiveBrush}" />
         </Trigger>
         <Trigger Property="IsEnabled" Value="False">
           <Setter TargetName="MenuItemSurface" Property="Opacity" Value="0.50" />
@@ -230,7 +209,7 @@
       <Setter Property="FontFamily" Value="Segoe UI" />
       <Setter Property="FontSize" Value="13" />
       <Setter Property="FontWeight" Value="Normal" />
-      <Setter Property="Foreground" Value="{StaticResource NativeMenuTextBrush}" />
+      <Setter Property="Foreground" Value="{x:Static theme:NexusNativeTheme.TextDefaultBrush}" />
       <Setter Property="FocusVisualStyle" Value="{StaticResource TitleBarMenuFocusVisualStyle}" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
       <Setter Property="Template" Value="{StaticResource TitleBarMenuItemTemplate}" />
@@ -244,7 +223,7 @@
             <Border
               Height="1"
               VerticalAlignment="Center"
-              Background="{StaticResource NativeMenuDividerBrush}"
+              Background="{x:Static theme:NexusNativeTheme.DividerSubtleBrush}"
               SnapsToDevicePixels="True" />
           </ControlTemplate>
         </Setter.Value>

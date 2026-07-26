@@ -6,7 +6,8 @@
 
 - Native shell：C# + WPF，负责窗口、单实例、基础 `nexus://` 唤起和后续任务栏、系统菜单、通知、更新。
 - WebView：WebView2，只作为 React/Vite UI 的渲染面。
-- 窗口 chrome：WPF `WindowChrome` 保留四边缩放；独立 34-DIP 原生栏承载应用图标、前进/后退、文件/编辑/视图/帮助菜单和最小化、最大化/还原、关闭控件，`WebView2CompositionControl` 从下一行完整铺开，不承担 caption controls 的留白或补色。真实可见 Header 的空白区使用 WebView2 原生 `app-region: drag` 语义；因 WPF wrapper 不公开 CompositionController 命中接口，Web 只投影计算后的区域，宿主在 `WM_NCHITTEST` 返回系统 caption，标签、按钮、链接和编辑控件保持 `no-drag`；`/app` 无空白 Header 或透明遮罩。
+- 窗口 chrome：WPF `WindowChrome` 保留四边缩放；独立 34-DIP 原生栏承载应用图标、前进/后退、文件/编辑/视图/帮助菜单和最小化、最大化/还原、关闭控件，且只有该栏空白区参与拖窗。`WebView2CompositionControl` 从下一行完整铺开并始终保持客户区，Web Header、搜索区和内容不再投影为非客户区；`/app` 无空白 Header、透明拖动条或 caption controls 留白。
+- 原生反馈：菜单、更新和启动错误统一使用 Nexus 原生主题与模态对话框；系统 `MessageBox`、菜单默认模板和独立更新窗口不得形成第二套视觉语言。
 - Sidecar：复用当前 Go `nexus-server`，由 shell 随机端口启动并注入 `NEXUS_DESKTOP_SESSION_TOKEN`，正式包优先使用 `Resources\bin\nxs.exe` 作为 `nxs` runtime。
 - Web UI：复用 `web/dist/app.html`，默认路由为完整 launcher `/launcher`。
 - 主窗口保持 `1280×820` 默认启动尺寸；常规屏幕可缩小到 `360×520`，极小可用工作区回退到 `320×480`，由 Web 层切换为手机布局。

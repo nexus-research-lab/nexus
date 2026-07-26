@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using Microsoft.Web.WebView2.Wpf;
+using Nexus.Desktop.Dialog;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
 using Nexus.Desktop.Runtime;
@@ -30,7 +31,6 @@ public partial class MainWindow : System.Windows.Window
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly DesktopUpdateChecker updateChecker;
     private readonly DesktopTrayController trayController;
-    private readonly DesktopWindowInteraction windowInteraction;
     private readonly System.Windows.Threading.DispatcherTimer webViewHealthProbeTimer;
     private WebViewHost? webViewHost;
     private bool closed;
@@ -46,7 +46,6 @@ public partial class MainWindow : System.Windows.Window
         this.startupTimeline = startupTimeline;
         this.updateChecker = updateChecker;
         InitializeComponent();
-        windowInteraction = new DesktopWindowInteraction(this);
         ConfigureInitialWindowBounds();
         UpdateTitleBarDensity(Width);
         ConfigureWebViewSurface(MainWebView);
@@ -69,7 +68,6 @@ public partial class MainWindow : System.Windows.Window
     {
         base.OnSourceInitialized(e);
         IntPtr windowHandle = new WindowInteropHelper(this).Handle;
-        windowInteraction.AttachWindow(windowHandle);
         ConfigureNativeWindowBackdrop(windowHandle);
     }
 
@@ -92,7 +90,6 @@ public partial class MainWindow : System.Windows.Window
         webViewHealthProbeTimer.Stop();
         trayController.Dispose();
         DisposeWebView();
-        windowInteraction.Dispose();
         base.OnClosed(e);
 
         if (System.Windows.Application.Current?.Dispatcher.HasShutdownStarted == false)
@@ -144,7 +141,6 @@ public partial class MainWindow : System.Windows.Window
 
     public void DisposeWebView()
     {
-        windowInteraction.ResetWebView();
         webViewHost?.Dispose();
         webViewHost = null;
         SetNavigationAvailability(canGoBack: false, canGoForward: false);
@@ -156,8 +152,7 @@ public partial class MainWindow : System.Windows.Window
             webView,
             runtime,
             startupTimeline,
-            RecreateWebViewAsync,
-            windowInteraction.UpdateRegions);
+            RecreateWebViewAsync);
     }
 
     private WebView2CompositionControl GetOrCreateWebViewControl()
@@ -480,12 +475,10 @@ public partial class MainWindow : System.Windows.Window
 
     private void ShowAbout(object sender, RoutedEventArgs e)
     {
-        System.Windows.MessageBox.Show(
+        NexusDialogWindow.ShowMessage(
             this,
-            $"Nexus {AppVersionInfo.Version}\n构建 {AppVersionInfo.BuildNumber}",
             "关于 Nexus",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+            $"Nexus {AppVersionInfo.Version}\n构建 {AppVersionInfo.BuildNumber}");
     }
 
     private void ExitApplication(object sender, RoutedEventArgs e) => ExitFromTray();
@@ -503,7 +496,6 @@ public partial class MainWindow : System.Windows.Window
         webView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
         webView.NavigationCompleted += (_, _) => UpdateNavigationState(webView);
         webView.SourceChanged += (_, _) => UpdateNavigationState(webView);
-        windowInteraction.SetWebView(webView);
     }
 
     private WebView2CompositionControl? GetActiveWebView() =>

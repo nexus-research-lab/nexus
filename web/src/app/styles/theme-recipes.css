@@ -18,12 +18,14 @@
    * 6. dialog-*：弹窗语义壳，材质必须回落到 surface / input / card 原语
    */
 
-  [data-desktop-window-drag-region] {
+  :root[data-desktop-platform="macos"]
+    [data-desktop-window-drag-region] {
     app-region: drag;
     -webkit-app-region: drag;
   }
 
-  [data-desktop-window-drag-region] :is(
+  :root[data-desktop-platform="macos"]
+    [data-desktop-window-drag-region] :is(
     a,
     audio[controls],
     button,
@@ -44,7 +46,8 @@
     [role="tab"],
     [tabindex]:not([tabindex="-1"])
   ),
-  [data-desktop-window-no-drag] {
+  :root[data-desktop-platform="macos"]
+    [data-desktop-window-no-drag] {
     app-region: no-drag;
     -webkit-app-region: no-drag;
   }
