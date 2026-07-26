@@ -30,3 +30,33 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 		}
 	}
 }
+
+func TestEnsurePlatformSkillLibraryPublishesRuntimeReadableTree(t *testing.T) {
+	configRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
+
+	if err := EnsurePlatformSkillLibrary(); err != nil {
+		t.Fatalf("同步平台 Skill 库失败: %v", err)
+	}
+	if err := filepath.Walk(appfs.PlatformSkillRoot(), func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+		permission := info.Mode().Perm()
+		if info.IsDir() {
+			if permission != 0o755 {
+				t.Fatalf("平台 Skill 目录权限 = %o, want 755: %s", permission, path)
+			}
+			return nil
+		}
+		if permission != 0o644 && permission != 0o755 {
+			t.Fatalf("平台 Skill 文件权限 = %o, want 644 or 755: %s", permission, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("遍历平台 Skill 根失败: %v", err)
+	}
+}

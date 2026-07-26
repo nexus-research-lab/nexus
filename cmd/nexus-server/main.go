@@ -21,6 +21,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/migration"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	"github.com/pressly/goose/v3"
@@ -225,6 +226,13 @@ func runServer() error {
 	}
 	if err := ensureOwnerFromEnv(context.Background(), cfg, logger); err != nil {
 		logger.Error("owner bootstrap 失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
+	// 平台 Skill 是 enforce runtime 的显式只读根，必须先完成原子发布，
+	// 再由 launcher 收紧 ACL；不能把首次发布推迟到并发的聊天请求中。
+	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
+		logger.Error("平台 Skill 库初始化失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}

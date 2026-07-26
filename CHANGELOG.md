@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Docker startup crashing when legacy or runtime JSON settings were `null`; empty JSON values now normalize to an empty object while invalid non-object configuration remains rejected.
 - Fixed v0.1.27 Skill storage migration blocking startup on a same-name invalid Skill directory; the existing directory is now preserved in the host migration-backup area before the legacy external Skill is migrated.
 - Fixed Linux runtime-isolation Docker images leaving application directories group-writable, which caused the `enforce` startup permission check to reject the bundled read-only application root.
+- Fixed Linux runtime-isolation sessions failing to read platform Skills from a private synchronization staging directory by publishing the library before ACL setup and normalizing every published tree as runtime-readable.
 
 ## [0.1.29] - 2026-07-26
 

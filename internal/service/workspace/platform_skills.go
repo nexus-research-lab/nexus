@@ -117,6 +117,11 @@ func replacePlatformSkillLibrary(sourceRoot string, targetRoot string, fingerpri
 		return err
 	}
 	defer os.RemoveAll(temporaryRoot)
+	// 暂存目录与最终根处在同一父目录；先赋予只读穿越位，避免已有 runtime
+	// 在原子替换窗口保留旧解析路径时因 MkdirTemp 默认 0700 被拒绝读取。
+	if err = os.Chmod(temporaryRoot, 0o755); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Join(temporaryRoot, ".agents", "skills"), 0o755); err != nil {
 		return err
 	}
@@ -136,10 +141,10 @@ func replacePlatformSkillLibrary(sourceRoot string, targetRoot string, fingerpri
 	if err := os.WriteFile(filepath.Join(temporaryRoot, platformSkillManifestName), []byte(fingerprint+"\n"), 0o644); err != nil {
 		return err
 	}
-	if runtimeIsolationEnforced() {
-		if err := normalizeRuntimeReadableTree(temporaryRoot); err != nil {
-			return err
-		}
+	// 平台包永远是 runtime 的只读资源；无条件归一化避免运行模式切换或
+	// 存量文件 mode 导致平台 Skill 根在发布后不可读。
+	if err := normalizeRuntimeReadableTree(temporaryRoot); err != nil {
+		return err
 	}
 	if err := replaceDirectory(temporaryRoot, targetRoot); err != nil {
 		return err
