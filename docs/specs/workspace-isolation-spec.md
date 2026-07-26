@@ -290,6 +290,9 @@ server 的 host root 不得通过完整环境继承给 runtime。runtime 的 `NE
 
 - 绑定 `owner_user_id`、Agent workspace root、当前 project roots 和 policy generation；
 - 对 `Read/Write/Edit/Glob/Grep` 等路径工具执行路径归一化和 root containment；
+- nxs 的内部 session-memory 任务只额外放行当前 owner 规范
+  `runtime/projects/<project>/<session>/session-memory/summary.md` 的单文件 `Edit`；
+  其他 runtime 文件仍不属于普通工具写根；
 - 对 Bash 只做显式绝对路径、`..` 路径和 `nexusctl` 管理入口的早期检查；普通系统命令
   仍可运行，最终写入/删除/重命名由 OS DAC/ACL 与 Landlock 决定；
 - enforce Hook 对常规 `nexusctl` 管理命令做早期拒绝；打包部署额外把 CLI

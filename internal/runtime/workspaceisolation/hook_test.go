@@ -52,6 +52,121 @@ func TestWorkspacePolicyHookAllowsOwnWorkspaceAndDeniesOtherUser(t *testing.T) {
 	}
 }
 
+func TestWorkspacePolicyHookOnlyAllowsCanonicalSessionSummaryEdit(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
+	workspace := filepath.Join(root, "users", "owner-a", "workspace", "agent-a")
+	summaryPath := filepath.Join(
+		root,
+		"users",
+		"owner-a",
+		"runtime",
+		"projects",
+		"project-a",
+		"session-a",
+		"session-memory",
+		"summary.md",
+	)
+	if err := os.MkdirAll(filepath.Dir(summaryPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(summaryPath, []byte("summary"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(workspace, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	outsidePath := filepath.Join(root, "outside.md")
+	if err := os.WriteFile(outsidePath, []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	symlinkSummaryPath := filepath.Join(
+		root,
+		"users",
+		"owner-a",
+		"runtime",
+		"projects",
+		"project-a",
+		"session-link",
+		"session-memory",
+		"summary.md",
+	)
+	if err := os.MkdirAll(filepath.Dir(symlinkSummaryPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outsidePath, symlinkSummaryPath); err != nil {
+		t.Fatal(err)
+	}
+	policy := testPolicy(t, workspace)
+	for _, test := range []struct {
+		name     string
+		toolName string
+		path     string
+		denied   bool
+	}{
+		{name: "exact Edit", toolName: "Edit", path: summaryPath},
+		{name: "Write remains denied", toolName: "Write", path: summaryPath, denied: true},
+		{
+			name:     "adjacent runtime file remains denied",
+			toolName: "Edit",
+			path:     filepath.Join(filepath.Dir(summaryPath), "state.json"),
+			denied:   true,
+		},
+		{
+			name:     "other owner remains denied",
+			toolName: "Edit",
+			path: filepath.Join(
+				root,
+				"users",
+				"owner-b",
+				"runtime",
+				"projects",
+				"project-b",
+				"session-b",
+				"session-memory",
+				"summary.md",
+			),
+			denied: true,
+		},
+		{
+			name:     "symlink escape remains denied",
+			toolName: "Edit",
+			path:     symlinkSummaryPath,
+			denied:   true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			violation := inspectToolAccess(policy, sdkhook.Input{
+				CWD:      workspace,
+				ToolName: test.toolName,
+				ToolInput: map[string]any{
+					"file_path": test.path,
+				},
+			})
+			if (violation != nil) != test.denied {
+				t.Fatalf(
+					"%s %q violation = %#v, denied=%v",
+					test.toolName,
+					test.path,
+					violation,
+					test.denied,
+				)
+			}
+		})
+	}
+	claudePolicy := policy
+	claudePolicy.RuntimeKind = "claude"
+	if violation := inspectToolAccess(claudePolicy, sdkhook.Input{
+		CWD:      workspace,
+		ToolName: "Edit",
+		ToolInput: map[string]any{
+			"file_path": summaryPath,
+		},
+	}); violation == nil {
+		t.Fatal("Claude runtime 不应获得 nxs session-memory 写权限")
+	}
+}
+
 func TestWorkspacePolicyHookResolvesPendingPathThroughSymlink(t *testing.T) {
 	root := t.TempDir()
 	workspace := filepath.Join(root, "workspace")

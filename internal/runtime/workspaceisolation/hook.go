@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -14,6 +15,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 const workspacePolicyPublicDenial = "该操作超出当前用户被授予的工作区范围。"
@@ -136,10 +138,47 @@ func inspectToolAccess(policy Policy, input sdkhook.Input) *policyViolation {
 			return &policyViolation{reason: err.Error(), path: candidate.path}
 		}
 		if _, err = policy.authorize(resolved, write); err != nil {
+			if write && sessionSummaryEditAuthorized(policy, toolName, resolved) {
+				continue
+			}
 			return &policyViolation{reason: accessReason(write), path: resolved}
 		}
 	}
 	return nil
+}
+
+// sessionSummaryEditAuthorized 只放行 nxs 内部会话摘要的单文件 Edit。
+// runtime 目录仍不是普通工具写根，其他内部状态继续由宿主和 Landlock 管理。
+func sessionSummaryEditAuthorized(policy Policy, toolName string, path string) bool {
+	if toolName != "edit" ||
+		!strings.EqualFold(strings.TrimSpace(policy.RuntimeKind), "nxs") {
+		return false
+	}
+	projectsRoot, err := canonicalPolicyPath(
+		filepath.Join(appfs.UserRuntimeRoot(policy.OwnerUserID), "projects"),
+	)
+	if err != nil {
+		return false
+	}
+	target, err := canonicalPolicyPath(path)
+	if err != nil || !pathWithinPolicyRoot(target, projectsRoot) {
+		return false
+	}
+	relative, err := filepath.Rel(projectsRoot, target)
+	if err != nil {
+		return false
+	}
+	segments := strings.Split(relative, string(os.PathSeparator))
+	return len(segments) == 4 &&
+		validSessionSummarySegment(segments[0]) &&
+		validSessionSummarySegment(segments[1]) &&
+		segments[2] == "session-memory" &&
+		segments[3] == "summary.md"
+}
+
+func validSessionSummarySegment(segment string) bool {
+	segment = strings.TrimSpace(segment)
+	return segment != "" && segment != "." && segment != ".."
 }
 
 func inspectGenericPathFields(
