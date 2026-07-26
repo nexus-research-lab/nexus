@@ -191,7 +191,10 @@ RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
     > /etc/sudoers.d/nexus-agent && \
     chmod 0440 /etc/sudoers.d/nexus-agent && \
     visudo -cf /etc/sudoers.d/nexus-agent && \
-    chown -R agent:agent /opt/app /home/agent && \
+    chown -R agent:agent /home/agent && \
+    chown -R root:root /opt/app && \
+    find /opt/app -type d -exec chmod 0555 {} \; && \
+    find /opt/app -type f -exec chmod a-w {} \; && \
     chmod 0751 /home/agent && \
     if [ -f /opt/app/bin/nxs ]; then \
         chown root:root /opt/app/bin/nxs && \
