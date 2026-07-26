@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed Docker startup crashing when legacy or runtime JSON settings were `null`; empty JSON values now normalize to an empty object while invalid non-object configuration remains rejected.
+
 ## [0.1.29] - 2026-07-26
 
 ### Added

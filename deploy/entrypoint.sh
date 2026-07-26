@@ -192,6 +192,30 @@ write_json_file_in_place() {
     rm -f "${temp_file}"
 }
 
+normalize_json_object() {
+    # 中文注释：历史空配置可能被序列化成 JSON null；只把 null 视为空对象，
+    # 数组、字符串等其他形状仍需显式报错，避免启动时静默丢弃配置。
+    jq '
+        if . == null then {}
+        elif type == "object" then .
+        else error("expected a JSON object or null")
+        end
+    ' "$@"
+}
+
+merge_json_objects() {
+    # 中文注释：jq 的对象乘法不能与 null 混用。两端先规范为空对象，
+    # 保持既有深合并优先级，同时让旧版空配置可安全升级。
+    jq -s '
+        def object_or_empty:
+            if . == null then {}
+            elif type == "object" then .
+            else error("expected a JSON object or null")
+            end;
+        (.[0] | object_or_empty) * (.[1] | object_or_empty)
+    ' "$@"
+}
+
 extract_url_host() {
     local url="$1"
     local without_scheme="${url#*://}"
@@ -271,16 +295,16 @@ prepare_claude_settings() {
     # 当前部署明确要求的安全与运行参数。
     local EXISTING_SETTINGS='{}'
     if [[ -f "${legacy_settings}" ]]; then
-        EXISTING_SETTINGS="$(jq -s '.[0] * .[1]' \
+        EXISTING_SETTINGS="$(merge_json_objects \
             <(printf '%s\n' "${EXISTING_SETTINGS}") \
             "${legacy_settings}")"
     fi
     if [[ -f "${runtime_root}/settings.json" ]]; then
-        EXISTING_SETTINGS="$(jq -s '.[0] * .[1]' \
+        EXISTING_SETTINGS="$(merge_json_objects \
             <(printf '%s\n' "${EXISTING_SETTINGS}") \
             "${runtime_root}/settings.json")"
     fi
-    SETTINGS="$(jq -s '.[0] * .[1]' \
+    SETTINGS="$(merge_json_objects \
         <(printf '%s\n' "${EXISTING_SETTINGS}") \
         <(printf '%s\n' "${SETTINGS}"))"
 
@@ -301,10 +325,11 @@ prepare_claude_settings() {
     fi
 
     if [[ -f "${legacy_claude_file}" && "${legacy_claude_file}" != "${runtime_root}/.claude.json" ]]; then
-        jq -s '.[0] * .[1]' "${legacy_claude_file}" "${runtime_root}/.claude.json" |
+        merge_json_objects "${legacy_claude_file}" "${runtime_root}/.claude.json" |
             write_json_file_in_place "${runtime_root}/.claude.json"
     fi
-    jq '. + {hasCompletedOnboarding: true}' "${runtime_root}/.claude.json" |
+    normalize_json_object "${runtime_root}/.claude.json" |
+        jq '. + {hasCompletedOnboarding: true}' |
         write_json_file_in_place "${runtime_root}/.claude.json"
     chmod 0600 "${runtime_root}/.claude.json"
 }
