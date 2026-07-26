@@ -10,8 +10,8 @@ import "time"
 const (
 	registryVersion = 1
 
-	// v5 重新归属状态布局迁移后遗留的 runtime transcript 项目目录。
-	userLayoutVersion = 5
+	// v6 重新归属 workspace 边界转换前创建的项目级 .nexus 元数据目录。
+	userLayoutVersion = 6
 
 	defaultTicketTTL   = 24 * time.Hour
 	defaultUIDMinimum  = 20000
