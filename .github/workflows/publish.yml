@@ -91,11 +91,13 @@ jobs:
           cache_dir="${RUNNER_TEMP}/macos-runtime-cache"
           goarch="$(go env GOARCH)"
           nxs_path="${cache_dir}/nxs-${goarch}"
+          ripgrep_path="${cache_dir}/rg"
           mkdir -p "${cache_dir}"
           node scripts/desktop/fetch-nxs-runtime.js \
             --goos darwin \
             --goarch "${goarch}" \
-            --output "${nxs_path}"
+            --output "${nxs_path}" \
+            --ripgrep-output "${ripgrep_path}"
           echo "NEXUS_DESKTOP_NXS_RUNTIME_PATH=${nxs_path}" >> "${GITHUB_ENV}"
 
       - name: Import macOS Signing Certificate
@@ -288,8 +290,9 @@ jobs:
         run: |
           $cacheDir = Join-Path "${{ runner.temp }}" "windows-runtime-cache"
           $nxsPath = Join-Path $cacheDir "nxs.exe"
+          $ripgrepPath = Join-Path $cacheDir "rg.exe"
           New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
-          node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath
+          node scripts/desktop/fetch-nxs-runtime.js --goos windows --goarch amd64 --output $nxsPath --ripgrep-output $ripgrepPath
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to download nxs runtime"
           }

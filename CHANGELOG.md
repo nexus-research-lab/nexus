@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bound Room stop actions to the exact Agent round so interruption produces one monotonic stopped state without duplicate empty messages.
 - Preserved Claude Code subagent transcript projection through confined symlink reads and restored session metadata writes before an Agent workspace exists.
 - Restored Windows title-bar, menu, WebView, resize, caption, horizontal Session scrolling, and startup-log behavior across mouse, touchpad, and constrained layouts.
+- Fixed desktop release packaging so the bundled nxs runtime keeps its required ripgrep sidecar on macOS and Windows.
 - Fixed desktop local profiles receiving an implicit server subscription and incorrectly exposing or enforcing account quota.
 - Added syntax highlighting for recognized workspace source files and kept short Markdown previews top-aligned.
 - Corrected Tailwind semantic font generation, class merging, theme tokens, typography weights, and primary-color rendering that had inflated or dropped styles.

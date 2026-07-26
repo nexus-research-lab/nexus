@@ -257,7 +257,8 @@ if ($bundleNXSRuntime) {
     & node (Join-Path $rootDir "scripts/desktop/fetch-nxs-runtime.js") `
       --goos "windows" `
       --goarch $goArch `
-      --output $nxsPath
+      --output $nxsPath `
+      --ripgrep-output $nxsRipgrepPath
     if ($LASTEXITCODE -ne 0) {
       throw "Failed to download bundled nxs runtime"
     }
