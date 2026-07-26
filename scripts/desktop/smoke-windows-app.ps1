@@ -109,7 +109,7 @@ public static class NexusWindowChromeProbe
         }
     }
 
-    public static string ValidateHeaderDrag(IntPtr hwnd)
+    public static string ValidateDragAtOffset(IntPtr hwnd, double offsetDips, string surface)
     {
         IntPtr previousDpi = SetThreadDpiAwarenessContext(new IntPtr(-4));
         try
@@ -121,7 +121,7 @@ public static class NexusWindowChromeProbe
 
             double scale = Math.Max(1, GetDpiForWindow(hwnd) / 96.0);
             int startX = (before.Left + before.Right) / 2;
-            int startY = before.Top + (int)Math.Round(30 * scale);
+            int startY = before.Top + (int)Math.Round(offsetDips * scale);
             int movement = (int)Math.Round(48 * scale);
             int deltaX = before.Left > movement ? -movement : movement;
 
@@ -146,7 +146,7 @@ public static class NexusWindowChromeProbe
             }
             if (Math.Abs(after.Left - before.Left) < movement / 2)
             {
-                return $"launcher Header did not move the window: before={before.Left},{before.Top} after={after.Left},{after.Top}";
+                return $"{surface} did not move the window: before={before.Left},{before.Top} after={after.Left},{after.Top}";
             }
             return string.Empty;
         }
@@ -234,6 +234,22 @@ function Invoke-CaptionButton([IntPtr]$Hwnd, [string]$Name) {
   $pattern.Invoke()
 }
 
+function Find-MenuItem([IntPtr]$Hwnd, [string]$Name) {
+  $root = [System.Windows.Automation.AutomationElement]::FromHandle($Hwnd)
+  $condition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::NameProperty,
+    $Name
+  )
+  $menuItem = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+  if ($null -eq $menuItem -or $menuItem.Current.ControlType -ne [System.Windows.Automation.ControlType]::MenuItem) {
+    throw "Missing native menu item: $Name"
+  }
+  if ($menuItem.Current.IsOffscreen -or $menuItem.Current.BoundingRectangle.IsEmpty) {
+    throw "Native menu item is not visible: $Name"
+  }
+  return $menuItem
+}
+
 $rootDir = Resolve-RootDir
 if ([string]::IsNullOrWhiteSpace($AppDir)) {
   $AppDir = Join-Path $rootDir "desktop/windows/.build/app/Nexus"
@@ -309,9 +325,18 @@ try {
     throw "Expected Nexus main window handle"
   }
   Start-Sleep -Milliseconds 500
-  $dragError = [NexusWindowChromeProbe]::ValidateHeaderDrag($mainWindowHandle)
-  if (-not [string]::IsNullOrEmpty($dragError)) {
-    throw "Invalid window drag region: $dragError"
+  foreach ($dragSurface in @(
+    @{ Offset = 17; Name = "native title bar" },
+    @{ Offset = 64; Name = "Web Header" }
+  )) {
+    $dragError = [NexusWindowChromeProbe]::ValidateDragAtOffset(
+      $mainWindowHandle,
+      $dragSurface.Offset,
+      $dragSurface.Name
+    )
+    if (-not [string]::IsNullOrEmpty($dragError)) {
+      throw "Invalid window drag region: $dragError"
+    }
   }
   $chromeError = [NexusWindowChromeProbe]::ValidateResizeBoundary($mainWindowHandle)
   if (-not [string]::IsNullOrEmpty($chromeError)) {
@@ -319,6 +344,11 @@ try {
   }
   [void](Find-CaptionButton $mainWindowHandle "最小化")
   [void](Find-CaptionButton $mainWindowHandle "关闭")
+  [void](Find-CaptionButton $mainWindowHandle "后退")
+  [void](Find-CaptionButton $mainWindowHandle "前进")
+  foreach ($menuName in @("文件", "编辑", "视图", "帮助")) {
+    [void](Find-MenuItem $mainWindowHandle $menuName)
+  }
   Invoke-CaptionButton $mainWindowHandle "最大化"
   Wait-Until {
     return [NexusWindowChromeProbe]::IsZoomed($mainWindowHandle)

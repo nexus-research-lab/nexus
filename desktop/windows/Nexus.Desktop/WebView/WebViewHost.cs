@@ -23,6 +23,7 @@ internal sealed class WebViewHost : IDisposable
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
     private bool resumeCheckInFlight;
+    private bool windowRegionsReported;
     private int consecutiveResumeProbeFailures;
     private DateTimeOffset lastResumeCheckAt = DateTimeOffset.MinValue;
     private DesktopWebRoute lastRoute = DesktopWebRoute.Launcher;
@@ -70,7 +71,8 @@ internal sealed class WebViewHost : IDisposable
         core.Settings.IsZoomControlEnabled = false;
         core.Settings.IsGeneralAutofillEnabled = false;
         core.Settings.IsPasswordAutosaveEnabled = false;
-        core.Settings.IsNonClientRegionSupportEnabled = true;
+        // 窗口手势由 WPF 统一仲裁；WebView2 非客户区会截断越阈值前后的同一鼠标序列。
+        core.Settings.IsNonClientRegionSupportEnabled = false;
 
         InstallDesktopSessionCookie(core);
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopRuntimeScript.Make(runtime));
@@ -495,9 +497,26 @@ internal sealed class WebViewHost : IDisposable
             return;
         }
 
-        updateWindowRegions(new DesktopWindowRegionSet(
+        DesktopWindowRegionSet regions = new(
             JsonRectangles(payload, "drag_regions"),
-            JsonRectangles(payload, "no_drag_regions")));
+            JsonRectangles(payload, "no_drag_regions"));
+        updateWindowRegions(regions);
+        ReportWindowRegionsReady(regions);
+    }
+
+    private void ReportWindowRegionsReady(DesktopWindowRegionSet regions)
+    {
+        if (windowRegionsReported || regions.DragRegions.Count == 0)
+        {
+            return;
+        }
+
+        windowRegionsReported = true;
+        startupTimeline.Mark("desktop_window_regions.ready", new Dictionary<string, string>
+        {
+            ["drag_count"] = regions.DragRegions.Count.ToString(),
+            ["no_drag_count"] = regions.NoDragRegions.Count.ToString(),
+        });
     }
 
     private static IReadOnlyList<Rect> JsonRectangles(

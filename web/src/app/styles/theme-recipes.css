@@ -24,20 +24,13 @@
   }
 
   [data-desktop-window-drag-region] :is(
-    a[href],
-    button,
+    audio[controls],
+    iframe,
     input,
-    label[for],
     select,
-    summary,
     textarea,
+    video[controls],
     [contenteditable]:not([contenteditable="false"]),
-    [role="button"],
-    [role="checkbox"],
-    [role="menuitem"],
-    [role="radio"],
-    [role="switch"],
-    [role="tab"],
     [data-desktop-window-no-drag]
   ),
   [data-desktop-window-no-drag] {
@@ -120,12 +113,6 @@
     .workspace-surface-header-inner::before {
     content: "";
     flex: 0 0 var(--desktop-window-controls-inset, 84px);
-  }
-
-  :root[data-desktop-platform="windows"]
-    .workspace-surface-header-inner::after {
-    content: "";
-    flex: 0 0 calc(var(--desktop-window-controls-inset, 144px) + 8px);
   }
 
   .desktop-rail {

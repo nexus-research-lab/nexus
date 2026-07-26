@@ -1,6 +1,6 @@
 /**
  * INPUT: 页面声明的桌面 Header 与其中可交互元素。
- * OUTPUT: Windows WPF 宿主可消费的拖动区和排除区矩形。
+ * OUTPUT: Windows WPF 宿主可消费的拖动区和硬排除区矩形。
  * POS: 只投影 DOM 几何，不创建视觉层或执行窗口命令。
  */
 
@@ -24,24 +24,14 @@ interface DesktopWindowBridge {
 }
 
 const DRAG_REGION_SELECTOR = "[data-desktop-window-drag-region]";
-const NO_DRAG_SELECTOR = [
-  "a[href]",
+const HARD_NO_DRAG_SELECTOR = [
   "audio[controls]",
-  "button",
   "iframe",
   "input",
-  "label[for]",
   "select",
-  "summary",
   "textarea",
   "video[controls]",
   "[contenteditable]:not([contenteditable='false'])",
-  "[role='button']",
-  "[role='checkbox']",
-  "[role='menuitem']",
-  "[role='radio']",
-  "[role='switch']",
-  "[role='tab']",
   "[data-desktop-window-no-drag]",
 ].join(",");
 
@@ -73,7 +63,7 @@ function installWindowRegionSync(handler: DesktopWindowRegionHandler): void {
     );
     const noDragElements = uniqueElements(
       dragElements.flatMap((region) =>
-        Array.from(region.querySelectorAll(NO_DRAG_SELECTOR)),
+        Array.from(region.querySelectorAll(HARD_NO_DRAG_SELECTOR)),
       ),
     );
     const nextObservedElements = [...dragElements, ...noDragElements];

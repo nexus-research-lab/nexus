@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
 using Microsoft.Web.WebView2.Wpf;
 using Nexus.Desktop.Diagnostics;
@@ -21,6 +23,8 @@ public partial class MainWindow : System.Windows.Window
     private const double CompactMinimumWindowWidth = 320;
     private const double CompactMinimumWindowHeight = 480;
     private const double ScreenPadding = 48;
+    private const double NativeMenuMinimumWidth = 620;
+    private const double NativeNavigationMinimumWidth = 430;
 
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
@@ -44,6 +48,7 @@ public partial class MainWindow : System.Windows.Window
         InitializeComponent();
         windowInteraction = new DesktopWindowInteraction(this);
         ConfigureInitialWindowBounds();
+        UpdateTitleBarDensity(Width);
         ConfigureWebViewSurface(MainWebView);
         trayController = new DesktopTrayController(
             startupTimeline,
@@ -139,6 +144,7 @@ public partial class MainWindow : System.Windows.Window
         webViewHost?.Dispose();
         webViewHost = null;
         windowInteraction.UpdateRegions(DesktopWindowRegionSet.Empty);
+        SetNavigationAvailability(canGoBack: false, canGoForward: false);
     }
 
     private WebViewHost CreateWebViewHost(WebView2CompositionControl webView)
@@ -389,6 +395,98 @@ public partial class MainWindow : System.Windows.Window
 
     private static string MetadataDimension(double value) => ((int)Math.Round(value)).ToString();
 
+    private void HandleWindowSizeChanged(object sender, SizeChangedEventArgs e) =>
+        UpdateTitleBarDensity(e.NewSize.Width);
+
+    private void UpdateTitleBarDensity(double width)
+    {
+        NativeMenu.Visibility = width >= NativeMenuMinimumWidth
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        NativeNavigation.Visibility = width >= NativeNavigationMinimumWidth
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void ShowWindowMenu(object sender, RoutedEventArgs e)
+    {
+        System.Windows.Point menuPoint = NativeTitleBar.PointToScreen(
+            new System.Windows.Point(0, NativeTitleBar.ActualHeight));
+        SystemCommands.ShowSystemMenu(this, menuPoint);
+    }
+
+    private void NavigateBack(object sender, RoutedEventArgs e)
+    {
+        WebView2CompositionControl? webView = GetActiveWebView();
+        if (webView?.CanGoBack == true)
+        {
+            webView.GoBack();
+        }
+    }
+
+    private void NavigateForward(object sender, RoutedEventArgs e)
+    {
+        WebView2CompositionControl? webView = GetActiveWebView();
+        if (webView?.CanGoForward == true)
+        {
+            webView.GoForward();
+        }
+    }
+
+    private async void ExecuteWebEditCommand(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string command })
+        {
+            return;
+        }
+
+        WebView2CompositionControl? webView = GetActiveWebView();
+        if (webView?.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        webView.Focus();
+        try
+        {
+            string commandJSON = JsonSerializer.Serialize(command);
+            await webView.CoreWebView2.ExecuteScriptAsync(
+                $"document.execCommand({commandJSON})");
+        }
+        catch (Exception exception)
+        {
+            startupTimeline.Mark("titlebar.edit_command_failed", new Dictionary<string, string>
+            {
+                ["command"] = command,
+                ["error"] = TrimMetadata(exception.Message),
+            });
+        }
+    }
+
+    private void ReloadFromTitleBar(object sender, RoutedEventArgs e) =>
+        _ = webViewHost?.ReloadAsync("titlebar_reload");
+
+    private void ClearWebCacheFromTitleBar(object sender, RoutedEventArgs e) =>
+        _ = webViewHost?.ClearCacheAndReloadAsync("titlebar_clear_cache");
+
+    private void CheckForUpdatesFromTitleBar(object sender, RoutedEventArgs e)
+    {
+        startupTimeline.Mark("titlebar.update_check_requested");
+        _ = updateChecker.CheckNowAsync(this);
+    }
+
+    private void ShowAbout(object sender, RoutedEventArgs e)
+    {
+        System.Windows.MessageBox.Show(
+            this,
+            $"Nexus {AppVersionInfo.Version}\n构建 {AppVersionInfo.BuildNumber}",
+            "关于 Nexus",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    private void ExitApplication(object sender, RoutedEventArgs e) => ExitFromTray();
+
     private void MinimizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
 
     private void MaximizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MaximizeWindow(this);
@@ -400,7 +498,32 @@ public partial class MainWindow : System.Windows.Window
     private void ConfigureWebViewSurface(WebView2CompositionControl webView)
     {
         webView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
+        webView.NavigationCompleted += (_, _) => UpdateNavigationState(webView);
+        webView.SourceChanged += (_, _) => UpdateNavigationState(webView);
         windowInteraction.Attach(webView);
+    }
+
+    private WebView2CompositionControl? GetActiveWebView() =>
+        WebViewContainer.Children
+            .OfType<WebView2CompositionControl>()
+            .LastOrDefault();
+
+    private void UpdateNavigationState(WebView2CompositionControl webView)
+    {
+        if (!ReferenceEquals(webView, GetActiveWebView()))
+        {
+            return;
+        }
+
+        SetNavigationAvailability(webView.CanGoBack, webView.CanGoForward);
+    }
+
+    private void SetNavigationAvailability(bool canGoBack, bool canGoForward)
+    {
+        BackNavigationButton.IsEnabled = canGoBack;
+        ForwardNavigationButton.IsEnabled = canGoForward;
+        BackNavigationMenuItem.IsEnabled = canGoBack;
+        ForwardNavigationMenuItem.IsEnabled = canGoForward;
     }
 
     private static void ConfigureNativeWindowBackdrop(IntPtr hwnd)

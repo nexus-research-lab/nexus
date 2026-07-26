@@ -63,7 +63,6 @@ export function WorkspaceConversationTabs({
           onPointerDown={controller.tabsScroll.handlePointerDown}
           onPointerMove={controller.tabsScroll.handlePointerMove}
           onPointerUp={controller.tabsScroll.handlePointerUp}
-          onWheel={controller.tabsScroll.handleWheel}
           ref={controller.tabsScroll.viewportRef}
         >
           {controller.orderedConversations.map((conversation) => {

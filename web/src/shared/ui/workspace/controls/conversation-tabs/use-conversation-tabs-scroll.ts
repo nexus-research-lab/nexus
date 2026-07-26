@@ -6,7 +6,6 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
-  type WheelEvent as ReactWheelEvent,
 } from "react";
 
 import { CONVERSATION_TABS_VIEWPORT_INSET } from "./conversation-tabs-model";
@@ -14,6 +13,7 @@ import { CONVERSATION_TABS_VIEWPORT_INSET } from "./conversation-tabs-model";
 const SCROLL_EDGE_TOLERANCE = 2;
 const DRAG_START_THRESHOLD = 4;
 const TAB_WIDTH_TRANSITION_SETTLE_MS = 170;
+const WHEEL_LINE_PIXELS = 16;
 
 export interface ConversationTabsScrollMetrics {
   clientWidth: number;
@@ -77,7 +77,14 @@ export function useConversationTabsScroll({
     }
 
     const frame = window.requestAnimationFrame(updateMetrics);
+    const handleWheel = (event: WheelEvent) => {
+      if (!scrollConversationTabsByWheel(viewport, event)) {
+        return;
+      }
+      event.preventDefault();
+    };
     viewport.addEventListener("scroll", updateMetrics, { passive: true });
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
     const resizeObserver = new ResizeObserver(updateMetrics);
     resizeObserver.observe(viewport);
     const content = viewport.firstElementChild;
@@ -88,6 +95,7 @@ export function useConversationTabsScroll({
     return () => {
       window.cancelAnimationFrame(frame);
       viewport.removeEventListener("scroll", updateMetrics);
+      viewport.removeEventListener("wheel", handleWheel);
       resizeObserver.disconnect();
     };
   }, [contentKey, updateMetrics]);
@@ -178,31 +186,59 @@ export function useConversationTabsScroll({
     event.stopPropagation();
   }, []);
 
-  const handleWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
-    const viewport = viewportRef.current;
-    if (
-      !viewport
-      || viewport.scrollWidth <= viewport.clientWidth + SCROLL_EDGE_TOLERANCE
-      || Math.abs(event.deltaX) >= Math.abs(event.deltaY)
-    ) {
-      return;
-    }
-    event.preventDefault();
-    viewport.scrollLeft += event.deltaY;
-  }, []);
-
   return {
     handleClickCapture,
     handlePointerCancel: finishDragging,
     handlePointerDown,
     handlePointerMove,
     handlePointerUp: finishDragging,
-    handleWheel,
     isDragging,
     metrics,
     setScrollLeft,
     viewportRef: viewportRef as RefObject<HTMLDivElement | null>,
   };
+}
+
+function scrollConversationTabsByWheel(
+  viewport: HTMLDivElement,
+  event: WheelEvent,
+): boolean {
+  const maxScrollLeft = viewport.scrollWidth - viewport.clientWidth;
+  if (maxScrollLeft <= SCROLL_EDGE_TOLERANCE) {
+    return false;
+  }
+
+  const axisDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+    ? event.deltaX
+    : event.deltaY;
+  const nextScrollLeft = Math.min(
+    maxScrollLeft,
+    Math.max(0, viewport.scrollLeft + scaleWheelDelta(
+      axisDelta,
+      event.deltaMode,
+      viewport.clientWidth,
+    )),
+  );
+  if (nextScrollLeft === viewport.scrollLeft) {
+    return false;
+  }
+
+  viewport.scrollLeft = nextScrollLeft;
+  return true;
+}
+
+function scaleWheelDelta(
+  delta: number,
+  deltaMode: number,
+  pageWidth: number,
+): number {
+  if (deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    return delta * WHEEL_LINE_PIXELS;
+  }
+  if (deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    return delta * pageWidth;
+  }
+  return delta;
 }
 
 function scrollConversationTabIntoView(

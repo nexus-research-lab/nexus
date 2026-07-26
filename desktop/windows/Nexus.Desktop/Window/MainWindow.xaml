@@ -3,31 +3,32 @@
   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
   xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-  xmlns:system="clr-namespace:System.Windows;assembly=PresentationFramework"
   xmlns:webview="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
   Title="Nexus"
   Background="#F9F9F7"
+  Icon="pack://application:,,,/Resources/AppIcon.ico"
   ResizeMode="CanResize"
+  SizeChanged="HandleWindowSizeChanged"
   WindowStyle="SingleBorderWindow"
   WindowStartupLocation="CenterScreen">
   <WindowChrome.WindowChrome>
-    <!-- 客户区铺到物理顶边；拖动面由 Web Header 声明，宿主只保留缩放与窗口命令。 -->
+    <!-- 原生栏独占窗口命令平面；Web 从下一行开始，不再为 caption controls 预留空域。 -->
     <shell:WindowChrome
-      CaptionHeight="0"
+      CaptionHeight="34"
       CornerRadius="0"
       GlassFrameThickness="0"
       ResizeBorderThickness="6"
       UseAeroCaptionButtons="False" />
   </WindowChrome.WindowChrome>
   <Window.Resources>
-    <Style x:Key="CaptionButtonStyle" TargetType="{x:Type Button}">
-      <Setter Property="Width" Value="{x:Static system:SystemParameters.WindowCaptionButtonWidth}" />
-      <Setter Property="Height" Value="{x:Static system:SystemParameters.WindowCaptionButtonHeight}" />
+    <Style x:Key="TitleBarButtonStyle" TargetType="{x:Type Button}">
+      <Setter Property="Width" Value="32" />
+      <Setter Property="Height" Value="34" />
       <Setter Property="Padding" Value="0" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Focusable" Value="False" />
-      <Setter Property="Foreground" Value="#FF2C2117" />
+      <Setter Property="Foreground" Value="#FF292929" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
       <Setter Property="Template">
@@ -43,12 +44,21 @@
       </Setter>
       <Style.Triggers>
         <Trigger Property="IsMouseOver" Value="True">
-          <Setter Property="Background" Value="#16000000" />
+          <Setter Property="Background" Value="#12000000" />
         </Trigger>
         <Trigger Property="IsPressed" Value="True">
-          <Setter Property="Background" Value="#26000000" />
+          <Setter Property="Background" Value="#22000000" />
+        </Trigger>
+        <Trigger Property="IsEnabled" Value="False">
+          <Setter Property="Foreground" Value="#66000000" />
         </Trigger>
       </Style.Triggers>
+    </Style>
+    <Style
+      x:Key="CaptionButtonStyle"
+      BasedOn="{StaticResource TitleBarButtonStyle}"
+      TargetType="{x:Type Button}">
+      <Setter Property="Width" Value="46" />
     </Style>
     <Style
       x:Key="CloseCaptionButtonStyle"
@@ -65,103 +75,278 @@
         </Trigger>
       </Style.Triggers>
     </Style>
+    <Style x:Key="TitleBarMenuItemStyle" TargetType="{x:Type MenuItem}">
+      <Setter Property="FontFamily" Value="Segoe UI" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="#FF292929" />
+      <Setter Property="Padding" Value="9,5" />
+    </Style>
   </Window.Resources>
   <Grid Background="Transparent">
-    <Grid x:Name="WebViewContainer" Background="Transparent">
-      <webview:WebView2CompositionControl x:Name="MainWebView" />
-    </Grid>
-    <Grid
-      Panel.ZIndex="1"
-      HorizontalAlignment="Right"
-      VerticalAlignment="Top"
-      Background="Transparent"
-      shell:WindowChrome.IsHitTestVisibleInChrome="True">
-      <Grid.Style>
-        <Style TargetType="{x:Type Grid}">
-          <!-- 常规窗口把右侧缩放边界留给 WindowChrome；最大化后按钮贴齐屏幕边缘。 -->
-          <Setter Property="Margin" Value="0,0,6,0" />
-          <Style.Triggers>
-            <DataTrigger
-              Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}, Path=WindowState}"
-              Value="Maximized">
-              <Setter Property="Margin" Value="0" />
-            </DataTrigger>
-          </Style.Triggers>
-        </Style>
-      </Grid.Style>
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="Auto" />
-      </Grid.ColumnDefinitions>
-      <Button
-        Grid.Column="0"
-        AutomationProperties.Name="最小化"
-        Click="MinimizeWindow"
-        Style="{StaticResource CaptionButtonStyle}"
-        ToolTip="最小化">
-        <TextBlock
-          FontFamily="Segoe MDL2 Assets"
-          FontSize="10"
-          Text="&#xE921;" />
-      </Button>
-      <Grid
-        Grid.Column="1"
-        Width="{x:Static system:SystemParameters.WindowCaptionButtonWidth}"
-        Height="{x:Static system:SystemParameters.WindowCaptionButtonHeight}">
-        <Button Click="MaximizeWindow" ToolTip="最大化">
-          <Button.Style>
-            <Style
-              BasedOn="{StaticResource CaptionButtonStyle}"
-              TargetType="{x:Type Button}">
-              <Setter Property="AutomationProperties.Name" Value="最大化" />
-              <Style.Triggers>
-                <DataTrigger
-                  Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}, Path=WindowState}"
-                  Value="Maximized">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="34" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <Border
+      Grid.Row="0"
+      Background="#F9F9F7"
+      BorderBrush="#18000000"
+      BorderThickness="0,0,0,1">
+      <Grid x:Name="NativeTitleBar">
+        <Grid.Style>
+          <Style TargetType="{x:Type Grid}">
+            <!-- 常规窗口给四周缩放保留命中边界；最大化后内容贴齐工作区。 -->
+            <Setter Property="Margin" Value="6,0,6,0" />
+            <Style.Triggers>
+              <DataTrigger
+                Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}, Path=WindowState}"
+                Value="Maximized">
+                <Setter Property="Margin" Value="0" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Grid.Style>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <Button
+          Grid.Column="0"
+          AutomationProperties.Name="窗口菜单"
+          Click="ShowWindowMenu"
+          shell:WindowChrome.IsHitTestVisibleInChrome="True"
+          Style="{StaticResource TitleBarButtonStyle}"
+          ToolTip="窗口菜单">
+          <Image
+            Width="18"
+            Height="18"
+            Source="pack://application:,,,/Resources/AppIcon.ico"
+            Stretch="Uniform" />
+        </Button>
+
+        <StackPanel
+          x:Name="NativeNavigation"
+          Grid.Column="1"
+          Orientation="Horizontal"
+          shell:WindowChrome.IsHitTestVisibleInChrome="True">
+          <Button
+            x:Name="BackNavigationButton"
+            AutomationProperties.Name="后退"
+            Click="NavigateBack"
+            IsEnabled="False"
+            Style="{StaticResource TitleBarButtonStyle}"
+            ToolTip="后退">
+            <TextBlock
+              FontFamily="Segoe MDL2 Assets"
+              FontSize="13"
+              Text="&#xE72B;" />
+          </Button>
+          <Button
+            x:Name="ForwardNavigationButton"
+            AutomationProperties.Name="前进"
+            Click="NavigateForward"
+            IsEnabled="False"
+            Style="{StaticResource TitleBarButtonStyle}"
+            ToolTip="前进">
+            <TextBlock
+              FontFamily="Segoe MDL2 Assets"
+              FontSize="13"
+              Text="&#xE72A;" />
+          </Button>
+        </StackPanel>
+
+        <Menu
+          x:Name="NativeMenu"
+          Grid.Column="2"
+          Height="33"
+          HorizontalAlignment="Left"
+          VerticalAlignment="Top"
+          AutomationProperties.Name="应用菜单"
+          Background="Transparent"
+          BorderThickness="0"
+          IsMainMenu="True"
+          ItemContainerStyle="{StaticResource TitleBarMenuItemStyle}"
+          shell:WindowChrome.IsHitTestVisibleInChrome="True">
+          <MenuItem AutomationProperties.Name="文件" Header="_文件">
+            <MenuItem
+              AutomationProperties.Name="关闭窗口"
+              Click="CloseWindow"
+              Header="关闭窗口"
+              InputGestureText="Alt+F4" />
+            <Separator />
+            <MenuItem
+              AutomationProperties.Name="退出 Nexus"
+              Click="ExitApplication"
+              Header="退出 Nexus" />
+          </MenuItem>
+          <MenuItem AutomationProperties.Name="编辑" Header="_编辑">
+            <MenuItem
+              AutomationProperties.Name="撤销"
+              Click="ExecuteWebEditCommand"
+              Header="撤销"
+              InputGestureText="Ctrl+Z"
+              Tag="undo" />
+            <MenuItem
+              AutomationProperties.Name="重做"
+              Click="ExecuteWebEditCommand"
+              Header="重做"
+              InputGestureText="Ctrl+Y"
+              Tag="redo" />
+            <Separator />
+            <MenuItem
+              AutomationProperties.Name="剪切"
+              Click="ExecuteWebEditCommand"
+              Header="剪切"
+              InputGestureText="Ctrl+X"
+              Tag="cut" />
+            <MenuItem
+              AutomationProperties.Name="复制"
+              Click="ExecuteWebEditCommand"
+              Header="复制"
+              InputGestureText="Ctrl+C"
+              Tag="copy" />
+            <MenuItem
+              AutomationProperties.Name="粘贴"
+              Click="ExecuteWebEditCommand"
+              Header="粘贴"
+              InputGestureText="Ctrl+V"
+              Tag="paste" />
+            <Separator />
+            <MenuItem
+              AutomationProperties.Name="全选"
+              Click="ExecuteWebEditCommand"
+              Header="全选"
+              InputGestureText="Ctrl+A"
+              Tag="selectAll" />
+          </MenuItem>
+          <MenuItem AutomationProperties.Name="视图" Header="_视图">
+            <MenuItem
+              x:Name="BackNavigationMenuItem"
+              AutomationProperties.Name="后退"
+              Click="NavigateBack"
+              Header="后退"
+              IsEnabled="False" />
+            <MenuItem
+              x:Name="ForwardNavigationMenuItem"
+              AutomationProperties.Name="前进"
+              Click="NavigateForward"
+              Header="前进"
+              IsEnabled="False" />
+            <Separator />
+            <MenuItem
+              AutomationProperties.Name="重新加载"
+              Click="ReloadFromTitleBar"
+              Header="重新加载"
+              InputGestureText="Ctrl+R" />
+            <MenuItem
+              AutomationProperties.Name="清除缓存并重新加载"
+              Click="ClearWebCacheFromTitleBar"
+              Header="清除缓存并重新加载" />
+          </MenuItem>
+          <MenuItem AutomationProperties.Name="帮助" Header="_帮助">
+            <MenuItem
+              AutomationProperties.Name="检查更新"
+              Click="CheckForUpdatesFromTitleBar"
+              Header="检查更新" />
+            <Separator />
+            <MenuItem
+              AutomationProperties.Name="关于 Nexus"
+              Click="ShowAbout"
+              Header="关于 Nexus" />
+          </MenuItem>
+        </Menu>
+
+        <Grid
+          Grid.Column="3"
+          HorizontalAlignment="Right"
+          Background="Transparent"
+          shell:WindowChrome.IsHitTestVisibleInChrome="True">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Button
+            Grid.Column="0"
+            AutomationProperties.Name="最小化"
+            Click="MinimizeWindow"
+            Style="{StaticResource CaptionButtonStyle}"
+            ToolTip="最小化">
+            <TextBlock
+              FontFamily="Segoe MDL2 Assets"
+              FontSize="10"
+              Text="&#xE921;" />
+          </Button>
+          <Grid
+            Grid.Column="1"
+            Width="46"
+            Height="34">
+            <Button Click="MaximizeWindow" ToolTip="最大化">
+              <Button.Style>
+                <Style
+                  BasedOn="{StaticResource CaptionButtonStyle}"
+                  TargetType="{x:Type Button}">
+                  <Setter Property="AutomationProperties.Name" Value="最大化" />
+                  <Style.Triggers>
+                    <DataTrigger
+                      Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}, Path=WindowState}"
+                      Value="Maximized">
+                      <Setter Property="Visibility" Value="Collapsed" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Button.Style>
+              <TextBlock
+                FontFamily="Segoe MDL2 Assets"
+                FontSize="10"
+                Text="&#xE922;" />
+            </Button>
+            <Button Click="RestoreWindow" ToolTip="还原">
+              <Button.Style>
+                <Style
+                  BasedOn="{StaticResource CaptionButtonStyle}"
+                  TargetType="{x:Type Button}">
+                  <Setter Property="AutomationProperties.Name" Value="还原" />
                   <Setter Property="Visibility" Value="Collapsed" />
-                </DataTrigger>
-              </Style.Triggers>
-            </Style>
-          </Button.Style>
-          <TextBlock
-            FontFamily="Segoe MDL2 Assets"
-            FontSize="10"
-            Text="&#xE922;" />
-        </Button>
-        <Button Click="RestoreWindow" ToolTip="还原">
-          <Button.Style>
-            <Style
-              BasedOn="{StaticResource CaptionButtonStyle}"
-              TargetType="{x:Type Button}">
-              <Setter Property="AutomationProperties.Name" Value="还原" />
-              <Setter Property="Visibility" Value="Collapsed" />
-              <Style.Triggers>
-                <DataTrigger
-                  Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}, Path=WindowState}"
-                  Value="Maximized">
-                  <Setter Property="Visibility" Value="Visible" />
-                </DataTrigger>
-              </Style.Triggers>
-            </Style>
-          </Button.Style>
-          <TextBlock
-            FontFamily="Segoe MDL2 Assets"
-            FontSize="10"
-            Text="&#xE923;" />
-        </Button>
+                  <Style.Triggers>
+                    <DataTrigger
+                      Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type Window}}, Path=WindowState}"
+                      Value="Maximized">
+                      <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Button.Style>
+              <TextBlock
+                FontFamily="Segoe MDL2 Assets"
+                FontSize="10"
+                Text="&#xE923;" />
+            </Button>
+          </Grid>
+          <Button
+            Grid.Column="2"
+            AutomationProperties.Name="关闭"
+            Click="CloseWindow"
+            Style="{StaticResource CloseCaptionButtonStyle}"
+            ToolTip="关闭">
+            <TextBlock
+              FontFamily="Segoe MDL2 Assets"
+              FontSize="10"
+              Text="&#xE8BB;" />
+          </Button>
+        </Grid>
       </Grid>
-      <Button
-        Grid.Column="2"
-        AutomationProperties.Name="关闭"
-        Click="CloseWindow"
-        Style="{StaticResource CloseCaptionButtonStyle}"
-        ToolTip="关闭">
-        <TextBlock
-          FontFamily="Segoe MDL2 Assets"
-          FontSize="10"
-          Text="&#xE8BB;" />
-      </Button>
+    </Border>
+
+    <Grid
+      x:Name="WebViewContainer"
+      Grid.Row="1"
+      Background="Transparent">
+      <webview:WebView2CompositionControl x:Name="MainWebView" />
     </Grid>
   </Grid>
 </Window>
