@@ -8,8 +8,11 @@ package runtimeidentity
 import "time"
 
 const (
-	registryVersion    = 1
-	userLayoutVersion  = 4
+	registryVersion = 1
+
+	// v5 重新归属状态布局迁移后遗留的 runtime transcript 项目目录。
+	userLayoutVersion = 5
+
 	defaultTicketTTL   = 24 * time.Hour
 	defaultUIDMinimum  = 20000
 	defaultUIDMaximum  = 59999

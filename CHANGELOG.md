@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed v0.1.27 Skill storage migration blocking startup on a same-name invalid Skill directory; the existing directory is now preserved in the host migration-backup area before the legacy external Skill is migrated.
 - Fixed Linux runtime-isolation Docker images leaving application directories group-writable, which caused the `enforce` startup permission check to reject the bundled read-only application root.
 - Fixed Linux runtime-isolation sessions failing to read platform Skills from a private synchronization staging directory; platform libraries now publish before ACL setup, normalize every published tree as runtime-readable, and can stage copies from the read-only bundled Skill directory.
+- Fixed migrated runtime transcript project directories retaining host ownership after the identity layout was marked current, which prevented isolated nxs/Claude processes from writing transcripts and persisting resumable sessions.
 
 ## [0.1.29] - 2026-07-26
 
