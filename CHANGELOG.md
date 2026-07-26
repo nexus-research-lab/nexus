@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed completed legacy state-layout, workspace-layout, and v0.1.27 Skill migrations from the normal startup path; deployments now require the canonical `.nexus/app` and `.nexus/users` layout.
 - Fixed Docker Compose data mounts silently resolving relative to `deploy/` when the root `.env` was not passed explicitly; `HOST_DATA_DIR` is now required and missing configuration fails fast.
 - Fixed Docker restarts failing when the launcher-owned runtime settings file was writable through ACL but not chmod-able by the host agent; the entrypoint now leaves existing runtime file modes under launcher control.
+- Reordered the Docker runtime image so bundled nxs downloads and static isolation setup remain cached when Go code, Skills, or entrypoint scripts change.
 
 ## [0.1.29] - 2026-07-26
 

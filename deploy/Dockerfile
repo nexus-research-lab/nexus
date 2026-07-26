@@ -136,25 +136,25 @@ RUN groupadd --system --gid 1001 agent && \
 
 WORKDIR /opt/app
 
-COPY --from=builder /out/nexus-server /usr/local/bin/nexus-server
-COPY --from=builder /out/nexusctl /usr/local/bin/nexusctl
-COPY --from=builder /out/nexus-runtime-launcher /usr/local/libexec/nexus-runtime-launcher
-COPY db /opt/app/db
-COPY skills /opt/app/skills
-COPY scripts/desktop/fetch-nxs-runtime.js /opt/app/scripts/desktop/fetch-nxs-runtime.js
-COPY deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
-COPY deploy/nexus-apt-install /usr/local/bin/nexus-apt-install
-
+# nxs runtime 只依赖下载脚本、目标平台和 release。放在业务源码之前，
+# 避免 Go、Skill 或入口脚本变化触发重复下载。
+COPY --chown=root:root --chmod=0444 scripts/desktop/fetch-nxs-runtime.js /opt/app/scripts/desktop/fetch-nxs-runtime.js
 RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
+        mkdir -p /opt/app/bin && \
         node /opt/app/scripts/desktop/fetch-nxs-runtime.js \
         --goos "${TARGETOS:-linux}" \
         --goarch "${TARGETARCH:-amd64}" \
         --release "${NEXUS_NXS_RUNTIME_RELEASE}" \
         --output /opt/app/bin/nxs; \
     fi && \
-    test -x /usr/local/bin/claude && \
-    chmod +x /opt/app/deploy/entrypoint.sh /usr/local/bin/nexus-apt-install && \
-    chown root:root /usr/local/bin/nexus-apt-install && \
+    find /opt/app/scripts -type d -exec chmod 0555 {} \; && \
+    if [ -f /opt/app/bin/nxs ]; then \
+        chown root:root /opt/app/bin/nxs && \
+        chmod 0555 /opt/app/bin /opt/app/bin/nxs; \
+    fi
+
+# OS 账号、launcher 配置与 sudo policy 不依赖产品源码，作为稳定基础层缓存。
+RUN test -x /usr/local/bin/claude && \
     mkdir -p /etc/nexus && \
     printf '%s\n' \
     '{' \
@@ -180,10 +180,6 @@ RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
     > /etc/nexus/runtime-isolation.json && \
     chown root:root /etc/nexus/runtime-isolation.json && \
     chmod 0644 /etc/nexus/runtime-isolation.json && \
-    chown root:agent /usr/local/bin/nexusctl && \
-    chmod 0750 /usr/local/bin/nexusctl && \
-    chown root:agent /usr/local/libexec/nexus-runtime-launcher && \
-    chmod 4750 /usr/local/libexec/nexus-runtime-launcher && \
     printf '%s\n' \
     'Defaults:agent !requiretty' \
     'Defaults:agent env_keep += "NEXUS_APT_ALLOWLIST"' \
@@ -192,14 +188,22 @@ RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
     chmod 0440 /etc/sudoers.d/nexus-agent && \
     visudo -cf /etc/sudoers.d/nexus-agent && \
     chown -R agent:agent /home/agent && \
-    chown -R root:root /opt/app && \
-    find /opt/app -type d -exec chmod 0555 {} \; && \
-    find /opt/app -type f -exec chmod a-w {} \; && \
-    chmod 0751 /home/agent && \
-    if [ -f /opt/app/bin/nxs ]; then \
-        chown root:root /opt/app/bin/nxs && \
-        chmod 0555 /opt/app/bin/nxs; \
-    fi
+    chmod 0751 /home/agent
+
+# 数据库与 Skill 树各自归一权限；后续业务二进制变化不会让 nxs 下载层失效。
+COPY --chown=root:root db /opt/app/db
+RUN find /opt/app/db -type d -exec chmod 0555 {} \; && \
+    find /opt/app/db -type f -exec chmod a-w {} \;
+
+COPY --chown=root:root skills /opt/app/skills
+RUN find /opt/app/skills -type d -exec chmod 0555 {} \; && \
+    find /opt/app/skills -type f -exec chmod a-w {} \;
+
+COPY --from=builder --chown=root:root --chmod=0755 /out/nexus-server /usr/local/bin/nexus-server
+COPY --from=builder --chown=root:agent --chmod=0750 /out/nexusctl /usr/local/bin/nexusctl
+COPY --from=builder --chown=root:agent --chmod=4750 /out/nexus-runtime-launcher /usr/local/libexec/nexus-runtime-launcher
+COPY --chown=root:root --chmod=0555 deploy/entrypoint.sh /opt/app/deploy/entrypoint.sh
+COPY --chown=root:root --chmod=0755 deploy/nexus-apt-install /usr/local/bin/nexus-apt-install
 
 USER agent
 
