@@ -31,9 +31,10 @@ ifeq ($(NXS_DEV_GOOS),windows)
 NXS_DEV_BINARY_NAME := nxs.exe
 endif
 NEXUS_NXS_RUNTIME_RELEASE ?= nxs-stable
+HOST_DATA_DIR ?= ./data
 NEXUS_NXS_RUNTIME_RELEASE_CMD = sh scripts/resolve-nxs-runtime-release.sh "$(NEXUS_NXS_RUNTIME_RELEASE)"
 NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk/nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
-COMPOSE_CMD ?= docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
+COMPOSE_CMD ?= HOST_DATA_DIR="$(HOST_DATA_DIR)" docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 PNPM ?= pnpm
 
 # Default target
