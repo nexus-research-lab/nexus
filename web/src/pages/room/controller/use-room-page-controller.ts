@@ -16,7 +16,7 @@ import { useRoomPageData } from "./use-room-page-data";
 export function useRoomPageController({
   roomId,
   conversationId,
-  preferredConversationId,
+  preferredConversationIds,
   sessionKey,
 }: RoomPageControllerOptions) {
   // 页面只订阅实际消费的 Store 字段，避免无关 Agent 状态使 Room 整页重渲染。
@@ -32,7 +32,7 @@ export function useRoomPageController({
   const model = useRoomPageModel({
     agents,
     conversationId,
-    preferredConversationId,
+    preferredConversationIds,
     roomContexts: data.roomContexts,
     roomId,
     sessionKey,

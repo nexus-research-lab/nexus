@@ -15,7 +15,7 @@ src/
   hooks/       - 自定义 React Hooks；`agent/` 按动作、消息模型、会话、运行态和传输协议分层
   lib/         - 无业务状态的基础函数与协议客户端；根目录保存错误、头像和未知值等跨领域纯投影，`format/` 按展示值类型分离格式化规则，`api/` 按 core/agent/account/capability/conversation/settings 分离传输与领域协议，`websocket/` 按策略、心跳、单连接客户端、共享通道和 React 生命周期分层
   shared/      - 无业务所有权的 UI、认证 Context、i18n 和跨页面原语；`ui/` 按 button/form/display/list/navigation 分离基础交互职责，`ui/liquid-glass/` 分离能力探测、动画资源、滤镜链和组件装配，`i18n/catalog/` 按领域分离双语文案并逐分片校验键集合，`ui/markdown/` 统一 Markdown 渲染，`ui/mention/` 统一目标选择、文本匹配和插入，`ui/overlay/` 统一锚点定位与浏览器生命周期，`ui/menu/` 保存具体菜单语义
-  store/       - Zustand 状态管理（agent + session 独立 store，room-navigation 按 Room 持久化最后激活会话）
+  store/       - Zustand 状态管理（agent + session 独立 store，room-navigation 按 Room 持久化标签集合、顺序与活动会话）
   types/       - 跨领域协议类型；`capability/scheduled-task/` 分离任务定义与运行结果，`conversation/message/` 分离附件、内容、实体和事件，`conversation/interaction/` 保存权限和用户问答协议
 ```
 
@@ -32,7 +32,7 @@ src/
 - Agent 运行态由 `hooks/agent/runtime/` 按纯模型、易失快照和 React 状态分层；状态机实例不得暴露给编排层，`model/` 不得反向依赖存储或 Hook
 - Agent 目录 Store 只保留静态目录与当前选择；运行态事件只在会话/工作区链路中消费，不回写 Agent 目录状态
 - WebSocket 连接策略只由 `lib/websocket/socket-policy.ts` 定义；共享通道使用完整有效配置作为身份，业务消息不得进入离线队列
-- Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；活动标签必须属于打开集合，视图不得直接修正集合状态
+- Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；`store/room-navigation.ts` 按 Room 持久化完整打开集合、顺序与活动项，首次进入只打开恢复目标，历史会话只在用户显式选择后加入；活动标签必须属于打开集合，视图不得直接修正集合状态
 - `shared/`、`lib/`、`store/` 与 `types/` 不得依赖 `features/`；应用壳层组合 Feature 时必须归入 `app/` 或专用导航 Feature
 - `types/` 只声明跨层协议，不得导入 Config、Lib 或运行时投影；Agent 会话作用域键只由 `lib/conversation/agent-conversation-identity.ts` 计算
 - API 客户端按 endpoint 所有权归入 `lib/api/{agent,account,capability,conversation,settings}/`，通用传输在 `core/` 按请求、响应、错误和鉴权事件拆分；消费者直接导入职责文件，不保留旧路径转发层

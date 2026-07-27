@@ -126,17 +126,28 @@ function getCurrentRoomType(controller: RoomPageController): string | null {
 
 export function RoomPage() {
   const params = useParams<RoomRouteParams>();
-  const preferredConversationId = useRoomNavigationStore((state) => (
+  const preferredConversationTabs = useRoomNavigationStore((state) => (
     params.roomId
-      ? state.last_active_conversation_by_room[params.roomId] ?? null
-      : null
+      ? state.conversation_tabs_by_room[params.roomId]
+      : undefined
   ));
+  const preferredConversationIds = useMemo(() => {
+    if (!preferredConversationTabs) {
+      return [];
+    }
+    return [
+      preferredConversationTabs.active_conversation_id,
+      ...preferredConversationTabs.open_conversation_ids.filter(
+        (id) => id !== preferredConversationTabs.active_conversation_id,
+      ),
+    ];
+  }, [preferredConversationTabs]);
   const controller = useRoomPageController({
     roomId: params.roomId,
     conversationId: params.conversationId,
-    preferredConversationId: params.conversationId || params.sessionKey
-      ? null
-      : preferredConversationId,
+    preferredConversationIds: params.conversationId || params.sessionKey
+      ? []
+      : preferredConversationIds,
     sessionKey: params.sessionKey,
   });
   const { actions, conversation, room, status } = controller;

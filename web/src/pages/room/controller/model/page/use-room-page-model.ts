@@ -14,7 +14,7 @@ import {
 interface UseRoomPageModelOptions {
   agents: Agent[];
   conversationId?: string | null;
-  preferredConversationId?: string | null;
+  preferredConversationIds?: readonly string[];
   roomContexts: RoomContextAggregate[];
   roomId?: string | null;
   sessionKey?: string | null;
@@ -39,7 +39,7 @@ function getExternalRoomType(base: ReturnType<typeof buildRoomPageBaseModel>): s
 export function useRoomPageModel({
   agents,
   conversationId,
-  preferredConversationId,
+  preferredConversationIds = [],
   roomContexts,
   roomId,
   sessionKey,
@@ -48,11 +48,11 @@ export function useRoomPageModel({
     () => buildRoomPageBaseModel({
       agents,
       conversationId,
-      preferredConversationId,
+      preferredConversationIds,
       roomContexts,
       roomId,
     }),
-    [agents, conversationId, preferredConversationId, roomContexts, roomId],
+    [agents, conversationId, preferredConversationIds, roomContexts, roomId],
   );
   const routeSessionKey = normalizeRouteSessionKey(sessionKey);
   const externalSessions = useRoomExternalSessions({
@@ -61,8 +61,8 @@ export function useRoomPageModel({
     roomType: getExternalRoomType(base),
   });
   const isSelectionReady = (
-    !preferredConversationId
-    || !getExternalSessionKeyFromConversationId(preferredConversationId)
+    !preferredConversationIds[0]
+    || !getExternalSessionKeyFromConversationId(preferredConversationIds[0])
     || externalSessions.isExternalSessionCatalogReady
   );
 
@@ -72,7 +72,7 @@ export function useRoomPageModel({
       externalAgentSessions: externalSessions.externalAgentSessions,
       externalRoomConversations: externalSessions.externalRoomConversations,
       isSelectionReady,
-      preferredConversationId: preferredConversationId ?? null,
+      preferredConversationIds,
       routeRoomId: roomId ?? null,
       routeSessionKey,
     }),
@@ -81,7 +81,7 @@ export function useRoomPageModel({
       externalSessions.externalAgentSessions,
       externalSessions.externalRoomConversations,
       isSelectionReady,
-      preferredConversationId,
+      preferredConversationIds,
       roomId,
       routeSessionKey,
     ],

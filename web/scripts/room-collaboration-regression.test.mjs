@@ -313,11 +313,12 @@ test("创建 Agent 时行为模板进入独立 API 字段", async () => {
   assert.equal(params.description, "");
 });
 
-test("会话标签按创建时间稳定排序并独立恢复活动项", async () => {
+test("会话标签首次只打开活动项并按创建时间插入主动选择项", async () => {
   const {
     getConversationIdsByCreationTime,
     getInitialOpenConversationIds,
     reconcileOpenConversationIds,
+    shouldPersistConversationTabs,
   } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model.ts",
   );
@@ -346,21 +347,113 @@ test("会话标签按创建时间稳定排序并独立恢复活动项", async ()
     "消息活动时间不得改变标签创建顺序",
   );
   assert.deepEqual(
-    getInitialOpenConversationIds("third", orderedIds, orderedIds.length),
-    orderedIds,
-    "恢复最后活动标签时不得把该标签移动到首位",
+    getInitialOpenConversationIds("third", orderedIds),
+    ["third"],
+    "首次进入 Room 时只应打开最后活动标签",
+  );
+  assert.deepEqual(
+    reconcileOpenConversationIds({
+      conversationId: "third",
+      currentIds: ["third"],
+      orderedIds,
+      pendingClosedId: null,
+    }),
+    ["third"],
+    "新发现的历史会话不得自动加入标签栏",
   );
   assert.deepEqual(
     reconcileOpenConversationIds({
       conversationId: "second",
       currentIds: ["first", "third"],
-      fillAvailable: false,
-      maxOpenCount: orderedIds.length,
       orderedIds,
       pendingClosedId: null,
     }),
     orderedIds,
     "重新打开标签必须回到其创建时间位置",
+  );
+  assert.equal(
+    shouldPersistConversationTabs({
+      activeConversationId: "second",
+      routeConversationId: "third",
+    }),
+    false,
+    "点击事务的乐观活动项不得被尚未更新的旧路由反向持久化",
+  );
+  assert.equal(
+    shouldPersistConversationTabs({
+      activeConversationId: "second",
+      routeConversationId: "second",
+    }),
+    true,
+    "路由追上活动项后才能收敛持久化标签状态",
+  );
+});
+
+test("Room 导航持久化完整标签栏并让关闭项保持关闭", async () => {
+  const { useRoomNavigationStore } = await server.ssrLoadModule(
+    "/src/store/room-navigation.ts",
+  );
+  const migrate = useRoomNavigationStore.persist.getOptions().migrate;
+  assert.equal(typeof migrate, "function");
+  assert.deepEqual(
+    await migrate({
+      last_active_conversation_by_room: {
+        "legacy-room": "legacy-conversation",
+      },
+    }, 1),
+    {
+      conversation_tabs_by_room: {
+        "legacy-room": {
+          active_conversation_id: "legacy-conversation",
+          open_conversation_ids: ["legacy-conversation"],
+        },
+      },
+    },
+    "旧版最后活动项应迁移成单标签，而不是把历史全部打开",
+  );
+
+  useRoomNavigationStore.setState({ conversation_tabs_by_room: {} });
+  const roomId = "room-tabs-persistence";
+
+  useRoomNavigationStore.getState().save_room_conversation_tabs(
+    roomId,
+    ["first", "third"],
+    "third",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().conversation_tabs_by_room[roomId],
+    {
+      active_conversation_id: "third",
+      open_conversation_ids: ["first", "third"],
+    },
+    "离开 Room 前应保存完整标签数量、顺序和活动项",
+  );
+
+  useRoomNavigationStore.getState().remember_last_active_conversation(
+    roomId,
+    "second",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().conversation_tabs_by_room[roomId],
+    {
+      active_conversation_id: "second",
+      open_conversation_ids: ["first", "third", "second"],
+    },
+    "从历史主动选择会话时才应把它加入打开集合",
+  );
+
+  useRoomNavigationStore.getState().save_room_conversation_tabs(
+    roomId,
+    ["first", "second"],
+    "second",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().conversation_tabs_by_room[roomId],
+    {
+      active_conversation_id: "second",
+      open_conversation_ids: ["first", "second"],
+    },
+    "关闭的标签不得在后续进入或持久化恢复时自动补回",
   );
 });
 
@@ -377,17 +470,17 @@ test("Room 无显式会话路由时优先恢复用户最后活动项", async () 
   ];
 
   assert.equal(
-    resolveSelectedConversationId(null, conversations, "remembered"),
+    resolveSelectedConversationId(null, conversations, ["remembered"]),
     "remembered",
     "切回 Room 时应恢复用户最后激活的标签",
   );
   assert.equal(
-    resolveSelectedConversationId("latest", conversations, "remembered"),
+    resolveSelectedConversationId("latest", conversations, ["remembered"]),
     "latest",
     "显式 Conversation URL 仍然优先于本地恢复偏好",
   );
   assert.equal(
-    resolveSelectedConversationId(null, conversations, "removed"),
+    resolveSelectedConversationId(null, conversations, ["removed"]),
     "latest",
     "已删除的恢复目标必须回退到当前有效会话",
   );
@@ -412,7 +505,7 @@ test("Room 无显式会话路由时优先恢复用户最后活动项", async () 
     externalAgentSessions: [],
     externalRoomConversations: [externalConversation],
     isSelectionReady: true,
-    preferredConversationId: externalConversation.conversation_id,
+    preferredConversationIds: [externalConversation.conversation_id],
     routeRoomId: "room-a",
     routeSessionKey: null,
   });

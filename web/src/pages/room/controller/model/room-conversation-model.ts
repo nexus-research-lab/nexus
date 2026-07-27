@@ -83,7 +83,7 @@ export function buildRoomConversationViews(
 export function resolveSelectedConversationId(
   routeConversationId: string | null | undefined,
   roomConversations: RoomConversationView[],
-  preferredConversationId?: string | null,
+  preferredConversationIds: readonly string[] = [],
 ): string | null {
   const routeConversationExists = roomConversations.some(
     (conversation) => conversation.conversation_id === routeConversationId,
@@ -91,11 +91,13 @@ export function resolveSelectedConversationId(
   if (routeConversationId && routeConversationExists) {
     return routeConversationId;
   }
-  const preferredConversationExists = roomConversations.some(
-    (conversation) => conversation.conversation_id === preferredConversationId,
+  const liveConversationIds = new Set(
+    roomConversations.map((conversation) => conversation.conversation_id),
   );
-  if (preferredConversationId && preferredConversationExists) {
-    return preferredConversationId;
+  for (const preferredConversationId of preferredConversationIds) {
+    if (liveConversationIds.has(preferredConversationId)) {
+      return preferredConversationId;
+    }
   }
   return roomConversations[0]?.conversation_id ?? null;
 }

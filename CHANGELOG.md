@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Replaced raw Provider content-safety errors such as GLM code 1301 with one stable, actionable conversation message across DM, Room, and Thread projections; the next real user turn now receives a hidden safe failure reason so the Agent can explain what happened and continue in context, without adding a retry control, automatically retrying, or switching the selected model.
+- Persisted each Room and DM conversation tab workspace across chat switches and app restarts, including the open count, stable order, closed tabs, and active item; first-time entry now opens only the selected conversation, while history remains available without being promoted into tabs automatically.
 - Aligned and rounded the active Room Thread selection surface with the adjacent round dividers without shifting the message content.
 - Kept the complete unsent Composer draft—text, image/file attachments, Message/Goal mode, Room Goal lead, and Mention targets—visible while switching Sessions within the same Room or DM, restored the caret at the end, isolated drafts between chats, and revision-guarded delayed acknowledgements from clearing newer edits.
 - Replaced pasted-image filename chips in the Composer with compact visual thumbnails, added compact click-to-open image and pasted-text previews, and kept ordinary file attachments as labeled chips.
