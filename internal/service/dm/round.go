@@ -63,6 +63,7 @@ type roundRunner struct {
 	clientRequestID             string
 	content                     string
 	runtimeContent              conversationsvc.RuntimeContent
+	recoveryContext             []runtimectx.ContextualInputBlock
 	client                      runtimectx.Client
 	runtimeKind                 string
 	runtimeProvider             string
@@ -188,7 +189,7 @@ func (r *roundRunner) executeRound(
 ) (exec.RoundExecutionResult, error) {
 	return exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
-		ContextualInputs: goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey),
+		ContextualInputs: r.contextualInputs(),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation"),
 		Client:           r.client,
 		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},

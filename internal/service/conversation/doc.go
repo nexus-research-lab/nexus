@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - attachment.go：AttachmentPathResolver 附件路径解析。
+//   - recovery_context.go：上一轮 durable 失败终态到下一条用户消息隐藏上下文的安全投影。
 //
 // 会话标题生成见子包 titlegen/。
 //

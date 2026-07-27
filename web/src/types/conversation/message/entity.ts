@@ -74,6 +74,7 @@ export interface ResultSummary {
   fast_mode_state?: "off" | "cooldown" | "on" | string;
   runtime_subtype?: string;
   errors?: string[];
+  /** 已知 Provider 内容安全拦截统一为 content_filtered，其余值保留 runtime 原因。 */
   terminal_reason?: string;
   stop_reason?: string;
   is_error: boolean;

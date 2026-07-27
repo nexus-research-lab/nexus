@@ -255,7 +255,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	e.slot.beginNoReplyCandidate()
 	return exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
-		ContextualInputs: goalContextualInputs(e.slot.goalContext(), e.slot.goalIDForUsage(), goalSessionKeyForSlot(e.slot)),
+		ContextualInputs: e.contextualInputs(),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(e.round), "goal_continuation"),
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},

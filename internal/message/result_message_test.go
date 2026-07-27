@@ -79,6 +79,46 @@ func TestProcessorTreatsSuccessSubtypeWithErrorFlagAsFailure(t *testing.T) {
 	}
 }
 
+func TestProcessorNormalizesProviderContentFilterResultError(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:room:test",
+		RoomID:     "room-test",
+		AgentID:    "agent-test",
+		RoundID:    "round-content-filtered",
+	}, "sdk-session-content-filtered")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeResult,
+		UUID: "result-content-filtered",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:        "error",
+			IsError:        true,
+			Result:         "request rejected",
+			StopReason:     "sensitive",
+			TerminalReason: "invalid_request",
+			Errors:         []string{"generation stopped by Provider"},
+		},
+	})
+
+	if output.TerminalStatus != "error" || output.ResultSubtype != "error" {
+		t.Fatalf("content filter should remain a terminal error: %+v", output)
+	}
+	result := output.DurableMessages[0]
+	if result["result"] != contentFilteredDisplayText {
+		t.Fatalf("terminal result did not use fallback copy: %+v", result)
+	}
+	if result["terminal_reason"] != contentFilteredTerminalReason {
+		t.Fatalf("terminal reason was not normalized: %+v", result)
+	}
+	if result["stop_reason"] != "error" {
+		t.Fatalf("Provider stop reason was not normalized: %+v", result)
+	}
+	errors, ok := result["errors"].([]string)
+	if !ok || len(errors) != 1 || errors[0] != contentFilteredTerminalReason {
+		t.Fatalf("raw terminal error should not remain user-visible: %+v", result)
+	}
+}
+
 func TestProcessorNormalizesClaudeCodeErrorSubtype(t *testing.T) {
 	processor := NewProcessor(MessageContext{RoundID: "round-error-subtype"}, "")
 	output := processor.Process(sdkprotocol.ReceivedMessage{

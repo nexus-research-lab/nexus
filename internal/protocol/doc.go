@@ -13,7 +13,7 @@
 //     对话投影、统一事件类型与权威 runtime slot 快照、Goal 生命周期/objective revision、actual/budget token 双口径、最终 usage report/fence、child checkpoint/lifecycle evidence、Room parent terminal ledger 与 durable scope 回补、输入队列快照与持久接受 ACK。
 //   - chat_attachment.go / workspace_file_artifact.go / delivery_policy.go：
 //     聊天附件、工作区文件产物、投递策略。
-//   - identity.go / value.go：ID 生成与跨边界值解码。
+//   - identity.go / value.go / provider_failure.go：ID 生成、跨边界值解码与稳定 Provider 失败分类。
 //   - generate.go / typescript_event.go：前端 TS 类型代码生成入口（go:generate）。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

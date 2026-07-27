@@ -5,7 +5,7 @@
 // 成员清单：
 //   - processor.go / event_mapper.go：SDK 消息分发、状态持有与场景事件映射。
 //   - system.go / task_event.go：可见系统事件、后台任务事件、同消息多 child token 快照与 shell 易失进度投影。
-//   - assistant_error.go / result_message.go：assistant API 错误与终态结果消息。
+//   - assistant_error.go / result_message.go / provider_content_filter.go：assistant API 错误、终态结果消息与 Provider 内容安全拦截归一化。
 //   - tool_result_message.go / workspace_artifact.go：工具结果消息与工作区产物投影。
 //   - segment_assistant.go / projection_result.go / tool_result.go：assistant 分段、流式工具输入、保留执行身份的结果摘要挂载与工具结果观测。
 //   - factory_guidance.go：运行中 round 的用户引导消息。

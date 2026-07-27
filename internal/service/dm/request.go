@@ -67,6 +67,7 @@ type dmChatExecution struct {
 
 type dmRuntimePreparation struct {
 	content               conversationsvc.RuntimeContent
+	recoveryContext       []runtimectx.ContextualInputBlock
 	client                runtimectx.Client
 	runtimeKind           string
 	runtimeProvider       string
@@ -227,6 +228,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	}
 	return dmRuntimePreparation{
 		content:               runtimeContent,
+		recoveryContext:       e.recoveryContextualInputs(),
 		client:                client,
 		runtimeKind:           runtimeKind,
 		runtimeProvider:       runtimeProvider,
@@ -251,6 +253,7 @@ func (e *dmChatExecution) newRoundRunner(preparation dmRuntimePreparation) *roun
 		clientRequestID:        e.request.ClientRequestID,
 		content:                strings.TrimSpace(e.request.Content),
 		runtimeContent:         preparation.content,
+		recoveryContext:        preparation.recoveryContext,
 		client:                 preparation.client,
 		runtimeKind:            preparation.runtimeKind,
 		runtimeProvider:        preparation.runtimeProvider,
