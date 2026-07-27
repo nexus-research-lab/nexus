@@ -1,0 +1,251 @@
+/**
+ * INPUT: 当前选中的本地图片或文本附件与关闭动作。
+ * OUTPUT: 支持遮罩/Escape 关闭、焦点恢复的大图灯箱或只读文本预览。
+ * POS: Composer 草稿附件的模态预览边界。
+ */
+"use client";
+
+import { useEffect, useState } from "react";
+
+import { useI18n } from "@/shared/i18n/i18n-context";
+import {
+  UiDialogBackdrop,
+  UiDialogCloseButton,
+  UiDialogHeader,
+  UiDialogPortal,
+  UiDialogShell,
+} from "@/shared/ui/dialog/dialog";
+
+import type { ComposerLocalAttachment } from "./composer-local-attachment-model";
+import { useComposerLocalFileUrl } from "./use-composer-local-file-url";
+
+const MAX_TEXT_PREVIEW_BYTES = 512 * 1024;
+const IMAGE_PREVIEW_TITLE_ID = "composer-image-preview-title";
+const TEXT_PREVIEW_TITLE_ID = "composer-text-preview-title";
+
+interface ComposerAttachmentPreviewDialogProps {
+  attachment: ComposerLocalAttachment | null;
+  onClose: () => void;
+}
+
+interface TextPreviewState {
+  content: string;
+  isTruncated: boolean;
+  status: "loading" | "ready" | "error";
+}
+
+export function ComposerAttachmentPreviewDialog({
+  attachment,
+  onClose,
+}: ComposerAttachmentPreviewDialogProps) {
+  if (!attachment) {
+    return null;
+  }
+  if (attachment.kind === "image") {
+    return (
+      <ComposerImagePreviewDialog
+        attachment={attachment}
+        onClose={onClose}
+      />
+    );
+  }
+  if (attachment.kind === "text") {
+    return (
+      <ComposerTextPreviewDialog
+        attachment={attachment}
+        onClose={onClose}
+      />
+    );
+  }
+  return null;
+}
+
+function ComposerImagePreviewDialog({
+  attachment,
+  onClose,
+}: {
+  attachment: ComposerLocalAttachment;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const imageUrl = useComposerLocalFileUrl(attachment.file);
+
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        className="z-[10000] overscroll-contain"
+        labelledBy={IMAGE_PREVIEW_TITLE_ID}
+        onClose={onClose}
+      >
+        <UiDialogShell
+          className="h-[min(72vh,600px)] w-[92vw] max-w-[840px] sm:w-[84vw]"
+          size="xl"
+        >
+          <UiDialogHeader
+            actions={
+              <UiDialogCloseButton
+                ariaLabel={t("composer.close_attachment_preview")}
+                className="h-7 w-7"
+                onClose={onClose}
+              />
+            }
+            className="gap-2 px-3 py-1.5"
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <h2
+                className="min-w-0 flex-1 truncate text-sm font-medium text-(--text-strong)"
+                id={IMAGE_PREVIEW_TITLE_ID}
+              >
+                {attachment.file.name}
+              </h2>
+              <span className="shrink-0 text-xs text-(--text-soft)">
+                {t("composer.image_preview")}
+              </span>
+            </div>
+          </UiDialogHeader>
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-(--surface-paper-background) p-3 sm:p-4">
+            {imageUrl ? (
+              <img
+                alt={attachment.file.name}
+                className="max-h-full max-w-full rounded-[10px] object-contain shadow-[0_18px_50px_rgba(0,0,0,0.16)]"
+                draggable={false}
+                src={imageUrl}
+              />
+            ) : (
+              <p className="text-sm text-(--text-soft)">
+                {t("composer.attachment_preview_loading")}
+              </p>
+            )}
+          </div>
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
+  );
+}
+
+function ComposerTextPreviewDialog({
+  attachment,
+  onClose,
+}: {
+  attachment: ComposerLocalAttachment;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const preview = useComposerTextPreview(attachment.file);
+
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        className="z-[10000] overscroll-contain"
+        labelledBy={TEXT_PREVIEW_TITLE_ID}
+        onClose={onClose}
+      >
+        <UiDialogShell
+          className="h-[min(64vh,520px)] w-[92vw] max-w-[680px] sm:w-[78vw]"
+          size="lg"
+        >
+          <UiDialogHeader
+            actions={
+              <UiDialogCloseButton
+                ariaLabel={t("composer.close_attachment_preview")}
+                className="h-7 w-7"
+                onClose={onClose}
+              />
+            }
+            className="gap-2 px-3 py-1.5"
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <h2
+                className="min-w-0 flex-1 truncate text-sm font-medium text-(--text-strong)"
+                id={TEXT_PREVIEW_TITLE_ID}
+              >
+                {attachment.file.name}
+              </h2>
+              <span className="shrink-0 text-xs text-(--text-soft)">
+                {t("composer.text_preview")}
+              </span>
+            </div>
+          </UiDialogHeader>
+          <div className="flex min-h-0 flex-1 flex-col bg-(--surface-paper-background)">
+            {preview.isTruncated ? (
+              <p className="border-b border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) px-5 py-2 text-xs text-(--text-soft)">
+                {t("composer.text_preview_truncated")}
+              </p>
+            ) : null}
+            <ComposerTextPreviewContent preview={preview} />
+          </div>
+        </UiDialogShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
+  );
+}
+
+function ComposerTextPreviewContent({
+  preview,
+}: {
+  preview: TextPreviewState;
+}) {
+  const { t } = useI18n();
+  if (preview.status === "loading") {
+    return (
+      <p className="m-auto text-sm text-(--text-soft)">
+        {t("composer.attachment_preview_loading")}
+      </p>
+    );
+  }
+  if (preview.status === "error") {
+    return (
+      <p className="m-auto text-sm text-(--destructive)">
+        {t("composer.attachment_preview_failed")}
+      </p>
+    );
+  }
+  return (
+    <pre className="soft-scrollbar min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words px-5 py-4 font-mono text-[13px] leading-6 text-(--surface-paper-foreground)">
+      {preview.content || t("composer.text_preview_empty")}
+    </pre>
+  );
+}
+
+function useComposerTextPreview(file: File): TextPreviewState {
+  const [preview, setPreview] = useState<TextPreviewState>({
+    content: "",
+    isTruncated: false,
+    status: "loading",
+  });
+
+  useEffect(() => {
+    let isCurrent = true;
+    setPreview({
+      content: "",
+      isTruncated: file.size > MAX_TEXT_PREVIEW_BYTES,
+      status: "loading",
+    });
+    void file
+      .slice(0, MAX_TEXT_PREVIEW_BYTES)
+      .text()
+      .then((content) => {
+        if (isCurrent) {
+          setPreview({
+            content,
+            isTruncated: file.size > MAX_TEXT_PREVIEW_BYTES,
+            status: "ready",
+          });
+        }
+      })
+      .catch(() => {
+        if (isCurrent) {
+          setPreview({
+            content: "",
+            isTruncated: false,
+            status: "error",
+          });
+        }
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [file]);
+
+  return preview;
+}

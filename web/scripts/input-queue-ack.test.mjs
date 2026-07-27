@@ -203,3 +203,168 @@ test("Safari composition guard only consumes Enter after composition end", async
   assert.equal(isWithinCompositionEndEnterGuard(999, 1_000), false);
   assert.equal(isWithinCompositionEndEnterGuard(1_081, 1_000), false);
 });
+
+test("Composer draft follows the Room while its restore key follows the Session", async () => {
+  const {
+    buildComposerDraftRestoreKey,
+    buildComposerDraftScopeKey,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-scope.ts",
+  );
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+  });
+
+  const roomScope = buildComposerDraftScopeKey({
+    agentId: "lead-agent",
+    roomId: "room-1",
+  });
+  const sameRoomScope = buildComposerDraftScopeKey({
+    agentId: "other-agent",
+    roomId: "room-1",
+  });
+  const otherRoomScope = buildComposerDraftScopeKey({
+    roomId: "room-2",
+  });
+  assert.equal(roomScope, sameRoomScope);
+  assert.notEqual(roomScope, otherRoomScope);
+  assert.notEqual(
+    buildComposerDraftRestoreKey({
+      draftScopeKey: roomScope,
+      sessionKey: "session-1",
+    }),
+    buildComposerDraftRestoreKey({
+      draftScopeKey: sameRoomScope,
+      sessionKey: "session-2",
+    }),
+  );
+
+  const updateDraft = useComposerDraftStore.getState().update_composer_draft;
+  const diagramAttachment = {
+    file: { name: "芯片对比.png" },
+    id: "attachment-diagram",
+    kind: "image",
+  };
+  updateDraft(roomScope, (current) => ({
+    ...current,
+    attachments: [diagramAttachment],
+    goalLeadAgentId: "agent-cindy",
+    input: "对比 M3、M4 和 M5",
+    inputMode: "goal",
+    selectedTargetIDs: ["agent-cindy"],
+  }));
+  updateDraft(otherRoomScope, (current) => ({
+    ...current,
+    input: "另一个 Room 的草稿",
+  }));
+
+  const sameRoomDraft = useComposerDraftStore
+    .getState()
+    .drafts_by_scope[sameRoomScope];
+  assert.equal(sameRoomDraft.input, "对比 M3、M4 和 M5");
+  assert.equal(sameRoomDraft.inputMode, "goal");
+  assert.equal(sameRoomDraft.goalLeadAgentId, "agent-cindy");
+  assert.deepEqual(sameRoomDraft.selectedTargetIDs, ["agent-cindy"]);
+  assert.deepEqual(sameRoomDraft.attachments, [diagramAttachment]);
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[otherRoomScope].input,
+    "另一个 Room 的草稿",
+  );
+
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+  });
+});
+
+test("delayed completion cannot clear a newer Composer draft capsule", async () => {
+  const { useComposerDraftStore } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-draft-store.ts",
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+  });
+  const scope = "room:revision-guard";
+  const updateDraft = useComposerDraftStore.getState().update_composer_draft;
+  updateDraft(scope, (current) => ({
+    ...current,
+    attachments: [{
+      file: { name: "提交前.png" },
+      id: "attachment-before-submit",
+      kind: "image",
+    }],
+    goalLeadAgentId: "agent-kevin",
+    input: "原始草稿",
+    inputMode: "goal",
+    selectedTargetIDs: ["agent-kevin"],
+  }));
+  const submittedRevision = useComposerDraftStore
+    .getState()
+    .drafts_by_scope[scope].revision;
+
+  updateDraft(scope, (current) => ({
+    ...current,
+    attachments: [
+      ...current.attachments,
+      {
+        file: { name: "继续补充.pdf" },
+        id: "attachment-after-submit",
+        kind: "file",
+      },
+    ],
+    input: "切换后继续输入",
+  }));
+
+  const clearDraft = useComposerDraftStore
+    .getState()
+    .clear_composer_draft_if_revision;
+  assert.equal(clearDraft(scope, submittedRevision), false);
+  const newerDraft = useComposerDraftStore.getState().drafts_by_scope[scope];
+  assert.equal(newerDraft.input, "切换后继续输入");
+  assert.equal(newerDraft.inputMode, "goal");
+  assert.equal(newerDraft.goalLeadAgentId, "agent-kevin");
+  assert.deepEqual(newerDraft.selectedTargetIDs, ["agent-kevin"]);
+  assert.deepEqual(
+    newerDraft.attachments.map((attachment) => attachment.file.name),
+    ["提交前.png", "继续补充.pdf"],
+  );
+  assert.equal(clearDraft(scope, newerDraft.revision), true);
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[scope],
+    undefined,
+  );
+  useComposerDraftStore.setState({
+    draft_revision: 0,
+    drafts_by_scope: {},
+  });
+});
+
+test("restored Composer draft places the caret after the final character", async () => {
+  const { focusComposerInputAtEnd } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-model.ts",
+  );
+  let focusOptions = null;
+  let selection = null;
+  const textarea = {
+    focus(options) {
+      focusOptions = options;
+    },
+    scrollHeight: 96,
+    scrollTop: 0,
+    setSelectionRange(start, end) {
+      selection = [start, end];
+    },
+    value: "设定一个 goal",
+  };
+
+  focusComposerInputAtEnd(textarea);
+
+  assert.deepEqual(focusOptions, { preventScroll: true });
+  assert.deepEqual(selection, [textarea.value.length, textarea.value.length]);
+  assert.equal(textarea.scrollTop, textarea.scrollHeight);
+});

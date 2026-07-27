@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useRef } from "react";
+/**
+ * INPUT: Composer 视图能力、逻辑聊天草稿作用域及投递动作。
+ * OUTPUT: 草稿、附件、键盘、发送与 textarea 焦点的统一视图模型。
+ * POS: Shared Composer 的顶层交互编排入口。
+ */
+import { useCallback, useLayoutEffect, useRef } from "react";
 
 import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 
 import { useComposerAttachments } from "../attachments/use-composer-attachments";
-import type { ComposerPanelProps } from "../composer-model";
+import {
+  focusComposerInputAtEnd,
+  type ComposerPanelProps,
+} from "../composer-model";
 import { useComposerHistory } from "../use-composer-history";
 import { useComposerMention } from "../use-composer-mention";
 import { buildComposerViewState } from "./composer-controller-model";
@@ -19,6 +27,8 @@ const EMPTY_ROOM_MEMBERS: Agent[] = [];
 export function useComposerController({
   compact,
   defaultDeliveryPolicy,
+  draftRestoreKey,
+  draftScopeKey,
   enableLoops = false,
   goalCreateDisabledReason = null,
   inputQueueItems,
@@ -34,12 +44,15 @@ export function useComposerController({
   runtimePhase,
 }: ComposerPanelProps) {
   const { t } = useI18n();
-  const draft = useComposerDraft();
+  const draft = useComposerDraft(draftScopeKey);
   const {
+    completeMessageSubmission,
+    setAttachments,
     setActionMenuOpen,
     setGoalError,
     setInput,
     setLoopPickerOpen,
+    setSelectedTargetIDs,
     state: draftState,
   } = draft;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -47,9 +60,11 @@ export function useComposerController({
   const actionButtonRef = useRef<HTMLButtonElement>(null);
   const isGoalMode = draftState.inputMode === "goal";
   const attachments = useComposerAttachments({
+    attachments: draftState.attachments,
     isGoalMode,
     onGoalAttachmentRejected: setGoalError,
     onPrepareAttachments,
+    setAttachments,
   });
   const {
     attachmentError,
@@ -59,7 +74,9 @@ export function useComposerController({
     input: draftState.input,
     isGoalMode,
     roomMembers,
+    selectedTargetIDs: draftState.selectedTargetIDs,
     setInput,
+    setSelectedTargetIDs,
     textareaRef,
   });
   const { updateMentionForInput } = mention;
@@ -79,20 +96,22 @@ export function useComposerController({
   const focusTextarea = useCallback(() => {
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, []);
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      focusComposerInputAtEnd(textarea);
+    }
+  }, [draftRestoreKey]);
 
   const resetTextareaHeight = useCallback(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
   }, []);
-  const resetInput = useCallback(() => setInput(""), [setInput]);
   const submitMessage = useComposerMessageSubmit({
     attachmentCount: attachments.attachments.length,
     clearAttachmentError,
-    clearAttachments: attachments.clearAttachments,
+    completeDraftSubmission: completeMessageSubmission,
     defaultDeliveryPolicy,
     input: draftState.input,
     isLoading,
@@ -103,11 +122,9 @@ export function useComposerController({
     queueItemCount: inputQueueItems.length,
     queueWhenSessionBusy,
     recordHistory: history.record,
-    resetInput,
     resetTextareaHeight,
     runtimePhase,
     targetAgentIDs: mention.selectedTargetIDs,
-    clearSelectedTargetIDs: mention.clearSelectedTargetIDs,
   });
   const goal = useComposerGoalActions({
     closeMention: mention.closeMention,

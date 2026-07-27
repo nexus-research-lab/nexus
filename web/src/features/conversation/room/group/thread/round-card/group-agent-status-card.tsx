@@ -2,12 +2,13 @@
 
 /**
  * INPUT: Room Agent 执行卡片、待确认权限与用户动作。
- * OUTPUT: Agent 状态摘要、Thread 入口，以及无需进入 Thread 的完整权限审批块。
+ * OUTPUT: 与轮次分隔线对齐的选择面、Agent 状态摘要、Thread 入口及内联权限审批。
  * POS: Room 主 Feed 中活动 Agent 卡片的唯一交互视图。
  */
 import { Bot, Loader2, Square } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 
+import { CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
 import { PendingPermissionList } from "@/features/conversation/shared/message/item/view/assistant/pending-permission-list";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-avatar";
@@ -149,62 +150,75 @@ function GroupAgentStatusCardInner({
 
   return (
     <div
-      className={cn(
-        "nexus-chat-message-round-expanded nexus-chat-assistant-grid-expanded group/card grid min-w-0 cursor-pointer grid-cols-[40px_minmax(0,1fr)] gap-3 py-3 transition-colors duration-(--motion-duration-normal)",
-        isThreadActive
-          ? "bg-primary/5"
-          : "hover:bg-(--interaction-hover-background)",
-      )}
+      className="group/card relative w-full min-w-0 cursor-pointer"
       onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
     >
-      <MessageAvatar
-        ariaLabel={contactLabel}
-        avatarUrl={agentAvatar}
-        className="shrink-0"
-        onClick={onOpenAgentContact ? handleOpenAgentContact : undefined}
-        size="full"
-        title={contactLabel}
-      >
-        {!agentAvatar && <Bot className="h-4 w-4" />}
-      </MessageAvatar>
+      <div
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute inset-x-1.5 inset-y-0 radius-control-lg transition-colors duration-(--motion-duration-normal)",
+          isThreadActive
+            ? "bg-primary/5"
+            : "group-hover/card:bg-(--interaction-hover-background)",
+        )}
+      />
+      <div className="nexus-chat-message-section relative w-full px-2 sm:px-3">
+        <div
+          className={cn(
+            "nexus-chat-message-round-expanded nexus-chat-assistant-grid-expanded grid w-full grid-cols-[40px_minmax(0,1fr)] gap-3 py-3",
+            CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME,
+          )}
+        >
+          <MessageAvatar
+            ariaLabel={contactLabel}
+            avatarUrl={agentAvatar}
+            className="shrink-0"
+            onClick={onOpenAgentContact ? handleOpenAgentContact : undefined}
+            size="full"
+            title={contactLabel}
+          >
+            {!agentAvatar && <Bot className="h-4 w-4" />}
+          </MessageAvatar>
 
-      <div className="min-w-0 flex-1">
-        <GroupAgentStatusHeader
-          actions={{
-            allow: handleAllow,
-            deny: handleDeny,
-            stop: onStopAgentRound ? handleStop : undefined,
-            toggleThread: handleToggleThread,
-          }}
-          agentName={agentName}
-          isThreadActive={isThreadActive}
-          labels={{
-            permissionAllow: t(
-              statusModel.isQuestionPending
-                ? "room.permission_answer"
-                : "room.permission_allow",
-            ),
-            permissionDeny: t("room.permission_deny"),
-            stop: t("room.agent_stop"),
-          }}
-          locale={locale}
-          model={statusModel}
-        />
-        <GroupAgentStatusSummary agentId={agentId} model={statusModel} />
-        {inlinePermissions.length > 0 ? (
-          <div data-room-permission-surface>
-            <PendingPermissionList
-              canRespond
-              mode="room_result"
-              onResponse={onPermissionResponse}
-              permissions={inlinePermissions}
-              workspaceAgentId={agentId}
+          <div className="min-w-0 flex-1">
+            <GroupAgentStatusHeader
+              actions={{
+                allow: handleAllow,
+                deny: handleDeny,
+                stop: onStopAgentRound ? handleStop : undefined,
+                toggleThread: handleToggleThread,
+              }}
+              agentName={agentName}
+              isThreadActive={isThreadActive}
+              labels={{
+                permissionAllow: t(
+                  statusModel.isQuestionPending
+                    ? "room.permission_answer"
+                    : "room.permission_allow",
+                ),
+                permissionDeny: t("room.permission_deny"),
+                stop: t("room.agent_stop"),
+              }}
+              locale={locale}
+              model={statusModel}
             />
+            <GroupAgentStatusSummary agentId={agentId} model={statusModel} />
+            {inlinePermissions.length > 0 ? (
+              <div data-room-permission-surface>
+                <PendingPermissionList
+                  canRespond
+                  mode="room_result"
+                  onResponse={onPermissionResponse}
+                  permissions={inlinePermissions}
+                  workspaceAgentId={agentId}
+                />
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        </div>
       </div>
     </div>
   );

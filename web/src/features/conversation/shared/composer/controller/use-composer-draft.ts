@@ -1,23 +1,37 @@
-import { useCallback, useReducer } from "react";
+/**
+ * INPUT: 逻辑聊天草稿作用域与 Composer 输入/模式动作。
+ * OUTPUT: 跨 Session 共享完整用户草稿、按逻辑聊天重置瞬时 UI 的控制器。
+ * POS: Composer 草稿胶囊与瞬时控制状态的唯一编排入口。
+ */
+import { useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
+import { useResettableState } from "@/hooks/ui/use-resettable-state";
+
+import type { ComposerLocalAttachment } from "../attachments/composer-local-attachment-model";
+import {
+  EMPTY_COMPOSER_DRAFT,
+  type ComposerDraftSnapshot,
+  useComposerDraftStore,
+} from "../composer-draft-store";
 import type { ComposerInputMode } from "../composer-model";
 
-interface ComposerDraftState {
+interface ComposerDraftTransientState {
   goalError: string | null;
-  input: string;
-  inputMode: ComposerInputMode;
   isActionMenuOpen: boolean;
   isGoalCreating: boolean;
   isLoopPickerOpen: boolean;
 }
 
-type DraftTransition = (state: ComposerDraftState) => ComposerDraftState;
+interface ComposerDraftState
+  extends ComposerDraftSnapshot, ComposerDraftTransientState {}
 
-const INITIAL_DRAFT_STATE: ComposerDraftState = {
+type DraftTransition = (
+  state: ComposerDraftTransientState,
+) => ComposerDraftTransientState;
+
+const INITIAL_DRAFT_STATE: ComposerDraftTransientState = {
   goalError: null,
-  input: "",
-  inputMode: "message",
   isActionMenuOpen: false,
   isGoalCreating: false,
   isLoopPickerOpen: false,
@@ -33,95 +47,163 @@ export interface ComposerDraftController {
   state: ComposerDraftState;
   applyPrompt: (prompt: string, mode: ComposerInputMode) => void;
   cancelGoal: () => void;
+  completeMessageSubmission: () => boolean;
   resetAfterGoal: () => void;
   setActionMenuOpen: Dispatch<SetStateAction<boolean>>;
+  setAttachments: Dispatch<SetStateAction<ComposerLocalAttachment[]>>;
   setGoalCreating: Dispatch<SetStateAction<boolean>>;
   setGoalError: Dispatch<SetStateAction<string | null>>;
   setInput: Dispatch<SetStateAction<string>>;
   setLoopPickerOpen: Dispatch<SetStateAction<boolean>>;
+  setSelectedTargetIDs: Dispatch<SetStateAction<string[]>>;
   startGoal: () => void;
 }
 
-export function useComposerDraft(): ComposerDraftController {
-  const [state, transition] = useReducer(
-    (current: ComposerDraftState, apply: DraftTransition) => apply(current),
-    INITIAL_DRAFT_STATE,
+export function useComposerDraft(
+  draftScopeKey: string,
+): ComposerDraftController {
+  const draftSnapshot = useComposerDraftStore(
+    (state) => state.drafts_by_scope[draftScopeKey] ?? EMPTY_COMPOSER_DRAFT,
   );
+  const clearComposerDraftIfRevision = useComposerDraftStore(
+    (state) => state.clear_composer_draft_if_revision,
+  );
+  const updateComposerDraft = useComposerDraftStore(
+    (state) => state.update_composer_draft,
+  );
+  const [transientState, setTransientState] = useResettableState(
+    INITIAL_DRAFT_STATE,
+    draftScopeKey,
+  );
+  const transition = useCallback((apply: DraftTransition) => {
+    setTransientState((current) => apply(current));
+  }, [setTransientState]);
 
+  const setAttachments = useCallback<
+    Dispatch<SetStateAction<ComposerLocalAttachment[]>>
+  >((action) => {
+    updateComposerDraft(draftScopeKey, (current) => ({
+      ...current,
+      attachments: resolveStateAction(action, current.attachments),
+    }));
+  }, [draftScopeKey, updateComposerDraft]);
   const setInput = useCallback<Dispatch<SetStateAction<string>>>((action) => {
-    transition((current) => ({
+    updateComposerDraft(draftScopeKey, (current) => ({
       ...current,
       input: resolveStateAction(action, current.input),
     }));
-  }, []);
+  }, [draftScopeKey, updateComposerDraft]);
+  const setInputMode = useCallback((inputMode: ComposerInputMode) => {
+    updateComposerDraft(draftScopeKey, (current) => ({
+      ...current,
+      inputMode,
+    }));
+  }, [draftScopeKey, updateComposerDraft]);
+  const setSelectedTargetIDs = useCallback<
+    Dispatch<SetStateAction<string[]>>
+  >((action) => {
+    updateComposerDraft(draftScopeKey, (current) => ({
+      ...current,
+      selectedTargetIDs: resolveStateAction(
+        action,
+        current.selectedTargetIDs,
+      ),
+    }));
+  }, [draftScopeKey, updateComposerDraft]);
   const setActionMenuOpen = useCallback<Dispatch<SetStateAction<boolean>>>((action) => {
     transition((current) => ({
       ...current,
       isActionMenuOpen: resolveStateAction(action, current.isActionMenuOpen),
     }));
-  }, []);
+  }, [transition]);
   const setLoopPickerOpen = useCallback<Dispatch<SetStateAction<boolean>>>((action) => {
     transition((current) => ({
       ...current,
       isLoopPickerOpen: resolveStateAction(action, current.isLoopPickerOpen),
     }));
-  }, []);
+  }, [transition]);
   const setGoalCreating = useCallback<Dispatch<SetStateAction<boolean>>>((action) => {
     transition((current) => ({
       ...current,
       isGoalCreating: resolveStateAction(action, current.isGoalCreating),
     }));
-  }, []);
+  }, [transition]);
   const setGoalError = useCallback<Dispatch<SetStateAction<string | null>>>((action) => {
     transition((current) => ({
       ...current,
       goalError: resolveStateAction(action, current.goalError),
     }));
-  }, []);
+  }, [transition]);
 
   const startGoal = useCallback(() => {
+    setInputMode("goal");
     transition((current) => ({
       ...current,
       goalError: null,
-      inputMode: "goal",
       isActionMenuOpen: false,
     }));
-  }, []);
+  }, [setInputMode, transition]);
   const cancelGoal = useCallback(() => {
+    setInputMode("message");
     transition((current) => ({
       ...current,
       goalError: null,
-      inputMode: "message",
       isActionMenuOpen: false,
     }));
-  }, []);
+  }, [setInputMode, transition]);
   const applyPrompt = useCallback((prompt: string, mode: ComposerInputMode) => {
-    transition((current) => ({
+    updateComposerDraft(draftScopeKey, (current) => ({
       ...current,
-      goalError: null,
       input: prompt,
       inputMode: mode,
     }));
-  }, []);
-  const resetAfterGoal = useCallback(() => {
     transition((current) => ({
       ...current,
       goalError: null,
-      input: "",
-      inputMode: "message",
     }));
-  }, []);
+  }, [draftScopeKey, transition, updateComposerDraft]);
+  const completeMessageSubmission = useCallback(() => (
+    clearComposerDraftIfRevision(draftScopeKey, draftSnapshot.revision)
+  ), [
+    clearComposerDraftIfRevision,
+    draftScopeKey,
+    draftSnapshot.revision,
+  ]);
+  const resetAfterGoal = useCallback(() => {
+    const cleared = clearComposerDraftIfRevision(
+      draftScopeKey,
+      draftSnapshot.revision,
+    );
+    if (!cleared) {
+      return;
+    }
+    transition((current) => ({
+      ...current,
+      goalError: null,
+    }));
+  }, [
+    clearComposerDraftIfRevision,
+    draftScopeKey,
+    draftSnapshot.revision,
+    transition,
+  ]);
 
   return {
-    state,
+    state: {
+      ...transientState,
+      ...draftSnapshot,
+    },
     applyPrompt,
     cancelGoal,
+    completeMessageSubmission,
     resetAfterGoal,
     setActionMenuOpen,
+    setAttachments,
     setGoalCreating,
     setGoalError,
     setInput,
     setLoopPickerOpen,
+    setSelectedTargetIDs,
     startGoal,
   };
 }

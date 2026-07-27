@@ -7,9 +7,7 @@
 
 import { Fragment, memo, useCallback, useMemo } from "react";
 
-import { CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
-import { cn } from "@/shared/ui/class-name";
 import type { Message } from "@/types/conversation/message/entity";
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
@@ -134,34 +132,25 @@ function GroupRoundCardGroupInner({
               />
             ) : (
               <>
-                <div className="nexus-chat-message-section w-full px-2 sm:px-3">
-                  <div
-                    className={cn(
-                      "w-full",
-                      CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME,
-                    )}
-                  >
-                    <GroupAgentStatusCard
-                      agentAvatar={entry.agentAvatar}
-                      agentId={entry.agent_id}
-                      agentName={entry.agentName}
-                      isThreadActive={isThreadActive}
-                      messages={entry.assistant_messages}
-                      onClickThread={toggleEntryThread}
-                      onOpenAgentContact={onOpenAgentContact}
-                      onPermissionResponse={onPermissionResponse}
-                      onStopAgentRound={
-                        stopAgentRoundId
-                          ? () => onStopAgentRound(stopAgentRoundId)
-                          : undefined
-                      }
-                      pendingPermissions={entry.pendingPermissions}
-                      resultSummary={entry.result_summary}
-                      status={entry.status}
-                      timestamp={entry.timestamp}
-                    />
-                  </div>
-                </div>
+                <GroupAgentStatusCard
+                  agentAvatar={entry.agentAvatar}
+                  agentId={entry.agent_id}
+                  agentName={entry.agentName}
+                  isThreadActive={isThreadActive}
+                  messages={entry.assistant_messages}
+                  onClickThread={toggleEntryThread}
+                  onOpenAgentContact={onOpenAgentContact}
+                  onPermissionResponse={onPermissionResponse}
+                  onStopAgentRound={
+                    stopAgentRoundId
+                      ? () => onStopAgentRound(stopAgentRoundId)
+                      : undefined
+                  }
+                  pendingPermissions={entry.pendingPermissions}
+                  resultSummary={entry.result_summary}
+                  status={entry.status}
+                  timestamp={entry.timestamp}
+                />
                 <hr aria-hidden="true" className="conversation-round-divider" />
               </>
             )}

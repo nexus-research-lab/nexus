@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Aligned and rounded the active Room Thread selection surface with the adjacent round dividers without shifting the message content.
+- Kept the complete unsent Composer draft—text, image/file attachments, Message/Goal mode, Room Goal lead, and Mention targets—visible while switching Sessions within the same Room or DM, restored the caret at the end, isolated drafts between chats, and revision-guarded delayed acknowledgements from clearing newer edits.
+- Replaced pasted-image filename chips in the Composer with compact visual thumbnails, added compact click-to-open image and pasted-text previews, and kept ordinary file attachments as labeled chips.
 - Exposed complete Room permission approvals in the main conversation even when a request arrives before its Agent message, while keeping question prompts in Thread for structured answers.
 - Kept Room conversations pinned to the latest output across parallel Agent streaming updates and the virtual timeline's delayed height measurement.
 

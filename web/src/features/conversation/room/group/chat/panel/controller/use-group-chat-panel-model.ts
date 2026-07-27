@@ -40,6 +40,7 @@ export function useGroupChatPanelModel({
     ? buildRoomSharedSessionKey(conversationId)
     : null;
   const goal = useRoomGoalComposer({
+    roomId,
     roomHostAgentId,
     roomMembers,
     sessionKey,

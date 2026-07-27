@@ -1,6 +1,12 @@
 "use client";
 
-import { ChangeEvent, ClipboardEvent, useCallback, useState } from "react";
+import { useCallback, useState } from "react";
+import type {
+  ChangeEvent,
+  ClipboardEvent,
+  Dispatch,
+  SetStateAction,
+} from "react";
 
 import {
   type I18nContextValue,
@@ -25,9 +31,11 @@ import {
 } from "./composer-local-attachment-model";
 
 interface UseComposerAttachmentsOptions {
+  attachments: ComposerLocalAttachment[];
   isGoalMode: boolean;
   onGoalAttachmentRejected: (message: string) => void;
   onPrepareAttachments: (files: File[]) => Promise<MessageAttachment[]>;
+  setAttachments: Dispatch<SetStateAction<ComposerLocalAttachment[]>>;
 }
 
 interface ComposerPasteActionContext {
@@ -100,21 +108,18 @@ function formatFirstAttachmentRejection(
 }
 
 export function useComposerAttachments({
+  attachments,
   isGoalMode,
   onGoalAttachmentRejected,
   onPrepareAttachments,
+  setAttachments,
 }: UseComposerAttachmentsOptions) {
   const { t } = useI18n();
-  const [attachments, setAttachments] = useState<ComposerLocalAttachment[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [isPreparingAttachments, setIsPreparingAttachments] = useState(false);
 
   const clearAttachmentError = useCallback(() => {
     setAttachmentError(null);
-  }, []);
-
-  const clearAttachments = useCallback(() => {
-    setAttachments([]);
   }, []);
 
   const appendAttachmentFiles = useCallback((files: File[]) => {
@@ -127,7 +132,7 @@ export function useComposerAttachments({
       current,
       batch.attachments,
     ));
-  }, [t]);
+  }, [setAttachments, t]);
 
   const handleFileSelect = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -178,13 +183,12 @@ export function useComposerAttachments({
 
   const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => prev.filter((item) => item.id !== id));
-  }, []);
+  }, [setAttachments]);
 
   return {
     attachmentError,
     attachments,
     clearAttachmentError,
-    clearAttachments,
     handleFileSelect,
     handlePaste,
     isPreparingAttachments,
