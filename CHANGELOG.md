@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Made Room hosts assess task complexity, separable work, and member fit before substantial execution, prefer meaningful collaboration, and avoid duplicating work after delegating while retaining direct handling for small, atomic, or unsuitable-for-delegation tasks.
+
 ### Fixed
 - Aligned and rounded the active Room Thread selection surface with the adjacent round dividers without shifting the message content.
 - Kept the complete unsent Composer draft—text, image/file attachments, Message/Goal mode, Room Goal lead, and Mention targets—visible while switching Sessions within the same Room or DM, restored the caret at the end, isolated drafts between chats, and revision-guarded delayed acknowledgements from clearing newer edits.

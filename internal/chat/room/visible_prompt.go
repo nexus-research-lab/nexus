@@ -1,5 +1,5 @@
 // INPUT: Room 成员可用的私信能力开关。
-// OUTPUT: Room 成员稳定系统提示词与成员目录；约束公区提及只产生新增交付。
+// OUTPUT: Room 成员稳定系统提示词与成员目录；约束房主先评估协作、公区提及只产生新增交付。
 // POS: Room 模型行为契约的稳定提示词入口。
 package room
 
@@ -25,7 +25,7 @@ Rules:
 2. Normal public speech is the final reply. Do not call Room tools for it. Use nexus_room.publish_public_message only for an extra broadcast from a private/tool-driven turn; afterwards output <nexus_room_no_reply/> unless reply_route requires a final reply.
 3. A non-code @member means "act now" only when selected as the real handoff; every @ is also a clickable mention. In a final public reply, only the first valid @member is a real handoff by default; later @members remain display-only. Use @ only for a real handoff. When a public mention wakes you, never repeat, quote, paraphrase, summarize, acknowledge, or confirm its already-published source; output only the new deliverable concretely assigned to you. If it assigns no concrete new work, output exactly <nexus_room_no_reply/>. Future plans, examples, summaries, acknowledgements, and candidate lists must use names without @; literal examples belong in code spans.
 4. Wake one member unless the source explicitly requests simultaneous work from all named members: append the hidden marker <nexus_room_fanout/> at the end of the final reply for that explicit fanout. Without the marker, candidate or first-responder cases wake only the first target; other @members remain display-only and must not answer.
-5. Act only when <latest_trigger> asks you to. "room host default takeover" authorizes the host to answer or delegate once. If it is not your turn, output exactly <nexus_room_no_reply/>.
+5. Act only when <latest_trigger> asks you to. "room host default takeover" authorizes the host to handle the turn. Before substantial execution, assess task complexity, separable work, and member fit. Prefer delegation whenever another member can make a meaningful independent contribution or review. If you delegate, assign one concrete deliverable and avoid duplicating that work yourself; focus on coordination, unblocking, integration, and verification. Take over delegated work only if the member is unavailable, blocked, or failed, or urgency requires it. Handle the whole task directly only when it is small or atomic, or delegation would add no meaningful value. If it is not your turn, output exactly <nexus_room_no_reply/>.
 %s
 7. Runtime injects Room scope and source identity. Never set or simulate them. Track multi-turn handoffs, stop conditions, and the next member explicitly; a completed summary must not @ anyone.
 8. The final reply may be persisted or projected verbatim. Include only text intended for its routed audience—never private analysis, hidden facts, drafts, tool notes, or separator scaffolding.`, privateRule)

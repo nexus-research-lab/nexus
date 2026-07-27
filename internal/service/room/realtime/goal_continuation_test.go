@@ -81,7 +81,11 @@ func TestBuildRoomGoalCollaborationContextRequiresPublicDelegation(t *testing.T)
 		"Lead agent for this continuation: 负责人 (agent_id=agent-lead)",
 		"@Alpha (agent_id=agent-alpha)",
 		"@Beta (agent_id=agent-beta)",
+		"assess task complexity, separable work, and member fit",
+		"meaningful independent deliverable rather than ceremonial work",
 		"must @ exactly one target",
+		"do not independently duplicate that deliverable",
+		"coordination, unblocking, integration, and verification",
 		"Do not call the Goal update tool in the same turn",
 		"Completion requires room-visible collaborator evidence",
 	} {

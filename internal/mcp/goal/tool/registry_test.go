@@ -385,8 +385,41 @@ func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
 	if !strings.Contains(budgetDescription, "Optional positive token budget for the new active goal") {
 		t.Fatalf("token_budget.description = %q, want Codex budget semantics", budgetDescription)
 	}
-	if tool.Description != createGoalDescription {
+	if tool.Description != createGoalDescription("agent:nexus:ws:dm:chat") {
 		t.Fatalf("tool description = %q, want Codex create_goal description", tool.Description)
+	}
+	if strings.Contains(tool.Description, "shared Room") ||
+		strings.Contains(tool.Description, "Prefer meaningful delegation") {
+		t.Fatalf("single-agent create_goal should not contain Room collaboration guidance: %s", tool.Description)
+	}
+}
+
+func TestCreateGoalDescriptionAddsCollaborationOnlyForSharedRoom(t *testing.T) {
+	dmTool := createGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
+	roomTool := createGoal(nil, contract.ServerContext{CurrentSessionKey: "room:group:conversation-1"})
+
+	if roomTool.Description == dmTool.Description {
+		t.Fatal("Room and single-agent create_goal descriptions should differ")
+	}
+	for _, expected := range []string{
+		"In a shared Room",
+		"assess task complexity, separable work, and member fit",
+		"Prefer meaningful delegation",
+		"do not duplicate the assigned deliverable yourself",
+		"coordination, unblocking, integration, and verification",
+		"only when it is small or atomic",
+	} {
+		if !strings.Contains(roomTool.Description, expected) {
+			t.Fatalf("Room create_goal collaboration guidance missing %q: %s", expected, roomTool.Description)
+		}
+	}
+	for _, expected := range []string{
+		"Create a goal only when explicitly requested",
+		"Set token_budget only when an explicit token budget is requested",
+	} {
+		if !strings.Contains(dmTool.Description, expected) || !strings.Contains(roomTool.Description, expected) {
+			t.Fatalf("shared create_goal guidance missing %q: dm=%q room=%q", expected, dmTool.Description, roomTool.Description)
+		}
 	}
 }
 
