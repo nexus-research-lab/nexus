@@ -31,6 +31,69 @@ func TestSubagentPostRoundDispatchIsClaimedOnceAcrossTaskFollowUp(t *testing.T) 
 	}
 }
 
+func TestDMSubagentUsagePendingBlocksTerminalDispatch(t *testing.T) {
+	runner := &roundRunner{}
+	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_started", "running"))
+	runner.markSubagentUsagePending("task-1", 0)
+	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_notification", "completed"))
+
+	if !runner.hasRunningSubagentTask() {
+		t.Fatal("terminal lifecycle 已结束但 usage checkpoint 未完成时仍应保留 join barrier")
+	}
+	if runner.claimSubagentPostRoundDispatch() {
+		t.Fatal("usage checkpoint 未完成时不应触发 post-round work")
+	}
+
+	runner.clearSubagentUsagePending("task-1", 0)
+	if runner.hasRunningSubagentTask() {
+		t.Fatal("usage checkpoint 完成后应释放 join barrier")
+	}
+	if !runner.claimSubagentPostRoundDispatch() {
+		t.Fatal("usage checkpoint 完成后应允许一次 post-round work")
+	}
+}
+
+func TestDMOlderSettledUsageDoesNotClearNewerPendingSnapshot(t *testing.T) {
+	runner := &roundRunner{}
+	runner.markSubagentUsagePending("task-1", 0)
+	if pending, ok := runner.subagentUsagePending["task-1"]; !ok || pending.cumulativeTotal != 0 {
+		t.Fatalf("explicit zero pending = %#v, %v; want stored zero snapshot", pending, ok)
+	}
+
+	runner.markSubagentUsagePending("task-1", 100)
+	runner.markSubagentUsagePending("task-1", 150)
+	runner.clearSubagentUsagePending("task-1", 100)
+	if pending := runner.subagentUsagePending["task-1"]; pending.cumulativeTotal != 150 {
+		t.Fatalf("older success cleared newer pending: got %#v, want total 150", pending)
+	}
+	if !runner.hasRunningSubagentTask() {
+		t.Fatal("newer pending snapshot must keep the child join barrier")
+	}
+
+	runner.clearSubagentUsagePending("task-1", 150)
+	if runner.hasRunningSubagentTask() {
+		t.Fatal("latest settled snapshot did not release the child join barrier")
+	}
+}
+
+func TestDMOlderProgressSettlementDoesNotClearSameTotalTerminalEvidence(t *testing.T) {
+	runner := &roundRunner{}
+	progress := dmSubagentUsageObservation{cumulativeTotal: 25}
+	terminal := dmSubagentUsageObservation{cumulativeTotal: 25, terminal: true}
+	runner.markSubagentUsageObservationPending("task-1", progress)
+	runner.markSubagentUsageObservationPending("task-1", terminal)
+
+	runner.clearSubagentUsageObservationPending("task-1", progress)
+	pending, ok := runner.subagentUsagePending["task-1"]
+	if !ok || !pending.terminal {
+		t.Fatalf("progress settlement cleared terminal evidence: %#v, present=%v", pending, ok)
+	}
+	runner.clearSubagentUsageObservationPending("task-1", terminal)
+	if runner.hasRunningSubagentTask() {
+		t.Fatal("terminal evidence settlement did not release join barrier")
+	}
+}
+
 func TestDMIgnoresLocalShellTaskLifecycle(t *testing.T) {
 	runtimeManager := runtimectx.NewManager()
 	runner := &roundRunner{

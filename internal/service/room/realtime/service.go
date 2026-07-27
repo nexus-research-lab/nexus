@@ -142,8 +142,9 @@ type Service struct {
 	mcpServers       MCPServerBuilder
 	titles           roomTitleScheduler
 
-	rounds     roomRoundRegistry
-	wakeTimers *roomWakeTimerRegistry
+	rounds              roomRoundRegistry
+	goalUsageScopeLocks roomGoalUsageScopeLockRegistry
+	wakeTimers          *roomWakeTimerRegistry
 }
 
 type roomTitleScheduler interface {
@@ -205,21 +206,22 @@ func NewServiceWithFactory(
 		factory = defaultRoomClientFactory{}
 	}
 	return &Service{
-		config:           cfg,
-		rooms:            roomService,
-		agents:           agentService,
-		runtime:          runtimeManager,
-		permission:       permission,
-		history:          workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
-		roomHistory:      workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
-		directedMessages: workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
-		directedWakes:    workspacestore.NewRoomDirectedMessageWakeStore(cfg.WorkspacePath),
-		publicHandoffs:   workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath),
-		inputQueue:       workspacestore.NewInputQueueStore(cfg.WorkspacePath),
-		factory:          factory,
-		logger:           logx.NewDiscardLogger(),
-		rounds:           newRoomRoundRegistry(),
-		wakeTimers:       newRoomWakeTimerRegistry(),
+		config:              cfg,
+		rooms:               roomService,
+		agents:              agentService,
+		runtime:             runtimeManager,
+		permission:          permission,
+		history:             workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		roomHistory:         workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
+		directedMessages:    workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
+		directedWakes:       workspacestore.NewRoomDirectedMessageWakeStore(cfg.WorkspacePath),
+		publicHandoffs:      workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath),
+		inputQueue:          workspacestore.NewInputQueueStore(cfg.WorkspacePath),
+		factory:             factory,
+		logger:              logx.NewDiscardLogger(),
+		rounds:              newRoomRoundRegistry(),
+		goalUsageScopeLocks: newRoomGoalUsageScopeLockRegistry(),
+		wakeTimers:          newRoomWakeTimerRegistry(),
 	}
 }
 

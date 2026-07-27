@@ -1,5 +1,5 @@
 // INPUT: Room 用户输入、内部触发与当前 round/queue 状态。
-// OUTPUT: 持久化的共享消息，或串行接力的 Room round。
+// OUTPUT: 持久化的共享消息，或带稳定 owner/root usage scope 的串行 Room round。
 // POS: Room 输入从受理到 runtime 启动的原子交接边界。
 package realtime
 
@@ -564,16 +564,18 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		slotTrigger := initialTrigger
 		slotTrigger.TargetAgentID = agentID
 		slot := &activeRoomSlot{
-			RoomSessionID:      sessionRecord.ID,
-			AgentID:            agentID,
-			AgentRoundID:       agentRoundID,
-			MsgID:              msgID,
-			RuntimeSessionKey:  protocol.BuildRoomAgentSessionKey(e.conversationID, agentID, e.contextValue.Room.RoomType),
-			WorkspacePath:      agentValue.WorkspacePath,
-			Index:              index,
-			TimestampMS:        normalizeInt64(e.userMessage["timestamp"]),
-			Trigger:            slotTrigger,
-			TriggerAttachments: e.attachments,
+			RoomSessionID:         sessionRecord.ID,
+			OwnerUserID:           activeRound.OwnerUserID,
+			AgentID:               agentID,
+			AgentRoundID:          agentRoundID,
+			GoalUsageScopeRoundID: roomRootRoundID(activeRound),
+			MsgID:                 msgID,
+			RuntimeSessionKey:     protocol.BuildRoomAgentSessionKey(e.conversationID, agentID, e.contextValue.Room.RoomType),
+			WorkspacePath:         agentValue.WorkspacePath,
+			Index:                 index,
+			TimestampMS:           normalizeInt64(e.userMessage["timestamp"]),
+			Trigger:               slotTrigger,
+			TriggerAttachments:    e.attachments,
 		}
 		slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
 		slot.setStatus("pending")

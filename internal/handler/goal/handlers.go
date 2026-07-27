@@ -33,6 +33,16 @@ func (h *Handlers) HandleGetCurrentGoal(writer http.ResponseWriter, request *htt
 	h.api.WriteSuccess(writer, goal)
 }
 
+// HandleGetGoalUsage 返回指定 Goal 的聚合 usage 与 finalization fence。
+func (h *Handlers) HandleGetGoalUsage(writer http.ResponseWriter, request *http.Request) {
+	report, err := h.goals.UsageByGoalID(request.Context(), chi.URLParam(request, "goal_id"))
+	if err != nil {
+		h.writeGoalError(writer, err)
+		return
+	}
+	h.api.WriteSuccess(writer, report)
+}
+
 // HandleCreateGoal 创建当前 Goal。
 func (h *Handlers) HandleCreateGoal(writer http.ResponseWriter, request *http.Request) {
 	var input protocol.CreateGoalRequest

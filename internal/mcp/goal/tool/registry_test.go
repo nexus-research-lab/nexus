@@ -427,6 +427,7 @@ func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
 	svc := &fakeCreateGoalService{}
 	revision := contract.NewGoalObjectiveRevision(0)
 	tool := createGoal(svc, contract.ServerContext{
+		OwnerUserID:           "owner-1",
 		CurrentSessionKey:     "agent:nexus:ws:dm:chat",
 		CurrentRoundID:        "round-create",
 		CurrentAgentID:        "agent-1",
@@ -443,8 +444,9 @@ func TestCreateGoalPassesCurrentRoundID(t *testing.T) {
 	if svc.createInput.SessionKey != "agent:nexus:ws:dm:chat" ||
 		svc.createInput.CreatedBy != "model" ||
 		svc.createInput.RoundID != "round-create" ||
+		svc.createInput.OwnerUserID != "owner-1" ||
 		svc.createInput.AgentID != "agent-1" {
-		t.Fatalf("create input = %#v, want current session and round", svc.createInput)
+		t.Fatalf("create input = %#v, want current owner, session, and round", svc.createInput)
 	}
 	if got := revision.Load(); got != 1 {
 		t.Fatalf("revision after create = %d, want 1", got)

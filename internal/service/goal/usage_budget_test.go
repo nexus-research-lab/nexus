@@ -100,6 +100,61 @@ func TestServiceRecordUsageForCompletedGoal(t *testing.T) {
 	}
 }
 
+func TestServiceLateUsageLimitForCompletedGoalDoesNotAffectReplacement(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	ctx := context.Background()
+	sessionKey := "agent:nexus:ws:dm:late-limit"
+
+	original, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: sessionKey,
+		Objective:  "finish original",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CompleteByModel(ctx, original.ID, protocol.CompleteGoalRequest{RoundID: "round-old"}); err != nil {
+		t.Fatal(err)
+	}
+	replacement, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: sessionKey,
+		Objective:  "new work",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	settled, err := service.UsageLimitForGoal(ctx, original.ID, "round-old", "late provider limit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settled.Status != protocol.GoalStatusComplete {
+		t.Fatalf("old status = %q, want complete", settled.Status)
+	}
+	settled, err = service.RecordUsageForGoal(ctx, original.ID, protocol.GoalUsage{
+		ActualTotalTokens: 25,
+		ActualTotalKnown:  true,
+	}, "round-old")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settled.Usage.ActualTokens() != 25 {
+		t.Fatalf("old settled actual = %d, want 25", settled.Usage.ActualTokens())
+	}
+	current, err := service.Current(ctx, sessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.ID != replacement.ID || current.Status != protocol.GoalStatusActive {
+		t.Fatalf("current = %#v, want replacement active", current)
+	}
+	if current.Usage.ActualTokens() != 0 {
+		t.Fatalf("replacement actual = %d, want no old-round usage", current.Usage.ActualTokens())
+	}
+}
+
 func TestServiceRecordUsageRetriesVersionStale(t *testing.T) {
 	repo := &staleOnceUsageRepository{
 		memoryRepository: newMemoryRepository(),
@@ -278,7 +333,7 @@ func TestServiceRecordUsageUsesGoalBudgetTokenAccounting(t *testing.T) {
 		CacheCreationInputTokens: 80,
 		CacheReadInputTokens:     90,
 		ReasoningTokens:          40,
-		TotalTokens:              240,
+		ActualTotalTokens:        240,
 	}, "round-1")
 	if err != nil {
 		t.Fatal(err)
@@ -286,12 +341,12 @@ func TestServiceRecordUsageUsesGoalBudgetTokenAccounting(t *testing.T) {
 	if updated.Status != protocol.GoalStatusActive {
 		t.Fatalf("status = %q, want active", updated.Status)
 	}
-	if updated.Usage.TotalTokens != 20 || updated.Usage.Total() != 20 {
-		t.Fatalf("usage = %#v, want budget total 20", updated.Usage)
+	if updated.Usage.TotalTokens != 30 || updated.Usage.BudgetTokens() != 30 || updated.Usage.ActualTokens() != 240 {
+		t.Fatalf("usage = %#v, want budget 30 and actual 240", updated.Usage)
 	}
 	remaining := updated.RemainingTokens()
-	if remaining == nil || *remaining != 30 {
-		t.Fatalf("RemainingTokens() = %#v, want 30", remaining)
+	if remaining == nil || *remaining != 20 {
+		t.Fatalf("RemainingTokens() = %#v, want 20", remaining)
 	}
 }
 
@@ -325,8 +380,15 @@ func TestServicePauseAfterBudgetLimitAccountingKeepsBudgetLimited(t *testing.T) 
 	if paused.Status != protocol.GoalStatusBudgetLimited || paused.Usage.Total() != 6 {
 		t.Fatalf("paused = %#v, want budget_limited after accounting crosses budget", paused)
 	}
-	if len(accountant.sessionKeys) != 1 || accountant.sessionKeys[0] != created.SessionKey {
-		t.Fatalf("accountant sessionKeys = %#v, want current session", accountant.sessionKeys)
+	if len(accountant.sessionKeys) != 2 ||
+		accountant.sessionKeys[0] != created.SessionKey ||
+		accountant.sessionKeys[1] != created.SessionKey {
+		t.Fatalf("accountant sessionKeys = %#v, want checkpoint and boundary flush", accountant.sessionKeys)
+	}
+	if len(accountant.settlementBoundaries) != 2 ||
+		accountant.settlementBoundaries[0] ||
+		!accountant.settlementBoundaries[1] {
+		t.Fatalf("settlement boundaries = %#v, want ordinary then boundary flush", accountant.settlementBoundaries)
 	}
 	if len(repo.events) != 3 ||
 		repo.events[1].EventType != "usage_recorded" ||

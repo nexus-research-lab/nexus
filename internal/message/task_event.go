@@ -1,8 +1,12 @@
+// INPUT: typed/legacy task runtime 消息与累计 task usage。
+// OUTPUT: durable/ephemeral task 投影及可供 Goal 去重的 child token 快照。
+// POS: runtime 后台任务消息到 Nexus task 语义的统一投影层。
 package message
 
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -11,6 +15,76 @@ import (
 )
 
 const shellToolProgressThrottleSeconds = 30
+
+// SubagentTaskUsage 表示单个 nxs child task 的累计 token 快照。
+type SubagentTaskUsage struct {
+	TaskID      string
+	TotalTokens int64
+}
+
+// SubagentTaskUsageSnapshots 从 durable task 消息读取全部有正数证据的 nxs child token 快照。
+// system task 消息把 usage 放在 metadata，assistant 快照则可能同时携带多个
+// task_progress block；同一 task 在单条消息中只保留最大的累计值。Agents SDK
+// 会用 total_tokens=0 表示缺少 usage，因此零值不能作为 provider 结算证据。
+func SubagentTaskUsageSnapshots(message protocol.Message) []SubagentTaskUsage {
+	totals := make(map[string]int64)
+	observe := func(taskID string, usage any) {
+		taskID = strings.TrimSpace(taskID)
+		totalRaw, present := mapValue(usage)["total_tokens"]
+		totalTokens, valid := normalizeInt64Value(totalRaw)
+		previous, observed := totals[taskID]
+		if taskID == "" || !present || !valid || totalTokens <= 0 ||
+			(observed && totalTokens <= previous) {
+			return
+		}
+		totals[taskID] = totalTokens
+	}
+
+	metadata := mapValue(message["metadata"])
+	observe(normalizeString(metadata["task_id"]), metadata["usage"])
+	observeTaskProgress := func(block map[string]any) {
+		if normalizeString(block["type"]) != "task_progress" {
+			return
+		}
+		observe(normalizeString(block["task_id"]), block["usage"])
+	}
+	switch content := message["content"].(type) {
+	case []map[string]any:
+		for _, block := range content {
+			observeTaskProgress(block)
+		}
+	case []any:
+		for _, rawBlock := range content {
+			observeTaskProgress(mapValue(rawBlock))
+		}
+	}
+
+	if len(totals) == 0 {
+		return nil
+	}
+	taskIDs := make([]string, 0, len(totals))
+	for taskID := range totals {
+		taskIDs = append(taskIDs, taskID)
+	}
+	sort.Strings(taskIDs)
+	snapshots := make([]SubagentTaskUsage, 0, len(taskIDs))
+	for _, taskID := range taskIDs {
+		snapshots = append(snapshots, SubagentTaskUsage{
+			TaskID:      taskID,
+			TotalTokens: totals[taskID],
+		})
+	}
+	return snapshots
+}
+
+// SubagentTaskUsageSnapshot 保留单 task 调用方的兼容入口。
+func SubagentTaskUsageSnapshot(message protocol.Message) (string, int64, bool) {
+	snapshots := SubagentTaskUsageSnapshots(message)
+	if len(snapshots) == 0 {
+		return "", 0, false
+	}
+	return snapshots[0].TaskID, snapshots[0].TotalTokens, true
+}
 
 func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
 	if message.TaskProgress == nil {
@@ -27,7 +101,7 @@ func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessa
 		firstNonEmpty(description, "后台任务正在执行"),
 		strings.TrimSpace(progress.ToolUseID),
 		toolName,
-		taskUsageMap(progress.Usage),
+		taskUsageMap(progress.Usage, progress.Additional["usage"]),
 		mergeTaskEventMetadata(progress.Additional, map[string]string{
 			"agent_id":       progress.AgentID,
 			"agent_type":     progress.AgentType,
@@ -156,7 +230,7 @@ func (p *Processor) processTaskNotificationMessage(message sdkprotocol.ReceivedM
 		strings.TrimSpace(notification.ToolUseID),
 		strings.TrimSpace(notification.Status),
 		strings.TrimSpace(notification.OutputFile),
-		taskUsageMap(notification.Usage),
+		taskUsageMap(notification.Usage, notification.Additional["usage"]),
 		mergeTaskEventMetadata(notification.Additional, map[string]string{
 			"agent_id":        notification.AgentID,
 			"agent_type":      notification.AgentType,
@@ -375,10 +449,10 @@ func firstTaskProgressUsage(message *sdkprotocol.SystemMessage) map[string]any {
 	if message == nil || message.TaskProgress == nil {
 		return nil
 	}
-	return taskUsageMap(message.TaskProgress.Usage)
+	return taskUsageMap(message.TaskProgress.Usage, message.TaskProgress.Additional["usage"])
 }
 
-func taskUsageMap(usage sdkprotocol.TaskUsage) map[string]any {
+func taskUsageMap(usage sdkprotocol.TaskUsage, rawUsage ...any) map[string]any {
 	values := map[string]any{}
 	if usage.TotalTokens > 0 {
 		values["total_tokens"] = usage.TotalTokens
@@ -388,6 +462,17 @@ func taskUsageMap(usage sdkprotocol.TaskUsage) map[string]any {
 	}
 	if usage.DurationMS > 0 {
 		values["duration_ms"] = usage.DurationMS
+	}
+	if len(rawUsage) == 0 {
+		return values
+	}
+	raw := mapValue(rawUsage[0])
+	for _, key := range []string{"total_tokens", "tool_uses", "duration_ms"} {
+		value, present := raw[key]
+		normalized, valid := normalizeInt64Value(value)
+		if present && valid && normalized >= 0 {
+			values[key] = normalized
+		}
 	}
 	return values
 }
@@ -481,7 +566,7 @@ func firstTaskNotificationUsage(message *sdkprotocol.SystemMessage) map[string]a
 	if message == nil || message.TaskNotification == nil {
 		return nil
 	}
-	return taskUsageMap(message.TaskNotification.Usage)
+	return taskUsageMap(message.TaskNotification.Usage, message.TaskNotification.Additional["usage"])
 }
 
 func taskNotificationDefaultContent(status string) string {

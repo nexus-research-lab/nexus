@@ -21,6 +21,128 @@ test.after(async () => {
   await server.close();
 });
 
+test("Goal status shows one exact token total without budget progress", async () => {
+  const {
+    buildGoalStatusStripModel,
+    goalActualTokens,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const { GoalStatusStrip } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-status-strip.tsx",
+  );
+  const goal = {
+    id: "goal-1",
+    session_key: "agent:nexus:ws:dm:chat",
+    objective: "Ship exact usage",
+    status: "active",
+    token_budget: 200_000,
+    usage: {
+      input_tokens: 3_420,
+      output_tokens: 206,
+      cache_read_input_tokens: 59_136,
+      total_tokens: 3_626,
+      budget_tokens: 3_626,
+      actual_tokens: 62_762,
+    },
+    continuation_count: 0,
+    empty_progress_count: 0,
+    version: 1,
+    created_at: "2026-07-24T00:00:00Z",
+    updated_at: "2026-07-24T00:00:00Z",
+  };
+
+  assert.equal(goalActualTokens(goal), 62_762);
+  const model = buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: null,
+    error: null,
+    goal,
+    isGenerating: true,
+  });
+  assert.equal(model.usageLabel, "62,762 tokens");
+  assert.equal("usagePercent" in model, false);
+  assert.equal("usageTitle" in model, false);
+  assert.equal("budgetLabel" in model, false);
+  assert.equal(buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: null,
+    error: null,
+    goal: { ...goal, usage: { actual_tokens: 0, budget_tokens: 0 } },
+    isGenerating: false,
+  }).usageLabel, null);
+  assert.equal(buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: null,
+    error: null,
+    goal: { ...goal, status: "complete", usage_finalized: false },
+    isGenerating: false,
+  }).usageLabel, null);
+  assert.equal(buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: null,
+    error: null,
+    goal: { ...goal, status: "complete", usage_finalized: true },
+    isGenerating: false,
+  }).usageLabel, "62,762 tokens");
+
+  const html = renderToStaticMarkup(React.createElement(GoalStatusStrip, {
+    canResume: false,
+    compact: false,
+    disabled: false,
+    error: null,
+    goal,
+    isGenerating: true,
+    isLoading: false,
+    scopeLabel: "Goal",
+    onClearRequest: () => {},
+    onEdit: () => {},
+    onPause: () => {},
+    onRefresh: () => {},
+    onResume: () => {},
+  }));
+  assert.match(html, />62,762 tokens</);
+  assert.doesNotMatch(html, /预算|200,000|3,626|role="meter"/);
+});
+
+test("Goal status marks legacy reconstructed actual usage as estimated", async () => {
+  const {
+    buildGoalStatusStripModel,
+    goalActualTokens,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const goal = {
+    id: "goal-legacy",
+    session_key: "agent:nexus:ws:dm:legacy",
+    objective: "Read legacy usage",
+    status: "paused",
+    usage: {
+      input_tokens: 10,
+      output_tokens: 20,
+      cache_creation_input_tokens: 80,
+      cache_read_input_tokens: 90,
+      reasoning_tokens: 40,
+      total_tokens: 30,
+    },
+    continuation_count: 0,
+    empty_progress_count: 0,
+    version: 1,
+    created_at: "2026-07-24T00:00:00Z",
+    updated_at: "2026-07-24T00:00:00Z",
+  };
+
+  assert.equal(goalActualTokens(goal), 220);
+  const model = buildGoalStatusStripModel({
+    canResume: true,
+    continuationHold: null,
+    error: null,
+    goal,
+    isGenerating: false,
+  });
+  assert.equal(model.usageLabel, "≈220 tokens");
+});
+
 test("会话标签只按稳定宽度约束进入溢出态", async () => {
   const {
     calculateConversationTabWidths,

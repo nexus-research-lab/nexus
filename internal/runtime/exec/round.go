@@ -1,3 +1,6 @@
+// INPUT: runtime query、SDK 消息流与 map/persist/emit 回调。
+// OUTPUT: 单轮终态；本地后处理失败时仍携带已收到的 provider terminal usage。
+// POS: runtime exec 包的 query → receive → map → persist → emit 主状态机。
 package exec
 
 import (
@@ -103,7 +106,7 @@ func (e *roundExecution) receive() (RoundExecutionResult, error) {
 			}
 			outcome, err := e.handleIncoming(incoming)
 			if err != nil {
-				return RoundExecutionResult{}, err
+				return outcome.result, err
 			}
 			if outcome.done {
 				return outcome.result, nil
@@ -154,9 +157,15 @@ func (e *roundExecution) handleStreamClosed() (RoundExecutionResult, error) {
 
 func (e *roundExecution) handleIncoming(incoming sdkprotocol.ReceivedMessage) (roundReceiveOutcome, error) {
 	e.observeIncoming(incoming)
+	failureResult := observedResultMessage(incoming.Result, e.startedAt)
 	mapResult, err := e.request.Mapper.Map(incoming, resolveInterruptReason(e.request.InterruptReason))
 	if err != nil {
-		return roundReceiveOutcome{}, err
+		return roundReceiveOutcome{result: failureResult}, err
+	}
+	var terminalResult RoundExecutionResult
+	isTerminal := strings.TrimSpace(mapResult.TerminalStatus) != ""
+	if isTerminal {
+		terminalResult = terminalRoundResult(mapResult, e.assistantTerminalResult, incoming.Result, e.startedAt)
 	}
 	sessionID := resolveSessionID(
 		e.request.Mapper.SessionID(),
@@ -164,17 +173,17 @@ func (e *roundExecution) handleIncoming(incoming sdkprotocol.ReceivedMessage) (r
 		e.request.Client.SessionID(),
 	)
 	if err = e.syncSessionID(sessionID); err != nil {
-		return roundReceiveOutcome{}, err
+		return roundReceiveOutcome{result: failureResult}, err
 	}
 	if err = e.persistDurableMessages(mapResult.DurableMessages, sessionID); err != nil {
-		return roundReceiveOutcome{}, err
+		return roundReceiveOutcome{result: failureResult}, err
 	}
 	if err = e.emitEvents(mapResult.Events); err != nil {
-		return roundReceiveOutcome{}, err
+		return roundReceiveOutcome{result: failureResult}, err
 	}
-	if strings.TrimSpace(mapResult.TerminalStatus) != "" {
+	if isTerminal {
 		return roundReceiveOutcome{
-			result: terminalRoundResult(mapResult, e.assistantTerminalResult, incoming.Result, e.startedAt),
+			result: terminalResult,
 			done:   true,
 		}, nil
 	}

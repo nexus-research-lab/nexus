@@ -1,10 +1,11 @@
+// INPUT: Goal 工具结果、状态与 actual/budget usage。
+// OUTPUT: 完整 MCP structured 投影、Codex 兼容 text 投影及精简完成指引。
+// POS: Goal MCP 工具的稳定输出边界。
 package tool
 
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
-	"time"
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -25,8 +26,9 @@ func structuredResult(_ string, content map[string]any) sdktool.ToolResult {
 }
 
 type goalToolTextPayload struct {
-	Goal                   any `json:"goal"`
-	RemainingTokens        any `json:"remainingTokens"`
+	Goal            any `json:"goal"`
+	RemainingTokens any `json:"remainingTokens"`
+	// CompletionBudgetReport 保持 Codex 兼容的模型可见完成指引。
 	CompletionBudgetReport any `json:"completionBudgetReport"`
 }
 
@@ -109,9 +111,12 @@ type goalPayloadOptions struct {
 
 func goalPayloadWithOptions(item *protocol.Goal, options goalPayloadOptions) map[string]any {
 	payload := map[string]any{
-		"goal":                   toolGoalValue(item),
-		"remainingTokens":        nil,
-		"completionBudgetReport": nil,
+		"goal":                            toolGoalValue(item),
+		"goalId":                          nil,
+		"remainingTokens":                 nil,
+		"usageFinalized":                  nil,
+		"completionUsageCheckpointReport": nil,
+		"completionBudgetReport":          nil,
 	}
 	if item == nil {
 		return payload
@@ -119,7 +124,12 @@ func goalPayloadWithOptions(item *protocol.Goal, options goalPayloadOptions) map
 	remainingTokens := item.RemainingTokens()
 	payload["remainingTokens"] = int64PointerValue(remainingTokens)
 	if options.completionBudgetReport {
-		if report := completionBudgetReport(item); report != "" {
+		if report := completionUsageCheckpointReport(item); report != "" {
+			if item.ID != "" {
+				payload["goalId"] = item.ID
+			}
+			payload["usageFinalized"] = false
+			payload["completionUsageCheckpointReport"] = report
 			payload["completionBudgetReport"] = report
 		}
 	}
@@ -131,14 +141,17 @@ func toolGoalValue(item *protocol.Goal) any {
 		return nil
 	}
 	goal := map[string]any{
-		"threadId":        item.SessionKey,
-		"objective":       item.Objective,
-		"status":          toolGoalStatus(item.Status),
-		"tokenBudget":     int64PointerValue(item.TokenBudget),
-		"tokensUsed":      item.Usage.Total(),
-		"timeUsedSeconds": item.TimeUsedSeconds,
-		"createdAt":       item.CreatedAt.Unix(),
-		"updatedAt":       item.UpdatedAt.Unix(),
+		"threadId":              item.SessionKey,
+		"objective":             item.Objective,
+		"status":                toolGoalStatus(item.Status),
+		"tokenBudget":           int64PointerValue(item.TokenBudget),
+		"tokensUsed":            item.Usage.BudgetTokens(),
+		"budgetTokens":          item.Usage.BudgetTokens(),
+		"actualTokens":          item.Usage.ActualTokens(),
+		"actualTokensEstimated": item.Usage.ActualTokensAreEstimated(),
+		"timeUsedSeconds":       item.TimeUsedSeconds,
+		"createdAt":             item.CreatedAt.Unix(),
+		"updatedAt":             item.UpdatedAt.Unix(),
 	}
 	return goal
 }
@@ -162,54 +175,12 @@ func int64PointerValue(value *int64) any {
 }
 
 func completionBudgetReport(item *protocol.Goal) string {
+	return completionUsageCheckpointReport(item)
+}
+
+func completionUsageCheckpointReport(item *protocol.Goal) string {
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusComplete {
 		return ""
 	}
-	return "Goal achieved. " +
-		"Send one concise final response now, then stop and wait for user input. Do not call more tools or start new work. " +
-		"State that this tracked Goal is complete and ready to be cleared; do not describe it as paused. " +
-		"Briefly summarize what `goal.objective` achieved. " +
-		"Include this exact final usage line in the response: `" + finalGoalUsageLine(item) + "`"
-}
-
-func finalGoalUsageLine(item *protocol.Goal) string {
-	tokensUsed := formatGoalTokenCount(item.Usage.Total())
-	elapsed := formatGoalElapsedTime(item.TimeUsedSeconds)
-	if item.TokenBudget != nil {
-		remaining := item.RemainingTokens()
-		if remaining != nil {
-			return fmt.Sprintf("最终 Goal 用量：%s / %s tokens，剩余 %s tokens，耗时约 %s。",
-				tokensUsed,
-				formatGoalTokenCount(*item.TokenBudget),
-				formatGoalTokenCount(*remaining),
-				elapsed,
-			)
-		}
-		return fmt.Sprintf("最终 Goal 用量：%s / %s tokens，耗时约 %s。",
-			tokensUsed,
-			formatGoalTokenCount(*item.TokenBudget),
-			elapsed,
-		)
-	}
-	return fmt.Sprintf("最终 Goal 用量：%s tokens，耗时约 %s。", tokensUsed, elapsed)
-}
-
-func formatGoalElapsedTime(seconds int64) string {
-	if seconds < 0 {
-		seconds = 0
-	}
-	return (time.Duration(seconds) * time.Second).String()
-}
-
-func formatGoalTokenCount(value int64) string {
-	sign := ""
-	if value < 0 {
-		sign = "-"
-		value = -value
-	}
-	text := strconv.FormatInt(value, 10)
-	for insertAt := len(text) - 3; insertAt > 0; insertAt -= 3 {
-		text = text[:insertAt] + "," + text[insertAt:]
-	}
-	return sign + text
+	return "Goal achieved. Send one concise final response stating that the Goal is complete and briefly summarizing what `goal.objective` achieved. Then stop and wait for user input."
 }

@@ -1,5 +1,5 @@
 // INPUT: Room round/slot 生命周期、运行时消息与并发状态变更。
-// OUTPUT: 可并发读取的执行状态、Goal objective revision、游标、用量与最终回复快照。
+// OUTPUT: 可并发读取的执行状态、稳定 owner/root usage scope、parent/child Goal 绑定、settlement barrier、游标与最终回复快照。
 // POS: Room 实时执行过程的内存状态模型。
 package realtime
 
@@ -37,19 +37,34 @@ type roomSlotRuntimeState struct {
 
 // roomSlotGoalState 负责 Goal accounting、objective fencing 与协作进度。
 type roomSlotGoalState struct {
-	mu                 sync.RWMutex
-	sessionKey         string
-	context            string
-	idForUsage         string
-	objectiveRevision  atomic.Int64
-	runtimeIgnored     bool
-	usage              *goalsvc.RuntimeUsageAccumulator
-	usageStartedAt     time.Time
-	lastAssistant      protocol.Message
-	toolProgress       bool
-	subagentTasks      map[string]struct{}
-	subagentHistory    bool
-	resultUsageWritten bool
+	mu                   sync.RWMutex
+	sessionKey           string
+	context              string
+	idForUsage           string
+	childIDForUsage      string
+	objectiveRevision    atomic.Int64
+	runtimeIgnored       bool
+	usage                *goalsvc.RuntimeUsageAccumulator
+	usageStartedAt       time.Time
+	lastAssistant        protocol.Message
+	toolProgress         bool
+	subagentTasks        map[string]struct{}
+	subagentUsagePending map[string]roomSubagentUsageObservation
+	usageRetrying        bool
+	subagentHistory      bool
+	usageClaimPending    bool
+	usageScopeConsumed   bool
+	terminalSettled      bool
+	resultUsageWritten   bool
+}
+
+// roomSubagentUsageObservation 是尚未确认持久化的 child checkpoint + lifecycle
+// evidence。三个字段都单调推进，避免旧请求成功返回后误清除更新的 terminal 状态。
+type roomSubagentUsageObservation struct {
+	cumulativeTotal            int64
+	terminal                   bool
+	terminalTokenUsageObserved bool
+	observedAt                 time.Time
 }
 
 // roomSlotCursorState 负责 public/private context 的消费边界。
@@ -94,17 +109,19 @@ type roomSlotMutableState struct {
 
 type activeRoomSlot struct {
 	// 以下字段是 slot 创建后不再改变的稳定身份。
-	RoomSessionID      string
-	AgentID            string
-	AgentRoundID       string
-	MsgID              string
-	RuntimeSessionKey  string
-	WorkspacePath      string
-	Index              int
-	TimestampMS        int64
-	Trigger            roomTrigger
-	TriggerAttachments []protocol.ChatAttachment
-	mutable            roomSlotMutableState
+	RoomSessionID         string
+	OwnerUserID           string
+	AgentID               string
+	AgentRoundID          string
+	GoalUsageScopeRoundID string
+	MsgID                 string
+	RuntimeSessionKey     string
+	WorkspacePath         string
+	Index                 int
+	TimestampMS           int64
+	Trigger               roomTrigger
+	TriggerAttachments    []protocol.ChatAttachment
+	mutable               roomSlotMutableState
 }
 
 func (s *activeRoomSlot) ensureGoalObjectiveRevision(initial int64) *atomic.Int64 {
@@ -163,6 +180,7 @@ type activeRoomRound struct {
 	GoalObjectiveRevision int64
 	Slots                 map[string]*activeRoomSlot
 	RunningSubagents      atomic.Bool
+	postRoundDispatched   atomic.Bool
 	Done                  chan struct{}
 	doneOnce              sync.Once
 }
@@ -527,6 +545,7 @@ func (slot *activeRoomSlot) beginGoalUsage() {
 	slot.mutable.goal.mu.Lock()
 	slot.mutable.goal.usage = goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(slot.mutable.goal.idForUsage) != "")
 	slot.mutable.goal.usageStartedAt = time.Now()
+	slot.mutable.goal.terminalSettled = false
 	slot.mutable.goal.mu.Unlock()
 }
 
@@ -539,20 +558,20 @@ func (slot *activeRoomSlot) setGoalUsageAccumulator(usage *goalsvc.RuntimeUsageA
 	slot.mutable.goal.mu.Unlock()
 }
 
-func (slot *activeRoomSlot) resetGoalUsageIfInactive(snapshot goalsvc.RuntimeUsageSnapshot) bool {
+func (slot *activeRoomSlot) startGoalUsageFromRoundStartIfInactive() (protocol.GoalUsage, bool) {
 	if slot == nil {
-		return false
+		return protocol.GoalUsage{}, false
 	}
 	slot.mutable.goal.mu.Lock()
 	defer slot.mutable.goal.mu.Unlock()
 	if slot.mutable.goal.usage != nil && slot.mutable.goal.usage.Active() {
-		return false
+		return protocol.GoalUsage{}, false
 	}
 	if slot.mutable.goal.usage == nil {
 		slot.mutable.goal.usage = goalsvc.NewRuntimeUsageAccumulator(false)
 	}
-	slot.mutable.goal.usage.Reset(snapshot)
-	return true
+	// 模型在本轮创建 Goal 时，当前 slot 的整轮工作都属于这个 Goal。
+	return slot.mutable.goal.usage.ActivateFromRoundStart()
 }
 
 func (slot *activeRoomSlot) resetGoalUsage(snapshot goalsvc.RuntimeUsageSnapshot) {
@@ -564,6 +583,7 @@ func (slot *activeRoomSlot) resetGoalUsage(snapshot goalsvc.RuntimeUsageSnapshot
 		slot.mutable.goal.usage = goalsvc.NewRuntimeUsageAccumulator(false)
 	}
 	slot.mutable.goal.usage.Reset(snapshot)
+	slot.mutable.goal.terminalSettled = false
 	slot.mutable.goal.mu.Unlock()
 }
 
@@ -580,6 +600,26 @@ func (slot *activeRoomSlot) goalUsageDelta(snapshot goalsvc.RuntimeUsageSnapshot
 	return usage, ok, true
 }
 
+func (slot *activeRoomSlot) goalUsageActive() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.Lock()
+	defer slot.mutable.goal.mu.Unlock()
+	return slot.mutable.goal.usage != nil && slot.mutable.goal.usage.Active()
+}
+
+func (slot *activeRoomSlot) goalUsageActiveForGoal(goalID string) bool {
+	if slot == nil || strings.TrimSpace(goalID) == "" {
+		return false
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return strings.TrimSpace(slot.mutable.goal.idForUsage) == strings.TrimSpace(goalID) &&
+		slot.mutable.goal.usage != nil &&
+		slot.mutable.goal.usage.Active()
+}
+
 func (slot *activeRoomSlot) closeGoalUsage() {
 	if slot == nil {
 		return
@@ -589,6 +629,83 @@ func (slot *activeRoomSlot) closeGoalUsage() {
 		slot.mutable.goal.usage.Close()
 	}
 	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) clearGoalUsage() {
+	if slot == nil {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	if slot.mutable.goal.usage != nil {
+		slot.mutable.goal.usage.Close()
+	}
+	slot.mutable.goal.idForUsage = ""
+	slot.mutable.goal.childIDForUsage = ""
+	slot.mutable.goal.usageClaimPending = false
+	slot.mutable.goal.terminalSettled = false
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) setGoalUsageTerminalSettled(settled bool) {
+	if slot == nil {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.terminalSettled = settled
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) goalUsageTerminalSettled() bool {
+	if slot == nil {
+		return true
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return slot.mutable.goal.terminalSettled
+}
+
+func (slot *activeRoomSlot) goalUsageSettlementRequired() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return slot.mutable.goal.usage != nil ||
+		strings.TrimSpace(slot.mutable.goal.idForUsage) != "" ||
+		strings.TrimSpace(slot.mutable.goal.childIDForUsage) != ""
+}
+
+func (slot *activeRoomSlot) setGoalUsageClaimPending(pending bool) {
+	if slot == nil {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.usageClaimPending = pending
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) goalUsageClaimPending() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return slot.mutable.goal.usageClaimPending
+}
+
+func (slot *activeRoomSlot) beginGoalUsageFinalizing() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.Lock()
+	defer slot.mutable.goal.mu.Unlock()
+	if slot.mutable.goal.usage == nil ||
+		!slot.mutable.goal.usage.Active() ||
+		strings.TrimSpace(slot.mutable.goal.idForUsage) == "" {
+		return false
+	}
+	slot.mutable.goal.usage.BeginFinalizing()
+	return true
 }
 
 func (slot *activeRoomSlot) goalUsageStartedAt() time.Time {
@@ -826,7 +943,11 @@ func (slot *activeRoomSlot) knowsSubagentTask(taskID string) bool {
 	}
 	slot.mutable.goal.mu.RLock()
 	defer slot.mutable.goal.mu.RUnlock()
-	_, ok := slot.mutable.goal.subagentTasks[strings.TrimSpace(taskID)]
+	taskID = strings.TrimSpace(taskID)
+	if _, ok := slot.mutable.goal.subagentTasks[taskID]; ok {
+		return true
+	}
+	_, ok := slot.mutable.goal.subagentUsagePending[taskID]
 	return ok
 }
 
@@ -845,7 +966,147 @@ func (slot *activeRoomSlot) hasRunningSubagentTask() bool {
 	}
 	slot.mutable.goal.mu.RLock()
 	defer slot.mutable.goal.mu.RUnlock()
-	return len(slot.mutable.goal.subagentTasks) > 0
+	return len(slot.mutable.goal.subagentTasks) > 0 ||
+		len(slot.mutable.goal.subagentUsagePending) > 0
+}
+
+// markSubagentUsagePending 建立独立的 source 持久化 join barrier，并保留每个 task
+// 最大的累计值（首次显式 0 也会保留）。它与 runtime task 生命周期分开，防止终态消息先移除
+// task、后写 checkpoint 时被并发 finalization 穿透。
+func (slot *activeRoomSlot) markSubagentUsagePending(taskID string, cumulativeTotal int64) {
+	slot.markSubagentUsageObservationPending(roomSubagentUsageObservation{
+		cumulativeTotal: cumulativeTotal,
+	}, taskID)
+}
+
+func (slot *activeRoomSlot) markSubagentUsageObservationPending(
+	observation roomSubagentUsageObservation,
+	taskID string,
+) {
+	if slot == nil || strings.TrimSpace(taskID) == "" {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	if slot.mutable.goal.subagentUsagePending == nil {
+		slot.mutable.goal.subagentUsagePending = make(map[string]roomSubagentUsageObservation)
+	}
+	taskID = strings.TrimSpace(taskID)
+	current := slot.mutable.goal.subagentUsagePending[taskID]
+	if observation.cumulativeTotal > current.cumulativeTotal {
+		current.cumulativeTotal = observation.cumulativeTotal
+		current.observedAt = observation.observedAt
+	}
+	if observation.terminal && !current.terminal {
+		current.observedAt = observation.observedAt
+	}
+	if current.observedAt.IsZero() {
+		current.observedAt = observation.observedAt
+	}
+	current.terminal = current.terminal || observation.terminal
+	current.terminalTokenUsageObserved =
+		current.terminalTokenUsageObserved || observation.terminalTokenUsageObserved
+	slot.mutable.goal.subagentUsagePending[taskID] = current
+	slot.mutable.goal.mu.Unlock()
+}
+
+// clearSubagentUsagePending 只确认不晚于 settledTotal 的 pending。旧请求成功返回时，
+// 若同 task 已到达更大的累计值，则必须保留新值给 retry worker 重放。
+func (slot *activeRoomSlot) clearSubagentUsagePending(taskID string, settledTotal int64) {
+	slot.clearSubagentUsageObservationPending(taskID, roomSubagentUsageObservation{
+		cumulativeTotal:            settledTotal,
+		terminal:                   true,
+		terminalTokenUsageObserved: true,
+	})
+}
+
+func (slot *activeRoomSlot) clearSubagentUsageObservationPending(
+	taskID string,
+	settled roomSubagentUsageObservation,
+) {
+	if slot == nil || strings.TrimSpace(taskID) == "" {
+		return
+	}
+	slot.mutable.goal.mu.Lock()
+	taskID = strings.TrimSpace(taskID)
+	if pending, ok := slot.mutable.goal.subagentUsagePending[taskID]; ok &&
+		pending.cumulativeTotal <= settled.cumulativeTotal &&
+		(!pending.terminal || settled.terminal) &&
+		(!pending.terminalTokenUsageObserved || settled.terminalTokenUsageObserved) {
+		delete(slot.mutable.goal.subagentUsagePending, taskID)
+	}
+	slot.mutable.goal.mu.Unlock()
+}
+
+func (slot *activeRoomSlot) subagentUsagePendingSnapshot() map[string]int64 {
+	if slot == nil {
+		return nil
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	if len(slot.mutable.goal.subagentUsagePending) == 0 {
+		return nil
+	}
+	pending := make(map[string]int64, len(slot.mutable.goal.subagentUsagePending))
+	for taskID, observation := range slot.mutable.goal.subagentUsagePending {
+		pending[taskID] = observation.cumulativeTotal
+	}
+	return pending
+}
+
+func (slot *activeRoomSlot) subagentUsageObservationPendingSnapshot() map[string]roomSubagentUsageObservation {
+	if slot == nil {
+		return nil
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	if len(slot.mutable.goal.subagentUsagePending) == 0 {
+		return nil
+	}
+	pending := make(map[string]roomSubagentUsageObservation, len(slot.mutable.goal.subagentUsagePending))
+	for taskID, observation := range slot.mutable.goal.subagentUsagePending {
+		pending[taskID] = observation
+	}
+	return pending
+}
+
+func (slot *activeRoomSlot) tryStartSubagentUsageRetry() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.Lock()
+	defer slot.mutable.goal.mu.Unlock()
+	if slot.mutable.goal.usageRetrying ||
+		len(slot.mutable.goal.subagentUsagePending) == 0 {
+		return false
+	}
+	slot.mutable.goal.usageRetrying = true
+	return true
+}
+
+// tryStartGoalUsageRetry 复用 slot 的唯一 usage worker。parent terminal
+// settlement 或 shared finalization 失败时，即使没有 child pending 也必须启动。
+func (slot *activeRoomSlot) tryStartGoalUsageRetry() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.Lock()
+	defer slot.mutable.goal.mu.Unlock()
+	if slot.mutable.goal.usageRetrying {
+		return false
+	}
+	slot.mutable.goal.usageRetrying = true
+	return true
+}
+
+func (slot *activeRoomSlot) finishSubagentUsageRetry() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.Lock()
+	slot.mutable.goal.usageRetrying = false
+	needsRestart := len(slot.mutable.goal.subagentUsagePending) > 0
+	slot.mutable.goal.mu.Unlock()
+	return needsRestart
 }
 
 func (slot *activeRoomSlot) setSubagentTasks(tasks map[string]struct{}) {
@@ -893,6 +1154,18 @@ func (slot *activeRoomSlot) goalIDForUsage() string {
 	return slot.mutable.goal.idForUsage
 }
 
+func (slot *activeRoomSlot) childGoalIDForUsage() string {
+	if slot == nil {
+		return ""
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	if goalID := strings.TrimSpace(slot.mutable.goal.childIDForUsage); goalID != "" {
+		return goalID
+	}
+	return strings.TrimSpace(slot.mutable.goal.idForUsage)
+}
+
 func (slot *activeRoomSlot) goalSessionKey() string {
 	if slot == nil {
 		return ""
@@ -918,7 +1191,22 @@ func (slot *activeRoomSlot) setGoalBinding(sessionKey string, goalID string) {
 	slot.mutable.goal.mu.Lock()
 	slot.mutable.goal.sessionKey = strings.TrimSpace(sessionKey)
 	slot.mutable.goal.idForUsage = strings.TrimSpace(goalID)
+	slot.mutable.goal.childIDForUsage = strings.TrimSpace(goalID)
+	if strings.TrimSpace(goalID) != "" {
+		slot.mutable.goal.usageScopeConsumed = true
+	}
 	slot.mutable.goal.mu.Unlock()
+}
+
+// goalUsageScopeConsumed 是 slot/root scope 生命周期内的单调事实。清理或
+// finalization 会关闭当前 accumulator，但不会允许同一 live scope 再消费新 Goal。
+func (slot *activeRoomSlot) goalUsageScopeConsumed() bool {
+	if slot == nil {
+		return false
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return slot.mutable.goal.usageScopeConsumed
 }
 
 func (slot *activeRoomSlot) setGoalRuntimeIgnored(ignored bool) {

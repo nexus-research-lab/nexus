@@ -23,9 +23,11 @@ func terminalRoundResult(
 		TerminalCategory: sdkprotocol.TerminalCategoryUnknown,
 	}
 	if resultMessage != nil {
-		result.Usage, _ = resultMessage.TokenUsage()
-		result.TerminalCategory = resultMessage.TerminalCategory()
-		result.UsageLimitReached, result.UsageLimitReason = runtimectx.ResultUsageLimitReached(resultMessage)
+		observed := observedResultMessage(resultMessage, startedAt)
+		result.Usage = observed.Usage
+		result.TerminalCategory = observed.TerminalCategory
+		result.UsageLimitReached = observed.UsageLimitReached
+		result.UsageLimitReason = observed.UsageLimitReason
 	}
 	if !isSuccessfulRoundResult(result) {
 		return roundResultWithElapsed(result, startedAt)
@@ -41,6 +43,26 @@ func terminalRoundResult(
 	if assistantTerminalResult != nil && assistantTerminalResult.CompletedByAssistant {
 		result.CompletedByAssistant = true
 	}
+	return roundResultWithElapsed(result, startedAt)
+}
+
+// observedResultMessage preserves provider accounting independently from local
+// mapping, persistence, and event delivery. The returned status intentionally
+// remains non-terminal: callers still follow the local error path, while Goal
+// settlement can reconcile the provider usage that already arrived.
+func observedResultMessage(
+	resultMessage *sdkprotocol.ResultMessage,
+	startedAt time.Time,
+) RoundExecutionResult {
+	if resultMessage == nil {
+		return RoundExecutionResult{}
+	}
+	result := RoundExecutionResult{
+		ResultSubtype:    strings.TrimSpace(resultMessage.Subtype),
+		TerminalCategory: resultMessage.TerminalCategory(),
+	}
+	result.Usage, _ = resultMessage.TokenUsage()
+	result.UsageLimitReached, result.UsageLimitReason = runtimectx.ResultUsageLimitReached(resultMessage)
 	return roundResultWithElapsed(result, startedAt)
 }
 

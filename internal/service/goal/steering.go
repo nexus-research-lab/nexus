@@ -98,7 +98,7 @@ func buildObjectiveUpdatedPrompt(item protocol.Goal) string {
 	tokenBudget, remainingTokens := goalBudgetStrings(item)
 	return renderGoalPromptTemplate(objectiveUpdatedPromptTemplate, map[string]string{
 		"objective":        escapeGoalPromptText(strings.TrimSpace(item.Objective)),
-		"tokens_used":      fmt.Sprintf("%d", item.Usage.Total()),
+		"tokens_used":      fmt.Sprintf("%d", item.Usage.BudgetTokens()),
 		"token_budget":     tokenBudget,
 		"remaining_tokens": remainingTokens,
 	})
@@ -109,7 +109,7 @@ func buildBudgetLimitPrompt(item protocol.Goal) string {
 	return renderGoalPromptTemplate(budgetLimitPromptTemplate, map[string]string{
 		"objective":         escapeGoalPromptText(strings.TrimSpace(item.Objective)),
 		"time_used_seconds": fmt.Sprintf("%d", item.TimeUsedSeconds),
-		"tokens_used":       fmt.Sprintf("%d", item.Usage.Total()),
+		"tokens_used":       fmt.Sprintf("%d", item.Usage.BudgetTokens()),
 		"token_budget":      tokenBudget,
 	})
 }

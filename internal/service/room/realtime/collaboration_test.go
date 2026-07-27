@@ -595,11 +595,20 @@ func TestResolveChatTargetAgentIDsRejectsNonMemberTarget(t *testing.T) {
 }
 
 func TestBuildPublicMentionSlotKeepsPublicTriggerMessage(t *testing.T) {
+	contextValue := &protocol.ConversationContextAggregate{
+		Room:         protocol.RoomRecord{ID: "room-1", RoomType: protocol.RoomTypeGroup},
+		Conversation: protocol.ConversationRecord{ID: "conversation-1"},
+	}
+	parentRound := &activeRoomRound{
+		Context:     contextValue,
+		OwnerUserID: "owner-public-mention",
+		RoundID:     "handoff-source-round",
+		RootRoundID: "persisted-handoff-root",
+	}
+	roundValue := newPublicMentionRound(parentRound, "room:group:conversation-1", "wake-round-1")
 	slot := buildPublicMentionSlot(
-		&protocol.ConversationContextAggregate{
-			Room:         protocol.RoomRecord{ID: "room-1", RoomType: protocol.RoomTypeGroup},
-			Conversation: protocol.ConversationRecord{ID: "conversation-1"},
-		},
+		roundValue,
+		contextValue,
 		protocol.SessionRecord{ID: "session-devin"},
 		&protocol.Agent{AgentID: "agent-devin", WorkspacePath: t.TempDir()},
 		publicMentionWake{
@@ -619,5 +628,15 @@ func TestBuildPublicMentionSlotKeepsPublicTriggerMessage(t *testing.T) {
 		slot.Trigger.MessageID != "message-1" ||
 		slot.Trigger.Content != "@Devin @sam 谁先来？" {
 		t.Fatalf("公区 @ slot 应只保留可直接渲染成消息行的触发信息: %+v", slot.Trigger)
+	}
+	if slot.OwnerUserID != roundValue.OwnerUserID ||
+		slot.GoalUsageScopeRoundID != roundValue.RootRoundID {
+		t.Fatalf(
+			"公区 @ slot Goal usage scope = owner:%q scope:%q, want owner:%q scope:%q",
+			slot.OwnerUserID,
+			slot.GoalUsageScopeRoundID,
+			roundValue.OwnerUserID,
+			roundValue.RootRoundID,
+		)
 	}
 }

@@ -162,7 +162,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
-	goalBuilder := newGoalMCPBuilder(cfg, goalService, roomRealtime)
+	goalBuilder := newGoalMCPBuilder(cfg, goalService, roomRealtime, core.Agent)
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService, core.Agent)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent, core.Room.GetRoom)
 	mcpBuilder := combinedMCPBuilder(

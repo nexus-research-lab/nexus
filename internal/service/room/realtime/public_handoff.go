@@ -1,5 +1,5 @@
 // INPUT: Room 最终 assistant 公区消息、成员目录与 source slot 身份。
-// OUTPUT: 带 agent_mentions 标注的消息，以及可幂等恢复的 handoff ledger 记录。
+// OUTPUT: 带 agent_mentions 标注的消息，以及保留 owner/root scope、可幂等恢复的 handoff ledger 记录。
 // POS: @ 解析、正文 span 与 handoff identity 的单一收口。
 package realtime
 
@@ -438,6 +438,7 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 	if contextValue == nil {
 		return nil
 	}
+	ownerUserID := strings.TrimSpace(contextValue.Room.OwnerUserID)
 	if !roomdomain.IsMemberAgent(contextValue.Members, handoff.TargetAgentID) {
 		return s.publicHandoffs.MarkTerminal(conversationID, handoff.HandoffID, "error")
 	}
@@ -484,15 +485,21 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		}
 		handoff.Status = "source_finished"
 	}
+	sourceRoundID := strings.TrimSpace(handoff.SourceMessageID)
+	rootRoundID := strings.TrimSpace(handoff.RootRoundID)
+	if rootRoundID == "" {
+		rootRoundID = sourceRoundID
+	}
 	parentRound := &activeRoomRound{
 		SessionKey:     protocol.BuildRoomSharedSessionKey(conversationID),
 		RoomID:         contextValue.Room.ID,
 		ConversationID: conversationID,
 		RoomType:       contextValue.Room.RoomType,
 		Context:        contextValue,
-		RoundID:        strings.TrimSpace(handoff.SourceMessageID),
-		RootRoundID:    strings.TrimSpace(handoff.RootRoundID),
+		RoundID:        sourceRoundID,
+		RootRoundID:    rootRoundID,
 		HopIndex:       handoff.HopIndex,
+		OwnerUserID:    ownerUserID,
 		Slots:          make(map[string]*activeRoomSlot),
 	}
 	wake := publicMentionWake{

@@ -22,11 +22,17 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	now := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
 	budget := int64(100)
 	item := protocol.Goal{
-		ID:              "goal-1",
-		SessionKey:      "agent:nexus:ws:dm:chat",
-		Objective:       "ship",
-		Status:          protocol.GoalStatusActive,
-		TokenBudget:     &budget,
+		ID:          "goal-1",
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "ship",
+		Status:      protocol.GoalStatusActive,
+		TokenBudget: &budget,
+		Usage: protocol.GoalUsage{
+			InputTokens:          10,
+			OutputTokens:         2,
+			CacheReadInputTokens: 50,
+			ActualTotalTokens:    80,
+		},
 		TimeUsedSeconds: 12,
 		Version:         1,
 		CreatedAt:       now,
@@ -38,8 +44,10 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if created.TokenBudget == nil || *created.TokenBudget != budget || created.TimeUsedSeconds != 12 || created.Metadata["source"] != "test" {
-		t.Fatalf("created = %#v, want persisted budget and metadata", created)
+	if created.TokenBudget == nil || *created.TokenBudget != budget || created.TimeUsedSeconds != 12 ||
+		created.Metadata["source"] != "test" || created.Usage.BudgetTokens() != 12 ||
+		created.Usage.ActualTokens() != 80 || created.Usage.ActualTokensAreEstimated() {
+		t.Fatalf("created = %#v, want persisted actual/budget usage and metadata", created)
 	}
 	current, err := repository.GetCurrentGoal(ctx, item.SessionKey)
 	if err != nil {
@@ -142,6 +150,48 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	}
 }
 
+func TestRepositoryPreservesAuthoritativeZeroActualTotal(t *testing.T) {
+	repository := newTestRepository(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 24, 9, 0, 0, 0, time.UTC)
+	created, err := repository.CreateGoal(ctx, protocol.Goal{
+		ID:         "goal-authoritative-zero",
+		SessionKey: "agent:nexus:ws:dm:authoritative-zero",
+		Objective:  "preserve provider total",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repository.db.ExecContext(
+		ctx,
+		`UPDATE session_goals
+SET token_used_input = 9,
+    token_used_output = 1,
+    token_used_total = 10,
+    token_used_actual_total = 0,
+    token_used_actual_estimated = 0
+WHERE goal_id = ?`,
+		created.ID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	stored, err := repository.GetGoal(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored == nil || stored.Usage.ActualTokens() != 0 || stored.Usage.ActualTokensAreEstimated() {
+		t.Fatalf("stored = %#v, want authoritative exact actual zero", stored)
+	}
+	if stored.Usage.BudgetTokens() != 10 {
+		t.Fatalf("stored budget = %d, want 10", stored.Usage.BudgetTokens())
+	}
+}
+
 func TestRepositoryEvents(t *testing.T) {
 	repository := newTestRepository(t)
 	ctx := context.Background()
@@ -179,13 +229,308 @@ func TestRepositoryEvents(t *testing.T) {
 	}
 }
 
+func TestRepositoryFinalizeGoalUsagePersistsFenceAndEventAtomically(t *testing.T) {
+	repository := newTestRepository(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 27, 10, 0, 0, 0, time.UTC)
+	created, err := repository.CreateGoal(ctx, protocol.Goal{
+		ID:          "goal-finalize",
+		SessionKey:  "agent:nexus:ws:dm:finalize",
+		Objective:   "settle terminal usage",
+		Status:      protocol.GoalStatusComplete,
+		Version:     1,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		CompletedAt: &now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	finalizedAt := now.Add(time.Second)
+	item := *created
+	item.Usage = item.Usage.Add(protocol.GoalUsage{
+		InputTokens:       10,
+		OutputTokens:      2,
+		ActualTotalTokens: 42,
+		ActualTotalKnown:  true,
+		RuntimeSeconds:    3,
+	})
+	item.TimeUsedSeconds = 3
+	item.UsageFinalized = true
+	item.UsageFinalizedAt = &finalizedAt
+	item.Version = 2
+	item.UpdatedAt = finalizedAt
+	event := protocol.GoalEvent{
+		ID:         "event-finalized",
+		GoalID:     item.ID,
+		SessionKey: item.SessionKey,
+		EventType:  "usage_finalized",
+		Source:     protocol.GoalUpdateSourceSystem,
+		RoundID:    "round-final",
+		Payload:    map[string]any{"usage_finalized": true},
+		CreatedAt:  finalizedAt,
+	}
+
+	finalized, err := repository.FinalizeGoalUsage(ctx, item, created.Version, event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !finalized.UsageFinalized || finalized.UsageFinalizedAt == nil ||
+		!finalized.UsageFinalizedAt.Equal(finalizedAt) ||
+		finalized.Usage.BudgetTokens() != 12 ||
+		finalized.Usage.ActualTokens() != 42 ||
+		finalized.TimeUsedSeconds != 3 {
+		t.Fatalf("finalized = %#v, want persisted final aggregate and fence", finalized)
+	}
+	events, err := repository.ListEvents(ctx, item.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].EventType != "usage_finalized" || events[0].RoundID != "round-final" {
+		t.Fatalf("events = %#v, want atomic usage_finalized event", events)
+	}
+	current, err := repository.GetCurrentGoal(ctx, item.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current != nil {
+		t.Fatalf("current = %#v, want nil for completed finalized Goal", current)
+	}
+}
+
+func TestRepositoryFinalizeGoalUsageRollsBackFenceWhenEventFails(t *testing.T) {
+	repository := newTestRepository(t)
+	ctx := context.Background()
+	now := time.Date(2026, 7, 27, 11, 0, 0, 0, time.UTC)
+	created, err := repository.CreateGoal(ctx, protocol.Goal{
+		ID:          "goal-finalize-rollback",
+		SessionKey:  "agent:nexus:ws:dm:finalize-rollback",
+		Objective:   "keep event and fence atomic",
+		Status:      protocol.GoalStatusComplete,
+		Version:     1,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		CompletedAt: &now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := protocol.GoalEvent{
+		ID:         "event-duplicate",
+		GoalID:     created.ID,
+		SessionKey: created.SessionKey,
+		EventType:  "completed",
+		Source:     protocol.GoalUpdateSourceModel,
+		CreatedAt:  now,
+	}
+	if err := repository.AppendEvent(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+
+	finalizedAt := now.Add(time.Second)
+	item := *created
+	item.Usage = protocol.GoalUsage{ActualTotalTokens: 9, ActualTotalKnown: true}.NormalizeTotals()
+	item.UsageFinalized = true
+	item.UsageFinalizedAt = &finalizedAt
+	item.Version = 2
+	item.UpdatedAt = finalizedAt
+	event.EventType = "usage_finalized"
+	if _, err := repository.FinalizeGoalUsage(ctx, item, created.Version, event); err == nil {
+		t.Fatal("FinalizeGoalUsage() error = nil, want duplicate event failure")
+	}
+
+	stored, err := repository.GetGoal(ctx, created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.UsageFinalized || stored.UsageFinalizedAt != nil ||
+		stored.Usage.ActualTokens() != 0 || stored.Version != created.Version {
+		t.Fatalf("stored = %#v, want usage/fence update rolled back with event", stored)
+	}
+}
+
+func TestGoalUsageFinalizationMigrationLeavesHistoricalGoalsUnfinalized(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	applyGoalMigrationFiles(t, db,
+		"../../../db/migrations/sqlite/00037_session_goals_compat.sql",
+		"../../../db/migrations/sqlite/00051_goal_token_totals.sql",
+	)
+	if _, err := db.Exec(`INSERT INTO session_goals (
+		goal_id, session_key, objective, status, version,
+		created_at, updated_at, completed_at, metadata_json
+	) VALUES (
+		'goal-historical-complete', 'agent:nexus:ws:dm:historical', 'done', 'complete', 1,
+		CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'
+	)`); err != nil {
+		t.Fatal(err)
+	}
+	applyGoalMigrationFiles(t, db, "../../../db/migrations/sqlite/00054_goal_usage_finalization.sql")
+
+	var finalized bool
+	var finalizedAt sql.NullTime
+	if err := db.QueryRow(
+		`SELECT usage_finalized, usage_finalized_at
+		 FROM session_goals WHERE goal_id = 'goal-historical-complete'`,
+	).Scan(&finalized, &finalizedAt); err != nil {
+		t.Fatal(err)
+	}
+	if finalized || finalizedAt.Valid {
+		t.Fatalf("historical finalized = %v at=%v, want false/null without terminal fence evidence", finalized, finalizedAt)
+	}
+}
+
+func TestGoalUsageFinalizationMigrationsKeepSQLiteAndPostgresContract(t *testing.T) {
+	for _, path := range []string{
+		"../../../db/migrations/sqlite/00054_goal_usage_finalization.sql",
+		"../../../db/migrations/postgres/00054_goal_usage_finalization.sql",
+	} {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sqlText := strings.ToLower(string(body))
+		for _, fragment := range []string{"usage_finalized", "usage_finalized_at", "default"} {
+			if !strings.Contains(sqlText, fragment) {
+				t.Fatalf("migration %s missing %q", path, fragment)
+			}
+		}
+		if !strings.Contains(sqlText, "default 0") && !strings.Contains(sqlText, "default false") {
+			t.Fatalf("migration %s must default usage_finalized to false", path)
+		}
+		if strings.Contains(sqlText, "update session_goals") {
+			t.Fatalf("migration %s must not mark historical Goals finalized", path)
+		}
+	}
+}
+
+func TestGoalUsageSourceBaselineMigrationsKeepSQLiteAndPostgresContract(t *testing.T) {
+	for _, path := range []string{
+		"../../../db/migrations/sqlite/00055_goal_usage_source_baseline.sql",
+		"../../../db/migrations/postgres/00055_goal_usage_source_baseline.sql",
+	} {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sqlText := strings.ToLower(string(body))
+		for _, fragment := range []string{
+			"goal_usage_source_evidence",
+			"baseline_unavailable",
+			"not null",
+			"default",
+		} {
+			if !strings.Contains(sqlText, fragment) {
+				t.Fatalf("migration %s missing %q", path, fragment)
+			}
+		}
+		if !strings.Contains(sqlText, "default 0") &&
+			!strings.Contains(sqlText, "default false") {
+			t.Fatalf("migration %s must default baseline_unavailable to false", path)
+		}
+	}
+}
+
+func TestGoalUsageBaselineMigrationRepairsAppliedVersion54WithoutSourceTables(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	applyGoalMigrationFiles(t, db,
+		"../../../db/migrations/sqlite/00037_session_goals_compat.sql",
+		"../../../db/migrations/sqlite/00051_goal_token_totals.sql",
+		"../../../db/migrations/sqlite/00052_goal_usage_source_checkpoints.sql",
+		"../../../db/migrations/sqlite/00054_goal_usage_finalization.sql",
+	)
+	seedAppliedGooseVersions(t, db, 54)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tableName := range []string{
+		"goal_usage_scope_bindings",
+		"goal_usage_source_pending",
+		"goal_usage_source_evidence",
+		"goal_usage_parent_ledger",
+	} {
+		var count int
+		if err := db.QueryRow(
+			"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+			tableName,
+		).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatalf("table %s count = %d, want 1", tableName, count)
+		}
+	}
+
+	rows, err := db.Query("PRAGMA table_info(goal_usage_source_evidence)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	hasBaselineUnavailable := false
+	for rows.Next() {
+		var (
+			columnID     int
+			name         string
+			columnType   string
+			notNull      int
+			defaultValue sql.NullString
+			primaryKey   int
+		)
+		if err := rows.Scan(
+			&columnID,
+			&name,
+			&columnType,
+			&notNull,
+			&defaultValue,
+			&primaryKey,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if name == "baseline_unavailable" {
+			hasBaselineUnavailable = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if !hasBaselineUnavailable {
+		t.Fatal("goal_usage_source_evidence.baseline_unavailable missing")
+	}
+
+	var version int64
+	if err := db.QueryRow(
+		"SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1",
+	).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != 55 {
+		t.Fatalf("goose version = %d, want 55", version)
+	}
+}
+
 func TestRepositoryGoalCompatMigrationCreatesCurrentSchema(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	applyGoalMigrationFiles(t, db, "../../../db/migrations/sqlite/00037_session_goals_compat.sql")
+	applyGoalMigrationFiles(t, db,
+		"../../../db/migrations/sqlite/00037_session_goals_compat.sql",
+		"../../../db/migrations/sqlite/00051_goal_token_totals.sql",
+		"../../../db/migrations/sqlite/00054_goal_usage_finalization.sql",
+	)
 
 	repository := NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
 	now := time.Date(2026, 5, 29, 10, 0, 0, 0, time.UTC)
@@ -214,6 +559,68 @@ func TestRepositoryGoalCompatMigrationCreatesCurrentSchema(t *testing.T) {
 		CreatedAt:  now,
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestGoalTokenTotalsMigrationBackfillsHistoricalUsageAsEstimated(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	applyGoalMigrationFiles(t, db, "../../../db/migrations/sqlite/00037_session_goals_compat.sql")
+	for _, statement := range []string{
+		`INSERT INTO session_goals (
+			goal_id, session_key, objective, status,
+			token_used_input, token_used_output, token_used_cache_creation,
+			token_used_cache_read, token_used_reasoning, token_used_total,
+			version, created_at, updated_at, metadata_json
+		) VALUES (
+			'goal-breakdown', 'session-1', 'ship', 'active',
+			10, 20, 80, 90, 40, 240,
+			1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'
+		)`,
+		`INSERT INTO session_goals (
+			goal_id, session_key, objective, status, token_used_total,
+			version, created_at, updated_at, metadata_json
+		) VALUES (
+			'goal-total-only', 'session-2', 'ship', 'active', 77,
+			1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'
+		)`,
+	} {
+		if _, err := db.Exec(statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	applyGoalMigrationFiles(t, db, "../../../db/migrations/sqlite/00051_goal_token_totals.sql")
+
+	for _, testCase := range []struct {
+		goalID     string
+		wantBudget int64
+		wantActual int64
+	}{
+		{goalID: "goal-breakdown", wantBudget: 30, wantActual: 220},
+		{goalID: "goal-total-only", wantBudget: 77, wantActual: 77},
+	} {
+		var budgetTokens, actualTokens int64
+		var estimated bool
+		if err := db.QueryRow(
+			`SELECT token_used_total, token_used_actual_total, token_used_actual_estimated
+			 FROM session_goals WHERE goal_id = ?`,
+			testCase.goalID,
+		).Scan(&budgetTokens, &actualTokens, &estimated); err != nil {
+			t.Fatal(err)
+		}
+		if budgetTokens != testCase.wantBudget || actualTokens != testCase.wantActual || !estimated {
+			t.Fatalf("%s totals = %d/%d estimated=%v, want %d/%d true",
+				testCase.goalID,
+				budgetTokens,
+				actualTokens,
+				estimated,
+				testCase.wantBudget,
+				testCase.wantActual,
+			)
+		}
 	}
 }
 
@@ -272,6 +679,11 @@ func applyGoalMigration(t *testing.T, db *sql.DB) {
 		"../../../db/migrations/sqlite/00027_goal_budget_token_total.sql",
 		"../../../db/migrations/sqlite/00028_goal_remove_cleared_status.sql",
 		"../../../db/migrations/sqlite/00037_session_goals_compat.sql",
+		"../../../db/migrations/sqlite/00051_goal_token_totals.sql",
+		"../../../db/migrations/sqlite/00052_goal_usage_source_checkpoints.sql",
+		"../../../db/migrations/sqlite/00053_goal_usage_source_round_pending.sql",
+		"../../../db/migrations/sqlite/00054_goal_usage_finalization.sql",
+		"../../../db/migrations/sqlite/00055_goal_usage_source_baseline.sql",
 	)
 }
 

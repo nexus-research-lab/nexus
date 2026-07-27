@@ -1,5 +1,5 @@
-// INPUT: create_goal 的 objective/token budget 与当前 session。
-// OUTPUT: 新 Goal；仅 shared Room 描述创建 Agent 的 lead/协作责任，或返回指向 retarget_goal 的冲突提示。
+// INPUT: create_goal 的 objective/token budget 与当前 owner/agent/session/round。
+// OUTPUT: 带 durable usage scope owner 的新 Goal；仅 shared Room 描述创建 Agent 的 lead/协作责任，或返回指向 retarget_goal 的冲突提示。
 // POS: Goal MCP 创建入口；已有 active Goal 不在此处改写。
 package tool
 
@@ -37,6 +37,7 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 				TokenBudget: parsed.TokenBudget,
 				CreatedBy:   "model",
 				RoundID:     sctx.CurrentRoundID,
+				OwnerUserID: sctx.OwnerUserID,
 				AgentID:     sctx.CurrentAgentID,
 				Metadata: map[string]any{
 					"created_via": "goal_tool",

@@ -129,7 +129,7 @@ Nexus 中 Goal MCP 工具在模型可见工具列表里通常带完整 MCP 前�
 }
 ```
 
-工具成功后只发送一条简短最终回复，然后停止并等待用户输入；不要继续调用工具或开启新工作。最终回复应明确说当前 Goal 已完成、可以清理，不要描述成暂停；简短总结完成了什么，并包含工具结果 `completionBudgetReport` 给出的最终用量与耗时行。
+工具成功后只发送一条简短最终回复，然后停止并等待用户输入；不要继续调用工具或开启新工作。最终回复只需说明当前 Goal 已完成，并简短总结完成了什么。不要默认复述 `completionUsageCheckpointReport` 或兼容字段 `completionBudgetReport`，也不要主动同时展示 actual/budget token、耗时或最终回复延迟结算说明；详细用量留给结构化 API 与审计界面。
 
 ### 阻塞 Goal
 

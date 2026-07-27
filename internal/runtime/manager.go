@@ -20,7 +20,9 @@ type sessionState struct {
 	Interruptions            map[string]string
 	GoalAccountingFlushers   map[string]GoalAccountingFlush
 	GoalAccountingClearers   map[string]GoalAccountingClear
+	GoalAccountingFinalizers map[string]GoalAccountingFinalize
 	GoalAccountingActivators map[string]GoalAccountingActivate
+	GoalAccountingGuards     map[string]goalAccountingGuard
 	GoalObjectiveRevisions   map[string]*atomic.Int64
 	GuidedInputs             []GuidedInput
 	IdleMessageCancel        context.CancelFunc
@@ -38,6 +40,9 @@ type Manager struct {
 	factory            Factory
 	now                func() time.Time
 	ownerProcessReaper OwnerProcessReaper
+	// subagentUsageTotals 只服务非 SQL goal provider 的兼容路径；
+	// 放在 Manager 根上，避免 idle session 回收后立刻丢失高水位。
+	subagentUsageTotals map[string]int64
 }
 
 // OwnerProcessReaper 在 owner 权限撤销时回收脱离父进程的 runtime 子树。
@@ -56,9 +61,10 @@ func NewManagerWithFactory(factory Factory) *Manager {
 		factory = defaultFactory{}
 	}
 	return &Manager{
-		sessions: make(map[string]*sessionState),
-		factory:  factory,
-		now:      time.Now,
+		sessions:            make(map[string]*sessionState),
+		factory:             factory,
+		now:                 time.Now,
+		subagentUsageTotals: make(map[string]int64),
 	}
 }
 
@@ -82,7 +88,9 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 			Interruptions:            make(map[string]string),
 			GoalAccountingFlushers:   make(map[string]GoalAccountingFlush),
 			GoalAccountingClearers:   make(map[string]GoalAccountingClear),
+			GoalAccountingFinalizers: make(map[string]GoalAccountingFinalize),
 			GoalAccountingActivators: make(map[string]GoalAccountingActivate),
+			GoalAccountingGuards:     make(map[string]goalAccountingGuard),
 			GoalObjectiveRevisions:   make(map[string]*atomic.Int64),
 		}
 		m.sessions[sessionKey] = state

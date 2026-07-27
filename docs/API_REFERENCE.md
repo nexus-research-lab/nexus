@@ -461,11 +461,30 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 |------|------|------|--------|---------|
 | GET | `/goals/current` | 当前目标（query: `session_key`） | — | `getCurrentGoalApi` |
 | POST | `/goals` | 创建目标；UI 可显式原位替换当前目标 | `{ session_key, objective, token_budget?, replace_existing?, metadata? }` | `createGoalApi` |
+| GET | `/goals/{goal_id}/usage` | 按 ID 查询目标的聚合 usage 与 finalization fence | — | `getGoalUsageApi` |
 | PATCH | `/goals/{goal_id}` | 更新目标 | `{ objective?, token_budget?, metadata? }` | `updateGoalApi` |
 | POST | `/goals/{goal_id}/pause` | 暂停 | — | `pauseGoalApi` |
 | POST | `/goals/{goal_id}/resume` | 恢复 | — | `resumeGoalApi` |
 | POST | `/goals/{goal_id}/clear` | 清除 | — | `clearGoalApi` |
 | GET | `/goals/{goal_id}/events` | 目标事件流 | — | — |
+
+`Goal.usage` 同时暴露两套不可混用的 token 口径：
+
+- `actual_tokens`：runtime/provider 实际处理总量，包含未缓存输入、cache creation/read、输出与 reasoning。provider terminal usage 显式携带 `total_tokens` 时采用其非负值，显式 `0` 也是精确值；缺少 total 时才按可用 breakdown 保守估算，并设置 `actual_tokens_estimated=true`。逐 turn actual 按消息身份去重，terminal 时再用本轮累计真值对账并持久化；terminal provider usage 一旦收到，即使后续本地投影或持久化步骤失败，也不会退化为缺失值。
+- `budget_tokens`：Goal 预算计量，严格为 `max(input_tokens, 0) + max(output_tokens, 0)`；cache creation/read 与 reasoning 不额外进入预算。`token_budget`、剩余预算和 `budget_limited` 均使用此值。
+- `total_tokens`：为旧客户端保留的 `budget_tokens` 别名。
+
+预算口径只用于内部控制、兼容与审计。默认 Goal 状态条只显示一个 `actual_tokens` 数字，估算值以 `≈` 标记；完成但尚未 `usage_finalized` 的 Goal 隐藏 token，finalized 后才显示最终值。预算、耗时和结算明细不在默认界面展示。
+
+`GET /goals/{goal_id}/usage` 返回 `GoalUsageReport`。完成 Goal 不再出现在 `/goals/current` 中，但仍可用原 `goal_id` 查询；同 session 后续创建的新 Goal 不会继承旧 Goal 的 terminal usage。`status=complete` 只表示业务目标已完成，不代表用量已经冻结；`usage_finalized=true` 才是聚合值权威且不再接受迟到增量的唯一 fence。
+
+DM 按当前 round 聚合 parent 与 child；Room 聚合同一 root round（包括后续 handoff）下所有 Agent slot 的 parent 与 child，并排除共享 runtime session 中属于其他 root 的工作。模型在 round 内创建 Goal 时，归属从该 round/root 的起点开始；外部 API 或 UI 激活 Goal 时，归属只从 runtime 激活边界开始，激活前的已结束工作不会回填进新 Goal。若 child 在激活前已经运行，而 runtime 无法在激活瞬间提供可信累计基线，该 child 后续只推进全局 checkpoint、不猜测归属给新 Goal，并将证据保持为 unavailable；绑定后新启动的 child 仍可精确归属。
+
+每个 parent round 与 child task 都有按 owner、runtime session、round/root 和 source 身份隔离的持久化证据；terminal 写入、增量归属和 finalization fence 以幂等方式提交，使失败重试、idle 回收、handoff 与服务重启不会重复计数。最终 fence 只在 complete Goal 的全部必要 parent/child 证据收敛后建立；证据缺失、仍在运行或明确 unavailable 时均保持 `usage_finalized=false`，绝不会用伪造的 `0` 完成结算。fence 建立后的迟到增量会被显式拒绝。
+
+当前 nxs child 适配器会在没有可信 child usage 时填充 `total_tokens: 0`；这个 `0` 是“未知”的占位值，不是 provider terminal 的精确零。child 只有终态消息中的正 total 才记为 authoritative terminal evidence；progress 的正 total 仍可进入 actual checkpoint，但若随后 terminal 为 `0` 或未提供 total，证据仍记为 unavailable，Goal 保持 `usage_finalized=false`。因此 provider terminal 的显式零可以精确结算，但不能把 nxs child 的占位零当作同一种证据。Claude Code 后台任务同样不会在缺少可验证累计语义时被冒充为精确增量。
+
+`update_goal(complete)` 的结构化结果返回 `completionUsageCheckpointReport`、`goalId` 与 `usageFinalized: false`；旧 `completionBudgetReport` 字段保留为同值兼容别名。两个 report 字段只承载模型完成后的简短收尾指引，不是需要原样展示的 token 报告。模型最终回复只需说明 Goal 已完成并简短总结结果，不要求复述 actual/budget token、耗时或“最终回复稍后结算”的 caveat。最终 assistant 回复的 usage 仍会在当前 round terminal 后按固定 `goal_id` 写回已完成 Goal；需要精确审计的调用方随后按 `goalId` 查询 `/goals/{goal_id}/usage`，并以 `usage_finalized=true` 作为最终聚合已冻结的唯一依据。
 
 ### App-Server 线程目标 RPC
 
@@ -474,6 +493,8 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 | POST | `/app-server/thread/goal/set` | 设置线程目标 |
 | POST | `/app-server/thread/goal/get` | 获取线程目标 |
 | POST | `/app-server/thread/goal/clear` | 清除线程目标 |
+
+App-Server Goal 保留 `tokensUsed` 作为预算兼容字段，同时返回 `budgetTokens`、`actualTokens` 与 `actualTokensEstimated`。
 
 ---
 

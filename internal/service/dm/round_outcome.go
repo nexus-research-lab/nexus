@@ -1,3 +1,6 @@
+// INPUT: DM round 的执行错误、中断原因与仍在收敛的 child usage。
+// OUTPUT: 持久化终态、parent terminal 标记、child idle drain 与异常路径 usage finalization。
+// POS: DM 正常执行主链之外的失败/中断终态收口。
 package dm
 
 import (
@@ -11,9 +14,9 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 )
 
-func (r *roundRunner) failRound(err error) {
+func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 	if interruptReason := r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID); interruptReason != "" {
-		r.finishInterrupted(interruptReason)
+		r.finishInterrupted(result, interruptReason)
 		return
 	}
 	fields := []any{
@@ -24,6 +27,7 @@ func (r *roundRunner) failRound(err error) {
 	}
 	fields = append(fields, dmRoundFailureDiagnostics(err, r)...)
 	r.service.loggerFor(context.Background()).Error("DM round 执行失败", fields...)
+	r.finalizeGoalUsage(context.Background(), result, r.lastGoalAssistantMessage())
 	r.recordGoalContinuationProgress(exec.RoundExecutionResult{
 		TerminalStatus: "error",
 		ErrorMessage:   err.Error(),
@@ -95,6 +99,13 @@ func (r *roundRunner) failRound(err error) {
 	roundStatus.AgentRoundID = r.agentRoundID
 	r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, roundStatus)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+	if r.service.runtime.HasSubagentHistory(r.sessionKey) {
+		r.startIdleSubagentNotificationDrain()
+	}
+	r.markSubagentParentTerminal(subagentParentTerminalFailed)
+	if !r.hasRunningSubagentTask() {
+		r.completeSubagentJoinAfterParentTerminal()
+	}
 	r.dispatchNextInputQueueItem()
 }
 
@@ -130,14 +141,14 @@ func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 	return fields
 }
 
-func (r *roundRunner) finishInterrupted(resultText string) {
+func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, resultText string) {
 	r.service.loggerFor(context.Background()).Warn("DM round 以中断状态结束",
 		"session_key", r.sessionKey,
 		"agent_id", r.agent.AgentID,
 		"round_id", r.roundID,
 		"reason", resultText,
 	)
-	r.recordGoalUsage(context.Background(), exec.RoundExecutionResult{}, r.lastGoalAssistantMessage())
+	r.finalizeGoalUsage(context.Background(), result, r.lastGoalAssistantMessage())
 	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {
@@ -199,5 +210,12 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		protocol.NewRoundStatusEvent(r.sessionKey, r.roundID, "interrupted", "interrupted"),
 	)
 	r.service.broadcastSessionStatus(context.Background(), r.sessionKey)
+	if r.service.runtime.HasSubagentHistory(r.sessionKey) {
+		r.startIdleSubagentNotificationDrain()
+	}
+	r.markSubagentParentTerminal(subagentParentTerminalInterrupted)
+	if !r.hasRunningSubagentTask() {
+		r.completeSubagentJoinAfterParentTerminal()
+	}
 	r.dispatchNextInputQueueItem()
 }

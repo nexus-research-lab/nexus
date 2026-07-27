@@ -6,14 +6,15 @@ package goal
 import "errors"
 
 var (
-	ErrGoalDisabled      = errors.New("goal feature disabled")
-	ErrGoalNotFound      = errors.New("goal not found")
-	ErrGoalConflict      = errors.New("current goal already exists")
-	ErrGoalInvalidInput  = errors.New("goal invalid input")
-	ErrGoalInvalidState  = errors.New("goal invalid state")
-	ErrGoalForbidden     = errors.New("goal mutation is not allowed for this agent")
-	ErrGoalVersionStale  = errors.New("goal version stale")
-	ErrGoalRevisionStale = errors.New("goal objective changed after this round started; this round cannot update the retargeted goal")
+	ErrGoalDisabled         = errors.New("goal feature disabled")
+	ErrGoalNotFound         = errors.New("goal not found")
+	ErrGoalConflict         = errors.New("current goal already exists")
+	ErrGoalInvalidInput     = errors.New("goal invalid input")
+	ErrGoalInvalidState     = errors.New("goal invalid state")
+	ErrGoalForbidden        = errors.New("goal mutation is not allowed for this agent")
+	ErrGoalVersionStale     = errors.New("goal version stale")
+	ErrGoalRevisionStale    = errors.New("goal objective changed after this round started; this round cannot update the retargeted goal")
+	ErrGoalUsageUnavailable = errors.New("goal usage is unavailable and cannot be finalized authoritatively")
 )
 
 var expectedMutationErrors = []error{

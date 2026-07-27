@@ -48,6 +48,20 @@ func (b *goalEventBroadcaster) broadcastAppServerNotification(ctx context.Contex
 	if threadID == "" {
 		threadID = sessionKey
 	}
+	if protocol.NormalizeGoalStatus(goal.Status) == protocol.GoalStatusComplete {
+		// 完成后的 usage 结算仍写旧 Goal，但 app-server 通知只有 threadId，
+		// 无法区分 Goal generation。若此时已有新 Goal，重发 cleared 会误清新 Goal。
+		if event.EventType == protocol.EventTypeGoalStatusChanged ||
+			event.EventType == protocol.EventTypeGoalCleared {
+			b.rpcSubscribers.Broadcast(ctx, threadID, nil, goalappserver.AppServerJSONRPCNotification{
+				Method: "thread/goal/cleared",
+				Params: goalappserver.ThreadGoalClearedNotification{
+					ThreadID: threadID,
+				},
+			})
+		}
+		return
+	}
 	switch event.EventType {
 	case protocol.EventTypeGoalCleared:
 		b.rpcSubscribers.Broadcast(ctx, threadID, nil, goalappserver.AppServerJSONRPCNotification{
@@ -57,15 +71,6 @@ func (b *goalEventBroadcaster) broadcastAppServerNotification(ctx context.Contex
 			},
 		})
 	case protocol.EventTypeGoalStatusChanged:
-		if protocol.NormalizeGoalStatus(goal.Status) == protocol.GoalStatusComplete {
-			b.rpcSubscribers.Broadcast(ctx, threadID, nil, goalappserver.AppServerJSONRPCNotification{
-				Method: "thread/goal/cleared",
-				Params: goalappserver.ThreadGoalClearedNotification{
-					ThreadID: threadID,
-				},
-			})
-			return
-		}
 		fallthrough
 	case protocol.EventTypeGoalCreated,
 		protocol.EventTypeGoalUpdated,
