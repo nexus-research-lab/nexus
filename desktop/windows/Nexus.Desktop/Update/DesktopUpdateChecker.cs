@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
+using Nexus.Desktop.Bridge;
 using Nexus.Desktop.Dialog;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
@@ -14,7 +15,7 @@ namespace Nexus.Desktop.Update;
 
 internal sealed class DesktopUpdateChecker
 {
-    private static readonly TimeSpan AutomaticCheckInterval = TimeSpan.FromHours(24);
+    private static readonly TimeSpan AutomaticCheckInterval = TimeSpan.FromHours(4);
     private static readonly TimeSpan MetadataRequestTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan DownloadRequestTimeout = TimeSpan.FromMinutes(10);
     private const int ReleaseNotesMaxCharacters = 20_000;
@@ -63,6 +64,7 @@ internal sealed class DesktopUpdateChecker
     private readonly bool isDisabled;
     private readonly SemaphoreSlim checkLock = new(1, 1);
     private bool hasPerformedStartupCheck;
+    private CancellationTokenSource? automaticCheckCancellation;
 
     public DesktopUpdateChecker(DesktopStartupTimeline startupTimeline, HttpClient? httpClient = null)
     {
@@ -93,23 +95,8 @@ internal sealed class DesktopUpdateChecker
         }
         hasPerformedStartupCheck = true;
 
-        UpdateCheckState state = LoadState();
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        if (state.LastAutomaticCheckAt is not null)
-        {
-            TimeSpan elapsed = now - state.LastAutomaticCheckAt.Value;
-            if (elapsed < AutomaticCheckInterval)
-            {
-                startupTimeline.Mark("update_check.skipped", new Dictionary<string, string>
-                {
-                    ["reason"] = "recent",
-                    ["elapsed_minutes"] = Math.Max(0, (int)elapsed.TotalMinutes).ToString(),
-                });
-                return;
-            }
-        }
-
         _ = RunStartupCheckAsync(owner);
+        StartAutomaticChecks(owner);
     }
 
     public async Task<DesktopUpdateCheckResult> CheckNowAsync(System.Windows.Window owner)
@@ -133,6 +120,36 @@ internal sealed class DesktopUpdateChecker
     private async Task RunStartupCheckAsync(System.Windows.Window owner)
     {
         await CheckWithLockAsync(owner, "startup", showsUpToDateAlert: false);
+    }
+
+    private void StartAutomaticChecks(System.Windows.Window owner)
+    {
+        automaticCheckCancellation?.Cancel();
+        automaticCheckCancellation = new CancellationTokenSource();
+        CancellationToken cancellationToken = automaticCheckCancellation.Token;
+        _ = RunAutomaticChecksAsync(owner, cancellationToken);
+    }
+
+    private async Task RunAutomaticChecksAsync(
+        System.Windows.Window owner,
+        CancellationToken cancellationToken)
+    {
+        using PeriodicTimer timer = new(AutomaticCheckInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (owner.Dispatcher.HasShutdownStarted)
+                {
+                    return;
+                }
+                await CheckWithLockAsync(owner, "periodic", showsUpToDateAlert: false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 应用退出或重新装配检测器时，定时检查自然结束。
+        }
     }
 
     private async Task<DesktopUpdateCheckResult> CheckWithLockAsync(
@@ -170,7 +187,7 @@ internal sealed class DesktopUpdateChecker
             UpdateCheckState previousState = LoadState();
             SaveState(new UpdateCheckState
             {
-                LastAutomaticCheckAt = reason == "startup"
+                LastAutomaticCheckAt = reason is "startup" or "periodic"
                     ? DateTimeOffset.UtcNow
                     : previousState.LastAutomaticCheckAt,
                 LastResult = hasUpdate ? "update_available" : "up_to_date",
@@ -194,11 +211,20 @@ internal sealed class DesktopUpdateChecker
 
             if (hasUpdate)
             {
-                await ShowUpdateAvailableAsync(owner, latest);
+                DesktopPersistentStateStore.Set("desktop.update.available", latest.Version);
+                if (reason != "periodic")
+                {
+                    await ShowUpdateAvailableAsync(owner, latest);
+                }
             }
             else if (showsUpToDateAlert)
             {
+                DesktopPersistentStateStore.Remove("desktop.update.available");
                 await ShowUpToDateAsync(owner, latest);
+            }
+            else
+            {
+                DesktopPersistentStateStore.Remove("desktop.update.available");
             }
 
             return DesktopUpdateCheckResult.From(currentVersion, latest, hasUpdate);
@@ -389,7 +415,21 @@ internal sealed class DesktopUpdateChecker
 
         try
         {
-            DownloadedUpdate downloadedUpdate = await DownloadAndVerifyUpdateAsync(latest);
+            DesktopDownloadProgressWindow progressWindow = await owner.Dispatcher.InvokeAsync(() =>
+            {
+                var window = new DesktopDownloadProgressWindow(owner, latest);
+                window.Show();
+                return window;
+            });
+            DownloadedUpdate downloadedUpdate;
+            try
+            {
+                downloadedUpdate = await DownloadAndVerifyUpdateAsync(latest, progressWindow.Report);
+            }
+            finally
+            {
+                await owner.Dispatcher.InvokeAsync(progressWindow.Close);
+            }
             startupTimeline.Mark("update_check.download_verified", new Dictionary<string, string>
             {
                 ["latest_version"] = latest.Version,
@@ -409,7 +449,9 @@ internal sealed class DesktopUpdateChecker
         }
     }
 
-    private async Task<DownloadedUpdate> DownloadAndVerifyUpdateAsync(DesktopReleaseInfo latest)
+    private async Task<DownloadedUpdate> DownloadAndVerifyUpdateAsync(
+        DesktopReleaseInfo latest,
+        Action<long, long?> reportProgress)
     {
         string installerFileName = latest.InstallerFileName
             ?? throw new InvalidOperationException("当前 Release 缺少 Windows 安装器文件名。");
@@ -430,8 +472,8 @@ internal sealed class DesktopUpdateChecker
             : latest.InstallerSha256FileName;
         string sha256Path = Path.Combine(updateDir, SafePathSegment(sha256FileName));
 
-        await DownloadFileAsync(installerUrl, installerPath);
-        await DownloadFileAsync(sha256Url, sha256Path);
+        await DownloadFileAsync(installerUrl, installerPath, reportProgress);
+        await DownloadFileAsync(sha256Url, sha256Path, static (_, _) => { });
 
         string expectedHash = ReadExpectedSha256(sha256Path, installerFileName);
         string actualHash = ComputeSha256(installerPath);
@@ -444,7 +486,10 @@ internal sealed class DesktopUpdateChecker
         return new DownloadedUpdate(installerPath, sha256Path, actualHash.ToLowerInvariant());
     }
 
-    private async Task DownloadFileAsync(Uri url, string destinationPath)
+    private async Task DownloadFileAsync(
+        Uri url,
+        string destinationPath,
+        Action<long, long?> reportProgress)
     {
         string temporaryPath = $"{destinationPath}.download";
         TryDeleteFile(temporaryPath);
@@ -464,7 +509,16 @@ internal sealed class DesktopUpdateChecker
         await using (Stream source = await response.Content.ReadAsStreamAsync(timeout.Token))
         await using (FileStream destination = File.Create(temporaryPath))
         {
-            await source.CopyToAsync(destination, timeout.Token);
+            long receivedBytes = 0;
+            long? totalBytes = response.Content.Headers.ContentLength;
+            byte[] buffer = new byte[64 * 1024];
+            int read;
+            while ((read = await source.ReadAsync(buffer, timeout.Token)) > 0)
+            {
+                await destination.WriteAsync(buffer.AsMemory(0, read), timeout.Token);
+                receivedBytes += read;
+                reportProgress(receivedBytes, totalBytes);
+            }
         }
 
         File.Move(temporaryPath, destinationPath, overwrite: true);
