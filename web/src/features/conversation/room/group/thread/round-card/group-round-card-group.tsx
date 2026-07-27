@@ -129,7 +129,6 @@ function GroupRoundCardGroupInner({
                 onClickThread={toggleEntryThread}
                 onOpenAgentContact={onOpenAgentContact}
                 onOpenWorkspaceFile={onOpenWorkspaceFile}
-                onPermissionResponse={onPermissionResponse}
                 agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
                 roundId={roundId}
               />

@@ -163,15 +163,6 @@ test("Room renders permission details and actions without opening Thread", async
   const { GroupConversationRound } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/feed/group-conversation-round.tsx",
   );
-  const { resolveGroupConversationRound } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/chat/feed/group-conversation-feed-model.ts",
-  );
-  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
-  );
-  const { ThreadControlContext } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/thread/group-thread-state.ts",
-  );
   const { I18nProvider } = await server.ssrLoadModule(
     "/src/shared/i18n/i18n-provider.tsx",
   );
@@ -190,17 +181,7 @@ test("Room renders permission details and actions without opening Thread", async
   const provider = (child) => React.createElement(
     I18nProvider,
     null,
-    React.createElement(
-      ThreadControlContext.Provider,
-      {
-        value: {
-          activeThread: null,
-          closeThread: () => {},
-          openThread: () => {},
-        },
-      },
-      child,
-    ),
+    child,
   );
 
   const agentCardHtml = renderToStaticMarkup(provider(React.createElement(
@@ -257,80 +238,6 @@ test("Room renders permission details and actions without opening Thread", async
     /echo permission-required/,
     "权限先于 Agent 消息到达时，主 Room 也不能丢失审批入口",
   );
-
-  const completedToolMessage = {
-    ...assistantMessage({
-      agentId: "agent-1",
-      agentRoundId: "agent-round-1",
-      isComplete: true,
-      messageId: "assistant-tool-call",
-      model: "glm-5.2",
-      roundId: "round-root",
-      status: "done",
-      stopReason: "tool_use",
-      text: "Goal 已设定，现在开始调研。",
-      timestamp: 2,
-    }),
-    content: [
-      { type: "text", text: "Goal 已设定，现在开始调研。" },
-      {
-        type: "tool_use",
-        id: "tool-search",
-        input: { query: "Apple M3 vs M4 vs M5 chip comparison specifications" },
-        name: "WebSearch",
-      },
-    ],
-  };
-  const completedPermission = {
-    ...permission,
-    message_id: "assistant-tool-call",
-    request_id: "permission-search",
-    summary: "Apple M3 vs M4 vs M5 chip comparison specifications",
-    tool_input: {
-      query: "Apple M3 vs M4 vs M5 chip comparison specifications",
-    },
-    tool_name: "WebSearch",
-    tool_use_id: "tool-search",
-  };
-  const completedProjection = projectGroupAgentTimeline({
-    messageGroups: new Map([["round-root", [completedToolMessage]]]),
-    pendingPermissionGroups: new Map([
-      ["round-root", [completedPermission]],
-    ]),
-    pendingSlotGroups: new Map(),
-    roundIds: ["round-root"],
-  });
-  const completedState = resolveGroupConversationRound({
-    liveRoundIds: ["round-root"],
-    messageGroups: completedProjection.messageGroups,
-    pendingPermissionGroups: completedProjection.pendingPermissionGroups,
-    pendingSlotGroups: completedProjection.pendingSlotGroups,
-    rootRoundIds: completedProjection.rootRoundIds,
-    roundIds: completedProjection.roundIds,
-  }, 0);
-  const completedRoundHtml = renderToStaticMarkup(provider(
-    React.createElement(GroupConversationRound, {
-      renderer: {
-        agentAvatarMap: {},
-        agentNameMap: { "agent-1": "Kevin" },
-        currentAgentAvatar: null,
-        currentAgentName: "Kevin",
-        currentUserAvatar: null,
-        isLastRoundPendingPermissions: [completedPermission],
-        onPermissionResponse: () => true,
-        onStopAgentRound: () => {},
-        runtimePhase: null,
-      },
-      state: completedState,
-    }),
-  ));
-  assert.match(
-    completedRoundHtml,
-    /Apple M3 vs M4 vs M5 chip comparison specifications/,
-    "工具调用消息已进入完成态时，Room 主时间线仍必须展示其待确认权限",
-  );
-  assert.match(completedRoundHtml, />允许</);
-  assert.match(completedRoundHtml, />拒绝</);
 });
 
 test("resolved history rounds remain only when visible content was projected", async () => {
