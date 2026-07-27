@@ -1,6 +1,6 @@
 /**
  * INPUT: Room feed 节点、Agent 目录、权限与交互回调。
- * OUTPUT: Agent 卡片或普通消息轮次；权限先于消息到达时仍在主 Room 暴露审批入口。
+ * OUTPUT: Agent 卡片或普通消息轮次；用户交互先于消息到达时仍在主 Room 暴露完整入口。
  * POS: Group feed 单节点的唯一渲染分派入口。
  */
 import type { Ref } from "react";
@@ -8,7 +8,6 @@ import type { Ref } from "react";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 
 import { hasRoomAgentRoundEntries } from "../../round/round-agent-model";
-import { getRoomInlinePermissions } from "../../thread/round-card/group-round-card-model";
 import { GroupRoundCardGroup } from "../../thread/round-card/group-round-card-group";
 import {
   resolveRoundAgent,
@@ -75,9 +74,6 @@ function StandaloneConversationRound({
   state,
 }: Pick<GroupConversationRoundProps, "renderer" | "state">) {
   const agent = resolveRoundAgent(state.messages, renderer);
-  const inlinePermissions = getRoomInlinePermissions(
-    state.pendingPermissions,
-  );
   return (
     <MessageItem
       compact={renderer.compact ?? false}
@@ -90,7 +86,7 @@ function StandaloneConversationRound({
       onOpenAgentContact={renderer.onOpenAgentContact}
       onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
       onPermissionResponse={renderer.onPermissionResponse}
-      pendingPermissions={inlinePermissions}
+      pendingPermissions={state.pendingPermissions}
       roundId={state.roundId}
       workspaceAgentId={agent.id}
     />

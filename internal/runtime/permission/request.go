@@ -25,7 +25,7 @@ type RouteContext struct {
 	AgentRoundID       string
 }
 
-// PendingRequest 表示一个待确认权限请求。
+// PendingRequest 表示一个会阻塞 runtime、等待用户响应的请求。
 type PendingRequest struct {
 	RequestID          string
 	SessionKey         string

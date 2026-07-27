@@ -21,6 +21,11 @@ var (
 	}
 )
 
+const (
+	interactionModeApproval = "permission"
+	interactionModeQuestion = "question"
+)
+
 func buildPermissionPayload(pending *PendingRequest) map[string]any {
 	riskLevel, riskLabel := resolveRisk(pending.ToolName)
 	return map[string]any{
@@ -59,9 +64,11 @@ func resolveRisk(toolName string) (string, string) {
 
 func resolveInteractionMode(toolName string) string {
 	if toolName == "AskUserQuestion" {
-		return "question"
+		return interactionModeQuestion
 	}
-	return "permission"
+	// SDK 的权限回调就是 runtime 等待用户响应的统一入口。未知工具也必须
+	// 保留为可批准/拒绝的人工交互，不能因为缺少专用 UI 而只能去 Thread 处理。
+	return interactionModeApproval
 }
 
 func summarizeInput(toolName string, input map[string]any) string {

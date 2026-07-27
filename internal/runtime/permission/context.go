@@ -217,7 +217,7 @@ func (c *Context) ResolveDispatchSessionKey(sessionKey string) string {
 	return sessionKey
 }
 
-// RequestPermission 发起一个可重放的权限请求。
+// RequestPermission 发起一个可重放的阻塞式人工交互请求。
 func (c *Context) RequestPermission(
 	ctx context.Context,
 	sessionKey string,

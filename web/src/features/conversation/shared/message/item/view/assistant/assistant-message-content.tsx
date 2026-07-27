@@ -14,7 +14,7 @@ import type {
   AssistantProcessState,
 } from "./assistant-message-model";
 import { AssistantProcessCallchain } from "./assistant-process-callchain";
-import { PendingPermissionList } from "./pending-permission-list";
+import { PendingHumanInteractionList } from "./pending-human-interaction-list";
 
 interface AssistantMessageContentProps {
   activity: AssistantActivityState;
@@ -57,7 +57,7 @@ export function AssistantMessageContent({
         final={final}
       />
       <MaxTokensWarning visible={showMaxTokensWarning} />
-      <PendingPermissionList
+      <PendingHumanInteractionList
         canRespond={environment.canRespondToPermissions}
         mode={environment.mode}
         onResponse={environment.onPermissionResponse}
