@@ -1,7 +1,7 @@
 /**
- * INPUT: 当前 Room 或 DM Agent 身份。
- * OUTPUT: 不含 Session 身份的 Composer 完整草稿作用域键，以及独立的恢复键。
- * POS: Room/DM 内跨 Session 共享完整输入、不同聊天隔离草稿的唯一作用域规则。
+ * INPUT: 当前 Room 或 DM Agent 身份，以及当前 Session 身份。
+ * OUTPUT: 不含 Session 身份的逻辑聊天键，以及包含 Session 身份的完整草稿键。
+ * POS: Room/DM 内隔离 Session 待发送状态、同时保持聊天级输入历史的唯一作用域规则。
  */
 
 interface ComposerDraftScopeInput {

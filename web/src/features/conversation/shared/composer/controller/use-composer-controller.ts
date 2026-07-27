@@ -1,5 +1,5 @@
 /**
- * INPUT: Composer 视图能力、逻辑聊天草稿作用域及投递动作。
+ * INPUT: Composer 视图能力、Session 草稿作用域及投递动作。
  * OUTPUT: 草稿、附件、键盘、发送与 textarea 焦点的统一视图模型。
  * POS: Shared Composer 的顶层交互编排入口。
  */
@@ -28,7 +28,6 @@ export function useComposerController({
   compact,
   defaultDeliveryPolicy,
   draftRestoreKey,
-  draftScopeKey,
   enableLoops = false,
   goalCreateDisabledReason = null,
   inputQueueItems,
@@ -44,7 +43,7 @@ export function useComposerController({
   runtimePhase,
 }: ComposerPanelProps) {
   const { t } = useI18n();
-  const draft = useComposerDraft(draftScopeKey);
+  const draft = useComposerDraft(draftRestoreKey);
   const {
     completeMessageSubmission,
     setAttachments,

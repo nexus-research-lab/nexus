@@ -13,9 +13,7 @@ import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface ComposerPanelProps {
   compact: boolean;
-  /** 同一逻辑聊天共享、刻意不包含 Session ID 的未发送文字作用域。 */
-  draftScopeKey: string;
-  /** Session 身份变化时重新聚焦并把草稿光标恢复到末尾。 */
+  /** 包含 Session 身份的完整待发送草稿作用域，并负责切换后的光标恢复。 */
   draftRestoreKey: string;
   isLoading: boolean;
   runtimePhase: AgentConversationRuntimePhase | null;

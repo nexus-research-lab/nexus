@@ -204,7 +204,7 @@ test("Safari composition guard only consumes Enter after composition end", async
   assert.equal(isWithinCompositionEndEnterGuard(1_081, 1_000), false);
 });
 
-test("Composer draft follows the Room while its restore key follows the Session", async () => {
+test("Composer drafts stay isolated by Session while history follows the chat", async () => {
   const {
     buildComposerDraftRestoreKey,
     buildComposerDraftScopeKey,
@@ -232,16 +232,25 @@ test("Composer draft follows the Room while its restore key follows the Session"
   });
   assert.equal(roomScope, sameRoomScope);
   assert.notEqual(roomScope, otherRoomScope);
-  assert.notEqual(
-    buildComposerDraftRestoreKey({
-      draftScopeKey: roomScope,
-      sessionKey: "session-1",
-    }),
-    buildComposerDraftRestoreKey({
-      draftScopeKey: sameRoomScope,
-      sessionKey: "session-2",
-    }),
-  );
+  const firstSessionScope = buildComposerDraftRestoreKey({
+    draftScopeKey: roomScope,
+    sessionKey: "session-1",
+  });
+  const sameSessionScope = buildComposerDraftRestoreKey({
+    draftScopeKey: sameRoomScope,
+    sessionKey: "session-1",
+  });
+  const secondSessionScope = buildComposerDraftRestoreKey({
+    draftScopeKey: sameRoomScope,
+    sessionKey: "session-2",
+  });
+  const otherRoomSessionScope = buildComposerDraftRestoreKey({
+    draftScopeKey: otherRoomScope,
+    sessionKey: "session-1",
+  });
+  assert.equal(firstSessionScope, sameSessionScope);
+  assert.notEqual(firstSessionScope, secondSessionScope);
+  assert.notEqual(firstSessionScope, otherRoomSessionScope);
 
   const updateDraft = useComposerDraftStore.getState().update_composer_draft;
   const diagramAttachment = {
@@ -249,7 +258,7 @@ test("Composer draft follows the Room while its restore key follows the Session"
     id: "attachment-diagram",
     kind: "image",
   };
-  updateDraft(roomScope, (current) => ({
+  updateDraft(firstSessionScope, (current) => ({
     ...current,
     attachments: [diagramAttachment],
     goalLeadAgentId: "agent-cindy",
@@ -257,21 +266,36 @@ test("Composer draft follows the Room while its restore key follows the Session"
     inputMode: "goal",
     selectedTargetIDs: ["agent-cindy"],
   }));
-  updateDraft(otherRoomScope, (current) => ({
+  updateDraft(secondSessionScope, (current) => ({
+    ...current,
+    input: "第二个 Session 的待发送内容",
+  }));
+  updateDraft(otherRoomSessionScope, (current) => ({
     ...current,
     input: "另一个 Room 的草稿",
   }));
 
-  const sameRoomDraft = useComposerDraftStore
+  const restoredFirstSessionDraft = useComposerDraftStore
     .getState()
-    .drafts_by_scope[sameRoomScope];
-  assert.equal(sameRoomDraft.input, "对比 M3、M4 和 M5");
-  assert.equal(sameRoomDraft.inputMode, "goal");
-  assert.equal(sameRoomDraft.goalLeadAgentId, "agent-cindy");
-  assert.deepEqual(sameRoomDraft.selectedTargetIDs, ["agent-cindy"]);
-  assert.deepEqual(sameRoomDraft.attachments, [diagramAttachment]);
+    .drafts_by_scope[sameSessionScope];
+  assert.equal(restoredFirstSessionDraft.input, "对比 M3、M4 和 M5");
+  assert.equal(restoredFirstSessionDraft.inputMode, "goal");
+  assert.equal(restoredFirstSessionDraft.goalLeadAgentId, "agent-cindy");
+  assert.deepEqual(
+    restoredFirstSessionDraft.selectedTargetIDs,
+    ["agent-cindy"],
+  );
+  assert.deepEqual(restoredFirstSessionDraft.attachments, [diagramAttachment]);
+  const secondSessionDraft = useComposerDraftStore
+    .getState()
+    .drafts_by_scope[secondSessionScope];
+  assert.equal(secondSessionDraft.input, "第二个 Session 的待发送内容");
+  assert.equal(secondSessionDraft.inputMode, "message");
+  assert.deepEqual(secondSessionDraft.attachments, []);
   assert.equal(
-    useComposerDraftStore.getState().drafts_by_scope[otherRoomScope].input,
+    useComposerDraftStore
+      .getState()
+      .drafts_by_scope[otherRoomSessionScope].input,
     "另一个 Room 的草稿",
   );
 

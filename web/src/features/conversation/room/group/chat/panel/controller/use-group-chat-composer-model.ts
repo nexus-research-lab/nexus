@@ -57,7 +57,7 @@ export function useGroupChatComposerModel({
 }: UseGroupChatComposerModelOptions): GroupChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
-  const draftScopeKey = buildComposerDraftScopeKey({ roomId });
+  const chatScopeKey = buildComposerDraftScopeKey({ roomId });
   const prepareAttachments = useCallback(
     async (files: File[]) => {
       if (!roomId || !conversationId) {
@@ -82,10 +82,9 @@ export function useGroupChatComposerModel({
   return {
     defaultDeliveryPolicy,
     draftRestoreKey: buildComposerDraftRestoreKey({
-      draftScopeKey,
+      draftScopeKey: chatScopeKey,
       sessionKey,
     }),
-    draftScopeKey,
     enableLoops: true,
     goalCreateDisabledReason: goal.createDisabledReason,
     goalScopeLabel: ROOM_GOAL_SCOPE_LABEL,

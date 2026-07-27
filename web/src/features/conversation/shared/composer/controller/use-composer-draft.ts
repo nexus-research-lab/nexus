@@ -1,6 +1,6 @@
 /**
- * INPUT: 逻辑聊天草稿作用域与 Composer 输入/模式动作。
- * OUTPUT: 跨 Session 共享完整用户草稿、按逻辑聊天重置瞬时 UI 的控制器。
+ * INPUT: Session 草稿作用域与 Composer 输入/模式动作。
+ * OUTPUT: 按 Session 隔离完整用户草稿和瞬时 UI 的控制器。
  * POS: Composer 草稿胶囊与瞬时控制状态的唯一编排入口。
  */
 import { useCallback } from "react";

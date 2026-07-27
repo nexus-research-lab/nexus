@@ -1,6 +1,6 @@
 /**
- * INPUT: Room/DM 草稿作用域、完整 Composer 草稿更新与提交时修订号。
- * OUTPUT: 跨 Session 保留的文字、附件、模式、Goal 负责人和 Mention 目标快照。
+ * INPUT: Room/DM Session 草稿作用域、完整 Composer 草稿更新与提交时修订号。
+ * OUTPUT: 按 Session 保留的文字、附件、模式、Goal 负责人和 Mention 目标快照。
  * POS: Composer 用户输入草稿的客户端内存真相源；不持久化瞬时 UI 或浏览器刷新。
  */
 

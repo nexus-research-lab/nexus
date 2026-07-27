@@ -1,11 +1,14 @@
 /**
- * INPUT: Room 身份、成员、宿主 Agent、当前共享 Session 与 Goal 创建动作。
- * OUTPUT: 跨 Session 保持的 Goal 负责人选择、创建能力与刷新序列。
+ * INPUT: Room 身份、成员、宿主 Agent、当前 Session 与 Goal 创建动作。
+ * OUTPUT: 按 Session 隔离的 Goal 负责人选择、创建能力与刷新序列。
  * POS: Room Composer Goal 模式的领域控制器。
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { buildComposerDraftScopeKey } from "@/features/conversation/shared/composer/composer-draft-scope";
+import {
+  buildComposerDraftRestoreKey,
+  buildComposerDraftScopeKey,
+} from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useComposerDraftStore } from "@/features/conversation/shared/composer/composer-draft-store";
 import { createGoalApi } from "@/lib/api/conversation/goal-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -44,8 +47,11 @@ export function useRoomGoalComposer({
 }: UseRoomGoalComposerOptions): RoomGoalComposerModel {
   const { t } = useI18n();
   const draftScopeKey = useMemo(
-    () => buildComposerDraftScopeKey({ roomId }),
-    [roomId],
+    () => buildComposerDraftRestoreKey({
+      draftScopeKey: buildComposerDraftScopeKey({ roomId }),
+      sessionKey,
+    }),
+    [roomId, sessionKey],
   );
   const defaultLeadAgentId = useMemo(
     () => resolveDefaultRoomGoalLead(roomMembers, roomHostAgentId),

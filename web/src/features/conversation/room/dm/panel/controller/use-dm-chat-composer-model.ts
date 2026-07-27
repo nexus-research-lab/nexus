@@ -52,7 +52,7 @@ export function useDmChatComposerModel({
 }: UseDmChatComposerModelOptions): DmChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
-  const draftScopeKey = buildComposerDraftScopeKey({ agentId });
+  const chatScopeKey = buildComposerDraftScopeKey({ agentId });
   const prepareAttachments = useCallback(
     async (files: File[]) => {
       if (!agentId) {
@@ -76,10 +76,9 @@ export function useDmChatComposerModel({
   return {
     defaultDeliveryPolicy,
     draftRestoreKey: buildComposerDraftRestoreKey({
-      draftScopeKey,
+      draftScopeKey: chatScopeKey,
       sessionKey,
     }),
-    draftScopeKey,
     goalScopeLabel,
     inputQueueItems: conversation.input_queue_items,
     isLoading: conversation.is_loading,

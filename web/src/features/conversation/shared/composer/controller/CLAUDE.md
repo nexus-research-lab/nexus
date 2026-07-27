@@ -5,7 +5,7 @@ L5 | 父级: web/src/features/conversation/shared/composer
 ## 职责
 
 - `use-composer-controller.ts`: 组合草稿、附件、提及、历史和各动作协议
-- `use-composer-draft.ts`: 将正文、附件、输入模式、Goal 负责人和 Mention 目标绑定到不含 Session ID 的 Room/DM 内存草稿胶囊，并独立管理瞬时弹层状态
+- `use-composer-draft.ts`: 将正文、附件、输入模式、Goal 负责人和 Mention 目标绑定到包含 Session ID 的 Room/DM 内存草稿胶囊，并独立管理瞬时弹层状态
 - `use-composer-message-submit.ts`: 按资格判断、附件准备、投递和收尾阶段提交消息
 - `use-composer-goal-actions.ts`: 管理 Goal 与 Loop 动作
 - `use-composer-keyboard.ts`: 依次执行输入法、Safari 和 Mention 守卫，再分派键盘命令
@@ -16,5 +16,5 @@ L5 | 父级: web/src/features/conversation/shared/composer
 运行状态投影把 `compacting` 作为独立活动传给 Footer，同时继续独立计算停止按钮资格。
 `hasStopAction` 是表面能力而非运行态推断：DM 传入 Composer 时才允许停止按钮和 Escape 停止，Room 始终由 Agent slot 持有停止入口。
 `awaiting_permission` 阶段保留输入草稿但禁止消息提交；Enter 和发送按钮必须共享同一提交资格，不能越过权限交互。
-Composer 挂载或 Session 恢复键变化后，控制器只执行一次聚焦并把 selection 移到正文末尾；普通输入更新不得重置用户主动选择的光标位置。
+Composer 挂载或 Session 草稿作用域变化后，控制器只执行一次聚焦并把 selection 移到当前草稿末尾；普通输入更新不得重置用户主动选择的光标位置。
 消息投递只有在后端 ACK 后才进入收尾阶段；完整草稿修订号仍等于提交时修订号才原子清空，迟到 ACK 不得删除更新后的正文、附件、模式、Goal 负责人或 Mention 目标；传输失败或 ACK 超时必须保留整个草稿胶囊。
