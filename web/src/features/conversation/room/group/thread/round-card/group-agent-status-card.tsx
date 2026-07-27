@@ -1,9 +1,15 @@
 "use client";
 
+/**
+ * INPUT: Room Agent 执行卡片、待确认权限与用户动作。
+ * OUTPUT: Agent 状态摘要、Thread 入口，以及无需进入 Thread 的完整权限审批块。
+ * POS: Room 主 Feed 中活动 Agent 卡片的唯一交互视图。
+ */
 import { Bot, Loader2, Square } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
+import { PendingPermissionList } from "@/features/conversation/shared/message/item/view/assistant/pending-permission-list";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-avatar";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -19,6 +25,7 @@ import type {
 import type { AgentRoundStatus } from "../../round/round-agent-model";
 import {
   buildGroupAgentStatusModel,
+  getRoomInlinePermissions,
   type AgentStatusSummaryTone,
   type GroupAgentStatusModel,
 } from "./group-round-card-model";
@@ -76,6 +83,10 @@ function GroupAgentStatusCardInner({
     status,
     timestamp,
   }), [messages, pendingPermissions, resultSummary, status, t, timestamp]);
+  const inlinePermissions = useMemo(
+    () => getRoomInlinePermissions(pendingPermissions),
+    [pendingPermissions],
+  );
   const contactLabel = t("room.agent_contact_open", { name: agentName });
 
   const handleStop = useCallback((event: React.MouseEvent) => {
@@ -111,6 +122,15 @@ function GroupAgentStatusCardInner({
     event.stopPropagation();
     onClickThread();
   }, [onClickThread]);
+  const handleCardClick = useCallback((
+    event: React.MouseEvent<HTMLDivElement>,
+  ) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("[data-room-permission-surface]")) {
+      return;
+    }
+    onClickThread();
+  }, [onClickThread]);
   const handleOpenAgentContact = useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
@@ -119,7 +139,10 @@ function GroupAgentStatusCardInner({
     [agentId, onOpenAgentContact],
   );
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-    if (ACTIVATION_KEYS.has(event.key)) {
+    if (
+      event.target === event.currentTarget
+      && ACTIVATION_KEYS.has(event.key)
+    ) {
       onClickThread();
     }
   }, [onClickThread]);
@@ -132,7 +155,7 @@ function GroupAgentStatusCardInner({
           ? "bg-primary/5"
           : "hover:bg-(--interaction-hover-background)",
       )}
-      onClick={onClickThread}
+      onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
@@ -171,6 +194,17 @@ function GroupAgentStatusCardInner({
           model={statusModel}
         />
         <GroupAgentStatusSummary agentId={agentId} model={statusModel} />
+        {inlinePermissions.length > 0 ? (
+          <div data-room-permission-surface>
+            <PendingPermissionList
+              canRespond
+              mode="room_result"
+              onResponse={onPermissionResponse}
+              permissions={inlinePermissions}
+              workspaceAgentId={agentId}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -230,7 +264,7 @@ function GroupAgentStatusHeader({
       <GroupAgentPermissionActions
         allowLabel={labels.permissionAllow}
         denyLabel={labels.permissionDeny}
-        isWaiting={model.isWaitingPermission}
+        isWaiting={model.isQuestionPending}
         onAllow={actions.allow}
         onDeny={actions.deny}
       />

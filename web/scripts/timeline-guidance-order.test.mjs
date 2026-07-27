@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import { createServer } from "vite";
 
@@ -69,6 +71,172 @@ test("scroll events only resume following near the bottom", async () => {
     ),
     true,
     "scrolling back near the bottom must restore following",
+  );
+});
+
+test("Room streaming revisions keep the follow key fresh for non-last Agent output", async () => {
+  const { buildConversationScrollContentKey } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
+  );
+  const streaming = assistantMessage({
+    agentId: "agent-streaming",
+    agentRoundId: "agent-round-streaming",
+    messageId: "assistant-streaming",
+    text: "第一段",
+    timestamp: 1,
+  });
+  const later = assistantMessage({
+    agentId: "agent-later",
+    agentRoundId: "agent-round-later",
+    messageId: "assistant-later",
+    text: "较晚进入数组的并行回复",
+    timestamp: 2,
+  });
+
+  const before = buildConversationScrollContentKey(
+    "room:group:conversation",
+    [streaming, later],
+  );
+  const after = buildConversationScrollContentKey(
+    "room:group:conversation",
+    [{
+      ...streaming,
+      content: [{ type: "text", text: "第一段继续输出" }],
+    }, later],
+  );
+
+  assert.notEqual(
+    before,
+    after,
+    "任意并行 Agent 的流式正文增长都必须触发主 Room 的贴底事务",
+  );
+});
+
+test("auto follow settles again after virtual Room measurement", async () => {
+  const { BottomScrollAnimator } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
+  );
+  const frames = [];
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    cancelAnimationFrame: () => {},
+    requestAnimationFrame: (callback) => {
+      frames.push(callback);
+      return frames.length;
+    },
+  };
+  try {
+    const container = {
+      clientHeight: 500,
+      scrollHeight: 1_000,
+      scrollTop: 0,
+    };
+    const animator = new BottomScrollAnimator(() => container, () => {});
+    animator.scroll("auto");
+    assert.equal(container.scrollTop, 500);
+    assert.equal(
+      frames.length,
+      1,
+      "auto follow needs one post-measurement settlement frame",
+    );
+
+    container.scrollHeight = 1_300;
+    frames.shift()(performance.now());
+    assert.equal(
+      container.scrollTop,
+      800,
+      "virtual list height changes after layout must still finish at the bottom",
+    );
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("Room renders permission details and actions without opening Thread", async () => {
+  const { GroupAgentStatusCard } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-status-card.tsx",
+  );
+  const { GroupConversationRound } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-conversation-round.tsx",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const permission = {
+    agent_id: "agent-1",
+    agent_round_id: "agent-round-1",
+    interaction_mode: "permission",
+    request_id: "permission-1",
+    risk_label: "执行命令",
+    risk_level: "medium",
+    round_id: "round-root",
+    summary: "需要人工确认",
+    tool_input: { command: "echo permission-required" },
+    tool_name: "Bash",
+  };
+  const provider = (child) => React.createElement(
+    I18nProvider,
+    null,
+    child,
+  );
+
+  const agentCardHtml = renderToStaticMarkup(provider(React.createElement(
+    GroupAgentStatusCard,
+    {
+      agentAvatar: null,
+      agentId: "agent-1",
+      agentName: "Dev",
+      isThreadActive: false,
+      messages: [],
+      onClickThread: () => {},
+      onPermissionResponse: () => true,
+      pendingPermissions: [permission],
+      status: "pending",
+      timestamp: 1,
+    },
+  )));
+  assert.match(
+    agentCardHtml,
+    /echo permission-required/,
+    "Agent 卡片必须直接展示待审批操作的具体内容",
+  );
+  assert.match(agentCardHtml, />允许</);
+  assert.match(agentCardHtml, />拒绝</);
+
+  const permissionOnlyRoundHtml = renderToStaticMarkup(provider(
+    React.createElement(GroupConversationRound, {
+      renderer: {
+        agentAvatarMap: {},
+        agentNameMap: {},
+        currentAgentAvatar: null,
+        currentAgentName: "Dev",
+        currentUserAvatar: null,
+        isLastRoundPendingPermissions: [permission],
+        onPermissionResponse: () => true,
+        onStopAgentRound: () => {},
+        runtimePhase: null,
+      },
+      state: {
+        index: 0,
+        isLast: true,
+        isLive: true,
+        isLoaded: true,
+        messages: [],
+        pendingPermissions: [permission],
+        pendingSlots: [],
+        rootRoundId: "round-root",
+        roundId: "round-root",
+      },
+    }),
+  ));
+  assert.match(
+    permissionOnlyRoundHtml,
+    /echo permission-required/,
+    "权限先于 Agent 消息到达时，主 Room 也不能丢失审批入口",
   );
 });
 

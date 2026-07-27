@@ -1,3 +1,8 @@
+/**
+ * INPUT: 会话消息快照与滚动容器测量值。
+ * OUTPUT: 溢出/贴底判定，以及覆盖并行流式回复正文增长的稳定内容版本。
+ * POS: DM、Room 与 Thread 跟随滚动的纯模型真相源。
+ */
 import type { Message } from "@/types/conversation/message/entity";
 
 const BOTTOM_THRESHOLD_PX = 80;
@@ -50,12 +55,56 @@ function projectScrollMessageIdentity(
   };
 }
 
+function projectAssistantScrollRevision(message: Message): string | null {
+  if (message.role !== "assistant") {
+    return null;
+  }
+  let renderedLength = message.result_summary?.result?.length ?? 0;
+  for (const block of message.content) {
+    switch (block.type) {
+      case "text":
+        renderedLength += block.text.length;
+        break;
+      case "thinking":
+        renderedLength += block.thinking.length;
+        break;
+      case "tool_use_error":
+      case "system_event":
+        renderedLength += block.content.length;
+        break;
+      case "task_progress":
+        renderedLength += block.description.length;
+        break;
+      case "search_result":
+        renderedLength +=
+          (block.title?.length ?? 0)
+          + (block.snippet?.length ?? 0);
+        break;
+      default:
+        // 非文本块的增删仍会改变正文高度；动态大负载只计块身份，避免逐 token 序列化。
+        renderedLength += 1;
+        break;
+    }
+  }
+  return [
+    message.message_id,
+    message.agent_round_id ?? "",
+    message.stream_status ?? "",
+    message.content.length,
+    renderedLength,
+  ].join(":");
+}
+
 export function buildConversationScrollContentKey(
   sessionKey: string | null,
   messages: readonly Message[],
 ): string {
   const firstMessage = projectScrollMessageIdentity(messages[0]);
   const latestMessage = projectScrollMessageIdentity(messages.at(-1));
+  const assistantRevisions = messages.flatMap((message) => {
+    const revision = projectAssistantScrollRevision(message);
+    return revision ? [revision] : [];
+  });
 
   return [
     sessionKey ?? "",
@@ -65,5 +114,6 @@ export function buildConversationScrollContentKey(
     latestMessage.timestamp,
     latestMessage.role,
     latestMessage.streamStatus,
+    ...assistantRevisions,
   ].join("\u001f");
 }

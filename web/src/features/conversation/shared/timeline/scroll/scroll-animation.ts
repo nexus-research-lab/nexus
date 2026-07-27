@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前滚动容器、目标滚动行为与浏览器帧时序。
+ * OUTPUT: 可取消的平滑滚动，或在虚拟列表测量后再次收口的立即贴底。
+ * POS: 会话滚动写入的唯一动画与二阶段贴底执行器。
+ */
 import { getScrollBottomTop } from "./follow-scroll-model";
 
 const SMOOTH_SCROLL_DURATION_MS = 420;
@@ -24,6 +29,18 @@ export class BottomScrollAnimator {
 
     if (behavior === "auto") {
       this.setPosition(container, getScrollBottomTop(container));
+      // 虚拟列表会在当前布局提交后才更新总高度；下一帧再次收口，
+      // 避免先按旧 scrollHeight 贴底后被测量结果留在上方。
+      this.scheduleFrameId = window.requestAnimationFrame(() => {
+        this.scheduleFrameId = null;
+        const settledContainer = this.resolveContainer();
+        if (settledContainer) {
+          this.setPosition(
+            settledContainer,
+            getScrollBottomTop(settledContainer),
+          );
+        }
+      });
       return;
     }
 

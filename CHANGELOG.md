@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Exposed complete Room permission approvals in the main conversation even when a request arrives before its Agent message, while keeping question prompts in Thread for structured answers.
+- Kept Room conversations pinned to the latest output across parallel Agent streaming updates and the virtual timeline's delayed height measurement.
 
 - Fixed Docker startup crashing when legacy or runtime JSON settings were `null`; empty JSON values now normalize to an empty object while invalid non-object configuration remains rejected.
 - Fixed v0.1.27 Skill storage migration blocking startup on a same-name invalid Skill directory; the existing directory is now preserved in the host migration-backup area before the legacy external Skill is migrated.
