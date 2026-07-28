@@ -5,7 +5,7 @@
 // 成员清单：
 //   - service.go / state_machine.go / transition.go：Service 与状态机、状态迁移。
 //   - continuation.go / progress.go / resume.go / steering.go：续跑 reserve/claim/release、revision 安全的进展记录、恢复、DM/Room runtime 导向。
-//   - context.go / runtime.go / runtime_*.go：运行时上下文、accounting、wall clock。
+//   - context.go / runtime.go / runtime_*.go / source_usage.go / usage_finalization.go：运行时上下文、scope-aware Goal create preflight/activation 回滚、actual/budget token 增量 accounting、最终 usage 查询/fence、child checkpoint/lifecycle evidence、Room parent terminal ledger、durable scope round-start/from-now 归属与 wall clock。
 //   - objective.go / preview.go / appserver.go：目标改写、预览填充、Codex app-server 语义。
 //   - room_metadata.go / room_collaboration.go / room_completion.go / tool.go / retarget.go / event.go / cleanup.go / helpers.go：Room creator/lead 权限、revision 安全的协作证据、运行中工作 completion gate、模型工具状态更新与同 ID 目标替换、事件广播、清理、辅助。
 //   - errors.go / repository.go：跨调用方统一的错误分类与持久化契约。

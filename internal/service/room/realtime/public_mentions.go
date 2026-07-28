@@ -1,5 +1,5 @@
 // INPUT: 已完成 Agent 输出中的公区 @ 与目标 Agent 当前执行态。
-// OUTPUT: 同 Agent 串行的 public mention guide/新轮唤醒，以及 pending wake 到 active slot 的原子交接。
+// OUTPUT: 同 Agent 串行的 public mention guide/新轮唤醒，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
 // POS: Room Agent 间公开协作的唤醒编排入口。
 package realtime
 
@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"strings"
@@ -315,6 +316,9 @@ func (s *Service) startPublicMentionRoundLocked(
 	}
 	roundID := roomWakeRoundID(wakes)
 	activeRound := newPublicMentionRound(parentRound, sessionKey, roundID)
+	if strings.TrimSpace(activeRound.OwnerUserID) == "" {
+		activeRound.OwnerUserID = authctx.OwnerUserID(ctx)
+	}
 	targetAgentIDs, pending := addPublicMentionSlots(activeRound, contextValue, pendingSlots)
 	s.launchPublicMentionRound(
 		ctx,
@@ -681,6 +685,7 @@ func addPublicMentionSlots(
 		agentRoundID := protocol.NewAgentRoundID()
 		slotIndex := index
 		activeRound.Slots[msgID] = buildPublicMentionSlot(
+			activeRound,
 			contextValue,
 			pendingSlot.sessionRecord,
 			pendingSlot.agentValue,
@@ -746,6 +751,7 @@ func (s *Service) launchPublicMentionRound(
 }
 
 func buildPublicMentionSlot(
+	roundValue *activeRoomRound,
 	contextValue *protocol.ConversationContextAggregate,
 	sessionRecord protocol.SessionRecord,
 	agentValue *protocol.Agent,
@@ -767,16 +773,17 @@ func buildPublicMentionSlot(
 		ReplyRoute:    wake.ReplyRoute,
 	}
 	slot := &activeRoomSlot{
-		RoomSessionID:     sessionRecord.ID,
-		OwnerUserID:       contextValue.Room.OwnerUserID,
-		AgentID:           strings.TrimSpace(wake.TargetAgentID),
-		AgentRoundID:      agentRoundID,
-		MsgID:             msgID,
-		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(contextValue.Conversation.ID, wake.TargetAgentID, contextValue.Room.RoomType),
-		WorkspacePath:     agentValue.WorkspacePath,
-		Index:             index,
-		TimestampMS:       time.Now().UnixMilli(),
-		Trigger:           trigger,
+		RoomSessionID:         sessionRecord.ID,
+		OwnerUserID:           strings.TrimSpace(roundValue.OwnerUserID),
+		AgentID:               strings.TrimSpace(wake.TargetAgentID),
+		AgentRoundID:          agentRoundID,
+		GoalUsageScopeRoundID: roomRootRoundID(roundValue),
+		MsgID:                 msgID,
+		RuntimeSessionKey:     protocol.BuildRoomAgentSessionKey(contextValue.Conversation.ID, wake.TargetAgentID, contextValue.Room.RoomType),
+		WorkspacePath:         agentValue.WorkspacePath,
+		Index:                 index,
+		TimestampMS:           time.Now().UnixMilli(),
+		Trigger:               trigger,
 	}
 	slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
 	slot.setStatus("pending")

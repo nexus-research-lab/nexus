@@ -11,6 +11,14 @@ import (
 
 // AppendEvent 写入 Goal 审计事件。
 func (r *Repository) AppendEvent(ctx context.Context, event protocol.GoalEvent) error {
+	return r.insertGoalEvent(ctx, r.db, event)
+}
+
+type goalEventExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func (r *Repository) insertGoalEvent(ctx context.Context, executor goalEventExecutor, event protocol.GoalEvent) error {
 	query := fmt.Sprintf(`INSERT INTO goal_events (
     event_id,
     goal_id,
@@ -21,7 +29,7 @@ func (r *Repository) AppendEvent(ctx context.Context, event protocol.GoalEvent) 
     payload_json,
     created_at
 ) VALUES (%s)`, r.bindList(8))
-	_, err := r.db.ExecContext(
+	_, err := executor.ExecContext(
 		ctx,
 		query,
 		event.ID,

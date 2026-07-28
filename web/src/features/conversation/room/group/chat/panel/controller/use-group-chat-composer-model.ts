@@ -5,6 +5,10 @@ import { useConversationComposerHandlers } from "@/features/conversation/shared/
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal/goal-continuation-hold";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
+import {
+  buildComposerDraftRestoreKey,
+  buildComposerDraftScopeKey,
+} from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
@@ -53,6 +57,7 @@ export function useGroupChatComposerModel({
 }: UseGroupChatComposerModelOptions): GroupChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
+  const chatScopeKey = buildComposerDraftScopeKey({ roomId });
   const prepareAttachments = useCallback(
     async (files: File[]) => {
       if (!roomId || !conversationId) {
@@ -76,6 +81,10 @@ export function useGroupChatComposerModel({
 
   return {
     defaultDeliveryPolicy,
+    draftRestoreKey: buildComposerDraftRestoreKey({
+      draftScopeKey: chatScopeKey,
+      sessionKey,
+    }),
     enableLoops: true,
     goalCreateDisabledReason: goal.createDisabledReason,
     goalScopeLabel: ROOM_GOAL_SCOPE_LABEL,

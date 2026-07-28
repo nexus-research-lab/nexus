@@ -52,46 +52,25 @@ export function getConversationIdsByCreationTime(
 export function getInitialOpenConversationIds(
   conversationId: string | null,
   orderedConversationIds: string[],
-  maxOpenCount = 1,
 ): string[] {
   const selectedId = conversationId && orderedConversationIds.includes(conversationId)
     ? conversationId
-    : orderedConversationIds[0] ?? null;
-  if (!selectedId) {
-    return [];
-  }
-
-  const capacity = Math.max(1, maxOpenCount);
-  const initialIds = orderedConversationIds.slice(0, capacity);
-  if (initialIds.includes(selectedId)) {
-    return initialIds;
-  }
-  const selectedIds = new Set([
-    ...initialIds.slice(0, Math.max(0, capacity - 1)),
-    selectedId,
-  ]);
-  return orderedConversationIds.filter((id) => selectedIds.has(id));
+    : orderedConversationIds[orderedConversationIds.length - 1] ?? null;
+  return selectedId ? [selectedId] : [];
 }
 
 export function reconcileOpenConversationIds({
   conversationId,
   currentIds,
-  excludedConversationIds,
-  fillAvailable,
-  maxOpenCount,
   orderedIds,
   pendingClosedId,
 }: {
   conversationId: string | null;
   currentIds: string[];
-  excludedConversationIds?: ReadonlySet<string>;
-  fillAvailable?: boolean;
-  maxOpenCount?: number;
   orderedIds: string[];
   pendingClosedId: string | null;
 }): string[] {
   const liveIds = new Set(orderedIds);
-  const capacity = Math.max(1, maxOpenCount ?? Number.MAX_SAFE_INTEGER);
   const selectedId = resolveLiveConversationId(conversationId, liveIds);
   const retainedIds = retainLiveConversationIds(currentIds, liveIds);
   const selectedIds = appendSelectedConversationId(
@@ -104,20 +83,7 @@ export function reconcileOpenConversationIds({
     selectedId,
     orderedIds,
   );
-  const expandedIds = fillAvailable
-    ? appendAvailableConversationIds(
-      ensuredIds,
-      orderedIds,
-      capacity,
-      buildExcludedConversationIds(excludedConversationIds, pendingClosedId),
-    )
-    : ensuredIds;
-  const sortedIds = sortConversationIdsByReference(expandedIds, orderedIds);
-  const resolvedIds = limitOpenConversationIds(
-    sortedIds,
-    selectedId,
-    capacity,
-  );
+  const resolvedIds = sortConversationIdsByReference(ensuredIds, orderedIds);
 
   return areIdsEqual(currentIds, resolvedIds) ? currentIds : resolvedIds;
 }
@@ -173,75 +139,6 @@ function ensureOpenConversationId(
   return fallbackId ? [fallbackId] : currentIds;
 }
 
-function appendAvailableConversationIds(
-  currentIds: string[],
-  orderedIds: string[],
-  maxOpenCount: number,
-  excludedIds: ReadonlySet<string>,
-): string[] {
-  if (currentIds.length >= maxOpenCount) {
-    return currentIds;
-  }
-
-  const nextIds = [...currentIds];
-  for (const id of orderedIds) {
-    if (
-      nextIds.length >= maxOpenCount
-      || excludedIds.has(id)
-      || nextIds.includes(id)
-    ) {
-      continue;
-    }
-    nextIds.push(id);
-  }
-  return nextIds;
-}
-
-function buildExcludedConversationIds(
-  excludedConversationIds: ReadonlySet<string> | undefined,
-  pendingClosedId: string | null,
-): ReadonlySet<string> {
-  if (!pendingClosedId) {
-    return excludedConversationIds ?? new Set<string>();
-  }
-
-  const excludedIds = new Set(excludedConversationIds);
-  excludedIds.add(pendingClosedId);
-  return excludedIds;
-}
-
-function limitOpenConversationIds(
-  currentIds: string[],
-  selectedId: string | null,
-  maxOpenCount: number,
-): string[] {
-  if (currentIds.length <= maxOpenCount) {
-    return currentIds;
-  }
-
-  const limitedIds = [...currentIds];
-  while (limitedIds.length > maxOpenCount) {
-    const removableIndex = findLastRemovableConversationIndex(
-      limitedIds,
-      selectedId,
-    );
-    limitedIds.splice(removableIndex >= 0 ? removableIndex : limitedIds.length - 1, 1);
-  }
-  return limitedIds;
-}
-
-function findLastRemovableConversationIndex(
-  currentIds: string[],
-  selectedId: string | null,
-): number {
-  for (let index = currentIds.length - 1; index >= 0; index -= 1) {
-    if (currentIds[index] !== selectedId) {
-      return index;
-    }
-  }
-  return -1;
-}
-
 export function resolveActiveConversationId({
   conversationId,
   optimisticId,
@@ -261,6 +158,19 @@ export function resolveActiveConversationId({
     return conversationId;
   }
   return orderedConversations[0]?.conversation_id ?? null;
+}
+
+export function shouldPersistConversationTabs({
+  activeConversationId,
+  routeConversationId,
+}: {
+  activeConversationId: string | null;
+  routeConversationId: string | null;
+}): boolean {
+  return Boolean(
+    activeConversationId
+      && routeConversationId === activeConversationId,
+  );
 }
 
 export function getCloseFallbackConversationId(

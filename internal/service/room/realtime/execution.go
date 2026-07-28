@@ -1,5 +1,5 @@
 // INPUT: Room slot、运行时消息流、实时插话确认与 Goal 执行上下文。
-// OUTPUT: 单个 Room Agent round 的 ACK 门控事件、持久化快照、用量与终态。
+// OUTPUT: 单个 Room Agent round 的 ACK 门控事件、持久化快照、usage barrier 与终态。
 // POS: Room 实时编排中把 runtime 输出投影为产品语义的执行主链。
 
 package realtime
@@ -188,7 +188,7 @@ func (s *Service) runSlot(
 
 	client, err := execution.prepareRuntimeClient()
 	if err != nil {
-		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
 		return
 	}
 	if !s.runtime.StartRound(slot.RuntimeSessionKey, slot.AgentRoundID, cancel) {
@@ -197,6 +197,7 @@ func (s *Service) runSlot(
 			roundValue,
 			slot,
 			mapper,
+			exec.RoundExecutionResult{},
 			runtimectx.ErrRuntimeSessionClosing,
 		)
 		return
@@ -221,10 +222,10 @@ func (s *Service) runSlot(
 	result, err := execution.executeRound(client)
 	if err != nil {
 		if errors.Is(err, exec.ErrRoundInterrupted) {
-			s.handleSlotCancelled(slotCtx, roundValue, slot, mapper)
+			s.handleSlotCancelled(slotCtx, roundValue, slot, mapper, result)
 			return
 		}
-		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, result, err)
 		return
 	}
 	if s.shouldConfirmRoomGuidanceByFallback(slot) &&
@@ -236,7 +237,7 @@ func (s *Service) runSlot(
 	}
 
 	if err := execution.complete(result); err != nil {
-		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, err)
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, result, err)
 		return
 	}
 	s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
@@ -264,7 +265,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	e.slot.beginNoReplyCandidate()
 	return exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
-		ContextualInputs: goalContextualInputs(e.slot.goalContext(), e.slot.goalIDForUsage(), goalSessionKeyForSlot(e.slot)),
+		ContextualInputs: e.contextualInputs(),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(e.round), "goal_continuation"),
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},
@@ -345,7 +346,12 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 			return err
 		}
 	}
+	settledSubagentUsage := e.service.recordSubagentGoalUsageForSlot(e.ctx, e.slot, messageValue)
 	e.slot.rememberSubagentTaskMessage(messageValue)
+	for _, settlement := range settledSubagentUsage {
+		e.slot.clearSubagentUsageObservationPending(settlement.taskID, settlement.observation)
+	}
+	e.service.startRoomSubagentUsageRetry(e.round, e.slot)
 	if e.slot.hasSubagentHistory() {
 		e.service.runtime.MarkSubagentHistory(e.slot.RuntimeSessionKey)
 	}
@@ -431,7 +437,13 @@ func (s *Service) runRound(
 	}
 	waitGroup.Wait()
 
-	roundValue.RunningSubagents.Store(roundValue.hasRunningSubagentTasks())
+	if !s.settleCompletedRoomGoalUsage(ctx, roundValue) {
+		logger.Warn(
+			"Room Goal usage 尚未完成最终结算",
+			"session_key", roundValue.SessionKey,
+			"round_id", roundValue.RoundID,
+		)
+	}
 	// Interrupt 只等待执行体结束；queue/guide 交接仍在下方锁内收口。
 	roundValue.doneOnce.Do(func() { close(roundValue.Done) })
 	func() {
@@ -483,9 +495,54 @@ func (s *Service) runRound(
 			if finalStatus == "finished" {
 				s.startQueuedPublicMentionWakes(taskCtx, roundValue)
 			}
-			s.dispatchPostRoundWork(taskCtx, roundValue)
+			s.dispatchPostRoundWorkOnce(taskCtx, roundValue)
 		},
 	)
+}
+
+// settleCompletedRoomGoalUsage 在所有 parent slot 结束后建立最终 usage barrier。
+// 同步 settlement/finalization 耗尽时，后台 worker 会持续重试；即使没有
+// child pending，也不会依赖下一条 runtime 消息才能恢复。
+func (s *Service) settleCompletedRoomGoalUsage(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+) bool {
+	if s == nil || roundValue == nil {
+		return true
+	}
+	roundValue.RunningSubagents.Store(roundValue.hasRunningSubagentTasks())
+	if s.finalizeCompletedRoomGoalUsage(ctx, roundValue) {
+		return true
+	}
+
+	// RunningSubagents 同时承担 post-round settlement barrier。worker 成功后
+	// 通过 CAS 释放；runRound 的普通收尾因该 barrier 不会提前派发。
+	roundValue.RunningSubagents.Store(true)
+	var coordinator *activeRoomSlot
+	for _, slot := range roundValue.Slots {
+		if slot == nil {
+			continue
+		}
+		if len(slot.subagentUsagePendingSnapshot()) > 0 {
+			s.startRoomSubagentUsageRetry(roundValue, slot)
+			if coordinator == nil {
+				coordinator = slot
+			}
+			continue
+		}
+		if coordinator == nil && slot.goalUsageSettlementRequired() {
+			coordinator = slot
+		}
+	}
+	if coordinator != nil {
+		s.startRoomGoalUsageRetry(roundValue, coordinator)
+	}
+	if roundValue.postRoundDispatched.Load() {
+		// 一个并发 child worker 已经完成同一 settlement 并释放 post-round。
+		roundValue.RunningSubagents.Store(false)
+		return true
+	}
+	return false
 }
 
 func (s *Service) recordPrivateRoundMarker(roundValue *activeRoomRound, slot *activeRoomSlot, dispatchPrompt string) error {

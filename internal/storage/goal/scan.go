@@ -1,3 +1,6 @@
+// INPUT: session_goals/session_goal_events SQL rows。
+// OUTPUT: 归一化的 Goal 与 GoalEvent 领域对象。
+// POS: Goal 仓储的 SQL row 解码边界。
 package goal
 
 import (
@@ -21,6 +24,10 @@ func goalSelectQuery(where string) string {
     token_used_cache_read,
     token_used_reasoning,
     token_used_total,
+    token_used_actual_total,
+    token_used_actual_estimated,
+    usage_finalized,
+    usage_finalized_at,
     time_used_seconds,
     continuation_count,
     empty_progress_count,
@@ -38,14 +45,15 @@ WHERE ` + where
 
 func scanGoal(scanner interface{ Scan(...any) error }) (protocol.Goal, error) {
 	var (
-		item         protocol.Goal
-		status       string
-		tokenBudget  sql.NullInt64
-		createdBy    sql.NullString
-		completedAt  sql.NullTime
-		blockedAt    sql.NullTime
-		lastError    sql.NullString
-		metadataJSON string
+		item             protocol.Goal
+		status           string
+		tokenBudget      sql.NullInt64
+		createdBy        sql.NullString
+		completedAt      sql.NullTime
+		blockedAt        sql.NullTime
+		usageFinalizedAt sql.NullTime
+		lastError        sql.NullString
+		metadataJSON     string
 	)
 	err := scanner.Scan(
 		&item.ID,
@@ -59,6 +67,10 @@ func scanGoal(scanner interface{ Scan(...any) error }) (protocol.Goal, error) {
 		&item.Usage.CacheReadInputTokens,
 		&item.Usage.ReasoningTokens,
 		&item.Usage.TotalTokens,
+		&item.Usage.ActualTotalTokens,
+		&item.Usage.ActualTokensEstimated,
+		&item.UsageFinalized,
+		&usageFinalizedAt,
 		&item.TimeUsedSeconds,
 		&item.ContinuationCount,
 		&item.EmptyProgressCount,
@@ -79,8 +91,12 @@ func scanGoal(scanner interface{ Scan(...any) error }) (protocol.Goal, error) {
 	item.CreatedBy = nullStringValue(createdBy)
 	item.CompletedAt = nullTimePointer(completedAt)
 	item.BlockedAt = nullTimePointer(blockedAt)
+	item.UsageFinalizedAt = nullTimePointer(usageFinalizedAt)
 	item.LastError = nullStringValue(lastError)
 	item.Metadata = parseMap(metadataJSON)
+	item.Usage.BudgetTotalTokens = item.Usage.TotalTokens
+	item.Usage.BudgetTotalKnown = true
+	item.Usage.ActualTotalKnown = true
 	return item, nil
 }
 

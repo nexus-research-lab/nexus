@@ -1,5 +1,5 @@
-// INPUT: 当前 runtime Agent/session/round 与 Goal 服务。
-// OUTPUT: 绑定当前 DM runner 或 Room slot 共用 Goal objective revision 状态的 MCP server。
+// INPUT: 当前 runtime Agent/owner/session/round 与 Goal 服务。
+// OUTPUT: 绑定当前 owner 与 DM runner/Room slot 共用 Goal objective revision 状态的 MCP server。
 // POS: nexus_goal MCP 的应用装配入口。
 package server
 
@@ -45,6 +45,7 @@ func newGoalMCPBuilder(
 		}
 		if agentValue != nil {
 			sctx.CurrentAgentID = strings.TrimSpace(agentValue.AgentID)
+			sctx.OwnerUserID = strings.TrimSpace(agentValue.OwnerUserID)
 		}
 		if goalObjectiveRevision != nil {
 			sctx.GoalObjectiveRevision = goalObjectiveRevision

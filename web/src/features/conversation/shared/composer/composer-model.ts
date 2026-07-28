@@ -13,6 +13,8 @@ import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface ComposerPanelProps {
   compact: boolean;
+  /** 包含 Session 身份的完整待发送草稿作用域，并负责切换后的光标恢复。 */
+  draftRestoreKey: string;
   isLoading: boolean;
   runtimePhase: AgentConversationRuntimePhase | null;
   runtimeKind: AgentRuntimeKind;
@@ -94,6 +96,15 @@ export const MENTION_NAVIGATION_KEYS = new Set([
 ]);
 const IME_COMPOSITION_KEY_CODE = 229;
 export const COMPOSITION_END_ENTER_GUARD_MS = 80;
+
+export function focusComposerInputAtEnd(
+  target: HTMLTextAreaElement,
+): void {
+  const caretPosition = target.value.length;
+  target.focus({ preventScroll: true });
+  target.setSelectionRange(caretPosition, caretPosition);
+  target.scrollTop = target.scrollHeight;
+}
 
 export function isCaretOnFirstLine(target: HTMLTextAreaElement): boolean {
   const { end, start } = readSelectionRange(target);

@@ -1,3 +1,6 @@
+// INPUT: Codex app-server Goal RPC 请求与 Nexus Goal service。
+// OUTPUT: 线程 Goal 的读取、写入、清理和状态投影。
+// POS: Codex app-server 协议到 Goal 领域的适配入口。
 package goal
 
 import (
@@ -23,15 +26,33 @@ func (s *Service) SetFromThreadGoalParams(ctx context.Context, request goalappse
 		return nil, err
 	}
 	if current == nil {
-		created, err := s.createFromThreadGoalParams(ctx, sessionKey, targetStatus, hasStatus, request)
+		if err := s.preflightGoalCreate(sessionKey, ""); err != nil {
+			return nil, err
+		}
+		created, createdEvent, err := s.createFromThreadGoalParams(ctx, sessionKey, targetStatus, hasStatus, request)
 		if err != nil {
 			return nil, err
 		}
-		s.activateExternalGoalAccounting(ctx, *created)
+		if protocol.NormalizeGoalStatus(created.Status) == protocol.GoalStatusComplete {
+			s.updatePreviewFromGoal(ctx, *created, "")
+			s.publishGoalEvent(ctx, *created, createdEvent)
+			return s.FinalizeUsageForGoal(ctx, created.ID, protocol.GoalUsage{}, "")
+		}
+		if err := s.activateExternalGoalAccounting(ctx, *created); err != nil {
+			return nil, s.rollbackFailedGoalCreate(ctx, *created, err)
+		}
+		s.updatePreviewFromGoal(ctx, *created, "")
+		s.publishGoalEvent(ctx, *created, createdEvent)
 		s.maybeDispatchActiveGoalContinuation(ctx, *created)
 		return created, nil
 	}
-	s.prepareExternalMutation(ctx, current.ID)
+	prepare := s.prepareExternalMutation
+	if hasStatus && externalStatusUsesSettlementBoundary(protocol.GoalUpdateSourceExternal, targetStatus) {
+		prepare = s.prepareExternalMutationAtSettlementBoundary
+	}
+	if err := prepare(ctx, current.ID); err != nil {
+		return nil, err
+	}
 	refreshed, err := s.repo.GetGoal(ctx, current.ID)
 	if err != nil {
 		return nil, err
@@ -63,7 +84,9 @@ func (s *Service) ClearFromThreadGoalParams(ctx context.Context, request goalapp
 	if current == nil {
 		return false, nil
 	}
-	s.prepareExternalMutation(ctx, current.ID)
+	if err := s.prepareExternalMutationAtSettlementBoundary(ctx, current.ID); err != nil {
+		return false, err
+	}
 	refreshed, err := s.repo.GetGoal(ctx, current.ID)
 	if err != nil {
 		return false, err
@@ -84,16 +107,16 @@ func (s *Service) createFromThreadGoalParams(
 	targetStatus protocol.GoalStatus,
 	hasStatus bool,
 	request goalappserver.ThreadGoalSetParams,
-) (*protocol.Goal, error) {
+) (*protocol.Goal, protocol.GoalEvent, error) {
 	if request.Objective == nil {
-		return nil, newGoalNotFoundError(fmt.Sprintf(
+		return nil, protocol.GoalEvent{}, newGoalNotFoundError(fmt.Sprintf(
 			"cannot update goal for thread %s: no goal exists",
 			sessionKey,
 		))
 	}
 	objective, err := normalizeObjective(*request.Objective)
 	if err != nil {
-		return nil, err
+		return nil, protocol.GoalEvent{}, err
 	}
 	objective, metadata := s.rewriteCreateObjective(ctx, protocol.CreateGoalRequest{
 		SessionKey: sessionKey,
@@ -105,7 +128,7 @@ func (s *Service) createFromThreadGoalParams(
 	}, objective)
 	tokenBudget, err := normalizeThreadGoalBudget(request.TokenBudget)
 	if err != nil {
-		return nil, err
+		return nil, protocol.GoalEvent{}, err
 	}
 	now := s.nowFn()
 	status := statusAfterThreadGoalBudget(protocol.Goal{
@@ -127,13 +150,20 @@ func (s *Service) createFromThreadGoalParams(
 	applyInitialGoalStatusTime(&item, now)
 	created, err := s.repo.CreateGoal(ctx, item)
 	if err != nil {
-		return nil, err
+		return nil, protocol.GoalEvent{}, err
 	}
-	s.updatePreviewFromGoal(ctx, *created, "")
-	if err := s.appendEvent(ctx, *created, "created", protocol.GoalUpdateSourceExternal, "", map[string]any{"objective": created.Objective}); err != nil {
-		return nil, err
+	createdEvent := s.newGoalEvent(
+		*created,
+		"created",
+		protocol.GoalUpdateSourceExternal,
+		"",
+		map[string]any{"objective": created.Objective},
+		now,
+	)
+	if err := s.repo.AppendEvent(ctx, createdEvent); err != nil {
+		return nil, protocol.GoalEvent{}, err
 	}
-	return created, nil
+	return created, createdEvent, nil
 }
 
 func applyInitialGoalStatusTime(item *protocol.Goal, now time.Time) {
@@ -256,10 +286,10 @@ func statusAfterThreadGoalBudget(item protocol.Goal, status protocol.GoalStatus,
 		(status == protocol.GoalStatusPaused || status == protocol.GoalStatusBlocked) {
 		return protocol.GoalStatusBudgetLimited
 	}
-	if status == protocol.GoalStatusActive && item.TokenBudget != nil && item.Usage.Total() >= *item.TokenBudget {
+	if status == protocol.GoalStatusActive && item.TokenBudget != nil && item.Usage.BudgetTokens() >= *item.TokenBudget {
 		return protocol.GoalStatusBudgetLimited
 	}
-	if !explicitStatus && currentStatus == protocol.GoalStatusActive && item.TokenBudget != nil && item.Usage.Total() >= *item.TokenBudget {
+	if !explicitStatus && currentStatus == protocol.GoalStatusActive && item.TokenBudget != nil && item.Usage.BudgetTokens() >= *item.TokenBudget {
 		return protocol.GoalStatusBudgetLimited
 	}
 	return status

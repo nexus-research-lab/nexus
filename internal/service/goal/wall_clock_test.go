@@ -219,8 +219,12 @@ func TestServiceFlushesGoalAccountingBeforeExternalMutation(t *testing.T) {
 	if len(accountant.sessionKeys) != 1 || accountant.sessionKeys[0] != created.SessionKey {
 		t.Fatalf("accountant sessionKeys = %#v, want current session", accountant.sessionKeys)
 	}
-	if len(accountant.clearedSessionKeys) != 1 || accountant.clearedSessionKeys[0] != created.SessionKey {
-		t.Fatalf("accountant clearedSessionKeys = %#v, want current session", accountant.clearedSessionKeys)
+	if len(accountant.clearedSessionKeys) != 0 {
+		t.Fatalf("accountant clearedSessionKeys = %#v, pause must retain terminal accounting", accountant.clearedSessionKeys)
+	}
+	if len(accountant.finalizingSessionKeys) != 1 ||
+		accountant.finalizingSessionKeys[0] != created.SessionKey {
+		t.Fatalf("accountant finalizingSessionKeys = %#v, want current session", accountant.finalizingSessionKeys)
 	}
 	if len(interrupter.sessionKeys) != 1 || interrupter.sessionKeys[0] != created.SessionKey {
 		t.Fatalf("interrupter sessionKeys = %#v, want current session", interrupter.sessionKeys)

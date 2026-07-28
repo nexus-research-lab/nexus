@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import { createServer } from "vite";
 
@@ -70,6 +72,356 @@ test("scroll events only resume following near the bottom", async () => {
     true,
     "scrolling back near the bottom must restore following",
   );
+});
+
+test("Room streaming revisions keep the follow key fresh for non-last Agent output", async () => {
+  const { buildConversationScrollContentKey } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
+  );
+  const streaming = assistantMessage({
+    agentId: "agent-streaming",
+    agentRoundId: "agent-round-streaming",
+    messageId: "assistant-streaming",
+    text: "第一段",
+    timestamp: 1,
+  });
+  const later = assistantMessage({
+    agentId: "agent-later",
+    agentRoundId: "agent-round-later",
+    messageId: "assistant-later",
+    text: "较晚进入数组的并行回复",
+    timestamp: 2,
+  });
+
+  const before = buildConversationScrollContentKey(
+    "room:group:conversation",
+    [streaming, later],
+  );
+  const after = buildConversationScrollContentKey(
+    "room:group:conversation",
+    [{
+      ...streaming,
+      content: [{ type: "text", text: "第一段继续输出" }],
+    }, later],
+  );
+
+  assert.notEqual(
+    before,
+    after,
+    "任意并行 Agent 的流式正文增长都必须触发主 Room 的贴底事务",
+  );
+});
+
+test("auto follow settles again after virtual Room measurement", async () => {
+  const { BottomScrollAnimator } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
+  );
+  const frames = [];
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    cancelAnimationFrame: () => {},
+    requestAnimationFrame: (callback) => {
+      frames.push(callback);
+      return frames.length;
+    },
+  };
+  try {
+    const container = {
+      clientHeight: 500,
+      scrollHeight: 1_000,
+      scrollTop: 0,
+    };
+    const animator = new BottomScrollAnimator(() => container, () => {});
+    animator.scroll("auto");
+    assert.equal(container.scrollTop, 500);
+    assert.equal(
+      frames.length,
+      1,
+      "auto follow needs one post-measurement settlement frame",
+    );
+
+    container.scrollHeight = 1_300;
+    frames.shift()(performance.now());
+    assert.equal(
+      container.scrollTop,
+      800,
+      "virtual list height changes after layout must still finish at the bottom",
+    );
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("Room handles every pending runtime human interaction without opening Thread", async () => {
+  const { GroupAgentStatusCard } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-status-card.tsx",
+  );
+  const { GroupConversationRound } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-conversation-round.tsx",
+  );
+  const { resolveGroupConversationRound } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-conversation-feed-model.ts",
+  );
+  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const { ThreadControlContext } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/group-thread-state.ts",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const permission = {
+    agent_id: "agent-1",
+    agent_round_id: "agent-round-1",
+    interaction_mode: "permission",
+    request_id: "permission-1",
+    risk_label: "执行命令",
+    risk_level: "medium",
+    round_id: "round-root",
+    summary: "需要人工确认",
+    tool_input: { command: "echo permission-required" },
+    tool_name: "Bash",
+  };
+  const questionPermission = {
+    agent_id: "agent-1",
+    agent_round_id: "agent-round-1",
+    interaction_mode: "question",
+    request_id: "question-1",
+    round_id: "round-root",
+    summary: "请选择研究口径",
+    tool_input: {
+      questions: [{
+        header: "研究口径",
+        multiSelect: false,
+        options: [
+          { label: "保守", description: "优先采用可验证数据" },
+          { label: "积极", description: "纳入前瞻性假设" },
+        ],
+        question: "这次分析采用哪种研究口径？",
+      }],
+    },
+    tool_name: "AskUserQuestion",
+    tool_use_id: "tool-question",
+  };
+  const planConfirmation = {
+    ...permission,
+    request_id: "plan-confirmation-1",
+    summary: "确认按这份计划继续执行",
+    tool_input: {
+      plan: "先验证数据源，再生成最终报告。",
+    },
+    tool_name: "ExitPlanMode",
+    tool_use_id: "tool-plan-confirmation",
+  };
+  const futureApproval = {
+    ...permission,
+    interaction_mode: "future_review",
+    request_id: "future-approval-1",
+    summary: "确认发布研究结果",
+    tool_input: {
+      description: "将报告发布到共享工作区。",
+    },
+    tool_name: "RequestHumanReview",
+    tool_use_id: "tool-future-approval",
+  };
+  const provider = (child) => React.createElement(
+    I18nProvider,
+    null,
+    React.createElement(
+      ThreadControlContext.Provider,
+      {
+        value: {
+          activeThread: null,
+          closeThread: () => {},
+          openThread: () => {},
+        },
+      },
+      child,
+    ),
+  );
+
+  const agentCardHtml = renderToStaticMarkup(provider(React.createElement(
+    GroupAgentStatusCard,
+    {
+      agentAvatar: null,
+      agentId: "agent-1",
+      agentName: "Dev",
+      isThreadActive: false,
+      messages: [],
+      onClickThread: () => {},
+      onPermissionResponse: () => true,
+      pendingPermissions: [
+        permission,
+        questionPermission,
+        planConfirmation,
+        futureApproval,
+      ],
+      status: "pending",
+      timestamp: 1,
+    },
+  )));
+  assert.match(
+    agentCardHtml,
+    /echo permission-required/,
+    "Agent 卡片必须直接展示待审批操作的具体内容",
+  );
+  assert.match(agentCardHtml, />允许</);
+  assert.match(agentCardHtml, />拒绝</);
+  assert.match(
+    agentCardHtml,
+    /这次分析采用哪种研究口径？/,
+    "结构化问题必须直接在活动 Agent 卡片中作答",
+  );
+  assert.match(agentCardHtml, /保守/);
+  assert.match(agentCardHtml, /继续协作/);
+  assert.match(
+    agentCardHtml,
+    /先验证数据源，再生成最终报告/,
+    "计划确认必须与普通工具审批一样直接出现在公区",
+  );
+  assert.match(
+    agentCardHtml,
+    /将报告发布到共享工作区/,
+    "未知的新人工审批类型必须回退到公区通用控件",
+  );
+  assert.match(
+    agentCardHtml,
+    /data-human-interaction-surface/,
+    "统一人工介入边界必须由公共渲染入口标记",
+  );
+  assert.doesNotMatch(
+    agentCardHtml,
+    />去回答</,
+    "公区不得再用跳转 Thread 代替完整回答控件",
+  );
+
+  const permissionOnlyRoundHtml = renderToStaticMarkup(provider(
+    React.createElement(GroupConversationRound, {
+      renderer: {
+        agentAvatarMap: {},
+        agentNameMap: {},
+        currentAgentAvatar: null,
+        currentAgentName: "Dev",
+        currentUserAvatar: null,
+        isLastRoundPendingPermissions: [permission],
+        onPermissionResponse: () => true,
+        onStopAgentRound: () => {},
+        runtimePhase: null,
+      },
+      state: {
+        index: 0,
+        isLast: true,
+        isLive: true,
+        isLoaded: true,
+        messages: [],
+        pendingPermissions: [
+          permission,
+          questionPermission,
+          planConfirmation,
+          futureApproval,
+        ],
+        pendingSlots: [],
+        rootRoundId: "round-root",
+        roundId: "round-root",
+      },
+    }),
+  ));
+  assert.match(
+    permissionOnlyRoundHtml,
+    /echo permission-required/,
+    "权限先于 Agent 消息到达时，主 Room 也不能丢失审批入口",
+  );
+  assert.match(
+    permissionOnlyRoundHtml,
+    /这次分析采用哪种研究口径？/,
+    "问题先于 Agent 消息到达时，主 Room 也必须保留完整回答入口",
+  );
+  assert.match(permissionOnlyRoundHtml, /先验证数据源，再生成最终报告/);
+  assert.match(permissionOnlyRoundHtml, /将报告发布到共享工作区/);
+
+  const completedToolMessage = {
+    ...assistantMessage({
+      agentId: "agent-1",
+      agentRoundId: "agent-round-1",
+      isComplete: true,
+      messageId: "assistant-tool-call",
+      model: "glm-5.2",
+      roundId: "round-root",
+      status: "done",
+      stopReason: "tool_use",
+      text: "Goal 已设定，现在开始调研。",
+      timestamp: 2,
+    }),
+    content: [
+      { type: "text", text: "Goal 已设定，现在开始调研。" },
+      {
+        type: "tool_use",
+        id: "tool-search",
+        input: { query: "Apple M3 vs M4 vs M5 chip comparison specifications" },
+        name: "WebSearch",
+      },
+    ],
+  };
+  const completedPermission = {
+    ...permission,
+    message_id: "assistant-tool-call",
+    request_id: "permission-search",
+    summary: "Apple M3 vs M4 vs M5 chip comparison specifications",
+    tool_input: {
+      query: "Apple M3 vs M4 vs M5 chip comparison specifications",
+    },
+    tool_name: "WebSearch",
+    tool_use_id: "tool-search",
+  };
+  const completedProjection = projectGroupAgentTimeline({
+    messageGroups: new Map([["round-root", [completedToolMessage]]]),
+    pendingPermissionGroups: new Map([
+      ["round-root", [completedPermission, questionPermission]],
+    ]),
+    pendingSlotGroups: new Map(),
+    roundIds: ["round-root"],
+  });
+  const completedState = resolveGroupConversationRound({
+    liveRoundIds: ["round-root"],
+    messageGroups: completedProjection.messageGroups,
+    pendingPermissionGroups: completedProjection.pendingPermissionGroups,
+    pendingSlotGroups: completedProjection.pendingSlotGroups,
+    rootRoundIds: completedProjection.rootRoundIds,
+    roundIds: completedProjection.roundIds,
+  }, 0);
+  const completedRoundHtml = renderToStaticMarkup(provider(
+    React.createElement(GroupConversationRound, {
+      renderer: {
+        agentAvatarMap: {},
+        agentNameMap: { "agent-1": "Kevin" },
+        currentAgentAvatar: null,
+        currentAgentName: "Kevin",
+        currentUserAvatar: null,
+        isLastRoundPendingPermissions: [
+          completedPermission,
+          questionPermission,
+        ],
+        onPermissionResponse: () => true,
+        onStopAgentRound: () => {},
+        runtimePhase: null,
+      },
+      state: completedState,
+    }),
+  ));
+  assert.match(
+    completedRoundHtml,
+    /Apple M3 vs M4 vs M5 chip comparison specifications/,
+    "工具消息进入完成态后，主 Room 仍必须展示待确认操作",
+  );
+  assert.match(completedRoundHtml, /这次分析采用哪种研究口径？/);
+  assert.match(completedRoundHtml, />允许</);
+  assert.match(completedRoundHtml, />拒绝</);
+  assert.match(completedRoundHtml, /继续协作/);
 });
 
 test("resolved history rounds remain only when visible content was projected", async () => {
@@ -519,7 +871,7 @@ test("Room no-reply control markers stay out of previews and result summaries", 
     labels: {
       failed: "Failed",
       stopped: "Stopped",
-      waitingPermission: "Waiting",
+      waitingForUser: "Waiting",
     },
     messages: [],
     pendingPermissions: [],
@@ -1403,7 +1755,7 @@ test("Room Agent timestamp stays on start while active and switches to finish at
     labels: {
       failed: "Failed",
       stopped: "Stopped",
-      waitingPermission: "Waiting",
+      waitingForUser: "Waiting",
     },
     messages: active.assistant_messages,
     pendingPermissions: [],

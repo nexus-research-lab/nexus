@@ -131,8 +131,26 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 	}
 	if item.EmptyProgressCount > 0 {
 		if goalCompletionToolRetryCount(item.Metadata) >= goalCompletionToolMaxRetries {
-			_, err := s.completeAfterCompletionToolMissRetry(ctx, item, previousRoundID, "Goal completion finalization retry already exhausted")
-			return nil, err
+			completed, err := s.completeAfterCompletionToolMissRetry(
+				ctx,
+				item,
+				previousRoundID,
+				"Goal completion finalization retry already exhausted",
+			)
+			if err != nil {
+				return nil, err
+			}
+			if completed != nil {
+				if _, err = s.FinalizeUsageForGoal(
+					ctx,
+					completed.ID,
+					protocol.GoalUsage{},
+					previousRoundID,
+				); err != nil {
+					return nil, err
+				}
+			}
+			return nil, nil
 		}
 		return nil, nil
 	}
@@ -400,7 +418,7 @@ func (s *Service) goalBudgetExhausted(item protocol.Goal) bool {
 	if item.TokenBudget == nil || *item.TokenBudget <= 0 {
 		return false
 	}
-	return item.Usage.Total() >= *item.TokenBudget
+	return item.Usage.BudgetTokens() >= *item.TokenBudget
 }
 
 func (s *Service) limitForSystem(
@@ -413,8 +431,10 @@ func (s *Service) limitForSystem(
 ) (*protocol.Goal, error) {
 	item.LastError = strings.TrimSpace(reason)
 	payload := map[string]any{
-		"reason":      item.LastError,
-		"usage_total": item.Usage.Total(),
+		"reason":        item.LastError,
+		"usage_total":   item.Usage.BudgetTokens(),
+		"budget_tokens": item.Usage.BudgetTokens(),
+		"actual_tokens": item.Usage.ActualTokens(),
 	}
 	if item.TokenBudget != nil {
 		payload["token_budget"] = *item.TokenBudget
@@ -436,7 +456,7 @@ func buildContinuationPrompt(item protocol.Goal, previousRoundID string) string 
 		"objective":                  objective,
 		"room_goal_lead_note":        buildRoomGoalLeadNote(item),
 		"completion_tool_retry_note": buildCompletionToolRetryNote(item),
-		"tokens_used":                fmt.Sprintf("%d", item.Usage.Total()),
+		"tokens_used":                fmt.Sprintf("%d", item.Usage.BudgetTokens()),
 		"token_budget":               tokenBudget,
 		"remaining_tokens":           remainingTokens,
 	})

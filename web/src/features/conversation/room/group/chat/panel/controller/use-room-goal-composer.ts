@@ -1,5 +1,15 @@
+/**
+ * INPUT: Room 身份、成员、宿主 Agent、当前 Session 与 Goal 创建动作。
+ * OUTPUT: 按 Session 隔离的 Goal 负责人选择、创建能力与刷新序列。
+ * POS: Room Composer Goal 模式的领域控制器。
+ */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  buildComposerDraftRestoreKey,
+  buildComposerDraftScopeKey,
+} from "@/features/conversation/shared/composer/composer-draft-scope";
+import { useComposerDraftStore } from "@/features/conversation/shared/composer/composer-draft-store";
 import { createGoalApi } from "@/lib/api/conversation/goal-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
@@ -13,6 +23,7 @@ import {
 } from "../../room-goal-model";
 
 interface UseRoomGoalComposerOptions {
+  roomId: string | null;
   roomHostAgentId: string | null;
   roomMembers: Agent[];
   sessionKey: string | null;
@@ -29,26 +40,56 @@ export interface RoomGoalComposerModel {
 }
 
 export function useRoomGoalComposer({
+  roomId,
   roomHostAgentId,
   roomMembers,
   sessionKey,
 }: UseRoomGoalComposerOptions): RoomGoalComposerModel {
   const { t } = useI18n();
+  const draftScopeKey = useMemo(
+    () => buildComposerDraftRestoreKey({
+      draftScopeKey: buildComposerDraftScopeKey({ roomId }),
+      sessionKey,
+    }),
+    [roomId, sessionKey],
+  );
   const defaultLeadAgentId = useMemo(
     () => resolveDefaultRoomGoalLead(roomMembers, roomHostAgentId),
     [roomHostAgentId, roomMembers],
   );
-  const [leadAgentId, setLeadAgentId] = useState(defaultLeadAgentId);
+  const storedLeadAgentId = useComposerDraftStore(
+    (state) => (
+      state.drafts_by_scope[draftScopeKey]?.goalLeadAgentId ?? null
+    ),
+  );
+  const updateComposerDraft = useComposerDraftStore(
+    (state) => state.update_composer_draft,
+  );
+  const leadAgentId = storedLeadAgentId ?? defaultLeadAgentId;
+  const setLeadAgentId = useCallback((agentId: string) => {
+    updateComposerDraft(draftScopeKey, (current) => ({
+      ...current,
+      goalLeadAgentId: agentId,
+    }));
+  }, [draftScopeKey, updateComposerDraft]);
   const [refreshSequence, setRefreshSequence] = useState(0);
 
   useEffect(() => {
-    setLeadAgentId((current) => {
-      const isCurrentMember = roomMembers.some(
-        (agent) => agent.agent_id === current,
-      );
-      return isCurrentMember ? current : defaultLeadAgentId;
-    });
-  }, [defaultLeadAgentId, roomMembers]);
+    if (storedLeadAgentId === null || storedLeadAgentId.trim() === "") {
+      return;
+    }
+    const isCurrentMember = roomMembers.some(
+      (agent) => agent.agent_id === storedLeadAgentId,
+    );
+    if (!isCurrentMember) {
+      setLeadAgentId(defaultLeadAgentId);
+    }
+  }, [
+    defaultLeadAgentId,
+    roomMembers,
+    setLeadAgentId,
+    storedLeadAgentId,
+  ]);
 
   const refresh = useCallback(() => {
     setRefreshSequence((value) => value + 1);

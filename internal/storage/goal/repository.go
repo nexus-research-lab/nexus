@@ -1,3 +1,6 @@
+// INPUT: Goal 领域对象、optimistic version 与 SQL 方言。
+// OUTPUT: session_goals 的持久化读写结果。
+// POS: Goal service 与关系数据库之间的仓储边界。
 package goal
 
 import (
@@ -27,6 +30,19 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 
 // CreateGoal 创建 Goal。
 func (r *Repository) CreateGoal(ctx context.Context, goal protocol.Goal) (*protocol.Goal, error) {
+	goal.Usage = goal.Usage.NormalizeTotals()
+	if err := r.insertGoal(ctx, r.db, goal); err != nil {
+		return nil, err
+	}
+	return r.GetGoal(ctx, goal.ID)
+}
+
+func (r *Repository) insertGoal(
+	ctx context.Context,
+	executor goalEventExecutor,
+	goal protocol.Goal,
+) error {
+	goal.Usage = goal.Usage.NormalizeTotals()
 	query := fmt.Sprintf(`INSERT INTO session_goals (
     goal_id,
     session_key,
@@ -39,6 +55,10 @@ func (r *Repository) CreateGoal(ctx context.Context, goal protocol.Goal) (*proto
     token_used_cache_read,
     token_used_reasoning,
     token_used_total,
+    token_used_actual_total,
+    token_used_actual_estimated,
+    usage_finalized,
+    usage_finalized_at,
     time_used_seconds,
     continuation_count,
     empty_progress_count,
@@ -50,8 +70,8 @@ func (r *Repository) CreateGoal(ctx context.Context, goal protocol.Goal) (*proto
     blocked_at,
     last_error,
     metadata_json
-) VALUES (%s)`, r.bindList(22))
-	_, err := r.db.ExecContext(
+) VALUES (%s)`, r.bindList(26))
+	_, err := executor.ExecContext(
 		ctx,
 		query,
 		goal.ID,
@@ -65,6 +85,10 @@ func (r *Repository) CreateGoal(ctx context.Context, goal protocol.Goal) (*proto
 		goal.Usage.CacheReadInputTokens,
 		goal.Usage.ReasoningTokens,
 		goal.Usage.TotalTokens,
+		goal.Usage.ActualTotalTokens,
+		goal.Usage.ActualTokensEstimated,
+		goal.UsageFinalized,
+		nullableTime(goal.UsageFinalizedAt),
 		goal.TimeUsedSeconds,
 		goal.ContinuationCount,
 		goal.EmptyProgressCount,
@@ -77,10 +101,7 @@ func (r *Repository) CreateGoal(ctx context.Context, goal protocol.Goal) (*proto
 		nullString(goal.LastError),
 		marshalMap(goal.Metadata),
 	)
-	if err != nil {
-		return nil, err
-	}
-	return r.GetGoal(ctx, goal.ID)
+	return err
 }
 
 // GetGoal 读取指定 Goal。
@@ -160,6 +181,7 @@ func (r *Repository) ListRunnableGoals(ctx context.Context, limit int) ([]protoc
 
 // UpdateGoal 以 optimistic version 更新 Goal。
 func (r *Repository) UpdateGoal(ctx context.Context, goal protocol.Goal, expectedVersion int64) (*protocol.Goal, error) {
+	goal.Usage = goal.Usage.NormalizeTotals()
 	query := fmt.Sprintf(`UPDATE session_goals
 SET objective = %s,
     status = %s,
@@ -170,6 +192,10 @@ SET objective = %s,
     token_used_cache_read = %s,
     token_used_reasoning = %s,
     token_used_total = %s,
+    token_used_actual_total = %s,
+    token_used_actual_estimated = %s,
+    usage_finalized = %s,
+    usage_finalized_at = %s,
     time_used_seconds = %s,
     continuation_count = %s,
     empty_progress_count = %s,
@@ -182,7 +208,7 @@ SET objective = %s,
 WHERE goal_id = %s AND version = %s`,
 		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8), r.bind(9), r.bind(10),
 		r.bind(11), r.bind(12), r.bind(13), r.bind(14), r.bind(15), r.bind(16), r.bind(17), r.bind(18), r.bind(19),
-		r.bind(20),
+		r.bind(20), r.bind(21), r.bind(22), r.bind(23), r.bind(24),
 	)
 	result, err := r.db.ExecContext(
 		ctx,
@@ -196,6 +222,10 @@ WHERE goal_id = %s AND version = %s`,
 		goal.Usage.CacheReadInputTokens,
 		goal.Usage.ReasoningTokens,
 		goal.Usage.TotalTokens,
+		goal.Usage.ActualTotalTokens,
+		goal.Usage.ActualTokensEstimated,
+		goal.UsageFinalized,
+		nullableTime(goal.UsageFinalizedAt),
 		goal.TimeUsedSeconds,
 		goal.ContinuationCount,
 		goal.EmptyProgressCount,
@@ -220,16 +250,94 @@ WHERE goal_id = %s AND version = %s`,
 
 // DeleteGoal 删除指定 Goal。
 func (r *Repository) DeleteGoal(ctx context.Context, goalID string) (bool, error) {
-	result, err := r.db.ExecContext(
+	goalID = strings.TrimSpace(goalID)
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := r.lockUsageSourceGoal(ctx, tx, goalID); err == sql.ErrNoRows {
+		if commitErr := tx.Commit(); commitErr != nil {
+			return false, commitErr
+		}
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`DELETE FROM goal_usage_source_pending
+WHERE EXISTS (
+    SELECT 1
+    FROM goal_usage_scope_bindings
+    WHERE goal_usage_scope_bindings.owner_user_id = goal_usage_source_pending.owner_user_id
+      AND goal_usage_scope_bindings.goal_session_key = goal_usage_source_pending.goal_session_key
+      AND goal_usage_scope_bindings.source_kind = goal_usage_source_pending.source_kind
+      AND goal_usage_scope_bindings.scope_round_id = goal_usage_source_pending.scope_round_id
+      AND goal_usage_scope_bindings.goal_id = `+r.bind(1)+`
+)`,
+		goalID,
+	); err != nil {
+		return false, err
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`DELETE FROM goal_usage_source_evidence
+WHERE EXISTS (
+    SELECT 1
+    FROM goal_usage_scope_bindings
+    WHERE goal_usage_scope_bindings.owner_user_id = goal_usage_source_evidence.owner_user_id
+      AND goal_usage_scope_bindings.goal_session_key = goal_usage_source_evidence.goal_session_key
+      AND goal_usage_scope_bindings.source_kind = goal_usage_source_evidence.source_kind
+      AND goal_usage_scope_bindings.scope_round_id = goal_usage_source_evidence.scope_round_id
+      AND goal_usage_scope_bindings.goal_id = `+r.bind(1)+`
+)`,
+		goalID,
+	); err != nil {
+		return false, err
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`DELETE FROM goal_usage_parent_ledger
+WHERE attributed_goal_id = `+r.bind(1)+`
+   OR EXISTS (
+    SELECT 1
+    FROM goal_usage_scope_bindings
+    WHERE goal_usage_scope_bindings.owner_user_id = goal_usage_parent_ledger.owner_user_id
+      AND goal_usage_scope_bindings.goal_session_key = goal_usage_parent_ledger.goal_session_key
+      AND goal_usage_scope_bindings.scope_round_id = goal_usage_parent_ledger.scope_round_id
+      AND goal_usage_scope_bindings.goal_id = `+r.bind(2)+`
+)`,
+		goalID,
+		goalID,
+	); err != nil {
+		return false, err
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`UPDATE goal_usage_scope_bindings
+SET state = 'closed',
+    goal_id = NULL,
+    closed_at = CURRENT_TIMESTAMP
+WHERE goal_id = `+r.bind(1),
+		goalID,
+	); err != nil {
+		return false, err
+	}
+	result, err := tx.ExecContext(
 		ctx,
 		"DELETE FROM session_goals WHERE goal_id = "+r.bind(1),
-		strings.TrimSpace(goalID),
+		goalID,
 	)
 	if err != nil {
 		return false, err
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
 		return false, err
 	}
 	return affected > 0, nil

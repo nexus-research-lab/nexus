@@ -821,44 +821,149 @@ func TestManagerClearGoalAccounting(t *testing.T) {
 	}
 }
 
+func TestManagerBeginGoalAccountingFinalizing(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-finalize"
+	calls := []string{}
+	manager.RegisterGoalAccountingFinalize(sessionKey, "round-b", func() bool {
+		calls = append(calls, "round-b")
+		return true
+	})
+	manager.RegisterGoalAccountingFinalize(sessionKey, "round-a", func() bool {
+		calls = append(calls, "round-a")
+		return true
+	})
+
+	roundIDs := manager.BeginGoalAccountingFinalizing(sessionKey)
+	if strings.Join(roundIDs, ",") != "round-a,round-b" ||
+		strings.Join(calls, ",") != "round-a,round-b" {
+		t.Fatalf("roundIDs=%#v calls=%#v, want sorted round-a/round-b", roundIDs, calls)
+	}
+
+	manager.RegisterGoalAccountingFinalize(sessionKey, "round-a", nil)
+	calls = nil
+	roundIDs = manager.BeginGoalAccountingFinalizing(sessionKey)
+	if strings.Join(roundIDs, ",") != "round-b" ||
+		strings.Join(calls, ",") != "round-b" {
+		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
+	}
+
+	manager.MarkRoundFinished(sessionKey, "round-b")
+	if roundIDs = manager.BeginGoalAccountingFinalizing(sessionKey); len(roundIDs) != 0 {
+		t.Fatalf("after round finished roundIDs=%#v, want empty", roundIDs)
+	}
+}
+
 func TestManagerActivateGoalAccounting(t *testing.T) {
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
 	sessionKey := "agent:nexus:ws:dm:test-goal-activate"
 	calls := []string{}
-	manager.RegisterGoalAccountingActivate(sessionKey, "round-b", func(context.Context) error {
-		calls = append(calls, "round-b")
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-b", func(_ context.Context, goalID string) error {
+		calls = append(calls, "round-b:"+goalID)
 		return nil
 	})
-	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", func(context.Context) error {
-		calls = append(calls, "round-a")
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", func(_ context.Context, goalID string) error {
+		calls = append(calls, "round-a:"+goalID)
 		return nil
 	})
 
-	roundIDs, err := manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	roundIDs, err := manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-1")
 	if err != nil {
 		t.Fatalf("ActivateGoalAccounting() error = %v", err)
 	}
 	if strings.Join(roundIDs, ",") != "round-a,round-b" {
 		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
 	}
-	if strings.Join(calls, ",") != "round-a,round-b" {
+	if strings.Join(calls, ",") != "round-a:goal-1,round-b:goal-1" {
 		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
 	}
 
 	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", nil)
 	calls = nil
-	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-2")
 	if err != nil {
 		t.Fatalf("ActivateGoalAccounting() after unregister error = %v", err)
 	}
-	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
+	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b:goal-2" {
 		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
 	}
 
 	manager.MarkRoundFinished(sessionKey, "round-b")
-	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-2")
 	if err != nil || len(roundIDs) != 0 {
 		t.Fatalf("after round finished roundIDs=%#v err=%v, want empty nil", roundIDs, err)
+	}
+}
+
+func TestManagerActivationReportsAndRollsBackOnlySuccessfulRounds(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:room:test-goal-activation-rollback"
+	activationErr := errors.New("scope already consumed")
+	cleared := []string{}
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", func(context.Context, string) error {
+		return activationErr
+	})
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-b", func(context.Context, string) error {
+		return nil
+	})
+	manager.RegisterGoalAccountingClear(sessionKey, "round-a", func() {
+		cleared = append(cleared, "round-a")
+	})
+	manager.RegisterGoalAccountingClear(sessionKey, "round-b", func() {
+		cleared = append(cleared, "round-b")
+	})
+
+	activated, err := manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-new")
+	if !errors.Is(err, activationErr) {
+		t.Fatalf("ActivateGoalAccounting() error = %v, want activation error", err)
+	}
+	if strings.Join(activated, ",") != "round-b" {
+		t.Fatalf("activated = %#v, want only successful round-b", activated)
+	}
+	if rolledBack := manager.ClearGoalAccountingRounds(sessionKey, activated); strings.Join(rolledBack, ",") != "round-b" {
+		t.Fatalf("rolled back = %#v, want only round-b", rolledBack)
+	}
+	if strings.Join(cleared, ",") != "round-b" {
+		t.Fatalf("clear callbacks = %#v, failing round-a must retain its prior binding", cleared)
+	}
+}
+
+func TestManagerGoalAccountingCreateConflictsAreScopeAwareAndLive(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:room:test-goal-create-guard"
+	roundAConsumed := false
+	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-a", "root-1", func() bool {
+		return roundAConsumed
+	})
+	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-b", "root-1", func() bool {
+		return true
+	})
+	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-c", "root-2", func() bool {
+		return true
+	})
+
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-1"); strings.Join(got, ",") != "round-b" {
+		t.Fatalf("root-1 conflicts = %#v, want only consumed round-b", got)
+	}
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-2"); strings.Join(got, ",") != "round-c" {
+		t.Fatalf("root-2 conflicts = %#v, want only consumed round-c", got)
+	}
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, ""); strings.Join(got, ",") != "round-b,round-c" {
+		t.Fatalf("session conflicts = %#v, want every consumed live scope", got)
+	}
+
+	roundAConsumed = true
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-1"); strings.Join(got, ",") != "round-a,round-b" {
+		t.Fatalf("updated root-1 conflicts = %#v, want dynamic consumed state", got)
+	}
+
+	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-b", "root-1", nil)
+	manager.MarkRoundFinished(sessionKey, "round-a")
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-1"); len(got) != 0 {
+		t.Fatalf("finished/unregistered conflicts = %#v, want empty", got)
+	}
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, ""); strings.Join(got, ",") != "round-c" {
+		t.Fatalf("remaining session conflicts = %#v, want only round-c", got)
 	}
 }
 

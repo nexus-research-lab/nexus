@@ -4,6 +4,7 @@ import type {
   ClearGoalResult,
   CreateGoalInput,
   Goal,
+  GoalUsageReport,
   UpdateGoalInput,
 } from "@/types/conversation/goal";
 
@@ -13,6 +14,15 @@ export async function getCurrentGoalApi(sessionKey: string): Promise<Goal | null
   const query = new URLSearchParams({ session_key: sessionKey });
   return requestApi<Goal | null>(
     `${AGENT_API_BASE_URL}/goals/current?${query.toString()}`,
+    {
+      method: "GET",
+    },
+  );
+}
+
+export async function getGoalUsageApi(goalId: string): Promise<GoalUsageReport> {
+  return requestApi<GoalUsageReport>(
+    `${AGENT_API_BASE_URL}/goals/${encodeURIComponent(goalId)}/usage`,
     {
       method: "GET",
     },

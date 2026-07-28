@@ -4,7 +4,7 @@
 //
 // 成员清单：
 //   - create_goal.go / retarget_goal.go / update_goal.go / get_current.go：创建、重定向、状态更新、读取当前 Goal。
-//   - registry.go / metadata.go / schema.go / result.go：工具注册、元数据、入参 schema、结果构造。
+//   - registry.go / metadata.go / schema.go / result.go：工具注册、元数据、入参 schema、完整 structured usage 与精简 Codex text 结果构造。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package tool

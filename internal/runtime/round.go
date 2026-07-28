@@ -81,7 +81,9 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 	delete(state.Interruptions, roundID)
 	delete(state.GoalAccountingFlushers, roundID)
 	delete(state.GoalAccountingClearers, roundID)
+	delete(state.GoalAccountingFinalizers, roundID)
 	delete(state.GoalAccountingActivators, roundID)
+	delete(state.GoalAccountingGuards, roundID)
 	delete(state.GoalObjectiveRevisions, roundID)
 	if done, ok := state.RoundDone[roundID]; ok {
 		close(done)

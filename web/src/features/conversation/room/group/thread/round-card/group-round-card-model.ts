@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次内的 user / assistant 消息、slot 与权限状态。
- * OUTPUT: root-global user，以及按精确消费 agent_round_id、终态时序和稳定活动槽排列的 Agent 卡片摘要。
+ * OUTPUT: root-global user、Room 内可直接处理的全部人工介入，以及按精确消费 agent_round_id、终态时序和稳定活动槽排列的 Agent 卡片摘要。
  * POS: Group round feed 的唯一展示归组入口。
  */
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
@@ -13,7 +13,6 @@ import type {
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
-import { ASK_USER_QUESTION_TOOL_NAME } from "@/features/conversation/shared/message/message-tool-names";
 import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
 import {
   buildRoomAgentRoundEntries,
@@ -55,16 +54,14 @@ export type AgentStatusSummaryTone =
 interface GroupAgentStatusLabels {
   failed: string;
   stopped: string;
-  waitingPermission: string;
+  waitingForUser: string;
 }
 
 export interface GroupAgentStatusModel {
   isActive: boolean;
-  isQuestionPending: boolean;
-  isWaitingPermission: boolean;
+  isWaitingForUser: boolean;
   model: string | null;
   preview: string;
-  primaryPendingPermission?: PendingPermission;
   shouldRenderMarkdownSummary: boolean;
   summaryText: string;
   summaryTone: AgentStatusSummaryTone;
@@ -82,7 +79,7 @@ interface BuildGroupAgentStatusModelOptions {
 
 type GroupAgentStatusLabelKey = Exclude<
   keyof GroupAgentStatusLabels,
-  "waitingPermission"
+  "waitingForUser"
 >;
 type AgentSummarySource = "fallback" | "preview" | "result";
 
@@ -251,11 +248,14 @@ export function buildGroupAgentStatusModel({
 }: BuildGroupAgentStatusModelOptions): GroupAgentStatusModel {
   const preview = extractAgentPreviewText(messages);
   const isActive = isAgentRoundActive(status);
-  const permission = buildAgentPermissionState(pendingPermissions, isActive);
+  const humanInteraction = buildAgentHumanInteractionState(
+    pendingPermissions,
+    isActive,
+  );
   const presentation = AGENT_STATUS_PRESENTATION[status];
   const summary = buildAgentStatusSummary({
+    humanInteraction,
     labels,
-    permission,
     presentation,
     preview,
     resultText: resultSummaryText(resultSummary),
@@ -263,11 +263,9 @@ export function buildGroupAgentStatusModel({
 
   return {
     isActive,
-    isQuestionPending: permission.isQuestionPending,
-    isWaitingPermission: permission.isWaiting,
+    isWaitingForUser: humanInteraction.isWaiting,
     model: lastMessageModel(messages),
     preview,
-    primaryPendingPermission: permission.primary,
     shouldRenderMarkdownSummary: summary.shouldRenderMarkdown,
     summaryText: summary.text,
     summaryTone: summary.tone,
@@ -275,23 +273,17 @@ export function buildGroupAgentStatusModel({
   };
 }
 
-interface AgentPermissionState {
-  isQuestionPending: boolean;
+interface AgentHumanInteractionState {
   isWaiting: boolean;
   primary?: PendingPermission;
 }
 
-function buildAgentPermissionState(
+function buildAgentHumanInteractionState(
   pendingPermissions: PendingPermission[],
   isActive: boolean,
-): AgentPermissionState {
+): AgentHumanInteractionState {
   const primary = pendingPermissions[0];
   return {
-    isQuestionPending: Boolean(
-      primary &&
-        (primary.interaction_mode === "question" ||
-          primary.tool_name === ASK_USER_QUESTION_TOOL_NAME),
-    ),
     isWaiting: primary !== undefined && isActive,
     primary,
   };
@@ -299,21 +291,21 @@ function buildAgentPermissionState(
 
 function buildAgentSummaryText({
   fallbackText,
+  humanInteraction,
   labels,
-  permission,
   presentation,
   preview,
   resultText,
 }: {
   fallbackText: string;
+  humanInteraction: AgentHumanInteractionState;
   labels: GroupAgentStatusLabels;
-  permission: AgentPermissionState;
   presentation: AgentStatusPresentationRule;
   preview: string;
   resultText?: string;
 }): string {
-  if (permission.isWaiting) {
-    return permission.primary?.summary || labels.waitingPermission;
+  if (humanInteraction.isWaiting) {
+    return humanInteraction.primary?.summary || labels.waitingForUser;
   }
   const sources: Record<AgentSummarySource, string> = {
     fallback: fallbackText,
@@ -328,31 +320,31 @@ function buildAgentSummaryText({
 }
 
 function buildAgentStatusSummary({
+  humanInteraction,
   labels,
-  permission,
   presentation,
   preview,
   resultText,
 }: {
+  humanInteraction: AgentHumanInteractionState;
   labels: GroupAgentStatusLabels;
-  permission: AgentPermissionState;
   presentation: AgentStatusPresentationRule;
   preview: string;
   resultText?: string;
 }): AgentStatusSummaryModel {
   return {
     shouldRenderMarkdown: Boolean(
-      preview && !permission.isWaiting && presentation.renderPreview,
+      preview && !humanInteraction.isWaiting && presentation.renderPreview,
     ),
     text: buildAgentSummaryText({
       fallbackText: statusFallbackText(labels, presentation.fallbackLabel),
+      humanInteraction,
       labels,
-      permission,
       presentation,
       preview,
       resultText,
     }),
-    tone: permission.isWaiting ? "waiting" : presentation.tone,
+    tone: humanInteraction.isWaiting ? "waiting" : presentation.tone,
   };
 }
 

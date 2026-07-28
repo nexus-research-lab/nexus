@@ -67,6 +67,7 @@ type dmChatExecution struct {
 
 type dmRuntimePreparation struct {
 	content               conversationsvc.RuntimeContent
+	recoveryContext       []runtimectx.ContextualInputBlock
 	client                runtimectx.Client
 	runtimeKind           string
 	runtimeProvider       string
@@ -232,6 +233,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	}
 	return dmRuntimePreparation{
 		content:               runtimeContent,
+		recoveryContext:       e.recoveryContextualInputs(),
 		client:                client,
 		runtimeKind:           runtimeKind,
 		runtimeProvider:       runtimeProvider,
@@ -245,33 +247,36 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 
 func (e *dmChatExecution) newRoundRunner(preparation dmRuntimePreparation) *roundRunner {
 	return &roundRunner{
-		service:               e.service,
-		workspacePath:         e.agent.WorkspacePath,
-		session:               e.session,
-		agent:                 e.agent,
-		sessionKey:            e.sessionKey,
-		roundID:               e.request.RoundID,
-		agentRoundID:          e.request.AgentRoundID,
-		userMessageID:         e.request.UserMessageID,
-		clientRequestID:       e.request.ClientRequestID,
-		content:               strings.TrimSpace(e.request.Content),
-		runtimeContent:        preparation.content,
-		client:                preparation.client,
-		runtimeKind:           preparation.runtimeKind,
-		runtimeProvider:       preparation.runtimeProvider,
-		runtimeModel:          preparation.runtimeModel,
-		ownerUserID:           strings.TrimSpace(e.agent.OwnerUserID),
-		mapper:                dmdomain.NewMessageMapper(e.sessionKey, e.agent.AgentID, e.request.RoundID, e.request.AgentRoundID, e.request.UserMessageID, e.agent.WorkspacePath),
-		inputOptions:          e.request.InputOptions,
-		internal:              e.request.Internal,
-		externalReplyTarget:   e.request.ExternalReplyTarget,
-		goalContext:           preparation.goalContext,
-		goalIDForUsage:        preparation.goalIDForUsage,
-		goalObjectiveRevision: preparation.goalObjectiveRevision,
-		goalUsage:             goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(preparation.goalIDForUsage) != ""),
-		goalUsageStarted:      time.Now(),
-		permissionMode:        preparation.permissionMode,
-		permissionHandler:     e.request.PermissionHandler,
+		service:                e.service,
+		workspacePath:          e.agent.WorkspacePath,
+		session:                e.session,
+		agent:                  e.agent,
+		sessionKey:             e.sessionKey,
+		roundID:                e.request.RoundID,
+		agentRoundID:           e.request.AgentRoundID,
+		userMessageID:          e.request.UserMessageID,
+		clientRequestID:        e.request.ClientRequestID,
+		content:                strings.TrimSpace(e.request.Content),
+		runtimeContent:         preparation.content,
+		recoveryContext:        preparation.recoveryContext,
+		client:                 preparation.client,
+		runtimeKind:            preparation.runtimeKind,
+		runtimeProvider:        preparation.runtimeProvider,
+		runtimeModel:           preparation.runtimeModel,
+		ownerUserID:            strings.TrimSpace(e.agent.OwnerUserID),
+		mapper:                 dmdomain.NewMessageMapper(e.sessionKey, e.agent.AgentID, e.request.RoundID, e.request.AgentRoundID, e.request.UserMessageID, e.agent.WorkspacePath),
+		inputOptions:           e.request.InputOptions,
+		internal:               e.request.Internal,
+		externalReplyTarget:    e.request.ExternalReplyTarget,
+		goalContext:            preparation.goalContext,
+		goalIDForUsage:         preparation.goalIDForUsage,
+		childGoalIDForUsage:    preparation.goalIDForUsage,
+		goalObjectiveRevision:  preparation.goalObjectiveRevision,
+		goalUsage:              goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(preparation.goalIDForUsage) != ""),
+		goalUsageStarted:       time.Now(),
+		goalUsageScopeConsumed: strings.TrimSpace(preparation.goalIDForUsage) != "",
+		permissionMode:         preparation.permissionMode,
+		permissionHandler:      e.request.PermissionHandler,
 	}
 }
 
@@ -336,7 +341,15 @@ func (e *dmChatExecution) startRound() bool {
 func (e *dmChatExecution) registerRunner() {
 	e.service.runtime.RegisterGoalAccountingFlush(e.sessionKey, e.request.RoundID, e.runner.flushGoalUsage)
 	e.service.runtime.RegisterGoalAccountingClear(e.sessionKey, e.request.RoundID, e.runner.clearGoalUsage)
+	e.service.runtime.RegisterGoalAccountingFinalize(e.sessionKey, e.request.RoundID, e.runner.beginGoalUsageFinalizing)
 	e.service.runtime.RegisterGoalAccountingActivate(e.sessionKey, e.request.RoundID, e.runner.activateGoalUsage)
+	e.runner.initializeGoalUsageCreateGuard()
+	e.service.runtime.RegisterGoalAccountingCreateGuard(
+		e.sessionKey,
+		e.request.RoundID,
+		e.request.RoundID,
+		e.runner.goalUsageScopeWasConsumed,
+	)
 	e.service.runtime.RegisterGoalObjectiveRevision(e.sessionKey, e.request.RoundID, e.runner.goalObjectiveRevision)
 	e.service.loggerFor(e.ctx).Info("受理 DM 会话消息",
 		"session_key", e.sessionKey,

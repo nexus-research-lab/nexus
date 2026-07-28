@@ -20,7 +20,23 @@ func (s *Service) SetEventBroadcaster(broadcaster eventBroadcaster) {
 }
 
 func (s *Service) appendEvent(ctx context.Context, item protocol.Goal, eventType string, source protocol.GoalUpdateSource, roundID string, payload map[string]any) error {
-	event := protocol.GoalEvent{
+	event := s.newGoalEvent(item, eventType, source, roundID, payload, s.nowFn())
+	if err := s.repo.AppendEvent(ctx, event); err != nil {
+		return err
+	}
+	s.publishGoalEvent(ctx, item, event)
+	return nil
+}
+
+func (s *Service) newGoalEvent(
+	item protocol.Goal,
+	eventType string,
+	source protocol.GoalUpdateSource,
+	roundID string,
+	payload map[string]any,
+	createdAt time.Time,
+) protocol.GoalEvent {
+	return protocol.GoalEvent{
 		ID:         s.idFactory("goal_event"),
 		GoalID:     item.ID,
 		SessionKey: item.SessionKey,
@@ -28,14 +44,13 @@ func (s *Service) appendEvent(ctx context.Context, item protocol.Goal, eventType
 		Source:     source,
 		RoundID:    strings.TrimSpace(roundID),
 		Payload:    cloneMap(payload),
-		CreatedAt:  s.nowFn(),
+		CreatedAt:  createdAt.UTC(),
 	}
-	if err := s.repo.AppendEvent(ctx, event); err != nil {
-		return err
-	}
+}
+
+func (s *Service) publishGoalEvent(ctx context.Context, item protocol.Goal, event protocol.GoalEvent) {
 	s.broadcastGoalEvent(ctx, item, event)
 	s.queueGoalSteering(ctx, item, event)
-	return nil
 }
 
 func (s *Service) deleteGoal(ctx context.Context, item protocol.Goal, source protocol.GoalUpdateSource) (bool, error) {
@@ -101,7 +116,7 @@ func protocolGoalEventType(eventType string) (protocol.EventType, bool) {
 		return protocol.EventTypeGoalUpdated, true
 	case "cleared":
 		return protocol.EventTypeGoalCleared, true
-	case "usage_recorded":
+	case "usage_recorded", "usage_finalized":
 		return protocol.EventTypeGoalProgress, true
 	case "continuation_scheduled", "continuation_deferred", "continuation_suppressed", "continuation_failed", "continuation_reset", "completion_tool_retry":
 		return protocol.EventTypeGoalContinuation, true

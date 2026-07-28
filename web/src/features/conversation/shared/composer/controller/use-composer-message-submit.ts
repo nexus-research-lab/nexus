@@ -19,7 +19,7 @@ type DeliverMessage = (
 interface UseComposerMessageSubmitOptions {
   attachmentCount: number;
   clearAttachmentError: () => void;
-  clearAttachments: () => void;
+  completeDraftSubmission: () => boolean;
   defaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   input: string;
   isLoading: boolean;
@@ -30,11 +30,9 @@ interface UseComposerMessageSubmitOptions {
   queueItemCount: number;
   queueWhenSessionBusy: boolean;
   recordHistory: (value: string) => void;
-  resetInput: () => void;
   resetTextareaHeight: () => void;
   runtimePhase: AgentConversationRuntimePhase | null;
   targetAgentIDs: string[];
-  clearSelectedTargetIDs: () => void;
 }
 
 interface ComposerMessageSubmission {
@@ -47,7 +45,7 @@ export function useComposerMessageSubmit(
   {
     attachmentCount,
     clearAttachmentError,
-    clearAttachments,
+    completeDraftSubmission,
     defaultDeliveryPolicy,
     input,
     isLoading,
@@ -58,18 +56,16 @@ export function useComposerMessageSubmit(
     queueItemCount,
     queueWhenSessionBusy,
     recordHistory,
-    resetInput,
     resetTextareaHeight,
     runtimePhase,
     targetAgentIDs,
-    clearSelectedTargetIDs,
   }: UseComposerMessageSubmitOptions,
 ) {
   return useCallback(
     () => runComposerMessageSubmission({
       attachmentCount,
       clearAttachmentError,
-      clearAttachments,
+      completeDraftSubmission,
       defaultDeliveryPolicy,
       input,
       isLoading,
@@ -80,16 +76,14 @@ export function useComposerMessageSubmit(
       queueItemCount,
       queueWhenSessionBusy,
       recordHistory,
-      resetInput,
       resetTextareaHeight,
       runtimePhase,
       targetAgentIDs,
-      clearSelectedTargetIDs,
     }),
     [
       attachmentCount,
       clearAttachmentError,
-      clearAttachments,
+      completeDraftSubmission,
       defaultDeliveryPolicy,
       input,
       isLoading,
@@ -100,11 +94,9 @@ export function useComposerMessageSubmit(
       queueItemCount,
       queueWhenSessionBusy,
       recordHistory,
-      resetInput,
       resetTextareaHeight,
       runtimePhase,
       targetAgentIDs,
-      clearSelectedTargetIDs,
     ],
   );
 }
@@ -128,7 +120,6 @@ async function runComposerMessageSubmission(
       options.targetAgentIDs,
     );
     completeMessageSubmission(options, submission.content);
-    options.clearSelectedTargetIDs();
   } catch (error) {
     console.error("发送消息失败:", error);
   }
@@ -173,8 +164,9 @@ function completeMessageSubmission(
   content: string,
 ): void {
   options.recordHistory(content);
-  options.resetInput();
-  options.clearAttachments();
+  if (!options.completeDraftSubmission()) {
+    return;
+  }
   options.clearAttachmentError();
   options.resetTextareaHeight();
 }

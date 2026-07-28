@@ -1,3 +1,6 @@
+// INPUT: runtime terminal result、usage、权限拒绝与 Provider 错误明细。
+// OUTPUT: Nexus durable result，并归一化跨 runtime 的失败终态。
+// POS: runtime result 到统一消息协议的构造边界。
 package message
 
 import (
@@ -34,23 +37,40 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 	if len(message.Result.ModelUsage) > 0 {
 		payload["model_usage"] = cloneMap(message.Result.ModelUsage)
 	}
-	payload["result"] = message.Result.Result
 	payload["is_error"] = subtype == "error"
 	if runtimeSubtype := strings.TrimSpace(message.Result.Subtype); runtimeSubtype != "" && runtimeSubtype != subtype {
 		payload["runtime_subtype"] = runtimeSubtype
 	}
 	terminalReason := strings.TrimSpace(message.Result.TerminalReason)
+	errors := slices.Clone(message.Result.Errors)
+	resultText := message.Result.Result
+	stopReason := message.Result.StopReason
+	if subtype == "error" {
+		projection := normalizeProviderContentFilterError(
+			resultText,
+			terminalReason,
+			errors,
+			normalizeString(message.Result.StopReason),
+		)
+		resultText = projection.result
+		terminalReason = projection.terminalReason
+		errors = projection.errors
+		if projection.terminalReason == contentFilteredTerminalReason {
+			stopReason = "error"
+		}
+	}
+	payload["result"] = resultText
 	if terminalReason != "" {
 		payload["terminal_reason"] = terminalReason
 	}
-	if message.Result.StopReason != nil {
-		payload["stop_reason"] = message.Result.StopReason
+	if stopReason != nil {
+		payload["stop_reason"] = stopReason
 	}
 	if denials := projectPermissionDenials(message.Result.PermissionDenials); len(denials) > 0 {
 		payload["permission_denials"] = denials
 	}
-	if len(message.Result.Errors) > 0 {
-		payload["errors"] = slices.Clone(message.Result.Errors)
+	if len(errors) > 0 {
+		payload["errors"] = errors
 	}
 	if message.Result.StructuredOutput != nil {
 		payload["structured_output"] = message.Result.StructuredOutput

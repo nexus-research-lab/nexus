@@ -21,7 +21,9 @@ interface UseComposerMentionOptions {
   input: string;
   isGoalMode: boolean;
   roomMembers: Agent[];
+  selectedTargetIDs: string[];
   setInput: Dispatch<SetStateAction<string>>;
+  setSelectedTargetIDs: Dispatch<SetStateAction<string[]>>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
 
@@ -29,7 +31,9 @@ export function useComposerMention({
   input,
   isGoalMode,
   roomMembers,
+  selectedTargetIDs,
   setInput,
+  setSelectedTargetIDs,
   textareaRef,
 }: UseComposerMentionOptions) {
   const mentionTargetItems = useMemo(
@@ -44,7 +48,6 @@ export function useComposerMention({
   );
 
   const [mentionMatch, setMentionMatch] = useState<MentionTextMatch | null>(null);
-  const [selectedTargetIDs, setSelectedTargetIDs] = useState<string[]>([]);
   const activeSelectedTargetIDs = useMemo(
     () => selectedTargetIDs.filter((agentID) => {
       const label = mentionTargetItems.find((item) => item.id === agentID)?.label;
@@ -55,10 +58,6 @@ export function useComposerMention({
 
   const closeMention = useCallback(() => {
     setMentionMatch(null);
-  }, []);
-
-  const clearSelectedTargetIDs = useCallback(() => {
-    setSelectedTargetIDs([]);
   }, []);
 
   const updateMentionForInput = useCallback((value: string) => {
@@ -99,6 +98,7 @@ export function useComposerMention({
     input,
     mentionMatch,
     setInput,
+    setSelectedTargetIDs,
     textareaRef,
   ]);
 
@@ -108,7 +108,6 @@ export function useComposerMention({
     mentionFilter: mentionMatch?.filter ?? "",
     mentionTargetItems,
     selectedTargetIDs: activeSelectedTargetIDs,
-    clearSelectedTargetIDs,
     selectMentionItem,
     updateMentionForInput,
   };

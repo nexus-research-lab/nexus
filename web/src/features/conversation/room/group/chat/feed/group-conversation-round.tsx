@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room feed 节点、Agent 目录、权限与交互回调。
+ * OUTPUT: Agent 卡片或普通消息轮次；用户交互先于消息到达时仍在主 Room 暴露完整入口。
+ * POS: Group feed 单节点的唯一渲染分派入口。
+ */
 import type { Ref } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
@@ -81,6 +86,7 @@ function StandaloneConversationRound({
       onOpenAgentContact={renderer.onOpenAgentContact}
       onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
       onPermissionResponse={renderer.onPermissionResponse}
+      pendingPermissions={state.pendingPermissions}
       roundId={state.roundId}
       workspaceAgentId={agent.id}
     />

@@ -5,5 +5,6 @@
 - `history-prepend-anchor.ts` 管理历史前插的一次性锚点事务，取消、失败和会话切换必须清理快照。
 - `use-follow-scroll-interactions.ts` 只把滚轮、触摸和原生滚动转换为跟随意图。
 - `follow-scroll-model.ts` 保存实际滚动溢出、底部判定与首尾消息身份投影；回到底部入口只有在容器确实可滚动时才可见，DM、Room 和 Thread 不得重复推导。
+- 内容版本必须覆盖并行 Agent 的非末尾流式正文增长；虚拟列表的立即贴底要在下一帧测量完成后再次收口。
 - `round-scroll.ts` 保存轮次 DOM 定位和导航目标协议，feed 与 navigator 共用同一实现。
 - `use-scroll-anchored-state.ts` 只用于局部内容展开收起时保持可视位置，不参与消息历史前插。

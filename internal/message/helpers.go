@@ -1,3 +1,6 @@
+// INPUT: runtime 消息中的动态标量、map 与 block。
+// OUTPUT: 消息投影共用的安全归一化值和副本。
+// POS: message 包内无业务状态的解码辅助层。
 package message
 
 import (
@@ -49,6 +52,31 @@ func normalizeInt(value any) int {
 		return int(typed)
 	default:
 		return 0
+	}
+}
+
+func normalizeInt64(value any) int64 {
+	result, _ := normalizeInt64Value(value)
+	return result
+}
+
+func normalizeInt64Value(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), true
+	case int32:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	case float32:
+		return int64(typed), true
+	case float64:
+		return int64(typed), true
+	case json.Number:
+		result, err := typed.Int64()
+		return result, err == nil
+	default:
+		return 0, false
 	}
 }
 

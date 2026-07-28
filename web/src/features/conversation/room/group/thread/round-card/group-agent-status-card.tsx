@@ -1,9 +1,16 @@
 "use client";
 
+/**
+ * INPUT: Room Agent 执行卡片、待处理人工介入请求与用户动作。
+ * OUTPUT: 与轮次分隔线对齐的选择面、Agent 状态摘要、Thread 入口及完整公区用户交互。
+ * POS: Room 主 Feed 中活动 Agent 卡片的唯一交互视图。
+ */
 import { Bot, Loader2, Square } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 
+import { CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import { UiMarkdownContent } from "@/shared/ui/markdown/markdown-content";
+import { PendingHumanInteractionList } from "@/features/conversation/shared/message/item/view/assistant/pending-human-interaction-list";
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-avatar";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -68,7 +75,7 @@ function GroupAgentStatusCardInner({
     labels: {
       failed: t("room.agent_status_failed"),
       stopped: t("room.agent_status_stopped"),
-      waitingPermission: t("room.agent_status_waiting_permission"),
+      waitingForUser: t("room.agent_status_waiting_user"),
     },
     messages,
     pendingPermissions,
@@ -82,33 +89,17 @@ function GroupAgentStatusCardInner({
     event.stopPropagation();
     onStopAgentRound?.();
   }, [onStopAgentRound]);
-  const handleAllow = useCallback((event: React.MouseEvent) => {
-    event.stopPropagation();
-    if (
-      statusModel.isQuestionPending ||
-      !statusModel.primaryPendingPermission
-    ) {
-      onClickThread();
-      return;
-    }
-    onPermissionResponse({
-      request_id: statusModel.primaryPendingPermission.request_id,
-      decision: "allow",
-    });
-  }, [onClickThread, onPermissionResponse, statusModel]);
-  const handleDeny = useCallback((event: React.MouseEvent) => {
-    event.stopPropagation();
-    if (!statusModel.primaryPendingPermission) {
-      onClickThread();
-      return;
-    }
-    onPermissionResponse({
-      request_id: statusModel.primaryPendingPermission.request_id,
-      decision: "deny",
-    });
-  }, [onClickThread, onPermissionResponse, statusModel]);
   const handleToggleThread = useCallback((event: React.MouseEvent) => {
     event.stopPropagation();
+    onClickThread();
+  }, [onClickThread]);
+  const handleCardClick = useCallback((
+    event: React.MouseEvent<HTMLDivElement>,
+  ) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("[data-human-interaction-surface]")) {
+      return;
+    }
     onClickThread();
   }, [onClickThread]);
   const handleOpenAgentContact = useCallback(
@@ -119,73 +110,86 @@ function GroupAgentStatusCardInner({
     [agentId, onOpenAgentContact],
   );
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-    if (ACTIVATION_KEYS.has(event.key)) {
+    if (
+      event.target === event.currentTarget
+      && ACTIVATION_KEYS.has(event.key)
+    ) {
       onClickThread();
     }
   }, [onClickThread]);
 
   return (
     <div
-      className={cn(
-        "nexus-chat-message-round-expanded nexus-chat-assistant-grid-expanded group/card grid min-w-0 cursor-pointer grid-cols-[40px_minmax(0,1fr)] gap-3 py-3 transition-colors duration-(--motion-duration-normal)",
-        isThreadActive
-          ? "bg-primary/5"
-          : "hover:bg-(--interaction-hover-background)",
-      )}
-      onClick={onClickThread}
+      className="group/card relative w-full min-w-0 cursor-pointer"
+      onClick={handleCardClick}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
     >
-      <MessageAvatar
-        ariaLabel={contactLabel}
-        avatarUrl={agentAvatar}
-        className="shrink-0"
-        onClick={onOpenAgentContact ? handleOpenAgentContact : undefined}
-        size="full"
-        title={contactLabel}
-      >
-        {!agentAvatar && <Bot className="h-4 w-4" />}
-      </MessageAvatar>
+      <div
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute inset-x-1.5 inset-y-0 radius-control-lg transition-colors duration-(--motion-duration-normal)",
+          isThreadActive
+            ? "bg-primary/5"
+            : "group-hover/card:bg-(--interaction-hover-background)",
+        )}
+      />
+      <div className="nexus-chat-message-section relative w-full px-2 sm:px-3">
+        <div
+          className={cn(
+            "nexus-chat-message-round-expanded nexus-chat-assistant-grid-expanded grid w-full grid-cols-[40px_minmax(0,1fr)] gap-3 py-3",
+            CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME,
+          )}
+        >
+          <MessageAvatar
+            ariaLabel={contactLabel}
+            avatarUrl={agentAvatar}
+            className="shrink-0"
+            onClick={onOpenAgentContact ? handleOpenAgentContact : undefined}
+            size="full"
+            title={contactLabel}
+          >
+            {!agentAvatar && <Bot className="h-4 w-4" />}
+          </MessageAvatar>
 
-      <div className="min-w-0 flex-1">
-        <GroupAgentStatusHeader
-          actions={{
-            allow: handleAllow,
-            deny: handleDeny,
-            stop: onStopAgentRound ? handleStop : undefined,
-            toggleThread: handleToggleThread,
-          }}
-          agentName={agentName}
-          isThreadActive={isThreadActive}
-          labels={{
-            permissionAllow: t(
-              statusModel.isQuestionPending
-                ? "room.permission_answer"
-                : "room.permission_allow",
-            ),
-            permissionDeny: t("room.permission_deny"),
-            stop: t("room.agent_stop"),
-          }}
-          locale={locale}
-          model={statusModel}
-        />
-        <GroupAgentStatusSummary agentId={agentId} model={statusModel} />
+          <div className="min-w-0 flex-1">
+            <GroupAgentStatusHeader
+              actions={{
+                stop: onStopAgentRound ? handleStop : undefined,
+                toggleThread: handleToggleThread,
+              }}
+              agentName={agentName}
+              isThreadActive={isThreadActive}
+              labels={{
+                stop: t("room.agent_stop"),
+              }}
+              locale={locale}
+              model={statusModel}
+            />
+            <GroupAgentStatusSummary agentId={agentId} model={statusModel} />
+            {pendingPermissions.length > 0 ? (
+              <PendingHumanInteractionList
+                canRespond
+                mode="room_result"
+                onResponse={onPermissionResponse}
+                permissions={pendingPermissions}
+                workspaceAgentId={agentId}
+              />
+            ) : null}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 interface GroupAgentStatusActions {
-  allow: React.MouseEventHandler<HTMLButtonElement>;
-  deny: React.MouseEventHandler<HTMLButtonElement>;
   stop?: React.MouseEventHandler<HTMLButtonElement>;
   toggleThread: React.MouseEventHandler<HTMLButtonElement>;
 }
 
 interface GroupAgentStatusLabels {
-  permissionAllow: string;
-  permissionDeny: string;
   stop: string;
 }
 
@@ -211,7 +215,7 @@ function GroupAgentStatusHeader({
       <span className="shrink-0 text-sm font-semibold text-(--text-strong)">
         {agentName}
       </span>
-      {model.isActive && !model.isWaitingPermission ? (
+      {model.isActive && !model.isWaitingForUser ? (
         <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary" />
       ) : null}
       <span className="hidden shrink-0 text-xs text-(--text-muted) sm:inline">
@@ -227,13 +231,6 @@ function GroupAgentStatusHeader({
         active={isThreadActive}
         onClick={actions.toggleThread}
       />
-      <GroupAgentPermissionActions
-        allowLabel={labels.permissionAllow}
-        denyLabel={labels.permissionDeny}
-        isWaiting={model.isWaitingPermission}
-        onAllow={actions.allow}
-        onDeny={actions.deny}
-      />
       {actions.stop && model.isActive ? (
         <button
           aria-label={labels.stop}
@@ -246,44 +243,6 @@ function GroupAgentStatusHeader({
         </button>
       ) : null}
     </div>
-  );
-}
-
-interface GroupAgentPermissionActionsProps {
-  allowLabel: string;
-  denyLabel: string;
-  isWaiting: boolean;
-  onAllow: React.MouseEventHandler<HTMLButtonElement>;
-  onDeny: React.MouseEventHandler<HTMLButtonElement>;
-}
-
-function GroupAgentPermissionActions({
-  allowLabel,
-  denyLabel,
-  isWaiting,
-  onAllow,
-  onDeny,
-}: GroupAgentPermissionActionsProps) {
-  if (!isWaiting) {
-    return null;
-  }
-  return (
-    <>
-      <button
-        className="rounded-md border border-(--divider-subtle-color) bg-transparent px-2 py-1 text-xs font-medium text-(--text-default) transition-colors hover:bg-(--interaction-hover-background)"
-        onClick={onDeny}
-        type="button"
-      >
-        {denyLabel}
-      </button>
-      <button
-        className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-primary/88"
-        onClick={onAllow}
-        type="button"
-      >
-        {allowLabel}
-      </button>
-    </>
   );
 }
 

@@ -1,5 +1,5 @@
-// INPUT: Goal MCP 工具所需的服务能力与当前 runtime 上下文。
-// OUTPUT: create/get/retarget/update 共用的窄服务契约。
+// INPUT: Goal MCP 工具所需的服务能力与当前 owner/agent/session/round runtime 上下文。
+// OUTPUT: create/get/retarget/update 共用的窄服务契约与 durable usage scope owner。
 // POS: Goal MCP 工具与 service/goal 之间的消费侧接口。
 package contract
 
@@ -24,6 +24,7 @@ type Service interface {
 
 // ServerContext 绑定当前运行时会话。
 type ServerContext struct {
+	OwnerUserID           string
 	CurrentSessionKey     string
 	CurrentRoundID        string
 	CurrentAgentID        string

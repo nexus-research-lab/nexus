@@ -46,6 +46,29 @@ func TestGoalEventBroadcasterSendsAppServerNotificationToRPCSubscribers(t *testi
 	}
 }
 
+func TestGoalEventBroadcasterDoesNotClearNewGoalForCompletedGoalLateUsage(t *testing.T) {
+	registry := newAppServerGoalRPCRegistry()
+	sender := &capturingRawSender{key: "rpc-1"}
+	threadID := "agent:nexus:ws:dm:goal-rpc-late-usage"
+	registry.Register(threadID, sender)
+	broadcaster := newGoalEventBroadcaster(&capturingNexusGoalBroadcaster{}, registry)
+
+	goal := protocol.Goal{
+		SessionKey: threadID,
+		Objective:  "Finish parity",
+		Status:     protocol.GoalStatusComplete,
+	}
+	event := protocol.GoalEventEnvelope(threadID, protocol.EventTypeGoalProgress, goal, map[string]any{
+		"source":   string(protocol.GoalUpdateSourceSystem),
+		"round_id": "round-1",
+	})
+	broadcaster.BroadcastEvent(context.Background(), threadID, event)
+
+	if len(sender.payloads) != 0 {
+		t.Fatalf("late completed Goal usage notifications = %#v, want none", sender.payloads)
+	}
+}
+
 func TestGoalEventBroadcasterSkipsExternalSourceForRPCNotification(t *testing.T) {
 	registry := newAppServerGoalRPCRegistry()
 	sender := &capturingRawSender{key: "rpc-1"}

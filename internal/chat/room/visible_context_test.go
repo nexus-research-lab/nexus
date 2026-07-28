@@ -152,6 +152,9 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"wake_targets is the recipients subset",
 		"Runtime routes the recipient's single final reply by reply_route",
 		`"room host default takeover"`,
+		"assess task complexity, separable work, and member fit",
+		"avoid duplicating that work yourself",
+		"coordination, unblocking, integration, and verification",
 		"Never expose private content publicly",
 		"a completed summary must not @ anyone",
 	} {
@@ -266,6 +269,34 @@ func TestBuildSystemPromptKeepsPrivateToolOptIn(t *testing.T) {
 	}
 	if !strings.Contains(systemPrompt, "Private Room directed message sending is disabled") {
 		t.Fatalf("Room 默认提示词应说明私信发送未开启:\n%s", systemPrompt)
+	}
+}
+
+func TestBuildRoomVisibleContextMakesHostAssessDelegationBeforeExecution(t *testing.T) {
+	contextValue := BuildVisibleContext(VisibleContextInput{
+		LatestTrigger: Trigger{
+			TriggerType:   "room_host_default",
+			Content:       "完成这项跨模块交付",
+			TargetAgentID: "agent-host",
+		},
+		AgentNameByID: map[string]string{
+			"agent-host": "Host",
+			"agent-peer": "Peer",
+		},
+		TargetAgentID: "agent-host",
+	})
+
+	for _, expected := range []string{
+		"room host default takeover",
+		"assess task complexity, separable work, and member fit",
+		"Prefer @ exactly one suitable member with a concrete deliverable",
+		"do not duplicate that deliverable yourself",
+		"coordination, unblocking, integration, and verification",
+		"Handle the whole task directly only when it is small or atomic",
+	} {
+		if !strings.Contains(contextValue, expected) {
+			t.Fatalf("Room host collaboration decision missing %q:\n%s", expected, contextValue)
+		}
 	}
 }
 

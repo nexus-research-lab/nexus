@@ -63,6 +63,7 @@ type roundRunner struct {
 	clientRequestID             string
 	content                     string
 	runtimeContent              conversationsvc.RuntimeContent
+	recoveryContext             []runtimectx.ContextualInputBlock
 	client                      runtimectx.Client
 	runtimeKind                 string
 	runtimeProvider             string
@@ -74,14 +75,26 @@ type roundRunner struct {
 	externalReplyTarget         *ExternalReplyTarget
 	goalContext                 string
 	goalIDForUsage              string
+	childGoalIDForUsage         string
 	goalObjectiveRevision       *atomic.Int64
 	goalUsage                   *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted            time.Time
+	goalUsageBindingMu          sync.Mutex
 	goalUsageMu                 sync.Mutex
 	goalLastAssistant           protocol.Message
 	goalToolProgress            bool
+	goalTerminalUsageSnapshot   goalsvc.RuntimeUsageSnapshot
+	goalTerminalUsageVersion    uint64
+	goalTerminalUsagePending    bool
+	goalTokenUsageObserved      bool
+	goalUsageScopeConsumed      bool
 	subagentTasks               map[string]struct{}
+	subagentUsagePending        map[string]dmSubagentUsageObservation
+	subagentUsageClaimPending   bool
+	goalUsageRetryRunning       bool
+	subagentParentTerminal      string
 	subagentPostRoundDispatched bool
+	postRoundDispatchHook       func()
 	permissionMode              sdkpermission.Mode
 	permissionHandler           sdkpermission.Handler
 	resultUsageWritten          bool
@@ -102,15 +115,15 @@ func (r *roundRunner) run(ctx context.Context) {
 	result, err := r.executeRound(ctx, logger)
 	if err != nil {
 		if errors.Is(err, exec.ErrRoundInterrupted) {
-			r.finishInterrupted(r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID))
+			r.finishInterrupted(result, r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID))
 			return
 		}
-		r.failRound(err)
+		r.failRound(result, err)
 		return
 	}
 	if result.TerminalStatus == "finished" && (result.ResultSubtype == "" || result.ResultSubtype == "success") {
 		if err := r.confirmInputQueueGuidanceFallback(context.Background()); err != nil {
-			r.failRound(err)
+			r.failRound(result, err)
 			return
 		}
 	}
@@ -127,9 +140,9 @@ func (r *roundRunner) run(ctx context.Context) {
 	if result.CompletedByAssistant {
 		r.deliverExternalAssistantReply(ownerCtx, finalAssistant)
 	}
-	r.recordGoalUsage(context.Background(), result, finalAssistant)
 	r.recordGoalUsageLimit(result)
 	r.recordGoalContinuationProgress(result)
+	r.finalizeGoalUsage(context.Background(), result, finalAssistant)
 	if result.CompletedByAssistant {
 		r.recordTerminalAssistantUsage(finalAssistant)
 	}
@@ -144,6 +157,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	if r.service.runtime.HasSubagentHistory(r.sessionKey) {
 		r.startIdleSubagentNotificationDrain()
 	}
+	r.markSubagentParentTerminal(subagentParentTerminalNormal)
 	if r.hasRunningSubagentTask() {
 		return
 	}
@@ -177,7 +191,7 @@ func (r *roundRunner) executeRound(
 ) (exec.RoundExecutionResult, error) {
 	return exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
-		ContextualInputs: goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey),
+		ContextualInputs: r.contextualInputs(),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation"),
 		Client:           r.client,
 		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
@@ -240,7 +254,11 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	if err := r.persistMessage(message); err != nil {
 		return err
 	}
+	settledSubagentUsage := r.recordSubagentGoalUsage(context.Background(), message)
 	r.rememberSubagentTaskMessage(message)
+	for _, settled := range settledSubagentUsage {
+		r.clearSubagentUsageObservationPending(settled.taskID, settled.observation)
+	}
 	r.rememberGoalAssistantMessage(message)
 	r.recordGoalUsageFromAssistantMessage(message)
 	if message["role"] == "assistant" {
@@ -285,6 +303,10 @@ func (r *roundRunner) dispatchNextInputQueueItem() {
 }
 
 func (r *roundRunner) dispatchPostRoundWork() {
+	if r.postRoundDispatchHook != nil {
+		r.postRoundDispatchHook()
+		return
+	}
 	location := workspacestore.InputQueueLocation{
 		OwnerUserID:   r.ownerUserID,
 		Scope:         protocol.InputQueueScopeDM,
