@@ -4,6 +4,7 @@ import {
   ChevronRight,
   KeyRound,
   Link2,
+  RefreshCcw,
   Shield,
   Unplug,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import type {
   ConnectorPrimaryAction,
   ConnectorState,
 } from "../model/connector-state-model";
+import { canReplaceConnectorOauthClient } from "./connector-detail-model";
 
 interface ConnectorActionContext {
   busy: boolean;
@@ -167,9 +169,11 @@ export function ConnectorDetailHeader({
   onConfigureOauthClient,
   onConnect,
   onDisconnect,
+  onReplaceOauthClient,
   state,
 }: ConnectorActionContext & {
   onConfigureOauthClient: (detail: ConnectorDetail) => void;
+  onReplaceOauthClient: (detail: ConnectorDetail) => void;
   state: ConnectorState;
 }) {
   const primaryAction = PRIMARY_ACTION[state.primaryAction]({
@@ -194,6 +198,18 @@ export function ConnectorDetailHeader({
         </div>
       </div>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        {canReplaceConnectorOauthClient(detail) ? (
+          <UiButton
+            disabled={busy}
+            onClick={() => onReplaceOauthClient(detail)}
+            size="sm"
+            type="button"
+            variant="surface"
+          >
+            <RefreshCcw className="h-3.5 w-3.5" />
+            更换飞书应用
+          </UiButton>
+        ) : null}
         <ConnectorOauthClientButton
           action={state.oauthClientAction}
           context={{

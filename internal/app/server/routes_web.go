@@ -3,6 +3,7 @@ package server
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -42,6 +43,14 @@ func (s *Server) mountWebAppRoutes() {
 		start := time.Now()
 		recorder := &webStaticResponseRecorder{ResponseWriter: writer}
 		relativePath := cleanWebRequestPath(request.URL.Path)
+		// 连接器 OAuth 回调 redirect_uri 是深路径，在深路径下加载会让相对资源解析失败（兜底成 HTML）。
+		// 重定向到根级 oauth-callback.html 入口，并把原始 path+query 编码进 desktop_route，
+		// 复用 applyDesktopEntryRoute 的还原机制，避免丢失 code/state。
+		if redirectTarget := oauthCallbackEntryRedirect(relativePath, request); redirectTarget != "" {
+			writer.Header().Set("Cache-Control", "no-store")
+			http.Redirect(writer, request, redirectTarget, http.StatusFound)
+			return
+		}
 		if relativePath == "" {
 			targetPath := webFallbackPath(root, relativePath, indexPath)
 			setWebStaticCacheHeaders(writer, relativePath, true)
@@ -107,11 +116,27 @@ func webFallbackFileName(relativePath string) string {
 		return "index.html"
 	case relativePath == "settings":
 		return "settings.html"
-	case relativePath == "capability/connectors/oauth/callback":
-		return "oauth-callback.html"
 	default:
 		return "app.html"
 	}
+}
+
+// oauthCallbackEntryRedirect 把连接器 OAuth 回调深路径改写到根级 oauth-callback.html 入口。
+// 系统浏览器经飞书重定向落到 /capability/connectors/oauth/callback，若直接在此深路径渲染，
+// 相对资源 ./assets/*.js 会解析到深路径下并被静态兜底成 HTML，导致回调页 JS 无法加载。
+// 重定向后页面在 origin 根下加载，资源解析恢复正常；原始 path+query 编码进 desktop_route，
+// 交由前端 applyDesktopEntryRoute 还原，保证 code/state 不丢。
+func oauthCallbackEntryRedirect(relativePath string, request *http.Request) string {
+	if relativePath != "capability/connectors/oauth/callback" {
+		return ""
+	}
+	desktopRoute := request.URL.Path
+	if request.URL.RawQuery != "" {
+		desktopRoute += "?" + request.URL.RawQuery
+	}
+	query := url.Values{}
+	query.Set("desktop_route", desktopRoute)
+	return "/oauth-callback.html?" + query.Encode()
 }
 
 func shouldServeWebFallback(relativePath string) bool {

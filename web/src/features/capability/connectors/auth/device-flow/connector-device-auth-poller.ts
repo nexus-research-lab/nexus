@@ -46,6 +46,7 @@ export interface ConnectorDeviceAuthPollerCallbacks {
   onConnected: (connectorId: string) => Promise<void>;
   onError: (message: string) => void;
   onMessage: (message: string) => void;
+  onNext: (session: ConnectorDeviceAuthStart) => void;
 }
 
 type PollConnectorDeviceAuth = (
@@ -113,6 +114,14 @@ export class ConnectorDeviceAuthPoller {
         this.session.device_code,
       );
       if (!this.stopped) {
+        if (result.next) {
+          this.callbacks.onMessage(
+            result.message || "应用已选择或创建，请继续完成账号授权",
+          );
+          this.stop();
+          this.callbacks.onNext(result.next);
+          return;
+        }
         await this.handleOutcome(resolveConnectorDeviceAuthPollOutcome(result));
       }
     } catch (error) {
@@ -132,8 +141,8 @@ export class ConnectorDeviceAuthPoller {
       return;
     }
     this.callbacks.onMessage(outcome.message);
-    await this.callbacks.onConnected(this.session.connector_id);
     this.close();
+    await this.callbacks.onConnected(this.session.connector_id);
   }
 
   private fail(message: string): void {

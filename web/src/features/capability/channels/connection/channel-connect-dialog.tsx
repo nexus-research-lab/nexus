@@ -104,7 +104,7 @@ export function ChannelConnectDialog({
               onRequestDelete={controller.requestDeleteChannel}
               planned={controller.planned}
               saving={controller.saving}
-              supportsPersonalWeixinLogin={controller.supportsPersonalWeixinLogin}
+              supportsQRCode={controller.offersQRCode}
             />
           </UiDialogFormShell>
         </UiDialogBackdrop>

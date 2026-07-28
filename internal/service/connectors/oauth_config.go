@@ -181,6 +181,9 @@ func (s *Service) oauthConfigError(ctx context.Context, ownerUserID string, conn
 		}
 		return ""
 	}
+	if entry, ok := getConnector(connectorID); ok && entry.AutoOAuthClient {
+		return ""
+	}
 	_, _, err := s.oauthCredentials(ctx, ownerUserID, connectorID)
 	if err != nil {
 		return err.Error()
@@ -197,6 +200,8 @@ func (s *Service) listOAuthConfigErrors(ctx context.Context, ownerUserID string)
 		var err error
 		if entry.ConnectorID == "github" && s.isDesktopMode() {
 			_, err = requireOAuthClientID(s.config.ConnectorGitHubClientID, "GitHub")
+		} else if entry.AutoOAuthClient {
+			continue
 		} else if entry.UserOAuthClient {
 			_, _, err = s.userOAuthCredentials(ctx, ownerUserID, entry)
 		} else {

@@ -14,6 +14,7 @@ interface ConnectorsGridProps {
   connectors: ConnectorInfo[];
   loading: boolean;
   onConnect: (connectorId: string) => void;
+  onDisconnect: (connectorId: string) => void;
   onOpenConnector: (connectorId: string) => void;
   pendingAction: ConnectorPendingAction | null;
   searchQuery: string;
@@ -25,6 +26,7 @@ export function ConnectorsGrid({
   connectors,
   loading,
   onConnect,
+  onDisconnect,
   onOpenConnector,
   pendingAction,
   searchQuery,
@@ -76,6 +78,7 @@ export function ConnectorsGrid({
                 busy={pendingAction?.connectorId === connector.connector_id}
                 connector={connector}
                 onConnect={() => onConnect(connector.connector_id)}
+                onDisconnect={() => onDisconnect(connector.connector_id)}
                 onSelect={() => onOpenConnector(connector.connector_id)}
               />
             ))}

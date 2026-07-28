@@ -15,6 +15,13 @@ export function getConnectorAuthLabel(authType: ConnectorAuthType): string {
   return AUTH_LABELS[authType];
 }
 
+export function canReplaceConnectorOauthClient(
+  detail: ConnectorDetail,
+): boolean {
+  return detail.connector_id === "feishu-docx"
+    && Boolean(detail.oauth_client_id?.trim());
+}
+
 export function getConnectorFeatureDetails(
   detail: ConnectorDetail,
 ): ConnectorFeatureDetail[] {

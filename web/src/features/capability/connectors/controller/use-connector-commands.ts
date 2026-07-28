@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { getConnectorOauthRedirectUri, isDesktopRuntime } from "@/config/desktop-runtime";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/capability/connector-api";
 import { getErrorMessage } from "@/lib/error-message";
 import type {
+  ConnectorDeviceAuthMode,
   ConnectorDeviceAuthStart,
   ConnectorInfo,
 } from "@/types/capability/connector";
@@ -21,6 +22,7 @@ import {
   isDirectCredentialAuth,
   resolveConnectorConnectMode,
 } from "../auth/connector-auth";
+import { FeishuWebAuthorizationWindow } from "../auth/feishu/feishu-web-authorization-window";
 import type { ReportConnectorFeedback } from "./connector-controller-types";
 import type {
   ConnectorPendingAction,
@@ -58,6 +60,23 @@ export function useConnectorCommands({
 }: UseConnectorCommandsOptions) {
   const [deviceAuthSession, setDeviceAuthSession] =
     useState<ConnectorDeviceAuthStart | null>(null);
+  const feishuWebAuthorizationWindowRef =
+    useRef<FeishuWebAuthorizationWindow | null>(null);
+
+  const getFeishuWebAuthorizationWindow = useCallback(() => {
+    feishuWebAuthorizationWindowRef.current ??=
+      new FeishuWebAuthorizationWindow();
+    return feishuWebAuthorizationWindowRef.current;
+  }, []);
+
+  const closeFeishuWebAuthorizationWindow = useCallback(() => {
+    feishuWebAuthorizationWindowRef.current?.close();
+    feishuWebAuthorizationWindowRef.current = null;
+  }, []);
+
+  const openFeishuWebAuthorizationUrl = useCallback((url: string) => (
+    !isDesktopRuntime() && getFeishuWebAuthorizationWindow().open(url)
+  ), [getFeishuWebAuthorizationWindow]);
 
   const executeMutation = useCallback(async ({
     errorFallback,
@@ -131,17 +150,25 @@ export function useConnectorCommands({
 
   const openDeviceOauth = useCallback(async (
     connector: ConnectorInfo,
+    mode?: ConnectorDeviceAuthMode,
   ): Promise<boolean> => {
-    const session = await startConnectorDeviceAuthApi(connector.connector_id);
+    const session = await startConnectorDeviceAuthApi(
+      connector.connector_id,
+      mode,
+    );
     setDeviceAuthSession(session);
     reportFeedback({
       tone: "success",
       title: "操作完成",
-      message: "已生成 GitHub 授权码",
+      message: connector.connector_id === "feishu-docx"
+        ? mode === "official_qr"
+          ? "请使用飞书扫描二维码选择或创建应用"
+          : "请打开飞书授权链接完成连接"
+        : "已生成 GitHub 授权码",
     });
     const authUrl = session.verification_uri_complete
       || session.verification_uri;
-    if (authUrl) {
+    if (authUrl && connector.connector_id === "github") {
       window.open(authUrl, "_blank", "noopener,noreferrer");
     }
     return true;
@@ -235,6 +262,99 @@ export function useConnectorCommands({
     successMessage: "已断开连接",
   }), [runMutation]);
 
+  const handleConnectFeishuWithQr = useCallback(async (
+  ): Promise<boolean> => {
+    const result = await runCommand({
+      kind: "connect",
+      connectorId: "feishu-docx",
+    }, async () => {
+      const connector = connectors.find((item) => (
+        item.connector_id === "feishu-docx"
+      ));
+      if (!connector) {
+        reportFeedback({
+          tone: "error",
+          title: "操作失败",
+          message: "飞书云文档连接器不存在",
+        });
+        return false;
+      }
+      try {
+        return await openDeviceOauth(connector, "official_qr");
+      } catch (error) {
+        try {
+          await refreshConnector("feishu-docx");
+        } catch {
+          // 保留扫码启动的原始失败；下一次目录刷新会同步服务端已清理状态。
+        }
+        reportFeedback({
+          tone: "error",
+          title: "操作失败",
+          message: getErrorMessage(error, "启动飞书扫码连接失败"),
+        });
+        return false;
+      }
+    });
+    return result ?? false;
+  }, [
+    connectors,
+    openDeviceOauth,
+    refreshConnector,
+    reportFeedback,
+    runCommand,
+  ]);
+
+  const handleConnectFeishuManually = useCallback(async (
+    clientId: string,
+    clientSecret: string,
+  ): Promise<boolean> => {
+    const connectorId = "feishu-docx";
+    const result = await runCommand({
+      kind: "connect",
+      connectorId,
+    }, async () => {
+      const connector = connectors.find((item) => (
+        item.connector_id === connectorId
+      ));
+      if (!connector) {
+        reportFeedback({
+          tone: "error",
+          title: "操作失败",
+          message: "飞书云文档连接器不存在",
+        });
+        return false;
+      }
+      try {
+        await deleteConnectorOauthClientApi(connectorId);
+        await saveConnectorOauthClientApi(connectorId, {
+          client_id: clientId,
+          client_secret: clientSecret,
+        });
+        return await openDeviceOauth(connector, "manual_credentials");
+      } catch (error) {
+        try {
+          await deleteConnectorOauthClientApi(connectorId);
+          await refreshConnector(connectorId);
+        } catch {
+          // 原始连接错误更能说明失败原因，清理失败留给下一次显式连接覆盖。
+        }
+        reportFeedback({
+          tone: "error",
+          title: "操作失败",
+          message: getErrorMessage(error, "手动连接飞书应用失败"),
+        });
+        return false;
+      }
+    });
+    return result ?? false;
+  }, [
+    connectors,
+    openDeviceOauth,
+    refreshConnector,
+    reportFeedback,
+    runCommand,
+  ]);
+
   const handleSaveOauthClient = useCallback((
     connectorId: string,
     clientId: string,
@@ -262,23 +382,59 @@ export function useConnectorCommands({
     reportFeedback({
       tone: "success",
       title: "操作完成",
-      message: "GitHub 已连接",
+      message: "连接器已连接",
     });
     await refreshCatalog();
   }, [refreshCatalog, reportFeedback]);
 
   const closeDeviceAuthSession = useCallback(() => {
+    closeFeishuWebAuthorizationWindow();
     setDeviceAuthSession(null);
+  }, [closeFeishuWebAuthorizationWindow]);
+
+  const cancelDeviceAuthSession = useCallback(async () => {
+    const session = deviceAuthSession;
+    closeFeishuWebAuthorizationWindow();
+    setDeviceAuthSession(null);
+    if (session?.connector_id !== "feishu-docx") {
+      return;
+    }
+    try {
+      await deleteConnectorOauthClientApi(session.connector_id);
+      await refreshConnector(session.connector_id);
+    } catch (error) {
+      reportFeedback({
+        tone: "error",
+        title: "清理失败",
+        message: getErrorMessage(error, "未能清理飞书应用连接状态"),
+      });
+    }
+  }, [
+    closeFeishuWebAuthorizationWindow,
+    deviceAuthSession,
+    refreshConnector,
+    reportFeedback,
+  ]);
+
+  const continueDeviceAuthSession = useCallback((
+    session: ConnectorDeviceAuthStart,
+  ) => {
+    setDeviceAuthSession(session);
   }, []);
 
   return {
+    cancelDeviceAuthSession,
     closeDeviceAuthSession,
+    continueDeviceAuthSession,
     deviceAuthSession,
     handleConnect,
+    handleConnectFeishuManually,
+    handleConnectFeishuWithQr,
     handleConnectWithCredential,
     handleDeleteOauthClient,
     handleDeviceConnected,
     handleDisconnect,
     handleSaveOauthClient,
+    openFeishuWebAuthorizationUrl,
   };
 }

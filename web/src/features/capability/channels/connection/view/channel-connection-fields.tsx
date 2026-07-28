@@ -27,10 +27,11 @@ interface ChannelConnectionFieldsController {
   draft: ChannelConnectionDraft;
   loginLoading: boolean;
   loginView: ChannelLoginView | null;
+  personalWeixin: boolean;
   requestDeleteAccount: (account: ChannelAccountView) => void;
   setAgentId: (agentId: string) => void;
+  showsQRCode: boolean;
   submitVerifyCode: (value: string) => Promise<boolean>;
-  supportsPersonalWeixinLogin: boolean;
   updateField: (field: ChannelCredentialField, value: string) => void;
 }
 
@@ -61,8 +62,10 @@ export function ChannelConnectionFields({
         </div>
       ) : null}
 
-      {controller.supportsPersonalWeixinLogin ? (
+      {controller.showsQRCode ? (
         <ChannelLoginPanel
+          channelType={currentItem.channel_type}
+          channelTitle={currentItem.title}
           loading={controller.loginLoading}
           loginView={controller.loginView}
           onSubmitVerifyCode={(value) => {
@@ -71,7 +74,7 @@ export function ChannelConnectionFields({
         />
       ) : null}
 
-      {controller.supportsPersonalWeixinLogin ? (
+      {controller.personalWeixin ? (
         <ChannelAccountsPanel
           accounts={currentItem.accounts || []}
           deletingAccountId={controller.deletingAccountId}

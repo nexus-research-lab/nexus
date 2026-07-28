@@ -7,7 +7,7 @@ export interface ChannelSubmitState {
   loginRunning: boolean;
   planned: boolean;
   saving: boolean;
-  supportsPersonalWeixinLogin: boolean;
+  supportsQRCode: boolean;
 }
 
 export interface ChannelDeleteDialogCopy {
@@ -28,7 +28,7 @@ export function getChannelSubmitLabel(state: ChannelSubmitState): string {
     [state.saving, "保存中..."],
     [state.loginLoading, "拉起二维码..."],
     [state.loginRunning, "等待扫码..."],
-    [state.supportsPersonalWeixinLogin, "拉起二维码"],
+    [state.supportsQRCode, "拉起二维码"],
     [true, "连接"],
   ] as const;
   return candidates.find(([matches]) => matches)?.[1] ?? "连接";

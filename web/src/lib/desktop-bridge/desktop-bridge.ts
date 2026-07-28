@@ -53,6 +53,13 @@ export async function getDesktopAppVersion(): Promise<DesktopAppVersion> {
   return invokeDesktopBridge<Record<string, never>, DesktopAppVersion>("app.get_app_version", {});
 }
 
+export async function openDesktopExternalURL(url: string): Promise<void> {
+  await invokeDesktopBridge<{ url: string }, { opened: boolean }>(
+    "app.open_external_url",
+    { url },
+  );
+}
+
 export async function exportDesktopLogs(): Promise<DesktopExportLogsResult> {
   return invokeDesktopBridge<Record<string, never>, DesktopExportLogsResult>("app.export_logs", {});
 }

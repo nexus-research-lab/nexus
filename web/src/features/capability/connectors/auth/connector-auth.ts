@@ -37,7 +37,8 @@ export function resolveConnectorConnectMode(
       ? "direct-credential"
       : "direct";
   }
-  return connector.connector_id === "github" && desktopRuntime
+  return connector.supports_device_auth
+    && (connector.connector_id !== "github" || desktopRuntime)
     ? "oauth-device"
     : "oauth-browser";
 }

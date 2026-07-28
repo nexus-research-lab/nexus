@@ -7,6 +7,7 @@
 
 import {
   ConnectorDetail,
+  ConnectorDeviceAuthMode,
   ConnectorDeviceAuthPollResult,
   ConnectorDeviceAuthStart,
   ConnectorInfo,
@@ -134,9 +135,11 @@ export const completeConnectorOAuthApi = async (
 /** 启动 OAuth Device Flow */
 export const startConnectorDeviceAuthApi = async (
   connectorId: string,
+  mode?: ConnectorDeviceAuthMode,
 ): Promise<ConnectorDeviceAuthStart> => {
+  const query = mode ? `?mode=${encodeURIComponent(mode)}` : "";
   return requestApi<ConnectorDeviceAuthStart>(
-    `${BASE}/connectors/${connectorId}/device/start`,
+    `${BASE}/connectors/${connectorId}/device/start${query}`,
     {
       method: "POST",
     },

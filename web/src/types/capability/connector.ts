@@ -28,6 +28,7 @@ export interface ConnectorInfo {
   config_error?: string | null;
   oauth_client_config_required?: boolean;
   oauth_client_configured?: boolean;
+  supports_device_auth?: boolean;
 }
 
 /** 连接器详情 */
@@ -50,6 +51,13 @@ export interface ConnectorDetail extends ConnectorInfo {
 }
 
 /** OAuth Device Flow 启动信息 */
+export type ConnectorDeviceAuthMode =
+  | "official_qr"
+  | "manual_credentials";
+export type ConnectorDeviceAuthStage =
+  | "app_selection"
+  | "user_authorization";
+
 export interface ConnectorDeviceAuthStart {
   connector_id: string;
   device_code: string;
@@ -58,6 +66,7 @@ export interface ConnectorDeviceAuthStart {
   verification_uri_complete?: string;
   expires_in: number;
   interval: number;
+  stage?: ConnectorDeviceAuthStage;
 }
 
 /** OAuth Device Flow 轮询状态 */
@@ -68,6 +77,7 @@ export interface ConnectorDeviceAuthPollResult {
   status: ConnectorDeviceAuthStatus;
   message?: string;
   connector?: ConnectorInfo;
+  next?: ConnectorDeviceAuthStart;
 }
 
 /** 连接器类别 */

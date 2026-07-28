@@ -107,8 +107,9 @@ func (s *Service) toInfoWithConfigError(entry CatalogEntry, connectionState stri
 		IsConfigured:              configError == "",
 		RequiresExtra:             slices.Clone(entry.RequiresExtra),
 		ConfigError:               configErrorPtr,
-		OAuthClientConfigRequired: entry.UserOAuthClient,
-		OAuthClientConfigured:     entry.UserOAuthClient && configError == "",
+		OAuthClientConfigRequired: entry.UserOAuthClient && !entry.AutoOAuthClient,
+		OAuthClientConfigured:     entry.UserOAuthClient && !entry.AutoOAuthClient && configError == "",
+		SupportsDeviceAuth:        entry.DeviceAuth,
 	}
 }
 

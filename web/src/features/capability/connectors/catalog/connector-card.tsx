@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Clock3, KeyRound, Loader2, Plus, Settings2 } from "lucide-react";
+import { Clock3, KeyRound, Loader2, Plus, Settings2, Unplug } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -21,6 +21,7 @@ interface ConnectorCardProps {
   busy?: boolean;
   connector: ConnectorInfo;
   onConnect?: () => void;
+  onDisconnect?: () => void;
   onSelect: () => void;
 }
 
@@ -28,6 +29,7 @@ export function ConnectorCard({
   busy = false,
   connector,
   onConnect,
+  onDisconnect,
   onSelect,
 }: ConnectorCardProps) {
   const { t } = useI18n();
@@ -38,6 +40,10 @@ export function ConnectorCard({
     if (model.trailing.kind !== "action") return;
     if (model.trailing.action === "connect") {
       onConnect?.();
+      return;
+    }
+    if (model.trailing.action === "disconnect") {
+      onDisconnect?.();
       return;
     }
     onSelect();
@@ -99,12 +105,12 @@ function ConnectorCardBadge({
 const ACTION_ICON = {
   connect: Plus,
   credential: KeyRound,
+  disconnect: Unplug,
   "oauth-client": Settings2,
 } as const;
 
 const STATIC_TRAILING = {
   busy: () => <Loader2 className="h-4 w-4 animate-spin text-(--icon-default)" />,
-  connected: () => <Check className="h-4 w-4 text-(--icon-muted)" />,
   "coming-soon": () => <Clock3 className="h-4 w-4 text-(--icon-muted)" />,
 } as const;
 
