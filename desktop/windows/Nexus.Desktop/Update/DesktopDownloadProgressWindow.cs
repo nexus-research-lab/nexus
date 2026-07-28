@@ -33,7 +33,7 @@ internal sealed class DesktopDownloadProgressWindow : System.Windows.Window
         progressText = new TextBlock
         {
             Text = "正在连接下载服务…",
-            HorizontalAlignment = HorizontalAlignment.Right,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
         };
 
         Content = new StackPanel

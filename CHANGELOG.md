@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed the Windows desktop update download progress build by explicitly selecting the WPF `ProgressBar` when both WPF and WinForms are enabled.
+- Fixed the Windows desktop update download progress build by explicitly selecting WPF controls and alignment values when both WPF and WinForms are enabled.
 - Fixed Agent identity and tool permission edits requiring a second save before success appeared; server-confirmed source refreshes now remain within the active save transaction, while editor switches and newer user drafts still reject stale results.
 - Fixed desktop OAuth connector callbacks (Feishu Docs, Gmail, X/Twitter, LinkedIn, Shopify, Instagram) never completing: the provider redirect landed on a deep path where the callback page's relative assets resolved to HTML fallbacks and were rejected as module scripts, while both its route guard and root bootstrap required authentication unavailable to the system browser. The callback deep path now redirects to the root entry with the original path and query preserved via `desktop_route`, and the public callback entry skips both the session guard and protected runtime-options preflight before exchanging the code. The token-exchange endpoint was already token-bypassed and resolves the owner from the OAuth state.
 - Exposed the existing disconnect transaction directly on connected connector catalog rows, including Feishu Docs, while retaining the same action in connector details.
