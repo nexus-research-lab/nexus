@@ -127,6 +127,7 @@ func projectTranscriptChainWithFilter(
 			}
 			projected = append(projected, *userMessage)
 		case sdkprotocol.MessageTypeAssistant,
+			sdkprotocol.MessageTypeAttachment,
 			sdkprotocol.MessageTypeSystem,
 			sdkprotocol.MessageTypeTaskProgress:
 			if processor == nil {

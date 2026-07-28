@@ -1,0 +1,182 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { createServer } from "vite";
+
+const webRoot = fileURLToPath(new URL("..", import.meta.url));
+const server = await createServer({
+  configFile: false,
+  logLevel: "silent",
+  resolve: { alias: { "@": path.join(webRoot, "src") } },
+  root: webRoot,
+  server: { middlewareMode: true },
+});
+
+test.after(async () => {
+  await server.close();
+});
+
+test("subagent polling discovers tasks after an initially empty response", async () => {
+  const {
+    shouldPollSubagentTaskList,
+    subagentTaskSourceKey,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/subagent/subagent-task-model.ts",
+  );
+  const { buildSubagentTaskListModel } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/subagent/subagent-task-list-model.ts",
+  );
+
+  const sourceKey = subagentTaskSourceKey({
+    kind: "session",
+    session_key: "agent:dev:ws:dm:conversation-1",
+  });
+  const data = {
+    capabilities: {
+      observe: true,
+      transcript: true,
+      stop: true,
+      send_message: true,
+      resume: true,
+    },
+    items: [],
+    runtime_kind: "nxs",
+  };
+  const emptyModel = buildSubagentTaskListModel({
+    data,
+    isLoading: false,
+    tasks: data.items,
+  });
+
+  assert.equal(emptyModel.activeTasks.length, 0);
+  assert.equal(shouldPollSubagentTaskList(sourceKey), true);
+
+  const runningTask = {
+    capabilities: data.capabilities,
+    runtime_kind: "nxs",
+    status: "running",
+    task_id: "task-market-research",
+  };
+  const runningModel = buildSubagentTaskListModel({
+    data: { ...data, items: [runningTask] },
+    isLoading: false,
+    tasks: [runningTask],
+  });
+
+  assert.deepEqual(runningModel.activeTasks, [runningTask]);
+  assert.equal(shouldPollSubagentTaskList(sourceKey), true);
+
+  const completedTask = { ...runningTask, status: "completed" };
+  const completedModel = buildSubagentTaskListModel({
+    data: { ...data, items: [completedTask] },
+    isLoading: false,
+    tasks: [completedTask],
+  });
+
+  assert.deepEqual(completedModel.completedTasks, [completedTask]);
+  assert.equal(shouldPollSubagentTaskList(sourceKey), true);
+  assert.equal(shouldPollSubagentTaskList(""), false);
+});
+
+test("subagent title uses the model-provided task description before its generic type", async () => {
+  const { subagentTaskTitle } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/subagent/subagent-task-model.ts",
+  );
+
+  assert.equal(
+    subagentTaskTitle({
+      agent_type: "Explore",
+      description: "调研 iPhone Air 硬件规格",
+    }),
+    "调研 iPhone Air 硬件规格",
+  );
+  assert.equal(
+    subagentTaskTitle({
+      agent_type: "Explore",
+      description: "调研 iPhone Air 硬件规格",
+      name: "硬件规格研究员",
+    }),
+    "硬件规格研究员",
+  );
+  assert.equal(subagentTaskTitle({ agent_type: "Explore" }), "Explore");
+});
+
+test("room subagent tasks can be scoped to the Agent that launched them", async () => {
+  const { filterSubagentTasksByHostAgent } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/subagent/subagent-task-list-model.ts",
+  );
+  const tasks = [
+    {
+      host_agent_id: "agent-cindy",
+      round_id: "round-previous",
+      task_id: "task-hardware",
+      updated_at: 1_000,
+    },
+    {
+      host_agent_id: "agent-kevin",
+      round_id: "round-current",
+      task_id: "task-market",
+      updated_at: 2_000,
+    },
+    {
+      host_agent_id: "agent-kevin",
+      round_id: "round-current",
+      task_id: "task-release",
+      updated_at: 2_000,
+    },
+    { task_id: "task-legacy" },
+  ];
+
+  assert.deepEqual(
+    filterSubagentTasksByHostAgent(tasks, "agent-cindy"),
+    [tasks[0]],
+  );
+  assert.deepEqual(
+    filterSubagentTasksByHostAgent(tasks, "agent-kevin"),
+    [tasks[1], tasks[2]],
+  );
+  assert.equal(filterSubagentTasksByHostAgent(tasks, null), tasks);
+});
+
+test("subagent task detail is a read-only thread without direct task controls", async () => {
+  const viewSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/subagent/thread/subagent-task-thread-view.tsx",
+    ),
+    "utf8",
+  );
+  const apiSource = await readFile(
+    path.join(
+      webRoot,
+      "src/lib/api/conversation/subagent-task-api.ts",
+    ),
+    "utf8",
+  );
+
+  assert.doesNotMatch(viewSource, /<textarea/);
+  assert.doesNotMatch(viewSource, /headerAction=/);
+  assert.doesNotMatch(viewSource, /StopTaskButton|onStop|subagents\.stop/);
+  assert.match(viewSource, /footer=\{null}/);
+  assert.doesNotMatch(
+    apiSource,
+    /stopSubagentTaskApi|sendSubagentTaskMessageApi|method: "POST"/,
+  );
+});
+
+test("room subagent surface reuses the Workspace Agent switcher", async () => {
+  const source = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/surface/room-subagent-task-surface.tsx",
+    ),
+    "utf8",
+  );
+
+  assert.match(source, /<RoomAgentSwitcher/);
+  assert.match(source, /hostAgentId=\{isRoomSource \? selectedAgentId : null\}/);
+  assert.match(source, /subagentTaskSourceKey\(source\)/);
+});

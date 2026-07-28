@@ -155,14 +155,90 @@ func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessa
 		normalizeString(data["agent_type"]),
 		"子 Agent 正在执行",
 	)
+	agentID := firstNonEmpty(normalizeString(data["agent_id"]), taskID)
+	metadata := mergeTaskEventMetadata(data, map[string]string{
+		"agent_id": agentID,
+		"child_session_id": firstNonEmpty(
+			normalizeString(data["child_session_id"]),
+			normalizeString(data["childSessionId"]),
+			agentID,
+		),
+		"task_type": "local_agent",
+	})
 	return p.buildTaskProgressMessage(
 		taskID,
 		description,
 		firstNonEmpty(normalizePointerString(progress.ParentToolUseID), strings.TrimSpace(progress.ToolUseID)),
 		firstNonEmpty(agentProgressLastToolName(data), strings.TrimSpace(progress.ToolName)),
 		mapValue(data["usage"]),
-		data,
+		metadata,
 	), false
+}
+
+func (p *Processor) processSubagentAttachmentMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
+	if message.Attachment == nil || !strings.EqualFold(strings.TrimSpace(message.Attachment.Type), "structured_output") {
+		return nil
+	}
+	data := mapValue(message.Attachment.Data)
+	agentID := firstNonEmpty(
+		normalizeString(data["agent_id"]),
+		normalizeString(data["agentId"]),
+	)
+	toolUseID := firstNonEmpty(
+		strings.TrimSpace(message.Attachment.ToolUseID),
+		normalizeString(data["tool_use_id"]),
+		normalizeString(data["toolUseId"]),
+	)
+	if agentID == "" || toolUseID == "" {
+		return nil
+	}
+	status := normalizeSubagentAttachmentStatus(firstNonEmpty(
+		normalizeString(data["task_status"]),
+		normalizeString(data["taskStatus"]),
+		normalizeString(data["status"]),
+	))
+	description := firstNonEmpty(
+		normalizeString(data["description"]),
+		normalizeString(data["agent_type"]),
+		normalizeString(data["agentType"]),
+	)
+	return p.buildTaskNotificationMessage(
+		agentID,
+		firstNonEmpty(description, "子 Agent 状态已更新"),
+		toolUseID,
+		status,
+		firstNonEmpty(normalizeString(data["output_file"]), normalizeString(data["outputFile"])),
+		mapValue(data["usage"]),
+		map[string]any{
+			"agent_id": agentID,
+			"agent_type": firstNonEmpty(
+				normalizeString(data["agent_type"]),
+				normalizeString(data["agentType"]),
+			),
+			"child_session_id": firstNonEmpty(
+				normalizeString(data["child_session_id"]),
+				normalizeString(data["childSessionId"]),
+				agentID,
+			),
+			"description": description,
+			"task_type":   "local_agent",
+		},
+	)
+}
+
+func normalizeSubagentAttachmentStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "completed", "complete", "success", "succeeded":
+		return "completed"
+	case "failed", "error":
+		return "failed"
+	case "killed", "cancelled", "canceled", "stopped", "interrupted":
+		return "killed"
+	case "pending", "running", "in_progress":
+		return "running"
+	default:
+		return strings.ToLower(strings.TrimSpace(status))
+	}
 }
 
 func resolveShellProgressType(progressType string, toolName string) string {

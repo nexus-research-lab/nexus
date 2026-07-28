@@ -189,8 +189,63 @@ func TestBuildSubagentTasksIncludesAssistantTaskProgress(t *testing.T) {
 	if task.Description != "统计HTML小游戏数量" || task.ToolUseID != "toolu-1" {
 		t.Fatalf("task progress fields = %+v, want description/tool use id", task)
 	}
+	if task.Name != "统计HTML小游戏数量" {
+		t.Fatalf("task name = %q, want model-provided description", task.Name)
+	}
 	if task.Usage["total_tokens"] != 321 || task.UpdatedAt != 1000 {
 		t.Fatalf("task metrics = %+v/%d, want usage and updated time", task.Usage, task.UpdatedAt)
+	}
+}
+
+func TestBuildSubagentTasksSettlesAgentProgressFromToolResult(t *testing.T) {
+	for _, testCase := range []struct {
+		name       string
+		isError    bool
+		wantStatus string
+	}{
+		{name: "completed", wantStatus: "completed"},
+		{name: "failed", isError: true, wantStatus: "failed"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			messages := []protocol.Message{
+				{
+					"content": []any{
+						map[string]any{
+							"type":        "task_progress",
+							"task_id":     "agent-child-1",
+							"tool_use_id": "call-agent",
+							"agent_id":    "agent-child-1",
+							"agent_type":  "Explore",
+							"description": "调研产品规格",
+							"status":      "running",
+						},
+					},
+					"round_id":  "round-1",
+					"role":      "assistant",
+					"timestamp": int64(1000),
+				},
+				{
+					"content": []any{
+						map[string]any{
+							"type":        "tool_result",
+							"tool_use_id": "call-agent",
+							"is_error":    testCase.isError,
+						},
+					},
+					"round_id":  "round-1",
+					"role":      "assistant",
+					"timestamp": int64(2000),
+				},
+			}
+
+			tasks := buildSubagentTasks("agent:host:ws:dm:test", messages)
+			if len(tasks) != 1 {
+				t.Fatalf("len(tasks) = %d, want 1", len(tasks))
+			}
+			if tasks[0].Status != testCase.wantStatus || tasks[0].UpdatedAt != 2000 {
+				t.Fatalf("task = %+v, want status %s at 2000", tasks[0], testCase.wantStatus)
+			}
+		})
 	}
 }
 
@@ -315,6 +370,84 @@ func TestBuildSubagentTasksExcludesLocalShellBackgroundTasks(t *testing.T) {
 	}
 }
 
+func TestReadSubagentTaskThreadUsesIndependentAgentTranscript(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	ownerUserID := "owner-subagent-thread"
+	workspacePath := filepath.Join(
+		appfs.UserWorkspaceRootAt(stateRoot, ownerUserID),
+		"host-agent",
+	)
+	if err := os.MkdirAll(workspacePath, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	childSessionID := "agent-100a6a9587387094a687c45764874d8c"
+	projectDir := filepath.Join(
+		appfs.UserRuntimeRootAt(stateRoot, ownerUserID),
+		"projects",
+		workspacestore.TranscriptProjectDirectoryName(workspacePath),
+	)
+	if err := os.MkdirAll(projectDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	transcript := "" +
+		`{"type":"user","uuid":"child-user","parentUuid":null,"sessionId":"` + childSessionID + `","timestamp":"2026-07-28T07:34:00Z","message":{"role":"user","content":"检查上下文文件"}}` + "\n" +
+		`{"type":"assistant","uuid":"child-assistant-tool","parentUuid":"child-user","sessionId":"` + childSessionID + `","timestamp":"2026-07-28T07:34:01Z","message":{"role":"assistant","id":"child-message","model":"glm","content":[{"type":"thinking","thinking":"先读取配置"},{"type":"tool_use","id":"read-1","name":"Read","input":{"file_path":"AGENTS.md"}}],"stop_reason":"tool_use"}}` + "\n" +
+		`{"type":"user","uuid":"child-tool-result","parentUuid":"child-assistant-tool","sessionId":"` + childSessionID + `","timestamp":"2026-07-28T07:34:02Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"read-1","content":"项目约束"}]}}` + "\n" +
+		`{"type":"assistant","uuid":"child-assistant-final","parentUuid":"child-tool-result","sessionId":"` + childSessionID + `","timestamp":"2026-07-28T07:34:03Z","message":{"role":"assistant","id":"child-message-final","model":"glm","content":[{"type":"text","text":"已读取并继续调研"}],"stop_reason":"end_turn"}}` + "\n"
+	if err := os.WriteFile(
+		filepath.Join(projectDir, childSessionID+".jsonl"),
+		[]byte(transcript),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	service := &Service{
+		history: workspacestore.NewAgentHistoryStore(appfs.UsersRoot()),
+	}
+	messages, outputIsTranscript, err := service.readSubagentTaskThreadAtOwner(
+		ownerUserID,
+		true,
+		SubagentTask{
+			TaskID:      childSessionID,
+			SessionKey:  "agent:host-agent:ws:dm:conversation-1",
+			AgentID:     childSessionID,
+			HostAgentID: "host-agent",
+		},
+		workspacePath,
+	)
+	if err != nil {
+		t.Fatalf("readSubagentTaskThreadAtOwner() error = %v", err)
+	}
+	if !outputIsTranscript || len(messages) < 2 {
+		t.Fatalf("独立 Agent transcript 未投影成普通线程: used=%v messages=%+v", outputIsTranscript, messages)
+	}
+	messages = subagentTaskOutputMessages(messages)
+	for _, message := range messages {
+		if message["role"] == "user" {
+			t.Fatalf("子 Agent 详情不应显示父 Agent 输入: %+v", messages)
+		}
+	}
+	content, err := json.Marshal(messages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`"thinking":"先读取配置"`,
+		`"name":"Read"`,
+		`"type":"tool_result"`,
+		`"text":"已读取并继续调研"`,
+	} {
+		if !strings.Contains(string(content), want) {
+			t.Fatalf("独立 Agent thread 缺少 %s: %s", want, content)
+		}
+	}
+	if strings.Contains(string(content), "检查上下文文件") {
+		t.Fatalf("子 Agent thread 泄露父 Agent 任务提示: %s", content)
+	}
+}
+
 func TestReadSubagentTaskThreadUsesCCOutputSymlinkAsTranscript(t *testing.T) {
 	root := t.TempDir()
 	transcriptPath := filepath.Join(root, "child.jsonl")
@@ -345,8 +478,9 @@ func TestReadSubagentTaskThreadUsesCCOutputSymlinkAsTranscript(t *testing.T) {
 	if !outputIsTranscript || len(messages) != 2 {
 		t.Fatalf("CC output_file 未投影成富消息: used=%v messages=%+v", outputIsTranscript, messages)
 	}
-	if messages[0]["role"] != "user" || messages[len(messages)-1]["role"] != "assistant" {
-		t.Fatalf("CC thread 角色序列不正确: %+v", messages)
+	messages = subagentTaskOutputMessages(messages)
+	if len(messages) != 1 || messages[0]["role"] != "assistant" {
+		t.Fatalf("CC thread 应只保留子 Agent 输出: %+v", messages)
 	}
 	content, err := json.Marshal(messages[len(messages)-1]["content"])
 	if err != nil ||

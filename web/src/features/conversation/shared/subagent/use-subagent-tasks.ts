@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { listSubagentTasksApi } from "@/lib/api/conversation/subagent-task-api";
 import type {
@@ -10,8 +10,8 @@ import type {
 } from "@/types/conversation/subagent-task";
 
 import {
-  isSubagentTaskActive,
   normalizeSubagentTaskListResponse,
+  shouldPollSubagentTaskList,
   SUBAGENT_TASK_POLL_INTERVAL_MS,
   subagentTaskErrorMessage,
   subagentTaskSourceKey,
@@ -100,20 +100,17 @@ export function useSubagentTasks(
   }, [invalidateRequests, refresh, scopeKey]);
 
   const tasks = snapshot.data?.items ?? EMPTY_TASKS;
-  const hasRunningTasks = useMemo(
-    () => tasks.some(isSubagentTaskActive),
-    [tasks],
-  );
+  const pollingEnabled = shouldPollSubagentTaskList(scopeKey);
 
   useEffect(() => {
-    if (!scopeKey || !hasRunningTasks) {
+    if (!pollingEnabled) {
       return undefined;
     }
     const intervalId = window.setInterval(() => {
       void refresh(true);
     }, SUBAGENT_TASK_POLL_INTERVAL_MS);
     return () => window.clearInterval(intervalId);
-  }, [hasRunningTasks, refresh, scopeKey]);
+  }, [pollingEnabled, refresh]);
 
   return {
     data: snapshot.data,

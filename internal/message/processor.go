@@ -100,6 +100,7 @@ type messageHandler func(*Processor, sdkprotocol.ReceivedMessage, Output) Output
 var messageHandlers = map[sdkprotocol.MessageType]messageHandler{
 	sdkprotocol.MessageTypeStreamEvent:      handleStreamEvent,
 	sdkprotocol.MessageTypeAssistant:        handleAssistant,
+	sdkprotocol.MessageTypeAttachment:       handleAttachment,
 	sdkprotocol.MessageTypeSystem:           handleSystem,
 	sdkprotocol.MessageTypeResult:           handleResult,
 	sdkprotocol.MessageTypeTaskStarted:      handleTaskStarted,
@@ -138,6 +139,10 @@ func handleAssistant(p *Processor, message sdkprotocol.ReceivedMessage, output O
 	output.DurableMessages = append(output.DurableMessages, *durable)
 	output.AssistantCompleted = (*durable)["is_complete"] == true
 	return output
+}
+
+func handleAttachment(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
+	return appendDurableMessage(output, p.processSubagentAttachmentMessage(message))
 }
 
 func handleSystem(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
