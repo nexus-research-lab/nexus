@@ -9,6 +9,9 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
+// undeployWorkspaceLocalSkillAt 删除 Agent 明确要求移除的本地 Skill。
+//
+// 普通启停不会调用这里；DELETE 兼容入口才会真正删除 workspace 文件。
 func undeployWorkspaceLocalSkillAt(
 	root *confinedfs.Root,
 	workspacePath string,
@@ -45,7 +48,10 @@ func undeployWorkspaceLocalSkillAt(
 		}
 		seen[trimmedName] = struct{}{}
 		if sourceUnderAgents {
-			linkPath, relativeErr := filepath.Rel(workspaceRoot, filepath.Join(claudeSkillsRoot, trimmedName))
+			linkPath, relativeErr := filepath.Rel(
+				workspaceRoot,
+				filepath.Join(claudeSkillsRoot, trimmedName),
+			)
 			if relativeErr != nil {
 				return relativeErr
 			}

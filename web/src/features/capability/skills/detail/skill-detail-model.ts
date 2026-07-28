@@ -34,6 +34,7 @@ export interface SkillDetailPresentation {
   icon: "lock" | "puzzle";
   iconClassName: string;
   readmeMarkdown: string;
+  scope: SkillInfo["scope"];
   sourceUrl: string | null;
 }
 
@@ -55,7 +56,7 @@ const SKILL_SOURCE_PRESENTATION: Record<
   },
   workspace: {
     iconClassName: "text-(--icon-default)",
-    label: "工作区技能",
+    label: "Agent 本地",
   },
 };
 
@@ -67,6 +68,12 @@ function getSkillSourcePresentation(skill: SkillInfo): SkillSourcePresentation {
     if (skill.source_kind === "user_global") {
       return { iconClassName: "text-(--status-info-soft-text)", label: "用户全局 Skill" };
     }
+  }
+  if (skill.origin_kind === "marketplace") {
+    return { iconClassName: "text-(--status-info-soft-text)", label: "第三方市场" };
+  }
+  if (skill.origin_kind === "user_import") {
+    return { iconClassName: "text-(--status-info-soft-text)", label: "用户导入" };
   }
   return SKILL_SOURCE_PRESENTATION[skill.source_type];
 }
@@ -105,6 +112,11 @@ export function buildSkillDetailPresentation(
   const lock = SKILL_LOCK_PRESENTATION[String(skill.locked) as "false" | "true"];
   const displayName = skill.title || skill.name;
   const optionalFlagBadges: Array<SkillDetailBadge | false> = [
+    skill.scope === "room" && {
+      key: "room",
+      label: "Room 专用",
+      tone: "default" as const,
+    },
     skill.has_update && {
       key: "update",
       label: "有更新",
@@ -142,6 +154,7 @@ export function buildSkillDetailPresentation(
     icon: lock.icon,
     iconClassName: lock.iconClassName || source.iconClassName,
     readmeMarkdown: skill.readme_markdown,
+    scope: skill.scope,
     sourceUrl: getHttpSourceUrl(skill.source_ref),
   };
 }

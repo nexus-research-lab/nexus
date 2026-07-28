@@ -17,16 +17,17 @@ type Scanner interface {
 // ScanAgent 把 Agent/Profile/Runtime 联表结果解码成协议模型。
 func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 	var (
-		item                protocol.Agent
-		vibeTagsJSON        string
-		allowedToolsJSON    string
-		disallowedToolsJSON string
-		mcpServersJSON      string
-		skillIDsJSON        string
-		settingSourcesJSON  string
-		maxTurns            sql.NullInt64
-		maxThinkingTokens   sql.NullInt64
-		createdAt           time.Time
+		item                 protocol.Agent
+		vibeTagsJSON         string
+		allowedToolsJSON     string
+		disallowedToolsJSON  string
+		mcpServersJSON       string
+		skillIDsJSON         string
+		disabledSkillIDsJSON string
+		settingSourcesJSON   string
+		maxTurns             sql.NullInt64
+		maxThinkingTokens    sql.NullInt64
+		createdAt            time.Time
 	)
 
 	err := scanner.Scan(
@@ -50,6 +51,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 		&disallowedToolsJSON,
 		&mcpServersJSON,
 		&skillIDsJSON,
+		&disabledSkillIDsJSON,
 		&maxTurns,
 		&maxThinkingTokens,
 		&settingSourcesJSON,
@@ -64,6 +66,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 	item.Options.DisallowedTools = jsoncodec.ParseStringSlice(disallowedToolsJSON)
 	item.Options.MCPServers = jsoncodec.ParseMap(mcpServersJSON)
 	item.Options.SkillIDs = jsoncodec.ParseStringSlice(skillIDsJSON)
+	item.Options.DisabledSkillIDs = jsoncodec.ParseStringSlice(disabledSkillIDsJSON)
 	item.Options.SettingSources = jsoncodec.ParseStringSlice(settingSourcesJSON)
 	if maxTurns.Valid {
 		value := int(maxTurns.Int64)

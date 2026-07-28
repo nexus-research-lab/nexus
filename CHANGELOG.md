@@ -16,11 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a bundled Python-based `wechat-article-search` Skill with documented Requests/Beautiful Soup dependencies, optional direct-link resolution, deterministic offline parsing tests, and WebSearch/WebFetch fallback guidance.
 - Improved Windows and macOS desktop updates with launch-time checks, automatic four-hour refreshes, sidebar availability indicators, and live installer download progress.
 - Made Room hosts assess task complexity, separable work, and member fit before substantial execution, prefer meaningful collaboration, and avoid duplicating work after delegating while retaining direct handling for small, atomic, or unsuitable-for-delegation tasks.
+- Unified the Skill catalog as a user-global source inventory with source/origin metadata, Agent usage counts, and per-Agent atomic enable switches, while keeping workspace Skills private to their owning Agent, default-enabled, and safely disableable without deleting files.
 
 ### Fixed
 
 - Fixed `nexusctl` treating an owner's `runtime` directory and current Agent workspace as host-level state roots after the owner-scoped layout change.
 - Updated the bundled `nexus-manager` Skill with the owner-scoped directory layout, CLI root-resolution rules, and enforce-mode control-plane boundary.
+- Fixed Agent Skill bindings being overwritten by stale editor snapshots, and aligned nxs/Claude runtime discovery so project Skills remain dynamically discoverable while explicit Agent disables are enforced.
+- Kept Agent workspace Skills visible only in their owning Agent's settings with a clear local-source badge, while limiting desktop global discovery to the standard `~/.agents/skills` directory.
 - Closed Room Thread thinking indicators when an Agent intentionally returns no public reply, using the precise terminal Agent round status even though the final assistant output is suppressed.
 - Allowed Room hosts to fan out intentionally separated parallel work to multiple Agents while retaining single-target behavior for candidate and first-responder mentions.
 - Kept Room thinking blocks available in Thread while hiding them from public Agent cards and completed Room replies.

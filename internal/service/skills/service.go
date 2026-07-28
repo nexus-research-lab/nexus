@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -25,7 +24,7 @@ var (
 	ErrLocalPathImportUnavailable = errors.New("authenticated deployment requires archive upload instead of local_path")
 )
 
-// Service 提供技能目录、安装与卸载能力。
+// Service 提供全局技能库、Agent 启停与外部来源管理能力。
 type Service struct {
 	config        config.Config
 	agents        *agentsvc.Service
@@ -67,7 +66,7 @@ func (s *Service) openAgentWorkspace(
 
 // ListSkills 返回公开 skill 目录。
 func (s *Service) ListSkills(ctx context.Context, query Query) ([]Info, error) {
-	records, installedNames, isMainAgent, err := s.catalogWithAgentState(ctx, strings.TrimSpace(query.AgentID))
+	records, enabledNames, isMainAgent, err := s.catalogWithAgentState(ctx, strings.TrimSpace(query.AgentID))
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +77,7 @@ func (s *Service) ListSkills(ctx context.Context, query Query) ([]Info, error) {
 		if !skillVisibleForQuery(detail.Scope, query.Scope, query.AgentID, isMainAgent) {
 			continue
 		}
-		detail.Installed = installedNames[detail.Name]
+		detail.EnabledForAgent = enabledNames[detail.Name]
 		if query.CategoryKey != "" && detail.CategoryKey != query.CategoryKey {
 			continue
 		}
@@ -101,7 +100,7 @@ func (s *Service) ListSkills(ctx context.Context, query Query) ([]Info, error) {
 
 // CountSkills 返回符合查询条件的技能数量。
 func (s *Service) CountSkills(ctx context.Context, query Query) (int, error) {
-	records, installedNames, isMainAgent, err := s.catalogWithAgentState(ctx, strings.TrimSpace(query.AgentID))
+	records, enabledNames, isMainAgent, err := s.catalogWithAgentState(ctx, strings.TrimSpace(query.AgentID))
 	if err != nil {
 		return 0, err
 	}
@@ -112,7 +111,7 @@ func (s *Service) CountSkills(ctx context.Context, query Query) (int, error) {
 		if !skillVisibleForQuery(detail.Scope, query.Scope, query.AgentID, isMainAgent) {
 			continue
 		}
-		detail.Installed = installedNames[detail.Name]
+		detail.EnabledForAgent = enabledNames[detail.Name]
 		if query.CategoryKey != "" && detail.CategoryKey != query.CategoryKey {
 			continue
 		}
@@ -129,11 +128,11 @@ func (s *Service) CountSkills(ctx context.Context, query Query) (int, error) {
 
 // GetSkillDetail 返回单个 skill 详情。
 func (s *Service) GetSkillDetail(ctx context.Context, skillName string, agentID string) (*Detail, error) {
-	records, installedNames, isMainAgent, err := s.catalogWithAgentState(ctx, strings.TrimSpace(agentID))
+	records, enabledNames, isMainAgent, err := s.catalogWithAgentState(ctx, strings.TrimSpace(agentID))
 	if err != nil {
 		return nil, err
 	}
-	record, ok := records[strings.TrimSpace(skillName)]
+	record, ok := findCatalogRecord(records, skillName)
 	if !ok {
 		return nil, errors.New("skill not found")
 	}
@@ -144,13 +143,79 @@ func (s *Service) GetSkillDetail(ctx context.Context, skillName string, agentID 
 	if detail.Scope == scopeRoom && agentID != "" {
 		return nil, errors.New("skill not found")
 	}
-	detail.Installed = installedNames[detail.Name]
+	detail.EnabledForAgent = enabledNames[detail.Name]
 	return &detail, nil
 }
 
 // GetAgentSkills 返回 Agent 可见的技能列表。
 func (s *Service) GetAgentSkills(ctx context.Context, agentID string) ([]Info, error) {
 	return s.ListSkills(ctx, Query{AgentID: agentID})
+}
+
+// ListSkillAgents 返回 Skill 在当前用户各 Agent 上的启用状态。
+func (s *Service) ListSkillAgents(ctx context.Context, skillName string) ([]AgentSkillBinding, error) {
+	records, err := s.loadCatalogRecords(ctx)
+	if err != nil {
+		return nil, err
+	}
+	record, ok := findCatalogRecord(records, skillName)
+	if !ok {
+		return nil, errors.New("skill not found")
+	}
+	if s.agents == nil {
+		return []AgentSkillBinding{}, nil
+	}
+	agents, err := s.agents.ListAgentRecords(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]AgentSkillBinding, 0, len(agents))
+	for index := range agents {
+		agentValue := &agents[index]
+		available := skillAvailableForAgent(record, agentValue)
+		enabled := skillEnabledForAgent(agentValue, record.Detail.Name)
+		if !available && record.Detail.SourceType != sourceTypeSystem {
+			enabled = false
+		}
+		result = append(result, AgentSkillBinding{
+			AgentID:   agentValue.AgentID,
+			AgentName: agentValue.Name,
+			IsMain:    agentValue.IsMain,
+			Available: available,
+			Enabled:   enabled,
+		})
+	}
+	slices.SortFunc(result, func(left AgentSkillBinding, right AgentSkillBinding) int {
+		if left.IsMain != right.IsMain {
+			if left.IsMain {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Compare(left.AgentName, right.AgentName)
+	})
+	return result, nil
+}
+
+func skillAvailableForAgent(record catalogRecord, agentValue *protocol.Agent) bool {
+	if agentValue == nil ||
+		record.Detail.SourceType == sourceTypeSystem ||
+		record.Detail.Scope == scopeRoom {
+		return false
+	}
+	return record.Detail.Scope != scopeMain || agentValue.IsMain
+}
+
+func skillEnabledForAgent(agentValue *protocol.Agent, skillName string) bool {
+	if agentValue == nil {
+		return false
+	}
+	for _, reference := range agentValue.Options.SkillIDs {
+		if skillReferenceMatches(reference, skillName) {
+			return true
+		}
+	}
+	return false
 }
 
 func skillVisibleForQuery(scope string, queryScope string, agentID string, isMainAgent bool) bool {
@@ -168,51 +233,19 @@ func skillVisibleForQuery(scope string, queryScope string, agentID string, isMai
 	return normalizedScope != scopeMain || isMainAgent
 }
 
-// InstallSkill 为 Agent 部署 skill。
+// InstallSkill 保留旧调用入口；语义等同于启用全局 Skill。
 func (s *Service) InstallSkill(ctx context.Context, agentID string, skillName string) (*Info, error) {
-	agentValue, err := s.ensureAgent(ctx, agentID)
-	if err != nil {
-		return nil, err
-	}
-	records, _, isMainAgent, err := s.catalogWithAgentState(ctx, agentID)
-	if err != nil {
-		return nil, err
-	}
-	record, ok := records[strings.TrimSpace(skillName)]
-	if !ok {
-		return nil, errors.New("skill not found")
-	}
-	if record.Detail.SourceType == sourceTypeSystem {
-		return nil, errors.New("系统托管 skill 不能手动安装")
-	}
-	if record.Detail.SourceType == sourceTypeWorkspace {
-		return nil, errors.New("智能体工作区内 skill 不能从技能市场安装")
-	}
-	if record.Detail.Scope == scopeMain && !isMainAgent {
-		return nil, errors.New("该 skill 仅允许主智能体安装")
-	}
-	if record.Detail.Scope == scopeRoom {
-		return nil, errors.New("room scope skill 不能安装到 agent")
-	}
-	if isPlatformSkill(record) {
-		if err = s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), true); err != nil {
-			return nil, err
-		}
-	} else if record.Detail.SourceType == sourceTypeExternal {
-		if err = s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), true); err != nil {
-			return nil, err
-		}
-	} else if err = s.deploySkillToWorkspace(agentValue, record); err != nil {
-		return nil, err
-	}
-	detail, err := s.GetSkillDetail(ctx, skillName, agentID)
-	if err != nil {
-		return nil, err
-	}
-	return &detail.Info, nil
+	return s.SetAgentSkillEnabledInScope(
+		ctx,
+		agentID,
+		skillName,
+		true,
+		AgentSkillTargetGlobalLibrary,
+	)
 }
 
-// UninstallSkill 从 Agent 卸载 skill。
+// UninstallSkill 保留旧 DELETE 入口；全局 Skill 只解除 Agent 绑定，
+// Agent 本地 Skill 才会在显式 DELETE 时删除 workspace 文件。
 func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName string) error {
 	agentValue, err := s.ensureAgent(ctx, agentID)
 	if err != nil {
@@ -222,12 +255,12 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 	if err != nil {
 		return err
 	}
-	record, ok := records[strings.TrimSpace(skillName)]
+	record, ok := findCatalogRecord(records, skillName)
 	if !ok {
 		return errors.New("skill not found")
 	}
 	if record.Detail.SourceType == sourceTypeSystem {
-		return errors.New("系统托管 skill 不能手动卸载")
+		return errors.New("系统托管 skill 不能删除")
 	}
 	if record.Detail.SourceType == sourceTypeWorkspace {
 		workspaceRoot, openErr := s.openAgentWorkspace(agentValue)
@@ -235,54 +268,155 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 			return openErr
 		}
 		defer workspaceRoot.Close()
-		return undeployWorkspaceLocalSkillAt(
+		if err = undeployWorkspaceLocalSkillAt(
 			workspaceRoot,
 			agentValue.WorkspacePath,
 			record,
+		); err != nil {
+			return err
+		}
+		// DELETE 代表移除本地文件；同步清掉仅针对该本地 Skill 的停用项，
+		// 避免文件删除后留下无法解释的 Agent 状态。
+		disabled, changed := removeSkillReferences(
+			agentValue.Options.DisabledSkillIDs,
+			record.Detail.Name,
 		)
-	}
-	if isPlatformSkill(record) {
-		return s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), false)
-	}
-	if record.Detail.SourceType == sourceTypeExternal {
-		return s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), false)
-	}
-	workspaceRoot, err := s.openAgentWorkspace(agentValue)
-	if err != nil {
+		if !changed {
+			return nil
+		}
+		_, err = s.agents.UpdateAgentSkillSelection(
+			ctx,
+			agentValue.AgentID,
+			agentValue.Options.SkillIDs,
+			disabled,
+		)
 		return err
 	}
-	defer workspaceRoot.Close()
-	return workspacesvc.UndeploySkillAt(workspaceRoot, record.Detail.Name)
+	_, err = s.SetAgentSkillEnabledInScope(
+		ctx,
+		agentID,
+		record.Detail.Name,
+		false,
+		AgentSkillTargetGlobalLibrary,
+	)
+	return err
 }
 
-func isPlatformSkill(record catalogRecord) bool {
+// SetAgentSkillEnabled 更新单个 Agent 的技能开关，不删除工作区文件。
+func (s *Service) SetAgentSkillEnabled(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+	enabled bool,
+) (*Info, error) {
+	return s.SetAgentSkillEnabledInScope(ctx, agentID, skillName, enabled, "")
+}
+
+// SetAgentSkillEnabledInScope 更新指定来源作用域的 Agent Skill 开关。
+//
+// 全局详情必须显式传 global_library，避免同名 Agent 本地 Skill 覆盖全局记录；
+// Agent 设置页则按卡片来源传入 global_library 或 agent_workspace。
+func (s *Service) SetAgentSkillEnabledInScope(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+	enabled bool,
+	targetScope AgentSkillTargetScope,
+) (*Info, error) {
+	agentValue, err := s.ensureAgent(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	record, err := s.resolveAgentSkillTarget(ctx, agentID, skillName, targetScope)
+	if err != nil {
+		return nil, err
+	}
 	if record.Detail.SourceType == sourceTypeSystem {
-		return true
+		return nil, errors.New("系统托管 skill 不能手动切换")
 	}
-	if record.Detail.SourceType != sourceTypeBuiltin {
-		return false
+	if record.Detail.Scope == scopeMain && !agentValue.IsMain {
+		return nil, errors.New("该 skill 仅允许主智能体使用")
 	}
-	if record.Detail.SourceKind != "" && record.Detail.SourceKind != sourceKindNexusPlatform {
-		return false
+	if record.Detail.Scope == scopeRoom {
+		return nil, errors.New("room scope skill 不能绑定到 agent")
 	}
-	platformSourceRoot := filepath.Join(appfs.Root(), "skills")
-	relative, err := filepath.Rel(platformSourceRoot, record.SourcePath)
-	if err != nil || relative == "." {
-		return false
+	workspaceLocal := record.Detail.SourceType == sourceTypeWorkspace
+	reference := record.Detail.Name
+	if !workspaceLocal {
+		reference = skillReference(record)
 	}
-	return relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+	if err = s.setAgentSkillEnabled(ctx, agentValue, reference, enabled, workspaceLocal); err != nil {
+		return nil, err
+	}
+	if targetScope == AgentSkillTargetGlobalLibrary {
+		info := record.Detail.Info
+		info.EnabledForAgent = enabled
+		return &info, nil
+	}
+	detail, err := s.GetSkillDetail(ctx, record.Detail.Name, agentID)
+	if err != nil {
+		return nil, err
+	}
+	return &detail.Info, nil
 }
 
-func (s *Service) setAgentSkillEnabled(ctx context.Context, agentValue *protocol.Agent, skillName string, enabled bool) error {
+func (s *Service) resolveAgentSkillTarget(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+	targetScope AgentSkillTargetScope,
+) (catalogRecord, error) {
+	var (
+		records map[string]catalogRecord
+		err     error
+	)
+	switch targetScope {
+	case AgentSkillTargetGlobalLibrary:
+		records, err = s.loadCatalogRecords(ctx)
+	case AgentSkillTargetWorkspace, "":
+		records, _, _, err = s.catalogWithAgentState(ctx, agentID)
+	default:
+		return catalogRecord{}, errors.New("skill target_scope 无效")
+	}
+	if err != nil {
+		return catalogRecord{}, err
+	}
+	record, ok := findCatalogRecord(records, skillName)
+	if !ok {
+		return catalogRecord{}, errors.New("skill not found")
+	}
+	if targetScope == AgentSkillTargetWorkspace &&
+		record.Detail.SourceType != sourceTypeWorkspace {
+		return catalogRecord{}, errors.New("Agent 本地 skill 不存在")
+	}
+	if targetScope == AgentSkillTargetGlobalLibrary &&
+		record.Detail.SourceType == sourceTypeWorkspace {
+		return catalogRecord{}, errors.New("全局 skill 不存在")
+	}
+	return record, nil
+}
+
+func (s *Service) setAgentSkillEnabled(
+	ctx context.Context,
+	agentValue *protocol.Agent,
+	skillName string,
+	enabled bool,
+	workspaceLocal bool,
+) error {
 	if agentValue == nil {
 		return errors.New("agent 不能为空")
+	}
+	if s.agents == nil {
+		return errors.New("agent service 未初始化")
 	}
 	name := strings.TrimSpace(skillName)
 	if name == "" {
 		return errors.New("skill 名称不能为空")
 	}
 	selected := make([]string, 0, len(agentValue.Options.SkillIDs)+1)
+	disabled := make([]string, 0, len(agentValue.Options.DisabledSkillIDs)+1)
 	seen := map[string]struct{}{}
+	disabledSeen := map[string]struct{}{}
 	canonicalName := name
 	if externalName, ok := protocol.ParseExternalSkillReference(name); ok {
 		canonicalName = externalName
@@ -292,27 +426,45 @@ func (s *Service) setAgentSkillEnabled(ctx context.Context, agentValue *protocol
 		if current == "" {
 			continue
 		}
-		if enabled && skillReferenceMatches(current, canonicalName) {
+		if !workspaceLocal && skillReferenceMatches(current, canonicalName) {
+			if !enabled {
+				continue
+			}
 			current = name
 		}
 		key := strings.ToLower(current)
-		if !enabled && skillReferenceMatches(current, canonicalName) {
-			continue
-		}
 		if _, exists := seen[key]; exists {
 			continue
 		}
 		seen[key] = struct{}{}
 		selected = append(selected, current)
 	}
-	if enabled {
+	for _, current := range agentValue.Options.DisabledSkillIDs {
+		current = strings.TrimSpace(current)
+		if current == "" {
+			continue
+		}
+		if workspaceLocal && skillReferenceMatches(current, canonicalName) {
+			continue
+		}
+		key := strings.ToLower(current)
+		if _, exists := disabledSeen[key]; exists {
+			continue
+		}
+		disabledSeen[key] = struct{}{}
+		disabled = append(disabled, current)
+	}
+	if enabled && !workspaceLocal {
 		if _, exists := seen[strings.ToLower(name)]; !exists {
 			selected = append(selected, name)
 		}
 	}
-	options := agentValue.Options
-	options.SkillIDs = selected
-	_, err := s.agents.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{Options: &options})
+	if !enabled && workspaceLocal {
+		if _, exists := disabledSeen[strings.ToLower(canonicalName)]; !exists {
+			disabled = append(disabled, canonicalName)
+		}
+	}
+	_, err := s.agents.UpdateAgentSkillSelection(ctx, agentValue.AgentID, selected, disabled)
 	return err
 }
 
@@ -343,7 +495,7 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 	if err != nil {
 		return err
 	}
-	record, ok := records[strings.TrimSpace(skillName)]
+	record, ok := findCatalogRecord(records, skillName)
 	if !ok {
 		return errors.New("skill not found")
 	}
@@ -356,11 +508,17 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 	}
 	for index := range agents {
 		agentValue := agents[index]
-		selected, changed := removeSkillReferences(agentValue.Options.SkillIDs, record.Detail.Name)
-		if changed {
-			options := agentValue.Options
-			options.SkillIDs = selected
-			if _, err = s.agents.UpdateAgent(ctx, agentValue.AgentID, protocol.UpdateRequest{Options: &options}); err != nil {
+		selected, selectedChanged := removeSkillReferences(
+			agentValue.Options.SkillIDs,
+			record.Detail.Name,
+		)
+		if selectedChanged {
+			if _, err = s.agents.UpdateAgentSkillSelection(
+				ctx,
+				agentValue.AgentID,
+				selected,
+				agentValue.Options.DisabledSkillIDs,
+			); err != nil {
 				return err
 			}
 		}

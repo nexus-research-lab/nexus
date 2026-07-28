@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage"
@@ -142,8 +143,8 @@ VALUES (`+r.dialect.BindList(3)+`, NULL, `+r.dialect.Bind(4)+`, `+r.dialect.Bind
 	if _, err = tx.ExecContext(ctx, `
 INSERT INTO runtimes (
     id, agent_id, provider, model, permission_mode, allowed_tools_json, disallowed_tools_json,
-    mcp_servers_json, skill_ids_json, max_turns, max_thinking_tokens, setting_sources_json, runtime_version
-) VALUES (`+r.dialect.BindList(13)+`)`,
+    mcp_servers_json, skill_ids_json, disabled_skill_ids_json, max_turns, max_thinking_tokens, setting_sources_json, runtime_version
+) VALUES (`+r.dialect.BindList(14)+`)`,
 		record.RuntimeID,
 		record.AgentID,
 		nullIfEmpty(record.Provider),
@@ -153,6 +154,7 @@ INSERT INTO runtimes (
 		record.DisallowedToolsJSON,
 		record.MCPServersJSON,
 		record.SkillIDsJSON,
+		record.DisabledSkillIDsJSON,
 		record.MaxTurns,
 		record.MaxThinkingTokens,
 		record.SettingSourcesJSON,
@@ -212,7 +214,7 @@ WHERE agent_id = `+r.dialect.Bind(2),
 	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
 UPDATE runtimes
 SET provider = %s, model = %s, permission_mode = %s, allowed_tools_json = %s, disallowed_tools_json = %s,
-    mcp_servers_json = %s, skill_ids_json = %s, max_turns = %s, max_thinking_tokens = %s, setting_sources_json = %s, updated_at = %s
+    mcp_servers_json = %s, skill_ids_json = %s, disabled_skill_ids_json = %s, max_turns = %s, max_thinking_tokens = %s, setting_sources_json = %s, updated_at = %s
 WHERE agent_id = %s`,
 		r.dialect.Bind(1),
 		r.dialect.Bind(2),
@@ -224,8 +226,9 @@ WHERE agent_id = %s`,
 		r.dialect.Bind(8),
 		r.dialect.Bind(9),
 		r.dialect.Bind(10),
-		r.dialect.CurrentTimestamp(),
 		r.dialect.Bind(11),
+		r.dialect.CurrentTimestamp(),
+		r.dialect.Bind(12),
 	),
 		nullIfEmpty(record.Provider),
 		nullIfEmpty(record.Model),
@@ -234,6 +237,7 @@ WHERE agent_id = %s`,
 		record.DisallowedToolsJSON,
 		record.MCPServersJSON,
 		record.SkillIDsJSON,
+		record.DisabledSkillIDsJSON,
 		record.MaxTurns,
 		record.MaxThinkingTokens,
 		record.SettingSourcesJSON,
@@ -246,6 +250,44 @@ WHERE agent_id = %s`,
 		return nil, err
 	}
 	return r.GetAgent(ctx, record.AgentID, record.OwnerUserID)
+}
+
+// UpdateAgentSkillSelection 只更新技能绑定列，避免覆盖并发保存的其它 Agent 配置。
+func (r *SQLRepository) UpdateAgentSkillSelection(
+	ctx context.Context,
+	agentID string,
+	ownerUserID string,
+	skillIDsJSON string,
+	disabledSkillIDsJSON string,
+) (*protocol.Agent, error) {
+	query := fmt.Sprintf(`
+UPDATE runtimes
+SET skill_ids_json = %s,
+    disabled_skill_ids_json = %s,
+    updated_at = %s
+WHERE agent_id = %s`,
+		r.dialect.Bind(1),
+		r.dialect.Bind(2),
+		r.dialect.CurrentTimestamp(),
+		r.dialect.Bind(3),
+	)
+	args := []any{skillIDsJSON, disabledSkillIDsJSON, agentID}
+	if strings.TrimSpace(ownerUserID) != "" {
+		query += ` AND agent_id IN (SELECT id FROM agents WHERE owner_user_id = ` + r.dialect.Bind(4) + `)`
+		args = append(args, ownerUserID)
+	}
+	result, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, nil
+	}
+	return r.GetAgent(ctx, agentID, ownerUserID)
 }
 
 // DeleteAgent 删除 Agent 及其数据库依赖记录。
@@ -307,6 +349,7 @@ SELECT
     COALESCE(rt.disallowed_tools_json, '[]'),
     COALESCE(rt.mcp_servers_json, '{}'),
     COALESCE(rt.skill_ids_json, '[]'),
+    COALESCE(rt.disabled_skill_ids_json, '[]'),
     rt.max_turns,
     rt.max_thinking_tokens,
     COALESCE(rt.setting_sources_json, '[]')

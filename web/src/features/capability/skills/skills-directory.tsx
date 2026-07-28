@@ -102,6 +102,7 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
           <SkillDetailRoute
             deleteSkill={operations.deleteSkill}
             key={skillName}
+            onAgentBindingChanged={catalog.refresh}
             skillName={skillName}
             onBack={backToSkills}
             onDeleted={backToSkills}

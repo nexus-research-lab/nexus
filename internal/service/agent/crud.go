@@ -257,6 +257,68 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 	return update.run()
 }
 
+// UpdateAgentSkillSelection 原子更新 Agent 的技能启用与停用集合。
+//
+// 技能开关不再复用完整 Agent 更新快照，避免编辑器中的旧 options 覆盖刚完成
+// 的技能操作。
+func (s *Service) UpdateAgentSkillSelection(
+	ctx context.Context,
+	agentID string,
+	skillIDs []string,
+	disabledSkillIDs []string,
+) (*protocol.Agent, error) {
+	if err := s.EnsureReady(ctx); err != nil {
+		return nil, err
+	}
+	scopedOwnerID, _ := scopedOwnerUserID(ctx)
+	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID), scopedOwnerID)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil || existing.Status != "active" {
+		return nil, ErrAgentNotFound
+	}
+	updated, err := s.repository.UpdateAgentSkillSelection(
+		ctx,
+		existing.AgentID,
+		existing.OwnerUserID,
+		mustJSONString(normalizeStringList(skillIDs)),
+		mustJSONString(normalizeStringList(disabledSkillIDs)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return nil, ErrAgentNotFound
+	}
+	if err = s.ensureAgentRuntimeState(*updated); err != nil {
+		return nil, err
+	}
+	normalizeAgentAvatar(updated)
+	if err = s.enrichAgentWithSkillsCount(updated); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+func normalizeStringList(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			continue
+		}
+		key := strings.ToLower(normalized)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
+}
+
 type agentUpdate struct {
 	service     *Service
 	ctx         context.Context
@@ -311,23 +373,24 @@ func (u *agentUpdate) record() (agentrepo.UpdateRecord, error) {
 	}
 	options := u.updatedOptions()
 	return agentrepo.UpdateRecord{
-		AgentID:             u.existing.AgentID,
-		OwnerUserID:         u.ownerUserID,
-		Name:                name,
-		WorkspacePath:       u.existing.WorkspacePath,
-		Avatar:              updatedAgentText(u.existing.Avatar, u.request.Avatar),
-		Description:         updatedAgentText(u.existing.Description, u.request.Description),
-		VibeTagsJSON:        mustJSONString(u.updatedVibeTags()),
-		Provider:            options.Provider,
-		Model:               options.Model,
-		PermissionMode:      options.PermissionMode,
-		AllowedToolsJSON:    mustJSONString(options.AllowedTools),
-		DisallowedToolsJSON: mustJSONString(options.DisallowedTools),
-		MCPServersJSON:      mustJSONString(options.MCPServers),
-		SkillIDsJSON:        mustJSONString(options.SkillIDs),
-		MaxTurns:            options.MaxTurns,
-		MaxThinkingTokens:   options.MaxThinkingTokens,
-		SettingSourcesJSON:  mustJSONString(options.SettingSources),
+		AgentID:              u.existing.AgentID,
+		OwnerUserID:          u.ownerUserID,
+		Name:                 name,
+		WorkspacePath:        u.existing.WorkspacePath,
+		Avatar:               updatedAgentText(u.existing.Avatar, u.request.Avatar),
+		Description:          updatedAgentText(u.existing.Description, u.request.Description),
+		VibeTagsJSON:         mustJSONString(u.updatedVibeTags()),
+		Provider:             options.Provider,
+		Model:                options.Model,
+		PermissionMode:       options.PermissionMode,
+		AllowedToolsJSON:     mustJSONString(options.AllowedTools),
+		DisallowedToolsJSON:  mustJSONString(options.DisallowedTools),
+		MCPServersJSON:       mustJSONString(options.MCPServers),
+		SkillIDsJSON:         mustJSONString(options.SkillIDs),
+		DisabledSkillIDsJSON: mustJSONString(options.DisabledSkillIDs),
+		MaxTurns:             options.MaxTurns,
+		MaxThinkingTokens:    options.MaxThinkingTokens,
+		SettingSourcesJSON:   mustJSONString(options.SettingSources),
 	}, nil
 }
 

@@ -1,14 +1,11 @@
 import { Loader2, Lock } from "lucide-react";
 
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
-type SkillActionKind = "add" | "installed";
-
 interface AgentSkillCardProps {
-  actionKind: SkillActionKind;
   actionLabel: string;
   busy: boolean;
   commandBusy: boolean;
@@ -16,13 +13,12 @@ interface AgentSkillCardProps {
   skill: AgentSkillEntry;
 }
 
-const ACTION_TONE = {
-  add: "primary",
-  installed: "default",
-} as const;
+function isAgentWorkspaceSource(skill: AgentSkillEntry): boolean {
+  return skill.source_type === "workspace"
+    || skill.storage_scope === "agent_workspace";
+}
 
 export function AgentSkillCard({
-  actionKind,
   actionLabel,
   busy,
   commandBusy,
@@ -40,9 +36,9 @@ export function AgentSkillCard({
     },
     {
       key: "workspace",
-      label: t("agent_options.skills.agent_workspace_only"),
-      tone: "warning" as const,
-      visible: skill.source_type === "workspace",
+      label: t("agent_options.skills.agent_workspace_local"),
+      tone: "info" as const,
+      visible: isAgentWorkspaceSource(skill),
     },
     {
       key: "main",
@@ -83,17 +79,20 @@ export function AgentSkillCard({
           {t("agent_options.skills.enabled")}
         </UiBadge>
       ) : (
-        <UiButton
-          className="shrink-0 self-end sm:mt-auto sm:mb-auto sm:self-auto"
-          disabled={commandBusy}
-          onClick={() => onAction(skill)}
-          size="sm"
-          tone={ACTION_TONE[actionKind]}
-          type="button"
-          variant="surface"
-        >
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : actionLabel}
-        </UiButton>
+        <div className="flex shrink-0 items-center gap-2 self-end sm:mt-auto sm:mb-auto sm:self-auto">
+          {busy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-(--text-muted)" />
+          ) : (
+            <span className="text-xs text-(--text-muted)">{actionLabel}</span>
+          )}
+          <GlassSwitch
+            aria-label={`${actionLabel} ${skill.title || skill.name}`}
+            checked={skill.enabled_for_agent}
+            disabled={commandBusy}
+            onChange={() => onAction(skill)}
+            size="xs"
+          />
+        </div>
       )}
     </div>
   );

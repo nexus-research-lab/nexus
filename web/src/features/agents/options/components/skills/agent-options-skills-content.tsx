@@ -26,7 +26,7 @@ const EMPTY_AVAILABLE_MESSAGE_KEYS: Record<
   TranslationKey
 > = {
   catalog_empty: "agent_options.skills.empty_available",
-  no_addable: "agent_options.skills.empty_addable",
+  no_available: "agent_options.skills.empty_available_more",
   no_search_match: "agent_options.skills.empty_search",
 };
 
@@ -45,7 +45,7 @@ function SkillsSectionHeader({
   );
 }
 
-function InstalledSkillsSection({
+function EnabledSkillsSection({
   busySkillName,
   commandBusy,
   projection,
@@ -58,21 +58,20 @@ function InstalledSkillsSection({
   return (
     <section className="space-y-3.5">
       <SkillsSectionHeader
-        count={projection.installed.length}
-        title={t("agent_options.skills.installed")}
+        count={projection.enabled.length}
+        title={t("agent_options.skills.enabled_section")}
       />
-      {projection.installed.length === 0 ? (
+      {projection.enabled.length === 0 ? (
         <UiStateBlock
-          description={t("agent_options.skills.empty_installed")}
+          description={t("agent_options.skills.empty_enabled")}
           size="sm"
           variant="inset"
         />
       ) : (
         <div className="grid grid-cols-1 gap-2.5">
-          {projection.installed.map((skill) => (
+          {projection.enabled.map((skill) => (
             <AgentSkillCard
-              actionKind="installed"
-              actionLabel={t("agent_options.skills.remove")}
+              actionLabel={t("agent_options.skills.disable")}
               busy={busySkillName === skill.name}
               commandBusy={commandBusy}
               key={skill.name}
@@ -109,8 +108,8 @@ function AvailableSkillsSection({
   return (
     <section className="space-y-3.5">
       <SkillsSectionHeader
-        count={`${projection.visibleAddable.length}/${projection.addable.length}`}
-        title={t("agent_options.skills.add")}
+        count={`${projection.visibleAvailable.length}/${projection.available.length}`}
+        title={t("agent_options.skills.available_section")}
       />
       <UiSearchInput
         controlSize="md"
@@ -127,10 +126,9 @@ function AvailableSkillsSection({
         />
       ) : (
         <div className="grid grid-cols-1 gap-2.5">
-          {projection.visibleAddable.map((skill) => (
+          {projection.visibleAvailable.map((skill) => (
             <AgentSkillCard
-              actionKind="add"
-              actionLabel={t("agent_options.skills.add_button")}
+              actionLabel={t("agent_options.skills.enable")}
               busy={busySkillName === skill.name}
               commandBusy={commandBusy}
               key={skill.name}
@@ -169,7 +167,7 @@ export function AgentOptionsSkillsContent(
   }
   return (
     <>
-      <InstalledSkillsSection {...props} />
+      <EnabledSkillsSection {...props} />
       <AvailableSkillsSection {...props} />
     </>
   );

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -209,7 +210,7 @@ func RuntimeSkillNames(workspacePath string, selectedSkillIDs []string) ([]strin
 		return nil, err
 	}
 	defer root.Close()
-	return RuntimeSkillNamesAt(root, selectedSkillIDs)
+	return RuntimeSkillNamesAt(root, selectedSkillIDs, nil)
 }
 
 // RuntimeSkillNamesForAgent 从 owner 绑定的 workspace fd 读取运行时 Skill。
@@ -226,19 +227,113 @@ func RuntimeSkillNamesForAgent(
 		return nil, err
 	}
 	defer root.Close()
-	return RuntimeSkillNamesAt(root, agentValue.Options.SkillIDs)
+	return RuntimeSkillNamesAt(
+		root,
+		agentValue.Options.SkillIDs,
+		agentValue.Options.DisabledSkillIDs,
+	)
+}
+
+// RuntimeDisabledSkillNamesForAgent 构造运行时明确拒绝的 Skill 名称。
+//
+// 全局源对所有 Agent 可见，但只有绑定到当前 Agent 的名称可用；工作区 Skill
+// 则默认动态可见，仅在 Agent 显式停用后进入拒绝集合。
+func RuntimeDisabledSkillNamesForAgent(
+	cfg config.Config,
+	agentValue protocol.Agent,
+) ([]string, error) {
+	selected := normalizedSkillNameSet(agentValue.Options.SkillIDs)
+	explicitlyDisabled := normalizedSkillNameSet(agentValue.Options.DisabledSkillIDs)
+	enabledInWorkspace := maps.Clone(selected)
+	disabledByName := make(map[string]string)
+	addDisabled := func(reference string) {
+		name := canonicalRuntimeSkillName(reference)
+		key := strings.ToLower(name)
+		if key == "" {
+			return
+		}
+		if _, exists := disabledByName[key]; !exists {
+			disabledByName[key] = name
+		}
+	}
+	for _, reference := range agentValue.Options.DisabledSkillIDs {
+		addDisabled(reference)
+	}
+	// Agent workspace 内的本地 Skill 默认动态可见；先把未显式停用的名称
+	// 加入启用集合，避免后面的全局库扫描把同名本地 Skill 误判成“未绑定”。
+	workspaceRoot, workspaceErr := workspacestore.New(cfg.WorkspacePath).OpenOwnerWorkspacePath(
+		agentValue.OwnerUserID,
+		agentValue.WorkspacePath,
+		false,
+	)
+	if workspaceErr == nil {
+		deployedNames, listErr := ListDeployedSkillsAt(workspaceRoot)
+		closeErr := workspaceRoot.Close()
+		if listErr != nil {
+			return nil, listErr
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		for _, name := range deployedNames {
+			key := strings.ToLower(strings.TrimSpace(name))
+			if key == "" {
+				continue
+			}
+			if _, blocked := explicitlyDisabled[key]; blocked {
+				continue
+			}
+			enabledInWorkspace[key] = struct{}{}
+		}
+	} else if !os.IsNotExist(workspaceErr) {
+		return nil, workspaceErr
+	}
+	for _, root := range SkillLibraryRoots(cfg, agentValue.OwnerUserID) {
+		names, err := ListDeployedSkills(root)
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range names {
+			key := strings.ToLower(strings.TrimSpace(name))
+			if _, enabled := enabledInWorkspace[key]; !enabled {
+				addDisabled(name)
+			}
+		}
+	}
+	keys := make([]string, 0, len(disabledByName))
+	for key := range disabledByName {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]string, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, disabledByName[key])
+	}
+	return result, nil
 }
 
 // RuntimeSkillNamesAt 在已验证的 workspace 根中合并运行时 Skill。
-func RuntimeSkillNamesAt(root *confinedfs.Root, selectedSkillIDs []string) ([]string, error) {
+func RuntimeSkillNamesAt(
+	root *confinedfs.Root,
+	selectedSkillIDs []string,
+	disabledSkillSets ...[]string,
+) ([]string, error) {
 	result := make([]string, 0, len(selectedSkillIDs))
 	seen := make(map[string]struct{}, len(result))
+	var disabledSkillIDs []string
+	if len(disabledSkillSets) > 0 {
+		disabledSkillIDs = disabledSkillSets[0]
+	}
+	disabled := normalizedSkillNameSet(disabledSkillIDs)
 	for _, reference := range selectedSkillIDs {
 		name := reference
 		if externalName, ok := protocol.ParseExternalSkillReference(reference); ok {
 			name = externalName
 		}
 		if normalized := strings.ToLower(strings.TrimSpace(name)); normalized != "" {
+			if _, blocked := disabled[normalized]; blocked {
+				continue
+			}
 			if _, exists := seen[normalized]; exists {
 				continue
 			}
@@ -255,6 +350,9 @@ func RuntimeSkillNamesAt(root *confinedfs.Root, selectedSkillIDs []string) ([]st
 		if key == "" {
 			continue
 		}
+		if _, blocked := disabled[key]; blocked {
+			continue
+		}
 		if _, exists := seen[key]; exists {
 			continue
 		}
@@ -262,6 +360,25 @@ func RuntimeSkillNamesAt(root *confinedfs.Root, selectedSkillIDs []string) ([]st
 		result = append(result, name)
 	}
 	return result, nil
+}
+
+func normalizedSkillNameSet(names []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		normalized := canonicalRuntimeSkillName(name)
+		if normalized != "" {
+			result[strings.ToLower(normalized)] = struct{}{}
+		}
+	}
+	return result
+}
+
+func canonicalRuntimeSkillName(reference string) string {
+	normalized := strings.TrimSpace(reference)
+	if externalName, ok := protocol.ParseExternalSkillReference(normalized); ok {
+		return strings.TrimSpace(externalName)
+	}
+	return normalized
 }
 
 func managedSkillNames(isMainAgent bool) []string {

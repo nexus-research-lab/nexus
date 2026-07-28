@@ -364,7 +364,7 @@ func (s *Service) ensureExternalSkillNameAvailable(ctx context.Context, name str
 	if containsSkillName(internalSkillNames, trimmed) {
 		return errors.New("内部 Skill 名称不能被外部来源覆盖")
 	}
-	for _, root := range builtinSearchRootsForContext(ctx, projectRoot()) {
+	for _, root := range builtinSearchRootsForContext(ctx, projectRoot(), s.config.AppMode) {
 		exists, searchErr := skillNameExists(root, trimmed)
 		if searchErr != nil {
 			return searchErr

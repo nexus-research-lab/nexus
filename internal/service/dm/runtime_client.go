@@ -58,6 +58,13 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
+	runtimeDisabledSkillNames, err := workspacepkg.RuntimeDisabledSkillNamesForAgent(
+		s.config,
+		*agentValue,
+	)
+	if err != nil {
+		return nil, "", "", "", "", "", nil, permissionMode, err
+	}
 	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
@@ -116,6 +123,7 @@ func (s *Service) ensureClient(
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(agentValue.Options.AllowedTools, s.runtimeImagegenDefaultEnabled(ctx)),
 		DisallowedTools:            agentValue.Options.DisallowedTools,
 		SkillIDs:                   runtimeSkillNames,
+		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.config, agentValue.OwnerUserID),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         appendSystemPrompt,

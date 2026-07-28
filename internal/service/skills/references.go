@@ -10,10 +10,10 @@ import (
 )
 
 func skillReference(record catalogRecord) string {
-	if isPlatformSkill(record) || record.Detail.SourceType == sourceTypeSystem {
-		return record.Detail.Name
+	if record.Detail.SourceType == sourceTypeExternal {
+		return protocol.BuildExternalSkillReference(record.Detail.Name)
 	}
-	return protocol.BuildExternalSkillReference(record.Detail.Name)
+	return record.Detail.Name
 }
 
 func findCatalogRecord(records map[string]catalogRecord, name string) (catalogRecord, bool) {
@@ -42,6 +42,9 @@ func skillReferenceMatches(reference string, skillName string) bool {
 }
 
 func removeSkillReferences(skillIDs []string, skillName string) ([]string, bool) {
+	if externalName, ok := protocol.ParseExternalSkillReference(strings.TrimSpace(skillName)); ok {
+		skillName = externalName
+	}
 	selected := make([]string, 0, len(skillIDs))
 	changed := false
 	seen := map[string]struct{}{}
@@ -62,23 +65,44 @@ func removeSkillReferences(skillIDs []string, skillName string) ([]string, bool)
 	return selected, changed
 }
 
-func installedSkillNames(agentValue *protocol.Agent, records map[string]catalogRecord) map[string]bool {
+func enabledSkillNames(agentValue *protocol.Agent, records map[string]catalogRecord) map[string]bool {
 	result := map[string]bool{}
 	if agentValue == nil {
 		return result
 	}
+	disabled := disabledSkillNames(agentValue)
 	for _, reference := range agentValue.Options.SkillIDs {
 		value := strings.TrimSpace(reference)
 		if value == "" {
 			continue
 		}
-		result[value] = true
 		name := value
 		if externalName, ok := protocol.ParseExternalSkillReference(value); ok {
 			name = externalName
 		}
+		if _, blocked := disabled[strings.ToLower(strings.TrimSpace(name))]; blocked {
+			continue
+		}
+		result[value] = true
 		if record, ok := findCatalogRecord(records, name); ok {
 			result[record.Detail.Name] = true
+		}
+	}
+	return result
+}
+
+func disabledSkillNames(agentValue *protocol.Agent) map[string]struct{} {
+	result := map[string]struct{}{}
+	if agentValue == nil {
+		return result
+	}
+	for _, name := range agentValue.Options.DisabledSkillIDs {
+		normalized := strings.TrimSpace(name)
+		if externalName, ok := protocol.ParseExternalSkillReference(normalized); ok {
+			normalized = externalName
+		}
+		if normalized != "" {
+			result[strings.ToLower(normalized)] = struct{}{}
 		}
 	}
 	return result

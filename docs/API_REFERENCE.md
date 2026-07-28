@@ -159,7 +159,15 @@ Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置�
 | GET | `/agents/{agent_id}/private-domain/threads` | 私域线程列表 | — | — |
 | GET | `/agents/{agent_id}/private-domain/threads/{thread_id}/events` | 私域线程事件 | — | — |
 
-`Agent.options.skill_ids` 保存平台 Skill 的稳定 ID，或用户级外部 Skill 的 `external:<skill_name>` 引用。平台 Skill 由全局兼容根提供；外部 Skill 共享 `<workspace>/<owner>/.agents/skills`（系统 owner 使用 `<workspace>/.agents/skills`）。Agent workspace 不保存它们的副本；只有 workspace-local Skill 保留 workspace 文件。
+`Agent.options.skill_ids` 保存平台 Skill 的稳定 ID，或用户级外部 Skill 的
+`external:<skill_name>` 引用；`Agent.options.disabled_skill_ids` 保存显式停用
+名称。平台 Skill 由全局兼容根提供；外部 Skill 共享
+`<workspace>/<owner>/.agents/skills`（系统 owner 使用 `<workspace>/.agents/skills`）。
+Agent workspace Skill 只保留在所属 Agent 的 workspace，仅在该 Agent 设置页可见，
+文件存在时默认启用，显式停用只写入该 Agent 的 `disabled_skill_ids`。
+Skill 列表中的 `source_type`/`source_kind` 描述文件来源，`storage_scope`/`origin_kind`
+描述存储与创建归属。Agent workspace 来源不进入全局技能库，也不能由其它 Agent
+发现、引用或复制。
 
 `description` 是目录与提示词中的短摘要；`profile_template` 是创建期行为模板，两者不可互换。前端先从服务端读取默认模板，用户修改后随创建请求提交；传空时服务端仍使用同一默认模板。
 
@@ -167,9 +175,13 @@ Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置�
 
 | 方法 | 路径 | 说明 | 前端函数 |
 |------|------|------|---------|
-| GET | `/agents/{agent_id}/skills` | Agent 已安装技能 | `getAgentSkillsApi` |
-| POST | `/agents/{agent_id}/skills` | 安装技能（body: `{ skill_name }`） | `installSkillApi` |
-| DELETE | `/agents/{agent_id}/skills/{skill_name}` | 卸载技能 | `uninstallSkillApi` |
+| GET | `/agents/{agent_id}/skills` | Agent 可用技能及启用状态，包含该 Agent 私有 workspace Skill | `getAgentSkillsApi` |
+| POST | `/agents/{agent_id}/skills` | 兼容启用入口（body: `{ skill_name }`）；新 UI 使用 PATCH | `installSkillApi` |
+| PATCH | `/agents/{agent_id}/skills/{skill_name}` | 原子切换技能（body: `{ enabled, target_scope }`）；必填 `target_scope` 为 `global_library` 或 `agent_workspace` | `setAgentSkillEnabledApi` |
+| DELETE | `/agents/{agent_id}/skills/{skill_name}` | 兼容删除入口；全局 Skill 解除当前 Agent 绑定，workspace Skill 删除本地文件 | `uninstallSkillApi` |
+
+`scope: room` 是 Room 使用范围，不是独立来源；它继续出现在全局技能库，但不会
+进入 Agent 列表或 Agent 启用矩阵，只能由 Room 设置选择。
 
 ---
 
@@ -247,8 +259,9 @@ JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富
 
 | 方法 | 路径 | 说明 | 前端函数 |
 |------|------|------|---------|
-| GET | `/skills` | 全部技能（query: `agent_id`,`category_key`,`source_type`,`scope`,`q`） | `getAvailableSkillsApi` |
+| GET | `/skills` | 全局技能库（query: `agent_id`,`category_key`,`source_type`,`scope`,`q`）；带 `agent_id` 时追加该 Agent 私有 workspace Skill | `getAvailableSkillsApi` |
 | GET | `/skills/{skill_name}` | 技能详情（query: `agent_id`） | `getSkillDetailApi` |
+| GET | `/skills/{skill_name}/agents` | 当前用户各 Agent 的启用矩阵 | `getSkillAgentsApi` |
 | POST | `/skills/import/local` | 导入本地技能；认证部署仅允许 FormData `file`，未认证本地单用户部署兼容 `local_path` | `importLocalSkillApi` |
 | POST | `/skills/import/git` | 从 Git 仓库导入（body: `{ url, branch, path }`） | `importGitSkillApi` |
 | GET | `/skills/search/external` | 搜索社区技能（query: `q`,`include_readme`） | `searchExternalSkillsApi` |

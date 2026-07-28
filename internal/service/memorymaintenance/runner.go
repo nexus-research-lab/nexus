@@ -66,6 +66,13 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 	if err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
+	runtimeDisabledSkillNames, err := workspacepkg.RuntimeDisabledSkillNamesForAgent(
+		r.config,
+		agentValue,
+	)
+	if err != nil {
+		return agentclient.AutoDreamResult{}, err
+	}
 	selection, err := r.selector.Resolve(ownerContext, runtimeselectionsvc.Request{
 		Agent:        &agentValue,
 		OwnerUserIDs: []string{agentValue.OwnerUserID},
@@ -91,6 +98,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		Model:                model,
 		PermissionMode:       sdkpermission.ModeAcceptEdits,
 		SkillIDs:             runtimeSkillNames,
+		DisabledSkillIDs:     runtimeDisabledSkillNames,
 		SkillDirectories:     workspacepkg.SkillLibraryRoots(r.config, agentValue.OwnerUserID),
 		SettingSources:       ensureProjectSettingsSource(agentValue.Options.SettingSources),
 		ToolSearchEnabled:    selection.ToolSearchEnabled,
