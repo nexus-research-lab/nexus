@@ -35,6 +35,7 @@ const TARGET_TRACK_HEIGHT_BY_SIZE = {
 
 interface GlassSwitchPresentation {
   dynamicThumbStyle: CSSProperties;
+  fallbackThumbStyle: CSSProperties;
   showFilterResource: boolean;
   staticThumbStyle: CSSProperties;
   thumbHeight: number;
@@ -65,6 +66,11 @@ function getGlassSwitchPresentation({
   const thumbRadius = SOURCE_THUMB_RADIUS * scaleRatio;
   const thumbOffsetX = SOURCE_THUMB_OFFSET_X * scaleRatio;
   const staticThumbTravelX = SOURCE_STATIC_THUMB_TRAVEL_X * scaleRatio;
+  const fallbackThumbWidth = thumbWidth * SOURCE_STATIC_THUMB_SCALE;
+  const fallbackThumbHeight = thumbHeight * SOURCE_STATIC_THUMB_SCALE;
+  const fallbackThumbInset = (trackHeight - fallbackThumbHeight) / 2;
+  const fallbackThumbTravelX =
+    trackWidth - fallbackThumbWidth - fallbackThumbInset * 2;
   const thumbTravelX = SOURCE_THUMB_TRAVEL_X * scaleRatio;
   const showInteractionFilter = canUseTrueGlass && (isPressed || isTransitioning);
   const filterValue = showInteractionFilter ? `url(#${filterId})` : undefined;
@@ -82,6 +88,15 @@ function getGlassSwitchPresentation({
       top: `${trackHeight / 2}px`,
       transform: `translateX(${checked ? thumbTravelX : 0}px) translateY(-50%) scale(${SOURCE_THUMB_SCALE})`,
       width: `${thumbWidth}px`,
+    },
+    fallbackThumbStyle: {
+      backgroundColor: "rgb(255, 255, 255)",
+      borderRadius: `${fallbackThumbHeight / 2}px`,
+      boxShadow: "0 4px 22px rgba(0, 0, 0, 0.1)",
+      height: `${fallbackThumbHeight}px`,
+      left: `${fallbackThumbInset + (checked ? fallbackThumbTravelX : 0)}px`,
+      top: `${fallbackThumbInset}px`,
+      width: `${fallbackThumbWidth}px`,
     },
     showFilterResource: canUseTrueGlass,
     staticThumbStyle: {
@@ -115,7 +130,12 @@ export function GlassSwitch({
 }: GlassSwitchProps) {
   const filterId = useLiquidGlassFilterId("glass-switch-thumb");
   const canUseTrueGlass = useSupportsTrueLiquidGlass();
-  const interaction = useGlassSwitchInteraction({ checked, disabled, onChange });
+  const interaction = useGlassSwitchInteraction({
+    checked,
+    disabled,
+    liquidTransitionEnabled: canUseTrueGlass,
+    onChange,
+  });
   const presentation = getGlassSwitchPresentation({
     canUseTrueGlass,
     checked,
@@ -139,23 +159,32 @@ export function GlassSwitch({
       style={presentation.trackStyle}
     >
       {presentation.showFilterResource ? (
-        <GlassSwitchFilter
-          filterId={filterId}
-          height={presentation.thumbHeight}
-          width={presentation.thumbWidth}
+        <>
+          <GlassSwitchFilter
+            filterId={filterId}
+            height={presentation.thumbHeight}
+            width={presentation.thumbWidth}
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-(--motion-duration-fast) ease-out will-change-transform"
+            style={presentation.staticThumbStyle}
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-(--motion-duration-fast) ease-out will-change-transform"
+            onTransitionEnd={interaction.onThumbTransitionEnd}
+            style={presentation.dynamicThumbStyle}
+          />
+        </>
+      ) : (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute rounded-full"
+          data-liquid-glass-material="static"
+          style={presentation.fallbackThumbStyle}
         />
-      ) : null}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-(--motion-duration-fast) ease-out will-change-transform"
-        style={presentation.staticThumbStyle}
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute rounded-full transition-[transform,opacity] duration-(--motion-duration-fast) ease-out will-change-transform"
-        onTransitionEnd={interaction.onThumbTransitionEnd}
-        style={presentation.dynamicThumbStyle}
-      />
+      )}
     </button>
   );
 }

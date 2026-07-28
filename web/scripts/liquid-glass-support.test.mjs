@@ -3,6 +3,8 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
 
 const webRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -38,6 +40,33 @@ test("Safari uses the static liquid-glass material", async () => {
     false,
     "Safari must not mount an SVG backdrop-filter that can leave stale pixels after unmount",
   );
+});
+
+test("the static switch uses one non-composited thumb", async () => {
+  const { GlassSwitch } = await server.ssrLoadModule(
+    "/src/shared/ui/liquid-glass/glass-switch.tsx",
+  );
+  const renderSwitch = (checked) => renderToStaticMarkup(
+    createElement(GlassSwitch, {
+      checked,
+      onChange: () => {},
+      size: "xs",
+    }),
+  );
+  const uncheckedMarkup = renderSwitch(false);
+  const checkedMarkup = renderSwitch(true);
+  const leftPosition = (markup) => markup.match(/left:([^;"]+)/)?.[1];
+
+  assert.equal(
+    (uncheckedMarkup.match(/data-liquid-glass-material="static"/g) ?? []).length,
+    1,
+  );
+  assert.equal((uncheckedMarkup.match(/aria-hidden="true"/g) ?? []).length, 1);
+  assert.doesNotMatch(
+    uncheckedMarkup,
+    /backdrop-filter|opacity:|transform:|will-change-transform/,
+  );
+  assert.notEqual(leftPosition(uncheckedMarkup), leftPosition(checkedMarkup));
 });
 
 test("capable Chromium browsers retain the SVG liquid-glass material", async () => {
