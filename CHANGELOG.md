@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Added a bundled Python-based `wechat-article-search` Skill with documented Requests/Beautiful Soup dependencies, optional direct-link resolution, deterministic offline parsing tests, and WebSearch/WebFetch fallback guidance.
+- Added a three-step chat model setup flow that filters Providers for the active Agent Runtime, validates credentials, tests the model, and saves the working default selection; onboarding overlays now dismiss without swallowing the user's page interaction.
 - Improved Windows and macOS desktop updates with launch-time checks, automatic four-hour refreshes, sidebar availability indicators, and live installer download progress.
 - Made Room hosts assess task complexity, separable work, and member fit before substantial execution, prefer meaningful collaboration, and avoid duplicating work after delegating while retaining direct handling for small, atomic, or unsuitable-for-delegation tasks.
 - Unified the Skill catalog as a user-global source inventory with source/origin metadata, Agent usage counts, and per-Agent atomic enable switches, while keeping workspace Skills private to their owning Agent, default-enabled, and safely disableable without deleting files.
@@ -24,8 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated the bundled `nexus-manager` Skill with the owner-scoped directory layout, CLI root-resolution rules, and enforce-mode control-plane boundary.
 - Fixed Agent Skill bindings being overwritten by stale editor snapshots, and aligned nxs/Claude runtime discovery so project Skills remain dynamically discoverable while explicit Agent disables are enforced.
 - Kept Agent workspace Skills visible only in their owning Agent's settings with a clear local-source badge, while limiting desktop global discovery to the standard `~/.agents/skills` directory.
-- Closed Room Thread thinking indicators when an Agent intentionally returns no public reply, using the precise terminal Agent round status even though the final assistant output is suppressed.
 - Allowed Room hosts to fan out intentionally separated parallel work to multiple Agents while retaining single-target behavior for candidate and first-responder mentions.
+- Closed Room Thread thinking indicators when an Agent intentionally returns no public reply, using the precise terminal Agent round status even though the final assistant output is suppressed.
 - Kept Room thinking blocks available in Thread while hiding them from public Agent cards and completed Room replies.
 - Kept no-reply Room Agents visible in the same completed MessageItem layout as public replies, with a clear terminal status and Thread entry instead of dropping the Agent entirely.
 - Isolated Room overlays, directed-message state, public handoffs, and delayed wakes under each owner's host-managed `state/rooms` directory, moved runtime-readable Room attachments into the owner's `workspace/.rooms` asset tree, pinned Room ledger access to verified directory/file inodes, and added a restart-safe owner-validated migration from the former shared `app/rooms` layout.

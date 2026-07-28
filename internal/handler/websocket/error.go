@@ -47,12 +47,13 @@ func (h *Handler) errorEventDetail(errorType string, err error) string {
 
 func chatErrorDetail(err error) string {
 	if err == nil {
-		return "Agent 启动失败，请检查运行时配置后重试。"
+		return "Agent 启动失败。请先到设置 → 运行时确认 Agent 内核可用，再到设置 → 供应商测试当前默认模型。"
 	}
 	if message, ok := protocol.ClientErrorMessage(err); ok {
 		return message
 	}
 	message := strings.TrimSpace(err.Error())
+	normalized := strings.ToLower(message)
 	switch {
 	case strings.Contains(message, "api_format=responses") &&
 		strings.Contains(message, "暂不可用于") &&
@@ -60,8 +61,19 @@ func chatErrorDetail(err error) string {
 		return "当前 Provider 使用 Responses API，只支持 nxs Agent runtime。请在 Settings 将 Agent Runtime 切换为 nxs 后重试。"
 	case isProviderCapacityError(message):
 		return "模型请求暂时受限，当前 LLM Provider 返回限流或过载。请稍后重试，或临时切换到可用 Provider/模型。"
+	case strings.Contains(normalized, "failed to authenticate") ||
+		strings.Contains(normalized, "authentication_error") ||
+		strings.Contains(normalized, "invalid api key") ||
+		strings.Contains(normalized, "api error: 401"):
+		return "模型鉴权失败。请到设置 → 供应商重新填写 API Key，然后执行“保存并测试”。"
+	case strings.Contains(message, "未配置默认模型") ||
+		strings.Contains(message, "缺少 model") ||
+		strings.Contains(message, "模型不存在"):
+		return "供应商已配置，但还没有可用的默认对话模型。请到设置 → 常规选择一个已启用模型，或到设置 → 供应商测试模型。"
+	case strings.Contains(message, "配置不完整"):
+		return "供应商配置不完整。请到设置 → 供应商检查 API Key、Base URL 和模型后重试。"
 	case strings.Contains(message, "nxs"):
-		return "未找到 nxs runtime，Agent 无法启动。打包版 Nexus 应由桌面 sidecar 注入随包 nxs 路径；开发环境请设置 NEXUS_NXS_COMMAND_PATH 指向本地 nxs，或在 Settings 将 Agent Runtime 切回 Claude。"
+		return "未找到 nxs runtime，Agent 无法启动。打包版 Nexus 应由桌面 sidecar 注入随包 nxs 路径；开发环境请设置 NEXUS_NXS_COMMAND_PATH 指向本地 nxs，或在设置 → 运行时将 Agent 内核切回 Claude。"
 	case strings.Contains(message, "cli executable") ||
 		strings.Contains(message, "claude.exe") ||
 		strings.Contains(message, "claude.cmd") ||
@@ -70,12 +82,12 @@ func chatErrorDetail(err error) string {
 	case strings.Contains(message, "LLM Provider") ||
 		strings.Contains(message, "provider=") ||
 		strings.Contains(message, "Provider"):
-		return "Agent 运行时 Provider 配置不可用。请到 Settings 检查默认 LLM Provider 是否已启用，并确认 auth_token、base_url、model 已填写完整。"
+		return "Agent 使用的模型配置不可用。请到设置 → 供应商确认默认供应商已启用，并检查 API Key、Base URL 和模型。"
 	default:
 		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {
 			return message
 		}
-		return "Agent 启动失败，请检查当前 Agent Runtime、Provider 配置和日志后重试。"
+		return "Agent 启动失败。请先到设置 → 运行时确认 Agent 内核可用，再到设置 → 供应商测试当前默认模型；仍失败时查看运行日志。"
 	}
 }
 

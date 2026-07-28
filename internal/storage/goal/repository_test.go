@@ -451,7 +451,7 @@ func TestGoalUsageBaselineMigrationRepairsAppliedVersion54WithoutSourceTables(t 
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
+	if err := goose.UpTo(db, "../../../db/migrations/sqlite", 55); err != nil {
 		t.Fatal(err)
 	}
 

@@ -39,6 +39,27 @@ export function OnboardingTourOverlay({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [onClose]);
 
+  useEffect(() => {
+    if (!step) {
+      return undefined;
+    }
+    const handlePageInteraction = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element
+        && target.closest("[data-onboarding-tour-card]")
+      ) {
+        return;
+      }
+      // 导览只解释当前界面，不应吞掉用户真正想执行的点击。
+      onClose();
+    };
+    document.addEventListener("pointerdown", handlePageInteraction, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePageInteraction, true);
+    };
+  }, [onClose, step]);
+
   if (typeof document === "undefined" || !step) {
     return null;
   }
@@ -54,15 +75,17 @@ export function OnboardingTourOverlay({
   );
 
   return createPortal(
-    <div className="fixed inset-0 z-[11000]">
-      <div
-        className="absolute inset-0 bg-[rgba(11,16,24,0.42)]"
-        onClick={() => onClose()}
-        role="presentation"
-      />
+    <div className="pointer-events-none fixed inset-0 z-[11000]">
+      {!targetRect ? (
+        <div
+          className="absolute inset-0 bg-[rgba(11,16,24,0.42)]"
+          role="presentation"
+        />
+      ) : null}
       {targetRect ? <TourTargetHighlight targetRect={targetRect} /> : null}
       <div
-        className="absolute"
+        className="pointer-events-auto absolute"
+        data-onboarding-tour-card
         style={{ left: position.left, top: position.top }}
       >
         <TourOverlayCard

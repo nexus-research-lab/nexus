@@ -26,7 +26,16 @@ async function fetchAvailability(runtimeKind = getDefaultAgentRuntimeKind()): Pr
   const request = (async () => {
     try {
       const response = await listProviderOptionsApi(runtimeKind);
-      const nextValue = (response?.items ?? []).some((provider) => (provider.models?.length ?? 0) > 0);
+      // 中文注释：只有能解析到当前用户真正选择的 Provider/Model，聊天才具备启动条件。
+      // 仅检查模型列表会把“有模型但没有默认模型”的半配置状态误报为可用。
+      const selection = response?.default_selection;
+      const nextValue = Boolean(
+        selection
+        && (response?.items ?? []).some((provider) => (
+          provider.provider === selection.provider
+          && provider.models.some((model) => model.model_id === selection.model)
+        )),
+      );
       cachedHasProviderByRuntime.set(runtimeKind, nextValue);
       subscribers.forEach((subscriber) => subscriber(nextValue));
     } catch (error) {
