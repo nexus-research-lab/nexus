@@ -80,6 +80,9 @@ func TestRoomServiceLifecycle(t *testing.T) {
 	if !rooms[0].Room.PrivateMessagesEnabled {
 		t.Fatalf("list room 私信设置不正确: %+v", rooms[0].Room)
 	}
+	if err = roomService.MarkConversationStarted(ctx, mainContext.Conversation.ID, time.Now().UTC()); err != nil {
+		t.Fatalf("标记主对话已开始失败: %v", err)
+	}
 
 	updatedAvatar := "12"
 	disableHostAutoReply := false
@@ -173,10 +176,24 @@ func TestRoomServiceTouchConversationActivityOrdersContexts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
 	}
-	if _, err = roomService.CreateConversation(ctx, mainContext.Room.ID, protocol.CreateConversationRequest{
+	if err = roomService.MarkConversationStarted(ctx, mainContext.Conversation.ID, time.Now().UTC()); err != nil {
+		t.Fatalf("准备第二个 conversation 失败: %v", err)
+	}
+	secondContext, err := roomService.CreateConversation(ctx, mainContext.Room.ID, protocol.CreateConversationRequest{
 		Title: "后创建的话题",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("创建 topic 失败: %v", err)
+	}
+	if err = roomService.MarkConversationStarted(ctx, secondContext.Conversation.ID, time.Now().UTC()); err != nil {
+		t.Fatalf("标记第二个 conversation 已开始失败: %v", err)
+	}
+	if _, err = db.ExecContext(
+		ctx,
+		`UPDATE conversations SET is_draft = 1 WHERE id = ?`,
+		mainContext.Conversation.ID,
+	); err != nil {
+		t.Fatalf("恢复 activity 测试 draft fixture 失败: %v", err)
 	}
 
 	activityAt := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
@@ -197,6 +214,9 @@ func TestRoomServiceTouchConversationActivityOrdersContexts(t *testing.T) {
 	if contexts[0].Conversation.LastActivityAt.Before(activityAt.Add(-time.Second)) {
 		t.Fatalf("conversation last_activity_at 未写入: got=%s want>=%s", contexts[0].Conversation.LastActivityAt, activityAt)
 	}
+	if !contexts[0].Conversation.IsDraft {
+		t.Fatal("普通活动时间更新不得代替真实用户输入消费 draft")
+	}
 
 	if err = roomService.TouchConversationActivity(ctx, mainContext.Conversation.ID, activityAt.Add(-time.Hour)); err != nil {
 		t.Fatalf("重复更新 conversation 活动时间失败: %v", err)
@@ -207,6 +227,115 @@ func TestRoomServiceTouchConversationActivityOrdersContexts(t *testing.T) {
 	}
 	if contexts[0].Conversation.LastActivityAt.Before(activityAt.Add(-time.Second)) {
 		t.Fatalf("conversation last_activity_at 被旧时间回退: got=%s want>=%s", contexts[0].Conversation.LastActivityAt, activityAt)
+	}
+}
+
+func TestRoomServiceEnsuresSingleDraftConversation(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+
+	ctx := context.Background()
+	agentA := createTestAgent(t, agentService, ctx, "草稿助手A")
+	agentB := createTestAgent(t, agentService, ctx, "草稿助手B")
+	mainContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentA.AgentID, agentB.AgentID},
+		Name:     "唯一草稿测试",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+	if !mainContext.Conversation.IsDraft {
+		t.Fatal("新 Room 的初始 conversation 应为 draft")
+	}
+
+	reusedContext, err := roomService.CreateConversation(ctx, mainContext.Room.ID, protocol.CreateConversationRequest{})
+	if err != nil {
+		t.Fatalf("复用初始 draft 失败: %v", err)
+	}
+	if reusedContext.Conversation.ID != mainContext.Conversation.ID {
+		t.Fatalf("未开始的初始 draft 被重复创建: got=%s want=%s", reusedContext.Conversation.ID, mainContext.Conversation.ID)
+	}
+	reusedNamedContext, err := roomService.CreateConversation(
+		ctx,
+		mainContext.Room.ID,
+		protocol.CreateConversationRequest{Title: "标题不能绕过唯一草稿"},
+	)
+	if err != nil {
+		t.Fatalf("带标题请求复用初始 draft 失败: %v", err)
+	}
+	if reusedNamedContext.Conversation.ID != mainContext.Conversation.ID {
+		t.Fatalf(
+			"带标题请求重复创建未开始 Session: got=%s want=%s",
+			reusedNamedContext.Conversation.ID,
+			mainContext.Conversation.ID,
+		)
+	}
+
+	if err = roomService.MarkConversationStarted(ctx, mainContext.Conversation.ID, time.Now().UTC()); err != nil {
+		t.Fatalf("消费初始 draft 失败: %v", err)
+	}
+
+	const createCount = 20
+	ids := make(chan string, createCount)
+	errs := make(chan error, createCount)
+	var waitGroup sync.WaitGroup
+	for range createCount {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			contextValue, createErr := roomService.CreateConversation(
+				ctx,
+				mainContext.Room.ID,
+				protocol.CreateConversationRequest{},
+			)
+			if createErr != nil {
+				errs <- createErr
+				return
+			}
+			ids <- contextValue.Conversation.ID
+		}()
+	}
+	waitGroup.Wait()
+	close(ids)
+	close(errs)
+	for createErr := range errs {
+		t.Fatalf("并发确保 draft 失败: %v", createErr)
+	}
+
+	var draftID string
+	for conversationID := range ids {
+		if draftID == "" {
+			draftID = conversationID
+		}
+		if conversationID != draftID {
+			t.Fatalf("并发创建返回多个 draft: got=%s want=%s", conversationID, draftID)
+		}
+	}
+	if draftID == "" || draftID == mainContext.Conversation.ID {
+		t.Fatalf("消费旧 draft 后未创建新 draft: old=%s new=%s", mainContext.Conversation.ID, draftID)
+	}
+
+	contexts, err := roomService.GetRoomContexts(ctx, mainContext.Room.ID)
+	if err != nil {
+		t.Fatalf("读取 Room contexts 失败: %v", err)
+	}
+	draftCount := 0
+	for _, contextValue := range contexts {
+		if contextValue.Conversation.IsDraft {
+			draftCount++
+			if contextValue.Conversation.ID != draftID {
+				t.Fatalf("唯一 draft ID 不正确: got=%s want=%s", contextValue.Conversation.ID, draftID)
+			}
+		}
+	}
+	if draftCount != 1 {
+		t.Fatalf("Room draft 数量不正确: got=%d want=1", draftCount)
 	}
 }
 
@@ -231,6 +360,9 @@ func TestRoomServiceClosesConversationRuntime(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
+	}
+	if err = roomService.MarkConversationStarted(ctx, mainContext.Conversation.ID, time.Now().UTC()); err != nil {
+		t.Fatalf("标记主对话已开始失败: %v", err)
 	}
 	topicContext, err := roomService.CreateConversation(ctx, mainContext.Room.ID, protocol.CreateConversationRequest{})
 	if err != nil {

@@ -48,6 +48,7 @@ function buildExternalRoomConversationViews({
       created_at: session.created_at,
       last_activity_at: session.last_activity_at,
       is_active: session.status === "active",
+      is_draft: false,
       message_count: session.message_count,
     }))
     .sort((left, right) => right.last_activity_at - left.last_activity_at);

@@ -447,6 +447,7 @@ func TestGoalUsageBaselineMigrationRepairsAppliedVersion54WithoutSourceTables(t 
 		"../../../db/migrations/sqlite/00052_goal_usage_source_checkpoints.sql",
 		"../../../db/migrations/sqlite/00054_goal_usage_finalization.sql",
 	)
+	seedConversationDraftMigrationPrerequisites(t, db)
 	seedAppliedGooseVersions(t, db, 54)
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)
@@ -515,8 +516,8 @@ func TestGoalUsageBaselineMigrationRepairsAppliedVersion54WithoutSourceTables(t 
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 55 {
-		t.Fatalf("goose version = %d, want 55", version)
+	if version != 56 {
+		t.Fatalf("goose version = %d, want 56", version)
 	}
 }
 
@@ -723,6 +724,20 @@ func seedAppliedGooseVersions(t *testing.T, db *sql.DB, version int) {
 			"INSERT INTO goose_db_version(version_id, is_applied) VALUES (?, 1)",
 			current,
 		); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func seedConversationDraftMigrationPrerequisites(t *testing.T, db *sql.DB) {
+	t.Helper()
+	for _, statement := range []string{
+		`CREATE TABLE conversations (
+			id VARCHAR(64) NOT NULL PRIMARY KEY,
+			room_id VARCHAR(64) NOT NULL
+		)`,
+	} {
+		if _, err := db.Exec(statement); err != nil {
 			t.Fatal(err)
 		}
 	}

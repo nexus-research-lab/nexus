@@ -231,6 +231,7 @@ SELECT
     c.room_id,
     c.conversation_type,
     COALESCE(c.title, ''),
+    c.is_draft,
     (
         SELECT COUNT(1)
         FROM messages m

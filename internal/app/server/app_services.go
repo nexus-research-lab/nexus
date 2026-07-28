@@ -134,6 +134,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetQuotaChecker(subscriptionService)
 	dmService.SetGoalContextProvider(goalService)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
+	dmService.SetRoomConversationActivityStore(core.Room)
 	dmService.SetTitleGenerator(titleService)
 	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)

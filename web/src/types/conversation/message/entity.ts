@@ -39,6 +39,9 @@ interface BaseMessage {
   display_order?: number;
   /** 仅存在于运行态投影，不属于历史消息协议。 */
   delivery_mode?: "durable" | "ephemeral";
+  /** 内部续跑输入不代表用户开始了会话。 */
+  hidden_from_user?: boolean;
+  is_synthetic?: boolean;
 }
 
 export interface UserMessage extends BaseMessage {

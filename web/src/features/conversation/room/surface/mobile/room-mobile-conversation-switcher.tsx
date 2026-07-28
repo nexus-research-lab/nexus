@@ -1,9 +1,17 @@
+/**
+ * INPUT: Room 完整会话目录、当前会话与选择命令。
+ * OUTPUT: 排除内部草稿但保留外部 Session 的移动端历史切换器。
+ * POS: Room 窄窗历史投影视图，不维护标签目录、路由或选中真相。
+ */
+
 import { Clock3, MessageSquare, X } from "lucide-react";
 
 import { formatRelativeTime } from "@/lib/format/relative-time";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import type { RoomConversationView } from "@/types/conversation/conversation";
+
+import { filterRoomHistoryConversations } from "../history/room-history-model";
 
 interface RoomMobileConversationSwitcherProps {
   activeConversationId: string | null;
@@ -21,6 +29,7 @@ export function RoomMobileConversationSwitcher({
   onSelect,
 }: RoomMobileConversationSwitcherProps) {
   const { t } = useI18n();
+  const historyConversations = filterRoomHistoryConversations(conversations);
   if (!isOpen) {
     return null;
   }
@@ -49,7 +58,7 @@ export function RoomMobileConversationSwitcher({
               {t("room.switch_conversation")}
             </h2>
             <p className="mt-0.5 text-xs text-(--text-soft)">
-              {t("room.conversation_count", { count: conversations.length })}
+              {t("room.conversation_count", { count: historyConversations.length })}
             </p>
           </div>
 
@@ -64,7 +73,7 @@ export function RoomMobileConversationSwitcher({
         </header>
 
         <div className="soft-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto p-2.5">
-          {conversations.map((conversation) => {
+          {historyConversations.map((conversation) => {
             const isActive = conversation.conversation_id === activeConversationId;
             return (
               <button
@@ -96,7 +105,7 @@ export function RoomMobileConversationSwitcher({
                       ? "font-semibold text-(--text-strong)"
                       : "font-medium text-(--text-default) group-hover:text-(--text-strong)",
                   )}>
-                    {conversation.title?.trim() || t("room.untitled_conversation")}
+                    {conversation.title?.trim() || t("room.new_conversation")}
                   </p>
                   <span className={cn(
                     "mt-1 flex items-center gap-1.5 text-xs",

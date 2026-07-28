@@ -1,3 +1,9 @@
+/**
+ * [INPUT]: 当前会话身份与消息观察器提交的活动快照。
+ * [OUTPUT]: Room 上下文、Session Store 与目录通知的最小增量。
+ * [POS]: Room 页面控制器的纯快照投影，不读取路由或执行网络请求。
+ */
+
 import { isExternalSessionChannel } from "@/lib/conversation/external-session";
 import type {
   ConversationSnapshotPayload,
@@ -9,7 +15,9 @@ interface RoomConversationSnapshot {
   conversation_id: string | null;
   room_session_id: string | null;
   session_id?: string | null;
+  has_user_input?: boolean;
   last_activity_at?: number | string | null;
+  message_count?: number;
 }
 
 interface RoomConversationSnapshotProjectionContext {
@@ -55,7 +63,9 @@ export function projectRoomConversationSnapshot(
   return {
     roomContextSnapshot: {
       conversation_id: conversationId,
+      has_user_input: snapshot.has_user_input,
       last_activity_at: snapshot.last_activity_at,
+      message_count: snapshot.message_count,
       room_session_id: roomSessionId,
       session_id: snapshot.session_id ?? null,
     },
@@ -129,7 +139,13 @@ export function applyConversationSnapshotToRoomContexts(
 
     const conversation = {
       ...context.conversation,
+      is_draft: snapshot.has_user_input === true
+        ? false
+        : context.conversation.is_draft,
       last_activity_at: lastActivityAt ?? context.conversation.last_activity_at,
+      message_count: snapshot.message_count === undefined
+        ? context.conversation.message_count
+        : Math.max(context.conversation.message_count ?? 0, snapshot.message_count),
       updated_at: lastActivityAt ?? context.conversation.updated_at,
     };
     const sessions = context.sessions.map((session) => {
@@ -153,7 +169,9 @@ export function applyConversationSnapshotToRoomContexts(
       return nextSession;
     });
     const conversationChanged = (
-      conversation.last_activity_at !== context.conversation.last_activity_at
+      conversation.is_draft !== context.conversation.is_draft
+      || conversation.last_activity_at !== context.conversation.last_activity_at
+      || conversation.message_count !== context.conversation.message_count
       || conversation.updated_at !== context.conversation.updated_at
     );
     if (!conversationChanged && sessions.every((session, index) => session === context.sessions[index])) {

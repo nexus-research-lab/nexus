@@ -346,6 +346,12 @@ func newRoomUserMessage(
 	if len(attachments) > 0 {
 		result["attachments"] = attachments
 	}
+	if request.Internal || request.InputOptions.HiddenFromUser {
+		result["hidden_from_user"] = true
+	}
+	if request.Internal || request.InputOptions.Synthetic {
+		result["is_synthetic"] = true
+	}
 	return result
 }
 
@@ -357,6 +363,15 @@ func (e *roomChatExecution) persistInput() error {
 			e.userMessage,
 		); err != nil {
 			return err
+		}
+		if roomRequestHasCanonicalUserInput(e.request) {
+			if err := e.service.markConversationStarted(
+				e.ctx,
+				e.conversationID,
+				roomMessageActivityTime(e.userMessage),
+			); err != nil {
+				return err
+			}
 		}
 		e.history = append(e.history, e.userMessage)
 		e.service.broadcastSharedEvent(
@@ -379,6 +394,12 @@ func (e *roomChatExecution) persistInput() error {
 		titleModel,
 	)
 	return nil
+}
+
+func roomRequestHasCanonicalUserInput(request ChatRequest) bool {
+	return !request.Internal &&
+		!request.InputOptions.HiddenFromUser &&
+		!request.InputOptions.Synthetic
 }
 
 func (e *roomChatExecution) finishWithoutTarget() (bool, error) {
@@ -818,6 +839,11 @@ func shouldBroadcastRoomChatAck(request ChatRequest) bool {
 }
 
 func (s *Service) validateChatRequest(request ChatRequest) (string, string, error) {
+	// durable user queue 只承载真实用户输入；隐藏或 synthetic 消息必须走
+	// internal 路径，避免排队后丢失来源语义并误消费 conversation draft。
+	if !request.Internal && !roomRequestHasCanonicalUserInput(request) {
+		return "", "", errors.New("hidden or synthetic input must be internal")
+	}
 	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
 	if err != nil {
 		return "", "", err
@@ -909,6 +935,20 @@ func (s *Service) touchSharedConversationActivity(ctx context.Context, conversat
 			"err", err,
 		)
 	}
+}
+
+func (s *Service) markConversationStarted(
+	ctx context.Context,
+	conversationID string,
+	activityAt time.Time,
+) error {
+	if s == nil || s.rooms == nil {
+		return nil
+	}
+	if activityAt.IsZero() {
+		activityAt = time.Now().UTC()
+	}
+	return s.rooms.MarkConversationStarted(ctx, conversationID, activityAt)
 }
 
 func roomMessageActivityTime(message protocol.Message) time.Time {

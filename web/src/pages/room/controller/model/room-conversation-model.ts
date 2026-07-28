@@ -1,3 +1,9 @@
+/**
+ * [INPUT]: Room 上下文、路由选择与服务端草稿状态。
+ * [OUTPUT]: Room 会话视图、恢复目标与当前 Room 上下文。
+ * [POS]: Room 页面控制器的纯会话投影，不执行导航或创建命令。
+ */
+
 import { buildRoomAgentSessionKey, buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 import type { RoomContextAggregate } from "@/types/conversation/room";
@@ -69,11 +75,12 @@ export function buildRoomConversationViews(
         conversation_type: context.conversation.conversation_type,
         session_id: latestSession?.sdk_session_id ?? null,
         agent_id: latestSession?.agent_id,
-        title: context.conversation.title?.trim() || context.room.name || "未命名对话",
+        title: context.conversation.title?.trim() || "",
         options: {},
         created_at: toTimestamp(context.conversation.created_at) || lastActivityAt,
         last_activity_at: lastActivityAt,
         is_active: latestSession?.status === "active",
+        is_draft: context.conversation.is_draft === true,
         message_count: context.conversation.message_count ?? 0,
       } satisfies RoomConversationView;
     })

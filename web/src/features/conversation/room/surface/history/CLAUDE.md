@@ -1,6 +1,7 @@
 # Room 历史
 
-- `room-history-model.ts` 一次性完成排序、活动项、外部 Session 标签和管理能力投影。
+- `room-history-model.ts` 一次性完成内部草稿过滤、排序、活动项、外部 Session 标签和管理能力投影；只按服务端 `is_draft` 判定，标题不参与推断。
+- 内部草稿只从历史投影中排除，仍留在标签目录和当前会话 Surface；首条用户输入使 `is_draft` 变为 `false` 后才进入历史。外部 Session 沿用既有展示规则，历史过滤不得驱动标签恢复或路由切换。
 - `room-history-menu.tsx` 负责顶部锚定下拉、每页 6 条分页、切换和删除确认；不提供新建入口。
 - `room-history-item-model.ts` 将活动态、读取/编辑模式、元信息和可用动作投影为封闭视图模型。
 - `room-history-item-view.tsx` 通过内容与动作映射渲染，不从原始会话重新判断权限或协议。

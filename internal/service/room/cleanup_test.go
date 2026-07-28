@@ -3,6 +3,7 @@ package room_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -34,6 +35,9 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)
+	}
+	if err = roomService.MarkConversationStarted(ctx, mainContext.Conversation.ID, time.Now().UTC()); err != nil {
+		t.Fatalf("标记主对话已开始失败: %v", err)
 	}
 	topicContext, err := roomService.CreateConversation(ctx, mainContext.Room.ID, protocol.CreateConversationRequest{
 		Title: "待删除话题",

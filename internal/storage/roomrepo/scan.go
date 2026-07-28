@@ -133,6 +133,7 @@ func ScanConversationRecord(scanner Scanner) (protocol.ConversationRecord, error
 		&item.RoomID,
 		&item.ConversationType,
 		&item.Title,
+		&item.IsDraft,
 		&item.MessageCount,
 		&lastActivityAt,
 		&createdAt,

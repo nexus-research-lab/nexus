@@ -73,21 +73,6 @@ func BuildRoomName(refs []AgentRuntimeRef, roomType string) string {
 	return strings.Join(names, "、")
 }
 
-// BuildNextConversationTitle 根据现有话题数生成下一条话题标题。
-func BuildNextConversationTitle(roomName string, contexts []protocol.ConversationContextAggregate) string {
-	baseName := NormalizeOptionalText(roomName)
-	if baseName == "" {
-		baseName = "未命名 room"
-	}
-	topicCount := 0
-	for _, contextValue := range contexts {
-		if contextValue.Conversation.ConversationType == protocol.ConversationTypeTopic {
-			topicCount++
-		}
-	}
-	return fmt.Sprintf("%s · 对话 %d", baseName, topicCount+1)
-}
-
 // PickMainConversationType 返回 Room 主对话类型。
 func PickMainConversationType(roomType string) string {
 	if roomType == protocol.RoomTypeDM {

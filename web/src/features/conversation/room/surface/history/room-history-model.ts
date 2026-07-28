@@ -29,6 +29,15 @@ function compareByRecentActivity(
     || left.conversation_id.localeCompare(right.conversation_id);
 }
 
+export function filterRoomHistoryConversations(
+  conversations: readonly RoomConversationView[],
+): RoomConversationView[] {
+  return conversations.filter((conversation) => (
+    isExternalSessionConversation(conversation)
+    || conversation.is_draft !== true
+  ));
+}
+
 export function buildRoomHistoryEntries({
   conversations,
   currentConversationId,
@@ -41,7 +50,7 @@ export function buildRoomHistoryEntries({
   canUpdateConversationTitle: boolean;
 }): RoomHistoryEntry[] {
   const conversationCount = conversations.length;
-  return [...conversations]
+  return filterRoomHistoryConversations(conversations)
     .sort(compareByRecentActivity)
     .map((conversation) => {
       const isExternalSession = isExternalSessionConversation(conversation);
