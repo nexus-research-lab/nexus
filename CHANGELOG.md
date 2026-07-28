@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `nexusctl` treating an owner's `runtime` directory and current Agent workspace as host-level state roots after the owner-scoped layout change.
+- Updated the bundled `nexus-manager` Skill with the owner-scoped directory layout, CLI root-resolution rules, and enforce-mode control-plane boundary.
 - Closed Room Thread thinking indicators when an Agent intentionally returns no public reply, using the precise terminal Agent round status even though the final assistant output is suppressed.
 - Allowed Room hosts to fan out intentionally separated parallel work to multiple Agents while retaining single-target behavior for candidate and first-responder mentions.
 - Kept Room thinking blocks available in Thread while hiding them from public Agent cards and completed Room replies.
