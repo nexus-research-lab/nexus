@@ -1,3 +1,6 @@
+// INPUT: Nexus server 环境配置、数据库 migration 与进程生命周期信号。
+// OUTPUT: 完成 schema/宿主修复后启动的 HTTP/WebSocket 服务。
+// POS: nexus-server 可执行入口，只装配启动阶段，不承载领域规则。
 package main
 
 import (
@@ -37,7 +40,7 @@ const (
 func openMigrationDB(cfg config.Config) (*sql.DB, string, error) {
 	dir := filepath.Join(appfs.Root(), "db", "migrations", storage.MigrationDirName(cfg.DatabaseDriver))
 
-	db, err := storage.OpenDB(cfg)
+	db, err := storage.OpenMigrationDB(cfg)
 	if err != nil {
 		return nil, "", fmt.Errorf("open db for migration: %w", err)
 	}

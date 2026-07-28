@@ -3,7 +3,7 @@
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - repository.go / event.go：Goal 双 token 总量与事件读写。
+//   - repository.go / event.go：Goal 双 token 总量、事件读写与显式事务级联删除。
 //   - usage_recording.go：parent usage 聚合与对应审计事件的原子提交。
 //   - usage_finalization.go：最终 usage、pending barrier、持久 fence 与事件的单事务提交。
 //   - usage_source.go：runtime child checkpoint、durable scope 解析、Goal actual usage 与审计事件的原子提交。

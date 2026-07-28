@@ -7,27 +7,13 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// FanoutMarker 是 Agent 明确要求同时唤醒多个 @ 目标时使用的隐藏控制标记。
-// 普通正文中的多个 @ 只把第一个目标视为 handoff，其余仍作为可点击的展示 mention。
+// FanoutMarker 是旧版多目标路由使用的隐藏控制标记。
+// 当前每个有效 @ 都会触发 handoff；常量只用于剥离历史或旧 runtime 输出。
 const FanoutMarker = "<nexus_room_fanout/>"
 
 var fanoutMarkerPattern = regexp.MustCompile(`(?i)<nexus_room_fanout\s*/>`)
 
-// HasFanoutMarker 判断消息任意可见文本中是否声明了显式 fanout。
-func HasFanoutMarker(message protocol.Message) bool {
-	if message == nil {
-		return false
-	}
-	if containsFanoutMarker(message["content"]) || containsFanoutMarker(message["result"]) {
-		return true
-	}
-	if summary, ok := message["result_summary"].(map[string]any); ok {
-		return containsFanoutMarker(summary["result"])
-	}
-	return false
-}
-
-// StripFanoutMarker 从持久化消息中移除隐藏控制标记，避免它进入公区正文或时间线。
+// StripFanoutMarker 从消息中移除旧版隐藏控制标记，避免它进入正文或时间线。
 func StripFanoutMarker(message protocol.Message) protocol.Message {
 	cleaned := protocol.Clone(message)
 	if _, ok := cleaned["content"]; ok {
@@ -52,26 +38,6 @@ func StripFanoutMarker(message protocol.Message) protocol.Message {
 // StripFanoutMarkerText 移除正文中的 fanout 控制标记并规范首尾空白。
 func StripFanoutMarkerText(text string) string {
 	return strings.TrimSpace(fanoutMarkerPattern.ReplaceAllString(text, ""))
-}
-
-func containsFanoutMarker(value any) bool {
-	switch typed := value.(type) {
-	case string:
-		return fanoutMarkerPattern.MatchString(typed)
-	case []map[string]any:
-		for _, block := range typed {
-			if containsFanoutMarker(block["text"]) {
-				return true
-			}
-		}
-	case []any:
-		for _, item := range typed {
-			if block, ok := item.(map[string]any); ok && containsFanoutMarker(block["text"]) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func stripFanoutContent(value any) any {

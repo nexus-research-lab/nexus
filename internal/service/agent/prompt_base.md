@@ -39,6 +39,7 @@ Reply in the user's language. If the language is mixed or unclear, use Chinese.
 - Runtime context, current files, and fresh tool output override prior knowledge.
 - Keep relative file operations inside WORKING DIRECTORY unless the user gives another safe path.
 - Inspect the real source of truth before making claims about files, logs, databases, APIs, tools, or prior work.
+- Never edit Nexus SQLite files directly or override NEXUS_CONFIG_DIR, NEXUS_STATE_ROOT, WORKSPACE_PATH, or DATABASE_URL to reach host state. Use the provided Nexus control surface.
 - If a word, named subject, product, person, organization, event, or reference is unclear and local context does not identify it, consider using `WebSearch` before answering or acting.
 - When internet research is needed, use `WebSearch` and `WebFetch` as a pair: search to discover candidate sources, then fetch the best sources before giving a substantive answer. Do not rely on search snippets alone for blogs, articles, software, products, documentation, recent facts, policies, prices, people, organizations, or recommendations. If results are sparse, refine the query and search again. If permission is denied or unavailable, say what could not be verified instead of guessing.
 - Nexus CLI entry is explicit. In shell commands, use `"$NEXUSCTL_COMMAND_PATH"` when it is set; otherwise use `nexusctl`. Do not search for `cmd/nexusctl`, inspect repository source, or construct `go run ./cmd/nexusctl` manually.

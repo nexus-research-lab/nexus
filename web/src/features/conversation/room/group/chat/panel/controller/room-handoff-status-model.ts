@@ -1,0 +1,96 @@
+/**
+ * INPUT: Room realtime final message、Agent public mention queue、pending slot 与 execution 锚点。
+ * OUTPUT: 以 handoff_id 为唯一键且 active > queued > preparing 的单调 mention 状态。
+ * POS: Group Chat 面板的 public handoff 纯投影，不持有 React 状态或 feed 节点。
+ */
+import type {
+  AgentHandoffPhase,
+  AgentHandoffStatusMap,
+} from "@/features/conversation/shared/message/agent-handoff-status-context";
+import type {
+  InputQueueItem,
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
+import type {
+  AssistantMessage,
+  Message,
+} from "@/types/conversation/message/entity";
+
+interface ProjectRoomAgentHandoffStatusesOptions {
+  executionStates: readonly RoomAgentExecutionState[];
+  inputQueueItems: readonly InputQueueItem[];
+  messages: readonly Message[];
+  pendingSlots: readonly RoomPendingAgentSlotState[];
+}
+
+const HANDOFF_PHASE_PRIORITY: Record<AgentHandoffPhase, number> = {
+  preparing: 1,
+  queued: 2,
+  active: 3,
+};
+
+export function projectRoomAgentHandoffStatuses({
+  executionStates,
+  inputQueueItems,
+  messages,
+  pendingSlots,
+}: ProjectRoomAgentHandoffStatusesOptions): AgentHandoffStatusMap {
+  const statuses: Record<string, AgentHandoffPhase> = {};
+  const setPhase = (handoffId: string | null | undefined, phase: AgentHandoffPhase) => {
+    const normalizedHandoffId = handoffId?.trim();
+    if (!normalizedHandoffId) {
+      return;
+    }
+    const current = statuses[normalizedHandoffId];
+    if (
+      !current
+      || HANDOFF_PHASE_PRIORITY[phase] > HANDOFF_PHASE_PRIORITY[current]
+    ) {
+      statuses[normalizedHandoffId] = phase;
+    }
+  };
+
+  for (const message of messages) {
+    if (!isRealtimeFinalAssistantMessage(message)) {
+      continue;
+    }
+    for (const mention of message.agent_mentions ?? []) {
+      setPhase(mention.handoff_id, "preparing");
+    }
+  }
+  for (const item of inputQueueItems) {
+    if (item.source === "agent_public_mention") {
+      setPhase(item.handoff_id, "queued");
+    }
+  }
+  for (const slot of pendingSlots) {
+    setPhase(slot.handoff_id, "active");
+  }
+  for (const execution of executionStates) {
+    setPhase(execution.handoff_id, "active");
+  }
+
+  return statuses;
+}
+
+function isRealtimeFinalAssistantMessage(
+  message: Message,
+): message is AssistantMessage {
+  if (
+    message.role !== "assistant"
+    || message.delivery_mode !== "durable"
+    || message.stream_status === "cancelled"
+    || message.stream_status === "error"
+    || message.result_summary?.is_error
+    || message.result_summary?.subtype === "error"
+    || message.result_summary?.subtype === "interrupted"
+  ) {
+    return false;
+  }
+  return (
+    message.is_complete === true
+    || message.stream_status === "done"
+    || message.result_summary?.subtype === "success"
+  );
+}

@@ -1,7 +1,7 @@
 /**
  * INPUT: 会话内容版本、历史前插令牌与滚动容器尺寸变化。
  * OUTPUT: DM、Room、Thread 共用的跟随状态、定位入口与用户滚动处理器。
- * POS: 会话贴底、脱离跟随、历史恢复和资源清理的 React 编排层。
+ * POS: FOLLOW 同步贴底、READING 锚定、历史恢复和资源清理的 React 编排层。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
@@ -10,10 +10,9 @@ import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import {
   getConversationViewportSize,
   hasScrollableOverflow,
-  isNearScrollBottom,
+  isAtScrollBottom,
   resolveConversationViewportResizeState,
   resolveConversationViewportSizeRevision,
-  shouldDetachFollowForAtomicGrowth,
 } from "./follow-scroll-model";
 import { ConversationViewportAnchor } from "./conversation-viewport-anchor";
 import { HistoryPrependAnchor } from "./history-prepend-anchor";
@@ -59,9 +58,7 @@ export function useFollowScroll({
   const bottomAnchorRef = useRef<HTMLDivElement>(null);
   const shouldFollowLatestRef = useRef(true);
   const lastScrollTopRef = useRef(0);
-  const lastScrollHeightRef = useRef(0);
   const revisionSessionKeyRef = useRef<string | null>(null);
-  const previousAtomicLayoutKeyRef = useRef<string | null>(null);
   const previousTopologyKeyRef = useRef<string | null>(null);
   const viewportSizeRef = useRef<ReturnType<
     typeof getConversationViewportSize
@@ -100,9 +97,11 @@ export function useFollowScroll({
     if (!container) {
       return;
     }
-    const shouldFollow = isNearScrollBottom(container);
+    const shouldFollow = isAtScrollBottom(container);
     shouldFollowLatestRef.current = shouldFollow;
-    setScrollToBottomVisibility(!shouldFollow);
+    setScrollToBottomVisibility(
+      hasScrollableOverflow(container) && !shouldFollow,
+    );
   }, [setScrollToBottomVisibility]);
 
   const cancelAnimation = useCallback(() => {
@@ -129,9 +128,12 @@ export function useFollowScroll({
     cancelAnimation();
     container.scrollTop = resizeState.scrollTop;
     lastScrollTopRef.current = container.scrollTop;
-    lastScrollHeightRef.current = container.scrollHeight;
     shouldFollowLatestRef.current = resizeState.shouldFollow;
-    viewportAnchorRef.current.capture(container, feedRef.current);
+    if (resizeState.shouldFollow) {
+      viewportAnchorRef.current.reset();
+    } else {
+      viewportAnchorRef.current.capture(container, feedRef.current);
+    }
     setScrollToBottomVisibility(resizeState.showScrollToBottom);
     return true;
   }, [cancelAnimation, setScrollToBottomVisibility]);
@@ -150,7 +152,7 @@ export function useFollowScroll({
       && retainPositionForViewportResize(container)
     ) {
       // 该尺寸变化属于 Composer/虚拟键盘/App viewport，不属于正文增长。
-      // 在 reduced-motion 的同步贴底分支之前也必须先解除追随。
+      // resize 所有者已按当前 FOLLOW/READING 意图完成同步写入。
       return;
     }
     animatorRef.current?.follow();
@@ -159,6 +161,7 @@ export function useFollowScroll({
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
       shouldFollowLatestRef.current = true;
+      viewportAnchorRef.current.reset();
       setScrollToBottomVisibility(false);
       scheduleScrollToBottom(behavior);
     },
@@ -174,7 +177,8 @@ export function useFollowScroll({
     }
     cancelAnimation();
     shouldFollowLatestRef.current = false;
-    setScrollToBottomVisibility(true);
+    viewportAnchorRef.current.capture(container, feedRef.current);
+    setScrollToBottomVisibility(!isAtScrollBottom(container));
   }, [cancelAnimation, setScrollToBottomVisibility]);
 
   const prepareHistoryPrependRestore = useCallback(() => {
@@ -199,56 +203,34 @@ export function useFollowScroll({
       !isNewSession
       && previousTopologyKeyRef.current !== topologyKey
     );
-    const atomicLayoutChanged = (
-      !isNewSession
-      && previousAtomicLayoutKeyRef.current !== atomicLayoutKey
-    );
     revisionSessionKeyRef.current = sessionKey;
     previousTopologyKeyRef.current = topologyKey;
-    previousAtomicLayoutKeyRef.current = atomicLayoutKey;
-    const shouldDetachForGrowth = Boolean(
-      container
-      && shouldFollowLatestRef.current
-      && shouldDetachFollowForAtomicGrowth(
-        container,
-        lastScrollHeightRef.current,
-      ),
-    );
-    let restoredScrollTop: number | null = null;
-    if (container) {
-      lastScrollHeightRef.current = container.scrollHeight;
-      restoredScrollTop = viewportAnchorRef.current.restore(
-        container,
-        feedRef.current,
-        { allowVirtualFeed: topologyChanged },
-      );
-      if (restoredScrollTop !== null) {
-        lastScrollTopRef.current = restoredScrollTop;
-      }
-    }
-    const shouldDetachForLayout = Boolean(
-      container
-      && shouldFollowLatestRef.current
-      && (
-        restoredScrollTop !== null
-        || (atomicLayoutChanged && hasScrollableOverflow(container))
-      ),
-    );
-    if (shouldDetachForGrowth || shouldDetachForLayout) {
-      cancelAnimation();
-      shouldFollowLatestRef.current = false;
-      setScrollToBottomVisibility(
-        Boolean(container && hasScrollableOverflow(container)),
-      );
+    if (!container) {
       return;
     }
-    if (!shouldFollowLatestRef.current) {
-      setScrollToBottomVisibility(
-        Boolean(container && hasScrollableOverflow(container)),
-      );
+
+    if (shouldFollowLatestRef.current) {
+      // FOLLOW 独占真实 bottom；内容、终态或权限布局提交都必须在 paint 前
+      // 同步收口，不能先恢复可见锚点再用动画追赶。
+      viewportAnchorRef.current.reset();
+      setScrollToBottomVisibility(false);
+      scheduleFollowLatest();
       return;
     }
-    scheduleFollowLatest();
+
+    // READING 独占可见锚点；任何内容版本都只恢复阅读位置，绝不追底。
+    cancelAnimation();
+    const restoredScrollTop = viewportAnchorRef.current.restore(
+      container,
+      feedRef.current,
+      { allowVirtualFeed: topologyChanged },
+    );
+    if (restoredScrollTop !== null) {
+      lastScrollTopRef.current = restoredScrollTop;
+    }
+    setScrollToBottomVisibility(
+      hasScrollableOverflow(container) && !isAtScrollBottom(container),
+    );
   }, [
     atomicLayoutKey,
     cancelAnimation,
@@ -272,12 +254,11 @@ export function useFollowScroll({
     lastScrollTopRef.current = restoredScrollTop;
     viewportAnchorRef.current.capture(container, feedRef.current);
     setScrollToBottomVisibility(
-      hasScrollableOverflow(container) && !isNearScrollBottom(container),
+      hasScrollableOverflow(container) && !isAtScrollBottom(container),
     );
   }, [historyPrependToken, setScrollToBottomVisibility]);
 
-  // 只观察内容轨道增长。Composer 撑高或 App 窗口缩放会改变 viewport，
-  // 但不应借此重新追底并推走用户当前看到的内容。
+  // 只观察内容轨道增长；FOLLOW 同步贴底，READING 只恢复可见锚点。
   useEffect(() => {
     if (typeof ResizeObserver === "undefined") {
       return;
@@ -285,25 +266,28 @@ export function useFollowScroll({
 
     const observer = new ResizeObserver(() => {
       const currentContainer = scrollRef.current;
-      if (currentContainer) {
-        lastScrollHeightRef.current = currentContainer.scrollHeight;
-        const restoredScrollTop = viewportAnchorRef.current.restore(
-          currentContainer,
-          feedRef.current,
-        );
-        if (restoredScrollTop !== null) {
-          lastScrollTopRef.current = restoredScrollTop;
-        }
-      }
-      if (!shouldFollowLatestRef.current) {
-        setScrollToBottomVisibility(
-          Boolean(
-            currentContainer && hasScrollableOverflow(currentContainer),
-          ),
-        );
+      if (!currentContainer) {
         return;
       }
-      scheduleFollowLatest();
+
+      if (shouldFollowLatestRef.current) {
+        viewportAnchorRef.current.reset();
+        setScrollToBottomVisibility(false);
+        scheduleFollowLatest();
+        return;
+      }
+
+      const restoredScrollTop = viewportAnchorRef.current.restore(
+        currentContainer,
+        feedRef.current,
+      );
+      if (restoredScrollTop !== null) {
+        lastScrollTopRef.current = restoredScrollTop;
+      }
+      setScrollToBottomVisibility(
+        hasScrollableOverflow(currentContainer)
+          && !isAtScrollBottom(currentContainer),
+      );
     });
     const feed = feedRef.current;
     if (feed) {
@@ -319,7 +303,7 @@ export function useFollowScroll({
   ]);
 
   // 视口尺寸变化来自 Composer、虚拟键盘或 App/browser 窗口，不是模型正文。
-  // 即使底部弹簧正在运行也要先停止；下一条 token 不能借机重新拉走画面。
+  // FOLLOW 保留贴底意图，READING 保留可见锚点；尺寸变化不能替用户切换。
   useEffect(() => {
     if (typeof ResizeObserver === "undefined") {
       return;
@@ -346,7 +330,6 @@ export function useFollowScroll({
     viewportSizeRef.current = container
       ? getConversationViewportSize(container)
       : null;
-    lastScrollHeightRef.current = container?.scrollHeight ?? 0;
     setScrollToBottomVisibility(false);
     scheduleScrollToBottom("auto");
   }, [scheduleScrollToBottom, sessionKey, setScrollToBottomVisibility]);
@@ -363,7 +346,7 @@ export function useFollowScroll({
   const onScroll = useCallback(() => {
     interactionOnScroll();
     const container = scrollRef.current;
-    if (container) {
+    if (container && !shouldFollowLatestRef.current) {
       viewportAnchorRef.current.capture(container, feedRef.current);
     }
   }, [interactionOnScroll]);

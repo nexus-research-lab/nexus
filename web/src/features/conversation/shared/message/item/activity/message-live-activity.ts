@@ -55,6 +55,7 @@ const LIVE_ACTIVITY_RESOLVERS: ReadonlyArray<
 ];
 
 export function resolveLiveActivityState({
+  activityState,
   isLastRound,
   isLoading,
   mergedContent,
@@ -63,6 +64,7 @@ export function resolveLiveActivityState({
   streamStatus,
   streamingBlockIndexes,
 }: {
+  activityState?: MessageActivityState | null;
   isLastRound?: boolean;
   isLoading?: boolean;
   mergedContent: readonly ContentBlock[];
@@ -76,6 +78,7 @@ export function resolveLiveActivityState({
   }
 
   const context = buildLiveActivityContext({
+    activityState,
     mergedContent,
     pendingPermissions,
     runtimePhase,
@@ -88,12 +91,14 @@ export function resolveLiveActivityState({
 }
 
 function buildLiveActivityContext({
+  activityState,
   mergedContent,
   pendingPermissions,
   runtimePhase,
   streamStatus,
   streamingBlockIndexes,
 }: {
+  activityState?: MessageActivityState | null;
   mergedContent: readonly ContentBlock[];
   pendingPermissions: readonly PendingPermission[];
   runtimePhase?: AgentConversationRuntimePhase | null;
@@ -105,7 +110,8 @@ function buildLiveActivityContext({
       (block) => block.type === "text" && Boolean(block.text.trim()),
     ),
     permissionActivity: resolvePermissionActivityState(pendingPermissions),
-    runtimeActivity: resolveRuntimeActivityState(runtimePhase),
+    runtimeActivity:
+      activityState ?? resolveRuntimeActivityState(runtimePhase),
     streamingActivity: resolveStreamingBlockActivity(
       mergedContent,
       streamingBlockIndexes,

@@ -87,7 +87,7 @@ INSERT INTO conversations (
 	}
 
 	if err = goose.Up(db, migrationDir); err != nil {
-		t.Fatalf("second migration run should be a no-op: %v", err)
+		t.Fatalf("apply remaining migrations: %v", err)
 	}
 	var version int64
 	if err := db.QueryRow(
@@ -95,8 +95,8 @@ INSERT INTO conversations (
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 56 {
-		t.Fatalf("goose version = %d, want 56", version)
+	if version != 57 {
+		t.Fatalf("goose version = %d, want 57", version)
 	}
 
 	if err = goose.DownTo(db, migrationDir, 55); err != nil {

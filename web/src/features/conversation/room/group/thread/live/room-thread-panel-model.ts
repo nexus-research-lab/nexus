@@ -33,6 +33,7 @@ export function buildRoomThreadPanelModel(
     target.agentId,
     source.pendingSlotGroups.get(target.roundId) ?? [],
     target.agentRoundId,
+    source.roomAgentExecutionStateGroups.get(target.roundId) ?? [],
   );
 
   return {

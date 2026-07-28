@@ -34,6 +34,7 @@ export function useGroupChatPanelModel({
   roomId,
   roomMembers,
   runtimeKind,
+  todos,
 }: GroupChatPanelProps): GroupChatPanelViewModel {
   const environment = useConversationPanelEnvironment(layout);
   const sessionKey = conversationId
@@ -78,6 +79,8 @@ export function useGroupChatPanelModel({
     onOpenWorkspaceFile,
     pendingPermissionGroups: session.timeline.pending_permission_groups,
     pendingSlotGroups: session.timeline.pending_slot_groups,
+    roomAgentExecutionStateGroups:
+      session.timeline.room_agent_execution_state_groups,
     sendPermissionResponse: session.conversation.send_permission_response,
   });
 
@@ -95,6 +98,7 @@ export function useGroupChatPanelModel({
     roomHostAutoReplyEnabled,
     roomMembers,
     session,
+    todos,
   });
 }
 

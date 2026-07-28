@@ -34,6 +34,7 @@ export function StructuredContentRenderer(
     isStreaming,
     onOpenWorkspaceFile,
     onPermissionResponse,
+    pendingInteractionOwner,
     pendingPermissionsByToolUseId,
     permissionReadOnlyReason,
     showTimelineDots,
@@ -59,6 +60,7 @@ export function StructuredContentRenderer(
     hiddenToolNames: hiddenToolNameSet,
     onOpenWorkspaceFile,
     onPermissionResponse,
+    pendingInteractionOwner,
     pendingPermissionsByToolUseId,
     permissionReadOnlyReason,
     projection,
@@ -103,6 +105,7 @@ function normalizeStructuredContentRendererProps(
     fallbackActivityState: props.fallbackActivityState ?? null,
     hiddenToolNames: props.hiddenToolNames ?? EMPTY_HIDDEN_TOOL_NAMES,
     isStreaming: props.isStreaming ?? false,
+    pendingInteractionOwner: props.pendingInteractionOwner ?? "content",
     showTimelineDots: props.showTimelineDots ?? false,
   };
 }

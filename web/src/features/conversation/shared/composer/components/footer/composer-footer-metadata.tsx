@@ -18,7 +18,7 @@ export function ComposerFooterMetadata({
   maxLength: number;
 }) {
   return (
-    <div className="flex items-center gap-3 text-2xs tabular-nums">
+    <div className="nexus-chat-composer-footer-metadata flex items-center gap-3 text-2xs tabular-nums">
       <ComposerCharacterCount
         charCount={charCount}
         isNearLimit={isNearLimit}

@@ -5,6 +5,7 @@
 - `use-group-chat-composer-model.ts` 独占附件准备、初始草稿和输入区动作装配。
 - `use-room-goal-composer.ts` 独占负责人选择与 Goal 创建事务；未提交的负责人选择进入当前 Session 的 Room Composer 草稿胶囊，切回该 Session 时恢复。
 - `group-chat-panel-projection.ts` 只把已完成的领域状态投影为视图模型，并把 Room 内部 Agent 引导排除在用户待发送队列之外，不持有状态或副作用。
+- `room-handoff-status-model.ts` 以 `handoff_id` 合并 realtime final message、public mention queue、pending slot 与 execution 证据；阶段只能按 `preparing → queued → active` 提升，历史静态消息不得单独复活交接状态。
 - Frame、导航、视口和滚动控件统一复用 `shared/conversation-panel-model.ts`，不得在 DM / Room 内各自复制。
 
 接口由消费阶段定义，只传实际读取的数据；不得通过 Hook `ReturnType` 反向依赖完整 Session 控制器，也不得重新引入恒定权限标记。

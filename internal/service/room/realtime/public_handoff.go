@@ -24,47 +24,34 @@ type roomResolvedMention struct {
 	match roomdomain.MentionMatch
 }
 
-// buildRoomMentionAnnotations 统一 Room 公区 mention 的成员过滤和 handoff 选择。
+// buildRoomMentionAnnotations 统一 Room 公区 mention 的成员过滤和 handoff 标注。
 // 普通 assistant 输出与主动发布消息必须共享这条规则，避免两条链路产生不同的协作语义。
 func buildRoomMentionAnnotations(
 	contextValue *protocol.ConversationContextAggregate,
 	sourceAgentID string,
 	messageID string,
 	blocks []roomMentionTextBlock,
-	fanout bool,
 ) []protocol.AgentMention {
 	resolved := resolveRoomMentionMatches(contextValue, sourceAgentID, blocks)
 	if len(resolved) == 0 {
 		return nil
 	}
 
-	selectedTargets := make(map[string]struct{}, len(resolved))
-	for _, item := range resolved {
-		targetAgentID := strings.TrimSpace(item.match.AgentID)
-		if fanout || len(selectedTargets) == 0 {
-			selectedTargets[targetAgentID] = struct{}{}
-		}
-	}
-
 	messageID = strings.TrimSpace(messageID)
 	result := make([]protocol.AgentMention, 0, len(resolved))
 	for _, item := range resolved {
 		targetAgentID := strings.TrimSpace(item.match.AgentID)
-		handoffID := ""
-		if _, ok := selectedTargets[targetAgentID]; ok {
-			handoffID = roomPublicHandoffID(
-				contextValue.Conversation.ID,
-				messageID,
-				targetAgentID,
-			)
-		}
 		result = append(result, protocol.AgentMention{
 			AgentID:           targetAgentID,
 			Label:             strings.TrimSpace(item.match.Label),
 			ContentBlockIndex: item.block.index,
 			StartRune:         item.match.StartRune,
 			EndRune:           item.match.EndRune,
-			HandoffID:         handoffID,
+			HandoffID: roomPublicHandoffID(
+				contextValue.Conversation.ID,
+				messageID,
+				targetAgentID,
+			),
 		})
 	}
 	return result
@@ -150,9 +137,8 @@ func (s *Service) annotatePublicAssistantMessage(
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) error {
-	// 控制标记只参与路由决策，不进入持久化正文；清理后重新计算 span，
-	// 确保前端偏移始终对应用户实际看到的文本。
-	fanout := roomdomain.HasFanoutMarker(message)
+	// 旧版 fanout 控制标记只做输入兼容，不再决定路由；每个有效 @ 都是
+	// 真实 handoff。清理后重新计算 span，确保偏移对应用户实际看到的文本。
 	cleaned := roomdomain.StripFanoutMarker(message)
 	// agent_mentions 是服务端派生字段，不能信任 runtime 传入的旧 handoff_id。
 	delete(cleaned, "agent_mentions")
@@ -180,7 +166,6 @@ func (s *Service) annotatePublicAssistantMessage(
 		slot.AgentID,
 		messageID,
 		blocks,
-		fanout,
 	)
 	if len(mentions) == 0 {
 		return nil

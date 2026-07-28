@@ -1,6 +1,6 @@
 /**
  * INPUT: Room feed 节点、Agent 目录、权限与交互回调。
- * OUTPUT: Agent 卡片或普通消息轮次；用户交互先于消息到达时仍在主 Room 暴露完整入口。
+ * OUTPUT: 精确 Agent 执行卡或普通 root 轮次，并暴露稳定轮次身份与测量边界。
  * POS: Group feed 单节点的唯一渲染分派入口。
  */
 import type { Ref } from "react";
@@ -16,12 +16,14 @@ import {
 } from "./group-conversation-feed-model";
 
 interface GroupConversationRoundProps {
+  isMobileLayout: boolean;
   measureRef?: Ref<HTMLDivElement>;
   renderer: GroupConversationRoundRenderer;
   state: GroupConversationRoundState;
 }
 
 export function GroupConversationRound({
+  isMobileLayout,
   measureRef,
   renderer,
   state,
@@ -32,14 +34,21 @@ export function GroupConversationRound({
     messages,
     pendingPermissions,
     pendingSlots,
+    roomAgentExecutionStates,
     rootRoundId,
     roundId,
   } = state;
-  const hasRoomEntries = hasRoomAgentRoundEntries(messages, pendingSlots);
+  const hasRoomEntries = hasRoomAgentRoundEntries(
+    messages,
+    pendingSlots,
+    pendingPermissions,
+    roomAgentExecutionStates,
+  );
 
   return (
     <div
       ref={measureRef}
+      className={isMobileLayout ? "pb-4" : "pb-1"}
       data-index={measureRef ? index : undefined}
       data-conversation-round-id={roundId}
       data-conversation-root-round-id={
@@ -60,6 +69,7 @@ export function GroupConversationRound({
           onStopAgentRound={renderer.onStopAgentRound}
           pendingPermissions={pendingPermissions}
           pendingSlots={pendingSlots}
+          roomAgentExecutionStates={roomAgentExecutionStates}
           roundId={rootRoundId}
         />
       ) : (

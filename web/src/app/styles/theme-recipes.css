@@ -287,6 +287,19 @@
     margin-block: 0.75rem;
   }
 
+  /*
+   * Markdown hr 继续承担正文语义；Room 的说话人切换改用头像同轴的短圆点划，
+   * 避免两类边界都表现为贯穿内容列的横线。
+   */
+  .conversation-agent-boundary {
+    width: 2rem;
+    height: 2px;
+    margin-block: 0.625rem 0.125rem;
+    margin-inline-start: 0.75rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+  }
+
   .content-workspace-file {
     display: inline-flex;
     align-items: center;
@@ -602,6 +615,8 @@
 
   /* 对话 Composer 使用独立的聚焦面，避免把更大的圆角和纵向节奏扩散到搜索框与表单输入。 */
   .input-shell.nexus-chat-composer-shell {
+    container-name: nexus-chat-composer;
+    container-type: inline-size;
     border-radius: 20px;
     border-color: color-mix(in srgb, var(--input-shell-border) 88%, transparent);
     background: var(--input-shell-background);
@@ -628,6 +643,93 @@
         var(--input-shell-focus-border, var(--material-input-focus-border)) 18%,
         transparent
       );
+  }
+
+  .nexus-chat-composer-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas: "leading brand trailing";
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.875rem;
+  }
+
+  .nexus-chat-composer-footer-leading {
+    grid-area: leading;
+    overflow: hidden;
+  }
+
+  .nexus-chat-composer-footer-brand {
+    grid-area: brand;
+    justify-self: center;
+    color: color-mix(
+      in srgb,
+      var(--text-soft) 52%,
+      var(--input-shell-background)
+    );
+  }
+
+  .nexus-chat-composer-footer-trailing {
+    grid-area: trailing;
+  }
+
+  .nexus-chat-composer-submit-label {
+    display: none;
+  }
+
+  @container nexus-chat-composer (min-width: 640px) {
+    .nexus-chat-composer-submit-label {
+      display: inline;
+    }
+  }
+
+  @container nexus-chat-composer (max-width: 520px) {
+    .nexus-chat-composer-footer {
+      column-gap: 0.5rem;
+      padding-inline: 0.75rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "leading trailing"
+        "brand brand";
+      row-gap: 0.25rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-leading {
+      flex-wrap: wrap;
+      overflow: visible;
+      row-gap: 0.25rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-lead {
+      max-width: 9rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-metadata {
+      display: none;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-runtime-status {
+      flex-basis: 100%;
+      padding-inline-start: 2.5rem;
+    }
+  }
+
+  @container nexus-chat-composer (max-width: 420px) {
+    .nexus-chat-composer-footer-brand-prefix {
+      display: none;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-scope {
+      display: none;
+    }
+  }
+
+  /* Goal/告警保持正常文档流；透明 runway 只承接锚在 Composer 顶边的 44px Activity Dock。 */
+  .nexus-conversation-pre-composer:not(:empty) {
+    padding-bottom: 3.5rem;
   }
 
   .input-shell.ui-search-input-shell {
@@ -1202,6 +1304,10 @@
   }
 
   @container nexus-chat-feed (max-width: 620px) {
+    .nexus-chat-feed .conversation-agent-boundary {
+      margin-inline-start: 0.25rem;
+    }
+
     .nexus-chat-feed .nexus-chat-message-round {
       padding-top: 0.625rem;
       padding-bottom: 0.625rem;

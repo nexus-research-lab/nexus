@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -119,6 +120,16 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err = repository.AppendEvent(ctx, protocol.GoalEvent{
+		ID:         "event-goal-2",
+		GoalID:     "goal-2",
+		SessionKey: "agent:nexus:ws:dm:chat-2",
+		EventType:  "created",
+		Source:     protocol.GoalUpdateSourceSystem,
+		CreatedAt:  now,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	runnable, err = repository.ListRunnableGoals(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
@@ -140,6 +151,13 @@ func TestRepositoryGoalLifecycle(t *testing.T) {
 	}
 	if current != nil {
 		t.Fatalf("goal-2 = %#v, want nil after delete", current)
+	}
+	events, err := repository.ListEvents(ctx, "goal-2", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("goal-2 events = %#v, want none after delete", events)
 	}
 	deleted, err = repository.DeleteGoal(ctx, "goal-2")
 	if err != nil {
@@ -516,8 +534,85 @@ func TestGoalUsageBaselineMigrationRepairsAppliedVersion54WithoutSourceTables(t 
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 56 {
-		t.Fatalf("goose version = %d, want 56", version)
+	if version != 57 {
+		t.Fatalf("goose version = %d, want 57", version)
+	}
+}
+
+func TestGoalEventOrphanCleanupMigration(t *testing.T) {
+	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "goal-event-orphans.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = db.Close() })
+
+	if err = goose.SetDialect("sqlite3"); err != nil {
+		t.Fatal(err)
+	}
+	migrationDir := "../../../db/migrations/sqlite"
+	if err = goose.UpTo(db, migrationDir, 56); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`
+INSERT INTO goal_events (event_id, goal_id, session_key, event_type, source)
+VALUES ('orphan-event', 'missing-goal', 'session-orphan', 'created', 'system')
+`); err != nil {
+		t.Fatalf("seed orphan goal event: %v", err)
+	}
+
+	if err = goose.Up(db, migrationDir); err != nil {
+		t.Fatal(err)
+	}
+	var orphanCount int
+	if err = db.QueryRow(`
+SELECT COUNT(*)
+FROM goal_events
+WHERE NOT EXISTS (
+	SELECT 1
+	FROM session_goals
+	WHERE session_goals.goal_id = goal_events.goal_id
+)
+`).Scan(&orphanCount); err != nil {
+		t.Fatal(err)
+	}
+	if orphanCount != 0 {
+		t.Fatalf("orphan goal event count = %d, want 0", orphanCount)
+	}
+
+	var version int64
+	if err = db.QueryRow(
+		"SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1",
+	).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != 57 {
+		t.Fatalf("goose version = %d, want 57", version)
+	}
+}
+
+func TestGoalEventOrphanCleanupMigrationKeepsDialectContract(t *testing.T) {
+	for _, dialect := range []string{"sqlite", "postgres"} {
+		path := filepath.Join(
+			"../../../db/migrations",
+			dialect,
+			"00057_goal_event_orphan_cleanup.sql",
+		)
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sqlText := strings.ToLower(strings.Join(strings.Fields(string(body)), " "))
+		for _, required := range []string{
+			"delete from goal_events",
+			"where not exists",
+			"from session_goals",
+			"session_goals.goal_id = goal_events.goal_id",
+		} {
+			if !strings.Contains(sqlText, required) {
+				t.Fatalf("%s migration missing %q", dialect, required)
+			}
+		}
 	}
 }
 

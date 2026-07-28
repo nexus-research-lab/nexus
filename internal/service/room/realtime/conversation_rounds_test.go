@@ -17,6 +17,11 @@ func TestGetActiveRoundSnapshotKeepsPerSlotRootAcrossConcurrentRounds(
 		TimestampMS:  10,
 	}
 	firstSlot.setStatus("running")
+	firstSlot.setDeliveryMetadata(
+		protocol.RoomReplyRoute{},
+		"source-message-a",
+		"handoff-a",
+	)
 	secondSlot := &activeRoomSlot{
 		AgentID:      "agent-b",
 		AgentRoundID: "agent-round-b",
@@ -54,13 +59,27 @@ func TestGetActiveRoundSnapshotKeepsPerSlotRootAcrossConcurrentRounds(
 		t.Fatalf("aggregate RoundID = %q, want empty for multiple roots", snapshot.RoundID)
 	}
 	rootsByMessageID := make(map[string]string, len(snapshot.Pending))
+	handoffsByMessageID := make(map[string]string, len(snapshot.Pending))
 	for _, slot := range snapshot.Pending {
 		rootsByMessageID[slot.MsgID] = slot.RoundID
+		handoffsByMessageID[slot.MsgID] = slot.HandoffID
 	}
 	if rootsByMessageID[firstSlot.MsgID] != "root-a" {
 		t.Fatalf("slot-a root = %q, want root-a", rootsByMessageID[firstSlot.MsgID])
 	}
 	if rootsByMessageID[secondSlot.MsgID] != "root-b" {
 		t.Fatalf("slot-b root = %q, want root-b", rootsByMessageID[secondSlot.MsgID])
+	}
+	if handoffsByMessageID[firstSlot.MsgID] != "handoff-a" {
+		t.Fatalf(
+			"slot-a handoff = %q, want handoff-a",
+			handoffsByMessageID[firstSlot.MsgID],
+		)
+	}
+	if handoffsByMessageID[secondSlot.MsgID] != "" {
+		t.Fatalf(
+			"ordinary slot handoff = %q, want empty",
+			handoffsByMessageID[secondSlot.MsgID],
+		)
 	}
 }

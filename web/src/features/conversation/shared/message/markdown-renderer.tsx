@@ -1,3 +1,8 @@
+/**
+ * INPUT: 消息 Markdown、Workspace 文件解析与服务端 Agent mention spans。
+ * OUTPUT: 文件产物链接和携带 handoff_id 的稳定 mention 链接。
+ * POS: 会话消息协议到共享 Markdown 渲染器的适配层。
+ */
 "use client";
 
 import { useMemo } from "react";
@@ -13,11 +18,8 @@ import {
   REHYPE_PLUGINS,
   transformMarkdownUrl,
 } from "@/shared/ui/markdown/core/markdown-renderer-shared";
-import {
-  StableMarkdownText,
-  StreamingMarkdownText,
-} from "@/shared/ui/markdown/streaming/markdown-streaming";
-import { useSmoothStreamingMarkdownContent } from "@/shared/ui/markdown/streaming/use-smooth-streaming-markdown-content";
+import { MarkdownText } from "@/shared/ui/markdown/streaming/markdown-streaming";
+import { useSmoothStreamingMarkdownState } from "@/shared/ui/markdown/streaming/use-smooth-streaming-markdown-content";
 import {
   type MarkdownContentSegment,
   type ResolveWorkspaceFilePath,
@@ -37,6 +39,7 @@ import type { AgentMentionDirectory } from "./agent-mention-chip";
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  initialRevealFromEmpty?: boolean;
   isStreaming?: boolean;
   onOpenWorkspaceFile?: (path: string) => void;
 	workspaceAgentId?: string | null;
@@ -48,6 +51,7 @@ interface MarkdownRendererProps {
 export function MarkdownRenderer({
   content,
   className,
+  initialRevealFromEmpty = false,
   isStreaming = false,
   onOpenWorkspaceFile,
 	workspaceAgentId,
@@ -58,7 +62,13 @@ export function MarkdownRenderer({
   const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
   const currentAgentId = useMarkdownCurrentAgentID(workspaceAgentId);
   const shouldStream = isStreaming;
-  const displayedContent = useSmoothStreamingMarkdownContent(content, shouldStream);
+  const smoothStreaming = useSmoothStreamingMarkdownState(
+    content,
+    shouldStream,
+    initialRevealFromEmpty,
+  );
+  const displayedContent = smoothStreaming.content;
+  const shouldRenderStreaming = smoothStreaming.isStreaming;
   const components = useMemo(
     () => ({
       stable: createMarkdownComponents(
@@ -92,7 +102,7 @@ export function MarkdownRenderer({
     <div
       className={cn(
         MARKDOWN_BODY_CLASS_NAME,
-        isStreaming && "animate-in fade-in-0",
+        shouldRenderStreaming && "animate-in fade-in-0",
         className,
       )}
     >
@@ -104,7 +114,7 @@ export function MarkdownRenderer({
           agentMentions={agentMentions}
           resolveFilePath={resolveFilePath}
           segment={segment}
-          shouldStream={shouldStream}
+          shouldStream={shouldRenderStreaming}
           streamingComponents={components.streaming}
           workspaceAgentId={workspaceAgentId}
         />
@@ -161,13 +171,12 @@ function MessageMarkdownSegment({
     remarkPlugins: MARKDOWN_PLUGINS,
     urlTransform: transformMarkdownUrl,
   };
-  return shouldStream ? (
-    <StreamingMarkdownText
+  return (
+    <MarkdownText
       {...sharedProps}
+      isStreaming={shouldStream}
       streamingComponents={streamingComponents}
     />
-  ) : (
-    <StableMarkdownText {...sharedProps} />
   );
 }
 
@@ -190,7 +199,10 @@ function decorateMarkdownMentions(content: string, mentions: AgentMention[]): st
     }
     result += runes.slice(cursor, start).join("");
     const label = runes.slice(start, end).join("").replaceAll("\\", "\\\\").replaceAll("]", "\\]");
-    result += `[${label}](agent-mention://${encodeURIComponent(mention.agent_id)})`;
+    const handoffQuery = mention.handoff_id?.trim()
+      ? `?handoff_id=${encodeURIComponent(mention.handoff_id.trim())}`
+      : "";
+    result += `[${label}](agent-mention://${encodeURIComponent(mention.agent_id)}${handoffQuery})`;
     cursor = end;
   }
   return result + runes.slice(cursor).join("");

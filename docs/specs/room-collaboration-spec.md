@@ -80,9 +80,9 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 普通公区发言直接使用当前 round 的 final reply，不调用 Room 工具。只有已收口的 final reply 才进入 public feed。
 
-公区 final reply 中的非代码 `@成员` 默认先作为可点击的显示 mention；只有服务端选中的目标才是真实 handoff。默认只选文本顺序中的第一个有效目标，其他 `@` 保留展示但不唤醒。需要并行 fanout 时，Agent 必须在正文末尾显式附加 `<nexus_room_fanout/>`；服务端会剥离该控制标记，并为所有有效目标创建 handoff。源 Agent 的 final reply 持久化且 source slot 成功收口后立即处理，不等待同一 root round 的其他 slot；解析使用成员 name、display name 或 agent id，反引号代码区域中的 `@` 不触发唤醒。目标重复时只唤醒一次，不能唤醒自己。
+公区 final reply 中的每个非代码 `@成员` 都同时是可点击 mention 与真实 handoff；多个有效目标会分别创建独立 handoff 并行唤醒。只想展示或讨论成员时必须写普通名字，不使用 `@`。源 Agent 的 final reply 持久化且 source slot 成功收口后立即处理，不等待同一 root round 的其他 slot；解析使用成员 name、display name 或 agent id，反引号代码区域中的 `@` 不触发唤醒。目标重复时只唤醒一次，不能唤醒自己。
 
-用户消息里的 `@成员` 是用户显式输入目标，可按前端传入的 `target_agent_ids` 做并行 fanout；Agent final reply 则严格区分显示 mention 与 handoff intent。多个不同目标按目标拆成多个独立 handoff，目标的书写顺序只决定创建顺序，不承诺回复顺序。
+用户消息与 Agent final reply 里的 `@成员` 都表达显式目标；前者按前端传入的 `target_agent_ids` 路由，后者按服务端解析出的有效 mention 路由。多个不同目标按目标拆成多个独立 handoff，目标的书写顺序只决定创建顺序，不承诺回复顺序。
 
 公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容带给目标 Agent。目标 Agent 应输出新交付；没有新工作时使用 <nexus_room_no_reply/>，平台不写入空的公区回复。
 
@@ -107,8 +107,8 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 - `start_rune/end_rune` 是半开区间，范围包含 `@`；普通字符串消息使用 `content_block_index=0`。
 - `handoff_id` 只在 Agent public handoff 上存在；用户消息的目标注解可以没有。
-- 没有 `handoff_id` 的 Agent mention 只是显示 span，不触发唤醒；前端仍按同一 span 渲染头像与可点击链接。
-- `<nexus_room_fanout/>` 是平台控制标记，不进入正文、历史、上下文或时间线。
+- 用户消息或旧历史中没有 `handoff_id` 的 mention 只是显示 span，不触发唤醒；前端仍按同一 span 渲染头像与可点击链接。当前服务端生成的 Agent public final 中，每个有效 mention 都带独立 `handoff_id`。
+- `<nexus_room_fanout/>` 是旧版兼容标记，不再改变路由；服务端仍会剥离它，确保其不进入正文、历史、上下文或时间线。
 - 消息不持久化 avatar URL；前端按当前 Room agent directory 解析头像，找不到成员时使用 `label` 和 initials 兜底。
 - 解析不明确、目标已移除或位于代码/链接 destination 中的 `@` 保留为普通文本，不创建 handoff。
 

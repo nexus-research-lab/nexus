@@ -163,7 +163,7 @@ func TestDesktopLegacyConversationDraftRepairCoversEveryRoomOwner(t *testing.T) 
 	}
 	migrateConversationDraftRepairDatabase(t, cfg)
 
-	db, err := storage.OpenDB(cfg)
+	db, err := storage.OpenMigrationDB(cfg)
 	if err != nil {
 		t.Fatalf("打开测试数据库: %v", err)
 	}

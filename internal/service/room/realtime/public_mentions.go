@@ -111,8 +111,8 @@ func publicMentionWakesFromMessage(
 		}
 		handoffID := strings.TrimSpace(mention.HandoffID)
 		if handoffID == "" {
-			// 没有 handoff_id 的 mention 只是展示 span；真实交接必须
-			// 由服务端显式选中并写入 ledger，不能因解析到 @ 就再次唤醒。
+			// 用户消息、旧历史或畸形 annotation 可能没有 handoff_id；
+			// 它们只作展示，不能绕过当前服务端派生并写入 ledger 的交接。
 			continue
 		}
 		if _, exists := seen[targetAgentID]; exists {
@@ -700,6 +700,7 @@ func addPublicMentionSlots(
 			AgentRoundID: agentRoundID,
 			MsgID:        msgID,
 			RoundID:      roomRootRoundID(activeRound),
+			HandoffID:    strings.TrimSpace(pendingSlot.wake.HandoffID),
 			Status:       "pending",
 			Timestamp:    slot.TimestampMS,
 			Index:        slotIndex,

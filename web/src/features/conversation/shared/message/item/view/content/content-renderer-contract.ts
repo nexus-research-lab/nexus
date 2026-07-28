@@ -7,6 +7,7 @@ import type {
 
 import type { MessageActivityState } from "../../activity/message-activity-state";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
+import type { PendingInteractionOwner } from "../../message-item-projection";
 
 export interface ContentRendererProps {
   canRespondToPermissions?: boolean;
@@ -17,6 +18,7 @@ export interface ContentRendererProps {
   isStreaming?: boolean;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  pendingInteractionOwner?: PendingInteractionOwner;
   pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
   permissionReadOnlyReason?: string;
   showTimelineDots?: boolean;

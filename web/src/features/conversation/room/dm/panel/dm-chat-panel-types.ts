@@ -12,6 +12,7 @@ export interface DmChatPanelProps {
   currentAgentPermissionMode: string | null;
   sessionIdentity: AgentConversationIdentity | null;
   runtimeKind: AgentRuntimeKind;
+  todos: TodoItem[];
   layout: "desktop" | "mobile";
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;

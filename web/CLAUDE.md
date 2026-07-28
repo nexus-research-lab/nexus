@@ -98,7 +98,10 @@ src/
 - Workspace Surface Header 固定为真实使用的单行布局，标题、导航和尾部动作按职责组合；工具栏动作从 Header 独立导入，不恢复无消费者的密度模式
 - 技能详情按 route/controller/model/view 分离，详情资源用请求代次拒绝旧响应；更新和删除只复用市场命令的明确结果，不在视图重复调用 API
 - 连接器目录卡片的尾部动作只由 `capability/connectors/catalog/connector-card-model.ts` 投影；已连接项必须提供可访问的断开入口并复用控制器断开事务，详情页保留同一动作；飞书云文档的连接入口统一先选择官方扫码或手工兜底，官方扫码可在飞书选择已有应用或创建新应用，桌面端通过原生宿主、Web 端通过收到 App ID 后的延迟弹窗尝试拉起当前用户授权链接，Web 被浏览器拦截时必须显示明确的主按钮，手工 App ID / Secret 不得成为断开后静默复用的固定状态
+- Room 当前 Session 的 Agent execution 展示锚点只由 `hooks/agent/runtime/model/room-agent-execution-state.ts` 维护：首次批量恢复采用服务端 `display_order` 或 slot timestamp/index 建立 canonical 顺序，后续 permission、slot、stream、message 证据只能追加并接管既有节点；acknowledged tombstone 保持原 shell 但不再携带交互。Timeline、Room Feed 与 Thread 只消费该投影，不得按完成顺序重排
+- MessageItem 的 Assistant 内容模式只由 `features/conversation/shared/message/item/message-item-projection.ts` 的穷尽策略同时选择 direct/final 正文 surface 与 pending interaction owner；DM live/archive 的最终正文必须保持同一 React 子树，Room 的人工介入只在 request-owned 轨道挂载。`view/content/content-renderer-model.ts` 让 live 空文本先挂载 Markdown 身份以承接首批流式正文，历史空文本不得占位
 - Composer 由 `features/conversation/shared/composer/controller/` 分离草稿、分阶段消息投递、Goal/Loop、有序键盘守卫，以及输入/运行时/模式/动作视图投影；未发送的正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标组成单一草稿胶囊，按包含 Session ID 的 Room/DM 内存作用域隔离，切换 Session 恢复各自待发送状态且不同聊天互相隔离；输入历史仍按不含 Session ID 的逻辑聊天作用域共享；`components/{footer,pending-queue,loop-picker}/` 分别拥有展示和局部交互，面板只装配子域
+- 会话底部工作区由 `conversation/shared/conversation-panel-layout.tsx` 统一组合：Goal/告警进入 pre-composer slot，当前会话 Task 以“当前步骤/总步数 · 当前摘要”胶囊占据 Composer 顶边 Dock 的中心主位，回到底部在同一行相邻显示且 Task 缺席时单独居中。透明 Dock 与中间包装不接收指针，只有两个真实按钮拥有局部热区；pre-composer 有内容时提供透明 runway，避免 Goal 与 dock 重叠。只有 Task 或回到底部控件真实可见时才在消息尾部保留避让，隐藏时不制造空白；控件显隐和 Task 展开不得改变阅读 viewport 高度。Task 数据沿 Room/DM 面板模型进入共享视图，不在 Room Surface 顶部另设状态条。Composer Footer 使用输入壳容器宽度收敛动作与 `Powered by Nexus` 居中标注；窄壳 Goal 模式必须重排为两行并保留负责人、取消和提交动作，不以全窗口断点推导壳内密度
 - Composer 附件只由 `shared/composer/attachments/` 的有序规则表分类并生成文件选择过滤；剪贴板先投影为明确动作，整批校验必须先于上传，DM/Room 必须提供窄上传目标
 - 停止动作按执行所有权归属：DM 可由 Composer 提供 `onStop`，Room Composer 不暴露停止入口，Room 只在对应 Agent slot 通过 `agent_round_id` 定向中断
 - General 设置由 `features/settings/general/` 统一编排；默认模型值直接派生自用户偏好和 Provider 默认值，不维护镜像选择状态
@@ -119,7 +122,7 @@ src/
 - 对话滚动只通过 `features/conversation/shared/timeline/scroll/` 协调；面板不得复制底部阈值、RAF 动画、历史前插锚点或轮次 DOM 标记
 - DM/Room Todo 只从 `features/conversation/shared/todos/` 的单遍轮次投影派生；计划、运行时任务和状态别名不得在面板中重复推导
 - 会话导航由 `shared/session-navigator/` 分离时间线数据投影、刻度视觉模型、纯 DOM 定位和活动轮同步，`session-navigator/jump/` 分离目标、串行加载与落点确认；缺失窗口加载必须绑定会话键和请求代次，失效目标不得产生副作用
-- 消息项由 `features/conversation/shared/message/item/controller/` 统一完成顺序、权限、过程链和最终回复投影，`controller/display/` 分离纯显示状态与展开生命周期；Assistant 视图按模型、内容、头部、过程和权限适配分工，User 视图按展示模型、头部、正文和编辑器分工，未匹配权限保持独立且唯一的内容段
+- 消息项由 `features/conversation/shared/message/item/controller/` 统一完成顺序、权限、过程链和最终回复投影，`controller/display/` 分离纯显示状态与展开生命周期；Assistant 视图按模型、内容、头部、过程和权限适配分工，DM live 的连续普通工具由 `item/process/dm-tool-run-segments.ts` 以首个 `tool_use.id` 稳定成段，未解析或新增长段保持展开，已解析段在叙事/final 恢复边界后折叠，Room 与人工交互工具不进入该压缩路径；User 视图按展示模型、头部、正文和编辑器分工，未匹配权限保持独立且唯一的内容段
 - `MessageItem` 直接从 `message/item/message-item.tsx` 导入；消息目录不提供只做转发的聚合出口
 - 消息内容块按 `blocks/{question,code,artifact,tool}/` 分域；Question 的卡片展示与草稿/提交控制分别归 `question/{card,controller}/`，跨消息项的工具名称与输入摘要归消息域 `tool-activity.ts`，Tool 的执行阶段与权限详情只由 `tool/tool-block-model.ts` 派生，头部交互由 `tool/header/` 的纯投影解释
 - Artifact 文件和图片分别归 `blocks/artifact/{file,image}/`，路径解析与浏览器下载/桌面 reveal 只由 Artifact 根域实现，消息渲染器不得直接调用文件动作 API

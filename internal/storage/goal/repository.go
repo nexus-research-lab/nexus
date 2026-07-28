@@ -325,6 +325,13 @@ WHERE goal_id = `+r.bind(1),
 	); err != nil {
 		return false, err
 	}
+	if _, err := tx.ExecContext(
+		ctx,
+		"DELETE FROM goal_events WHERE goal_id = "+r.bind(1),
+		goalID,
+	); err != nil {
+		return false, err
+	}
 	result, err := tx.ExecContext(
 		ctx,
 		"DELETE FROM session_goals WHERE goal_id = "+r.bind(1),

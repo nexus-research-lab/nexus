@@ -840,6 +840,7 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 	configDir := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
 	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv(nexusctlCommandPathEnvName, "")
 	workspacePath := filepath.Join(os.TempDir(), "nexus-owner", "agent-1")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: workspacePath,

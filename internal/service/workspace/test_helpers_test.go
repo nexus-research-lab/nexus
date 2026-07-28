@@ -27,6 +27,7 @@ func newWorkspaceTestConfig(t *testing.T) config.Config {
 	t.Setenv("HOME", filepath.Join(root, "home"))
 	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	t.Setenv("NEXUSCTL_COMMAND_PATH", "")
 	return config.Config{
 		Host:                      "127.0.0.1",
 		Port:                      18011,

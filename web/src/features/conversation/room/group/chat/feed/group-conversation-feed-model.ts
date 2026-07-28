@@ -1,7 +1,13 @@
+/**
+ * INPUT: Room 根轮次顺序及按轮次分组的 message/permission/slot/execution 数据。
+ * OUTPUT: static/virtual feed 共用的单轮 loaded/live 状态与稳定源切片。
+ * POS: Room feed 的纯轮次解析边界，不拥有 Agent 排序或 runtime 状态。
+ */
 import type { RefObject } from "react";
 
 import type {
   AgentConversationRuntimePhase,
+  RoomAgentExecutionState,
 } from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message/entity";
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
@@ -24,6 +30,7 @@ export interface GroupConversationRoundSource {
   messageGroups: Map<string, Message[]>;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
+  roomAgentExecutionStateGroups: Map<string, RoomAgentExecutionState[]>;
   rootRoundIds?: Map<string, string>;
   roundIds: string[];
   roundIndexItems?: SessionRoundIndexItem[];
@@ -59,6 +66,7 @@ export interface GroupConversationRoundState {
   messages: Message[];
   pendingPermissions: PendingPermission[];
   pendingSlots: RoomPendingAgentSlotState[];
+  roomAgentExecutionStates: RoomAgentExecutionState[];
   roundId: string;
   rootRoundId: string;
 }
@@ -73,6 +81,8 @@ export function resolveGroupConversationRound(
   const pendingPermissions =
     source.pendingPermissionGroups.get(roundId) ?? [];
   const pendingSlots = source.pendingSlotGroups.get(roundId) ?? [];
+  const roomAgentExecutionStates =
+    source.roomAgentExecutionStateGroups.get(roundId) ?? [];
   const isLast = index === source.roundIds.length - 1;
   const isLive = isLast && source.liveRoundIds.includes(rootRoundId);
 
@@ -84,10 +94,12 @@ export function resolveGroupConversationRound(
       messages.length > 0 ||
       pendingPermissions.length > 0 ||
       pendingSlots.length > 0 ||
+      roomAgentExecutionStates.length > 0 ||
       isLive,
     messages,
     pendingPermissions,
     pendingSlots,
+    roomAgentExecutionStates,
     roundId,
     rootRoundId,
   };

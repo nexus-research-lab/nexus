@@ -1,5 +1,5 @@
 /**
- * INPUT: canonical 轮次身份与 TanStack Virtual 的动态尺寸测量。
+ * INPUT: 跨 optimistic ACK 稳定的节点身份与 TanStack Virtual 动态尺寸测量。
  * OUTPUT: 仅在轮次集合真实变化时更新的 item key，以及不误推可见长回复的锚点策略。
  * POS: DM 与 Room 虚拟消息流共用的身份和尺寸变化滚动协议。
  */
@@ -16,16 +16,16 @@ interface VirtualScrollState {
 }
 
 export function useConversationVirtualItemKey(
-  roundIds: readonly string[],
+  nodeIds: readonly string[],
 ): (index: number) => string {
-  const stableRoundIdsRef = useRef(roundIds);
-  if (!areRoundIdsEqual(stableRoundIdsRef.current, roundIds)) {
-    stableRoundIdsRef.current = roundIds;
+  const stableNodeIdsRef = useRef(nodeIds);
+  if (!areNodeIdsEqual(stableNodeIdsRef.current, nodeIds)) {
+    stableNodeIdsRef.current = nodeIds;
   }
-  const stableRoundIds = stableRoundIdsRef.current;
+  const stableNodeIds = stableNodeIdsRef.current;
   return useCallback(
-    (index: number) => stableRoundIds[index],
-    [stableRoundIds],
+    (index: number) => stableNodeIds[index],
+    [stableNodeIds],
   );
 }
 
@@ -62,12 +62,12 @@ export function shouldAdjustConversationVirtualScrollPosition(
   );
 }
 
-function areRoundIdsEqual(
+function areNodeIdsEqual(
   current: readonly string[],
   next: readonly string[],
 ): boolean {
   return (
     current.length === next.length
-    && current.every((roundId, index) => roundId === next[index])
+    && current.every((nodeId, index) => nodeId === next[index])
   );
 }

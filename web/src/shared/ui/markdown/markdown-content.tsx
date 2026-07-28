@@ -23,11 +23,8 @@ import {
   useMarkdownCurrentAgentID,
   useMarkdownFileResolver,
 } from "./workspace/use-markdown-workspace-files";
-import {
-  StableMarkdownText,
-  StreamingMarkdownText,
-} from "./streaming/markdown-streaming";
-import { useSmoothStreamingMarkdownContent } from "./streaming/use-smooth-streaming-markdown-content";
+import { MarkdownText } from "./streaming/markdown-streaming";
+import { useSmoothStreamingMarkdownState } from "./streaming/use-smooth-streaming-markdown-content";
 
 interface UiMarkdownContentProps {
   content: string;
@@ -55,7 +52,12 @@ export function UiMarkdownContent({
   const resolveFilePath = useMarkdownFileResolver(workspaceAgentId);
   const currentAgentId = useMarkdownCurrentAgentID(workspaceAgentId);
   const shouldStream = isStreaming;
-  const displayedContent = useSmoothStreamingMarkdownContent(content, shouldStream);
+  const smoothStreaming = useSmoothStreamingMarkdownState(
+    content,
+    shouldStream,
+  );
+  const displayedContent = smoothStreaming.content;
+  const shouldRenderStreaming = smoothStreaming.isStreaming;
   const components = useMemo(
     () => createMarkdownComponentSet({
       currentAgentId,
@@ -80,7 +82,7 @@ export function UiMarkdownContent({
     displayedContent,
     resolveFilePath,
     onOpenWorkspaceFile,
-    { is_streaming: shouldStream },
+    { is_streaming: shouldRenderStreaming },
   );
   const sharedProps = {
     components: components.stable,
@@ -94,18 +96,15 @@ export function UiMarkdownContent({
     <div
       className={cn(
         variant === "summary" ? MARKDOWN_SUMMARY_CLASS_NAME : MARKDOWN_BODY_CLASS_NAME,
-        isStreaming && "animate-in fade-in-0",
+        shouldRenderStreaming && "animate-in fade-in-0",
         className,
       )}
     >
-      {shouldStream ? (
-        <StreamingMarkdownText
-          {...sharedProps}
-          streamingComponents={components.streaming}
-        />
-      ) : (
-        <StableMarkdownText {...sharedProps} />
-      )}
+      <MarkdownText
+        {...sharedProps}
+        isStreaming={shouldRenderStreaming}
+        streamingComponents={components.streaming}
+      />
     </div>
   );
 }

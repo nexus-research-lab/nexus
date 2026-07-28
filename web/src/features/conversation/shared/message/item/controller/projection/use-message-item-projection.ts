@@ -16,6 +16,7 @@ import type { ContentBlock } from "@/types/conversation/message/content";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import { resolveLiveActivityState } from "../../activity/message-live-activity";
+import type { MessageActivityState } from "../../activity/message-activity-state";
 import {
   projectionFromOrderedEntries,
   type AssistantContentMode,
@@ -32,6 +33,7 @@ import { buildMessageStats } from "./message-item-stats";
 import { buildSystemEventBlocks } from "./message-item-system-events";
 
 interface MessageItemProjectionOptions {
+  activityState?: MessageActivityState | null;
   assistantContentMode: AssistantContentMode;
   hiddenToolNames: readonly string[];
   isLastRound?: boolean;
@@ -58,6 +60,7 @@ interface AssistantIdentityProjection {
 }
 
 export function useMessageItemProjection({
+  activityState,
   assistantContentMode,
   hiddenToolNames,
   isLastRound,
@@ -116,6 +119,7 @@ export function useMessageItemProjection({
   );
   const liveActivityState = useMemo(
     () => resolveLiveActivityState({
+      activityState,
       isLastRound,
       isLoading,
       mergedContent: contentMerge.mergedContent,
@@ -125,6 +129,7 @@ export function useMessageItemProjection({
       streamingBlockIndexes: contentMerge.streamingBlockIndexes,
     }),
     [
+      activityState,
       assistantIdentity.streamStatus,
       contentMerge.mergedContent,
       contentMerge.streamingBlockIndexes,

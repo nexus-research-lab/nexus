@@ -1,14 +1,9 @@
 /**
  * INPUT: 当前滚动容器、目标滚动行为与浏览器帧时序。
- * OUTPUT: 可取消、底部目标单向增长的阻尼跟随，或按实时目标二阶段收口的显式贴底。
- * POS: 会话滚动写入的唯一动态跟随与二阶段贴底执行器。
+ * OUTPUT: paint 前同步 FOLLOW，或按实时底部阻尼移动的显式回到底部事务。
+ * POS: 会话 FOLLOW 与用户触发平滑定位的唯一 scrollTop 写入执行器。
  */
-import {
-  getConversationViewportSize,
-  getScrollBottomTop,
-  hasConversationViewportSizeChanged,
-  type ConversationViewportSize,
-} from "./follow-scroll-model";
+import { getScrollBottomTop } from "./follow-scroll-model";
 
 const SPRING_ANGULAR_FREQUENCY = 24;
 const DEFAULT_FRAME_DELTA_SECONDS = 1 / 60;
@@ -20,13 +15,11 @@ const REQUIRED_STABLE_FRAMES = 2;
 
 type ScrollContainerResolver = () => HTMLDivElement | null;
 type ScrollPositionObserver = (scrollTop: number) => void;
-type ScrollAnimationMode = "follow" | "scroll" | "settle";
+type ScrollAnimationMode = "scroll" | "settle";
 
 export class BottomScrollAnimator {
   private animationFrameId: number | null = null;
   private animationMode: ScrollAnimationMode | null = null;
-  private followTargetTop: number | null = null;
-  private followViewportSize: ConversationViewportSize | null = null;
   private lastFrameTime: number | null = null;
   private stableFrameCount = 0;
   private velocity = 0;
@@ -41,26 +34,16 @@ export class BottomScrollAnimator {
     if (!container) {
       return;
     }
-    if (prefersReducedMotion()) {
-      this.cancel();
-      this.setPosition(
-        container,
-        Math.max(container.scrollTop, getScrollBottomTop(container)),
-      );
-      return;
-    }
 
-    if (
-      this.animationMode === "follow"
-      || this.animationMode === "scroll"
-    ) {
+    // 用户点击“回到底部”后允许显式 smooth 事务完成；普通内容增长没有
+    // 动画中间态，React layout effect / ResizeObserver 会在 paint 前贴底。
+    if (this.animationMode === "scroll") {
       return;
     }
     if (this.animationMode === "settle") {
       this.cancel();
     }
-    this.stableFrameCount = 0;
-    this.startSpring("follow");
+    this.setPosition(container, getScrollBottomTop(container));
   }
 
   scroll(behavior: ScrollBehavior = "smooth"): void {
@@ -79,7 +62,7 @@ export class BottomScrollAnimator {
       return;
     }
 
-    this.startSpring("scroll");
+    this.startSpring();
   }
 
   cancel(): void {
@@ -90,13 +73,8 @@ export class BottomScrollAnimator {
     this.resetMotion();
   }
 
-  private startSpring(mode: "follow" | "scroll"): void {
-    const container = this.resolveContainer();
-    this.animationMode = mode;
-    this.followTargetTop = null;
-    this.followViewportSize = mode === "follow" && container
-      ? getConversationViewportSize(container)
-      : null;
+  private startSpring(): void {
+    this.animationMode = "scroll";
     this.lastFrameTime = null;
     this.stableFrameCount = 0;
     this.velocity = 0;
@@ -126,25 +104,9 @@ export class BottomScrollAnimator {
       this.resetMotion();
       return;
     }
-    if (
-      mode === "follow"
-      && this.followViewportSize
-      && hasConversationViewportSizeChanged(
-        this.followViewportSize,
-        getConversationViewportSize(container),
-      )
-    ) {
-      // Composer、虚拟键盘或 App 窗口改变的是阅读视口，不是模型正文。
-      // 在写入新位置前停止，外层 ResizeObserver 会同步切到 detached。
-      this.resetMotion();
-      return;
-    }
 
     const currentTop = container.scrollTop;
-    const measuredTargetTop = getScrollBottomTop(container);
-    const targetTop = mode === "follow"
-      ? this.resolveFollowTarget(measuredTargetTop, currentTop)
-      : measuredTargetTop;
+    const targetTop = getScrollBottomTop(container);
     const distance = targetTop - currentTop;
     if (Math.abs(distance) <= SETTLE_DISTANCE_PX) {
       this.setPosition(container, targetTop);
@@ -187,17 +149,6 @@ export class BottomScrollAnimator {
     const requestedPosition = next.position;
     this.setPosition(container, requestedPosition);
     if (
-      mode === "follow"
-      && container.scrollTop + SETTLE_DISTANCE_PX < requestedPosition
-      && getScrollBottomTop(container)
-        <= container.scrollTop + SETTLE_DISTANCE_PX
-    ) {
-      // 永久高度收缩时浏览器会把写入值钳制在真实 bottom。此时结束旧的
-      // 高水位事务；后续内容再增长会由 ResizeObserver 启动新的单向跟随。
-      this.resetMotion();
-      return;
-    }
-    if (
       container.scrollTop === currentTop
       && Math.abs(distance) <= QUANTIZED_SCROLL_SNAP_DISTANCE_PX
     ) {
@@ -215,25 +166,8 @@ export class BottomScrollAnimator {
     this.observePosition(container.scrollTop);
   }
 
-  private resolveFollowTarget(
-    measuredTargetTop: number,
-    currentTop: number,
-  ): number {
-    // ResizeObserver 和虚拟列表测高会在同一次布局提交中短暂报告较小的
-    // scrollHeight。自动跟随只接受底部目标单向增长，避免先主动向上、
-    // 下一帧又向下；显式 scroll() 使用实时目标，不受这个高水位约束。
-    this.followTargetTop = Math.max(
-      this.followTargetTop ?? currentTop,
-      measuredTargetTop,
-      currentTop,
-    );
-    return this.followTargetTop;
-  }
-
   private resetMotion(): void {
     this.animationMode = null;
-    this.followTargetTop = null;
-    this.followViewportSize = null;
     this.lastFrameTime = null;
     this.stableFrameCount = 0;
     this.velocity = 0;

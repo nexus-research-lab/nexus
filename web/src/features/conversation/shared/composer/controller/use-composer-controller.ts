@@ -32,6 +32,7 @@ export function useComposerController({
   goalCreateDisabledReason = null,
   historyScopeKey,
   inputQueueItems,
+  interactionIdentity = null,
   isLoading,
   onCreateGoal,
   onCreateLoopGoal,
@@ -87,7 +88,20 @@ export function useComposerController({
     setSelectedTargetIDs,
     textareaRef,
   });
-  const { updateMentionForInput } = mention;
+  const { closeMention, updateMentionForInput } = mention;
+  useLayoutEffect(() => {
+    if (!interactionIdentity) {
+      return;
+    }
+    closeMention();
+    setActionMenuOpen(false);
+    setLoopPickerOpen(false);
+  }, [
+    interactionIdentity,
+    closeMention,
+    setActionMenuOpen,
+    setLoopPickerOpen,
+  ]);
   const history = useComposerHistory({
     clearError: clearAttachmentError,
     input: draftState.input,
@@ -111,7 +125,7 @@ export function useComposerController({
     if (textarea) {
       focusComposerInputAtEnd(textarea);
     }
-  }, [draftScopeKey]);
+  }, [draftScopeKey, interactionIdentity]);
 
   const resetTextareaHeight = useCallback(() => {
     if (textareaRef.current) {

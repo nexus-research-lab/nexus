@@ -1,6 +1,6 @@
 /**
  * INPUT: DM 轮次数据、渲染器与共享滚动/feed refs。
- * OUTPUT: 使用稳定身份、真实轨道估高和可见锚点策略的虚拟消息流。
+ * OUTPUT: 使用稳定身份、真实轨道估高、紧凑尾锚和可见锚点策略的虚拟消息流。
  * POS: 普通会话超过虚拟化阈值后的 Feed 渲染入口。
  */
 import { useCallback, useMemo } from "react";
@@ -13,6 +13,7 @@ import {
   resolveConversationRound,
   type ConversationFeedProps,
 } from "./conversation-feed-model";
+import { ConversationFeedTail } from "./conversation-feed-tail";
 import { ConversationRound } from "./conversation-round";
 import { useConversationRoundNavigation } from "./use-conversation-round-navigation";
 import { useConversationVirtualMetrics } from "./use-conversation-virtual-metrics";
@@ -38,7 +39,13 @@ export function ConversationVirtualFeed({
     refs.scrollRef,
     refs.feedRef,
   );
-  const getItemKey = useConversationVirtualItemKey(source.roundIds);
+  const roundNodeIds = useMemo(
+    () => source.roundIds.map(
+      (_roundId, index) => resolveConversationRound(source, index).nodeId,
+    ),
+    [source],
+  );
+  const getItemKey = useConversationVirtualItemKey(roundNodeIds);
   const initialOffset = useConversationVirtualInitialOffset(refs.scrollRef);
   const heightMap = useMemo(
     () => estimateRoundHeights(
@@ -103,7 +110,8 @@ export function ConversationVirtualFeed({
           const state = resolveConversationRound(source, item.index);
           return (
             <ConversationRound
-              key={state.roundId}
+              isMobileLayout={isMobileLayout}
+              key={state.nodeId}
               measureRef={virtualizer.measureElement}
               renderer={renderer}
               source={source}
@@ -112,8 +120,8 @@ export function ConversationVirtualFeed({
           );
         })}
       </div>
-      <div
-        ref={refs.bottomAnchorRef}
+      <ConversationFeedTail
+        bottomAnchorRef={refs.bottomAnchorRef}
         className="absolute bottom-0 h-px w-full"
       />
     </div>

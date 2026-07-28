@@ -1,3 +1,8 @@
+/**
+ * INPUT: 单个 ContentBlock、流式身份与消息级渲染上下文。
+ * OUTPUT: 稳定内容块视图；live 空文本预挂载，同帧首批非空正文从空显示态平滑追赶。
+ * POS: 结构化内容注册表的穷尽分派边界，不负责消息投影或时间线排序。
+ */
 import type { ReactNode } from "react";
 
 import type { ContentBlock } from "@/types/conversation/message/content";
@@ -6,6 +11,7 @@ import type {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
+import { hasLiveStreamRevealMarker } from "@/lib/conversation/live-stream-reveal";
 
 import { ImageBlock } from "../../../blocks/artifact/image/image-block";
 import { WorkspaceFileArtifactBlock } from "../../../blocks/artifact/workspace-file-artifacts";
@@ -14,18 +20,21 @@ import { ToolUseErrorBlock } from "../../../blocks/tool/tool-use-error-block";
 import { MarkdownRenderer } from "../../../markdown-renderer";
 import {
   isHiddenSystemEvent,
+  shouldMountTextContentBlock,
   type StructuredContentProjection,
 } from "./content-renderer-model";
 import { ContentSystemEvent } from "./content-system-event";
 import { ContentToolBlock } from "./content-tool-block";
 import { TimelineBlock } from "./content-renderer-timeline";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
+import type { PendingInteractionOwner } from "../../message-item-projection";
 
 export interface ContentBlockRenderContext {
   canRespondToPermissions: boolean;
   hiddenToolNames: ReadonlySet<string>;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  pendingInteractionOwner: PendingInteractionOwner;
   pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
   permissionReadOnlyReason?: string;
   projection: StructuredContentProjection;
@@ -109,12 +118,13 @@ function renderTextBlock(
   streaming: boolean,
   blockIndex: number,
 ) {
-  if (!block.text.trim()) {
+  if (!shouldMountTextContentBlock(block.text, streaming)) {
     return null;
   }
   return (
     <MarkdownRenderer
       content={block.text}
+      initialRevealFromEmpty={hasLiveStreamRevealMarker(block)}
       isStreaming={streaming}
       onOpenWorkspaceFile={context.onOpenWorkspaceFile}
       workspaceAgentId={context.workspaceAgentId}
@@ -141,6 +151,7 @@ function renderThinkingBlock(
   }
   return (
     <ThinkingBlock
+      initialRevealFromEmpty={hasLiveStreamRevealMarker(block)}
       isStreaming={streaming}
       thinking={block.thinking}
       workspaceAgentId={context.workspaceAgentId}
@@ -191,6 +202,7 @@ function renderToolUseBlock(
         canRespondToPermissions: context.canRespondToPermissions,
         onOpenWorkspaceFile: context.onOpenWorkspaceFile,
         onPermissionResponse: context.onPermissionResponse,
+        pendingInteractionOwner: context.pendingInteractionOwner,
         pendingPermission: context.pendingPermissionsByToolUseId?.get(block.id),
         permissionReadOnlyReason: context.permissionReadOnlyReason,
         projection: context.projection,

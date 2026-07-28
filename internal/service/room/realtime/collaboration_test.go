@@ -225,7 +225,7 @@ func TestPublicInputBatchIgnoresStoredCursorWhenRuntimeCannotResume(t *testing.T
 
 // 公共移交意图测试。
 
-func TestAnnotatePublicAssistantMessageSeparatesDisplayMentionFromDefaultHandoff(t *testing.T) {
+func TestAnnotatePublicAssistantMessageCreatesHandoffForEveryMention(t *testing.T) {
 	contextValue := &protocol.ConversationContextAggregate{
 		Conversation: protocol.ConversationRecord{ID: "conversation-intent"},
 		Members: []protocol.MemberRecord{
@@ -248,12 +248,12 @@ func TestAnnotatePublicAssistantMessageSeparatesDisplayMentionFromDefaultHandoff
 		"message_id":  "message-intent",
 		"role":        "assistant",
 		"is_complete": true,
-		// runtime 传入的旧 annotation 不能绕过服务端的单目标选择。
+		// runtime 传入的旧 annotation 不能绕过服务端重新派生 handoff。
 		"agent_mentions": []protocol.AgentMention{{
 			AgentID: "agent-devin", HandoffID: "runtime-forged-handoff",
 		}},
 		"content": []map[string]any{{
-			"type": "text", "text": "先请 @Amy 处理，@Devin 作为展示候选。",
+			"type": "text", "text": "请 @Amy 处理接口，@Devin 检查测试。",
 		}},
 	}
 	service := &Service{}
@@ -261,11 +261,19 @@ func TestAnnotatePublicAssistantMessageSeparatesDisplayMentionFromDefaultHandoff
 		t.Fatal(err)
 	}
 	mentions := protocolAgentMentions(message["agent_mentions"])
-	if len(mentions) != 2 || mentions[0].HandoffID == "" || mentions[1].HandoffID != "" {
-		t.Fatalf("默认单目标 handoff 标注不正确: %+v", mentions)
+	if len(mentions) != 2 || mentions[0].HandoffID == "" || mentions[1].HandoffID == "" {
+		t.Fatalf("每个有效 mention 都应带 handoff: %+v", mentions)
 	}
-	if wakes := publicMentionWakesFromMessage(roundValue, slot, message, roomdomain.ExtractAssistantResultText(message)); len(wakes) != 1 || wakes[0].TargetAgentID != "agent-amy" {
-		t.Fatalf("展示 mention 不应唤醒目标: %+v", wakes)
+	wakes := publicMentionWakesFromMessage(
+		roundValue,
+		slot,
+		message,
+		roomdomain.ExtractAssistantResultText(message),
+	)
+	if len(wakes) != 2 ||
+		wakes[0].TargetAgentID != "agent-amy" ||
+		wakes[1].TargetAgentID != "agent-devin" {
+		t.Fatalf("所有有效 mention 都应按正文顺序唤醒: %+v", wakes)
 	}
 }
 
@@ -307,7 +315,7 @@ func TestAnnotatePublicAssistantMessageAcceptsParenthesizedAgentID(t *testing.T)
 	}
 }
 
-func TestAnnotatePublicAssistantMessageRequiresExplicitFanoutMarker(t *testing.T) {
+func TestAnnotatePublicAssistantMessageStripsLegacyFanoutMarker(t *testing.T) {
 	contextValue := &protocol.ConversationContextAggregate{
 		Conversation: protocol.ConversationRecord{ID: "conversation-fanout"},
 		Members: []protocol.MemberRecord{
@@ -344,10 +352,46 @@ func TestAnnotatePublicAssistantMessageRequiresExplicitFanoutMarker(t *testing.T
 	}
 	mentions := protocolAgentMentions(message["agent_mentions"])
 	if len(mentions) != 2 || mentions[0].HandoffID == "" || mentions[1].HandoffID == "" {
-		t.Fatalf("显式 fanout 应为全部目标写入 handoff: %+v", mentions)
+		t.Fatalf("旧 marker 不应改变多 mention handoff: %+v", mentions)
 	}
 	if wakes := publicMentionWakesFromMessage(roundValue, slot, message, content); len(wakes) != 2 {
-		t.Fatalf("显式 fanout 应唤醒两个目标: %+v", wakes)
+		t.Fatalf("剥离旧 marker 后仍应唤醒两个目标: %+v", wakes)
+	}
+}
+
+func TestBuildPublicMessageMentionAnnotationsCreatesEveryHandoffAndDedupesTargets(t *testing.T) {
+	contextValue := &protocol.ConversationContextAggregate{
+		Conversation: protocol.ConversationRecord{ID: "conversation-public-message"},
+		Members: []protocol.MemberRecord{
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-source"},
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-amy"},
+			{MemberType: protocol.MemberTypeAgent, MemberAgentID: "agent-devin"},
+		},
+		MemberAgents: []protocol.Agent{
+			{AgentID: "agent-source", Name: "Source"},
+			{AgentID: "agent-amy", Name: "Amy"},
+			{AgentID: "agent-devin", Name: "Devin"},
+		},
+	}
+	mentions := buildPublicMessageMentionAnnotations(
+		contextValue,
+		"agent-source",
+		"message-public",
+		"@Amy 处理接口，@Devin 检查测试，@Amy 汇总结论；Source 不需要接手。",
+	)
+	if len(mentions) != 3 {
+		t.Fatalf("主动发布消息的每个有效 mention 都应被标注: %+v", mentions)
+	}
+	for _, mention := range mentions {
+		if mention.HandoffID == "" {
+			t.Fatalf("主动发布消息的每个有效 mention 都应创建 handoff: %+v", mentions)
+		}
+	}
+	if targets := handoffTargetAgentIDs(mentions); !slices.Equal(
+		targets,
+		[]string{"agent-amy", "agent-devin"},
+	) {
+		t.Fatalf("重复目标只应唤醒一次且保留首次出现顺序: %+v", targets)
 	}
 }
 

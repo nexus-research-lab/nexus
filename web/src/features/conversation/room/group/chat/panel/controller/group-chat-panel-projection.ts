@@ -1,3 +1,8 @@
+/**
+ * INPUT: Group Chat 会话、Room 目录、Goal、Composer 与面板环境。
+ * OUTPUT: Feed、交接 mention、Goal、导航和输入区的纯视图模型。
+ * POS: Group Chat 控制器状态到纯视图 props 的唯一投影入口。
+ */
 import type { RefObject } from "react";
 
 import {
@@ -12,6 +17,7 @@ import type {
   UseAgentConversationReturn,
 } from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
+import type { TodoItem } from "@/types/conversation/todo";
 
 import type {
   GroupChatComposerModel,
@@ -19,6 +25,7 @@ import type {
 } from "../view/group-chat-panel-view";
 import type { RoomGoalComposerModel } from "./use-room-goal-composer";
 import { projectGroupAgentTimeline } from "../../feed/group-agent-timeline-model";
+import { projectRoomAgentHandoffStatuses } from "./room-handoff-status-model";
 
 export interface RoomAgentDirectory {
   avatars: Record<string, string | null>;
@@ -39,7 +46,10 @@ type GroupChatSession = Omit<
     UseAgentConversationReturn,
     | "live_round_ids"
     | "messages"
+    | "input_queue_items"
+    | "pending_agent_slots"
     | "pending_permissions"
+    | "room_agent_execution_states"
     | "runtime_phase"
     | "send_permission_response"
     | "stop_generation"
@@ -67,6 +77,7 @@ interface BuildGroupChatPanelViewModelOptions {
   roomHostAutoReplyEnabled: boolean;
   roomMembers: Agent[];
   session: GroupChatSession;
+  todos: TodoItem[];
 }
 
 export function buildGroupChatPanelViewModel({
@@ -83,10 +94,17 @@ export function buildGroupChatPanelViewModel({
   roomHostAutoReplyEnabled,
   roomMembers,
   session,
+  todos,
 }: BuildGroupChatPanelViewModelOptions): GroupChatPanelViewModel {
   return {
     ...buildConversationPanelFrameModel(session, environment),
     composer,
+    handoffStatuses: projectRoomAgentHandoffStatuses({
+      executionStates: session.conversation.room_agent_execution_states,
+      inputQueueItems: session.conversation.input_queue_items,
+      messages: session.conversation.messages,
+      pendingSlots: session.conversation.pending_agent_slots,
+    }),
     feed: buildFeedModel({
       currentAgentAvatar,
       currentAgentName,
@@ -105,6 +123,7 @@ export function buildGroupChatPanelViewModel({
       session,
     }),
     onCreateConversation,
+    todos,
   };
 }
 
@@ -132,6 +151,8 @@ function buildFeedModel({
     messageGroups: timeline.message_groups,
     pendingPermissionGroups: timeline.pending_permission_groups,
     pendingSlotGroups: timeline.pending_slot_groups,
+    roomAgentExecutionStateGroups:
+      timeline.room_agent_execution_state_groups,
     roundIds: timeline.feed_round_ids,
   });
   return {
@@ -160,6 +181,8 @@ function buildFeedModel({
       messageGroups: feedTimeline.messageGroups,
       pendingPermissionGroups: feedTimeline.pendingPermissionGroups,
       pendingSlotGroups: feedTimeline.pendingSlotGroups,
+      roomAgentExecutionStateGroups:
+        feedTimeline.roomAgentExecutionStateGroups,
       rootRoundIds: feedTimeline.rootRoundIds,
       roundIds: feedTimeline.roundIds,
       roundIndexItems,

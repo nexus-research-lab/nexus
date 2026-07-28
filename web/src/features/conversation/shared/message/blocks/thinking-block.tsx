@@ -14,6 +14,7 @@ import {
 
 interface ThinkingBlockProps {
   thinking: string;
+  initialRevealFromEmpty?: boolean;
   isStreaming?: boolean;
   workspaceAgentId?: string | null;
 }
@@ -39,6 +40,7 @@ const THINKING_PRESENTATIONS: Readonly<Record<
 
 export function ThinkingBlock({
   thinking,
+  initialRevealFromEmpty = false,
   isStreaming = false,
   workspaceAgentId,
 }: ThinkingBlockProps) {
@@ -81,6 +83,7 @@ export function ThinkingBlock({
           <MarkdownRenderer
             className="min-w-0 max-w-full overflow-hidden break-all"
             content={thinking}
+            initialRevealFromEmpty={initialRevealFromEmpty}
             isStreaming={isStreaming}
             workspaceAgentId={workspaceAgentId}
           />

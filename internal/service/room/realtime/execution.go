@@ -372,7 +372,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 
 	// 无回复标记只控制当前投递，不属于可持久化的对话正文。
 	messageValue = roomdomain.StripNoReplyMarker(messageValue)
-	// fanout 只是 handoff 路由控制，不应泄漏到 transcript、私域 overlay 或公区。
+	// 旧版 fanout 标记只做输入兼容清理，不应泄漏到 transcript、私域 overlay 或公区。
 	messageValue = roomdomain.StripFanoutMarker(messageValue)
 	if roomSlotPublishesPublicOutput(e.slot) {
 		if err := e.service.persistSharedDurableMessage(

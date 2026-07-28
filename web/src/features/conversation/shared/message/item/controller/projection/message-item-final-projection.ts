@@ -1,3 +1,8 @@
+/**
+ * INPUT: Assistant 内容模式、streamed ContentBlock、过程尾部与 canonical Room result。
+ * OUTPUT: DM live/terminal 同 surface 的单调正文，以及保留非文本块身份的 Room 最终回复投影。
+ * POS: MessageItem 最终回复与过程归档的纯投影真相源。
+ */
 import type {
   AssistantMessage,
   AgentMention,
@@ -9,6 +14,7 @@ import { extractTextFromContentBlocks } from "../../../message-content-model";
 import { getResultSummaryDisplayText } from "./message-item-stats";
 import {
   projectionFromOrderedEntries,
+  resolveAssistantResponseSurface,
   type AssistantContentMode,
   type AssistantTurnEntry,
   type ContentProjection,
@@ -35,21 +41,21 @@ interface FinalAssistantContentContext {
   resultText: string | null;
 }
 
+interface RoomResultFinalAssistantContentInput {
+  fallbackFinalAssistantContent: ContentBlock[] | null;
+  resultText: string | null;
+}
+
 type FinalAssistantContentResolver = (
   context: FinalAssistantContentContext,
 ) => string | ContentBlock[] | null;
-
-const DIRECT_CONTENT_MODES: ReadonlySet<AssistantContentMode> = new Set([
-  "dm_live",
-  "room_thread",
-]);
 
 const FINAL_ASSISTANT_CONTENT_RESOLVERS: Readonly<Record<
   AssistantContentMode,
   FinalAssistantContentResolver
 >> = {
   dm_archived: resolveArchivedFinalAssistantContent,
-  dm_live: resolveHiddenFinalAssistantContent,
+  dm_live: resolveArchivedFinalAssistantContent,
   room_result: resolveRoomResultFinalAssistantContent,
   room_thread: resolveHiddenFinalAssistantContent,
 };
@@ -95,6 +101,7 @@ export function resolveMessageItemFinalProjection({
   const directOrderedProjection = resolveDirectOrderedProjection(
     assistantContentMode,
     orderedProjection,
+    archivedProcessProjection,
   );
   const processProjection = resolveProcessProjection(
     assistantContentMode,
@@ -145,8 +152,14 @@ function resolveFinalAssistantMentions(
 function resolveDirectOrderedProjection(
   mode: AssistantContentMode,
   orderedProjection: ContentProjection,
+  archivedProcessProjection: ContentProjection,
 ): ContentProjection {
-  return DIRECT_CONTENT_MODES.has(mode)
+  if (mode === "dm_live") {
+    // DM 的最终回复从首个流式字开始固定在 final surface；
+    // direct 只承载会在终态折叠归档的思考、工具和系统过程。
+    return archivedProcessProjection;
+  }
+  return resolveAssistantResponseSurface(mode) === "direct"
     ? orderedProjection
     : emptyProjection();
 }
@@ -165,7 +178,10 @@ function resolveFinalStreamingIndexes(
   content: string | ContentBlock[] | null,
   fallbackStreamingIndexes: Set<number>,
 ): Set<number> {
-  if (DIRECT_CONTENT_MODES.has(mode) || typeof content === "string") {
+  if (
+    resolveAssistantResponseSurface(mode) === "direct"
+    || typeof content === "string"
+  ) {
     return new Set<number>();
   }
   return fallbackStreamingIndexes;
@@ -354,11 +370,79 @@ function resolveArchivedFinalAssistantContent({
   return resultText || null;
 }
 
-function resolveRoomResultFinalAssistantContent({
+export function resolveRoomResultFinalAssistantContent({
   fallbackFinalAssistantContent,
   resultText,
-}: FinalAssistantContentContext): string | ContentBlock[] | null {
-  return resultText || fallbackFinalAssistantContent;
+}: RoomResultFinalAssistantContentInput): ContentBlock[] | null {
+  const canonicalText = resultText?.trim() ?? "";
+  if (!canonicalText) {
+    return fallbackFinalAssistantContent;
+  }
+  if (!fallbackFinalAssistantContent?.length) {
+    return [{ type: "text", text: canonicalText }];
+  }
+
+  const fallbackText = extractTextFromContentBlocks(
+    fallbackFinalAssistantContent,
+  );
+  if (
+    fallbackText === canonicalText
+    || fallbackText.startsWith(canonicalText)
+  ) {
+    // result 摘要相同或更短时保留已经显示的 ContentBlock 身份，禁止终态回缩。
+    return fallbackFinalAssistantContent;
+  }
+  if (fallbackText && canonicalText.startsWith(fallbackText)) {
+    const lastTextIndex = fallbackFinalAssistantContent.findLastIndex(
+      (block) =>
+        block.type === "text"
+        && Boolean(extractTextFromContentBlocks([block])),
+    );
+    if (lastTextIndex >= 0) {
+      const suffix = canonicalText.slice(fallbackText.length);
+      return fallbackFinalAssistantContent.map((block, index) => (
+        index === lastTextIndex && block.type === "text"
+          ? {
+              ...block,
+              // 比较边界来自去空白后的可见文本；先移除原始块尾部空白，
+              // 再接 canonical suffix，避免空格或换行被重复一次。
+              text: block.text.replace(/\s+$/u, "") + suffix,
+            }
+          : block
+      ));
+    }
+  }
+
+  // result 确实修正正文时只重建文本槽位，过程、附件等非文本块完整保留。
+  return replaceFallbackTextPreservingNonText(
+    fallbackFinalAssistantContent,
+    canonicalText,
+  );
+}
+
+function replaceFallbackTextPreservingNonText(
+  fallbackContent: ContentBlock[],
+  canonicalText: string,
+): ContentBlock[] {
+  const lastTextIndex = fallbackContent.findLastIndex(
+    (block) => block.type === "text",
+  );
+  if (lastTextIndex < 0) {
+    // 没有正文槽位时，终态答案位于既有过程/附件之后。
+    return [...fallbackContent, { type: "text", text: canonicalText }];
+  }
+
+  const nextContent: ContentBlock[] = [];
+  fallbackContent.forEach((block, index) => {
+    if (block.type !== "text") {
+      nextContent.push(block);
+      return;
+    }
+    if (index === lastTextIndex) {
+      nextContent.push({ ...block, text: canonicalText });
+    }
+  });
+  return nextContent;
 }
 
 function resolveHiddenFinalAssistantContent(): null {

@@ -1,7 +1,7 @@
 /**
  * INPUT: 尚未匹配到消息块、会让 runtime 等待用户响应的交互请求。
- * OUTPUT: 可直接批准、拒绝或回答的统一人工介入列表，并标记完整交互边界。
- * POS: DM、Room 公区与 Thread 共用的 pending human-in-the-loop 投影入口。
+ * OUTPUT: 可直接批准、拒绝或回答的 Room 人工介入列表，并标记完整交互边界。
+ * POS: Room 公区与 Thread 共用的 request-owned human-in-the-loop 投影入口；DM 由 Composer 接管。
  */
 import { cn } from "@/shared/ui/class-name";
 import type {
@@ -11,10 +11,10 @@ import type {
 } from "@/types/conversation/interaction/permission";
 
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../../message-tool-names";
+import { PendingHumanQuestion } from "../../../blocks/question/pending-human-question";
 import { ToolBlock } from "../../../blocks/tool/tool-block";
 import type { ToolPermissionRequest } from "../../../blocks/tool/tool-block-types";
 import type { AssistantContentMode } from "../../message-item-projection";
-import { PendingHumanQuestion } from "./pending-human-question";
 
 interface PendingHumanInteractionListProps {
   canRespond: boolean;
@@ -46,30 +46,33 @@ export function PendingHumanInteractionList({
       data-human-interaction-surface
     >
       {permissions.map((permission) => (
-        isStructuredInputInteraction(permission) ? (
-          <PendingHumanQuestion
-            canRespond={canRespond}
-            key={permission.request_id}
-            onResponse={onResponse}
-            permission={permission}
-            readOnlyReason={readOnlyReason}
-          />
-        ) : (
-          <ToolBlock
-            interactionDisabled={!canRespond}
-            interactionDisabledReason={readOnlyReason}
-            key={permission.request_id}
-            permissionRequest={createPermissionRequest(permission, onResponse)}
-            status="waiting_permission"
-            toolUse={{
-              id: pendingToolUseId(permission),
-              input: permission.tool_input,
-              name: permission.tool_name,
-              type: "tool_use",
-            }}
-            workspaceAgentId={workspaceAgentId}
-          />
-        )
+        <div
+          data-pending-interaction-request-id={permission.request_id}
+          key={permission.request_id}
+        >
+          {isStructuredInputInteraction(permission) ? (
+            <PendingHumanQuestion
+              canRespond={canRespond}
+              onResponse={onResponse}
+              permission={permission}
+              readOnlyReason={readOnlyReason}
+            />
+          ) : (
+            <ToolBlock
+              interactionDisabled={!canRespond}
+              interactionDisabledReason={readOnlyReason}
+              permissionRequest={createPermissionRequest(permission, onResponse)}
+              status="waiting_permission"
+              toolUse={{
+                id: pendingToolUseId(permission),
+                input: permission.tool_input,
+                name: permission.tool_name,
+                type: "tool_use",
+              }}
+              workspaceAgentId={workspaceAgentId}
+            />
+          )}
+        </div>
       ))}
     </div>
   );
@@ -78,7 +81,7 @@ export function PendingHumanInteractionList({
 const HUMAN_INTERACTION_LIST_LAYOUTS: Record<AssistantContentMode, string> = {
   dm_archived: "surface-radius-md bg-transparent p-3",
   dm_live: "surface-radius-md bg-transparent p-3",
-  room_result: "surface-radius-md bg-transparent p-3",
+  room_result: "border-t border-(--divider-subtle-color) pt-3",
   room_thread: "border-t border-(--divider-subtle-color) pt-3",
 };
 
@@ -90,8 +93,7 @@ function isStructuredInputInteraction(
 }
 
 function pendingToolUseId(permission: PendingPermission): string {
-  return permission.tool_use_id?.trim()
-    || `pending_${permission.request_id}`;
+  return `pending_${permission.request_id}`;
 }
 
 function createPermissionRequest(

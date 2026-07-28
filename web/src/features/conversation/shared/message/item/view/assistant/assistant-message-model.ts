@@ -1,3 +1,8 @@
+/**
+ * INPUT: controller 已投影的 Assistant 活动、内容、权限、布局及交互状态。
+ * OUTPUT: Assistant 子视图按职责消费的窄状态与环境契约。
+ * POS: MessageItem controller 到 Assistant 视图的类型边界，不选择内容模式策略。
+ */
 import type {
   CSSProperties,
   ReactNode,
@@ -12,7 +17,11 @@ import type {
 } from "@/types/conversation/interaction/permission";
 
 import { CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME } from "../../../../conversation-panel-styles";
-import type { AssistantContentMode, ContentProjection } from "../../message-item-projection";
+import type {
+  AssistantContentMode,
+  ContentProjection,
+  PendingInteractionOwner,
+} from "../../message-item-projection";
 import type { MessageActivityState } from "../../activity/message-activity-state";
 
 export interface AssistantActivityState {
@@ -63,7 +72,9 @@ interface AssistantLayoutState {
 }
 
 export interface AssistantPermissionState {
+  all: PendingPermission[];
   matchedByToolUseId: ReadonlyMap<string, PendingPermission>;
+  owner: PendingInteractionOwner;
   unmatched: PendingPermission[];
 }
 

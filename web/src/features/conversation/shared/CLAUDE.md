@@ -18,5 +18,6 @@
 - 错误分类按具体 Provider、实时连接、通用后端的顺序匹配，不在视图中追加条件分支。
 - 具体 Feed、Goal 和 Composer 模型由各自领域定义。
 - 常规桌面保持紧凑阅读宽度；超宽屏只按共享阶梯放宽消息轨道和 Composer，助手正文使用更小的可读上限，禁止各消费面自行复制宽度断点。
-- 回到底部动作复用共享暖色控制面、边界和阴影，并常驻 Feed 外的固定安全带；按钮显隐不得覆盖内容或改变阅读 viewport 高度。
+- 回到底部与当前会话 Activity 共享绝对锚在 Composer 顶边的居中 Dock：Task 存在时占中心主位，回到底部作为同一行相邻圆形动作；Task 缺席时回到底部单独居中。禁止把 Goal 与 Composer 的组合容器当作坐标原点。Goal/告警留在 pre-composer slot；该 slot 有内容时以透明 runway 隔开 Dock 与状态内容。Dock 容器和中间包装不得接收指针，只有 Task 与回到底部的真实按钮热区接收；仅在控件真实可见时，阅读 viewport 尾部才保留 56px 避让，隐藏时不得制造空白。控件显隐与 Task 展开不得改变 viewport 高度。
+- Session 导航只能绝对定位在 `ConversationPanelViewportArea` 内，不得用 Composer 猜测高度设置固定 bottom；Goal、附件或多行输入改变底部区域时，导航可用高度必须自动跟随真实 viewport。
 - 主消息 viewport 保留 `tabIndex={-1}` 供程序化导航，但显式移除浏览器原生轮廓；Safari 不得在滚动区底边绘制跨栏蓝线。

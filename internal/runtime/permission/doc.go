@@ -3,7 +3,7 @@
 // L2 | 父级: internal/runtime（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - request.go：等待用户响应的请求模型。
+//   - request.go：等待用户响应、按过期时间和请求身份稳定重放的请求模型。
 //   - presenter.go：批准、问答及未知工具的兼容呈现。
 //   - context.go：Sender 等 WS 事件发送抽象与上下文。
 //

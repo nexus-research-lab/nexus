@@ -312,6 +312,7 @@ export function mergeChatAckPendingSlots(
   const nextSlots = ack.pending.map((slot) => ({
     agent_id: slot.agent_id,
     agent_round_id: slot.agent_round_id,
+    ...(slot.handoff_id ? { handoff_id: slot.handoff_id } : {}),
     msg_id: slot.msg_id,
     round_id: slot.round_id?.trim() || ack.round_id,
     status: slot.status,

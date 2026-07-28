@@ -1,12 +1,15 @@
 /**
- * INPUT: 当前已加载消息、运行态、原始 round 索引与已解析历史窗口。
+ * INPUT: 当前已加载消息、slot/permission/execution 运行态、原始 round 索引与已解析历史窗口。
  * OUTPUT: feed、navigator 共用的记忆化 ConversationTimeline。
  * POS: React 装配层；轮次过滤与排序规则留在 timeline-model。
  */
 import { useMemo } from "react";
 
 import type { Message } from "@/types/conversation/message/entity";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
@@ -19,6 +22,7 @@ import {
   groupMessagesByRound,
   groupPendingPermissionsByRound,
   groupPendingSlotsByRound,
+  groupRoomAgentExecutionStatesByRound,
 } from "./timeline-model";
 import type { ConversationTimeline } from "./timeline-model";
 
@@ -30,10 +34,12 @@ export interface UseConversationTimelineOptions {
   round_index_items: SessionRoundIndexItem[];
   pending_agent_slots?: RoomPendingAgentSlotState[];
   pending_permissions?: PendingPermission[];
+  room_agent_execution_states?: RoomAgentExecutionState[];
 }
 
 const EMPTY_SLOTS: RoomPendingAgentSlotState[] = [];
 const EMPTY_PERMISSIONS: PendingPermission[] = [];
+const EMPTY_EXECUTION_STATES: RoomAgentExecutionState[] = [];
 const EMPTY_ROUND_IDS: string[] = [];
 
 export function useConversationTimeline({
@@ -44,6 +50,7 @@ export function useConversationTimeline({
   round_index_items: roundIndexItems,
   pending_agent_slots: pendingAgentSlots = EMPTY_SLOTS,
   pending_permissions: pendingPermissions = EMPTY_PERMISSIONS,
+  room_agent_execution_states: roomAgentExecutionStates = EMPTY_EXECUTION_STATES,
 }: UseConversationTimelineOptions): ConversationTimeline {
   const isRoom = chatType === "group";
 
@@ -65,13 +72,27 @@ export function useConversationTimeline({
         : new Map<string, PendingPermission[]>(),
     [isRoom, pendingPermissions],
   );
+  const roomAgentExecutionStateGroups = useMemo(
+    () =>
+      isRoom
+        ? groupRoomAgentExecutionStatesByRound(roomAgentExecutionStates)
+        : new Map<string, RoomAgentExecutionState[]>(),
+    [isRoom, roomAgentExecutionStates],
+  );
   const loadedRoundIds = useMemo(
     () =>
       buildTimelineRoundIds(messageGroups, liveRoundIds, [
         ...pendingSlotGroups.keys(),
         ...pendingPermissionGroups.keys(),
+        ...roomAgentExecutionStateGroups.keys(),
       ]),
-    [liveRoundIds, messageGroups, pendingPermissionGroups, pendingSlotGroups],
+    [
+      liveRoundIds,
+      messageGroups,
+      pendingPermissionGroups,
+      pendingSlotGroups,
+      roomAgentExecutionStateGroups,
+    ],
   );
   const unsupersededRoundIndexItems = useMemo(
     () => filterSupersededRoundIndexItems(roundIndexItems, messages),
@@ -95,6 +116,7 @@ export function useConversationTimeline({
       message_groups: messageGroups,
       pending_slot_groups: pendingSlotGroups,
       pending_permission_groups: pendingPermissionGroups,
+      room_agent_execution_state_groups: roomAgentExecutionStateGroups,
       loaded_round_ids: loadedRoundIds,
       feed_round_ids: feedRoundIds,
       round_index_items: visibleRoundIndexItems,
@@ -107,6 +129,7 @@ export function useConversationTimeline({
       messageGroups,
       pendingPermissionGroups,
       pendingSlotGroups,
+      roomAgentExecutionStateGroups,
       visibleRoundIndexItems,
     ],
   );

@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { Message } from "@/types/conversation/message/entity";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -22,6 +25,7 @@ interface UseRoomThreadSourceOptions {
   onOpenWorkspaceFile?: (path: string) => void;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
+  roomAgentExecutionStateGroups: Map<string, RoomAgentExecutionState[]>;
   sendPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
 }
 
@@ -34,6 +38,7 @@ export function useRoomThreadSource({
   onOpenWorkspaceFile,
   pendingPermissionGroups,
   pendingSlotGroups,
+  roomAgentExecutionStateGroups,
   sendPermissionResponse,
 }: UseRoomThreadSourceOptions): void {
   const { closeThread } = useGroupThread();
@@ -55,6 +60,7 @@ export function useRoomThreadSource({
     onPermissionResponse: actions.respondPermission,
     pendingPermissionGroups,
     pendingSlotGroups,
+    roomAgentExecutionStateGroups,
   }), [
     actions,
     agentAvatarMap,
@@ -64,6 +70,7 @@ export function useRoomThreadSource({
     messageGroups,
     pendingPermissionGroups,
     pendingSlotGroups,
+    roomAgentExecutionStateGroups,
   ]);
 
   useEffect(() => {

@@ -766,8 +766,9 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	ctx := context.Background()
 	amy := createTestAgent(t, agentService, ctx, "Amy")
 	devin := createTestAgent(t, agentService, ctx, "Devin")
+	casey := createTestAgent(t, agentService, ctx, "Casey")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		AgentIDs: []string{amy.AgentID, devin.AgentID, casey.AgentID},
 		Name:     "公区 @ 测试房间",
 		Title:    "主对话",
 	})
@@ -777,19 +778,29 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 
 	amyClient := newFakeRoomClient()
 	devinClient := newFakeRoomClient()
-	devinPrompt := make(chan string, 1)
-	factory := &fakeRoomFactory{clients: []*fakeRoomClient{amyClient, devinClient}}
+	caseyClient := newFakeRoomClient()
+	targetPrompts := make(chan string, 2)
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{amyClient, devinClient, caseyClient}}
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManager()
 	service := NewServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
 
 	amyClient.onQuery = func(_ context.Context, _ string) error {
-		go sendFakeAssistantResult(amyClient, "amy-public-mention-1", "@Devin 请查询天气，并在公区回复。")
+		go sendFakeAssistantResult(
+			amyClient,
+			"amy-public-mention-1",
+			"@Devin 请查询天气，@Casey 请检查穿衣建议，并分别在公区回复。",
+		)
 		return nil
 	}
 	devinClient.onQuery = func(_ context.Context, prompt string) error {
-		devinPrompt <- prompt
+		targetPrompts <- prompt
 		go sendFakeAssistantResult(devinClient, "devin-public-mention-1", "天气查询完成。")
+		return nil
+	}
+	caseyClient.onQuery = func(_ context.Context, prompt string) error {
+		targetPrompts <- prompt
+		go sendFakeAssistantResult(caseyClient, "casey-public-mention-1", "穿衣建议检查完成。")
 		return nil
 	}
 
@@ -801,7 +812,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
-		Content:        "@Amy 让 Devin 查下天气",
+		Content:        "@Amy 让 Devin 和 Casey 分头处理",
 		RoundID:        "room-round-public-mention",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
@@ -814,43 +825,121 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 			event.Data["status"] == "finished"
 	})
 	var assistantPayload protocol.Message
-	for _, event := range events {
+	assistantEventIndex := -1
+	for eventIndex, event := range events {
 		if event.EventType != protocol.EventTypeMessage || event.MessageID != "amy-public-mention-1" || event.Data["role"] != "assistant" {
 			continue
 		}
 		candidate := protocol.Message(event.Data)
 		if candidate["is_complete"] == true {
 			assistantPayload = candidate
+			assistantEventIndex = eventIndex
 		}
 	}
 	if assistantPayload == nil {
 		t.Fatalf("未找到最终 assistant 事件: %+v", events)
 	}
 	mentions, ok := assistantPayload["agent_mentions"].([]protocol.AgentMention)
-	if !ok || len(mentions) != 1 || mentions[0].AgentID != devin.AgentID || mentions[0].HandoffID == "" {
-		t.Fatalf("最终 assistant 事件应带可渲染且可交接的 Devin mention: %+v", assistantPayload)
+	if !ok || len(mentions) != 2 {
+		t.Fatalf("最终 assistant 事件应带两个可渲染且可交接的 mention: %+v", assistantPayload)
 	}
-	select {
-	case prompt := <-devinPrompt:
-		if !strings.Contains(prompt, "<latest_trigger>\nAmy: @Devin 请查询天气") {
-			t.Fatalf("Devin prompt 缺少公区 @ 触发上下文: %s", prompt)
+	mentionByAgentID := make(map[string]protocol.AgentMention, len(mentions))
+	for _, mention := range mentions {
+		if mention.HandoffID == "" {
+			t.Fatalf("每个目标 mention 都应带 handoff_id: %+v", mentions)
 		}
-		if strings.Contains(prompt, "type:") || strings.Contains(prompt, "fanout_targets:") {
-			t.Fatalf("Devin 动态 prompt 不应包含字段化 trigger: %s", prompt)
+		mentionByAgentID[mention.AgentID] = mention
+	}
+	for _, targetAgentID := range []string{devin.AgentID, casey.AgentID} {
+		if _, exists := mentionByAgentID[targetAgentID]; !exists {
+			t.Fatalf("最终 assistant 事件缺少目标 %s: %+v", targetAgentID, mentions)
 		}
-		if strings.Contains(prompt, "<room_member_directory>") {
-			t.Fatalf("Devin 动态 prompt 不应重复成员目录: %s", prompt)
+	}
+	publicWakeSlotByAgentID := make(map[string]protocol.ChatAckPendingSlot, len(mentions))
+	publicWakeSlotEventIndexByAgentID := make(map[string]int, len(mentions))
+	for eventIndex, event := range events {
+		if event.EventType != protocol.EventTypeChatAck {
+			continue
 		}
-	case <-time.After(time.Second):
-		t.Fatal("Devin 未被公区 @ 唤醒")
+		pending, pendingOK := event.Data["pending"].([]protocol.ChatAckPendingSlot)
+		if !pendingOK {
+			continue
+		}
+		for _, slot := range pending {
+			if _, expected := mentionByAgentID[slot.AgentID]; expected {
+				publicWakeSlotByAgentID[slot.AgentID] = slot
+				publicWakeSlotEventIndexByAgentID[slot.AgentID] = eventIndex
+			}
+		}
+	}
+	for _, targetAgentID := range []string{devin.AgentID, casey.AgentID} {
+		publicWakeSlot, foundPublicWakeSlot := publicWakeSlotByAgentID[targetAgentID]
+		if !foundPublicWakeSlot {
+			t.Fatalf("事件流缺少目标 %s 的公区 @ 唤醒 slot: %+v", targetAgentID, events)
+		}
+		if publicWakeSlot.HandoffID != mentionByAgentID[targetAgentID].HandoffID {
+			t.Fatalf(
+				"目标 %s 的 public wake slot handoff_id = %q, want source mention %q",
+				targetAgentID,
+				publicWakeSlot.HandoffID,
+				mentionByAgentID[targetAgentID].HandoffID,
+			)
+		}
+		if publicWakeSlotEventIndex := publicWakeSlotEventIndexByAgentID[targetAgentID]; assistantEventIndex < 0 ||
+			assistantEventIndex >= publicWakeSlotEventIndex {
+			t.Fatalf(
+				"source final message index = %d, target %s public wake slot index = %d; mention 状态必须先可见再由同一 handoff 接棒",
+				assistantEventIndex,
+				targetAgentID,
+				publicWakeSlotEventIndex,
+			)
+		}
+	}
+	for range 2 {
+		select {
+		case prompt := <-targetPrompts:
+			if !strings.Contains(prompt, "<latest_trigger>\nAmy: @Devin 请查询天气，@Casey 请检查穿衣建议") {
+				t.Fatalf("目标 prompt 缺少完整的多 @ 触发上下文: %s", prompt)
+			}
+			if strings.Contains(prompt, "type:") || strings.Contains(prompt, "fanout_targets:") {
+				t.Fatalf("目标动态 prompt 不应包含字段化 trigger: %s", prompt)
+			}
+			if strings.Contains(prompt, "<room_member_directory>") {
+				t.Fatalf("目标动态 prompt 不应重复成员目录: %s", prompt)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("并非所有被 @ 的目标都收到 runtime 唤醒")
+		}
 	}
 	roomSystemPrompt := factory.LastOptions().System.Append
 	if !strings.Contains(roomSystemPrompt, "<room_member_directory>") ||
-		!strings.Contains(roomSystemPrompt, "agent_id="+devin.AgentID) {
-		t.Fatalf("Devin system prompt 应包含 Room 成员目录: %s", roomSystemPrompt)
+		!strings.Contains(roomSystemPrompt, "agent_id="+devin.AgentID) ||
+		!strings.Contains(roomSystemPrompt, "agent_id="+casey.AgentID) {
+		t.Fatalf("目标 system prompt 应包含完整 Room 成员目录: %s", roomSystemPrompt)
 	}
-	if !hasChatAckPendingAgent(events, devin.AgentID) {
-		t.Fatalf("事件流缺少 Devin 公区 @ 唤醒 slot: %+v", events)
+	handoffs, err := workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath).ListRoot(
+		roomContext.Room.OwnerUserID,
+		roomContext.Conversation.ID,
+		"room-round-public-mention",
+	)
+	if err != nil {
+		t.Fatalf("读取多 @ handoff ledger 失败: %v", err)
+	}
+	if len(handoffs) != 2 {
+		t.Fatalf("多 @ source 应持久化两条独立 handoff: %+v", handoffs)
+	}
+	handoffByTargetAgentID := make(map[string]workspacestore.RoomPublicHandoff, len(handoffs))
+	for _, handoff := range handoffs {
+		handoffByTargetAgentID[handoff.TargetAgentID] = handoff
+	}
+	for _, targetAgentID := range []string{devin.AgentID, casey.AgentID} {
+		handoff, exists := handoffByTargetAgentID[targetAgentID]
+		if !exists || handoff.HandoffID != mentionByAgentID[targetAgentID].HandoffID {
+			t.Fatalf("ledger 缺少目标 %s 对应的独立 handoff: %+v", targetAgentID, handoffs)
+		}
+		if handoff.Status != "finished" {
+			t.Fatalf("目标 %s handoff 未随 runtime 收口: %+v", targetAgentID, handoff)
+		}
 	}
 }
 

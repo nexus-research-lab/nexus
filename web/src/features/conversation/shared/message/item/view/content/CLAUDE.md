@@ -3,9 +3,9 @@
 - `content-renderer.tsx`: 只区分 Markdown 与结构化内容入口。
 - `content-renderer-contract.ts`: 定义入口与结构化编排器共同消费的窄属性契约。
 - `structured-content-renderer.tsx`: 建立一次内容投影并编排块视图、时间线和流式活动状态。
-- `content-renderer-model.ts`: 建立 toolUse/result、任务进度和已消费块索引。
-- `content-block-view.tsx`: 通过穷尽注册表分派 ContentBlock，并拥有空节点和时间线框架。
-- `content-tool-block.tsx`: 分阶段适配普通工具、用户问答和权限响应；可见的待答问题复用完整人工介入控件，保留提交与拒绝。
+- `content-renderer-model.ts`: 建立 toolUse/result、任务进度、已消费块索引与 live 文本挂载判定。
+- `content-block-view.tsx`: 通过穷尽注册表分派 ContentBlock，并拥有空节点和时间线框架；live 空文本必须先挂载 Markdown 身份，让首批正文进入平滑 backlog，静态空文本仍不占布局。
+- `content-tool-block.tsx`: 分阶段适配普通工具、用户问答和权限响应；DM 可复用内联控件，Room 已关联 pending request 时必须让出渲染槽给稳定交互轨道，禁止重复挂载。
 - `content-system-event.tsx`: 渲染系统事件与 API 重试倒计时。
 - `content-renderer-timeline.tsx`: 测量并对齐时间线圆点。
 

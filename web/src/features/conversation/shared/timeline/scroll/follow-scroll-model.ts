@@ -1,16 +1,15 @@
 /**
- * INPUT: 会话消息快照与滚动容器测量值。
- * OUTPUT: 溢出/贴底/跟随转换/键盘意图判定，以及覆盖并行活动回复正文增长的稳定内容版本。
+ * INPUT: 会话消息/slot/permission/execution 锚点快照与滚动容器测量值。
+ * OUTPUT: 溢出/真实贴底/FOLLOW-READING 转换/键盘意图判定，以及覆盖并行活动回复正文增长的稳定内容版本。
  * POS: DM、Room 与 Thread 跟随滚动的纯模型真相源。
  */
 import type { Message } from "@/types/conversation/message/entity";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
-const BOTTOM_THRESHOLD_PX = 80;
-const FOLLOW_RESUME_THRESHOLD_PX = 8;
-const MIN_ATOMIC_GROWTH_DETACH_PX = 160;
-const ATOMIC_GROWTH_VIEWPORT_RATIO = 0.35;
 const SCROLL_OVERFLOW_TOLERANCE_PX = 1;
 const SCROLL_DIRECTION_TOLERANCE_PX = 0.5;
 const VIEWPORT_SIZE_TOLERANCE_PX = 1;
@@ -64,8 +63,11 @@ export function hasScrollableOverflow(element: ScrollMetrics): boolean {
   return getScrollBottomTop(element) > SCROLL_OVERFLOW_TOLERANCE_PX;
 }
 
-export function isNearScrollBottom(element: ScrollMetrics): boolean {
-  return getScrollBottomTop(element) - element.scrollTop <= BOTTOM_THRESHOLD_PX;
+export function isAtScrollBottom(element: ScrollMetrics): boolean {
+  return (
+    getScrollBottomTop(element) - element.scrollTop
+    <= SCROLL_OVERFLOW_TOLERANCE_PX
+  );
 }
 
 export function getConversationViewportSize(
@@ -105,45 +107,23 @@ export function resolveConversationViewportResizeState(
   wasFollowing: boolean,
 ): ConversationViewportResizeState {
   const bottomTop = getScrollBottomTop(element);
-  const scrollTop = Math.min(Math.max(0, previousScrollTop), bottomTop);
-  if (!hasScrollableOverflow(element)) {
+  if (wasFollowing) {
     return {
-      scrollTop,
+      scrollTop: bottomTop,
       shouldFollow: true,
       showScrollToBottom: false,
     };
   }
-  const remainsAtBottom = (
-    bottomTop - scrollTop <= SCROLL_OVERFLOW_TOLERANCE_PX
-  );
-  const shouldFollow = wasFollowing && remainsAtBottom;
+
+  const scrollTop = Math.min(Math.max(0, previousScrollTop), bottomTop);
   return {
     scrollTop,
-    shouldFollow,
-    showScrollToBottom: !shouldFollow && !remainsAtBottom,
+    shouldFollow: false,
+    showScrollToBottom: (
+      hasScrollableOverflow(element)
+      && bottomTop - scrollTop > SCROLL_OVERFLOW_TOLERANCE_PX
+    ),
   };
-}
-
-/**
- * Room 运行摘要切换完整结果、权限卡出现等原子布局变化不能让视口追赶
- * 整个新高度；小的真实流式增长仍保持自动跟随。
- */
-export function shouldDetachFollowForAtomicGrowth(
-  element: ScrollMetrics,
-  previousScrollHeight: number,
-): boolean {
-  if (
-    previousScrollHeight <= 0
-    || element.scrollHeight <= element.clientHeight
-  ) {
-    return false;
-  }
-  const growth = element.scrollHeight - previousScrollHeight;
-  const threshold = Math.max(
-    MIN_ATOMIC_GROWTH_DETACH_PX,
-    element.clientHeight * ATOMIC_GROWTH_VIEWPORT_RATIO,
-  );
-  return growth > threshold;
 }
 
 export function shouldResumeFollowOnScroll(
@@ -156,7 +136,7 @@ export function shouldResumeFollowOnScroll(
     && element.scrollTop
       > previousScrollTop + SCROLL_DIRECTION_TOLERANCE_PX
     && getScrollBottomTop(element) - element.scrollTop
-      <= FOLLOW_RESUME_THRESHOLD_PX
+      <= SCROLL_OVERFLOW_TOLERANCE_PX
   );
 }
 
@@ -278,6 +258,8 @@ export function buildConversationScrollTopologyKey(
   sessionKey: string | null,
   messages: readonly Message[],
   pendingSlots: readonly RoomPendingAgentSlotState[] = [],
+  pendingPermissions: readonly PendingPermission[] = [],
+  roomAgentExecutionStates: readonly RoomAgentExecutionState[] = [],
 ): string {
   const identities: string[] = [];
   const seen = new Set<string>();
@@ -302,11 +284,24 @@ export function buildConversationScrollTopologyKey(
   for (const slot of pendingSlots) {
     append(buildRoomAgentNodeIdentity(slot.round_id, slot.agent_round_id));
   }
+  for (const permission of pendingPermissions) {
+    const agentId = permission.agent_id?.trim();
+    const agentRoundId = permission.agent_round_id?.trim();
+    const rootRoundId = permission.round_id?.trim();
+    if (!agentId || !agentRoundId || !rootRoundId) {
+      continue;
+    }
+    append(buildRoomAgentNodeIdentity(rootRoundId, agentRoundId));
+  }
+  for (const state of roomAgentExecutionStates) {
+    append(buildRoomAgentNodeIdentity(state.round_id, state.agent_round_id));
+  }
   return [sessionKey ?? "", ...identities].join("\u001f");
 }
 
 /**
- * 权限模块和 terminal 组件切换是原子布局，不属于可追随的真实 token 增长。
+ * 权限模块和 terminal 组件切换是原子布局版本。该版本只负责通知滚动
+ * 所有者重新执行当前 FOLLOW/READING 意图，本身不得切换意图。
  */
 export function buildConversationAtomicLayoutKey(
   sessionKey: string | null,

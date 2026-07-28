@@ -49,4 +49,4 @@ export const COMPOSER_COMPACT_LANE_CLASS_NAME =
   "mx-auto w-full max-w-[720px]";
 
 export const COMPOSER_FOOTER_CLASS_NAME =
-  "flex items-center justify-between gap-3 px-3.5 py-2 text-(--text-soft)";
+  "nexus-chat-composer-footer text-(--text-soft)";

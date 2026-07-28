@@ -1,15 +1,14 @@
 # Conversation Timeline Scroll
 
-- `use-follow-scroll.ts` 只编排跟随状态、内容变化和滚动资源，不实现动画算法或手势细节。
-- `scroll-animation.ts` 独占动态底部目标与阻尼跟随 RAF 生命周期；自动跟随在同一事务内只接受底部目标单向增长，忽略 ResizeObserver/虚拟测高的瞬时回缩，显式新定位仍按实时底部收口；活动跟随检测到阅读 viewport 高度变化时必须在写入 `scrollTop` 前终止。
+- `use-follow-scroll.ts` 只编排 FOLLOW、READING、内容变化和滚动资源：FOLLOW 不读取可见锚点，READING 不调用贴底执行器，两者只能由用户滚动意图、显式回到底部或会话切换转换。
+- `scroll-animation.ts` 独占 FOLLOW 与显式回到底部的 `scrollTop` 写入：普通内容增长在 layout effect / ResizeObserver 中同步写入真实 bottom，不创建 RAF；只有用户触发的回到底部保留 smooth 阻尼事务，初始化 `auto` 允许下一帧为虚拟测高再次收口。
 - `history-prepend-anchor.ts` 管理历史前插的一次性锚点事务，取消、失败和会话切换必须清理快照。
 - `conversation-viewport-anchor.ts` 按稳定 round 身份持续记录首个可见轮次；节点拓扑变化或静态/虚拟 Feed 切换后重新寻找同一节点并补偿视口，普通虚拟项测高仍由 Virtualizer 补偿。
 - `use-follow-scroll-interactions.ts` 只把滚轮、pointer、触摸、键盘和原生滚动转换为跟随意图。
-- `follow-scroll-model.ts` 保存实际滚动溢出、底部判定与三类版本投影：`contentKey` 覆盖流式正文增长，`topologyKey` 只覆盖消息/slot 节点身份的增删与移动，`atomicLayoutKey` 覆盖权限模块和终态组件切换；回到底部入口只有在容器确实可滚动时才可见，DM、Room 和 Thread 不得重复推导。
-- 内容版本必须覆盖并行 Agent 的非末尾流式正文增长；虚拟列表的立即贴底要在下一帧测量完成后再次收口。Feed ResizeObserver 只拥有正文高度变化并随 topology 变化重新绑定；独立的滚动容器 ResizeObserver 处理 Composer、虚拟键盘及 App/浏览器窗口造成的 viewport 高度变化，保留原可见位置并按结果保持或解除跟随，绝不能把它误当成正文增长。横向重排继续交给 Feed/Virtualizer，不得仅因宽度变化解除跟随。
-- 用户已向上脱离跟随时，Room 权限模块、终态正文与新成员回复都不得改写当前阅读位置；仍在底部时只允许单向向下追随，不能因临时测量回缩而先上后下。
-- 一次提交造成的大块高度增长属于原子布局替换，不是流式追随目标；保留当前可见内容并露出回到底部入口，小幅真实 chunk 增长才继续跟随。
+- `follow-scroll-model.ts` 保存实际滚动溢出、真实 bottom 判定与三类版本投影：`contentKey` 覆盖流式正文增长，`topologyKey` 覆盖消息/slot 以及精确 `agent_id + agent_round_id` 的 permission-first 节点身份增删与移动，`atomicLayoutKey` 覆盖权限模块和终态组件切换；版本只触发当前意图的重放，不得自行切换 FOLLOW/READING。
+- 内容版本必须覆盖并行 Agent 的非末尾流式正文增长。Feed ResizeObserver 只拥有正文高度变化并随 topology 变化重新绑定；独立的滚动容器 ResizeObserver 处理 Composer、虚拟键盘及 App/浏览器窗口造成的 viewport 高度变化。两类变化都保持既有意图：FOLLOW 同步贴新 bottom，READING 恢复可见锚点。横向重排继续交给 Feed/Virtualizer。
+- 用户已向上脱离 FOLLOW 时，Room 权限模块、终态正文与新成员回复都只恢复当前阅读锚点；仍在 FOLLOW 时，任何 chunk、终态或问题布局提交都在 paint 前直接贴真实 bottom，不能先恢复锚点再用弹簧追赶。
 - 用户向上滚动的暂停意图必须粘住；只有明确向下回到底部、点击回到底部或切换会话才恢复跟随，各输入路径不得在面板投影中丢失。
-- 回到底部入口占用 Feed 外恒定高度的安全带；按钮显隐不得调整 viewport，也不得覆盖正文、Composer 或 Thread 分割线。
+- 回到底部入口只占自身浮动命中区；显隐不得调整 viewport，也不得用全宽层覆盖正文、Composer 或 Thread 分割线。
 - `round-scroll.ts` 保存轮次 DOM 定位和导航目标协议，feed 与 navigator 共用同一实现。
 - `use-scroll-anchored-state.ts` 只用于局部内容展开收起时保持可视位置，不参与消息历史前插。

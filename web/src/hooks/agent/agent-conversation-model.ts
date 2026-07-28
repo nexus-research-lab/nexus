@@ -3,6 +3,7 @@ import type {
   AgentConversationChatType,
   AgentConversationIdentity,
   InputQueueItem,
+  RoomAgentExecutionState,
   RoomPendingAgentSlotState,
   UseAgentConversationOptions,
   UseAgentConversationReturn,
@@ -62,6 +63,7 @@ interface AgentConversationPublicActions {
 interface AgentConversationPublicRuntime {
   pendingAgentSlots: RoomPendingAgentSlotState[];
   pendingPermissions: PendingPermission[];
+  roomAgentExecutionStates: RoomAgentExecutionState[];
   snapshot: AgentConversationRuntimeSnapshot;
 }
 
@@ -119,6 +121,7 @@ export function buildAgentConversationResult({
     messages,
     pending_agent_slots: runtime.pendingAgentSlots,
     pending_permissions: runtime.pendingPermissions,
+    room_agent_execution_states: runtime.roomAgentExecutionStates,
     resolved_history_round_ids: session.resolvedHistoryRoundIds,
     reorder_input_queue_messages: actions.reorderQueueMessages,
     reset_session: session.resetSession,

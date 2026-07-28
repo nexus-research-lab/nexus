@@ -7,8 +7,9 @@ import type {
 const TOOL_USE_ERROR_TAG_PATTERN =
   /<tool_use_error>([\s\S]*?)<\/tool_use_error>/g;
 
-// 该标记只控制 Room 编排，任何面向用户的文本投影都必须先剥离。
-const ROOM_CONTROL_MARKER = /<nexus_room_no_reply\s*\/>/g;
+// 这些标记只控制 Room 编排；历史、流式、结果与复制投影必须共用同一清理入口。
+const ROOM_CONTROL_MARKER_PATTERN =
+  /<nexus_room_(?:fanout|no_reply)\s*\/>/gi;
 
 // SDK 用内部元数据标记可恢复的工具结果，模型仍能看到 is_error，用户界面不应把它当成异常。
 export const INTERNAL_TOOL_RESULT_KIND_KEY = "_nexus_internal_kind";
@@ -65,7 +66,7 @@ function appendToolUseErrorBlock(
 }
 
 export function stripRoomControlMarkers(text: string): string {
-  return text.replace(ROOM_CONTROL_MARKER, "").trim();
+  return text.replace(ROOM_CONTROL_MARKER_PATTERN, "").trim();
 }
 
 export function extractTextFromContentBlocks(

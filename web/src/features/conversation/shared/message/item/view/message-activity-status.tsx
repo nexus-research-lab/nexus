@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * INPUT: 消息活动状态。
+ * OUTPUT: 图标、中文状态语义与真实逐帧运行的紧凑活动提示。
+ * POS: DM/Room 共用的活动呈现；不推导 runtime 状态，也不占用消息正文身份。
+ */
 import {
   Brain,
   Globe,
@@ -10,6 +15,7 @@ import {
   ShieldAlert,
   Wrench,
 } from "lucide-react";
+import type { CSSProperties } from "react";
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
 import { cn } from "@/shared/ui/class-name";
@@ -117,30 +123,37 @@ function MessageLoadingDots({
   name: BrailleSpinnerName;
 }) {
   const spinner = spinners[name];
-  const firstVisibleFrameIndex = spinner.frames.findIndex(
-    (frame) => frame.replace(/⠀/g, "").length > 0,
-  );
-  const currentFrame = spinner.frames[
-    Math.max(firstVisibleFrameIndex, 0)
-  ] ?? spinner.frames[0];
+  const frames = spinner.frames.length > 0 ? spinner.frames : ["·"];
+  const trackFrames = [...frames, frames[0]];
   const spinnerWidth = Math.max(
-    ...spinner.frames.map((frame) => Array.from(frame).length),
+    ...frames.map((frame) => Array.from(frame).length),
   );
+  const trackStyle = {
+    "--message-activity-spinner-distance": `-${frames.length}em`,
+    animation: `nexus-message-activity-frames ${spinner.interval * frames.length}ms steps(${frames.length}, end) infinite`,
+  } as CSSProperties;
 
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "inline-grid h-[1em] select-none place-items-center whitespace-pre leading-[1em] text-current align-middle text-[1.4em]",
+        "inline-block h-[1em] overflow-hidden select-none whitespace-pre leading-[1em] text-current align-middle text-[1.4em]",
         className,
       )}
       style={{ width: `${spinnerWidth}ch` }}
     >
       <span
-        className="block font-mono leading-none"
-        style={{ transform: "translateY(0.02em)" }}
+        className="message-activity-spinner-track flex flex-col font-mono leading-none will-change-transform"
+        style={trackStyle}
       >
-        {currentFrame}
+        {trackFrames.map((frame, index) => (
+          <span
+            className="block h-[1em] shrink-0 leading-[1em]"
+            key={`${frame}:${index}`}
+          >
+            {frame}
+          </span>
+        ))}
       </span>
     </span>
   );
