@@ -174,15 +174,21 @@ export class AgentConversationRuntimeMachine {
   }
 
   public trackChatAck(ack: ChatAckData): void {
-    this.pendingRequestIds.delete(ack.client_request_id);
-    this.terminalRoundIds.delete(ack.round_id);
+    if (ack.client_request_id) {
+      this.pendingRequestIds.delete(ack.client_request_id);
+    }
+    if (ack.pending_snapshot) {
+      this.activeMessageTrackers.clear();
+    }
 
     for (const slot of ack.pending) {
-      if (this.isRoundTerminal(ack.round_id)) {
+      const roundId = slot.round_id?.trim() || ack.round_id;
+      if (this.isRoundTerminal(roundId)) {
         continue;
       }
+      this.terminalRoundIds.delete(roundId);
       this.activeMessageTrackers.set(slot.msg_id, {
-        roundId: ack.round_id,
+        roundId,
         status: slot.status,
       });
     }

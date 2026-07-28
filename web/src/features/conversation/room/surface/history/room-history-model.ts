@@ -1,3 +1,9 @@
+/**
+ * INPUT: Room 会话快照、当前会话与管理能力。
+ * OUTPUT: 排除内部草稿后，按活动时间排序并带单项/全量管理资格的历史条目。
+ * POS: Room 历史菜单的纯协议到展示能力投影。
+ */
+
 import {
   getExternalSessionConversationLabel,
   isExternalSessionConversation,
@@ -8,16 +14,9 @@ export interface RoomHistoryEntry {
   conversation: RoomConversationView;
   externalSessionLabel: string | null;
   isActive: boolean;
+  canBulkDelete: boolean;
   canDelete: boolean;
   canRename: boolean;
-}
-
-export const ROOM_HISTORY_PAGE_SIZE = 6;
-
-export interface RoomHistoryPage {
-  entries: RoomHistoryEntry[];
-  page: number;
-  pageCount: number;
 }
 
 function compareByRecentActivity(
@@ -27,6 +26,15 @@ function compareByRecentActivity(
   return right.last_activity_at - left.last_activity_at
     || right.created_at - left.created_at
     || left.conversation_id.localeCompare(right.conversation_id);
+}
+
+export function filterRoomHistoryConversations(
+  conversations: readonly RoomConversationView[],
+): RoomConversationView[] {
+  return conversations.filter((conversation) => (
+    isExternalSessionConversation(conversation)
+    || conversation.is_draft !== true
+  ));
 }
 
 export function buildRoomHistoryEntries({
@@ -40,21 +48,25 @@ export function buildRoomHistoryEntries({
   canManageConversations: boolean;
   canUpdateConversationTitle: boolean;
 }): RoomHistoryEntry[] {
-  const conversationCount = conversations.length;
-  return [...conversations]
+  const localConversationCount = conversations.filter(
+    (conversation) => !isExternalSessionConversation(conversation),
+  ).length;
+  return filterRoomHistoryConversations(conversations)
     .sort(compareByRecentActivity)
     .map((conversation) => {
       const isExternalSession = isExternalSessionConversation(conversation);
+      const isActive = conversation.conversation_id === currentConversationId;
+      const canDelete = (
+        !isExternalSession
+        && canManageConversations
+        && localConversationCount > 1
+      );
       return {
         conversation,
         externalSessionLabel: getExternalSessionConversationLabel(conversation),
-        isActive: conversation.conversation_id === currentConversationId,
-        canDelete: (
-          !isExternalSession
-          && canManageConversations
-          && conversation.conversation_type === "topic"
-          && conversationCount > 1
-        ),
+        isActive,
+        canBulkDelete: !isExternalSession && canManageConversations,
+        canDelete,
         canRename: (
           !isExternalSession
           && canManageConversations
@@ -62,21 +74,4 @@ export function buildRoomHistoryEntries({
         ),
       };
     });
-}
-
-export function paginateRoomHistoryEntries(
-  entries: RoomHistoryEntry[],
-  requestedPage: number,
-  pageSize = ROOM_HISTORY_PAGE_SIZE,
-): RoomHistoryPage {
-  const resolvedPageSize = Math.max(1, Math.floor(pageSize));
-  const pageCount = Math.max(1, Math.ceil(entries.length / resolvedPageSize));
-  const page = Math.min(Math.max(0, requestedPage), pageCount - 1);
-  const start = page * resolvedPageSize;
-
-  return {
-    entries: entries.slice(start, start + resolvedPageSize),
-    page,
-    pageCount,
-  };
 }

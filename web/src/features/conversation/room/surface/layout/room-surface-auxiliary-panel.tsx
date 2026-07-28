@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/subagent-task-surface";
 import { cn } from "@/shared/ui/class-name";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import type {
@@ -13,6 +12,7 @@ import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/hea
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
 import { RoomAgentAboutSurface } from "../room-agent-about-surface";
+import { RoomSubagentTaskSurface } from "../room-subagent-task-surface";
 import { RoomWorkspaceView } from "../../workspace/room-workspace-view";
 import type { RoomAgentAboutRequest } from "./room-surface-layout-types";
 
@@ -129,9 +129,11 @@ export function RoomSurfaceAuxiliaryPanel({
 
       {activeSurfaceTab === "subagents" && subagentTaskSource ? (
         <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-          <SubagentTaskSurface
+          <RoomSubagentTaskSurface
+            currentAgentId={currentAgent.agent_id}
             onClose={onClose}
             onOpenWorkspaceFile={onOpenWorkspaceFile}
+            roomMembers={roomMembers}
             source={subagentTaskSource}
           />
         </div>

@@ -1,6 +1,7 @@
 import { MessageSquarePlus } from "lucide-react";
 import { memo } from "react";
 
+import { CreateGroupChatIcon } from "@/features/conversation/room/members/create-group-chat-icon";
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -35,13 +36,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
             onClick={controller.create.open}
             title={t("home.create_room")}
           >
-            <span
-              aria-hidden="true"
-              className="relative block h-[18px] w-[18px] max-lg:h-5 max-lg:w-5"
-            >
-              <span className="absolute left-1/2 top-1/2 h-[2px] w-[14px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current max-lg:w-4" />
-              <span className="absolute left-1/2 top-1/2 h-[14px] w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-current max-lg:h-4" />
-            </span>
+            <CreateGroupChatIcon className="h-[22px] w-[22px]" />
           </SidebarSearchAction>
         )}
         onChange={controller.list.setQuery}

@@ -27,6 +27,7 @@ interface ConnectorDetailViewProps {
   onConfigureOauthClient: (detail: ConnectorDetail) => void;
   onConnect: (connectorId: string) => void;
   onDisconnect: (connectorId: string) => void;
+  onReplaceOauthClient: (detail: ConnectorDetail) => void;
 }
 
 function detailIdentity(detail: ConnectorDetail | null): string | null {
@@ -86,6 +87,7 @@ export function ConnectorDetailView({
   onConfigureOauthClient,
   onConnect,
   onDisconnect,
+  onReplaceOauthClient,
 }: ConnectorDetailViewProps) {
   const [selectedFeature, setSelectedFeature] = useResettableState<string | null>(
     null,
@@ -112,6 +114,7 @@ export function ConnectorDetailView({
           onConfigureOauthClient={onConfigureOauthClient}
           onConnect={onConnect}
           onDisconnect={onDisconnect}
+          onReplaceOauthClient={onReplaceOauthClient}
           state={state}
         />
         <ConnectorDetailContent

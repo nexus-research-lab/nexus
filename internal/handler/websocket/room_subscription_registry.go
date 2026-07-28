@@ -74,16 +74,25 @@ func (r *roomSubscriptionRegistry) SubscribeRoom(
 	}
 	senderRooms[roomID] = struct{}{}
 
-	if lastSeenRoomSeq == nil || *lastSeenRoomSeq <= 0 {
+	if lastSeenRoomSeq == nil {
 		r.mu.Unlock()
 		return nil
 	}
 
+	replayBoundary := max(*lastSeenRoomSeq, 0)
 	latestRoomSeq := r.roomSequences[roomID]
 	buffer := slices.Clone(r.roomReplay[roomID])
 	r.mu.Unlock()
 
-	return r.replayRoomEvents(ctx, sender, roomID, conversationID, *lastSeenRoomSeq, latestRoomSeq, buffer)
+	return r.replayRoomEvents(
+		ctx,
+		sender,
+		roomID,
+		conversationID,
+		replayBoundary,
+		latestRoomSeq,
+		buffer,
+	)
 }
 
 func (r *roomSubscriptionRegistry) UnsubscribeRoom(sender roomEventSender, roomID string, conversationID string) {

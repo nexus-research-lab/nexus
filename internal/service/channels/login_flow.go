@@ -16,10 +16,11 @@ func (s *ControlService) StartChannelLogin(
 ) (*ChannelLoginView, error) {
 	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
 	channelType = normalizeIMChannelType(channelType)
-	if _, ok := channelCatalogByType(channelType); !ok {
+	catalog, ok := channelCatalogByType(channelType)
+	if !ok {
 		return nil, ErrChannelNotFound
 	}
-	if channelType != ChannelTypeWeixinPersonal {
+	if !catalog.SupportsQRCode {
 		return nil, ErrChannelLoginUnsupported
 	}
 
@@ -30,17 +31,6 @@ func (s *ControlService) StartChannelLogin(
 	if row == nil {
 		return nil, errors.New("channel config is required before login")
 	}
-	publicConfig, err := decodeStringMap(row.ConfigJSON)
-	if err != nil {
-		return nil, err
-	}
-	secrets, err := s.decryptCredentials(row.CredentialsEncrypted)
-	if err != nil {
-		return nil, err
-	}
-	baseURL := firstNonEmpty(publicConfig["base_url"], channeladapters.DefaultPersonalWeixinBaseURL)
-	client := s.newPersonalWeixinLoginClient(baseURL, publicConfig)
-
 	store := s.effectiveChannelLoginStore()
 	activeKey := channelLoginActiveKey(ownerUserID, channelType)
 	now := time.Now()
@@ -58,6 +48,19 @@ func (s *ControlService) StartChannelLogin(
 	}
 	store.mu.Unlock()
 
+	if channelType != ChannelTypeWeixinPersonal {
+		return s.startRegisteredChannelLogin(ctx, row, activeKey, now)
+	}
+	publicConfig, err := decodeStringMap(row.ConfigJSON)
+	if err != nil {
+		return nil, err
+	}
+	secrets, err := s.decryptCredentials(row.CredentialsEncrypted)
+	if err != nil {
+		return nil, err
+	}
+	baseURL := firstNonEmpty(publicConfig["base_url"], channeladapters.DefaultPersonalWeixinBaseURL)
+	client := s.newPersonalWeixinLoginClient(baseURL, publicConfig)
 	localTokens, err := s.personalWeixinLocalTokens(ctx, row, secrets)
 	if err != nil {
 		return nil, err

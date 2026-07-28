@@ -2,6 +2,9 @@
 
 - `handler-scope.ts` 提供当前 Session 事件守卫，事件族不得重复作用域判断。
 - `agent-message-event-handlers.ts` 处理消息快照与流式载荷。
+- Room realtime user 消息通过消息集合模型消费 `client_message_id`，Handler 不得先追加 canonical 节点再等待 ACK 删除 optimistic 节点。
+- client 请求对应的 `chat_ack` 只做 ephemeral correlation；server-initiated public wake 的 pending 事件没有 client/user correlation，但它是可按 Room 序号重放的 durable 状态，携带非空 slot 与稳定 root 时必须接收。
+- 重连的 authoritative pending snapshot 即使为空且聚合 `round_id` 为空也必须接收并清理陈旧槽位；并发多 root 快照由每个 slot 自己的 `round_id` 定位，聚合 `round_id` 只作为单 root fallback。只有空的非 snapshot 无关联 ACK 继续拒绝。
 - `resync-event-handlers.ts` 统一推进 Session/Room 游标，并在缺口重拉完成且连接有效时重新订阅。
 - `permission/` 分离权限事件的未知载荷解码与当前 Session 状态增删。
 - `session-event-handlers.ts` 处理错误、Session/runtime 状态、队列、Goal、轮次和消息状态。

@@ -1,3 +1,6 @@
+// INPUT: runtime transcript JSONL 与父链/并行工具关联。
+// OUTPUT: 供历史投影消费的主链，以及与主链工具调用对应的并行结果和子任务附件。
+// POS: transcript 读取、规范化与执行链选择边界。
 package workspace
 
 import (
@@ -93,7 +96,7 @@ func buildTranscriptChain(
 	})
 	chain := walkTranscriptParentChain(terminals[0], byUUID)
 	slices.Reverse(chain)
-	return includeParallelTranscriptToolResults(entries, chain, shouldSkip)
+	return includeParallelTranscriptTaskEntries(entries, chain, shouldSkip)
 }
 
 func indexTranscriptEntries(entries []transcriptEntry) (map[string]transcriptEntry, map[string]struct{}) {
@@ -178,7 +181,7 @@ func isInternalTranscriptContinuationEntry(entry map[string]any) bool {
 	return message.IsInternalTranscriptContinuationPrompt(transcriptRawUserContent(entry))
 }
 
-func includeParallelTranscriptToolResults(
+func includeParallelTranscriptTaskEntries(
 	entries []transcriptEntry,
 	chain []transcriptEntry,
 	shouldSkip func(map[string]any) bool,
@@ -192,7 +195,8 @@ func includeParallelTranscriptToolResults(
 	}
 	next := slices.Clone(chain)
 	for _, entry := range entries {
-		if includeParallelTranscriptEntry(entry, chainUUIDs, toolUseIDs, seenToolResultIDs, shouldSkip) {
+		if includeParallelTranscriptEntry(entry, chainUUIDs, toolUseIDs, seenToolResultIDs, shouldSkip) ||
+			includeParallelSubagentAttachment(entry, toolUseIDs, shouldSkip) {
 			next = append(next, entry)
 			chainUUIDs[stringFromAny(entry.Data["uuid"])] = struct{}{}
 		}
@@ -201,6 +205,28 @@ func includeParallelTranscriptToolResults(
 		return next[i].Index < next[j].Index
 	})
 	return next
+}
+
+func includeParallelSubagentAttachment(
+	entry transcriptEntry,
+	toolUseIDs map[string]struct{},
+	shouldSkip func(map[string]any) bool,
+) bool {
+	if shouldSkip(entry.Data) || stringFromAny(entry.Data["type"]) != "attachment" {
+		return false
+	}
+	attachment, _ := entry.Data["attachment"].(map[string]any)
+	if stringFromAny(attachment["type"]) != "structured_output" {
+		return false
+	}
+	data, _ := attachment["data"].(map[string]any)
+	agentID := firstNonEmpty(stringFromAny(data["agent_id"]), stringFromAny(data["agentId"]))
+	toolUseID := firstNonEmpty(stringFromAny(data["tool_use_id"]), stringFromAny(data["toolUseId"]))
+	if agentID == "" || toolUseID == "" {
+		return false
+	}
+	_, expected := toolUseIDs[toolUseID]
+	return expected
 }
 
 func indexTranscriptChain(chain []transcriptEntry) (map[string]struct{}, map[string]struct{}, map[string]struct{}) {

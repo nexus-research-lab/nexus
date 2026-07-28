@@ -391,6 +391,20 @@ func (e *dmChatExecution) persistRound() error {
 	if e.request.Internal {
 		return nil
 	}
+	if dmRequestHasCanonicalUserInput(e.request) && dmRoomConversationID(e.parsed) != "" {
+		if err := e.service.markRoomConversationStarted(
+			e.ctx,
+			e.sessionKey,
+			time.Now().UTC(),
+		); err != nil {
+			return e.failPersistence(
+				err,
+				"Room conversation 活动状态写入失败",
+				"Room conversation 活动状态失败后刷新 session meta 失败",
+				"Room conversation 活动状态写入失败",
+			)
+		}
+	}
 	updatedSession, err := e.service.refreshSessionMetaAfterRoundMarkerForOwner(
 		e.runner.ownerUserID,
 		e.runner.workspacePath,
@@ -408,6 +422,39 @@ func (e *dmChatExecution) persistRound() error {
 		e.runner.session = *updatedSession
 	}
 	return nil
+}
+
+func dmRequestHasCanonicalUserInput(request Request) bool {
+	return !request.Internal &&
+		!request.InputOptions.HiddenFromUser &&
+		!request.InputOptions.Synthetic
+}
+
+func (s *Service) markRoomConversationStarted(
+	ctx context.Context,
+	sessionKey string,
+	activityAt time.Time,
+) error {
+	if s == nil || s.roomActivity == nil {
+		return nil
+	}
+	conversationID := dmRoomConversationID(protocol.ParseSessionKey(sessionKey))
+	if conversationID == "" {
+		return nil
+	}
+	if activityAt.IsZero() {
+		activityAt = time.Now().UTC()
+	}
+	return s.roomActivity.MarkConversationStarted(ctx, conversationID, activityAt.UTC())
+}
+
+func dmRoomConversationID(parsed protocol.SessionKey) string {
+	if parsed.Kind != protocol.SessionKeyKindAgent ||
+		protocol.NormalizeSessionKeyChannelSegment(parsed.Channel) != protocol.SessionChannelWebSocketSegment ||
+		strings.TrimSpace(parsed.ChatType) != "dm" {
+		return ""
+	}
+	return strings.TrimSpace(parsed.Ref)
 }
 
 func (e *dmChatExecution) failPersistence(err error, cancelReason, refreshWarning, errorMessage string) error {
@@ -489,6 +536,11 @@ func dmChatAckPendingSlots(agentID string, agentRoundID string) []protocol.ChatA
 }
 
 func (s *Service) validateRequest(request Request) (string, protocol.SessionKey, error) {
+	// durable user queue 只承载真实用户输入；隐藏或 synthetic 消息必须走
+	// internal 路径，避免排队后丢失来源语义并误消费 conversation draft。
+	if !request.Internal && !dmRequestHasCanonicalUserInput(request) {
+		return "", protocol.SessionKey{}, errors.New("hidden or synthetic input must be internal")
+	}
 	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
 	if err != nil {
 		return "", protocol.SessionKey{}, err

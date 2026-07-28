@@ -108,6 +108,8 @@ function buildRoomSnapshot(
   return {
     ...buildConversationActivityPatch(input),
     conversation_id: input.scope_key,
+    has_user_input: input.has_user_input,
+    message_count: input.message_count,
     session_id: input.last_message.session_id ?? null,
   };
 }

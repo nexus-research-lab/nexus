@@ -16,6 +16,32 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+func TestDMRoomConversationIDOnlyAcceptsRoomDMExecutionKey(t *testing.T) {
+	conversationID := "conversation-draft-1"
+	roomDM := protocol.ParseSessionKey(protocol.BuildRoomAgentSessionKey(
+		conversationID,
+		"agent-a",
+		protocol.RoomTypeDM,
+	))
+	if got := dmRoomConversationID(roomDM); got != conversationID {
+		t.Fatalf("Room DM conversation ID 不正确: got=%q want=%q", got, conversationID)
+	}
+
+	roomGroup := protocol.ParseSessionKey(protocol.BuildRoomAgentSessionKey(
+		conversationID,
+		"agent-a",
+		protocol.RoomTypeGroup,
+	))
+	if got := dmRoomConversationID(roomGroup); got != "" {
+		t.Fatalf("Group execution key 不应由 DM 消费 draft: got=%q", got)
+	}
+
+	externalDM := protocol.ParseSessionKey("agent:agent-a:telegram:dm:chat-1")
+	if got := dmRoomConversationID(externalDM); got != "" {
+		t.Fatalf("外部 DM key 不应映射成 Room conversation: got=%q", got)
+	}
+}
+
 func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
 	previousTimeout := dmBroadcastTimeout
 	dmBroadcastTimeout = 20 * time.Millisecond

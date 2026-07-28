@@ -16,7 +16,11 @@ import type {
 } from "@/types/agent/agent-conversation";
 
 import type { ConversationRoundScrollHandle } from "../timeline/scroll/round-scroll";
-import { buildConversationScrollContentKey } from "../timeline/scroll/follow-scroll-model";
+import {
+  buildConversationAtomicLayoutKey,
+  buildConversationScrollContentKey,
+  buildConversationScrollTopologyKey,
+} from "../timeline/scroll/follow-scroll-model";
 import { useConversationHistoryLoader } from "../timeline/use-history-loader";
 import { useConversationTimeline } from "../timeline/use-conversation-timeline";
 import { useVisibleRoundWindowLoader } from "../timeline/window-loader/use-visible-window-loader";
@@ -51,16 +55,37 @@ export function useConversationSession({
     () => buildConversationScrollContentKey(sessionKey, conversation.messages),
     [conversation.messages, sessionKey],
   );
+  const scrollTopologyKey = useMemo(
+    () => buildConversationScrollTopologyKey(
+      sessionKey,
+      conversation.messages,
+      conversation.pending_agent_slots,
+    ),
+    [conversation.messages, conversation.pending_agent_slots, sessionKey],
+  );
+  const atomicLayoutKey = useMemo(
+    () => [
+      buildConversationAtomicLayoutKey(
+        sessionKey,
+        conversation.messages,
+        conversation.pending_permissions,
+      ),
+      conversation.error ?? "",
+    ].join("\u001f"),
+    [
+      conversation.error,
+      conversation.messages,
+      conversation.pending_permissions,
+      sessionKey,
+    ],
+  );
   const scroll = useFollowScroll({
-    auxiliaryBlockCount:
-      conversation.pending_agent_slots.length +
-      conversation.pending_permissions.length,
-    auxiliaryBlockKey: conversation.error,
+    atomicLayoutKey,
     contentKey: scrollContentKey,
     historyPrependToken: conversation.history_prepend_token,
-    isLoading: conversation.is_loading,
     messageCount: conversation.messages.length,
     sessionKey,
+    topologyKey: scrollTopologyKey,
   });
 
   useSessionLoader({

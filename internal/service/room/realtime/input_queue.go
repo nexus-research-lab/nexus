@@ -410,6 +410,13 @@ func (s *Service) syncQueuedPublicUserMessage(
 			strings.TrimSpace(messageSourceRoundID) == strings.TrimSpace(updatedSourceRoundID) &&
 			messageAgentRoundID == updatedAgentRoundID &&
 			slices.Equal(messageTargets, updatedTargets) {
+			if item.Source == protocol.InputQueueSourceUser {
+				return s.markConversationStarted(
+					ctx,
+					contextValue.Conversation.ID,
+					roomMessageActivityTime(message),
+				)
+			}
 			return nil
 		}
 		if err = s.persistSharedInlineMessage(
@@ -418,6 +425,15 @@ func (s *Service) syncQueuedPublicUserMessage(
 			updated,
 		); err != nil {
 			return err
+		}
+		if item.Source == protocol.InputQueueSourceUser {
+			if err = s.markConversationStarted(
+				ctx,
+				contextValue.Conversation.ID,
+				roomMessageActivityTime(updated),
+			); err != nil {
+				return err
+			}
 		}
 		s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapMessageEvent(
 			contextValue.Room.ID,
@@ -462,6 +478,13 @@ func (s *Service) syncQueuedPublicUserMessage(
 		contextValue.Room.OwnerUserID,
 		contextValue.Conversation.ID,
 		messageValue,
+	); err != nil {
+		return err
+	}
+	if err = s.markConversationStarted(
+		ctx,
+		contextValue.Conversation.ID,
+		roomMessageActivityTime(messageValue),
 	); err != nil {
 		return err
 	}

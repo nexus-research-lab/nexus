@@ -239,6 +239,11 @@ func runServer() error {
 			return err
 		}
 	}
+	// 旧版本允许积累多个未产生用户输入的 Session。只在桌面 SQLite 的无并发启动窗口
+	// 自动收口一次；修复失败保留 started 标记并继续启动，后续由显式维护命令处理。
+	if err := migration.RunDesktopLegacyConversationDraftRepair(context.Background(), cfg, logger); err != nil {
+		logger.Warn("历史空白 Session 一次性兼容修复未完成，继续启动服务", "err", err)
+	}
 
 	server, err := serverapp.NewWithLogger(cfg, logger)
 	if err != nil {

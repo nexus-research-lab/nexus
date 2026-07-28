@@ -12,7 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
-// CreateConversation 创建 room 话题。
+// CreateConversation 确保 Room 只有一个尚无用户输入的 draft；标题不改变草稿语义。
 func (s *Service) CreateConversation(ctx context.Context, roomID string, request protocol.CreateConversationRequest) (*protocol.ConversationContextAggregate, error) {
 	contexts, err := s.GetRoomContexts(ctx, roomID)
 	if err != nil {
@@ -26,10 +26,7 @@ func (s *Service) CreateConversation(ctx context.Context, roomID string, request
 		return nil, err
 	}
 
-	nextTitle := roomdomain.NormalizeOptionalText(request.Title)
-	if nextTitle == "" {
-		nextTitle = roomdomain.BuildNextConversationTitle(roomValue.Name, contexts)
-	}
+	title := roomdomain.NormalizeOptionalText(request.Title)
 
 	conversationID := roomdomain.NewEntityID()
 	contextValue, err := s.repository.CreateConversation(ctx, roomrepo.CreateConversationBundle{
@@ -38,7 +35,8 @@ func (s *Service) CreateConversation(ctx context.Context, roomID string, request
 			ID:               conversationID,
 			RoomID:           roomValue.ID,
 			ConversationType: protocol.ConversationTypeTopic,
-			Title:            nextTitle,
+			Title:            title,
+			IsDraft:          true,
 		},
 		Sessions: roomdomain.BuildSessions(conversationID, agentRefs),
 	})
@@ -90,7 +88,7 @@ func (s *Service) UpdateConversationTitle(
 	return s.UpdateConversation(ctx, roomID, conversationID, protocol.UpdateConversationRequest{Title: title})
 }
 
-// DeleteConversation 删除 room 话题并返回回退上下文。
+// DeleteConversation 删除 room 对话并返回回退上下文。
 func (s *Service) DeleteConversation(ctx context.Context, roomID string, conversationID string) (*protocol.ConversationContextAggregate, error) {
 	contexts, err := s.GetRoomContexts(ctx, roomID)
 	if err != nil {
@@ -98,13 +96,6 @@ func (s *Service) DeleteConversation(ctx context.Context, roomID string, convers
 	}
 	if len(contexts) <= 1 {
 		return nil, errors.New("Room 至少保留一个对话")
-	}
-	target, ok := roomdomain.FindConversation(contexts, conversationID)
-	if !ok {
-		return nil, ErrConversationNotFound
-	}
-	if target.ConversationType != protocol.ConversationTypeTopic {
-		return nil, errors.New("主对话不支持删除")
 	}
 	targetContext, ok := roomdomain.FindConversationContext(contexts, conversationID)
 	if !ok {
@@ -148,4 +139,16 @@ func (s *Service) TouchConversationActivity(ctx context.Context, conversationID 
 		activityAt = time.Now().UTC()
 	}
 	return s.repository.TouchConversationActivity(ctx, conversationID, activityAt.UTC())
+}
+
+// MarkConversationStarted 在首条真实用户输入落盘后消费 conversation draft。
+func (s *Service) MarkConversationStarted(ctx context.Context, conversationID string, activityAt time.Time) error {
+	conversationID = strings.TrimSpace(conversationID)
+	if conversationID == "" {
+		return nil
+	}
+	if activityAt.IsZero() {
+		activityAt = time.Now().UTC()
+	}
+	return s.repository.MarkConversationStarted(ctx, conversationID, activityAt.UTC())
 }

@@ -4,12 +4,13 @@
 
 using System.Windows;
 using System.Windows.Controls;
+using WpfProgressBar = System.Windows.Controls.ProgressBar;
 
 namespace Nexus.Desktop.Update;
 
 internal sealed class DesktopDownloadProgressWindow : System.Windows.Window
 {
-    private readonly ProgressBar progressBar;
+    private readonly WpfProgressBar progressBar;
     private readonly TextBlock progressText;
 
     internal DesktopDownloadProgressWindow(System.Windows.Window owner, DesktopReleaseInfo release)
@@ -22,7 +23,7 @@ internal sealed class DesktopDownloadProgressWindow : System.Windows.Window
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        progressBar = new ProgressBar
+        progressBar = new WpfProgressBar
         {
             Height = 8,
             Minimum = 0,
@@ -32,7 +33,7 @@ internal sealed class DesktopDownloadProgressWindow : System.Windows.Window
         progressText = new TextBlock
         {
             Text = "正在连接下载服务…",
-            HorizontalAlignment = HorizontalAlignment.Right,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
         };
 
         Content = new StackPanel

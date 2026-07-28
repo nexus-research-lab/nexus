@@ -208,6 +208,7 @@ export function RoomMobileSurface({
             <RoomHistoryMenu
               conversationId={conversationId}
               conversations={currentRoomConversations}
+              onCreateConversation={onCreateConversation}
               onDeleteConversation={onDeleteConversation}
               onSelectConversation={onSelectConversation}
               onUpdateConversationTitle={onUpdateConversationTitle}
@@ -250,8 +251,10 @@ export function RoomMobileSurface({
       />
 
       <RoomMobileSubagentOverlay
+        currentAgentId={currentAgent.agent_id}
         onClose={() => setOpenSubagentSource(null)}
         onOpenWorkspaceFile={handleOpenWorkspaceFile}
+        roomMembers={roomMembers}
         source={openSubagentSource === subagentTaskSource
           ? openSubagentSource
           : null}

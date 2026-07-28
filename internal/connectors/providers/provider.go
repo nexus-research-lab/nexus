@@ -45,8 +45,9 @@ type TokenRefreshRequest struct {
 
 // DeviceCodeRequest 是 OAuth Device Flow 获取用户码时需要的上下文。
 type DeviceCodeRequest struct {
-	ClientID string
-	Scopes   []string
+	ClientID     string
+	ClientSecret string
+	Scopes       []string
 }
 
 // DeviceCodeResponse 表示 OAuth Device Flow 返回的设备授权信息。
@@ -61,8 +62,9 @@ type DeviceCodeResponse struct {
 
 // DeviceTokenRequest 是 OAuth Device Flow 轮询 token 时需要的上下文。
 type DeviceTokenRequest struct {
-	ClientID   string
-	DeviceCode string
+	ClientID     string
+	ClientSecret string
+	DeviceCode   string
 }
 
 // Provider 定义单个 OAuth 供应商。

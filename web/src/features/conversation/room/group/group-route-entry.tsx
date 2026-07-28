@@ -1,7 +1,14 @@
+/**
+ * INPUT: 无法进入完整 Room surface 时的 Room、Agent 与会话目录。
+ * OUTPUT: 基础返回动作和排除未开始 draft 的最近会话入口。
+ * POS: Room 缺少完整上下文时的降级导航页。
+ */
+
 import { ArrowRight, MessageSquare, Sparkles, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { filterRoomHistoryConversations } from "@/features/conversation/room/surface/history/room-history-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace/controls/workspace-action-bar";
 import { Agent } from "@/types/agent/agent";
@@ -25,7 +32,7 @@ export function GroupRouteEntry({
   const { t } = useI18n();
   const navigate = useNavigate();
   const roomAgent = agents[0] ?? null;
-  const recentRoomConversations = conversations
+  const recentRoomConversations = filterRoomHistoryConversations(conversations)
     .filter((conversation): conversation is RoomConversationView & { conversation_id: string } => (
       conversation.room_id === roomId && Boolean(conversation.conversation_id)
     ))
@@ -93,7 +100,7 @@ export function GroupRouteEntry({
                     type="button"
                   >
                     <span className="truncate text-sm text-(--text-default)">
-                      {conversation.title || t("room.untitled_conversation")}
+                      {conversation.title || t("room.new_conversation")}
                     </span>
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-colors hover:text-(--icon-strong)">
                       <ArrowRight className="h-4 w-4 shrink-0 text-(--icon-default)" />

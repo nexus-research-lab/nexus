@@ -1,6 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import type {
@@ -111,14 +112,12 @@ function ExternalResultsReady({
   const { t } = useI18n();
   return (
     <section>
-      <div className="mb-2 flex items-end justify-between border-b border-(--divider-subtle-color) pb-1.5">
-        <h2 className="text-base font-medium text-(--text-strong)">
-          {t("capability.search_results")}
-        </h2>
-        <span className="text-xs font-medium text-(--text-soft)">
-          {t("capability.result_count", { count: model.visibleItems.length })}
-        </span>
-      </div>
+      <CapabilitySectionHeader
+        count={t("capability.result_count", {
+          count: model.visibleItems.length,
+        })}
+        title={t("capability.search_results")}
+      />
       <ExternalSourceFilters
         groups={model.groups}
         onSelect={onSelectSource}

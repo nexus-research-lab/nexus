@@ -59,6 +59,7 @@ type ConversationRecord struct {
 	RoomID           string    `json:"room_id"`
 	ConversationType string    `json:"conversation_type"`
 	Title            string    `json:"title,omitempty"`
+	IsDraft          bool      `json:"is_draft"`
 	MessageCount     int       `json:"message_count"`
 	LastActivityAt   time.Time `json:"last_activity_at,omitempty"`
 	CreatedAt        time.Time `json:"created_at,omitempty"`

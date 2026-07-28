@@ -116,8 +116,9 @@ func (s *Service) transformRoomDurableMessage(
 	return message
 }
 
-// setRoomDisplayOrder 为同一 root round 的 Agent 回复提供跨重启稳定的并列顺序。
-// 时间戳负责事实排序，slot index 只处理同一毫秒内的并发 tie-break。
+// setRoomDisplayOrder 为同一 root round 的 Agent 回复提供跨重启稳定的启动顺序。
+// slot 创建时间负责跨 wake 追加，index 只处理同一批并发 Agent 的 tie-break；
+// completion message 自己的时间戳只用于展示，不能在终态时重排卡片。
 func setRoomDisplayOrder(slot *activeRoomSlot, message protocol.Message) {
 	if slot == nil || message == nil || protocol.MessageRole(message) != "assistant" {
 		return
@@ -125,9 +126,9 @@ func setRoomDisplayOrder(slot *activeRoomSlot, message protocol.Message) {
 	if protocol.Int64FromAny(message["display_order"]) > 0 {
 		return
 	}
-	timestamp := protocol.Int64FromAny(message["timestamp"])
+	timestamp := slot.TimestampMS
 	if timestamp <= 0 {
-		timestamp = slot.TimestampMS
+		timestamp = protocol.Int64FromAny(message["timestamp"])
 	}
 	if timestamp <= 0 {
 		return

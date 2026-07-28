@@ -7,16 +7,9 @@ import type {
   SubagentTaskSource,
 } from "@/types/conversation/subagent-task";
 
-import {
-  canSendSubagentTaskMessage,
-  canStopSubagentTask,
-  isSubagentTaskActive,
-  subagentTaskSourceKey,
-} from "../subagent-task-model";
+import { subagentTaskSourceKey } from "../subagent-task-model";
 
 const EMPTY_MESSAGES: Message[] = [];
-
-export type SubagentTaskCommand = "send" | "stop";
 
 export interface SubagentTaskThreadError {
   message: string;
@@ -36,17 +29,7 @@ export interface SubagentTaskThreadResourceSnapshot {
   scopeKey: string;
 }
 
-export interface SubagentTaskThreadCommandSnapshot {
-  command: SubagentTaskCommand | null;
-  draft: string;
-  error: string | null;
-  scopeKey: string;
-}
-
 export interface SubagentTaskThreadProjection {
-  canSend: boolean;
-  canStop: boolean;
-  isResume: boolean;
   messages: Message[];
   rounds: ConversationThreadRound[];
   task: SubagentTask;
@@ -75,28 +58,13 @@ export function createSubagentTaskThreadResourceSnapshot(
   };
 }
 
-export function createSubagentTaskThreadCommandSnapshot(
-  scopeKey: string,
-): SubagentTaskThreadCommandSnapshot {
-  return {
-    command: null,
-    draft: "",
-    error: null,
-    scopeKey,
-  };
-}
-
 export function projectSubagentTaskThread(
   task: SubagentTask,
   detail: SubagentTaskMessagesResponse | null,
 ): SubagentTaskThreadProjection {
   const effectiveTask = detail?.task ?? task;
   const messages = detail?.messages ?? EMPTY_MESSAGES;
-  const canSend = canSendSubagentTaskMessage(effectiveTask);
   return {
-    canSend,
-    canStop: canStopSubagentTask(effectiveTask),
-    isResume: canSend && !isSubagentTaskActive(effectiveTask),
     messages,
     rounds: Array.from(
       groupMessagesByRound(messages),
@@ -107,12 +75,8 @@ export function projectSubagentTaskThread(
 }
 
 export function resolveSubagentTaskThreadError(
-  commandError: string | null,
   resourceError: string | null,
 ): SubagentTaskThreadError | null {
-  if (commandError) {
-    return { message: commandError, retryable: false };
-  }
   if (resourceError) {
     return { message: resourceError, retryable: true };
   }

@@ -8,12 +8,13 @@ export interface MessageItemPermissionMatch {
 }
 
 /**
- * 权限只按 message_id + tool_use_id 精确绑定，
- * 不再做单候选或跨消息补配；匹配不上的保留为未匹配卡片。
+ * 权限只按 message_id + tool_use_id 精确绑定到当前实际可见的工具块，
+ * 不再做单候选或跨消息补配；匹配不上的保留为独立卡片。
  */
 export function resolveMessageItemPermissions(
   messages: Message[],
   pendingPermissions: PendingPermission[],
+  visibleToolUseIds?: ReadonlySet<string>,
 ): MessageItemPermissionMatch {
   if (pendingPermissions.length === 0) {
     return {
@@ -25,6 +26,7 @@ export function resolveMessageItemPermissions(
   const permissionMatchResult = matchPendingPermissionsToMessages(
     messages,
     pendingPermissions,
+    { visibleToolUseIds },
   );
 
   return {

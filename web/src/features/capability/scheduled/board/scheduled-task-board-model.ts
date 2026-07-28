@@ -14,7 +14,6 @@ export type ScheduledTaskBoardColumnId =
   | "stopped";
 
 interface ScheduledTaskBoardColumnDefinition {
-  description: string;
   emptyDescription: string;
   id: ScheduledTaskBoardColumnId;
   title: string;
@@ -101,28 +100,24 @@ export const SCHEDULED_TASK_SUGGESTIONS: ScheduledTaskSuggestion[] = [
 
 export const SCHEDULED_TASK_BOARD_COLUMNS: ScheduledTaskBoardColumnDefinition[] = [
   {
-    description: "当前正在执行",
     emptyDescription: "当前没有任务在执行",
     id: "running",
     title: "执行中",
     tone: "primary",
   },
   {
-    description: "等待下次触发",
     emptyDescription: "没有等待调度的任务",
     id: "scheduled",
     title: "已计划",
     tone: "success",
   },
   {
-    description: "最近执行失败",
     emptyDescription: "没有需要处理的问题",
     id: "attention",
     title: "需处理",
     tone: "warning",
   },
   {
-    description: "暂停或单次已结束",
     emptyDescription: "没有停止的任务",
     id: "stopped",
     title: "已停止",

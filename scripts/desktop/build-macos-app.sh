@@ -98,8 +98,8 @@ codesign_target() {
 
 echo "==> Building web/dist"
 cd "${ROOT_DIR}/web"
-pnpm install --frozen-lockfile --prefer-offline
-NEXUS_DESKTOP_BUILD=1 pnpm build
+corepack pnpm@9.15.2 install --frozen-lockfile --prefer-offline
+NEXUS_DESKTOP_BUILD=1 corepack pnpm@9.15.2 build
 
 echo "==> Building Go sidecar"
 mkdir -p "${SIDECAR_BUILD_DIR}"

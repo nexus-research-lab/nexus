@@ -99,6 +99,7 @@ func (s *Service) createRoom(ctx context.Context, request protocol.CreateRoomReq
 			RoomID:           roomID,
 			ConversationType: roomdomain.PickMainConversationType(normalizedRoomType),
 			Title:            conversationTitle,
+			IsDraft:          true,
 		},
 		Sessions: roomdomain.BuildSessions(conversationID, agentRefs),
 	}

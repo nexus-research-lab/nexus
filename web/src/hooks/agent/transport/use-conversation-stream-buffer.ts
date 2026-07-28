@@ -1,7 +1,6 @@
 import {
   Dispatch,
   SetStateAction,
-  startTransition,
   useCallback,
   useEffect,
   useRef,
@@ -24,14 +23,14 @@ export function useConversationStreamBuffer(
     }
     streamBufferRef.current = [];
 
-    startTransition(() => {
-      setMessages((prev) => {
-        let next = prev;
-        for (const payload of payloads) {
-          next = applyStreamMessage(next, payload);
-        }
-        return next;
-      });
+    // RAF 已经把同一可见帧内的 token 合成一次提交。这里不能再降为
+    // transition，否则重 Markdown 工作会推迟/合并中间帧，表现成整段刷出。
+    setMessages((prev) => {
+      let next = prev;
+      for (const payload of payloads) {
+        next = applyStreamMessage(next, payload);
+      }
+      return next;
     });
   }, [setMessages]);
 

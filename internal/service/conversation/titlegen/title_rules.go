@@ -17,6 +17,13 @@ var (
 		"未命名会话":    {},
 		"未命名话题":    {},
 	}
+	defaultConversationTitles = map[string]struct{}{
+		"New session":           {},
+		"Untitled conversation": {},
+		"新会话":                   {},
+		"未命名对话":                 {},
+		"未命名话题":                 {},
+	}
 )
 
 func isDefaultSessionTitle(title string) bool {
@@ -28,6 +35,9 @@ func isDefaultSessionTitle(title string) bool {
 func isDefaultConversationTitle(title string, roomName string) bool {
 	normalizedTitle := strings.TrimSpace(title)
 	if normalizedTitle == "" {
+		return true
+	}
+	if _, ok := defaultConversationTitles[normalizedTitle]; ok {
 		return true
 	}
 	normalizedRoomName := strings.TrimSpace(roomName)

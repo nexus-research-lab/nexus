@@ -207,6 +207,31 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	return projectedRows, nil
 }
 
+// ReadTranscriptSessionMessages 按受控 session id 定位独立 Agent thread，
+// 并使用普通 transcript 投影保留消息、思考、工具调用和工具结果。
+func (s *AgentHistoryStore) ReadTranscriptSessionMessages(
+	workspacePath string,
+	transcriptSessionID string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	transcriptSessionID = strings.ToLower(strings.TrimSpace(transcriptSessionID))
+	if !IsTranscriptSessionID(transcriptSessionID) &&
+		!IsSubagentTranscriptSessionID(transcriptSessionID) {
+		return []protocol.Message{}, nil
+	}
+	transcriptPath, err := s.resolveTranscriptPath(workspacePath, transcriptSessionID)
+	if err != nil {
+		return nil, err
+	}
+	return s.ReadTranscriptPathMessages(
+		transcriptPath,
+		workspacePath,
+		sessionKey,
+		agentID,
+	)
+}
+
 // ReadTranscriptPathMessages 读取指定 transcript 文件并投影为 Nexus 消息。
 func (s *AgentHistoryStore) ReadTranscriptPathMessages(
 	transcriptPath string,

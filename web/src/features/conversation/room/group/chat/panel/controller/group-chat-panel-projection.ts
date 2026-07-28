@@ -133,7 +133,6 @@ function buildFeedModel({
     pendingPermissionGroups: timeline.pending_permission_groups,
     pendingSlotGroups: timeline.pending_slot_groups,
     roundIds: timeline.feed_round_ids,
-    roundIndexItems,
   });
   return {
     isMobileLayout: environment.isMobileLayout,

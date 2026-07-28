@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -47,6 +48,7 @@ const ELAPSED_TIME_UNITS = [
 interface SubagentTaskListProps {
   data: SubagentTaskListResponse | null;
   error: string | null;
+  headerLeading?: ReactNode;
   isLoading: boolean;
   onClose: () => void;
   onRefresh: () => void;
@@ -58,6 +60,7 @@ interface SubagentTaskListProps {
 export function SubagentTaskList({
   data,
   error,
+  headerLeading,
   isLoading,
   onClose,
   onRefresh,
@@ -90,6 +93,12 @@ export function SubagentTaskList({
       title={t("subagents.panel_title")}
     >
       <div>
+        {headerLeading ? (
+          <div className="mb-4 flex min-h-7 items-center">
+            {headerLeading}
+          </div>
+        ) : null}
+
         <SubagentTaskSection
           emptyText={t(ACTIVE_EMPTY_LABEL[model.activeEmptyState])}
           label={t("subagents.active_section")}
@@ -176,7 +185,13 @@ function SubagentTaskRow({
 }) {
   const { locale, t } = useI18n();
   const timestamp = subagentTaskTimestamp(task);
-  const summary = [task.summary, task.description, task.last_tool_name]
+  const title = subagentTaskTitle(task);
+  const description = task.description?.trim() ?? "";
+  const summary = [
+    task.summary,
+    description === title ? "" : description,
+    task.last_tool_name,
+  ]
     .map((value) => value?.trim() ?? "")
     .find(Boolean) ?? t("subagents.no_description");
 
@@ -189,13 +204,13 @@ function SubagentTaskRow({
     >
       <SubagentTaskAvatar
         isActive={isSubagentTaskActive(task)}
-        name={subagentTaskTitle(task)}
+        name={title}
         taskId={task.task_id}
       />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-baseline gap-3">
           <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-(--text-strong)">
-            {subagentTaskTitle(task)}
+            {title}
           </span>
           {timestamp ? (
             <time className="shrink-0 text-xs tabular-nums text-(--text-soft)">

@@ -1,13 +1,20 @@
+/**
+ * INPUT: Room 会话目录、当前会话和既有创建/选择/删除/重命名命令。
+ * OUTPUT: 带固定高度滚动列表、标题编辑、多选和全量清空确认的锚定历史菜单。
+ * POS: Room Header 历史入口的交互装配层，不解释底层会话协议。
+ */
+
 "use client";
 
 import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Clock3,
   History,
+  Loader2,
+  Minus,
 } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -22,42 +29,52 @@ import {
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
+import { deleteRoomHistoryConversationBatch } from "./room-history-bulk-delete";
 import { RoomHistoryItem } from "./room-history-item";
+import { buildRoomHistoryEntries } from "./room-history-model";
 import {
-  buildRoomHistoryEntries,
-  paginateRoomHistoryEntries,
-  ROOM_HISTORY_PAGE_SIZE,
-} from "./room-history-model";
+  getRoomHistorySelectionState,
+  useRoomHistorySelection,
+} from "./room-history-selection";
 
 interface RoomHistoryMenuProps {
   canManageConversations?: boolean;
   conversationId: string | null;
   conversations: RoomConversationView[];
+  onCreateConversation: (title?: string) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
   triggerVariant?: "history" | "session";
 }
 
-const HISTORY_MENU_MAX_HEIGHT = 560;
-const HISTORY_MENU_HEADER_ESTIMATED_HEIGHT = 64;
-const HISTORY_MENU_FOOTER_ESTIMATED_HEIGHT = 44;
-const HISTORY_MENU_MIN_WIDTH = 380;
-const HISTORY_ITEM_ESTIMATED_HEIGHT = 42;
+const HISTORY_MENU_HEIGHT = 280;
+const HISTORY_MENU_MIN_WIDTH = 330;
 const HISTORY_MENU_MIN_HEIGHT = 190;
+
+interface PendingRoomHistoryBulkDelete {
+  clearsHistory: boolean;
+  conversationIds: string[];
+}
 
 export function RoomHistoryMenu({
   canManageConversations = true,
   conversationId,
   conversations,
+  onCreateConversation,
   onDeleteConversation,
   onSelectConversation,
   onUpdateConversationTitle,
   triggerVariant = "history",
 }: RoomHistoryMenuProps) {
   const { t } = useI18n();
-  const [pageNumber, setPageNumber] = useState(0);
   const [pendingDeleteConversation, setPendingDeleteConversation] = useState<RoomConversationView | null>(null);
+  const [
+    pendingBulkDelete,
+    setPendingBulkDelete,
+  ] = useState<PendingRoomHistoryBulkDelete | null>(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [bulkDeleteFailureCount, setBulkDeleteFailureCount] = useState<number | null>(null);
   const entries = useMemo(() => buildRoomHistoryEntries({
     canManageConversations,
     canUpdateConversationTitle: onUpdateConversationTitle !== undefined,
@@ -69,27 +86,30 @@ export function RoomHistoryMenu({
     conversations,
     onUpdateConversationTitle,
   ]);
-  const page = useMemo(
-    () => paginateRoomHistoryEntries(entries, pageNumber),
-    [entries, pageNumber],
-  );
-  const estimatedItemCount = Math.min(entries.length, ROOM_HISTORY_PAGE_SIZE);
-  const estimatedHeight = Math.max(
-    HISTORY_MENU_MIN_HEIGHT,
-    HISTORY_MENU_HEADER_ESTIMATED_HEIGHT
-      + estimatedItemCount * HISTORY_ITEM_ESTIMATED_HEIGHT
-      + (page.pageCount > 1 ? HISTORY_MENU_FOOTER_ESTIMATED_HEIGHT : 0),
+  const {
+    clearSelection,
+    hasSelectableEntries,
+    isSelecting,
+    restoreSelection,
+    selectedIds,
+    startSelection,
+    toggleAllSelection,
+    toggleSelection,
+  } = useRoomHistorySelection({entries});
+  const selectionState = getRoomHistorySelectionState(
+    selectedIds,
+    entries,
   );
   const estimatePosition = useCallback((button: HTMLButtonElement) => (
     resolveAnchoredOverlayPosition({
       anchor: button,
-      estimatedHeight,
-      maxHeight: HISTORY_MENU_MAX_HEIGHT,
+      estimatedHeight: HISTORY_MENU_HEIGHT,
+      maxHeight: HISTORY_MENU_HEIGHT,
       minHeight: HISTORY_MENU_MIN_HEIGHT,
       minWidth: HISTORY_MENU_MIN_WIDTH,
       placement: "auto",
     })
-  ), [estimatedHeight]);
+  ), []);
   const {
     buttonRef,
     closeMenu,
@@ -102,17 +122,16 @@ export function RoomHistoryMenu({
     portalContainer,
     toggleMenu,
   } = useSelectMenuOverlay({
-    disabled: false,
+    disabled: isBulkDeleting,
     estimatePosition,
   });
   const historyTitleId = `${menuId}-title`;
 
   useEffect(() => {
-    setPageNumber((current) => Math.min(current, page.pageCount - 1));
-  }, [page.pageCount]);
-  useEffect(() => {
-    setPageNumber(0);
-  }, [conversationId, entries.length]);
+    if (!isOpen) {
+      clearSelection();
+    }
+  }, [clearSelection, isOpen]);
 
   const selectConversation = useCallback((id: string) => {
     onSelectConversation(id);
@@ -123,6 +142,78 @@ export function RoomHistoryMenu({
     setPendingDeleteConversation(conversation);
     closeMenu();
   }, [closeMenu]);
+  const requestBulkDelete = useCallback(() => {
+    const conversationIds = entries
+      .filter((entry) => selectedIds.has(entry.conversation.conversation_id))
+      .map((entry) => entry.conversation.conversation_id);
+    if (conversationIds.length === 0) {
+      return;
+    }
+    setPendingBulkDelete({
+      clearsHistory: selectionState === "all",
+      conversationIds,
+    });
+    closeMenu();
+  }, [closeMenu, entries, selectedIds, selectionState]);
+  const cancelBulkDelete = useCallback(() => {
+    const conversationIds = pendingBulkDelete?.conversationIds ?? [];
+    setPendingBulkDelete(null);
+    restoreSelection(conversationIds);
+    toggleMenu();
+  }, [
+    pendingBulkDelete,
+    restoreSelection,
+    toggleMenu,
+  ]);
+  const confirmBulkDelete = useCallback(async () => {
+    const pendingDelete = pendingBulkDelete;
+    const conversationIds = pendingDelete?.conversationIds ?? [];
+    setPendingBulkDelete(null);
+    setBulkDeleteFailureCount(null);
+    if (conversationIds.length === 0) {
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    const {
+      failedConversationIds,
+      replacementConversationId,
+    } = await deleteRoomHistoryConversationBatch(
+      conversationIds,
+      onDeleteConversation,
+      {
+        currentConversationId: conversationId,
+        createReplacementConversation: pendingDelete?.clearsHistory
+          ? onCreateConversation
+          : undefined,
+      },
+    );
+    setIsBulkDeleting(false);
+    if (replacementConversationId) {
+      onSelectConversation(replacementConversationId);
+    }
+    if (failedConversationIds.length > 0) {
+      setBulkDeleteFailureCount(failedConversationIds.length);
+      restoreSelection(failedConversationIds);
+      toggleMenu();
+    }
+  }, [
+    conversationId,
+    onCreateConversation,
+    onDeleteConversation,
+    onSelectConversation,
+    pendingBulkDelete,
+    restoreSelection,
+    toggleMenu,
+  ]);
+  const toggleSelectionMode = useCallback(() => {
+    setBulkDeleteFailureCount(null);
+    if (isSelecting) {
+      clearSelection();
+      return;
+    }
+    startSelection();
+  }, [clearSelection, isSelecting, startSelection]);
 
   return (
     <>
@@ -130,7 +221,9 @@ export function RoomHistoryMenu({
         aria-controls={isOpen ? menuId : undefined}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
-        aria-label={t("room.history")}
+        aria-label={isBulkDeleting
+          ? t("room.history_batch_deleting")
+          : t("room.history")}
         className={cn(
           "inline-flex shrink-0 items-center justify-center bg-transparent text-(--icon-default) transition-[background-color,color] duration-(--motion-duration-fast) hover:text-(--text-strong) focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset",
           triggerVariant === "session"
@@ -139,13 +232,18 @@ export function RoomHistoryMenu({
           isOpen && "text-(--text-strong)",
         )}
         data-tour-anchor={CONVERSATION_TOUR_ANCHORS.history_menu}
+        disabled={isBulkDeleting}
         onClick={toggleMenu}
         onKeyDown={handleTriggerKeyDown}
         ref={buttonRef}
-        title={t("room.history")}
+        title={isBulkDeleting
+          ? t("room.history_batch_deleting")
+          : t("room.history")}
         type="button"
       >
-        {triggerVariant === "session" ? (
+        {isBulkDeleting ? (
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+        ) : triggerVariant === "session" ? (
           <ChevronDown
             className={cn(
               "h-3.5 w-3.5 shrink-0 transition-transform duration-(--motion-duration-fast)",
@@ -189,12 +287,60 @@ export function RoomHistoryMenu({
             </div>
           </header>
 
-          <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto p-1.5">
-            {page.entries.length > 0 ? (
+          {isSelecting ? (
+            <div className="shrink-0 border-b border-(--divider-subtle-color) px-2.5 py-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  aria-checked={selectionState === "mixed"
+                    ? "mixed"
+                    : selectionState === "all"}
+                  className="inline-flex h-6 min-w-0 items-center gap-2 rounded-[7px] px-1.5 text-xs font-medium text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+                  disabled={!hasSelectableEntries}
+                  onClick={toggleAllSelection}
+                  role="checkbox"
+                  type="button"
+                >
+                  <span className={cn(
+                    "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border transition-colors",
+                    selectionState === "none"
+                      ? "border-(--input-shell-border) bg-transparent"
+                      : "border-(--primary) bg-(--primary) text-white",
+                  )}>
+                    {selectionState === "all" ? (
+                      <Check className="h-2.5 w-2.5" strokeWidth={3} />
+                    ) : selectionState === "mixed" ? (
+                      <Minus className="h-2.5 w-2.5" strokeWidth={3} />
+                    ) : null}
+                  </span>
+                  <span className="truncate">{t("room.history_select_all")}</span>
+                </button>
+                <span className="shrink-0 text-2xs text-(--text-soft)">
+                  {t("room.history_selection_count", {
+                    count: selectedIds.size,
+                  })}
+                </span>
+              </div>
+              {bulkDeleteFailureCount ? (
+                <p
+                  className="px-1.5 pt-1 text-2xs text-(--destructive)"
+                  role="alert"
+                >
+                  {t("room.history_batch_delete_failed", {
+                    count: bulkDeleteFailureCount,
+                  })}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
+            {entries.length > 0 ? (
               <div className="space-y-1">
-                {page.entries.map((entry) => (
+                {entries.map((entry) => (
                   <RoomHistoryItem
                     entry={entry}
+                    isSelected={selectedIds.has(entry.conversation.conversation_id)}
+                    isSelecting={isSelecting}
                     key={entry.conversation.conversation_id}
                     onDelete={() => requestDelete(entry.conversation)}
                     onRename={(title) => {
@@ -204,6 +350,9 @@ export function RoomHistoryMenu({
                       );
                     }}
                     onSelect={() => selectConversation(entry.conversation.conversation_id)}
+                    onToggleSelection={() => toggleSelection(
+                      entry.conversation.conversation_id,
+                    )}
                   />
                 ))}
               </div>
@@ -220,32 +369,31 @@ export function RoomHistoryMenu({
             )}
           </div>
 
-          {page.pageCount > 1 ? (
-            <footer className="flex shrink-0 items-center justify-between border-t border-(--divider-subtle-color) px-2.5 py-1.5">
-              <button
-                aria-label={t("room.history_page_previous")}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-[8px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                disabled={page.page === 0}
-                onClick={() => setPageNumber((current) => Math.max(0, current - 1))}
-                type="button"
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </button>
-              <span className="text-xs text-(--text-soft)">
-                {t("room.history_page_status", {
-                  current: page.page + 1,
-                  total: page.pageCount,
-                })}
-              </span>
-              <button
-                aria-label={t("room.history_page_next")}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-[8px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
-                disabled={page.page >= page.pageCount - 1}
-                onClick={() => setPageNumber((current) => Math.min(page.pageCount - 1, current + 1))}
-                type="button"
-              >
-                <ChevronRight className="h-3.5 w-3.5" />
-              </button>
+          {hasSelectableEntries || isSelecting ? (
+            <footer className="flex shrink-0 items-center justify-between gap-2 border-t border-(--divider-subtle-color) px-2.5 py-1.5">
+              {hasSelectableEntries ? (
+                <button
+                  className="inline-flex h-7 shrink-0 items-center rounded-[7px] px-1.5 text-xs font-medium text-(--text-soft) outline-none transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:ring-1 focus-visible:ring-[color:color-mix(in_srgb,var(--text-default)_20%,transparent)]"
+                  onClick={toggleSelectionMode}
+                  type="button"
+                >
+                  {isSelecting
+                    ? t("room.history_cancel_selection")
+                    : t("room.history_select")}
+                </button>
+              ) : <span />}
+              {isSelecting ? (
+                <button
+                  className="inline-flex h-7 shrink-0 items-center rounded-[8px] px-2 text-xs font-semibold text-(--destructive) transition-colors hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)] disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+                  disabled={selectedIds.size === 0}
+                  onClick={requestBulkDelete}
+                  type="button"
+                >
+                  {selectionState === "all"
+                    ? t("room.history_clear")
+                    : t("room.history_batch_delete")}
+                </button>
+              ) : <span />}
             </footer>
           ) : null}
         </div>,
@@ -253,10 +401,11 @@ export function RoomHistoryMenu({
       ) : null}
 
       <ConfirmDialog
+        cancelText={t("common.cancel")}
         confirmText={t("common.delete")}
         isOpen={Boolean(pendingDeleteConversation)}
         message={t("room.delete_conversation_message", {
-          title: pendingDeleteConversation?.title?.trim() || t("room.untitled_conversation"),
+          title: pendingDeleteConversation?.title?.trim() || t("room.new_conversation"),
         })}
         onCancel={() => setPendingDeleteConversation(null)}
         onConfirm={() => {
@@ -267,6 +416,26 @@ export function RoomHistoryMenu({
           }
         }}
         title={t("room.delete_conversation_title")}
+        variant="danger"
+      />
+      <ConfirmDialog
+        cancelText={t("common.cancel")}
+        confirmText={pendingBulkDelete?.clearsHistory
+          ? t("room.history_clear")
+          : t("room.history_batch_delete")}
+        isOpen={Boolean(pendingBulkDelete)}
+        message={pendingBulkDelete?.clearsHistory
+          ? t("room.history_clear_message")
+          : t("room.history_batch_delete_message", {
+              count: pendingBulkDelete?.conversationIds.length ?? 0,
+            })}
+        onCancel={cancelBulkDelete}
+        onConfirm={() => {
+          void confirmBulkDelete();
+        }}
+        title={pendingBulkDelete?.clearsHistory
+          ? t("room.history_clear_title")
+          : t("room.history_batch_delete_title")}
         variant="danger"
       />
     </>

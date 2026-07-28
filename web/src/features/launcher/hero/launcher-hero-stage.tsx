@@ -212,7 +212,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
 
       </div>
       <div
-        className="absolute bottom-0 left-1/2 origin-bottom"
+        className="pointer-events-none absolute bottom-0 left-1/2 origin-bottom"
         style={{ transform: `translateX(-50%) scale(${stage.scale})` }}
       >
         <MemoAgentPile

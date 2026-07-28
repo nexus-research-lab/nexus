@@ -10,7 +10,7 @@ src/
   bootstrap/   - 启动阶段编排、React 根渲染与桌面恢复；`recovery/` 分离 chunk/auth 错误、重载哨兵和空白渲染 watchdog
   entries/     - App、Settings 与 OAuth 等构建入口
   pages/       - 页面入口与浏览器协调；`room/` 和 `contacts/` 各自分离页面控制器与 URL 协调
-  features/    - 领域功能实现；`home/home-directory-resource.ts` 负责侧栏与通知共用的聊天目录，`home/hero/` 分离 ASCII Hero 的视图、Canvas 生命周期和粒子模型，`home/notifications/` 分离通知投影、浏览器边界和 Room 协议，`home/sidebar/` 分离聊天/联系人入口、目录投影、未读聚合与 Room 命令，`agents/options/` 统一可编辑字段投影、mutation 参数、草稿、校验与保存事务，`contacts/` 只提供目录、卡片和详情视图，`memory/catalog/` 负责 Agent 记忆目录请求与投影，`memory/document/` 分离文档作用域状态、实时资源、保存事务和视图，`conversation/room/workspace/controller/` 分离 Workspace Agent 作用域、文件资源、路径模型和命令，`conversation/room/workspace/view/` 分离文件列表布局、浏览器和弹窗，`capability/skills/` 负责技能市场及其状态域，`capability/connectors/` 按 catalog/detail/auth/controller 分离目录、详情、认证和命令，`capability/channels/` 按 catalog/connection/pairings 分离频道目录、连接状态机与 IM 配对，`capability/scheduled/controller/` 分离任务列表资源与写命令，`capability/scheduled/board/` 负责真实状态看板、必要信息卡片和建议空态，`capability/scheduled/dialog/` 按 form/schedule/resources 分离任务表单、调度规则与依赖资源，`capability/scheduled/pickers/` 统一时间列和锚定浮层，`conversation/shared/goal/` 负责 Goal 资源快照、命令和视图，`conversation/shared/session/` 统一 DM/Room 会话基础设施并由各投影定义窄 Session Source，`conversation/shared/timeline/` 负责时间线投影与窗口加载，`conversation/shared/timeline/scroll/` 负责跟随、锚定、动画和轮次 DOM 协议，`conversation/shared/todos/` 负责合并 TodoWrite、TaskCreate/List/Update 与运行时任务，`conversation/shared/composer/controller/` 负责 DM/Room 输入状态与动作协议，`conversation/shared/feed/` 负责 DM 轮次渲染及共享虚拟列表协议，`conversation/shared/message/item/` 按 controller 与 view/content/assistant/user 分离轮次投影、内容块、助手和用户视图，`conversation/shared/subagent/` 负责子智能体列表、线程资源和命令，`conversation/room/dm/panel/` 负责 DM 页面模型与视图，`conversation/room/surface/header/` 保存 DM/Group 共用导航，`conversation/room/surface/mobile/` 分离移动端头部、会话 Sheet 和全屏 Overlay，`conversation/room/surface/layout/` 负责桌面分栏与右栏编排，`conversation/room/group/chat/panel/` 负责 Room 会话编排，`conversation/room/group/chat/feed/` 负责 Room 轮次渲染，`conversation/room/group/round/` 负责 Room Agent 轮次与 Thread 纯投影，`conversation/room/members/` 负责 Room 成员与设置表单，`conversation/shared/session-navigator/` 负责轮次导航，`settings/operations/` 负责角色受限的订阅运营与公共 Provider 管理，`settings/general/` 按 model/sections/components 分离通用偏好、模型与视图，`settings/personal/` 分离个人资料资源、头像/密码命令、密码规则和视图，`settings/shared/` 保存设置型表面的跨域共享 UI，`settings/provider-settings/` 按 `model/`、`actions/config/` 与其他窄动作分离 Provider 纯模型、字段联动、持久化、删除和模型命令
+  features/    - 领域功能实现；`home/home-directory-resource.ts` 负责侧栏与通知共用的聊天目录，`home/hero/` 分离 ASCII Hero 的视图、Canvas 生命周期和粒子模型，`home/notifications/` 分离通知投影、浏览器边界和 Room 协议，`home/sidebar/` 分离聊天/联系人入口、目录投影、未读聚合与 Room 命令，`agents/options/` 统一可编辑字段投影、mutation 参数、草稿、校验与保存事务，`contacts/` 只提供目录、卡片和详情视图，`memory/catalog/` 负责 Agent 记忆目录请求与投影，`memory/document/` 分离文档作用域状态、实时资源、保存事务和视图，`conversation/room/workspace/controller/` 分离 Workspace Agent 作用域、文件资源、路径模型和命令，`conversation/room/workspace/view/` 分离文件列表布局、浏览器和弹窗，`capability/skills/` 负责技能市场及其状态域，`capability/connectors/` 按 catalog/detail/auth/controller 分离目录、详情、认证和命令，`capability/channels/` 按 catalog/connection/pairings 分离频道目录、连接状态机与 IM 配对，`capability/scheduled/controller/` 分离任务列表资源与写命令，`capability/scheduled/board/` 负责真实状态看板、必要信息卡片和建议空态，`capability/scheduled/dialog/` 按 form/schedule/resources 分离任务表单、调度规则与依赖资源，`capability/scheduled/pickers/` 统一时间列和锚定浮层，`conversation/shared/goal/` 负责 Goal 资源快照、命令和视图，`conversation/shared/session/` 统一 DM/Room 会话基础设施并由各投影定义窄 Session Source，`conversation/shared/timeline/` 负责时间线投影与窗口加载，`conversation/shared/timeline/scroll/` 负责跟随、锚定、动画和轮次 DOM 协议，`conversation/shared/todos/` 负责合并 TodoWrite、TaskCreate/List/Update 与运行时任务，`conversation/shared/composer/controller/` 负责 DM/Room 输入状态与动作协议，`conversation/shared/feed/` 负责 DM 轮次渲染及共享虚拟列表协议，`conversation/shared/message/item/` 按 controller 与 view/content/assistant/user 分离轮次投影、内容块、助手和用户视图，`conversation/shared/subagent/` 负责子智能体列表和只读线程资源，`conversation/room/dm/panel/` 负责 DM 页面模型与视图，`conversation/room/surface/header/` 保存 DM/Group 共用导航，`conversation/room/surface/mobile/` 分离移动端头部、会话 Sheet 和全屏 Overlay，`conversation/room/surface/layout/` 负责桌面分栏与右栏编排，`conversation/room/group/chat/panel/` 负责 Room 会话编排，`conversation/room/group/chat/feed/` 负责 Room 轮次渲染，`conversation/room/group/round/` 负责 Room Agent 轮次与 Thread 纯投影，`conversation/room/members/` 负责 Room 成员与设置表单，`conversation/shared/session-navigator/` 负责轮次导航，`settings/operations/` 负责角色受限的订阅运营与公共 Provider 管理，`settings/general/` 按 model/sections/components 分离通用偏好、模型与视图，`settings/personal/` 分离个人资料资源、头像/密码命令、密码规则和视图，`settings/shared/` 保存设置型表面的跨域共享 UI，`settings/provider-settings/` 按 `model/`、`actions/config/` 与其他窄动作分离 Provider 纯模型、字段联动、持久化、删除和模型命令
   config/      - `runtime-endpoints.ts`、`runtime-options.ts` 与 `conversation-policy.ts` 分离端点解析、当前作用域快照和固定会话策略；`desktop-runtime/` 按宿主配置、鉴权、OAuth 和生命周期协议分层
   hooks/       - 自定义 React Hooks；`agent/` 按动作、消息模型、会话、运行态和传输协议分层
   lib/         - 无业务状态的基础函数与协议客户端；根目录保存错误、头像和未知值等跨领域纯投影，`format/` 按展示值类型分离格式化规则，`api/` 按 core/agent/account/capability/conversation/settings 分离传输与领域协议，`websocket/` 按策略、心跳、单连接客户端、共享通道和 React 生命周期分层
@@ -58,7 +58,7 @@ src/
 - DM 与 Room 只通过 `shared/session/use-conversation-session.ts` 串联运行时、滚动、历史和时间线；具体面板只装配业务模型
 - DM/Room 滚动视口、历史提示、错误和浮动控制统一由 `shared/conversation-panel-layout.tsx` 渲染，不复制表面布局 class
 - Room 与子智能体统一消费 `conversation/shared/thread/` 的 Thread 轮次契约和消息面板；共享域不得反向依赖 Room 私有目录
-- 子智能体列表与线程复用 `shared/subagent/use-scoped-resource.ts` 的作用域请求协议；线程按资源、命令和纯投影拆分，公共 Hook 只做装配
+- 子智能体列表与线程复用 `shared/subagent/use-scoped-resource.ts` 的作用域请求协议；线程按资源和纯投影拆分为只读执行记录，公共 Hook 只做装配；Room 由私有适配层复用成员选择器并按任务 `host_agent_id` 过滤，共享域不得反向依赖 Room
 - Room 主 Feed 与 Thread 共用 `room/group/round/round-agent-model.ts` 的 Agent 聚合状态；状态优先级不得在视图中重复推导
 - Room 创建与管理弹窗只通过 `members/use-create-room-form.ts` 管理不变量，并以 `RoomDialogSubmission` 对象提交；视图组件不得在渲染期修正表单状态
 - Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；bootstrap 请求、刷新排队和全局目录事件不得在消费者中重复实现；聊天执行态统一由 `home/room-activity-resource.ts` 按 `roomId` 短期投影，DM 与群组共用规则，聊天和联系人侧栏均不订阅 Agent runtime
@@ -81,6 +81,7 @@ src/
 - Contacts 页面使用互斥编辑状态，资源和 CRUD 归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`
 - 宽侧栏由 `features/navigation/sidebar/` 管理；展开与收起共用单一常驻壳层、固定 48px 一级导航 Dock 和系统操作，Dock 图标交互面与 32px 聊天头像同尺度，只有目录可见性与外层宽度变化，路由/Store 同步只留在控制器
 - 能力侧栏归 `features/capability/sidebar/`；导航项由定义表投影，摘要刷新合并和窗口重验证只由专用资源 Hook 管理，业务行不得伪装成共享 UI
+- 能力目录页统一由 `features/capability/shared/capability-page-layout.tsx` 提供 1480px 宽版心、正文标题、单句说明、筛选与分区节奏；Surface Header 只承载能力名、模式切换和动作，窄屏复用应用返回栏而不重复身份标题。目录行只展示标题、一行说明和一行元数据，完整步骤与技术字段进入详情或折叠区；详情页继续使用适合长文阅读的窄版心
 - 技能市场由 `features/capability/skills/controller/` 按目录、外部搜索、来源和操作拆分状态；子视图只消费窄 Props，不得依赖完整控制器
 - 频道连接与 IM 配对分别持有命令互斥入口；`channels/connection/login/` 独占扫码会话和串行轮询但复用连接命令锁，`channels/connection/view/` 按字段区、Footer 和展示投影拆分并由消费者定义窄接口；写操作后必须刷新当前服务端快照，视图不得复制协议字段别名
 - 定时任务弹窗的表单和调度各自维护单一草稿对象，基础字段的目标/会话文案由纯模型投影，高级设置按字段职责组合；资源层按执行模式加载依赖并拒绝过期响应，Room 任务只允许绑定明确执行成员
@@ -90,12 +91,13 @@ src/
 - Goal 面板只通过 `shared/goal/use-goal-controller.ts` 读写状态；资源快照必须绑定会话键，刷新拒绝过期响应，所有写命令共享互斥入口；状态条只显示实际 token 用量，预算只保留为编辑配置和运行限制，不投影为第二套用户用量
 - 桌面运行时只通过 `config/desktop-runtime/index.ts` 暴露稳定门面，消费者不得读取宿主原始全局对象或复制 URL 协议判断
 - 窗口手势面统一使用 `data-desktop-window-drag-region`。macOS 宿主以 4px 阈值仲裁短按与拖窗，让可见 Header、`/app` 主内容区顶部透明拖动面与原生 traffic lights 共面；Windows 使用 WebView2 原生 `app-region`，Header 空白区进入系统命中测试，标签、按钮、链接、编辑控件与显式排除项保持 `no-drag`。Windows 独立原生标题/菜单栏位于 WebView 上方，Web 不得为其预留右侧 caption 空域；除 macOS `/app` 的透明手势面外，页面不得重新添加顶部安全行或全宽点击遮罩。
-- 根启动入口只编排运行时配置与渲染阶段；失败视图、chunk/auth 恢复、一次性重载和空白 watchdog 各自拥有独立边界
+- 根启动入口只编排运行时配置与渲染阶段；普通入口先加载受保护的运行时配置，OAuth 公开回调入口必须显式跳过该预取并直接渲染 token 交换页；失败视图、chunk/auth 恢复、一次性重载和空白 watchdog 各自拥有独立边界
 - API/WebSocket 地址、用户作用域运行时快照和固定会话策略分别归 `config/runtime-endpoints.ts`、`config/runtime-options.ts` 与 `config/conversation-policy.ts`；配置层不得请求网络或依赖 Feature
 - 认证 Provider 归 `app/auth/`，登录/登出后的运行时配置刷新只通过 `app/runtime-options-resource.ts`；`shared/auth/` 只暴露 Context 契约和消费 Hook
 - Workspace Catalog 共享 UI 按卡片框架、内容结构、动作和图标容器分离；消费者直接导入职责模块，不恢复混合聚合出口
 - Workspace Surface Header 固定为真实使用的单行布局，标题、导航和尾部动作按职责组合；工具栏动作从 Header 独立导入，不恢复无消费者的密度模式
 - 技能详情按 route/controller/model/view 分离，详情资源用请求代次拒绝旧响应；更新和删除只复用市场命令的明确结果，不在视图重复调用 API
+- 连接器目录卡片的尾部动作只由 `capability/connectors/catalog/connector-card-model.ts` 投影；已连接项必须提供可访问的断开入口并复用控制器断开事务，详情页保留同一动作；飞书云文档的连接入口统一先选择官方扫码或手工兜底，官方扫码可在飞书选择已有应用或创建新应用，桌面端通过原生宿主、Web 端通过收到 App ID 后的延迟弹窗尝试拉起当前用户授权链接，Web 被浏览器拦截时必须显示明确的主按钮，手工 App ID / Secret 不得成为断开后静默复用的固定状态
 - Composer 由 `features/conversation/shared/composer/controller/` 分离草稿、分阶段消息投递、Goal/Loop、有序键盘守卫，以及输入/运行时/模式/动作视图投影；未发送的正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标组成单一草稿胶囊，按包含 Session ID 的 Room/DM 内存作用域隔离，切换 Session 恢复各自待发送状态且不同聊天互相隔离；输入历史仍按不含 Session ID 的逻辑聊天作用域共享；`components/{footer,pending-queue,loop-picker}/` 分别拥有展示和局部交互，面板只装配子域
 - Composer 附件只由 `shared/composer/attachments/` 的有序规则表分类并生成文件选择过滤；剪贴板先投影为明确动作，整批校验必须先于上传，DM/Room 必须提供窄上传目标
 - 停止动作按执行所有权归属：DM 可由 Composer 提供 `onStop`，Room Composer 不暴露停止入口，Room 只在对应 Agent slot 通过 `agent_round_id` 定向中断
@@ -126,7 +128,7 @@ src/
 - DM/Group Header 共用 `surface/header/` 的 Tab 定义与指南菜单；移动端只在 `surface/mobile/` 组合头部、会话 Sheet 和 Overlay，聊天主体必须复用 `room-chat-surface.tsx`
 - 聊天渲染错误边界归 Room Surface，并以会话身份作为 reset key；错误状态和硬编码回退文案不得跨会话、跨布局复制
 - Room 会话历史由 `features/conversation/room/surface/history/` 统一排序、外部 Session 能力、删除资格和标题编辑状态，基础协议层不保存展示专属规则
-- 子智能体列表与线程资源必须绑定来源/任务作用域并拒绝旧请求写回；发送与停止共享命令互斥入口，UI 只依据服务端 capabilities 开放动作
+- 子智能体列表与线程资源必须绑定来源/任务作用域并拒绝旧请求写回；Room 调用者切换必须同步清理不属于新 Agent 的详情选择；任务详情只读展示 transcript，不提供发送或停止动作
 - 环境变量统一使用 `VITE_*` 前缀，通过 `import.meta.env` 读取
 
 ## 配置文件

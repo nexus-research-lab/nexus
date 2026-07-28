@@ -12,6 +12,7 @@ import type {
   Message,
   ResultSummary,
 } from "@/types/conversation/message/entity";
+import type { ContentBlock } from "@/types/conversation/message/content";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import { resolveLiveActivityState } from "../../activity/message-live-activity";
@@ -106,8 +107,12 @@ export function useMessageItemProjection({
     ],
   );
   const permissionMatch = useMemo(
-    () => resolveMessageItemPermissions(messages, pendingPermissions),
-    [messages, pendingPermissions],
+    () => resolveMessageItemPermissions(
+      messages,
+      pendingPermissions,
+      collectVisibleToolUseIds(finalProjection),
+    ),
+    [finalProjection, messages, pendingPermissions],
   );
   const liveActivityState = useMemo(
     () => resolveLiveActivityState({
@@ -154,6 +159,30 @@ export function useMessageItemProjection({
       contentMerge.resultSummary,
     ),
   };
+}
+
+function collectVisibleToolUseIds(projection: {
+  directOrderedProjection: { content: readonly ContentBlock[] };
+  finalAssistantContent: string | readonly ContentBlock[] | null;
+  processProjection: { content: readonly ContentBlock[] };
+}): Set<string> {
+  const ids = new Set<string>();
+  const collect = (content: readonly ContentBlock[]): void => {
+    for (const block of content) {
+      if (block.type === "tool_use") {
+        ids.add(block.id);
+      }
+    }
+  };
+  collect(projection.directOrderedProjection.content);
+  collect(projection.processProjection.content);
+  if (
+    projection.finalAssistantContent
+    && typeof projection.finalAssistantContent !== "string"
+  ) {
+    collect(projection.finalAssistantContent);
+  }
+  return ids;
 }
 
 function useOrderedContentProjection({

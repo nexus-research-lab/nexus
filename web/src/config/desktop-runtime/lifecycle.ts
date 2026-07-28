@@ -174,9 +174,14 @@ function getElementRenderSnapshot(
   if (!element) {
     return MISSING_ELEMENT_RENDER_SNAPSHOT;
   }
+  const children = element.childElementCount;
   return {
-    children: element.childElementCount,
-    textLength: getTextLength(element.innerText),
+    children,
+    // 正常 App 根节点已有元素时，用 O(1) sentinel 即可确认 React surface；
+    // 只在没有子元素的异常小树上读取文本，避免周期遍历长 Room。
+    textLength: children > 0
+      ? 1
+      : getTextLength(element.textContent ?? ""),
   };
 }
 

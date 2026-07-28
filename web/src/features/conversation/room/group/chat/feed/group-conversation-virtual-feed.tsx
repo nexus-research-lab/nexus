@@ -1,8 +1,18 @@
+/**
+ * INPUT: Room 轮次投影、渲染器与共享滚动/feed refs。
+ * OUTPUT: 使用稳定身份、真实轨道估高和可见锚点策略的群聊虚拟消息流。
+ * POS: Room 会话超过虚拟化阈值后的 Feed 渲染入口。
+ */
 import { useCallback, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { useConversationRoundNavigation } from "@/features/conversation/shared/feed/use-conversation-round-navigation";
 import { useConversationVirtualMetrics } from "@/features/conversation/shared/feed/use-conversation-virtual-metrics";
+import {
+  shouldAdjustConversationVirtualScrollPosition,
+  useConversationVirtualInitialOffset,
+  useConversationVirtualItemKey,
+} from "@/features/conversation/shared/feed/use-conversation-virtual-scroll-policy";
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
@@ -25,7 +35,12 @@ export function GroupConversationVirtualFeed({
   renderer,
   source,
 }: GroupConversationVirtualFeedProps) {
-  const metrics = useConversationVirtualMetrics(refs.scrollRef);
+  const metrics = useConversationVirtualMetrics(
+    refs.scrollRef,
+    refs.feedRef,
+  );
+  const getItemKey = useConversationVirtualItemKey(source.roundIds);
+  const initialOffset = useConversationVirtualInitialOffset(refs.scrollRef);
   const roundIdAliases = useMemo(
     () => buildGroupConversationRoundAliases(source),
     [source],
@@ -43,12 +58,15 @@ export function GroupConversationVirtualFeed({
   const virtualizer = useVirtualizer({
     count: source.roundIds.length,
     estimateSize: (index) => heightMap.get(source.roundIds[index]) ?? 200,
-    getItemKey: (index) => source.roundIds[index],
+    getItemKey,
     getScrollElement: () => refs.scrollRef.current,
+    initialOffset,
     measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 5,
     scrollPaddingStart: metrics.scrollPaddingStart,
   });
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange =
+    shouldAdjustConversationVirtualScrollPosition;
   const scrollToIndex = useCallback(
     (index: number, options?: { behavior?: ScrollBehavior }) => {
       if (index === 0) {
@@ -77,6 +95,7 @@ export function GroupConversationVirtualFeed({
   return (
     <div
       ref={refs.feedRef}
+      data-conversation-virtual-feed="true"
       className={
         isMobileLayout
           ? "nexus-chat-feed relative"

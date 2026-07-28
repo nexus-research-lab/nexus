@@ -5,10 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import {
-  buildComposerDraftRestoreKey,
-  buildComposerDraftScopeKey,
-} from "@/features/conversation/shared/composer/composer-draft-scope";
+import { buildComposerDraftScopeKey } from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useComposerDraftStore } from "@/features/conversation/shared/composer/composer-draft-store";
 import { createGoalApi } from "@/lib/api/conversation/goal-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -47,10 +44,7 @@ export function useRoomGoalComposer({
 }: UseRoomGoalComposerOptions): RoomGoalComposerModel {
   const { t } = useI18n();
   const draftScopeKey = useMemo(
-    () => buildComposerDraftRestoreKey({
-      draftScopeKey: buildComposerDraftScopeKey({ roomId }),
-      sessionKey,
-    }),
+    () => buildComposerDraftScopeKey({ roomId, sessionKey }),
     [roomId, sessionKey],
   );
   const defaultLeadAgentId = useMemo(

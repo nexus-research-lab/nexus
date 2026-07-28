@@ -11,6 +11,35 @@ import (
 // ErrGoalContinuationTargetMissing 表示 Goal 所属的 agent/room/conversation 已不存在。
 var ErrGoalContinuationTargetMissing = errors.New("goal continuation target missing")
 
+// HasGoalForRoomConversation 判断 Room conversation 是否仍有关联的共享或成员侧 Goal。
+//
+// 空会话维护必须先调用此只读入口；Goal 本身是用户数据，即使尚未产生聊天消息，
+// 也不能把 conversation 当作可自动删除的空白页。
+func (s *Service) HasGoalForRoomConversation(ctx context.Context, conversationID string) (bool, error) {
+	conversationID = strings.TrimSpace(conversationID)
+	if conversationID == "" || s == nil || s.repo == nil {
+		return false, nil
+	}
+	items, err := s.repo.ListGoals(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, item := range items {
+		parsed := protocol.ParseSessionKey(item.SessionKey)
+		switch parsed.Kind {
+		case protocol.SessionKeyKindRoom:
+			if parsed.ConversationID == conversationID {
+				return true, nil
+			}
+		case protocol.SessionKeyKindAgent:
+			if parsed.Ref == conversationID {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
 // DeleteGoalsForAgent 删除指定 Agent 关联的全部 Goal。
 func (s *Service) DeleteGoalsForAgent(ctx context.Context, agentID string) (int, error) {
 	agentID = strings.TrimSpace(agentID)

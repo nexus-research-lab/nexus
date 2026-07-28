@@ -21,6 +21,7 @@ type Info struct {
 	ConfigError               *string  `json:"config_error,omitempty"`
 	OAuthClientConfigRequired bool     `json:"oauth_client_config_required,omitempty"`
 	OAuthClientConfigured     bool     `json:"oauth_client_configured,omitempty"`
+	SupportsDeviceAuth        bool     `json:"supports_device_auth,omitempty"`
 }
 
 // Detail 表示连接器详情。
@@ -62,7 +63,15 @@ type OAuthCallbackRequest struct {
 	RedirectURI string `json:"redirect_uri"`
 }
 
-// DeviceAuthStartResult 表示桌面 Device Flow 的启动信息。
+// DeviceAuthStartMode 表示调用方显式选择的飞书连接方式。
+type DeviceAuthStartMode string
+
+const (
+	DeviceAuthStartModeOfficialQR        DeviceAuthStartMode = "official_qr"
+	DeviceAuthStartModeManualCredentials DeviceAuthStartMode = "manual_credentials"
+)
+
+// DeviceAuthStartResult 表示 Device Flow 或前置应用选择/创建阶段的启动信息。
 type DeviceAuthStartResult struct {
 	ConnectorID             string `json:"connector_id"`
 	DeviceCode              string `json:"device_code"`
@@ -71,13 +80,15 @@ type DeviceAuthStartResult struct {
 	VerificationURIComplete string `json:"verification_uri_complete,omitempty"`
 	ExpiresIn               int    `json:"expires_in"`
 	Interval                int    `json:"interval"`
+	Stage                   string `json:"stage,omitempty"`
 }
 
 // DeviceAuthPollResult 表示 Device Flow 轮询结果。
 type DeviceAuthPollResult struct {
-	Status    string `json:"status"`
-	Message   string `json:"message,omitempty"`
-	Connector *Info  `json:"connector,omitempty"`
+	Status    string                 `json:"status"`
+	Message   string                 `json:"message,omitempty"`
+	Connector *Info                  `json:"connector,omitempty"`
+	Next      *DeviceAuthStartResult `json:"next,omitempty"`
 }
 
 const (

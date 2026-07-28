@@ -91,7 +91,7 @@ function SkillDetailBreadcrumb({
   title: string | null;
 }) {
   return (
-    <div className="flex items-center gap-2 text-sm text-(--text-muted)">
+    <div className="flex items-center gap-2 text-sm text-(--text-muted) max-lg:hidden">
       <button
         className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
         onClick={onBack}
@@ -195,7 +195,7 @@ function SkillDetailReady({
         onDelete={onDelete}
         onUpdate={onUpdate}
       />
-      <div className="mt-6 space-y-5">
+      <div className="mt-6 max-w-[760px] space-y-5">
         <SkillDetailBadges badges={model.badges} />
         {model.scope === "room" ? (
           <RoomSkillUsage />
@@ -359,8 +359,7 @@ function SkillDetailHero({
             <SkillIcon className="h-6 w-6" />
           </div>
           <h1 className="min-w-0 text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
-            <span className="truncate">{model.displayName}</span>{" "}
-            <span className="font-normal text-(--text-muted)">Skill</span>
+            <span className="truncate">{model.displayName}</span>
           </h1>
         </div>
         <p className="mt-3 text-sm leading-5 text-(--text-muted)">

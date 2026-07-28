@@ -1,6 +1,8 @@
 package server
 
 import (
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -112,11 +114,6 @@ func TestWebFallbackFileName(t *testing.T) {
 	}{
 		{name: "root app entry", relativePath: "", want: "index.html"},
 		{name: "settings entry", relativePath: "settings", want: "settings.html"},
-		{
-			name:         "oauth callback entry",
-			relativePath: "capability/connectors/oauth/callback",
-			want:         "oauth-callback.html",
-		},
 		{name: "app route", relativePath: "app", want: "app.html"},
 		{name: "room route", relativePath: "rooms/r1", want: "app.html"},
 	}
@@ -126,6 +123,70 @@ func TestWebFallbackFileName(t *testing.T) {
 			t.Parallel()
 			if got := webFallbackFileName(tt.relativePath); got != tt.want {
 				t.Fatalf("webFallbackFileName(%q) = %q, want %q", tt.relativePath, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOauthCallbackEntryRedirect(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		relativePath string
+		path         string
+		rawQuery     string
+		wantEmpty    bool
+		wantRoute    string
+	}{
+		{
+			name:         "callback with code and state",
+			relativePath: "capability/connectors/oauth/callback",
+			path:         "/capability/connectors/oauth/callback",
+			rawQuery:     "code=ABC&state=DEF",
+			wantRoute:    "/capability/connectors/oauth/callback?code=ABC&state=DEF",
+		},
+		{
+			name:         "callback without query",
+			relativePath: "capability/connectors/oauth/callback",
+			path:         "/capability/connectors/oauth/callback",
+			rawQuery:     "",
+			wantRoute:    "/capability/connectors/oauth/callback",
+		},
+		{
+			name:         "non-callback path skipped",
+			relativePath: "settings",
+			path:         "/settings",
+			rawQuery:     "",
+			wantEmpty:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			request := &http.Request{
+				URL: &url.URL{Path: tt.path, RawQuery: tt.rawQuery},
+			}
+			got := oauthCallbackEntryRedirect(tt.relativePath, request)
+			if tt.wantEmpty {
+				if got != "" {
+					t.Fatalf("oauthCallbackEntryRedirect = %q, want empty", got)
+				}
+				return
+			}
+			if got == "" {
+				t.Fatalf("oauthCallbackEntryRedirect = empty, want redirect")
+			}
+			parsed, err := url.Parse(got)
+			if err != nil {
+				t.Fatalf("redirect target not a URL: %v", err)
+			}
+			if parsed.Path != "/oauth-callback.html" {
+				t.Fatalf("redirect path = %q, want /oauth-callback.html", parsed.Path)
+			}
+			if desktopRoute := parsed.Query().Get("desktop_route"); desktopRoute != tt.wantRoute {
+				t.Fatalf("desktop_route = %q, want %q", desktopRoute, tt.wantRoute)
 			}
 		})
 	}

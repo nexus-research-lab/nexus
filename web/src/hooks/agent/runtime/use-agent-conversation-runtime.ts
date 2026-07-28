@@ -1,3 +1,8 @@
+/**
+ * INPUT: 会话 runtime 事件、消息集合与易失 Room slot/权限状态。
+ * OUTPUT: 单调运行快照、消息状态与由终态 slot 平滑接棒到结果消息的协调动作。
+ * POS: transport 事件和纯 reconciliation 模型之间的 React 编排边界。
+ */
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 
 import type {
@@ -6,6 +11,7 @@ import type {
   RoundLifecycleStatus,
 } from "@/types/conversation/message/event";
 import type {
+  AssistantMessage,
   AssistantMessageStatus,
   Message,
 } from "@/types/conversation/message/entity";
@@ -21,6 +27,7 @@ import {
   filterRoundPendingPermissions,
   mergeChatAckPendingSlots,
   reconcileAgentRoundPendingSlots,
+  reconcilePendingSlotsWithAssistantMessage,
   reconcileStoppedSessionMessages,
   removeRoundMessages,
   replaceOptimisticUserMessage,
@@ -49,7 +56,7 @@ function getRunningRoundIds(payload: SessionStatusData): string[] {
 }
 
 /**
- * 编排运行状态机、易失交互状态与消息投影；具体状态规则由下层模型持有。
+ * 编排运行状态机、易失交互状态与消息投影；终态 Room slot 等消息接棒后再清理。
  */
 export function useAgentConversationRuntime({
   agentId,
@@ -68,7 +75,7 @@ export function useAgentConversationRuntime({
     setRuntimeStatus,
     snapshot: runtimeSnapshot,
     syncRunningRounds,
-    trackAssistantMessage,
+    trackAssistantMessage: trackRuntimeAssistantMessage,
     trackChatAck: trackRuntimeChatAck,
     trackOutboundRequest,
     trackRoundStatus,
@@ -166,9 +173,21 @@ export function useAgentConversationRuntime({
     [setMessages, setPendingAgentSlots, updateRuntimeMessageStatus],
   );
 
+  const trackAssistantMessage = useCallback(
+    (message: AssistantMessage): void => {
+      trackRuntimeAssistantMessage(message);
+      setPendingAgentSlots((slots) => (
+        reconcilePendingSlotsWithAssistantMessage(slots, message)
+      ));
+    },
+    [setPendingAgentSlots, trackRuntimeAssistantMessage],
+  );
+
   const trackChatAck = useCallback((ack: ChatAckData): void => {
     trackRuntimeChatAck(ack);
-    resolvePendingRequestAck(ack.client_request_id);
+    if (ack.client_request_id) {
+      resolvePendingRequestAck(ack.client_request_id);
+    }
     if (ack.client_message_id && ack.user_message_id) {
       setMessages((messages) => replaceOptimisticUserMessage(
         messages,
@@ -233,7 +252,7 @@ export function useAgentConversationRuntime({
       setPendingAgentSlots((slots) => reconcileAgentRoundPendingSlots(
         slots,
         payload.agent_round_id,
-        payload.is_terminal,
+        payload.status,
       ));
       if (!payload.is_terminal) {
         return;

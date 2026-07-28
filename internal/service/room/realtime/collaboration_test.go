@@ -5,6 +5,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -14,6 +15,112 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testing.T) {
+	const (
+		ownerUserID    = "owner-handoff-recovery"
+		conversationID = "conversation-handoff-recovery"
+		roomID         = "room-handoff-recovery"
+		targetAgentID  = "agent-handoff-target"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	root := appfs.UsersRoot()
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	runtimeSessionKey := protocol.BuildRoomAgentSessionKey(
+		conversationID,
+		targetAgentID,
+		protocol.RoomTypeGroup,
+	)
+	workspacePath := filepath.Join(appfs.UserWorkspaceRoot(ownerUserID), targetAgentID)
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID:          roomID,
+			OwnerUserID: ownerUserID,
+			RoomType:    protocol.RoomTypeGroup,
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members: []protocol.MemberRecord{{
+			MemberType:    protocol.MemberTypeAgent,
+			MemberAgentID: targetAgentID,
+		}},
+		MemberAgents: []protocol.Agent{{
+			AgentID:       targetAgentID,
+			WorkspacePath: workspacePath,
+		}},
+		Sessions: []protocol.SessionRecord{{
+			ID:             "session-handoff-target",
+			ConversationID: conversationID,
+			AgentID:        targetAgentID,
+		}},
+	}
+	rooms := &systemOnlyRoomContextStore{contextValue: contextValue}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	handoff := workspacestore.RoomPublicHandoff{
+		HandoffID:          "handoff-recovery",
+		ConversationID:     conversationID,
+		RoomID:             roomID,
+		RootRoundID:        "root-handoff-recovery",
+		SourceAgentRoundID: "source-agent-round",
+		SourceMessageID:    "source-message",
+		SourceAgentID:      "source-agent",
+		TargetAgentID:      targetAgentID,
+		Content:            "continue after restart",
+	}
+	if _, _, err := handoffs.Detect(ownerUserID, handoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.MarkSourceFinished(
+		ownerUserID,
+		conversationID,
+		handoff.HandoffID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	busySlot := &activeRoomSlot{
+		AgentID:           targetAgentID,
+		AgentRoundID:      "busy-agent-round",
+		RuntimeSessionKey: runtimeSessionKey,
+		WorkspacePath:     workspacePath,
+	}
+	service := &Service{
+		rooms:          rooms,
+		publicHandoffs: handoffs,
+		inputQueue:     workspacestore.NewInputQueueStore(root),
+		permission:     permissionctx.NewContext(),
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
+			"busy-round": {
+				SessionKey:     sharedSessionKey,
+				RoomID:         roomID,
+				ConversationID: conversationID,
+				RootRoundID:    "busy-root",
+				Slots: map[string]*activeRoomSlot{
+					"busy": busySlot,
+				},
+			},
+		}),
+	}
+
+	if _, err := service.StartPublicHandoffReconciler(context.Background()); err != nil {
+		t.Fatalf("StartPublicHandoffReconciler() error = %v", err)
+	}
+	if rooms.systemCalls != 1 || rooms.userCalls != 0 {
+		t.Fatalf("room lookups = system:%d request:%d, want system-only", rooms.systemCalls, rooms.userCalls)
+	}
+	items, err := service.inputQueue.Snapshot(workspacestore.InputQueueLocation{
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  workspacePath,
+		SessionKey:     runtimeSessionKey,
+		RoomID:         roomID,
+		ConversationID: conversationID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].OwnerUserID != ownerUserID {
+		t.Fatalf("recovered queue items = %#v, want owner %q", items, ownerUserID)
+	}
+}
 
 func TestCoalesceRoomDirectedWakeEntriesKeepsPerTargetOrder(t *testing.T) {
 	location := workspacestore.InputQueueLocation{WorkspacePath: "/tmp/agent", SessionKey: "room:conversation-1:agent-1"}
@@ -640,5 +747,23 @@ func TestBuildPublicMentionSlotKeepsPublicTriggerMessage(t *testing.T) {
 			roundValue.OwnerUserID,
 			roundValue.RootRoundID,
 		)
+	}
+}
+
+func TestSetRoomDisplayOrderKeepsSlotStartAcrossCompletion(t *testing.T) {
+	slot := &activeRoomSlot{
+		Index:       2,
+		TimestampMS: 100,
+	}
+	message := protocol.Message{
+		"message_id": "assistant-late-completion",
+		"role":       "assistant",
+		"timestamp":  int64(900),
+	}
+
+	setRoomDisplayOrder(slot, message)
+
+	if got, want := protocol.Int64FromAny(message["display_order"]), int64(100_002); got != want {
+		t.Fatalf("Room display order = %d, want slot start order %d", got, want)
 	}
 }

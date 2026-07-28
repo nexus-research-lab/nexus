@@ -1,3 +1,8 @@
+/**
+ * INPUT: DM 轮次数据、渲染器与共享滚动/feed refs。
+ * OUTPUT: 使用稳定身份、真实轨道估高和可见锚点策略的虚拟消息流。
+ * POS: 普通会话超过虚拟化阈值后的 Feed 渲染入口。
+ */
 import { useCallback, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
@@ -11,6 +16,11 @@ import {
 import { ConversationRound } from "./conversation-round";
 import { useConversationRoundNavigation } from "./use-conversation-round-navigation";
 import { useConversationVirtualMetrics } from "./use-conversation-virtual-metrics";
+import {
+  shouldAdjustConversationVirtualScrollPosition,
+  useConversationVirtualInitialOffset,
+  useConversationVirtualItemKey,
+} from "./use-conversation-virtual-scroll-policy";
 
 type ConversationVirtualFeedProps = ConversationFeedProps & {
   refs: ConversationFeedProps["refs"] & {
@@ -24,7 +34,12 @@ export function ConversationVirtualFeed({
   renderer,
   source,
 }: ConversationVirtualFeedProps) {
-  const metrics = useConversationVirtualMetrics(refs.scrollRef);
+  const metrics = useConversationVirtualMetrics(
+    refs.scrollRef,
+    refs.feedRef,
+  );
+  const getItemKey = useConversationVirtualItemKey(source.roundIds);
+  const initialOffset = useConversationVirtualInitialOffset(refs.scrollRef);
   const heightMap = useMemo(
     () => estimateRoundHeights(
       source.roundIds,
@@ -36,11 +51,15 @@ export function ConversationVirtualFeed({
   const virtualizer = useVirtualizer({
     count: source.roundIds.length,
     estimateSize: (index) => heightMap.get(source.roundIds[index]) ?? 200,
+    getItemKey,
     getScrollElement: () => refs.scrollRef.current,
+    initialOffset,
     measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 5,
     scrollPaddingStart: metrics.scrollPaddingStart,
   });
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange =
+    shouldAdjustConversationVirtualScrollPosition;
   const scrollToIndex = useCallback((
     index: number,
     options?: { behavior?: ScrollBehavior },
@@ -68,6 +87,7 @@ export function ConversationVirtualFeed({
   return (
     <div
       ref={refs.feedRef}
+      data-conversation-virtual-feed="true"
       className={
         isMobileLayout
           ? "nexus-chat-feed relative"

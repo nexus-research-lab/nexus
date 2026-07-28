@@ -13,14 +13,12 @@ import {
   buildAgentOptionsSubmission,
   type AgentOptionsDraft,
 } from "./agent-options-draft";
+import {
+  isAgentOptionsSaveCurrent,
+  type AgentOptionsSaveToken,
+} from "./agent-options-save-transaction";
 import type { useAgentNameValidation } from "./use-agent-name-validation";
 import type { useAgentSaveFeedback } from "./use-agent-save-feedback";
-
-interface SaveToken {
-  draftKey: string;
-  id: number;
-  scopeKey: string;
-}
 
 interface SaveCommandLabels {
   failed: string;
@@ -28,7 +26,9 @@ interface SaveCommandLabels {
 }
 
 interface UseAgentOptionsSaveCommandOptions {
+  commandScopeKey: string;
   draft: AgentOptionsDraft;
+  draftRevisionRef: { current: number };
   feedback: ReturnType<typeof useAgentSaveFeedback>;
   hasTitleChanged: boolean;
   labels: SaveCommandLabels;
@@ -36,21 +36,22 @@ interface UseAgentOptionsSaveCommandOptions {
   onSave: AgentOptionsFormProps["onSave"];
   onSaveSuccess?: () => void;
   onValidateName?: AgentOptionsFormProps["onValidateName"];
-  scopeKey: string;
+  sourceScopeKey: string;
   sourceOptions: AgentEditorInitialOptions;
   validation: ReturnType<typeof useAgentNameValidation>;
 }
 
 interface SaveTransactionContext {
+  commandScopeKeyRef: { current: string };
   draft: AgentOptionsDraft;
-  draftKeyRef: { current: string };
-  expected: SaveToken;
+  draftRevisionRef: { current: number };
+  expected: AgentOptionsSaveToken;
   hasTitleChanged: boolean;
   mode: AgentOptionsMode;
   onSave: AgentOptionsFormProps["onSave"];
   onValidateName?: AgentOptionsFormProps["onValidateName"];
-  saveTokenRef: { current: SaveToken | null };
-  scopeKeyRef: { current: string };
+  saveTokenRef: { current: AgentOptionsSaveToken | null };
+  sourceScopeKeyRef: { current: string };
   sourceOptions: AgentEditorInitialOptions;
   title: string;
   validation: ReturnType<typeof useAgentNameValidation>;
@@ -69,7 +70,9 @@ const SAVE_ABORT = {
 const SAVE_ABORTS = new Set<unknown>(Object.values(SAVE_ABORT));
 
 export function useAgentOptionsSaveCommand({
+  commandScopeKey,
   draft,
+  draftRevisionRef,
   feedback,
   hasTitleChanged,
   labels,
@@ -77,20 +80,19 @@ export function useAgentOptionsSaveCommand({
   onSave,
   onSaveSuccess,
   onValidateName,
-  scopeKey,
+  sourceScopeKey,
   sourceOptions,
   validation,
 }: UseAgentOptionsSaveCommandOptions) {
   const title = draft.title.trim();
-  const draftKey = JSON.stringify(draft);
-  const draftKeyRef = useRef(draftKey);
-  draftKeyRef.current = draftKey;
-  const scopeKeyRef = useRef(scopeKey);
-  scopeKeyRef.current = scopeKey;
+  const commandScopeKeyRef = useRef(commandScopeKey);
+  commandScopeKeyRef.current = commandScopeKey;
+  const sourceScopeKeyRef = useRef(sourceScopeKey);
+  sourceScopeKeyRef.current = sourceScopeKey;
   const saveSequenceRef = useRef(0);
-  const saveTokenRef = useRef<SaveToken | null>(null);
+  const saveTokenRef = useRef<AgentOptionsSaveToken | null>(null);
   const [savingScopeKey, setSavingScopeKey] = useState<string | null>(null);
-  const isSaving = savingScopeKey === scopeKey;
+  const isSaving = savingScopeKey === commandScopeKey;
   const canSave = [
     Boolean(title),
     !validation.isValidating,
@@ -99,25 +101,31 @@ export function useAgentOptionsSaveCommand({
   ].every(Boolean);
 
   const save = useCallback(async () => {
-    if (!canStartSave(canSave, saveTokenRef.current, scopeKey)) {
+    if (!canStartSave(canSave, saveTokenRef.current, commandScopeKey)) {
       return;
     }
-    const token = createSaveToken(saveSequenceRef, draftKey, scopeKey);
+    const token = createSaveToken(
+      saveSequenceRef,
+      commandScopeKey,
+      draftRevisionRef.current,
+      sourceScopeKey,
+    );
     saveTokenRef.current = token;
-    setSavingScopeKey(scopeKey);
+    setSavingScopeKey(commandScopeKey);
     feedback.clear();
 
     try {
       await runSaveTransaction({
+        commandScopeKeyRef,
         draft,
-        draftKeyRef,
+        draftRevisionRef,
         expected: token,
         hasTitleChanged,
         mode,
         onSave,
         onValidateName,
         saveTokenRef,
-        scopeKeyRef,
+        sourceScopeKeyRef,
         sourceOptions,
         title,
         validation,
@@ -130,16 +138,18 @@ export function useAgentOptionsSaveCommand({
         fallbackError: labels.failed,
         feedback,
         saveTokenRef,
-        scopeKeyRef,
-        draftKeyRef,
+        commandScopeKeyRef,
+        draftRevisionRef,
+        sourceScopeKeyRef,
       });
     } finally {
       finishSave(token, saveTokenRef, setSavingScopeKey);
     }
   }, [
     canSave,
+    commandScopeKey,
     draft,
-    draftKey,
+    draftRevisionRef,
     feedback,
     hasTitleChanged,
     labels.failed,
@@ -148,7 +158,7 @@ export function useAgentOptionsSaveCommand({
     onSave,
     onSaveSuccess,
     onValidateName,
-    scopeKey,
+    sourceScopeKey,
     sourceOptions,
     title,
     validation,
@@ -168,29 +178,35 @@ function reportSaveSuccess(
 
 function canStartSave(
   enabled: boolean,
-  current: SaveToken | null,
-  scopeKey: string,
+  current: AgentOptionsSaveToken | null,
+  commandScopeKey: string,
 ): boolean {
-  return [enabled, current?.scopeKey !== scopeKey].every(Boolean);
+  return [enabled, current?.commandScopeKey !== commandScopeKey].every(Boolean);
 }
 
 function createSaveToken(
   sequenceRef: { current: number },
-  draftKey: string,
-  scopeKey: string,
-): SaveToken {
-  const token = { draftKey, id: sequenceRef.current + 1, scopeKey };
+  commandScopeKey: string,
+  draftRevision: number,
+  sourceScopeKey: string,
+): AgentOptionsSaveToken {
+  const token = {
+    commandScopeKey,
+    draftRevision,
+    id: sequenceRef.current + 1,
+    sourceScopeKey,
+  };
   sequenceRef.current = token.id;
   return token;
 }
 
 async function runSaveTransaction(context: SaveTransactionContext): Promise<void> {
   const validation = await resolveNameValidation(context);
-  assertCurrentSave(context);
+  assertCurrentSave(context, true);
   assertNameAccepted(validation);
   const submission = buildAgentOptionsSubmission(context.draft, context.sourceOptions);
   await context.onSave(submission.title, submission.options, submission.identity);
-  assertCurrentSave(context);
+  assertCurrentSave(context, false);
 }
 
 async function resolveNameValidation({
@@ -219,13 +235,11 @@ async function selectValidationResult(
   return validation.validateNow(title);
 }
 
-function assertCurrentSave(context: SaveTransactionContext): void {
-  if (!isCurrentSave(
-    context.expected,
-    context.saveTokenRef.current,
-    context.scopeKeyRef,
-    context.draftKeyRef,
-  )) {
+function assertCurrentSave(
+  context: SaveTransactionContext,
+  requireSourceScope: boolean,
+): void {
+  if (!isCurrentSave(context, requireSourceScope)) {
     throw SAVE_ABORT.stale;
   }
 }
@@ -237,26 +251,33 @@ function assertNameAccepted(validation: ValidationOutcome): void {
 }
 
 function handleSaveFailure({
-  draftKeyRef,
+  commandScopeKeyRef,
+  draftRevisionRef,
   error,
   expected,
   fallbackError,
   feedback,
   saveTokenRef,
-  scopeKeyRef,
+  sourceScopeKeyRef,
 }: {
-  draftKeyRef: { current: string };
+  commandScopeKeyRef: { current: string };
+  draftRevisionRef: { current: number };
   error: unknown;
-  expected: SaveToken;
+  expected: AgentOptionsSaveToken;
   fallbackError: string;
   feedback: ReturnType<typeof useAgentSaveFeedback>;
-  saveTokenRef: { current: SaveToken | null };
-  scopeKeyRef: { current: string };
+  saveTokenRef: { current: AgentOptionsSaveToken | null };
+  sourceScopeKeyRef: { current: string };
 }): void {
   if (SAVE_ABORTS.has(error)) {
     return;
   }
-  if (!isCurrentSave(expected, saveTokenRef.current, scopeKeyRef, draftKeyRef)) {
+  if (!isAgentOptionsSaveCurrent(expected, {
+    commandScopeKey: commandScopeKeyRef.current,
+    draftRevision: draftRevisionRef.current,
+    sourceScopeKey: sourceScopeKeyRef.current,
+    token: saveTokenRef.current,
+  }, true)) {
     return;
   }
   feedback.showError(resolveSaveErrorMessage(error, fallbackError));
@@ -267,8 +288,8 @@ function resolveSaveErrorMessage(error: unknown, fallbackError: string): string 
 }
 
 function finishSave(
-  expected: SaveToken,
-  saveTokenRef: { current: SaveToken | null },
+  expected: AgentOptionsSaveToken,
+  saveTokenRef: { current: AgentOptionsSaveToken | null },
   setSavingScopeKey: (scopeKey: string | null) => void,
 ): void {
   if (saveTokenRef.current?.id !== expected.id) {
@@ -285,12 +306,13 @@ function isInvalidNameValidation(
 }
 
 function isCurrentSave(
-  expected: SaveToken,
-  current: SaveToken | null,
-  currentScopeKey: { current: string },
-  currentDraftKey: { current: string },
+  context: SaveTransactionContext,
+  requireSourceScope: boolean,
 ): boolean {
-  return current?.id === expected.id
-    && currentScopeKey.current === expected.scopeKey
-    && currentDraftKey.current === expected.draftKey;
+  return isAgentOptionsSaveCurrent(context.expected, {
+    commandScopeKey: context.commandScopeKeyRef.current,
+    draftRevision: context.draftRevisionRef.current,
+    sourceScopeKey: context.sourceScopeKeyRef.current,
+    token: context.saveTokenRef.current,
+  }, requireSourceScope);
 }

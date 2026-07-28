@@ -1,3 +1,4 @@
+import { isExternalSessionConversation } from "@/lib/conversation/external-session";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
 // 中文注释：历史与创建入口共用轻量导航带的 32px 边缘占位。
@@ -47,6 +48,22 @@ export function getConversationIdsByCreationTime(
       return left.conversation_id.localeCompare(right.conversation_id);
     })
     .map((conversation) => conversation.conversation_id);
+}
+
+export function resolveSelectedDraftConversationId(
+  conversations: RoomConversationView[],
+  selectedConversationId: string | null,
+): string | null {
+  if (!selectedConversationId) {
+    return null;
+  }
+  const selectedConversation = conversations.find(
+    (conversation) => conversation.conversation_id === selectedConversationId,
+  );
+  return selectedConversation?.is_draft === true
+    && !isExternalSessionConversation(selectedConversation)
+    ? selectedConversation.conversation_id
+    : null;
 }
 
 export function getInitialOpenConversationIds(

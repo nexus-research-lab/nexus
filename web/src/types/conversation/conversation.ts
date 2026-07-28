@@ -21,6 +21,7 @@ export interface Conversation extends BaseConversation {}
 export interface RoomConversationView extends BaseConversation {
   room_id: string;
   conversation_id: string;
+  is_draft?: boolean;
 }
 
 export interface ApiConversation {
@@ -48,7 +49,9 @@ export interface UpdateConversationParams {
 }
 
 interface BaseSnapshotPayload {
+  has_user_input?: boolean;
   last_activity_at?: number;
+  message_count?: number;
   session_id: string | null;
 }
 

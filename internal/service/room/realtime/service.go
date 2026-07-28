@@ -117,6 +117,7 @@ type roomContextStore interface {
 	GetConversationContextForSystem(context.Context, string) (*protocol.ConversationContextAggregate, error)
 	UpdateSessionSDKSessionID(context.Context, string, string) error
 	TouchConversationActivity(context.Context, string, time.Time) error
+	MarkConversationStarted(context.Context, string, time.Time) error
 	BuildRoomSkillPrompt(context.Context, []string) (string, error)
 }
 

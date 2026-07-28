@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
@@ -93,16 +94,17 @@ type MCPServerBuilder func(
 
 // Service 负责编排 DM 实时链路。
 type Service struct {
-	config     config.Config
-	agents     *agentsvc.Service
-	runtime    *runtimectx.Manager
-	permission *permissionctx.Context
-	roomStore  roomSessionStore
-	providers  clientopts.RuntimeConfigResolver
-	prefs      runtimePreferencesService
-	files      *workspacestore.SessionFileStore
-	history    *workspacestore.AgentHistoryStore
-	inputQueue *workspacestore.InputQueueStore
+	config       config.Config
+	agents       *agentsvc.Service
+	runtime      *runtimectx.Manager
+	permission   *permissionctx.Context
+	roomStore    roomSessionStore
+	roomActivity roomConversationActivityStore
+	providers    clientopts.RuntimeConfigResolver
+	prefs        runtimePreferencesService
+	files        *workspacestore.SessionFileStore
+	history      *workspacestore.AgentHistoryStore
+	inputQueue   *workspacestore.InputQueueStore
 	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.
 	inputQueueDispatchMu sync.Mutex
 	// ponytail: one lock is enough for low-volume DM hooks; split per session only if contention is measured.
@@ -145,6 +147,10 @@ type ExternalReplyDispatcher interface {
 type roomSessionStore interface {
 	GetRoomSessionByKey(context.Context, string, protocol.SessionKey) (*protocol.Session, error)
 	UpdateRoomSessionSDKSessionID(context.Context, string, string) error
+}
+
+type roomConversationActivityStore interface {
+	MarkConversationStarted(context.Context, string, time.Time) error
 }
 
 type titleScheduler interface {
@@ -230,6 +236,11 @@ func (s *Service) SetGoalContextProvider(provider goalContextProvider) {
 // SetRoomSessionStore 注入 room 成员会话索引读写能力。
 func (s *Service) SetRoomSessionStore(store roomSessionStore) {
 	s.roomStore = store
+}
+
+// SetRoomConversationActivityStore 注入 Room conversation 草稿消费与活动时间写入能力。
+func (s *Service) SetRoomConversationActivityStore(store roomConversationActivityStore) {
+	s.roomActivity = store
 }
 
 // SetTitleGenerator 注入会话标题生成器。

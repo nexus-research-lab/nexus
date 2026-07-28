@@ -71,6 +71,52 @@ func TestProcessorMapsAgentToolProgressToTaskProgress(t *testing.T) {
 	if content[0]["description"] != "检查 a11y 配置" || content[0]["last_tool_name"] != "Bash" {
 		t.Fatalf("task_progress 摘要不正确: %+v", content[0])
 	}
+	if content[0]["task_type"] != "local_agent" ||
+		content[0]["child_session_id"] != "agent-1" ||
+		content[0]["agent_id"] != "agent-1" {
+		t.Fatalf("task_progress 子线程标识不正确: %+v", content[0])
+	}
+}
+
+func TestProcessorMapsAgentStructuredOutputAttachmentToTaskNotification(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:host:ws:dm:test",
+		AgentID:    "host",
+		RoundID:    "round-agent-attachment",
+		ParentID:   "round-agent-attachment",
+	}, "sdk-session-agent-attachment")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAttachment,
+		Attachment: &sdkprotocol.AttachmentMessage{
+			Type: "structured_output",
+			Data: map[string]any{
+				"agentId":     "agent-child-1",
+				"agentType":   "Explore",
+				"description": "调研产品规格",
+				"status":      "completed",
+				"toolUseId":   "call-agent",
+				"outputFile":  "/workspace/.nexus/tasks/agent-child-1.output",
+			},
+		},
+	})
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("Agent structured output 未投影成 durable task notification: %+v", output)
+	}
+	message := output.DurableMessages[0]
+	if message["role"] != "system" {
+		t.Fatalf("task notification role = %#v, want system", message["role"])
+	}
+	metadata, _ := message["metadata"].(map[string]any)
+	if metadata["subtype"] != "task_notification" ||
+		metadata["task_id"] != "agent-child-1" ||
+		metadata["agent_id"] != "agent-child-1" ||
+		metadata["agent_type"] != "Explore" ||
+		metadata["task_type"] != "local_agent" ||
+		metadata["tool_use_id"] != "call-agent" ||
+		metadata["status"] != "completed" {
+		t.Fatalf("task notification metadata 不正确: %+v", metadata)
+	}
 }
 
 func TestProcessorMapsShellProgressToThrottledEphemeralTaskProgress(t *testing.T) {

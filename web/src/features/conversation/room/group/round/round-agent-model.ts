@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次消息与尚未结束的 agent slot。
- * OUTPUT: 按 agent_round_id 聚合、按终态时间排序且不含 Room 控制标记的回复卡片。
+ * OUTPUT: 按 agent_round_id 聚合、按稳定展示槽排序且不含 Room 控制标记的回复卡片。
  * POS: Room feed 与 thread 共用的 Agent 执行轮次投影。
  */
 import type {
@@ -55,6 +55,7 @@ const TERMINAL_SLOT_STATUSES = new Set<AgentRoundStatus>([
   "done",
   "error",
 ]);
+const ROOM_DISPLAY_ORDER_SCALE = 1_000;
 
 export function hasRoomAgentRoundEntries(
   messages: Message[],
@@ -123,7 +124,10 @@ function buildPendingSlots(slots: RoomPendingAgentSlotState[]): {
     const current = pendingSlots.get(entryId);
     if (!current || slot.timestamp >= current.timestamp) {
       pendingSlots.set(entryId, slot);
-      pendingSlotOrders.set(entryId, slot.index ?? order);
+      pendingSlotOrders.set(
+        entryId,
+        resolvePendingSlotDisplayOrder(slot, order),
+      );
     }
     const agentSlots = pendingSlotsByAgent.get(slot.agent_id) ?? [];
     agentSlots.push(slot);
@@ -134,6 +138,19 @@ function buildPendingSlots(slots: RoomPendingAgentSlotState[]): {
     orders: pendingSlotOrders,
     slots: pendingSlots,
   };
+}
+
+function resolvePendingSlotDisplayOrder(
+  slot: RoomPendingAgentSlotState,
+  fallbackOrder: number,
+): number {
+  if (Number.isFinite(slot.timestamp) && slot.timestamp > 0) {
+    return (
+      Math.trunc(slot.timestamp) * ROOM_DISPLAY_ORDER_SCALE
+      + Math.max(slot.index ?? 0, 0)
+    );
+  }
+  return slot.index ?? fallbackOrder;
 }
 
 function buildRoomAgentRoundIndex(
@@ -357,21 +374,14 @@ function buildRoomAgentRoundEntry(
       resultSummary,
       pendingSlot,
     ),
-    display_order: Math.max(
-      index.messageOrders.get(entryId) ?? -1,
-      index.pendingSlotOrders.get(entryId) ?? -1,
-    ),
+    display_order: index.pendingSlotOrders.get(entryId)
+      ?? index.messageOrders.get(entryId)
+      ?? Number.MAX_SAFE_INTEGER,
   };
 }
 
 export function isAgentRoundActive(status: AgentRoundStatus): boolean {
   return ACTIVE_STATUSES.has(status);
-}
-
-export function getActiveAgentRoundSortOrder(
-  status: AgentRoundStatus,
-): number {
-  return status === "pending" ? 0 : 1;
 }
 
 export function buildRoomAgentRoundEntries(
@@ -409,8 +419,8 @@ function compareAgentRoundDisplayOrder(
   left: RoomAgentRoundEntry,
   right: RoomAgentRoundEntry,
 ): number {
-  return left.timestamp - right.timestamp
-    || left.display_order - right.display_order
+  return left.display_order - right.display_order
+    || left.timestamp - right.timestamp
     || left.entry_id.localeCompare(right.entry_id);
 }
 

@@ -33,14 +33,14 @@ export function ChannelConnectDialogFooter({
   onRequestDelete,
   planned,
   saving,
-  supportsPersonalWeixinLogin,
+  supportsQRCode,
 }: ChannelConnectDialogFooterProps) {
   const submitState: ChannelSubmitState = {
     loginLoading,
     loginRunning,
     planned,
     saving,
-    supportsPersonalWeixinLogin,
+    supportsQRCode,
   };
   const submitDisabled = busy || loginRunning || !agentId || planned;
 
@@ -82,7 +82,7 @@ export function ChannelConnectDialogFooter({
             type="submit"
             variant="solid"
           >
-            {supportsPersonalWeixinLogin
+            {supportsQRCode
               ? <QrCode className="h-5 w-5" />
               : <Power className="h-5 w-5" />}
             {getChannelSubmitLabel(submitState)}

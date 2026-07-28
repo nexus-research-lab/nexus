@@ -11,24 +11,27 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/connectors/appregistration"
 	"github.com/nexus-research-lab/nexus/internal/connectors/credentials"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 type ControlService struct {
-	config                   config.Config
-	db                       *sql.DB
-	driver                   string
-	key                      []byte
-	agents                   agentWorkspaceResolver
-	router                   *Router
-	httpClient               *http.Client
-	idFactory                func(string) string
-	loginStore               *channelLoginStore
-	loginTimeout             time.Duration
-	weixinLoginClientFactory func(string, map[string]string) personalWeixinLoginClient
-	keyErr                   error
+	config                    config.Config
+	db                        *sql.DB
+	driver                    string
+	key                       []byte
+	agents                    agentWorkspaceResolver
+	router                    *Router
+	httpClient                *http.Client
+	idFactory                 func(string) string
+	loginStore                *channelLoginStore
+	loginTimeout              time.Duration
+	weixinLoginClientFactory  func(string, map[string]string) personalWeixinLoginClient
+	registrationClientFactory func(string) appregistration.Client
+	registrationPollInterval  time.Duration
+	keyErr                    error
 }
 
 func NewControlService(

@@ -1,3 +1,9 @@
+/**
+ * INPUT: 已投影的历史条目、标题编辑器与选择/切换/删除回调。
+ * OUTPUT: 阅读、编辑和批量选择三种互斥模式的可访问条目视图。
+ * POS: Room 历史单项纯视图，不判断会话协议与删除资格。
+ */
+
 import {
   type ComponentType,
   type KeyboardEvent,
@@ -28,7 +34,9 @@ interface RoomHistoryItemViewProps {
   editor: TitleEditorView;
   onDelete: () => void;
   onSelect: () => void;
+  onToggleSelection: () => void;
   presentation: RoomHistoryItemPresentation;
+  selectionLabel: string;
 }
 
 interface ItemContentProps extends RoomHistoryItemViewProps {}
@@ -59,17 +67,29 @@ const ACTION_STYLES: Record<RoomHistoryItemAction, ActionStyle> = {
 
 function RoomHistoryActivity({
   compact = false,
+  hideForActions = false,
+  persistActions = false,
   label,
 }: {
   compact?: boolean;
+  hideForActions?: boolean;
+  persistActions?: boolean;
   label: string;
 }) {
   return (
     <div className={cn(
-      "flex items-center gap-1.5 text-(--text-soft)",
+      "flex items-center gap-1.5 text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
       compact ? "shrink-0 text-2xs" : "mt-1 flex-wrap gap-y-0.5 text-2xs",
+      hideForActions && (
+        persistActions
+          ? "opacity-0"
+          : "group-hover:opacity-0 group-focus-within:opacity-0"
+      ),
     )}>
-      <span className="inline-flex items-center gap-1.5">
+      <span className={cn(
+        "inline-flex items-center gap-1.5",
+        compact && "w-full justify-end",
+      )}>
         <Clock3 className="h-3 w-3 shrink-0" />
         <span>{label}</span>
       </span>
@@ -88,6 +108,34 @@ function ExternalSessionLabel({ label }: { label: string | null }) {
   );
 }
 
+function RoomHistorySummary({
+  presentation,
+}: {
+  presentation: RoomHistoryItemPresentation;
+}) {
+  return (
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_78px] items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <p className={cn(
+          "min-w-0 truncate text-compact",
+          presentation.state === "active"
+            ? "font-semibold text-(--text-strong)"
+            : "font-medium text-(--text-default) group-hover:text-(--text-strong)",
+        )}>
+          {presentation.title}
+        </p>
+        <ExternalSessionLabel label={presentation.externalSessionLabel} />
+      </div>
+      <RoomHistoryActivity
+        compact
+        hideForActions={presentation.actions.length > 0}
+        label={presentation.activityLabel}
+        persistActions={presentation.actionsPersistent}
+      />
+    </div>
+  );
+}
+
 function ReadingItemContent({
   onSelect,
   presentation,
@@ -99,23 +147,40 @@ function ReadingItemContent({
       onClick={onSelect}
       type="button"
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <p className={cn(
-              "min-w-0 truncate text-compact",
-              presentation.state === "active"
-                ? "font-semibold text-(--text-strong)"
-                : "font-medium text-(--text-default) group-hover:text-(--text-strong)",
-            )}>
-              {presentation.title}
-            </p>
-            <ExternalSessionLabel label={presentation.externalSessionLabel} />
-            <RoomHistoryActivity compact label={presentation.activityLabel} />
-          </div>
-        </div>
-      </div>
+      <RoomHistorySummary presentation={presentation} />
     </button>
+  );
+}
+
+function SelectingItemContent({
+  onToggleSelection,
+  presentation,
+  selectionLabel,
+}: ItemContentProps) {
+  const selection = presentation.selection;
+  if (!selection) {
+    return null;
+  }
+  return (
+    <label
+      className={cn(
+        "flex w-full items-center gap-2.5",
+        selection.disabled ? "cursor-default" : "cursor-pointer",
+      )}
+      title={selection.disabled ? selectionLabel : undefined}
+    >
+      <input
+        aria-label={selectionLabel}
+        checked={selection.checked}
+        className="h-3.5 w-3.5 shrink-0 accent-[var(--primary)] disabled:opacity-35"
+        disabled={selection.disabled}
+        onChange={onToggleSelection}
+        type="checkbox"
+      />
+      <div className="min-w-0 flex-1">
+        <RoomHistorySummary presentation={presentation} />
+      </div>
+    </label>
   );
 }
 
@@ -174,6 +239,7 @@ const CONTENT_VIEWS: Record<
 > = {
   editing: EditingItemContent,
   reading: ReadingItemContent,
+  selecting: SelectingItemContent,
 };
 
 function RoomHistoryItemActions({
@@ -189,9 +255,14 @@ function RoomHistoryItemActions({
     rename: editor.start,
   };
   return (
-    <div className="relative grid shrink-0 place-items-center">
+    <div className="absolute inset-y-0 right-2.5 grid place-items-center">
       {presentation.actions.length > 0 ? (
-        <div className="flex items-center gap-1 opacity-0 transition-opacity duration-(--motion-duration-fast) group-hover:opacity-100 focus-within:opacity-100">
+        <div className={cn(
+          "flex items-center gap-1 transition-opacity duration-(--motion-duration-fast)",
+          presentation.actionsPersistent
+            ? "opacity-100"
+            : "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+        )}>
           {presentation.actions.map((action) => {
             const style = ACTION_STYLES[action];
             const Icon = style.icon;
@@ -225,14 +296,16 @@ export function RoomHistoryItemView(props: RoomHistoryItemViewProps) {
       className={cn(
         "group relative w-full overflow-hidden rounded-[10px] px-2.5 py-1.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) ease-out",
         stateClassName,
+        presentation.selection?.checked
+          && "bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] text-(--text-strong)",
       )}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
+      <div className="min-w-0">
+        <div className="min-w-0">
           <Content {...props} />
         </div>
-        <RoomHistoryItemActions {...props} />
       </div>
+      <RoomHistoryItemActions {...props} />
     </article>
   );
 }

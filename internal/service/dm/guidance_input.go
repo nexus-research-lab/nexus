@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -344,6 +345,9 @@ func (s *Service) persistConsumedGuidanceUserMessage(
 		sessionItem.SessionKey,
 		messageValue,
 	); err != nil {
+		return sessionItem, err
+	}
+	if err := s.markRoomConversationStarted(ctx, sessionItem.SessionKey, time.Now().UTC()); err != nil {
 		return sessionItem, err
 	}
 	updatedSession, metaErr := s.refreshSessionMetaAfterMessageForOwner(

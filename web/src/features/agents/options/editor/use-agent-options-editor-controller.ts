@@ -13,6 +13,7 @@ import type {
   SaveFeedback,
 } from "../agent-options-editor-model";
 import {
+  buildAgentEditorCommandScopeKey,
   buildAgentEditorScopeKey,
   createAgentOptionsDraft,
 } from "./agent-options-draft";
@@ -40,20 +41,21 @@ export function useAgentOptionsEditorController({
     defaultTitle: t("agent_options.default_name"),
     initial: source.initial,
   });
-  const scopeKey = buildAgentEditorScopeKey({
+  const sourceScopeKey = buildAgentEditorScopeKey({
     draft: initialDraft,
     isActive,
     source,
   });
-  const feedback = useAgentSaveFeedback(scopeKey);
+  const commandScopeKey = buildAgentEditorCommandScopeKey({ isActive, source });
+  const feedback = useAgentSaveFeedback(commandScopeKey);
   const draftController = useAgentOptionsDraft({
     initialDraft,
     onChange: feedback.clear,
-    scopeKey,
+    scopeKey: sourceScopeKey,
   });
   const profileTemplate = useAgentProfileTemplate(
     source.kind === "create" && isActive,
-    scopeKey,
+    sourceScopeKey,
     t("agent_options.identity.profile_template_load_failed"),
   );
   const updateDraftField = draftController.updateField;
@@ -62,22 +64,22 @@ export function useAgentOptionsEditorController({
     if (
       source.kind !== "create"
       || !profileTemplate.content
-      || appliedProfileTemplateScopeRef.current === scopeKey
+      || appliedProfileTemplateScopeRef.current === sourceScopeKey
     ) {
       return;
     }
-    appliedProfileTemplateScopeRef.current = scopeKey;
+    appliedProfileTemplateScopeRef.current = sourceScopeKey;
     updateDraftField("profileTemplate", profileTemplate.content);
   }, [
     profileTemplate.content,
-    scopeKey,
+    sourceScopeKey,
     source.kind,
     updateDraftField,
   ]);
   const tabs = useAgentOptionsTabs({
     controlledActiveTab,
     onTabChange,
-    scopeKey,
+    scopeKey: commandScopeKey,
   });
   const providerOptions = useAgentProviderOptions(
     isActive,
@@ -90,11 +92,13 @@ export function useAgentOptionsEditorController({
     hasTitleChanged,
     isActive,
     onValidateName,
-    scopeKey,
+    scopeKey: sourceScopeKey,
     title: draftController.draft.title,
   });
   const saveCommand = useAgentOptionsSaveCommand({
+    commandScopeKey,
     draft: draftController.draft,
+    draftRevisionRef: draftController.revisionRef,
     feedback,
     hasTitleChanged,
     labels: {
@@ -105,7 +109,7 @@ export function useAgentOptionsEditorController({
     onSave,
     onSaveSuccess,
     onValidateName,
-    scopeKey,
+    sourceScopeKey,
     sourceOptions,
     validation,
   });
@@ -126,7 +130,7 @@ export function useAgentOptionsEditorController({
         draftController,
         profileTemplate,
         providerOptions,
-        scopeKey,
+        scopeKey: sourceScopeKey,
         source,
         validation,
       }),

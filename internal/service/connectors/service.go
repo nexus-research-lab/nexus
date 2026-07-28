@@ -6,15 +6,17 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/connectors/appregistration"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 // Service 提供连接器目录、授权与状态能力。
 type Service struct {
-	config     config.Config
-	db         *sql.DB
-	driver     string
-	httpClient *http.Client
+	config                    config.Config
+	db                        *sql.DB
+	driver                    string
+	httpClient                *http.Client
+	registrationClientFactory func() appregistration.Client
 }
 
 // NewService 创建连接器服务。

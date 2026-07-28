@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "@/app/globals.css";
 import {
   applyDesktopRuntimeDocumentFlags,
+  isDesktopRuntime,
   markDesktopPerformance,
   notifyDesktopWebFatal,
 } from "@/config/desktop-runtime";
@@ -24,22 +25,35 @@ import {
 markDesktopPerformance("bootstrap.module_loaded");
 
 export function bootstrapReactApp(render: () => ReactNode): void {
-  void bootstrap(render);
+  void bootstrap(render, true);
 }
 
-async function bootstrap(render: () => ReactNode): Promise<void> {
+// OAuth 回调运行在没有 Web 登录态和桌面 token 的系统浏览器中，必须先渲染公开回调页，
+// 不能在 token 交换前预取受保护的 runtime/options。
+export function bootstrapPublicReactApp(render: () => ReactNode): void {
+  void bootstrap(render, false);
+}
+
+async function bootstrap(
+  render: () => ReactNode,
+  shouldHydrateRuntimeOptions: boolean,
+): Promise<void> {
   markDesktopPerformance("bootstrap.start");
   installGlobalErrorHandlers();
   applyDesktopRuntimeDocumentFlags();
   applyTheme(detectInitialTheme());
 
   try {
-    markDesktopPerformance("runtimeOptions.hydrateBegin");
-    await hydrateRuntimeOptions();
-    markDesktopPerformance("runtimeOptions.hydrateEnd");
+    if (shouldHydrateRuntimeOptions) {
+      markDesktopPerformance("runtimeOptions.hydrateBegin");
+      await hydrateRuntimeOptions();
+      markDesktopPerformance("runtimeOptions.hydrateEnd");
+    }
     const strictMode = isStrictModeEnabled();
     renderApplication(render, strictMode);
-    startAppRenderWatchdog((reason) => renderRecoveryScreen(reason, strictMode));
+    if (isDesktopRuntime()) {
+      startAppRenderWatchdog((reason) => renderRecoveryScreen(reason, strictMode));
+    }
   } catch (error) {
     notifyDesktopWebFatal("bootstrap", error);
     if (shouldRecoverAfterDesktopRuntimeAuthError(error)) {

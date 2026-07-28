@@ -40,7 +40,6 @@ export function SkillsCard({
   return (
     <UiListRow
       className={cn(
-        "min-h-[64px] rounded-[8px] px-2 py-1",
         busy && "opacity-60",
         className,
       )}

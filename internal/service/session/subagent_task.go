@@ -90,7 +90,7 @@ type SubagentTask struct {
 	Capabilities   SubagentTaskCapabilities `json:"capabilities"`
 }
 
-// SubagentTaskMessages 表示 task 详情页需要的只读消息。
+// SubagentTaskMessages 表示 task 详情页需要的只读子 Agent 输出。
 type SubagentTaskMessages struct {
 	Task     SubagentTask       `json:"task"`
 	Messages []protocol.Message `json:"messages"`
@@ -147,6 +147,7 @@ func (s *Service) GetSubagentTaskMessages(ctx context.Context, rawSessionKey str
 	if err != nil {
 		return nil, err
 	}
+	messages = subagentTaskOutputMessages(messages)
 	output := ""
 	if !outputIsTranscript {
 		output, err = s.readSubagentOutputFile(ctx, task.OutputFile, workspacePath)
@@ -155,6 +156,17 @@ func (s *Service) GetSubagentTaskMessages(ctx context.Context, rawSessionKey str
 		}
 	}
 	return &SubagentTaskMessages{Task: *task, Messages: messages, Output: output}, nil
+}
+
+func subagentTaskOutputMessages(messages []protocol.Message) []protocol.Message {
+	output := make([]protocol.Message, 0, len(messages))
+	for _, message := range messages {
+		if strings.EqualFold(strings.TrimSpace(stringFromAny(message["role"])), "user") {
+			continue
+		}
+		output = append(output, message)
+	}
+	return output
 }
 
 func (s *Service) readSubagentTaskThread(
@@ -243,7 +255,39 @@ func (s *Service) readSubagentTaskThreadAtOwner(
 			}
 		}
 	}
+
+	// 早期 agent_progress 没有 task_type / transcript_path，但 agent ID 本身就是
+	// child transcript 的稳定文件名。按受限 ID 读取，兼容已经落盘的历史任务。
+	transcriptSessionID := subagentTaskTranscriptSessionID(task)
+	if transcriptSessionID != "" {
+		history := s.history
+		if ownerBound {
+			history = s.history.ForOwner(ownerUserID)
+		}
+		messages, err := history.ReadTranscriptSessionMessages(
+			workspacePath,
+			transcriptSessionID,
+			task.SessionKey,
+			agentID,
+		)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, false, err
+		}
+		if len(messages) > 0 {
+			return messages, true, nil
+		}
+	}
 	return []protocol.Message{}, false, nil
+}
+
+func subagentTaskTranscriptSessionID(task SubagentTask) string {
+	for _, candidate := range []string{task.AgentID, task.TaskID} {
+		candidate = strings.ToLower(strings.TrimSpace(candidate))
+		if workspacestore.IsSubagentTranscriptSessionID(candidate) {
+			return candidate
+		}
+	}
+	return ""
 }
 
 // StopSubagentTask 停止指定 subagent task。
@@ -488,6 +532,7 @@ func (p *subagentTaskProjection) acceptMessage(message protocol.Message) {
 	for _, block := range subagentTaskProgressBlocks(message) {
 		p.acceptProgress(message, block)
 	}
+	p.acceptToolResults(message)
 }
 
 func (p *subagentTaskProjection) acceptMetadata(message protocol.Message) {
@@ -506,6 +551,33 @@ func (p *subagentTaskProjection) acceptProgress(message protocol.Message, block 
 	task := p.task(stringFromAny(block["task_id"]), progressBlockMayIdentifySubagentTask(block))
 	if task != nil {
 		mergeSubagentTaskProgress(task, message, block)
+	}
+}
+
+func (p *subagentTaskProjection) acceptToolResults(message protocol.Message) {
+	timestamp := protocol.Int64FromAny(message["timestamp"])
+	for _, block := range subagentTaskContentBlocks(message) {
+		if stringFromAny(block["type"]) != "tool_result" {
+			continue
+		}
+		toolUseID := stringFromAny(block["tool_use_id"])
+		if toolUseID == "" {
+			continue
+		}
+		for _, taskID := range p.order {
+			task := p.tasks[taskID]
+			if task == nil || task.ToolUseID != toolUseID ||
+				(task.Status != "" && task.Status != "running") {
+				continue
+			}
+			task.Status = "completed"
+			if isError, _ := block["is_error"].(bool); isError {
+				task.Status = "failed"
+			}
+			if timestamp > 0 {
+				task.UpdatedAt = timestamp
+			}
+		}
 	}
 }
 
@@ -534,6 +606,9 @@ func (p *subagentTaskProjection) results() []SubagentTask {
 		}
 		if task.RuntimeKind == "" {
 			task.RuntimeKind = normalizeSubagentRuntimeKind(p.defaultRuntimeKind)
+		}
+		if task.Name == "" {
+			task.Name = task.Description
 		}
 		task.Capabilities = subagentTaskCapabilities(task.RuntimeKind)
 		results = append(results, *task)
@@ -655,17 +730,27 @@ func subagentTaskMetadata(message protocol.Message) map[string]any {
 
 func subagentTaskProgressBlocks(message protocol.Message) []map[string]any {
 	blocks := make([]map[string]any, 0)
+	for _, block := range subagentTaskContentBlocks(message) {
+		if stringFromAny(block["type"]) == "task_progress" {
+			blocks = append(blocks, block)
+		}
+	}
+	return blocks
+}
+
+func subagentTaskContentBlocks(message protocol.Message) []map[string]any {
+	blocks := make([]map[string]any, 0)
 	switch content := message["content"].(type) {
 	case []any:
 		for _, item := range content {
 			block := mapFromAny(item)
-			if stringFromAny(block["type"]) == "task_progress" {
+			if len(block) > 0 {
 				blocks = append(blocks, block)
 			}
 		}
 	case []map[string]any:
 		for _, block := range content {
-			if stringFromAny(block["type"]) == "task_progress" {
+			if len(block) > 0 {
 				blocks = append(blocks, block)
 			}
 		}

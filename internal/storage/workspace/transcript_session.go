@@ -8,11 +8,19 @@ import (
 	"strings"
 )
 
-var transcriptSessionIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+var (
+	transcriptSessionIDPattern         = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	subagentTranscriptSessionIDPattern = regexp.MustCompile(`^agent-[0-9a-f]{32}$`)
+)
 
 // IsTranscriptSessionID 判断值是否符合 Claude/nxs transcript session id 形态。
 func IsTranscriptSessionID(sessionID string) bool {
 	return transcriptSessionIDPattern.MatchString(strings.ToLower(strings.TrimSpace(sessionID)))
+}
+
+// IsSubagentTranscriptSessionID 判断值是否是 nxs 独立 Agent thread 的 transcript id。
+func IsSubagentTranscriptSessionID(sessionID string) bool {
+	return subagentTranscriptSessionIDPattern.MatchString(strings.ToLower(strings.TrimSpace(sessionID)))
 }
 
 // TranscriptSessionExists 判断 workspace 下是否存在可恢复的 SDK transcript。

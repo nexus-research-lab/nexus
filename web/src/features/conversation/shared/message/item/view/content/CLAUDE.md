@@ -5,7 +5,7 @@
 - `structured-content-renderer.tsx`: 建立一次内容投影并编排块视图、时间线和流式活动状态。
 - `content-renderer-model.ts`: 建立 toolUse/result、任务进度和已消费块索引。
 - `content-block-view.tsx`: 通过穷尽注册表分派 ContentBlock，并拥有空节点和时间线框架。
-- `content-tool-block.tsx`: 分阶段适配普通工具、用户问答和权限响应。
+- `content-tool-block.tsx`: 分阶段适配普通工具、用户问答和权限响应；可见的待答问题复用完整人工介入控件，保留提交与拒绝。
 - `content-system-event.tsx`: 渲染系统事件与 API 重试倒计时。
 - `content-renderer-timeline.tsx`: 测量并对齐时间线圆点。
 

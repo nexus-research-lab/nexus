@@ -21,6 +21,7 @@ interface WorkspaceSurfaceHeaderTab<TTabKey extends string> {
 }
 
 type WorkspaceSurfaceHeaderLeadingVariant = "identity" | "section";
+type WorkspaceSurfaceHeaderNarrowMode = "full" | "hidden" | "toolbar";
 
 type WorkspaceSurfaceHeaderMiddle =
   | { subtitle?: ReactNode; tabsLeading?: never }
@@ -36,6 +37,7 @@ type WorkspaceSurfaceHeaderProps<TTabKey extends string> = {
   onChangeTab?: (tab: TTabKey) => void;
   onDismissActiveTab?: (tab: TTabKey) => void;
   navigationTrailing?: ReactNode;
+  narrowMode?: WorkspaceSurfaceHeaderNarrowMode;
   tabs?: WorkspaceSurfaceHeaderTab<TTabKey>[];
   tabsNavAnchor?: string;
   title?: string;
@@ -53,6 +55,7 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
   onChangeTab,
   onDismissActiveTab,
   navigationTrailing,
+  narrowMode = "full",
   subtitle,
   tabs = [],
   tabsLeading,
@@ -66,6 +69,8 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
       className={cn(
         SURFACE_HEADER_CLASS_NAME,
         tabsLeading && "workspace-surface-header-with-session-tabs",
+        narrowMode === "hidden" && "workspace-surface-header-narrow-hidden",
+        narrowMode === "toolbar" && "workspace-surface-header-narrow-toolbar",
         WORKSPACE_HEADER_HEIGHT_CLASS,
       )}
       data-desktop-window-drag-region

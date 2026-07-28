@@ -3,6 +3,7 @@ import { useRef, type KeyboardEvent } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
+  CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
@@ -64,7 +65,7 @@ export function SkillsSearchBar({
   ) : null;
 
   return (
-    <div className="mb-4 flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+    <CapabilityFilterBar>
       <CapabilityFilterSearchInput
         action={externalSearchAction}
         onChange={(value) => {
@@ -104,6 +105,6 @@ export function SkillsSearchBar({
           value={activeCategory}
         />
       ) : null}
-    </div>
+    </CapabilityFilterBar>
   );
 }

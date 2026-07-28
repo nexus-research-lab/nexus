@@ -18,6 +18,7 @@ const DISCOVERY_OPTIONS: { key: DiscoveryMode; labelKey: TranslationKey }[] = [
 
 interface SkillsHeaderProps {
   checkingUpdates: boolean;
+  detailOpen: boolean;
   discoveryMode: DiscoveryMode;
   importing: boolean;
   onChangeDiscoveryMode: (mode: DiscoveryMode) => void;
@@ -29,6 +30,7 @@ interface SkillsHeaderProps {
 
 export function SkillsHeader({
   checkingUpdates,
+  detailOpen,
   discoveryMode,
   importing,
   onChangeDiscoveryMode,
@@ -42,6 +44,7 @@ export function SkillsHeader({
   return (
     <WorkspaceSurfaceHeader
       leading={<Puzzle className="h-4 w-4" />}
+      narrowMode={detailOpen ? "hidden" : "toolbar"}
       title={t("capability.skills")}
       tabs={DISCOVERY_OPTIONS.map((item) => ({
         key: item.key,

@@ -80,7 +80,7 @@ export function WorkspaceConversationTabs({
                 onClose={() => controller.closeConversation(conversationId)}
                 onSelect={() => controller.selectConversation(conversationId)}
                 tabWidth={controller.tabWidths.get(conversationId)}
-                title={conversation.title?.trim() || t("room.untitled_conversation")}
+                title={conversation.title?.trim() || t("room.new_conversation")}
               />
             );
           })}

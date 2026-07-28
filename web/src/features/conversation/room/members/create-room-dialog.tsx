@@ -1,7 +1,5 @@
 "use client";
 
-import { Hash } from "lucide-react";
-
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
@@ -17,6 +15,7 @@ import {
   resolveRoomDialogLabels,
   type RoomDialogContentProps,
 } from "./create-room-dialog-model";
+import { CreateGroupChatIcon } from "./create-group-chat-icon";
 import type { CreateRoomDialogProps } from "./create-room-dialog-types";
 import { RoomMemberSelector } from "./room-member-selector";
 import { RoomSettingsForm } from "./room-settings-form";
@@ -88,7 +87,7 @@ function CreateRoomDialogContent({
           size="xl"
         >
           <UiDialogHeader
-            icon={<Hash className="h-4 w-4" />}
+            icon={<CreateGroupChatIcon className="h-5 w-5" />}
             onClose={onCancel}
             subtitle={<span className="max-sm:hidden">{labels.subtitle}</span>}
             title={labels.title}
