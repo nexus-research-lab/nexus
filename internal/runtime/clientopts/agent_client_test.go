@@ -994,19 +994,25 @@ func TestBuildAgentClientOptionsProtectsManagedUserDirectories(t *testing.T) {
 	t.Setenv("DATABASE_URL", "/tmp/host.db")
 	t.Setenv("CONNECTOR_CREDENTIALS_KEY", "host-secret")
 	t.Setenv("ANTHROPIC_AUTH_TOKEN", "host-token")
+	t.Setenv(nexusMemoryDirEnvName, "/tmp/host-memory")
+	t.Setenv(nexusEnableRemoteMemoryEnvName, "1")
+	t.Setenv(nexusRemoteMemoryDirEnvName, "/tmp/host-remote-memory")
 	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-123"})
 
 	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
 		ExtraEnv: map[string]string{
-			nexusConfigDirEnvName:       "/tmp/escaped-nexus",
-			claudeConfigDirEnvName:      "/tmp/escaped-claude",
-			"HOME":                      "/tmp/escaped-home",
-			"TMPDIR":                    "/tmp/escaped-tmp",
-			appfs.NexusStateRootEnvName: "/tmp/escaped-state",
-			"WORKSPACE_PATH":            "/tmp/escaped-workspace",
-			"DATABASE_URL":              "/tmp/escaped-db",
-			"CONNECTOR_CREDENTIALS_KEY": "request-secret",
+			nexusConfigDirEnvName:          "/tmp/escaped-nexus",
+			claudeConfigDirEnvName:         "/tmp/escaped-claude",
+			"HOME":                         "/tmp/escaped-home",
+			"TMPDIR":                       "/tmp/escaped-tmp",
+			appfs.NexusStateRootEnvName:    "/tmp/escaped-state",
+			"WORKSPACE_PATH":               "/tmp/escaped-workspace",
+			"DATABASE_URL":                 "/tmp/escaped-db",
+			"CONNECTOR_CREDENTIALS_KEY":    "request-secret",
+			nexusMemoryDirEnvName:          "/tmp/escaped-memory",
+			nexusEnableRemoteMemoryEnvName: "1",
+			nexusRemoteMemoryDirEnvName:    "/tmp/escaped-remote-memory",
 		},
 	})
 	if err != nil {
@@ -1025,6 +1031,9 @@ func TestBuildAgentClientOptionsProtectsManagedUserDirectories(t *testing.T) {
 		options.Env["DATABASE_URL"] != "" ||
 		options.Env[connectorCredentialsKeyEnvName] != "" ||
 		options.Env[anthropicAuthTokenEnvName] != "" ||
+		options.Env[nexusMemoryDirEnvName] != "/tmp/workspace" ||
+		options.Env[nexusEnableRemoteMemoryEnvName] != "" ||
+		options.Env[nexusRemoteMemoryDirEnvName] != "" ||
 		options.Env[workspacePathEnvName] != "/tmp/workspace" ||
 		options.Env[nexusctlWorkspacePathEnvName] != "/tmp/workspace" {
 		t.Fatalf("ExtraEnv 覆盖了宿主管理的用户目录: %+v", options.Env)

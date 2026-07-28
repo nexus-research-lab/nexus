@@ -306,6 +306,19 @@ nxs 和 Claude 共用 `<user_root>/projects`。全局 Skill、二进制和只读
 
 server 的 host root 不得通过完整环境继承给 runtime。runtime 的 `NEXUS_CONFIG_DIR` 必须由 `owner_user_id -> UserScope -> user_root` 显式计算，不能由模型、Skill、project hook 或请求参数直接指定。
 
+Nexus 管理的 nxs 长期记忆根固定为当前 Agent workspace：
+
+```text
+NEXUS_MEMORY_DIR=<agent_workspace>
+<agent_workspace>/MEMORY.md
+<agent_workspace>/memory/
+```
+
+宿主继承环境与请求级 `ExtraEnv` 都不能改写该值，`NEXUS_ENABLE_REMOTE_MEMORY`
+和 `NEXUS_REMOTE_MEMORY_DIR` 在受管 runtime 中固定关闭。这样 SDK 读写、Web
+只读投影与 workspace policy 始终引用同一个 owner/Agent 路径；SDK 独立运行时
+自己的可配置记忆根不受这一产品侧约束影响。
+
 系统包安装不授予 runtime sudo。需要安装系统包时，由宿主执行固定 allowlist 的 broker；普通开发依赖优先使用用户级安装。
 
 ## 8. Hook 与最终访问校验

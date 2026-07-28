@@ -34,6 +34,9 @@ const connectorCredentialsKeyFileEnvName = "CONNECTOR_CREDENTIALS_KEY_FILE"
 const nexusDesktopSessionTokenEnvName = "NEXUS_DESKTOP_SESSION_TOKEN"
 const nexusNXSRuntimeCacheDirEnvName = "NEXUS_NXS_RUNTIME_CACHE_DIR"
 const nexusClaudeCommandPathEnvName = "NEXUS_CLAUDE_COMMAND_PATH"
+const nexusMemoryDirEnvName = "NEXUS_MEMORY_DIR"
+const nexusEnableRemoteMemoryEnvName = "NEXUS_ENABLE_REMOTE_MEMORY"
+const nexusRemoteMemoryDirEnvName = "NEXUS_REMOTE_MEMORY_DIR"
 const apiFormatAnthropicMessages = runtimeprovider.APIFormatAnthropicMessages
 const apiFormatChatCompletions = runtimeprovider.APIFormatChatCompletions
 const apiFormatResponses = runtimeprovider.APIFormatResponses
@@ -449,8 +452,8 @@ func scrubInheritedRuntimeEnv() map[string]string {
 
 // managedUserRuntimeEnv 注入宿主强制的用户 runtime 边界。
 //
-// 空值覆盖用于切断旧的 host root、数据库和密钥；路径则全部落在
-// users/<owner>/runtime，且 ExtraEnv 无法改写当前 workspace。
+// 空值覆盖用于切断旧的 host root、数据库、密钥和远端记忆；路径则全部
+// 落在当前 owner 边界，且 ExtraEnv 无法改写 workspace 或长期记忆根。
 func managedUserRuntimeEnv(
 	ownerUserID string,
 	workspacePath string,
@@ -458,6 +461,7 @@ func managedUserRuntimeEnv(
 ) map[string]string {
 	runtimeRoot := appfs.UserRuntimeRoot(ownerUserID)
 	homeRoot := filepath.Join(runtimeRoot, "home")
+	workspacePath = strings.TrimSpace(workspacePath)
 	env := map[string]string{
 		appfs.NexusStateRootEnvName:        "",
 		nexusAppRootEnvName:                "",
@@ -486,11 +490,14 @@ func managedUserRuntimeEnv(
 		nexusAgentRuntimeEnvName:           strings.TrimSpace(runtimeKind),
 		nexusNXSCommandPathEnvName:         "",
 		nexusClaudeCommandPathEnvName:      "",
+		nexusMemoryDirEnvName:              workspacePath,
+		nexusEnableRemoteMemoryEnvName:     "",
+		nexusRemoteMemoryDirEnvName:        "",
 	}
 	// workspaceRuntimeEnv 会从宿主环境读取已经校验过的 nexusctl 路径；
 	// 在 ExtraEnv 之后再次合并，确保请求不能把命令或 workspace 指向别处。
 	maps.Copy(env, workspaceRuntimeEnv(workspacePath))
-	env[workspacePathEnvName] = strings.TrimSpace(workspacePath)
+	env[workspacePathEnvName] = workspacePath
 	return env
 }
 

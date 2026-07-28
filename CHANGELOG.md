@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Pinned Nexus-managed long-term memory to the current Agent workspace and rejected inherited or request-level remote-memory overrides, keeping runtime reads and writes aligned with the Web memory view.
 - Fixed `nexusctl` treating an owner's `runtime` directory and current Agent workspace as host-level state roots after the owner-scoped layout change.
 - Updated the bundled `nexus-manager` Skill with the owner-scoped directory layout, CLI root-resolution rules, and enforce-mode control-plane boundary.
 - Fixed Agent Skill bindings being overwritten by stale editor snapshots, and aligned nxs/Claude runtime discovery so project Skills remain dynamically discoverable while explicit Agent disables are enforced.
