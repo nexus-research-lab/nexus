@@ -49,6 +49,12 @@
       "recommendation": "适合需要最新网页信息的研究任务。"
     },
     {
+      "name": "wechat-article-search",
+      "category_key": "research-analysis",
+      "category_name": "研究与分析",
+      "recommendation": "适合按关键词发现微信公众号文章，并快速整理来源、时间与可访问链接。"
+    },
+    {
       "name": "mcp-builder",
       "category_key": "programming-development",
       "category_name": "编程与开发",

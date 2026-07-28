@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added a bundled Python-based `wechat-article-search` Skill with documented Requests/Beautiful Soup dependencies, optional direct-link resolution, deterministic offline parsing tests, and WebSearch/WebFetch fallback guidance.
 - Improved Windows and macOS desktop updates with launch-time checks, automatic four-hour refreshes, sidebar availability indicators, and live installer download progress.
 - Made Room hosts assess task complexity, separable work, and member fit before substantial execution, prefer meaningful collaboration, and avoid duplicating work after delegating while retaining direct handling for small, atomic, or unsuitable-for-delegation tasks.
 

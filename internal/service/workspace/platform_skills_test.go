@@ -17,9 +17,14 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 	if err := EnsurePlatformSkillLibrary(); err != nil {
 		t.Fatalf("同步平台 Skill 库失败: %v", err)
 	}
-	nxsSkill := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "ima-skill", "SKILL.md")
-	claudeSkill := filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "ima-skill", "SKILL.md")
-	for _, path := range []string{nxsSkill, claudeSkill} {
+	for _, path := range []string{
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "ima-skill", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "ima-skill", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "wechat-article-search", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "wechat-article-search", "requirements.txt"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "wechat-article-search", "scripts", "search.py"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "wechat-article-search", "scripts", "search.py"),
+	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("平台 Skill 入口缺失 %s: %v", path, err)
 		}
