@@ -9,11 +9,10 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 func (s *Service) postJSONWithRetries(ctx context.Context, endpoint string, token string, payload any, output any) error {
@@ -49,7 +48,7 @@ func (s *Service) postMultipartWithRetries(
 			}
 		}
 		for name, fileRef := range files {
-			if err := appendMultipartFile(writer, name, fileRef); err != nil {
+			if err := s.appendMultipartFile(ctx, writer, name, fileRef); err != nil {
 				return err
 			}
 		}
@@ -71,13 +70,18 @@ type multipartFileRef struct {
 	RelativePath  string
 }
 
-func appendMultipartFile(writer *multipart.Writer, name string, fileRef multipartFileRef) error {
-	root, err := confinedfs.Open(fileRef.WorkspacePath)
+func (s *Service) appendMultipartFile(
+	ctx context.Context,
+	writer *multipart.Writer,
+	name string,
+	fileRef multipartFileRef,
+) error {
+	root, err := s.openWorkspace(ctx, fileRef.WorkspacePath, false)
 	if err != nil {
 		return err
 	}
 	defer root.Close()
-	file, err := root.Open(fileRef.RelativePath)
+	file, err := root.OpenFileNoSymlink(fileRef.RelativePath, os.O_RDONLY, 0)
 	if err != nil {
 		return err
 	}

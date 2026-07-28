@@ -259,15 +259,16 @@ func TestPublicHandoffAdmissionDetectsCycle(t *testing.T) {
 
 func TestPublicHandoffAdmissionRejectsRecordedCycleAndRootOverflow(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
 	t.Setenv("NEXUS_CONFIG_DIR", root)
 	conversationID := "conversation-admission-guard"
 	store := workspacestore.NewRoomPublicHandoffStore(root)
 	detect := func(handoff workspacestore.RoomPublicHandoff) {
 		t.Helper()
-		if _, _, err := store.Detect(handoff); err != nil {
+		if _, _, err := store.Detect("owner", handoff); err != nil {
 			t.Fatal(err)
 		}
-		if err := store.MarkSourceFinished(conversationID, handoff.HandoffID); err != nil {
+		if err := store.MarkSourceFinished("owner", conversationID, handoff.HandoffID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -280,7 +281,7 @@ func TestPublicHandoffAdmissionRejectsRecordedCycleAndRootOverflow(t *testing.T)
 		SourceMessageID: "message-back", SourceAgentID: "agent-b", TargetAgentID: "agent-a",
 	})
 	service := &Service{publicHandoffs: store}
-	parent := &activeRoomRound{ConversationID: conversationID, RootRoundID: "root-guard"}
+	parent := &activeRoomRound{ConversationID: conversationID, RootRoundID: "root-guard", OwnerUserID: "owner"}
 	accepted, err := service.admitPublicMentionWakes(context.Background(), parent, []publicMentionWake{{
 		HandoffID: "rh-cycle-back", QueueSource: protocol.InputQueueSourceAgentPublicMention,
 		SourceAgentID: "agent-b", TargetAgentID: "agent-a",
@@ -291,7 +292,7 @@ func TestPublicHandoffAdmissionRejectsRecordedCycleAndRootOverflow(t *testing.T)
 	if len(accepted) != 0 {
 		t.Fatalf("已记录的 reciprocal edge 仍必须经过 cycle guard: %+v", accepted)
 	}
-	cycle, ok, err := store.Get(conversationID, "rh-cycle-back")
+	cycle, ok, err := store.Get("owner", conversationID, "rh-cycle-back")
 	if err != nil || !ok || cycle.Status != "error" {
 		t.Fatalf("cycle handoff 应收口为 error: handoff=%+v ok=%v err=%v", cycle, ok, err)
 	}
@@ -312,7 +313,7 @@ func TestPublicHandoffAdmissionRejectsRecordedCycleAndRootOverflow(t *testing.T)
 		SourceMessageID: "message-overflow-new", SourceAgentID: "agent-source-new", TargetAgentID: "agent-target-new",
 	})
 	accepted, err = service.admitPublicMentionWakes(context.Background(), &activeRoomRound{
-		ConversationID: conversationID, RootRoundID: "root-overflow",
+		ConversationID: conversationID, RootRoundID: "root-overflow", OwnerUserID: "owner",
 	}, []publicMentionWake{{
 		HandoffID: overflowID, QueueSource: protocol.InputQueueSourceAgentPublicMention,
 		SourceAgentID: "agent-source-new", TargetAgentID: "agent-target-new",
@@ -449,6 +450,7 @@ func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t
 
 func TestSyncQueuedPublicUserMessageKeepsFirstReplyRootAndMergesTargets(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
 	conversationID := "conversation-stable-public-user-message"
 	roomID := "room-stable-public-user-message"
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
@@ -458,7 +460,7 @@ func TestSyncQueuedPublicUserMessageKeepsFirstReplyRootAndMergesTargets(t *testi
 		permission:  permissionctx.NewContext(),
 	}
 	contextValue := &protocol.ConversationContextAggregate{
-		Room:         protocol.RoomRecord{ID: roomID, RoomType: protocol.RoomTypeGroup},
+		Room:         protocol.RoomRecord{ID: roomID, OwnerUserID: "owner", RoomType: protocol.RoomTypeGroup},
 		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
 	}
 	baseItem := protocol.InputQueueItem{
@@ -480,7 +482,7 @@ func TestSyncQueuedPublicUserMessageKeepsFirstReplyRootAndMergesTargets(t *testi
 		t.Fatal(err)
 	}
 
-	messages, err := history.ReadMessages(conversationID, nil)
+	messages, err := history.ReadMessages(contextValue.Room.OwnerUserID, conversationID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

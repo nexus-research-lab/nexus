@@ -33,6 +33,7 @@ func TestRootPrefersConfiguredBundleRoot(t *testing.T) {
 
 func TestConfigDirUsesNexusConfigDir(t *testing.T) {
 	configDir := filepath.Join(t.TempDir(), ".nexus-custom")
+	t.Setenv(NexusStateRootEnvName, "")
 	t.Setenv(nexusConfigDirEnvName, configDir)
 
 	if got := ConfigDir(); got != filepath.Clean(configDir) {

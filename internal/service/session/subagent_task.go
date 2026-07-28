@@ -12,9 +12,11 @@ import (
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 const maxSubagentOutputBytes = 2 * 1024 * 1024
@@ -137,13 +139,17 @@ func (s *Service) GetSubagentTaskMessages(ctx context.Context, rawSessionKey str
 		return nil, err
 	}
 	workspacePath := s.subagentTaskWorkspacePath(ctx, *task)
-	messages, outputIsTranscript, err := s.readSubagentTaskThread(*task, workspacePath)
+	messages, outputIsTranscript, err := s.readOwnerSubagentTaskThread(
+		ctx,
+		*task,
+		workspacePath,
+	)
 	if err != nil {
 		return nil, err
 	}
 	output := ""
 	if !outputIsTranscript {
-		output, err = readSubagentOutputFile(task.OutputFile, workspacePath)
+		output, err = s.readSubagentOutputFile(ctx, task.OutputFile, workspacePath)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
@@ -155,15 +161,51 @@ func (s *Service) readSubagentTaskThread(
 	task SubagentTask,
 	workspacePath string,
 ) ([]protocol.Message, bool, error) {
+	return s.readSubagentTaskThreadAtOwner("", false, task, workspacePath)
+}
+
+func (s *Service) readOwnerSubagentTaskThread(
+	ctx context.Context,
+	task SubagentTask,
+	workspacePath string,
+) ([]protocol.Message, bool, error) {
+	return s.readSubagentTaskThreadAtOwner(
+		authctx.OwnerUserID(ctx),
+		true,
+		task,
+		workspacePath,
+	)
+}
+
+func (s *Service) readSubagentTaskThreadAtOwner(
+	ownerUserID string,
+	ownerBound bool,
+	task SubagentTask,
+	workspacePath string,
+) ([]protocol.Message, bool, error) {
 	agentID := subagentTaskHostAgentID(task)
 	transcriptPath := strings.TrimSpace(task.TranscriptPath)
 	if transcriptPath != "" {
-		messages, err := s.history.ReadTranscriptPathMessages(
-			transcriptPath,
-			workspacePath,
-			task.SessionKey,
-			agentID,
+		var (
+			messages []protocol.Message
+			err      error
 		)
+		if ownerBound {
+			messages, err = s.history.ReadTranscriptPathMessagesForOwner(
+				ownerUserID,
+				transcriptPath,
+				workspacePath,
+				task.SessionKey,
+				agentID,
+			)
+		} else {
+			messages, err = s.history.ReadTranscriptPathMessages(
+				transcriptPath,
+				workspacePath,
+				task.SessionKey,
+				agentID,
+			)
+		}
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return nil, false, err
 		}
@@ -176,12 +218,26 @@ func (s *Service) readSubagentTaskThread(
 	if strings.EqualFold(strings.TrimSpace(task.TaskType), "local_agent") {
 		outputPath := strings.TrimSpace(task.OutputFile)
 		if outputPath != "" {
-			messages, err := s.history.ReadTranscriptLinkMessages(
-				outputPath,
-				workspacePath,
-				task.SessionKey,
-				agentID,
+			var (
+				messages []protocol.Message
+				err      error
 			)
+			if ownerBound {
+				messages, err = s.history.ReadTranscriptLinkMessagesForOwner(
+					ownerUserID,
+					outputPath,
+					workspacePath,
+					task.SessionKey,
+					agentID,
+				)
+			} else {
+				messages, err = s.history.ReadTranscriptLinkMessages(
+					outputPath,
+					workspacePath,
+					task.SessionKey,
+					agentID,
+				)
+			}
 			if err == nil && len(messages) > 0 {
 				return messages, true, nil
 			}
@@ -695,21 +751,51 @@ func updateSubagentTaskString(target *string, source map[string]any, key string)
 }
 
 func readSubagentOutputFile(path string, workspacePath string) (string, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return "", nil
-	}
 	rootPath := filepath.Clean(strings.TrimSpace(workspacePath))
-	relativePath, err := filepath.Rel(rootPath, filepath.Clean(path))
-	if err != nil || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
-		return "", errors.New("subagent output path escapes workspace")
-	}
 	root, err := confinedfs.Open(rootPath)
 	if err != nil {
 		return "", err
 	}
 	defer root.Close()
-	file, err := root.Open(filepath.ToSlash(relativePath))
+	return readSubagentOutputFileAt(root, path, workspacePath)
+}
+
+func (s *Service) readSubagentOutputFile(
+	ctx context.Context,
+	outputPath string,
+	workspacePath string,
+) (string, error) {
+	root, err := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+		authctx.OwnerUserID(ctx),
+		workspacePath,
+		false,
+	)
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
+	return readSubagentOutputFileAt(root, outputPath, workspacePath)
+}
+
+func readSubagentOutputFileAt(
+	root *confinedfs.Root,
+	outputPath string,
+	workspacePath string,
+) (string, error) {
+	outputPath = strings.TrimSpace(outputPath)
+	if outputPath == "" {
+		return "", nil
+	}
+	rootPath := filepath.Clean(strings.TrimSpace(workspacePath))
+	relativePath, err := filepath.Rel(rootPath, filepath.Clean(outputPath))
+	if err != nil || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return "", errors.New("subagent output path escapes workspace")
+	}
+	file, err := root.OpenFileNoSymlink(
+		filepath.ToSlash(relativePath),
+		os.O_RDONLY,
+		0,
+	)
 	if err != nil {
 		return "", err
 	}

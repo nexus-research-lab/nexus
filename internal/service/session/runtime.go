@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -37,6 +38,7 @@ func (s *Service) applyRuntimeStateToSession(item protocol.Session) protocol.Ses
 }
 
 func (s *Service) reconcileWorkspaceSessionRuntimeState(
+	ctx context.Context,
 	workspacePath string,
 	item protocol.Session,
 ) (protocol.Session, error) {
@@ -48,7 +50,10 @@ func (s *Service) reconcileWorkspaceSessionRuntimeState(
 	if reconciled.IsActive || (normalized.Status == reconciled.Status && normalized.IsActive == reconciled.IsActive) {
 		return reconciled, nil
 	}
-	updated, err := s.files.UpsertSession(workspacePath, closePersistedSessionMeta(reconciled))
+	updated, err := s.ownerFiles(ctx).UpsertSession(
+		workspacePath,
+		closePersistedSessionMeta(reconciled),
+	)
 	if err != nil {
 		return protocol.Session{}, err
 	}

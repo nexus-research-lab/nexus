@@ -4,14 +4,13 @@ package memorymaintenance
 
 import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
-func autoDreamEnabled(agentValue protocol.Agent) (bool, error) {
-	if err := agentsvc.EnsureRuntimeSettingsProjection(agentValue); err != nil {
+func autoDreamEnabled(catalog agentCatalog, agentValue protocol.Agent) (bool, error) {
+	if err := catalog.EnsureRuntimeSettingsProjection(agentValue); err != nil {
 		return false, err
 	}
-	settings, err := agentsvc.LoadRuntimeSettingsProjection(agentValue.WorkspacePath)
+	settings, err := catalog.LoadRuntimeSettingsProjection(agentValue)
 	if err != nil {
 		return false, err
 	}

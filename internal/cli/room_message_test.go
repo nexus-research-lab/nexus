@@ -12,7 +12,7 @@ func TestRoomMessageListAndCursorsUseDirectedMessageStore(t *testing.T) {
 	migrateCLISQLite(t, cfg.DatabaseURL)
 
 	store := workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath)
-	if err := store.AppendMessage(protocol.RoomDirectedMessageRecord{
+	if err := store.AppendMessage("", protocol.RoomDirectedMessageRecord{
 		MessageID:      "message-1",
 		RoomID:         "room-1",
 		ConversationID: "conversation-1",
@@ -25,7 +25,7 @@ func TestRoomMessageListAndCursorsUseDirectedMessageStore(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("写入第一条 directed message 失败: %v", err)
 	}
-	if err := store.AppendMessage(protocol.RoomDirectedMessageRecord{
+	if err := store.AppendMessage("", protocol.RoomDirectedMessageRecord{
 		MessageID:      "message-2",
 		RoomID:         "room-1",
 		ConversationID: "conversation-1",
@@ -42,7 +42,7 @@ func TestRoomMessageListAndCursorsUseDirectedMessageStore(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("写入第二条 directed message 失败: %v", err)
 	}
-	if err := store.AppendMessageCursor(workspacestore.RoomDirectedMessageCursor{
+	if err := store.AppendMessageCursor("", workspacestore.RoomDirectedMessageCursor{
 		RoomID:               "room-1",
 		ConversationID:       "conversation-1",
 		AgentID:              "agent-devin",

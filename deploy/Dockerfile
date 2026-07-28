@@ -167,9 +167,10 @@ RUN test -x /usr/local/bin/claude && \
 	    '  "landlock_required": true,' \
 	    '  "cgroup_root": "",' \
 	    '  "cgroup_required": false,' \
-	    '  "runtime_executables": {' \
+    '  "runtime_executables": {' \
     '    "nxs": "/opt/app/bin/nxs",' \
-    '    "claude": "/usr/local/bin/claude"' \
+    '    "claude": "/usr/local/bin/claude",' \
+    '    "script": "/bin/sh"' \
     '  },' \
     '  "read_only_roots": [' \
     '    "/opt/app",' \

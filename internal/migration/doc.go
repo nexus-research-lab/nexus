@@ -10,8 +10,9 @@
 //   - legacy_memory_skill.go：旧版内置 memory-manager Skill 精确清理迁移。
 //   - retired_skills.go：已退役系统 Skill 清理迁移。
 //   - provider_scope_recovery.go：桌面 App 本地 SQLite 的旧 Provider scope 数据补偿。
+//   - room_files.go：旧 app/rooms 到用户 state/rooms 与 workspace/.rooms 的 owner 级迁移。
 //
-// 暴露接口：RunWorkspaceFiles、RunRuntimeIdentitySync、RepairDesktopProviderScope。
+// 暴露接口：RunWorkspaceFiles、RunRoomFiles、RunRuntimeIdentitySync、RepairDesktopProviderScope。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package migration

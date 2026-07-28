@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
 )
@@ -32,6 +33,10 @@ func (c *sessionDeliveryChannel) sendRoomDeliveryText(
 	}
 
 	now := time.Now().UTC()
+	ownerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx))
+	if ownerUserID == "" {
+		return nil, errors.New("room delivery requires owner")
+	}
 	roundID := c.idFactory("delivery_round")
 	assistantMessage := protocol.Message{
 		"message_id":      c.idFactory("assistant"),
@@ -53,7 +58,11 @@ func (c *sessionDeliveryChannel) sendRoomDeliveryText(
 			"source": roomDeliverySource,
 		},
 	}
-	if err := c.roomHistory.AppendInlineMessage(conversationID, assistantMessage); err != nil {
+	if err := c.roomHistory.AppendInlineMessage(
+		ownerUserID,
+		conversationID,
+		assistantMessage,
+	); err != nil {
 		return nil, err
 	}
 

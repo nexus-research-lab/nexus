@@ -99,6 +99,9 @@ func ensureIdentityLayout(config launcherConfig, value *identity) (bool, error) 
 		return false, err
 	}
 	_ = unix.Close(runtimeRootFD)
+	if err := ensureHostStateLayout(userRoot, config.HostGID); err != nil {
+		return false, err
+	}
 	requiredDirectories := []string{
 		filepath.Join(userRoot, "runtime", "projects"),
 		filepath.Join(userRoot, "runtime", "home"),
@@ -150,6 +153,16 @@ func ensureIdentityLayout(config launcherConfig, value *identity) (bool, error) 
 		if path == userRoot || path == workspaceRoot || path == runtimeRoot {
 			return nil
 		}
+		stateRoot := filepath.Join(userRoot, "state")
+		if path == stateRoot {
+			return nil
+		}
+		if pathWithin(path, stateRoot) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if info.IsDir() && filepath.Dir(path) == workspaceRoot {
 			fd, openErr := openPathNoSymlink(path, true)
 			if openErr != nil {
@@ -175,6 +188,54 @@ func ensureIdentityLayout(config launcherConfig, value *identity) (bool, error) 
 	}
 	value.LayoutVersion = userLayoutVersion
 	return true, nil
+}
+
+// ensureHostStateLayout 将宿主代 Room 状态固定在 runtime 之外。
+//
+// state 根由 root/host group 持有，runtime 私有组没有任何访问位；这样
+// runtime 即使知道绝对路径，也不能伪造 handoff、wake 或共享 Room overlay。
+func ensureHostStateLayout(userRoot string, hostGID int) error {
+	stateRoot := filepath.Join(userRoot, "state")
+	stateFD, err := ensureDirectoryNoSymlink(stateRoot, 0o770)
+	if err != nil {
+		return err
+	}
+	_ = unix.Close(stateFD)
+	if err = applyHostPath(stateRoot, os.ModeDir, hostGID); err != nil {
+		return err
+	}
+
+	roomsRoot := filepath.Join(stateRoot, "rooms")
+	roomsFD, err := ensureDirectoryNoSymlink(roomsRoot, 0o770)
+	if err != nil {
+		return err
+	}
+	_ = unix.Close(roomsFD)
+	return normalizeHostStateTree(stateRoot, hostGID)
+}
+
+func normalizeHostStateTree(root string, hostGID int) error {
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("宿主用户状态不能包含符号链接: %s", path)
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return fmt.Errorf("宿主用户状态不能包含特殊文件: %s", path)
+		}
+		if info.Mode().IsRegular() {
+			if stat, ok := info.Sys().(*unix.Stat_t); ok && stat.Nlink > 1 {
+				return fmt.Errorf("宿主用户状态不能包含硬链接文件: %s", path)
+			}
+		}
+		return applyHostPath(path, info.Mode(), hostGID)
+	})
 }
 
 func ensureHostLayout(config launcherConfig) error {
@@ -214,7 +275,10 @@ func ensureHostLayout(config launcherConfig) error {
 		return err
 	}
 	_ = unix.Close(appRootFD)
-	for _, name := range []string{"cache", "config", "data", "logs", "rooms"} {
+	if err := lockLegacyRoomRoot(appRoot, config.HostGID); err != nil {
+		return err
+	}
+	for _, name := range []string{"cache", "config", "data", "logs"} {
 		root := filepath.Join(appRoot, name)
 		rootFD, err := ensureDirectoryNoSymlink(root, 0o770)
 		if err != nil {
@@ -271,6 +335,26 @@ func ensureHostLayout(config launcherConfig) error {
 		}
 	}
 	return nil
+}
+
+// lockLegacyRoomRoot 只收紧旧迁移源的根目录，不遍历内容。
+//
+// 目录内的 symlink、硬链接和特殊文件由 Room 迁移逐项隔离；先撤销根目录的
+// runtime ACL，可避免旧 runtime 在 owner 解析与复制期间继续换入文件。
+func lockLegacyRoomRoot(appRoot string, hostGID int) error {
+	legacyRoot := filepath.Join(appRoot, "rooms")
+	info, err := os.Lstat(legacyRoot)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		// 交给非阻断迁移移入隔离区；权限同步不跟随不可信路径。
+		return nil
+	}
+	return applyHostPath(legacyRoot, info.Mode(), hostGID)
 }
 
 // ensureRuntimeReadOnlyAncestors 只为 state_root/app 下的显式只读根开放

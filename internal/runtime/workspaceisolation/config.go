@@ -13,6 +13,8 @@ const (
 	LauncherTicketEnvName = "NEXUS_RUNTIME_ISOLATION_TICKET"
 	// LauncherModeEnvName 只用于 runtime 诊断；launcher 会在 exec 前移除。
 	LauncherModeEnvName = "NEXUS_RUNTIME_ISOLATION_MODE"
+	// ScriptRuntimeKind 是 launcher 内置的受限自动化脚本执行型。
+	ScriptRuntimeKind = "script"
 )
 
 // Mode 表示宿主 workspace policy 的执行级别。

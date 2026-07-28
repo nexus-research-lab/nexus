@@ -11,6 +11,7 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 
@@ -169,9 +170,13 @@ func TestServiceCreateTaskRejectsRoomTargetAgentOutsideMembers(t *testing.T) {
 
 func TestServiceRunTaskNowExecutesScriptTaskWithoutAgentRunner(t *testing.T) {
 	db := newAutomationTestDB(t)
-	workspacePath := t.TempDir()
+	workspacePath := newAutomationOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
 	service := NewService(
-		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		config.Config{
+			DatabaseDriver: "sqlite",
+			WorkspacePath:  workspacePath,
+			AppMode:        "desktop",
+		},
 		db,
 		nil,
 		nil,
@@ -240,6 +245,70 @@ func TestServiceRunTaskNowExecutesScriptTaskWithoutAgentRunner(t *testing.T) {
 	}
 	if !strings.Contains(string(artifactContent), "automation-script-output") {
 		t.Fatalf("脚本运行产物缺少输出: %s", string(artifactContent))
+	}
+}
+
+func TestServiceRunTaskNowNeverFallsBackToHostForServerScript(t *testing.T) {
+	db := newAutomationTestDB(t)
+	workspacePath := newAutomationOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
+	service := NewService(
+		config.Config{
+			DatabaseDriver:       "sqlite",
+			WorkspacePath:        workspacePath,
+			AppMode:              "server",
+			RuntimeIsolationMode: "off",
+		},
+		db,
+		nil,
+		nil,
+		nil,
+		permissionctx.NewContext(),
+		&fakeWorkspaceReader{},
+		nil,
+	)
+
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
+		Name:          "server script isolation",
+		AgentID:       "agent-1",
+		Instruction:   "printf should-not-run > host-fallback-marker.txt",
+		ExecutionKind: automationdomain.ExecutionKindScript,
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
+		Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Enabled:       true,
+	})
+	if err != nil {
+		t.Fatalf("CreateTask 失败: %v", err)
+	}
+
+	result, err := service.RunTaskNow(context.Background(), task.JobID)
+	if err != nil {
+		t.Fatalf("RunTaskNow 失败: %v", err)
+	}
+	if result.Status != automationdomain.RunStatusRunning {
+		t.Fatalf("期望脚本任务立即返回 running，实际 %s", result.Status)
+	}
+
+	waitFor(t, 2*time.Second, func() bool {
+		runs, listErr := service.ListTaskRuns(context.Background(), task.JobID)
+		return listErr == nil &&
+			len(runs) == 1 &&
+			runs[0].Status == automationdomain.RunStatusFailed
+	})
+	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("读取 server 脚本 run 失败: runs=%+v err=%v", runs, err)
+	}
+	if runs[0].ErrorMessage == nil ||
+		!strings.Contains(*runs[0].ErrorMessage, "requires runtime isolation enforce") {
+		t.Fatalf("server 脚本应因隔离未启用而失败: %+v", runs[0].ErrorMessage)
+	}
+	if _, statErr := os.Stat(filepath.Join(workspacePath, "host-fallback-marker.txt")); !os.IsNotExist(statErr) {
+		t.Fatalf("server 脚本不应回退到宿主 shell，marker stat=%v", statErr)
 	}
 }
 

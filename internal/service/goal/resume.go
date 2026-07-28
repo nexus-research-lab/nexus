@@ -48,8 +48,11 @@ func (s *Service) StartAutoResume(ctx context.Context, dispatcher ContinuationDi
 	if !s.config.GoalAutoContinueEnabled || dispatcher == nil {
 		return func() {}, nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
-	loopCtx, cancel := context.WithCancel(context.Background())
+	loopCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)

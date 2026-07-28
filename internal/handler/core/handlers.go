@@ -204,6 +204,10 @@ func (h *Handlers) syncWebSearchRuntime(ctx context.Context, preferences prefere
 
 // HandleGetRuntimeSettings 返回当前主机级运行配置。
 func (h *Handlers) HandleGetRuntimeSettings(writer http.ResponseWriter, request *http.Request) {
+	if !canManageHostRuntimeSettings(request.Context()) {
+		h.api.WriteFailure(writer, http.StatusForbidden, "host runtime settings access required")
+		return
+	}
 	settings, err := config.LoadRuntimeSettings()
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
@@ -214,6 +218,10 @@ func (h *Handlers) HandleGetRuntimeSettings(writer http.ResponseWriter, request 
 
 // HandleUpdateRuntimeSettings 更新当前主机级运行配置。
 func (h *Handlers) HandleUpdateRuntimeSettings(writer http.ResponseWriter, request *http.Request) {
+	if !canManageHostRuntimeSettings(request.Context()) {
+		h.api.WriteFailure(writer, http.StatusForbidden, "host runtime settings access required")
+		return
+	}
 	var payload config.RuntimeSettings
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
@@ -224,6 +232,20 @@ func (h *Handlers) HandleUpdateRuntimeSettings(writer http.ResponseWriter, reque
 		return
 	}
 	h.api.WriteSuccess(writer, h.runtimeSettingsResponse(settings))
+}
+
+func canManageHostRuntimeSettings(ctx context.Context) bool {
+	principal := authsvc.PrincipalFromContext(ctx)
+	if principal == nil {
+		// 未启用认证时只有本地单用户，宿主设置仍由当前用户管理。
+		return true
+	}
+	switch strings.TrimSpace(principal.Role) {
+	case authsvc.RoleOwner, authsvc.RoleAdmin:
+		return true
+	default:
+		return false
+	}
 }
 
 // HandleNXSRuntimeStatus 返回当前主机上 nxs runtime 的本地可用状态。

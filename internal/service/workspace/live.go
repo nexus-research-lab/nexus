@@ -2,12 +2,14 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 const (
@@ -32,6 +34,7 @@ type activeWriteState struct {
 type agentWatcher struct {
 	AgentID      string
 	Root         string
+	RootFS       *confinedfs.Root
 	Watcher      *fsnotify.Watcher
 	Cancel       context.CancelFunc
 	RefCount     int
@@ -56,13 +59,25 @@ func newLiveManager() *liveManager {
 	}
 }
 
-func (m *liveManager) Subscribe(agentID string, workspacePath string, listener LiveListener) (string, error) {
+// Subscribe 接管 workspaceRoot，直到订阅复用、失败或最后一个订阅被取消。
+func (m *liveManager) Subscribe(
+	agentID string,
+	workspacePath string,
+	workspaceRoot *confinedfs.Root,
+	listener LiveListener,
+) (string, error) {
 	if listener == nil {
+		if workspaceRoot != nil {
+			workspaceRoot.Close()
+		}
 		return "", nil
 	}
 	normalizedAgentID := strings.TrimSpace(agentID)
 	root := filepath.Clean(strings.TrimSpace(workspacePath))
-	if normalizedAgentID == "" || root == "" {
+	if normalizedAgentID == "" || root == "" || workspaceRoot == nil {
+		if workspaceRoot != nil {
+			workspaceRoot.Close()
+		}
 		return "", nil
 	}
 
@@ -71,11 +86,20 @@ func (m *liveManager) Subscribe(agentID string, workspacePath string, listener L
 
 	watcherState := m.watchers[normalizedAgentID]
 	if watcherState == nil {
-		created, err := m.startWatcherLocked(normalizedAgentID, root)
+		created, err := m.startWatcherLocked(
+			normalizedAgentID,
+			root,
+			workspaceRoot,
+		)
 		if err != nil {
 			return "", err
 		}
 		watcherState = created
+	} else {
+		workspaceRoot.Close()
+		if filepath.Clean(watcherState.Root) != root {
+			return "", errors.New("live watcher workspace changed for agent")
+		}
 	}
 	watcherState.RefCount++
 
@@ -128,6 +152,9 @@ func (m *liveManager) Unsubscribe(token string) {
 	}
 	if watcherState.Watcher != nil {
 		_ = watcherState.Watcher.Close()
+	}
+	if watcherState.RootFS != nil {
+		_ = watcherState.RootFS.Close()
 	}
 	delete(m.watchers, subscription.AgentID)
 }

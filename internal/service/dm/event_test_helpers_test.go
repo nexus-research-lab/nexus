@@ -115,10 +115,27 @@ func collectEventsUntil(
 
 func waitForDMRuntimeIdle(t *testing.T, runtimeManager *runtimectx.Manager, sessionKey string) {
 	t.Helper()
+	waitContext, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 	deadline := time.After(3 * time.Second)
 	for {
 		if len(runtimeManager.GetRunningRoundIDs(sessionKey)) == 0 {
-			return
+			if err := runtimeManager.WaitBackgroundTasks(waitContext, sessionKey); err != nil {
+				t.Fatalf("等待 DM 后台任务结束失败: %v", err)
+			}
+			// round 进入终态后仍会登记队列/Goal 后台任务；再做一次
+			// 稳定性检查，避免 TempDir 清理与异步 workspace 写入竞态。
+			select {
+			case <-time.After(10 * time.Millisecond):
+			case <-deadline:
+				t.Fatalf("等待 DM runtime 空闲超时")
+			}
+			if len(runtimeManager.GetRunningRoundIDs(sessionKey)) == 0 {
+				if err := runtimeManager.WaitBackgroundTasks(waitContext, sessionKey); err != nil {
+					t.Fatalf("等待 DM 后台任务稳定结束失败: %v", err)
+				}
+				return
+			}
 		}
 		select {
 		case <-deadline:

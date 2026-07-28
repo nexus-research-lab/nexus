@@ -19,7 +19,7 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 		ctx = context.Background()
 	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
-	targets := make([]idleSessionTarget, 0)
+	targets := make([]*sessionCloseTarget, 0)
 	var reaperErr error
 
 	m.mu.Lock()
@@ -27,18 +27,10 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 		if state == nil || state.OwnerUserID != ownerUserID {
 			continue
 		}
-		if state.Client == nil {
-			delete(m.sessions, sessionKey)
-			continue
+		target, started, _ := m.beginSessionCloseLocked(sessionKey)
+		if started {
+			targets = append(targets, target)
 		}
-		targets = append(targets, idleSessionTarget{
-			sessionKey:        sessionKey,
-			ownerUserID:       state.OwnerUserID,
-			client:            state.Client,
-			roundCancels:      copyRoundCancels(state.RoundCancels),
-			idleMessageCancel: state.IdleMessageCancel,
-		})
-		delete(m.sessions, sessionKey)
 	}
 	// 回收动作在释放 Manager 锁前执行，阻止新的同 owner session 在
 	// cgroup.kill 与旧 session 清理之间插入。
@@ -58,9 +50,30 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 				cancel()
 			}
 		}
-		disconnectCtx, cancel := context.WithTimeout(ctx, RoundIdleAbortTimeout)
-		err := target.client.Disconnect(disconnectCtx)
-		cancel()
+		for _, cancel := range target.backgroundCancels {
+			if cancel != nil {
+				cancel()
+			}
+		}
+		var err error
+		if target.client != nil {
+			disconnectCtx, cancel := context.WithTimeout(ctx, RoundIdleAbortTimeout)
+			err = target.client.Disconnect(disconnectCtx)
+			cancel()
+		}
+		backgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
+		if backgroundErr != nil {
+			err = errors.Join(err, backgroundErr)
+		}
+		roundErr := waitRoundDoneForClose(ctx, target.roundDone)
+		if roundErr != nil {
+			err = errors.Join(err, roundErr)
+		}
+		if backgroundErr != nil || roundErr != nil {
+			m.finishSessionCloseWhenDone(target)
+		} else {
+			m.finishSessionClose(target)
+		}
 		if err != nil && !IsRuntimeTransportClosedError(err) {
 			errs = append(errs, fmt.Errorf(
 				"close owner runtime session %s: %w",
@@ -77,7 +90,7 @@ func (m *Manager) reapOwnerIfLastLocked(ctx context.Context, ownerUserID string)
 		return nil
 	}
 	for _, state := range m.sessions {
-		if state != nil && state.Client != nil && state.OwnerUserID == ownerUserID {
+		if state != nil && !state.Closing && state.Client != nil && state.OwnerUserID == ownerUserID {
 			return nil
 		}
 	}

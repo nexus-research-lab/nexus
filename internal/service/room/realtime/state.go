@@ -95,6 +95,7 @@ type roomSlotMutableState struct {
 type activeRoomSlot struct {
 	// 以下字段是 slot 创建后不再改变的稳定身份。
 	RoomSessionID      string
+	OwnerUserID        string
 	AgentID            string
 	AgentRoundID       string
 	MsgID              string

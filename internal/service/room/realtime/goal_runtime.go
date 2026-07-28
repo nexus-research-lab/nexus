@@ -662,7 +662,7 @@ func (s *Service) RoomGoalCompletionBlocker(
 	if blocker, err := s.roomGoalInputQueueBlocker(ctx, contextValue); err != nil || blocker != "" {
 		return blocker, err
 	}
-	return s.roomGoalDelayedWakeBlocker(conversationID)
+	return s.roomGoalDelayedWakeBlocker(contextValue.Room.OwnerUserID, conversationID)
 }
 
 func (s *Service) activeRoomGoalBlocker(
@@ -736,11 +736,11 @@ func (s *Service) roomGoalInputQueueBlocker(
 	return fmt.Sprintf("Room input queue item %s has not been consumed", strings.TrimSpace(entries[0].Item.ID)), nil
 }
 
-func (s *Service) roomGoalDelayedWakeBlocker(conversationID string) (string, error) {
+func (s *Service) roomGoalDelayedWakeBlocker(ownerUserID string, conversationID string) (string, error) {
 	if s.directedWakes == nil {
 		return "", nil
 	}
-	pending, err := s.directedWakes.Pending()
+	pending, err := s.directedWakes.Pending(ownerUserID)
 	if err != nil {
 		return "", err
 	}

@@ -94,6 +94,7 @@ func TestRefreshUserSkillLibraryUpdatesClaudeMirror(t *testing.T) {
 func testSkillConfig(t *testing.T) config.Config {
 	t.Helper()
 	configRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
 	return config.Config{WorkspacePath: filepath.Join(configRoot, "workspace")}
 }

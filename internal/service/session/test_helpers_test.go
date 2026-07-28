@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -63,7 +62,7 @@ func seedRoomConversationMessages(t *testing.T, cfg config.Config, conversationI
 	t.Helper()
 
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	if err := roomHistory.AppendInlineMessage(conversationID, map[string]any{
+	if err := roomHistory.AppendInlineMessage("", conversationID, map[string]any{
 		"message_id":      "room_msg_1",
 		"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),
 		"conversation_id": conversationID,
@@ -120,6 +119,7 @@ func newSessionTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(root, ".nexus"))
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:           "127.0.0.1",
@@ -133,8 +133,6 @@ func newSessionTestConfig(t *testing.T) config.Config {
 		DatabaseURL:    filepath.Join(root, "nexus.db"),
 	}
 }
-
-var sessionTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 func writeSessionTranscriptFixture(t *testing.T, workspacePath string, sessionID string, rows []map[string]any) {
 	t.Helper()
@@ -158,62 +156,13 @@ func writeSessionTranscriptFixture(t *testing.T, workspacePath string, sessionID
 
 func sessionTranscriptProjectDir(workspacePath string) string {
 	return filepath.Join(
-		os.Getenv("NEXUS_CONFIG_DIR"),
-		"projects",
-		sanitizeSessionTranscriptPath(canonicalizeSessionTranscriptPath(workspacePath)),
+		workspacestore.TranscriptProjectsDirForWorkspace(workspacePath),
+		workspacestore.TranscriptProjectDirectoryName(workspacePath),
 	)
 }
 
 func sessionTranscriptFilePath(workspacePath string, sessionID string) string {
 	return filepath.Join(sessionTranscriptProjectDir(workspacePath), strings.TrimSpace(sessionID)+".jsonl")
-}
-
-func canonicalizeSessionTranscriptPath(path string) string {
-	if strings.TrimSpace(path) == "" {
-		return ""
-	}
-	if absolutePath, err := filepath.Abs(path); err == nil {
-		path = absolutePath
-	}
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		path = resolved
-	}
-	return path
-}
-
-func sanitizeSessionTranscriptPath(path string) string {
-	const maxLength = 200
-	sanitized := sessionTranscriptSanitizePattern.ReplaceAllString(path, "-")
-	if len(sanitized) <= maxLength {
-		return sanitized
-	}
-	return sanitized[:maxLength] + "-" + sessionTranscriptHash(path)
-}
-
-func sessionTranscriptHash(value string) string {
-	var hash int32
-	for _, character := range value {
-		hash = hash*31 + int32(character)
-	}
-
-	number := int64(hash)
-	if number < 0 {
-		number = -number
-	}
-	if number == 0 {
-		return "0"
-	}
-
-	const digits = "0123456789abcdefghijklmnopqrstuvwxyz"
-	result := make([]byte, 0, 8)
-	for number > 0 {
-		result = append(result, digits[number%36])
-		number /= 36
-	}
-	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
-		result[left], result[right] = result[right], result[left]
-	}
-	return string(result)
 }
 
 func stringValue(value any) string {

@@ -1,3 +1,6 @@
+// INPUT: 平台或用户 Skill 源目录、已授权 workspace 根与模板上下文。
+// OUTPUT: nxs/Claude Skill 入口及运行时可见 Skill 名称。
+// POS: 宿主同步 Skill 文件时的双向 confinedfs 边界。
 package workspace
 
 import (
@@ -6,14 +9,17 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var (
@@ -30,17 +36,57 @@ func BuildSkillRenderContext(agentID string, agentName string, workspacePath str
 
 // DeploySkill 把指定 skill 部署到目标 workspace。
 func DeploySkill(skillName string, sourceDir string, workspacePath string, context map[string]string) error {
+	if err := os.MkdirAll(workspacePath, workspaceDirectoryMode()); err != nil {
+		return err
+	}
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return DeploySkillAt(root, skillName, sourceDir, context)
+}
+
+// DeploySkillAt 把指定 skill 部署到已验证的 workspace 根。
+func DeploySkillAt(
+	root *confinedfs.Root,
+	skillName string,
+	sourceDir string,
+	context map[string]string,
+) error {
+	sourceRoot, err := confinedfs.Open(sourceDir)
+	if err != nil {
+		return err
+	}
+	defer sourceRoot.Close()
+	return DeploySkillAtFromRoots(root, sourceRoot, skillName, context)
+}
+
+// DeploySkillAtFromRoots 在已固定的源与目标目录句柄之间部署 Skill。
+//
+// 外部 Skill 源可能位于另一个 owner 的共享目录；调用方应先通过
+// owner-aware store 固定 sourceRoot，再把它传入，避免校验后重新打开
+// record.SourcePath 形成 TOCTOU 或跨 owner 路径旁路。
+func DeploySkillAtFromRoots(
+	root *confinedfs.Root,
+	sourceRoot *confinedfs.Root,
+	skillName string,
+	context map[string]string,
+) error {
+	if root == nil || sourceRoot == nil {
+		return errors.New("skill source 或 workspace 根句柄不能为空")
+	}
 	if err := validateWorkspaceSkillName(skillName); err != nil {
 		return err
 	}
-	agentsSkillDir := filepath.Join(workspacePath, ".agents", "skills", skillName)
-	claudeSkillEntry := filepath.Join(workspacePath, ".claude", "skills", skillName)
-	if err := syncDirectory(sourceDir, workspacePath, agentsSkillDir, context); err != nil {
+	agentsSkillDir := filepath.ToSlash(filepath.Join(".agents", "skills", skillName))
+	claudeSkillEntry := filepath.ToSlash(filepath.Join(".claude", "skills", skillName))
+	if err := syncDirectoryRootAt(sourceRoot, root, agentsSkillDir, context); err != nil {
 		return err
 	}
-	return ensureClaudeSkillEntry(
-		sourceDir,
-		workspacePath,
+	return ensureClaudeSkillEntryRootAt(
+		sourceRoot,
+		root,
 		claudeSkillEntry,
 		filepath.Join("..", "..", ".agents", "skills", skillName),
 		context,
@@ -49,13 +95,23 @@ func DeploySkill(skillName string, sourceDir string, workspacePath string, conte
 
 // UndeploySkill 从 workspace 中移除指定 skill。
 func UndeploySkill(workspacePath string, skillName string) error {
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return UndeploySkillAt(root, skillName)
+}
+
+// UndeploySkillAt 从已验证的 workspace 根移除指定 skill。
+func UndeploySkillAt(root *confinedfs.Root, skillName string) error {
 	if err := validateWorkspaceSkillName(skillName); err != nil {
 		return err
 	}
-	if err := removeWorkspaceEntry(workspacePath, filepath.Join(".agents", "skills", skillName)); err != nil && !os.IsNotExist(err) {
+	if err := root.RemoveAll(filepath.ToSlash(filepath.Join(".agents", "skills", skillName))); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if err := removeWorkspaceEntry(workspacePath, filepath.Join(".claude", "skills", skillName)); err != nil && !os.IsNotExist(err) {
+	if err := root.RemoveAll(filepath.ToSlash(filepath.Join(".claude", "skills", skillName))); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
@@ -71,16 +127,6 @@ func validateWorkspaceSkillName(name string) error {
 
 // ListDeployedSkills 返回 workspace 当前已部署的全部 skill。
 func ListDeployedSkills(workspacePath string) ([]string, error) {
-	type skillParent struct {
-		relativePath     string
-		requireSkillFile bool
-	}
-	parents := []skillParent{
-		// Claude 兼容入口可能是普通镜像目录，不能只依赖 .agents/skills。
-		{relativePath: ".agents/skills"},
-		{relativePath: ".agents", requireSkillFile: true},
-		{relativePath: ".claude/skills"},
-	}
 	root, err := confinedfs.Open(workspacePath)
 	if os.IsNotExist(err) {
 		return []string{}, nil
@@ -89,27 +135,54 @@ func ListDeployedSkills(workspacePath string) ([]string, error) {
 		return nil, err
 	}
 	defer root.Close()
+	return ListDeployedSkillsAt(root)
+}
+
+// ListDeployedSkillsAt 从已验证的 workspace 根枚举已部署 skill。
+func ListDeployedSkillsAt(root *confinedfs.Root) ([]string, error) {
+	type skillParent struct {
+		relativePath     string
+		requireSkillFile bool
+	}
+	parents := []skillParent{
+		// Claude 兼容入口可能是普通镜像目录，不能只依赖 .agents/skills。
+		{relativePath: ".agents/skills", requireSkillFile: true},
+		{relativePath: ".agents", requireSkillFile: true},
+		{relativePath: ".claude/skills", requireSkillFile: true},
+	}
 	result := []string{}
 	seen := map[string]struct{}{}
 	for _, parent := range parents {
-		entries, err := fs.ReadDir(root.FS(), parent.relativePath)
-		if os.IsNotExist(err) {
+		parentRoot, err := root.OpenRootNoSymlink(parent.relativePath)
+		if os.IsNotExist(err) || errors.Is(err, confinedfs.ErrSymlink) {
 			continue
 		}
 		if err != nil {
 			return nil, err
 		}
+		entries, err := fs.ReadDir(parentRoot.FS(), ".")
+		if err != nil {
+			parentRoot.Close()
+			return nil, err
+		}
 		for _, entry := range entries {
-			skillDir := filepath.ToSlash(filepath.Join(parent.relativePath, entry.Name()))
-			info, err := root.Stat(skillDir)
-			if err != nil || !info.IsDir() {
+			info, statErr := parentRoot.Lstat(entry.Name())
+			if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+				continue
+			}
+			skillRoot, openErr := parentRoot.OpenRootNoSymlink(entry.Name())
+			if openErr != nil {
 				continue
 			}
 			if parent.requireSkillFile {
-				if _, err = root.Stat(filepath.ToSlash(filepath.Join(skillDir, "SKILL.md"))); err != nil {
+				skillFile, fileErr := skillRoot.OpenFileNoSymlink("SKILL.md", os.O_RDONLY, 0)
+				if fileErr != nil {
+					skillRoot.Close()
 					continue
 				}
+				_ = skillFile.Close()
 			}
+			_ = skillRoot.Close()
 			key := strings.ToLower(strings.TrimSpace(entry.Name()))
 			if key == "" {
 				continue
@@ -120,6 +193,7 @@ func ListDeployedSkills(workspacePath string) ([]string, error) {
 			seen[key] = struct{}{}
 			result = append(result, entry.Name())
 		}
+		_ = parentRoot.Close()
 	}
 	sort.Strings(result)
 	return result, nil
@@ -130,6 +204,33 @@ func ListDeployedSkills(workspacePath string) ([]string, error) {
 // 外部引用以 external:<name> 形式持久化，进入 SDK 前还原为 canonical name；
 // workspace-local Skill 仍从 workspace 文件发现，避免显式白名单把它过滤掉。
 func RuntimeSkillNames(workspacePath string, selectedSkillIDs []string) ([]string, error) {
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return RuntimeSkillNamesAt(root, selectedSkillIDs)
+}
+
+// RuntimeSkillNamesForAgent 从 owner 绑定的 workspace fd 读取运行时 Skill。
+func RuntimeSkillNamesForAgent(
+	cfg config.Config,
+	agentValue protocol.Agent,
+) ([]string, error) {
+	root, err := workspacestore.New(cfg.WorkspacePath).OpenOwnerWorkspacePath(
+		agentValue.OwnerUserID,
+		agentValue.WorkspacePath,
+		false,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return RuntimeSkillNamesAt(root, agentValue.Options.SkillIDs)
+}
+
+// RuntimeSkillNamesAt 在已验证的 workspace 根中合并运行时 Skill。
+func RuntimeSkillNamesAt(root *confinedfs.Root, selectedSkillIDs []string) ([]string, error) {
 	result := make([]string, 0, len(selectedSkillIDs))
 	seen := make(map[string]struct{}, len(result))
 	for _, reference := range selectedSkillIDs {
@@ -145,7 +246,7 @@ func RuntimeSkillNames(workspacePath string, selectedSkillIDs []string) ([]strin
 			seen[normalized] = struct{}{}
 		}
 	}
-	deployedNames, err := ListDeployedSkills(workspacePath)
+	deployedNames, err := ListDeployedSkillsAt(root)
 	if err != nil {
 		return nil, err
 	}
@@ -216,48 +317,121 @@ func syncDirectory(
 	if err != nil {
 		return err
 	}
+	return syncDirectoryAt(sourceDir, root, relativeTarget, context)
+}
+
+func syncDirectoryAt(
+	sourceDir string,
+	root *confinedfs.Root,
+	relativeTarget string,
+	context map[string]string,
+) error {
+	sourceRoot, err := confinedfs.Open(sourceDir)
+	if err != nil {
+		return err
+	}
+	defer sourceRoot.Close()
+	return syncDirectoryRootAt(sourceRoot, root, relativeTarget, context)
+}
+
+func syncDirectoryRootAt(
+	sourceRoot *confinedfs.Root,
+	root *confinedfs.Root,
+	relativeTarget string,
+	context map[string]string,
+) error {
+	if sourceRoot == nil || root == nil {
+		return errors.New("skill source 或 workspace 根句柄不能为空")
+	}
+	var err error
 	if err = root.RemoveAll(relativeTarget); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if err = root.MkdirAll(relativeTarget, workspaceDirectoryMode()); err != nil {
-		return err
-	}
-	targetRoot, err := root.OpenRoot(relativeTarget)
+	targetRoot, err := root.OpenOrCreateRootNoSymlink(relativeTarget, workspaceDirectoryMode())
 	if err != nil {
 		return err
 	}
 	defer targetRoot.Close()
-	return filepath.WalkDir(sourceDir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		relativePath, err := filepath.Rel(sourceDir, path)
+	return syncSkillDirectory(sourceRoot, targetRoot, context)
+}
+
+func syncSkillDirectory(
+	sourceRoot *confinedfs.Root,
+	targetRoot *confinedfs.Root,
+	context map[string]string,
+) error {
+	entries, err := fs.ReadDir(sourceRoot.FS(), ".")
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		info, err := sourceRoot.Lstat(entry.Name())
 		if err != nil {
 			return err
 		}
-		if relativePath == "." {
-			return nil
+		if info.Mode()&os.ModeSymlink != 0 {
+			continue
 		}
-		relativePath = filepath.ToSlash(relativePath)
-		if entry.Type()&os.ModeSymlink != 0 {
-			return nil
-		}
-		if entry.IsDir() {
-			return targetRoot.MkdirAll(relativePath, workspaceDirectoryMode())
-		}
-		if err = targetRoot.MkdirAll(filepath.Dir(relativePath), workspaceDirectoryMode()); err != nil {
-			return err
-		}
-		if filepath.Base(path) == "SKILL.md" {
-			content, err := os.ReadFile(path)
+		if info.IsDir() {
+			sourceChild, err := sourceRoot.OpenRootNoSymlink(entry.Name())
 			if err != nil {
 				return err
 			}
-			rendered := renderTemplate(string(content), context)
-			return targetRoot.WriteFileAtomic(relativePath, []byte(strings.TrimSpace(rendered)+"\n"), workspaceFileMode())
+			targetChild, targetErr := targetRoot.OpenOrCreateRootNoSymlink(
+				entry.Name(),
+				workspaceDirectoryMode(),
+			)
+			if targetErr != nil {
+				sourceChild.Close()
+				return targetErr
+			}
+			copyErr := syncSkillDirectory(sourceChild, targetChild, context)
+			sourceChild.Close()
+			targetChild.Close()
+			if copyErr != nil {
+				return copyErr
+			}
+			continue
 		}
-		return copyFileToRoot(path, targetRoot, relativePath)
-	})
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		sourceFile, err := sourceRoot.OpenFileNoSymlink(entry.Name(), os.O_RDONLY, 0)
+		if err != nil {
+			return err
+		}
+		openedInfo, err := sourceFile.Stat()
+		if err != nil {
+			sourceFile.Close()
+			return err
+		}
+		if entry.Name() == "SKILL.md" {
+			content, readErr := io.ReadAll(sourceFile)
+			sourceFile.Close()
+			if readErr != nil {
+				return readErr
+			}
+			rendered := renderTemplate(string(content), context)
+			if err = targetRoot.WriteFileAtomic(
+				entry.Name(),
+				[]byte(strings.TrimSpace(rendered)+"\n"),
+				workspaceFileMode(),
+			); err != nil {
+				return err
+			}
+			continue
+		}
+		err = targetRoot.WriteFileAtomicFrom(
+			entry.Name(),
+			sourceFile,
+			workspaceCopyFileMode(openedInfo.Mode()),
+		)
+		sourceFile.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func ensureClaudeSkillEntry(
@@ -278,6 +452,42 @@ func ensureClaudeSkillEntry(
 	return nil
 }
 
+func ensureClaudeSkillEntryAt(
+	sourceDir string,
+	root *confinedfs.Root,
+	entryPath string,
+	relativeTarget string,
+	context map[string]string,
+) error {
+	sourceRoot, err := confinedfs.Open(sourceDir)
+	if err != nil {
+		return err
+	}
+	defer sourceRoot.Close()
+	return ensureClaudeSkillEntryRootAt(sourceRoot, root, entryPath, relativeTarget, context)
+}
+
+func ensureClaudeSkillEntryRootAt(
+	sourceRoot *confinedfs.Root,
+	root *confinedfs.Root,
+	entryPath string,
+	relativeTarget string,
+	context map[string]string,
+) error {
+	if sourceRoot == nil || root == nil {
+		return errors.New("skill source 或 workspace 根句柄不能为空")
+	}
+	err := ensureRelativeSymlinkAt(root, entryPath, relativeTarget)
+	if err == nil {
+		return nil
+	}
+	// Windows 默认可能没有目录 symlink 权限，失败时镜像一份给 Claude 读取。
+	if mirrorErr := syncDirectoryRootAt(sourceRoot, root, entryPath, context); mirrorErr != nil {
+		return fmt.Errorf("创建 Claude Skill 入口失败: %w；镜像目录也失败: %v", err, mirrorErr)
+	}
+	return nil
+}
+
 func ensureRelativeSymlink(rootPath string, linkPath string, relativeTarget string) error {
 	// 该 helper 同时服务只读的平台 Skill，目录需允许隔离 UID 穿越读取。
 	root, err := confinedfs.Open(rootPath)
@@ -290,57 +500,37 @@ func ensureRelativeSymlink(rootPath string, linkPath string, relativeTarget stri
 		return errors.New("symlink path escapes root")
 	}
 	relativeLink = filepath.ToSlash(relativeLink)
-	if err := root.MkdirAll(filepath.ToSlash(filepath.Dir(relativeLink)), 0o755); err != nil {
+	return ensureRelativeSymlinkAt(root, relativeLink, relativeTarget)
+}
+
+func ensureRelativeSymlinkAt(
+	root *confinedfs.Root,
+	relativeLink string,
+	relativeTarget string,
+) error {
+	parentRoot, err := root.OpenOrCreateRootNoSymlink(path.Dir(relativeLink), 0o755)
+	if err != nil {
 		return err
 	}
-	if current, err := root.Readlink(relativeLink); err == nil {
+	defer parentRoot.Close()
+	linkName := path.Base(relativeLink)
+	if current, err := parentRoot.Readlink(linkName); err == nil {
 		if current == relativeTarget {
 			return nil
 		}
-		if err = root.Remove(relativeLink); err != nil {
+		if err = parentRoot.Remove(linkName); err != nil {
 			return err
 		}
-	} else if _, statErr := root.Lstat(relativeLink); statErr == nil {
-		if err = root.RemoveAll(relativeLink); err != nil {
+	} else if _, statErr := parentRoot.Lstat(linkName); statErr == nil {
+		if err = parentRoot.RemoveAll(linkName); err != nil {
 			return err
 		}
 	}
+	linkPath := filepath.Join(root.Name(), filepath.FromSlash(relativeLink))
 	if err = createSymlink(relativeTarget, linkPath); err != nil {
 		return err
 	}
-	return root.Symlink(relativeTarget, relativeLink)
-}
-
-func copyFileToRoot(sourcePath string, targetRoot *confinedfs.Root, targetPath string) error {
-	sourceFile, err := os.Open(sourcePath)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	targetFile, err := targetRoot.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, workspaceFileMode())
-	if err != nil {
-		return err
-	}
-	defer targetFile.Close()
-
-	if _, err = io.Copy(targetFile, sourceFile); err != nil {
-		return err
-	}
-	info, err := os.Stat(sourcePath)
-	if err != nil {
-		return err
-	}
-	return targetRoot.Chmod(targetPath, workspaceCopyFileMode(info.Mode()))
-}
-
-func removeWorkspaceEntry(workspacePath string, relativePath string) error {
-	root, err := confinedfs.Open(workspacePath)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	return root.RemoveAll(relativePath)
+	return parentRoot.Symlink(relativeTarget, linkName)
 }
 
 func relativePathWithin(rootPath string, targetPath string) (string, error) {

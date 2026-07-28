@@ -26,6 +26,7 @@ func TestWebSocketSessionBinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
 
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()
@@ -68,6 +69,7 @@ func TestWebSocketDispatchesRewriteLastToControlHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
 
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()
@@ -117,6 +119,7 @@ func TestWebSocketInputQueueAckAndErrorPreserveClientIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
 
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()
@@ -186,6 +189,7 @@ func TestWebSocketDesktopSessionToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
 
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()
@@ -221,6 +225,7 @@ func TestWebSocketAppServerGoalRPC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
 
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()
@@ -298,6 +303,7 @@ func TestWebSocketAppServerGoalSetCompleteClearsCurrentGoal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
 
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()

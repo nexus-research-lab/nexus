@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -57,6 +58,14 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 // Router 返回已初始化路由。
 func (s *Server) Router() http.Handler {
 	return s.router
+}
+
+// Close 收口服务创建的后台文件任务。
+func (s *Server) Close(ctx context.Context) error {
+	if s == nil || s.services == nil {
+		return nil
+	}
+	return s.services.Close(ctx)
 }
 
 func (s *Server) mountMiddleware(logger *slog.Logger) {

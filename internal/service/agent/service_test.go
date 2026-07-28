@@ -16,7 +16,9 @@ import (
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 
 	"github.com/pressly/goose/v3"
@@ -50,6 +52,59 @@ func TestServiceListAgentsUsesSystemScopeWhenAuthIsDisabled(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].OwnerUserID != authctx.SystemUserID {
 		t.Fatalf("认证关闭时不应返回其他 owner agent: %+v", items)
+	}
+}
+
+func TestServiceGetAgentRejectsOwnerWorkspaceSymlink(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	ownerAContext := authctx.WithPrincipal(
+		context.Background(),
+		&authctx.Principal{UserID: "user-a"},
+	)
+	ownerBContext := authctx.WithPrincipal(
+		context.Background(),
+		&authctx.Principal{UserID: "user-b"},
+	)
+	ownerAAgent, err := service.CreateAgent(
+		ownerAContext,
+		protocol.CreateRequest{Name: "owner-a-agent"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerBAgent, err := service.CreateAgent(
+		ownerBContext,
+		protocol.CreateRequest{Name: "owner-b-agent"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignSettingsPath := filepath.Join(ownerBAgent.WorkspacePath, ".nexus", "settings.json")
+	before, err := os.ReadFile(foreignSettingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.RemoveAll(ownerAAgent.WorkspacePath); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Symlink(ownerBAgent.WorkspacePath, ownerAAgent.WorkspacePath); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	if _, err = service.GetAgent(ownerAContext, ownerAAgent.AgentID); !errors.Is(err, confinedfs.ErrSymlink) {
+		t.Fatalf("Agent 查询不能借 workspace symlink 写入另一 owner: %v", err)
+	}
+	after, err := os.ReadFile(foreignSettingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("被链接 owner 的 runtime settings 不应发生变化")
 	}
 }
 
@@ -525,7 +580,9 @@ func newTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	root := t.TempDir()
-	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
+	stateRoot := filepath.Join(root, ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18010,
@@ -543,7 +600,7 @@ var agentTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 func agentTranscriptProjectDir(workspacePath string) string {
 	return filepath.Join(
-		os.Getenv("NEXUS_CONFIG_DIR"),
+		appfs.UserRuntimeRoot(authctx.SystemUserID),
 		"projects",
 		sanitizeAgentTranscriptPath(canonicalizeAgentTranscriptPath(workspacePath)),
 	)

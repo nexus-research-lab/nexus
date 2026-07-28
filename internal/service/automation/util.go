@@ -59,7 +59,11 @@ func firstNonEmpty(values ...string) string {
 }
 
 func contextForJobOwner(ctx context.Context, job automationdomain.ScheduledTask) context.Context {
-	ownerUserID := strings.TrimSpace(job.OwnerUserID)
+	return contextForOwner(ctx, job.OwnerUserID)
+}
+
+func contextForOwner(ctx context.Context, ownerUserID string) context.Context {
+	ownerUserID = strings.TrimSpace(ownerUserID)
 	if ownerUserID == "" {
 		return ctx
 	}

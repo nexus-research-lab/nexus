@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -185,7 +186,7 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	if err != nil {
 		return nil, err
 	}
-	root, relative, fileInfo, err := openTranscriptPath(workspacePath, transcriptPath)
+	root, relative, fileInfo, err := s.openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
 		return nil, err
 	}
@@ -213,13 +214,65 @@ func (s *AgentHistoryStore) ReadTranscriptPathMessages(
 	sessionKey string,
 	agentID string,
 ) ([]protocol.Message, error) {
+	return s.readTranscriptPathMessagesAt(
+		nil,
+		transcriptPath,
+		workspacePath,
+		sessionKey,
+		agentID,
+	)
+}
+
+// ReadTranscriptPathMessagesForOwner 从 owner 固定的 workspace/runtime 根读取
+// 显式 transcript，避免在请求路径上重新解析可被替换的用户目录。
+func (s *AgentHistoryStore) ReadTranscriptPathMessagesForOwner(
+	ownerUserID string,
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	candidates, closeRoots, err := s.openOwnerTranscriptCandidates(
+		ownerUserID,
+		workspacePath,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer closeRoots()
+	return s.readTranscriptPathMessagesAt(
+		candidates,
+		transcriptPath,
+		workspacePath,
+		sessionKey,
+		agentID,
+	)
+}
+
+func (s *AgentHistoryStore) readTranscriptPathMessagesAt(
+	candidates []transcriptRootCandidate,
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
 	const explicitTranscriptCacheKey = "explicit-transcript"
 
 	transcriptPath = strings.TrimSpace(transcriptPath)
 	if transcriptPath == "" {
 		return []protocol.Message{}, nil
 	}
-	root, relative, fileInfo, err := openTranscriptPath(workspacePath, transcriptPath)
+	var (
+		root     *confinedfs.Root
+		relative string
+		fileInfo os.FileInfo
+		err      error
+	)
+	if candidates == nil {
+		root, relative, fileInfo, err = s.openTranscriptPath(workspacePath, transcriptPath)
+	} else {
+		root, relative, fileInfo, err = openTranscriptPathAt(candidates, transcriptPath)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -246,9 +299,39 @@ func (s *AgentHistoryStore) ReadTranscriptLinkMessages(
 	sessionKey string,
 	agentID string,
 ) ([]protocol.Message, error) {
-	targetPath, err := resolveTranscriptLinkTarget(workspacePath, transcriptPath)
+	targetPath, err := s.resolveTranscriptLinkTarget(workspacePath, transcriptPath)
 	if err != nil {
 		return nil, err
 	}
 	return s.ReadTranscriptPathMessages(targetPath, workspacePath, sessionKey, agentID)
+}
+
+// ReadTranscriptLinkMessagesForOwner 在同一组 owner 固定目录句柄内解析链接并
+// 读取最终 transcript，避免链接校验与目标打开之间重新经过绝对路径。
+func (s *AgentHistoryStore) ReadTranscriptLinkMessagesForOwner(
+	ownerUserID string,
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	candidates, closeRoots, err := s.openOwnerTranscriptCandidates(
+		ownerUserID,
+		workspacePath,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer closeRoots()
+	targetPath, err := resolveTranscriptLinkTargetAt(candidates, transcriptPath)
+	if err != nil {
+		return nil, err
+	}
+	return s.readTranscriptPathMessagesAt(
+		candidates,
+		targetPath,
+		workspacePath,
+		sessionKey,
+		agentID,
+	)
 }

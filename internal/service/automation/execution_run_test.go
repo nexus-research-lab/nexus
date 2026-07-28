@@ -10,6 +10,7 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 
@@ -19,7 +20,7 @@ import (
 
 func TestServiceRunTaskNowUpdatesRunLedger(t *testing.T) {
 	db := newAutomationTestDB(t)
-	workspacePath := t.TempDir()
+	workspacePath := newAutomationOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
 	permission := permissionctx.NewContext()
 	dm := &fakeDMRunner{
 		permission:    permission,

@@ -1,13 +1,16 @@
 package workspace
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 const nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
@@ -22,6 +25,11 @@ func ensureNexusctlShim(binDir string, context map[string]string) error {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
+	root, err := confinedfs.Open(binDir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	target, err := resolveNexusctlShimTarget(binDir, context["project_root"])
 	if err != nil {
 		return err
@@ -30,14 +38,14 @@ func ensureNexusctlShim(binDir string, context map[string]string) error {
 	if err != nil {
 		return err
 	}
-	if err = os.WriteFile(filepath.Join(binDir, "nexusctl"), []byte(content), 0o755); err != nil {
+	if err = root.WriteFileAtomic("nexusctl", []byte(content), 0o755); err != nil {
 		return err
 	}
 	cmdContent, err := renderNexusctlWindowsShim(target)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(binDir, "nexusctl.cmd"), []byte(cmdContent), 0o755)
+	return root.WriteFileAtomic("nexusctl.cmd", []byte(cmdContent), 0o755)
 }
 
 func resolveNexusctlShimTarget(binDir string, projectRoot string) (nexusctlShimTarget, error) {
@@ -146,41 +154,65 @@ exit /b %ERRORLEVEL%
 	}
 }
 
-func removeWorkspaceBinShim(workspacePath string) error {
-	// TODO: 迁移期清理旧 per-agent / per-owner nexusctl shim；确认旧版本用户已覆盖后删除。
-	root := filepath.Clean(strings.TrimSpace(workspacePath))
-	for _, binDir := range []string{
-		filepath.Join(root, ".agents", "bin"),
-		filepath.Join(filepath.Dir(root), ".agents", "bin"),
-	} {
-		if err := removeGeneratedNexusctlBinDir(binDir); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func removeGeneratedNexusctlBinDir(binDir string) error {
-	if filepath.Clean(binDir) == filepath.Clean(appfs.AgentRuntimeBinDir()) {
+func removeWorkspaceBinShim(root *confinedfs.Root) error {
+	binRoot, err := root.OpenRootNoSymlink(".agents/bin")
+	if os.IsNotExist(err) {
 		return nil
 	}
+	if err != nil {
+		return err
+	}
+	closed := false
+	defer func() {
+		if !closed {
+			_ = binRoot.Close()
+		}
+	}()
 	for _, fileName := range []string{"nexusctl", "nexusctl.cmd"} {
-		targetPath := filepath.Join(binDir, fileName)
-		content, err := os.ReadFile(targetPath)
+		info, statErr := binRoot.Lstat(fileName)
+		if os.IsNotExist(statErr) {
+			continue
+		}
+		if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			continue
+		}
+		file, err := binRoot.OpenFileNoSymlink(fileName, os.O_RDONLY, 0)
 		if os.IsNotExist(err) {
 			continue
 		}
 		if err != nil {
+			if errors.Is(err, confinedfs.ErrSymlink) || errors.Is(err, confinedfs.ErrHardlink) {
+				continue
+			}
 			return err
+		}
+		content, readErr := io.ReadAll(file)
+		closeErr := file.Close()
+		if readErr != nil {
+			return readErr
+		}
+		if closeErr != nil {
+			return closeErr
 		}
 		if !looksLikeGeneratedNexusctlShim(string(content)) {
 			continue
 		}
-		if err = os.Remove(targetPath); err != nil && !os.IsNotExist(err) {
+		if err = binRoot.Remove(fileName); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
-	return removeDirIfEmpty(binDir)
+	entries, err := fs.ReadDir(binRoot.FS(), ".")
+	if err != nil {
+		return err
+	}
+	if len(entries) != 0 {
+		return nil
+	}
+	if err = binRoot.Close(); err != nil {
+		return err
+	}
+	closed = true
+	return root.Remove(".agents/bin")
 }
 
 func looksLikeGeneratedNexusctlShim(content string) bool {

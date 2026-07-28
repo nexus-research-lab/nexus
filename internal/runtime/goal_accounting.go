@@ -30,6 +30,9 @@ func (m *Manager) RegisterGoalObjectiveRevision(sessionKey string, roundID strin
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		return
+	}
 	if state.GoalObjectiveRevisions == nil {
 		state.GoalObjectiveRevisions = make(map[string]*atomic.Int64)
 	}
@@ -85,6 +88,9 @@ func (m *Manager) RegisterGoalAccountingFlush(sessionKey string, roundID string,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		return
+	}
 	if flush == nil {
 		delete(state.GoalAccountingFlushers, roundID)
 		return
@@ -102,6 +108,9 @@ func (m *Manager) RegisterGoalAccountingClear(sessionKey string, roundID string,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		return
+	}
 	if clear == nil {
 		delete(state.GoalAccountingClearers, roundID)
 		return
@@ -119,6 +128,9 @@ func (m *Manager) RegisterGoalAccountingActivate(sessionKey string, roundID stri
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		return
+	}
 	if state.GoalAccountingActivators == nil {
 		state.GoalAccountingActivators = make(map[string]GoalAccountingActivate)
 	}

@@ -229,6 +229,29 @@ func TestRuntimeSkillNamesKeepsWorkspaceDeployedSkills(t *testing.T) {
 	}
 }
 
+func TestListDeployedSkillsRejectsSymlinkedSkillFile(t *testing.T) {
+	workspacePath := t.TempDir()
+	skillDir := filepath.Join(workspacePath, ".agents", "skills", "linked-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outsideSkill := filepath.Join(t.TempDir(), "SKILL.md")
+	if err := os.WriteFile(outsideSkill, []byte("# foreign\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outsideSkill, filepath.Join(skillDir, "SKILL.md")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	names, err := ListDeployedSkills(workspacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(names, "linked-skill") {
+		t.Fatalf("symlinked SKILL.md 不能进入 runtime 白名单: %v", names)
+	}
+}
+
 func TestEnsureInitializedRepairsStaleScheduleWakeupGuidance(t *testing.T) {
 	useTemporaryWorkspaceStateRoot(t)
 	cases := []struct {

@@ -326,7 +326,7 @@ func TestRealtimeServiceKeepsSubagentRoomSlotInRuntimeManager(t *testing.T) {
 	client.mu.Unlock()
 
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	messages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	messages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取 Room history 失败: %v", err)
 	}
@@ -514,7 +514,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 
 	privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, memberAgent.AgentID, roomContext.Room.RoomType)
 	roomThinkingTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
-	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
+	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
 		{
 			"type":      "user",
 			"uuid":      "room-think-user-1",
@@ -540,7 +540,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 			},
 		},
 	})
-	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取共享 Room 消息失败: %v", err)
 	}
@@ -560,6 +560,7 @@ func TestRealtimeServiceKeepsThinkingDuringStreamingAndHistoryReplay(t *testing.
 	privateMessages := readRoomPrivateHistory(
 		t,
 		cfg.WorkspacePath,
+		roomContext.Room.OwnerUserID,
 		memberAgent.WorkspacePath,
 		privateSessionKey,
 		memberAgent.AgentID,

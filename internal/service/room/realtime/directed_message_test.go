@@ -104,7 +104,11 @@ func TestRealtimeServiceCreatesDirectedMessageWithoutPublicLeak(t *testing.T) {
 		t.Fatalf("directed message 事件不应泄漏正文: %+v", event.Data)
 	}
 	messageStore := workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath)
-	devinMessages, err := messageStore.ReadContextMessages(roomContext.Conversation.ID, devin.AgentID)
+	devinMessages, err := messageStore.ReadContextMessages(
+		roomContext.Room.OwnerUserID,
+		roomContext.Conversation.ID,
+		devin.AgentID,
+	)
 	if err != nil {
 		t.Fatalf("读取 Devin directed message 失败: %v", err)
 	}
@@ -113,7 +117,7 @@ func TestRealtimeServiceCreatesDirectedMessageWithoutPublicLeak(t *testing.T) {
 	}
 
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	messages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	messages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取公区历史失败: %v", err)
 	}
@@ -201,11 +205,15 @@ func TestRealtimeServiceProjectsDirectedMessageReplyToPrivateRoute(t *testing.T)
 	}
 
 	messageStore := workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath)
-	amyMessages := waitForRoomDirectedMessageContent(t, messageStore, roomContext.Conversation.ID, amy.AgentID, "这是给 Amy 的私下回复")
+	amyMessages := waitForRoomDirectedMessageContent(t, messageStore, roomContext.Room.OwnerUserID, roomContext.Conversation.ID, amy.AgentID, "这是给 Amy 的私下回复")
 	if !roomDirectedMessageContentsContain(amyMessages, "帮我汇总这段私下结论") {
 		t.Fatalf("reply_route 接收方应能看到原始请求与私下回复: %+v", amyMessages)
 	}
-	devinMessages, err := messageStore.ReadContextMessages(roomContext.Conversation.ID, devin.AgentID)
+	devinMessages, err := messageStore.ReadContextMessages(
+		roomContext.Room.OwnerUserID,
+		roomContext.Conversation.ID,
+		devin.AgentID,
+	)
 	if err != nil {
 		t.Fatalf("读取 Devin directed message 失败: %v", err)
 	}
@@ -214,7 +222,7 @@ func TestRealtimeServiceProjectsDirectedMessageReplyToPrivateRoute(t *testing.T)
 	}
 
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	publicMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	publicMessages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取公区历史失败: %v", err)
 	}
@@ -354,7 +362,7 @@ func TestRealtimeServiceQueuesDirectedMessageWhenTargetRunning(t *testing.T) {
 	}
 
 	messageStore := workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath)
-	waitForRoomDirectedMessageContent(t, messageStore, roomContext.Conversation.ID, amy.AgentID, "这是给 Amy 的排队私下回复")
+	waitForRoomDirectedMessageContent(t, messageStore, roomContext.Room.OwnerUserID, roomContext.Conversation.ID, amy.AgentID, "这是给 Amy 的排队私下回复")
 }
 
 func TestRealtimeServiceCarriesPublicRouteFromPrivateHandback(t *testing.T) {
@@ -432,12 +440,12 @@ func TestRealtimeServiceCarriesPublicRouteFromPrivateHandback(t *testing.T) {
 	waitForAtomicBool(t, &witchSawPrompt, "女巫未看到私信问题")
 	waitForAtomicBool(t, &hostSawHandback, "主持人未收到私域回交")
 	messageStore := workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath)
-	amyMessages := waitForRoomDirectedMessageContent(t, messageStore, roomContext.Conversation.ID, amy.AgentID, "救:Lucy；不毒")
+	amyMessages := waitForRoomDirectedMessageContent(t, messageStore, roomContext.Room.OwnerUserID, roomContext.Conversation.ID, amy.AgentID, "救:Lucy；不毒")
 	if !roomDirectedMessageContentHasReplyRoute(amyMessages, "救:Lucy；不毒", protocol.RoomReplyRoutePublic) {
 		t.Fatalf("私域回交应携带主持人下一跳公区路线: %+v", amyMessages)
 	}
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	publicMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	publicMessages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取公区历史失败: %v", err)
 	}
@@ -571,6 +579,7 @@ func roomDirectedMessageContentHasReplyRoute(
 func waitForRoomDirectedMessageContent(
 	t *testing.T,
 	store *workspacestore.RoomDirectedMessageStore,
+	ownerUserID string,
 	conversationID string,
 	agentID string,
 	content string,
@@ -578,7 +587,7 @@ func waitForRoomDirectedMessageContent(
 	t.Helper()
 	deadline := time.After(3 * time.Second)
 	for {
-		messages, err := store.ReadContextMessages(conversationID, agentID)
+		messages, err := store.ReadContextMessages(ownerUserID, conversationID, agentID)
 		if err != nil {
 			t.Fatalf("读取 Room directed message 失败: %v", err)
 		}

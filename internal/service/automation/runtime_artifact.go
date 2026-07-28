@@ -12,6 +12,7 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) writeRunArtifact(
@@ -28,7 +29,7 @@ func (s *Service) writeRunArtifact(
 	deliveryError *string,
 	deliveryTo string,
 ) *string {
-	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)
+	workspacePath, confinedRoot, err := s.openAutomationArtifactWorkspace(ctx, job)
 	if err != nil {
 		s.loggerFor(ctx).Warn("解析自动化任务运行产物目录失败", "job_id", job.JobID, "run_id", runID, "err", err)
 		return nil
@@ -36,14 +37,8 @@ func (s *Service) writeRunArtifact(
 	if strings.TrimSpace(workspacePath) == "" {
 		return nil
 	}
-
-	relativePath := automationRunArtifactPath(job.JobID, runID)
-	confinedRoot, err := confinedfs.Open(workspacePath)
-	if err != nil {
-		s.loggerFor(ctx).Warn("打开自动化任务运行产物根失败", "job_id", job.JobID, "run_id", runID, "err", err)
-		return nil
-	}
 	defer confinedRoot.Close()
+	relativePath := automationRunArtifactPath(job.JobID, runID)
 	if err = confinedRoot.MkdirAll(
 		filepath.Dir(relativePath),
 		appfs.RuntimeCollaborativeDirectoryMode(0o755),
@@ -61,6 +56,40 @@ func (s *Service) writeRunArtifact(
 		return nil
 	}
 	return &relativePath
+}
+
+func (s *Service) openAutomationArtifactWorkspace(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+) (string, *confinedfs.Root, error) {
+	if s.agents != nil && strings.TrimSpace(job.AgentID) != "" {
+		agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(job.AgentID))
+		if err != nil {
+			return "", nil, err
+		}
+		ownerUserID := strings.TrimSpace(job.OwnerUserID)
+		if ownerUserID == "" || strings.TrimSpace(agentValue.OwnerUserID) != ownerUserID {
+			return "", nil, fmt.Errorf("automation agent owner does not match job owner")
+		}
+		workspacePath := strings.TrimSpace(agentValue.WorkspacePath)
+		root, err := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+			ownerUserID,
+			workspacePath,
+			true,
+		)
+		return workspacePath, root, err
+	}
+	workspacePath := strings.TrimSpace(s.config.WorkspacePath)
+	ownerUserID := strings.TrimSpace(job.OwnerUserID)
+	if workspacePath == "" || ownerUserID == "" {
+		return "", nil, nil
+	}
+	root, err := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+		ownerUserID,
+		workspacePath,
+		true,
+	)
+	return workspacePath, root, err
 }
 
 func automationRunArtifactPath(jobID string, runID string) string {

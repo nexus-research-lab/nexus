@@ -82,6 +82,9 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 	if e.service == nil {
 		return sdkhook.Output{}, nil
 	}
+	if err := e.bindOwnerContext(); err != nil {
+		return sdkhook.Output{}, err
+	}
 	sessionKey := e.location.SessionKey
 	conversationID := e.location.ConversationID
 	if e.round != nil {
@@ -118,7 +121,7 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 				if e.round != nil {
 					ownerUserID = e.round.OwnerUserID
 				}
-				ctx := contextWithQueueOwner(context.Background(), ownerUserID)
+				ctx := contextWithExactQueueOwner(context.Background(), ownerUserID)
 				if ackErr := e.service.acknowledgeRoomSlotGuidance(ctx, e.round, e.slot, &pending); ackErr != nil {
 					e.service.loggerFor(ctx).Warn("确认 Room 引导 applied ACK 失败，保留为后续队列输入", "err", ackErr)
 				}
@@ -126,6 +129,39 @@ func (e *roomGuidanceExecution) run() (sdkhook.Output, error) {
 		}
 	}()
 	return output, runErr
+}
+
+func (e *roomGuidanceExecution) bindOwnerContext() error {
+	ownerUserID := strings.TrimSpace(e.location.OwnerUserID)
+	for _, candidate := range []string{
+		roomRoundOwnerUserID(e.round),
+		roomSlotOwnerUserID(e.slot),
+	} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		if ownerUserID != "" && ownerUserID != candidate {
+			return errors.New("Room guidance owner does not match queue location")
+		}
+		ownerUserID = candidate
+	}
+	e.ctx = contextWithExactQueueOwner(e.ctx, ownerUserID)
+	return nil
+}
+
+func roomRoundOwnerUserID(roundValue *activeRoomRound) string {
+	if roundValue == nil {
+		return ""
+	}
+	return roundValue.OwnerUserID
+}
+
+func roomSlotOwnerUserID(slot *activeRoomSlot) string {
+	if slot == nil {
+		return ""
+	}
+	return slot.OwnerUserID
 }
 
 func (s *Service) rememberRoomSlotGuidance(
@@ -317,7 +353,11 @@ func (e *roomGuidanceExecution) appendPublicContext() error {
 	if err != nil {
 		return err
 	}
-	publicHistory, err := e.service.roomHistory.ReadMessages(e.round.ConversationID, nil)
+	publicHistory, err := e.service.roomHistory.ReadMessages(
+		e.round.OwnerUserID,
+		e.round.ConversationID,
+		nil,
+	)
 	if err != nil {
 		return err
 	}

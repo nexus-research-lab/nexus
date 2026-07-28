@@ -9,7 +9,11 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
-func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) error {
+func undeployWorkspaceLocalSkillAt(
+	root *confinedfs.Root,
+	workspacePath string,
+	record catalogRecord,
+) error {
 	workspaceRoot := filepath.Clean(strings.TrimSpace(workspacePath))
 	sourcePath := filepath.Clean(strings.TrimSpace(record.SourcePath))
 	if workspaceRoot == "." || sourcePath == "." {
@@ -22,11 +26,6 @@ func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) err
 	if !sourceUnderAgents && !sourceUnderClaudeSkills {
 		return errors.New("workspace skill path is outside supported skill directories")
 	}
-	root, err := confinedfs.Open(workspaceRoot)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
 	sourceRelative, err := filepath.Rel(workspaceRoot, sourcePath)
 	if err != nil {
 		return err

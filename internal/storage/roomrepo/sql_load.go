@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -54,6 +55,26 @@ func (r *SQLRepository) lookupRoomOwnerUserID(ctx context.Context, querier roomQ
 		return "", err
 	}
 	return ownerUserID, nil
+}
+
+// LookupConversationOwnerUserID 返回 conversation 所属用户，不加载完整 Room 聚合。
+func (r *SQLRepository) LookupConversationOwnerUserID(
+	ctx context.Context,
+	conversationID string,
+) (string, error) {
+	row := r.db.QueryRowContext(ctx, `
+SELECT r.owner_user_id
+FROM conversations c
+JOIN rooms r ON r.id = c.room_id
+WHERE c.id = `+r.dialect.Bind(1)+`
+LIMIT 1`, strings.TrimSpace(conversationID))
+	var ownerUserID string
+	if err := row.Scan(&ownerUserID); errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(ownerUserID), nil
 }
 
 func (r *SQLRepository) listMembers(ctx context.Context, querier roomQueryer, roomID string) ([]protocol.MemberRecord, error) {

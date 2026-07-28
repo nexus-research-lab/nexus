@@ -1078,11 +1078,12 @@ func TestRoomGoalInputQueueBlockerClearsOnlyAfterConsumption(t *testing.T) {
 
 func TestRoomGoalDelayedWakeBlockerClearsAfterWakeStarts(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
 	t.Setenv("NEXUS_CONFIG_DIR", root)
 	store := workspacestore.NewRoomDirectedMessageWakeStore(root)
 	const conversationID = "conversation-goal-delayed-wake"
 	wake := workspacestore.RoomDirectedMessageWake{
-		WakeID: "wake-goal",
+		WakeID: "wake-goal", OwnerUserID: "owner",
 		Message: protocol.RoomDirectedMessageRecord{
 			MessageID:      "wake-goal",
 			RoomID:         "room-goal",
@@ -1096,14 +1097,14 @@ func TestRoomGoalDelayedWakeBlockerClearsAfterWakeStarts(t *testing.T) {
 	}
 	service := &Service{directedWakes: store}
 
-	blocker, err := service.roomGoalDelayedWakeBlocker(conversationID)
+	blocker, err := service.roomGoalDelayedWakeBlocker(wake.OwnerUserID, conversationID)
 	if err != nil || !strings.Contains(blocker, wake.WakeID) {
 		t.Fatalf("pending wake blocker = %q err=%v, want wake ID", blocker, err)
 	}
-	if err = store.Complete(wake.WakeID); err != nil {
+	if err = store.Complete(wake.OwnerUserID, wake.WakeID); err != nil {
 		t.Fatal(err)
 	}
-	blocker, err = service.roomGoalDelayedWakeBlocker(conversationID)
+	blocker, err = service.roomGoalDelayedWakeBlocker(wake.OwnerUserID, conversationID)
 	if err != nil || blocker != "" {
 		t.Fatalf("completed wake blocker = %q err=%v, want empty", blocker, err)
 	}

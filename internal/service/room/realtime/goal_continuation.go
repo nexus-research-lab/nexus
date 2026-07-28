@@ -70,7 +70,7 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 	}
 	if dispatchQueuedInput {
 		s.dispatchNextInputQueueItemLocked(
-			contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
+			contextWithExactQueueOwner(ctx, entry.Item.OwnerUserID),
 			sessionKey,
 			contextValue.Room.ID,
 			contextValue.Conversation.ID,

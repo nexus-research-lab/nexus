@@ -21,7 +21,19 @@ func EnsureRuntimeSettingsProjection(agentValue protocol.Agent) error {
 	if workspacePath == "" {
 		return errors.New("Agent workspace 不能为空")
 	}
-	settings, err := readRuntimeSettingsProjection(workspacePath)
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return ensureRuntimeSettingsProjectionAt(root, agentValue)
+}
+
+func ensureRuntimeSettingsProjectionAt(
+	root *confinedfs.Root,
+	agentValue protocol.Agent,
+) error {
+	settings, err := readRuntimeSettingsProjectionAt(root)
 	if err != nil {
 		return err
 	}
@@ -39,12 +51,17 @@ func EnsureRuntimeSettingsProjection(agentValue protocol.Agent) error {
 	if string(original) == string(updated) {
 		return nil
 	}
-	return writeRuntimeSettingsProjection(workspacePath, settings)
+	return writeRuntimeSettingsProjectionAt(root, settings)
 }
 
 // LoadRuntimeSettingsProjection 从受限 workspace 根读取 nxs settings。
 func LoadRuntimeSettingsProjection(workspacePath string) (map[string]any, error) {
-	return readRuntimeSettingsProjection(workspacePath)
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return readRuntimeSettingsProjectionAt(root)
 }
 
 // RuntimeSettingsPath 返回指定 Agent 的 nxs project settings 路径。
@@ -61,7 +78,20 @@ func EnsureRuntimeVisionSettingsProjection(workspacePath string, providerRef str
 	if strings.TrimSpace(workspacePath) == "" {
 		return errors.New("Agent workspace 不能为空")
 	}
-	settings, err := readRuntimeSettingsProjection(workspacePath)
+	root, err := confinedfs.Open(workspacePath)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return ensureRuntimeVisionSettingsProjectionAt(root, providerRef, model)
+}
+
+func ensureRuntimeVisionSettingsProjectionAt(
+	root *confinedfs.Root,
+	providerRef string,
+	model string,
+) error {
+	settings, err := readRuntimeSettingsProjectionAt(root)
 	if err != nil {
 		return err
 	}
@@ -86,15 +116,10 @@ func EnsureRuntimeVisionSettingsProjection(workspacePath string, providerRef str
 	if string(original) == string(updated) {
 		return nil
 	}
-	return writeRuntimeSettingsProjection(workspacePath, settings)
+	return writeRuntimeSettingsProjectionAt(root, settings)
 }
 
-func readRuntimeSettingsProjection(workspacePath string) (map[string]any, error) {
-	root, err := confinedfs.Open(workspacePath)
-	if err != nil {
-		return nil, err
-	}
-	defer root.Close()
+func readRuntimeSettingsProjectionAt(root *confinedfs.Root) (map[string]any, error) {
 	payload, err := root.ReadFile(runtimeSettingsRelativePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -157,12 +182,10 @@ func setOptionalString(settings map[string]any, key string, value string) {
 	settings[key] = value
 }
 
-func writeRuntimeSettingsProjection(workspacePath string, settings map[string]any) error {
-	root, err := confinedfs.Open(workspacePath)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
+func writeRuntimeSettingsProjectionAt(
+	root *confinedfs.Root,
+	settings map[string]any,
+) error {
 	payload, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
@@ -172,4 +195,40 @@ func writeRuntimeSettingsProjection(workspacePath string, settings map[string]an
 		append(payload, '\n'),
 		agentWorkspaceFileMode(0o600),
 	)
+}
+
+// EnsureRuntimeSettingsProjection 在 owner workspace fd 内同步运行时配置。
+func (s *Service) EnsureRuntimeSettingsProjection(agentValue protocol.Agent) error {
+	root, err := s.openAgentWorkspace(agentValue, false)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return ensureRuntimeSettingsProjectionAt(root, agentValue)
+}
+
+// EnsureRuntimeVisionSettingsProjection 在 owner workspace fd 内同步视觉路由。
+func (s *Service) EnsureRuntimeVisionSettingsProjection(
+	agentValue protocol.Agent,
+	providerRef string,
+	model string,
+) error {
+	root, err := s.openAgentWorkspace(agentValue, false)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return ensureRuntimeVisionSettingsProjectionAt(root, providerRef, model)
+}
+
+// LoadRuntimeSettingsProjection 从 owner workspace fd 读取运行时配置。
+func (s *Service) LoadRuntimeSettingsProjection(
+	agentValue protocol.Agent,
+) (map[string]any, error) {
+	root, err := s.openAgentWorkspace(agentValue, false)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return readRuntimeSettingsProjectionAt(root)
 }

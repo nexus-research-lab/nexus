@@ -13,7 +13,7 @@ import (
 )
 
 func (s *AgentHistoryStore) readTranscriptEntriesAt(root *confinedfs.Root, relative string) ([]transcriptEntry, error) {
-	file, err := root.Open(relative)
+	file, err := root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}

@@ -16,6 +16,7 @@ func TestAgentHistoryStoreProjectsHookAdditionalContextGuidance(t *testing.T) {
 	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
 		t.Fatalf("创建 workspace 失败: %v", err)
 	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
 
 	history := NewAgentHistoryStore(workspaceRoot)
@@ -91,6 +92,7 @@ func TestAgentHistoryStoreProjectsWorkspaceFileArtifactFromTranscriptToolResult(
 	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
 		t.Fatalf("创建 workspace 失败: %v", err)
 	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
 
 	history := NewAgentHistoryStore(workspaceRoot)
@@ -214,6 +216,7 @@ func TestAgentHistoryStorePreservesParallelToolResultsFromTranscriptBranches(t *
 	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
 		t.Fatalf("创建 workspace 失败: %v", err)
 	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
 
 	history := NewAgentHistoryStore(workspaceRoot)

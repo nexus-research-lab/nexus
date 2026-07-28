@@ -6,21 +6,19 @@ import (
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	roommcp "github.com/nexus-research-lab/nexus/internal/mcp/room"
 	roommcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/room/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	"github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
 // newRoomMCPBuilder 返回 Room runtime 内建通讯 MCPServerBuilder。
 func newRoomMCPBuilder(
 	svc roommcpcontract.Service,
-	agents *agent.Service,
 	getRoom func(context.Context, string) (*protocol.RoomAggregate, error),
-) func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string, string) map[string]sdkmcp.ServerConfig {
 	return func(
-		agentID string,
+		ctx context.Context,
+		agentValue *protocol.Agent,
 		sessionKey string,
 		roundID string,
 		sourceContextType string,
@@ -34,8 +32,12 @@ func newRoomMCPBuilder(
 		if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
 			return nil
 		}
+		if agentValue == nil {
+			return nil
+		}
 		sctx := roommcpcontract.ServerContext{
-			CurrentAgentID:     strings.TrimSpace(agentID),
+			OwnerUserID:        strings.TrimSpace(agentValue.OwnerUserID),
+			CurrentAgentID:     strings.TrimSpace(agentValue.AgentID),
 			CurrentSessionKey:  strings.TrimSpace(sessionKey),
 			CurrentRoundID:     strings.TrimSpace(roundID),
 			RoomID:             strings.TrimSpace(sourceContextID),
@@ -43,17 +45,8 @@ func newRoomMCPBuilder(
 			SourceContextType:  strings.TrimSpace(sourceContextType),
 			SourceContextLabel: strings.TrimSpace(sourceContextLabel),
 		}
-		if agents != nil && strings.TrimSpace(agentID) != "" {
-			if record, err := agents.GetAgent(context.Background(), agentID); err == nil && record != nil {
-				sctx.OwnerUserID = strings.TrimSpace(record.OwnerUserID)
-			}
-		}
 		if getRoom != nil && strings.TrimSpace(sctx.RoomID) != "" {
-			roomCtx := context.Background()
-			if sctx.OwnerUserID != "" {
-				roomCtx = authctx.WithPrincipal(roomCtx, &authctx.Principal{UserID: sctx.OwnerUserID})
-			}
-			if record, err := getRoom(roomCtx, sctx.RoomID); err == nil && record != nil {
+			if record, err := getRoom(ctx, sctx.RoomID); err == nil && record != nil {
 				sctx.PrivateMessagesEnabled = record.Room.PrivateMessagesEnabled
 			}
 		}

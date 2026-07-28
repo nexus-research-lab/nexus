@@ -59,6 +59,9 @@ func (r *inputQueueReplay) enqueue(row map[string]any) {
 	if !inputQueueItemMatchesLocationScope(r.location, item) {
 		return
 	}
+	if !inputQueueItemMatchesLocationOwner(r.location, item) {
+		return
+	}
 	item = normalizeInputQueueItem(r.location, item, normalizeInputQueueTimestamp(row["timestamp"]))
 	if _, exists := r.itemsByID[item.ID]; !exists {
 		r.order = append(r.order, item.ID)
@@ -89,6 +92,9 @@ func (r *inputQueueReplay) update(row map[string]any) {
 		return
 	}
 	if !inputQueueItemMatchesLocationScope(r.location, item) {
+		return
+	}
+	if !inputQueueItemMatchesLocationOwner(r.location, item) {
 		return
 	}
 	previous, exists := r.itemsByID[item.ID]
@@ -147,4 +153,16 @@ func inputQueueItemMatchesLocationScope(
 		}
 	}
 	return expectedScope == protocol.InputQueueScopeDM
+}
+
+func inputQueueItemMatchesLocationOwner(
+	location InputQueueLocation,
+	item protocol.InputQueueItem,
+) bool {
+	ownerUserID := strings.TrimSpace(location.OwnerUserID)
+	if ownerUserID == "" {
+		return true
+	}
+	itemOwnerUserID := strings.TrimSpace(item.OwnerUserID)
+	return itemOwnerUserID == "" || itemOwnerUserID == ownerUserID
 }

@@ -2,6 +2,8 @@ package skills
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"maps"
@@ -126,7 +128,7 @@ func (s *Service) UpdateSingleSkill(ctx context.Context, skillName string) (*Det
 }
 
 func (s *Service) updateSingleSkillRecord(ctx context.Context, record catalogRecord) (*Detail, error) {
-	manifest, err := s.manifestForRecord(record)
+	manifest, err := s.manifestForRecord(ctx, record)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +145,7 @@ func (s *Service) updateSingleSkillRecord(ctx context.Context, record catalogRec
 }
 
 func (s *Service) checkSingleSkillRecord(ctx context.Context, record catalogRecord) (bool, error) {
-	manifest, err := s.manifestForRecord(record)
+	manifest, err := s.manifestForRecord(ctx, record)
 	if err != nil {
 		return false, err
 	}
@@ -161,11 +163,42 @@ func (s *Service) checkSingleSkillRecord(ctx context.Context, record catalogReco
 	}
 }
 
-func (s *Service) manifestForRecord(record catalogRecord) (externalManifest, error) {
+func (s *Service) manifestForRecord(
+	ctx context.Context,
+	record catalogRecord,
+) (externalManifest, error) {
 	if strings.TrimSpace(record.Manifest.ImportMode) != "" {
 		return record.Manifest, nil
 	}
+	if record.Detail.SourceType == sourceTypeExternal {
+		ownerRoot, err := s.openOwnerSkillLibrary(ctx, false)
+		if err != nil {
+			return externalManifest{}, err
+		}
+		defer ownerRoot.Close()
+		return readSkillManifestAtOwnerPath(ownerRoot, record.SourcePath)
+	}
 	return s.readManifest(record.SourcePath)
+}
+
+func (s *Service) hashSkillContentForRecord(
+	ctx context.Context,
+	record catalogRecord,
+) string {
+	if record.Detail.SourceType != sourceTypeExternal {
+		return hashSkillContent(record.SourcePath)
+	}
+	ownerRoot, err := s.openOwnerSkillLibrary(ctx, false)
+	if err != nil {
+		return ""
+	}
+	defer ownerRoot.Close()
+	payload, err := readSkillFileAtOwnerPath(ownerRoot, record.SourcePath, "SKILL.md")
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
 }
 
 func (s *Service) remoteGitCommit(ctx context.Context, manifest externalManifest) (string, error) {
@@ -198,7 +231,7 @@ func (s *Service) remoteGitCommit(ctx context.Context, manifest externalManifest
 }
 
 func (s *Service) checkURLSkillUpdate(ctx context.Context, record catalogRecord, manifest externalManifest) (bool, error) {
-	currentHash := hashSkillContent(record.SourcePath)
+	currentHash := s.hashSkillContentForRecord(ctx, record)
 	if currentHash == "" {
 		return false, errors.New("当前 skill 内容缺少 hash")
 	}

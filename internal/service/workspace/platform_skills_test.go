@@ -11,6 +11,7 @@ import (
 
 func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 	configRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
 
 	if err := EnsurePlatformSkillLibrary(); err != nil {
@@ -33,6 +34,7 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 
 func TestEnsurePlatformSkillLibraryPublishesRuntimeReadableTree(t *testing.T) {
 	configRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
 
 	if err := EnsurePlatformSkillLibrary(); err != nil {
@@ -58,6 +60,37 @@ func TestEnsurePlatformSkillLibraryPublishesRuntimeReadableTree(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatalf("遍历平台 Skill 根失败: %v", err)
+	}
+}
+
+func TestEnsurePlatformSkillLibraryRepairsUnreadableExistingTree(t *testing.T) {
+	configRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
+
+	if err := EnsurePlatformSkillLibrary(); err != nil {
+		t.Fatalf("首次同步平台 Skill 库失败: %v", err)
+	}
+	fingerprint, err := platformSkillFingerprint(filepath.Join(appfs.Root(), "skills"))
+	if err != nil {
+		t.Fatalf("计算平台 Skill 指纹失败: %v", err)
+	}
+	skillPath := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "SKILL.md")
+	if err := os.Chmod(skillPath, 0o600); err != nil {
+		t.Fatalf("收紧已发布 Skill 权限失败: %v", err)
+	}
+	if platformSkillLibraryReady(appfs.PlatformSkillRoot(), fingerprint) {
+		t.Fatal("不可供 runtime 读取的 Skill 树不应被判定为就绪")
+	}
+	if err := EnsurePlatformSkillLibrary(); err != nil {
+		t.Fatalf("重新同步平台 Skill 库失败: %v", err)
+	}
+	info, err := os.Stat(skillPath)
+	if err != nil {
+		t.Fatalf("读取修复后的 Skill 失败: %v", err)
+	}
+	if info.Mode().Perm() != 0o644 {
+		t.Fatalf("修复后的 Skill 权限 = %o, want 644", info.Mode().Perm())
 	}
 }
 

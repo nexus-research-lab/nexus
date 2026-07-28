@@ -20,7 +20,11 @@ func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) 
 		return nil, err
 	}
 	if parsed.Kind == protocol.SessionKeyKindRoom {
-		return s.roomHistory.ReadMessages(parsed.ConversationID, s.activeRoundIDs(sessionKey))
+		return s.roomHistory.ReadMessages(
+			authctx.OwnerUserID(ctx),
+			parsed.ConversationID,
+			s.activeRoundIDs(sessionKey),
+		)
 	}
 
 	workspacePaths, err := s.resolveWorkspacePaths(ctx, parsed.AgentID)
@@ -34,7 +38,11 @@ func (s *Service) GetSessionMessages(ctx context.Context, rawSessionKey string) 
 	if sessionValue == nil {
 		return nil, ErrSessionNotFound
 	}
-	return s.history.ReadMessages(workspacePath, *sessionValue, s.activeRoundIDs(sessionKey))
+	return s.ownerHistory(ctx).ReadMessages(
+		workspacePath,
+		*sessionValue,
+		s.activeRoundIDs(sessionKey),
+	)
 }
 
 // GetSessionLatestReplyPreview 返回最近一条可见 assistant 回复的紧凑摘要。
@@ -101,6 +109,7 @@ func (s *Service) GetSessionMessagesPage(
 	}
 	if parsed.Kind == protocol.SessionKeyKindRoom {
 		page, err := s.roomHistory.ReadMessagesPage(
+			authctx.OwnerUserID(ctx),
 			parsed.ConversationID,
 			s.activeRoundIDs(sessionKey),
 			request.Limit,
@@ -126,7 +135,7 @@ func (s *Service) GetSessionMessagesPage(
 	if sessionValue == nil {
 		return nil, ErrSessionNotFound
 	}
-	page, err := s.history.ReadMessagesPage(
+	page, err := s.ownerHistory(ctx).ReadMessagesPage(
 		workspacePath,
 		*sessionValue,
 		s.activeRoundIDs(sessionKey),
@@ -205,6 +214,7 @@ func (s *Service) GetSessionRoundIndex(ctx context.Context, rawSessionKey string
 	}
 	if parsed.Kind == protocol.SessionKeyKindRoom {
 		index, err := s.roomHistory.ReadRoundIndex(
+			authctx.OwnerUserID(ctx),
 			parsed.ConversationID,
 			s.activeRoundIDs(sessionKey),
 		)
@@ -225,7 +235,7 @@ func (s *Service) GetSessionRoundIndex(ctx context.Context, rawSessionKey string
 	if sessionValue == nil {
 		return nil, ErrSessionNotFound
 	}
-	index, err := s.history.ReadRoundIndex(
+	index, err := s.ownerHistory(ctx).ReadRoundIndex(
 		workspacePath,
 		*sessionValue,
 		s.activeRoundIDs(sessionKey),
@@ -255,7 +265,7 @@ func (s *Service) loadHistorySession(
 		return hydrated, workspacePath, nil
 	}
 
-	item, workspacePath, err := s.files.FindSession(workspacePaths, sessionKey)
+	item, workspacePath, err := s.ownerFiles(ctx).FindSession(workspacePaths, sessionKey)
 	if err != nil {
 		return nil, "", err
 	}
@@ -284,7 +294,7 @@ func (s *Service) hydrateRoomHistorySession(
 		return &roomSession, nil
 	}
 
-	fileSession, _, err := s.files.FindSession([]string{workspacePath}, sessionKey)
+	fileSession, _, err := s.ownerFiles(ctx).FindSession([]string{workspacePath}, sessionKey)
 	if err != nil {
 		return nil, err
 	}

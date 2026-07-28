@@ -41,7 +41,10 @@ func Project(
 	messageStore := workspacestore.NewRoomDirectedMessageStore(workspacePath)
 	builders := make(map[string]*ThreadBuilder)
 	for _, contextValue := range contexts {
-		messages, err := messageStore.ReadMessages(contextValue.Conversation.ID)
+		messages, err := messageStore.ReadMessages(
+			contextValue.Room.OwnerUserID,
+			contextValue.Conversation.ID,
+		)
 		if err != nil {
 			return nil, err
 		}

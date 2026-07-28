@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -14,19 +15,33 @@ import (
 
 // SessionFileStore 负责 workspace 侧会话文件读写。
 type SessionFileStore struct {
-	paths *Store
+	paths       *Store
+	ownerUserID string
 }
 
 // NewSessionFileStore 创建文件存储门面。
 func NewSessionFileStore(root string) *SessionFileStore {
+	return newSessionFileStore(New(root))
+}
+
+func newSessionFileStore(paths *Store) *SessionFileStore {
+	return &SessionFileStore{paths: paths}
+}
+
+// ForOwner 返回绑定到单个 owner workspace 树的会话文件视图。
+func (s *SessionFileStore) ForOwner(ownerUserID string) *SessionFileStore {
+	if s == nil {
+		return nil
+	}
 	return &SessionFileStore{
-		paths: New(root),
+		paths:       s.paths,
+		ownerUserID: strings.TrimSpace(ownerUserID),
 	}
 }
 
 // ListSessions 读取某个 workspace 下的全部文件会话。
 func (s *SessionFileStore) ListSessions(workspacePath string) ([]protocol.Session, error) {
-	root, err := confinedfs.Open(workspacePath)
+	root, err := s.openWorkspaceRoot(workspacePath, false)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return []protocol.Session{}, nil
@@ -34,21 +49,31 @@ func (s *SessionFileStore) ListSessions(workspacePath string) ([]protocol.Sessio
 		return nil, err
 	}
 	defer root.Close()
-	entries, err := fs.ReadDir(root.FS(), ".agents/sessions")
+	sessionsRoot, err := root.OpenRootNoSymlink(".agents/sessions")
 	if errors.Is(err, os.ErrNotExist) {
 		return []protocol.Session{}, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	defer sessionsRoot.Close()
+	entries, err := fs.ReadDir(sessionsRoot.FS(), ".")
+	if err != nil {
+		return nil, err
+	}
 
 	result := make([]protocol.Session, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		info, statErr := sessionsRoot.Lstat(entry.Name())
+		if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 			continue
 		}
-		metaPath := filepath.ToSlash(filepath.Join(".agents", "sessions", entry.Name(), "meta.json"))
-		item, loadErr := readSessionMeta(root, metaPath)
+		sessionRoot, openErr := sessionsRoot.OpenRootNoSymlink(entry.Name())
+		if openErr != nil {
+			continue
+		}
+		item, loadErr := readSessionMeta(sessionRoot, "meta.json")
+		sessionRoot.Close()
 		if errors.Is(loadErr, os.ErrNotExist) {
 			continue
 		}
@@ -66,21 +91,27 @@ func (s *SessionFileStore) ListSessions(workspacePath string) ([]protocol.Sessio
 // FindSession 在多个 workspace 中定位单个 session。
 func (s *SessionFileStore) FindSession(workspacePaths []string, sessionKey string) (*protocol.Session, string, error) {
 	for _, workspacePath := range workspacePaths {
-		root, openErr := confinedfs.Open(workspacePath)
+		root, openErr := s.openWorkspaceRoot(workspacePath, false)
 		if errors.Is(openErr, os.ErrNotExist) {
 			continue
 		}
 		if openErr != nil {
 			return nil, "", openErr
 		}
-		relative := filepath.ToSlash(filepath.Join(
+		sessionRoot, openErr := root.OpenRootNoSymlink(filepath.ToSlash(filepath.Join(
 			".agents",
 			"sessions",
 			encodeSessionDirName(sessionKey),
-			"meta.json",
-		))
-		item, err := readSessionMeta(root, relative)
+		)))
 		root.Close()
+		if errors.Is(openErr, os.ErrNotExist) {
+			continue
+		}
+		if openErr != nil {
+			return nil, "", openErr
+		}
+		item, err := readSessionMeta(sessionRoot, "meta.json")
+		sessionRoot.Close()
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}
@@ -123,21 +154,34 @@ func (s *SessionFileStore) UpsertSession(workspacePath string, item protocol.Ses
 }
 
 func (s *SessionFileStore) openOrCreateWorkspaceRoot(workspacePath string) (*confinedfs.Root, error) {
-	parent, relative, err := s.openStorePath(workspacePath, true)
+	return s.openWorkspaceRoot(workspacePath, true)
+}
+
+func (s *SessionFileStore) openWorkspaceRoot(
+	workspacePath string,
+	create bool,
+) (*confinedfs.Root, error) {
+	if strings.TrimSpace(s.ownerUserID) != "" {
+		return s.paths.OpenOwnerWorkspacePath(
+			s.ownerUserID,
+			workspacePath,
+			create,
+		)
+	}
+	parent, relative, err := s.openStorePath(workspacePath, create)
 	if err != nil {
 		return nil, err
 	}
-	if err = parent.MkdirAll(relative, storageDirectoryMode()); err != nil {
-		parent.Close()
-		return nil, err
+	defer parent.Close()
+	if create {
+		return parent.OpenOrCreateRootNoSymlink(relative, storageDirectoryMode())
 	}
-	parent.Close()
-	return confinedfs.Open(workspacePath)
+	return parent.OpenRootNoSymlink(relative)
 }
 
 // DeleteSession 删除整个 session 目录。
 func (s *SessionFileStore) DeleteSession(workspacePath string, sessionKey string) (bool, error) {
-	root, err := confinedfs.Open(workspacePath)
+	root, err := s.openWorkspaceRoot(workspacePath, false)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
@@ -145,22 +189,44 @@ func (s *SessionFileStore) DeleteSession(workspacePath string, sessionKey string
 		return false, err
 	}
 	defer root.Close()
-	sessionDir := filepath.ToSlash(filepath.Join(".agents", "sessions", encodeSessionDirName(sessionKey)))
-	if _, err := root.Lstat(sessionDir); errors.Is(err, os.ErrNotExist) {
+	sessionsRoot, err := root.OpenRootNoSymlink(".agents/sessions")
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer sessionsRoot.Close()
+	sessionDir := encodeSessionDirName(sessionKey)
+	if _, err := sessionsRoot.Lstat(sessionDir); errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	} else if err != nil {
 		return false, err
 	}
-	if err := root.RemoveAll(sessionDir); err != nil {
+	if err := sessionsRoot.RemoveAll(sessionDir); err != nil {
 		return false, err
 	}
 	return true, nil
 }
 
-// DeleteRoomConversation 删除 Room 对话共享目录。
-func (s *SessionFileStore) DeleteRoomConversation(conversationID string) (bool, error) {
-	conversationDir := s.paths.RoomConversationDir(conversationID)
-	root, relative, err := s.openStorePath(conversationDir, false)
+// DeleteRoomConversation 删除指定用户的 Room ledger 与公共资产目录。
+func (s *SessionFileStore) DeleteRoomConversation(ownerUserID string, conversationID string) (bool, error) {
+	deletedState, err := s.deleteRoomConversationState(ownerUserID, conversationID)
+	if err != nil {
+		return false, err
+	}
+	deletedAssets, err := s.deleteRoomConversationAssets(ownerUserID, conversationID)
+	if err != nil {
+		return false, err
+	}
+	return deletedState || deletedAssets, nil
+}
+
+func (s *SessionFileStore) deleteRoomConversationState(
+	ownerUserID string,
+	conversationID string,
+) (bool, error) {
+	root, err := s.openRoomRoot(ownerUserID, false)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	}
@@ -168,6 +234,39 @@ func (s *SessionFileStore) DeleteRoomConversation(conversationID string) (bool, 
 		return false, err
 	}
 	defer root.Close()
+	return deleteConfinedDirectoryAtRoot(
+		root,
+		filepath.Base(s.paths.RoomConversationDir(ownerUserID, conversationID)),
+	)
+}
+
+func (s *SessionFileStore) deleteRoomConversationAssets(
+	ownerUserID string,
+	conversationID string,
+) (bool, error) {
+	workspaceRoot, err := s.paths.openOwnerWorkspaceRoot(ownerUserID, false)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	assetsRoot, err := workspaceRoot.OpenRootNoSymlink(".rooms")
+	workspaceRoot.Close()
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer assetsRoot.Close()
+	return deleteConfinedDirectoryAtRoot(
+		assetsRoot,
+		filepath.Base(s.paths.RoomConversationAssetDir(ownerUserID, conversationID)),
+	)
+}
+
+func deleteConfinedDirectoryAtRoot(root *confinedfs.Root, relative string) (bool, error) {
 	if _, err := root.Lstat(relative); errors.Is(err, os.ErrNotExist) {
 		return false, nil
 	} else if err != nil {

@@ -40,7 +40,7 @@ func (s *AgentHistoryStore) ResolveTranscriptRoundTail(
 	if err != nil {
 		return TranscriptRoundTail{}, err
 	}
-	root, relative, _, err := openTranscriptPath(workspacePath, transcriptPath)
+	root, relative, _, err := s.openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
 		return TranscriptRoundTail{}, err
 	}

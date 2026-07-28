@@ -99,7 +99,10 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 	}
 	assertPathRemoved(t, paths.SessionDir(agentC.WorkspacePath, mainAgentCSession))
 	assertPathRemoved(t, paths.SessionDir(agentC.WorkspacePath, topicAgentCSession))
-	assertPathExists(t, paths.RoomConversationDir(topicContextAfterAdd.Conversation.ID))
+	assertPathExists(t, paths.RoomConversationDir(
+		topicContextAfterAdd.Room.OwnerUserID,
+		topicContextAfterAdd.Conversation.ID,
+	))
 	assertSQLCount(t, db, `
 SELECT COUNT(*) FROM sessions
 WHERE conversation_id = ? AND agent_id = ?`, 0, mainContextAfterAdd.Conversation.ID, agentC.AgentID)
@@ -116,7 +119,10 @@ WHERE conversation_id = ? AND agent_id = ?`, 0, mainContextAfterAdd.Conversation
 	if fallbackContext.Conversation.ID != mainContextAfterAdd.Conversation.ID {
 		t.Fatalf("删除 topic 后未回退到主对话: %+v", fallbackContext.Conversation)
 	}
-	assertPathRemoved(t, paths.RoomConversationDir(topicContextAfterAdd.Conversation.ID))
+	assertPathRemoved(t, paths.RoomConversationDir(
+		topicContextAfterAdd.Room.OwnerUserID,
+		topicContextAfterAdd.Conversation.ID,
+	))
 	assertPathRemoved(t, paths.SessionDir(agentA.WorkspacePath, topicAgentASession))
 	assertPathRemoved(t, paths.SessionDir(agentB.WorkspacePath, topicAgentBSession))
 	assertPathExists(t, paths.SessionDir(agentA.WorkspacePath, mainAgentASession))
@@ -130,7 +136,10 @@ WHERE conversation_id = ? AND agent_id = ?`, 0, mainContextAfterAdd.Conversation
 	if err = roomService.DeleteRoom(ctx, mainContext.Room.ID); err != nil {
 		t.Fatalf("删除 room 失败: %v", err)
 	}
-	assertPathRemoved(t, paths.RoomConversationDir(mainContextAfterAdd.Conversation.ID))
+	assertPathRemoved(t, paths.RoomConversationDir(
+		mainContextAfterAdd.Room.OwnerUserID,
+		mainContextAfterAdd.Conversation.ID,
+	))
 	assertPathRemoved(t, paths.SessionDir(agentA.WorkspacePath, mainAgentASession))
 	assertPathRemoved(t, paths.SessionDir(agentB.WorkspacePath, mainAgentBSession))
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM rooms WHERE id = ?`, 0, mainContextAfterAdd.Room.ID)

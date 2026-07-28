@@ -21,7 +21,7 @@ func (s *Service) UpdateFile(ctx context.Context, agentID string, relativePath s
 	if err != nil {
 		return nil, err
 	}
-	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (s *Service) CreateEntry(ctx context.Context, agentID string, relativePath 
 	if err != nil {
 		return nil, err
 	}
-	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
 	if err != nil {
 		return nil, err
 	}
@@ -90,10 +90,16 @@ func (s *Service) RenameEntry(ctx context.Context, agentID string, relativePath 
 	if err != nil {
 		return nil, err
 	}
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
+	if err != nil {
+		return nil, err
+	}
+	defer confinedRoot.Close()
 	rename := workspaceEntryRename{
 		service:       s,
 		agentID:       agentValue.AgentID,
 		workspacePath: agentValue.WorkspacePath,
+		confinedRoot:  confinedRoot,
 	}
 	return rename.run(relativePath, newPath)
 }
@@ -115,12 +121,9 @@ func (r *workspaceEntryRename) run(relativePath string, newPath string) (*EntryR
 	if err := r.resolvePaths(relativePath, newPath); err != nil {
 		return nil, err
 	}
-	confinedRoot, err := confinedfs.Open(r.workspacePath)
-	if err != nil {
-		return nil, err
+	if r.confinedRoot == nil {
+		return nil, errors.New("workspace root is unavailable")
 	}
-	r.confinedRoot = confinedRoot
-	defer r.confinedRoot.Close()
 	if err := r.validateMove(); err != nil {
 		return nil, err
 	}
@@ -218,7 +221,7 @@ func (s *Service) DeleteEntry(ctx context.Context, agentID string, relativePath 
 	if err != nil {
 		return nil, err
 	}
-	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
 	if err != nil {
 		return nil, err
 	}

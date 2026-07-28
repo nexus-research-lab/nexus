@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -71,10 +72,11 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 		logger.Warn("DM rewrite 确保 session 失败", "err", err)
 		return err
 	}
-	rows, err := s.history.ReadMessages(agentValue.WorkspacePath, sessionItem, nil)
+	ownerHistory := s.history.ForOwner(agentValue.OwnerUserID)
+	rows, err := ownerHistory.ReadMessages(agentValue.WorkspacePath, sessionItem, nil)
 	if err != nil {
 		logger.Warn("DM rewrite 读取历史失败", "workspace_path", agentValue.WorkspacePath, "err", err)
-		return err
+		return fmt.Errorf("读取 DM rewrite 历史: %w", err)
 	}
 	lastUser, ok := lastVisibleUserMessage(rows)
 	if !ok {
@@ -93,7 +95,7 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 	if len(attachments) == 0 {
 		attachments = protocol.ChatAttachmentsFromAny(lastUser["attachments"])
 	}
-	tail, err := s.history.ResolveTranscriptRoundTail(
+	tail, err := ownerHistory.ResolveTranscriptRoundTail(
 		agentValue.WorkspacePath,
 		sessionKey,
 		dmdomain.StringPointerValue(sessionItem.SessionID),
@@ -105,7 +107,7 @@ func (s *Service) HandleRewriteLastUserMessage(ctx context.Context, request Rewr
 			"session_id", dmdomain.StringPointerValue(sessionItem.SessionID),
 			"err", err,
 		)
-		return err
+		return fmt.Errorf("解析 DM rewrite transcript 尾部: %w", err)
 	}
 	replacementRoundID := protocol.NewRoundID()
 	logger.Info("准备重跑 DM rewrite",
@@ -162,7 +164,11 @@ func (s *Service) pruneHistoryRewriteTail(ctx context.Context, input rewritePrun
 	if len(roundIDs) == 0 {
 		roundIDs = []string{input.TargetRoundID}
 	}
-	removed, err := s.history.RemoveOverlayRounds(input.WorkspacePath, input.SessionKey, roundIDs)
+	removed, err := s.history.ForOwner(authctx.OwnerUserID(ctx)).RemoveOverlayRounds(
+		input.WorkspacePath,
+		input.SessionKey,
+		roundIDs,
+	)
 	if err != nil {
 		s.loggerFor(ctx).Error("DM rewrite overlay 裁剪失败",
 			"session_key", input.SessionKey,

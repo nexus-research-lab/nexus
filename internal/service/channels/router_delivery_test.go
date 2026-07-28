@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
@@ -235,18 +236,19 @@ func TestRouterDoesNotDeliverToFailedOwnerChannel(t *testing.T) {
 }
 
 func TestRouterDeliverMessageUsesRememberedWebSocketRoute(t *testing.T) {
-	workspacePath := t.TempDir()
+	workspaceRoot, workspacePath := newChannelOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
 	db := newChannelTestDB(t)
 	permission := permissionctx.NewContext()
 	resolver := &stubAgentResolver{
 		agentByID: map[string]*protocol.Agent{
 			"agent-1": {
 				AgentID:       "agent-1",
+				OwnerUserID:   authctx.SystemUserID,
 				WorkspacePath: workspacePath,
 			},
 		},
 	}
-	store := workspacestore.NewSessionFileStore(workspacePath)
+	store := workspacestore.NewSessionFileStore(workspaceRoot)
 	sessionKey := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "chat-1", "")
 	now := time.Now().UTC()
 	if _, err := store.UpsertSession(workspacePath, protocol.Session{
@@ -265,7 +267,7 @@ func TestRouterDeliverMessageUsesRememberedWebSocketRoute(t *testing.T) {
 	}
 
 	router := NewRouter(
-		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspaceRoot},
 		db,
 		resolver,
 		permission,
@@ -295,7 +297,7 @@ func TestRouterDeliverMessageUsesRememberedWebSocketRoute(t *testing.T) {
 	if sessionValue.Status != "closed" || sessionValue.IsActive {
 		t.Fatalf("channel delivery 不应把空闲 session 标成 active: %+v", sessionValue)
 	}
-	history := workspacestore.NewAgentHistoryStore(workspacePath)
+	history := workspacestore.NewAgentHistoryStore(workspaceRoot)
 	messages, err := history.ReadMessages(workspacePath, *sessionValue, nil)
 	if err != nil {
 		t.Fatalf("读取消息失败: %v", err)
@@ -324,7 +326,9 @@ func TestRouterDeliverMessageUsesRememberedWebSocketRoute(t *testing.T) {
 
 func TestRouterDeliverMessagePersistsSharedRoomDelivery(t *testing.T) {
 	workspacePath := t.TempDir()
-	t.Setenv("NEXUS_CONFIG_DIR", t.TempDir())
+	stateRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
 	db := newChannelTestDB(t)
 	permission := permissionctx.NewContext()
 	resolver := &stubAgentResolver{
@@ -360,7 +364,7 @@ func TestRouterDeliverMessagePersistsSharedRoomDelivery(t *testing.T) {
 	}
 
 	roomHistory := workspacestore.NewRoomHistoryStore(workspacePath)
-	messages, err := roomHistory.ReadMessages("conversation-1", nil)
+	messages, err := roomHistory.ReadMessages("", "conversation-1", nil)
 	if err != nil {
 		t.Fatalf("读取 Room 共享历史失败: %v", err)
 	}
@@ -393,18 +397,19 @@ func TestRouterDeliverMessagePersistsSharedRoomDelivery(t *testing.T) {
 }
 
 func TestRouterDeliverMessageCreatesInternalAutomationInbox(t *testing.T) {
-	workspacePath := t.TempDir()
+	workspaceRoot, workspacePath := newChannelOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
 	db := newChannelTestDB(t)
 	resolver := &stubAgentResolver{
 		agentByID: map[string]*protocol.Agent{
 			"agent-1": {
 				AgentID:       "agent-1",
+				OwnerUserID:   authctx.SystemUserID,
 				WorkspacePath: workspacePath,
 			},
 		},
 	}
 	router := NewRouter(
-		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspaceRoot},
 		db,
 		resolver,
 		nil,
@@ -414,7 +419,7 @@ func TestRouterDeliverMessageCreatesInternalAutomationInbox(t *testing.T) {
 	}
 	defer router.Stop(context.Background())
 
-	store := workspacestore.NewSessionFileStore(workspacePath)
+	store := workspacestore.NewSessionFileStore(workspaceRoot)
 	sessionKey := protocol.BuildAgentSessionKey(
 		"agent-1",
 		protocol.SessionChannelInternalSegment,
@@ -446,7 +451,7 @@ func TestRouterDeliverMessageCreatesInternalAutomationInbox(t *testing.T) {
 		t.Fatalf("自动创建 session 元数据不正确: %+v", sessionValue)
 	}
 
-	history := workspacestore.NewAgentHistoryStore(workspacePath)
+	history := workspacestore.NewAgentHistoryStore(workspaceRoot)
 	messages, err := history.ReadMessages(workspacePath, *sessionValue, nil)
 	if err != nil {
 		t.Fatalf("读取消息失败: %v", err)

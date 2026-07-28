@@ -31,6 +31,21 @@ func (s *Service) UploadConversationAttachment(
 		return nil, errors.New("DM conversation does not support room attachments")
 	}
 
-	root := workspacestore.New(s.config.WorkspacePath).RoomConversationDir(conversationID)
-	return workspacepkg.UploadFileToRoot(root, filename, destination, reader)
+	store := workspacestore.New(s.config.WorkspacePath)
+	root, err := store.OpenRoomConversationAssetRoot(
+		contextValue.Room.OwnerUserID,
+		conversationID,
+		true,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	return workspacepkg.UploadFileWithRoot(
+		root.Name(),
+		root,
+		filename,
+		destination,
+		reader,
+	)
 }

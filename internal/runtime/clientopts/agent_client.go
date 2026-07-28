@@ -116,9 +116,12 @@ func BuildAgentClientOptionsWithConfig(
 	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx, ownerUserID))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, webSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
+	// 身份与作用域是宿主授权事实，不能交给调用方的 ExtraEnv 覆盖。
+	// 必须在所有可配置环境合并后再次写入，确保 runtime 内的 nexusctl、
+	// session metadata 和下游 hook 始终绑定同一个 owner。
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx, ownerUserID))
 	runtimeEnv = mergeRuntimeEnv(
 		runtimeEnv,
 		managedUserRuntimeEnv(ownerUserID, input.WorkspacePath, effectiveRuntimeKind),

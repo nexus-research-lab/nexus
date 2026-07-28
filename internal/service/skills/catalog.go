@@ -3,6 +3,7 @@ package skills
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io/fs"
 	"maps"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (map[string]catalogRecord, map[string]bool, bool, error) {
@@ -30,27 +32,46 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 		}
 		isMainAgent = agentValue.IsMain
 		installedNames = installedSkillNames(agentValue, records)
-		names, err := workspacesvc.ListDeployedSkills(agentValue.WorkspacePath)
+		workspaceRoot, err := s.openAgentWorkspace(agentValue)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		defer workspaceRoot.Close()
+		names, err := workspacesvc.ListDeployedSkillsAt(workspaceRoot)
 		if err != nil {
 			return nil, nil, false, err
 		}
 		for _, name := range names {
 			installedNames[name] = true
 		}
-		s.addWorkspaceLocalRecords(agentValue.WorkspacePath, records, installedNames)
+		s.addWorkspaceLocalRecords(
+			agentValue.WorkspacePath,
+			workspaceRoot,
+			records,
+			installedNames,
+		)
 	}
 	return records, installedNames, isMainAgent, nil
 }
 
-func (s *Service) addWorkspaceLocalRecords(workspacePath string, records map[string]catalogRecord, installedNames map[string]bool) {
-	skillDirs := discoverWorkspaceSkillDirs(workspacePath)
+func (s *Service) addWorkspaceLocalRecords(
+	workspacePath string,
+	workspaceRoot *confinedfs.Root,
+	records map[string]catalogRecord,
+	installedNames map[string]bool,
+) {
+	skillDirs := discoverWorkspaceSkillDirsAt(workspaceRoot)
 	skillNames := slices.Sorted(maps.Keys(skillDirs))
 	for _, skillName := range skillNames {
 		if _, ok := records[skillName]; ok {
 			installedNames[skillName] = true
 			continue
 		}
-		record, err := buildWorkspaceRecord(workspacePath, skillDirs[skillName])
+		record, err := buildWorkspaceRecordAt(
+			workspacePath,
+			workspaceRoot,
+			skillDirs[skillName],
+		)
 		if err != nil {
 			continue
 		}
@@ -63,30 +84,36 @@ func (s *Service) addWorkspaceLocalRecords(workspacePath string, records map[str
 	}
 }
 
-func discoverWorkspaceSkillDirs(workspacePath string) map[string]string {
-	root := strings.TrimSpace(workspacePath)
+func discoverWorkspaceSkillDirsAt(
+	confinedRoot *confinedfs.Root,
+) map[string]string {
 	result := map[string]string{}
-	confinedRoot, err := confinedfs.Open(root)
-	if err != nil {
-		return result
-	}
-	defer confinedRoot.Close()
 	addSkillDirs := func(parent string) {
-		entries, err := fs.ReadDir(confinedRoot.FS(), parent)
+		parentRoot, err := confinedRoot.OpenRootNoSymlink(parent)
+		if err != nil {
+			return
+		}
+		defer parentRoot.Close()
+		entries, err := fs.ReadDir(parentRoot.FS(), ".")
 		if err != nil {
 			return
 		}
 		for _, entry := range entries {
-			skillDir := filepath.ToSlash(filepath.Join(parent, entry.Name()))
-			info, statErr := confinedRoot.Lstat(skillDir)
+			info, statErr := parentRoot.Lstat(entry.Name())
 			if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 				continue
 			}
-			skillFile := filepath.ToSlash(filepath.Join(skillDir, "SKILL.md"))
-			skillInfo, statErr := confinedRoot.Lstat(skillFile)
-			if statErr != nil || skillInfo.Mode()&os.ModeSymlink != 0 || !skillInfo.Mode().IsRegular() {
+			skillRoot, openErr := parentRoot.OpenRootNoSymlink(entry.Name())
+			if openErr != nil {
 				continue
 			}
+			skillFile, openErr := skillRoot.OpenFileNoSymlink("SKILL.md", os.O_RDONLY, 0)
+			skillRoot.Close()
+			if openErr != nil {
+				continue
+			}
+			skillFile.Close()
+			skillDir := filepath.ToSlash(filepath.Join(parent, entry.Name()))
 			if _, exists := result[entry.Name()]; !exists {
 				result[entry.Name()] = skillDir
 			}
@@ -99,23 +126,14 @@ func discoverWorkspaceSkillDirs(workspacePath string) map[string]string {
 }
 
 func (s *Service) ensureAgent(ctx context.Context, agentID string) (*protocol.Agent, error) {
-	if err := workspacesvc.EnsurePlatformSkillLibrary(); err != nil {
-		return nil, err
+	if s.workspaces == nil {
+		return nil, errors.New("workspace service 未初始化")
 	}
-	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
+	agentValue, err := s.workspaces.EnsureAgentWorkspace(
+		ctx,
+		strings.TrimSpace(agentID),
+	)
 	if err != nil {
-		return nil, err
-	}
-	if err = workspacesvc.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
-		return nil, err
-	}
-	if err = workspacesvc.EnsureInitialized(
-		agentValue.AgentID,
-		agentValue.Name,
-		agentValue.WorkspacePath,
-		agentValue.IsMain,
-		agentValue.CreatedAt,
-	); err != nil {
 		return nil, err
 	}
 	return agentValue, nil
@@ -123,7 +141,39 @@ func (s *Service) ensureAgent(ctx context.Context, agentID string) (*protocol.Ag
 
 func (s *Service) deploySkillToWorkspace(agentValue *protocol.Agent, record catalogRecord) error {
 	context := workspacesvc.BuildSkillRenderContext(agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.CreatedAt)
-	return workspacesvc.DeploySkill(record.Detail.Name, record.SourcePath, agentValue.WorkspacePath, context)
+	root, err := s.openAgentWorkspace(agentValue)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if record.Detail.SourceType == sourceTypeExternal {
+		ownerRoot, openErr := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+			agentValue.OwnerUserID,
+			workspacesvc.UserSkillLibraryRoot(s.config, agentValue.OwnerUserID),
+			false,
+		)
+		if openErr != nil {
+			return openErr
+		}
+		defer ownerRoot.Close()
+		sourceRelative, relativeErr := relativeSkillPath(ownerRoot, record.SourcePath)
+		if relativeErr != nil {
+			return relativeErr
+		}
+		sourceRoot, sourceErr := ownerRoot.OpenRootNoSymlink(sourceRelative)
+		if sourceErr != nil {
+			return sourceErr
+		}
+		defer sourceRoot.Close()
+		context := workspacesvc.BuildSkillRenderContext(agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.CreatedAt)
+		return workspacesvc.DeploySkillAtFromRoots(root, sourceRoot, record.Detail.Name, context)
+	}
+	return workspacesvc.DeploySkillAt(
+		root,
+		record.Detail.Name,
+		record.SourcePath,
+		context,
+	)
 }
 
 // agentsReferencingSkill 返回正在引用 owner 共享源的 Agent。
@@ -173,7 +223,7 @@ func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRec
 	}
 	platformRoot := filepath.Clean(filepath.Join(projectRoot(), "skills"))
 	for _, root := range builtinSearchRootsForContext(ctx, projectRoot()) {
-		entries, err := os.ReadDir(root)
+		entries, err := readConfinedDirectoryEntries(root)
 		if err != nil && !os.IsNotExist(err) {
 			return nil, err
 		}
@@ -284,12 +334,11 @@ func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }
 
-func buildWorkspaceRecord(workspacePath string, relativeSourceDir string) (catalogRecord, error) {
-	root, err := confinedfs.Open(workspacePath)
-	if err != nil {
-		return catalogRecord{}, err
-	}
-	defer root.Close()
+func buildWorkspaceRecordAt(
+	workspacePath string,
+	root *confinedfs.Root,
+	relativeSourceDir string,
+) (catalogRecord, error) {
 	contentBytes, err := root.ReadFile(filepath.ToSlash(filepath.Join(relativeSourceDir, "SKILL.md")))
 	if err != nil {
 		return catalogRecord{}, err

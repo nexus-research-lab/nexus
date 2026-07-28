@@ -49,6 +49,8 @@ func (f *fakeExternalSessionNotifier) NotifyExternalSessionUpdated(_ context.Con
 func newIngressTestConfig(t *testing.T) config.Config {
 	t.Helper()
 	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(root, ".nexus"))
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18040,

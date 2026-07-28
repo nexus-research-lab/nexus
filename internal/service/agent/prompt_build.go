@@ -15,6 +15,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var defaultWorkspacePromptFiles = []string{
@@ -34,7 +35,9 @@ type promptBuilder struct {
 
 type promptBuildScope struct {
 	isMainAgent   bool
+	ownerUserID   string
 	workspacePath string
+	workspaceRoot string
 	skillNames    []string
 }
 
@@ -87,7 +90,9 @@ func (b *promptBuilder) newBuildScope(agentValue *protocol.Agent) promptBuildSco
 	}
 	return promptBuildScope{
 		isMainAgent:   isMainAgentPrompt(agentValue, b.config.DefaultAgentID),
+		ownerUserID:   strings.TrimSpace(agentValue.OwnerUserID),
 		workspacePath: workspacePath,
+		workspaceRoot: strings.TrimSpace(b.config.WorkspacePath),
 		skillNames:    skillNames,
 	}
 }
@@ -144,7 +149,7 @@ func hasSelectedSkill(scope promptBuildScope, skillName string) bool {
 	if strings.TrimSpace(scope.workspacePath) == "" {
 		return false
 	}
-	root, err := confinedfs.Open(scope.workspacePath)
+	root, err := openPromptWorkspace(scope)
 	if err != nil {
 		return false
 	}
@@ -250,7 +255,7 @@ func loadWorkspacePromptSections(scope promptBuildScope) ([]string, error) {
 	files := scope.workspacePromptFiles()
 	sections := make([]string, 0, len(files))
 	for _, fileName := range files {
-		content, err := readOptionalWorkspacePromptFile(scope.workspacePath, fileName)
+		content, err := readOptionalWorkspacePromptFile(scope, fileName)
 		if err != nil {
 			return nil, err
 		}
@@ -259,8 +264,11 @@ func loadWorkspacePromptSections(scope promptBuildScope) ([]string, error) {
 	return sections, nil
 }
 
-func readOptionalWorkspacePromptFile(workspacePath string, fileName string) (string, error) {
-	root, err := confinedfs.Open(strings.TrimSpace(workspacePath))
+func readOptionalWorkspacePromptFile(
+	scope promptBuildScope,
+	fileName string,
+) (string, error) {
+	root, err := openPromptWorkspace(scope)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -276,6 +284,17 @@ func readOptionalWorkspacePromptFile(workspacePath string, fileName string) (str
 		return "", err
 	}
 	return strings.TrimSpace(string(content)), nil
+}
+
+func openPromptWorkspace(scope promptBuildScope) (*confinedfs.Root, error) {
+	if strings.TrimSpace(scope.ownerUserID) != "" {
+		return workspacestore.New(scope.workspaceRoot).OpenOwnerWorkspacePath(
+			scope.ownerUserID,
+			scope.workspacePath,
+			false,
+		)
+	}
+	return confinedfs.Open(strings.TrimSpace(scope.workspacePath))
 }
 
 // formatWorkspacePromptSection 在运行时提示词边界注入来源文件名，避免污染用户实际模板。
@@ -294,14 +313,13 @@ func formatWorkspacePromptSection(fileName string, content string) string {
 
 // BuildUserMessageSuffix 构建追加到最后一条用户消息后的动态上下文。
 func (b *promptBuilder) BuildUserMessageSuffix(ctx context.Context, agentValue *protocol.Agent, emotionContextID string) string {
-	workspacePath := ""
+	scope := promptBuildScope{}
 	if agentValue != nil {
-		scope := b.newBuildScope(agentValue)
-		workspacePath = scope.workspacePath
+		scope = b.newBuildScope(agentValue)
 	}
 	// 时间不再由本层注入：runtime（nexus-agent-sdk-go）的基础提示已含权威时间，
 	// 且秒级时间戳会污染 prompt 前缀缓存。此处只保留情绪态。
-	emotionView := LoadRuntimeEmotionView(workspacePath, emotionContextID, time.Now())
+	emotionView := loadRuntimeEmotionViewForScope(scope, emotionContextID, time.Now())
 	sections := make([]string, 0, 1)
 	sections = appendPromptSection(sections, buildRuntimeEmotionSection(agentValue, emotionView))
 	if len(sections) == 0 {
@@ -312,6 +330,22 @@ func (b *promptBuilder) BuildUserMessageSuffix(ctx context.Context, agentValue *
 		strings.Join(sections, "\n\n"),
 		"</nexus_runtime_context>",
 	}, "\n")
+}
+
+func loadRuntimeEmotionViewForScope(
+	scope promptBuildScope,
+	contextID string,
+	now time.Time,
+) RuntimeEmotionView {
+	state := defaultRuntimeEmotionState(now)
+	if strings.TrimSpace(scope.workspacePath) != "" {
+		root, err := openPromptWorkspace(scope)
+		if err == nil {
+			state = loadRuntimeEmotionStateAt(root, now)
+			_ = root.Close()
+		}
+	}
+	return buildRuntimeEmotionView(scope.workspacePath, state, contextID, now)
 }
 
 func buildRuntimeEmotionSection(agentValue *protocol.Agent, view RuntimeEmotionView) string {

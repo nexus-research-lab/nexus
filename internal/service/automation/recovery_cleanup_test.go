@@ -9,6 +9,7 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
@@ -338,7 +339,7 @@ func TestDeleteTaskInterruptsActiveRoomRun(t *testing.T) {
 }
 
 func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
-	workspacePath := t.TempDir()
+	workspacePath := newAutomationOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
 	service := NewService(

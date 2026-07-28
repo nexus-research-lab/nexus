@@ -84,9 +84,18 @@ func (s *Service) HandlePublicMessage(
 	if err = s.detectPublicMessageHandoffs(contextValue, sourceAgentID, messageID, content, rootRoundID, hopIndex, targetAgentIDs); err != nil {
 		return nil, err
 	}
-	if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, message); err != nil {
+	if err = s.persistSharedInlineMessage(
+		contextValue.Room.OwnerUserID,
+		contextValue.Conversation.ID,
+		message,
+	); err != nil {
 		if s.publicHandoffs != nil {
-			_ = s.publicHandoffs.CancelForSource(contextValue.Conversation.ID, messageID, "error")
+			_ = s.publicHandoffs.CancelForSource(
+				contextValue.Room.OwnerUserID,
+				contextValue.Conversation.ID,
+				messageID,
+				"error",
+			)
 		}
 		return nil, err
 	}
@@ -168,7 +177,11 @@ func (s *Service) startPublicMessageMentionWakes(
 		}
 		handoffID := roomPublicHandoffID(contextValue.Conversation.ID, messageID, targetAgentID)
 		if s.publicHandoffs != nil {
-			if err := s.publicHandoffs.MarkSourceFinished(contextValue.Conversation.ID, handoffID); err != nil {
+			if err := s.publicHandoffs.MarkSourceFinished(
+				contextValue.Room.OwnerUserID,
+				contextValue.Conversation.ID,
+				handoffID,
+			); err != nil {
 				return err
 			}
 		}
@@ -202,7 +215,7 @@ func (s *Service) detectPublicMessageHandoffs(
 			continue
 		}
 		handoffID := roomPublicHandoffID(contextValue.Conversation.ID, messageID, targetAgentID)
-		if _, _, err := s.publicHandoffs.Detect(workspacestore.RoomPublicHandoff{
+		if _, _, err := s.publicHandoffs.Detect(contextValue.Room.OwnerUserID, workspacestore.RoomPublicHandoff{
 			HandoffID:          handoffID,
 			ConversationID:     contextValue.Conversation.ID,
 			RoomID:             contextValue.Room.ID,

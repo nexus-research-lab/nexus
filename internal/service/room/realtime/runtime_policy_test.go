@@ -443,15 +443,21 @@ func TestRealtimeServiceGoalContinuationDefersForBusyNonLeadMember(t *testing.T)
 		peerStarted <- struct{}{}
 		return nil
 	}
+	runtimeManager := runtimectx.NewManager()
 	service := NewServiceWithFactory(
 		cfg,
 		roomService,
 		agentService,
-		runtimectx.NewManager(),
+		runtimeManager,
 		permissionctx.NewContext(),
 		&fakeRoomFactory{clients: []*fakeRoomClient{peerClient}},
 	)
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	t.Cleanup(func() {
+		if err := runtimeManager.CloseSession(context.Background(), sharedSessionKey); err != nil {
+			t.Errorf("清理 Room runtime 失败: %v", err)
+		}
+	})
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,

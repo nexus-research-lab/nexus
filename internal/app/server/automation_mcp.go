@@ -10,7 +10,7 @@ import (
 
 	automationmcp "github.com/nexus-research-lab/nexus/internal/mcp/automation"
 	automationmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
-	"github.com/nexus-research-lab/nexus/internal/service/agent"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 )
@@ -22,11 +22,11 @@ import (
 // 在 dm 与 chat 包外部完成绑定，避免它们反向依赖 automation 子包导致 import cycle。
 func newAutomationMCPBuilder(
 	svc automationmcpcontract.Service,
-	agents *agent.Service,
 	defaultTimezone string,
-) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
 	return func(
-		agentID string,
+		_ context.Context,
+		agentValue *protocol.Agent,
 		sessionKey string,
 		roundID string,
 		sourceContextType string,
@@ -35,7 +35,6 @@ func newAutomationMCPBuilder(
 		_ *atomic.Int64,
 	) map[string]sdkmcp.ServerConfig {
 		sctx := automationmcpcontract.ServerContext{
-			CurrentAgentID:      agentID,
 			CurrentSessionKey:   sessionKey,
 			CurrentSessionLabel: strings.TrimSpace(sourceContextLabel),
 			SourceContextType:   sourceContextType,
@@ -43,12 +42,11 @@ func newAutomationMCPBuilder(
 			SourceContextLabel:  sourceContextLabel,
 			DefaultTimezone:     strings.TrimSpace(defaultTimezone),
 		}
-		if agents != nil && agentID != "" {
-			if record, err := agents.GetAgent(context.Background(), agentID); err == nil && record != nil {
-				sctx.CurrentAgentName = record.Name
-				sctx.OwnerUserID = record.OwnerUserID
-				sctx.IsMainAgent = record.IsMain
-			}
+		if agentValue != nil {
+			sctx.CurrentAgentID = agentValue.AgentID
+			sctx.CurrentAgentName = agentValue.Name
+			sctx.OwnerUserID = agentValue.OwnerUserID
+			sctx.IsMainAgent = agentValue.IsMain
 		}
 		return map[string]sdkmcp.ServerConfig{
 			automationmcpcontract.ServerName: sdkmcp.SDKServerConfig{

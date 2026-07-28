@@ -62,7 +62,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 	if err := workspacepkg.EnsureUserSkillLibrary(r.config, agentValue.OwnerUserID); err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
-	runtimeSkillNames, err := workspacepkg.RuntimeSkillNames(agentValue.WorkspacePath, agentValue.Options.SkillIDs)
+	runtimeSkillNames, err := workspacepkg.RuntimeSkillNamesForAgent(r.config, agentValue)
 	if err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}

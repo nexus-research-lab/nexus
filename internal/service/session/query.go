@@ -28,7 +28,7 @@ func (s *Service) ListAgentSessions(ctx context.Context, agentID string) ([]prot
 		return nil, err
 	}
 
-	fileSessions, err := s.files.ListSessions(agentValue.WorkspacePath)
+	fileSessions, err := s.ownerFiles(ctx).ListSessions(agentValue.WorkspacePath)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,11 @@ func (s *Service) ListAgentSessions(ctx context.Context, agentID string) ([]prot
 		if item.AgentID != agentID {
 			continue
 		}
-		reconciled, reconcileErr := s.reconcileWorkspaceSessionRuntimeState(agentValue.WorkspacePath, item)
+		reconciled, reconcileErr := s.reconcileWorkspaceSessionRuntimeState(
+			ctx,
+			agentValue.WorkspacePath,
+			item,
+		)
 		if reconcileErr != nil {
 			return nil, reconcileErr
 		}
@@ -78,14 +82,18 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*protoc
 	if err != nil {
 		return nil, err
 	}
-	item, workspacePath, err := s.files.FindSession(workspacePaths, sessionKey)
+	item, workspacePath, err := s.ownerFiles(ctx).FindSession(workspacePaths, sessionKey)
 	if err != nil {
 		return nil, err
 	}
 	if item == nil {
 		return nil, ErrSessionNotFound
 	}
-	normalized, err := s.reconcileWorkspaceSessionRuntimeState(workspacePath, *item)
+	normalized, err := s.reconcileWorkspaceSessionRuntimeState(
+		ctx,
+		workspacePath,
+		*item,
+	)
 	if err != nil {
 		return nil, err
 	}

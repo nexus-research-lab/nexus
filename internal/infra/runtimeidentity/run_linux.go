@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -68,6 +70,8 @@ func Run(args []string, environ []string, stdout io.Writer, stderr io.Writer) in
 		err = runProjectList(config, args[1:], stdout)
 	case "stop-user":
 		err = runStopUser(config, args[1:], stdout)
+	case "run-script":
+		err = runScript(config, environ, args[1:], stdout, stderr)
 	default:
 		// bridge 直接把 runtime flags 交给 launcher；只有存在有效票据时
 		// 才把整组参数视为 runtime argv。
@@ -327,6 +331,172 @@ func runRuntimeError(
 	return fmt.Errorf("runtime launcher 退出，code=%d", code)
 }
 
+func runScript(
+	config launcherConfig,
+	environ []string,
+	args []string,
+	stdout io.Writer,
+	stderr io.Writer,
+) error {
+	script, err := validateScriptArguments(args)
+	if err != nil {
+		return err
+	}
+
+	// Landlock policy 绑定调用线程；子进程必须从已进入 domain 的线程 fork。
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ticket, policy, err := loadLaunchPolicy(config, environ)
+	if err != nil {
+		return err
+	}
+	if policy.RuntimeKind != scriptRuntimeKind {
+		return errors.New("run-script 需要 script runtime ticket")
+	}
+	if err = attachRuntimeCgroup(config, policy.Identity.Username); err != nil {
+		return fmt.Errorf("加入 runtime cgroup: %w", err)
+	}
+	policy, err = refreshLaunchPolicy(config, ticket)
+	if err != nil {
+		return fmt.Errorf("复核 script isolation ticket: %w", err)
+	}
+	if err = enterLaunchCWD(policy, false); err != nil {
+		return err
+	}
+	executable, err := trustedRuntimeExecutable(config, policy.RuntimeKind)
+	if err != nil {
+		return err
+	}
+	syscall.Umask(0o007)
+	landlockABIValue, err := applyLandlock(config, policy, executable)
+	if err != nil {
+		return err
+	}
+	if err = markUnexpectedDescriptorsCloseOnExec(); err != nil {
+		return fmt.Errorf("收紧 script 文件描述符继承失败: %w", err)
+	}
+
+	groups := make([]uint32, 0, len(policy.Identity.SupplementaryGIDs))
+	for _, groupID := range policy.Identity.SupplementaryGIDs {
+		groups = append(groups, uint32(groupID))
+	}
+	command := exec.Command(executable, "-lc", script)
+	command.Stdout = stdout
+	command.Stderr = stderr
+	command.Env = sanitizedRuntimeEnvironment(environ, config, policy)
+	command.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{
+			Uid:    uint32(policy.Identity.UID),
+			Gid:    uint32(policy.Identity.PrivateGID),
+			Groups: groups,
+		},
+		Setpgid:   true,
+		Pdeathsig: syscall.SIGKILL,
+	}
+	if err = command.Start(); err != nil {
+		return fmt.Errorf("启动受限自动化脚本: %w", err)
+	}
+	_, _ = fmt.Fprintf(
+		stderr,
+		"nexus_script_isolation owner=%s uid=%d gid=%d groups=%v generation=%d landlock_abi=%d cwd=%s\n",
+		policy.OwnerUserID,
+		policy.Identity.UID,
+		policy.Identity.PrivateGID,
+		policy.Identity.SupplementaryGIDs,
+		policy.Generation,
+		landlockABIValue,
+		policy.CWD,
+	)
+
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signalChannel)
+	waitChannel := make(chan error, 1)
+	go func() {
+		waitChannel <- command.Wait()
+	}()
+	select {
+	case waitErr := <-waitChannel:
+		return waitErr
+	case <-signalChannel:
+		killErr := syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		waitErr := <-waitChannel
+		if killErr != nil && !errors.Is(killErr, syscall.ESRCH) {
+			return errors.Join(errors.New("自动化脚本已中断"), killErr, waitErr)
+		}
+		return errors.Join(errors.New("自动化脚本已中断"), waitErr)
+	}
+}
+
+func loadLaunchPolicy(
+	config launcherConfig,
+	environ []string,
+) (launchTicket, preparedPolicy, error) {
+	ticketID := environmentValue(environ, "NEXUS_RUNTIME_ISOLATION_TICKET")
+	if ticketID == "" {
+		return launchTicket{}, preparedPolicy{}, errors.New("缺少 runtime isolation ticket")
+	}
+	ticket, err := readLaunchTicket(config, ticketID)
+	if err != nil {
+		return launchTicket{}, preparedPolicy{}, err
+	}
+	if strings.TrimSpace(ticket.OwnerUserID) == "" ||
+		strings.TrimSpace(ticket.RuntimeKind) == "" ||
+		strings.TrimSpace(ticket.CWD) == "" ||
+		ticket.Generation == 0 ||
+		ticket.CreatedAt.IsZero() ||
+		ticket.ExpiresAt.IsZero() ||
+		ticket.ExpiresAt.Before(ticket.CreatedAt) {
+		return launchTicket{}, preparedPolicy{}, errors.New("runtime isolation ticket 内容无效")
+	}
+	policy, err := refreshLaunchPolicy(config, ticket)
+	if err != nil {
+		return launchTicket{}, preparedPolicy{}, err
+	}
+	return ticket, policy, nil
+}
+
+func refreshLaunchPolicy(
+	config launcherConfig,
+	ticket launchTicket,
+) (preparedPolicy, error) {
+	policy, err := withLockedRegistry(config, false, func(current *registry) (preparedPolicy, bool, error) {
+		value, policyErr := policyForTicket(config, current, ticket)
+		return value, false, policyErr
+	})
+	if err != nil {
+		return preparedPolicy{}, err
+	}
+	if policy.Generation != ticket.Generation {
+		return preparedPolicy{}, errors.New("runtime isolation ticket 已被撤销")
+	}
+	return policy, nil
+}
+
+func enterLaunchCWD(policy preparedPolicy, requireCurrentCWD bool) error {
+	if requireCurrentCWD {
+		actualCWD, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		actualCWD, err = canonicalExistingOrPendingPath(actualCWD)
+		if err != nil || actualCWD != policy.CWD {
+			return errors.New("runtime cwd 与 ticket 不一致")
+		}
+	}
+	cwdFD, err := openPathNoSymlink(policy.CWD, true)
+	if err != nil {
+		return fmt.Errorf("打开 runtime cwd: %w", err)
+	}
+	if err = unix.Fchdir(cwdFD); err != nil {
+		_ = unix.Close(cwdFD)
+		return fmt.Errorf("进入 runtime cwd: %w", err)
+	}
+	_ = unix.Close(cwdFD)
+	return nil
+}
+
 func runRuntime(
 	config launcherConfig,
 	environ []string,
@@ -338,36 +508,13 @@ func runRuntime(
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	ticketID := environmentValue(environ, "NEXUS_RUNTIME_ISOLATION_TICKET")
-	if ticketID == "" {
-		_, _ = fmt.Fprintln(stderr, "缺少 runtime isolation ticket")
-		return 1
-	}
-	ticket, err := readLaunchTicket(config, ticketID)
+	ticket, policy, err := loadLaunchPolicy(config, environ)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
-	if strings.TrimSpace(ticket.OwnerUserID) == "" ||
-		strings.TrimSpace(ticket.RuntimeKind) == "" ||
-		strings.TrimSpace(ticket.CWD) == "" ||
-		ticket.Generation == 0 ||
-		ticket.CreatedAt.IsZero() ||
-		ticket.ExpiresAt.IsZero() ||
-		ticket.ExpiresAt.Before(ticket.CreatedAt) {
-		_, _ = fmt.Fprintln(stderr, "runtime isolation ticket 内容无效")
-		return 1
-	}
-	policy, err := withLockedRegistry(config, false, func(current *registry) (preparedPolicy, bool, error) {
-		value, policyErr := policyForTicket(config, current, ticket)
-		return value, false, policyErr
-	})
-	if err != nil {
-		_, _ = fmt.Fprintln(stderr, err)
-		return 1
-	}
-	if policy.Generation != ticket.Generation {
-		_, _ = fmt.Fprintln(stderr, "runtime isolation ticket 已被撤销")
+	if policy.RuntimeKind == scriptRuntimeKind {
+		_, _ = fmt.Fprintln(stderr, "script ticket 必须使用 run-script")
 		return 1
 	}
 	if err = attachRuntimeCgroup(config, policy.Identity.Username); err != nil {
@@ -376,26 +523,13 @@ func runRuntime(
 	}
 	// stop-user 可能与上面的 attach 并发；重新读取 registry，确保 ACL
 	// generation 在进入最终 Landlock/exec 前仍然有效。
-	policy, err = withLockedRegistry(config, false, func(current *registry) (preparedPolicy, bool, error) {
-		value, policyErr := policyForTicket(config, current, ticket)
-		return value, false, policyErr
-	})
+	policy, err = refreshLaunchPolicy(config, ticket)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, fmt.Errorf("复核 runtime isolation ticket: %w", err))
 		return 1
 	}
-	if policy.Generation != ticket.Generation {
-		_, _ = fmt.Fprintln(stderr, "runtime isolation ticket 在启动期间失效")
-		return 1
-	}
-	actualCWD, err := os.Getwd()
-	if err != nil {
+	if err = enterLaunchCWD(policy, true); err != nil {
 		_, _ = fmt.Fprintln(stderr, err)
-		return 1
-	}
-	actualCWD, err = canonicalExistingOrPendingPath(actualCWD)
-	if err != nil || actualCWD != policy.CWD {
-		_, _ = fmt.Fprintln(stderr, "runtime cwd 与 ticket 不一致")
 		return 1
 	}
 	executable, err := trustedRuntimeExecutable(config, policy.RuntimeKind)
@@ -407,17 +541,6 @@ func runRuntime(
 		_, _ = fmt.Fprintln(stderr, err)
 		return 1
 	}
-	cwdFD, err := openPathNoSymlink(policy.CWD, true)
-	if err != nil {
-		_, _ = fmt.Fprintln(stderr, fmt.Errorf("打开 runtime cwd: %w", err))
-		return 1
-	}
-	if err = unix.Fchdir(cwdFD); err != nil {
-		_ = unix.Close(cwdFD)
-		_, _ = fmt.Fprintln(stderr, err)
-		return 1
-	}
-	_ = unix.Close(cwdFD)
 	syscall.Umask(0o007)
 	landlockABIValue, err := applyLandlock(config, policy, executable)
 	if err != nil {

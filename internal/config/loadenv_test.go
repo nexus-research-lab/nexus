@@ -136,6 +136,7 @@ func TestLoadRuntimeIdleSessionSettings(t *testing.T) {
 func TestLoadWorkspacePathUsesRuntimeSettingsWhenEnvEmpty(t *testing.T) {
 	root := t.TempDir()
 	workspacePath := filepath.Join(root, "custom-workspace")
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	t.Setenv("WORKSPACE_PATH", "")
 	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: workspacePath}); err != nil {
@@ -174,11 +175,32 @@ func TestSaveRuntimeSettingsUsesPrivatePermissions(t *testing.T) {
 	}
 }
 
+func TestSaveRuntimeSettingsRejectsSymlinkedConfigDirectory(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	outsideRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	if err := os.MkdirAll(filepath.Join(stateRoot, "app"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outsideRoot, filepath.Join(stateRoot, "app", "config")); err != nil {
+		t.Skipf("当前平台不支持符号链接: %v", err)
+	}
+
+	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: "/tmp/workspace"}); err == nil {
+		t.Fatal("runtime settings 不应写入符号链接配置目录")
+	}
+	if _, err := os.Stat(filepath.Join(outsideRoot, runtimeSettingsFileName)); !os.IsNotExist(err) {
+		t.Fatalf("符号链接目标不应收到 runtime settings: %v", err)
+	}
+}
+
 func TestLoadWorkspacePathKeepsExplicitEnv(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, ".nexus")
 	persistedPath := filepath.Join(root, "persisted-workspace")
 	envPath := filepath.Join(root, "env-workspace")
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
 	t.Setenv("WORKSPACE_PATH", envPath)
 	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: persistedPath}); err != nil {
@@ -196,6 +218,7 @@ func TestLoadWorkspacePathOverridesDesktopDefaultEnv(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, ".nexus")
 	persistedPath := filepath.Join(root, "persisted-workspace")
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
 	t.Setenv("NEXUS_APP_MODE", "desktop")
 	t.Setenv("WORKSPACE_PATH", filepath.Join(configDir, "workspace"))

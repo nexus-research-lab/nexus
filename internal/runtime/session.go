@@ -34,6 +34,10 @@ func (m *Manager) GetOrCreateWithFactory(
 	var existing Client
 	var existingKind agentclient.RuntimeKind
 	var existingOwnerUserID string
+	if state != nil && state.Closing {
+		m.mu.Unlock()
+		return nil, errRuntimeSessionClosing
+	}
 	if state != nil && state.Client != nil {
 		existing = state.Client
 		existingKind = state.RuntimeKind
@@ -64,6 +68,10 @@ func (m *Manager) GetOrCreateWithFactory(
 
 	m.mu.Lock()
 	state = m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		m.mu.Unlock()
+		return nil, errRuntimeSessionClosing
+	}
 	if state.Client == nil {
 		state.Client = factory.New(options)
 		state.RuntimeKind = runtimeKind
@@ -113,7 +121,7 @@ func (m *Manager) setRuntimeMetadataIfCurrent(
 ) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if state := m.sessions[sessionKey]; state != nil && state.Client == client {
+	if state := m.sessions[sessionKey]; state != nil && !state.Closing && state.Client == client {
 		state.RuntimeKind = kind
 		if ownerUserID != "" {
 			state.OwnerUserID = ownerUserID
@@ -147,6 +155,13 @@ func (m *Manager) replaceRuntimeClient(
 	next := factory.New(options)
 	m.mu.Lock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		m.mu.Unlock()
+		if next != nil {
+			_ = next.Disconnect(context.Background())
+		}
+		return nil, errRuntimeSessionClosing
+	}
 	if state.Client != stale {
 		next = state.Client
 		m.mu.Unlock()
@@ -181,7 +196,7 @@ func (m *Manager) RuntimeKind(sessionKey string) agentclient.RuntimeKind {
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil {
+	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil && !state.Closing {
 		return state.RuntimeKind
 	}
 	return ""
@@ -196,7 +211,7 @@ func (m *Manager) HasSession(sessionKey string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state := m.sessions[strings.TrimSpace(sessionKey)]
-	if state == nil || state.Client == nil {
+	if state == nil || state.Closing || state.Client == nil {
 		return false
 	}
 	if connected, ok := state.Client.(interface{ IsConnected() bool }); ok {
@@ -212,7 +227,7 @@ func (m *Manager) SessionClient(sessionKey string) Client {
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil {
+	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil && !state.Closing {
 		return state.Client
 	}
 	return nil
@@ -227,6 +242,9 @@ func (m *Manager) MarkSubagentHistory(sessionKey string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(strings.TrimSpace(sessionKey))
+	if state.Closing {
+		return
+	}
 	state.HasSubagentHistory = true
 	m.touchStateLocked(state)
 }
@@ -239,31 +257,60 @@ func (m *Manager) HasSubagentHistory(sessionKey string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state := m.sessions[strings.TrimSpace(sessionKey)]
-	return state != nil && state.HasSubagentHistory
+	return state != nil && !state.Closing && state.HasSubagentHistory
 }
 
 // CloseSession 关闭指定 session。
 func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
-	var reaperErr error
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	m.mu.Lock()
-	state, ok := m.sessions[sessionKey]
-	if ok {
-		delete(m.sessions, sessionKey)
-		if state != nil {
-			reaperErr = m.reapOwnerIfLastLocked(ctx, state.OwnerUserID)
-		}
+	target, started, closeDone := m.beginSessionCloseLocked(sessionKey)
+	if !started {
+		m.mu.Unlock()
+		return waitSessionClose(ctx, closeDone)
 	}
+	reaperErr := m.reapOwnerIfLastLocked(ctx, target.ownerUserID)
 	m.mu.Unlock()
-	if !ok || state == nil || state.Client == nil {
-		return reaperErr
+
+	if target.idleMessageCancel != nil {
+		target.idleMessageCancel()
 	}
-	if state.IdleMessageCancel != nil {
-		state.IdleMessageCancel()
-	}
-	for _, cancel := range state.RoundCancels {
+	for _, cancel := range target.roundCancels {
 		if cancel != nil {
 			cancel()
 		}
 	}
-	return errors.Join(reaperErr, state.Client.Disconnect(ctx))
+	for _, cancel := range target.backgroundCancels {
+		if cancel != nil {
+			cancel()
+		}
+	}
+
+	var disconnectErr error
+	if target.client != nil {
+		disconnectErr = target.client.Disconnect(ctx)
+	}
+	waitBackgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
+	if waitBackgroundErr != nil {
+		disconnectErr = errors.Join(disconnectErr, waitBackgroundErr)
+	}
+	waitRoundErr := waitRoundDoneForClose(ctx, target.roundDone)
+	if waitRoundErr != nil {
+		disconnectErr = errors.Join(disconnectErr, waitRoundErr)
+		m.finishSessionCloseWhenDone(target)
+	} else if waitBackgroundErr != nil {
+		// context 可能先于后台写盘任务结束；即使 round 已退出，也不能
+		// 删除 session 状态，否则任务完成前仍可通过旧引用继续写 owner 目录。
+		m.finishSessionCloseWhenDone(target)
+	} else {
+		m.finishSessionClose(target)
+	}
+	return errors.Join(reaperErr, disconnectErr)
 }

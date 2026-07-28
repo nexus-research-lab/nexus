@@ -1,7 +1,9 @@
 package session
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +11,10 @@ import (
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -399,5 +405,45 @@ func TestReadSubagentTaskThreadFallsBackFromPlainOutput(t *testing.T) {
 	output, err := readSubagentOutputFile(outputPath, root)
 	if err != nil || output != "普通任务输出" {
 		t.Fatalf("普通 output 回退失败: output=%q err=%v", output, err)
+	}
+}
+
+func TestReadSubagentOutputFileRejectsCrossOwnerWorkspaceSymlink(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+
+	ownerAWorkspace := filepath.Join(
+		appfs.UserWorkspaceRootAt(stateRoot, "user-a"),
+		"agent-a",
+	)
+	ownerBWorkspace := filepath.Join(
+		appfs.UserWorkspaceRootAt(stateRoot, "user-b"),
+		"agent-b",
+	)
+	if err := os.MkdirAll(filepath.Dir(ownerAWorkspace), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(ownerBWorkspace, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	outputPath := filepath.Join(ownerBWorkspace, "output.txt")
+	if err := os.WriteFile(outputPath, []byte("owner-b-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(ownerBWorkspace, ownerAWorkspace); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	service := &Service{config: config.Config{WorkspacePath: appfs.UsersRoot()}}
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID: "user-a",
+	})
+	output, err := service.readSubagentOutputFile(
+		ctx,
+		filepath.Join(ownerAWorkspace, "output.txt"),
+		ownerAWorkspace,
+	)
+	if output != "" || !errors.Is(err, confinedfs.ErrSymlink) {
+		t.Fatalf("跨 owner workspace symlink 应被拒绝: output=%q err=%v", output, err)
 	}
 }

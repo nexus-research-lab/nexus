@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -110,9 +111,24 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 	if workspacePath == "" {
 		return nil, fmt.Errorf("delivery target agent has no workspace path: %s", parsed.AgentID)
 	}
+	ownerUserID := strings.TrimSpace(agentValue.OwnerUserID)
+	authOwnerUserID := strings.TrimSpace(authctx.OwnerUserID(ctx))
+	if ownerUserID != "" && authOwnerUserID != "" && ownerUserID != authOwnerUserID {
+		return nil, fmt.Errorf(
+			"delivery target agent owner mismatch: agent=%s principal=%s",
+			ownerUserID,
+			authOwnerUserID,
+		)
+	}
+	if ownerUserID == "" {
+		ownerUserID = authOwnerUserID
+	}
+	if ownerUserID == "" {
+		return nil, fmt.Errorf("delivery target agent has no owner: %s", parsed.AgentID)
+	}
 
 	now := time.Now().UTC()
-	sessionValue, err := c.ensureSession(workspacePath, parsed, sessionKey, now)
+	sessionValue, err := c.ensureSession(ownerUserID, workspacePath, parsed, sessionKey, now)
 	if err != nil {
 		return nil, err
 	}
@@ -153,11 +169,11 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 		"is_error":        false,
 	}
 
-	updated, err := c.persistMessage(workspacePath, *sessionValue, assistantMessage)
+	updated, err := c.persistMessage(ownerUserID, workspacePath, *sessionValue, assistantMessage)
 	if err != nil {
 		return nil, err
 	}
-	if _, err = c.persistMessage(workspacePath, updated, resultMessage); err != nil {
+	if _, err = c.persistMessage(ownerUserID, workspacePath, updated, resultMessage); err != nil {
 		return nil, err
 	}
 
@@ -173,12 +189,14 @@ func (c *sessionDeliveryChannel) sendAgentSessionDeliveryText(
 }
 
 func (c *sessionDeliveryChannel) ensureSession(
+	ownerUserID string,
 	workspacePath string,
 	parsed protocol.SessionKey,
 	sessionKey string,
 	now time.Time,
 ) (*protocol.Session, error) {
-	sessionValue, foundPath, err := c.files.FindSession([]string{workspacePath}, sessionKey)
+	files := c.files.ForOwner(ownerUserID)
+	sessionValue, foundPath, err := files.FindSession([]string{workspacePath}, sessionKey)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +223,7 @@ func (c *sessionDeliveryChannel) ensureSession(
 		},
 		IsActive: false,
 	}
-	created, err := c.files.UpsertSession(workspacePath, session)
+	created, err := files.UpsertSession(workspacePath, session)
 	if err != nil {
 		return nil, err
 	}
@@ -223,11 +241,13 @@ func internalSessionTitle(parsed protocol.SessionKey) string {
 }
 
 func (c *sessionDeliveryChannel) persistMessage(
+	ownerUserID string,
 	workspacePath string,
 	sessionValue protocol.Session,
 	message protocol.Message,
 ) (protocol.Session, error) {
-	if err := c.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message); err != nil {
+	history := c.history.ForOwner(ownerUserID)
+	if err := history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message); err != nil {
 		return protocol.Session{}, err
 	}
 
@@ -239,7 +259,7 @@ func (c *sessionDeliveryChannel) persistMessage(
 	}
 	sessionValue.Status = "closed"
 	sessionValue.IsActive = false
-	updated, err := c.files.UpsertSession(workspacePath, sessionValue)
+	updated, err := c.files.ForOwner(ownerUserID).UpsertSession(workspacePath, sessionValue)
 	if err != nil {
 		return protocol.Session{}, err
 	}

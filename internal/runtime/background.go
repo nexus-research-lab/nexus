@@ -1,0 +1,149 @@
+package runtime
+
+import (
+	"context"
+	"strings"
+)
+
+// StartBackgroundTask 在指定 runtime session 生命周期内运行一个后台任务。
+//
+// 任务通常负责队列接力、Goal 续跑等会继续写入 workspace 的工作。绑定到
+// session 后，关闭 session 会先取消并等待这些任务，避免 owner 数据目录在
+// 清理或权限撤销后仍被异步写入。
+func (m *Manager) StartBackgroundTask(
+	sessionKey string,
+	task func(context.Context),
+) bool {
+	return m.startBackgroundTask(sessionKey, "", task)
+}
+
+// StartBackgroundTaskForOwner 在指定 owner 的 runtime session 生命周期内运行
+// 后台任务。即使 session 尚未建立 client，也会登记 owner，确保权限撤销或
+// Room/DM 清理时能够取消这类临时文件任务。
+func (m *Manager) StartBackgroundTaskForOwner(
+	sessionKey string,
+	ownerUserID string,
+	task func(context.Context),
+) bool {
+	return m.startBackgroundTask(sessionKey, strings.TrimSpace(ownerUserID), task)
+}
+
+func (m *Manager) startBackgroundTask(
+	sessionKey string,
+	ownerUserID string,
+	task func(context.Context),
+) bool {
+	if m == nil || task == nil {
+		return false
+	}
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" {
+		return false
+	}
+
+	m.mu.Lock()
+	// 队列接力可能发生在首个 runtime client 建立之前。先登记一个
+	// 无 client 的 session 状态，才能把这段会写盘的工作纳入同一生命周期。
+	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		m.mu.Unlock()
+		return false
+	}
+	if ownerUserID != "" {
+		if state.OwnerUserID != "" && state.OwnerUserID != ownerUserID {
+			m.mu.Unlock()
+			return false
+		}
+		state.OwnerUserID = ownerUserID
+	}
+	if state.BackgroundTasks == nil {
+		state.BackgroundTasks = make(map[uint64]context.CancelFunc)
+	}
+	if len(state.BackgroundTasks) == 0 {
+		state.BackgroundDone = make(chan struct{})
+	}
+	state.NextBackgroundTaskID++
+	taskID := state.NextBackgroundTaskID
+	taskContext, cancel := context.WithCancel(context.Background())
+	state.BackgroundTasks[taskID] = cancel
+	m.touchStateLocked(state)
+	m.mu.Unlock()
+
+	go func() {
+		defer m.finishBackgroundTask(sessionKey, state, taskID)
+		task(taskContext)
+	}()
+	return true
+}
+
+func (m *Manager) finishBackgroundTask(sessionKey string, state *sessionState, taskID uint64) {
+	if m == nil || state == nil {
+		return
+	}
+	m.mu.Lock()
+	if state.BackgroundTasks != nil {
+		delete(state.BackgroundTasks, taskID)
+		if len(state.BackgroundTasks) == 0 && state.BackgroundDone != nil {
+			close(state.BackgroundDone)
+			state.BackgroundDone = nil
+		}
+	}
+	// 仅由后台队列任务临时创建、且从未建立 client/round 的状态不应
+	// 长驻 manager；否则大量空闲队列会把 session 元数据留在内存中。
+	if !state.Closing &&
+		len(state.BackgroundTasks) == 0 &&
+		state.Client == nil &&
+		len(state.RunningRounds) == 0 &&
+		len(state.RoundDone) == 0 &&
+		state.IdleMessageCancel == nil &&
+		m.sessions[sessionKey] == state {
+		delete(m.sessions, sessionKey)
+	}
+	m.mu.Unlock()
+}
+
+func backgroundTaskCleanup(
+	state *sessionState,
+) ([]context.CancelFunc, <-chan struct{}) {
+	if state == nil {
+		return nil, nil
+	}
+	cancels := make([]context.CancelFunc, 0, len(state.BackgroundTasks))
+	for _, cancel := range state.BackgroundTasks {
+		if cancel != nil {
+			cancels = append(cancels, cancel)
+		}
+	}
+	return cancels, state.BackgroundDone
+}
+
+func waitBackgroundTasks(ctx context.Context, done <-chan struct{}) error {
+	if done == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// WaitBackgroundTasks 等待 session 已登记的后台文件任务结束。
+func (m *Manager) WaitBackgroundTasks(ctx context.Context, sessionKey string) error {
+	if m == nil {
+		return nil
+	}
+	sessionKey = strings.TrimSpace(sessionKey)
+	m.mu.RLock()
+	state := m.sessions[sessionKey]
+	var done <-chan struct{}
+	if state != nil {
+		done = state.BackgroundDone
+	}
+	m.mu.RUnlock()
+	return waitBackgroundTasks(ctx, done)
+}

@@ -37,7 +37,7 @@ func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, round
 			slot.RuntimeSessionKey,
 			func(drainCtx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
 				return s.handleIdleSubagentMessage(
-					contextWithQueueOwner(drainCtx, roundValue.OwnerUserID),
+					contextWithExactQueueOwner(drainCtx, roundValue.OwnerUserID),
 					roundValue,
 					slot,
 					mapper,
@@ -114,7 +114,12 @@ func (s *Service) handleIdleSubagentDurableMessage(
 		s.recordGoalUsageFromSlotAssistantMessage(ctx, slot, messageValue)
 		return nil
 	}
-	if err := s.persistSharedDurableMessage(roundValue.ConversationID, slot, messageValue); err != nil {
+	if err := s.persistSharedDurableMessage(
+		roundValue.OwnerUserID,
+		roundValue.ConversationID,
+		slot,
+		messageValue,
+	); err != nil {
 		return err
 	}
 	if !protocol.IsTranscriptNativeMessage(messageValue) {
@@ -136,6 +141,12 @@ func (s *Service) releaseRoundSubagentWait(roundValue *activeRoomRound) {
 		shouldDispatch = true
 	}
 	if shouldDispatch {
-		s.dispatchPostRoundWork(contextWithQueueOwner(context.Background(), roundValue.OwnerUserID), roundValue)
+		s.startSessionBackgroundTask(
+			roundValue.SessionKey,
+			roundValue.OwnerUserID,
+			func(taskCtx context.Context) {
+				s.dispatchPostRoundWork(taskCtx, roundValue)
+			},
+		)
 	}
 }

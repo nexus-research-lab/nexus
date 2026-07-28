@@ -18,8 +18,14 @@ func (s *Service) UploadFile(ctx context.Context, agentID string, filename strin
 	if err != nil {
 		return nil, err
 	}
-	result, content, err := uploadFileToRoot(
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
+	if err != nil {
+		return nil, err
+	}
+	defer confinedRoot.Close()
+	result, content, err := uploadFileAtRoot(
 		agentValue.WorkspacePath,
+		confinedRoot,
 		filename,
 		destination,
 		reader,
@@ -54,8 +60,56 @@ func UploadFileToRoot(root string, filename string, destination string, reader i
 	return result, err
 }
 
+// UploadFileWithRoot 在调用方已固定的 workspace fd 内上传文件。
+func UploadFileWithRoot(
+	rootPath string,
+	confinedRoot *confinedfs.Root,
+	filename string,
+	destination string,
+	reader io.Reader,
+) (*UploadResult, error) {
+	if confinedRoot == nil {
+		return nil, errors.New("workspace 根句柄不能为空")
+	}
+	result, _, err := uploadFileAtRoot(
+		rootPath,
+		confinedRoot,
+		filename,
+		destination,
+		reader,
+		uploadFileOptions{dedupeRoots: []string{"attachments"}},
+		nil,
+	)
+	return result, err
+}
+
 func uploadFileToRoot(
 	root string,
+	filename string,
+	destination string,
+	reader io.Reader,
+	options uploadFileOptions,
+	beforeWrite func(string),
+) (*UploadResult, []byte, error) {
+	confinedRoot, err := confinedfs.Open(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer confinedRoot.Close()
+	return uploadFileAtRoot(
+		root,
+		confinedRoot,
+		filename,
+		destination,
+		reader,
+		options,
+		beforeWrite,
+	)
+}
+
+func uploadFileAtRoot(
+	root string,
+	confinedRoot *confinedfs.Root,
 	filename string,
 	destination string,
 	reader io.Reader,
@@ -80,11 +134,6 @@ func uploadFileToRoot(
 	if err != nil {
 		return nil, nil, err
 	}
-	confinedRoot, err := confinedfs.Open(root)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer confinedRoot.Close()
 	if matched, err := fileMatchesMD5(confinedRoot, normalizedPath, contentMD5, int64(len(content))); err != nil {
 		return nil, nil, err
 	} else if matched {

@@ -105,26 +105,49 @@ func EnsureRuntimeEmotionState(workspacePath string) error {
 		return err
 	}
 	defer root.Close()
-	if _, err := root.Lstat(runtimeEmotionStateRelativePath); err == nil {
-		return nil
-	} else if !os.IsNotExist(err) {
+	return ensureRuntimeEmotionStateAt(root)
+}
+
+func ensureRuntimeEmotionStateAt(root *confinedfs.Root) error {
+	file, err := root.OpenFileNoSymlink(
+		runtimeEmotionStateRelativePath,
+		os.O_RDONLY,
+		0,
+	)
+	if err == nil {
+		return file.Close()
+	}
+	if !os.IsNotExist(err) {
 		return err
 	}
 	if err := root.MkdirAll(filepath.Dir(runtimeEmotionStateRelativePath), agentWorkspaceDirectoryMode()); err != nil {
 		return err
 	}
-	file, err := root.OpenFile(
+	file, err = root.OpenFileNoSymlink(
 		runtimeEmotionStateRelativePath,
 		os.O_CREATE|os.O_EXCL|os.O_WRONLY,
 		agentWorkspaceFileMode(0o644),
 	)
 	if err != nil {
 		if os.IsExist(err) {
-			return nil
+			existing, openErr := root.OpenFileNoSymlink(
+				runtimeEmotionStateRelativePath,
+				os.O_RDONLY,
+				0,
+			)
+			if openErr != nil {
+				return openErr
+			}
+			return existing.Close()
 		}
 		return err
 	}
 	return file.Close()
+}
+
+// EnsureRuntimeEmotionStateAt 在已验证的 workspace 根中初始化情绪状态。
+func EnsureRuntimeEmotionStateAt(root *confinedfs.Root) error {
+	return ensureRuntimeEmotionStateAt(root)
 }
 
 // SetRuntimeEmotionBase 更新基础情绪。
@@ -195,6 +218,14 @@ func loadRuntimeEmotionState(workspacePath string, now time.Time) RuntimeEmotion
 		return state
 	}
 	defer root.Close()
+	return loadRuntimeEmotionStateAt(root, now)
+}
+
+func loadRuntimeEmotionStateAt(root *confinedfs.Root, now time.Time) RuntimeEmotionState {
+	state := defaultRuntimeEmotionState(now)
+	if root == nil {
+		return state
+	}
 	payload, err := root.ReadFile(runtimeEmotionStateRelativePath)
 	if err != nil {
 		return state
@@ -215,6 +246,10 @@ func writeRuntimeEmotionState(workspacePath string, state RuntimeEmotionState) e
 		return err
 	}
 	defer root.Close()
+	return writeRuntimeEmotionStateAt(root, state)
+}
+
+func writeRuntimeEmotionStateAt(root *confinedfs.Root, state RuntimeEmotionState) error {
 	if err := root.MkdirAll(filepath.Dir(runtimeEmotionStateRelativePath), agentWorkspaceDirectoryMode()); err != nil {
 		return err
 	}

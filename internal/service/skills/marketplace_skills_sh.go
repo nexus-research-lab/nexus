@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 type skillsShImportTarget struct {
@@ -138,15 +140,28 @@ func exactSkillsShSourceDir(root string, cleanSkillPath string) string {
 		return ""
 	}
 	sourceDir := filepath.Join(root, cleanSkillPath)
-	if _, err := os.Stat(filepath.Join(sourceDir, "SKILL.md")); err != nil {
+	confinedRoot, err := confinedfs.Open(sourceDir)
+	if err != nil {
 		return ""
 	}
+	defer confinedRoot.Close()
+	file, err := confinedRoot.OpenFileNoSymlink("SKILL.md", os.O_RDONLY, 0)
+	if err != nil {
+		return ""
+	}
+	_ = file.Close()
 	return sourceDir
 }
 
 func (s *skillsShSourceSearch) visit(path string, info os.FileInfo, walkErr error) error {
 	if walkErr != nil {
 		return walkErr
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		if info.IsDir() {
+			return filepath.SkipDir
+		}
+		return nil
 	}
 	if info.IsDir() || info.Name() != "SKILL.md" {
 		return nil
@@ -175,11 +190,16 @@ func (s *skillsShSourceSearch) score(skillFile string, sourceDir string) (int, b
 	if s.normalizedSlug == "" {
 		return 0, false, nil
 	}
-	content, err := os.ReadFile(skillFile)
+	confinedRoot, err := confinedfs.Open(sourceDir)
 	if err != nil {
-		return 0, false, err
+		return 0, false, nil
 	}
-	frontmatter := parseSkillFrontmatter(string(content), filepath.Base(sourceDir))
+	contentBytes, err := readConfinedRegularFile(confinedRoot, "SKILL.md")
+	confinedRoot.Close()
+	if err != nil {
+		return 0, false, nil
+	}
+	frontmatter := parseSkillFrontmatter(string(contentBytes), filepath.Base(sourceDir))
 	matched := strings.EqualFold(frontmatter.Name, s.skillSlug) || strings.EqualFold(frontmatter.Title, s.skillSlug)
 	return 3, matched, nil
 }

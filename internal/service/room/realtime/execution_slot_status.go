@@ -31,7 +31,8 @@ func (s *Service) syncSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot
 
 func (s *Service) canPersistSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) bool {
 	workspacePath := slotWorkspacePath(slot)
-	decision := sessionresumesvc.NewPolicy(s.history).CanPersist(workspacePath, sessionID)
+	history := s.history.ForOwner(slot.OwnerUserID)
+	decision := sessionresumesvc.NewPolicy(history).CanPersist(workspacePath, sessionID)
 	if decision.Allowed {
 		return true
 	}
@@ -219,7 +220,7 @@ func (s *Service) handleSlotFailure(ctx context.Context, roundValue *activeRoomR
 	}
 	_ = s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey))
 	if roomSlotPublishesPublicOutput(slot) {
-		_ = s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage)
+		_ = s.persistSharedInlineMessage(roundValue.OwnerUserID, roundValue.ConversationID, resultMessage)
 		projectedMessage := message.ProjectResultMessage(nil, resultMessage)
 		if mapper != nil {
 			projectedMessage = mapper.ProjectResultMessage(resultMessage)
@@ -366,7 +367,11 @@ func (s *Service) emitInterruptedSlotResult(roundValue *activeRoomRound, slot *a
 		}
 	}
 	if roomSlotPublishesPublicOutput(slot) {
-		if err := s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage); err != nil {
+		if err := s.persistSharedInlineMessage(
+			roundValue.OwnerUserID,
+			roundValue.ConversationID,
+			resultMessage,
+		); err != nil {
 			s.loggerFor(context.Background()).Error("Room interrupted 共享结果持久化失败",
 				"s", roundValue.SessionKey,
 				"r", roundValue.RoomID,

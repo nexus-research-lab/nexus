@@ -31,8 +31,8 @@ func TestRenderRuntimeContentWithAttachments(t *testing.T) {
 			WorkspacePath: "tmp/attachments/demo.txt",
 			Kind:          protocol.ChatAttachmentKindText,
 		}},
-		func(_ context.Context, attachment protocol.ChatAttachment) (string, error) {
-			return ResolveWorkspaceAttachmentPath(workspacePath, attachment.WorkspacePath)
+		func(_ context.Context, attachment protocol.ChatAttachment) (ResolvedAttachment, error) {
+			return openWorkspaceAttachment(workspacePath, attachment.WorkspacePath)
 		},
 	)
 	if err != nil {
@@ -70,8 +70,8 @@ func TestRenderRuntimeContentWithImageAttachmentUsesImageBlock(t *testing.T) {
 			Kind:          protocol.ChatAttachmentKindImage,
 			MIMEType:      "image/png",
 		}},
-		func(_ context.Context, attachment protocol.ChatAttachment) (string, error) {
-			return ResolveWorkspaceAttachmentPath(workspacePath, attachment.WorkspacePath)
+		func(_ context.Context, attachment protocol.ChatAttachment) (ResolvedAttachment, error) {
+			return openWorkspaceAttachment(workspacePath, attachment.WorkspacePath)
 		},
 	)
 	if err != nil {
@@ -123,8 +123,8 @@ func TestRenderRuntimeContentWithImageOnlyCanAppendContext(t *testing.T) {
 			Kind:          protocol.ChatAttachmentKindImage,
 			MIMEType:      "image/png",
 		}},
-		func(_ context.Context, attachment protocol.ChatAttachment) (string, error) {
-			return ResolveWorkspaceAttachmentPath(workspacePath, attachment.WorkspacePath)
+		func(_ context.Context, attachment protocol.ChatAttachment) (ResolvedAttachment, error) {
+			return openWorkspaceAttachment(workspacePath, attachment.WorkspacePath)
 		},
 	)
 	if err != nil {
@@ -202,8 +202,8 @@ func TestRenderRuntimeContentWithUnsupportedImageReturnsError(t *testing.T) {
 			Kind:          protocol.ChatAttachmentKindImage,
 			MIMEType:      "image/svg+xml",
 		}},
-		func(_ context.Context, attachment protocol.ChatAttachment) (string, error) {
-			return ResolveWorkspaceAttachmentPath(workspacePath, attachment.WorkspacePath)
+		func(_ context.Context, attachment protocol.ChatAttachment) (ResolvedAttachment, error) {
+			return openWorkspaceAttachment(workspacePath, attachment.WorkspacePath)
 		},
 	)
 	if err == nil {
@@ -231,5 +231,25 @@ func TestResolveWorkspaceAttachmentPathRejectsSymlink(t *testing.T) {
 	}
 	if _, err := ResolveWorkspaceAttachmentPath(workspacePath, "attachment.txt"); err == nil {
 		t.Fatal("workspace attachment symlink should be rejected")
+	}
+}
+
+func TestResolveWorkspaceAttachmentPathRejectsIntermediateSymlink(t *testing.T) {
+	workspacePath := t.TempDir()
+	privateDir := filepath.Join(workspacePath, "private")
+	if err := os.Mkdir(privateDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(privateDir, "secret.txt"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("private", filepath.Join(workspacePath, "attachments")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	if _, err := ResolveWorkspaceAttachmentPath(
+		workspacePath,
+		"attachments/secret.txt",
+	); err == nil {
+		t.Fatal("workspace attachment intermediate symlink should be rejected")
 	}
 }

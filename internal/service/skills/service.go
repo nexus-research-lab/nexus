@@ -12,10 +12,12 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var (
@@ -48,6 +50,19 @@ func NewServiceWithDB(cfg config.Config, db *sql.DB, agents *agentsvc.Service, w
 		service.skillStore = skillstore.NewRepository(cfg, db)
 	}
 	return service
+}
+
+func (s *Service) openAgentWorkspace(
+	agentValue *protocol.Agent,
+) (*confinedfs.Root, error) {
+	if agentValue == nil {
+		return nil, errors.New("agent 不能为空")
+	}
+	return workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+		agentValue.OwnerUserID,
+		agentValue.WorkspacePath,
+		false,
+	)
 }
 
 // ListSkills 返回公开 skill 目录。
@@ -215,7 +230,16 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 		return errors.New("系统托管 skill 不能手动卸载")
 	}
 	if record.Detail.SourceType == sourceTypeWorkspace {
-		return undeployWorkspaceLocalSkill(agentValue.WorkspacePath, record)
+		workspaceRoot, openErr := s.openAgentWorkspace(agentValue)
+		if openErr != nil {
+			return openErr
+		}
+		defer workspaceRoot.Close()
+		return undeployWorkspaceLocalSkillAt(
+			workspaceRoot,
+			agentValue.WorkspacePath,
+			record,
+		)
 	}
 	if isPlatformSkill(record) {
 		return s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), false)
@@ -223,7 +247,12 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 	if record.Detail.SourceType == sourceTypeExternal {
 		return s.setAgentSkillEnabled(ctx, agentValue, skillReference(record), false)
 	}
-	return workspacesvc.UndeploySkill(agentValue.WorkspacePath, record.Detail.Name)
+	workspaceRoot, err := s.openAgentWorkspace(agentValue)
+	if err != nil {
+		return err
+	}
+	defer workspaceRoot.Close()
+	return workspacesvc.UndeploySkillAt(workspaceRoot, record.Detail.Name)
 }
 
 func isPlatformSkill(record catalogRecord) bool {
@@ -341,11 +370,22 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 			return err
 		}
 	}
-	if err = workspacesvc.RemoveEntryWithin(
-		workspacesvc.UserSkillLibraryRoot(s.config, authctx.OwnerUserID(ctx)),
-		record.SourcePath,
-	); err != nil {
+	ownerUserID := authctx.OwnerUserID(ctx)
+	boundaryFS, err := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+		ownerUserID,
+		workspacesvc.UserSkillLibraryRoot(s.config, ownerUserID),
+		false,
+	)
+	if err != nil {
 		return err
 	}
-	return workspacesvc.RefreshUserSkillLibrary(s.config, authctx.OwnerUserID(ctx))
+	defer boundaryFS.Close()
+	relativePath, err := relativeSkillPath(boundaryFS, record.SourcePath)
+	if err != nil {
+		return err
+	}
+	if err = boundaryFS.RemoveAll(relativePath); err != nil {
+		return err
+	}
+	return workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID)
 }

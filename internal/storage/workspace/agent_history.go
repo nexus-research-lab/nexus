@@ -1,23 +1,44 @@
 package workspace
 
 import (
+	"strings"
 	"sync"
 )
 
+type agentHistoryCache struct {
+	mu       sync.RWMutex
+	messages map[string]transcriptCacheEntry
+}
+
 // AgentHistoryStore 负责读取 transcript 历史，并与 Nexus overlay 合并。
 type AgentHistoryStore struct {
-	paths *Store
-	files *SessionFileStore
-
-	cacheMu      sync.RWMutex
-	messageCache map[string]transcriptCacheEntry
+	paths       *Store
+	files       *SessionFileStore
+	ownerUserID string
+	cache       *agentHistoryCache
 }
 
 // NewAgentHistoryStore 创建 DM 历史读写门面。
 func NewAgentHistoryStore(root string) *AgentHistoryStore {
 	return &AgentHistoryStore{
-		paths:        New(root),
-		files:        NewSessionFileStore(root),
-		messageCache: make(map[string]transcriptCacheEntry),
+		paths: New(root),
+		files: NewSessionFileStore(root),
+		cache: &agentHistoryCache{
+			messages: make(map[string]transcriptCacheEntry),
+		},
+	}
+}
+
+// ForOwner 返回绑定到单个 owner workspace/runtime 树的历史视图。
+func (s *AgentHistoryStore) ForOwner(ownerUserID string) *AgentHistoryStore {
+	if s == nil {
+		return nil
+	}
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	return &AgentHistoryStore{
+		paths:       s.paths,
+		files:       s.files.ForOwner(ownerUserID),
+		ownerUserID: ownerUserID,
+		cache:       s.cache,
 	}
 }

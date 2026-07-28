@@ -73,12 +73,9 @@ func (s *Service) HandleInputQueue(
 		}
 		if !enqueueResult.Duplicate {
 			s.broadcastInputQueueSnapshot(ctx, sessionKey, enqueueResult.Items)
-			go s.dispatchNextInputQueueItemAtLocation(
-				contextWithQueueOwner(context.Background(), ownerUserID),
-				sessionKey,
-				request.AgentID,
-				location,
-			)
+			s.startSessionBackgroundTask(sessionKey, ownerUserID, func(taskCtx context.Context) {
+				s.dispatchNextInputQueueItemAtLocation(taskCtx, sessionKey, request.AgentID, location)
+			})
 		}
 		return protocol.InputQueueMutationResult{
 			Action:    action,
@@ -131,7 +128,9 @@ func (s *Service) SendInputQueueSnapshot(ctx context.Context, sessionKey string,
 		return err
 	}
 	s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, items)
-	go s.dispatchNextInputQueueItemAtLocation(context.Background(), normalizedSessionKey, agentID, location)
+	s.startSessionBackgroundTask(normalizedSessionKey, location.OwnerUserID, func(taskCtx context.Context) {
+		s.dispatchNextInputQueueItemAtLocation(taskCtx, normalizedSessionKey, agentID, location)
+	})
 	return nil
 }
 
@@ -163,12 +162,9 @@ func (s *Service) guideInputQueueItem(
 			return err
 		}
 		s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
-		go s.dispatchNextInputQueueItemAtLocation(
-			contextWithQueueOwner(context.Background(), selected.OwnerUserID),
-			sessionKey,
-			selected.AgentID,
-			location,
-		)
+		s.startSessionBackgroundTask(sessionKey, selected.OwnerUserID, func(taskCtx context.Context) {
+			s.dispatchNextInputQueueItemAtLocation(taskCtx, sessionKey, selected.AgentID, location)
+		})
 		return nil
 	}
 	runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
@@ -187,12 +183,9 @@ func (s *Service) guideInputQueueItem(
 	}
 	s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 	if recovered {
-		go s.dispatchNextInputQueueItemAtLocation(
-			contextWithQueueOwner(context.Background(), selected.OwnerUserID),
-			sessionKey,
-			selected.AgentID,
-			location,
-		)
+		s.startSessionBackgroundTask(sessionKey, selected.OwnerUserID, func(taskCtx context.Context) {
+			s.dispatchNextInputQueueItemAtLocation(taskCtx, sessionKey, selected.AgentID, location)
+		})
 	}
 	return nil
 }
@@ -243,12 +236,14 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	})
 	if err == nil {
 		if len(s.runtime.GetRunningRoundIDs(normalizedSessionKey)) == 0 {
-			go s.dispatchNextInputQueueItemAtLocation(
-				ctx,
-				normalizedSessionKey,
-				dmdomain.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
-				location,
-			)
+			s.startSessionBackgroundTask(normalizedSessionKey, location.OwnerUserID, func(taskCtx context.Context) {
+				s.dispatchNextInputQueueItemAtLocation(
+					taskCtx,
+					normalizedSessionKey,
+					dmdomain.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
+					location,
+				)
+			})
 		}
 		return true
 	}
@@ -334,6 +329,7 @@ func (s *Service) resolveInputQueueLocation(
 		return "", workspacestore.InputQueueLocation{}, err
 	}
 	return sessionKey, workspacestore.InputQueueLocation{
+		OwnerUserID:   agentValue.OwnerUserID,
 		Scope:         protocol.InputQueueScopeDM,
 		WorkspacePath: agentValue.WorkspacePath,
 		SessionKey:    sessionKey,
@@ -372,6 +368,18 @@ func contextWithQueueOwner(ctx context.Context, ownerUserID string) context.Cont
 		return ctx
 	}
 	if _, ok := authctx.CurrentUserID(ctx); ok {
+		return ctx
+	}
+	return authctx.WithPrincipal(ctx, &authctx.Principal{
+		UserID: ownerUserID,
+		Role:   authctx.RoleOwner,
+	})
+}
+
+// contextWithExactOwner 为脱离请求生命周期的后台任务重建唯一 owner 身份。
+func contextWithExactOwner(ctx context.Context, ownerUserID string) context.Context {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
 		return ctx
 	}
 	return authctx.WithPrincipal(ctx, &authctx.Principal{

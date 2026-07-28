@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 const nexusConfigDirEnvName = "NEXUS_CONFIG_DIR"
@@ -60,6 +62,28 @@ func UserRuntimeRootAt(stateRoot string, ownerUserID string) string {
 	return filepath.Join(UserDataRootAt(stateRoot, ownerUserID), "runtime")
 }
 
+// UserStateRoot 返回指定用户由 Nexus 宿主管理的状态根。
+//
+// 该目录不属于 NEXUS_CONFIG_DIR/CLAUDE_CONFIG_DIR，runtime 进程不能写入。
+func UserStateRoot(ownerUserID string) string {
+	return UserStateRootAt(StateRoot(), ownerUserID)
+}
+
+// UserStateRootAt 返回指定状态根下的用户宿主状态根。
+func UserStateRootAt(stateRoot string, ownerUserID string) string {
+	return filepath.Join(UserDataRootAt(stateRoot, ownerUserID), "state")
+}
+
+// UserRoomRoot 返回指定用户的 Room 宿主状态根。
+func UserRoomRoot(ownerUserID string) string {
+	return UserRoomRootAt(StateRoot(), ownerUserID)
+}
+
+// UserRoomRootAt 返回指定状态根下的用户 Room 宿主状态根。
+func UserRoomRootAt(stateRoot string, ownerUserID string) string {
+	return filepath.Join(UserStateRootAt(stateRoot, ownerUserID), "rooms")
+}
+
 // UserWorkspaceRoot 返回指定用户的 workspace 根。
 func UserWorkspaceRoot(ownerUserID string) string {
 	return UserWorkspaceRootAt(StateRoot(), ownerUserID)
@@ -70,6 +94,19 @@ func UserWorkspaceRootAt(stateRoot string, ownerUserID string) string {
 	return filepath.Join(UserDataRootAt(stateRoot, ownerUserID), "workspace")
 }
 
+// UserRoomAssetsRoot 返回指定用户可供 runtime 读取的 Room 公共资产根。
+//
+// Room ledger 留在宿主 state，附件则属于用户 workspace 数据；两者不能共享
+// 权限根，否则为了读取附件会同时暴露 handoff、wake 等宿主控制状态。
+func UserRoomAssetsRoot(ownerUserID string) string {
+	return UserRoomAssetsRootAt(StateRoot(), ownerUserID)
+}
+
+// UserRoomAssetsRootAt 返回指定状态根下的用户 Room 公共资产根。
+func UserRoomAssetsRootAt(stateRoot string, ownerUserID string) string {
+	return filepath.Join(UserWorkspaceRootAt(stateRoot, ownerUserID), ".rooms")
+}
+
 // EnsureUserRuntimeLayout 创建用户级 runtime 必需目录。
 func EnsureUserRuntimeLayout(ownerUserID string) error {
 	return EnsureUserRuntimeLayoutAt(StateRoot(), ownerUserID)
@@ -77,17 +114,31 @@ func EnsureUserRuntimeLayout(ownerUserID string) error {
 
 // EnsureUserRuntimeLayoutAt 在指定状态根创建用户级 runtime 必需目录。
 func EnsureUserRuntimeLayoutAt(stateRoot string, ownerUserID string) error {
-	runtimeRoot := UserRuntimeRootAt(stateRoot, ownerUserID)
-	for _, directory := range []string{
-		runtimeRoot,
-		filepath.Join(runtimeRoot, "projects"),
-		filepath.Join(runtimeRoot, "home"),
-		filepath.Join(runtimeRoot, "cache"),
-		filepath.Join(runtimeRoot, "logs"),
-		filepath.Join(runtimeRoot, "tmp"),
-	} {
-		if err := os.MkdirAll(directory, 0o700); err != nil {
-			return err
+	stateRoot = filepath.Clean(strings.TrimSpace(stateRoot))
+	if err := os.MkdirAll(stateRoot, 0o700); err != nil {
+		return err
+	}
+	root, err := confinedfs.Open(stateRoot)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	runtimeRelative := filepath.ToSlash(filepath.Join(
+		"users",
+		UserPathSegment(ownerUserID),
+		"runtime",
+	))
+	for _, suffix := range []string{"", "projects", "home", "cache", "logs", "tmp"} {
+		relative := runtimeRelative
+		if suffix != "" {
+			relative = filepath.ToSlash(filepath.Join(relative, suffix))
+		}
+		child, openErr := root.OpenOrCreateRootNoSymlink(relative, 0o700)
+		if openErr != nil {
+			return openErr
+		}
+		if closeErr := child.Close(); closeErr != nil {
+			return closeErr
 		}
 	}
 	return nil

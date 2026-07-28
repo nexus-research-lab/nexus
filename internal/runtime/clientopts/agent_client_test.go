@@ -1025,6 +1025,35 @@ func TestBuildAgentClientOptionsProtectsManagedUserDirectories(t *testing.T) {
 	}
 }
 
+func TestBuildAgentClientOptionsProtectsScopedIdentityFromExtraEnv(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	ctx := authctx.WithState(context.Background(), authctx.State{
+		AuthRequired: true,
+		UserCount:    2,
+	})
+	ctx = authctx.WithPrincipal(ctx, &authctx.Principal{UserID: "user-a"})
+
+	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/workspace",
+		ExtraEnv: map[string]string{
+			nexusctlUserIDEnvName:          "user-b",
+			nexusRuntimeUserIDEnvName:      "user-b",
+			nexusRuntimeScopeModeEnvName:   "single_user",
+			"NEXUS_RUNTIME_ISOLATION_MODE": "off",
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	if options.Env[nexusctlUserIDEnvName] != "user-a" ||
+		options.Env[nexusRuntimeUserIDEnvName] != "user-a" ||
+		options.Env[nexusRuntimeScopeModeEnvName] != "user_scoped" {
+		t.Fatalf("ExtraEnv 覆盖了 runtime 身份作用域: %+v", options.Env)
+	}
+}
+
 func TestBuildAgentClientOptionsBypassKeepsPermissionHandler(t *testing.T) {
 	var handledTools []string
 	handler := func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {

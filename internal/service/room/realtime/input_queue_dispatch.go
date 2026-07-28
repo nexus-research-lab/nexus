@@ -61,7 +61,13 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	err = s.dispatchInputQueueItemLocked(ctx, sessionKey, roomID, conversationID, dispatchedItem)
 	if err == nil {
 		if s.canDispatchMoreInputQueueItems(ctx, sessionKey, conversationID) {
-			go s.dispatchNextInputQueueItem(ctx, sessionKey, roomID, conversationID)
+			s.startSessionBackgroundTask(
+				sessionKey,
+				contextValue.Room.OwnerUserID,
+				func(taskCtx context.Context) {
+					s.dispatchNextInputQueueItem(taskCtx, sessionKey, roomID, conversationID)
+				},
+			)
 		}
 		return
 	}
@@ -203,7 +209,7 @@ func (s *Service) dispatchInputQueueItemLocked(
 	if item.Source == protocol.InputQueueSourceAgentPublicMention ||
 		item.Source == protocol.InputQueueSourceAgentRoomMessage {
 		return s.dispatchAgentWakeQueueItem(
-			contextWithQueueOwner(ctx, item.OwnerUserID),
+			contextWithExactQueueOwner(ctx, item.OwnerUserID),
 			sessionKey,
 			roomID,
 			conversationID,
@@ -213,7 +219,7 @@ func (s *Service) dispatchInputQueueItemLocked(
 	}
 	if strings.TrimSpace(item.SourceMessageID) != "" && len(inputQueueTargetAgentIDs(item)) > 0 {
 		return s.dispatchRoomPublicTriggerQueueItem(
-			contextWithQueueOwner(ctx, item.OwnerUserID),
+			contextWithExactQueueOwner(ctx, item.OwnerUserID),
 			sessionKey,
 			roomID,
 			conversationID,
@@ -221,7 +227,7 @@ func (s *Service) dispatchInputQueueItemLocked(
 		)
 	}
 	// dispatchNextInputQueueItemLocked 已持有 conversation 派发闸门。
-	return s.handleChatLocked(contextWithQueueOwner(ctx, item.OwnerUserID), ChatRequest{
+	return s.handleChatLocked(contextWithExactQueueOwner(ctx, item.OwnerUserID), ChatRequest{
 		SessionKey:     sessionKey,
 		RoomID:         roomID,
 		ConversationID: conversationID,
@@ -365,7 +371,7 @@ func (s *Service) logicalPublicHandoffRootRoundID(
 		s == nil || s.publicHandoffs == nil || strings.TrimSpace(item.HandoffID) == "" {
 		return rootRoundID
 	}
-	handoff, ok, err := s.publicHandoffs.Get(conversationID, item.HandoffID)
+	handoff, ok, err := s.publicHandoffs.Get(item.OwnerUserID, conversationID, item.HandoffID)
 	if err == nil && ok && strings.TrimSpace(handoff.RootRoundID) != "" {
 		return strings.TrimSpace(handoff.RootRoundID)
 	}

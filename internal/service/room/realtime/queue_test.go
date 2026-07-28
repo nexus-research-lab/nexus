@@ -438,7 +438,7 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 	}
 
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	messages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	messages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取 Room 历史失败: %v", err)
 	}
@@ -466,7 +466,7 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 	if len(items) != 0 {
 		t.Fatalf("补充消息接力派发后不应残留队列项: %+v", items)
 	}
-	messages, err = roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	messages, err = roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("重新读取 Room 历史失败: %v", err)
 	}
@@ -696,7 +696,11 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 		targetQueueItems[0].Content != "@助手甲 这是补充要求" {
 		t.Fatalf("Room 运行中公区消息未写入目标 agent 队列: %+v", targetQueueItems)
 	}
-	queuedHistory, err := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath).ReadMessages(roomContext.Conversation.ID, nil)
+	queuedHistory, err := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath).ReadMessages(
+		roomContext.Room.OwnerUserID,
+		roomContext.Conversation.ID,
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("读取排队中的 Room 公区历史失败: %v", err)
 	}
@@ -835,7 +839,11 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	}
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 	assertGuidanceHidden := func(stage string) {
-		messages, historyErr := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+		messages, historyErr := roomHistory.ReadMessages(
+			roomContext.Room.OwnerUserID,
+			roomContext.Conversation.ID,
+			nil,
+		)
 		if historyErr != nil {
 			t.Fatalf("%s 读取 Room 公区历史失败: %v", stage, historyErr)
 		}
@@ -929,7 +937,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 		t.Fatalf("PostToolUse 注入后应消费 Room 引导队列: %+v", queuedGuidance)
 	}
 
-	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取 Room 公区历史失败: %v", err)
 	}
@@ -970,7 +978,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("删除未消费 Room 引导失败: %v", err)
 	}
-	sharedMessages, err = roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	sharedMessages, err = roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取删除后的 Room 公区历史失败: %v", err)
 	}

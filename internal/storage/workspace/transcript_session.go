@@ -45,7 +45,7 @@ func (s *AgentHistoryStore) DeleteTranscriptSession(workspacePath string, sessio
 		return false, err
 	}
 
-	root, relative, _, err := openTranscriptPath(workspacePath, transcriptPath)
+	root, relative, _, err := s.openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
 		return false, err
 	}
@@ -66,14 +66,37 @@ func (s *AgentHistoryStore) DeleteTranscriptSession(workspacePath string, sessio
 // DeleteTranscriptProject 删除整个 workspace 对应的 transcript 项目目录。
 func (s *AgentHistoryStore) DeleteTranscriptProject(workspacePath string) (bool, error) {
 	canonicalPath := canonicalizeTranscriptPath(workspacePath)
-	projectDir := findTranscriptProjectDirAt(
-		transcriptProjectsDirForWorkspace(canonicalPath),
-		canonicalPath,
-	)
+	projectsRoot := s.transcriptProjectsRootForWorkspace(canonicalPath)
+	projectDir, err := s.findTranscriptProjectDirAt(projectsRoot, canonicalPath)
+	if err != nil {
+		return false, err
+	}
 	if strings.TrimSpace(projectDir) == "" {
 		return false, nil
 	}
-	projectsRoot := transcriptProjectsDirForWorkspace(canonicalPath)
+	if strings.TrimSpace(s.ownerUserID) != "" {
+		root, err := s.paths.openOwnerTranscriptProjectsRoot(
+			s.ownerUserID,
+			false,
+		)
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		defer root.Close()
+		relative, err := filepath.Rel(root.Name(), projectDir)
+		if err != nil || relative == "." ||
+			strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return false, errors.New("transcript project is outside owner root")
+		}
+		if err := root.RemoveAll(filepath.ToSlash(relative)); err != nil {
+			return false, err
+		}
+		s.invalidateTranscriptCachePrefix(projectDir)
+		return true, nil
+	}
 	root, relative, err := relativeStorePathWithCreate(projectsRoot, projectDir, false)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil

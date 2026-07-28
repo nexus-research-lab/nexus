@@ -15,10 +15,16 @@ func (s *Service) cleanupConversationArtifacts(
 	agentFilter map[string]struct{},
 ) error {
 	errs := make([]error, 0)
-	workspaceByAgentID := make(map[string]string)
+	workspaceByOwnerAgent := make(map[string]string)
 	for _, contextValue := range contexts {
+		ownerUserID := strings.TrimSpace(contextValue.Room.OwnerUserID)
+		ownerFiles := s.files.ForOwner(ownerUserID)
+		ownerHistory := s.history.ForOwner(ownerUserID)
 		if deleteSharedLog {
-			if _, err := s.files.DeleteRoomConversation(contextValue.Conversation.ID); err != nil {
+			if _, err := ownerFiles.DeleteRoomConversation(
+				ownerUserID,
+				contextValue.Conversation.ID,
+			); err != nil {
 				errs = append(errs, err)
 			}
 		}
@@ -41,22 +47,27 @@ func (s *Service) cleanupConversationArtifacts(
 			}
 			seenSessionKeys[sessionKey] = struct{}{}
 
-			workspacePath := workspaceByAgentID[sessionValue.AgentID]
+			workspaceKey := ownerUserID + "\x00" + strings.TrimSpace(sessionValue.AgentID)
+			workspacePath := workspaceByOwnerAgent[workspaceKey]
 			if workspacePath == "" {
-				resolvedPath, err := s.resolveAgentWorkspacePath(ctx, sessionValue.AgentID)
+				resolvedPath, err := s.resolveAgentWorkspacePath(
+					ctx,
+					ownerUserID,
+					sessionValue.AgentID,
+				)
 				if err != nil {
 					errs = append(errs, err)
 					continue
 				}
 				workspacePath = resolvedPath
-				workspaceByAgentID[sessionValue.AgentID] = workspacePath
+				workspaceByOwnerAgent[workspaceKey] = workspacePath
 			}
 
-			if _, err := s.files.DeleteSession(workspacePath, sessionKey); err != nil {
+			if _, err := ownerFiles.DeleteSession(workspacePath, sessionKey); err != nil {
 				errs = append(errs, err)
 			}
-			if s.history != nil && strings.TrimSpace(sessionValue.SDKSessionID) != "" {
-				if _, err := s.history.DeleteTranscriptSession(workspacePath, sessionValue.SDKSessionID); err != nil {
+			if ownerHistory != nil && strings.TrimSpace(sessionValue.SDKSessionID) != "" {
+				if _, err := ownerHistory.DeleteTranscriptSession(workspacePath, sessionValue.SDKSessionID); err != nil {
 					errs = append(errs, err)
 				}
 			}

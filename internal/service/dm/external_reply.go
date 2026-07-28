@@ -93,7 +93,11 @@ func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, re
 		PlatformMessageIDs:       slices.Clone(result.PlatformMessageIDs),
 		Timestamp:                time.Now().UTC(),
 	}
-	if err := r.service.history.AppendExternalDeliveryReceipt(r.workspacePath, r.session.SessionKey, receipt); err != nil {
+	if err := r.service.history.ForOwner(r.ownerUserID).AppendExternalDeliveryReceipt(
+		r.workspacePath,
+		r.session.SessionKey,
+		receipt,
+	); err != nil {
 		r.service.loggerFor(context.Background()).Warn("DM assistant 外部通道回执持久化失败",
 			"session_key", r.sessionKey,
 			"round_id", r.roundID,

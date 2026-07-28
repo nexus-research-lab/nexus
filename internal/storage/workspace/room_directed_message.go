@@ -29,26 +29,33 @@ type RoomDirectedMessageStore struct {
 
 // NewRoomDirectedMessageStore 创建 Room directed message 存储。
 func NewRoomDirectedMessageStore(root string) *RoomDirectedMessageStore {
+	paths := New(root)
 	return &RoomDirectedMessageStore{
-		paths: New(root),
-		files: NewSessionFileStore(root),
+		paths: paths,
+		files: newSessionFileStore(paths),
 	}
 }
 
 // AppendMessage 追加一条 Room directed message。
-func (s *RoomDirectedMessageStore) AppendMessage(message protocol.RoomDirectedMessageRecord) error {
-	return s.files.appendJSONLAt(
-		s.paths.HomeRoot,
-		s.paths.RoomConversationMessagesPath(message.ConversationID),
+func (s *RoomDirectedMessageStore) AppendMessage(
+	ownerUserID string,
+	message protocol.RoomDirectedMessageRecord,
+) error {
+	return s.files.appendRoomJSONL(
+		ownerUserID,
+		s.paths.RoomConversationMessagesPath(ownerUserID, message.ConversationID),
 		roomDirectedMessageToRow(message),
 	)
 }
 
 // ReadMessages 读取指定对话的全部 Room directed message。
-func (s *RoomDirectedMessageStore) ReadMessages(conversationID string) ([]protocol.RoomDirectedMessageRecord, error) {
-	rows, err := s.files.readJSONLAt(
-		s.paths.HomeRoot,
-		s.paths.RoomConversationMessagesPath(conversationID),
+func (s *RoomDirectedMessageStore) ReadMessages(
+	ownerUserID string,
+	conversationID string,
+) ([]protocol.RoomDirectedMessageRecord, error) {
+	rows, err := s.files.readRoomJSONL(
+		ownerUserID,
+		s.paths.RoomConversationMessagesPath(ownerUserID, conversationID),
 	)
 	if errors.Is(err, os.ErrNotExist) {
 		return []protocol.RoomDirectedMessageRecord{}, nil
@@ -57,24 +64,36 @@ func (s *RoomDirectedMessageStore) ReadMessages(conversationID string) ([]protoc
 		return nil, err
 	}
 	messages := make([]protocol.RoomDirectedMessageRecord, 0, len(rows))
+	conversationID = strings.TrimSpace(conversationID)
 	for _, row := range rows {
 		message := roomDirectedMessageFromRow(row)
 		if strings.TrimSpace(message.MessageID) == "" {
 			continue
 		}
+		// 文件目录是 conversation 事实源；行内字段不能把私域消息投影到
+		// 同一 owner 的另一段对话。
+		message.ConversationID = conversationID
 		messages = append(messages, message)
 	}
 	return messages, nil
 }
 
 // ReadContextMessages 读取对目标 agent 可见的近期 directed message。
-func (s *RoomDirectedMessageStore) ReadContextMessages(conversationID string, agentID string) ([]protocol.RoomDirectedMessageRecord, error) {
-	return s.ReadContextMessagesAfterCursor(conversationID, agentID, RoomDirectedMessageCursor{})
+func (s *RoomDirectedMessageStore) ReadContextMessages(
+	ownerUserID string,
+	conversationID string,
+	agentID string,
+) ([]protocol.RoomDirectedMessageRecord, error) {
+	return s.ReadContextMessagesAfterCursor(ownerUserID, conversationID, agentID, RoomDirectedMessageCursor{})
 }
 
 // ReadVisibleMessages 读取目标 agent 可见的全部 directed message，不裁剪上下文窗口。
-func (s *RoomDirectedMessageStore) ReadVisibleMessages(conversationID string, agentID string) ([]protocol.RoomDirectedMessageRecord, error) {
-	messages, err := s.ReadMessages(conversationID)
+func (s *RoomDirectedMessageStore) ReadVisibleMessages(
+	ownerUserID string,
+	conversationID string,
+	agentID string,
+) ([]protocol.RoomDirectedMessageRecord, error) {
+	messages, err := s.ReadMessages(ownerUserID, conversationID)
 	if err != nil {
 		return nil, err
 	}
@@ -90,11 +109,12 @@ func (s *RoomDirectedMessageStore) ReadVisibleMessages(conversationID string, ag
 
 // ReadContextMessagesAfterCursor 读取目标 agent cursor 之后可见的近期 directed message。
 func (s *RoomDirectedMessageStore) ReadContextMessagesAfterCursor(
+	ownerUserID string,
 	conversationID string,
 	agentID string,
 	cursor RoomDirectedMessageCursor,
 ) ([]protocol.RoomDirectedMessageRecord, error) {
-	visible, err := s.ReadVisibleMessages(conversationID, agentID)
+	visible, err := s.ReadVisibleMessages(ownerUserID, conversationID, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -104,12 +124,13 @@ func (s *RoomDirectedMessageStore) ReadContextMessagesAfterCursor(
 
 // ReadContextMessagesThrough 读取 cursor 之后、不超过指定触发消息的私域上下文。
 func (s *RoomDirectedMessageStore) ReadContextMessagesThrough(
+	ownerUserID string,
 	conversationID string,
 	agentID string,
 	cursor RoomDirectedMessageCursor,
 	lastMessageID string,
 ) ([]protocol.RoomDirectedMessageRecord, error) {
-	visible, err := s.ReadVisibleMessages(conversationID, agentID)
+	visible, err := s.ReadVisibleMessages(ownerUserID, conversationID, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -127,20 +148,27 @@ func (s *RoomDirectedMessageStore) ReadContextMessagesThrough(
 }
 
 // AppendMessageCursor 追加 Room directed message 消费位置控制行。
-func (s *RoomDirectedMessageStore) AppendMessageCursor(cursor RoomDirectedMessageCursor) error {
-	return s.files.appendJSONLAt(
-		s.paths.HomeRoot,
-		s.paths.RoomConversationMessageCursorsPath(cursor.ConversationID),
+func (s *RoomDirectedMessageStore) AppendMessageCursor(
+	ownerUserID string,
+	cursor RoomDirectedMessageCursor,
+) error {
+	return s.files.appendRoomJSONL(
+		ownerUserID,
+		s.paths.RoomConversationMessageCursorsPath(ownerUserID, cursor.ConversationID),
 		roomDirectedMessageCursorToRow(cursor),
 	)
 }
 
 // ReadMessageCursor 读取目标 agent 最新 Room directed message 消费位置。
-func (s *RoomDirectedMessageStore) ReadMessageCursor(conversationID string, agentID string) (RoomDirectedMessageCursor, bool, error) {
+func (s *RoomDirectedMessageStore) ReadMessageCursor(
+	ownerUserID string,
+	conversationID string,
+	agentID string,
+) (RoomDirectedMessageCursor, bool, error) {
 	if strings.TrimSpace(agentID) == "" {
 		return RoomDirectedMessageCursor{}, false, nil
 	}
-	cursors, err := s.ReadMessageCursors(conversationID, agentID)
+	cursors, err := s.ReadMessageCursors(ownerUserID, conversationID, agentID)
 	if err != nil {
 		return RoomDirectedMessageCursor{}, false, err
 	}
@@ -151,10 +179,14 @@ func (s *RoomDirectedMessageStore) ReadMessageCursor(conversationID string, agen
 }
 
 // ReadMessageCursors 读取每个 agent 最新的 Room directed message 消费位置。
-func (s *RoomDirectedMessageStore) ReadMessageCursors(conversationID string, agentID string) ([]RoomDirectedMessageCursor, error) {
-	rows, err := s.files.readJSONLAt(
-		s.paths.HomeRoot,
-		s.paths.RoomConversationMessageCursorsPath(conversationID),
+func (s *RoomDirectedMessageStore) ReadMessageCursors(
+	ownerUserID string,
+	conversationID string,
+	agentID string,
+) ([]RoomDirectedMessageCursor, error) {
+	rows, err := s.files.readRoomJSONL(
+		ownerUserID,
+		s.paths.RoomConversationMessageCursorsPath(ownerUserID, conversationID),
 	)
 	if errors.Is(err, os.ErrNotExist) {
 		return []RoomDirectedMessageCursor{}, nil
@@ -166,9 +198,9 @@ func (s *RoomDirectedMessageStore) ReadMessageCursors(conversationID string, age
 	latestByAgentID := map[string]RoomDirectedMessageCursor{}
 	for _, row := range rows {
 		cursor := roomDirectedMessageCursorFromRow(row)
+		cursor.ConversationID = strings.TrimSpace(conversationID)
 		cursorAgentID := strings.TrimSpace(cursor.AgentID)
 		if cursorAgentID == "" ||
-			strings.TrimSpace(cursor.ConversationID) != strings.TrimSpace(conversationID) ||
 			strings.TrimSpace(cursor.LastMessageID) == "" ||
 			(targetAgentID != "" && cursorAgentID != targetAgentID) {
 			continue

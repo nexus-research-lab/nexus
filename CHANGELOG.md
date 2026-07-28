@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Isolated Room overlays, directed-message state, public handoffs, and delayed wakes under each owner's host-managed `state/rooms` directory, moved runtime-readable Room attachments into the owner's `workspace/.rooms` asset tree, pinned Room ledger access to verified directory/file inodes, and added a restart-safe owner-validated migration from the former shared `app/rooms` layout.
+- Bound owner-aware InputQueue, Room transcript references, and attachment reads to no-symlink directory paths, with inode and hard-link checks before host file access.
 - Fixed Docker startup crashing when legacy or runtime JSON settings were `null`; empty JSON values now normalize to an empty object while invalid non-object configuration remains rejected.
 - Fixed v0.1.27 Skill storage migration blocking startup on a same-name invalid Skill directory; the existing directory is now preserved in the host migration-backup area before the legacy external Skill is migrated.
 - Fixed Linux runtime-isolation Docker images leaving application directories group-writable, which caused the `enforce` startup permission check to reject the bundled read-only application root.

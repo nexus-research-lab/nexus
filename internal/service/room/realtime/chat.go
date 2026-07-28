@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"maps"
@@ -166,7 +167,9 @@ func (s *Service) handleChatLocked(ctx context.Context, request ChatRequest) err
 	if len(activeRound.Slots) == 0 {
 		return execution.reportUnavailableMembers()
 	}
-	execution.startRound(activeRound, pending)
+	if !execution.startRound(activeRound, pending) {
+		return runtimectx.ErrRuntimeSessionClosing
+	}
 	return nil
 }
 
@@ -235,7 +238,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		targetAgentIDs,
 		targetResolution,
 	)
-	history, err := s.roomHistory.ReadMessages(conversationID, nil)
+	history, err := s.roomHistory.ReadMessages(contextValue.Room.OwnerUserID, conversationID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +351,11 @@ func newRoomUserMessage(
 
 func (e *roomChatExecution) persistInput() error {
 	if !e.request.Internal || e.request.BroadcastUserMessage {
-		if err := e.service.persistSharedInlineMessage(e.conversationID, e.userMessage); err != nil {
+		if err := e.service.persistSharedInlineMessage(
+			e.contextValue.Room.OwnerUserID,
+			e.conversationID,
+			e.userMessage,
+		); err != nil {
 			return err
 		}
 		e.history = append(e.history, e.userMessage)
@@ -405,7 +412,11 @@ func (e *roomChatExecution) finishWithoutTarget() (bool, error) {
 		"is_error":        false,
 		"timestamp":       time.Now().UnixMilli(),
 	}
-	if err := e.service.persistSharedInlineMessage(e.conversationID, hintMessage); err != nil {
+	if err := e.service.persistSharedInlineMessage(
+		e.contextValue.Room.OwnerUserID,
+		e.conversationID,
+		hintMessage,
+	); err != nil {
 		return true, err
 	}
 	e.service.broadcastSharedEvent(
@@ -565,6 +576,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		slotTrigger.TargetAgentID = agentID
 		slot := &activeRoomSlot{
 			RoomSessionID:      sessionRecord.ID,
+			OwnerUserID:        activeRound.OwnerUserID,
 			AgentID:            agentID,
 			AgentRoundID:       agentRoundID,
 			MsgID:              msgID,
@@ -624,11 +636,14 @@ func (e *roomChatExecution) reportUnavailableMembers() error {
 	return nil
 }
 
-func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []protocol.ChatAckPendingSlot) {
-	roundCtx, cancel := context.WithCancel(context.Background())
+func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []protocol.ChatAckPendingSlot) bool {
+	roundCtx, cancel := context.WithCancel(context.WithoutCancel(e.ctx))
 	activeRound.Cancel = cancel
 	e.service.registerRound(activeRound)
-	e.service.runtime.StartRound(e.sessionKey, e.request.RoundID, cancel)
+	if !e.service.runtime.StartRound(e.sessionKey, e.request.RoundID, cancel) {
+		e.service.finishRound(activeRound)
+		return false
+	}
 
 	e.service.broadcastSharedEvent(
 		e.ctx,
@@ -641,6 +656,7 @@ func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []p
 	}
 	e.service.broadcastSessionStatus(e.ctx, e.sessionKey)
 	go e.service.runRound(roundCtx, activeRound, e.history, e.agentNameByID, e.agentByID)
+	return true
 }
 
 func (e *roomChatExecution) broadcastAck(pending []protocol.ChatAckPendingSlot, userMessageCommitted bool) {
@@ -844,8 +860,12 @@ func normalizeExplicitTargetAgentIDs(values []string) []string {
 	return normalizeRoomAgentIDs(values)
 }
 
-func (s *Service) persistSharedInlineMessage(conversationID string, message protocol.Message) error {
-	if err := s.roomHistory.AppendInlineMessage(conversationID, message); err != nil {
+func (s *Service) persistSharedInlineMessage(
+	ownerUserID string,
+	conversationID string,
+	message protocol.Message,
+) error {
+	if err := s.roomHistory.AppendInlineMessage(ownerUserID, conversationID, message); err != nil {
 		return err
 	}
 	s.touchSharedConversationActivity(context.Background(), conversationID, roomMessageActivityTime(message))
@@ -853,14 +873,16 @@ func (s *Service) persistSharedInlineMessage(conversationID string, message prot
 }
 
 func (s *Service) persistSharedDurableMessage(
+	ownerUserID string,
 	conversationID string,
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) error {
 	if slot == nil || !protocol.IsTranscriptNativeMessage(protocol.Message(message)) {
-		return s.persistSharedInlineMessage(conversationID, message)
+		return s.persistSharedInlineMessage(ownerUserID, conversationID, message)
 	}
 	if err := s.roomHistory.AppendTranscriptReference(
+		ownerUserID,
 		conversationID,
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
@@ -945,6 +967,7 @@ func roomUnixMilliActivityTime(value string) time.Time {
 // queue 与 guide 只负责填写来源差异，不能各自复制一套位置和目标字段。
 func newActiveSlotQueueEntry(
 	slot *activeRoomSlot,
+	ownerUserID string,
 	roomID string,
 	conversationID string,
 	item protocol.InputQueueItem,
@@ -958,6 +981,7 @@ func newActiveSlotQueueEntry(
 	item.Attachments = protocol.NormalizeChatAttachments(item.Attachments, slot.AgentID)
 	return workspacestore.InputQueueEnqueue{
 		Location: workspacestore.InputQueueLocation{
+			OwnerUserID:    strings.TrimSpace(ownerUserID),
 			Scope:          protocol.InputQueueScopeRoom,
 			WorkspacePath:  slot.WorkspacePath,
 			SessionKey:     slot.RuntimeSessionKey,
@@ -988,7 +1012,7 @@ func (s *Service) enqueueForActiveAgentSlots(
 		if slot == nil {
 			continue
 		}
-		entries = append(entries, newActiveSlotQueueEntry(slot, roomID, conversationID, protocol.InputQueueItem{
+		entries = append(entries, newActiveSlotQueueEntry(slot, ownerUserID, roomID, conversationID, protocol.InputQueueItem{
 			ID:              strings.TrimSpace(roundID),
 			SourceMessageID: strings.TrimSpace(userMessageID),
 			Source:          protocol.InputQueueSourceUser,
@@ -1173,7 +1197,7 @@ func (s *Service) guideActiveAgentSlots(
 		if slot == nil {
 			continue
 		}
-		entries = append(entries, newActiveSlotQueueEntry(slot, roomID, conversationID, protocol.InputQueueItem{
+		entries = append(entries, newActiveSlotQueueEntry(slot, sourceItem.OwnerUserID, roomID, conversationID, protocol.InputQueueItem{
 			ID:              strings.TrimSpace(sourceItem.ID),
 			SourceAgentID:   strings.TrimSpace(sourceItem.SourceAgentID),
 			SourceMessageID: strings.TrimSpace(sourceItem.SourceMessageID),

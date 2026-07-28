@@ -14,6 +14,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 )
@@ -24,6 +25,14 @@ type fakeAgentCatalog struct {
 
 func (f fakeAgentCatalog) ListAllAgentRecordsForMaintenance(context.Context) ([]protocol.Agent, error) {
 	return append([]protocol.Agent(nil), f.agents...), nil
+}
+
+func (f fakeAgentCatalog) EnsureRuntimeSettingsProjection(agentValue protocol.Agent) error {
+	return agentsvc.EnsureRuntimeSettingsProjection(agentValue)
+}
+
+func (f fakeAgentCatalog) LoadRuntimeSettingsProjection(agentValue protocol.Agent) (map[string]any, error) {
+	return agentsvc.LoadRuntimeSettingsProjection(agentValue.WorkspacePath)
 }
 
 type fakeDreamRunner struct {

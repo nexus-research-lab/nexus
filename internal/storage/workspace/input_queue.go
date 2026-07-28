@@ -35,6 +35,7 @@ var ErrInputQueueIdempotencyConflict = errors.New("input queue idempotency confl
 // InputQueueLocation 描述待发送队列的物理文件与执行域分区。
 // Scope 是队列身份的一部分，即使不同 scope 暂时落在同一 JSONL 文件，也不得交叉回放。
 type InputQueueLocation struct {
+	OwnerUserID    string
 	Scope          protocol.InputQueueScope
 	WorkspacePath  string
 	SessionKey     string
@@ -70,9 +71,10 @@ type InputQueueStore struct {
 
 // NewInputQueueStore 创建待发送队列存储。
 func NewInputQueueStore(root string) *InputQueueStore {
+	paths := New(root)
 	return &InputQueueStore{
-		paths: New(root),
-		files: NewSessionFileStore(root),
+		paths: paths,
+		files: newSessionFileStore(paths),
 	}
 }
 
@@ -117,7 +119,16 @@ func (s *InputQueueStore) inputQueueRowsLocked(location InputQueueLocation) ([]m
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.files.readJSONLAt(location.WorkspacePath, path)
+	var rows []map[string]any
+	if strings.TrimSpace(location.OwnerUserID) != "" {
+		rows, err = s.files.readOwnerWorkspaceJSONL(
+			location.OwnerUserID,
+			location.WorkspacePath,
+			path,
+		)
+	} else {
+		rows, err = s.files.readJSONLAt(location.WorkspacePath, path)
+	}
 	if errors.Is(err, os.ErrNotExist) {
 		return []map[string]any{}, nil
 	}
@@ -132,6 +143,14 @@ func (s *InputQueueStore) appendActionLocked(location InputQueueLocation, row ma
 	if err != nil {
 		return err
 	}
+	if strings.TrimSpace(location.OwnerUserID) != "" {
+		return s.files.appendOwnerWorkspaceJSONL(
+			location.OwnerUserID,
+			location.WorkspacePath,
+			path,
+			row,
+		)
+	}
 	return s.files.appendJSONLAt(location.WorkspacePath, path, row)
 }
 
@@ -143,6 +162,10 @@ func (s *InputQueueStore) pathForLocation(location InputQueueLocation) (string, 
 	}
 	if sessionKey == "" {
 		return "", errors.New("session_key is required")
+	}
+	if ownerUserID := strings.TrimSpace(location.OwnerUserID); ownerUserID != "" &&
+		!s.paths.workspacePathBelongsToOwner(ownerUserID, workspacePath) {
+		return "", errors.New("workspace_path does not belong to queue owner")
 	}
 	return s.paths.SessionInputQueuePath(workspacePath, sessionKey), nil
 }
@@ -333,7 +356,8 @@ func findAcceptedInputQueueEnqueue(
 		item, ok := inputQueueItemFromAny(row["item"])
 		if !ok ||
 			strings.TrimSpace(item.ID) == "" ||
-			!inputQueueItemMatchesLocationScope(location, item) {
+			!inputQueueItemMatchesLocationScope(location, item) ||
+			!inputQueueItemMatchesLocationOwner(location, item) {
 			continue
 		}
 		return normalizeInputQueueItem(location, item, normalizeInputQueueTimestamp(row["timestamp"])), true

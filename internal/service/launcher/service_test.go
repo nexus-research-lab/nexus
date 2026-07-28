@@ -308,6 +308,8 @@ func newLauncherTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(root, ".nexus"))
+	t.Setenv("NEXUS_CONFIG_DIR", "")
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18012,

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -206,5 +207,92 @@ func TestServiceHandleChatDoesNotPersistSDKSessionIDWithoutTranscript(t *testing
 	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
 	if sessionValue.SessionID != nil && strings.TrimSpace(*sessionValue.SessionID) != "" {
 		t.Fatalf("transcript 未落盘时不应写入 sdk session_id: %+v", sessionValue)
+	}
+}
+
+func TestServiceHandleChatPersistsSDKSessionIDInAuthenticatedOwnerRuntime(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	ownerUserID := "user_runtime_owner"
+	ownerContext := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID:     ownerUserID,
+		Username:   "runtime-owner",
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodPassword,
+	})
+	agentService := newDMAgentService(t, cfg)
+	agentValue, err := agentService.GetDefaultAgent(ownerContext)
+	if err != nil {
+		t.Fatalf("初始化 owner 主 Agent 失败: %v", err)
+	}
+
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.sessionID = "33333333-4444-4555-8666-777777777777"
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-owner-runtime",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newDMTestSender("sender-owner-runtime")
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		protocol.SessionChannelWebSocketSegment,
+		protocol.RoomTypeDM,
+		"owner-runtime",
+		"",
+	)
+	permission.BindSession(sessionKey, sender)
+
+	writeOwnerTranscriptFixture(t, ownerUserID, agentValue.WorkspacePath, client.sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "33000000-0000-4000-8000-000000000001",
+			"sessionId": client.sessionID,
+			"timestamp": "2026-07-27T00:00:00Z",
+			"cwd":       agentValue.WorkspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "owner transcript",
+			},
+		},
+	})
+
+	if err = service.HandleChat(ownerContext, Request{
+		SessionKey: sessionKey,
+		Content:    "测试 owner runtime transcript",
+		RoundID:    "round-owner-runtime",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	sessionValue, _, err := service.files.ForOwner(ownerUserID).FindSession(
+		[]string{agentValue.WorkspacePath},
+		sessionKey,
+	)
+	if err != nil {
+		t.Fatalf("读取 owner session 元数据失败: %v", err)
+	}
+	if sessionValue == nil || sessionValue.SessionID == nil ||
+		strings.TrimSpace(*sessionValue.SessionID) != client.sessionID {
+		t.Fatalf("SDK session_id 未写入 owner 会话: %+v", sessionValue)
 	}
 }

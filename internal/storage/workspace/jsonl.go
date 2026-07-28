@@ -21,6 +21,9 @@ func (s *SessionFileStore) appendJSONL(path string, row map[string]any) error {
 }
 
 func (s *SessionFileStore) appendJSONLAt(rootPath string, path string, row map[string]any) error {
+	if ownerUserID := strings.TrimSpace(s.ownerUserID); ownerUserID != "" {
+		return s.appendOwnerWorkspaceJSONL(ownerUserID, rootPath, path, row)
+	}
 	root, relative, err := relativeStorePath(rootPath, path)
 	if err != nil {
 		return err
@@ -30,11 +33,29 @@ func (s *SessionFileStore) appendJSONLAt(rootPath string, path string, row map[s
 }
 
 func appendJSONLAtRoot(root *confinedfs.Root, relative string, row map[string]any) error {
+	return appendJSONLAtRootWithMode(
+		root,
+		relative,
+		row,
+		storageFileMode(0o644),
+	)
+}
+
+func appendJSONLAtRootWithMode(
+	root *confinedfs.Root,
+	relative string,
+	row map[string]any,
+	mode os.FileMode,
+) error {
 	if err := root.MkdirAll(filepath.Dir(relative), storageDirectoryMode()); err != nil {
 		return err
 	}
 
-	file, err := root.OpenFile(relative, os.O_CREATE|os.O_APPEND|os.O_WRONLY, storageFileMode(0o644))
+	file, err := root.OpenFileNoSymlink(
+		relative,
+		os.O_CREATE|os.O_APPEND|os.O_WRONLY,
+		mode,
+	)
 	if err != nil {
 		return err
 	}
@@ -78,6 +99,9 @@ func (s *SessionFileStore) replaceJSONL(path string, rows []map[string]any) erro
 }
 
 func (s *SessionFileStore) replaceJSONLAt(rootPath string, path string, rows []map[string]any) error {
+	if ownerUserID := strings.TrimSpace(s.ownerUserID); ownerUserID != "" {
+		return s.replaceOwnerWorkspaceJSONL(ownerUserID, rootPath, path, rows)
+	}
 	root, relative, err := relativeStorePath(rootPath, path)
 	if err != nil {
 		return err
@@ -106,21 +130,23 @@ func (s *SessionFileStore) readJSONL(path string) ([]map[string]any, error) {
 		return nil, err
 	}
 	defer root.Close()
-	file, err := root.Open(relative)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	return readJSONLFile(file)
+	return readJSONLAtRoot(root, relative)
 }
 
 func (s *SessionFileStore) readJSONLAt(rootPath string, path string) ([]map[string]any, error) {
+	if ownerUserID := strings.TrimSpace(s.ownerUserID); ownerUserID != "" {
+		return s.readOwnerWorkspaceJSONL(ownerUserID, rootPath, path)
+	}
 	root, relative, err := relativeStorePathWithCreate(rootPath, path, false)
 	if err != nil {
 		return nil, err
 	}
 	defer root.Close()
-	file, err := root.Open(relative)
+	return readJSONLAtRoot(root, relative)
+}
+
+func readJSONLAtRoot(root *confinedfs.Root, relative string) ([]map[string]any, error) {
+	file, err := root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}

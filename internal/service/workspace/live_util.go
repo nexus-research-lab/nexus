@@ -3,6 +3,9 @@ package workspace
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"io"
+	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -55,25 +58,50 @@ func relativeLivePath(root string, absolutePath string) (string, bool) {
 	return normalized, true
 }
 
-func readWorkspaceSnapshot(rootPath string, relativePath string, size int64) *string {
+func readWorkspaceSnapshot(
+	root *confinedfs.Root,
+	relativePath string,
+	size int64,
+) *string {
 	if size > liveMaxSnapshotBytes {
 		return nil
 	}
 	relativePath = normalizeLivePath(relativePath)
-	if relativePath == "" || relativePath == "." {
+	if root == nil || relativePath == "" || relativePath == "." {
 		return nil
 	}
-	root, err := confinedfs.Open(rootPath)
+	parent, err := root.OpenRootNoSymlink(path.Dir(relativePath))
 	if err != nil {
 		return nil
 	}
-	defer root.Close()
-	content, err := root.ReadFile(relativePath)
+	defer parent.Close()
+	file, err := parent.OpenFileNoSymlink(path.Base(relativePath), os.O_RDONLY, 0)
 	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	content, err := io.ReadAll(io.LimitReader(file, liveMaxSnapshotBytes+1))
+	if err != nil {
+		return nil
+	}
+	if len(content) > liveMaxSnapshotBytes {
 		return nil
 	}
 	text := string(content)
 	return &text
+}
+
+func lstatWorkspacePath(root *confinedfs.Root, relativePath string) (os.FileInfo, error) {
+	relativePath = normalizeLivePath(relativePath)
+	if relativePath == "" || relativePath == "." {
+		return root.Lstat(".")
+	}
+	parent, err := root.OpenRootNoSymlink(path.Dir(relativePath))
+	if err != nil {
+		return nil, err
+	}
+	defer parent.Close()
+	return parent.Lstat(path.Base(relativePath))
 }
 
 func stringPointer(value string) *string {

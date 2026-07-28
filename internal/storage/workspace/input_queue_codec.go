@@ -29,7 +29,13 @@ func normalizeInputQueueItem(
 	item.Attachments = protocol.NormalizeChatAttachments(item.Attachments, item.AgentID)
 	item.DeliveryPolicy = protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy))
 	item.ReplyRoute = normalizeInputQueueReplyRoute(item.ReplyRoute)
-	item.OwnerUserID = strings.TrimSpace(item.OwnerUserID)
+	if ownerUserID := strings.TrimSpace(location.OwnerUserID); ownerUserID != "" {
+		// 队列文件所在的已解析执行域是 owner 事实源，不能让历史
+		// JSON 行里的 owner 字段把宿主恢复指向另一用户。
+		item.OwnerUserID = ownerUserID
+	} else {
+		item.OwnerUserID = strings.TrimSpace(item.OwnerUserID)
+	}
 	item.RootRoundID = strings.TrimSpace(item.RootRoundID)
 	if item.HopIndex < 0 {
 		item.HopIndex = 0

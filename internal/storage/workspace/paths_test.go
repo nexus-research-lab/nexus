@@ -6,8 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+const testRoomOwnerUserID = "user-room-test"
 
 func TestStoreSessionDirUsesRoomConversationIDName(t *testing.T) {
 	store := New(t.TempDir())
@@ -43,13 +46,29 @@ func TestStoreSessionDirUsesDMChannelAndRefName(t *testing.T) {
 
 func TestStoreRoomConversationDirUsesConversationIDName(t *testing.T) {
 	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	store := New(root)
 	conversationID := "743295d46e5841dea378d604d7e45431"
 
-	name := filepath.Base(store.RoomConversationDir(conversationID))
+	name := filepath.Base(store.RoomConversationDir(testRoomOwnerUserID, conversationID))
 	if name != "room-743295d46e5841dea378d604d7e45431" {
 		t.Fatalf("room 共享目录不正确: %s", name)
+	}
+}
+
+func TestStoreRoomConversationAssetDirUsesOwnerWorkspace(t *testing.T) {
+	stateRoot := t.TempDir()
+	store := New("")
+	store.StateRoot = stateRoot
+	conversationID := "conversation/assets"
+	got := store.RoomConversationAssetDir(testRoomOwnerUserID, conversationID)
+	want := filepath.Join(
+		appfs.UserRoomAssetsRootAt(stateRoot, testRoomOwnerUserID),
+		encodeConversationDirName(conversationID),
+	)
+	if got != want {
+		t.Fatalf("RoomConversationAssetDir() = %q, want %q", got, want)
 	}
 }
 
@@ -64,6 +83,15 @@ func TestStoreUsesAppHostRoot(t *testing.T) {
 	}
 	if store.WorkspaceRoot != filepath.Join(stateRoot, "users") {
 		t.Fatalf("workspace 默认根不正确: got=%q", store.WorkspaceRoot)
+	}
+	if got := store.RoomConversationRoot(testRoomOwnerUserID); got != filepath.Join(
+		stateRoot,
+		"users",
+		testRoomOwnerUserID,
+		"state",
+		"rooms",
+	) {
+		t.Fatalf("Room 宿主状态根不正确: got=%q", got)
 	}
 
 	customWorkspace := filepath.Join(t.TempDir(), "custom-workspace")

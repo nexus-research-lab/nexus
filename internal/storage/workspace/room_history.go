@@ -25,18 +25,25 @@ type RoomHistoryStore struct {
 
 // NewRoomHistoryStore 创建 Room 共享历史门面。
 func NewRoomHistoryStore(root string) *RoomHistoryStore {
+	paths := New(root)
 	return &RoomHistoryStore{
-		paths:        New(root),
-		files:        NewSessionFileStore(root),
+		paths:        paths,
+		files:        newSessionFileStore(paths),
 		agentHistory: NewAgentHistoryStore(root),
 	}
 }
 
 // AppendInlineMessage 追加一条 Room inline overlay。
-func (s *RoomHistoryStore) AppendInlineMessage(conversationID string, message protocol.Message) error {
-	return s.files.appendJSONLAt(
-		s.paths.HomeRoot,
-		s.paths.RoomConversationOverlayPath(conversationID),
+func (s *RoomHistoryStore) AppendInlineMessage(
+	ownerUserID string,
+	conversationID string,
+	message protocol.Message,
+) error {
+	message = protocol.Clone(message)
+	message["conversation_id"] = strings.TrimSpace(conversationID)
+	return s.files.appendRoomJSONL(
+		ownerUserID,
+		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
 		message,
 	)
 }
@@ -44,28 +51,31 @@ func (s *RoomHistoryStore) AppendInlineMessage(conversationID string, message pr
 // AppendTranscriptReference 追加一条 transcript 引用。
 // 当引用条件不完整时，退回成 inline overlay，避免共享历史丢数据。
 func (s *RoomHistoryStore) AppendTranscriptReference(
+	ownerUserID string,
 	conversationID string,
 	workspacePath string,
 	privateSessionKey string,
 	message protocol.Message,
 ) error {
 	row := buildRoomTranscriptReference(message, workspacePath, privateSessionKey)
-	if row == nil {
-		return s.AppendInlineMessage(conversationID, message)
+	if row == nil || !s.paths.workspacePathIsConfinedForOwner(ownerUserID, workspacePath) {
+		return s.AppendInlineMessage(ownerUserID, conversationID, message)
 	}
-	return s.files.appendJSONLAt(
-		s.paths.HomeRoot,
-		s.paths.RoomConversationOverlayPath(conversationID),
+	row["conversation_id"] = strings.TrimSpace(conversationID)
+	return s.files.appendRoomJSONL(
+		ownerUserID,
+		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
 		row,
 	)
 }
 
 // ReadMessages 读取 Room 共享历史。
 func (s *RoomHistoryStore) ReadMessages(
+	ownerUserID string,
 	conversationID string,
 	activeRoundIDs []string,
 ) ([]protocol.Message, error) {
-	rows, err := s.readResolvedRows(conversationID)
+	rows, err := s.readResolvedRows(ownerUserID, conversationID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +84,7 @@ func (s *RoomHistoryStore) ReadMessages(
 
 // ReadMessagesPage 按 round 读取 Room 共享历史分页。
 func (s *RoomHistoryStore) ReadMessagesPage(
+	ownerUserID string,
 	conversationID string,
 	activeRoundIDs []string,
 	limit int,
@@ -82,7 +93,7 @@ func (s *RoomHistoryStore) ReadMessagesPage(
 	aroundRoundID string,
 	aroundLimit int,
 ) (protocol.MessagePage, error) {
-	rows, err := s.readResolvedRows(conversationID)
+	rows, err := s.readResolvedRows(ownerUserID, conversationID)
 	if err != nil {
 		return protocol.MessagePage{}, err
 	}
@@ -104,10 +115,10 @@ func (s *RoomHistoryStore) ReadMessagesPage(
 	), nil
 }
 
-func (s *RoomHistoryStore) readResolvedRows(conversationID string) ([]protocol.Message, error) {
-	rows, err := s.files.readJSONLAt(
-		s.paths.HomeRoot,
-		s.paths.RoomConversationOverlayPath(conversationID),
+func (s *RoomHistoryStore) readResolvedRows(ownerUserID string, conversationID string) ([]protocol.Message, error) {
+	rows, err := s.files.readRoomJSONL(
+		ownerUserID,
+		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
 	)
 	if errors.Is(err, os.ErrNotExist) {
 		return []protocol.Message{}, nil
@@ -120,10 +131,13 @@ func (s *RoomHistoryStore) readResolvedRows(conversationID string) ([]protocol.M
 	resolved := make([]protocol.Message, 0, len(rows))
 	for _, row := range rows {
 		if stringFromAny(row[overlayKindField]) != overlayKindTranscriptRef {
-			resolved = append(resolved, protocol.Message(row))
+			message := protocol.Message(row)
+			message["conversation_id"] = strings.TrimSpace(conversationID)
+			resolved = append(resolved, message)
 			continue
 		}
 		messageValue, ok, resolveErr := s.resolveTranscriptReference(
+			ownerUserID,
 			protocol.Message(row),
 			transcriptRowsByMessageID,
 		)
@@ -131,6 +145,7 @@ func (s *RoomHistoryStore) readResolvedRows(conversationID string) ([]protocol.M
 			return nil, resolveErr
 		}
 		if ok {
+			messageValue["conversation_id"] = strings.TrimSpace(conversationID)
 			resolved = append(resolved, messageValue)
 		}
 	}
@@ -138,6 +153,7 @@ func (s *RoomHistoryStore) readResolvedRows(conversationID string) ([]protocol.M
 }
 
 func (s *RoomHistoryStore) resolveTranscriptReference(
+	ownerUserID string,
 	row protocol.Message,
 	cache map[string]map[string]protocol.Message,
 ) (protocol.Message, bool, error) {
@@ -149,15 +165,22 @@ func (s *RoomHistoryStore) resolveTranscriptReference(
 	if workspacePath == "" || privateSessionKey == "" || agentID == "" || sessionID == "" || messageID == "" {
 		return nil, false, nil
 	}
+	if !s.paths.workspacePathIsConfinedForOwner(ownerUserID, workspacePath) {
+		return nil, false, nil
+	}
 
 	cacheKey := buildRoomTranscriptCacheKey(workspacePath, privateSessionKey, agentID, sessionID)
 	messageIndex, exists := cache[cacheKey]
 	if !exists {
-		_, roundMarkers, err := s.agentHistory.readOverlayRowsAndMarkers(workspacePath, privateSessionKey)
+		ownerHistory := s.agentHistory.ForOwner(ownerUserID)
+		_, roundMarkers, err := ownerHistory.readOverlayRowsAndMarkers(
+			workspacePath,
+			privateSessionKey,
+		)
 		if err != nil {
 			return nil, false, err
 		}
-		transcriptRows, err := s.agentHistory.readTranscriptMessages(
+		transcriptRows, err := ownerHistory.readTranscriptMessages(
 			workspacePath,
 			privateSessionKey,
 			agentID,

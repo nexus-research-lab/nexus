@@ -215,7 +215,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 		t.Fatalf("成功 round 应记录目标 agent 公区消费位置: ok=%v cursor=%+v", ok, cursor)
 	}
 	roomTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
-	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
+	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
 		{
 			"type":      "user",
 			"uuid":      "room-user-1",
@@ -240,7 +240,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 			},
 		},
 	})
-	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取共享 Room 消息失败: %v", err)
 	}
@@ -257,6 +257,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	privateMessages := readRoomPrivateHistory(
 		t,
 		cfg.WorkspacePath,
+		roomContext.Room.OwnerUserID,
 		memberAgent.WorkspacePath,
 		privateSessionKey,
 		memberAgent.AgentID,
@@ -365,7 +366,7 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 		t.Fatalf("未 @ 消息不应直接唤醒非群主成员: %+v", events)
 	}
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取 Room 公区历史失败: %v", err)
 	}

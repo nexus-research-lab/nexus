@@ -1,6 +1,7 @@
 package imagegen
 
 import (
+	"context"
 	"fmt"
 	"mime"
 	"net/http"
@@ -9,12 +10,16 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 var safeFileNamePattern = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
-func (s *Service) writeImage(input GenerateInput, payload []byte, mimeType string) (string, error) {
+func (s *Service) writeImage(
+	ctx context.Context,
+	input GenerateInput,
+	payload []byte,
+	mimeType string,
+) (string, error) {
 	ext := extensionFor(mimeType, input.OutputFormat)
 	name := strings.TrimSpace(input.FileName)
 	if name == "" {
@@ -25,7 +30,7 @@ func (s *Service) writeImage(input GenerateInput, payload []byte, mimeType strin
 		name = "generated-image"
 	}
 	relativePath := filepath.ToSlash(filepath.Join("output", "imagegen", name+ext))
-	root, err := confinedfs.Open(input.WorkspacePath)
+	root, err := s.openWorkspace(ctx, input.WorkspacePath, false)
 	if err != nil {
 		return "", err
 	}

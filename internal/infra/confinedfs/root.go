@@ -23,6 +23,12 @@ var (
 	ErrParentTraversal = errors.New("confined path contains parent traversal")
 	// ErrNUL 表示路径包含 NUL 字节。
 	ErrNUL = errors.New("confined path contains NUL")
+	// ErrSymlink 表示 no-symlink API 遇到了符号链接。
+	ErrSymlink = errors.New("confined path contains symlink")
+	// ErrChanged 表示校验后的路径条目在打开期间被替换。
+	ErrChanged = errors.New("confined path changed while opening")
+	// ErrHardlink 表示受保护文件还有其他目录项指向同一 inode。
+	ErrHardlink = errors.New("confined file has multiple hard links")
 )
 
 // Root 将一棵已打开的目录树封装为受限文件系统。
@@ -98,13 +104,14 @@ func (r *Root) Close() error {
 	return r.root.Close()
 }
 
-// ReadFile 在根目录内读取文件。
+// ReadFile 在根目录内读取真实普通文件，拒绝路径中的符号链接与硬链接。
 func (r *Root) ReadFile(name string) ([]byte, error) {
-	name, err := normalize(name)
+	file, err := r.OpenFileNoSymlink(name, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, err
 	}
-	return r.root.ReadFile(name)
+	defer file.Close()
+	return io.ReadAll(file)
 }
 
 // Stat 在根目录内获取文件信息。
@@ -158,6 +165,89 @@ func (r *Root) OpenRoot(name string) (*Root, error) {
 	}, nil
 }
 
+// OpenRootNoSymlink 逐级打开真实目录，拒绝任意路径段中的符号链接。
+//
+// 每一级都比较 Lstat 与打开后的 inode；即使条目在两次系统调用之间被替换，
+// 返回的目录 fd 也只能指向已校验的同一目录。
+func (r *Root) OpenRootNoSymlink(name string) (*Root, error) {
+	return r.openRootNoSymlink(name, false, 0)
+}
+
+// OpenOrCreateRootNoSymlink 逐级创建并打开真实目录，拒绝符号链接。
+func (r *Root) OpenOrCreateRootNoSymlink(name string, perm os.FileMode) (*Root, error) {
+	if perm&0o777 != perm {
+		return nil, errors.New("unsupported directory mode")
+	}
+	return r.openRootNoSymlink(name, true, perm)
+}
+
+func (r *Root) openRootNoSymlink(
+	name string,
+	create bool,
+	perm os.FileMode,
+) (*Root, error) {
+	name, err := normalize(name)
+	if err != nil {
+		return nil, err
+	}
+	current, err := r.OpenRoot(".")
+	if err != nil {
+		return nil, err
+	}
+	if name == "." {
+		return current, nil
+	}
+	for _, component := range strings.Split(name, "/") {
+		expected, statErr := current.Lstat(component)
+		if errors.Is(statErr, os.ErrNotExist) && create {
+			if mkdirErr := current.Mkdir(component, perm); mkdirErr != nil &&
+				!errors.Is(mkdirErr, fs.ErrExist) {
+				current.Close()
+				return nil, mkdirErr
+			}
+			expected, statErr = current.Lstat(component)
+		}
+		if statErr != nil {
+			current.Close()
+			return nil, statErr
+		}
+		if expected.Mode()&os.ModeSymlink != 0 {
+			current.Close()
+			return nil, ErrSymlink
+		}
+		if !expected.IsDir() {
+			current.Close()
+			return nil, errors.New("confined path component is not a directory")
+		}
+
+		next, openErr := current.OpenRoot(component)
+		if openErr != nil {
+			current.Close()
+			return nil, openErr
+		}
+		opened, openErr := next.Stat(".")
+		observed, observeErr := current.Lstat(component)
+		if openErr != nil ||
+			observeErr != nil ||
+			observed.Mode()&os.ModeSymlink != 0 ||
+			!os.SameFile(expected, opened) ||
+			!os.SameFile(expected, observed) {
+			next.Close()
+			current.Close()
+			if openErr != nil {
+				return nil, openErr
+			}
+			if observeErr != nil {
+				return nil, observeErr
+			}
+			return nil, ErrChanged
+		}
+		current.Close()
+		current = next
+	}
+	return current, nil
+}
+
 // OpenFile 在根目录内打开文件。
 func (r *Root) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
 	name, err := normalize(name)
@@ -165,6 +255,82 @@ func (r *Root) OpenFile(name string, flag int, perm os.FileMode) (*os.File, erro
 		return nil, err
 	}
 	return r.root.OpenFile(name, flag, perm)
+}
+
+// OpenFileNoSymlink 打开真实普通文件，拒绝任意路径段的 symlink、最终文件
+// 的硬链接与替换竞态。
+//
+// 该入口不接受 O_TRUNC；调用方应使用原子临时文件 + rename 完成替换。
+func (r *Root) OpenFileNoSymlink(name string, flag int, perm os.FileMode) (*os.File, error) {
+	name, err := normalize(name)
+	if err != nil {
+		return nil, err
+	}
+	if name == "." {
+		return nil, errors.New("confined file path is root")
+	}
+	if flag&os.O_TRUNC != 0 {
+		return nil, errors.New("OpenFileNoSymlink does not allow O_TRUNC")
+	}
+	parent, err := r.OpenRootNoSymlink(path.Dir(name))
+	if err != nil {
+		return nil, err
+	}
+	defer parent.Close()
+	return parent.openFileNoSymlink(path.Base(name), flag, perm)
+}
+
+func (r *Root) openFileNoSymlink(name string, flag int, perm os.FileMode) (*os.File, error) {
+	for attempt := 0; attempt < 3; attempt++ {
+		expected, statErr := r.Lstat(name)
+		if errors.Is(statErr, os.ErrNotExist) && flag&os.O_CREATE != 0 {
+			file, createErr := r.OpenFile(name, flag|os.O_EXCL, perm)
+			if errors.Is(createErr, fs.ErrExist) {
+				continue
+			}
+			return file, createErr
+		}
+		if statErr != nil {
+			return nil, statErr
+		}
+		if expected.Mode()&os.ModeSymlink != 0 {
+			return nil, ErrSymlink
+		}
+		if !expected.Mode().IsRegular() {
+			return nil, errors.New("confined file path is not a regular file")
+		}
+		if hasMultipleHardLinks(expected) {
+			return nil, ErrHardlink
+		}
+
+		file, openErr := r.OpenFile(name, flag&^os.O_CREATE, perm)
+		if errors.Is(openErr, os.ErrNotExist) && flag&os.O_CREATE != 0 {
+			continue
+		}
+		if openErr != nil {
+			return nil, openErr
+		}
+		opened, openErr := file.Stat()
+		observed, observeErr := r.Lstat(name)
+		if openErr != nil ||
+			observeErr != nil ||
+			observed.Mode()&os.ModeSymlink != 0 ||
+			hasMultipleHardLinks(opened) ||
+			hasMultipleHardLinks(observed) ||
+			!os.SameFile(expected, opened) ||
+			!os.SameFile(expected, observed) {
+			file.Close()
+			if openErr != nil {
+				return nil, openErr
+			}
+			if observeErr != nil {
+				return nil, observeErr
+			}
+			return nil, ErrChanged
+		}
+		return file, nil
+	}
+	return nil, ErrChanged
 }
 
 // Readlink 读取根目录内的符号链接目标。
@@ -206,7 +372,11 @@ func (r *Root) MkdirAll(name string, perm os.FileMode) error {
 	if name == "." {
 		return nil
 	}
-	return r.root.MkdirAll(name, perm)
+	child, err := r.OpenOrCreateRootNoSymlink(name, perm)
+	if err != nil {
+		return err
+	}
+	return child.Close()
 }
 
 // Mkdir 在根目录内创建单个目录。
@@ -230,28 +400,35 @@ func (r *Root) MkdirTemp(parent string, prefix string, perm os.FileMode) (string
 	if strings.ContainsAny(prefix, `/\`+"\x00") {
 		return "", errors.New("temporary directory prefix contains a path separator")
 	}
-	if err = r.MkdirAll(parent, perm); err != nil {
+	parentRoot, err := r.OpenOrCreateRootNoSymlink(parent, perm)
+	if err != nil {
 		return "", err
 	}
+	defer parentRoot.Close()
 	for attempt := 0; attempt < 16; attempt++ {
 		suffix, randomErr := randomSuffix()
 		if randomErr != nil {
 			return "", randomErr
 		}
-		name := path.Join(parent, prefix+suffix)
-		if err = r.Mkdir(name, perm); errors.Is(err, fs.ErrExist) {
+		baseName := prefix + suffix
+		if err = parentRoot.Mkdir(baseName, perm); errors.Is(err, fs.ErrExist) {
 			continue
 		}
 		if err != nil {
 			return "", err
 		}
-		return name, nil
+		return path.Join(parent, baseName), nil
 	}
 	return "", errors.New("unable to allocate confined temporary directory")
 }
 
 // WriteFileAtomic 通过同一根目录内的临时文件和 rename 原子替换文件。
 func (r *Root) WriteFileAtomic(name string, data []byte, perm os.FileMode) error {
+	return r.WriteFileAtomicFrom(name, bytes.NewReader(data), perm)
+}
+
+// WriteFileAtomicFrom 从 reader 流式写入临时文件，再原子替换目标文件。
+func (r *Root) WriteFileAtomicFrom(name string, source io.Reader, perm os.FileMode) error {
 	name, err := normalize(name)
 	if err != nil {
 		return err
@@ -260,18 +437,24 @@ func (r *Root) WriteFileAtomic(name string, data []byte, perm os.FileMode) error
 		return errors.New("cannot write confined root")
 	}
 	parent := path.Dir(name)
-	if err = r.MkdirAll(parent, 0o770); err != nil {
+	parentRoot, err := r.OpenOrCreateRootNoSymlink(parent, 0o770)
+	if err != nil {
 		return err
 	}
+	defer parentRoot.Close()
+	return parentRoot.writeFileAtomic(path.Base(name), source, perm)
+}
 
+func (r *Root) writeFileAtomic(name string, source io.Reader, perm os.FileMode) error {
 	var temporaryName string
 	var file *os.File
+	var err error
 	for attempt := 0; attempt < 16; attempt++ {
 		suffix, randomErr := randomSuffix()
 		if randomErr != nil {
 			return randomErr
 		}
-		temporaryName = path.Join(parent, ".nexus-confined-"+suffix+".tmp")
+		temporaryName = ".nexus-confined-" + suffix + ".tmp"
 		file, err = r.OpenFile(
 			temporaryName,
 			os.O_WRONLY|os.O_CREATE|os.O_EXCL,
@@ -296,7 +479,10 @@ func (r *Root) WriteFileAtomic(name string, data []byte, perm os.FileMode) error
 		}
 	}()
 
-	if _, err = io.Copy(file, bytes.NewReader(data)); err != nil {
+	if _, err = io.Copy(file, source); err != nil {
+		return err
+	}
+	if err = file.Chmod(perm.Perm()); err != nil {
 		return err
 	}
 	if err = file.Sync(); err != nil {
@@ -310,6 +496,81 @@ func (r *Root) WriteFileAtomic(name string, data []byte, perm os.FileMode) error
 	}
 	committed = true
 	return nil
+}
+
+// ChmodRoot 通过已固定的目录句柄修改根目录自身权限。
+func (r *Root) ChmodRoot(mode os.FileMode) error {
+	if r == nil || r.root == nil {
+		return errors.New("confined root is closed")
+	}
+	directory, err := r.root.Open(".")
+	if err != nil {
+		return err
+	}
+	defer directory.Close()
+	return directory.Chmod(mode)
+}
+
+// CopyTreeFrom 把已固定源目录中的真实目录与普通文件复制到当前根。
+//
+// 源树中的符号链接、硬链接和特殊文件会被拒绝，目录与文件权限保持不变。
+func (r *Root) CopyTreeFrom(source *Root) error {
+	if r == nil || r.root == nil || source == nil || source.root == nil {
+		return errors.New("confined copy root is closed")
+	}
+	sourceInfo, err := source.Stat(".")
+	if err != nil {
+		return err
+	}
+	entries, err := fs.ReadDir(source.FS(), ".")
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		info, err := source.Lstat(entry.Name())
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return ErrSymlink
+		}
+		if info.IsDir() {
+			sourceChild, err := source.OpenRootNoSymlink(entry.Name())
+			if err != nil {
+				return err
+			}
+			targetChild, targetErr := r.OpenOrCreateRootNoSymlink(entry.Name(), 0o755)
+			if targetErr != nil {
+				sourceChild.Close()
+				return targetErr
+			}
+			copyErr := targetChild.CopyTreeFrom(sourceChild)
+			sourceChild.Close()
+			targetChild.Close()
+			if copyErr != nil {
+				return copyErr
+			}
+			continue
+		}
+		if !info.Mode().IsRegular() {
+			return errors.New("confined source contains a special file")
+		}
+		sourceFile, err := source.OpenFileNoSymlink(entry.Name(), os.O_RDONLY, 0)
+		if err != nil {
+			return err
+		}
+		openedInfo, err := sourceFile.Stat()
+		if err != nil {
+			sourceFile.Close()
+			return err
+		}
+		copyErr := r.WriteFileAtomicFrom(entry.Name(), sourceFile, openedInfo.Mode().Perm())
+		sourceFile.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+	}
+	return r.ChmodRoot(sourceInfo.Mode().Perm())
 }
 
 // Remove 删除根目录内的单个文件或空目录。

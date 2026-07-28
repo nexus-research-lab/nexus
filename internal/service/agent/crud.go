@@ -3,11 +3,9 @@ package agent
 import (
 	"context"
 	"errors"
-	"os"
 	"slices"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
@@ -63,15 +61,12 @@ func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]pr
 	if err != nil {
 		return nil, err
 	}
-	if err = ensureAgentRuntimeEmotionStates(agents); err != nil {
-		return nil, err
-	}
-	if err = ensureAgentRuntimeSettings(agents); err != nil {
+	if err = s.ensureAgentRuntimeStates(agents); err != nil {
 		return nil, err
 	}
 	normalizeAgentAvatars(agents)
 	if includeSkillsCount {
-		err = enrichAgentsWithSkillsCount(agents)
+		err = s.enrichAgentsWithSkillsCount(agents)
 	}
 	if err != nil {
 		return nil, err
@@ -93,13 +88,10 @@ func (s *Service) GetAgent(ctx context.Context, agentID string) (*protocol.Agent
 		return nil, ErrAgentNotFound
 	}
 	normalizeAgentAvatar(agent)
-	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
+	if err = s.ensureAgentRuntimeState(*agent); err != nil {
 		return nil, err
 	}
-	if err = EnsureRuntimeSettingsProjection(*agent); err != nil {
-		return nil, err
-	}
-	if err = enrichAgentWithSkillsCount(agent); err != nil {
+	if err = s.enrichAgentWithSkillsCount(agent); err != nil {
 		return nil, err
 	}
 	return agent, nil
@@ -115,10 +107,7 @@ func (s *Service) GetAgentsByIDs(ctx context.Context, agentIDs []string) ([]prot
 	if err != nil {
 		return nil, err
 	}
-	if err = ensureAgentRuntimeEmotionStates(agents); err != nil {
-		return nil, err
-	}
-	if err = ensureAgentRuntimeSettings(agents); err != nil {
+	if err = s.ensureAgentRuntimeStates(agents); err != nil {
 		return nil, err
 	}
 	normalizeAgentAvatars(agents)
@@ -139,30 +128,18 @@ func (s *Service) GetDefaultAgent(ctx context.Context) (*protocol.Agent, error) 
 		return nil, ErrAgentNotFound
 	}
 	normalizeAgentAvatar(agent)
-	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
+	if err = s.ensureAgentRuntimeState(*agent); err != nil {
 		return nil, err
 	}
-	if err = EnsureRuntimeSettingsProjection(*agent); err != nil {
-		return nil, err
-	}
-	if err = enrichAgentWithSkillsCount(agent); err != nil {
+	if err = s.enrichAgentWithSkillsCount(agent); err != nil {
 		return nil, err
 	}
 	return agent, nil
 }
 
-func ensureAgentRuntimeEmotionStates(agents []protocol.Agent) error {
+func (s *Service) ensureAgentRuntimeStates(agents []protocol.Agent) error {
 	for _, agentValue := range agents {
-		if err := EnsureRuntimeEmotionState(agentValue.WorkspacePath); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func ensureAgentRuntimeSettings(agents []protocol.Agent) error {
-	for _, agentValue := range agents {
-		if err := EnsureRuntimeSettingsProjection(agentValue); err != nil {
+		if err := s.ensureAgentRuntimeState(agentValue); err != nil {
 			return err
 		}
 	}
@@ -223,12 +200,25 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 	if err != nil {
 		return nil, err
 	}
-	if err = EnsureRuntimeEmotionState(workspacePath); err != nil {
-		_ = confinedfs.RemoveTree(workspacePath)
+	workspaceAgent := protocol.Agent{
+		AgentID:       agentID,
+		OwnerUserID:   ownerUserID,
+		WorkspacePath: workspacePath,
+	}
+	root, err := s.openAgentWorkspace(workspaceAgent, false)
+	if err != nil {
+		_ = s.removeAgentWorkspace(workspaceAgent)
 		return nil, err
 	}
-	if err = writeProfileTemplate(workspacePath, request.ProfileTemplate); err != nil {
-		_ = confinedfs.RemoveTree(workspacePath)
+	if err = ensureRuntimeEmotionStateAt(root); err == nil {
+		err = writeProfileTemplateAt(root, request.ProfileTemplate)
+	}
+	closeErr := root.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		_ = s.removeAgentWorkspace(workspaceAgent)
 		return nil, err
 	}
 	record := BuildCreateRecord(
@@ -243,10 +233,10 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 	)
 	created, err := s.repository.CreateAgent(ctx, record)
 	if err != nil {
-		_ = confinedfs.RemoveTree(workspacePath)
+		_ = s.removeAgentWorkspace(workspaceAgent)
 		return nil, err
 	}
-	if err = EnsureRuntimeSettingsProjection(*created); err != nil {
+	if err = s.ensureAgentRuntimeState(*created); err != nil {
 		return nil, err
 	}
 	normalizeAgentAvatar(created)
@@ -382,13 +372,10 @@ func updatedAgentText(current string, requested *string) string {
 
 func (u *agentUpdate) finalize(updated *protocol.Agent) error {
 	normalizeAgentAvatar(updated)
-	if err := os.MkdirAll(updated.WorkspacePath, agentWorkspaceDirectoryMode()); err != nil {
+	if err := u.service.ensureAgentRuntimeState(*updated); err != nil {
 		return err
 	}
-	if err := EnsureRuntimeSettingsProjection(*updated); err != nil {
-		return err
-	}
-	return enrichAgentWithSkillsCount(updated)
+	return u.service.enrichAgentWithSkillsCount(updated)
 }
 
 // DeleteAgent 删除 Agent，并清理 workspace 目录与数据库记录。
@@ -414,11 +401,11 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 		}
 	}
 	if s.history != nil {
-		if _, err = s.history.DeleteTranscriptProject(existing.WorkspacePath); err != nil {
+		if _, err = s.history.ForOwner(existing.OwnerUserID).DeleteTranscriptProject(existing.WorkspacePath); err != nil {
 			return err
 		}
 	}
-	if err = confinedfs.RemoveTree(existing.WorkspacePath); err != nil {
+	if err = s.removeAgentWorkspace(*existing); err != nil {
 		return err
 	}
 	deleteOwnerUserID := existing.OwnerUserID

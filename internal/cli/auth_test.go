@@ -265,8 +265,10 @@ func newCLITestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	root := t.TempDir()
+	stateRoot := filepath.Join(root, ".nexus")
 	t.Setenv("HOME", root)
-	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18032,

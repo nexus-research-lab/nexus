@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -20,11 +21,18 @@ var transcriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 func (s *AgentHistoryStore) resolveTranscriptPath(workspacePath string, sessionID string) (string, error) {
 	canonicalPath := canonicalizeTranscriptPath(workspacePath)
-	projectsRoot := transcriptProjectsDirForWorkspace(canonicalPath)
-	projectDir := findTranscriptProjectDirAt(projectsRoot, canonicalPath)
+	projectsRoot := s.transcriptProjectsRootForWorkspace(canonicalPath)
+	projectDir, err := s.findTranscriptProjectDirAt(projectsRoot, canonicalPath)
+	if err != nil {
+		return "", err
+	}
 	if projectDir != "" {
 		path := filepath.Join(projectDir, sessionID+".jsonl")
-		if transcriptFileIsNonEmpty(canonicalPath, path) {
+		exists, err := s.transcriptFileIsNonEmpty(workspacePath, path)
+		if err != nil {
+			return "", err
+		}
+		if exists {
 			return path, nil
 		}
 	}
@@ -33,16 +41,41 @@ func (s *AgentHistoryStore) resolveTranscriptPath(workspacePath string, sessionI
 		if worktreePath == canonicalPath {
 			continue
 		}
-		worktreeDir := findTranscriptProjectDirAt(projectsRoot, worktreePath)
+		worktreeDir, err := s.findTranscriptProjectDirAt(projectsRoot, worktreePath)
+		if err != nil {
+			return "", err
+		}
 		if worktreeDir == "" {
 			continue
 		}
 		path := filepath.Join(worktreeDir, sessionID+".jsonl")
-		if transcriptFileIsNonEmpty(worktreePath, path) {
+		exists, err := s.transcriptFileIsNonEmpty(workspacePath, path)
+		if err != nil {
+			return "", err
+		}
+		if exists {
 			return path, nil
 		}
 	}
-	return "", os.ErrNotExist
+	return "", fmt.Errorf(
+		"transcript %s 不存在于 projects 根 %s，预期项目目录 %s: %w",
+		strings.TrimSpace(sessionID),
+		projectsRoot,
+		TranscriptProjectDirectoryName(canonicalPath),
+		os.ErrNotExist,
+	)
+}
+
+func (s *AgentHistoryStore) transcriptProjectsRootForWorkspace(
+	workspacePath string,
+) string {
+	if strings.TrimSpace(s.ownerUserID) != "" {
+		return filepath.Join(
+			appfs.UserRuntimeRootAt(s.paths.StateRoot, s.ownerUserID),
+			"projects",
+		)
+	}
+	return transcriptProjectsDirForWorkspace(workspacePath)
 }
 
 func transcriptConfigHomeDir() string {
@@ -65,13 +98,10 @@ func transcriptProjectsDir() string {
 	if sameTranscriptPath(legacyRoot, managedRoot) {
 		return legacyRoot
 	}
-	// 迁移后旧的全局 projects 会落在 system runtime。只有在宿主明确
-	// 使用 managed state root 且旧目录已经不存在时才切换，保留自定义
-	// NEXUS_CONFIG_DIR 测试/部署的原有语义。
+	// canonical 状态根启用后，旧的全局 projects 即使残留也不能再被回读；
+	// 否则一个 owner 的历史目录会重新成为所有用户的共享读取入口。
 	if managedStateRootConfigured() {
-		if _, err := os.Stat(legacyRoot); errors.Is(err, os.ErrNotExist) {
-			return managedRoot
-		}
+		return managedRoot
 	}
 	return legacyRoot
 }
@@ -112,6 +142,14 @@ func canonicalizeTranscriptPath(path string) string {
 
 func findTranscriptProjectDir(projectPath string) string {
 	return findTranscriptProjectDirAt(transcriptProjectsDirForWorkspace(projectPath), projectPath)
+}
+
+// TranscriptProjectsDirForWorkspace 返回 workspace 对应的 transcript projects 根。
+//
+// canonical owner workspace 使用该 owner 的 runtime/projects；非 canonical
+// workspace 使用 system runtime（迁移后的宿主回退根）。
+func TranscriptProjectsDirForWorkspace(workspacePath string) string {
+	return transcriptProjectsDirForWorkspace(workspacePath)
 }
 
 // TranscriptProjectDirectoryName 返回 Claude/nxs transcript 使用的项目目录名。
@@ -160,30 +198,70 @@ func findTranscriptProjectDirAt(projectsRoot string, projectPath string) string 
 		return ""
 	}
 	defer root.Close()
+	result, _ := findTranscriptProjectDirInRoot(root, projectsRoot, projectPath)
+	return result
+}
 
+func findTranscriptProjectDirInRoot(
+	root *confinedfs.Root,
+	projectsRoot string,
+	projectPath string,
+) (string, error) {
 	sanitized := TranscriptProjectDirectoryName(projectPath)
 	exactName := sanitized
-	if info, statErr := root.Lstat(exactName); statErr == nil &&
-		info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
-		return filepath.Join(projectsRoot, exactName)
+	info, statErr := root.Lstat(exactName)
+	if statErr == nil && info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
+		return filepath.Join(projectsRoot, exactName), nil
+	}
+	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return "", statErr
+	}
+	if errors.Is(statErr, os.ErrNotExist) {
+		if _, absoluteErr := os.Lstat(filepath.Join(projectsRoot, exactName)); absoluteErr == nil {
+			return "", errors.New("transcript projects root changed while reading")
+		}
 	}
 	if len(sanitized) <= maxTranscriptSanitizedLength {
-		return ""
+		return "", nil
 	}
 	prefix := sanitized[:maxTranscriptSanitizedLength]
 	entries, readErr := fs.ReadDir(root.FS(), ".")
 	if readErr != nil {
-		return ""
+		return "", readErr
 	}
 	for _, entry := range entries {
 		if entry.Type()&os.ModeSymlink != 0 || !entry.IsDir() {
 			continue
 		}
 		if strings.HasPrefix(entry.Name(), prefix+"-") {
-			return filepath.Join(projectsRoot, entry.Name())
+			return filepath.Join(projectsRoot, entry.Name()), nil
 		}
 	}
-	return ""
+	return "", nil
+}
+
+func (s *AgentHistoryStore) findTranscriptProjectDirAt(
+	projectsRoot string,
+	projectPath string,
+) (string, error) {
+	if strings.TrimSpace(s.ownerUserID) == "" {
+		return findTranscriptProjectDirAt(projectsRoot, projectPath), nil
+	}
+	root, err := s.paths.openOwnerTranscriptProjectsRoot(
+		s.ownerUserID,
+		false,
+	)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer root.Close()
+	if !sameTranscriptPath(root.Name(), projectsRoot) {
+		return "", errors.New("transcript projects root does not match owner root")
+	}
+	return findTranscriptProjectDirInRoot(root, root.Name(), projectPath)
 }
 
 func transcriptProjectsDirForWorkspace(workspacePath string) string {
@@ -234,11 +312,17 @@ func sanitizeTranscriptPath(path string) string {
 	return sanitized[:maxTranscriptSanitizedLength] + "-" + transcriptProjectHashSuffix(path)
 }
 
-func transcriptFileIsNonEmpty(workspacePath string, path string) bool {
-	root, relative, info, err := openTranscriptPath(workspacePath, path)
+func (s *AgentHistoryStore) transcriptFileIsNonEmpty(
+	workspacePath string,
+	transcriptPath string,
+) (bool, error) {
+	root, relative, info, err := s.openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
-		return false
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
 	}
 	defer root.Close()
-	return info.Mode().IsRegular() && info.Size() > 0 && relative != ""
+	return info.Mode().IsRegular() && info.Size() > 0 && relative != "", nil
 }

@@ -10,8 +10,8 @@ import "time"
 const (
 	registryVersion = 1
 
-	// v6 重新归属 workspace 边界转换前创建的项目级 .nexus 元数据目录。
-	userLayoutVersion = 6
+	// v8 将 owner 级 Room 状态移出 runtime 可写树，改由宿主私有状态根托管。
+	userLayoutVersion = 8
 
 	defaultTicketTTL   = 24 * time.Hour
 	defaultUIDMinimum  = 20000

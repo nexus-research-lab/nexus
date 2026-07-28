@@ -18,7 +18,6 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
@@ -69,7 +68,8 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 	if resumeID == "" {
 		return "", nil
 	}
-	decision := sessionresumesvc.NewPolicy(s.history).CanResume(workspacePath, resumeID)
+	history := s.history.ForOwner(slot.OwnerUserID)
+	decision := sessionresumesvc.NewPolicy(history).CanResume(workspacePath, resumeID)
 	if decision.Allowed {
 		return resumeID, nil
 	}
@@ -118,13 +118,7 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	if err := workspacepkg.EnsureUserSkillLibrary(e.service.config, e.agent.OwnerUserID); err != nil {
 		return nil, err
 	}
-	if err := workspacepkg.EnsureInitialized(
-		e.agent.AgentID,
-		e.agent.Name,
-		e.agent.WorkspacePath,
-		e.agent.IsMain,
-		e.agent.CreatedAt,
-	); err != nil {
+	if err := workspacepkg.EnsureInitializedForAgent(e.service.config, *e.agent); err != nil {
 		return nil, err
 	}
 	runtimeValue, err := e.prepareRuntime()
@@ -154,14 +148,14 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
-	if err = agentsvc.EnsureRuntimeVisionSettingsProjection(
-		e.agent.WorkspacePath,
+	if err = e.service.agents.EnsureRuntimeVisionSettingsProjection(
+		*e.agent,
 		selection.VisionProvider,
 		selection.VisionModel,
 	); err != nil {
 		return preparedSlotRuntime{}, err
 	}
-	runtimeSkillNames, err := workspacepkg.RuntimeSkillNames(e.agent.WorkspacePath, e.agent.Options.SkillIDs)
+	runtimeSkillNames, err := workspacepkg.RuntimeSkillNamesForAgent(e.service.config, *e.agent)
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
@@ -263,7 +257,8 @@ func (e *slotExecution) runtimeMCPServers() map[string]sdkmcp.ServerConfig {
 		return nil
 	}
 	return e.service.mcpServers(
-		e.agent.AgentID,
+		e.ctx,
+		e.agent,
 		e.round.SessionKey,
 		e.round.RootRoundID,
 		"room",
@@ -291,6 +286,7 @@ func (e *slotExecution) applyRuntimeHooks(options agentclient.Options) agentclie
 		options = e.service.runtime.WithGuidanceHook(options, goalSessionKey)
 	}
 	options = runtimectx.WithPostToolUseGuidanceHook(options, e.service.roomSlotGuidanceHook(e.round, e.slot, workspacestore.InputQueueLocation{
+		OwnerUserID:    e.round.OwnerUserID,
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  e.agent.WorkspacePath,
 		SessionKey:     e.slot.RuntimeSessionKey,

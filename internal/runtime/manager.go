@@ -17,6 +17,11 @@ type sessionState struct {
 	RunningRounds            map[string]struct{}
 	RoundCancels             map[string]context.CancelFunc
 	RoundDone                map[string]chan struct{}
+	BackgroundTasks          map[uint64]context.CancelFunc
+	BackgroundDone           chan struct{}
+	NextBackgroundTaskID     uint64
+	Closing                  bool
+	CloseDone                chan struct{}
 	Interruptions            map[string]string
 	GoalAccountingFlushers   map[string]GoalAccountingFlush
 	GoalAccountingClearers   map[string]GoalAccountingClear
@@ -79,6 +84,8 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 			RunningRounds:            make(map[string]struct{}),
 			RoundCancels:             make(map[string]context.CancelFunc),
 			RoundDone:                make(map[string]chan struct{}),
+			BackgroundTasks:          make(map[uint64]context.CancelFunc),
+			BackgroundDone:           closedSignal(),
 			Interruptions:            make(map[string]string),
 			GoalAccountingFlushers:   make(map[string]GoalAccountingFlush),
 			GoalAccountingClearers:   make(map[string]GoalAccountingClear),
@@ -91,6 +98,12 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 		m.touchStateLocked(state)
 	}
 	return state
+}
+
+func closedSignal() chan struct{} {
+	done := make(chan struct{})
+	close(done)
+	return done
 }
 
 func (m *Manager) touchStateLocked(state *sessionState) {

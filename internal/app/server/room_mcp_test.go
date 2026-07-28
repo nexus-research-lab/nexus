@@ -34,14 +34,31 @@ func (stubRoomMCPService) MarkPublicMessagePublished(context.Context, string, st
 }
 
 func TestRoomMCPBuilderOnlyAddsServerForRoomRuntime(t *testing.T) {
-	builder := newRoomMCPBuilder(stubRoomMCPService{}, nil, nil)
+	builder := newRoomMCPBuilder(stubRoomMCPService{}, nil)
+	agentValue := &protocol.Agent{AgentID: "agent-1", OwnerUserID: "user-1"}
 
-	servers := builder("agent-1", protocol.BuildRoomSharedSessionKey("conversation-1"), "round-1", "room", "room-1", "狼人杀")
+	servers := builder(
+		context.Background(),
+		agentValue,
+		protocol.BuildRoomSharedSessionKey("conversation-1"),
+		"round-1",
+		"room",
+		"room-1",
+		"狼人杀",
+	)
 	if _, ok := servers["nexus_room"].(sdkmcp.SDKServerConfig); !ok {
 		t.Fatalf("Room runtime 应注入 nexus_room SDK server: %+v", servers)
 	}
 
-	if dmServers := builder("agent-1", "agent:agent-1:ws:dm:session-1", "round-1", "agent", "agent-1", "Agent"); len(dmServers) != 0 {
+	if dmServers := builder(
+		context.Background(),
+		agentValue,
+		"agent:agent-1:ws:dm:session-1",
+		"round-1",
+		"agent",
+		"agent-1",
+		"Agent",
+	); len(dmServers) != 0 {
 		t.Fatalf("非 Room runtime 不应注入 nexus_room: %+v", dmServers)
 	}
 }
@@ -49,7 +66,6 @@ func TestRoomMCPBuilderOnlyAddsServerForRoomRuntime(t *testing.T) {
 func TestRoomMCPBuilderUsesRoomPrivateMessageSetting(t *testing.T) {
 	builder := newRoomMCPBuilder(
 		stubRoomMCPService{},
-		nil,
 		func(context.Context, string) (*protocol.RoomAggregate, error) {
 			return &protocol.RoomAggregate{
 				Room: protocol.RoomRecord{PrivateMessagesEnabled: true},
@@ -57,7 +73,15 @@ func TestRoomMCPBuilderUsesRoomPrivateMessageSetting(t *testing.T) {
 		},
 	)
 
-	servers := builder("agent-1", protocol.BuildRoomSharedSessionKey("conversation-1"), "round-1", "room", "room-1", "狼人杀")
+	servers := builder(
+		context.Background(),
+		&protocol.Agent{AgentID: "agent-1", OwnerUserID: "user-1"},
+		protocol.BuildRoomSharedSessionKey("conversation-1"),
+		"round-1",
+		"room",
+		"room-1",
+		"狼人杀",
+	)
 	config, ok := servers["nexus_room"].(sdkmcp.SDKServerConfig)
 	if !ok {
 		t.Fatalf("Room runtime 应注入 nexus_room SDK server: %+v", servers)

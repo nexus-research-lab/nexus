@@ -226,6 +226,11 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	if err := migration.RunRoomFiles(context.Background(), cfg, logger); err != nil {
+		// enforce 部署已先收紧 owner state 权限；迁移失败时保留尚未处理的旧文件，
+		// 单条历史脏数据不能阻断服务。
+		logger.Warn("Room 文件状态迁移未完成，将在下次启动重试", "err", err)
+	}
 	// Provider scope 补偿只属于桌面 App 的本地 SQLite，Web/服务器部署不触碰用户数据。
 	if strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop") && storage.IsSQLiteSQLDriver(cfg.DatabaseDriver) {
 		if err := migration.RepairDesktopProviderScope(context.Background(), cfg, logger); err != nil {

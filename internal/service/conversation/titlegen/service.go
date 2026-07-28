@@ -28,6 +28,12 @@ type Service struct {
 
 	mu       sync.Mutex
 	inflight map[string]struct{}
+
+	lifecycleMu     sync.Mutex
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
+	closed          bool
+	background      sync.WaitGroup
 }
 
 // NewService 创建标题生成服务。
@@ -42,6 +48,7 @@ func NewService(
 	if len(prefs) > 0 {
 		preferenceService = prefs[0]
 	}
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
 	return &Service{
 		providers: providers,
 		prefs:     preferenceService,
@@ -52,8 +59,10 @@ func NewService(
 		llmClient: llm.NewClient(&http.Client{
 			Timeout: titleRequestTimeout,
 		}),
-		runAsync: func(job func()) { go job() },
-		inflight: make(map[string]struct{}),
+		runAsync:        func(job func()) { go job() },
+		inflight:        make(map[string]struct{}),
+		lifecycleCtx:    lifecycleCtx,
+		lifecycleCancel: lifecycleCancel,
 	}
 }
 
@@ -105,6 +114,16 @@ func (s *Service) Schedule(ctx context.Context, request Request) {
 		return
 	}
 
+	s.lifecycleMu.Lock()
+	if s.closed {
+		s.lifecycleMu.Unlock()
+		s.clearInflight(targetKey)
+		return
+	}
+	s.background.Add(1)
+	lifecycleCtx := s.lifecycleCtx
+	s.lifecycleMu.Unlock()
+
 	s.logger.Info("调度标题生成",
 		"target_key", targetKey,
 		"session_key", request.SessionKey,
@@ -119,11 +138,44 @@ func (s *Service) Schedule(ctx context.Context, request Request) {
 		"conversation_message_count", request.ConversationMessageCount,
 	)
 	asyncCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), titleRequestTimeout)
+	stopOnClose := context.AfterFunc(lifecycleCtx, cancel)
 	s.runAsync(func() {
+		defer s.background.Done()
+		defer stopOnClose()
 		defer cancel()
 		defer s.clearInflight(targetKey)
 		s.generateAndApply(asyncCtx, request)
 	})
+}
+
+// Close 取消并等待所有标题生成任务，避免服务退出后继续写入 owner 文件。
+func (s *Service) Close(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.lifecycleMu.Lock()
+	if !s.closed {
+		s.closed = true
+		if s.lifecycleCancel != nil {
+			s.lifecycleCancel()
+		}
+	}
+	s.lifecycleMu.Unlock()
+
+	done := make(chan struct{})
+	go func() {
+		s.background.Wait()
+		close(done)
+	}()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (s *Service) markInflight(targetKey string) bool {

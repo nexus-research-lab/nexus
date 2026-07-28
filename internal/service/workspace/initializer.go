@@ -30,6 +30,32 @@ func EnsureInitialized(
 	if root == "" {
 		return fmt.Errorf("workspace_path 不能为空")
 	}
+	if err := os.MkdirAll(root, workspaceDirectoryMode()); err != nil {
+		return err
+	}
+	rootFS, err := confinedfs.Open(root)
+	if err != nil {
+		return err
+	}
+	defer rootFS.Close()
+	return EnsureInitializedAt(rootFS, agentID, agentName, isMainAgent, createdAt)
+}
+
+// EnsureInitializedAt 在已验证的 workspace 根中完成初始化。
+func EnsureInitializedAt(
+	rootFS *confinedfs.Root,
+	agentID string,
+	agentName string,
+	isMainAgent bool,
+	createdAt time.Time,
+) error {
+	if rootFS == nil {
+		return fmt.Errorf("workspace 根句柄不能为空")
+	}
+	root := strings.TrimSpace(rootFS.Name())
+	if root == "" {
+		return fmt.Errorf("workspace 根路径不能为空")
+	}
 	lock := workspaceInitializationLock(root)
 	lock.Lock()
 	defer lock.Unlock()
@@ -37,6 +63,7 @@ func EnsureInitialized(
 		root:    root,
 		isMain:  isMainAgent,
 		context: buildTemplateContext(agentID, agentName, root, createdAt),
+		rootFS:  rootFS,
 	}
 	return initializer.run()
 }
@@ -57,16 +84,20 @@ var mainWorkspaceFileInitializers = map[string]mainWorkspaceFileInitializer{
 }
 
 func (i *workspaceInitializer) run() error {
-	if err := i.ensureDirectories(); err != nil {
+	if i.rootFS == nil {
+		if err := i.ensureDirectories(); err != nil {
+			return err
+		}
+		rootFS, err := confinedfs.Open(i.root)
+		if err != nil {
+			return err
+		}
+		i.rootFS = rootFS
+		defer rootFS.Close()
+	} else if err := i.ensureDirectoriesAt(); err != nil {
 		return err
 	}
-	rootFS, err := confinedfs.Open(i.root)
-	if err != nil {
-		return err
-	}
-	i.rootFS = rootFS
-	defer rootFS.Close()
-	if err := agentsvc.EnsureRuntimeEmotionState(i.root); err != nil {
+	if err := agentsvc.EnsureRuntimeEmotionStateAt(i.rootFS); err != nil {
 		return err
 	}
 	if err := i.ensureRuntimeTools(); err != nil {
@@ -88,7 +119,28 @@ func (i *workspaceInitializer) ensureDirectories() error {
 	}
 	defer root.Close()
 	for _, dir := range defaultDirs {
-		if err := root.MkdirAll(filepath.ToSlash(dir), workspaceDirectoryMode()); err != nil {
+		directoryRoot, err := root.OpenOrCreateRootNoSymlink(
+			filepath.ToSlash(dir),
+			workspaceDirectoryMode(),
+		)
+		if err != nil {
+			return err
+		}
+		_ = directoryRoot.Close()
+	}
+	return nil
+}
+
+func (i *workspaceInitializer) ensureDirectoriesAt() error {
+	for _, dir := range defaultDirs {
+		directoryRoot, err := i.rootFS.OpenOrCreateRootNoSymlink(
+			filepath.ToSlash(dir),
+			workspaceDirectoryMode(),
+		)
+		if err != nil {
+			return err
+		}
+		if err = directoryRoot.Close(); err != nil {
 			return err
 		}
 	}
@@ -99,7 +151,7 @@ func (i *workspaceInitializer) ensureRuntimeTools() error {
 	if err := ensureNexusctlShim(appfs.AgentRuntimeBinDir(), i.context); err != nil {
 		return err
 	}
-	return removeWorkspaceBinShim(i.root)
+	return removeWorkspaceBinShim(i.rootFS)
 }
 
 func (i *workspaceInitializer) ensureTemplateFiles() error {
@@ -139,7 +191,7 @@ func (i *workspaceInitializer) removeGeneratedMainFile(relativePath string) erro
 
 func (i *workspaceInitializer) ensureSkills() error {
 	for _, skillName := range managedSkillNames(i.isMain) {
-		if err := UndeploySkill(i.root, skillName); err != nil {
+		if err := UndeploySkillAt(i.rootFS, skillName); err != nil {
 			return err
 		}
 	}

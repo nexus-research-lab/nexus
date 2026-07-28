@@ -212,7 +212,7 @@ func (s *Service) detectRoomMentionHandoffs(
 			continue
 		}
 		detected[handoffID] = struct{}{}
-		_, _, err := s.publicHandoffs.Detect(workspacestore.RoomPublicHandoff{
+		_, _, err := s.publicHandoffs.Detect(roundValue.OwnerUserID, workspacestore.RoomPublicHandoff{
 			HandoffID:          handoffID,
 			ConversationID:     roundValue.ConversationID,
 			RoomID:             roundValue.RoomID,
@@ -321,7 +321,12 @@ func (s *Service) markPublicHandoffTerminal(
 	if handoffID == "" {
 		return
 	}
-	if err := s.publicHandoffs.MarkTerminal(roundValue.ConversationID, handoffID, status); err != nil {
+	if err := s.publicHandoffs.MarkTerminal(
+		roundValue.OwnerUserID,
+		roundValue.ConversationID,
+		handoffID,
+		status,
+	); err != nil {
 		s.loggerFor(ctx).Warn("记录 Room handoff 终态失败", "handoff_id", handoffID, "status", status, "err", err)
 	}
 }
@@ -335,7 +340,12 @@ func (s *Service) cancelSourcePublicHandoffs(
 	if s.publicHandoffs == nil || roundValue == nil || slot == nil || strings.TrimSpace(slot.AgentRoundID) == "" {
 		return
 	}
-	if err := s.publicHandoffs.CancelForSource(roundValue.ConversationID, slot.AgentRoundID, status); err != nil {
+	if err := s.publicHandoffs.CancelForSource(
+		roundValue.OwnerUserID,
+		roundValue.ConversationID,
+		slot.AgentRoundID,
+		status,
+	); err != nil {
 		s.loggerFor(ctx).Warn("取消 Room source handoff 失败", "agent_round_id", slot.AgentRoundID, "err", err)
 	}
 }
@@ -347,7 +357,7 @@ func (s *Service) markRoomQueueHandoffTerminal(
 	if s.publicHandoffs == nil || strings.TrimSpace(item.HandoffID) == "" {
 		return nil
 	}
-	return s.publicHandoffs.MarkTerminal(conversationID, item.HandoffID, "finished")
+	return s.publicHandoffs.MarkTerminal(item.OwnerUserID, conversationID, item.HandoffID, "finished")
 }
 
 // cancelRootPublicHandoffs 把 root 取消传播到 ledger 与尚未派发的 queue item。
@@ -361,12 +371,21 @@ func (s *Service) cancelRootPublicHandoffs(
 		return
 	}
 	rootRoundID := roomRootRoundID(roundValue)
-	edges, err := s.publicHandoffs.ListRoot(roundValue.ConversationID, rootRoundID)
+	edges, err := s.publicHandoffs.ListRoot(
+		roundValue.OwnerUserID,
+		roundValue.ConversationID,
+		rootRoundID,
+	)
 	if err != nil {
 		s.loggerFor(ctx).Warn("读取 Room root handoff 失败", "root", rootRoundID, "err", err)
 		return
 	}
-	if err = s.publicHandoffs.CancelForRoot(roundValue.ConversationID, rootRoundID, status); err != nil {
+	if err = s.publicHandoffs.CancelForRoot(
+		roundValue.OwnerUserID,
+		roundValue.ConversationID,
+		rootRoundID,
+		status,
+	); err != nil {
 		s.loggerFor(ctx).Warn("取消 Room root handoff 失败", "root", rootRoundID, "err", err)
 		return
 	}
@@ -431,7 +450,7 @@ func (s *Service) StartPublicHandoffReconciler(ctx context.Context) (func(), err
 
 func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspacestore.RoomPublicHandoff) error {
 	conversationID := strings.TrimSpace(handoff.ConversationID)
-	contextValue, err := s.rooms.GetConversationContext(ctx, conversationID)
+	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, true)
 	if err != nil {
 		return err
 	}
@@ -439,7 +458,12 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		return nil
 	}
 	if !roomdomain.IsMemberAgent(contextValue.Members, handoff.TargetAgentID) {
-		return s.publicHandoffs.MarkTerminal(conversationID, handoff.HandoffID, "error")
+		return s.publicHandoffs.MarkTerminal(
+			contextValue.Room.OwnerUserID,
+			conversationID,
+			handoff.HandoffID,
+			"error",
+		)
 	}
 	if handoff.Status == "queued" {
 		present, queueErr := s.publicHandoffQueueItemPresent(ctx, contextValue, handoff)
@@ -450,18 +474,29 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 			// 队列项仍然是 durable 真相；让正常队列恢复负责出队，
 			// 不在这里再创建一条 target round。
 			if s.inputQueue != nil {
-				go s.dispatchNextInputQueueItem(
-					contextWithQueueOwner(context.Background(), ""),
-					protocol.BuildRoomSharedSessionKey(conversationID),
-					contextValue.Room.ID,
-					conversationID,
+				sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+				s.startSessionBackgroundTask(
+					sessionKey,
+					contextValue.Room.OwnerUserID,
+					func(taskCtx context.Context) {
+						s.dispatchNextInputQueueItem(
+							taskCtx,
+							sessionKey,
+							contextValue.Room.ID,
+							conversationID,
+						)
+					},
 				)
 			}
 			return nil
 		}
 		// 出队与 target 启动之间崩溃时，队列项已经不存在；
 		// 将 handoff 重新暴露为可 claim 的 source_finished。
-		if err := s.publicHandoffs.MarkSourceFinished(conversationID, handoff.HandoffID); err != nil {
+		if err := s.publicHandoffs.MarkSourceFinished(
+			contextValue.Room.OwnerUserID,
+			conversationID,
+			handoff.HandoffID,
+		); err != nil {
 			return err
 		}
 		handoff.Status = "source_finished"
@@ -470,7 +505,11 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		if s.roomHistory == nil {
 			return nil
 		}
-		messages, readErr := s.roomHistory.ReadMessages(conversationID, nil)
+		messages, readErr := s.roomHistory.ReadMessages(
+			contextValue.Room.OwnerUserID,
+			conversationID,
+			nil,
+		)
 		if readErr != nil {
 			return readErr
 		}
@@ -479,7 +518,11 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 			// 保留 ledger，下一次启动或 source 收尾路径继续处理。
 			return nil
 		}
-		if err := s.publicHandoffs.MarkSourceFinished(conversationID, handoff.HandoffID); err != nil {
+		if err := s.publicHandoffs.MarkSourceFinished(
+			contextValue.Room.OwnerUserID,
+			conversationID,
+			handoff.HandoffID,
+		); err != nil {
 			return err
 		}
 		handoff.Status = "source_finished"
@@ -493,6 +536,7 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		RoundID:        strings.TrimSpace(handoff.SourceMessageID),
 		RootRoundID:    strings.TrimSpace(handoff.RootRoundID),
 		HopIndex:       handoff.HopIndex,
+		OwnerUserID:    contextValue.Room.OwnerUserID,
 		Slots:          make(map[string]*activeRoomSlot),
 	}
 	wake := publicMentionWake{

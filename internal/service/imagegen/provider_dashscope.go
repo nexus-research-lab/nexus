@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
 
@@ -90,13 +89,13 @@ func (s *Service) callDashScopeEditProvider(
 	if err != nil {
 		return nil, "", "", err
 	}
-	imageReference, err := dashScopeWorkspaceImage(input.WorkspacePath, input.ImagePath)
+	imageReference, err := s.dashScopeWorkspaceImage(ctx, input.WorkspacePath, input.ImagePath)
 	if err != nil {
 		return nil, "", "", err
 	}
 	content := []dashScopeContent{{Image: imageReference}}
 	if strings.TrimSpace(input.MaskPath) != "" {
-		maskReference, maskErr := dashScopeWorkspaceImage(input.WorkspacePath, input.MaskPath)
+		maskReference, maskErr := s.dashScopeWorkspaceImage(ctx, input.WorkspacePath, input.MaskPath)
 		if maskErr != nil {
 			return nil, "", "", maskErr
 		}
@@ -174,7 +173,11 @@ func dashScopeSize(size string) string {
 	}
 }
 
-func dashScopeWorkspaceImage(workspacePath string, imagePath string) (string, error) {
+func (s *Service) dashScopeWorkspaceImage(
+	ctx context.Context,
+	workspacePath string,
+	imagePath string,
+) (string, error) {
 	fullPath, err := resolveWorkspaceFile(workspacePath, imagePath)
 	if err != nil {
 		return "", err
@@ -183,7 +186,7 @@ func dashScopeWorkspaceImage(workspacePath string, imagePath string) (string, er
 	if err != nil {
 		return "", err
 	}
-	root, err := confinedfs.Open(workspacePath)
+	root, err := s.openWorkspace(ctx, workspacePath, false)
 	if err != nil {
 		return "", err
 	}

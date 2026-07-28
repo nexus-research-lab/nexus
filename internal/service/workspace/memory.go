@@ -50,13 +50,12 @@ func (s *Service) GetMemorySnapshot(ctx context.Context, agentID string) (*Memor
 	if err != nil {
 		return nil, err
 	}
-	root := filepath.Clean(agentValue.WorkspacePath)
 	snapshot := &MemorySnapshot{
 		Documents: []MemoryDocument{},
 		Layout:    "empty",
 	}
 	indexContent := ""
-	confinedRoot, err := confinedfs.Open(root)
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +142,7 @@ func scanMemoryDocuments(ctx context.Context, root *confinedfs.Root, indexedPath
 }
 
 func readMemoryFrontmatter(root *confinedfs.Root, path string) map[string]string {
-	file, err := root.Open(path)
+	file, err := root.OpenFileNoSymlink(path, os.O_RDONLY, 0)
 	if err != nil {
 		return map[string]string{}
 	}

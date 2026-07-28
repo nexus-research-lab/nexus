@@ -10,8 +10,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 // ListFiles 返回 Agent workspace 的文件树。
@@ -21,8 +19,7 @@ func (s *Service) ListFiles(ctx context.Context, agentID string) ([]FileEntry, e
 		return nil, err
 	}
 	entries := make([]FileEntry, 0, 32)
-	root := filepath.Clean(agentValue.WorkspacePath)
-	confinedRoot, err := confinedfs.Open(root)
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +97,7 @@ func (s *Service) GetFile(ctx context.Context, agentID string, relativePath stri
 	if err != nil {
 		return nil, err
 	}
-	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +135,7 @@ func (s *Service) GetFileForDownload(ctx context.Context, agentID string, relati
 	if err != nil {
 		return "", "", err
 	}
-	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
 	if err != nil {
 		return "", "", err
 	}
@@ -172,11 +169,11 @@ func (s *Service) OpenFileForDownload(ctx context.Context, agentID string, relat
 	if err != nil {
 		return nil, "", err
 	}
-	confinedRoot, err := confinedfs.Open(agentValue.WorkspacePath)
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
 	if err != nil {
 		return nil, "", err
 	}
-	file, err := confinedRoot.Open(normalizedPath)
+	file, err := confinedRoot.OpenFileNoSymlink(normalizedPath, os.O_RDONLY, 0)
 	if err != nil {
 		confinedRoot.Close()
 		if os.IsNotExist(err) {

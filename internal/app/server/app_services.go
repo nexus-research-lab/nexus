@@ -65,6 +65,14 @@ type AppServices struct {
 	MemoryMaintenance *memorymaintenancesvc.Coordinator
 }
 
+// Close 等待仍可能写入 workspace 的标题任务结束。
+func (s *AppServices) Close(ctx context.Context) error {
+	if s == nil || s.Title == nil {
+		return nil
+	}
+	return s.Title.Close(ctx)
+}
+
 // NewAppServices 创建完整应用依赖容器。
 func NewAppServices(cfg config.Config, logger *slog.Logger) (*AppServices, error) {
 	db, err := OpenDB(cfg)
@@ -87,7 +95,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 	preferencesService := preferencessvc.NewService(cfg)
-	imagegenService := imagegensvc.NewService(providerService)
+	imagegenService := imagegensvc.NewService(providerService, cfg.WorkspacePath)
 	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
@@ -160,11 +168,11 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
 
 	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
-	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
-	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
+	automationBuilder := newAutomationMCPBuilder(automationService, cfg.DefaultTimezone)
+	connectorBuilder := newConnectorMCPBuilder(connectorService)
 	goalBuilder := newGoalMCPBuilder(cfg, goalService, roomRealtime)
-	imagegenBuilder := newImagegenMCPBuilder(imagegenService, core.Agent)
-	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent, core.Room.GetRoom)
+	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
+	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
 	mcpBuilder := combinedMCPBuilder(
 		automationBuilder,
 		connectorBuilder,

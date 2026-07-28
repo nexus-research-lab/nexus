@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 const runtimeSettingsFileName = "runtime-settings.json"
@@ -26,7 +27,15 @@ func RuntimeSettingsPath() string {
 
 // LoadRuntimeSettings 读取主机级运行配置。
 func LoadRuntimeSettings() (RuntimeSettings, error) {
-	content, err := os.ReadFile(RuntimeSettingsPath())
+	root, err := openRuntimeSettingsRoot(false)
+	if errors.Is(err, os.ErrNotExist) {
+		return RuntimeSettings{}, nil
+	}
+	if err != nil {
+		return RuntimeSettings{}, err
+	}
+	defer root.Close()
+	content, err := root.ReadFile(runtimeSettingsFileName)
 	if errors.Is(err, os.ErrNotExist) {
 		return RuntimeSettings{}, nil
 	}
@@ -44,28 +53,47 @@ func LoadRuntimeSettings() (RuntimeSettings, error) {
 func SaveRuntimeSettings(settings RuntimeSettings) (RuntimeSettings, error) {
 	settings = normalizeRuntimeSettings(settings)
 	settings.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
-	path := RuntimeSettingsPath()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return RuntimeSettings{}, err
-	}
 	payload, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return RuntimeSettings{}, err
 	}
 	payload = append(payload, '\n')
-	tmpPath := path + ".tmp"
-	if err = os.WriteFile(tmpPath, payload, 0o600); err != nil {
+	root, err := openRuntimeSettingsRoot(true)
+	if err != nil {
 		return RuntimeSettings{}, err
 	}
-	if err = os.Chmod(tmpPath, 0o600); err != nil {
-		_ = os.Remove(tmpPath)
-		return RuntimeSettings{}, err
-	}
-	if err = os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
+	defer root.Close()
+	if err = root.WriteFileAtomic(runtimeSettingsFileName, payload, 0o600); err != nil {
 		return RuntimeSettings{}, err
 	}
 	return settings, nil
+}
+
+func openRuntimeSettingsRoot(create bool) (*confinedfs.Root, error) {
+	stateRoot := appfs.StateRoot()
+	if create {
+		if err := os.MkdirAll(stateRoot, 0o700); err != nil {
+			return nil, err
+		}
+	}
+	root, err := confinedfs.Open(stateRoot)
+	if err != nil {
+		return nil, err
+	}
+	relative, err := filepath.Rel(stateRoot, filepath.Dir(RuntimeSettingsPath()))
+	if err != nil {
+		root.Close()
+		return nil, err
+	}
+	relative = filepath.ToSlash(relative)
+	if create {
+		settingsRoot, openErr := root.OpenOrCreateRootNoSymlink(relative, 0o700)
+		root.Close()
+		return settingsRoot, openErr
+	}
+	settingsRoot, openErr := root.OpenRootNoSymlink(relative)
+	root.Close()
+	return settingsRoot, openErr
 }
 
 func normalizeRuntimeSettings(settings RuntimeSettings) RuntimeSettings {

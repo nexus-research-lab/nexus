@@ -4,14 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 // Service 负责读写用户级偏好 JSON。
@@ -141,7 +142,7 @@ func (s *Service) write(ownerUserID string, item Preferences) error {
 	if err = root.WriteFileAtomic(".settings/preferences.json", payload, 0o600); err != nil {
 		return err
 	}
-	return root.Chmod(".settings/preferences.json", 0o600)
+	return nil
 }
 
 func (s *Service) preferencesPath(ownerUserID string) string {
@@ -181,7 +182,17 @@ func (s *Service) readWebSearchCredential(ownerUserID string) (storedWebSearchCr
 		return storedWebSearchCredential{}, false
 	}
 	defer root.Close()
-	content, err := root.ReadFile(".settings/web-search-api-key")
+	settingsRoot, err := root.OpenRootNoSymlink(".settings")
+	if err != nil {
+		return storedWebSearchCredential{}, false
+	}
+	defer settingsRoot.Close()
+	file, err := settingsRoot.OpenFileNoSymlink("web-search-api-key", os.O_RDONLY, 0)
+	if err != nil {
+		return storedWebSearchCredential{}, false
+	}
+	content, err := io.ReadAll(file)
+	file.Close()
 	if err != nil {
 		return storedWebSearchCredential{}, false
 	}
@@ -225,17 +236,16 @@ func (s *Service) writeWebSearchCredential(ownerUserID string, provider string, 
 	if err = root.WriteFileAtomic(".settings/web-search-api-key", append(payload, '\n'), 0o600); err != nil {
 		return err
 	}
-	return root.Chmod(".settings/web-search-api-key", 0o600)
+	return nil
 }
 
 func (s *Service) openOwnerRoot(ownerUserID string, create bool) (*confinedfs.Root, error) {
 	rootPath := agentpkg.UserWorkspaceBasePath(s.config, ownerUserID)
-	if create {
-		if err := os.MkdirAll(rootPath, appfs.RuntimeCollaborativeDirectoryMode(0o700)); err != nil {
-			return nil, err
-		}
-	}
-	return confinedfs.Open(rootPath)
+	return workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+		ownerUserID,
+		rootPath,
+		create,
+	)
 }
 
 func decodePreferences(content []byte) (Preferences, error) {

@@ -76,6 +76,13 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	if stopRuntimeIdleReclaimer := s.startRuntimeIdleSessionReclaimer(ctx); stopRuntimeIdleReclaimer != nil {
 		stops = append(stops, stopRuntimeIdleReclaimer)
 	}
+	if s.services != nil && s.services.Title != nil {
+		stops = append(stops, func() {
+			if err := s.services.Title.Close(context.Background()); err != nil {
+				s.api.BaseLogger().Warn("标题生成后台任务关闭失败", "err", err)
+			}
+		})
+	}
 
 	return stopAll, nil
 }

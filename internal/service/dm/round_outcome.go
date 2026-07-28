@@ -28,7 +28,7 @@ func (r *roundRunner) failRound(err error) {
 		TerminalStatus: "error",
 		ErrorMessage:   err.Error(),
 	})
-	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
+	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {
 		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
@@ -49,7 +49,7 @@ func (r *roundRunner) failRound(err error) {
 		"result":          err.Error(),
 		"is_error":        true,
 	}
-	if persistErr := r.service.history.AppendOverlayMessage(
+	if persistErr := r.service.history.ForOwner(r.ownerUserID).AppendOverlayMessage(
 		r.workspacePath,
 		r.session.SessionKey,
 		resultMessage,
@@ -61,7 +61,12 @@ func (r *roundRunner) failRound(err error) {
 			"err", persistErr,
 		)
 	} else {
-		if updated, updateErr := r.service.refreshSessionMetaAfterMessage(r.workspacePath, r.session, resultMessage); updateErr != nil {
+		if updated, updateErr := r.service.refreshSessionMetaAfterMessageForOwner(
+			r.ownerUserID,
+			r.workspacePath,
+			r.session,
+			resultMessage,
+		); updateErr != nil {
 			r.service.loggerFor(context.Background()).Error("DM 错误结果刷新 session meta 失败",
 				"session_key", r.sessionKey,
 				"agent_id", r.agent.AgentID,
@@ -138,7 +143,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 		"reason", resultText,
 	)
 	r.recordGoalUsage(context.Background(), exec.RoundExecutionResult{}, r.lastGoalAssistantMessage())
-	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
+	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	persistedSessionID := ""
 	if r.session.SessionID != nil {
 		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
@@ -161,7 +166,7 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 	if trimmedResult := strings.TrimSpace(resultText); trimmedResult != "" {
 		resultMessage["result"] = trimmedResult
 	}
-	if persistErr := r.service.history.AppendOverlayMessage(
+	if persistErr := r.service.history.ForOwner(r.ownerUserID).AppendOverlayMessage(
 		r.workspacePath,
 		r.session.SessionKey,
 		resultMessage,
@@ -173,7 +178,12 @@ func (r *roundRunner) finishInterrupted(resultText string) {
 			"err", persistErr,
 		)
 	} else {
-		if updated, updateErr := r.service.refreshSessionMetaAfterMessage(r.workspacePath, r.session, resultMessage); updateErr != nil {
+		if updated, updateErr := r.service.refreshSessionMetaAfterMessageForOwner(
+			r.ownerUserID,
+			r.workspacePath,
+			r.session,
+			resultMessage,
+		); updateErr != nil {
 			r.service.loggerFor(context.Background()).Error("DM interrupted 刷新 session meta 失败",
 				"session_key", r.sessionKey,
 				"agent_id", r.agent.AgentID,

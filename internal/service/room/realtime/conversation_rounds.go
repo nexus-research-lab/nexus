@@ -637,7 +637,7 @@ func (s *Service) finishRound(roundValue *activeRoomRound) {
 	if roundValue == nil {
 		return
 	}
-	s.runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
+	s.runtime.MarkRoundTerminal(roundValue.SessionKey, roundValue.RoundID)
 	s.rounds.unregister(roundValue)
 	roundValue.doneOnce.Do(func() {
 		close(roundValue.Done)

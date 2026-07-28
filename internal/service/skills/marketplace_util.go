@@ -110,6 +110,12 @@ func findSkillSourceDir(root string) (string, error) {
 		if walkErr != nil {
 			return walkErr
 		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		if info.IsDir() {
 			return nil
 		}

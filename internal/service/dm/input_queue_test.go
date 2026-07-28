@@ -158,13 +158,19 @@ func TestServiceInputQueueRetryAfterImmediateDispatchIsIdempotent(t *testing.T) 
 			}
 		}()
 	}
+	sessionKey := "agent:nexus:ws:dm:test-input-queue-idempotent"
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = runtimeManager.CloseSession(closeCtx, sessionKey)
+	})
 	service := NewService(
 		cfg,
 		agentService,
-		runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client}),
+		runtimeManager,
 		permission,
 	)
-	sessionKey := "agent:nexus:ws:dm:test-input-queue-idempotent"
 	sender := newDMTestSender("sender-input-queue-idempotent")
 	permission.BindSession(sessionKey, sender)
 
@@ -185,7 +191,7 @@ func TestServiceInputQueueRetryAfterImmediateDispatchIsIdempotent(t *testing.T) 
 		if !strings.Contains(prompt, "立即执行一次") {
 			t.Fatalf("首次 DM input_queue prompt 异常: %q", prompt)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("空闲 DM input_queue 未即时派发")
 	}
 	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
@@ -590,7 +596,15 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 	t.Cleanup(func() {
 		if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
 			t.Errorf("清理运行中 round 失败: %v", err)
+			return
 		}
+		collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+			return event.EventType == protocol.EventTypeError &&
+				event.Data["message"] == "待发送消息派发失败"
+		})
+		// 错误事件在队列恢复落盘后发出；再穿过派发锁，确保清理临时目录前协程已经退出。
+		service.inputQueueDispatchMu.Lock()
+		service.inputQueueDispatchMu.Unlock()
 	})
 
 	if err := service.HandleChat(context.Background(), Request{
@@ -809,6 +823,9 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-guide-input-queue")
 	sessionKey := "agent:nexus:ws:dm:test-guide-input-queue"
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
 	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{

@@ -387,7 +387,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 		t.Fatalf("所有 slot 都应收到 interrupt: a=%d b=%d", interruptA, interruptB)
 	}
 
-	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取中断后的共享 Room 消息失败: %v", err)
 	}
@@ -404,7 +404,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 
 	for _, agentValue := range []*protocol.Agent{agentA, agentB} {
 		privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, agentValue.AgentID, roomContext.Room.RoomType)
-		writeRoomTranscriptFixture(t, agentValue.WorkspacePath, "room-sdk-session", []map[string]any{
+		writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, agentValue.WorkspacePath, "room-sdk-session", []map[string]any{
 			{
 				"type":      "user",
 				"uuid":      "interrupt-user-" + agentValue.AgentID,
@@ -419,6 +419,7 @@ func TestRealtimeServiceHandleInterruptCancelsAllSlots(t *testing.T) {
 		privateMessages := readRoomPrivateHistory(
 			t,
 			cfg.WorkspacePath,
+			roomContext.Room.OwnerUserID,
 			agentValue.WorkspacePath,
 			privateSessionKey,
 			agentValue.AgentID,
@@ -523,7 +524,7 @@ func TestRealtimeServiceTreatsClosedStreamAfterInterruptAsInterrupted(t *testing
 		t.Fatalf("主动中断后的关流不应广播 error result: %+v", events)
 	}
 
-	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取中断后的共享 Room 消息失败: %v", err)
 	}

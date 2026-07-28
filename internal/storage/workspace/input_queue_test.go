@@ -8,8 +8,138 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestInputQueueStoreUsesLocationOwnerAsTruth(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	workspacePath := filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, "user-a"), "agent-a")
+	location := InputQueueLocation{
+		OwnerUserID:   "user-a",
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: workspacePath,
+		SessionKey:    "agent:agent-a:ws:dm:owner-truth",
+	}
+	store := NewInputQueueStore("")
+
+	items, err := store.Enqueue(location, protocol.InputQueueItem{
+		ID:          "item-a",
+		OwnerUserID: "user-b",
+		Content:     "归属必须由物理位置决定",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].OwnerUserID != "user-a" {
+		t.Fatalf("队列项 owner 未按 location 归一化: %+v", items)
+	}
+}
+
+func TestInputQueueStoreRejectsAnotherOwnerWorkspace(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	location := InputQueueLocation{
+		OwnerUserID:   "user-a",
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, "user-b"), "agent-b"),
+		SessionKey:    "agent:agent-b:ws:dm:cross-owner",
+	}
+	if _, err := NewInputQueueStore("").Enqueue(location, protocol.InputQueueItem{
+		ID:      "item-cross-owner",
+		Content: "不应写入另一用户 workspace",
+	}); err == nil {
+		t.Fatal("跨 owner workspace 的队列位置必须被拒绝")
+	}
+}
+
+func TestInputQueueStoreRejectsCrossOwnerWorkspaceSymlink(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+
+	ownerBWorkspace := filepath.Join(
+		appfs.UserWorkspaceRootAt(stateRoot, "user-b"),
+		"agent-b",
+	)
+	if err := os.MkdirAll(ownerBWorkspace, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ownerAWorkspaceRoot := appfs.UserWorkspaceRootAt(stateRoot, "user-a")
+	if err := os.MkdirAll(ownerAWorkspaceRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(
+		filepath.Join("..", "..", "user-b", "workspace", "agent-b"),
+		filepath.Join(ownerAWorkspaceRoot, "agent-a"),
+	); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	location := InputQueueLocation{
+		OwnerUserID:   "user-a",
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(ownerAWorkspaceRoot, "agent-a"),
+		SessionKey:    "agent:agent-a:ws:dm:symlink",
+	}
+	_, err := NewInputQueueStore("").Enqueue(location, protocol.InputQueueItem{
+		ID:      "item-symlink",
+		Content: "不能借 workspace symlink 越界",
+	})
+	if !errors.Is(err, confinedfs.ErrSymlink) {
+		t.Fatalf("跨 owner workspace symlink 应被拒绝: %v", err)
+	}
+	foreignQueue := filepath.Join(
+		ownerBWorkspace,
+		".agents",
+		"sessions",
+		encodeSessionDirName(location.SessionKey),
+		"input_queue.jsonl",
+	)
+	if _, statErr := os.Stat(foreignQueue); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("不能借 workspace symlink 写入 owner B 队列: %v", statErr)
+	}
+}
+
+func TestInputQueueReplayIgnoresPersistedMismatchedOwner(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	location := InputQueueLocation{
+		OwnerUserID:   "user-a",
+		Scope:         protocol.InputQueueScopeRoom,
+		WorkspacePath: filepath.Join(appfs.UserWorkspaceRootAt(stateRoot, "user-a"), "agent-a"),
+		SessionKey:    "agent:agent-a:ws:group:owner-replay",
+	}
+	store := NewInputQueueStore("")
+	if err := store.appendActionLocked(location, map[string]any{
+		"action": inputQueueActionEnqueue,
+		"item": protocol.InputQueueItem{
+			ID:          "foreign-item",
+			OwnerUserID: "user-b",
+			Scope:       protocol.InputQueueScopeRoom,
+			Content:     "伪造恢复项",
+		},
+		"client_message_id": "foreign-request",
+		"timestamp":         time.Now().UnixMilli(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	items, err := store.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("owner 不匹配的历史队列项不应被恢复: %+v", items)
+	}
+	if _, ok, err := store.FindAcceptedEnqueue(location, "foreign-request"); err != nil || ok {
+		t.Fatalf("owner 不匹配的幂等记录不应被接受: ok=%v err=%v", ok, err)
+	}
+}
 
 func TestInputQueueStoreEnqueueBatchRollsBackEarlierFiles(t *testing.T) {
 	root := t.TempDir()

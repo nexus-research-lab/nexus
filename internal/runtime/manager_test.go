@@ -226,6 +226,25 @@ func TestManagerUpdateEnvironmentForAgentUpdatesMatchingNXSClients(t *testing.T)
 	}
 }
 
+func TestManagerUpdateEnvironmentForAgentRejectsManagedIdentity(t *testing.T) {
+	manager := NewManager()
+	client := &fakeRuntimeClient{}
+	manager.sessions["agent:agent-a:conversation:1"] = &sessionState{
+		Client:      client,
+		RuntimeKind: agentclient.RuntimeNXS,
+	}
+
+	err := manager.UpdateEnvironmentForAgent(context.Background(), "agent-a", map[string]string{
+		"NEXUS_RUNTIME_USER_ID": "owner-b",
+	})
+	if err == nil {
+		t.Fatal("运行期环境更新应拒绝宿主管理的 owner 身份")
+	}
+	if len(client.environmentUpdates) != 0 {
+		t.Fatalf("非法运行期环境不应下发给 runtime: %+v", client.environmentUpdates)
+	}
+}
+
 func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	client := &fakeRuntimeClient{}
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
@@ -1067,7 +1086,10 @@ func TestManagerCloseOwnerSessionsClosesOnlyMatchingOwner(t *testing.T) {
 		}
 	}
 	roundCanceled := false
-	manager.StartRound("session-a-1", "round-a", func() { roundCanceled = true })
+	manager.StartRound("session-a-1", "round-a", func() {
+		roundCanceled = true
+		manager.MarkRoundFinished("session-a-1", "round-a")
+	})
 
 	closed, err := manager.CloseOwnerSessions(context.Background(), "owner-a")
 	if err != nil {

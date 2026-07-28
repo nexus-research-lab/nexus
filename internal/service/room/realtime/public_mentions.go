@@ -54,7 +54,12 @@ func (s *Service) collectPublicMentionWakes(
 	// 但首条 transcript 引用仍是旧快照。追加同 message_id 的引用作为可压缩更新，
 	// 让历史回放与实时渲染保持同一份 agent_mentions。
 	if len(protocolAgentMentions(message["agent_mentions"])) > 0 {
-		if err := s.persistSharedDurableMessage(roundValue.ConversationID, slot, message); err != nil {
+		if err := s.persistSharedDurableMessage(
+			roundValue.OwnerUserID,
+			roundValue.ConversationID,
+			slot,
+			message,
+		); err != nil {
 			return err
 		}
 	}
@@ -70,7 +75,11 @@ func (s *Service) collectPublicMentionWakes(
 	}
 	for _, wake := range wakes {
 		if s.publicHandoffs != nil {
-			if err := s.publicHandoffs.MarkSourceFinished(roundValue.ConversationID, wake.HandoffID); err != nil {
+			if err := s.publicHandoffs.MarkSourceFinished(
+				roundValue.OwnerUserID,
+				roundValue.ConversationID,
+				wake.HandoffID,
+			); err != nil {
 				return err
 			}
 		}
@@ -223,7 +232,13 @@ func (s *Service) startPublicMentionRoundLocked(
 	// root admission 已经先处理 visited/cycle/fanout；hop 只作为最后一道
 	// 跨重启或异常数据兜底，避免正常链路被单一计数提前截断。
 	if parentRound.HopIndex >= roomMaxWakeHops {
-		s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, wakes, "error")
+		s.terminalizePublicMentionWakes(
+			ctx,
+			parentRound.OwnerUserID,
+			parentRound.ConversationID,
+			wakes,
+			"error",
+		)
 		s.loggerFor(ctx).Warn("Room 唤醒达到跳数上限",
 			"r", parentRound.RoomID,
 			"c", parentRound.ConversationID,
@@ -247,7 +262,11 @@ func (s *Service) startPublicMentionRoundLocked(
 			claimedWakes = append(claimedWakes, wake)
 			continue
 		}
-		_, claimed, claimErr := s.publicHandoffs.Claim(parentRound.ConversationID, wake.HandoffID)
+		_, claimed, claimErr := s.publicHandoffs.Claim(
+			parentRound.OwnerUserID,
+			parentRound.ConversationID,
+			wake.HandoffID,
+		)
 		if claimErr != nil {
 			return claimErr
 		}
@@ -263,7 +282,11 @@ func (s *Service) startPublicMentionRoundLocked(
 	if err != nil {
 		return err
 	}
-	publicHistory, err := s.roomHistory.ReadMessages(contextValue.Conversation.ID, nil)
+	publicHistory, err := s.roomHistory.ReadMessages(
+		contextValue.Room.OwnerUserID,
+		contextValue.Conversation.ID,
+		nil,
+	)
 	if err != nil {
 		return err
 	}
@@ -277,7 +300,12 @@ func (s *Service) startPublicMentionRoundLocked(
 			s.publicHandoffs == nil || strings.TrimSpace(wake.HandoffID) == "" {
 			continue
 		}
-		if err := s.publicHandoffs.MarkTerminal(parentRound.ConversationID, wake.HandoffID, "error"); err != nil {
+		if err := s.publicHandoffs.MarkTerminal(
+			parentRound.OwnerUserID,
+			parentRound.ConversationID,
+			wake.HandoffID,
+			"error",
+		); err != nil {
 			s.loggerFor(ctx).Warn("目标 Agent 不可用，收口 Room handoff 失败", "handoff_id", wake.HandoffID, "err", err)
 		}
 	}
@@ -304,7 +332,12 @@ func (s *Service) startPublicMentionRoundLocked(
 			if strings.TrimSpace(wake.HandoffID) == "" {
 				continue
 			}
-			if err := s.publicHandoffs.MarkStarted(activeRound.ConversationID, wake.HandoffID, roundID); err != nil {
+			if err := s.publicHandoffs.MarkStarted(
+				activeRound.OwnerUserID,
+				activeRound.ConversationID,
+				wake.HandoffID,
+				roundID,
+			); err != nil {
 				s.loggerFor(ctx).Warn("记录 Room handoff 启动状态失败", "handoff_id", wake.HandoffID, "err", err)
 			}
 		}
@@ -336,7 +369,11 @@ func (s *Service) admitPublicMentionWakes(
 	edges := make([]workspacestore.RoomPublicHandoff, 0)
 	if s.publicHandoffs != nil {
 		var err error
-		edges, err = s.publicHandoffs.ListRoot(parentRound.ConversationID, rootRoundID)
+		edges, err = s.publicHandoffs.ListRoot(
+			parentRound.OwnerUserID,
+			parentRound.ConversationID,
+			rootRoundID,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -386,7 +423,13 @@ func (s *Service) admitPublicMentionWakes(
 			if strings.TrimSpace(existing.RootRoundID) != rootRoundID ||
 				strings.TrimSpace(existing.SourceAgentID) != sourceAgentID ||
 				strings.TrimSpace(existing.TargetAgentID) != targetAgentID {
-				s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, []publicMentionWake{wake}, "error")
+				s.terminalizePublicMentionWakes(
+					ctx,
+					parentRound.OwnerUserID,
+					parentRound.ConversationID,
+					[]publicMentionWake{wake},
+					"error",
+				)
 				continue
 			}
 			if roomPublicHandoffIsTerminal(existing.Status) {
@@ -403,12 +446,24 @@ func (s *Service) admitPublicMentionWakes(
 			}
 		}
 		if acceptedGuarded >= roomMaxHandoffFanout {
-			s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, []publicMentionWake{wake}, "error")
+			s.terminalizePublicMentionWakes(
+				ctx,
+				parentRound.OwnerUserID,
+				parentRound.ConversationID,
+				[]publicMentionWake{wake},
+				"error",
+			)
 			continue
 		}
 		projectedRootHandoffs := historicalRootHandoffs + acceptedGuarded + 1
 		if projectedRootHandoffs > roomMaxRootHandoffs {
-			s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, []publicMentionWake{wake}, "error")
+			s.terminalizePublicMentionWakes(
+				ctx,
+				parentRound.OwnerUserID,
+				parentRound.ConversationID,
+				[]publicMentionWake{wake},
+				"error",
+			)
 			continue
 		}
 		if hasExisting {
@@ -416,7 +471,13 @@ func (s *Service) admitPublicMentionWakes(
 			// 条边。它们仍需经过同一拓扑校验，不能因为已写 ledger 就绕过
 			// cycle/fanout 护栏。
 			if roomPublicHandoffCreatesCycle(workingEdges, sourceAgentID, targetAgentID) {
-				s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, []publicMentionWake{wake}, "error")
+				s.terminalizePublicMentionWakes(
+					ctx,
+					parentRound.OwnerUserID,
+					parentRound.ConversationID,
+					[]publicMentionWake{wake},
+					"error",
+				)
 				continue
 			}
 			accepted = append(accepted, wake)
@@ -426,7 +487,13 @@ func (s *Service) admitPublicMentionWakes(
 		}
 		if sourceAgentID == "" || targetAgentID == "" || sourceAgentID == targetAgentID ||
 			roomPublicHandoffCreatesCycle(workingEdges, sourceAgentID, targetAgentID) {
-			s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, []publicMentionWake{wake}, "error")
+			s.terminalizePublicMentionWakes(
+				ctx,
+				parentRound.OwnerUserID,
+				parentRound.ConversationID,
+				[]publicMentionWake{wake},
+				"error",
+			)
 			continue
 		}
 		workingEdges = append(workingEdges, workspacestore.RoomPublicHandoff{
@@ -502,6 +569,7 @@ func roomPublicHandoffCreatesCycle(
 // 已经从内存 pending 列表取出的边在 ledger 中永久停留为 source_finished。
 func (s *Service) terminalizePublicMentionWakes(
 	ctx context.Context,
+	ownerUserID string,
 	conversationID string,
 	wakes []publicMentionWake,
 	status string,
@@ -514,7 +582,7 @@ func (s *Service) terminalizePublicMentionWakes(
 		if handoffID == "" {
 			continue
 		}
-		if err := s.publicHandoffs.MarkTerminal(conversationID, handoffID, status); err != nil {
+		if err := s.publicHandoffs.MarkTerminal(ownerUserID, conversationID, handoffID, status); err != nil {
 			s.loggerFor(ctx).Warn("收口受护栏拒绝的 Room handoff 失败",
 				"conversation_id", conversationID,
 				"handoff_id", handoffID,
@@ -647,10 +715,13 @@ func (s *Service) launchPublicMentionRound(
 	sessionKey := activeRound.SessionKey
 	contextValue := activeRound.Context
 	roundID := activeRound.RoundID
-	roundCtx, cancel := context.WithCancel(context.Background())
+	roundCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	activeRound.Cancel = cancel
 	s.registerRound(activeRound)
-	s.runtime.StartRound(sessionKey, roundID, cancel)
+	if !s.runtime.StartRound(sessionKey, roundID, cancel) {
+		s.finishRound(activeRound)
+		return
+	}
 	s.loggerFor(ctx).Info(roomWakeStartLogMessage(wakes),
 		"s", sessionKey,
 		"r", contextValue.Room.ID,
@@ -697,6 +768,7 @@ func buildPublicMentionSlot(
 	}
 	slot := &activeRoomSlot{
 		RoomSessionID:     sessionRecord.ID,
+		OwnerUserID:       contextValue.Room.OwnerUserID,
 		AgentID:           strings.TrimSpace(wake.TargetAgentID),
 		AgentRoundID:      agentRoundID,
 		MsgID:             msgID,
@@ -857,7 +929,12 @@ func (s *Service) queueBusyPublicMentionWakes(
 			}
 		}
 		if s.publicHandoffs != nil && strings.TrimSpace(wake.HandoffID) != "" {
-			if err := s.publicHandoffs.MarkQueued(parentRound.ConversationID, wake.HandoffID, queuedItemID); err != nil {
+			if err := s.publicHandoffs.MarkQueued(
+				parentRound.OwnerUserID,
+				parentRound.ConversationID,
+				wake.HandoffID,
+				queuedItemID,
+			); err != nil {
 				return nil, err
 			}
 		}
@@ -895,11 +972,17 @@ func (s *Service) queueBusyPublicMentionWakes(
 		}
 	}
 	if dispatchQueued {
-		go s.dispatchNextInputQueueItem(
-			contextWithQueueOwner(context.Background(), parentRound.OwnerUserID),
+		s.startSessionBackgroundTask(
 			sessionKey,
-			parentRound.RoomID,
-			parentRound.ConversationID,
+			parentRound.OwnerUserID,
+			func(taskCtx context.Context) {
+				s.dispatchNextInputQueueItem(
+					taskCtx,
+					sessionKey,
+					parentRound.RoomID,
+					parentRound.ConversationID,
+				)
+			},
 		)
 	}
 	return ready, nil

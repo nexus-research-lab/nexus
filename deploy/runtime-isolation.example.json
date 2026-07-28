@@ -10,7 +10,8 @@
   "cgroup_required": false,
   "runtime_executables": {
     "nxs": "/opt/nexus/bin/nxs",
-    "claude": "/usr/local/bin/claude"
+    "claude": "/usr/local/bin/claude",
+    "script": "/bin/sh"
   },
   "read_only_roots": [
     "/opt/nexus",

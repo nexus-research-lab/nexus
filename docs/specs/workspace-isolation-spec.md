@@ -166,6 +166,7 @@ UserScope
   users/
     <owner_user_id>/                  # 当前用户数据根，private group
       workspace/
+        .rooms/                       # owner 级公共附件，runtime 可读写但不承载控制状态
         <agent_id>/                   # 用户工作目录
       runtime/                        # <user_root>；NEXUS_CONFIG_DIR 与 CLAUDE_CONFIG_DIR 相同
         projects/                     # nxs/Claude transcript store
@@ -176,6 +177,8 @@ UserScope
         cache/
         logs/
         tmp/
+      state/                          # 宿主托管状态，不属于 runtime config 根
+        rooms/                        # owner 级 Room overlay、消息游标、handoff 与延迟唤醒
 
   shared-workspaces/
     <shared_workspace_id>/            # 项目 group/ACL 共享目录
@@ -187,7 +190,10 @@ UserScope
 
 - `.nexus` 与 `users/` 只给 runtime UID 目录穿越位；`nexus-host` 通过宿主组
   继续创建用户目录，runtime 不能列举根目录；
-- `.nexus/app` 及其 `data/config/logs` 只允许 `nexus-host` 访问；runtime 通过宿主注入用户根，不能继承 app 根。
+- `.nexus/app` 及其 `data/config/logs` 只允许 `nexus-host` 访问；用户的
+  `state/rooms` 也只允许宿主访问，runtime 通过宿主注入用户 runtime 根，不能
+  继承任何宿主状态根。Room 公共附件单独落在 owner 的 `workspace/.rooms`，
+  不能为了附件读取而放宽 ledger 权限。
 - `users/<owner_user_id>` 的边界目录由 root 与对应 private group 控制；父目录只允许穿越，不允许 runtime 列举全部用户。
 - owner 的 `workspace/` 根由 `nexus-host` 持有并启用 setgid+sticky；每个
   `workspace/<agent_id>` 边界也保持 root-owned、private group 可写，runtime
@@ -196,6 +202,12 @@ UserScope
 - workspace 和 shared workspace 使用 setgid；default ACL 只授予 Nexus 宿主、当前运行组和明确的项目组。
 - 普通文件默认不允许 `other` 读写，runtime 使用 `umask 0007`。
 - shared workspace 成员关系由 Nexus 控制，Agent 不能自行改组、改 ACL 或扩大 scope。
+- 宿主打开 `state/rooms` 时必须从 `NEXUS_STATE_ROOT` 的目录 fd 逐级进入，
+  每个目录段拒绝 symlink 并核对 inode；ledger 文件同时拒绝 symlink、
+  多硬链接与校验后替换，不能只依赖字符串前缀或一次 `EvalSymlinks`。
+- 宿主读取 Agent workspace 与 `workspace/.rooms` 附件时同样从 owner 管理根
+  逐级固定目录 fd；图片内容直接从校验后打开的文件 fd 读取，不能先返回绝对
+  路径再由宿主重新打开。
 
 ### 6.2 nxs 与 Claude 的用户级配置根
 
@@ -228,13 +240,23 @@ bridge 可以继续把 `CLAUDE_CONFIG_DIR` 与 `NEXUS_CONFIG_DIR` 保持同步�
 - `nexus/deploy/docker-compose.yml`
 - `nexus/internal/infra/appfs/config_dir.go`
 
-当前版本只消费 canonical `.nexus/app`、`.nexus/users/<owner>` 与
-`.nexus/shared-workspaces` 布局；历史布局迁移不属于启动路径。目标冲突、
-旧根目录清理和迁移备份由升级运维在切换版本前完成，运行中的 server 不再
-猜测历史目录归属，也不在启动时搬运用户文件。
-Room 的追加式 `overlay.jsonl` 只有在能证明两侧行集合存在包含关系，
-或仅有带 `message_id` 行的时间戳刷新时才自动合并；其他业务内容差异
-仍然阻断迁移，避免静默覆盖历史。
+当前版本只把 canonical `.nexus/app`、`.nexus/users/<owner>` 与
+`.nexus/shared-workspaces` 作为运行时读写布局。针对旧版曾将 Room 文件写入
+共享 `app/rooms` 的安全问题，启动期保留一个有完成标记的定向迁移：
+
+- 先从数据库按 `conversation_id` 确认 `owner_user_id`，再迁入对应
+  `users/<owner>/state/rooms`，不能从目录名或文件内声明猜测 owner；
+- `overlay.jsonl`、directed message、消费游标、public handoff 与 delayed
+  wake 均按 owner 拆分，JSONL 采用规范化内容去重，支持中断后重试；
+- 旧 `attachments/` 单独迁入 `users/<owner>/workspace/.rooms/<conversation>/`
+  的对应相对路径，runtime 只获得公共资产，不获得 Room ledger；
+- 无法确认 owner、混合多个 conversation、包含符号链接/硬链接/特殊文件的状态移入宿主私有
+  `app/.migration-quarantine/room-state-v1`，不会暴露给任意 runtime；
+- 迁移告警不阻断 server 启动，但新版本不会再回读 `app/rooms`。完成后移除
+  旧目录并在 `app/.migrations` 写入标记。
+
+除这类明确版本化、可审计的安全升级迁移外，运行中的 server 不猜测历史目录
+归属，也不把 `app/` 当作用户 runtime 的兼容回退。
 
 ## 7. Runtime 环境与配置
 
@@ -349,6 +371,11 @@ registry 已统一先校验 owner，再通过 `internal/infra/confinedfs` 持有
 sticky，并把 Agent workspace 边界设为 root-owned；迁移遇到 workspace 顶层 symlink 会
 fail closed。这样宿主打开的根 inode 与 runtime 可写内容分离，而不牺牲同一用户
 在 workspace 内的正常协作。
+
+Room ledger、owner-aware InputQueue 与 Room transcript 引用会先按 owner 计算
+managed root，再从该根的目录 fd 逐段打开 workspace/session 路径；持久化的
+绝对路径只用于定位，不能直接升级为可信根。普通文件打开时还会核对打开前后
+inode，并在 Darwin/Linux 上拒绝多硬链接文件。
 
 `os.Root` 不隔离 bind mount、设备文件或文件系统边界，因此宿主读接口同时拒绝
 符号链接和非普通文件；部署仍不得给 runtime `CAP_SYS_ADMIN`、`CAP_MKNOD` 或可写

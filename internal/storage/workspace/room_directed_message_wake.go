@@ -38,7 +38,8 @@ type RoomDirectedMessageWakeStore struct {
 
 // NewRoomDirectedMessageWakeStore 创建延迟唤醒存储。
 func NewRoomDirectedMessageWakeStore(root string) *RoomDirectedMessageWakeStore {
-	return &RoomDirectedMessageWakeStore{paths: New(root), files: NewSessionFileStore(root)}
+	paths := New(root)
+	return &RoomDirectedMessageWakeStore{paths: paths, files: newSessionFileStore(paths)}
 }
 
 // Schedule 在返回前将唤醒写入磁盘。
@@ -52,7 +53,7 @@ func (s *RoomDirectedMessageWakeStore) Schedule(wake RoomDirectedMessageWake) er
 	if wake.CreatedAt == 0 {
 		wake.CreatedAt = time.Now().UnixMilli()
 	}
-	return s.files.appendJSONLAt(s.paths.HomeRoot, s.paths.RoomDirectedMessageWakesPath(), map[string]any{
+	return s.files.appendRoomJSONL(wake.OwnerUserID, s.paths.RoomDirectedMessageWakesPath(wake.OwnerUserID), map[string]any{
 		"action":    roomWakeActionSchedule,
 		"wake":      wake,
 		"timestamp": time.Now().UnixMilli(),
@@ -60,14 +61,14 @@ func (s *RoomDirectedMessageWakeStore) Schedule(wake RoomDirectedMessageWake) er
 }
 
 // Complete 记录唤醒已成功交给运行队列。
-func (s *RoomDirectedMessageWakeStore) Complete(wakeID string) error {
+func (s *RoomDirectedMessageWakeStore) Complete(ownerUserID string, wakeID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	wakeID = strings.TrimSpace(wakeID)
 	if wakeID == "" {
 		return nil
 	}
-	return s.files.appendJSONLAt(s.paths.HomeRoot, s.paths.RoomDirectedMessageWakesPath(), map[string]any{
+	return s.files.appendRoomJSONL(ownerUserID, s.paths.RoomDirectedMessageWakesPath(ownerUserID), map[string]any{
 		"action":    roomWakeActionComplete,
 		"wake_id":   wakeID,
 		"timestamp": time.Now().UnixMilli(),
@@ -75,10 +76,47 @@ func (s *RoomDirectedMessageWakeStore) Complete(wakeID string) error {
 }
 
 // Pending 重放日志并返回尚未完成的唤醒。
-func (s *RoomDirectedMessageWakeStore) Pending() ([]RoomDirectedMessageWake, error) {
+func (s *RoomDirectedMessageWakeStore) Pending(ownerUserID string) ([]RoomDirectedMessageWake, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	rows, err := s.files.readJSONLAt(s.paths.HomeRoot, s.paths.RoomDirectedMessageWakesPath())
+	return s.pendingLocked(ownerUserID)
+}
+
+// PendingAll 逐用户重放唤醒日志，供进程启动恢复使用。
+func (s *RoomDirectedMessageWakeStore) PendingAll() ([]RoomDirectedMessageWake, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	owners, err := listRoomOwnerPathSegments(s.paths.StateRoot)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]RoomDirectedMessageWake, 0)
+	for _, ownerPathSegment := range owners {
+		pending, pendingErr := s.pendingPathSegmentLocked(ownerPathSegment)
+		if pendingErr != nil {
+			return nil, pendingErr
+		}
+		result = append(result, pending...)
+	}
+	sortRoomDirectedMessageWakes(result)
+	return result, nil
+}
+
+func (s *RoomDirectedMessageWakeStore) pendingLocked(ownerUserID string) ([]RoomDirectedMessageWake, error) {
+	return s.pendingRowsLocked(ownerUserID, "")
+}
+
+func (s *RoomDirectedMessageWakeStore) pendingPathSegmentLocked(
+	ownerPathSegment string,
+) ([]RoomDirectedMessageWake, error) {
+	return s.pendingRowsLocked(ownerPathSegment, ownerPathSegment)
+}
+
+func (s *RoomDirectedMessageWakeStore) pendingRowsLocked(
+	pathOwner string,
+	ownerPathSegment string,
+) ([]RoomDirectedMessageWake, error) {
+	rows, err := s.files.readRoomJSONL(pathOwner, s.paths.RoomDirectedMessageWakesPath(pathOwner))
 	if errors.Is(err, os.ErrNotExist) {
 		return []RoomDirectedMessageWake{}, nil
 	}
@@ -97,6 +135,18 @@ func (s *RoomDirectedMessageWakeStore) Pending() ([]RoomDirectedMessageWake, err
 			if json.Unmarshal(payload, &wake) != nil || strings.TrimSpace(wake.WakeID) == "" {
 				continue
 			}
+			if ownerPathSegment == "" {
+				wake.OwnerUserID = strings.TrimSpace(pathOwner)
+			} else {
+				recoveredOwnerUserID, ok := roomLedgerOwnerUserID(
+					ownerPathSegment,
+					wake.OwnerUserID,
+				)
+				if !ok {
+					continue
+				}
+				wake.OwnerUserID = recoveredOwnerUserID
+			}
 			pending[wake.WakeID] = wake
 		case roomWakeActionComplete:
 			delete(pending, strings.TrimSpace(stringFromAny(row["wake_id"])))
@@ -106,11 +156,15 @@ func (s *RoomDirectedMessageWakeStore) Pending() ([]RoomDirectedMessageWake, err
 	for _, wake := range pending {
 		result = append(result, wake)
 	}
-	sort.Slice(result, func(i int, j int) bool {
-		if result[i].DueAt != result[j].DueAt {
-			return result[i].DueAt < result[j].DueAt
-		}
-		return result[i].WakeID < result[j].WakeID
-	})
+	sortRoomDirectedMessageWakes(result)
 	return result, nil
+}
+
+func sortRoomDirectedMessageWakes(values []RoomDirectedMessageWake) {
+	sort.Slice(values, func(i int, j int) bool {
+		if values[i].DueAt != values[j].DueAt {
+			return values[i].DueAt < values[j].DueAt
+		}
+		return values[i].WakeID < values[j].WakeID
+	})
 }

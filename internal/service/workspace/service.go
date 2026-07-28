@@ -38,7 +38,16 @@ func (s *Service) SubscribeLive(ctx context.Context, agentID string, listener Li
 	if err != nil {
 		return "", err
 	}
-	return s.live.Subscribe(agentValue.AgentID, agentValue.WorkspacePath, listener)
+	root, err := s.openAgentWorkspace(agentValue, false)
+	if err != nil {
+		return "", err
+	}
+	return s.live.Subscribe(
+		agentValue.AgentID,
+		agentValue.WorkspacePath,
+		root,
+		listener,
+	)
 }
 
 // UnsubscribeLive 取消某个 workspace 实时订阅。

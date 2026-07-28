@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -278,18 +278,17 @@ func collectRoomEventsUntil(
 	}
 }
 
-var roomTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
-
 func readRoomPrivateHistory(
 	t *testing.T,
 	root string,
+	ownerUserID string,
 	workspacePath string,
 	sessionKey string,
 	agentID string,
 	sessionID string,
 ) []protocol.Message {
 	t.Helper()
-	historyStore := workspacestore.NewAgentHistoryStore(root)
+	historyStore := workspacestore.NewAgentHistoryStore(root).ForOwner(ownerUserID)
 	rows, err := historyStore.ReadMessages(workspacePath, protocol.Session{
 		SessionKey: sessionKey,
 		AgentID:    agentID,
@@ -304,6 +303,7 @@ func readRoomPrivateHistory(
 
 func writeRoomTranscriptFixture(
 	t *testing.T,
+	ownerUserID string,
 	workspacePath string,
 	sessionID string,
 	rows []map[string]any,
@@ -313,9 +313,9 @@ func writeRoomTranscriptFixture(
 		t.Fatal("session_id 为空，无法写入 room transcript fixture")
 	}
 	projectDir := filepath.Join(
-		os.Getenv("NEXUS_CONFIG_DIR"),
+		appfs.UserRuntimeRoot(ownerUserID),
 		"projects",
-		sanitizeRoomTranscriptPath(canonicalizeRoomTranscriptPath(workspacePath)),
+		workspacestore.TranscriptProjectDirectoryName(workspacePath),
 	)
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatalf("创建 room transcript 目录失败: %v", err)
@@ -332,55 +332,6 @@ func writeRoomTranscriptFixture(
 			t.Fatalf("写入 room transcript fixture 失败: %v", err)
 		}
 	}
-}
-
-func canonicalizeRoomTranscriptPath(path string) string {
-	if strings.TrimSpace(path) == "" {
-		return ""
-	}
-	absolutePath, err := filepath.Abs(path)
-	if err == nil {
-		path = absolutePath
-	}
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		path = resolved
-	}
-	return path
-}
-
-func sanitizeRoomTranscriptPath(path string) string {
-	const maxLength = 200
-	sanitized := roomTranscriptSanitizePattern.ReplaceAllString(path, "-")
-	if len(sanitized) <= maxLength {
-		return sanitized
-	}
-	return sanitized[:maxLength] + "-" + roomTranscriptHash(path)
-}
-
-func roomTranscriptHash(value string) string {
-	var hash int32
-	for _, character := range value {
-		hash = hash*31 + int32(character)
-	}
-
-	number := int64(hash)
-	if number < 0 {
-		number = -number
-	}
-	if number == 0 {
-		return "0"
-	}
-
-	const digits = "0123456789abcdefghijklmnopqrstuvwxyz"
-	result := make([]byte, 0, 8)
-	for number > 0 {
-		result = append(result, digits[number%36])
-		number /= 36
-	}
-	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
-		result[left], result[right] = result[right], result[left]
-	}
-	return string(result)
 }
 
 func anyToInt(value any) int {
@@ -614,6 +565,7 @@ func newRoomTestConfig(t *testing.T) config.Config {
 
 	root := t.TempDir()
 	t.Setenv("HOME", root)
+	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(root, ".nexus"))
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	return config.Config{
 		Host:           "127.0.0.1",

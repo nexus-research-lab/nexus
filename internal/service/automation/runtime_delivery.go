@@ -164,6 +164,7 @@ func deliveryRetrySchedule(status string, attemptsAfter int, now time.Time) (*ti
 }
 
 func (s *Service) deliverHeartbeatObservation(
+	ctx context.Context,
 	agentID string,
 	configValue automationdomain.HeartbeatConfig,
 	observation automationexec.ExecutionObservation,
@@ -183,7 +184,7 @@ func (s *Service) deliverHeartbeatObservation(
 		return nil
 	}
 	if _, err := s.delivery.DeliverMessage(
-		context.Background(),
+		ctx,
 		agentID,
 		filtered.Text,
 		channels.DeliveryTarget{Mode: targetMode},

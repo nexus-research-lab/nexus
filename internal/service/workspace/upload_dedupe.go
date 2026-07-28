@@ -40,7 +40,7 @@ func fileMatchesMD5(root *confinedfs.Root, path string, expectedMD5 string, expe
 }
 
 func fileMD5(root *confinedfs.Root, path string) (string, error) {
-	file, err := root.Open(path)
+	file, err := root.OpenFileNoSymlink(path, os.O_RDONLY, 0)
 	if err != nil {
 		return "", err
 	}

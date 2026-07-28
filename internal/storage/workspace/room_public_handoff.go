@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -32,6 +31,7 @@ const (
 // 状态迁移通过同一 handoff_id 追加事件，重放后得到最后一个有效状态。
 type RoomPublicHandoff struct {
 	HandoffID          string                  `json:"handoff_id"`
+	OwnerUserID        string                  `json:"owner_user_id,omitempty"`
 	ConversationID     string                  `json:"conversation_id"`
 	RoomID             string                  `json:"room_id,omitempty"`
 	RootRoundID        string                  `json:"root_round_id,omitempty"`
@@ -59,17 +59,22 @@ type RoomPublicHandoffStore struct {
 
 // NewRoomPublicHandoffStore 创建公区 handoff ledger。
 func NewRoomPublicHandoffStore(root string) *RoomPublicHandoffStore {
-	return &RoomPublicHandoffStore{paths: New(root), files: NewSessionFileStore(root)}
+	paths := New(root)
+	return &RoomPublicHandoffStore{paths: paths, files: newSessionFileStore(paths)}
 }
 
 // Detect 记录一条新 handoff；相同 handoff_id 重复检测时保持幂等。
-func (s *RoomPublicHandoffStore) Detect(handoff RoomPublicHandoff) (RoomPublicHandoff, bool, error) {
+func (s *RoomPublicHandoffStore) Detect(
+	ownerUserID string,
+	handoff RoomPublicHandoff,
+) (RoomPublicHandoff, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	handoff.OwnerUserID = strings.TrimSpace(ownerUserID)
 	if err := validateRoomPublicHandoff(handoff); err != nil {
 		return RoomPublicHandoff{}, false, err
 	}
-	all, err := s.replayLocked(handoff.ConversationID)
+	all, err := s.replayLocked(ownerUserID, handoff.ConversationID)
 	if err != nil {
 		return RoomPublicHandoff{}, false, err
 	}
@@ -82,15 +87,15 @@ func (s *RoomPublicHandoffStore) Detect(handoff RoomPublicHandoff) (RoomPublicHa
 		handoff.CreatedAt = now
 	}
 	handoff.UpdatedAt = now
-	if err := s.appendLocked(handoff.ConversationID, roomPublicHandoffActionDetected, handoff); err != nil {
+	if err := s.appendLocked(ownerUserID, handoff.ConversationID, roomPublicHandoffActionDetected, handoff); err != nil {
 		return RoomPublicHandoff{}, false, err
 	}
 	return handoff, true, nil
 }
 
 // MarkSourceFinished 标记 source slot 已成功发布最终消息。
-func (s *RoomPublicHandoffStore) MarkSourceFinished(conversationID string, handoffID string) error {
-	return s.transition(conversationID, handoffID, roomPublicHandoffActionSourceFinished, func(value *RoomPublicHandoff) {
+func (s *RoomPublicHandoffStore) MarkSourceFinished(ownerUserID string, conversationID string, handoffID string) error {
+	return s.transition(ownerUserID, conversationID, handoffID, roomPublicHandoffActionSourceFinished, func(value *RoomPublicHandoff) {
 		value.Status = roomPublicHandoffActionSourceFinished
 		value.ClaimedAt = 0
 	}, func(value RoomPublicHandoff) bool {
@@ -99,8 +104,13 @@ func (s *RoomPublicHandoffStore) MarkSourceFinished(conversationID string, hando
 }
 
 // MarkQueued 记录 handoff 已进入 busy 目标的 InputQueue。
-func (s *RoomPublicHandoffStore) MarkQueued(conversationID string, handoffID string, queueItemID string) error {
-	return s.transition(conversationID, handoffID, roomPublicHandoffActionQueued, func(value *RoomPublicHandoff) {
+func (s *RoomPublicHandoffStore) MarkQueued(
+	ownerUserID string,
+	conversationID string,
+	handoffID string,
+	queueItemID string,
+) error {
+	return s.transition(ownerUserID, conversationID, handoffID, roomPublicHandoffActionQueued, func(value *RoomPublicHandoff) {
 		value.Status = roomPublicHandoffActionQueued
 		value.QueueItemID = strings.TrimSpace(queueItemID)
 		value.ClaimedAt = 0
@@ -112,10 +122,14 @@ func (s *RoomPublicHandoffStore) MarkQueued(conversationID string, handoffID str
 }
 
 // Claim 为本进程准备启动 handoff，防止恢复器与实时路径重复创建 target round。
-func (s *RoomPublicHandoffStore) Claim(conversationID string, handoffID string) (RoomPublicHandoff, bool, error) {
+func (s *RoomPublicHandoffStore) Claim(
+	ownerUserID string,
+	conversationID string,
+	handoffID string,
+) (RoomPublicHandoff, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all, err := s.replayLocked(conversationID)
+	all, err := s.replayLocked(ownerUserID, conversationID)
 	if err != nil {
 		return RoomPublicHandoff{}, false, err
 	}
@@ -127,15 +141,15 @@ func (s *RoomPublicHandoffStore) Claim(conversationID string, handoffID string) 
 	value.Status = roomPublicHandoffActionClaimed
 	value.ClaimedAt = now
 	value.UpdatedAt = now
-	if err := s.appendLocked(conversationID, roomPublicHandoffActionClaimed, value); err != nil {
+	if err := s.appendLocked(ownerUserID, conversationID, roomPublicHandoffActionClaimed, value); err != nil {
 		return RoomPublicHandoff{}, false, err
 	}
 	return value, true, nil
 }
 
 // ReleaseClaim 将启动失败的 handoff 恢复为 source_finished，允许下一次重试。
-func (s *RoomPublicHandoffStore) ReleaseClaim(conversationID string, handoffID string) error {
-	return s.transition(conversationID, handoffID, roomPublicHandoffActionSourceFinished, func(value *RoomPublicHandoff) {
+func (s *RoomPublicHandoffStore) ReleaseClaim(ownerUserID string, conversationID string, handoffID string) error {
+	return s.transition(ownerUserID, conversationID, handoffID, roomPublicHandoffActionSourceFinished, func(value *RoomPublicHandoff) {
 		value.Status = roomPublicHandoffActionSourceFinished
 		value.ClaimedAt = 0
 	}, func(value RoomPublicHandoff) bool {
@@ -144,8 +158,13 @@ func (s *RoomPublicHandoffStore) ReleaseClaim(conversationID string, handoffID s
 }
 
 // MarkStarted 记录 target round 已创建。
-func (s *RoomPublicHandoffStore) MarkStarted(conversationID string, handoffID string, targetRoundID string) error {
-	return s.transition(conversationID, handoffID, roomPublicHandoffActionStarted, func(value *RoomPublicHandoff) {
+func (s *RoomPublicHandoffStore) MarkStarted(
+	ownerUserID string,
+	conversationID string,
+	handoffID string,
+	targetRoundID string,
+) error {
+	return s.transition(ownerUserID, conversationID, handoffID, roomPublicHandoffActionStarted, func(value *RoomPublicHandoff) {
 		value.Status = roomPublicHandoffActionStarted
 		value.TargetRoundID = strings.TrimSpace(targetRoundID)
 		value.ClaimedAt = 0
@@ -155,9 +174,14 @@ func (s *RoomPublicHandoffStore) MarkStarted(conversationID string, handoffID st
 }
 
 // MarkTerminal 收口 target handoff，status 使用 finished、error 或 interrupted。
-func (s *RoomPublicHandoffStore) MarkTerminal(conversationID string, handoffID string, status string) error {
+func (s *RoomPublicHandoffStore) MarkTerminal(
+	ownerUserID string,
+	conversationID string,
+	handoffID string,
+	status string,
+) error {
 	status = normalizeRoomPublicHandoffTerminalStatus(status)
-	return s.transition(conversationID, handoffID, roomPublicHandoffActionTerminal, func(value *RoomPublicHandoff) {
+	return s.transition(ownerUserID, conversationID, handoffID, roomPublicHandoffActionTerminal, func(value *RoomPublicHandoff) {
 		value.Status = status
 		value.ClaimedAt = 0
 	}, func(value RoomPublicHandoff) bool {
@@ -166,10 +190,15 @@ func (s *RoomPublicHandoffStore) MarkTerminal(conversationID string, handoffID s
 }
 
 // CancelForSource 取消尚未启动的 source handoff，防止失败 source 继续唤醒目标。
-func (s *RoomPublicHandoffStore) CancelForSource(conversationID string, sourceAgentRoundID string, status string) error {
+func (s *RoomPublicHandoffStore) CancelForSource(
+	ownerUserID string,
+	conversationID string,
+	sourceAgentRoundID string,
+	status string,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all, err := s.replayLocked(conversationID)
+	all, err := s.replayLocked(ownerUserID, conversationID)
 	if err != nil {
 		return err
 	}
@@ -182,7 +211,7 @@ func (s *RoomPublicHandoffStore) CancelForSource(conversationID string, sourceAg
 		value.Status = status
 		value.ClaimedAt = 0
 		value.UpdatedAt = time.Now().UnixMilli()
-		if err := s.appendLocked(conversationID, roomPublicHandoffActionCancelled, value); err != nil {
+		if err := s.appendLocked(ownerUserID, conversationID, roomPublicHandoffActionCancelled, value); err != nil {
 			return err
 		}
 	}
@@ -191,10 +220,14 @@ func (s *RoomPublicHandoffStore) CancelForSource(conversationID string, sourceAg
 
 // ListRoot 返回同一 conversation/root 下已经记录过的全部 handoff 边。
 // 调度层用它做 root 级去环、fanout 和取消判断；返回值是重放后的当前快照。
-func (s *RoomPublicHandoffStore) ListRoot(conversationID string, rootRoundID string) ([]RoomPublicHandoff, error) {
+func (s *RoomPublicHandoffStore) ListRoot(
+	ownerUserID string,
+	conversationID string,
+	rootRoundID string,
+) ([]RoomPublicHandoff, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all, err := s.replayLocked(conversationID)
+	all, err := s.replayLocked(ownerUserID, conversationID)
 	if err != nil {
 		return nil, err
 	}
@@ -216,10 +249,14 @@ func (s *RoomPublicHandoffStore) ListRoot(conversationID string, rootRoundID str
 }
 
 // Get 返回指定 handoff 的当前快照，供队列恢复时重新取回逻辑 root。
-func (s *RoomPublicHandoffStore) Get(conversationID string, handoffID string) (RoomPublicHandoff, bool, error) {
+func (s *RoomPublicHandoffStore) Get(
+	ownerUserID string,
+	conversationID string,
+	handoffID string,
+) (RoomPublicHandoff, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all, err := s.replayLocked(conversationID)
+	all, err := s.replayLocked(ownerUserID, conversationID)
 	if err != nil {
 		return RoomPublicHandoff{}, false, err
 	}
@@ -228,10 +265,15 @@ func (s *RoomPublicHandoffStore) Get(conversationID string, handoffID string) (R
 }
 
 // CancelForRoot 收口 root 下尚未完成的 handoff，供用户停止整轮时传播取消。
-func (s *RoomPublicHandoffStore) CancelForRoot(conversationID string, rootRoundID string, status string) error {
+func (s *RoomPublicHandoffStore) CancelForRoot(
+	ownerUserID string,
+	conversationID string,
+	rootRoundID string,
+	status string,
+) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all, err := s.replayLocked(conversationID)
+	all, err := s.replayLocked(ownerUserID, conversationID)
 	if err != nil {
 		return err
 	}
@@ -244,7 +286,7 @@ func (s *RoomPublicHandoffStore) CancelForRoot(conversationID string, rootRoundI
 		value.Status = status
 		value.ClaimedAt = 0
 		value.UpdatedAt = time.Now().UnixMilli()
-		if err := s.appendLocked(conversationID, roomPublicHandoffActionCancelled, value); err != nil {
+		if err := s.appendLocked(ownerUserID, conversationID, roomPublicHandoffActionCancelled, value); err != nil {
 			return err
 		}
 	}
@@ -253,10 +295,10 @@ func (s *RoomPublicHandoffStore) CancelForRoot(conversationID string, rootRoundI
 
 // Pending 返回需要恢复或观察的 handoff。queued 仍然返回，调用方需要先确认
 // 对应 InputQueue item 是否还在；若队列项已丢失，才能把它重新交给实时派发。
-func (s *RoomPublicHandoffStore) Pending(conversationID string) ([]RoomPublicHandoff, error) {
+func (s *RoomPublicHandoffStore) Pending(ownerUserID string, conversationID string) ([]RoomPublicHandoff, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all, err := s.replayLocked(conversationID)
+	all, err := s.replayLocked(ownerUserID, conversationID)
 	if err != nil {
 		return nil, err
 	}
@@ -276,45 +318,60 @@ func (s *RoomPublicHandoffStore) Pending(conversationID string) ([]RoomPublicHan
 	return result, nil
 }
 
-// PendingAll 扫描 workspace 下所有 Room handoff ledger，供进程启动恢复使用。
+// PendingAll 逐用户扫描所有 Room handoff ledger，供进程启动恢复使用。
 func (s *RoomPublicHandoffStore) PendingAll() ([]RoomPublicHandoff, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	root, err := confinedfs.Open(s.paths.HomeRoot)
-	if errors.Is(err, os.ErrNotExist) {
-		return []RoomPublicHandoff{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer root.Close()
-	entries, err := fs.ReadDir(root.FS(), filepath.ToSlash(filepath.Join("rooms")))
-	if errors.Is(err, os.ErrNotExist) {
-		return []RoomPublicHandoff{}, nil
-	}
+	owners, err := listRoomOwnerPathSegments(s.paths.StateRoot)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now().UnixMilli()
 	result := make([]RoomPublicHandoff, 0)
-	for _, entry := range entries {
-		if !entry.IsDir() {
+	for _, ownerPathSegment := range owners {
+		roomRootPath := s.paths.RoomConversationRoot(ownerPathSegment)
+		root, openErr := s.files.openRoomRoot(ownerPathSegment, false)
+		if errors.Is(openErr, os.ErrNotExist) {
 			continue
 		}
-		rows, readErr := s.files.readJSONLAt(
-			s.paths.HomeRoot,
-			filepath.Join(s.paths.RoomConversationRoot(), entry.Name(), "public_handoffs.jsonl"),
-		)
-		if errors.Is(readErr, os.ErrNotExist) {
-			continue
+		if openErr != nil {
+			return nil, openErr
 		}
-		if readErr != nil {
-			return nil, readErr
+		entries, readDirErr := fs.ReadDir(root.FS(), ".")
+		_ = root.Close()
+		if readDirErr != nil {
+			return nil, readDirErr
 		}
-		all := replayRoomPublicHandoffRows(rows)
-		for _, value := range all {
-			if roomPublicHandoffIsPending(value, now) {
-				result = append(result, value)
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			rows, readErr := s.files.readRoomJSONL(
+				ownerPathSegment,
+				filepath.Join(roomRootPath, entry.Name(), "public_handoffs.jsonl"),
+			)
+			if errors.Is(readErr, os.ErrNotExist) {
+				continue
+			}
+			if readErr != nil {
+				return nil, readErr
+			}
+			all := replayRoomPublicHandoffRows(rows)
+			for _, value := range all {
+				if filepath.Base(s.paths.RoomConversationDir(ownerPathSegment, value.ConversationID)) != entry.Name() {
+					continue
+				}
+				recoveredOwnerUserID, ok := roomLedgerOwnerUserID(
+					ownerPathSegment,
+					value.OwnerUserID,
+				)
+				if !ok {
+					continue
+				}
+				value.OwnerUserID = recoveredOwnerUserID
+				if roomPublicHandoffIsPending(value, now) {
+					result = append(result, value)
+				}
 			}
 		}
 	}
@@ -343,6 +400,7 @@ func roomPublicHandoffIsPending(value RoomPublicHandoff, now int64) bool {
 const roomPublicHandoffClaimTTL = 30 * time.Second
 
 func (s *RoomPublicHandoffStore) transition(
+	ownerUserID string,
 	conversationID string,
 	handoffID string,
 	action string,
@@ -351,7 +409,7 @@ func (s *RoomPublicHandoffStore) transition(
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	all, err := s.replayLocked(conversationID)
+	all, err := s.replayLocked(ownerUserID, conversationID)
 	if err != nil {
 		return err
 	}
@@ -364,25 +422,35 @@ func (s *RoomPublicHandoffStore) transition(
 	}
 	mutate(&value)
 	value.UpdatedAt = time.Now().UnixMilli()
-	return s.appendLocked(conversationID, action, value)
+	return s.appendLocked(ownerUserID, conversationID, action, value)
 }
 
-func (s *RoomPublicHandoffStore) appendLocked(conversationID string, action string, handoff RoomPublicHandoff) error {
+func (s *RoomPublicHandoffStore) appendLocked(
+	ownerUserID string,
+	conversationID string,
+	action string,
+	handoff RoomPublicHandoff,
+) error {
 	conversationID = strings.TrimSpace(conversationID)
 	if conversationID == "" {
 		return errors.New("conversation_id is required")
 	}
-	return s.files.appendJSONLAt(s.paths.HomeRoot, s.paths.RoomPublicHandoffsPath(conversationID), map[string]any{
+	handoff.OwnerUserID = strings.TrimSpace(ownerUserID)
+	handoff.ConversationID = conversationID
+	return s.files.appendRoomJSONL(ownerUserID, s.paths.RoomPublicHandoffsPath(ownerUserID, conversationID), map[string]any{
 		"action":    action,
 		"handoff":   handoff,
 		"timestamp": time.Now().UnixMilli(),
 	})
 }
 
-func (s *RoomPublicHandoffStore) replayLocked(conversationID string) (map[string]RoomPublicHandoff, error) {
-	rows, err := s.files.readJSONLAt(
-		s.paths.HomeRoot,
-		s.paths.RoomPublicHandoffsPath(strings.TrimSpace(conversationID)),
+func (s *RoomPublicHandoffStore) replayLocked(
+	ownerUserID string,
+	conversationID string,
+) (map[string]RoomPublicHandoff, error) {
+	rows, err := s.files.readRoomJSONL(
+		ownerUserID,
+		s.paths.RoomPublicHandoffsPath(ownerUserID, strings.TrimSpace(conversationID)),
 	)
 	if errors.Is(err, os.ErrNotExist) {
 		return map[string]RoomPublicHandoff{}, nil
@@ -390,7 +458,13 @@ func (s *RoomPublicHandoffStore) replayLocked(conversationID string) (map[string
 	if err != nil {
 		return nil, err
 	}
-	return replayRoomPublicHandoffRows(rows), nil
+	result := replayRoomPublicHandoffRows(rows)
+	for handoffID, value := range result {
+		value.OwnerUserID = ownerUserID
+		value.ConversationID = strings.TrimSpace(conversationID)
+		result[handoffID] = value
+	}
+	return result, nil
 }
 
 func replayRoomPublicHandoffRows(rows []map[string]any) map[string]RoomPublicHandoff {
