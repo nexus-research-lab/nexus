@@ -1,15 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
 import { SubagentTaskList } from "./subagent-task-list";
+import { filterSubagentTasksByHostAgent } from "./subagent-task-list-model";
 import { subagentTaskSourceKey } from "./subagent-task-model";
 import { SubagentTaskThread } from "./thread/subagent-task-thread";
 import { useSubagentTasks } from "./use-subagent-tasks";
 
 interface SubagentTaskSurfaceProps {
+  headerLeading?: ReactNode;
+  hostAgentId?: string | null;
   layout?: "desktop" | "mobile";
   onClose: () => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
@@ -17,6 +20,8 @@ interface SubagentTaskSurfaceProps {
 }
 
 export function SubagentTaskSurface({
+  headerLeading,
+  hostAgentId,
   layout = "desktop",
   onClose,
   onOpenWorkspaceFile,
@@ -26,6 +31,8 @@ export function SubagentTaskSurface({
   return (
     <SubagentTaskSourceSurface
       key={sourceKey}
+      headerLeading={headerLeading}
+      hostAgentId={hostAgentId}
       layout={layout}
       onClose={onClose}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
@@ -35,6 +42,8 @@ export function SubagentTaskSurface({
 }
 
 function SubagentTaskSourceSurface({
+  headerLeading,
+  hostAgentId,
   layout = "desktop",
   onClose,
   onOpenWorkspaceFile,
@@ -48,7 +57,13 @@ function SubagentTaskSourceSurface({
     refresh,
     tasks,
   } = useSubagentTasks(source, true);
-  const selectedTask = tasks.find((task) => task.task_id === selectedTaskId) ?? null;
+  const visibleTasks = useMemo(
+    () => filterSubagentTasksByHostAgent(tasks, hostAgentId),
+    [hostAgentId, tasks],
+  );
+  const selectedTask = visibleTasks.find(
+    (task) => task.task_id === selectedTaskId,
+  ) ?? null;
 
   useEffect(() => {
     if (selectedTaskId && data && !selectedTask) {
@@ -56,17 +71,12 @@ function SubagentTaskSourceSurface({
     }
   }, [data, selectedTask, selectedTaskId]);
 
-  const refreshTasks = useCallback(() => {
-    void refresh(true);
-  }, [refresh]);
-
   if (selectedTask) {
     return (
       <SubagentTaskThread
         layout={layout}
         onBack={() => setSelectedTaskId(null)}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
-        onRefreshTasks={refreshTasks}
         source={source}
         task={selectedTask}
       />
@@ -77,12 +87,13 @@ function SubagentTaskSourceSurface({
     <SubagentTaskList
       data={data}
       error={error}
+      headerLeading={headerLeading}
       isLoading={isLoading}
       onClose={onClose}
       onRefresh={() => void refresh()}
       onSelectTask={setSelectedTaskId}
       showTitle={layout === "mobile"}
-      tasks={tasks}
+      tasks={visibleTasks}
     />
   );
 }

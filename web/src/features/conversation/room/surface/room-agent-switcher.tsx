@@ -15,6 +15,7 @@ import {
 import type { Agent } from "@/types/agent/agent";
 
 interface RoomAgentSwitcherProps {
+  ariaLabel?: string;
   members: Agent[];
   selectedId: string;
   onSelect: (id: string) => void;
@@ -22,6 +23,7 @@ interface RoomAgentSwitcherProps {
 }
 
 export function RoomAgentSwitcher({
+  ariaLabel = "切换 Agent",
   members,
   selectedId,
   onSelect,
@@ -81,7 +83,7 @@ export function RoomAgentSwitcher({
       </button>
       <UiActionMenu
         anchorRef={triggerRef}
-        ariaLabel="切换 Agent"
+        ariaLabel={ariaLabel}
         isOpen={isOpen}
         items={menuItems}
         minWidth={296}

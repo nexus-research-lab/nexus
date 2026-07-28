@@ -250,8 +250,10 @@ export function RoomMobileSurface({
       />
 
       <RoomMobileSubagentOverlay
+        currentAgentId={currentAgent.agent_id}
         onClose={() => setOpenSubagentSource(null)}
         onOpenWorkspaceFile={handleOpenWorkspaceFile}
+        roomMembers={roomMembers}
         source={openSubagentSource === subagentTaskSource
           ? openSubagentSource
           : null}

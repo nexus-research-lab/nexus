@@ -17,6 +17,7 @@
 //
 // 历史投影与持久化共享未导出模型；在形成稳定边界前保留同包，避免为拆目录暴露内部状态。
 // TranscriptProjectDirectoryName/Names 是迁移层复用的稳定路径边界；
+// ReadTranscriptSessionMessages 用受控 session id 读取独立 Agent thread，
 // ReadTranscriptLinkMessages 是 Claude Code runtime 输出链接唯一允许的双重 confined 读取入口。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
