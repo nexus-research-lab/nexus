@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added the internally bundled `slide-maker` Skill from `addsumtech/slides_maker` release 4.1.0, including its editable PPTX build helpers, design references, and independent review workflow.
+
+### Changed
+
+- Improved Windows and macOS desktop updates with launch-time checks, automatic four-hour refreshes, sidebar availability indicators, and live installer download progress.
+
 ### Fixed
 
 - Isolated Room overlays, directed-message state, public handoffs, and delayed wakes under each owner's host-managed `state/rooms` directory, moved runtime-readable Room attachments into the owner's `workspace/.rooms` asset tree, pinned Room ledger access to verified directory/file inodes, and added a restart-safe owner-validated migration from the former shared `app/rooms` layout.
