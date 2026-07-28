@@ -8,6 +8,7 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 import type { ImChannelType } from "@/lib/api/capability/channel-api";
 import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 
 import type {
@@ -48,6 +49,8 @@ export function PairingFilterBar({
   onChange,
   searchPlaceholder,
 }: PairingFilterBarProps) {
+  const { t } = useI18n();
+
   return (
     <div className="mb-5">
       <div className="overflow-x-auto border-b border-(--divider-subtle-color)">
@@ -90,6 +93,7 @@ export function PairingFilterBar({
         />
         <CapabilityFilterSelect
           ariaLabel="按渠道筛选"
+          label={t("capability.channel_label")}
           leading={<Filter className="h-3.5 w-3.5" />}
           onChange={(value) => onChange(
             "channel",
@@ -104,6 +108,7 @@ export function PairingFilterBar({
         <CapabilityFilterSelect
           ariaLabel="按处理智能体筛选"
           className="sm:w-[220px]"
+          label={t("capability.agent_label")}
           leading={<Users className="h-3.5 w-3.5" />}
           onChange={(value) => onChange("agentId", value)}
           options={[

@@ -125,14 +125,14 @@ export function ScheduledTaskCard({
         />
       </div>
 
-      <h3 className="mt-1 line-clamp-2 text-[14px] font-semibold leading-5 text-(--text-strong)">
+      <h3 className="mt-1 truncate text-[14px] font-semibold leading-5 text-(--text-strong)">
         {task.name}
       </h3>
-      <p className="mt-1.5 line-clamp-2 whitespace-pre-line text-compact leading-5 text-(--text-muted)">
+      <p className="mt-1 truncate text-compact leading-5 text-(--text-muted)">
         {task.instruction}
       </p>
 
-      <div className="mt-2.5 space-y-1 text-xs leading-4 text-(--text-default)">
+      <div className="mt-2 space-y-1 text-xs leading-4 text-(--text-default)">
         <div className="flex min-w-0 items-center gap-1.5">
           <CalendarClock className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
           <span className="truncate font-medium">{presentation.scheduleSummary}</span>
@@ -145,14 +145,14 @@ export function ScheduledTaskCard({
 
       {presentation.lastError ? (
         <p
-          className="mt-2.5 line-clamp-2 border-l-2 border-(--destructive) pl-2 text-xs leading-4 text-(--destructive)"
+          className="mt-2 truncate border-l-2 border-(--destructive) pl-2 text-xs leading-4 text-(--destructive)"
           title={presentation.lastError}
         >
           {presentation.lastError}
         </p>
       ) : null}
 
-      <div className="mt-2.5 flex items-center justify-end gap-1 border-t border-(--divider-subtle-color) pt-2">
+      <div className="mt-2 flex items-center justify-end gap-1 border-t border-(--divider-subtle-color) pt-2">
         <UiIconButton
           aria-label="运行历史"
           disabled={presentation.historyDisabled}

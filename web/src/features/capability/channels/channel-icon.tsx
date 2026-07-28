@@ -31,11 +31,11 @@ export function ChannelIcon({
       className={cn(
         "flex shrink-0 items-center justify-center border border-white/35",
         size === "dialog" && "shadow-(--surface-avatar-shadow)",
-        size === "dialog" ? "h-[52px] w-[52px] surface-radius-lg" : "h-8 w-8 radius-control-sm",
+        size === "dialog" ? "h-[52px] w-[52px] surface-radius-lg" : "h-9 w-9 rounded-[8px]",
         style.cn_name,
       )}
     >
-      <Icon className={size === "dialog" ? "h-[26px] w-[26px]" : "h-3.5 w-3.5"} />
+      <Icon className={size === "dialog" ? "h-[26px] w-[26px]" : "h-4 w-4"} />
     </span>
   );
 }

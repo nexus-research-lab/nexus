@@ -15,6 +15,8 @@ import {
 import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { UiListRow } from "@/shared/ui/list/list-row";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
@@ -103,6 +105,7 @@ export function LoopsDirectory() {
       header={(
         <WorkspaceSurfaceHeader
           leading={<Repeat2 className="h-4 w-4" />}
+          narrowMode="hidden"
           title={t("capability.loops")}
         />
       )}
@@ -126,6 +129,7 @@ export function LoopsDirectory() {
             />
             <CapabilityFilterSelect
               ariaLabel={t("capability.loops_filter_aria")}
+              label={t("capability.category_label")}
               onChange={setCategory}
               options={categoryOptions}
               value={category}
@@ -133,47 +137,36 @@ export function LoopsDirectory() {
           </CapabilityFilterBar>
 
           <CapabilitySectionHeader
-            count={t("capability.loops_badge", { count: filteredLoops.length })}
+            count={t("capability.result_count", { count: filteredLoops.length })}
             title={t("capability.loops")}
           />
 
           {loading ? (
-            <div className="py-10 text-sm text-(--text-muted)">{t("capability.connectors_loading")}</div>
+            <div className="py-10 text-sm text-(--text-muted)">
+              {t("capability.loops_loading")}
+            </div>
           ) : error ? (
             <div className="py-10 text-sm text-(--destructive)">{error}</div>
           ) : filteredLoops.length === 0 ? (
-            <div className="py-10 text-sm text-(--text-muted)">{t("capability.loops_empty")}</div>
+            <UiStateBlock
+              className="min-h-48"
+              description={t("capability.loops_empty_description")}
+              icon={<Repeat2 className="h-5 w-5 text-(--icon-default)" />}
+              size="sm"
+              title={t("capability.loops_empty")}
+            />
           ) : (
-            <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
               {filteredLoops.map((loop) => (
-                <div
-                  className="cursor-pointer rounded-[8px] border border-(--divider-subtle-color) bg-transparent p-3 transition-colors hover:bg-(--surface-interactive-hover-background)"
+                <UiListRow
                   key={loop.slug}
                   onClick={() => navigate(AppRouteBuilders.loopDetail(loop.slug))}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      navigate(AppRouteBuilders.loopDetail(loop.slug));
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs font-medium text-(--text-muted)">
-                          {loop.category}
-                        </span>
-                        <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
-                          {loop.trigger_type}
-                        </span>
-                      </div>
-                      <h3 className="text-[14px] font-medium text-(--text-strong)">{loop.title}</h3>
-                      <p className="mt-0.5 line-clamp-2 text-compact leading-[1.125rem] text-(--text-muted)">
-                        {loop.description}
-                      </p>
-                    </div>
+                  leading={(
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--icon-default)">
+                      <Repeat2 className="h-4 w-4" />
+                    </span>
+                  )}
+                  right={(
                     <UiIconButton
                       aria-label={t("capability.loops_copy_prompt")}
                       className="shrink-0"
@@ -184,26 +177,32 @@ export function LoopsDirectory() {
                       size="md"
                       variant="ghost"
                     >
-                      {copiedSlug === loop.slug ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      {copiedSlug === loop.slug
+                        ? <Check className="h-4 w-4" />
+                        : <Copy className="h-4 w-4" />}
                     </UiIconButton>
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-[14px] font-medium text-(--text-strong)">
+                      {loop.title}
+                    </h3>
+                    <p className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
+                      {loop.description}
+                    </p>
+                    <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-2xs leading-4 text-(--text-soft)">
+                      <span className="truncate">{loop.category}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="shrink-0">{loop.trigger_type}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="shrink-0">
+                        {t("capability.loops_step_count", {
+                          count: loop.steps.length,
+                        })}
+                      </span>
+                    </div>
                   </div>
-
-                  <div className="mt-2 space-y-1.5">
-                    {loop.steps.slice(0, 3).map((step) => (
-                      <div className="flex gap-2 text-compact leading-5 text-(--text-muted)" key={`${loop.slug}:${step.name}`}>
-                        <Repeat2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-                        <span className="min-w-0">
-                          <span className="font-medium text-(--text-default)">{step.name}</span>
-                          <span>：{step.prompt}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-
-                  <p className="mt-2 border-t border-(--divider-subtle-color) pt-2 text-xs leading-[1.125rem] text-(--text-soft)">
-                    {t("capability.loops_exit")}: {loop.exit_condition.description}
-                  </p>
-                </div>
+                </UiListRow>
               ))}
             </div>
           )}

@@ -86,6 +86,7 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
           <div data-tour-anchor={SKILLS_TOUR_ANCHORS.header}>
             <SkillsHeader
               checkingUpdates={operations.checkingUpdates}
+              detailOpen={Boolean(skillName)}
               discoveryMode={discoveryMode}
               importing={operations.importing}
               onChangeDiscoveryMode={setDiscoveryMode}

@@ -389,6 +389,17 @@
   }
 }
 
+@media (max-width: 1023px) {
+  .workspace-surface-header-narrow-hidden {
+    display: none;
+  }
+
+  .workspace-surface-header-narrow-toolbar
+    .workspace-surface-header-title {
+    display: none;
+  }
+}
+
 @container workspace-surface-header (max-width: 920px) {
   .workspace-surface-header-with-session-tabs nav.workspace-surface-header-view-tabs {
     flex: 0 0 auto;

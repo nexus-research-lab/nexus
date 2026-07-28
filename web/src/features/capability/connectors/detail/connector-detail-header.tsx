@@ -141,7 +141,7 @@ export function ConnectorDetailBreadcrumb({
   onBack: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 text-[14px] text-(--text-muted)">
+    <div className="flex items-center gap-2 text-[14px] text-(--text-muted) max-lg:hidden">
       <button
         className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
         onClick={onBack}
@@ -189,8 +189,7 @@ export function ConnectorDetailHeader({
         <ConnectorIcon className="h-14 w-14 surface-radius-md" icon={detail.icon} size="lg" title={detail.title} />
         <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
-            {detail.title}{" "}
-            <span className="ml-2 font-normal text-(--text-muted)">App</span>
+            {detail.title}
           </h1>
           <p className="mt-1 text-sm leading-5 text-(--text-muted)">
             {detail.description}

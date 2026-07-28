@@ -64,7 +64,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
 
   return (
     <div className="mx-auto w-full max-w-[960px] px-4 py-4 sm:px-6 lg:px-8">
-      <UiButton size="sm" variant="text" onClick={onBack}>
+      <UiButton className="max-lg:hidden" size="sm" variant="text" onClick={onBack}>
         <ArrowLeft className="h-4 w-4" />
         {t("common.back")}
       </UiButton>

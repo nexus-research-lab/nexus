@@ -9,7 +9,7 @@ export function ConnectorsHeader() {
   return (
     <WorkspaceSurfaceHeader
       leading={<Link2 className="h-4 w-4" />}
-      subtitle={t("capability.connectors_subtitle")}
+      narrowMode="hidden"
       title={t("capability.connectors")}
     />
   );

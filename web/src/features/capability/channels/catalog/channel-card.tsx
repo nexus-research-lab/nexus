@@ -78,7 +78,7 @@ function ChannelCardContent({
       <div className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
         {model.description}
       </div>
-      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-2xs leading-4 text-(--text-soft)">
+      <div className="mt-0.5 flex min-w-0 flex-nowrap items-center gap-x-2.5 overflow-hidden text-2xs leading-4 text-(--text-soft)">
         {model.metadata.map((value, index) => (
           <span className="inline-flex min-w-0 items-center gap-1.5" key={value}>
             {index > 0 ? <span aria-hidden="true">·</span> : null}
@@ -117,7 +117,6 @@ export function ChannelCard({
   return (
     <UiListRow
       className={cn(
-        "min-h-[60px] rounded-[8px] px-2 py-1",
         planned && "cursor-default opacity-70",
       )}
       leading={<ChannelIcon type={item.channel_type} />}

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified capability pages around one title, description, filter, section, and catalog-row rhythm; aligned every directory to the same wider desktop gutter, reduced Loop and pairing list density, made scheduled-task boards responsive, and removed repeated mobile titles and back controls.
 - Added official QR registration alongside manual App ID / Secret setup for Feishu, DingTalk, and WeCom IM channels. Feishu QR pages allow users to select an existing application and grant the missing permissions or create a new one; Feishu Docs then chains user document authorization without requiring credentials to be pasted into Nexus.
 - Made the Nexus main Agent proactively delegate bounded, context-heavy or independently parallel work while retaining requirement understanding, dependency ordering, verification, and final synthesis in the main conversation. Tightly coupled or mismatched work stays with the main Agent, and parallel Subagents receive distinct user-facing names.
 - Grouped all Room Subagents in the current Session by the Agent that launched them and reused the Workspace member switcher so each caller's active and completed tasks can be inspected independently.

@@ -14,6 +14,7 @@ import type {
   PairingView,
   UpdatePairingPayload,
 } from "@/lib/api/capability/channel-api";
+import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
 import { UiBadge } from "@/shared/ui/display/badge";
 import type { UiBadgeTone } from "@/shared/ui/display/badge-styles";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
@@ -124,7 +125,6 @@ export function PairingList({
         <PairingSection
           agents={agents}
           busy={busy}
-          description={`${group.items.length} 个外部对象`}
           items={group.items}
           key={group.agent_id}
           onCopySessionKey={onCopySessionKey}
@@ -149,7 +149,7 @@ function PairingSection({
 }: {
   agents: Agent[];
   busy: boolean;
-  description: string;
+  description?: string;
   items: PairingView[];
   onCopySessionKey: PairingListProps["onCopySessionKey"];
   onDeletePairing: PairingListProps["onDeletePairing"];
@@ -158,19 +158,11 @@ function PairingSection({
 }) {
   return (
     <section className="space-y-2">
-      <div className="flex min-w-0 items-end justify-between gap-4 border-b border-(--divider-subtle-color) pb-2">
-        <div className="min-w-0">
-          <h2 className="truncate text-base font-semibold text-(--text-strong)">
-            {title}
-          </h2>
-          <p className="truncate text-compact text-(--text-muted)">
-            {description}
-          </p>
-        </div>
-        <span className="shrink-0 text-compact font-medium tabular-nums text-(--text-soft)">
-          {items.length}
-        </span>
-      </div>
+      <CapabilitySectionHeader
+        count={String(items.length)}
+        description={description}
+        title={title}
+      />
       <div className="space-y-2">
         {items.map((item) => (
           <PairingRow
@@ -210,21 +202,31 @@ function PairingRow({
     <UiPanel className="overflow-hidden rounded-[8px]" padding="none" radius="sm">
       <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(220px,0.7fr)_auto] items-center gap-3 px-3 py-3 max-lg:grid-cols-1">
         <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <UiBadge>{CHANNEL_LABELS[item.channel_type] ?? item.channel_type}</UiBadge>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1 truncate text-[14px] font-medium text-(--text-strong)">
+              {pairingDisplayName(item)}
+            </div>
             <UiBadge tone={STATUS_TONES[item.status]}>
               {STATUS_LABELS[item.status]}
             </UiBadge>
-            <UiBadge>{CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type}</UiBadge>
           </div>
-          <div className="mt-1.5 truncate text-[14px] font-medium text-(--text-strong)">
-            {pairingDisplayName(item)}
-          </div>
-          <div className="mt-1 truncate font-mono text-compact text-(--text-muted)">
-            {pairingTarget(item)}
-          </div>
-          <div className="mt-1 text-xs text-(--text-soft)">
-            {item.last_message_at ? "最近消息" : "更新于"} {formatPairingTime(activityAt)}
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden text-compact text-(--text-muted)">
+            <span className="shrink-0">
+              {CHANNEL_LABELS[item.channel_type] ?? item.channel_type}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="shrink-0">
+              {CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="min-w-0 truncate font-mono">
+              {pairingTarget(item)}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="shrink-0 text-(--text-soft)">
+              {item.last_message_at ? "最近消息" : "更新于"}{" "}
+              {formatPairingTime(activityAt)}
+            </span>
           </div>
         </div>
 
