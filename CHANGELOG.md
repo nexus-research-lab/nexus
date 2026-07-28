@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added the internally bundled `slide-maker` Skill from `addsumtech/slides_maker` release 4.1.0, including its editable PPTX build helpers, design references, and independent review workflow.
+- Added fixed-height scrollable multi-select and confirmed batch deletion to Room conversation history, with the current conversation's available management actions kept visible and the final remaining conversation protected from deletion. New sessions now use a localized placeholder until the existing first-message title generator replaces it with a semantic title instead of exposing sequence numbers.
 
 ### Changed
 
@@ -18,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Made the Nexus main Agent proactively delegate bounded, context-heavy or independently parallel work while retaining requirement understanding, dependency ordering, verification, and final synthesis in the main conversation. Tightly coupled or mismatched work stays with the main Agent, and parallel Subagents receive distinct user-facing names.
 - Grouped all Room Subagents in the current Session by the Agent that launched them and reused the Workspace member switcher so each caller's active and completed tasks can be inspected independently.
 - Improved Windows and macOS desktop updates with launch-time checks, automatic four-hour refreshes, sidebar availability indicators, and live installer download progress.
+- Added a small fixed gap between adjacent workspace view tabs so their individual interaction surfaces remain visually distinct.
+- Replaced the Home chat sidebar's ambiguous bare plus and the Room dialog's hash placeholder with one higher-contrast double-chat-bubble and accent-plus icon, while retaining the shared sidebar button interaction without adding persistent text.
 - Made Room hosts assess task complexity, separable work, and member fit before substantial execution, prefer meaningful collaboration, and avoid duplicating work after delegating while retaining direct handling for small, atomic, or unsuitable-for-delegation tasks.
 
 ### Fixed
@@ -35,9 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Isolated Room overlays, directed-message state, public handoffs, and delayed wakes under each owner's host-managed `state/rooms` directory, moved runtime-readable Room attachments into the owner's `workspace/.rooms` asset tree, pinned Room ledger access to verified directory/file inodes, and added a restart-safe owner-validated migration from the former shared `app/rooms` layout.
 - Bound owner-aware InputQueue, Room transcript references, and attachment reads to no-symlink directory paths, with inode and hard-link checks before host file access.
 - Made the Room `+` action rely on one explicit server-side draft per Room instead of scanning message counts or pulling unrelated history into the tab bar, atomically reused that draft across repeated and cross-window requests, kept it out of history until real user input, and preserved one-click tab closing. Added a file-aware one-time desktop upgrade repair plus a dry-run-by-default `nexusctl conversation prune-empty` command to consolidate duplicate legacy Sessions that never received user input.
+- Made Composer up/down input recall effective across chat switches, remounts, page reloads, and desktop App restarts by persisting a bounded history per logical DM or Room inside each browser or App WebView without server or cross-device synchronization.
 - Kept every runtime-blocking Room interaction directly actionable in the public conversation—including tool approvals, structured questions, plan confirmations, and unknown future approval tools—while retaining Thread as an optional detail view. Terminal question tools now reuse the same complete response surface instead of rendering a disabled duplicate beside the actionable confirmation.
 - Replaced raw Provider content-safety errors such as GLM code 1301 with one stable, actionable conversation message across DM, Room, and Thread projections; the next real user turn now receives a hidden safe failure reason so the Agent can explain what happened and continue in context, without adding a retry control, automatically retrying, or switching the selected model.
 - Persisted each Room and DM conversation tab workspace across chat switches and app restarts, including the open count, stable order, closed tabs, and active item; first-time entry now opens only the selected conversation, while history remains available without being promoted into tabs automatically.
+- Prevented Room conversation tab switches from entering a React update loop when the history menu recalculates which conversations are eligible for batch selection.
 - Aligned and rounded the active Room Thread selection surface with the adjacent round dividers without shifting the message content.
 - Isolated the complete unsent Composer draft—text, image/file attachments, Message/Goal mode, Room Goal lead, and Mention targets—per Session within the same Room or DM, restored each Session's draft and caret when switching back, and revision-guarded delayed acknowledgements from clearing newer edits.
 - Replaced pasted-image filename chips in the Composer with compact visual thumbnails, added compact click-to-open image and pasted-text previews, and kept ordinary file attachments as labeled chips.
