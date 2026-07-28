@@ -81,7 +81,7 @@
 
 .workspace-surface-header-view-tabs {
   height: 100%;
-  gap: 0 !important;
+  gap: 4px !important;
   overflow: visible !important;
 }
 
