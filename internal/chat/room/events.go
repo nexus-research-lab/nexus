@@ -84,6 +84,30 @@ func WrapChatAckEvent(
 	return event
 }
 
+// WrapServerPendingSlotsEvent 构建后端主动创建 slot 的可回放状态事件。
+// 它不承担客户端请求确认；订阅窗口内错过时必须能按 room_seq 恢复。
+func WrapServerPendingSlotsEvent(
+	sessionKey string,
+	roomID string,
+	conversationID string,
+	roundID string,
+	pending []protocol.ChatAckPendingSlot,
+) protocol.EventMessage {
+	event := WrapChatAckEvent(
+		sessionKey,
+		roomID,
+		conversationID,
+		"",
+		"",
+		roundID,
+		"",
+		false,
+		pending,
+	)
+	event.DeliveryMode = "durable"
+	return event
+}
+
 // WrapLifecycleEvent 构建 Room slot 生命周期事件。
 func WrapLifecycleEvent(eventType protocol.EventType, sessionKey string, roomID string, conversationID string, agentID string, msgID string, roundID string, agentRoundID string) protocol.EventMessage {
 	event := protocol.NewEvent(eventType, map[string]any{

@@ -15,8 +15,7 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 
-import { GroupAgentStatusCard } from "./group-agent-status-card";
-import { GroupCompletedReply } from "./group-completed-reply";
+import { GroupAgentReply } from "./group-agent-reply";
 import {
   buildGroupRoundCardModel,
   type GroupRoundUserMessageModel,
@@ -83,7 +82,7 @@ function GroupRoundCardGroupInner({
   }, [activeThread, closeThread, openThread, roundId]);
 
   return (
-    <div className="w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="w-full min-w-0">
       {model.userMessages.map((item) => (
         <GroupUserMessage
           agentAvatarMap={agentAvatarMap}
@@ -120,41 +119,21 @@ function GroupRoundCardGroupInner({
                 roundId={roundId}
               />
             ))}
-            {entry.status === "done" ? (
-              <GroupCompletedReply
-                entry={entry}
-                isThreadActive={isThreadActive}
-                onClickThread={toggleEntryThread}
-                onOpenAgentContact={onOpenAgentContact}
-                onOpenWorkspaceFile={onOpenWorkspaceFile}
-                onPermissionResponse={onPermissionResponse}
-                agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
-                roundId={roundId}
-              />
-            ) : (
-              <>
-                <GroupAgentStatusCard
-                  agentAvatar={entry.agentAvatar}
-                  agentId={entry.agent_id}
-                  agentName={entry.agentName}
-                  isThreadActive={isThreadActive}
-                  messages={entry.assistant_messages}
-                  onClickThread={toggleEntryThread}
-                  onOpenAgentContact={onOpenAgentContact}
-                  onPermissionResponse={onPermissionResponse}
-                  onStopAgentRound={
-                    stopAgentRoundId
-                      ? () => onStopAgentRound(stopAgentRoundId)
-                      : undefined
-                  }
-                  pendingPermissions={entry.pendingPermissions}
-                  resultSummary={entry.result_summary}
-                  status={entry.status}
-                  timestamp={entry.timestamp}
-                />
-                <hr aria-hidden="true" className="conversation-round-divider" />
-              </>
-            )}
+            <GroupAgentReply
+              entry={entry}
+              isThreadActive={isThreadActive}
+              onClickThread={toggleEntryThread}
+              onOpenAgentContact={onOpenAgentContact}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              onPermissionResponse={onPermissionResponse}
+              onStopAgentRound={
+                stopAgentRoundId
+                  ? () => onStopAgentRound(stopAgentRoundId)
+                  : undefined
+              }
+              agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
+              roundId={roundId}
+            />
           </Fragment>
         );
       })}
@@ -183,6 +162,7 @@ function GroupUserMessage({
     <div className="border-b border-(--divider-subtle-color)">
       {/* 用户消息沿用通用样式，但不渲染尚未出现的助手区域。 */}
       <MessageItem
+        animateEntry={false}
         className="border-b-0"
         currentUserAvatar={currentUserAvatar}
         agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}

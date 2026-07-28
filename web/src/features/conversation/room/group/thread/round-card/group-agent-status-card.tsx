@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * INPUT: Room Agent 执行卡片、待处理人工介入请求与用户动作。
- * OUTPUT: 与轮次分隔线对齐的选择面、Agent 状态摘要、Thread 入口及完整公区用户交互。
- * POS: Room 主 Feed 中活动 Agent 卡片的唯一交互视图。
+ * INPUT: Room Agent 运行态或无正文终态、人工介入请求与用户动作。
+ * OUTPUT: 与轮次分隔线对齐的执行摘要、Thread 入口及公区用户交互。
+ * POS: Room 主 Feed 的运行态摘要与无正文终态回退视图。
  */
 import { Bot, Loader2, Square } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";

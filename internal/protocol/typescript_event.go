@@ -92,6 +92,7 @@ export interface ChatAckPendingSlot {
   agent_id: string;
   agent_round_id: string;
   msg_id: string;
+  round_id?: string;
   status: string;
   timestamp: number;
   index: number;

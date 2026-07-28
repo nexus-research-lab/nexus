@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次内的 user / assistant 消息、slot 与权限状态。
- * OUTPUT: root-global user、Room 内可直接处理的全部人工介入，以及按精确消费 agent_round_id、终态时序和稳定活动槽排列的 Agent 卡片摘要。
+ * OUTPUT: root-global user、Room 内可直接处理的全部人工介入，以及按精确消费 agent_round_id 和稳定展示槽排列的 Agent 卡片摘要。
  * POS: Group round feed 的唯一展示归组入口。
  */
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
@@ -17,7 +17,6 @@ import { stripRoomControlMarkers } from "@/features/conversation/shared/message/
 import {
   buildRoomAgentRoundEntries,
   extractAgentPreviewText,
-  getActiveAgentRoundSortOrder,
   isAgentRoundActive,
   type AgentRoundStatus,
   type RoomAgentRoundEntry,
@@ -530,21 +529,10 @@ function compareAgentCards(
   left: GroupRoundAgentCardModel,
   right: GroupRoundAgentCardModel,
 ): number {
-  const leftActive = isAgentRoundActive(left.status);
-  const rightActive = isAgentRoundActive(right.status);
-  if (leftActive !== rightActive) {
-    return leftActive ? 1 : -1;
-  }
-  if (!leftActive) {
-    return left.timestamp - right.timestamp
-      || left.display_order - right.display_order
-      || left.entry_id.localeCompare(right.entry_id);
-  }
-  return getActiveAgentRoundSortOrder(left.status)
-      - getActiveAgentRoundSortOrder(right.status)
-    || left.timestamp - right.timestamp
+  return left.display_order - right.display_order
     || (left.pending_slot?.index ?? Number.MAX_SAFE_INTEGER)
       - (right.pending_slot?.index ?? Number.MAX_SAFE_INTEGER)
+    || left.timestamp - right.timestamp
     || left.entry_id.localeCompare(right.entry_id);
 }
 

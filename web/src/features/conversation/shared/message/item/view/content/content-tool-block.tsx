@@ -15,6 +15,7 @@ import { ASK_USER_QUESTION_TOOL_NAME } from "../../../message-tool-names";
 import { AskUserQuestionBlock } from "../../../blocks/question/ask-user-question-block";
 import { ToolBlock } from "../../../blocks/tool/tool-block";
 import type { ToolPermissionRequest } from "../../../blocks/tool/tool-block-types";
+import { PendingHumanQuestion } from "../assistant/pending-human-question";
 import {
   resolveToolBlockStatus,
   type StructuredContentProjection,
@@ -67,6 +68,19 @@ function renderQuestionToolBlock(
   context: ContentToolBlockContext,
   state: ContentToolBlockState,
 ) {
+  if (context.pendingPermission && state.waitingForPermission) {
+    return (
+      <div data-human-interaction-surface>
+        <PendingHumanQuestion
+          canRespond={context.canRespondToPermissions}
+          onResponse={context.onPermissionResponse}
+          permission={context.pendingPermission}
+          readOnlyReason={context.permissionReadOnlyReason}
+          toolUse={block}
+        />
+      </div>
+    );
+  }
   return (
     <AskUserQuestionBlock
       initialSubmitted={isSuccessfulResult(state.result)}

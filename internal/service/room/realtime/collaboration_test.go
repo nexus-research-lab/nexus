@@ -642,3 +642,21 @@ func TestBuildPublicMentionSlotKeepsPublicTriggerMessage(t *testing.T) {
 		)
 	}
 }
+
+func TestSetRoomDisplayOrderKeepsSlotStartAcrossCompletion(t *testing.T) {
+	slot := &activeRoomSlot{
+		Index:       2,
+		TimestampMS: 100,
+	}
+	message := protocol.Message{
+		"message_id": "assistant-late-completion",
+		"role":       "assistant",
+		"timestamp":  int64(900),
+	}
+
+	setRoomDisplayOrder(slot, message)
+
+	if got, want := protocol.Int64FromAny(message["display_order"]), int64(100_002); got != want {
+		t.Fatalf("Room display order = %d, want slot start order %d", got, want)
+	}
+}

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 面板状态、内容节点、滚动 refs 与统一输入事件。
+ * OUTPUT: 可聚焦且关闭浏览器锚点争抢的主对话滚动布局。
+ * POS: DM 与 Room 主对话面板的共享纯视图骨架。
+ */
 import type { ComponentProps, ReactNode, RefObject } from "react";
 
 import { ConversationErrorBubble } from "./conversation-error-bubble";
@@ -63,6 +68,7 @@ export function ConversationPanelViewport({
           : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 xl:px-7 xl:py-5"
       }
       style={{ overflowAnchor: "none" }}
+      tabIndex={-1}
       onPointerDown={viewport.onPointerDown}
       onScroll={viewport.onScroll}
       onTouchEnd={viewport.onTouchEnd}
@@ -105,13 +111,11 @@ export function ConversationPanelFloatingControls({
 }) {
   return (
     <>
-      {scrollToLatest.visible ? (
-        <ScrollToLatestButton
-          isLoading={scrollToLatest.isLoading}
-          isMobileLayout={isMobileLayout}
-          onClick={scrollToLatest.onClick}
-        />
-      ) : null}
+      <ScrollToLatestButton
+        isLoading={scrollToLatest.isLoading}
+        onClick={scrollToLatest.onClick}
+        visible={scrollToLatest.visible}
+      />
       {providerWarningVisible ? (
         <ProviderUnavailableBanner compact={isMobileLayout} />
       ) : null}

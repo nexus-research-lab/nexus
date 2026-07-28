@@ -47,8 +47,62 @@ test("scroll-to-latest requires real viewport overflow", async () => {
   );
 });
 
-test("scroll events only resume following near the bottom", async () => {
-  const { isNearScrollBottom } = await server.ssrLoadModule(
+test("scroll-to-latest stays clear of the feed boundary", async () => {
+  const { ScrollToLatestButton } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/scroll-to-latest-button.tsx",
+  );
+  const visibleHtml = renderToStaticMarkup(React.createElement(
+    ScrollToLatestButton,
+    {
+      isLoading: false,
+      onClick: () => {},
+      visible: true,
+    },
+  ));
+  const hiddenHtml = renderToStaticMarkup(React.createElement(
+    ScrollToLatestButton,
+    {
+      isLoading: false,
+      onClick: () => {},
+      visible: false,
+    },
+  ));
+
+  assert.match(
+    visibleHtml,
+    /<div class="pointer-events-none relative z-20 h-10 shrink-0">/,
+    "the action needs a dedicated band outside the scrollable feed",
+  );
+  assert.match(
+    visibleHtml,
+    /class="[^"]*absolute[^"]*top-1\/2[^"]*"/,
+    "the action must stay centered inside its reserved band",
+  );
+  assert.doesNotMatch(
+    hiddenHtml,
+    /aria-label="回到底部"/,
+    "the reserved band must remain stable without exposing a hidden action",
+  );
+  assert.match(
+    hiddenHtml,
+    /<div class="pointer-events-none relative z-20 h-10 shrink-0"><\/div>/,
+    "showing or hiding the action must not resize the feed",
+  );
+});
+
+test("scroll events resume only while moving down near the bottom", async () => {
+  const {
+    getConversationViewportSize,
+    hasConversationViewportSizeChanged,
+    isNearScrollBottom,
+    resolveKeyboardFollowScrollIntent,
+    resolveTouchFollowScrollIntent,
+    resolveConversationViewportResizeState,
+    resolveConversationViewportSizeRevision,
+    shouldDetachFollowForAtomicGrowth,
+    shouldPauseFollowOnScroll,
+    shouldResumeFollowOnScroll,
+  } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
   );
   assert.equal(
@@ -71,6 +125,181 @@ test("scroll events only resume following near the bottom", async () => {
     ),
     true,
     "scrolling back near the bottom must restore following",
+  );
+  assert.equal(
+    shouldResumeFollowOnScroll(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_480 },
+      4_500,
+      true,
+    ),
+    false,
+    "a small explicit upward scroll must remain detached inside the threshold",
+  );
+  assert.equal(
+    shouldResumeFollowOnScroll(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_450 },
+      4_300,
+      true,
+    ),
+    false,
+    "moving down while still away from the edge must remain detached",
+  );
+  assert.equal(
+    shouldResumeFollowOnScroll(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_494 },
+      4_450,
+      false,
+    ),
+    false,
+    "a programmatic size correction must not restore following",
+  );
+  assert.equal(
+    shouldResumeFollowOnScroll(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_494 },
+      4_450,
+      true,
+    ),
+    true,
+    "only downward movement back to the bottom edge may resume following",
+  );
+  assert.equal(
+    shouldPauseFollowOnScroll(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_420 },
+      4_450,
+      true,
+    ),
+    true,
+    "an upward pointer or wheel movement must detach following",
+  );
+  assert.equal(
+    shouldPauseFollowOnScroll(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_420 },
+      4_450,
+      false,
+    ),
+    false,
+    "programmatic upward correction must not imitate user intent",
+  );
+  assert.equal(resolveKeyboardFollowScrollIntent("PageUp", false), "up");
+  assert.equal(resolveKeyboardFollowScrollIntent("End", false), "down");
+  assert.equal(resolveKeyboardFollowScrollIntent(" ", true), "up");
+  assert.equal(resolveKeyboardFollowScrollIntent("a", false), null);
+  assert.equal(resolveTouchFollowScrollIntent(400, 360), "down");
+  assert.equal(
+    resolveTouchFollowScrollIntent(360, 380),
+    "up",
+    "a reverse touch move must use the previous frame instead of the origin",
+  );
+  assert.deepEqual(
+    getConversationViewportSize({
+      clientHeight: 480,
+    }),
+    { height: 480 },
+    "the reading viewport is defined by its available content height",
+  );
+  assert.equal(
+    hasConversationViewportSizeChanged(
+      { height: 500 },
+      getConversationViewportSize({
+        clientHeight: 500,
+      }),
+    ),
+    false,
+    "an unchanged viewport height must not detach following",
+  );
+  assert.equal(
+    hasConversationViewportSizeChanged(
+      { height: 500 },
+      { height: 499 },
+    ),
+    false,
+    "subpixel observer noise must not detach following",
+  );
+  const ignoredViewportRevision = resolveConversationViewportSizeRevision(
+    { height: 500 },
+    { height: 499 },
+  );
+  assert.deepEqual(
+    ignoredViewportRevision,
+    {
+      baseline: { height: 500 },
+      changed: false,
+    },
+    "ignored one-pixel resize noise must not advance the comparison baseline",
+  );
+  assert.deepEqual(
+    resolveConversationViewportSizeRevision(
+      ignoredViewportRevision.baseline,
+      { height: 498 },
+    ),
+    {
+      baseline: { height: 498 },
+      changed: true,
+    },
+    "successive one-pixel App resizes must accumulate into a real viewport change",
+  );
+  assert.equal(
+    hasConversationViewportSizeChanged(
+      { height: 500 },
+      { height: 420 },
+    ),
+    true,
+    "Composer or App height changes must be treated as viewport changes",
+  );
+  assert.deepEqual(
+    resolveConversationViewportResizeState(
+      { clientHeight: 420, scrollHeight: 1_500, scrollTop: 1_000 },
+      1_000,
+      true,
+    ),
+    {
+      scrollTop: 1_000,
+      shouldFollow: false,
+      showScrollToBottom: true,
+    },
+    "a shrinking viewport must retain the visible content instead of following the new bottom",
+  );
+  assert.deepEqual(
+    resolveConversationViewportResizeState(
+      { clientHeight: 500, scrollHeight: 1_500, scrollTop: 1_000 },
+      1_080,
+      true,
+    ),
+    {
+      scrollTop: 1_000,
+      shouldFollow: true,
+      showScrollToBottom: false,
+    },
+    "a growing viewport may clamp an existing bottom position without detaching",
+  );
+  assert.deepEqual(
+    resolveConversationViewportResizeState(
+      { clientHeight: 420, scrollHeight: 1_500, scrollTop: 700 },
+      700,
+      false,
+    ),
+    {
+      scrollTop: 700,
+      shouldFollow: false,
+      showScrollToBottom: true,
+    },
+    "an explicitly detached reader must remain detached after viewport resize",
+  );
+  assert.equal(
+    shouldDetachFollowForAtomicGrowth(
+      { clientHeight: 500, scrollHeight: 1_080, scrollTop: 500 },
+      1_000,
+    ),
+    false,
+    "small streamed layout growth remains a normal follow target",
+  );
+  assert.equal(
+    shouldDetachFollowForAtomicGrowth(
+      { clientHeight: 500, scrollHeight: 1_700, scrollTop: 500 },
+      1_000,
+    ),
+    true,
+    "a terminal Room body replacing one summary must not drag the viewport across the whole result",
   );
 });
 
@@ -154,6 +383,665 @@ test("auto follow settles again after virtual Room measurement", async () => {
       globalThis.window = originalWindow;
     }
   }
+});
+
+test("streaming follow keeps one spring while the bottom target grows", async () => {
+  const { BottomScrollAnimator } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
+  );
+  const frames = [];
+  const cancelledFrames = new Set();
+  const originalWindow = globalThis.window;
+  let nextFrameId = 0;
+  globalThis.window = {
+    cancelAnimationFrame: (frameId) => {
+      cancelledFrames.add(frameId);
+    },
+    requestAnimationFrame: (callback) => {
+      nextFrameId += 1;
+      frames.push({ callback, frameId: nextFrameId });
+      return nextFrameId;
+    },
+  };
+  const runNextFrame = (timestamp) => {
+    while (frames.length > 0) {
+      const frame = frames.shift();
+      if (!cancelledFrames.has(frame.frameId)) {
+        frame.callback(timestamp);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  try {
+    const positions = [];
+    const container = {
+      clientHeight: 500,
+      scrollHeight: 1_000,
+      scrollTop: 500,
+    };
+    const animator = new BottomScrollAnimator(
+      () => container,
+      (scrollTop) => positions.push(scrollTop),
+    );
+
+    animator.follow();
+    animator.follow();
+    assert.equal(
+      frames.length,
+      1,
+      "multiple revisions before paint must share one animation frame",
+    );
+
+    container.scrollHeight = 1_040;
+    runNextFrame(0);
+    assert.ok(
+      container.scrollTop > 500 && container.scrollTop < 540,
+      "the first streamed line must be followed smoothly instead of jumping",
+    );
+
+    container.scrollHeight = 1_080;
+    animator.follow();
+    assert.equal(
+      cancelledFrames.size,
+      0,
+      "a growing target must retain the current spring instead of restarting it",
+    );
+
+    for (let frame = 1; frame <= 120 && frames.length > 0; frame += 1) {
+      animator.follow();
+      runNextFrame(frame * (1_000 / 60));
+    }
+    assert.equal(
+      frames.length,
+      0,
+      "content revisions without height changes must not keep RAF alive",
+    );
+    assert.ok(
+      Math.abs(container.scrollTop - 580) <= 0.001,
+      "the retained spring must settle at the latest measured bottom",
+    );
+    assert.ok(
+      positions.every((position, index) =>
+        index === 0 || position >= positions[index - 1]
+      ),
+      "a monotonically growing stream must never move the viewport backward",
+    );
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("auto follow never reverses across transient bottom measurements", async () => {
+  const { BottomScrollAnimator } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
+  );
+  const originalWindow = globalThis.window;
+
+  try {
+    for (const frameIntervalMs of [1_000 / 20, 1_000 / 30]) {
+      const frames = [];
+      const positions = [];
+      globalThis.window = {
+        cancelAnimationFrame: () => {},
+        requestAnimationFrame: (callback) => {
+          frames.push(callback);
+          return frames.length;
+        },
+      };
+      const container = {
+        clientHeight: 500,
+        scrollHeight: 1_000,
+        scrollTop: 500,
+      };
+      const animator = new BottomScrollAnimator(
+        () => container,
+        (scrollTop) => positions.push(scrollTop),
+      );
+      const runFrame = (index) => {
+        const callback = frames.shift();
+        assert.ok(callback, `expected a queued frame at ${frameIntervalMs}ms`);
+        callback(index * frameIntervalMs);
+      };
+
+      animator.follow();
+      container.scrollHeight = 1_080;
+      for (let frame = 0; frame < 3; frame += 1) {
+        runFrame(frame);
+      }
+      const beforeTransientShrink = container.scrollTop;
+
+      container.scrollHeight = 1_040;
+      animator.follow();
+      for (let frame = 3; frame < 6 && frames.length > 0; frame += 1) {
+        runFrame(frame);
+      }
+      assert.ok(
+        container.scrollTop >= beforeTransientShrink,
+        `${Math.round(1_000 / frameIntervalMs)}fps follow must ignore a temporary lower target`,
+      );
+
+      container.scrollHeight = 1_120;
+      animator.follow();
+      for (
+        let frame = 6;
+        frame < 180 && frames.length > 0;
+        frame += 1
+      ) {
+        runFrame(frame);
+      }
+      assert.ok(
+        Math.abs(container.scrollTop - 620) <= 0.001,
+        `${Math.round(1_000 / frameIntervalMs)}fps follow must settle at the later higher target`,
+      );
+      assert.ok(
+        positions.every((position, index) =>
+          index === 0 || position >= positions[index - 1]
+        ),
+        `${Math.round(1_000 / frameIntervalMs)}fps follow must keep every programmatic write monotonic`,
+      );
+    }
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("explicit smooth scroll may close against a lower bottom target", async () => {
+  const { BottomScrollAnimator } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
+  );
+  const frames = [];
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    cancelAnimationFrame: () => {},
+    requestAnimationFrame: (callback) => {
+      frames.push(callback);
+      return frames.length;
+    },
+  };
+
+  try {
+    const container = {
+      clientHeight: 500,
+      scrollHeight: 1_080,
+      scrollTop: 500,
+    };
+    const animator = new BottomScrollAnimator(() => container, () => {});
+    animator.scroll("smooth");
+
+    for (let frame = 0; frame < 6; frame += 1) {
+      frames.shift()(frame * (1_000 / 30));
+    }
+    assert.ok(container.scrollTop > 540);
+
+    container.scrollHeight = 1_040;
+    for (let frame = 6; frame < 180 && frames.length > 0; frame += 1) {
+      frames.shift()(frame * (1_000 / 30));
+    }
+    assert.ok(
+      Math.abs(container.scrollTop - 540) <= 0.001,
+      "an explicit scroll-to-bottom transaction must use the real lower target",
+    );
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("auto follow releases its high-water target after a real browser clamp", async () => {
+  const { BottomScrollAnimator } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
+  );
+  const frames = [];
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    cancelAnimationFrame: () => {},
+    requestAnimationFrame: (callback) => {
+      frames.push(callback);
+      return frames.length;
+    },
+  };
+
+  try {
+    let scrollHeight = 1_080;
+    let scrollTop = 500;
+    const container = {
+      clientHeight: 500,
+      get scrollHeight() {
+        return scrollHeight;
+      },
+      set scrollHeight(value) {
+        scrollHeight = value;
+        scrollTop = Math.min(scrollTop, value - this.clientHeight);
+      },
+      get scrollTop() {
+        return scrollTop;
+      },
+      set scrollTop(value) {
+        scrollTop = Math.min(value, scrollHeight - this.clientHeight);
+      },
+    };
+    const animator = new BottomScrollAnimator(() => container, () => {});
+    animator.follow();
+    frames.shift()(0);
+    assert.ok(container.scrollTop > 500);
+
+    container.scrollHeight = 1_040;
+    for (let frame = 1; frame < 30 && frames.length > 0; frame += 1) {
+      frames.shift()(frame * (1_000 / 60));
+    }
+    assert.equal(container.scrollTop, 540);
+    assert.equal(
+      frames.length,
+      0,
+      "a permanent smaller layout must not leave the old high-water RAF spinning",
+    );
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("streaming spring escapes subpixel scrollTop quantization", async () => {
+  const { BottomScrollAnimator } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
+  );
+  const frames = [];
+  const originalWindow = globalThis.window;
+  let nextFrameId = 0;
+  globalThis.window = {
+    cancelAnimationFrame: () => {},
+    requestAnimationFrame: (callback) => {
+      nextFrameId += 1;
+      frames.push(callback);
+      return nextFrameId;
+    },
+  };
+
+  try {
+    let quantizedScrollTop = 498.5;
+    const container = {
+      clientHeight: 500,
+      scrollHeight: 1_000,
+      get scrollTop() {
+        return quantizedScrollTop;
+      },
+      set scrollTop(value) {
+        quantizedScrollTop = Math.round(value * 2) / 2;
+      },
+    };
+    const animator = new BottomScrollAnimator(() => container, () => {});
+    animator.follow();
+
+    for (let frame = 0; frame < 10 && frames.length > 0; frame += 1) {
+      const callback = frames.shift();
+      callback(frame * (1_000 / 120));
+    }
+
+    assert.equal(container.scrollTop, 500);
+    assert.equal(
+      frames.length,
+      0,
+      "a rounded scrollTop must settle instead of keeping RAF alive",
+    );
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("streaming spring treats App resume as a fresh visible frame", async () => {
+  const { BottomScrollAnimator } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
+  );
+  const frames = [];
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    cancelAnimationFrame: () => {},
+    requestAnimationFrame: (callback) => {
+      frames.push(callback);
+      return frames.length;
+    },
+  };
+  try {
+    const container = {
+      clientHeight: 500,
+      scrollHeight: 1_500,
+      scrollTop: 500,
+    };
+    const animator = new BottomScrollAnimator(() => container, () => {});
+    animator.follow();
+    frames.shift()(0);
+    const beforeResume = container.scrollTop;
+    frames.shift()(5_000);
+    assert.ok(
+      container.scrollTop - beforeResume < 200,
+      "a long minimized/hidden gap must not be consumed as one giant spring step",
+    );
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("active follow stops before a Composer or App viewport resize", async () => {
+  const { BottomScrollAnimator } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
+  );
+  const frames = [];
+  const observedPositions = [];
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    cancelAnimationFrame: () => {},
+    requestAnimationFrame: (callback) => {
+      frames.push(callback);
+      return frames.length;
+    },
+  };
+  try {
+    const container = {
+      clientHeight: 500,
+      scrollHeight: 1_080,
+      scrollTop: 500,
+    };
+    const animator = new BottomScrollAnimator(
+      () => container,
+      (scrollTop) => observedPositions.push(scrollTop),
+    );
+    animator.follow();
+    container.clientHeight = 420;
+    frames.shift()(0);
+
+    assert.equal(container.scrollTop, 500);
+    assert.deepEqual(
+      observedPositions,
+      [],
+      "the resize guard must stop before the animator writes scrollTop",
+    );
+    assert.equal(
+      frames.length,
+      0,
+      "viewport resize must terminate the active follow transaction",
+    );
+  } finally {
+    if (originalWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = originalWindow;
+    }
+  }
+});
+
+test("virtual resize correction ignores a long reply crossing the viewport", async () => {
+  const {
+    resolveConversationVirtualInitialOffset,
+    shouldAdjustConversationVirtualScrollPosition,
+  } =
+    await server.ssrLoadModule(
+      "/src/features/conversation/shared/feed/use-conversation-virtual-scroll-policy.ts",
+    );
+  assert.equal(resolveConversationVirtualInitialOffset(null), 0);
+  assert.equal(
+    resolveConversationVirtualInitialOffset({ scrollTop: -20 }),
+    0,
+    "Safari overscroll must not become a negative virtual initial offset",
+  );
+  assert.equal(
+    resolveConversationVirtualInitialOffset({ scrollTop: 640 }),
+    640,
+    "static-to-virtual switching must inherit the existing viewport offset",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 500 },
+      28,
+      { scrollOffset: 500 },
+    ),
+    true,
+    "a round fully above the viewport must preserve the visible anchor",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 900 },
+      28,
+      { scrollOffset: 500 },
+    ),
+    false,
+    "growth at the tail of a visible long reply must not push paused reading",
+  );
+});
+
+test("non-virtual content growth preserves the first visible Room round", async () => {
+  const { ConversationViewportAnchor } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/conversation-viewport-anchor.ts",
+  );
+  let scrollTop = 400;
+  const documentTops = {
+    above: 250,
+    visible: 450,
+  };
+  const container = {
+    clientHeight: 500,
+    scrollHeight: 1_500,
+    get scrollTop() {
+      return scrollTop;
+    },
+    set scrollTop(value) {
+      scrollTop = value;
+    },
+    getBoundingClientRect: () => ({ bottom: 600, top: 100 }),
+  };
+  const buildRound = (key, height) => ({
+    dataset: {
+      conversationRootRoundId: key,
+      conversationRoundId: key,
+    },
+    isConnected: true,
+    getBoundingClientRect: () => {
+      const top = 100 + documentTops[key] - scrollTop;
+      return { bottom: top + height, top };
+    },
+  });
+  const above = buildRound("above", 100);
+  const visible = buildRound("visible", 200);
+  const rounds = [above, visible];
+  const feed = {
+    contains: (element) => rounds.includes(element),
+    dataset: {},
+    querySelectorAll: () => rounds,
+  };
+  const anchor = new ConversationViewportAnchor();
+
+  anchor.capture(container, feed);
+  const visibleTopBeforeGrowth = visible.getBoundingClientRect().top;
+  documentTops.visible += 120;
+  assert.equal(anchor.restore(container, feed), 520);
+  assert.equal(
+    visible.getBoundingClientRect().top,
+    visibleTopBeforeGrowth,
+    "a permission or earlier member result must not move the visible reply",
+  );
+
+  assert.equal(
+    anchor.restore(container, feed),
+    null,
+    "growth below the anchor must not manufacture a scroll correction",
+  );
+
+  feed.dataset.conversationVirtualFeed = "true";
+  documentTops.visible += 80;
+  assert.equal(
+    anchor.restore(container, feed),
+    null,
+    "Virtualizer remains the only owner of virtual item size compensation",
+  );
+  assert.equal(scrollTop, 520);
+});
+
+test("viewport anchor survives a static-to-virtual Room feed switch", async () => {
+  const { ConversationViewportAnchor } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/conversation-viewport-anchor.ts",
+  );
+  let scrollTop = 400;
+  let documentTop = 460;
+  const container = {
+    clientHeight: 500,
+    scrollHeight: 1_600,
+    get scrollTop() {
+      return scrollTop;
+    },
+    set scrollTop(value) {
+      scrollTop = value;
+    },
+    getBoundingClientRect: () => ({ bottom: 600, top: 100 }),
+  };
+  const buildRound = (
+    roundId = "room-agent-round:root-visible:agent-visible",
+    getDocumentTop = () => documentTop,
+  ) => ({
+    dataset: {
+      conversationRootRoundId: "root-visible",
+      conversationRoundId: roundId,
+    },
+    getBoundingClientRect: () => {
+      const top = 100 + getDocumentTop() - scrollTop;
+      return { bottom: top + 180, top };
+    },
+    isConnected: true,
+  });
+  const staticRound = buildRound();
+  let rounds = [staticRound];
+  const feed = {
+    contains: (element) => rounds.includes(element),
+    dataset: {},
+    querySelectorAll: () => rounds,
+  };
+  const anchor = new ConversationViewportAnchor();
+  anchor.capture(container, feed);
+  const visibleTop = staticRound.getBoundingClientRect().top;
+
+  staticRound.isConnected = false;
+  documentTop += 140;
+  const virtualRound = buildRound();
+  const earlierSibling = buildRound(
+    "room-agent-round:root-visible:agent-earlier",
+    () => 300,
+  );
+  rounds = [earlierSibling, virtualRound];
+  feed.dataset.conversationVirtualFeed = "true";
+  assert.equal(
+    anchor.restore(container, feed, { allowVirtualFeed: true }),
+    540,
+  );
+  assert.equal(
+    virtualRound.getBoundingClientRect().top,
+    visibleTop,
+    "crossing the virtualization threshold must preserve the same visible node",
+  );
+});
+
+test("Room topology and atomic layout revisions exclude token speed", async () => {
+  const {
+    buildConversationAtomicLayoutKey,
+    buildConversationScrollTopologyKey,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
+  );
+  const streamingMessage = {
+    agent_id: "agent-1",
+    agent_round_id: "agent-round-1",
+    content: [{ type: "text", text: "第一段" }],
+    message_id: "assistant-1",
+    role: "assistant",
+    round_id: "root-1",
+    session_key: "room:group:conversation-1",
+    stream_status: "streaming",
+    timestamp: 1,
+  };
+  const topologyBefore = buildConversationScrollTopologyKey(
+    "room:group:conversation-1",
+    [streamingMessage],
+    [],
+  );
+  const topologyAfterToken = buildConversationScrollTopologyKey(
+    "room:group:conversation-1",
+    [{
+      ...streamingMessage,
+      content: [{ type: "text", text: "第一段继续增长" }],
+    }],
+    [],
+  );
+  assert.equal(
+    topologyAfterToken,
+    topologyBefore,
+    "real token growth must not look like a structural insertion",
+  );
+  assert.notEqual(
+    buildConversationScrollTopologyKey(
+      "room:group:conversation-1",
+      [streamingMessage],
+      [{
+        agent_id: "agent-2",
+        agent_round_id: "agent-round-2",
+        msg_id: "slot-2",
+        round_id: "historical-root",
+        status: "pending",
+        timestamp: 2,
+      }],
+    ),
+    topologyBefore,
+    "a new Room member slot must change the topology revision",
+  );
+
+  const permission = {
+    request_id: "permission-1",
+    tool_input: { command: "echo one" },
+    tool_name: "Bash",
+  };
+  const atomicBefore = buildConversationAtomicLayoutKey(
+    "room:group:conversation-1",
+    [streamingMessage],
+    [permission],
+  );
+  assert.notEqual(
+    buildConversationAtomicLayoutKey(
+      "room:group:conversation-1",
+      [streamingMessage],
+      [{ ...permission, request_id: "permission-2" }],
+    ),
+    atomicBefore,
+    "equal permission counts with a different request still change layout identity",
+  );
+  assert.notEqual(
+    buildConversationAtomicLayoutKey(
+      "room:group:conversation-1",
+      [{ ...streamingMessage, stream_status: "done" }],
+      [permission],
+    ),
+    atomicBefore,
+    "terminal component replacement must be an explicit atomic revision",
+  );
 });
 
 test("Room handles every pending runtime human interaction without opening Thread", async () => {
@@ -365,6 +1253,12 @@ test("Room handles every pending runtime human interaction without opening Threa
         input: { query: "Apple M3 vs M4 vs M5 chip comparison specifications" },
         name: "WebSearch",
       },
+      {
+        type: "tool_use",
+        id: "tool-question",
+        input: questionPermission.tool_input,
+        name: "AskUserQuestion",
+      },
     ],
   };
   const completedPermission = {
@@ -419,9 +1313,200 @@ test("Room handles every pending runtime human interaction without opening Threa
     "工具消息进入完成态后，主 Room 仍必须展示待确认操作",
   );
   assert.match(completedRoundHtml, /这次分析采用哪种研究口径？/);
+  assert.equal(
+    completedRoundHtml.match(/这次分析采用哪种研究口径？/g)?.length,
+    1,
+    "a terminal Room card must not render the same pending question twice",
+  );
   assert.match(completedRoundHtml, />允许</);
   assert.match(completedRoundHtml, />拒绝</);
   assert.match(completedRoundHtml, /继续协作/);
+  assert.equal(
+    completedRoundHtml.match(/data-human-interaction-surface/g)?.length,
+    1,
+    "the hidden terminal tool and its standalone interaction must share one surface",
+  );
+  assert.doesNotMatch(completedRoundHtml, /等待提问就绪/);
+
+  const questionOnlyMessage = {
+    ...completedToolMessage,
+    message_id: "assistant-question-only",
+    content: [{
+      type: "tool_use",
+      id: "tool-question",
+      input: questionPermission.tool_input,
+      name: "AskUserQuestion",
+    }],
+  };
+  const questionOnlyPermission = {
+    ...questionPermission,
+    message_id: "assistant-question-only",
+  };
+  const questionOnlyProjection = projectGroupAgentTimeline({
+    messageGroups: new Map([["round-root", [questionOnlyMessage]]]),
+    pendingPermissionGroups: new Map([
+      ["round-root", [questionOnlyPermission]],
+    ]),
+    pendingSlotGroups: new Map(),
+    roundIds: ["round-root"],
+  });
+  const questionOnlyState = resolveGroupConversationRound({
+    liveRoundIds: ["round-root"],
+    messageGroups: questionOnlyProjection.messageGroups,
+    pendingPermissionGroups: questionOnlyProjection.pendingPermissionGroups,
+    pendingSlotGroups: questionOnlyProjection.pendingSlotGroups,
+    rootRoundIds: questionOnlyProjection.rootRoundIds,
+    roundIds: questionOnlyProjection.roundIds,
+  }, 0);
+  const questionOnlyHtml = renderToStaticMarkup(provider(
+    React.createElement(GroupConversationRound, {
+      renderer: {
+        agentAvatarMap: {},
+        agentNameMap: { "agent-1": "Kevin" },
+        currentAgentAvatar: null,
+        currentAgentName: "Kevin",
+        currentUserAvatar: null,
+        isLastRoundPendingPermissions: [questionOnlyPermission],
+        onPermissionResponse: () => true,
+        onStopAgentRound: () => {},
+        runtimePhase: null,
+      },
+      state: questionOnlyState,
+    }),
+  ));
+  assert.equal(
+    questionOnlyHtml.match(/这次分析采用哪种研究口径？/g)?.length,
+    1,
+    "a visible terminal question tool must become the sole interaction surface",
+  );
+  assert.match(questionOnlyHtml, /保守/);
+  assert.match(questionOnlyHtml, /继续协作/);
+  assert.match(questionOnlyHtml, />拒绝</);
+  assert.equal(
+    questionOnlyHtml.match(/data-human-interaction-surface/g)?.length,
+    1,
+  );
+  assert.doesNotMatch(questionOnlyHtml, /等待提问就绪/);
+});
+
+test("Room keeps tool-time summary and shows the terminal result in the same slot", async () => {
+  const { GroupAgentReply } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-reply.tsx",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const tailMarker = "STREAM_TAIL_VISIBLE_AFTER_EIGHTY_CHARS";
+  const text = `${"逐步输出的正文。".repeat(18)}${tailMarker}`;
+  const message = assistantMessage({
+    agentId: "agent-stream",
+    agentRoundId: "agent-round-stream",
+    messageId: "assistant-stream",
+    status: "streaming",
+    text,
+    timestamp: 2,
+  });
+  const entry = {
+    agentAvatar: null,
+    agentName: "Stream Agent",
+    agent_id: "agent-stream",
+    agent_round_id: "agent-round-stream",
+    assistant_messages: [message],
+    display_order: 0,
+    entry_id: "agent-stream:agent-round:agent-round-stream",
+    guidedUserMessages: [],
+    pendingPermissions: [],
+    pending_slot: {
+      agent_id: "agent-stream",
+      agent_round_id: "agent-round-stream",
+      index: 0,
+      msg_id: "slot-stream",
+      round_id: "round-root",
+      status: "streaming",
+      timestamp: 1,
+    },
+    status: "streaming",
+    stopAgentRoundId: "agent-round-stream",
+    timestamp: 1,
+  };
+  const renderReply = (nextEntry) => renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(GroupAgentReply, {
+        entry: nextEntry,
+        isThreadActive: false,
+        onClickThread: () => {},
+        onPermissionResponse: () => true,
+        onStopAgentRound: () => {},
+        roundId: "round-root",
+      }),
+    ),
+  );
+  const activeHtml = renderReply(entry);
+  const resultSummary = {
+    duration_api_ms: 10,
+    duration_ms: 20,
+    is_error: false,
+    message_id: "result-stream",
+    num_turns: 1,
+    result: text,
+    subtype: "success",
+    timestamp: 3,
+  };
+  const terminalHtml = renderReply({
+    ...entry,
+    assistant_messages: [{
+      ...message,
+      is_complete: true,
+      result_summary: resultSummary,
+      stop_reason: "end_turn",
+      stream_status: "done",
+      timestamp: 3,
+    }],
+    pending_slot: {
+      ...entry.pending_slot,
+      status: "done",
+    },
+    result_summary: resultSummary,
+    status: "done",
+    timestamp: 3,
+  });
+
+  assert.doesNotMatch(
+    activeHtml,
+    new RegExp(tailMarker),
+    "tool-time Room content stays behind the bounded execution summary",
+  );
+  assert.match(activeHtml, /line-clamp-1/);
+  assert.match(
+    terminalHtml,
+    new RegExp(tailMarker),
+    "the public terminal result must be complete as soon as the backend snapshot arrives",
+  );
+  assert.doesNotMatch(
+    terminalHtml,
+    /line-clamp-1/,
+    "the same Room slot switches from its bounded summary to the full result",
+  );
+  const statusBeforeResultHtml = renderReply({
+    ...entry,
+    pending_slot: {
+      ...entry.pending_slot,
+      status: "done",
+    },
+    status: "done",
+  });
+  assert.match(
+    statusBeforeResultHtml,
+    /line-clamp-1/,
+    "terminal lifecycle status alone must keep the running card until its terminal message arrives",
+  );
+  assert.doesNotMatch(
+    statusBeforeResultHtml,
+    new RegExp(tailMarker),
+    "the result view must wait for terminal message evidence",
+  );
 });
 
 test("resolved history rounds remain only when visible content was projected", async () => {
@@ -534,7 +1619,10 @@ test("deferred ACK cannot remove an already applied canonical user message", asy
 });
 
 test("Room pending slot keeps the backend display index", async () => {
-  const { mergeChatAckPendingSlots } = await server.ssrLoadModule(
+  const {
+    mergeChatAckPendingSlots,
+    updatePendingAgentSlotStatus,
+  } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
   );
   const slots = mergeChatAckPendingSlots([], {
@@ -543,6 +1631,7 @@ test("Room pending slot keeps the backend display index", async () => {
       agent_round_id: "agent-round-1",
       index: 7,
       msg_id: "slot-1",
+      round_id: "round-slot-root",
       status: "streaming",
       timestamp: 10,
     }],
@@ -551,31 +1640,240 @@ test("Room pending slot keeps the backend display index", async () => {
   });
 
   assert.equal(slots[0]?.index, 7);
+  assert.equal(
+    slots[0]?.round_id,
+    "round-slot-root",
+    "a per-slot root must win over the aggregate snapshot fallback",
+  );
+
+  const laterWake = mergeChatAckPendingSlots(slots, {
+    pending: [{
+      agent_id: "agent-2",
+      agent_round_id: "agent-round-2",
+      index: 0,
+      msg_id: "slot-2",
+      status: "pending",
+      timestamp: 20,
+    }],
+    pending_snapshot: false,
+    round_id: "round-slot-root",
+  });
+  assert.deepEqual(
+    laterWake.map(({ agent_round_id, round_id }) => ({
+      agent_round_id,
+      round_id,
+    })),
+    [
+      { agent_round_id: "agent-round-1", round_id: "round-slot-root" },
+      { agent_round_id: "agent-round-2", round_id: "round-slot-root" },
+    ],
+    "a later public wake in the same root must append without replacing the earlier slot",
+  );
+  assert.deepEqual(
+    updatePendingAgentSlotStatus(
+      laterWake,
+      "slot-2",
+      "streaming",
+      "internal-wake-round",
+    ).map(({ agent_round_id, round_id, status }) => ({
+      agent_round_id,
+      round_id,
+      status,
+    })),
+    [
+      {
+        agent_round_id: "agent-round-1",
+        round_id: "round-slot-root",
+        status: "streaming",
+      },
+      {
+        agent_round_id: "agent-round-2",
+        round_id: "round-slot-root",
+        status: "streaming",
+      },
+    ],
+    "stream_start must advance status without moving the slot to another feed root",
+  );
 });
 
-test("Room slot terminal state cannot be revived by a late running event", async () => {
+test("authoritative Room slot snapshots rebuild runtime trackers by root", async () => {
+  const { AgentConversationRuntimeMachine } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/agent-conversation-runtime-machine.ts",
+  );
+  const machine = new AgentConversationRuntimeMachine("group");
+  const baseAck = {
+    ack_timeout_ms: 10_000,
+    client_message_id: "",
+    client_request_id: "",
+    pending_snapshot: true,
+    round_id: "",
+    user_message_committed: false,
+    user_message_id: "",
+  };
+  machine.trackChatAck({
+    ...baseAck,
+    pending: [
+      {
+        agent_id: "agent-a",
+        agent_round_id: "agent-round-a",
+        index: 0,
+        msg_id: "slot-a",
+        round_id: "root-a",
+        status: "streaming",
+        timestamp: 10,
+      },
+      {
+        agent_id: "agent-b",
+        agent_round_id: "agent-round-b",
+        index: 0,
+        msg_id: "slot-b",
+        round_id: "root-b",
+        status: "pending",
+        timestamp: 20,
+      },
+    ],
+  });
+  machine.emit();
+  assert.equal(machine.snapshot().phase, "streaming");
+  assert.deepEqual(
+    new Set(machine.snapshot().liveRoundIds),
+    new Set(["root-a", "root-b"]),
+  );
+
+  machine.trackChatAck({
+    ...baseAck,
+    pending: [],
+  });
+  machine.emit();
+  assert.equal(machine.snapshot().phase, "idle");
+  assert.deepEqual(machine.snapshot().liveRoundIds, []);
+
+  machine.trackChatAck({
+    ...baseAck,
+    pending_snapshot: false,
+    round_id: "root-a",
+    pending: [{
+      agent_id: "agent-a",
+      agent_round_id: "agent-round-a",
+      index: 0,
+      msg_id: "slot-a",
+      status: "pending",
+      timestamp: 30,
+    }],
+  });
+  machine.trackChatAck({
+    ...baseAck,
+    pending_snapshot: false,
+    round_id: "root-b",
+    pending: [{
+      agent_id: "agent-b",
+      agent_round_id: "agent-round-b",
+      index: 0,
+      msg_id: "slot-b",
+      status: "pending",
+      timestamp: 40,
+    }],
+  });
+  machine.emit();
+  assert.deepEqual(
+    new Set(machine.snapshot().liveRoundIds),
+    new Set(["root-a", "root-b"]),
+    "ordinary server ACKs must append without clearing earlier active slots",
+  );
+});
+
+test("Room terminal agent status keeps its slot until a message or root takes over", async () => {
   const {
+    cancelRunningAgentSlots,
+    filterRoundPendingAgentSlots,
     reconcileAgentRoundPendingSlots,
+    reconcilePendingSlotsWithAssistantMessage,
   } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
   );
-  const cancelledSlot = {
+  const runningSlot = {
     agent_id: "agent-1",
     agent_round_id: "agent-round-stopped",
     msg_id: "slot-stopped",
     round_id: "round-root",
-    status: "cancelled",
+    status: "streaming",
     timestamp: 10,
+  };
+  const terminalCases = [
+    ["finished", "done"],
+    ["interrupted", "cancelled"],
+    ["error", "error"],
+  ];
+  for (const [eventStatus, slotStatus] of terminalCases) {
+    assert.deepEqual(
+      reconcileAgentRoundPendingSlots(
+        [runningSlot],
+        "agent-round-stopped",
+        eventStatus,
+      ),
+      [{ ...runningSlot, status: slotStatus }],
+      `${eventStatus} must keep the same visible slot as ${slotStatus}`,
+    );
+  }
+
+  const cancelledSlot = {
+    ...runningSlot,
+    status: "cancelled",
   };
 
   assert.deepEqual(
     reconcileAgentRoundPendingSlots(
       [cancelledSlot],
       "agent-round-stopped",
-      false,
+      "running",
     ),
     [cancelledSlot],
     "迟到的 non-terminal 事件不能把已停止槽位改回 streaming",
+  );
+  const doneSlot = {
+    ...runningSlot,
+    status: "done",
+  };
+  assert.deepEqual(
+    cancelRunningAgentSlots([doneSlot]),
+    [doneSlot],
+    "session status settlement must not downgrade a finished slot to cancelled",
+  );
+
+  const terminalMessage = assistantMessage({
+    agentRoundId: "agent-round-stopped",
+    isComplete: true,
+    messageId: "assistant-terminal",
+    roundId: "round-root",
+    status: "done",
+    stopReason: "end_turn",
+    text: "终态正文",
+    timestamp: 11,
+  });
+  assert.deepEqual(
+    reconcilePendingSlotsWithAssistantMessage([cancelledSlot], terminalMessage),
+    [],
+    "terminal message/result must atomically replace the retained slot",
+  );
+  assert.deepEqual(
+    reconcilePendingSlotsWithAssistantMessage(
+      [runningSlot],
+      assistantMessage({
+        agentRoundId: "agent-round-stopped",
+        messageId: "assistant-streaming",
+        roundId: "round-root",
+        status: "streaming",
+        text: "仍在流式输出",
+        timestamp: 11,
+      }),
+    ),
+    [runningSlot],
+    "streaming assistant still needs the slot's stable index and start time",
+  );
+  assert.deepEqual(
+    filterRoundPendingAgentSlots([cancelledSlot], "round-root"),
+    [],
+    "root round terminal status remains the final cleanup boundary",
   );
 });
 
@@ -1314,6 +2612,130 @@ test("Room keeps separate agent_round entries for the same agent", async () => {
   );
 });
 
+test("Room Agent slot order survives live, terminal, and history projections", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const firstDone = assistantMessage({
+    agentId: "agent-1",
+    agentRoundId: "agent-round-1",
+    displayOrder: 1_000,
+    isComplete: true,
+    messageId: "assistant-agent-1-done",
+    status: "done",
+    stopReason: "end_turn",
+    text: "Agent1 已完成",
+    timestamp: 20,
+  });
+  const secondStream = assistantMessage({
+    agentId: "agent-2",
+    agentRoundId: "agent-round-2",
+    messageId: "assistant-agent-2-stream",
+    text: "Agent2 正在处理",
+    timestamp: 21,
+  });
+  const liveSlots = [
+    {
+      agent_id: "agent-2",
+      agent_round_id: "agent-round-2",
+      index: 0,
+      msg_id: "slot-agent-2",
+      round_id: "round-root",
+      status: "streaming",
+      timestamp: 2,
+    },
+    {
+      agent_id: "agent-3",
+      agent_round_id: "agent-round-3",
+      index: 1,
+      msg_id: "slot-agent-3",
+      round_id: "round-root",
+      status: "pending",
+      timestamp: 2,
+    },
+  ];
+
+  const mixed = buildRoomAgentRoundEntries(
+    [secondStream, firstDone],
+    liveSlots,
+  );
+  assert.deepEqual(
+    mixed.map(({ agent_id, display_order, status }) => ({
+      agent_id,
+      display_order,
+      status,
+    })),
+    [
+      { agent_id: "agent-1", display_order: 1_000, status: "done" },
+      { agent_id: "agent-2", display_order: 2_000, status: "streaming" },
+      { agent_id: "agent-3", display_order: 2_001, status: "pending" },
+    ],
+    "a new live member must append after a terminal sibling instead of jumping above it",
+  );
+
+  const secondDone = assistantMessage({
+    agentId: "agent-2",
+    agentRoundId: "agent-round-2",
+    displayOrder: 2_000,
+    isComplete: true,
+    messageId: "assistant-agent-2-done",
+    status: "done",
+    stopReason: "end_turn",
+    text: "Agent2 已完成",
+    timestamp: 30,
+  });
+  const terminal = buildRoomAgentRoundEntries([secondDone, firstDone]);
+  assert.deepEqual(
+    terminal.map(({ agent_id, display_order }) => ({
+      agent_id,
+      display_order,
+    })),
+    [
+      { agent_id: "agent-1", display_order: 1_000 },
+      { agent_id: "agent-2", display_order: 2_000 },
+    ],
+    "pending -> terminal must retain the same canonical slot positions",
+  );
+
+  const firstFinishedLater = assistantMessage({
+    agentId: "agent-1",
+    agentRoundId: "history-agent-round-1",
+    displayOrder: 1_000,
+    isComplete: true,
+    messageId: "history-assistant-agent-1",
+    status: "done",
+    stopReason: "end_turn",
+    text: "Agent1 后完成",
+    timestamp: 40,
+  });
+  const secondFinishedEarlier = assistantMessage({
+    agentId: "agent-2",
+    agentRoundId: "history-agent-round-2",
+    displayOrder: 2_001,
+    isComplete: true,
+    messageId: "history-assistant-agent-2",
+    status: "done",
+    stopReason: "end_turn",
+    text: "Agent2 先完成",
+    timestamp: 30,
+  });
+  const history = buildRoomAgentRoundEntries([
+    secondFinishedEarlier,
+    firstFinishedLater,
+  ]);
+  assert.deepEqual(
+    history.map(({ agent_id, display_order }) => ({
+      agent_id,
+      display_order,
+    })),
+    [
+      { agent_id: "agent-1", display_order: 1_000 },
+      { agent_id: "agent-2", display_order: 2_001 },
+    ],
+    "history reload must restore slot order instead of completion order",
+  );
+});
+
 test("Room interruption projection follows the slot identity without a ghost card", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
@@ -1411,7 +2833,7 @@ test("Room canonical assistant replaces its temporary synthetic result", async (
   assert.equal(entries[0]?.assistant_messages[0]?.model, "canonical-model");
 });
 
-test("Room final replies stay in completion order around a guide", async () => {
+test("Room Agent replies keep their first display order through completion", async () => {
   const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
   );
@@ -1489,17 +2911,17 @@ test("Room final replies stay in completion order around a guide", async () => {
       agent_round_id,
     })),
     [
-      { agent_id: "agent-2", agent_round_id: "agent-2-round" },
       { agent_id: "agent-1", agent_round_id: "agent-1-round" },
+      { agent_id: "agent-2", agent_round_id: "agent-2-round" },
     ],
   );
   assert.deepEqual(
     flattenGroupRoundRenderOrder(model),
     [
       "user:user-root-display-order",
-      "agent:agent-2",
       "user:user-guide-display-order",
       "agent:agent-1",
+      "agent:agent-2",
     ],
   );
 });
@@ -1568,7 +2990,7 @@ test("late Room guidance does not reorder completed Agent cards", async () => {
   );
 });
 
-test("Room keeps active Agent cards at the stable tail", async () => {
+test("Room keeps Agent slot order independent from runtime status", async () => {
   const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
   );
@@ -1597,6 +3019,7 @@ test("Room keeps active Agent cards at the stable tail", async () => {
       assistantMessage({
         agentId: "agent-3",
         agentRoundId: "agent-3-completed",
+        displayOrder: 4_000,
         isComplete: true,
         messageId: "assistant-agent-3-completed",
         status: "done",
@@ -1641,23 +3064,23 @@ test("Room keeps active Agent cards at the stable tail", async () => {
   assert.deepEqual(
     model.entries.map(({ agent_id, status }) => ({ agent_id, status })),
     [
-      { agent_id: "agent-3", status: "done" },
       { agent_id: "agent-1", status: "streaming" },
       { agent_id: "agent-2", status: "streaming" },
+      { agent_id: "agent-3", status: "done" },
     ],
   );
   assert.deepEqual(
     flattenGroupRoundRenderOrder(model),
     [
-      "agent:agent-3",
       "user:user-guide-active-stable",
       "agent:agent-1",
       "agent:agent-2",
+      "agent:agent-3",
     ],
   );
 });
 
-test("Room places pending Agent cards before streaming output", async () => {
+test("Room keeps backend Agent slot order while statuses advance", async () => {
   const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
   );
@@ -1705,8 +3128,8 @@ test("Room places pending Agent cards before streaming output", async () => {
   assert.deepEqual(
     model.entries.map(({ agent_id, status }) => ({ agent_id, status })),
     [
-      { agent_id: "agent-pending", status: "pending" },
       { agent_id: "agent-streaming", status: "streaming" },
+      { agent_id: "agent-pending", status: "pending" },
     ],
   );
 
@@ -1719,11 +3142,11 @@ test("Room places pending Agent cards before streaming output", async () => {
   assert.deepEqual(projection.roundIds, [
     buildGroupAgentTimelineNodeId(
       "round-root",
-      "agent-pending:agent-round:round-pending",
+      "agent-streaming:agent-round:round-streaming",
     ),
     buildGroupAgentTimelineNodeId(
       "round-root",
-      "agent-streaming:agent-round:round-streaming",
+      "agent-pending:agent-round:round-pending",
     ),
   ]);
 });
@@ -1785,7 +3208,7 @@ test("Room Agent timestamp stays on start while active and switches to finish at
   assert.equal(terminal?.timestamp, 30);
 });
 
-test("Room projects every agent_round as a stable chronological feed node", async () => {
+test("Room projects every agent_round as a stable root-local feed node", async () => {
   const {
     buildGroupAgentTimelineNodeId,
     projectGroupAgentTimeline,
@@ -1801,6 +3224,7 @@ test("Room projects every agent_round as a stable chronological feed node", asyn
   const completed = assistantMessage({
     agentId: "agent-2",
     agentRoundId: "agent-2-node",
+    displayOrder: 1_000,
     isComplete: true,
     messageId: "assistant-agent-2-node",
     resultSummary: {
@@ -1869,8 +3293,8 @@ test("Room projects every agent_round as a stable chronological feed node", asyn
   assert.deepEqual(activeProjection.roundIds, [
     "round-root",
     agent2NodeId,
-    "round-later",
     agent1NodeId,
+    "round-later",
   ]);
   assert.deepEqual(
     activeProjection.messageGroups.get(agent1NodeId)?.map(
@@ -1883,6 +3307,7 @@ test("Room projects every agent_round as a stable chronological feed node", asyn
   const terminal = assistantMessage({
     agentId: "agent-1",
     agentRoundId: "agent-1-node",
+    displayOrder: 2_000,
     isComplete: true,
     messageId: "assistant-agent-1-node",
     resultSummary: {
@@ -1908,7 +3333,11 @@ test("Room projects every agent_round as a stable chronological feed node", asyn
     pendingSlotGroups: new Map(),
     roundIds: ["round-root", "round-later"],
   });
-  assert.equal(terminalProjection.roundIds.at(-1), agent1NodeId);
+  assert.deepEqual(
+    terminalProjection.roundIds,
+    activeProjection.roundIds,
+    "pending -> terminal must not move an already visible Agent reply",
+  );
   assert.equal(
     terminalProjection.roundIds.includes(agent1NodeId),
     true,
@@ -2191,6 +3620,7 @@ function userMessage({
 function assistantMessage({
   agentId = "agent-1",
   agentRoundId,
+  displayOrder,
   isComplete = false,
   messageId = "assistant-root",
   model,
@@ -2205,6 +3635,7 @@ function assistantMessage({
     agent_id: agentId,
     ...(agentRoundId ? { agent_round_id: agentRoundId } : {}),
     content: [{ type: "text", text }],
+    ...(displayOrder === undefined ? {} : { display_order: displayOrder }),
     is_complete: isComplete,
     message_id: messageId,
     ...(model ? { model } : {}),

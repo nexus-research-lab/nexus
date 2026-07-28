@@ -76,6 +76,7 @@ function StandaloneConversationRound({
   const agent = resolveRoundAgent(state.messages, renderer);
   return (
     <MessageItem
+      animateEntry={false}
       compact={renderer.compact ?? false}
       currentAgentAvatar={agent.avatar}
       currentAgentName={agent.name}
@@ -87,7 +88,7 @@ function StandaloneConversationRound({
       onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
       onPermissionResponse={renderer.onPermissionResponse}
       pendingPermissions={state.pendingPermissions}
-      roundId={state.roundId}
+      roundId={state.rootRoundId}
       workspaceAgentId={agent.id}
     />
   );

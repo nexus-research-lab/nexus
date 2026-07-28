@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import "@/app/globals.css";
 import {
   applyDesktopRuntimeDocumentFlags,
+  isDesktopRuntime,
   markDesktopPerformance,
   notifyDesktopWebFatal,
 } from "@/config/desktop-runtime";
@@ -39,7 +40,9 @@ async function bootstrap(render: () => ReactNode): Promise<void> {
     markDesktopPerformance("runtimeOptions.hydrateEnd");
     const strictMode = isStrictModeEnabled();
     renderApplication(render, strictMode);
-    startAppRenderWatchdog((reason) => renderRecoveryScreen(reason, strictMode));
+    if (isDesktopRuntime()) {
+      startAppRenderWatchdog((reason) => renderRecoveryScreen(reason, strictMode));
+    }
   } catch (error) {
     notifyDesktopWebFatal("bootstrap", error);
     if (shouldRecoverAfterDesktopRuntimeAuthError(error)) {

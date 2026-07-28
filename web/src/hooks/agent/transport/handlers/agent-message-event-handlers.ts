@@ -8,7 +8,7 @@ import {
   normalizeAssistantMessage,
   resolveAssistantResultErrorMessage,
 } from "../../message/assistant-message-model";
-import { upsertMessage } from "../../message/message-collection-model";
+import { upsertRealtimeMessage } from "../../message/message-collection-model";
 import type {
   AgentEventHandler,
   AgentEventHandlerMap,
@@ -48,7 +48,7 @@ const handleMessage: AgentEventHandler = (event, context) => {
     ? normalizeAssistantMessage(message as AssistantMessage)
     : message;
   context.state.setMessages((currentMessages) => (
-    upsertMessage(currentMessages, normalizedMessage)
+    upsertRealtimeMessage(currentMessages, normalizedMessage)
   ));
   if (normalizedMessage.role === "assistant") {
     context.runtime.trackAssistantMessage(

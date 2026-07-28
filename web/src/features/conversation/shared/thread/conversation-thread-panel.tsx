@@ -1,8 +1,17 @@
 "use client";
 
+/**
+ * INPUT: Thread 消息、运行态、交互请求与关闭动作。
+ * OUTPUT: 带独立跟随滚动和消息上下文的 Thread 面板。
+ * POS: Room Agent Thread 的状态装配入口。
+ */
 import { type ReactNode, useMemo } from "react";
 
-import { buildConversationScrollContentKey } from "@/features/conversation/shared/timeline/scroll/follow-scroll-model";
+import {
+  buildConversationAtomicLayoutKey,
+  buildConversationScrollContentKey,
+  buildConversationScrollTopologyKey,
+} from "@/features/conversation/shared/timeline/scroll/follow-scroll-model";
 import { useFollowScroll } from "@/features/conversation/shared/timeline/scroll/use-follow-scroll";
 import type {
   PendingPermission,
@@ -123,13 +132,27 @@ export function ConversationThreadPanel({
     () => buildConversationScrollContentKey(model.sessionKey, model.allMessages),
     [model.allMessages, model.sessionKey],
   );
+  const scrollTopologyKey = useMemo(
+    () => buildConversationScrollTopologyKey(
+      model.sessionKey,
+      model.allMessages,
+    ),
+    [model.allMessages, model.sessionKey],
+  );
+  const atomicLayoutKey = useMemo(
+    () => buildConversationAtomicLayoutKey(
+      model.sessionKey,
+      model.allMessages,
+      resolvedPendingPermissions,
+    ),
+    [model.allMessages, model.sessionKey, resolvedPendingPermissions],
+  );
   const followScroll = useFollowScroll({
-    // Thread 和 DM 共享实时跟随语义，权限确认也必须纳入内容高度变化。
+    atomicLayoutKey,
     messageCount: model.allMessages.length,
-    auxiliaryBlockCount: resolvedPendingPermissions.length,
     contentKey: scrollContentKey,
-    isLoading: resolvedIsLoading,
     sessionKey: model.sessionKey,
+    topologyKey: scrollTopologyKey,
   });
   const messageContext: ConversationThreadMessageContext = {
     agentAvatar: resolvedAgentAvatar,
@@ -156,6 +179,7 @@ export function ConversationThreadPanel({
       model={model}
       notice={notice}
       onClose={onClose}
+      onPointerDown={followScroll.onPointerDown}
       onScroll={followScroll.onScroll}
       onScrollToLatest={() => followScroll.scrollToBottom("smooth")}
       onTouchEnd={followScroll.onTouchEnd}

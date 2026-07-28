@@ -47,6 +47,8 @@ interface BaseMessage {
 export interface UserMessage extends BaseMessage {
   role: "user";
   content: string;
+  /** 仅实时 durable 广播携带，用于原子替换本地 optimistic 消息。 */
+  client_message_id?: string;
   agent_mentions?: AgentMention[];
   delivery_policy?: "queue" | "guide" | "interrupt" | "auto";
   /** Room resolved targets；guided user 据此贴近实际消费它的 Agent。 */

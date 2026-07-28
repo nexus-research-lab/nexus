@@ -11,6 +11,7 @@ import type { AssistantContentMode } from "./message-item-projection";
 import type { AgentMentionDirectory } from "../agent-mention-chip";
 
 export interface MessageItemProps {
+  animateEntry?: boolean;
   compact?: boolean;
   currentAgentName?: string | null;
   currentAgentAvatar?: string | null;

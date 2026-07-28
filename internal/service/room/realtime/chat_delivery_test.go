@@ -97,11 +97,13 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Content:        "你好",
-		RoundID:        "room-round-1",
+		SessionKey:      sharedSessionKey,
+		RoomID:          roomContext.Room.ID,
+		ConversationID:  roomContext.Conversation.ID,
+		ClientRequestID: "request-room-user-1",
+		ClientMessageID: "local-room-user-1",
+		Content:         "你好",
+		RoundID:         "room-round-1",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -143,7 +145,11 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	}
 
 	pendingMsgID := ""
+	foundCorrelatedUserEvent := false
 	for _, event := range events {
+		if event.EventType == protocol.EventTypeMessage && event.Data["role"] == "user" {
+			foundCorrelatedUserEvent = event.Data["client_message_id"] == "local-room-user-1"
+		}
 		if event.EventType == protocol.EventTypeChatAck {
 			if pending, ok := event.Data["pending"].([]protocol.ChatAckPendingSlot); ok && len(pending) > 0 {
 				pendingMsgID = pending[0].MsgID
@@ -157,6 +163,9 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 				t.Fatalf("assistant message_id 不应回退成 slot msg_id: %s", pendingMsgID)
 			}
 		}
+	}
+	if !foundCorrelatedUserEvent {
+		t.Fatal("Room durable user 广播必须携带 client_message_id 以原位替换 optimistic 消息")
 	}
 
 	roomSystemPrompt := factory.LastOptions().System.Append
@@ -246,6 +255,9 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	}
 	if len(sharedMessages) != 2 {
 		t.Fatalf("共享消息数量不正确: got=%d want=2", len(sharedMessages))
+	}
+	if _, exists := sharedMessages[0]["client_message_id"]; exists {
+		t.Fatalf("client_message_id 不应写入 Room 历史消息: %+v", sharedMessages[0])
 	}
 	if sharedMessages[1]["message_id"] != "assistant-sdk-1" {
 		t.Fatalf("共享 assistant message_id 不正确: %+v", sharedMessages[1])

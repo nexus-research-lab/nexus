@@ -13,14 +13,22 @@ interface CandidateIndex {
   byToolUseId: Map<string, ToolUseCandidate>;
 }
 
+interface MatchPendingPermissionsOptions {
+  visibleToolUseIds?: ReadonlySet<string>;
+}
+
 /**
  * 权限只能绑定当前快照中尚未收口的工具调用；旧事件仅允许在同一消息内精确匹配载荷。
  */
 export function matchPendingPermissionsToMessages(
   messages: Message[],
   pendingPermissions: PendingPermission[],
+  options: MatchPendingPermissionsOptions = {},
 ) {
-  const candidates = collectUnresolvedToolUses(messages);
+  const candidates = collectUnresolvedToolUses(
+    messages,
+    options.visibleToolUseIds,
+  );
   const candidateIndex = buildCandidateIndex(candidates);
   const matchedByToolUseId = new Map<string, PendingPermission>();
   const matchedRequestIds = new Set<string>();
@@ -44,7 +52,10 @@ export function matchPendingPermissionsToMessages(
   };
 }
 
-function collectUnresolvedToolUses(messages: Message[]): ToolUseCandidate[] {
+function collectUnresolvedToolUses(
+  messages: Message[],
+  visibleToolUseIds?: ReadonlySet<string>,
+): ToolUseCandidate[] {
   const candidates: ToolUseCandidate[] = [];
   const candidatePosition = new Map<string, number>();
   const resolvedToolUseIds = new Set<string>();
@@ -53,7 +64,13 @@ function collectUnresolvedToolUses(messages: Message[]): ToolUseCandidate[] {
     if (message.role !== "assistant") {
       continue;
     }
-    collectMessageToolUses(message, candidates, candidatePosition, resolvedToolUseIds);
+    collectMessageToolUses(
+      message,
+      candidates,
+      candidatePosition,
+      resolvedToolUseIds,
+      visibleToolUseIds,
+    );
   }
 
   return candidates.filter((candidate) => !resolvedToolUseIds.has(candidate.toolUseId));
@@ -64,13 +81,19 @@ function collectMessageToolUses(
   candidates: ToolUseCandidate[],
   candidatePosition: Map<string, number>,
   resolvedToolUseIds: Set<string>,
+  visibleToolUseIds?: ReadonlySet<string>,
 ): void {
   for (const block of message.content) {
     if (block.type === "tool_result") {
-      resolvedToolUseIds.add(block.tool_use_id);
+      if (!visibleToolUseIds || visibleToolUseIds.has(block.tool_use_id)) {
+        resolvedToolUseIds.add(block.tool_use_id);
+      }
       continue;
     }
-    if (block.type !== "tool_use") {
+    if (
+      block.type !== "tool_use"
+      || (visibleToolUseIds && !visibleToolUseIds.has(block.id))
+    ) {
       continue;
     }
 

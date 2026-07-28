@@ -374,11 +374,17 @@ func (e *roomChatExecution) persistInput() error {
 			}
 		}
 		e.history = append(e.history, e.userMessage)
+		realtimeUserMessage := protocol.Clone(e.userMessage)
+		if clientMessageID := strings.TrimSpace(e.request.ClientMessageID); clientMessageID != "" {
+			// client_message_id 只用于当前连接把 durable 广播原子替换到 optimistic
+			// 位置；它不是历史消息身份，不能写入持久化记录。
+			realtimeUserMessage["client_message_id"] = clientMessageID
+		}
 		e.service.broadcastSharedEvent(
 			e.ctx,
 			e.sessionKey,
 			e.roomID,
-			roomdomain.WrapMessageEvent(e.roomID, e.conversationID, e.userMessage, e.request.RoundID),
+			roomdomain.WrapMessageEvent(e.roomID, e.conversationID, realtimeUserMessage, e.request.RoundID),
 		)
 	}
 	if e.request.Internal {
@@ -621,6 +627,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 			AgentID:      agentID,
 			AgentRoundID: agentRoundID,
 			MsgID:        msgID,
+			RoundID:      roomRootRoundID(activeRound),
 			Status:       "pending",
 			Timestamp:    normalizeInt64(e.userMessage["timestamp"]),
 			Index:        index,

@@ -14,6 +14,7 @@ import { MessageAssistantSection } from "./view/assistant/message-assistant-sect
 import { MessageUserSection } from "./view/user/message-user-section";
 
 function MessageItemInner({
+  animateEntry = true,
   compact = false,
   currentAgentName,
   currentAgentAvatar,
@@ -54,7 +55,8 @@ function MessageItemInner({
   return (
     <div
       className={cn(
-        "nexus-chat-message-round w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 space-y-1 py-3 duration-300",
+        "nexus-chat-message-round w-full min-w-0 space-y-1 py-3",
+        animateEntry && "animate-in fade-in slide-in-from-bottom-2 duration-300",
         compact ? "nexus-chat-message-round-compact" : "nexus-chat-message-round-expanded",
         className,
       )}

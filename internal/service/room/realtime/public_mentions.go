@@ -684,7 +684,7 @@ func addPublicMentionSlots(
 		msgID := newRealtimeID()
 		agentRoundID := protocol.NewAgentRoundID()
 		slotIndex := index
-		activeRound.Slots[msgID] = buildPublicMentionSlot(
+		slot := buildPublicMentionSlot(
 			activeRound,
 			contextValue,
 			pendingSlot.sessionRecord,
@@ -694,12 +694,14 @@ func addPublicMentionSlots(
 			msgID,
 			slotIndex,
 		)
+		activeRound.Slots[msgID] = slot
 		pending = append(pending, protocol.ChatAckPendingSlot{
 			AgentID:      pendingSlot.targetAgentID,
 			AgentRoundID: agentRoundID,
 			MsgID:        msgID,
+			RoundID:      roomRootRoundID(activeRound),
 			Status:       "pending",
-			Timestamp:    time.Now().UnixMilli(),
+			Timestamp:    slot.TimestampMS,
 			Index:        slotIndex,
 		})
 	}
@@ -737,7 +739,15 @@ func (s *Service) launchPublicMentionRound(
 	)
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapRoundStatusEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, "running", ""))
 	// 公区 @ 唤醒由后端发起，没有前端请求，client 关联字段留空。
-	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, "", "", roundID, "", false, pending))
+	// pending slot 从 ACK 到 stream/result 都属于历史 root；内部 wake round
+	// 只负责执行生命周期，不能先把卡片挂到尾部再搬回旧 root。
+	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapServerPendingSlotsEvent(
+		sessionKey,
+		contextValue.Room.ID,
+		contextValue.Conversation.ID,
+		roomRootRoundID(activeRound),
+		pending,
+	))
 	for _, pendingSlot := range pendingSlots {
 		if normalizeWakeQueueSource(pendingSlot.wake) != protocol.InputQueueSourceAgentRoomMessage {
 			continue

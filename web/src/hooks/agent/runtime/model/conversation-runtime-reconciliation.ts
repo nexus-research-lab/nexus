@@ -1,6 +1,6 @@
 /**
  * [INPUT]: WebSocket ack/生命周期事件、已加载消息与本地临时运行态。
- * [OUTPUT]: 对话消息、权限和 Room agent slot 的确定性归并结果。
+ * [OUTPUT]: 对话消息、权限和 Room agent slot 的单调归并结果；终态 slot 保留到消息或 root 收口。
  * [POS]: Agent conversation runtime 的纯状态协调层。
  */
 import type {
@@ -33,6 +33,15 @@ const TERMINAL_ASSISTANT_STATUSES = new Set<AssistantMessageStatus>([
   "done",
   "error",
 ]);
+const AGENT_ROUND_SLOT_STATUS: Record<
+  RoundLifecycleStatus,
+  AssistantMessageStatus
+> = {
+  error: "error",
+  finished: "done",
+  interrupted: "cancelled",
+  running: "streaming",
+};
 
 function reconcileMessages(
   messages: Message[],
@@ -71,11 +80,9 @@ export function filterRoundPendingAgentSlots(
 export function reconcileAgentRoundPendingSlots(
   slots: RoomPendingAgentSlotState[],
   agentRoundId: string,
-  isTerminal: boolean,
+  status: RoundLifecycleStatus,
 ): RoomPendingAgentSlotState[] {
-  if (isTerminal) {
-    return slots.filter((slot) => slot.agent_round_id !== agentRoundId);
-  }
+  const nextStatus = AGENT_ROUND_SLOT_STATUS[status];
   return slots.map((slot) => {
     if (slot.agent_round_id !== agentRoundId) {
       return slot;
@@ -84,8 +91,37 @@ export function reconcileAgentRoundPendingSlots(
     if (TERMINAL_ASSISTANT_STATUSES.has(slot.status)) {
       return slot;
     }
-    return { ...slot, status: "streaming" };
+    return { ...slot, status: nextStatus };
   });
+}
+
+/**
+ * terminal message/result 已经能稳定投影同一张卡时，移除仅用于填补消息空窗的
+ * slot；流式 assistant 到达时仍保留 slot 的 index 与启动时间。
+ */
+export function reconcilePendingSlotsWithAssistantMessage(
+  slots: RoomPendingAgentSlotState[],
+  message: AssistantMessage,
+): RoomPendingAgentSlotState[] {
+  if (!isTerminalAssistantMessage(message)) {
+    return slots;
+  }
+  const agentRoundId = message.agent_round_id?.trim();
+  const next = slots.filter((slot) => (
+    agentRoundId
+      ? slot.agent_round_id !== agentRoundId
+      : slot.msg_id !== message.message_id
+  ));
+  return next.length === slots.length ? slots : next;
+}
+
+function isTerminalAssistantMessage(message: AssistantMessage): boolean {
+  return Boolean(
+    message.result_summary
+    || message.is_complete
+    || message.stop_reason
+    || TERMINAL_ASSISTANT_STATUSES.has(message.stream_status ?? "pending"),
+  );
 }
 
 export function filterPendingSlotsFromSnapshot(
@@ -162,12 +198,26 @@ export function replaceOptimisticUserMessage(
   const hasCanonicalMessage = messages.some(
     (message) => message.message_id === userMessageId,
   );
-  // Room 会先广播 durable user，再返回 ACK；已有 canonical 时只移除本地副本。
+  // Room 会先广播 durable user，再返回 ACK；已有 canonical 时移除本地副本，
+  // 同时补回只存在于当前页面的 visual identity。
   if (hasCanonicalMessage && clientMessageId !== userMessageId) {
-    const next = messages.filter(
-      (message) => message.message_id !== clientMessageId,
-    );
-    return next.length === messages.length ? messages : next;
+    let hasChanges = false;
+    const next = messages.flatMap((message) => {
+      if (message.message_id === clientMessageId) {
+        hasChanges = true;
+        return [];
+      }
+      if (
+        message.role === "user"
+        && message.message_id === userMessageId
+        && message.client_message_id !== clientMessageId
+      ) {
+        hasChanges = true;
+        return [{ ...message, client_message_id: clientMessageId }];
+      }
+      return [message];
+    });
+    return hasChanges ? next : messages;
   }
 
   let hasChanges = false;
@@ -178,6 +228,7 @@ export function replaceOptimisticUserMessage(
     hasChanges = true;
     return {
       ...message,
+      client_message_id: clientMessageId,
       message_id: userMessageId,
       round_id: roundId,
     };
@@ -189,7 +240,7 @@ export function cancelRunningAgentSlots(
   slots: RoomPendingAgentSlotState[],
 ): RoomPendingAgentSlotState[] {
   return slots.map((slot) =>
-    slot.status === "cancelled" || slot.status === "error"
+    TERMINAL_ASSISTANT_STATUSES.has(slot.status)
       ? slot
       : {
           ...slot,
@@ -241,7 +292,9 @@ export function updatePendingAgentSlotStatus(
     slot.msg_id === msgId
       ? {
           ...slot,
-          round_id: roundId ?? slot.round_id,
+          // ACK / snapshot 决定 slot 的稳定展示 root；stream 生命周期事件
+          // 只能推进状态，不能把已展示卡片搬到另一个 feed root。
+          round_id: slot.round_id || roundId || "",
           status,
         }
       : slot,
@@ -260,7 +313,7 @@ export function mergeChatAckPendingSlots(
     agent_id: slot.agent_id,
     agent_round_id: slot.agent_round_id,
     msg_id: slot.msg_id,
-    round_id: ack.round_id,
+    round_id: slot.round_id?.trim() || ack.round_id,
     status: slot.status,
     timestamp: slot.timestamp,
     index: slot.index,
@@ -268,7 +321,14 @@ export function mergeChatAckPendingSlots(
   if (ack.pending_snapshot) {
     return nextSlots;
   }
-  const preservedSlots = slots.filter((slot) => slot.round_id !== ack.round_id);
+  const incomingAgentRoundIds = new Set(
+    nextSlots.map((slot) => slot.agent_round_id),
+  );
+  const incomingMessageIds = new Set(nextSlots.map((slot) => slot.msg_id));
+  const preservedSlots = slots.filter((slot) => (
+    !incomingAgentRoundIds.has(slot.agent_round_id)
+    && !incomingMessageIds.has(slot.msg_id)
+  ));
   return [...preservedSlots, ...nextSlots];
 }
 

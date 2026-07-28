@@ -4,7 +4,7 @@
 - `message-item-ordering.ts`: 投影可见内容块，关联系统事件并保持消息源顺序。
 - `message-item-system-events.ts`: 过滤系统消息并映射稳定展示元数据。
 - `message-item-final-projection.ts`: 按内容模式策略选择直接内容、过程和最终回复。
-- `message-item-permissions.ts`: 精确匹配消息内权限请求并保留未匹配请求。
+- `message-item-permissions.ts`: 只把权限精确绑定到当前投影实际可见的工具块，隐藏工具对应请求保留为独立卡片。
 - `message-item-stats.ts`: 通过有序规则投影结果文案和统计字段。
 
 本目录只负责从消息事实生成具体投影，不持有展开、复制、停止或 DOM 状态。

@@ -70,6 +70,36 @@ export function upsertMessage(
   return normalizeAssistantMessages(nextMessages);
 }
 
+/**
+ * Room durable user 可能先于 ACK 广播；携带 client_message_id 时必须在原
+ * optimistic 位置完成一次替换，不能短暂追加第二个 feed node。
+ */
+export function upsertRealtimeMessage(
+  messages: Message[],
+  incoming: Message,
+): Message[] {
+  if (incoming.role !== "user") {
+    return upsertMessage(messages, incoming);
+  }
+  const clientMessageId = incoming.client_message_id?.trim();
+  if (!clientMessageId || clientMessageId === incoming.message_id) {
+    return upsertMessage(messages, incoming);
+  }
+  const optimisticIndex = messages.findIndex(
+    (message) => message.message_id === clientMessageId,
+  );
+  if (optimisticIndex < 0) {
+    return upsertMessage(messages, incoming);
+  }
+
+  return dedupeMessagesById(messages.flatMap((message, index) => {
+    if (index === optimisticIndex) {
+      return [incoming];
+    }
+    return message.message_id === incoming.message_id ? [] : [message];
+  }));
+}
+
 export function sortMessages(messages: Message[]): Message[] {
   const uniqueMessages = dedupeMessagesById(messages);
   return normalizeAssistantMessages(
@@ -107,6 +137,18 @@ export function mergeLoadedMessages(
       && !isReparentedUserMessage(message)
     ) {
       return localMessage;
+    }
+    if (
+      localMessage?.role === "user"
+      && message.role === "user"
+      && localMessage.client_message_id
+    ) {
+      // client_message_id 不进历史，但当前页面仍需用它保持 optimistic
+      // 节点身份；快照刷新只能更新 durable 字段，不能重新挂载用户气泡。
+      return {
+        ...message,
+        client_message_id: localMessage.client_message_id,
+      };
     }
     return message;
   });

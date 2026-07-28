@@ -130,7 +130,10 @@ test("input queue enqueue command carries ACK correlation IDs", async () => {
 });
 
 test("input queue ACK parser validates accepted and duplicate flags", async () => {
-  const { parseInputQueueAckData } = await server.ssrLoadModule(
+  const {
+    parseChatAckData,
+    parseInputQueueAckData,
+  } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-data.ts",
   );
   const ack = {
@@ -151,6 +154,89 @@ test("input queue ACK parser validates accepted and duplicate flags", async () =
   assert.equal(
     parseInputQueueAckData({ ...ack, duplicate: undefined }),
     null,
+  );
+  const serverPendingAck = {
+    ack_timeout_ms: 10_000,
+    client_message_id: "",
+    client_request_id: "",
+    pending: [{
+      agent_id: "agent-2",
+      agent_round_id: "agent-round-public-wake",
+      index: 0,
+      msg_id: "slot-public-wake",
+      status: "pending",
+      timestamp: 20,
+    }],
+    pending_snapshot: false,
+    round_id: "round-root",
+    user_message_committed: false,
+    user_message_id: "",
+  };
+  assert.deepEqual(
+    parseChatAckData(serverPendingAck),
+    serverPendingAck,
+    "a server-initiated public wake must create its stable Room slot before streaming starts",
+  );
+  assert.equal(
+    parseChatAckData({ ...serverPendingAck, pending: [] }),
+    null,
+    "an uncorrelated empty ACK has no state to apply",
+  );
+  const emptyPendingSnapshot = {
+    ...serverPendingAck,
+    pending: [],
+    pending_snapshot: true,
+    round_id: "",
+  };
+  assert.deepEqual(
+    parseChatAckData(emptyPendingSnapshot),
+    emptyPendingSnapshot,
+    "an empty authoritative reconnect snapshot must clear stale Room slots",
+  );
+  const multiRootSnapshot = {
+    ...emptyPendingSnapshot,
+    pending: [
+      {
+        ...serverPendingAck.pending[0],
+        round_id: "round-root-a",
+      },
+      {
+        ...serverPendingAck.pending[0],
+        agent_id: "agent-3",
+        agent_round_id: "agent-round-public-wake-b",
+        msg_id: "slot-public-wake-b",
+        round_id: "round-root-b",
+      },
+    ],
+  };
+  assert.deepEqual(
+    parseChatAckData(multiRootSnapshot),
+    multiRootSnapshot,
+    "an authoritative reconnect snapshot must preserve every slot root",
+  );
+  assert.equal(
+    parseChatAckData({
+      ...multiRootSnapshot,
+      pending: multiRootSnapshot.pending.map(({ round_id: _roundId, ...slot }) => slot),
+    }),
+    null,
+    "a multi-root snapshot cannot attach rootless slots to an empty aggregate root",
+  );
+  assert.equal(
+    parseChatAckData({ ...serverPendingAck, pending_snapshot: "true" }),
+    null,
+  );
+  assert.equal(
+    parseChatAckData({
+      ...serverPendingAck,
+      client_message_id: "client-message-1",
+      client_request_id: "request-1",
+      pending_snapshot: true,
+      user_message_committed: true,
+      user_message_id: "user-message-1",
+    }),
+    null,
+    "a correlated request ACK cannot masquerade as an authoritative snapshot",
   );
 });
 
@@ -192,6 +278,145 @@ test("input queue ACK resolves only accepted requests", async () => {
   }, context);
 
   assert.deepEqual(resolved, ["req_1"]);
+});
+
+test("Room durable user atomically replaces its optimistic feed node", async () => {
+  const {
+    mergeLoadedMessages,
+    upsertRealtimeMessage,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/message-collection-model.ts",
+  );
+  const { replaceOptimisticUserMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const optimistic = {
+    agent_id: "",
+    content: "检查流式体验",
+    message_id: "local-message-1",
+    role: "user",
+    round_id: "local-message-1",
+    session_key: "room-session",
+    timestamp: 10,
+  };
+  const canonical = {
+    ...optimistic,
+    client_message_id: "local-message-1",
+    message_id: "msg-user-1",
+    round_id: "round-1",
+    timestamp: 11,
+  };
+  const before = [
+    {
+      ...optimistic,
+      content: "更早消息",
+      message_id: "older",
+      round_id: "older",
+      timestamp: 1,
+    },
+    optimistic,
+    {
+      ...optimistic,
+      content: "更晚消息",
+      message_id: "newer",
+      round_id: "newer",
+      timestamp: 20,
+    },
+  ];
+  const reconciled = upsertRealtimeMessage(before, canonical);
+
+  assert.deepEqual(
+    reconciled.map((message) => message.message_id),
+    ["older", "msg-user-1", "newer"],
+    "the canonical event must reuse the optimistic visual position",
+  );
+  assert.equal(
+    reconciled.filter((message) => message.content === "检查流式体验").length,
+    1,
+    "the durable broadcast must never create a one-frame duplicate user card",
+  );
+  assert.equal(
+    replaceOptimisticUserMessage(
+      reconciled,
+      "local-message-1",
+      "msg-user-1",
+      "round-1",
+      true,
+    ).length,
+    reconciled.length,
+    "the later ACK remains idempotent after realtime reconciliation",
+  );
+  const ackFirst = replaceOptimisticUserMessage(
+    [optimistic],
+    "local-message-1",
+    "msg-user-1",
+    "round-1",
+    true,
+  );
+  assert.equal(
+    ackFirst[0]?.client_message_id,
+    "local-message-1",
+    "ACK-first delivery must retain the optimistic visual identity",
+  );
+  const canonicalWithoutClientIdentity = {
+    ...canonical,
+  };
+  delete canonicalWithoutClientIdentity.client_message_id;
+  const snapshotMerged = mergeLoadedMessages(
+    [canonicalWithoutClientIdentity],
+    reconciled,
+  );
+  assert.equal(
+    snapshotMerged.find(
+      (message) => message.message_id === "msg-user-1",
+    )?.client_message_id,
+    "local-message-1",
+    "a later history refresh must not remount the acknowledged user bubble",
+  );
+  const broadcastBeforeAck = replaceOptimisticUserMessage(
+    [optimistic, canonicalWithoutClientIdentity],
+    "local-message-1",
+    "msg-user-1",
+    "round-1",
+    true,
+  );
+  assert.deepEqual(
+    broadcastBeforeAck.map((message) => ({
+      client_message_id: message.client_message_id,
+      message_id: message.message_id,
+    })),
+    [{
+      client_message_id: "local-message-1",
+      message_id: "msg-user-1",
+    }],
+    "ACK must annotate an already received canonical user before removing the optimistic copy",
+  );
+
+  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const optimisticProjection = projectGroupAgentTimeline({
+    messageGroups: new Map([["local-message-1", [optimistic]]]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map(),
+    roundIds: ["local-message-1"],
+  });
+  const canonicalProjection = projectGroupAgentTimeline({
+    messageGroups: new Map([["round-1", [canonical]]]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map(),
+    roundIds: ["round-1"],
+  });
+  assert.deepEqual(
+    canonicalProjection.roundIds,
+    optimisticProjection.roundIds,
+    "durable acknowledgement must retain the optimistic React and virtual item identity",
+  );
+  assert.equal(
+    canonicalProjection.rootRoundIds.get("local-message-1"),
+    "round-1",
+    "the stable visual identity must still resolve to the canonical root round",
+  );
 });
 
 test("Safari composition guard only consumes Enter after composition end", async () => {

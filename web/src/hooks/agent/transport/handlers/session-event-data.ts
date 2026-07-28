@@ -188,6 +188,12 @@ function isChatAckPendingSlot(
     "status",
     ASSISTANT_MESSAGE_STATUSES,
   );
+  if (
+    record.round_id !== undefined
+    && !readString(record, "round_id")
+  ) {
+    return false;
+  }
   return Boolean(
     status
     && hasNonEmptyStringFields(record, CHAT_ACK_SLOT_REQUIRED_STRING_FIELDS)
@@ -197,15 +203,49 @@ function isChatAckPendingSlot(
 
 export function parseChatAckData(data: UnknownRecord): ChatAckData | null {
   if (
-    !readString(data, "client_request_id")
-    || !readString(data, "client_message_id")
-    || !readString(data, "round_id")
-    || !readString(data, "user_message_id")
-    || typeof data.user_message_committed !== "boolean"
+    typeof data.user_message_committed !== "boolean"
+    || typeof data.pending_snapshot !== "boolean"
     || !Array.isArray(data.pending)
     || !data.pending.every(isChatAckPendingSlot)
     || readNumber(data, "ack_timeout_ms") === null
   ) {
+    return null;
+  }
+
+  const roundId = readString(data, "round_id");
+  const hasClientCorrelation = Boolean(
+    readString(data, "client_request_id")
+    && readString(data, "client_message_id")
+    && readString(data, "user_message_id"),
+  );
+  const hasEmptyCorrelation = (
+    data.client_request_id === ""
+    && data.client_message_id === ""
+    && data.user_message_id === ""
+  );
+  const isAuthoritativeSnapshot = (
+    data.pending_snapshot
+    && hasEmptyCorrelation
+    && data.user_message_committed === false
+    && (
+      data.pending.length === 0
+      || Boolean(roundId)
+      || data.pending.every((slot) => Boolean(slot.round_id))
+    )
+  );
+  const isServerInitiatedPendingAck = (
+    !data.pending_snapshot
+    && hasEmptyCorrelation
+    && data.user_message_committed === false
+    && data.pending.length > 0
+    && Boolean(roundId)
+  );
+  const isClientAck = (
+    !data.pending_snapshot
+    && hasClientCorrelation
+    && Boolean(roundId)
+  );
+  if (!isClientAck && !isServerInitiatedPendingAck && !isAuthoritativeSnapshot) {
     return null;
   }
   return data as unknown as ChatAckData;

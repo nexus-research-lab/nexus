@@ -55,6 +55,7 @@ export function AssistantMessageContent({
         activityState={activity.state}
         environment={environment}
         final={final}
+        permissions={permissions}
       />
       <MaxTokensWarning visible={showMaxTokensWarning} />
       <PendingHumanInteractionList
@@ -118,20 +119,26 @@ function AssistantFinalContent({
   activityState,
   environment,
   final,
+  permissions,
 }: {
   activityState: MessageActivityState | null;
   environment: AssistantContentEnvironment;
   final: AssistantFinalState;
+  permissions: AssistantPermissionState;
 }) {
   if (!final.visible) {
     return null;
   }
   return (
     <ContentRenderer
+      canRespondToPermissions={environment.canRespondToPermissions}
       content={final.content ?? []}
       fallbackActivityState={activityState}
       isStreaming={final.isStreaming}
       onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
+      onPermissionResponse={environment.onPermissionResponse}
+      pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
+      permissionReadOnlyReason={environment.permissionReadOnlyReason}
       streamingBlockIndexes={final.streamingIndexes}
       workspaceAgentId={environment.workspaceAgentId}
       agentMentions={final.mentions}

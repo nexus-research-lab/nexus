@@ -42,7 +42,7 @@ export function useConversationComposerHandlers({
       targetAgentIDs: string[] = [],
     ) => {
       if (!content.trim() && attachments.length === 0) return;
-      scrollToBottom("auto");
+      scrollToBottom("smooth");
       await sendMessage(content, {
         delivery_policy: deliveryPolicy,
         attachments,

@@ -1,28 +1,21 @@
 /**
  * INPUT: Room 根轮次 feed、消息、slot 与权限投影。
- * OUTPUT: 以稳定 agent_round 节点展开、按用户发生/Agent 完成时间排序的 feed。
+ * OUTPUT: 以稳定 agent_round 节点展开、从启动到完成保持原位的 feed。
  * POS: Room feed 专属时间线投影；canonical root 数据仍由 shared timeline 保存给 Thread。
  */
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message/entity";
-import type { SessionRoundIndexItem } from "@/types/conversation/history";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 import {
   buildGroupRoundCardModel,
   type GroupRoundAgentCardModel,
 } from "../../thread/round-card/group-round-card-model";
-import {
-  getActiveAgentRoundSortOrder,
-  isAgentRoundActive,
-} from "../../round/round-agent-model";
-
 interface ProjectGroupAgentTimelineOptions {
   messageGroups: Map<string, Message[]>;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
   roundIds: string[];
-  roundIndexItems?: SessionRoundIndexItem[];
 }
 
 export interface GroupAgentTimelineProjection {
@@ -34,16 +27,11 @@ export interface GroupAgentTimelineProjection {
 }
 
 interface TimelineNode {
-  active: boolean;
-  activeSortOrder: number;
-  kind: "agent" | "root";
   messages: Message[];
   nodeId: string;
   pendingPermissions: PendingPermission[];
   pendingSlots: RoomPendingAgentSlotState[];
   rootRoundId: string;
-  sourceOrder: number;
-  timestamp: number;
 }
 
 const ROOM_AGENT_NODE_PREFIX = "room-agent-round:";
@@ -61,24 +49,15 @@ export function projectGroupAgentTimeline({
   pendingPermissionGroups,
   pendingSlotGroups,
   roundIds,
-  roundIndexItems = [],
 }: ProjectGroupAgentTimelineOptions): GroupAgentTimelineProjection {
-  const anchors = resolveRoundTimelineAnchors(
-    roundIds,
-    messageGroups,
-    roundIndexItems,
-  );
-  const nodes = roundIds.flatMap((rootRoundId, rootOrder) => (
+  const nodes = roundIds.flatMap((rootRoundId) => (
     buildRootTimelineNodes({
-      anchor: anchors[rootOrder] ?? rootOrder,
       messageGroups,
       pendingPermissionGroups,
       pendingSlotGroups,
-      rootOrder,
       rootRoundId,
     })
   ));
-  nodes.sort(compareTimelineNodes);
 
   const projectedMessages = new Map<string, Message[]>();
   const projectedPermissions = new Map<string, PendingPermission[]>();
@@ -100,18 +79,14 @@ export function projectGroupAgentTimeline({
 }
 
 function buildRootTimelineNodes({
-  anchor,
   messageGroups,
   pendingPermissionGroups,
   pendingSlotGroups,
-  rootOrder,
   rootRoundId,
 }: {
-  anchor: number;
   messageGroups: Map<string, Message[]>;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
-  rootOrder: number;
   rootRoundId: string;
 }): TimelineNode[] {
   const messages = messageGroups.get(rootRoundId) ?? [];
@@ -124,8 +99,6 @@ function buildRootTimelineNodes({
   ) {
     return [buildRootNode(
       rootRoundId,
-      rootOrder,
-      anchor,
       messages,
       pendingPermissions,
       pendingSlots,
@@ -142,8 +115,6 @@ function buildRootTimelineNodes({
   if (model.entries.length === 0) {
     return [buildRootNode(
       rootRoundId,
-      rootOrder,
-      anchor,
       messages,
       pendingPermissions,
       pendingSlots,
@@ -179,17 +150,12 @@ function buildRootTimelineNodes({
   ) {
     nodes.push(buildRootNode(
       rootRoundId,
-      rootOrder,
-      anchor,
       rootMessages,
       rootPermissions,
       rootSlots,
     ));
   }
-  nodes.push(...model.entries.map((entry, entryOrder) => ({
-    active: isAgentRoundActive(entry.status),
-    activeSortOrder: getActiveAgentRoundSortOrder(entry.status),
-    kind: "agent" as const,
+  nodes.push(...model.entries.map((entry) => ({
     messages: [
       ...entry.guidedUserMessages.map(({ message }) => message),
       ...entry.assistant_messages,
@@ -198,32 +164,43 @@ function buildRootTimelineNodes({
     pendingPermissions: entry.pendingPermissions,
     pendingSlots: entry.pending_slot ? [entry.pending_slot] : [],
     rootRoundId,
-    sourceOrder: rootOrder * 10_000 + entryOrder + 1,
-    timestamp: entry.timestamp || anchor,
   })));
   return nodes;
 }
 
 function buildRootNode(
   rootRoundId: string,
-  rootOrder: number,
-  anchor: number,
   messages: Message[],
   pendingPermissions: PendingPermission[],
   pendingSlots: RoomPendingAgentSlotState[],
 ): TimelineNode {
   return {
-    active: false,
-    activeSortOrder: -1,
-    kind: "root",
     messages,
-    nodeId: rootRoundId,
+    nodeId: resolveStableRootNodeId(rootRoundId, messages),
     pendingPermissions,
     pendingSlots,
     rootRoundId,
-    sourceOrder: rootOrder * 10_000,
-    timestamp: earliestMessageTimestamp(messages) ?? anchor,
   };
+}
+
+/**
+ * optimistic user 与 durable echo 的 canonical round_id 不同；服务端回传的
+ * client_message_id 继续作为 React/virtual feed 身份，语义 round 仍由映射保存。
+ */
+function resolveStableRootNodeId(
+  rootRoundId: string,
+  messages: readonly Message[],
+): string {
+  for (const message of messages) {
+    if (message.role !== "user") {
+      continue;
+    }
+    const clientMessageId = message.client_message_id?.trim();
+    if (clientMessageId) {
+      return clientMessageId;
+    }
+  }
+  return rootRoundId;
 }
 
 function resolveAssignedAssistantIds(
@@ -267,79 +244,4 @@ function buildSlotKey(
   agentRoundId: string | null | undefined,
 ): string {
   return `${agentId}:${agentRoundId?.trim() ?? ""}`;
-}
-
-function compareTimelineNodes(left: TimelineNode, right: TimelineNode): number {
-  if (left.active !== right.active) {
-    return left.active ? 1 : -1;
-  }
-  if (left.active && right.active) {
-    const statusOrder = left.activeSortOrder - right.activeSortOrder;
-    if (statusOrder !== 0) {
-      return statusOrder;
-    }
-  }
-  return left.timestamp - right.timestamp
-    || (left.kind === right.kind ? 0 : left.kind === "root" ? -1 : 1)
-    || left.sourceOrder - right.sourceOrder
-    || left.nodeId.localeCompare(right.nodeId);
-}
-
-function resolveRoundTimelineAnchors(
-  roundIds: string[],
-  messageGroups: Map<string, Message[]>,
-  roundIndexItems: SessionRoundIndexItem[],
-): number[] {
-  const indexTimestamps = new Map(roundIndexItems.map((item) => (
-    [item.roundId, item.timestamp]
-  )));
-  const anchors = roundIds.map((roundId) => (
-    indexTimestamps.get(roundId)
-    ?? earliestMessageTimestamp(messageGroups.get(roundId) ?? [])
-    ?? null
-  ));
-  return anchors.map((anchor, index) => {
-    if (anchor !== null) {
-      return anchor;
-    }
-    const previous = findKnownAnchor(anchors, index, -1);
-    const next = findKnownAnchor(anchors, index, 1);
-    if (previous && next && next.value > previous.value) {
-      const span = next.index - previous.index;
-      return previous.value
-        + ((next.value - previous.value) * (index - previous.index)) / span;
-    }
-    return previous?.value ?? next?.value ?? index;
-  });
-}
-
-function findKnownAnchor(
-  anchors: Array<number | null>,
-  start: number,
-  direction: -1 | 1,
-): { index: number; value: number } | null {
-  for (
-    let index = start + direction;
-    index >= 0 && index < anchors.length;
-    index += direction
-  ) {
-    const value = anchors[index];
-    if (value !== null) {
-      return { index, value };
-    }
-  }
-  return null;
-}
-
-function earliestMessageTimestamp(messages: Message[]): number | null {
-  let earliest: number | null = null;
-  for (const message of messages) {
-    if (!Number.isFinite(message.timestamp)) {
-      continue;
-    }
-    earliest = earliest === null
-      ? message.timestamp
-      : Math.min(earliest, message.timestamp);
-  }
-  return earliest;
 }
