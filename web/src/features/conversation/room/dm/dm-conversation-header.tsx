@@ -24,7 +24,7 @@ interface DmConversationHeaderProps {
   onChangeTab: (tab: RoomSurfaceTabKey) => void;
   onCloseActiveTab: () => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
-  onCreateConversation?: (title?: string) => Promise<string | null>;
+  onCreateConversation: (title?: string) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onReplayTour?: () => void;
   onSelectConversation: (conversationId: string) => void;
@@ -91,6 +91,7 @@ export const DmConversationHeader = memo(function DmConversationHeader({
             <RoomHistoryMenu
               conversationId={conversationId}
               conversations={conversations}
+              onCreateConversation={onCreateConversation}
               onDeleteConversation={onDeleteConversation}
               onSelectConversation={onSelectConversation}
               onUpdateConversationTitle={onUpdateConversationTitle}

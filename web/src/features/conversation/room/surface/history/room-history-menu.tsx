@@ -1,6 +1,6 @@
 /**
- * INPUT: Room 会话目录、当前会话和既有选择/删除/重命名命令。
- * OUTPUT: 带固定高度滚动列表、标题编辑、多选和批量删除确认的锚定历史菜单。
+ * INPUT: Room 会话目录、当前会话和既有创建/选择/删除/重命名命令。
+ * OUTPUT: 带固定高度滚动列表、标题编辑、多选和全量清空确认的锚定历史菜单。
  * POS: Room Header 历史入口的交互装配层，不解释底层会话协议。
  */
 
@@ -41,6 +41,7 @@ interface RoomHistoryMenuProps {
   canManageConversations?: boolean;
   conversationId: string | null;
   conversations: RoomConversationView[];
+  onCreateConversation: (title?: string) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
@@ -51,10 +52,16 @@ const HISTORY_MENU_HEIGHT = 280;
 const HISTORY_MENU_MIN_WIDTH = 330;
 const HISTORY_MENU_MIN_HEIGHT = 190;
 
+interface PendingRoomHistoryBulkDelete {
+  clearsHistory: boolean;
+  conversationIds: string[];
+}
+
 export function RoomHistoryMenu({
   canManageConversations = true,
   conversationId,
   conversations,
+  onCreateConversation,
   onDeleteConversation,
   onSelectConversation,
   onUpdateConversationTitle,
@@ -63,9 +70,9 @@ export function RoomHistoryMenu({
   const { t } = useI18n();
   const [pendingDeleteConversation, setPendingDeleteConversation] = useState<RoomConversationView | null>(null);
   const [
-    pendingBulkDeleteConversationIds,
-    setPendingBulkDeleteConversationIds,
-  ] = useState<string[] | null>(null);
+    pendingBulkDelete,
+    setPendingBulkDelete,
+  ] = useState<PendingRoomHistoryBulkDelete | null>(null);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [bulkDeleteFailureCount, setBulkDeleteFailureCount] = useState<number | null>(null);
   const entries = useMemo(() => buildRoomHistoryEntries({
@@ -142,41 +149,60 @@ export function RoomHistoryMenu({
     if (conversationIds.length === 0) {
       return;
     }
-    setPendingBulkDeleteConversationIds(conversationIds);
+    setPendingBulkDelete({
+      clearsHistory: selectionState === "all",
+      conversationIds,
+    });
     closeMenu();
-  }, [closeMenu, entries, selectedIds]);
+  }, [closeMenu, entries, selectedIds, selectionState]);
   const cancelBulkDelete = useCallback(() => {
-    const conversationIds = pendingBulkDeleteConversationIds ?? [];
-    setPendingBulkDeleteConversationIds(null);
+    const conversationIds = pendingBulkDelete?.conversationIds ?? [];
+    setPendingBulkDelete(null);
     restoreSelection(conversationIds);
     toggleMenu();
   }, [
-    pendingBulkDeleteConversationIds,
+    pendingBulkDelete,
     restoreSelection,
     toggleMenu,
   ]);
   const confirmBulkDelete = useCallback(async () => {
-    const conversationIds = pendingBulkDeleteConversationIds ?? [];
-    setPendingBulkDeleteConversationIds(null);
+    const pendingDelete = pendingBulkDelete;
+    const conversationIds = pendingDelete?.conversationIds ?? [];
+    setPendingBulkDelete(null);
     setBulkDeleteFailureCount(null);
     if (conversationIds.length === 0) {
       return;
     }
 
     setIsBulkDeleting(true);
-    const { failedConversationIds } = await deleteRoomHistoryConversationBatch(
+    const {
+      failedConversationIds,
+      replacementConversationId,
+    } = await deleteRoomHistoryConversationBatch(
       conversationIds,
       onDeleteConversation,
+      {
+        currentConversationId: conversationId,
+        createReplacementConversation: pendingDelete?.clearsHistory
+          ? onCreateConversation
+          : undefined,
+      },
     );
     setIsBulkDeleting(false);
+    if (replacementConversationId) {
+      onSelectConversation(replacementConversationId);
+    }
     if (failedConversationIds.length > 0) {
       setBulkDeleteFailureCount(failedConversationIds.length);
       restoreSelection(failedConversationIds);
       toggleMenu();
     }
   }, [
+    conversationId,
+    onCreateConversation,
     onDeleteConversation,
-    pendingBulkDeleteConversationIds,
+    onSelectConversation,
+    pendingBulkDelete,
     restoreSelection,
     toggleMenu,
   ]);
@@ -363,7 +389,9 @@ export function RoomHistoryMenu({
                   onClick={requestBulkDelete}
                   type="button"
                 >
-                  {t("room.history_batch_delete")}
+                  {selectionState === "all"
+                    ? t("room.history_clear")
+                    : t("room.history_batch_delete")}
                 </button>
               ) : <span />}
             </footer>
@@ -392,16 +420,22 @@ export function RoomHistoryMenu({
       />
       <ConfirmDialog
         cancelText={t("common.cancel")}
-        confirmText={t("room.history_batch_delete")}
-        isOpen={Boolean(pendingBulkDeleteConversationIds)}
-        message={t("room.history_batch_delete_message", {
-          count: pendingBulkDeleteConversationIds?.length ?? 0,
-        })}
+        confirmText={pendingBulkDelete?.clearsHistory
+          ? t("room.history_clear")
+          : t("room.history_batch_delete")}
+        isOpen={Boolean(pendingBulkDelete)}
+        message={pendingBulkDelete?.clearsHistory
+          ? t("room.history_clear_message")
+          : t("room.history_batch_delete_message", {
+              count: pendingBulkDelete?.conversationIds.length ?? 0,
+            })}
         onCancel={cancelBulkDelete}
         onConfirm={() => {
           void confirmBulkDelete();
         }}
-        title={t("room.history_batch_delete_title")}
+        title={pendingBulkDelete?.clearsHistory
+          ? t("room.history_clear_title")
+          : t("room.history_batch_delete_title")}
         variant="danger"
       />
     </>

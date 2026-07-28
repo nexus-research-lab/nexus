@@ -208,6 +208,7 @@ export function RoomMobileSurface({
             <RoomHistoryMenu
               conversationId={conversationId}
               conversations={currentRoomConversations}
+              onCreateConversation={onCreateConversation}
               onDeleteConversation={onDeleteConversation}
               onSelectConversation={onSelectConversation}
               onUpdateConversationTitle={onUpdateConversationTitle}

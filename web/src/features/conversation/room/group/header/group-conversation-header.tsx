@@ -32,7 +32,7 @@ interface GroupConversationHeaderProps {
   onChangeTab: (tab: RoomSurfaceTabKey) => void;
   onCloseActiveTab: () => void;
   onCloseConversation: (conversationId: string) => Promise<void>;
-  onCreateConversation?: (title?: string) => Promise<string | null>;
+  onCreateConversation: (title?: string) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
@@ -146,6 +146,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
               <RoomHistoryMenu
                 conversationId={conversationId}
                 conversations={conversations}
+                onCreateConversation={onCreateConversation}
                 onDeleteConversation={onDeleteConversation}
                 onSelectConversation={onSelectConversation}
                 onUpdateConversationTitle={onUpdateConversationTitle}

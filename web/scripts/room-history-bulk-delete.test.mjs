@@ -41,7 +41,7 @@ function conversation(id, {
   };
 }
 
-test("滚动历史批量选择排除当前会话和外部 Session", async () => {
+test("滚动历史批量选择包含当前会话但排除外部 Session", async () => {
   const { buildRoomHistoryEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/surface/history/room-history-model.ts",
   );
@@ -66,11 +66,11 @@ test("滚动历史批量选择排除当前会话和外部 Session", async () => 
 
   assert.deepEqual(
     [...getBulkSelectableConversationIds(entries)],
-    ["older"],
-    "当前会话和外部 Session 必须留作不可批量删除项",
+    ["current", "older"],
+    "当前本地会话必须允许全量清空，外部 Session 仍不可批量删除",
   );
   const selected = toggleAllRoomHistorySelection(new Set(), entries);
-  assert.deepEqual([...selected], ["older"]);
+  assert.deepEqual([...selected], ["current", "older"]);
   assert.equal(getRoomHistorySelectionState(selected, entries), "all");
   assert.equal(
     getRoomHistorySelectionState(selected, [entries[0], entries[1]]),
@@ -79,13 +79,13 @@ test("滚动历史批量选择排除当前会话和外部 Session", async () => 
   );
   assert.deepEqual(
     [...reconcileRoomHistorySelection(
-      new Set(["older", "removed"]),
+      new Set(["current", "older", "removed"]),
       getBulkSelectableConversationIds(entries),
     )],
-    ["older"],
+    ["current", "older"],
     "刷新后必须剔除已经消失的选中项",
   );
-  const stableSelection = new Set(["older"]);
+  const stableSelection = new Set(["current", "older"]);
   assert.equal(
     reconcileRoomHistorySelection(
       stableSelection,
@@ -207,6 +207,20 @@ test("当前会话在仍有其他会话时常驻提供单项删除动作", async
   );
 
   assert.equal(lastPresentation.actions.includes("delete"), false);
+  const lastSelectionPresentation = buildRoomHistoryItemPresentation(
+    lastEntry,
+    {
+      isEditing: false,
+      isSelected: true,
+      isSelecting: true,
+    },
+    {untitled: "未命名会话"},
+  );
+  assert.equal(
+    lastSelectionPresentation.selection?.disabled,
+    false,
+    "最后一个已开始会话仍可通过全量清空进入批量选择",
+  );
 });
 
 test("主对话只在它是最后一个本地会话时禁止删除", async () => {
@@ -268,4 +282,54 @@ test("批量删除串行执行并保留失败项供重试", async () => {
 
   assert.deepEqual(calls, ["first", "failed", "last"]);
   assert.deepEqual(result.failedConversationIds, ["failed"]);
+  assert.equal(result.replacementConversationId, null);
+});
+
+test("清空全部历史先创建新草稿并最后删除当前会话", async () => {
+  const { deleteRoomHistoryConversationBatch } = await server.ssrLoadModule(
+    "/src/features/conversation/room/surface/history/room-history-bulk-delete.ts",
+  );
+  const calls = [];
+  const result = await deleteRoomHistoryConversationBatch(
+    ["current", "older", "older"],
+    async (conversationId) => {
+      calls.push(`delete:${conversationId}`);
+    },
+    {
+      currentConversationId: "current",
+      createReplacementConversation: async () => {
+        calls.push("create:fresh");
+        return "fresh";
+      },
+    },
+  );
+
+  assert.deepEqual(
+    calls,
+    ["create:fresh", "delete:older", "delete:current"],
+    "新草稿必须先成为安全锚点，当前会话必须最后删除",
+  );
+  assert.deepEqual(result.failedConversationIds, []);
+  assert.equal(result.replacementConversationId, "fresh");
+});
+
+test("新草稿准备失败时不删除任何历史", async () => {
+  const { deleteRoomHistoryConversationBatch } = await server.ssrLoadModule(
+    "/src/features/conversation/room/surface/history/room-history-bulk-delete.ts",
+  );
+  const calls = [];
+  const result = await deleteRoomHistoryConversationBatch(
+    ["current", "older"],
+    async (conversationId) => {
+      calls.push(conversationId);
+    },
+    {
+      currentConversationId: "current",
+      createReplacementConversation: async () => null,
+    },
+  );
+
+  assert.deepEqual(calls, []);
+  assert.deepEqual(result.failedConversationIds, ["current", "older"]);
+  assert.equal(result.replacementConversationId, null);
 });

@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 会话快照、当前会话与管理能力。
- * OUTPUT: 排除内部草稿后，按活动时间排序并带单项/批量管理资格的历史条目。
+ * OUTPUT: 排除内部草稿后，按活动时间排序并带单项/全量管理资格的历史条目。
  * POS: Room 历史菜单的纯协议到展示能力投影。
  */
 
@@ -65,7 +65,7 @@ export function buildRoomHistoryEntries({
         conversation,
         externalSessionLabel: getExternalSessionConversationLabel(conversation),
         isActive,
-        canBulkDelete: canDelete && !isActive,
+        canBulkDelete: !isExternalSession && canManageConversations,
         canDelete,
         canRename: (
           !isExternalSession
