@@ -143,7 +143,9 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"never repeat, quote, paraphrase, summarize, acknowledge, or confirm",
 		"output only the new deliverable concretely assigned to you",
 		"If it assigns no concrete new work, output exactly <nexus_room_no_reply/>",
-		"Wake one member unless",
+		"Wake one member by default",
+		"distinct, non-overlapping deliverables",
+		"<nexus_room_fanout/>",
 		"<nexus_room_no_reply/>",
 		"Track multi-turn handoffs, stop conditions",
 		`nexus_room.send_directed_message`,
@@ -169,6 +171,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"<current_room_member>",
 		"recipients: string[]",
 		"next_reply_route: {...}",
+		"unless the source explicitly requests",
 	} {
 		if strings.Contains(systemPrompt, unexpected) {
 			t.Fatalf("Room system prompt 不应包含动态变量 %q:\n%s", unexpected, systemPrompt)
@@ -289,8 +292,12 @@ func TestBuildRoomVisibleContextMakesHostAssessDelegationBeforeExecution(t *test
 	for _, expected := range []string{
 		"room host default takeover",
 		"assess task complexity, separable work, and member fit",
-		"Prefer @ exactly one suitable member with a concrete deliverable",
-		"do not duplicate that deliverable yourself",
+		"Delegate to the smallest suitable set",
+		"use @ exactly one member for a single deliverable",
+		"multiple independent, non-overlapping deliverables",
+		"@ each suitable member with one concrete deliverable",
+		"append the fanout marker required by the system rule",
+		"do not duplicate those deliverables yourself",
 		"coordination, unblocking, integration, and verification",
 		"Handle the whole task directly only when it is small or atomic",
 	} {
