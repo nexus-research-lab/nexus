@@ -64,8 +64,8 @@ export function ConversationPanelViewport({
       ref={viewport.scrollRef}
       className={
         isMobileLayout
-          ? "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-1 py-2"
-          : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 xl:px-7 xl:py-5"
+          ? "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-1 py-2 outline-none"
+          : "soft-scrollbar relative z-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 outline-none sm:px-5 sm:py-5 xl:px-7 xl:py-5"
       }
       style={{ overflowAnchor: "none" }}
       tabIndex={-1}

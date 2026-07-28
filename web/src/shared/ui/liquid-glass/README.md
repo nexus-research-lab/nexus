@@ -104,9 +104,8 @@ pnpm run export:liquid-glass -- \
 
 ## 6. 当前实现的边界
 
-- Chrome / Safari 都会尝试这条 SVG filter 路线
-- Firefox 仍然不走 true liquid glass
-- Safari 即使支持，也可能和 Chrome 视觉上不完全一致
+- Chrome 会在宿主能力允许时尝试这条 SVG filter 路线
+- Firefox 和 Safari 使用静态材质；Safari 卸载 SVG `backdrop-filter` 后可能留下合成层残影
 - 首次渲染统一使用降级材质，挂载后再按宿主能力启用滤镜
 - Web Animation 资源由专用 Hook 持有并在卸载时取消
 - 如果要做完全一致的跨浏览器折射，下一层方案是 Canvas / WebGL，而不是继续堆 CSS

@@ -20,6 +20,31 @@ test.after(async () => {
   await server.close();
 });
 
+test("conversation viewport suppresses the browser scroll-region outline", async () => {
+  const { ConversationPanelViewport } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/conversation-panel-layout.tsx",
+  );
+  const html = renderToStaticMarkup(React.createElement(
+    ConversationPanelViewport,
+    {
+      isMobileLayout: false,
+      viewport: {
+        error: null,
+        isHistoryLoading: false,
+        scrollRef: { current: null },
+      },
+    },
+    React.createElement("div", null, "message"),
+  ));
+
+  assert.match(
+    html,
+    /class="[^"]*overflow-y-auto[^"]*outline-none[^"]*"/,
+    "the programmatically focusable viewport must not expose Safari's native blue outline",
+  );
+  assert.match(html, /tabindex="-1"/);
+});
+
 test("scroll-to-latest requires real viewport overflow", async () => {
   const { hasScrollableOverflow } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
