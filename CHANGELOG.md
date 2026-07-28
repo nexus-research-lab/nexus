@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed Agent identity and tool permission edits requiring a second save before success appeared; server-confirmed source refreshes now remain within the active save transaction, while editor switches and newer user drafts still reject stale results.
 - Isolated Room overlays, directed-message state, public handoffs, and delayed wakes under each owner's host-managed `state/rooms` directory, moved runtime-readable Room attachments into the owner's `workspace/.rooms` asset tree, pinned Room ledger access to verified directory/file inodes, and added a restart-safe owner-validated migration from the former shared `app/rooms` layout.
 - Bound owner-aware InputQueue, Room transcript references, and attachment reads to no-symlink directory paths, with inode and hard-link checks before host file access.
 - Made the Room `+` action rely on one explicit server-side draft per Room instead of scanning message counts or pulling unrelated history into the tab bar, atomically reused that draft across repeated and cross-window requests, kept it out of history until real user input, and preserved one-click tab closing. Added a file-aware one-time desktop upgrade repair plus a dry-run-by-default `nexusctl conversation prune-empty` command to consolidate duplicate legacy Sessions that never received user input.

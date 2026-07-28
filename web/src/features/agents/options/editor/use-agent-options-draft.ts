@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 
@@ -24,17 +24,20 @@ export function useAgentOptionsDraft({
   scopeKey,
 }: UseAgentOptionsDraftOptions) {
   const [draft, setDraft] = useResettableState(initialDraft, scopeKey);
+  const revisionRef = useRef(0);
 
   const updateField = useCallback(<Field extends AgentOptionsDraftField>(
     field: Field,
     value: AgentOptionsDraft[Field],
   ) => {
     onChange();
+    revisionRef.current += 1;
     setDraft((current) => ({ ...current, [field]: value }));
   }, [onChange, setDraft]);
 
   const toggleTool = useCallback((toolName: string, kind: ToolListKind) => {
     onChange();
+    revisionRef.current += 1;
     const field = TOOL_FIELD_BY_KIND[kind];
     setDraft((current) => {
       const tools = current[field];
@@ -45,5 +48,5 @@ export function useAgentOptionsDraft({
     });
   }, [onChange, setDraft]);
 
-  return { draft, toggleTool, updateField };
+  return { draft, revisionRef, toggleTool, updateField };
 }

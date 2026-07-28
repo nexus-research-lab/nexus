@@ -47,6 +47,11 @@ interface AgentEditorScopeOptions {
   source: AgentOptionsEditorSource;
 }
 
+interface AgentEditorCommandScopeOptions {
+  isActive: boolean;
+  source: AgentOptionsEditorSource;
+}
+
 export function createAgentOptionsDraft({
   defaultTitle,
   initial,
@@ -85,6 +90,17 @@ export function buildAgentEditorScopeKey({
     draft,
     isActive,
     source,
+  });
+}
+
+export function buildAgentEditorCommandScopeKey({
+  isActive,
+  source,
+}: AgentEditorCommandScopeOptions): string {
+  return JSON.stringify({
+    agentId: source.kind === "edit" ? source.agentId : null,
+    isActive,
+    kind: source.kind,
   });
 }
 

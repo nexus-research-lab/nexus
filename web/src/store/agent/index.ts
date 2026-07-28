@@ -139,6 +139,7 @@ export const useAgentStore = create<AgentStoreState>()(
         } catch (error) {
           console.error("[AgentStore] Failed to update agent:", error);
           set({ error: "Failed to update agent" });
+          throw error;
         }
       },
 

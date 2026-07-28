@@ -313,6 +313,90 @@ test("创建 Agent 时行为模板进入独立 API 字段", async () => {
   assert.equal(params.description, "");
 });
 
+test("Agent 首次保存接受服务端来源回写但拒绝更新的用户草稿", async () => {
+  const {
+    buildAgentEditorCommandScopeKey,
+    buildAgentEditorScopeKey,
+    createAgentOptionsDraft,
+  } = await server.ssrLoadModule(
+    "/src/features/agents/options/editor/agent-options-draft.ts",
+  );
+  const { isAgentOptionsSaveCurrent } = await server.ssrLoadModule(
+    "/src/features/agents/options/editor/agent-options-save-transaction.ts",
+  );
+  const beforeSource = {
+    agentId: "agent-1",
+    initial: {
+      avatar: "1",
+      description: "",
+      options: { permission_mode: "plan" },
+      title: "Reviewer",
+      vibeTags: [],
+    },
+    isMain: false,
+    kind: "edit",
+  };
+  const afterSource = {
+    ...beforeSource,
+    initial: {
+      ...beforeSource.initial,
+      options: { permission_mode: "acceptEdits" },
+    },
+  };
+  const beforeSourceScopeKey = buildAgentEditorScopeKey({
+    draft: createAgentOptionsDraft({
+      defaultTitle: "Agent",
+      initial: beforeSource.initial,
+    }),
+    isActive: true,
+    source: beforeSource,
+  });
+  const afterSourceScopeKey = buildAgentEditorScopeKey({
+    draft: createAgentOptionsDraft({
+      defaultTitle: "Agent",
+      initial: afterSource.initial,
+    }),
+    isActive: true,
+    source: afterSource,
+  });
+  const commandScopeKey = buildAgentEditorCommandScopeKey({
+    isActive: true,
+    source: beforeSource,
+  });
+  const token = {
+    commandScopeKey,
+    draftRevision: 1,
+    id: 1,
+    sourceScopeKey: beforeSourceScopeKey,
+  };
+
+  assert.notEqual(afterSourceScopeKey, beforeSourceScopeKey);
+  assert.equal(
+    buildAgentEditorCommandScopeKey({ isActive: true, source: afterSource }),
+    commandScopeKey,
+  );
+  assert.equal(
+    isAgentOptionsSaveCurrent(token, {
+      commandScopeKey,
+      draftRevision: 1,
+      sourceScopeKey: afterSourceScopeKey,
+      token,
+    }, false),
+    true,
+    "PATCH 成功后的来源回写仍应归属于首次保存",
+  );
+  assert.equal(
+    isAgentOptionsSaveCurrent(token, {
+      commandScopeKey,
+      draftRevision: 2,
+      sourceScopeKey: afterSourceScopeKey,
+      token,
+    }, false),
+    false,
+    "保存过程中出现的新用户草稿不得收到旧成功反馈",
+  );
+});
+
 test("会话标签首次只打开活动项并按创建时间插入主动选择项", async () => {
   const {
     getConversationIdsByCreationTime,
