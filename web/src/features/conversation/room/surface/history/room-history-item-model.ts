@@ -1,16 +1,29 @@
+/**
+ * INPUT: 单条历史会话、标题编辑状态与可选的批量选择状态。
+ * OUTPUT: 条目模式、标题元信息、动作和选择控件的封闭展示模型。
+ * POS: Room 历史单项从领域条目到纯视图的唯一投影入口。
+ */
+
 import { formatRelativeTime } from "@/lib/format/relative-time";
 
 import type { RoomHistoryEntry } from "./room-history-model";
 
 export type RoomHistoryItemAction = "delete" | "rename";
-export type RoomHistoryItemMode = "editing" | "reading";
+export type RoomHistoryItemMode = "editing" | "reading" | "selecting";
 export type RoomHistoryItemState = "active" | "idle";
+
+export interface RoomHistoryItemSelectionPresentation {
+  checked: boolean;
+  disabled: boolean;
+}
 
 export interface RoomHistoryItemPresentation {
   actions: RoomHistoryItemAction[];
+  actionsPersistent: boolean;
   activityLabel: string;
   externalSessionLabel: string | null;
   mode: RoomHistoryItemMode;
+  selection: RoomHistoryItemSelectionPresentation | null;
   state: RoomHistoryItemState;
   title: string;
 }
@@ -30,8 +43,9 @@ const ACTION_DEFINITIONS: Array<{
 function itemActions(
   entry: RoomHistoryEntry,
   isEditing: boolean,
+  isSelecting: boolean,
 ): RoomHistoryItemAction[] {
-  if (isEditing) {
+  if (isEditing || isSelecting) {
     return [];
   }
   return ACTION_DEFINITIONS
@@ -39,7 +53,13 @@ function itemActions(
     .map((definition) => definition.kind);
 }
 
-function itemMode(isEditing: boolean): RoomHistoryItemMode {
+function itemMode(
+  isEditing: boolean,
+  isSelecting: boolean,
+): RoomHistoryItemMode {
+  if (isSelecting) {
+    return "selecting";
+  }
   return isEditing ? "editing" : "reading";
 }
 
@@ -49,14 +69,30 @@ function itemState(isActive: boolean): RoomHistoryItemState {
 
 export function buildRoomHistoryItemPresentation(
   entry: RoomHistoryEntry,
-  isEditing: boolean,
+  {
+    isEditing,
+    isSelected,
+    isSelecting,
+  }: {
+    isEditing: boolean;
+    isSelected: boolean;
+    isSelecting: boolean;
+  },
   copy: RoomHistoryItemCopy,
 ): RoomHistoryItemPresentation {
+  const actions = itemActions(entry, isEditing, isSelecting);
   return {
-    actions: itemActions(entry, isEditing),
+    actions,
+    actionsPersistent: entry.isActive && actions.length > 0,
     activityLabel: formatRelativeTime(entry.conversation.last_activity_at),
     externalSessionLabel: entry.externalSessionLabel,
-    mode: itemMode(isEditing),
+    mode: itemMode(isEditing, isSelecting),
+    selection: isSelecting
+      ? {
+          checked: isSelected,
+          disabled: !entry.canBulkDelete,
+        }
+      : null,
     state: itemState(entry.isActive),
     title: entry.conversation.title?.trim() || copy.untitled,
   };
