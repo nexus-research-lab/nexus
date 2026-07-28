@@ -11,7 +11,6 @@ import {
 interface GlassSwitchInteractionOptions {
   checked: boolean;
   disabled: boolean;
-  liquidTransitionEnabled: boolean;
   onChange: (checked: boolean) => void;
 }
 
@@ -48,7 +47,6 @@ const SWITCH_ACTIVATION_KEYS = new Set([" ", "Enter"]);
 export function useGlassSwitchInteraction({
   checked,
   disabled,
-  liquidTransitionEnabled,
   onChange,
 }: GlassSwitchInteractionOptions): GlassSwitchInteraction {
   const previousCheckedRef = useRef(checked);
@@ -59,7 +57,7 @@ export function useGlassSwitchInteraction({
     previousCheckedRef.current = checked;
 
     setInteraction((current) => {
-      if (disabled || !liquidTransitionEnabled) {
+      if (disabled) {
         return current.isPressed || current.isTransitioning
           ? IDLE_INTERACTION
           : current;
@@ -69,7 +67,7 @@ export function useGlassSwitchInteraction({
       }
       return { ...current, isTransitioning: true };
     });
-  }, [checked, disabled, liquidTransitionEnabled]);
+  }, [checked, disabled]);
 
   const press = useCallback(() => {
     if (disabled) {

@@ -25,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed Safari occasionally leaving a faint switch-shaped rectangle in conversations by rendering fallback switches with one normally positioned thumb instead of transient SVG, transform, opacity, or `will-change` compositing layers, and removed Safari's native blue focus outline from the programmatically focusable message viewport.
+- Fixed compact Launcher windows making recent chats, rooms, and the Nexus handoff action unclickable when the decorative Agent pile overlapped their hit area.
+- Fixed Safari drawing a native blue focus outline across the bottom of the programmatically focusable conversation viewport.
 - Fixed the Windows desktop update download progress build by explicitly selecting WPF controls and alignment values when both WPF and WinForms are enabled.
 - Fixed Agent identity and tool permission edits requiring a second save before success appeared; server-confirmed source refreshes now remain within the active save transaction, while editor switches and newer user drafts still reject stale results.
 - Fixed the Subagent workspace remaining empty for live `Agent` tool runs: task discovery now keeps polling across empty snapshots, runtime-injected progress is persisted instead of being mistaken for transcript-native content, structured Agent results are recovered from transcripts, matching tool results settle completed or failed tasks, and an opened task resolves its independent Agent transcript to show the same thinking, message, tool-call, and tool-result history as a normal conversation while hiding the parent Agent's task prompt. Model-provided task descriptions now name individual Subagents instead of every instance appearing as its generic `Explore` type. Task details remain a read-only execution thread without a second Composer or direct task-stop control.
