@@ -66,7 +66,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
         <ComposerAttachmentList
           attachments={attachments.attachments}
           onRemove={attachments.removeAttachment}
-          previewResetKey={props.draftRestoreKey}
+          previewResetKey={props.draftScopeKey}
           removeLabel={t("composer.remove_attachment")}
         />
 

@@ -431,8 +431,8 @@ test("Safari composition guard only consumes Enter after composition end", async
 
 test("Composer drafts stay isolated by Session while history follows the chat", async () => {
   const {
-    buildComposerDraftRestoreKey,
     buildComposerDraftScopeKey,
+    buildComposerHistoryScopeKey,
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/composer-draft-scope.ts",
   );
@@ -444,38 +444,34 @@ test("Composer drafts stay isolated by Session while history follows the chat", 
     drafts_by_scope: {},
   });
 
-  const roomScope = buildComposerDraftScopeKey({
+  const firstSessionScope = buildComposerDraftScopeKey({
     agentId: "lead-agent",
     roomId: "room-1",
+    sessionKey: "session-1",
   });
-  const sameRoomScope = buildComposerDraftScopeKey({
+  const sameSessionScope = buildComposerDraftScopeKey({
     agentId: "other-agent",
     roomId: "room-1",
+    sessionKey: "session-1",
+  });
+  const secondSessionScope = buildComposerDraftScopeKey({
+    roomId: "room-1",
+    sessionKey: "session-2",
   });
   const otherRoomScope = buildComposerDraftScopeKey({
     roomId: "room-2",
-  });
-  assert.equal(roomScope, sameRoomScope);
-  assert.notEqual(roomScope, otherRoomScope);
-  const firstSessionScope = buildComposerDraftRestoreKey({
-    draftScopeKey: roomScope,
-    sessionKey: "session-1",
-  });
-  const sameSessionScope = buildComposerDraftRestoreKey({
-    draftScopeKey: sameRoomScope,
-    sessionKey: "session-1",
-  });
-  const secondSessionScope = buildComposerDraftRestoreKey({
-    draftScopeKey: sameRoomScope,
-    sessionKey: "session-2",
-  });
-  const otherRoomSessionScope = buildComposerDraftRestoreKey({
-    draftScopeKey: otherRoomScope,
     sessionKey: "session-1",
   });
   assert.equal(firstSessionScope, sameSessionScope);
   assert.notEqual(firstSessionScope, secondSessionScope);
-  assert.notEqual(firstSessionScope, otherRoomSessionScope);
+  assert.notEqual(firstSessionScope, otherRoomScope);
+  assert.equal(
+    buildComposerHistoryScopeKey({ roomId: "room-1" }),
+    buildComposerHistoryScopeKey({
+      agentId: "other-agent",
+      roomId: "room-1",
+    }),
+  );
 
   const updateDraft = useComposerDraftStore.getState().update_composer_draft;
   const diagramAttachment = {
@@ -495,7 +491,7 @@ test("Composer drafts stay isolated by Session while history follows the chat", 
     ...current,
     input: "第二个 Session 的待发送内容",
   }));
-  updateDraft(otherRoomSessionScope, (current) => ({
+  updateDraft(otherRoomScope, (current) => ({
     ...current,
     input: "另一个 Room 的草稿",
   }));
@@ -518,9 +514,7 @@ test("Composer drafts stay isolated by Session while history follows the chat", 
   assert.equal(secondSessionDraft.inputMode, "message");
   assert.deepEqual(secondSessionDraft.attachments, []);
   assert.equal(
-    useComposerDraftStore
-      .getState()
-      .drafts_by_scope[otherRoomSessionScope].input,
+    useComposerDraftStore.getState().drafts_by_scope[otherRoomScope].input,
     "另一个 Room 的草稿",
   );
 
@@ -616,4 +610,51 @@ test("restored Composer draft places the caret after the final character", async
   assert.deepEqual(focusOptions, { preventScroll: true });
   assert.deepEqual(selection, [textarea.value.length, textarea.value.length]);
   assert.equal(textarea.scrollTop, textarea.scrollHeight);
+});
+
+test("Composer input history persists locally and stays isolated by chat", async () => {
+  const {
+    MAX_COMPOSER_HISTORY_ITEMS,
+    useComposerHistoryStore,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-history-store.ts",
+  );
+  await useComposerHistoryStore.persist.clearStorage();
+  useComposerHistoryStore.setState({ items_by_scope: {} });
+
+  const recordHistory = useComposerHistoryStore
+    .getState()
+    .record_composer_history;
+  recordHistory("room:alpha", "  第一条消息  ");
+  recordHistory("room:alpha", "第二条消息");
+  recordHistory("room:beta", "另一个聊天");
+
+  assert.deepEqual(
+    useComposerHistoryStore.getState().items_by_scope["room:alpha"],
+    ["第二条消息", "第一条消息"],
+  );
+  assert.deepEqual(
+    useComposerHistoryStore.getState().items_by_scope["room:beta"],
+    ["另一个聊天"],
+  );
+
+  for (let index = 0; index < MAX_COMPOSER_HISTORY_ITEMS + 5; index += 1) {
+    recordHistory("room:bounded", `历史-${index}`);
+  }
+  const boundedHistory = useComposerHistoryStore
+    .getState()
+    .items_by_scope["room:bounded"];
+  assert.equal(boundedHistory.length, MAX_COMPOSER_HISTORY_ITEMS);
+  assert.equal(boundedHistory[0], `历史-${MAX_COMPOSER_HISTORY_ITEMS + 4}`);
+  assert.equal(boundedHistory.at(-1), "历史-5");
+
+  const storage = useComposerHistoryStore.persist.getOptions().storage;
+  const persisted = await storage.getItem("nexus-composer-history");
+  assert.deepEqual(
+    persisted.state.items_by_scope["room:alpha"],
+    ["第二条消息", "第一条消息"],
+  );
+
+  await useComposerHistoryStore.persist.clearStorage();
+  useComposerHistoryStore.setState({ items_by_scope: {} });
 });

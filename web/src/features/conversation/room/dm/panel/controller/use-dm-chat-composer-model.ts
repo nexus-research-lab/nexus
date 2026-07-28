@@ -5,8 +5,8 @@ import { useConversationComposerHandlers } from "@/features/conversation/shared/
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
 import {
-  buildComposerDraftRestoreKey,
   buildComposerDraftScopeKey,
+  buildComposerHistoryScopeKey,
 } from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
@@ -52,7 +52,8 @@ export function useDmChatComposerModel({
 }: UseDmChatComposerModelOptions): DmChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
-  const chatScopeKey = buildComposerDraftScopeKey({ agentId });
+  const draftScopeKey = buildComposerDraftScopeKey({ agentId, sessionKey });
+  const historyScopeKey = buildComposerHistoryScopeKey({ agentId });
   const prepareAttachments = useCallback(
     async (files: File[]) => {
       if (!agentId) {
@@ -75,11 +76,9 @@ export function useDmChatComposerModel({
 
   return {
     defaultDeliveryPolicy,
-    draftRestoreKey: buildComposerDraftRestoreKey({
-      draftScopeKey: chatScopeKey,
-      sessionKey,
-    }),
+    draftScopeKey,
     goalScopeLabel,
+    historyScopeKey,
     inputQueueItems: conversation.input_queue_items,
     isLoading: conversation.is_loading,
     onCreateGoal: sessionKey ? onCreateGoal : undefined,

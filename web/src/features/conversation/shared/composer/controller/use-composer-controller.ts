@@ -1,5 +1,5 @@
 /**
- * INPUT: Composer 视图能力、Session 草稿作用域及投递动作。
+ * INPUT: Composer 视图能力、Session 草稿作用域、聊天历史作用域及投递动作。
  * OUTPUT: 草稿、附件、键盘、发送与 textarea 焦点的统一视图模型。
  * POS: Shared Composer 的顶层交互编排入口。
  */
@@ -27,9 +27,10 @@ const EMPTY_ROOM_MEMBERS: Agent[] = [];
 export function useComposerController({
   compact,
   defaultDeliveryPolicy,
-  draftRestoreKey,
+  draftScopeKey,
   enableLoops = false,
   goalCreateDisabledReason = null,
+  historyScopeKey,
   inputQueueItems,
   isLoading,
   onCreateGoal,
@@ -43,7 +44,7 @@ export function useComposerController({
   runtimePhase,
 }: ComposerPanelProps) {
   const { t } = useI18n();
-  const draft = useComposerDraft(draftRestoreKey);
+  const draft = useComposerDraft(draftScopeKey);
   const {
     completeMessageSubmission,
     setAttachments,
@@ -57,6 +58,14 @@ export function useComposerController({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
+  const focusTextareaAtEnd = useCallback(() => {
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (textarea) {
+        focusComposerInputAtEnd(textarea);
+      }
+    });
+  }, []);
   const isGoalMode = draftState.inputMode === "goal";
   const attachments = useComposerAttachments({
     attachments: draftState.attachments,
@@ -82,6 +91,8 @@ export function useComposerController({
   const history = useComposerHistory({
     clearError: clearAttachmentError,
     input: draftState.input,
+    onRecall: focusTextareaAtEnd,
+    scopeKey: historyScopeKey,
     setInput,
   });
 
@@ -100,7 +111,7 @@ export function useComposerController({
     if (textarea) {
       focusComposerInputAtEnd(textarea);
     }
-  }, [draftRestoreKey]);
+  }, [draftScopeKey]);
 
   const resetTextareaHeight = useCallback(() => {
     if (textareaRef.current) {
