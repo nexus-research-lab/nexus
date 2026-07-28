@@ -72,3 +72,15 @@ export function parseSettingsSection(
     ? (section as SettingsSectionKey)
     : DEFAULT_SETTINGS_SECTION;
 }
+
+export function getSettingsSectionLabelKey(
+  section: SettingsSectionKey,
+): TranslationKey {
+  for (const group of SETTINGS_NAVIGATION_GROUPS) {
+    const item = group.items.find((entry) => entry.key === section);
+    if (item) {
+      return item.labelKey;
+    }
+  }
+  return "settings.title";
+}
