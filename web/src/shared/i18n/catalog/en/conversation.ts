@@ -52,6 +52,7 @@ export const enConversationMessages = {
   "room.thread_close": "Close Thread",
   "room.agent_contact_open": "Open {name}'s contact",
   "room.agent_status_waiting_user": "Waiting for your response",
+  "room.agent_status_no_reply": "No public reply needed",
   "room.agent_status_stopped": "Stopped",
   "room.agent_status_failed": "Failed",
   "room.agent_stop": "Stop Agent",

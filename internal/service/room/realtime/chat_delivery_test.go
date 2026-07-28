@@ -564,6 +564,9 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 	if hasStreamText(events, "<nexus_room_no_reply/>") {
 		t.Fatalf("无需回复标记不应以流式文本暴露给前端: %+v", events)
 	}
+	if !hasAgentRoundStatus(events, agentValue.AgentID, "finished") {
+		t.Fatalf("no-reply 仍须广播 slot 终态，让前端收口已发布的 thinking 快照: %+v", events)
+	}
 	usageSummary, err := usageService.Summary(ctx, "user-room-no-reply")
 	if err != nil {
 		t.Fatalf("读取 no-reply token usage 失败: %v", err)

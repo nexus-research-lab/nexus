@@ -436,11 +436,10 @@ export function extractAgentPreviewText(
     }
     for (let blockIndex = content.length - 1; blockIndex >= 0; blockIndex -= 1) {
       const block = content[blockIndex];
-      if (block.type !== "text" && block.type !== "thinking") {
+      if (block.type !== "text") {
         continue;
       }
-      const text = block.type === "text" ? block.text : block.thinking;
-      const preview = normalizePreviewText(text, maxLength);
+      const preview = normalizePreviewText(block.text, maxLength);
       if (preview) {
         return preview;
       }

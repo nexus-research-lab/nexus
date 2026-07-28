@@ -348,6 +348,42 @@ function buildAgentStatusSummary({
   };
 }
 
+export function isNoPublicReplyAgentEntry(
+  entry: Pick<
+    RoomAgentRoundEntry,
+    "assistant_messages" | "result_summary" | "status"
+  >,
+): boolean {
+  if (entry.status !== "done") {
+    return false;
+  }
+  if (
+    entry.result_summary
+    && entry.result_summary.subtype !== "success"
+  ) {
+    return false;
+  }
+  if (
+    entry.result_summary
+    && stripRoomControlMarkers(entry.result_summary.result ?? "")
+  ) {
+    return false;
+  }
+  return !hasPublicAssistantContent(entry.assistant_messages);
+}
+
+function hasPublicAssistantContent(messages: AssistantMessage[]): boolean {
+  return messages.some((message) => message.content.some((block) => {
+    if (block.type === "thinking") {
+      return false;
+    }
+    if (block.type === "text") {
+      return Boolean(stripRoomControlMarkers(block.text));
+    }
+    return true;
+  }));
+}
+
 function statusFallbackText(
   labels: GroupAgentStatusLabels,
   labelKey: GroupAgentStatusLabelKey | null,

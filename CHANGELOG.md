@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Closed Room Thread thinking indicators when an Agent intentionally returns no public reply, using the precise terminal Agent round status even though the final assistant output is suppressed.
+- Kept Room thinking blocks available in Thread while hiding them from public Agent cards and completed Room replies.
+- Kept no-reply Room Agents visible in the same completed MessageItem layout as public replies, with a clear terminal status and Thread entry instead of dropping the Agent entirely.
 - Isolated Room overlays, directed-message state, public handoffs, and delayed wakes under each owner's host-managed `state/rooms` directory, moved runtime-readable Room attachments into the owner's `workspace/.rooms` asset tree, pinned Room ledger access to verified directory/file inodes, and added a restart-safe owner-validated migration from the former shared `app/rooms` layout.
 - Bound owner-aware InputQueue, Room transcript references, and attachment reads to no-symlink directory paths, with inode and hard-link checks before host file access.
 - Kept every runtime-blocking Room interaction directly actionable in the public conversation—including tool approvals, structured questions, plan confirmations, and unknown future approval tools—while retaining Thread as an optional detail view.

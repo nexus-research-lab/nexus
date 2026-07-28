@@ -49,6 +49,7 @@ export const zhConversationMessages = {
   "room.thread_close": "关闭 Thread",
   "room.agent_contact_open": "打开 {name} 的联络",
   "room.agent_status_waiting_user": "等待用户处理",
+  "room.agent_status_no_reply": "本轮无需公开回复",
   "room.agent_status_stopped": "已停止",
   "room.agent_status_failed": "执行失败",
   "room.agent_stop": "停止 Agent",

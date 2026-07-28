@@ -358,7 +358,16 @@ function resolveRoomResultFinalAssistantContent({
   fallbackFinalAssistantContent,
   resultText,
 }: FinalAssistantContentContext): string | ContentBlock[] | null {
-  return resultText || fallbackFinalAssistantContent;
+  if (resultText) {
+    return resultText;
+  }
+  if (!fallbackFinalAssistantContent) {
+    return null;
+  }
+  const visibleContent = fallbackFinalAssistantContent.filter(
+    (block) => block.type !== "thinking",
+  );
+  return visibleContent.length > 0 ? visibleContent : null;
 }
 
 function resolveHiddenFinalAssistantContent(): null {

@@ -13,6 +13,7 @@ import type { SessionStatusData } from "@/types/generated/protocol";
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 
 import {
+  applyTerminalAgentRoundMessageStatus,
   applyTerminalRoundMessageStatus,
   cancelRunningAgentSlots,
   filterPendingSlotsFromSnapshot,
@@ -237,11 +238,16 @@ export function useAgentConversationRuntime({
       if (!payload.is_terminal) {
         return;
       }
+      setMessages((messages) => applyTerminalAgentRoundMessageStatus(
+        messages,
+        payload.agent_round_id,
+        payload.status,
+      ));
       setPendingPermissions((permissions) => permissions.filter(
         (permission) => permission.agent_round_id !== payload.agent_round_id,
       ));
     },
-    [setPendingAgentSlots, setPendingPermissions],
+    [setMessages, setPendingAgentSlots, setPendingPermissions],
   );
 
   return {

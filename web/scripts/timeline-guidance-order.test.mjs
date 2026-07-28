@@ -579,6 +579,72 @@ test("Room slot terminal state cannot be revived by a late running event", async
   );
 });
 
+test("Room no-reply terminal status closes its published thinking snapshot", async () => {
+  const {
+    applyTerminalAgentRoundMessageStatus,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const {
+    buildRoomThreadPanelModel,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/live/room-thread-panel-model.ts",
+  );
+  const thinkingSnapshot = {
+    agent_id: "agent-lucy",
+    agent_round_id: "agent-round-no-reply",
+    content: [{ type: "thinking", thinking: "判断是否需要公开回复" }],
+    is_complete: false,
+    message_id: "assistant-no-reply",
+    role: "assistant",
+    round_id: "round-root",
+    session_key: "room:group:conversation",
+    stream_status: "streaming",
+    timestamp: 10,
+  };
+  const unrelatedSnapshot = {
+    ...thinkingSnapshot,
+    agent_id: "agent-amy",
+    agent_round_id: "agent-round-active",
+    message_id: "assistant-active",
+  };
+
+  const reconciled = applyTerminalAgentRoundMessageStatus(
+    [thinkingSnapshot, unrelatedSnapshot],
+    "agent-round-no-reply",
+    "finished",
+  );
+
+  assert.equal(
+    reconciled[0]?.stream_status,
+    "done",
+    "no-reply 没有最终消息时也必须结束已经发布的 thinking 快照",
+  );
+  assert.equal(
+    reconciled[1],
+    unrelatedSnapshot,
+    "slot 终态只能收口精确匹配的 agent_round_id",
+  );
+  const thread = buildRoomThreadPanelModel({
+    agentAvatarMap: {},
+    agentNameMap: { "agent-lucy": "Lucy" },
+    currentUserAvatar: null,
+    messageGroups: new Map([["round-root", reconciled]]),
+    onPermissionResponse: () => true,
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map(),
+  }, {
+    agentId: "agent-lucy",
+    agentRoundId: "agent-round-no-reply",
+    roundId: "round-root",
+  });
+  assert.equal(
+    thread?.isLoading,
+    false,
+    "Lucy Thread 不应在 no-reply 终态后继续显示正在思考",
+  );
+});
+
 test("Room pending queue shows only user-authored guidance", async () => {
   const { projectRoomPendingInputQueueItems } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/panel/controller/group-chat-panel-projection.ts",
@@ -887,6 +953,179 @@ test("Room no-reply control markers stay out of previews and result summaries", 
     status: "cancelled",
   });
   assert.equal(status.summaryText, "Stopped");
+
+  const noReplyEntry = {
+    assistant_messages: [{
+      ...assistantMessage({
+        messageId: "assistant-no-reply",
+        text: "",
+        timestamp: 1,
+      }),
+      content: [{
+        thinking: "仅供 Thread 查看",
+        type: "thinking",
+      }],
+    }],
+    result_summary: undefined,
+    status: "done",
+  };
+  const { isNoPublicReplyAgentEntry } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  assert.equal(isNoPublicReplyAgentEntry(noReplyEntry), true);
+});
+
+test("Room public cards hide thinking while Thread keeps it available", async () => {
+  const { extractAgentPreviewText } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    resolveMessageItemFinalProjection,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
+  );
+  const thinking = {
+    thinking: "这段只应在 Lucy Thread 中显示",
+    type: "thinking",
+  };
+  const assistant = assistantMessage({
+    messageId: "assistant-thinking-only",
+    text: "",
+    timestamp: 1,
+  });
+  assistant.content = [thinking];
+
+  assert.equal(
+    extractAgentPreviewText([assistant]),
+    "",
+    "Room 公区状态卡不能把 thinking 当作回复摘要",
+  );
+  const projection = resolveMessageItemFinalProjection({
+    assistantContentMode: "room_result",
+    assistantMessages: [assistant],
+    orderedProjection: {
+      content: [thinking],
+      streamingIndexes: new Set(),
+    },
+    resultSummary: undefined,
+    roundId: "round-root",
+    streamingBlockIndexes: new Set(),
+    visibleAssistantTurns: [{
+      content: [thinking],
+      messageId: assistant.message_id,
+      streamingIndexes: new Set(),
+      textContent: [],
+      textStreamingIndexes: new Set(),
+    }],
+    visibleOrderedAssistantEntries: [{
+      block: thinking,
+      mergedIndex: 0,
+      sourceMessageId: assistant.message_id,
+      sourceOrder: 0,
+    }],
+  });
+  assert.equal(
+    projection.finalAssistantContent,
+    null,
+    "Room 已完成卡片不能把 thinking 作为最终公区正文",
+  );
+});
+
+test("Room no-reply keeps the completed MessageItem visual shell", async () => {
+  const { GroupCompletedReply } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-completed-reply.tsx",
+  );
+  const { ThreadControlContext } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/group-thread-state.ts",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const entry = {
+    agentAvatar: null,
+    agent_id: "agent-lucy",
+    agentName: "Lucy",
+    agent_round_id: "agent-round-lucy",
+    assistant_messages: [{
+      ...assistantMessage({
+        agentId: "agent-lucy",
+        agentRoundId: "agent-round-lucy",
+        messageId: "assistant-lucy",
+        model: "glm-4.7",
+        resultSummary: {
+          duration_api_ms: 10,
+          duration_ms: 100,
+          is_error: false,
+          num_turns: 1,
+          result: "<nexus_room_no_reply/>",
+          subtype: "success",
+          timestamp: 2,
+        },
+        status: "done",
+        timestamp: 2,
+      }),
+      content: [{
+        thinking: "仅供 Thread 查看",
+        type: "thinking",
+      }],
+    }],
+    entry_id: "agent-lucy:agent-round-lucy",
+    guidedUserMessages: [],
+    pendingPermissions: [],
+    pending_slot: null,
+    result_summary: {
+      duration_api_ms: 10,
+      duration_ms: 100,
+      is_error: false,
+      num_turns: 1,
+      result: "<nexus_room_no_reply/>",
+      subtype: "success",
+      timestamp: 2,
+    },
+    status: "done",
+    stopAgentRoundId: null,
+    timestamp: 2,
+  };
+  const html = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(
+        ThreadControlContext.Provider,
+        {
+          value: {
+            activeThread: null,
+            closeThread: () => {},
+            openThread: () => {},
+          },
+        },
+        React.createElement(GroupCompletedReply, {
+          agentMentionDirectory: { avatars: {}, names: {} },
+          entry,
+          isThreadActive: false,
+          noPublicReply: true,
+          onClickThread: () => {},
+          onPermissionResponse: () => true,
+          roundId: "round-root",
+        }),
+      ),
+    ),
+  );
+
+  assert.match(
+    html,
+    /nexus-chat-message-round-expanded/,
+    "no-reply 必须沿用完成态 MessageItem 外壳",
+  );
+  assert.match(html, /nexus-chat-message-header/);
+  assert.match(html, /本轮无需公开回复/);
+  assert.match(html, /查看 Thread/);
+  assert.match(html, /glm-4\.7/);
+  assert.doesNotMatch(
+    html,
+    /bg-primary\/5/,
+    "no-reply 不应退回活动状态卡的高亮背景",
+  );
 });
 
 test("consumed Room guide update moves beside its running assistant", async () => {

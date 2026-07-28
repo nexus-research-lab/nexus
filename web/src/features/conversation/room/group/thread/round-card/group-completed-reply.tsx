@@ -1,8 +1,10 @@
 /**
  * INPUT: 已完成 agent round 卡片、待处理人工介入请求、身份和 Thread 操作。
- * OUTPUT: 以精确 entry_id 隔离 MessageItem，并在公区保留全部未解决人工交互。
+ * OUTPUT: 以精确 entry_id 隔离 MessageItem，并在公区保留全部未解决人工交互；
+ *         无公开正文时仍沿用完成态消息布局展示终态说明。
  * POS: Room 主 Feed 的完成态 Agent 回复与用户交互视图。
  */
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { CONVERSATION_ASSISTANT_CONTENT_WIDTH_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import { PendingHumanInteractionList } from "@/features/conversation/shared/message/item/view/assistant/pending-human-interaction-list";
@@ -22,6 +24,7 @@ interface GroupCompletedReplyProps {
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   roundId: string;
   agentMentionDirectory?: AgentMentionDirectory;
+  noPublicReply?: boolean;
 }
 
 export function GroupCompletedReply({
@@ -33,11 +36,18 @@ export function GroupCompletedReply({
   onPermissionResponse,
   roundId,
   agentMentionDirectory,
+  noPublicReply = false,
 }: GroupCompletedReplyProps) {
+  const { t } = useI18n();
   return (
     <>
       <MessageItem
         assistantContentMode="room_result"
+        assistantEmptyState={noPublicReply ? (
+          <p className="text-base leading-7 text-(--text-muted)">
+            {t("room.agent_status_no_reply")}
+          </p>
+        ) : undefined}
         assistantHeaderAction={(
           <ThreadActionButton
             active={isThreadActive}

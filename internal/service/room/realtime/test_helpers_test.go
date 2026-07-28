@@ -378,6 +378,18 @@ func countEventType(events []protocol.EventMessage, target protocol.EventType) i
 	return count
 }
 
+func hasAgentRoundStatus(events []protocol.EventMessage, agentID string, status string) bool {
+	for _, event := range events {
+		if event.EventType != protocol.EventTypeAgentRoundStatus {
+			continue
+		}
+		if event.Data["agent_id"] == agentID && event.Data["status"] == status {
+			return true
+		}
+	}
+	return false
+}
+
 func countRoomResultSubtype(events []protocol.EventMessage, subtype string) int {
 	count := 0
 	for _, event := range events {

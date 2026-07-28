@@ -19,6 +19,7 @@ import { GroupAgentStatusCard } from "./group-agent-status-card";
 import { GroupCompletedReply } from "./group-completed-reply";
 import {
   buildGroupRoundCardModel,
+  isNoPublicReplyAgentEntry,
   type GroupRoundUserMessageModel,
 } from "./group-round-card-model";
 import { useGroupThread } from "../group-thread-state";
@@ -130,6 +131,7 @@ function GroupRoundCardGroupInner({
                 onPermissionResponse={onPermissionResponse}
                 agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
                 roundId={roundId}
+                noPublicReply={isNoPublicReplyAgentEntry(entry)}
               />
             ) : (
               <>
