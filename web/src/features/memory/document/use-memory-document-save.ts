@@ -68,15 +68,20 @@ export function useMemoryDocumentSave({
 }: UseMemoryDocumentSaveOptions) {
   const saveSequenceRef = useRef(0);
   const saveTokenRef = useRef<SaveToken | null>(null);
+  // 渲染期同步最新 state，避免编辑后尚未重渲染就保存时闭包读到旧草稿。
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const runtimeWritingRef = useRef(runtimeWriting);
+  runtimeWritingRef.current = runtimeWriting;
 
   const save = useCallback(async () => {
     const scope = scopeRef.current;
     const token = createSaveToken({
       activeToken: saveTokenRef.current,
       nextId: saveSequenceRef.current + 1,
-      runtimeWriting,
+      runtimeWriting: runtimeWritingRef.current,
       scope,
-      state,
+      state: stateRef.current,
     });
     if (!token) {
       return;
@@ -118,9 +123,7 @@ export function useMemoryDocumentSave({
     commit,
     fallbackSaveError,
     onSaved,
-    runtimeWriting,
     scopeRef,
-    state,
   ]);
 
   return { save };

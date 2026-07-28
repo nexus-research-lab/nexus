@@ -85,6 +85,12 @@ export function useAgentOptionsSaveCommand({
   const draftKey = JSON.stringify(draft);
   const draftKeyRef = useRef(draftKey);
   draftKeyRef.current = draftKey;
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const hasTitleChangedRef = useRef(hasTitleChanged);
+  hasTitleChangedRef.current = hasTitleChanged;
+  const titleRef = useRef(title);
+  titleRef.current = title;
   const scopeKeyRef = useRef(scopeKey);
   scopeKeyRef.current = scopeKey;
   const saveSequenceRef = useRef(0);
@@ -102,24 +108,24 @@ export function useAgentOptionsSaveCommand({
     if (!canStartSave(canSave, saveTokenRef.current, scopeKey)) {
       return;
     }
-    const token = createSaveToken(saveSequenceRef, draftKey, scopeKey);
+    const token = createSaveToken(saveSequenceRef, draftKeyRef.current, scopeKey);
     saveTokenRef.current = token;
     setSavingScopeKey(scopeKey);
     feedback.clear();
 
     try {
       await runSaveTransaction({
-        draft,
+        draft: draftRef.current,
         draftKeyRef,
         expected: token,
-        hasTitleChanged,
+        hasTitleChanged: hasTitleChangedRef.current,
         mode,
         onSave,
         onValidateName,
         saveTokenRef,
         scopeKeyRef,
         sourceOptions,
-        title,
+        title: titleRef.current,
         validation,
       });
       reportSaveSuccess(onSaveSuccess, feedback, labels.success);
@@ -138,10 +144,7 @@ export function useAgentOptionsSaveCommand({
     }
   }, [
     canSave,
-    draft,
-    draftKey,
     feedback,
-    hasTitleChanged,
     labels.failed,
     labels.success,
     mode,
@@ -150,7 +153,6 @@ export function useAgentOptionsSaveCommand({
     onValidateName,
     scopeKey,
     sourceOptions,
-    title,
     validation,
   ]);
 
