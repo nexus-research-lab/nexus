@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -33,19 +34,31 @@ func UserSkillDiscoveryRoot(cfg config.Config, ownerUserID string) string {
 	return filepath.Join(UserSkillLibraryRoot(cfg, ownerUserID), ".agents", "skills")
 }
 
-// SkillLibraryRoots 返回 runtime 需要读取的平台与用户 Skill 根。
+// SkillLibraryRoots 返回 runtime 需要读取的平台与用户全局 Skill 根。
 func SkillLibraryRoots(cfg config.Config, ownerUserID string) []string {
-	return []string{appfs.PlatformSkillRoot(), UserSkillLibraryRoot(cfg, ownerUserID)}
+	roots := []string{appfs.PlatformSkillRoot()}
+	if strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop") {
+		if info, err := os.Stat(appfs.HostSkillRoot()); err == nil && info.IsDir() {
+			roots = append(roots, appfs.HostSkillRoot())
+		}
+	}
+	return append(roots, UserSkillLibraryRoot(cfg, ownerUserID))
 }
 
 // EnsureUserSkillLibrary 确保用户外部 Skill 同时具备 nxs 与 Claude 发现入口。
 func EnsureUserSkillLibrary(cfg config.Config, ownerUserID string) error {
-	return syncUserSkillLibrary(cfg, ownerUserID, false)
+	if err := syncUserSkillLibrary(cfg, ownerUserID, false); err != nil {
+		return err
+	}
+	return EnsureHostSkillLibrary(cfg)
 }
 
 // RefreshUserSkillLibrary 在 owner 源变化后刷新 Claude fallback 镜像。
 func RefreshUserSkillLibrary(cfg config.Config, ownerUserID string) error {
-	return syncUserSkillLibrary(cfg, ownerUserID, true)
+	if err := syncUserSkillLibrary(cfg, ownerUserID, true); err != nil {
+		return err
+	}
+	return EnsureHostSkillLibrary(cfg)
 }
 
 func syncUserSkillLibrary(cfg config.Config, ownerUserID string, refreshMirror bool) error {

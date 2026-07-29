@@ -465,12 +465,11 @@ func TestGoalUsageBaselineMigrationRepairsAppliedVersion54WithoutSourceTables(t 
 		"../../../db/migrations/sqlite/00052_goal_usage_source_checkpoints.sql",
 		"../../../db/migrations/sqlite/00054_goal_usage_finalization.sql",
 	)
-	seedConversationDraftMigrationPrerequisites(t, db)
 	seedAppliedGooseVersions(t, db, 54)
 	if err := goose.SetDialect("sqlite3"); err != nil {
 		t.Fatal(err)
 	}
-	if err := goose.Up(db, "../../../db/migrations/sqlite"); err != nil {
+	if err := goose.UpTo(db, "../../../db/migrations/sqlite", 55); err != nil {
 		t.Fatal(err)
 	}
 
@@ -534,8 +533,8 @@ func TestGoalUsageBaselineMigrationRepairsAppliedVersion54WithoutSourceTables(t 
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 57 {
-		t.Fatalf("goose version = %d, want 57", version)
+	if version != 55 {
+		t.Fatalf("goose version = %d, want 55", version)
 	}
 }
 
@@ -551,7 +550,7 @@ func TestGoalEventOrphanCleanupMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	migrationDir := "../../../db/migrations/sqlite"
-	if err = goose.UpTo(db, migrationDir, 56); err != nil {
+	if err = goose.UpTo(db, migrationDir, 57); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = db.Exec(`
@@ -586,8 +585,8 @@ WHERE NOT EXISTS (
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 57 {
-		t.Fatalf("goose version = %d, want 57", version)
+	if version != 58 {
+		t.Fatalf("goose version = %d, want 58", version)
 	}
 }
 
@@ -596,7 +595,7 @@ func TestGoalEventOrphanCleanupMigrationKeepsDialectContract(t *testing.T) {
 		path := filepath.Join(
 			"../../../db/migrations",
 			dialect,
-			"00057_goal_event_orphan_cleanup.sql",
+			"00058_goal_event_orphan_cleanup.sql",
 		)
 		body, err := os.ReadFile(path)
 		if err != nil {
@@ -819,20 +818,6 @@ func seedAppliedGooseVersions(t *testing.T, db *sql.DB, version int) {
 			"INSERT INTO goose_db_version(version_id, is_applied) VALUES (?, 1)",
 			current,
 		); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-func seedConversationDraftMigrationPrerequisites(t *testing.T, db *sql.DB) {
-	t.Helper()
-	for _, statement := range []string{
-		`CREATE TABLE conversations (
-			id VARCHAR(64) NOT NULL PRIMARY KEY,
-			room_id VARCHAR(64) NOT NULL
-		)`,
-	} {
-		if _, err := db.Exec(statement); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -15,6 +15,7 @@ export interface SkillCardModel {
   stateLabel: string;
   stateTone: "default" | "success" | "warning";
   title: string;
+  usageLabel: string | null;
   visibleTags: string[];
 }
 
@@ -57,7 +58,7 @@ const SKILL_SOURCE_LABEL: Readonly<Record<SkillSourceType, string>> = {
   builtin: "内置推荐",
   external: "外部导入",
   system: "系统内置",
-  workspace: "工作区技能",
+  workspace: "Agent 本地",
 };
 
 function getSkillSourceLabel(skill: SkillInfo): string {
@@ -65,13 +66,15 @@ function getSkillSourceLabel(skill: SkillInfo): string {
     if (skill.source_kind === "nexus_platform") return "Nexus 平台库";
     if (skill.source_kind === "user_global") return "用户全局 Skill";
   }
+  if (skill.origin_kind === "marketplace") return "第三方市场";
+  if (skill.origin_kind === "user_import") return "用户导入";
   return SKILL_SOURCE_LABEL[skill.source_type];
 }
 
 const DEFAULT_SKILL_STATE: SkillStatePresentation = {
   icon: "puzzle",
   iconClassName: null,
-  label: "可安装",
+  label: "全局可用",
   tone: "default",
 };
 
@@ -86,22 +89,16 @@ const SKILL_STATE_RULES: readonly SkillStateRule[] = [
   {
     icon: "puzzle",
     iconClassName: "text-(--status-info-soft-text)",
-    label: "工作区内",
-    matches: (skill) => skill.source_type === "workspace",
+    label: "Agent 本地",
+    matches: (skill) => skill.storage_scope === "agent_workspace"
+      || skill.source_type === "workspace",
     tone: "success",
   },
   {
     icon: "puzzle",
     iconClassName: "text-(--status-info-soft-text)",
-    label: "已导入",
+    label: "用户库",
     matches: (skill) => skill.source_type === "external",
-    tone: "success",
-  },
-  {
-    icon: "puzzle",
-    iconClassName: "text-(--success)",
-    label: "已安装",
-    matches: (skill) => skill.installed,
     tone: "success",
   },
 ];
@@ -140,6 +137,11 @@ export function buildSkillCardModel(skill: SkillInfo): SkillCardModel {
     stateLabel: state.label,
     stateTone: state.tone,
     title: skill.title || skill.name,
+    usageLabel: skill.scope === "room"
+      ? "在 Room 设置中启用"
+      : skill.enabled_agent_count
+      ? `已用于 ${skill.enabled_agent_count} 个 Agent`
+      : "尚未启用",
     visibleTags: skill.tags.slice(0, 2),
   };
 }

@@ -12,12 +12,12 @@ import type { AgentSkillsProjection } from "./agent-skills-model";
 interface AgentOptionsSkillsViewProps {
   agentId: string | null;
   busySkillName: string | null;
-  cancelRemove: () => void;
+  cancelDisable: () => void;
   commandBusy: boolean;
-  confirmRemove: () => void;
+  confirmDisable: () => void;
   errorMessage: string | null;
   loading: boolean;
-  pendingRemoveSkill: AgentSkillEntry | null;
+  pendingDisableSkill: AgentSkillEntry | null;
   projection: AgentSkillsProjection;
   refresh: () => void;
   requestSkillAction: (skill: AgentSkillEntry) => void;
@@ -39,7 +39,7 @@ function SkillsHeader({
     <div className="flex items-center justify-between gap-4">
       <h3 className="text-[16px] font-semibold tracking-tight text-(--text-strong)">
         {t("agent_options.skills.summary", {
-          count: projection.installed.length,
+          count: projection.enabled.length,
         })}
       </h3>
       <div className="flex items-center gap-2">
@@ -79,12 +79,12 @@ function SkillsLoadError({
 export function AgentOptionsSkillsView({
   agentId,
   busySkillName,
-  cancelRemove,
+  cancelDisable,
   commandBusy,
-  confirmRemove,
+  confirmDisable,
   errorMessage,
   loading,
-  pendingRemoveSkill,
+  pendingDisableSkill,
   projection,
   refresh,
   requestSkillAction,
@@ -114,14 +114,14 @@ export function AgentOptionsSkillsView({
       />
 
       <ConfirmDialog
-        confirmText={t("agent_options.skills.remove_confirm_action")}
-        isOpen={Boolean(pendingRemoveSkill)}
-        message={t("agent_options.skills.remove_confirm_message", {
-          name: pendingRemoveSkill?.title || pendingRemoveSkill?.name || "",
+        confirmText={t("agent_options.skills.disable_confirm_action")}
+        isOpen={Boolean(pendingDisableSkill)}
+        message={t("agent_options.skills.disable_confirm_message", {
+          name: pendingDisableSkill?.title || pendingDisableSkill?.name || "",
         })}
-        onCancel={cancelRemove}
-        onConfirm={confirmRemove}
-        title={t("agent_options.skills.remove_confirm_title")}
+        onCancel={cancelDisable}
+        onConfirm={confirmDisable}
+        title={t("agent_options.skills.disable_confirm_title")}
         variant="danger"
       />
     </div>

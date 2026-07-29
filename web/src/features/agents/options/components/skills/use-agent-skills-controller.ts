@@ -11,7 +11,7 @@ import {
 } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
-import { installSkillApi, uninstallSkillApi } from "@/lib/api/capability/skill-api";
+import { setAgentSkillEnabledApi } from "@/lib/api/capability/skill-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
@@ -80,8 +80,16 @@ async function mutateAgentSkill(
   command: SkillCommandToken,
   skill: AgentSkillEntry,
 ): Promise<void> {
-  const mutate = skill.installed ? uninstallSkillApi : installSkillApi;
-  await mutate(command.agentId, command.skillName);
+  const targetScope = skill.storage_scope === "agent_workspace"
+    || skill.source_type === "workspace"
+    ? "agent_workspace"
+    : "global_library";
+  await setAgentSkillEnabledApi(
+    command.agentId,
+    command.skillName,
+    !skill.enabled_for_agent,
+    targetScope,
+  );
 }
 
 // 命令结果只写回发起时的 Agent 作用域，切换 Agent 后旧结果直接失效。
@@ -130,7 +138,7 @@ export function useAgentSkillsController({
   const activeCommandRef = useRef<SkillCommandToken | null>(null);
   const [busyCommand, setBusyCommand] = useState<SkillCommandToken | null>(null);
   const [searchQuery, setSearchQuery] = useResettableState("", scopeAgentId);
-  const [pendingRemoveSkill, setPendingRemoveSkill] = useResettableState<
+  const [pendingDisableSkill, setPendingDisableSkill] = useResettableState<
     AgentSkillEntry | null
   >(null, scopeAgentId);
   const [actionError, setActionError] = useResettableState<string | null>(
@@ -187,20 +195,20 @@ export function useAgentSkillsController({
   }, [refreshResource, scopeAgentId, setActionError, t]);
 
   const requestSkillAction = useCallback((skill: AgentSkillEntry): void => {
-    if (skill.installed) {
-      setPendingRemoveSkill(skill);
+    if (skill.enabled_for_agent) {
+      setPendingDisableSkill(skill);
       return;
     }
     void runSkillToggle(skill);
-  }, [runSkillToggle, setPendingRemoveSkill]);
+  }, [runSkillToggle, setPendingDisableSkill]);
 
-  const confirmRemove = useCallback((): void => {
-    if (!pendingRemoveSkill) {
+  const confirmDisable = useCallback((): void => {
+    if (!pendingDisableSkill) {
       return;
     }
-    setPendingRemoveSkill(null);
-    void runSkillToggle(pendingRemoveSkill);
-  }, [pendingRemoveSkill, runSkillToggle, setPendingRemoveSkill]);
+    setPendingDisableSkill(null);
+    void runSkillToggle(pendingDisableSkill);
+  }, [pendingDisableSkill, runSkillToggle, setPendingDisableSkill]);
 
   const refresh = useCallback((): void => {
     setActionError(null);
@@ -210,12 +218,12 @@ export function useAgentSkillsController({
   return {
     agentId: scopeAgentId,
     busySkillName: commandProjection.busySkillName,
-    cancelRemove: () => setPendingRemoveSkill(null),
+    cancelDisable: () => setPendingDisableSkill(null),
     commandBusy: commandProjection.commandBusy,
-    confirmRemove,
+    confirmDisable,
     errorMessage: commandProjection.errorMessage,
     loading,
-    pendingRemoveSkill,
+    pendingDisableSkill,
     projection,
     refresh,
     requestSkillAction,

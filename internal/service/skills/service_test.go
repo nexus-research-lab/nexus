@@ -24,7 +24,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestServiceImportsAndInstallsSkill(t *testing.T) {
+func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
 
@@ -112,14 +112,67 @@ workspace skill body
 	if !ok {
 		t.Fatalf("agent 本地 skill 未暴露: %+v", items)
 	}
-	if agentLocalSkill.SourceType != sourceTypeWorkspace || !agentLocalSkill.Installed || agentLocalSkill.Locked {
+	if agentLocalSkill.SourceType != sourceTypeWorkspace || !agentLocalSkill.EnabledForAgent || agentLocalSkill.Locked {
 		t.Fatalf("agent 本地 skill 状态不正确: %+v", agentLocalSkill)
 	}
+	if agentLocalSkill.OriginKind != originKindAgentCreated ||
+		agentLocalSkill.StorageScope != storageScopeAgent {
+		t.Fatalf("Agent 创建 Skill 的来源投影不正确: %+v", agentLocalSkill)
+	}
 	if _, err = service.GetSkillDetail(ctx, "agent-only-skill", ""); err == nil {
-		t.Fatal("未指定 agent 时不应读取 agent 本地 skill")
+		t.Fatal("Agent 工作区 Skill 不应进入全局目录")
 	}
 	if _, err = service.InstallSkill(ctx, agentValue.AgentID, "agent-only-skill"); err == nil {
 		t.Fatal("agent 本地 skill 不应允许通过市场安装")
+	}
+	toggled, err := service.SetAgentSkillEnabled(
+		ctx,
+		agentValue.AgentID,
+		"agent-only-skill",
+		false,
+	)
+	if err != nil {
+		t.Fatalf("停用 Agent 本地 Skill 失败: %v", err)
+	}
+	if toggled.EnabledForAgent {
+		t.Fatalf("停用后 Agent 本地 Skill 仍显示启用: %+v", toggled)
+	}
+	if _, err = os.Stat(agentLocalSkillRoot); err != nil {
+		t.Fatalf("停用 Agent 本地 Skill 不应删除目录: %v", err)
+	}
+	reloadedAgent, err := agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取停用后的 Agent 失败: %v", err)
+	}
+	if !slices.Contains(reloadedAgent.Options.DisabledSkillIDs, "agent-only-skill") {
+		t.Fatalf("Agent 未保存显式停用状态: %#v", reloadedAgent.Options.DisabledSkillIDs)
+	}
+	toggled, err = service.SetAgentSkillEnabled(
+		ctx,
+		agentValue.AgentID,
+		"agent-only-skill",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("重新启用 Agent 本地 Skill 失败: %v", err)
+	}
+	if !toggled.EnabledForAgent {
+		t.Fatalf("重新启用后 Agent 本地 Skill 状态不正确: %+v", toggled)
+	}
+	reloadedAgent, err = agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取重新启用后的 Agent 失败: %v", err)
+	}
+	if slices.Contains(reloadedAgent.Options.DisabledSkillIDs, "agent-only-skill") {
+		t.Fatalf("重新启用后仍残留停用状态: %#v", reloadedAgent.Options.DisabledSkillIDs)
+	}
+	if _, err = service.SetAgentSkillEnabled(
+		ctx,
+		agentValue.AgentID,
+		"agent-only-skill",
+		false,
+	); err != nil {
+		t.Fatalf("删除前停用 Agent 本地 Skill 失败: %v", err)
 	}
 	if err = service.UninstallSkill(ctx, agentValue.AgentID, "agent-only-skill"); err != nil {
 		t.Fatalf("agent 本地 skill 应允许从当前智能体移除: %v", err)
@@ -133,6 +186,13 @@ workspace skill body
 	}
 	if _, ok := findSkill(items, "agent-only-skill"); ok {
 		t.Fatalf("agent 本地 skill 移除后仍在列表中: %+v", items)
+	}
+	reloadedAgent, err = agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取删除本地 Skill 后的 Agent 失败: %v", err)
+	}
+	if slices.Contains(reloadedAgent.Options.DisabledSkillIDs, "agent-only-skill") {
+		t.Fatalf("删除本地 Skill 后不应残留停用状态: %#v", reloadedAgent.Options.DisabledSkillIDs)
 	}
 
 	directAgentLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".agents", "direct-agent-skill")
@@ -157,7 +217,7 @@ description: 兼容直接位于 .agents 下的技能目录
 	if !ok {
 		t.Fatalf("agent 直属本地 skill 未暴露: %+v", items)
 	}
-	if directAgentLocalSkill.SourceType != sourceTypeWorkspace || !directAgentLocalSkill.Installed || directAgentLocalSkill.Locked {
+	if directAgentLocalSkill.SourceType != sourceTypeWorkspace || !directAgentLocalSkill.EnabledForAgent || directAgentLocalSkill.Locked {
 		t.Fatalf("agent 直属本地 skill 状态不正确: %+v", directAgentLocalSkill)
 	}
 	if err = service.UninstallSkill(ctx, agentValue.AgentID, "direct-agent-skill"); err != nil {
@@ -189,7 +249,7 @@ description: Claude 在 .claude/skills 下创建的技能目录
 	if !ok {
 		t.Fatalf("Agent Claude 本地 Skill 未暴露: %+v", items)
 	}
-	if claudeAgentSkill.SourceType != sourceTypeWorkspace || !claudeAgentSkill.Installed || claudeAgentSkill.Locked {
+	if claudeAgentSkill.SourceType != sourceTypeWorkspace || !claudeAgentSkill.EnabledForAgent || claudeAgentSkill.Locked {
 		t.Fatalf("Agent Claude 本地 Skill 状态不正确: %+v", claudeAgentSkill)
 	}
 	if err = service.UninstallSkill(ctx, agentValue.AgentID, "claude-agent-skill"); err != nil {
@@ -225,12 +285,12 @@ skill body
 		t.Fatalf("导入的 skill 名称不正确: %+v", imported)
 	}
 
-	installed, err := service.InstallSkill(ctx, agentValue.AgentID, "demo-skill")
+	enabled, err := service.InstallSkill(ctx, agentValue.AgentID, "demo-skill")
 	if err != nil {
-		t.Fatalf("安装 skill 失败: %v", err)
+		t.Fatalf("通过兼容入口启用 skill 失败: %v", err)
 	}
-	if !installed.Installed {
-		t.Fatalf("安装后状态不正确: %+v", installed)
+	if !enabled.EnabledForAgent {
+		t.Fatalf("启用后状态不正确: %+v", enabled)
 	}
 	reloaded, err := agentService.GetAgent(ctx, agentValue.AgentID)
 	if err != nil {
@@ -245,6 +305,24 @@ skill body
 	if _, statErr := os.Stat(filepath.Join(workspacepkg.UserSkillDiscoveryRoot(cfg, authctx.SystemUserID), "demo-skill", "SKILL.md")); statErr != nil {
 		t.Fatalf("外部 Skill 用户级源不存在: %v", statErr)
 	}
+	globalItems, err := service.ListSkills(ctx, Query{})
+	if err != nil {
+		t.Fatalf("读取全局 Skill 库失败: %v", err)
+	}
+	globalDemoSkill, ok := findSkill(globalItems, "demo-skill")
+	if !ok || globalDemoSkill.EnabledAgentCount != 1 {
+		t.Fatalf("全局 Skill 未正确统计 Agent 使用数: %+v", globalDemoSkill)
+	}
+	bindings, err := service.ListSkillAgents(ctx, "demo-skill")
+	if err != nil {
+		t.Fatalf("读取 Skill Agent 开关矩阵失败: %v", err)
+	}
+	bindingIndex := slices.IndexFunc(bindings, func(binding AgentSkillBinding) bool {
+		return binding.AgentID == agentValue.AgentID
+	})
+	if bindingIndex < 0 || !bindings[bindingIndex].Available || !bindings[bindingIndex].Enabled {
+		t.Fatalf("Skill Agent 开关矩阵状态不正确: %+v", bindings)
+	}
 
 	if err = service.UninstallSkill(ctx, agentValue.AgentID, "demo-skill"); err != nil {
 		t.Fatalf("卸载 skill 失败: %v", err)
@@ -254,8 +332,8 @@ skill body
 		t.Fatalf("再次读取 agent 技能失败: %v", err)
 	}
 	for _, item := range items {
-		if item.Name == "demo-skill" && item.Installed {
-			t.Fatalf("卸载后仍显示 installed: %+v", item)
+		if item.Name == "demo-skill" && item.EnabledForAgent {
+			t.Fatalf("停用后仍显示 enabled: %+v", item)
 		}
 	}
 }
@@ -278,15 +356,27 @@ func TestBuiltinPlatformSkillStoresIDWithoutWorkspaceCopy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent 失败: %v", err)
 	}
-	installed, err := service.InstallSkill(ctx, agentValue.AgentID, "ima-skill")
+	systemBindings, err := service.ListSkillAgents(ctx, "imagegen")
 	if err != nil {
-		t.Fatalf("安装平台 builtin skill 失败: %v", err)
+		t.Fatalf("读取系统 Skill Agent 状态失败: %v", err)
 	}
-	if !installed.Installed {
-		t.Fatalf("平台 builtin skill 安装状态不正确: %+v", installed)
+	systemBindingIndex := slices.IndexFunc(systemBindings, func(binding AgentSkillBinding) bool {
+		return binding.AgentID == agentValue.AgentID
+	})
+	if systemBindingIndex < 0 ||
+		systemBindings[systemBindingIndex].Available ||
+		!systemBindings[systemBindingIndex].Enabled {
+		t.Fatalf("系统托管 Skill 应显示已启用且不可手动切换: %+v", systemBindings)
 	}
-	if installed.Version != "1.1.8" || installed.CategoryKey != "content-docs" {
-		t.Fatalf("IMA catalog 元数据不正确: %+v", installed)
+	enabled, err := service.InstallSkill(ctx, agentValue.AgentID, "ima-skill")
+	if err != nil {
+		t.Fatalf("通过兼容入口启用平台 builtin skill 失败: %v", err)
+	}
+	if !enabled.EnabledForAgent {
+		t.Fatalf("平台 builtin skill 启用状态不正确: %+v", enabled)
+	}
+	if enabled.Version != "1.1.8" || enabled.CategoryKey != "content-docs" {
+		t.Fatalf("IMA catalog 元数据不正确: %+v", enabled)
 	}
 	reloaded, err := agentService.GetAgent(ctx, agentValue.AgentID)
 	if err != nil {
@@ -301,6 +391,28 @@ func TestBuiltinPlatformSkillStoresIDWithoutWorkspaceCopy(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "ima-skill", "SKILL.md")); err != nil {
 		t.Fatalf("平台全局 Skill 根缺少 IMA: %v", err)
 	}
+	disabled, err := service.SetAgentSkillEnabled(
+		ctx,
+		agentValue.AgentID,
+		"ima-skill",
+		false,
+	)
+	if err != nil {
+		t.Fatalf("停用平台 Skill 失败: %v", err)
+	}
+	if disabled.EnabledForAgent {
+		t.Fatalf("停用平台 Skill 后仍显示启用: %+v", disabled)
+	}
+	reloaded, err = agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取停用平台 Skill 后的 Agent 失败: %v", err)
+	}
+	if slices.Contains(reloaded.Options.DisabledSkillIDs, "ima-skill") {
+		t.Fatalf("平台 Skill 停用不应写入本地停用状态: %#v", reloaded.Options.DisabledSkillIDs)
+	}
+	if _, err = service.SetAgentSkillEnabled(ctx, agentValue.AgentID, "ima-skill", true); err != nil {
+		t.Fatalf("重新启用平台 Skill 失败: %v", err)
+	}
 	if err = service.UninstallSkill(ctx, agentValue.AgentID, "ima-skill"); err != nil {
 		t.Fatalf("卸载平台 builtin skill 失败: %v", err)
 	}
@@ -311,29 +423,409 @@ func TestBuiltinPlatformSkillStoresIDWithoutWorkspaceCopy(t *testing.T) {
 	if slices.Contains(reloaded.Options.SkillIDs, "ima-skill") {
 		t.Fatalf("卸载后仍保留平台 Skill ID: %#v", reloaded.Options.SkillIDs)
 	}
+	if slices.Contains(reloaded.Options.DisabledSkillIDs, "ima-skill") {
+		t.Fatalf("卸载后不应残留平台 Skill 停用状态: %#v", reloaded.Options.DisabledSkillIDs)
+	}
 }
 
-func TestPlatformSkillClassificationExcludesUserGlobalSources(t *testing.T) {
+func TestAgentWorkspaceSkillIsPrivateAndEnabledByDefault(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := workspacepkg.NewService(cfg, agentService)
+	service := NewService(cfg, agentService, workspaceService)
+	ctx := context.Background()
+
+	origin, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "技能作者"})
+	if err != nil {
+		t.Fatalf("创建来源 Agent 失败: %v", err)
+	}
+	skillRoot := filepath.Join(origin.WorkspacePath, ".agents", "skills", "agent-authored")
+	if err = os.MkdirAll(skillRoot, 0o755); err != nil {
+		t.Fatalf("创建 Agent Skill 目录失败: %v", err)
+	}
+	if err = os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), []byte(`---
+name: agent-authored
+title: Agent Authored
+description: 仅属于来源 Agent 的工作区 Skill
+---
+
+# agent-authored
+`), 0o644); err != nil {
+		t.Fatalf("写入 Agent Skill 失败: %v", err)
+	}
+	mainAgent, err := agentService.GetDefaultAgent(ctx)
+	if err != nil {
+		t.Fatalf("读取主 Agent 失败: %v", err)
+	}
+	if mainAgent.AgentID == origin.AgentID {
+		t.Fatal("测试需要独立的来源 Agent 与目标 Agent")
+	}
+
+	originItems, err := service.GetAgentSkills(ctx, origin.AgentID)
+	if err != nil {
+		t.Fatalf("读取来源 Agent Skill 失败: %v", err)
+	}
+	originSkill, ok := findSkill(originItems, "agent-authored")
+	if !ok || !originSkill.EnabledForAgent {
+		t.Fatalf("工作区 Skill 应在所属 Agent 设置中默认启用: %+v", originSkill)
+	}
+	if _, err = service.GetSkillDetail(ctx, "agent-authored", ""); err == nil {
+		t.Fatal("工作区 Skill 不应进入全局技能目录")
+	}
+	targetItems, err := service.GetAgentSkills(ctx, mainAgent.AgentID)
+	if err != nil {
+		t.Fatalf("读取其它 Agent Skill 失败: %v", err)
+	}
+	if containsSkill(targetItems, "agent-authored") {
+		t.Fatalf("工作区 Skill 不应对其它 Agent 可见: %+v", targetItems)
+	}
+	if _, err = service.SetAgentSkillEnabled(
+		ctx,
+		mainAgent.AgentID,
+		"agent-authored",
+		true,
+	); err == nil {
+		t.Fatal("其它 Agent 不应能启用该工作区 Skill")
+	}
+
+	disabled, err := service.SetAgentSkillEnabled(
+		ctx,
+		origin.AgentID,
+		"agent-authored",
+		false,
+	)
+	if err != nil {
+		t.Fatalf("停用所属 Agent 工作区 Skill 失败: %v", err)
+	}
+	if disabled.EnabledForAgent {
+		t.Fatalf("停用后工作区 Skill 仍显示启用: %+v", disabled)
+	}
+	if _, err = os.Stat(filepath.Join(skillRoot, "SKILL.md")); err != nil {
+		t.Fatalf("停用工作区 Skill 不应删除文件: %v", err)
+	}
+	if _, err = service.SetAgentSkillEnabled(ctx, origin.AgentID, "agent-authored", true); err != nil {
+		t.Fatalf("重新启用所属 Agent 工作区 Skill 失败: %v", err)
+	}
+	reloadedItems, err := service.GetAgentSkills(ctx, origin.AgentID)
+	if err != nil {
+		t.Fatalf("重新读取来源 Agent Skill 失败: %v", err)
+	}
+	reloadedSkill, ok := findSkill(reloadedItems, "agent-authored")
+	if !ok || !reloadedSkill.EnabledForAgent {
+		t.Fatalf("重新启用后的工作区 Skill 状态不正确: %+v", reloadedSkill)
+	}
+}
+
+func TestGlobalSkillReferencesKeepSourceClassification(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	platformRecord := catalogRecord{
-		Detail:     Detail{Info: Info{SourceType: sourceTypeBuiltin}},
+		Detail: Detail{Info: Info{
+			Name:       "ima-skill",
+			SourceType: sourceTypeBuiltin,
+			SourceKind: sourceKindNexusPlatform,
+		}},
 		SourcePath: filepath.Join(appfs.Root(), "skills", "ima-skill"),
 	}
-	if !isPlatformSkill(platformRecord) {
-		t.Fatal("产品 skills 目录应识别为平台源")
+	if reference := skillReference(platformRecord); reference != "ima-skill" {
+		t.Fatalf("平台 Skill 引用 = %q, want ima-skill", reference)
 	}
 	if got := builtinSourceKind(filepath.Join(appfs.Root(), "skills"), filepath.Join(appfs.Root(), "skills")); got != sourceKindNexusPlatform {
 		t.Fatalf("产品 skills 目录来源 = %q, want %q", got, sourceKindNexusPlatform)
 	}
+	if got := builtinOriginKind(sourceKindNexusPlatform); got != originKindBuiltin {
+		t.Fatalf("平台 Skill 来源类型 = %q, want %q", got, originKindBuiltin)
+	}
 
 	userGlobalRecord := catalogRecord{
-		Detail:     Detail{Info: Info{SourceType: sourceTypeBuiltin, SourceKind: sourceKindUserGlobal}},
+		Detail: Detail{Info: Info{
+			Name:       "user-skill",
+			SourceType: sourceTypeBuiltin,
+			SourceKind: sourceKindUserGlobal,
+		}},
 		SourcePath: filepath.Join(t.TempDir(), "user-skill"),
 	}
-	if isPlatformSkill(userGlobalRecord) {
-		t.Fatal("用户全局 Skill 不能误识别为平台源")
+	if reference := skillReference(userGlobalRecord); reference != "user-skill" {
+		t.Fatalf("用户全局 Skill 引用 = %q, want user-skill", reference)
 	}
 	if got := builtinSourceKind(filepath.Join(t.TempDir(), "skills"), filepath.Join(appfs.Root(), "skills")); got != sourceKindUserGlobal {
 		t.Fatalf("用户全局 Skill 来源 = %q, want %q", got, sourceKindUserGlobal)
+	}
+	if got := builtinOriginKind(sourceKindUserGlobal); got != originKindUserImport {
+		t.Fatalf("用户全局 Skill 来源类型 = %q, want %q", got, originKindUserImport)
+	}
+	roots := builtinSearchRoots(appfs.Root())
+	agentSkillsRoot := filepath.Join(home, ".agents", "skills")
+	if !slices.Contains(roots, agentSkillsRoot) {
+		t.Fatalf("全局目录未发现标准 Agent Skill 根: %s", agentSkillsRoot)
+	}
+	for _, unsupportedRoot := range []string{
+		filepath.Join(home, ".codex", "skills"),
+		filepath.Join(home, ".claude", "skills"),
+		filepath.Join(home, ".cc-switch", "skills"),
+	} {
+		if slices.Contains(roots, unsupportedRoot) {
+			t.Fatalf("全局目录不应扫描其他宿主 Skill 根: %s", unsupportedRoot)
+		}
+	}
+}
+
+func TestAuthenticatedSkillCatalogOnlyScansUserGlobalRootInDesktopMode(t *testing.T) {
+	ctx := authctx.WithState(context.Background(), authctx.State{AuthRequired: true})
+	t.Setenv("NEXUS_APP_MODE", "")
+	roots := builtinSearchRootsForContext(ctx, appfs.Root(), "")
+	if len(roots) != 1 || filepath.Clean(roots[0]) != filepath.Join(appfs.Root(), "skills") {
+		t.Fatalf("认证服务不应扫描宿主用户 Skill 根: %#v", roots)
+	}
+
+	t.Setenv("NEXUS_APP_MODE", "desktop")
+	roots = builtinSearchRootsForContext(ctx, appfs.Root(), "desktop")
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("读取用户目录失败: %v", err)
+	}
+	if !slices.Contains(roots, filepath.Join(home, ".agents", "skills")) {
+		t.Fatalf("桌面模式应扫描标准 Agent Skill 根: %#v", roots)
+	}
+}
+
+func TestUserGlobalSkillUsesGlobalAgentBinding(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	cfg.AppMode = "desktop"
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := workspacepkg.NewService(cfg, agentService)
+	service := NewService(cfg, agentService, workspaceService)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("NEXUS_APP_MODE", "desktop")
+	writeTestSkillDir(
+		t,
+		filepath.Join(home, ".agents", "skills", "host-global-skill"),
+		"host-global-skill",
+		"用户全局 Skill",
+		false,
+	)
+
+	ctx := context.Background()
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
+		Name: "用户全局 Skill 测试助手",
+	})
+	if err != nil {
+		t.Fatalf("创建 Agent 失败: %v", err)
+	}
+	enabled, err := service.SetAgentSkillEnabledInScope(
+		ctx,
+		agentValue.AgentID,
+		"host-global-skill",
+		true,
+		AgentSkillTargetGlobalLibrary,
+	)
+	if err != nil {
+		t.Fatalf("启用用户全局 Skill 失败: %v", err)
+	}
+	if !enabled.EnabledForAgent ||
+		enabled.SourceKind != sourceKindUserGlobal ||
+		enabled.StorageScope != storageScopeUserGlobal {
+		t.Fatalf("用户全局 Skill 启用状态不正确: %+v", enabled)
+	}
+	workspaceCopy := filepath.Join(
+		agentValue.WorkspacePath,
+		".agents",
+		"skills",
+		"host-global-skill",
+	)
+	if _, err = os.Stat(workspaceCopy); !os.IsNotExist(err) {
+		t.Fatalf("用户全局 Skill 不应复制到 Agent workspace: %v", err)
+	}
+	reloaded, err := agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取启用后的 Agent 失败: %v", err)
+	}
+	if !slices.Contains(reloaded.Options.SkillIDs, "host-global-skill") {
+		t.Fatalf("用户全局 Skill 未写入 Agent 全局绑定: %#v", reloaded.Options.SkillIDs)
+	}
+
+	globalItems, err := service.ListSkills(ctx, Query{})
+	if err != nil {
+		t.Fatalf("读取全局 Skill 目录失败: %v", err)
+	}
+	globalItem, ok := findSkill(globalItems, "host-global-skill")
+	if !ok || globalItem.EnabledAgentCount != 1 {
+		t.Fatalf("用户全局 Skill 使用数不正确: %+v", globalItem)
+	}
+
+	disabled, err := service.SetAgentSkillEnabledInScope(
+		ctx,
+		agentValue.AgentID,
+		"host-global-skill",
+		false,
+		AgentSkillTargetGlobalLibrary,
+	)
+	if err != nil {
+		t.Fatalf("停用用户全局 Skill 失败: %v", err)
+	}
+	if disabled.EnabledForAgent {
+		t.Fatalf("停用后用户全局 Skill 仍显示启用: %+v", disabled)
+	}
+	reloaded, err = agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取停用后的 Agent 失败: %v", err)
+	}
+	if slices.Contains(reloaded.Options.SkillIDs, "host-global-skill") {
+		t.Fatalf("停用后仍保留用户全局 Skill 绑定: %#v", reloaded.Options.SkillIDs)
+	}
+	if slices.Contains(reloaded.Options.DisabledSkillIDs, "host-global-skill") {
+		t.Fatalf("全局 Skill 停用状态不应写入本地停用列表: %#v", reloaded.Options.DisabledSkillIDs)
+	}
+}
+
+func TestAgentWorkspaceSkillShadowsSameNamedUserGlobalSkill(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	cfg.AppMode = "desktop"
+	migrateSkillsSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := workspacepkg.NewService(cfg, agentService)
+	service := NewService(cfg, agentService, workspaceService)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("NEXUS_APP_MODE", "desktop")
+	hostSkillRoot := filepath.Join(home, ".agents", "skills", "same-name-skill")
+	writeTestSkillDir(t, hostSkillRoot, "same-name-skill", "用户全局版本", false)
+
+	agentValue, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{
+		Name: "本地 Skill 测试助手",
+	})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	workspaceSkillRoot := filepath.Join(
+		agentValue.WorkspacePath,
+		".agents",
+		"skills",
+		"same-name-skill",
+	)
+	writeTestSkillDir(t, workspaceSkillRoot, "same-name-skill", "Agent 本地版本", false)
+
+	ctx := context.Background()
+	items, err := service.GetAgentSkills(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取 Agent Skill 失败: %v", err)
+	}
+	item, ok := findSkill(items, "same-name-skill")
+	if !ok {
+		t.Fatalf("未找到 Agent 本地 Skill: %+v", items)
+	}
+	if item.SourceType != sourceTypeWorkspace ||
+		item.StorageScope != storageScopeAgent ||
+		item.Title != "Agent 本地版本" ||
+		!item.EnabledForAgent {
+		t.Fatalf("同名 Skill 应按当前 Agent 本地来源投影: %+v", item)
+	}
+
+	globalItems, err := service.ListSkills(ctx, Query{})
+	if err != nil {
+		t.Fatalf("读取全局 Skill 目录失败: %v", err)
+	}
+	globalItem, ok := findSkill(globalItems, "same-name-skill")
+	if !ok {
+		t.Fatalf("全局目录未找到用户全局 Skill: %+v", globalItems)
+	}
+	if globalItem.SourceKind != sourceKindUserGlobal ||
+		globalItem.Title != "用户全局版本" ||
+		globalItem.EnabledAgentCount != 0 {
+		t.Fatalf("Agent 本地同名 Skill 不应污染全局投影: %+v", globalItem)
+	}
+
+	bindings, err := service.ListSkillAgents(ctx, "same-name-skill")
+	if err != nil {
+		t.Fatalf("读取全局 Skill 的 Agent 矩阵失败: %v", err)
+	}
+	bindingIndex := slices.IndexFunc(bindings, func(binding AgentSkillBinding) bool {
+		return binding.AgentID == agentValue.AgentID
+	})
+	if bindingIndex < 0 || bindings[bindingIndex].Enabled {
+		t.Fatalf("Agent 本地同名 Skill 不应启用全局 Skill: %+v", bindings)
+	}
+
+	globalEnabled, err := service.SetAgentSkillEnabledInScope(
+		ctx,
+		agentValue.AgentID,
+		"same-name-skill",
+		true,
+		AgentSkillTargetGlobalLibrary,
+	)
+	if err != nil {
+		t.Fatalf("启用同名全局 Skill 失败: %v", err)
+	}
+	if !globalEnabled.EnabledForAgent {
+		t.Fatalf("同名全局 Skill 未返回启用状态: %+v", globalEnabled)
+	}
+	reloaded, err := agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取启用同名全局 Skill 后的 Agent 失败: %v", err)
+	}
+	if !slices.Contains(reloaded.Options.SkillIDs, "same-name-skill") {
+		t.Fatalf("同名全局 Skill 未独立记录绑定: %#v", reloaded.Options.SkillIDs)
+	}
+	localDisabled, err := service.SetAgentSkillEnabledInScope(
+		ctx,
+		agentValue.AgentID,
+		"same-name-skill",
+		false,
+		AgentSkillTargetWorkspace,
+	)
+	if err != nil {
+		t.Fatalf("停用同名 Agent 本地 Skill 失败: %v", err)
+	}
+	if localDisabled.EnabledForAgent {
+		t.Fatalf("同名 Agent 本地 Skill 停用状态不正确: %+v", localDisabled)
+	}
+	reloaded, err = agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取停用同名本地 Skill 后的 Agent 失败: %v", err)
+	}
+	if !slices.Contains(reloaded.Options.SkillIDs, "same-name-skill") {
+		t.Fatalf("停用本地 Skill 不应移除同名全局绑定: %#v", reloaded.Options.SkillIDs)
+	}
+	items, err = service.GetAgentSkills(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("重新读取 Agent Skill 失败: %v", err)
+	}
+	item, ok = findSkill(items, "same-name-skill")
+	if !ok || item.SourceType != sourceTypeWorkspace || item.EnabledForAgent {
+		t.Fatalf("Agent 设置页应显示同名本地 Skill 已停用: %+v", item)
+	}
+	bindings, err = service.ListSkillAgents(ctx, "same-name-skill")
+	if err != nil {
+		t.Fatalf("重新读取同名全局 Skill 矩阵失败: %v", err)
+	}
+	bindingIndex = slices.IndexFunc(bindings, func(binding AgentSkillBinding) bool {
+		return binding.AgentID == agentValue.AgentID
+	})
+	if bindingIndex < 0 || !bindings[bindingIndex].Enabled {
+		t.Fatalf("本地 Skill 状态不应污染同名全局绑定: %+v", bindings)
 	}
 }
 
@@ -386,7 +878,7 @@ func TestUpdateSingleSkillUsesSharedUserSource(t *testing.T) {
 	for _, agentValue := range []protocol.Agent{*failingAgent, *successAgent} {
 		reloaded, getErr := agentService.GetAgent(ctx, agentValue.AgentID)
 		if getErr != nil {
-			t.Fatalf("读取已安装 agent 失败: %v", getErr)
+			t.Fatalf("读取已绑定 Agent 失败: %v", getErr)
 		}
 		if !slices.Contains(reloaded.Options.SkillIDs, protocol.BuildExternalSkillReference("git-skill")) {
 			t.Fatalf("外部 skill 应保存为用户级引用: %#v", reloaded.Options.SkillIDs)
@@ -406,7 +898,7 @@ func TestUpdateSingleSkillUsesSharedUserSource(t *testing.T) {
 		t.Fatalf("全局源更新不应产生 workspace 部署失败: %+v", detail.DeployFailures)
 	}
 	if len(detail.DeploySuccesses) != 2 {
-		t.Fatalf("应返回两个已安装 Agent 的全局源同步结果: %+v", detail.DeploySuccesses)
+		t.Fatalf("应返回两个已绑定 Agent 的全局源影响结果: %+v", detail.DeploySuccesses)
 	}
 	globalSkillPath := filepath.Join(workspacepkg.UserSkillDiscoveryRoot(cfg, authctx.SystemUserID), "git-skill", "SKILL.md")
 	payload, err := os.ReadFile(globalSkillPath)

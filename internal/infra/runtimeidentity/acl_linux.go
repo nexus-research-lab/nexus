@@ -190,6 +190,67 @@ func ensureIdentityLayout(config launcherConfig, value *identity) (bool, error) 
 	return true, nil
 }
 
+// repairRuntimeACL 修复 runtime 进程按 0600 创建文件后被压低的 ACL mask。
+//
+// runtime 以 owner UID 运行，宿主通过 named-user ACL 读取 transcript、debug
+// cache 与任务状态。Linux 在 open(..., 0600) 时会把继承 ACL 的 mask 一并
+// 限制为 ---，所以仅配置目录 default ACL 不足以覆盖运行期新文件。该函数
+// 只遍历当前 owner 的 runtime 根，跳过符号链接和特殊文件，不触碰 workspace
+// 与宿主 state。
+func repairRuntimeACL(config launcherConfig, value *identity) error {
+	if value == nil {
+		return errors.New("runtime identity 为空")
+	}
+	runtimeRoot := filepath.Join(
+		appfs.UserDataRootAt(config.StateRoot, value.OwnerUserID),
+		"runtime",
+	)
+	info, err := os.Lstat(runtimeRoot)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return errors.New("owner runtime 根不是安全目录")
+	}
+	return filepath.WalkDir(runtimeRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if errors.Is(walkErr, os.ErrNotExist) {
+				return nil
+			}
+			return walkErr
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		info, err := entry.Info()
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && !info.Mode().IsRegular() {
+			return nil
+		}
+		if path == runtimeRoot {
+			return nil
+		}
+		if err := applyPrivateACL(
+			path,
+			info.Mode(),
+			value.UID,
+			value.PrivateGID,
+			config.HostUID,
+		); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("修复 runtime ACL %s: %w", path, err)
+		}
+		return nil
+	})
+}
+
 // ensureHostStateLayout 将宿主代 Room 状态固定在 runtime 之外。
 //
 // state 根由 root/host group 持有，runtime 私有组没有任何访问位；这样

@@ -36,6 +36,8 @@ export interface MessageItemProps {
   onStopMessage?: (msgId: string) => void;
   defaultProcessExpanded?: boolean;
   assistantHeaderAction?: ReactNode;
+  /** 没有正文时仍需保留的终态说明，不伪造 assistant 消息。 */
+  assistantEmptyState?: ReactNode;
   assistantContentMode?: AssistantContentMode;
   className?: string;
   agentMentionDirectory?: AgentMentionDirectory;

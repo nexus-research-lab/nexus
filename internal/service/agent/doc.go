@@ -4,8 +4,10 @@
 //
 // 成员清单：
 //   - service.go / crud.go / prompt.go / ready.go / profile_template.go /
-//     skills.go / workspace.go：Service、分阶段 Agent 更新、Skill ID 计数及各业务切面。
-//   - prompt_build.go / prompt_default.go：BuildRuntimePrompt 运行时附加提示词、默认模板与主智能体委派边界。
+//     skills.go / workspace.go：Service、分阶段 Agent 更新、Skill 启用/停用集合的
+//     原子更新与计数，以及各业务切面。
+//   - prompt_build.go / prompt_default.go：BuildRuntimePrompt 运行时附加提示词、
+//     默认模板与主智能体委派边界。
 //   - repository.go / factory_record.go：持久化、默认平台 Skill 引用与记录构造。
 //   - emotion_state.go / runtime_settings.go：runtime 情绪态与 nxs settings 投影。
 //   - policy_name.go / scope_owner.go / workspace_path.go：命名策略、归属与 workspace 路径。

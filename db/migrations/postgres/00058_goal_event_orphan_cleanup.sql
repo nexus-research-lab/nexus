@@ -1,4 +1,5 @@
 -- +goose Up
+-- Repair audit rows left behind before Goal deletion became transactional.
 DELETE FROM goal_events
 WHERE NOT EXISTS (
     SELECT 1

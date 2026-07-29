@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - app.go：New 创建 CLI 应用。
+//   - config_environment.go：把 Agent runtime 目录视图还原为 nexusctl 宿主配置。
 //   - services.go：按命令域延迟创建服务，避免 help 等命令拉起全量后端依赖。
 //   - automation*.go：自动化任务的查询、变更、运行与运维命令。
 //   - skill.go / skill_agent.go / skill_external.go：技能目录、Agent 安装与来源管理命令。

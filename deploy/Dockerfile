@@ -35,16 +35,14 @@ COPY go.mod go.sum /src/
 
 ENV GOPROXY=${GOPROXY}
 
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/go/pkg/mod \
-    go mod download
+# 模块下载保留在可复用的依赖层；仅依赖 go.mod/go.sum 变化时才重新下载。
+RUN go mod download
 
 COPY cmd /src/cmd
 COPY internal /src/internal
 COPY db /src/db
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/go/pkg/mod \
     go build -o /out/nexus-server ./cmd/nexus-server && \
     go build -o /out/nexusctl ./cmd/nexusctl && \
     go build -o /out/nexus-runtime-launcher ./cmd/nexus-runtime-launcher
@@ -62,10 +60,6 @@ ARG PNPM_REGISTRY=https://registry.npmjs.org/
 ARG PNPM_VERSION=9.15.2
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG BUN_CONFIG_REGISTRY=https://registry.npmjs.org/
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
-ARG NEXUS_DOCKER_BUNDLE_NXS_RUNTIME=1
-ARG NEXUS_NXS_RUNTIME_RELEASE=nxs-stable
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -109,15 +103,19 @@ ENV HOME=/home/agent \
     UV_INDEX_URL=${PIP_INDEX_URL}
 
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store,sharing=locked \
+    --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
     pnpm config set registry "${PNPM_REGISTRY}" && \
     pnpm config set store-dir /root/.local/share/pnpm/store && \
-    pnpm add -g @anthropic-ai/claude-code bun && \
-    claude_path="$(command -v claude)" && \
+    pnpm add -g @anthropic-ai/claude-code bun
+
+RUN claude_path="$(command -v claude)" && \
     test -x "${claude_path}" && \
     if [ "${claude_path}" != "/usr/local/bin/claude" ]; then \
-        ln -sf "${claude_path}" /usr/local/bin/claude; \
-    fi
+        printf '#!/bin/sh\nexec "%s" "$@"\n' "${claude_path}" > /usr/local/bin/claude && \
+        chmod 0755 /usr/local/bin/claude; \
+    fi && \
+    /usr/local/bin/claude --version
 
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     python3 -m pip install --break-system-packages \
@@ -138,6 +136,10 @@ WORKDIR /opt/app
 
 # nxs runtime 只依赖下载脚本、目标平台和 release。放在业务源码之前，
 # 避免 Go、Skill 或入口脚本变化触发重复下载。
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ARG NEXUS_DOCKER_BUNDLE_NXS_RUNTIME=1
+ARG NEXUS_NXS_RUNTIME_RELEASE=nxs-stable
 COPY --chown=root:root --chmod=0444 scripts/desktop/fetch-nxs-runtime.js /opt/app/scripts/desktop/fetch-nxs-runtime.js
 RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
         mkdir -p /opt/app/bin && \

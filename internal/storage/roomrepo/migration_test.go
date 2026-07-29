@@ -27,7 +27,7 @@ func TestConversationDraftMigrationPreservesLegacyDataAndAddsUniqueDraft(t *test
 		t.Fatal(err)
 	}
 	seedConversationDraftMigrationFixture(t, db)
-	if err = goose.UpTo(db, migrationDir, 56); err != nil {
+	if err = goose.UpTo(db, migrationDir, 57); err != nil {
 		t.Fatal(err)
 	}
 
@@ -95,11 +95,11 @@ INSERT INTO conversations (
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 57 {
-		t.Fatalf("goose version = %d, want 57", version)
+	if version != 58 {
+		t.Fatalf("goose version = %d, want 58", version)
 	}
 
-	if err = goose.DownTo(db, migrationDir, 55); err != nil {
+	if err = goose.DownTo(db, migrationDir, 56); err != nil {
 		t.Fatalf("roll back conversation draft migration: %v", err)
 	}
 	var draftColumnCount int
@@ -119,7 +119,7 @@ func TestConversationDraftMigrationsKeepSQLiteAndPostgresContract(t *testing.T) 
 	for _, dialect := range []string{"sqlite", "postgres"} {
 		path := filepath.Join(
 			roomRepositoryMigrationDir(t, dialect),
-			"00056_conversation_drafts.sql",
+			"00057_conversation_drafts.sql",
 		)
 		body, err := os.ReadFile(path)
 		if err != nil {

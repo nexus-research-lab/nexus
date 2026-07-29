@@ -187,18 +187,34 @@ prepare-host-data: ## Prepare host bind-mount directories for Docker runtime
 		*) resolved_dir="$(CURDIR)/deploy/$${host_data_dir#./}" ;; \
 	esac; \
 	echo "Preparing host data directory: $$resolved_dir"; \
-	$(HOST_SUDO) mkdir -p "$$resolved_dir" "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
-	$(HOST_SUDO) mkdir -p "$$resolved_dir/certs" "$$resolved_dir/acme"; \
-	if $(HOST_SUDO) test -d "$$resolved_dir/.claude.json"; then \
-		echo "Error: $$resolved_dir/.claude.json is a directory, expected a file."; \
+	$(HOST_SUDO) mkdir -p "$$resolved_dir" "$$resolved_dir/certs" "$$resolved_dir/acme"; \
+	if $(HOST_SUDO) test -L "$$resolved_dir/.nexus"; then \
+		echo "Error: $$resolved_dir/.nexus must not be a symbolic link."; \
 		exit 1; \
+	elif $(HOST_SUDO) test -e "$$resolved_dir/.nexus"; then \
+		if ! $(HOST_SUDO) test -d "$$resolved_dir/.nexus"; then \
+			echo "Error: $$resolved_dir/.nexus is not a directory."; \
+			exit 1; \
+		fi; \
+	else \
+		$(HOST_SUDO) mkdir "$$resolved_dir/.nexus"; \
+		$(HOST_SUDO) chown $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.nexus"; \
+		$(HOST_SUDO) chmod 0755 "$$resolved_dir/.nexus"; \
 	fi; \
-	$(HOST_SUDO) touch "$$resolved_dir/.claude.json"; \
-	$(HOST_SUDO) chown -R $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
-	$(HOST_SUDO) chown $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.claude.json"; \
-	$(HOST_SUDO) chmod 0755 "$$resolved_dir/.nexus" "$$resolved_dir/.claude"; \
+	if $(HOST_SUDO) test -L "$$resolved_dir/.claude.json"; then \
+		echo "Error: $$resolved_dir/.claude.json must not be a symbolic link."; \
+		exit 1; \
+	elif $(HOST_SUDO) test -e "$$resolved_dir/.claude.json"; then \
+		if ! $(HOST_SUDO) test -f "$$resolved_dir/.claude.json"; then \
+			echo "Error: $$resolved_dir/.claude.json is not a regular file."; \
+			exit 1; \
+		fi; \
+	else \
+		$(HOST_SUDO) touch "$$resolved_dir/.claude.json"; \
+		$(HOST_SUDO) chown $(AGENT_UID):$(AGENT_GID) "$$resolved_dir/.claude.json"; \
+		$(HOST_SUDO) chmod 0644 "$$resolved_dir/.claude.json"; \
+	fi; \
 	$(HOST_SUDO) chmod 0755 "$$resolved_dir/certs" "$$resolved_dir/acme"; \
-	$(HOST_SUDO) chmod 0644 "$$resolved_dir/.claude.json"; \
 	echo "Host data directory is ready: $$resolved_dir"
 
 build-backend: ## Build backend Docker image

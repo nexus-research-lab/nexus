@@ -2,7 +2,7 @@
  * Skill Marketplace 类型定义
  *
  * [INPUT]: 无外部依赖
- * [OUTPUT]: 对外提供 Skill 列表、详情、导入、安装和更新相关类型
+ * [OUTPUT]: 对外提供 Skill 列表、详情、导入、Agent 启停和更新相关类型
  * [POS]: types 模块的 Skill Marketplace 核心类型，被 skill-api.ts 和 skills 页面消费
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -20,7 +20,7 @@ export interface SkillInfo {
     source_type: SkillSourceType;
     source_ref: string;
     version: string;
-    installed: boolean;
+    enabled_for_agent: boolean;
     locked: boolean;
     has_update: boolean;
     deletable: boolean;
@@ -29,6 +29,9 @@ export interface SkillInfo {
     source_trust?: string;
     import_mode?: string;
     last_error?: string;
+    storage_scope?: "platform" | "user_global" | "agent_workspace" | string;
+    origin_kind?: "builtin" | "user_import" | "marketplace" | "agent_created" | string;
+    enabled_agent_count?: number;
 }
 
 export interface SkillDetail extends SkillInfo {
@@ -39,6 +42,16 @@ export interface SkillDetail extends SkillInfo {
 }
 
 export type AgentSkillEntry = SkillInfo;
+
+export interface SkillAgentBinding {
+    agent_id: string;
+    agent_name: string;
+    is_main: boolean;
+    available: boolean;
+    enabled: boolean;
+}
+
+export type SkillBindingTargetScope = "global_library" | "agent_workspace";
 
 export interface SkillActionFailure {
     skill_name: string;

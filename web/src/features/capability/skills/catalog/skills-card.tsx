@@ -84,6 +84,9 @@ export function SkillsCard({
         </div>
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-2xs leading-4 text-(--text-soft)">
           <span className="shrink-0">{model.sourceLabel}</span>
+          {model.usageLabel ? (
+            <span className="shrink-0">· {model.usageLabel}</span>
+          ) : null}
           {model.visibleTags.map((tag) => (
             <span key={tag} className="truncate">
               · {tag}

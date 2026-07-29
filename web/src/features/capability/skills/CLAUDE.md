@@ -5,10 +5,11 @@
 - 根目录只保留页面编排、Header、搜索入口和导览定义。
 - `skills-header-actions.tsx` 在手机布局用统一更多菜单承载导入、更新、来源和引导，桌面保留完整工具栏。
 - `controller/` 管理目录查询、外部搜索、来源配置、异步操作与反馈状态。
-- `catalog/` 负责技能目录和更新提示；来源、安装状态与更新检查统一由 `skills-catalog-model.ts` 投影。
+- `catalog/` 负责技能目录和更新提示；来源/来源类型、全局使用数、Agent 启用状态与更新检查统一由 `skills-catalog-model.ts` 投影。
 - `external/` 负责社区来源结果、来源管理和预览；身份、来源、导入状态与预览内容统一由纯模型投影。
 - `import/` 负责本地与 Git 导入表单。
-- `detail/` 按路由编排、请求控制器、展示模型和纯视图分离技能详情；Markdown 与部署失败说明留在详情域。
+- `detail/` 按路由编排、请求控制器、展示模型和纯视图分离技能详情与 Agent 使用矩阵；Markdown 与部署失败说明留在详情域。
+- 全局技能市场不接收 Agent workspace Skill；这类 Skill 只由对应 Agent 设置页投影。
 
 ## 约定
 

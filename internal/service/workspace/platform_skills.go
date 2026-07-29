@@ -20,45 +20,83 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
-var platformSkillLibraryState struct {
+type skillLibrarySyncState struct {
 	sync.Mutex
 	root        string
 	fingerprint string
 }
 
-const platformSkillManifestName = ".platform-skill-manifest"
+var platformSkillLibraryState skillLibrarySyncState
+
+const skillLibraryManifestName = ".nexus-skill-library-manifest"
 
 // EnsurePlatformSkillLibrary 将产品随附 Skill 同步到全局兼容根。
-//
-// 同步只发生一次内容变化时，Agent workspace 不再持有 Skill 副本；nxs 和
-// Claude 通过两个兼容入口读取同一份平台文件，更新平台文件后下一次同步即可生效。
 func EnsurePlatformSkillLibrary() error {
-	sourceRoot := filepath.Join(appfs.Root(), "skills")
+	return ensureCompatibleSkillLibrary(
+		filepath.Join(appfs.Root(), "skills"),
+		appfs.PlatformSkillRoot(),
+		&platformSkillLibraryState,
+	)
+}
+
+// ensureCompatibleSkillLibrary 把单一 Skill 源原子发布成 nxs/Claude 共用根。
+func ensureCompatibleSkillLibrary(
+	sourceRoot string,
+	targetRoot string,
+	state *skillLibrarySyncState,
+) error {
 	if _, err := os.Stat(sourceRoot); os.IsNotExist(err) {
-		return nil
+		return clearCompatibleSkillLibrary(targetRoot, state)
 	} else if err != nil {
 		return err
 	}
-	fingerprint, err := platformSkillFingerprint(sourceRoot)
+	fingerprint, err := skillLibraryFingerprint(sourceRoot)
 	if err != nil {
 		return err
 	}
-	targetRoot := appfs.PlatformSkillRoot()
 
-	platformSkillLibraryState.Lock()
-	defer platformSkillLibraryState.Unlock()
-	if platformSkillLibraryState.root == targetRoot && platformSkillLibraryState.fingerprint == fingerprint && platformSkillLibraryReady(targetRoot, fingerprint) {
+	state.Lock()
+	defer state.Unlock()
+	if state.root == targetRoot &&
+		state.fingerprint == fingerprint &&
+		skillLibraryReady(targetRoot, fingerprint) {
 		return nil
 	}
-	if err = replacePlatformSkillLibrary(sourceRoot, targetRoot, fingerprint); err != nil {
+	if err = replaceCompatibleSkillLibrary(sourceRoot, targetRoot, fingerprint); err != nil {
 		return err
 	}
-	platformSkillLibraryState.root = targetRoot
-	platformSkillLibraryState.fingerprint = fingerprint
+	state.root = targetRoot
+	state.fingerprint = fingerprint
 	return nil
 }
 
-func platformSkillFingerprint(root string) (string, error) {
+func clearCompatibleSkillLibrary(
+	targetRoot string,
+	state *skillLibrarySyncState,
+) error {
+	state.Lock()
+	defer state.Unlock()
+	parentPath := filepath.Clean(filepath.Dir(targetRoot))
+	parentRoot, err := confinedfs.Open(parentPath)
+	if os.IsNotExist(err) {
+		state.root = ""
+		state.fingerprint = ""
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer parentRoot.Close()
+	if err = parentRoot.RemoveAll(filepath.Base(filepath.Clean(targetRoot))); err != nil &&
+		!os.IsNotExist(err) {
+		return err
+	}
+	state.root = ""
+	state.fingerprint = ""
+	return nil
+}
+
+func skillLibraryFingerprint(root string) (string, error) {
 	source, err := confinedfs.Open(root)
 	if err != nil {
 		return "", err
@@ -66,13 +104,13 @@ func platformSkillFingerprint(root string) (string, error) {
 	defer source.Close()
 
 	hash := sha256.New()
-	if err := fingerprintPlatformSkillTree(source, "", hash); err != nil {
+	if err := fingerprintSkillTree(source, "", hash); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func fingerprintPlatformSkillTree(root *confinedfs.Root, prefix string, digest hash.Hash) error {
+func fingerprintSkillTree(root *confinedfs.Root, prefix string, digest hash.Hash) error {
 	entries, err := fs.ReadDir(root.FS(), ".")
 	if err != nil {
 		return err
@@ -98,7 +136,7 @@ func fingerprintPlatformSkillTree(root *confinedfs.Root, prefix string, digest h
 			if err != nil {
 				return err
 			}
-			childErr := fingerprintPlatformSkillTree(child, relative, digest)
+			childErr := fingerprintSkillTree(child, relative, digest)
 			closeErr := child.Close()
 			if childErr != nil {
 				return childErr
@@ -136,17 +174,17 @@ func fingerprintPlatformSkillTree(root *confinedfs.Root, prefix string, digest h
 	return nil
 }
 
-func platformSkillLibraryReady(root string, fingerprint string) bool {
+func skillLibraryReady(root string, fingerprint string) bool {
 	platformRoot, err := confinedfs.Open(root)
 	if err != nil {
 		return false
 	}
 	defer platformRoot.Close()
-	if !platformSkillDirectoryReadable(platformRoot) {
+	if !skillDirectoryReadable(platformRoot) {
 		return false
 	}
 
-	manifestFile, err := platformRoot.OpenFileNoSymlink(platformSkillManifestName, os.O_RDONLY, 0)
+	manifestFile, err := platformRoot.OpenFileNoSymlink(skillLibraryManifestName, os.O_RDONLY, 0)
 	if err != nil {
 		return false
 	}
@@ -167,7 +205,7 @@ func platformSkillLibraryReady(root string, fingerprint string) bool {
 	if err != nil {
 		return false
 	}
-	agentsReady := platformSkillDirectoryReady(agentsRoot, "skills", "")
+	agentsReady := skillDirectoryReady(agentsRoot, "skills", "")
 	agentsRoot.Close()
 	if !agentsReady {
 		return false
@@ -177,13 +215,13 @@ func platformSkillLibraryReady(root string, fingerprint string) bool {
 	if err != nil {
 		return false
 	}
-	claudeReady := platformSkillDirectoryReady(claudeRoot, "skills", "../.agents/skills")
+	claudeReady := skillDirectoryReady(claudeRoot, "skills", "../.agents/skills")
 	claudeRoot.Close()
 	return claudeReady
 }
 
-func platformSkillDirectoryReady(root *confinedfs.Root, name string, symlinkTarget string) bool {
-	if !platformSkillDirectoryReadable(root) {
+func skillDirectoryReady(root *confinedfs.Root, name string, symlinkTarget string) bool {
+	if !skillDirectoryReadable(root) {
 		return false
 	}
 	info, err := root.Lstat(name)
@@ -207,12 +245,12 @@ func platformSkillDirectoryReady(root *confinedfs.Root, name string, symlinkTarg
 	if err != nil {
 		return false
 	}
-	ready := platformSkillDirectoryReadable(child) && platformSkillTreeReady(child)
+	ready := skillDirectoryReadable(child) && skillTreeReady(child)
 	closeErr := child.Close()
 	return ready && closeErr == nil
 }
 
-func platformSkillDirectoryReadable(root *confinedfs.Root) bool {
+func skillDirectoryReadable(root *confinedfs.Root) bool {
 	if root == nil {
 		return false
 	}
@@ -223,7 +261,7 @@ func platformSkillDirectoryReadable(root *confinedfs.Root) bool {
 	return info.IsDir() && info.Mode().Perm()&0o005 == 0o005
 }
 
-func platformSkillTreeReady(root *confinedfs.Root) bool {
+func skillTreeReady(root *confinedfs.Root) bool {
 	entries, err := fs.ReadDir(root.FS(), ".")
 	if err != nil {
 		return false
@@ -237,14 +275,14 @@ func platformSkillTreeReady(root *confinedfs.Root) bool {
 			return false
 		}
 		if info.IsDir() {
-			if !platformSkillDirectoryReadable(root) {
+			if !skillDirectoryReadable(root) {
 				return false
 			}
 			child, err := root.OpenRootNoSymlink(entry.Name())
 			if err != nil {
 				return false
 			}
-			ready := platformSkillDirectoryReadable(child) && platformSkillTreeReady(child)
+			ready := skillDirectoryReadable(child) && skillTreeReady(child)
 			closeErr := child.Close()
 			if !ready || closeErr != nil {
 				return false
@@ -258,7 +296,7 @@ func platformSkillTreeReady(root *confinedfs.Root) bool {
 	return true
 }
 
-func replacePlatformSkillLibrary(sourceRoot string, targetRoot string, fingerprint string) error {
+func replaceCompatibleSkillLibrary(sourceRoot string, targetRoot string, fingerprint string) error {
 	parentPath := filepath.Clean(filepath.Dir(targetRoot))
 	if err := os.MkdirAll(parentPath, 0o755); err != nil {
 		return err
@@ -268,7 +306,7 @@ func replacePlatformSkillLibrary(sourceRoot string, targetRoot string, fingerpri
 		return err
 	}
 	defer parentFS.Close()
-	temporaryRelative, err := parentFS.MkdirTemp(".", ".platform-skills-", 0o755)
+	temporaryRelative, err := parentFS.MkdirTemp(".", ".skill-library-", 0o755)
 	if err != nil {
 		return err
 	}
@@ -332,7 +370,7 @@ func replacePlatformSkillLibrary(sourceRoot string, targetRoot string, fingerpri
 			return fmt.Errorf("创建 Claude Skill 入口失败: %w；镜像目录也失败: %v", err, copyErr)
 		}
 	}
-	if err := temporaryFS.WriteFileAtomic(platformSkillManifestName, []byte(fingerprint+"\n"), 0o644); err != nil {
+	if err := temporaryFS.WriteFileAtomic(skillLibraryManifestName, []byte(fingerprint+"\n"), 0o644); err != nil {
 		temporaryFS.Close()
 		return err
 	}

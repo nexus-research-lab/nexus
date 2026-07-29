@@ -175,6 +175,14 @@ func PlatformSkillRoot() string {
 	return filepath.Join(AppDir(), "platform-skills")
 }
 
+// HostSkillRoot 返回桌面用户 ~/.agents/skills 的全局兼容根目录。
+//
+// 源目录只扫描行业标准的 ~/.agents/skills；该内部投影同时提供
+// .agents/skills 与 .claude/skills，避免为每个 Agent 复制同一份文件。
+func HostSkillRoot() string {
+	return filepath.Join(AppDir(), "host-skills")
+}
+
 func normalizeStateRoot(path string) string {
 	clean := filepath.Clean(expandHome(path))
 	parent := filepath.Dir(clean)

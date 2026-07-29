@@ -6,6 +6,7 @@
 //   - history_*.go / user_input_probe.go：分阶段历史投影与严格只读用户输入判定（compact / normalize / order / pagination / last-write round_index /
 //     turn projector / rewrite_tail / 按 Agent 执行轮配对的 result_summary / external_delivery / unfinished_round）。
 //   - agent_history*.go：Agent 历史门面、读取、overlay 与共享模型。
+//   - runtime_repair.go：enforce 模式下 owner runtime 权限修复与受限重试。
 //   - transcript_*.go：transcript cache、reader、path、session、project、marker、guidance 与 root/source round 投影。
 //   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、跨派发持久幂等入队、可返回规范化提交的原子批量登记、预检版本一致的整批 guidance 认领、按执行 scope 隔离的编解码与事件重放。
 //   - room_history.go / room_directed_message.go / room_directed_message_wake.go / session_file.go / artifact_probe.go / jsonl.go：

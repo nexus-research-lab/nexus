@@ -355,3 +355,32 @@ export function applyTerminalRoundMessageStatus(
     return updateAssistantStatus(message, terminalStatus);
   });
 }
+
+/**
+ * Room slot 可能以 no-reply 收口，终态 assistant/result 因而不会进入公区。
+ * 此时必须用精确的 agent_round_id 结束已发布的 thinking 快照，不能等待整个
+ * root round 或依赖一个刻意被抑制的最终消息。
+ */
+export function applyTerminalAgentRoundMessageStatus(
+  messages: Message[],
+  agentRoundId: string,
+  status: RoundLifecycleStatus,
+): Message[] {
+  const normalizedAgentRoundId = agentRoundId.trim();
+  if (!normalizedAgentRoundId || status === "running") {
+    return messages;
+  }
+  const terminalStatus = getTerminalMessageStatus(status);
+  return reconcileMessages(messages, (message) => {
+    if (
+      message.role !== "assistant"
+      || message.agent_round_id?.trim() !== normalizedAgentRoundId
+      || TERMINAL_ASSISTANT_STATUSES.has(
+        message.stream_status ?? "pending",
+      )
+    ) {
+      return KEEP_MESSAGE;
+    }
+    return updateAssistantStatus(message, terminalStatus);
+  });
+}

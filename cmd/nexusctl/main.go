@@ -4,11 +4,10 @@ import (
 	"os"
 
 	"github.com/nexus-research-lab/nexus/internal/cli"
-	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
 func main() {
-	command, err := cli.New(config.Load())
+	command, err := cli.New(cli.LoadConfig())
 	if err != nil {
 		cli.WriteCommandError(os.Stderr, err, cli.RequestedJSON(os.Args[1:]))
 		os.Exit(cli.ExitCode(err))

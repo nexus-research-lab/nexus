@@ -202,11 +202,28 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 		denied  bool
 	}{
 		{name: "ordinary command", command: "/usr/bin/git status >/dev/null", denied: false},
+		{name: "command substitution syntax", command: "ps -u $(whoami) -o pid,ppid,cmd", denied: false},
+		{name: "grep end anchor", command: "ls /proc | grep -E '^[0-9]+$' | wc -l", denied: false},
+		{name: "awk field selector", command: "printf 'a b' | awk '{print $1}'", denied: false},
+		{
+			name: "dynamic proc path",
+			command: "ls /proc | grep -E '^[0-9]+$' | while read pid; do " +
+				"cmd=$(cat /proc/$pid/cmdline 2>/dev/null | tr '\\0' ' '); " +
+				"if [ -n \"$cmd\" ]; then echo \"$pid $cmd\"; fi; done | head -50",
+			denied: false,
+		},
+		{name: "dynamic workspace path", command: "cat ./logs/$name", denied: false},
+		{
+			name:    "dynamic outside prefix",
+			command: "cat " + filepath.Join(filepath.Dir(workspace), "outside", "$name"),
+			denied:  true,
+		},
 		{name: "relative escape", command: "cat ../../other/secret", denied: true},
 		{name: "redirect escape", command: "printf secret > ../../other/secret", denied: true},
 		{name: "home shorthand", command: "cat ~/secret", denied: true},
 		{name: "named home shorthand", command: "cat ~other/secret", denied: true},
 		{name: "shell variable", command: "cat $HOME/secret", denied: true},
+		{name: "braced shell variable", command: "cat ${HOME}/secret", denied: true},
 		{name: "cmd variable", command: `type %USERPROFILE%\secret`, denied: true},
 		{name: "windows absolute path", command: `type C:\Users\other\secret`, denied: true},
 		{name: "nexusctl broker pending", command: "nexusctl agent list", denied: true},

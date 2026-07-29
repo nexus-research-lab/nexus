@@ -39,6 +39,20 @@ func (s *Service) loadExternalRecords(ctx context.Context) (map[string]catalogRe
 	return s.loadExternalRecordsFromRootAt(root, ownerRoot)
 }
 
+func externalOriginKind(sourceKind string) string {
+	switch strings.TrimSpace(sourceKind) {
+	case externalSourceKindClaudePlugins,
+		externalSourceKindSkillsSh,
+		externalSourceKindClawhub,
+		externalSourceKindHermesIndex,
+		externalSourceKindBrowseSh,
+		externalSourceKindWellKnown:
+		return originKindMarketplace
+	default:
+		return originKindUserImport
+	}
+}
+
 func (s *Service) loadExternalRecordsFromDB(
 	ctx context.Context,
 	root string,
@@ -121,6 +135,8 @@ func (s *Service) buildExternalRecordFromEntity(
 			SourceTrust:  record.SourceTrust,
 			ImportMode:   record.ImportMode,
 			LastError:    record.LastError,
+			StorageScope: storageScopeUserGlobal,
+			OriginKind:   externalOriginKind(record.SourceKind),
 		},
 		ReadmeMarkdown: parsed.ReadmeMarkdown,
 		Recommendation: firstNonEmpty(record.Recommendation, parsed.Recommendation, "外部导入能力。"),
@@ -364,6 +380,8 @@ func loadExternalRecordsFromRegistryRoot(
 				Locked:       false,
 				HasUpdate:    false,
 				Deletable:    true,
+				StorageScope: storageScopeUserGlobal,
+				OriginKind:   externalOriginKind(manifest.SourceKind),
 			},
 			ReadmeMarkdown: parsed.ReadmeMarkdown,
 			Recommendation: firstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。"),

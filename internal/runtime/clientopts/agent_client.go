@@ -51,6 +51,10 @@ type AgentClientOptionsInput struct {
 	DisallowedTools   []string
 	// SkillIDs 是宿主保存的 Skill 引用，进入 SDK 前投影为当前 runtime 的 Skill 名称白名单。
 	SkillIDs []string
+	// DisabledSkillIDs 是当前 Agent 明确停用或未绑定的 Skill 名称。
+	//
+	// 项目级 Skill 允许动态发现，不能仅靠启动时白名单表达显式停用状态。
+	DisabledSkillIDs []string
 	// SkillDirectories 是宿主授予 runtime 的平台与用户级资源根，不随 Agent workspace 变化。
 	SkillDirectories           []string
 	SettingSources             []string
@@ -154,8 +158,15 @@ func BuildAgentClientOptionsWithConfig(
 			PermissionHandler: input.PermissionHandler,
 		},
 	}
-	if input.SkillIDs != nil {
+	if effectiveRuntimeKind == runtimeKindClaude {
+		// Claude 的项目级 Skill 会在会话期间动态发现；用 deny 规则隔离
+		// 未绑定的全局 Skill，不能把启动时的白名单当成完整发现快照。
+		options = options.WithAllSkills()
+	} else if input.SkillIDs != nil {
 		options = options.WithSkills(input.SkillIDs...)
+	}
+	if input.DisabledSkillIDs != nil {
+		options = options.WithDisabledSkills(input.DisabledSkillIDs...)
 	}
 	if runtimeConfig != nil {
 		options.Model = strings.TrimSpace(runtimeConfig.Model)

@@ -18,6 +18,7 @@
 - 单目标 guide 优先按持久化的消费方 `agent_round_id` 归卡；只有旧历史缺少该身份时才按时间兼容。
 - Agent 卡片只按稳定 `display_order` / slot 顺序排列；pending、streaming、terminal 状态变化以及 guide 到达都不得移动已展示卡片。
 - 公区只投影公开回复正文与 Composer-owned 人工介入的只读等待证据，不展开内部工具过程；同一执行外壳内的内容增长不得依赖滚动层补救组件整体替换。
+- 公区终态过滤 thinking；无公开正文的 `done` 槽位仍保留同一完成态 `MessageItem` 外壳、终态说明与 Thread 入口，不得退回活动状态卡。
 - 每个 pending interaction 只由 Composer 提供操作面；Agent 槽位与终态正文不得重复渲染结构化问题或批准按钮。
 - 带 root round 与 `agent_round_id` 的权限若对应 execution 已由 lifecycle 收口，必须在卡片与 root fallback 两层同时过滤，不能以通用交互卡重新出现。
 - 所有会让 runtime 等待用户响应的请求都由 Composer 原位替换输入框并成为唯一操作面；Room 主卡片与 Thread 只保留请求身份、等待状态和执行结果等只读证据，不得重复批准、回答或计划确认按钮。

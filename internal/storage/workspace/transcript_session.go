@@ -25,18 +25,20 @@ func IsSubagentTranscriptSessionID(sessionID string) bool {
 
 // TranscriptSessionExists 判断 workspace 下是否存在可恢复的 SDK transcript。
 func (s *AgentHistoryStore) TranscriptSessionExists(workspacePath string, sessionID string) (bool, error) {
-	trimmedSessionID := strings.TrimSpace(sessionID)
-	normalizedSessionID := strings.ToLower(trimmedSessionID)
-	if normalizedSessionID == "" || !IsTranscriptSessionID(normalizedSessionID) {
-		return false, nil
-	}
-	if _, err := s.resolveTranscriptPath(workspacePath, normalizedSessionID); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+	return withRuntimePermissionRepair(s, func() (bool, error) {
+		trimmedSessionID := strings.TrimSpace(sessionID)
+		normalizedSessionID := strings.ToLower(trimmedSessionID)
+		if normalizedSessionID == "" || !IsTranscriptSessionID(normalizedSessionID) {
 			return false, nil
 		}
-		return false, err
-	}
-	return true, nil
+		if _, err := s.resolveTranscriptPath(workspacePath, normalizedSessionID); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
 }
 
 // DeleteTranscriptSession 删除单个 SDK transcript 文件。

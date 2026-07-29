@@ -23,6 +23,7 @@ export interface AgentOptions {
     max_thinking_tokens?: number;
     mcp_servers?: Record<string, unknown>;
     skill_ids?: string[];
+    disabled_skill_ids?: string[];
     setting_sources?: ('user' | 'project')[];
 }
 

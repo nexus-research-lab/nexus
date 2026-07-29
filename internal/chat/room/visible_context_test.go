@@ -176,6 +176,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"<current_room_member>",
 		"recipients: string[]",
 		"next_reply_route: {...}",
+		"unless the source explicitly requests",
 	} {
 		if strings.Contains(systemPrompt, unexpected) {
 			t.Fatalf("Room system prompt 不应包含动态变量 %q:\n%s", unexpected, systemPrompt)
@@ -296,8 +297,12 @@ func TestBuildRoomVisibleContextMakesHostAssessDelegationBeforeExecution(t *test
 	for _, expected := range []string{
 		"room host default takeover",
 		"assess task complexity, separable work, and member fit",
-		"Prefer @ exactly one suitable member with a concrete deliverable",
-		"do not duplicate that deliverable yourself",
+		"Delegate to the smallest suitable set",
+		"use @ exactly one member for a single deliverable",
+		"multiple independent, non-overlapping deliverables",
+		"@ each suitable member with one concrete deliverable",
+		"append the fanout marker required by the system rule",
+		"do not duplicate those deliverables yourself",
 		"coordination, unblocking, integration, and verification",
 		"Handle the whole task directly only when it is small or atomic",
 	} {

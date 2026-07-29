@@ -115,6 +115,7 @@ export interface AssistantContentEnvironment {
 export interface MessageAssistantSectionProps {
   assistant: MessageAssistantState;
   assistantContentMode: AssistantContentMode;
+  assistantEmptyState?: ReactNode;
   assistantHeaderAction?: ReactNode;
   canRespondToPermissions: boolean;
   compact: boolean;

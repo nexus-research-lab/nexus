@@ -13,13 +13,30 @@ const (
 	sourceTypeWorkspace     = "workspace"
 	sourceKindNexusPlatform = "nexus_platform"
 	sourceKindUserGlobal    = "user_global"
+	storageScopePlatform    = "platform"
+	storageScopeUserGlobal  = "user_global"
+	storageScopeAgent       = "agent_workspace"
+	originKindBuiltin       = "builtin"
+	originKindUserImport    = "user_import"
+	originKindMarketplace   = "marketplace"
+	originKindAgentCreated  = "agent_created"
 	scopeMain               = "main"
 	scopeAny                = "any"
 	scopeRoom               = "room"
 )
 
-// ScopeRoom 表示 Room 级 skill，只能由房间启用，不能安装到单个 Agent。
+// ScopeRoom 表示 Room 级 skill，只能由房间启用，不能绑定到单个 Agent。
 const ScopeRoom = scopeRoom
+
+// AgentSkillTargetScope 表示 Agent 开关要操作的 Skill 来源作用域。
+type AgentSkillTargetScope string
+
+const (
+	// AgentSkillTargetGlobalLibrary 表示用户全局技能库中的 Skill。
+	AgentSkillTargetGlobalLibrary AgentSkillTargetScope = "global_library"
+	// AgentSkillTargetWorkspace 表示当前 Agent workspace 的私有 Skill。
+	AgentSkillTargetWorkspace AgentSkillTargetScope = "agent_workspace"
+)
 
 var (
 	systemSkillNames   = map[string]struct{}{"imagegen": {}, "goal-manager": {}}
@@ -36,25 +53,28 @@ var curatedCatalogPayload []byte
 
 // Info 表示 skill 列表项。
 type Info struct {
-	Name         string   `json:"name"`
-	Title        string   `json:"title"`
-	Description  string   `json:"description"`
-	Scope        string   `json:"scope"`
-	Tags         []string `json:"tags"`
-	CategoryKey  string   `json:"category_key"`
-	CategoryName string   `json:"category_name"`
-	SourceType   string   `json:"source_type"`
-	SourceRef    string   `json:"source_ref"`
-	Version      string   `json:"version"`
-	Installed    bool     `json:"installed"`
-	Locked       bool     `json:"locked"`
-	HasUpdate    bool     `json:"has_update"`
-	Deletable    bool     `json:"deletable"`
-	SourceKind   string   `json:"source_kind,omitempty"`
-	SourceName   string   `json:"source_name,omitempty"`
-	SourceTrust  string   `json:"source_trust,omitempty"`
-	ImportMode   string   `json:"import_mode,omitempty"`
-	LastError    string   `json:"last_error,omitempty"`
+	Name              string   `json:"name"`
+	Title             string   `json:"title"`
+	Description       string   `json:"description"`
+	Scope             string   `json:"scope"`
+	Tags              []string `json:"tags"`
+	CategoryKey       string   `json:"category_key"`
+	CategoryName      string   `json:"category_name"`
+	SourceType        string   `json:"source_type"`
+	SourceRef         string   `json:"source_ref"`
+	Version           string   `json:"version"`
+	Locked            bool     `json:"locked"`
+	HasUpdate         bool     `json:"has_update"`
+	Deletable         bool     `json:"deletable"`
+	SourceKind        string   `json:"source_kind,omitempty"`
+	SourceName        string   `json:"source_name,omitempty"`
+	SourceTrust       string   `json:"source_trust,omitempty"`
+	ImportMode        string   `json:"import_mode,omitempty"`
+	LastError         string   `json:"last_error,omitempty"`
+	StorageScope      string   `json:"storage_scope,omitempty"`
+	OriginKind        string   `json:"origin_kind,omitempty"`
+	EnabledForAgent   bool     `json:"enabled_for_agent"`
+	EnabledAgentCount int      `json:"enabled_agent_count,omitempty"`
 }
 
 // Detail 表示 skill 详情。
@@ -65,6 +85,15 @@ type Detail struct {
 	// 兼容既有前端字段名；当前表示用户级源同步结果，而非 workspace 复制结果。
 	DeploySuccesses []RedeployAgentSuccess `json:"deploy_successes,omitempty"`
 	DeployFailures  []RedeployAgentFailure `json:"deploy_failures,omitempty"`
+}
+
+// AgentSkillBinding 表示某个 Skill 在单个 Agent 上的启用投影。
+type AgentSkillBinding struct {
+	AgentID   string `json:"agent_id"`
+	AgentName string `json:"agent_name"`
+	IsMain    bool   `json:"is_main"`
+	Available bool   `json:"available"`
+	Enabled   bool   `json:"enabled"`
 }
 
 // Query 表示技能查询参数。

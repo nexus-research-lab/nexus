@@ -25,6 +25,7 @@ import type { AgentRoundStatus } from "../../round/round-agent-model";
 import { isAgentRoundActive } from "../../round/round-agent-model";
 import {
   hasRoomAgentTerminalEvidence,
+  isRoomAgentNoPublicReply,
   projectRoomAgentActivityState,
   projectRoomAgentExecutionMessages,
 } from "./group-agent-execution-model";
@@ -77,6 +78,11 @@ function GroupAgentExecutionShellInner({
   );
   const isAwaitingTerminalMessage = !isActive && !hasTerminalEvidence;
   const isLoading = isActive || isAwaitingTerminalMessage;
+  const noPublicReply = isRoomAgentNoPublicReply(
+    messages,
+    resultSummary,
+    status,
+  );
   const projectedMessages = useMemo(
     () => projectRoomAgentExecutionMessages({
       agentId,
@@ -131,6 +137,11 @@ function GroupAgentExecutionShellInner({
         agentMentionDirectory={agentMentionDirectory}
         animateEntry={false}
         assistantContentMode="room_result"
+        assistantEmptyState={noPublicReply ? (
+          <p className="text-base leading-7 text-(--text-muted)">
+            {t("room.agent_status_no_reply")}
+          </p>
+        ) : undefined}
         assistantHeaderAction={(
           <div className="flex items-center gap-1.5">
             <ThreadActionButton

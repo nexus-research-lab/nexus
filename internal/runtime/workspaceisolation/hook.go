@@ -24,7 +24,10 @@ var shellTokenPattern = regexp.MustCompile(`[^\s"'` + "`" + `;|&()<>{}]+`)
 var shellRedirectionPathPattern = regexp.MustCompile(
 	`(?:^|[\s;|&])(?:&>|[012]?>>|[012]?>)\s*([^\s"'` + "`" + `;|&()<>{}]+)`,
 )
-var shellVariablePattern = regexp.MustCompile(`%[A-Za-z_][A-Za-z0-9_]*%`)
+var unixShellVariablePattern = regexp.MustCompile(
+	`\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})`,
+)
+var windowsShellVariablePattern = regexp.MustCompile(`%[A-Za-z_][A-Za-z0-9_]*%`)
 
 var readPathToolNames = map[string]struct{}{
 	"glob": {}, "grep": {}, "lsp": {}, "ls": {}, "read": {}, "viewimage": {},
@@ -240,6 +243,9 @@ func inspectShellAccess(
 		if !ok {
 			continue
 		}
+		if shellDynamicPathPrefixAuthorized(policy, cwd, path) {
+			continue
+		}
 		resolved, err := resolveToolPath(cwd, path)
 		if err != nil {
 			return &policyViolation{reason: err.Error(), path: path}
@@ -252,6 +258,51 @@ func inspectShellAccess(
 		}
 	}
 	return nil
+}
+
+// shellDynamicPathPrefixAuthorized 只判断变量前已经明确出现的静态目录。
+// 变量展开后的最终目标仍由 launcher/Landlock 的系统调用边界裁决。
+func shellDynamicPathPrefixAuthorized(policy Policy, cwd string, path string) bool {
+	variableIndex := firstShellVariableIndex(path)
+	if variableIndex <= 0 || explicitShellTraversal(path) {
+		return false
+	}
+	prefix := strings.TrimRight(path[:variableIndex], `/\`)
+	if prefix == "" {
+		return false
+	}
+	resolved, err := resolveToolPath(cwd, prefix)
+	if err != nil {
+		return false
+	}
+	if shellSystemPath(resolved) {
+		return true
+	}
+	_, err = policy.authorize(resolved, false)
+	return err == nil
+}
+
+func firstShellVariableIndex(value string) int {
+	index := -1
+	for _, pattern := range []*regexp.Regexp{
+		unixShellVariablePattern,
+		windowsShellVariablePattern,
+	} {
+		match := pattern.FindStringIndex(value)
+		if len(match) == 2 && (index < 0 || match[0] < index) {
+			index = match[0]
+		}
+	}
+	return index
+}
+
+func explicitShellTraversal(value string) bool {
+	for _, segment := range strings.Split(strings.ReplaceAll(value, `\`, "/"), "/") {
+		if segment == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 func shellSystemPath(path string) bool {
@@ -338,7 +389,7 @@ func resolveToolPath(cwd string, raw string) (string, error) {
 	if strings.ContainsRune(value, '$') {
 		return "", fmt.Errorf("工具路径包含未解析的环境变量")
 	}
-	if shellVariablePattern.MatchString(value) {
+	if windowsShellVariablePattern.MatchString(value) {
 		return "", fmt.Errorf("工具路径包含未解析的环境变量")
 	}
 	value = nonGlobPrefix(value)
@@ -371,7 +422,11 @@ func nonGlobPrefix(path string) string {
 func shellTokenPath(token string) (string, bool) {
 	token = strings.TrimSpace(token)
 	token = strings.Trim(token, `"'`)
-	if token == "" || strings.Contains(token, "://") {
+	// shellTokenPattern 会把命令替换 `$(...)` 的 `$` 单独切出来。
+	// 单独的 `$` 是 shell 语法，不是路径；把它当成环境变量会误拒绝
+	// 合法的命令（例如 `ps -u $(whoami)`）。真正带路径语义的变量
+	// 仍会在下面保留并交给未展开变量检查。
+	if token == "" || token == "$" || strings.Contains(token, "://") {
 		return "", false
 	}
 	if _, value, ok := strings.Cut(token, "="); ok {
@@ -385,10 +440,14 @@ func shellTokenPath(token string) (string, bool) {
 		// shell 会在执行前把 ~ 展开到 home；宿主 hook 无法安全推断
 		// 目标用户，因此宁可拒绝未展开的 home 简写，避免绕过 owner 根。
 		return token, true
-	case strings.ContainsRune(token, '$') || shellVariablePattern.MatchString(token):
-		// 环境变量和命令替换的结果在 hook 运行时不可静态确定，不能
-		// 让它们借由相对 token 绕过路径授权。
-		return token, true
+	case unixShellVariablePattern.MatchString(token) ||
+		windowsShellVariablePattern.MatchString(token):
+		// 裸变量不携带可静态判断的路径语义，交给系统调用级隔离；
+		// 带目录分隔符的变量路径继续检查其静态前缀。
+		if strings.ContainsAny(token, `/\`) {
+			return token, true
+		}
+		return "", false
 	case isWindowsAbsoluteShellPath(token):
 		return token, true
 	case token == "..", strings.HasPrefix(token, "../"), strings.Contains(token, "/../"):

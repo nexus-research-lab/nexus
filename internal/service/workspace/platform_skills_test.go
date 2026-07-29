@@ -17,9 +17,14 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 	if err := EnsurePlatformSkillLibrary(); err != nil {
 		t.Fatalf("同步平台 Skill 库失败: %v", err)
 	}
-	nxsSkill := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "ima-skill", "SKILL.md")
-	claudeSkill := filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "ima-skill", "SKILL.md")
-	for _, path := range []string{nxsSkill, claudeSkill} {
+	for _, path := range []string{
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "ima-skill", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "ima-skill", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "wechat-article-search", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "wechat-article-search", "requirements.txt"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "wechat-article-search", "scripts", "search.py"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "wechat-article-search", "scripts", "search.py"),
+	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("平台 Skill 入口缺失 %s: %v", path, err)
 		}
@@ -71,7 +76,7 @@ func TestEnsurePlatformSkillLibraryRepairsUnreadableExistingTree(t *testing.T) {
 	if err := EnsurePlatformSkillLibrary(); err != nil {
 		t.Fatalf("首次同步平台 Skill 库失败: %v", err)
 	}
-	fingerprint, err := platformSkillFingerprint(filepath.Join(appfs.Root(), "skills"))
+	fingerprint, err := skillLibraryFingerprint(filepath.Join(appfs.Root(), "skills"))
 	if err != nil {
 		t.Fatalf("计算平台 Skill 指纹失败: %v", err)
 	}
@@ -79,7 +84,7 @@ func TestEnsurePlatformSkillLibraryRepairsUnreadableExistingTree(t *testing.T) {
 	if err := os.Chmod(skillPath, 0o600); err != nil {
 		t.Fatalf("收紧已发布 Skill 权限失败: %v", err)
 	}
-	if platformSkillLibraryReady(appfs.PlatformSkillRoot(), fingerprint) {
+	if skillLibraryReady(appfs.PlatformSkillRoot(), fingerprint) {
 		t.Fatal("不可供 runtime 读取的 Skill 树不应被判定为就绪")
 	}
 	if err := EnsurePlatformSkillLibrary(); err != nil {
@@ -116,7 +121,7 @@ func TestReplacePlatformSkillLibraryCopiesReadOnlySource(t *testing.T) {
 	})
 
 	targetRoot := filepath.Join(t.TempDir(), "platform-skills")
-	if err := replacePlatformSkillLibrary(sourceRoot, targetRoot, "test-fingerprint"); err != nil {
+	if err := replaceCompatibleSkillLibrary(sourceRoot, targetRoot, "test-fingerprint"); err != nil {
 		t.Fatalf("只读源 Skill 应可发布到暂存目录: %v", err)
 	}
 	publishedSkill := filepath.Join(targetRoot, ".agents", "skills", "goal-manager", "SKILL.md")

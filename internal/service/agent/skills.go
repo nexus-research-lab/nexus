@@ -24,14 +24,18 @@ func (s *Service) enrichAgentWithSkillsCount(agent *protocol.Agent) error {
 	}
 	root, err := s.openAgentWorkspace(*agent, false)
 	if os.IsNotExist(err) {
-		agent.SkillsCount = selectedSkillCount(agent.Options.SkillIDs)
+		agent.SkillsCount = selectedSkillCount(agent.Options.SkillIDs, agent.Options.DisabledSkillIDs)
 		return nil
 	}
 	if err != nil {
 		return err
 	}
 	defer root.Close()
-	count, err := countDeployedSkillsAt(root, agent.Options.SkillIDs...)
+	count, err := countDeployedSkillsAt(
+		root,
+		agent.Options.SkillIDs,
+		agent.Options.DisabledSkillIDs,
+	)
 	if err != nil {
 		return err
 	}
@@ -39,14 +43,18 @@ func (s *Service) enrichAgentWithSkillsCount(agent *protocol.Agent) error {
 	return nil
 }
 
-func selectedSkillCount(selectedNames []string) int {
+func selectedSkillCount(selectedNames []string, disabledNames []string) int {
 	skillNames := map[string]struct{}{}
+	disabled := normalizedSkillNames(disabledNames)
 	for _, name := range selectedNames {
 		normalized := strings.TrimSpace(name)
 		if externalName, ok := protocol.ParseExternalSkillReference(normalized); ok {
 			normalized = externalName
 		}
 		if normalized != "" {
+			if _, blocked := disabled[strings.ToLower(normalized)]; blocked {
+				continue
+			}
 			skillNames[normalized] = struct{}{}
 		}
 	}
@@ -55,15 +63,20 @@ func selectedSkillCount(selectedNames []string) int {
 
 func countDeployedSkillsAt(
 	root *confinedfs.Root,
-	selectedNames ...string,
+	selectedNames []string,
+	disabledNames []string,
 ) (int, error) {
 	skillNames := map[string]struct{}{}
+	disabled := normalizedSkillNames(disabledNames)
 	for _, name := range selectedNames {
 		normalized := strings.TrimSpace(name)
 		if externalName, ok := protocol.ParseExternalSkillReference(normalized); ok {
 			normalized = externalName
 		}
 		if normalized != "" {
+			if _, blocked := disabled[strings.ToLower(normalized)]; blocked {
+				continue
+			}
 			skillNames[normalized] = struct{}{}
 		}
 	}
@@ -102,9 +115,25 @@ func countDeployedSkillsAt(
 				continue
 			}
 			skillFile.Close()
-			skillNames[entry.Name()] = struct{}{}
+			if _, blocked := disabled[strings.ToLower(strings.TrimSpace(entry.Name()))]; !blocked {
+				skillNames[entry.Name()] = struct{}{}
+			}
 		}
 		parentRoot.Close()
 	}
 	return len(skillNames), nil
+}
+
+func normalizedSkillNames(names []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		normalized := strings.TrimSpace(name)
+		if externalName, ok := protocol.ParseExternalSkillReference(normalized); ok {
+			normalized = externalName
+		}
+		if normalized != "" {
+			result[strings.ToLower(normalized)] = struct{}{}
+		}
+	}
+	return result
 }

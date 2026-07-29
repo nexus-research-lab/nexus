@@ -14,8 +14,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
-	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (map[string]catalogRecord, map[string]bool, bool, error) {
@@ -23,7 +21,10 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 	if err != nil {
 		return nil, nil, false, err
 	}
-	installedNames := map[string]bool{}
+	if err = s.populateAgentUsageCounts(ctx, records); err != nil {
+		return nil, nil, false, err
+	}
+	enabledNames := map[string]bool{}
 	isMainAgent := false
 	if strings.TrimSpace(agentID) != "" {
 		agentValue, err := s.ensureAgent(ctx, agentID)
@@ -31,57 +32,113 @@ func (s *Service) catalogWithAgentState(ctx context.Context, agentID string) (ma
 			return nil, nil, false, err
 		}
 		isMainAgent = agentValue.IsMain
-		installedNames = installedSkillNames(agentValue, records)
+		enabledNames = enabledSkillNames(agentValue, records)
+		disabled := disabledSkillNames(agentValue)
 		workspaceRoot, err := s.openAgentWorkspace(agentValue)
 		if err != nil {
 			return nil, nil, false, err
 		}
 		defer workspaceRoot.Close()
-		names, err := workspacesvc.ListDeployedSkillsAt(workspaceRoot)
-		if err != nil {
-			return nil, nil, false, err
-		}
-		for _, name := range names {
-			installedNames[name] = true
-		}
 		s.addWorkspaceLocalRecords(
 			agentValue.WorkspacePath,
 			workspaceRoot,
 			records,
-			installedNames,
+			enabledNames,
+			disabled,
 		)
 	}
-	return records, installedNames, isMainAgent, nil
+	return records, enabledNames, isMainAgent, nil
+}
+
+// populateAgentUsageCounts 为全局目录投影每个 Skill 的 Agent 使用数。
+//
+// 全局使用数只读取 Agent 的 Skill 引用，不从 workspace 文件反推绑定关系。
+func (s *Service) populateAgentUsageCounts(
+	ctx context.Context,
+	records map[string]catalogRecord,
+) error {
+	for name, record := range records {
+		record.Detail.EnabledAgentCount = 0
+		records[name] = record
+	}
+	if s.agents == nil {
+		return nil
+	}
+	agents, err := s.agents.ListAgentRecords(ctx)
+	if err != nil {
+		return err
+	}
+	counts := map[string]int{}
+	for index := range agents {
+		agentValue := &agents[index]
+		enabled := enabledSkillNames(agentValue, records)
+		seen := map[string]struct{}{}
+		for name := range enabled {
+			record, ok := findCatalogRecord(records, name)
+			if !ok {
+				continue
+			}
+			key := strings.ToLower(strings.TrimSpace(record.Detail.Name))
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+			counts[key]++
+		}
+	}
+	for name, record := range records {
+		record.Detail.EnabledAgentCount = counts[strings.ToLower(strings.TrimSpace(name))]
+		records[name] = record
+	}
+	return nil
 }
 
 func (s *Service) addWorkspaceLocalRecords(
 	workspacePath string,
 	workspaceRoot *confinedfs.Root,
 	records map[string]catalogRecord,
-	installedNames map[string]bool,
+	enabledNames map[string]bool,
+	disabled map[string]struct{},
 ) {
+	for _, record := range buildWorkspaceRecordsAt(workspacePath, workspaceRoot) {
+		name := record.Detail.Name
+		_, blocked := disabled[strings.ToLower(strings.TrimSpace(name))]
+		replaceCatalogRecord(records, record)
+		// 本地来源按名称覆盖全局目录投影；即使全局绑定仍存在，
+		// 本地显式停用也必须让 Agent 设置页显示为未启用。
+		enabledNames[name] = !blocked
+	}
+}
+
+// buildWorkspaceRecordsAt 只读取当前 Agent workspace，不把结果写回全局目录。
+func buildWorkspaceRecordsAt(
+	workspacePath string,
+	workspaceRoot *confinedfs.Root,
+) []catalogRecord {
 	skillDirs := discoverWorkspaceSkillDirsAt(workspaceRoot)
 	skillNames := slices.Sorted(maps.Keys(skillDirs))
+	records := make([]catalogRecord, 0, len(skillNames))
 	for _, skillName := range skillNames {
-		if _, ok := records[skillName]; ok {
-			installedNames[skillName] = true
-			continue
-		}
 		record, err := buildWorkspaceRecordAt(
 			workspacePath,
 			workspaceRoot,
 			skillDirs[skillName],
 		)
-		if err != nil {
-			continue
+		if err == nil {
+			records = append(records, record)
 		}
-		if _, ok := records[record.Detail.Name]; ok {
-			installedNames[record.Detail.Name] = true
-			continue
-		}
-		records[record.Detail.Name] = record
-		installedNames[record.Detail.Name] = true
 	}
+	return records
+}
+
+// replaceCatalogRecord 让当前 Agent 的本地同名 Skill 覆盖目录投影。
+func replaceCatalogRecord(records map[string]catalogRecord, record catalogRecord) {
+	for name := range records {
+		if strings.EqualFold(strings.TrimSpace(name), strings.TrimSpace(record.Detail.Name)) {
+			delete(records, name)
+		}
+	}
+	records[record.Detail.Name] = record
 }
 
 func discoverWorkspaceSkillDirsAt(
@@ -139,43 +196,6 @@ func (s *Service) ensureAgent(ctx context.Context, agentID string) (*protocol.Ag
 	return agentValue, nil
 }
 
-func (s *Service) deploySkillToWorkspace(agentValue *protocol.Agent, record catalogRecord) error {
-	context := workspacesvc.BuildSkillRenderContext(agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.CreatedAt)
-	root, err := s.openAgentWorkspace(agentValue)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	if record.Detail.SourceType == sourceTypeExternal {
-		ownerRoot, openErr := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
-			agentValue.OwnerUserID,
-			workspacesvc.UserSkillLibraryRoot(s.config, agentValue.OwnerUserID),
-			false,
-		)
-		if openErr != nil {
-			return openErr
-		}
-		defer ownerRoot.Close()
-		sourceRelative, relativeErr := relativeSkillPath(ownerRoot, record.SourcePath)
-		if relativeErr != nil {
-			return relativeErr
-		}
-		sourceRoot, sourceErr := ownerRoot.OpenRootNoSymlink(sourceRelative)
-		if sourceErr != nil {
-			return sourceErr
-		}
-		defer sourceRoot.Close()
-		context := workspacesvc.BuildSkillRenderContext(agentValue.AgentID, agentValue.Name, agentValue.WorkspacePath, agentValue.CreatedAt)
-		return workspacesvc.DeploySkillAtFromRoots(root, sourceRoot, record.Detail.Name, context)
-	}
-	return workspacesvc.DeploySkillAt(
-		root,
-		record.Detail.Name,
-		record.SourcePath,
-		context,
-	)
-}
-
 // agentsReferencingSkill 返回正在引用 owner 共享源的 Agent。
 //
 // 外部 Skill 本身只保存一份 owner 源，更新源目录后所有引用会自然看到新内容；
@@ -190,14 +210,14 @@ func (s *Service) agentsReferencingSkill(ctx context.Context, skillName string) 
 	}
 	result := make([]RedeployAgentSuccess, 0)
 	for _, agentValue := range agents {
-		installed := false
+		referenced := false
 		for _, reference := range agentValue.Options.SkillIDs {
 			if skillReferenceMatches(reference, skillName) {
-				installed = true
+				referenced = true
 				break
 			}
 		}
-		if !installed {
+		if !referenced {
 			continue
 		}
 		result = append(result, RedeployAgentSuccess{
@@ -222,7 +242,7 @@ func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRec
 		records[skillName] = record
 	}
 	platformRoot := filepath.Clean(filepath.Join(projectRoot(), "skills"))
-	for _, root := range builtinSearchRootsForContext(ctx, projectRoot()) {
+	for _, root := range builtinSearchRootsForContext(ctx, projectRoot(), s.config.AppMode) {
 		entries, err := readConfinedDirectoryEntries(root)
 		if err != nil && !os.IsNotExist(err) {
 			return nil, err
@@ -279,6 +299,20 @@ func builtinSourceKind(root string, platformRoot string) string {
 	return sourceKindUserGlobal
 }
 
+func builtinStorageScope(sourceKind string) string {
+	if sourceKind == sourceKindNexusPlatform {
+		return storageScopePlatform
+	}
+	return storageScopeUserGlobal
+}
+
+func builtinOriginKind(sourceKind string) string {
+	if sourceKind == sourceKindNexusPlatform {
+		return originKindBuiltin
+	}
+	return originKindUserImport
+}
+
 func (s *Service) buildSystemRecord(skillName string) (catalogRecord, error) {
 	sourceDir := filepath.Join(projectRoot(), "skills", skillName)
 	content, _, _, err := readSkillSource(sourceDir)
@@ -299,9 +333,11 @@ func (s *Service) buildSystemRecord(skillName string) (catalogRecord, error) {
 			SourceRef:    sourceDir,
 			Version:      "system",
 			Locked:       true,
+			StorageScope: storageScopePlatform,
+			OriginKind:   originKindBuiltin,
 		},
 		ReadmeMarkdown: parsed.ReadmeMarkdown,
-		Recommendation: "系统内置能力，安装状态由平台托管。",
+		Recommendation: "系统内置能力，启用状态由平台托管。",
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }
@@ -327,6 +363,8 @@ func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string
 			Locked:       false,
 			Deletable:    false,
 			SourceKind:   sourceKind,
+			StorageScope: builtinStorageScope(sourceKind),
+			OriginKind:   builtinOriginKind(sourceKind),
 		},
 		ReadmeMarkdown: parsed.ReadmeMarkdown,
 		Recommendation: firstNonEmpty(curated["recommendation"], parsed.Recommendation, "自动收录的本地可用能力。"),
@@ -347,6 +385,9 @@ func buildWorkspaceRecordAt(
 	skillName := filepath.Base(relativeSourceDir)
 	sourceDir := filepath.Join(workspacePath, filepath.FromSlash(relativeSourceDir))
 	parsed := parseSkillFrontmatter(content, skillName)
+	categoryKey := firstNonEmpty(parsed.CategoryKey, "agent-workspace")
+	categoryName := firstNonEmpty(parsed.CategoryName, "智能体工作区")
+	recommendation := firstNonEmpty(parsed.Recommendation, "当前 Agent 工作区的本地 Skill，仅对当前 Agent 可见并默认启用。")
 	detail := Detail{
 		Info: Info{
 			Name:         parsed.Name,
@@ -354,17 +395,18 @@ func buildWorkspaceRecordAt(
 			Description:  parsed.Description,
 			Scope:        defaultSkillScope(parsed.Scope),
 			Tags:         parsed.Tags,
-			CategoryKey:  firstNonEmpty(parsed.CategoryKey, "agent-workspace"),
-			CategoryName: firstNonEmpty(parsed.CategoryName, "智能体工作区"),
+			CategoryKey:  categoryKey,
+			CategoryName: categoryName,
 			SourceType:   sourceTypeWorkspace,
 			SourceRef:    sourceDir,
 			Version:      firstNonEmpty(parsed.Version, "workspace"),
-			Installed:    true,
 			Locked:       false,
 			Deletable:    true,
+			StorageScope: storageScopeAgent,
+			OriginKind:   originKindAgentCreated,
 		},
 		ReadmeMarkdown: parsed.ReadmeMarkdown,
-		Recommendation: firstNonEmpty(parsed.Recommendation, "仅在该智能体工作区内可用。"),
+		Recommendation: recommendation,
 	}
 	return catalogRecord{Detail: detail, SourcePath: sourceDir}, nil
 }
@@ -400,12 +442,9 @@ func cloneCuratedEntries(source map[string]map[string]string) map[string]map[str
 }
 
 func builtinSearchRoots(root string) []string {
-	home, _ := os.UserHomeDir()
-	roots := []string{
-		filepath.Join(root, "skills"),
-		filepath.Join(home, ".codex", "skills"),
-		filepath.Join(home, ".agents", "skills"),
-		filepath.Join(home, ".cc-switch", "skills"),
+	roots := []string{filepath.Join(root, "skills")}
+	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+		roots = append(roots, filepath.Join(home, ".agents", "skills"))
 	}
 	seen := map[string]struct{}{}
 	result := make([]string, 0, len(roots))
@@ -420,8 +459,14 @@ func builtinSearchRoots(root string) []string {
 	return result
 }
 
-func builtinSearchRootsForContext(ctx context.Context, root string) []string {
-	if state, ok := authctx.StateFromContext(ctx); ok && state.AuthRequired {
+// builtinSearchRootsForContext 按部署模式限制 ~/.agents/skills 的扫描边界。
+//
+// 桌面模式的 workspace 与本机用户一一对应，可以读取标准 Agent Skill 目录；
+// 多用户服务只允许平台源，避免把服务进程的宿主文件暴露给登录用户。
+func builtinSearchRootsForContext(ctx context.Context, root string, appMode string) []string {
+	if state, ok := authctx.StateFromContext(ctx); ok &&
+		state.AuthRequired &&
+		!strings.EqualFold(strings.TrimSpace(appMode), "desktop") {
 		return []string{filepath.Join(root, "skills")}
 	}
 	return builtinSearchRoots(root)

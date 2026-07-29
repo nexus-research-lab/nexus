@@ -34,11 +34,12 @@ type promptBuilder struct {
 }
 
 type promptBuildScope struct {
-	isMainAgent   bool
-	ownerUserID   string
-	workspacePath string
-	workspaceRoot string
-	skillNames    []string
+	isMainAgent        bool
+	ownerUserID        string
+	workspacePath      string
+	workspaceRoot      string
+	skillNames         []string
+	disabledSkillNames []string
 }
 
 func newPromptBuilder(cfg config.Config) *promptBuilder {
@@ -78,23 +79,42 @@ func (b *promptBuilder) newBuildScope(agentValue *protocol.Agent) promptBuildSco
 	if workspacePath == "" {
 		workspacePath = ResolveWorkspacePath(b.config, agentValue.OwnerUserID, agentValue.AgentID)
 	}
+	disabledSkillNames := make(map[string]struct{}, len(agentValue.Options.DisabledSkillIDs))
+	disabledSkillList := make([]string, 0, len(agentValue.Options.DisabledSkillIDs))
+	for _, reference := range agentValue.Options.DisabledSkillIDs {
+		name := canonicalPromptSkillName(reference)
+		if name != "" {
+			disabledSkillNames[strings.ToLower(name)] = struct{}{}
+			disabledSkillList = append(disabledSkillList, name)
+		}
+	}
 	skillNames := make([]string, 0, len(agentValue.Options.SkillIDs))
 	for _, reference := range agentValue.Options.SkillIDs {
-		name := strings.TrimSpace(reference)
-		if externalName, ok := protocol.ParseExternalSkillReference(name); ok {
-			name = externalName
+		name := canonicalPromptSkillName(reference)
+		if name == "" {
+			continue
 		}
-		if name != "" {
-			skillNames = append(skillNames, name)
+		if _, disabled := disabledSkillNames[strings.ToLower(name)]; disabled {
+			continue
 		}
+		skillNames = append(skillNames, name)
 	}
 	return promptBuildScope{
-		isMainAgent:   isMainAgentPrompt(agentValue, b.config.DefaultAgentID),
-		ownerUserID:   strings.TrimSpace(agentValue.OwnerUserID),
-		workspacePath: workspacePath,
-		workspaceRoot: strings.TrimSpace(b.config.WorkspacePath),
-		skillNames:    skillNames,
+		isMainAgent:        isMainAgentPrompt(agentValue, b.config.DefaultAgentID),
+		ownerUserID:        strings.TrimSpace(agentValue.OwnerUserID),
+		workspacePath:      workspacePath,
+		workspaceRoot:      strings.TrimSpace(b.config.WorkspacePath),
+		skillNames:         skillNames,
+		disabledSkillNames: disabledSkillList,
 	}
+}
+
+func canonicalPromptSkillName(reference string) string {
+	name := strings.TrimSpace(reference)
+	if externalName, ok := protocol.ParseExternalSkillReference(name); ok {
+		name = externalName
+	}
+	return strings.TrimSpace(name)
 }
 
 func (b *promptBuilder) loadStaticPrompt(scope promptBuildScope) string {
@@ -140,6 +160,11 @@ func buildManagedSkillUsageSection(scope promptBuildScope) string {
 }
 
 func hasSelectedSkill(scope promptBuildScope, skillName string) bool {
+	for _, disabled := range scope.disabledSkillNames {
+		if strings.EqualFold(strings.TrimSpace(disabled), skillName) {
+			return false
+		}
+	}
 	for _, selected := range scope.skillNames {
 		if strings.EqualFold(strings.TrimSpace(selected), skillName) {
 			return true

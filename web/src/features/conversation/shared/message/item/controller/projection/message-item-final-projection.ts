@@ -374,33 +374,40 @@ export function resolveRoomResultFinalAssistantContent({
   fallbackFinalAssistantContent,
   resultText,
 }: RoomResultFinalAssistantContentInput): ContentBlock[] | null {
+  const visibleFallbackContent = fallbackFinalAssistantContent?.some(
+    (block) => block.type === "thinking",
+  )
+    ? fallbackFinalAssistantContent.filter(
+        (block) => block.type !== "thinking",
+      )
+    : fallbackFinalAssistantContent;
   const canonicalText = resultText?.trim() ?? "";
   if (!canonicalText) {
-    return fallbackFinalAssistantContent;
+    return visibleFallbackContent?.length ? visibleFallbackContent : null;
   }
-  if (!fallbackFinalAssistantContent?.length) {
+  if (!visibleFallbackContent?.length) {
     return [{ type: "text", text: canonicalText }];
   }
 
   const fallbackText = extractTextFromContentBlocks(
-    fallbackFinalAssistantContent,
+    visibleFallbackContent,
   );
   if (
     fallbackText === canonicalText
     || fallbackText.startsWith(canonicalText)
   ) {
     // result 摘要相同或更短时保留已经显示的 ContentBlock 身份，禁止终态回缩。
-    return fallbackFinalAssistantContent;
+    return visibleFallbackContent;
   }
   if (fallbackText && canonicalText.startsWith(fallbackText)) {
-    const lastTextIndex = fallbackFinalAssistantContent.findLastIndex(
+    const lastTextIndex = visibleFallbackContent.findLastIndex(
       (block) =>
         block.type === "text"
         && Boolean(extractTextFromContentBlocks([block])),
     );
     if (lastTextIndex >= 0) {
       const suffix = canonicalText.slice(fallbackText.length);
-      return fallbackFinalAssistantContent.map((block, index) => (
+      return visibleFallbackContent.map((block, index) => (
         index === lastTextIndex && block.type === "text"
           ? {
               ...block,
@@ -415,7 +422,7 @@ export function resolveRoomResultFinalAssistantContent({
 
   // result 确实修正正文时只重建文本槽位，过程、附件等非文本块完整保留。
   return replaceFallbackTextPreservingNonText(
-    fallbackFinalAssistantContent,
+    visibleFallbackContent,
     canonicalText,
   );
 }

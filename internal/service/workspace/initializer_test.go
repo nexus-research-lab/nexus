@@ -9,6 +9,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestEnsureNexusctlShimUsesExplicitCommandPath(t *testing.T) {
@@ -226,6 +229,66 @@ func TestRuntimeSkillNamesKeepsWorkspaceDeployedSkills(t *testing.T) {
 	want := []string{"imagegen", "ima-skill", "claude-only", "external-skill", "workspace-local"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("runtime Skill 名称 = %#v，期望 %#v", got, want)
+	}
+}
+
+func TestRuntimeSkillSelectionSeparatesGlobalBindingsAndWorkspaceDisables(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	cfg := config.Config{WorkspacePath: filepath.Join(stateRoot, "workspace")}
+	agentValue := protocol.Agent{
+		AgentID:       "agent-1",
+		OwnerUserID:   "owner-1",
+		WorkspacePath: filepath.Join(UserSkillLibraryRoot(cfg, "owner-1"), "agent-1"),
+		Options: protocol.Options{
+			SkillIDs:         []string{"external:enabled-global"},
+			DisabledSkillIDs: []string{"local-off"},
+		},
+	}
+	for _, path := range []string{
+		filepath.Join(UserSkillDiscoveryRoot(cfg, agentValue.OwnerUserID), "enabled-global", "SKILL.md"),
+		filepath.Join(UserSkillDiscoveryRoot(cfg, agentValue.OwnerUserID), "disabled-global", "SKILL.md"),
+		filepath.Join(UserSkillDiscoveryRoot(cfg, agentValue.OwnerUserID), "same-name-local", "SKILL.md"),
+		filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "local-on", "SKILL.md"),
+		filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "local-off", "SKILL.md"),
+		filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "same-name-local", "SKILL.md"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("创建 Skill 目录失败: %v", err)
+		}
+		if err := os.WriteFile(path, []byte("# test\n"), 0o644); err != nil {
+			t.Fatalf("写入 Skill 文件失败: %v", err)
+		}
+	}
+
+	enabled, err := RuntimeSkillNamesForAgent(cfg, agentValue)
+	if err != nil {
+		t.Fatalf("读取 Agent 运行时 Skill 失败: %v", err)
+	}
+	for _, name := range []string{"enabled-global", "local-on"} {
+		if !slices.Contains(enabled, name) {
+			t.Fatalf("运行时启用列表缺少 %q: %#v", name, enabled)
+		}
+	}
+	if slices.Contains(enabled, "local-off") {
+		t.Fatalf("显式停用的工作区 Skill 仍在启用列表: %#v", enabled)
+	}
+
+	disabled, err := RuntimeDisabledSkillNamesForAgent(cfg, agentValue)
+	if err != nil {
+		t.Fatalf("读取 Agent 运行时停用 Skill 失败: %v", err)
+	}
+	for _, name := range []string{"disabled-global", "local-off"} {
+		if !slices.Contains(disabled, name) {
+			t.Fatalf("运行时停用列表缺少 %q: %#v", name, disabled)
+		}
+	}
+	if slices.Contains(disabled, "enabled-global") {
+		t.Fatalf("已绑定的全局 Skill 被误判为停用: %#v", disabled)
+	}
+	if slices.Contains(disabled, "same-name-local") {
+		t.Fatalf("动态发现的工作区同名 Skill 被误判为停用: %#v", disabled)
 	}
 }
 

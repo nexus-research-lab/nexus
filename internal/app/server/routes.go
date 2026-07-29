@@ -105,6 +105,7 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Delete(s.prefixPath("/agents/{agent_id}/workspace/entry"), s.handlers.workspace.HandleDeleteWorkspaceEntry)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/skills"), s.handlers.skill.HandleAgentSkills)
 	s.router.Post(s.prefixPath("/agents/{agent_id}/skills"), s.handlers.skill.HandleInstallAgentSkill)
+	s.router.Patch(s.prefixPath("/agents/{agent_id}/skills/{skill_name}"), s.handlers.skill.HandleSetAgentSkillEnabled)
 	s.router.Delete(s.prefixPath("/agents/{agent_id}/skills/{skill_name}"), s.handlers.skill.HandleUninstallAgentSkill)
 
 	s.router.Get(s.prefixPath("/sessions"), s.handlers.agent.HandleListSessions)
@@ -158,6 +159,7 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/capability/loops/{slug}"), s.handlers.loop.HandleGetLoopDetail)
 
 	s.router.Get(s.prefixPath("/skills"), s.handlers.skill.HandleListSkills)
+	s.router.Get(s.prefixPath("/skills/{skill_name}/agents"), s.handlers.skill.HandleListSkillAgents)
 	s.router.Get(s.prefixPath("/skills/{skill_name}"), s.handlers.skill.HandleGetSkillDetail)
 	s.router.Post(s.prefixPath("/skills/import/local"), s.handlers.skill.HandleImportLocalSkill)
 	s.router.Post(s.prefixPath("/skills/import/git"), s.handlers.skill.HandleImportGitSkill)

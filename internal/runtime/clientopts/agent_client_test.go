@@ -288,17 +288,23 @@ func TestBuildAgentClientOptionsProjectsToolSearchByRuntime(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsProjectsPlatformSkillIDs(t *testing.T) {
+func TestBuildAgentClientOptionsKeepsClaudeSkillDiscoveryDynamic(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		RuntimeKind:      runtimeKindClaude,
 		SkillIDs:         []string{"ima-skill"},
+		DisabledSkillIDs: []string{"unused-global", "workspace-review"},
 		SkillDirectories: []string{"/tmp/platform-skills"},
 	})
 	if err != nil {
 		t.Fatalf("构建带平台 Skill 的 options 失败: %v", err)
 	}
-	if len(options.Skills.Names) != 1 || options.Skills.Names[0] != "ima-skill" {
-		t.Fatalf("Skill ID 未投影到 SDK options: %#v", options.Skills)
+	if options.Skills.Mode != agentclient.SkillModeAll {
+		t.Fatalf("Claude Skill 应保持动态发现模式: %#v", options.Skills)
+	}
+	if len(options.Skills.DisabledNames) != 2 ||
+		options.Skills.DisabledNames[0] != "unused-global" ||
+		options.Skills.DisabledNames[1] != "workspace-review" {
+		t.Fatalf("Claude Skill 停用集合未投影: %#v", options.Skills)
 	}
 	if len(options.AdditionalDirectories) != 1 || options.AdditionalDirectories[0] != "/tmp/platform-skills" {
 		t.Fatalf("平台 Skill 根目录未投影: %#v", options.AdditionalDirectories)
@@ -989,19 +995,25 @@ func TestBuildAgentClientOptionsProtectsManagedUserDirectories(t *testing.T) {
 	t.Setenv("DATABASE_URL", "/tmp/host.db")
 	t.Setenv("CONNECTOR_CREDENTIALS_KEY", "host-secret")
 	t.Setenv("ANTHROPIC_AUTH_TOKEN", "host-token")
+	t.Setenv(nexusMemoryDirEnvName, "/tmp/host-memory")
+	t.Setenv(nexusEnableRemoteMemoryEnvName, "1")
+	t.Setenv(nexusRemoteMemoryDirEnvName, "/tmp/host-remote-memory")
 	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-123"})
 
 	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
 		ExtraEnv: map[string]string{
-			nexusConfigDirEnvName:       "/tmp/escaped-nexus",
-			claudeConfigDirEnvName:      "/tmp/escaped-claude",
-			"HOME":                      "/tmp/escaped-home",
-			"TMPDIR":                    "/tmp/escaped-tmp",
-			appfs.NexusStateRootEnvName: "/tmp/escaped-state",
-			"WORKSPACE_PATH":            "/tmp/escaped-workspace",
-			"DATABASE_URL":              "/tmp/escaped-db",
-			"CONNECTOR_CREDENTIALS_KEY": "request-secret",
+			nexusConfigDirEnvName:          "/tmp/escaped-nexus",
+			claudeConfigDirEnvName:         "/tmp/escaped-claude",
+			"HOME":                         "/tmp/escaped-home",
+			"TMPDIR":                       "/tmp/escaped-tmp",
+			appfs.NexusStateRootEnvName:    "/tmp/escaped-state",
+			"WORKSPACE_PATH":               "/tmp/escaped-workspace",
+			"DATABASE_URL":                 "/tmp/escaped-db",
+			"CONNECTOR_CREDENTIALS_KEY":    "request-secret",
+			nexusMemoryDirEnvName:          "/tmp/escaped-memory",
+			nexusEnableRemoteMemoryEnvName: "1",
+			nexusRemoteMemoryDirEnvName:    "/tmp/escaped-remote-memory",
 		},
 	})
 	if err != nil {
@@ -1020,6 +1032,9 @@ func TestBuildAgentClientOptionsProtectsManagedUserDirectories(t *testing.T) {
 		options.Env["DATABASE_URL"] != "" ||
 		options.Env[connectorCredentialsKeyEnvName] != "" ||
 		options.Env[anthropicAuthTokenEnvName] != "" ||
+		options.Env[nexusMemoryDirEnvName] != "/tmp/workspace" ||
+		options.Env[nexusEnableRemoteMemoryEnvName] != "" ||
+		options.Env[nexusRemoteMemoryDirEnvName] != "" ||
 		options.Env[workspacePathEnvName] != "/tmp/workspace" ||
 		options.Env[nexusctlWorkspacePathEnvName] != "/tmp/workspace" {
 		t.Fatalf("ExtraEnv 覆盖了宿主管理的用户目录: %+v", options.Env)

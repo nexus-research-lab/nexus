@@ -53,7 +53,17 @@ func TestChatErrorDetailExplainsRuntimeFailures(t *testing.T) {
 		{
 			name:  "provider config",
 			err:   "provider=default 配置不完整: auth_token, model",
-			wants: []string{"Provider", "auth_token"},
+			wants: []string{"供应商", "API Key", "Base URL", "模型"},
+		},
+		{
+			name:  "missing default model",
+			err:   "provider=default 未配置默认模型",
+			wants: []string{"默认对话模型", "设置 → 常规", "设置 → 供应商"},
+		},
+		{
+			name:  "provider authentication",
+			err:   "client: runtime startup failed: Failed to authenticate. API Error: 401",
+			wants: []string{"鉴权失败", "API Key", "保存并测试"},
 		},
 		{
 			name:  "unsupported responses api",
@@ -86,7 +96,7 @@ func TestChatErrorDetailExplainsRuntimeFailures(t *testing.T) {
 
 func TestChatErrorDetailUsesRuntimeNeutralFallback(t *testing.T) {
 	message := chatErrorDetail(errors.New("client: runtime startup failed: context deadline exceeded"))
-	if !strings.Contains(message, "Agent Runtime") {
+	if !strings.Contains(message, "设置 → 运行时") {
 		t.Fatalf("兜底提示应覆盖当前 runtime: %q", message)
 	}
 	if strings.Contains(message, "Claude Code") {

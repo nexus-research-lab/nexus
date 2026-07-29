@@ -36,6 +36,7 @@ function MessageItemInner({
   onStopMessage,
   defaultProcessExpanded,
   assistantHeaderAction,
+  assistantEmptyState,
   assistantContentMode = "dm_archived",
   className,
   agentMentionDirectory,
@@ -92,6 +93,7 @@ function MessageItemInner({
         workspaceAgentId={workspaceAgentId}
         hiddenToolNames={hiddenToolNames}
         assistantHeaderAction={assistantHeaderAction}
+        assistantEmptyState={assistantEmptyState}
         assistantContentMode={assistantContentMode}
         agentMentionDirectory={agentMentionDirectory}
         assistant={state.assistant}

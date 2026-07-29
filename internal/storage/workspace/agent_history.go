@@ -12,10 +12,11 @@ type agentHistoryCache struct {
 
 // AgentHistoryStore 负责读取 transcript 历史，并与 Nexus overlay 合并。
 type AgentHistoryStore struct {
-	paths       *Store
-	files       *SessionFileStore
-	ownerUserID string
-	cache       *agentHistoryCache
+	paths         *Store
+	files         *SessionFileStore
+	ownerUserID   string
+	cache         *agentHistoryCache
+	runtimeRepair *runtimePermissionRepair
 }
 
 // NewAgentHistoryStore 创建 DM 历史读写门面。
@@ -26,6 +27,7 @@ func NewAgentHistoryStore(root string) *AgentHistoryStore {
 		cache: &agentHistoryCache{
 			messages: make(map[string]transcriptCacheEntry),
 		},
+		runtimeRepair: newRuntimePermissionRepair(),
 	}
 }
 
@@ -36,9 +38,10 @@ func (s *AgentHistoryStore) ForOwner(ownerUserID string) *AgentHistoryStore {
 	}
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	return &AgentHistoryStore{
-		paths:       s.paths,
-		files:       s.files.ForOwner(ownerUserID),
-		ownerUserID: ownerUserID,
-		cache:       s.cache,
+		paths:         s.paths,
+		files:         s.files.ForOwner(ownerUserID),
+		ownerUserID:   ownerUserID,
+		cache:         s.cache,
+		runtimeRepair: s.runtimeRepair,
 	}
 }

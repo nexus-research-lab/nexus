@@ -15,6 +15,7 @@ import { AssistantMessageStats } from "./assistant-message-stats";
 export function MessageAssistantSection({
   assistant,
   assistantContentMode,
+  assistantEmptyState,
   assistantHeaderAction,
   canRespondToPermissions,
   compact,
@@ -29,6 +30,8 @@ export function MessageAssistantSection({
   agentMentionDirectory,
 }: MessageAssistantSectionProps) {
   const layout = resolveAssistantMessageLayout(compact);
+  const showEmptyState = assistantEmptyState != null
+    && !hasAssistantBodyContent(assistant);
   const scope = resolveAssistantMessageScope({
     assistantAgentId: assistant.header.agentId,
     hasContactAction: Boolean(onOpenAgentContact),
@@ -36,7 +39,7 @@ export function MessageAssistantSection({
   });
   const openContact = useOpenAgentContact(scope, onOpenAgentContact);
 
-  if (assistant.hidden) {
+  if (assistant.hidden && !showEmptyState) {
     return null;
   }
 
@@ -65,25 +68,29 @@ export function MessageAssistantSection({
             ref={assistant.layout.contentAreaRef}
             style={assistant.layout.contentAreaStyle}
           >
-            <AssistantMessageContent
-              activity={assistant.activity}
-              direct={assistant.direct}
-              environment={{
-                canRespondToPermissions,
-                hiddenToolNames,
-                mode: assistantContentMode,
-                onOpenWorkspaceFile,
-                onPermissionResponse,
-                permissionReadOnlyReason,
-                workspaceAgentId: scope.contentWorkspaceAgentId,
-                agentMentionDirectory,
-                onOpenAgentContact,
-              }}
-              final={assistant.final}
-              permissions={assistant.permissions}
-              process={assistant.process}
-              showMaxTokensWarning={assistant.showMaxTokensWarning}
-            />
+            {showEmptyState ? (
+              assistantEmptyState
+            ) : (
+              <AssistantMessageContent
+                activity={assistant.activity}
+                direct={assistant.direct}
+                environment={{
+                  canRespondToPermissions,
+                  hiddenToolNames,
+                  mode: assistantContentMode,
+                  onOpenWorkspaceFile,
+                  onPermissionResponse,
+                  permissionReadOnlyReason,
+                  workspaceAgentId: scope.contentWorkspaceAgentId,
+                  agentMentionDirectory,
+                  onOpenAgentContact,
+                }}
+                final={assistant.final}
+                permissions={assistant.permissions}
+                process={assistant.process}
+                showMaxTokensWarning={assistant.showMaxTokensWarning}
+              />
+            )}
           </div>
 
           <AssistantFooter
@@ -95,6 +102,20 @@ export function MessageAssistantSection({
       </div>
     </div>
   );
+}
+
+function hasAssistantBodyContent(
+  assistant: MessageAssistantSectionProps["assistant"],
+): boolean {
+  return [
+    assistant.activity.emptyStreamStatus != null,
+    assistant.activity.standalone,
+    assistant.direct.visible,
+    assistant.final.visible,
+    assistant.process.visible,
+    assistant.permissions.unmatched.length > 0,
+    assistant.showMaxTokensWarning,
+  ].some(Boolean);
 }
 
 function useOpenAgentContact(

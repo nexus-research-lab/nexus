@@ -36,32 +36,33 @@ func BuildCreateRecord(
 	}
 
 	return agentrepo.CreateRecord{
-		AgentID:             agentID,
-		OwnerUserID:         ownerUserID,
-		Slug:                BuildWorkspaceDirName(agentID),
-		Name:                normalizedName,
-		WorkspacePath:       workspacePath,
-		Status:              status,
-		IsMain:              isMain,
-		Avatar:              resolveAgentAvatar(request.Avatar, agentID, isMain),
-		Description:         request.Description,
-		VibeTagsJSON:        mustJSONString(request.VibeTags),
-		DisplayName:         normalizedName,
-		Headline:            "",
-		ProfileMarkdown:     "",
-		RuntimeID:           buildStableID("runtime", agentID),
-		ProfileID:           buildStableID("profile", agentID),
-		Provider:            options.Provider,
-		Model:               options.Model,
-		PermissionMode:      options.PermissionMode,
-		AllowedToolsJSON:    mustJSONString(options.AllowedTools),
-		DisallowedToolsJSON: mustJSONString(options.DisallowedTools),
-		MCPServersJSON:      mustJSONString(options.MCPServers),
-		SkillIDsJSON:        mustJSONString(options.SkillIDs),
-		MaxTurns:            options.MaxTurns,
-		MaxThinkingTokens:   options.MaxThinkingTokens,
-		SettingSourcesJSON:  mustJSONString(options.SettingSources),
-		RuntimeVersion:      1,
+		AgentID:              agentID,
+		OwnerUserID:          ownerUserID,
+		Slug:                 BuildWorkspaceDirName(agentID),
+		Name:                 normalizedName,
+		WorkspacePath:        workspacePath,
+		Status:               status,
+		IsMain:               isMain,
+		Avatar:               resolveAgentAvatar(request.Avatar, agentID, isMain),
+		Description:          request.Description,
+		VibeTagsJSON:         mustJSONString(request.VibeTags),
+		DisplayName:          normalizedName,
+		Headline:             "",
+		ProfileMarkdown:      "",
+		RuntimeID:            buildStableID("runtime", agentID),
+		ProfileID:            buildStableID("profile", agentID),
+		Provider:             options.Provider,
+		Model:                options.Model,
+		PermissionMode:       options.PermissionMode,
+		AllowedToolsJSON:     mustJSONString(options.AllowedTools),
+		DisallowedToolsJSON:  mustJSONString(options.DisallowedTools),
+		MCPServersJSON:       mustJSONString(options.MCPServers),
+		SkillIDsJSON:         mustJSONString(options.SkillIDs),
+		DisabledSkillIDsJSON: mustJSONString(options.DisabledSkillIDs),
+		MaxTurns:             options.MaxTurns,
+		MaxThinkingTokens:    options.MaxThinkingTokens,
+		SettingSourcesJSON:   mustJSONString(options.SettingSources),
+		RuntimeVersion:       1,
 	}
 }
 
@@ -119,10 +120,11 @@ func defaultAgentOptions(isMain bool) protocol.Options {
 		skillIDs = append(skillIDs, "nexus-manager")
 	}
 	return protocol.Options{
-		AllowedTools:   []string{},
-		PermissionMode: "default",
-		SkillIDs:       skillIDs,
-		SettingSources: []string{"project"},
+		AllowedTools:     []string{},
+		PermissionMode:   "default",
+		SkillIDs:         skillIDs,
+		DisabledSkillIDs: []string{},
+		SettingSources:   []string{"project"},
 	}
 }
 
@@ -157,6 +159,9 @@ func mergeOptions(base protocol.Options, incoming protocol.Options) protocol.Opt
 	}
 	if incoming.SkillIDs != nil {
 		result.SkillIDs = incoming.SkillIDs
+	}
+	if incoming.DisabledSkillIDs != nil {
+		result.DisabledSkillIDs = incoming.DisabledSkillIDs
 	}
 	if incoming.SettingSources != nil {
 		result.SettingSources = incoming.SettingSources

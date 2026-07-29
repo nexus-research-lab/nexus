@@ -18,6 +18,8 @@ import type {
   ExternalSkillPreviewResponse,
   SearchExternalSkillsResponse,
   SkillDetail,
+  SkillAgentBinding,
+  SkillBindingTargetScope,
   SkillInfo,
 } from "@/types/capability/skill";
 
@@ -99,6 +101,18 @@ export const getSkillDetailApi = async (
   const query = buildQuery(params);
   return requestSkillApi<SkillDetail>(
     `/skills/${encodeURIComponent(skillName)}${query}`,
+    {
+      method: "GET",
+    },
+  );
+};
+
+/** 获取技能在各 Agent 上的启用状态 */
+export const getSkillAgentsApi = async (
+  skillName: string,
+): Promise<SkillAgentBinding[]> => {
+  return requestSkillApi<SkillAgentBinding[]>(
+    `/skills/${encodeURIComponent(skillName)}/agents`,
     {
       method: "GET",
     },
@@ -236,7 +250,7 @@ export const deleteSkillApi = async (skillName: string): Promise<void> => {
   );
 };
 
-/** 获取 Agent 的 Skill 列表（含安装状态） */
+/** 获取 Agent 的 Skill 列表（含启用状态） */
 export const getAgentSkillsApi = async (
   agentId: string,
   signal?: AbortSignal,
@@ -250,7 +264,7 @@ export const getAgentSkillsApi = async (
   );
 };
 
-/** 为 Agent 安装 Skill */
+/** 兼容启用 Agent Skill 的旧入口 */
 export const installSkillApi = async (
   agentId: string,
   skillName: string,
@@ -264,7 +278,23 @@ export const installSkillApi = async (
   );
 };
 
-/** 从 Agent 卸载 Skill */
+/** 切换 Agent 技能状态；停用只改变绑定，不删除工作区文件。 */
+export const setAgentSkillEnabledApi = async (
+  agentId: string,
+  skillName: string,
+  enabled: boolean,
+  targetScope: SkillBindingTargetScope,
+): Promise<AgentSkillEntry> => {
+  return requestSkillApi<AgentSkillEntry>(
+    `/agents/${encodeURIComponent(agentId)}/skills/${encodeURIComponent(skillName)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ enabled, target_scope: targetScope }),
+    },
+  );
+};
+
+/** 兼容删除 Agent Skill 的旧入口 */
 export const uninstallSkillApi = async (
   agentId: string,
   skillName: string,

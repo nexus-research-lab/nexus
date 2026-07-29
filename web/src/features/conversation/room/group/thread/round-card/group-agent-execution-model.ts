@@ -3,7 +3,10 @@
  * OUTPUT: 共享活动语义、无消息终态 Assistant 投影，以及终态证据判定。
  * POS: 稳定 execution shell 的纯模型；只投影已有执行证据，不复制运行状态机或正文规则。
  */
-import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
+import {
+  hasVisibleAssistantOutput,
+  stripRoomControlMarkers,
+} from "@/features/conversation/shared/message/message-content-model";
 import {
   type MessageActivityState,
   resolvePermissionActivityState,
@@ -90,6 +93,25 @@ export function hasRoomAgentTerminalEvidence(
     || Boolean(resultSummary)
     || messages.some(isTerminalAssistantMessage)
   );
+}
+
+export function isRoomAgentNoPublicReply(
+  messages: AssistantMessage[],
+  resultSummary: ResultSummary | undefined,
+  status: AgentRoundStatus,
+): boolean {
+  if (
+    status !== "done"
+    || resultSummary?.is_error
+    || (
+      resultSummary
+      && resultSummary.subtype !== "success"
+    )
+    || stripRoomControlMarkers(resultSummary?.result ?? "")
+  ) {
+    return false;
+  }
+  return !messages.some(hasVisibleAssistantOutput);
 }
 
 function collectResolvedToolUseIds(
