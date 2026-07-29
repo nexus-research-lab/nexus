@@ -104,40 +104,51 @@ export function ConversationErrorBubble({
   const presentation = resolveErrorPresentation(error);
 
   return (
-    <div className={cn("w-full", compact ? "px-0" : "px-2 sm:px-3")}>
-      <div className={cn("w-full", compact ? "max-w-full" : "max-w-[980px]")}>
-        <div className={cn(
-          "group grid min-w-0",
-          compact ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[40px_minmax(0,1fr)] gap-3",
-        )}>
-          {!compact ? (
-            <MessageAvatar>
-              <CircleAlert className="h-4 w-4 text-destructive" />
+    <div className={cn(
+      "nexus-chat-message-section w-full",
+      compact ? "px-0" : "px-2 sm:px-3",
+    )}>
+      <div className={cn(
+        "w-full",
+        compact ? "max-w-full" : "max-w-[820px]",
+      )}>
+        <div className="nexus-chat-assistant group relative min-w-0">
+          <div className={cn(
+            "nexus-chat-message-header flex min-w-0 items-center gap-2",
+            compact ? "min-h-6 pb-0" : "min-h-8 pb-0",
+          )}>
+            <MessageAvatar
+              className={cn(
+                "nexus-chat-avatar shrink-0",
+                !compact && "h-8 w-8",
+              )}
+              radius="control"
+              size={compact ? "compact" : "full"}
+            >
+              <CircleAlert
+                className={cn(
+                  compact ? "h-3 w-3" : "h-4 w-4",
+                  "text-(--surface-avatar-foreground)",
+                )}
+              />
             </MessageAvatar>
-          ) : null}
+            <span className="nexus-chat-author shrink-0 text-sm font-medium text-(--text-strong)">
+              系统消息
+            </span>
+          </div>
 
-          <div className="relative min-w-0">
-            <div className={cn(
-              "flex min-w-0 items-center gap-2",
-              compact ? "min-h-6 pb-0" : "h-7 pb-0.5",
-            )}>
-              {compact ? (
-                <MessageAvatar className="shrink-0" size="compact">
-                  <CircleAlert className="h-3 w-3 text-destructive" />
-                </MessageAvatar>
-              ) : null}
-              <span className="shrink-0 text-sm font-semibold text-(--text-strong)">
-                系统消息
+          <div className={cn(
+            "nexus-chat-message-content min-w-0 max-w-full overflow-x-hidden pb-2 text-left",
+            compact
+              ? "pt-1 text-base leading-6"
+              : "w-full pt-2 text-[16px] leading-7",
+          )}>
+            <p className="message-cjk-font whitespace-pre-wrap text-(--text-default)">
+              <span className="font-medium text-(--text-strong)">
+                {presentation.title}
               </span>
-            </div>
-
-            <div className={cn(
-              "min-w-0 max-w-full overflow-x-hidden pb-2 pt-1 text-left",
-              compact ? "text-base leading-6" : "text-[16px] leading-7",
-            )}>
-              <p className="font-medium text-destructive">{presentation.title}</p>
-              <p className="mt-1 text-sm text-(--text-muted)">{presentation.detail}</p>
-            </div>
+              {presentation.detail ? ` ${presentation.detail}` : null}
+            </p>
           </div>
         </div>
       </div>

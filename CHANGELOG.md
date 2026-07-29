@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Aligned conversation system error messages with ordinary Agent message spacing, typography, and neutral content presentation.
 - Added `/tmp` as an explicit shared Unix runtime compatibility root for app and web command execution; private temporary data continues to use each owner's `$TMPDIR`.
 - Added a bundled Python-based `wechat-article-search` Skill with documented Requests/Beautiful Soup dependencies, optional direct-link resolution, deterministic offline parsing tests, and WebSearch/WebFetch fallback guidance.
 - Added a three-step chat model setup flow that filters Providers for the active Agent Runtime, validates credentials, tests the model, and saves the working default selection; onboarding overlays now dismiss without swallowing the user's page interaction.
