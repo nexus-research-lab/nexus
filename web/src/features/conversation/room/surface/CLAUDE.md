@@ -6,6 +6,7 @@
 - Surface Tab 是 Header 导航契约，不得在全局 `types/` 重复定义 UI 状态。
 
 - 根目录保留桌面/移动端入口和可独立展示的业务 Surface。
+- `room-conversation-header-edge.css` 只定义桌面与专注模式 Header 自身向正文延伸的非交互下缘羽化，不改变布局高度、拖窗热区或消息滚动几何。
 - `room-surface-model.ts` 放置桌面与移动端共享的纯派生，不读取 UI 状态。
 - `room-agent-switcher.tsx` 只投影成员与业务触发器，菜单生命周期复用 `shared/ui/menu/`。
 - `room-subagent-task-surface.tsx` 复用成员切换器，把当前 Session 的全部 Room 子智能体按实际调用者 `host_agent_id` 投影到共享只读任务表面；轮次不得成为隐藏条件。

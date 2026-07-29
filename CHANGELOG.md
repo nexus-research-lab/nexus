@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Softened the Room and DM reading edges with non-interactive component-edge fades: each header now dissolves into scrolling text without changing its 60px/52px geometry, while the Composer's own upper edge feathers into messages on desktop and narrow layouts without adding feed whitespace.
 - Made Agent-to-Agent Room handoffs acknowledge immediately with one gently revealed execution shell that reuses the existing thinking state before reply output arrives.
 - Distinguished semantic Markdown rules from Room speaker changes: adjacent Agents now use a short identity-aligned cue instead of repeated full-width dividers, and hidden Room fanout/no-reply control markers are stripped from text, result, history, and copy projections.
 - Rebuilt the conversation bottom work area around a Composer-anchored, centered Task capsule that shows the current step and summary beside a local return-to-latest control, moved `Powered by Nexus` into the physically centered Composer footer, retained the 880px/20px input geometry, and made footer density respond to the chat canvas rather than the browser window.

@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 当前会话草稿、投递能力、Goal/附件动作、人工介入与 runtime 状态。
- * OUTPUT: 普通输入或原位人工确认二选一的稳定 Composer 壳。
+ * OUTPUT: 带自身上缘羽化的稳定 Composer 壳，内容在普通输入与原位人工确认之间二选一。
  * POS: DM 与 Room 共用 Composer 的纯视图装配入口。
  */
 
@@ -61,94 +61,99 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
       ) : null}
 
       <div
-        className={COMPOSER_SHELL_CLASS_NAME}
-        data-composer-surface={
-          props.interactionSurface ? "interaction" : "input"
-        }
+        className="nexus-chat-composer-edge relative isolate"
+        data-composer-edge="true"
       >
-        {props.interactionSurface ?? (
-          <>
-            <ComposerPendingQueue
-              compact={props.compact}
-              inputQueueItems={props.inputQueueItems}
-              onDeleteQueuedMessage={props.onDeleteQueuedMessage}
-              onGuideQueuedMessage={props.onGuideQueuedMessage}
-              onReorderQueueMessages={props.onReorderQueueMessages}
-            />
+        <div
+          className={COMPOSER_SHELL_CLASS_NAME}
+          data-composer-surface={
+            props.interactionSurface ? "interaction" : "input"
+          }
+        >
+          {props.interactionSurface ?? (
+            <>
+              <ComposerPendingQueue
+                compact={props.compact}
+                inputQueueItems={props.inputQueueItems}
+                onDeleteQueuedMessage={props.onDeleteQueuedMessage}
+                onGuideQueuedMessage={props.onGuideQueuedMessage}
+                onReorderQueueMessages={props.onReorderQueueMessages}
+              />
 
-            <ComposerAttachmentList
-              attachments={attachments.attachments}
-              onRemove={attachments.removeAttachment}
-              previewResetKey={props.draftScopeKey}
-              removeLabel={t("composer.remove_attachment")}
-            />
+              <ComposerAttachmentList
+                attachments={attachments.attachments}
+                onRemove={attachments.removeAttachment}
+                previewResetKey={props.draftScopeKey}
+                removeLabel={t("composer.remove_attachment")}
+              />
 
-            <ComposerInputRow
-              input={{
-                disabled: state.isTextareaLocked,
-                onChange: actions.handleInputChange,
-                onCompositionEnd: actions.handleCompositionEnd,
-                onCompositionStart: actions.handleCompositionStart,
-                onKeyDown: actions.handleKeyDown,
-                onPaste: attachments.handlePaste,
-                placeholder: state.resolvedPlaceholder,
-                value: state.input,
-              }}
-              layout={{
-                paddingClassName: state.composerInputRowPaddingClass,
-              }}
-              mention={{
-                active: mention.mentionActive,
-                filter: mention.mentionFilter,
-                items: mention.mentionTargetItems,
-                onClose: mention.closeMention,
-                onSelect: mention.selectMentionItem,
-              }}
-              textareaRef={refs.textareaRef}
-            />
+              <ComposerInputRow
+                input={{
+                  disabled: state.isTextareaLocked,
+                  onChange: actions.handleInputChange,
+                  onCompositionEnd: actions.handleCompositionEnd,
+                  onCompositionStart: actions.handleCompositionStart,
+                  onKeyDown: actions.handleKeyDown,
+                  onPaste: attachments.handlePaste,
+                  placeholder: state.resolvedPlaceholder,
+                  value: state.input,
+                }}
+                layout={{
+                  paddingClassName: state.composerInputRowPaddingClass,
+                }}
+                mention={{
+                  active: mention.mentionActive,
+                  filter: mention.mentionFilter,
+                  items: mention.mentionTargetItems,
+                  onClose: mention.closeMention,
+                  onSelect: mention.selectMentionItem,
+                }}
+                textareaRef={refs.textareaRef}
+              />
 
-            <ComposerFooter
-              actionButtonRef={refs.actionButtonRef}
-              activeError={state.activeError}
-              canCreateGoal={state.canCreateGoal}
-              canUseLoop={state.canUseLoop}
-              charCount={state.charCount}
-              goalModeExtra={props.goalModeExtra ?? null}
-              goalScopeLabel={props.goalScopeLabel}
-              historyIndex={state.historyIndex}
-              inputHistoryLength={state.inputHistoryLength}
-              isActionMenuOpen={state.isActionMenuOpen}
-              isGoalCreating={state.isGoalCreating}
-              isGoalMode={state.isGoalMode}
-              isNearLimit={state.isNearLimit}
-              isOverLimit={state.isOverLimit}
-              isPreparingAttachments={state.isPreparingAttachments}
-              maxLength={MAX_COMPOSER_INPUT_LENGTH}
-              onActionMenuClose={() => actions.setIsActionMenuOpen(false)}
-              onActionMenuToggle={() => {
-                actions.setIsActionMenuOpen((current) => !current);
-              }}
-              onAttachmentSelect={actions.openAttachmentPicker}
-              onCancelGoal={actions.cancelGoalInput}
-              onGoalToggle={actions.toggleGoalInput}
-              onLoopSelect={actions.openLoopPicker}
-              runtimeActivity={state.runtimeActivity}
-              showPoweredByNexus
-              submit={{
-                enterLabel: state.inlineEnterLabel,
-                isDisabled: state.isSendDisabled,
-                isGoalCreating: state.isGoalCreating,
-                isGoalMode: state.isGoalMode,
-                isPreparingAttachments: state.isPreparingAttachments,
-                onSend: actions.handleSend,
-                onStop: props.onStop,
-                sendLabel: state.sendButtonLabel,
-                shouldStop: state.shouldShowStopButton,
-                stopLabel: t("composer.stop_generation"),
-              }}
-            />
-          </>
-        )}
+              <ComposerFooter
+                actionButtonRef={refs.actionButtonRef}
+                activeError={state.activeError}
+                canCreateGoal={state.canCreateGoal}
+                canUseLoop={state.canUseLoop}
+                charCount={state.charCount}
+                goalModeExtra={props.goalModeExtra ?? null}
+                goalScopeLabel={props.goalScopeLabel}
+                historyIndex={state.historyIndex}
+                inputHistoryLength={state.inputHistoryLength}
+                isActionMenuOpen={state.isActionMenuOpen}
+                isGoalCreating={state.isGoalCreating}
+                isGoalMode={state.isGoalMode}
+                isNearLimit={state.isNearLimit}
+                isOverLimit={state.isOverLimit}
+                isPreparingAttachments={state.isPreparingAttachments}
+                maxLength={MAX_COMPOSER_INPUT_LENGTH}
+                onActionMenuClose={() => actions.setIsActionMenuOpen(false)}
+                onActionMenuToggle={() => {
+                  actions.setIsActionMenuOpen((current) => !current);
+                }}
+                onAttachmentSelect={actions.openAttachmentPicker}
+                onCancelGoal={actions.cancelGoalInput}
+                onGoalToggle={actions.toggleGoalInput}
+                onLoopSelect={actions.openLoopPicker}
+                runtimeActivity={state.runtimeActivity}
+                showPoweredByNexus
+                submit={{
+                  enterLabel: state.inlineEnterLabel,
+                  isDisabled: state.isSendDisabled,
+                  isGoalCreating: state.isGoalCreating,
+                  isGoalMode: state.isGoalMode,
+                  isPreparingAttachments: state.isPreparingAttachments,
+                  onSend: actions.handleSend,
+                  onStop: props.onStop,
+                  sendLabel: state.sendButtonLabel,
+                  shouldStop: state.shouldShowStopButton,
+                  stopLabel: t("composer.stop_generation"),
+                }}
+              />
+            </>
+          )}
+        </div>
       </div>
     </section>
   );

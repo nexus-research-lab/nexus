@@ -239,6 +239,43 @@
     box-shadow: var(--surface-shell-footer-shadow);
   }
 
+  /*
+   * Composer 输入壳自身的上缘向消息区羽化；外层与输入壳同宽，
+   * 只向上延伸视觉边缘，不得用额外 padding/clearance 伪造同一效果。
+   */
+  .nexus-chat-composer-edge::before {
+    position: absolute;
+    top: -44px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--background) 28%, transparent) 20px,
+      color-mix(in srgb, var(--background) 76%, transparent) 34px,
+      var(--background) 44px,
+      var(--background) 100%
+    );
+    content: "";
+  }
+
+  @media (max-width: 1023px) {
+    .nexus-chat-composer-edge::before {
+      top: -32px;
+      background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        color-mix(in srgb, var(--background) 34%, transparent) 14px,
+        color-mix(in srgb, var(--background) 78%, transparent) 24px,
+        var(--background) 32px,
+        var(--background) 100%
+      );
+    }
+  }
+
   .surface-panel {
     position: relative;
     overflow: hidden;

@@ -169,6 +169,75 @@ test("消息尾部只为真实可见的浮动 Dock 保留避让", async () => {
   assert.match(occupied, /\bh-14\b/);
 });
 
+test("标题栏与 Composer 自身边缘羽化且不改变滚动几何", async () => {
+  const { ConversationPanelViewportArea } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/conversation-panel-layout.tsx",
+  );
+  const viewportHtml = renderToStaticMarkup(
+    React.createElement(
+      ConversationPanelViewportArea,
+      null,
+      React.createElement("div", null, "message"),
+    ),
+  );
+  assert.match(viewportHtml, />message</);
+  assert.doesNotMatch(viewportHtml, /data-composer-edge/);
+
+  const sharedRecipes = await readFile(
+    path.join(webRoot, "src/app/styles/theme-recipes.css"),
+    "utf8",
+  );
+  const composerFadeRule = sharedRecipes.match(
+    /\.nexus-chat-composer-edge::before\s*\{([\s\S]*?)\}/,
+  )?.[1] ?? "";
+  assert.match(composerFadeRule, /position:\s*absolute/);
+  assert.match(composerFadeRule, /top:\s*-\d+px/);
+  assert.match(composerFadeRule, /bottom:\s*0/);
+  assert.match(composerFadeRule, /pointer-events:\s*none/);
+  assert.match(composerFadeRule, /linear-gradient/);
+  assert.doesNotMatch(composerFadeRule, /\b(?:margin|padding)(?:-|:)/);
+
+  const headerSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/surface/layout/room-surface-header.tsx",
+    ),
+    "utf8",
+  );
+  const headerStyles = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/surface/room-conversation-header-edge.css",
+    ),
+    "utf8",
+  );
+  const mobileHeaderSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/surface/mobile/room-mobile-header.tsx",
+    ),
+    "utf8",
+  );
+  const topFadeRule = headerStyles.match(
+    /\.nexus-room-conversation-header-edge::after\s*\{([\s\S]*?)\}/,
+  )?.[1] ?? "";
+  assert.match(headerSource, /data-room-conversation-header-edge="true"/);
+  assert.match(
+    mobileHeaderSource,
+    /data-room-conversation-header-edge="true"/,
+  );
+  assert.match(topFadeRule, /position:\s*absolute/);
+  assert.match(topFadeRule, /top:\s*100%/);
+  assert.match(topFadeRule, /z-index:\s*10/);
+  assert.match(topFadeRule, /pointer-events:\s*none/);
+  assert.match(topFadeRule, /linear-gradient/);
+  assert.doesNotMatch(topFadeRule, /\b(?:margin|padding)(?:-|:)/);
+  assert.match(
+    headerStyles,
+    /\.nexus-room-conversation-header-edge\s*>\s*\.shell-region-header\s*\{[\s\S]*?box-shadow:\s*none/,
+  );
+});
+
 test("shared WebSocket session leases keep a live Room bound until its last consumer leaves", async () => {
   const { SessionBindingLeaseRegistry } = await server.ssrLoadModule(
     "/src/lib/websocket/session-binding-leases.ts",
@@ -577,6 +646,8 @@ test("DM and Room pending interactions replace the Composer input in one stable 
   const replacedHtml = await renderWithI18n(
     React.createElement(ComposerPanel, composerProps),
   );
+  assert.match(replacedHtml, /data-composer-edge="true"/);
+  assert.match(replacedHtml, /\bnexus-chat-composer-edge\b/);
   assert.match(replacedHtml, /data-composer-surface="interaction"/);
   assert.match(replacedHtml, /data-composer-interaction-surface="true"/);
   assert.doesNotMatch(replacedHtml, /<textarea/);
@@ -591,6 +662,8 @@ test("DM and Room pending interactions replace the Composer input in one stable 
       runtimePhase: "idle",
     }),
   );
+  assert.match(inputHtml, /data-composer-edge="true"/);
+  assert.match(inputHtml, /\bnexus-chat-composer-edge\b/);
   assert.match(inputHtml, /data-composer-surface="input"/);
   assert.match(inputHtml, /<textarea/);
   assert.match(inputHtml, /data-composer-powered-by="true"/);
