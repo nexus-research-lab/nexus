@@ -76,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Docker Compose data mounts silently resolving relative to `deploy/` when the root `.env` was not passed explicitly; `HOST_DATA_DIR` is now required and missing configuration fails fast.
 - Fixed Docker restarts failing when the launcher-owned runtime settings file was writable through ACL but not chmod-able by the host agent; the entrypoint now leaves existing runtime file modes under launcher control.
 - Reordered the Docker runtime image so bundled nxs downloads and static isolation setup remain cached when Go code, Skills, or entrypoint scripts change.
+- Kept nxs release-selection arguments out of the Python, Claude, and base toolchain cache scope, so updating the bundled runtime does not reinstall the Docker toolchain.
 - Reconciled legacy project-level `.nexus` metadata directories into each runtime owner's private UID/GID so nxs can discover project commands after isolation is enabled.
 - Promoted verified launcher management commands to a complete root filesystem identity before ACL reconciliation, preventing setuid callers from failing on legacy private directories while runtime execution still drops directly into the owner UID/GID and Landlock.
 - Allowed the nxs session-memory worker to edit only its canonical owner-scoped `summary.md`, keeping all other runtime state outside ordinary tool write roots.

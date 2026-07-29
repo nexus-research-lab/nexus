@@ -62,10 +62,6 @@ ARG PNPM_REGISTRY=https://registry.npmjs.org/
 ARG PNPM_VERSION=9.15.2
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 ARG BUN_CONFIG_REGISTRY=https://registry.npmjs.org/
-ARG TARGETOS=linux
-ARG TARGETARCH=amd64
-ARG NEXUS_DOCKER_BUNDLE_NXS_RUNTIME=1
-ARG NEXUS_NXS_RUNTIME_RELEASE=nxs-stable
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -109,6 +105,7 @@ ENV HOME=/home/agent \
     UV_INDEX_URL=${PIP_INDEX_URL}
 
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store,sharing=locked \
+    --mount=type=cache,target=/root/.npm,sharing=locked \
     npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
     pnpm config set registry "${PNPM_REGISTRY}" && \
     pnpm config set store-dir /root/.local/share/pnpm/store && \
@@ -138,6 +135,10 @@ WORKDIR /opt/app
 
 # nxs runtime 只依赖下载脚本、目标平台和 release。放在业务源码之前，
 # 避免 Go、Skill 或入口脚本变化触发重复下载。
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+ARG NEXUS_DOCKER_BUNDLE_NXS_RUNTIME=1
+ARG NEXUS_NXS_RUNTIME_RELEASE=nxs-stable
 COPY --chown=root:root --chmod=0444 scripts/desktop/fetch-nxs-runtime.js /opt/app/scripts/desktop/fetch-nxs-runtime.js
 RUN if [ "${NEXUS_DOCKER_BUNDLE_NXS_RUNTIME}" = "1" ]; then \
         mkdir -p /opt/app/bin && \
