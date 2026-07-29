@@ -83,7 +83,9 @@ func TestDMParentTerminalUsageBackgroundRetryRecoversWithoutChildOrNewMessage(t 
 	starters.Wait()
 
 	waitForDMGoalUsageRetry(t, func() bool {
-		return dispatches.Load() == 1 && provider.finalizeCallCount() == goalUsagePersistAttempts*2+1
+		return dispatches.Load() == 1 &&
+			provider.finalizeCallCount() == goalUsagePersistAttempts*2+1 &&
+			dmGoalUsageRetryStopped(runner)
 	})
 	if attempts := provider.claimAttemptCount(); attempts != goalUsagePersistAttempts*2+1 {
 		t.Fatalf("claim attempts = %d, want two failed windows plus one background success", attempts)
@@ -95,7 +97,6 @@ func TestDMParentTerminalUsageBackgroundRetryRecoversWithoutChildOrNewMessage(t 
 	if len(deltas) == 0 || deltas[len(deltas)-1].ActualTokens() != 15 {
 		t.Fatalf("terminal finalization deltas = %#v, want retained provider total 15", deltas)
 	}
-	time.Sleep(50 * time.Millisecond)
 	if got := dispatches.Load(); got != 1 {
 		t.Fatalf("post-round dispatches after terminal recovery = %d, want exactly 1", got)
 	}
@@ -186,7 +187,9 @@ func TestDMSubagentUsageBackgroundRetryRecoversAndDispatchesNormalParentOnce(t *
 	}
 
 	waitForDMGoalUsageRetry(t, func() bool {
-		return dispatches.Load() == 1 && provider.finalizeCallCount() == 1
+		return dispatches.Load() == 1 &&
+			provider.finalizeCallCount() == 1 &&
+			dmGoalUsageRetryStopped(runner)
 	})
 	if attempts := provider.sourceAttemptCount(); attempts != 7 {
 		t.Fatalf("source attempts = %d, want 6 failures plus one background success", attempts)
@@ -194,7 +197,6 @@ func TestDMSubagentUsageBackgroundRetryRecoversAndDispatchesNormalParentOnce(t *
 	if runner.hasRunningSubagentTask() {
 		t.Fatal("background retry success left the child join barrier pending")
 	}
-	time.Sleep(50 * time.Millisecond)
 	if got := dispatches.Load(); got != 1 {
 		t.Fatalf("post-round dispatches after retry settled = %d, want exactly 1", got)
 	}
@@ -234,12 +236,11 @@ func TestDMSubagentUsageBackgroundRetryAlsoRetriesFinalizationUntilDispatch(t *t
 	runner.rememberSubagentTaskMessage(terminalMessage)
 
 	waitForDMGoalUsageRetry(t, func() bool {
-		return dispatches.Load() == 1
+		return dispatches.Load() == 1 && dmGoalUsageRetryStopped(runner)
 	})
 	if calls := provider.finalizeCallCount(); calls != 7 {
 		t.Fatalf("finalization calls = %d, want 6 failures plus one background success", calls)
 	}
-	time.Sleep(50 * time.Millisecond)
 	if got := dispatches.Load(); got != 1 {
 		t.Fatalf("post-round dispatches after finalization recovery = %d, want exactly 1", got)
 	}
@@ -1032,9 +1033,18 @@ func waitForDMGoalUsageRetry(t *testing.T, ready func() bool) {
 		if ready() {
 			return
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(time.Millisecond)
 	}
 	t.Fatal("timed out waiting for DM Goal usage background retry")
+}
+
+func dmGoalUsageRetryStopped(runner *roundRunner) bool {
+	if runner == nil {
+		return true
+	}
+	runner.goalUsageMu.Lock()
+	defer runner.goalUsageMu.Unlock()
+	return !runner.goalUsageRetryRunning
 }
 
 func (p *fakeDMGoalUsageFinalizer) UsageByGoalID(

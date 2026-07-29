@@ -141,11 +141,12 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	}
 
 	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
 	service := NewServiceWithFactory(
 		cfg,
 		roomService,
 		agentService,
-		runtimectx.NewManager(),
+		runtimeManager,
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{amyClient, devinClient}},
 	)
@@ -233,10 +234,15 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	if !retryResult.Duplicate || retryResult.ItemID != queueResult.ItemID {
 		t.Fatalf("重试应确认原始 Room 队列受理结果: first=%+v retry=%+v", queueResult, retryResult)
 	}
+	waitContext, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err = runtimeManager.WaitBackgroundTasks(waitContext, sharedSessionKey); err != nil {
+		t.Fatalf("等待 Room 幂等重试后台任务收敛失败: %v", err)
+	}
 	select {
 	case prompt := <-devinPrompt:
 		t.Fatalf("相同 client_message_id 重试不应触发第二轮: %q", prompt)
-	case <-time.After(200 * time.Millisecond):
+	default:
 	}
 }
 
