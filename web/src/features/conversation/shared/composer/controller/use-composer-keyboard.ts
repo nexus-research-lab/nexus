@@ -20,10 +20,14 @@ interface UseComposerKeyboardOptions {
   historyItemCount: number;
   isLoading: boolean;
   mentionActive: boolean;
+  onSlashCommandKeyDown: (
+    event: KeyboardEvent<HTMLTextAreaElement>,
+  ) => boolean;
   onSend: () => void | Promise<void>;
   onStop?: () => void;
   recallNext: () => void;
   recallPrevious: () => void;
+  slashCommandActive: boolean;
 }
 
 interface CompositionState {
@@ -37,15 +41,28 @@ interface KeyboardCommand {
   run: () => void;
 }
 
+type StandardKeyboardCommandOptions = Pick<
+  UseComposerKeyboardOptions,
+  | "historyIndex"
+  | "historyItemCount"
+  | "isLoading"
+  | "onSend"
+  | "onStop"
+  | "recallNext"
+  | "recallPrevious"
+>;
+
 export function useComposerKeyboard({
   historyIndex,
   historyItemCount,
   isLoading,
   mentionActive,
+  onSlashCommandKeyDown,
   onSend,
   onStop,
   recallNext,
   recallPrevious,
+  slashCommandActive,
 }: UseComposerKeyboardOptions) {
   const isComposingRef = useRef(false);
   const ignoreNextEnterRef = useRef(false);
@@ -70,18 +87,19 @@ export function useComposerKeyboard({
   const handleKeyDown = useCallback((
     event: KeyboardEvent<HTMLTextAreaElement>,
   ) => {
-    if (shouldIgnoreKeyboardEvent(
-      event,
-      compositionState,
-      mentionActive,
-    )) {
+    if (shouldIgnoreCompositionEvent(event, compositionState)) {
+      return;
+    }
+    if (slashCommandActive && onSlashCommandKeyDown(event)) {
+      return;
+    }
+    if (isMentionNavigationEvent(event, mentionActive)) {
       return;
     }
     const command = resolveKeyboardCommand(event, {
       historyIndex,
       historyItemCount,
       isLoading,
-      mentionActive,
       onSend,
       onStop,
       recallNext,
@@ -98,10 +116,12 @@ export function useComposerKeyboard({
     historyItemCount,
     isLoading,
     mentionActive,
+    onSlashCommandKeyDown,
     onSend,
     onStop,
     recallNext,
     recallPrevious,
+    slashCommandActive,
   ]);
 
   return {
@@ -111,10 +131,9 @@ export function useComposerKeyboard({
   };
 }
 
-function shouldIgnoreKeyboardEvent(
+function shouldIgnoreCompositionEvent(
   event: KeyboardEvent<HTMLTextAreaElement>,
   compositionState: CompositionState,
-  mentionActive: boolean,
 ): boolean {
   // Safari 可能在中文候选词确认后补发一个不带 composing 标记的 Enter。
   if (isCompositionEvent(event, compositionState)) {
@@ -124,7 +143,7 @@ function shouldIgnoreKeyboardEvent(
     event.preventDefault();
     return true;
   }
-  return isMentionNavigationEvent(event, mentionActive);
+  return false;
 }
 
 function isCompositionEvent(
@@ -164,7 +183,7 @@ function isMentionNavigationEvent(
 
 function resolveKeyboardCommand(
   event: KeyboardEvent<HTMLTextAreaElement>,
-  options: UseComposerKeyboardOptions,
+  options: StandardKeyboardCommandOptions,
 ): (() => void) | null {
   const commands: KeyboardCommand[] = [
     {

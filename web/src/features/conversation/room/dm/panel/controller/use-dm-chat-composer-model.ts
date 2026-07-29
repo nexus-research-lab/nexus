@@ -17,10 +17,12 @@ import type { DmChatComposerModel } from "../view/dm-chat-panel-view";
 type ComposerConversation = Pick<
   UseAgentConversationReturn,
   | "delete_input_queue_message"
+  | "command_catalog"
   | "enqueue_input_queue_message"
   | "guide_input_queue_message"
   | "input_queue_items"
   | "is_loading"
+  | "refresh_command_catalog"
   | "reorder_input_queue_messages"
   | "runtime_phase"
   | "send_message"
@@ -75,6 +77,7 @@ export function useDmChatComposerModel({
   });
 
   return {
+    commandCatalog: conversation.command_catalog,
     defaultDeliveryPolicy,
     draftScopeKey,
     goalScopeLabel,
@@ -86,6 +89,7 @@ export function useDmChatComposerModel({
     onEnqueueMessage: conversation.enqueue_input_queue_message,
     onGuideQueuedMessage: conversation.guide_input_queue_message,
     onPrepareAttachments: handlers.handlePrepareAttachments,
+    onRefreshCommandCatalog: conversation.refresh_command_catalog,
     onReorderQueueMessages: conversation.reorder_input_queue_messages,
     onSendMessage: handlers.handleSendMessage,
     onStop: conversation.stop_generation,

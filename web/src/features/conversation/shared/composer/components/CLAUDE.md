@@ -4,7 +4,8 @@ L5 | 父级: web/src/features/conversation/shared/composer
 
 ## 职责
 
-- `composer-input-row.tsx`: 只装配 Mention 与 textarea，提交和其他动作留在底部工具行
+- `composer-input-row.tsx`: 装配 Slash/Mention 补全与 textarea，提交和其他动作留在底部工具行
+- `slash-command-popover.tsx`: 展示 runtime 命令目录及加载、不可用和空筛选状态
 - `composer-submit-button.tsx`: 以单一投影选择停止、加载、Goal 或发送动作
 - `footer/`: 动作菜单、Goal 标记、运行状态、输入元数据和提交动作
 - `pending-queue/`: 待发送消息、拖拽重排和队列命令

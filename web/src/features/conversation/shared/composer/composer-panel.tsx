@@ -24,7 +24,7 @@ import { useComposerController } from "./controller/use-composer-controller";
 
 const ComposerPanelView = memo((props: ComposerPanelProps) => {
   const { t } = useI18n();
-  const { actions, attachments, mention, refs, state } =
+  const { actions, attachments, mention, refs, slashCommand, state } =
     useComposerController(props);
 
   return (
@@ -90,6 +90,13 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
             items: mention.mentionTargetItems,
             onClose: mention.closeMention,
             onSelect: mention.selectMentionItem,
+          }}
+          slashCommand={{
+            active: slashCommand.isOpen,
+            activeIndex: slashCommand.activeIndex,
+            commands: slashCommand.commands,
+            onSelect: slashCommand.select,
+            status: slashCommand.status,
           }}
           textareaRef={refs.textareaRef}
         />

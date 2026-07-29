@@ -35,6 +35,18 @@ type fakeRuntimeClient struct {
 	receiveStopped     chan struct{}
 }
 
+type fakeSlashCommandClient struct {
+	*fakeRuntimeClient
+	commands []agentclient.SlashCommand
+	err      error
+}
+
+func (c *fakeSlashCommandClient) SupportedCommands(
+	context.Context,
+) ([]agentclient.SlashCommand, error) {
+	return c.commands, c.err
+}
+
 type fakeOwnerProcessReaper struct {
 	owners []string
 	err    error
@@ -147,6 +159,84 @@ func (c *fakeRuntimeClient) Supports(capability agentclient.Capability) bool {
 }
 
 func (c *fakeRuntimeClient) SessionID() string { return "" }
+
+func TestManagerCommandCatalogUsesOptionalRuntimeCapability(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:commands"
+	manager.sessions[sessionKey] = &sessionState{
+		Client: &fakeSlashCommandClient{
+			fakeRuntimeClient: &fakeRuntimeClient{},
+			commands: []agentclient.SlashCommand{{
+				Name:        "review",
+				Description: "Review code",
+			}},
+		},
+		RuntimeKind: agentclient.RuntimeNXS,
+	}
+
+	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusReady ||
+		snapshot.RuntimeKind != agentclient.RuntimeNXS ||
+		len(snapshot.Commands) != 1 ||
+		snapshot.Commands[0].Name != "review" {
+		t.Fatalf("CommandCatalog() = %#v, want ready nxs catalog", snapshot)
+	}
+}
+
+func TestManagerCommandCatalogDoesNotCreateRuntime(t *testing.T) {
+	manager := NewManager()
+
+	snapshot, err := manager.CommandCatalog(
+		context.Background(),
+		"agent:agent-a:ws:dm:not-started",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusLoading ||
+		len(snapshot.Commands) != 0 ||
+		len(manager.sessions) != 0 {
+		t.Fatalf("CommandCatalog() = %#v, sessions=%d", snapshot, len(manager.sessions))
+	}
+}
+
+func TestManagerCommandCatalogReportsUnsupportedClient(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:unsupported"
+	manager.sessions[sessionKey] = &sessionState{
+		Client:      &fakeRuntimeClient{},
+		RuntimeKind: agentclient.RuntimeClaude,
+	}
+
+	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusUnavailable ||
+		snapshot.RuntimeKind != agentclient.RuntimeClaude {
+		t.Fatalf("CommandCatalog() = %#v, want unavailable claude catalog", snapshot)
+	}
+}
+
+func TestManagerCommandCatalogRejectsDifferentOwner(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:private"
+	manager.sessions[sessionKey] = &sessionState{
+		Client: &fakeSlashCommandClient{
+			fakeRuntimeClient: &fakeRuntimeClient{},
+		},
+		OwnerUserID: "owner-a",
+	}
+
+	_, err := manager.CommandCatalog(context.Background(), sessionKey, "owner-b")
+	if !errors.Is(err, ErrCommandCatalogOwnerMismatch) {
+		t.Fatalf("CommandCatalog() error = %v, want owner mismatch", err)
+	}
+}
 
 func TestSDKClientAdapterWaitReturnsStreamError(t *testing.T) {
 	processErr := errors.New("process: command exited with error: exit status 2")

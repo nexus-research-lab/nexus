@@ -16,6 +16,7 @@ import {
 } from "../composer-model";
 import { useComposerHistory } from "../use-composer-history";
 import { useComposerMention } from "../use-composer-mention";
+import { useComposerSlashCommand } from "../use-composer-slash-command";
 import { buildComposerViewState } from "./composer-controller-model";
 import { useComposerDraft } from "./use-composer-draft";
 import { useComposerGoalActions } from "./use-composer-goal-actions";
@@ -25,6 +26,7 @@ import { useComposerMessageSubmit } from "./use-composer-message-submit";
 const EMPTY_ROOM_MEMBERS: Agent[] = [];
 
 export function useComposerController({
+  commandCatalog,
   compact,
   defaultDeliveryPolicy,
   draftScopeKey,
@@ -37,6 +39,7 @@ export function useComposerController({
   onCreateLoopGoal,
   onEnqueueMessage,
   onPrepareAttachments,
+  onRefreshCommandCatalog,
   onSendMessage,
   onStop,
   queueWhenSessionBusy = true,
@@ -87,7 +90,16 @@ export function useComposerController({
     setSelectedTargetIDs,
     textareaRef,
   });
+  const slashCommand = useComposerSlashCommand({
+    catalog: commandCatalog,
+    input: draftState.input,
+    isGoalMode,
+    onRefresh: onRefreshCommandCatalog,
+    setInput,
+    textareaRef,
+  });
   const { updateMentionForInput } = mention;
+  const { updateForInput: updateSlashCommandForInput } = slashCommand;
   const history = useComposerHistory({
     clearError: clearAttachmentError,
     input: draftState.input,
@@ -159,10 +171,12 @@ export function useComposerController({
     historyItemCount: history.itemCount,
     isLoading,
     mentionActive: mention.mentionActive,
+    onSlashCommandKeyDown: slashCommand.handleKeyDown,
     onSend: handleSend,
     onStop,
     recallNext: history.recallNext,
     recallPrevious: history.recallPrevious,
+    slashCommandActive: slashCommand.isOpen,
   });
 
   const handleInputChange = useCallback((value: string) => {
@@ -174,12 +188,14 @@ export function useComposerController({
       setGoalError(null);
     }
     updateMentionForInput(value);
+    updateSlashCommandForInput(value);
   }, [
     attachmentError,
     clearAttachmentError,
     draftState.goalError,
     setGoalError,
     setInput,
+    updateSlashCommandForInput,
     updateMentionForInput,
   ]);
   const openAttachmentPicker = useCallback(() => {
@@ -234,6 +250,13 @@ export function useComposerController({
       mentionFilter: mention.mentionFilter,
       mentionTargetItems: mention.mentionTargetItems,
       selectMentionItem: mention.selectMentionItem,
+    },
+    slashCommand: {
+      activeIndex: slashCommand.activeIndex,
+      commands: slashCommand.commands,
+      isOpen: slashCommand.isOpen,
+      select: slashCommand.select,
+      status: slashCommand.status,
     },
     actions: {
       cancelGoalInput: goal.cancelGoalInput,

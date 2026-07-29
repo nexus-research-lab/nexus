@@ -10,7 +10,7 @@
 //   - session*.go：Session / Message / SessionKey 统一会话模型与 transcript 原生消息边界。
 //   - room*.go：房间、成员、每 Room 唯一未开始 conversation draft、directed message。
 //   - conversation_turn.go / event.go / goal*.go / input_queue.go：
-//     对话投影、统一事件类型与权威 runtime slot 快照、Goal 生命周期/objective revision、actual/budget token 双口径、最终 usage report/fence、child checkpoint/lifecycle evidence、Room parent terminal ledger 与 durable scope 回补、输入队列快照与持久接受 ACK。
+//     对话投影、统一事件类型、session-scoped command catalog 与权威 runtime slot 快照、Goal 生命周期/objective revision、actual/budget token 双口径、最终 usage report/fence、child checkpoint/lifecycle evidence、Room parent terminal ledger 与 durable scope 回补、输入队列快照与持久接受 ACK。
 //   - chat_attachment.go / workspace_file_artifact.go / delivery_policy.go：
 //     聊天附件、工作区文件产物、投递策略。
 //   - identity.go / value.go / provider_failure.go：ID 生成、跨边界值解码与稳定 Provider 失败分类。

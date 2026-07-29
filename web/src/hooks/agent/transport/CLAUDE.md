@@ -7,6 +7,7 @@ L4 | 父级: ../CLAUDE.md
 未知事件保持忽略，以允许后端先发布不影响旧前端的新事件；非法信封必须记录警告。
 生成协议中的 `data` 保持 `unknown`，由事件所有者校验必需字段后再进入运行态。
 事件分发器保持稳定的 Socket 回调，并通过 ref 读取当前会话上下文。
+`command_catalog` 事件只更新当前 session 的 runtime 命令快照；刷新请求仍走普通 WebSocket 控制消息，切换 session 时由上层清空旧目录。
 每个事件类型只能属于一个处理器映射，重复注册必须在路由表创建时失败。
 流式载荷只按 `requestAnimationFrame` 合并同一可见帧；合并后的消息写入保持普通优先级，禁止再包 `startTransition` 延迟中间进度。
 

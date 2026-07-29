@@ -21,10 +21,12 @@ import type { RoomGoalComposerModel } from "./use-room-goal-composer";
 type ComposerConversation = Pick<
   UseAgentConversationReturn,
   | "delete_input_queue_message"
+  | "command_catalog"
   | "enqueue_input_queue_message"
   | "guide_input_queue_message"
   | "input_queue_items"
   | "is_loading"
+  | "refresh_command_catalog"
   | "reorder_input_queue_messages"
   | "runtime_phase"
   | "send_message"
@@ -81,6 +83,7 @@ export function useGroupChatComposerModel({
   });
 
   return {
+    commandCatalog: conversation.command_catalog,
     defaultDeliveryPolicy,
     draftScopeKey,
     enableLoops: true,
@@ -97,6 +100,7 @@ export function useGroupChatComposerModel({
     onEnqueueMessage: conversation.enqueue_input_queue_message,
     onGuideQueuedMessage: conversation.guide_input_queue_message,
     onPrepareAttachments: handlers.handlePrepareAttachments,
+    onRefreshCommandCatalog: conversation.refresh_command_catalog,
     onReorderQueueMessages: conversation.reorder_input_queue_messages,
     onSendMessage: handlers.handleSendMessage,
     queueWhenSessionBusy: true,

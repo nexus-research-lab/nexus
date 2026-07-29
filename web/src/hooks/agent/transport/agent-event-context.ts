@@ -12,6 +12,7 @@ import type {
   Message,
 } from "@/types/conversation/message/entity";
 import type {
+  CommandCatalogData,
   EventMessage,
   SessionStatusData,
 } from "@/types/generated/protocol";
@@ -50,6 +51,7 @@ interface AgentEventTransport {
 }
 
 interface AgentEventState {
+  setCommandCatalog: Dispatch<SetStateAction<CommandCatalogData>>;
   setError: Dispatch<SetStateAction<string | null>>;
   setInputQueueItems: Dispatch<SetStateAction<InputQueueItem[]>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;

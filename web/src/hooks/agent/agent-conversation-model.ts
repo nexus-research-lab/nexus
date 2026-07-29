@@ -9,6 +9,7 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message/entity";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
+import type { CommandCatalogData } from "@/types/generated/protocol";
 import type { WebSocketState } from "@/types/system/websocket";
 
 import type { AgentConversationRuntimeSnapshot } from "./runtime/model/conversation-runtime-state";
@@ -84,8 +85,10 @@ interface AgentConversationPublicSession {
 
 interface BuildAgentConversationResultOptions {
   actions: AgentConversationPublicActions;
+  commandCatalog: CommandCatalogData;
   error: string | null;
   messages: Message[];
+  refreshCommandCatalog: UseAgentConversationReturn["refresh_command_catalog"];
   runtime: AgentConversationPublicRuntime;
   session: AgentConversationPublicSession;
   wsState: WebSocketState;
@@ -93,8 +96,10 @@ interface BuildAgentConversationResultOptions {
 
 export function buildAgentConversationResult({
   actions,
+  commandCatalog,
   error,
   messages,
+  refreshCommandCatalog,
   runtime,
   session,
   wsState,
@@ -102,6 +107,7 @@ export function buildAgentConversationResult({
   return {
     bind_session_key: session.bindSessionKey,
     clear_session: session.clearSession,
+    command_catalog: commandCatalog,
     delete_input_queue_message: actions.deleteQueueMessage,
     enqueue_input_queue_message: actions.enqueueQueueMessage,
     error,
@@ -119,6 +125,7 @@ export function buildAgentConversationResult({
     messages,
     pending_agent_slots: runtime.pendingAgentSlots,
     pending_permissions: runtime.pendingPermissions,
+    refresh_command_catalog: refreshCommandCatalog,
     resolved_history_round_ids: session.resolvedHistoryRoundIds,
     reorder_input_queue_messages: actions.reorderQueueMessages,
     reset_session: session.resetSession,

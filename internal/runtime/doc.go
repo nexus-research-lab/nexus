@@ -4,6 +4,7 @@
 //
 // 成员清单：
 //   - client.go：Client 接口、Factory 与 sdkClientAdapter（runtime 需要的最小 SDK 能力抽象），并统一识别进程退出后的关闭态控制错误。
+//   - command_catalog.go：按 owner 和 session 读取 bridge 初始化后的命令目录，不因补全请求隐式创建 runtime。
 //   - session.go / round.go / idle*.go / owner.go / interrupt.go / streaming_input.go / task.go /
 //     mcp.go / goal_accounting.go：Manager 管理 session_key → SDK client、owner、运行中 round、
 //     Goal accounting、scope-aware Goal create guard、ClearGoalAccountingRounds 部分 activation

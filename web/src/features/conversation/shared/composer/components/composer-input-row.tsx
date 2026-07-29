@@ -8,6 +8,12 @@ import type {
 import { cn } from "@/shared/ui/class-name";
 import type { MentionTargetItem } from "@/shared/ui/mention/mention-target-model";
 import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
+import type {
+  CommandCatalogStatus,
+  CommandDescriptor,
+} from "@/types/generated/protocol";
+
+import { SlashCommandPopover } from "./slash-command-popover";
 
 interface ComposerInputRowProps {
   input: {
@@ -30,6 +36,13 @@ interface ComposerInputRowProps {
     onClose: () => void;
     onSelect: (item: MentionTargetItem) => void;
   };
+  slashCommand: {
+    active: boolean;
+    activeIndex: number;
+    commands: CommandDescriptor[];
+    onSelect: (command: CommandDescriptor) => void;
+    status: CommandCatalogStatus;
+  };
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
 
@@ -38,11 +51,20 @@ export function ComposerInputRow({
   input,
   layout,
   mention,
+  slashCommand,
   textareaRef,
 }: ComposerInputRowProps) {
   return (
     <div className={cn("flex items-end gap-2", layout.paddingClassName)}>
-      {mention.active && mention.items.length > 0 ? (
+      {slashCommand.active ? (
+        <SlashCommandPopover
+          activeIndex={slashCommand.activeIndex}
+          anchorRect={textareaRef.current?.getBoundingClientRect() ?? null}
+          commands={slashCommand.commands}
+          onSelect={slashCommand.onSelect}
+          status={slashCommand.status}
+        />
+      ) : mention.active && mention.items.length > 0 ? (
         <MentionTargetPopover
           anchorRect={textareaRef.current?.getBoundingClientRect() ?? null}
           filter={mention.filter}

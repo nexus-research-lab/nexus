@@ -9,10 +9,12 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
+import type { CommandCatalogData } from "@/types/generated/protocol";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface ComposerPanelProps {
   compact: boolean;
+  commandCatalog: CommandCatalogData;
   /** 包含 Session 身份的完整待发送草稿作用域。 */
   draftScopeKey: string;
   /** 同一逻辑聊天共享、刻意不包含 Session ID 的已发送输入历史作用域。 */
@@ -26,6 +28,7 @@ export interface ComposerPanelProps {
     attachments?: MessageAttachment[],
     targetAgentIDs?: string[],
   ) => void | Promise<void>;
+  onRefreshCommandCatalog: () => void;
   inputQueueItems: InputQueueItem[];
   onEnqueueMessage: (
     content: string,
