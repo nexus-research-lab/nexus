@@ -1,3 +1,6 @@
+// INPUT: UI 持久化的宿主 workspace 根、环境 workspace 与 runtime 调用方路径。
+// OUTPUT: 私有 runtime-settings 文件及不会误把 Agent 当前目录当宿主根的配置。
+// POS: config 包的宿主运行设置与 workspace 根规范化边界。
 package config
 
 import (
@@ -104,6 +107,9 @@ func normalizeRuntimeSettings(settings RuntimeSettings) RuntimeSettings {
 }
 
 func configuredWorkspacePath(envWorkspacePath string) string {
+	if isAgentRuntimeWorkspacePath(envWorkspacePath) {
+		return appfs.UsersRoot()
+	}
 	settings, err := LoadRuntimeSettings()
 	if err != nil {
 		return normalizeWorkspacePath(envWorkspacePath)
@@ -116,6 +122,11 @@ func configuredWorkspacePath(envWorkspacePath string) string {
 		return normalizeWorkspacePath(settingsWorkspacePath)
 	}
 	return normalizeWorkspacePath(envWorkspacePath)
+}
+
+func isAgentRuntimeWorkspacePath(envWorkspacePath string) bool {
+	runtimeWorkspacePath := strings.TrimSpace(os.Getenv("NEXUSCTL_WORKSPACE_PATH"))
+	return runtimeWorkspacePath != "" && sameCleanPath(envWorkspacePath, runtimeWorkspacePath)
 }
 
 func shouldUseRuntimeSettingsWorkspacePath(envWorkspacePath string) bool {

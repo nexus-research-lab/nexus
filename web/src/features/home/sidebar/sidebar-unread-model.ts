@@ -1,19 +1,31 @@
+/**
+ * INPUT: 侧栏聊天条目、各目标未读计数、精确消息锚点与当前活动 Conversation。
+ * OUTPUT: Room 聚合未读数及按最早 room_seq 选择的真实跳转 Conversation。
+ * POS: Home 聊天侧栏未读纯投影；不清除 Store 或执行导航。
+ */
 import {
   buildChatNotificationTargetKey,
   isChatNotificationTargetActive,
   type ActiveChatNotificationTarget,
 } from "@/features/home/notifications/chat-notification-target";
-import type { ChatNotificationTargetState } from "@/store/sidebar";
+import type {
+  ChatNotificationTargetState,
+  ChatUnreadAnchorState,
+  ChatUnreadMessageAnchor,
+} from "@/store/sidebar";
 
 import type { SidebarConversationItem } from "./sidebar-conversation-model";
 
 interface UnreadCandidate {
   count: number;
+  firstMessage: ChatUnreadMessageAnchor | null;
   target: ChatNotificationTargetState;
   timestamp: number;
 }
 
 interface UnreadProjectionInput {
+  activeTarget: ActiveChatNotificationTarget | null;
+  chatUnreadAnchors: Record<string, ChatUnreadAnchorState>;
   chatUnreadCounts: Record<string, number>;
   chatUnreadTargets: Record<string, ChatNotificationTargetState>;
   chatUnreadTimestamps: Record<string, number>;
@@ -24,20 +36,16 @@ interface UnreadProjectionInput {
 
 interface SidebarUnreadProjectionInput {
   activeTarget: ActiveChatNotificationTarget | null;
+  chatUnreadAnchors: Record<string, ChatUnreadAnchorState>;
   chatUnreadCounts: Record<string, number>;
   chatUnreadTargets: Record<string, ChatNotificationTargetState>;
   chatUnreadTimestamps: Record<string, number>;
   items: SidebarConversationItem[];
 }
 
-const EMPTY_UNREAD_STATE = {
-  unreadConversationId: null,
-  unreadCount: 0,
-  unreadTargetKey: null,
-} as const;
-
 export function projectSidebarUnreadItems({
   activeTarget,
+  chatUnreadAnchors,
   chatUnreadCounts,
   chatUnreadTargets,
   chatUnreadTimestamps,
@@ -47,6 +55,8 @@ export function projectSidebarUnreadItems({
     const notificationKey = buildSidebarItemNotificationKey(item);
     const projectedItem = { ...item, notificationKey };
     const unreadState = getSidebarItemUnreadState({
+      activeTarget,
+      chatUnreadAnchors,
       chatUnreadCounts,
       chatUnreadTargets,
       chatUnreadTimestamps,
@@ -56,20 +66,8 @@ export function projectSidebarUnreadItems({
     });
     return {
       ...projectedItem,
-      ...(isActiveSidebarChatItem(projectedItem, activeTarget)
-        ? EMPTY_UNREAD_STATE
-        : unreadState),
+      ...unreadState,
     };
-  });
-}
-
-function isActiveSidebarChatItem(
-  item: SidebarConversationItem,
-  activeTarget: ActiveChatNotificationTarget | null,
-): boolean {
-  return isChatNotificationTargetActive(activeTarget, {
-    key: item.notificationKey,
-    room_id: item.roomId,
   });
 }
 
@@ -92,19 +90,19 @@ function getSidebarItemUnreadState(
 } {
   const candidates = collectUnreadCandidates(input);
   let unreadCount = 0;
-  let newestCandidate: UnreadCandidate | null = null;
+  let oldestCandidate: UnreadCandidate | null = null;
 
   for (const candidate of candidates.values()) {
     unreadCount += candidate.count;
-    if (!newestCandidate || candidate.timestamp >= newestCandidate.timestamp) {
-      newestCandidate = candidate;
+    if (!oldestCandidate || compareUnreadCandidates(candidate, oldestCandidate) < 0) {
+      oldestCandidate = candidate;
     }
   }
 
   return {
-    unreadConversationId: newestCandidate?.target.conversation_id ?? null,
+    unreadConversationId: oldestCandidate?.target.conversation_id ?? null,
     unreadCount,
-    unreadTargetKey: newestCandidate?.target.key ?? null,
+    unreadTargetKey: oldestCandidate?.target.key ?? null,
   };
 }
 
@@ -175,9 +173,30 @@ function addCandidate(
   if (count <= 0) {
     return;
   }
+  const target = input.chatUnreadTargets[key] ?? fallbackTarget;
+  if (isChatNotificationTargetActive(input.activeTarget, target)) {
+    return;
+  }
   candidates.set(key, {
     count,
-    target: input.chatUnreadTargets[key] ?? fallbackTarget,
+    firstMessage: input.chatUnreadAnchors[key]?.messages[0] ?? null,
+    target,
     timestamp: input.chatUnreadTimestamps[key] ?? 0,
   });
+}
+
+function compareUnreadCandidates(
+  left: UnreadCandidate,
+  right: UnreadCandidate,
+): number {
+  const leftSequence = Number.isFinite(left.firstMessage?.room_seq)
+    ? Number(left.firstMessage?.room_seq)
+    : Number.POSITIVE_INFINITY;
+  const rightSequence = Number.isFinite(right.firstMessage?.room_seq)
+    ? Number(right.firstMessage?.room_seq)
+    : Number.POSITIVE_INFINITY;
+  return leftSequence - rightSequence
+    || (left.firstMessage?.timestamp ?? left.timestamp)
+      - (right.firstMessage?.timestamp ?? right.timestamp)
+    || left.target.key.localeCompare(right.target.key);
 }

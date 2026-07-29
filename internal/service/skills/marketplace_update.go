@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"net/http"
@@ -226,6 +227,12 @@ func (s *Service) remoteGitCommit(ctx context.Context, manifest externalManifest
 			continue
 		}
 		return fields[0], nil
+	}
+	if branch := strings.TrimSpace(manifest.GitBranch); branch != "" {
+		return "", fmt.Errorf(
+			"此 Skill 记录的远端分支已不存在（%s），因此无法检查更新；请删除该 Skill 后从有效分支重新导入",
+			branch,
+		)
 	}
 	return "", errors.New("未读取到远端 Git commit")
 }

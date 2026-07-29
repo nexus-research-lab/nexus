@@ -1,6 +1,6 @@
 /**
  * INPUT: 滚动视口与真实内容轨道元素。
- * OUTPUT: 虚拟轮次估高使用的轨道宽度和导航顶部偏移。
+ * OUTPUT: 虚拟轮次估高与导航使用的真实 viewport/轨道尺寸。
  * POS: DM、Room 虚拟 Feed 共用的首帧尺寸测量层。
  */
 import { useLayoutEffect, useState } from "react";

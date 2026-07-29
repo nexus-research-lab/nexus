@@ -254,6 +254,22 @@ func TestLoadMapsLegacyHostPathsIntoAppDirectory(t *testing.T) {
 	}
 }
 
+func TestLoadDoesNotTreatAgentRuntimeWorkspaceAsHostRoot(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	agentWorkspace := filepath.Join(stateRoot, "users", "__system__", "workspace", "nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	t.Setenv("WORKSPACE_PATH", agentWorkspace)
+	t.Setenv("NEXUSCTL_WORKSPACE_PATH", agentWorkspace)
+
+	cfg := Load()
+
+	want := filepath.Join(stateRoot, "users")
+	if cfg.WorkspacePath != want {
+		t.Fatalf("Agent runtime workspace 被误作宿主根: got=%q want=%q", cfg.WorkspacePath, want)
+	}
+}
+
 func TestLoadDotEnv_Complex(t *testing.T) {
 	content := `# 应用配置
 export APP_NAME=nexus

@@ -175,7 +175,7 @@ func (s *Service) runSlot(
 	logger.Info("开始执行 Room slot")
 	defer s.finishSlot(slot)
 
-	s.permission.BindSessionRoute(slot.RuntimeSessionKey, permissionctx.RouteContext{
+	routeLease := s.permission.BindSessionRoute(slot.RuntimeSessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: roundValue.SessionKey,
 		RoomID:             roundValue.RoomID,
 		ConversationID:     roundValue.ConversationID,
@@ -184,7 +184,7 @@ func (s *Service) runSlot(
 		RoundID:            roundValue.RootRoundID,
 		AgentRoundID:       slot.AgentRoundID,
 	})
-	defer s.permission.UnbindSessionRoute(slot.RuntimeSessionKey)
+	defer s.permission.UnbindSessionRoute(routeLease)
 
 	client, err := execution.prepareRuntimeClient()
 	if err != nil {
@@ -372,7 +372,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 
 	// 无回复标记只控制当前投递，不属于可持久化的对话正文。
 	messageValue = roomdomain.StripNoReplyMarker(messageValue)
-	// fanout 只是 handoff 路由控制，不应泄漏到 transcript、私域 overlay 或公区。
+	// 旧版 fanout 标记只做输入兼容清理，不应泄漏到 transcript、私域 overlay 或公区。
 	messageValue = roomdomain.StripFanoutMarker(messageValue)
 	if roomSlotPublishesPublicOutput(e.slot) {
 		if err := e.service.persistSharedDurableMessage(

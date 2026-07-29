@@ -1,24 +1,25 @@
 /**
- * INPUT: Room 根轮次内的 user / assistant 消息、slot 与权限状态。
- * OUTPUT: root-global user、Room 内可直接处理的全部人工介入，以及按精确消费 agent_round_id 和稳定展示槽排列的 Agent 卡片摘要。
+ * INPUT: Room 根轮次内的 user / assistant 消息、slot、权限与 execution 首见状态。
+ * OUTPUT: root-global user、可先于消息建立 entry 的人工介入，以及按精确消费 agent_round_id 和稳定展示槽排列的 Agent 卡片。
  * POS: Group round feed 的唯一展示归组入口。
  */
 import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
 import type {
-  AssistantMessage,
   Message,
-  ResultSummary,
   UserMessage,
 } from "@/types/conversation/message/entity";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
+import {
+  filterPendingPermissionsForTerminalRoomExecutions,
+} from "@/lib/conversation/pending-permission-match";
 
-import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
 import {
   buildRoomAgentRoundEntries,
-  extractAgentPreviewText,
   isAgentRoundActive,
-  type AgentRoundStatus,
   type RoomAgentRoundEntry,
 } from "../../round/round-agent-model";
 
@@ -44,60 +45,10 @@ export interface GroupRoundCardModel {
   pendingEntries: GroupRoundAgentCardModel[];
 }
 
-export type AgentStatusSummaryTone =
-  | "default"
-  | "error"
-  | "stopped"
-  | "waiting";
-
-interface GroupAgentStatusLabels {
-  failed: string;
-  stopped: string;
-  waitingForUser: string;
-}
-
-export interface GroupAgentStatusModel {
-  isActive: boolean;
-  isWaitingForUser: boolean;
-  model: string | null;
-  preview: string;
-  shouldRenderMarkdownSummary: boolean;
-  summaryText: string;
-  summaryTone: AgentStatusSummaryTone;
-  timestamp: number;
-}
-
-interface BuildGroupAgentStatusModelOptions {
-  labels: GroupAgentStatusLabels;
-  messages: AssistantMessage[];
-  pendingPermissions: PendingPermission[];
-  resultSummary?: ResultSummary;
-  status: AgentRoundStatus;
-  timestamp: number;
-}
-
-type GroupAgentStatusLabelKey = Exclude<
-  keyof GroupAgentStatusLabels,
-  "waitingForUser"
->;
-type AgentSummarySource = "fallback" | "preview" | "result";
-
-interface AgentStatusPresentationRule {
-  fallbackLabel: GroupAgentStatusLabelKey | null;
-  renderPreview: boolean;
-  summaryOrder: AgentSummarySource[];
-  tone: AgentStatusSummaryTone;
-}
-
-interface AgentStatusSummaryModel {
-  shouldRenderMarkdown: boolean;
-  text: string;
-  tone: AgentStatusSummaryTone;
-}
-
 interface BuildGroupRoundCardModelOptions {
   agentAvatarMap: Record<string, string | null>;
   agentNameMap: Record<string, string>;
+  executionStates?: RoomAgentExecutionState[];
   messages: Message[];
   pendingPermissions: PendingPermission[];
   pendingSlots: RoomPendingAgentSlotState[];
@@ -108,51 +59,26 @@ interface PermissionGroups {
   byAgentRound: Map<string, PendingPermission[]>;
 }
 
-const AGENT_STATUS_PRESENTATION: Record<
-  AgentRoundStatus,
-  AgentStatusPresentationRule
-> = {
-  cancelled: {
-    fallbackLabel: "stopped",
-    renderPreview: false,
-    summaryOrder: ["result", "fallback"],
-    tone: "stopped",
-  },
-  done: {
-    fallbackLabel: null,
-    renderPreview: true,
-    summaryOrder: ["preview", "fallback"],
-    tone: "default",
-  },
-  error: {
-    fallbackLabel: "failed",
-    renderPreview: false,
-    summaryOrder: ["result", "fallback"],
-    tone: "error",
-  },
-  pending: {
-    fallbackLabel: null,
-    renderPreview: true,
-    summaryOrder: ["preview", "fallback"],
-    tone: "default",
-  },
-  streaming: {
-    fallbackLabel: null,
-    renderPreview: true,
-    summaryOrder: ["preview", "fallback"],
-    tone: "default",
-  },
-};
-
 export function buildGroupRoundCardModel({
   agentAvatarMap,
   agentNameMap,
+  executionStates = [],
   messages,
   pendingPermissions,
   pendingSlots,
 }: BuildGroupRoundCardModelOptions): GroupRoundCardModel {
-  const entries = buildRoomAgentRoundEntries(messages, pendingSlots);
-  const permissionGroups = buildPermissionGroups(pendingPermissions);
+  const visiblePendingPermissions =
+    filterPendingPermissionsForTerminalRoomExecutions(
+      pendingPermissions,
+      executionStates,
+    );
+  const entries = buildRoomAgentRoundEntries(
+    messages,
+    pendingSlots,
+    visiblePendingPermissions,
+    executionStates,
+  );
+  const permissionGroups = buildPermissionGroups(visiblePendingPermissions);
   const entriesByAgent = groupEntriesByAgent(entries);
   const userMessages: GroupRoundUserMessageModel[] = [];
   const guidedUserMessagesByEntry = new Map<
@@ -192,6 +118,8 @@ export function buildGroupRoundCardModel({
     buildRoomAgentRoundEntries(
       filterNonTargetAgentReplies(messages),
       pendingSlots,
+      visiblePendingPermissions,
+      executionStates,
     ).map((entry) => entry.entry_id),
   );
   const completedEntries = cards.filter(
@@ -235,174 +163,6 @@ function filterNonTargetAgentReplies(messages: Message[]): Message[] {
     (message) =>
       message.role !== "assistant" || message.agent_id === targetAgentId,
   );
-}
-
-export function buildGroupAgentStatusModel({
-  labels,
-  messages,
-  pendingPermissions,
-  resultSummary,
-  status,
-  timestamp,
-}: BuildGroupAgentStatusModelOptions): GroupAgentStatusModel {
-  const preview = extractAgentPreviewText(messages);
-  const isActive = isAgentRoundActive(status);
-  const humanInteraction = buildAgentHumanInteractionState(
-    pendingPermissions,
-    isActive,
-  );
-  const presentation = AGENT_STATUS_PRESENTATION[status];
-  const summary = buildAgentStatusSummary({
-    humanInteraction,
-    labels,
-    presentation,
-    preview,
-    resultText: resultSummaryText(resultSummary),
-  });
-
-  return {
-    isActive,
-    isWaitingForUser: humanInteraction.isWaiting,
-    model: lastMessageModel(messages),
-    preview,
-    shouldRenderMarkdownSummary: summary.shouldRenderMarkdown,
-    summaryText: summary.text,
-    summaryTone: summary.tone,
-    timestamp,
-  };
-}
-
-interface AgentHumanInteractionState {
-  isWaiting: boolean;
-  primary?: PendingPermission;
-}
-
-function buildAgentHumanInteractionState(
-  pendingPermissions: PendingPermission[],
-  isActive: boolean,
-): AgentHumanInteractionState {
-  const primary = pendingPermissions[0];
-  return {
-    isWaiting: primary !== undefined && isActive,
-    primary,
-  };
-}
-
-function buildAgentSummaryText({
-  fallbackText,
-  humanInteraction,
-  labels,
-  presentation,
-  preview,
-  resultText,
-}: {
-  fallbackText: string;
-  humanInteraction: AgentHumanInteractionState;
-  labels: GroupAgentStatusLabels;
-  presentation: AgentStatusPresentationRule;
-  preview: string;
-  resultText?: string;
-}): string {
-  if (humanInteraction.isWaiting) {
-    return humanInteraction.primary?.summary || labels.waitingForUser;
-  }
-  const sources: Record<AgentSummarySource, string> = {
-    fallback: fallbackText,
-    preview,
-    result: resultText?.trim() ?? "",
-  };
-  return (
-    presentation.summaryOrder
-      .map((source) => sources[source])
-      .find(Boolean) ?? ""
-  );
-}
-
-function buildAgentStatusSummary({
-  humanInteraction,
-  labels,
-  presentation,
-  preview,
-  resultText,
-}: {
-  humanInteraction: AgentHumanInteractionState;
-  labels: GroupAgentStatusLabels;
-  presentation: AgentStatusPresentationRule;
-  preview: string;
-  resultText?: string;
-}): AgentStatusSummaryModel {
-  return {
-    shouldRenderMarkdown: Boolean(
-      preview && !humanInteraction.isWaiting && presentation.renderPreview,
-    ),
-    text: buildAgentSummaryText({
-      fallbackText: statusFallbackText(labels, presentation.fallbackLabel),
-      humanInteraction,
-      labels,
-      presentation,
-      preview,
-      resultText,
-    }),
-    tone: humanInteraction.isWaiting ? "waiting" : presentation.tone,
-  };
-}
-
-export function isNoPublicReplyAgentEntry(
-  entry: Pick<
-    RoomAgentRoundEntry,
-    "assistant_messages" | "result_summary" | "status"
-  >,
-): boolean {
-  if (entry.status !== "done") {
-    return false;
-  }
-  if (
-    entry.result_summary
-    && entry.result_summary.subtype !== "success"
-  ) {
-    return false;
-  }
-  if (
-    entry.result_summary
-    && stripRoomControlMarkers(entry.result_summary.result ?? "")
-  ) {
-    return false;
-  }
-  return !hasPublicAssistantContent(entry.assistant_messages);
-}
-
-function hasPublicAssistantContent(messages: AssistantMessage[]): boolean {
-  return messages.some((message) => message.content.some((block) => {
-    if (block.type === "thinking") {
-      return false;
-    }
-    if (block.type === "text") {
-      return Boolean(stripRoomControlMarkers(block.text));
-    }
-    return true;
-  }));
-}
-
-function statusFallbackText(
-  labels: GroupAgentStatusLabels,
-  labelKey: GroupAgentStatusLabelKey | null,
-): string {
-  return labelKey ? labels[labelKey] : "";
-}
-
-function lastMessageModel(messages: AssistantMessage[]): string | null {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const model = messages[index].model?.trim();
-    if (model) {
-      return model;
-    }
-  }
-  return null;
-}
-
-function resultSummaryText(summary?: ResultSummary): string | undefined {
-  const result = stripRoomControlMarkers(summary?.result ?? "");
-  return result || undefined;
 }
 
 function buildAgentCard(

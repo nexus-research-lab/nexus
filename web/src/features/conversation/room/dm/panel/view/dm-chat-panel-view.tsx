@@ -1,16 +1,29 @@
+/**
+ * INPUT: DM 会话 Frame、Feed、Goal、Task 与 Composer 视图模型。
+ * OUTPUT: 共享 viewport 与从 Composer 向上堆叠 Goal、Task、滚动入口的 DM 对话布局。
+ * POS: DM 面板的纯视图层。
+ */
+
 import type { ComponentProps } from "react";
 
+import {
+  ComposerInteractionSurface,
+  type ComposerInteractionSurfaceProps,
+} from "@/features/conversation/shared/composer/components/interaction/composer-interaction-surface";
 import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
 import {
-  ConversationPanelFloatingControls,
+  ConversationPanelBottomArea,
   ConversationPanelLayout,
   ConversationPanelViewport,
+  ConversationPanelViewportArea,
 } from "@/features/conversation/shared/conversation-panel-layout";
 import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationFeed } from "@/features/conversation/shared/feed/conversation-feed";
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
+import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
+import type { TodoItem } from "@/types/conversation/todo";
 
 export type DmChatComposerModel = Omit<
   ComponentProps<typeof ComposerPanel>,
@@ -21,8 +34,10 @@ type GoalPanelModel = Omit<ComponentProps<typeof GoalPanel>, "compact">;
 
 export interface DmChatPanelViewModel extends ConversationPanelFrameModel {
   composer: DmChatComposerModel;
+  composerInteraction: ComposerInteractionSurfaceProps;
   feed: FeedModel;
   goalPanel: GoalPanelModel;
+  todos: TodoItem[];
 }
 
 export function DmChatPanelView({
@@ -31,29 +46,49 @@ export function DmChatPanelView({
   model: DmChatPanelViewModel;
 }) {
   const { isMobileLayout, viewport } = model;
+  const currentInteraction = model.composerInteraction.permissions[0] ?? null;
+  const interactionSurface = currentInteraction ? (
+    <ComposerInteractionSurface {...model.composerInteraction} />
+  ) : undefined;
   return (
-    <ConversationPanelLayout
-      navigator={!isMobileLayout && model.sessionKey ? (
-        <ConversationSessionNavigator
-          {...model.navigator}
-          className="absolute bottom-[156px] left-3 top-7 z-20"
-        />
-      ) : undefined}
-    >
-      <ConversationPanelViewport
-        isMobileLayout={isMobileLayout}
-        tourAnchor={CONVERSATION_TOUR_ANCHORS.feed}
-        viewport={viewport}
+    <ConversationPanelLayout>
+      <ConversationPanelViewportArea
+        navigator={!isMobileLayout && model.sessionKey ? (
+          <ConversationSessionNavigator
+            {...model.navigator}
+            className="absolute inset-y-0 left-3 z-20"
+          />
+        ) : undefined}
       >
-        <ConversationFeed {...model.feed} />
-      </ConversationPanelViewport>
-      <ConversationPanelFloatingControls
+        <ConversationPanelViewport
+          floatingDockOccupied={
+            model.todos.length > 0 || model.scrollToLatest.visible
+          }
+          isMobileLayout={isMobileLayout}
+          tourAnchor={CONVERSATION_TOUR_ANCHORS.feed}
+          viewport={viewport}
+        >
+          <ConversationFeed {...model.feed} />
+        </ConversationPanelViewport>
+      </ConversationPanelViewportArea>
+      <ConversationPanelBottomArea
+        activity={
+          model.todos.length > 0
+            ? <WorkspaceTaskPanel todos={model.todos} />
+            : undefined
+        }
+        goal={<GoalPanel {...model.goalPanel} compact={isMobileLayout} />}
         isMobileLayout={isMobileLayout}
         providerWarningVisible={model.providerWarningVisible}
         scrollToLatest={model.scrollToLatest}
-      />
-      <GoalPanel {...model.goalPanel} compact={isMobileLayout} />
-      <ComposerPanel {...model.composer} compact={isMobileLayout} />
+      >
+        <ComposerPanel
+          {...model.composer}
+          compact={isMobileLayout}
+          interactionIdentity={currentInteraction?.request_id ?? null}
+          interactionSurface={interactionSurface}
+        />
+      </ConversationPanelBottomArea>
     </ConversationPanelLayout>
   );
 }

@@ -85,12 +85,14 @@ export function useAgentConversation(
   } = usePendingRequestAcks();
 
   const {
+    acknowledgePermissionRequest,
     applyAgentRoundStatus,
     applyRoundStatus,
     clearLiveRuntimeState,
     clearOutboundRequest,
     pendingAgentSlots,
     pendingPermissions,
+    roomAgentExecutionStates,
     reconcileRuntimeStateFromSnapshot,
     removeRewrittenRound,
     resetRuntimeMachine,
@@ -102,6 +104,7 @@ export function useAgentConversation(
     trackAssistantMessage,
     trackChatAck,
     trackOutboundRequest,
+    trackStreamExecution,
     updateMessageStatus,
   } = useAgentConversationRuntime({
     agentId,
@@ -162,16 +165,26 @@ export function useAgentConversation(
     wsStateRef,
   });
 
-  const enqueueStreamPayload = useConversationStreamBuffer(setMessages);
+  const {
+    enqueueStreamPayload,
+    flushStreamPayloads,
+    settleLiveMessageSnapshot,
+  } = useConversationStreamBuffer(
+    setMessages,
+    session.activeSessionKeyRef,
+  );
   const handleWebsocketMessage = useAgentEventDispatcher({
     callbacks: {
       applyWorkspaceEvent,
       enqueueStreamPayload,
+      flushStreamPayloads,
+      settleLiveMessageSnapshot,
       onBackgroundMessage: session.onBackgroundMessage,
       onRoomEvent,
       settleAgentWorkspaceWrites,
     },
     runtime: {
+      acknowledgePermissionRequest,
       applyAgentRoundStatus,
       applyRoundStatus,
       rejectPendingRequestAck,
@@ -181,6 +194,7 @@ export function useAgentConversation(
       syncSessionStatus,
       trackAssistantMessage,
       trackChatAck,
+      trackStreamExecution,
       updateMessageStatus,
     },
     scope: {
@@ -241,6 +255,7 @@ export function useAgentConversation(
   ]);
 
   const actionContext: AgentConversationActionContext = {
+    acknowledgePermissionRequest,
     activeSessionKeyRef: session.activeSessionKeyRef,
     identity,
     messages,
@@ -272,6 +287,7 @@ export function useAgentConversation(
     runtime: {
       pendingAgentSlots,
       pendingPermissions,
+      roomAgentExecutionStates,
       snapshot: runtimeSnapshot,
     },
     session,

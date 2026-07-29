@@ -72,7 +72,7 @@ test("scroll-to-latest requires real viewport overflow", async () => {
   );
 });
 
-test("scroll-to-latest stays clear of the feed boundary", async () => {
+test("scroll-to-latest is a local floating hit target without a layout band", async () => {
   const { ScrollToLatestButton } = await server.ssrLoadModule(
     "/src/features/conversation/shared/scroll-to-latest-button.tsx",
   );
@@ -95,61 +95,60 @@ test("scroll-to-latest stays clear of the feed boundary", async () => {
 
   assert.match(
     visibleHtml,
-    /<div class="pointer-events-none relative z-20 h-10 shrink-0">/,
-    "the action needs a dedicated band outside the scrollable feed",
+    /data-scroll-to-latest="true"/,
+    "the visible action exposes one explicit floating target",
   );
   assert.match(
     visibleHtml,
-    /class="[^"]*absolute[^"]*top-1\/2[^"]*"/,
-    "the action must stay centered inside its reserved band",
+    /class="[^"]*\bh-11\b[^"]*\bw-11\b[^"]*"/,
+    "the floating target keeps a comfortable local hit area",
   );
   assert.doesNotMatch(
-    hiddenHtml,
-    /aria-label="回到底部"/,
-    "the reserved band must remain stable without exposing a hidden action",
+    visibleHtml,
+    /\stitle=/,
+    "the icon-only action must not expose a native tooltip over the feed",
   );
-  assert.match(
+  assert.equal(
     hiddenHtml,
-    /<div class="pointer-events-none relative z-20 h-10 shrink-0"><\/div>/,
-    "showing or hiding the action must not resize the feed",
+    "",
+    "the hidden action must contribute zero layout or pointer surface",
   );
 });
 
-test("scroll events resume only while moving down near the bottom", async () => {
+test("FOLLOW and READING preserve intent at the real bottom edge", async () => {
   const {
     getConversationViewportSize,
     hasConversationViewportSizeChanged,
-    isNearScrollBottom,
+    isAtScrollBottom,
     resolveKeyboardFollowScrollIntent,
     resolveTouchFollowScrollIntent,
     resolveConversationViewportResizeState,
     resolveConversationViewportSizeRevision,
-    shouldDetachFollowForAtomicGrowth,
     shouldPauseFollowOnScroll,
     shouldResumeFollowOnScroll,
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
   );
   assert.equal(
-    isNearScrollBottom(
+    isAtScrollBottom(
       { clientHeight: 500, scrollHeight: 5_000, scrollTop: 2_000 },
     ),
     false,
-    "an intermediate downward animation frame must not disable following",
+    "an intermediate position is not the real bottom",
   );
   assert.equal(
-    isNearScrollBottom(
-      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 1_800 },
-    ),
-    false,
-    "Room layout movement must not be mistaken for user upward scrolling",
-  );
-  assert.equal(
-    isNearScrollBottom(
+    isAtScrollBottom(
       { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_450 },
     ),
+    false,
+    "the action remains visible even when the reader is only 50px from bottom",
+  );
+  assert.equal(
+    isAtScrollBottom(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_499.5 },
+    ),
     true,
-    "scrolling back near the bottom must restore following",
+    "subpixel rounding at the real edge still counts as bottom",
   );
   assert.equal(
     shouldResumeFollowOnScroll(
@@ -184,8 +183,17 @@ test("scroll events resume only while moving down near the bottom", async () => 
       4_450,
       true,
     ),
+    false,
+    "being several pixels above the edge must keep READING ownership",
+  );
+  assert.equal(
+    shouldResumeFollowOnScroll(
+      { clientHeight: 500, scrollHeight: 5_000, scrollTop: 4_499.5 },
+      4_450,
+      true,
+    ),
     true,
-    "only downward movement back to the bottom edge may resume following",
+    "only downward user movement to the real bottom may resume FOLLOW",
   );
   assert.equal(
     shouldPauseFollowOnScroll(
@@ -278,11 +286,11 @@ test("scroll events resume only while moving down near the bottom", async () => 
       true,
     ),
     {
-      scrollTop: 1_000,
-      shouldFollow: false,
-      showScrollToBottom: true,
+      scrollTop: 1_080,
+      shouldFollow: true,
+      showScrollToBottom: false,
     },
-    "a shrinking viewport must retain the visible content instead of following the new bottom",
+    "a shrinking viewport must preserve FOLLOW and synchronously use its new bottom",
   );
   assert.deepEqual(
     resolveConversationViewportResizeState(
@@ -295,7 +303,7 @@ test("scroll events resume only while moving down near the bottom", async () => 
       shouldFollow: true,
       showScrollToBottom: false,
     },
-    "a growing viewport may clamp an existing bottom position without detaching",
+    "a growing viewport clamps to bottom without changing FOLLOW ownership",
   );
   assert.deepEqual(
     resolveConversationViewportResizeState(
@@ -310,21 +318,18 @@ test("scroll events resume only while moving down near the bottom", async () => 
     },
     "an explicitly detached reader must remain detached after viewport resize",
   );
-  assert.equal(
-    shouldDetachFollowForAtomicGrowth(
-      { clientHeight: 500, scrollHeight: 1_080, scrollTop: 500 },
+  assert.deepEqual(
+    resolveConversationViewportResizeState(
+      { clientHeight: 500, scrollHeight: 1_500, scrollTop: 1_000 },
       1_000,
+      false,
     ),
-    false,
-    "small streamed layout growth remains a normal follow target",
-  );
-  assert.equal(
-    shouldDetachFollowForAtomicGrowth(
-      { clientHeight: 500, scrollHeight: 1_700, scrollTop: 500 },
-      1_000,
-    ),
-    true,
-    "a terminal Room body replacing one summary must not drag the viewport across the whole result",
+    {
+      scrollTop: 1_000,
+      shouldFollow: false,
+      showScrollToBottom: false,
+    },
+    "a browser clamp may hide the action but cannot silently turn READING into FOLLOW",
   );
 });
 
@@ -410,33 +415,18 @@ test("auto follow settles again after virtual Room measurement", async () => {
   }
 });
 
-test("streaming follow keeps one spring while the bottom target grows", async () => {
+test("FOLLOW synchronously locks every committed growth before paint", async () => {
   const { BottomScrollAnimator } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
   );
   const frames = [];
-  const cancelledFrames = new Set();
   const originalWindow = globalThis.window;
-  let nextFrameId = 0;
   globalThis.window = {
-    cancelAnimationFrame: (frameId) => {
-      cancelledFrames.add(frameId);
-    },
+    cancelAnimationFrame: () => {},
     requestAnimationFrame: (callback) => {
-      nextFrameId += 1;
-      frames.push({ callback, frameId: nextFrameId });
-      return nextFrameId;
+      frames.push(callback);
+      return frames.length;
     },
-  };
-  const runNextFrame = (timestamp) => {
-    while (frames.length > 0) {
-      const frame = frames.shift();
-      if (!cancelledFrames.has(frame.frameId)) {
-        frame.callback(timestamp);
-        return true;
-      }
-    }
-    return false;
   };
 
   try {
@@ -451,47 +441,18 @@ test("streaming follow keeps one spring while the bottom target grows", async ()
       (scrollTop) => positions.push(scrollTop),
     );
 
-    animator.follow();
-    animator.follow();
-    assert.equal(
-      frames.length,
-      1,
-      "multiple revisions before paint must share one animation frame",
-    );
-
     container.scrollHeight = 1_040;
-    runNextFrame(0);
-    assert.ok(
-      container.scrollTop > 500 && container.scrollTop < 540,
-      "the first streamed line must be followed smoothly instead of jumping",
-    );
+    animator.follow();
+    assert.equal(container.scrollTop, 540);
+    assert.equal(frames.length, 0, "FOLLOW must not queue a visible spring");
 
     container.scrollHeight = 1_080;
     animator.follow();
-    assert.equal(
-      cancelledFrames.size,
-      0,
-      "a growing target must retain the current spring instead of restarting it",
-    );
-
-    for (let frame = 1; frame <= 120 && frames.length > 0; frame += 1) {
-      animator.follow();
-      runNextFrame(frame * (1_000 / 60));
-    }
-    assert.equal(
-      frames.length,
-      0,
-      "content revisions without height changes must not keep RAF alive",
-    );
-    assert.ok(
-      Math.abs(container.scrollTop - 580) <= 0.001,
-      "the retained spring must settle at the latest measured bottom",
-    );
-    assert.ok(
-      positions.every((position, index) =>
-        index === 0 || position >= positions[index - 1]
-      ),
-      "a monotonically growing stream must never move the viewport backward",
+    assert.equal(container.scrollTop, 580);
+    assert.deepEqual(
+      positions,
+      [540, 580],
+      "each committed stream height reaches the true bottom in the same turn",
     );
   } finally {
     if (originalWindow === undefined) {
@@ -502,75 +463,32 @@ test("streaming follow keeps one spring while the bottom target grows", async ()
   }
 });
 
-test("auto follow never reverses across transient bottom measurements", async () => {
+test("FOLLOW always resolves the current real bottom without a high-water target", async () => {
   const { BottomScrollAnimator } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
   );
   const originalWindow = globalThis.window;
-
+  globalThis.window = {
+    cancelAnimationFrame: () => {},
+    requestAnimationFrame: () => {
+      throw new Error("FOLLOW must not request an animation frame");
+    },
+  };
   try {
-    for (const frameIntervalMs of [1_000 / 20, 1_000 / 30]) {
-      const frames = [];
-      const positions = [];
-      globalThis.window = {
-        cancelAnimationFrame: () => {},
-        requestAnimationFrame: (callback) => {
-          frames.push(callback);
-          return frames.length;
-        },
-      };
-      const container = {
-        clientHeight: 500,
-        scrollHeight: 1_000,
-        scrollTop: 500,
-      };
-      const animator = new BottomScrollAnimator(
-        () => container,
-        (scrollTop) => positions.push(scrollTop),
-      );
-      const runFrame = (index) => {
-        const callback = frames.shift();
-        assert.ok(callback, `expected a queued frame at ${frameIntervalMs}ms`);
-        callback(index * frameIntervalMs);
-      };
+    const container = {
+      clientHeight: 500,
+      scrollHeight: 1_080,
+      scrollTop: 580,
+    };
+    const animator = new BottomScrollAnimator(() => container, () => {});
 
-      animator.follow();
-      container.scrollHeight = 1_080;
-      for (let frame = 0; frame < 3; frame += 1) {
-        runFrame(frame);
-      }
-      const beforeTransientShrink = container.scrollTop;
+    container.scrollHeight = 1_040;
+    animator.follow();
+    assert.equal(container.scrollTop, 540);
 
-      container.scrollHeight = 1_040;
-      animator.follow();
-      for (let frame = 3; frame < 6 && frames.length > 0; frame += 1) {
-        runFrame(frame);
-      }
-      assert.ok(
-        container.scrollTop >= beforeTransientShrink,
-        `${Math.round(1_000 / frameIntervalMs)}fps follow must ignore a temporary lower target`,
-      );
-
-      container.scrollHeight = 1_120;
-      animator.follow();
-      for (
-        let frame = 6;
-        frame < 180 && frames.length > 0;
-        frame += 1
-      ) {
-        runFrame(frame);
-      }
-      assert.ok(
-        Math.abs(container.scrollTop - 620) <= 0.001,
-        `${Math.round(1_000 / frameIntervalMs)}fps follow must settle at the later higher target`,
-      );
-      assert.ok(
-        positions.every((position, index) =>
-          index === 0 || position >= positions[index - 1]
-        ),
-        `${Math.round(1_000 / frameIntervalMs)}fps follow must keep every programmatic write monotonic`,
-      );
-    }
+    container.scrollHeight = 1_120;
+    animator.follow();
+    assert.equal(container.scrollTop, 620);
   } finally {
     if (originalWindow === undefined) {
       delete globalThis.window;
@@ -625,7 +543,7 @@ test("explicit smooth scroll may close against a lower bottom target", async () 
   }
 });
 
-test("auto follow releases its high-water target after a real browser clamp", async () => {
+test("a user-triggered smooth scroll remains the only animated bottom path", async () => {
   const { BottomScrollAnimator } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
   );
@@ -640,39 +558,23 @@ test("auto follow releases its high-water target after a real browser clamp", as
   };
 
   try {
-    let scrollHeight = 1_080;
-    let scrollTop = 500;
     const container = {
       clientHeight: 500,
-      get scrollHeight() {
-        return scrollHeight;
-      },
-      set scrollHeight(value) {
-        scrollHeight = value;
-        scrollTop = Math.min(scrollTop, value - this.clientHeight);
-      },
-      get scrollTop() {
-        return scrollTop;
-      },
-      set scrollTop(value) {
-        scrollTop = Math.min(value, scrollHeight - this.clientHeight);
-      },
+      scrollHeight: 1_080,
+      scrollTop: 500,
     };
     const animator = new BottomScrollAnimator(() => container, () => {});
-    animator.follow();
-    frames.shift()(0);
-    assert.ok(container.scrollTop > 500);
+    animator.scroll("smooth");
+    assert.equal(frames.length, 1);
 
-    container.scrollHeight = 1_040;
-    for (let frame = 1; frame < 30 && frames.length > 0; frame += 1) {
-      frames.shift()(frame * (1_000 / 60));
-    }
-    assert.equal(container.scrollTop, 540);
+    container.scrollHeight = 1_120;
+    animator.follow();
     assert.equal(
-      frames.length,
-      0,
-      "a permanent smaller layout must not leave the old high-water RAF spinning",
+      container.scrollTop,
+      500,
+      "FOLLOW revisions must not interrupt the explicit user navigation",
     );
+    assert.equal(frames.length, 1);
   } finally {
     if (originalWindow === undefined) {
       delete globalThis.window;
@@ -682,7 +584,7 @@ test("auto follow releases its high-water target after a real browser clamp", as
   }
 });
 
-test("streaming spring escapes subpixel scrollTop quantization", async () => {
+test("synchronous FOLLOW closes subpixel scrollTop quantization", async () => {
   const { BottomScrollAnimator } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
   );
@@ -722,7 +624,7 @@ test("streaming spring escapes subpixel scrollTop quantization", async () => {
     assert.equal(
       frames.length,
       0,
-      "a rounded scrollTop must settle instead of keeping RAF alive",
+      "a rounded scrollTop must close without starting RAF",
     );
   } finally {
     if (originalWindow === undefined) {
@@ -733,7 +635,7 @@ test("streaming spring escapes subpixel scrollTop quantization", async () => {
   }
 });
 
-test("streaming spring treats App resume as a fresh visible frame", async () => {
+test("FOLLOW has no suspended App frame to replay on resume", async () => {
   const { BottomScrollAnimator } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
   );
@@ -754,12 +656,11 @@ test("streaming spring treats App resume as a fresh visible frame", async () => 
     };
     const animator = new BottomScrollAnimator(() => container, () => {});
     animator.follow();
-    frames.shift()(0);
-    const beforeResume = container.scrollTop;
-    frames.shift()(5_000);
-    assert.ok(
-      container.scrollTop - beforeResume < 200,
-      "a long minimized/hidden gap must not be consumed as one giant spring step",
+    assert.equal(container.scrollTop, 1_000);
+    assert.equal(
+      frames.length,
+      0,
+      "resume cannot replay hidden FOLLOW motion because no RAF is retained",
     );
   } finally {
     if (originalWindow === undefined) {
@@ -770,7 +671,7 @@ test("streaming spring treats App resume as a fresh visible frame", async () => 
   }
 });
 
-test("active follow stops before a Composer or App viewport resize", async () => {
+test("FOLLOW has no active animation across a Composer or App viewport resize", async () => {
   const { BottomScrollAnimator } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
   );
@@ -795,19 +696,18 @@ test("active follow stops before a Composer or App viewport resize", async () =>
       (scrollTop) => observedPositions.push(scrollTop),
     );
     animator.follow();
-    container.clientHeight = 420;
-    frames.shift()(0);
+    assert.equal(container.scrollTop, 580);
+    assert.deepEqual(observedPositions, [580]);
+    assert.equal(frames.length, 0);
 
-    assert.equal(container.scrollTop, 500);
-    assert.deepEqual(
-      observedPositions,
-      [],
-      "the resize guard must stop before the animator writes scrollTop",
-    );
+    container.clientHeight = 420;
+    animator.follow();
+    assert.equal(container.scrollTop, 660);
+    assert.deepEqual(observedPositions, [580, 660]);
     assert.equal(
       frames.length,
       0,
-      "viewport resize must terminate the active follow transaction",
+      "viewport ownership changes must not leave a FOLLOW RAF behind",
     );
   } finally {
     if (originalWindow === undefined) {
@@ -1038,6 +938,48 @@ test("Room topology and atomic layout revisions exclude token speed", async () =
     topologyBefore,
     "a new Room member slot must change the topology revision",
   );
+  const permissionFirstTopology = buildConversationScrollTopologyKey(
+    "room:group:conversation-1",
+    [streamingMessage],
+    [],
+    [{
+      agent_id: "agent-3",
+      agent_round_id: "agent-round-3",
+      request_id: "permission-agent-3",
+      round_id: "historical-root",
+      tool_input: { command: "echo three" },
+      tool_name: "Bash",
+    }],
+  );
+  assert.notEqual(
+    permissionFirstTopology,
+    topologyBefore,
+    "a permission-first Room execution must change the topology before its slot arrives",
+  );
+  assert.equal(
+    buildConversationScrollTopologyKey(
+      "room:group:conversation-1",
+      [streamingMessage],
+      [{
+        agent_id: "agent-3",
+        agent_round_id: "agent-round-3",
+        msg_id: "slot-3",
+        round_id: "historical-root",
+        status: "pending",
+        timestamp: 3,
+      }],
+      [{
+        agent_id: "agent-3",
+        agent_round_id: "agent-round-3",
+        request_id: "permission-agent-3",
+        round_id: "historical-root",
+        tool_input: { command: "echo three" },
+        tool_name: "Bash",
+      }],
+    ),
+    permissionFirstTopology,
+    "the later slot must reuse the permission-first node instead of moving the reading anchor",
+  );
 
   const permission = {
     request_id: "permission-1",
@@ -1065,13 +1007,80 @@ test("Room topology and atomic layout revisions exclude token speed", async () =
       [permission],
     ),
     atomicBefore,
-    "terminal component replacement must be an explicit atomic revision",
+    "the terminal state transition must remain an explicit atomic revision",
   );
 });
 
-test("Room handles every pending runtime human interaction without opening Thread", async () => {
-  const { GroupAgentStatusCard } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/thread/round-card/group-agent-status-card.tsx",
+test("pending interactions keep first position and latest request snapshot", async () => {
+  const { coalescePendingPermissions } = await server.ssrLoadModule(
+    "/src/lib/conversation/pending-permission-match.ts",
+  );
+  const { resolveMessageItemPermissions } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-permissions.ts",
+  );
+  const { resolvePendingInteractionOwner } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/message-item-projection.ts",
+  );
+  const first = {
+    message_id: "assistant-permission-owner",
+    request_id: "request-stable",
+    summary: "旧快照",
+    tool_input: { command: "echo stable" },
+    tool_name: "Bash",
+    tool_use_id: "tool-stable",
+  };
+  const other = {
+    request_id: "request-other",
+    tool_input: { path: "/tmp/report" },
+    tool_name: "Read",
+  };
+  const latest = {
+    ...first,
+    summary: "最新快照",
+  };
+  assert.deepEqual(
+    coalescePendingPermissions([first, other, latest]),
+    [latest, other],
+    "a repeated request updates in place instead of creating a second surface",
+  );
+
+  const assistant = {
+    agent_id: "agent-1",
+    content: [{
+      id: "tool-stable",
+      input: { command: "echo stable" },
+      name: "Bash",
+      type: "tool_use",
+    }],
+    message_id: "assistant-permission-owner",
+    role: "assistant",
+    round_id: "round-permission-owner",
+    session_key: "room:group:conversation-1",
+    stream_status: "streaming",
+    timestamp: 1,
+  };
+  const projection = resolveMessageItemPermissions(
+    [assistant],
+    [first, other, latest],
+  );
+  assert.deepEqual(projection.pendingInteractionPermissions, [latest, other]);
+  assert.equal(
+    projection.matchedPendingPermissionsByToolUseId.get("tool-stable"),
+    latest,
+  );
+  assert.deepEqual(projection.unmatchedPendingPermissions, [other]);
+  assert.equal(resolvePendingInteractionOwner("room_result"), "composer");
+  assert.equal(resolvePendingInteractionOwner("room_thread"), "composer");
+  assert.equal(resolvePendingInteractionOwner("dm_live"), "composer");
+  assert.equal(resolvePendingInteractionOwner("dm_archived"), "composer");
+});
+
+test("Room keeps every pending runtime human interaction in the Composer", async () => {
+  const { ComposerInteractionSurface } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/interaction/composer-interaction-surface.tsx",
+  );
+  const { GroupAgentExecutionShell } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-execution-shell.tsx",
   );
   const { GroupConversationRound } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/feed/group-conversation-round.tsx",
@@ -1158,8 +1167,48 @@ test("Room handles every pending runtime human interaction without opening Threa
     ),
   );
 
+  const composerHtml = renderToStaticMarkup(provider(React.createElement(
+    ComposerInteractionSurface,
+    {
+      agentAvatarMap: { "agent-1": null },
+      agentNameMap: { "agent-1": "Dev" },
+      onResponse: () => true,
+      permissions: [
+        permission,
+        questionPermission,
+        planConfirmation,
+        futureApproval,
+      ],
+    },
+  )));
+  assert.match(composerHtml, /data-composer-interaction-surface="true"/);
+  assert.match(composerHtml, /Dev/);
+  assert.match(composerHtml, /echo permission-required/);
+  assert.match(composerHtml, /1 \/ 4/);
+  assert.match(composerHtml, />允许本次</);
+  assert.match(composerHtml, />拒绝</);
+  assert.doesNotMatch(
+    composerHtml,
+    /这次分析采用哪种研究口径？/,
+    "Composer must show only the first request in the stable queue",
+  );
+  const nextComposerHtml = renderToStaticMarkup(provider(React.createElement(
+    ComposerInteractionSurface,
+    {
+      onResponse: () => true,
+      permissions: [
+        questionPermission,
+        planConfirmation,
+        futureApproval,
+      ],
+    },
+  )));
+  assert.match(nextComposerHtml, /这次分析采用哪种研究口径？/);
+  assert.match(nextComposerHtml, /1 \/ 3/);
+  assert.match(nextComposerHtml, /继续协作/);
+
   const agentCardHtml = renderToStaticMarkup(provider(React.createElement(
-    GroupAgentStatusCard,
+    GroupAgentExecutionShell,
     {
       agentAvatar: null,
       agentId: "agent-1",
@@ -1174,43 +1223,41 @@ test("Room handles every pending runtime human interaction without opening Threa
         planConfirmation,
         futureApproval,
       ],
+      roundId: "round-root:agent-1:agent-round-1",
       status: "pending",
       timestamp: 1,
     },
   )));
+  assert.doesNotMatch(agentCardHtml, /data-human-interaction-surface/);
+  assert.doesNotMatch(agentCardHtml, />允许</);
+  assert.doesNotMatch(agentCardHtml, />拒绝</);
+  assert.doesNotMatch(agentCardHtml, /继续协作/);
+  const adjacentAgentHtml = renderToStaticMarkup(provider(React.createElement(
+    GroupAgentExecutionShell,
+    {
+      agentAvatar: null,
+      agentId: "agent-2",
+      agentName: "Review",
+      isThreadActive: false,
+      messages: [],
+      onClickThread: () => {},
+      onPermissionResponse: () => true,
+      pendingPermissions: [],
+      roundId: "round-root:agent-2:agent-round-2",
+      showAgentBoundary: true,
+      status: "pending",
+      timestamp: 2,
+    },
+  )));
   assert.match(
-    agentCardHtml,
-    /echo permission-required/,
-    "Agent 卡片必须直接展示待审批操作的具体内容",
-  );
-  assert.match(agentCardHtml, />允许</);
-  assert.match(agentCardHtml, />拒绝</);
-  assert.match(
-    agentCardHtml,
-    /这次分析采用哪种研究口径？/,
-    "结构化问题必须直接在活动 Agent 卡片中作答",
-  );
-  assert.match(agentCardHtml, /保守/);
-  assert.match(agentCardHtml, /继续协作/);
-  assert.match(
-    agentCardHtml,
-    /先验证数据源，再生成最终报告/,
-    "计划确认必须与普通工具审批一样直接出现在公区",
-  );
-  assert.match(
-    agentCardHtml,
-    /将报告发布到共享工作区/,
-    "未知的新人工审批类型必须回退到公区通用控件",
-  );
-  assert.match(
-    agentCardHtml,
-    /data-human-interaction-surface/,
-    "统一人工介入边界必须由公共渲染入口标记",
+    adjacentAgentHtml,
+    /data-conversation-agent-boundary/,
+    "相邻 Agent 只用局部身份提示建立边界",
   );
   assert.doesNotMatch(
-    agentCardHtml,
-    />去回答</,
-    "公区不得再用跳转 Thread 代替完整回答控件",
+    adjacentAgentHtml,
+    /conversation-round-divider/,
+    "Room 主 Feed 的 Agent 边界不能再伪装成 Markdown 全宽分隔线",
   );
 
   const permissionOnlyRoundHtml = renderToStaticMarkup(provider(
@@ -1239,23 +1286,16 @@ test("Room handles every pending runtime human interaction without opening Threa
           futureApproval,
         ],
         pendingSlots: [],
+        roomAgentExecutionStates: [],
         rootRoundId: "round-root",
         roundId: "round-root",
       },
     }),
   ));
-  assert.match(
-    permissionOnlyRoundHtml,
-    /echo permission-required/,
-    "权限先于 Agent 消息到达时，主 Room 也不能丢失审批入口",
-  );
-  assert.match(
-    permissionOnlyRoundHtml,
-    /这次分析采用哪种研究口径？/,
-    "问题先于 Agent 消息到达时，主 Room 也必须保留完整回答入口",
-  );
-  assert.match(permissionOnlyRoundHtml, /先验证数据源，再生成最终报告/);
-  assert.match(permissionOnlyRoundHtml, /将报告发布到共享工作区/);
+  assert.doesNotMatch(permissionOnlyRoundHtml, /data-human-interaction-surface/);
+  assert.doesNotMatch(permissionOnlyRoundHtml, />允许</);
+  assert.doesNotMatch(permissionOnlyRoundHtml, />拒绝</);
+  assert.doesNotMatch(permissionOnlyRoundHtml, /继续协作/);
 
   const completedToolMessage = {
     ...assistantMessage({
@@ -1310,6 +1350,8 @@ test("Room handles every pending runtime human interaction without opening Threa
     messageGroups: completedProjection.messageGroups,
     pendingPermissionGroups: completedProjection.pendingPermissionGroups,
     pendingSlotGroups: completedProjection.pendingSlotGroups,
+    roomAgentExecutionStateGroups:
+      completedProjection.roomAgentExecutionStateGroups,
     rootRoundIds: completedProjection.rootRoundIds,
     roundIds: completedProjection.roundIds,
   }, 0);
@@ -1334,24 +1376,13 @@ test("Room handles every pending runtime human interaction without opening Threa
   ));
   assert.match(
     completedRoundHtml,
-    /Apple M3 vs M4 vs M5 chip comparison specifications/,
-    "工具消息进入完成态后，主 Room 仍必须展示待确认操作",
+    /Goal[\s\S]*已设定，现在开始调研/,
+    "the Room timeline keeps its public reply while Composer owns approval",
   );
-  assert.match(completedRoundHtml, /这次分析采用哪种研究口径？/);
-  assert.equal(
-    completedRoundHtml.match(/这次分析采用哪种研究口径？/g)?.length,
-    1,
-    "a terminal Room card must not render the same pending question twice",
-  );
-  assert.match(completedRoundHtml, />允许</);
-  assert.match(completedRoundHtml, />拒绝</);
-  assert.match(completedRoundHtml, /继续协作/);
-  assert.equal(
-    completedRoundHtml.match(/data-human-interaction-surface/g)?.length,
-    1,
-    "the hidden terminal tool and its standalone interaction must share one surface",
-  );
-  assert.doesNotMatch(completedRoundHtml, /等待提问就绪/);
+  assert.doesNotMatch(completedRoundHtml, />允许</);
+  assert.doesNotMatch(completedRoundHtml, />拒绝</);
+  assert.doesNotMatch(completedRoundHtml, /继续协作/);
+  assert.doesNotMatch(completedRoundHtml, /data-human-interaction-surface/);
 
   const questionOnlyMessage = {
     ...completedToolMessage,
@@ -1380,6 +1411,8 @@ test("Room handles every pending runtime human interaction without opening Threa
     messageGroups: questionOnlyProjection.messageGroups,
     pendingPermissionGroups: questionOnlyProjection.pendingPermissionGroups,
     pendingSlotGroups: questionOnlyProjection.pendingSlotGroups,
+    roomAgentExecutionStateGroups:
+      questionOnlyProjection.roomAgentExecutionStateGroups,
     rootRoundIds: questionOnlyProjection.rootRoundIds,
     roundIds: questionOnlyProjection.roundIds,
   }, 0);
@@ -1399,22 +1432,13 @@ test("Room handles every pending runtime human interaction without opening Threa
       state: questionOnlyState,
     }),
   ));
-  assert.equal(
-    questionOnlyHtml.match(/这次分析采用哪种研究口径？/g)?.length,
-    1,
-    "a visible terminal question tool must become the sole interaction surface",
-  );
-  assert.match(questionOnlyHtml, /保守/);
-  assert.match(questionOnlyHtml, /继续协作/);
-  assert.match(questionOnlyHtml, />拒绝</);
-  assert.equal(
-    questionOnlyHtml.match(/data-human-interaction-surface/g)?.length,
-    1,
-  );
-  assert.doesNotMatch(questionOnlyHtml, /等待提问就绪/);
+  assert.doesNotMatch(questionOnlyHtml, /继续协作/);
+  assert.doesNotMatch(questionOnlyHtml, />允许</);
+  assert.doesNotMatch(questionOnlyHtml, />拒绝</);
+  assert.doesNotMatch(questionOnlyHtml, /data-human-interaction-surface/);
 });
 
-test("Room keeps tool-time summary and shows the terminal result in the same slot", async () => {
+test("Room streams and completes inside one stable Agent execution shell", async () => {
   const { GroupAgentReply } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-agent-reply.tsx",
   );
@@ -1498,12 +1522,21 @@ test("Room keeps tool-time summary and shows the terminal result in the same slo
     timestamp: 3,
   });
 
-  assert.doesNotMatch(
+  assert.match(
     activeHtml,
     new RegExp(tailMarker),
-    "tool-time Room content stays behind the bounded execution summary",
+    "the public Room reply must grow in place while the Agent is streaming",
   );
-  assert.match(activeHtml, /line-clamp-1/);
+  assert.match(
+    activeHtml,
+    /正在回复/,
+    "the shared activity indicator must remain visible in the public reply",
+  );
+  assert.doesNotMatch(
+    activeHtml,
+    /line-clamp-1/,
+    "the live reply must not collapse into a one-line status preview",
+  );
   assert.match(
     terminalHtml,
     new RegExp(tailMarker),
@@ -1511,8 +1544,25 @@ test("Room keeps tool-time summary and shows the terminal result in the same slo
   );
   assert.doesNotMatch(
     terminalHtml,
-    /line-clamp-1/,
-    "the same Room slot switches from its bounded summary to the full result",
+    /正在回复/,
+    "terminal Room replies must remove the transient activity indicator",
+  );
+  assert.equal(
+    activeHtml.match(/data-room-agent-execution-shell/g)?.length,
+    1,
+  );
+  assert.equal(
+    terminalHtml.match(/data-room-agent-execution-shell/g)?.length,
+    1,
+  );
+  assert.match(
+    activeHtml,
+    /data-room-agent-execution-shell="round-root:agent-stream:agent-round:agent-round-stream"/,
+  );
+  assert.match(
+    terminalHtml,
+    /data-room-agent-execution-shell="round-root:agent-stream:agent-round:agent-round-stream"/,
+    "pending and terminal snapshots must retain the same outer execution identity",
   );
   const statusBeforeResultHtml = renderReply({
     ...entry,
@@ -1524,13 +1574,114 @@ test("Room keeps tool-time summary and shows the terminal result in the same slo
   });
   assert.match(
     statusBeforeResultHtml,
-    /line-clamp-1/,
-    "terminal lifecycle status alone must keep the running card until its terminal message arrives",
-  );
-  assert.doesNotMatch(
-    statusBeforeResultHtml,
     new RegExp(tailMarker),
-    "the result view must wait for terminal message evidence",
+    "a terminal lifecycle event must not replace or hide the already visible stream",
+  );
+});
+
+test("Room public activity survives the pause between reply text and tool work", async () => {
+  const { GroupAgentExecutionShell } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-execution-shell.tsx",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const renderShell = (props) => renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(GroupAgentExecutionShell, {
+        agentAvatar: null,
+        agentId: "agent-public-activity",
+        agentName: "Researcher",
+        isThreadActive: false,
+        onClickThread: () => {},
+        onPermissionResponse: () => true,
+        pendingPermissions: [],
+        roundId: "round-public-activity:agent-public-activity",
+        timestamp: 1,
+        ...props,
+      }),
+    ),
+  );
+
+  const pendingHtml = renderShell({
+    messages: [],
+    status: "pending",
+  });
+  assert.match(pendingHtml, /正在思考/);
+  assert.match(
+    pendingHtml,
+    /room-agent-execution-enter/,
+    "the first pending shell receives one bounded compositor-only entrance animation",
+  );
+  assert.equal(
+    pendingHtml.match(/message-activity-spinner-track/g)?.length,
+    1,
+    "a pending slot uses the shared activity surface exactly once",
+  );
+
+  const toolContinuation = {
+    ...assistantMessage({
+      agentId: "agent-public-activity",
+      agentRoundId: "agent-round-public-activity",
+      isComplete: true,
+      messageId: "assistant-public-tool-turn",
+      roundId: "round-public-activity",
+      status: "done",
+      stopReason: "tool_use",
+      text: "我先搜索产品线信息。",
+      timestamp: 2,
+    }),
+    content: [
+      { type: "text", text: "我先搜索产品线信息。" },
+      {
+        id: "tool-public-search",
+        input: { query: "M3 product line" },
+        name: "WebSearch",
+        type: "tool_use",
+      },
+    ],
+  };
+  const workingHtml = renderShell({
+    messages: [toolContinuation],
+    status: "streaming",
+  });
+  assert.match(workingHtml, /我先搜索产品线信息。/);
+  assert.match(
+    workingHtml,
+    /正在浏览/,
+    "tool continuation remains visibly active after its preceding text stops streaming",
+  );
+  assert.equal(
+    workingHtml.match(/message-activity-spinner-track/g)?.length,
+    1,
+    "the public tool activity appends to the same MessageItem instead of adding a second card",
+  );
+
+  const terminalHtml = renderShell({
+    messages: [{
+      ...toolContinuation,
+      result_summary: {
+        duration_api_ms: 10,
+        duration_ms: 20,
+        is_error: false,
+        message_id: "result-public-activity",
+        num_turns: 1,
+        result: "研究完成。",
+        subtype: "success",
+        timestamp: 3,
+      },
+      stop_reason: "end_turn",
+      timestamp: 3,
+    }],
+    status: "done",
+    timestamp: 3,
+  });
+  assert.doesNotMatch(terminalHtml, /正在浏览/);
+  assert.equal(
+    terminalHtml.match(/data-room-agent-execution-shell/g)?.length,
+    1,
   );
 });
 
@@ -1956,6 +2107,7 @@ test("Room no-reply terminal status closes its published thinking snapshot", asy
     onPermissionResponse: () => true,
     pendingPermissionGroups: new Map(),
     pendingSlotGroups: new Map(),
+    roomAgentExecutionStateGroups: new Map(),
   }, {
     agentId: "agent-lucy",
     agentRoundId: "agent-round-no-reply",
@@ -2010,21 +2162,66 @@ test("blocked goals stay inline instead of opening a resume confirmation", async
   assert.deepEqual(projection.dialog, { kind: "none" });
 });
 
-test("Room no-reply control markers never become visible assistant blocks", async () => {
-  const { buildVisibleOrderedAssistantEntries } = await server.ssrLoadModule(
+test("Room orchestration control markers never become visible assistant blocks", async () => {
+  const {
+    buildVisibleOrderedAssistantEntries,
+  } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/controller/projection/message-item-ordering.ts",
   );
-  const entries = buildVisibleOrderedAssistantEntries({
+  const { getResultSummaryDisplayText } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-stats.ts",
+  );
+  for (const marker of [
+    "<nexus_room_no_reply/>",
+    "<nexus_room_fanout/>",
+    "<NEXUS_ROOM_FANOUT />",
+  ]) {
+    const entries = buildVisibleOrderedAssistantEntries({
+      hiddenToolNames: new Set(),
+      hiddenToolUseIds: new Set(),
+      isLoading: false,
+      mergedContent: [{ type: "text", text: marker }],
+      mergedContentSourceMessageIds: ["assistant-control-marker"],
+      sourceMessageOrderById: new Map([["assistant-control-marker", 0]]),
+      systemEventBlocks: [],
+    });
+    assert.deepEqual(entries, []);
+    assert.equal(
+      getResultSummaryDisplayText({ result: marker }),
+      null,
+      "结果与复制投影也不能恢复内部控制标记",
+    );
+  }
+  assert.deepEqual(
+    buildVisibleOrderedAssistantEntries({
+      hiddenToolNames: new Set(),
+      hiddenToolUseIds: new Set(),
+      isLoading: false,
+      mergedContent: [{
+        type: "thinking",
+        thinking: "<nexus_room_fanout/>",
+      }],
+      mergedContentSourceMessageIds: ["assistant-thinking-marker"],
+      sourceMessageOrderById: new Map([["assistant-thinking-marker", 0]]),
+      systemEventBlocks: [],
+    }),
+    [],
+    "内部标记即使误入 thinking 也不能占据过程高度",
+  );
+
+  const [visibleEntry] = buildVisibleOrderedAssistantEntries({
     hiddenToolNames: new Set(),
     hiddenToolUseIds: new Set(),
     isLoading: false,
-    mergedContent: [{ type: "text", text: "<nexus_room_no_reply/>" }],
-    mergedContentSourceMessageIds: ["assistant-no-reply"],
-    sourceMessageOrderById: new Map([["assistant-no-reply", 0]]),
+    mergedContent: [{
+      type: "text",
+      text: "请 Ban 和 Kevin 并行处理。<nexus_room_fanout/>",
+    }],
+    mergedContentSourceMessageIds: ["assistant-fanout"],
+    sourceMessageOrderById: new Map([["assistant-fanout", 0]]),
     systemEventBlocks: [],
   });
-
-  assert.deepEqual(entries, []);
+  assert.equal(visibleEntry.block.text, "请 Ban 和 Kevin 并行处理。");
 });
 
 test("recoverable malformed tool results stay out of the user timeline", async () => {
@@ -2128,6 +2325,712 @@ test("recoverable malformed tool use does not keep the activity indicator busy",
       resolvedToolUseIds: new Set(),
     }),
     "thinking",
+  );
+});
+
+test("DM live keeps one stable open segment across consecutive tool patches", async () => {
+  const { projectDmToolRunSegments } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
+  );
+  const toolA = {
+    type: "tool_use",
+    id: "tool-run-a",
+    name: "Read",
+    input: { file_path: "a.ts" },
+  };
+  const resultA = {
+    type: "tool_result",
+    tool_use_id: toolA.id,
+    content: "a",
+  };
+  const toolB = {
+    type: "tool_use",
+    id: "tool-run-b",
+    name: "Grep",
+    input: { pattern: "needle" },
+  };
+  const resultB = {
+    type: "tool_result",
+    tool_use_id: toolB.id,
+    content: "b",
+  };
+  const project = (
+    content,
+    { live = true, responseResumed = false } = {},
+  ) => projectDmToolRunSegments({
+    interactiveToolUseIds: new Set(),
+    live,
+    projection: { content, streamingIndexes: new Set() },
+    responseResumed,
+  });
+
+  for (const content of [
+    [toolA],
+    [toolA, resultA],
+    [toolA, resultA, toolB],
+    [toolA, resultA, toolB, resultB],
+  ]) {
+    const [segment] = project(content);
+    assert.equal(segment.kind, "tool_run");
+    assert.equal(segment.id, "tool-run:tool-run-a");
+    assert.equal(segment.phase, "active");
+  }
+
+  const [completed] = project(
+    [toolA, resultA, toolB, resultB],
+    { responseResumed: true },
+  );
+  assert.equal(completed.id, "tool-run:tool-run-a");
+  assert.equal(completed.phase, "complete");
+  assert.equal(completed.summary, "2 次工具调用 · 已完成");
+
+  const [unresolvedDuringResponse] = project(
+    [toolA],
+    { responseResumed: true },
+  );
+  assert.equal(
+    unresolvedDuringResponse.phase,
+    "active",
+    "a stale response boundary cannot collapse an unresolved newer tool",
+  );
+
+  const [terminal] = project(
+    [toolA, resultA, toolB, resultB],
+    { live: false },
+  );
+  assert.equal(terminal.phase, "complete");
+});
+
+test("DM tool segments split on narrative and preserve interactions and errors", async () => {
+  const { projectDmToolRunSegments } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
+  );
+  const failedTool = {
+    type: "tool_use",
+    id: "tool-failed",
+    name: "Bash",
+    input: { command: "false" },
+  };
+  const questionTool = {
+    type: "tool_use",
+    id: "tool-question-boundary",
+    name: "AskUserQuestion",
+    input: { questions: [] },
+  };
+  const permissionTool = {
+    type: "tool_use",
+    id: "tool-permission-boundary",
+    name: "Write",
+    input: { file_path: "answer.md" },
+  };
+  const trailingTool = {
+    type: "tool_use",
+    id: "tool-after-boundaries",
+    name: "Read",
+    input: { file_path: "answer.md" },
+  };
+  const content = [
+    failedTool,
+    {
+      type: "tool_result",
+      tool_use_id: failedTool.id,
+      content: "exit 1",
+      is_error: true,
+    },
+    {
+      type: "task_progress",
+      task_id: "task-failed",
+      description: "command finished",
+      tool_use_id: failedTool.id,
+    },
+    {
+      type: "system_event",
+      content: "retry exhausted",
+      icon: "retry",
+      label: "Retry",
+      source_message_id: "system-failed",
+      subtype: "api_retry",
+      timestamp: 3,
+      tone: "warning",
+      tool_use_id: failedTool.id,
+    },
+    {
+      type: "workspace_file_artifact",
+      path: "failure.log",
+      source_tool_use_id: failedTool.id,
+    },
+    { type: "thinking", thinking: "调整方案" },
+    questionTool,
+    {
+      type: "tool_result",
+      tool_use_id: questionTool.id,
+      content: "answered",
+    },
+    permissionTool,
+    {
+      type: "tool_result",
+      tool_use_id: permissionTool.id,
+      content: "allowed",
+    },
+    trailingTool,
+  ];
+  const [activeFailedSegment] = projectDmToolRunSegments({
+    interactiveToolUseIds: new Set(),
+    live: true,
+    projection: {
+      content: content.slice(0, 2),
+      streamingIndexes: new Set(),
+    },
+    responseResumed: false,
+  });
+  assert.equal(
+    activeFailedSegment.summary,
+    "1 次工具调用 · 正在执行 · 1 个异常",
+  );
+  const segments = projectDmToolRunSegments({
+    interactiveToolUseIds: new Set([permissionTool.id]),
+    live: true,
+    projection: {
+      content,
+      streamingIndexes: new Set([5]),
+    },
+    responseResumed: false,
+  });
+
+  assert.deepEqual(
+    segments.map(({ id, kind, phase }) => ({ id, kind, phase })),
+    [
+      {
+        id: "tool-run:tool-failed",
+        kind: "tool_run",
+        phase: "complete",
+      },
+      { id: "content:thinking:5", kind: "content", phase: undefined },
+      {
+        id: "interactive-tool:tool-question-boundary",
+        kind: "content",
+        phase: undefined,
+      },
+      {
+        id: "interactive-tool:tool-permission-boundary",
+        kind: "content",
+        phase: undefined,
+      },
+      {
+        id: "tool-run:tool-after-boundaries",
+        kind: "tool_run",
+        phase: "active",
+      },
+    ],
+  );
+  const failedSegment = segments[0];
+  assert.equal(failedSegment.errorCount, 1);
+  assert.equal(failedSegment.summary, "1 次工具调用 · 已完成 · 1 个异常");
+  assert.deepEqual(
+    failedSegment.projection.content.map(({ type }) => type),
+    [
+      "tool_use",
+      "tool_result",
+      "task_progress",
+      "system_event",
+      "workspace_file_artifact",
+    ],
+  );
+  assert.deepEqual(
+    [...segments[1].projection.streamingIndexes],
+    [0],
+    "segment slicing remaps the original streaming block index",
+  );
+  assert.deepEqual(
+    segments[2].projection.content.map(({ type }) => type),
+    ["tool_use", "tool_result"],
+    "AskUserQuestion keeps its own stable interaction segment",
+  );
+  assert.deepEqual(
+    segments[3].projection.content.map(({ type }) => type),
+    ["tool_use", "tool_result"],
+    "a pending permission tool stays outside the collapsible run",
+  );
+});
+
+test("DM tool run view expands only the active segment and leaves Room direct content unchanged", async () => {
+  const { AssistantDmToolRuns } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
+  );
+  const { AssistantMessageContent } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-message-content.tsx",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const tool = {
+    type: "tool_use",
+    id: "tool-view",
+    name: "Read",
+    input: { file_path: "view.ts" },
+  };
+  const unresolvedProjection = {
+    content: [tool],
+    streamingIndexes: new Set(),
+  };
+  const resolvedProjection = {
+    content: [
+      tool,
+      {
+        type: "tool_result",
+        tool_use_id: tool.id,
+        content: "view",
+      },
+    ],
+    streamingIndexes: new Set(),
+  };
+  const roomProjection = {
+    content: [{
+      type: "tool_use",
+      id: "tool-room-view",
+      name: "Read",
+      input: { file_path: "view.ts" },
+    }],
+    streamingIndexes: new Set(),
+  };
+  const activity = {
+    emptyStreamStatus: null,
+    showCursor: true,
+    standalone: false,
+    state: "executing",
+  };
+  const permissions = {
+    all: [],
+    matchedByToolUseId: new Map(),
+    owner: "content",
+    unmatched: [],
+  };
+  const environment = {
+    canRespondToPermissions: true,
+    hiddenToolNames: [],
+    mode: "dm_live",
+  };
+  const renderDm = (
+    responseResumed,
+    projection = resolvedProjection,
+  ) => renderToStaticMarkup(
+    React.createElement(AssistantDmToolRuns, {
+      activity,
+      environment,
+      permissions,
+      projection,
+      responseResumed,
+    }),
+  );
+
+  const activeHtml = renderDm(false);
+  assert.match(
+    activeHtml,
+    /data-conversation-process-group-id="tool-run:tool-view"/,
+  );
+  assert.match(activeHtml, /data-dm-tool-run-phase="active"/);
+  assert.match(activeHtml, /aria-expanded="true"/);
+  assert.match(activeHtml, /读取内容/);
+
+  const completedHtml = renderDm(true);
+  assert.match(completedHtml, /data-dm-tool-run-phase="complete"/);
+  assert.match(completedHtml, /aria-expanded="false"/);
+  assert.doesNotMatch(
+    completedHtml,
+    /读取内容/,
+    "completed tool details stay out of the live reading path until expanded",
+  );
+
+  const unresolvedResponseHtml = renderDm(true, unresolvedProjection);
+  assert.match(unresolvedResponseHtml, /data-dm-tool-run-phase="active"/);
+  assert.match(unresolvedResponseHtml, /aria-expanded="true"/);
+
+  const staleFinalHtml = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(AssistantMessageContent, {
+        activity,
+        direct: { projection: unresolvedProjection, visible: true },
+        environment,
+        final: {
+          content: "先前已经显示的正文",
+          isStreaming: false,
+          mentions: [],
+          streamingIndexes: new Set(),
+          visible: true,
+        },
+        permissions: { ...permissions, owner: "composer" },
+        process: {
+          anchorRef: { current: null },
+          expanded: false,
+          projection: { content: [], streamingIndexes: new Set() },
+          summary: "",
+          toggle: () => {},
+          visible: false,
+        },
+        showMaxTokensWarning: false,
+      }),
+    ),
+  );
+  assert.match(
+    staleFinalHtml,
+    /data-dm-tool-run-phase="active"/,
+    "old final text already visible must not close a newer live tool",
+  );
+  assert.match(staleFinalHtml, /aria-expanded="true"/);
+
+  const roomHtml = renderToStaticMarkup(
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(AssistantMessageContent, {
+        activity,
+        direct: { projection: roomProjection, visible: true },
+        environment: { ...environment, mode: "room_thread" },
+        final: {
+          content: null,
+          isStreaming: false,
+          mentions: [],
+          streamingIndexes: new Set(),
+          visible: false,
+        },
+        permissions: { ...permissions, owner: "composer" },
+        process: {
+          anchorRef: { current: null },
+          expanded: false,
+          projection: { content: [], streamingIndexes: new Set() },
+          summary: "",
+          toggle: () => {},
+          visible: false,
+        },
+        showMaxTokensWarning: false,
+      }),
+    ),
+  );
+  assert.doesNotMatch(roomHtml, /data-dm-tool-run-list/);
+  assert.match(roomHtml, /读取内容/);
+});
+
+test("thinking and replying indicators render a real stepped frame track", async () => {
+  const { MessageActivityStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/message-activity-status.tsx",
+  );
+
+  for (const [state, label] of [
+    ["thinking", "正在思考"],
+    ["replying", "正在回复"],
+  ]) {
+    const html = renderToStaticMarkup(
+      React.createElement(MessageActivityStatus, { state }),
+    );
+    assert.match(html, new RegExp(label));
+    assert.match(html, /message-activity-spinner-track/);
+    assert.match(
+      html,
+      /animation:nexus-message-activity-frames [^;]+ steps\((?:[2-9]|[1-9][0-9]+), end\) infinite/,
+      `${state} must animate through multiple frames instead of freezing one glyph`,
+    );
+  }
+});
+
+test("smooth streaming reveal stays incremental under normal and pressured backlogs", async () => {
+  const { resolveSmoothStreamingRevealCount } = await server.ssrLoadModule(
+    "/src/shared/ui/markdown/streaming/use-smooth-streaming-markdown-content.ts",
+  );
+
+  assert.equal(
+    resolveSmoothStreamingRevealCount({
+      backlog: 4,
+      frameIntervalMs: 16,
+      inputActive: true,
+    }),
+    0,
+    "an active stream keeps a tiny target lag instead of flashing every transport chunk",
+  );
+  assert.equal(
+    resolveSmoothStreamingRevealCount({
+      backlog: 10,
+      frameIntervalMs: 16,
+      inputActive: true,
+    }),
+    1,
+    "ordinary input reveals a readable character-scale increment",
+  );
+  const pressuredReveal = resolveSmoothStreamingRevealCount({
+    backlog: 240,
+    frameIntervalMs: 16,
+    inputActive: true,
+  });
+  assert.ok(pressuredReveal > 1 && pressuredReveal <= 10);
+  assert.equal(
+    resolveSmoothStreamingRevealCount({
+      backlog: 3,
+      frameIntervalMs: 16,
+      inputActive: false,
+    }),
+    3,
+    "an idle stream flushes its final characters without leaving a permanent lag",
+  );
+});
+
+test("live empty text mounts before the first stream batch while history stays sparse", async () => {
+  const { shouldMountTextContentBlock } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer-model.ts",
+  );
+
+  assert.equal(
+    shouldMountTextContentBlock("", true),
+    true,
+    "a new live block must establish its Markdown identity before the first text batch",
+  );
+  assert.equal(
+    shouldMountTextContentBlock("   ", false),
+    false,
+    "an empty historical block must not create layout height",
+  );
+  assert.equal(
+    shouldMountTextContentBlock("历史正文", false),
+    true,
+    "historical text remains immediately renderable on first mount",
+  );
+});
+
+test("same-RAF live text starts empty while history and recovery snapshots stay immediate", async () => {
+  const { MarkdownRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/markdown-renderer.tsx",
+  );
+  const {
+    clearLiveStreamRevealMarkers,
+    hasLiveStreamRevealMarker,
+  } = await server.ssrLoadModule(
+    "/src/lib/conversation/live-stream-reveal.ts",
+  );
+  const { applyStreamPayloadBatchForActiveSession } =
+    await server.ssrLoadModule(
+      "/src/hooks/agent/transport/use-conversation-stream-buffer.ts",
+    );
+  const { upsertMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/message-collection-model.ts",
+  );
+
+  const sessionKey = "room:group:first-frame";
+  const base = {
+    agent_id: "agent-1",
+    message_id: "assistant-first-frame",
+    round_id: "round-first-frame",
+    session_key: sessionKey,
+    timestamp: 1,
+  };
+  const liveMessages = applyStreamPayloadBatchForActiveSession(
+    [],
+    [
+      { ...base, type: "message_start" },
+      {
+        ...base,
+        content_block: { type: "text", text: "" },
+        index: 0,
+        type: "content_block_start",
+      },
+      {
+        ...base,
+        content_block: { type: "text", text: "首批完整正文" },
+        index: 0,
+        type: "content_block_delta",
+      },
+    ],
+    sessionKey,
+    sessionKey,
+  );
+  const liveBlock = liveMessages[0]?.content[0];
+  assert.equal(hasLiveStreamRevealMarker(liveBlock), true);
+
+  const liveHtml = renderToStaticMarkup(React.createElement(
+    MarkdownRenderer,
+    {
+      content: liveBlock.text,
+      initialRevealFromEmpty: hasLiveStreamRevealMarker(liveBlock),
+      isStreaming: true,
+    },
+  ));
+  assert.doesNotMatch(
+    liveHtml,
+    /首批完整正文/,
+    "a non-empty first transport batch must enter the local backlog before any text is painted",
+  );
+
+  const historicalHtml = renderToStaticMarkup(React.createElement(
+    MarkdownRenderer,
+    {
+      content: "恢复中的历史正文",
+      isStreaming: true,
+    },
+  ));
+  assert.match(
+    historicalHtml,
+    /恢复中的历史正文/,
+    "an active snapshot without the local live marker must not replay from the beginning",
+  );
+
+  const placeholder = applyStreamPayloadBatchForActiveSession(
+    [],
+    [{ ...base, message_id: "assistant-snapshot-first", type: "message_start" }],
+    sessionKey,
+    sessionKey,
+  );
+  const snapshotFirst = upsertMessage(placeholder, {
+    ...base,
+    content: [{ type: "text", text: "终态快照首批正文" }],
+    is_complete: true,
+    message_id: "assistant-snapshot-first",
+    role: "assistant",
+    stop_reason: "end_turn",
+    stream_status: "done",
+  });
+  assert.equal(
+    hasLiveStreamRevealMarker(snapshotFirst[0]?.content[0]),
+    true,
+    "a canonical snapshot in the message_start task must preserve the local first-frame contract",
+  );
+
+  const cleared = clearLiveStreamRevealMarkers(
+    liveMessages,
+    new Set([base.message_id]),
+  );
+  assert.equal(hasLiveStreamRevealMarker(cleared[0]?.content[0]), false);
+});
+
+test("DM live and terminal keep the final response on one content surface", async () => {
+  const {
+    projectionFromOrderedEntries,
+    resolveAssistantResponseSurface,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/message-item-projection.ts",
+  );
+  const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
+  );
+  const message = assistantMessage({
+    messageId: "assistant-dm-surface",
+    roundId: "round-dm-surface",
+    status: "streaming",
+    text: "稳定逐字正文",
+    timestamp: 2,
+  });
+  const thinking = { type: "thinking", thinking: "整理答案" };
+  const textBlock = message.content[0];
+  const orderedEntries = [
+    {
+      block: thinking,
+      mergedIndex: 0,
+      sourceMessageId: message.message_id,
+      sourceOrder: 0,
+    },
+    {
+      block: textBlock,
+      mergedIndex: 1,
+      sourceMessageId: message.message_id,
+      sourceOrder: 0,
+    },
+  ];
+  const visibleTurns = [{
+    content: [thinking, textBlock],
+    messageId: message.message_id,
+    streamingIndexes: new Set([1]),
+    textContent: [textBlock],
+    textStreamingIndexes: new Set([0]),
+  }];
+  const project = (assistantContentMode, streamingBlockIndexes) => (
+    resolveMessageItemFinalProjection({
+      assistantContentMode,
+      assistantMessages: [message],
+      orderedProjection: projectionFromOrderedEntries(
+        orderedEntries,
+        streamingBlockIndexes,
+      ),
+      resultSummary: undefined,
+      roundId: message.round_id,
+      streamingBlockIndexes,
+      visibleAssistantTurns: visibleTurns,
+      visibleOrderedAssistantEntries: orderedEntries,
+    })
+  );
+
+  assert.equal(resolveAssistantResponseSurface("dm_live"), "final");
+  assert.equal(resolveAssistantResponseSurface("dm_archived"), "final");
+  const live = project("dm_live", new Set([1]));
+  const terminal = project("dm_archived", new Set());
+  assert.deepEqual(live.finalAssistantContent, terminal.finalAssistantContent);
+  assert.deepEqual(live.directOrderedProjection.content, [thinking]);
+  assert.deepEqual(terminal.processProjection.content, [thinking]);
+  assert.equal(
+    live.directOrderedProjection.content.some((block) => block.type === "text"),
+    false,
+    "the live process track must not duplicate or own the final response text",
+  );
+});
+
+test("Room terminal result keeps public structure, hides thinking, and preserves monotonic text", async () => {
+  const { resolveRoomResultFinalAssistantContent } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
+  );
+  const fallback = [{ type: "text", text: "逐字输出" }];
+  const extended = resolveRoomResultFinalAssistantContent({
+    fallbackFinalAssistantContent: fallback,
+    resultText: "逐字输出完成",
+  });
+
+  assert.ok(Array.isArray(extended));
+  assert.equal(extended[0]?.type, "text");
+  assert.equal(extended[0]?.text, "逐字输出完成");
+  assert.equal(
+    resolveRoomResultFinalAssistantContent({
+      fallbackFinalAssistantContent: fallback,
+      resultText: "逐字",
+    }),
+    fallback,
+    "a shorter terminal summary must not shrink already visible Room text",
+  );
+  assert.deepEqual(
+    resolveRoomResultFinalAssistantContent({
+      fallbackFinalAssistantContent: null,
+      resultText: "仅有终态结果",
+    }),
+    [{ type: "text", text: "仅有终态结果" }],
+  );
+
+  const thinking = { type: "thinking", thinking: "内部过程" };
+  const artifact = {
+    type: "workspace_file_artifact",
+    path: "report.md",
+  };
+  const corrected = resolveRoomResultFinalAssistantContent({
+    fallbackFinalAssistantContent: [
+      thinking,
+      { type: "text", text: "旧正文" },
+      artifact,
+    ],
+    resultText: "修订后的正文",
+  });
+  assert.deepEqual(corrected[0], { type: "text", text: "修订后的正文" });
+  assert.equal(corrected[1], artifact);
+  assert.deepEqual(
+    resolveRoomResultFinalAssistantContent({
+      fallbackFinalAssistantContent: [thinking, artifact],
+      resultText: "附件后的正文",
+    }),
+    [artifact, { type: "text", text: "附件后的正文" }],
+  );
+  assert.deepEqual(
+    resolveRoomResultFinalAssistantContent({
+      fallbackFinalAssistantContent: [{
+        type: "text",
+        text: "逐字输出 \n",
+      }],
+      resultText: "逐字输出\n完成",
+    }),
+    [{ type: "text", text: "逐字输出\n完成" }],
+    "terminal suffixes must use the visible text boundary without duplicating whitespace",
   );
 });
 
@@ -2242,28 +3145,18 @@ test("terminal round status keeps its displayable error message", async () => {
   );
 });
 
-test("Room no-reply control markers stay out of previews and result summaries", async () => {
-  const { extractAgentPreviewText } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/round/round-agent-model.ts",
-  );
-  const { buildGroupAgentStatusModel } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+test("Room no-message terminal projection replaces hidden control markers", async () => {
+  const { projectRoomAgentExecutionMessages } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-execution-model.ts",
   );
   const marker = "<nexus_room_no_reply/>";
-
-  assert.equal(
-    extractAgentPreviewText([assistantMessage({ text: marker, timestamp: 1 })]),
-    "",
-  );
-
-  const status = buildGroupAgentStatusModel({
+  const [terminal] = projectRoomAgentExecutionMessages({
+    agentId: "agent-1",
     labels: {
       failed: "Failed",
       stopped: "Stopped",
-      waitingForUser: "Waiting",
     },
     messages: [],
-    pendingPermissions: [],
     resultSummary: {
       duration_api_ms: 0,
       duration_ms: 0,
@@ -2273,35 +3166,14 @@ test("Room no-reply control markers stay out of previews and result summaries", 
       subtype: "interrupted",
       timestamp: 1,
     },
+    roundId: "round-stopped",
     status: "cancelled",
+    timestamp: 1,
   });
-  assert.equal(status.summaryText, "Stopped");
-
-  const noReplyEntry = {
-    assistant_messages: [{
-      ...assistantMessage({
-        messageId: "assistant-no-reply",
-        text: "",
-        timestamp: 1,
-      }),
-      content: [{
-        thinking: "仅供 Thread 查看",
-        type: "thinking",
-      }],
-    }],
-    result_summary: undefined,
-    status: "done",
-  };
-  const { isNoPublicReplyAgentEntry } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
-  );
-  assert.equal(isNoPublicReplyAgentEntry(noReplyEntry), true);
+  assert.equal(terminal.result_summary?.result, "Stopped");
 });
 
 test("Room public cards hide thinking while Thread keeps it available", async () => {
-  const { extractAgentPreviewText } = await server.ssrLoadModule(
-    "/src/features/conversation/room/group/round/round-agent-model.ts",
-  );
   const {
     resolveMessageItemFinalProjection,
   } = await server.ssrLoadModule(
@@ -2318,11 +3190,6 @@ test("Room public cards hide thinking while Thread keeps it available", async ()
   });
   assistant.content = [thinking];
 
-  assert.equal(
-    extractAgentPreviewText([assistant]),
-    "",
-    "Room 公区状态卡不能把 thinking 当作回复摘要",
-  );
   const projection = resolveMessageItemFinalProjection({
     assistantContentMode: "room_result",
     assistantMessages: [assistant],
@@ -2738,6 +3605,146 @@ test("stream reducer exposes tool calls and removes terminal empty assistants", 
   assert.deepEqual(emptyMessages, []);
 });
 
+test("queued stream patches cannot shorten a newer terminal snapshot", async () => {
+  const { applyStreamMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/stream-message-reducer.ts",
+  );
+  const terminal = assistantMessage({
+    isComplete: true,
+    messageId: "assistant-terminal-race",
+    status: "done",
+    stopReason: "end_turn",
+    text: "完整正文abcdef",
+    timestamp: 20,
+  });
+  const terminalMessages = [terminal];
+
+  const afterStalePatch = applyStreamMessage(terminalMessages, {
+    agent_id: "agent-1",
+    content_block: { type: "text", text: "完整正文abc" },
+    index: 0,
+    message_id: "assistant-terminal-race",
+    round_id: "round-root",
+    session_key: "room:group:conversation-1",
+    timestamp: 10,
+    type: "content_block_delta",
+  });
+
+  assert.equal(afterStalePatch[0]?.content[0]?.text, "完整正文abcdef");
+  assert.equal(afterStalePatch[0]?.stream_status, "done");
+  assert.equal(
+    afterStalePatch,
+    terminalMessages,
+    "the delayed RAF patch must leave the terminal snapshot unchanged",
+  );
+
+  for (const status of ["cancelled", "error"]) {
+    const stopped = assistantMessage({
+      messageId: `assistant-${status}-race`,
+      status,
+      text: `${status} 完整正文`,
+      timestamp: 20,
+    });
+    const stoppedMessages = [stopped];
+    const afterStoppedPatch = applyStreamMessage(stoppedMessages, {
+      agent_id: "agent-1",
+      content_block: { type: "text", text: `${status} 旧正文` },
+      index: 0,
+      message_id: `assistant-${status}-race`,
+      round_id: "round-root",
+      session_key: "room:group:conversation-1",
+      timestamp: 10,
+      type: "content_block_delta",
+    });
+
+    assert.equal(afterStoppedPatch, stoppedMessages);
+    assert.equal(afterStoppedPatch[0]?.stream_status, status);
+    assert.equal(afterStoppedPatch[0]?.content[0]?.text, `${status} 完整正文`);
+  }
+});
+
+test("queued stream patches cannot shorten a newer active snapshot", async () => {
+  const { applyStreamMessage } = await server.ssrLoadModule(
+    "/src/hooks/agent/message/stream-message-reducer.ts",
+  );
+  const active = assistantMessage({
+    messageId: "assistant-active-race",
+    status: "streaming",
+    text: "正在输出的较新完整正文",
+    timestamp: 20,
+  });
+  const activeMessages = [active];
+
+  const afterStalePatch = applyStreamMessage(activeMessages, {
+    agent_id: "agent-1",
+    content_block: { type: "text", text: "正在输出的较新" },
+    index: 0,
+    message_id: "assistant-active-race",
+    round_id: "round-root",
+    session_key: "room:group:conversation-1",
+    timestamp: 10,
+    type: "content_block_delta",
+  });
+
+  assert.equal(afterStalePatch, activeMessages);
+  assert.equal(
+    afterStalePatch[0]?.content[0]?.text,
+    "正在输出的较新完整正文",
+  );
+  assert.equal(afterStalePatch[0]?.stream_status, "streaming");
+});
+
+test("RAF stream batches stay isolated to the latest exact session", async () => {
+  const { applyStreamPayloadBatchForActiveSession } =
+    await server.ssrLoadModule(
+      "/src/hooks/agent/transport/use-conversation-stream-buffer.ts",
+    );
+  const payload = (sessionKey, messageId, timestamp) => ({
+    agent_id: "agent-1",
+    message_id: messageId,
+    round_id: "round-stream-buffer",
+    session_key: sessionKey,
+    timestamp,
+    type: "message_start",
+  });
+  const currentSession = "room:group:conversation-current";
+  const messages = applyStreamPayloadBatchForActiveSession(
+    [],
+    [
+      payload(currentSession, "assistant-current-1", 1),
+      payload("room:group:conversation-old", "assistant-old", 2),
+      payload(currentSession, "assistant-current-2", 3),
+    ],
+    currentSession,
+    currentSession,
+  );
+  assert.deepEqual(
+    messages.map((message) => message.message_id),
+    ["assistant-current-1", "assistant-current-2"],
+    "the current session keeps batch arrival order while old payloads are discarded",
+  );
+  assert.equal(
+    applyStreamPayloadBatchForActiveSession(
+      messages,
+      [payload(currentSession, "assistant-stale-after-switch", 4)],
+      currentSession,
+      "room:group:conversation-newer",
+    ),
+    messages,
+    "a second session switch before React commits must reject the whole captured batch",
+  );
+  assert.equal(
+    applyStreamPayloadBatchForActiveSession(
+      messages,
+      [payload("agent:default:workspace:group:c1", "assistant-alias", 5)],
+      "room:group:c1",
+      "room:group:c1",
+    ),
+    messages,
+    "stream isolation uses exact protocol session keys instead of cross-scope aliases",
+  );
+});
+
 test("late history cannot roll an assistant snapshot backward", async () => {
   const { mergeLoadedMessages, upsertMessage } = await server.ssrLoadModule(
     "/src/hooks/agent/message/message-collection-model.ts",
@@ -3096,6 +4103,105 @@ test("Room canonical assistant replaces its temporary synthetic result", async (
   assert.equal(entries[0]?.assistant_messages[0]?.model, "canonical-model");
 });
 
+test("Room consumes a legacy synthetic result by its parent slot with repeated agents", async () => {
+  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const rootUser = userMessage({
+    content: "同一个 Agent 连续执行两次",
+    messageId: "user-repeated-agent",
+    roundId: "round-repeated-agent",
+    timestamp: 1,
+  });
+  const firstCanonical = assistantMessage({
+    agentId: "agent-repeat",
+    agentRoundId: "agent-round-first",
+    messageId: "assistant-repeat-first",
+    roundId: "round-repeated-agent",
+    text: "第一次执行过程",
+    timestamp: 2,
+  });
+  const secondCanonical = assistantMessage({
+    agentId: "agent-repeat",
+    agentRoundId: "agent-round-second",
+    messageId: "assistant-repeat-second",
+    roundId: "round-repeated-agent",
+    text: "第二次执行过程",
+    timestamp: 3,
+  });
+  const legacyResult = {
+    ...assistantMessage({
+      agentId: "agent-repeat",
+      isComplete: true,
+      messageId: "assistant_result_round-repeated-agent",
+      resultSummary: {
+        duration_api_ms: 10,
+        duration_ms: 20,
+        is_error: false,
+        num_turns: 1,
+        result: "第一次完成",
+        subtype: "success",
+        timestamp: 4,
+      },
+      roundId: "round-repeated-agent",
+      status: "done",
+      stopReason: "end_turn",
+      text: "第一次完成",
+      timestamp: 4,
+    }),
+    agent_round_id: undefined,
+    parent_id: "slot-repeat-first",
+  };
+  const slots = [
+    {
+      agent_id: "agent-repeat",
+      agent_round_id: "agent-round-first",
+      index: 0,
+      msg_id: "slot-repeat-first",
+      round_id: "round-repeated-agent",
+      status: "streaming",
+      timestamp: 2,
+    },
+    {
+      agent_id: "agent-repeat",
+      agent_round_id: "agent-round-second",
+      index: 1,
+      msg_id: "slot-repeat-second",
+      round_id: "round-repeated-agent",
+      status: "streaming",
+      timestamp: 3,
+    },
+  ];
+  const projection = projectGroupAgentTimeline({
+    messageGroups: new Map([[
+      "round-repeated-agent",
+      [rootUser, firstCanonical, secondCanonical, legacyResult],
+    ]]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map([["round-repeated-agent", slots]]),
+    roundIds: ["round-repeated-agent"],
+  });
+  const projectedIds = Array.from(projection.messageGroups.values()).flatMap(
+    (messages) => messages.map((message) => message.message_id),
+  );
+  assert.equal(
+    projectedIds.includes("assistant_result_round-repeated-agent"),
+    false,
+    "the merged legacy terminal must not remain as a root-level ghost card",
+  );
+  assert.equal(
+    projection.roundIds.filter((roundId) => roundId.startsWith("room-agent-round:")).length,
+    2,
+    "the two executions still keep separate stable nodes",
+  );
+  assert.deepEqual(
+    projection.messageGroups.get("round-repeated-agent")?.map(
+      (message) => message.message_id,
+    ),
+    ["user-repeated-agent"],
+  );
+});
+
 test("Room Agent replies keep their first display order through completion", async () => {
   const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
@@ -3414,12 +4520,1149 @@ test("Room keeps backend Agent slot order while statuses advance", async () => {
   ]);
 });
 
-test("Room Agent timestamp stays on start while active and switches to finish at terminal", async () => {
+test("Room keeps a permission-first execution on its agent_round node", async () => {
+  const {
+    buildGroupAgentTimelineNodeId,
+    projectGroupAgentTimeline,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const rootUser = userMessage({
+    content: "需要 Agent 执行",
+    messageId: "user-permission-first",
+    roundId: "round-permission-first",
+    timestamp: 1,
+  });
+  const permission = {
+    agent_id: "agent-permission-first",
+    agent_round_id: "agent-round-permission-first",
+    interaction_mode: "question",
+    request_id: "permission-first",
+    round_id: "round-permission-first",
+    tool_input: {
+      questions: [{
+        options: [{ label: "继续" }],
+        question: "是否继续？",
+      }],
+    },
+    tool_name: "AskUserQuestion",
+  };
+  const slot = {
+    agent_id: permission.agent_id,
+    agent_round_id: permission.agent_round_id,
+    index: 0,
+    msg_id: "slot-permission-first",
+    round_id: permission.round_id,
+    status: "streaming",
+    timestamp: 2,
+  };
+  const message = assistantMessage({
+    agentId: permission.agent_id,
+    agentRoundId: permission.agent_round_id,
+    messageId: "assistant-permission-first",
+    roundId: permission.round_id,
+    status: "streaming",
+    text: "继续执行中",
+    timestamp: 3,
+  });
+  const agentNodeId = buildGroupAgentTimelineNodeId(
+    permission.round_id,
+    `${permission.agent_id}:agent-round:${permission.agent_round_id}`,
+  );
+  const project = ({ messages, permissions, slots }) => (
+    projectGroupAgentTimeline({
+      messageGroups: new Map([[permission.round_id, messages]]),
+      pendingPermissionGroups: new Map([
+        [permission.round_id, permissions],
+      ]),
+      pendingSlotGroups: new Map([[permission.round_id, slots]]),
+      roundIds: [permission.round_id],
+    })
+  );
+
+  const permissionFirst = project({
+    messages: [rootUser],
+    permissions: [permission],
+    slots: [],
+  });
+  const withSlot = project({
+    messages: [rootUser],
+    permissions: [permission],
+    slots: [slot],
+  });
+  const withMessage = project({
+    messages: [rootUser, message],
+    permissions: [permission],
+    slots: [slot],
+  });
+
+  assert.deepEqual(permissionFirst.roundIds, [
+    "round-permission-first",
+    agentNodeId,
+  ]);
+  assert.deepEqual(withSlot.roundIds, permissionFirst.roundIds);
+  assert.deepEqual(withMessage.roundIds, permissionFirst.roundIds);
+  assert.equal(
+    permissionFirst.pendingPermissionGroups.get(agentNodeId)?.[0]?.request_id,
+    permission.request_id,
+  );
+  assert.equal(
+    permissionFirst.pendingPermissionGroups.get("round-permission-first")?.length,
+    0,
+    "the permission must never render on the generic root before its slot arrives",
+  );
+});
+
+test("Room permission-first order survives reverse slot arrival", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
   );
-  const { buildGroupAgentStatusModel } = await server.ssrLoadModule(
+  const permissions = [
+    {
+      agent_id: "agent-a",
+      agent_round_id: "agent-round-a",
+      request_id: "permission-a",
+      round_id: "round-permission-order",
+      tool_input: { command: "echo a" },
+      tool_name: "Bash",
+    },
+    {
+      agent_id: "agent-b",
+      agent_round_id: "agent-round-b",
+      request_id: "permission-b",
+      round_id: "round-permission-order",
+      tool_input: { command: "echo b" },
+      tool_name: "Bash",
+    },
+  ];
+  const reverseSlots = [
+    {
+      agent_id: "agent-b",
+      agent_round_id: "agent-round-b",
+      index: 0,
+      msg_id: "slot-b",
+      round_id: "round-permission-order",
+      status: "streaming",
+      timestamp: 2,
+    },
+    {
+      agent_id: "agent-a",
+      agent_round_id: "agent-round-a",
+      index: 1,
+      msg_id: "slot-a",
+      round_id: "round-permission-order",
+      status: "streaming",
+      timestamp: 3,
+    },
+  ];
+  assert.deepEqual(
+    buildRoomAgentRoundEntries([], reverseSlots, permissions).map(
+      (entry) => entry.agent_round_id,
+    ),
+    ["agent-round-a", "agent-round-b"],
+    "later slot metadata must enrich existing executions without moving their cards",
+  );
+});
+
+test("Room permission-first children append after an existing reply and never move", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    acknowledgeRoomAgentExecutionPermission,
+    syncRoomAgentExecutionFromStream,
+    syncRoomAgentExecutionsFromMessages,
+    syncRoomAgentExecutionsFromPermissions,
+    syncRoomAgentExecutionsFromSlots,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-parent-before-permissions";
+  const parent = assistantMessage({
+    agentId: "agent-1",
+    agentRoundId: "agent-round-1",
+    displayOrder: 10_000,
+    isComplete: true,
+    messageId: "assistant-agent-1",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "@Agent2 调研 M1/M2，@Agent3 调研 M3/M4",
+    timestamp: 10,
+  });
+  const permissions = [
+    {
+      agent_id: "agent-2",
+      agent_round_id: "agent-round-2",
+      request_id: "permission-agent-2",
+      round_id: roundId,
+      tool_input: { query: "M1 M2" },
+      tool_name: "WebSearch",
+    },
+    {
+      agent_id: "agent-3",
+      agent_round_id: "agent-round-3",
+      request_id: "permission-agent-3",
+      round_id: roundId,
+      tool_input: { query: "M3 M4" },
+      tool_name: "WebSearch",
+    },
+  ];
+  const entryOrder = (messages, slots, pendingPermissions, states) => (
+    buildRoomAgentRoundEntries(
+      messages,
+      slots,
+      pendingPermissions,
+      states,
+    ).map((entry) => entry.agent_round_id)
+  );
+
+  // Agent Session permission events may beat the shared pending-slot snapshot.
+  // The already visible parent reply still owns the first canonical position.
+  const permissionFirst = syncRoomAgentExecutionsFromPermissions(
+    [],
+    permissions,
+    20,
+  );
+  const expectedOrder = [
+    "agent-round-1",
+    "agent-round-2",
+    "agent-round-3",
+  ];
+  assert.deepEqual(
+    entryOrder([parent], [], permissions, permissionFirst),
+    expectedOrder,
+    "permission-only children must append after the existing parent reply",
+  );
+
+  const acknowledged = permissions.reduce(
+    (states, permission) => acknowledgeRoomAgentExecutionPermission(
+      states,
+      permission,
+      21,
+    ),
+    permissionFirst,
+  );
+  const afterPermissionRemoval = syncRoomAgentExecutionsFromPermissions(
+    acknowledged,
+    [],
+    22,
+  );
+  assert.deepEqual(
+    entryOrder([parent], [], [], afterPermissionRemoval),
+    expectedOrder,
+    "acknowledging the last permission must retain the same execution shells",
+  );
+
+  const reverseSlots = [
+    {
+      agent_id: "agent-3",
+      agent_round_id: "agent-round-3",
+      index: 1,
+      msg_id: "slot-agent-3",
+      round_id: roundId,
+      status: "streaming",
+      timestamp: 30,
+    },
+    {
+      agent_id: "agent-2",
+      agent_round_id: "agent-round-2",
+      index: 0,
+      msg_id: "slot-agent-2",
+      round_id: roundId,
+      status: "streaming",
+      timestamp: 30,
+    },
+  ];
+  const active = syncRoomAgentExecutionsFromSlots(
+    afterPermissionRemoval,
+    reverseSlots,
+  );
+  assert.deepEqual(
+    entryOrder([parent], reverseSlots, [], active),
+    expectedOrder,
+    "reverse slot arrival must enrich rather than reorder permission-first nodes",
+  );
+
+  const agent2Stream = assistantMessage({
+    agentId: "agent-2",
+    agentRoundId: "agent-round-2",
+    messageId: "assistant-agent-2",
+    roundId,
+    status: "streaming",
+    text: "Agent2 正在回复",
+    timestamp: 31,
+  });
+  const agent3Done = assistantMessage({
+    agentId: "agent-3",
+    agentRoundId: "agent-round-3",
+    isComplete: true,
+    messageId: "assistant-agent-3",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "Agent3 已回复",
+    timestamp: 32,
+  });
+  const afterStream = syncRoomAgentExecutionFromStream(active, {
+    agent_id: "agent-2",
+    agent_round_id: "agent-round-2",
+    message_id: "assistant-agent-2",
+    round_id: roundId,
+    session_key: "room:group:conversation-1",
+    timestamp: 31,
+    type: "message_start",
+  });
+  const withMessages = syncRoomAgentExecutionsFromMessages(
+    afterStream,
+    [agent3Done, agent2Stream],
+  );
+  assert.deepEqual(
+    entryOrder(
+      [parent, agent3Done, agent2Stream],
+      reverseSlots,
+      [],
+      withMessages,
+    ),
+    expectedOrder,
+    "stream and terminal message evidence must keep the first visible order",
+  );
+});
+
+test("Room late permission enriches an observed slot without moving its Agent", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    syncRoomAgentExecutionsFromPermissions,
+    syncRoomAgentExecutionsFromSlots,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const slots = [
+    {
+      agent_id: "agent-a",
+      agent_round_id: "agent-round-a",
+      index: 0,
+      msg_id: "slot-a",
+      round_id: "round-late-permission",
+      status: "streaming",
+      timestamp: 1,
+    },
+    {
+      agent_id: "agent-b",
+      agent_round_id: "agent-round-b",
+      index: 1,
+      msg_id: "slot-b",
+      round_id: "round-late-permission",
+      status: "streaming",
+      timestamp: 2,
+    },
+  ];
+  const permissionForSecond = {
+    agent_id: "agent-b",
+    agent_round_id: "agent-round-b",
+    request_id: "permission-b-late",
+    round_id: "round-late-permission",
+    tool_input: { command: "echo b" },
+    tool_name: "Bash",
+  };
+  const observed = syncRoomAgentExecutionsFromSlots([], slots);
+  const enriched = syncRoomAgentExecutionsFromPermissions(
+    observed,
+    [permissionForSecond],
+    3,
+  );
+
+  assert.deepEqual(
+    buildRoomAgentRoundEntries(
+      [],
+      slots,
+      [permissionForSecond],
+      enriched,
+    ).map((entry) => entry.agent_round_id),
+    ["agent-round-a", "agent-round-b"],
+    "a question or permission arriving for B must not move B above the visible A card",
+  );
+  assert.deepEqual(
+    enriched.map((state) => state.display_order),
+    observed.map((state) => state.display_order),
+  );
+});
+
+test("Room execution anchors seed canonical history and slot order before live appends", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    syncRoomAgentExecutionsFromMessages,
+    syncRoomAgentExecutionsFromSlots,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const firstFinishedLater = assistantMessage({
+    agentId: "agent-a",
+    agentRoundId: "agent-round-a-history",
+    displayOrder: 1_000,
+    isComplete: true,
+    messageId: "assistant-a-history",
+    roundId: "round-canonical-seed",
+    status: "done",
+    stopReason: "end_turn",
+    text: "A 后完成",
+    timestamp: 40,
+  });
+  const secondFinishedEarlier = assistantMessage({
+    agentId: "agent-b",
+    agentRoundId: "agent-round-b-history",
+    displayOrder: 2_000,
+    isComplete: true,
+    messageId: "assistant-b-history",
+    roundId: "round-canonical-seed",
+    status: "done",
+    stopReason: "end_turn",
+    text: "B 先完成",
+    timestamp: 30,
+  });
+  const completionOrderedMessages = [
+    secondFinishedEarlier,
+    firstFinishedLater,
+  ];
+  const historyStates = syncRoomAgentExecutionsFromMessages(
+    [],
+    completionOrderedMessages,
+  );
+  assert.deepEqual(
+    buildRoomAgentRoundEntries(
+      completionOrderedMessages,
+      [],
+      [],
+      historyStates,
+    ).map((entry) => entry.agent_id),
+    ["agent-a", "agent-b"],
+    "completion timestamps must not replace the backend Agent start order",
+  );
+  assert.deepEqual(
+    historyStates.map((state) => state.display_order),
+    [1_000, 2_000],
+  );
+
+  const reverseSlots = [
+    {
+      agent_id: "agent-b",
+      agent_round_id: "agent-round-b-slot",
+      index: 1,
+      msg_id: "slot-b-canonical",
+      round_id: "round-slot-seed",
+      status: "streaming",
+      timestamp: 2,
+    },
+    {
+      agent_id: "agent-a",
+      agent_round_id: "agent-round-a-slot",
+      index: 0,
+      msg_id: "slot-a-canonical",
+      round_id: "round-slot-seed",
+      status: "streaming",
+      timestamp: 2,
+    },
+  ];
+  const slotStates = syncRoomAgentExecutionsFromSlots([], reverseSlots);
+  assert.deepEqual(
+    buildRoomAgentRoundEntries([], reverseSlots, [], slotStates).map(
+      (entry) => entry.agent_id,
+    ),
+    ["agent-a", "agent-b"],
+  );
+});
+
+test("Room acknowledged permission keeps one non-interactive node until evidence takes over", async () => {
+  const {
+    buildGroupAgentTimelineNodeId,
+    projectGroupAgentTimeline,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const {
+    acknowledgeRoomAgentExecutionPermission,
+    applyRoomAgentExecutionStatus,
+    isVisibleRoomAgentExecutionState,
+    stopRoomAgentExecutions,
+    syncRoomAgentExecutionFromStream,
+    syncRoomAgentExecutionsFromPermissions,
+    syncRoomAgentExecutionsFromSlots,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-acknowledged-permission";
+  const permission = {
+    agent_id: "agent-ack",
+    agent_round_id: "agent-round-ack",
+    interaction_mode: "question",
+    request_id: "permission-ack",
+    round_id: roundId,
+    tool_input: {
+      questions: [{
+        options: [{ label: "继续" }],
+        question: "是否继续？",
+      }],
+    },
+    tool_name: "AskUserQuestion",
+  };
+  const rootUser = userMessage({
+    content: "执行并询问",
+    messageId: "user-ack",
+    roundId,
+    timestamp: 1,
+  });
+  const nodeId = buildGroupAgentTimelineNodeId(
+    roundId,
+    "agent-ack:agent-round:agent-round-ack",
+  );
+  const project = (permissions, slots, states) => projectGroupAgentTimeline({
+    messageGroups: new Map([[roundId, [rootUser]]]),
+    pendingPermissionGroups: new Map([[roundId, permissions]]),
+    pendingSlotGroups: new Map([[roundId, slots]]),
+    roomAgentExecutionStateGroups: new Map([[roundId, states]]),
+    roundIds: [roundId],
+  });
+
+  const pending = syncRoomAgentExecutionsFromPermissions([], [permission], 2);
+  const beforeResponse = project([permission], [], pending);
+  const acknowledged = acknowledgeRoomAgentExecutionPermission(
+    pending,
+    permission,
+    3,
+  );
+  const afterPermissionRemoval = syncRoomAgentExecutionsFromPermissions(
+    acknowledged,
+    [],
+    4,
+  );
+  const afterResponse = project([], [], afterPermissionRemoval);
+  assert.deepEqual(beforeResponse.roundIds, [roundId, nodeId]);
+  assert.deepEqual(afterResponse.roundIds, beforeResponse.roundIds);
+  assert.equal(afterResponse.pendingPermissionGroups.get(nodeId)?.length, 0);
+  assert.equal(afterPermissionRemoval[0]?.phase, "acknowledged");
+  assert.equal(isVisibleRoomAgentExecutionState(afterPermissionRemoval[0]), true);
+
+  const slot = {
+    agent_id: permission.agent_id,
+    agent_round_id: permission.agent_round_id,
+    index: 0,
+    msg_id: "slot-ack",
+    round_id: roundId,
+    status: "streaming",
+    timestamp: 5,
+  };
+  const active = syncRoomAgentExecutionsFromSlots(
+    afterPermissionRemoval,
+    [slot],
+  );
+  assert.deepEqual(project([], [slot], active).roundIds, beforeResponse.roundIds);
+  assert.equal(active[0]?.display_order, afterPermissionRemoval[0]?.display_order);
+  assert.equal(active[0]?.phase, "active");
+
+  const stopped = stopRoomAgentExecutions(afterPermissionRemoval);
+  assert.equal(stopped[0]?.phase, "terminal");
+  assert.equal(stopped[0]?.status, "cancelled");
+
+  const turnStopped = syncRoomAgentExecutionFromStream([], {
+    agent_id: permission.agent_id,
+    agent_round_id: permission.agent_round_id,
+    message_id: "assistant-ack",
+    round_id: roundId,
+    session_key: "room:group:conversation-1",
+    timestamp: 6,
+    type: "message_stop",
+  });
+  assert.equal(turnStopped[0]?.phase, "active");
+  assert.equal(turnStopped[0]?.status, "streaming");
+  const authoritativeError = applyRoomAgentExecutionStatus(turnStopped, {
+    agent_id: permission.agent_id,
+    agent_round_id: permission.agent_round_id,
+    is_terminal: true,
+    round_id: roundId,
+    status: "error",
+  }, 7);
+  assert.equal(authoritativeError[0]?.status, "error");
+  const staleRunning = applyRoomAgentExecutionStatus(authoritativeError, {
+    agent_id: permission.agent_id,
+    agent_round_id: permission.agent_round_id,
+    is_terminal: false,
+    round_id: roundId,
+    status: "running",
+  }, 8);
+  assert.equal(staleRunning[0]?.phase, "terminal");
+  assert.equal(staleRunning[0]?.status, "error");
+});
+
+test("Room tool-use turn stop keeps its agent execution active", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    syncRoomAgentExecutionFromStream,
+    syncRoomAgentExecutionsFromMessages,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-tool-continuation";
+  const agentRoundId = "agent-round-tool-continuation";
+  const turnStop = {
+    agent_id: "agent-tool",
+    agent_round_id: agentRoundId,
+    message: { stop_reason: "tool_use" },
+    message_id: "assistant-tool-turn",
+    round_id: roundId,
+    session_key: "room:group:conversation-tool",
+    timestamp: 2,
+    type: "message_stop",
+  };
+  const fromStream = syncRoomAgentExecutionFromStream([], turnStop);
+  assert.equal(fromStream[0]?.phase, "active");
+  assert.equal(fromStream[0]?.status, "streaming");
+
+  const toolTurnMessage = assistantMessage({
+    agentId: "agent-tool",
+    agentRoundId,
+    isComplete: true,
+    messageId: "assistant-tool-turn",
+    roundId,
+    status: "done",
+    stopReason: "tool_use",
+    text: "先调用工具",
+    timestamp: 2,
+  });
+  const fromDurableTurn = syncRoomAgentExecutionsFromMessages(
+    fromStream,
+    [toolTurnMessage],
+  );
+  assert.equal(fromDurableTurn[0]?.phase, "active");
+  assert.equal(fromDurableTurn[0]?.status, "streaming");
+
+  const activeSlot = {
+    agent_id: "agent-tool",
+    agent_round_id: agentRoundId,
+    index: 0,
+    msg_id: "slot-tool-turn",
+    round_id: roundId,
+    status: "streaming",
+    timestamp: 1,
+  };
+  assert.equal(
+    buildRoomAgentRoundEntries(
+      [toolTurnMessage],
+      [activeSlot],
+      [],
+      fromDurableTurn,
+    )[0]?.status,
+    "streaming",
+    "a completed tool-use message is not the terminal state of its agent_round",
+  );
+});
+
+test("Room terminal execution rejects stale active evidence and late interaction", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const {
+    filterPendingPermissionsForTerminalRoomExecutions,
+  } = await server.ssrLoadModule(
+    "/src/lib/conversation/pending-permission-match.ts",
+  );
+  const { AgentConversationRuntimeMachine } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/agent-conversation-runtime-machine.ts",
+  );
+  const roundId = "round-terminal-monotonic";
+  const agentRoundId = "agent-round-terminal-monotonic";
+  const staleMessage = assistantMessage({
+    agentId: "agent-terminal",
+    agentRoundId,
+    messageId: "assistant-terminal-stale-stream",
+    roundId,
+    status: "streaming",
+    text: "迟到的流式快照",
+    timestamp: 4,
+  });
+  const staleSlot = {
+    agent_id: "agent-terminal",
+    agent_round_id: agentRoundId,
+    index: 0,
+    msg_id: "slot-terminal-stale",
+    round_id: roundId,
+    status: "streaming",
+    timestamp: 2,
+  };
+  const terminalState = {
+    agent_id: "agent-terminal",
+    agent_round_id: agentRoundId,
+    display_order: 0,
+    first_seen_at: 1,
+    phase: "terminal",
+    round_id: roundId,
+    status: "error",
+  };
+  const lateQuestion = {
+    agent_id: "agent-terminal",
+    agent_round_id: agentRoundId,
+    interaction_mode: "question",
+    request_id: "question-after-terminal",
+    round_id: roundId,
+    tool_input: {
+      questions: [{
+        options: [{ label: "重试" }],
+        question: "是否继续？",
+      }],
+    },
+    tool_name: "AskUserQuestion",
+  };
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: {},
+    executionStates: [terminalState],
+    messages: [staleMessage],
+    pendingPermissions: [lateQuestion],
+    pendingSlots: [staleSlot],
+  });
+
+  assert.equal(
+    model.entries[0]?.status,
+    "error",
+    "an authoritative terminal error must bound stale slot/message activity",
+  );
+  assert.deepEqual(
+    model.entries[0]?.pendingPermissions,
+    [],
+    "a late exact permission cannot revive an interactive terminal shell",
+  );
+
+  const projection = projectGroupAgentTimeline({
+    messageGroups: new Map([[roundId, [staleMessage]]]),
+    pendingPermissionGroups: new Map([[roundId, [lateQuestion]]]),
+    pendingSlotGroups: new Map([[roundId, [staleSlot]]]),
+    roomAgentExecutionStateGroups: new Map([[roundId, [terminalState]]]),
+    roundIds: [roundId],
+  });
+  assert.deepEqual(
+    Array.from(projection.pendingPermissionGroups.values()).flat(),
+    [],
+    "the filtered permission must not fall back to a generic root card",
+  );
+
+  const rawPermissions =
+    filterPendingPermissionsForTerminalRoomExecutions(
+      [lateQuestion],
+      [terminalState],
+    );
+  assert.deepEqual(
+    rawPermissions,
+    [],
+    "the volatile source must reject the request before it contributes to runtime count",
+  );
+  const runtime = new AgentConversationRuntimeMachine("group");
+  runtime.trackRoundStatus(roundId, "running");
+  runtime.setPendingPermissionCount(rawPermissions.length);
+  assert.notEqual(
+    runtime.snapshot().phase,
+    "awaiting_permission",
+    "an invisible late request must not lock the composer",
+  );
+
+  const legacyQuestion = {
+    ...lateQuestion,
+    agent_round_id: null,
+    request_id: "legacy-question-after-terminal",
+  };
+  assert.deepEqual(
+    filterPendingPermissionsForTerminalRoomExecutions(
+      [legacyQuestion],
+      [terminalState],
+    ),
+    [legacyQuestion],
+    "legacy interaction without an exact execution identity cannot be guessed away",
+  );
+});
+
+test("targeted stop mutates only its execution after the interrupt is sent", async () => {
+  const { stopSessionGeneration } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/conversation-control-actions.ts",
+  );
+  const roundId = "round-targeted-stop";
+  const permissionA = {
+    agent_id: "agent-a",
+    agent_round_id: "agent-round-a-stop",
+    request_id: "permission-a-stop",
+    round_id: roundId,
+    tool_input: { command: "echo a" },
+    tool_name: "Bash",
+  };
+  const permissionB = {
+    agent_id: "agent-b",
+    agent_round_id: "agent-round-b-question",
+    interaction_mode: "question",
+    request_id: "permission-b-question",
+    round_id: roundId,
+    tool_input: {
+      questions: [{
+        options: [{ label: "继续" }],
+        question: "B 是否继续？",
+      }],
+    },
+    tool_name: "AskUserQuestion",
+  };
+  const legacyPermission = {
+    agent_id: "agent-b",
+    request_id: "permission-b-legacy",
+    round_id: roundId,
+    tool_input: { command: "echo legacy" },
+    tool_name: "Bash",
+  };
+  const createContext = (disposition) => {
+    let error = "old error";
+    let permissions = [permissionA, permissionB, legacyPermission];
+    let sentCommand = null;
+    const context = {
+      acknowledgePermissionRequest: () => {},
+      activeSessionKeyRef: { current: "room:group:conversation-stop" },
+      identity: {
+        agent_id: "agent-a",
+        chat_type: "group",
+        conversation_id: "conversation-stop",
+        room_id: "room-stop",
+      },
+      messages: [userMessage({
+        content: "并行执行",
+        messageId: "user-targeted-stop",
+        roundId,
+        timestamp: 1,
+      })],
+      pendingPermissions: permissions,
+      sessionKey: "room:group:conversation-stop",
+      setError: (next) => {
+        error = typeof next === "function" ? next(error) : next;
+      },
+      setMessages: () => {},
+      setPendingPermissions: (next) => {
+        permissions = typeof next === "function" ? next(permissions) : next;
+      },
+      wsSend: (command) => {
+        sentCommand = command;
+        return { disposition };
+      },
+      wsState: "connected",
+    };
+    return {
+      context,
+      read: () => ({ error, permissions, sentCommand }),
+    };
+  };
+
+  const sent = createContext("sent");
+  assert.equal(
+    stopSessionGeneration(sent.context, permissionA.agent_round_id),
+    true,
+  );
+  assert.equal(
+    sent.read().sentCommand.agent_round_id,
+    permissionA.agent_round_id,
+  );
+  assert.deepEqual(
+    sent.read().permissions.map((permission) => permission.request_id),
+    [permissionB.request_id, legacyPermission.request_id],
+    "stopping A must preserve B's exact and legacy interactions",
+  );
+  assert.equal(sent.read().error, null);
+
+  const dropped = createContext("dropped");
+  assert.equal(
+    stopSessionGeneration(dropped.context, permissionA.agent_round_id),
+    false,
+  );
+  assert.deepEqual(
+    dropped.read().permissions.map((permission) => permission.request_id),
+    [
+      permissionA.request_id,
+      permissionB.request_id,
+      legacyPermission.request_id,
+    ],
+    "a failed interrupt must leave runtime-facing interaction state retryable",
+  );
+  assert.equal(dropped.read().error, "中断请求发送失败，请稍后重试");
+});
+
+test("Room virtual height keeps Composer interactions out of the feed estimate", async () => {
+  const { projectGroupRoundHeights } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-conversation-height-model.ts",
+  );
+  const roundId = "room-agent-round:height";
+  const slot = {
+    agent_id: "agent-height",
+    agent_round_id: "agent-round-height",
+    msg_id: "slot-height",
+    round_id: "round-height",
+    status: "pending",
+    timestamp: 1,
+  };
+  const question = {
+    agent_id: slot.agent_id,
+    agent_round_id: slot.agent_round_id,
+    interaction_mode: "question",
+    request_id: "question-height",
+    round_id: slot.round_id,
+    tool_input: {
+      questions: [{
+        options: [
+          { label: "方案 A", description: "按当前配置继续" },
+          { label: "方案 B", description: "调整配置后继续" },
+        ],
+        question: "请选择下一步执行方案",
+      }],
+    },
+    tool_name: "AskUserQuestion",
+  };
+  const baseHeights = new Map([[roundId, 96]]);
+  const slotOnly = projectGroupRoundHeights({
+    baseHeights,
+    containerWidth: 640,
+    messageGroups: new Map([[roundId, []]]),
+    pendingPermissionGroups: new Map([[roundId, []]]),
+    pendingSlotGroups: new Map([[roundId, [slot]]]),
+    roundIds: [roundId],
+  });
+  const withQuestion = projectGroupRoundHeights({
+    baseHeights,
+    containerWidth: 640,
+    messageGroups: new Map([[roundId, []]]),
+    pendingPermissionGroups: new Map([[roundId, [question]]]),
+    pendingSlotGroups: new Map([[roundId, [slot]]]),
+    roundIds: [roundId],
+  });
+
+  assert.ok(slotOnly.get(roundId) > baseHeights.get(roundId));
+  assert.equal(
+    withQuestion.get(roundId),
+    slotOnly.get(roundId),
+    "a Composer-owned question must not reserve a second form inside the feed",
+  );
+  assert.equal(baseHeights.get(roundId), 96, "the shared estimate stays immutable");
+});
+
+test("Room virtual height preserves matched tool evidence while Composer owns approval", async () => {
+  const { projectGroupRoundHeights } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-conversation-height-model.ts",
+  );
+  const roundId = "room-agent-round:matched-height";
+  const toolUseId = "tool-matched-height";
+  const permission = {
+    agent_id: "agent-height",
+    agent_round_id: "agent-round-height",
+    interaction_mode: "permission",
+    message_id: "assistant-height",
+    request_id: "permission-height",
+    round_id: "round-height",
+    tool_input: { command: "echo height" },
+    tool_name: "Bash",
+    tool_use_id: toolUseId,
+  };
+  const assistant = {
+    agent_id: permission.agent_id,
+    agent_round_id: permission.agent_round_id,
+    content: [{
+      id: toolUseId,
+      input: permission.tool_input,
+      name: permission.tool_name,
+      type: "tool_use",
+    }],
+    message_id: permission.message_id,
+    role: "assistant",
+    round_id: permission.round_id,
+    session_key: "room:group:conversation-1",
+    stream_status: "streaming",
+    timestamp: 1,
+  };
+  const baseHeights = new Map([[roundId, 300]]);
+  const project = (messages, permissions) => projectGroupRoundHeights({
+    baseHeights,
+    containerWidth: 640,
+    messageGroups: new Map([[roundId, messages]]),
+    pendingPermissionGroups: new Map([[roundId, permissions]]),
+    pendingSlotGroups: new Map([[roundId, []]]),
+    roundIds: [roundId],
+  }).get(roundId);
+  const unmatchedHeight = project(
+    [assistant],
+    [{ ...permission, tool_use_id: "tool-other" }],
+  );
+  const matchedHeight = project([assistant], [permission]);
+  assert.equal(
+    unmatchedHeight,
+    matchedHeight,
+    "permission matching must not remove the read-only tool evidence",
+  );
+  assert.equal(
+    project(
+      [assistant],
+      [{ ...permission, summary: "旧快照" }, permission],
+    ),
+    matchedHeight,
+    "duplicate snapshots of one request must not inflate virtual height",
+  );
+  assert.equal(
+    project([
+      assistant,
+      {
+        ...assistant,
+        content: [{
+          content: "ok",
+          tool_use_id: toolUseId,
+          type: "tool_result",
+        }],
+        message_id: "assistant-height-result",
+        timestamp: 2,
+      },
+    ], [permission]),
+    unmatchedHeight,
+    "a resolved tool row is no longer deducted as an unresolved match",
+  );
+});
+
+test("DM and Room follow real content growth with one compact tail", async () => {
+  const { getScrollBottomTop } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
+  );
+  const { resolveConversationRound } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/feed/conversation-feed-model.ts",
+  );
+  const { ConversationFeed } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/feed/conversation-feed.tsx",
+  );
+  const { GroupConversationFeed } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-conversation-feed.tsx",
+  );
+  const roomRoundIds = ["old-root", "root", "root-agent-1", "root-agent-2"];
+  const roomRootIds = new Map([
+    ["root-agent-1", "root"],
+    ["root-agent-2", "root"],
+  ]);
+  const initialBottomTop = getScrollBottomTop({
+    clientHeight: 600,
+    scrollHeight: 1_000,
+    scrollTop: 400,
+  });
+  const grownBottomTop = getScrollBottomTop({
+    clientHeight: 600,
+    scrollHeight: 1_180,
+    scrollTop: 400,
+  });
+  assert.equal(
+    grownBottomTop - initialBottomTop,
+    180,
+    "each content-height delta immediately moves FOLLOW upward by the same delta",
+  );
+  const clientMessageId = "client-message-stable";
+  const optimisticState = resolveConversationRound({
+    liveRoundIds: [],
+    messageGroups: new Map([[clientMessageId, [{
+      content: "hello",
+      message_id: clientMessageId,
+      role: "user",
+      round_id: clientMessageId,
+      timestamp: 1,
+    }]]]),
+    pendingPermissions: [],
+    roundIds: [clientMessageId],
+  }, 0);
+  const canonicalRoundId = "canonical-round";
+  const canonicalState = resolveConversationRound({
+    liveRoundIds: [],
+    messageGroups: new Map([[canonicalRoundId, [{
+      client_message_id: clientMessageId,
+      content: "hello",
+      message_id: "canonical-message",
+      role: "user",
+      round_id: canonicalRoundId,
+      timestamp: 1,
+    }]]]),
+    pendingPermissions: [],
+    roundIds: [canonicalRoundId],
+  }, 0);
+  assert.equal(
+    canonicalState.nodeId,
+    optimisticState.nodeId,
+    "ACK preserves the same React and Virtualizer node identity",
+  );
+
+  const refs = {
+    bottomAnchorRef: { current: null },
+    scrollRef: { current: null },
+  };
+  const dmHtml = renderToStaticMarkup(React.createElement(ConversationFeed, {
+    isMobileLayout: false,
+    refs,
+    renderer: {
+      currentAgentName: "Agent",
+      onPermissionResponse: () => true,
+    },
+    source: {
+      liveRoundIds: [],
+      messageGroups: new Map(),
+      pendingPermissions: [],
+      roundIds: ["dm-old", "dm-last"],
+    },
+  }));
+  assert.equal(dmHtml.match(/data-conversation-feed-tail/g)?.length, 1);
+  assert.equal(dmHtml.includes("data-conversation-runway"), false);
+  assert.equal(
+    dmHtml.match(/\bpb-1\b/g)?.length,
+    2,
+    "each measurable desktop DM round owns its spacing",
+  );
+  assert.doesNotMatch(dmHtml, /\b(?:gap-1|space-y-4)\b/);
+
+  const roomHtml = renderToStaticMarkup(React.createElement(
+    GroupConversationFeed,
+    {
+      isMobileLayout: false,
+      refs,
+      renderer: {
+        agentAvatarMap: {},
+        agentNameMap: {},
+        currentAgentAvatar: null,
+        currentAgentName: null,
+        currentUserAvatar: null,
+        isLastRoundPendingPermissions: [],
+        onPermissionResponse: () => true,
+        onStopAgentRound: () => {},
+        runtimePhase: null,
+      },
+      source: {
+        liveRoundIds: [],
+        messageGroups: new Map(),
+        pendingPermissionGroups: new Map(),
+        pendingSlotGroups: new Map(),
+        roomAgentExecutionStateGroups: new Map(),
+        rootRoundIds: roomRootIds,
+        roundIds: roomRoundIds,
+      },
+    },
+  ));
+  assert.equal(roomHtml.match(/data-conversation-feed-tail/g)?.length, 1);
+  assert.equal(roomHtml.includes("data-conversation-runway"), false);
+  assert.equal(
+    roomHtml.match(/\bpb-1\b/g)?.length,
+    roomRoundIds.length,
+    "each measurable desktop Room node owns its spacing",
+  );
+  assert.doesNotMatch(roomHtml, /\b(?:gap-1|space-y-4)\b/);
+});
+
+test("Room Agent timestamp stays on start while active and switches to finish at terminal", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
   );
   const slot = {
     agent_id: "agent-1",
@@ -3437,17 +5680,6 @@ test("Room Agent timestamp stays on start while active and switches to finish at
   });
   const active = buildRoomAgentRoundEntries([stream], [slot])[0];
   assert.equal(active?.timestamp, 2);
-  assert.equal(buildGroupAgentStatusModel({
-    labels: {
-      failed: "Failed",
-      stopped: "Stopped",
-      waitingForUser: "Waiting",
-    },
-    messages: active.assistant_messages,
-    pendingPermissions: [],
-    status: active.status,
-    timestamp: active.timestamp,
-  }).timestamp, 2);
 
   const result = assistantMessage({
     agentRoundId: "agent-round-stable-time",

@@ -1,11 +1,17 @@
 /**
- * INPUT: Room 根轮次 feed、消息、slot 与权限投影。
- * OUTPUT: 以稳定 agent_round 节点展开、从启动到完成保持原位的 feed。
+ * INPUT: Room 根轮次 feed、消息、slot、权限与 execution 首见锚点投影。
+ * OUTPUT: 以稳定 agent_round 节点展开、按 parent slot 精确消费 legacy terminal 且从启动到完成保持原位的 feed。
  * POS: Room feed 专属时间线投影；canonical root 数据仍由 shared timeline 保存给 Thread。
  */
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message/entity";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
+import {
+  filterPendingPermissionsForTerminalRoomExecutions,
+} from "@/lib/conversation/pending-permission-match";
 
 import {
   buildGroupRoundCardModel,
@@ -15,6 +21,7 @@ interface ProjectGroupAgentTimelineOptions {
   messageGroups: Map<string, Message[]>;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
+  roomAgentExecutionStateGroups?: Map<string, RoomAgentExecutionState[]>;
   roundIds: string[];
 }
 
@@ -22,6 +29,7 @@ export interface GroupAgentTimelineProjection {
   messageGroups: Map<string, Message[]>;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
+  roomAgentExecutionStateGroups: Map<string, RoomAgentExecutionState[]>;
   rootRoundIds: Map<string, string>;
   roundIds: string[];
 }
@@ -31,6 +39,7 @@ interface TimelineNode {
   nodeId: string;
   pendingPermissions: PendingPermission[];
   pendingSlots: RoomPendingAgentSlotState[];
+  roomAgentExecutionStates: RoomAgentExecutionState[];
   rootRoundId: string;
 }
 
@@ -48,6 +57,7 @@ export function projectGroupAgentTimeline({
   messageGroups,
   pendingPermissionGroups,
   pendingSlotGroups,
+  roomAgentExecutionStateGroups = new Map<string, RoomAgentExecutionState[]>(),
   roundIds,
 }: ProjectGroupAgentTimelineOptions): GroupAgentTimelineProjection {
   const nodes = roundIds.flatMap((rootRoundId) => (
@@ -55,6 +65,7 @@ export function projectGroupAgentTimeline({
       messageGroups,
       pendingPermissionGroups,
       pendingSlotGroups,
+      roomAgentExecutionStateGroups,
       rootRoundId,
     })
   ));
@@ -62,17 +73,20 @@ export function projectGroupAgentTimeline({
   const projectedMessages = new Map<string, Message[]>();
   const projectedPermissions = new Map<string, PendingPermission[]>();
   const projectedSlots = new Map<string, RoomPendingAgentSlotState[]>();
+  const projectedExecutionStates = new Map<string, RoomAgentExecutionState[]>();
   const rootRoundIds = new Map<string, string>();
   for (const node of nodes) {
     projectedMessages.set(node.nodeId, node.messages);
     projectedPermissions.set(node.nodeId, node.pendingPermissions);
     projectedSlots.set(node.nodeId, node.pendingSlots);
+    projectedExecutionStates.set(node.nodeId, node.roomAgentExecutionStates);
     rootRoundIds.set(node.nodeId, node.rootRoundId);
   }
   return {
     messageGroups: projectedMessages,
     pendingPermissionGroups: projectedPermissions,
     pendingSlotGroups: projectedSlots,
+    roomAgentExecutionStateGroups: projectedExecutionStates,
     rootRoundIds,
     roundIds: nodes.map((node) => node.nodeId),
   };
@@ -82,26 +96,36 @@ function buildRootTimelineNodes({
   messageGroups,
   pendingPermissionGroups,
   pendingSlotGroups,
+  roomAgentExecutionStateGroups,
   rootRoundId,
 }: {
   messageGroups: Map<string, Message[]>;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
+  roomAgentExecutionStateGroups: Map<string, RoomAgentExecutionState[]>;
   rootRoundId: string;
 }): TimelineNode[] {
   const messages = messageGroups.get(rootRoundId) ?? [];
-  const pendingPermissions = pendingPermissionGroups.get(rootRoundId) ?? [];
+  const pendingPermissions =
+    filterPendingPermissionsForTerminalRoomExecutions(
+    pendingPermissionGroups.get(rootRoundId) ?? [],
+    roomAgentExecutionStateGroups.get(rootRoundId) ?? [],
+  );
   const pendingSlots = pendingSlotGroups.get(rootRoundId) ?? [];
+  const roomAgentExecutionStates =
+    roomAgentExecutionStateGroups.get(rootRoundId) ?? [];
   if (
     messages.length === 0
     && pendingPermissions.length === 0
     && pendingSlots.length === 0
+    && roomAgentExecutionStates.length === 0
   ) {
     return [buildRootNode(
       rootRoundId,
       messages,
       pendingPermissions,
       pendingSlots,
+      roomAgentExecutionStates,
     )];
   }
 
@@ -111,6 +135,7 @@ function buildRootTimelineNodes({
     messages,
     pendingPermissions,
     pendingSlots,
+    executionStates: roomAgentExecutionStates,
   });
   if (model.entries.length === 0) {
     return [buildRootNode(
@@ -118,6 +143,7 @@ function buildRootTimelineNodes({
       messages,
       pendingPermissions,
       pendingSlots,
+      roomAgentExecutionStates,
     )];
   }
 
@@ -132,6 +158,7 @@ function buildRootTimelineNodes({
     entry.pendingPermissions.map((permission) => permission.request_id)
   )));
   const assignedSlotKeys = new Set(model.entries.map(buildEntrySlotKey));
+  const assignedExecutionKeys = new Set(model.entries.map(buildEntrySlotKey));
   const rootMessages = messages.filter((message) => (
     !assignedAssistantIds.has(message.message_id)
     && !assignedGuideIds.has(message.message_id)
@@ -142,17 +169,24 @@ function buildRootTimelineNodes({
   const rootSlots = pendingSlots.filter(
     (slot) => !assignedSlotKeys.has(buildSlotKey(slot.agent_id, slot.agent_round_id)),
   );
+  const rootExecutionStates = roomAgentExecutionStates.filter(
+    (state) => !assignedExecutionKeys.has(
+      buildSlotKey(state.agent_id, state.agent_round_id),
+    ),
+  );
   const nodes: TimelineNode[] = [];
   if (
     rootMessages.length > 0
     || rootPermissions.length > 0
     || rootSlots.length > 0
+    || rootExecutionStates.length > 0
   ) {
     nodes.push(buildRootNode(
       rootRoundId,
       rootMessages,
       rootPermissions,
       rootSlots,
+      rootExecutionStates,
     ));
   }
   nodes.push(...model.entries.map((entry) => ({
@@ -163,6 +197,10 @@ function buildRootTimelineNodes({
     nodeId: buildGroupAgentTimelineNodeId(rootRoundId, entry.entry_id),
     pendingPermissions: entry.pendingPermissions,
     pendingSlots: entry.pending_slot ? [entry.pending_slot] : [],
+    roomAgentExecutionStates: roomAgentExecutionStates.filter((state) => (
+      buildSlotKey(state.agent_id, state.agent_round_id)
+        === buildEntrySlotKey(entry)
+    )),
     rootRoundId,
   })));
   return nodes;
@@ -173,12 +211,14 @@ function buildRootNode(
   messages: Message[],
   pendingPermissions: PendingPermission[],
   pendingSlots: RoomPendingAgentSlotState[],
+  roomAgentExecutionStates: RoomAgentExecutionState[],
 ): TimelineNode {
   return {
     messages,
     nodeId: resolveStableRootNodeId(rootRoundId, messages),
     pendingPermissions,
     pendingSlots,
+    roomAgentExecutionStates,
     rootRoundId,
   };
 }
@@ -210,25 +250,26 @@ function resolveAssignedAssistantIds(
   const ids = new Set(entries.flatMap((entry) => (
     entry.assistant_messages.map((message) => message.message_id)
   )));
-  const entriesByAgent = new Map<string, GroupRoundAgentCardModel[]>();
-  for (const entry of entries) {
-    const group = entriesByAgent.get(entry.agent_id) ?? [];
-    group.push(entry);
-    entriesByAgent.set(entry.agent_id, group);
-  }
   // synthetic result 会在 Agent entry 内合并进 canonical assistant；仍需从 root 删除原块。
   for (const message of messages) {
     if (message.role !== "assistant" || !message.agent_id) {
       continue;
     }
-    const candidates = entriesByAgent.get(message.agent_id) ?? [];
     const agentRoundId = message.agent_round_id?.trim();
-    if (
-      candidates.length === 1
-      || candidates.some((entry) => (
-        agentRoundId && entry.agent_round_id === agentRoundId
-      ))
-    ) {
+    const parentId = message.parent_id?.trim();
+    const assigned = entries.some((entry) => {
+      if (entry.agent_id !== message.agent_id) {
+        return false;
+      }
+      if (agentRoundId) {
+        return entry.agent_round_id === agentRoundId;
+      }
+      return Boolean(
+        parentId
+        && entry.pending_slot?.msg_id.trim() === parentId,
+      );
+    });
+    if (assigned) {
       ids.add(message.message_id);
     }
   }

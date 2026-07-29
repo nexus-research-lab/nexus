@@ -120,6 +120,7 @@ func TestServiceBuildRuntimePromptIncludesHumanIdentityRules(t *testing.T) {
 	assertPromptContains(t, prompt, "Do not search for `cmd/nexusctl`")
 	assertPromptContains(t, prompt, "use `WebSearch` and `WebFetch` as a pair")
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
+	assertPromptContains(t, prompt, "Never edit Nexus SQLite files directly")
 	assertPromptContains(t, prompt, "Use Nexus automation tools")
 	if strings.Contains(prompt, "scheduled-task-manager") {
 		t.Fatalf("定时任务不应再要求加载重复 skill: %s", prompt)

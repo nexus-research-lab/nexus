@@ -8,12 +8,14 @@ import { useCallback, useLayoutEffect, useRef } from "react";
 import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
+import type { CommandCatalogData } from "@/types/generated/protocol";
 
 import { useComposerAttachments } from "../attachments/use-composer-attachments";
 import {
   focusComposerInputAtEnd,
   type ComposerPanelProps,
 } from "../composer-model";
+import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
 import { useComposerHistory } from "../use-composer-history";
 import { useComposerMention } from "../use-composer-mention";
 import { useComposerSlashCommand } from "../use-composer-slash-command";
@@ -24,9 +26,14 @@ import { useComposerKeyboard } from "./use-composer-keyboard";
 import { useComposerMessageSubmit } from "./use-composer-message-submit";
 
 const EMPTY_ROOM_MEMBERS: Agent[] = [];
+const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
+  commands: [],
+  status: "unavailable",
+};
+const IGNORE_COMMAND_CATALOG_REFRESH = () => {};
 
 export function useComposerController({
-  commandCatalog,
+  commandCatalog = EMPTY_COMMAND_CATALOG,
   compact,
   defaultDeliveryPolicy,
   draftScopeKey,
@@ -34,12 +41,13 @@ export function useComposerController({
   goalCreateDisabledReason = null,
   historyScopeKey,
   inputQueueItems,
+  interactionIdentity = null,
   isLoading,
   onCreateGoal,
   onCreateLoopGoal,
   onEnqueueMessage,
   onPrepareAttachments,
-  onRefreshCommandCatalog,
+  onRefreshCommandCatalog = IGNORE_COMMAND_CATALOG_REFRESH,
   onSendMessage,
   onStop,
   queueWhenSessionBusy = true,
@@ -98,8 +106,26 @@ export function useComposerController({
     setInput,
     textareaRef,
   });
-  const { updateMentionForInput } = mention;
-  const { updateForInput: updateSlashCommandForInput } = slashCommand;
+  const { closeMention, updateMentionForInput } = mention;
+  const {
+    close: closeSlashCommand,
+    updateForInput: updateSlashCommandForInput,
+  } = slashCommand;
+  useLayoutEffect(() => {
+    if (!interactionIdentity) {
+      return;
+    }
+    closeMention();
+    closeSlashCommand();
+    setActionMenuOpen(false);
+    setLoopPickerOpen(false);
+  }, [
+    interactionIdentity,
+    closeMention,
+    closeSlashCommand,
+    setActionMenuOpen,
+    setLoopPickerOpen,
+  ]);
   const history = useComposerHistory({
     clearError: clearAttachmentError,
     input: draftState.input,
@@ -110,7 +136,7 @@ export function useComposerController({
 
   useTextareaHeight(textareaRef, draftState.input, {
     minHeight: 24,
-    maxHeight: 200,
+    maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
     lineHeight: 24,
     paddingY: 0,
   });
@@ -123,7 +149,7 @@ export function useComposerController({
     if (textarea) {
       focusComposerInputAtEnd(textarea);
     }
-  }, [draftScopeKey]);
+  }, [draftScopeKey, interactionIdentity]);
 
   const resetTextareaHeight = useCallback(() => {
     if (textareaRef.current) {

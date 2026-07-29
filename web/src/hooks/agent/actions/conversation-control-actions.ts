@@ -25,11 +25,11 @@ function getLatestUserRoundId(messages: Message[]): string | undefined {
 export function stopSessionGeneration(
   context: AgentConversationActionContext,
   agentRoundId?: string,
-): void {
+): boolean {
   const result = resolveConversationActionContext(context);
   if (!result.ok) {
     context.setError(conversationContextError(result.reason));
-    return;
+    return false;
   }
 
   const command: WebSocketMessage = {
@@ -40,9 +40,19 @@ export function stopSessionGeneration(
   } as WebSocketMessage;
   if (context.wsSend(command).disposition !== "sent") {
     context.setError("中断请求发送失败，请稍后重试");
-    return;
+    return false;
   }
-  context.setPendingPermissions([]);
+  if (agentRoundId) {
+    const normalizedAgentRoundId = agentRoundId.trim();
+    context.setPendingPermissions((permissions) => permissions.filter(
+      (permission) =>
+        permission.agent_round_id?.trim() !== normalizedAgentRoundId,
+    ));
+  } else {
+    context.setPendingPermissions([]);
+  }
+  context.setError(null);
+  return true;
 }
 
 function removePendingPermission(
@@ -181,6 +191,9 @@ export function sendSessionPermissionResponse(
     context.setError("权限决策发送失败，请稍后重试");
     return false;
   }
+  // 先留下 keyed execution tombstone，再移除交互权限；同一帧不会卸载
+  // Agent shell，也不会继续暴露可重复提交的问题表单。
+  context.acknowledgePermissionRequest(payload.request_id);
   removePendingPermission(context, payload.request_id);
   context.setError(null);
   return true;

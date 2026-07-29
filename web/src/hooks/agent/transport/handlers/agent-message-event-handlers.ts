@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前会话上有序到达的 WebSocket stream 与完整 message 事件。
+ * OUTPUT: canonical snapshot 前同步 flush 更早 patch 的会话内消息更新。
+ * POS: Agent realtime 事件进入消息集合前的顺序边界。
+ */
 import {
   parseConversationMessage,
   parseStreamMessage,
@@ -24,6 +29,7 @@ const handleStream: AgentEventHandler = (event, context) => {
   ) {
     return;
   }
+  context.runtime.trackStreamExecution(payload);
   context.callbacks.enqueueStreamPayload(payload);
 };
 
@@ -47,9 +53,13 @@ const handleMessage: AgentEventHandler = (event, context) => {
   const normalizedMessage = message.role === "assistant"
     ? normalizeAssistantMessage(message as AssistantMessage)
     : message;
+  // 同一 WebSocket 上 message 快照晚于此前 stream event。先同步清空 RAF
+  // 缓冲，才能保证旧累计 patch 不会在下一帧把较新 streaming 快照缩短。
+  context.callbacks.flushStreamPayloads();
   context.state.setMessages((currentMessages) => (
     upsertRealtimeMessage(currentMessages, normalizedMessage)
   ));
+  context.callbacks.settleLiveMessageSnapshot(normalizedMessage);
   if (normalizedMessage.role === "assistant") {
     context.runtime.trackAssistantMessage(
       normalizedMessage as AssistantMessage,

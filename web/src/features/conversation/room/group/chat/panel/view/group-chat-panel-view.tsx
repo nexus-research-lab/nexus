@@ -1,13 +1,30 @@
+/**
+ * INPUT: Room 会话 Frame、Feed、Goal、Task 与 Composer 视图模型。
+ * OUTPUT: 共享 viewport 与从 Composer 向上堆叠 Goal、Task、滚动入口的 Room 对话布局。
+ * POS: Group Chat 面板的纯视图层。
+ */
+
 import type { ComponentProps } from "react";
 
+import {
+  ComposerInteractionSurface,
+  type ComposerInteractionSurfaceProps,
+} from "@/features/conversation/shared/composer/components/interaction/composer-interaction-surface";
 import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
 import {
-  ConversationPanelFloatingControls,
+  AgentHandoffStatusProvider,
+  type AgentHandoffStatusMap,
+} from "@/features/conversation/shared/message/agent-handoff-status-context";
+import {
+  ConversationPanelBottomArea,
   ConversationPanelLayout,
   ConversationPanelViewport,
+  ConversationPanelViewportArea,
 } from "@/features/conversation/shared/conversation-panel-layout";
 import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
+import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
+import type { TodoItem } from "@/types/conversation/todo";
 
 import { GroupConversationFeed } from "../../feed/group-conversation-feed";
 import type { GroupConversationFeedProps } from "../../feed/group-conversation-feed-model";
@@ -29,10 +46,13 @@ type GoalPanelModel = Omit<
 
 export interface GroupChatPanelViewModel extends ConversationPanelFrameModel {
   composer: GroupChatComposerModel;
+  composerInteraction: ComposerInteractionSurfaceProps;
   feed: GroupConversationFeedProps;
   goalLead: RoomGoalLeadControlProps;
   goalPanel: GoalPanelModel;
+  handoffStatuses: AgentHandoffStatusMap;
   onCreateConversation: (title?: string) => void | Promise<string | null>;
+  todos: TodoItem[];
 }
 
 export function GroupChatPanelView({
@@ -40,16 +60,8 @@ export function GroupChatPanelView({
 }: {
   model: GroupChatPanelViewModel;
 }) {
-  const { isMobileLayout } = model;
   return (
-    <ConversationPanelLayout
-      navigator={!isMobileLayout && model.sessionKey ? (
-        <ConversationSessionNavigator
-          {...model.navigator}
-          className="absolute bottom-[156px] left-3 top-7 z-20"
-        />
-      ) : undefined}
-    >
+    <ConversationPanelLayout>
       {!model.sessionKey ? (
         <GroupConversationEmptyState
           onCreateConversation={model.onCreateConversation}
@@ -67,25 +79,56 @@ function ActiveGroupConversation({
   model: GroupChatPanelViewModel;
 }) {
   const { isMobileLayout, viewport } = model;
+  const currentInteraction = model.composerInteraction.permissions[0] ?? null;
+  const interactionSurface = currentInteraction ? (
+    <ComposerInteractionSurface {...model.composerInteraction} />
+  ) : undefined;
   return (
     <>
-      <ConversationPanelViewport
-        isMobileLayout={isMobileLayout}
-        viewport={viewport}
+      <ConversationPanelViewportArea
+        navigator={!isMobileLayout && model.sessionKey ? (
+          <ConversationSessionNavigator
+            {...model.navigator}
+            className="absolute inset-y-0 left-3 z-20"
+          />
+        ) : undefined}
       >
-        <GroupConversationFeed {...model.feed} />
-      </ConversationPanelViewport>
-      <ConversationPanelFloatingControls
+        <ConversationPanelViewport
+          floatingDockOccupied={
+            model.todos.length > 0 || model.scrollToLatest.visible
+          }
+          isMobileLayout={isMobileLayout}
+          viewport={viewport}
+        >
+          <AgentHandoffStatusProvider statuses={model.handoffStatuses}>
+            <GroupConversationFeed {...model.feed} />
+          </AgentHandoffStatusProvider>
+        </ConversationPanelViewport>
+      </ConversationPanelViewportArea>
+      <ConversationPanelBottomArea
+        activity={
+          model.todos.length > 0
+            ? <WorkspaceTaskPanel todos={model.todos} />
+            : undefined
+        }
+        goal={(
+          <RoomGoalPanel
+            {...model.goalPanel}
+            isMobileLayout={isMobileLayout}
+          />
+        )}
         isMobileLayout={isMobileLayout}
         providerWarningVisible={model.providerWarningVisible}
         scrollToLatest={model.scrollToLatest}
-      />
-      <RoomGoalPanel {...model.goalPanel} isMobileLayout={isMobileLayout} />
-      <ComposerPanel
-        {...model.composer}
-        compact={isMobileLayout}
-        goalModeExtra={<RoomGoalLeadControl {...model.goalLead} />}
-      />
+      >
+        <ComposerPanel
+          {...model.composer}
+          compact={isMobileLayout}
+          goalModeExtra={<RoomGoalLeadControl {...model.goalLead} />}
+          interactionIdentity={currentInteraction?.request_id ?? null}
+          interactionSurface={interactionSurface}
+        />
+      </ConversationPanelBottomArea>
     </>
   );
 }

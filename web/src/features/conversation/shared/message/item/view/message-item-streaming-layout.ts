@@ -1,9 +1,15 @@
+/**
+ * INPUT: Assistant 正文 surface、当前可见文本与流式游标状态。
+ * OUTPUT: 流式阶段只增不减的正文最小高度与测量节点。
+ * POS: MessageItem 视图层的流式排版稳定器。
+ */
 import { prepare, layout } from "@chenglou/pretext";
 import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 
 import type { ContentBlock } from "@/types/conversation/message/content";
 
 import { extractTextFromContentBlocks } from "../../message-content-model";
+import { resolveAssistantResponseSurface } from "../message-item-projection";
 
 const STREAMING_MIN_HEIGHT = 60;
 const STREAMING_LAYOUT_DELAY_MS = 150;
@@ -40,11 +46,10 @@ export function useMessageItemStreamingLayout({
   );
 
   useEffect(() => {
-    const layoutText =
-      assistantContentMode === "dm_live" ||
-      assistantContentMode === "room_thread"
-        ? extractTextFromContentBlocks(directContent)
-        : finalAssistantText;
+    const layoutText = resolveAssistantResponseSurface(assistantContentMode)
+      === "direct"
+      ? extractTextFromContentBlocks(directContent)
+      : finalAssistantText;
 
     if (!showCursor || !layoutText) {
       return;

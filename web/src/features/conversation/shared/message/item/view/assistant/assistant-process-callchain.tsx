@@ -141,6 +141,7 @@ function ExpandedProcessContent({
         isStreaming={activity.showCursor}
         onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
         onPermissionResponse={environment.onPermissionResponse}
+        pendingInteractionOwner={permissions.owner}
         pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
         permissionReadOnlyReason={environment.permissionReadOnlyReason}
         showTimelineDots

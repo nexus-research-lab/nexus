@@ -9,6 +9,7 @@ import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 
 import type { MessageItemProps } from "../message-item-types";
+import { resolvePendingInteractionOwner } from "../message-item-projection";
 import { hasTimedOutAskUserQuestion } from "../process/message-question-timeout";
 import { useMessageItemStreamingLayout } from "../view/message-item-streaming-layout";
 import { resolveAssistantDisplayState } from "./display/message-item-display-model";
@@ -18,6 +19,7 @@ import { useMessageItemProjection } from "./projection/use-message-item-projecti
 type MessageItemControllerOptions = Pick<
   MessageItemProps,
   | "assistantContentMode"
+  | "activityState"
   | "defaultProcessExpanded"
   | "hiddenToolNames"
   | "isLastRound"
@@ -31,6 +33,7 @@ type MessageItemControllerOptions = Pick<
 
 export function useMessageItemController({
   assistantContentMode = "dm_archived",
+  activityState,
   defaultProcessExpanded = false,
   hiddenToolNames = [],
   isLastRound,
@@ -50,6 +53,7 @@ export function useMessageItemController({
   } = useScrollAnchoredState(defaultProcessExpanded);
   const projection = useMessageItemProjection({
     assistantContentMode,
+    activityState,
     hiddenToolNames,
     isLastRound,
     isLoading,
@@ -106,7 +110,9 @@ export function useMessageItemController({
         timestamp: projection.timestamp,
       },
       permissions: {
+        all: projection.pendingInteractionPermissions,
         matchedByToolUseId: projection.matchedPendingPermissionsByToolUseId,
+        owner: resolvePendingInteractionOwner(assistantContentMode),
         unmatched: projection.unmatchedPendingPermissions,
       },
       direct: {

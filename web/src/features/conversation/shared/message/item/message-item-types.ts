@@ -8,6 +8,7 @@ import type {
 } from "@/types/conversation/interaction/permission";
 
 import type { AssistantContentMode } from "./message-item-projection";
+import type { MessageActivityState } from "./activity/message-activity-state";
 import type { AgentMentionDirectory } from "../agent-mention-chip";
 
 export interface MessageItemProps {
@@ -21,6 +22,8 @@ export interface MessageItemProps {
   messages: Message[];
   isLastRound?: boolean;
   isLoading?: boolean;
+  /** Consumer-owned execution evidence projected onto the shared activity vocabulary. */
+  activityState?: MessageActivityState | null;
   runtimePhase?: AgentConversationRuntimePhase | null;
   pendingPermissions?: PendingPermission[];
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;

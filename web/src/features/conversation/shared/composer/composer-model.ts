@@ -15,6 +15,12 @@ import type { AgentRuntimeKind } from "@/types/settings/preferences";
 export interface ComposerPanelProps {
   compact: boolean;
   commandCatalog: CommandCatalogData;
+  /**
+   * DM/Room 等待用户回应时原位替换输入壳内容；草稿状态继续保留。
+   */
+  interactionSurface?: ReactNode;
+  /** 用于最后一个 interaction 消失后恢复输入焦点。 */
+  interactionIdentity?: string | null;
   /** 包含 Session 身份的完整待发送草稿作用域。 */
   draftScopeKey: string;
   /** 同一逻辑聊天共享、刻意不包含 Session ID 的已发送输入历史作用域。 */

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 会话轮次 DOM 协议、滚动视口与目标轮次/对齐选项。
+ * OUTPUT: 可定位用户锚点或完整轮次 wrapper 的 static/virtual Feed 滚动句柄。
+ * POS: DM/Room 轮次精确定位边界；不拥有导航目标或未读状态。
+ */
 import type { MutableRefObject } from "react";
 
 export const CONVERSATION_ROUND_SELECTOR = "[data-conversation-round-id]";
@@ -8,6 +13,7 @@ const ROUND_NAVIGATION_TARGET_DATA_KEY = "conversationRoundNavigationTarget";
 export interface ConversationRoundScrollOptions {
   align?: "start" | "focus";
   behavior?: ScrollBehavior;
+  target?: "round" | "user";
 }
 
 export interface ConversationRoundScrollHandle {
@@ -89,6 +95,7 @@ export function scrollToConversationRoundElement(
   const containerRect = scrollElement.getBoundingClientRect();
   const targetRect = resolveConversationRoundScrollTarget(
     target,
+    options?.target,
   ).getBoundingClientRect();
   const offset =
     options?.align === "focus"
@@ -111,7 +118,13 @@ export function scrollToConversationRoundElement(
   });
 }
 
-function resolveConversationRoundScrollTarget(target: HTMLElement): HTMLElement {
+function resolveConversationRoundScrollTarget(
+  target: HTMLElement,
+  preference: ConversationRoundScrollOptions["target"] = "user",
+): HTMLElement {
+  if (preference === "round") {
+    return target;
+  }
   return (
     target.querySelector<HTMLElement>(
       CONVERSATION_ROUND_USER_ANCHOR_SELECTOR,

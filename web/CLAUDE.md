@@ -31,7 +31,7 @@ src/
 - Agent Session 由 `hooks/agent/session/controller/` 分离身份迁移、后台/易失快照与加载上下文；总控制器不复制 React setter
 - Agent 运行态由 `hooks/agent/runtime/` 按纯模型、易失快照和 React 状态分层；状态机实例不得暴露给编排层，`model/` 不得反向依赖存储或 Hook
 - Agent 目录 Store 只保留静态目录与当前选择；运行态事件只在会话/工作区链路中消费，不回写 Agent 目录状态
-- WebSocket 连接策略只由 `lib/websocket/socket-policy.ts` 定义；共享通道使用完整有效配置作为身份，业务消息不得进入离线队列
+- WebSocket 连接策略只由 `lib/websocket/socket-policy.ts` 定义；共享通道使用完整有效配置作为身份，业务消息不得进入离线队列；Room/DM 的 Session bind 由共享通道内部的逻辑租约统一引用计数并在重连后重放，单个组件 cleanup 不得直接解绑仍被其他消费者使用的 Session
 - Workspace 会话标签由 `shared/ui/workspace/controls/conversation-tabs/` 分离纯模型、标签事务和单项视图；`store/room-navigation.ts` 按 Room 持久化完整打开集合、顺序与活动项，首次进入只打开恢复目标，历史会话只在用户显式选择后加入；活动标签必须属于打开集合，视图不得直接修正集合状态
 - `shared/`、`lib/`、`store/` 与 `types/` 不得依赖 `features/`；应用壳层组合 Feature 时必须归入 `app/` 或专用导航 Feature
 - `types/` 只声明跨层协议，不得导入 Config、Lib 或运行时投影；Agent 会话作用域键只由 `lib/conversation/agent-conversation-identity.ts` 计算
@@ -61,8 +61,9 @@ src/
 - 子智能体列表与线程复用 `shared/subagent/use-scoped-resource.ts` 的作用域请求协议；线程按资源和纯投影拆分为只读执行记录，公共 Hook 只做装配；Room 由私有适配层复用成员选择器并按任务 `host_agent_id` 过滤，共享域不得反向依赖 Room
 - Room 主 Feed 与 Thread 共用 `room/group/round/round-agent-model.ts` 的 Agent 聚合状态；状态优先级不得在视图中重复推导
 - Room 创建与管理弹窗只通过 `members/use-create-room-form.ts` 管理不变量，并以 `RoomDialogSubmission` 对象提交；视图组件不得在渲染期修正表单状态
-- Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；bootstrap 请求、刷新排队和全局目录事件不得在消费者中重复实现；聊天执行态统一由 `home/room-activity-resource.ts` 按 `roomId` 短期投影，DM 与群组共用规则，聊天和联系人侧栏均不订阅 Agent runtime
+- Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；聊天完成订阅固定挂在 `AppLayout`，不得依赖宽屏侧栏是否渲染；bootstrap 请求、刷新排队和全局目录事件不得在消费者中重复实现；聊天执行态统一由 `home/room-activity-resource.ts` 按 `roomId` 短期投影，DM 与群组共用规则，聊天和联系人侧栏均不订阅 Agent runtime
 - Home 侧栏只通过 `home/sidebar/` 组合聊天和联系人入口；Room/DM 基础投影与未读叠加必须独立缓存，视图不得直接调用 Room API 或拼通知键
+- Group Room 完成事件须同时记录精确消息锚点与未读计数；Room 导航不得预先清除它们，只有对应 Feed 证明消息已进入视口后才逐条消费。DM 仍在进入会话时清理自身未读，未读计数和最后更新时间不能推断第一条未读 Agent 回复
 - Home ASCII Hero 的 Canvas 资源只归 `home/hero/home-ascii-scene.ts`；异步字体与尺寸重建必须绑定代次，过期任务不得启动动画循环
 - Agent Options 以 `agents/options/editor/agent-options-draft.ts` 的单一草稿为编辑真相；名称校验与保存完成必须同时匹配 Agent 作用域和草稿版本
 - Agent Options 的可编辑字段和创建/更新参数只由 `agents/options/` 投影；Contacts 与 Room 不得复制 Options 字段表或 Agent 更新载荷
@@ -98,7 +99,10 @@ src/
 - Workspace Surface Header 固定为真实使用的单行布局，标题、导航和尾部动作按职责组合；工具栏动作从 Header 独立导入，不恢复无消费者的密度模式
 - 技能详情按 route/controller/model/view 分离，详情资源用请求代次拒绝旧响应；更新和删除只复用市场命令的明确结果，不在视图重复调用 API
 - 连接器目录卡片的尾部动作只由 `capability/connectors/catalog/connector-card-model.ts` 投影；已连接项必须提供可访问的断开入口并复用控制器断开事务，详情页保留同一动作；飞书云文档的连接入口统一先选择官方扫码或手工兜底，官方扫码可在飞书选择已有应用或创建新应用，桌面端通过原生宿主、Web 端通过收到 App ID 后的延迟弹窗尝试拉起当前用户授权链接，Web 被浏览器拦截时必须显示明确的主按钮，手工 App ID / Secret 不得成为断开后静默复用的固定状态
+- Room 当前 Session 的 Agent execution 展示锚点只由 `hooks/agent/runtime/model/room-agent-execution-state.ts` 维护：首次批量恢复采用服务端 `display_order` 或 slot timestamp/index 建立 canonical 顺序，后续 permission、slot、stream、message 证据只能追加并接管既有节点；acknowledged tombstone 保持原 shell 但不再携带交互。Timeline、Room Feed 与 Thread 只消费该投影，不得按完成顺序重排
+- MessageItem 的 Assistant 内容模式只由 `features/conversation/shared/message/item/message-item-projection.ts` 的穷尽策略同时选择 direct/final 正文 surface 与 pending interaction owner；DM 与 Room 的人工介入统一由 Composer 原位替换输入壳，消息和 Thread 只保留不可操作的等待证据。DM live/archive 的最终正文必须保持同一 React 子树；`view/content/content-renderer-model.ts` 让 live 空文本先挂载 Markdown 身份以承接首批流式正文，历史空文本不得占位
 - Composer 由 `features/conversation/shared/composer/controller/` 分离草稿、分阶段消息投递、Goal/Loop、有序键盘守卫，以及输入/运行时/模式/动作视图投影；未发送的正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标组成单一草稿胶囊，按包含 Session ID 的 Room/DM 内存作用域隔离，切换 Session 恢复各自待发送状态且不同聊天互相隔离；输入历史仍按不含 Session ID 的逻辑聊天作用域共享；`components/{footer,pending-queue,loop-picker}/` 分别拥有展示和局部交互，面板只装配子域
+- 会话底部工作区由 `conversation/shared/conversation-panel-layout.tsx` 统一组合为一个以 Composer 为底座的向上工作栈：Goal/告警紧贴 Composer 形成第一层，当前会话 Task 以“当前步骤/总步数 · 当前摘要”胶囊占据工作栈顶边的中心主位，回到底部在同一行相邻显示且 Task 缺席时单独居中。透明 Dock 与中间包装不接收指针，只有两个真实按钮拥有局部热区；禁止再用透明 runway 拉开 Goal 与 Composer。只有 Task 或回到底部控件真实可见时才在消息尾部保留避让，隐藏时不制造空白；控件显隐和 Task 展开不得改变阅读 viewport 高度。Task 数据沿 Room/DM 面板模型进入共享视图，不在 Room Surface 顶部另设状态条。Composer Footer 使用输入壳容器宽度收敛动作与 `Powered by Nexus` 居中标注；窄壳 Goal 模式必须重排为两行并保留负责人、取消和提交动作，不以全窗口断点推导壳内密度
 - Composer 附件只由 `shared/composer/attachments/` 的有序规则表分类并生成文件选择过滤；剪贴板先投影为明确动作，整批校验必须先于上传，DM/Room 必须提供窄上传目标
 - 停止动作按执行所有权归属：DM 可由 Composer 提供 `onStop`，Room Composer 不暴露停止入口，Room 只在对应 Agent slot 通过 `agent_round_id` 定向中断
 - General 设置由 `features/settings/general/` 统一编排；默认模型值直接派生自用户偏好和 Provider 默认值，不维护镜像选择状态
@@ -116,10 +120,11 @@ src/
 - Office 预览下载与载荷上限只由 `conversation/shared/editor/office-preview-resource.ts` 管理；文档预览的加载生命周期、DOM 归一化与视图分别归属 `document/` 下的 Hook、DOM 模型和视图模块
 - DM/Room 虚拟消息流共用 `features/conversation/shared/feed/` 的容器测量与轮次导航协议；高度估算必须响应容器宽度变化
 - DM/Room canonical 根轮次只从 `features/conversation/shared/timeline/timeline-model.ts` 派生；Room Feed 再由 `room/group/chat/feed/group-agent-timeline-model.ts` 把各 `agent_round` 投影为保留根因果关系的稳定时间线节点，Thread 仍使用 canonical root；`timeline/window-loader/` 分离候选选择、有限重试账本和调度，窗口加载必须用会话代次隔离在途请求
+- Room 未读 Agent 队列只使用完成事件的精确消息身份、`room_seq` 和稳定 `room-agent-round` 节点；Agent 节点可能插入旧 root，标记必须以不改变测量高度的 overlay 随真实节点渲染，Composer 上方入口按目标相对视口显示向上或向下，static/virtual Feed 共用同一状态且不得改变 DM 的回到底部控件
 - 对话滚动只通过 `features/conversation/shared/timeline/scroll/` 协调；面板不得复制底部阈值、RAF 动画、历史前插锚点或轮次 DOM 标记
 - DM/Room Todo 只从 `features/conversation/shared/todos/` 的单遍轮次投影派生；计划、运行时任务和状态别名不得在面板中重复推导
 - 会话导航由 `shared/session-navigator/` 分离时间线数据投影、刻度视觉模型、纯 DOM 定位和活动轮同步，`session-navigator/jump/` 分离目标、串行加载与落点确认；缺失窗口加载必须绑定会话键和请求代次，失效目标不得产生副作用
-- 消息项由 `features/conversation/shared/message/item/controller/` 统一完成顺序、权限、过程链和最终回复投影，`controller/display/` 分离纯显示状态与展开生命周期；Assistant 视图按模型、内容、头部、过程和权限适配分工，User 视图按展示模型、头部、正文和编辑器分工，未匹配权限保持独立且唯一的内容段
+- 消息项由 `features/conversation/shared/message/item/controller/` 统一完成顺序、权限、过程链和最终回复投影，`controller/display/` 分离纯显示状态与展开生命周期；Assistant 视图按模型、内容、头部、过程和权限适配分工，DM live 的连续普通工具由 `item/process/dm-tool-run-segments.ts` 以首个 `tool_use.id` 稳定成段，未解析或新增长段保持展开，已解析段在叙事/final 恢复边界后折叠，Room 与人工交互工具不进入该压缩路径；User 视图按展示模型、头部、正文和编辑器分工，未匹配权限只进入 Composer 队列，不得在消息正文恢复独立操作面
 - `MessageItem` 直接从 `message/item/message-item.tsx` 导入；消息目录不提供只做转发的聚合出口
 - 消息内容块按 `blocks/{question,code,artifact,tool}/` 分域；Question 的卡片展示与草稿/提交控制分别归 `question/{card,controller}/`，跨消息项的工具名称与输入摘要归消息域 `tool-activity.ts`，Tool 的执行阶段与权限详情只由 `tool/tool-block-model.ts` 派生，头部交互由 `tool/header/` 的纯投影解释
 - Artifact 文件和图片分别归 `blocks/artifact/{file,image}/`，路径解析与浏览器下载/桌面 reveal 只由 Artifact 根域实现，消息渲染器不得直接调用文件动作 API

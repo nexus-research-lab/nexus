@@ -27,9 +27,7 @@ type BlockProjector = (
 
 const BLOCK_PROJECTORS: BlockProjector[] = [
   projectVisibleTextBlock,
-  (block) => block.type === "thinking"
-    ? (block.thinking.trim() ? [block] : [])
-    : null,
+  projectVisibleThinkingBlock,
   (block, context) => block.type === "tool_use"
     ? (
       context.hiddenToolNames.has(block.name)
@@ -55,6 +53,16 @@ function projectVisibleTextBlock(block: ContentBlock): ContentBlock[] | null {
   }
   const text = stripRoomControlMarkers(block.text);
   return text ? splitTextBlockByToolUseError({ ...block, text }) : [];
+}
+
+function projectVisibleThinkingBlock(
+  block: ContentBlock,
+): ContentBlock[] | null {
+  if (block.type !== "thinking") {
+    return null;
+  }
+  const thinking = stripRoomControlMarkers(block.thinking);
+  return thinking ? [{ ...block, thinking }] : [];
 }
 
 type ResolveSourceOrder = (sourceMessageId: string) => number;

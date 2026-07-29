@@ -25,4 +25,5 @@ export interface GroupChatPanelProps {
   roomId: string | null;
   roomMembers: Agent[];
   runtimeKind: AgentRuntimeKind;
+  todos: TodoItem[];
 }

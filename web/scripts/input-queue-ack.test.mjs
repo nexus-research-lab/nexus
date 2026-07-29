@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import { createServer } from "vite";
 
@@ -162,6 +164,7 @@ test("input queue ACK parser validates accepted and duplicate flags", async () =
     pending: [{
       agent_id: "agent-2",
       agent_round_id: "agent-round-public-wake",
+      handoff_id: "handoff-public-wake",
       index: 0,
       msg_id: "slot-public-wake",
       status: "pending",
@@ -229,6 +232,17 @@ test("input queue ACK parser validates accepted and duplicate flags", async () =
   assert.equal(
     parseChatAckData({
       ...serverPendingAck,
+      pending: [{
+        ...serverPendingAck.pending[0],
+        handoff_id: 42,
+      }],
+    }),
+    null,
+    "handoff correlation must be a non-empty string when present",
+  );
+  assert.equal(
+    parseChatAckData({
+      ...serverPendingAck,
       client_message_id: "client-message-1",
       client_request_id: "request-1",
       pending_snapshot: true,
@@ -238,6 +252,219 @@ test("input queue ACK parser validates accepted and duplicate flags", async () =
     null,
     "a correlated request ACK cannot masquerade as an authoritative snapshot",
   );
+});
+
+test("public handoff correlation survives ACK, active execution, and terminal lifecycle", async () => {
+  const { mergeChatAckPendingSlots } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const {
+    applyRoomAgentExecutionStatus,
+    syncRoomAgentExecutionsFromSlots,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const handoffId = "handoff-public-wake";
+  const slots = mergeChatAckPendingSlots([], {
+    ack_timeout_ms: 10_000,
+    client_message_id: "",
+    client_request_id: "",
+    pending: [{
+      agent_id: "agent-2",
+      agent_round_id: "agent-round-public-wake",
+      handoff_id: handoffId,
+      index: 0,
+      msg_id: "slot-public-wake",
+      round_id: "round-root",
+      status: "pending",
+      timestamp: 20,
+    }],
+    pending_snapshot: false,
+    round_id: "round-root",
+    user_message_committed: false,
+    user_message_id: "",
+  });
+  assert.equal(slots[0].handoff_id, handoffId);
+
+  const active = syncRoomAgentExecutionsFromSlots([], slots);
+  assert.equal(active[0].handoff_id, handoffId);
+  const terminal = applyRoomAgentExecutionStatus(active, {
+    agent_id: "agent-2",
+    agent_round_id: "agent-round-public-wake",
+    is_terminal: true,
+    round_id: "round-root",
+    status: "finished",
+  });
+  assert.equal(
+    terminal[0].handoff_id,
+    handoffId,
+    "terminal lifecycle evidence must not erase the exact handoff identity",
+  );
+  assert.equal(terminal[0].phase, "terminal");
+});
+
+test("Room handoff mention phases are realtime-only, monotonic, and reconnect-safe", async () => {
+  const { projectRoomAgentHandoffStatuses } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/panel/controller/room-handoff-status-model.ts",
+  );
+  const handoffId = "handoff-room-1";
+  const liveFinalMessage = {
+    agent_id: "agent-source",
+    agent_mentions: [{
+      agent_id: "agent-target",
+      content_block_index: 0,
+      end_rune: 13,
+      handoff_id: handoffId,
+      label: "@Target",
+      start_rune: 6,
+    }],
+    content: [{ text: "交给 @Target", type: "text" }],
+    delivery_mode: "durable",
+    is_complete: true,
+    message_id: "source-message",
+    role: "assistant",
+    round_id: "root-round",
+    session_key: "room:group:conversation",
+    stream_status: "done",
+    timestamp: 10,
+  };
+
+  assert.deepEqual(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [{ ...liveFinalMessage, delivery_mode: undefined }],
+      pendingSlots: [],
+    }),
+    {},
+    "history reload must not resurrect a completed handoff from mention metadata alone",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [liveFinalMessage],
+      pendingSlots: [],
+    })[handoffId],
+    "preparing",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [{
+        content: "交给 Target",
+        created_at: 11,
+        delivery_policy: "queue",
+        handoff_id: handoffId,
+        id: "queue-handoff",
+        scope: "room",
+        session_key: "room:group:conversation",
+        source: "agent_public_mention",
+        updated_at: 11,
+      }],
+      messages: [liveFinalMessage],
+      pendingSlots: [],
+    })[handoffId],
+    "queued",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [{
+        agent_id: "agent-target",
+        agent_round_id: "agent-round-target",
+        display_order: 1,
+        first_seen_at: 12,
+        handoff_id: handoffId,
+        phase: "active",
+        round_id: "root-round",
+        status: "streaming",
+      }],
+      inputQueueItems: [{
+        content: "late queue snapshot",
+        created_at: 11,
+        delivery_policy: "queue",
+        handoff_id: handoffId,
+        id: "queue-handoff",
+        scope: "room",
+        session_key: "room:group:conversation",
+        source: "agent_public_mention",
+        updated_at: 11,
+      }],
+      messages: [liveFinalMessage],
+      pendingSlots: [],
+    })[handoffId],
+    "active",
+    "late queue/message evidence cannot regress an active handoff",
+  );
+  assert.equal(
+    projectRoomAgentHandoffStatuses({
+      executionStates: [],
+      inputQueueItems: [],
+      messages: [{ ...liveFinalMessage, delivery_mode: undefined }],
+      pendingSlots: [{
+        agent_id: "agent-target",
+        agent_round_id: "agent-round-target",
+        handoff_id: handoffId,
+        index: 0,
+        msg_id: "slot-target",
+        round_id: "root-round",
+        status: "streaming",
+        timestamp: 12,
+      }],
+    })[handoffId],
+    "active",
+    "a reconnect pending snapshot must restore the handoff without realtime message flags",
+  );
+});
+
+test("Agent mention chip updates one inline handoff surface without adding a reply card", async () => {
+  const { AgentHandoffStatusProvider } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/agent-handoff-status-context.tsx",
+  );
+  const { AgentMentionChip } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/agent-mention-chip.tsx",
+  );
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  const translations = {
+    "room.agent_contact_open": "打开 Target 的联络",
+    "room.agent_handoff_active": "已交接",
+    "room.agent_handoff_preparing": "交接中",
+    "room.agent_handoff_queued": "排队中",
+  };
+  const html = renderToStaticMarkup(createElement(
+    I18N_CONTEXT.Provider,
+    {
+      value: {
+        locale: "zh",
+        setLocale: () => {},
+        t: (key) => translations[key] ?? key,
+      },
+    },
+    createElement(
+      AgentHandoffStatusProvider,
+      { statuses: { "handoff-room-1": "queued" } },
+      createElement(
+        AgentMentionChip,
+        {
+          agentId: "agent-target",
+          directory: { names: { "agent-target": "Target" } },
+          handoffId: "handoff-room-1",
+        },
+        "@Target",
+      ),
+    ),
+  ));
+
+  assert.match(html, /@Target/);
+  assert.match(html, /排队中/);
+  assert.equal(
+    html.match(/role="status"/g)?.length,
+    1,
+    "handoff feedback must stay inside the single mention chip",
+  );
+  assert.doesNotMatch(html, /data-room-agent-execution-shell/);
 });
 
 test("input queue ACK resolves only accepted requests", async () => {

@@ -12,6 +12,7 @@ import type {
 } from "@/types/system/websocket";
 
 export interface AgentConversationActionContext {
+  acknowledgePermissionRequest: (requestId: string) => void;
   activeSessionKeyRef: RefObject<string | null>;
   identity: AgentConversationIdentity | null;
   messages: Message[];

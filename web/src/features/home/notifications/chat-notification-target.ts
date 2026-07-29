@@ -1,3 +1,8 @@
+/**
+ * INPUT: 聊天完成事件的 Room/Conversation/Session 身份与当前路由。
+ * OUTPUT: 稳定通知 key、Room shared-session 判型、路由目标和只匹配精确 Conversation 的活动态判断。
+ * POS: Home 通知与侧栏共用的目标身份纯模型。
+ */
 export interface ChatNotificationTargetInput {
   conversation_id?: string | null;
   room_id?: string | null;
@@ -21,6 +26,8 @@ interface NormalizedChatNotificationTarget {
   roomId: string;
   sessionKey: string;
 }
+
+type ChatRoomType = "dm" | "room" | null | undefined;
 
 type ChatNotificationTargetKeyResolver = (
   target: NormalizedChatNotificationTarget,
@@ -46,6 +53,21 @@ const ACTIVE_TARGET_ROUTE_RESOLVERS: Record<
   conversations: resolveConversationRouteTarget,
   sessions: resolveSessionRouteTarget,
 };
+
+const ROOM_GROUP_SESSION_KEY_PREFIX = "room:group:";
+
+export function isGroupRoomNotificationTarget(
+  target: ChatNotificationTargetInput,
+  roomType: ChatRoomType,
+): boolean {
+  if (roomType) {
+    return roomType === "room";
+  }
+  return Boolean(
+    target.room_id?.trim()
+    && target.session_key?.trim().startsWith(ROOM_GROUP_SESSION_KEY_PREFIX),
+  );
+}
 
 export function buildChatNotificationTargetKey({
   conversation_id: conversationId,
@@ -126,6 +148,7 @@ export function isChatNotificationTargetActive(
   );
   const roomFallbackMatches = Boolean(
     !activeTarget.session_key
+      && !activeTarget.conversation_id
       && activeTarget.room_id
       && target.room_id === activeTarget.room_id,
   );

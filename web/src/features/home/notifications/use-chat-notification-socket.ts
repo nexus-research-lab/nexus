@@ -1,3 +1,8 @@
+/**
+ * INPUT: 全局 Room 订阅目录、完成消息与删除事件回调。
+ * OUTPUT: 可重连的单 WebSocket 完成事件流、Room 活动态和目录刷新信号。
+ * POS: Home 全局聊天通知的协议边界；未读/删除状态由上层回调处理。
+ */
 import { useCallback, useEffect, useRef } from "react";
 
 import { getDesktopWebsocketProtocols } from "@/config/desktop-runtime";
@@ -21,12 +26,14 @@ import { isCompletedAssistantMessage } from "./chat-notification-model";
 interface UseChatNotificationSocketOptions {
   directoryIndex: ChatNotificationDirectoryIndex;
   onCompletedMessage: (event: EventMessage, message: AssistantMessage) => void;
+  onRoomDeleted?: (roomId: string) => void;
   roomIdsKey: string;
 }
 
 export function useChatNotificationSocket({
   directoryIndex,
   onCompletedMessage,
+  onRoomDeleted,
   roomIdsKey,
 }: UseChatNotificationSocketOptions): void {
   const roomSeqCursorRef = useRef<Record<string, number>>({});
@@ -35,6 +42,17 @@ export function useChatNotificationSocket({
   const handleMessage = useCallback((rawMessage: unknown) => {
     const event = parseEventMessage(rawMessage);
     if (!event) {
+      return;
+    }
+    if (event.event_type === "room_deleted") {
+      const roomId = resolveRoomActivityRoomId(
+        event,
+        directoryIndexRef.current,
+      );
+      if (roomId) {
+        onRoomDeleted?.(roomId);
+      }
+      notifyRoomDirectoryUpdated();
       return;
     }
     if (event.event_type === "directory_changed") {
@@ -59,7 +77,7 @@ export function useChatNotificationSocket({
       notifyRoomDirectoryUpdated();
       onCompletedMessage(event, message);
     }
-  }, [onCompletedMessage]);
+  }, [onCompletedMessage, onRoomDeleted]);
 
   const { send, state } = useWebSocket({
     url: getAgentWsUrl(),

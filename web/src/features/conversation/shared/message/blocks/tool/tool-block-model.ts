@@ -2,6 +2,7 @@ import type { PermissionUpdate } from "@/types/conversation/interaction/permissi
 import { formatTokens } from "@/lib/format/token-count";
 
 import {
+  getCompactToolInputSummary,
   getToolInputSummary,
   getToolTitle,
 } from "../../tool-activity";
@@ -80,7 +81,7 @@ const STATUS_META: Readonly<Record<
     tone: "success",
   },
   waiting_permission: {
-    badgeClassName: "bg-[color:color-mix(in_srgb,var(--warning)_12%,transparent)] text-(--warning)",
+    badgeClassName: "border border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
     label: "待确认",
     tone: "waiting",
   },
@@ -166,25 +167,26 @@ export function buildToolBlockViewModel({
   const finalStatus = resolveFinalStatus(Boolean(toolResult?.is_error), status);
   const statusMeta = STATUS_META[finalStatus];
   const permission = buildPermissionProjection(permissionRequest);
-  const inputSummary = getToolInputSummary(toolUse.input);
+  const collapsedInputSummary = getCompactToolInputSummary(toolUse.input);
+  const expandedInputSummary = getToolInputSummary(toolUse.input);
   const resultSummary = projectOptional(
     toolResult,
     (result) => getResultSummary(result.content),
   );
-  const expandedInputDetail = getPrimaryInputDetail(toolUse.input);
+  const expandedInputDetail = getPrimaryToolInputDetail(toolUse.input);
   const waitingDetail = WAITING_DETAIL_BY_STATUS[finalStatus](permission);
 
   return {
     collapsedDetailText: firstText([
       waitingDetail,
-      inputSummary,
+      collapsedInputSummary,
       resultSummary,
     ]),
     durationText: formatDuration(startTime, endTime),
     expandedDetailText: firstText([
       waitingDetail,
       expandedInputDetail?.value.trim(),
-      inputSummary,
+      expandedInputSummary,
       resultSummary,
     ]),
     hasResult: Boolean(toolResult),
@@ -221,7 +223,7 @@ function formatPermissionValue(value: unknown): string {
     .format(value);
 }
 
-function getReadableSuggestions(
+export function getReadablePermissionSuggestions(
   suggestions: PermissionUpdate[] = [],
 ): ToolPermissionSuggestion[] {
   return suggestions.map((suggestion, index) => {
@@ -261,7 +263,9 @@ function buildSuggestionLabel(behavior: string, destination: string): string {
   return formatters[Number(behavior === "允许")]();
 }
 
-function getPrimaryInputDetail(input: unknown): ToolPrimaryInputDetail | null {
+export function getPrimaryToolInputDetail(
+  input: unknown,
+): ToolPrimaryInputDetail | null {
   const record = asRecord(input);
   if (!record) {
     return null;
@@ -299,7 +303,9 @@ function buildPermissionProjection(
       readableSuggestions: [],
     };
   }
-  const primaryInputDetail = getPrimaryInputDetail(permissionRequest.tool_input);
+  const primaryInputDetail = getPrimaryToolInputDetail(
+    permissionRequest.tool_input,
+  );
   const fields = Object.entries(permissionRequest.tool_input)
     .filter(([key]) => key !== primaryInputDetail?.key)
     .map(([key, value]) => ({
@@ -311,7 +317,9 @@ function buildPermissionProjection(
       fields.map((field) => `${field.label}：${field.value}`).join(" · "),
     ]),
     primaryInputDetail,
-    readableSuggestions: getReadableSuggestions(permissionRequest.suggestions),
+    readableSuggestions: getReadablePermissionSuggestions(
+      permissionRequest.suggestions,
+    ),
   };
 }
 

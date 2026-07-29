@@ -45,8 +45,10 @@ export const COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME =
 export const COMPOSER_SHELL_CLASS_NAME =
   "input-shell nexus-chat-composer-shell workbench-input-shell overflow-hidden rounded-[20px]";
 
+export const COMPOSER_TEXTAREA_MAX_HEIGHT_PX = 120;
+
 export const COMPOSER_COMPACT_LANE_CLASS_NAME =
   "mx-auto w-full max-w-[720px]";
 
 export const COMPOSER_FOOTER_CLASS_NAME =
-  "flex items-center justify-between gap-3 px-3.5 py-2 text-(--text-soft)";
+  "nexus-chat-composer-footer text-(--text-soft)";

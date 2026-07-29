@@ -1,18 +1,21 @@
 /**
- * INPUT: Room 根轮次消息与尚未结束的 agent slot。
- * OUTPUT: 按 agent_round_id 聚合、按稳定展示槽排序且不含 Room 控制标记的回复卡片。
+ * INPUT: Room 根轮次消息、agent slot、人工介入请求与当前 Session 的 execution 首见锚点。
+ * OUTPUT: 任一证据先到都按 agent_round_id 聚合、首次展示顺序不可变且 acknowledged 权限保持非交互 shell 的回复卡片。
  * POS: Room feed 与 thread 共用的 Agent 执行轮次投影。
  */
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
+import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type {
   AssistantMessage,
   AssistantMessageStatus,
   Message,
   ResultSummary,
 } from "@/types/conversation/message/entity";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import {
   extractTextFromContentBlocks,
-  stripRoomControlMarkers,
 } from "@/features/conversation/shared/message/message-content-model";
 
 export type AgentRoundStatus = AssistantMessageStatus;
@@ -31,10 +34,19 @@ export interface RoomAgentRoundEntry {
 
 interface RoomAgentRoundIndex {
   entryIds: Set<string>;
+  executionStates: Map<string, RoomAgentExecutionState>;
+  executionStateOrders: Map<string, number>;
   messageGroups: Map<string, AssistantMessage[]>;
   messageOrders: Map<string, number>;
+  permissionIdentities: Map<string, PermissionEntryIdentity>;
+  permissionOrders: Map<string, number>;
   pendingSlots: Map<string, RoomPendingAgentSlotState>;
   pendingSlotOrders: Map<string, number>;
+}
+
+interface PermissionEntryIdentity {
+  agentId: string;
+  agentRoundId: string;
 }
 
 const MESSAGE_STATUS_PRIORITY: readonly AgentRoundStatus[] = [
@@ -55,14 +67,29 @@ const TERMINAL_SLOT_STATUSES = new Set<AgentRoundStatus>([
   "done",
   "error",
 ]);
+const TERMINAL_STATUS_PRIORITY: Partial<Record<AgentRoundStatus, number>> = {
+  cancelled: 2,
+  done: 1,
+  error: 3,
+};
 const ROOM_DISPLAY_ORDER_SCALE = 1_000;
+
+function isVisibleRoomAgentExecutionState(
+  state: RoomAgentExecutionState,
+): boolean {
+  return state.phase !== "pending_permission";
+}
 
 export function hasRoomAgentRoundEntries(
   messages: Message[],
   pendingSlots: RoomPendingAgentSlotState[] = [],
+  pendingPermissions: PendingPermission[] = [],
+  executionStates: RoomAgentExecutionState[] = [],
 ): boolean {
   return (
     pendingSlots.length > 0 ||
+    pendingPermissions.some(hasExactPermissionEntryIdentity) ||
+    executionStates.some(isVisibleRoomAgentExecutionState) ||
     messages.some(
       (message) => Boolean(message.agent_id) && message.role === "assistant",
     )
@@ -156,19 +183,85 @@ function resolvePendingSlotDisplayOrder(
 function buildRoomAgentRoundIndex(
   messages: Message[],
   slots: RoomPendingAgentSlotState[],
+  permissions: PendingPermission[],
+  executionStates: RoomAgentExecutionState[],
 ): RoomAgentRoundIndex {
   const pending = buildPendingSlots(slots);
   const messageGroups = buildMessageGroups(messages, pending.byAgent);
+  const permissionEntries = buildPermissionEntries(permissions);
+  const executionEntries = buildExecutionStateEntries(executionStates);
   return {
     entryIds: new Set([
       ...messageGroups.groups.keys(),
       ...pending.slots.keys(),
+      ...permissionEntries.identities.keys(),
+      ...executionEntries.states.keys(),
     ]),
+    executionStates: executionEntries.states,
+    executionStateOrders: executionEntries.orders,
     messageGroups: messageGroups.groups,
     messageOrders: messageGroups.orders,
+    permissionIdentities: permissionEntries.identities,
+    permissionOrders: permissionEntries.orders,
     pendingSlots: pending.slots,
     pendingSlotOrders: pending.orders,
   };
+}
+
+function buildExecutionStateEntries(
+  states: RoomAgentExecutionState[],
+): {
+  orders: Map<string, number>;
+  states: Map<string, RoomAgentExecutionState>;
+} {
+  const entries = new Map<string, RoomAgentExecutionState>();
+  const orders = new Map<string, number>();
+  for (const state of states) {
+    const entryId = buildAgentRoundEntryId(
+      state.agent_id,
+      state.agent_round_id,
+    );
+    entries.set(entryId, state);
+    orders.set(entryId, state.display_order);
+  }
+  return { orders, states: entries };
+}
+
+function buildPermissionEntries(permissions: PendingPermission[]): {
+  identities: Map<string, PermissionEntryIdentity>;
+  orders: Map<string, number>;
+} {
+  const identities = new Map<string, PermissionEntryIdentity>();
+  const orders = new Map<string, number>();
+  permissions.forEach((permission, order) => {
+    const identity = resolvePermissionEntryIdentity(permission);
+    if (!identity) {
+      return;
+    }
+    const entryId = buildAgentRoundEntryId(
+      identity.agentId,
+      identity.agentRoundId,
+    );
+    if (!identities.has(entryId)) {
+      identities.set(entryId, identity);
+      orders.set(entryId, order);
+    }
+  });
+  return { identities, orders };
+}
+
+function hasExactPermissionEntryIdentity(
+  permission: PendingPermission,
+): boolean {
+  return resolvePermissionEntryIdentity(permission) !== null;
+}
+
+function resolvePermissionEntryIdentity(
+  permission: PendingPermission,
+): PermissionEntryIdentity | null {
+  const agentId = permission.agent_id?.trim();
+  const agentRoundId = permission.agent_round_id?.trim();
+  return agentId && agentRoundId ? { agentId, agentRoundId } : null;
 }
 
 function resolveMessageEntryId(
@@ -264,6 +357,7 @@ function getAgentRoundStatus(
   messages: AssistantMessage[],
   resultSummary?: ResultSummary,
   pendingSlot?: RoomPendingAgentSlotState,
+  continuingToolTurn: boolean = false,
 ): AgentRoundStatus {
   const resultStatus = resolveResultStatus(resultSummary);
   if (resultStatus) {
@@ -272,6 +366,9 @@ function getAgentRoundStatus(
   }
   const messageStatus = resolveMessageStatus(messages);
   if (pendingSlot && ACTIVE_STATUSES.has(pendingSlot.status)) {
+    if (continuingToolTurn) {
+      return pendingSlot.status;
+    }
     if (TERMINAL_SLOT_STATUSES.has(messageStatus)) {
       return messageStatus;
     }
@@ -280,6 +377,27 @@ function getAgentRoundStatus(
       : pendingSlot.status;
   }
   return pendingSlot?.status ?? messageStatus;
+}
+
+function boundStatusByExecutionTerminal(
+  status: AgentRoundStatus,
+  executionState?: RoomAgentExecutionState,
+  continuingToolTurn: boolean = false,
+): AgentRoundStatus {
+  if (executionState?.phase === "active" && continuingToolTurn) {
+    return executionState.status;
+  }
+  if (executionState?.phase !== "terminal") {
+    return status;
+  }
+  const executionStatus = executionState.status;
+  if (!TERMINAL_SLOT_STATUSES.has(status)) {
+    return executionStatus;
+  }
+  return (TERMINAL_STATUS_PRIORITY[executionStatus] ?? 0)
+      > (TERMINAL_STATUS_PRIORITY[status] ?? 0)
+    ? executionStatus
+    : status;
 }
 
 function resolveResultStatus(
@@ -322,9 +440,11 @@ export function resolveRoomAgentRoundTimestamp(
   messages: AssistantMessage[],
   resultSummary?: ResultSummary,
   pendingSlot?: RoomPendingAgentSlotState,
+  executionState?: RoomAgentExecutionState,
 ): number {
   if (isAgentRoundActive(status)) {
-    return pendingSlot?.timestamp
+    return executionState?.first_seen_at
+      ?? pendingSlot?.timestamp
       ?? messages[0]?.timestamp
       ?? resultSummary?.timestamp
       ?? 0;
@@ -332,6 +452,7 @@ export function resolveRoomAgentRoundTimestamp(
   return resultSummary?.timestamp
     ?? messages.at(-1)?.timestamp
     ?? pendingSlot?.timestamp
+    ?? executionState?.first_seen_at
     ?? 0;
 }
 
@@ -340,25 +461,48 @@ function buildRoomAgentRoundEntry(
   entryId: string,
 ): RoomAgentRoundEntry | null {
   const pendingSlot = index.pendingSlots.get(entryId);
+  const permissionIdentity = index.permissionIdentities.get(entryId);
+  const executionState = index.executionStates.get(entryId);
   const assistantMessages = replaceSyntheticResultWithCanonical(
     index.messageGroups.get(entryId) ?? [],
   );
   const resultSummary = getLatestResultSummary(assistantMessages);
-  if (assistantMessages.length === 0 && !resultSummary && !pendingSlot) {
+  const continuingToolTurn = !resultSummary
+    && assistantMessages.at(-1)?.stop_reason === "tool_use";
+  if (
+    assistantMessages.length === 0
+    && !resultSummary
+    && !pendingSlot
+    && !permissionIdentity
+    && (!executionState || !isVisibleRoomAgentExecutionState(executionState))
+  ) {
     return null;
   }
   const identity = assistantMessages.at(-1);
-  const agentId = pendingSlot?.agent_id ?? identity?.agent_id;
+  const agentId = pendingSlot?.agent_id
+    ?? identity?.agent_id
+    ?? permissionIdentity?.agentId
+    ?? executionState?.agent_id;
   if (!agentId) {
     return null;
   }
   const agentRoundId = pendingSlot?.agent_round_id?.trim()
     || identity?.agent_round_id?.trim()
+    || permissionIdentity?.agentRoundId
+    || executionState?.agent_round_id
     || null;
-  const status = getAgentRoundStatus(
-    assistantMessages,
-    resultSummary,
-    pendingSlot,
+  const projectedStatus = assistantMessages.length > 0 || pendingSlot
+    ? getAgentRoundStatus(
+        assistantMessages,
+        resultSummary,
+        pendingSlot,
+        continuingToolTurn,
+      )
+    : executionState?.status ?? "pending";
+  const status = boundStatusByExecutionTerminal(
+    projectedStatus,
+    executionState,
+    continuingToolTurn,
   );
   return {
     entry_id: entryId,
@@ -373,8 +517,13 @@ function buildRoomAgentRoundEntry(
       assistantMessages,
       resultSummary,
       pendingSlot,
+      executionState,
     ),
-    display_order: index.pendingSlotOrders.get(entryId)
+    // 首次观察哪种证据就登记哪一槽；后到 permission / slot / message
+    // 只补齐同一 execution，不再以来源 precedence 改写并行卡片顺序。
+    display_order: index.executionStateOrders.get(entryId)
+      ?? index.permissionOrders.get(entryId)
+      ?? index.pendingSlotOrders.get(entryId)
       ?? index.messageOrders.get(entryId)
       ?? Number.MAX_SAFE_INTEGER,
   };
@@ -387,8 +536,15 @@ export function isAgentRoundActive(status: AgentRoundStatus): boolean {
 export function buildRoomAgentRoundEntries(
   messages: Message[],
   pendingSlots: RoomPendingAgentSlotState[] = [],
+  pendingPermissions: PendingPermission[] = [],
+  executionStates: RoomAgentExecutionState[] = [],
 ): RoomAgentRoundEntry[] {
-  const index = buildRoomAgentRoundIndex(messages, pendingSlots);
+  const index = buildRoomAgentRoundIndex(
+    messages,
+    pendingSlots,
+    pendingPermissions,
+    executionStates,
+  );
   return Array.from(index.entryIds).flatMap((entryId) => {
     const entry = buildRoomAgentRoundEntry(index, entryId);
     return entry ? [entry] : [];
@@ -400,10 +556,14 @@ export function getRoomAgentRoundEntry(
   agentId: string,
   pendingSlots: RoomPendingAgentSlotState[] = [],
   agentRoundId?: string | null,
+  executionStates: RoomAgentExecutionState[] = [],
 ): RoomAgentRoundEntry | null {
-  const entries = buildRoomAgentRoundEntries(messages, pendingSlots).filter(
-    (entry) => entry.agent_id === agentId,
-  );
+  const entries = buildRoomAgentRoundEntries(
+    messages,
+    pendingSlots,
+    [],
+    executionStates,
+  ).filter((entry) => entry.agent_id === agentId);
   const normalizedRoundId = agentRoundId?.trim();
   if (normalizedRoundId) {
     return entries.find(
@@ -422,38 +582,4 @@ function compareAgentRoundDisplayOrder(
   return left.display_order - right.display_order
     || left.timestamp - right.timestamp
     || left.entry_id.localeCompare(right.entry_id);
-}
-
-function normalizePreviewText(text: string, maxLength: number): string {
-  const normalizedText = stripRoomControlMarkers(text).replace(/\s+/g, " ").trim();
-  if (!normalizedText) {
-    return "";
-  }
-  return normalizedText.length > maxLength
-    ? `${normalizedText.slice(0, maxLength)}…`
-    : normalizedText;
-}
-
-/** 占位摘要跟随最新完整消息推进，工具块不参与文本预览。 */
-export function extractAgentPreviewText(
-  messages: AssistantMessage[],
-  maxLength = 80,
-): string {
-  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
-    const content = messages[messageIndex]?.content;
-    if (!Array.isArray(content)) {
-      continue;
-    }
-    for (let blockIndex = content.length - 1; blockIndex >= 0; blockIndex -= 1) {
-      const block = content[blockIndex];
-      if (block.type !== "text") {
-        continue;
-      }
-      const preview = normalizePreviewText(block.text, maxLength);
-      if (preview) {
-        return preview;
-      }
-    }
-  }
-  return "";
 }

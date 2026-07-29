@@ -2,7 +2,7 @@
  * useAgentConversation Hook 类型定义
  *
  * [INPUT]: 依赖会话消息和权限协议
- * [OUTPUT]: 对外提供 UseAgentConversationOptions, UseAgentConversationReturn 与历史窗口解析状态
+ * [OUTPUT]: 对外提供 UseAgentConversationOptions、UseAgentConversationReturn、Room execution/handoff 易失锚点与历史窗口解析状态
  * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -31,11 +31,29 @@ export type AgentConversationRuntimeStatus = 'compacting' | null;
 export interface RoomPendingAgentSlotState {
   agent_id: string;
   agent_round_id: string;
+  handoff_id?: string;
   msg_id: string;
   round_id: string;
   status: AssistantMessageStatus;
   timestamp: number;
   index?: number;
+}
+
+/**
+ * Room 单次 Agent 执行在当前 Session 内的首次可见顺序锚点。
+ *
+ * permission 决策成功后会先进入 acknowledged；在 slot / message / terminal
+ * 证据接棒前，它只维持 execution shell，不再代表可响应权限。
+ */
+export interface RoomAgentExecutionState {
+  agent_id: string;
+  agent_round_id: string;
+  display_order: number;
+  first_seen_at: number;
+  handoff_id?: string;
+  phase: "pending_permission" | "acknowledged" | "active" | "terminal";
+  round_id: string;
+  status: AssistantMessageStatus;
 }
 
 export interface AgentConversationIdentity {
@@ -69,6 +87,7 @@ export interface UseAgentConversationReturn {
   runtime_phase: AgentConversationRuntimePhase;
   error: string | null;
   pending_agent_slots: RoomPendingAgentSlotState[];
+  room_agent_execution_states: RoomAgentExecutionState[];
   input_queue_items: InputQueueItem[];
   command_catalog: CommandCatalogData;
   refresh_command_catalog: () => void;

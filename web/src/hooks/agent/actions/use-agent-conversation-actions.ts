@@ -216,8 +216,11 @@ export function useAgentConversationActions({
 
   const stopGeneration = useCallback(
     (agentRoundId?: string): void => {
-      stopSessionGeneration(actionContextRef.current, agentRoundId);
-      if (!agentRoundId) {
+      const sent = stopSessionGeneration(
+        actionContextRef.current,
+        agentRoundId,
+      );
+      if (!sent || !agentRoundId) {
         return;
       }
       setPendingAgentSlots((currentSlots) => currentSlots.map((slot) => (

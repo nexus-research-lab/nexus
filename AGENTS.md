@@ -67,5 +67,6 @@ cmd -> app -> handler -> service -> domain/storage
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。
 - 侧栏的聊天执行态只按 Room ID 投影；DM 是 Room 的一种，禁止把 Agent runtime 或持久化 `is_active/status` 混入聊天行，联系人侧栏也不订阅 Agent runtime。
+- Room 首条未读定位必须以完成事件的精确消息身份映射到稳定 `agent_round` 节点，并按真实到达顺序排队；Agent 回复可能插入旧 root，禁止用 Feed 尾部或 DOM 索引猜测未读边界，DM 继续沿用自身的回到底部行为。
 
 长流程按业务阶段拆成私有函数，阶段之间传递有语义的结构体；一个产品语义只保留一个投影入口。Go 文件不设机械行数上限，按业务内聚、依赖边界和阅读路径决定拆合；同一业务散落时优先合并，不以透传参数包或多层薄包装掩盖复杂度。

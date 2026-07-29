@@ -1,3 +1,8 @@
+/**
+ * INPUT: Markdown AST 节点、Workspace 解析命令与 Agent mention 链接。
+ * OUTPUT: 通用 Markdown 组件及安全解析后的 Agent/handoff chip。
+ * POS: 共享 Markdown 节点到产品 UI 原语的渲染注册表。
+ */
 "use client";
 
 import type { ReactNode } from "react";
@@ -75,12 +80,13 @@ function renderMarkdownLink({
   onOpenAgentContact?: (agentId: string) => void;
 }): ReactNode {
   const rawHref = String(href ?? "").trim();
-  if (rawHref.startsWith("agent-mention://")) {
-    const agentID = decodeURIComponent(rawHref.slice("agent-mention://".length));
+  const agentMention = parseAgentMentionHref(rawHref);
+  if (agentMention) {
     return (
       <AgentMentionChip
-        agentId={agentID}
+        agentId={agentMention.agentId}
         directory={agentMentionDirectory}
+        handoffId={agentMention.handoffId}
         onOpenAgentContact={onOpenAgentContact}
       >
         {children}
@@ -134,6 +140,32 @@ function renderMarkdownLink({
       );
   }
   return assertNever(presentation);
+}
+
+function parseAgentMentionHref(
+  href: string,
+): { agentId: string; handoffId?: string } | null {
+  const prefix = "agent-mention://";
+  if (!href.startsWith(prefix)) {
+    return null;
+  }
+  const target = href.slice(prefix.length);
+  const queryIndex = target.indexOf("?");
+  const encodedAgentId = queryIndex >= 0 ? target.slice(0, queryIndex) : target;
+  const query = queryIndex >= 0 ? target.slice(queryIndex + 1) : "";
+  try {
+    const agentId = decodeURIComponent(encodedAgentId).trim();
+    if (!agentId) {
+      return null;
+    }
+    const handoffId = new URLSearchParams(query).get("handoff_id")?.trim();
+    return {
+      agentId,
+      ...(handoffId ? { handoffId } : {}),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function createMarkdownComponents(

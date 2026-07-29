@@ -1,8 +1,10 @@
 # Room Round
 
-- `round-agent-model.ts` 负责一轮内按 `agent_round_id` 对齐 Agent 消息、结果和占位槽；同 Agent 的多次执行不得坍缩。
-- Agent entry 按不可变展示槽优先排序；live slot 与落盘消息都使用 `slot 创建时间 * 1000 + batch index`，既保持同批并发顺序，也让同一 root 的后续 wake 只追加不插队；完成时间只用于 header 语义。
+- `round-agent-model.ts` 负责一轮内按 `agent_round_id` 对齐 Agent 消息、结果、占位槽与带精确执行身份的 permission；任一证据先到都建立同一 entry，同 Agent 的多次执行不得坍缩。
+- Agent entry 按当前 Session 内不可变的展示锚点排序；历史/初始 snapshot 先用持久 `display_order` 或 slot timestamp/index 播种 canonical 顺序，实时 permission、slot、stream 或 message 后续首次出现时只追加，已存在 entry 的后到证据只能补齐同一执行而不得改写展示槽。完成时间只用于 header 语义。
+- permission 成功响应后移除交互请求，但保留 acknowledged 非交互 execution shell，直到 slot、message 或 terminal 状态接管；Session 切换与 root 重写必须精确清理。
 - `round-thread-model.ts` 负责从根轮次投影精确 Agent 执行轮的 Thread 消息。
 - Room 主 Feed 与 Thread 必须消费同一 Agent 聚合模型，不各自推导执行状态。
 - 结果状态映射与消息状态优先级由数据表定义；合成 result 只在 canonical assistant 缺席时保留。
+- 权威 lifecycle terminal 是 Agent entry 状态的单调上界；迟到的 active slot、stream 与精确 permission 都不能复活已收口 execution，冲突终态按 error、cancelled、done 的优先级合并。
 - 本目录只放纯模型，不读取 Store、不调用 API、不持有 React 状态。

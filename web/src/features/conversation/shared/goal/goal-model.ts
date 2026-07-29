@@ -1,6 +1,6 @@
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
 import { COMPOSER_COMPACT_LANE_CLASS_NAME } from "../composer/composer-styles";
-import { CONVERSATION_COMPOSER_LANE_CLASS_NAME } from "../conversation-panel-styles";
+import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 
 export type GoalCommandPhase = "clearing" | "pausing" | "resuming" | "updating";
@@ -79,13 +79,13 @@ interface GoalActionRule {
 }
 
 export const GOAL_PANEL_STRIP_CLASS_NAME =
-  `${CONVERSATION_COMPOSER_LANE_CLASS_NAME} px-3 sm:px-5 xl:px-6`;
+  `${CONVERSATION_CONTENT_LANE_CLASS_NAME} px-3 sm:px-5 xl:px-6`;
 
 export const GOAL_PANEL_COMPACT_CLASS_NAME =
   `${COMPOSER_COMPACT_LANE_CLASS_NAME} px-4`;
 
 export const GOAL_PANEL_SURFACE_CLASS_NAME =
-  "border-b border-(--surface-canvas-border) py-1";
+  "rounded-[16px] border border-(--surface-control-border) bg-[color:color-mix(in_srgb,var(--surface-raised-background)_94%,transparent)] px-3 py-1.5 shadow-(--surface-control-shadow)";
 
 export const GOAL_PANEL_ROW_CLASS_NAME =
   "group -mx-1 flex min-h-8 items-center gap-2 px-1 py-0.5 text-(--text-default)";

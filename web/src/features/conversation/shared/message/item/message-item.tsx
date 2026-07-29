@@ -23,6 +23,7 @@ function MessageItemInner({
   messages,
   isLastRound,
   isLoading,
+  activityState,
   runtimePhase,
   pendingPermissions,
   onEditUserMessage,
@@ -45,6 +46,7 @@ function MessageItemInner({
     messages,
     isLastRound,
     isLoading,
+    activityState,
     runtimePhase,
     pendingPermissions,
     hiddenToolNames,
@@ -66,7 +68,7 @@ function MessageItemInner({
         <MessageUserSection
           compact={compact}
           agentMentionDirectory={agentMentionDirectory}
-          key={message.message_id}
+          key={message.client_message_id?.trim() || message.message_id}
           message={message}
           onEditUserMessage={
             state.userMessages.length === 1

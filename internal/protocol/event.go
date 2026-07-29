@@ -1,5 +1,5 @@
 // [INPUT]: 依赖会话/运行时跨边界状态与时间戳。
-// [OUTPUT]: 对外提供统一事件类型、请求 ACK 与权威 pending slot 快照事件。
+// [OUTPUT]: 对外提供统一事件类型、请求 ACK 与携带 handoff 关联的权威 pending slot 快照事件。
 // [POS]: protocol 包的 WebSocket 事件真相源。
 package protocol
 
@@ -247,6 +247,7 @@ type ChatAckPendingSlot struct {
 	AgentRoundID string `json:"agent_round_id"`
 	MsgID        string `json:"msg_id"`
 	RoundID      string `json:"round_id,omitempty"`
+	HandoffID    string `json:"handoff_id,omitempty"`
 	Status       string `json:"status"`
 	Timestamp    int64  `json:"timestamp"`
 	Index        int    `json:"index"`

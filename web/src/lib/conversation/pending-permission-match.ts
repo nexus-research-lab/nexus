@@ -1,4 +1,10 @@
+/**
+ * INPUT: runtime pending permission 快照与当前可见消息工具调用。
+ * OUTPUT: 同 request 的最新快照、首次出现顺序、terminal Room execution 过滤，以及只绑定未收口工具调用的精确匹配。
+ * POS: DM/Room 权限渲染、运行态恢复与虚拟估高共用的人工介入身份真相源。
+ */
 import type { Message } from "@/types/conversation/message/entity";
+import type { RoomAgentExecutionState } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 
 interface ToolUseCandidate {
@@ -15,6 +21,49 @@ interface CandidateIndex {
 
 interface MatchPendingPermissionsOptions {
   visibleToolUseIds?: ReadonlySet<string>;
+}
+
+export function coalescePendingPermissions(
+  permissions: readonly PendingPermission[],
+): PendingPermission[] {
+  const order: string[] = [];
+  const latestByRequestId = new Map<string, PendingPermission>();
+  for (const permission of permissions) {
+    if (!latestByRequestId.has(permission.request_id)) {
+      order.push(permission.request_id);
+    }
+    latestByRequestId.set(permission.request_id, permission);
+  }
+  return order.flatMap((requestId) => {
+    const permission = latestByRequestId.get(requestId);
+    return permission ? [permission] : [];
+  });
+}
+
+/**
+ * 权威 lifecycle 已收口的精确 Room execution 不再接受迟到交互。
+ * 缺少 root 或 agent_round 身份的旧请求无法安全归属，必须保留。
+ */
+export function filterPendingPermissionsForTerminalRoomExecutions(
+  permissions: PendingPermission[],
+  executionStates: readonly RoomAgentExecutionState[],
+): PendingPermission[] {
+  const terminalExecutionKeys = new Set(executionStates.flatMap((state) => (
+    state.phase === "terminal"
+      ? [`${state.round_id}\u001f${state.agent_round_id}`]
+      : []
+  )));
+  if (terminalExecutionKeys.size === 0) {
+    return permissions;
+  }
+  const next = permissions.filter((permission) => {
+    const roundId = permission.round_id?.trim();
+    const agentRoundId = permission.agent_round_id?.trim();
+    return !roundId
+      || !agentRoundId
+      || !terminalExecutionKeys.has(`${roundId}\u001f${agentRoundId}`);
+  });
+  return next.length === permissions.length ? permissions : next;
 }
 
 /**

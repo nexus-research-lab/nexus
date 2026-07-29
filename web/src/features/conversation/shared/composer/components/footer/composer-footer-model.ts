@@ -27,6 +27,7 @@ export interface ComposerFooterProps {
   onGoalToggle: (checked: boolean) => void;
   onLoopSelect: () => void;
   runtimeActivity: ComposerRuntimeActivity;
+  showPoweredByNexus: boolean;
   submit: ComposerSubmitButtonProps;
 }
 

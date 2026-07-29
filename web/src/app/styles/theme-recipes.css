@@ -239,6 +239,54 @@
     box-shadow: var(--surface-shell-footer-shadow);
   }
 
+  /*
+   * Composer 输入壳自身的上缘向消息区羽化；外层与输入壳同宽，
+   * 只向上延伸视觉边缘，不得用额外 padding/clearance 伪造同一效果。
+   */
+  .nexus-chat-composer-edge::before {
+    position: absolute;
+    top: -44px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--background) 28%, transparent) 20px,
+      color-mix(in srgb, var(--background) 76%, transparent) 34px,
+      var(--background) 44px,
+      var(--background) 100%
+    );
+    content: "";
+  }
+
+  /*
+   * Goal / Provider 状态存在时，它们本身就是消息区与输入区的视觉边界。
+   * Composer 羽化不得越过状态层，否则会把浮层下缘洗白并制造假间距。
+   */
+  [data-conversation-status-stack]:has(> *)
+    + [data-conversation-composer-anchor]
+    .nexus-chat-composer-edge::before {
+    top: 0;
+    background: var(--background);
+  }
+
+  @media (max-width: 1023px) {
+    .nexus-chat-composer-edge::before {
+      top: -32px;
+      background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        color-mix(in srgb, var(--background) 34%, transparent) 14px,
+        color-mix(in srgb, var(--background) 78%, transparent) 24px,
+        var(--background) 32px,
+        var(--background) 100%
+      );
+    }
+  }
+
   .surface-panel {
     position: relative;
     overflow: hidden;
@@ -285,6 +333,31 @@
 
   .content-divider {
     margin-block: 0.75rem;
+  }
+
+  /*
+   * Markdown hr 继续承担正文语义；Room 的说话人切换改用头像同轴的短圆点划，
+   * 避免两类边界都表现为贯穿内容列的横线。
+   */
+  .conversation-agent-boundary {
+    width: 2rem;
+    height: 2px;
+    margin-block: 0.625rem 0.125rem;
+    margin-inline-start: 0.75rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+  }
+
+  /*
+   * 新 handoff 先建立稳定 execution shell，再仅动画合成层；
+   * 状态和流式正文继续复用同一节点，不逐帧改高度或触发虚拟列表校正。
+   */
+  .room-agent-execution-enter {
+    animation:
+      nexus-room-agent-execution-enter
+      var(--motion-duration-normal)
+      var(--motion-ease-standard)
+      both;
   }
 
   .content-workspace-file {
@@ -602,6 +675,8 @@
 
   /* 对话 Composer 使用独立的聚焦面，避免把更大的圆角和纵向节奏扩散到搜索框与表单输入。 */
   .input-shell.nexus-chat-composer-shell {
+    container-name: nexus-chat-composer;
+    container-type: inline-size;
     border-radius: 20px;
     border-color: color-mix(in srgb, var(--input-shell-border) 88%, transparent);
     background: var(--input-shell-background);
@@ -628,6 +703,88 @@
         var(--input-shell-focus-border, var(--material-input-focus-border)) 18%,
         transparent
       );
+  }
+
+  .nexus-chat-composer-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas: "leading brand trailing";
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.875rem;
+  }
+
+  .nexus-chat-composer-footer-leading {
+    grid-area: leading;
+    overflow: hidden;
+  }
+
+  .nexus-chat-composer-footer-brand {
+    grid-area: brand;
+    justify-self: center;
+    color: color-mix(
+      in srgb,
+      var(--text-soft) 52%,
+      var(--input-shell-background)
+    );
+  }
+
+  .nexus-chat-composer-footer-trailing {
+    grid-area: trailing;
+  }
+
+  .nexus-chat-composer-submit-label {
+    display: none;
+  }
+
+  @container nexus-chat-composer (min-width: 640px) {
+    .nexus-chat-composer-submit-label {
+      display: inline;
+    }
+  }
+
+  @container nexus-chat-composer (max-width: 520px) {
+    .nexus-chat-composer-footer {
+      column-gap: 0.5rem;
+      padding-inline: 0.75rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "leading trailing"
+        "brand brand";
+      row-gap: 0.25rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-leading {
+      flex-wrap: wrap;
+      overflow: visible;
+      row-gap: 0.25rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-lead {
+      max-width: 9rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-metadata {
+      display: none;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-runtime-status {
+      flex-basis: 100%;
+      padding-inline-start: 2.5rem;
+    }
+  }
+
+  @container nexus-chat-composer (max-width: 420px) {
+    .nexus-chat-composer-footer-brand-prefix {
+      display: none;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-scope {
+      display: none;
+    }
   }
 
   .input-shell.ui-search-input-shell {
@@ -1202,6 +1359,10 @@
   }
 
   @container nexus-chat-feed (max-width: 620px) {
+    .nexus-chat-feed .conversation-agent-boundary {
+      margin-inline-start: 0.25rem;
+    }
+
     .nexus-chat-feed .nexus-chat-message-round {
       padding-top: 0.625rem;
       padding-bottom: 0.625rem;

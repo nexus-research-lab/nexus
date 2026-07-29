@@ -9,7 +9,10 @@ import { Fragment, memo, useCallback, useMemo } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import type { Message } from "@/types/conversation/message/entity";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -33,6 +36,7 @@ interface GroupRoundCardGroupProps {
   onStopAgentRound: (agentRoundId: string) => void;
   pendingPermissions: PendingPermission[];
   pendingSlots: RoomPendingAgentSlotState[];
+  roomAgentExecutionStates: RoomAgentExecutionState[];
   roundId: string;
 }
 
@@ -47,6 +51,7 @@ function GroupRoundCardGroupInner({
   onStopAgentRound,
   pendingPermissions,
   pendingSlots,
+  roomAgentExecutionStates,
   roundId,
 }: GroupRoundCardGroupProps) {
   const { activeThread, closeThread, openThread } = useGroupThread();
@@ -54,6 +59,7 @@ function GroupRoundCardGroupInner({
     () => buildGroupRoundCardModel({
       agentAvatarMap,
       agentNameMap,
+      executionStates: roomAgentExecutionStates,
       messages,
       pendingPermissions,
       pendingSlots,
@@ -64,6 +70,7 @@ function GroupRoundCardGroupInner({
       messages,
       pendingPermissions,
       pendingSlots,
+      roomAgentExecutionStates,
     ],
   );
   const toggleThread = useCallback((
@@ -96,7 +103,7 @@ function GroupRoundCardGroupInner({
         />
       ))}
 
-      {model.entries.map((entry) => {
+      {model.entries.map((entry, entryIndex) => {
         const isThreadActive = activeThread?.roundId === roundId
           && activeThread.agentId === entry.agent_id
           && activeThread.agentRoundId === entry.agent_round_id;
@@ -133,6 +140,9 @@ function GroupRoundCardGroupInner({
               }
               agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
               roundId={roundId}
+              showAgentBoundary={
+                entryIndex > 0 && entry.guidedUserMessages.length === 0
+              }
             />
           </Fragment>
         );

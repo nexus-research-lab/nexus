@@ -1,3 +1,8 @@
+/**
+ * INPUT: Group Chat 会话、Room 目录、Goal、Composer 与面板环境。
+ * OUTPUT: Feed、交接 mention、Goal、首条未读导航和输入区的纯视图模型。
+ * POS: Group Chat 控制器状态到纯视图 props 的唯一投影入口。
+ */
 import type { RefObject } from "react";
 
 import {
@@ -6,19 +11,27 @@ import {
   type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
+import { coalescePendingPermissions } from "@/lib/conversation/pending-permission-match";
 import type { Agent } from "@/types/agent/agent";
 import type {
   InputQueueItem,
   UseAgentConversationReturn,
 } from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
+import type { TodoItem } from "@/types/conversation/todo";
 
 import type {
   GroupChatComposerModel,
   GroupChatPanelViewModel,
 } from "../view/group-chat-panel-view";
+import type {
+  GroupAgentTimelineProjection,
+} from "../../feed/group-agent-timeline-model";
+import type {
+  GroupConversationUnreadModel,
+} from "../../feed/use-group-conversation-unread";
 import type { RoomGoalComposerModel } from "./use-room-goal-composer";
-import { projectGroupAgentTimeline } from "../../feed/group-agent-timeline-model";
+import { projectRoomAgentHandoffStatuses } from "./room-handoff-status-model";
 
 export interface RoomAgentDirectory {
   avatars: Record<string, string | null>;
@@ -39,7 +52,10 @@ type GroupChatSession = Omit<
     UseAgentConversationReturn,
     | "live_round_ids"
     | "messages"
+    | "input_queue_items"
+    | "pending_agent_slots"
     | "pending_permissions"
+    | "room_agent_execution_states"
     | "runtime_phase"
     | "send_permission_response"
     | "stop_generation"
@@ -57,6 +73,7 @@ interface BuildGroupChatPanelViewModelOptions {
   currentAgentName: string | null;
   directory: RoomAgentDirectory;
   environment: ConversationPanelEnvironment;
+  feedTimeline: GroupAgentTimelineProjection;
   goal: RoomGoalComposerModel;
   onCreateConversation: (
     title?: string,
@@ -67,6 +84,8 @@ interface BuildGroupChatPanelViewModelOptions {
   roomHostAutoReplyEnabled: boolean;
   roomMembers: Agent[];
   session: GroupChatSession;
+  todos: TodoItem[];
+  unread: GroupConversationUnreadModel;
 }
 
 export function buildGroupChatPanelViewModel({
@@ -75,6 +94,7 @@ export function buildGroupChatPanelViewModel({
   currentAgentName,
   directory,
   environment,
+  feedTimeline,
   goal,
   onCreateConversation,
   onOpenAgentContact,
@@ -83,18 +103,38 @@ export function buildGroupChatPanelViewModel({
   roomHostAutoReplyEnabled,
   roomMembers,
   session,
+  todos,
+  unread,
 }: BuildGroupChatPanelViewModelOptions): GroupChatPanelViewModel {
+  const frame = buildConversationPanelFrameModel(session, environment);
+  const hasUnreadJump = unread.unreadCount > 0 && unread.direction !== null;
   return {
-    ...buildConversationPanelFrameModel(session, environment),
+    ...frame,
     composer,
+    composerInteraction: {
+      agentAvatarMap: directory.avatars,
+      agentNameMap: directory.names,
+      onResponse: session.conversation.send_permission_response,
+      permissions: coalescePendingPermissions(
+        session.conversation.pending_permissions,
+      ),
+    },
+    handoffStatuses: projectRoomAgentHandoffStatuses({
+      executionStates: session.conversation.room_agent_execution_states,
+      inputQueueItems: session.conversation.input_queue_items,
+      messages: session.conversation.messages,
+      pendingSlots: session.conversation.pending_agent_slots,
+    }),
     feed: buildFeedModel({
       currentAgentAvatar,
       currentAgentName,
       directory,
       environment,
+      feedTimeline,
       onOpenAgentContact,
       onOpenWorkspaceFile,
       session,
+      unread,
     }),
     goalLead: buildGoalLeadModel({ goal, roomMembers, session }),
     goalPanel: buildGoalPanelModel({
@@ -105,6 +145,16 @@ export function buildGroupChatPanelViewModel({
       session,
     }),
     onCreateConversation,
+    scrollToLatest: {
+      ...frame.scrollToLatest,
+      direction: hasUnreadJump ? unread.direction : null,
+      onClick: hasUnreadJump
+        ? unread.jumpToFirstUnread
+        : frame.scrollToLatest.onClick,
+      unreadCount: hasUnreadJump ? unread.unreadCount : 0,
+      visible: frame.scrollToLatest.visible || hasUnreadJump,
+    },
+    todos,
   };
 }
 
@@ -113,27 +163,24 @@ function buildFeedModel({
   currentAgentName,
   directory,
   environment,
+  feedTimeline,
   onOpenAgentContact,
   onOpenWorkspaceFile,
   session,
+  unread,
 }: Pick<
   BuildGroupChatPanelViewModelOptions,
   | "currentAgentAvatar"
   | "currentAgentName"
   | "directory"
   | "environment"
+  | "feedTimeline"
   | "onOpenAgentContact"
   | "onOpenWorkspaceFile"
   | "session"
+  | "unread"
 >): GroupChatPanelViewModel["feed"] {
-  const { conversation, roundIndexItems, roundScrollRef, scroll, timeline } =
-    session;
-  const feedTimeline = projectGroupAgentTimeline({
-    messageGroups: timeline.message_groups,
-    pendingPermissionGroups: timeline.pending_permission_groups,
-    pendingSlotGroups: timeline.pending_slot_groups,
-    roundIds: timeline.feed_round_ids,
-  });
+  const { conversation, roundIndexItems, roundScrollRef, scroll } = session;
   return {
     isMobileLayout: environment.isMobileLayout,
     refs: {
@@ -160,9 +207,12 @@ function buildFeedModel({
       messageGroups: feedTimeline.messageGroups,
       pendingPermissionGroups: feedTimeline.pendingPermissionGroups,
       pendingSlotGroups: feedTimeline.pendingSlotGroups,
+      roomAgentExecutionStateGroups:
+        feedTimeline.roomAgentExecutionStateGroups,
       rootRoundIds: feedTimeline.rootRoundIds,
       roundIds: feedTimeline.roundIds,
       roundIndexItems,
+      unreadMarkerRoundId: unread.markerRoundId,
     },
   };
 }

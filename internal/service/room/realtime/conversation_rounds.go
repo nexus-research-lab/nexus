@@ -1,3 +1,6 @@
+// INPUT: Room conversation 的活跃 round、slot 与跨 root 生命周期更新。
+// OUTPUT: 按 conversation 隔离的注册表、派发锁和携带 public handoff 关联的权威 pending snapshot。
+// POS: Room realtime 短生命周期状态与订阅恢复投影的单一真相源。
 package realtime
 
 import (
@@ -613,6 +616,7 @@ func (s *Service) GetActiveRoundSnapshot(conversationID string) *ActiveRoundSnap
 				AgentRoundID: slot.AgentRoundID,
 				MsgID:        slot.MsgID,
 				RoundID:      rootRoundID,
+				HandoffID:    slot.handoffID(),
 				Status:       status,
 				Timestamp:    slot.TimestampMS,
 				Index:        slot.Index,

@@ -1,3 +1,6 @@
+// INPUT: runtime 权限请求、session route 与当前 pending 集合。
+// OUTPUT: 可阻塞等待响应，并按过期时间和请求身份稳定重放的 pending 生命周期。
+// POS: runtime permission 的请求登记、重连恢复与响应收口入口。
 package permission
 
 import (
@@ -60,7 +63,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 func (c *Context) resolveRouteContext(sessionKey string) RouteContext {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	route := c.sessionRoutes[sessionKey]
+	route := c.sessionRoutes[sessionKey].route
 	if route.DispatchSessionKey == "" {
 		route.DispatchSessionKey = sessionKey
 	}
@@ -81,6 +84,12 @@ func (c *Context) replayPendingRequestsToSender(sessionKey string, sender Sender
 	}
 	c.mu.RUnlock()
 
+	slices.SortFunc(requests, func(left, right *PendingRequest) int {
+		if order := left.ExpiresAt.Compare(right.ExpiresAt); order != 0 {
+			return order
+		}
+		return strings.Compare(left.RequestID, right.RequestID)
+	})
 	for _, pending := range requests {
 		c.dispatchPendingRequestToSender(pending, sender)
 	}

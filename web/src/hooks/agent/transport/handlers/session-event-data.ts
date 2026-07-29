@@ -1,3 +1,8 @@
+/**
+ * INPUT: Session/runtime/queue/round/chat ACK 的未知 WebSocket 载荷。
+ * OUTPUT: 经字段级校验且保留 public handoff 关联的窄事件数据。
+ * POS: Agent Session 事件副作用前的协议解码边界。
+ */
 import {
   asUnknownRecord,
   hasFiniteNumberFields,
@@ -74,6 +79,7 @@ const CHAT_ACK_SLOT_REQUIRED_STRING_FIELDS = [
   "msg_id",
 ] as const;
 const CHAT_ACK_SLOT_REQUIRED_NUMBER_FIELDS = ["index", "timestamp"] as const;
+const CHAT_ACK_SLOT_OPTIONAL_STRING_FIELDS = ["handoff_id"] as const;
 
 function readRoundStatus(record: UnknownRecord): RoundLifecycleStatus | null {
   return readStringFromSet(record, "status", ROUND_STATUSES);
@@ -262,6 +268,11 @@ function isChatAckPendingSlot(
     record.round_id !== undefined
     && !readString(record, "round_id")
   ) {
+    return false;
+  }
+  if (CHAT_ACK_SLOT_OPTIONAL_STRING_FIELDS.some(
+    (field) => record[field] !== undefined && !readString(record, field),
+  )) {
     return false;
   }
   return Boolean(

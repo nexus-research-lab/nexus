@@ -1,3 +1,8 @@
+/**
+ * INPUT: DM 单轮状态、消息 source 与渲染动作。
+ * OUTPUT: 通用 MessageItem，并暴露稳定轮次身份与测量边界。
+ * POS: DM 静态与虚拟 Feed 共用的轮次展示节点。
+ */
 import type { Ref } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
@@ -10,6 +15,7 @@ import {
 } from "./conversation-feed-model";
 
 interface ConversationRoundProps {
+  isMobileLayout: boolean;
   measureRef?: Ref<HTMLDivElement>;
   renderer: ConversationRoundRenderer;
   source: ConversationRoundSource;
@@ -17,6 +23,7 @@ interface ConversationRoundProps {
 }
 
 export function ConversationRound({
+  isMobileLayout,
   measureRef,
   renderer,
   source,
@@ -30,6 +37,7 @@ export function ConversationRound({
   return (
     <div
       ref={measureRef}
+      className={isMobileLayout ? "pb-4" : "pb-1"}
       data-index={measureRef ? state.index : undefined}
       data-conversation-round-id={state.roundId}
       data-conversation-round-index={state.index}
@@ -37,6 +45,7 @@ export function ConversationRound({
     >
       {state.isLoaded ? (
         <MessageItem
+          animateEntry={false}
           assistantContentMode={state.isLive ? "dm_live" : "dm_archived"}
           compact={renderer.compact ?? false}
           currentAgentAvatar={renderer.currentAgentAvatar}

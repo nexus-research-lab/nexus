@@ -32,7 +32,7 @@ const HEADER_STATE_CLASS_BY_STATUS: Readonly<Record<ToolBlockStatus, string>> = 
   pending: "",
   running: "bg-primary/5",
   success: "",
-  waiting_permission: "bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)]",
+  waiting_permission: "bg-(--surface-muted-background)",
 };
 
 const DETAIL_FALLBACK_BY_STATUS: Readonly<Record<ToolBlockStatus, string>> = {

@@ -163,6 +163,22 @@ export function useWebSocket(options: UseWebSocketOptions) {
   const reconnect = useCallback(() => {
     channelRef.current?.reconnect();
   }, []);
+  const acquireSessionBinding = useCallback(
+    (lease: object, message: WebSocketMessage): (() => void) => {
+      const channel = channelRef.current;
+      return channel?.acquireSessionBinding(lease, message) ?? (() => {});
+    },
+    [],
+  );
 
-  return { connect, disconnect, error, reconnect, send, state };
+  return {
+    acquireSessionBinding,
+    channelKey,
+    connect,
+    disconnect,
+    error,
+    reconnect,
+    send,
+    state,
+  };
 }

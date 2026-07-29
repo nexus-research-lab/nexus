@@ -1,6 +1,6 @@
 .workspace-surface-header {
   --workspace-header-cluster-gap: 12px;
-  --workspace-header-control-gap: 2px;
+  --workspace-header-control-gap: 4px;
   --workspace-header-control-height: 36px;
   --workspace-header-view-tab-radius: 8px;
   --workspace-session-tab-radius: 8px;
@@ -24,7 +24,7 @@
 
 .workspace-surface-header-tool-cluster {
   height: 40px;
-  gap: 0;
+  gap: var(--workspace-header-control-gap);
   overflow: visible;
   padding: 2px;
 }

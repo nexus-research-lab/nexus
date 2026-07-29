@@ -59,6 +59,7 @@ interface AgentEventState {
 }
 
 interface AgentEventRuntime {
+  acknowledgePermissionRequest: (requestId: string) => void;
   applyAgentRoundStatus: (payload: AgentRoundStatusEventPayload) => void;
   applyRoundStatus: (
     roundId: string,
@@ -74,6 +75,7 @@ interface AgentEventRuntime {
   setRuntimeStatus: (status: AgentConversationRuntimeStatus) => void;
   trackAssistantMessage: (message: AssistantMessage) => void;
   trackChatAck: (ack: ChatAckData) => void;
+  trackStreamExecution: (stream: StreamMessage) => void;
   updateMessageStatus: (
     messageId: string,
     status: AssistantMessageStatus,
@@ -84,6 +86,8 @@ interface AgentEventRuntime {
 interface AgentEventCallbacks {
   applyWorkspaceEvent: (payload: WorkspaceEventPayload) => void;
   enqueueStreamPayload: (payload: StreamMessage) => void;
+  flushStreamPayloads: () => void;
+  settleLiveMessageSnapshot: (message: Message) => void;
   onBackgroundMessage: (sessionKey: string, message: Message) => void;
   onRoomEvent: (eventType: string, data: RoomEventPayload) => void;
   settleAgentWorkspaceWrites: (agentId: string) => void;

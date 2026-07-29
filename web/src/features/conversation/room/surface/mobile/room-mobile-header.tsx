@@ -1,8 +1,15 @@
+/**
+ * INPUT: 窄窗 Room 身份、会话切换状态、返回动作与尾部操作。
+ * OUTPUT: 带拖窗热区和非交互下缘渐隐的专注模式 Header。
+ * POS: Room 专注模式顶部导航；只承载导航，不改变聊天 viewport 几何。
+ */
 import { ArrowLeft, ChevronDown } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+
+import "../room-conversation-header-edge.css";
 
 interface RoomMobileHeaderProps {
   conversationTitle: string;
@@ -29,9 +36,10 @@ export function RoomMobileHeader({
 
   return (
     <header
-      className="flex h-[52px] shrink-0 items-center gap-1.5 border-b divider-subtle px-2 sm:px-3"
+      className="nexus-room-conversation-header-edge nexus-room-conversation-header-edge--mobile flex h-[52px] shrink-0 items-center gap-1.5 border-b divider-subtle px-2 sm:px-3"
       data-desktop-window-controls-leading
       data-desktop-window-drag-region
+      data-room-conversation-header-edge="true"
     >
       <button
         aria-label={t("common.back")}

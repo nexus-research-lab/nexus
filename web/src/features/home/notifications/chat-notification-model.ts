@@ -1,3 +1,8 @@
+/**
+ * INPUT: 聊天事件、assistant 终态消息与共享目录索引。
+ * OUTPUT: 排除 tool-use 中间段的完成判定、通知目标和精简展示内容。
+ * POS: Home 聊天通知的纯协议投影，不持有 WebSocket 或未读状态。
+ */
 import type { ChatNotificationTargetState } from "@/store/sidebar";
 import type {
   LauncherConversationSummary,
@@ -17,6 +22,11 @@ import {
 import { buildChatNotificationTargetKey } from "./chat-notification-target";
 
 const NOTIFICATION_TEXT_LIMIT = 120;
+const TERMINAL_ASSISTANT_STOP_REASONS = new Set([
+  "end_turn",
+  "max_tokens",
+  "stop_sequence",
+]);
 
 export interface ChatNotificationTarget {
   agent_id?: string | null;
@@ -59,14 +69,14 @@ export function isCompletedAssistantMessage(
   if (!message || message.role !== "assistant" || message.result_summary?.subtype === "interrupted") {
     return false;
   }
-  const completionSignals = [
-    message.result_summary,
-    message.is_complete,
-    message.stop_reason,
-    message.stream_status === "done",
-    message.stream_status === "error",
-  ];
-  return completionSignals.some(Boolean);
+  return Boolean(
+    message.result_summary
+    || message.stream_status === "error"
+    || (
+      message.stop_reason
+      && TERMINAL_ASSISTANT_STOP_REASONS.has(message.stop_reason)
+    ),
+  );
 }
 
 function resolveNotificationTargetLocation(

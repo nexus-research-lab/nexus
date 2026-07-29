@@ -16,6 +16,7 @@ import {
 import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
   resolveAnchoredOverlayPosition,
+  type UiAnchoredOverlayAlignment,
   type UiAnchoredOverlayPlacement,
 } from "../overlay/anchored-overlay-model";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "../overlay/overlay-contract";
@@ -38,6 +39,7 @@ export interface UiActionMenuItem {
 type UiActionMenuPlacement = UiAnchoredOverlayPlacement;
 
 interface UiActionMenuProps {
+  align?: UiAnchoredOverlayAlignment;
   anchorRef: RefObject<HTMLElement | null>;
   ariaLabel: string;
   className?: string;
@@ -51,23 +53,36 @@ interface UiActionMenuProps {
 
 const ACTION_MENU_MAX_HEIGHT = 320;
 const ACTION_MENU_ITEM_HEIGHT = 44;
+const ACTION_MENU_DESCRIBED_ITEM_HEIGHT = 52;
+const ACTION_MENU_ESTIMATED_VERTICAL_PADDING = 16;
 
 function resolveActionMenuPosition({
+  align,
   anchor,
-  itemCount,
+  items,
   minWidth,
   placement,
 }: {
+  align: UiAnchoredOverlayAlignment;
   anchor: HTMLElement;
-  itemCount: number;
+  items: UiActionMenuItem[];
   minWidth: number;
   placement: UiActionMenuPlacement;
 }) {
+  const contentHeight = items.reduce(
+    (height, item) => height + (
+      item.description
+        ? ACTION_MENU_DESCRIBED_ITEM_HEIGHT
+        : ACTION_MENU_ITEM_HEIGHT
+    ),
+    ACTION_MENU_ESTIMATED_VERTICAL_PADDING,
+  );
   const estimatedHeight = Math.min(
     ACTION_MENU_MAX_HEIGHT,
-    Math.max(ACTION_MENU_ITEM_HEIGHT, itemCount * ACTION_MENU_ITEM_HEIGHT + 8),
+    Math.max(ACTION_MENU_ITEM_HEIGHT, contentHeight),
   );
   return resolveAnchoredOverlayPosition({
+    align,
     anchor,
     estimatedHeight,
     maxHeight: ACTION_MENU_MAX_HEIGHT,
@@ -101,6 +116,7 @@ function getItemLabelClassName(tone: UiActionMenuItem["tone"], active?: boolean)
 }
 
 export function UiActionMenu({
+  align = "start",
   anchorRef: anchorRef,
   ariaLabel: ariaLabel,
   className: className,
@@ -113,12 +129,13 @@ export function UiActionMenu({
 }: UiActionMenuProps) {
   const estimatePosition = useCallback(
     (anchor: HTMLElement) => resolveActionMenuPosition({
+      align,
       anchor,
-      itemCount: items.length,
+      items,
       minWidth,
       placement,
     }),
-    [items.length, minWidth, placement],
+    [align, items, minWidth, placement],
   );
   const {
     overlayPosition: menuPosition,

@@ -1,3 +1,8 @@
+/**
+ * INPUT: tool block、精确匹配请求与 pending interaction owner。
+ * OUTPUT: Room 内联交互、DM Composer-owned 只读证据，或普通工具执行块。
+ * POS: StructuredContent 中工具展示与人工交互的分派边界。
+ */
 import type { ReactNode } from "react";
 
 import type { UserQuestionAnswer } from "@/types/conversation/interaction/ask-user-question";
@@ -13,9 +18,10 @@ import type {
 
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../../message-tool-names";
 import { AskUserQuestionBlock } from "../../../blocks/question/ask-user-question-block";
+import { PendingHumanQuestion } from "../../../blocks/question/pending-human-question";
 import { ToolBlock } from "../../../blocks/tool/tool-block";
 import type { ToolPermissionRequest } from "../../../blocks/tool/tool-block-types";
-import { PendingHumanQuestion } from "../assistant/pending-human-question";
+import type { PendingInteractionOwner } from "../../message-item-projection";
 import {
   resolveToolBlockStatus,
   type StructuredContentProjection,
@@ -26,6 +32,7 @@ interface ContentToolBlockContext {
   canRespondToPermissions: boolean;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
+  pendingInteractionOwner: PendingInteractionOwner;
   pendingPermission?: PendingPermission;
   permissionReadOnlyReason?: string;
   projection: StructuredContentProjection;
@@ -57,6 +64,13 @@ export function ContentToolBlock({
     context.pendingPermission,
     context.projection,
   );
+  if (
+    context.pendingInteractionOwner === "composer"
+    && context.pendingPermission
+    && state.waitingForPermission
+  ) {
+    return renderStandardToolBlock(block, context, state);
+  }
   if (block.name === ASK_USER_QUESTION_TOOL_NAME) {
     return renderQuestionToolBlock(block, context, state);
   }
@@ -150,7 +164,11 @@ function resolvePermissionRequest(
   context: ContentToolBlockContext,
   state: ContentToolBlockState,
 ): ToolPermissionRequest | undefined {
-  if (!context.pendingPermission || !state.waitingForPermission) {
+  if (
+    context.pendingInteractionOwner !== "content"
+    || !context.pendingPermission
+    || !state.waitingForPermission
+  ) {
     return undefined;
   }
   return createPermissionRequest(

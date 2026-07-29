@@ -1,9 +1,14 @@
 "use client";
 
+/**
+ * INPUT: 移动端 Room 会话、任务快照、导航与 Overlay 命令。
+ * OUTPUT: 将任务快照交给聊天 Bottom Dock，并组合移动端头部与全屏辅助面。
+ * POS: Room 移动端 Surface 的主装配层。
+ */
+
 import { useMemo, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { RoomMemberManagerDialog } from "@/features/conversation/room/members/room-member-manager-dialog";
 import type {
@@ -190,6 +195,7 @@ export function RoomMobileSurface({
       roomId={roomId}
       roomMembers={roomMembers}
       runtimeKind={runtimeKind}
+      todos={currentTodos}
     />
   );
 
@@ -228,10 +234,6 @@ export function RoomMobileSurface({
       />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <WorkspaceTaskPanel
-          key={conversationId ?? "mobile-conversation-tasks"}
-          todos={currentTodos}
-        />
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           {isDm ? chatSurface : (
             <GroupThreadContextProvider>

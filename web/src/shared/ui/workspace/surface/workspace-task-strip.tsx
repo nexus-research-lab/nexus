@@ -1,12 +1,12 @@
 /**
  * INPUT: 当前会话投影出的任务列表。
- * OUTPUT: 位于聊天画布顶部的任务摘要与锚定浮层明细。
- * POS: Workspace 会话级任务状态条；展开不得改变聊天视口高度。
+ * OUTPUT: 具备 44px 局部热区、当前步骤摘要、顺序键盘导航与可读状态的居中任务胶囊及向上明细。
+ * POS: 锚在 Composer 顶边的 Workspace 会话级只读任务入口。
  */
 "use client";
 
 import { ChevronDown, ChevronUp, Circle, CircleCheck, ListChecks } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -16,6 +16,8 @@ import {
   OVERLAY_SURFACE_CLASS_NAME,
 } from "@/shared/ui/overlay/overlay-styles";
 import type { TodoItem } from "@/types/conversation/todo";
+
+import { resolveWorkspaceTaskSummary } from "./workspace-task-strip-model";
 
 interface WorkspaceTaskPanelProps {
   todos: TodoItem[];
@@ -30,11 +32,12 @@ export function WorkspaceTaskPanel({
   className,
 }: WorkspaceTaskPanelProps) {
   const { t } = useI18n();
-  const hasTasks = todos.length > 0;
-  const completedCount = todos.filter((todo) => todo.status === "completed").length;
-  const hasRunningTask = todos.some((todo) => todo.status === "in_progress");
+  const taskSummary = resolveWorkspaceTaskSummary(todos);
+  const hasTasks = taskSummary !== null;
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedTaskIndex, setExpandedTaskIndex] = useState<number | null>(null);
+  const panelId = useId();
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!hasTasks) {
@@ -53,14 +56,38 @@ export function WorkspaceTaskPanel({
     return null;
   }
 
-  const renderStatusMarker = (status: TodoItem["status"]) => {
+  const {
+    completedCount,
+    currentStep,
+    hasRunningTask,
+    summary,
+    totalCount,
+  } = taskSummary;
+
+  const taskStatusLabel = (status: TodoItem["status"]) => {
     if (status === "completed") {
-      return <CircleCheck className="h-[18px] w-[18px] text-(--success)" />;
+      return t("tasks.status_completed");
     }
     if (status === "in_progress") {
-      return <Circle className="h-2.5 w-2.5 fill-current text-(--primary)" />;
+      return t("tasks.status_in_progress");
     }
-    return <Circle className="h-2.5 w-2.5 text-(--icon-muted)" />;
+    return t("tasks.status_pending");
+  };
+
+  const renderStatusMarker = (status: TodoItem["status"]) => {
+    if (status === "completed") {
+      return <CircleCheck aria-hidden="true" className="h-[18px] w-[18px] text-(--success)" />;
+    }
+    if (status === "in_progress") {
+      return <Circle aria-hidden="true" className="h-2.5 w-2.5 fill-current text-(--primary)" />;
+    }
+    return <Circle aria-hidden="true" className="h-2.5 w-2.5 text-(--icon-muted)" />;
+  };
+
+  const collapsePanel = () => {
+    triggerRef.current?.focus();
+    setIsExpanded(false);
+    setExpandedTaskIndex(null);
   };
 
   return (
@@ -69,33 +96,75 @@ export function WorkspaceTaskPanel({
       aria-live="polite"
       data-workspace-task-panel
       className={cn(
-        "relative z-30 h-11 shrink-0",
+        "pointer-events-none relative flex min-w-0 max-w-[min(32rem,calc(100vw-4rem))] justify-center",
         className,
       )}
     >
-      <div className="pointer-events-none absolute inset-x-2.5 top-2 flex justify-end sm:inset-x-3">
-        {isExpanded ? (
+      <button
+        ref={triggerRef}
+        aria-controls={panelId}
+        aria-expanded={isExpanded}
+        aria-label={isExpanded ? t("tasks.collapse_panel") : t("tasks.expand_panel")}
+        className={cn(
+          "pointer-events-auto inline-flex h-11 min-w-0 max-w-full items-center gap-2 rounded-full px-3.5 text-xs text-(--text-default) transition-[background,border-color,color,box-shadow] hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) hover:text-(--text-strong)",
+          TASK_PANEL_TRIGGER_CLASS_NAME,
+        )}
+        data-workspace-task-summary={summary}
+        data-workspace-task-trigger
+        onClick={() => setIsExpanded((current) => !current)}
+        type="button"
+      >
+        <span className="grid h-4 w-4 shrink-0 place-items-center">
+          {hasRunningTask ? (
+            <LoadingOrb />
+          ) : completedCount === totalCount ? (
+            <CircleCheck aria-hidden="true" className="h-4 w-4 text-(--success)" />
+          ) : (
+            <ListChecks aria-hidden="true" className="h-4 w-4 text-(--icon-muted)" />
+          )}
+        </span>
+        <span className="shrink-0 font-medium tabular-nums">
+          {t("tasks.step_progress", {
+            current: currentStep,
+            total: totalCount,
+          })}
+        </span>
+        <span aria-hidden="true" className="shrink-0 text-(--text-soft)">·</span>
+        <span className="min-w-0 truncate text-(--text-soft)">{summary}</span>
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-200",
+            isExpanded && "rotate-180",
+          )}
+        />
+      </button>
+      {isExpanded ? (
+        <div
+          className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2"
+        >
           <section
+            aria-label={t("tasks.label")}
             className={cn(
-              "pointer-events-auto flex max-h-[min(320px,42vh)] w-[300px] max-w-full origin-top-right flex-col overflow-hidden",
+              "pointer-events-auto flex max-h-[min(360px,45dvh)] w-[min(360px,calc(100vw-4rem))] origin-bottom flex-col overflow-hidden",
               OVERLAY_SURFACE_CLASS_NAME,
               ANCHORED_OVERLAY_MOTION_CLASS_NAME,
             )}
-            data-placement="bottom"
+            data-placement="top"
+            id={panelId}
           >
-            <div className="flex h-9 shrink-0 items-center gap-2 px-3">
+            <div className="flex h-10 shrink-0 items-center gap-2 px-3">
               <span className="text-compact font-semibold text-(--text-strong)">
                 {t("tasks.label")}
               </span>
               <span className="text-compact tabular-nums text-(--text-soft)">
-                {completedCount}/{todos.length}
+                {completedCount}/{totalCount}
               </span>
               <span className="flex-1" />
               {hasRunningTask ? <LoadingOrb /> : null}
               <button
                 aria-label={t("tasks.collapse_panel")}
                 className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
-                onClick={() => setIsExpanded(false)}
+                onClick={collapsePanel}
                 title={t("tasks.collapse_panel")}
                 type="button"
               >
@@ -116,6 +185,7 @@ export function WorkspaceTaskPanel({
                   >
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                       {renderStatusMarker(todo.status)}
+                      <span className="sr-only">{taskStatusLabel(todo.status)}</span>
                     </span>
                     <div className="min-w-0 flex-1">
                       <p
@@ -136,7 +206,7 @@ export function WorkspaceTaskPanel({
                       <button
                         aria-expanded={isDetailExpanded}
                         aria-label={isDetailExpanded ? t("tasks.collapse_detail") : t("tasks.expand_detail")}
-                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center radius-control-xs text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+                        className="inline-flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
                         onClick={() => setExpandedTaskIndex((currentIndex) => (
                           currentIndex === index ? null : index
                         ))}
@@ -155,24 +225,8 @@ export function WorkspaceTaskPanel({
               })}
             </div>
           </section>
-        ) : (
-          <button
-            aria-label={t("tasks.expand_panel")}
-            className={cn(
-              "pointer-events-auto inline-flex h-7 items-center gap-1.5 radius-control-sm px-2.5 text-xs font-semibold text-(--text-default) transition-[background,border-color,color,box-shadow] hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) hover:text-(--text-strong)",
-              TASK_PANEL_TRIGGER_CLASS_NAME,
-            )}
-            onClick={() => setIsExpanded(true)}
-            title={t("tasks.expand_panel")}
-            type="button"
-          >
-            <ListChecks className="h-3.5 w-3.5" />
-            <span className="tabular-nums">{completedCount}/{todos.length}</span>
-            {hasRunningTask ? <LoadingOrb /> : null}
-            <ChevronDown className="h-3.5 w-3.5 text-(--icon-muted)" />
-          </button>
-        )}
-      </div>
+        </div>
+      ) : null}
     </aside>
   );
 }
