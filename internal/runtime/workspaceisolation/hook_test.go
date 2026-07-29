@@ -9,6 +9,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 func TestWorkspacePolicyHookAllowsOwnWorkspaceAndDeniesOtherUser(t *testing.T) {
@@ -98,6 +99,13 @@ func TestWorkspacePolicyHookOnlyAllowsCanonicalSessionSummaryEdit(t *testing.T) 
 		t.Fatal(err)
 	}
 	policy := testPolicy(t, workspace)
+	policy.Identity.TempDir = filepath.Join(
+		root,
+		"users",
+		"owner-a",
+		"runtime",
+		"tmp",
+	)
 	for _, test := range []struct {
 		name     string
 		toolName string
@@ -245,6 +253,39 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 	}
 }
 
+func TestWorkspacePolicyHookAllowsSharedTemporaryRedirect(t *testing.T) {
+	workspace := t.TempDir()
+	sharedTempRoot := appfs.RuntimeSharedTempRoot()
+	if sharedTempRoot == "" {
+		t.Skip("当前平台没有 Unix 共享临时根")
+	}
+	roots, err := normalizePolicyRoots([]string{workspace, sharedTempRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, runtimeKind := range []string{"nxs", "claude"} {
+		t.Run(runtimeKind, func(t *testing.T) {
+			policy := Policy{
+				OwnerUserID: "owner-a",
+				RuntimeKind: runtimeKind,
+				CWD:         workspace,
+				ReadRoots:   roots,
+				WriteRoots:  roots,
+				Generation:  1,
+			}
+			if violation := inspectToolAccess(policy, sdkhook.Input{
+				CWD:      workspace,
+				ToolName: "Bash",
+				ToolInput: map[string]any{
+					"command": "python3 script.py 2>/tmp/wx_err.log; cat /tmp/wx_err.log",
+				},
+			}); violation != nil {
+				t.Fatalf("%s runtime 的共享临时目录重定向不应被 Hook 拦截: %#v", runtimeKind, violation)
+			}
+		})
+	}
+}
+
 func TestWorkspacePolicyHookDeniesShellWriteToReadOnlyRoot(t *testing.T) {
 	workspace := t.TempDir()
 	readOnlyRoot := t.TempDir()
@@ -345,6 +386,11 @@ func TestBuildAuditPolicyDoesNotRequireOSIdentity(t *testing.T) {
 	}
 	if policy.Identity.UID != 0 || policy.Identity.PrivateGID != 0 {
 		t.Fatalf("audit policy 不应伪造 OS identity: %#v", policy.Identity)
+	}
+	if sharedTempRoot := appfs.RuntimeSharedTempRoot(); sharedTempRoot != "" {
+		if _, err = policy.authorize(filepath.Join(sharedTempRoot, "runtime.log"), true); err != nil {
+			t.Fatalf("audit policy 应允许共享临时目录: %v", err)
+		}
 	}
 }
 

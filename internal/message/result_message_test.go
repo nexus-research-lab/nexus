@@ -132,6 +132,33 @@ func TestProcessorNormalizesClaudeCodeErrorSubtype(t *testing.T) {
 	}
 }
 
+func TestProcessorNormalizesHookStoppedResultError(t *testing.T) {
+	processor := NewProcessor(MessageContext{RoundID: "round-hook-stopped"}, "")
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeResult,
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:    "error_hook_stopped",
+			IsError:    true,
+			StopReason: "hook_stopped",
+			Errors:     []string{"Tool execution stopped by hook"},
+		},
+	})
+	if output.ResultSubtype != "error" || output.TerminalStatus != "error" {
+		t.Fatalf("hook stopped terminal = (%q, %q), want error", output.ResultSubtype, output.TerminalStatus)
+	}
+	result := output.DurableMessages[0]
+	if result["runtime_subtype"] != "error_hook_stopped" {
+		t.Fatalf("runtime subtype 未保留: %+v", result)
+	}
+	errors, ok := result["errors"].([]string)
+	if !ok || len(errors) != 1 || errors[0] != hookStoppedDisplayError {
+		t.Fatalf("hook stopped 错误未使用友好文案: %+v", result)
+	}
+	if result["result"] != "" {
+		t.Fatalf("hook stopped 不应把内部英文错误投影为正文: %+v", result)
+	}
+}
+
 func TestProcessorProjectsMissingResultPayloadAsVisibleError(t *testing.T) {
 	processor := NewProcessor(MessageContext{RoundID: "round-missing-result"}, "session-missing-result")
 	output := processor.Process(sdkprotocol.ReceivedMessage{

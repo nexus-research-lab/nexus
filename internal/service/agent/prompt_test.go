@@ -43,6 +43,8 @@ func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T)
 
 	assertPromptContains(t, prompt, "BASE CUSTOM PROMPT")
 	assertPromptContains(t, prompt, "Mode: single-user system scope")
+	assertPromptContains(t, prompt, "use $TMPDIR for private data")
+	assertPromptContains(t, prompt, "/tmp is a shared compatibility directory")
 	assertPromptContains(t, prompt, "## Agent Identity")
 	assertPromptContains(t, prompt, "Identity: planner (agent-1)")
 	assertPromptContains(t, prompt, "WORKING DIRECTORY: "+workspacePath)

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added `/tmp` as an explicit shared Unix runtime compatibility root for app and web command execution; private temporary data continues to use each owner's `$TMPDIR`.
 - Added a bundled Python-based `wechat-article-search` Skill with documented Requests/Beautiful Soup dependencies, optional direct-link resolution, deterministic offline parsing tests, and WebSearch/WebFetch fallback guidance.
 - Added a three-step chat model setup flow that filters Providers for the active Agent Runtime, validates credentials, tests the model, and saves the working default selection; onboarding overlays now dismiss without swallowing the user's page interaction.
 - Unified capability pages around one title, description, filter, section, and catalog-row rhythm; aligned every directory to the same wider desktop gutter, reduced Loop and pairing list density, made scheduled-task boards responsive, and removed repeated mobile titles and back controls.
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept runtime Hook failures user-friendly by replacing internal English terminal errors with a concise security-rule explanation and a non-duplicated conversation error title.
 - Updated the pinned Agent SDK bridge revision so standalone and Docker builds include the disabled-Skill runtime contract used by Nexus.
 - Pinned Nexus-managed long-term memory to the current Agent workspace and rejected inherited or request-level remote-memory overrides, keeping runtime reads and writes aligned with the Web memory view.
 - Fixed `nexusctl` treating an owner's `runtime` directory and current Agent workspace as host-level state roots after the owner-scoped layout change.

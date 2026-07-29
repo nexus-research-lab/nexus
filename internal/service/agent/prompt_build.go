@@ -223,6 +223,9 @@ func buildRuntimeScopeSection(ctx context.Context) string {
 			"Current principal: "+authctx.SystemUserID,
 		)
 	}
+	lines = append(lines,
+		"Temporary files: use $TMPDIR for private data; /tmp is a shared compatibility directory and must not contain secrets.",
+	)
 	return strings.Join(lines, "\n")
 }
 

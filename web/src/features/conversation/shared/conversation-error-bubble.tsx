@@ -51,6 +51,16 @@ const ERROR_PRESENTATION_RULES: readonly ErrorPresentationRule[] = [
   },
   {
     detail:
+      "Agent 的某项操作未通过当前工作区权限或 Hook 规则，本轮已经停止。请调整操作后重试；如果该操作本应被允许，请检查对应权限设置。",
+    markers: [
+      "tool execution stopped by hook",
+      "error_hook_stopped",
+      "该操作被当前运行时规则拦截",
+    ],
+    title: "操作被安全规则拦截",
+  },
+  {
+    detail:
       "浏览器与 Nexus 的实时通道暂时没有响应，系统会自动尝试重连。可能是网络、后端负载或运行时模型服务阻塞；如果刚才的消息没有继续处理，可以刷新页面后重新发送。",
     markers: [
       "websocket",
@@ -83,7 +93,7 @@ function resolveErrorPresentation(error: string): ErrorPresentation {
   );
   return matchedRule ?? {
     detail: withRetryDetail(error),
-    title: "系统消息",
+    title: "请求未完成",
   };
 }
 

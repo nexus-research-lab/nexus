@@ -16,6 +16,15 @@ func RuntimeIsolationEnforced() bool {
 		)
 }
 
+// RuntimeSharedTempRoot 返回 app 与 web runtime 共用的兼容临时目录。
+// Windows 没有统一的 /tmp 契约，继续只使用每用户 TEMP/TMP。
+func RuntimeSharedTempRoot() string {
+	if runtime.GOOS == "windows" {
+		return ""
+	}
+	return "/tmp"
+}
+
 // RuntimeCollaborativeDirectoryMode 保留宿主与 owner 私有组的目录协作位。
 func RuntimeCollaborativeDirectoryMode(defaultMode fs.FileMode) fs.FileMode {
 	if RuntimeIsolationEnforced() {
