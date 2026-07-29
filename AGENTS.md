@@ -2,9 +2,14 @@
 
 ## Build & Validation Commands
 - `make dev`：同时启动 Go 后端（8010）和前端（3000）
-- `make check`：运行 `go test ./...`、前端 lint、前端时间线行为测试、前端 typecheck
-- `make check-backend`：Go 后端校验，等价于 `make check-go`
+- `make check-go`：默认 Go 门禁，只检查相对上游及当前工作树中发生变化的 Go 包
+- `make check-go-fresh`：对上述变化包禁用测试结果缓存
+- `make check-go-full`：显式运行 Go 全量 vet 与无缓存测试，仅用于发布、跨包基础设施变更或用户明确要求
+- `make check`：运行增量 Go 门禁、前端 lint、前端时间线行为测试、前端 typecheck
+- `make check-backend`：Go 后端增量校验，等价于 `make check-go`
 - `make install`：执行 `go mod tidy` 并安装前端依赖
+
+日常修改先跑目标包测试或 `make check-go`。Agent 不得默认执行 `go test ./...` 或 `make check-go-full`；只有发布、共享协议/基础设施变更、增量范围无法可靠判断，或用户明确要求全量时才执行。
 
 ## Commit Style
 Use English commit messages with an emoji prefix, for example `:sparkles: Switch to the Go default runtime path`. Keep user-visible changes reflected in `CHANGELOG.md`.
