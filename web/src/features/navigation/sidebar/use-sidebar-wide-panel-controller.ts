@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前路由、鉴权/i18n 状态、侧栏 Store 与面板拖拽动作。
+ * OUTPUT: 宽侧栏导航、折叠和退出行为模型。
+ * POS: 纯侧栏控制层；全局聊天完成订阅由 AppLayout 持有，不能下沉到此处。
+ */
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
@@ -6,7 +11,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getDefaultAgentId } from "@/config/runtime-options";
-import { useChatCompletionNotifications } from "@/features/home/notifications/use-chat-completion-notifications";
 import { useGuideCenterController } from "@/features/onboarding/guide-center/use-guide-center-controller";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -47,7 +51,6 @@ export function useSidebarWidePanelController({
   const desktopRuntime = isDesktopRuntime();
   const settingsMode = pathname === AppRouteBuilders.settings();
 
-  useChatCompletionNotifications();
   const guideCenter = useGuideCenterController({
     defaultAgentId,
     setActivePanelItem,

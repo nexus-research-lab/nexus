@@ -1,9 +1,16 @@
+/**
+ * INPUT: Group Chat props、共享 Session/Composer/Goal 资源与 Room Agent 时间线。
+ * OUTPUT: 含首条未读 Agent 定位、Feed、Composer 和 Goal 的完整面板模型。
+ * POS: Group Chat 有状态装配入口；纯投影与未读队列分别下沉到专属模块。
+ */
 import { useMemo } from "react";
 
 import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
 
+import { projectGroupAgentTimeline } from "../../feed/group-agent-timeline-model";
+import { useGroupConversationUnread } from "../../feed/use-group-conversation-unread";
 import { useRoomThreadSource } from "../../../thread/live/use-room-thread-source";
 import type { GroupChatPanelProps } from "../group-chat-panel-types";
 import type { GroupChatPanelViewModel } from "../view/group-chat-panel-view";
@@ -56,6 +63,27 @@ export function useGroupChatPanelModel({
     roomId,
     sessionKey,
   });
+  const feedTimeline = useMemo(
+    () => projectGroupAgentTimeline({
+      messageGroups: session.timeline.message_groups,
+      pendingPermissionGroups: session.timeline.pending_permission_groups,
+      pendingSlotGroups: session.timeline.pending_slot_groups,
+      roomAgentExecutionStateGroups:
+        session.timeline.room_agent_execution_state_groups,
+      roundIds: session.timeline.feed_round_ids,
+    }),
+    [session.timeline],
+  );
+  const unread = useGroupConversationUnread({
+    conversationId,
+    loadRoundWindow: session.conversation.load_round_window,
+    pauseFollowLatest: session.scroll.pauseFollowLatest,
+    roomId,
+    roundScrollRef: session.roundScrollRef,
+    scrollRef: session.scroll.scrollRef,
+    sessionKey: session.sessionKey,
+    source: feedTimeline,
+  });
   const directory = useRoomAgentDirectory(roomMembers);
   const composer = useGroupChatComposerModel({
     conversation: session.conversation,
@@ -90,6 +118,7 @@ export function useGroupChatPanelModel({
     currentAgentName,
     directory,
     environment,
+    feedTimeline,
     goal,
     onCreateConversation,
     onOpenAgentContact,
@@ -99,6 +128,7 @@ export function useGroupChatPanelModel({
     roomMembers,
     session,
     todos,
+    unread,
   });
 }
 

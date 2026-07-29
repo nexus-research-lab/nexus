@@ -1,6 +1,6 @@
 /**
  * INPUT: 面板状态、内容节点、滚动 refs、会话导航、Goal、底部活动入口与统一输入事件。
- * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及以 Composer 顶边为锚点的底部悬浮控件。
+ * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及以 Composer 顶边为锚点的回到底部/定向未读控件。
  * POS: DM 与 Room 主对话面板的共享纯视图骨架。
  */
 import type { ComponentProps, ReactNode, RefObject } from "react";
@@ -27,8 +27,10 @@ export type ConversationViewportModel = ScrollViewportEvents & {
 };
 
 export interface ConversationScrollToLatestModel {
+  direction: "above" | "below" | null;
   isLoading: boolean;
   onClick: () => void;
+  unreadCount: number;
   visible: boolean;
 }
 
@@ -148,8 +150,10 @@ export function ConversationPanelFloatingControls({
         data-conversation-dock-scroll
       >
         <ScrollToLatestButton
+          direction={scrollToLatest.direction}
           isLoading={scrollToLatest.isLoading}
           onClick={scrollToLatest.onClick}
+          unreadCount={scrollToLatest.unreadCount}
           visible={scrollToLatest.visible}
         />
       </div>

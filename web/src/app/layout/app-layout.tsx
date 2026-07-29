@@ -1,14 +1,12 @@
 /**
- * 应用布局路由组件
- *
- * 使用 React Router <Outlet /> 渲染子路由内容。
- * 侧边栏直接挂在路由布局层，避免路由切换时被卸载/重新挂载。
- *
- * showSidebar=false 用于 LauncherPage 等不需要侧边栏的页面。
+ * INPUT: 当前路由、视口尺寸、侧栏可见性与全局聊天完成事件。
+ * OUTPUT: 稳定承载侧栏、移动端页头、子路由和聊天完成订阅的应用布局。
+ * POS: 路由布局根；通知订阅固定在此，窄屏详情页不渲染侧栏时仍接收 Room 未读。
  */
 
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
+import { useChatCompletionNotifications } from "@/features/home/notifications/use-chat-completion-notifications";
 import { SidebarWidePanel } from "@/features/navigation/sidebar/sidebar-wide-panel";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import {
@@ -36,6 +34,7 @@ export function AppLayout({ showSidebar = true }: { showSidebar?: boolean }) {
     isMobileAppLayout
     && mobileRoute.mode !== "directory"
   );
+  useChatCompletionNotifications();
 
   return (
     <main className="desktop-window-frame relative flex h-dvh w-full overflow-hidden bg-transparent text-foreground">

@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次顺序及按轮次分组的 message/permission/slot/execution 数据。
- * OUTPUT: static/virtual feed 共用的单轮 loaded/live 状态与稳定源切片。
+ * OUTPUT: static/virtual feed 共用的单轮 loaded/live 状态、未读标记与稳定源切片。
  * POS: Room feed 的纯轮次解析边界，不拥有 Agent 排序或 runtime 状态。
  */
 import type { RefObject } from "react";
@@ -34,6 +34,7 @@ export interface GroupConversationRoundSource {
   rootRoundIds?: Map<string, string>;
   roundIds: string[];
   roundIndexItems?: SessionRoundIndexItem[];
+  unreadMarkerRoundId?: string | null;
 }
 
 export interface GroupConversationRoundRenderer {
@@ -69,6 +70,7 @@ export interface GroupConversationRoundState {
   roomAgentExecutionStates: RoomAgentExecutionState[];
   roundId: string;
   rootRoundId: string;
+  showUnreadMarker: boolean;
 }
 
 export function resolveGroupConversationRound(
@@ -102,6 +104,7 @@ export function resolveGroupConversationRound(
     roomAgentExecutionStates,
     roundId,
     rootRoundId,
+    showUnreadMarker: source.unreadMarkerRoundId === roundId,
   };
 }
 

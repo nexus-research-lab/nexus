@@ -1,6 +1,6 @@
 /**
  * INPUT: Group Chat 会话、Room 目录、Goal、Composer 与面板环境。
- * OUTPUT: Feed、交接 mention、Goal、导航和输入区的纯视图模型。
+ * OUTPUT: Feed、交接 mention、Goal、首条未读导航和输入区的纯视图模型。
  * POS: Group Chat 控制器状态到纯视图 props 的唯一投影入口。
  */
 import type { RefObject } from "react";
@@ -24,8 +24,13 @@ import type {
   GroupChatComposerModel,
   GroupChatPanelViewModel,
 } from "../view/group-chat-panel-view";
+import type {
+  GroupAgentTimelineProjection,
+} from "../../feed/group-agent-timeline-model";
+import type {
+  GroupConversationUnreadModel,
+} from "../../feed/use-group-conversation-unread";
 import type { RoomGoalComposerModel } from "./use-room-goal-composer";
-import { projectGroupAgentTimeline } from "../../feed/group-agent-timeline-model";
 import { projectRoomAgentHandoffStatuses } from "./room-handoff-status-model";
 
 export interface RoomAgentDirectory {
@@ -68,6 +73,7 @@ interface BuildGroupChatPanelViewModelOptions {
   currentAgentName: string | null;
   directory: RoomAgentDirectory;
   environment: ConversationPanelEnvironment;
+  feedTimeline: GroupAgentTimelineProjection;
   goal: RoomGoalComposerModel;
   onCreateConversation: (
     title?: string,
@@ -79,6 +85,7 @@ interface BuildGroupChatPanelViewModelOptions {
   roomMembers: Agent[];
   session: GroupChatSession;
   todos: TodoItem[];
+  unread: GroupConversationUnreadModel;
 }
 
 export function buildGroupChatPanelViewModel({
@@ -87,6 +94,7 @@ export function buildGroupChatPanelViewModel({
   currentAgentName,
   directory,
   environment,
+  feedTimeline,
   goal,
   onCreateConversation,
   onOpenAgentContact,
@@ -96,9 +104,12 @@ export function buildGroupChatPanelViewModel({
   roomMembers,
   session,
   todos,
+  unread,
 }: BuildGroupChatPanelViewModelOptions): GroupChatPanelViewModel {
+  const frame = buildConversationPanelFrameModel(session, environment);
+  const hasUnreadJump = unread.unreadCount > 0 && unread.direction !== null;
   return {
-    ...buildConversationPanelFrameModel(session, environment),
+    ...frame,
     composer,
     composerInteraction: {
       agentAvatarMap: directory.avatars,
@@ -119,9 +130,11 @@ export function buildGroupChatPanelViewModel({
       currentAgentName,
       directory,
       environment,
+      feedTimeline,
       onOpenAgentContact,
       onOpenWorkspaceFile,
       session,
+      unread,
     }),
     goalLead: buildGoalLeadModel({ goal, roomMembers, session }),
     goalPanel: buildGoalPanelModel({
@@ -132,6 +145,15 @@ export function buildGroupChatPanelViewModel({
       session,
     }),
     onCreateConversation,
+    scrollToLatest: {
+      ...frame.scrollToLatest,
+      direction: hasUnreadJump ? unread.direction : null,
+      onClick: hasUnreadJump
+        ? unread.jumpToFirstUnread
+        : frame.scrollToLatest.onClick,
+      unreadCount: hasUnreadJump ? unread.unreadCount : 0,
+      visible: frame.scrollToLatest.visible || hasUnreadJump,
+    },
     todos,
   };
 }
@@ -141,29 +163,24 @@ function buildFeedModel({
   currentAgentName,
   directory,
   environment,
+  feedTimeline,
   onOpenAgentContact,
   onOpenWorkspaceFile,
   session,
+  unread,
 }: Pick<
   BuildGroupChatPanelViewModelOptions,
   | "currentAgentAvatar"
   | "currentAgentName"
   | "directory"
   | "environment"
+  | "feedTimeline"
   | "onOpenAgentContact"
   | "onOpenWorkspaceFile"
   | "session"
+  | "unread"
 >): GroupChatPanelViewModel["feed"] {
-  const { conversation, roundIndexItems, roundScrollRef, scroll, timeline } =
-    session;
-  const feedTimeline = projectGroupAgentTimeline({
-    messageGroups: timeline.message_groups,
-    pendingPermissionGroups: timeline.pending_permission_groups,
-    pendingSlotGroups: timeline.pending_slot_groups,
-    roomAgentExecutionStateGroups:
-      timeline.room_agent_execution_state_groups,
-    roundIds: timeline.feed_round_ids,
-  });
+  const { conversation, roundIndexItems, roundScrollRef, scroll } = session;
   return {
     isMobileLayout: environment.isMobileLayout,
     refs: {
@@ -195,6 +212,7 @@ function buildFeedModel({
       rootRoundIds: feedTimeline.rootRoundIds,
       roundIds: feedTimeline.roundIds,
       roundIndexItems,
+      unreadMarkerRoundId: unread.markerRoundId,
     },
   };
 }

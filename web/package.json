@@ -8,8 +8,8 @@
     "build": "vite build",
     "start": "vite preview --host 0.0.0.0 --port 3000",
     "lint": "eslint \"src/**/*.{ts,tsx}\" vite.config.ts eslint.config.mjs",
-    "test": "node --test ./scripts/timeline-guidance-order.test.mjs ./scripts/room-collaboration-regression.test.mjs ./scripts/input-queue-ack.test.mjs ./scripts/room-history-bulk-delete.test.mjs ./scripts/subagent-task-polling.test.mjs ./scripts/connector-oauth-client-replacement.test.mjs ./scripts/launcher-hit-testing.test.mjs ./scripts/conversation-bottom-dock.test.mjs",
-    "test:timeline": "node --test ./scripts/timeline-guidance-order.test.mjs ./scripts/room-collaboration-regression.test.mjs ./scripts/input-queue-ack.test.mjs ./scripts/room-history-bulk-delete.test.mjs ./scripts/subagent-task-polling.test.mjs ./scripts/connector-oauth-client-replacement.test.mjs ./scripts/launcher-hit-testing.test.mjs ./scripts/conversation-bottom-dock.test.mjs",
+    "test": "node --test ./scripts/timeline-guidance-order.test.mjs ./scripts/room-collaboration-regression.test.mjs ./scripts/input-queue-ack.test.mjs ./scripts/room-history-bulk-delete.test.mjs ./scripts/subagent-task-polling.test.mjs ./scripts/connector-oauth-client-replacement.test.mjs ./scripts/launcher-hit-testing.test.mjs ./scripts/conversation-bottom-dock.test.mjs ./scripts/room-unread-navigation.test.mjs",
+    "test:timeline": "node --test ./scripts/timeline-guidance-order.test.mjs ./scripts/room-collaboration-regression.test.mjs ./scripts/input-queue-ack.test.mjs ./scripts/room-history-bulk-delete.test.mjs ./scripts/subagent-task-polling.test.mjs ./scripts/connector-oauth-client-replacement.test.mjs ./scripts/launcher-hit-testing.test.mjs ./scripts/conversation-bottom-dock.test.mjs ./scripts/room-unread-navigation.test.mjs",
     "typecheck": "tsc --noEmit",
     "export:liquid-glass": "node ./scripts/export-liquid-glass-assets.mjs"
   },

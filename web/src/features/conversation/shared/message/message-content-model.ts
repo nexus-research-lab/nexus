@@ -1,8 +1,14 @@
+/**
+ * INPUT: Assistant 内容块、结果文本与 Room 内部控制标记。
+ * OUTPUT: 用户可见输出判定、控制标记清理及消息内容提取/归一化工具。
+ * POS: DM/Room 消息内容语义的共享纯模型。
+ */
 import type {
   ContentBlock,
   ToolResultContent,
   TextContent,
 } from "@/types/conversation/message/content";
+import type { AssistantMessage } from "@/types/conversation/message/entity";
 
 const TOOL_USE_ERROR_TAG_PATTERN =
   /<tool_use_error>([\s\S]*?)<\/tool_use_error>/g;
@@ -67,6 +73,25 @@ function appendToolUseErrorBlock(
 
 export function stripRoomControlMarkers(text: string): string {
   return text.replace(ROOM_CONTROL_MARKER_PATTERN, "").trim();
+}
+
+export function hasVisibleAssistantOutput(
+  message: AssistantMessage,
+): boolean {
+  const result = message.result_summary?.result ?? "";
+  return message.content.some(hasVisibleAssistantBlock)
+    || Boolean(stripRoomControlMarkers(result));
+}
+
+function hasVisibleAssistantBlock(block: ContentBlock): boolean {
+  switch (block.type) {
+    case "thinking":
+      return false;
+    case "text":
+      return Boolean(stripRoomControlMarkers(block.text));
+    default:
+      return true;
+  }
 }
 
 export function extractTextFromContentBlocks(

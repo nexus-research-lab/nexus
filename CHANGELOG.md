@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added exact first-unread Agent navigation to Room conversations: a compact batch-boundary marker stays attached to the first Agent reply of that unread batch, while a directional new-message pill above the Composer tracks the earliest still-unread reply even when parallel replies are inserted beneath older root turns or rendered through the virtual feed.
 - Added the internally bundled `slide-maker` Skill from `addsumtech/slides_maker` release 4.1.0, including its editable PPTX build helpers, design references, and independent review workflow.
 - Added fixed-height scrollable multi-select and confirmed batch deletion to Room conversation history, with the current conversation's available management actions kept visible. Selecting every local history item now clears all started conversations and leaves one fresh draft Session, which remains outside history until its first user message; new sessions use a localized placeholder until the existing title generator replaces it with a semantic title instead of exposing sequence numbers.
 

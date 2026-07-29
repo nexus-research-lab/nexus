@@ -8,14 +8,13 @@ import type {
   Message,
   UserMessage,
 } from "@/types/conversation/message/entity";
-import type { ContentBlock } from "@/types/conversation/message/content";
 import type {
   RoomAgentExecutionState,
   RoomPendingAgentSlotState,
 } from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
-import { stripRoomControlMarkers } from "../message/message-content-model";
+import { hasVisibleAssistantOutput } from "../message/message-content-model";
 
 /** DM / Room 共用的唯一时间线投影。 */
 export interface ConversationTimeline {
@@ -172,24 +171,6 @@ function getMessageSourceRoundId(message: Message): string {
 // 视为纯 no-reply，不在时间线显示。保守判定：任何工具/非文本块都算可见输出。
 function hasVisibleUserContent(message: UserMessage): boolean {
   return Boolean(message.content.trim()) || Boolean(message.attachments?.length);
-}
-
-function hasVisibleAssistantBlock(block: ContentBlock): boolean {
-  switch (block.type) {
-    case "thinking":
-      return false;
-    case "text":
-      return Boolean(stripRoomControlMarkers(block.text));
-    default:
-      // 工具、图片等非文本块即使没有摘要，也属于用户可见输出。
-      return true;
-  }
-}
-
-function hasVisibleAssistantOutput(message: AssistantMessage): boolean {
-  const result = message.result_summary?.result ?? "";
-  return message.content.some(hasVisibleAssistantBlock)
-    || Boolean(stripRoomControlMarkers(result));
 }
 
 function isBlankNoReplyRound(messages: Message[]): boolean {
