@@ -243,6 +243,9 @@ func inspectShellAccess(
 		if !ok {
 			continue
 		}
+		if shellDynamicPathPrefixAuthorized(policy, cwd, path) {
+			continue
+		}
 		resolved, err := resolveToolPath(cwd, path)
 		if err != nil {
 			return &policyViolation{reason: err.Error(), path: path}
@@ -255,6 +258,51 @@ func inspectShellAccess(
 		}
 	}
 	return nil
+}
+
+// shellDynamicPathPrefixAuthorized 只判断变量前已经明确出现的静态目录。
+// 变量展开后的最终目标仍由 launcher/Landlock 的系统调用边界裁决。
+func shellDynamicPathPrefixAuthorized(policy Policy, cwd string, path string) bool {
+	variableIndex := firstShellVariableIndex(path)
+	if variableIndex <= 0 || explicitShellTraversal(path) {
+		return false
+	}
+	prefix := strings.TrimRight(path[:variableIndex], `/\`)
+	if prefix == "" {
+		return false
+	}
+	resolved, err := resolveToolPath(cwd, prefix)
+	if err != nil {
+		return false
+	}
+	if shellSystemPath(resolved) {
+		return true
+	}
+	_, err = policy.authorize(resolved, false)
+	return err == nil
+}
+
+func firstShellVariableIndex(value string) int {
+	index := -1
+	for _, pattern := range []*regexp.Regexp{
+		unixShellVariablePattern,
+		windowsShellVariablePattern,
+	} {
+		match := pattern.FindStringIndex(value)
+		if len(match) == 2 && (index < 0 || match[0] < index) {
+			index = match[0]
+		}
+	}
+	return index
+}
+
+func explicitShellTraversal(value string) bool {
+	for _, segment := range strings.Split(strings.ReplaceAll(value, `\`, "/"), "/") {
+		if segment == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 func shellSystemPath(path string) bool {
@@ -394,9 +442,12 @@ func shellTokenPath(token string) (string, bool) {
 		return token, true
 	case unixShellVariablePattern.MatchString(token) ||
 		windowsShellVariablePattern.MatchString(token):
-		// 环境变量的结果在 hook 运行时不可静态确定，不能让它们
-		// 借由相对 token 绕过路径授权。
-		return token, true
+		// 裸变量不携带可静态判断的路径语义，交给系统调用级隔离；
+		// 带目录分隔符的变量路径继续检查其静态前缀。
+		if strings.ContainsAny(token, `/\`) {
+			return token, true
+		}
+		return "", false
 	case isWindowsAbsoluteShellPath(token):
 		return token, true
 	case token == "..", strings.HasPrefix(token, "../"), strings.Contains(token, "/../"):
