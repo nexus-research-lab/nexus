@@ -5,7 +5,7 @@ import {
   isRecoverableToolUse,
 } from "../../message-content-model";
 import {
-  getToolInputSummary,
+  getCompactToolInputSummary,
   getToolTitle,
 } from "../../tool-activity";
 
@@ -48,7 +48,7 @@ const PROCESS_DETAIL_RESOLVERS: ReadonlyArray<
     if (block.type !== "tool_use" || isRecoverableToolUse(block)) {
       return null;
     }
-    const detail = getToolInputSummary(block.input);
+    const detail = getCompactToolInputSummary(block.input);
     return compactProcessDetail(
       detail ? `${getToolTitle(block.name)}：${detail}` : getToolTitle(block.name),
     );

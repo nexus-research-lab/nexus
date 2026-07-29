@@ -2,6 +2,7 @@ import type { PermissionUpdate } from "@/types/conversation/interaction/permissi
 import { formatTokens } from "@/lib/format/token-count";
 
 import {
+  getCompactToolInputSummary,
   getToolInputSummary,
   getToolTitle,
 } from "../../tool-activity";
@@ -166,7 +167,8 @@ export function buildToolBlockViewModel({
   const finalStatus = resolveFinalStatus(Boolean(toolResult?.is_error), status);
   const statusMeta = STATUS_META[finalStatus];
   const permission = buildPermissionProjection(permissionRequest);
-  const inputSummary = getToolInputSummary(toolUse.input);
+  const collapsedInputSummary = getCompactToolInputSummary(toolUse.input);
+  const expandedInputSummary = getToolInputSummary(toolUse.input);
   const resultSummary = projectOptional(
     toolResult,
     (result) => getResultSummary(result.content),
@@ -177,14 +179,14 @@ export function buildToolBlockViewModel({
   return {
     collapsedDetailText: firstText([
       waitingDetail,
-      inputSummary,
+      collapsedInputSummary,
       resultSummary,
     ]),
     durationText: formatDuration(startTime, endTime),
     expandedDetailText: firstText([
       waitingDetail,
       expandedInputDetail?.value.trim(),
-      inputSummary,
+      expandedInputSummary,
       resultSummary,
     ]),
     hasResult: Boolean(toolResult),

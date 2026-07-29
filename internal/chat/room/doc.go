@@ -5,7 +5,7 @@
 // 成员清单：
 //   - mapper.go / events.go / records.go：消息映射、事件构建、记录。
 //   - context_budget.go / visible_*.go：模型窗口预算、anchor/delta 规划、checkpoint 边界、可见性投影与公区提及增量交付契约。
-//   - mention.go / public_mention.go / handoff.go / guidance.go / no_reply.go：提及、公区提及、全量非代码 @ handoff、旧 fanout 标记剥离、引导与无回复。
+//   - mention.go / public_mention.go / handoff.go / guidance.go / no_reply.go：提及（含 ASCII 别名到汉字正文的容错边界）、公区提及、全量非代码 @ handoff、旧 fanout 标记剥离、引导与无回复。
 //   - model_runtime.go：Room 运行时模型。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

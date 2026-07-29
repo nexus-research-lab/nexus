@@ -80,13 +80,13 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 普通公区发言直接使用当前 round 的 final reply，不调用 Room 工具。只有已收口的 final reply 才进入 public feed。
 
-公区 final reply 中的每个非代码 `@成员` 都同时是可点击 mention 与真实 handoff；多个有效目标会分别创建独立 handoff 并行唤醒。只想展示或讨论成员时必须写普通名字，不使用 `@`。源 Agent 的 final reply 持久化且 source slot 成功收口后立即处理，不等待同一 root round 的其他 slot；解析使用成员 name、display name 或 agent id，反引号代码区域中的 `@` 不触发唤醒。目标重复时只唤醒一次，不能唤醒自己。
+公区 final reply 中的每个非代码 `@成员` 都同时是可点击 mention 与真实 handoff；多个有效目标会分别创建独立 handoff 并行唤醒。只想展示或讨论成员时必须写普通名字，不使用 `@`。源 Agent 的 final reply 持久化且 source slot 成功收口后立即处理，不等待同一 root round 的其他 slot；解析使用成员 name、display name 或 agent id，反引号代码区域中的 `@` 不触发唤醒。推荐在成员名后使用空白或标点；为兼容模型的中文输出，纯 ASCII 别名可直接衔接汉字正文（例如 `@Agent1以上为结果`），但 ASCII 字母、数字或连接符后缀仍视为同一标识符，`@Agent10` 不会误命中 `Agent1`。目标重复时只唤醒一次，不能唤醒自己。
 
 用户消息与 Agent final reply 里的 `@成员` 都表达显式目标；前者按前端传入的 `target_agent_ids` 路由，后者按服务端解析出的有效 mention 路由。多个不同目标按目标拆成多个独立 handoff，目标的书写顺序只决定创建顺序，不承诺回复顺序。
 
 平台不从 Agent 的通信方向推断业务拓扑，也不禁止 reciprocal handoff。只要是不同消息中的显式新 `@`，`A → B → A`、peer 间继续讨论或多人先后回交给同一成员都是真实 handoff；是否继续协作由 Agent 的明确表达和 Room Skill 决定。多个来源同时指向同一忙碌 Agent 时，每条 handoff 都独立持久化并按到达顺序进入该 Agent 的 guide/queue，始终只运行一个目标 slot。
 
-公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容带给目标 Agent。目标 Agent 应输出新交付；没有新工作时使用 <nexus_room_no_reply/>，平台不写入空的公区回复。
+公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容带给目标 Agent。目标 Agent 应输出新交付；完成委派后若协调者还需整合、验证或继续推进，回复应包含完整公开交付，并以带明确下一步动作的 `@协调者` 回交，而不是只说“结果可用”。没有新工作或无需任何成员继续行动时使用 <nexus_room_no_reply/> 或不写 `@`，平台不写入空的公区回复。
 
 ### 4.3 @ mention 与消息注解
 

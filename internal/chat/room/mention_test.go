@@ -92,6 +92,41 @@ func TestResolveMentionMatchesDoesNotSplitIdentifierSuffix(t *testing.T) {
 	}
 }
 
+func TestResolveMentionMatchesAcceptsHanTextAfterASCIIAliasWithoutSplittingLongerAlias(t *testing.T) {
+	aliases := map[string]string{
+		"Agent1":  "agent-1",
+		"Agent10": "agent-10",
+	}
+	content := "@Agent10以上为前期资料；@Agent1以上为最终结果。"
+	matches := ResolveMentionMatches(content, aliases)
+	if len(matches) != 2 {
+		t.Fatalf("英文成员名紧跟汉字正文应解析两处 mention: %#v", matches)
+	}
+	if matches[0].AgentID != "agent-10" || matches[1].AgentID != "agent-1" {
+		t.Fatalf("最长别名与文本顺序应保持稳定: %#v", matches)
+	}
+	runes := []rune(content)
+	if got := string(runes[matches[0].StartRune:matches[0].EndRune]); got != "@Agent10" {
+		t.Fatalf("较长别名 mention span 不正确: got=%q span=%+v", got, matches[0])
+	}
+	if got := string(runes[matches[1].StartRune:matches[1].EndRune]); got != "@Agent1" {
+		t.Fatalf("无分隔符 mention span 不正确: got=%q span=%+v", got, matches[1])
+	}
+}
+
+func TestResolveMentionMatchesDoesNotTreatASCIIIdentifierContinuationAsHanBoundary(t *testing.T) {
+	aliases := map[string]string{"Agent1": "agent-1"}
+	for _, content := range []string{
+		"@Agent10 不应命中",
+		"@Agent1analysis 不应命中",
+		"@Agent1_name 不应命中",
+	} {
+		if matches := ResolveMentionMatches(content, aliases); len(matches) != 0 {
+			t.Fatalf("ASCII 标识符后缀不应截断成 mention: content=%q matches=%#v", content, matches)
+		}
+	}
+}
+
 func TestResolveMentionMatchesKeepsOffsetsOutsideMaskedCode(t *testing.T) {
 	aliases := map[string]string{"阿梅": "agent-amy", "Devin": "agent-devin"}
 	content := "代码 `示例 @阿梅` 后请 @Devin 继续"

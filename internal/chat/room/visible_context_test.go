@@ -139,10 +139,15 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"# Nexus Room",
 		"You are a member in a multi-member Nexus Room",
 		"Every valid non-code @member in a final public reply means \"act now\"",
+		"Write each actionable mention as a distinct token followed by whitespace or punctuation",
+		`"@Name 请继续"`,
 		"already-published source message for activation context",
 		"never repeat, quote, paraphrase, summarize, acknowledge, or confirm",
 		"output only the new deliverable concretely assigned to you",
 		"If it assigns no concrete new work, output exactly <nexus_room_no_reply/>",
+		"When you finish delegated work and the delegating coordinator must integrate, verify, or continue",
+		`"@Coordinator 请整合以上结果并继续推进。"`,
+		"merely saying the result is available is not a handoff",
 		"Multiple @members fan out to all named members",
 		"legacy <nexus_room_fanout/> marker is unnecessary",
 		"<nexus_room_no_reply/>",
@@ -157,7 +162,8 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"avoid duplicating that work yourself",
 		"coordination, unblocking, integration, and verification",
 		"Never expose private content publicly",
-		"a completed summary must not @ anyone",
+		"A finished branch that still needs coordinator integration",
+		"only a terminal summary that requires no further action must not @ anyone",
 	} {
 		if !strings.Contains(systemPrompt, expected) {
 			t.Fatalf("Room system prompt 缺少片段 %q:\n%s", expected, systemPrompt)

@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Session 的 Room execution 顺序锚点，以及 permission / slot / message / lifecycle 证据。
- * OUTPUT: keyed by root round + agent_round 的 canonical 初始顺序、首次可见锚点和 acknowledged 非交互 tombstone。
+ * OUTPUT: keyed by root round + agent_round 且跨 permission/slot/message 共用毫秒尺度的 canonical 初始顺序、首次可见锚点和 acknowledged 非交互 tombstone。
  * POS: Room execution shell 连续性的纯状态转换；React 状态与协议发送只负责调用。
  */
 import type {
@@ -215,6 +215,7 @@ function compareInitialEvidenceOrder(
 function permissionEvidence(
   permission: PendingPermission,
   observedAt: number,
+  fallbackOrder: number = 0,
 ): RoomExecutionEvidence | null {
   const identity = normalizeIdentity(
     permission.round_id,
@@ -226,6 +227,13 @@ function permissionEvidence(
         ...identity,
         firstSeenAt: observedAt,
         phase: "pending_permission",
+        // Permission 可能通过 Agent Session 通道先于共享 slot snapshot 到达。
+        // 使用和 durable message / slot 相同的毫秒时间尺度，才能在已有正文
+        // 之后登记首见锚点，而不是以局部数组 0/1 把新 Agent 插到旧回复上方。
+        preferredDisplayOrder: resolveObservedDisplayOrder(
+          observedAt,
+          fallbackOrder,
+        ),
         status: "pending",
       }
     : null;
@@ -239,8 +247,8 @@ export function syncRoomAgentExecutionsFromPermissions(
   permissions: PendingPermission[],
   observedAt: number = Date.now(),
 ): RoomAgentExecutionState[] {
-  const evidence = permissions.flatMap((permission) => {
-    const item = permissionEvidence(permission, observedAt);
+  const evidence = permissions.flatMap((permission, order) => {
+    const item = permissionEvidence(permission, observedAt, order);
     return item ? [item] : [];
   });
   const observed = syncEvidence(current, evidence);
@@ -283,13 +291,23 @@ function resolveSlotDisplayOrder(
   slot: RoomPendingAgentSlotState,
   fallbackOrder: number,
 ): number {
-  if (Number.isFinite(slot.timestamp) && slot.timestamp > 0) {
+  return resolveObservedDisplayOrder(
+    slot.timestamp,
+    slot.index ?? fallbackOrder,
+  );
+}
+
+function resolveObservedDisplayOrder(
+  observedAt: number,
+  fallbackOrder: number,
+): number {
+  if (Number.isFinite(observedAt) && observedAt > 0) {
     return (
-      Math.trunc(slot.timestamp) * ROOM_DISPLAY_ORDER_SCALE
-      + Math.max(slot.index ?? 0, 0)
+      Math.trunc(observedAt) * ROOM_DISPLAY_ORDER_SCALE
+      + Math.max(fallbackOrder, 0)
     );
   }
-  return slot.index ?? fallbackOrder;
+  return Math.max(fallbackOrder, 0);
 }
 
 function resolveMessageStatus(

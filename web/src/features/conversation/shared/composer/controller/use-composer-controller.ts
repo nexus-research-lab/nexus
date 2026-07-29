@@ -21,6 +21,7 @@ import { useComposerDraft } from "./use-composer-draft";
 import { useComposerGoalActions } from "./use-composer-goal-actions";
 import { useComposerKeyboard } from "./use-composer-keyboard";
 import { useComposerMessageSubmit } from "./use-composer-message-submit";
+import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
 
 const EMPTY_ROOM_MEMBERS: Agent[] = [];
 
@@ -112,7 +113,7 @@ export function useComposerController({
 
   useTextareaHeight(textareaRef, draftState.input, {
     minHeight: 24,
-    maxHeight: 200,
+    maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
     lineHeight: 24,
     paddingY: 0,
   });

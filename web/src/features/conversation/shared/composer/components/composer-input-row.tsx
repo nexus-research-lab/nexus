@@ -9,6 +9,8 @@ import { cn } from "@/shared/ui/class-name";
 import type { MentionTargetItem } from "@/shared/ui/mention/mention-target-model";
 import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
 
+import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
+
 interface ComposerInputRowProps {
   input: {
     disabled: boolean;
@@ -57,7 +59,7 @@ export function ComposerInputRow({
           ref={textareaRef}
           aria-label={input.placeholder}
           className={cn(
-            "multiline-cursor soft-scrollbar block min-h-8 w-full min-w-0 max-h-[200px] resize-none overflow-y-auto overscroll-contain bg-transparent px-1.5 py-1 text-base leading-6 text-(--text-strong) outline-none shadow-none ring-0",
+            "multiline-cursor soft-scrollbar block min-h-8 w-full min-w-0 resize-none overflow-y-auto overscroll-contain bg-transparent px-1.5 py-1 text-base leading-6 text-(--text-strong) outline-none shadow-none ring-0",
             "placeholder:text-(--text-soft)",
             "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
             "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
@@ -71,6 +73,7 @@ export function ComposerInputRow({
           onWheel={stopNestedTextareaWheel}
           placeholder={input.placeholder}
           rows={1}
+          style={{ maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX }}
           value={input.value}
         />
       </div>

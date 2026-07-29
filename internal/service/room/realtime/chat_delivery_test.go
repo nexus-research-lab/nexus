@@ -13,6 +13,7 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -1043,6 +1044,231 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionHandoff(t *testing.T) {
 		if handoff.Status != "finished" {
 			t.Fatalf("reciprocal handoff 未随目标 runtime 收口: %+v", handoff)
 		}
+	}
+}
+
+func TestRealtimeServiceSerializesSiblingPublicMentionReturnsToFinishedHost(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	host := createTestAgent(t, agentService, ctx, "Host")
+	workerA := createTestAgent(t, agentService, ctx, "WorkerA")
+	workerB := createTestAgent(t, agentService, ctx, "WorkerB")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:    []string{host.AgentID, workerA.AgentID, workerB.AgentID},
+		HostAgentID: host.AgentID,
+		Name:        "成员并行回交 Host 测试房间",
+		Title:       "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	hostClient := newFakeRoomClient()
+	fastWorkerClient := newFakeRoomClient()
+	slowWorkerClient := newFakeRoomClient()
+	workerStarted := make(chan struct{}, 2)
+	hostReturnPrompts := make(chan string, 2)
+	releaseSlowWorker := make(chan struct{})
+	releaseFirstHostReturn := make(chan struct{})
+	var hostQueryCount atomic.Int32
+
+	hostClient.onQuery = func(_ context.Context, prompt string) error {
+		switch hostQueryCount.Add(1) {
+		case 1:
+			go sendFakeAssistantResult(
+				hostClient,
+				"host-delegates-two-workers",
+				"@WorkerA 请完成 A 部分，@WorkerB 请完成 B 部分。",
+			)
+		case 2:
+			hostReturnPrompts <- prompt
+			go func() {
+				<-releaseFirstHostReturn
+				sendFakeAssistantResult(hostClient, "host-consumes-first-return", "第一份已收到，继续等待另一份。")
+			}()
+		case 3:
+			hostReturnPrompts <- prompt
+			go sendFakeAssistantResult(hostClient, "host-consumes-second-return", "两份回交均已收到。")
+		}
+		return nil
+	}
+	fastWorkerClient.onQuery = func(_ context.Context, _ string) error {
+		workerStarted <- struct{}{}
+		go sendFakeAssistantResult(fastWorkerClient, "worker-fast-return", "@Host 第一份成员回交。")
+		return nil
+	}
+	slowWorkerClient.onQuery = func(_ context.Context, _ string) error {
+		workerStarted <- struct{}{}
+		go func() {
+			<-releaseSlowWorker
+			sendFakeAssistantResult(slowWorkerClient, "worker-slow-return", "@Host 第二份成员回交。")
+		}()
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	service := NewServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{hostClient, fastWorkerClient, slowWorkerClient}},
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := &realtimeTestSender{
+		key:    "room-sender-sibling-returns-to-host",
+		events: make(chan protocol.EventMessage, 512),
+	}
+	permission.BindSession(sharedSessionKey, sender)
+
+	const rootRoundID = "room-round-sibling-returns-to-host"
+	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Host 请让两个成员并行处理后回交",
+		RoundID:        rootRoundID,
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	for range 2 {
+		select {
+		case <-workerStarted:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Host 委派后并非两个成员都进入 runtime")
+		}
+	}
+
+	var firstReturnPrompt string
+	select {
+	case firstReturnPrompt = <-hostReturnPrompts:
+		if !strings.Contains(firstReturnPrompt, "<latest_trigger>\n") ||
+			!strings.Contains(firstReturnPrompt, "@Host 第一份成员回交。") {
+			t.Fatalf("Host 首次回交 prompt 缺少第一位成员触发: %s", firstReturnPrompt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Host 完成初始委派后未被第一位成员再次唤醒")
+	}
+	if hostQueryCount.Load() != 2 {
+		t.Fatalf("慢成员仍在运行时 Host 应只被再次唤醒一次: queries=%d", hostQueryCount.Load())
+	}
+
+	close(releaseSlowWorker)
+	var queuedReturn protocol.InputQueueItem
+	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+		if event.EventType != protocol.EventTypeInputQueue {
+			return false
+		}
+		for _, item := range inputQueueItemsFromEvent(event) {
+			if item.Source == protocol.InputQueueSourceAgentPublicMention &&
+				item.AgentID == host.AgentID &&
+				item.SourceMessageID == "worker-slow-return" {
+				queuedReturn = item
+				return true
+			}
+		}
+		return false
+	})
+	if queuedReturn.DeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
+		queuedReturn.HandoffID == "" ||
+		queuedReturn.RootRoundID != rootRoundID {
+		t.Fatalf("第二位成员回交必须按原 root 进入 Host 串行队列: %+v", queuedReturn)
+	}
+	if hostQueryCount.Load() != 2 {
+		t.Fatalf("Host 忙时不得并发启动第二个回交 slot: queries=%d", hostQueryCount.Load())
+	}
+	select {
+	case prompt := <-hostReturnPrompts:
+		t.Fatalf("Host 首个回交尚未结束时不应消费第二个回交: %s", prompt)
+	default:
+	}
+
+	hostQueueLocation := workspacestore.InputQueueLocation{
+		OwnerUserID:    roomContext.Room.OwnerUserID,
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  host.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, host.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	hostQueueItems, err := workspacestore.NewInputQueueStore(cfg.WorkspacePath).Snapshot(hostQueueLocation)
+	if err != nil {
+		t.Fatalf("读取 Host 回交队列失败: %v", err)
+	}
+	if len(hostQueueItems) != 1 || hostQueueItems[0].ID != queuedReturn.ID {
+		t.Fatalf("第二位成员回交未持久化到 Host 自己的队列: event=%+v stored=%+v", queuedReturn, hostQueueItems)
+	}
+
+	close(releaseFirstHostReturn)
+	var secondReturnPrompt string
+	select {
+	case secondReturnPrompt = <-hostReturnPrompts:
+		if !strings.Contains(secondReturnPrompt, "<latest_trigger>\n") ||
+			!strings.Contains(secondReturnPrompt, "@Host 第二份成员回交。") {
+			t.Fatalf("Host 第二次回交 prompt 缺少排队成员触发: %s", secondReturnPrompt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Host 首个回交结束后未串行消费第二位成员回交")
+	}
+	if hostQueryCount.Load() != 3 {
+		t.Fatalf("Host 应按初始委派、第一份回交、第二份回交串行执行三次: queries=%d", hostQueryCount.Load())
+	}
+
+	handoffStore := workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath)
+	var handoffs []workspacestore.RoomPublicHandoff
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		handoffs, err = handoffStore.ListRoot(
+			roomContext.Room.OwnerUserID,
+			roomContext.Conversation.ID,
+			rootRoundID,
+		)
+		if err != nil {
+			t.Fatalf("读取成员回交 handoff ledger 失败: %v", err)
+		}
+		allFinished := len(handoffs) == 4
+		for _, handoff := range handoffs {
+			allFinished = allFinished && handoff.Status == "finished"
+		}
+		if allFinished {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(handoffs) != 4 {
+		t.Fatalf("Host 委派两次且成员回交两次应产生四条 handoff: %+v", handoffs)
+	}
+	returnRoundIDs := make(map[string]struct{}, 2)
+	returnSources := make(map[string]struct{}, 2)
+	for _, handoff := range handoffs {
+		if handoff.Status != "finished" {
+			t.Fatalf("成员协作 handoff 未收口: %+v", handoff)
+		}
+		if handoff.TargetAgentID != host.AgentID {
+			continue
+		}
+		if handoff.TargetRoundID == "" {
+			t.Fatalf("回交 Host 的 handoff 没有实际 target round: %+v", handoff)
+		}
+		returnRoundIDs[handoff.TargetRoundID] = struct{}{}
+		returnSources[handoff.SourceAgentID] = struct{}{}
+	}
+	if len(returnRoundIDs) != 2 || len(returnSources) != 2 {
+		t.Fatalf("两个来源回交同一 Host 必须各自串行启动独立 round: %+v", handoffs)
 	}
 }
 

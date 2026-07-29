@@ -1,4 +1,14 @@
-import { RefObject, useEffect, useRef } from "react";
+/**
+ * INPUT: textarea 当前正文、真实可用宽度与最小/最大高度约束。
+ * OUTPUT: 宽度或正文变化时同步更新的有界高度，超出上限后只滚动内部正文。
+ * POS: Composer 与消息编辑器共用的无 React 状态 textarea 测量入口。
+ */
+import {
+  RefObject,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
 import { prepare, layout } from "@chenglou/pretext";
 
 // ─── useTextareaHeight ────────────────────────────────────────────────────────
@@ -45,60 +55,107 @@ export function useTextareaHeight(
     paddingY = 0,
   }: UseTextareaHeightOptions = {},
 ): void {
-  // Cache container width across renders — only update on resize
+  // Cache measurement inputs without forcing a React render on every keypress.
   const widthRef = useRef(0);
   const fontRef = useRef("");
+  const valueRef = useRef(value);
+  const optionsRef = useRef({
+    lineHeight,
+    maxHeight,
+    minHeight,
+    paddingY,
+  });
+  valueRef.current = value;
+  optionsRef.current = {
+    lineHeight,
+    maxHeight,
+    minHeight,
+    paddingY,
+  };
 
-  // Measure container width + font once after mount, then watch for resizes
-  useEffect(() => {
+  const applyHeight = useCallback(() => {
     const el = ref.current;
-    if (!el) return;
-
-    const sample = () => {
-      // contentRect excludes padding/border — matches what text actually fills
-      const rect = el.getBoundingClientRect();
-      // Approximate inner width: subtract horizontal padding
-      const style = window.getComputedStyle(el);
-      const paddingLeft = parseFloat(style.paddingLeft) || 0;
-      const paddingRight = parseFloat(style.paddingRight) || 0;
-      widthRef.current = Math.max(1, rect.width - paddingLeft - paddingRight);
-      fontRef.current = style.font || `400 15px ui-sans-serif, system-ui, sans-serif`;
-    };
-
-    sample();
-
-    const observer = new ResizeObserver(sample);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [ref]);
-
-  // Recompute height without reflow on every value change
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || widthRef.current <= 0) return;
+    if (!el || widthRef.current <= 0) {
+      return;
+    }
+    const currentValue = valueRef.current;
+    const {
+      lineHeight: currentLineHeight,
+      maxHeight: currentMaxHeight,
+      minHeight: currentMinHeight,
+      paddingY: currentPaddingY,
+    } = optionsRef.current;
 
     let contentHeight: number;
     try {
       // pretext measures the full text including \n hard breaks
-      const prepared = prepare(value || " ", fontRef.current, { whiteSpace: "pre-wrap" });
-      const result = layout(prepared, widthRef.current, lineHeight);
-      contentHeight = result.height + paddingY;
+      const prepared = prepare(currentValue || " ", fontRef.current, {
+        whiteSpace: "pre-wrap",
+      });
+      const result = layout(
+        prepared,
+        widthRef.current,
+        currentLineHeight,
+      );
+      contentHeight = result.height + currentPaddingY;
     } catch {
       // Fallback: count newlines × lineHeight (rough but reflow-free)
-      const lines = (value.match(/\n/g) ?? []).length + 1;
-      contentHeight = lines * lineHeight + paddingY;
+      const lines = (currentValue.match(/\n/g) ?? []).length + 1;
+      contentHeight = lines * currentLineHeight + currentPaddingY;
     }
 
-    const clamped = Math.min(Math.max(contentHeight, minHeight), maxHeight);
+    const clamped = Math.min(
+      Math.max(contentHeight, currentMinHeight),
+      currentMaxHeight,
+    );
     el.style.height = `${clamped}px`;
-    el.style.overflowY = "auto";
+    el.style.overflowY = contentHeight > currentMaxHeight ? "auto" : "hidden";
     if (
-      contentHeight > maxHeight &&
+      contentHeight > currentMaxHeight &&
       document.activeElement === el &&
-      el.selectionStart === value.length &&
-      el.selectionEnd === value.length
+      el.selectionStart === currentValue.length &&
+      el.selectionEnd === currentValue.length
     ) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [value, lineHeight, minHeight, maxHeight, paddingY, ref]);
+  }, [ref]);
+
+  // Width can change without a text update when the Composer replaces an
+  // interaction surface or the side panel resizes. Re-measure immediately so a
+  // stale narrow width cannot leave a short draft at the maximum height.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) {
+      return;
+    }
+    const sample = () => {
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      const paddingLeft = parseFloat(style.paddingLeft) || 0;
+      const paddingRight = parseFloat(style.paddingRight) || 0;
+      widthRef.current = Math.max(
+        1,
+        rect.width - paddingLeft - paddingRight,
+      );
+      fontRef.current = style.font
+        || "400 15px ui-sans-serif, system-ui, sans-serif";
+      applyHeight();
+    };
+
+    sample();
+    const observer = new ResizeObserver(sample);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [applyHeight, ref]);
+
+  useLayoutEffect(() => {
+    applyHeight();
+  }, [
+    applyHeight,
+    lineHeight,
+    maxHeight,
+    minHeight,
+    paddingY,
+    value,
+  ]);
 }

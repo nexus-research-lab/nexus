@@ -692,6 +692,59 @@ test("DM and Room pending interactions replace the Composer input in one stable 
   );
 });
 
+test("Composer growth is capped and collapsed file tools show only the leaf name", async () => {
+  const {
+    COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/composer-styles.ts",
+  );
+  const {
+    getCompactToolInputSummary,
+    getToolInputSummary,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/tool-activity.ts",
+  );
+  const {
+    buildToolBlockViewModel,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/tool-block-model.ts",
+  );
+  const {
+    buildProcessSummary,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/message-process-summary.ts",
+  );
+  const absolutePath = "/Users/test/workspace/output/permission_test.txt";
+  const toolInput = { file_path: absolutePath };
+  const toolUse = {
+    id: "tool-write-file",
+    input: toolInput,
+    name: "Write",
+    type: "tool_use",
+  };
+  const model = buildToolBlockViewModel({
+    status: "running",
+    toolUse,
+  });
+
+  assert.equal(
+    COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
+    120,
+    "Composer should stop growing after roughly five text lines",
+  );
+  assert.equal(getCompactToolInputSummary(toolInput), "permission_test.txt");
+  assert.equal(getToolInputSummary(toolInput), absolutePath);
+  assert.equal(model.collapsedDetailText, "permission_test.txt");
+  assert.equal(model.expandedDetailText, absolutePath);
+  assert.equal(
+    buildProcessSummary({
+      pendingPermissionCount: 0,
+      processContent: [toolUse],
+    }),
+    "1 次动作 · 最近：写入内容：permission_test.txt",
+  );
+});
+
 test("questions and plan confirmations use the same Composer replacement owner", async () => {
   const { buildComposerInteractionQueue } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/components/interaction/composer-interaction-model.ts",

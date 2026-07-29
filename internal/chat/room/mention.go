@@ -37,6 +37,7 @@ func ResolveMentionAgentIDs(content string, agentNameToID map[string]string) []s
 
 // ResolveMentionMatches 返回所有可用于 UI 标注与 handoff 的 mention span。
 // 代码区和链接/标识符中的模糊 @ 不会被解析；重叠别名只保留最长匹配。
+// 纯 ASCII 别名允许直接衔接汉字正文，兼容模型常见的「@Agent1以上」输出。
 func ResolveMentionMatches(content string, agentNameToID map[string]string) []MentionMatch {
 	if strings.TrimSpace(content) == "" || len(agentNameToID) == 0 {
 		return nil
@@ -78,28 +79,16 @@ func ResolveMentionMatches(content string, agentNameToID map[string]string) []Me
 
 	all := make([]MentionMatch, 0, len(aliases))
 	for _, alias := range aliases {
-		// 名字后允许紧跟任意 Unicode 标点/符号，例如「@方案制定员（agent-id）」；
-		// 分隔符只用于确认边界，不纳入最终 mention span。
-		pattern, err := regexp.Compile(`(?i)@` + regexp.QuoteMeta(alias.name) + `([\s\p{P}\p{S}]|$)`)
+		pattern, err := regexp.Compile(`(?i)@` + regexp.QuoteMeta(alias.name))
 		if err != nil {
 			continue
 		}
-		for _, location := range pattern.FindAllStringSubmatchIndex(masked, -1) {
-			if len(location) < 4 || !isMentionBoundary(content, location[0]) {
+		for _, location := range pattern.FindAllStringIndex(masked, -1) {
+			if len(location) < 2 || !isMentionBoundary(content, location[0]) ||
+				!isMentionSuffixBoundary(alias.name, masked, location[1]) {
 				continue
 			}
-			if location[2] >= 0 {
-				delimiter, _ := utf8.DecodeRuneInString(content[location[2]:location[3]])
-				if unicode.Is(unicode.Pc, delimiter) {
-					// 下划线等连接符仍属于标识符的一部分，不能把
-					// @Amy_name 错当成 @Amy。
-					continue
-				}
-			}
 			matchEnd := location[1]
-			if location[2] >= 0 {
-				matchEnd = location[2]
-			}
 			if matchEnd <= location[0] || matchEnd > len(content) {
 				continue
 			}
@@ -130,6 +119,38 @@ func ResolveMentionMatches(content string, agentNameToID map[string]string) []Me
 		lastEnd = match.EndRune
 	}
 	return result
+}
+
+func isMentionSuffixBoundary(alias string, content string, byteIndex int) bool {
+	if byteIndex < 0 || byteIndex > len(content) {
+		return false
+	}
+	if byteIndex == len(content) {
+		return true
+	}
+	next, _ := utf8.DecodeRuneInString(content[byteIndex:])
+	if unicode.IsSpace(next) || unicode.IsPunct(next) || unicode.IsSymbol(next) {
+		// 下划线等连接符仍属于标识符的一部分，不能把
+		// @Amy_name 错当成 @Amy。
+		return !unicode.Is(unicode.Pc, next)
+	}
+	// 模型在中文回复里经常省略英文/数字成员名后的空格，例如
+	// 「@Agent1以上为调研结果」。只容忍纯 ASCII 别名到汉字正文的
+	// 跨文字边界；ASCII 字母、数字等后缀仍属于同一标识符，因此
+	// @Agent10 不会被较短的 Agent1 命中。
+	return isASCIIAlias(alias) && unicode.Is(unicode.Han, next)
+}
+
+func isASCIIAlias(alias string) bool {
+	if alias == "" {
+		return false
+	}
+	for _, value := range alias {
+		if value > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
 }
 
 func isMentionBoundary(content string, byteIndex int) bool {

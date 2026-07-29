@@ -4454,6 +4454,171 @@ test("Room permission-first order survives reverse slot arrival", async () => {
   );
 });
 
+test("Room permission-first children append after an existing reply and never move", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    acknowledgeRoomAgentExecutionPermission,
+    syncRoomAgentExecutionFromStream,
+    syncRoomAgentExecutionsFromMessages,
+    syncRoomAgentExecutionsFromPermissions,
+    syncRoomAgentExecutionsFromSlots,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-parent-before-permissions";
+  const parent = assistantMessage({
+    agentId: "agent-1",
+    agentRoundId: "agent-round-1",
+    displayOrder: 10_000,
+    isComplete: true,
+    messageId: "assistant-agent-1",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "@Agent2 调研 M1/M2，@Agent3 调研 M3/M4",
+    timestamp: 10,
+  });
+  const permissions = [
+    {
+      agent_id: "agent-2",
+      agent_round_id: "agent-round-2",
+      request_id: "permission-agent-2",
+      round_id: roundId,
+      tool_input: { query: "M1 M2" },
+      tool_name: "WebSearch",
+    },
+    {
+      agent_id: "agent-3",
+      agent_round_id: "agent-round-3",
+      request_id: "permission-agent-3",
+      round_id: roundId,
+      tool_input: { query: "M3 M4" },
+      tool_name: "WebSearch",
+    },
+  ];
+  const entryOrder = (messages, slots, pendingPermissions, states) => (
+    buildRoomAgentRoundEntries(
+      messages,
+      slots,
+      pendingPermissions,
+      states,
+    ).map((entry) => entry.agent_round_id)
+  );
+
+  // Agent Session permission events may beat the shared pending-slot snapshot.
+  // The already visible parent reply still owns the first canonical position.
+  const permissionFirst = syncRoomAgentExecutionsFromPermissions(
+    [],
+    permissions,
+    20,
+  );
+  const expectedOrder = [
+    "agent-round-1",
+    "agent-round-2",
+    "agent-round-3",
+  ];
+  assert.deepEqual(
+    entryOrder([parent], [], permissions, permissionFirst),
+    expectedOrder,
+    "permission-only children must append after the existing parent reply",
+  );
+
+  const acknowledged = permissions.reduce(
+    (states, permission) => acknowledgeRoomAgentExecutionPermission(
+      states,
+      permission,
+      21,
+    ),
+    permissionFirst,
+  );
+  const afterPermissionRemoval = syncRoomAgentExecutionsFromPermissions(
+    acknowledged,
+    [],
+    22,
+  );
+  assert.deepEqual(
+    entryOrder([parent], [], [], afterPermissionRemoval),
+    expectedOrder,
+    "acknowledging the last permission must retain the same execution shells",
+  );
+
+  const reverseSlots = [
+    {
+      agent_id: "agent-3",
+      agent_round_id: "agent-round-3",
+      index: 1,
+      msg_id: "slot-agent-3",
+      round_id: roundId,
+      status: "streaming",
+      timestamp: 30,
+    },
+    {
+      agent_id: "agent-2",
+      agent_round_id: "agent-round-2",
+      index: 0,
+      msg_id: "slot-agent-2",
+      round_id: roundId,
+      status: "streaming",
+      timestamp: 30,
+    },
+  ];
+  const active = syncRoomAgentExecutionsFromSlots(
+    afterPermissionRemoval,
+    reverseSlots,
+  );
+  assert.deepEqual(
+    entryOrder([parent], reverseSlots, [], active),
+    expectedOrder,
+    "reverse slot arrival must enrich rather than reorder permission-first nodes",
+  );
+
+  const agent2Stream = assistantMessage({
+    agentId: "agent-2",
+    agentRoundId: "agent-round-2",
+    messageId: "assistant-agent-2",
+    roundId,
+    status: "streaming",
+    text: "Agent2 正在回复",
+    timestamp: 31,
+  });
+  const agent3Done = assistantMessage({
+    agentId: "agent-3",
+    agentRoundId: "agent-round-3",
+    isComplete: true,
+    messageId: "assistant-agent-3",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "Agent3 已回复",
+    timestamp: 32,
+  });
+  const afterStream = syncRoomAgentExecutionFromStream(active, {
+    agent_id: "agent-2",
+    agent_round_id: "agent-round-2",
+    message_id: "assistant-agent-2",
+    round_id: roundId,
+    session_key: "room:group:conversation-1",
+    timestamp: 31,
+    type: "message_start",
+  });
+  const withMessages = syncRoomAgentExecutionsFromMessages(
+    afterStream,
+    [agent3Done, agent2Stream],
+  );
+  assert.deepEqual(
+    entryOrder(
+      [parent, agent3Done, agent2Stream],
+      reverseSlots,
+      [],
+      withMessages,
+    ),
+    expectedOrder,
+    "stream and terminal message evidence must keep the first visible order",
+  );
+});
+
 test("Room late permission enriches an observed slot without moving its Agent", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
