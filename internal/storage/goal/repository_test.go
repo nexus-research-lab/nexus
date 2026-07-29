@@ -585,8 +585,8 @@ WHERE NOT EXISTS (
 	).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 58 {
-		t.Fatalf("goose version = %d, want 58", version)
+	if version != 59 {
+		t.Fatalf("goose version = %d, want 59", version)
 	}
 }
 

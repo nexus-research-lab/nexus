@@ -62,6 +62,20 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	version, err := goose.GetDBVersion(db)
 	if err != nil {
 		logger.Info("无法获取当前 migration 版本，尝试初始化", "err", err)
+	} else {
+		if err = migration.RepairLegacyAgentDisabledSkillSchema(
+			context.Background(),
+			cfg.DatabaseDriver,
+			db,
+			version,
+			logger,
+		); err != nil {
+			return fmt.Errorf("repair legacy migration version collision: %w", err)
+		}
+		version, err = goose.GetDBVersion(db)
+		if err != nil {
+			return fmt.Errorf("read migration version after compatibility repair: %w", err)
+		}
 	}
 
 	logger.Info("执行数据库迁移", "current_version", version, "dir", dir)
