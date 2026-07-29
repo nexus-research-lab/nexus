@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -11,6 +12,19 @@ import (
 
 	_ "modernc.org/sqlite"
 )
+
+func TestMain(m *testing.M) {
+	os.Exit(handlertest.RunWithSelectedAppSkills(
+		m,
+		"goal-manager",
+		"ima-skill",
+		"imagegen",
+		"nexus-manager",
+		"room-playbook",
+		"wechat-article-search",
+		"werewolf-6p",
+	))
+}
 
 func containsWorkspacePath(items []FileEntry, target string) bool {
 	return slices.ContainsFunc(items, func(item FileEntry) bool {

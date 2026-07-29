@@ -2,11 +2,27 @@ package handlertest
 
 import (
 	"database/sql"
+	"os"
 	"path/filepath"
 	"testing"
 
 	_ "modernc.org/sqlite"
 )
+
+func TestCreateAppRootWithSkillsCopiesOnlySelectedSkill(t *testing.T) {
+	root, err := createAppRootWithSkills([]string{"goal-manager"})
+	if err != nil {
+		t.Fatalf("创建带选定 Skill 的测试应用根失败: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(root) })
+
+	if _, err = os.Stat(filepath.Join(root, "skills", "goal-manager", "SKILL.md")); err != nil {
+		t.Fatalf("选定 Skill 未复制: %v", err)
+	}
+	if _, err = os.Stat(filepath.Join(root, "skills", "slide-maker")); !os.IsNotExist(err) {
+		t.Fatalf("未选定 Skill 不应复制: %v", err)
+	}
+}
 
 func TestMigrateSQLiteFromDirClonesIndependentDatabases(t *testing.T) {
 	root := t.TempDir()

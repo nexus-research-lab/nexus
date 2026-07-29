@@ -40,13 +40,27 @@ var (
 // 平台 Skill 的完整发布行为由 workspace 专项测试覆盖；服务测试只需要
 // 验证发布入口可用，避免每个隔离状态根重复复制真实产品 Skill 树。
 func RunWithMinimalAppRoot(m *testing.M) int {
+	return runWithAppRoot(m, createMinimalAppRoot)
+}
+
+// RunWithSelectedAppSkills 使用只包含指定 Skill 的应用根运行服务测试。
+//
+// 平台 Skill 发布专项测试仍验证真实文件内容，但不需要让无关的大体积资源参与
+// 每个隔离状态根的指纹计算与复制。
+func RunWithSelectedAppSkills(m *testing.M, skillNames ...string) int {
+	return runWithAppRoot(m, func() (string, error) {
+		return createAppRootWithSkills(skillNames)
+	})
+}
+
+func runWithAppRoot(m *testing.M, createRoot func() (string, error)) int {
 	if m == nil {
 		_, _ = fmt.Fprintln(os.Stderr, "测试入口为空")
 		return 1
 	}
-	root, err := createMinimalAppRoot()
+	root, err := createRoot()
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "创建最小测试应用根失败: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "创建测试应用根失败: %v\n", err)
 		return 1
 	}
 	previousRoot, hadPreviousRoot := os.LookupEnv(testAppRootEnvName)
@@ -67,6 +81,40 @@ func RunWithMinimalAppRoot(m *testing.M) int {
 		return 1
 	}
 	return exitCode
+}
+
+func createAppRootWithSkills(skillNames []string) (string, error) {
+	sourceRoot, err := sourceAppRoot()
+	if err != nil {
+		return "", err
+	}
+	root, err := createMinimalAppRoot()
+	if err != nil {
+		return "", err
+	}
+	cleanup := func(cause error) (string, error) {
+		_ = os.RemoveAll(root)
+		return "", cause
+	}
+	seen := make(map[string]struct{}, len(skillNames))
+	for _, skillName := range skillNames {
+		normalizedName := strings.TrimSpace(skillName)
+		if normalizedName == "" ||
+			normalizedName == "." ||
+			filepath.Base(normalizedName) != normalizedName {
+			return cleanup(fmt.Errorf("测试 Skill 名称非法: %q", skillName))
+		}
+		if _, exists := seen[normalizedName]; exists {
+			continue
+		}
+		seen[normalizedName] = struct{}{}
+		source := filepath.Join(sourceRoot, "skills", normalizedName)
+		target := filepath.Join(root, "skills", normalizedName)
+		if err = os.CopyFS(target, os.DirFS(source)); err != nil {
+			return cleanup(fmt.Errorf("复制测试 Skill %q 失败: %w", normalizedName, err))
+		}
+	}
+	return root, nil
 }
 
 func createMinimalAppRoot() (string, error) {
@@ -95,6 +143,18 @@ func createMinimalAppRoot() (string, error) {
 		0o644,
 	); err != nil {
 		return cleanup(err)
+	}
+	return root, nil
+}
+
+func sourceAppRoot() (string, error) {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", errors.New("定位 Nexus 源码根失败")
+	}
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
+	if _, err := os.Stat(filepath.Join(root, "go.mod")); err != nil {
+		return "", fmt.Errorf("定位 Nexus 源码根失败: %w", err)
 	}
 	return root, nil
 }
