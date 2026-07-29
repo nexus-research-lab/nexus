@@ -109,12 +109,15 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store,sharing=locked \
     npm install --global --no-audit --no-fund "pnpm@${PNPM_VERSION}" --registry "${PNPM_REGISTRY}" && \
     pnpm config set registry "${PNPM_REGISTRY}" && \
     pnpm config set store-dir /root/.local/share/pnpm/store && \
-    pnpm add -g @anthropic-ai/claude-code bun && \
-    claude_path="$(command -v claude)" && \
+    pnpm add -g @anthropic-ai/claude-code bun
+
+RUN claude_path="$(command -v claude)" && \
     test -x "${claude_path}" && \
     if [ "${claude_path}" != "/usr/local/bin/claude" ]; then \
-        ln -sf "${claude_path}" /usr/local/bin/claude; \
-    fi
+        printf '#!/bin/sh\nexec "%s" "$@"\n' "${claude_path}" > /usr/local/bin/claude && \
+        chmod 0755 /usr/local/bin/claude; \
+    fi && \
+    /usr/local/bin/claude --version
 
 RUN --mount=type=cache,target=/root/.cache/pip,sharing=locked \
     python3 -m pip install --break-system-packages \
