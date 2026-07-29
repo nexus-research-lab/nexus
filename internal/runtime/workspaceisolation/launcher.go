@@ -162,6 +162,10 @@ func buildAuditPolicy(input Input) (Policy, error) {
 	// 不把这条路径当作 enforce 的 OS 授权事实源。
 	readRoots := append([]string{workspaceRoot, input.CWD}, input.ReadRoots...)
 	writeRoots := []string{workspaceRoot, input.CWD}
+	if sharedTempRoot := appfs.RuntimeSharedTempRoot(); sharedTempRoot != "" {
+		readRoots = append(readRoots, sharedTempRoot)
+		writeRoots = append(writeRoots, sharedTempRoot)
+	}
 	cwd := input.CWD
 	var err error
 	normalizedRead, err := normalizePolicyRoots(readRoots)

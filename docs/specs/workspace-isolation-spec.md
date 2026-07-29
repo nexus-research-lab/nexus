@@ -302,7 +302,9 @@ XDG_CACHE_HOME=<user_root>/cache
 TMPDIR=<user_root>/tmp
 ```
 
-nxs 和 Claude 共用 `<user_root>/projects`。全局 Skill、二进制和只读模板使用 root-owned 只读目录；用户 Skill、npm/uv/pip cache 和临时文件写入 `<user_root>`。
+nxs 和 Claude 共用 `<user_root>/projects`。全局 Skill、二进制和只读模板使用 root-owned 只读目录；用户 Skill、npm/uv/pip cache 和私有临时文件写入 `<user_root>`。
+
+为保持桌面 App 与 Web runtime 的命令行为一致，Unix runtime 另外把 `/tmp` 作为显式共享兼容读写根。`/tmp` 依赖操作系统的 sticky bit 与每用户 UID/GID 防止用户删除或覆盖其他用户拥有的文件，但目录中的可读文件名和权限宽松的内容可能被其他 runtime 看见；凭据、provider 响应和其他敏感数据仍必须使用 `$TMPDIR`，不能写入 `/tmp`。
 
 server 的 host root 不得通过完整环境继承给 runtime。runtime 的 `NEXUS_CONFIG_DIR` 必须由 `owner_user_id -> UserScope -> user_root` 显式计算，不能由模型、Skill、project hook 或请求参数直接指定。
 

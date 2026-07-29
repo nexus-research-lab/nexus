@@ -12,6 +12,8 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+const hookStoppedDisplayError = "该操作被当前运行时规则拦截，本轮已停止。"
+
 func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subtype string) protocol.Message {
 	payload := baseMessageEnvelope(
 		p.ctx,
@@ -38,7 +40,8 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 		payload["model_usage"] = cloneMap(message.Result.ModelUsage)
 	}
 	payload["is_error"] = subtype == "error"
-	if runtimeSubtype := strings.TrimSpace(message.Result.Subtype); runtimeSubtype != "" && runtimeSubtype != subtype {
+	runtimeSubtype := strings.TrimSpace(message.Result.Subtype)
+	if runtimeSubtype != "" && runtimeSubtype != subtype {
 		payload["runtime_subtype"] = runtimeSubtype
 	}
 	terminalReason := strings.TrimSpace(message.Result.TerminalReason)
@@ -57,6 +60,10 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 		errors = projection.errors
 		if projection.terminalReason == contentFilteredTerminalReason {
 			stopReason = "error"
+		}
+		if runtimeSubtype == "error_hook_stopped" {
+			resultText = ""
+			errors = []string{hookStoppedDisplayError}
 		}
 	}
 	payload["result"] = resultText

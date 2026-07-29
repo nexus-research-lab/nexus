@@ -158,8 +158,12 @@ func sessionSummaryEditAuthorized(policy Policy, toolName string, path string) b
 		!strings.EqualFold(strings.TrimSpace(policy.RuntimeKind), "nxs") {
 		return false
 	}
+	runtimeRoot, err := runtimeRootFromPolicy(policy)
+	if err != nil {
+		return false
+	}
 	projectsRoot, err := canonicalPolicyPath(
-		filepath.Join(appfs.UserRuntimeRoot(policy.OwnerUserID), "projects"),
+		filepath.Join(runtimeRoot, "projects"),
 	)
 	if err != nil {
 		return false
@@ -178,6 +182,21 @@ func sessionSummaryEditAuthorized(policy Policy, toolName string, path string) b
 		validSessionSummarySegment(segments[1]) &&
 		segments[2] == "session-memory" &&
 		segments[3] == "summary.md"
+}
+
+// runtimeRootFromPolicy 优先使用 root-owned launcher 返回的 identity。
+// audit 模式没有 OS identity，才回退到宿主 canonical 状态根。
+func runtimeRootFromPolicy(policy Policy) (string, error) {
+	tempRoot := strings.TrimSpace(policy.Identity.TempDir)
+	if tempRoot != "" {
+		canonicalTempRoot, err := canonicalPolicyPath(tempRoot)
+		if err == nil &&
+			filepath.Base(canonicalTempRoot) == "tmp" &&
+			filepath.Base(filepath.Dir(canonicalTempRoot)) == "runtime" {
+			return filepath.Dir(canonicalTempRoot), nil
+		}
+	}
+	return canonicalPolicyPath(appfs.UserRuntimeRoot(policy.OwnerUserID))
 }
 
 func validSessionSummarySegment(segment string) bool {

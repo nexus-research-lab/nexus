@@ -57,8 +57,7 @@ func preparePolicy(
 		}
 	}
 
-	readRoots := append([]string{workspaceRoot}, config.ReadOnlyRoots...)
-	writeRoots := []string{workspaceRoot}
+	readRoots, writeRoots := baseRuntimePolicyRoots(workspaceRoot, config)
 	supplementaryGIDs := make([]int, 0)
 	if projectValue != nil {
 		readRoots = append(readRoots, projectValue.Root)
@@ -77,6 +76,7 @@ func preparePolicy(
 		switch {
 		case pathWithin(root, workspaceRoot):
 		case pathWithinAny(root, config.ReadOnlyRoots):
+		case pathWithinSharedTemp(root):
 		case projectValue != nil:
 			if err = verifyOSGroup(projectValue.GroupName, projectValue.GID); err != nil {
 				return preparedPolicy{}, false, err
@@ -203,8 +203,7 @@ func preparePolicyWithoutTicket(
 			return preparedPolicy{}, false, err
 		}
 	}
-	readRoots := append([]string{workspaceRoot}, config.ReadOnlyRoots...)
-	writeRoots := []string{workspaceRoot}
+	readRoots, writeRoots := baseRuntimePolicyRoots(workspaceRoot, config)
 	gids := []int{}
 	if projectValue != nil {
 		readRoots = append(readRoots, projectValue.Root)
@@ -221,6 +220,7 @@ func preparePolicyWithoutTicket(
 		projectValue, _ := projectForPath(current, ownerUserID, root)
 		switch {
 		case pathWithin(root, workspaceRoot), pathWithinAny(root, config.ReadOnlyRoots):
+		case pathWithinSharedTemp(root):
 		case projectValue != nil:
 			if err = verifyOSGroup(projectValue.GroupName, projectValue.GID); err != nil {
 				return preparedPolicy{}, false, err
@@ -281,6 +281,27 @@ func pathWithinAny(path string, roots []string) bool {
 		}
 	}
 	return false
+}
+
+// pathWithinSharedTemp 让显式 requestedReadRoots 与默认共享临时根保持同一授权语义。
+func pathWithinSharedTemp(path string) bool {
+	sharedTempRoot := appfs.RuntimeSharedTempRoot()
+	return sharedTempRoot != "" && pathWithin(path, sharedTempRoot)
+}
+
+// baseRuntimePolicyRoots 统一 app/web runtime 的基础根；/tmp 是明确选择的
+// 共享兼容区，私有临时数据仍应写入 identity.TempDir。
+func baseRuntimePolicyRoots(
+	workspaceRoot string,
+	config launcherConfig,
+) ([]string, []string) {
+	readRoots := append([]string{workspaceRoot}, config.ReadOnlyRoots...)
+	writeRoots := []string{workspaceRoot}
+	if sharedTempRoot := appfs.RuntimeSharedTempRoot(); sharedTempRoot != "" {
+		readRoots = append(readRoots, sharedTempRoot)
+		writeRoots = append(writeRoots, sharedTempRoot)
+	}
+	return readRoots, writeRoots
 }
 
 func runtimeRootForPolicy(config launcherConfig, ownerUserID string) string {
