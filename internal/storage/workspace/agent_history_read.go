@@ -18,11 +18,13 @@ func (s *AgentHistoryStore) ReadMessages(
 	sessionValue protocol.Session,
 	activeRoundIDs []string,
 ) ([]protocol.Message, error) {
-	rows, err := s.readHistoryRows(workspacePath, sessionValue)
-	if err != nil {
-		return nil, err
-	}
-	return normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs)), nil
+	return withRuntimePermissionRepair(s, func() ([]protocol.Message, error) {
+		rows, err := s.readHistoryRows(workspacePath, sessionValue)
+		if err != nil {
+			return nil, err
+		}
+		return normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs)), nil
+	})
 }
 
 // ReadMessagesPage 按 round 分页读取 DM 历史。
@@ -36,26 +38,28 @@ func (s *AgentHistoryStore) ReadMessagesPage(
 	aroundRoundID string,
 	aroundLimit int,
 ) (protocol.MessagePage, error) {
-	rows, err := s.readHistoryRows(workspacePath, sessionValue)
-	if err != nil {
-		return protocol.MessagePage{}, err
-	}
-	normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
-	if strings.TrimSpace(aroundRoundID) != "" {
-		return paginateNormalizedHistoryRowsAround(
+	return withRuntimePermissionRepair(s, func() (protocol.MessagePage, error) {
+		rows, err := s.readHistoryRows(workspacePath, sessionValue)
+		if err != nil {
+			return protocol.MessagePage{}, err
+		}
+		normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
+		if strings.TrimSpace(aroundRoundID) != "" {
+			return paginateNormalizedHistoryRowsAround(
+				normalizedRows,
+				aroundRoundID,
+				aroundLimit,
+				false,
+			), nil
+		}
+		return paginateNormalizedHistoryRows(
 			normalizedRows,
-			aroundRoundID,
-			aroundLimit,
+			limit,
+			beforeRoundID,
+			beforeRoundTimestamp,
 			false,
 		), nil
-	}
-	return paginateNormalizedHistoryRows(
-		normalizedRows,
-		limit,
-		beforeRoundID,
-		beforeRoundTimestamp,
-		false,
-	), nil
+	})
 }
 
 func (s *AgentHistoryStore) readHistoryRows(
@@ -215,21 +219,23 @@ func (s *AgentHistoryStore) ReadTranscriptSessionMessages(
 	sessionKey string,
 	agentID string,
 ) ([]protocol.Message, error) {
-	transcriptSessionID = strings.ToLower(strings.TrimSpace(transcriptSessionID))
-	if !IsTranscriptSessionID(transcriptSessionID) &&
-		!IsSubagentTranscriptSessionID(transcriptSessionID) {
-		return []protocol.Message{}, nil
-	}
-	transcriptPath, err := s.resolveTranscriptPath(workspacePath, transcriptSessionID)
-	if err != nil {
-		return nil, err
-	}
-	return s.ReadTranscriptPathMessages(
-		transcriptPath,
-		workspacePath,
-		sessionKey,
-		agentID,
-	)
+	return withRuntimePermissionRepair(s, func() ([]protocol.Message, error) {
+		transcriptSessionID = strings.ToLower(strings.TrimSpace(transcriptSessionID))
+		if !IsTranscriptSessionID(transcriptSessionID) &&
+			!IsSubagentTranscriptSessionID(transcriptSessionID) {
+			return []protocol.Message{}, nil
+		}
+		transcriptPath, err := s.resolveTranscriptPath(workspacePath, transcriptSessionID)
+		if err != nil {
+			return nil, err
+		}
+		return s.readTranscriptPathMessages(
+			transcriptPath,
+			workspacePath,
+			sessionKey,
+			agentID,
+		)
+	})
 }
 
 // ReadTranscriptPathMessages 读取指定 transcript 文件并投影为 Nexus 消息。
@@ -239,13 +245,14 @@ func (s *AgentHistoryStore) ReadTranscriptPathMessages(
 	sessionKey string,
 	agentID string,
 ) ([]protocol.Message, error) {
-	return s.readTranscriptPathMessagesAt(
-		nil,
-		transcriptPath,
-		workspacePath,
-		sessionKey,
-		agentID,
-	)
+	return withRuntimePermissionRepair(s, func() ([]protocol.Message, error) {
+		return s.readTranscriptPathMessages(
+			transcriptPath,
+			workspacePath,
+			sessionKey,
+			agentID,
+		)
+	})
 }
 
 // ReadTranscriptPathMessagesForOwner 从 owner 固定的 workspace/runtime 根读取
@@ -257,16 +264,37 @@ func (s *AgentHistoryStore) ReadTranscriptPathMessagesForOwner(
 	sessionKey string,
 	agentID string,
 ) ([]protocol.Message, error) {
-	candidates, closeRoots, err := s.openOwnerTranscriptCandidates(
-		ownerUserID,
-		workspacePath,
-	)
-	if err != nil {
-		return nil, err
+	ownerHistory := s
+	if strings.TrimSpace(ownerUserID) != strings.TrimSpace(s.ownerUserID) {
+		ownerHistory = s.ForOwner(ownerUserID)
 	}
-	defer closeRoots()
+	return withRuntimePermissionRepair(ownerHistory, func() ([]protocol.Message, error) {
+		candidates, closeRoots, err := s.openOwnerTranscriptCandidates(
+			ownerUserID,
+			workspacePath,
+		)
+		if err != nil {
+			return nil, err
+		}
+		defer closeRoots()
+		return s.readTranscriptPathMessagesAt(
+			candidates,
+			transcriptPath,
+			workspacePath,
+			sessionKey,
+			agentID,
+		)
+	})
+}
+
+func (s *AgentHistoryStore) readTranscriptPathMessages(
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
 	return s.readTranscriptPathMessagesAt(
-		candidates,
+		nil,
 		transcriptPath,
 		workspacePath,
 		sessionKey,
@@ -324,11 +352,18 @@ func (s *AgentHistoryStore) ReadTranscriptLinkMessages(
 	sessionKey string,
 	agentID string,
 ) ([]protocol.Message, error) {
-	targetPath, err := s.resolveTranscriptLinkTarget(workspacePath, transcriptPath)
-	if err != nil {
-		return nil, err
-	}
-	return s.ReadTranscriptPathMessages(targetPath, workspacePath, sessionKey, agentID)
+	return withRuntimePermissionRepair(s, func() ([]protocol.Message, error) {
+		targetPath, err := s.resolveTranscriptLinkTarget(workspacePath, transcriptPath)
+		if err != nil {
+			return nil, err
+		}
+		return s.readTranscriptPathMessages(
+			targetPath,
+			workspacePath,
+			sessionKey,
+			agentID,
+		)
+	})
 }
 
 // ReadTranscriptLinkMessagesForOwner 在同一组 owner 固定目录句柄内解析链接并
@@ -340,23 +375,29 @@ func (s *AgentHistoryStore) ReadTranscriptLinkMessagesForOwner(
 	sessionKey string,
 	agentID string,
 ) ([]protocol.Message, error) {
-	candidates, closeRoots, err := s.openOwnerTranscriptCandidates(
-		ownerUserID,
-		workspacePath,
-	)
-	if err != nil {
-		return nil, err
+	ownerHistory := s
+	if strings.TrimSpace(ownerUserID) != strings.TrimSpace(s.ownerUserID) {
+		ownerHistory = s.ForOwner(ownerUserID)
 	}
-	defer closeRoots()
-	targetPath, err := resolveTranscriptLinkTargetAt(candidates, transcriptPath)
-	if err != nil {
-		return nil, err
-	}
-	return s.readTranscriptPathMessagesAt(
-		candidates,
-		targetPath,
-		workspacePath,
-		sessionKey,
-		agentID,
-	)
+	return withRuntimePermissionRepair(ownerHistory, func() ([]protocol.Message, error) {
+		candidates, closeRoots, err := s.openOwnerTranscriptCandidates(
+			ownerUserID,
+			workspacePath,
+		)
+		if err != nil {
+			return nil, err
+		}
+		defer closeRoots()
+		targetPath, err := resolveTranscriptLinkTargetAt(candidates, transcriptPath)
+		if err != nil {
+			return nil, err
+		}
+		return s.readTranscriptPathMessagesAt(
+			candidates,
+			targetPath,
+			workspacePath,
+			sessionKey,
+			agentID,
+		)
+	})
 }

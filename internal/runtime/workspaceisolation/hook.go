@@ -371,7 +371,11 @@ func nonGlobPrefix(path string) string {
 func shellTokenPath(token string) (string, bool) {
 	token = strings.TrimSpace(token)
 	token = strings.Trim(token, `"'`)
-	if token == "" || strings.Contains(token, "://") {
+	// shellTokenPattern 会把命令替换 `$(...)` 的 `$` 单独切出来。
+	// 单独的 `$` 是 shell 语法，不是路径；把它当成环境变量会误拒绝
+	// 合法的命令（例如 `ps -u $(whoami)`）。真正带路径语义的变量
+	// 仍会在下面保留并交给未展开变量检查。
+	if token == "" || token == "$" || strings.Contains(token, "://") {
 		return "", false
 	}
 	if _, value, ok := strings.Cut(token, "="); ok {

@@ -202,6 +202,7 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 		denied  bool
 	}{
 		{name: "ordinary command", command: "/usr/bin/git status >/dev/null", denied: false},
+		{name: "command substitution syntax", command: "ps -u $(whoami) -o pid,ppid,cmd", denied: false},
 		{name: "relative escape", command: "cat ../../other/secret", denied: true},
 		{name: "redirect escape", command: "printf secret > ../../other/secret", denied: true},
 		{name: "home shorthand", command: "cat ~/secret", denied: true},

@@ -24,6 +24,7 @@ import (
 var managementCommands = map[string]struct{}{
 	"ensure-host":    {},
 	"ensure-user":    {},
+	"repair-user":    {},
 	"prepare":        {},
 	"project-ensure": {},
 	"project-grant":  {},
@@ -60,6 +61,8 @@ func Run(args []string, environ []string, stdout io.Writer, stderr io.Writer) in
 		err = runEnsureHost(config, args[1:], stdout)
 	case "ensure-user":
 		err = runEnsureUser(config, args[1:], stdout)
+	case "repair-user":
+		err = runRepairUser(config, args[1:], stdout)
 	case "prepare":
 		err = runPrepare(config, args[1:], stdout)
 	case "project-ensure":
@@ -174,6 +177,35 @@ func runEnsureUser(config launcherConfig, args []string, stdout io.Writer) error
 			HomeDir:    identityValue.HomeDir,
 			TempDir:    identityValue.TempDir,
 		}, changed, nil
+	})
+	if err != nil {
+		return err
+	}
+	return writeJSON(stdout, value)
+}
+
+func runRepairUser(config launcherConfig, args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("repair-user", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	ownerUserID := flags.String("owner", "", "owner user id")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
+		return errors.New("repair-user 参数无效")
+	}
+	value, err := withLockedRegistry(config, true, func(current *registry) (map[string]any, bool, error) {
+		identityValue := current.Identities[strings.TrimSpace(*ownerUserID)]
+		if identityValue == nil || identityValue.Status != "active" {
+			return nil, false, errors.New("runtime identity 不存在或已停用")
+		}
+		if err := ensureOSAccount(*identityValue); err != nil {
+			return nil, false, err
+		}
+		if err := repairRuntimeACL(config, identityValue); err != nil {
+			return nil, false, err
+		}
+		return map[string]any{
+			"owner_user_id": identityValue.OwnerUserID,
+			"repaired":      true,
+		}, false, nil
 	})
 	if err != nil {
 		return err
