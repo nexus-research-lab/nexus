@@ -36,13 +36,14 @@ NEXUS_NXS_RUNTIME_RELEASE_CMD = sh scripts/resolve-nxs-runtime-release.sh "$(NEX
 NXS_DEV_RUNTIME_PATH ?= $(abspath ../nexus-agent-sdk/nexus-agent-sdk-go/dist/nxs/$(NXS_DEV_GOOS)-$(NXS_DEV_GOARCH)/$(NXS_DEV_BINARY_NAME))
 COMPOSE_CMD ?= HOST_DATA_DIR="$(HOST_DATA_DIR)" docker compose --env-file $(ENV_FILE) -f deploy/docker-compose.yml
 PNPM ?= pnpm
+GO_TEST_PACKAGE_PARALLELISM ?= 4
 
 # Default target
 .DEFAULT_GOAL := help
 
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev dev-nxs install gen-protocol-types lint-web test-web typecheck-web prepare-host-data \
-	check-backend check-go check test run-web run-backend run-backend-go \
+	check-backend check-go check-go-fresh check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
 
@@ -122,8 +123,11 @@ test-web: ## Run frontend behavior tests
 typecheck-web: ## Run frontend type check
 	cd web && $(PNPM) run typecheck
 
-check-go: ## Run Go build and test checks
-	go test ./...
+check-go: ## Run Go build and cached test checks
+	go test -p=$(GO_TEST_PACKAGE_PARALLELISM) ./...
+
+check-go-fresh: ## Run all Go tests without result cache
+	go test -p=$(GO_TEST_PACKAGE_PARALLELISM) -count=1 ./...
 
 check-backend: check-go ## Alias of Go backend checks
 
