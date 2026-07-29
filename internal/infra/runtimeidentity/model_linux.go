@@ -10,14 +10,15 @@ import "time"
 const (
 	registryVersion = 1
 
-	// v9 修复旧 Docker 宿主准备流程递归改回 host UID/GID 的用户树。
-	userLayoutVersion = 9
+	// v10 重新归一 owner runtime 内历史 0600 文件的 ACL mask。主智能体
+	// 切换为宿主 UID 后仍需续写同一 session 的 provider diagnostics。
+	userLayoutVersion = 10
 
 	defaultTicketTTL   = 24 * time.Hour
 	defaultUIDMinimum  = 20000
 	defaultUIDMaximum  = 59999
 	defaultConfigPath  = "/etc/nexus/runtime-isolation.json"
-	launcherVersion    = "2.0.0"
+	launcherVersion    = "2.0.1"
 	projectAccessNone  = "none"
 	projectAccessRead  = "read"
 	projectAccessWrite = "write"

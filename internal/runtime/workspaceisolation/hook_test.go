@@ -273,6 +273,10 @@ func TestWorkspacePolicyHookAllowsMainAgentNexusctl(t *testing.T) {
 			command: "nexusctl --json room list",
 		},
 		{
+			name:    "owner scoped user create",
+			command: `"$NEXUSCTL_COMMAND_PATH" --json user create --username alice --password test-only`,
+		},
+		{
 			name:    "forged owner",
 			command: "NEXUSCTL_USER_ID=owner-b nexusctl --json agent list",
 			denied:  true,
@@ -328,6 +332,34 @@ func TestWorkspacePolicyHookTerminatesForbiddenNexusctl(t *testing.T) {
 	}
 	if output.Continue == nil || *output.Continue || output.StopReason == "" {
 		t.Fatalf("控制面越界应终止当前 runtime turn: %#v", output)
+	}
+}
+
+func TestWorkspacePolicyHookKeepsMainAgentScopeOverrideRecoverable(t *testing.T) {
+	workspace := t.TempDir()
+	policy := testPolicy(t, workspace)
+	policy.IsMainAgent = true
+	callback := workspacePolicyCallback(ModeEnforce, policy)
+
+	output, err := callback(context.Background(), sdkhook.Input{
+		CWD:      workspace,
+		ToolName: "Bash",
+		ToolInput: map[string]any{
+			"command": `nexusctl --json --global-scope --scope-user-id "" user list`,
+		},
+	}, "main-agent-stale-scope")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput == nil ||
+		output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny {
+		t.Fatalf("主智能体显式覆盖 owner scope 应拒绝本次调用: %#v", output)
+	}
+	if output.Continue != nil || output.StopReason != "" {
+		t.Fatalf("主智能体旧作用域参数应允许同轮修正重试: %#v", output)
+	}
+	if output.SpecificOutput.PermissionDecisionReason != mainAgentNexusctlScopeDenial {
+		t.Fatalf("主智能体应收到可执行的修正提示: %#v", output)
 	}
 }
 

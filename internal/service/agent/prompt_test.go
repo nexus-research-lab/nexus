@@ -122,6 +122,8 @@ func TestServiceBuildRuntimePromptIncludesHumanIdentityRules(t *testing.T) {
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
 	assertPromptContains(t, prompt, "Never edit Nexus SQLite files directly")
 	assertPromptContains(t, prompt, "Use Nexus automation tools")
+	assertPromptContains(t, prompt, "nexusctl imagegen generate")
+	assertPromptContains(t, prompt, "nexusctl imagegen edit")
 	if strings.Contains(prompt, "scheduled-task-manager") {
 		t.Fatalf("定时任务不应再要求加载重复 skill: %s", prompt)
 	}
@@ -387,7 +389,16 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 	assertPromptContains(t, prompt, "Treat subagent results as evidence, not as the user-facing answer")
 	assertPromptContains(t, prompt, "use `WebSearch` and `WebFetch` as a pair")
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
-	assertPromptContains(t, prompt, "Use `nexus-manager` for members, Rooms, DMs, workspaces, and skills")
+	assertPromptContains(t, prompt, "Use `nexus-manager` for Nexus user accounts, members, Rooms, DMs, workspaces, and skills")
+	assertPromptContains(t, prompt, "account registration, user listing, and password resets")
+	assertPromptContains(t, prompt, "the host-injected current owner and workspace are authoritative")
+	assertPromptContains(t, prompt, "do not prepend environment assignments or add scope-selection arguments")
+	assertPromptContains(t, prompt, "Treat account passwords as write-only input")
+	for _, staleInstruction := range []string{"--global-scope", "--scope-user-id", "NEXUS_PROJECT_ROOT=/opt/app"} {
+		if strings.Contains(prompt, staleInstruction) {
+			t.Fatalf("主智能体默认提示词不应注入历史 CLI 指令 %q: %s", staleInstruction, prompt)
+		}
+	}
 	assertPromptContains(t, prompt, "Use `nexus_automation` tools (`create_scheduled_task` and related) directly")
 	if strings.Contains(prompt, "scheduled-task-manager") {
 		t.Fatalf("主智能体定时任务不应再要求加载重复 skill: %s", prompt)
