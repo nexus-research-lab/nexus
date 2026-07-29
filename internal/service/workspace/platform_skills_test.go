@@ -35,16 +35,6 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 			t.Fatalf("Claude Skill 入口链接目标不正确: %q", target)
 		}
 	}
-}
-
-func TestEnsurePlatformSkillLibraryPublishesRuntimeReadableTree(t *testing.T) {
-	configRoot := filepath.Join(t.TempDir(), ".nexus")
-	t.Setenv("NEXUS_STATE_ROOT", configRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
-
-	if err := EnsurePlatformSkillLibrary(); err != nil {
-		t.Fatalf("同步平台 Skill 库失败: %v", err)
-	}
 	if err := filepath.Walk(appfs.PlatformSkillRoot(), func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
