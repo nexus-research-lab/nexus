@@ -174,13 +174,23 @@ test("command catalog refresh carries the full Room address", async () => {
   assert.deepEqual(buildCommandCatalogRequest({
     agent_id: "agent-a",
     conversation_id: "conversation-a",
+    initialize_runtime: true,
     room_id: "room-a",
     session_key: "room:group:conversation-a",
   }), {
     agent_id: "agent-a",
     conversation_id: "conversation-a",
+    initialize_runtime: true,
     room_id: "room-a",
     session_key: "room:group:conversation-a",
+    type: "get_command_catalog",
+  });
+  assert.deepEqual(buildCommandCatalogRequest({
+    agent_id: "agent-a",
+    session_key: "agent:agent-a:ws:dm:main",
+  }), {
+    agent_id: "agent-a",
+    session_key: "agent:agent-a:ws:dm:main",
     type: "get_command_catalog",
   });
 });

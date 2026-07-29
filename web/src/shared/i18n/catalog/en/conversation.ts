@@ -193,7 +193,7 @@ export const enConversationMessages = {
   "room.empty_group_create_action": "Create conversation",
   "composer.default_placeholder": "Type a message, paste an image, or attach a work file...",
   "composer.slash_commands": "Slash commands",
-  "composer.slash_commands_loading": "Starting the runtime and loading commands...",
+  "composer.slash_commands_loading": "Loading available commands...",
   "composer.slash_commands_unavailable": "This runtime does not publish slash commands.",
   "composer.slash_commands_empty": "No matching commands",
   "composer.slash_command_unavailable": "This command is not available here.",

@@ -190,7 +190,7 @@ export const zhConversationMessages = {
   "room.empty_group_create_action": "创建会话",
   "composer.default_placeholder": "输入消息，粘贴图片，或附加工作文件…",
   "composer.slash_commands": "Slash 指令",
-  "composer.slash_commands_loading": "正在启动运行时并加载指令…",
+  "composer.slash_commands_loading": "正在加载可用指令…",
   "composer.slash_commands_unavailable": "当前运行时未公开 Slash 指令。",
   "composer.slash_commands_empty": "没有匹配的指令",
   "composer.slash_command_unavailable": "此指令当前不可用。",

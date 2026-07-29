@@ -37,7 +37,8 @@ func (h *Handler) handleGetCommandCatalog(
 		return
 	}
 	h.ensureSessionBinding(ctx, sender, sessionKey)
-	if err := h.sendCommandCatalog(ctx, sender, sessionKey, parsed, inbound); err != nil {
+	initialize, _ := handlershared.BoolValue(inbound["initialize_runtime"])
+	if err := h.sendCommandCatalog(ctx, sender, sessionKey, parsed, inbound, initialize); err != nil {
 		h.sendGatewayError(ctx, sender, sessionKey, "command_catalog_error", err, map[string]any{
 			"type": handlershared.StringValue(inbound["type"]),
 		})
@@ -50,24 +51,46 @@ func (h *Handler) sendCommandCatalog(
 	sessionKey string,
 	parsed protocol.SessionKey,
 	inbound map[string]any,
+	initialize bool,
 ) error {
 	runtimeSessionKey, agentID, err := h.resolveCommandCatalogTarget(ctx, parsed, inbound)
 	if err != nil {
 		return err
 	}
+	snapshot, err := h.commandCatalogSnapshot(
+		ctx,
+		runtimeSessionKey,
+	)
+	if err != nil {
+		return err
+	}
+	if initialize && snapshot.Status == runtimectx.CommandCatalogStatusLoading &&
+		parsed.Kind == protocol.SessionKeyKindAgent && h.dm != nil {
+		if err = h.dm.EnsureCommandCatalogRuntime(ctx, runtimeSessionKey, agentID); err != nil {
+			return err
+		}
+		snapshot, err = h.commandCatalogSnapshot(ctx, runtimeSessionKey)
+		if err != nil {
+			return err
+		}
+	}
+	data := projectCommandCatalog(snapshot, agentID)
+	return sender.SendEvent(ctx, protocol.NewCommandCatalogEvent(sessionKey, data))
+}
+
+func (h *Handler) commandCatalogSnapshot(
+	ctx context.Context,
+	runtimeSessionKey string,
+) (runtimectx.CommandCatalogSnapshot, error) {
 	snapshot, err := h.runtime.CommandCatalog(
 		ctx,
 		runtimeSessionKey,
 		authctx.OwnerUserID(ctx),
 	)
-	if err != nil {
-		if errors.Is(err, runtimectx.ErrCommandCatalogOwnerMismatch) {
-			return errors.New("command catalog is not available for this session")
-		}
-		return err
+	if errors.Is(err, runtimectx.ErrCommandCatalogOwnerMismatch) {
+		return runtimectx.CommandCatalogSnapshot{}, errors.New("command catalog is not available for this session")
 	}
-	data := projectCommandCatalog(snapshot, agentID)
-	return sender.SendEvent(ctx, protocol.NewCommandCatalogEvent(sessionKey, data))
+	return snapshot, err
 }
 
 func (h *Handler) resolveCommandCatalogTarget(

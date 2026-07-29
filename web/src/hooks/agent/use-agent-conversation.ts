@@ -235,13 +235,14 @@ export function useAgentConversation(
     onError,
     setError,
   });
-  const refreshCommandCatalog = useCallback(() => {
+  const requestCommandCatalog = useCallback((initializeRuntime: boolean) => {
     if (!session.sessionKey || wsState !== "connected") {
       return;
     }
     wsSend(buildCommandCatalogRequest({
       agent_id: agentId,
       conversation_id: conversationId,
+      initialize_runtime: initializeRuntime,
       room_id: roomId,
       session_key: session.sessionKey,
     }));
@@ -251,6 +252,24 @@ export function useAgentConversation(
     roomId,
     session.sessionKey,
     wsSend,
+    wsState,
+  ]);
+  const refreshCommandCatalog = useCallback(() => {
+    requestCommandCatalog(true);
+  }, [requestCommandCatalog]);
+  useEffect(() => {
+    if (
+      !session.sessionKey ||
+      wsState !== "connected" ||
+      runtimeSnapshot.phase !== "idle"
+    ) {
+      return;
+    }
+    requestCommandCatalog(false);
+  }, [
+    requestCommandCatalog,
+    runtimeSnapshot.phase,
+    session.sessionKey,
     wsState,
   ]);
 

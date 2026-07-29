@@ -43,6 +43,14 @@ func NewRuntimeTextContent(text string) RuntimeContent {
 	return RuntimeContent{text: strings.TrimSpace(text)}
 }
 
+// IsSlashCommandInput 判断原始用户输入是否应保持为纯 Slash 指令。
+//
+// Slash 参数由 runtime 本地解析，不能在尾部混入宿主动态上下文，否则隐藏内容会被
+// 误当成命令参数并进入本地命令输出。
+func IsSlashCommandInput(content string) bool {
+	return strings.HasPrefix(strings.TrimSpace(content), "/")
+}
+
 // IsEmpty 判断 runtime 输入是否为空。
 func (c RuntimeContent) IsEmpty() bool {
 	return strings.TrimSpace(c.text) == "" && len(c.blocks) == 0

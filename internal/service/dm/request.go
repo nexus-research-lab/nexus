@@ -199,7 +199,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	if err != nil {
 		return dmRuntimePreparation{}, err
 	}
-	if !runtimeContent.IsEmpty() {
+	if !runtimeContent.IsEmpty() && !conversationsvc.IsSlashCommandInput(e.request.Content) {
 		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
 			e.ctx,
 			e.agent,

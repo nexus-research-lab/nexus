@@ -13,7 +13,7 @@ L4 | 父级: web/src/features/conversation/shared
 - `composer-draft-scope.ts`: 分别生成包含 Session ID 的 Room/DM 完整草稿作用域，以及排除 Session ID 的发送历史作用域
 - `use-composer-mention.ts`: 以单一匹配对象管理 Room 成员提及，并复用共享 Mention 文本模型
 - `slash-command-model.ts`: 解析输入框起始 Slash 查询，并以纯函数完成筛选和插入
-- `use-composer-slash-command.ts`: 管理 runtime 命令目录补全、刷新、选择与键盘导航
+- `use-composer-slash-command.ts`: 管理 runtime 命令目录补全、刷新、选择、键盘导航与草稿清空后的浮层收口
 - `use-conversation-composer-handlers.ts`: DM/Room 对 Composer 的发送适配
 - `attachments/`: 以单一规则表统一附件分类、批量校验、上传准备和本地展示
 - `components/`: 输入行、提交动作、Footer、待发送队列和 Loop 选择器
@@ -23,7 +23,7 @@ L4 | 父级: web/src/features/conversation/shared
 发送目标先投影为 `send/enqueue + delivery policy`，消息提交按资格判断、附件准备、投递和收尾分阶段执行。
 未发送草稿胶囊包含正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标，以包含 Session ID 的 Room/DM 作用域保存在客户端内存 Store；切换 Session 时恢复各自完整待发送状态，切换逻辑聊天时同样隔离。成功投递的消息正文仍使用不含 Session ID 的逻辑聊天作用域保存在客户端本地持久化 Store，Web 浏览器与桌面 App WebView 各自独立，禁止接入服务端或跨设备同步；每个作用域最多保留 50 条，总持久化条目保持有界。弹层开关、上传中、错误提示、Mention 匹配浮层、历史游标和召回前的未发送正文属于瞬时 UI，不进入持久化历史。每次 Session 草稿作用域变化都要把 textarea 聚焦到正文末尾并显示最后一行，不能把光标停在首字符前；历史召回后同样把光标放到正文末尾。发送或 Goal 创建成功只清空提交时修订号仍未变化的当前 Session 完整胶囊；迟到 ACK 不得删除用户继续编辑后的任一草稿字段。
 中文输入法的 composition 保护属于控制器边界，键盘命令执行前必须按顺序经过 composition、Safari 补发 Enter、Slash 导航和 Mention 导航守卫；Safari 守卫只消费 composition 结束后的 Enter 并阻止浏览器默认提交。
-Slash 命令目录只消费 runtime 初始化控制面公开的名称、说明和参数提示；选择命令只把 `/<name> ` 写回正文，发送和排队继续复用普通消息链，浮层查询和选中位置不进入草稿持久化。
+Slash 命令目录只消费 runtime 初始化控制面公开的名称、说明和参数提示；选择命令只把 `/<name> ` 写回正文，发送和排队继续复用普通消息链，浮层查询和选中位置不进入草稿持久化。发送收尾或其他程序化草稿变更使正文不再匹配 Slash 查询时，浮层必须同步关闭。
 输入区 Props 由 DM/Room 的真实消费面定义，不保留无调用者的兼容参数。
 紧凑 Composer 只用于手机与窄窗专注模式：外层至少保留 16px 横向安全留白，较宽窄窗保持 720px 居中上限，底部留白必须覆盖常规间距与系统 safe area；不得把输入壳铺满整个视口。
 常规桌面 Composer 在底部保留 8px 呼吸区，使输入壳贴近窗口底边但不截断边框与阴影；不得通过改变输入壳自身高度模拟抬升。紧凑模式继续取常规间距与系统 safe area 的较大值。

@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed Slash completion requests that could be lost before the WebSocket was ready, lazily initialized new DM runtimes when completion opens, closed stale completion popovers after submission, and kept hidden runtime context out of Slash command arguments and local command output.
 - Updated `nexus-manager` and the main-Agent runtime guidance to cover user-account registration with the host-injected owner scope, removed stale runtime-only CLI/path instructions, hid manual scope selectors from host-managed CLI help, made stale explicit scope flags a recoverable denial with an actionable retry message, and advanced the Linux runtime layout so historical `0600` diagnostics files regain the host ACL needed after the main Agent identity transition.
 - Scoped the desktop conversation-header fade to the chat pane's own clipped reading edge, so opening Workspace, Agent details, or Subagents no longer washes out the neighboring panel; focus-mode mobile conversations retain the full-width fade.
 - Fixed startup for SQLite databases that had already recorded the former conversation-draft migration as version 56: Nexus now repairs the missing Agent disabled-Skill column, advances the legacy migration ledger safely, and retains an idempotent PostgreSQL forward repair.

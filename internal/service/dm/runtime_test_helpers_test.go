@@ -15,25 +15,26 @@ import (
 )
 
 type fakeDMClient struct {
-	mu               sync.Mutex
-	sessionID        string
-	messages         chan sdkprotocol.ReceivedMessage
-	interruptCalls   int
-	interruptReasons []string
-	connectCalls     int
-	disconnectCalls  int
-	interruptErrors  []error
-	disconnectErrs   []error
-	connectErrors    []error
-	queryErrors      []error
-	queryPrompts     []string
-	removeMessages   [][]string
-	sentContents     []string
-	queryOptions     []sdkprotocol.OutboundMessageOptions
-	reconfigureOps   []agentclient.Options
-	hookResponseAck  bool
-	onQuery          func(context.Context, string)
-	onInterrupt      func(context.Context)
+	mu                sync.Mutex
+	sessionID         string
+	messages          chan sdkprotocol.ReceivedMessage
+	interruptCalls    int
+	interruptReasons  []string
+	connectCalls      int
+	disconnectCalls   int
+	interruptErrors   []error
+	disconnectErrs    []error
+	connectErrors     []error
+	queryErrors       []error
+	queryPrompts      []string
+	supportedCommands []agentclient.SlashCommand
+	removeMessages    [][]string
+	sentContents      []string
+	queryOptions      []sdkprotocol.OutboundMessageOptions
+	reconfigureOps    []agentclient.Options
+	hookResponseAck   bool
+	onQuery           func(context.Context, string)
+	onInterrupt       func(context.Context)
 }
 
 type fakeTokenUsageRecorder struct {
@@ -218,6 +219,12 @@ func (c *fakeDMClient) Reconfigure(_ context.Context, options agentclient.Option
 
 func (c *fakeDMClient) Supports(capability agentclient.Capability) bool {
 	return c.hookResponseAck && capability == agentclient.CapabilityHookResponseAck
+}
+
+func (c *fakeDMClient) SupportedCommands(context.Context) ([]agentclient.SlashCommand, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]agentclient.SlashCommand(nil), c.supportedCommands...), nil
 }
 
 func (c *fakeDMClient) SessionID() string { return c.sessionID }

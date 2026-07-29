@@ -59,15 +59,18 @@ export function buildCommandCatalogRequest({
   agent_id: agentId,
   room_id: roomId,
   conversation_id: conversationId,
+  initialize_runtime: initializeRuntime = false,
 }: {
   session_key: string;
   agent_id?: string | null;
   room_id?: string | null;
   conversation_id?: string | null;
+  initialize_runtime?: boolean;
 }): WebSocketMessage {
   return {
     type: "get_command_catalog",
     session_key: sessionKey,
+    ...(initializeRuntime ? { initialize_runtime: true } : {}),
     ...(agentId ? { agent_id: agentId } : {}),
     ...(roomId ? { room_id: roomId } : {}),
     ...(conversationId ? { conversation_id: conversationId } : {}),

@@ -187,6 +187,26 @@ func (s *Service) ensureClient(
 	return client, strings.TrimSpace(string(options.Runtime.Kind)), runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, goalObjectiveRevision, permissionMode, nil
 }
 
+// EnsureCommandCatalogRuntime 按真实 DM 会话配置连接 runtime，但不创建 round、
+// 不发送用户消息。Slash 补全因此可以直接读取 runtime 初始化快照，而不要求用户
+// 先发送一条普通消息来预热会话。
+func (s *Service) EnsureCommandCatalogRuntime(
+	ctx context.Context,
+	sessionKey string,
+	agentID string,
+) error {
+	execution, err := s.prepareChatExecution(ctx, Request{
+		SessionKey: sessionKey,
+		AgentID:    agentID,
+		Content:    "/",
+	})
+	if err != nil {
+		return err
+	}
+	_, err = execution.prepareRuntime()
+	return err
+}
+
 func resolvePermissionMode(requestMode sdkpermission.Mode, agentMode string) sdkpermission.Mode {
 	if requestMode != "" {
 		return runtimepermission.NormalizeMode(requestMode)

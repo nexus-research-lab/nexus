@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import type {
@@ -47,7 +46,6 @@ export function useComposerSlashCommand({
 }: UseComposerSlashCommandOptions) {
   const [match, setMatch] = useState<SlashCommandTextMatch | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const wasOpenRef = useRef(false);
   const filteredCommands = useMemo(
     () => filterSlashCommands(catalog.commands, match?.query ?? ""),
     [catalog.commands, match?.query],
@@ -60,10 +58,9 @@ export function useComposerSlashCommand({
   const isOpen = Boolean(match);
 
   useEffect(() => {
-    if (isOpen && !wasOpenRef.current) {
+    if (isOpen) {
       onRefresh();
     }
-    wasOpenRef.current = isOpen;
   }, [isOpen, onRefresh]);
 
   useEffect(() => {
@@ -75,6 +72,19 @@ export function useComposerSlashCommand({
       setMatch(null);
     }
   }, [isGoalMode]);
+
+  useEffect(() => {
+    if (!match) {
+      return;
+    }
+    const cursorPosition = Math.min(
+      textareaRef.current?.selectionStart ?? input.length,
+      input.length,
+    );
+    if (!findSlashCommandTextMatch(input, cursorPosition, !isGoalMode)) {
+      setMatch(null);
+    }
+  }, [input, isGoalMode, match, textareaRef]);
 
   const close = useCallback(() => {
     setMatch(null);

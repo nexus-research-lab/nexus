@@ -25,7 +25,7 @@ func (h *Handler) handleBindSession(
 		_ = h.channels.RememberWebSocketRoute(ctx, sessionKey)
 	}
 	h.broadcastSessionStatus(ctx, sessionKey)
-	if err := h.sendCommandCatalog(ctx, sender, sessionKey, parsed, inbound); err != nil {
+	if err := h.sendCommandCatalog(ctx, sender, sessionKey, parsed, inbound, false); err != nil {
 		h.sendGatewayError(ctx, sender, sessionKey, "command_catalog_error", err, map[string]any{
 			"type": "bind_session",
 		})
