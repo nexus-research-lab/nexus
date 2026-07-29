@@ -10,8 +10,8 @@ import "time"
 const (
 	registryVersion = 1
 
-	// v8 将 owner 级 Room 状态移出 runtime 可写树，改由宿主私有状态根托管。
-	userLayoutVersion = 8
+	// v9 修复旧 Docker 宿主准备流程递归改回 host UID/GID 的用户树。
+	userLayoutVersion = 9
 
 	defaultTicketTTL   = 24 * time.Hour
 	defaultUIDMinimum  = 20000
