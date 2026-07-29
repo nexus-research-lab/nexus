@@ -35,16 +35,14 @@ COPY go.mod go.sum /src/
 
 ENV GOPROXY=${GOPROXY}
 
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/go/pkg/mod \
-    go mod download
+# 模块下载保留在可复用的依赖层；仅依赖 go.mod/go.sum 变化时才重新下载。
+RUN go mod download
 
 COPY cmd /src/cmd
 COPY internal /src/internal
 COPY db /src/db
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/go/pkg/mod \
     go build -o /out/nexus-server ./cmd/nexus-server && \
     go build -o /out/nexusctl ./cmd/nexusctl && \
     go build -o /out/nexus-runtime-launcher ./cmd/nexus-runtime-launcher
