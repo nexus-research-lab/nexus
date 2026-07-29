@@ -93,6 +93,7 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 	options, err := clientopts.BuildAgentClientOptions(ownerContext, r.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:        agentValue.WorkspacePath,
 		OwnerUserID:          agentValue.OwnerUserID,
+		IsMainAgent:          agentValue.IsMain,
 		RuntimeKind:          selection.RuntimeKind,
 		Provider:             provider,
 		Model:                model,

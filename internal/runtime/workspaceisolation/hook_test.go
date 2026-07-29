@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -253,6 +254,83 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 	}
 }
 
+func TestWorkspacePolicyHookAllowsMainAgentNexusctl(t *testing.T) {
+	workspace := t.TempDir()
+	policy := testPolicy(t, workspace)
+	policy.IsMainAgent = true
+
+	for _, test := range []struct {
+		name    string
+		command string
+		denied  bool
+	}{
+		{
+			name:    "injected command path",
+			command: `"$NEXUSCTL_COMMAND_PATH" --json agent list`,
+		},
+		{
+			name:    "bare command path",
+			command: "nexusctl --json room list",
+		},
+		{
+			name:    "forged owner",
+			command: "NEXUSCTL_USER_ID=owner-b nexusctl --json agent list",
+			denied:  true,
+		},
+		{
+			name:    "global scope",
+			command: "nexusctl --global-scope agent list",
+			denied:  true,
+		},
+		{
+			name:    "explicit owner scope",
+			command: "nexusctl --scope-user-id owner-b agent list",
+			denied:  true,
+		},
+		{
+			name:    "forged workspace",
+			command: "NEXUSCTL_WORKSPACE_PATH=/tmp/other nexusctl workspace list",
+			denied:  true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			violation := inspectToolAccess(policy, sdkhook.Input{
+				CWD:      workspace,
+				ToolName: "Bash",
+				ToolInput: map[string]any{
+					"command": test.command,
+				},
+			})
+			if (violation != nil) != test.denied {
+				t.Fatalf("command %q violation = %#v, denied=%v", test.command, violation, test.denied)
+			}
+		})
+	}
+}
+
+func TestWorkspacePolicyHookTerminatesForbiddenNexusctl(t *testing.T) {
+	workspace := t.TempDir()
+	callback := workspacePolicyCallback(ModeEnforce, testPolicy(t, workspace))
+
+	output, err := callback(context.Background(), sdkhook.Input{
+		CWD:      workspace,
+		ToolName: "Bash",
+		ToolInput: map[string]any{
+			"command": "nexusctl --json agent list",
+		},
+	}, "ordinary-tool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput == nil ||
+		output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny {
+		t.Fatalf("普通 Agent nexusctl 应被拒绝: %#v", output)
+	}
+	if output.Continue == nil || *output.Continue || output.StopReason == "" {
+		t.Fatalf("控制面越界应终止当前 runtime turn: %#v", output)
+	}
+}
+
 func TestWorkspacePolicyHookAllowsSharedTemporaryRedirect(t *testing.T) {
 	workspace := t.TempDir()
 	sharedTempRoot := appfs.RuntimeSharedTempRoot()
@@ -391,6 +469,63 @@ func TestBuildAuditPolicyDoesNotRequireOSIdentity(t *testing.T) {
 		if _, err = policy.authorize(filepath.Join(sharedTempRoot, "runtime.log"), true); err != nil {
 			t.Fatalf("audit policy 应允许共享临时目录: %v", err)
 		}
+	}
+}
+
+func TestBuildAuditPolicyPreservesMainAgentIdentity(t *testing.T) {
+	workspace := t.TempDir()
+	policy, err := buildAuditPolicy(Input{
+		OwnerUserID: "owner-a",
+		RuntimeKind: "nxs",
+		CWD:         workspace,
+		IsMainAgent: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !policy.IsMainAgent {
+		t.Fatalf("audit policy 丢失主智能体身份: %#v", policy)
+	}
+}
+
+func TestApplyMainAgentKeepsHookWithoutLauncher(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("主智能体 enforce 当前只支持 Linux")
+	}
+	workspace := t.TempDir()
+	options, err := Apply(
+		context.Background(),
+		agentclient.Options{},
+		Config{
+			Mode:         ModeEnforce,
+			LauncherPath: filepath.Join(workspace, "missing-launcher"),
+		},
+		Input{
+			OwnerUserID: "owner-a",
+			RuntimeKind: "nxs",
+			CWD:         workspace,
+			IsMainAgent: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("主智能体 enforce 不应依赖普通 runtime launcher: %v", err)
+	}
+	matchers := options.Hooks.Matchers[sdkhook.EventPreToolUse]
+	if len(matchers) != 1 || len(matchers[0].Hooks) != 1 {
+		t.Fatalf("主智能体应保留一个 mandatory workspace hook: %#v", options.Hooks.Matchers)
+	}
+	output, err := matchers[0].Hooks[0](context.Background(), sdkhook.Input{
+		CWD:      workspace,
+		ToolName: "Bash",
+		ToolInput: map[string]any{
+			"command": `"$NEXUSCTL_COMMAND_PATH" --json agent list`,
+		},
+	}, "main-tool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput != nil {
+		t.Fatalf("主智能体 nexusctl 被 hook 拒绝: %#v", output)
 	}
 }
 

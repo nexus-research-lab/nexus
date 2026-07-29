@@ -53,4 +53,9 @@ type Input struct {
 	CWD              string
 	ReadRoots        []string
 	EnvironmentNames []string
+	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
+	//
+	// 主智能体是控制面主体，需要通过 NEXUSCTL_COMMAND_PATH 调用
+	// owner-scoped nexusctl；普通 Agent 不继承这项能力。
+	IsMainAgent bool
 }

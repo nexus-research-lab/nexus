@@ -32,6 +32,9 @@ type Policy struct {
 	Generation  uint64   `json:"generation"`
 	Ticket      string   `json:"ticket"`
 	Identity    Identity `json:"identity"`
+	// IsMainAgent 只由宿主在主智能体的 control-plane policy 中设置。
+	// launcher 返回的普通 runtime policy 必须保持 false。
+	IsMainAgent bool `json:"is_main_agent,omitempty"`
 }
 
 func (p *Policy) validate(expected Input, requireTicket bool) error {
@@ -43,6 +46,9 @@ func (p *Policy) validate(expected Input, requireTicket bool) error {
 	}
 	if !strings.EqualFold(strings.TrimSpace(p.RuntimeKind), strings.TrimSpace(expected.RuntimeKind)) {
 		return errors.New("launcher 返回了不匹配的 runtime")
+	}
+	if p.IsMainAgent != expected.IsMainAgent {
+		return errors.New("launcher 返回了不匹配的 Agent 身份")
 	}
 	expectedCWD, err := canonicalPolicyPath(expected.CWD)
 	if err != nil {

@@ -28,6 +28,12 @@ var unixShellVariablePattern = regexp.MustCompile(
 	`\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})`,
 )
 var windowsShellVariablePattern = regexp.MustCompile(`%[A-Za-z_][A-Za-z0-9_]*%`)
+var nexusctlScopeEnvironmentOverridePattern = regexp.MustCompile(
+	`(?i)(?:^|[\s;&|])(?:NEXUSCTL_USER_ID|NEXUSCTL_WORKSPACE_PATH|NEXUS_STATE_ROOT|NEXUS_CONFIG_DIR|CLAUDE_CONFIG_DIR)=`,
+)
+var nexusctlScopeFlagOverridePattern = regexp.MustCompile(
+	`(?i)--(?:global-scope|scope-user-id)(?:[=\s]|$)`,
+)
 
 var readPathToolNames = map[string]struct{}{
 	"glob": {}, "grep": {}, "lsp": {}, "ls": {}, "read": {}, "viewimage": {},
@@ -83,18 +89,20 @@ func workspacePolicyCallback(mode Mode, policy Policy) sdkhook.Callback {
 			"tool_use_id", strings.TrimSpace(toolUseID),
 			"reason", violation.reason,
 			"path", violation.path,
+			"is_main_agent", policy.IsMainAgent,
 			"mode", string(mode),
 		)
 		if mode == ModeAudit {
 			return allowWorkspacePolicyOutput(), nil
 		}
-		return denyWorkspacePolicyOutput(), nil
+		return denyWorkspacePolicyOutput(violation.terminal), nil
 	}
 }
 
 type policyViolation struct {
-	reason string
-	path   string
+	reason   string
+	path     string
+	terminal bool
 }
 
 func inspectToolAccess(policy Policy, input sdkhook.Input) *policyViolation {
@@ -239,8 +247,8 @@ func inspectShellAccess(
 	if !ok || strings.TrimSpace(command) == "" {
 		return &policyViolation{reason: "Shell command 为空"}
 	}
-	if reason := forbiddenNexusctlScope(command); reason != "" {
-		return &policyViolation{reason: reason}
+	if reason := forbiddenNexusctlScope(policy, command); reason != "" {
+		return &policyViolation{reason: reason, terminal: true}
 	}
 	for _, match := range shellRedirectionPathPattern.FindAllStringSubmatch(command, -1) {
 		if len(match) != 2 || strings.ContainsRune(match[1], '$') {
@@ -335,9 +343,16 @@ func shellSystemPath(path string) bool {
 	return false
 }
 
-func forbiddenNexusctlScope(command string) string {
+func forbiddenNexusctlScope(policy Policy, command string) string {
 	lower := strings.ToLower(command)
 	if !strings.Contains(lower, "nexusctl") {
+		return ""
+	}
+	if policy.IsMainAgent {
+		if nexusctlScopeEnvironmentOverridePattern.MatchString(command) ||
+			nexusctlScopeFlagOverridePattern.MatchString(command) {
+			return "主智能体 nexusctl 必须使用宿主注入的 owner 作用域"
+		}
 		return ""
 	}
 	return "runtime 暂不提供直接 nexusctl 控制面 broker"
@@ -529,14 +544,20 @@ func allowWorkspacePolicyOutput() sdkhook.Output {
 	return sdkhook.Output{}
 }
 
-func denyWorkspacePolicyOutput() sdkhook.Output {
-	return sdkhook.Output{
+func denyWorkspacePolicyOutput(terminal bool) sdkhook.Output {
+	output := sdkhook.Output{
 		SpecificOutput: &sdkhook.SpecificOutput{
 			HookEventName:            sdkhook.EventPreToolUse,
 			PermissionDecision:       sdkpermission.BehaviorDeny,
 			PermissionDecisionReason: workspacePolicyPublicDenial,
 		},
 	}
+	if terminal {
+		shouldContinue := false
+		output.Continue = &shouldContinue
+		output.StopReason = workspacePolicyPublicDenial
+	}
+	return output
 }
 
 func cloneHookMatchers(

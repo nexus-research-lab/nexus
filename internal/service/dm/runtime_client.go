@@ -113,6 +113,7 @@ func (s *Service) ensureClient(
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              agentValue.WorkspacePath,
 		OwnerUserID:                agentValue.OwnerUserID,
+		IsMainAgent:                agentValue.IsMain,
 		RuntimeKind:                runtimeSelection.RuntimeKind,
 		Provider:                   runtimeSelection.Provider,
 		Model:                      runtimeSelection.Model,

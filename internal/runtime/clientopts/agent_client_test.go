@@ -14,6 +14,7 @@ import (
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
@@ -1112,6 +1113,40 @@ func TestBuildAgentClientOptionsBypassKeepsPermissionHandler(t *testing.T) {
 		t.Fatalf("AskUserQuestion 未保留用户答案: %+v", questionDecision)
 	}
 
+}
+
+func TestBuildAgentClientOptionsPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
+	workspace := t.TempDir()
+	options, err := BuildAgentClientOptions(
+		context.Background(),
+		fakeRuntimeConfigResolver{},
+		AgentClientOptionsInput{
+			WorkspacePath:        workspace,
+			OwnerUserID:          "owner-a",
+			IsMainAgent:          true,
+			RuntimeIsolationMode: "audit",
+		},
+	)
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	matchers := options.Hooks.Matchers[sdkhook.EventPreToolUse]
+	if len(matchers) != 1 || len(matchers[0].Hooks) != 1 {
+		t.Fatalf("主智能体应注入 workspace policy hook: %#v", options.Hooks.Matchers)
+	}
+	output, err := matchers[0].Hooks[0](context.Background(), sdkhook.Input{
+		CWD:      workspace,
+		ToolName: "Bash",
+		ToolInput: map[string]any{
+			"command": `"$NEXUSCTL_COMMAND_PATH" --json agent list`,
+		},
+	}, "main-tool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput != nil {
+		t.Fatalf("主智能体身份未传递到 workspace policy: %#v", output)
+	}
 }
 
 func containsTool(tools []string, expected string) bool {

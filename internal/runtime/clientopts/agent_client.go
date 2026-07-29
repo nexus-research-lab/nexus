@@ -38,8 +38,14 @@ type RuntimeConfigForRuntimeResolver interface {
 
 // AgentClientOptionsInput 表示构造 SDK options 所需的统一输入。
 type AgentClientOptionsInput struct {
-	WorkspacePath     string
-	OwnerUserID       string
+	WorkspacePath string
+	OwnerUserID   string
+	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
+	//
+	// 主智能体是宿主控制面的受信调用方，在 enforce 模式下仍保留
+	// workspace policy Hook，但不切换到普通 Agent 的隔离 launcher，
+	// 以便使用 owner-scoped nexusctl。
+	IsMainAgent       bool
 	RuntimeKind       string
 	Provider          string
 	Model             string
@@ -192,6 +198,7 @@ func BuildAgentClientOptionsWithConfig(
 		},
 		workspaceisolation.Input{
 			OwnerUserID: ownerUserID,
+			IsMainAgent: input.IsMainAgent,
 			RuntimeKind: effectiveRuntimeKind,
 			CWD:         input.WorkspacePath,
 			ReadRoots:   input.SkillDirectories,

@@ -169,6 +169,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
 		OwnerUserID:                e.agent.OwnerUserID,
+		IsMainAgent:                e.agent.IsMain,
 		RuntimeKind:                selection.RuntimeKind,
 		Provider:                   selection.Provider,
 		Model:                      selection.Model,

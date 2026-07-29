@@ -15,6 +15,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -73,6 +74,75 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	}
 	if !strings.Contains(appendSystemPrompt, "Vibe Tags: 规则优先, 稳健") {
 		t.Fatalf("runtime prompt 未注入 Agent vibe_tags: %s", appendSystemPrompt)
+	}
+}
+
+func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	cfg.RuntimeIsolationMode = "audit"
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	agentValue, err := agentService.GetAgent(context.Background(), cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("读取主智能体失败: %v", err)
+	}
+	if !agentValue.IsMain {
+		t.Fatalf("默认 Agent 应为主智能体: %#v", agentValue)
+	}
+
+	factory := &fakeDMFactory{client: newFakeDMClient()}
+	service := NewService(
+		cfg,
+		agentService,
+		runtimectx.NewManagerWithFactory(factory),
+		permissionctx.NewContext(),
+	)
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		protocol.SessionChannelWebSocketSegment,
+		"dm",
+		"main-workspace-policy",
+		"",
+	)
+	sessionItem, err := service.ensureSession(
+		context.Background(),
+		agentValue,
+		protocol.ParseSessionKey(sessionKey),
+		sessionKey,
+	)
+	if err != nil {
+		t.Fatalf("初始化主智能体 session 失败: %v", err)
+	}
+	if _, _, _, _, _, _, _, _, err = service.ensureClient(
+		context.Background(),
+		sessionKey,
+		agentValue,
+		sessionItem,
+		Request{
+			SessionKey:     sessionKey,
+			PermissionMode: sdkpermission.ModeDefault,
+		},
+	); err != nil {
+		t.Fatalf("构建主智能体 runtime client 失败: %v", err)
+	}
+
+	matchers := factory.LastOptions().Hooks.Matchers[sdkhook.EventPreToolUse]
+	if len(matchers) != 1 || len(matchers[0].Hooks) != 1 {
+		t.Fatalf("主智能体应保留 mandatory workspace hook: %#v", matchers)
+	}
+	output, err := matchers[0].Hooks[0](context.Background(), sdkhook.Input{
+		CWD:      agentValue.WorkspacePath,
+		ToolName: "Bash",
+		ToolInput: map[string]any{
+			"command": `"$NEXUSCTL_COMMAND_PATH" --json agent list`,
+		},
+	}, "main-tool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput != nil {
+		t.Fatalf("DM runtime 丢失主智能体身份: %#v", output)
 	}
 }
 

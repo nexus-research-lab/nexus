@@ -103,13 +103,17 @@ inode，无法安全地区分这类路径别名；运维人员应先将报错路
 `audit` 模式只运行同一套 nxs/Claude PreToolUse 检查并记录越界事件，不切换
 OS 身份，也不宣称具备强隔离。`off` 完全保持旧行为。
 
-当前 `enforce` 不开放 runtime 内直接执行 `nexusctl`：现有 CLI 直接打开宿主
-控制面数据库，尚未接入基于 OS peer credential 的 scoped broker。mandatory
-Hook 会拒绝常规 CLI 命令，官方容器还把 `/usr/local/bin/nexusctl` 设为
-`root:agent 0750`，由 DAC 阻止 runtime UID 执行。自定义原生部署也必须给 CLI
-配置等价的宿主专用执行权限；Hook 的命令文本识别不是不可绕过的控制面边界。
-需要控制面操作时使用内置 runtime 工具或宿主 API；scoped `nexusctl` broker
-作为后续闭环。
+当前 `enforce` 不开放普通 Agent runtime 内直接执行 `nexusctl`：现有 CLI 直接
+打开宿主控制面数据库，尚未接入基于 OS peer credential 的通用 scoped broker。
+mandatory Hook 会拒绝普通 Agent 的 CLI 命令，官方容器还把
+`/usr/local/bin/nexusctl` 设为 `root:agent 0750`，由 DAC 阻止隔离 runtime UID
+执行。Nexus 主智能体是宿主控制面主体，在 enforce 下保留宿主身份并允许通过
+`NEXUSCTL_COMMAND_PATH` 调用当前 owner scope 的 CLI；Hook 仍拒绝
+`--global-scope`、`--scope-user-id` 和环境变量改写，避免把主智能体的 owner
+上下文变成跨租户入口。自定义原生部署也必须给 CLI 配置等价的宿主专用执行权限；
+Hook 的命令文本识别不是普通 Agent 的最终安全边界。
+普通 Agent 需要控制面操作时使用内置 runtime 工具或宿主 API；通用 scoped
+`nexusctl` broker 仍作为后续闭环。
 
 为兼容终端、临时文件和部分开发工具，当前 Landlock 规则允许 runtime 使用
 `/dev/null`、`/dev/tty`，并对 `/dev/shm` 保留共享写入能力；这不是跨租户的

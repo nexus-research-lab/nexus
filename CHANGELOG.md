@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `nexusctl` treating an owner's `runtime` directory and current Agent workspace as host-level state roots after the owner-scoped layout change.
 - Updated the bundled `nexus-manager` Skill with the owner-scoped directory layout, CLI root-resolution rules, and enforce-mode control-plane boundary.
 - Fixed Agent Skill bindings being overwritten by stale editor snapshots, and aligned nxs/Claude runtime discovery so project Skills remain dynamically discoverable while explicit Agent disables are enforced.
+- Fixed the Nexus main Agent's owner-scoped `nexusctl` calls being rejected by Linux runtime isolation; ordinary Agents remain confined to the existing control-plane boundary.
 - Kept Agent workspace Skills visible only in their owning Agent's settings with a clear local-source badge, while limiting desktop global discovery to the standard `~/.agents/skills` directory.
 - Allowed Room hosts to fan out intentionally separated parallel work to multiple Agents while retaining single-target behavior for candidate and first-responder mentions.
 - Closed Room Thread thinking indicators when an Agent intentionally returns no public reply, using the precise terminal Agent round status even though the final assistant output is suppressed.

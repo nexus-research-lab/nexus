@@ -17,8 +17,10 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
-// Apply 为 nxs/Claude 注入同一个 PreToolUse policy；enforce 模式额外把
-// CLI 切到 root-owned launcher，使 UID/GID、ACL 与 Landlock 不依赖 runtime。
+// Apply 为 nxs/Claude 注入同一个 PreToolUse policy；普通 Agent 在 enforce
+// 模式额外把 CLI 切到 root-owned launcher，使 UID/GID、ACL 与 Landlock
+// 不依赖 runtime。主智能体是控制面主体，保留 hook 但不经过用户 runtime
+// launcher，以便使用宿主作用域的 nexusctl。
 func Apply(
 	ctx context.Context,
 	options agentclient.Options,
@@ -41,6 +43,23 @@ func Apply(
 
 	var policy Policy
 	if mode == ModeEnforce {
+		if input.IsMainAgent {
+			if runtime.GOOS != "linux" {
+				return agentclient.Options{}, errors.New("runtime isolation enforce 目前只支持 Linux")
+			}
+			if err = validateEnforceOptions(options); err != nil {
+				return agentclient.Options{}, err
+			}
+			// 主智能体需要直接使用宿主侧 nexusctl。它仍保留
+			// workspace hook，普通 Agent 继续走 root-owned launcher；
+			// 这里的豁免是控制面身份边界，不是把主智能体伪装成普通
+			// user runtime。
+			policy, err = buildAuditPolicy(input)
+			if err != nil {
+				return agentclient.Options{}, err
+			}
+			return withWorkspacePolicyHook(options, mode, policy), nil
+		}
 		if err = validateEnforceOptions(options); err != nil {
 			return agentclient.Options{}, err
 		}
@@ -178,6 +197,7 @@ func buildAuditPolicy(input Input) (Policy, error) {
 	}
 	policy := Policy{
 		OwnerUserID: input.OwnerUserID,
+		IsMainAgent: input.IsMainAgent,
 		RuntimeKind: input.RuntimeKind,
 		CWD:         cwd,
 		ReadRoots:   normalizedRead,

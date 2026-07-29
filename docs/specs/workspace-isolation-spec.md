@@ -336,9 +336,12 @@ NEXUS_MEMORY_DIR=<agent_workspace>
   其他 runtime 文件仍不属于普通工具写根；
 - 对 Bash 只做显式绝对路径、`..` 路径和 `nexusctl` 管理入口的早期检查；普通系统命令
   仍可运行，最终写入/删除/重命名由 OS DAC/ACL 与 Landlock 决定；
-- enforce Hook 对常规 `nexusctl` 管理命令做早期拒绝；打包部署额外把 CLI
-  executable 设为宿主组专用。现有 CLI 直接打开宿主数据库，scoped broker
-  尚未就绪，不能让 runtime 误操作空数据库或继承宿主控制面；
+- enforce Hook 对普通 Agent 的 `nexusctl` 管理命令做早期拒绝；打包部署额外把
+  CLI executable 设为宿主组专用。Nexus 主智能体是宿主控制面主体，可使用
+  `NEXUSCTL_COMMAND_PATH` 的当前 owner scope，但 Hook 拒绝
+  `--global-scope`、`--scope-user-id` 和环境变量改写。现有 CLI 直接打开宿主
+  数据库，通用 scoped broker 尚未就绪，不能让普通 runtime 误操作空数据库或
+  继承宿主控制面；
 - 不返回 `updatedInput`，只允许放行或拒绝；
 - Hook 本身不返回 `allow` 决策，避免覆盖其他 hook 或用户权限处理；越界时返回
   `deny`。Hook 失效不构成安全放行，enforce 进程仍必须通过 launcher 的最终边界；
@@ -355,7 +358,8 @@ NEXUS_MEMORY_DIR=<agent_workspace>
 launcher 会拒绝禁用 hook 的 argv/环境。即使 runtime hook 被跳过，Landlock 仍在
 整个 nxs/Claude 进程（包括其子进程）上生效。`nexusctl` 属于控制面而不是用户
 文件系统；在 scoped broker 完成前，生产部署还必须通过 DAC/容器镜像边界让
-runtime UID 无法执行 CLI，不能只依赖 Hook 文本识别。
+普通 runtime UID 无法执行 CLI，不能只依赖 Hook 文本识别。主智能体保留宿主
+身份是明确的控制面信任边界，不宣称具备普通 Agent 的 Landlock 隔离等级。
 
 ### 8.3 Final path guard
 
@@ -513,8 +517,9 @@ runtime 只携带当前 session 所需的 private group 和明确授权的 proje
 - `Read/Glob/Grep/Write/Edit` 访问 B 路径均失败；
 - 相对路径、绝对路径、`..`、符号链接和硬链接均不能越界；
 - Bash、Shell 展开、`find`、`cat` 和 `cp` 不能越过文件系统边界；
-- 常规 `nexusctl` 管理命令被 Hook 拒绝，生产部署同时由 DAC 阻止 runtime UID
-  执行 CLI；不能把命令文本识别当作控制面授权；
+- 普通 Agent 的常规 `nexusctl` 管理命令被 Hook 拒绝，生产部署同时由 DAC 阻止
+  runtime UID 执行 CLI；主智能体只能使用宿主注入的当前 owner scope，不能把
+  命令文本识别当作普通 Agent 的控制面授权；
 - simple/bare 模式不能绕过 final guard；
 - runtime 环境中不存在 app DB、connector key 和 B 的 provider secret；
 - `/proc` 不应暴露其他用户受 DAC 保护的环境/文件；共享 `/tmp`、共享 cache

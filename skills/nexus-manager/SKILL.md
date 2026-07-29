@@ -21,9 +21,12 @@ CLI 工具：优先使用环境变量 `NEXUSCTL_COMMAND_PATH` 指向的命令；
 - `app/` 与 `users/<owner>/state/rooms/` 是宿主控制面目录，runtime 不应直接读写；
   workspace 文件通过本 Skill 的命令操作。
 
-如果部署启用了 Linux `runtime isolation=enforce`，runtime 内的普通
+如果部署启用了 Linux `runtime isolation=enforce`，普通 Agent runtime 内的
 `nexusctl` 控制面调用会被拒绝。不要通过 `go run`、搜索源码入口或修改环境变量绕过；
-改用对应的内置 Nexus 工具/宿主 API，或把该操作报告为当前部署不可用。
+普通 Agent 改用对应的内置 Nexus 工具/宿主 API，或把该操作报告为当前部署不可用。
+Nexus 主智能体属于宿主控制面主体，可以使用宿主注入的
+`"$NEXUSCTL_COMMAND_PATH"`；仍必须保持当前 owner scope，不得使用
+`--global-scope`、`--scope-user-id` 或覆盖 `NEXUSCTL_USER_ID`。
 
 ## CLI 输出约定
 
