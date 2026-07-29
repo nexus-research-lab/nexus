@@ -24,7 +24,10 @@ var shellTokenPattern = regexp.MustCompile(`[^\s"'` + "`" + `;|&()<>{}]+`)
 var shellRedirectionPathPattern = regexp.MustCompile(
 	`(?:^|[\s;|&])(?:&>|[012]?>>|[012]?>)\s*([^\s"'` + "`" + `;|&()<>{}]+)`,
 )
-var shellVariablePattern = regexp.MustCompile(`%[A-Za-z_][A-Za-z0-9_]*%`)
+var unixShellVariablePattern = regexp.MustCompile(
+	`\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})`,
+)
+var windowsShellVariablePattern = regexp.MustCompile(`%[A-Za-z_][A-Za-z0-9_]*%`)
 
 var readPathToolNames = map[string]struct{}{
 	"glob": {}, "grep": {}, "lsp": {}, "ls": {}, "read": {}, "viewimage": {},
@@ -338,7 +341,7 @@ func resolveToolPath(cwd string, raw string) (string, error) {
 	if strings.ContainsRune(value, '$') {
 		return "", fmt.Errorf("工具路径包含未解析的环境变量")
 	}
-	if shellVariablePattern.MatchString(value) {
+	if windowsShellVariablePattern.MatchString(value) {
 		return "", fmt.Errorf("工具路径包含未解析的环境变量")
 	}
 	value = nonGlobPrefix(value)
@@ -389,9 +392,10 @@ func shellTokenPath(token string) (string, bool) {
 		// shell 会在执行前把 ~ 展开到 home；宿主 hook 无法安全推断
 		// 目标用户，因此宁可拒绝未展开的 home 简写，避免绕过 owner 根。
 		return token, true
-	case strings.ContainsRune(token, '$') || shellVariablePattern.MatchString(token):
-		// 环境变量和命令替换的结果在 hook 运行时不可静态确定，不能
-		// 让它们借由相对 token 绕过路径授权。
+	case unixShellVariablePattern.MatchString(token) ||
+		windowsShellVariablePattern.MatchString(token):
+		// 环境变量的结果在 hook 运行时不可静态确定，不能让它们
+		// 借由相对 token 绕过路径授权。
 		return token, true
 	case isWindowsAbsoluteShellPath(token):
 		return token, true
