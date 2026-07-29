@@ -262,6 +262,17 @@
     content: "";
   }
 
+  /*
+   * Goal / Provider 状态存在时，它们本身就是消息区与输入区的视觉边界。
+   * Composer 羽化不得越过状态层，否则会把浮层下缘洗白并制造假间距。
+   */
+  [data-conversation-status-stack]:has(> *)
+    + [data-conversation-composer-anchor]
+    .nexus-chat-composer-edge::before {
+    top: 0;
+    background: var(--background);
+  }
+
   @media (max-width: 1023px) {
     .nexus-chat-composer-edge::before {
       top: -32px;

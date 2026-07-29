@@ -8,6 +8,7 @@ import { UiButton } from "@/shared/ui/button/button";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { SkillInfo } from "@/types/capability/skill";
 
+import type { SkillUpdateCheckNotice } from "../controller/skill-update-check-model";
 import {
   buildSkillsUpdateModel,
   type SkillUpdateStatus,
@@ -15,7 +16,7 @@ import {
 
 interface SkillsUpdateHighlightProps {
   busySkillNames: ReadonlySet<string>;
-  checkUpdateMessage: string | null;
+  checkUpdateNotice: SkillUpdateCheckNotice | null;
   checkingUpdates: boolean;
   lastUpdateCheckedAt: number | null;
   onCheckUpdates: () => void;
@@ -45,6 +46,17 @@ const SKILL_UPDATE_STATUS_ICON = {
   className: string | null;
   icon: typeof Clock3;
 }>;
+
+const SKILL_UPDATE_STATUS_SURFACE = {
+  checking:
+    "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-raised-background)_58%,transparent)]",
+  current:
+    "border-[color:color-mix(in_srgb,var(--success)_20%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--success)_4%,transparent)]",
+  failure:
+    "border-[color:color-mix(in_srgb,var(--destructive)_22%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--destructive)_4%,transparent)]",
+  updates:
+    "border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)]",
+} satisfies Record<SkillUpdateStatus, string>;
 
 function SkillUpdateStatusIcon({ status }: { status: SkillUpdateStatus }) {
   const presentation = SKILL_UPDATE_STATUS_ICON[status];
@@ -109,7 +121,7 @@ function UpdateSkillRow({
 
 export function SkillsUpdateHighlight({
   busySkillNames,
-  checkUpdateMessage,
+  checkUpdateNotice,
   checkingUpdates,
   lastUpdateCheckedAt,
   onCheckUpdates,
@@ -119,7 +131,7 @@ export function SkillsUpdateHighlight({
 }: SkillsUpdateHighlightProps) {
   const model = buildSkillsUpdateModel({
     checkingUpdates,
-    checkUpdateMessage,
+    checkUpdateNotice,
     lastUpdateCheckedAt,
     updateCount: updates.length,
   });
@@ -129,7 +141,12 @@ export function SkillsUpdateHighlight({
   const ActionIcon = model.actionDisabled ? Loader2 : RefreshCw;
 
   return (
-    <section className="mb-5 rounded-[10px] border border-[color:color-mix(in_srgb,var(--warning)_24%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_5%,transparent)] px-3 py-3">
+    <section
+      className={cn(
+        "mb-5 rounded-[10px] border px-3 py-3",
+        SKILL_UPDATE_STATUS_SURFACE[model.status],
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">

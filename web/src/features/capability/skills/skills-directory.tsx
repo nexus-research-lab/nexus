@@ -147,7 +147,7 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
                 <>
                   <SkillsUpdateHighlight
                     busySkillNames={operations.busySkillNames}
-                    checkUpdateMessage={operations.checkUpdateMessage}
+                    checkUpdateNotice={operations.checkUpdateNotice}
                     checkingUpdates={operations.checkingUpdates}
                     lastUpdateCheckedAt={operations.lastUpdateCheckedAt}
                     onCheckUpdates={() => void operations.checkUpdates()}

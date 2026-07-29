@@ -3,6 +3,8 @@ import type {
   SkillSourceType,
 } from "@/types/capability/skill";
 
+import type { SkillUpdateCheckNotice } from "../controller/skill-update-check-model";
+
 export type SkillCatalogIcon = "lock" | "puzzle";
 
 export interface SkillCardModel {
@@ -44,7 +46,7 @@ interface SkillStateRule extends SkillStatePresentation {
 
 interface SkillUpdateContext {
   checkingUpdates: boolean;
-  checkUpdateMessage: string | null;
+  checkUpdateNotice: SkillUpdateCheckNotice | null;
   lastUpdateCheckedAt: number | null;
   updateCount: number;
 }
@@ -109,10 +111,8 @@ const SKILL_UPDATE_STATUS_RULES: readonly SkillUpdateStatusRule[] = [
     status: "checking",
   },
   {
-    matches: ({ checkUpdateMessage }) => (
-      checkUpdateMessage?.includes("无法检查") ?? false
-    ),
-    status: "failure",
+    matches: ({ checkUpdateNotice }) => checkUpdateNotice !== null,
+    status: "current",
   },
   {
     matches: ({ updateCount }) => updateCount > 0,
@@ -150,13 +150,14 @@ export function buildSkillsUpdateModel(
   context: SkillUpdateContext,
 ): SkillsUpdateModel | null {
   const shouldShow = context.checkingUpdates
-    || Boolean(context.checkUpdateMessage)
+    || context.checkUpdateNotice !== null
     || context.updateCount > 0;
   if (!shouldShow) {
     return null;
   }
   const status = SKILL_UPDATE_STATUS_RULES.find((rule) => rule.matches(context))
     ?.status ?? "current";
+  const noticeStatus = context.checkUpdateNotice?.status;
   return {
     actionDisabled: context.checkingUpdates,
     actionLabel: context.checkingUpdates ? "检查中" : "重新检查",
@@ -164,7 +165,7 @@ export function buildSkillsUpdateModel(
       ? `${context.updateCount} 个可更新`
       : null,
     showUpdates: context.updateCount > 0,
-    status,
+    status: context.checkingUpdates ? "checking" : noticeStatus ?? status,
     statusLabel: buildSkillUpdateStatusLabel(context),
     title: context.updateCount > 0 ? "可更新 Skill" : "更新检查",
   };
@@ -174,8 +175,8 @@ function buildSkillUpdateStatusLabel(context: SkillUpdateContext): string {
   if (context.checkingUpdates) {
     return "正在检查远端版本...";
   }
-  if (context.checkUpdateMessage) {
-    return context.checkUpdateMessage;
+  if (context.checkUpdateNotice) {
+    return context.checkUpdateNotice.message;
   }
   return `上次检查 ${formatCheckedTime(context.lastUpdateCheckedAt)}`;
 }

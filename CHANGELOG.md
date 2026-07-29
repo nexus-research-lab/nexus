@@ -15,8 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Made Skill update checks distinguish current, update-available, and source-failure results without parsing display text; deleted Git branches now produce an actionable re-import explanation instead of the contradictory “no updates, cannot check” state.
 - Unified the DM and Room bottom work area into one Composer-based upward stack: active Goal and provider state now sit directly above the input as a narrower raised layer, while Task progress and return-to-latest controls float above that layer without an artificial runway or message-flow jump.
-- Softened the Room and DM reading edges with non-interactive component-edge fades: each header now dissolves into scrolling text without changing its 60px/52px geometry, while the Composer's own upper edge feathers into messages on desktop and narrow layouts without adding feed whitespace.
+- Softened the Room and DM reading edges with non-interactive component-edge fades: each header now dissolves into scrolling text without changing its 60px/52px geometry, while the Composer feathers only when it directly meets messages and yields cleanly to stacked Goal or warning surfaces.
+- Unified Room header view and member controls on a 36px height, 4px group rhythm, and matching horizontal padding so adjacent controls no longer visually collide.
 - Made Agent-to-Agent Room handoffs acknowledge immediately with one gently revealed execution shell that reuses the existing thinking state before reply output arrives.
 - Distinguished semantic Markdown rules from Room speaker changes: adjacent Agents now use a short identity-aligned cue instead of repeated full-width dividers, and hidden Room fanout/no-reply control markers are stripped from text, result, history, and copy projections.
 - Rebuilt the conversation bottom work area around a Composer-anchored, centered Task capsule that shows the current step and summary beside a local return-to-latest control, moved `Powered by Nexus` into the physically centered Composer footer, retained the 880px/20px input geometry, and made footer density respond to the chat canvas rather than the browser window.

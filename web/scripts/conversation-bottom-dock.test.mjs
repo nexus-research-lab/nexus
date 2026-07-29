@@ -196,6 +196,10 @@ test("标题栏与 Composer 自身边缘羽化且不改变滚动几何", async (
   assert.match(composerFadeRule, /pointer-events:\s*none/);
   assert.match(composerFadeRule, /linear-gradient/);
   assert.doesNotMatch(composerFadeRule, /\b(?:margin|padding)(?:-|:)/);
+  assert.match(
+    sharedRecipes,
+    /\[data-conversation-status-stack\]:has\(> \*\)\s*\+\s*\[data-conversation-composer-anchor\]\s*\.nexus-chat-composer-edge::before\s*\{[\s\S]*?top:\s*0[\s\S]*?background:\s*var\(--background\)/,
+  );
 
   const headerSource = await readFile(
     path.join(
@@ -266,6 +270,32 @@ test("标题栏与 Composer 自身边缘羽化且不改变滚动几何", async (
     headerStyles,
     /\.nexus-room-conversation-header-edge\s*>\s*\.shell-region-header\s*\{[\s\S]*?box-shadow:\s*none/,
   );
+});
+
+test("Room header keeps view and member controls on one spacing rhythm", async () => {
+  const headerStyles = await readFile(
+    path.join(
+      webRoot,
+      "src/shared/ui/workspace/surface/workspace-surface-header.css",
+    ),
+    "utf8",
+  );
+  const memberSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/group/header/group-member-avatar-stack.tsx",
+    ),
+    "utf8",
+  );
+
+  assert.match(headerStyles, /--workspace-header-control-gap:\s*4px/);
+  assert.match(
+    headerStyles,
+    /\.workspace-surface-header-tool-cluster\s*\{[\s\S]*?gap:\s*var\(--workspace-header-control-gap\)/,
+  );
+  assert.match(memberSource, /\bh-9\b/);
+  assert.match(memberSource, /\bgap-1\.5\b/);
+  assert.match(memberSource, /\bpx-2\.5\b/);
 });
 
 test("shared WebSocket session leases keep a live Room bound until its last consumer leaves", async () => {
