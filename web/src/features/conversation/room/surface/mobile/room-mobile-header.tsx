@@ -36,7 +36,7 @@ export function RoomMobileHeader({
 
   return (
     <header
-      className="nexus-room-conversation-header-edge flex h-[52px] shrink-0 items-center gap-1.5 border-b divider-subtle px-2 sm:px-3"
+      className="nexus-room-conversation-header-edge nexus-room-conversation-header-edge--mobile flex h-[52px] shrink-0 items-center gap-1.5 border-b divider-subtle px-2 sm:px-3"
       data-desktop-window-controls-leading
       data-desktop-window-drag-region
       data-room-conversation-header-edge="true"

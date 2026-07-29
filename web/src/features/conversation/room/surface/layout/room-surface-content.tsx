@@ -2,8 +2,8 @@
 
 /**
  * INPUT: 桌面 Room 会话、任务快照、右栏状态与页面命令。
- * OUTPUT: 将任务快照交给聊天 Bottom Dock，并组合主聊天与可调整右栏。
- * POS: Room 桌面 Surface 的主内容装配层。
+ * OUTPUT: 将任务快照交给聊天 Bottom Dock，并组合带局部阅读羽化的主聊天与可调整右栏。
+ * POS: Room 桌面 Surface 的主内容装配层；对话视觉效果必须裁剪在聊天栏内。
  */
 
 import { cn } from "@/shared/ui/class-name";
@@ -116,7 +116,10 @@ export function RoomSurfaceContent({
         >
           <div className="flex h-full min-h-0 min-w-0">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-              <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+              <div
+                className="nexus-room-conversation-reading-edge min-h-0 min-w-0 flex-1"
+                data-room-conversation-reading-edge="true"
+              >
                 {/* 只挂载当前会话；标签列表只消费标题元数据，切换会话后按需加载，切换右栏不清理当前连接。 */}
                 <RoomChatSurface
                   conversationId={conversationId}

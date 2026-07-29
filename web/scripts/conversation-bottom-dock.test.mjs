@@ -218,20 +218,50 @@ test("标题栏与 Composer 自身边缘羽化且不改变滚动几何", async (
     ),
     "utf8",
   );
-  const topFadeRule = headerStyles.match(
-    /\.nexus-room-conversation-header-edge::after\s*\{([\s\S]*?)\}/,
+  const roomSurfaceContentSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/surface/layout/room-surface-content.tsx",
+    ),
+    "utf8",
+  );
+  const desktopTopFadeRule = headerStyles.match(
+    /\.nexus-room-conversation-reading-edge::before\s*\{([\s\S]*?)\}/,
   )?.[1] ?? "";
   assert.match(headerSource, /data-room-conversation-header-edge="true"/);
+  assert.match(
+    roomSurfaceContentSource,
+    /data-room-conversation-reading-edge="true"/,
+  );
   assert.match(
     mobileHeaderSource,
     /data-room-conversation-header-edge="true"/,
   );
-  assert.match(topFadeRule, /position:\s*absolute/);
-  assert.match(topFadeRule, /top:\s*100%/);
-  assert.match(topFadeRule, /z-index:\s*10/);
-  assert.match(topFadeRule, /pointer-events:\s*none/);
-  assert.match(topFadeRule, /linear-gradient/);
-  assert.doesNotMatch(topFadeRule, /\b(?:margin|padding)(?:-|:)/);
+  assert.match(
+    mobileHeaderSource,
+    /nexus-room-conversation-header-edge--mobile/,
+  );
+  assert.match(
+    headerStyles,
+    /\.nexus-room-conversation-reading-edge\s*\{[\s\S]*?overflow:\s*hidden/,
+  );
+  assert.match(desktopTopFadeRule, /top:\s*0/);
+  assert.match(
+    headerStyles,
+    /\.nexus-room-conversation-header-edge--mobile::after\s*\{\s*top:\s*100%/,
+  );
+  assert.match(
+    headerStyles,
+    /\.nexus-room-conversation-reading-edge::before,\s*\n\.nexus-room-conversation-header-edge--mobile::after\s*\{[\s\S]*?position:\s*absolute[\s\S]*?z-index:\s*10[\s\S]*?pointer-events:\s*none[\s\S]*?linear-gradient/,
+  );
+  assert.doesNotMatch(
+    desktopTopFadeRule,
+    /\b(?:margin|padding)(?:-|:)/,
+  );
+  assert.doesNotMatch(
+    headerStyles,
+    /\.nexus-room-conversation-header-edge::after\s*\{/,
+  );
   assert.match(
     headerStyles,
     /\.nexus-room-conversation-header-edge\s*>\s*\.shell-region-header\s*\{[\s\S]*?box-shadow:\s*none/,

@@ -1,7 +1,7 @@
 /*
- * INPUT: Room/DM desktop 与 focus-mode Header 的 Nexus 主题背景。
- * OUTPUT: 不接收指针、从 Header 自身下缘向正文透明过渡的短羽化。
- * POS: Room Surface 共用 Header 视觉边界；不改变 60px/52px 布局或拖窗热区。
+ * INPUT: Room/DM 聊天 viewport 与 focus-mode Header 的 Nexus 主题背景。
+ * OUTPUT: 桌面只在聊天栏内、移动端从整宽 Header 下缘向正文透明过渡的短羽化。
+ * POS: Room Surface 对话阅读边界；不覆盖并列工作区，不改变 60px/52px 布局或拖窗热区。
  */
 .nexus-room-conversation-header-edge {
   position: relative;
@@ -9,9 +9,15 @@
   border-bottom-color: transparent;
 }
 
-.nexus-room-conversation-header-edge::after {
+.nexus-room-conversation-reading-edge {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.nexus-room-conversation-reading-edge::before,
+.nexus-room-conversation-header-edge--mobile::after {
   position: absolute;
-  top: 100%;
   right: 0;
   left: 0;
   z-index: 10;
@@ -27,12 +33,20 @@
   content: "";
 }
 
+.nexus-room-conversation-reading-edge::before {
+  top: 0;
+}
+
+.nexus-room-conversation-header-edge--mobile::after {
+  top: 100%;
+}
+
 .nexus-room-conversation-header-edge > .shell-region-header {
   box-shadow: none;
 }
 
 @media (max-width: 1023px) {
-  .nexus-room-conversation-header-edge::after {
+  .nexus-room-conversation-header-edge--mobile::after {
     height: 28px;
   }
 }

@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Scoped the desktop conversation-header fade to the chat pane's own clipped reading edge, so opening Workspace, Agent details, or Subagents no longer washes out the neighboring panel; focus-mode mobile conversations retain the full-width fade.
 - Fixed startup for SQLite databases that had already recorded the former conversation-draft migration as version 56: Nexus now repairs the missing Agent disabled-Skill column, advances the legacy migration ledger safely, and retains an idempotent PostgreSQL forward repair.
 - Fixed Composer drafts retaining an oversized height after their available width changed; text and width now share one bounded measurement path, growth stops after roughly five lines, and longer drafts scroll internally. Collapsed file-tool activity now shows only the leaf filename while expanded details and permission confirmation retain the full path.
 - Fixed Room permission-first Agent shells using a local `0/1` order that could temporarily jump above an existing coordinator reply; permission, slot, stream, and terminal message evidence now share one canonical order scale, so parallel members stay in their first visible positions throughout confirmation and output.
