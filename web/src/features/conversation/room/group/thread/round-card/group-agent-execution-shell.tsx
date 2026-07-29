@@ -2,7 +2,7 @@
 
 /**
  * INPUT: Room Agent 执行身份、消息、人工介入状态、局部说话人边界与用户动作。
- * OUTPUT: 从 pending 到 terminal 始终复用 MessageItem 的稳定 Agent 执行外壳；相邻 Agent 只用短身份提示分隔。
+ * OUTPUT: 从 pending 到 terminal 始终复用 MessageItem 的稳定 Agent 执行外壳；首次 handoff 只做一次不重挂内容的轻量淡入。
  * POS: Room 主 Feed 单个 agent_round 的唯一 Assistant 展示面。
  */
 import { Square } from "lucide-react";
@@ -11,6 +11,7 @@ import { memo, useCallback, useMemo } from "react";
 import type { AgentMentionDirectory } from "@/features/conversation/shared/message/agent-mention-chip";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import type {
   AssistantMessage,
   ResultSummary,
@@ -114,7 +115,10 @@ function GroupAgentExecutionShellInner({
   return (
     <div
       data-room-agent-execution-shell={roundId}
-      className="w-full min-w-0"
+      className={cn(
+        "room-agent-execution-shell w-full min-w-0",
+        isActive && messages.length === 0 && "room-agent-execution-enter",
+      )}
     >
       {showAgentBoundary ? (
         <div

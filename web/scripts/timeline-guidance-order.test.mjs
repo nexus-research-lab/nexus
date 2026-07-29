@@ -1625,6 +1625,11 @@ test("Room public activity survives the pause between reply text and tool work",
     status: "pending",
   });
   assert.match(pendingHtml, /正在思考/);
+  assert.match(
+    pendingHtml,
+    /room-agent-execution-enter/,
+    "the first pending shell receives one bounded compositor-only entrance animation",
+  );
   assert.equal(
     pendingHtml.match(/message-activity-spinner-track/g)?.length,
     1,

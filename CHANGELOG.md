@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Made Agent-to-Agent Room handoffs acknowledge immediately with one gently revealed execution shell that reuses the existing thinking state before reply output arrives.
 - Distinguished semantic Markdown rules from Room speaker changes: adjacent Agents now use a short identity-aligned cue instead of repeated full-width dividers, and hidden Room fanout/no-reply control markers are stripped from text, result, history, and copy projections.
 - Rebuilt the conversation bottom work area around a Composer-anchored, centered Task capsule that shows the current step and summary beside a local return-to-latest control, moved `Powered by Nexus` into the physically centered Composer footer, retained the 880px/20px input geometry, and made footer density respond to the chat canvas rather than the browser window.
 - Replaced the single-Agent Composer input in place whenever permissions, structured questions, or plan confirmations need a user response, preserving unsent drafts while one stable request queue advances. Consecutive DM tool calls now stay expanded as one live execution segment and collapse automatically when narrative output resumes, while Room interactions remain attached to their owning Agent.
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed pre-start rejected or cancelled Room handoffs polluting the root cycle graph and incorrectly blocking a later valid sibling Agent handoff; edges that actually created a target round still participate in cycle protection after failure.
 - Fixed Room Agent replies with multiple valid `@member` assignments waking only the first target; every target now receives an independent handoff while duplicate, cycle, hop, and root fanout guards remain enforced.
 - Enabled SQLite foreign-key enforcement on every runtime connection, made Goal deletion remove its event history transactionally, added a repair migration for previously orphaned Goal events, and stopped Agent runtime workspace variables from being mistaken for the host workspace root.
 - Fixed compact Launcher windows making recent chats, rooms, and the Nexus handoff action unclickable when the decorative Agent pile overlapped their hit area.

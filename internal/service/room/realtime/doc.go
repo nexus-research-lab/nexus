@@ -33,6 +33,8 @@
 // 让前端 mention 状态只原位接棒到既有 execution shell，不另建回复卡。
 // Agent final 或主动公区消息中的每个有效非代码 @ 都创建独立 handoff；
 // 重复目标只启动一次，且继续服从 root fanout、cycle 与 hop 护栏。
+// cycle 图只接纳仍可执行或已经创建 target round 的边；启动前被拒绝/取消的
+// terminal attempt 继续计入 root 资源上限，但不得污染后续真实协作拓扑。
 // conversation 的权威 pending 快照即使为空也必须返回；多 root 并行时每个 slot
 // 自带 round_id，聚合 RoundID 只为单 root 兼容客户端提供 fallback。
 //

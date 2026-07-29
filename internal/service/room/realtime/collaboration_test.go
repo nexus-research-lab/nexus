@@ -408,6 +408,71 @@ func TestPublicHandoffAdmissionDetectsCycle(t *testing.T) {
 	}
 }
 
+type publicHandoffAdmissionEdgeFixture struct {
+	handoffID      string
+	sourceAgentID  string
+	targetAgentID  string
+	targetRoundID  string
+	terminalStatus string
+}
+
+func recordPublicHandoffAdmissionEdge(
+	t *testing.T,
+	store *workspacestore.RoomPublicHandoffStore,
+	ownerUserID string,
+	conversationID string,
+	rootRoundID string,
+	edge publicHandoffAdmissionEdgeFixture,
+) {
+	t.Helper()
+	if _, _, err := store.Detect(ownerUserID, workspacestore.RoomPublicHandoff{
+		HandoffID:       edge.handoffID,
+		ConversationID:  conversationID,
+		RootRoundID:     rootRoundID,
+		SourceMessageID: "message-" + edge.handoffID,
+		SourceAgentID:   edge.sourceAgentID,
+		TargetAgentID:   edge.targetAgentID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkSourceFinished(
+		ownerUserID,
+		conversationID,
+		edge.handoffID,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if edge.targetRoundID != "" {
+		if _, claimed, err := store.Claim(
+			ownerUserID,
+			conversationID,
+			edge.handoffID,
+		); err != nil {
+			t.Fatal(err)
+		} else if !claimed {
+			t.Fatalf("handoff %s should be claimable", edge.handoffID)
+		}
+		if err := store.MarkStarted(
+			ownerUserID,
+			conversationID,
+			edge.handoffID,
+			edge.targetRoundID,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if edge.terminalStatus != "" {
+		if err := store.MarkTerminal(
+			ownerUserID,
+			conversationID,
+			edge.handoffID,
+			edge.terminalStatus,
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestPublicHandoffAdmissionRejectsRecordedCycleAndRootOverflow(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("NEXUS_STATE_ROOT", root)
@@ -474,6 +539,139 @@ func TestPublicHandoffAdmissionRejectsRecordedCycleAndRootOverflow(t *testing.T)
 	}
 	if len(accepted) != 0 {
 		t.Fatalf("root handoff 超限后不应继续接受新边: %+v", accepted)
+	}
+}
+
+func TestPublicHandoffAdmissionIgnoresRejectedUnstartedEdgesInCycleGraph(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
+	t.Setenv("NEXUS_CONFIG_DIR", root)
+	const (
+		conversationID = "conversation-rejected-cycle-edge"
+		ownerUserID    = "owner"
+		rootRoundID    = "root-rejected-cycle-edge"
+	)
+	store := workspacestore.NewRoomPublicHandoffStore(root)
+	for _, edge := range []publicHandoffAdmissionEdgeFixture{
+		{
+			handoffID:     "host-to-a",
+			sourceAgentID: "host",
+			targetAgentID: "agent-a",
+			targetRoundID: "round-agent-a",
+		},
+		{
+			handoffID:     "host-to-b",
+			sourceAgentID: "host",
+			targetAgentID: "agent-b",
+			targetRoundID: "round-agent-b",
+		},
+		{
+			handoffID:      "a-to-host-rejected",
+			sourceAgentID:  "agent-a",
+			targetAgentID:  "host",
+			terminalStatus: "error",
+		},
+		{
+			handoffID:      "b-to-host-cancelled",
+			sourceAgentID:  "agent-b",
+			targetAgentID:  "host",
+			terminalStatus: "interrupted",
+		},
+		{
+			handoffID:     "a-to-b-valid",
+			sourceAgentID: "agent-a",
+			targetAgentID: "agent-b",
+		},
+	} {
+		recordPublicHandoffAdmissionEdge(
+			t,
+			store,
+			ownerUserID,
+			conversationID,
+			rootRoundID,
+			edge,
+		)
+	}
+
+	const siblingHandoffID = "a-to-b-valid"
+	service := &Service{publicHandoffs: store}
+	accepted, err := service.admitPublicMentionWakes(
+		context.Background(),
+		&activeRoomRound{
+			ConversationID: conversationID,
+			RootRoundID:    rootRoundID,
+			OwnerUserID:    ownerUserID,
+		},
+		[]publicMentionWake{{
+			HandoffID:     siblingHandoffID,
+			QueueSource:   protocol.InputQueueSourceAgentPublicMention,
+			SourceAgentID: "agent-a",
+			TargetAgentID: "agent-b",
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(accepted) != 1 || accepted[0].HandoffID != siblingHandoffID {
+		t.Fatalf("pre-start rejected edges must not poison sibling handoff admission: %+v", accepted)
+	}
+}
+
+func TestPublicHandoffAdmissionKeepsStartedFailureInCycleGraph(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
+	t.Setenv("NEXUS_CONFIG_DIR", root)
+	const (
+		conversationID = "conversation-started-failure-cycle-edge"
+		ownerUserID    = "owner"
+		rootRoundID    = "root-started-failure-cycle-edge"
+	)
+	store := workspacestore.NewRoomPublicHandoffStore(root)
+	for _, edge := range []publicHandoffAdmissionEdgeFixture{
+		{
+			handoffID:      "a-to-b-started",
+			sourceAgentID:  "agent-a",
+			targetAgentID:  "agent-b",
+			targetRoundID:  "round-agent-b",
+			terminalStatus: "error",
+		},
+		{
+			handoffID:     "b-to-a-rejected",
+			sourceAgentID: "agent-b",
+			targetAgentID: "agent-a",
+		},
+	} {
+		recordPublicHandoffAdmissionEdge(
+			t,
+			store,
+			ownerUserID,
+			conversationID,
+			rootRoundID,
+			edge,
+		)
+	}
+
+	const reciprocalHandoffID = "b-to-a-rejected"
+	service := &Service{publicHandoffs: store}
+	accepted, err := service.admitPublicMentionWakes(
+		context.Background(),
+		&activeRoomRound{
+			ConversationID: conversationID,
+			RootRoundID:    rootRoundID,
+			OwnerUserID:    ownerUserID,
+		},
+		[]publicMentionWake{{
+			HandoffID:     reciprocalHandoffID,
+			QueueSource:   protocol.InputQueueSourceAgentPublicMention,
+			SourceAgentID: "agent-b",
+			TargetAgentID: "agent-a",
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(accepted) != 0 {
+		t.Fatalf("a started edge must remain in the cycle graph after failure: %+v", accepted)
 	}
 }
 

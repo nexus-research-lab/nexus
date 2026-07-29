@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 消息活动状态。
- * OUTPUT: 图标、中文状态语义与真实逐帧运行的紧凑活动提示。
+ * OUTPUT: 图标、思考/执行/回复语义与真实逐帧运行的紧凑活动提示。
  * POS: DM/Room 共用的活动呈现；不推导 runtime 状态，也不占用消息正文身份。
  */
 import {
@@ -54,7 +54,7 @@ const ACTIVITY_PRESENTATION: Record<
   replying: {
     icon: MessageSquareText,
     label: "正在回复",
-    spinner: "dna",
+    spinner: "braille",
     toneClassName: "text-(--text-default)",
   },
   browsing: {

@@ -1,5 +1,5 @@
 // INPUT: 已完成 Agent 输出中的公区 @ 与目标 Agent 当前执行态。
-// OUTPUT: 同 Agent 串行的 public mention guide/新轮唤醒，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
+// OUTPUT: 同 Agent 串行的 public mention guide/新轮唤醒、只基于实际执行边的 root 去环，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
 // POS: Room Agent 间公开协作的唤醒编排入口。
 package realtime
 
@@ -403,7 +403,9 @@ func (s *Service) admitPublicMentionWakes(
 			continue
 		}
 		historicalRootHandoffs++
-		workingEdges = append(workingEdges, edge)
+		if roomPublicHandoffContributesCycleEdge(edge) {
+			workingEdges = append(workingEdges, edge)
+		}
 	}
 	accepted := make([]publicMentionWake, 0, len(wakes))
 	acceptedGuarded := 0
@@ -529,6 +531,22 @@ func roomPublicHandoffIsInFlight(status string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// 被护栏或 source 取消在启动前收口的边只是 admission attempt，
+// 不构成真实协作拓扑；已创建 target round 的失败边仍必须参与去环。
+func roomPublicHandoffContributesCycleEdge(
+	edge workspacestore.RoomPublicHandoff,
+) bool {
+	if strings.TrimSpace(edge.TargetRoundID) != "" {
+		return true
+	}
+	switch strings.TrimSpace(edge.Status) {
+	case "error", "interrupted":
+		return false
+	default:
+		return true
 	}
 }
 

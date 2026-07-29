@@ -207,6 +207,7 @@ Directed message 是 Room 私域通信的唯一协议原语。单人私信、多
 - 用户停止 root 链时收口派生任务。
 - public handoff 的持久化日志、幂等 claim 和 queue item 关联。
 - root 级 visited/cycle 检测、fanout 上限和取消传播；`hop` 上限只作为最后一道保险。
+- cycle 拓扑只包含仍可执行或已经创建 target round 的 handoff；在启动前被护栏拒绝或取消的 terminal attempt 仍计入 root 资源上限，但不能成为后续去环的图边。
 
 护栏只保护运行时资源，不推断业务完成。
 
@@ -260,6 +261,7 @@ Checkpoint 记录公区和私域实际消费边界。成功完成或明确 no-re
 - 只有明确的 public projection 才能写入 public feed。
 - 同一 `source_message_id + target_agent_id` 只允许一个 public handoff；重试必须复用该 handoff 的 claim、queue item 或 target round。
 - 同一 root 的 public handoff 必须通过 visited/cycle、fanout 和取消护栏；达到 hop 上限时只作为最终兜底拒绝。
+- 启动前被拒绝或取消且没有 `target_round_id` 的 handoff 不构成已执行协作边，不能让合法的 sibling handoff 被误判为 cycle。
 - source public message 必须先于其 handoff 的 target 状态和回复；sibling slot 的快慢不能改变这条因果关系。
 - 回复路线由消息记录携带，不能从自然语言或默认约定推断。
 - Room 平台不维护业务级流程状态；需要这些状态时由 Skill 自己持久化并通信。
