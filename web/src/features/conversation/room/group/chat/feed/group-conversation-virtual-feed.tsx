@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 轮次投影、渲染器与共享滚动/feed refs。
- * OUTPUT: 使用稳定身份、真实内容高度、pending 轨道估高和可见锚点策略的群聊虚拟消息流。
+ * OUTPUT: 使用稳定身份、真实内容高度、pending slot 估高和可见锚点策略的群聊虚拟消息流。
  * POS: Room 会话超过虚拟化阈值后的 Feed 渲染入口。
  */
 import { useCallback, useMemo } from "react";
@@ -56,16 +56,13 @@ export function GroupConversationVirtualFeed({
     );
     return projectGroupRoundHeights({
       baseHeights,
-      containerWidth: metrics.containerWidth,
       messageGroups: source.messageGroups,
-      pendingPermissionGroups: source.pendingPermissionGroups,
       pendingSlotGroups: source.pendingSlotGroups,
       roundIds: source.roundIds,
     });
   }, [
     metrics.containerWidth,
     source.messageGroups,
-    source.pendingPermissionGroups,
     source.pendingSlotGroups,
     source.roundIds,
   ]);

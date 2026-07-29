@@ -1,6 +1,6 @@
-// INPUT: 已完成 Agent 输出中的公区 @ 与目标 Agent 当前执行态。
-// OUTPUT: 同 Agent 串行的 public mention guide/新轮唤醒、只基于实际执行边的 root 去环，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
-// POS: Room Agent 间公开协作的唤醒编排入口。
+// INPUT: 已完成 Agent 输出中的显式公区 @ 与目标 Agent 当前执行态。
+// OUTPUT: 任意非 self 成员间幂等 handoff、同 Agent 串行 guide/queue/新轮唤醒，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
+// POS: Room Agent 间公开协作的显式路由与纯资源护栏入口；不解释或限制业务协作拓扑。
 package realtime
 
 import (
@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// hop 是最后一道保险；更早的 root admission 会先拦截环和异常 fanout。
+	// hop 是最后一道保险；更早的 root admission 只限制异常 fanout 与总量。
 	roomMaxWakeHops      = 16
 	roomMaxHandoffFanout = 8
 	roomMaxRootHandoffs  = 32
@@ -230,8 +230,8 @@ func (s *Service) startPublicMentionRoundLocked(
 	if len(wakes) == 0 {
 		return nil
 	}
-	// root admission 已经先处理 visited/cycle/fanout；hop 只作为最后一道
-	// 跨重启或异常数据兜底，避免正常链路被单一计数提前截断。
+	// root admission 已经先处理幂等、self、fanout 与总量；hop 只作为
+	// 跨重启或异常数据的最后兜底，不能承担业务拓扑判断。
 	if parentRound.HopIndex >= roomMaxWakeHops {
 		s.terminalizePublicMentionWakes(
 			ctx,
@@ -349,7 +349,7 @@ func (s *Service) startPublicMentionRoundLocked(
 	return nil
 }
 
-// admitPublicMentionWakes 在真正 claim 前做 root 级资源与拓扑护栏。
+// admitPublicMentionWakes 在真正 claim 前做幂等、self 与 root 级资源护栏。
 // 只有显式 handoff 的公区 @ 进入这里；directed message 仍由自己的路由规则管理。
 func (s *Service) admitPublicMentionWakes(
 	ctx context.Context,
@@ -395,17 +395,11 @@ func (s *Service) admitPublicMentionWakes(
 			currentWakeIDs[handoffID] = struct{}{}
 		}
 	}
-	workingEdges := make([]workspacestore.RoomPublicHandoff, 0, len(edges)+len(wakes))
 	for _, edge := range edges {
-		// 同一批次的 sibling 边不能互相制造环；只把历史 root 边
-		// 带入拓扑判断，再按当前接受顺序逐条加入。
 		if _, current := currentWakeIDs[strings.TrimSpace(edge.HandoffID)]; current {
 			continue
 		}
 		historicalRootHandoffs++
-		if roomPublicHandoffContributesCycleEdge(edge) {
-			workingEdges = append(workingEdges, edge)
-		}
 	}
 	accepted := make([]publicMentionWake, 0, len(wakes))
 	acceptedGuarded := 0
@@ -444,9 +438,8 @@ func (s *Service) admitPublicMentionWakes(
 			}
 			if roomPublicHandoffIsInFlight(existing.Status) {
 				// claimed/started 可能正由另一条恢复路径消费；保持幂等，
-				// 不再用当前拓扑快照回写一个正在执行的边。
+				// 不再重新 claim 或回写一个正在执行的边。
 				accepted = append(accepted, wake)
-				workingEdges = append(workingEdges, existing)
 				acceptedGuarded++
 				continue
 			}
@@ -474,9 +467,8 @@ func (s *Service) admitPublicMentionWakes(
 		}
 		if hasExisting {
 			// annotation 在 start 前已经 Detect；恢复路径也会再次看到同一
-			// 条边。它们仍需经过同一拓扑校验，不能因为已写 ledger 就绕过
-			// cycle/fanout 护栏。
-			if roomPublicHandoffCreatesCycle(workingEdges, sourceAgentID, targetAgentID) {
+			// 条边。ledger 身份必须一致，资源上限也不能因为恢复而绕过。
+			if sourceAgentID == "" || targetAgentID == "" || sourceAgentID == targetAgentID {
 				s.terminalizePublicMentionWakes(
 					ctx,
 					parentRound.OwnerUserID,
@@ -487,12 +479,10 @@ func (s *Service) admitPublicMentionWakes(
 				continue
 			}
 			accepted = append(accepted, wake)
-			workingEdges = append(workingEdges, existing)
 			acceptedGuarded++
 			continue
 		}
-		if sourceAgentID == "" || targetAgentID == "" || sourceAgentID == targetAgentID ||
-			roomPublicHandoffCreatesCycle(workingEdges, sourceAgentID, targetAgentID) {
+		if sourceAgentID == "" || targetAgentID == "" || sourceAgentID == targetAgentID {
 			s.terminalizePublicMentionWakes(
 				ctx,
 				parentRound.OwnerUserID,
@@ -502,14 +492,6 @@ func (s *Service) admitPublicMentionWakes(
 			)
 			continue
 		}
-		workingEdges = append(workingEdges, workspacestore.RoomPublicHandoff{
-			HandoffID:      handoffID,
-			SourceAgentID:  sourceAgentID,
-			TargetAgentID:  targetAgentID,
-			RootRoundID:    rootRoundID,
-			ConversationID: parentRound.ConversationID,
-			Status:         "source_finished",
-		})
 		accepted = append(accepted, wake)
 		acceptedGuarded++
 	}
@@ -532,59 +514,6 @@ func roomPublicHandoffIsInFlight(status string) bool {
 	default:
 		return false
 	}
-}
-
-// 被护栏或 source 取消在启动前收口的边只是 admission attempt，
-// 不构成真实协作拓扑；已创建 target round 的失败边仍必须参与去环。
-func roomPublicHandoffContributesCycleEdge(
-	edge workspacestore.RoomPublicHandoff,
-) bool {
-	if strings.TrimSpace(edge.TargetRoundID) != "" {
-		return true
-	}
-	switch strings.TrimSpace(edge.Status) {
-	case "error", "interrupted":
-		return false
-	default:
-		return true
-	}
-}
-
-func roomPublicHandoffCreatesCycle(
-	edges []workspacestore.RoomPublicHandoff,
-	sourceAgentID string,
-	targetAgentID string,
-) bool {
-	sourceAgentID = strings.TrimSpace(sourceAgentID)
-	targetAgentID = strings.TrimSpace(targetAgentID)
-	if sourceAgentID == "" || targetAgentID == "" || sourceAgentID == targetAgentID {
-		return true
-	}
-	graph := make(map[string][]string)
-	for _, edge := range edges {
-		source := strings.TrimSpace(edge.SourceAgentID)
-		target := strings.TrimSpace(edge.TargetAgentID)
-		if source == "" || target == "" {
-			continue
-		}
-		graph[source] = append(graph[source], target)
-	}
-	stack := []string{targetAgentID}
-	visited := make(map[string]struct{})
-	for len(stack) > 0 {
-		last := len(stack) - 1
-		current := stack[last]
-		stack = stack[:last]
-		if current == sourceAgentID {
-			return true
-		}
-		if _, ok := visited[current]; ok {
-			continue
-		}
-		visited[current] = struct{}{}
-		stack = append(stack, graph[current]...)
-	}
-	return false
 }
 
 // terminalizePublicMentionWakes 收口因平台护栏被拒绝的 handoff，避免

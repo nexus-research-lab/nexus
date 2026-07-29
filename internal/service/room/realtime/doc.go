@@ -32,9 +32,9 @@
 // public wake 的初始 pending 与 reconnect snapshot 必须保留同一 handoff_id，
 // 让前端 mention 状态只原位接棒到既有 execution shell，不另建回复卡。
 // Agent final 或主动公区消息中的每个有效非代码 @ 都创建独立 handoff；
-// 重复目标只启动一次，且继续服从 root fanout、cycle 与 hop 护栏。
-// cycle 图只接纳仍可执行或已经创建 target round 的边；启动前被拒绝/取消的
-// terminal attempt 继续计入 root 资源上限，但不得污染后续真实协作拓扑。
+// 同一消息的重复目标只启动一次，self mention 被拒绝，任意成员间的 reciprocal
+// 或后续显式 @ 都是真实新交付。平台不解释业务拓扑，只保留 root fanout、
+// handoff 总量与 hop 资源保险；同一目标忙碌时必须通过 guide/queue 串行接力。
 // conversation 的权威 pending 快照即使为空也必须返回；多 root 并行时每个 slot
 // 自带 round_id，聚合 RoundID 只为单 root 兼容客户端提供 fallback。
 //

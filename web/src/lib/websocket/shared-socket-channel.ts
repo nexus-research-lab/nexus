@@ -6,6 +6,7 @@ import type {
 
 import { WebSocketClient } from "./socket-client";
 import type { ResolvedWebSocketConfig } from "./socket-policy";
+import { SessionBindingLeaseRegistry } from "./session-binding-leases";
 
 const SHARED_SOCKET_RELEASE_DELAY_MS = 300;
 
@@ -24,6 +25,7 @@ interface SharedSocketSnapshot {
 
 export class SharedWebSocketChannel {
   private readonly client: WebSocketClient;
+  private readonly sessionBindings: SessionBindingLeaseRegistry;
   private readonly subscribers = new Map<number, SharedSocketSubscriber>();
   private nextSubscriberId = 1;
   private state: WebSocketState = "disconnected";
@@ -35,6 +37,10 @@ export class SharedWebSocketChannel {
       onMessage: (message) => this.publishMessage(message),
       onStateChange: (state) => this.publishState(state),
     });
+    this.sessionBindings = new SessionBindingLeaseRegistry(
+      (message) => this.client.send(message),
+      () => this.state === "connected",
+    );
   }
 
   subscribe(subscriber: SharedSocketSubscriber): number {
@@ -72,6 +78,13 @@ export class SharedWebSocketChannel {
     return this.client.send(message);
   }
 
+  acquireSessionBinding(
+    lease: object,
+    message: WebSocketMessage,
+  ): () => void {
+    return this.sessionBindings.acquire(lease, message);
+  }
+
   getSnapshot(): SharedSocketSnapshot {
     return { error: this.error, state: this.state };
   }
@@ -94,6 +107,7 @@ export class SharedWebSocketChannel {
     this.state = state;
     if (state === "connected") {
       this.error = null;
+      this.sessionBindings.replay();
     }
     for (const subscriber of this.subscribers.values()) {
       subscriber.setState(state);

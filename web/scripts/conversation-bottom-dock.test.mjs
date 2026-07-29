@@ -21,24 +21,91 @@ test.after(async () => {
   await server.close();
 });
 
-async function renderWithI18n(element) {
+async function renderWithI18n(element, locale = "zh") {
   const { I18N_CONTEXT } = await server.ssrLoadModule(
     "/src/shared/i18n/i18n-context.ts",
+  );
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
   );
   return renderToStaticMarkup(
     React.createElement(
       I18N_CONTEXT.Provider,
       {
         value: {
-          locale: "zh",
+          locale,
           setLocale: () => {},
-          t: (key) => key,
+          t: (key, params = {}) => Object.entries(params).reduce(
+            (message, [name, value]) => message.replaceAll(
+              `{${name}}`,
+              String(value),
+            ),
+            MESSAGES[locale][key] ?? key,
+          ),
         },
       },
       element,
     ),
   );
 }
+
+test("anchored overlay end alignment follows the trigger without leaving the viewport", async () => {
+  const { resolveAnchoredOverlayPosition } = await server.ssrLoadModule(
+    "/src/shared/ui/overlay/anchored-overlay-model.ts",
+  );
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    innerHeight: 600,
+    innerWidth: 800,
+  };
+  try {
+    const position = resolveAnchoredOverlayPosition({
+      align: "end",
+      anchor: {
+        getBoundingClientRect: () => ({
+          bottom: 540,
+          height: 40,
+          left: 660,
+          right: 700,
+          top: 500,
+          width: 40,
+        }),
+      },
+      estimatedHeight: 104,
+      maxHeight: 320,
+      minHeight: 44,
+      minWidth: 248,
+      placement: "top",
+    });
+    assert.equal(position.left, 452);
+    assert.equal(position.width, 248);
+    assert.equal(position.placement, "top");
+
+    globalThis.window.innerWidth = 240;
+    const narrowPosition = resolveAnchoredOverlayPosition({
+      align: "end",
+      anchor: {
+        getBoundingClientRect: () => ({
+          bottom: 540,
+          height: 40,
+          left: 190,
+          right: 230,
+          top: 500,
+          width: 40,
+        }),
+      },
+      estimatedHeight: 104,
+      maxHeight: 320,
+      minHeight: 44,
+      minWidth: 248,
+      placement: "top",
+    });
+    assert.equal(narrowPosition.left, 12);
+    assert.equal(narrowPosition.width, 216);
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
 
 test("回到底部入口隐藏时零标记，显示时只有局部热区且没有原生 tooltip", async () => {
   const { ScrollToLatestButton } = await server.ssrLoadModule(
@@ -100,6 +167,62 @@ test("消息尾部只为真实可见的浮动 Dock 保留避让", async () => {
   assert.doesNotMatch(hidden, /data-conversation-dock-clearance/);
   assert.match(occupied, /data-conversation-dock-clearance/);
   assert.match(occupied, /\bh-14\b/);
+});
+
+test("shared WebSocket session leases keep a live Room bound until its last consumer leaves", async () => {
+  const { SessionBindingLeaseRegistry } = await server.ssrLoadModule(
+    "/src/lib/websocket/session-binding-leases.ts",
+  );
+  const sent = [];
+  let connected = true;
+  const registry = new SessionBindingLeaseRegistry(
+    (message) => {
+      sent.push(message);
+      return { disposition: "sent" };
+    },
+    () => connected,
+  );
+  const firstLease = {};
+  const secondLease = {};
+  const binding = {
+    type: "bind_session",
+    session_key: "room:group:conversation-1",
+    room_id: "room-1",
+    conversation_id: "conversation-1",
+  };
+
+  const releaseFirst = registry.acquire(firstLease, binding);
+  const releaseSecond = registry.acquire(secondLease, binding);
+  assert.deepEqual(
+    sent.map((message) => message.type),
+    ["bind_session", "bind_session"],
+  );
+
+  releaseFirst();
+  assert.equal(
+    sent.some((message) => message.type === "unbind_session"),
+    false,
+  );
+
+  connected = false;
+  registry.replay();
+  connected = true;
+  registry.replay();
+  assert.equal(
+    sent.filter((message) => message.type === "bind_session").length,
+    3,
+  );
+
+  releaseSecond();
+  releaseSecond();
+  assert.deepEqual(sent.at(-1), {
+    type: "unbind_session",
+    session_key: "room:group:conversation-1",
+  });
+  assert.equal(
+    sent.filter((message) => message.type === "unbind_session").length,
+    1,
+  );
 });
 
 test("Composer Footer keeps Powered by Nexus in its physical center column", async () => {
@@ -208,7 +331,7 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
   assert.match(html, /data-workspace-task-summary="正在核对布局"/);
   assert.match(html, /\bh-11\b/);
   assert.match(html, /\brounded-full\b/);
-  assert.match(html, /tasks\.step_progress/);
+  assert.match(html, /第 2 \/ 3 步/);
   assert.match(html, /正在核对布局/);
   assert.match(html, /aria-controls="[^"]+"/);
   assert.match(html, /aria-expanded="false"/);
@@ -318,15 +441,21 @@ test("Task and scroll controls share a centered dock while retaining local point
   );
 });
 
-test("DM pending interactions replace the Composer input in one stable queue", async () => {
+test("DM and Room pending interactions replace the Composer input in one stable queue", async () => {
   const { buildComposerInteractionQueue } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/components/interaction/composer-interaction-model.ts",
   );
   const { ComposerInteractionSurface } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/components/interaction/composer-interaction-surface.tsx",
   );
+  const { getPermissionScopeActionLabelKey } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/interaction/composer-permission-model.ts",
+  );
   const { ComposerPanel } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/composer-panel.tsx",
+  );
+  const { getReadablePermissionSuggestions } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/tool-block-model.ts",
   );
   const {
     removePendingPermission,
@@ -335,12 +464,14 @@ test("DM pending interactions replace the Composer input in one stable queue", a
     "/src/hooks/agent/transport/handlers/permission/pending-permission-state.ts",
   );
   const first = {
+    agent_id: "agent-1",
     request_id: "request-first",
     summary: "旧快照",
     tool_input: { command: "echo old" },
     tool_name: "Bash",
   };
   const second = {
+    agent_id: "agent-2",
     request_id: "request-second",
     summary: "第二项",
     tool_input: { file_path: "/tmp/second" },
@@ -348,6 +479,15 @@ test("DM pending interactions replace the Composer input in one stable queue", a
   };
   const latest = {
     ...first,
+    suggestions: [{
+      behavior: "allow",
+      destination: "localSettings",
+      rules: [{
+        rule_content: "echo updated",
+        tool_name: "Bash",
+      }],
+      type: "addRules",
+    }],
     summary: "最新快照",
     tool_input: { command: "echo updated" },
   };
@@ -357,6 +497,17 @@ test("DM pending interactions replace the Composer input in one stable queue", a
   pending = upsertPendingPermission(pending, latest);
   assert.deepEqual(pending, [latest, second]);
   assert.deepEqual(removePendingPermission(pending, first.request_id), [second]);
+  assert.deepEqual(
+    getReadablePermissionSuggestions(latest.suggestions).map(({ label }) => label),
+    ["写入本地设置"],
+  );
+  assert.equal(
+    getPermissionScopeActionLabelKey(
+      latest.tool_name,
+      latest.suggestions[0],
+    ),
+    "composer.permission_add_bash_allow_rule",
+  );
 
   const queue = buildComposerInteractionQueue(pending);
   assert.equal(queue.current?.request_id, first.request_id);
@@ -364,12 +515,25 @@ test("DM pending interactions replace the Composer input in one stable queue", a
   assert.equal(queue.total, 2);
 
   const interaction = React.createElement(ComposerInteractionSurface, {
+    agentAvatarMap: {
+      "agent-1": null,
+      "agent-2": null,
+    },
+    agentNameMap: {
+      "agent-1": "Researcher",
+      "agent-2": "Reviewer",
+    },
     onResponse: () => true,
     permissions: pending,
-    workspaceAgentId: "agent-1",
   });
   const interactionHtml = await renderWithI18n(interaction);
   assert.match(interactionHtml, /data-composer-interaction-surface="true"/);
+  assert.match(
+    interactionHtml,
+    /data-composer-interaction-agent-id="agent-1"/,
+  );
+  assert.match(interactionHtml, /Researcher/);
+  assert.match(interactionHtml, /data-composer-interaction-requester="true"/);
   assert.match(
     interactionHtml,
     /data-pending-interaction-request-id="request-first"/,
@@ -377,8 +541,18 @@ test("DM pending interactions replace the Composer input in one stable queue", a
   assert.match(interactionHtml, /1 \/ 2/);
   assert.match(interactionHtml, /echo updated/);
   assert.doesNotMatch(interactionHtml, /\/tmp\/second/);
-  assert.match(interactionHtml, />允许</);
+  assert.match(interactionHtml, />允许本次</);
+  assert.match(interactionHtml, /aria-label="选择允许范围"/);
   assert.match(interactionHtml, />拒绝</);
+  const interactionEnglishHtml = await renderWithI18n(interaction, "en");
+  assert.match(interactionEnglishHtml, />Allow once</);
+  assert.match(interactionEnglishHtml, />Deny</);
+  assert.match(interactionEnglishHtml, />Terminal</);
+  assert.match(
+    interactionEnglishHtml,
+    /aria-label="Choose permission scope"/,
+  );
+  assert.doesNotMatch(interactionEnglishHtml, /允许本次|拒绝|终端/);
 
   const composerProps = {
     compact: false,
@@ -420,9 +594,32 @@ test("DM pending interactions replace the Composer input in one stable queue", a
   assert.match(inputHtml, /data-composer-surface="input"/);
   assert.match(inputHtml, /<textarea/);
   assert.match(inputHtml, /data-composer-powered-by="true"/);
+
+  const roomProjectionSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/group/chat/panel/controller/group-chat-panel-projection.ts",
+    ),
+    "utf8",
+  );
+  const roomViewSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/group/chat/panel/view/group-chat-panel-view.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(
+    roomProjectionSource,
+    /composerInteraction:[\s\S]*pending_permissions/,
+  );
+  assert.match(
+    roomViewSource,
+    /ComposerInteractionSurface[\s\S]*interactionIdentity[\s\S]*interactionSurface/,
+  );
 });
 
-test("DM questions and plan confirmations use the same Composer replacement owner", async () => {
+test("questions and plan confirmations use the same Composer replacement owner", async () => {
   const { buildComposerInteractionQueue } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/components/interaction/composer-interaction-model.ts",
   );
@@ -472,13 +669,16 @@ test("DM questions and plan confirmations use the same Composer replacement owne
   );
   assert.match(planHtml, /data-composer-interaction-kind="plan"/);
   assert.match(planHtml, /先验证数据源，再生成最终报告/);
-  assert.match(planHtml, />允许</);
+  assert.match(planHtml, />允许本次</);
   assert.match(planHtml, />拒绝</);
 });
 
-test("DM messages keep pending interactions as read-only evidence without a second action surface", async () => {
+test("DM and Room messages keep pending interactions as read-only evidence without a second action surface", async () => {
   const { resolvePendingInteractionOwner } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/message-item-projection.ts",
+  );
+  const { MessageActivityStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/message-activity-status.tsx",
   );
   const { ContentRenderer } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
@@ -494,7 +694,8 @@ test("DM messages keep pending interactions as read-only evidence without a seco
   };
   assert.equal(resolvePendingInteractionOwner("dm_live"), "composer");
   assert.equal(resolvePendingInteractionOwner("dm_archived"), "composer");
-  assert.equal(resolvePendingInteractionOwner("room_result"), "list");
+  assert.equal(resolvePendingInteractionOwner("room_result"), "composer");
+  assert.equal(resolvePendingInteractionOwner("room_thread"), "composer");
 
   const toolHtml = await renderWithI18n(
     React.createElement(ContentRenderer, {
@@ -515,9 +716,21 @@ test("DM messages keep pending interactions as read-only evidence without a seco
   );
   assert.match(toolHtml, /待确认/);
   assert.match(toolHtml, /echo protected/);
+  assert.match(toolHtml, /surface-muted-background/);
+  assert.doesNotMatch(toolHtml, /--warning|animate-pulse/);
   assert.doesNotMatch(toolHtml, />允许</);
   assert.doesNotMatch(toolHtml, />拒绝</);
   assert.doesNotMatch(toolHtml, /data-human-interaction-surface/);
+  const activityHtml = renderToStaticMarkup(React.createElement(
+    MessageActivityStatus,
+    { state: "waiting_permission" },
+  ));
+  assert.match(activityHtml, /等待确认/);
+  assert.match(activityHtml, /--text-muted/);
+  assert.doesNotMatch(
+    activityHtml,
+    /--warning|message-activity-spinner-track/,
+  );
 
   const unmatchedHtml = await renderWithI18n(
     React.createElement(AssistantMessageContent, {

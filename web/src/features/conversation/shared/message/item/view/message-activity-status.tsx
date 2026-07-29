@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 消息活动状态。
- * OUTPUT: 图标、思考/执行/回复语义与真实逐帧运行的紧凑活动提示。
+ * OUTPUT: 图标、思考/执行/回复的逐帧活动提示，以及中性静态的待确认状态。
  * POS: DM/Room 共用的活动呈现；不推导 runtime 状态，也不占用消息正文身份。
  */
 import {
@@ -12,7 +12,7 @@ import {
   MessageCircleMore,
   MessageSquareText,
   RefreshCw,
-  ShieldAlert,
+  Shield,
   Wrench,
 } from "lucide-react";
 import type { CSSProperties } from "react";
@@ -25,7 +25,7 @@ import type { MessageActivityState } from "../activity/message-activity-state";
 interface MessageActivityPresentation {
   icon: LucideIcon;
   label: string;
-  spinner: BrailleSpinnerName;
+  spinner: BrailleSpinnerName | null;
   toneClassName: string;
 }
 
@@ -70,10 +70,10 @@ const ACTIVITY_PRESENTATION: Record<
     toneClassName: "text-(--primary)",
   },
   waiting_permission: {
-    icon: ShieldAlert,
+    icon: Shield,
     label: "等待确认",
-    spinner: "braille",
-    toneClassName: "text-(--warning)",
+    spinner: null,
+    toneClassName: "text-(--text-muted)",
   },
   waiting_input: {
     icon: MessageCircleMore,
@@ -102,10 +102,12 @@ export function MessageActivityStatus({
           <ActivityIcon className="h-3.5 w-3.5" />
         </span>
         <MessageActivityLabel label={presentation.label} />
-        <MessageLoadingDots
-          className="shrink-0 opacity-70"
-          name={presentation.spinner}
-        />
+        {presentation.spinner ? (
+          <MessageLoadingDots
+            className="shrink-0 opacity-70"
+            name={presentation.spinner}
+          />
+        ) : null}
       </div>
     </div>
   );

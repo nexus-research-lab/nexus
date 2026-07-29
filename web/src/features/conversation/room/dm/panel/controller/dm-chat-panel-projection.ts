@@ -73,11 +73,17 @@ export function buildDmChatPanelViewModel({
     ...buildConversationPanelFrameModel(session, environment),
     composer,
     composerInteraction: {
+      agentAvatarMap: workspaceAgentId
+        ? { [workspaceAgentId]: currentAgentAvatar }
+        : undefined,
+      agentNameMap: workspaceAgentId && currentAgentName
+        ? { [workspaceAgentId]: currentAgentName }
+        : undefined,
+      fallbackAgentId: workspaceAgentId,
       onResponse: session.conversation.send_permission_response,
       permissions: coalescePendingPermissions(
         session.conversation.pending_permissions,
       ),
-      workspaceAgentId,
     },
     feed: buildDmFeedModel({
       currentAgentAvatar,

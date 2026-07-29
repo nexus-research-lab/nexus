@@ -20,7 +20,6 @@ import type {
 } from "./assistant-message-model";
 import { AssistantDmToolRuns } from "./assistant-dm-tool-runs";
 import { AssistantProcessCallchain } from "./assistant-process-callchain";
-import { PendingHumanInteractionList } from "./pending-human-interaction-list";
 
 interface AssistantMessageContentProps {
   activity: AssistantActivityState;
@@ -71,28 +70,8 @@ export function AssistantMessageContent({
         final={final}
       />
       <MaxTokensWarning visible={showMaxTokensWarning} />
-      <PendingHumanInteractionList
-        canRespond={environment.canRespondToPermissions}
-        mode={environment.mode}
-        onResponse={environment.onPermissionResponse}
-        permissions={selectInlinePendingInteractions(permissions)}
-        readOnlyReason={environment.permissionReadOnlyReason}
-        workspaceAgentId={environment.workspaceAgentId}
-      />
     </>
   );
-}
-
-function selectInlinePendingInteractions(
-  permissions: AssistantPermissionState,
-) {
-  if (permissions.owner === "list") {
-    return permissions.all;
-  }
-  if (permissions.owner === "content") {
-    return permissions.unmatched;
-  }
-  return [];
 }
 
 function RoomResultTrailingActivity({

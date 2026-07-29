@@ -59,14 +59,6 @@ export function ContentToolBlock({
   block: ToolUseContent;
   context: ContentToolBlockContext;
 }): ReactNode {
-  if (
-    context.pendingInteractionOwner === "list"
-    && context.pendingPermission
-  ) {
-    // Room 的 request-owned 交互轨道持续持有组件实例；tool message
-    // 到达后这里只让出上下文槽，不能再挂载第二个审批/问答树。
-    return null;
-  }
   const state = resolveContentToolBlockState(
     block,
     context.pendingPermission,

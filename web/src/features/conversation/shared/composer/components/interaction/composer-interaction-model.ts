@@ -1,7 +1,7 @@
 /**
- * INPUT: DM runtime 尚未完成的人工交互请求。
+ * INPUT: DM/Room runtime 尚未完成的人工交互请求。
  * OUTPUT: 按首次到达顺序收敛、一次只推进一个请求的 Composer 替换面模型。
- * POS: DM pending interaction 到共享 Composer 视图之间的纯投影边界。
+ * POS: pending interaction 到共享 Composer 视图之间的纯投影边界。
  */
 import { coalescePendingPermissions } from "@/lib/conversation/pending-permission-match";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";

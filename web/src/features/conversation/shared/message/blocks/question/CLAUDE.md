@@ -1,7 +1,7 @@
 # 用户问答块
 
 - `ask-user-question-block.tsx` 只适配工具协议并组合控制器与视图。
-- `pending-human-question.tsx` 把稳定 `request_id` 的 pending interaction 适配为可回答或拒绝的结构化输入面，供 DM Composer 替换面与 Room request-owned 列表共同消费。
+- `pending-human-question.tsx` 把稳定 `request_id` 的 pending interaction 适配为可回答或拒绝的结构化输入面，供 DM/Room Composer 替换面共同消费。
 - `ask-user-question-model.ts` 校验未知工具输入，并维护原子回答草稿、结果恢复、提交投影与交互状态；视图不得自行断言协议或拼装答案。
 - `controller/` 分离草稿恢复、交互状态、展开生命周期和异步提交事务；异步提交只能更新发起时的工具作用域。
 - `card/` 分离卡片投影、折叠头部、选项列表和自定义回答输入；卡片只发送用户意图，不维护草稿规则。

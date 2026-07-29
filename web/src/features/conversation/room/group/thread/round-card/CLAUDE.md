@@ -17,8 +17,8 @@
 - 卡片与 Thread 选择态以 `agent_round_id` 隔离；同 Agent 的历史执行与当前执行不得共用 React key 或展开态。
 - 单目标 guide 优先按持久化的消费方 `agent_round_id` 归卡；只有旧历史缺少该身份时才按时间兼容。
 - Agent 卡片只按稳定 `display_order` / slot 顺序排列；pending、streaming、terminal 状态变化以及 guide 到达都不得移动已展示卡片。
-- 公区只投影公开回复正文与必要人工介入，不展开内部工具过程；同一执行外壳内的内容增长不得依赖滚动层补救组件整体替换。
-- 每个 pending interaction 只能在同一 Agent 槽位投影一次；终态正文与独立确认模块不得重复渲染同一个结构化问题。
+- 公区只投影公开回复正文与 Composer-owned 人工介入的只读等待证据，不展开内部工具过程；同一执行外壳内的内容增长不得依赖滚动层补救组件整体替换。
+- 每个 pending interaction 只由 Composer 提供操作面；Agent 槽位与终态正文不得重复渲染结构化问题或批准按钮。
 - 带 root round 与 `agent_round_id` 的权限若对应 execution 已由 lifecycle 收口，必须在卡片与 root fallback 两层同时过滤，不能以通用交互卡重新出现。
-- 所有会让 runtime 等待用户响应的请求都必须在 Room 主卡片展示完整内容并可直接处理；工具审批、结构化回答、计划确认及后续新增类型均适用，Thread 只同步详情，不得成为解除执行阻塞的唯一入口。
+- 所有会让 runtime 等待用户响应的请求都由 Composer 原位替换输入框并成为唯一操作面；Room 主卡片与 Thread 只保留请求身份、等待状态和执行结果等只读证据，不得重复批准、回答或计划确认按钮。
 - 活动卡片的停止按钮只绑定自身 `stopAgentRoundId`，调用链必须传递 `agent_round_id`，终态 result 到达后不得被迟到的 streaming 事件复活。

@@ -6,6 +6,10 @@
 
 import type { ComponentProps } from "react";
 
+import {
+  ComposerInteractionSurface,
+  type ComposerInteractionSurfaceProps,
+} from "@/features/conversation/shared/composer/components/interaction/composer-interaction-surface";
 import { ComposerPanel } from "@/features/conversation/shared/composer/composer-panel";
 import {
   AgentHandoffStatusProvider,
@@ -42,6 +46,7 @@ type GoalPanelModel = Omit<
 
 export interface GroupChatPanelViewModel extends ConversationPanelFrameModel {
   composer: GroupChatComposerModel;
+  composerInteraction: ComposerInteractionSurfaceProps;
   feed: GroupConversationFeedProps;
   goalLead: RoomGoalLeadControlProps;
   goalPanel: GoalPanelModel;
@@ -74,6 +79,10 @@ function ActiveGroupConversation({
   model: GroupChatPanelViewModel;
 }) {
   const { isMobileLayout, viewport } = model;
+  const currentInteraction = model.composerInteraction.permissions[0] ?? null;
+  const interactionSurface = currentInteraction ? (
+    <ComposerInteractionSurface {...model.composerInteraction} />
+  ) : undefined;
   return (
     <>
       <ConversationPanelViewportArea
@@ -116,6 +125,8 @@ function ActiveGroupConversation({
           {...model.composer}
           compact={isMobileLayout}
           goalModeExtra={<RoomGoalLeadControl {...model.goalLead} />}
+          interactionIdentity={currentInteraction?.request_id ?? null}
+          interactionSurface={interactionSurface}
         />
       </ConversationPanelBottomArea>
     </>

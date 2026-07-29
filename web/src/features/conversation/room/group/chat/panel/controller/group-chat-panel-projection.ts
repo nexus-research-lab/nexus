@@ -11,6 +11,7 @@ import {
   type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
+import { coalescePendingPermissions } from "@/lib/conversation/pending-permission-match";
 import type { Agent } from "@/types/agent/agent";
 import type {
   InputQueueItem,
@@ -99,6 +100,14 @@ export function buildGroupChatPanelViewModel({
   return {
     ...buildConversationPanelFrameModel(session, environment),
     composer,
+    composerInteraction: {
+      agentAvatarMap: directory.avatars,
+      agentNameMap: directory.names,
+      onResponse: session.conversation.send_permission_response,
+      permissions: coalescePendingPermissions(
+        session.conversation.pending_permissions,
+      ),
+    },
     handoffStatuses: projectRoomAgentHandoffStatuses({
       executionStates: session.conversation.room_agent_execution_states,
       inputQueueItems: session.conversation.input_queue_items,

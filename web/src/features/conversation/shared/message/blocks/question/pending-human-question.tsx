@@ -1,7 +1,7 @@
 /**
  * INPUT: 要求用户提交结构化回答的 runtime 交互，以及可选的原始工具块。
  * OUTPUT: 以 request_id 保持表单与草稿身份稳定、可回答或拒绝的交互面。
- * POS: 独立 pending 列表与已匹配消息工具块共用的中立结构化输入适配器；后到 tool_use_id 只补上下文。
+ * POS: Composer 替换面与只读消息工具块共用的中立结构化输入适配器；后到 tool_use_id 只补上下文。
  */
 import { AskUserQuestionBlock } from "@/features/conversation/shared/message/blocks/question/ask-user-question-block";
 import { useI18n } from "@/shared/i18n/i18n-context";

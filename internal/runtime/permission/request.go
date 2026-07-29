@@ -63,7 +63,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 func (c *Context) resolveRouteContext(sessionKey string) RouteContext {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	route := c.sessionRoutes[sessionKey]
+	route := c.sessionRoutes[sessionKey].route
 	if route.DispatchSessionKey == "" {
 		route.DispatchSessionKey = sessionKey
 	}

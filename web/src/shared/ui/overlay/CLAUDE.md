@@ -1,6 +1,6 @@
 # Shared Overlay
 
-- `anchored-overlay-model.ts` 只计算锚点浮层在视口内的位置与尺寸。
+- `anchored-overlay-model.ts` 只计算锚点浮层在视口内的位置、尺寸与起点/终点对齐。
 - `anchored-overlay-layer.ts` 统一 Portal 容器、外部点击、Escape、滚动和窗口变化生命周期。
 - `overlay-contract.ts` 定义打开态 DOM 契约，供嵌套 Dialog 判断 Escape 的唯一消费层。
 - `overlay-styles.ts` 只定义锚点浮层共用的材质与进出场；层级、尺寸和内容语义仍由消费者决定。

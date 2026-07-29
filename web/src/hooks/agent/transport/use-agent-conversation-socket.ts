@@ -55,8 +55,11 @@ export function useAgentConversationSocket({
   setError,
 }: UseAgentConversationSocketOptions) {
   const hasConnectedRef = useRef(false);
+  const sessionBindingLeaseRef = useRef<object>({});
 
   const {
+    acquireSessionBinding,
+    channelKey,
     state: wsState,
     send: wsSend,
     reconnect: wsReconnect,
@@ -126,36 +129,28 @@ export function useAgentConversationSocket({
   }, [agentId, wsSend, wsState]);
 
   useEffect(() => {
-    if (!sessionKey || wsState !== "connected") {
+    if (!sessionKey) {
       return;
     }
 
-    // WebSocket 重连后，后端需要重新知道当前连接服务哪个 session，
-    // 否则挂起中的权限请求无法重投到新连接。
-    wsSend(buildSessionBindMessage({
+    // 共享物理连接按逻辑消费者持有 session 租约：任一旧面板 cleanup
+    // 只能释放自己的租约，最后一个消费者离开才会真正 unbind；
+    // 通道重连时会统一重放仍有效的绑定与挂起权限请求。
+    return acquireSessionBinding(sessionBindingLeaseRef.current, buildSessionBindMessage({
       session_key: sessionKey,
       last_seen_session_seq: sessionSeqCursorRef.current,
       agent_id: agentId,
       room_id: roomId,
       conversation_id: conversationId,
     }));
-
-    return () => {
-      // 共享 WebSocket 常驻于应用路由壳后，
-      // 会话组件卸载时必须显式解绑旧 session，避免权限请求和 session 状态继续路由到已离开的页面上下文。
-      wsSend({
-        type: "unbind_session",
-        session_key: sessionKey,
-      });
-    };
   }, [
+    acquireSessionBinding,
     agentId,
+    channelKey,
     conversationId,
     roomId,
     sessionKey,
     sessionSeqCursorRef,
-    wsSend,
-    wsState,
   ]);
 
   useEffect(() => {

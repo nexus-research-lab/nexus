@@ -1,3 +1,6 @@
+// INPUT: WebSocket sender、runtime session 路由 lease 与阻塞式人工交互命令。
+// OUTPUT: sender/session 绑定、仅由当前 owner 释放的路由映射，以及请求广播与响应收口。
+// POS: runtime permission 的并发上下文与连接生命周期真相源。
 package permission
 
 import (
@@ -24,12 +27,25 @@ type senderBinding struct {
 	Sender Sender
 }
 
+type sessionRouteBinding struct {
+	leaseID uint64
+	route   RouteContext
+}
+
+// SessionRouteLease 标识一次 runtime session 路由绑定的所有权。
+// 字段保持私有，调用方只能释放 BindSessionRoute 返回的 lease。
+type SessionRouteLease struct {
+	leaseID    uint64
+	sessionKey string
+}
+
 // Context 保存 session 绑定与权限请求广播逻辑。
 type Context struct {
 	mu              sync.RWMutex
 	sessionBindings map[string]map[string]senderBinding
 	senderSessions  map[string]map[string]struct{}
-	sessionRoutes   map[string]RouteContext
+	sessionRoutes   map[string]sessionRouteBinding
+	nextRouteLease  uint64
 	pendingRequests map[string]*PendingRequest
 	requestTimeout  time.Duration
 }
@@ -39,7 +55,7 @@ func NewContext() *Context {
 	return &Context{
 		sessionBindings: make(map[string]map[string]senderBinding),
 		senderSessions:  make(map[string]map[string]struct{}),
-		sessionRoutes:   make(map[string]RouteContext),
+		sessionRoutes:   make(map[string]sessionRouteBinding),
 		pendingRequests: make(map[string]*PendingRequest),
 		requestTimeout:  time.Minute,
 	}
@@ -184,26 +200,38 @@ func (c *Context) BroadcastEvent(ctx context.Context, sessionKey string, event p
 	return errs
 }
 
-// BindSessionRoute 记录运行时 session 到前端路由 session 的映射。
-func (c *Context) BindSessionRoute(sessionKey string, route RouteContext) {
+// BindSessionRoute 记录运行时 session 到前端路由 session 的映射，并返回当前绑定的 owner lease。
+func (c *Context) BindSessionRoute(sessionKey string, route RouteContext) SessionRouteLease {
 	if sessionKey == "" {
-		return
+		return SessionRouteLease{}
 	}
 	if route.DispatchSessionKey == "" {
 		route.DispatchSessionKey = sessionKey
 	}
 	c.mu.Lock()
-	c.sessionRoutes[sessionKey] = route
+	c.nextRouteLease++
+	lease := SessionRouteLease{
+		leaseID:    c.nextRouteLease,
+		sessionKey: sessionKey,
+	}
+	c.sessionRoutes[sessionKey] = sessionRouteBinding{
+		leaseID: lease.leaseID,
+		route:   route,
+	}
 	c.mu.Unlock()
+	return lease
 }
 
-// UnbindSessionRoute 移除运行时 session 路由映射。
-func (c *Context) UnbindSessionRoute(sessionKey string) {
-	if sessionKey == "" {
+// UnbindSessionRoute 仅在 lease 仍拥有当前绑定时移除 runtime session 路由。
+func (c *Context) UnbindSessionRoute(lease SessionRouteLease) {
+	if lease.sessionKey == "" || lease.leaseID == 0 {
 		return
 	}
 	c.mu.Lock()
-	delete(c.sessionRoutes, sessionKey)
+	binding, ok := c.sessionRoutes[lease.sessionKey]
+	if ok && binding.leaseID == lease.leaseID {
+		delete(c.sessionRoutes, lease.sessionKey)
+	}
 	c.mu.Unlock()
 }
 
@@ -211,8 +239,8 @@ func (c *Context) UnbindSessionRoute(sessionKey string) {
 func (c *Context) ResolveDispatchSessionKey(sessionKey string) string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if route, ok := c.sessionRoutes[sessionKey]; ok && route.DispatchSessionKey != "" {
-		return route.DispatchSessionKey
+	if binding, ok := c.sessionRoutes[sessionKey]; ok && binding.route.DispatchSessionKey != "" {
+		return binding.route.DispatchSessionKey
 	}
 	return sessionKey
 }

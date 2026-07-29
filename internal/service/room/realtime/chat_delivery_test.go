@@ -943,7 +943,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	}
 }
 
-func TestRealtimeServiceBlocksReciprocalPublicMentionChain(t *testing.T) {
+func TestRealtimeServiceAllowsReciprocalPublicMentionHandoff(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -1006,6 +1006,15 @@ func TestRealtimeServiceBlocksReciprocalPublicMentionChain(t *testing.T) {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
 
+	select {
+	case prompt := <-amySecondPrompt:
+		if !strings.Contains(prompt, "<latest_trigger>\nDevin: @Amy 我接完了，你继续。") {
+			t.Fatalf("reciprocal handoff 缺少 Devin 的明确触发: %s", prompt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("显式 reciprocal @ 没有再次唤醒 Amy")
+	}
+
 	finishedMentionRounds := 0
 	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
 		if event.EventType != protocol.EventTypeRoundStatus {
@@ -1016,12 +1025,24 @@ func TestRealtimeServiceBlocksReciprocalPublicMentionChain(t *testing.T) {
 		if strings.HasPrefix(roundID, "room_mention_") && status == "finished" {
 			finishedMentionRounds++
 		}
-		return finishedMentionRounds >= 1
+		return finishedMentionRounds >= 2
 	})
-	select {
-	case prompt := <-amySecondPrompt:
-		t.Fatalf("root cycle 不应再次唤醒 Amy: %s", prompt)
-	case <-time.After(300 * time.Millisecond):
+
+	handoffs, err := workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath).ListRoot(
+		roomContext.Room.OwnerUserID,
+		roomContext.Conversation.ID,
+		"room-round-public-mention-chain",
+	)
+	if err != nil {
+		t.Fatalf("读取 reciprocal handoff ledger 失败: %v", err)
+	}
+	if len(handoffs) != 2 {
+		t.Fatalf("A → B → A 应持久化两条独立 handoff: %+v", handoffs)
+	}
+	for _, handoff := range handoffs {
+		if handoff.Status != "finished" {
+			t.Fatalf("reciprocal handoff 未随目标 runtime 收口: %+v", handoff)
+		}
 	}
 }
 

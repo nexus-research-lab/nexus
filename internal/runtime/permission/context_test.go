@@ -75,3 +75,47 @@ func TestContextBroadcastSessionStatus(t *testing.T) {
 		t.Fatalf("running_round_ids 缺失: %+v", event.Data)
 	}
 }
+
+func TestContextStaleSessionRouteLeaseCannotDeleteReplacement(t *testing.T) {
+	ctx := NewContext()
+	const runtimeSessionKey = "agent:shared-runtime"
+
+	oldLease := ctx.BindSessionRoute(runtimeSessionKey, RouteContext{
+		DispatchSessionKey: "room:old",
+		RoundID:            "round-old",
+	})
+	replacementLease := ctx.BindSessionRoute(runtimeSessionKey, RouteContext{
+		DispatchSessionKey: "room:replacement",
+		RoundID:            "round-replacement",
+	})
+
+	ctx.UnbindSessionRoute(oldLease)
+
+	if got := ctx.ResolveDispatchSessionKey(runtimeSessionKey); got != "room:replacement" {
+		t.Fatalf("旧 lease 不得删除替换路由，实际 dispatch session: %q", got)
+	}
+	if got := ctx.resolveRouteContext(runtimeSessionKey).RoundID; got != "round-replacement" {
+		t.Fatalf("旧 lease 不得回退替换路由上下文，实际 round: %q", got)
+	}
+
+	ctx.UnbindSessionRoute(replacementLease)
+	if got := ctx.ResolveDispatchSessionKey(runtimeSessionKey); got != runtimeSessionKey {
+		t.Fatalf("当前 owner 释放后应回退 runtime session，实际: %q", got)
+	}
+}
+
+func TestContextSessionRouteLeaseReleaseIsIdempotent(t *testing.T) {
+	ctx := NewContext()
+	const runtimeSessionKey = "agent:idempotent-runtime"
+
+	lease := ctx.BindSessionRoute(runtimeSessionKey, RouteContext{
+		DispatchSessionKey: "room:idempotent",
+	})
+	ctx.UnbindSessionRoute(lease)
+	ctx.UnbindSessionRoute(lease)
+	ctx.UnbindSessionRoute(SessionRouteLease{})
+
+	if got := ctx.ResolveDispatchSessionKey(runtimeSessionKey); got != runtimeSessionKey {
+		t.Fatalf("重复或空 lease 释放后应保持无路由状态，实际: %q", got)
+	}
+}

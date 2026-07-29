@@ -12,7 +12,7 @@ export type AssistantContentMode =
   | "room_thread";
 
 export type AssistantResponseSurface = "direct" | "final";
-export type PendingInteractionOwner = "composer" | "content" | "list";
+export type PendingInteractionOwner = "composer" | "content";
 
 interface AssistantContentModePolicy {
   pendingInteractionOwner: PendingInteractionOwner;
@@ -32,11 +32,11 @@ const ASSISTANT_CONTENT_MODE_POLICIES: Readonly<Record<
     responseSurface: "final",
   },
   room_result: {
-    pendingInteractionOwner: "list",
+    pendingInteractionOwner: "composer",
     responseSurface: "final",
   },
   room_thread: {
-    pendingInteractionOwner: "list",
+    pendingInteractionOwner: "composer",
     responseSurface: "direct",
   },
 };

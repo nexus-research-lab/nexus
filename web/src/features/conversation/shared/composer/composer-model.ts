@@ -14,7 +14,7 @@ import type { AgentRuntimeKind } from "@/types/settings/preferences";
 export interface ComposerPanelProps {
   compact: boolean;
   /**
-   * DM 等待用户回应时原位替换输入壳内容；草稿状态继续保留。
+   * DM/Room 等待用户回应时原位替换输入壳内容；草稿状态继续保留。
    */
   interactionSurface?: ReactNode;
   /** 用于最后一个 interaction 消失后恢复输入焦点。 */

@@ -84,6 +84,8 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 用户消息与 Agent final reply 里的 `@成员` 都表达显式目标；前者按前端传入的 `target_agent_ids` 路由，后者按服务端解析出的有效 mention 路由。多个不同目标按目标拆成多个独立 handoff，目标的书写顺序只决定创建顺序，不承诺回复顺序。
 
+平台不从 Agent 的通信方向推断业务拓扑，也不禁止 reciprocal handoff。只要是不同消息中的显式新 `@`，`A → B → A`、peer 间继续讨论或多人先后回交给同一成员都是真实 handoff；是否继续协作由 Agent 的明确表达和 Room Skill 决定。多个来源同时指向同一忙碌 Agent 时，每条 handoff 都独立持久化并按到达顺序进入该 Agent 的 guide/queue，始终只运行一个目标 slot。
+
 公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容带给目标 Agent。目标 Agent 应输出新交付；没有新工作时使用 <nexus_room_no_reply/>，平台不写入空的公区回复。
 
 ### 4.3 @ mention 与消息注解
@@ -206,8 +208,8 @@ Directed message 是 Room 私域通信的唯一协议原语。单人私信、多
 - 服务重启后的 pending wake 恢复。
 - 用户停止 root 链时收口派生任务。
 - public handoff 的持久化日志、幂等 claim 和 queue item 关联。
-- root 级 visited/cycle 检测、fanout 上限和取消传播；`hop` 上限只作为最后一道保险。
-- cycle 拓扑只包含仍可执行或已经创建 target round 的 handoff；在启动前被护栏拒绝或取消的 terminal attempt 仍计入 root 资源上限，但不能成为后续去环的图边。
+- root 级批次 fanout、handoff 总量和取消传播；`hop` 上限只作为最后一道资源保险。
+- 显式 reciprocal handoff 不受 visited/cycle 业务拓扑限制；同一目标仍由 active slot 和持久队列强制串行。
 
 护栏只保护运行时资源，不推断业务完成。
 
@@ -260,8 +262,9 @@ Checkpoint 记录公区和私域实际消费边界。成功完成或明确 no-re
 - public 与 private 是两种可见性，不是同一消息的两个 UI 标签。
 - 只有明确的 public projection 才能写入 public feed。
 - 同一 `source_message_id + target_agent_id` 只允许一个 public handoff；重试必须复用该 handoff 的 claim、queue item 或 target round。
-- 同一 root 的 public handoff 必须通过 visited/cycle、fanout 和取消护栏；达到 hop 上限时只作为最终兜底拒绝。
-- 启动前被拒绝或取消且没有 `target_round_id` 的 handoff 不构成已执行协作边，不能让合法的 sibling handoff 被误判为 cycle。
+- 不同消息中的 reciprocal 或重复协作方向都是新 handoff；平台不得用 visited/cycle 规则限制 Agent 的业务通信拓扑。
+- 同一 root 只保留批次 fanout、handoff 总量、hop 和取消等纯资源护栏；达到 hop 上限时只作为最终保险拒绝。
+- 同一目标 Agent 的多个 handoff 必须由 claim、guide/queue 和 active-slot 检查串行化，不能并发启动第二个 slot。
 - source public message 必须先于其 handoff 的 target 状态和回复；sibling slot 的快慢不能改变这条因果关系。
 - 回复路线由消息记录携带，不能从自然语言或默认约定推断。
 - Room 平台不维护业务级流程状态；需要这些状态时由 Skill 自己持久化并通信。

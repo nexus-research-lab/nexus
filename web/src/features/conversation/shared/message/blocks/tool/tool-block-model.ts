@@ -80,7 +80,7 @@ const STATUS_META: Readonly<Record<
     tone: "success",
   },
   waiting_permission: {
-    badgeClassName: "bg-[color:color-mix(in_srgb,var(--warning)_12%,transparent)] text-(--warning)",
+    badgeClassName: "border border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
     label: "待确认",
     tone: "waiting",
   },
@@ -171,7 +171,7 @@ export function buildToolBlockViewModel({
     toolResult,
     (result) => getResultSummary(result.content),
   );
-  const expandedInputDetail = getPrimaryInputDetail(toolUse.input);
+  const expandedInputDetail = getPrimaryToolInputDetail(toolUse.input);
   const waitingDetail = WAITING_DETAIL_BY_STATUS[finalStatus](permission);
 
   return {
@@ -221,7 +221,7 @@ function formatPermissionValue(value: unknown): string {
     .format(value);
 }
 
-function getReadableSuggestions(
+export function getReadablePermissionSuggestions(
   suggestions: PermissionUpdate[] = [],
 ): ToolPermissionSuggestion[] {
   return suggestions.map((suggestion, index) => {
@@ -261,7 +261,9 @@ function buildSuggestionLabel(behavior: string, destination: string): string {
   return formatters[Number(behavior === "允许")]();
 }
 
-function getPrimaryInputDetail(input: unknown): ToolPrimaryInputDetail | null {
+export function getPrimaryToolInputDetail(
+  input: unknown,
+): ToolPrimaryInputDetail | null {
   const record = asRecord(input);
   if (!record) {
     return null;
@@ -299,7 +301,9 @@ function buildPermissionProjection(
       readableSuggestions: [],
     };
   }
-  const primaryInputDetail = getPrimaryInputDetail(permissionRequest.tool_input);
+  const primaryInputDetail = getPrimaryToolInputDetail(
+    permissionRequest.tool_input,
+  );
   const fields = Object.entries(permissionRequest.tool_input)
     .filter(([key]) => key !== primaryInputDetail?.key)
     .map(([key, value]) => ({
@@ -311,7 +315,9 @@ function buildPermissionProjection(
       fields.map((field) => `${field.label}：${field.value}`).join(" · "),
     ]),
     primaryInputDetail,
-    readableSuggestions: getReadableSuggestions(permissionRequest.suggestions),
+    readableSuggestions: getReadablePermissionSuggestions(
+      permissionRequest.suggestions,
+    ),
   };
 }
 

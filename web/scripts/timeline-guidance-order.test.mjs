@@ -1069,13 +1069,16 @@ test("pending interactions keep first position and latest request snapshot", asy
     latest,
   );
   assert.deepEqual(projection.unmatchedPendingPermissions, [other]);
-  assert.equal(resolvePendingInteractionOwner("room_result"), "list");
-  assert.equal(resolvePendingInteractionOwner("room_thread"), "list");
+  assert.equal(resolvePendingInteractionOwner("room_result"), "composer");
+  assert.equal(resolvePendingInteractionOwner("room_thread"), "composer");
   assert.equal(resolvePendingInteractionOwner("dm_live"), "composer");
   assert.equal(resolvePendingInteractionOwner("dm_archived"), "composer");
 });
 
-test("Room handles every pending runtime human interaction without opening Thread", async () => {
+test("Room keeps every pending runtime human interaction in the Composer", async () => {
+  const { ComposerInteractionSurface } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/interaction/composer-interaction-surface.tsx",
+  );
   const { GroupAgentExecutionShell } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-agent-execution-shell.tsx",
   );
@@ -1164,6 +1167,46 @@ test("Room handles every pending runtime human interaction without opening Threa
     ),
   );
 
+  const composerHtml = renderToStaticMarkup(provider(React.createElement(
+    ComposerInteractionSurface,
+    {
+      agentAvatarMap: { "agent-1": null },
+      agentNameMap: { "agent-1": "Dev" },
+      onResponse: () => true,
+      permissions: [
+        permission,
+        questionPermission,
+        planConfirmation,
+        futureApproval,
+      ],
+    },
+  )));
+  assert.match(composerHtml, /data-composer-interaction-surface="true"/);
+  assert.match(composerHtml, /Dev/);
+  assert.match(composerHtml, /echo permission-required/);
+  assert.match(composerHtml, /1 \/ 4/);
+  assert.match(composerHtml, />允许本次</);
+  assert.match(composerHtml, />拒绝</);
+  assert.doesNotMatch(
+    composerHtml,
+    /这次分析采用哪种研究口径？/,
+    "Composer must show only the first request in the stable queue",
+  );
+  const nextComposerHtml = renderToStaticMarkup(provider(React.createElement(
+    ComposerInteractionSurface,
+    {
+      onResponse: () => true,
+      permissions: [
+        questionPermission,
+        planConfirmation,
+        futureApproval,
+      ],
+    },
+  )));
+  assert.match(nextComposerHtml, /这次分析采用哪种研究口径？/);
+  assert.match(nextComposerHtml, /1 \/ 3/);
+  assert.match(nextComposerHtml, /继续协作/);
+
   const agentCardHtml = renderToStaticMarkup(provider(React.createElement(
     GroupAgentExecutionShell,
     {
@@ -1185,40 +1228,10 @@ test("Room handles every pending runtime human interaction without opening Threa
       timestamp: 1,
     },
   )));
-  assert.match(
-    agentCardHtml,
-    /echo permission-required/,
-    "Agent 卡片必须直接展示待审批操作的具体内容",
-  );
-  assert.match(agentCardHtml, />允许</);
-  assert.match(agentCardHtml, />拒绝</);
-  assert.match(
-    agentCardHtml,
-    /这次分析采用哪种研究口径？/,
-    "结构化问题必须直接在活动 Agent 卡片中作答",
-  );
-  assert.match(agentCardHtml, /保守/);
-  assert.match(agentCardHtml, /继续协作/);
-  assert.match(
-    agentCardHtml,
-    /先验证数据源，再生成最终报告/,
-    "计划确认必须与普通工具审批一样直接出现在公区",
-  );
-  assert.match(
-    agentCardHtml,
-    /将报告发布到共享工作区/,
-    "未知的新人工审批类型必须回退到公区通用控件",
-  );
-  assert.match(
-    agentCardHtml,
-    /data-human-interaction-surface/,
-    "统一人工介入边界必须由公共渲染入口标记",
-  );
-  assert.doesNotMatch(
-    agentCardHtml,
-    />去回答</,
-    "公区不得再用跳转 Thread 代替完整回答控件",
-  );
+  assert.doesNotMatch(agentCardHtml, /data-human-interaction-surface/);
+  assert.doesNotMatch(agentCardHtml, />允许</);
+  assert.doesNotMatch(agentCardHtml, />拒绝</);
+  assert.doesNotMatch(agentCardHtml, /继续协作/);
   const adjacentAgentHtml = renderToStaticMarkup(provider(React.createElement(
     GroupAgentExecutionShell,
     {
@@ -1279,18 +1292,10 @@ test("Room handles every pending runtime human interaction without opening Threa
       },
     }),
   ));
-  assert.match(
-    permissionOnlyRoundHtml,
-    /echo permission-required/,
-    "权限先于 Agent 消息到达时，主 Room 也不能丢失审批入口",
-  );
-  assert.match(
-    permissionOnlyRoundHtml,
-    /这次分析采用哪种研究口径？/,
-    "问题先于 Agent 消息到达时，主 Room 也必须保留完整回答入口",
-  );
-  assert.match(permissionOnlyRoundHtml, /先验证数据源，再生成最终报告/);
-  assert.match(permissionOnlyRoundHtml, /将报告发布到共享工作区/);
+  assert.doesNotMatch(permissionOnlyRoundHtml, /data-human-interaction-surface/);
+  assert.doesNotMatch(permissionOnlyRoundHtml, />允许</);
+  assert.doesNotMatch(permissionOnlyRoundHtml, />拒绝</);
+  assert.doesNotMatch(permissionOnlyRoundHtml, /继续协作/);
 
   const completedToolMessage = {
     ...assistantMessage({
@@ -1371,24 +1376,13 @@ test("Room handles every pending runtime human interaction without opening Threa
   ));
   assert.match(
     completedRoundHtml,
-    /Apple M3 vs M4 vs M5 chip comparison specifications/,
-    "工具消息进入完成态后，主 Room 仍必须展示待确认操作",
+    /Goal[\s\S]*已设定，现在开始调研/,
+    "the Room timeline keeps its public reply while Composer owns approval",
   );
-  assert.match(completedRoundHtml, /这次分析采用哪种研究口径？/);
-  assert.equal(
-    completedRoundHtml.match(/这次分析采用哪种研究口径？/g)?.length,
-    1,
-    "a terminal Room card must not render the same pending question twice",
-  );
-  assert.match(completedRoundHtml, />允许</);
-  assert.match(completedRoundHtml, />拒绝</);
-  assert.match(completedRoundHtml, /继续协作/);
-  assert.equal(
-    completedRoundHtml.match(/data-human-interaction-surface/g)?.length,
-    1,
-    "the hidden terminal tool and its standalone interaction must share one surface",
-  );
-  assert.doesNotMatch(completedRoundHtml, /等待提问就绪/);
+  assert.doesNotMatch(completedRoundHtml, />允许</);
+  assert.doesNotMatch(completedRoundHtml, />拒绝</);
+  assert.doesNotMatch(completedRoundHtml, /继续协作/);
+  assert.doesNotMatch(completedRoundHtml, /data-human-interaction-surface/);
 
   const questionOnlyMessage = {
     ...completedToolMessage,
@@ -1438,19 +1432,10 @@ test("Room handles every pending runtime human interaction without opening Threa
       state: questionOnlyState,
     }),
   ));
-  assert.equal(
-    questionOnlyHtml.match(/这次分析采用哪种研究口径？/g)?.length,
-    1,
-    "a visible terminal question tool must become the sole interaction surface",
-  );
-  assert.match(questionOnlyHtml, /保守/);
-  assert.match(questionOnlyHtml, /继续协作/);
-  assert.match(questionOnlyHtml, />拒绝</);
-  assert.equal(
-    questionOnlyHtml.match(/data-human-interaction-surface/g)?.length,
-    1,
-  );
-  assert.doesNotMatch(questionOnlyHtml, /等待提问就绪/);
+  assert.doesNotMatch(questionOnlyHtml, /继续协作/);
+  assert.doesNotMatch(questionOnlyHtml, />允许</);
+  assert.doesNotMatch(questionOnlyHtml, />拒绝</);
+  assert.doesNotMatch(questionOnlyHtml, /data-human-interaction-surface/);
 });
 
 test("Room streams and completes inside one stable Agent execution shell", async () => {
@@ -2643,7 +2628,7 @@ test("DM tool run view expands only the active segment and leaves Room direct co
           streamingIndexes: new Set(),
           visible: false,
         },
-        permissions: { ...permissions, owner: "list" },
+        permissions: { ...permissions, owner: "composer" },
         process: {
           anchorRef: { current: null },
           expanded: false,
@@ -5034,7 +5019,7 @@ test("targeted stop mutates only its execution after the interrupt is sent", asy
   assert.equal(dropped.read().error, "中断请求发送失败，请稍后重试");
 });
 
-test("Room virtual height projection includes slot and pending question surfaces", async () => {
+test("Room virtual height keeps Composer interactions out of the feed estimate", async () => {
   const { projectGroupRoundHeights } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/feed/group-conversation-height-model.ts",
   );
@@ -5083,11 +5068,15 @@ test("Room virtual height projection includes slot and pending question surfaces
   });
 
   assert.ok(slotOnly.get(roundId) > baseHeights.get(roundId));
-  assert.ok(withQuestion.get(roundId) > slotOnly.get(roundId));
+  assert.equal(
+    withQuestion.get(roundId),
+    slotOnly.get(roundId),
+    "a Composer-owned question must not reserve a second form inside the feed",
+  );
   assert.equal(baseHeights.get(roundId), 96, "the shared estimate stays immutable");
 });
 
-test("Room virtual height replaces one matched tool estimate per stable request", async () => {
+test("Room virtual height preserves matched tool evidence while Composer owns approval", async () => {
   const { projectGroupRoundHeights } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/feed/group-conversation-height-model.ts",
   );
@@ -5135,9 +5124,9 @@ test("Room virtual height replaces one matched tool estimate per stable request"
   );
   const matchedHeight = project([assistant], [permission]);
   assert.equal(
-    unmatchedHeight - matchedHeight,
-    60,
-    "the request-owned interaction replaces the shared tool row instead of stacking on it",
+    unmatchedHeight,
+    matchedHeight,
+    "permission matching must not remove the read-only tool evidence",
   );
   assert.equal(
     project(

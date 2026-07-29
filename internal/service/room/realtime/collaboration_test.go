@@ -395,25 +395,11 @@ func TestBuildPublicMessageMentionAnnotationsCreatesEveryHandoffAndDedupesTarget
 	}
 }
 
-func TestPublicHandoffAdmissionDetectsCycle(t *testing.T) {
-	edges := []workspacestore.RoomPublicHandoff{
-		{SourceAgentID: "agent-a", TargetAgentID: "agent-b"},
-		{SourceAgentID: "agent-b", TargetAgentID: "agent-c"},
-	}
-	if !roomPublicHandoffCreatesCycle(edges, "agent-c", "agent-a") {
-		t.Fatal("应拒绝会回到 source 的 root handoff 环")
-	}
-	if roomPublicHandoffCreatesCycle(edges, "agent-c", "agent-d") {
-		t.Fatal("无环的新目标不应被拒绝")
-	}
-}
-
 type publicHandoffAdmissionEdgeFixture struct {
-	handoffID      string
-	sourceAgentID  string
-	targetAgentID  string
-	targetRoundID  string
-	terminalStatus string
+	handoffID     string
+	sourceAgentID string
+	targetAgentID string
+	targetRoundID string
 }
 
 func recordPublicHandoffAdmissionEdge(
@@ -461,19 +447,69 @@ func recordPublicHandoffAdmissionEdge(
 			t.Fatal(err)
 		}
 	}
-	if edge.terminalStatus != "" {
-		if err := store.MarkTerminal(
+}
+
+func TestPublicHandoffAdmissionAcceptsReciprocalHandoff(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", root)
+	t.Setenv("NEXUS_CONFIG_DIR", root)
+	const (
+		conversationID = "conversation-reciprocal-admission"
+		ownerUserID    = "owner"
+		rootRoundID    = "root-reciprocal-admission"
+	)
+	store := workspacestore.NewRoomPublicHandoffStore(root)
+	for _, edge := range []publicHandoffAdmissionEdgeFixture{
+		{
+			handoffID:     "a-to-b-started",
+			sourceAgentID: "agent-a",
+			targetAgentID: "agent-b",
+			targetRoundID: "round-agent-b",
+		},
+		{
+			handoffID:     "b-to-a-return",
+			sourceAgentID: "agent-b",
+			targetAgentID: "agent-a",
+		},
+	} {
+		recordPublicHandoffAdmissionEdge(
+			t,
+			store,
 			ownerUserID,
 			conversationID,
-			edge.handoffID,
-			edge.terminalStatus,
-		); err != nil {
-			t.Fatal(err)
-		}
+			rootRoundID,
+			edge,
+		)
+	}
+
+	service := &Service{publicHandoffs: store}
+	accepted, err := service.admitPublicMentionWakes(
+		context.Background(),
+		&activeRoomRound{
+			ConversationID: conversationID,
+			RootRoundID:    rootRoundID,
+			OwnerUserID:    ownerUserID,
+		},
+		[]publicMentionWake{{
+			HandoffID:     "b-to-a-return",
+			QueueSource:   protocol.InputQueueSourceAgentPublicMention,
+			SourceAgentID: "agent-b",
+			TargetAgentID: "agent-a",
+		}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(accepted) != 1 || accepted[0].HandoffID != "b-to-a-return" {
+		t.Fatalf("显式 reciprocal @ 必须作为真实 handoff 接受: %+v", accepted)
+	}
+	reciprocal, ok, err := store.Get(ownerUserID, conversationID, "b-to-a-return")
+	if err != nil || !ok || reciprocal.Status != "source_finished" {
+		t.Fatalf("reciprocal handoff 不应被 admission 收口: handoff=%+v ok=%v err=%v", reciprocal, ok, err)
 	}
 }
 
-func TestPublicHandoffAdmissionRejectsRecordedCycleAndRootOverflow(t *testing.T) {
+func TestPublicHandoffAdmissionRejectsRootOverflow(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("NEXUS_STATE_ROOT", root)
 	t.Setenv("NEXUS_CONFIG_DIR", root)
@@ -488,31 +524,7 @@ func TestPublicHandoffAdmissionRejectsRecordedCycleAndRootOverflow(t *testing.T)
 			t.Fatal(err)
 		}
 	}
-	detect(workspacestore.RoomPublicHandoff{
-		HandoffID: "rh-cycle-forward", ConversationID: conversationID, RootRoundID: "root-guard",
-		SourceMessageID: "message-forward", SourceAgentID: "agent-a", TargetAgentID: "agent-b",
-	})
-	detect(workspacestore.RoomPublicHandoff{
-		HandoffID: "rh-cycle-back", ConversationID: conversationID, RootRoundID: "root-guard",
-		SourceMessageID: "message-back", SourceAgentID: "agent-b", TargetAgentID: "agent-a",
-	})
 	service := &Service{publicHandoffs: store}
-	parent := &activeRoomRound{ConversationID: conversationID, RootRoundID: "root-guard", OwnerUserID: "owner"}
-	accepted, err := service.admitPublicMentionWakes(context.Background(), parent, []publicMentionWake{{
-		HandoffID: "rh-cycle-back", QueueSource: protocol.InputQueueSourceAgentPublicMention,
-		SourceAgentID: "agent-b", TargetAgentID: "agent-a",
-	}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(accepted) != 0 {
-		t.Fatalf("已记录的 reciprocal edge 仍必须经过 cycle guard: %+v", accepted)
-	}
-	cycle, ok, err := store.Get("owner", conversationID, "rh-cycle-back")
-	if err != nil || !ok || cycle.Status != "error" {
-		t.Fatalf("cycle handoff 应收口为 error: handoff=%+v ok=%v err=%v", cycle, ok, err)
-	}
-
 	for index := 0; index < roomMaxRootHandoffs; index++ {
 		detect(workspacestore.RoomPublicHandoff{
 			HandoffID:       "rh-overflow-" + string(rune('a'+index)),
@@ -528,7 +540,7 @@ func TestPublicHandoffAdmissionRejectsRecordedCycleAndRootOverflow(t *testing.T)
 		HandoffID: overflowID, ConversationID: conversationID, RootRoundID: "root-overflow",
 		SourceMessageID: "message-overflow-new", SourceAgentID: "agent-source-new", TargetAgentID: "agent-target-new",
 	})
-	accepted, err = service.admitPublicMentionWakes(context.Background(), &activeRoomRound{
+	accepted, err := service.admitPublicMentionWakes(context.Background(), &activeRoomRound{
 		ConversationID: conversationID, RootRoundID: "root-overflow", OwnerUserID: "owner",
 	}, []publicMentionWake{{
 		HandoffID: overflowID, QueueSource: protocol.InputQueueSourceAgentPublicMention,
@@ -539,139 +551,6 @@ func TestPublicHandoffAdmissionRejectsRecordedCycleAndRootOverflow(t *testing.T)
 	}
 	if len(accepted) != 0 {
 		t.Fatalf("root handoff 超限后不应继续接受新边: %+v", accepted)
-	}
-}
-
-func TestPublicHandoffAdmissionIgnoresRejectedUnstartedEdgesInCycleGraph(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", root)
-	t.Setenv("NEXUS_CONFIG_DIR", root)
-	const (
-		conversationID = "conversation-rejected-cycle-edge"
-		ownerUserID    = "owner"
-		rootRoundID    = "root-rejected-cycle-edge"
-	)
-	store := workspacestore.NewRoomPublicHandoffStore(root)
-	for _, edge := range []publicHandoffAdmissionEdgeFixture{
-		{
-			handoffID:     "host-to-a",
-			sourceAgentID: "host",
-			targetAgentID: "agent-a",
-			targetRoundID: "round-agent-a",
-		},
-		{
-			handoffID:     "host-to-b",
-			sourceAgentID: "host",
-			targetAgentID: "agent-b",
-			targetRoundID: "round-agent-b",
-		},
-		{
-			handoffID:      "a-to-host-rejected",
-			sourceAgentID:  "agent-a",
-			targetAgentID:  "host",
-			terminalStatus: "error",
-		},
-		{
-			handoffID:      "b-to-host-cancelled",
-			sourceAgentID:  "agent-b",
-			targetAgentID:  "host",
-			terminalStatus: "interrupted",
-		},
-		{
-			handoffID:     "a-to-b-valid",
-			sourceAgentID: "agent-a",
-			targetAgentID: "agent-b",
-		},
-	} {
-		recordPublicHandoffAdmissionEdge(
-			t,
-			store,
-			ownerUserID,
-			conversationID,
-			rootRoundID,
-			edge,
-		)
-	}
-
-	const siblingHandoffID = "a-to-b-valid"
-	service := &Service{publicHandoffs: store}
-	accepted, err := service.admitPublicMentionWakes(
-		context.Background(),
-		&activeRoomRound{
-			ConversationID: conversationID,
-			RootRoundID:    rootRoundID,
-			OwnerUserID:    ownerUserID,
-		},
-		[]publicMentionWake{{
-			HandoffID:     siblingHandoffID,
-			QueueSource:   protocol.InputQueueSourceAgentPublicMention,
-			SourceAgentID: "agent-a",
-			TargetAgentID: "agent-b",
-		}},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(accepted) != 1 || accepted[0].HandoffID != siblingHandoffID {
-		t.Fatalf("pre-start rejected edges must not poison sibling handoff admission: %+v", accepted)
-	}
-}
-
-func TestPublicHandoffAdmissionKeepsStartedFailureInCycleGraph(t *testing.T) {
-	root := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", root)
-	t.Setenv("NEXUS_CONFIG_DIR", root)
-	const (
-		conversationID = "conversation-started-failure-cycle-edge"
-		ownerUserID    = "owner"
-		rootRoundID    = "root-started-failure-cycle-edge"
-	)
-	store := workspacestore.NewRoomPublicHandoffStore(root)
-	for _, edge := range []publicHandoffAdmissionEdgeFixture{
-		{
-			handoffID:      "a-to-b-started",
-			sourceAgentID:  "agent-a",
-			targetAgentID:  "agent-b",
-			targetRoundID:  "round-agent-b",
-			terminalStatus: "error",
-		},
-		{
-			handoffID:     "b-to-a-rejected",
-			sourceAgentID: "agent-b",
-			targetAgentID: "agent-a",
-		},
-	} {
-		recordPublicHandoffAdmissionEdge(
-			t,
-			store,
-			ownerUserID,
-			conversationID,
-			rootRoundID,
-			edge,
-		)
-	}
-
-	const reciprocalHandoffID = "b-to-a-rejected"
-	service := &Service{publicHandoffs: store}
-	accepted, err := service.admitPublicMentionWakes(
-		context.Background(),
-		&activeRoomRound{
-			ConversationID: conversationID,
-			RootRoundID:    rootRoundID,
-			OwnerUserID:    ownerUserID,
-		},
-		[]publicMentionWake{{
-			HandoffID:     reciprocalHandoffID,
-			QueueSource:   protocol.InputQueueSourceAgentPublicMention,
-			SourceAgentID: "agent-b",
-			TargetAgentID: "agent-a",
-		}},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(accepted) != 0 {
-		t.Fatalf("a started edge must remain in the cycle graph after failure: %+v", accepted)
 	}
 }
 
@@ -794,6 +673,183 @@ func TestQueueBusyPublicMentionWakesGuidesEachBusyRootAndLeavesIdleTargetReady(t
 	items, err = store.Snapshot(locationA)
 	if err != nil || len(items) != 0 {
 		t.Fatalf("applied ACK 后应只消费已注入的公区 @: items=%+v err=%v", items, err)
+	}
+}
+
+func TestQueueBusyPublicMentionWakesKeepsMultipleSourcesForOneTargetOrdered(t *testing.T) {
+	const (
+		ownerUserID    = "owner-busy-host-handoffs"
+		conversationID = "conversation-busy-host-handoffs"
+		roomID         = "room-busy-host-handoffs"
+		rootRoundID    = "root-busy-host-handoffs"
+		hostAgentID    = "agent-host"
+	)
+	stateRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	root := appfs.UsersRoot()
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+	hostRuntimeSessionKey := protocol.BuildRoomAgentSessionKey(
+		conversationID,
+		hostAgentID,
+		protocol.RoomTypeGroup,
+	)
+	agents := []protocol.Agent{
+		{
+			AgentID:       hostAgentID,
+			WorkspacePath: filepath.Join(appfs.UserWorkspaceRoot(ownerUserID), hostAgentID),
+		},
+		{
+			AgentID:       "agent-source-b",
+			WorkspacePath: filepath.Join(appfs.UserWorkspaceRoot(ownerUserID), "agent-source-b"),
+		},
+		{
+			AgentID:       "agent-source-a",
+			WorkspacePath: filepath.Join(appfs.UserWorkspaceRoot(ownerUserID), "agent-source-a"),
+		},
+	}
+	members := make([]protocol.MemberRecord, 0, len(agents))
+	for _, agentValue := range agents {
+		members = append(members, protocol.MemberRecord{
+			RoomID:        roomID,
+			MemberType:    protocol.MemberTypeAgent,
+			MemberAgentID: agentValue.AgentID,
+		})
+	}
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID:          roomID,
+			OwnerUserID: ownerUserID,
+			RoomType:    protocol.RoomTypeGroup,
+			HostAgentID: hostAgentID,
+		},
+		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: roomID},
+		Members:      members,
+		MemberAgents: agents,
+	}
+	wakes := []publicMentionWake{
+		{
+			HandoffID:     "handoff-source-b",
+			QueueSource:   protocol.InputQueueSourceAgentPublicMention,
+			SourceAgentID: "agent-source-b",
+			TargetAgentID: hostAgentID,
+			MessageID:     "message-source-b",
+			Content:       "@Host source B result",
+		},
+		{
+			HandoffID:     "handoff-source-a",
+			QueueSource:   protocol.InputQueueSourceAgentPublicMention,
+			SourceAgentID: "agent-source-a",
+			TargetAgentID: hostAgentID,
+			MessageID:     "message-source-a",
+			Content:       "@Host source A result",
+		},
+	}
+	handoffs := workspacestore.NewRoomPublicHandoffStore(root)
+	for _, wake := range wakes {
+		if _, _, err := handoffs.Detect(ownerUserID, workspacestore.RoomPublicHandoff{
+			HandoffID:          wake.HandoffID,
+			ConversationID:     conversationID,
+			RoomID:             roomID,
+			RootRoundID:        rootRoundID,
+			SourceAgentRoundID: "round-" + wake.SourceAgentID,
+			SourceMessageID:    wake.MessageID,
+			SourceAgentID:      wake.SourceAgentID,
+			TargetAgentID:      wake.TargetAgentID,
+			Content:            wake.Content,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := handoffs.MarkSourceFinished(ownerUserID, conversationID, wake.HandoffID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	busyHostSlot := &activeRoomSlot{
+		AgentID:           hostAgentID,
+		AgentRoundID:      "agent-round-host-busy",
+		RuntimeSessionKey: hostRuntimeSessionKey,
+		WorkspacePath:     agents[0].WorkspacePath,
+	}
+	busyHostSlot.setStatus("running")
+	service := &Service{
+		inputQueue:     workspacestore.NewInputQueueStore(root),
+		publicHandoffs: handoffs,
+		permission:     permissionctx.NewContext(),
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
+			"busy-host-round": {
+				SessionKey:     sharedSessionKey,
+				RoomID:         roomID,
+				ConversationID: conversationID,
+				RootRoundID:    "active-host-root",
+				Slots: map[string]*activeRoomSlot{
+					hostAgentID: busyHostSlot,
+				},
+			},
+		}),
+	}
+	parentRound := &activeRoomRound{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomID,
+		ConversationID: conversationID,
+		RootRoundID:    rootRoundID,
+		Context:        contextValue,
+		OwnerUserID:    ownerUserID,
+	}
+
+	ready, err := service.queueBusyPublicMentionWakes(
+		context.Background(),
+		parentRound,
+		sharedSessionKey,
+		wakes,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ready) != 0 {
+		t.Fatalf("busy Host 的 handoff 都必须进入队列: %+v", ready)
+	}
+	if running := service.CountRunningTasks(hostAgentID); running != 1 {
+		t.Fatalf("同一 Host 不得并发新 slot: running=%d", running)
+	}
+
+	location := workspacestore.InputQueueLocation{
+		OwnerUserID:    ownerUserID,
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  agents[0].WorkspacePath,
+		SessionKey:     hostRuntimeSessionKey,
+		RoomID:         roomID,
+		ConversationID: conversationID,
+	}
+	items, err := service.inputQueue.Snapshot(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != len(wakes) {
+		t.Fatalf("两个来源必须各自持久化: items=%+v", items)
+	}
+	for index, wake := range wakes {
+		item := items[index]
+		if item.SourceAgentID != wake.SourceAgentID ||
+			item.SourceMessageID != wake.MessageID ||
+			item.HandoffID != wake.HandoffID {
+			t.Fatalf("队列顺序必须保持来源到达顺序: index=%d item=%+v wake=%+v", index, item, wake)
+		}
+		if item.AgentID != hostAgentID ||
+			!slices.Equal(item.TargetAgentIDs, []string{hostAgentID}) {
+			t.Fatalf("每个 handoff 只能指向同一 Host: %+v", item)
+		}
+		if item.DeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
+			item.RootRoundID != rootRoundID {
+			t.Fatalf("无 guide ACK 时必须按原 root 串行 queue: %+v", item)
+		}
+		edge, ok, getErr := handoffs.Get(ownerUserID, conversationID, wake.HandoffID)
+		if getErr != nil || !ok {
+			t.Fatalf("读取 queued handoff 失败: edge=%+v ok=%v err=%v", edge, ok, getErr)
+		}
+		if edge.Status != "queued" || edge.QueueItemID != item.ID || edge.TargetRoundID != "" {
+			t.Fatalf("busy Host handoff ledger 必须保持 queued 且不能启动新 round: %+v", edge)
+		}
 	}
 }
 

@@ -175,7 +175,7 @@ func (s *Service) runSlot(
 	logger.Info("开始执行 Room slot")
 	defer s.finishSlot(slot)
 
-	s.permission.BindSessionRoute(slot.RuntimeSessionKey, permissionctx.RouteContext{
+	routeLease := s.permission.BindSessionRoute(slot.RuntimeSessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: roundValue.SessionKey,
 		RoomID:             roundValue.RoomID,
 		ConversationID:     roundValue.ConversationID,
@@ -184,7 +184,7 @@ func (s *Service) runSlot(
 		RoundID:            roundValue.RootRoundID,
 		AgentRoundID:       slot.AgentRoundID,
 	})
-	defer s.permission.UnbindSessionRoute(slot.RuntimeSessionKey)
+	defer s.permission.UnbindSessionRoute(routeLease)
 
 	client, err := execution.prepareRuntimeClient()
 	if err != nil {
