@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	skillspkg "github.com/nexus-research-lab/nexus/internal/service/skills"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
 
@@ -302,19 +302,7 @@ func assertPathRemoved(t *testing.T, path string) {
 
 func migrateRoomSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
-
-	db, err := sql.Open("sqlite", databaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("设置 goose 方言失败: %v", err)
-	}
-	if err = goose.Up(db, roomMigrationDir(t)); err != nil {
-		t.Fatalf("执行 migration 失败: %v", err)
-	}
+	handlertest.MigrateSQLiteFromDir(t, databaseURL, roomMigrationDir(t))
 }
 
 func roomMigrationDir(t *testing.T) string {

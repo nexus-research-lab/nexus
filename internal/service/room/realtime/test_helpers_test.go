@@ -2,7 +2,6 @@ package realtime_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
@@ -22,7 +22,6 @@ import (
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	realtimesvc "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"github.com/pressly/goose/v3"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -594,19 +593,7 @@ func newRoomTestConfig(t *testing.T) config.Config {
 
 func migrateRoomSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
-
-	db, err := sql.Open("sqlite", databaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("设置 goose 方言失败: %v", err)
-	}
-	if err = goose.Up(db, roomMigrationDir(t)); err != nil {
-		t.Fatalf("执行 migration 失败: %v", err)
-	}
+	handlertest.MigrateSQLiteFromDir(t, databaseURL, roomMigrationDir(t))
 }
 
 func assertRuntimeClosedKeys(t *testing.T, got []string, want []string) {

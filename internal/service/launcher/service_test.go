@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	sessionsvc "github.com/nexus-research-lab/nexus/internal/service/session"
@@ -18,7 +19,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	"github.com/nexus-research-lab/nexus/internal/storage/sessionrepo"
 
-	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
 
@@ -325,19 +325,7 @@ func newLauncherTestConfig(t *testing.T) config.Config {
 
 func migrateLauncherSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
-
-	db, err := sql.Open("sqlite", databaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("设置 goose 方言失败: %v", err)
-	}
-	if err = goose.Up(db, launcherMigrationDir(t)); err != nil {
-		t.Fatalf("执行 migration 失败: %v", err)
-	}
+	handlertest.MigrateSQLiteFromDir(t, databaseURL, launcherMigrationDir(t))
 }
 
 func launcherMigrationDir(t *testing.T) string {

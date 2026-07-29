@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 
-	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
 
@@ -76,15 +76,10 @@ func ingressTestOwnerContext(ownerUserID string) context.Context {
 func migrateIngressSQLite(t *testing.T, databaseURL string) *sql.DB {
 	t.Helper()
 
+	handlertest.MigrateSQLiteFromDir(t, databaseURL, ingressMigrationDir(t))
 	db, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("设置 goose 方言失败: %v", err)
-	}
-	if err = goose.Up(db, ingressMigrationDir(t)); err != nil {
-		t.Fatalf("执行 migration 失败: %v", err)
 	}
 	return db
 }
