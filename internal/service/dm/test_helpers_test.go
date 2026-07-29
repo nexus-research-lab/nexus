@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
@@ -22,6 +23,24 @@ import (
 
 	_ "modernc.org/sqlite"
 )
+
+func TestMain(m *testing.M) {
+	os.Exit(handlertest.RunWithMinimalAppRoot(m))
+}
+
+// accelerateDMGoalUsageRetry 缩短白盒测试中的退避时钟，不改变生产默认值。
+func accelerateDMGoalUsageRetry(runner *roundRunner) {
+	if runner != nil {
+		runner.goalUsageRetryBaseDelay = time.Millisecond
+	}
+}
+
+// accelerateDMExternalTyping 缩短白盒测试中的 typing 启动等待，不改变生产默认值。
+func accelerateDMExternalTyping(runner *roundRunner) {
+	if runner != nil {
+		runner.externalTypingDelay = 5 * time.Millisecond
+	}
+}
 
 func newDMAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
 	t.Helper()

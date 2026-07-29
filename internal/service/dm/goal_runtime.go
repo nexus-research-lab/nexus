@@ -65,7 +65,7 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshotWithRetry(
 	snapshot goalsvc.RuntimeUsageSnapshot,
 ) bool {
 	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !waitGoalUsagePersistRetry(ctx, attempt) {
+		if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
 			return false
 		}
 		if r.settleTerminalGoalUsageSnapshot(ctx, snapshot) {
@@ -75,8 +75,12 @@ func (r *roundRunner) settleTerminalGoalUsageSnapshotWithRetry(
 	return false
 }
 
-func waitGoalUsagePersistRetry(ctx context.Context, attempt int) bool {
-	delay := 20 * time.Millisecond * time.Duration(1<<min(attempt-1, 4))
+func (r *roundRunner) waitGoalUsagePersistRetry(ctx context.Context, attempt int) bool {
+	baseDelay := 20 * time.Millisecond
+	if r != nil && r.goalUsageRetryBaseDelay > 0 {
+		baseDelay = r.goalUsageRetryBaseDelay
+	}
+	delay := baseDelay * time.Duration(1<<min(attempt-1, 4))
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	select {
@@ -234,7 +238,7 @@ func (r *roundRunner) activateGoalUsage(ctx context.Context, goalID string) erro
 			}
 			var err error
 			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !waitGoalUsagePersistRetry(ctx, attempt) {
+				if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
 					return ctx.Err()
 				}
 				if _, err = binder.BindUsageScopeFromNow(ctx, binding); err == nil {
@@ -855,7 +859,7 @@ func (r *roundRunner) ensureSubagentGoalUsageRoundClaimed(ctx context.Context) b
 		GoalSessionKey:    r.sessionKey,
 	}
 	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !waitGoalUsagePersistRetry(ctx, attempt) {
+		if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
 			return false
 		}
 		if _, err := claimer.ClaimUsageSourceRound(ctx, claim); err != nil {
@@ -914,7 +918,7 @@ func (r *roundRunner) recordSubagentGoalUsage(
 				err    error
 			)
 			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !waitGoalUsagePersistRetry(ctx, attempt) {
+				if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
 					break
 				}
 				result, err = recorder.RecordUsageSourceSnapshot(ctx, snapshot)
@@ -1118,7 +1122,7 @@ func (r *roundRunner) flushPendingSubagentUsageBeforeBindLocked(
 			err    error
 		)
 		for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-			if attempt > 0 && !waitGoalUsagePersistRetry(ctx, attempt) {
+			if attempt > 0 && !r.waitGoalUsagePersistRetry(ctx, attempt) {
 				return ctx.Err()
 			}
 			result, err = r.persistSubagentUsageObservationLocked(
@@ -1183,11 +1187,7 @@ func (r *roundRunner) retryPendingGoalUsage(recorder dmGoalUsageSourceRecorder) 
 				delay = 0
 				continue
 			}
-			if delay == 0 {
-				delay = subagentUsageRetryInitialDelay
-			} else {
-				delay = min(delay*2, subagentUsageRetryMaxDelay)
-			}
+			delay = r.nextSubagentUsageRetryDelay(delay)
 			continue
 		}
 		hadFailure := false
@@ -1205,15 +1205,22 @@ func (r *roundRunner) retryPendingGoalUsage(recorder dmGoalUsageSourceRecorder) 
 			}
 		}
 		if hadFailure {
-			if delay == 0 {
-				delay = subagentUsageRetryInitialDelay
-			} else {
-				delay = min(delay*2, subagentUsageRetryMaxDelay)
-			}
+			delay = r.nextSubagentUsageRetryDelay(delay)
 		} else {
 			delay = 0
 		}
 	}
+}
+
+func (r *roundRunner) nextSubagentUsageRetryDelay(delay time.Duration) time.Duration {
+	initialDelay := subagentUsageRetryInitialDelay
+	if r != nil && r.goalUsageRetryBaseDelay > 0 {
+		initialDelay = r.goalUsageRetryBaseDelay
+	}
+	if delay == 0 {
+		return initialDelay
+	}
+	return min(delay*2, subagentUsageRetryMaxDelay)
 }
 
 // retryPendingSubagentUsageObservation re-reads the current pending value only

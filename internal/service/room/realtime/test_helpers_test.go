@@ -31,6 +31,32 @@ import (
 
 var NewServiceWithFactory = realtimesvc.NewServiceWithFactory
 
+func TestMain(m *testing.M) {
+	os.Exit(handlertest.RunWithMinimalAppRoot(m))
+}
+
+func registerRealtimeServiceCleanup(
+	t *testing.T,
+	service *realtimesvc.Service,
+	runtimeManager *runtimectx.Manager,
+	sessionKey string,
+) {
+	t.Helper()
+	stopSchedulers, err := service.StartDelayedWakeScheduler(context.Background())
+	if err != nil {
+		t.Fatalf("启动 Room 测试调度器失败: %v", err)
+	}
+	t.Cleanup(func() {
+		stopSchedulers()
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := runtimeManager.CloseSession(cleanupCtx, sessionKey); err != nil &&
+			!runtimectx.IsRuntimeTransportClosedError(err) {
+			t.Errorf("清理 Room 测试 runtime 失败: %v", err)
+		}
+	})
+}
+
 func createSingleAgentGroupRoom(
 	ctx context.Context,
 	service *roomsvc.Service,

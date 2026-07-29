@@ -270,16 +270,18 @@ func TestRealtimeServiceQueuesDirectedMessageWhenTargetRunning(t *testing.T) {
 	}
 
 	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
 	service := realtimesvc.NewServiceWithFactory(
 		cfg,
 		roomService,
 		agentService,
-		runtimectx.NewManager(),
+		runtimeManager,
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{devinCurrentClient}},
 	)
 
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	registerRealtimeServiceCleanup(t, service, runtimeManager, sharedSessionKey)
 	sender := newRealtimeTestSender("room-sender-directed-message-queue")
 	permission.BindSession(sharedSessionKey, sender)
 

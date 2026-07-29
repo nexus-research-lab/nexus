@@ -246,6 +246,7 @@ func TestRoomExternalActivationBindFailureKeepsOldGoalAndBaseline(t *testing.T) 
 		bindErr:                     errors.New("temporary binding failure"),
 	}
 	service := &Service{goals: provider}
+	accelerateRoomGoalUsageRetry(service)
 	slot := roomParentLedgerSlot("slot-external-activate", "root-external-activate")
 	slot.setGoalBinding("room:group:conversation-parent-ledger", "goal-old")
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))

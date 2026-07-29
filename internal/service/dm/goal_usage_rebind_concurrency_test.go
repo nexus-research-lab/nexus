@@ -155,6 +155,7 @@ func TestRoundRunnerRetriesUncommittedUsageAtTerminal(t *testing.T) {
 		goalIDForUsage: "goal-retry",
 		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
 	}
+	accelerateDMGoalUsageRetry(runner)
 
 	runner.recordGoalUsageSnapshot(context.Background(), goalsvc.RuntimeUsageSnapshot{
 		TurnID:         "turn-a",
@@ -196,6 +197,7 @@ func TestRoundRunnerRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
 		goalIDForUsage: "goal-retry-window",
 		goalUsage:      goalsvc.NewRuntimeUsageAccumulator(true),
 	}
+	accelerateDMGoalUsageRetry(runner)
 	snapshot := goalsvc.RuntimeUsageSnapshot{
 		Usage: protocol.GoalUsage{
 			InputTokens:       140,

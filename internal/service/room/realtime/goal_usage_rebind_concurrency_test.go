@@ -458,6 +458,7 @@ func TestRoomSlotRetriesUncommittedUsageAtTerminal(t *testing.T) {
 		failNext:                    true,
 	}
 	service := &Service{goals: provider}
+	accelerateRoomGoalUsageRetry(service)
 	slot := &activeRoomSlot{
 		RuntimeSessionKey: "agent:nexus:ws:room:retry",
 		AgentRoundID:      "round-retry",
@@ -504,6 +505,7 @@ func TestRoomSlotRetainsTerminalDeltaAfterRetryWindow(t *testing.T) {
 		failuresRemaining:           goalUsagePersistAttempts,
 	}
 	service := &Service{goals: provider, rounds: newRoomRoundRegistry()}
+	accelerateRoomGoalUsageRetry(service)
 	slot := &activeRoomSlot{
 		AgentID:           "agent-retry-window",
 		RuntimeSessionKey: "agent:nexus:ws:room:retry-window",

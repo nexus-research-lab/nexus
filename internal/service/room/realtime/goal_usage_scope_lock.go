@@ -134,7 +134,7 @@ func (s *Service) flushRoomSubagentUsageBeforeExternalBind(
 			observation := pending[taskID]
 			var err error
 			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !waitRoomGoalUsagePersistRetry(ctx, attempt) {
+				if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
 					return ctx.Err()
 				}
 				_, err = s.persistSubagentGoalUsageObservationForSlot(

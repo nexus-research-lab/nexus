@@ -20,14 +20,84 @@ import (
 
 type sqliteMigrationTemplate struct {
 	once sync.Once
-	db   *sql.DB
+	data []byte
 	err  error
 }
+
+const (
+	testAppRootEnvName = "NEXUS_APP_ROOT"
+	testAppRootGoMod   = "module example.invalid/nexus-test\n\ngo 1.26\n"
+	testNexusctlMain   = "package main\n\nfunc main() {}\n"
+)
 
 var (
 	sqliteMigrationTemplatesMu sync.Mutex
 	sqliteMigrationTemplates   = map[string]*sqliteMigrationTemplate{}
 )
+
+// RunWithMinimalAppRoot 使用最小应用根运行不验证产品资源内容的服务测试。
+//
+// 平台 Skill 的完整发布行为由 workspace 专项测试覆盖；服务测试只需要
+// 验证发布入口可用，避免每个隔离状态根重复复制真实产品 Skill 树。
+func RunWithMinimalAppRoot(m *testing.M) int {
+	if m == nil {
+		_, _ = fmt.Fprintln(os.Stderr, "测试入口为空")
+		return 1
+	}
+	root, err := createMinimalAppRoot()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "创建最小测试应用根失败: %v\n", err)
+		return 1
+	}
+	previousRoot, hadPreviousRoot := os.LookupEnv(testAppRootEnvName)
+	if err = os.Setenv(testAppRootEnvName, root); err != nil {
+		_ = os.RemoveAll(root)
+		_, _ = fmt.Fprintf(os.Stderr, "设置最小测试应用根失败: %v\n", err)
+		return 1
+	}
+
+	exitCode := m.Run()
+	if hadPreviousRoot {
+		_ = os.Setenv(testAppRootEnvName, previousRoot)
+	} else {
+		_ = os.Unsetenv(testAppRootEnvName)
+	}
+	if err = os.RemoveAll(root); err != nil && exitCode == 0 {
+		_, _ = fmt.Fprintf(os.Stderr, "清理最小测试应用根失败: %v\n", err)
+		return 1
+	}
+	return exitCode
+}
+
+func createMinimalAppRoot() (string, error) {
+	root, err := os.MkdirTemp("", "nexus-test-app-root-")
+	if err != nil {
+		return "", err
+	}
+	cleanup := func(cause error) (string, error) {
+		_ = os.RemoveAll(root)
+		return "", cause
+	}
+	for _, directory := range []string{
+		filepath.Join(root, "skills"),
+		filepath.Join(root, "cmd", "nexusctl"),
+	} {
+		if err = os.MkdirAll(directory, 0o755); err != nil {
+			return cleanup(err)
+		}
+	}
+	if err = os.WriteFile(filepath.Join(root, "go.mod"), []byte(testAppRootGoMod), 0o644); err != nil {
+		return cleanup(err)
+	}
+	if err = os.WriteFile(
+		filepath.Join(root, "cmd", "nexusctl", "main.go"),
+		[]byte(testNexusctlMain),
+		0o644,
+	); err != nil {
+		return cleanup(err)
+	}
+	return root, nil
+}
 
 // NewConfig 返回HTTP 服务测试配置。
 func NewConfig(t testing.TB) config.Config {
@@ -77,10 +147,10 @@ func MigrateSQLiteFromDir(t testing.TB, databaseURL string, migrationDirectory s
 	if shouldUseSQLiteSnapshot(databaseURL) {
 		template := sqliteMigrationTemplateFor(migrationDirectory)
 		template.once.Do(func() {
-			template.db, template.err = openMigratedSQLiteTemplate(migrationDirectory)
+			template.data, template.err = openMigratedSQLiteTemplate(migrationDirectory)
 		})
 		if template.err == nil {
-			if err := cloneSQLiteTemplate(template.db, databaseURL); err == nil {
+			if err := cloneSQLiteTemplate(template.data, databaseURL); err == nil {
 				return
 			}
 		}
@@ -101,7 +171,7 @@ func sqliteMigrationTemplateFor(migrationDirectory string) *sqliteMigrationTempl
 	return template
 }
 
-func openMigratedSQLiteTemplate(migrationDirectory string) (*sql.DB, error) {
+func openMigratedSQLiteTemplate(migrationDirectory string) ([]byte, error) {
 	migrationDirectory = normalizedMigrationDirectory(migrationDirectory)
 	digest := sha256.Sum256([]byte(migrationDirectory))
 	dsn := fmt.Sprintf("file:nexus-test-migration-%x?mode=memory&cache=shared", digest[:8])
@@ -109,20 +179,27 @@ func openMigratedSQLiteTemplate(migrationDirectory string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() { _ = db.Close() }()
 	db.SetMaxOpenConns(1)
 	if err = db.Ping(); err != nil {
-		_ = db.Close()
 		return nil, err
 	}
 	if err = goose.SetDialect("sqlite3"); err != nil {
-		_ = db.Close()
 		return nil, err
 	}
 	if err = goose.Up(db, migrationDirectory); err != nil {
-		_ = db.Close()
 		return nil, err
 	}
-	return db, nil
+	snapshotRoot, err := os.MkdirTemp("", "nexus-sqlite-template-")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = os.RemoveAll(snapshotRoot) }()
+	snapshotPath := filepath.Join(snapshotRoot, "template.db")
+	if _, err = db.Exec(`VACUUM INTO ?`, snapshotPath); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(snapshotPath)
 }
 
 func normalizedMigrationDirectory(migrationDirectory string) string {
@@ -134,15 +211,29 @@ func normalizedMigrationDirectory(migrationDirectory string) string {
 	return absoluteDirectory
 }
 
-func cloneSQLiteTemplate(template *sql.DB, databaseURL string) error {
-	if template == nil {
+func cloneSQLiteTemplate(template []byte, databaseURL string) error {
+	if len(template) == 0 {
 		return errors.New("SQLite migration template 为空")
 	}
 	if err := os.MkdirAll(filepath.Dir(databaseURL), 0o755); err != nil {
 		return err
 	}
-	if _, err := template.Exec(`VACUUM INTO ?`, databaseURL); err != nil {
+	file, err := os.OpenFile(databaseURL, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
 		return err
+	}
+	written, writeErr := file.Write(template)
+	closeErr := file.Close()
+	if writeErr != nil || written != len(template) || closeErr != nil {
+		_ = os.Remove(databaseURL)
+		switch {
+		case writeErr != nil:
+			return writeErr
+		case written != len(template):
+			return fmt.Errorf("SQLite migration template 写入不完整: got=%d want=%d", written, len(template))
+		default:
+			return closeErr
+		}
 	}
 	return nil
 }

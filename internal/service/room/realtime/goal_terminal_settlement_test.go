@@ -56,6 +56,7 @@ func TestSharedRoomGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) {
 			roundValue.RoundID: roundValue,
 		}),
 	}
+	accelerateRoomGoalUsageRetry(service)
 
 	if service.claimSubagentGoalUsageForRoomSlot(
 		context.Background(),
@@ -329,6 +330,7 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 			roundValue.RoundID: roundValue,
 		}),
 	}
+	accelerateRoomGoalUsageRetry(service)
 	terminalMessage := protocol.Message{"metadata": map[string]any{
 		"subtype": "task_notification", "task_id": "task-1", "agent_id": "agent-1",
 		"agent_type": "worker", "status": "completed",
@@ -413,6 +415,7 @@ func TestRoomSubagentUsageRetryDoesNotFinalizeWhileParentRuns(t *testing.T) {
 		persisted: make(chan struct{}),
 	}
 	service := &Service{goals: provider}
+	accelerateRoomGoalUsageRetry(service)
 	slot.markSubagentUsagePending("task-running-parent", 10)
 	service.startRoomSubagentUsageRetry(roundValue, slot)
 
@@ -475,6 +478,7 @@ func TestRoomParentUsageRetryRecoversWithoutChildOrRuntimeMessage(t *testing.T) 
 			roundValue.RoundID: roundValue,
 		}),
 	}
+	accelerateRoomGoalUsageRetry(service)
 	result := exec.RoundExecutionResult{Usage: sdkprotocol.TokenUsage{
 		InputTokens:  90,
 		OutputTokens: 10,
@@ -608,6 +612,7 @@ func TestRoomParentTerminalHandoffRestartsWorkerAfterSkippedStart(t *testing.T) 
 		},
 	}
 	service := &Service{goals: provider}
+	accelerateRoomGoalUsageRetry(service)
 
 	// 旧 worker 尚未清 flag，runRound 的 terminal start 因而先跳过。
 	if !slot.tryStartGoalUsageRetry() {

@@ -27,13 +27,20 @@ func (r *roundRunner) startExternalReplyTyping(ctx context.Context) func() {
 	return typingloop.Start(ctx, func(callCtx context.Context, active bool) error {
 		return r.service.replies.SetExternalTyping(callCtx, agentID, target, active)
 	}, typingloop.LoopOptions{
-		StartDelay:        externalTypingStartDelay,
+		StartDelay:        r.externalTypingStartDelay(),
 		KeepaliveInterval: externalTypingKeepaliveInterval,
 		CallTimeout:       externalTypingTimeout,
 		OnError: func(active bool, err error) {
 			r.logExternalTypingError(agentID, target, active, err)
 		},
 	})
+}
+
+func (r *roundRunner) externalTypingStartDelay() time.Duration {
+	if r != nil && r.externalTypingDelay > 0 {
+		return r.externalTypingDelay
+	}
+	return externalTypingStartDelay
 }
 
 func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assistant protocol.Message) {

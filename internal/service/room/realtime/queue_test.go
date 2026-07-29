@@ -363,16 +363,18 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 	}
 
 	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
 	service := NewServiceWithFactory(
 		cfg,
 		roomService,
 		agentService,
-		runtimectx.NewManager(),
+		runtimeManager,
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{firstClient}},
 	)
 	ctx := context.Background()
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	registerRealtimeServiceCleanup(t, service, runtimeManager, sharedSessionKey)
 	sender := newRealtimeTestSender("room-sender-late-guide")
 	permission.BindSession(sharedSessionKey, sender)
 

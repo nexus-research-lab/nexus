@@ -565,6 +565,7 @@ func TestDMExternalActivationDurableBindFailureKeepsOldBindingAndBaseline(t *tes
 		goalUsage:              goalsvc.NewRuntimeUsageAccumulator(true),
 		goalUsageScopeConsumed: true,
 	}
+	accelerateDMGoalUsageRetry(runner)
 	runner.recordGoalUsageFromAssistantMessage(
 		goalToolResultAssistantMessage("tool-old", "read_file", false, 4, 1),
 	)
@@ -1347,6 +1348,7 @@ func TestDMExternalActivationStopsWhenPendingChildCheckpointCannotPersist(t *tes
 		goalUsage:              goalsvc.NewRuntimeUsageAccumulator(true),
 		goalUsageScopeConsumed: true,
 	}
+	accelerateDMGoalUsageRetry(runner)
 	runner.markSubagentUsageObservationPending("task-pending", dmSubagentUsageObservation{
 		cumulativeTotal: 75,
 	})

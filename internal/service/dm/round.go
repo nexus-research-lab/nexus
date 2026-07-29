@@ -98,6 +98,11 @@ type roundRunner struct {
 	permissionMode              sdkpermission.Mode
 	permissionHandler           sdkpermission.Handler
 	resultUsageWritten          bool
+
+	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
+	goalUsageRetryBaseDelay time.Duration
+	// externalTypingDelay 为零时使用外部通道的产品延迟。
+	externalTypingDelay time.Duration
 }
 
 func (r *roundRunner) run(ctx context.Context) {

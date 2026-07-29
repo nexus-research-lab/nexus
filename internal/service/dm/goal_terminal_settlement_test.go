@@ -37,6 +37,7 @@ func TestDMParentTerminalUsageBackgroundRetryRecoversWithoutChildOrNewMessage(t 
 		subagentUsageClaimPending: true,
 		postRoundDispatchHook:     func() { dispatches.Add(1) },
 	}
+	accelerateDMGoalUsageRetry(runner)
 	result := exec.RoundExecutionResult{
 		Usage: sdkprotocol.TokenUsage{
 			InputTokens:  12,
@@ -123,6 +124,7 @@ func TestDMParentTerminalUsageBackgroundRetryNeverDispatchesAbnormalRound(t *tes
 				goalUsage:             goalsvc.NewRuntimeUsageAccumulator(true),
 				postRoundDispatchHook: func() { dispatches.Add(1) },
 			}
+			accelerateDMGoalUsageRetry(runner)
 			runner.finalizeGoalUsage(context.Background(), exec.RoundExecutionResult{
 				Usage: sdkprotocol.TokenUsage{InputTokens: 9, OutputTokens: 1, TotalTokens: 10},
 			}, nil)
@@ -169,6 +171,7 @@ func TestDMSubagentUsageBackgroundRetryRecoversAndDispatchesNormalParentOnce(t *
 			dispatches.Add(1)
 		},
 	}
+	accelerateDMGoalUsageRetry(runner)
 	runner.markSubagentParentTerminal(subagentParentTerminalNormal)
 	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_started", "running"))
 	terminalMessage := dmSubagentTaskMessage("task_notification", "completed")
@@ -221,6 +224,7 @@ func TestDMSubagentUsageBackgroundRetryAlsoRetriesFinalizationUntilDispatch(t *t
 		goalTokenUsageObserved: true,
 		postRoundDispatchHook:  func() { dispatches.Add(1) },
 	}
+	accelerateDMGoalUsageRetry(runner)
 	runner.markSubagentParentTerminal(subagentParentTerminalNormal)
 	runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_started", "running"))
 	terminalMessage := dmSubagentTaskMessage("task_notification", "completed")
@@ -268,6 +272,7 @@ func TestDMSubagentUsageBackgroundRetryDoesNotDispatchFailedOrInterruptedParent(
 					dispatches.Add(1)
 				},
 			}
+			accelerateDMGoalUsageRetry(runner)
 			runner.markSubagentParentTerminal(terminal)
 			runner.rememberSubagentTaskMessage(dmSubagentTaskMessage("task_started", "running"))
 			terminalMessage := dmSubagentTaskMessage("task_notification", "completed")
@@ -315,6 +320,7 @@ func TestCompletedDMGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) 
 		runtimeKind:            "nxs",
 		goalTokenUsageObserved: true,
 	}
+	accelerateDMGoalUsageRetry(runner)
 
 	runner.claimSubagentGoalUsageRound(context.Background(), goalID)
 	if !runner.subagentGoalUsageClaimPending() {

@@ -491,7 +491,7 @@ func (s *Service) settleTerminalGoalUsageSnapshotForSlotWithRetry(
 	snapshot goalsvc.RuntimeUsageSnapshot,
 ) bool {
 	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !waitRoomGoalUsagePersistRetry(ctx, attempt) {
+		if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
 			return false
 		}
 		if s.settleTerminalGoalUsageSnapshotForSlot(ctx, slot, snapshot) {
@@ -501,8 +501,12 @@ func (s *Service) settleTerminalGoalUsageSnapshotForSlotWithRetry(
 	return false
 }
 
-func waitRoomGoalUsagePersistRetry(ctx context.Context, attempt int) bool {
-	delay := 20 * time.Millisecond * time.Duration(1<<min(attempt-1, 4))
+func (s *Service) waitRoomGoalUsagePersistRetry(ctx context.Context, attempt int) bool {
+	baseDelay := 20 * time.Millisecond
+	if s != nil && s.goalUsageRetryBaseDelay > 0 {
+		baseDelay = s.goalUsageRetryBaseDelay
+	}
+	delay := baseDelay * time.Duration(1<<min(attempt-1, 4))
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 	select {
@@ -917,7 +921,7 @@ func (s *Service) finalizeCompletedRoomGoalWithRetry(
 	roundID string,
 ) bool {
 	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !waitRoomGoalUsagePersistRetry(ctx, attempt) {
+		if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
 			return false
 		}
 		report, err := finalizer.UsageByGoalID(ctx, goalID)
@@ -1241,7 +1245,7 @@ func (s *Service) claimSubagentGoalUsageForRoomSlot(
 		GoalSessionKey:    goalUsageSessionKeyForRoomSlot(slot, goalSessionKey),
 	}
 	for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-		if attempt > 0 && !waitRoomGoalUsagePersistRetry(ctx, attempt) {
+		if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
 			return false
 		}
 		if _, err := claimer.ClaimUsageSourceRound(ctx, claim); err != nil {
@@ -1292,7 +1296,7 @@ func (s *Service) recordSubagentGoalUsageForSlot(
 				err    error
 			)
 			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !waitRoomGoalUsagePersistRetry(ctx, attempt) {
+				if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
 					break
 				}
 				result, err = s.persistSubagentGoalUsageObservationForSlot(
@@ -1546,7 +1550,7 @@ func (s *Service) activateGoalUsageForSlot(
 			}
 			var err error
 			for attempt := 0; attempt < goalUsagePersistAttempts; attempt++ {
-				if attempt > 0 && !waitRoomGoalUsagePersistRetry(ctx, attempt) {
+				if attempt > 0 && !s.waitRoomGoalUsagePersistRetry(ctx, attempt) {
 					return ctx.Err()
 				}
 				if _, err = binder.BindUsageScopeFromNow(ctx, binding); err == nil {

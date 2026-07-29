@@ -243,7 +243,7 @@ func (s *Service) retryRoomSubagentUsage(
 			}
 			if len(slot.subagentUsagePendingSnapshot()) > 0 {
 				unlockScope()
-				if !waitRoomSubagentUsageRetry(retryAttempt) {
+				if !s.waitRoomSubagentUsageRetry(retryAttempt) {
 					return
 				}
 				retryAttempt++
@@ -262,7 +262,7 @@ func (s *Service) retryRoomSubagentUsage(
 			s.releaseRoundSubagentWait(roundValue)
 			return
 		}
-		if !waitRoomSubagentUsageRetry(retryAttempt) {
+		if !s.waitRoomSubagentUsageRetry(retryAttempt) {
 			return
 		}
 		retryAttempt++
@@ -298,8 +298,12 @@ func roomRoundParentSlotsTerminal(roundValue *activeRoomRound) bool {
 	return true
 }
 
-func waitRoomSubagentUsageRetry(attempt int) bool {
-	delay := 20 * time.Millisecond * time.Duration(1<<min(attempt, 8))
+func (s *Service) waitRoomSubagentUsageRetry(attempt int) bool {
+	baseDelay := 20 * time.Millisecond
+	if s != nil && s.goalUsageRetryBaseDelay > 0 {
+		baseDelay = s.goalUsageRetryBaseDelay
+	}
+	delay := baseDelay * time.Duration(1<<min(attempt, 8))
 	if delay > roomGoalUsageRetryMaxDelay {
 		delay = roomGoalUsageRetryMaxDelay
 	}

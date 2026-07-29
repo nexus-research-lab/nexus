@@ -282,6 +282,9 @@ func listTranscriptWorktreePaths(cwd string) []string {
 	if strings.TrimSpace(cwd) == "" {
 		return nil
 	}
+	if !transcriptWorktreeLookupRequired(cwd) {
+		return nil
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), transcriptSessionSearchTimout)
 	defer cancel()
@@ -302,6 +305,42 @@ func listTranscriptWorktreePaths(cwd string) []string {
 		results = append(results, norm.NFC.String(strings.TrimSpace(strings.TrimPrefix(line, "worktree "))))
 	}
 	return results
+}
+
+// transcriptWorktreeLookupRequired 先排除最常见的单 worktree 仓库，
+// 避免 transcript miss 每次都启动一个 Git 子进程。
+func transcriptWorktreeLookupRequired(cwd string) bool {
+	if strings.TrimSpace(os.Getenv("GIT_DIR")) != "" ||
+		strings.TrimSpace(os.Getenv("GIT_WORK_TREE")) != "" {
+		return true
+	}
+	current := filepath.Clean(cwd)
+	for {
+		gitPath := filepath.Join(current, ".git")
+		info, err := os.Lstat(gitPath)
+		switch {
+		case err == nil && !info.IsDir():
+			// linked worktree 与 submodule 都使用 .git 文件；保守回退 Git。
+			return true
+		case err == nil:
+			entries, readErr := os.ReadDir(filepath.Join(gitPath, "worktrees"))
+			if errors.Is(readErr, os.ErrNotExist) {
+				return false
+			}
+			if readErr != nil {
+				return true
+			}
+			return len(entries) > 0
+		case !errors.Is(err, os.ErrNotExist):
+			return true
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return false
+		}
+		current = parent
+	}
 }
 
 func sanitizeTranscriptPath(path string) string {

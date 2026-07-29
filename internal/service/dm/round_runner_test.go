@@ -185,6 +185,7 @@ func TestRoundRunnerMaintainsExternalTypingState(t *testing.T) {
 			ThreadID: "context-token-1",
 		},
 	}
+	accelerateDMExternalTyping(runner)
 
 	stop := runner.startExternalReplyTyping(context.Background())
 	deadline := time.After(2 * time.Second)
@@ -228,10 +229,11 @@ func TestRoundRunnerSkipsExternalTypingForQuickReply(t *testing.T) {
 			ThreadID: "context-token-1",
 		},
 	}
+	accelerateDMExternalTyping(runner)
 
 	stop := runner.startExternalReplyTyping(context.Background())
 	stop()
-	time.Sleep(externalTypingStartDelay + 50*time.Millisecond)
+	time.Sleep(runner.externalTypingStartDelay() + 50*time.Millisecond)
 
 	if calls := dispatcher.typingCallsSnapshot(); len(calls) != 0 {
 		t.Fatalf("快速结束不应发送 typing 状态: %+v", calls)

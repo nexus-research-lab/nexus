@@ -144,6 +144,9 @@ type Service struct {
 	mcpServers       MCPServerBuilder
 	titles           roomTitleScheduler
 
+	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
+	goalUsageRetryBaseDelay time.Duration
+
 	rounds              roomRoundRegistry
 	goalUsageScopeLocks roomGoalUsageScopeLockRegistry
 	wakeTimers          *roomWakeTimerRegistry

@@ -36,6 +36,31 @@ func TestMigrateSQLiteFromDirClonesIndependentDatabases(t *testing.T) {
 	}
 }
 
+func TestMigrateSQLiteFromDirPreservesExistingDatabase(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "existing.db")
+	database := openSnapshotTestDB(t, databasePath)
+	if _, err := database.Exec(`CREATE TABLE existing_probe (id INTEGER PRIMARY KEY)`); err != nil {
+		t.Fatalf("创建已有测试表失败: %v", err)
+	}
+	if err := database.Close(); err != nil {
+		t.Fatalf("关闭已有测试数据库失败: %v", err)
+	}
+
+	MigrateSQLiteFromDir(t, databasePath, migrationDir(t))
+
+	database = openSnapshotTestDB(t, databasePath)
+	defer func() { _ = database.Close() }()
+	var tableCount int
+	if err := database.QueryRow(
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'existing_probe'`,
+	).Scan(&tableCount); err != nil {
+		t.Fatalf("检查已有测试表失败: %v", err)
+	}
+	if tableCount != 1 {
+		t.Fatalf("已有数据库不应被快照覆盖: count=%d", tableCount)
+	}
+}
+
 func openSnapshotTestDB(t *testing.T, databaseURL string) *sql.DB {
 	t.Helper()
 	db, err := sql.Open("sqlite", databaseURL)
