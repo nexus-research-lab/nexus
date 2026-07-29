@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 会话 Frame、Feed、Goal、Task 与 Composer 视图模型。
- * OUTPUT: 共享 viewport、Goal slot 与 Composer 锚定悬浮区组成的 Room 对话布局。
+ * OUTPUT: 共享 viewport 与从 Composer 向上堆叠 Goal、Task、滚动入口的 Room 对话布局。
  * POS: Group Chat 面板的纯视图层。
  */
 

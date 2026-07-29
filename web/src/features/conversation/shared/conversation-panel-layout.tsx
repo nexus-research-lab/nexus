@@ -1,6 +1,6 @@
 /**
  * INPUT: 面板状态、内容节点、滚动 refs、会话导航、Goal、底部活动入口与统一输入事件。
- * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及以 Composer 顶边为锚点的回到底部/定向未读控件。
+ * OUTPUT: 可聚焦的主对话滚动布局、只约束在 viewport 内的导航，以及由 Composer 向上堆叠的 Goal/活动/回到底部工作栈。
  * POS: DM 与 Room 主对话面板的共享纯视图骨架。
  */
 import type { ComponentProps, ReactNode, RefObject } from "react";
@@ -182,21 +182,23 @@ export function ConversationPanelBottomArea({
       data-conversation-bottom-area
     >
       <div
-        className="nexus-conversation-pre-composer"
-        data-conversation-pre-composer
+        className="relative"
+        data-conversation-bottom-stack
       >
-        {providerWarningVisible ? (
-          <ProviderUnavailableBanner compact={isMobileLayout} />
-        ) : null}
-        {goal}
-      </div>
-      <div className="relative" data-conversation-composer-anchor>
         <ConversationPanelFloatingControls
           activity={activity}
           isMobileLayout={isMobileLayout}
           scrollToLatest={scrollToLatest}
         />
-        {children}
+        <div data-conversation-status-stack>
+          {providerWarningVisible ? (
+            <ProviderUnavailableBanner compact={isMobileLayout} />
+          ) : null}
+          {goal}
+        </div>
+        <div data-conversation-composer-anchor>
+          {children}
+        </div>
       </div>
     </div>
   );

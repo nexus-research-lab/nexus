@@ -776,11 +776,6 @@
     }
   }
 
-  /* Goal/告警保持正常文档流；透明 runway 只承接锚在 Composer 顶边的 44px Activity Dock。 */
-  .nexus-conversation-pre-composer:not(:empty) {
-    padding-bottom: 3.5rem;
-  }
-
   .input-shell.ui-search-input-shell {
     border-color: var(--surface-control-border);
     background: var(--surface-control-field-background);

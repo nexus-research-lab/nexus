@@ -453,7 +453,38 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
   );
 });
 
-test("Room and DM compose Task inside the shared bottom area instead of the Surface top", async () => {
+test("Room and DM stack Goal, Task, and scroll controls upward from the Composer", async () => {
+  const { ConversationPanelBottomArea } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/conversation-panel-layout.tsx",
+  );
+  const stackedHtml = renderToStaticMarkup(
+    React.createElement(
+      ConversationPanelBottomArea,
+      {
+        activity: React.createElement("button", { "data-test-task-layer": true }, "task"),
+        goal: React.createElement("div", { "data-test-goal-layer": true }, "goal"),
+        isMobileLayout: false,
+        providerWarningVisible: false,
+        scrollToLatest: {
+          direction: null,
+          isLoading: false,
+          onClick: () => {},
+          unreadCount: 0,
+          visible: false,
+        },
+      },
+      React.createElement("div", { "data-test-composer-layer": true }, "composer"),
+    ),
+  );
+  assert.ok(
+    stackedHtml.indexOf("data-test-task-layer")
+      < stackedHtml.indexOf("data-test-goal-layer"),
+  );
+  assert.ok(
+    stackedHtml.indexOf("data-test-goal-layer")
+      < stackedHtml.indexOf("data-test-composer-layer"),
+  );
+
   const sources = await Promise.all([
     "src/features/conversation/room/surface/layout/room-surface-content.tsx",
     "src/features/conversation/room/surface/mobile/room-mobile-surface.tsx",
@@ -481,18 +512,50 @@ test("Room and DM compose Task inside the shared bottom area instead of the Surf
     "utf8",
   );
   assert.ok(
-    layoutSource.indexOf("data-conversation-pre-composer")
+    layoutSource.indexOf("data-conversation-bottom-stack")
+      < layoutSource.indexOf("data-conversation-status-stack"),
+    "the Composer bottom stack must own its status layer",
+  );
+  assert.ok(
+    layoutSource.indexOf("<ConversationPanelFloatingControls")
+      < layoutSource.indexOf("data-conversation-status-stack"),
+    "Task and scroll controls must stack above the Goal status layer",
+  );
+  assert.ok(
+    layoutSource.indexOf("data-conversation-status-stack")
       < layoutSource.indexOf("data-conversation-composer-anchor"),
-    "Goal/provider content must stay above the Composer anchor",
+    "Goal/provider content must sit directly above the Composer",
+  );
+  const bottomStackStart = layoutSource.indexOf(
+    "data-conversation-bottom-stack",
   );
   const composerAnchorStart = layoutSource.indexOf(
     "data-conversation-composer-anchor",
   );
   assert.ok(
-    layoutSource.indexOf("<ConversationPanelFloatingControls", composerAnchorStart)
-      > composerAnchorStart,
-    "Task and scroll controls must be anchored by the Composer itself",
+    layoutSource.indexOf("<ConversationPanelFloatingControls", bottomStackStart)
+      < composerAnchorStart,
+    "Task and scroll controls must use the whole bottom stack as their anchor",
   );
+
+  const recipes = await readFile(
+    path.join(webRoot, "src/app/styles/theme-recipes.css"),
+    "utf8",
+  );
+  assert.doesNotMatch(recipes, /nexus-conversation-pre-composer/);
+  assert.doesNotMatch(recipes, /padding-bottom:\s*3\.5rem/);
+
+  const goalModelSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/goal/goal-model.ts",
+    ),
+    "utf8",
+  );
+  assert.match(goalModelSource, /CONVERSATION_CONTENT_LANE_CLASS_NAME/);
+  assert.match(goalModelSource, /rounded-\[16px\]/);
+  assert.match(goalModelSource, /shadow-\(--surface-control-shadow\)/);
+  assert.doesNotMatch(goalModelSource, /GOAL_PANEL_SURFACE_CLASS_NAME\s*=[\s\S]*?border-b/);
 });
 
 test("Task and scroll controls share a centered dock while retaining local pointer hit areas", async () => {

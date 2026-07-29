@@ -8,4 +8,4 @@
 - `goal-panel.tsx` 只组合状态条、编辑弹窗和单一确认弹窗，不直接调用 API。
 - `goal-model.ts` 统一 Goal 状态、实际 token 用量、预算表单、控制器可见性、动作规则与外部活动版本的纯投影；状态条只展示一个实际用量数字，估算值以 `≈` 标记，complete 但尚未 finalized 时隐藏 token，不展示预算计量、进度条或用量 tooltip。
 - `goal-status-strip.tsx` 只渲染状态模型并把动作分发给控制器，不解释 Goal 运行规则。
-- 非紧凑 Goal 状态条必须复用 Composer lane；长目标保持单行截断并保留完整 DOM 文本与悬停标题，不能用更宽的消息阅读 lane 把运行控制条铺满画布。
+- Goal 状态条属于 Composer 向上工作栈的第一层；桌面使用略窄于 Composer 的内容 lane、圆角浮层和 8px 层间距，移动端沿用紧凑 lane。长目标保持单行截断并保留完整 DOM 文本与悬停标题，不能把运行控制条铺满画布。
