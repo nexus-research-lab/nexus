@@ -751,7 +751,7 @@ test("Composer drafts stay isolated by Session while history follows the chat", 
   });
 });
 
-test("delayed completion cannot clear a newer Composer draft capsule", async () => {
+test("Composer submission clears immediately and failure recovery preserves newer input", async () => {
   const { useComposerDraftStore } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/composer-draft-store.ts",
   );
@@ -776,37 +776,68 @@ test("delayed completion cannot clear a newer Composer draft capsule", async () 
   const submittedRevision = useComposerDraftStore
     .getState()
     .drafts_by_scope[scope].revision;
-
-  updateDraft(scope, (current) => ({
-    ...current,
-    attachments: [
-      ...current.attachments,
-      {
-        file: { name: "继续补充.pdf" },
-        id: "attachment-after-submit",
-        kind: "file",
-      },
-    ],
-    input: "切换后继续输入",
-  }));
-
-  const clearDraft = useComposerDraftStore
+  const claimDraft = useComposerDraftStore
     .getState()
-    .clear_composer_draft_if_revision;
-  assert.equal(clearDraft(scope, submittedRevision), false);
-  const newerDraft = useComposerDraftStore.getState().drafts_by_scope[scope];
-  assert.equal(newerDraft.input, "切换后继续输入");
-  assert.equal(newerDraft.inputMode, "goal");
-  assert.equal(newerDraft.goalLeadAgentId, "agent-kevin");
-  assert.deepEqual(newerDraft.selectedTargetIDs, ["agent-kevin"]);
-  assert.deepEqual(
-    newerDraft.attachments.map((attachment) => attachment.file.name),
-    ["提交前.png", "继续补充.pdf"],
-  );
-  assert.equal(clearDraft(scope, newerDraft.revision), true);
+    .claim_composer_draft_for_submission;
+  const submittedDraft = claimDraft(scope, submittedRevision);
+  assert.equal(submittedDraft.input, "原始草稿");
   assert.equal(
     useComposerDraftStore.getState().drafts_by_scope[scope],
     undefined,
+    "locally dispatched content must leave the Composer before ACK",
+  );
+
+  updateDraft(scope, (current) => ({
+    ...current,
+    attachments: [{
+      file: { name: "继续补充.pdf" },
+      id: "attachment-after-submit",
+      kind: "file",
+    }],
+    input: "切换后继续输入",
+  }));
+
+  const restoreDraft = useComposerDraftStore
+    .getState()
+    .restore_composer_draft_after_failed_submission;
+  assert.equal(restoreDraft(scope, submittedDraft), false);
+  const newerDraft = useComposerDraftStore.getState().drafts_by_scope[scope];
+  assert.equal(newerDraft.input, "切换后继续输入");
+  assert.equal(newerDraft.inputMode, "message");
+  assert.equal(newerDraft.goalLeadAgentId, null);
+  assert.deepEqual(newerDraft.selectedTargetIDs, []);
+  assert.deepEqual(
+    newerDraft.attachments.map((attachment) => attachment.file.name),
+    ["继续补充.pdf"],
+  );
+  const newerSubmittedDraft = claimDraft(scope, newerDraft.revision);
+  assert.equal(newerSubmittedDraft.input, "切换后继续输入");
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[scope],
+    undefined,
+  );
+  assert.equal(restoreDraft(scope, submittedDraft), true);
+  const restoredDraft = useComposerDraftStore.getState().drafts_by_scope[scope];
+  assert.equal(restoredDraft.input, "原始草稿");
+  assert.equal(restoredDraft.inputMode, "goal");
+  assert.equal(restoredDraft.goalLeadAgentId, "agent-kevin");
+  assert.deepEqual(restoredDraft.selectedTargetIDs, ["agent-kevin"]);
+  assert.deepEqual(
+    restoredDraft.attachments.map((attachment) => attachment.file.name),
+    ["提交前.png"],
+  );
+  updateDraft(scope, (current) => ({
+    ...current,
+    input: "派发前继续输入",
+  }));
+  assert.equal(
+    claimDraft(scope, restoredDraft.revision),
+    null,
+    "attachment preparation must not clear a draft edited before dispatch",
+  );
+  assert.equal(
+    useComposerDraftStore.getState().drafts_by_scope[scope].input,
+    "派发前继续输入",
   );
   useComposerDraftStore.setState({
     draft_revision: 0,

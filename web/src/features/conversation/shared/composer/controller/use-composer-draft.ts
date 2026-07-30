@@ -47,8 +47,11 @@ export interface ComposerDraftController {
   state: ComposerDraftState;
   applyPrompt: (prompt: string, mode: ComposerInputMode) => void;
   cancelGoal: () => void;
-  completeMessageSubmission: () => boolean;
+  claimMessageSubmission: () => ComposerDraftSnapshot | null;
   resetAfterGoal: () => void;
+  restoreFailedMessageSubmission: (
+    submittedDraft: ComposerDraftSnapshot,
+  ) => boolean;
   setActionMenuOpen: Dispatch<SetStateAction<boolean>>;
   setAttachments: Dispatch<SetStateAction<ComposerLocalAttachment[]>>;
   setGoalCreating: Dispatch<SetStateAction<boolean>>;
@@ -65,8 +68,11 @@ export function useComposerDraft(
   const draftSnapshot = useComposerDraftStore(
     (state) => state.drafts_by_scope[draftScopeKey] ?? EMPTY_COMPOSER_DRAFT,
   );
-  const clearComposerDraftIfRevision = useComposerDraftStore(
-    (state) => state.clear_composer_draft_if_revision,
+  const claimComposerDraftForSubmission = useComposerDraftStore(
+    (state) => state.claim_composer_draft_for_submission,
+  );
+  const restoreComposerDraftAfterFailedSubmission = useComposerDraftStore(
+    (state) => state.restore_composer_draft_after_failed_submission,
   );
   const updateComposerDraft = useComposerDraftStore(
     (state) => state.update_composer_draft,
@@ -162,15 +168,24 @@ export function useComposerDraft(
       goalError: null,
     }));
   }, [draftScopeKey, transition, updateComposerDraft]);
-  const completeMessageSubmission = useCallback(() => (
-    clearComposerDraftIfRevision(draftScopeKey, draftSnapshot.revision)
+  const claimMessageSubmission = useCallback(() => (
+    claimComposerDraftForSubmission(draftScopeKey, draftSnapshot.revision)
   ), [
-    clearComposerDraftIfRevision,
+    claimComposerDraftForSubmission,
     draftScopeKey,
     draftSnapshot.revision,
   ]);
+  const restoreFailedMessageSubmission = useCallback((
+    submittedDraft: ComposerDraftSnapshot,
+  ) => restoreComposerDraftAfterFailedSubmission(
+    draftScopeKey,
+    submittedDraft,
+  ), [
+    draftScopeKey,
+    restoreComposerDraftAfterFailedSubmission,
+  ]);
   const resetAfterGoal = useCallback(() => {
-    const cleared = clearComposerDraftIfRevision(
+    const cleared = claimComposerDraftForSubmission(
       draftScopeKey,
       draftSnapshot.revision,
     );
@@ -182,7 +197,7 @@ export function useComposerDraft(
       goalError: null,
     }));
   }, [
-    clearComposerDraftIfRevision,
+    claimComposerDraftForSubmission,
     draftScopeKey,
     draftSnapshot.revision,
     transition,
@@ -195,8 +210,9 @@ export function useComposerDraft(
     },
     applyPrompt,
     cancelGoal,
-    completeMessageSubmission,
+    claimMessageSubmission,
     resetAfterGoal,
+    restoreFailedMessageSubmission,
     setActionMenuOpen,
     setAttachments,
     setGoalCreating,

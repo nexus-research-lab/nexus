@@ -7,6 +7,7 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
+import type { ComposerDraftSnapshot } from "../composer-draft-store";
 import { resolveComposerDelivery } from "../composer-model";
 
 type DeliverMessage = (
@@ -18,8 +19,8 @@ type DeliverMessage = (
 
 interface UseComposerMessageSubmitOptions {
   attachmentCount: number;
+  claimDraftSubmission: () => ComposerDraftSnapshot | null;
   clearAttachmentError: () => void;
-  completeDraftSubmission: () => boolean;
   defaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   input: string;
   isLoading: boolean;
@@ -31,6 +32,9 @@ interface UseComposerMessageSubmitOptions {
   queueWhenSessionBusy: boolean;
   recordHistory: (value: string) => void;
   resetTextareaHeight: () => void;
+  restoreFailedDraftSubmission: (
+    submittedDraft: ComposerDraftSnapshot,
+  ) => boolean;
   runtimePhase: AgentConversationRuntimePhase | null;
   targetAgentIDs: string[];
 }
@@ -44,8 +48,8 @@ interface ComposerMessageSubmission {
 export function useComposerMessageSubmit(
   {
     attachmentCount,
+    claimDraftSubmission,
     clearAttachmentError,
-    completeDraftSubmission,
     defaultDeliveryPolicy,
     input,
     isLoading,
@@ -57,6 +61,7 @@ export function useComposerMessageSubmit(
     queueWhenSessionBusy,
     recordHistory,
     resetTextareaHeight,
+    restoreFailedDraftSubmission,
     runtimePhase,
     targetAgentIDs,
   }: UseComposerMessageSubmitOptions,
@@ -64,8 +69,8 @@ export function useComposerMessageSubmit(
   return useCallback(
     () => runComposerMessageSubmission({
       attachmentCount,
+      claimDraftSubmission,
       clearAttachmentError,
-      completeDraftSubmission,
       defaultDeliveryPolicy,
       input,
       isLoading,
@@ -77,13 +82,14 @@ export function useComposerMessageSubmit(
       queueWhenSessionBusy,
       recordHistory,
       resetTextareaHeight,
+      restoreFailedDraftSubmission,
       runtimePhase,
       targetAgentIDs,
     }),
     [
       attachmentCount,
+      claimDraftSubmission,
       clearAttachmentError,
-      completeDraftSubmission,
       defaultDeliveryPolicy,
       input,
       isLoading,
@@ -95,6 +101,7 @@ export function useComposerMessageSubmit(
       queueWhenSessionBusy,
       recordHistory,
       resetTextareaHeight,
+      restoreFailedDraftSubmission,
       runtimePhase,
       targetAgentIDs,
     ],
@@ -112,15 +119,25 @@ async function runComposerMessageSubmission(
   if (!attachments) {
     return;
   }
+  let submittedDraft: ComposerDraftSnapshot | null = null;
   try {
-    await submission.deliver(
+    const delivery = submission.deliver(
       submission.content,
       submission.policy,
       attachments,
       options.targetAgentIDs,
     );
-    completeMessageSubmission(options, submission.content);
+    submittedDraft = options.claimDraftSubmission();
+    if (submittedDraft) {
+      options.clearAttachmentError();
+      options.resetTextareaHeight();
+    }
+    await delivery;
+    options.recordHistory(submission.content);
   } catch (error) {
+    if (submittedDraft) {
+      options.restoreFailedDraftSubmission(submittedDraft);
+    }
     console.error("发送消息失败:", error);
   }
 }
@@ -157,16 +174,4 @@ function canStartMessageSubmission(
     !options.isPreparingAttachments,
     options.runtimePhase !== "awaiting_permission",
   ].every(Boolean);
-}
-
-function completeMessageSubmission(
-  options: UseComposerMessageSubmitOptions,
-  content: string,
-): void {
-  options.recordHistory(content);
-  if (!options.completeDraftSubmission()) {
-    return;
-  }
-  options.clearAttachmentError();
-  options.resetTextareaHeight();
 }
