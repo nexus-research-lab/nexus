@@ -280,6 +280,13 @@ func TestServiceBuildRuntimePromptDirectsGoalSkill(t *testing.T) {
 	assertPromptContains(t, prompt, "绝不能先完成旧 Goal 再创建新 Goal")
 	assertPromptContains(t, prompt, "不要使用 /goal 文本命令")
 	assertPromptContains(t, prompt, "普通一次性请求、提醒和定时任务不要自动创建 Goal")
+	assertPromptContains(t, prompt, "用户明确要求 Goal 只是创建的必要条件")
+	assertPromptContains(t, prompt, "objective 已达到可执行状态")
+	assertPromptContains(t, prompt, "信息足够前禁止调用 create_goal")
+	assertPromptContains(t, prompt, "禁止先创建宽泛或占位 Goal")
+	assertPromptContains(t, prompt, "最终回复才是用户交付面")
+	assertPromptContains(t, prompt, "文本类交付直接给出完整正文")
+	assertPromptContains(t, prompt, "不得用“Goal 已完成”或简短总结代替结果")
 	assertPromptContains(t, prompt, "token_budget")
 	assertPromptContains(t, prompt, "blocked")
 }

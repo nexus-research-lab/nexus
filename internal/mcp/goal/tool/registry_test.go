@@ -99,6 +99,18 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 			t.Fatalf("tool description missing %q: %s", want, tool.Description)
 		}
 	}
+	for _, want := range []string{
+		"complete user-facing delivery surface",
+		"include the full requested content",
+		"provide exact links or paths",
+		"present the key outcomes and relevant verification",
+		"Do not make `Goal complete` the headline",
+		"mention completion only secondarily",
+	} {
+		if !strings.Contains(tool.Description, want) {
+			t.Fatalf("tool description missing result-first guidance %q: %s", want, tool.Description)
+		}
+	}
 }
 
 func TestRetargetGoalSchemaRequiresOnlyObjective(t *testing.T) {
@@ -381,6 +393,14 @@ func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
 	if !strings.Contains(objectiveDescription, "starts a new active goal only when no goal is currently defined") {
 		t.Fatalf("objective.description = %q, want Codex create semantics", objectiveDescription)
 	}
+	for _, expected := range []string{
+		"complete, concrete, execution-ready objective",
+		"Never use a broad or placeholder objective",
+	} {
+		if !strings.Contains(objectiveDescription, expected) {
+			t.Fatalf("objective.description = %q, want readiness guidance %q", objectiveDescription, expected)
+		}
+	}
 	budgetDescription, _ := budget["description"].(string)
 	if !strings.Contains(budgetDescription, "Optional positive token budget for the new active goal") {
 		t.Fatalf("token_budget.description = %q, want Codex budget semantics", budgetDescription)
@@ -415,6 +435,11 @@ func TestCreateGoalDescriptionAddsCollaborationOnlyForSharedRoom(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"Create a goal only when explicitly requested",
+		"Explicit Goal intent is necessary but not sufficient",
+		"concrete, execution-ready objective without material guessing",
+		"ask the user and wait for the answer",
+		"Do not create a broad or placeholder Goal",
+		"include the confirmed requirements in the objective",
 		"Set token_budget only when an explicit token budget is requested",
 	} {
 		if !strings.Contains(dmTool.Description, expected) || !strings.Contains(roomTool.Description, expected) {

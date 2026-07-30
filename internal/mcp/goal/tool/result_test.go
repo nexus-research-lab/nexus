@@ -26,7 +26,7 @@ func TestGoalCompletionPayloadIncludesUsageCheckpointReport(t *testing.T) {
 	if !ok || report == "" {
 		t.Fatalf("completionBudgetReport = %#v, want instruction", payload["completionBudgetReport"])
 	}
-	const wantReport = "Goal achieved. Send one concise final response stating that the Goal is complete and briefly summarizing what `goal.objective` achieved. Then stop and wait for user input."
+	const wantReport = "Goal achieved. Use the next final response as the complete user-facing delivery. It must stand on its own and satisfy `goal.objective`: include the full requested content when content itself is the deliverable; for files or artifacts, provide exact links or paths; for implementation, research, or external-state work, present the key outcomes and relevant verification. Do not make Goal completion the headline or replace the result with a completion notice or brief summary; mention completion only secondarily if useful. Then stop and wait for user input."
 	if report != wantReport {
 		t.Fatalf("completionBudgetReport = %q, want %q", report, wantReport)
 	}
@@ -92,7 +92,7 @@ func TestStructuredResultTextUsesCodexFieldOrder(t *testing.T) {
     "updatedAt": 20
   },
   "remainingTokens": 58,
-  "completionBudgetReport": "Goal achieved. Send one concise final response stating that the Goal is complete and briefly summarizing what ` + "`goal.objective`" + ` achieved. Then stop and wait for user input."
+  "completionBudgetReport": "Goal achieved. Use the next final response as the complete user-facing delivery. It must stand on its own and satisfy ` + "`goal.objective`" + `: include the full requested content when content itself is the deliverable; for files or artifacts, provide exact links or paths; for implementation, research, or external-state work, present the key outcomes and relevant verification. Do not make Goal completion the headline or replace the result with a completion notice or brief summary; mention completion only secondarily if useful. Then stop and wait for user input."
 }`
 	if text != want {
 		t.Fatalf("text content = %s, want %s", text, want)
@@ -104,15 +104,25 @@ func TestStructuredResultTextUsesCodexFieldOrder(t *testing.T) {
 	}
 }
 
-func TestGoalCompletionReportDoesNotRequireUsageDetails(t *testing.T) {
+func TestGoalCompletionReportPrioritizesResultDeliveryWithoutUsageDetails(t *testing.T) {
 	report := completionBudgetReport(&protocol.Goal{
 		Status:          protocol.GoalStatusComplete,
 		Usage:           protocol.GoalUsage{TotalTokens: 42, ActualTotalTokens: 603673},
 		TimeUsedSeconds: 23*60 + 4,
 	})
 
-	if !strings.Contains(report, "Goal achieved") || !strings.Contains(report, "briefly summarizing") {
-		t.Fatalf("completionBudgetReport = %q, want concise completion guidance", report)
+	for _, expected := range []string{
+		"complete user-facing delivery",
+		"stand on its own",
+		"include the full requested content",
+		"provide exact links or paths",
+		"key outcomes and relevant verification",
+		"Do not make Goal completion the headline",
+		"mention completion only secondarily",
+	} {
+		if !strings.Contains(report, expected) {
+			t.Fatalf("completionBudgetReport = %q, want result-first guidance %q", report, expected)
+		}
 	}
 	for _, unwanted := range []string{"tokens", "elapsed", "耗时", "最终回复自身用量"} {
 		if strings.Contains(report, unwanted) {

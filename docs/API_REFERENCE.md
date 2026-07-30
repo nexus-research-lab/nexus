@@ -497,7 +497,7 @@ DM 按当前 round 聚合 parent 与 child；Room 聚合同一 root round（包�
 
 当前 nxs child 适配器会在没有可信 child usage 时填充 `total_tokens: 0`；这个 `0` 是“未知”的占位值，不是 provider terminal 的精确零。child 只有终态消息中的正 total 才记为 authoritative terminal evidence；progress 的正 total 仍可进入 actual checkpoint，但若随后 terminal 为 `0` 或未提供 total，证据仍记为 unavailable，Goal 保持 `usage_finalized=false`。因此 provider terminal 的显式零可以精确结算，但不能把 nxs child 的占位零当作同一种证据。Claude Code 后台任务同样不会在缺少可验证累计语义时被冒充为精确增量。
 
-`update_goal(complete)` 的结构化结果返回 `completionUsageCheckpointReport`、`goalId` 与 `usageFinalized: false`；旧 `completionBudgetReport` 字段保留为同值兼容别名。两个 report 字段只承载模型完成后的简短收尾指引，不是需要原样展示的 token 报告。模型最终回复只需说明 Goal 已完成并简短总结结果，不要求复述 actual/budget token、耗时或“最终回复稍后结算”的 caveat。最终 assistant 回复的 usage 仍会在当前 round terminal 后按固定 `goal_id` 写回已完成 Goal；需要精确审计的调用方随后按 `goalId` 查询 `/goals/{goal_id}/usage`，并以 `usage_finalized=true` 作为最终聚合已冻结的唯一依据。
+`update_goal(complete)` 的结构化结果返回 `completionUsageCheckpointReport`、`goalId` 与 `usageFinalized: false`；旧 `completionBudgetReport` 字段保留为同值兼容别名。两个 report 字段只承载模型完成后的 result-first 交付指引，不是需要原样展示的 token 报告。工具成功后的最终 assistant 回复是用户交付面，必须独立、完整地满足 objective：文本本身是交付物时直接展示完整正文；成果位于文件、产物或外部状态时给出准确位置、核心结果和必要验证。Goal 完成状态只能作为结果后的次要说明或省略，不能用状态回执或简短总结替代成果；同样不要求复述 actual/budget token、耗时或“最终回复稍后结算”的 caveat。最终 assistant 回复的 usage 仍会在当前 round terminal 后按固定 `goal_id` 写回已完成 Goal；需要精确审计的调用方随后按 `goalId` 查询 `/goals/{goal_id}/usage`，并以 `usage_finalized=true` 作为最终聚合已冻结的唯一依据。
 
 ### App-Server 线程目标 RPC
 
