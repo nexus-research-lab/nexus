@@ -9,7 +9,7 @@
 - Header 内容在完整 60px 材质层内居中；壳层已不再预留 1px 分隔线，业务组件不得通过偏移补偿重新制造上下留白差。
 - 所有带标签的 Header 在窄容器中把次级视图收进带当前标签文字的菜单；Room 额外优先保留当前会话标题、Session 左侧历史与右侧创建入口，不得退化为一排无语义图标。
 - `workspace-surface-toolbar-action.tsx` 统一 Surface 工具栏动作外观，不依赖 Header 的布局实现。
-- `workspace-task-strip-model.ts` 只从现有 Todo 状态选择运行中、下一项或最后完成项，投影当前步骤与摘要；不得创造第二套 Task 生命周期。`workspace-task-strip.tsx` 只渲染这个只读投影：居中胶囊以“Agent 来源 · 当前步骤/总步数 · 当前任务摘要”表达正在进行的位置，逐帧符号只表示现有任务仍在执行；Room 的来源切换由业务适配层注入并复用已有成员选择器，Task Strip 不读取 Room 目录。摘要作为 Conversation activity dock 的 44px 局部热区，不得在聊天顶部占据固定布局高度；触发器必须在 DOM/Tab 顺序中先于受 `aria-controls` 关联的明细区域，单项状态同时提供屏幕阅读器文本。明细以胶囊中心为锚向上绝对展开，复用共享 popover 材质且不得改变聊天视口高度或推动正文；浮层宽高受当前画布约束，不能扩展成全画布遮罩。
+- `workspace-task-strip-model.ts` 只从现有 Todo 状态选择运行中、下一项或最后完成项，投影当前步骤与摘要；不得创造第二套 Task 生命周期。`workspace-task-strip.tsx` 只渲染这个只读投影：居中胶囊以“Agent 来源 · 当前步骤/总步数 · 当前任务摘要”表达正在进行的位置，逐帧符号只表示现有任务仍在执行；展开头部同样必须把 Agent 身份置于最左侧，再显示“进程 完成数/总数”的次级状态。Room 的来源切换由业务适配层注入并复用已有成员选择器，Task Strip 不读取 Room 目录。摘要作为 Conversation activity dock 的 44px 局部热区，不得在聊天顶部占据固定布局高度；触发器必须在 DOM/Tab 顺序中先于受 `aria-controls` 关联的明细区域，单项状态同时提供屏幕阅读器文本。明细以胶囊中心为锚向上绝对展开，复用共享 popover 材质且不得改变聊天视口高度或推动正文；浮层宽高受当前画布约束，不能扩展成全画布遮罩。
 - `workspace-header-layout.ts` 保存侧边栏与主内容区共用的 60px 桌面高度基线，布局双方不得复制数值；会话标签和动作随基线同步增高，不能只给外层追加空白。
 - `workspace-surface-scaffold.tsx` 只提供 Header 与主画布骨架；业务滚动、状态和命令留在调用方。
 - `workspace-surface-view.tsx` 用 `page`、`overlay` 与缺省无障碍标题表达三种真实模式；不得重新引入控制标题组合的布尔参数。

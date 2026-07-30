@@ -488,6 +488,11 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
       < taskSource.indexOf("data-placement=\"top\""),
     "the trigger must precede its detail panel in DOM and tab order",
   );
+  assert.ok(
+    taskSource.indexOf("data-workspace-task-expanded-source")
+      < taskSource.indexOf("data-workspace-task-progress-label"),
+    "the Agent identity must lead the expanded process header",
+  );
 });
 
 test("Room progress stays isolated by Agent and selection follows the latest process until chosen", async () => {
@@ -577,6 +582,19 @@ test("Room progress stays isolated by Agent and selection follows the latest pro
     "utf8",
   );
   assert.match(roomTaskPanelSource, /<RoomAgentSwitcher/);
+  assert.match(roomTaskPanelSource, /variant="task"/);
+
+  const roomAgentSwitcherSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/surface/room-agent-switcher.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(
+    roomAgentSwitcherSource,
+    /variant === "task"[\s\S]*h-7 w-full max-w-\[9rem\][\s\S]*text-compact font-semibold/,
+  );
 });
 
 test("Room and DM stack Goal, Task, and scroll controls upward from the Composer", async () => {

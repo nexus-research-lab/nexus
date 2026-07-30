@@ -131,15 +131,6 @@ export function WorkspaceTaskPanel({
         onClick={() => setIsExpanded((current) => !current)}
         type="button"
       >
-        <span className="grid h-4 w-4 shrink-0 place-items-center">
-          {hasRunningTask ? (
-            <LoadingOrb />
-          ) : completedCount === totalCount ? (
-            <CircleCheck aria-hidden="true" className="h-4 w-4 text-(--success)" />
-          ) : (
-            <ListChecks aria-hidden="true" className="h-4 w-4 text-(--icon-muted)" />
-          )}
-        </span>
         {source ? (
           <>
             <WorkspaceTaskSourceIdentity source={source} />
@@ -149,6 +140,15 @@ export function WorkspaceTaskPanel({
             />
           </>
         ) : null}
+        <span className="grid h-4 w-4 shrink-0 place-items-center">
+          {hasRunningTask ? (
+            <LoadingOrb />
+          ) : completedCount === totalCount ? (
+            <CircleCheck aria-hidden="true" className="h-4 w-4 text-(--success)" />
+          ) : (
+            <ListChecks aria-hidden="true" className="h-4 w-4 text-(--icon-muted)" />
+          )}
+        </span>
         <span className="shrink-0 font-medium tabular-nums">
           {t("tasks.step_progress", {
             current: currentStep,
@@ -179,17 +179,32 @@ export function WorkspaceTaskPanel({
             id={panelId}
           >
             <div className="flex h-10 shrink-0 items-center gap-2 px-3">
+              {sourceControl || source ? (
+                <>
+                  <div
+                    className="min-w-0 max-w-[9rem]"
+                    data-workspace-task-expanded-source
+                  >
+                    {sourceControl ?? (
+                      source ? <WorkspaceTaskSourceIdentity source={source} /> : null
+                    )}
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)"
+                  />
+                </>
+              ) : null}
               <span className="shrink-0 text-compact font-semibold text-(--text-strong)">
                 {t("tasks.label")}
               </span>
-              <span className="shrink-0 text-compact tabular-nums text-(--text-soft)">
+              <span
+                className="shrink-0 text-compact tabular-nums text-(--text-soft)"
+                data-workspace-task-progress-label
+              >
                 {completedCount}/{totalCount}
               </span>
-              <div className="min-w-0 flex-1">
-                {sourceControl ?? (
-                  source ? <WorkspaceTaskSourceIdentity source={source} /> : null
-                )}
-              </div>
+              <span className="min-w-0 flex-1" />
               {hasRunningTask ? <LoadingOrb /> : null}
               <button
                 aria-label={t("tasks.collapse_panel")}
@@ -278,7 +293,7 @@ function WorkspaceTaskSourceIdentity({
         name={source.name}
         size="xs"
       />
-      <span className="min-w-0 truncate font-medium text-(--text-default)">
+      <span className="min-w-0 truncate text-compact font-semibold leading-none text-(--text-default)">
         {source.name}
       </span>
     </span>

@@ -54,6 +54,7 @@ export function RoomWorkspaceTaskPanel({
       members={selection.members}
       onSelect={setSelectedAgentId}
       selectedId={selection.process.agentId}
+      variant="task"
     />
   ) : undefined;
 
