@@ -45,10 +45,12 @@ export type EventType =
   | 'error'
   | 'pong';
 
+export type DeliveryMode = 'durable' | 'ephemeral' | 'transient';
+
 export interface EventMessage {
   envelope_id?: string;
   protocol_version: number;
-  delivery_mode?: string;
+  delivery_mode?: DeliveryMode;
   event_type: EventType;
   session_key?: string;
   session_seq?: number;

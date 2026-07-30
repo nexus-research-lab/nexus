@@ -176,7 +176,7 @@ func (m *EventMapper) projectDurableMessage(message protocol.Message) protocol.M
 func (m *EventMapper) wrapMessageEvent(message protocol.Message, durable bool) protocol.EventMessage {
 	event := m.wrapEvent(protocol.EventTypeMessage, message, normalizeString(message["message_id"]))
 	if durable {
-		event.DeliveryMode = "durable"
+		event.DeliveryMode = protocol.DeliveryModeDurable
 	}
 	return event
 }

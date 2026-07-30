@@ -125,7 +125,11 @@ function readDeliveryMode(
   envelopeMode?: string,
 ): Message["delivery_mode"] {
   const mode = envelopeMode ?? readString(record, "delivery_mode");
-  return mode === "durable" || mode === "ephemeral" ? mode : undefined;
+  return mode === "durable"
+    || mode === "ephemeral"
+    || mode === "transient"
+    ? mode
+    : undefined;
 }
 
 export function parseConversationMessage(

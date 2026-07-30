@@ -310,6 +310,6 @@ func newModelChangedEvent(
 	event.AgentID = agentID
 	event.MessageID = messageID
 	event.RoundID = strings.TrimSpace(invocation.RoundID)
-	event.DeliveryMode = "ephemeral"
+	event.DeliveryMode = protocol.DeliveryModeTransient
 	return event
 }

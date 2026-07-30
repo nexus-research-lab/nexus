@@ -171,6 +171,15 @@ test("Nexus model confirmation closes without runtime activity", async () => {
   const { AgentConversationRuntimeMachine } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/model/agent-conversation-runtime-machine.ts",
   );
+  const { applyTerminalRoundMessageStatus } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const { parseConversationMessage } = await server.ssrLoadModule(
+    "/src/lib/conversation/message-protocol.ts",
+  );
+  const { parseEventMessage } = await server.ssrLoadModule(
+    "/src/lib/websocket/protocol/event-message.ts",
+  );
   const { parseRoundStatusEventPayload } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-data.ts",
   );
@@ -186,17 +195,36 @@ test("Nexus model confirmation closes without runtime activity", async () => {
     user_message_committed: false,
     user_message_id: "user-model",
   });
-  machine.trackAssistantMessage({
-    content: [{
-      text: "Set model to DeepSeek / deepseek-v4-flash",
-      type: "text",
-    }],
-    message_id: "assistant-model",
-    role: "assistant",
-    round_id: "round-model",
-    stop_reason: "end_turn",
+  const noticeEvent = parseEventMessage({
+    data: {
+      agent_id: "agent-model",
+      content: [{
+        text: "Set model to DeepSeek / deepseek-v4-flash",
+        type: "text",
+      }],
+      message_id: "assistant-model",
+      role: "assistant",
+      round_id: "round-model",
+      stop_reason: "end_turn",
+      timestamp: 1,
+    },
+    delivery_mode: "transient",
+    event_type: "message",
+    protocol_version: 2,
+    session_key: "agent:agent-model:ws:dm:session-model",
     timestamp: 1,
   });
+  assert.ok(noticeEvent);
+  assert.equal(parseEventMessage({
+    ...noticeEvent,
+    delivery_mode: "unknown",
+  }), null);
+  const notice = parseConversationMessage(noticeEvent.data, {
+    deliveryMode: noticeEvent.delivery_mode,
+    sessionKey: noticeEvent.session_key,
+  });
+  assert.ok(notice);
+  machine.trackAssistantMessage(notice);
 
   assert.equal(machine.snapshot().isLoading, false);
   assert.deepEqual(machine.snapshot().liveRoundIds, []);
@@ -213,6 +241,26 @@ test("Nexus model confirmation closes without runtime activity", async () => {
     round_id: "round-model",
     status: "finished",
   });
+  machine.trackRoundStatus(terminal.round_id, terminal.status);
+  machine.emit();
+  assert.equal(machine.snapshot().isLoading, false);
+  assert.equal(machine.snapshot().terminalRoundIds.includes("round-model"), true);
+  const visibleNotices = applyTerminalRoundMessageStatus(
+    [notice],
+    terminal.round_id,
+    terminal.status,
+  );
+  assert.equal(visibleNotices.length, 1);
+  assert.equal(visibleNotices[0].delivery_mode, "transient");
+  assert.equal(visibleNotices[0].stream_status, "done");
+  assert.deepEqual(
+    applyTerminalRoundMessageStatus(
+      [{ ...notice, delivery_mode: "ephemeral" }],
+      terminal.round_id,
+      terminal.status,
+    ),
+    [],
+  );
   assert.equal(parseRoundStatusEventPayload({
     is_terminal: true,
     round_id: "round-model",

@@ -4,6 +4,7 @@
  * POS: 前端会话消息协议的类型真相源。
  */
 
+import type { DeliveryMode } from "../../generated/protocol";
 import type { SessionId } from "../../system/sdk";
 import type { MessageAttachment } from "./attachment";
 import type { ContentBlock } from "./content";
@@ -37,8 +38,11 @@ interface BaseMessage {
   role: MessageRole;
   timestamp: number;
   display_order?: number;
-  /** 仅存在于运行态投影，不属于历史消息协议。 */
-  delivery_mode?: "durable" | "ephemeral";
+  /**
+   * 实时投影的恢复边界：
+   * durable 可恢复，ephemeral 随 round 收口，transient 仅保留在当前打开的时间线。
+   */
+  delivery_mode?: DeliveryMode;
   /** 内部续跑输入不代表用户开始了会话。 */
   hidden_from_user?: boolean;
   is_synthetic?: boolean;

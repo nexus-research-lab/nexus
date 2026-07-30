@@ -5,7 +5,7 @@ import type {
 import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 
 import {
-  isEphemeralMessage,
+  isRecoverableMessage,
   type AgentConversationRuntimeSnapshot,
 } from "../model/conversation-runtime-state";
 
@@ -55,7 +55,7 @@ export function buildVolatileConversationSnapshot(
   }
 
   const volatileMessages = messages.filter((message) => {
-    if (isEphemeralMessage(message)) {
+    if (!isRecoverableMessage(message)) {
       return false;
     }
     if (activeRoundIds.has(message.round_id)) {

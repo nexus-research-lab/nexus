@@ -109,7 +109,7 @@ func TestModelCommandPersistsQualifiedProviderSelection(t *testing.T) {
 	}
 	event := result.Events[0]
 	if event.EventType != protocol.EventTypeMessage ||
-		event.DeliveryMode != "ephemeral" ||
+		event.DeliveryMode != protocol.DeliveryModeTransient ||
 		event.RoundID != "round-a" ||
 		event.Data["stop_reason"] != "end_turn" {
 		t.Fatalf("model changed event = %#v", event)

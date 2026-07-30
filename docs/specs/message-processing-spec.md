@@ -51,16 +51,21 @@
 
 ### 3.2 前端展示
 
-前端只做两类处理：
+前端按四种投影边界处理实时内容：
 
 - stream：增量展示过程
-- durable message：写入最终消息列表
+- durable message：写入最终消息列表，可恢复并可产生未读
+- ephemeral message：只展示 round 内过程，终态到达后移除
+- transient message：保留在当前打开的时间线中，但不进入历史、后台缓存或未读
 
 同一个 `message_id` 的 durable snapshot 必须更新同一条消息投影，不能按 snapshot 数量追加多条气泡。`round_status`、`agent_round_status`、input queue 和 handoff 事件只更新状态投影，不直接变成正文消息。
 
 stream 事件必须保留 `tool_use` 的 block start 和 `input_json_delta`，但只有累计输入构成完整 JSON 后才更新可解释的工具参数。兼容网关漏发 `content_block_start` 时，处理器按 delta 类型建立临时块，随后由完整 assistant 快照原位替换，不能生成孤儿工具块或终止 round。嵌套调用通过 `parent_tool_use_id` 绑定父工具；事件未重复携带该字段时沿用本条 stream 在 `message_start` 建立的父链，新 assistant 段开始时必须重新取值，不能继承上一段的 parent。
 
 Bash / PowerShell 的运行中进度属于 ephemeral 状态：首次立即展示，此后最多每 30 秒更新一次，工具结束后由 durable tool result 收口。它不能进入 transcript 或在重连后变成历史正文。
+
+Nexus host 指令的完成确认属于 transient 状态：它不是 runtime 回复，也不应写入
+transcript，但必须在当前时间线中保留，让用户确认本地操作已经生效。
 
 round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
 

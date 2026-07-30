@@ -68,7 +68,7 @@ export function useChatNotificationSocket({
       notifyRoomDirectoryUpdated();
       return;
     }
-    if (event.event_type !== "message" || event.delivery_mode === "ephemeral") {
+    if (event.event_type !== "message" || event.delivery_mode !== "durable") {
       return;
     }
     const message = parseConversationMessage(event.data, {

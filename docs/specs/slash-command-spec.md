@@ -81,7 +81,8 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
 `provider/model` 配置并广播 `agent_updated`；它不启动或调用 runtime。已存在的
 runtime 连接在下一轮发送前按新的 Agent 配置重建/恢复，模型选择因此仍由 Nexus
 保持唯一真相源。host handler 产生的确认消息带终止投影，并用规范的 `finished`
-round 状态立即收口，不能把 Composer 留在“回复中”。
+round 状态立即收口，不能把 Composer 留在“回复中”；确认消息使用 `transient`
+投影保留在当前时间线，但不进入 runtime 历史、后台缓存或未读。
 
 未知 Slash 不在 Nexus 侧报错，以便 runtime 新增指令时旧版 Nexus 仍能透传。
 Nexus 只有在 client 同时提供 set/clear 语义时才使用下一轮隐藏上下文 buffer；

@@ -43,8 +43,8 @@ const handleMessage: AgentEventHandler = (event, context) => {
     return;
   }
   if (!context.scope.isCurrentSessionEvent(messageSessionKey)) {
-    // 后台只缓存可恢复消息，瞬时消息不能跨会话继续展示。
-    if (event.delivery_mode !== "ephemeral") {
+    // 后台只缓存可恢复消息，round 临时态和当前界面通知都不能跨会话展示。
+    if (event.delivery_mode === "durable") {
       context.callbacks.onBackgroundMessage(messageSessionKey, message);
     }
     return;

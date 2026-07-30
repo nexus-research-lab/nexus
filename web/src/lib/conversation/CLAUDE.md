@@ -7,7 +7,7 @@
 - `session-key.ts` 通过前缀规则表统一构造、校验和解析稳定 Session Key 协议。
 - `room-directory-events.ts` 只广播 Room/DM 目录快照失效，不解释刷新策略。
 - `pending-permission-match.ts` 只按消息与工具调用身份精确匹配待处理权限，不解释展示状态。
-- `message-protocol.ts` 在事件边界通过统一身份字段集合解码消息实体与流式载荷，并补齐信封提供的 Session 身份。
+- `message-protocol.ts` 在事件边界通过统一身份字段集合解码消息实体与流式载荷，并补齐信封提供的 Session 身份；消息恢复边界只接受 `durable`、`ephemeral` 与 `transient` 三种值。
 - `live-stream-reveal.ts` 用本地 Symbol 连接实时 reducer 与 Markdown 首帧；标记不得进入持久协议，历史与恢复快照不得获得重播身份。
 - 仅由单一 Feature 消费的展示能力规则必须归还所属 Feature，不得以通用 helper 名义放入基础协议。
 - 基础协议可以依赖 `types/` 和浏览器事件，不得依赖 `features/`、Store 或 React 视图。

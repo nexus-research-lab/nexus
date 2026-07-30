@@ -1,5 +1,5 @@
 // [INPUT]: 依赖会话/运行时跨边界状态与时间戳。
-// [OUTPUT]: 对外提供统一事件类型、请求 ACK 与携带 handoff 关联的权威 pending slot 快照事件。
+// [OUTPUT]: 对外提供统一事件类型、消息恢复边界、请求 ACK 与携带 handoff 关联的权威 pending slot 快照事件。
 // [POS]: protocol 包的 WebSocket 事件真相源。
 package protocol
 
@@ -62,6 +62,12 @@ const (
 	RoundStatusFinished    = "finished"
 	RoundStatusInterrupted = "interrupted"
 	RoundStatusError       = "error"
+)
+
+const (
+	DeliveryModeDurable   = "durable"
+	DeliveryModeEphemeral = "ephemeral"
+	DeliveryModeTransient = "transient"
 )
 
 // EventMessage 对齐前后端统一 envelope。
@@ -174,7 +180,7 @@ type CommandCatalogData struct {
 func NewEvent(eventType EventType, data map[string]any) EventMessage {
 	return EventMessage{
 		ProtocolVersion: 2,
-		DeliveryMode:    "ephemeral",
+		DeliveryMode:    DeliveryModeEphemeral,
 		EventType:       eventType,
 		Data:            data,
 		Timestamp:       time.Now().UnixMilli(),
