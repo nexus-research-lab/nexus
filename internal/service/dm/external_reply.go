@@ -27,13 +27,20 @@ func (r *roundRunner) startExternalReplyTyping(ctx context.Context) func() {
 	return typingloop.Start(ctx, func(callCtx context.Context, active bool) error {
 		return r.service.replies.SetExternalTyping(callCtx, agentID, target, active)
 	}, typingloop.LoopOptions{
-		StartDelay:        externalTypingStartDelay,
+		StartDelay:        r.externalTypingStartDelay(),
 		KeepaliveInterval: externalTypingKeepaliveInterval,
 		CallTimeout:       externalTypingTimeout,
 		OnError: func(active bool, err error) {
 			r.logExternalTypingError(agentID, target, active, err)
 		},
 	})
+}
+
+func (r *roundRunner) externalTypingStartDelay() time.Duration {
+	if r != nil && r.externalTypingDelay > 0 {
+		return r.externalTypingDelay
+	}
+	return externalTypingStartDelay
 }
 
 func (r *roundRunner) deliverExternalAssistantReply(ctx context.Context, assistant protocol.Message) {
@@ -93,7 +100,11 @@ func (r *roundRunner) persistExternalReplyReceipt(assistant protocol.Message, re
 		PlatformMessageIDs:       slices.Clone(result.PlatformMessageIDs),
 		Timestamp:                time.Now().UTC(),
 	}
-	if err := r.service.history.AppendExternalDeliveryReceipt(r.workspacePath, r.session.SessionKey, receipt); err != nil {
+	if err := r.service.history.ForOwner(r.ownerUserID).AppendExternalDeliveryReceipt(
+		r.workspacePath,
+		r.session.SessionKey,
+		receipt,
+	); err != nil {
 		r.service.loggerFor(context.Background()).Warn("DM assistant 外部通道回执持久化失败",
 			"session_key", r.sessionKey,
 			"round_id", r.roundID,

@@ -8,12 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 
 	_ "modernc.org/sqlite"
 
+	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -75,6 +77,75 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	}
 }
 
+func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	cfg.RuntimeIsolationMode = "audit"
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	agentValue, err := agentService.GetAgent(context.Background(), cfg.DefaultAgentID)
+	if err != nil {
+		t.Fatalf("读取主智能体失败: %v", err)
+	}
+	if !agentValue.IsMain {
+		t.Fatalf("默认 Agent 应为主智能体: %#v", agentValue)
+	}
+
+	factory := &fakeDMFactory{client: newFakeDMClient()}
+	service := NewService(
+		cfg,
+		agentService,
+		runtimectx.NewManagerWithFactory(factory),
+		permissionctx.NewContext(),
+	)
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		protocol.SessionChannelWebSocketSegment,
+		"dm",
+		"main-workspace-policy",
+		"",
+	)
+	sessionItem, err := service.ensureSession(
+		context.Background(),
+		agentValue,
+		protocol.ParseSessionKey(sessionKey),
+		sessionKey,
+	)
+	if err != nil {
+		t.Fatalf("初始化主智能体 session 失败: %v", err)
+	}
+	if _, _, _, _, _, _, _, _, err = service.ensureClient(
+		context.Background(),
+		sessionKey,
+		agentValue,
+		sessionItem,
+		Request{
+			SessionKey:     sessionKey,
+			PermissionMode: sdkpermission.ModeDefault,
+		},
+	); err != nil {
+		t.Fatalf("构建主智能体 runtime client 失败: %v", err)
+	}
+
+	matchers := factory.LastOptions().Hooks.Matchers[sdkhook.EventPreToolUse]
+	if len(matchers) != 1 || len(matchers[0].Hooks) != 1 {
+		t.Fatalf("主智能体应保留 mandatory workspace hook: %#v", matchers)
+	}
+	output, err := matchers[0].Hooks[0](context.Background(), sdkhook.Input{
+		CWD:      agentValue.WorkspacePath,
+		ToolName: "Bash",
+		ToolInput: map[string]any{
+			"command": `"$NEXUSCTL_COMMAND_PATH" --json agent list`,
+		},
+	}, "main-tool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput != nil {
+		t.Fatalf("DM runtime 丢失主智能体身份: %#v", output)
+	}
+}
+
 func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
@@ -106,7 +177,7 @@ func TestServiceHandleChatUsesPersistedSessionIDAsResume(t *testing.T) {
 	permission.BindSession(sessionKey, sender)
 
 	resumeID := "11111111-1111-4111-8111-111111111111"
-	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	workspacePath := dmMainWorkspacePath(cfg)
 	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
 		{
 			"type":      "user",
@@ -206,5 +277,92 @@ func TestServiceHandleChatDoesNotPersistSDKSessionIDWithoutTranscript(t *testing
 	sessionValue, _ := mustFindDMSession(t, service, cfg, sessionKey)
 	if sessionValue.SessionID != nil && strings.TrimSpace(*sessionValue.SessionID) != "" {
 		t.Fatalf("transcript 未落盘时不应写入 sdk session_id: %+v", sessionValue)
+	}
+}
+
+func TestServiceHandleChatPersistsSDKSessionIDInAuthenticatedOwnerRuntime(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	ownerUserID := "user_runtime_owner"
+	ownerContext := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID:     ownerUserID,
+		Username:   "runtime-owner",
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodPassword,
+	})
+	agentService := newDMAgentService(t, cfg)
+	agentValue, err := agentService.GetDefaultAgent(ownerContext)
+	if err != nil {
+		t.Fatalf("初始化 owner 主 Agent 失败: %v", err)
+	}
+
+	permission := permissionctx.NewContext()
+	client := newFakeDMClient()
+	client.sessionID = "33333333-4444-4555-8666-777777777777"
+	client.onQuery = func(_ context.Context, _ string) {
+		go func() {
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-owner-runtime",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype:    "success",
+					DurationMS: 1,
+					NumTurns:   1,
+					Result:     "ok",
+				},
+			}
+		}()
+	}
+
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(cfg, agentService, runtimeManager, permission)
+	sender := newDMTestSender("sender-owner-runtime")
+	sessionKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		protocol.SessionChannelWebSocketSegment,
+		protocol.RoomTypeDM,
+		"owner-runtime",
+		"",
+	)
+	permission.BindSession(sessionKey, sender)
+
+	writeOwnerTranscriptFixture(t, ownerUserID, agentValue.WorkspacePath, client.sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "33000000-0000-4000-8000-000000000001",
+			"sessionId": client.sessionID,
+			"timestamp": "2026-07-27T00:00:00Z",
+			"cwd":       agentValue.WorkspacePath,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "owner transcript",
+			},
+		},
+	})
+
+	if err = service.HandleChat(ownerContext, Request{
+		SessionKey: sessionKey,
+		Content:    "测试 owner runtime transcript",
+		RoundID:    "round-owner-runtime",
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeRoundStatus && event.Data["status"] == "finished"
+	})
+
+	sessionValue, _, err := service.files.ForOwner(ownerUserID).FindSession(
+		[]string{agentValue.WorkspacePath},
+		sessionKey,
+	)
+	if err != nil {
+		t.Fatalf("读取 owner session 元数据失败: %v", err)
+	}
+	if sessionValue == nil || sessionValue.SessionID == nil ||
+		strings.TrimSpace(*sessionValue.SessionID) != client.sessionID {
+		t.Fatalf("SDK session_id 未写入 owner 会话: %+v", sessionValue)
 	}
 }

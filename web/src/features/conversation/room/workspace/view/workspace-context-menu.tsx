@@ -15,7 +15,12 @@ import {
 
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { DIALOG_POPOVER_CLASS_NAME } from "@/shared/ui/dialog/dialog-styles";
+import { cn } from "@/shared/ui/class-name";
+import {
+  getMenuItemStateClassName,
+  MENU_ITEM_BASE_CLASS_NAME,
+} from "@/shared/ui/menu/menu-styles";
+import { OVERLAY_SURFACE_CLASS_NAME } from "@/shared/ui/overlay/overlay-styles";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 interface WorkspaceContextMenuProps {
@@ -92,7 +97,10 @@ export function WorkspaceContextMenu({
 
   return createPortal(
     <div
-      className={DIALOG_POPOVER_CLASS_NAME}
+      className={cn(
+        "fixed z-[130] overflow-hidden",
+        OVERLAY_SURFACE_CLASS_NAME,
+      )}
       ref={menuRef}
       role="menu"
       style={{
@@ -166,9 +174,11 @@ function WorkspaceContextMenuActions({
   return actions.map(({ ariaLabel, Icon, id, label, onSelect, title, tone }) => (
     <button
       aria-label={ariaLabel}
-      className={tone === "danger"
-        ? "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-destructive"
-        : "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"}
+      className={cn(
+        MENU_ITEM_BASE_CLASS_NAME,
+        "flex min-h-9 items-center gap-2 px-2.5 py-1.5 text-sm",
+        getMenuItemStateClassName({ tone: tone ?? "default" }),
+      )}
       key={id}
       onClick={() => {
         onSelect();

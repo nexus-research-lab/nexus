@@ -55,13 +55,13 @@ export function SkillImportGuide({ importing }: { importing: boolean }) {
         </div>
         <ul className="space-y-1.5 text-xs leading-5 text-(--text-muted)">
           <li>必须包含 `name`，推荐补齐 `title`、`description`、`tags`。</li>
-          <li>`scope: any` 可安装到 Agent；`scope: main` 只给主 Agent；`scope: room` 只给群聊。</li>
+          <li>`scope: any` 可由 Agent 启用；`scope: main` 只给主 Agent；`scope: room` 只给群聊。</li>
           <li>编写 Room Skill 时，把“room协作机制”文档交给 agent 参考，先明确公开协作和私下协作的边界。</li>
-          <li>Room Skill 导入后在群聊管理弹窗的“群聊技能”里选择，不会安装到单个 Agent。</li>
+          <li>Room Skill 导入后在群聊管理弹窗的“群聊技能”里选择，不会进入单个 Agent 的开关。</li>
           <li>Git 导入会保存 URL、branch、path 和 commit，后续检查更新会按这些信息比对远端版本。</li>
         </ul>
       </div>
-      <pre className="max-h-[260px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,black_2%)] p-3 text-[11px] leading-5 text-(--text-default)">
+      <pre className="max-h-[260px] overflow-auto rounded-[8px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_92%,black_2%)] p-3 text-xs leading-5 text-(--text-default)">
         {SKILL_FRONTMATTER_EXAMPLE}
       </pre>
     </aside>

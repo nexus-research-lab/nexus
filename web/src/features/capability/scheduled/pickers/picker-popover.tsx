@@ -3,11 +3,14 @@
 import { type ReactNode, type RefObject, useCallback } from "react";
 import { createPortal } from "react-dom";
 
+import { cn } from "@/shared/ui/class-name";
 import { useAnchoredOverlayLayer } from "@/shared/ui/overlay/anchored-overlay-layer";
 import { resolveAnchoredOverlayPosition } from "@/shared/ui/overlay/anchored-overlay-model";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "@/shared/ui/overlay/overlay-contract";
-
-import { PICKER_POPOVER_CLASS_NAME } from "./picker-styles";
+import {
+  ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+  OVERLAY_SURFACE_CLASS_NAME,
+} from "@/shared/ui/overlay/overlay-styles";
 
 interface PickerPopoverProps {
   anchorRef: RefObject<HTMLElement | null>;
@@ -55,15 +58,13 @@ export function PickerPopover({
   return createPortal(
     <div
       ref={overlayRef}
-      className={PICKER_POPOVER_CLASS_NAME}
+      className={cn(
+        "fixed left-0 top-0 z-[10020] overflow-y-auto p-3",
+        OVERLAY_SURFACE_CLASS_NAME,
+        ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+      )}
       data-placement={overlayPosition?.placement ?? "bottom"}
-      style={{
-        ...overlayStyle,
-        background: "rgba(252, 253, 255, 0.98)",
-        borderColor: "rgba(214, 224, 237, 0.96)",
-        backdropFilter: "blur(18px)",
-        WebkitBackdropFilter: "blur(18px)",
-      }}
+      style={overlayStyle}
       {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
       {children}

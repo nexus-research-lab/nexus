@@ -1,3 +1,8 @@
+/**
+ * INPUT: Session/runtime/queue/round/chat ACK 的未知 WebSocket 载荷。
+ * OUTPUT: 经字段级校验且保留 public handoff 关联的窄事件数据。
+ * POS: Agent Session 事件副作用前的协议解码边界。
+ */
 import {
   asUnknownRecord,
   hasFiniteNumberFields,
@@ -20,6 +25,10 @@ import type {
   RoundStatusEventPayload,
 } from "@/types/conversation/message/event";
 import type {
+  CommandCatalogData,
+  CommandCatalogStatus,
+  CommandDescriptor,
+  CommandExecution,
   InputQueueAckData,
   RuntimeStatusData,
   SessionStatusData,
@@ -33,6 +42,16 @@ const ROUND_STATUSES = new Set<RoundLifecycleStatus>([
 ]);
 const RUNTIME_STATUSES = new Set<Exclude<AgentConversationRuntimeStatus, null>>([
   "compacting",
+]);
+const COMMAND_CATALOG_STATUSES = new Set<CommandCatalogStatus>([
+  "loading",
+  "ready",
+  "unavailable",
+]);
+const COMMAND_EXECUTIONS = new Set<CommandExecution>([
+  "host",
+  "runtime_prompt",
+  "unsupported",
 ]);
 const INPUT_QUEUE_SCOPES = new Set<InputQueueItem["scope"]>(["dm", "room"]);
 const INPUT_QUEUE_SOURCES = new Set<InputQueueItem["source"]>([
@@ -60,6 +79,7 @@ const CHAT_ACK_SLOT_REQUIRED_STRING_FIELDS = [
   "msg_id",
 ] as const;
 const CHAT_ACK_SLOT_REQUIRED_NUMBER_FIELDS = ["index", "timestamp"] as const;
+const CHAT_ACK_SLOT_OPTIONAL_STRING_FIELDS = ["handoff_id"] as const;
 
 function readRoundStatus(record: UnknownRecord): RoundLifecycleStatus | null {
   return readStringFromSet(record, "status", ROUND_STATUSES);
@@ -93,6 +113,62 @@ export function parseRuntimeStatusData(
   }
   const status = readStringFromSet(data, "status", RUNTIME_STATUSES);
   return status ? {status} : null;
+}
+
+function isCommandDescriptor(value: unknown): value is CommandDescriptor {
+  const record = asUnknownRecord(value);
+  if (!record) {
+    return false;
+  }
+  const execution = readStringFromSet(
+    record,
+    "execution",
+    COMMAND_EXECUTIONS,
+  );
+  return Boolean(
+    readString(record, "name")
+    && execution
+    && typeof record.enabled === "boolean"
+    && (
+      record.description === undefined
+      || typeof record.description === "string"
+    )
+    && (
+      record.argument_hint === undefined
+      || typeof record.argument_hint === "string"
+    )
+    && (
+      record.disabled_reason === undefined
+      || typeof record.disabled_reason === "string"
+    ),
+  );
+}
+
+export function parseCommandCatalogData(
+  data: UnknownRecord,
+): CommandCatalogData | null {
+  const status = readStringFromSet(
+    data,
+    "status",
+    COMMAND_CATALOG_STATUSES,
+  );
+  if (
+    !status
+    || !Array.isArray(data.commands)
+    || !data.commands.every(isCommandDescriptor)
+  ) {
+    return null;
+  }
+  const revision = readString(data, "revision");
+  const runtimeKind = readString(data, "runtime_kind");
+  const agentId = readString(data, "agent_id");
+  return {
+    status,
+    commands: data.commands,
+    ...(revision ? { revision } : {}),
+    ...(runtimeKind ? { runtime_kind: runtimeKind } : {}),
+    ...(agentId ? { agent_id: agentId } : {}),
+  };
 }
 
 function isInputQueueItem(value: unknown): value is InputQueueItem {
@@ -188,6 +264,17 @@ function isChatAckPendingSlot(
     "status",
     ASSISTANT_MESSAGE_STATUSES,
   );
+  if (
+    record.round_id !== undefined
+    && !readString(record, "round_id")
+  ) {
+    return false;
+  }
+  if (CHAT_ACK_SLOT_OPTIONAL_STRING_FIELDS.some(
+    (field) => record[field] !== undefined && !readString(record, field),
+  )) {
+    return false;
+  }
   return Boolean(
     status
     && hasNonEmptyStringFields(record, CHAT_ACK_SLOT_REQUIRED_STRING_FIELDS)
@@ -197,15 +284,49 @@ function isChatAckPendingSlot(
 
 export function parseChatAckData(data: UnknownRecord): ChatAckData | null {
   if (
-    !readString(data, "client_request_id")
-    || !readString(data, "client_message_id")
-    || !readString(data, "round_id")
-    || !readString(data, "user_message_id")
-    || typeof data.user_message_committed !== "boolean"
+    typeof data.user_message_committed !== "boolean"
+    || typeof data.pending_snapshot !== "boolean"
     || !Array.isArray(data.pending)
     || !data.pending.every(isChatAckPendingSlot)
     || readNumber(data, "ack_timeout_ms") === null
   ) {
+    return null;
+  }
+
+  const roundId = readString(data, "round_id");
+  const hasClientCorrelation = Boolean(
+    readString(data, "client_request_id")
+    && readString(data, "client_message_id")
+    && readString(data, "user_message_id"),
+  );
+  const hasEmptyCorrelation = (
+    data.client_request_id === ""
+    && data.client_message_id === ""
+    && data.user_message_id === ""
+  );
+  const isAuthoritativeSnapshot = (
+    data.pending_snapshot
+    && hasEmptyCorrelation
+    && data.user_message_committed === false
+    && (
+      data.pending.length === 0
+      || Boolean(roundId)
+      || data.pending.every((slot) => Boolean(slot.round_id))
+    )
+  );
+  const isServerInitiatedPendingAck = (
+    !data.pending_snapshot
+    && hasEmptyCorrelation
+    && data.user_message_committed === false
+    && data.pending.length > 0
+    && Boolean(roundId)
+  );
+  const isClientAck = (
+    !data.pending_snapshot
+    && hasClientCorrelation
+    && Boolean(roundId)
+  );
+  if (!isClientAck && !isServerInitiatedPendingAck && !isAuthoritativeSnapshot) {
     return null;
   }
   return data as unknown as ChatAckData;

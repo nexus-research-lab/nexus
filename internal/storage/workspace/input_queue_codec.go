@@ -13,7 +13,9 @@ func normalizeInputQueueItem(
 	now int64,
 ) protocol.InputQueueItem {
 	item.ID = strings.TrimSpace(item.ID)
-	item.Scope = protocol.NormalizeInputQueueScope(string(firstNonEmpty(string(item.Scope), string(location.Scope))))
+	// Location 是后端已解析的执行域，调用方携带的 item scope 只能作为无 location
+	// 的旧数据兜底，不能反向改变队列归属。
+	item.Scope = protocol.NormalizeInputQueueScope(string(firstNonEmpty(string(location.Scope), string(item.Scope))))
 	item.SessionKey = strings.TrimSpace(firstNonEmpty(item.SessionKey, location.SessionKey))
 	item.RoomID = strings.TrimSpace(firstNonEmpty(item.RoomID, location.RoomID))
 	item.ConversationID = strings.TrimSpace(firstNonEmpty(item.ConversationID, location.ConversationID))
@@ -27,7 +29,13 @@ func normalizeInputQueueItem(
 	item.Attachments = protocol.NormalizeChatAttachments(item.Attachments, item.AgentID)
 	item.DeliveryPolicy = protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy))
 	item.ReplyRoute = normalizeInputQueueReplyRoute(item.ReplyRoute)
-	item.OwnerUserID = strings.TrimSpace(item.OwnerUserID)
+	if ownerUserID := strings.TrimSpace(location.OwnerUserID); ownerUserID != "" {
+		// 队列文件所在的已解析执行域是 owner 事实源，不能让历史
+		// JSON 行里的 owner 字段把宿主恢复指向另一用户。
+		item.OwnerUserID = ownerUserID
+	} else {
+		item.OwnerUserID = strings.TrimSpace(item.OwnerUserID)
+	}
 	item.RootRoundID = strings.TrimSpace(item.RootRoundID)
 	if item.HopIndex < 0 {
 		item.HopIndex = 0

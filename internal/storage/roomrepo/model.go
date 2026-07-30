@@ -22,7 +22,7 @@ type CreateRoomBundle struct {
 	Sessions     []protocol.SessionRecord
 }
 
-// CreateConversationBundle 表示创建话题时一次性写入的数据。
+// CreateConversationBundle 表示创建独立话题或确保唯一 draft 时一次性写入的数据。
 type CreateConversationBundle struct {
 	RoomID       string
 	Conversation protocol.ConversationRecord

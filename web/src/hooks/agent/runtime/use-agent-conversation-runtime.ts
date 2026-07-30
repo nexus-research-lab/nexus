@@ -1,11 +1,18 @@
+/**
+ * INPUT: 会话 runtime 事件、消息集合与易失 Room slot/权限/execution 状态。
+ * OUTPUT: 单调运行快照、消息状态、首次展示锚点与由权限/slot 平滑接棒到结果消息的协调动作。
+ * POS: transport 事件和纯 reconciliation 模型之间的 React 编排边界。
+ */
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 
 import type {
   AgentRoundStatusEventPayload,
   ChatAckData,
   RoundLifecycleStatus,
+  StreamMessage,
 } from "@/types/conversation/message/event";
 import type {
+  AssistantMessage,
   AssistantMessageStatus,
   Message,
 } from "@/types/conversation/message/entity";
@@ -13,6 +20,7 @@ import type { SessionStatusData } from "@/types/generated/protocol";
 import type { AgentConversationChatType } from "@/types/agent/agent-conversation";
 
 import {
+  applyTerminalAgentRoundMessageStatus,
   applyTerminalRoundMessageStatus,
   cancelRunningAgentSlots,
   filterPendingSlotsFromSnapshot,
@@ -20,6 +28,7 @@ import {
   filterRoundPendingPermissions,
   mergeChatAckPendingSlots,
   reconcileAgentRoundPendingSlots,
+  reconcilePendingSlotsWithAssistantMessage,
   reconcileStoppedSessionMessages,
   removeRoundMessages,
   replaceOptimisticUserMessage,
@@ -27,6 +36,15 @@ import {
   updatePendingAgentSlotStatus,
 } from "./model/conversation-runtime-reconciliation";
 import { filterPendingPermissionsFromSnapshot } from "./model/pending-permission-model";
+import {
+  applyRoomAgentExecutionStatus,
+  applyRoomExecutionRootStatus,
+  removeRoomAgentExecutionRound,
+  syncRoomAgentExecutionFromLiveMessage,
+  stopRoomAgentExecutions,
+  syncRoomAgentExecutionFromStream,
+  syncRoomAgentExecutionsFromMessages,
+} from "./model/room-agent-execution-state";
 import { useConversationRuntimeMachine } from "./state/use-conversation-runtime-machine";
 import { useConversationVolatileState } from "./state/use-conversation-volatile-state";
 
@@ -48,7 +66,7 @@ function getRunningRoundIds(payload: SessionStatusData): string[] {
 }
 
 /**
- * 编排运行状态机、易失交互状态与消息投影；具体状态规则由下层模型持有。
+ * 编排运行状态机、易失交互状态与消息投影；终态 Room slot 等消息接棒后再清理。
  */
 export function useAgentConversationRuntime({
   agentId,
@@ -67,27 +85,36 @@ export function useAgentConversationRuntime({
     setRuntimeStatus,
     snapshot: runtimeSnapshot,
     syncRunningRounds,
-    trackAssistantMessage,
+    trackAssistantMessage: trackRuntimeAssistantMessage,
     trackChatAck: trackRuntimeChatAck,
     trackOutboundRequest,
     trackRoundStatus,
     updateMessageStatus: updateRuntimeMessageStatus,
   } = useConversationRuntimeMachine(chatType);
   const {
+    acknowledgePermissionRequest,
     clearLiveState: clearLiveRuntimeState,
     pendingAgentSlots,
     pendingPermissions,
+    roomAgentExecutionStates,
     readPendingAgentSlots,
     readPendingPermissions,
     setPendingAgentSlots,
     setPendingPermissions,
+    setRoomAgentExecutionStates,
   } = useConversationVolatileState({
     onPendingPermissionCountChange: setPendingPermissionCount,
+    trackRoomAgentExecutions: chatType === "group",
   });
 
   const reconcileRuntimeStateFromSnapshot = useCallback(
     (snapshotMessages: Message[]): void => {
       reconcileFromSnapshot(snapshotMessages);
+      if (chatType === "group") {
+        setRoomAgentExecutionStates((states) => (
+          syncRoomAgentExecutionsFromMessages(states, snapshotMessages)
+        ));
+      }
       setPendingAgentSlots(filterPendingSlotsFromSnapshot(
         readPendingAgentSlots(),
         snapshotMessages,
@@ -100,12 +127,14 @@ export function useAgentConversationRuntime({
       ));
     },
     [
+      chatType,
       isRoundTerminal,
       readPendingAgentSlots,
       readPendingPermissions,
       reconcileFromSnapshot,
       setPendingAgentSlots,
       setPendingPermissions,
+      setRoomAgentExecutionStates,
     ],
   );
 
@@ -115,6 +144,7 @@ export function useAgentConversationRuntime({
     if (agentId) {
       settleAgentWorkspaceWrites(agentId);
     }
+    setRoomAgentExecutionStates(stopRoomAgentExecutions);
     setPendingPermissions([]);
     setPendingAgentSlots(cancelRunningAgentSlots);
     setMessages((messages) => reconcileStoppedSessionMessages(
@@ -128,6 +158,7 @@ export function useAgentConversationRuntime({
     setMessages,
     setPendingAgentSlots,
     setPendingPermissions,
+    setRoomAgentExecutionStates,
     settleAgentWorkspaceWrites,
   ]);
 
@@ -165,9 +196,40 @@ export function useAgentConversationRuntime({
     [setMessages, setPendingAgentSlots, updateRuntimeMessageStatus],
   );
 
+  const trackAssistantMessage = useCallback(
+    (message: AssistantMessage): void => {
+      trackRuntimeAssistantMessage(message);
+      if (chatType === "group") {
+        setRoomAgentExecutionStates((states) => (
+          syncRoomAgentExecutionFromLiveMessage(states, message)
+        ));
+      }
+      setPendingAgentSlots((slots) => (
+        reconcilePendingSlotsWithAssistantMessage(slots, message)
+      ));
+    },
+    [
+      chatType,
+      setPendingAgentSlots,
+      setRoomAgentExecutionStates,
+      trackRuntimeAssistantMessage,
+    ],
+  );
+
+  const trackStreamExecution = useCallback((stream: StreamMessage): void => {
+    if (chatType !== "group") {
+      return;
+    }
+    setRoomAgentExecutionStates((states) => (
+      syncRoomAgentExecutionFromStream(states, stream)
+    ));
+  }, [chatType, setRoomAgentExecutionStates]);
+
   const trackChatAck = useCallback((ack: ChatAckData): void => {
     trackRuntimeChatAck(ack);
-    resolvePendingRequestAck(ack.client_request_id);
+    if (ack.client_request_id) {
+      resolvePendingRequestAck(ack.client_request_id);
+    }
     if (ack.client_message_id && ack.user_message_id) {
       setMessages((messages) => replaceOptimisticUserMessage(
         messages,
@@ -193,7 +255,15 @@ export function useAgentConversationRuntime({
     setPendingAgentSlots((slots) => (
       filterRoundPendingAgentSlots(slots, roundId)
     ));
-  }, [setMessages, setPendingAgentSlots, setPendingPermissions]);
+    setRoomAgentExecutionStates((states) => (
+      removeRoomAgentExecutionRound(states, roundId)
+    ));
+  }, [
+    setMessages,
+    setPendingAgentSlots,
+    setPendingPermissions,
+    setRoomAgentExecutionStates,
+  ]);
 
   const applyRoundStatus = useCallback(
     (roundId: string, status: RoundLifecycleStatus): void => {
@@ -201,6 +271,9 @@ export function useAgentConversationRuntime({
       if (status === "running") {
         return;
       }
+      setRoomAgentExecutionStates((states) => (
+        applyRoomExecutionRootStatus(states, roundId, status)
+      ));
       if (agentId && !readRuntimeSnapshot().isLoading) {
         settleAgentWorkspaceWrites(agentId);
       }
@@ -222,6 +295,7 @@ export function useAgentConversationRuntime({
       setMessages,
       setPendingAgentSlots,
       setPendingPermissions,
+      setRoomAgentExecutionStates,
       settleAgentWorkspaceWrites,
       trackRoundStatus,
     ],
@@ -229,28 +303,43 @@ export function useAgentConversationRuntime({
 
   const applyAgentRoundStatus = useCallback(
     (payload: AgentRoundStatusEventPayload): void => {
+      setRoomAgentExecutionStates((states) => (
+        applyRoomAgentExecutionStatus(states, payload)
+      ));
       setPendingAgentSlots((slots) => reconcileAgentRoundPendingSlots(
         slots,
         payload.agent_round_id,
-        payload.is_terminal,
+        payload.status,
       ));
       if (!payload.is_terminal) {
         return;
       }
+      setMessages((messages) => applyTerminalAgentRoundMessageStatus(
+        messages,
+        payload.agent_round_id,
+        payload.status,
+      ));
       setPendingPermissions((permissions) => permissions.filter(
         (permission) => permission.agent_round_id !== payload.agent_round_id,
       ));
     },
-    [setPendingAgentSlots, setPendingPermissions],
+    [
+      setMessages,
+      setPendingAgentSlots,
+      setPendingPermissions,
+      setRoomAgentExecutionStates,
+    ],
   );
 
   return {
+    acknowledgePermissionRequest,
     applyAgentRoundStatus,
     applyRoundStatus,
     clearLiveRuntimeState,
     clearOutboundRequest,
     pendingAgentSlots,
     pendingPermissions,
+    roomAgentExecutionStates,
     reconcileRuntimeStateFromSnapshot,
     removeRewrittenRound,
     resetRuntimeMachine,
@@ -262,6 +351,7 @@ export function useAgentConversationRuntime({
     trackAssistantMessage,
     trackChatAck,
     trackOutboundRequest,
+    trackStreamExecution,
     updateMessageStatus,
   };
 }

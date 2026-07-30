@@ -23,6 +23,7 @@ export interface AgentOptions {
     max_thinking_tokens?: number;
     mcp_servers?: Record<string, unknown>;
     skill_ids?: string[];
+    disabled_skill_ids?: string[];
     setting_sources?: ('user' | 'project')[];
 }
 
@@ -114,6 +115,7 @@ export interface CreateAgentParams {
     options?: Partial<AgentOptions>;
     avatar?: string;
     description?: string;
+    profile_template?: string;
     vibe_tags?: string[];
 }
 
@@ -129,7 +131,12 @@ export interface UpdateAgentParams {
 export interface AgentIdentityDraft {
     avatar?: string;
     description?: string;
+    profile_template?: string;
     vibe_tags?: string[];
+}
+
+export interface AgentProfileTemplateResponse {
+    content: string;
 }
 
 /** Agent 名称校验结果 */

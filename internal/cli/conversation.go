@@ -14,6 +14,8 @@ func newConversationCommand(services *cliServiceProvider) *cobra.Command {
 		Short: "conversation 领域命令",
 	}
 
+	command.AddCommand(newConversationPruneEmptyCommand(services))
+
 	command.AddCommand(func() *cobra.Command {
 		var roomID string
 		listCommand := &cobra.Command{

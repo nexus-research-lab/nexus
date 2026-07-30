@@ -1,7 +1,10 @@
 import { create } from "zustand";
 
 import type { Message } from "@/types/conversation/message/entity";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -14,9 +17,9 @@ export interface RoomThreadLiveSource {
   messageGroups: Map<string, Message[]>;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
-  onStopMessage: (msgId: string) => void;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
   pendingSlotGroups: Map<string, RoomPendingAgentSlotState[]>;
+  roomAgentExecutionStateGroups: Map<string, RoomAgentExecutionState[]>;
 }
 
 interface RoomThreadLiveState {

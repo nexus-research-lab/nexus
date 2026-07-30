@@ -1,36 +1,25 @@
-import {
-  AGENT_ICON_ID_END,
-  AGENT_ICON_ID_START,
-} from "@/lib/avatar";
-import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { UiInput } from "@/shared/ui/form/form-control";
-import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 import type { AgentNameValidationResult } from "@/types/agent/agent";
 
-import type { AgentIdentityVariant } from "./identity-layout";
+import { IdentityAvatarPicker } from "./identity-avatar-picker";
+import {
+  IDENTITY_FIELD_LABEL_CLASS_NAMES,
+  type AgentIdentityVariant,
+} from "./identity-layout";
 
 interface IdentityProfileLayout {
-  avatarClassName: string;
-  avatarSize: "lg" | "md";
-  iconSize: "md" | "sm";
   inputClassName: string;
   rowClassName: string;
 }
 
 const PROFILE_LAYOUTS: Record<AgentIdentityVariant, IdentityProfileLayout> = {
   dialog: {
-    avatarClassName: "h-14 w-14 surface-radius-md",
-    avatarSize: "lg",
-    iconSize: "md",
     inputClassName: "h-10 radius-control-md",
-    rowClassName: "flex items-end gap-3",
+    rowClassName: "flex items-start gap-3",
   },
   inline: {
-    avatarClassName: "h-13 w-13 rounded-[12px]",
-    avatarSize: "md",
-    iconSize: "sm",
-    inputClassName: "radius-control-md",
-    rowClassName: "flex items-end gap-2.5",
+    inputClassName: "h-9 radius-control-md",
+    rowClassName: "flex items-start gap-3",
   },
 };
 
@@ -95,6 +84,7 @@ export function IdentityProfileFields({
   variant,
 }: IdentityProfileFieldsProps) {
   const layout = PROFILE_LAYOUTS[variant];
+  const labelClassName = IDENTITY_FIELD_LABEL_CLASS_NAMES[variant];
   const validationFeedback = resolveValidationFeedback({
     isValidatingName,
     nameAvailable,
@@ -105,15 +95,15 @@ export function IdentityProfileFields({
   return (
     <>
       <div className={layout.rowClassName}>
-        <UiAgentAvatar
+        <IdentityAvatarPicker
           avatar={avatar}
-          className={layout.avatarClassName}
+          avatarAlt={avatarAlt}
           name={title || avatarAlt}
-          shape="rounded"
-          size={layout.avatarSize}
+          onChange={onAvatarChange}
+          variant={variant}
         />
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)">
+        <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+          <label className={labelClassName}>
             {nameLabel} <span className="text-(--destructive)">*</span>
           </label>
           <UiInput
@@ -128,24 +118,13 @@ export function IdentityProfileFields({
         </div>
       </div>
 
-      <IconPicker
-        columns={6}
-        iconSize={layout.iconSize}
-        layout="row"
-        maxIcons={AGENT_ICON_ID_END - AGENT_ICON_ID_START + 1}
-        onSelect={onAvatarChange}
-        showClear={false}
-        startIconId={AGENT_ICON_ID_START}
-        value={avatar}
-      />
-
-      <div className="min-h-5 text-xs">
-        {validationFeedback ? (
+      {validationFeedback ? (
+        <div className="text-xs">
           <span className={VALIDATION_FEEDBACK_CLASS[validationFeedback.tone]}>
             {validationFeedback.message}
           </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
     </>
   );
 }

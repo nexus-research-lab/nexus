@@ -12,9 +12,17 @@ type Options struct {
 	MaxTurns          *int           `json:"max_turns,omitempty"`
 	MaxThinkingTokens *int           `json:"max_thinking_tokens,omitempty"`
 	MCPServers        map[string]any `json:"mcp_servers,omitempty"`
-	// SkillIDs 保存平台 Skill ID 或用户级外部 Skill 引用（external:<name>）；路径不进入协议。
-	SkillIDs       []string `json:"skill_ids,omitempty"`
-	SettingSources []string `json:"setting_sources,omitempty"`
+	// SkillIDs 保存全局技能库中当前 Agent 已启用的引用；路径不进入协议。
+	//
+	// 平台和 ~/.agents/skills 使用 canonical name，用户导入来源使用
+	// external:<name>。运行时副本或 Agent workspace 文件不能充当绑定状态。
+	SkillIDs []string `json:"skill_ids,omitempty"`
+	// DisabledSkillIDs 保存 Agent 明确停用的工作区动态 Skill 名称。
+	//
+	// 全局 Skill 未出现在 SkillIDs 即为停用；工作区 Skill 默认动态可见，
+	// 只有显式停用时才进入此列表。
+	DisabledSkillIDs []string `json:"disabled_skill_ids,omitempty"`
+	SettingSources   []string `json:"setting_sources,omitempty"`
 }
 
 // Agent 表示对外 Agent 模型。
@@ -38,11 +46,12 @@ type Agent struct {
 
 // CreateRequest 表示创建 Agent 请求。
 type CreateRequest struct {
-	Name        string   `json:"name"`
-	Options     *Options `json:"options,omitempty"`
-	Avatar      string   `json:"avatar,omitempty"`
-	Description string   `json:"description,omitempty"`
-	VibeTags    []string `json:"vibe_tags,omitempty"`
+	Name            string   `json:"name"`
+	Options         *Options `json:"options,omitempty"`
+	Avatar          string   `json:"avatar,omitempty"`
+	Description     string   `json:"description,omitempty"`
+	ProfileTemplate string   `json:"profile_template,omitempty"`
+	VibeTags        []string `json:"vibe_tags,omitempty"`
 }
 
 // UpdateRequest 表示更新 Agent 请求。
@@ -62,4 +71,9 @@ type ValidateNameResponse struct {
 	IsAvailable    bool   `json:"is_available"`
 	WorkspacePath  string `json:"workspace_path,omitempty"`
 	Reason         string `json:"reason,omitempty"`
+}
+
+// ProfileTemplateResponse 表示新建 Agent 时可编辑的默认行为模板。
+type ProfileTemplateResponse struct {
+	Content string `json:"content"`
 }

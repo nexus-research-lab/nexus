@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/connectors/appregistration"
 	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 )
 
@@ -58,16 +59,19 @@ type channelLoginStore struct {
 }
 
 type channelLoginSession struct {
-	mu          sync.Mutex
-	ownerUserID string
-	channelType string
-	activeKey   string
-	cancel      context.CancelFunc
-	verifyCode  string
-	verifyCh    chan struct{}
-	client      personalWeixinLoginClient
-	qrcode      string
-	view        ChannelLoginView
+	mu                 sync.Mutex
+	ownerUserID        string
+	channelType        string
+	activeKey          string
+	cancel             context.CancelFunc
+	verifyCode         string
+	verifyCh           chan struct{}
+	client             personalWeixinLoginClient
+	registrationClient appregistration.Client
+	deviceCode         string
+	pollInterval       time.Duration
+	qrcode             string
+	view               ChannelLoginView
 }
 
 func newChannelLoginStore() *channelLoginStore {

@@ -6,6 +6,11 @@ import type {
   ContentBlock,
   ImageContent,
 } from "@/types/conversation/message/content";
+import {
+  isLiveStreamAssistant,
+  markLiveStreamRevealBlock,
+  preserveLiveStreamRevealMarker,
+} from "@/lib/conversation/live-stream-reveal";
 
 type ContentBlockType = ContentBlock["type"];
 type ContentBlockOf<Type extends ContentBlockType> = Extract<
@@ -184,6 +189,7 @@ export function mergeAssistantMessage(
     content: mergeAssistantContentBlocks(
       normalizedExisting.content,
       normalizedIncoming.content,
+      isLiveStreamAssistant(normalizedExisting),
     ),
     is_complete:
       normalizedIncoming.is_complete ?? normalizedExisting.is_complete,
@@ -200,9 +206,12 @@ export function mergeAssistantMessage(
 function mergeAssistantContentBlocks(
   existingBlocks: ContentBlock[],
   incomingBlocks: ContentBlock[],
+  markNewLiveBlocks: boolean,
 ): ContentBlock[] {
   if (existingBlocks.length === 0) {
-    return [...incomingBlocks];
+    return incomingBlocks.map((block) => (
+      markNewLiveBlocks ? markLiveStreamRevealBlock(block) : block
+    ));
   }
   if (incomingBlocks.length === 0) {
     return [...existingBlocks];
@@ -217,15 +226,21 @@ function mergeAssistantContentBlocks(
       incomingBlock,
     );
     if (existingIndex !== null) {
-      mergedBlocks[existingIndex] = incomingBlock;
+      mergedBlocks[existingIndex] = preserveLiveStreamRevealMarker(
+        mergedBlocks[existingIndex],
+        incomingBlock,
+      );
       continue;
     }
 
-    const key = assistantContentBlockKey(incomingBlock);
+    const nextBlock = markNewLiveBlocks
+      ? markLiveStreamRevealBlock(incomingBlock)
+      : incomingBlock;
+    const key = assistantContentBlockKey(nextBlock);
     if (key) {
       indexByKey.set(key, mergedBlocks.length);
     }
-    mergedBlocks.push(incomingBlock);
+    mergedBlocks.push(nextBlock);
   }
   return mergedBlocks;
 }

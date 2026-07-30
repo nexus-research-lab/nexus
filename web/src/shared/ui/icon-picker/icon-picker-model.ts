@@ -1,7 +1,7 @@
 import type { AvatarIconFamily } from "@/lib/avatar";
 import { cn } from "@/shared/ui/class-name";
 
-export type IconPickerColumns = 4 | 6 | 8;
+export type IconPickerColumns = 4 | 5 | 6 | 8;
 export type IconPickerLayout = "grid" | "row";
 export type IconPickerSize = "lg" | "md" | "sm";
 
@@ -32,6 +32,7 @@ interface IconPickerPresentation {
 
 const GRID_COLUMN_CLASS_NAMES: Record<IconPickerColumns, string> = {
   4: "grid-cols-4",
+  5: "grid-cols-5",
   6: "grid-cols-6",
   8: "grid-cols-8",
 };

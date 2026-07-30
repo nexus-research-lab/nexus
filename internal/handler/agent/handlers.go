@@ -87,6 +87,13 @@ func (h *Handlers) HandleGetAgent(writer http.ResponseWriter, request *http.Requ
 	h.api.WriteSuccess(writer, agentValue)
 }
 
+// HandleGetAgentProfileTemplate 返回新建 Agent 的默认行为模板。
+func (h *Handlers) HandleGetAgentProfileTemplate(writer http.ResponseWriter, _ *http.Request) {
+	h.api.WriteSuccess(writer, protocol.ProfileTemplateResponse{
+		Content: agentpkg.DefaultProfileTemplate(),
+	})
+}
+
 // HandleValidateAgentName 校验 agent 名称。
 func (h *Handlers) HandleValidateAgentName(writer http.ResponseWriter, request *http.Request) {
 	name := request.URL.Query().Get("name")

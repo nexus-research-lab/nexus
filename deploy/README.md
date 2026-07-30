@@ -21,6 +21,20 @@ SSL_EMAIL=
 
 `NGINX_SSL_CERTIFICATE` 和 `NGINX_SSL_CERTIFICATE_KEY` 是 nginx 容器内路径。宿主机证书实际存放在 `${HOST_DATA_DIR}/certs`，ACME HTTP-01 challenge 文件存放在 `${HOST_DATA_DIR}/acme`。
 
+Compose 不会因为 `env_file` 自动读取仓库根目录的 `.env` 来展开宿主机挂载路径。所有构建、启动和运维命令都显式传入根目录环境文件：
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.yml build
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
+```
+
+`HOST_DATA_DIR` 为必填项；未传入时 Compose 会直接失败，避免把数据误挂载到 `deploy/data`。
+
+`make start`、`make start-no-build` 的宿主准备步骤只会初始化尚不存在的
+`.nexus` 和 `.claude.json`。已有 `.nexus` 内的 UID/GID 与 POSIX ACL 由 runtime
+launcher 管理，部署脚本不会递归 `chown` 或 `chmod`；运维时也不要对该状态树执行
+这类递归权限重置。
+
 `make build` / `make start` 会在构建前把 `nxs-stable` 解析成当前具体的 `nxs-v*` runtime release，再传给 Docker build。stable 指向新版 runtime 后，Docker build arg 会自动变化，旧 runtime 层缓存会失效；需要灰度或回滚时也可以直接把 `NEXUS_NXS_RUNTIME_RELEASE` 固定到具体 `nxs-v*`。
 
 ## 首次申请证书

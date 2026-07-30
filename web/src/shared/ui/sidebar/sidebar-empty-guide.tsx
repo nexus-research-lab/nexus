@@ -36,14 +36,14 @@ export function SidebarEmptyGuide({
     >
       <div className="flex items-center gap-1.5 text-(--text-muted)">
         <Icon className="h-3.5 w-3.5 shrink-0" />
-        <span className="text-[11px] font-semibold">{title}</span>
+        <span className="text-xs font-semibold">{title}</span>
       </div>
-      <p className="text-[11px] leading-relaxed text-(--text-soft)">
+      <p className="text-xs leading-relaxed text-(--text-soft)">
         {description}
       </p>
       {actionLabel && onAction ? (
         <button
-          className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-[8px] bg-(--surface-interactive-hover-background) px-2 py-[3px] text-[11px] font-semibold text-(--primary) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-active-background)"
+          className="mt-0.5 inline-flex w-fit items-center gap-1 rounded-[8px] bg-(--surface-interactive-hover-background) px-2 py-[3px] text-xs font-semibold text-(--primary) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-active-background)"
           onClick={onAction}
           type="button"
         >

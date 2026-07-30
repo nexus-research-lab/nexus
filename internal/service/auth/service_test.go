@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 
-	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
 
@@ -285,6 +285,7 @@ func newAuthTestDB(t *testing.T) (config.Config, *sql.DB) {
 		DatabaseURL:    filepath.Join(root, "auth.db"),
 	}
 
+	handlertest.MigrateSQLiteFromDir(t, cfg.DatabaseURL, authMigrationDir(t))
 	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
 		t.Fatalf("打开认证测试数据库失败: %v", err)
@@ -293,12 +294,6 @@ func newAuthTestDB(t *testing.T) (config.Config, *sql.DB) {
 		_ = db.Close()
 	})
 
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("设置 goose 方言失败: %v", err)
-	}
-	if err = goose.Up(db, authMigrationDir(t)); err != nil {
-		t.Fatalf("执行 auth migration 失败: %v", err)
-	}
 	return cfg, db
 }
 

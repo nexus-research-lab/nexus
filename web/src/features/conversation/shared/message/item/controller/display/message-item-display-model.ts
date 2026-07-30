@@ -1,3 +1,8 @@
+/**
+ * INPUT: 包含全部 pending interaction 的 Assistant 最小投影切片。
+ * OUTPUT: 不因 tool 已匹配而隐藏 Room 交互面的区域可见性与动作能力。
+ * POS: MessageItem Assistant 区域的纯显示状态机。
+ */
 import type { ContentBlock } from "@/types/conversation/message/content";
 
 import type { AssistantContentMode } from "../../message-item-projection";
@@ -32,7 +37,7 @@ interface AssistantDisplayProjection {
   stats: unknown;
   streamStatus: string | null;
   streamingBlockIndexes: ReadonlySet<number>;
-  unmatchedPendingPermissions: readonly unknown[];
+  pendingInteractionPermissions: readonly unknown[];
 }
 
 interface ResolveAssistantDisplayStateOptions {
@@ -92,7 +97,7 @@ export function resolveAssistantDisplayState({
       hasDirectContent: directVisible,
       hasFinalContent: finalVisible,
       hasLiveActivity: Boolean(projection.liveActivityState),
-      hasPendingPermission: projection.unmatchedPendingPermissions.length > 0,
+      hasPendingPermission: projection.pendingInteractionPermissions.length > 0,
       hasProcessContent: projection.processProjection.content.length > 0,
       hasResultSummary: Boolean(projection.resultSummary),
       streamStatus: projection.streamStatus,

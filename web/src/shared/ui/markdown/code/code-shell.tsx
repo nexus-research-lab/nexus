@@ -29,35 +29,27 @@ export function CodeShell({
   className: className,
   children,
 }: CodeShellProps) {
+  const accessibleLanguage = language?.trim() || "text";
+
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[8px] border",
+        "content-code-shell group/copy relative",
         className,
       )}
-      style={{
-        background: "color-mix(in srgb, var(--surface-panel-background) 82%, transparent)",
-        borderColor: "color-mix(in srgb, var(--surface-panel-subtle-border) 80%, transparent)",
-      }}
+      aria-label={`${accessibleLanguage} code`}
+      role="group"
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- 代码壳需要键盘聚焦以复现操作层的 focus-within 行为。
+      tabIndex={0}
     >
-      {language || rightSlot ? (
-        <div
-          className="flex items-center justify-between gap-2 border-b px-2.5"
-          style={{ borderColor: "var(--divider-subtle-color)" }}
-        >
-          <span
-            className="message-code-font truncate text-[10px] lowpercase tracking-[0.08em]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {language || "text"}
-          </span>
-          {rightSlot ? (
-            <div className="shrink-0">
-              {rightSlot}
-            </div>
-          ) : null}
+      {rightSlot ? (
+        <div className="content-code-copy-layer">
+          <div className="content-code-copy-actions">
+            {rightSlot}
+          </div>
         </div>
       ) : null}
+      {language ? <div className="content-code-label">{language}</div> : null}
       <div className={contentClassName}>
         {children}
       </div>

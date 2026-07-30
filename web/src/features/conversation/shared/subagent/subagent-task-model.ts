@@ -85,22 +85,13 @@ export function isSubagentTaskActive(task: SubagentTask): boolean {
   return status === "pending" || status === "running";
 }
 
-export function canSendSubagentTaskMessage(task: SubagentTask): boolean {
-  if (!task.capabilities.send_message) {
-    return false;
-  }
-  if (isSubagentTaskActive(task)) {
-    return true;
-  }
-  return task.capabilities.resume;
-}
-
-export function canStopSubagentTask(task: SubagentTask): boolean {
-  return task.capabilities.stop && isSubagentTaskActive(task);
-}
-
 export function subagentTaskTitle(task: SubagentTask): string {
-  return task.name?.trim() || task.agent_type?.trim() || "Subagent";
+  return (
+    task.name?.trim() ||
+    task.description?.trim() ||
+    task.agent_type?.trim() ||
+    "Subagent"
+  );
 }
 
 export function subagentTaskSourceKey(source: SubagentTaskSource | null): string {
@@ -111,6 +102,10 @@ export function subagentTaskSourceKey(source: SubagentTaskSource | null): string
     return `session:${source.session_key}`;
   }
   return `room:${source.room_id}:${source.conversation_id}`;
+}
+
+export function shouldPollSubagentTaskList(scopeKey: string): boolean {
+  return scopeKey.trim().length > 0;
 }
 
 export function subagentTaskErrorMessage(error: unknown): string {

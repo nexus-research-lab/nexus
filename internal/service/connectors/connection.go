@@ -178,6 +178,9 @@ func (s *Service) Disconnect(ctx context.Context, ownerUserID string, connectorI
 	if !ok {
 		return nil, errors.New("未知连接器")
 	}
+	if entry.AutoOAuthClient && entry.UserOAuthClient {
+		return s.DeleteOAuthClientConfig(ctx, ownerUserID, entry.ConnectorID)
+	}
 	if err := s.upsertConnection(ctx, connectionRecord{
 		OwnerUserID: ownerUserID,
 		ConnectorID: entry.ConnectorID,

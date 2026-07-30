@@ -1,27 +1,41 @@
 package agent
 
 import (
+	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func enrichAgentsWithSkillsCount(agents []protocol.Agent) error {
+func (s *Service) enrichAgentsWithSkillsCount(agents []protocol.Agent) error {
 	for index := range agents {
-		if err := enrichAgentWithSkillsCount(&agents[index]); err != nil {
+		if err := s.enrichAgentWithSkillsCount(&agents[index]); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func enrichAgentWithSkillsCount(agent *protocol.Agent) error {
+func (s *Service) enrichAgentWithSkillsCount(agent *protocol.Agent) error {
 	if agent == nil {
 		return nil
 	}
-	count, err := countDeployedSkills(agent.WorkspacePath, agent.Options.SkillIDs...)
+	root, err := s.openAgentWorkspace(*agent, false)
+	if os.IsNotExist(err) {
+		agent.SkillsCount = selectedSkillCount(agent.Options.SkillIDs, agent.Options.DisabledSkillIDs)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	count, err := countDeployedSkillsAt(
+		root,
+		agent.Options.SkillIDs,
+		agent.Options.DisabledSkillIDs,
+	)
 	if err != nil {
 		return err
 	}
@@ -29,37 +43,97 @@ func enrichAgentWithSkillsCount(agent *protocol.Agent) error {
 	return nil
 }
 
-func countDeployedSkills(workspacePath string, selectedNames ...string) (int, error) {
-	root := strings.TrimSpace(workspacePath)
+func selectedSkillCount(selectedNames []string, disabledNames []string) int {
 	skillNames := map[string]struct{}{}
+	disabled := normalizedSkillNames(disabledNames)
 	for _, name := range selectedNames {
 		normalized := strings.TrimSpace(name)
 		if externalName, ok := protocol.ParseExternalSkillReference(normalized); ok {
 			normalized = externalName
 		}
 		if normalized != "" {
+			if _, blocked := disabled[strings.ToLower(normalized)]; blocked {
+				continue
+			}
+			skillNames[normalized] = struct{}{}
+		}
+	}
+	return len(skillNames)
+}
+
+func countDeployedSkillsAt(
+	root *confinedfs.Root,
+	selectedNames []string,
+	disabledNames []string,
+) (int, error) {
+	skillNames := map[string]struct{}{}
+	disabled := normalizedSkillNames(disabledNames)
+	for _, name := range selectedNames {
+		normalized := strings.TrimSpace(name)
+		if externalName, ok := protocol.ParseExternalSkillReference(normalized); ok {
+			normalized = externalName
+		}
+		if normalized != "" {
+			if _, blocked := disabled[strings.ToLower(normalized)]; blocked {
+				continue
+			}
 			skillNames[normalized] = struct{}{}
 		}
 	}
 	for _, parent := range []string{
-		filepath.Join(root, ".agents", "skills"),
-		filepath.Join(root, ".agents"),
-		filepath.Join(root, ".claude", "skills"),
+		".agents/skills",
+		".agents",
+		".claude/skills",
 	} {
-		entries, err := os.ReadDir(parent)
+		parentRoot, err := root.OpenRootNoSymlink(parent)
 		if os.IsNotExist(err) {
 			continue
 		}
 		if err != nil {
 			return 0, err
 		}
+		entries, err := fs.ReadDir(parentRoot.FS(), ".")
+		if err != nil {
+			parentRoot.Close()
+			return 0, err
+		}
 		for _, entry := range entries {
-			skillDir := filepath.Join(parent, entry.Name())
-			if _, err := os.Stat(filepath.Join(skillDir, "SKILL.md")); err != nil {
+			if entry.Type()&os.ModeSymlink != 0 {
 				continue
 			}
-			skillNames[entry.Name()] = struct{}{}
+			skillRoot, openErr := parentRoot.OpenRootNoSymlink(entry.Name())
+			if openErr != nil {
+				continue
+			}
+			skillFile, openErr := skillRoot.OpenFileNoSymlink(
+				"SKILL.md",
+				os.O_RDONLY,
+				0,
+			)
+			skillRoot.Close()
+			if openErr != nil {
+				continue
+			}
+			skillFile.Close()
+			if _, blocked := disabled[strings.ToLower(strings.TrimSpace(entry.Name()))]; !blocked {
+				skillNames[entry.Name()] = struct{}{}
+			}
 		}
+		parentRoot.Close()
 	}
 	return len(skillNames), nil
+}
+
+func normalizedSkillNames(names []string) map[string]struct{} {
+	result := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		normalized := strings.TrimSpace(name)
+		if externalName, ok := protocol.ParseExternalSkillReference(normalized); ok {
+			normalized = externalName
+		}
+		if normalized != "" {
+			result[strings.ToLower(normalized)] = struct{}{}
+		}
+	}
+	return result
 }

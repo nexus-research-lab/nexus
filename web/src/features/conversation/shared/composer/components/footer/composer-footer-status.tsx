@@ -1,3 +1,9 @@
+/**
+ * INPUT: Composer Goal 模式、runtime 活动态及其取消/负责人控件。
+ * OUTPUT: 可在窄容器内收缩重排、但始终保留关键动作的 Footer 状态。
+ * POS: Composer Footer 左侧状态投影。
+ */
+
 import type { ReactNode } from "react";
 import { Target, X } from "lucide-react";
 
@@ -28,16 +34,16 @@ export function ComposerGoalModeIndicator({
     return null;
   }
   return (
-    <span className="inline-flex min-w-0 items-center gap-1.5 font-semibold text-(--primary)">
+    <span className="nexus-chat-composer-goal-mode flex min-w-0 flex-1 items-center gap-1.5 font-semibold text-(--primary)">
       <Target className="h-3.5 w-3.5 shrink-0" />
       <span>{t("composer.goal_mode")}</span>
-      <span className="truncate font-medium text-(--text-muted)">
+      <span className="nexus-chat-composer-goal-scope truncate font-medium text-(--text-muted)">
         {scopeLabel}
       </span>
       {extra}
       <button
         aria-label={t("composer.cancel_goal_mode")}
-        className="pointer-events-auto inline-flex h-4 w-4 shrink-0 items-center justify-center radius-control-xs text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        className="nexus-chat-composer-goal-cancel pointer-events-auto inline-flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs text-(--text-soft) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
         disabled={isCreating}
         onClick={onCancel}
         type="button"
@@ -78,7 +84,7 @@ export function ComposerFooterStatus({
     return null;
   }
   return (
-    <span className={`flex items-center gap-2 ${status.className}`}>
+    <span className={`nexus-chat-composer-runtime-status flex min-w-0 items-center gap-2 ${status.className}`}>
       <ComposerStatusIndicator frames={status.frames} />
       <span className={status.messageClassName}>{status.message}</span>
       <ComposerStatusHint status={status} />

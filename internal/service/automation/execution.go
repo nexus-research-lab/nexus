@@ -12,6 +12,7 @@ import (
 )
 
 func (s *Service) startJobExecution(ctx context.Context, job automationdomain.ScheduledTask, triggerKind string, scheduledFor time.Time) (*automationdomain.ExecutionResult, error) {
+	ctx = contextForJobOwner(ctx, job)
 	starter := jobExecutionStarter{
 		service:      s,
 		ctx:          ctx,

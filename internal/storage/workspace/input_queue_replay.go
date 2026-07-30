@@ -56,6 +56,12 @@ func (r *inputQueueReplay) enqueue(row map[string]any) {
 	if !ok || strings.TrimSpace(item.ID) == "" || !protocol.HasChatInput(item.Content, item.Attachments) {
 		return
 	}
+	if !inputQueueItemMatchesLocationScope(r.location, item) {
+		return
+	}
+	if !inputQueueItemMatchesLocationOwner(r.location, item) {
+		return
+	}
 	item = normalizeInputQueueItem(r.location, item, normalizeInputQueueTimestamp(row["timestamp"]))
 	if _, exists := r.itemsByID[item.ID]; !exists {
 		r.order = append(r.order, item.ID)
@@ -83,6 +89,12 @@ func (r *inputQueueReplay) reorder(row map[string]any) {
 func (r *inputQueueReplay) update(row map[string]any) {
 	item, ok := inputQueueItemFromAny(row["item"])
 	if !ok || strings.TrimSpace(item.ID) == "" {
+		return
+	}
+	if !inputQueueItemMatchesLocationScope(r.location, item) {
+		return
+	}
+	if !inputQueueItemMatchesLocationOwner(r.location, item) {
 		return
 	}
 	previous, exists := r.itemsByID[item.ID]
@@ -113,4 +125,44 @@ func (r *inputQueueReplay) items() []protocol.InputQueueItem {
 		result = append(result, item)
 	}
 	return result
+}
+
+// inputQueueItemMatchesLocationScope 把同一物理日志分隔为独立执行域。
+// 新记录以 scope 为准；旧记录缺少 scope 时从 Agent key 的 chat_type 推断，
+// 再无法判断的记录只留在 DM 域，避免 Room 恢复入口接管未知队列项。
+func inputQueueItemMatchesLocationScope(
+	location InputQueueLocation,
+	item protocol.InputQueueItem,
+) bool {
+	locationScope := strings.TrimSpace(string(location.Scope))
+	if locationScope == "" {
+		return true
+	}
+	expectedScope := protocol.NormalizeInputQueueScope(locationScope)
+	itemScope := strings.TrimSpace(string(item.Scope))
+	if itemScope != "" {
+		return protocol.NormalizeInputQueueScope(itemScope) == expectedScope
+	}
+	parsed := protocol.ParseSessionKey(item.SessionKey)
+	if parsed.Kind == protocol.SessionKeyKindAgent {
+		switch strings.ToLower(strings.TrimSpace(parsed.ChatType)) {
+		case "group", "room":
+			return expectedScope == protocol.InputQueueScopeRoom
+		case "dm":
+			return expectedScope == protocol.InputQueueScopeDM
+		}
+	}
+	return expectedScope == protocol.InputQueueScopeDM
+}
+
+func inputQueueItemMatchesLocationOwner(
+	location InputQueueLocation,
+	item protocol.InputQueueItem,
+) bool {
+	ownerUserID := strings.TrimSpace(location.OwnerUserID)
+	if ownerUserID == "" {
+		return true
+	}
+	itemOwnerUserID := strings.TrimSpace(item.OwnerUserID)
+	return itemOwnerUserID == "" || itemOwnerUserID == ownerUserID
 }

@@ -127,6 +127,9 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 	})
 	sender := newDMTestSender("sender-goal-continuation")
 	sessionKey := "agent:nexus:ws:dm:test-goal-continuation"
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
 	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{
@@ -228,6 +231,9 @@ func TestServiceGoalContinuationFinalDispatchDefersToConcurrentExplicitInput(t *
 	}
 	service.SetQuotaChecker(quota)
 	sessionKey := "agent:nexus:ws:dm:test-goal-final-dispatch-race"
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
 	goalProvider := &observedDMGoalProvider{
 		fakeGoalContextProvider: &fakeGoalContextProvider{plan: &protocol.GoalContinuation{
 			Goal: protocol.Goal{
@@ -511,7 +517,16 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 	}
 	service.SetGoalContextProvider(goalProvider)
 	revisionState := make(chan *atomic.Int64, 1)
-	service.SetMCPServerBuilder(func(_ string, _ string, _ string, _ string, _ string, _ string, revision *atomic.Int64) map[string]sdkmcp.ServerConfig {
+	service.SetMCPServerBuilder(func(
+		_ context.Context,
+		_ *protocol.Agent,
+		_ string,
+		_ string,
+		_ string,
+		_ string,
+		_ string,
+		revision *atomic.Int64,
+	) map[string]sdkmcp.ServerConfig {
 		goalProvider.mu.Lock()
 		claimCalls := goalProvider.claimCalls
 		goalProvider.mu.Unlock()
@@ -605,7 +620,16 @@ func TestServiceGoalContinuationRejectsRetargetAfterClaimBeforeRuntimeLaunch(t *
 	}
 	service.SetGoalContextProvider(goalProvider)
 	mcpBuilt := make(chan struct{}, 1)
-	service.SetMCPServerBuilder(func(_ string, _ string, _ string, _ string, _ string, _ string, _ *atomic.Int64) map[string]sdkmcp.ServerConfig {
+	service.SetMCPServerBuilder(func(
+		_ context.Context,
+		_ *protocol.Agent,
+		_ string,
+		_ string,
+		_ string,
+		_ string,
+		_ string,
+		_ *atomic.Int64,
+	) map[string]sdkmcp.ServerConfig {
 		mcpBuilt <- struct{}{}
 		return nil
 	})

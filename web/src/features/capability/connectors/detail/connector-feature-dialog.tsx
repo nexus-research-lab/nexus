@@ -41,13 +41,13 @@ export function ConnectorFeatureDialog({
             </p>
             {feature.items?.length ? (
               <UiPanel padding="sm" radius="sm" variant="inset">
-                <div className="mb-2 text-[12px] font-semibold text-(--text-strong)">
+                <div className="mb-2 text-compact font-semibold text-(--text-strong)">
                   能力范围
                 </div>
                 <div className="space-y-2">
                   {feature.items.map((item) => (
                     <div
-                      className="flex gap-2 text-[13px] leading-6 text-(--text-default)"
+                      className="flex gap-2 text-sm leading-6 text-(--text-default)"
                       key={item}
                     >
                       <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-(--primary)" />
@@ -59,7 +59,7 @@ export function ConnectorFeatureDialog({
             ) : null}
             {feature.scopes?.length ? (
               <div>
-                <div className="mb-2 text-[12px] font-medium text-(--text-muted)">
+                <div className="mb-2 text-compact font-medium text-(--text-muted)">
                   相关 OAuth scopes
                 </div>
                 <div className="flex flex-wrap gap-1.5">

@@ -24,11 +24,10 @@ export function AskUserQuestionCardHeader({
   return (
     <button
       className={cn(
-        "message-cjk-font flex w-full cursor-pointer select-none items-center gap-2 px-3 py-2 text-left transition duration-(--motion-duration-fast) ease-out",
-        expanded
-          ? "border-b border-(--divider-subtle-color)"
-          : "hover:bg-(--surface-interactive-hover-background)",
+        "ask-user-question-card-header message-cjk-font flex w-full cursor-pointer select-none items-center gap-2 px-3 py-2.5 text-left transition duration-(--motion-duration-fast) ease-out",
+        !expanded && "hover:bg-(--surface-interactive-hover-background)",
       )}
+      data-expanded={expanded}
       onClick={onToggle}
       type="button"
     >
@@ -37,7 +36,7 @@ export function AskUserQuestionCardHeader({
         questionIndex={questionIndex}
       />
       <QuestionHeaderLabel header={question.header} />
-      <span className="flex-1 truncate text-[13px] font-medium leading-tight text-foreground">
+      <span className="flex-1 truncate text-sm font-medium leading-tight text-foreground">
         {question.question}
       </span>
       <MultiSelectLabel visible={presentation.isMultiSelect} />
@@ -65,7 +64,7 @@ function QuestionIndex({
   return (
     <span
       className={cn(
-        "shrink-0 text-[10px] font-semibold tabular-nums tracking-[0.12em] text-(--text-soft)",
+        "shrink-0 text-2xs font-semibold tabular-nums tracking-[0.12em] text-(--text-soft)",
         hasSelection && "text-primary",
       )}
     >
@@ -79,7 +78,7 @@ function QuestionHeaderLabel({ header }: { header?: string }) {
     return null;
   }
   return (
-    <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary/80">
+    <span className="shrink-0 text-2xs font-semibold uppercase tracking-[0.14em] text-primary/80">
       {header}
     </span>
   );
@@ -89,7 +88,7 @@ function MultiSelectLabel({ visible }: { visible: boolean }) {
   if (!visible) {
     return null;
   }
-  return <span className="text-[10px] text-muted-foreground">(多选)</span>;
+  return <span className="text-2xs text-muted-foreground">(多选)</span>;
 }
 
 function CollapsedSelectionSummary({
@@ -116,7 +115,7 @@ function SelectedCount({ count, visible }: { count: number; visible: boolean }) 
     return null;
   }
   return (
-    <span className="shrink-0 text-[10px] font-semibold text-primary/80">
+    <span className="shrink-0 text-2xs font-semibold text-primary/80">
       {count} 项
     </span>
   );

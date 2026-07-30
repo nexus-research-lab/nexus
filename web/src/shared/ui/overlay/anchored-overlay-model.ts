@@ -1,4 +1,5 @@
 export type UiAnchoredOverlayPlacement = "auto" | "bottom" | "top";
+export type UiAnchoredOverlayAlignment = "end" | "start";
 
 export interface UiAnchoredOverlayPosition {
   bottom?: number;
@@ -10,6 +11,7 @@ export interface UiAnchoredOverlayPosition {
 }
 
 interface ResolveAnchoredOverlayPositionOptions {
+  align?: UiAnchoredOverlayAlignment;
   anchor: HTMLElement;
   estimatedHeight: number;
   gap?: number;
@@ -24,6 +26,7 @@ const DEFAULT_OVERLAY_GAP = 6;
 const DEFAULT_VIEWPORT_MARGIN = 12;
 
 export function resolveAnchoredOverlayPosition({
+  align = "start",
   anchor,
   estimatedHeight,
   gap = DEFAULT_OVERLAY_GAP,
@@ -55,8 +58,11 @@ export function resolveAnchoredOverlayPosition({
     Math.max(rect.width, minWidth),
     viewportWidth - viewportMargin * 2,
   );
+  const preferredLeft = align === "end"
+    ? rect.right - width
+    : rect.left;
   const left = Math.min(
-    Math.max(viewportMargin, rect.left),
+    Math.max(viewportMargin, preferredLeft),
     Math.max(viewportMargin, viewportWidth - width - viewportMargin),
   );
 

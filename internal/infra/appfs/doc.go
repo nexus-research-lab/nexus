@@ -3,8 +3,9 @@
 // L2 | 父级: internal/infra（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - config_dir.go：ConfigDir、平台 Skill 全局兼容根与运行时共享目录。
+//   - config_dir.go：StateRoot、AppDir、用户路径、ConfigDir 与平台运行时共享目录。
 //   - root.go：Root 配置根。
+//   - runtime_permissions.go：runtime 共享临时根，以及 Linux enforce 下宿主与 owner 私有组的协作 mode。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package appfs

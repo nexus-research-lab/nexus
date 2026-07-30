@@ -49,7 +49,7 @@ export function UiStateBlock({
       {title ? (
         <h3
           className={cn(
-            "mt-5 text-lg font-bold tracking-[-0.03em]",
+            "mt-5 text-lg font-semibold tracking-[-0.03em]",
             tone === "danger" ? "text-(--destructive)" : "text-(--text-strong)",
             !icon && "mt-0",
           )}

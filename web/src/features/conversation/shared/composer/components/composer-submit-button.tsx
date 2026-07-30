@@ -16,7 +16,7 @@ export interface ComposerSubmitButtonProps {
   isGoalMode: boolean;
   isPreparingAttachments: boolean;
   onSend: () => void | Promise<void>;
-  onStop: () => void;
+  onStop?: () => void;
   sendLabel: string;
   shouldStop: boolean;
   stopLabel: string;
@@ -44,11 +44,10 @@ const SUBMIT_ACTION_BY_VISUAL: Record<
 };
 
 export function ComposerSubmitButton(props: ComposerSubmitButtonProps) {
-  const projection = projectComposerSubmitButton(props);
-  const commands = {
-    send: () => void props.onSend(),
-    stop: props.onStop,
-  };
+  const projection = projectComposerSubmitButton({
+    ...props,
+    shouldStop: props.shouldStop && Boolean(props.onStop),
+  });
   const content: Record<ComposerSubmitVisual, ReactNode> = {
     goal: <Target size={16} />,
     loading: <LoadingOrb frames={["·", "◦", "•", "◦"]} />,
@@ -60,7 +59,11 @@ export function ComposerSubmitButton(props: ComposerSubmitButtonProps) {
       aria-label={projection.ariaLabel}
       className={projection.className}
       disabled={projection.disabled}
-      onClick={commands[projection.action]}
+      onClick={
+        projection.action === "stop"
+          ? () => props.onStop?.()
+          : () => void props.onSend()
+      }
       type="button"
     >
       <ComposerSubmitInlineLabel label={projection.inlineLabel} />
@@ -97,7 +100,8 @@ function projectComposerSubmitButton(
       ariaLabel: props.sendLabel,
       className: cn(
         COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-        "gap-1.5 min-[760px]:w-auto min-[760px]:px-3",
+        // 中文注释：默认退后 —— 不可发送时降级为无底无边框的 ghost 态，可发送时才呈现蓝色主动作。
+        "nexus-chat-composer-submit gap-1.5 disabled:border-transparent disabled:bg-transparent disabled:text-(--icon-muted) disabled:shadow-none",
       ),
       disabled: props.isDisabled,
       inlineLabel: props.enterLabel,
@@ -117,7 +121,7 @@ function ComposerSubmitInlineLabel({ label }: { label: string | null }) {
     return null;
   }
   return (
-    <span className="hidden text-[12px] font-semibold min-[760px]:inline">
+    <span className="nexus-chat-composer-submit-label text-compact font-semibold">
       {label}
     </span>
   );

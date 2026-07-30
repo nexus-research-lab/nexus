@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,11 +90,34 @@ func (r *memoryRepository) UpdateGoal(_ context.Context, item protocol.Goal, exp
 	return cloneGoal(item), nil
 }
 
+func (r *memoryRepository) FinalizeGoalUsage(
+	_ context.Context,
+	item protocol.Goal,
+	expectedVersion int64,
+	event protocol.GoalEvent,
+) (*protocol.Goal, error) {
+	current, ok := r.goals[item.ID]
+	if !ok || current.Version != expectedVersion || current.UsageFinalized ||
+		current.Status != protocol.GoalStatusComplete {
+		return nil, sql.ErrNoRows
+	}
+	r.goals[item.ID] = item
+	r.events = append(r.events, event)
+	return cloneGoal(item), nil
+}
+
 func (r *memoryRepository) DeleteGoal(_ context.Context, goalID string) (bool, error) {
 	if _, ok := r.goals[goalID]; !ok {
 		return false, nil
 	}
 	delete(r.goals, goalID)
+	events := r.events[:0]
+	for _, event := range r.events {
+		if event.GoalID != goalID {
+			events = append(events, event)
+		}
+	}
+	r.events = events
 	return true, nil
 }
 
@@ -291,20 +315,29 @@ func (d *fakeGuidanceDispatcher) QueueRoomContextualGuidanceInput(_ context.Cont
 }
 
 type fakeExternalMutationAccountant struct {
-	service              *Service
-	usage                protocol.GoalUsage
-	roundID              string
-	sessionKeys          []string
-	clearedSessionKeys   []string
-	activatedSessionKeys []string
+	service               *Service
+	usage                 protocol.GoalUsage
+	usageFlushed          bool
+	roundID               string
+	sessionKeys           []string
+	settlementBoundaries  []bool
+	clearedSessionKeys    []string
+	finalizingSessionKeys []string
+	activatedSessionKeys  []string
+	createPreflightCalls  []string
+	createConflicts       map[string][]string
+	activateErr           error
+	activationRollbacks   []string
 }
 
 func (a *fakeExternalMutationAccountant) FlushGoalAccounting(ctx context.Context, sessionKey string) ([]string, error) {
 	a.sessionKeys = append(a.sessionKeys, sessionKey)
-	if a.service != nil {
+	a.settlementBoundaries = append(a.settlementBoundaries, RuntimeUsageSettlementBoundary(ctx))
+	if a.service != nil && !a.usageFlushed {
 		if _, err := a.service.RecordUsageForSession(ctx, sessionKey, a.usage, a.roundID); err != nil {
 			return nil, err
 		}
+		a.usageFlushed = true
 	}
 	return []string{a.roundID}, nil
 }
@@ -314,9 +347,29 @@ func (a *fakeExternalMutationAccountant) ClearGoalAccounting(sessionKey string) 
 	return []string{a.roundID}
 }
 
-func (a *fakeExternalMutationAccountant) ActivateGoalAccounting(_ context.Context, sessionKey string) ([]string, error) {
-	a.activatedSessionKeys = append(a.activatedSessionKeys, sessionKey)
-	return []string{a.roundID}, nil
+func (a *fakeExternalMutationAccountant) BeginGoalAccountingFinalizing(sessionKey string) []string {
+	if strings.TrimSpace(a.roundID) == "" {
+		return nil
+	}
+	a.finalizingSessionKeys = append(a.finalizingSessionKeys, sessionKey)
+	return []string{a.roundID}
+}
+
+func (a *fakeExternalMutationAccountant) ActivateGoalAccounting(_ context.Context, sessionKey string, goalID string) ([]string, error) {
+	a.activatedSessionKeys = append(a.activatedSessionKeys, sessionKey+":"+goalID)
+	return []string{a.roundID}, a.activateErr
+}
+
+func (a *fakeExternalMutationAccountant) GoalAccountingCreateConflicts(sessionKey string, scopeRoundID string) []string {
+	a.createPreflightCalls = append(a.createPreflightCalls, sessionKey+":"+scopeRoundID)
+	return append([]string(nil), a.createConflicts[scopeRoundID]...)
+}
+
+func (a *fakeExternalMutationAccountant) ClearGoalAccountingRounds(sessionKey string, roundIDs []string) []string {
+	for _, roundID := range roundIDs {
+		a.activationRollbacks = append(a.activationRollbacks, sessionKey+":"+roundID)
+	}
+	return append([]string(nil), roundIDs...)
 }
 
 type fakeRuntimeInterrupter struct {

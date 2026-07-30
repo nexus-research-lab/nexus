@@ -60,10 +60,10 @@ export function PersonalTokenUsageSection({
             <Gauge className="h-3.5 w-3.5" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-[15px] font-semibold tracking-tight text-(--text-strong)">
+            <h3 className="text-base font-semibold tracking-tight text-(--text-strong)">
               {t("settings.personal.token_usage_title")}
             </h3>
-            <p className="mt-1 text-[12px] leading-5 text-(--text-soft)">
+            <p className="mt-1 text-compact leading-5 text-(--text-soft)">
               {t("settings.personal.updated_at", {
                 value: presentation.updatedAt,
               })}
@@ -71,10 +71,10 @@ export function PersonalTokenUsageSection({
           </div>
         </div>
         <div className="text-left lg:text-right">
-          <div className="text-[24px] font-semibold tracking-tight text-(--text-strong)">
+          <div className="text-lg font-semibold tracking-tight text-(--text-strong)">
             {presentation.totalTokens}
           </div>
-          <div className="mt-1 text-[11px] font-medium text-(--text-soft)">
+          <div className="mt-1 text-xs font-medium text-(--text-soft)">
             {t("settings.personal.total_tokens")}
           </div>
         </div>
@@ -109,7 +109,7 @@ export function PersonalTokenUsageSection({
 
       <div className="mx-3 border-t border-(--divider-subtle-color)" />
 
-      <div className="grid gap-2 px-3 py-2.5 text-[11px] text-(--text-soft) sm:grid-cols-2">
+      <div className="grid gap-2 px-3 py-2.5 text-xs text-(--text-soft) sm:grid-cols-2">
         <span>{t("settings.personal.session_count", { count: presentation.sessionCount })}</span>
         <span>{t("settings.personal.message_count", { count: presentation.messageCount })}</span>
       </div>
@@ -132,7 +132,7 @@ function UsageMetric({
         {icon}
       </div>
       <div className="min-w-0">
-        <div className="truncate text-[11px] font-medium text-(--text-soft)">
+        <div className="truncate text-xs font-medium text-(--text-soft)">
           {label}
         </div>
         <div className="mt-1 truncate text-[14px] font-semibold text-(--text-strong)">
@@ -170,7 +170,7 @@ function TokenUsageChart({
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         {items.map((item) => (
-          <div className="flex min-w-0 items-center gap-2 text-[11px] text-(--text-soft)" key={item.key}>
+          <div className="flex min-w-0 items-center gap-2 text-xs text-(--text-soft)" key={item.key}>
             <span className={cn("h-2 w-2 shrink-0 rounded-full", item.className)} />
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
             <span className="font-semibold text-(--text-strong)">{formatTokens(item.value)}</span>

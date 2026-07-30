@@ -15,7 +15,7 @@
 ---
 
 <div align="center">
-<img src="./docs/image/launcher.png" alt="Nexus workspace" width="90%">
+<img src="./docs/image/nexus.gif" alt="Nexus workspace" width="100%">
 </div>
 
 ---

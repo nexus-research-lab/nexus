@@ -6,14 +6,14 @@
 // 持久化 codec 留在对应 internal/service/* 或 internal/storage/*。
 //
 // 成员清单（按域，本包整体即协议模型，故文件不再加 model_ 前缀）：
-//   - agent.go / skill.go：Agent 模型、平台 Skill ID、用户级外部 Skill 引用与创建/更新协议。
-//   - session*.go：Session / Message / SessionKey 统一会话模型。
-//   - room*.go：房间、成员、directed message。
-//   - conversation_turn.go / event.go / goal.go / input_queue.go：
-//     对话投影、统一事件类型与权威 runtime slot 快照、Goal 生命周期/objective revision、输入队列快照与持久接受 ACK。
+//   - agent.go / skill.go：Agent 模型、平台/用户级外部 Skill 引用、显式停用名称与创建/更新协议。
+//   - session*.go：Session / Message / SessionKey 统一会话模型与 transcript 原生消息边界。
+//   - room*.go：房间、成员、每 Room 唯一未开始 conversation draft、directed message。
+//   - conversation_turn.go / event.go / goal*.go / input_queue.go：
+//     对话投影、统一事件类型、session-scoped command catalog 与带 public handoff 关联的权威 runtime slot 快照、Goal 生命周期/objective revision、actual/budget token 双口径、最终 usage report/fence、child checkpoint/lifecycle evidence、Room parent terminal ledger 与 durable scope 回补、输入队列快照与持久接受 ACK。
 //   - chat_attachment.go / workspace_file_artifact.go / delivery_policy.go：
 //     聊天附件、工作区文件产物、投递策略。
-//   - identity.go / value.go：ID 生成与跨边界值解码。
+//   - identity.go / value.go / provider_failure.go：ID 生成、跨边界值解码与稳定 Provider 失败分类。
 //   - generate.go / typescript_event.go：前端 TS 类型代码生成入口（go:generate）。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

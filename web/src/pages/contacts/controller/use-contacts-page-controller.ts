@@ -24,9 +24,7 @@ export function useContactsPageController() {
   );
   const agentOptions = useExistingAgentOptionsCommands({updateAgent});
   const editor = useContactAgentEditor({
-    agents: contactAgents,
     createAgent,
-    saveAgentOptions: agentOptions.saveAgentOptions,
     validateAgentName: agentOptions.validateAgentName,
   });
   const closeEditor = editor.close;

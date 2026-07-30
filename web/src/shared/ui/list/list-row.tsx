@@ -11,9 +11,11 @@ import { getUiListRowPresentation } from "./list-row-model";
 interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   actions?: ReactNode;
   active?: boolean;
+  activeTone?: "default" | "sidebar";
   children?: ReactNode;
   className?: string;
   description?: ReactNode;
+  inactiveTone?: "default" | "muted";
   leading?: ReactNode;
   meta?: ReactNode;
   onClick?: () => void;
@@ -25,9 +27,11 @@ interface UiListRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
 export function UiListRow({
   actions,
   active = false,
+  activeTone = "default",
   children,
   className,
   description,
+  inactiveTone = "default",
   leading,
   meta,
   onClick: onClick,
@@ -38,7 +42,9 @@ export function UiListRow({
 }: UiListRowProps) {
   const presentation = getUiListRowPresentation({
     active,
+    activeTone,
     className,
+    inactiveTone,
     interactive: Boolean(onClick),
   });
   return (
@@ -50,10 +56,6 @@ export function UiListRow({
       role={presentation.role}
       tabIndex={presentation.tabIndex}
     >
-      {presentation.showActiveIndicator ? (
-        <span className="absolute left-0 top-1/2 h-6 w-px -translate-y-1/2 bg-(--primary)" />
-      ) : null}
-
       {leading}
       {children ?? (
         <UiListRowDefaultContent
@@ -102,7 +104,7 @@ function UiListRowDefaultContent({
       {description || subtitleTrailing ? (
         <div className="mt-1 flex min-w-0 items-center gap-2">
           {description ? (
-            <div className="min-w-0 flex-1 truncate text-[12px] leading-5 text-(--text-muted)">
+            <div className="min-w-0 flex-1 truncate text-compact leading-5 text-(--text-muted)">
               {description}
             </div>
           ) : (

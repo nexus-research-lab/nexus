@@ -3,7 +3,6 @@
 import { Settings } from "lucide-react";
 
 import { AgentOptionsDialogEditor } from "@/features/agents/options/agent-options-editor";
-import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   UiDialogBackdrop,
@@ -11,10 +10,6 @@ import {
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
-import {
-  DIALOG_HEADER_ICON_CLASS_NAME,
-  DIALOG_HEADER_LEADING_CLASS_NAME,
-} from "@/shared/ui/dialog/dialog-styles";
 import type {
   AgentOptionsFormProps,
 } from "../agent-options-editor-model";
@@ -49,32 +44,25 @@ export function AgentOptionsDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        className="z-[9999] max-sm:p-2"
         closeOnBackdrop={false}
         labelledBy="agent-options-dialog-title"
         onClose={onClose}
       >
-        <UiDialogShell className="h-[80vh] max-w-[920px]" size="wide">
+        <UiDialogShell
+          className="max-h-[min(82dvh,760px)] max-sm:h-[calc(100dvh-16px)] max-sm:max-h-none"
+          size="wide"
+          style={{ maxWidth: "900px" }}
+        >
           <UiDialogHeader
-            className="px-5 py-4"
+            className="max-sm:px-4 max-sm:py-3"
             closeLabel={t("agent_options.close_dialog")}
+            icon={<Settings className="h-4 w-4" />}
             onClose={onClose}
-          >
-            <div className={cn(DIALOG_HEADER_LEADING_CLASS_NAME, "min-w-0 flex-1 items-center")}>
-              <div className={cn(DIALOG_HEADER_ICON_CLASS_NAME, "h-11 w-11 radius-control-lg text-primary")}>
-                <Settings className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <h2
-                  className="dialog-title truncate text-[20px] font-semibold"
-                  id="agent-options-dialog-title"
-                >
-                  {header.title}
-                </h2>
-                <p className="dialog-subtitle">{header.subtitle}</p>
-              </div>
-            </div>
-          </UiDialogHeader>
+            subtitle={<span className="max-sm:hidden">{header.subtitle}</span>}
+            title={header.title}
+            titleId="agent-options-dialog-title"
+          />
 
           <AgentOptionsDialogEditor
             isActive

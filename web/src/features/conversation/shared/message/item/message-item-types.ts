@@ -8,9 +8,11 @@ import type {
 } from "@/types/conversation/interaction/permission";
 
 import type { AssistantContentMode } from "./message-item-projection";
+import type { MessageActivityState } from "./activity/message-activity-state";
 import type { AgentMentionDirectory } from "../agent-mention-chip";
 
 export interface MessageItemProps {
+  animateEntry?: boolean;
   compact?: boolean;
   currentAgentName?: string | null;
   currentAgentAvatar?: string | null;
@@ -20,6 +22,8 @@ export interface MessageItemProps {
   messages: Message[];
   isLastRound?: boolean;
   isLoading?: boolean;
+  /** Consumer-owned execution evidence projected onto the shared activity vocabulary. */
+  activityState?: MessageActivityState | null;
   runtimePhase?: AgentConversationRuntimePhase | null;
   pendingPermissions?: PendingPermission[];
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
@@ -32,6 +36,8 @@ export interface MessageItemProps {
   onStopMessage?: (msgId: string) => void;
   defaultProcessExpanded?: boolean;
   assistantHeaderAction?: ReactNode;
+  /** 没有正文时仍需保留的终态说明，不伪造 assistant 消息。 */
+  assistantEmptyState?: ReactNode;
   assistantContentMode?: AssistantContentMode;
   className?: string;
   agentMentionDirectory?: AgentMentionDirectory;

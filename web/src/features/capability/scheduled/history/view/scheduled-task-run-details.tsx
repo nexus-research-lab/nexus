@@ -56,13 +56,13 @@ export function ScheduledTaskRunDetails({
 function RunOutput({ section }: { section: RunOutputSection }) {
   return (
     <div className={cn(
-      "mt-3 rounded-[8px] border px-3 py-2.5 text-[13px]",
+      "mt-3 rounded-[8px] border px-3 py-2.5 text-sm",
       section.tone === "danger"
         ? "border-[color:color-mix(in_srgb,var(--destructive)_15%,transparent)] text-(--destructive)"
         : "border-(--divider-subtle-color) text-(--text-default)",
     )}>
       {section.label ? (
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
           {section.label}
         </p>
       ) : null}

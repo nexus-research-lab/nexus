@@ -26,12 +26,12 @@ export function ToolBlockPermission({
   return (
     <div className="message-cjk-font ml-7 mt-2 space-y-2 border-t border-(--divider-subtle-color) pt-2">
       {model.primaryInputDetail?.value.trim() ? (
-        <div className="space-y-1 px-0 py-0 text-[12px] leading-5 text-(--text-default)">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
+        <div className="space-y-1 px-0 py-0 text-compact leading-5 text-(--text-default)">
+          <div className="text-2xs font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
             {model.primaryInputDetail.label}
           </div>
           <ToolBlockDetailScroll>
-            <pre className="message-cjk-font whitespace-pre-wrap break-all text-[12px] leading-5 text-(--text-default)">
+            <pre className="message-cjk-font whitespace-pre-wrap break-all text-compact leading-5 text-(--text-default)">
               {model.primaryInputDetail.value}
             </pre>
           </ToolBlockDetailScroll>
@@ -40,7 +40,7 @@ export function ToolBlockPermission({
 
       {model.readableSuggestions.length > 0 ? (
         <div className="space-y-1">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
+          <div className="text-2xs font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
             权限范围
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -65,7 +65,7 @@ export function ToolBlockPermission({
         </div>
       ) : null}
       {interactionDisabled && interactionDisabledReason ? (
-        <div className="text-[11px] text-(--text-soft)">
+        <div className="text-xs text-(--text-soft)">
           {interactionDisabledReason}
         </div>
       ) : null}

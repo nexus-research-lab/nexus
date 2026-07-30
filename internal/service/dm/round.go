@@ -63,6 +63,7 @@ type roundRunner struct {
 	clientRequestID             string
 	content                     string
 	runtimeContent              conversationsvc.RuntimeContent
+	recoveryContext             []runtimectx.ContextualInputBlock
 	client                      runtimectx.Client
 	runtimeKind                 string
 	runtimeProvider             string
@@ -74,20 +75,38 @@ type roundRunner struct {
 	externalReplyTarget         *ExternalReplyTarget
 	goalContext                 string
 	goalIDForUsage              string
+	childGoalIDForUsage         string
 	goalObjectiveRevision       *atomic.Int64
 	goalUsage                   *goalsvc.RuntimeUsageAccumulator
 	goalUsageStarted            time.Time
+	goalUsageBindingMu          sync.Mutex
 	goalUsageMu                 sync.Mutex
 	goalLastAssistant           protocol.Message
 	goalToolProgress            bool
+	goalTerminalUsageSnapshot   goalsvc.RuntimeUsageSnapshot
+	goalTerminalUsageVersion    uint64
+	goalTerminalUsagePending    bool
+	goalTokenUsageObserved      bool
+	goalUsageScopeConsumed      bool
 	subagentTasks               map[string]struct{}
+	subagentUsagePending        map[string]dmSubagentUsageObservation
+	subagentUsageClaimPending   bool
+	goalUsageRetryRunning       bool
+	subagentParentTerminal      string
 	subagentPostRoundDispatched bool
+	postRoundDispatchHook       func()
 	permissionMode              sdkpermission.Mode
 	permissionHandler           sdkpermission.Handler
 	resultUsageWritten          bool
+
+	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
+	goalUsageRetryBaseDelay time.Duration
+	// externalTypingDelay 为零时使用外部通道的产品延迟。
+	externalTypingDelay time.Duration
 }
 
 func (r *roundRunner) run(ctx context.Context) {
+	defer r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
 	defer r.service.clearPendingInputQueueGuidance(r.sessionKey, r.roundID)
 	logger := r.service.loggerFor(ctx).With(
 		"session_key", r.sessionKey,
@@ -95,20 +114,21 @@ func (r *roundRunner) run(ctx context.Context) {
 		"round_id", r.roundID,
 	)
 	logger.Info("开始执行 DM round")
-	stopTyping := r.startExternalReplyTyping(context.Background())
+	ownerCtx := contextWithExactOwner(context.Background(), r.ownerUserID)
+	stopTyping := r.startExternalReplyTyping(ownerCtx)
 	defer stopTyping()
 	result, err := r.executeRound(ctx, logger)
 	if err != nil {
 		if errors.Is(err, exec.ErrRoundInterrupted) {
-			r.finishInterrupted(r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID))
+			r.finishInterrupted(result, r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID))
 			return
 		}
-		r.failRound(err)
+		r.failRound(result, err)
 		return
 	}
 	if result.TerminalStatus == "finished" && (result.ResultSubtype == "" || result.ResultSubtype == "success") {
 		if err := r.confirmInputQueueGuidanceFallback(context.Background()); err != nil {
-			r.failRound(err)
+			r.failRound(result, err)
 			return
 		}
 	}
@@ -123,15 +143,15 @@ func (r *roundRunner) run(ctx context.Context) {
 	)
 	finalAssistant := r.mapper.LastAssistantMessage()
 	if result.CompletedByAssistant {
-		r.deliverExternalAssistantReply(context.Background(), finalAssistant)
+		r.deliverExternalAssistantReply(ownerCtx, finalAssistant)
 	}
-	r.recordGoalUsage(context.Background(), result, finalAssistant)
 	r.recordGoalUsageLimit(result)
 	r.recordGoalContinuationProgress(result)
+	r.finalizeGoalUsage(context.Background(), result, finalAssistant)
 	if result.CompletedByAssistant {
 		r.recordTerminalAssistantUsage(finalAssistant)
 	}
-	r.service.runtime.MarkRoundFinished(r.sessionKey, r.roundID)
+	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(
 		context.Background(),
@@ -142,6 +162,7 @@ func (r *roundRunner) run(ctx context.Context) {
 	if r.service.runtime.HasSubagentHistory(r.sessionKey) {
 		r.startIdleSubagentNotificationDrain()
 	}
+	r.markSubagentParentTerminal(subagentParentTerminalNormal)
 	if r.hasRunningSubagentTask() {
 		return
 	}
@@ -175,7 +196,7 @@ func (r *roundRunner) executeRound(
 ) (exec.RoundExecutionResult, error) {
 	return exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
-		ContextualInputs: goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey),
+		ContextualInputs: r.contextualInputs(),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation"),
 		Client:           r.client,
 		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
@@ -200,8 +221,9 @@ func (r *roundRunner) executeRound(
 			logger.Debug("Agent ", fields...)
 		},
 		SyncSessionID: func(sessionID string) error {
-			updatedSession, syncErr := r.service.syncSDKSessionID(
-				context.Background(),
+			updatedSession, syncErr := r.service.syncSDKSessionIDForOwner(
+				ctx,
+				r.ownerUserID,
 				r.workspacePath,
 				r.session,
 				sessionID,
@@ -237,7 +259,11 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	if err := r.persistMessage(message); err != nil {
 		return err
 	}
+	settledSubagentUsage := r.recordSubagentGoalUsage(context.Background(), message)
 	r.rememberSubagentTaskMessage(message)
+	for _, settled := range settledSubagentUsage {
+		r.clearSubagentUsageObservationPending(settled.taskID, settled.observation)
+	}
 	r.rememberGoalAssistantMessage(message)
 	r.recordGoalUsageFromAssistantMessage(message)
 	if message["role"] == "assistant" {
@@ -254,6 +280,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 
 func (r *roundRunner) confirmInputQueueGuidance(ctx context.Context) error {
 	return r.service.confirmPendingInputQueueGuidance(ctx, r.sessionKey, workspacestore.InputQueueLocation{
+		OwnerUserID:   r.ownerUserID,
 		Scope:         protocol.InputQueueScopeDM,
 		WorkspacePath: r.workspacePath,
 		SessionKey:    r.sessionKey,
@@ -269,39 +296,53 @@ func (r *roundRunner) confirmInputQueueGuidanceFallback(ctx context.Context) err
 
 func (r *roundRunner) dispatchNextInputQueueItem() {
 	location := workspacestore.InputQueueLocation{
+		OwnerUserID:   r.ownerUserID,
 		Scope:         protocol.InputQueueScopeDM,
 		WorkspacePath: r.workspacePath,
 		SessionKey:    r.sessionKey,
 	}
-	go func() {
-		ctx := contextWithQueueOwner(context.Background(), r.ownerUserID)
+	r.service.startSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
 		r.service.releaseUndeliveredInputQueueGuidance(ctx, r.sessionKey, location, r.roundID)
 		r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location)
-	}()
+	})
 }
 
 func (r *roundRunner) dispatchPostRoundWork() {
+	if r.postRoundDispatchHook != nil {
+		r.postRoundDispatchHook()
+		return
+	}
 	location := workspacestore.InputQueueLocation{
+		OwnerUserID:   r.ownerUserID,
 		Scope:         protocol.InputQueueScopeDM,
 		WorkspacePath: r.workspacePath,
 		SessionKey:    r.sessionKey,
 	}
-	go func() {
-		ctx := contextWithQueueOwner(context.Background(), r.ownerUserID)
+	r.service.startSessionBackgroundTask(r.sessionKey, r.ownerUserID, func(ctx context.Context) {
 		r.service.releaseUndeliveredInputQueueGuidance(ctx, r.sessionKey, location, r.roundID)
 		if r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location) {
 			return
 		}
 		r.dispatchGoalContinuation(ctx)
-	}()
+	})
 }
 
 func (r *roundRunner) persistMessage(message protocol.Message) error {
-	if err := r.service.appendRuntimeHistoryMessage(r.workspacePath, r.session, message); err != nil {
+	if err := r.service.appendRuntimeHistoryMessageForOwner(
+		r.ownerUserID,
+		r.workspacePath,
+		r.session,
+		message,
+	); err != nil {
 		return err
 	}
 	r.recordUsage(message)
-	updated, err := r.service.refreshSessionMetaAfterMessage(r.workspacePath, r.session, message)
+	updated, err := r.service.refreshSessionMetaAfterMessageForOwner(
+		r.ownerUserID,
+		r.workspacePath,
+		r.session,
+		message,
+	)
 	if err != nil {
 		return err
 	}
@@ -312,7 +353,11 @@ func (r *roundRunner) persistMessage(message protocol.Message) error {
 }
 
 func (r *roundRunner) refreshSessionMetaAfterRoundFinished() {
-	updated, err := r.service.refreshSessionMetaRuntimeState(r.workspacePath, r.session)
+	updated, err := r.service.refreshSessionMetaRuntimeStateForOwner(
+		r.ownerUserID,
+		r.workspacePath,
+		r.session,
+	)
 	if err != nil {
 		r.service.loggerFor(context.Background()).Error("DM round 结束后刷新 session meta 失败",
 			"session_key", r.sessionKey,

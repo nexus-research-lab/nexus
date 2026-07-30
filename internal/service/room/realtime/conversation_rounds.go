@@ -1,3 +1,6 @@
+// INPUT: Room conversation 的活跃 round、slot 与跨 root 生命周期更新。
+// OUTPUT: 按 conversation 隔离的注册表、派发锁和携带 public handoff 关联的权威 pending snapshot。
+// POS: Room realtime 短生命周期状态与订阅恢复投影的单一真相源。
 package realtime
 
 import (
@@ -529,7 +532,8 @@ func (r *roomRoundRegistry) hasPublicMentionsForConversation(conversationID stri
 	return len(state.publicMentions) > 0
 }
 
-// ActiveRoundSnapshot 表示 Room 当前仍在执行的主轮次快照。
+// ActiveRoundSnapshot 表示 Room 当前仍在执行的 slot 快照。
+// Pending 各自携带 root；RoundID 只保留给单 root 旧客户端作 fallback。
 type ActiveRoundSnapshot struct {
 	SessionKey     string
 	RoomID         string
@@ -585,6 +589,7 @@ func (s *Service) SetPermissionModeForAgent(ctx context.Context, agentID string,
 func (s *Service) GetActiveRoundSnapshot(conversationID string) *ActiveRoundSnapshot {
 	pending := make([]protocol.ChatAckPendingSlot, 0)
 	snapshot := &ActiveRoundSnapshot{}
+	rootRoundIDs := make(map[string]struct{})
 	for _, roundValue := range s.rounds.snapshotConversation(conversationID) {
 		if roundValue == nil || roundValue.ConversationID != conversationID {
 			continue
@@ -593,7 +598,10 @@ func (s *Service) GetActiveRoundSnapshot(conversationID string) *ActiveRoundSnap
 			snapshot.SessionKey = roundValue.SessionKey
 			snapshot.RoomID = roundValue.RoomID
 			snapshot.ConversationID = roundValue.ConversationID
-			snapshot.RoundID = roomRootRoundID(roundValue)
+		}
+		rootRoundID := roomRootRoundID(roundValue)
+		if rootRoundID != "" {
+			rootRoundIDs[rootRoundID] = struct{}{}
 		}
 		for _, slot := range roundValue.Slots {
 			if slot == nil || slot.isTerminal() {
@@ -607,6 +615,8 @@ func (s *Service) GetActiveRoundSnapshot(conversationID string) *ActiveRoundSnap
 				AgentID:      slot.AgentID,
 				AgentRoundID: slot.AgentRoundID,
 				MsgID:        slot.MsgID,
+				RoundID:      rootRoundID,
+				HandoffID:    slot.handoffID(),
 				Status:       status,
 				Timestamp:    slot.TimestampMS,
 				Index:        slot.Index,
@@ -623,6 +633,11 @@ func (s *Service) GetActiveRoundSnapshot(conversationID string) *ActiveRoundSnap
 		return pending[i].Index < pending[j].Index
 	})
 	snapshot.Pending = pending
+	if len(rootRoundIDs) == 1 {
+		for rootRoundID := range rootRoundIDs {
+			snapshot.RoundID = rootRoundID
+		}
+	}
 	return snapshot
 }
 
@@ -637,7 +652,7 @@ func (s *Service) finishRound(roundValue *activeRoomRound) {
 	if roundValue == nil {
 		return
 	}
-	s.runtime.MarkRoundFinished(roundValue.SessionKey, roundValue.RoundID)
+	s.runtime.MarkRoundTerminal(roundValue.SessionKey, roundValue.RoundID)
 	s.rounds.unregister(roundValue)
 	roundValue.doneOnce.Do(func() {
 		close(roundValue.Done)

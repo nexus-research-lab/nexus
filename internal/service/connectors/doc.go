@@ -5,7 +5,7 @@
 // 成员清单：
 //   - service.go / listing.go：Service 与目录列举。
 //   - connection*.go：连接查询、刷新、存储。
-//   - oauth_*.go / device_flow.go：OAuth 授权、用户自有应用配置、Device Flow。
+//   - oauth_*.go / device_flow.go：OAuth 授权、飞书扫码选取/创建应用、手工凭据兜底与 Device Flow。
 //   - catalog.go / model.go / credential_payload.go：目录、模型与凭据载荷。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

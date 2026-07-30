@@ -57,7 +57,7 @@ export function ProviderDeleteUsageDialog({
             titleId="provider-delete-blocked-title"
           />
           <UiDialogBody className="space-y-3">
-            <div className="rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-muted-background) px-3 py-2 text-[12px] leading-5 text-(--text-muted)">
+            <div className="rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-muted-background) px-3 py-2 text-compact leading-5 text-(--text-muted)">
               {t("settings.providers.force_delete_description")}
             </div>
             {deleteUsageAgents.length > 0 ? (
@@ -67,21 +67,21 @@ export function ProviderDeleteUsageDialog({
                     className="flex min-h-11 items-center gap-2 border-b border-(--divider-subtle-color) px-3 py-2 last:border-b-0"
                     key={agent.agent_id}
                   >
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm border border-(--divider-subtle-color) bg-(--background) text-[11px] font-semibold text-(--text-muted)">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center radius-control-sm border border-(--divider-subtle-color) bg-(--background) text-xs font-semibold text-(--text-muted)">
                       {(getUsageAgentTitle(agent).slice(0, 2) || "AG").toUpperCase()}
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="truncate text-[13px] font-semibold text-(--text-strong)">
+                        <span className="truncate text-sm font-semibold text-(--text-strong)">
                           {getUsageAgentTitle(agent)}
                         </span>
                         {agent.is_main ? (
-                          <span className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-muted)">
+                          <span className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-2xs font-semibold text-(--text-muted)">
                             {t("settings.providers.main_agent_badge")}
                           </span>
                         ) : null}
                       </div>
-                      <div className="truncate font-mono text-[11px] text-(--text-soft)">
+                      <div className="truncate font-mono text-xs text-(--text-soft)">
                         {agent.agent_id}
                       </div>
                     </div>
@@ -89,7 +89,7 @@ export function ProviderDeleteUsageDialog({
                 ))}
               </div>
             ) : (
-              <div className="rounded-[12px] border border-(--divider-subtle-color) px-3 py-3 text-[12px] leading-5 text-(--text-muted)">
+              <div className="rounded-[12px] border border-(--divider-subtle-color) px-3 py-3 text-compact leading-5 text-(--text-muted)">
                 {t("settings.providers.delete_usage_stale", { count: deleteTargetRecord.usage_count })}
               </div>
             )}

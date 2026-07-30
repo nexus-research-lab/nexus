@@ -9,10 +9,22 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
+import type { CommandCatalogData } from "@/types/generated/protocol";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface ComposerPanelProps {
   compact: boolean;
+  commandCatalog: CommandCatalogData;
+  /**
+   * DM/Room 等待用户回应时原位替换输入壳内容；草稿状态继续保留。
+   */
+  interactionSurface?: ReactNode;
+  /** 用于最后一个 interaction 消失后恢复输入焦点。 */
+  interactionIdentity?: string | null;
+  /** 包含 Session 身份的完整待发送草稿作用域。 */
+  draftScopeKey: string;
+  /** 同一逻辑聊天共享、刻意不包含 Session ID 的已发送输入历史作用域。 */
+  historyScopeKey: string;
   isLoading: boolean;
   runtimePhase: AgentConversationRuntimePhase | null;
   runtimeKind: AgentRuntimeKind;
@@ -22,6 +34,7 @@ export interface ComposerPanelProps {
     attachments?: MessageAttachment[],
     targetAgentIDs?: string[],
   ) => void | Promise<void>;
+  onRefreshCommandCatalog: () => void;
   inputQueueItems: InputQueueItem[];
   onEnqueueMessage: (
     content: string,
@@ -32,7 +45,10 @@ export interface ComposerPanelProps {
   onDeleteQueuedMessage: (itemId: string) => void | Promise<void>;
   onGuideQueuedMessage: (itemId: string) => void | Promise<void>;
   onReorderQueueMessages: (orderedIds: string[]) => void | Promise<void>;
-  onStop: () => void;
+  /**
+   * DM 可在输入框停止当前会话；Room 的停止属于 Agent slot，不提供该能力。
+   */
+  onStop?: () => void;
   defaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   queueWhenSessionBusy?: boolean;
   roomMembers?: Agent[];
@@ -70,19 +86,17 @@ const INPUT_ROW_PADDING: Record<
   Record<"default" | "goal" | "queue", string>
 > = {
   compact: {
-    default: "px-2 py-2",
-    goal: "px-2 pb-2 pt-1.5",
-    queue: "px-2 pb-2 pt-1",
+    default: "px-3.5 pb-1 pt-3",
+    goal: "px-3.5 pb-1 pt-3",
+    queue: "px-3.5 pb-1 pt-2",
   },
   regular: {
-    default: "px-3 py-3",
-    goal: "px-3 pb-3 pt-2",
-    queue: "px-3 pb-3 pt-1.5",
+    default: "px-3.5 pb-1 pt-4",
+    goal: "px-3.5 pb-1 pt-3.5",
+    queue: "px-3.5 pb-1 pt-2.5",
   },
 };
 
-export const COMPOSER_SHORTCUT_KEY_CLASS_NAME =
-  "rounded-[4px] border border-(--divider-kbd-border) bg-(--surface-kbd-background) px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-(--text-muted) shadow-none";
 export const MAX_COMPOSER_INPUT_LENGTH = 10_000;
 export const MENTION_NAVIGATION_KEYS = new Set([
   "ArrowDown",
@@ -93,6 +107,15 @@ export const MENTION_NAVIGATION_KEYS = new Set([
 ]);
 const IME_COMPOSITION_KEY_CODE = 229;
 export const COMPOSITION_END_ENTER_GUARD_MS = 80;
+
+export function focusComposerInputAtEnd(
+  target: HTMLTextAreaElement,
+): void {
+  const caretPosition = target.value.length;
+  target.focus({ preventScroll: true });
+  target.setSelectionRange(caretPosition, caretPosition);
+  target.scrollTop = target.scrollHeight;
+}
 
 export function isCaretOnFirstLine(target: HTMLTextAreaElement): boolean {
   const { end, start } = readSelectionRange(target);

@@ -72,20 +72,6 @@ func inputQueueLocationKey(location workspacestore.InputQueueLocation) string {
 	return strings.TrimSpace(location.WorkspacePath) + "::" + strings.TrimSpace(location.SessionKey)
 }
 
-func contextWithQueueOwner(ctx context.Context, ownerUserID string) context.Context {
-	ownerUserID = strings.TrimSpace(ownerUserID)
-	if ownerUserID == "" {
-		return ctx
-	}
-	if _, ok := authctx.CurrentUserID(ctx); ok {
-		return ctx
-	}
-	return authctx.WithPrincipal(ctx, &authctx.Principal{
-		UserID: ownerUserID,
-		Role:   authctx.RoleOwner,
-	})
-}
-
 func (s *Service) broadcastRoomInputQueueSnapshot(
 	ctx context.Context,
 	sessionKey string,
@@ -206,7 +192,13 @@ func (s *Service) HandleInputQueue(
 					"err", broadcastErr,
 				)
 			}
-			go s.dispatchNextInputQueueItem(contextWithQueueOwner(context.Background(), ownerUserID), sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
+			s.startSessionBackgroundTask(
+				sessionKey,
+				ownerUserID,
+				func(taskCtx context.Context) {
+					s.dispatchNextInputQueueItem(taskCtx, sessionKey, contextValue.Room.ID, contextValue.Conversation.ID)
+				},
+			)
 		}
 		return protocol.InputQueueMutationResult{
 			Action:    action,
@@ -264,6 +256,9 @@ func (s *Service) InputQueueSnapshotEvent(
 	if contextValue == nil {
 		return protocol.EventMessage{}, errors.New("room conversation not found")
 	}
+	if contextValue.Room.RoomType != protocol.RoomTypeGroup {
+		return newRoomInputQueueEvent(sessionKey, roomID, conversationID, nil), nil
+	}
 	var items []protocol.InputQueueItem
 	lease := s.lockRoomDispatch(sessionKey, conversationID)
 	func() {
@@ -275,7 +270,13 @@ func (s *Service) InputQueueSnapshotEvent(
 		return protocol.EventMessage{}, err
 	}
 	event := newRoomInputQueueEvent(sessionKey, strings.TrimSpace(roomID), strings.TrimSpace(conversationID), items)
-	go s.dispatchNextInputQueueItem(ctx, sessionKey, roomID, conversationID)
+	s.startSessionBackgroundTask(
+		sessionKey,
+		contextValue.Room.OwnerUserID,
+		func(taskCtx context.Context) {
+			s.dispatchNextInputQueueItem(taskCtx, sessionKey, roomID, conversationID)
+		},
+	)
 	return event, nil
 }
 
@@ -303,11 +304,17 @@ func (s *Service) guideInputQueueItem(
 		if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 			return err
 		}
-		go s.dispatchNextInputQueueItem(
-			contextWithQueueOwner(context.Background(), entry.Item.OwnerUserID),
+		s.startSessionBackgroundTask(
 			sessionKey,
-			contextValue.Room.ID,
-			contextValue.Conversation.ID,
+			entry.Item.OwnerUserID,
+			func(taskCtx context.Context) {
+				s.dispatchNextInputQueueItem(
+					taskCtx,
+					sessionKey,
+					contextValue.Room.ID,
+					contextValue.Conversation.ID,
+				)
+			},
 		)
 		return nil
 	}
@@ -353,7 +360,11 @@ func (s *Service) syncQueuedPublicUserMessage(
 	if userMessageID == "" {
 		userMessageID = "msg_user_" + sourceRoundID
 	}
-	messages, err := s.roomHistory.ReadMessages(contextValue.Conversation.ID, nil)
+	messages, err := s.roomHistory.ReadMessages(
+		contextValue.Room.OwnerUserID,
+		contextValue.Conversation.ID,
+		nil,
+	)
 	if err != nil {
 		return err
 	}
@@ -399,10 +410,30 @@ func (s *Service) syncQueuedPublicUserMessage(
 			strings.TrimSpace(messageSourceRoundID) == strings.TrimSpace(updatedSourceRoundID) &&
 			messageAgentRoundID == updatedAgentRoundID &&
 			slices.Equal(messageTargets, updatedTargets) {
+			if item.Source == protocol.InputQueueSourceUser {
+				return s.markConversationStarted(
+					ctx,
+					contextValue.Conversation.ID,
+					roomMessageActivityTime(message),
+				)
+			}
 			return nil
 		}
-		if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, updated); err != nil {
+		if err = s.persistSharedInlineMessage(
+			contextValue.Room.OwnerUserID,
+			contextValue.Conversation.ID,
+			updated,
+		); err != nil {
 			return err
+		}
+		if item.Source == protocol.InputQueueSourceUser {
+			if err = s.markConversationStarted(
+				ctx,
+				contextValue.Conversation.ID,
+				roomMessageActivityTime(updated),
+			); err != nil {
+				return err
+			}
 		}
 		s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapMessageEvent(
 			contextValue.Room.ID,
@@ -443,7 +474,18 @@ func (s *Service) syncQueuedPublicUserMessage(
 	if attachments := protocol.NormalizeChatAttachments(item.Attachments, ""); len(attachments) > 0 {
 		messageValue["attachments"] = attachments
 	}
-	if err = s.persistSharedInlineMessage(contextValue.Conversation.ID, messageValue); err != nil {
+	if err = s.persistSharedInlineMessage(
+		contextValue.Room.OwnerUserID,
+		contextValue.Conversation.ID,
+		messageValue,
+	); err != nil {
+		return err
+	}
+	if err = s.markConversationStarted(
+		ctx,
+		contextValue.Conversation.ID,
+		roomMessageActivityTime(messageValue),
+	); err != nil {
 		return err
 	}
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapMessageEvent(
@@ -523,6 +565,9 @@ func (s *Service) resolveInputQueueContext(
 	}
 	if contextValue == nil {
 		return "", nil, errors.New("room conversation not found")
+	}
+	if err = requireGroupRoomContext(contextValue); err != nil {
+		return "", nil, err
 	}
 	return sessionKey, contextValue, nil
 }
@@ -629,6 +674,9 @@ func (s *Service) roomInputQueueLocationsByAgent(
 	if contextValue == nil {
 		return map[string]roomInputQueueLocation{}, nil
 	}
+	if contextValue.Room.RoomType == protocol.RoomTypeDM {
+		return map[string]roomInputQueueLocation{}, nil
+	}
 	agentsByID := make(map[string]protocol.Agent, len(contextValue.MemberAgents))
 	for _, agentValue := range contextValue.MemberAgents {
 		agentID := strings.TrimSpace(agentValue.AgentID)
@@ -660,6 +708,7 @@ func (s *Service) roomInputQueueLocationsByAgent(
 		result[agentID] = roomInputQueueLocation{
 			AgentID: agentID,
 			Location: workspacestore.InputQueueLocation{
+				OwnerUserID:    contextValue.Room.OwnerUserID,
 				Scope:          protocol.InputQueueScopeRoom,
 				WorkspacePath:  workspacePath,
 				SessionKey:     protocol.BuildRoomAgentSessionKey(contextValue.Conversation.ID, agentID, contextValue.Room.RoomType),

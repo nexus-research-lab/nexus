@@ -3,6 +3,7 @@
 import { useRef } from "react";
 
 import { WorkspaceFilePreviewPanel } from "@/features/conversation/shared/editor/workspace-file-preview-panel";
+import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -18,6 +19,7 @@ import { WorkspaceFileBrowser } from "./view/workspace-file-browser";
 interface RoomWorkspaceViewProps {
   activeWorkspacePath: string | null;
   agentId: string;
+  compact?: boolean;
   isDm: boolean;
   roomMembers: Agent[];
   onOpenWorkspaceFile: (path: string | null) => void;
@@ -26,11 +28,13 @@ interface RoomWorkspaceViewProps {
 export function RoomWorkspaceView({
   activeWorkspacePath,
   agentId,
+  compact = false,
   isDm,
   roomMembers,
   onOpenWorkspaceFile,
 }: RoomWorkspaceViewProps) {
   const {t} = useI18n();
+  const isStacked = useMediaQuery("(max-width: 639px)") && compact;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileListLayout = useWorkspaceFileListLayout();
   const [isPreviewFocused, setIsPreviewFocused] = useResettableState(
@@ -79,6 +83,7 @@ export function RoomWorkspaceView({
           ref={fileListLayout.panelRef}
           className={cn(
             "flex h-full min-h-0 min-w-0 flex-1",
+            isStacked && "flex-col-reverse gap-3",
             fileListLayout.isResizing && "cursor-col-resize select-none",
           )}
         >
@@ -98,6 +103,7 @@ export function RoomWorkspaceView({
               activePath={activeWorkspacePath}
               controller={controller.browser}
               onResizeStart={fileListLayout.startResizing}
+              stacked={isStacked}
               width={fileListLayout.width}
             />
           ) : null}

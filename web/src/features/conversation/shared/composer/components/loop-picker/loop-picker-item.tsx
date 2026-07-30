@@ -26,17 +26,17 @@ export function LoopPickerItem({
           type="button"
         >
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-[6px] bg-(--surface-interactive-hover-background) px-2 py-0.5 text-[11px] text-(--text-soft)">
+            <span className="rounded-[6px] bg-(--surface-interactive-hover-background) px-2 py-0.5 text-xs text-(--text-soft)">
               {loop.category}
             </span>
-            <span className="rounded-[6px] bg-(--surface-interactive-hover-background) px-2 py-0.5 text-[11px] text-(--text-soft)">
+            <span className="rounded-[6px] bg-(--surface-interactive-hover-background) px-2 py-0.5 text-xs text-(--text-soft)">
               {loop.trigger_type}
             </span>
           </div>
           <div className="mt-2 text-[14px] font-semibold text-(--text-strong)">
             {loop.title}
           </div>
-          <p className="mt-1 line-clamp-2 text-[12px] leading-5 text-(--text-muted)">
+          <p className="mt-1 line-clamp-2 text-compact leading-5 text-(--text-muted)">
             {loop.description}
           </p>
         </button>

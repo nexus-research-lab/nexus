@@ -143,7 +143,7 @@ function QuestionSelectedCount({
     return null;
   }
   return (
-    <span className="text-[10px] font-semibold text-primary/80">
+    <span className="text-2xs font-semibold text-primary/80">
       已选 {count} 项
     </span>
   );

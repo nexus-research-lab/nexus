@@ -8,9 +8,11 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -46,8 +48,22 @@ func (s *AgentHistoryStore) ReadRoundIndex(
 	activeRoundIDs []string,
 ) (protocol.SessionRoundIndex, error) {
 	active := normalizeActiveRoundIDs(activeRoundIDs)
-	return readRoundIndexFromJSONL(
-		s.paths.SessionOverlayPath(workspacePath, sessionValue.SessionKey),
+	root, err := s.files.openWorkspaceRoot(workspacePath, false)
+	if errors.Is(err, os.ErrNotExist) {
+		return protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{}}, nil
+	}
+	if err != nil {
+		return protocol.SessionRoundIndex{}, err
+	}
+	defer root.Close()
+	return readRoundIndexFromRoot(
+		root,
+		filepath.ToSlash(filepath.Join(
+			".agents",
+			"sessions",
+			encodeSessionDirName(sessionValue.SessionKey),
+			"overlay.jsonl",
+		)),
 		active,
 		false,
 		strings.TrimSpace(sessionValue.AgentID),
@@ -56,24 +72,54 @@ func (s *AgentHistoryStore) ReadRoundIndex(
 
 // ReadRoundIndex 读取 Room 共享会话的轻量 round 导航索引。
 func (s *RoomHistoryStore) ReadRoundIndex(
+	ownerUserID string,
 	conversationID string,
 	activeRoundIDs []string,
 ) (protocol.SessionRoundIndex, error) {
-	return readRoundIndexFromJSONL(
-		s.paths.RoomConversationOverlayPath(conversationID),
+	parent, name, err := s.files.openRoomFileParent(
+		ownerUserID,
+		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
+		false,
+	)
+	if errors.Is(err, os.ErrNotExist) {
+		return protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{}}, nil
+	}
+	if err != nil {
+		return protocol.SessionRoundIndex{}, err
+	}
+	defer parent.Close()
+	return readRoundIndexFromRoot(
+		parent,
+		name,
 		normalizeActiveRoundIDs(activeRoundIDs),
 		true,
 		"",
 	)
 }
 
-func readRoundIndexFromJSONL(
+func readRoundIndexFromJSONLAt(
+	rootPath string,
 	path string,
 	activeRoundIDs map[string]struct{},
 	collapseRoomAgentRounds bool,
 	defaultAgentID string,
 ) (protocol.SessionRoundIndex, error) {
-	file, err := os.Open(path)
+	root, relative, err := relativeStorePath(rootPath, path)
+	if err != nil {
+		return protocol.SessionRoundIndex{}, err
+	}
+	defer root.Close()
+	return readRoundIndexFromRoot(root, relative, activeRoundIDs, collapseRoomAgentRounds, defaultAgentID)
+}
+
+func readRoundIndexFromRoot(
+	root *confinedfs.Root,
+	relative string,
+	activeRoundIDs map[string]struct{},
+	collapseRoomAgentRounds bool,
+	defaultAgentID string,
+) (protocol.SessionRoundIndex, error) {
+	file, err := root.OpenFileNoSymlink(relative, os.O_RDONLY, 0)
 	if errors.Is(err, os.ErrNotExist) {
 		return protocol.SessionRoundIndex{Items: []protocol.SessionRoundIndexItem{}}, nil
 	}

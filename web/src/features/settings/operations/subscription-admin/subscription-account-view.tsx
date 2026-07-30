@@ -81,7 +81,7 @@ function SubscriptionSummary({
                   <p className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
                     {formatTokenCount(item.value)}
                   </p>
-                  <p className="mt-1 text-[11px] text-(--text-soft)">
+                  <p className="mt-1 text-xs text-(--text-soft)">
                     {item.label}
                   </p>
                 </div>
@@ -114,14 +114,14 @@ function SubscriptionAccountRow({
           <p className="truncate text-[14px] font-semibold text-(--text-strong)">
             {displayName}
           </p>
-          <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[10px] font-semibold uppercase text-(--text-muted)">
+          <span className="rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-2xs font-semibold uppercase text-(--text-muted)">
             {account.role}
           </span>
         </div>
-        <p className="mt-1 truncate text-[12px] text-(--text-soft)">
+        <p className="mt-1 truncate text-compact text-(--text-soft)">
           {account.username}
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-(--text-muted)">
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-(--text-muted)">
           <span>
             {t("settings.subscription.used")}: {" "}
             <strong className="font-semibold text-(--text-default)">
@@ -147,14 +147,14 @@ function SubscriptionAccountRow({
             </strong>
           </span>
         </div>
-        <p className="mt-2 text-[11px] text-(--text-soft)">
+        <p className="mt-2 text-xs text-(--text-soft)">
           {t("settings.subscription.period")}: {periodLabel}
         </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1.5">
-          <span className="text-[11px] font-semibold text-(--text-muted)">
+          <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.plan")}
           </span>
           <UiSelectMenu
@@ -173,7 +173,7 @@ function SubscriptionAccountRow({
           />
         </label>
         <div className="space-y-1.5">
-          <span className="text-[11px] font-semibold text-(--text-muted)">
+          <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.effective_limit")}
           </span>
           <div className="flex h-9 items-center radius-control-lg border border-(--divider-subtle-color) px-3 text-sm font-semibold text-(--text-strong)">
@@ -221,7 +221,7 @@ export function SubscriptionAccountView({
             <p className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
               {t("settings.subscription.users_title")}
             </p>
-            <p className="mt-1 text-[11px] text-(--text-soft)">
+            <p className="mt-1 text-xs text-(--text-soft)">
               {t("settings.subscription.period")}: {formatDate(model.periodStart)} - {formatDate(model.periodEnd)}
             </p>
           </div>

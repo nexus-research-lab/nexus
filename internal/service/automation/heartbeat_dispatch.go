@@ -13,6 +13,21 @@ import (
 
 func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 	ctx := context.Background()
+	if s.agents != nil {
+		agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
+		if err != nil {
+			s.loggerFor(ctx).Error("heartbeat 解析 Agent owner 失败", "agent_id", agentID, "err", err)
+			s.finishHeartbeatRuntime(agentID, nil, nil, errorPointer(err))
+			return
+		}
+		if agentValue == nil || strings.TrimSpace(agentValue.OwnerUserID) == "" {
+			err := errors.New("heartbeat Agent 缺少 owner_user_id")
+			s.loggerFor(ctx).Error("heartbeat 解析 Agent owner 失败", "agent_id", agentID, "err", err)
+			s.finishHeartbeatRuntime(agentID, nil, nil, errorPointer(err))
+			return
+		}
+		ctx = contextForOwner(ctx, agentValue.OwnerUserID)
+	}
 	logger := s.loggerFor(ctx).With("agent_id", agentID, "reason", reason)
 	sessionKey := automationexec.BuildMainSessionKey(agentID)
 	state, err := s.ensureHeartbeatState(ctx, agentID)
@@ -98,7 +113,7 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		if observation.Status == automationdomain.RunStatusSucceeded {
 			finishedAt := s.nowFn()
 			s.markEventsProcessed(events)
-			deliveryError := s.deliverHeartbeatObservation(agentID, state.Config, observation)
+			deliveryError := s.deliverHeartbeatObservation(ctx, agentID, state.Config, observation)
 			if deliveryError != nil {
 				logger.Error("heartbeat 执行完成但投递失败",
 					"status", observation.Status,

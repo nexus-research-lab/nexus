@@ -12,6 +12,7 @@ export type EventType =
   | 'agent_round_status'
   | 'session_status'
   | 'runtime_status'
+  | 'command_catalog'
   | 'goal_created'
   | 'goal_updated'
   | 'goal_status_changed'
@@ -81,10 +82,32 @@ export interface RuntimeStatusData {
   status: 'compacting' | null;
 }
 
+export type CommandCatalogStatus = 'loading' | 'ready' | 'unavailable';
+export type CommandExecution = 'host' | 'runtime_prompt' | 'unsupported';
+
+export interface CommandDescriptor {
+  name: string;
+  description?: string;
+  argument_hint?: string;
+  execution: CommandExecution;
+  enabled: boolean;
+  disabled_reason?: string;
+}
+
+export interface CommandCatalogData {
+  revision?: string;
+  runtime_kind?: string;
+  status: CommandCatalogStatus;
+  agent_id?: string;
+  commands: CommandDescriptor[];
+}
+
 export interface ChatAckPendingSlot {
   agent_id: string;
   agent_round_id: string;
   msg_id: string;
+  round_id?: string;
+  handoff_id?: string;
   status: string;
   timestamp: number;
   index: number;

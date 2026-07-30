@@ -18,6 +18,16 @@ func validateChannelConfigInput(
 	secrets map[string]string,
 	hasExistingCredentials bool,
 ) error {
+	if publicKey, secretKey, ok := channelManualCredentialPair(catalog.ChannelType); ok {
+		hasPublic := strings.TrimSpace(publicConfig[publicKey]) != ""
+		hasSecret := strings.TrimSpace(secrets[secretKey]) != "" || hasExistingCredentials
+		if hasPublic && !hasSecret {
+			return fmt.Errorf("%s is required", secretKey)
+		}
+		if !hasPublic && len(secrets) > 0 {
+			return fmt.Errorf("%s is required", publicKey)
+		}
+	}
 	for _, field := range catalog.CredentialFields {
 		if !field.Required {
 			continue
@@ -33,6 +43,19 @@ func validateChannelConfigInput(
 		}
 	}
 	return nil
+}
+
+func channelManualCredentialPair(channelType string) (string, string, bool) {
+	switch normalizeIMChannelType(channelType) {
+	case ChannelTypeFeishu:
+		return "app_id", "app_secret", true
+	case ChannelTypeDingTalk:
+		return "client_id", "client_secret", true
+	case ChannelTypeWeChat:
+		return "bot_id", "secret", true
+	default:
+		return "", "", false
+	}
 }
 
 func normalizeIMChannelType(channelType string) string {

@@ -7,14 +7,13 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -42,14 +41,17 @@ export function PairingsDirectory() {
         bodyScrollable
         header={(
           <WorkspaceSurfaceHeader
-            badge={t("capability.pairings_badge", {
-              count: controller.items.length,
-            })}
             leading={<ShieldCheck className="h-4 w-4" />}
-            subtitle={t("capability.pairings_subtitle")}
+            narrowMode="toolbar"
             title={t("capability.pairings")}
             trailing={(
               <>
+                <WorkspaceSurfaceToolbarAction
+                  onClick={() => void controller.refresh()}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {t("capability.refresh")}
+                </WorkspaceSurfaceToolbarAction>
                 <WorkspaceSurfaceToolbarAction
                   disabled={controller.agents.length === 0 || controller.busy}
                   onClick={controller.openCreate}
@@ -59,13 +61,7 @@ export function PairingsDirectory() {
                   tone="primary"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  新增配对
-                </WorkspaceSurfaceToolbarAction>
-                <WorkspaceSurfaceToolbarAction
-                  onClick={() => void controller.refresh()}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  {t("capability.refresh")}
+                  {t("capability.pairings_create")}
                 </WorkspaceSurfaceToolbarAction>
               </>
             )}
@@ -73,17 +69,15 @@ export function PairingsDirectory() {
         )}
         stableGutter
       >
-        <div
-          className={cn(
-            WORKSPACE_DETAIL_PAGE_CLASS_NAME,
-            "max-w-[1280px] py-4",
-          )}
+        <CapabilityPageLayout
+          description={t("capability.pairings_intro_description")}
+          title={t("capability.pairings_intro_title")}
         >
           {controller.loading && controller.items.length === 0 ? (
             <UiStateBlock
-              description="正在同步外部 IM 用户与群聊的授权状态。"
+              description={t("capability.pairings_loading_description")}
               size="sm"
-              title="加载配对..."
+              title={t("capability.pairings_loading_title")}
             />
           ) : controller.items.length === 0 ? (
             <PairingEmptyState
@@ -115,7 +109,7 @@ export function PairingsDirectory() {
               )}
             </>
           )}
-        </div>
+        </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>
 
       {controller.createOpen ? (
@@ -152,14 +146,16 @@ function PairingEmptyState({
   canCreate: boolean;
   onCreate: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
-    <div className="flex min-h-[260px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
+    <div className="flex min-h-[260px] flex-col items-center justify-center border-b border-(--divider-subtle-color) px-6 text-center">
       <ShieldCheck className="h-7 w-7 text-(--icon-default)" />
-      <h2 className="mt-3 text-[15px] font-medium text-(--text-strong)">
-        还没有配对
+      <h2 className="mt-3 text-base font-medium text-(--text-strong)">
+        {t("capability.pairings_empty_title")}
       </h2>
-      <p className="mt-1 max-w-[460px] text-[12px] leading-5 text-(--text-muted)">
-        外部 IM 用户或群首次发消息后会在这里等待授权，也可以手动新增配对。
+      <p className="mt-1 max-w-[460px] text-compact leading-5 text-(--text-muted)">
+        {t("capability.pairings_empty_description")}
       </p>
       <UiButton
         className="mt-4"
@@ -171,24 +167,26 @@ function PairingEmptyState({
         variant="solid"
       >
         <Plus className="h-3.5 w-3.5" />
-        {canCreate ? "新增配对" : "需要先创建智能体"}
+        {canCreate ? t("capability.pairings_create") : "需要先创建智能体"}
       </UiButton>
     </div>
   );
 }
 
 function PairingNoResults({ onClear }: { onClear: () => void }) {
+  const { t } = useI18n();
+
   return (
     <div className="flex min-h-[220px] flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
       <SearchX className="h-7 w-7 text-(--icon-muted)" />
-      <h2 className="mt-3 text-[15px] font-semibold text-(--text-strong)">
-        没有符合条件的配对
+      <h2 className="mt-3 text-base font-semibold text-(--text-strong)">
+        {t("capability.pairings_no_results_title")}
       </h2>
-      <p className="mt-1 text-[13px] text-(--text-muted)">
-        调整筛选条件，或清除筛选查看全部配对。
+      <p className="mt-1 text-sm text-(--text-muted)">
+        {t("capability.pairings_no_results_description")}
       </p>
       <UiButton className="mt-4" onClick={onClear} size="sm" type="button">
-        清除筛选
+        {t("capability.clear_filters")}
       </UiButton>
     </div>
   );

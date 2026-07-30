@@ -12,6 +12,7 @@ import { withCurrentSessionEvent } from "./handler-scope";
 import {
   parseAgentRoundStatusEventPayload,
   parseChatAckData,
+  parseCommandCatalogData,
   parseInputQueueAckData,
   parseInputQueueEventPayload,
   parseRoundStatusEventPayload,
@@ -66,6 +67,24 @@ const handleRuntimeStatus = withCurrentSessionEvent((event, context) => {
     context.runtime.setRuntimeStatus(payload.status);
   }
 });
+
+const handleCommandCatalog: AgentEventHandler = (event, context) => {
+  if (!context.scope.isCurrentSessionEvent(event.session_key || null)) {
+    return;
+  }
+  const currentAgentID = context.scope.agentId?.trim() ?? "";
+  const incomingAgentID = event.agent_id?.trim() ?? "";
+  if (!currentAgentID || !incomingAgentID || currentAgentID !== incomingAgentID) {
+    return;
+  }
+  const payload = parseCommandCatalogData(event.data);
+  if (
+    payload
+    && (!payload.agent_id || payload.agent_id === currentAgentID)
+  ) {
+    context.state.setCommandCatalog(payload);
+  }
+};
 
 const handleInputQueue = withCurrentSessionEvent((event, context) => {
   const payload = parseInputQueueEventPayload(event.data);
@@ -138,6 +157,7 @@ function createMessageStatusHandler(
 export const AGENT_SESSION_EVENT_HANDLERS: AgentEventHandlerMap = {
   agent_round_status: handleAgentRoundStatus,
   chat_ack: handleChatAck,
+  command_catalog: handleCommandCatalog,
   error: handleErrorEvent,
   goal_cleared: handleGoalEvent,
   goal_continuation: handleGoalEvent,

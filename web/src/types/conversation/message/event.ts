@@ -63,6 +63,8 @@ export interface StreamMessage {
   conversation_id?: string | null;
   agent_id: string;
   round_id: string;
+  /** Room slot 的稳定执行身份，不能在 message_start 投影时丢失。 */
+  agent_round_id?: string | null;
   session_id?: SessionId;
   parent_tool_use_id?: string | null;
   type: StreamMessageType;

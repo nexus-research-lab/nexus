@@ -14,15 +14,16 @@ import { MessageAssistantSection } from "./view/assistant/message-assistant-sect
 import { MessageUserSection } from "./view/user/message-user-section";
 
 function MessageItemInner({
+  animateEntry = true,
   compact = false,
   currentAgentName,
   currentAgentAvatar,
   workspaceAgentId,
-  currentUserAvatar,
   roundId,
   messages,
   isLastRound,
   isLoading,
+  activityState,
   runtimePhase,
   pendingPermissions,
   onEditUserMessage,
@@ -35,6 +36,7 @@ function MessageItemInner({
   onStopMessage,
   defaultProcessExpanded,
   assistantHeaderAction,
+  assistantEmptyState,
   assistantContentMode = "dm_archived",
   className,
   agentMentionDirectory,
@@ -44,6 +46,7 @@ function MessageItemInner({
     messages,
     isLastRound,
     isLoading,
+    activityState,
     runtimePhase,
     pendingPermissions,
     hiddenToolNames,
@@ -55,7 +58,8 @@ function MessageItemInner({
   return (
     <div
       className={cn(
-        "nexus-chat-message-round w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 space-y-1 py-3 duration-300",
+        "nexus-chat-message-round w-full min-w-0 space-y-1 py-3",
+        animateEntry && "animate-in fade-in slide-in-from-bottom-2 duration-300",
         compact ? "nexus-chat-message-round-compact" : "nexus-chat-message-round-expanded",
         className,
       )}
@@ -63,9 +67,8 @@ function MessageItemInner({
       {state.userMessages.map((message) => (
         <MessageUserSection
           compact={compact}
-          currentUserAvatar={currentUserAvatar}
           agentMentionDirectory={agentMentionDirectory}
-          key={message.message_id}
+          key={message.client_message_id?.trim() || message.message_id}
           message={message}
           onEditUserMessage={
             state.userMessages.length === 1
@@ -90,6 +93,7 @@ function MessageItemInner({
         workspaceAgentId={workspaceAgentId}
         hiddenToolNames={hiddenToolNames}
         assistantHeaderAction={assistantHeaderAction}
+        assistantEmptyState={assistantEmptyState}
         assistantContentMode={assistantContentMode}
         agentMentionDirectory={agentMentionDirectory}
         assistant={state.assistant}

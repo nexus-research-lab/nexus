@@ -38,13 +38,20 @@ type Repository interface {
 	CreateConversation(context.Context, roomrepo.CreateConversationBundle) (*protocol.ConversationContextAggregate, error)
 	UpdateConversation(context.Context, string, string, string, string) (*protocol.ConversationContextAggregate, error)
 	DeleteConversation(context.Context, string, string, string) (*protocol.ConversationContextAggregate, error)
+	SetRoomDraftConversation(context.Context, string, string, string) error
+	HasConversationReferences(context.Context, string, string, string, []string) (bool, error)
 	UpdateSessionSDKSessionID(context.Context, string, string) error
 	TouchConversationActivity(context.Context, string, time.Time) error
+	MarkConversationStarted(context.Context, string, time.Time) error
 }
 
 type goalCleaner interface {
 	DeleteGoalsForRoomConversations(context.Context, []string) (int, error)
 	DeleteGoalsForRoomMember(context.Context, string, []string) (int, error)
+}
+
+type goalConversationInspector interface {
+	HasGoalForRoomConversation(context.Context, string) (bool, error)
 }
 
 type runtimeSessionCloser interface {
@@ -53,30 +60,34 @@ type runtimeSessionCloser interface {
 
 // Service 提供 Room 编排能力。
 type Service struct {
-	config     config.Config
-	agents     *agentsvc.Service
-	repository Repository
-	files      *workspacestore.SessionFileStore
-	history    *workspacestore.AgentHistoryStore
-	skills     RoomSkillCatalog
-	goals      goalCleaner
-	runtime    runtimeSessionCloser
+	config      config.Config
+	agents      *agentsvc.Service
+	repository  Repository
+	files       *workspacestore.SessionFileStore
+	history     *workspacestore.AgentHistoryStore
+	roomHistory *workspacestore.RoomHistoryStore
+	skills      RoomSkillCatalog
+	goals       goalCleaner
+	goalReader  goalConversationInspector
+	runtime     runtimeSessionCloser
 }
 
 // NewService 创建 Room 服务。
 func NewService(cfg config.Config, agents *agentsvc.Service, repository Repository) *Service {
 	return &Service{
-		config:     cfg,
-		agents:     agents,
-		repository: repository,
-		files:      workspacestore.NewSessionFileStore(cfg.WorkspacePath),
-		history:    workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		config:      cfg,
+		agents:      agents,
+		repository:  repository,
+		files:       workspacestore.NewSessionFileStore(cfg.WorkspacePath),
+		history:     workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		roomHistory: workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
 	}
 }
 
 // SetGoalCleaner 注入 Room 删除时的 Goal 级联清理器。
 func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
 	s.goals = cleaner
+	s.goalReader, _ = cleaner.(goalConversationInspector)
 }
 
 // SetRuntimeManager 注入运行时管理器，用于关闭 Room conversation 对应的后台 client。

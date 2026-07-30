@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -10,16 +10,22 @@ interface UseContactsPageNavigationOptions {
   agents: Agent[];
   loading: boolean;
   confirmDeleteAgent: () => Promise<string | null>;
+  closeAgentEditor: () => void;
+  openCreateAgent: () => void;
 }
 
 export function useContactsPageNavigation({
   agents,
   loading,
   confirmDeleteAgent,
+  closeAgentEditor,
+  openCreateAgent,
 }: UseContactsPageNavigationOptions) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const selectedAgentId = searchParams.get("agent");
+  const createAgentRequested = searchParams.get("view") === "create";
+  const openedCreateAgentFromRoute = useRef(false);
   const selectedAgent = selectedAgentId
     ? agents.find((agent) => agent.agent_id === selectedAgentId) ?? null
     : null;
@@ -30,10 +36,25 @@ export function useContactsPageNavigation({
     }
   }, [loading, navigate, selectedAgent, selectedAgentId]);
 
+  useEffect(() => {
+    if (createAgentRequested) {
+      openedCreateAgentFromRoute.current = true;
+      openCreateAgent();
+      return;
+    }
+    if (openedCreateAgentFromRoute.current) {
+      openedCreateAgentFromRoute.current = false;
+      closeAgentEditor();
+    }
+  }, [closeAgentEditor, createAgentRequested, openCreateAgent]);
+
   const openDirectRoom = useCallback((agentId: string) => {
     void resolveDirectRoomNavigationTarget(agentId).then(({route}) => {
       navigate(route);
     });
+  }, [navigate]);
+  const openAgent = useCallback((agentId: string) => {
+    navigate(AppRouteBuilders.contactAgent(agentId));
   }, [navigate]);
 
   const createTeam = useCallback((agentId: string) => {
@@ -51,13 +72,17 @@ export function useContactsPageNavigation({
       navigate(AppRouteBuilders.contacts(), {replace: true});
     }
   }, [confirmDeleteAgent, navigate, selectedAgentId]);
-  const backToDirectory = useCallback(() => {
-    navigate(AppRouteBuilders.contacts());
-  }, [navigate]);
+  const closeEditor = useCallback(() => {
+    closeAgentEditor();
+    if (createAgentRequested) {
+      navigate(AppRouteBuilders.contacts(), {replace: true});
+    }
+  }, [closeAgentEditor, createAgentRequested, navigate]);
 
   return {
     selectedAgent,
-    backToDirectory,
+    closeEditor,
+    openAgent,
     openDirectRoom,
     createTeam,
     confirmDelete,

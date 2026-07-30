@@ -12,7 +12,6 @@ import {
   SETTINGS_ICON_CLASS_NAME,
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
-  SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
 } from "../../shared/settings-panel-ui";
 import { useWorkspaceSettings } from "../use-workspace-settings";
@@ -23,16 +22,13 @@ export function SettingsWorkspaceSection() {
 
   return (
     <section className="space-y-2.5">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
-          {t("settings.general.section_workspace")}
-        </h2>
-        {controller.feedbackMessage ? (
-          <span className="min-w-0 truncate text-[11px] text-(--text-soft)">
+      {controller.feedbackMessage ? (
+        <div className="flex items-center justify-end gap-3 px-1">
+          <span className="min-w-0 truncate text-xs text-(--text-soft)">
             {controller.feedbackMessage}
           </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <div className={SETTINGS_CARD_CLASS_NAME}>
         <div className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] md:items-center">
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
@@ -48,7 +44,7 @@ export function SettingsWorkspaceSection() {
               </p>
               {controller.currentPath ? (
                 <p
-                  className="mt-1 max-w-[520px] truncate font-mono text-[11px] text-(--text-muted)"
+                  className="mt-1 max-w-[520px] truncate font-mono text-xs text-(--text-muted)"
                   title={controller.currentPath}
                 >
                   {t("settings.general.workspace_path_current", {

@@ -25,6 +25,10 @@ import {
   type SkillMarketplaceFeedbackActions,
   type SkillOperationsController,
 } from "./skill-marketplace-controller";
+import {
+  buildSkillUpdateCheckNotice,
+  type SkillUpdateCheckNotice,
+} from "./skill-update-check-model";
 
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const UPDATE_CHECK_MESSAGE_TTL_MS = 5000;
@@ -56,33 +60,6 @@ function setBusyKey(
   });
 }
 
-function buildUpdateCheckMessage(
-  availableCount: number,
-  failures: Array<{ skill_name: string }>,
-  manual: boolean,
-): string | null {
-  const failureCount = failures.length;
-  const failureLabel = failureCount === 1
-    ? `${failures[0]?.skill_name || "1 个来源"}无法检查`
-    : `${failureCount} 个来源无法检查`;
-  const cases = [
-    {
-      matches: availableCount > 0 && failureCount > 0,
-      message: `发现 ${availableCount} 个可更新，${failureLabel}`,
-    },
-    {
-      matches: availableCount > 0,
-      message: `发现 ${availableCount} 个可更新`,
-    },
-    {
-      matches: failureCount > 0,
-      message: `暂无可更新，${failureLabel}`,
-    },
-    { matches: manual, message: "暂无更新" },
-  ];
-  return cases.find((item) => item.matches)?.message ?? null;
-}
-
 export function useSkillOperations({
   closeExternalPreview,
   feedback,
@@ -90,7 +67,8 @@ export function useSkillOperations({
   updateAvailableCount,
 }: UseSkillOperationsOptions): SkillOperationsController {
   const [checkingUpdates, setCheckingUpdates] = useState(false);
-  const [checkUpdateMessage, setCheckUpdateMessage] = useState<string | null>(null);
+  const [checkUpdateNotice, setCheckUpdateNotice] =
+    useState<SkillUpdateCheckNotice | null>(null);
   const [lastUpdateCheckedAt, setLastUpdateCheckedAt] = useState<number | null>(readLastUpdateCheckTime);
   const [importing, setImporting] = useState(false);
   const [importDialogMode, setImportDialogMode] = useState<SkillImportDialogMode | null>(null);
@@ -114,7 +92,7 @@ export function useSkillOperations({
     try {
       const result = await checkSkillUpdatesApi();
       recordUpdateCheck();
-      setCheckUpdateMessage(buildUpdateCheckMessage(
+      setCheckUpdateNotice(buildSkillUpdateCheckNotice(
         result.available_skills.length,
         result.failures,
         manual,
@@ -139,13 +117,13 @@ export function useSkillOperations({
   }, [lastUpdateCheckedAt, runUpdateCheck]);
 
   useEffect(() => {
-    if (!checkUpdateMessage || checkingUpdates || updateAvailableCount > 0) return;
+    if (!checkUpdateNotice || checkingUpdates || updateAvailableCount > 0) return;
     const timer = window.setTimeout(
-      () => setCheckUpdateMessage(null),
+      () => setCheckUpdateNotice(null),
       UPDATE_CHECK_MESSAGE_TTL_MS,
     );
     return () => window.clearTimeout(timer);
-  }, [checkUpdateMessage, checkingUpdates, updateAvailableCount]);
+  }, [checkUpdateNotice, checkingUpdates, updateAvailableCount]);
 
   const updateSkill = useCallback(async (skillName: string) => {
     feedback.clear();
@@ -245,7 +223,7 @@ export function useSkillOperations({
   return {
     busyExternalKeys,
     busySkillNames,
-    checkUpdateMessage,
+    checkUpdateNotice,
     checkUpdates: () => runUpdateCheck(true),
     checkingUpdates,
     deleteSkill,

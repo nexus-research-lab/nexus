@@ -61,7 +61,7 @@ export function UiSegmentedControl<T extends string>({
           key={option.value}
           className={cn(
             "segmented-control-option rounded-full font-semibold tracking-[0.02em]",
-            density === "compact" ? "px-[0.7rem] py-[3.5px] text-[9.5px]" : "px-1.5 py-[5px] text-[10px]",
+            density === "compact" ? "px-[0.7rem] py-[3.5px] text-2xs" : "px-1.5 py-[5px] text-2xs",
             stretch && "min-w-0 flex-1 px-1.5 text-center",
           )}
           data-active={value === option.value}

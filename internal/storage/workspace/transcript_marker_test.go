@@ -63,6 +63,7 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
 		t.Fatalf("创建 workspace 失败: %v", err)
 	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
 
 	history := NewAgentHistoryStore(workspaceRoot)
@@ -216,6 +217,7 @@ func TestAgentHistoryStoreUsesHiddenRoundMarkerForTranscriptAlignment(t *testing
 	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
 		t.Fatalf("创建 workspace 失败: %v", err)
 	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
 
 	history := NewAgentHistoryStore(workspaceRoot)
@@ -274,11 +276,284 @@ func TestAgentHistoryStoreUsesHiddenRoundMarkerForTranscriptAlignment(t *testing
 	}
 }
 
+func TestAgentHistoryStoreRestoresMixedTranscriptRoundsWithoutLosingUsers(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Kevin")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:kevin:ws:dm:mixed-history"
+	sessionID := "mixed-history-session"
+	if err := history.AppendRoundMarker(
+		workspacePath,
+		sessionKey,
+		"round-before-memory",
+		"创建一个文件",
+		1000,
+	); err != nil {
+		t.Fatalf("写入 memory 前 marker 失败: %v", err)
+	}
+	if err := history.AppendRoundMarkerWithOptions(
+		workspacePath,
+		sessionKey,
+		"goal-continuation",
+		"",
+		3000,
+		RoundMarkerOptions{
+			HiddenFromUser: true,
+			Synthetic:      true,
+			Purpose:        "goal_continuation",
+		},
+	); err != nil {
+		t.Fatalf("写入隐藏 Goal marker 失败: %v", err)
+	}
+	if err := history.AppendRoundMarker(
+		workspacePath,
+		sessionKey,
+		"round-after-goal",
+		"再设定一个 Goal",
+		5000,
+	); err != nil {
+		t.Fatalf("写入 Goal 后 marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "user-before-memory",
+			"sessionId": sessionID,
+			"timestamp": "1970-01-01T00:00:01.005Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": "创建一个文件\n\n<nexus_runtime_context>\n" +
+					"## Emotion State\nfocused\n</nexus_runtime_context>",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-before-memory",
+			"sessionId":  sessionID,
+			"parentUuid": "user-before-memory",
+			"timestamp":  "1970-01-01T00:00:01.500Z",
+			"message": map[string]any{
+				"role":    "assistant",
+				"content": []map[string]any{{"type": "text", "text": "文件已创建"}},
+			},
+		},
+		{
+			"type":       "system",
+			"uuid":       "runtime-memory-saved",
+			"sessionId":  sessionID,
+			"parentUuid": "assistant-before-memory",
+			"timestamp":  "1970-01-01T00:00:02.000Z",
+			"subtype":    "memory_saved",
+		},
+		{
+			"type":       "system",
+			"uuid":       "runtime-memory-saved",
+			"sessionId":  sessionID,
+			"parentUuid": "runtime-memory-saved",
+			"timestamp":  "1970-01-01T00:00:02.001Z",
+			"subtype":    "memory_saved",
+		},
+		{
+			"type":       "user",
+			"uuid":       "goal-user",
+			"sessionId":  sessionID,
+			"parentUuid": "runtime-memory-saved",
+			"timestamp":  "1970-01-01T00:00:03.005Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": "<internal_context source=\"goal\">\n" +
+					"Continue working toward the active thread goal.\n" +
+					"</internal_context>",
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "runtime-skill-listing",
+			"sessionId":  sessionID,
+			"parentUuid": "goal-user",
+			"timestamp":  "1970-01-01T00:00:03.006Z",
+			"isMeta":     true,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "<system-reminder>Skill listing</system-reminder>",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "goal-assistant",
+			"sessionId":  sessionID,
+			"parentUuid": "runtime-skill-listing",
+			"timestamp":  "1970-01-01T00:00:04.000Z",
+			"message": map[string]any{
+				"role":    "assistant",
+				"content": []map[string]any{{"type": "text", "text": "Goal 继续执行"}},
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "user-after-goal",
+			"sessionId":  sessionID,
+			"parentUuid": "goal-assistant",
+			"timestamp":  "1970-01-01T00:00:05.005Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": "再设定一个 Goal\n\n<nexus_runtime_context>\n" +
+					"## Emotion State\nfocused\n</nexus_runtime_context>",
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "runtime-skill-body",
+			"sessionId":  sessionID,
+			"parentUuid": "user-after-goal",
+			"timestamp":  "1970-01-01T00:00:05.006Z",
+			"isMeta":     true,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "Base directory for this skill: /tmp/goal-manager",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "assistant-after-goal",
+			"sessionId":  sessionID,
+			"parentUuid": "runtime-skill-body",
+			"timestamp":  "1970-01-01T00:00:06.000Z",
+			"message": map[string]any{
+				"role":    "assistant",
+				"content": []map[string]any{{"type": "text", "text": "新 Goal 已创建"}},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Kevin",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取混合历史失败: %v", err)
+	}
+
+	expectedUsers := map[string]string{
+		"round-before-memory": "创建一个文件",
+		"round-after-goal":    "再设定一个 Goal",
+	}
+	expectedAssistants := map[string]string{
+		"round-before-memory": "文件已创建",
+		"goal-continuation":   "Goal 继续执行",
+		"round-after-goal":    "新 Goal 已创建",
+	}
+	for _, row := range rows {
+		roundID := stringFromAny(row["round_id"])
+		switch stringFromAny(row["role"]) {
+		case "user":
+			expected, ok := expectedUsers[roundID]
+			if !ok {
+				t.Fatalf("内部 Goal 或 meta 输入不应显示为用户消息: %+v", row)
+			}
+			if got := stringFromAny(row["content"]); got != expected {
+				t.Fatalf("用户消息应移除 runtime context: got=%q want=%q", got, expected)
+			}
+			delete(expectedUsers, roundID)
+		case "assistant":
+			expected, ok := expectedAssistants[roundID]
+			if !ok {
+				continue
+			}
+			if !messageContentContainsText(row["content"], expected) {
+				t.Fatalf("assistant 归属轮次错误: round=%s row=%+v", roundID, row)
+			}
+			delete(expectedAssistants, roundID)
+		}
+	}
+	if len(expectedUsers) != 0 || len(expectedAssistants) != 0 {
+		t.Fatalf(
+			"混合历史恢复不完整: missing_users=%+v missing_assistants=%+v rows=%+v",
+			expectedUsers,
+			expectedAssistants,
+			rows,
+		)
+	}
+}
+
+func TestAgentHistoryStoreRestoresVisibleMarkerWhenTranscriptUserIsMissing(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "Kevin")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:kevin:ws:dm:missing-user"
+	sessionID := "missing-user-session"
+	if err := history.AppendRoundMarker(
+		workspacePath,
+		sessionKey,
+		"round-visible",
+		"仍应显示的用户输入",
+		1000,
+	); err != nil {
+		t.Fatalf("写入可见 marker 失败: %v", err)
+	}
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "assistant",
+			"uuid":      "assistant-without-user",
+			"sessionId": sessionID,
+			"timestamp": "1970-01-01T00:00:02.000Z",
+			"message": map[string]any{
+				"role":    "assistant",
+				"content": []map[string]any{{"type": "text", "text": "只有 assistant 的坏链"}},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "Kevin",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取缺失 user 的历史失败: %v", err)
+	}
+	for _, row := range rows {
+		if stringFromAny(row["role"]) == "user" &&
+			stringFromAny(row["round_id"]) == "round-visible" &&
+			stringFromAny(row["content"]) == "仍应显示的用户输入" {
+			return
+		}
+	}
+	t.Fatalf("transcript 断链时必须由可见 marker 恢复用户消息: %+v", rows)
+}
+
+func messageContentContainsText(content any, expected string) bool {
+	for _, block := range normalizeMessageContentBlocks(content) {
+		if stringFromAny(block["text"]) == expected {
+			return true
+		}
+	}
+	return false
+}
+
 func writeAgentTranscriptFixture(t *testing.T, workspacePath string, sessionID string, rows []map[string]any) {
 	t.Helper()
 
 	projectDir := filepath.Join(
-		transcriptProjectsDir(),
+		transcriptProjectsDirForWorkspace(workspacePath),
 		sanitizeTranscriptPath(canonicalizeTranscriptPath(workspacePath)),
 	)
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {

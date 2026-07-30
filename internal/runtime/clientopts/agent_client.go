@@ -12,7 +12,9 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
@@ -36,7 +38,14 @@ type RuntimeConfigForRuntimeResolver interface {
 
 // AgentClientOptionsInput 表示构造 SDK options 所需的统一输入。
 type AgentClientOptionsInput struct {
-	WorkspacePath     string
+	WorkspacePath string
+	OwnerUserID   string
+	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
+	//
+	// 主智能体是宿主控制面的受信调用方，在 enforce 模式下仍保留
+	// workspace policy Hook，但不切换到普通 Agent 的隔离 launcher，
+	// 以便使用 owner-scoped nexusctl。
+	IsMainAgent       bool
 	RuntimeKind       string
 	Provider          string
 	Model             string
@@ -48,6 +57,10 @@ type AgentClientOptionsInput struct {
 	DisallowedTools   []string
 	// SkillIDs 是宿主保存的 Skill 引用，进入 SDK 前投影为当前 runtime 的 Skill 名称白名单。
 	SkillIDs []string
+	// DisabledSkillIDs 是当前 Agent 明确停用或未绑定的 Skill 名称。
+	//
+	// 项目级 Skill 允许动态发现，不能仅靠启动时白名单表达显式停用状态。
+	DisabledSkillIDs []string
 	// SkillDirectories 是宿主授予 runtime 的平台与用户级资源根，不随 Agent workspace 变化。
 	SkillDirectories           []string
 	SettingSources             []string
@@ -62,6 +75,8 @@ type AgentClientOptionsInput struct {
 	AgentSDKDiagnosticsEnabled bool
 	ToolSearchEnabled          bool
 	WebSearch                  preferencessvc.WebSearchSettings
+	RuntimeIsolationMode       string
+	RuntimeLauncherPath        string
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -81,12 +96,25 @@ func BuildAgentClientOptionsWithConfig(
 	resolver RuntimeConfigResolver,
 	input AgentClientOptionsInput,
 ) (agentclient.Options, *RuntimeConfig, error) {
+	ownerUserID := strings.TrimSpace(input.OwnerUserID)
+	if contextOwner, ok := authctx.CurrentUserID(ctx); ok &&
+		ownerUserID != "" && ownerUserID != strings.TrimSpace(contextOwner) {
+		return agentclient.Options{}, nil, errors.New("runtime owner 与认证上下文不一致")
+	}
+	if ownerUserID == "" {
+		// 老的后台调用方可能只把 owner 放在认证上下文里；统一解析后，
+		// 配置目录、环境变量和 workspace policy 必须使用同一个 owner。
+		ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
+	}
 	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
 	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model, effectiveRuntimeKind)
 	if err != nil {
 		return agentclient.Options{}, nil, err
 	}
 	runtimeEnv := defaultRuntimeEnv(effectiveRuntimeKind)
+	// bridge 会继承宿主进程环境；先清掉全局路径和密钥，再由后续
+	// provider/runtime 投影显式恢复当前会话允许使用的变量。
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, scrubInheritedRuntimeEnv())
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsHostManagedRuntimeEnv(effectiveRuntimeKind))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, nxsDiagnosticsRuntimeEnv(effectiveRuntimeKind, input.AgentSDKDiagnosticsEnabled))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, explicitNXSProcessRuntimeEnv(effectiveRuntimeKind))
@@ -98,9 +126,16 @@ func BuildAgentClientOptionsWithConfig(
 	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, webSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
+	// 身份与作用域是宿主授权事实，不能交给调用方的 ExtraEnv 覆盖。
+	// 必须在所有可配置环境合并后再次写入，确保 runtime 内的 nexusctl、
+	// session metadata 和下游 hook 始终绑定同一个 owner。
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx, ownerUserID))
+	runtimeEnv = mergeRuntimeEnv(
+		runtimeEnv,
+		managedUserRuntimeEnv(ownerUserID, input.WorkspacePath, effectiveRuntimeKind),
+	)
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 
@@ -129,8 +164,15 @@ func BuildAgentClientOptionsWithConfig(
 			PermissionHandler: input.PermissionHandler,
 		},
 	}
-	if input.SkillIDs != nil {
+	if effectiveRuntimeKind == runtimeKindClaude {
+		// Claude 的项目级 Skill 会在会话期间动态发现；用 deny 规则隔离
+		// 未绑定的全局 Skill，不能把启动时的白名单当成完整发现快照。
+		options = options.WithAllSkills()
+	} else if input.SkillIDs != nil {
 		options = options.WithSkills(input.SkillIDs...)
+	}
+	if input.DisabledSkillIDs != nil {
+		options = options.WithDisabledSkills(input.DisabledSkillIDs...)
 	}
 	if runtimeConfig != nil {
 		options.Model = strings.TrimSpace(runtimeConfig.Model)
@@ -146,6 +188,24 @@ func BuildAgentClientOptionsWithConfig(
 	}
 	if len(input.MCPServers) > 0 {
 		options.MCP.Servers = cloneMCPServers(input.MCPServers)
+	}
+	options, err = workspaceisolation.Apply(
+		ctx,
+		options,
+		workspaceisolation.Config{
+			Mode:         workspaceisolation.Mode(input.RuntimeIsolationMode),
+			LauncherPath: input.RuntimeLauncherPath,
+		},
+		workspaceisolation.Input{
+			OwnerUserID: ownerUserID,
+			IsMainAgent: input.IsMainAgent,
+			RuntimeKind: effectiveRuntimeKind,
+			CWD:         input.WorkspacePath,
+			ReadRoots:   input.SkillDirectories,
+		},
+	)
+	if err != nil {
+		return agentclient.Options{}, nil, fmt.Errorf("装配 runtime workspace isolation: %w", err)
 	}
 	return options, runtimeConfig, nil
 }

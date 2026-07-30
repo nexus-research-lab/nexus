@@ -1,7 +1,6 @@
 "use client";
 
-import { Loader2, Send, Square } from "lucide-react";
-import type { FormEvent } from "react";
+import { Loader2 } from "lucide-react";
 
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
 import type { ConversationThreadRound } from "@/features/conversation/shared/thread/conversation-thread-model";
@@ -18,27 +17,16 @@ import {
   subagentTaskAvatarDataUrl,
   subagentTaskTitle,
 } from "../subagent-task-model";
-import type {
-  SubagentTaskCommand,
-  SubagentTaskThreadError,
-} from "./subagent-task-thread-model";
+import type { SubagentTaskThreadError } from "./subagent-task-thread-model";
 
 interface SubagentTaskThreadViewModel {
-  canSend: boolean;
-  canStop: boolean;
-  command: SubagentTaskCommand | null;
   detail: SubagentTaskMessagesResponse | null;
-  draft: string;
   error: SubagentTaskThreadError | null;
   isLoading: boolean;
-  isResume: boolean;
   messages: Message[];
   onRetry: () => void;
-  onSend: () => void;
-  onStop: () => void;
   rounds: ConversationThreadRound[];
   sessionKey: string;
-  setDraft: (value: string) => void;
   task: SubagentTask;
 }
 
@@ -72,7 +60,7 @@ export function SubagentTaskThreadView({
           task={model.task}
         />
       )}
-      footer={<SubagentThreadControls model={model} />}
+      footer={null}
       headerAvatar={(
         <SubagentTaskAvatar
           className="mt-0 h-7 w-7"
@@ -124,107 +112,6 @@ function ThreadNotice({
   );
 }
 
-function SubagentThreadControls({ model }: { model: SubagentTaskThreadViewModel }) {
-  const { t } = useI18n();
-  const isPending = model.command !== null;
-
-  if (!model.canSend) {
-    return (
-      <div className="flex shrink-0 items-center gap-3 border-t border-(--divider-subtle-color) px-4 py-2.5">
-        <p className="min-w-0 flex-1 text-[11.5px] leading-5 text-(--text-soft)">
-          {model.task.runtime_kind === "claude"
-            ? t("subagents.cc_follow_up_unavailable")
-            : t("subagents.follow_up_unavailable")}
-        </p>
-        {model.canStop ? (
-          <StopTaskButton
-            disabled={isPending}
-            isLoading={model.command === "stop"}
-            onClick={model.onStop}
-          />
-        ) : null}
-      </div>
-    );
-  }
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    model.onSend();
-  };
-
-  return (
-    <form
-      className="shrink-0 border-t border-(--divider-subtle-color) px-3 py-2"
-      onSubmit={handleSubmit}
-    >
-      <div className="rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) px-2.5 pb-1.5 pt-1.5 transition-colors focus-within:border-(--surface-interactive-hover-border)">
-        <textarea
-          className="max-h-28 min-h-10 w-full resize-none bg-transparent py-1 text-[12.5px] leading-5 text-(--text-default) outline-none placeholder:text-(--text-soft)"
-          disabled={isPending}
-          onChange={(event) => model.setDraft(event.target.value)}
-          placeholder={model.isResume
-            ? t("subagents.resume_placeholder")
-            : t("subagents.send_placeholder")}
-          rows={2}
-          value={model.draft}
-        />
-        <div className="flex min-h-7 items-center justify-between gap-3">
-          {model.canStop ? (
-            <StopTaskButton
-              disabled={isPending}
-              isLoading={model.command === "stop"}
-              onClick={model.onStop}
-            />
-          ) : <span />}
-          <div className="flex min-w-0 items-center gap-2">
-            {model.isResume ? (
-              <span className="hidden truncate text-[10.5px] text-(--text-soft) sm:inline">
-                {t("subagents.continue_same_thread")}
-              </span>
-            ) : null}
-            <button
-              aria-label={t("subagents.send")}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-(--primary) text-(--primary-foreground) transition-colors disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-              disabled={isPending || !model.draft.trim()}
-              title={t("subagents.send")}
-              type="submit"
-            >
-              {model.command === "send"
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : <Send className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-        </div>
-      </div>
-    </form>
-  );
-}
-
-function StopTaskButton({
-  disabled,
-  isLoading,
-  onClick,
-}: {
-  disabled: boolean;
-  isLoading: boolean;
-  onClick: () => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <button
-      className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-[6px] px-1.5 text-[11px] font-medium text-(--text-soft) transition-colors hover:text-(--destructive) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
-      {isLoading
-        ? <Loader2 className="h-3 w-3 animate-spin" />
-        : <Square className="h-2.5 w-2.5 fill-current" />}
-      {t("subagents.stop")}
-    </button>
-  );
-}
-
 function ThreadEmptyContent({
   detail,
   isLoading,
@@ -253,7 +140,7 @@ function ThreadEmptyContent({
   }
   if (detail?.output?.trim()) {
     return (
-      <pre className="whitespace-pre-wrap break-words text-[13px] leading-6 text-(--text-default)">
+      <pre className="whitespace-pre-wrap break-words text-sm leading-6 text-(--text-default)">
         {detail.output}
       </pre>
     );

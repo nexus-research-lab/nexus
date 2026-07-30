@@ -16,6 +16,9 @@ type fakeGoalContextProvider struct {
 	runtimeGoal         *protocol.Goal
 	runtimeCalls        int
 	usage               []protocol.GoalUsage
+	usageGoal           *protocol.Goal
+	usageSessionKeys    []string
+	usageGoalIDs        []string
 	usageLimitReason    []string
 	progress            []bool
 	progressRevisions   []int64
@@ -45,18 +48,28 @@ func (p *fakeGoalContextProvider) RuntimeContext(context.Context, string) (strin
 	return p.runtimeContext, &goal, nil
 }
 
-func (p *fakeGoalContextProvider) RecordUsageForSession(_ context.Context, _ string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
+func (p *fakeGoalContextProvider) RecordUsageForSession(_ context.Context, sessionKey string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.usage = append(p.usage, usage)
-	return nil, nil
+	p.usageSessionKeys = append(p.usageSessionKeys, sessionKey)
+	return cloneTestGoal(p.usageGoal), nil
 }
 
-func (p *fakeGoalContextProvider) RecordUsageForGoal(_ context.Context, _ string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
+func (p *fakeGoalContextProvider) RecordUsageForGoal(_ context.Context, goalID string, usage protocol.GoalUsage, _ string) (*protocol.Goal, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.usage = append(p.usage, usage)
-	return nil, nil
+	p.usageGoalIDs = append(p.usageGoalIDs, goalID)
+	return cloneTestGoal(p.usageGoal), nil
+}
+
+func cloneTestGoal(item *protocol.Goal) *protocol.Goal {
+	if item == nil {
+		return nil
+	}
+	value := *item
+	return &value
 }
 
 func (p *fakeGoalContextProvider) UsageLimitForSession(_ context.Context, _ string, _ string, reason string) (*protocol.Goal, error) {
@@ -195,7 +208,8 @@ func goalToolResultAssistantMessage(
 	outputTokens int64,
 ) protocol.Message {
 	return protocol.Message{
-		"role": "assistant",
+		"message_id": "assistant-" + toolUseID,
+		"role":       "assistant",
 		"usage": map[string]any{
 			"input_tokens":  inputTokens,
 			"output_tokens": outputTokens,
@@ -210,7 +224,8 @@ func goalToolResultAssistantMessage(
 
 func goalAssistantUsageMessage(inputTokens int64, outputTokens int64) protocol.Message {
 	return protocol.Message{
-		"role": "assistant",
+		"message_id": "assistant-final",
+		"role":       "assistant",
 		"usage": map[string]any{
 			"input_tokens":  inputTokens,
 			"output_tokens": outputTokens,

@@ -1,8 +1,9 @@
-import { Check, Plus, Search } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
 
 import type { RoomMemberAgentOption } from "./create-room-dialog-types";
 
@@ -24,23 +25,20 @@ export function RoomMemberSelector({
   const { t } = useI18n();
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-(--text-soft)" />
-        <input
-          aria-label={t("room.search_agent_placeholder")}
-          className="dialog-input w-full radius-control-md py-2 pl-8 pr-3 text-sm text-(--text-strong) placeholder:text-(--text-soft) focus-visible:outline-none"
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder={t("room.search_agent_placeholder")}
-          type="text"
-          value={query}
-        />
-      </div>
+      <UiSearchInput
+        aria-label={t("room.search_agent_placeholder")}
+        controlSize="md"
+        onChange={onQueryChange}
+        placeholder={t("room.search_agent_placeholder")}
+        value={query}
+        variant="dialog"
+      />
       <p className="dialog-label">
         {t("room.all_agents", { count: agents.length })}
       </p>
-      <div className="surface-radius-lg flex max-h-[min(36vh,360px)] min-h-0 flex-col overflow-hidden border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_84%,transparent)] px-2 py-2">
+      <div className="surface-radius-lg flex max-h-[min(36vh,360px)] min-h-0 flex-col overflow-hidden bg-(--surface-panel-background) p-1.5 max-md:min-h-[180px] max-md:max-h-[240px]">
         <div
-          className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1"
+          className="soft-scrollbar flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
           data-room-member-selection-list="true"
         >
           {agents.map((agent) => (
@@ -77,10 +75,10 @@ function RoomMemberOption({
       aria-label={actionLabel}
       aria-pressed={selected}
       className={cn(
-        "surface-radius-md flex w-full cursor-pointer items-center gap-3 border px-3 py-1.5 text-left transition-[background,border-color] duration-(--motion-duration-normal)",
+        "radius-control-md flex min-h-10 w-full cursor-pointer items-center gap-2.5 border border-transparent px-2.5 py-1.5 text-left transition-[background,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
         selected
-          ? "border-[color:color-mix(in_srgb,var(--primary)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_13%,transparent)]"
-          : "border-[color:color-mix(in_srgb,var(--divider-subtle-color)_58%,transparent)] bg-transparent hover:border-[color:color-mix(in_srgb,var(--primary)_18%,var(--divider-subtle-color))] hover:bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)]",
+          ? "bg-(--surface-interactive-active-background)"
+          : "bg-transparent hover:bg-(--surface-interactive-hover-background)",
       )}
       onClick={() => onToggle(agent.agent_id)}
       title={actionLabel}
@@ -92,10 +90,10 @@ function RoomMemberOption({
       </p>
       <div
         className={cn(
-          "pointer-events-none flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-[background-color,border-color,color] duration-(--motion-duration-fast)",
+          "pointer-events-none flex h-6 w-6 shrink-0 items-center justify-center radius-control-xs transition-[background-color,color] duration-(--motion-duration-fast)",
           selected
-            ? "bg-primary text-white"
-            : "border border-(--surface-interactive-hover-border) text-(--text-soft)",
+            ? "bg-(--surface-interactive-hover-background) text-(--brand-action)"
+            : "text-(--text-soft)",
         )}
       >
         <SelectionIcon className="h-3 w-3" />

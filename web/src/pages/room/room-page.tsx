@@ -1,9 +1,12 @@
+import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 
 import { GroupRouteEntry } from "@/features/conversation/room/group/group-route-entry";
 import { RoomSurfaceShell } from "@/features/conversation/room/surface/room-surface-shell";
 import { WorkspaceLoadingState } from "@/shared/ui/workspace/frame/workspace-loading-state";
 import { WorkspacePageFrame } from "@/shared/ui/workspace/frame/workspace-page-frame";
+import { resolveSelectedDraftConversationId } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";
+import { useRoomNavigationStore } from "@/store/room-navigation";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { RoomRouteParams } from "@/types/app/route";
 
@@ -64,7 +67,7 @@ function ActiveRoomPage({
         onReplayTour={onReplayTour}
         onManageRoom={actions.manageRoom}
         onOpenMemberManager={actions.prepareAgentCatalog}
-        onBackToDirectory={navigation.backToLauncher}
+        onBackToDirectory={navigation.backToChatDirectory}
         onCloseConversation={actions.closeConversation}
         onDeleteConversation={navigation.deleteConversation}
         onCreateConversation={navigation.createConversation}
@@ -124,18 +127,45 @@ function getCurrentRoomType(controller: RoomPageController): string | null {
 
 export function RoomPage() {
   const params = useParams<RoomRouteParams>();
+  const preferredConversationTabs = useRoomNavigationStore((state) => (
+    params.roomId
+      ? state.conversation_tabs_by_room[params.roomId]
+      : undefined
+  ));
+  const preferredConversationIds = useMemo(() => {
+    if (!preferredConversationTabs) {
+      return [];
+    }
+    return [
+      preferredConversationTabs.active_conversation_id,
+      ...preferredConversationTabs.open_conversation_ids.filter(
+        (id) => id !== preferredConversationTabs.active_conversation_id,
+      ),
+    ];
+  }, [preferredConversationTabs]);
   const controller = useRoomPageController({
     roomId: params.roomId,
     conversationId: params.conversationId,
+    preferredConversationIds: params.conversationId || params.sessionKey
+      ? []
+      : preferredConversationIds,
     sessionKey: params.sessionKey,
   });
   const { actions, conversation, room, status } = controller;
+  const selectedDraftConversationId = useMemo(
+    () => resolveSelectedDraftConversationId(
+      conversation.items,
+      conversation.selectedId,
+    ),
+    [conversation.items, conversation.selectedId],
+  );
   const navigation = useRoomPageNavigation({
     roomId: params.roomId,
     routeConversationId: params.conversationId,
     routeSessionKey: params.sessionKey,
     currentRoomId: getCurrentRoomId(controller),
     selectedConversationId: conversation.selectedId,
+    selectedDraftConversationId,
     isHydrated: status.isHydrated,
     createConversation: actions.createConversation,
     deleteConversation: actions.deleteConversation,

@@ -1,18 +1,25 @@
 package imagegen
 
 import (
+	"context"
 	"fmt"
 	"mime"
 	"net/http"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 var safeFileNamePattern = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
-func (s *Service) writeImage(input GenerateInput, payload []byte, mimeType string) (string, error) {
+func (s *Service) writeImage(
+	ctx context.Context,
+	input GenerateInput,
+	payload []byte,
+	mimeType string,
+) (string, error) {
 	ext := extensionFor(mimeType, input.OutputFormat)
 	name := strings.TrimSpace(input.FileName)
 	if name == "" {
@@ -23,11 +30,22 @@ func (s *Service) writeImage(input GenerateInput, payload []byte, mimeType strin
 		name = "generated-image"
 	}
 	relativePath := filepath.ToSlash(filepath.Join("output", "imagegen", name+ext))
-	fullPath := filepath.Join(input.WorkspacePath, relativePath)
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+	root, err := s.openWorkspace(ctx, input.WorkspacePath, false)
+	if err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(fullPath, payload, 0o644); err != nil {
+	defer root.Close()
+	if err := root.MkdirAll(
+		filepath.Dir(relativePath),
+		appfs.RuntimeCollaborativeDirectoryMode(0o755),
+	); err != nil {
+		return "", err
+	}
+	if err := root.WriteFileAtomic(
+		relativePath,
+		payload,
+		appfs.RuntimeCollaborativeFileMode(0o644),
+	); err != nil {
 		return "", err
 	}
 	return relativePath, nil

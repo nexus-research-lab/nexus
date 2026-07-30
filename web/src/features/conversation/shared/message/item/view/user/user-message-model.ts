@@ -2,8 +2,6 @@ import { formatMessageTime } from "../../../message-time";
 import type { UserMessage } from "@/types/conversation/message/entity";
 
 interface UserMessageDensity {
-  avatarFallbackClassName: string;
-  avatarSize: "compact" | "full";
   contentClassName: string;
   headerClassName: string;
   rowClassName: string;
@@ -18,16 +16,12 @@ export interface UserMessagePresentation extends UserMessageDensity {
 
 const USER_MESSAGE_DENSITY: Record<"compact" | "expanded", UserMessageDensity> = {
   compact: {
-    avatarFallbackClassName: "h-3 w-3",
-    avatarSize: "compact",
-    contentClassName: "text-[15px] leading-6 [&_.katex-display]:my-2",
+    contentClassName: "text-base leading-6 [&_.katex-display]:my-2",
     headerClassName: "h-6",
     rowClassName: "",
     sectionClassName: "px-0",
   },
   expanded: {
-    avatarFallbackClassName: "h-4 w-4",
-    avatarSize: "full",
     contentClassName: "text-[16px] leading-7 [&_.katex-display]:my-3",
     headerClassName: "h-7",
     rowClassName: "gap-3",

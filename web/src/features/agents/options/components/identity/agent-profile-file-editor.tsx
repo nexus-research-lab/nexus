@@ -71,7 +71,7 @@ export function AgentProfileFileEditor({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
       <div className="flex shrink-0 items-center justify-between gap-3">
-        <label className="text-[11px] font-semibold text-(--text-muted)">
+        <label className="text-xs font-semibold text-(--text-muted)">
           {label}
         </label>
         <UiButton

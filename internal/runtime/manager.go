@@ -17,25 +17,42 @@ type sessionState struct {
 	RunningRounds            map[string]struct{}
 	RoundCancels             map[string]context.CancelFunc
 	RoundDone                map[string]chan struct{}
+	BackgroundTasks          map[uint64]context.CancelFunc
+	BackgroundDone           chan struct{}
+	NextBackgroundTaskID     uint64
+	Closing                  bool
+	CloseDone                chan struct{}
 	Interruptions            map[string]string
 	GoalAccountingFlushers   map[string]GoalAccountingFlush
 	GoalAccountingClearers   map[string]GoalAccountingClear
+	GoalAccountingFinalizers map[string]GoalAccountingFinalize
 	GoalAccountingActivators map[string]GoalAccountingActivate
+	GoalAccountingGuards     map[string]goalAccountingGuard
 	GoalObjectiveRevisions   map[string]*atomic.Int64
 	GuidedInputs             []GuidedInput
 	IdleMessageCancel        context.CancelFunc
 	IdleMessageDrainID       int64
 	RuntimeKind              agentclient.RuntimeKind
+	OwnerUserID              string
 	HasSubagentHistory       bool
 	LastUsedAt               time.Time
 }
 
 // Manager 管理 session_key -> SDK client 与运行中 round。
 type Manager struct {
-	mu       sync.RWMutex
-	sessions map[string]*sessionState
-	factory  Factory
-	now      func() time.Time
+	mu                 sync.RWMutex
+	sessions           map[string]*sessionState
+	factory            Factory
+	now                func() time.Time
+	ownerProcessReaper OwnerProcessReaper
+	// subagentUsageTotals 只服务非 SQL goal provider 的兼容路径；
+	// 放在 Manager 根上，避免 idle session 回收后立刻丢失高水位。
+	subagentUsageTotals map[string]int64
+}
+
+// OwnerProcessReaper 在 owner 权限撤销时回收脱离父进程的 runtime 子树。
+type OwnerProcessReaper interface {
+	ReapOwnerProcesses(context.Context, string) error
 }
 
 // NewManager 创建运行时管理器。
@@ -49,10 +66,21 @@ func NewManagerWithFactory(factory Factory) *Manager {
 		factory = defaultFactory{}
 	}
 	return &Manager{
-		sessions: make(map[string]*sessionState),
-		factory:  factory,
-		now:      time.Now,
+		sessions:            make(map[string]*sessionState),
+		factory:             factory,
+		now:                 time.Now,
+		subagentUsageTotals: make(map[string]int64),
 	}
+}
+
+// SetOwnerProcessReaper 注入 owner 级 cgroup 回收器。
+func (m *Manager) SetOwnerProcessReaper(reaper OwnerProcessReaper) {
+	if m == nil {
+		return
+	}
+	m.mu.Lock()
+	m.ownerProcessReaper = reaper
+	m.mu.Unlock()
 }
 
 func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
@@ -62,10 +90,14 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 			RunningRounds:            make(map[string]struct{}),
 			RoundCancels:             make(map[string]context.CancelFunc),
 			RoundDone:                make(map[string]chan struct{}),
+			BackgroundTasks:          make(map[uint64]context.CancelFunc),
+			BackgroundDone:           closedSignal(),
 			Interruptions:            make(map[string]string),
 			GoalAccountingFlushers:   make(map[string]GoalAccountingFlush),
 			GoalAccountingClearers:   make(map[string]GoalAccountingClear),
+			GoalAccountingFinalizers: make(map[string]GoalAccountingFinalize),
 			GoalAccountingActivators: make(map[string]GoalAccountingActivate),
+			GoalAccountingGuards:     make(map[string]goalAccountingGuard),
 			GoalObjectiveRevisions:   make(map[string]*atomic.Int64),
 		}
 		m.sessions[sessionKey] = state
@@ -74,6 +106,12 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 		m.touchStateLocked(state)
 	}
 	return state
+}
+
+func closedSignal() chan struct{} {
+	done := make(chan struct{})
+	close(done)
+	return done
 }
 
 func (m *Manager) touchStateLocked(state *sessionState) {

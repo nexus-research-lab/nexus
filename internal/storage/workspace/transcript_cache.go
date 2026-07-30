@@ -26,9 +26,9 @@ func (s *AgentHistoryStore) readTranscriptCache(
 	fileInfo os.FileInfo,
 	roundMarkerFingerprint string,
 ) ([]protocol.Message, bool) {
-	s.cacheMu.RLock()
-	entry, exists := s.messageCache[path]
-	s.cacheMu.RUnlock()
+	s.cache.mu.RLock()
+	entry, exists := s.cache.messages[path]
+	s.cache.mu.RUnlock()
 	if !exists {
 		return nil, false
 	}
@@ -38,11 +38,11 @@ func (s *AgentHistoryStore) readTranscriptCache(
 		return nil, false
 	}
 
-	s.cacheMu.Lock()
-	refreshedEntry := s.messageCache[path]
+	s.cache.mu.Lock()
+	refreshedEntry := s.cache.messages[path]
 	refreshedEntry.LastAccessUTC = time.Now().UTC().UnixNano()
-	s.messageCache[path] = refreshedEntry
-	s.cacheMu.Unlock()
+	s.cache.messages[path] = refreshedEntry
+	s.cache.mu.Unlock()
 	return entry.Messages, true
 }
 
@@ -52,10 +52,10 @@ func (s *AgentHistoryStore) writeTranscriptCache(
 	roundMarkerFingerprint string,
 	rows []protocol.Message,
 ) {
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
+	s.cache.mu.Lock()
+	defer s.cache.mu.Unlock()
 
-	s.messageCache[path] = transcriptCacheEntry{
+	s.cache.messages[path] = transcriptCacheEntry{
 		FileSize:               fileInfo.Size(),
 		ModifiedUnix:           fileInfo.ModTime().UnixNano(),
 		RoundMarkerFingerprint: roundMarkerFingerprint,
@@ -111,7 +111,7 @@ func fingerprintTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker) str
 }
 
 func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
-	if len(s.messageCache) <= maxTranscriptCacheEntries {
+	if len(s.cache.messages) <= maxTranscriptCacheEntries {
 		return
 	}
 
@@ -120,8 +120,8 @@ func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
 		LastAccessUTC int64
 	}
 
-	candidates := make([]cacheCandidate, 0, len(s.messageCache))
-	for path, entry := range s.messageCache {
+	candidates := make([]cacheCandidate, 0, len(s.cache.messages))
+	for path, entry := range s.cache.messages {
 		candidates = append(candidates, cacheCandidate{
 			Path:          path,
 			LastAccessUTC: entry.LastAccessUTC,
@@ -131,23 +131,23 @@ func (s *AgentHistoryStore) pruneTranscriptCacheLocked() {
 		return candidates[i].LastAccessUTC < candidates[j].LastAccessUTC
 	})
 	for len(candidates) > maxTranscriptCacheEntries {
-		delete(s.messageCache, candidates[0].Path)
+		delete(s.cache.messages, candidates[0].Path)
 		candidates = candidates[1:]
 	}
 }
 
 func (s *AgentHistoryStore) invalidateTranscriptCache(path string) {
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	delete(s.messageCache, path)
+	s.cache.mu.Lock()
+	defer s.cache.mu.Unlock()
+	delete(s.cache.messages, path)
 }
 
 func (s *AgentHistoryStore) invalidateTranscriptCachePrefix(prefix string) {
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	for path := range s.messageCache {
+	s.cache.mu.Lock()
+	defer s.cache.mu.Unlock()
+	for path := range s.cache.messages {
 		if path == prefix || strings.HasPrefix(path, prefix+string(os.PathSeparator)) {
-			delete(s.messageCache, path)
+			delete(s.cache.messages, path)
 		}
 	}
 }

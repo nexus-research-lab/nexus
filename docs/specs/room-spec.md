@@ -79,6 +79,13 @@ Room 必须把共享协作层和成员执行层分开：
 
 共享层可以引用成员 transcript 的已完成 assistant，但不拥有成员的完整私有正文。成员 runtime 也不能直接代替 Room shared 视图。
 
+`dm` 是 Room 数据模型提供的单 Agent 页面外壳，不是 Group Room 的一种执行模式：
+
+- `room:group:<conversation_id>` 只代表共享消息投影和页面订阅入口，不能持有或选择 SDK resume。
+- Group Room 的成员 runtime 由 Room realtime 按 `BuildRoomAgentSessionKey` 启动、恢复和中断。
+- DM 的唯一 Agent runtime 只由 DM service 按 `agent:<agent_id>:ws:dm:<conversation_id>` 承接。
+- Room 订阅恢复可以订阅 DM 的共享事件，但不得读取、派发 DM 输入队列，也不得创建 Room runtime。
+
 ## 5. 历史与投影边界
 
 ### 5.1 Room shared 历史
@@ -100,12 +107,14 @@ Room shared 历史由两类行组成：
 - 不用 shared overlay 代替 Agent runtime transcript。
 - 不用 Agent transcript 直接代替 Room shared 历史。
 - 不用 `sdk_session_id`、数据库 `sessions.id` 或 `session_key` 反推 Room 页面路由。
+- 不能把 DM 与 Room 的队列项放进同一执行域；共享物理日志必须按 `InputQueueScope` 回放过滤。
+- 不能让 Room realtime 为 `room_type=dm` 启动进程；共享流键和执行键可以同时存在，但执行所有权只能有一个。
 
 ## 6. 输入与输出主链
 
 ### 6.1 用户公区输入
 
-1. 入口校验共享键 `room:group:<conversation_id>`；DM 的执行由唯一 Agent session 承接。
+1. Group Room 入口校验共享键 `room:group:<conversation_id>`；DM 的消息、队列和中断都走唯一 Agent session。
 2. 解析目标 Agent：显式 `target_agent_ids`、文本 `@`、单成员默认、host 默认接管；仍无目标时沿最近活跃 root round 的成员继续投递。
 3. 用户消息最终写入 shared overlay 并广播实时事件；忙碌目标先登记持久化输入队列，派发时补齐或更新公区投影。
 4. 为目标 Agent 创建、复用或排队 round slot；忙碌目标进入 guide/queue/interrupt 路径。

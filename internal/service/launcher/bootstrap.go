@@ -5,12 +5,26 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 )
 
-// Bootstrap 返回 Launcher 首屏最小必要数据。
+// Bootstrap 幂等保证主智能体默认聊天存在，并返回 Launcher 首屏最小必要数据。
 func (s *Service) Bootstrap(ctx context.Context) (BootstrapResponse, error) {
 	agents, err := s.agentService.ListAgentRecords(ctx)
 	if err != nil {
+		return BootstrapResponse{}, err
+	}
+	mainAgentID := ""
+	for _, agentValue := range agents {
+		if agentValue.IsMain {
+			mainAgentID = agentValue.AgentID
+			break
+		}
+	}
+	if mainAgentID == "" {
+		return BootstrapResponse{}, agentsvc.ErrAgentNotFound
+	}
+	if _, err = s.roomService.EnsureDirectRoom(ctx, mainAgentID); err != nil {
 		return BootstrapResponse{}, err
 	}
 	rooms, err := s.roomService.ListRooms(ctx, 200)

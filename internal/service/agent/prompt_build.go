@@ -1,5 +1,5 @@
 // INPUT: Agent 配置、workspace managed skills 与运行时能力。
-// OUTPUT: Agent system prompt 及 Goal 工具使用约束。
+// OUTPUT: Agent system prompt、Goal 工具使用约束、创建前 readiness gate 与完成后的 result-first 交付契约。
 // POS: Agent 服务的运行时 prompt 装配入口。
 package agent
 
@@ -13,7 +13,9 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 var defaultWorkspacePromptFiles = []string{
@@ -32,9 +34,12 @@ type promptBuilder struct {
 }
 
 type promptBuildScope struct {
-	isMainAgent   bool
-	workspacePath string
-	skillNames    []string
+	isMainAgent        bool
+	ownerUserID        string
+	workspacePath      string
+	workspaceRoot      string
+	skillNames         []string
+	disabledSkillNames []string
 }
 
 func newPromptBuilder(cfg config.Config) *promptBuilder {
@@ -74,21 +79,42 @@ func (b *promptBuilder) newBuildScope(agentValue *protocol.Agent) promptBuildSco
 	if workspacePath == "" {
 		workspacePath = ResolveWorkspacePath(b.config, agentValue.OwnerUserID, agentValue.AgentID)
 	}
+	disabledSkillNames := make(map[string]struct{}, len(agentValue.Options.DisabledSkillIDs))
+	disabledSkillList := make([]string, 0, len(agentValue.Options.DisabledSkillIDs))
+	for _, reference := range agentValue.Options.DisabledSkillIDs {
+		name := canonicalPromptSkillName(reference)
+		if name != "" {
+			disabledSkillNames[strings.ToLower(name)] = struct{}{}
+			disabledSkillList = append(disabledSkillList, name)
+		}
+	}
 	skillNames := make([]string, 0, len(agentValue.Options.SkillIDs))
 	for _, reference := range agentValue.Options.SkillIDs {
-		name := strings.TrimSpace(reference)
-		if externalName, ok := protocol.ParseExternalSkillReference(name); ok {
-			name = externalName
+		name := canonicalPromptSkillName(reference)
+		if name == "" {
+			continue
 		}
-		if name != "" {
-			skillNames = append(skillNames, name)
+		if _, disabled := disabledSkillNames[strings.ToLower(name)]; disabled {
+			continue
 		}
+		skillNames = append(skillNames, name)
 	}
 	return promptBuildScope{
-		isMainAgent:   isMainAgentPrompt(agentValue, b.config.DefaultAgentID),
-		workspacePath: workspacePath,
-		skillNames:    skillNames,
+		isMainAgent:        isMainAgentPrompt(agentValue, b.config.DefaultAgentID),
+		ownerUserID:        strings.TrimSpace(agentValue.OwnerUserID),
+		workspacePath:      workspacePath,
+		workspaceRoot:      strings.TrimSpace(b.config.WorkspacePath),
+		skillNames:         skillNames,
+		disabledSkillNames: disabledSkillList,
 	}
+}
+
+func canonicalPromptSkillName(reference string) string {
+	name := strings.TrimSpace(reference)
+	if externalName, ok := protocol.ParseExternalSkillReference(name); ok {
+		name = externalName
+	}
+	return strings.TrimSpace(name)
 }
 
 func (b *promptBuilder) loadStaticPrompt(scope promptBuildScope) string {
@@ -122,9 +148,14 @@ func buildManagedSkillUsageSection(scope promptBuildScope) string {
 			"- Nexus 中 Goal MCP 工具通常显示为 mcp__nexus_goal__get_goal、mcp__nexus_goal__create_goal、mcp__nexus_goal__retarget_goal、mcp__nexus_goal__update_goal；如果运行时只暴露裸名 get_goal/create_goal/retarget_goal/update_goal，它们是同一组能力。",
 			"- 不要使用 /goal 文本命令；Goal 的模型入口是 goal-manager + mcp__nexus_goal__* 工具，用户入口是界面的启动 Goal 按钮。",
 			"- 只有用户或系统/开发者明确要求 Goal 时才创建；普通一次性请求、提醒和定时任务不要自动创建 Goal。",
+			"- 用户明确要求 Goal 只是创建的必要条件，不是立即创建指令。调用 create_goal 前，必须先从当前上下文确认 objective 已达到可执行状态：目标交付物，以及会实质改变结果的范围、对象、约束和验收标准等关键信息已经明确。",
+			"- 若仍缺少会实质改变执行结果的信息，先向用户提问并等待回答；信息足够前禁止调用 create_goal，禁止先创建宽泛或占位 Goal 再补信息或 retarget。能从已有上下文可靠确定的信息不要重复询问。",
+			"- 信息足够后，把已确认的关键要求合并成完整、具体的 objective，再创建 Goal 并按该 objective 执行。",
 			"- 只有用户明确纠正当前 active Goal 的 objective 时才调用 retarget_goal；必须保留同一 Goal，绝不能先完成旧 Goal 再创建新 Goal。",
 			"- token_budget 只有用户明确给出预算时才传；暂停、恢复、清理、预算限制和用量限制由用户或系统控制。",
-			"- 完成目标前必须确认没有剩余必要工作；同一阻塞条件连续出现且无法推进时，才可标记 blocked。",
+			"- 完成目标前必须确认没有剩余必要工作。update_goal(complete) 只负责内部状态收口；工具成功后的最终回复才是用户交付面，必须独立、完整地呈现 objective 要求的成果。文本类交付直接给出完整正文；文件、实现、研究或外部操作类交付给出准确产物位置、核心结果和必要验证。",
+			"- 最终回复以成果本身为重点，不得用“Goal 已完成”或简短总结代替结果，也不要让用户回看过程消息拼凑交付物；完成状态最多作为次要说明或省略。",
+			"- 同一阻塞条件连续出现且无法推进时，才可标记 blocked。",
 		}, "\n"))
 	}
 	if len(sections) == 0 {
@@ -134,6 +165,11 @@ func buildManagedSkillUsageSection(scope promptBuildScope) string {
 }
 
 func hasSelectedSkill(scope promptBuildScope, skillName string) bool {
+	for _, disabled := range scope.disabledSkillNames {
+		if strings.EqualFold(strings.TrimSpace(disabled), skillName) {
+			return false
+		}
+	}
 	for _, selected := range scope.skillNames {
 		if strings.EqualFold(strings.TrimSpace(selected), skillName) {
 			return true
@@ -143,8 +179,12 @@ func hasSelectedSkill(scope promptBuildScope, skillName string) bool {
 	if strings.TrimSpace(scope.workspacePath) == "" {
 		return false
 	}
-	skillPath := filepath.Join(scope.workspacePath, ".agents", "skills", skillName, "SKILL.md")
-	_, err := os.Stat(skillPath)
+	root, err := openPromptWorkspace(scope)
+	if err != nil {
+		return false
+	}
+	defer root.Close()
+	_, err = root.Stat(filepath.ToSlash(filepath.Join(".agents", "skills", skillName, "SKILL.md")))
 	return err == nil
 }
 
@@ -188,6 +228,9 @@ func buildRuntimeScopeSection(ctx context.Context) string {
 			"Current principal: "+authctx.SystemUserID,
 		)
 	}
+	lines = append(lines,
+		"Temporary files: use $TMPDIR for private data; /tmp is a shared compatibility directory and must not contain secrets.",
+	)
 	return strings.Join(lines, "\n")
 }
 
@@ -245,7 +288,7 @@ func loadWorkspacePromptSections(scope promptBuildScope) ([]string, error) {
 	files := scope.workspacePromptFiles()
 	sections := make([]string, 0, len(files))
 	for _, fileName := range files {
-		content, err := readOptionalWorkspacePromptFile(scope.workspacePath, fileName)
+		content, err := readOptionalWorkspacePromptFile(scope, fileName)
 		if err != nil {
 			return nil, err
 		}
@@ -254,9 +297,19 @@ func loadWorkspacePromptSections(scope promptBuildScope) ([]string, error) {
 	return sections, nil
 }
 
-func readOptionalWorkspacePromptFile(workspacePath string, fileName string) (string, error) {
-	targetPath := filepath.Join(strings.TrimSpace(workspacePath), fileName)
-	content, err := os.ReadFile(targetPath)
+func readOptionalWorkspacePromptFile(
+	scope promptBuildScope,
+	fileName string,
+) (string, error) {
+	root, err := openPromptWorkspace(scope)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer root.Close()
+	content, err := root.ReadFile(filepath.ToSlash(fileName))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -264,6 +317,17 @@ func readOptionalWorkspacePromptFile(workspacePath string, fileName string) (str
 		return "", err
 	}
 	return strings.TrimSpace(string(content)), nil
+}
+
+func openPromptWorkspace(scope promptBuildScope) (*confinedfs.Root, error) {
+	if strings.TrimSpace(scope.ownerUserID) != "" {
+		return workspacestore.New(scope.workspaceRoot).OpenOwnerWorkspacePath(
+			scope.ownerUserID,
+			scope.workspacePath,
+			false,
+		)
+	}
+	return confinedfs.Open(strings.TrimSpace(scope.workspacePath))
 }
 
 // formatWorkspacePromptSection 在运行时提示词边界注入来源文件名，避免污染用户实际模板。
@@ -282,14 +346,13 @@ func formatWorkspacePromptSection(fileName string, content string) string {
 
 // BuildUserMessageSuffix 构建追加到最后一条用户消息后的动态上下文。
 func (b *promptBuilder) BuildUserMessageSuffix(ctx context.Context, agentValue *protocol.Agent, emotionContextID string) string {
-	workspacePath := ""
+	scope := promptBuildScope{}
 	if agentValue != nil {
-		scope := b.newBuildScope(agentValue)
-		workspacePath = scope.workspacePath
+		scope = b.newBuildScope(agentValue)
 	}
 	// 时间不再由本层注入：runtime（nexus-agent-sdk-go）的基础提示已含权威时间，
 	// 且秒级时间戳会污染 prompt 前缀缓存。此处只保留情绪态。
-	emotionView := LoadRuntimeEmotionView(workspacePath, emotionContextID, time.Now())
+	emotionView := loadRuntimeEmotionViewForScope(scope, emotionContextID, time.Now())
 	sections := make([]string, 0, 1)
 	sections = appendPromptSection(sections, buildRuntimeEmotionSection(agentValue, emotionView))
 	if len(sections) == 0 {
@@ -300,6 +363,22 @@ func (b *promptBuilder) BuildUserMessageSuffix(ctx context.Context, agentValue *
 		strings.Join(sections, "\n\n"),
 		"</nexus_runtime_context>",
 	}, "\n")
+}
+
+func loadRuntimeEmotionViewForScope(
+	scope promptBuildScope,
+	contextID string,
+	now time.Time,
+) RuntimeEmotionView {
+	state := defaultRuntimeEmotionState(now)
+	if strings.TrimSpace(scope.workspacePath) != "" {
+		root, err := openPromptWorkspace(scope)
+		if err == nil {
+			state = loadRuntimeEmotionStateAt(root, now)
+			_ = root.Close()
+		}
+	}
+	return buildRuntimeEmotionView(scope.workspacePath, state, contextID, now)
 }
 
 func buildRuntimeEmotionSection(agentValue *protocol.Agent, view RuntimeEmotionView) string {

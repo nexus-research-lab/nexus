@@ -12,6 +12,9 @@ export interface GoalUsage {
   cache_creation_input_tokens?: number;
   cache_read_input_tokens?: number;
   reasoning_tokens?: number;
+  actual_tokens?: number;
+  actual_tokens_estimated?: boolean;
+  budget_tokens?: number;
   total_tokens?: number;
   runtime_seconds?: number;
 }
@@ -32,8 +35,21 @@ export interface Goal {
   updated_at: string;
   completed_at?: string | null;
   blocked_at?: string | null;
+  usage_finalized: boolean;
+  usage_finalized_at?: string | null;
   last_error?: string;
   metadata?: Record<string, unknown>;
+}
+
+export interface GoalUsageReport {
+  goal_id: string;
+  session_key: string;
+  status: GoalStatus;
+  usage: GoalUsage;
+  time_used_seconds: number;
+  usage_finalized: boolean;
+  usage_finalized_at?: string | null;
+  goal_updated_at: string;
 }
 
 export interface GoalEvent {

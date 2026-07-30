@@ -145,11 +145,11 @@ func TestServiceFeishuDocxUsesUserOAuthClientConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("列出飞书连接器失败: %v", err)
 	}
-	if len(items) != 1 || items[0].IsConfigured || !items[0].OAuthClientConfigRequired {
-		t.Fatalf("未保存用户 OAuth Client 前应为待配置: %+v", items)
+	if len(items) != 1 || !items[0].IsConfigured || items[0].OAuthClientConfigRequired || !items[0].SupportsDeviceAuth {
+		t.Fatalf("飞书云文档应可直接进入自动扫码授权: %+v", items)
 	}
-	if items[0].ConfigError == nil || !strings.Contains(*items[0].ConfigError, "自己的 OAuth 应用") {
-		t.Fatalf("配置错误应提示用户配置自己的 OAuth 应用: %+v", items[0].ConfigError)
+	if items[0].ConfigError != nil {
+		t.Fatalf("自动扫码创建应用前不应暴露配置错误: %+v", items[0].ConfigError)
 	}
 	if _, err = service.GetAuthURL(ctx, ownerUserID, "feishu-docx", "", nil); err == nil {
 		t.Fatalf("未保存用户 OAuth Client 前不应生成授权地址")
@@ -162,8 +162,8 @@ func TestServiceFeishuDocxUsesUserOAuthClientConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("保存用户 OAuth Client 失败: %v", err)
 	}
-	if !info.IsConfigured || !info.OAuthClientConfigured {
-		t.Fatalf("保存后应视为已配置: %+v", info)
+	if !info.IsConfigured {
+		t.Fatalf("保存手工兜底凭据后应视为已配置: %+v", info)
 	}
 	detail, err := service.GetConnectorDetail(ctx, ownerUserID, "feishu-docx")
 	if err != nil {

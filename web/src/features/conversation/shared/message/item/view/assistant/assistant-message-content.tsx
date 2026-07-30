@@ -1,3 +1,8 @@
+/**
+ * INPUT: Assistant direct/process/final 投影、活动状态、interaction owner 与请求切片。
+ * OUTPUT: DM live 连续工具段、live/terminal 固定位置的 final 正文，以及只在 owner 轨道挂载一次的人工响应面。
+ * POS: Assistant 正文、过程、终态与人工介入的纯视图编排层。
+ */
 import { AlertTriangle } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -13,8 +18,8 @@ import type {
   AssistantPermissionState,
   AssistantProcessState,
 } from "./assistant-message-model";
+import { AssistantDmToolRuns } from "./assistant-dm-tool-runs";
 import { AssistantProcessCallchain } from "./assistant-process-callchain";
-import { PendingPermissionList } from "./pending-permission-list";
 
 interface AssistantMessageContentProps {
   activity: AssistantActivityState;
@@ -44,6 +49,8 @@ export function AssistantMessageContent({
         direct={direct}
         environment={environment}
         permissions={permissions}
+        responseResumed={final.isStreaming}
+        responseStreaming={final.isStreaming}
       />
       <AssistantProcessCallchain
         activity={activity}
@@ -55,18 +62,36 @@ export function AssistantMessageContent({
         activityState={activity.state}
         environment={environment}
         final={final}
+        permissions={permissions}
+      />
+      <RoomResultTrailingActivity
+        activity={activity}
+        environment={environment}
+        final={final}
       />
       <MaxTokensWarning visible={showMaxTokensWarning} />
-      <PendingPermissionList
-        canRespond={environment.canRespondToPermissions}
-        mode={environment.mode}
-        onResponse={environment.onPermissionResponse}
-        permissions={permissions.unmatched}
-        readOnlyReason={environment.permissionReadOnlyReason}
-        workspaceAgentId={environment.workspaceAgentId}
-      />
     </>
   );
+}
+
+function RoomResultTrailingActivity({
+  activity,
+  environment,
+  final,
+}: {
+  activity: AssistantActivityState;
+  environment: AssistantContentEnvironment;
+  final: AssistantFinalState;
+}) {
+  if (
+    environment.mode !== "room_result"
+    || activity.standalone
+    || final.isStreaming
+    || !activity.state
+  ) {
+    return null;
+  }
+  return <MessageActivityStatus className="pt-1" state={activity.state} />;
 }
 
 function StandaloneActivity({
@@ -85,14 +110,29 @@ function AssistantDirectContent({
   direct,
   environment,
   permissions,
+  responseResumed,
+  responseStreaming,
 }: {
   activity: AssistantActivityState;
   direct: AssistantDirectState;
   environment: AssistantContentEnvironment;
   permissions: AssistantPermissionState;
+  responseResumed: boolean;
+  responseStreaming: boolean;
 }) {
   if (!direct.visible) {
     return null;
+  }
+  if (environment.mode === "dm_live") {
+    return (
+      <AssistantDmToolRuns
+        activity={activity}
+        environment={environment}
+        permissions={permissions}
+        projection={direct.projection}
+        responseResumed={responseResumed}
+      />
+    );
   }
   return (
     <ContentRenderer
@@ -100,9 +140,10 @@ function AssistantDirectContent({
       content={direct.projection.content}
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}
-      isStreaming={activity.showCursor}
+      isStreaming={activity.showCursor && !responseStreaming}
       onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
       onPermissionResponse={environment.onPermissionResponse}
+      pendingInteractionOwner={permissions.owner}
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
       showTimelineDots
@@ -118,20 +159,27 @@ function AssistantFinalContent({
   activityState,
   environment,
   final,
+  permissions,
 }: {
   activityState: MessageActivityState | null;
   environment: AssistantContentEnvironment;
   final: AssistantFinalState;
+  permissions: AssistantPermissionState;
 }) {
   if (!final.visible) {
     return null;
   }
   return (
     <ContentRenderer
+      canRespondToPermissions={environment.canRespondToPermissions}
       content={final.content ?? []}
       fallbackActivityState={activityState}
       isStreaming={final.isStreaming}
       onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
+      onPermissionResponse={environment.onPermissionResponse}
+      pendingInteractionOwner={permissions.owner}
+      pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
+      permissionReadOnlyReason={environment.permissionReadOnlyReason}
       streamingBlockIndexes={final.streamingIndexes}
       workspaceAgentId={environment.workspaceAgentId}
       agentMentions={final.mentions}

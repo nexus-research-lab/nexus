@@ -7,12 +7,23 @@ func (s *Server) mountRoutes() {
 	s.mountCoreRoutes()
 	s.mountProviderRoutes()
 	s.mountAdminRoutes()
+	s.mountProjectRoutes()
 	s.mountAgentRoutes()
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
 	s.mountGoalRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
+}
+
+// mountProjectRoutes 挂载共享项目 ACL 控制面。
+func (s *Server) mountProjectRoutes() {
+	s.router.Get(s.prefixPath("/projects"), s.handlers.project.HandleListProjects)
+	s.router.Post(s.prefixPath("/projects"), s.handlers.project.HandleEnsureProject)
+	s.router.Put(
+		s.prefixPath("/projects/{project_id}/members/{owner_user_id}"),
+		s.handlers.project.HandleGrantProjectMember,
+	)
 }
 
 // mountAdminRoutes 挂载管理员运营接口。
@@ -74,6 +85,7 @@ func (s *Server) mountProviderRoutes() {
 func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/agents"), s.handlers.agent.HandleListAgents)
 	s.router.Post(s.prefixPath("/agents"), s.handlers.agent.HandleCreateAgent)
+	s.router.Get(s.prefixPath("/agents/profile-template"), s.handlers.agent.HandleGetAgentProfileTemplate)
 	s.router.Get(s.prefixPath("/agents/validate/name"), s.handlers.agent.HandleValidateAgentName)
 	s.router.Get(s.prefixPath("/agents/{agent_id}"), s.handlers.agent.HandleGetAgent)
 	s.router.Patch(s.prefixPath("/agents/{agent_id}"), s.handlers.agent.HandleUpdateAgent)
@@ -93,6 +105,7 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Delete(s.prefixPath("/agents/{agent_id}/workspace/entry"), s.handlers.workspace.HandleDeleteWorkspaceEntry)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/skills"), s.handlers.skill.HandleAgentSkills)
 	s.router.Post(s.prefixPath("/agents/{agent_id}/skills"), s.handlers.skill.HandleInstallAgentSkill)
+	s.router.Patch(s.prefixPath("/agents/{agent_id}/skills/{skill_name}"), s.handlers.skill.HandleSetAgentSkillEnabled)
 	s.router.Delete(s.prefixPath("/agents/{agent_id}/skills/{skill_name}"), s.handlers.skill.HandleUninstallAgentSkill)
 
 	s.router.Get(s.prefixPath("/sessions"), s.handlers.agent.HandleListSessions)
@@ -146,6 +159,7 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/capability/loops/{slug}"), s.handlers.loop.HandleGetLoopDetail)
 
 	s.router.Get(s.prefixPath("/skills"), s.handlers.skill.HandleListSkills)
+	s.router.Get(s.prefixPath("/skills/{skill_name}/agents"), s.handlers.skill.HandleListSkillAgents)
 	s.router.Get(s.prefixPath("/skills/{skill_name}"), s.handlers.skill.HandleGetSkillDetail)
 	s.router.Post(s.prefixPath("/skills/import/local"), s.handlers.skill.HandleImportLocalSkill)
 	s.router.Post(s.prefixPath("/skills/import/git"), s.handlers.skill.HandleImportGitSkill)
@@ -227,6 +241,7 @@ func (s *Server) mountCapabilityRoutes() {
 func (s *Server) mountGoalRoutes() {
 	s.router.Get(s.prefixPath("/goals/current"), s.handlers.goal.HandleGetCurrentGoal)
 	s.router.Post(s.prefixPath("/goals"), s.handlers.goal.HandleCreateGoal)
+	s.router.Get(s.prefixPath("/goals/{goal_id}/usage"), s.handlers.goal.HandleGetGoalUsage)
 	s.router.Patch(s.prefixPath("/goals/{goal_id}"), s.handlers.goal.HandleUpdateGoal)
 	s.router.Post(s.prefixPath("/goals/{goal_id}/pause"), s.handlers.goal.HandlePauseGoal)
 	s.router.Post(s.prefixPath("/goals/{goal_id}/resume"), s.handlers.goal.HandleResumeGoal)

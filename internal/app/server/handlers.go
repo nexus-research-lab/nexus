@@ -12,6 +12,7 @@ import (
 	goalhandler "github.com/nexus-research-lab/nexus/internal/handler/goal"
 	launcherhandler "github.com/nexus-research-lab/nexus/internal/handler/launcher"
 	loophandler "github.com/nexus-research-lab/nexus/internal/handler/loop"
+	projectpermissionhandler "github.com/nexus-research-lab/nexus/internal/handler/projectpermission"
 	providerhandler "github.com/nexus-research-lab/nexus/internal/handler/provider"
 	roomhandler "github.com/nexus-research-lab/nexus/internal/handler/room"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -37,6 +38,7 @@ type handlerSet struct {
 	launcher     *launcherhandler.Handlers
 	loop         *loophandler.Handlers
 	workspace    *workspacehandler.Handlers
+	project      *projectpermissionhandler.Handlers
 	websocket    *handlerwebsocket.Handler
 }
 
@@ -87,6 +89,7 @@ func newHandlerSet(
 		launcher:     launcherhandler.New(api, services.Launcher),
 		loop:         loophandler.New(api, services.Loops),
 		workspace:    workspacehandler.New(api, services.Workspace),
+		project:      projectpermissionhandler.New(api, services.ProjectPermission),
 		websocket:    websocketHandler,
 	}
 }

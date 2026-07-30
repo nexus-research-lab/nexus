@@ -1,11 +1,15 @@
-import { MessageSquarePlus, Plus } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 import { memo } from "react";
 
+import { CreateGroupChatIcon } from "@/features/conversation/room/members/create-group-chat-icon";
 import { CreateRoomDialog } from "@/features/conversation/room/members/create-room-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
-import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
+import {
+  SidebarSearchAction,
+  SidebarSearchField,
+} from "@/shared/ui/form/sidebar-search-field";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 
 import {
@@ -19,17 +23,6 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
   const controller = useChatSidebarController({
     untitledRoomLabel: t("home.untitled_room"),
   });
-  const emptyCopy = controller.directory.hasAgents
-    ? {
-      action: t("home.rooms_empty_action"),
-      description: t("home.rooms_empty_description"),
-      onAction: controller.create.open,
-    }
-    : {
-      action: t("home.rooms_empty_no_agents_action"),
-      description: t("home.rooms_empty_no_agents_description"),
-      onAction: controller.navigation.openContacts,
-    };
 
   return (
     <div
@@ -38,14 +31,13 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
     >
       <SidebarSearchField
         action={(
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
+          <SidebarSearchAction
+            className="leading-none"
             onClick={controller.create.open}
             title={t("home.create_room")}
-            type="button"
           >
-            <Plus className="h-4 w-4" />
-          </button>
+            <CreateGroupChatIcon className="h-[22px] w-[22px]" />
+          </SidebarSearchAction>
         )}
         onChange={controller.list.setQuery}
         placeholder={t("sidebar.search_conversations")}
@@ -55,7 +47,7 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
       {controller.list.isLoading ? (
         <SidebarListLoadingRows />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-lg:gap-1 max-lg:px-3">
           {controller.list.items.length > 0 ? (
             controller.list.items.map((item) => (
               <ConversationRow
@@ -68,10 +60,16 @@ export const ChatSidebarPanelContent = memo(function ChatSidebarPanelContent() {
             ))
           ) : (
             <SidebarEmptyGuide
-              actionLabel={emptyCopy.action}
-              description={emptyCopy.description}
+              actionLabel={controller.list.query
+                ? undefined
+                : t("home.rooms_empty_action")}
+              description={controller.list.query
+                ? t("sidebar.no_matching_conversations_description")
+                : t("home.rooms_empty_description")}
               icon={MessageSquarePlus}
-              onAction={emptyCopy.onAction}
+              onAction={controller.list.query
+                ? undefined
+                : controller.create.open}
               title={controller.list.query
                 ? t("sidebar.no_matching_conversations")
                 : t("home.rooms_empty_title")}

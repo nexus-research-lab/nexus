@@ -82,13 +82,15 @@ func instagramProviderOverride() Provider {
 func feishuDocxProviderOverride() Provider {
 	authURL := os.Getenv("NEXUS_CONNECTOR_FEISHU_DOCX_AUTH_URL")
 	tokenURL := os.Getenv("NEXUS_CONNECTOR_FEISHU_DOCX_TOKEN_URL")
+	deviceCodeURL := os.Getenv("NEXUS_CONNECTOR_FEISHU_DOCX_DEVICE_CODE_URL")
 	apiURL := os.Getenv("NEXUS_CONNECTOR_FEISHU_DOCX_API_BASE_URL")
-	if authURL == "" && tokenURL == "" && apiURL == "" {
+	if authURL == "" && tokenURL == "" && deviceCodeURL == "" && apiURL == "" {
 		return nil
 	}
-	return NewFeishuDocxProvider(
+	return NewFeishuDocxProviderWithDeviceURL(
 		cmp.Or(authURL, defaultFeishuDocxAuthURL),
 		cmp.Or(tokenURL, defaultFeishuDocxTokenURL),
+		cmp.Or(deviceCodeURL, defaultFeishuDocxDeviceCodeURL),
 		cmp.Or(apiURL, defaultFeishuDocxAPIURL),
 	)
 }

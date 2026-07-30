@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -33,6 +34,7 @@ func (s *Service) inputQueueGuidanceHook(
 	location workspacestore.InputQueueLocation,
 ) sdkhook.Callback {
 	return func(ctx context.Context, input sdkhook.Input, _ string) (sdkhook.Output, error) {
+		ctx = contextWithExactOwner(ctx, location.OwnerUserID)
 		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
 			return sdkhook.Output{}, nil
 		}
@@ -304,7 +306,10 @@ func (s *Service) currentGuidanceSession(
 	location workspacestore.InputQueueLocation,
 	sessionKey string,
 ) (protocol.Session, error) {
-	item, _, err := s.files.FindSession([]string{location.WorkspacePath}, sessionKey)
+	item, _, err := s.files.ForOwner(location.OwnerUserID).FindSession(
+		[]string{location.WorkspacePath},
+		sessionKey,
+	)
 	if err != nil {
 		return protocol.Session{}, err
 	}
@@ -335,10 +340,22 @@ func (s *Service) persistConsumedGuidanceUserMessage(
 		protocol.ChatDeliveryPolicyGuide,
 		item.Attachments,
 	)
-	if err := s.history.AppendOverlayMessage(location.WorkspacePath, sessionItem.SessionKey, messageValue); err != nil {
+	if err := s.history.ForOwner(location.OwnerUserID).AppendOverlayMessage(
+		location.WorkspacePath,
+		sessionItem.SessionKey,
+		messageValue,
+	); err != nil {
 		return sessionItem, err
 	}
-	updatedSession, metaErr := s.refreshSessionMetaAfterMessage(location.WorkspacePath, sessionItem, messageValue)
+	if err := s.markRoomConversationStarted(ctx, sessionItem.SessionKey, time.Now().UTC()); err != nil {
+		return sessionItem, err
+	}
+	updatedSession, metaErr := s.refreshSessionMetaAfterMessageForOwner(
+		location.OwnerUserID,
+		location.WorkspacePath,
+		sessionItem,
+		messageValue,
+	)
 	if updatedSession != nil {
 		sessionItem = *updatedSession
 	}

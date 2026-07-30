@@ -48,7 +48,7 @@ func TestGenerateImageCallsDoubaoSeedreamProviderAndWritesFile(t *testing.T) {
 	}))
 	defer server.Close()
 
-	workspacePath := t.TempDir()
+	workspacePath := newImagegenWorkspace(t)
 	service := NewService(fakeProviderResolver{config: &providercfg.ImageConfig{
 		Provider:  "doubao",
 		AuthToken: "doubao-token",
@@ -57,7 +57,7 @@ func TestGenerateImageCallsDoubaoSeedreamProviderAndWritesFile(t *testing.T) {
 		ProviderOptions: map[string]any{
 			"response_format": "url",
 		},
-	}})
+	}}, "")
 	result, payload, err := service.GenerateImage(context.Background(), GenerateInput{
 		Prompt:        "A golden cat",
 		WorkspacePath: workspacePath,
@@ -136,7 +136,7 @@ func TestGenerateImageCallsDashScopeProviderAndWritesFile(t *testing.T) {
 	}))
 	defer server.Close()
 
-	workspacePath := t.TempDir()
+	workspacePath := newImagegenWorkspace(t)
 	service := NewService(fakeProviderResolver{config: &providercfg.ImageConfig{
 		Provider:  "dashscope",
 		APIFormat: providercfg.APIFormatDashScopeImageGeneration,
@@ -148,7 +148,7 @@ func TestGenerateImageCallsDashScopeProviderAndWritesFile(t *testing.T) {
 				"thinking_mode": true,
 			},
 		},
-	}})
+	}}, "")
 	result, payload, err := service.GenerateImage(context.Background(), GenerateInput{
 		Prompt:        "一只橘猫在阳光下打盹",
 		WorkspacePath: workspacePath,
@@ -222,7 +222,7 @@ func TestGenerateImageCallsModelScopeProviderAndWritesFile(t *testing.T) {
 	}))
 	defer server.Close()
 
-	workspacePath := t.TempDir()
+	workspacePath := newImagegenWorkspace(t)
 	service := NewService(fakeProviderResolver{config: &providercfg.ImageConfig{
 		Provider:  "modelscope",
 		APIFormat: providercfg.APIFormatModelScopeImageGeneration,
@@ -232,7 +232,7 @@ func TestGenerateImageCallsModelScopeProviderAndWritesFile(t *testing.T) {
 		ProviderOptions: map[string]any{
 			"loras": "modelscope-lora",
 		},
-	}})
+	}}, "")
 	result, payload, err := service.GenerateImage(context.Background(), GenerateInput{
 		Prompt:        "A golden cat",
 		WorkspacePath: workspacePath,

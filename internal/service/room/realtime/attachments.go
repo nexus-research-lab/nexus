@@ -8,6 +8,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -67,22 +68,53 @@ func (s *Service) appendRuntimeUserContext(
 func (s *Service) resolveRuntimeAttachmentPath(
 	ctx context.Context,
 	attachment protocol.ChatAttachment,
-) (string, error) {
+) (conversationsvc.ResolvedAttachment, error) {
+	pathStore := workspacestore.New(s.config.WorkspacePath)
+	ownerUserID := authctx.OwnerUserID(ctx)
 	if attachment.Scope == protocol.ChatAttachmentScopeRoomConversation {
 		conversationID := strings.TrimSpace(attachment.ConversationID)
 		if conversationID == "" {
-			return "", errors.New("room attachment conversation_id is required")
+			return conversationsvc.ResolvedAttachment{}, errors.New("room attachment conversation_id is required")
 		}
-		root := workspacestore.New(s.config.WorkspacePath).RoomConversationDir(conversationID)
-		return conversationsvc.ResolveWorkspaceAttachmentPath(root, attachment.WorkspacePath)
+		absolutePath, file, err := pathStore.OpenRoomConversationAssetFile(
+			ownerUserID,
+			conversationID,
+			attachment.WorkspacePath,
+		)
+		if err != nil {
+			return conversationsvc.ResolvedAttachment{}, err
+		}
+		return conversationsvc.ResolvedAttachment{
+			AbsolutePath: absolutePath,
+			File:         file,
+		}, nil
 	}
 
 	agentID := strings.TrimSpace(attachment.WorkspaceAgentID)
 	agentValue, err := s.agents.GetAgent(ctx, agentID)
 	if err != nil {
-		return "", err
+		return conversationsvc.ResolvedAttachment{}, err
 	}
-	return conversationsvc.ResolveWorkspaceAttachmentPath(agentValue.WorkspacePath, attachment.WorkspacePath)
+	ownerUserID = authctx.OwnerUserID(ctx)
+	if agentOwner := strings.TrimSpace(agentValue.OwnerUserID); agentOwner != "" {
+		if currentUserID, ok := authctx.CurrentUserID(ctx); ok &&
+			strings.TrimSpace(currentUserID) != agentOwner {
+			return conversationsvc.ResolvedAttachment{}, errors.New("附件 agent 不属于当前用户")
+		}
+		ownerUserID = agentOwner
+	}
+	absolutePath, file, err := pathStore.OpenOwnerWorkspaceFile(
+		ownerUserID,
+		agentValue.WorkspacePath,
+		attachment.WorkspacePath,
+	)
+	if err != nil {
+		return conversationsvc.ResolvedAttachment{}, err
+	}
+	return conversationsvc.ResolvedAttachment{
+		AbsolutePath: absolutePath,
+		File:         file,
+	}, nil
 }
 
 func (s *Service) renderRuntimeAttachmentMessages(

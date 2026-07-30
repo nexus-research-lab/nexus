@@ -1,13 +1,24 @@
-import { useCallback, useEffect, useRef } from "react";
+/**
+ * INPUT: Composer 视图能力、Session 草稿作用域、聊天历史作用域及投递动作。
+ * OUTPUT: 草稿、附件、键盘、发送与 textarea 焦点的统一视图模型。
+ * POS: Shared Composer 的顶层交互编排入口。
+ */
+import { useCallback, useLayoutEffect, useRef } from "react";
 
 import { useTextareaHeight } from "@/hooks/ui/use-textarea-height";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
+import type { CommandCatalogData } from "@/types/generated/protocol";
 
 import { useComposerAttachments } from "../attachments/use-composer-attachments";
-import type { ComposerPanelProps } from "../composer-model";
+import {
+  focusComposerInputAtEnd,
+  type ComposerPanelProps,
+} from "../composer-model";
+import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
 import { useComposerHistory } from "../use-composer-history";
 import { useComposerMention } from "../use-composer-mention";
+import { useComposerSlashCommand } from "../use-composer-slash-command";
 import { buildComposerViewState } from "./composer-controller-model";
 import { useComposerDraft } from "./use-composer-draft";
 import { useComposerGoalActions } from "./use-composer-goal-actions";
@@ -15,18 +26,28 @@ import { useComposerKeyboard } from "./use-composer-keyboard";
 import { useComposerMessageSubmit } from "./use-composer-message-submit";
 
 const EMPTY_ROOM_MEMBERS: Agent[] = [];
+const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
+  commands: [],
+  status: "unavailable",
+};
+const IGNORE_COMMAND_CATALOG_REFRESH = () => {};
 
 export function useComposerController({
+  commandCatalog = EMPTY_COMMAND_CATALOG,
   compact,
   defaultDeliveryPolicy,
+  draftScopeKey,
   enableLoops = false,
   goalCreateDisabledReason = null,
+  historyScopeKey,
   inputQueueItems,
+  interactionIdentity = null,
   isLoading,
   onCreateGoal,
   onCreateLoopGoal,
   onEnqueueMessage,
   onPrepareAttachments,
+  onRefreshCommandCatalog = IGNORE_COMMAND_CATALOG_REFRESH,
   onSendMessage,
   onStop,
   queueWhenSessionBusy = true,
@@ -34,22 +55,34 @@ export function useComposerController({
   runtimePhase,
 }: ComposerPanelProps) {
   const { t } = useI18n();
-  const draft = useComposerDraft();
+  const draft = useComposerDraft(draftScopeKey);
   const {
+    setAttachments,
     setActionMenuOpen,
     setGoalError,
     setInput,
     setLoopPickerOpen,
+    setSelectedTargetIDs,
     state: draftState,
   } = draft;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
+  const focusTextareaAtEnd = useCallback(() => {
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (textarea) {
+        focusComposerInputAtEnd(textarea);
+      }
+    });
+  }, []);
   const isGoalMode = draftState.inputMode === "goal";
   const attachments = useComposerAttachments({
+    attachments: draftState.attachments,
     isGoalMode,
     onGoalAttachmentRejected: setGoalError,
     onPrepareAttachments,
+    setAttachments,
   });
   const {
     attachmentError,
@@ -59,40 +92,71 @@ export function useComposerController({
     input: draftState.input,
     isGoalMode,
     roomMembers,
+    selectedTargetIDs: draftState.selectedTargetIDs,
+    setInput,
+    setSelectedTargetIDs,
+    textareaRef,
+  });
+  const slashCommand = useComposerSlashCommand({
+    catalog: commandCatalog,
+    input: draftState.input,
+    isGoalMode,
+    onRefresh: onRefreshCommandCatalog,
     setInput,
     textareaRef,
   });
-  const { updateMentionForInput } = mention;
+  const { closeMention, updateMentionForInput } = mention;
+  const {
+    close: closeSlashCommand,
+    updateForInput: updateSlashCommandForInput,
+  } = slashCommand;
+  useLayoutEffect(() => {
+    if (!interactionIdentity) {
+      return;
+    }
+    closeMention();
+    closeSlashCommand();
+    setActionMenuOpen(false);
+    setLoopPickerOpen(false);
+  }, [
+    interactionIdentity,
+    closeMention,
+    closeSlashCommand,
+    setActionMenuOpen,
+    setLoopPickerOpen,
+  ]);
   const history = useComposerHistory({
     clearError: clearAttachmentError,
     input: draftState.input,
+    onRecall: focusTextareaAtEnd,
+    scopeKey: historyScopeKey,
     setInput,
   });
 
   useTextareaHeight(textareaRef, draftState.input, {
     minHeight: 24,
-    maxHeight: 200,
-    lineHeight: 24,
-    paddingY: 0,
+    maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
   });
 
   const focusTextarea = useCallback(() => {
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, []);
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      focusComposerInputAtEnd(textarea);
+    }
+  }, [draftScopeKey, interactionIdentity]);
 
   const resetTextareaHeight = useCallback(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = "0px";
     }
   }, []);
-  const resetInput = useCallback(() => setInput(""), [setInput]);
   const submitMessage = useComposerMessageSubmit({
     attachmentCount: attachments.attachments.length,
+    claimDraftSubmission: draft.claimMessageSubmission,
     clearAttachmentError,
-    clearAttachments: attachments.clearAttachments,
     defaultDeliveryPolicy,
     input: draftState.input,
     isLoading,
@@ -103,11 +167,10 @@ export function useComposerController({
     queueItemCount: inputQueueItems.length,
     queueWhenSessionBusy,
     recordHistory: history.record,
-    resetInput,
     resetTextareaHeight,
+    restoreFailedDraftSubmission: draft.restoreFailedMessageSubmission,
     runtimePhase,
     targetAgentIDs: mention.selectedTargetIDs,
-    clearSelectedTargetIDs: mention.clearSelectedTargetIDs,
   });
   const goal = useComposerGoalActions({
     closeMention: mention.closeMention,
@@ -132,10 +195,12 @@ export function useComposerController({
     historyItemCount: history.itemCount,
     isLoading,
     mentionActive: mention.mentionActive,
+    onSlashCommandKeyDown: slashCommand.handleKeyDown,
     onSend: handleSend,
     onStop,
     recallNext: history.recallNext,
     recallPrevious: history.recallPrevious,
+    slashCommandActive: slashCommand.isOpen,
   });
 
   const handleInputChange = useCallback((value: string) => {
@@ -147,12 +212,14 @@ export function useComposerController({
       setGoalError(null);
     }
     updateMentionForInput(value);
+    updateSlashCommandForInput(value);
   }, [
     attachmentError,
     clearAttachmentError,
     draftState.goalError,
     setGoalError,
     setInput,
+    updateSlashCommandForInput,
     updateMentionForInput,
   ]);
   const openAttachmentPicker = useCallback(() => {
@@ -186,6 +253,7 @@ export function useComposerController({
     isLoading,
     isLoopPickerOpen: draftState.isLoopPickerOpen,
     isPreparingAttachments: attachments.isPreparingAttachments,
+    hasStopAction: Boolean(onStop),
     queueItemCount: inputQueueItems.length,
     queueWhenSessionBusy,
     runtimePhase,
@@ -206,6 +274,13 @@ export function useComposerController({
       mentionFilter: mention.mentionFilter,
       mentionTargetItems: mention.mentionTargetItems,
       selectMentionItem: mention.selectMentionItem,
+    },
+    slashCommand: {
+      activeIndex: slashCommand.activeIndex,
+      commands: slashCommand.commands,
+      isOpen: slashCommand.isOpen,
+      select: slashCommand.select,
+      status: slashCommand.status,
     },
     actions: {
       cancelGoalInput: goal.cancelGoalInput,

@@ -2,7 +2,6 @@ package dm
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -61,7 +60,7 @@ func TestServiceHandleChatRetriesWithoutStaleSDKSessionWhenResumeConnectFails(t 
 
 	staleResumeID := "22222222-2222-4222-8222-222222222222"
 	roomSessionID := "room-session-stale-resume-1"
-	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	workspacePath := dmMainWorkspacePath(cfg)
 	writeTranscriptFixture(t, workspacePath, staleResumeID, []map[string]any{
 		{
 			"type":      "user",
@@ -185,7 +184,7 @@ func TestServiceHandleChatKeepsSDKSessionResumeWhenRuntimeFingerprintMissingAndT
 	sessionKey := "agent:nexus:ws:dm:legacy-resume-chat"
 	permission.BindSession(sessionKey, sender)
 
-	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	workspacePath := dmMainWorkspacePath(cfg)
 	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
 		{
 			"type":      "user",
@@ -288,7 +287,7 @@ func TestServiceHandleChatReusesSDKSessionWhenRuntimeModelFingerprintDiffersWith
 	sessionKey := "agent:nexus:ws:dm:stale-model"
 	permission.BindSession(sessionKey, sender)
 
-	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	workspacePath := dmMainWorkspacePath(cfg)
 	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
 		{
 			"type":      "user",
@@ -397,7 +396,7 @@ func TestServiceHandleChatSkipsStaleSDKSessionWhenRuntimeKindFingerprintDiffersW
 
 	staleResumeID := "44444444-4444-4444-8444-444444444444"
 	now := time.Now().UTC()
-	if _, err := service.files.UpsertSession(filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID), protocol.Session{
+	if _, err := service.files.UpsertSession(dmMainWorkspacePath(cfg), protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      cfg.DefaultAgentID,
 		SessionID:    &staleResumeID,
@@ -491,7 +490,7 @@ func TestServiceHandleChatReusesSDKSessionWhenRuntimeKindSwitchHasSharedTranscri
 	sessionKey := "agent:nexus:ws:dm:shared-runtime-resume"
 	permission.BindSession(sessionKey, sender)
 
-	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	workspacePath := dmMainWorkspacePath(cfg)
 	writeTranscriptFixture(t, workspacePath, sharedResumeID, []map[string]any{
 		{
 			"type":       "user",
@@ -581,7 +580,7 @@ func TestServiceResolveReusableSDKSessionIDReusesSharedTranscriptRuntimeSwitch(t
 	agentService := newDMAgentService(t, cfg)
 	service := NewService(cfg, agentService, runtimectx.NewManagerWithFactory(&fakeDMFactory{}), permissionctx.NewContext())
 
-	workspacePath := filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)
+	workspacePath := dmMainWorkspacePath(cfg)
 	resumeID := "66666666-6666-4666-8666-666666666666"
 	writeTranscriptFixture(t, workspacePath, resumeID, []map[string]any{
 		{

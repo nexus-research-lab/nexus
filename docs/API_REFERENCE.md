@@ -129,6 +129,19 @@
 
 Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置目录，`resource` 由用户填写资源级 Base URL，`custom` 使用完整自定义端点。内置 Azure OpenAI 预设属于 `resource`：接受资源根地址、`/openai/` 或 `/openai/v1` 并统一保存为 v1 Base URL；Azure 请求中的 `model` 必须使用实际 deployment name，因此该预设关闭远端模型同步，使用“添加模型”录入 deployment name。历史上以 `provider=azure` 保存、且地址可安全归一化的 Custom Provider 会在读取时投影为内置 Azure preset，下一次保存后正式持久化；其他自定义 Azure operation URL 保持原配置。
 
+### 共享项目 ACL
+
+仅在 Linux `NEXUS_RUNTIME_ISOLATION_MODE=enforce` 下可用；其他部署返回 `501`。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/projects` | owner/admin 查看完整 registry；普通成员只看到自己已加入的项目，成员表仅保留自身 |
+| POST | `/projects` | owner/admin 创建或 ensure 项目，body: `{ project_id }` |
+| PUT | `/projects/{project_id}/members/{owner_user_id}` | admin 设置成员权限，body: `{ access: "read" \| "write" \| "none" }` |
+
+新项目会由 root-owned launcher 原子授予创建者 `write`；对已存在项目执行
+`POST /projects` 不会自动加入调用者。
+
 ---
 
 ## 4. Agent 管理
@@ -136,7 +149,8 @@ Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置�
 | 方法 | 路径 | 说明 | 请求体 / 参数 | 前端函数 |
 |------|------|------|---------------|---------|
 | GET | `/agents` | Agent 列表 | — | `getAgents` |
-| POST | `/agents` | 创建 Agent | `{ name, options, avatar, description, vibe_tags }` | `createAgentApi` |
+| POST | `/agents` | 创建 Agent，并将行为模板原子写入新 workspace 的 `AGENTS.md` | `{ name, options, avatar, description, profile_template, vibe_tags }` | `createAgentApi` |
+| GET | `/agents/profile-template` | 获取创建 Agent 使用的默认行为模板 | — | `getAgentProfileTemplateApi` |
 | GET | `/agents/validate/name` | 校验名称（query: `name`, `exclude_agent_id`） | — | `validateAgentNameApi` |
 | GET | `/agents/{agent_id}` | Agent 详情 | — | — |
 | PATCH | `/agents/{agent_id}` | 更新 Agent | `{ name, options, avatar, description, vibe_tags }` | `updateAgentApi` |
@@ -145,15 +159,29 @@ Provider 预设通过 `endpoint_mode` 声明端点来源：`fixed` 使用内置�
 | GET | `/agents/{agent_id}/private-domain/threads` | 私域线程列表 | — | — |
 | GET | `/agents/{agent_id}/private-domain/threads/{thread_id}/events` | 私域线程事件 | — | — |
 
-`Agent.options.skill_ids` 保存平台 Skill 的稳定 ID，或用户级外部 Skill 的 `external:<skill_name>` 引用。平台 Skill 由全局兼容根提供；外部 Skill 共享 `<workspace>/<owner>/.agents/skills`（系统 owner 使用 `<workspace>/.agents/skills`）。Agent workspace 不保存它们的副本；只有 workspace-local Skill 保留 workspace 文件。
+`Agent.options.skill_ids` 保存平台 Skill 的稳定 ID，或用户级外部 Skill 的
+`external:<skill_name>` 引用；`Agent.options.disabled_skill_ids` 保存显式停用
+名称。平台 Skill 由全局兼容根提供；外部 Skill 共享
+`<workspace>/<owner>/.agents/skills`（系统 owner 使用 `<workspace>/.agents/skills`）。
+Agent workspace Skill 只保留在所属 Agent 的 workspace，仅在该 Agent 设置页可见，
+文件存在时默认启用，显式停用只写入该 Agent 的 `disabled_skill_ids`。
+Skill 列表中的 `source_type`/`source_kind` 描述文件来源，`storage_scope`/`origin_kind`
+描述存储与创建归属。Agent workspace 来源不进入全局技能库，也不能由其它 Agent
+发现、引用或复制。
+
+`description` 是目录与提示词中的短摘要；`profile_template` 是创建期行为模板，两者不可互换。前端先从服务端读取默认模板，用户修改后随创建请求提交；传空时服务端仍使用同一默认模板。
 
 ### Agent 技能挂载
 
 | 方法 | 路径 | 说明 | 前端函数 |
 |------|------|------|---------|
-| GET | `/agents/{agent_id}/skills` | Agent 已安装技能 | `getAgentSkillsApi` |
-| POST | `/agents/{agent_id}/skills` | 安装技能（body: `{ skill_name }`） | `installSkillApi` |
-| DELETE | `/agents/{agent_id}/skills/{skill_name}` | 卸载技能 | `uninstallSkillApi` |
+| GET | `/agents/{agent_id}/skills` | Agent 可用技能及启用状态，包含该 Agent 私有 workspace Skill | `getAgentSkillsApi` |
+| POST | `/agents/{agent_id}/skills` | 兼容启用入口（body: `{ skill_name }`）；新 UI 使用 PATCH | `installSkillApi` |
+| PATCH | `/agents/{agent_id}/skills/{skill_name}` | 原子切换技能（body: `{ enabled, target_scope }`）；必填 `target_scope` 为 `global_library` 或 `agent_workspace` | `setAgentSkillEnabledApi` |
+| DELETE | `/agents/{agent_id}/skills/{skill_name}` | 兼容删除入口；全局 Skill 解除当前 Agent 绑定，workspace Skill 删除本地文件 | `uninstallSkillApi` |
+
+`scope: room` 是 Room 使用范围，不是独立来源；它继续出现在全局技能库，但不会
+进入 Agent 列表或 Agent 启用矩阵，只能由 Room 设置选择。
 
 ---
 
@@ -221,7 +249,7 @@ JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富
 
 桌面端调用 `reveal`；浏览器端通过 `download` 接口下载文件。
 
-长期记忆由内置 `nxs` SDK 子进程维护为 Agent 工作区中的 `MEMORY.md` 索引与 `memory/` 主题文件。Nexus 不参与提取或召回；只提供只读工作区投影供 Web 展示，正文编辑仍使用通用工作区文件接口。
+长期记忆由内置 `nxs` SDK 子进程维护为 Agent 工作区中的 `MEMORY.md` 索引与 `memory/` 主题文件。Nexus 管理的 runtime 会把该工作区固定为唯一记忆根，不接受宿主环境、请求环境或远端记忆配置改写；Nexus 不参与提取或召回，只提供同一根目录的只读投影供 Web 展示，正文编辑仍使用通用工作区文件接口。
 
 ---
 
@@ -231,9 +259,10 @@ JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富
 
 | 方法 | 路径 | 说明 | 前端函数 |
 |------|------|------|---------|
-| GET | `/skills` | 全部技能（query: `agent_id`,`category_key`,`source_type`,`scope`,`q`） | `getAvailableSkillsApi` |
+| GET | `/skills` | 全局技能库（query: `agent_id`,`category_key`,`source_type`,`scope`,`q`）；带 `agent_id` 时追加该 Agent 私有 workspace Skill | `getAvailableSkillsApi` |
 | GET | `/skills/{skill_name}` | 技能详情（query: `agent_id`） | `getSkillDetailApi` |
-| POST | `/skills/import/local` | 导入本地技能（FormData: `file` 或 `local_path`） | `importLocalSkillApi` |
+| GET | `/skills/{skill_name}/agents` | 当前用户各 Agent 的启用矩阵 | `getSkillAgentsApi` |
+| POST | `/skills/import/local` | 导入本地技能；认证部署仅允许 FormData `file`，未认证本地单用户部署兼容 `local_path` | `importLocalSkillApi` |
 | POST | `/skills/import/git` | 从 Git 仓库导入（body: `{ url, branch, path }`） | `importGitSkillApi` |
 | GET | `/skills/search/external` | 搜索社区技能（query: `q`,`include_readme`） | `searchExternalSkillsApi` |
 | GET | `/skills/external/preview` | 社区技能预览（query: `detail_url`） | `getExternalSkillPreviewApi` |
@@ -445,11 +474,30 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 |------|------|------|--------|---------|
 | GET | `/goals/current` | 当前目标（query: `session_key`） | — | `getCurrentGoalApi` |
 | POST | `/goals` | 创建目标；UI 可显式原位替换当前目标 | `{ session_key, objective, token_budget?, replace_existing?, metadata? }` | `createGoalApi` |
+| GET | `/goals/{goal_id}/usage` | 按 ID 查询目标的聚合 usage 与 finalization fence | — | `getGoalUsageApi` |
 | PATCH | `/goals/{goal_id}` | 更新目标 | `{ objective?, token_budget?, metadata? }` | `updateGoalApi` |
 | POST | `/goals/{goal_id}/pause` | 暂停 | — | `pauseGoalApi` |
 | POST | `/goals/{goal_id}/resume` | 恢复 | — | `resumeGoalApi` |
 | POST | `/goals/{goal_id}/clear` | 清除 | — | `clearGoalApi` |
 | GET | `/goals/{goal_id}/events` | 目标事件流 | — | — |
+
+`Goal.usage` 同时暴露两套不可混用的 token 口径：
+
+- `actual_tokens`：runtime/provider 实际处理总量，包含未缓存输入、cache creation/read、输出与 reasoning。provider terminal usage 显式携带 `total_tokens` 时采用其非负值，显式 `0` 也是精确值；缺少 total 时才按可用 breakdown 保守估算，并设置 `actual_tokens_estimated=true`。逐 turn actual 按消息身份去重，terminal 时再用本轮累计真值对账并持久化；terminal provider usage 一旦收到，即使后续本地投影或持久化步骤失败，也不会退化为缺失值。
+- `budget_tokens`：Goal 预算计量，严格为 `max(input_tokens, 0) + max(output_tokens, 0)`；cache creation/read 与 reasoning 不额外进入预算。`token_budget`、剩余预算和 `budget_limited` 均使用此值。
+- `total_tokens`：为旧客户端保留的 `budget_tokens` 别名。
+
+预算口径只用于内部控制、兼容与审计。默认 Goal 状态条只显示一个 `actual_tokens` 数字，估算值以 `≈` 标记；完成但尚未 `usage_finalized` 的 Goal 隐藏 token，finalized 后才显示最终值。预算、耗时和结算明细不在默认界面展示。
+
+`GET /goals/{goal_id}/usage` 返回 `GoalUsageReport`。完成 Goal 不再出现在 `/goals/current` 中，但仍可用原 `goal_id` 查询；同 session 后续创建的新 Goal 不会继承旧 Goal 的 terminal usage。`status=complete` 只表示业务目标已完成，不代表用量已经冻结；`usage_finalized=true` 才是聚合值权威且不再接受迟到增量的唯一 fence。
+
+DM 按当前 round 聚合 parent 与 child；Room 聚合同一 root round（包括后续 handoff）下所有 Agent slot 的 parent 与 child，并排除共享 runtime session 中属于其他 root 的工作。模型在 round 内创建 Goal 时，归属从该 round/root 的起点开始；外部 API 或 UI 激活 Goal 时，归属只从 runtime 激活边界开始，激活前的已结束工作不会回填进新 Goal。若 child 在激活前已经运行，而 runtime 无法在激活瞬间提供可信累计基线，该 child 后续只推进全局 checkpoint、不猜测归属给新 Goal，并将证据保持为 unavailable；绑定后新启动的 child 仍可精确归属。
+
+每个 parent round 与 child task 都有按 owner、runtime session、round/root 和 source 身份隔离的持久化证据；terminal 写入、增量归属和 finalization fence 以幂等方式提交，使失败重试、idle 回收、handoff 与服务重启不会重复计数。最终 fence 只在 complete Goal 的全部必要 parent/child 证据收敛后建立；证据缺失、仍在运行或明确 unavailable 时均保持 `usage_finalized=false`，绝不会用伪造的 `0` 完成结算。fence 建立后的迟到增量会被显式拒绝。
+
+当前 nxs child 适配器会在没有可信 child usage 时填充 `total_tokens: 0`；这个 `0` 是“未知”的占位值，不是 provider terminal 的精确零。child 只有终态消息中的正 total 才记为 authoritative terminal evidence；progress 的正 total 仍可进入 actual checkpoint，但若随后 terminal 为 `0` 或未提供 total，证据仍记为 unavailable，Goal 保持 `usage_finalized=false`。因此 provider terminal 的显式零可以精确结算，但不能把 nxs child 的占位零当作同一种证据。Claude Code 后台任务同样不会在缺少可验证累计语义时被冒充为精确增量。
+
+`update_goal(complete)` 的结构化结果返回 `completionUsageCheckpointReport`、`goalId` 与 `usageFinalized: false`；旧 `completionBudgetReport` 字段保留为同值兼容别名。两个 report 字段只承载模型完成后的 result-first 交付指引，不是需要原样展示的 token 报告。工具成功后的最终 assistant 回复是用户交付面，必须独立、完整地满足 objective：文本本身是交付物时直接展示完整正文；成果位于文件、产物或外部状态时给出准确位置、核心结果和必要验证。Goal 完成状态只能作为结果后的次要说明或省略，不能用状态回执或简短总结替代成果；同样不要求复述 actual/budget token、耗时或“最终回复稍后结算”的 caveat。最终 assistant 回复的 usage 仍会在当前 round terminal 后按固定 `goal_id` 写回已完成 Goal；需要精确审计的调用方随后按 `goalId` 查询 `/goals/{goal_id}/usage`，并以 `usage_finalized=true` 作为最终聚合已冻结的唯一依据。
 
 ### App-Server 线程目标 RPC
 
@@ -458,6 +506,8 @@ task 的控制请求由 task item 的 `host_agent_id` 路由到实际承载该 s
 | POST | `/app-server/thread/goal/set` | 设置线程目标 |
 | POST | `/app-server/thread/goal/get` | 获取线程目标 |
 | POST | `/app-server/thread/goal/clear` | 清除线程目标 |
+
+App-Server Goal 保留 `tokensUsed` 作为预算兼容字段，同时返回 `budgetTokens`、`actualTokens` 与 `actualTokensEstimated`。
 
 ---
 

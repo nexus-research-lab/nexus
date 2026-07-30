@@ -1,7 +1,13 @@
 "use client";
 
+/**
+ * INPUT: Thread 视图模型、消息上下文与滚动/触摸/pointer 处理器。
+ * OUTPUT: 禁用浏览器锚点争抢的 Thread 标题、消息流和回到底部入口。
+ * POS: Agent Thread 的纯展示与事件绑定层。
+ */
 import { ArrowLeft, Bot, X, type LucideIcon } from "lucide-react";
 import type {
+  PointerEventHandler,
   ReactNode,
   RefObject,
   TouchEventHandler,
@@ -45,6 +51,7 @@ interface ConversationThreadViewProps {
   model: ConversationThreadModel;
   notice: ReactNode;
   onClose: () => void;
+  onPointerDown: PointerEventHandler<HTMLDivElement>;
   onScroll: UIEventHandler<HTMLDivElement>;
   onScrollToLatest: () => void;
   onTouchEnd: TouchEventHandler<HTMLDivElement>;
@@ -62,6 +69,7 @@ interface ThreadFeedProps {
   feedRef: RefObject<HTMLDivElement | null>;
   messageContext: ConversationThreadMessageContext;
   model: ConversationThreadModel;
+  onPointerDown: PointerEventHandler<HTMLDivElement>;
   onScroll: UIEventHandler<HTMLDivElement>;
   onTouchEnd: TouchEventHandler<HTMLDivElement>;
   onTouchMove: TouchEventHandler<HTMLDivElement>;
@@ -103,6 +111,7 @@ export function ConversationThreadView({
   model,
   notice,
   onClose,
+  onPointerDown,
   onScroll,
   onScrollToLatest,
   onTouchEnd,
@@ -137,6 +146,7 @@ export function ConversationThreadView({
         feedRef={feedRef}
         messageContext={messageContext}
         model={model}
+        onPointerDown={onPointerDown}
         onScroll={onScroll}
         onTouchEnd={onTouchEnd}
         onTouchMove={onTouchMove}
@@ -146,7 +156,6 @@ export function ConversationThreadView({
       />
       <ThreadScrollToLatest
         isLoading={isLoading}
-        isMobile={model.isMobile}
         show={showScrollToLatest}
         onClick={onScrollToLatest}
       />
@@ -240,6 +249,7 @@ function ThreadFeed({
   feedRef,
   messageContext,
   model,
+  onPointerDown,
   onScroll,
   onTouchEnd,
   onTouchMove,
@@ -249,7 +259,10 @@ function ThreadFeed({
 }: ThreadFeedProps) {
   return (
     <div
-      className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-3"
+      className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 py-3"
+      style={{ overflowAnchor: "none" }}
+      tabIndex={-1}
+      onPointerDown={onPointerDown}
       onScroll={onScroll}
       onTouchEnd={onTouchEnd}
       onTouchMove={onTouchMove}
@@ -298,50 +311,46 @@ function ThreadRound({
   round: ConversationThreadRoundModel;
 }) {
   return (
-    <MessageItem
-      assistantContentMode="room_thread"
-      className={cn(
-        "max-w-full overflow-x-hidden",
-        round.showDivider && "border-b border-(--divider-subtle-color)",
-      )}
-      compact
-      currentAgentAvatar={messageContext.agentAvatar}
-      currentAgentName={messageContext.agentName}
-      currentUserAvatar={messageContext.userAvatar}
-      defaultProcessExpanded
-      isLastRound={round.isLast}
-      isLoading={round.isLoading}
-      messages={round.messages}
-      onOpenWorkspaceFile={messageContext.onOpenWorkspaceFile}
-      onPermissionResponse={messageContext.onPermissionResponse}
-      onStopMessage={messageContext.onStopMessage}
-      pendingPermissions={round.pendingPermissions}
-      roundId={round.roundId}
-      workspaceAgentId={messageContext.workspaceAgentId}
-    />
+    <>
+      <MessageItem
+        assistantContentMode="room_thread"
+        className="max-w-full overflow-x-hidden"
+        compact
+        currentAgentAvatar={messageContext.agentAvatar}
+        currentAgentName={messageContext.agentName}
+        currentUserAvatar={messageContext.userAvatar}
+        defaultProcessExpanded
+        isLastRound={round.isLast}
+        isLoading={round.isLoading}
+        messages={round.messages}
+        onOpenWorkspaceFile={messageContext.onOpenWorkspaceFile}
+        onPermissionResponse={messageContext.onPermissionResponse}
+        onStopMessage={messageContext.onStopMessage}
+        pendingPermissions={round.pendingPermissions}
+        roundId={round.roundId}
+        workspaceAgentId={messageContext.workspaceAgentId}
+      />
+      {round.showDivider ? (
+        <hr aria-hidden="true" className="conversation-round-divider" />
+      ) : null}
+    </>
   );
 }
 
 function ThreadScrollToLatest({
   isLoading,
-  isMobile,
   onClick,
   show,
 }: {
   isLoading: boolean;
-  isMobile: boolean;
   onClick: () => void;
   show: boolean;
 }) {
-  if (!show) {
-    return null;
-  }
   return (
     <ScrollToLatestButton
       isLoading={isLoading}
-      isMobileLayout={isMobile}
       onClick={onClick}
-      placement="panel"
+      visible={show}
     />
   );
 }

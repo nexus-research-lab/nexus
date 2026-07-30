@@ -5,15 +5,27 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// AttachmentPathResolver 把应用层附件解析成当前 runtime 可以读取的真实路径。
-type AttachmentPathResolver func(context.Context, protocol.ChatAttachment) (string, error)
+// ResolvedAttachment 表示已经通过目录边界校验并固定 inode 的附件。
+//
+// File 的所有权交给 RenderRuntimeContentWithAttachments；resolver 返回后不能
+// 再关闭或复用，避免路径校验与图片读取之间重新按绝对路径打开文件。
+type ResolvedAttachment struct {
+	AbsolutePath string
+	File         *os.File
+}
+
+// AttachmentPathResolver 把应用层附件解析成当前 runtime 可以读取的真实文件。
+type AttachmentPathResolver func(context.Context, protocol.ChatAttachment) (ResolvedAttachment, error)
 
 // RuntimeContent 是 Nexus 应用层投递给 SDK runtime 的用户输入。
 type RuntimeContent struct {
@@ -95,23 +107,30 @@ func RenderRuntimeContentWithAttachments(
 	imageRefs := make([]string, 0, len(normalizedAttachments))
 	imageBlocks := make([]map[string]any, 0, len(normalizedAttachments))
 	for _, attachment := range normalizedAttachments {
-		absolutePath, err := resolver(ctx, attachment)
+		resolved, err := resolver(ctx, attachment)
 		if err != nil {
 			return RuntimeContent{}, err
 		}
-		ref, err := quoteRuntimePathReference(absolutePath)
+		if resolved.File == nil {
+			return RuntimeContent{}, errors.New("attachment resolver returned no file")
+		}
+		ref, err := quoteRuntimePathReference(resolved.AbsolutePath)
 		if err != nil {
+			_ = resolved.File.Close()
 			return RuntimeContent{}, err
 		}
 		refs = append(refs, ref)
 		if attachment.Kind != protocol.ChatAttachmentKindImage {
 			textRefs = append(textRefs, ref)
+			_ = resolved.File.Close()
 			continue
 		}
 		if len(imageBlocks) >= runtimeMaxImageBlocksPerSubmit {
+			_ = resolved.File.Close()
 			return RuntimeContent{}, fmt.Errorf("image attachment count exceeds runtime limit: %d", runtimeMaxImageBlocksPerSubmit)
 		}
-		block, err := imageAttachmentBlock(attachment, absolutePath)
+		block, err := imageAttachmentBlock(attachment, resolved.AbsolutePath, resolved.File)
+		_ = resolved.File.Close()
 		if err != nil {
 			return RuntimeContent{}, err
 		}
@@ -147,28 +166,61 @@ func RenderRuntimeContentWithAttachments(
 
 // ResolveWorkspaceAttachmentPath 将 workspace 相对路径约束到指定 workspace 内并返回绝对路径。
 func ResolveWorkspaceAttachmentPath(workspacePath string, relativePath string) (string, error) {
+	resolved, err := openWorkspaceAttachment(workspacePath, relativePath)
+	if err != nil {
+		return "", err
+	}
+	_ = resolved.File.Close()
+	return resolved.AbsolutePath, nil
+}
+
+func openWorkspaceAttachment(workspacePath string, relativePath string) (ResolvedAttachment, error) {
 	root := filepath.Clean(strings.TrimSpace(workspacePath))
 	if root == "" {
-		return "", errors.New("workspace_path is required")
+		return ResolvedAttachment{}, errors.New("workspace_path is required")
 	}
 	normalizedPath := strings.TrimSpace(strings.ReplaceAll(relativePath, "\\", "/"))
 	normalizedPath = strings.TrimPrefix(normalizedPath, "/")
 	if normalizedPath == "" {
-		return "", errors.New("attachment workspace_path is required")
+		return ResolvedAttachment{}, errors.New("attachment workspace_path is required")
 	}
 	targetPath := filepath.Clean(filepath.Join(root, normalizedPath))
 	rootWithSeparator := root + string(os.PathSeparator)
 	if targetPath != root && !strings.HasPrefix(targetPath, rootWithSeparator) {
-		return "", errors.New("attachment path escapes workspace")
+		return ResolvedAttachment{}, errors.New("attachment path escapes workspace")
 	}
-	info, err := os.Stat(targetPath)
+	rootFS, err := confinedfs.Open(root)
 	if err != nil {
-		return "", err
+		return ResolvedAttachment{}, err
 	}
-	if info.IsDir() {
-		return "", fmt.Errorf("attachment path is a directory: %s", normalizedPath)
+	relative := filepath.ToSlash(normalizedPath)
+	parent, err := rootFS.OpenRootNoSymlink(path.Dir(relative))
+	rootFS.Close()
+	if err != nil {
+		return ResolvedAttachment{}, err
 	}
-	return targetPath, nil
+	defer parent.Close()
+	name := path.Base(relative)
+	file, err := parent.OpenFileNoSymlink(name, os.O_RDONLY, 0)
+	if err != nil {
+		return ResolvedAttachment{}, err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return ResolvedAttachment{}, err
+	}
+	if !info.Mode().IsRegular() {
+		_ = file.Close()
+		if info.IsDir() {
+			return ResolvedAttachment{}, fmt.Errorf("attachment path is a directory: %s", normalizedPath)
+		}
+		return ResolvedAttachment{}, fmt.Errorf("attachment path is not a regular file: %s", normalizedPath)
+	}
+	return ResolvedAttachment{
+		AbsolutePath: targetPath,
+		File:         file,
+	}, nil
 }
 
 func quoteRuntimePathReference(path string) (string, error) {
@@ -182,14 +234,18 @@ func quoteRuntimePathReference(path string) (string, error) {
 	return "@\"" + normalizedPath + "\"", nil
 }
 
-func imageAttachmentBlock(attachment protocol.ChatAttachment, absolutePath string) (map[string]any, error) {
+func imageAttachmentBlock(
+	attachment protocol.ChatAttachment,
+	absolutePath string,
+	file *os.File,
+) (map[string]any, error) {
 	// SDK runtime 使用 Anthropic ContentBlockParam 形状，media_type 必须位于 source 内。
 	mimeType, ok := runtimeImageBlockMIMEType(attachment, absolutePath)
 	if !ok {
 		return nil, fmt.Errorf("unsupported runtime image attachment: %s", filepath.Base(absolutePath))
 	}
 
-	data, err := os.ReadFile(absolutePath)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		return nil, err
 	}

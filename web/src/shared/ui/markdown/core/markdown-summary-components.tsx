@@ -57,7 +57,7 @@ export function createMarkdownSummaryComponents(
       return (
         <span className={options.monochrome
           ? "message-code-font inline text-[0.86em] text-inherit"
-          : "message-code-font mx-0.5 inline rounded-[4px] bg-primary/10 px-1 text-[0.86em] text-primary"}
+          : "content-inline-code message-code-font mx-0.5 px-1 text-[0.86em]"}
         >
           {value}
         </span>

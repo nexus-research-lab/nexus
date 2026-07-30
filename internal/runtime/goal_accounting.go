@@ -17,8 +17,22 @@ type GoalAccountingFlush func(context.Context) error
 // GoalAccountingClear 由正在运行的 round 提供，用于 Goal 停止后关闭后续计量。
 type GoalAccountingClear func()
 
-// GoalAccountingActivate 由正在运行的 round 提供，用于 Goal 恢复 active 后重置计量基线。
-type GoalAccountingActivate func(context.Context) error
+// GoalAccountingFinalize 由正在运行的 round 提供，用于 complete Goal 保留固定
+// 绑定直到 provider terminal 与 child drain 完成；返回当前 callback 是否真正接管。
+type GoalAccountingFinalize func() bool
+
+// GoalAccountingActivate 由正在运行的 round 提供，用于 Goal 恢复 active 后绑定
+// 明确 Goal ID 并重置计量基线。
+type GoalAccountingActivate func(context.Context, string) error
+
+// GoalAccountingConsumed 判断 live runtime scope 是否已经消费过一个 Goal。
+// 一旦返回 true，该 scope 在 round 结束前不能承载另一个 Goal。
+type GoalAccountingConsumed func() bool
+
+type goalAccountingGuard struct {
+	scopeRoundID string
+	consumed     GoalAccountingConsumed
+}
 
 // RegisterGoalObjectiveRevision 让运行中 round 的 MCP 与终态回调共享同一 objective revision。
 func (m *Manager) RegisterGoalObjectiveRevision(sessionKey string, roundID string, revision *atomic.Int64) {
@@ -30,6 +44,9 @@ func (m *Manager) RegisterGoalObjectiveRevision(sessionKey string, roundID strin
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		return
+	}
 	if state.GoalObjectiveRevisions == nil {
 		state.GoalObjectiveRevisions = make(map[string]*atomic.Int64)
 	}
@@ -85,6 +102,9 @@ func (m *Manager) RegisterGoalAccountingFlush(sessionKey string, roundID string,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		return
+	}
 	if flush == nil {
 		delete(state.GoalAccountingFlushers, roundID)
 		return
@@ -102,11 +122,38 @@ func (m *Manager) RegisterGoalAccountingClear(sessionKey string, roundID string,
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		return
+	}
 	if clear == nil {
 		delete(state.GoalAccountingClearers, roundID)
 		return
 	}
 	state.GoalAccountingClearers[roundID] = clear
+}
+
+// RegisterGoalAccountingFinalize 注册或移除运行中 round 的 Goal terminal 对账回调。
+func (m *Manager) RegisterGoalAccountingFinalize(
+	sessionKey string,
+	roundID string,
+	finalize GoalAccountingFinalize,
+) {
+	sessionKey = strings.TrimSpace(sessionKey)
+	roundID = strings.TrimSpace(roundID)
+	if sessionKey == "" || roundID == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	state := m.ensureStateLocked(sessionKey)
+	if state.GoalAccountingFinalizers == nil {
+		state.GoalAccountingFinalizers = make(map[string]GoalAccountingFinalize)
+	}
+	if finalize == nil {
+		delete(state.GoalAccountingFinalizers, roundID)
+		return
+	}
+	state.GoalAccountingFinalizers[roundID] = finalize
 }
 
 // RegisterGoalAccountingActivate 注册或移除运行中 round 的 Goal accounting active 回调。
@@ -119,6 +166,9 @@ func (m *Manager) RegisterGoalAccountingActivate(sessionKey string, roundID stri
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		return
+	}
 	if state.GoalAccountingActivators == nil {
 		state.GoalAccountingActivators = make(map[string]GoalAccountingActivate)
 	}
@@ -127,6 +177,73 @@ func (m *Manager) RegisterGoalAccountingActivate(sessionKey string, roundID stri
 		return
 	}
 	state.GoalAccountingActivators[roundID] = activate
+}
+
+// RegisterGoalAccountingCreateGuard 注册或移除 live runtime scope 的 Goal 创建保护。
+// roundID 是 callback 生命周期键；scopeRoundID 是 DM round 或 Room root round 的计量边界。
+func (m *Manager) RegisterGoalAccountingCreateGuard(
+	sessionKey string,
+	roundID string,
+	scopeRoundID string,
+	consumed GoalAccountingConsumed,
+) {
+	sessionKey = strings.TrimSpace(sessionKey)
+	roundID = strings.TrimSpace(roundID)
+	scopeRoundID = strings.TrimSpace(scopeRoundID)
+	if sessionKey == "" || roundID == "" {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	state := m.ensureStateLocked(sessionKey)
+	if state.GoalAccountingGuards == nil {
+		state.GoalAccountingGuards = make(map[string]goalAccountingGuard)
+	}
+	if consumed == nil {
+		delete(state.GoalAccountingGuards, roundID)
+		return
+	}
+	state.GoalAccountingGuards[roundID] = goalAccountingGuard{
+		scopeRoundID: scopeRoundID,
+		consumed:     consumed,
+	}
+}
+
+// GoalAccountingCreateConflicts 返回会与新 Goal 争用 live runtime scope 的 round。
+// scopeRoundID 非空时只检查同一 scope；为空时检查整个 session。
+func (m *Manager) GoalAccountingCreateConflicts(sessionKey string, scopeRoundID string) []string {
+	sessionKey = strings.TrimSpace(sessionKey)
+	scopeRoundID = strings.TrimSpace(scopeRoundID)
+	if sessionKey == "" {
+		return nil
+	}
+
+	m.mu.RLock()
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil || len(state.GoalAccountingGuards) == 0 {
+		m.mu.RUnlock()
+		return nil
+	}
+	roundIDs := slices.Sorted(maps.Keys(state.GoalAccountingGuards))
+	guards := make([]goalAccountingGuard, 0, len(roundIDs))
+	candidateRoundIDs := make([]string, 0, len(roundIDs))
+	for _, roundID := range roundIDs {
+		guard := state.GoalAccountingGuards[roundID]
+		if scopeRoundID != "" && guard.scopeRoundID != scopeRoundID {
+			continue
+		}
+		candidateRoundIDs = append(candidateRoundIDs, roundID)
+		guards = append(guards, guard)
+	}
+	m.mu.RUnlock()
+
+	conflicts := make([]string, 0, len(candidateRoundIDs))
+	for index, guard := range guards {
+		if guard.consumed != nil && guard.consumed() {
+			conflicts = append(conflicts, candidateRoundIDs[index])
+		}
+	}
+	return conflicts
 }
 
 // FlushGoalAccounting 要求指定 session 的运行中 round 结算当前 Goal progress。
@@ -192,10 +309,90 @@ func (m *Manager) ClearGoalAccounting(sessionKey string) []string {
 	return cleared
 }
 
-// ActivateGoalAccounting 要求指定 session 的运行中 round 从当前快照开始归属 Goal usage。
-func (m *Manager) ActivateGoalAccounting(ctx context.Context, sessionKey string) ([]string, error) {
+// ClearGoalAccountingRounds 只清理指定 round，用于多 round activation 部分成功后的回滚。
+func (m *Manager) ClearGoalAccountingRounds(sessionKey string, requestedRoundIDs []string) []string {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" || len(requestedRoundIDs) == 0 {
+		return nil
+	}
+	requested := make(map[string]struct{}, len(requestedRoundIDs))
+	for _, roundID := range requestedRoundIDs {
+		if roundID = strings.TrimSpace(roundID); roundID != "" {
+			requested[roundID] = struct{}{}
+		}
+	}
+	if len(requested) == 0 {
+		return nil
+	}
+
+	m.mu.RLock()
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil || len(state.GoalAccountingClearers) == 0 {
+		m.mu.RUnlock()
+		return nil
+	}
+	roundIDs := slices.Sorted(maps.Keys(requested))
+	clearers := make([]GoalAccountingClear, 0, len(roundIDs))
+	matchedRoundIDs := make([]string, 0, len(roundIDs))
+	for _, roundID := range roundIDs {
+		clear, exists := state.GoalAccountingClearers[roundID]
+		if !exists {
+			continue
+		}
+		matchedRoundIDs = append(matchedRoundIDs, roundID)
+		clearers = append(clearers, clear)
+	}
+	m.mu.RUnlock()
+
+	cleared := make([]string, 0, len(matchedRoundIDs))
+	for index, clear := range clearers {
+		if clear == nil {
+			continue
+		}
+		clear()
+		cleared = append(cleared, matchedRoundIDs[index])
+	}
+	return cleared
+}
+
+// BeginGoalAccountingFinalizing 要求 complete Goal 的运行中 round 保留绑定，
+// 直到各自 provider terminal 对账完成。
+func (m *Manager) BeginGoalAccountingFinalizing(sessionKey string) []string {
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
+		return nil
+	}
+	m.mu.RLock()
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil || len(state.GoalAccountingFinalizers) == 0 {
+		m.mu.RUnlock()
+		return nil
+	}
+	roundIDs := slices.Sorted(maps.Keys(state.GoalAccountingFinalizers))
+	finalizers := make([]GoalAccountingFinalize, 0, len(roundIDs))
+	for _, roundID := range roundIDs {
+		finalizers = append(finalizers, state.GoalAccountingFinalizers[roundID])
+	}
+	m.mu.RUnlock()
+
+	finalizing := make([]string, 0, len(roundIDs))
+	for index, finalize := range finalizers {
+		if finalize == nil {
+			continue
+		}
+		if !finalize() {
+			continue
+		}
+		finalizing = append(finalizing, roundIDs[index])
+	}
+	return finalizing
+}
+
+// ActivateGoalAccounting 要求指定 session 的运行中 round 从当前快照开始归属明确 Goal。
+func (m *Manager) ActivateGoalAccounting(ctx context.Context, sessionKey string, goalID string) ([]string, error) {
+	sessionKey = strings.TrimSpace(sessionKey)
+	goalID = strings.TrimSpace(goalID)
+	if sessionKey == "" || goalID == "" {
 		return nil, nil
 	}
 	m.mu.RLock()
@@ -217,8 +414,11 @@ func (m *Manager) ActivateGoalAccounting(ctx context.Context, sessionKey string)
 		if activate == nil {
 			continue
 		}
-		if err := activate(ctx); err != nil && firstErr == nil {
-			firstErr = err
+		if err := activate(ctx, goalID); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
 		}
 		activated = append(activated, roundIDs[index])
 	}

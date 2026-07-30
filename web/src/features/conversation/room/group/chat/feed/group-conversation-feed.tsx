@@ -1,5 +1,12 @@
+/**
+ * INPUT: Room root/Agent 节点 source、渲染器与共享滚动 refs。
+ * OUTPUT: 静态/虚拟 Room Feed，并以真实内容高度驱动整组贴底增长。
+ * POS: Room 主消息流的分支装配入口。
+ */
 import { memo, useMemo, useRef } from "react";
 
+import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "@/features/conversation/shared/conversation-panel-styles";
+import { ConversationFeedTail } from "@/features/conversation/shared/feed/conversation-feed-tail";
 import {
   buildGroupConversationRoundAliases,
   resolveGroupConversationRound,
@@ -60,21 +67,24 @@ function StaticGroupConversationFeed({
       ref={refs.feedRef}
       className={
         isMobileLayout
-          ? "nexus-chat-feed space-y-4"
-          : "nexus-chat-feed mx-auto flex w-full max-w-[980px] flex-col gap-1"
+          ? "nexus-chat-feed flex flex-col"
+          : `nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col`
       }
     >
       {source.roundIds.map((roundId, index) => {
         const state = resolveGroupConversationRound(source, index);
         return (
           <GroupConversationRound
+            isMobileLayout={isMobileLayout}
             key={roundId}
             renderer={renderer}
             state={state}
           />
         );
       })}
-      <div ref={refs.bottomAnchorRef} className="h-px w-full" />
+      <ConversationFeedTail
+        bottomAnchorRef={refs.bottomAnchorRef}
+      />
     </div>
   );
 }

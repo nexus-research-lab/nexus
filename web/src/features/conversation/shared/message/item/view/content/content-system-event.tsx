@@ -98,7 +98,7 @@ function ApiRetrySystemEventBody({ block }: { block: SystemEventContent }) {
   return (
     <>
       <div>{content}</div>
-      <div className="mt-0.5 text-[13px] leading-5 text-(--text-muted)">
+      <div className="mt-0.5 text-sm leading-5 text-(--text-muted)">
         {retryText}
       </div>
     </>

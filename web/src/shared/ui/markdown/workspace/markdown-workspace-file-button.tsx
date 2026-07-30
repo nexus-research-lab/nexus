@@ -17,7 +17,7 @@ export function WorkspaceFileButton({
 }: WorkspaceFileButtonProps) {
   return (
     <button
-      className="message-code-font inline-flex max-w-full items-center overflow-hidden rounded-[4px] border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-left align-baseline text-[0.86em] leading-[1.25] text-primary transition-colors hover:border-primary/30 hover:bg-primary/15"
+      className="content-workspace-file message-code-font max-w-full px-1.5 py-0.5 text-left align-baseline text-[0.86em] leading-[1.25]"
       onClick={() => onOpenWorkspaceFile(path, workspaceAgentId)}
       title={`Open ${path}`}
       type="button"

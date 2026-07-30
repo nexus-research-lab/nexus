@@ -1,17 +1,12 @@
-import { Image, Loader2 } from "lucide-react";
+import { Info, KeyRound, ShieldCheck } from "lucide-react";
 
 import type { PersonalProfile } from "@/lib/api/account/auth-api";
-import {
-  AGENT_ICON_ID_END,
-  AGENT_ICON_ID_START,
-} from "@/lib/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiAgentAvatar } from "@/shared/ui/display/avatar";
-import { IconPicker } from "@/shared/ui/icon-picker/icon-picker";
 
 import {
   buildPersonalProfilePresentation,
 } from "./personal-settings-model";
+import { PersonalAvatarPicker } from "./personal-avatar-picker";
 
 interface PersonalProfileSectionProps {
   avatar: string;
@@ -32,71 +27,64 @@ export function PersonalProfileSection({
   const presentation = buildPersonalProfilePresentation(profile, t);
 
   return (
-    <section className="overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
-      <div className="grid gap-3 px-3 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,300px)] lg:items-start">
-        <div className="min-w-0 space-y-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <UiAgentAvatar
-              avatar={avatar}
-              className="h-12 w-12 surface-radius-md"
-              name={presentation.avatarName}
-              shape="rounded"
-            />
-            <div className="min-w-0">
-              <h3 className="truncate text-[15px] font-semibold tracking-tight text-(--text-strong)">
+    <section className="w-full overflow-hidden rounded-[12px] border border-(--divider-subtle-color) bg-transparent">
+      <div className="grid gap-5 px-4 py-5 sm:px-5 lg:grid-cols-[minmax(280px,0.85fr)_minmax(360px,1fr)] lg:items-center lg:gap-6">
+        <div className="flex min-w-0 items-center gap-4">
+          <PersonalAvatarPicker
+            avatar={avatar}
+            disabled={!canUpdateAvatar}
+            isSaving={isSavingAvatar}
+            name={presentation.avatarName}
+            onChange={onAvatarChange}
+          />
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h3 className="truncate text-md font-semibold tracking-tight text-(--text-strong)">
                 {presentation.displayName}
               </h3>
-              <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[12px] leading-5 text-(--text-soft)">
-                <span className="min-w-0 truncate">{presentation.username}</span>
-                {presentation.subscriptionPlanName !== null ? (
-                  <>
-                    <span className="shrink-0 text-(--text-muted)">·</span>
-                    <span className="shrink-0 rounded-full border border-(--divider-subtle-color) px-2 py-0.5 text-[11px] font-semibold text-(--text-muted)">
-                      {presentation.subscriptionPlanName}
-                    </span>
-                  </>
-                ) : null}
-              </p>
+              {presentation.subscriptionPlanName !== null ? (
+                <span className="shrink-0 rounded-full border border-[color:color-mix(in_srgb,var(--primary)_16%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--primary)_6%,transparent)] px-2 py-0.5 text-xs font-semibold text-(--primary)">
+                  {presentation.subscriptionPlanName}
+                </span>
+              ) : null}
             </div>
-          </div>
-          <div className="grid gap-2 text-[11px] text-(--text-soft) sm:grid-cols-2">
-            <span className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2">
-              {t("settings.personal.role")}: {presentation.roleLabel}
-            </span>
-            <span className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2">
-              {t("settings.personal.auth_method")}: {presentation.authMethodLabel}
-            </span>
+            <p className="mt-0.5 truncate text-compact leading-5 text-(--text-soft)">
+              {presentation.username}
+            </p>
           </div>
         </div>
 
-        <div className="min-w-0 lg:min-w-[300px]">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2 text-[11px] font-semibold text-(--text-muted)">
-              <Image className="h-3.5 w-3.5" />
-              <span>{t("settings.personal.avatar_title")}</span>
-            </div>
-            {isSavingAvatar ? (
-              <span className="inline-flex items-center gap-1 text-[11px] text-(--text-soft)">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                {t("common.saving")}
+        <div className="min-w-0">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <span className="flex min-w-0 items-center gap-2 rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)] px-3 py-2.5">
+              <ShieldCheck className="h-4 w-4 shrink-0 text-(--icon-muted)" />
+              <span className="min-w-0">
+                <span className="block text-xs leading-4 text-(--text-soft)">
+                  {t("settings.personal.role")}
+                </span>
+                <span className="block truncate text-compact font-medium leading-4 text-(--text-strong)">
+                  {presentation.roleLabel}
+                </span>
               </span>
-            ) : null}
+            </span>
+            <span className="flex min-w-0 items-center gap-2 rounded-[10px] border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_72%,transparent)] px-3 py-2.5">
+              <KeyRound className="h-4 w-4 shrink-0 text-(--icon-muted)" />
+              <span className="min-w-0">
+                <span className="block text-xs leading-4 text-(--text-soft)">
+                  {t("settings.personal.auth_method")}
+                </span>
+                <span className="block truncate text-compact font-medium leading-4 text-(--text-strong)">
+                  {presentation.authMethodLabel}
+                </span>
+              </span>
+            </span>
           </div>
-          <IconPicker
-            className="min-w-0"
-            columns={8}
-            disabled={!canUpdateAvatar}
-            iconSize="sm"
-            layout="row"
-            maxIcons={AGENT_ICON_ID_END - AGENT_ICON_ID_START + 1}
-            onSelect={onAvatarChange}
-            showClear
-            startIconId={AGENT_ICON_ID_START}
-            value={avatar}
-          />
+
           {!presentation.canUpdateProfile ? (
-            <p className="mt-2 text-[11px] text-(--text-soft)">
-              {t("settings.personal.avatar_disabled")}
+            <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-(--text-soft)">
+              <Info className="mt-[3px] h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
+              <span>{t("settings.personal.avatar_disabled")}</span>
             </p>
           ) : null}
         </div>

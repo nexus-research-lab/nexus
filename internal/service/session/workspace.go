@@ -16,12 +16,12 @@ func (s *Service) listWorkspaceSessions(ctx context.Context, agentID string) ([]
 	}
 	result := make([]protocol.Session, 0)
 	for _, workspacePath := range workspacePaths {
-		items, listErr := s.files.ListSessions(workspacePath)
+		items, listErr := s.ownerFiles(ctx).ListSessions(workspacePath)
 		if listErr != nil {
 			return nil, listErr
 		}
 		for _, item := range items {
-			reconciled, reconcileErr := s.reconcileWorkspaceSessionRuntimeState(workspacePath, item)
+			reconciled, reconcileErr := s.reconcileWorkspaceSessionRuntimeState(ctx, workspacePath, item)
 			if reconcileErr != nil {
 				return nil, reconcileErr
 			}

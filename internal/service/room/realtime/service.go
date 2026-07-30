@@ -33,6 +33,19 @@ const (
 	roomBroadcastTimeout      = 5 * time.Second
 )
 
+// ErrRoomRuntimeRequiresGroup 表示 DM 被错误路由到了 Room 执行域。
+var ErrRoomRuntimeRequiresGroup = errors.New("room realtime execution requires group room")
+
+func requireGroupRoomContext(contextValue *protocol.ConversationContextAggregate) error {
+	if contextValue == nil {
+		return errors.New("room conversation not found")
+	}
+	if contextValue.Room.RoomType != protocol.RoomTypeGroup {
+		return ErrRoomRuntimeRequiresGroup
+	}
+	return nil
+}
+
 type roomClientFactory interface {
 	New(agentclient.Options) runtimectx.Client
 }
@@ -88,7 +101,8 @@ type InterruptRequest struct {
 // MCPServerBuilder 由 server app 注入，按当前会话上下文构造一组 MCP server。
 // 用 string 形参避免 room domain 反向依赖 automation 子包，防止 import cycle。
 type MCPServerBuilder func(
-	agentID string,
+	ctx context.Context,
+	agentValue *protocol.Agent,
 	sessionKey string,
 	roundID string,
 	sourceContextType string,
@@ -103,6 +117,7 @@ type roomContextStore interface {
 	GetConversationContextForSystem(context.Context, string) (*protocol.ConversationContextAggregate, error)
 	UpdateSessionSDKSessionID(context.Context, string, string) error
 	TouchConversationActivity(context.Context, string, time.Time) error
+	MarkConversationStarted(context.Context, string, time.Time) error
 	BuildRoomSkillPrompt(context.Context, []string) (string, error)
 }
 
@@ -129,8 +144,12 @@ type Service struct {
 	mcpServers       MCPServerBuilder
 	titles           roomTitleScheduler
 
-	rounds     roomRoundRegistry
-	wakeTimers *roomWakeTimerRegistry
+	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
+	goalUsageRetryBaseDelay time.Duration
+
+	rounds              roomRoundRegistry
+	goalUsageScopeLocks roomGoalUsageScopeLockRegistry
+	wakeTimers          *roomWakeTimerRegistry
 }
 
 type roomTitleScheduler interface {
@@ -192,21 +211,22 @@ func NewServiceWithFactory(
 		factory = defaultRoomClientFactory{}
 	}
 	return &Service{
-		config:           cfg,
-		rooms:            roomService,
-		agents:           agentService,
-		runtime:          runtimeManager,
-		permission:       permission,
-		history:          workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
-		roomHistory:      workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
-		directedMessages: workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
-		directedWakes:    workspacestore.NewRoomDirectedMessageWakeStore(cfg.WorkspacePath),
-		publicHandoffs:   workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath),
-		inputQueue:       workspacestore.NewInputQueueStore(cfg.WorkspacePath),
-		factory:          factory,
-		logger:           logx.NewDiscardLogger(),
-		rounds:           newRoomRoundRegistry(),
-		wakeTimers:       newRoomWakeTimerRegistry(),
+		config:              cfg,
+		rooms:               roomService,
+		agents:              agentService,
+		runtime:             runtimeManager,
+		permission:          permission,
+		history:             workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
+		roomHistory:         workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
+		directedMessages:    workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),
+		directedWakes:       workspacestore.NewRoomDirectedMessageWakeStore(cfg.WorkspacePath),
+		publicHandoffs:      workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath),
+		inputQueue:          workspacestore.NewInputQueueStore(cfg.WorkspacePath),
+		factory:             factory,
+		logger:              logx.NewDiscardLogger(),
+		rounds:              newRoomRoundRegistry(),
+		goalUsageScopeLocks: newRoomGoalUsageScopeLockRegistry(),
+		wakeTimers:          newRoomWakeTimerRegistry(),
 	}
 }
 

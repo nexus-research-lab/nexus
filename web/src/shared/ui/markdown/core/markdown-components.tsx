@@ -1,3 +1,8 @@
+/**
+ * INPUT: Markdown AST 节点、Workspace 解析命令与 Agent mention 链接。
+ * OUTPUT: 通用 Markdown 组件及安全解析后的 Agent/handoff chip。
+ * POS: 共享 Markdown 节点到产品 UI 原语的渲染注册表。
+ */
 "use client";
 
 import type { ReactNode } from "react";
@@ -75,12 +80,13 @@ function renderMarkdownLink({
   onOpenAgentContact?: (agentId: string) => void;
 }): ReactNode {
   const rawHref = String(href ?? "").trim();
-  if (rawHref.startsWith("agent-mention://")) {
-    const agentID = decodeURIComponent(rawHref.slice("agent-mention://".length));
+  const agentMention = parseAgentMentionHref(rawHref);
+  if (agentMention) {
     return (
       <AgentMentionChip
-        agentId={agentID}
+        agentId={agentMention.agentId}
         directory={agentMentionDirectory}
+        handoffId={agentMention.handoffId}
         onOpenAgentContact={onOpenAgentContact}
       >
         {children}
@@ -136,6 +142,32 @@ function renderMarkdownLink({
   return assertNever(presentation);
 }
 
+function parseAgentMentionHref(
+  href: string,
+): { agentId: string; handoffId?: string } | null {
+  const prefix = "agent-mention://";
+  if (!href.startsWith(prefix)) {
+    return null;
+  }
+  const target = href.slice(prefix.length);
+  const queryIndex = target.indexOf("?");
+  const encodedAgentId = queryIndex >= 0 ? target.slice(0, queryIndex) : target;
+  const query = queryIndex >= 0 ? target.slice(queryIndex + 1) : "";
+  try {
+    const agentId = decodeURIComponent(encodedAgentId).trim();
+    if (!agentId) {
+      return null;
+    }
+    const handoffId = new URLSearchParams(query).get("handoff_id")?.trim();
+    return {
+      agentId,
+      ...(handoffId ? { handoffId } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function createMarkdownComponents(
   resolveFilePath: ResolveWorkspaceFilePath,
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void,
@@ -144,7 +176,7 @@ export function createMarkdownComponents(
 ): Components {
   return {
     pre({ children }) {
-      return <div className="my-2 w-full min-w-0 max-w-full overflow-hidden">{children}</div>;
+      return <div className="w-full min-w-0 max-w-full overflow-hidden">{children}</div>;
     },
     code({ children, className, node }) {
       const presentation = buildMarkdownCodePresentation(
@@ -188,7 +220,7 @@ export function createMarkdownComponents(
       }
 
       return (
-        <span className="message-code-font mx-0.5 inline-flex max-w-full overflow-hidden rounded-[4px] border border-primary/20 bg-primary/10 px-1.5 py-0.5 align-baseline text-[0.86em] leading-[1.25] text-primary">
+        <span className="content-inline-code message-code-font align-baseline text-[0.9rem] leading-[1.25]">
           <span className="max-w-full whitespace-pre-wrap break-words">
             {presentation.value}
           </span>
@@ -196,7 +228,7 @@ export function createMarkdownComponents(
       );
     },
     p({ children }) {
-      return <div data-markdown-anchor className="mb-2 mt-2 min-w-0 max-w-full leading-relaxed text-pretty text-foreground/90 wrap-anywhere last:mb-0">{children}</div>;
+      return <div data-markdown-anchor className="m-0 min-w-0 max-w-full leading-[1.65rem] text-pretty wrap-anywhere">{children}</div>;
     },
     ul({ children }) {
       return <ul className="markdown-list markdown-list-unordered">{children}</ul>;
@@ -213,7 +245,7 @@ export function createMarkdownComponents(
     },
     blockquote({ children }) {
       return (
-        <blockquote data-markdown-anchor className="my-4 w-full min-w-0 max-w-full overflow-hidden border-l-[3px] border-primary/40 bg-primary/4 px-1 py-2 pl-4 text-pretty italic text-(--text-muted) wrap-anywhere">
+        <blockquote data-markdown-anchor className="content-quote m-0 text-pretty wrap-anywhere">
           <div className="min-w-0 max-w-full">{children}</div>
         </blockquote>
       );
@@ -238,7 +270,7 @@ export function createMarkdownComponents(
       const image = (
         <img
           alt={alt || ""}
-          className="my-3 block h-auto max-h-[420px] w-auto max-w-full rounded-[8px] border border-(--divider-subtle-color) object-contain sm:max-w-[560px]"
+          className="content-media block h-auto max-h-[420px] w-auto max-w-full object-contain sm:max-w-[560px]"
           loading="lazy"
           src={imageSrc}
         />
@@ -247,7 +279,7 @@ export function createMarkdownComponents(
       if (resolvedPath && onOpenWorkspaceFile) {
         return (
           <button
-            className="block w-fit max-w-full text-left"
+            className="content-media-action block w-fit max-w-full text-left"
             onClick={() => onOpenWorkspaceFile(resolvedPath, currentAgentId)}
             title={resolvedPath}
             type="button"
@@ -260,19 +292,31 @@ export function createMarkdownComponents(
       return image;
     },
     h1({ children }) {
-      return <h1 data-markdown-anchor className="mb-4 mt-6 max-w-full break-words text-2xl font-medium text-foreground first:mt-0">{children}</h1>;
+      return <h1 data-markdown-anchor className="m-0 mt-3 -mb-1 max-w-full break-words text-[1.375rem] leading-[1.65rem] font-semibold text-foreground first:mt-0">{children}</h1>;
     },
     h2({ children }) {
-      return <h2 data-markdown-anchor className="mb-3 mt-5 max-w-full break-words text-xl font-medium text-foreground">{children}</h2>;
+      return <h2 data-markdown-anchor className="m-0 mt-3 -mb-1 max-w-full break-words text-[1.125rem] leading-[1.65rem] font-semibold text-foreground">{children}</h2>;
     },
     h3({ children }) {
-      return <h3 data-markdown-anchor className="mb-2 mt-4 max-w-full break-words text-lg font-medium text-foreground">{children}</h3>;
+      return <h3 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-semibold text-foreground">{children}</h3>;
+    },
+    h4({ children }) {
+      return <h4 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-semibold text-foreground">{children}</h4>;
+    },
+    h5({ children }) {
+      return <h5 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-semibold text-foreground">{children}</h5>;
+    },
+    h6({ children }) {
+      return <h6 data-markdown-anchor className="m-0 mt-2 -mb-1 max-w-full break-words text-base leading-[1.65rem] font-semibold text-foreground">{children}</h6>;
+    },
+    hr() {
+      return <hr className="content-divider" />;
     },
     kbd({ children }) {
-      return <kbd className="message-code-font mx-0.5 inline-flex items-center rounded-[4px] border border-(--divider-subtle-color) bg-(--surface-panel-background) px-1.5 py-0.5 align-baseline text-[0.82em] font-medium text-(--text-strong) shadow-[inset_0_-1px_0_rgba(15,23,42,0.08)]">{children}</kbd>;
+      return <kbd className="content-kbd message-code-font mx-0.5 align-baseline text-[0.82em] font-medium">{children}</kbd>;
     },
     mark({ children }) {
-      return <mark className="rounded-[4px] bg-amber-200/55 px-1 text-inherit">{children}</mark>;
+      return <mark className="content-highlight text-inherit">{children}</mark>;
     },
     sub({ children }) {
       return <sub className="text-[0.75em] leading-none">{children}</sub>;
@@ -281,10 +325,14 @@ export function createMarkdownComponents(
       return <sup className="text-[0.75em] leading-none">{children}</sup>;
     },
     table({ children }) {
-      return <table className="my-4 block w-max max-w-full overflow-x-auto overflow-y-hidden rounded-[8px] border border-(--divider-subtle-color) border-collapse text-left text-sm">{children}</table>;
+      return (
+        <div className="content-table-scroll">
+          <table className="content-table text-sm">{children}</table>
+        </div>
+      );
     },
     thead({ children }) {
-      return <thead className="uppercase text-(--text-muted) font-medium" style={{ background: "color-mix(in srgb, var(--surface-panel-background) 68%, var(--divider-subtle-color))" }}>{children}</thead>;
+      return <thead className="content-table-head">{children}</thead>;
     },
     tbody({ children }) {
       return <tbody className="align-top">{children}</tbody>;
@@ -293,10 +341,10 @@ export function createMarkdownComponents(
       return <tr className="align-top">{children}</tr>;
     },
     th({ children }) {
-      return <th data-markdown-anchor className="min-w-[120px] border-b px-3 py-2 text-start font-medium whitespace-normal break-words sm:px-4 sm:py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>{children}</th>;
+      return <th data-markdown-anchor className="content-table-heading whitespace-normal">{children}</th>;
     },
     td({ children }) {
-      return <td data-markdown-anchor className="min-w-[120px] border-t border-b px-3 py-2 text-start align-top whitespace-normal break-words sm:px-4 sm:py-3" style={{ borderColor: "var(--divider-subtle-color)" }}>{children}</td>;
+      return <td data-markdown-anchor className="content-table-cell whitespace-normal">{children}</td>;
     },
   };
 }

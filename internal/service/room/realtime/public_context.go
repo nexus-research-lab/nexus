@@ -103,7 +103,7 @@ func (s *Service) publicInputBatchForSlot(
 	cursorKnown := overrideKnown || (!coldStart &&
 		(strings.TrimSpace(cursor.LastMessageID) != "" || cursor.LastTimestamp > 0))
 	if !cursorKnown && !coldStart && s.history != nil {
-		stored, ok, err := s.history.ReadRoomPublicCursor(
+		stored, ok, err := s.history.ForOwner(roundValue.OwnerUserID).ReadRoomPublicCursor(
 			slot.WorkspacePath,
 			slot.RuntimeSessionKey,
 			roundValue.ConversationID,
@@ -172,15 +172,19 @@ func (s *Service) recordRoomPublicCursor(slot *activeRoomSlot, roundValue *activ
 	if messageID == "" && timestamp == 0 {
 		return nil
 	}
-	return s.history.AppendRoomPublicCursor(slot.WorkspacePath, slot.RuntimeSessionKey, workspacestore.RoomPublicCursor{
-		RoomID:              roundValue.RoomID,
-		ConversationID:      roundValue.ConversationID,
-		AgentID:             slot.AgentID,
-		RoundID:             slot.AgentRoundID,
-		LastPublicMessageID: messageID,
-		LastPublicTimestamp: timestamp,
-		Timestamp:           time.Now().UnixMilli(),
-	})
+	return s.history.ForOwner(roundValue.OwnerUserID).AppendRoomPublicCursor(
+		slot.WorkspacePath,
+		slot.RuntimeSessionKey,
+		workspacestore.RoomPublicCursor{
+			RoomID:              roundValue.RoomID,
+			ConversationID:      roundValue.ConversationID,
+			AgentID:             slot.AgentID,
+			RoundID:             slot.AgentRoundID,
+			LastPublicMessageID: messageID,
+			LastPublicTimestamp: timestamp,
+			Timestamp:           time.Now().UnixMilli(),
+		},
+	)
 }
 
 func (s *Service) recordRoomDirectedMessageCursor(
@@ -204,7 +208,7 @@ func (s *Service) recordRoomDirectedMessageCursor(
 		LastMessageTimestamp: messageTimestamp,
 		Timestamp:            time.Now().UnixMilli(),
 	}
-	if err := s.directedMessages.AppendMessageCursor(cursor); err != nil {
+	if err := s.directedMessages.AppendMessageCursor(roundValue.OwnerUserID, cursor); err != nil {
 		return workspacestore.RoomDirectedMessageCursor{}, false, err
 	}
 	return cursor, true, nil
@@ -217,7 +221,11 @@ func (s *Service) roomDirectedMessagesForSlot(
 	if s.directedMessages == nil || roundValue == nil || slot == nil {
 		return nil, nil
 	}
-	cursor, _, err := s.directedMessages.ReadMessageCursor(roundValue.ConversationID, slot.AgentID)
+	cursor, _, err := s.directedMessages.ReadMessageCursor(
+		roundValue.OwnerUserID,
+		roundValue.ConversationID,
+		slot.AgentID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -227,13 +235,19 @@ func (s *Service) roomDirectedMessagesForSlot(
 	var messages []protocol.RoomDirectedMessageRecord
 	if slot.Trigger.TriggerType == roomDirectedMessageTriggerType {
 		messages, err = s.directedMessages.ReadContextMessagesThrough(
+			roundValue.OwnerUserID,
 			roundValue.ConversationID,
 			slot.AgentID,
 			cursor,
 			slot.replySourceMessage(),
 		)
 	} else {
-		messages, err = s.directedMessages.ReadContextMessagesAfterCursor(roundValue.ConversationID, slot.AgentID, cursor)
+		messages, err = s.directedMessages.ReadContextMessagesAfterCursor(
+			roundValue.OwnerUserID,
+			roundValue.ConversationID,
+			slot.AgentID,
+			cursor,
+		)
 	}
 	if err != nil {
 		return nil, err

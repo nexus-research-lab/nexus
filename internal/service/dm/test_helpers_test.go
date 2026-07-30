@@ -6,21 +6,41 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
-	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
+
+func TestMain(m *testing.M) {
+	os.Exit(handlertest.RunWithMinimalAppRoot(m))
+}
+
+// accelerateDMGoalUsageRetry 缩短白盒测试中的退避时钟，不改变生产默认值。
+func accelerateDMGoalUsageRetry(runner *roundRunner) {
+	if runner != nil {
+		runner.goalUsageRetryBaseDelay = time.Millisecond
+	}
+}
+
+// accelerateDMExternalTyping 缩短白盒测试中的 typing 启动等待，不改变生产默认值。
+func accelerateDMExternalTyping(runner *roundRunner) {
+	if runner != nil {
+		runner.externalTypingDelay = 5 * time.Millisecond
+	}
+}
 
 func newDMAgentService(t *testing.T, cfg config.Config) *agentsvc.Service {
 	t.Helper()
@@ -70,7 +90,9 @@ func createDMProviderWithModel(
 func newDMTestConfig(t *testing.T) config.Config {
 	t.Helper()
 	root := t.TempDir()
-	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
+	stateRoot := filepath.Join(root, ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18032,
@@ -90,8 +112,6 @@ func isolateDMRuntimeKindEnv(t *testing.T) {
 	t.Setenv("NEXUS_AGENT_RUNTIME", "")
 }
 
-var dmTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
-
 func mustFindDMSession(
 	t *testing.T,
 	service *Service,
@@ -99,7 +119,7 @@ func mustFindDMSession(
 	sessionKey string,
 ) (protocol.Session, string) {
 	t.Helper()
-	item, workspacePath, err := service.files.FindSession([]string{filepath.Join(cfg.WorkspacePath, cfg.DefaultAgentID)}, sessionKey)
+	item, workspacePath, err := service.files.FindSession([]string{dmMainWorkspacePath(cfg)}, sessionKey)
 	if err != nil {
 		t.Fatalf("读取 session 元数据失败: %v", err)
 	}
@@ -107,6 +127,10 @@ func mustFindDMSession(
 		t.Fatalf("session 元数据不存在: %s", sessionKey)
 	}
 	return *item, workspacePath
+}
+
+func dmMainWorkspacePath(cfg config.Config) string {
+	return agentsvc.ResolveWorkspacePath(cfg, authctx.SystemUserID, cfg.DefaultAgentID)
 }
 
 func readDMSessionHistory(
@@ -132,6 +156,40 @@ func writeTranscriptFixture(
 	rows []map[string]any,
 ) {
 	t.Helper()
+	writeTranscriptFixtureAt(
+		t,
+		workspacestore.TranscriptProjectsDirForWorkspace(workspacePath),
+		workspacePath,
+		sessionID,
+		rows,
+	)
+}
+
+func writeOwnerTranscriptFixture(
+	t *testing.T,
+	ownerUserID string,
+	workspacePath string,
+	sessionID string,
+	rows []map[string]any,
+) {
+	t.Helper()
+	writeTranscriptFixtureAt(
+		t,
+		filepath.Join(appfs.UserRuntimeRoot(ownerUserID), "projects"),
+		workspacePath,
+		sessionID,
+		rows,
+	)
+}
+
+func writeTranscriptFixtureAt(
+	t *testing.T,
+	projectsRoot string,
+	workspacePath string,
+	sessionID string,
+	rows []map[string]any,
+) {
+	t.Helper()
 	if strings.TrimSpace(sessionID) == "" {
 		t.Fatal("session_id 为空，无法写入 transcript fixture")
 	}
@@ -139,9 +197,8 @@ func writeTranscriptFixture(
 		t.Fatalf("创建 workspace 目录失败: %v", err)
 	}
 	projectDir := filepath.Join(
-		os.Getenv("NEXUS_CONFIG_DIR"),
-		"projects",
-		sanitizeDMTranscriptPath(canonicalizeDMTranscriptPath(workspacePath)),
+		projectsRoot,
+		workspacestore.TranscriptProjectDirectoryName(workspacePath),
 	)
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatalf("创建 transcript 目录失败: %v", err)
@@ -158,29 +215,6 @@ func writeTranscriptFixture(
 			t.Fatalf("写入 transcript fixture 失败: %v", err)
 		}
 	}
-}
-
-func canonicalizeDMTranscriptPath(path string) string {
-	if strings.TrimSpace(path) == "" {
-		return ""
-	}
-	absolutePath, err := filepath.Abs(path)
-	if err == nil {
-		path = absolutePath
-	}
-	if resolved, err := filepath.EvalSymlinks(path); err == nil {
-		path = resolved
-	}
-	return path
-}
-
-func sanitizeDMTranscriptPath(path string) string {
-	const maxLength = 200
-	sanitized := dmTranscriptSanitizePattern.ReplaceAllString(path, "-")
-	if len(sanitized) <= maxLength {
-		return sanitized
-	}
-	return sanitized[:maxLength] + "-" + dmTranscriptHash(path)
 }
 
 func dmTranscriptHash(value string) string {
@@ -219,19 +253,7 @@ func stringPointer(t *testing.T, value *string) string {
 
 func migrateDMSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
-
-	db, err := sql.Open("sqlite", databaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("设置 goose 方言失败: %v", err)
-	}
-	if err = goose.Up(db, dmMigrationDir(t)); err != nil {
-		t.Fatalf("执行 migration 失败: %v", err)
-	}
+	handlertest.MigrateSQLiteFromDir(t, databaseURL, dmMigrationDir(t))
 }
 
 func dmMigrationDir(t *testing.T) string {

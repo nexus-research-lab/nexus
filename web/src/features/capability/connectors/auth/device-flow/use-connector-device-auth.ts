@@ -18,6 +18,7 @@ export function useConnectorDeviceAuth({
   onConnected,
   onError,
   onMessage,
+  onNext,
   session,
 }: UseConnectorDeviceAuthOptions): void {
   const callbacksRef = useRef<ConnectorDeviceAuthPollerCallbacks>({
@@ -25,8 +26,15 @@ export function useConnectorDeviceAuth({
     onConnected,
     onError,
     onMessage,
+    onNext,
   });
-  callbacksRef.current = { onClose, onConnected, onError, onMessage };
+  callbacksRef.current = {
+    onClose,
+    onConnected,
+    onError,
+    onMessage,
+    onNext,
+  };
 
   useEffect(() => {
     if (!session) {
@@ -41,6 +49,7 @@ export function useConnectorDeviceAuth({
         ),
         onError: (message) => callbacksRef.current.onError(message),
         onMessage: (message) => callbacksRef.current.onMessage(message),
+        onNext: (nextSession) => callbacksRef.current.onNext(nextSession),
       },
       pollConnectorDeviceAuthApi,
     );

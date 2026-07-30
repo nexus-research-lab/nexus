@@ -50,8 +50,8 @@ export function transformMarkdownUrl(value: string): string {
   return value.startsWith("agent-mention://") ? value : defaultUrlTransform(value);
 }
 
-export const MARKDOWN_BODY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-[15px] leading-[1.5] text-(--text-strong) [&_strong]:font-medium [&_strong]:text-(--text-strong) [&_em]:italic [&_hr]:my-3 [&_hr]:border-(--divider-subtle-color)";
-export const MARKDOWN_SUMMARY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-hidden text-[15px] leading-[1.5] text-(--text-strong) [&_strong]:font-medium [&_strong]:text-(--text-strong) [&_em]:italic";
+export const MARKDOWN_BODY_CLASS_NAME = "nexus-chat-markdown nexus-markdown-body message-cjk-font w-full min-w-0 max-w-full overflow-x-hidden text-[16px] leading-[1.65rem] text-(--text-strong) [&_strong]:font-semibold [&_strong]:text-(--text-strong) [&_em]:italic";
+export const MARKDOWN_SUMMARY_CLASS_NAME = "nexus-chat-markdown message-cjk-font w-full min-w-0 max-w-full overflow-hidden text-base leading-[1.5] text-(--text-strong) [&_strong]:font-medium [&_strong]:text-(--text-strong) [&_em]:italic";
 
 export function normalizeMarkdownContent(
   content: string,

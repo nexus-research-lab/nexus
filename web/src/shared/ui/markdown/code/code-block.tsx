@@ -21,14 +21,14 @@ function CodeBlockLoadingFallback({ language, value }: CodeBlockProps) {
     <CodeShell
       language={language}
       rightSlot={(
-        <span className="message-code-font text-[11px]" style={{ color: "var(--text-muted)" }}>
+        <span className="message-code-font text-xs" style={{ color: "var(--text-muted)" }}>
           Loading
         </span>
       )}
       contentClassName="overflow-x-auto"
     >
       <pre
-        className="message-code-font min-w-full whitespace-pre px-3 py-2.5 text-[12px] leading-[1.5]"
+        className="message-code-font min-w-full whitespace-pre p-3.5 text-sm leading-relaxed"
         style={{ color: "var(--text-strong)" }}
       >
         {value}

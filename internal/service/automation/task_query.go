@@ -9,7 +9,15 @@ import (
 )
 
 func scopedOwnerUserID(ctx context.Context) (string, bool) {
-	return authctx.CurrentUserID(ctx)
+	if ownerUserID, ok := authctx.CurrentUserID(ctx); ok {
+		return ownerUserID, true
+	}
+	if state, ok := authctx.StateFromContext(ctx); ok && !state.AuthRequired {
+		return authctx.SystemUserID, true
+	}
+	// 未绑定认证状态的后台任务保留空 owner，由专用 scheduler/
+	// maintenance 调用显式承担跨 owner 责任。
+	return "", false
 }
 
 // ListTasks 列出任务。

@@ -15,7 +15,7 @@ func TestResolveImageConfigUsesPreferenceDefaultModel(t *testing.T) {
 		BaseURL:   "https://image.example.com/v1/images",
 		Model:     "image-model",
 	}}
-	service := NewService(resolver)
+	service := NewService(resolver, "")
 	service.SetPreferences(fakePreferencesService{prefs: preferencessvc.Preferences{
 		DefaultImageModelSelection: preferencessvc.ModelSelection{
 			Provider: "image-provider",
@@ -38,7 +38,7 @@ func TestResolveImageConfigUsesExplicitProviderModel(t *testing.T) {
 		BaseURL:   "https://image.example.com/v1/images",
 		Model:     "image-model",
 	}}
-	service := NewService(resolver)
+	service := NewService(resolver, "")
 
 	config, err := service.resolveImageConfig(context.Background(), "image-provider", "image-model")
 	if err != nil {

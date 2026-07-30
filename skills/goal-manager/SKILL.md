@@ -1,6 +1,6 @@
 ---
 name: goal-manager
-description: 当用户明确要求启动、设定、创建、继续、纠正、完成或阻塞当前会话的 Goal，或系统/开发者明确要求启用 Goal 长程执行时使用。先加载本 skill，再调用 mcp__nexus_goal__get_goal/create_goal/retarget_goal/update_goal；不要用 /goal 文本命令。
+description: 当用户明确要求启动、设定、创建、继续、纠正、完成或阻塞当前会话的 Goal，或系统/开发者明确要求启用 Goal 长程执行时使用。创建前必须先确认 objective 已具备足够的可执行信息；缺少会改变结果的关键信息时先提问并等待，禁止创建占位 Goal。先加载本 skill，再按需调用 mcp__nexus_goal__get_goal/create_goal/retarget_goal/update_goal；不要用 /goal 文本命令。
 ---
 
 # goal-manager
@@ -24,16 +24,18 @@ Nexus 中 Goal MCP 工具在模型可见工具列表里通常带完整 MCP 前�
 
 ## 必须遵守
 
-1. 用户明确要求“启动 Goal、设定目标、开启长期目标、持续完成 X、把 X 作为本轮目标”时，先调用 `mcp__nexus_goal__get_goal`（或裸名 `get_goal`）判断当前会话是否已有 Goal，再按需调用 `mcp__nexus_goal__create_goal`（或裸名 `create_goal`）。
-2. 只有用户或系统/开发者明确要求 Goal 时才创建；不要从普通问题、一次性任务、闲聊、自动标题或常规协作里推断 Goal。
-3. 不再使用 `/goal`、`/goal pause`、`/goal resume` 这类文本命令；产品入口是 UI 的“启动 Goal”和 `mcp__nexus_goal__*` 工具。
-4. Goal 属于当前会话。`mcp__nexus_goal__*` 工具会自动绑定当前 session，不要向用户索要 session_key，也不要自己拼 session_key。
-5. `token_budget` 只有在用户明确给出预算时才传；用户没有说预算就不要设置。
-6. 当前会话已有未结束 Goal 时，不要创建第二个 Goal。只有用户明确纠正或替换当前 active Goal 的 objective 时，调用 `mcp__nexus_goal__retarget_goal`（或裸名 `retarget_goal`）更新同一个 Goal；绝不能先完成旧 Goal 再创建新 Goal。
-7. 只有目标确实完成且没有剩余必要工作时，才调用 `mcp__nexus_goal__update_goal`（或裸名 `update_goal`）标记 `complete`。
-8. 只有同一个阻塞条件在连续 Goal 续跑中重复出现，且没有用户输入或外部状态变化就无法推进时，才调用 `mcp__nexus_goal__update_goal`（或裸名 `update_goal`）标记 `blocked`；不要因为一次不确定、需要澄清或暂时停顿就标记阻塞。
-9. 暂停、恢复、清理、预算限制和用量限制由用户或系统控制，不要用模型工具模拟这些状态。
-10. 用户要“提醒我、每天/每周、定时做某事”时，直接使用 `nexus_automation` 定时任务工具，不要把定时任务创建成 Goal。
+1. 用户明确要求 Goal 只是进入创建判断的必要条件，不是立即调用 `create_goal` 的指令。普通问题、一次性任务、闲聊、自动标题或常规协作仍然不能推断为 Goal。
+2. 创建前先检查当前上下文能否形成可直接执行的 objective。至少要明确目标交付物，以及会实质改变结果的范围、对象或受众、约束和验收标准；只检查与当前任务实际相关的项，不机械索要无关信息。
+3. 若缺少的信息会改变实际交付物或执行路径，先向用户提出最少必要的澄清问题并等待回答。信息足够前禁止调用 `create_goal`，禁止先创建“写一篇作文”“完成这个项目”之类的宽泛或占位 Goal，再靠后续追问或 `retarget_goal` 补齐。
+4. 能从当前对话、文件或可靠上下文确定的信息不要重复询问。信息足够后，把已确认的关键要求合并成完整、具体的 objective，再调用 `mcp__nexus_goal__get_goal`（或裸名 `get_goal`）判断当前会话是否已有 Goal，并按需调用 `mcp__nexus_goal__create_goal`（或裸名 `create_goal`）。
+5. 不再使用 `/goal`、`/goal pause`、`/goal resume` 这类文本命令；产品入口是 UI 的“启动 Goal”和 `mcp__nexus_goal__*` 工具。
+6. Goal 属于当前会话。`mcp__nexus_goal__*` 工具会自动绑定当前 session，不要向用户索要 session_key，也不要自己拼 session_key。
+7. `token_budget` 只有在用户明确给出预算时才传；用户没有说预算就不要设置。
+8. 当前会话已有未结束 Goal 时，不要创建第二个 Goal。只有用户明确纠正或替换当前 active Goal 的 objective 时，调用 `mcp__nexus_goal__retarget_goal`（或裸名 `retarget_goal`）更新同一个 Goal；绝不能先完成旧 Goal 再创建新 Goal。
+9. 只有目标确实完成且没有剩余必要工作时，才调用 `mcp__nexus_goal__update_goal`（或裸名 `update_goal`）标记 `complete`。
+10. 只有同一个阻塞条件在连续 Goal 续跑中重复出现，且没有用户输入或外部状态变化就无法推进时，才调用 `mcp__nexus_goal__update_goal`（或裸名 `update_goal`）标记 `blocked`；不要因为一次不确定、需要澄清或暂时停顿就标记阻塞。
+11. 暂停、恢复、清理、预算限制和用量限制由用户或系统控制，不要用模型工具模拟这些状态。
+12. 用户要“提醒我、每天/每周、定时做某事”时，直接使用 `nexus_automation` 定时任务工具，不要把定时任务创建成 Goal。
 
 ## Room Goal 负责人
 
@@ -72,9 +74,16 @@ Nexus 中 Goal MCP 工具在模型可见工具列表里通常带完整 MCP 前�
 
 流程：
 
-1. 调用 `mcp__nexus_goal__get_goal`（或裸名 `get_goal`）。
-2. 如果 `goal` 为 `null`，调用 `mcp__nexus_goal__create_goal`（或裸名 `create_goal`）。
-3. 如果已有 Goal，说明当前目标，不创建新 Goal。
+1. 先从现有上下文判断 objective 是否已经具体到可以直接执行，不需要对会改变结果的关键信息作实质猜测。
+2. 如果仍缺关键信息，向用户提问并等待回答，本轮不要调用 `create_goal`。
+3. 信息足够后，把已确认的交付物、范围、对象或受众、关键约束与验收标准按实际需要合并为完整 objective。
+4. 调用 `mcp__nexus_goal__get_goal`（或裸名 `get_goal`）。
+5. 如果 `goal` 为 `null`，调用 `mcp__nexus_goal__create_goal`（或裸名 `create_goal`）。
+6. 如果已有 Goal，说明当前目标，不创建新 Goal。
+
+反例：“启动 Goal，写一篇 1000 字作文。”主题、用途或文体尚未明确，会直接改变交付物；应先提问，不能先创建 Goal。
+
+可创建示例：“启动 Goal，为高二语文作业写一篇约 1000 字的议论文，主题是人工智能是否会削弱独立思考，立场明确，包含两个论据，完成后检查字数和结构。”这已经足以形成可直接执行的 objective。
 
 示例：
 
@@ -129,7 +138,14 @@ Nexus 中 Goal MCP 工具在模型可见工具列表里通常带完整 MCP 前�
 }
 ```
 
-工具成功后只发送一条简短最终回复，然后停止并等待用户输入；不要继续调用工具或开启新工作。最终回复应明确说当前 Goal 已完成、可以清理，不要描述成暂停；简短总结完成了什么，并包含工具结果 `completionBudgetReport` 给出的最终用量与耗时行。
+工具成功后的下一条最终回复是用户真正的交付面，不是 Goal 状态回执。该回复必须脱离过程消息也能独立满足 objective：
+
+- 作文、报告、方案、文案等文本本身就是交付物时，直接完整展示正文，不能只说“已经交付”或概括主题、结构和字数。
+- 成果位于文件或其他产物时，给出准确链接或路径、核心结果和必要验证；实现、研究或外部操作类任务应说明真正完成了什么以及如何确认。
+- 以成果本身为重点，不要把“Goal 已完成”放在开头或用简短总结替代结果。完成状态最多在结果之后作为次要说明，也可以省略，因为界面已经展示状态。
+- 不要让用户回看 thinking、工具过程或更早的零散回复来拼凑最终结果。
+
+完整交付后停止并等待用户输入，不要继续调用工具或开启新工作。不要默认复述 `completionUsageCheckpointReport` 或兼容字段 `completionBudgetReport`，也不要主动同时展示 actual/budget token、耗时或最终回复延迟结算说明；详细用量留给结构化 API 与审计界面。
 
 ### 阻塞 Goal
 

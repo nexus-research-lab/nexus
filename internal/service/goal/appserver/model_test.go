@@ -58,7 +58,7 @@ func TestThreadGoalFromGoalUsesCodexProjection(t *testing.T) {
 		Objective:       "Ship parity",
 		Status:          protocol.GoalStatusBudgetLimited,
 		TokenBudget:     &budget,
-		Usage:           protocol.GoalUsage{InputTokens: 20, OutputTokens: 5, TotalTokens: 25},
+		Usage:           protocol.GoalUsage{InputTokens: 20, OutputTokens: 5, TotalTokens: 25, ActualTotalTokens: 125},
 		TimeUsedSeconds: 7,
 	}
 
@@ -68,6 +68,9 @@ func TestThreadGoalFromGoalUsesCodexProjection(t *testing.T) {
 		projected.TokenBudget == nil ||
 		*projected.TokenBudget != budget ||
 		projected.TokensUsed != 25 ||
+		projected.BudgetTokens != 25 ||
+		projected.ActualTokens != 125 ||
+		projected.ActualTokensEstimated ||
 		projected.TimeUsedSeconds != 7 {
 		t.Fatalf("ThreadGoalFromGoal() = %#v", projected)
 	}

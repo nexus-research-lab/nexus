@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"errors"
-	"os"
 	"slices"
 	"strings"
 
@@ -62,15 +61,12 @@ func (s *Service) listAgents(ctx context.Context, includeSkillsCount bool) ([]pr
 	if err != nil {
 		return nil, err
 	}
-	if err = ensureAgentRuntimeEmotionStates(agents); err != nil {
-		return nil, err
-	}
-	if err = ensureAgentRuntimeSettings(agents); err != nil {
+	if err = s.ensureAgentRuntimeStates(agents); err != nil {
 		return nil, err
 	}
 	normalizeAgentAvatars(agents)
 	if includeSkillsCount {
-		err = enrichAgentsWithSkillsCount(agents)
+		err = s.enrichAgentsWithSkillsCount(agents)
 	}
 	if err != nil {
 		return nil, err
@@ -92,13 +88,10 @@ func (s *Service) GetAgent(ctx context.Context, agentID string) (*protocol.Agent
 		return nil, ErrAgentNotFound
 	}
 	normalizeAgentAvatar(agent)
-	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
+	if err = s.ensureAgentRuntimeState(*agent); err != nil {
 		return nil, err
 	}
-	if err = EnsureRuntimeSettingsProjection(*agent); err != nil {
-		return nil, err
-	}
-	if err = enrichAgentWithSkillsCount(agent); err != nil {
+	if err = s.enrichAgentWithSkillsCount(agent); err != nil {
 		return nil, err
 	}
 	return agent, nil
@@ -114,10 +107,7 @@ func (s *Service) GetAgentsByIDs(ctx context.Context, agentIDs []string) ([]prot
 	if err != nil {
 		return nil, err
 	}
-	if err = ensureAgentRuntimeEmotionStates(agents); err != nil {
-		return nil, err
-	}
-	if err = ensureAgentRuntimeSettings(agents); err != nil {
+	if err = s.ensureAgentRuntimeStates(agents); err != nil {
 		return nil, err
 	}
 	normalizeAgentAvatars(agents)
@@ -138,30 +128,18 @@ func (s *Service) GetDefaultAgent(ctx context.Context) (*protocol.Agent, error) 
 		return nil, ErrAgentNotFound
 	}
 	normalizeAgentAvatar(agent)
-	if err = EnsureRuntimeEmotionState(agent.WorkspacePath); err != nil {
+	if err = s.ensureAgentRuntimeState(*agent); err != nil {
 		return nil, err
 	}
-	if err = EnsureRuntimeSettingsProjection(*agent); err != nil {
-		return nil, err
-	}
-	if err = enrichAgentWithSkillsCount(agent); err != nil {
+	if err = s.enrichAgentWithSkillsCount(agent); err != nil {
 		return nil, err
 	}
 	return agent, nil
 }
 
-func ensureAgentRuntimeEmotionStates(agents []protocol.Agent) error {
+func (s *Service) ensureAgentRuntimeStates(agents []protocol.Agent) error {
 	for _, agentValue := range agents {
-		if err := EnsureRuntimeEmotionState(agentValue.WorkspacePath); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func ensureAgentRuntimeSettings(agents []protocol.Agent) error {
-	for _, agentValue := range agents {
-		if err := EnsureRuntimeSettingsProjection(agentValue); err != nil {
+		if err := s.ensureAgentRuntimeState(agentValue); err != nil {
 			return err
 		}
 	}
@@ -222,8 +200,25 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 	if err != nil {
 		return nil, err
 	}
-	if err = EnsureRuntimeEmotionState(workspacePath); err != nil {
-		_ = os.RemoveAll(workspacePath)
+	workspaceAgent := protocol.Agent{
+		AgentID:       agentID,
+		OwnerUserID:   ownerUserID,
+		WorkspacePath: workspacePath,
+	}
+	root, err := s.openAgentWorkspace(workspaceAgent, false)
+	if err != nil {
+		_ = s.removeAgentWorkspace(workspaceAgent)
+		return nil, err
+	}
+	if err = ensureRuntimeEmotionStateAt(root); err == nil {
+		err = writeProfileTemplateAt(root, request.ProfileTemplate)
+	}
+	closeErr := root.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		_ = s.removeAgentWorkspace(workspaceAgent)
 		return nil, err
 	}
 	record := BuildCreateRecord(
@@ -238,10 +233,10 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 	)
 	created, err := s.repository.CreateAgent(ctx, record)
 	if err != nil {
-		_ = os.RemoveAll(workspacePath)
+		_ = s.removeAgentWorkspace(workspaceAgent)
 		return nil, err
 	}
-	if err = EnsureRuntimeSettingsProjection(*created); err != nil {
+	if err = s.ensureAgentRuntimeState(*created); err != nil {
 		return nil, err
 	}
 	normalizeAgentAvatar(created)
@@ -260,6 +255,68 @@ func (s *Service) UpdateAgent(ctx context.Context, agentID string, request proto
 		request: request,
 	}
 	return update.run()
+}
+
+// UpdateAgentSkillSelection 原子更新 Agent 的技能启用与停用集合。
+//
+// 技能开关不再复用完整 Agent 更新快照，避免编辑器中的旧 options 覆盖刚完成
+// 的技能操作。
+func (s *Service) UpdateAgentSkillSelection(
+	ctx context.Context,
+	agentID string,
+	skillIDs []string,
+	disabledSkillIDs []string,
+) (*protocol.Agent, error) {
+	if err := s.EnsureReady(ctx); err != nil {
+		return nil, err
+	}
+	scopedOwnerID, _ := scopedOwnerUserID(ctx)
+	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID), scopedOwnerID)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil || existing.Status != "active" {
+		return nil, ErrAgentNotFound
+	}
+	updated, err := s.repository.UpdateAgentSkillSelection(
+		ctx,
+		existing.AgentID,
+		existing.OwnerUserID,
+		mustJSONString(normalizeStringList(skillIDs)),
+		mustJSONString(normalizeStringList(disabledSkillIDs)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if updated == nil {
+		return nil, ErrAgentNotFound
+	}
+	if err = s.ensureAgentRuntimeState(*updated); err != nil {
+		return nil, err
+	}
+	normalizeAgentAvatar(updated)
+	if err = s.enrichAgentWithSkillsCount(updated); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+func normalizeStringList(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			continue
+		}
+		key := strings.ToLower(normalized)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
 }
 
 type agentUpdate struct {
@@ -316,23 +373,24 @@ func (u *agentUpdate) record() (agentrepo.UpdateRecord, error) {
 	}
 	options := u.updatedOptions()
 	return agentrepo.UpdateRecord{
-		AgentID:             u.existing.AgentID,
-		OwnerUserID:         u.ownerUserID,
-		Name:                name,
-		WorkspacePath:       u.existing.WorkspacePath,
-		Avatar:              updatedAgentText(u.existing.Avatar, u.request.Avatar),
-		Description:         updatedAgentText(u.existing.Description, u.request.Description),
-		VibeTagsJSON:        mustJSONString(u.updatedVibeTags()),
-		Provider:            options.Provider,
-		Model:               options.Model,
-		PermissionMode:      options.PermissionMode,
-		AllowedToolsJSON:    mustJSONString(options.AllowedTools),
-		DisallowedToolsJSON: mustJSONString(options.DisallowedTools),
-		MCPServersJSON:      mustJSONString(options.MCPServers),
-		SkillIDsJSON:        mustJSONString(options.SkillIDs),
-		MaxTurns:            options.MaxTurns,
-		MaxThinkingTokens:   options.MaxThinkingTokens,
-		SettingSourcesJSON:  mustJSONString(options.SettingSources),
+		AgentID:              u.existing.AgentID,
+		OwnerUserID:          u.ownerUserID,
+		Name:                 name,
+		WorkspacePath:        u.existing.WorkspacePath,
+		Avatar:               updatedAgentText(u.existing.Avatar, u.request.Avatar),
+		Description:          updatedAgentText(u.existing.Description, u.request.Description),
+		VibeTagsJSON:         mustJSONString(u.updatedVibeTags()),
+		Provider:             options.Provider,
+		Model:                options.Model,
+		PermissionMode:       options.PermissionMode,
+		AllowedToolsJSON:     mustJSONString(options.AllowedTools),
+		DisallowedToolsJSON:  mustJSONString(options.DisallowedTools),
+		MCPServersJSON:       mustJSONString(options.MCPServers),
+		SkillIDsJSON:         mustJSONString(options.SkillIDs),
+		DisabledSkillIDsJSON: mustJSONString(options.DisabledSkillIDs),
+		MaxTurns:             options.MaxTurns,
+		MaxThinkingTokens:    options.MaxThinkingTokens,
+		SettingSourcesJSON:   mustJSONString(options.SettingSources),
 	}, nil
 }
 
@@ -377,13 +435,10 @@ func updatedAgentText(current string, requested *string) string {
 
 func (u *agentUpdate) finalize(updated *protocol.Agent) error {
 	normalizeAgentAvatar(updated)
-	if err := os.MkdirAll(updated.WorkspacePath, 0o755); err != nil {
+	if err := u.service.ensureAgentRuntimeState(*updated); err != nil {
 		return err
 	}
-	if err := EnsureRuntimeSettingsProjection(*updated); err != nil {
-		return err
-	}
-	return enrichAgentWithSkillsCount(updated)
+	return u.service.enrichAgentWithSkillsCount(updated)
 }
 
 // DeleteAgent 删除 Agent，并清理 workspace 目录与数据库记录。
@@ -409,11 +464,11 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 		}
 	}
 	if s.history != nil {
-		if _, err = s.history.DeleteTranscriptProject(existing.WorkspacePath); err != nil {
+		if _, err = s.history.ForOwner(existing.OwnerUserID).DeleteTranscriptProject(existing.WorkspacePath); err != nil {
 			return err
 		}
 	}
-	if err = os.RemoveAll(existing.WorkspacePath); err != nil {
+	if err = s.removeAgentWorkspace(*existing); err != nil {
 		return err
 	}
 	deleteOwnerUserID := existing.OwnerUserID

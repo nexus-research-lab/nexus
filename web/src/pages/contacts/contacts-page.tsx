@@ -34,6 +34,8 @@ export function ContactsPage() {
     agents: controller.contactAgents,
     loading: controller.loading,
     confirmDeleteAgent: controller.confirmDeleteAgent,
+    closeAgentEditor: controller.editor.close,
+    openCreateAgent: controller.editor.openCreate,
   });
 
   const presentation = getContactsPagePresentation({
@@ -43,11 +45,10 @@ export function ContactsPage() {
     selectedAgent: navigation.selectedAgent,
   });
   const actions: ContactsPageActions = {
-    onBack: navigation.backToDirectory,
     onCreateAgent: controller.editor.openCreate,
     onCreateTeam: navigation.createTeam,
     onDeleteAgent: controller.requestDeleteAgent,
-    onEditAgent: controller.editor.openEdit,
+    onOpenAgent: navigation.openAgent,
     onOpenDirectRoom: navigation.openDirectRoom,
     onSaveAgentOptions: controller.saveAgentOptions,
     onValidateAgentName: controller.validateAgentName,
@@ -66,7 +67,7 @@ export function ContactsPage() {
       />
 
       <AgentOptionsDialog
-        onClose={controller.editor.close}
+        onClose={navigation.closeEditor}
         onDelete={controller.requestDeleteAgent}
         onSave={controller.editor.save}
         onValidateName={controller.editor.validateName}
@@ -109,7 +110,6 @@ function ContactsPageContent({
         <WorkspacePageFrame contentPaddingClassName="p-0">
           <ContactsAgentDetail
             agent={state.agent}
-            onBack={actions.onBack}
             onCreateTeam={actions.onCreateTeam}
             onDeleteAgent={actions.onDeleteAgent}
             onOpenDirectRoom={actions.onOpenDirectRoom}
@@ -125,7 +125,7 @@ function ContactsPageContent({
             agents={agents}
             onCreateAgent={actions.onCreateAgent}
             onCreateTeam={actions.onCreateTeam}
-            onEditAgent={actions.onEditAgent}
+            onOpenAgent={actions.onOpenAgent}
             onOpenDirectRoom={actions.onOpenDirectRoom}
           />
         </WorkspacePageFrame>

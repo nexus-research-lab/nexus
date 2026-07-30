@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -181,6 +182,89 @@ func TestExecuteRoundPersistsDurableMessagesAndEvents(t *testing.T) {
 	}
 	if len(emitted) != 2 {
 		t.Fatalf("事件扇出次数不正确: %+v", emitted)
+	}
+}
+
+func TestExecuteRoundPreservesTerminalUsageWhenLocalProcessingFails(t *testing.T) {
+	localErr := errors.New("local terminal processing failed")
+	for _, stage := range []string{"map", "sync", "persist", "emit"} {
+		t.Run(stage, func(t *testing.T) {
+			client := &fakeRoundExecutionClient{
+				sessionID: "sdk-session-terminal-failure",
+				messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+			}
+			client.messages <- sdkprotocol.ReceivedMessage{
+				Type:      sdkprotocol.MessageTypeResult,
+				SessionID: client.sessionID,
+				UUID:      "result-terminal-failure",
+				Result: &sdkprotocol.ResultMessage{
+					Subtype: "success",
+					Usage: map[string]any{
+						"input_tokens":  int64(10),
+						"output_tokens": int64(5),
+						"total_tokens":  int64(15),
+					},
+				},
+			}
+
+			mapper := &fakeRoundExecutionMapper{
+				results: []RoundMapResult{{
+					DurableMessages: []protocol.Message{{
+						"message_id": "result-terminal-failure",
+						"role":       "result",
+						"subtype":    "success",
+					}},
+					Events: []protocol.EventMessage{
+						protocol.NewEvent(protocol.EventTypeRoundStatus, map[string]any{"status": "finished"}),
+					},
+					TerminalStatus: "finished",
+					ResultSubtype:  "success",
+				}},
+			}
+			if stage == "map" {
+				mapper.err = localErr
+			}
+
+			request := RoundExecutionRequest{
+				Query:  "continue",
+				Client: client,
+				Mapper: mapper,
+				SyncSessionID: func(string) error {
+					if stage == "sync" {
+						return localErr
+					}
+					return nil
+				},
+				HandleDurableMessage: func(protocol.Message) error {
+					if stage == "persist" {
+						return localErr
+					}
+					return nil
+				},
+				EmitEvent: func(protocol.EventMessage) error {
+					if stage == "emit" {
+						return localErr
+					}
+					return nil
+				},
+			}
+
+			result, err := ExecuteRound(context.Background(), request)
+			if !errors.Is(err, localErr) {
+				t.Fatalf("ExecuteRound() error = %v, want %v", err, localErr)
+			}
+			if result.Usage.InputTokens != 10 ||
+				result.Usage.OutputTokens != 5 ||
+				result.Usage.TotalTokens != 15 {
+				t.Fatalf("result usage = %#v, want preserved provider total 15", result.Usage)
+			}
+			if result.Usage.Raw == nil {
+				t.Fatalf("result usage raw = nil, explicit provider total presence was lost")
+			}
+			if result.TerminalStatus != "" || result.CompletedByAssistant {
+				t.Fatalf("local failure result leaked successful terminal state: %+v", result)
+			}
+		})
 	}
 }
 

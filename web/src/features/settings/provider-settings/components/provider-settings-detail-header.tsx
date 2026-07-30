@@ -40,7 +40,7 @@ function ProviderStatusBadge({
   return (
     <span
       className={cn(
-        "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+        "rounded-full px-2 py-0.5 text-xs font-semibold",
         enabled
           ? "bg-[rgba(44,156,89,0.14)] text-[rgb(33,133,74)]"
           : "bg-(--surface-muted-background) text-(--text-muted)",
@@ -112,13 +112,13 @@ export function ProviderSettingsDetailHeader({
     <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2.5">
-          <h2 className="truncate text-[18px] font-semibold tracking-tight text-(--text-strong)">
+          <h2 className="truncate text-md font-semibold tracking-tight text-(--text-strong)">
             {detailTitle}
           </h2>
           <ProviderStatusBadge enabled={enabled} visible={hasSelectedRecord} />
         </div>
         {presetDescription ? (
-          <p className="mt-1 max-w-2xl truncate text-[12px] leading-5 text-(--text-muted)">
+          <p className="mt-1 max-w-2xl truncate text-compact leading-5 text-(--text-muted)">
             {presetDescription}
           </p>
         ) : null}

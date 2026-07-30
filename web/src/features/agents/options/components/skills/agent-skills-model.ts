@@ -2,16 +2,16 @@ import type { AgentSkillEntry } from "@/types/capability/skill";
 
 type AvailableSkillsEmptyState =
   | "catalog_empty"
-  | "no_addable"
+  | "no_available"
   | "no_search_match"
   | null;
 
 export interface AgentSkillsProjection {
-  addable: AgentSkillEntry[];
+  available: AgentSkillEntry[];
   availableEmptyState: AvailableSkillsEmptyState;
-  installed: AgentSkillEntry[];
+  enabled: AgentSkillEntry[];
   totalCount: number;
-  visibleAddable: AgentSkillEntry[];
+  visibleAvailable: AgentSkillEntry[];
 }
 
 const SEARCH_FIELDS: Array<keyof Pick<
@@ -28,7 +28,7 @@ function matchesSearch(skill: AgentSkillEntry, query: string): boolean {
 
 function resolveAvailableEmptyState(
   totalCount: number,
-  addableCount: number,
+  availableCount: number,
   visibleCount: number,
 ): AvailableSkillsEmptyState {
   if (visibleCount > 0) {
@@ -36,7 +36,7 @@ function resolveAvailableEmptyState(
   }
   const candidates = [
     { matches: totalCount === 0, state: "catalog_empty" as const },
-    { matches: addableCount === 0, state: "no_addable" as const },
+    { matches: availableCount === 0, state: "no_available" as const },
     { matches: true, state: "no_search_match" as const },
   ];
   return candidates.find((candidate) => candidate.matches)?.state ?? null;
@@ -46,32 +46,32 @@ export function projectAgentSkills(
   skills: AgentSkillEntry[],
   searchQuery: string,
 ): AgentSkillsProjection {
-  const installed: AgentSkillEntry[] = [];
-  const addable: AgentSkillEntry[] = [];
+  const enabled: AgentSkillEntry[] = [];
+  const available: AgentSkillEntry[] = [];
 
   for (const skill of skills) {
-    if (skill.installed) {
-      installed.push(skill);
+    if (skill.enabled_for_agent) {
+      enabled.push(skill);
     } else if (!skill.locked) {
-      addable.push(skill);
+      available.push(skill);
     }
   }
 
   const query = searchQuery.trim().toLowerCase();
-  const visibleAddable = query
-    ? addable.filter((skill) => matchesSearch(skill, query))
-    : addable;
+  const visibleAvailable = query
+    ? available.filter((skill) => matchesSearch(skill, query))
+    : available;
   const availableEmptyState = resolveAvailableEmptyState(
     skills.length,
-    addable.length,
-    visibleAddable.length,
+    available.length,
+    visibleAvailable.length,
   );
 
   return {
-    addable,
+    available,
     availableEmptyState,
-    installed,
+    enabled,
     totalCount: skills.length,
-    visibleAddable,
+    visibleAvailable,
   };
 }

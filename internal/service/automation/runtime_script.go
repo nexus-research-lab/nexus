@@ -13,7 +13,10 @@ import (
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 const maxScriptOutputBytes = 128 * 1024
@@ -169,10 +172,13 @@ func (s *Service) observeScriptJob(job automationdomain.ScheduledTask, runID str
 }
 
 func (s *Service) runScriptJob(ctx context.Context, job automationdomain.ScheduledTask, runID string) automationexec.ExecutionObservation {
-	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)
+	workspacePath, workspaceRoot, err := s.openAutomationScriptWorkspace(ctx, job)
 	if err != nil {
 		message := err.Error()
 		return automationexec.ExecutionObservation{Status: automationdomain.RunStatusFailed, ErrorMessage: &message}
+	}
+	if workspaceRoot != nil {
+		defer workspaceRoot.Close()
 	}
 	if strings.TrimSpace(workspacePath) == "" {
 		message := "automation script workspace is not configured"
@@ -184,25 +190,50 @@ func (s *Service) runScriptJob(ctx context.Context, job automationdomain.Schedul
 
 	stdout := &boundedOutputBuffer{limit: maxScriptOutputBytes}
 	stderr := &boundedOutputBuffer{limit: maxScriptOutputBytes}
-	command := scriptCommand(waitCtx, job.Instruction)
-	command.Dir = workspacePath
-	command.Env = append(os.Environ(),
-		"NEXUS_AUTOMATION_JOB_ID="+strings.TrimSpace(job.JobID),
-		"NEXUS_AUTOMATION_RUN_ID="+strings.TrimSpace(runID),
-		"NEXUS_AUTOMATION_AGENT_ID="+strings.TrimSpace(job.AgentID),
-	)
-	command.Stdout = stdout
-	command.Stderr = stderr
+	var runErr error
+	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") {
+		command := scriptCommand(waitCtx, job.Instruction)
+		command.Dir = workspacePath
+		command.Env = append(os.Environ(),
+			"NEXUS_AUTOMATION_JOB_ID="+strings.TrimSpace(job.JobID),
+			"NEXUS_AUTOMATION_RUN_ID="+strings.TrimSpace(runID),
+			"NEXUS_AUTOMATION_AGENT_ID="+strings.TrimSpace(job.AgentID),
+		)
+		command.Stdout = stdout
+		command.Stderr = stderr
+		runErr = command.Run()
+	} else {
+		runErr = workspaceisolation.RunScript(
+			waitCtx,
+			workspaceisolation.Config{
+				Mode:         workspaceisolation.Mode(strings.ToLower(strings.TrimSpace(s.config.RuntimeIsolationMode))),
+				LauncherPath: s.config.RuntimeLauncherPath,
+			},
+			workspaceisolation.ScriptInput{
+				OwnerUserID: strings.TrimSpace(job.OwnerUserID),
+				CWD:         workspacePath,
+				Script:      job.Instruction,
+				Environment: map[string]string{
+					"NEXUS_AUTOMATION_JOB_ID":    strings.TrimSpace(job.JobID),
+					"NEXUS_AUTOMATION_RUN_ID":    strings.TrimSpace(runID),
+					"NEXUS_AUTOMATION_AGENT_ID":  strings.TrimSpace(job.AgentID),
+					"NEXUS_AUTOMATION_EXECUTION": "script",
+				},
+			},
+			stdout,
+			stderr,
+		)
+	}
 
 	status := automationdomain.RunStatusSucceeded
 	var errorMessage *string
-	if err = command.Run(); err != nil {
+	if runErr != nil {
 		status = automationdomain.RunStatusFailed
 		if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
 			status = automationdomain.RunStatusCancelled
 			errorMessage = stringPointer("script timed out")
 		} else {
-			errorMessage = stringPointer(err.Error())
+			errorMessage = stringPointer(runErr.Error())
 		}
 	}
 	resultText := formatScriptOutput(stdout.String(), stderr.String())
@@ -215,6 +246,39 @@ func (s *Service) runScriptJob(ctx context.Context, job automationdomain.Schedul
 		ErrorMessage: errorMessage,
 		ResultText:   resultText,
 	}
+}
+
+func (s *Service) openAutomationScriptWorkspace(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+) (string, *confinedfs.Root, error) {
+	ownerUserID := strings.TrimSpace(job.OwnerUserID)
+	if ownerUserID == "" {
+		return "", nil, errors.New("automation script 缺少 owner_user_id")
+	}
+	workspacePath := strings.TrimSpace(s.config.WorkspacePath)
+	if s.agents != nil && strings.TrimSpace(job.AgentID) != "" {
+		agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(job.AgentID))
+		if err != nil {
+			return "", nil, err
+		}
+		if strings.TrimSpace(agentValue.OwnerUserID) != ownerUserID {
+			return "", nil, errors.New("automation script agent owner does not match job owner")
+		}
+		workspacePath = strings.TrimSpace(agentValue.WorkspacePath)
+	}
+	if workspacePath == "" {
+		return "", nil, nil
+	}
+	root, err := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+		ownerUserID,
+		workspacePath,
+		true,
+	)
+	if err != nil {
+		return "", nil, err
+	}
+	return workspacePath, root, nil
 }
 
 func scriptCommand(ctx context.Context, script string) *exec.Cmd {

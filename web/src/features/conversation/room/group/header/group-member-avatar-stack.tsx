@@ -19,7 +19,7 @@ export function GroupMemberAvatarStack({
 
   return (
     <button
-      className="flex h-7 items-center gap-1.5 rounded-full border border-(--divider-subtle-color) bg-(--surface-panel-background) px-2 text-[10.5px] font-medium text-(--text-default) transition-[border-color,background,color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:text-(--text-strong)"
+      className="workspace-surface-header-control-segment workspace-surface-header-member-control flex h-9 items-center gap-1.5 px-2.5 text-xs font-medium text-(--text-default) transition-[background,color,box-shadow] duration-(--motion-duration-fast) hover:text-(--text-strong)"
       data-tour-anchor={tourAnchor}
       onClick={onClick}
       type="button"
@@ -28,7 +28,7 @@ export function GroupMemberAvatarStack({
         {visibleMembers.map((member) => (
           <UiAgentAvatar
             avatar={member.avatar}
-            className="ring-1 ring-(--background)"
+            className="ring-1 ring-[color:color-mix(in_srgb,var(--background)_76%,var(--surface-panel-background)_24%)]"
             key={member.agent_id}
             name={member.name}
             size="xs"
@@ -36,7 +36,7 @@ export function GroupMemberAvatarStack({
           />
         ))}
         {overflowCount > 0 ? (
-          <span className="flex h-5.5 w-5.5 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-bold text-(--text-strong) shadow-(--surface-avatar-shadow)">
+          <span className="flex h-5.5 w-5.5 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-[8px] font-semibold text-(--text-strong) shadow-(--surface-avatar-shadow)">
             +{overflowCount}
           </span>
         ) : null}

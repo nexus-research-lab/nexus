@@ -31,7 +31,8 @@ func (s *Service) syncSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot
 
 func (s *Service) canPersistSlotSDKSessionID(ctx context.Context, slot *activeRoomSlot, sessionID string) bool {
 	workspacePath := slotWorkspacePath(slot)
-	decision := sessionresumesvc.NewPolicy(s.history).CanPersist(workspacePath, sessionID)
+	history := s.history.ForOwner(slot.OwnerUserID)
+	decision := sessionresumesvc.NewPolicy(history).CanPersist(workspacePath, sessionID)
 	if decision.Allowed {
 		return true
 	}
@@ -125,9 +126,9 @@ func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
 	if result.CompletedByAssistant {
 		e.service.recordTerminalAssistantUsage(e.round, e.slot, lastAssistant)
 	}
-	e.service.recordGoalUsageForSlot(e.ctx, e.slot, result, lastAssistant)
 	e.service.recordGoalUsageLimitForSlot(e.ctx, e.slot, result)
 	e.service.recordGoalContinuationProgressForSlot(e.ctx, e.slot, e.round, result, lastAssistant)
+	e.service.finalizeGoalUsageForSlot(e.ctx, e.slot, result, lastAssistant)
 	terminalStatus := roomSlotTerminalStatus(result)
 	if terminalStatus == "error" && strings.TrimSpace(result.ErrorMessage) != "" {
 		e.slot.setErrorMessage(result.ErrorMessage)
@@ -177,7 +178,14 @@ func (e *slotExecution) commitCompletionCursors() error {
 	return nil
 }
 
-func (s *Service) handleSlotFailure(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper, err error) {
+func (s *Service) handleSlotFailure(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	mapper *roomdomain.SlotMessageMapper,
+	result exec.RoundExecutionResult,
+	err error,
+) {
 	fields := []any{
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
@@ -189,10 +197,14 @@ func (s *Service) handleSlotFailure(ctx context.Context, roundValue *activeRoomR
 	}
 	fields = append(fields, roomSlotFailureDiagnostics(err, slot, mapper)...)
 	s.loggerFor(ctx).Error("Room slot 执行失败", fields...)
+	lastAssistant := slot.lastGoalAssistantMessage()
+	// durable assistant 已进入 slot 内存、但共享/私有历史持久化可能失败。
+	// failure 收口仍须用该快照结算并关闭 parent usage，不能只记录错误状态。
+	s.finalizeGoalUsageForSlot(ctx, slot, result, lastAssistant)
 	s.recordGoalContinuationProgressForSlot(ctx, slot, roundValue, exec.RoundExecutionResult{
 		TerminalStatus: "error",
 		ErrorMessage:   err.Error(),
-	}, slot.lastGoalAssistantMessage())
+	}, lastAssistant)
 	s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "error")
 	s.markPublicHandoffTerminal(ctx, roundValue, slot, "error")
 	slot.setErrorMessage(err.Error())
@@ -219,7 +231,7 @@ func (s *Service) handleSlotFailure(ctx context.Context, roundValue *activeRoomR
 	}
 	_ = s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey))
 	if roomSlotPublishesPublicOutput(slot) {
-		_ = s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage)
+		_ = s.persistSharedInlineMessage(roundValue.OwnerUserID, roundValue.ConversationID, resultMessage)
 		projectedMessage := message.ProjectResultMessage(nil, resultMessage)
 		if mapper != nil {
 			projectedMessage = mapper.ProjectResultMessage(resultMessage)
@@ -293,7 +305,13 @@ func roomSlotFailureDiagnostics(err error, slot *activeRoomSlot, mapper *roomdom
 	return fields
 }
 
-func (s *Service) handleSlotCancelled(ctx context.Context, roundValue *activeRoomRound, slot *activeRoomSlot, mapper *roomdomain.SlotMessageMapper) {
+func (s *Service) handleSlotCancelled(
+	ctx context.Context,
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+	mapper *roomdomain.SlotMessageMapper,
+	result exec.RoundExecutionResult,
+) {
 	if !s.markSlotCancelled(slot) {
 		return
 	}
@@ -307,7 +325,7 @@ func (s *Service) handleSlotCancelled(ctx context.Context, roundValue *activeRoo
 		"reason", roomSlotInterruptReason(slot),
 	)
 	if mapper != nil {
-		s.recordGoalUsageForSlot(ctx, slot, exec.RoundExecutionResult{}, slot.lastGoalAssistantMessage())
+		s.finalizeGoalUsageForSlot(ctx, slot, result, slot.lastGoalAssistantMessage())
 	}
 	s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "interrupted")
 	s.markPublicHandoffTerminal(ctx, roundValue, slot, "interrupted")
@@ -366,7 +384,11 @@ func (s *Service) emitInterruptedSlotResult(roundValue *activeRoomRound, slot *a
 		}
 	}
 	if roomSlotPublishesPublicOutput(slot) {
-		if err := s.persistSharedInlineMessage(roundValue.ConversationID, resultMessage); err != nil {
+		if err := s.persistSharedInlineMessage(
+			roundValue.OwnerUserID,
+			roundValue.ConversationID,
+			resultMessage,
+		); err != nil {
 			s.loggerFor(context.Background()).Error("Room interrupted 共享结果持久化失败",
 				"s", roundValue.SessionKey,
 				"r", roundValue.RoomID,

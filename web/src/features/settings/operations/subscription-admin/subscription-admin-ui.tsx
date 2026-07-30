@@ -15,7 +15,7 @@ export const SECONDARY_BUTTON_CLASS_NAME = getUiButtonClassName(
 
 export function SubscriptionLoadingState({ label }: { label: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 px-4 py-10 text-[12px] text-(--text-soft)">
+    <div className="flex items-center justify-center gap-2 px-4 py-10 text-compact text-(--text-soft)">
       <Loader2 className="h-4 w-4 animate-spin" />
       {label}
     </div>
@@ -24,7 +24,7 @@ export function SubscriptionLoadingState({ label }: { label: string }) {
 
 export function SubscriptionEmptyState({ label }: { label: string }) {
   return (
-    <div className="px-4 py-10 text-center text-[12px] text-(--text-soft)">
+    <div className="px-4 py-10 text-center text-compact text-(--text-soft)">
       {label}
     </div>
   );

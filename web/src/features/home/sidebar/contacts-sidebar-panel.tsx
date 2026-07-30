@@ -7,7 +7,10 @@ import { buildChatNotificationTargetKey } from "@/features/home/notifications/ch
 import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { SidebarEmptyGuide } from "@/shared/ui/sidebar/sidebar-empty-guide";
-import { SidebarSearchField } from "@/shared/ui/form/sidebar-search-field";
+import {
+  SidebarSearchAction,
+  SidebarSearchField,
+} from "@/shared/ui/form/sidebar-search-field";
 import { SIDEBAR_TOUR_ANCHORS } from "@/features/onboarding/tours/sidebar-navigation-tour";
 import { useSidebarStore } from "@/store/sidebar";
 
@@ -38,12 +41,20 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
       : agents;
   }, [agents, query]);
 
-  const openContacts = useCallback(() => {
+  const openContactsDirectory = useCallback(() => {
     setActiveItem(null);
-    if (location.pathname !== AppRouteBuilders.contacts() || location.search) {
-      navigate(AppRouteBuilders.contacts());
+    const target = location.pathname === AppRouteBuilders.contacts()
+      ? AppRouteBuilders.contactsManage()
+      : AppRouteBuilders.contacts();
+    if (`${location.pathname}${location.search}` !== target) {
+      navigate(target);
     }
   }, [location.pathname, location.search, navigate, setActiveItem]);
+
+  const openAgentCreation = useCallback(() => {
+    setActiveItem(null);
+    navigate(AppRouteBuilders.contactsCreate());
+  }, [navigate, setActiveItem]);
 
   const openAgentDetail = useCallback((agentId: string) => {
     setActiveItem(agentId);
@@ -67,14 +78,12 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
     >
       <SidebarSearchField
         action={(
-          <button
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_70%,transparent)] text-(--icon-muted) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
-            onClick={openContacts}
-            title={t("sidebar.manage_contacts")}
-            type="button"
+          <SidebarSearchAction
+            onClick={openAgentCreation}
+            title={t("contacts.new_agent")}
           >
-            <UserPlus className="h-4 w-4" />
-          </button>
+            <UserPlus className="h-4 w-4 max-lg:h-5 max-lg:w-5" />
+          </SidebarSearchAction>
         )}
         onChange={setQuery}
         placeholder={t("sidebar.search_contacts")}
@@ -84,7 +93,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
       {isLoading ? (
         <SidebarListLoadingRows />
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-lg:gap-1 max-lg:px-3">
           {filteredAgents.length > 0 ? (
             filteredAgents.map((agent) => (
               <ContactRow
@@ -102,7 +111,7 @@ export const ContactsSidebarPanelContent = memo(function ContactsSidebarPanelCon
               actionLabel={t("sidebar.manage_contacts")}
               description={t("sidebar.contacts_empty_description")}
               icon={Users2}
-              onAction={openContacts}
+              onAction={openContactsDirectory}
               title={query ? t("sidebar.no_matching_contacts") : t("sidebar.no_contacts")}
             />
           )}

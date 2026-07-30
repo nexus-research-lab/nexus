@@ -131,7 +131,7 @@ function SpreadsheetReadonlySheet({
         >
           {virtualColumns.map((column) => (
             <div
-              className="absolute top-0 flex h-full items-center justify-center border-r border-(--divider-subtle-color) px-2 text-[10px] font-semibold text-(--text-muted)"
+              className="absolute top-0 flex h-full items-center justify-center border-r border-(--divider-subtle-color) px-2 text-2xs font-semibold text-(--text-muted)"
               key={column.key}
               style={{
                 transform: `translateX(${column.start}px)`,
@@ -153,7 +153,7 @@ function SpreadsheetReadonlySheet({
         >
           {virtualRows.map((row) => (
             <div
-              className="absolute left-0 flex w-full items-center justify-end border-b border-(--divider-subtle-color) px-2 text-[10px] font-medium text-(--text-muted)"
+              className="absolute left-0 flex w-full items-center justify-end border-b border-(--divider-subtle-color) px-2 text-2xs font-medium text-(--text-muted)"
               key={row.key}
               style={{
                 height: row.size,

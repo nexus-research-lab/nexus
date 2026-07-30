@@ -5,9 +5,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
-func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) error {
+// undeployWorkspaceLocalSkillAt 删除 Agent 明确要求移除的本地 Skill。
+//
+// 普通启停不会调用这里；DELETE 兼容入口才会真正删除 workspace 文件。
+func undeployWorkspaceLocalSkillAt(
+	root *confinedfs.Root,
+	workspacePath string,
+	record catalogRecord,
+) error {
 	workspaceRoot := filepath.Clean(strings.TrimSpace(workspacePath))
 	sourcePath := filepath.Clean(strings.TrimSpace(record.SourcePath))
 	if workspaceRoot == "." || sourcePath == "." {
@@ -20,7 +29,11 @@ func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) err
 	if !sourceUnderAgents && !sourceUnderClaudeSkills {
 		return errors.New("workspace skill path is outside supported skill directories")
 	}
-	if err := os.RemoveAll(sourcePath); err != nil {
+	sourceRelative, err := filepath.Rel(workspaceRoot, sourcePath)
+	if err != nil {
+		return err
+	}
+	if err = root.RemoveAll(filepath.ToSlash(sourceRelative)); err != nil {
 		return err
 	}
 	skillNames := []string{record.Detail.Name, filepath.Base(sourcePath)}
@@ -35,8 +48,14 @@ func undeployWorkspaceLocalSkill(workspacePath string, record catalogRecord) err
 		}
 		seen[trimmedName] = struct{}{}
 		if sourceUnderAgents {
-			linkPath := filepath.Join(claudeSkillsRoot, trimmedName)
-			if err := os.RemoveAll(linkPath); err != nil && !os.IsNotExist(err) {
+			linkPath, relativeErr := filepath.Rel(
+				workspaceRoot,
+				filepath.Join(claudeSkillsRoot, trimmedName),
+			)
+			if relativeErr != nil {
+				return relativeErr
+			}
+			if err := root.RemoveAll(filepath.ToSlash(linkPath)); err != nil && !os.IsNotExist(err) {
 				return err
 			}
 		}

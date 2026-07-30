@@ -65,6 +65,7 @@ func TestAgentHistoryStoreResolveTranscriptRoundTail(t *testing.T) {
 	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
 		t.Fatalf("创建 workspace 失败: %v", err)
 	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
 
 	sessionKey := "agent:nexus:ws:dm:rewrite-tail"

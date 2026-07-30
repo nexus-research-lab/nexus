@@ -24,6 +24,7 @@ export interface AgentOptionsDraft {
   disallowedTools: string[];
   model: string;
   permissionMode: string;
+  profileTemplate?: string;
   provider: AgentProvider;
   title: string;
   vibeTags: string[];
@@ -46,6 +47,11 @@ interface AgentEditorScopeOptions {
   source: AgentOptionsEditorSource;
 }
 
+interface AgentEditorCommandScopeOptions {
+  isActive: boolean;
+  source: AgentOptionsEditorSource;
+}
+
 export function createAgentOptionsDraft({
   defaultTitle,
   initial,
@@ -58,6 +64,7 @@ export function createAgentOptionsDraft({
     disallowedTools: initial.options.disallowed_tools ?? [],
     model,
     permissionMode: initial.options.permission_mode || DEFAULT_AGENT_PERMISSION_MODE,
+    profileTemplate: initial.profileTemplate,
     provider: resolveInitialProvider(model, initial.options.provider),
     title: initial.title || defaultTitle,
     vibeTags: initial.vibeTags,
@@ -86,6 +93,17 @@ export function buildAgentEditorScopeKey({
   });
 }
 
+export function buildAgentEditorCommandScopeKey({
+  isActive,
+  source,
+}: AgentEditorCommandScopeOptions): string {
+  return JSON.stringify({
+    agentId: source.kind === "edit" ? source.agentId : null,
+    isActive,
+    kind: source.kind,
+  });
+}
+
 export function buildAgentOptionsSubmission(
   draft: AgentOptionsDraft,
   sourceOptions: AgentEditorInitialOptions,
@@ -97,6 +115,7 @@ export function buildAgentOptionsSubmission(
     identity: {
       avatar: draft.avatar,
       description: draft.description.trim(),
+      profile_template: draft.profileTemplate?.trim(),
       vibe_tags: draft.vibeTags,
     },
     options: {
@@ -108,7 +127,6 @@ export function buildAgentOptionsSubmission(
       max_turns: sourceOptions.max_turns,
       max_thinking_tokens: sourceOptions.max_thinking_tokens,
       mcp_servers: sourceOptions.mcp_servers,
-      skill_ids: sourceOptions.skill_ids,
       setting_sources: ["project"],
     },
     title: draft.title.trim(),

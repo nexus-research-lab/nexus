@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -372,6 +374,9 @@ func newAutomationTestDB(t *testing.T) *sql.DB {
 	if err != nil {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
+	t.Cleanup(func() {
+		_ = db.Close()
+	})
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 
@@ -551,20 +556,33 @@ func containsString(items []string, target string) bool {
 	})
 }
 
+func newAutomationOwnerWorkspace(t *testing.T, ownerUserID string, agentID string) string {
+	t.Helper()
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	return filepath.Join(
+		appfs.UserWorkspaceRootAt(stateRoot, ownerUserID),
+		agentID,
+	)
+}
+
 type testAgentResolver struct {
 	workspacePath string
 }
 
-func (r *testAgentResolver) GetAgent(_ context.Context, agentID string) (*protocol.Agent, error) {
+func (r *testAgentResolver) GetAgent(ctx context.Context, agentID string) (*protocol.Agent, error) {
 	return &protocol.Agent{
 		AgentID:       agentID,
+		OwnerUserID:   authctx.OwnerUserID(ctx),
 		WorkspacePath: r.workspacePath,
 	}, nil
 }
 
-func (r *testAgentResolver) GetDefaultAgent(_ context.Context) (*protocol.Agent, error) {
+func (r *testAgentResolver) GetDefaultAgent(ctx context.Context) (*protocol.Agent, error) {
 	return &protocol.Agent{
 		AgentID:       "nexus",
+		OwnerUserID:   authctx.OwnerUserID(ctx),
 		WorkspacePath: r.workspacePath,
 		IsMain:        true,
 	}, nil

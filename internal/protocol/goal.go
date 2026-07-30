@@ -1,5 +1,5 @@
-// INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求与 continuation 数据。
-// OUTPUT: Goal 领域协议、Room creator/lead 权限身份及归一化常量。
+// INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求、最终 usage fence 与 continuation 数据。
+// OUTPUT: Goal 领域协议、按 ID 查询的 usage report、Room creator/lead 权限身份及归一化常量。
 // POS: Goal 前后端与运行时共享的协议真相源。
 package protocol
 
@@ -49,6 +49,9 @@ const (
 )
 
 // GoalUsage 记录 Goal 长程执行累计用量。
+//
+// TotalTokens 是旧客户端使用的预算口径别名；实际处理总量由
+// ActualTotalTokens 单独承载，避免缓存 token 被预算口径覆盖。
 type GoalUsage struct {
 	InputTokens              int64 `json:"input_tokens,omitempty"`
 	OutputTokens             int64 `json:"output_tokens,omitempty"`
@@ -56,39 +59,76 @@ type GoalUsage struct {
 	CacheReadInputTokens     int64 `json:"cache_read_input_tokens,omitempty"`
 	ReasoningTokens          int64 `json:"reasoning_tokens,omitempty"`
 	TotalTokens              int64 `json:"total_tokens,omitempty"`
+	BudgetTotalTokens        int64 `json:"budget_tokens"`
+	ActualTotalTokens        int64 `json:"actual_tokens"`
+	ActualTokensEstimated    bool  `json:"actual_tokens_estimated,omitempty"`
 	RuntimeSeconds           int64 `json:"runtime_seconds,omitempty"`
+	// *TotalKnown 只在进程内区分“权威零增量”和“缺少显式总量”；
+	// JSON/SQL 仍由上面的稳定字段承载。
+	BudgetTotalKnown bool `json:"-"`
+	ActualTotalKnown bool `json:"-"`
 }
 
-// Total 返回可用于预算判断的 token 总量。
+// Total 返回旧版预算口径总量。
+// Deprecated: 新代码应显式调用 BudgetTokens 或 ActualTokens。
 func (u GoalUsage) Total() int64 {
 	return u.BudgetTokens()
 }
 
-// BudgetTokens 按 Codex Goal 口径统计预算 token：非缓存输入 token + 输出 token。
+// BudgetTokens 按 Codex Goal 口径统计预算 token：未缓存输入 token + 输出 token。
+// runtime 协议已将 cache creation/read 从 InputTokens 中独立拆出，不能再次扣减。
 func (u GoalUsage) BudgetTokens() int64 {
+	if u.BudgetTotalKnown || u.BudgetTotalTokens > 0 {
+		return max(u.BudgetTotalTokens, 0)
+	}
 	if u.hasTokenBreakdown() {
-		input := u.InputTokens
-		if input < 0 {
-			input = 0
-		}
-		cachedInput := u.CacheReadInputTokens
-		if cachedInput < 0 {
-			cachedInput = 0
-		}
-		nonCachedInput := input - cachedInput
-		if nonCachedInput < 0 {
-			nonCachedInput = 0
-		}
-		output := u.OutputTokens
-		if output < 0 {
-			output = 0
-		}
-		return nonCachedInput + output
+		return max(u.InputTokens, 0) + max(u.OutputTokens, 0)
 	}
 	if u.TotalTokens > 0 {
 		return u.TotalTokens
 	}
 	return 0
+}
+
+// ActualTokens 返回 runtime/provider 实际处理的 token 总量。
+// 新记录优先使用 provider total；旧记录只能从 breakdown 做保守估算。
+func (u GoalUsage) ActualTokens() int64 {
+	if u.ActualTotalKnown || u.ActualTotalTokens > 0 {
+		return max(u.ActualTotalTokens, 0)
+	}
+	if u.hasTokenBreakdown() {
+		return max(u.InputTokens, 0) +
+			max(u.CacheCreationInputTokens, 0) +
+			max(u.CacheReadInputTokens, 0) +
+			max(max(u.OutputTokens, 0), max(u.ReasoningTokens, 0))
+	}
+	return max(u.TotalTokens, 0)
+}
+
+// ActualTokensAreEstimated 判断 actual_tokens 是否由历史 breakdown 回填。
+func (u GoalUsage) ActualTokensAreEstimated() bool {
+	return u.ActualTokens() > 0 &&
+		(u.ActualTokensEstimated || (!u.ActualTotalKnown && u.ActualTotalTokens <= 0))
+}
+
+// NormalizeTotals 同步显式 actual/budget 总量和旧 total_tokens 兼容别名。
+func (u GoalUsage) NormalizeTotals() GoalUsage {
+	explicitActual := u.ActualTotalKnown || u.ActualTotalTokens > 0
+	budgetTokens := u.BudgetTokens()
+	actualTokens := u.ActualTokens()
+	u.InputTokens = max(u.InputTokens, 0)
+	u.OutputTokens = max(u.OutputTokens, 0)
+	u.CacheCreationInputTokens = max(u.CacheCreationInputTokens, 0)
+	u.CacheReadInputTokens = max(u.CacheReadInputTokens, 0)
+	u.ReasoningTokens = max(u.ReasoningTokens, 0)
+	u.TotalTokens = budgetTokens
+	u.BudgetTotalTokens = budgetTokens
+	u.ActualTotalTokens = actualTokens
+	u.ActualTokensEstimated = actualTokens > 0 && (u.ActualTokensEstimated || !explicitActual)
+	u.BudgetTotalKnown = true
+	u.ActualTotalKnown = true
+	u.RuntimeSeconds = max(u.RuntimeSeconds, 0)
+	return u
 }
 
 func (u GoalUsage) hasTokenBreakdown() bool {
@@ -101,15 +141,23 @@ func (u GoalUsage) hasTokenBreakdown() bool {
 
 // Add 合并 token usage。
 func (u GoalUsage) Add(other GoalUsage) GoalUsage {
-	totalTokens := u.BudgetTokens()
-	u.InputTokens += other.InputTokens
-	u.OutputTokens += other.OutputTokens
-	u.CacheCreationInputTokens += other.CacheCreationInputTokens
-	u.CacheReadInputTokens += other.CacheReadInputTokens
-	u.ReasoningTokens += other.ReasoningTokens
-	u.TotalTokens = totalTokens + other.BudgetTokens()
-	u.RuntimeSeconds += other.RuntimeSeconds
-	return u
+	left := u.NormalizeTotals()
+	right := other.NormalizeTotals()
+	budgetTokens := left.BudgetTotalTokens + right.BudgetTotalTokens
+	return GoalUsage{
+		InputTokens:              left.InputTokens + right.InputTokens,
+		OutputTokens:             left.OutputTokens + right.OutputTokens,
+		CacheCreationInputTokens: left.CacheCreationInputTokens + right.CacheCreationInputTokens,
+		CacheReadInputTokens:     left.CacheReadInputTokens + right.CacheReadInputTokens,
+		ReasoningTokens:          left.ReasoningTokens + right.ReasoningTokens,
+		TotalTokens:              budgetTokens,
+		BudgetTotalTokens:        budgetTokens,
+		ActualTotalTokens:        left.ActualTotalTokens + right.ActualTotalTokens,
+		ActualTokensEstimated:    left.ActualTokensEstimated || right.ActualTokensEstimated,
+		RuntimeSeconds:           left.RuntimeSeconds + right.RuntimeSeconds,
+		BudgetTotalKnown:         true,
+		ActualTotalKnown:         true,
+	}
 }
 
 // Goal 表示一个 session 的当前长程目标。
@@ -129,8 +177,37 @@ type Goal struct {
 	UpdatedAt          time.Time      `json:"updated_at"`
 	CompletedAt        *time.Time     `json:"completed_at,omitempty"`
 	BlockedAt          *time.Time     `json:"blocked_at,omitempty"`
+	UsageFinalized     bool           `json:"usage_finalized"`
+	UsageFinalizedAt   *time.Time     `json:"usage_finalized_at,omitempty"`
 	LastError          string         `json:"last_error,omitempty"`
 	Metadata           map[string]any `json:"metadata,omitempty"`
+}
+
+// GoalUsageReport 表示按 Goal ID 查询的稳定聚合 usage。
+// UsageFinalized 为 true 时，Usage 不再接受迟到的 runtime 增量。
+type GoalUsageReport struct {
+	GoalID           string     `json:"goal_id"`
+	SessionKey       string     `json:"session_key"`
+	Status           GoalStatus `json:"status"`
+	Usage            GoalUsage  `json:"usage"`
+	TimeUsedSeconds  int64      `json:"time_used_seconds"`
+	UsageFinalized   bool       `json:"usage_finalized"`
+	UsageFinalizedAt *time.Time `json:"usage_finalized_at,omitempty"`
+	GoalUpdatedAt    time.Time  `json:"goal_updated_at"`
+}
+
+// UsageReport 投影 Goal 的聚合 usage 查询结果。
+func (g Goal) UsageReport() GoalUsageReport {
+	return GoalUsageReport{
+		GoalID:           g.ID,
+		SessionKey:       g.SessionKey,
+		Status:           NormalizeGoalStatus(g.Status),
+		Usage:            g.Usage.NormalizeTotals(),
+		TimeUsedSeconds:  max(g.TimeUsedSeconds, 0),
+		UsageFinalized:   g.UsageFinalized,
+		UsageFinalizedAt: g.UsageFinalizedAt,
+		GoalUpdatedAt:    g.UpdatedAt,
+	}
 }
 
 // GoalMetadataString 从 Goal metadata 中读取字符串值。
@@ -197,7 +274,7 @@ func (g Goal) RemainingTokens() *int64 {
 	if g.TokenBudget == nil || *g.TokenBudget <= 0 {
 		return nil
 	}
-	remaining := *g.TokenBudget - g.Usage.Total()
+	remaining := *g.TokenBudget - g.Usage.BudgetTokens()
 	if remaining < 0 {
 		remaining = 0
 	}
@@ -349,6 +426,16 @@ func IsRuntimeGoalStatus(status GoalStatus) bool {
 func IsRuntimeAccountingGoalStatus(status GoalStatus) bool {
 	switch NormalizeGoalStatus(status) {
 	case GoalStatusActive, GoalStatusBudgetLimited:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsGoalUsageFinalizableStatus 判断 Goal 是否已进入可结算最终 usage 的终态。
+func IsGoalUsageFinalizableStatus(status GoalStatus) bool {
+	switch NormalizeGoalStatus(status) {
+	case GoalStatusComplete:
 		return true
 	default:
 		return false

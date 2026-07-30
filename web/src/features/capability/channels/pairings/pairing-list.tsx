@@ -14,6 +14,7 @@ import type {
   PairingView,
   UpdatePairingPayload,
 } from "@/lib/api/capability/channel-api";
+import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
 import { UiBadge } from "@/shared/ui/display/badge";
 import type { UiBadgeTone } from "@/shared/ui/display/badge-styles";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
@@ -124,7 +125,6 @@ export function PairingList({
         <PairingSection
           agents={agents}
           busy={busy}
-          description={`${group.items.length} 个外部对象`}
           items={group.items}
           key={group.agent_id}
           onCopySessionKey={onCopySessionKey}
@@ -149,7 +149,7 @@ function PairingSection({
 }: {
   agents: Agent[];
   busy: boolean;
-  description: string;
+  description?: string;
   items: PairingView[];
   onCopySessionKey: PairingListProps["onCopySessionKey"];
   onDeletePairing: PairingListProps["onDeletePairing"];
@@ -158,19 +158,11 @@ function PairingSection({
 }) {
   return (
     <section className="space-y-2">
-      <div className="flex min-w-0 items-end justify-between gap-4 border-b border-(--divider-subtle-color) pb-2">
-        <div className="min-w-0">
-          <h2 className="truncate text-[15px] font-semibold text-(--text-strong)">
-            {title}
-          </h2>
-          <p className="truncate text-[12px] text-(--text-muted)">
-            {description}
-          </p>
-        </div>
-        <span className="shrink-0 text-[12px] font-medium tabular-nums text-(--text-soft)">
-          {items.length}
-        </span>
-      </div>
+      <CapabilitySectionHeader
+        count={String(items.length)}
+        description={description}
+        title={title}
+      />
       <div className="space-y-2">
         {items.map((item) => (
           <PairingRow
@@ -210,21 +202,31 @@ function PairingRow({
     <UiPanel className="overflow-hidden rounded-[8px]" padding="none" radius="sm">
       <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(220px,0.7fr)_auto] items-center gap-3 px-3 py-3 max-lg:grid-cols-1">
         <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <UiBadge>{CHANNEL_LABELS[item.channel_type] ?? item.channel_type}</UiBadge>
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1 truncate text-[14px] font-medium text-(--text-strong)">
+              {pairingDisplayName(item)}
+            </div>
             <UiBadge tone={STATUS_TONES[item.status]}>
               {STATUS_LABELS[item.status]}
             </UiBadge>
-            <UiBadge>{CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type}</UiBadge>
           </div>
-          <div className="mt-1.5 truncate text-[14px] font-medium text-(--text-strong)">
-            {pairingDisplayName(item)}
-          </div>
-          <div className="mt-1 truncate font-mono text-[12px] text-(--text-muted)">
-            {pairingTarget(item)}
-          </div>
-          <div className="mt-1 text-[11px] text-(--text-soft)">
-            {item.last_message_at ? "最近消息" : "更新于"} {formatPairingTime(activityAt)}
+          <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden text-compact text-(--text-muted)">
+            <span className="shrink-0">
+              {CHANNEL_LABELS[item.channel_type] ?? item.channel_type}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="shrink-0">
+              {CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="min-w-0 truncate font-mono">
+              {pairingTarget(item)}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="shrink-0 text-(--text-soft)">
+              {item.last_message_at ? "最近消息" : "更新于"}{" "}
+              {formatPairingTime(activityAt)}
+            </span>
           </div>
         </div>
 
@@ -277,14 +279,14 @@ function PairingRow({
       </div>
 
       <details className="group border-t border-(--divider-subtle-color) px-3">
-        <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 text-[12px] font-medium text-(--text-muted) [&::-webkit-details-marker]:hidden">
+        <summary className="flex h-9 cursor-pointer list-none items-center gap-1.5 text-compact font-medium text-(--text-muted) [&::-webkit-details-marker]:hidden">
           <span>技术详情</span>
           <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         </summary>
         <div className="grid gap-3 pb-3 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(180px,0.6fr)]">
           <PairingTechnicalField label="绑定键" value={bindingKey} />
           <div className="min-w-0">
-            <div className="flex h-6 items-center gap-1.5 text-[11px] font-semibold text-(--text-soft)">
+            <div className="flex h-6 items-center gap-1.5 text-xs font-semibold text-(--text-soft)">
               <span>IM Session</span>
               <UiIconButton
                 className="h-6 w-6"
@@ -299,13 +301,13 @@ function PairingRow({
               </UiIconButton>
             </div>
             <div
-              className="truncate font-mono text-[12px] text-(--text-default)"
+              className="truncate font-mono text-compact text-(--text-default)"
               title={sessionKey || "未生成"}
             >
               {sessionKey || "未生成"}
             </div>
           </div>
-          <div className="min-w-0 text-[12px] leading-5 text-(--text-muted)">
+          <div className="min-w-0 text-compact leading-5 text-(--text-muted)">
             <div>来源：{item.source === "ingress" ? "首次消息" : item.source}</div>
             <div>更新：{formatPairingTime(item.updated_at)}</div>
           </div>
@@ -318,10 +320,10 @@ function PairingRow({
 function PairingTechnicalField({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <div className="flex h-6 items-center text-[11px] font-semibold text-(--text-soft)">
+      <div className="flex h-6 items-center text-xs font-semibold text-(--text-soft)">
         {label}
       </div>
-      <div className="truncate font-mono text-[12px] text-(--text-default)" title={value}>
+      <div className="truncate font-mono text-compact text-(--text-default)" title={value}>
         {value}
       </div>
     </div>

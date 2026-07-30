@@ -1,19 +1,50 @@
+/**
+ * INPUT: 当前滚动容器、目标滚动行为与浏览器帧时序。
+ * OUTPUT: paint 前同步 FOLLOW，或按实时底部阻尼移动的显式回到底部事务。
+ * POS: 会话 FOLLOW 与用户触发平滑定位的唯一 scrollTop 写入执行器。
+ */
 import { getScrollBottomTop } from "./follow-scroll-model";
 
-const SMOOTH_SCROLL_DURATION_MS = 420;
-const EASING_CONTROL_POINTS = [0.23, 1, 0.32, 1] as const;
+const SPRING_ANGULAR_FREQUENCY = 24;
+const DEFAULT_FRAME_DELTA_SECONDS = 1 / 60;
+const MAX_FRAME_DELTA_SECONDS = 1 / 15;
+const SUSPENDED_FRAME_GAP_MS = 250;
+const QUANTIZED_SCROLL_SNAP_DISTANCE_PX = 2;
+const SETTLE_DISTANCE_PX = 0.5;
+const REQUIRED_STABLE_FRAMES = 2;
 
 type ScrollContainerResolver = () => HTMLDivElement | null;
 type ScrollPositionObserver = (scrollTop: number) => void;
+type ScrollAnimationMode = "scroll" | "settle";
 
 export class BottomScrollAnimator {
-  private scheduleFrameId: number | null = null;
   private animationFrameId: number | null = null;
+  private animationMode: ScrollAnimationMode | null = null;
+  private lastFrameTime: number | null = null;
+  private stableFrameCount = 0;
+  private velocity = 0;
 
   constructor(
     private readonly resolveContainer: ScrollContainerResolver,
     private readonly observePosition: ScrollPositionObserver,
   ) {}
+
+  follow(): void {
+    const container = this.resolveContainer();
+    if (!container) {
+      return;
+    }
+
+    // 用户点击“回到底部”后允许显式 smooth 事务完成；普通内容增长没有
+    // 动画中间态，React layout effect / ResizeObserver 会在 paint 前贴底。
+    if (this.animationMode === "scroll") {
+      return;
+    }
+    if (this.animationMode === "settle") {
+      this.cancel();
+    }
+    this.setPosition(container, getScrollBottomTop(container));
+  }
 
   scroll(behavior: ScrollBehavior = "smooth"): void {
     this.cancel();
@@ -22,117 +53,176 @@ export class BottomScrollAnimator {
       return;
     }
 
-    if (behavior === "auto") {
+    if (behavior === "auto" || prefersReducedMotion()) {
       this.setPosition(container, getScrollBottomTop(container));
+      // 虚拟列表会在当前布局提交后才更新总高度；下一帧再次收口，
+      // 避免先按旧 scrollHeight 贴底后被测量结果留在上方。
+      this.animationMode = "settle";
+      this.scheduleFrame();
       return;
     }
 
-    this.scheduleFrameId = window.requestAnimationFrame(() => {
-      this.scheduleFrameId = null;
-      this.startSmoothScroll();
-    });
+    this.startSpring();
   }
 
   cancel(): void {
-    if (this.scheduleFrameId !== null) {
-      window.cancelAnimationFrame(this.scheduleFrameId);
-      this.scheduleFrameId = null;
-    }
     if (this.animationFrameId !== null) {
       window.cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
     }
+    this.resetMotion();
   }
 
-  private startSmoothScroll(): void {
+  private startSpring(): void {
+    this.animationMode = "scroll";
+    this.lastFrameTime = null;
+    this.stableFrameCount = 0;
+    this.velocity = 0;
+    this.scheduleFrame();
+  }
+
+  private scheduleFrame(): void {
+    if (this.animationFrameId !== null) {
+      return;
+    }
+    this.animationFrameId = window.requestAnimationFrame((timestamp) => {
+      this.animationFrameId = null;
+      this.runFrame(timestamp);
+    });
+  }
+
+  private runFrame(timestamp: number): void {
     const container = this.resolveContainer();
-    if (!container) {
+    const mode = this.animationMode;
+    if (!container || !mode) {
+      this.resetMotion();
       return;
     }
 
+    if (mode === "settle") {
+      this.setPosition(container, getScrollBottomTop(container));
+      this.resetMotion();
+      return;
+    }
+
+    const currentTop = container.scrollTop;
     const targetTop = getScrollBottomTop(container);
-    const startTop = container.scrollTop;
-    const distance = targetTop - startTop;
-    if (Math.abs(distance) < 1) {
+    const distance = targetTop - currentTop;
+    if (Math.abs(distance) <= SETTLE_DISTANCE_PX) {
       this.setPosition(container, targetTop);
-      return;
-    }
-
-    const startTime = performance.now();
-    const step = (now: number): void => {
-      const progress = Math.min(
-        (now - startTime) / SMOOTH_SCROLL_DURATION_MS,
-        1,
-      );
-      this.setPosition(
-        container,
-        startTop + distance * solveBezierProgress(progress),
-      );
-
-      if (progress < 1) {
-        this.animationFrameId = window.requestAnimationFrame(step);
+      this.velocity = 0;
+      this.stableFrameCount += 1;
+      if (this.stableFrameCount >= REQUIRED_STABLE_FRAMES) {
+        this.resetMotion();
         return;
       }
-      this.animationFrameId = null;
-    };
+      this.scheduleFrame();
+      return;
+    }
 
-    this.animationFrameId = window.requestAnimationFrame(step);
+    const frameDeltaSeconds = resolveFrameDeltaSeconds(
+      this.lastFrameTime,
+      timestamp,
+    );
+    this.lastFrameTime = timestamp;
+    let next = advanceCriticallyDampedSpring({
+      current: currentTop,
+      frameDeltaSeconds,
+      target: targetTop,
+      velocity: this.velocity,
+    });
+    if ((next.position - currentTop) * distance < 0) {
+      // 内容收缩或视口变高时，旧的向下速度不能让滚动继续远离新目标。
+      next = advanceCriticallyDampedSpring({
+        current: currentTop,
+        frameDeltaSeconds,
+        target: targetTop,
+        velocity: 0,
+      });
+    }
+    if ((targetTop - next.position) * distance < 0) {
+      next = { position: targetTop, velocity: 0 };
+    }
+
+    this.velocity = next.velocity;
+    this.stableFrameCount = 0;
+    const requestedPosition = next.position;
+    this.setPosition(container, requestedPosition);
+    if (
+      container.scrollTop === currentTop
+      && Math.abs(distance) <= QUANTIZED_SCROLL_SNAP_DISTANCE_PX
+    ) {
+      // Chromium/WKWebView 可能把 scrollTop 量化到 0.5/1px；小步进若被舍入，
+      // 弹簧会永远停在目标前。此时直接收口，并保留一帧确认目标没有继续增长。
+      this.setPosition(container, targetTop);
+      this.velocity = 0;
+      this.stableFrameCount = 1;
+    }
+    this.scheduleFrame();
   }
 
   private setPosition(container: HTMLDivElement, scrollTop: number): void {
     container.scrollTop = scrollTop;
     this.observePosition(container.scrollTop);
   }
-}
 
-function solveBezierProgress(progress: number): number {
-  const [x1, y1, x2, y2] = EASING_CONTROL_POINTS;
-  const clampedProgress = Math.min(Math.max(progress, 0), 1);
-  const cx = 3 * x1;
-  const bx = 3 * (x2 - x1) - cx;
-  const ax = 1 - cx - bx;
-  const cy = 3 * y1;
-  const by = 3 * (y2 - y1) - cy;
-  const ay = 1 - cy - by;
-
-  let parameter = clampedProgress;
-  for (let iteration = 0; iteration < 5; iteration += 1) {
-    const error = sampleCubic(ax, bx, cx, parameter) - clampedProgress;
-    const derivative = sampleCubicDerivative(ax, bx, cx, parameter);
-    if (Math.abs(derivative) < 1e-6) {
-      break;
-    }
-    parameter -= error / derivative;
+  private resetMotion(): void {
+    this.animationMode = null;
+    this.lastFrameTime = null;
+    this.stableFrameCount = 0;
+    this.velocity = 0;
   }
-
-  let lower = 0;
-  let upper = 1;
-  parameter = Math.min(Math.max(parameter, 0), 1);
-  for (let iteration = 0; iteration < 8; iteration += 1) {
-    const sampledProgress = sampleCubic(ax, bx, cx, parameter);
-    if (Math.abs(sampledProgress - clampedProgress) < 1e-5) {
-      break;
-    }
-    if (sampledProgress > clampedProgress) {
-      upper = parameter;
-    } else {
-      lower = parameter;
-    }
-    parameter = (lower + upper) / 2;
-  }
-
-  return sampleCubic(ay, by, cy, parameter);
 }
 
-function sampleCubic(a: number, b: number, c: number, value: number): number {
-  return ((a * value + b) * value + c) * value;
+interface SpringStepInput {
+  current: number;
+  frameDeltaSeconds: number;
+  target: number;
+  velocity: number;
 }
 
-function sampleCubicDerivative(
-  a: number,
-  b: number,
-  c: number,
-  value: number,
+function advanceCriticallyDampedSpring({
+  current,
+  frameDeltaSeconds,
+  target,
+  velocity,
+}: SpringStepInput): { position: number; velocity: number } {
+  const displacement = current - target;
+  const spring = velocity + SPRING_ANGULAR_FREQUENCY * displacement;
+  const decay = Math.exp(
+    -SPRING_ANGULAR_FREQUENCY * frameDeltaSeconds,
+  );
+  return {
+    position:
+      target + (displacement + spring * frameDeltaSeconds) * decay,
+    velocity:
+      (
+        velocity
+        - SPRING_ANGULAR_FREQUENCY * spring * frameDeltaSeconds
+      ) * decay,
+  };
+}
+
+function resolveFrameDeltaSeconds(
+  previousTimestamp: number | null,
+  timestamp: number,
 ): number {
-  return (3 * a * value + 2 * b) * value + c;
+  if (previousTimestamp === null || timestamp <= previousTimestamp) {
+    return DEFAULT_FRAME_DELTA_SECONDS;
+  }
+  const elapsedMs = timestamp - previousTimestamp;
+  if (elapsedMs > SUSPENDED_FRAME_GAP_MS) {
+    // 后台标签页和最小化 WebView 会暂停 rAF。恢复首帧只推进一个正常
+    // frame，避免把隐藏期间积累的 Room 高度一次追赶成可见跳跃。
+    return DEFAULT_FRAME_DELTA_SECONDS;
+  }
+  return Math.min(
+    elapsedMs / 1_000,
+    MAX_FRAME_DELTA_SECONDS,
+  );
+}
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    ?? false;
 }

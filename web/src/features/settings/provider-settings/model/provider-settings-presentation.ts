@@ -31,7 +31,7 @@ export const SETTINGS_TABS: {
 ];
 
 export const PROVIDER_LABEL_CLASS_NAME =
-  "text-[13px] font-semibold text-(--text-strong)";
+  "text-sm font-semibold text-(--text-strong)";
 
 export const API_FORMAT_LABELS: Record<ProviderApiFormat, string> = {
   chat_completions: "Chat Completions (/chat/completions)",

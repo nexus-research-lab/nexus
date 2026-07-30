@@ -61,10 +61,10 @@ function SubscriptionPlanRow({
         <p className="truncate text-[14px] font-semibold text-(--text-strong)">
           {plan.display_name}
         </p>
-        <p className="mt-1 truncate font-mono text-[11px] text-(--text-muted)">
+        <p className="mt-1 truncate font-mono text-xs text-(--text-muted)">
           {plan.plan_key}
         </p>
-        <p className="mt-2 text-[11px] text-(--text-soft)">
+        <p className="mt-2 text-xs text-(--text-soft)">
           {t("settings.subscription.plan_current_limit")}: {formatTokenLimit(
             plan.monthly_token_limit,
             t("settings.subscription.limit_unlimited"),
@@ -74,7 +74,7 @@ function SubscriptionPlanRow({
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <label className="space-y-1.5">
-          <span className="text-[11px] font-semibold text-(--text-muted)">
+          <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.display_name")}
           </span>
           <input
@@ -87,7 +87,7 @@ function SubscriptionPlanRow({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-[11px] font-semibold text-(--text-muted)">
+          <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.plan_status")}
           </span>
           <UiSelectMenu
@@ -106,7 +106,7 @@ function SubscriptionPlanRow({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-[11px] font-semibold text-(--text-muted)">
+          <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.plan_limit")}
           </span>
           <input
@@ -123,7 +123,7 @@ function SubscriptionPlanRow({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-[11px] font-semibold text-(--text-muted)">
+          <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.sort_order")}
           </span>
           <input
@@ -138,7 +138,7 @@ function SubscriptionPlanRow({
           />
         </label>
         <label className="space-y-1.5 sm:col-span-2 xl:col-span-5">
-          <span className="text-[11px] font-semibold text-(--text-muted)">
+          <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.notes")}
           </span>
           <input
@@ -190,7 +190,7 @@ function NewSubscriptionPlanForm({
     <div className="border-b border-(--divider-subtle-color) px-4 py-4">
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[160px_minmax(160px,1fr)_160px_auto] xl:items-end">
         <label className="space-y-1.5">
-          <span className="text-[11px] font-semibold text-(--text-muted)">
+          <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.plan_key")}
           </span>
           <input
@@ -202,7 +202,7 @@ function NewSubscriptionPlanForm({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-[11px] font-semibold text-(--text-muted)">
+          <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.display_name")}
           </span>
           <input
@@ -214,7 +214,7 @@ function NewSubscriptionPlanForm({
           />
         </label>
         <label className="space-y-1.5">
-          <span className="text-[11px] font-semibold text-(--text-muted)">
+          <span className="text-xs font-semibold text-(--text-muted)">
             {t("settings.subscription.plan_limit")}
           </span>
           <input

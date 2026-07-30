@@ -1,5 +1,11 @@
 "use client";
 
+/**
+ * INPUT: 当前 Room/DM 身份、任务快照、runtime 与会话命令。
+ * OUTPUT: 绑定错误边界后把任务快照投影到对应 DM/Group 聊天面板。
+ * POS: Room Surface 到两类聊天面板之间的窄适配层。
+ */
+
 import { DmChatPanel } from "@/features/conversation/room/dm/panel/dm-chat-panel";
 import { GroupChatPanel } from "@/features/conversation/room/group/chat/panel/group-chat-panel";
 import { getAgentConversationIdentityKey } from "@/lib/conversation/agent-conversation-identity";
@@ -33,6 +39,7 @@ interface RoomChatSurfaceProps {
   roomId: string | null;
   roomMembers: Agent[];
   runtimeKind: AgentRuntimeKind;
+  todos: TodoItem[];
 }
 
 export function RoomChatSurface({
@@ -54,6 +61,7 @@ export function RoomChatSurface({
   roomId: roomId,
   roomMembers: roomMembers,
   runtimeKind: runtimeKind,
+  todos,
 }: RoomChatSurfaceProps) {
   const isDm = currentRoomType === "dm";
   const identityKey = getAgentConversationIdentityKey(currentAgentSessionIdentity)
@@ -76,6 +84,7 @@ export function RoomChatSurface({
           onTodosChange={onTodosChange}
           sessionIdentity={currentAgentSessionIdentity}
           runtimeKind={runtimeKind}
+          todos={todos}
         />
       ) : (
         <GroupChatPanel

@@ -91,7 +91,7 @@ function SaveFeedbackMessage({
   return (
     <span
       className={cn(
-        "max-w-[280px] truncate text-[12px]",
+        "max-w-[280px] truncate text-compact",
         feedback.tone === "success"
           ? "text-(--success)"
           : "text-(--destructive)",

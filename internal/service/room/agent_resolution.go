@@ -12,10 +12,33 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
-func (s *Service) resolveAgentWorkspacePath(ctx context.Context, agentID string) (string, error) {
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
+func (s *Service) resolveAgentWorkspacePath(
+	ctx context.Context,
+	ownerUserID string,
+	agentID string,
+) (string, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return "", errors.New("Room owner_user_id 不能为空")
+	}
+	if currentUserID, ok := authctx.CurrentUserID(ctx); ok &&
+		strings.TrimSpace(currentUserID) != ownerUserID {
+		return "", errors.New("Room owner 与调用上下文不一致")
+	}
+
+	// 清理可能由不带 HTTP principal 的宿主流程触发。显式绑定 Room owner，
+	// 避免 Agent 查询退化为跨用户全局查找。
+	ownerContext := authctx.WithPrincipal(ctx, &authctx.Principal{
+		UserID:     ownerUserID,
+		Role:       authctx.RoleOwner,
+		AuthMethod: authctx.AuthMethodLocal,
+	})
+	agentValue, err := s.agents.GetAgent(ownerContext, agentID)
 	if err != nil {
 		return "", err
+	}
+	if strings.TrimSpace(agentValue.OwnerUserID) != ownerUserID {
+		return "", errors.New("Room Agent 不属于目标 owner")
 	}
 	if workspacePath := strings.TrimSpace(agentValue.WorkspacePath); workspacePath != "" {
 		return workspacePath, nil

@@ -36,7 +36,7 @@ func (s *Service) postMultipartWithRetries(
 	endpoint string,
 	token string,
 	fields map[string]string,
-	files map[string]string,
+	files map[string]multipartFileRef,
 	output any,
 ) error {
 	return s.doWithRetries(func() error {
@@ -47,8 +47,8 @@ func (s *Service) postMultipartWithRetries(
 				return err
 			}
 		}
-		for name, path := range files {
-			if err := appendMultipartFile(writer, name, path); err != nil {
+		for name, fileRef := range files {
+			if err := s.appendMultipartFile(ctx, writer, name, fileRef); err != nil {
 				return err
 			}
 		}
@@ -65,13 +65,28 @@ func (s *Service) postMultipartWithRetries(
 	})
 }
 
-func appendMultipartFile(writer *multipart.Writer, name string, path string) error {
-	file, err := os.Open(path)
+type multipartFileRef struct {
+	WorkspacePath string
+	RelativePath  string
+}
+
+func (s *Service) appendMultipartFile(
+	ctx context.Context,
+	writer *multipart.Writer,
+	name string,
+	fileRef multipartFileRef,
+) error {
+	root, err := s.openWorkspace(ctx, fileRef.WorkspacePath, false)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	file, err := root.OpenFileNoSymlink(fileRef.RelativePath, os.O_RDONLY, 0)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	part, err := writer.CreateFormFile(name, filepath.Base(path))
+	part, err := writer.CreateFormFile(name, filepath.Base(fileRef.RelativePath))
 	if err != nil {
 		return err
 	}

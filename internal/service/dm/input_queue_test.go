@@ -3,6 +3,7 @@ package dm
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +18,99 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+type dmConversationActivitySpy struct {
+	mu              sync.Mutex
+	conversationIDs []string
+}
+
+func (s *dmConversationActivitySpy) MarkConversationStarted(
+	_ context.Context,
+	conversationID string,
+	_ time.Time,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.conversationIDs = append(s.conversationIDs, conversationID)
+	return nil
+}
+
+func (s *dmConversationActivitySpy) snapshot() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.conversationIDs...)
+}
+
+func TestDMRequestHasCanonicalUserInput(t *testing.T) {
+	tests := []struct {
+		name    string
+		request Request
+		want    bool
+	}{
+		{name: "visible user", request: Request{}, want: true},
+		{name: "internal", request: Request{Internal: true}},
+		{
+			name: "hidden",
+			request: Request{
+				InputOptions: sdkprotocol.OutboundMessageOptions{HiddenFromUser: true},
+			},
+		},
+		{
+			name: "synthetic",
+			request: Request{
+				InputOptions: sdkprotocol.OutboundMessageOptions{Synthetic: true},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := dmRequestHasCanonicalUserInput(test.request); got != test.want {
+				t.Fatalf("dmRequestHasCanonicalUserInput() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateDMRequestRejectsNonInternalHiddenOrSyntheticInput(t *testing.T) {
+	service := &Service{}
+	base := Request{
+		SessionKey: "agent:nexus:ws:dm:input-kind",
+		Content:    "input",
+	}
+	tests := []struct {
+		name         string
+		internal     bool
+		inputOptions sdkprotocol.OutboundMessageOptions
+		wantErr      bool
+	}{
+		{
+			name:         "hidden user",
+			inputOptions: sdkprotocol.OutboundMessageOptions{HiddenFromUser: true},
+			wantErr:      true,
+		},
+		{
+			name:         "synthetic user",
+			inputOptions: sdkprotocol.OutboundMessageOptions{Synthetic: true},
+			wantErr:      true,
+		},
+		{
+			name:         "internal hidden synthetic",
+			internal:     true,
+			inputOptions: sdkprotocol.OutboundMessageOptions{HiddenFromUser: true, Synthetic: true},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := base
+			request.Internal = test.internal
+			request.InputOptions = test.inputOptions
+			_, _, err := service.validateRequest(request)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("validateRequest() error = %v, wantErr %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
 func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
@@ -30,6 +124,8 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	activity := &dmConversationActivitySpy{}
+	service.SetRoomConversationActivityStore(activity)
 	sender := newDMTestSender("sender-queue")
 	sessionKey := "agent:nexus:ws:dm:test-queue"
 	permission.BindSession(sessionKey, sender)
@@ -45,6 +141,9 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	}
 	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
 	<-queryPrompts
+	if got := activity.snapshot(); len(got) != 1 || got[0] != "test-queue" {
+		t.Fatalf("首条直接用户消息应消费 Room DM draft: %+v", got)
+	}
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey:           sessionKey,
@@ -62,6 +161,9 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 		if event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "round-queue-2" && event.Data["user_message_committed"] != false {
 			t.Fatalf("未消费的 DM queue 不应提交用户消息: %+v", event.Data)
 		}
+	}
+	if got := activity.snapshot(); len(got) != 1 {
+		t.Fatalf("尚未物化的 DM queue 不应提前消费 draft: %+v", got)
 	}
 
 	rows := readDMSessionHistory(t, cfg, service, sessionKey)
@@ -112,6 +214,9 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	if queuedMessage["round_id"] != "round-queue-2" {
 		t.Fatalf("已消费的 DM queue 应成为独立下一轮: %+v", queuedMessage)
 	}
+	if got := activity.snapshot(); len(got) != 2 || got[1] != "test-queue" {
+		t.Fatalf("DM queue 物化为用户消息后应消费 draft: %+v", got)
+	}
 	items, err = service.inputQueue.Snapshot(location)
 	if err != nil || len(items) != 0 {
 		t.Fatalf("已消费的 DM queue 不应残留: items=%+v err=%v", items, err)
@@ -158,13 +263,19 @@ func TestServiceInputQueueRetryAfterImmediateDispatchIsIdempotent(t *testing.T) 
 			}
 		}()
 	}
+	sessionKey := "agent:nexus:ws:dm:test-input-queue-idempotent"
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	t.Cleanup(func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = runtimeManager.CloseSession(closeCtx, sessionKey)
+	})
 	service := NewService(
 		cfg,
 		agentService,
-		runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client}),
+		runtimeManager,
 		permission,
 	)
-	sessionKey := "agent:nexus:ws:dm:test-input-queue-idempotent"
 	sender := newDMTestSender("sender-input-queue-idempotent")
 	permission.BindSession(sessionKey, sender)
 
@@ -185,7 +296,7 @@ func TestServiceInputQueueRetryAfterImmediateDispatchIsIdempotent(t *testing.T) 
 		if !strings.Contains(prompt, "立即执行一次") {
 			t.Fatalf("首次 DM input_queue prompt 异常: %q", prompt)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("空闲 DM input_queue 未即时派发")
 	}
 	collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
@@ -273,6 +384,8 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	activity := &dmConversationActivitySpy{}
+	service.SetRoomConversationActivityStore(activity)
 	sender := newDMTestSender("sender-guide")
 	sessionKey := "agent:nexus:ws:dm:test-guide"
 	permission.BindSession(sessionKey, sender)
@@ -285,6 +398,9 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 		t.Fatalf("第一轮 HandleChat 失败: %v", err)
 	}
 	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
+	if got := activity.snapshot(); len(got) != 1 || got[0] != "test-guide" {
+		t.Fatalf("首条直接用户消息应消费 Room DM draft: %+v", got)
+	}
 
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey:           sessionKey,
@@ -313,6 +429,9 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 		items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
 		items[0].RootRoundID != "round-guide-1" {
 		t.Fatalf("引导消息应先持久等待当前 round 的 PostToolUse: %+v", items)
+	}
+	if got := activity.snapshot(); len(got) != 1 {
+		t.Fatalf("尚未物化的 DM guide 不应提前消费 draft: %+v", got)
 	}
 
 	client.mu.Lock()
@@ -391,6 +510,9 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 		guidanceEvent.Data["source_round_id"] != "round-guide-2" ||
 		guidanceEvent.DeliveryMode != "durable" {
 		t.Fatalf("已消费引导应作为 durable user 归入当前回复: %+v", guidanceEvent)
+	}
+	if got := activity.snapshot(); len(got) != 2 || got[1] != "test-guide" {
+		t.Fatalf("DM guide 物化为用户消息后应消费 draft: %+v", got)
 	}
 	items, err = service.inputQueue.Snapshot(location)
 	if err != nil {
@@ -590,7 +712,15 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 	t.Cleanup(func() {
 		if err := service.HandleInterrupt(context.Background(), InterruptRequest{SessionKey: sessionKey}); err != nil {
 			t.Errorf("清理运行中 round 失败: %v", err)
+			return
 		}
+		collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+			return event.EventType == protocol.EventTypeError &&
+				event.Data["message"] == "待发送消息派发失败"
+		})
+		// 错误事件在队列恢复落盘后发出；再穿过派发锁，确保清理临时目录前协程已经退出。
+		service.inputQueueDispatchMu.Lock()
+		service.inputQueueDispatchMu.Unlock()
 	})
 
 	if err := service.HandleChat(context.Background(), Request{
@@ -809,6 +939,9 @@ func TestServiceInputQueueGuideWaitsForPostToolUse(t *testing.T) {
 	service := NewService(cfg, agentService, runtimeManager, permission)
 	sender := newDMTestSender("sender-guide-input-queue")
 	sessionKey := "agent:nexus:ws:dm:test-guide-input-queue"
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
 	permission.BindSession(sessionKey, sender)
 
 	if err := service.HandleChat(context.Background(), Request{

@@ -2,6 +2,7 @@ package permission
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -101,6 +102,66 @@ func TestContextRequestPermissionAndReplay(t *testing.T) {
 	}
 	if resolved.Data["status"] != "answered" {
 		t.Fatalf("resolved status 不正确: %+v", resolved.Data)
+	}
+}
+
+func TestContextReplayPendingRequestsUsesStableExpirationAndRequestOrder(t *testing.T) {
+	ctx := NewContext()
+	sessionKey := "agent:nexus:ws:dm:test-replay-order"
+	expiresAt := time.Now().Add(time.Minute)
+	pendingRequests := []*PendingRequest{
+		{
+			RequestID:          "permission-later",
+			SessionKey:         sessionKey,
+			DispatchSessionKey: sessionKey,
+			ToolName:           "Read",
+			ToolInput:          map[string]any{"file_path": "/tmp/later"},
+			ExpiresAt:          expiresAt.Add(time.Second),
+		},
+		{
+			RequestID:          "permission-b",
+			SessionKey:         sessionKey,
+			DispatchSessionKey: sessionKey,
+			ToolName:           "Read",
+			ToolInput:          map[string]any{"file_path": "/tmp/b"},
+			ExpiresAt:          expiresAt,
+		},
+		{
+			RequestID:          "permission-a",
+			SessionKey:         sessionKey,
+			DispatchSessionKey: sessionKey,
+			ToolName:           "Read",
+			ToolInput:          map[string]any{"file_path": "/tmp/a"},
+			ExpiresAt:          expiresAt,
+		},
+	}
+
+	ctx.mu.Lock()
+	for _, pending := range pendingRequests {
+		ctx.pendingRequests[pending.RequestID] = pending
+	}
+	ctx.pendingRequests["permission-other-session"] = &PendingRequest{
+		RequestID:          "permission-other-session",
+		SessionKey:         "agent:nexus:ws:dm:other",
+		DispatchSessionKey: "agent:nexus:ws:dm:other",
+		ToolName:           "Read",
+		ToolInput:          map[string]any{"file_path": "/tmp/other"},
+		ExpiresAt:          expiresAt.Add(-time.Second),
+	}
+	ctx.mu.Unlock()
+
+	sender := newPermissionTestSender("sender-replay-order")
+	ctx.BindSession(sessionKey, sender)
+
+	got := make([]string, 0, len(pendingRequests))
+	for range pendingRequests {
+		event := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
+		requestID, _ := event.Data["request_id"].(string)
+		got = append(got, requestID)
+	}
+	want := []string{"permission-a", "permission-b", "permission-later"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("pending 重放顺序不稳定: got %v, want %v", got, want)
 	}
 }
 

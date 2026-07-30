@@ -4,6 +4,10 @@ import { prepareWorkspaceAttachments } from "@/features/conversation/shared/comp
 import { useConversationComposerHandlers } from "@/features/conversation/shared/composer/use-conversation-composer-handlers";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
+import {
+  buildComposerDraftScopeKey,
+  buildComposerHistoryScopeKey,
+} from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
@@ -13,10 +17,12 @@ import type { DmChatComposerModel } from "../view/dm-chat-panel-view";
 type ComposerConversation = Pick<
   UseAgentConversationReturn,
   | "delete_input_queue_message"
+  | "command_catalog"
   | "enqueue_input_queue_message"
   | "guide_input_queue_message"
   | "input_queue_items"
   | "is_loading"
+  | "refresh_command_catalog"
   | "reorder_input_queue_messages"
   | "runtime_phase"
   | "send_message"
@@ -48,6 +54,8 @@ export function useDmChatComposerModel({
 }: UseDmChatComposerModelOptions): DmChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
+  const draftScopeKey = buildComposerDraftScopeKey({ agentId, sessionKey });
+  const historyScopeKey = buildComposerHistoryScopeKey({ agentId });
   const prepareAttachments = useCallback(
     async (files: File[]) => {
       if (!agentId) {
@@ -69,8 +77,11 @@ export function useDmChatComposerModel({
   });
 
   return {
+    commandCatalog: conversation.command_catalog,
     defaultDeliveryPolicy,
+    draftScopeKey,
     goalScopeLabel,
+    historyScopeKey,
     inputQueueItems: conversation.input_queue_items,
     isLoading: conversation.is_loading,
     onCreateGoal: sessionKey ? onCreateGoal : undefined,
@@ -78,6 +89,7 @@ export function useDmChatComposerModel({
     onEnqueueMessage: conversation.enqueue_input_queue_message,
     onGuideQueuedMessage: conversation.guide_input_queue_message,
     onPrepareAttachments: handlers.handlePrepareAttachments,
+    onRefreshCommandCatalog: conversation.refresh_command_catalog,
     onReorderQueueMessages: conversation.reorder_input_queue_messages,
     onSendMessage: handlers.handleSendMessage,
     onStop: conversation.stop_generation,

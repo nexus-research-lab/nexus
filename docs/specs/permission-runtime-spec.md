@@ -1,14 +1,15 @@
-# 权限运行时规范
+# Runtime 人工交互规范
 
 ## 1. 文档目标
 
-本文档定义 Nexus 中权限请求、runtime client、WebSocket 连接三者之间的边界。
+本文档定义 Nexus 中阻塞式人工交互、runtime client、WebSocket 连接三者之间的边界。协议因兼容 SDK 仍使用 `permission_request` / `permission_response`，产品语义不局限于权限。
 
 目标很简单：
 
 - runtime client 可复用
 - 前端连接可重连
-- 权限请求不会因为连接切换而失效
+- 等待用户响应的请求不会因为连接切换而失效
+- Room 公区始终是解除执行阻塞的主入口
 
 ## 2. 核心概念
 
@@ -35,13 +36,14 @@
 - 只有 controller 可以：
   - 发送消息
   - 停止生成
-  - 提交权限确认
+  - 提交人工交互响应
 
-### 2.5 pending permission request
+### 2.5 pending human interaction
 
-- 已发出但尚未确认的权限请求
+- 已发出且 runtime 正在等待用户响应的请求
 - 属于运行时上下文
 - 不属于某一次连接
+- 当前包括工具批准/拒绝、结构化问答和计划确认；后续新增类型也必须进入同一投影
 
 ## 3. 当前架构
 
@@ -53,7 +55,7 @@
 
 ### 3.2 权限上下文规则
 
-权限运行时上下文统一负责：
+人工交互运行时上下文统一负责：
 
 - `runtime session -> route session` 映射
 - `route session -> senders` 绑定
@@ -66,13 +68,17 @@
 - 同时只有一个 controller
 - controller 断开后，系统需要重新确定控制端
 
-## 4. 权限请求流程
+## 4. 人工交互流程
 
-1. runtime 触发工具权限请求
+1. runtime 触发一个需要用户响应的请求
 2. 权限上下文根据 runtime session 找到 route session
 3. 请求只投递给当前 controller
 4. controller 返回 `permission_response`
 5. 后端唤醒对应等待中的 runtime 请求
+
+`interaction_mode` 只决定共享 Composer 使用批准控件还是结构化输入控件，不决定请求是否属于人工介入。未知工具和未知批准类请求必须回退到可批准/拒绝的通用控件。
+
+持久权限范围由 runtime 的 `suggestions` 唯一决定。Composer 在存在建议时，把 Nexus 的真实规则动作收进“允许本次”旁的下拉：动作行说明新增或修改什么权限规则，次级说明展示匹配内容与 runtime 指定的 Agent/项目/用户/会话范围；选择后在允许响应中原样回传对应 `updated_permissions`。`suggestions` 为空时只能允许本次，前端和宿主不得推断或合成永久规则。
 
 ## 5. 重连规则
 
@@ -93,7 +99,7 @@
 
 - sender 集合
 - controller
-- 待确认权限卡投递目标
+- 待处理人工交互的投递目标
 
 ## 6. Room 特殊规则
 
@@ -102,26 +108,37 @@ Room 中必须分开两件事：
 - 共享会话路由：`room:group:<conversation_id>`
 - agent 私有运行时：`agent:<agent_id>:ws:group:<conversation_id>`
 
-权限请求来源于私有 runtime，但展示和交互通常挂到共享 route session。
+请求来源于私有 runtime，但展示和交互挂到共享 route session。
+
+Room 底部 Composer 是所有阻塞式人工交互的权威处理面：
+
+- 权限模式不会改变投影位置；只要 runtime 实际在等待用户，Composer 就必须原位替换输入内容
+- 工具审批、结构化问答、计划确认和未知新工具都适用
+- 请求先于 Agent 消息到达、消息已完成或仍在活动 slot 中，都不能丢失 Composer 入口
+- 多 Agent 请求按首次到达顺序在同一 Composer 逐项接棒，并按 `request_id` 路由回原 Agent
+- 公区消息与 Thread 只保留不可操作的等待证据，不能出现第二组批准、拒绝或回答控件
 
 ## 7. 当前实现约束
 
 - WebSocket 入口固定：`/nexus/v1/chat/ws`
 - runtime 继续按 `session_key` 复用
-- 权限请求只发给控制端，不广播给全部观察者
+- 人工交互请求只发给控制端，不广播给全部观察者
 - `session_status` 负责同步运行态和控制端归属，不负责定义消息历史
 
 ## 8. 禁止项
 
 - runtime client 直接持有 sender
-- 用某次连接对象承载 pending permission 生命周期
-- 观察者窗口提交权限确认
+- 用某次连接对象承载 pending human interaction 生命周期
+- 观察者窗口提交人工交互响应
 - Room 中把共享 session 当成某个 agent 的私有 runtime
+- 根据工具名决定请求是否进入 Room 公区
+- 让 Thread 成为任何阻塞式人工交互的唯一处理入口
 
 ## 9. 一句话总结
 
-权限系统的关键不是“谁发了请求”，而是：
+人工交互系统的关键不是“它属于哪种工具”，而是：
 
 - runtime 可以长期存在
 - 连接可以随时换
-- 权限请求总能重新找到当前控制端
+- 等待用户响应的请求总能重新找到当前控制端
+- Room 用户无需进入 Thread 就能解除执行阻塞

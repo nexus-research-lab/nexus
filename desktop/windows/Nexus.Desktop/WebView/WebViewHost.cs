@@ -1,6 +1,7 @@
-using System.Text.Json;
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
+using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using Nexus.Desktop.Bridge;
@@ -14,7 +15,7 @@ internal sealed class WebViewHost : IDisposable
 {
     private const int ResumeProbeRecreateThreshold = 2;
 
-    private readonly WebView2 webView;
+    private readonly WebView2CompositionControl webView;
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync;
@@ -28,7 +29,7 @@ internal sealed class WebViewHost : IDisposable
     private sealed record ResumeProbeResult(bool IsReady, DesktopWebRoute? CurrentRoute, string Snapshot);
 
     public WebViewHost(
-        WebView2 webView,
+        WebView2CompositionControl webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
         Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync)
@@ -66,6 +67,8 @@ internal sealed class WebViewHost : IDisposable
         core.Settings.IsZoomControlEnabled = false;
         core.Settings.IsGeneralAutofillEnabled = false;
         core.Settings.IsPasswordAutosaveEnabled = false;
+        // Windows 的系统命令平面止于原生栏；WebView 内所有 Header 和内容保持客户区语义。
+        core.Settings.IsNonClientRegionSupportEnabled = false;
 
         InstallDesktopSessionCookie(core);
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopRuntimeScript.Make(runtime));

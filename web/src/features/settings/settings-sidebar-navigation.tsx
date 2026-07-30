@@ -87,7 +87,7 @@ export function SettingsSidebarNavigation({
       className="soft-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-2.5"
     >
       <button
-        className="mb-3 flex h-9 items-center gap-2 rounded-[8px] px-2 text-[12px] font-medium text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        className="mb-3 flex h-9 items-center gap-2 rounded-[8px] px-2 text-compact font-medium text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
         onClick={backToWorkspace}
         type="button"
       >
@@ -98,7 +98,7 @@ export function SettingsSidebarNavigation({
       <div className="flex flex-col gap-3">
         {navigationGroups.map((group) => (
           <section key={group.key}>
-            <p className="px-2 pb-1 text-[12px] font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
+            <p className="px-2 pb-1 text-compact font-semibold uppercase tracking-[0.18em] text-(--text-soft)">
               {t(group.labelKey)}
             </p>
             <div className="space-y-0.5">
@@ -109,9 +109,9 @@ export function SettingsSidebarNavigation({
                   <button
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "flex h-9 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-[13px] font-medium transition-colors duration-(--motion-duration-fast)",
+                      "flex h-9 w-full items-center gap-2.5 rounded-[8px] px-2 text-left text-sm font-medium transition-colors duration-(--motion-duration-fast)",
                       active
-                        ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
+                        ? "bg-(--surface-sidebar-active-background) font-semibold text-(--text-strong)"
                         : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
                     )}
                     key={item.key}
@@ -121,7 +121,7 @@ export function SettingsSidebarNavigation({
                     <Icon
                       className={cn(
                         "h-3.5 w-3.5 shrink-0",
-                        active ? "text-(--primary)" : "text-(--icon-default)",
+                        active ? "text-(--icon-strong)" : "text-(--icon-default)",
                       )}
                     />
                     <span className="truncate">{t(item.labelKey)}</span>
@@ -152,15 +152,15 @@ function SettingsRailButton({
       aria-current={active ? "page" : undefined}
       aria-label={label}
       className={cn(
-        "flex h-9 w-9 items-center justify-center radius-control-sm text-(--icon-default) transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+        "flex h-8 w-8 items-center justify-center radius-control-sm text-(--icon-default) transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
         active &&
-          "bg-(--surface-interactive-active-background) text-(--primary)",
+          "bg-(--surface-sidebar-active-background) text-(--icon-strong)",
       )}
       onClick={onClick}
       title={label}
       type="button"
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-[18px] w-[18px]" />
     </button>
   );
 }

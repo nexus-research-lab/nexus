@@ -25,7 +25,13 @@ func (s *Service) changeStatus(
 	if source == protocol.GoalUpdateSourceModel {
 		ctx = withBudgetLimitSteeringSuppressed(ctx)
 	}
-	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
+	prepare := s.prepareExternalMutation
+	if externalStatusUsesSettlementBoundary(source, status) {
+		prepare = s.prepareExternalMutationAtSettlementBoundary
+	}
+	if err := prepare(ctx, strings.TrimSpace(goalID)); err != nil {
+		return nil, err
+	}
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return nil, err
@@ -34,6 +40,25 @@ func (s *Service) changeStatus(
 		return nil, ErrGoalRevisionStale
 	}
 	return s.persistTransition(ctx, *item, status, source, eventType, roundID, payload)
+}
+
+func externalStatusUsesSettlementBoundary(
+	source protocol.GoalUpdateSource,
+	status protocol.GoalStatus,
+) bool {
+	if source != protocol.GoalUpdateSourceUser &&
+		source != protocol.GoalUpdateSourceExternal {
+		return false
+	}
+	switch protocol.NormalizeGoalStatus(status) {
+	case protocol.GoalStatusBlocked,
+		protocol.GoalStatusUsageLimited:
+		return true
+	default:
+		// complete 保留绑定到 parent terminal，以 provider 累计真值和 child drain
+		// 建立最终 fence；active 变更仍属于同一个 Goal。
+		return false
+	}
 }
 
 func (s *Service) loadMutableGoal(ctx context.Context, goalID string) (*protocol.Goal, error) {
@@ -83,8 +108,14 @@ func (s *Service) persistTransitionWithOptions(
 	if shouldPreserveBudgetLimitedStopRequest(item.Status, status) {
 		if !options.persistBudgetLimitedStopRequest {
 			s.clearWallClockGoal(item)
-			if source != protocol.GoalUpdateSourceModel {
-				s.clearExternalGoalAccounting(item)
+			if source == protocol.GoalUpdateSourceUser ||
+				source == protocol.GoalUpdateSourceExternal {
+				if err := s.prepareExternalMutationAtSettlementBoundary(ctx, item.ID); err != nil {
+					return nil, err
+				}
+				if err := s.clearExternalGoalAccounting(ctx, item); err != nil {
+					return nil, err
+				}
 			}
 			return &item, nil
 		}
@@ -127,12 +158,26 @@ func (s *Service) persistTransitionWithOptions(
 		if source == protocol.GoalUpdateSourceModel {
 			s.markWallClockGoalActive(*updated)
 		} else {
-			s.activateExternalGoalAccounting(ctx, *updated)
+			if err := s.activateExternalGoalAccounting(ctx, *updated); err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		s.clearWallClockGoal(*updated)
-		if source != protocol.GoalUpdateSourceModel {
-			s.clearExternalGoalAccounting(*updated)
+		if source == protocol.GoalUpdateSourceUser ||
+			source == protocol.GoalUpdateSourceExternal {
+			if err := s.clearExternalGoalAccounting(ctx, *updated); err != nil {
+				return nil, err
+			}
+			if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusComplete {
+				refreshed, refreshErr := s.repo.GetGoal(ctx, updated.ID)
+				if refreshErr != nil {
+					return nil, refreshErr
+				}
+				if refreshed != nil {
+					updated = refreshed
+				}
+			}
 		}
 	}
 	return updated, nil

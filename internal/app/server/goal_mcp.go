@@ -1,5 +1,5 @@
-// INPUT: 当前 runtime Agent/session/round 与 Goal 服务。
-// OUTPUT: 绑定当前 DM runner 或 Room slot 共用 Goal objective revision 状态的 MCP server。
+// INPUT: 当前 runtime Agent/owner/session/round 与 Goal 服务。
+// OUTPUT: 绑定当前 owner 与 DM runner/Room slot 共用 Goal objective revision 状态的 MCP server。
 // POS: nexus_goal MCP 的应用装配入口。
 package server
 
@@ -24,9 +24,10 @@ func newGoalMCPBuilder(
 	cfg config.Config,
 	svc goalmcpcontract.Service,
 	revisions goalObjectiveRevisionStateProvider,
-) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
 	return func(
-		agentID string,
+		ctx context.Context,
+		agentValue *protocol.Agent,
 		sessionKey string,
 		roundID string,
 		sourceContextType string,
@@ -41,12 +42,15 @@ func newGoalMCPBuilder(
 		sctx := goalmcpcontract.ServerContext{
 			CurrentSessionKey: goalSessionKey,
 			CurrentRoundID:    strings.TrimSpace(roundID),
-			CurrentAgentID:    strings.TrimSpace(agentID),
+		}
+		if agentValue != nil {
+			sctx.CurrentAgentID = strings.TrimSpace(agentValue.AgentID)
+			sctx.OwnerUserID = strings.TrimSpace(agentValue.OwnerUserID)
 		}
 		if goalObjectiveRevision != nil {
 			sctx.GoalObjectiveRevision = goalObjectiveRevision
 		} else {
-			current, err := svc.CurrentOptional(context.Background(), goalSessionKey)
+			current, err := svc.CurrentOptional(ctx, goalSessionKey)
 			if err != nil {
 				return nil
 			}
@@ -55,7 +59,12 @@ func newGoalMCPBuilder(
 				revision = current.ObjectiveRevision()
 			}
 			if revisions != nil && protocol.IsRoomSharedSessionKey(goalSessionKey) {
-				sctx.GoalObjectiveRevision = revisions.GoalObjectiveRevisionState(goalSessionKey, strings.TrimSpace(roundID), strings.TrimSpace(agentID), revision)
+				sctx.GoalObjectiveRevision = revisions.GoalObjectiveRevisionState(
+					goalSessionKey,
+					strings.TrimSpace(roundID),
+					sctx.CurrentAgentID,
+					revision,
+				)
 			}
 			if sctx.GoalObjectiveRevision == nil {
 				sctx.GoalObjectiveRevision = goalmcpcontract.NewGoalObjectiveRevision(revision)

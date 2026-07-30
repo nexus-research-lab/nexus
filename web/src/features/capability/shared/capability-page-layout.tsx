@@ -17,6 +17,7 @@ interface CapabilityPageLayoutProps {
   className?: string;
   description: ReactNode;
   title: ReactNode;
+  variant?: "board" | "standard";
 }
 
 interface CapabilityFilterBarProps {
@@ -24,8 +25,14 @@ interface CapabilityFilterBarProps {
   className?: string;
 }
 
+interface CapabilityPageHeaderProps {
+  description: ReactNode;
+  title: ReactNode;
+}
+
 interface CapabilitySectionHeaderProps {
   count?: ReactNode;
+  description?: ReactNode;
   title: ReactNode;
 }
 
@@ -52,25 +59,42 @@ interface CapabilityFilterSelectProps {
   value: string;
 }
 
-/** 中文注释：能力区目录页共用版心和介绍区，保持技能、连接器和其它入口节奏一致。 */
+/** 中文注释：能力区目录页共用宽版心和介绍区，保持各入口的两侧留白与内容节奏一致。 */
 export function CapabilityPageLayout({
   children,
   className: className,
   description,
   title,
+  variant = "standard",
 }: CapabilityPageLayoutProps) {
   return (
-    <div className={cn(WORKSPACE_DETAIL_PAGE_CLASS_NAME, className)}>
-      <div className="mb-4">
-        <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-(--text-strong)">
-          {title}
-        </h1>
-        <p className="mt-0.5 max-w-[640px] text-[12px] leading-5 text-(--text-muted)">
-          {description}
-        </p>
-      </div>
+    <div
+      className={cn(
+        WORKSPACE_DETAIL_PAGE_CLASS_NAME,
+        "max-w-[1480px] py-5",
+        variant === "board" && "flex h-full min-h-0 flex-col",
+        className,
+      )}
+    >
+      <CapabilityPageHeader description={description} title={title} />
       {children}
     </div>
+  );
+}
+
+function CapabilityPageHeader({
+  description,
+  title,
+}: CapabilityPageHeaderProps) {
+  return (
+    <header className="mb-4 border-b border-(--divider-subtle-color) pb-4">
+      <h1 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
+        {title}
+      </h1>
+      <p className="mt-1 max-w-[640px] text-compact leading-5 text-(--text-muted)">
+        {description}
+      </p>
+    </header>
   );
 }
 
@@ -85,9 +109,8 @@ export function CapabilityFilterSearchInput({
 }: CapabilityFilterSearchInputProps) {
   return (
     <UiSearchInput
-      className="min-w-0 flex-1 border-(--divider-strong-color) bg-(--input)"
+      className="min-w-0 flex-1"
       controlSize="sm"
-      inputClassName="text-[13px] placeholder:text-(--text-muted)"
       action={action}
       onChange={onChange}
       onCompositionEnd={onCompositionEnd}
@@ -138,7 +161,12 @@ export function CapabilityFilterBar({
   className: className,
 }: CapabilityFilterBarProps) {
   return (
-    <div className={cn("mb-4 flex w-full flex-col gap-2 sm:flex-row sm:items-center", className)}>
+    <div
+      className={cn(
+        "mb-4 flex w-full flex-col gap-2 sm:flex-row sm:items-center",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -146,15 +174,23 @@ export function CapabilityFilterBar({
 
 export function CapabilitySectionHeader({
   count,
+  description,
   title,
 }: CapabilitySectionHeaderProps) {
   return (
-    <div className="mb-2 flex items-end justify-between border-b border-(--divider-subtle-color) pb-1.5">
-      <h2 className="text-[15px] font-medium tracking-[-0.01em] text-(--text-strong)">
-        {title}
-      </h2>
-      {count ? (
-        <span className="text-[11px] font-medium text-(--text-soft)">
+    <div className="mb-2 flex items-end justify-between gap-4 border-b border-(--divider-subtle-color) pb-1.5">
+      <div className="min-w-0">
+        <h2 className="truncate text-base font-medium tracking-[-0.01em] text-(--text-strong)">
+          {title}
+        </h2>
+        {description ? (
+          <p className="mt-0.5 truncate text-compact text-(--text-muted)">
+            {description}
+          </p>
+        ) : null}
+      </div>
+      {count !== undefined && count !== null ? (
+        <span className="text-xs font-medium text-(--text-soft)">
           {count}
         </span>
       ) : null}

@@ -1,7 +1,7 @@
 import type { ReactNode, RefObject } from "react";
 
 import type { ComposerRuntimeActivity } from "../../composer-model";
-import type { AgentRuntimeKind } from "@/types/settings/preferences";
+import type { ComposerSubmitButtonProps } from "../composer-submit-button";
 
 export interface ComposerFooterProps {
   actionButtonRef: RefObject<HTMLButtonElement | null>;
@@ -27,7 +27,8 @@ export interface ComposerFooterProps {
   onGoalToggle: (checked: boolean) => void;
   onLoopSelect: () => void;
   runtimeActivity: ComposerRuntimeActivity;
-  runtimeKind: AgentRuntimeKind;
+  showPoweredByNexus: boolean;
+  submit: ComposerSubmitButtonProps;
 }
 
 export interface ComposerFooterStatusCopy {
@@ -85,7 +86,7 @@ export function projectComposerFooterStatus({
       : null,
     isGoalCreating
       ? {
-        className: "text-(--primary)",
+        className: "text-(--brand-action)",
         frames: PREPARING_FRAMES,
         hint: null,
         message: copy.goalCreating,
@@ -124,7 +125,7 @@ function buildActiveStatus(
   hint: string | null,
 ): ComposerFooterStatusProjection {
   return {
-    className: "text-(--success)",
+    className: "text-(--brand-action)",
     frames: ACTIVE_FRAMES,
     hint,
     message,

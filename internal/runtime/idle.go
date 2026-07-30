@@ -7,13 +7,6 @@ import (
 	"time"
 )
 
-type idleSessionTarget struct {
-	sessionKey        string
-	client            Client
-	roundCancels      []context.CancelFunc
-	idleMessageCancel context.CancelFunc
-}
-
 // CloseIdleSessions 回收超过空闲阈值且没有运行中 round 的 SDK client。
 func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) (int, error) {
 	if idleFor <= 0 {
@@ -24,11 +17,12 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 	}
 
 	now := m.nowTime().UTC()
-	targets := make([]idleSessionTarget, 0)
+	targets := make([]*sessionCloseTarget, 0)
+	owners := make(map[string]struct{})
 
 	m.mu.Lock()
 	for sessionKey, state := range m.sessions {
-		if state == nil || len(state.RunningRounds) > 0 {
+		if state == nil || state.Closing || len(state.RunningRounds) > 0 {
 			continue
 		}
 		lastUsedAt := state.LastUsedAt
@@ -39,21 +33,23 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 		if now.Sub(lastUsedAt) < idleFor {
 			continue
 		}
-		if state.Client == nil {
-			delete(m.sessions, sessionKey)
+		target, started, _ := m.beginSessionCloseLocked(sessionKey)
+		if !started {
 			continue
 		}
-		targets = append(targets, idleSessionTarget{
-			sessionKey:        sessionKey,
-			client:            state.Client,
-			roundCancels:      copyRoundCancels(state.RoundCancels),
-			idleMessageCancel: state.IdleMessageCancel,
-		})
-		delete(m.sessions, sessionKey)
+		targets = append(targets, target)
+		owners[target.ownerUserID] = struct{}{}
+	}
+	reaperErrs := make([]error, 0)
+	for ownerUserID := range owners {
+		if err := m.reapOwnerIfLastLocked(ctx, ownerUserID); err != nil {
+			reaperErrs = append(reaperErrs, fmt.Errorf("reap owner runtime processes: %w", err))
+		}
 	}
 	m.mu.Unlock()
 
-	errs := make([]error, 0, len(targets))
+	errs := make([]error, 0, len(targets)+len(reaperErrs))
+	errs = append(errs, reaperErrs...)
 	for _, target := range targets {
 		if target.idleMessageCancel != nil {
 			target.idleMessageCancel()
@@ -63,9 +59,30 @@ func (m *Manager) CloseIdleSessions(ctx context.Context, idleFor time.Duration) 
 				cancel()
 			}
 		}
-		disconnectCtx, cancel := context.WithTimeout(ctx, RoundIdleAbortTimeout)
-		err := target.client.Disconnect(disconnectCtx)
-		cancel()
+		for _, cancel := range target.backgroundCancels {
+			if cancel != nil {
+				cancel()
+			}
+		}
+		var err error
+		if target.client != nil {
+			disconnectCtx, cancel := context.WithTimeout(ctx, RoundIdleAbortTimeout)
+			err = target.client.Disconnect(disconnectCtx)
+			cancel()
+		}
+		backgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
+		if backgroundErr != nil {
+			err = errors.Join(err, backgroundErr)
+		}
+		roundErr := waitRoundDoneForClose(ctx, target.roundDone)
+		if roundErr != nil {
+			err = errors.Join(err, roundErr)
+		}
+		if backgroundErr != nil || roundErr != nil {
+			m.finishSessionCloseWhenDone(target)
+		} else {
+			m.finishSessionClose(target)
+		}
 		if err != nil && !IsRuntimeTransportClosedError(err) {
 			errs = append(errs, fmt.Errorf("close idle runtime session %s: %w", target.sessionKey, err))
 		}

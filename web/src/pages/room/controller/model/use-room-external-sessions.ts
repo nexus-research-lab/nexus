@@ -48,6 +48,7 @@ function buildExternalRoomConversationViews({
       created_at: session.created_at,
       last_activity_at: session.last_activity_at,
       is_active: session.status === "active",
+      is_draft: false,
       message_count: session.message_count,
     }))
     .sort((left, right) => right.last_activity_at - left.last_activity_at);
@@ -93,6 +94,10 @@ export function useRoomExternalSessions({
     [],
     externalSessionsResetKey,
   );
+  const [hasLoadedExternalSessions, setHasLoadedExternalSessions] = useResettableState(
+    false,
+    externalSessionsResetKey,
+  );
   const [externalSessionRefreshVersion, setExternalSessionRefreshVersion] = useState(0);
 
   useEffect(
@@ -120,11 +125,13 @@ export function useRoomExternalSessions({
               ? currentSessions
               : nextSessions
           ));
+          setHasLoadedExternalSessions(true);
         })
         .catch((error) => {
           console.error("[RoomPage] 加载 Agent 外部 IM 会话失败:", error);
           if (!cancelled) {
             setExternalAgentSessions([]);
+            setHasLoadedExternalSessions(true);
           }
         });
     };
@@ -154,6 +161,7 @@ export function useRoomExternalSessions({
     externalSessionRefreshVersion,
     roomType,
     setExternalAgentSessions,
+    setHasLoadedExternalSessions,
   ]);
 
   const externalRoomConversations = useMemo(
@@ -167,5 +175,7 @@ export function useRoomExternalSessions({
   return {
     externalAgentSessions,
     externalRoomConversations,
+    isExternalSessionCatalogReady:
+      roomType !== "dm" || !agentId || hasLoadedExternalSessions,
   };
 }

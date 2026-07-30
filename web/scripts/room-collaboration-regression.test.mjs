@@ -21,6 +21,839 @@ test.after(async () => {
   await server.close();
 });
 
+test("Goal status shows one exact token total without budget progress", async () => {
+  const {
+    buildGoalStatusStripModel,
+    goalActualTokens,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const { GoalStatusStrip } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-status-strip.tsx",
+  );
+  const goal = {
+    id: "goal-1",
+    session_key: "agent:nexus:ws:dm:chat",
+    objective: "Ship exact usage",
+    status: "active",
+    token_budget: 200_000,
+    usage: {
+      input_tokens: 3_420,
+      output_tokens: 206,
+      cache_read_input_tokens: 59_136,
+      total_tokens: 3_626,
+      budget_tokens: 3_626,
+      actual_tokens: 62_762,
+    },
+    continuation_count: 0,
+    empty_progress_count: 0,
+    version: 1,
+    created_at: "2026-07-24T00:00:00Z",
+    updated_at: "2026-07-24T00:00:00Z",
+  };
+
+  assert.equal(goalActualTokens(goal), 62_762);
+  const model = buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: null,
+    error: null,
+    goal,
+    isGenerating: true,
+  });
+  assert.equal(model.usageLabel, "62,762 tokens");
+  assert.equal("usagePercent" in model, false);
+  assert.equal("usageTitle" in model, false);
+  assert.equal("budgetLabel" in model, false);
+  assert.equal(buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: null,
+    error: null,
+    goal: { ...goal, usage: { actual_tokens: 0, budget_tokens: 0 } },
+    isGenerating: false,
+  }).usageLabel, null);
+  assert.equal(buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: null,
+    error: null,
+    goal: { ...goal, status: "complete", usage_finalized: false },
+    isGenerating: false,
+  }).usageLabel, null);
+  assert.equal(buildGoalStatusStripModel({
+    canResume: false,
+    continuationHold: null,
+    error: null,
+    goal: { ...goal, status: "complete", usage_finalized: true },
+    isGenerating: false,
+  }).usageLabel, "62,762 tokens");
+
+  const html = renderToStaticMarkup(React.createElement(GoalStatusStrip, {
+    canResume: false,
+    compact: false,
+    disabled: false,
+    error: null,
+    goal,
+    isGenerating: true,
+    isLoading: false,
+    scopeLabel: "Goal",
+    onClearRequest: () => {},
+    onEdit: () => {},
+    onPause: () => {},
+    onRefresh: () => {},
+    onResume: () => {},
+  }));
+  assert.match(html, />62,762 tokens</);
+  assert.doesNotMatch(html, /预算|200,000|3,626|role="meter"/);
+});
+
+test("Goal status marks legacy reconstructed actual usage as estimated", async () => {
+  const {
+    buildGoalStatusStripModel,
+    goalActualTokens,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/goal/goal-model.ts",
+  );
+  const goal = {
+    id: "goal-legacy",
+    session_key: "agent:nexus:ws:dm:legacy",
+    objective: "Read legacy usage",
+    status: "paused",
+    usage: {
+      input_tokens: 10,
+      output_tokens: 20,
+      cache_creation_input_tokens: 80,
+      cache_read_input_tokens: 90,
+      reasoning_tokens: 40,
+      total_tokens: 30,
+    },
+    continuation_count: 0,
+    empty_progress_count: 0,
+    version: 1,
+    created_at: "2026-07-24T00:00:00Z",
+    updated_at: "2026-07-24T00:00:00Z",
+  };
+
+  assert.equal(goalActualTokens(goal), 220);
+  const model = buildGoalStatusStripModel({
+    canResume: true,
+    continuationHold: null,
+    error: null,
+    goal,
+    isGenerating: false,
+  });
+  assert.equal(model.usageLabel, "≈220 tokens");
+});
+
+test("会话标签只按稳定宽度约束进入溢出态", async () => {
+  const {
+    calculateConversationTabWidths,
+    CONVERSATION_TABS_VIEWPORT_INSET,
+    hasConversationTabsOverflow,
+  } = await server.ssrLoadModule(
+    "/src/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model.ts",
+  );
+
+  assert.equal(
+    hasConversationTabsOverflow({
+      conversationCount: 2,
+      hasCreateButton: true,
+      hasLeadingControl: true,
+      trackWidth: 400,
+    }),
+    false,
+    "标签仍可按最小可读宽度完整排布时不应进入溢出态",
+  );
+  assert.equal(
+    hasConversationTabsOverflow({
+      conversationCount: 4,
+      hasCreateButton: true,
+      hasLeadingControl: true,
+      trackWidth: 400,
+    }),
+    true,
+    "只有稳定宽度约束确认放不下全部标签时才进入溢出态",
+  );
+  assert.equal(
+    hasConversationTabsOverflow({
+      conversationCount: 4,
+      hasCreateButton: true,
+      hasLeadingControl: true,
+      trackWidth: 700,
+    }),
+    false,
+    "轨道扩宽后应直接退出溢出态而不依赖动画中的 DOM 尺寸",
+  );
+  assert.equal(CONVERSATION_TABS_VIEWPORT_INSET, 4);
+  assert.equal(
+    calculateConversationTabWidths({
+      activeConversationId: "single",
+      hasCreateButton: true,
+      hasLeadingControl: true,
+      hasTabsOverflow: false,
+      orderedConversations: [{ conversation_id: "single" }],
+      trackWidth: 400,
+    }).get("single"),
+    328,
+    "单个标签应扣除右端固定创建入口和中央留白，不再为独立动作胶囊预留间距",
+  );
+});
+
+test("会话标签暴露稳定的活动与非活动状态类", async () => {
+  const { resolveWorkspaceConversationTabPresentation } =
+    await server.ssrLoadModule(
+      "/src/shared/ui/workspace/controls/conversation-tabs/workspace-conversation-tab-model.ts",
+    );
+  const active = resolveWorkspaceConversationTabPresentation({
+    canClose: true,
+    externalSessionLabel: null,
+    isActive: true,
+    title: "active",
+  });
+  const inactive = resolveWorkspaceConversationTabPresentation({
+    canClose: true,
+    externalSessionLabel: null,
+    isActive: false,
+    title: "inactive",
+  });
+
+  assert.match(
+    active.rootClassName,
+    /\bworkspace-surface-header-conversation-tab\b/,
+  );
+  assert.match(active.rootClassName, /\bworkspace-surface-header-active-tab\b/);
+  assert.doesNotMatch(
+    active.rootClassName,
+    /\bworkspace-surface-header-inactive-tab\b/,
+  );
+  assert.match(
+    inactive.rootClassName,
+    /\bworkspace-surface-header-conversation-tab\b/,
+  );
+  assert.match(
+    inactive.rootClassName,
+    /\bworkspace-surface-header-inactive-tab\b/,
+  );
+  assert.doesNotMatch(
+    inactive.rootClassName,
+    /\bworkspace-surface-header-active-tab\b/,
+  );
+});
+
+test("会话标签显式映射滚轮与触控板并在边界放行", async () => {
+  const { scrollConversationTabsByWheel } = await server.ssrLoadModule(
+    "/src/shared/ui/workspace/controls/conversation-tabs/use-conversation-tabs-scroll.ts",
+  );
+  const viewport = {
+    clientWidth: 200,
+    scrollLeft: 100,
+    scrollWidth: 600,
+  };
+
+  assert.equal(
+    scrollConversationTabsByWheel(
+      viewport,
+      { deltaMode: 0, deltaX: 0, deltaY: 40 },
+    ),
+    true,
+  );
+  assert.equal(viewport.scrollLeft, 140, "纵向鼠标滚轮应映射到横向标签轨道");
+
+  assert.equal(
+    scrollConversationTabsByWheel(
+      viewport,
+      { deltaMode: 0, deltaX: -30, deltaY: 5 },
+    ),
+    true,
+  );
+  assert.equal(viewport.scrollLeft, 110, "触控板主横轴应保持原始方向");
+
+  viewport.scrollLeft = 400;
+  assert.equal(
+    scrollConversationTabsByWheel(
+      viewport,
+      { deltaMode: 0, deltaX: 0, deltaY: 40 },
+    ),
+    false,
+    "到达右边界后应把滚动交还外层页面",
+  );
+  assert.equal(viewport.scrollLeft, 400);
+});
+
+test("工作区源码文件复用 Markdown 代码语义高亮语言", async () => {
+  const {
+    getWorkspaceFileCodeLanguage,
+    getWorkspaceFilePreviewKind,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/editor/workspace-file-preview-kind.ts",
+  );
+
+  assert.equal(getWorkspaceFilePreviewKind("scripts/check.py"), "text");
+  assert.equal(getWorkspaceFileCodeLanguage("scripts/check.py"), "python");
+  assert.equal(getWorkspaceFileCodeLanguage("Dockerfile"), "docker");
+  assert.equal(getWorkspaceFileCodeLanguage("Dockerfile.release"), "docker");
+  assert.equal(getWorkspaceFileCodeLanguage(".env.local"), "bash");
+  assert.equal(getWorkspaceFileCodeLanguage("notes.txt"), null);
+});
+
+test("创建 Agent 时行为模板进入独立 API 字段", async () => {
+  const { buildCreateAgentMutationParams } = await server.ssrLoadModule(
+    "/src/features/agents/options/agent-options-mutation.ts",
+  );
+  const params = buildCreateAgentMutationParams(
+    "Reviewer",
+    { model: "model-a", provider: "provider-a" },
+    {
+      avatar: "1",
+      description: "",
+      profile_template: "## Role\\n\\n- Review code",
+      vibe_tags: ["严谨"],
+    },
+  );
+
+  assert.equal(params.profile_template, "## Role\\n\\n- Review code");
+  assert.equal(params.description, "");
+});
+
+test("Agent 首次保存接受服务端来源回写但拒绝更新的用户草稿", async () => {
+  const {
+    buildAgentEditorCommandScopeKey,
+    buildAgentEditorScopeKey,
+    createAgentOptionsDraft,
+  } = await server.ssrLoadModule(
+    "/src/features/agents/options/editor/agent-options-draft.ts",
+  );
+  const { isAgentOptionsSaveCurrent } = await server.ssrLoadModule(
+    "/src/features/agents/options/editor/agent-options-save-transaction.ts",
+  );
+  const beforeSource = {
+    agentId: "agent-1",
+    initial: {
+      avatar: "1",
+      description: "",
+      options: { permission_mode: "plan" },
+      title: "Reviewer",
+      vibeTags: [],
+    },
+    isMain: false,
+    kind: "edit",
+  };
+  const afterSource = {
+    ...beforeSource,
+    initial: {
+      ...beforeSource.initial,
+      options: { permission_mode: "acceptEdits" },
+    },
+  };
+  const beforeSourceScopeKey = buildAgentEditorScopeKey({
+    draft: createAgentOptionsDraft({
+      defaultTitle: "Agent",
+      initial: beforeSource.initial,
+    }),
+    isActive: true,
+    source: beforeSource,
+  });
+  const afterSourceScopeKey = buildAgentEditorScopeKey({
+    draft: createAgentOptionsDraft({
+      defaultTitle: "Agent",
+      initial: afterSource.initial,
+    }),
+    isActive: true,
+    source: afterSource,
+  });
+  const commandScopeKey = buildAgentEditorCommandScopeKey({
+    isActive: true,
+    source: beforeSource,
+  });
+  const token = {
+    commandScopeKey,
+    draftRevision: 1,
+    id: 1,
+    sourceScopeKey: beforeSourceScopeKey,
+  };
+
+  assert.notEqual(afterSourceScopeKey, beforeSourceScopeKey);
+  assert.equal(
+    buildAgentEditorCommandScopeKey({ isActive: true, source: afterSource }),
+    commandScopeKey,
+  );
+  assert.equal(
+    isAgentOptionsSaveCurrent(token, {
+      commandScopeKey,
+      draftRevision: 1,
+      sourceScopeKey: afterSourceScopeKey,
+      token,
+    }, false),
+    true,
+    "PATCH 成功后的来源回写仍应归属于首次保存",
+  );
+  assert.equal(
+    isAgentOptionsSaveCurrent(token, {
+      commandScopeKey,
+      draftRevision: 2,
+      sourceScopeKey: afterSourceScopeKey,
+      token,
+    }, false),
+    false,
+    "保存过程中出现的新用户草稿不得收到旧成功反馈",
+  );
+});
+
+test("会话标签首次只打开活动项并按创建时间插入主动选择项", async () => {
+  const {
+    getConversationIdsByCreationTime,
+    getInitialOpenConversationIds,
+    reconcileOpenConversationIds,
+    resolveSelectedDraftConversationId,
+    shouldPersistConversationTabs,
+  } = await server.ssrLoadModule(
+    "/src/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model.ts",
+  );
+  const conversations = [
+    {
+      conversation_id: "third",
+      created_at: 300,
+      last_activity_at: 900,
+    },
+    {
+      conversation_id: "first",
+      created_at: 100,
+      last_activity_at: 800,
+    },
+    {
+      conversation_id: "second",
+      created_at: 200,
+      last_activity_at: 1000,
+    },
+  ];
+  const orderedIds = getConversationIdsByCreationTime(conversations);
+  const draftConversations = [
+    {
+      conversation_id: "started",
+      created_at: 300,
+      is_draft: false,
+      message_count: 0,
+      options: {},
+    },
+    {
+      conversation_id: "historical-draft",
+      created_at: 100,
+      is_draft: true,
+      message_count: 0,
+      options: {},
+    },
+    {
+      conversation_id: "selected-draft",
+      created_at: 200,
+      is_draft: true,
+      message_count: 0,
+      options: {},
+    },
+    {
+      conversation_id: "external-draft",
+      created_at: 400,
+      is_draft: true,
+      message_count: 0,
+      options: {external_session: true},
+    },
+  ];
+
+  assert.deepEqual(
+    orderedIds,
+    ["first", "second", "third"],
+    "消息活动时间不得改变标签创建顺序",
+  );
+  assert.deepEqual(
+    getInitialOpenConversationIds("third", orderedIds),
+    ["third"],
+    "首次进入 Room 时只应打开最后活动标签",
+  );
+  assert.deepEqual(
+    reconcileOpenConversationIds({
+      conversationId: "third",
+      currentIds: ["third"],
+      orderedIds,
+      pendingClosedId: null,
+    }),
+    ["third"],
+    "新发现的历史会话不得自动加入标签栏",
+  );
+  assert.deepEqual(
+    reconcileOpenConversationIds({
+      conversationId: "second",
+      currentIds: ["first", "third"],
+      orderedIds,
+      pendingClosedId: null,
+    }),
+    orderedIds,
+    "重新打开标签必须回到其创建时间位置",
+  );
+  assert.equal(
+    resolveSelectedDraftConversationId(
+      draftConversations,
+      "selected-draft",
+    ),
+    "selected-draft",
+    "当前内部 Session 被服务端明确标记为草稿时，新建动作必须留在当前页",
+  );
+  assert.equal(
+    resolveSelectedDraftConversationId(
+      draftConversations,
+      "started",
+    ),
+    null,
+    "当前 Session 不是草稿时不得扫描并拉回其他历史草稿",
+  );
+  assert.equal(
+    resolveSelectedDraftConversationId(
+      draftConversations,
+      "external-draft",
+    ),
+    null,
+    "外部 Session 即使错误携带草稿标记也不得参与内部 Session 复用",
+  );
+  assert.deepEqual(
+    reconcileOpenConversationIds({
+      conversationId: "started",
+      currentIds: ["historical-draft", "selected-draft", "started"],
+      orderedIds: ["historical-draft", "selected-draft", "started"],
+      pendingClosedId: null,
+    }),
+    ["historical-draft", "selected-draft", "started"],
+    "标签视图不得自行折叠或删除历史草稿",
+  );
+  assert.equal(
+    shouldPersistConversationTabs({
+      activeConversationId: "second",
+      routeConversationId: "third",
+    }),
+    false,
+    "点击事务的乐观活动项不得被尚未更新的旧路由反向持久化",
+  );
+  assert.equal(
+    shouldPersistConversationTabs({
+      activeConversationId: "second",
+      routeConversationId: "second",
+    }),
+    true,
+    "路由追上活动项后才能收敛持久化标签状态",
+  );
+});
+
+test("Room 导航持久化完整标签栏并让关闭项保持关闭", async () => {
+  const { useRoomNavigationStore } = await server.ssrLoadModule(
+    "/src/store/room-navigation.ts",
+  );
+  const migrate = useRoomNavigationStore.persist.getOptions().migrate;
+  assert.equal(typeof migrate, "function");
+  assert.deepEqual(
+    await migrate({
+      last_active_conversation_by_room: {
+        "legacy-room": "legacy-conversation",
+      },
+    }, 1),
+    {
+      conversation_tabs_by_room: {
+        "legacy-room": {
+          active_conversation_id: "legacy-conversation",
+          open_conversation_ids: ["legacy-conversation"],
+        },
+      },
+    },
+    "旧版最后活动项应迁移成单标签，而不是把历史全部打开",
+  );
+
+  useRoomNavigationStore.setState({ conversation_tabs_by_room: {} });
+  const roomId = "room-tabs-persistence";
+
+  useRoomNavigationStore.getState().save_room_conversation_tabs(
+    roomId,
+    ["first", "third"],
+    "third",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().conversation_tabs_by_room[roomId],
+    {
+      active_conversation_id: "third",
+      open_conversation_ids: ["first", "third"],
+    },
+    "离开 Room 前应保存完整标签数量、顺序和活动项",
+  );
+
+  useRoomNavigationStore.getState().remember_last_active_conversation(
+    roomId,
+    "second",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().conversation_tabs_by_room[roomId],
+    {
+      active_conversation_id: "second",
+      open_conversation_ids: ["first", "third", "second"],
+    },
+    "从历史主动选择会话时才应把它加入打开集合",
+  );
+
+  useRoomNavigationStore.getState().save_room_conversation_tabs(
+    roomId,
+    ["first", "second"],
+    "second",
+  );
+  assert.deepEqual(
+    useRoomNavigationStore.getState().conversation_tabs_by_room[roomId],
+    {
+      active_conversation_id: "second",
+      open_conversation_ids: ["first", "second"],
+    },
+    "关闭的标签不得在后续进入或持久化恢复时自动补回",
+  );
+});
+
+test("Room 无显式会话路由时优先恢复用户最后活动项", async () => {
+  const {
+    buildRoomConversationViews,
+    resolveSelectedConversationId,
+  } = await server.ssrLoadModule(
+    "/src/pages/room/controller/model/room-conversation-model.ts",
+  );
+  const { buildRoomPageModel } = await server.ssrLoadModule(
+    "/src/pages/room/controller/model/page/room-page-model.ts",
+  );
+  const conversations = [
+    { conversation_id: "latest", last_activity_at: 300 },
+    { conversation_id: "remembered", last_activity_at: 200 },
+  ];
+
+  assert.equal(
+    resolveSelectedConversationId(null, conversations, ["remembered"]),
+    "remembered",
+    "切回 Room 时应恢复用户最后激活的标签",
+  );
+  assert.equal(
+    resolveSelectedConversationId("latest", conversations, ["remembered"]),
+    "latest",
+    "显式 Conversation URL 仍然优先于本地恢复偏好",
+  );
+  assert.equal(
+    resolveSelectedConversationId(null, conversations, ["removed"]),
+    "latest",
+    "已删除的恢复目标必须回退到当前有效会话",
+  );
+  assert.equal(
+    resolveSelectedConversationId(
+      null,
+      conversations,
+      ["removed", "remembered"],
+    ),
+    "remembered",
+    "活动标签失效时应优先恢复仍然有效的已打开标签",
+  );
+  const untitledViews = buildRoomConversationViews([{
+    conversation: {
+      conversation_type: "topic",
+      created_at: "2026-07-27T00:00:00Z",
+      id: "new-conversation",
+      is_draft: true,
+      last_activity_at: "2026-07-27T00:00:00Z",
+      message_count: 0,
+      title: "",
+    },
+    room: {
+      id: "room-a",
+      name: "Smoke",
+      room_type: "room",
+    },
+    sessions: [],
+  }]);
+  assert.equal(
+    untitledViews[0].title,
+    "",
+    "空标题必须留给界面本地化显示“新会话”，不能回退成 Room 名称",
+  );
+  assert.equal(
+    untitledViews[0].is_draft,
+    true,
+    "Room 会话视图必须保留服务端显式草稿状态",
+  );
+  const externalConversation = {
+    conversation_id: "external:feishu",
+    room_id: "room-a",
+    session_key: "feishu:session",
+  };
+  const model = buildRoomPageModel({
+    base: {
+      activeRoomSession: null,
+      availableRoomAgents: [],
+      baseRoomConversations: conversations,
+      currentAgent: null,
+      currentRoom: null,
+      currentRoomContext: null,
+      roomMemberAgents: [],
+      selectedBaseConversationId: "latest",
+      workspaceAgentIds: [],
+    },
+    externalAgentSessions: [],
+    externalRoomConversations: [externalConversation],
+    isSelectionReady: true,
+    preferredConversationIds: [externalConversation.conversation_id],
+    routeRoomId: "room-a",
+    routeSessionKey: null,
+  });
+  assert.equal(
+    model.conversation.selectedId,
+    externalConversation.conversation_id,
+    "外部 Session 标签加载完成后也应恢复为最后活动项",
+  );
+});
+
+test("会话快照只把可见的非 synthetic user 视为用户输入", async () => {
+  const {
+    doConversationMessagesBelongToScope,
+    hasConversationUserInput,
+    shouldReportConversationSnapshot,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/use-conversation-snapshot-reporter.ts",
+  );
+  assert.equal(
+    hasConversationUserInput([
+      { role: "assistant" },
+      { role: "user", hidden_from_user: true },
+      { role: "user", is_synthetic: true },
+    ]),
+    false,
+    "助手、隐藏或 synthetic 用户消息都不能结束草稿",
+  );
+  assert.equal(
+    hasConversationUserInput([{ role: "user" }]),
+    true,
+    "可见的真实用户消息必须结束草稿",
+  );
+  assert.equal(
+    shouldReportConversationSnapshot({
+      messages: [{
+        conversation_id: "conversation-old",
+        role: "user",
+        session_key: "room:group:conversation-old",
+      }],
+      observed_scope_key: "conversation-old",
+      scope_key: "conversation-new",
+    }),
+    false,
+    "切换 Session 的首个 render 不能把上一会话的用户消息投影给新 draft",
+  );
+  assert.equal(
+    shouldReportConversationSnapshot({
+      messages: [{
+        conversation_id: "conversation-new",
+        role: "user",
+        session_key: "room:group:conversation-new",
+      }],
+      observed_scope_key: "conversation-new",
+      scope_key: "conversation-new",
+    }),
+    true,
+    "消息集合与当前 scope 对齐后才允许提交会话快照",
+  );
+  assert.equal(
+    doConversationMessagesBelongToScope([{
+      conversation_id: "conversation-old",
+      role: "user",
+      session_key: "room:group:conversation-old",
+    }], "conversation-new"),
+    false,
+    "即使过渡期发生额外 render，旧 Session 的消息也不能污染新 draft",
+  );
+  assert.equal(
+    shouldReportConversationSnapshot({
+      messages: [{
+        conversation_id: "conversation-old",
+        role: "user",
+        session_key: "room:group:conversation-old",
+      }],
+      observed_scope_key: "conversation-new",
+      scope_key: "conversation-new",
+    }),
+    false,
+    "callback 引用变化导致第二次 effect 时，旧消息仍不得通过完整上报判定",
+  );
+  assert.equal(
+    doConversationMessagesBelongToScope([{
+      conversation_id: "conversation-new",
+      role: "user",
+      session_key: "room:group:conversation-new",
+    }, {
+      conversation_id: "conversation-new",
+      role: "assistant",
+      session_key: "agent:agent-a:ws:group:conversation-new",
+    }], "conversation-new"),
+    true,
+    "共享用户消息与 Agent 回复都应归属于当前 Room conversation",
+  );
+  assert.equal(
+    doConversationMessagesBelongToScope([{
+      role: "assistant",
+      session_key: "agent:agent-a:ws:group:conversation-new",
+    }], "conversation-new"),
+    true,
+    "旧消息缺少 conversation_id 时必须从 Group session_key 兼容识别 scope",
+  );
+});
+
+test("Room 快照只在存在用户输入时把新 Session 标记为已开始", async () => {
+  const { applyConversationSnapshotToRoomContexts } = await server.ssrLoadModule(
+    "/src/pages/room/controller/model/room-snapshot-model.ts",
+  );
+  const contexts = [{
+    conversation: {
+      id: "conversation-new",
+      is_draft: true,
+      message_count: 0,
+    },
+    sessions: [],
+  }];
+
+  const withAssistantOnly = applyConversationSnapshotToRoomContexts(contexts, {
+    conversation_id: "conversation-new",
+    has_user_input: false,
+    message_count: 1,
+    room_session_id: null,
+  });
+  assert.equal(
+    withAssistantOnly[0].conversation.message_count,
+    1,
+    "助手消息仍应单调提升本地消息计数",
+  );
+  assert.equal(
+    withAssistantOnly[0].conversation.is_draft,
+    true,
+    "仅有助手或内部消息时不能把 Session 误判为用户已开始",
+  );
+  const withUserInput = applyConversationSnapshotToRoomContexts(withAssistantOnly, {
+    conversation_id: "conversation-new",
+    has_user_input: true,
+    message_count: 2,
+    room_session_id: null,
+  });
+  assert.equal(
+    withUserInput[0].conversation.is_draft,
+    false,
+    "出现真实用户输入后必须立即退出草稿态",
+  );
+  const withPartialHistory = applyConversationSnapshotToRoomContexts(withUserInput, {
+    conversation_id: "conversation-new",
+    has_user_input: false,
+    message_count: 0,
+    room_session_id: null,
+  });
+  assert.equal(
+    withPartialHistory[0].conversation.message_count,
+    2,
+    "局部历史窗口不得把已开始的 Session 回退成空会话",
+  );
+  assert.equal(
+    withPartialHistory[0].conversation.is_draft,
+    false,
+    "局部历史窗口不得把已开始的 Session 恢复成草稿",
+  );
+});
+
 test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
   const {
     getActiveRoomIds,

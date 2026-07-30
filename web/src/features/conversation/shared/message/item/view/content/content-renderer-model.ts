@@ -1,3 +1,8 @@
+/**
+ * INPUT: 结构化内容块、流式身份与 tool 关联状态。
+ * OUTPUT: 内容块消费投影、工具状态及稳定挂载判定。
+ * POS: 内容块视图的纯模型层，不持有 React 身份或消息时间线状态。
+ */
 import type {
   ContentBlock,
   SystemEventContent,
@@ -59,6 +64,15 @@ export function projectStructuredContent(
     taskProgressByToolUseId,
     toolUseById,
   };
+}
+
+export function shouldMountTextContentBlock(
+  content: string,
+  streaming: boolean,
+): boolean {
+  // live 空块先建立 MarkdownRenderer 身份，首个非空快照才会进入已有 hook 的 backlog；
+  // 历史或恢复消息首挂已有正文，仍由 hook 直接呈现，不会重播。
+  return streaming || Boolean(content.trim());
 }
 
 export function resolveToolBlockStatus(

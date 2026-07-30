@@ -20,7 +20,7 @@ type reasonInterruptClient interface {
 func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reason string) ([]string, error) {
 	m.mu.RLock()
 	state, ok := m.sessions[sessionKey]
-	if !ok {
+	if !ok || state == nil || state.Closing {
 		m.mu.RUnlock()
 		return nil, nil
 	}
@@ -46,7 +46,11 @@ func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reaso
 	interruptReason := strings.TrimSpace(reason)
 
 	m.mu.Lock()
-	state = m.ensureStateLocked(sessionKey)
+	state = m.sessions[sessionKey]
+	if state == nil || state.Closing {
+		m.mu.Unlock()
+		return nil, nil
+	}
 	m.touchStateLocked(state)
 	for _, roundID := range roundIDs {
 		state.Interruptions[roundID] = interruptReason

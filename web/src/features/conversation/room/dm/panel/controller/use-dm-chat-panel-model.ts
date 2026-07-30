@@ -24,6 +24,7 @@ export function useDmChatPanelModel({
   onTodosChange,
   runtimeKind,
   sessionIdentity,
+  todos,
 }: DmChatPanelProps): DmChatPanelViewModel {
   const { t } = useI18n();
   const environment = useConversationPanelEnvironment(layout);
@@ -70,6 +71,7 @@ export function useDmChatPanelModel({
     onOpenAgentContact,
     onOpenWorkspaceFile,
     session,
+    todos,
     workspaceAgentId: sessionIdentity?.agent_id ?? null,
   });
 }

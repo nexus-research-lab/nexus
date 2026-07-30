@@ -1,17 +1,20 @@
 package server
 
 import (
+	"context"
 	"testing"
 
 	automationmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 )
 
 func TestAutomationMCPBuilderInjectsHostToolServer(t *testing.T) {
-	builder := newAutomationMCPBuilder(nil, nil, "Asia/Shanghai")
+	builder := newAutomationMCPBuilder(nil, "Asia/Shanghai")
 	servers := builder(
-		"agent-1",
+		context.Background(),
+		&protocol.Agent{AgentID: "agent-1", OwnerUserID: "user-1"},
 		"agent:agent-1:dm:main",
 		"round-1",
 		"agent",

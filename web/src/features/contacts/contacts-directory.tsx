@@ -17,7 +17,7 @@ interface ContactsDirectoryProps {
   agents: Agent[];
   onOpenDirectRoom: (agentId: string) => void;
   onCreateAgent: () => void;
-  onEditAgent: (agentId: string) => void;
+  onOpenAgent: (agentId: string) => void;
   onCreateTeam: (agentId: string) => void;
 }
 
@@ -25,7 +25,7 @@ export function ContactsDirectory({
   agents,
   onOpenDirectRoom,
   onCreateAgent,
-  onEditAgent,
+  onOpenAgent,
   onCreateTeam,
 }: ContactsDirectoryProps) {
   const { t } = useI18n();
@@ -49,26 +49,42 @@ export function ContactsDirectory({
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
-        badge="AGENTS"
         leading={<Users className="h-4 w-4 text-(--icon-default)" />}
         title={t("contacts.title")}
         trailing={headerTrailing}
       />
 
-      <div className="soft-scrollbar scrollbar-stable-gutter min-h-0 flex-1 overflow-y-auto px-5 py-5 xl:px-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="soft-scrollbar scrollbar-stable-gutter min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5 xl:px-6">
+        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 md:gap-4 xl:grid-cols-3 2xl:grid-cols-4">
+          <button
+            className="flex min-h-[138px] w-full items-center gap-3 rounded-[12px] border border-dashed border-(--divider-subtle-color) bg-transparent px-4 py-4 text-left transition duration-(--motion-duration-fast) ease-out hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background) md:hidden"
+            onClick={onCreateAgent}
+            type="button"
+          >
+            <WorkspaceIconFrame className="h-10 w-10 shrink-0" shape="round" size="md">
+              <Plus className="h-4.5 w-4.5 text-(--icon-default)" />
+            </WorkspaceIconFrame>
+            <span className="min-w-0">
+              <span className="block truncate text-base font-semibold text-(--text-strong)">
+                {t("contacts.new_agent")}
+              </span>
+              <span className="mt-1 block line-clamp-2 text-xs leading-5 text-(--text-muted)">
+                {t("contacts.new_agent_description")}
+              </span>
+            </span>
+          </button>
           <WorkspaceCatalogGhostAction
-            className="py-8"
+            className="hidden py-8 md:flex"
             onClick={onCreateAgent}
             size="comfort"
           >
             <WorkspaceIconFrame className="h-16 w-16" shape="round" size="lg">
               <Plus className="h-7 w-7 text-(--icon-default)" />
             </WorkspaceIconFrame>
-            <p className="mt-4 text-[18px] font-bold tracking-[-0.03em] text-(--text-strong)">
+            <p className="mt-4 text-md font-semibold tracking-[-0.03em] text-(--text-strong)">
               {t("contacts.new_agent")}
             </p>
-            <p className="mt-2 text-[13px] leading-5 text-(--text-default)">
+            <p className="mt-2 text-sm leading-5 text-(--text-default)">
               {t("contacts.new_agent_description")}
             </p>
           </WorkspaceCatalogGhostAction>
@@ -77,7 +93,7 @@ export function ContactsDirectory({
               key={agent.agent_id}
               agent={agent}
               onCreateTeam={() => onCreateTeam(agent.agent_id)}
-              onOpenProfile={() => onEditAgent(agent.agent_id)}
+              onOpenProfile={() => onOpenAgent(agent.agent_id)}
               onOpenRoom={() => onOpenDirectRoom(agent.agent_id)}
             />
           ))}

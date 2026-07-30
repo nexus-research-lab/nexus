@@ -312,12 +312,13 @@ VALUES (%s)`, r.dialect.BindList(5)),
 	}
 
 	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
-INSERT INTO conversations (id, room_id, conversation_type, title, last_activity_at)
-VALUES (%s, %s)`, r.dialect.BindList(4), r.dialect.CurrentTimestamp()),
+INSERT INTO conversations (id, room_id, conversation_type, title, is_draft, last_activity_at)
+VALUES (%s, %s)`, r.dialect.BindList(5), r.dialect.CurrentTimestamp()),
 		bundle.Conversation.ID,
 		bundle.Conversation.RoomID,
 		bundle.Conversation.ConversationType,
 		NullIfEmpty(bundle.Conversation.Title),
+		bundle.Conversation.IsDraft,
 	); err != nil {
 		return nil, err
 	}
@@ -570,7 +571,7 @@ func (r *SQLRepository) DeleteRoom(ctx context.Context, ownerUserID string, room
 	return affected > 0, nil
 }
 
-// CreateConversation 创建房间话题。
+// CreateConversation 创建独立话题，或原子确保 Room 只有一个未开始的草稿。
 func (r *SQLRepository) CreateConversation(ctx context.Context, bundle CreateConversationBundle) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -586,15 +587,54 @@ func (r *SQLRepository) CreateConversation(ctx context.Context, bundle CreateCon
 		return nil, nil
 	}
 
-	if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
-INSERT INTO conversations (id, room_id, conversation_type, title, last_activity_at)
-VALUES (%s, %s)`, r.dialect.BindList(4), r.dialect.CurrentTimestamp()),
+	conversationID := bundle.Conversation.ID
+	if bundle.Conversation.IsDraft {
+		conversationID, err = r.loadDraftConversationID(ctx, tx, bundle.RoomID)
+		if err != nil {
+			return nil, err
+		}
+		if conversationID != "" {
+			if err = tx.Commit(); err != nil {
+				return nil, err
+			}
+			return r.getContextByConversation(ctx, ownerUserID, bundle.RoomID, conversationID)
+		}
+	}
+
+	insertPrefix := "INSERT INTO conversations"
+	insertSuffix := ""
+	if bundle.Conversation.IsDraft {
+		insertPrefix = r.dialect.InsertIgnoreInto("conversations")
+		insertSuffix = r.dialect.InsertIgnoreSuffix()
+	}
+	result, err := tx.ExecContext(ctx, fmt.Sprintf(`
+%s (id, room_id, conversation_type, title, is_draft, last_activity_at)
+VALUES (%s, %s)%s`, insertPrefix, r.dialect.BindList(5), r.dialect.CurrentTimestamp(), insertSuffix),
 		bundle.Conversation.ID,
 		bundle.Conversation.RoomID,
 		bundle.Conversation.ConversationType,
 		NullIfEmpty(bundle.Conversation.Title),
-	); err != nil {
+		bundle.Conversation.IsDraft,
+	)
+	if err != nil {
 		return nil, err
+	}
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if bundle.Conversation.IsDraft && inserted == 0 {
+		conversationID, err = r.loadDraftConversationID(ctx, tx, bundle.RoomID)
+		if err != nil {
+			return nil, err
+		}
+		if conversationID == "" {
+			return nil, errors.New("draft conversation conflict without existing draft")
+		}
+		if err = tx.Commit(); err != nil {
+			return nil, err
+		}
+		return r.getContextByConversation(ctx, ownerUserID, bundle.RoomID, conversationID)
 	}
 	for _, sessionValue := range bundle.Sessions {
 		if _, err = tx.ExecContext(ctx, fmt.Sprintf(`
@@ -619,6 +659,25 @@ INSERT INTO sessions (
 		return nil, err
 	}
 	return r.getContextByConversation(ctx, ownerUserID, bundle.RoomID, bundle.Conversation.ID)
+}
+
+func (r *SQLRepository) loadDraftConversationID(
+	ctx context.Context,
+	querier roomQueryer,
+	roomID string,
+) (string, error) {
+	row := querier.QueryRowContext(ctx, `
+SELECT id
+FROM conversations
+WHERE room_id = `+r.dialect.Bind(1)+` AND is_draft = `+r.dialect.TrueValue()+`
+LIMIT 1`, roomID)
+	var conversationID string
+	if err := row.Scan(&conversationID); errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	return conversationID, nil
 }
 
 // UpdateConversation 更新话题标题。
@@ -666,6 +725,20 @@ WHERE id = `+r.dialect.Bind(2),
 
 // TouchConversationActivity 更新 conversation 级最近活动时间。
 func (r *SQLRepository) TouchConversationActivity(ctx context.Context, conversationID string, activityAt time.Time) error {
+	return r.updateConversationActivity(ctx, conversationID, activityAt, false)
+}
+
+// MarkConversationStarted 记录首条真实用户输入并消费 draft。
+func (r *SQLRepository) MarkConversationStarted(ctx context.Context, conversationID string, activityAt time.Time) error {
+	return r.updateConversationActivity(ctx, conversationID, activityAt, true)
+}
+
+func (r *SQLRepository) updateConversationActivity(
+	ctx context.Context,
+	conversationID string,
+	activityAt time.Time,
+	markStarted bool,
+) error {
 	if conversationID == "" {
 		return nil
 	}
@@ -673,9 +746,14 @@ func (r *SQLRepository) TouchConversationActivity(ctx context.Context, conversat
 		activityAt = time.Now().UTC()
 	}
 	activityValue := r.dialect.TimestampValue(activityAt)
+	draftUpdate := ""
+	if markStarted {
+		draftUpdate = "    is_draft = " + r.dialect.FalseValue() + ",\n"
+	}
 	_, err := r.db.ExecContext(ctx, `
 UPDATE conversations
 SET
+`+draftUpdate+`
     last_activity_at = CASE
         WHEN COALESCE(last_activity_at, created_at) < `+r.dialect.Bind(1)+` THEN `+r.dialect.Bind(2)+`
         ELSE COALESCE(last_activity_at, updated_at, created_at)

@@ -61,8 +61,18 @@ async function main() {
   fs.mkdirSync(path.dirname(args.output), { recursive: true });
   fs.writeFileSync(args.output, runtimeBytes, { mode: 0o755 });
   fs.chmodSync(args.output, 0o755);
+  if (args.ripgrepOutput) {
+    const ripgrepName = goos === "windows" ? "rg.exe" : "rg";
+    const ripgrepBytes = extractExecutable(archiveBytes, archiveKind(asset), ripgrepName);
+    fs.mkdirSync(path.dirname(args.ripgrepOutput), { recursive: true });
+    fs.writeFileSync(args.ripgrepOutput, ripgrepBytes, { mode: 0o755 });
+    fs.chmodSync(args.ripgrepOutput, 0o755);
+  }
 
   console.log(`nxs runtime: ${args.output}`);
+  if (args.ripgrepOutput) {
+    console.log(`ripgrep sidecar: ${args.ripgrepOutput}`);
+  }
   console.log(`version: ${selection.version || manifest.version || release}`);
   console.log(`asset: ${asset.filename}`);
 }
@@ -82,6 +92,9 @@ function parseArgs(values) {
         break;
       case "--output":
         args.output = requireValue(values, ++index, value);
+        break;
+      case "--ripgrep-output":
+        args.ripgrepOutput = requireValue(values, ++index, value);
         break;
       case "--goos":
         args.goos = requireValue(values, ++index, value);
@@ -114,7 +127,7 @@ function requireValue(values, index, flag) {
 }
 
 function printHelp() {
-  console.log(`Usage: node scripts/desktop/fetch-nxs-runtime.js --output <path> [--goos darwin] [--goarch arm64]
+  console.log(`Usage: node scripts/desktop/fetch-nxs-runtime.js --output <path> [--ripgrep-output <path>] [--goos darwin] [--goarch arm64]
 
 Downloads the nxs runtime from the bridge release manifest, verifies sha256, and writes the executable.
 

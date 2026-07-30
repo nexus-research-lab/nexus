@@ -80,7 +80,7 @@ function MemoryAgentIdentity({
   return (
     <div className="flex min-w-0 items-center gap-2">
       <Brain className="h-4 w-4 text-(--icon-muted)" />
-      <span className="truncate text-[12px] font-semibold text-(--text-strong)">
+      <span className="truncate text-compact font-semibold text-(--text-strong)">
         {agent.name}
       </span>
     </div>
@@ -97,7 +97,7 @@ function MemoryMetrics({
   const { t } = useI18n();
   const latestModifiedAt = memory.summary.latestDocument?.modified_at;
   return (
-    <div className="nexus-memory-metrics flex min-w-0 flex-1 items-center gap-4 overflow-x-auto text-[11px] text-(--text-soft)">
+    <div className="nexus-memory-metrics flex min-w-0 flex-1 items-center gap-4 overflow-x-auto text-xs text-(--text-soft)">
       <MemoryMetric
         label={t("capability.memory_metric_index")}
         value={memory.resource.snapshot?.index ? t("capability.memory_ready") : "-"}

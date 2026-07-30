@@ -4,6 +4,7 @@ import { SlidersHorizontal } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
+  CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
 } from "@/features/capability/shared/capability-page-layout";
@@ -26,7 +27,7 @@ export function ConnectorsSearchBar({
   const { t } = useI18n();
 
   return (
-    <div className="mb-4 flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+    <CapabilityFilterBar>
       <CapabilityFilterSearchInput
         onChange={onQueryChange}
         placeholder={t("capability.connectors_search_placeholder")}
@@ -44,6 +45,6 @@ export function ConnectorsSearchBar({
         placeholder={getConnectorCategoryLabel("all", t)}
         value={activeCategory}
       />
-    </div>
+    </CapabilityFilterBar>
   );
 }

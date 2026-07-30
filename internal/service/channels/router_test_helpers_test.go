@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	channelcontract "github.com/nexus-research-lab/nexus/internal/service/channels/contract"
 	channelmessage "github.com/nexus-research-lab/nexus/internal/service/channels/message"
@@ -236,4 +238,15 @@ func newChannelTestDB(t *testing.T) *sql.DB {
 		t.Fatalf("初始化 delivery schema 失败: %v", err)
 	}
 	return db
+}
+
+func newChannelOwnerWorkspace(t *testing.T, ownerUserID string, agentID string) (string, string) {
+	t.Helper()
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	return filepath.Join(stateRoot, "users"), filepath.Join(
+		appfs.UserWorkspaceRootAt(stateRoot, ownerUserID),
+		agentID,
+	)
 }

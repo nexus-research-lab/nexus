@@ -1,14 +1,21 @@
+/**
+ * INPUT: Assistant 内容块、结果文本与 Room 内部控制标记。
+ * OUTPUT: 用户可见输出判定、控制标记清理及消息内容提取/归一化工具。
+ * POS: DM/Room 消息内容语义的共享纯模型。
+ */
 import type {
   ContentBlock,
   ToolResultContent,
   TextContent,
 } from "@/types/conversation/message/content";
+import type { AssistantMessage } from "@/types/conversation/message/entity";
 
 const TOOL_USE_ERROR_TAG_PATTERN =
   /<tool_use_error>([\s\S]*?)<\/tool_use_error>/g;
 
-// 该标记只控制 Room 编排，任何面向用户的文本投影都必须先剥离。
-const ROOM_CONTROL_MARKER = /<nexus_room_no_reply\s*\/>/g;
+// 这些标记只控制 Room 编排；历史、流式、结果与复制投影必须共用同一清理入口。
+const ROOM_CONTROL_MARKER_PATTERN =
+  /<nexus_room_(?:fanout|no_reply)\s*\/>/gi;
 
 // SDK 用内部元数据标记可恢复的工具结果，模型仍能看到 is_error，用户界面不应把它当成异常。
 export const INTERNAL_TOOL_RESULT_KIND_KEY = "_nexus_internal_kind";
@@ -65,7 +72,26 @@ function appendToolUseErrorBlock(
 }
 
 export function stripRoomControlMarkers(text: string): string {
-  return text.replace(ROOM_CONTROL_MARKER, "").trim();
+  return text.replace(ROOM_CONTROL_MARKER_PATTERN, "").trim();
+}
+
+export function hasVisibleAssistantOutput(
+  message: AssistantMessage,
+): boolean {
+  const result = message.result_summary?.result ?? "";
+  return message.content.some(hasVisibleAssistantBlock)
+    || Boolean(stripRoomControlMarkers(result));
+}
+
+function hasVisibleAssistantBlock(block: ContentBlock): boolean {
+  switch (block.type) {
+    case "thinking":
+      return false;
+    case "text":
+      return Boolean(stripRoomControlMarkers(block.text));
+    default:
+      return true;
+  }
 }
 
 export function extractTextFromContentBlocks(

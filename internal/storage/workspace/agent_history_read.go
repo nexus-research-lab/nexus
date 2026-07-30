@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -17,11 +18,13 @@ func (s *AgentHistoryStore) ReadMessages(
 	sessionValue protocol.Session,
 	activeRoundIDs []string,
 ) ([]protocol.Message, error) {
-	rows, err := s.readHistoryRows(workspacePath, sessionValue)
-	if err != nil {
-		return nil, err
-	}
-	return normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs)), nil
+	return withRuntimePermissionRepair(s, func() ([]protocol.Message, error) {
+		rows, err := s.readHistoryRows(workspacePath, sessionValue)
+		if err != nil {
+			return nil, err
+		}
+		return normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs)), nil
+	})
 }
 
 // ReadMessagesPage 按 round 分页读取 DM 历史。
@@ -35,26 +38,28 @@ func (s *AgentHistoryStore) ReadMessagesPage(
 	aroundRoundID string,
 	aroundLimit int,
 ) (protocol.MessagePage, error) {
-	rows, err := s.readHistoryRows(workspacePath, sessionValue)
-	if err != nil {
-		return protocol.MessagePage{}, err
-	}
-	normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
-	if strings.TrimSpace(aroundRoundID) != "" {
-		return paginateNormalizedHistoryRowsAround(
+	return withRuntimePermissionRepair(s, func() (protocol.MessagePage, error) {
+		rows, err := s.readHistoryRows(workspacePath, sessionValue)
+		if err != nil {
+			return protocol.MessagePage{}, err
+		}
+		normalizedRows := normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs))
+		if strings.TrimSpace(aroundRoundID) != "" {
+			return paginateNormalizedHistoryRowsAround(
+				normalizedRows,
+				aroundRoundID,
+				aroundLimit,
+				false,
+			), nil
+		}
+		return paginateNormalizedHistoryRows(
 			normalizedRows,
-			aroundRoundID,
-			aroundLimit,
+			limit,
+			beforeRoundID,
+			beforeRoundTimestamp,
 			false,
 		), nil
-	}
-	return paginateNormalizedHistoryRows(
-		normalizedRows,
-		limit,
-		beforeRoundID,
-		beforeRoundTimestamp,
-		false,
-	), nil
+	})
 }
 
 func (s *AgentHistoryStore) readHistoryRows(
@@ -97,7 +102,15 @@ func (s *AgentHistoryStore) readHistoryRows(
 		return nil, err
 	}
 
-	rows := mergeTranscriptAndOverlayRows(transcriptRows, overlayState.MessageRows)
+	rows := mergeTranscriptAndOverlayRows(
+		transcriptRows,
+		overlayState.MessageRows,
+		materializeRoundMarkerMessages(
+			sessionValue.SessionKey,
+			sessionValue.AgentID,
+			overlayState.RoundMarkers,
+		),
+	)
 	return rows, nil
 }
 
@@ -117,9 +130,17 @@ func buildOverlayOnlyHistoryRows(
 func mergeTranscriptAndOverlayRows(
 	transcriptRows []protocol.Message,
 	overlayRows []protocol.Message,
+	roundMarkerRows []protocol.Message,
 ) []protocol.Message {
-	combined := make([]protocol.Message, 0, len(transcriptRows)+len(overlayRows))
+	combined := make(
+		[]protocol.Message,
+		0,
+		len(transcriptRows)+len(overlayRows)+len(roundMarkerRows),
+	)
+	// 可见 marker 是 durable 用户输入真相；即使 transcript 断链或无法解码，
+	// 也必须进入统一 compact，由稳定 message_id 与 transcript 用户行去重。
 	combined = append(combined, transcriptRows...)
+	combined = append(combined, roundMarkerRows...)
 	combined = append(combined, overlayRows...)
 	return combined
 }
@@ -185,17 +206,18 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	if err != nil {
 		return nil, err
 	}
-	fileInfo, err := os.Stat(transcriptPath)
+	root, relative, fileInfo, err := s.openTranscriptPath(workspacePath, transcriptPath)
 	if err != nil {
 		return nil, err
 	}
+	defer root.Close()
 
 	roundMarkerFingerprint := fingerprintTranscriptRoundMarkers(roundMarkers)
 	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, roundMarkerFingerprint); ok {
 		return cachedRows, nil
 	}
 
-	entries, err := s.readTranscriptEntries(transcriptPath)
+	entries, err := s.readTranscriptEntriesAt(root, relative)
 	if err != nil {
 		return nil, err
 	}
@@ -205,8 +227,99 @@ func (s *AgentHistoryStore) readTranscriptMessages(
 	return projectedRows, nil
 }
 
+// ReadTranscriptSessionMessages 按受控 session id 定位独立 Agent thread，
+// 并使用普通 transcript 投影保留消息、思考、工具调用和工具结果。
+func (s *AgentHistoryStore) ReadTranscriptSessionMessages(
+	workspacePath string,
+	transcriptSessionID string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	return withRuntimePermissionRepair(s, func() ([]protocol.Message, error) {
+		transcriptSessionID = strings.ToLower(strings.TrimSpace(transcriptSessionID))
+		if !IsTranscriptSessionID(transcriptSessionID) &&
+			!IsSubagentTranscriptSessionID(transcriptSessionID) {
+			return []protocol.Message{}, nil
+		}
+		transcriptPath, err := s.resolveTranscriptPath(workspacePath, transcriptSessionID)
+		if err != nil {
+			return nil, err
+		}
+		return s.readTranscriptPathMessages(
+			transcriptPath,
+			workspacePath,
+			sessionKey,
+			agentID,
+		)
+	})
+}
+
 // ReadTranscriptPathMessages 读取指定 transcript 文件并投影为 Nexus 消息。
 func (s *AgentHistoryStore) ReadTranscriptPathMessages(
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	return withRuntimePermissionRepair(s, func() ([]protocol.Message, error) {
+		return s.readTranscriptPathMessages(
+			transcriptPath,
+			workspacePath,
+			sessionKey,
+			agentID,
+		)
+	})
+}
+
+// ReadTranscriptPathMessagesForOwner 从 owner 固定的 workspace/runtime 根读取
+// 显式 transcript，避免在请求路径上重新解析可被替换的用户目录。
+func (s *AgentHistoryStore) ReadTranscriptPathMessagesForOwner(
+	ownerUserID string,
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	ownerHistory := s
+	if strings.TrimSpace(ownerUserID) != strings.TrimSpace(s.ownerUserID) {
+		ownerHistory = s.ForOwner(ownerUserID)
+	}
+	return withRuntimePermissionRepair(ownerHistory, func() ([]protocol.Message, error) {
+		candidates, closeRoots, err := s.openOwnerTranscriptCandidates(
+			ownerUserID,
+			workspacePath,
+		)
+		if err != nil {
+			return nil, err
+		}
+		defer closeRoots()
+		return s.readTranscriptPathMessagesAt(
+			candidates,
+			transcriptPath,
+			workspacePath,
+			sessionKey,
+			agentID,
+		)
+	})
+}
+
+func (s *AgentHistoryStore) readTranscriptPathMessages(
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	return s.readTranscriptPathMessagesAt(
+		nil,
+		transcriptPath,
+		workspacePath,
+		sessionKey,
+		agentID,
+	)
+}
+
+func (s *AgentHistoryStore) readTranscriptPathMessagesAt(
+	candidates []transcriptRootCandidate,
 	transcriptPath string,
 	workspacePath string,
 	sessionKey string,
@@ -218,14 +331,25 @@ func (s *AgentHistoryStore) ReadTranscriptPathMessages(
 	if transcriptPath == "" {
 		return []protocol.Message{}, nil
 	}
-	fileInfo, err := os.Stat(transcriptPath)
+	var (
+		root     *confinedfs.Root
+		relative string
+		fileInfo os.FileInfo
+		err      error
+	)
+	if candidates == nil {
+		root, relative, fileInfo, err = s.openTranscriptPath(workspacePath, transcriptPath)
+	} else {
+		root, relative, fileInfo, err = openTranscriptPathAt(candidates, transcriptPath)
+	}
 	if err != nil {
 		return nil, err
 	}
+	defer root.Close()
 	if cachedRows, ok := s.readTranscriptCache(transcriptPath, fileInfo, explicitTranscriptCacheKey); ok {
 		return cachedRows, nil
 	}
-	entries, err := s.readTranscriptEntries(transcriptPath)
+	entries, err := s.readTranscriptEntriesAt(root, relative)
 	if err != nil {
 		return nil, err
 	}
@@ -234,4 +358,62 @@ func (s *AgentHistoryStore) ReadTranscriptPathMessages(
 	projectedRows = normalizeHistoryRows(projectedRows, nil)
 	s.writeTranscriptCache(transcriptPath, fileInfo, explicitTranscriptCacheKey, projectedRows)
 	return projectedRows, nil
+}
+
+// ReadTranscriptLinkMessages 投影 runtime 明确返回的 transcript 符号链接。
+// 链接入口与最终目标分别绑定到授权根，普通 transcript 读取仍拒绝符号链接。
+func (s *AgentHistoryStore) ReadTranscriptLinkMessages(
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	return withRuntimePermissionRepair(s, func() ([]protocol.Message, error) {
+		targetPath, err := s.resolveTranscriptLinkTarget(workspacePath, transcriptPath)
+		if err != nil {
+			return nil, err
+		}
+		return s.readTranscriptPathMessages(
+			targetPath,
+			workspacePath,
+			sessionKey,
+			agentID,
+		)
+	})
+}
+
+// ReadTranscriptLinkMessagesForOwner 在同一组 owner 固定目录句柄内解析链接并
+// 读取最终 transcript，避免链接校验与目标打开之间重新经过绝对路径。
+func (s *AgentHistoryStore) ReadTranscriptLinkMessagesForOwner(
+	ownerUserID string,
+	transcriptPath string,
+	workspacePath string,
+	sessionKey string,
+	agentID string,
+) ([]protocol.Message, error) {
+	ownerHistory := s
+	if strings.TrimSpace(ownerUserID) != strings.TrimSpace(s.ownerUserID) {
+		ownerHistory = s.ForOwner(ownerUserID)
+	}
+	return withRuntimePermissionRepair(ownerHistory, func() ([]protocol.Message, error) {
+		candidates, closeRoots, err := s.openOwnerTranscriptCandidates(
+			ownerUserID,
+			workspacePath,
+		)
+		if err != nil {
+			return nil, err
+		}
+		defer closeRoots()
+		targetPath, err := resolveTranscriptLinkTargetAt(candidates, transcriptPath)
+		if err != nil {
+			return nil, err
+		}
+		return s.readTranscriptPathMessagesAt(
+			candidates,
+			targetPath,
+			workspacePath,
+			sessionKey,
+			agentID,
+		)
+	})
 }

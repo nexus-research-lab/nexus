@@ -41,7 +41,7 @@ export function deriveSidebarPrimaryTab(pathname: string): SidebarPrimaryTab {
   if (pathname.startsWith(AppRouteBuilders.contacts())) {
     return "contacts";
   }
-  if (pathname.startsWith("/capability/")) {
+  if (pathname.startsWith("/capability")) {
     return "capabilities";
   }
   return "chat";
@@ -49,7 +49,7 @@ export function deriveSidebarPrimaryTab(pathname: string): SidebarPrimaryTab {
 
 export function buildSidebarPrimaryTabs(
   t: I18nContextValue["t"],
-  activeTab: SidebarPrimaryTab,
+  activeTab: SidebarPrimaryTab | null,
   chatBadgeCount: number,
 ): SidebarPrimaryTabItem[] {
   return PRIMARY_TAB_DEFINITIONS.map((definition) => ({
@@ -73,13 +73,4 @@ export function buildSidebarUtilityLabels(
     logout: t("sidebar.logout"),
     settings: t("sidebar.settings"),
   };
-}
-
-export function isNexusSidebarItemActive(
-  activePanelItemId: string | null,
-  nexusRoomId: string | null,
-  nexusItemId: string,
-): boolean {
-  return activePanelItemId === nexusItemId
-    || Boolean(nexusRoomId && activePanelItemId === nexusRoomId);
 }

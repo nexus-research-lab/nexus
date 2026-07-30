@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "required_binaries": [
+    {
+      "name": "python3",
+      "min_version": "3.10.0",
+      "reason": "运行搜狗微信搜索与结果整理脚本"
+    }
+  ],
+  "required_python_packages": [
+    {
+      "name": "requests",
+      "version": ">=2.31,<3",
+      "reason": "管理 HTTP 会话、Cookie、超时与请求重试"
+    },
+    {
+      "name": "beautifulsoup4",
+      "version": ">=4.12,<5",
+      "reason": "解析搜狗微信搜索结果 HTML"
+    }
+  ]
+}

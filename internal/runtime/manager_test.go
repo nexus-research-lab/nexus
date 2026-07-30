@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -32,6 +33,28 @@ type fakeRuntimeClient struct {
 	messages           <-chan sdkprotocol.ReceivedMessage
 	receiveStarted     chan struct{}
 	receiveStopped     chan struct{}
+}
+
+type fakeSlashCommandClient struct {
+	*fakeRuntimeClient
+	commands []agentclient.SlashCommand
+	err      error
+}
+
+func (c *fakeSlashCommandClient) SupportedCommands(
+	context.Context,
+) ([]agentclient.SlashCommand, error) {
+	return c.commands, c.err
+}
+
+type fakeOwnerProcessReaper struct {
+	owners []string
+	err    error
+}
+
+func (r *fakeOwnerProcessReaper) ReapOwnerProcesses(_ context.Context, ownerUserID string) error {
+	r.owners = append(r.owners, ownerUserID)
+	return r.err
 }
 
 type fakeTaskMessage struct {
@@ -137,6 +160,84 @@ func (c *fakeRuntimeClient) Supports(capability agentclient.Capability) bool {
 
 func (c *fakeRuntimeClient) SessionID() string { return "" }
 
+func TestManagerCommandCatalogUsesOptionalRuntimeCapability(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:commands"
+	manager.sessions[sessionKey] = &sessionState{
+		Client: &fakeSlashCommandClient{
+			fakeRuntimeClient: &fakeRuntimeClient{},
+			commands: []agentclient.SlashCommand{{
+				Name:        "review",
+				Description: "Review code",
+			}},
+		},
+		RuntimeKind: agentclient.RuntimeNXS,
+	}
+
+	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusReady ||
+		snapshot.RuntimeKind != agentclient.RuntimeNXS ||
+		len(snapshot.Commands) != 1 ||
+		snapshot.Commands[0].Name != "review" {
+		t.Fatalf("CommandCatalog() = %#v, want ready nxs catalog", snapshot)
+	}
+}
+
+func TestManagerCommandCatalogDoesNotCreateRuntime(t *testing.T) {
+	manager := NewManager()
+
+	snapshot, err := manager.CommandCatalog(
+		context.Background(),
+		"agent:agent-a:ws:dm:not-started",
+		"",
+	)
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusLoading ||
+		len(snapshot.Commands) != 0 ||
+		len(manager.sessions) != 0 {
+		t.Fatalf("CommandCatalog() = %#v, sessions=%d", snapshot, len(manager.sessions))
+	}
+}
+
+func TestManagerCommandCatalogReportsUnsupportedClient(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:unsupported"
+	manager.sessions[sessionKey] = &sessionState{
+		Client:      &fakeRuntimeClient{},
+		RuntimeKind: agentclient.RuntimeClaude,
+	}
+
+	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusUnavailable ||
+		snapshot.RuntimeKind != agentclient.RuntimeClaude {
+		t.Fatalf("CommandCatalog() = %#v, want unavailable claude catalog", snapshot)
+	}
+}
+
+func TestManagerCommandCatalogRejectsDifferentOwner(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:private"
+	manager.sessions[sessionKey] = &sessionState{
+		Client: &fakeSlashCommandClient{
+			fakeRuntimeClient: &fakeRuntimeClient{},
+		},
+		OwnerUserID: "owner-a",
+	}
+
+	_, err := manager.CommandCatalog(context.Background(), sessionKey, "owner-b")
+	if !errors.Is(err, ErrCommandCatalogOwnerMismatch) {
+		t.Fatalf("CommandCatalog() error = %v, want owner mismatch", err)
+	}
+}
+
 func TestSDKClientAdapterWaitReturnsStreamError(t *testing.T) {
 	processErr := errors.New("process: command exited with error: exit status 2")
 	client := &sdkClientAdapter{streamErr: processErr}
@@ -215,6 +316,25 @@ func TestManagerUpdateEnvironmentForAgentUpdatesMatchingNXSClients(t *testing.T)
 	}
 }
 
+func TestManagerUpdateEnvironmentForAgentRejectsManagedIdentity(t *testing.T) {
+	manager := NewManager()
+	client := &fakeRuntimeClient{}
+	manager.sessions["agent:agent-a:conversation:1"] = &sessionState{
+		Client:      client,
+		RuntimeKind: agentclient.RuntimeNXS,
+	}
+
+	err := manager.UpdateEnvironmentForAgent(context.Background(), "agent-a", map[string]string{
+		"NEXUS_RUNTIME_USER_ID": "owner-b",
+	})
+	if err == nil {
+		t.Fatal("运行期环境更新应拒绝宿主管理的 owner 身份")
+	}
+	if len(client.environmentUpdates) != 0 {
+		t.Fatalf("非法运行期环境不应下发给 runtime: %+v", client.environmentUpdates)
+	}
+}
+
 func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	client := &fakeRuntimeClient{}
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
@@ -251,6 +371,33 @@ func TestManagerGetOrCreateReconfiguresExistingClient(t *testing.T) {
 	}
 	if client.lastOptions.Env["NEXUS_OPENAI_PROTOCOL"] != "responses" {
 		t.Fatalf("Reconfigure 未收到 Responses 协议更新: %+v", client.lastOptions.Env)
+	}
+}
+
+func TestManagerRejectsSessionReuseAcrossOwners(t *testing.T) {
+	client := &fakeRuntimeClient{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	sessionKey := "agent:nexus:ws:dm:owner-boundary"
+
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"},
+	}); err != nil {
+		t.Fatalf("创建 owner-a runtime 失败: %v", err)
+	}
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-b"},
+	}); err == nil || !strings.Contains(err.Error(), "runtime session owner mismatch") {
+		t.Fatalf("跨 owner 复用应失败，err=%v", err)
+	}
+	if _, err := manager.GetOrCreate(
+		context.Background(),
+		sessionKey,
+		agentclient.Options{},
+	); err == nil || !strings.Contains(err.Error(), "runtime session owner mismatch") {
+		t.Fatalf("缺失 owner 的请求也不能复用已绑定 session，err=%v", err)
+	}
+	if client.reconfigureCalls != 0 {
+		t.Fatalf("跨 owner 请求不应进入旧 client: calls=%d", client.reconfigureCalls)
 	}
 }
 
@@ -764,44 +911,149 @@ func TestManagerClearGoalAccounting(t *testing.T) {
 	}
 }
 
+func TestManagerBeginGoalAccountingFinalizing(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-finalize"
+	calls := []string{}
+	manager.RegisterGoalAccountingFinalize(sessionKey, "round-b", func() bool {
+		calls = append(calls, "round-b")
+		return true
+	})
+	manager.RegisterGoalAccountingFinalize(sessionKey, "round-a", func() bool {
+		calls = append(calls, "round-a")
+		return true
+	})
+
+	roundIDs := manager.BeginGoalAccountingFinalizing(sessionKey)
+	if strings.Join(roundIDs, ",") != "round-a,round-b" ||
+		strings.Join(calls, ",") != "round-a,round-b" {
+		t.Fatalf("roundIDs=%#v calls=%#v, want sorted round-a/round-b", roundIDs, calls)
+	}
+
+	manager.RegisterGoalAccountingFinalize(sessionKey, "round-a", nil)
+	calls = nil
+	roundIDs = manager.BeginGoalAccountingFinalizing(sessionKey)
+	if strings.Join(roundIDs, ",") != "round-b" ||
+		strings.Join(calls, ",") != "round-b" {
+		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
+	}
+
+	manager.MarkRoundFinished(sessionKey, "round-b")
+	if roundIDs = manager.BeginGoalAccountingFinalizing(sessionKey); len(roundIDs) != 0 {
+		t.Fatalf("after round finished roundIDs=%#v, want empty", roundIDs)
+	}
+}
+
 func TestManagerActivateGoalAccounting(t *testing.T) {
 	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
 	sessionKey := "agent:nexus:ws:dm:test-goal-activate"
 	calls := []string{}
-	manager.RegisterGoalAccountingActivate(sessionKey, "round-b", func(context.Context) error {
-		calls = append(calls, "round-b")
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-b", func(_ context.Context, goalID string) error {
+		calls = append(calls, "round-b:"+goalID)
 		return nil
 	})
-	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", func(context.Context) error {
-		calls = append(calls, "round-a")
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", func(_ context.Context, goalID string) error {
+		calls = append(calls, "round-a:"+goalID)
 		return nil
 	})
 
-	roundIDs, err := manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	roundIDs, err := manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-1")
 	if err != nil {
 		t.Fatalf("ActivateGoalAccounting() error = %v", err)
 	}
 	if strings.Join(roundIDs, ",") != "round-a,round-b" {
 		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
 	}
-	if strings.Join(calls, ",") != "round-a,round-b" {
+	if strings.Join(calls, ",") != "round-a:goal-1,round-b:goal-1" {
 		t.Fatalf("calls = %#v, want sorted round-a/round-b", calls)
 	}
 
 	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", nil)
 	calls = nil
-	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-2")
 	if err != nil {
 		t.Fatalf("ActivateGoalAccounting() after unregister error = %v", err)
 	}
-	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
+	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b:goal-2" {
 		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
 	}
 
 	manager.MarkRoundFinished(sessionKey, "round-b")
-	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey)
+	roundIDs, err = manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-2")
 	if err != nil || len(roundIDs) != 0 {
 		t.Fatalf("after round finished roundIDs=%#v err=%v, want empty nil", roundIDs, err)
+	}
+}
+
+func TestManagerActivationReportsAndRollsBackOnlySuccessfulRounds(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:room:test-goal-activation-rollback"
+	activationErr := errors.New("scope already consumed")
+	cleared := []string{}
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-a", func(context.Context, string) error {
+		return activationErr
+	})
+	manager.RegisterGoalAccountingActivate(sessionKey, "round-b", func(context.Context, string) error {
+		return nil
+	})
+	manager.RegisterGoalAccountingClear(sessionKey, "round-a", func() {
+		cleared = append(cleared, "round-a")
+	})
+	manager.RegisterGoalAccountingClear(sessionKey, "round-b", func() {
+		cleared = append(cleared, "round-b")
+	})
+
+	activated, err := manager.ActivateGoalAccounting(context.Background(), sessionKey, "goal-new")
+	if !errors.Is(err, activationErr) {
+		t.Fatalf("ActivateGoalAccounting() error = %v, want activation error", err)
+	}
+	if strings.Join(activated, ",") != "round-b" {
+		t.Fatalf("activated = %#v, want only successful round-b", activated)
+	}
+	if rolledBack := manager.ClearGoalAccountingRounds(sessionKey, activated); strings.Join(rolledBack, ",") != "round-b" {
+		t.Fatalf("rolled back = %#v, want only round-b", rolledBack)
+	}
+	if strings.Join(cleared, ",") != "round-b" {
+		t.Fatalf("clear callbacks = %#v, failing round-a must retain its prior binding", cleared)
+	}
+}
+
+func TestManagerGoalAccountingCreateConflictsAreScopeAwareAndLive(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:room:test-goal-create-guard"
+	roundAConsumed := false
+	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-a", "root-1", func() bool {
+		return roundAConsumed
+	})
+	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-b", "root-1", func() bool {
+		return true
+	})
+	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-c", "root-2", func() bool {
+		return true
+	})
+
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-1"); strings.Join(got, ",") != "round-b" {
+		t.Fatalf("root-1 conflicts = %#v, want only consumed round-b", got)
+	}
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-2"); strings.Join(got, ",") != "round-c" {
+		t.Fatalf("root-2 conflicts = %#v, want only consumed round-c", got)
+	}
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, ""); strings.Join(got, ",") != "round-b,round-c" {
+		t.Fatalf("session conflicts = %#v, want every consumed live scope", got)
+	}
+
+	roundAConsumed = true
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-1"); strings.Join(got, ",") != "round-a,round-b" {
+		t.Fatalf("updated root-1 conflicts = %#v, want dynamic consumed state", got)
+	}
+
+	manager.RegisterGoalAccountingCreateGuard(sessionKey, "round-b", "root-1", nil)
+	manager.MarkRoundFinished(sessionKey, "round-a")
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, "root-1"); len(got) != 0 {
+		t.Fatalf("finished/unregistered conflicts = %#v, want empty", got)
+	}
+	if got := manager.GoalAccountingCreateConflicts(sessionKey, ""); strings.Join(got, ",") != "round-c" {
+		t.Fatalf("remaining session conflicts = %#v, want only round-c", got)
 	}
 }
 
@@ -993,6 +1245,90 @@ func TestManagerCloseIdleSessionsClosesOnlyIdleClients(t *testing.T) {
 	}
 	if got := manager.GetRunningRoundIDs(activeKey); len(got) != 1 || got[0] != "round-active" {
 		t.Fatalf("active round 不应被清理: %+v", got)
+	}
+}
+
+func TestManagerCloseOwnerSessionsClosesOnlyMatchingOwner(t *testing.T) {
+	clientA1 := &fakeRuntimeClient{}
+	clientA2 := &fakeRuntimeClient{}
+	clientB := &fakeRuntimeClient{}
+	reaper := &fakeOwnerProcessReaper{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{clients: []*fakeRuntimeClient{
+		clientA1,
+		clientA2,
+		clientB,
+	}})
+	manager.SetOwnerProcessReaper(reaper)
+	optionsForOwner := func(ownerUserID string) agentclient.Options {
+		return agentclient.Options{
+			Env: map[string]string{"NEXUS_RUNTIME_USER_ID": ownerUserID},
+		}
+	}
+	for _, input := range []struct {
+		sessionKey  string
+		ownerUserID string
+	}{
+		{sessionKey: "session-a-1", ownerUserID: "owner-a"},
+		{sessionKey: "session-a-2", ownerUserID: "owner-a"},
+		{sessionKey: "session-b", ownerUserID: "owner-b"},
+	} {
+		if _, err := manager.GetOrCreate(
+			context.Background(),
+			input.sessionKey,
+			optionsForOwner(input.ownerUserID),
+		); err != nil {
+			t.Fatalf("创建 %s runtime 失败: %v", input.sessionKey, err)
+		}
+	}
+	roundCanceled := false
+	manager.StartRound("session-a-1", "round-a", func() {
+		roundCanceled = true
+		manager.MarkRoundFinished("session-a-1", "round-a")
+	})
+
+	closed, err := manager.CloseOwnerSessions(context.Background(), "owner-a")
+	if err != nil {
+		t.Fatalf("关闭 owner runtime 失败: %v", err)
+	}
+	if closed != 2 {
+		t.Fatalf("关闭数量=%d，want 2", closed)
+	}
+	if !roundCanceled {
+		t.Fatal("owner runtime 回收必须取消运行中的 round")
+	}
+	if clientA1.disconnectCalls != 1 || clientA2.disconnectCalls != 1 {
+		t.Fatalf(
+			"owner-a clients 未全部关闭: first=%d second=%d",
+			clientA1.disconnectCalls,
+			clientA2.disconnectCalls,
+		)
+	}
+	if clientB.disconnectCalls != 0 || !manager.HasSession("session-b") {
+		t.Fatalf(
+			"owner-b runtime 不应受影响: disconnect=%d exists=%v",
+			clientB.disconnectCalls,
+			manager.HasSession("session-b"),
+		)
+	}
+	if !slices.Equal(reaper.owners, []string{"owner-a"}) {
+		t.Fatalf("owner cgroup 回收调用=%v，want [owner-a]", reaper.owners)
+	}
+}
+
+func TestManagerCloseOwnerSessionsReapsOwnerWithoutTrackedSession(t *testing.T) {
+	reaper := &fakeOwnerProcessReaper{}
+	manager := NewManager()
+	manager.SetOwnerProcessReaper(reaper)
+
+	closed, err := manager.CloseOwnerSessions(context.Background(), "owner-orphan")
+	if err != nil {
+		t.Fatalf("回收 orphan owner 失败: %v", err)
+	}
+	if closed != 0 {
+		t.Fatalf("没有 tracked session 时 closed=%d，want 0", closed)
+	}
+	if !slices.Equal(reaper.owners, []string{"owner-orphan"}) {
+		t.Fatalf("owner cgroup 回收调用=%v，want [owner-orphan]", reaper.owners)
 	}
 }
 

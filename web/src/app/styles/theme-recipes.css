@@ -7,9 +7,9 @@
  * =====================================================
  */
 
-/* 中文注释：共享配方层只负责“材质语法”，业务组件只能组合这些规则，不再自己发明玻璃写法。 */
+/* 共享配方层只负责“材质语法”，业务组件只能组合这些规则，不再自己发明玻璃写法。 */
 @layer components {
-  /* 中文注释：表面原语只保留少数稳定语义，其他组件统一映射回来，避免继续堆近义 recipe。
+  /* 表面原语只保留少数稳定语义，其他组件统一映射回来，避免继续堆近义 recipe。
    * 1. desktop-rail：桌面侧栏底面
    * 2. surface-panel：主面板
    * 3. surface-inset / surface-card：次级内容面
@@ -18,21 +18,279 @@
    * 6. dialog-*：弹窗语义壳，材质必须回落到 surface / input / card 原语
    */
 
-  .desktop-window-frame {
-    padding-top: var(--desktop-window-top-inset, 0px);
+  :root[data-desktop-platform="macos"]
+    [data-desktop-window-drag-region] {
+    app-region: drag;
+    -webkit-app-region: drag;
+  }
+
+  :root[data-desktop-platform="macos"]
+    [data-desktop-window-drag-region] :is(
+    a,
+    audio[controls],
+    button,
+    iframe,
+    input,
+    select,
+    summary,
+    textarea,
+    video[controls],
+    [contenteditable]:not([contenteditable="false"]),
+    [data-desktop-window-no-drag],
+    [draggable="true"],
+    [role="button"],
+    [role="checkbox"],
+    [role="link"],
+    [role="menuitem"],
+    [role="switch"],
+    [role="tab"],
+    [tabindex]:not([tabindex="-1"])
+  ),
+  :root[data-desktop-platform="macos"]
+    [data-desktop-window-no-drag] {
+    app-region: no-drag;
+    -webkit-app-region: no-drag;
+  }
+
+  :root[data-desktop-platform="macos"]
+    [data-desktop-window-controls-leading]::before {
+    content: "";
+    flex: 0 0 var(--desktop-window-controls-inset, 84px);
+  }
+
+  /*
+   * 系统保留宽度已经包含窗口按钮后的呼吸区；品牌栏自身的左 padding
+   * 不应再重复计入，否则字标左侧会明显宽于右侧收起动作。
+   */
+  :root[data-desktop-platform="macos"]
+    .sidebar-panel-header[data-desktop-window-controls-leading]::before {
+    margin-inline-start: -12px;
+  }
+
+  .sidebar-panel-collapsed-toggle {
+    position: fixed;
+    z-index: 70;
+    top: 14px;
+    left: 12px;
+    display: flex;
+  }
+
+  :root[data-desktop-platform="macos"] .sidebar-panel-collapsed-toggle {
+    top: 10px;
+    left: calc(var(--desktop-window-controls-inset, 84px) + 8px);
+  }
+
+  /* 原生窗口按钮中心位于 60px Header 的几何中心上方 4px。 */
+  :root[data-desktop-platform="macos"] :is(
+    .sidebar-panel-header,
+    .workspace-surface-header-inner
+  ) {
+    padding-bottom: 8px;
+  }
+
+  .launcher-console-spotlights {
+    top: 20px;
+    left: 20px;
+    width: 139px;
+    height: 16px;
+  }
+
+  :root[data-desktop-runtime="true"] .launcher-console-spotlights {
+    width: 104px;
+    height: 12px;
+  }
+
+  :root[data-desktop-platform="macos"] .launcher-console-spotlights {
+    left: var(--desktop-window-controls-inset, 84px);
+  }
+
+  .launcher-console-wordmark {
+    font-weight: 400;
+    letter-spacing: normal;
+  }
+
+  :root[data-desktop-runtime="true"] .launcher-console-wordmark {
+    font-weight: 400;
+    letter-spacing: 0.1em;
+  }
+
+  :root[data-desktop-platform="macos"]
+    .sidebar-panel-shell[data-sidebar-collapsed="true"]
+    + .desktop-app-stage
+    .workspace-surface-header-inner::before {
+    content: "";
+    flex: 0 0 var(--desktop-window-controls-inset, 84px);
+  }
+
+  :root[data-desktop-platform="macos"]
+    .desktop-entry-stage
+    .workspace-surface-header-inner::before {
+    content: "";
+    flex: 0 0 var(--desktop-window-controls-inset, 84px);
+  }
+
+  .home-desktop-drag-header {
+    display: none;
+  }
+
+  :root[data-desktop-platform="macos"] .home-desktop-drag-header {
+    display: block;
   }
 
   .desktop-rail {
     position: relative;
-    /* 中文注释：侧栏透出页面纹理，只用低对比边界标记导航区域。 */
-    background: transparent;
-    border-right: 1px solid var(--divider-subtle-color);
+    z-index: 10;
+    isolation: isolate;
+    /* 目录层使用主题底色建立层级；外缘线由置顶伪元素一次绘制，避免 Header/Footer 覆盖父级 shadow 后产生断线。 */
+    background: var(--surface-shell-directory-background);
+    box-shadow: var(--surface-shell-edge-shadow);
+  }
+
+  /* 折叠与展开共用同一个侧栏壳层，宽度只沿布局轴做一次有阻尼的过渡。 */
+  .sidebar-panel-shell {
+    container-name: sidebar-panel;
+    container-type: inline-size;
+    transition: width var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  @container sidebar-panel (max-width: 320px) {
+    .sidebar-brand-wordmark {
+      --sidebar-brand-font-size: 18px;
+      --sidebar-brand-letter-spacing: 0.58em;
+    }
+  }
+
+  @container sidebar-panel (max-width: 280px) {
+    .sidebar-brand-wordmark {
+      --sidebar-brand-font-size: 16px;
+      --sidebar-brand-letter-spacing: 0.32em;
+    }
+  }
+
+  .sidebar-panel-shell[data-sidebar-resizing="true"] {
+    transition: none;
+  }
+
+  .sidebar-panel-directory {
+    transition: opacity var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .sidebar-panel-header {
+    transition: padding var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  @media (width < 64rem) {
+    :root[data-desktop-platform="macos"]
+      .sidebar-panel-header[data-desktop-window-controls-leading]::before {
+      margin-inline-start: -16px;
+    }
+  }
+
+  .sidebar-panel-shell:not([data-sidebar-collapsed="true"]) .sidebar-panel-directory {
+    transition-delay: 80ms;
+  }
+
+  .sidebar-panel-footer {
+    transition: height var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  .sidebar-panel-footer-action {
+    position: absolute;
+    transition:
+      bottom var(--motion-duration-layout) var(--motion-ease-layout),
+      left var(--motion-duration-layout) var(--motion-ease-layout),
+      right var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  .desktop-rail[data-shell-split-edge="true"]::after {
+    position: absolute;
+    z-index: 20;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 1px;
+    pointer-events: none;
+    background: var(--surface-shell-edge-divider);
+    content: "";
+  }
+
+  .sidebar-panel-shell[data-sidebar-collapsed="true"][data-shell-split-edge="true"]::after {
+    top: 60px;
+  }
+
+  .shell-navigation-rail {
+    position: relative;
+    z-index: 2;
+    background: var(--surface-shell-navigation-background);
+    box-shadow: var(--surface-shell-inner-shadow);
+  }
+
+  .shell-region-header {
+    position: relative;
+    z-index: 5;
+    background: var(--surface-shell-header-background);
+    box-shadow: var(--surface-shell-header-shadow);
+  }
+
+  .shell-region-footer {
+    position: relative;
+    z-index: 3;
+    background: var(--surface-shell-directory-background);
+    box-shadow: var(--surface-shell-footer-shadow);
+  }
+
+  /*
+   * Composer 输入壳自身的上缘向消息区羽化；外层与输入壳同宽，
+   * 只向上延伸视觉边缘，不得用额外 padding/clearance 伪造同一效果。
+   */
+  .nexus-chat-composer-edge::before {
+    position: absolute;
+    top: -44px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      color-mix(in srgb, var(--background) 28%, transparent) 20px,
+      color-mix(in srgb, var(--background) 76%, transparent) 34px,
+      var(--background) 44px,
+      var(--background) 100%
+    );
+    content: "";
+  }
+
+  /*
+   * Goal / Provider 状态存在时，它们本身就是消息区与输入区的视觉边界。
+   * Composer 羽化不得越过状态层，否则会把浮层下缘洗白并制造假间距。
+   */
+  [data-conversation-status-stack]:has(> *)
+    + [data-conversation-composer-anchor]
+    .nexus-chat-composer-edge::before {
+    top: 0;
+    background: var(--background);
+  }
+
+  @media (max-width: 1023px) {
+    .nexus-chat-composer-edge::before {
+      top: -32px;
+      background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        color-mix(in srgb, var(--background) 34%, transparent) 14px,
+        color-mix(in srgb, var(--background) 78%, transparent) 24px,
+        var(--background) 32px,
+        var(--background) 100%
+      );
+    }
   }
 
   .surface-panel {
     position: relative;
     overflow: hidden;
-    /* 中文注释：主面板默认只保留一档克制圆角，特殊壳层再显式提升。 */
+    /* 主面板默认只保留一档克制圆角，特殊壳层再显式提升。 */
     border-radius: 12px;
     background: var(--card);
     border: 1px solid var(--surface-panel-border);
@@ -45,6 +303,337 @@
     background: transparent;
     border: 1px solid var(--divider-subtle-color);
     box-shadow: none;
+  }
+
+  /* 正文内容默认不成卡；以下配方只给代码、引用、表格、媒体和文件动作提供最低限度的语义边界。 */
+  .content-inline-code,
+  .content-workspace-file {
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: var(--content-radius-inline);
+    border: 1px solid var(--content-inline-code-border);
+    background: var(--content-inline-code-background);
+    color: var(--content-inline-code-color);
+  }
+
+  .content-inline-code {
+    display: inline-flex;
+    padding: 1px 0.25rem;
+  }
+
+  .content-divider,
+  .conversation-round-divider {
+    display: block;
+    height: 0;
+    margin: 0 0.375rem;
+    border: 0;
+    border-top: 0.5px solid var(--content-divider-color);
+    background: transparent;
+  }
+
+  .content-divider {
+    margin-block: 0.75rem;
+  }
+
+  /*
+   * Markdown hr 继续承担正文语义；Room 的说话人切换改用头像同轴的短圆点划，
+   * 避免两类边界都表现为贯穿内容列的横线。
+   */
+  .conversation-agent-boundary {
+    width: 2rem;
+    height: 2px;
+    margin-block: 0.625rem 0.125rem;
+    margin-inline-start: 0.75rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+  }
+
+  /*
+   * 新 handoff 先建立稳定 execution shell，再仅动画合成层；
+   * 状态和流式正文继续复用同一节点，不逐帧改高度或触发虚拟列表校正。
+   */
+  .room-agent-execution-enter {
+    animation:
+      nexus-room-agent-execution-enter
+      var(--motion-duration-normal)
+      var(--motion-ease-standard)
+      both;
+  }
+
+  .content-workspace-file {
+    display: inline-flex;
+    align-items: center;
+    background: var(--content-workspace-file-background);
+    border-color: var(--content-workspace-file-border);
+    color: var(--primary);
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .content-workspace-file:hover {
+    background: var(--content-workspace-file-hover-background);
+    border-color: color-mix(in srgb, var(--primary) 32%, var(--content-workspace-file-border));
+  }
+
+  .content-workspace-file:focus-visible,
+  .content-media-action:focus-visible,
+  .content-code-action:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+
+  .content-quote {
+    width: auto;
+    min-width: 0;
+    max-width: calc(100% - 0.5rem);
+    overflow: hidden;
+    margin-left: 0.5rem;
+    border-left: 4px solid var(--content-quote-border);
+    background: transparent;
+    padding: 0 0 0 1rem;
+    color: var(--content-quote-color);
+  }
+
+  .content-kbd {
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--content-radius-inline);
+    border: 1px solid var(--content-inline-code-border);
+    background: var(--content-inline-code-background);
+    box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--text-strong) 8%, transparent);
+    padding: 0.125rem 0.375rem;
+    color: var(--text-strong);
+  }
+
+  .content-highlight {
+    border-radius: var(--content-radius-inline);
+    background: var(--content-highlight-background);
+    padding: 0 0.25rem;
+  }
+
+  .content-media {
+    border-radius: var(--content-radius-control);
+    border: 1px solid var(--content-media-border);
+  }
+
+  .content-code-shell {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    border: 0.5px solid var(--divider-strong-color);
+    background: color-mix(in srgb, var(--surface-panel-background) 50%, transparent);
+    outline: none;
+  }
+
+  .content-code-shell:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 38%, transparent);
+  }
+
+  .content-code-label {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    padding: 0.875rem 0.875rem 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+  }
+
+  .content-code-copy-layer {
+    position: sticky;
+    z-index: 1;
+    top: 0.5rem;
+    float: right;
+    width: 0;
+    height: 3rem;
+    padding: 0.5rem 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 150ms ease-in-out;
+  }
+
+  .content-code-shell:hover .content-code-copy-layer,
+  .content-code-shell:focus-within .content-code-copy-layer {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .content-code-copy-actions {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 10;
+    display: inline-flex;
+    height: 1.75rem;
+    align-items: center;
+    padding: 0 0.875rem;
+  }
+
+  .content-code-action {
+    position: relative;
+    display: inline-flex;
+    width: 1.75rem;
+    height: 1.75rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border: 0 solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    padding: 0;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    line-height: 1;
+    backdrop-filter: blur(12px);
+    transition:
+      background-color 300ms cubic-bezier(0.165, 0.85, 0.45, 1),
+      color 300ms cubic-bezier(0.165, 0.85, 0.45, 1);
+  }
+
+  .content-code-action:hover,
+  .content-code-action:focus-visible {
+    background: var(--surface-interactive-hover-background);
+    color: var(--text-strong);
+    outline: none;
+  }
+
+  .content-code-action[data-copied="true"] {
+    color: var(--success);
+  }
+
+  .content-table-scroll {
+    /* 表格跟随阅读列铺满；只有列的最小宽度超过列宽时才在自身内部横向滚动。 */
+    width: 100%;
+    max-width: 100%;
+    margin: 0 0 1.5rem;
+    padding: 0 0.5rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .content-table {
+    width: 100%;
+    min-width: max-content;
+    border-collapse: collapse;
+    text-align: left;
+    line-height: 1.7;
+  }
+
+  .content-table-head {
+    color: var(--text-strong);
+  }
+
+  .content-table-heading,
+  .content-table-cell {
+    padding: 0.5rem 1rem 0.5rem 0;
+    text-align: start;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+
+  .content-table-heading {
+    border-bottom: 0.5px solid var(--content-table-heading-border);
+    font-weight: 600;
+  }
+
+  .content-table-cell {
+    border-bottom: 0.5px solid var(--content-table-cell-border);
+    color: var(--text-default);
+  }
+
+  .content-artifact-row {
+    border: 1px solid var(--content-artifact-border);
+    border-radius: var(--content-radius-surface);
+    background: var(--content-artifact-background);
+    box-shadow: none;
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .content-artifact-row[data-actionable="true"]:hover,
+  .content-artifact-row[data-actionable="true"]:focus-within {
+    border-color: color-mix(in srgb, var(--primary) 24%, var(--content-artifact-border));
+    background: var(--content-artifact-hover-background);
+  }
+
+  .content-artifact-icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--content-artifact-border);
+    border-radius: var(--content-radius-control);
+    background: var(--content-artifact-icon-background);
+    color: var(--icon-default);
+  }
+
+  .content-artifact-open {
+    border-radius: var(--content-radius-control-xs);
+    color: var(--primary);
+    opacity: 0.72;
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      opacity var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .content-artifact-row:hover .content-artifact-open,
+  .content-artifact-row:focus-within .content-artifact-open {
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    opacity: 1;
+  }
+
+  .content-artifact-external-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid transparent;
+    border-radius: var(--content-radius-control-xs);
+    background: transparent;
+    color: var(--text-muted);
+    transition:
+      background-color var(--motion-duration-fast) var(--motion-ease-standard),
+      border-color var(--motion-duration-fast) var(--motion-ease-standard),
+      color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .content-artifact-external-action:hover,
+  .content-artifact-external-action:focus-visible {
+    border-color: var(--surface-interactive-hover-border);
+    background: var(--surface-interactive-hover-background);
+    color: var(--primary);
+  }
+
+  .content-artifact-image {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--content-media-border);
+    border-radius: var(--content-radius-control);
+    background: transparent;
+    padding: 0;
+  }
+
+  .content-artifact-image:disabled {
+    cursor: default;
+  }
+
+  .content-artifact-image-preview {
+    display: block;
+    border-radius: calc(var(--content-radius-control) - 1px);
+  }
+
+  .content-artifact-empty {
+    border: 1px solid var(--content-artifact-border);
+    border-radius: var(--content-radius-control);
+    background: var(--content-artifact-background);
+    color: var(--text-muted);
   }
 
   .divider-subtle {
@@ -84,10 +673,156 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--input-shell-focus-border, var(--material-input-focus-border)) 32%, transparent);
   }
 
+  /* 对话 Composer 使用独立的聚焦面，避免把更大的圆角和纵向节奏扩散到搜索框与表单输入。 */
+  .input-shell.nexus-chat-composer-shell {
+    container-name: nexus-chat-composer;
+    container-type: inline-size;
+    border-radius: 20px;
+    border-color: color-mix(in srgb, var(--input-shell-border) 88%, transparent);
+    background: var(--input-shell-background);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.035);
+  }
+
+  .input-shell.nexus-chat-composer-shell:hover {
+    border-color: color-mix(in srgb, var(--surface-interactive-hover-border) 82%, var(--input-shell-border));
+    background: var(--input-shell-background);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.035);
+  }
+
+  .input-shell.nexus-chat-composer-shell:focus-within {
+    border-color: color-mix(
+      in srgb,
+      var(--input-shell-focus-border, var(--material-input-focus-border)) 72%,
+      var(--input-shell-border)
+    );
+    background: var(--input-shell-focus-background, var(--material-input-focus-background));
+    box-shadow:
+      0 4px 20px rgba(0, 0, 0, 0.035),
+      0 0 0 1px color-mix(
+        in srgb,
+        var(--input-shell-focus-border, var(--material-input-focus-border)) 18%,
+        transparent
+      );
+  }
+
+  .nexus-chat-composer-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas: "leading brand trailing";
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.875rem;
+  }
+
+  .nexus-chat-composer-footer-leading {
+    grid-area: leading;
+    overflow: hidden;
+  }
+
+  .nexus-chat-composer-footer-brand {
+    grid-area: brand;
+    justify-self: center;
+    color: color-mix(
+      in srgb,
+      var(--text-soft) 52%,
+      var(--input-shell-background)
+    );
+  }
+
+  .nexus-chat-composer-footer-trailing {
+    grid-area: trailing;
+  }
+
+  .nexus-chat-composer-submit-label {
+    display: none;
+  }
+
+  @container nexus-chat-composer (min-width: 640px) {
+    .nexus-chat-composer-submit-label {
+      display: inline;
+    }
+  }
+
+  @container nexus-chat-composer (max-width: 520px) {
+    .nexus-chat-composer-footer {
+      column-gap: 0.5rem;
+      padding-inline: 0.75rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "leading trailing"
+        "brand brand";
+      row-gap: 0.25rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-leading {
+      flex-wrap: wrap;
+      overflow: visible;
+      row-gap: 0.25rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-lead {
+      max-width: 9rem;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-metadata {
+      display: none;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-runtime-status {
+      flex-basis: 100%;
+      padding-inline-start: 2.5rem;
+    }
+  }
+
+  @container nexus-chat-composer (max-width: 420px) {
+    .nexus-chat-composer-footer-brand-prefix {
+      display: none;
+    }
+
+    .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-scope {
+      display: none;
+    }
+  }
+
+  .input-shell.ui-search-input-shell {
+    border-color: var(--surface-control-border);
+    background: var(--surface-control-field-background);
+    box-shadow: var(--surface-control-field-shadow);
+  }
+
+  .input-shell.ui-search-input-shell:hover {
+    border-color: var(--surface-control-hover-border);
+    background: var(--surface-control-hover-background);
+  }
+
+  .input-shell.ui-search-input-shell:focus-within {
+    border-color: color-mix(
+      in srgb,
+      var(--input-shell-focus-border, var(--material-input-focus-border)) 88%,
+      var(--surface-control-border)
+    );
+    background: color-mix(
+      in srgb,
+      var(--surface-control-field-background) 82%,
+      var(--input-shell-focus-background, var(--material-input-focus-background)) 18%
+    );
+    box-shadow:
+      var(--surface-control-field-shadow),
+      0 0 0 1px color-mix(
+        in srgb,
+        var(--input-shell-focus-border, var(--material-input-focus-border)) 28%,
+        transparent
+      );
+  }
+
   .surface-popover {
     border-radius: 16px;
     background: var(--surface-popover-background);
     border: 1px solid var(--surface-popover-border);
+    background-clip: padding-box;
     box-shadow: var(--surface-popover-shadow);
   }
 
@@ -175,8 +910,8 @@
     align-items: center;
     justify-content: center;
     padding: 1.5rem;
-    backdrop-filter: blur(4px) saturate(104%);
-    -webkit-backdrop-filter: blur(4px) saturate(104%);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
     background: var(--dialog-backdrop-color);
   }
 
@@ -186,21 +921,21 @@
     justify-content: space-between;
     gap: 1rem;
     background: var(--modal-dialog-header-background);
-    border-bottom: 1px solid color-mix(in srgb, var(--modal-divider-color) 58%, transparent);
+    border-bottom: 1px solid var(--modal-divider-color);
     padding: 0.875rem 1.125rem;
   }
 
   .dialog-title {
-    font-size: 1.125rem;
-    font-weight: 700;
+    font-size: 1.0625rem;
+    font-weight: 600;
     letter-spacing: 0;
     line-height: 1.25;
     color: var(--text-strong);
   }
 
   .dialog-title[data-size="hero"] {
-    font-size: 1.75rem;
-    font-weight: 900;
+    font-size: 1.5rem;
+    font-weight: 600;
     letter-spacing: 0;
   }
 
@@ -217,7 +952,7 @@
 
   .dialog-body {
     background: var(--modal-dialog-body-background);
-    padding: 1rem 1.25rem;
+    padding: 1rem 1.125rem;
   }
 
   .dialog-body--scroll {
@@ -230,7 +965,7 @@
     justify-content: flex-end;
     gap: 0.75rem;
     background: var(--modal-dialog-footer-background);
-    border-top: 1px solid color-mix(in srgb, var(--modal-divider-color) 58%, transparent);
+    border-top: 1px solid var(--modal-divider-color);
     padding: 0.8125rem 1.125rem;
   }
 
@@ -242,13 +977,13 @@
 
   .dialog-label {
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 500;
     letter-spacing: 0;
     text-transform: none;
     color: var(--text-soft);
   }
 
-  /* 中文注释：控件只允许四档圆角，避免业务组件继续出现 9/13/15px 等近似值。 */
+  /* 控件只允许四档圆角，避免业务组件继续出现 9/13/15px 等近似值。 */
   .radius-control-xs {
     border-radius: 6px;
   }
@@ -312,7 +1047,7 @@
     border: 1px solid var(--surface-interactive-active-border);
   }
 
-  /* 中文注释：横排头像使用应用内滑轨，避免系统滚动条隐藏后失去可发现性。 */
+  /* 横排头像使用应用内滑轨，避免系统滚动条隐藏后失去可发现性。 */
   .icon-picker-scroll-range {
     appearance: none;
     height: 18px;
@@ -365,59 +1100,40 @@
     box-shadow: var(--surface-card-shadow);
   }
 
-  /* 中文注释：消息 Markdown 列表使用固定 marker 栅格，避免序号在不同缩放和屏宽下压住正文。 */
+  /* 列表保留浏览器原生 marker；外层与条目内缩固定，序号和正文在不同缩放下仍稳定对齐。 */
   .markdown-list {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.25rem;
     max-width: 100%;
-    margin: 0.5rem 0 1rem;
-    padding: 0;
+    margin: 0 0 0.75rem;
+    padding-left: 2rem;
     color: color-mix(in srgb, var(--foreground) 90%, transparent);
-    list-style: none;
+    list-style-position: outside;
   }
 
   .markdown-list-ordered {
-    counter-reset: markdown-list-item;
+    list-style-type: decimal;
+  }
+
+  .markdown-list-unordered {
+    list-style-type: disc;
   }
 
   .markdown-list-item {
-    display: grid;
-    grid-template-columns: 2.5rem minmax(0, 1fr);
-    column-gap: 0.5rem;
-    align-items: start;
+    margin-top: 0.25rem;
+    margin-bottom: 0;
+    padding-left: 0.5rem;
     min-width: 0;
     max-width: 100%;
     overflow-wrap: anywhere;
-    line-height: 1.625;
+    line-height: 1.65rem;
   }
 
-  .markdown-list-ordered>.markdown-list-item {
-    counter-increment: markdown-list-item;
-  }
-
-  .markdown-list-item::before {
-    grid-column: 1;
-    justify-self: end;
-    min-width: 1.4rem;
+  .markdown-list-item::marker {
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .markdown-list-ordered>.markdown-list-item::before {
-    content: counter(markdown-list-item) ".";
-  }
-
-  .markdown-list-unordered>.markdown-list-item::before {
-    content: "•";
-  }
-
-  .markdown-list-item>* {
-    grid-column: 2;
-    min-width: 0;
-    max-width: 100%;
+    font-weight: 400;
   }
 
   .markdown-list-item-body {
@@ -435,8 +1151,9 @@
   }
 
   .markdown-list-item-body>.markdown-list {
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
     margin-bottom: 0;
+    padding-bottom: 0.25rem;
   }
 }
 
@@ -455,90 +1172,124 @@
     scrollbar-width: none;
   }
 
-  /* 中文注释：聊天列在桌面分栏后也可能变窄，按容器宽度收紧消息排版，而不是只依赖移动端断点。 */
+  /* 聊天列在桌面分栏后也可能变窄，按容器宽度收紧消息排版，而不是只依赖移动端断点。 */
   .nexus-chat-feed {
     container: nexus-chat-feed / inline-size;
   }
 
-  /* 中文注释：左侧 DM / Room 摘要属于导航文字，统一使用侧栏界面字体，不继承正文的中文字体。 */
+  /* 京华老宋体只进入聊天中文正文，避免侧栏摘要、工作区文档与其他 UI 被正文风格污染。 */
+  .nexus-chat-feed .message-cjk-text {
+    font-family: var(--font-prose);
+    font-synthesis: style;
+  }
+
+  /* User 与 Assistant 共用正文首尾节奏，避免无气泡用户消息一端贴头像、一端又骤然收紧。 */
+  .nexus-chat-message-body-rhythm {
+    padding-top: 0.25rem;
+    padding-bottom: 0.5rem;
+  }
+
+  /* 左侧 DM / Room 摘要属于导航文字，统一使用侧栏界面字体，不继承正文的中文字体。 */
   .nexus-sidebar-conversation-summary,
   .nexus-sidebar-conversation-summary .message-cjk-text {
     font-family: var(--font-sans);
     font-synthesis: style;
   }
 
-  /* 中文注释：聊天 Markdown 的基础节奏在所有宽度保持一致，窄列只额外压缩消息壳层。 */
-  .nexus-chat-feed .nexus-chat-markdown [data-markdown-anchor] {
-    margin-top: 0.25rem;
-    margin-bottom: 0.25rem;
+  /* 正文块使用 12px 栅格；标题只增加上方距离并收紧下方，阅读节奏不会像博客正文一样松散。 */
+  .nexus-markdown-body {
+    align-content: start;
+    display: grid;
+    grid-auto-rows: max-content;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+
+  .nexus-markdown-body > * {
+    min-width: 0;
+  }
+
+  .nexus-markdown-body > :last-child {
+    margin-bottom: 0;
+  }
+
+  .nexus-chat-feed .nexus-markdown-body [data-markdown-anchor] {
+    margin: 0;
     color: var(--text-strong);
-    line-height: 1.5;
+    line-height: 1.65rem;
   }
 
-  .nexus-chat-feed .nexus-chat-markdown h1[data-markdown-anchor] {
+  .nexus-chat-feed .nexus-markdown-body h1[data-markdown-anchor] {
     margin-top: 0.75rem;
-    margin-bottom: 0.35rem;
+    margin-bottom: -0.25rem;
+    font-size: 1.375rem;
+    font-weight: 600;
+    line-height: 1.65rem;
+  }
+
+  .nexus-chat-feed .nexus-markdown-body h2[data-markdown-anchor] {
+    margin-top: 0.75rem;
+    margin-bottom: -0.25rem;
     font-size: 1.125rem;
-    line-height: 1.3;
+    font-weight: 600;
+    line-height: 1.65rem;
   }
 
-  .nexus-chat-feed .nexus-chat-markdown h2[data-markdown-anchor] {
-    margin-top: 0.625rem;
-    margin-bottom: 0.3rem;
+  .nexus-chat-feed .nexus-markdown-body :is(h3, h4, h5, h6)[data-markdown-anchor] {
+    margin-top: 0.5rem;
+    margin-bottom: -0.25rem;
     font-size: 1rem;
-    line-height: 1.3;
+    font-weight: 600;
+    line-height: 1.65rem;
   }
 
-  .nexus-chat-feed .nexus-chat-markdown h3[data-markdown-anchor] {
-    margin-top: 0.5rem;
-    margin-bottom: 0.25rem;
-    font-size: 0.9375rem;
-    line-height: 1.35;
+  .nexus-chat-feed .nexus-markdown-body blockquote {
+    margin: 0;
   }
 
-  .nexus-chat-feed .nexus-chat-markdown blockquote {
-    margin-top: 0.5rem;
-    margin-bottom: 0.5rem;
+  .nexus-chat-feed .nexus-markdown-body .content-quote[data-markdown-anchor],
+  .nexus-chat-feed .nexus-markdown-body .content-quote [data-markdown-anchor] {
+    color: var(--content-quote-color);
   }
 
-  .nexus-chat-feed .nexus-chat-markdown img,
-  .nexus-chat-feed .nexus-chat-markdown table {
-    margin-top: 0.75rem;
-    margin-bottom: 0.75rem;
+  .nexus-chat-feed .nexus-markdown-body img {
+    margin: 0;
   }
 
-  .nexus-chat-feed .nexus-chat-markdown .markdown-list {
-    gap: 0.125rem;
+  .nexus-chat-feed .nexus-markdown-body .markdown-list {
+    gap: 0.25rem;
+    margin: 0 0 0.75rem;
+  }
+
+  .nexus-chat-feed .nexus-markdown-body .markdown-list-item {
+    line-height: 1.65rem;
+  }
+
+  .nexus-chat-feed .nexus-markdown-body .markdown-list-item + .markdown-list-item {
     margin-top: 0.25rem;
-    margin-bottom: 0.375rem;
   }
 
-  .nexus-chat-feed .nexus-chat-markdown .markdown-list-item {
-    grid-template-columns: 1.55rem minmax(0, 1fr);
-    column-gap: 0.005rem;
-    line-height: 1.45;
-  }
-
-  .nexus-chat-feed .nexus-chat-markdown .markdown-list-item-body > [data-markdown-anchor] {
+  .nexus-chat-feed .nexus-markdown-body .markdown-list-item-body > [data-markdown-anchor] {
     margin-top: 0;
     margin-bottom: 0;
     line-height: inherit;
   }
 
-  .nexus-chat-feed .nexus-chat-markdown .markdown-list-item::before {
+  .nexus-chat-feed .nexus-markdown-body .markdown-list-item::marker {
     color: var(--text-default);
-    font-weight: 500;
+    font-weight: 400;
   }
 
-  /* 中文注释：工作区文件是次级阅读面板，使用紧凑但不拥挤的独立字号与段落节奏。 */
-  .nexus-workspace-file-markdown {
+  /* 工作区文件是次级阅读面板，使用紧凑但不拥挤的独立字号与段落节奏。 */
+  .nexus-workspace-file-markdown.nexus-markdown-body {
+    gap: 0.5rem;
+    font-family: var(--font-sans);
     font-size: 0.875rem;
     line-height: 1.55;
   }
 
   .nexus-workspace-file-markdown [data-markdown-anchor] {
-    margin-top: 0.375rem;
-    margin-bottom: 0.375rem;
+    margin: 0;
     color: var(--text-strong);
     line-height: 1.55;
   }
@@ -548,24 +1299,27 @@
   }
 
   .nexus-workspace-file-markdown h1[data-markdown-anchor] {
-    margin-top: 1rem;
-    margin-bottom: 0.4rem;
-    font-size: 1.125rem;
-    line-height: 1.32;
+    margin-top: 0.75rem;
+    margin-bottom: -0.25rem;
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.55;
   }
 
   .nexus-workspace-file-markdown h2[data-markdown-anchor] {
-    margin-top: 0.875rem;
-    margin-bottom: 0.35rem;
-    font-size: 1rem;
-    line-height: 1.35;
+    margin-top: 0.75rem;
+    margin-bottom: -0.25rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.55;
   }
 
-  .nexus-workspace-file-markdown h3[data-markdown-anchor] {
-    margin-top: 0.75rem;
-    margin-bottom: 0.3rem;
-    font-size: 0.9375rem;
-    line-height: 1.4;
+  .nexus-workspace-file-markdown :is(h3, h4, h5, h6)[data-markdown-anchor] {
+    margin-top: 0.5rem;
+    margin-bottom: -0.25rem;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.55;
   }
 
   .nexus-workspace-file-markdown .markdown-list {
@@ -575,8 +1329,7 @@
   }
 
   .nexus-workspace-file-markdown .markdown-list-item {
-    grid-template-columns: 1.65rem minmax(0, 1fr);
-    column-gap: 0.125rem;
+    padding-left: 0.5rem;
     line-height: 1.5;
   }
 
@@ -586,24 +1339,30 @@
     line-height: inherit;
   }
 
-  .nexus-workspace-file-markdown .markdown-list-item::before {
+  .nexus-workspace-file-markdown .markdown-list-item::marker {
     color: var(--text-default);
-    font-weight: 500;
+    font-weight: 400;
   }
 
   .nexus-workspace-file-markdown blockquote {
-    margin-top: 0.625rem;
-    margin-bottom: 0.625rem;
-    padding: 0.375rem 0.75rem;
+    margin: 0;
+    padding: 0 0 0 0.75rem;
   }
 
-  .nexus-workspace-file-markdown img,
-  .nexus-workspace-file-markdown table {
-    margin-top: 0.75rem;
-    margin-bottom: 0.75rem;
+  .nexus-workspace-file-markdown .content-quote[data-markdown-anchor],
+  .nexus-workspace-file-markdown .content-quote [data-markdown-anchor] {
+    color: var(--content-quote-color);
+  }
+
+  .nexus-workspace-file-markdown img {
+    margin: 0;
   }
 
   @container nexus-chat-feed (max-width: 620px) {
+    .nexus-chat-feed .conversation-agent-boundary {
+      margin-inline-start: 0.25rem;
+    }
+
     .nexus-chat-feed .nexus-chat-message-round {
       padding-top: 0.625rem;
       padding-bottom: 0.625rem;
@@ -646,8 +1405,14 @@
       line-height: 1rem;
     }
 
+    .nexus-chat-feed .nexus-chat-message-body-rhythm {
+      padding-top: 0.125rem;
+      padding-bottom: 0.375rem;
+    }
+
     .nexus-chat-feed .nexus-chat-user-content-shell {
-      padding: 0.5rem 0.625rem;
+      padding-right: 0.625rem;
+      padding-left: 0.625rem;
     }
 
     .nexus-chat-feed .nexus-chat-message-content,
@@ -657,18 +1422,14 @@
       line-height: 1.5;
     }
 
+    .nexus-chat-feed .nexus-markdown-body [data-markdown-anchor],
+    .nexus-chat-feed .nexus-markdown-body .markdown-list-item {
+      line-height: 1.55rem;
+    }
+
     .nexus-chat-feed .nexus-chat-message-content {
       padding-top: 0.125rem;
       padding-bottom: 0.375rem;
-    }
-
-    .nexus-chat-feed .nexus-chat-markdown .markdown-list-item {
-      grid-template-columns: 1.5rem minmax(0, 1fr);
-      column-gap: 0.375rem;
-    }
-
-    .nexus-chat-feed .nexus-chat-markdown .markdown-list-item::before {
-      min-width: 1rem;
     }
 
     .nexus-chat-feed .nexus-chat-block-stack > :not(:last-child) {

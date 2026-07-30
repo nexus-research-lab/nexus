@@ -17,6 +17,7 @@ import { isChannelPlanned } from "../channel-model";
 import {
   buildDiscordOauthUrl,
   createChannelDraft,
+  hasCompleteManualChannelCredentials,
   isPersonalWeixinChannel,
   type PendingChannelDelete,
 } from "./channel-connection-model";
@@ -49,9 +50,10 @@ export function useChannelConnectionController({
     useState<PendingChannelDelete | null>(null);
   const { pendingAction, runCommand } = useChannelCommand();
 
-  const supportsPersonalWeixinLogin = isPersonalWeixinChannel(
+  const personalWeixin = isPersonalWeixinChannel(
     currentItem.channel_type,
   );
+  const supportsQRCode = currentItem.supports_qr_code;
   const planned = isChannelPlanned(currentItem);
   const updateField = useCallback((
     field: ChannelCredentialField,
@@ -87,12 +89,19 @@ export function useChannelConnectionController({
     view: loginView,
   } = useChannelLoginController({
     channelType: currentItem.channel_type,
-    enabled: supportsPersonalWeixinLogin,
+    enabled: supportsQRCode,
     onCompleted: refreshCurrentChannel,
     onError,
     pendingAction,
     runCommand,
   });
+  const hasManualCredentials = hasCompleteManualChannelCredentials(
+    currentItem.channel_type,
+    draft,
+  );
+  const offersQRCode = supportsQRCode
+    && (personalWeixin || (!currentItem.has_credentials && !hasManualCredentials));
+  const showsQRCode = offersQRCode || loginView !== null;
 
   const saveChannel = useCallback(async () => {
     if (!draft.agentId || planned) {
@@ -106,7 +115,7 @@ export function useChannelConnectionController({
           credentials: draft.credentials,
         });
         setCurrentItem(saved);
-        const shouldStartLogin = isPersonalWeixinChannel(saved.channel_type);
+        const shouldStartLogin = saved.supports_qr_code && !saved.has_credentials;
         onSaved(saved, !shouldStartLogin);
         if (shouldStartLogin) {
           await startLogin();
@@ -225,8 +234,11 @@ export function useChannelConnectionController({
       agentId,
     })),
     setPendingDelete,
+    showsQRCode,
     submitVerifyCode,
-    supportsPersonalWeixinLogin,
+    personalWeixin,
+    offersQRCode,
+    supportsQRCode,
     updateField,
   };
 }

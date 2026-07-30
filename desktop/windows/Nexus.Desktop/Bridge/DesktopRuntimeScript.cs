@@ -7,7 +7,7 @@ internal static class DesktopRuntimeScript
 {
     public static string Make(SidecarRuntimeConfig runtime)
     {
-        var payload = new Dictionary<string, string>
+        var payload = new Dictionary<string, object>
         {
             ["api_base_url"] = runtime.ApiBaseUrl,
             ["ws_url"] = runtime.WebSocketUrl,

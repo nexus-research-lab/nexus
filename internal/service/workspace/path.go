@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 var textExtensions = map[string]struct{}{
@@ -106,11 +108,11 @@ func buildUploadTargetPath(destination string, filename string) string {
 	return target + "/" + filename
 }
 
-func ensureUniqueWorkspaceFile(targetPath string, normalizedPath string) (string, string, error) {
-	if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-		return normalizedPath, targetPath, nil
+func ensureUniqueWorkspaceFile(root *confinedfs.Root, normalizedPath string) (string, error) {
+	if _, err := root.Lstat(normalizedPath); os.IsNotExist(err) {
+		return normalizedPath, nil
 	} else if err != nil {
-		return "", "", err
+		return "", err
 	}
 	extension := filepath.Ext(normalizedPath)
 	base := strings.TrimSuffix(filepath.Base(normalizedPath), extension)
@@ -126,14 +128,13 @@ func ensureUniqueWorkspaceFile(targetPath string, normalizedPath string) (string
 		if parent != "." && parent != "" {
 			nextPath = parent + "/" + nextName
 		}
-		nextTargetPath := filepath.Join(filepath.Dir(targetPath), nextName)
-		if _, err := os.Stat(nextTargetPath); os.IsNotExist(err) {
-			return nextPath, nextTargetPath, nil
+		if _, err := root.Lstat(nextPath); os.IsNotExist(err) {
+			return nextPath, nil
 		} else if err != nil {
-			return "", "", err
+			return "", err
 		}
 	}
-	return "", "", errors.New("无法生成唯一文件名")
+	return "", errors.New("无法生成唯一文件名")
 }
 
 func tryDecodeTextSnapshot(path string, content []byte) (string, bool) {

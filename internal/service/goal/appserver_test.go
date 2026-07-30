@@ -264,8 +264,8 @@ func TestServiceSetFromThreadGoalParamsActivatesAccountingWhenGoalBecomesActive(
 	if len(accountant.sessionKeys) != 1 || accountant.sessionKeys[0] != threadID {
 		t.Fatalf("flush sessionKeys = %#v, want current session", accountant.sessionKeys)
 	}
-	if len(accountant.activatedSessionKeys) != 1 || accountant.activatedSessionKeys[0] != threadID {
-		t.Fatalf("activated sessionKeys = %#v, want current session", accountant.activatedSessionKeys)
+	if len(accountant.activatedSessionKeys) != 1 || accountant.activatedSessionKeys[0] != threadID+":"+created.ID {
+		t.Fatalf("activated targets = %#v, want current session and Goal ID", accountant.activatedSessionKeys)
 	}
 	if len(accountant.clearedSessionKeys) != 0 {
 		t.Fatalf("cleared sessionKeys = %#v, want no clear for active goal", accountant.clearedSessionKeys)

@@ -67,7 +67,7 @@ func bindRoomMessageQueryFlags(command *cobra.Command, options *roomMessageQuery
 }
 
 func runRoomMessageListCommand(
-	_ *cobra.Command,
+	command *cobra.Command,
 	services *cliServiceProvider,
 	options roomMessageQueryOptions,
 ) error {
@@ -79,6 +79,7 @@ func runRoomMessageListCommand(
 		return usageErrorf("room message list requires --conversation-id or %s", nexusRoomConversationIDEnvName)
 	}
 	store := workspacestore.NewRoomDirectedMessageStore(services.cfg.WorkspacePath)
+	ownerUserID := currentCLIUserID(command)
 	agentID := strings.TrimSpace(options.agentID)
 	cursorFound := false
 	var cursor workspacestore.RoomDirectedMessageCursor
@@ -90,14 +91,14 @@ func runRoomMessageListCommand(
 		if options.afterCursor {
 			return usageErrorf("room message list --after-cursor requires --agent-id")
 		}
-		messages, err = store.ReadMessages(conversationID)
+		messages, err = store.ReadMessages(ownerUserID, conversationID)
 	} else if options.afterCursor {
-		cursor, cursorFound, err = store.ReadMessageCursor(conversationID, agentID)
+		cursor, cursorFound, err = store.ReadMessageCursor(ownerUserID, conversationID, agentID)
 		if err == nil {
-			messages, err = store.ReadContextMessagesAfterCursor(conversationID, agentID, cursor)
+			messages, err = store.ReadContextMessagesAfterCursor(ownerUserID, conversationID, agentID, cursor)
 		}
 	} else {
-		messages, err = store.ReadVisibleMessages(conversationID, agentID)
+		messages, err = store.ReadVisibleMessages(ownerUserID, conversationID, agentID)
 	}
 	if err != nil {
 		return err
@@ -129,7 +130,7 @@ func runRoomMessageListCommand(
 }
 
 func runRoomMessageCursorsCommand(
-	_ *cobra.Command,
+	command *cobra.Command,
 	services *cliServiceProvider,
 	options roomMessageQueryOptions,
 ) error {
@@ -141,7 +142,11 @@ func runRoomMessageCursorsCommand(
 		return usageErrorf("room message cursors requires --conversation-id or %s", nexusRoomConversationIDEnvName)
 	}
 	store := workspacestore.NewRoomDirectedMessageStore(services.cfg.WorkspacePath)
-	cursors, err := store.ReadMessageCursors(conversationID, strings.TrimSpace(options.agentID))
+	cursors, err := store.ReadMessageCursors(
+		currentCLIUserID(command),
+		conversationID,
+		strings.TrimSpace(options.agentID),
+	)
 	if err != nil {
 		return err
 	}

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -131,8 +132,17 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if loaded.DefaultImageModelSelection.Model != "image-model" || loaded.DefaultVisionModelSelection.Model != "vision-model" || loaded.DefaultBackgroundModelSelection.Model != "background-model" {
 		t.Fatalf("读取默认模型选择不正确: %+v", loaded)
 	}
-	if _, statErr := os.Stat(filepath.Join(root, "workspace", "user_1", ".settings", "preferences.json")); statErr != nil {
+	preferencesPath := testUserSettingsPath(root, "user/1", "preferences.json")
+	info, statErr := os.Stat(preferencesPath)
+	if statErr != nil {
 		t.Fatalf("偏好文件未写入安全路径: %v", statErr)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("偏好文件权限不正确: got=%#o want=%#o", info.Mode().Perm(), 0o600)
+	}
+	settingsInfo, statErr := os.Stat(filepath.Dir(preferencesPath))
+	if statErr != nil || settingsInfo.Mode().Perm() != 0o700 {
+		t.Fatalf("偏好目录权限不正确: info=%v err=%v", settingsInfo, statErr)
 	}
 }
 
@@ -150,7 +160,7 @@ func TestServiceStoresWebSearchAPIKeySeparately(t *testing.T) {
 	if err != nil {
 		t.Fatalf("更新 WebSearch 偏好失败: %v", err)
 	}
-	preferencesPath := filepath.Join(root, "workspace", "user_1", ".settings", "preferences.json")
+	preferencesPath := testUserSettingsPath(root, "user/1", "preferences.json")
 	content, err := os.ReadFile(preferencesPath)
 	if err != nil {
 		t.Fatalf("读取偏好文件失败: %v", err)
@@ -165,7 +175,7 @@ func TestServiceStoresWebSearchAPIKeySeparately(t *testing.T) {
 	if loaded.WebSearch.Provider != "brave" || !loaded.WebSearch.APIKeyConfigured || loaded.WebSearchAPIKey() != apiKey {
 		t.Fatalf("WebSearch 凭据未恢复: %+v", loaded.WebSearch)
 	}
-	keyPath := filepath.Join(root, "workspace", "user_1", ".settings", "web-search-api-key")
+	keyPath := testUserSettingsPath(root, "user/1", "web-search-api-key")
 	if info, err := os.Stat(keyPath); err != nil || info.Mode().Perm() != 0o600 {
 		t.Fatalf("API key 文件权限不正确: info=%v err=%v", info, err)
 	}
@@ -222,7 +232,7 @@ func TestServicePersistsWebSearchSettings(t *testing.T) {
 	if prefs.WebSearch.Provider != "anysearch" || prefs.WebSearch.BaseURL != "https://ignored.example.com" || prefs.WebSearch.APIKeyConfigured || prefs.WebSearchAPIKey() != "" {
 		t.Fatalf("AnySearch 配置未正确归一化: %+v", prefs.WebSearch)
 	}
-	keyPath := filepath.Join(root, "workspace", "user_1", ".settings", "web-search-api-key")
+	keyPath := testUserSettingsPath(root, "user/1", "web-search-api-key")
 	if _, err := os.Stat(keyPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("切换无凭据 provider 后应删除旧 API key: %v", err)
 	}
@@ -267,7 +277,7 @@ func TestServiceStoresOptionalAnySearchAPIKey(t *testing.T) {
 		t.Fatalf("AnySearch API key 未恢复: %+v", loaded.WebSearch)
 	}
 
-	content, err := os.ReadFile(filepath.Join(root, "workspace", "user_1", ".settings", "preferences.json"))
+	content, err := os.ReadFile(testUserSettingsPath(root, "user/1", "preferences.json"))
 	if err != nil {
 		t.Fatalf("读取偏好文件失败: %v", err)
 	}
@@ -285,7 +295,7 @@ func TestServiceDoesNotReuseCredentialAcrossWebSearchProviders(t *testing.T) {
 		t.Fatalf("写入 AnySearch 配置失败: %v", err)
 	}
 
-	keyPath := filepath.Join(root, "workspace", "user_1", ".settings", "web-search-api-key")
+	keyPath := testUserSettingsPath(root, "user/1", "web-search-api-key")
 	credential := `{"provider":"tavily","api_key":"provider-scoped-key"}`
 	if err := os.WriteFile(keyPath, []byte(credential), 0o600); err != nil {
 		t.Fatalf("写入 provider 凭据失败: %v", err)
@@ -330,7 +340,7 @@ func TestServiceClearsWebSearchAPIKeyWhenProviderChanges(t *testing.T) {
 	if prefs.WebSearch.APIKeyConfigured || prefs.WebSearchAPIKey() != "" {
 		t.Fatalf("切换 provider 后不应复用旧 API key: %+v", prefs.WebSearch)
 	}
-	keyPath := filepath.Join(root, "workspace", "user_1", ".settings", "web-search-api-key")
+	keyPath := testUserSettingsPath(root, "user/1", "web-search-api-key")
 	if _, err := os.Stat(keyPath); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("切换 provider 后应删除旧 API key: %v", err)
 	}
@@ -390,4 +400,15 @@ func stringPointer(value string) *string {
 
 func boolPointer(value bool) *bool {
 	return &value
+}
+
+func testUserSettingsPath(root string, ownerUserID string, fileName string) string {
+	return filepath.Join(
+		root,
+		"workspace",
+		appfs.UserPathSegment(ownerUserID),
+		"workspace",
+		".settings",
+		fileName,
+	)
 }

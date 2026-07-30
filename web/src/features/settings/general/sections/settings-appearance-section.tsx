@@ -15,7 +15,6 @@ import {
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
-  SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
   SettingsSegmentedControl,
 } from "../../shared/settings-panel-ui";
@@ -26,9 +25,6 @@ export function SettingsAppearanceSection() {
 
   return (
     <section className="space-y-2.5">
-      <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
-        {t("settings.general.section_appearance")}
-      </h2>
       <div className={SETTINGS_CARD_CLASS_NAME}>
         <div className={SETTINGS_ROW_CLASS_NAME}>
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>

@@ -97,7 +97,7 @@ func TestSessionServiceRoutesCompletedNXSTaskControlsToRoomHostRuntime(t *testin
 	}
 
 	history := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	if err = history.AppendInlineMessage(conversationID, protocol.Message{
+	if err = history.AppendInlineMessage("", conversationID, protocol.Message{
 		"message_id":  "task-notification-1",
 		"session_key": sharedSessionKey,
 		"agent_id":    "host-agent",
@@ -171,7 +171,7 @@ func TestSessionServiceRejectsCCSendBeforeRuntimeWire(t *testing.T) {
 		t.Fatalf("创建 CC slot runtime 失败: %v", err)
 	}
 	history := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	if err = history.AppendInlineMessage(conversationID, protocol.Message{
+	if err = history.AppendInlineMessage("", conversationID, protocol.Message{
 		"message_id":  "task-started-cc",
 		"session_key": sharedSessionKey,
 		"agent_id":    "host-agent",

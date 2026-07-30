@@ -1,10 +1,14 @@
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from "react";
 
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
+import type {
+  CommandCatalogData,
+} from "@/types/generated/protocol";
 import type {
   WebSocketMessage,
   WebSocketState,
@@ -26,9 +30,17 @@ import { useAgentConversationSocket } from "./transport/use-agent-conversation-s
 import { useAgentEventDispatcher } from "./transport/use-agent-event-dispatcher";
 import { useConversationStreamBuffer } from "./transport/use-conversation-stream-buffer";
 import {
+  buildCommandCatalogRequest,
+} from "./actions/conversation-command-builders";
+import {
   buildAgentConversationResult,
   resolveAgentConversationConfig,
 } from "./agent-conversation-model";
+
+const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
+  commands: [],
+  status: "loading",
+};
 
 export function useAgentConversation(
   options: UseAgentConversationOptions = {},
@@ -51,6 +63,9 @@ export function useAgentConversation(
     (state) => state.settle_agent_writes,
   );
   const { messages, setMessages } = useAgentMessageCollection();
+  const [commandCatalog, setCommandCatalog] = useState<CommandCatalogData>(
+    EMPTY_COMMAND_CATALOG,
+  );
   const [error, setError] = useState<string | null>(null);
   const sessionSeqCursorRef = useRef(0);
   const roomSeqCursorRef = useRef(0);
@@ -70,12 +85,14 @@ export function useAgentConversation(
   } = usePendingRequestAcks();
 
   const {
+    acknowledgePermissionRequest,
     applyAgentRoundStatus,
     applyRoundStatus,
     clearLiveRuntimeState,
     clearOutboundRequest,
     pendingAgentSlots,
     pendingPermissions,
+    roomAgentExecutionStates,
     reconcileRuntimeStateFromSnapshot,
     removeRewrittenRound,
     resetRuntimeMachine,
@@ -87,6 +104,7 @@ export function useAgentConversation(
     trackAssistantMessage,
     trackChatAck,
     trackOutboundRequest,
+    trackStreamExecution,
     updateMessageStatus,
   } = useAgentConversationRuntime({
     agentId,
@@ -117,6 +135,9 @@ export function useAgentConversation(
       setPendingPermissions,
     },
   });
+  useEffect(() => {
+    setCommandCatalog(EMPTY_COMMAND_CATALOG);
+  }, [agentId, session.sessionKey]);
 
   const isCurrentRoomEvent = useCallback(
     (incomingRoomId?: string | null): boolean => (
@@ -144,16 +165,26 @@ export function useAgentConversation(
     wsStateRef,
   });
 
-  const enqueueStreamPayload = useConversationStreamBuffer(setMessages);
+  const {
+    enqueueStreamPayload,
+    flushStreamPayloads,
+    settleLiveMessageSnapshot,
+  } = useConversationStreamBuffer(
+    setMessages,
+    session.activeSessionKeyRef,
+  );
   const handleWebsocketMessage = useAgentEventDispatcher({
     callbacks: {
       applyWorkspaceEvent,
       enqueueStreamPayload,
+      flushStreamPayloads,
+      settleLiveMessageSnapshot,
       onBackgroundMessage: session.onBackgroundMessage,
       onRoomEvent,
       settleAgentWorkspaceWrites,
     },
     runtime: {
+      acknowledgePermissionRequest,
       applyAgentRoundStatus,
       applyRoundStatus,
       rejectPendingRequestAck,
@@ -163,6 +194,7 @@ export function useAgentConversation(
       syncSessionStatus,
       trackAssistantMessage,
       trackChatAck,
+      trackStreamExecution,
       updateMessageStatus,
     },
     scope: {
@@ -174,6 +206,7 @@ export function useAgentConversation(
       sessionKey: session.sessionKey,
     },
     state: {
+      setCommandCatalog,
       setError,
       setInputQueueItems: session.setInputQueueItems,
       setMessages,
@@ -202,8 +235,27 @@ export function useAgentConversation(
     onError,
     setError,
   });
+  const refreshCommandCatalog = useCallback(() => {
+    if (!session.sessionKey || wsState !== "connected") {
+      return;
+    }
+    wsSend(buildCommandCatalogRequest({
+      agent_id: agentId,
+      conversation_id: conversationId,
+      room_id: roomId,
+      session_key: session.sessionKey,
+    }));
+  }, [
+    agentId,
+    conversationId,
+    roomId,
+    session.sessionKey,
+    wsSend,
+    wsState,
+  ]);
 
   const actionContext: AgentConversationActionContext = {
+    acknowledgePermissionRequest,
     activeSessionKeyRef: session.activeSessionKeyRef,
     identity,
     messages,
@@ -228,11 +280,14 @@ export function useAgentConversation(
 
   return buildAgentConversationResult({
     actions,
+    commandCatalog,
     error,
     messages,
+    refreshCommandCatalog,
     runtime: {
       pendingAgentSlots,
       pendingPermissions,
+      roomAgentExecutionStates,
       snapshot: runtimeSnapshot,
     },
     session,

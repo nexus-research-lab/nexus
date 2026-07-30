@@ -26,7 +26,7 @@ type automationMCPFixture struct {
 
 func newAutomationMCPFixture(t *testing.T, resultText string) automationMCPFixture {
 	t.Helper()
-	workspacePath := t.TempDir()
+	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-1")
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
 	dm := &fakeDMRunner{

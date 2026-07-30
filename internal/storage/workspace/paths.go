@@ -5,25 +5,27 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // Store 负责生成 workspace 侧存储路径。
 type Store struct {
 	WorkspaceRoot string
+	StateRoot     string
 	HomeRoot      string
 }
 
 // New 创建 workspace store。
 func New(root string) *Store {
 	workspaceRoot := strings.TrimSpace(root)
-	homeRoot := transcriptConfigHomeDir()
 	if workspaceRoot == "" {
-		workspaceRoot = filepath.Join(homeRoot, "workspace")
+		workspaceRoot = appfs.UsersRoot()
 	}
 	return &Store{
 		WorkspaceRoot: workspaceRoot,
-		HomeRoot:      homeRoot,
+		StateRoot:     appfs.StateRoot(),
+		HomeRoot:      appfs.AppDir(),
 	}
 }
 
@@ -52,39 +54,47 @@ func (s *Store) SessionInputQueuePath(workspacePath string, sessionKey string) s
 	return filepath.Join(s.SessionDir(workspacePath, sessionKey), "input_queue.jsonl")
 }
 
-// RoomConversationDir 返回 Room 对话目录。
-func (s *Store) RoomConversationDir(conversationID string) string {
-	return filepath.Join(s.HomeRoot, "rooms", encodeConversationDirName(conversationID))
+// RoomConversationDir 返回指定用户的 Room 对话目录。
+func (s *Store) RoomConversationDir(ownerUserID string, conversationID string) string {
+	return filepath.Join(s.RoomConversationRoot(ownerUserID), encodeConversationDirName(conversationID))
 }
 
-// RoomConversationRoot 返回 Room 共享目录根。
-func (s *Store) RoomConversationRoot() string {
-	return filepath.Join(s.HomeRoot, "rooms")
+// RoomConversationRoot 返回指定用户的 Room 宿主状态根。
+func (s *Store) RoomConversationRoot(ownerUserID string) string {
+	return appfs.UserRoomRootAt(s.StateRoot, ownerUserID)
 }
 
-// RoomConversationOverlayPath 返回 Room 对话共享 overlay 路径。
-func (s *Store) RoomConversationOverlayPath(conversationID string) string {
-	return filepath.Join(s.RoomConversationDir(conversationID), "overlay.jsonl")
+// RoomConversationAssetDir 返回 runtime 可读取的 Room 对话公共资产目录。
+func (s *Store) RoomConversationAssetDir(ownerUserID string, conversationID string) string {
+	return filepath.Join(
+		appfs.UserRoomAssetsRootAt(s.StateRoot, ownerUserID),
+		encodeConversationDirName(conversationID),
+	)
 }
 
-// RoomConversationMessagesPath 返回 Room 对话 directed message 日志路径。
-func (s *Store) RoomConversationMessagesPath(conversationID string) string {
-	return filepath.Join(s.RoomConversationDir(conversationID), "directed_messages.jsonl")
+// RoomConversationOverlayPath 返回指定用户 Room 对话的共享 overlay 路径。
+func (s *Store) RoomConversationOverlayPath(ownerUserID string, conversationID string) string {
+	return filepath.Join(s.RoomConversationDir(ownerUserID, conversationID), "overlay.jsonl")
 }
 
-// RoomConversationMessageCursorsPath 返回 Room directed message 消费游标路径。
-func (s *Store) RoomConversationMessageCursorsPath(conversationID string) string {
-	return filepath.Join(s.RoomConversationDir(conversationID), "directed_message_cursors.jsonl")
+// RoomConversationMessagesPath 返回指定用户 Room 对话的 directed message 日志路径。
+func (s *Store) RoomConversationMessagesPath(ownerUserID string, conversationID string) string {
+	return filepath.Join(s.RoomConversationDir(ownerUserID, conversationID), "directed_messages.jsonl")
 }
 
-// RoomPublicHandoffsPath 返回 Room 公区 handoff ledger 路径。
-func (s *Store) RoomPublicHandoffsPath(conversationID string) string {
-	return filepath.Join(s.RoomConversationDir(conversationID), "public_handoffs.jsonl")
+// RoomConversationMessageCursorsPath 返回指定用户 Room directed message 消费游标路径。
+func (s *Store) RoomConversationMessageCursorsPath(ownerUserID string, conversationID string) string {
+	return filepath.Join(s.RoomConversationDir(ownerUserID, conversationID), "directed_message_cursors.jsonl")
 }
 
-// RoomDirectedMessageWakesPath 返回全局 Room 延迟唤醒日志路径。
-func (s *Store) RoomDirectedMessageWakesPath() string {
-	return filepath.Join(s.RoomConversationRoot(), "directed_message_wakes.jsonl")
+// RoomPublicHandoffsPath 返回指定用户 Room 公区 handoff ledger 路径。
+func (s *Store) RoomPublicHandoffsPath(ownerUserID string, conversationID string) string {
+	return filepath.Join(s.RoomConversationDir(ownerUserID, conversationID), "public_handoffs.jsonl")
+}
+
+// RoomDirectedMessageWakesPath 返回指定用户的 Room 延迟唤醒日志路径。
+func (s *Store) RoomDirectedMessageWakesPath(ownerUserID string) string {
+	return filepath.Join(s.RoomConversationRoot(ownerUserID), "directed_message_wakes.jsonl")
 }
 
 func encodeSessionDirName(value string) string {

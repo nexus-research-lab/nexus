@@ -1,7 +1,9 @@
+// INPUT: 已筛选 transcript 链、durable round marker 与用户输入时间。
+// OUTPUT: 与正式历史投影一一对应且不会跨可见性错绑的 round marker。
+// POS: transcript 用户轮次与 Nexus durable round 身份的唯一对齐边界。
 package workspace
 
 import (
-	"slices"
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -11,10 +13,18 @@ func alignTranscriptRoundMarkers(
 	chain []transcriptEntry,
 	roundMarkers []transcriptRoundMarker,
 ) []transcriptRoundMarker {
+	return alignTranscriptRoundMarkersWithFilter(chain, roundMarkers, shouldSkipTranscriptEntry)
+}
+
+func alignTranscriptRoundMarkersWithFilter(
+	chain []transcriptEntry,
+	roundMarkers []transcriptRoundMarker,
+	shouldSkip func(map[string]any) bool,
+) []transcriptRoundMarker {
 	if len(roundMarkers) == 0 {
 		return nil
 	}
-	userTurns := collectTranscriptUserTurns(chain)
+	userTurns := collectTranscriptUserTurns(chain, shouldSkip)
 	if len(userTurns) == 0 {
 		return nil
 	}
@@ -30,34 +40,36 @@ func alignTranscriptRoundMarkers(
 		used[markerIndex] = true
 	}
 
-	fallback := tailTranscriptRoundMarkers(roundMarkers, len(userTurns))
-	fallbackIndex := 0
-	for index := range aligned {
-		if strings.TrimSpace(aligned[index].RoundID) != "" || strings.TrimSpace(aligned[index].Content) != "" {
+	for index, turn := range userTurns {
+		if transcriptRoundMarkerPresent(aligned[index]) {
 			continue
 		}
-		for fallbackIndex < len(fallback) {
-			candidate := fallback[fallbackIndex]
-			fallbackIndex++
-			if markerAlreadyAligned(aligned, candidate) {
-				continue
-			}
-			aligned[index] = candidate
-			break
+		markerIndex := findCompatibleFallbackRoundMarker(roundMarkers, used, turn)
+		if markerIndex < 0 {
+			continue
 		}
+		aligned[index] = roundMarkers[markerIndex]
+		used[markerIndex] = true
 	}
 	return aligned
 }
 
 type transcriptUserTurn struct {
-	Content   string
-	Timestamp int64
+	Content         string
+	Timestamp       int64
+	GoalContextOnly bool
 }
 
-func collectTranscriptUserTurns(chain []transcriptEntry) []transcriptUserTurn {
+func collectTranscriptUserTurns(
+	chain []transcriptEntry,
+	shouldSkip func(map[string]any) bool,
+) []transcriptUserTurn {
 	turns := make([]transcriptUserTurn, 0)
 	var lastTimestamp int64
 	for _, entry := range chain {
+		if shouldSkip != nil && shouldSkip(entry.Data) {
+			continue
+		}
 		entryTimestamp := transcriptEntryTimestamp(entry.Data, entry.Index, lastTimestamp)
 		lastTimestamp = entryTimestamp
 		decoded, err := sdkprotocol.DecodeMessage(entry.Data)
@@ -68,8 +80,9 @@ func collectTranscriptUserTurns(chain []transcriptEntry) []transcriptUserTurn {
 			!isTranscriptToolResult(decoded) &&
 			shouldMaterializeTranscriptUserTurn(entry.Data) {
 			turns = append(turns, transcriptUserTurn{
-				Content:   sanitizeTranscriptUserContent(transcriptUserContent(entry.Data)),
-				Timestamp: entryTimestamp,
+				Content:         sanitizeTranscriptUserContent(transcriptUserContent(entry.Data)),
+				Timestamp:       entryTimestamp,
+				GoalContextOnly: isTranscriptGoalContextOnlyUserTurn(entry.Data),
 			})
 		}
 	}
@@ -91,7 +104,7 @@ func findMatchingRoundMarker(
 		if index < len(used) && used[index] {
 			continue
 		}
-		if strings.TrimSpace(marker.Content) != content {
+		if sanitizeTranscriptUserContent(marker.Content) != content {
 			continue
 		}
 		distance, ok := transcriptRoundMarkerDistance(turn.Timestamp, marker.Timestamp)
@@ -104,6 +117,48 @@ func findMatchingRoundMarker(
 		}
 	}
 	return bestIndex
+}
+
+func findCompatibleFallbackRoundMarker(
+	roundMarkers []transcriptRoundMarker,
+	used []bool,
+	turn transcriptUserTurn,
+) int {
+	const markerFallbackMaxDistanceMS = 10 * 60 * 1000
+
+	bestIndex := -1
+	var bestDistance int64
+	for index, marker := range roundMarkers {
+		if index < len(used) && used[index] {
+			continue
+		}
+		if !roundMarkerFallbackCompatible(turn, marker) {
+			continue
+		}
+		distance, ok := transcriptRoundMarkerDistance(turn.Timestamp, marker.Timestamp)
+		if !ok {
+			continue
+		}
+		if !turn.GoalContextOnly &&
+			turn.Timestamp > 0 &&
+			marker.Timestamp > 0 &&
+			distance > markerFallbackMaxDistanceMS {
+			continue
+		}
+		if bestIndex < 0 || distance < bestDistance || (distance == bestDistance && index > bestIndex) {
+			bestIndex = index
+			bestDistance = distance
+		}
+	}
+	return bestIndex
+}
+
+func roundMarkerFallbackCompatible(turn transcriptUserTurn, marker transcriptRoundMarker) bool {
+	if turn.GoalContextOnly {
+		return marker.HiddenFromUser &&
+			(marker.Synthetic || strings.TrimSpace(marker.Purpose) == "goal_continuation")
+	}
+	return !marker.HiddenFromUser
 }
 
 func transcriptRoundMarkerDistance(turnTimestamp int64, markerTimestamp int64) (int64, bool) {
@@ -121,31 +176,8 @@ func transcriptRoundMarkerDistance(turnTimestamp int64, markerTimestamp int64) (
 	return markerTimestamp - turnTimestamp, true
 }
 
-func tailTranscriptRoundMarkers(roundMarkers []transcriptRoundMarker, count int) []transcriptRoundMarker {
-	if count <= 0 || len(roundMarkers) == 0 {
-		return nil
-	}
-	if count >= len(roundMarkers) {
-		return slices.Clone(roundMarkers)
-	}
-	startIndex := len(roundMarkers) - count
-	return slices.Clone(roundMarkers[startIndex:])
-}
-
-func markerAlreadyAligned(aligned []transcriptRoundMarker, candidate transcriptRoundMarker) bool {
-	for _, marker := range aligned {
-		if strings.TrimSpace(marker.RoundID) == "" && strings.TrimSpace(marker.Content) == "" {
-			continue
-		}
-		if marker.RoundID == candidate.RoundID &&
-			marker.Content == candidate.Content &&
-			marker.Timestamp == candidate.Timestamp &&
-			marker.DeliveryPolicy == candidate.DeliveryPolicy &&
-			marker.HiddenFromUser == candidate.HiddenFromUser {
-			return true
-		}
-	}
-	return false
+func transcriptRoundMarkerPresent(marker transcriptRoundMarker) bool {
+	return strings.TrimSpace(marker.RoundID) != "" || strings.TrimSpace(marker.Content) != ""
 }
 
 func shouldMaterializeTranscriptUserTurn(entry map[string]any) bool {

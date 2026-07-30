@@ -6,6 +6,7 @@ import Foundation
 final class DesktopUpdateChecker {
   private enum CheckReason: String {
     case startup
+    case periodic
     case manual
   }
 
@@ -17,7 +18,7 @@ final class DesktopUpdateChecker {
     static let lastErrorMessage = "NexusUpdateChecker.lastErrorMessage"
   }
 
-  private static let automaticCheckInterval: TimeInterval = 24 * 60 * 60
+  private static let automaticCheckInterval: TimeInterval = 4 * 60 * 60
   private static let downloadTimeout: TimeInterval = 10 * 60
   private static let sha256ByteCount = 64
   private static let latestReleaseURL = URL(string: "https://api.github.com/repos/nexus-research-lab/nexus/releases/latest")!
@@ -30,6 +31,7 @@ final class DesktopUpdateChecker {
   private let isDisabled: Bool
   private var hasPerformedStartupCheck = false
   private var checkTask: Task<Void, Never>?
+  private var automaticCheckTask: Task<Void, Never>?
 
   init(
     startupTimeline: DesktopStartupTimeline,
@@ -54,18 +56,8 @@ final class DesktopUpdateChecker {
     }
     hasPerformedStartupCheck = true
 
-    if let lastCheckAt = defaults.object(forKey: DefaultsKey.lastAutomaticCheckAt) as? Date {
-      let elapsed = Date().timeIntervalSince(lastCheckAt)
-      guard elapsed >= Self.automaticCheckInterval else {
-        startupTimeline.mark("update_check.skipped", metadata: [
-          "reason": "recent",
-          "elapsed_minutes": String(Int(elapsed / 60)),
-        ])
-        return
-      }
-    }
-
     runCheck(reason: .startup, showsUpToDateAlert: false)
+    startAutomaticChecks()
   }
 
   func checkNowFromMenu() {
@@ -95,6 +87,23 @@ final class DesktopUpdateChecker {
     }
   }
 
+  private func startAutomaticChecks() {
+    automaticCheckTask?.cancel()
+    automaticCheckTask = Task { [weak self] in
+      while !Task.isCancelled {
+        do {
+          try await Task.sleep(for: .seconds(Self.automaticCheckInterval))
+        } catch {
+          return
+        }
+        guard let self else {
+          return
+        }
+        await self.performCheck(reason: .periodic, showsUpToDateAlert: false)
+      }
+    }
+  }
+
   private func performCheck(reason: CheckReason, showsUpToDateAlert: Bool) async {
     startupTimeline.mark("update_check.started", metadata: [
       "reason": reason.rawValue,
@@ -104,7 +113,7 @@ final class DesktopUpdateChecker {
 
     do {
       let latest = try await fetchLatestRelease()
-      if reason == .startup {
+      if reason == .startup || reason == .periodic {
         defaults.set(Date(), forKey: DefaultsKey.lastAutomaticCheckAt)
       }
       defaults.set(latest.version, forKey: DefaultsKey.lastLatestVersion)
@@ -130,9 +139,15 @@ final class DesktopUpdateChecker {
       ])
 
       if hasUpdate {
-        showUpdateAvailableAlert(latest)
+        try? DesktopPersistentStateStore.set(latest.version, forKey: "desktop.update.available")
+        if reason != .periodic {
+          showUpdateAvailableAlert(latest)
+        }
       } else if showsUpToDateAlert {
+        try? DesktopPersistentStateStore.remove("desktop.update.available")
         showUpToDateAlert(latest)
+      } else {
+        try? DesktopPersistentStateStore.remove("desktop.update.available")
       }
     } catch {
       defaults.set("failed", forKey: DefaultsKey.lastResult)
@@ -297,7 +312,19 @@ final class DesktopUpdateChecker {
     ])
 
     do {
-      let downloadedUpdate = try await downloadAndVerifyUpdate(latest)
+      let progressWindow = DesktopDownloadProgressWindow(release: latest)
+      progressWindow.show()
+      let downloadedUpdate: DesktopDownloadedUpdate
+      do {
+        downloadedUpdate = try await downloadAndVerifyUpdate(
+          latest,
+          reportProgress: progressWindow.report
+        )
+      } catch {
+        progressWindow.close()
+        throw error
+      }
+      progressWindow.close()
       startupTimeline.mark("update_check.download_verified", metadata: [
         "latest_version": latest.version,
         "package_asset": latest.packageFileName ?? "",
@@ -330,7 +357,10 @@ final class DesktopUpdateChecker {
     }
   }
 
-  private func downloadAndVerifyUpdate(_ latest: DesktopReleaseInfo) async throws -> DesktopDownloadedUpdate {
+  private func downloadAndVerifyUpdate(
+    _ latest: DesktopReleaseInfo,
+    reportProgress: @escaping (Int64, Int64?) -> Void
+  ) async throws -> DesktopDownloadedUpdate {
     guard let packageFileName = latest.packageFileName, !packageFileName.isEmpty else {
       throw DesktopUpdateError.missingPackage
     }
@@ -348,7 +378,7 @@ final class DesktopUpdateChecker {
       : "\(packageFileName).sha256"
     let sha256URL = updateDirectory.appendingPathComponent(Self.safePathSegment(sha256FileName))
 
-    try await downloadFile(from: packageDownloadURL, to: packageURL)
+    try await downloadFile(from: packageDownloadURL, to: packageURL, reportProgress: reportProgress)
     try await downloadFile(from: packageSHA256URL, to: sha256URL)
 
     let expectedHash = try Self.readExpectedSHA256(from: sha256URL, packageFileName: packageFileName)
@@ -368,7 +398,11 @@ final class DesktopUpdateChecker {
     )
   }
 
-  private func downloadFile(from url: URL, to destinationURL: URL) async throws {
+  private func downloadFile(
+    from url: URL,
+    to destinationURL: URL,
+    reportProgress: ((Int64, Int64?) -> Void)? = nil
+  ) async throws {
     try FileManager.default.createDirectory(
       at: destinationURL.deletingLastPathComponent(),
       withIntermediateDirectories: true
@@ -382,7 +416,7 @@ final class DesktopUpdateChecker {
     request.timeoutInterval = Self.downloadTimeout
     request.setValue("Nexus-macOS/\(currentVersion.version)", forHTTPHeaderField: "User-Agent")
 
-    let (downloadedURL, response) = try await session.download(for: request)
+    let (bytes, response) = try await session.bytes(for: request)
     guard let httpResponse = response as? HTTPURLResponse else {
       throw DesktopUpdateError.invalidResponse
     }
@@ -390,7 +424,29 @@ final class DesktopUpdateChecker {
       throw DesktopUpdateError.badStatusCode(httpResponse.statusCode)
     }
 
-    try FileManager.default.moveItem(at: downloadedURL, to: temporaryURL)
+    FileManager.default.createFile(atPath: temporaryURL.path, contents: nil)
+    let fileHandle = try FileHandle(forWritingTo: temporaryURL)
+    defer {
+      try? fileHandle.close()
+    }
+    let totalBytes = response.expectedContentLength > 0 ? response.expectedContentLength : nil
+    var receivedBytes: Int64 = 0
+    var buffer = Data()
+    buffer.reserveCapacity(64 * 1_024)
+    for try await byte in bytes {
+      buffer.append(byte)
+      if buffer.count >= 64 * 1_024 {
+        try fileHandle.write(contentsOf: buffer)
+        receivedBytes += Int64(buffer.count)
+        buffer.removeAll(keepingCapacity: true)
+        reportProgress?(receivedBytes, totalBytes)
+      }
+    }
+    if !buffer.isEmpty {
+      try fileHandle.write(contentsOf: buffer)
+      receivedBytes += Int64(buffer.count)
+      reportProgress?(receivedBytes, totalBytes)
+    }
     try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
   }
 

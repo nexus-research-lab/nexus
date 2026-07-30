@@ -6,6 +6,7 @@ import { UiTextarea } from "@/shared/ui/form/form-control";
 import type { AgentNameValidationResult, AgentProvider } from "@/types/agent/agent";
 import type { ProviderOption } from "@/types/capability/provider";
 
+import type { AgentOptionsMode } from "../../agent-options-editor-model";
 import {
   IDENTITY_LAYOUTS,
   type AgentIdentityVariant,
@@ -28,6 +29,7 @@ interface AgentOptionsIdentityTabProps {
   onAvatarChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onModelChange: (value: string) => void;
+  onProfileTemplateChange: (value: string) => void;
   onProviderChange: (value: AgentProvider) => void;
   onTitleChange: (value: string) => void;
   onVibeTagsChange: (tags: string[]) => void;
@@ -35,7 +37,11 @@ interface AgentOptionsIdentityTabProps {
   providerOptions: ProviderOption[];
   providerOptionsError: string | null;
   providerOptionsLoading: boolean;
+  profileTemplate: string;
+  profileTemplateError: string | null;
+  profileTemplateLoading: boolean;
   scopeKey: string;
+  sourceMode: AgentOptionsMode;
   title: string;
   variant?: AgentIdentityVariant;
   vibeTags: string[];
@@ -54,6 +60,7 @@ export function AgentOptionsIdentityTab({
   onAvatarChange,
   onDescriptionChange,
   onModelChange,
+  onProfileTemplateChange,
   onProviderChange,
   onTitleChange,
   onVibeTagsChange,
@@ -61,7 +68,11 @@ export function AgentOptionsIdentityTab({
   providerOptions,
   providerOptionsError,
   providerOptionsLoading,
+  profileTemplate,
+  profileTemplateError,
+  profileTemplateLoading,
   scopeKey,
+  sourceMode,
   title,
   variant = "dialog",
   vibeTags,
@@ -69,7 +80,22 @@ export function AgentOptionsIdentityTab({
   const { t } = useI18n();
   const layout = IDENTITY_LAYOUTS[variant];
   const isInline = variant === "inline";
-  const shouldShowDescriptionField = !isInline || (!isMain && !agentId);
+  const shouldShowDescriptionField =
+    sourceMode !== "create" && (!isInline || (!isMain && !agentId));
+  const modelSelector = (
+    <IdentityModelSelector
+      defaultModel={defaultModel}
+      defaultProvider={defaultProvider}
+      error={providerOptionsError}
+      loading={providerOptionsLoading}
+      model={model}
+      onModelChange={onModelChange}
+      onProviderChange={onProviderChange}
+      options={providerOptions}
+      provider={provider}
+      variant={variant}
+    />
+  );
 
   return (
     <div
@@ -77,7 +103,7 @@ export function AgentOptionsIdentityTab({
         "animate-in slide-in-from-right-4 duration-300",
         isInline
           ? "flex h-full min-h-0 flex-1 flex-col gap-5 overflow-hidden"
-          : "space-y-5",
+          : "space-y-6",
       )}
     >
       <div className={cn(layout.contentClassName, isInline && "shrink-0")}>
@@ -107,18 +133,10 @@ export function AgentOptionsIdentityTab({
             tags={vibeTags}
             variant={variant}
           />
-          <IdentityModelSelector
-            defaultModel={defaultModel}
-            defaultProvider={defaultProvider}
-            error={providerOptionsError}
-            loading={providerOptionsLoading}
-            model={model}
-            onModelChange={onModelChange}
-            onProviderChange={onProviderChange}
-            options={providerOptions}
-            provider={provider}
-            variant={variant}
-          />
+        </div>
+
+        <div className={layout.modelClassName}>
+          {modelSelector}
         </div>
       </div>
 
@@ -126,21 +144,50 @@ export function AgentOptionsIdentityTab({
         <AgentProfileFileEditor
           agentId={agentId}
           key={agentId}
-          label={t("agent_options.identity.description")}
+          label={t("agent_options.identity.profile_template")}
         />
       ) : null}
       {shouldShowDescriptionField ? (
-        <div className="space-y-2">
-          <label className="text-[11px] font-semibold text-(--text-muted)">
+        <div className="space-y-2.5">
+          <label className="text-xs font-semibold text-(--text-muted)">
             {t("agent_options.identity.description")}
           </label>
           <UiTextarea
-            className="min-h-[72px] surface-radius-lg"
+            className="min-h-[96px] surface-radius-lg"
             onChange={(event) => onDescriptionChange(event.target.value)}
             placeholder={t("agent_options.identity.description_placeholder")}
             rows={3}
             value={description}
           />
+        </div>
+      ) : null}
+      {sourceMode === "create" ? (
+        <div className="space-y-2">
+          <div>
+            <label className="text-xs font-semibold text-(--text-muted)">
+              {t("agent_options.identity.profile_template")}
+            </label>
+            <p className="mt-1 text-compact leading-5 text-(--text-soft)">
+              {t("agent_options.identity.profile_template_hint")}
+            </p>
+          </div>
+          <UiTextarea
+            className="message-code-font min-h-[180px] surface-radius-lg text-sm leading-relaxed"
+            disabled={profileTemplateLoading}
+            onChange={(event) => onProfileTemplateChange(event.target.value)}
+            placeholder={
+              profileTemplateLoading
+                ? t("agent_options.identity.profile_template_loading")
+                : t("agent_options.identity.profile_template_placeholder")
+            }
+            rows={8}
+            value={profileTemplate}
+          />
+          {profileTemplateError ? (
+            <p className="text-compact leading-5 text-(--destructive)">
+              {profileTemplateError}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

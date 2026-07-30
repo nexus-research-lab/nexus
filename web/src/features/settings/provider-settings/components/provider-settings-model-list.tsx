@@ -93,7 +93,7 @@ function ProviderModelListHeader({
           {t("settings.providers.models")}
         </h3>
         {selectedRecord ? (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-(--surface-muted-background) px-1.5 text-[11px] font-semibold text-(--text-muted)">
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-(--surface-muted-background) px-1.5 text-xs font-semibold text-(--text-muted)">
             {modelCount}
           </span>
         ) : null}
@@ -136,7 +136,7 @@ function ProviderModelListHeader({
 function ProviderModelCapabilities({ model }: { model: ProviderModelRecord }) {
   const capabilities = getEffectiveCapabilities(model);
   return (
-    <span className="flex shrink-0 items-center gap-1.5 text-[10px] leading-4 text-(--text-muted)">
+    <span className="flex shrink-0 items-center gap-1.5 text-2xs leading-4 text-(--text-muted)">
       {PROVIDER_CAPABILITY_ICONS.map(({ Icon, key }) => (
         capabilities[key] ? <Icon className="h-3 w-3" key={key} /> : null
       ))}
@@ -234,14 +234,14 @@ function ProviderModelRow({
   return (
     <div className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-(--divider-subtle-color) px-2.5 py-1 last:border-b-0">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="min-w-0 truncate font-mono text-[13px] leading-5 text-(--text-strong)">
+        <span className="min-w-0 truncate font-mono text-sm leading-5 text-(--text-strong)">
           {displayName}
         </span>
         <ProviderModelCapabilities model={model} />
       </div>
       <div className="flex min-w-0 items-center gap-2">
         {model.model_id !== displayName ? (
-          <span className="hidden max-w-[120px] truncate font-mono text-[11px] text-(--text-soft) xl:inline">
+          <span className="hidden max-w-[120px] truncate font-mono text-xs text-(--text-soft) xl:inline">
             {model.model_id}
           </span>
         ) : null}

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -49,6 +51,7 @@ func TestHandleSystemVersion(t *testing.T) {
 
 func TestHandleRuntimeSettingsPersistsWorkspacePath(t *testing.T) {
 	configRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
 	cfg := handlertest.NewConfig(t)
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
@@ -93,6 +96,40 @@ func TestHandleRuntimeSettingsPersistsWorkspacePath(t *testing.T) {
 	}
 	if payload.Data.WorkspacePath != workspacePath || payload.Data.CurrentWorkspacePath == "" || !payload.Data.RestartRequired {
 		t.Fatalf("runtime settings 响应不正确: %+v", payload.Data)
+	}
+}
+
+func TestHandleRuntimeSettingsRejectsMember(t *testing.T) {
+	configRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
+	handler := corehandler.New(config.Config{}, handlershared.NewAPI(nil), nil, nil)
+	memberCtx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
+		UserID: "member-a",
+		Role:   authsvc.RoleMember,
+	})
+
+	for _, method := range []string{http.MethodGet, http.MethodPatch} {
+		request := httptest.NewRequest(
+			method,
+			"/nexus/v1/settings/runtime",
+			bytes.NewReader([]byte(`{"workspace_path":"/tmp/foreign"}`)),
+		).WithContext(memberCtx)
+		recorder := httptest.NewRecorder()
+		if method == http.MethodGet {
+			handler.HandleGetRuntimeSettings(recorder, request)
+		} else {
+			handler.HandleUpdateRuntimeSettings(recorder, request)
+		}
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("%s runtime settings 状态码不正确: got=%d body=%s", method, recorder.Code, recorder.Body.String())
+		}
+	}
+	if _, err := config.LoadRuntimeSettings(); err != nil {
+		t.Fatalf("成员被拒后读取 runtime settings 失败: %v", err)
+	}
+	if _, err := os.Stat(config.RuntimeSettingsPath()); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("成员请求不应创建宿主 runtime settings: %v", err)
 	}
 }
 

@@ -1,9 +1,16 @@
+/**
+ * INPUT: DM 轮次 source、渲染器与共享滚动 refs。
+ * OUTPUT: 静态/虚拟 Feed，并以真实内容高度驱动贴底增长。
+ * POS: DM 主消息流的分支装配入口。
+ */
 import { memo, useRef } from "react";
 
+import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import {
   resolveConversationRound,
   type ConversationFeedProps,
 } from "./conversation-feed-model";
+import { ConversationFeedTail } from "./conversation-feed-tail";
 import { ConversationRound } from "./conversation-round";
 import { ConversationVirtualFeed } from "./conversation-virtual-feed";
 import { useConversationRoundNavigation } from "./use-conversation-round-navigation";
@@ -46,22 +53,25 @@ function StaticConversationFeed({
       ref={refs.feedRef}
       className={
         isMobileLayout
-          ? "nexus-chat-feed space-y-4"
-          : "nexus-chat-feed mx-auto flex w-full max-w-[980px] flex-col gap-1"
+          ? "nexus-chat-feed flex flex-col"
+          : `nexus-chat-feed ${CONVERSATION_CONTENT_LANE_CLASS_NAME} flex flex-col`
       }
     >
-      {source.roundIds.map((roundId, index) => {
+      {source.roundIds.map((_roundId, index) => {
         const state = resolveConversationRound(source, index);
         return (
           <ConversationRound
-            key={roundId}
+            isMobileLayout={isMobileLayout}
+            key={state.nodeId}
             renderer={renderer}
             source={source}
             state={state}
           />
         );
       })}
-      <div ref={refs.bottomAnchorRef} className="h-px w-full" />
+      <ConversationFeedTail
+        bottomAnchorRef={refs.bottomAnchorRef}
+      />
     </div>
   );
 }

@@ -1,15 +1,14 @@
 package workspace
 
 import (
-	"database/sql"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 
-	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
 
@@ -23,8 +22,11 @@ func newWorkspaceTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	root := t.TempDir()
+	stateRoot := filepath.Join(root, ".nexus")
 	t.Setenv("HOME", filepath.Join(root, "home"))
-	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	t.Setenv("NEXUSCTL_COMMAND_PATH", "")
 	return config.Config{
 		Host:                      "127.0.0.1",
 		Port:                      18011,
@@ -42,19 +44,7 @@ func newWorkspaceTestConfig(t *testing.T) config.Config {
 
 func migrateWorkspaceSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
-
-	db, err := sql.Open("sqlite", databaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func() { _ = db.Close() }()
-
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("设置 goose 方言失败: %v", err)
-	}
-	if err = goose.Up(db, workspaceTestMigrationDir(t)); err != nil {
-		t.Fatalf("执行 migration 失败: %v", err)
-	}
+	handlertest.MigrateSQLiteFromDir(t, databaseURL, workspaceTestMigrationDir(t))
 }
 
 func workspaceTestMigrationDir(t *testing.T) string {

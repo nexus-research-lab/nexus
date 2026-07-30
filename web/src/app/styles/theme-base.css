@@ -7,56 +7,56 @@
  * =====================================================
  */
 
-/* 中文注释：让核心颜色变量具备插值能力，主题切换时可以平滑过渡。 */
+/* 让核心颜色变量具备插值能力，主题切换时可以平滑过渡。 */
 @property --background {
   syntax: "<color>";
   inherits: true;
-  initial-value: #e8e6e3;
+  initial-value: #f9f9f7;
 }
 
 @property --foreground {
   syntax: "<color>";
   inherits: true;
-  initial-value: #1a1f28;
+  initial-value: #131313;
 }
 
 @property --primary {
   syntax: "<color>";
   inherits: true;
-  initial-value: #6c63ef;
+  initial-value: #5b72ff;
 }
 
 @property --secondary {
   syntax: "<color>";
   inherits: true;
-  initial-value: #eae8e5;
+  initial-value: #f0efec;
 }
 
 @property --accent {
   syntax: "<color>";
   inherits: true;
-  initial-value: #c49a6c;
+  initial-value: #4fa29f;
 }
 
 @property --muted {
   syntax: "<color>";
   inherits: true;
-  initial-value: #e5e3e0;
+  initial-value: #e7e6e1;
 }
 
 @property --border {
   syntax: "<color>";
   inherits: true;
-  initial-value: rgba(155, 158, 166, 0.26);
+  initial-value: rgba(11, 11, 11, 0.1);
 }
 
 @property --input {
   syntax: "<color>";
   inherits: true;
-  initial-value: rgba(253, 252, 250, 0.98);
+  initial-value: #ffffff;
 }
 
-/* 中文注释：这里只放元素基线和浏览器层的默认行为，不承载组件视觉。 */
+/* 这里只放元素基线和浏览器层的默认行为，不承载组件视觉。 */
 /* ── Theme overlay keyframes ─────────────────────────── */
 
 @keyframes nexus-fog-drift {
@@ -68,6 +68,24 @@
   100% {
     transform: translateX(1.5%);
     opacity: 1;
+  }
+}
+
+@keyframes nexus-message-activity-frames {
+  to {
+    transform: translateY(var(--message-activity-spinner-distance));
+  }
+}
+
+@keyframes nexus-room-agent-execution-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -109,20 +127,14 @@
     font: inherit;
   }
 
-  /* 中文注释：聊天正文让英文使用比例字体，中文片段再单独回到京华老宋体；等宽字体只留给代码。 */
+  /* 内容文本默认沿用系统比例字体；聊天 Feed 再切换中文正文，代码始终保持等宽。 */
   .message-cjk-font {
     font-family: var(--font-sans);
     font-synthesis: style;
   }
 
   .message-cjk-text {
-    font-family:
-      "KingHwaOldSong",
-      "PingFang SC",
-      "Hiragino Sans GB",
-      "Source Han Serif SC",
-      "Songti SC",
-      serif;
+    font-family: var(--font-sans);
     font-synthesis: style;
   }
 
@@ -133,12 +145,10 @@
 
   .message-cjk-code-font {
     font-family:
-      "KingHwaOldSong",
       var(--font-mono),
       "PingFang SC",
       "Hiragino Sans GB",
-      "Source Han Serif SC",
-      "Songti SC",
+      "Microsoft YaHei",
       monospace;
   }
 

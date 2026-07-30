@@ -9,6 +9,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestEnsureNexusctlShimUsesExplicitCommandPath(t *testing.T) {
@@ -85,6 +88,7 @@ func TestWorkspaceBrowserHidesAgentProfileTemplate(t *testing.T) {
 }
 
 func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
+	useTemporaryWorkspaceStateRoot(t)
 	root := t.TempDir()
 	if err := EnsureInitialized("agent-1", "Planner", root, false, time.Now()); err != nil {
 		t.Fatalf("初始化普通 agent workspace 失败: %v", err)
@@ -150,6 +154,7 @@ func TestEnsureInitializedWritesPromptLayerTemplates(t *testing.T) {
 }
 
 func TestEnsureInitializedSerializesConcurrentWorkspaceInitialization(t *testing.T) {
+	useTemporaryWorkspaceStateRoot(t)
 	root := t.TempDir()
 	createdAt := time.Now()
 	const workerCount = 16
@@ -179,6 +184,7 @@ func TestEnsureInitializedSerializesConcurrentWorkspaceInitialization(t *testing
 }
 
 func TestEnsureInitializedRemovesBundledSkillCopies(t *testing.T) {
+	useTemporaryWorkspaceStateRoot(t)
 	root := t.TempDir()
 	for _, name := range []string{"ima-skill", "imagegen"} {
 		skillPath := filepath.Join(root, ".agents", "skills", name, "SKILL.md")
@@ -226,7 +232,91 @@ func TestRuntimeSkillNamesKeepsWorkspaceDeployedSkills(t *testing.T) {
 	}
 }
 
+func TestRuntimeSkillSelectionSeparatesGlobalBindingsAndWorkspaceDisables(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+	cfg := config.Config{WorkspacePath: filepath.Join(stateRoot, "workspace")}
+	agentValue := protocol.Agent{
+		AgentID:       "agent-1",
+		OwnerUserID:   "owner-1",
+		WorkspacePath: filepath.Join(UserSkillLibraryRoot(cfg, "owner-1"), "agent-1"),
+		Options: protocol.Options{
+			SkillIDs:         []string{"external:enabled-global"},
+			DisabledSkillIDs: []string{"local-off"},
+		},
+	}
+	for _, path := range []string{
+		filepath.Join(UserSkillDiscoveryRoot(cfg, agentValue.OwnerUserID), "enabled-global", "SKILL.md"),
+		filepath.Join(UserSkillDiscoveryRoot(cfg, agentValue.OwnerUserID), "disabled-global", "SKILL.md"),
+		filepath.Join(UserSkillDiscoveryRoot(cfg, agentValue.OwnerUserID), "same-name-local", "SKILL.md"),
+		filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "local-on", "SKILL.md"),
+		filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "local-off", "SKILL.md"),
+		filepath.Join(agentValue.WorkspacePath, ".agents", "skills", "same-name-local", "SKILL.md"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("创建 Skill 目录失败: %v", err)
+		}
+		if err := os.WriteFile(path, []byte("# test\n"), 0o644); err != nil {
+			t.Fatalf("写入 Skill 文件失败: %v", err)
+		}
+	}
+
+	enabled, err := RuntimeSkillNamesForAgent(cfg, agentValue)
+	if err != nil {
+		t.Fatalf("读取 Agent 运行时 Skill 失败: %v", err)
+	}
+	for _, name := range []string{"enabled-global", "local-on"} {
+		if !slices.Contains(enabled, name) {
+			t.Fatalf("运行时启用列表缺少 %q: %#v", name, enabled)
+		}
+	}
+	if slices.Contains(enabled, "local-off") {
+		t.Fatalf("显式停用的工作区 Skill 仍在启用列表: %#v", enabled)
+	}
+
+	disabled, err := RuntimeDisabledSkillNamesForAgent(cfg, agentValue)
+	if err != nil {
+		t.Fatalf("读取 Agent 运行时停用 Skill 失败: %v", err)
+	}
+	for _, name := range []string{"disabled-global", "local-off"} {
+		if !slices.Contains(disabled, name) {
+			t.Fatalf("运行时停用列表缺少 %q: %#v", name, disabled)
+		}
+	}
+	if slices.Contains(disabled, "enabled-global") {
+		t.Fatalf("已绑定的全局 Skill 被误判为停用: %#v", disabled)
+	}
+	if slices.Contains(disabled, "same-name-local") {
+		t.Fatalf("动态发现的工作区同名 Skill 被误判为停用: %#v", disabled)
+	}
+}
+
+func TestListDeployedSkillsRejectsSymlinkedSkillFile(t *testing.T) {
+	workspacePath := t.TempDir()
+	skillDir := filepath.Join(workspacePath, ".agents", "skills", "linked-skill")
+	if err := os.MkdirAll(skillDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	outsideSkill := filepath.Join(t.TempDir(), "SKILL.md")
+	if err := os.WriteFile(outsideSkill, []byte("# foreign\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outsideSkill, filepath.Join(skillDir, "SKILL.md")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	names, err := ListDeployedSkills(workspacePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if slices.Contains(names, "linked-skill") {
+		t.Fatalf("symlinked SKILL.md 不能进入 runtime 白名单: %v", names)
+	}
+}
+
 func TestEnsureInitializedRepairsStaleScheduleWakeupGuidance(t *testing.T) {
+	useTemporaryWorkspaceStateRoot(t)
 	cases := []struct {
 		name        string
 		isMainAgent bool
@@ -263,6 +353,12 @@ func TestEnsureInitializedRepairsStaleScheduleWakeupGuidance(t *testing.T) {
 			}
 		})
 	}
+}
+
+func useTemporaryWorkspaceStateRoot(t *testing.T) {
+	t.Helper()
+	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(t.TempDir(), ".nexus"))
+	t.Setenv("NEXUS_CONFIG_DIR", "")
 }
 
 func TestDeploySkillFallsBackToClaudeSkillMirrorWhenSymlinkUnavailable(t *testing.T) {

@@ -35,12 +35,12 @@ const PROVIDER_ICON_SIZE_STYLE: Record<
   md: {
     container: "h-10 w-10",
     glyph: "h-6 w-6",
-    initials: "text-[13px]",
+    initials: "text-sm",
   },
   sm: {
     container: "h-7 w-7",
     glyph: "h-4.5 w-4.5",
-    initials: "text-[9.5px]",
+    initials: "text-2xs",
   },
 };
 

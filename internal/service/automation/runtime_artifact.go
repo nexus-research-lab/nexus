@@ -4,13 +4,15 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) writeRunArtifact(
@@ -27,7 +29,7 @@ func (s *Service) writeRunArtifact(
 	deliveryError *string,
 	deliveryTo string,
 ) *string {
-	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)
+	workspacePath, confinedRoot, err := s.openAutomationArtifactWorkspace(ctx, job)
 	if err != nil {
 		s.loggerFor(ctx).Warn("解析自动化任务运行产物目录失败", "job_id", job.JobID, "run_id", runID, "err", err)
 		return nil
@@ -35,24 +37,59 @@ func (s *Service) writeRunArtifact(
 	if strings.TrimSpace(workspacePath) == "" {
 		return nil
 	}
-
+	defer confinedRoot.Close()
 	relativePath := automationRunArtifactPath(job.JobID, runID)
-	targetPath := filepath.Clean(filepath.Join(workspacePath, filepath.FromSlash(relativePath)))
-	root := filepath.Clean(workspacePath)
-	if targetPath != root && !strings.HasPrefix(targetPath, root+string(os.PathSeparator)) {
-		s.loggerFor(ctx).Warn("自动化任务运行产物路径越界", "job_id", job.JobID, "run_id", runID)
-		return nil
-	}
-	if err = os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
+	if err = confinedRoot.MkdirAll(
+		filepath.Dir(relativePath),
+		appfs.RuntimeCollaborativeDirectoryMode(0o755),
+	); err != nil {
 		s.loggerFor(ctx).Warn("创建自动化任务运行产物目录失败", "job_id", job.JobID, "run_id", runID, "err", err)
 		return nil
 	}
 	content := renderRunArtifact(job, runID, roundID, sessionKey, finishedAt, status, observation, errorMessage, deliveryStatus, deliveryError, deliveryTo)
-	if err = os.WriteFile(targetPath, []byte(content), 0o644); err != nil {
+	if err = confinedRoot.WriteFileAtomic(
+		relativePath,
+		[]byte(content),
+		appfs.RuntimeCollaborativeFileMode(0o644),
+	); err != nil {
 		s.loggerFor(ctx).Warn("写入自动化任务运行产物失败", "job_id", job.JobID, "run_id", runID, "err", err)
 		return nil
 	}
 	return &relativePath
+}
+
+func (s *Service) openAutomationArtifactWorkspace(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+) (string, *confinedfs.Root, error) {
+	if s.agents != nil && strings.TrimSpace(job.AgentID) != "" {
+		agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(job.AgentID))
+		if err != nil {
+			return "", nil, err
+		}
+		ownerUserID := strings.TrimSpace(job.OwnerUserID)
+		if ownerUserID == "" || strings.TrimSpace(agentValue.OwnerUserID) != ownerUserID {
+			return "", nil, fmt.Errorf("automation agent owner does not match job owner")
+		}
+		workspacePath := strings.TrimSpace(agentValue.WorkspacePath)
+		root, err := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+			ownerUserID,
+			workspacePath,
+			true,
+		)
+		return workspacePath, root, err
+	}
+	workspacePath := strings.TrimSpace(s.config.WorkspacePath)
+	ownerUserID := strings.TrimSpace(job.OwnerUserID)
+	if workspacePath == "" || ownerUserID == "" {
+		return "", nil, nil
+	}
+	root, err := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+		ownerUserID,
+		workspacePath,
+		true,
+	)
+	return workspacePath, root, err
 }
 
 func automationRunArtifactPath(jobID string, runID string) string {

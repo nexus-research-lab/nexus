@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using Nexus.Desktop.Sidecar;
 
 namespace Nexus.Desktop.Diagnostics;
 
@@ -60,11 +61,7 @@ public sealed class DesktopStartupTimeline
 
     private static string ResolveLogPath()
     {
-        return Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".nexus",
-            "logs",
-            "shell.log");
+        return Path.Combine(DesktopPaths.LogsDirectory, "shell.log");
     }
 }
 

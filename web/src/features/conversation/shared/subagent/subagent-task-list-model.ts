@@ -18,6 +18,19 @@ export interface SubagentTaskListModel {
   supportNotice: SubagentTaskSupportNotice;
 }
 
+export function filterSubagentTasksByHostAgent(
+  tasks: SubagentTask[],
+  hostAgentId?: string | null,
+): SubagentTask[] {
+  const normalizedHostAgentId = hostAgentId?.trim() ?? "";
+  if (!normalizedHostAgentId) {
+    return tasks;
+  }
+  return tasks.filter(
+    (task) => task.host_agent_id?.trim() === normalizedHostAgentId,
+  );
+}
+
 interface BuildSubagentTaskListModelOptions {
   data: SubagentTaskListResponse | null;
   isLoading: boolean;

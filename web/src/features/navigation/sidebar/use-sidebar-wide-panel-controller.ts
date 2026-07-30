@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前路由、鉴权/i18n 状态、侧栏 Store 与面板拖拽动作。
+ * OUTPUT: 宽侧栏导航、折叠和退出行为模型。
+ * POS: 纯侧栏控制层；全局聊天完成订阅由 AppLayout 持有，不能下沉到此处。
+ */
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
@@ -5,23 +10,13 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import { isDesktopRuntime } from "@/config/desktop-runtime";
-import {
-  getDefaultAgentAvatar,
-  getDefaultAgentId,
-  isMainAgent,
-} from "@/config/runtime-options";
-import { useChatCompletionNotifications } from "@/features/home/notifications/use-chat-completion-notifications";
+import { getDefaultAgentId } from "@/config/runtime-options";
 import { useGuideCenterController } from "@/features/onboarding/guide-center/use-guide-center-controller";
-import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
-import { resolveDirectRoomNavigationTarget } from "@/features/navigation/direct-room/direct-room-navigation";
-import { getIconAvatarSrc } from "@/lib/avatar";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { useAgentStore } from "@/store/agent";
 import {
   SIDEBAR_CAPABILITY_ITEM_IDS,
   deriveSidebarItemIdFromPath,
-  SIDEBAR_SYSTEM_ITEM_IDS,
   useSidebarStore,
 } from "@/store/sidebar";
 
@@ -29,20 +24,21 @@ import {
   buildSidebarPrimaryTabs,
   buildSidebarUtilityLabels,
   deriveSidebarPrimaryTab,
-  isNexusSidebarItemActive,
 } from "./sidebar-wide-panel-model";
 import type { SidebarPrimaryTab } from "./view/sidebar-wide-panel-types";
 import { useSidebarPanelResize } from "./use-sidebar-panel-resize";
 
-export function useSidebarWidePanelController() {
+export function useSidebarWidePanelController({
+  navigationOnly = false,
+}: {
+  navigationOnly?: boolean;
+} = {}) {
   const { t } = useI18n();
-  const { logout } = useAuth();
+  const { logout, status: authStatus } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const agents = useAgentStore((state) => state.agents);
   const activePanelItemId = useSidebarStore((state) => state.active_panel_item_id);
   const chatBadgeCount = useSidebarStore((state) => state.chat_badge_count);
-  const nexusRoomId = useSidebarStore((state) => state.nexus_room_id);
   const setActivePanelItem = useSidebarStore((state) => state.set_active_panel_item);
   const setWidePanelCollapsed = useSidebarStore(
     (state) => state.set_wide_panel_collapsed,
@@ -54,11 +50,7 @@ export function useSidebarWidePanelController() {
   const defaultAgentId = getDefaultAgentId();
   const desktopRuntime = isDesktopRuntime();
   const settingsMode = pathname === AppRouteBuilders.settings();
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const nexusAgent = agents.find((agent) => isMainAgent(agent.agent_id)) ?? null;
-  const nexusAvatar = nexusAgent?.avatar?.trim() || getDefaultAgentAvatar();
 
-  useChatCompletionNotifications();
   const guideCenter = useGuideCenterController({
     defaultAgentId,
     setActivePanelItem,
@@ -75,26 +67,16 @@ export function useSidebarWidePanelController() {
     }
   }, [activePanelItemId, pathname, setActivePanelItem]);
 
-  const openNexus = useCallback(() => {
-    if (!defaultAgentId) {
-      return;
-    }
-    setActivePanelItem(SIDEBAR_SYSTEM_ITEM_IDS.nexus);
-    void resolveDirectRoomNavigationTarget(defaultAgentId)
-      .then(({ route }) => navigate(route))
-      .catch((error) => {
-        console.error("[SidebarWidePanel] 打开 Nexus DM 失败:", error);
-      });
-  }, [defaultAgentId, navigate, setActivePanelItem]);
-
   const selectPrimaryTab = useCallback((tab: SidebarPrimaryTab) => {
     const actions: Record<SidebarPrimaryTab, () => void> = {
       capabilities: () => {
         setActivePanelItem(SIDEBAR_CAPABILITY_ITEM_IDS.skills);
-        navigate(AppRouteBuilders.skills());
+        navigate(navigationOnly
+          ? AppRouteBuilders.capability()
+          : AppRouteBuilders.skills());
       },
       chat: () => {
-        if (!pathname.startsWith("/rooms/")) {
+        if (activeTab !== "chat") {
           navigate(AppRouteBuilders.home());
         }
       },
@@ -104,7 +86,7 @@ export function useSidebarWidePanelController() {
       },
     };
     actions[tab]();
-  }, [navigate, pathname, setActivePanelItem]);
+  }, [activeTab, navigate, navigationOnly, setActivePanelItem]);
 
   const tabs = useMemo(
     () => buildSidebarPrimaryTabs(t, activeTab, chatBadgeCount),
@@ -121,6 +103,7 @@ export function useSidebarWidePanelController() {
       onPointerMove: resize.handlePointerMove,
       onPointerUp: resize.handlePointerUp,
       resizeHotzoneActive: resize.isResizeHotzoneActive,
+      resizing: resize.isResizing,
       rootRef: resize.rootRef,
       width: widePanelWidth,
     },
@@ -128,16 +111,7 @@ export function useSidebarWidePanelController() {
     settingsMode,
     shared: {
       activeTab,
-      nexus: {
-        active: isNexusSidebarItemActive(
-          activePanelItemId,
-          nexusRoomId,
-          SIDEBAR_SYSTEM_ITEM_IDS.nexus,
-        ),
-        avatarSrc: getIconAvatarSrc(nexusAvatar),
-        onClick: openNexus,
-        prefersReducedMotion,
-      },
+      navigationLabel: t("sidebar.workspace_title"),
       onSelectTab: selectPrimaryTab,
       tabs,
       utility: {
@@ -148,7 +122,12 @@ export function useSidebarWidePanelController() {
         onLogout: () => void logout(),
         onOpenGuide: guideCenter.openGuideCenter,
         settingsActive: pathname.startsWith(AppRouteBuilders.settings()),
-        showLogout: !desktopRuntime,
+        showLogout:
+          !desktopRuntime
+          && authStatus?.auth_required === true
+          && authStatus.password_login_enabled
+          && authStatus.authenticated,
+        showPanelToggle: !navigationOnly,
         showSettings: !settingsMode,
       },
     },

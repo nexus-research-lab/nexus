@@ -5,10 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 const (
@@ -34,18 +38,20 @@ type preferencesService interface {
 
 // Service 提供 Provider 驱动的图片生成能力。
 type Service struct {
-	providers ProviderResolver
-	prefs     preferencesService
-	now       func() time.Time
-	client    *http.Client
+	providers     ProviderResolver
+	prefs         preferencesService
+	workspaceRoot string
+	now           func() time.Time
+	client        *http.Client
 }
 
 // NewService 创建图片生成服务。
-func NewService(providers ProviderResolver) *Service {
+func NewService(providers ProviderResolver, workspaceRoot string) *Service {
 	return &Service{
-		providers: providers,
-		now:       func() time.Time { return time.Now().UTC() },
-		client:    &http.Client{Timeout: requestTimeout},
+		providers:     providers,
+		workspaceRoot: strings.TrimSpace(workspaceRoot),
+		now:           func() time.Time { return time.Now().UTC() },
+		client:        &http.Client{Timeout: requestTimeout},
 	}
 }
 
@@ -82,7 +88,7 @@ func (s *Service) GenerateImage(ctx context.Context, input GenerateInput) (*Resu
 	if mimeType == "" {
 		mimeType = detectMIMEType(payload, normalized.OutputFormat)
 	}
-	relativePath, err := s.writeImage(normalized, payload, mimeType)
+	relativePath, err := s.writeImage(ctx, normalized, payload, mimeType)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -131,7 +137,7 @@ func (s *Service) EditImage(ctx context.Context, input EditInput) (*Result, []by
 		OutputFormat:  normalized.OutputFormat,
 		FileName:      normalized.FileName,
 	}
-	relativePath, err := s.writeImage(generateInput, payload, mimeType)
+	relativePath, err := s.writeImage(ctx, generateInput, payload, mimeType)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -145,4 +151,16 @@ func (s *Service) EditImage(ctx context.Context, input EditInput) (*Result, []by
 		Markdown:      fmt.Sprintf("![edited image](%s)", relativePath),
 	}
 	return result, payload, nil
+}
+
+func (s *Service) openWorkspace(
+	ctx context.Context,
+	workspacePath string,
+	create bool,
+) (*confinedfs.Root, error) {
+	return workspacestore.New(s.workspaceRoot).OpenOwnerWorkspacePath(
+		authctx.OwnerUserID(ctx),
+		workspacePath,
+		create,
+	)
 }

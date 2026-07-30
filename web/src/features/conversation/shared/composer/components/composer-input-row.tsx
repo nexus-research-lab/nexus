@@ -8,12 +8,14 @@ import type {
 import { cn } from "@/shared/ui/class-name";
 import type { MentionTargetItem } from "@/shared/ui/mention/mention-target-model";
 import { MentionTargetPopover } from "@/shared/ui/mention/mention-target-popover";
+import type {
+  CommandCatalogStatus,
+  CommandDescriptor,
+} from "@/types/generated/protocol";
 
-import { COMPOSER_SHORTCUT_KEY_CLASS_NAME } from "../composer-model";
-import {
-  ComposerSubmitButton,
-  type ComposerSubmitButtonProps,
-} from "./composer-submit-button";
+import { SlashCommandPopover } from "./slash-command-popover";
+
+import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
 
 interface ComposerInputRowProps {
   input: {
@@ -27,10 +29,7 @@ interface ComposerInputRowProps {
     value: string;
   };
   layout: {
-    enterLabel: string;
-    newLineLabel: string;
     paddingClassName: string;
-    showShortcuts: boolean;
   };
   mention: {
     active: boolean;
@@ -39,20 +38,35 @@ interface ComposerInputRowProps {
     onClose: () => void;
     onSelect: (item: MentionTargetItem) => void;
   };
-  submit: ComposerSubmitButtonProps;
+  slashCommand: {
+    active: boolean;
+    activeIndex: number;
+    commands: CommandDescriptor[];
+    onSelect: (command: CommandDescriptor) => void;
+    status: CommandCatalogStatus;
+  };
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
 
+/** 中文注释：输入行只保留文字区；附件、模式与发送等动作统一收在底部工具行。 */
 export function ComposerInputRow({
   input,
   layout,
   mention,
-  submit,
+  slashCommand,
   textareaRef,
 }: ComposerInputRowProps) {
   return (
     <div className={cn("flex items-end gap-2", layout.paddingClassName)}>
-      {mention.active && mention.items.length > 0 ? (
+      {slashCommand.active ? (
+        <SlashCommandPopover
+          activeIndex={slashCommand.activeIndex}
+          anchorRect={textareaRef.current?.getBoundingClientRect() ?? null}
+          commands={slashCommand.commands}
+          onSelect={slashCommand.onSelect}
+          status={slashCommand.status}
+        />
+      ) : mention.active && mention.items.length > 0 ? (
         <MentionTargetPopover
           anchorRect={textareaRef.current?.getBoundingClientRect() ?? null}
           filter={mention.filter}
@@ -67,11 +81,10 @@ export function ComposerInputRow({
           ref={textareaRef}
           aria-label={input.placeholder}
           className={cn(
-            "multiline-cursor soft-scrollbar min-h-6 w-full min-w-0 max-h-[200px] resize-none overflow-y-auto overscroll-contain bg-transparent text-[14px] leading-6 text-(--text-strong) outline-none shadow-none ring-0",
+            "multiline-cursor soft-scrollbar block min-h-8 w-full min-w-0 resize-none overflow-y-auto overscroll-contain bg-transparent px-1.5 py-1 text-base leading-6 text-(--text-strong) outline-none shadow-none ring-0",
             "placeholder:text-(--text-soft)",
             "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
             "focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
-            layout.showShortcuts && "min-[760px]:pr-[210px]",
           )}
           disabled={input.disabled}
           onChange={(event) => input.onChange(event.target.value)}
@@ -82,16 +95,10 @@ export function ComposerInputRow({
           onWheel={stopNestedTextareaWheel}
           placeholder={input.placeholder}
           rows={1}
+          style={{ maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX }}
           value={input.value}
         />
-        {layout.showShortcuts ? (
-          <ComposerInlineShortcuts
-            enterLabel={layout.enterLabel}
-            newLineLabel={layout.newLineLabel}
-          />
-        ) : null}
       </div>
-      <ComposerSubmitButton {...submit} />
     </div>
   );
 }
@@ -101,31 +108,4 @@ function stopNestedTextareaWheel(event: WheelEvent<HTMLTextAreaElement>) {
   if (target.scrollHeight > target.clientHeight) {
     event.stopPropagation();
   }
-}
-
-function ComposerInlineShortcuts({
-  enterLabel,
-  newLineLabel,
-}: {
-  enterLabel: string;
-  newLineLabel: string;
-}) {
-  return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute right-0 top-1/2 hidden -translate-y-1/2 items-center gap-1.5 text-[11px] leading-none text-(--text-soft) min-[760px]:flex"
-    >
-      <span className="inline-flex items-center gap-1">
-        <kbd className={COMPOSER_SHORTCUT_KEY_CLASS_NAME}>Enter</kbd>
-        <span>{enterLabel}</span>
-      </span>
-      <span className="text-(--text-faint)">·</span>
-      <span className="inline-flex items-center gap-1">
-        <kbd className={COMPOSER_SHORTCUT_KEY_CLASS_NAME}>Shift</kbd>
-        <span className="text-(--text-faint)">+</span>
-        <kbd className={COMPOSER_SHORTCUT_KEY_CLASS_NAME}>Enter</kbd>
-        <span>{newLineLabel}</span>
-      </span>
-    </div>
-  );
 }

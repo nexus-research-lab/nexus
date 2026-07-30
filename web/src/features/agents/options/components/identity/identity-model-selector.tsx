@@ -9,13 +9,15 @@ import {
   type ProviderOption,
 } from "@/types/capability/provider";
 
-import type { AgentIdentityVariant } from "./identity-layout";
+import {
+  IDENTITY_FIELD_LABEL_CLASS_NAMES,
+  type AgentIdentityVariant,
+} from "./identity-layout";
 
 interface ModelSelectorLayout {
   buttonClassName: string;
   className: string;
   errorClassName: string;
-  labelClassName: string;
   size?: "sm";
 }
 
@@ -24,17 +26,14 @@ const MODEL_SELECTOR_LAYOUTS: Record<
   ModelSelectorLayout
 > = {
   dialog: {
-    buttonClassName: "h-auto min-h-10 py-2",
-    className: "h-auto min-h-10",
+    buttonClassName: "h-auto min-h-11 py-2.5",
+    className: "h-auto min-h-11",
     errorClassName: "mt-2 text-xs text-rose-500",
-    labelClassName: "text-[11px] font-semibold text-(--text-muted)",
   },
   inline: {
     buttonClassName: "h-auto min-h-9 py-2",
     className: "h-auto min-h-9",
     errorClassName: "text-xs text-rose-500",
-    labelClassName:
-      "text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)",
     size: "sm",
   },
 };
@@ -73,6 +72,7 @@ export function IdentityModelSelector({
 }: IdentityModelSelectorProps) {
   const { t } = useI18n();
   const layout = MODEL_SELECTOR_LAYOUTS[variant];
+  const labelClassName = IDENTITY_FIELD_LABEL_CLASS_NAMES[variant];
   const selectedValue = encodeModelSelection({ model, provider });
   const defaultLabel = defaultProvider && defaultModel
     ? t("agent_options.identity.follow_default_provider_named", {
@@ -106,8 +106,8 @@ export function IdentityModelSelector({
   }, [onModelChange, onProviderChange]);
 
   return (
-    <div className="space-y-2.5">
-      <label className={layout.labelClassName}>
+    <div className="space-y-3">
+      <label className={labelClassName}>
         {t("agent_options.identity.model")}
       </label>
       <UiSelectMenu

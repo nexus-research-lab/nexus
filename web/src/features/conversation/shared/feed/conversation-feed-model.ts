@@ -1,3 +1,8 @@
+/**
+ * INPUT: 会话轮次、消息分组、运行态与 Feed renderer/refs。
+ * OUTPUT: canonical 业务轮次及跨 optimistic ACK 稳定的视图节点身份。
+ * POS: DM 静态/虚拟 Feed 共用的纯投影契约。
+ */
 import type { RefObject } from "react";
 
 import type { ConversationRoundScrollHandleRef } from "../timeline/scroll/round-scroll";
@@ -50,6 +55,7 @@ export interface ConversationRoundState {
   isLive: boolean;
   isLoaded: boolean;
   messages: Message[];
+  nodeId: string;
   roundId: string;
 }
 
@@ -67,8 +73,26 @@ export function resolveConversationRound(
     isLive,
     isLoaded: messages.length > 0 || isLive,
     messages,
+    nodeId: resolveConversationRoundNodeId(messages, roundId),
     roundId,
   };
+}
+
+/**
+ * ACK 会把 optimistic round_id 换成服务端 canonical id，但会保留
+ * client_message_id。Feed 节点必须沿用这条客户端身份，否则 React 会把同一轮
+ * 当作删除后新增，造成闪白、入场动画重播和虚拟测量抖动。
+ */
+export function resolveConversationRoundNodeId(
+  messages: Message[],
+  roundId: string,
+): string {
+  const clientMessage = messages.find(
+    (message) => message.role === "user" && message.client_message_id?.trim(),
+  );
+  return clientMessage?.role === "user"
+    ? clientMessage.client_message_id?.trim() || roundId
+    : roundId;
 }
 
 export function resolveRoundWorkspaceAgentId(

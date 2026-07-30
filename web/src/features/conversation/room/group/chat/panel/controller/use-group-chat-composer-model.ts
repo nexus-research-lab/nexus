@@ -5,6 +5,10 @@ import { useConversationComposerHandlers } from "@/features/conversation/shared/
 import { ROOM_GOAL_SCOPE_LABEL } from "@/features/conversation/shared/goal/goal-continuation-hold";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
 import { useDefaultChatDeliveryPolicy } from "@/hooks/settings/use-default-chat-delivery-policy";
+import {
+  buildComposerDraftScopeKey,
+  buildComposerHistoryScopeKey,
+} from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
@@ -17,14 +21,15 @@ import type { RoomGoalComposerModel } from "./use-room-goal-composer";
 type ComposerConversation = Pick<
   UseAgentConversationReturn,
   | "delete_input_queue_message"
+  | "command_catalog"
   | "enqueue_input_queue_message"
   | "guide_input_queue_message"
   | "input_queue_items"
   | "is_loading"
+  | "refresh_command_catalog"
   | "reorder_input_queue_messages"
   | "runtime_phase"
   | "send_message"
-  | "stop_generation"
 >;
 
 interface UseGroupChatComposerModelOptions {
@@ -54,6 +59,8 @@ export function useGroupChatComposerModel({
 }: UseGroupChatComposerModelOptions): GroupChatComposerModel {
   const { t } = useI18n();
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
+  const draftScopeKey = buildComposerDraftScopeKey({ roomId, sessionKey });
+  const historyScopeKey = buildComposerHistoryScopeKey({ roomId });
   const prepareAttachments = useCallback(
     async (files: File[]) => {
       if (!roomId || !conversationId) {
@@ -76,10 +83,13 @@ export function useGroupChatComposerModel({
   });
 
   return {
+    commandCatalog: conversation.command_catalog,
     defaultDeliveryPolicy,
+    draftScopeKey,
     enableLoops: true,
     goalCreateDisabledReason: goal.createDisabledReason,
     goalScopeLabel: ROOM_GOAL_SCOPE_LABEL,
+    historyScopeKey,
     inputQueueItems: projectRoomPendingInputQueueItems(
       conversation.input_queue_items,
     ),
@@ -90,9 +100,9 @@ export function useGroupChatComposerModel({
     onEnqueueMessage: conversation.enqueue_input_queue_message,
     onGuideQueuedMessage: conversation.guide_input_queue_message,
     onPrepareAttachments: handlers.handlePrepareAttachments,
+    onRefreshCommandCatalog: conversation.refresh_command_catalog,
     onReorderQueueMessages: conversation.reorder_input_queue_messages,
     onSendMessage: handlers.handleSendMessage,
-    onStop: conversation.stop_generation,
     queueWhenSessionBusy: true,
     roomMembers,
     runtimePhase: conversation.runtime_phase,

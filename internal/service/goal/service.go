@@ -1,5 +1,5 @@
-// INPUT: Goal 创建、读取、Room creator/lead 身份、用户更新请求与 Room 终态 readiness。
-// OUTPUT: 持久化 Goal、不可变 creator/可转移 lead 审计身份与受运行中工作保护的后续 runtime 决策。
+// INPUT: Goal 创建/读取、model round durable usage scope、Room creator/lead 身份、用户更新请求与 Room 终态 readiness。
+// OUTPUT: 原子持久化 Goal/created 事件/usage scope、creator/lead 审计身份与受运行中工作保护的后续 runtime 决策。
 // POS: Goal 应用服务主入口。
 package goal
 
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -81,6 +82,13 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 			Metadata:    metadata,
 		})
 	}
+	scopeRoundID := ""
+	if strings.TrimSpace(request.CreatedBy) == "model" {
+		scopeRoundID = strings.TrimSpace(request.RoundID)
+	}
+	if err := s.preflightGoalCreate(sessionKey, scopeRoundID); err != nil {
+		return nil, err
+	}
 	objective, metadata := s.rewriteCreateObjective(ctx, request, objective)
 	if metadata != nil {
 		metadata = cloneMap(metadata)
@@ -105,21 +113,74 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		UpdatedAt:   now,
 		Metadata:    metadata,
 	}
-	created, err := s.repo.CreateGoal(ctx, item)
+	createdEvent := s.newGoalEvent(
+		item,
+		"created",
+		createGoalEventSource(item.CreatedBy),
+		request.RoundID,
+		map[string]any{"objective": item.Objective},
+		now,
+	)
+	created, usageEvent, err := s.createGoalWithUsageScope(ctx, request, item, createdEvent, now)
 	if err != nil {
-		return nil, err
-	}
-	s.updatePreviewFromGoal(ctx, *created, request.OwnerUserID)
-	if err := s.appendEvent(ctx, *created, "created", createGoalEventSource(created.CreatedBy), strings.TrimSpace(request.RoundID), map[string]any{"objective": created.Objective}); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(created.CreatedBy) == "model" {
 		s.markWallClockGoalActive(*created)
 	} else {
-		s.activateExternalGoalAccounting(ctx, *created)
+		if err := s.activateExternalGoalAccounting(ctx, *created); err != nil {
+			return nil, s.rollbackFailedGoalCreate(ctx, *created, err)
+		}
+	}
+	s.updatePreviewFromGoal(ctx, *created, request.OwnerUserID)
+	s.publishGoalEvent(ctx, *created, createdEvent)
+	if usageEvent != nil {
+		s.publishGoalEvent(ctx, *created, *usageEvent)
 	}
 	s.maybeDispatchActiveGoalContinuation(ctx, *created)
 	return created, nil
+}
+
+func (s *Service) createGoalWithUsageScope(
+	ctx context.Context,
+	request protocol.CreateGoalRequest,
+	item protocol.Goal,
+	createdEvent protocol.GoalEvent,
+	now time.Time,
+) (*protocol.Goal, *protocol.GoalEvent, error) {
+	roundID := strings.TrimSpace(request.RoundID)
+	repository, scoped := s.repo.(usageScopeCreateRepository)
+	if strings.TrimSpace(request.CreatedBy) == "model" && roundID != "" && scoped {
+		ownerUserID := strings.TrimSpace(request.OwnerUserID)
+		if ownerUserID == "" {
+			ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
+		}
+		result, err := repository.CreateGoalWithUsageScope(ctx, item, createdEvent, protocol.GoalUsageScopeBinding{
+			OwnerUserID:    ownerUserID,
+			GoalSessionKey: item.SessionKey,
+			SourceKind:     protocol.GoalUsageSourceKindNXSTask,
+			ScopeRoundID:   roundID,
+			GoalID:         item.ID,
+			BoundAt:        now,
+			UsageEventID:   s.idFactory("goal_event"),
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if result.Goal == nil {
+			return nil, nil, fmt.Errorf("%w: scoped Goal creation returned no Goal", ErrGoalInvalidState)
+		}
+		return result.Goal, result.UsageEvent, nil
+	}
+
+	created, err := s.repo.CreateGoal(ctx, item)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := s.repo.AppendEvent(ctx, createdEvent); err != nil {
+		return nil, nil, err
+	}
+	return created, nil, nil
 }
 
 // Current 返回 session 当前 Goal。
@@ -152,7 +213,9 @@ func (s *Service) CurrentOptional(ctx context.Context, sessionKey string) (*prot
 
 // Update 更新当前 Goal 文本、预算或 metadata。
 func (s *Service) Update(ctx context.Context, goalID string, request protocol.UpdateGoalRequest) (*protocol.Goal, error) {
-	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
+	if err := s.prepareExternalMutation(ctx, strings.TrimSpace(goalID)); err != nil {
+		return nil, err
+	}
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return nil, err
@@ -297,7 +360,9 @@ func (s *Service) Pause(ctx context.Context, goalID string) (*protocol.Goal, err
 
 // Resume 恢复 paused/blocked/usage_limited Goal；预算耗尽时需要先调整预算。
 func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, error) {
-	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
+	if err := s.prepareExternalMutation(ctx, strings.TrimSpace(goalID)); err != nil {
+		return nil, err
+	}
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return nil, err
@@ -320,7 +385,9 @@ func (s *Service) Resume(ctx context.Context, goalID string) (*protocol.Goal, er
 
 // Clear 删除当前 Goal。
 func (s *Service) Clear(ctx context.Context, goalID string) (bool, error) {
-	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
+	if err := s.prepareExternalMutationAtSettlementBoundary(ctx, strings.TrimSpace(goalID)); err != nil {
+		return false, err
+	}
 	item, err := s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return false, err

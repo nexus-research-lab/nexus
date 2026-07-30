@@ -1,4 +1,5 @@
 using System.Windows;
+using Nexus.Desktop.Dialog;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
 using Nexus.Desktop.Runtime;
@@ -106,11 +107,11 @@ public partial class App : System.Windows.Application
         string message = diagnosticsPath is null
             ? exception.Message
             : $"{exception.Message}{Environment.NewLine}{Environment.NewLine}诊断文件：{diagnosticsPath}";
-        System.Windows.MessageBox.Show(
-            message,
+        NexusDialogWindow.ShowMessage(
+            null,
             "Nexus 启动失败",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
+            message,
+            "退出");
         RequestApplicationExit(1);
     }
 

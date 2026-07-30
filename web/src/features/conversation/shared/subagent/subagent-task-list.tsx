@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { X } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
@@ -47,6 +48,7 @@ const ELAPSED_TIME_UNITS = [
 interface SubagentTaskListProps {
   data: SubagentTaskListResponse | null;
   error: string | null;
+  headerLeading?: ReactNode;
   isLoading: boolean;
   onClose: () => void;
   onRefresh: () => void;
@@ -58,6 +60,7 @@ interface SubagentTaskListProps {
 export function SubagentTaskList({
   data,
   error,
+  headerLeading,
   isLoading,
   onClose,
   onRefresh,
@@ -90,6 +93,12 @@ export function SubagentTaskList({
       title={t("subagents.panel_title")}
     >
       <div>
+        {headerLeading ? (
+          <div className="mb-4 flex min-h-7 items-center">
+            {headerLeading}
+          </div>
+        ) : null}
+
         <SubagentTaskSection
           emptyText={t(ACTIVE_EMPTY_LABEL[model.activeEmptyState])}
           label={t("subagents.active_section")}
@@ -111,7 +120,7 @@ export function SubagentTaskList({
         ) : null}
 
         {model.supportNotice ? (
-          <p className="mt-3 max-w-[420px] text-[13px] leading-6 text-(--text-muted)">
+          <p className="mt-3 max-w-[420px] text-sm leading-6 text-(--text-muted)">
             {t(SUPPORT_NOTICE_LABEL[model.supportNotice])}
           </p>
         ) : null}
@@ -144,12 +153,12 @@ function SubagentTaskSection({
 }) {
   return (
     <section>
-      <h2 className="pr-9 text-[12px] font-semibold text-(--text-soft)">
+      <h2 className="pr-9 text-compact font-semibold text-(--text-soft)">
         {label}{countInLabel ? ` · ${tasks.length}` : ""}
       </h2>
 
       {tasks.length === 0 && emptyText ? (
-        <p className="mt-3 text-[12px] text-(--text-soft)">{emptyText}</p>
+        <p className="mt-3 text-compact text-(--text-soft)">{emptyText}</p>
       ) : null}
 
       {tasks.length > 0 ? (
@@ -176,7 +185,13 @@ function SubagentTaskRow({
 }) {
   const { locale, t } = useI18n();
   const timestamp = subagentTaskTimestamp(task);
-  const summary = [task.summary, task.description, task.last_tool_name]
+  const title = subagentTaskTitle(task);
+  const description = task.description?.trim() ?? "";
+  const summary = [
+    task.summary,
+    description === title ? "" : description,
+    task.last_tool_name,
+  ]
     .map((value) => value?.trim() ?? "")
     .find(Boolean) ?? t("subagents.no_description");
 
@@ -189,21 +204,21 @@ function SubagentTaskRow({
     >
       <SubagentTaskAvatar
         isActive={isSubagentTaskActive(task)}
-        name={subagentTaskTitle(task)}
+        name={title}
         taskId={task.task_id}
       />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-baseline gap-3">
-          <span className="min-w-0 flex-1 truncate text-[13px] font-medium leading-5 text-(--text-strong)">
-            {subagentTaskTitle(task)}
+          <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-(--text-strong)">
+            {title}
           </span>
           {timestamp ? (
-            <time className="shrink-0 text-[10.5px] tabular-nums text-(--text-soft)">
+            <time className="shrink-0 text-xs tabular-nums text-(--text-soft)">
               {formatCompactElapsedTime(timestamp, locale)}
             </time>
           ) : null}
         </span>
-        <span className="block truncate text-[11.5px] leading-4.5 text-(--text-muted)">
+        <span className="block truncate text-compact leading-4.5 text-(--text-muted)">
           {summary}
         </span>
       </span>

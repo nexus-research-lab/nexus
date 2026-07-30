@@ -31,8 +31,8 @@ export function AskUserQuestionCardBody({
     return null;
   }
   return (
-    <div className="message-cjk-font p-2.5">
-      <div className="overflow-hidden rounded-[8px] border border-(--divider-subtle-color)">
+    <div className="message-cjk-font p-3">
+      <div className="ask-user-question-options">
         {question.options.map((option) => (
           <QuestionOptionButton
             description={option.description}
@@ -80,9 +80,10 @@ function QuestionOptionButton({
   return (
     <button
       className={cn(
-        "w-full border-b border-(--divider-subtle-color) px-3 py-2 text-left transition duration-(--motion-duration-fast) ease-out last:border-b-0",
+        "ask-user-question-option w-full px-3 py-2.5 text-left transition duration-(--motion-duration-fast) ease-out",
         presentation.buttonClassName,
       )}
+      data-selected={isSelected}
       disabled={readOnly}
       onClick={(event) => {
         event.stopPropagation();
@@ -100,7 +101,7 @@ function QuestionOptionButton({
         <div className="min-w-0 flex-1">
           <div
             className={cn(
-              "text-[13px] font-medium leading-tight",
+              "text-sm font-medium leading-tight",
               presentation.labelClassName,
             )}
           >
@@ -119,7 +120,7 @@ function QuestionOptionDescription({ description }: { description?: string }) {
     return null;
   }
   return (
-    <div className="mt-1 text-[11px] leading-snug text-muted-foreground">
+    <div className="mt-1 text-xs leading-snug text-muted-foreground">
       {description}
     </div>
   );
@@ -130,7 +131,7 @@ function SelectedOptionBadge({ visible }: { visible: boolean }) {
     return null;
   }
   return (
-    <span className="shrink-0 text-[10px] font-medium text-primary/80">
+    <span className="shrink-0 text-2xs font-medium text-primary/80">
       已选
     </span>
   );
@@ -154,22 +155,22 @@ function CustomAnswerField({
   }
   return (
     <div
-      className="px-3 py-2"
+      className="ask-user-question-custom-answer px-3 py-2.5"
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
       role="presentation"
     >
       <div className="mb-1 flex items-center justify-between gap-2">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
+        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
           自定义回答
         </div>
         <CustomAnswerBadge visible={Boolean(customAnswer.trim())} />
       </div>
-      <div className="border-b border-(--divider-subtle-color)">
+      <div>
         <textarea
           aria-label="自定义回答"
           className={cn(
-            "h-7 min-h-7 w-full resize-none border-0 bg-transparent px-0 py-0 text-[13px] leading-7 text-(--text-strong) outline-none shadow-none ring-0 transition duration-(--motion-duration-fast) ease-out focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
+            "h-7 min-h-7 w-full resize-none border-0 bg-transparent px-0 py-0 text-sm leading-7 text-(--text-strong) outline-none shadow-none ring-0 transition duration-(--motion-duration-fast) ease-out focus:border-0 focus:bg-transparent focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
             "placeholder:text-muted-foreground/70",
             readOnly && "cursor-not-allowed opacity-60",
           )}
@@ -190,6 +191,6 @@ function CustomAnswerBadge({ visible }: { visible: boolean }) {
     return null;
   }
   return (
-    <span className="text-[10px] font-medium text-primary/80">已填写</span>
+    <span className="text-2xs font-medium text-primary/80">已填写</span>
   );
 }

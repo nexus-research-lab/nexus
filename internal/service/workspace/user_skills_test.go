@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 func TestEnsureUserSkillLibrarySharesNXSAndClaudeRoots(t *testing.T) {
@@ -31,15 +32,61 @@ func TestEnsureUserSkillLibrarySharesNXSAndClaudeRoots(t *testing.T) {
 
 func TestUserSkillRootsFollowAgentWorkspaceLayout(t *testing.T) {
 	cfg := config.Config{WorkspacePath: filepath.Join(t.TempDir(), "workspace")}
-	if got, want := UserSkillLibraryRoot(cfg, "owner-a"), filepath.Join(cfg.WorkspacePath, "owner-a"); got != want {
+	if got, want := UserSkillLibraryRoot(cfg, "owner-a"), filepath.Join(cfg.WorkspacePath, "owner-a", "workspace"); got != want {
 		t.Fatalf("用户 Skill 根 = %q, want %q", got, want)
 	}
-	if got, want := UserSkillLibraryRoot(cfg, "__system__"), cfg.WorkspacePath; got != want {
+	if got, want := UserSkillLibraryRoot(cfg, "__system__"), filepath.Join(cfg.WorkspacePath, "__system__", "workspace"); got != want {
 		t.Fatalf("系统 Skill 根 = %q, want %q", got, want)
 	}
-	wantUserRoot := filepath.Join(cfg.WorkspacePath, "owner-a")
+	wantUserRoot := filepath.Join(cfg.WorkspacePath, "owner-a", "workspace")
 	if got := SkillLibraryRoots(cfg, "owner-a"); len(got) != 2 || got[1] != wantUserRoot {
 		t.Fatalf("runtime 用户 Skill 根 = %#v, want platform + %q", got, wantUserRoot)
+	}
+}
+
+func TestEnsureHostSkillLibraryPublishesStandardAgentsRoot(t *testing.T) {
+	cfg := testSkillConfig(t)
+	cfg.AppMode = "desktop"
+	home := filepath.Join(t.TempDir(), "home")
+	t.Setenv("HOME", home)
+	sourceRoot := filepath.Join(home, ".agents", "skills", "host-skill")
+	if err := os.MkdirAll(sourceRoot, 0o755); err != nil {
+		t.Fatalf("创建宿主 Skill 源失败: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceRoot, "SKILL.md"), []byte("host-v1"), 0o644); err != nil {
+		t.Fatalf("写入宿主 Skill 源失败: %v", err)
+	}
+
+	if err := EnsureHostSkillLibrary(cfg); err != nil {
+		t.Fatalf("同步宿主 Skill 兼容根失败: %v", err)
+	}
+	for _, path := range []string{
+		filepath.Join(appfs.HostSkillRoot(), ".agents", "skills", "host-skill", "SKILL.md"),
+		filepath.Join(appfs.HostSkillRoot(), ".claude", "skills", "host-skill", "SKILL.md"),
+	} {
+		if payload, err := os.ReadFile(path); err != nil {
+			t.Fatalf("宿主 Skill 兼容入口缺失 %s: %v", path, err)
+		} else if string(payload) != "host-v1" {
+			t.Fatalf("宿主 Skill 兼容入口内容 = %q, want host-v1", payload)
+		}
+	}
+	roots := SkillLibraryRoots(cfg, "owner-a")
+	if len(roots) != 3 || roots[1] != appfs.HostSkillRoot() {
+		t.Fatalf("桌面 runtime Skill 根 = %#v, want platform + host + owner", roots)
+	}
+
+	if err := os.WriteFile(filepath.Join(sourceRoot, "SKILL.md"), []byte("host-v2"), 0o644); err != nil {
+		t.Fatalf("更新宿主 Skill 源失败: %v", err)
+	}
+	if err := EnsureHostSkillLibrary(cfg); err != nil {
+		t.Fatalf("刷新宿主 Skill 兼容根失败: %v", err)
+	}
+	payload, err := os.ReadFile(filepath.Join(appfs.HostSkillRoot(), ".agents", "skills", "host-skill", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("读取刷新后的宿主 Skill 失败: %v", err)
+	}
+	if string(payload) != "host-v2" {
+		t.Fatalf("刷新后的宿主 Skill 内容 = %q, want host-v2", payload)
 	}
 }
 
@@ -94,6 +141,7 @@ func TestRefreshUserSkillLibraryUpdatesClaudeMirror(t *testing.T) {
 func testSkillConfig(t *testing.T) config.Config {
 	t.Helper()
 	configRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
 	return config.Config{WorkspacePath: filepath.Join(configRoot, "workspace")}
 }

@@ -1,3 +1,6 @@
+// INPUT: runtime 拥有的隐藏上下文块、当前用户输入与客户端能力。
+// OUTPUT: next-turn context 设置，或带明确内部来源标签的兼容输入。
+// POS: 应用层上下文到 runtime 下一轮模型输入的统一注入边界。
 package runtime
 
 import (
@@ -31,7 +34,10 @@ type nextTurnContextClient interface {
 	SetNextTurnContext(context.Context, []ContextualInputBlock) error
 }
 
-const contextOnlyTurnTrigger = "Continue."
+const (
+	contextOnlyTurnTrigger           = "Continue."
+	ContextualInputNameRoundRecovery = "round_recovery"
+)
 
 func PrepareRoundContentWithContext(
 	ctx context.Context,
@@ -121,6 +127,8 @@ func internalContextSourceName(name string) string {
 	switch strings.TrimSpace(name) {
 	case "goal", "goal_context":
 		return "goal"
+	case ContextualInputNameRoundRecovery:
+		return ContextualInputNameRoundRecovery
 	default:
 		return ""
 	}

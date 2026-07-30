@@ -136,6 +136,7 @@ func TestLoadRuntimeIdleSessionSettings(t *testing.T) {
 func TestLoadWorkspacePathUsesRuntimeSettingsWhenEnvEmpty(t *testing.T) {
 	root := t.TempDir()
 	workspacePath := filepath.Join(root, "custom-workspace")
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	t.Setenv("WORKSPACE_PATH", "")
 	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: workspacePath}); err != nil {
@@ -149,11 +150,57 @@ func TestLoadWorkspacePathUsesRuntimeSettingsWhenEnvEmpty(t *testing.T) {
 	}
 }
 
+func TestSaveRuntimeSettingsUsesPrivatePermissions(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+
+	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: "/tmp/workspace"}); err != nil {
+		t.Fatalf("写入 runtime settings 失败: %v", err)
+	}
+
+	configInfo, err := os.Stat(filepath.Join(stateRoot, "app", "config"))
+	if err != nil {
+		t.Fatalf("读取 runtime settings 配置目录失败: %v", err)
+	}
+	if configInfo.Mode().Perm() != 0o700 {
+		t.Fatalf("runtime settings 配置目录权限错误: %o", configInfo.Mode().Perm())
+	}
+	fileInfo, err := os.Stat(RuntimeSettingsPath())
+	if err != nil {
+		t.Fatalf("读取 runtime settings 文件失败: %v", err)
+	}
+	if fileInfo.Mode().Perm() != 0o600 {
+		t.Fatalf("runtime settings 文件权限错误: %o", fileInfo.Mode().Perm())
+	}
+}
+
+func TestSaveRuntimeSettingsRejectsSymlinkedConfigDirectory(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	outsideRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	if err := os.MkdirAll(filepath.Join(stateRoot, "app"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outsideRoot, filepath.Join(stateRoot, "app", "config")); err != nil {
+		t.Skipf("当前平台不支持符号链接: %v", err)
+	}
+
+	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: "/tmp/workspace"}); err == nil {
+		t.Fatal("runtime settings 不应写入符号链接配置目录")
+	}
+	if _, err := os.Stat(filepath.Join(outsideRoot, runtimeSettingsFileName)); !os.IsNotExist(err) {
+		t.Fatalf("符号链接目标不应收到 runtime settings: %v", err)
+	}
+}
+
 func TestLoadWorkspacePathKeepsExplicitEnv(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, ".nexus")
 	persistedPath := filepath.Join(root, "persisted-workspace")
 	envPath := filepath.Join(root, "env-workspace")
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
 	t.Setenv("WORKSPACE_PATH", envPath)
 	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: persistedPath}); err != nil {
@@ -171,6 +218,7 @@ func TestLoadWorkspacePathOverridesDesktopDefaultEnv(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, ".nexus")
 	persistedPath := filepath.Join(root, "persisted-workspace")
+	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
 	t.Setenv("NEXUS_APP_MODE", "desktop")
 	t.Setenv("WORKSPACE_PATH", filepath.Join(configDir, "workspace"))
@@ -182,6 +230,43 @@ func TestLoadWorkspacePathOverridesDesktopDefaultEnv(t *testing.T) {
 
 	if cfg.WorkspacePath != persistedPath {
 		t.Fatalf("WorkspacePath = %q, want persisted %q", cfg.WorkspacePath, persistedPath)
+	}
+}
+
+func TestLoadMapsLegacyHostPathsIntoAppDirectory(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	t.Setenv("CACHE_FILE_DIR", filepath.Join(stateRoot, "cache"))
+	t.Setenv("LOG_PATH", filepath.Join(stateRoot, "logs", "legacy.log"))
+	t.Setenv("DATABASE_URL", "sqlite:///"+filepath.Join(stateRoot, "data", "nexus.db"))
+
+	cfg := Load()
+
+	if cfg.CacheFileDir != filepath.Join(stateRoot, "app", "cache") {
+		t.Fatalf("CacheFileDir = %q, want app cache", cfg.CacheFileDir)
+	}
+	if cfg.LogPath != filepath.Join(stateRoot, "app", "logs", "legacy.log") {
+		t.Fatalf("LogPath = %q, want app logs", cfg.LogPath)
+	}
+	if cfg.DatabaseURL != "sqlite:///"+filepath.Join(stateRoot, "app", "data", "nexus.db") {
+		t.Fatalf("DatabaseURL = %q, want migrated sqlite path", cfg.DatabaseURL)
+	}
+}
+
+func TestLoadDoesNotTreatAgentRuntimeWorkspaceAsHostRoot(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	agentWorkspace := filepath.Join(stateRoot, "users", "__system__", "workspace", "nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	t.Setenv("WORKSPACE_PATH", agentWorkspace)
+	t.Setenv("NEXUSCTL_WORKSPACE_PATH", agentWorkspace)
+
+	cfg := Load()
+
+	want := filepath.Join(stateRoot, "users")
+	if cfg.WorkspacePath != want {
+		t.Fatalf("Agent runtime workspace 被误作宿主根: got=%q want=%q", cfg.WorkspacePath, want)
 	}
 }
 

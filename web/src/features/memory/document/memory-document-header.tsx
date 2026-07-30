@@ -77,7 +77,7 @@ export function MemoryDocumentHeader({
             <MemoryHeaderBadge badge={badge} key={badge.kind} />
           ))}
         </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[11px] text-(--text-soft)">
+        <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-(--text-soft)">
           <span className="truncate font-mono">{document.path}</span>
           <span aria-hidden="true">·</span>
           <span className="shrink-0">{formatMemoryFileSize(document.size)}</span>
@@ -117,7 +117,7 @@ function MemoryHeaderBadge({ badge }: { badge: MemoryDocumentHeaderBadge }) {
   const view = HEADER_BADGE_VIEW_BY_KIND[badge.kind];
   const Icon = view.icon;
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1 text-[10.5px] font-medium ${view.className}`}>
+    <span className={`inline-flex shrink-0 items-center gap-1 text-xs font-medium ${view.className}`}>
       <Icon className={view.iconClassName} />
       {t(badge.labelKey)}
     </span>

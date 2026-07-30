@@ -178,7 +178,7 @@ export function getWorkspaceFileTreeRowPresentation({
     isDirectoryTarget,
     isSelected,
     nameClassName: cn(
-      "shrink-0 whitespace-nowrap text-[13px] leading-[1.3rem]",
+      "shrink-0 whitespace-nowrap text-sm leading-[1.3rem]",
       entry.is_dir || isSelected ? "font-medium" : "font-normal",
     ),
     paddingLeft: 8 + depth * 12,

@@ -36,7 +36,7 @@ func (s *Service) HandleDirectedMessage(
 	if s.directedMessages == nil {
 		return nil, errors.New("room directed message store is not configured")
 	}
-	if err = s.directedMessages.AppendMessage(*message); err != nil {
+	if err = s.directedMessages.AppendMessage(contextValue.Room.OwnerUserID, *message); err != nil {
 		return nil, err
 	}
 	s.touchSharedConversationActivity(ctx, message.ConversationID, time.UnixMilli(message.Timestamp).UTC())
@@ -443,7 +443,7 @@ func (s *Service) recordRoomDirectedMessageReply(
 		HopIndex:        roundValue.HopIndex,
 		Timestamp:       time.Now().UnixMilli(),
 	}
-	if err := s.directedMessages.AppendMessage(message); err != nil {
+	if err := s.directedMessages.AppendMessage(roundValue.OwnerUserID, message); err != nil {
 		return err
 	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, newRoomDirectedMessageEvent(message))
@@ -540,7 +540,7 @@ func (s *Service) enqueueRoomDirectedMessageWake(
 		return err
 	}
 	s.scheduleRoomDirectedQueueDispatch(
-		contextWithQueueOwner(context.Background(), authctx.OwnerUserID(ctx)),
+		contextWithExactQueueOwner(context.Background(), authctx.OwnerUserID(ctx)),
 		sessionKey,
 		message.RoomID,
 		message.ConversationID,
@@ -558,8 +558,15 @@ func (s *Service) scheduleRoomDirectedQueueDispatch(
 	if key == "" {
 		return
 	}
+	ownerUserID := authctx.OwnerUserID(ctx)
 	s.wakeTimers.ScheduleDispatch(key, roomDirectedWakeBatchWindow, func() {
-		s.dispatchNextInputQueueItem(ctx, sessionKey, roomID, conversationID)
+		s.startSessionBackgroundTask(
+			sessionKey,
+			ownerUserID,
+			func(taskCtx context.Context) {
+				s.dispatchNextInputQueueItem(taskCtx, sessionKey, roomID, conversationID)
+			},
+		)
 	})
 }
 
@@ -636,7 +643,7 @@ func (s *Service) StartDelayedWakeScheduler(context.Context) (func(), error) {
 	if s.directedWakes == nil {
 		return nil, nil
 	}
-	pending, err := s.directedWakes.Pending()
+	pending, err := s.directedWakes.PendingAll()
 	if err != nil {
 		return nil, err
 	}
@@ -686,7 +693,7 @@ func (s *Service) executePersistedRoomDirectedWake(wake workspacestore.RoomDirec
 		s.schedulePersistedRoomDirectedWake(wake, roomDirectedMessageWakeRetryDelay)
 		return
 	}
-	if err = s.directedWakes.Complete(wake.WakeID); err != nil {
+	if err = s.directedWakes.Complete(wake.OwnerUserID, wake.WakeID); err != nil {
 		s.loggerFor(wakeCtx).Error("记录 Room directed message 延迟唤醒完成失败", "wake_id", wake.WakeID, "err", err)
 	}
 }

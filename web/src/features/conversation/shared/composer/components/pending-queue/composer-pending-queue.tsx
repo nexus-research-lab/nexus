@@ -102,7 +102,7 @@ function PendingQueueHeader({
     ? t("composer.expand_pending_queue")
     : t("composer.collapse_pending_queue");
   return (
-    <div className="flex items-center justify-between gap-2 text-[10px] font-medium text-(--text-soft)">
+    <div className="flex items-center justify-between gap-2 text-2xs font-medium text-(--text-soft)">
       <span className="inline-flex items-center gap-1.5">
         {t("composer.pending_queue")}
         <span className="tabular-nums">{count}</span>

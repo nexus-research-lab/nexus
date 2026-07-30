@@ -9,12 +9,21 @@ import { createPortal } from "react-dom";
 
 import { cn } from "@/shared/ui/class-name";
 
+import {
+  getMenuItemStateClassName,
+  MENU_ITEM_BASE_CLASS_NAME,
+} from "./menu-styles";
 import { useAnchoredOverlayLayer } from "../overlay/anchored-overlay-layer";
 import {
   resolveAnchoredOverlayPosition,
+  type UiAnchoredOverlayAlignment,
   type UiAnchoredOverlayPlacement,
 } from "../overlay/anchored-overlay-model";
 import { OPEN_OVERLAY_DATA_ATTRIBUTES } from "../overlay/overlay-contract";
+import {
+  ANCHORED_OVERLAY_MOTION_CLASS_NAME,
+  OVERLAY_SURFACE_CLASS_NAME,
+} from "../overlay/overlay-styles";
 
 export interface UiActionMenuItem {
   value: string;
@@ -30,6 +39,7 @@ export interface UiActionMenuItem {
 type UiActionMenuPlacement = UiAnchoredOverlayPlacement;
 
 interface UiActionMenuProps {
+  align?: UiAnchoredOverlayAlignment;
   anchorRef: RefObject<HTMLElement | null>;
   ariaLabel: string;
   className?: string;
@@ -43,23 +53,36 @@ interface UiActionMenuProps {
 
 const ACTION_MENU_MAX_HEIGHT = 320;
 const ACTION_MENU_ITEM_HEIGHT = 44;
+const ACTION_MENU_DESCRIBED_ITEM_HEIGHT = 52;
+const ACTION_MENU_ESTIMATED_VERTICAL_PADDING = 16;
 
 function resolveActionMenuPosition({
+  align,
   anchor,
-  itemCount,
+  items,
   minWidth,
   placement,
 }: {
+  align: UiAnchoredOverlayAlignment;
   anchor: HTMLElement;
-  itemCount: number;
+  items: UiActionMenuItem[];
   minWidth: number;
   placement: UiActionMenuPlacement;
 }) {
+  const contentHeight = items.reduce(
+    (height, item) => height + (
+      item.description
+        ? ACTION_MENU_DESCRIBED_ITEM_HEIGHT
+        : ACTION_MENU_ITEM_HEIGHT
+    ),
+    ACTION_MENU_ESTIMATED_VERTICAL_PADDING,
+  );
   const estimatedHeight = Math.min(
     ACTION_MENU_MAX_HEIGHT,
-    Math.max(ACTION_MENU_ITEM_HEIGHT, itemCount * ACTION_MENU_ITEM_HEIGHT + 8),
+    Math.max(ACTION_MENU_ITEM_HEIGHT, contentHeight),
   );
   return resolveAnchoredOverlayPosition({
+    align,
     anchor,
     estimatedHeight,
     maxHeight: ACTION_MENU_MAX_HEIGHT,
@@ -69,34 +92,22 @@ function resolveActionMenuPosition({
   });
 }
 
-function getItemStateClassName(item: UiActionMenuItem) {
-  if (item.tone === "danger") {
-    return "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]";
-  }
-  if (item.active && item.tone === "primary") {
-    return "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--primary) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]";
-  }
-  if (item.active) {
-    return "bg-[color:color-mix(in_srgb,var(--primary)_11%,transparent)] font-semibold text-(--text-strong) hover:bg-[color:color-mix(in_srgb,var(--primary)_14%,transparent)]";
-  }
-  if (item.tone === "primary") {
-    return "text-(--primary) hover:bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)]";
-  }
-  return "text-(--text-default) hover:bg-(--surface-interactive-hover-background)";
-}
-
 function getItemBodyClassName(item: UiActionMenuItem) {
   return cn(
-    "flex w-full cursor-pointer items-center justify-between gap-3 radius-control-md px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)]",
+    MENU_ITEM_BASE_CLASS_NAME,
+    "flex cursor-pointer items-center justify-between gap-3 px-2.5",
     item.description ? "min-h-11 py-2" : "min-h-9 py-1.5",
     item.disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
-    getItemStateClassName(item),
+    getMenuItemStateClassName({
+      active: item.active,
+      tone: item.tone,
+    }),
   );
 }
 
 function getItemLabelClassName(tone: UiActionMenuItem["tone"], active?: boolean) {
   if (tone === "primary") {
-    return "text-(--primary)";
+    return "text-(--brand-action)";
   }
   if (tone === "danger") {
     return "text-(--destructive)";
@@ -105,6 +116,7 @@ function getItemLabelClassName(tone: UiActionMenuItem["tone"], active?: boolean)
 }
 
 export function UiActionMenu({
+  align = "start",
   anchorRef: anchorRef,
   ariaLabel: ariaLabel,
   className: className,
@@ -117,12 +129,13 @@ export function UiActionMenu({
 }: UiActionMenuProps) {
   const estimatePosition = useCallback(
     (anchor: HTMLElement) => resolveActionMenuPosition({
+      align,
       anchor,
-      itemCount: items.length,
+      items,
       minWidth,
       placement,
     }),
-    [items.length, minWidth, placement],
+    [align, items, minWidth, placement],
   );
   const {
     overlayPosition: menuPosition,
@@ -149,7 +162,9 @@ export function UiActionMenu({
       ref={menuRef}
       aria-label={ariaLabel}
       className={cn(
-        "fixed z-[130] surface-radius-lg overflow-y-auto border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--background)_96%,white)] p-1 shadow-[0_14px_32px_rgba(15,23,42,0.12)] backdrop-blur animate-in fade-in-0 zoom-in-95 duration-(--motion-duration-fast) data-[placement=bottom]:slide-in-from-top-1 data-[placement=top]:slide-in-from-bottom-1",
+        "fixed z-[130] overflow-y-auto p-1",
+        OVERLAY_SURFACE_CLASS_NAME,
+        ANCHORED_OVERLAY_MOTION_CLASS_NAME,
         className,
       )}
       data-placement={menuPosition?.placement ?? "bottom"}
@@ -190,11 +205,11 @@ export function UiActionMenu({
               </span>
             ) : null}
             <span className="min-w-0 flex-1">
-              <span className={cn("block truncate text-[13px] font-medium", getItemLabelClassName(item.tone, item.active))}>
+              <span className={cn("block truncate text-sm font-medium", getItemLabelClassName(item.tone, item.active))}>
                 {item.label}
               </span>
               {item.description ? (
-                <span className="block truncate text-[10px] font-normal text-(--text-soft)">
+                <span className="block truncate text-2xs font-normal text-(--text-soft)">
                   {item.description}
                 </span>
               ) : null}

@@ -1,5 +1,3 @@
-import type { PendingPermission } from "@/types/conversation/interaction/permission";
-
 import type {
   AgentEventHandler,
   AgentEventHandlerMap,
@@ -9,6 +7,10 @@ import {
   decodePermissionRequest,
   decodeResolvedPermissionRequestId,
 } from "./permission-event-data";
+import {
+  removePendingPermission,
+  upsertPendingPermission,
+} from "./pending-permission-state";
 
 const handlePermissionRequest: AgentEventHandler = withCurrentSessionEvent((
   event,
@@ -30,28 +32,10 @@ const handlePermissionResolved: AgentEventHandler = withCurrentSessionEvent((
   if (!requestId) {
     return;
   }
+  context.runtime.acknowledgePermissionRequest(requestId);
   context.state.setPendingPermissions((current) =>
     removePendingPermission(current, requestId));
 });
-
-function upsertPendingPermission(
-  current: PendingPermission[],
-  permission: PendingPermission,
-): PendingPermission[] {
-  return [
-    ...current.filter((item) => item.request_id !== permission.request_id),
-    permission,
-  ];
-}
-
-function removePendingPermission(
-  current: PendingPermission[],
-  requestId: string,
-): PendingPermission[] {
-  const next = current.filter((permission) =>
-    permission.request_id !== requestId);
-  return next.length === current.length ? current : next;
-}
 
 export const AGENT_PERMISSION_EVENT_HANDLERS: AgentEventHandlerMap = {
   permission_request: handlePermissionRequest,

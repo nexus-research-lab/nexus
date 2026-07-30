@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -112,13 +113,29 @@ func (s *Service) callEditProvider(
 	if input.OutputCompression != nil {
 		fields["output_compression"] = strconv.Itoa(*input.OutputCompression)
 	}
-	files := map[string]string{"image": imagePath}
+	imageRelativePath, err := filepath.Rel(filepath.Clean(input.WorkspacePath), imagePath)
+	if err != nil {
+		return nil, "", "", err
+	}
+	files := map[string]multipartFileRef{
+		"image": {
+			WorkspacePath: input.WorkspacePath,
+			RelativePath:  filepath.ToSlash(imageRelativePath),
+		},
+	}
 	if input.MaskPath != "" {
 		maskPath, pathErr := resolveWorkspaceFile(input.WorkspacePath, input.MaskPath)
 		if pathErr != nil {
 			return nil, "", "", pathErr
 		}
-		files["mask"] = maskPath
+		maskRelativePath, relErr := filepath.Rel(filepath.Clean(input.WorkspacePath), maskPath)
+		if relErr != nil {
+			return nil, "", "", relErr
+		}
+		files["mask"] = multipartFileRef{
+			WorkspacePath: input.WorkspacePath,
+			RelativePath:  filepath.ToSlash(maskRelativePath),
+		}
 	}
 
 	var response imageResponse

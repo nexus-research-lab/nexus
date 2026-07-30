@@ -17,6 +17,8 @@ import (
 
 type agentCatalog interface {
 	ListAllAgentRecordsForMaintenance(context.Context) ([]protocol.Agent, error)
+	EnsureRuntimeSettingsProjection(protocol.Agent) error
+	LoadRuntimeSettingsProjection(protocol.Agent) (map[string]any, error)
 }
 
 type dreamRunner interface {
@@ -117,7 +119,7 @@ func (c *Coordinator) runOnce(ctx context.Context) error {
 	now := c.nowTime()
 	for _, item := range agents {
 		agentValue := item
-		enabled, settingsErr := autoDreamEnabled(agentValue)
+		enabled, settingsErr := autoDreamEnabled(c.agents, agentValue)
 		if settingsErr != nil {
 			c.logger.Warn("读取 Agent AutoDream 设置失败", "agent_id", agentValue.AgentID, "err", settingsErr)
 			continue

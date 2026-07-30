@@ -9,11 +9,32 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/connectors/appregistration"
 	channeladapters "github.com/nexus-research-lab/nexus/internal/service/channels/adapters"
 )
 
 type fakePersonalWeixinLoginClient struct {
 	status channeladapters.PersonalWeixinQRStatusResponse
+}
+
+type fakeChannelRegistrationClient struct {
+	credentials map[string]string
+}
+
+func (c *fakeChannelRegistrationClient) Start(context.Context) (*appregistration.StartResult, error) {
+	return &appregistration.StartResult{
+		DeviceCode:              "registration-device-code",
+		VerificationURIComplete: "https://platform.test/scan",
+		ExpiresIn:               60,
+		Interval:                1,
+	}, nil
+}
+
+func (c *fakeChannelRegistrationClient) Poll(context.Context, string) (*appregistration.PollResult, error) {
+	return &appregistration.PollResult{
+		Status:      appregistration.StatusSucceeded,
+		Credentials: c.credentials,
+	}, nil
 }
 
 func (c *fakePersonalWeixinLoginClient) StartQRCode(context.Context, []string) (channeladapters.PersonalWeixinQRCodeResponse, error) {
@@ -123,6 +144,68 @@ func TestControlServiceStartsWeixinPersonalLogin(t *testing.T) {
 	}
 	if configured.PublicConfig["account_id"] != "" || configured.PublicConfig["user_id"] != "" {
 		t.Fatalf("个人微信账号不应再写回顶层 channel 配置: %+v", configured.PublicConfig)
+	}
+}
+
+func TestControlServiceRegistersOfficialQRCodeChannels(t *testing.T) {
+	cases := []struct {
+		channelType string
+		credentials map[string]string
+		publicKey   string
+		publicValue string
+	}{
+		{
+			channelType: ChannelTypeFeishu,
+			credentials: map[string]string{"client_id": "cli_feishu", "client_secret": "feishu-secret"},
+			publicKey:   "app_id",
+			publicValue: "cli_feishu",
+		},
+		{
+			channelType: ChannelTypeDingTalk,
+			credentials: map[string]string{"client_id": "ding-client", "client_secret": "ding-secret"},
+			publicKey:   "client_id",
+			publicValue: "ding-client",
+		},
+		{
+			channelType: ChannelTypeWeChat,
+			credentials: map[string]string{"bot_id": "wecom-bot", "secret": "wecom-secret"},
+			publicKey:   "bot_id",
+			publicValue: "wecom-bot",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.channelType, func(t *testing.T) {
+			db := newChannelTestDB(t)
+			defer db.Close()
+			service := NewControlService(config.Config{
+				DatabaseDriver:          "sqlite",
+				ConnectorCredentialsKey: testChannelCredentialKey(),
+			}, db, nil, nil)
+			service.registrationPollInterval = time.Millisecond
+			service.registrationClientFactory = func(string) appregistration.Client {
+				return &fakeChannelRegistrationClient{credentials: tc.credentials}
+			}
+			if _, err := service.UpsertChannelConfig(context.Background(), "owner-a", tc.channelType, UpsertChannelConfigRequest{
+				AgentID: "agent-a",
+			}); err != nil {
+				t.Fatalf("保存扫码前配置失败: %v", err)
+			}
+			started, err := service.StartChannelLogin(context.Background(), "owner-a", tc.channelType)
+			if err != nil {
+				t.Fatalf("启动官方扫码注册失败: %v", err)
+			}
+			if started.QRPayload != "https://platform.test/scan" {
+				t.Fatalf("官方二维码不正确: %+v", started)
+			}
+			waitChannelLoginStatus(t, service, "owner-a", tc.channelType, started.LoginID, ChannelLoginStatusSucceeded)
+			view, err := service.channelView(context.Background(), "owner-a", tc.channelType)
+			if err != nil {
+				t.Fatalf("读取扫码后频道失败: %v", err)
+			}
+			if !view.HasCredentials || view.PublicConfig[tc.publicKey] != tc.publicValue {
+				t.Fatalf("扫码凭据未保存: %+v", view)
+			}
+		})
 	}
 }
 
@@ -342,8 +425,8 @@ func TestControlServiceRejectsUnsupportedChannelLogin(t *testing.T) {
 	defer db.Close()
 
 	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
-	_, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeWeChat)
+	_, err := service.StartChannelLogin(context.Background(), "owner-a", ChannelTypeTelegram)
 	if !errors.Is(err, ErrChannelLoginUnsupported) {
-		t.Fatalf("企业微信不应走个人微信 iLink 扫码登录，实际: %v", err)
+		t.Fatalf("Telegram 不支持官方扫码注册，实际: %v", err)
 	}
 }

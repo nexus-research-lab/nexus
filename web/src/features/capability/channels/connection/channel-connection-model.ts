@@ -44,6 +44,28 @@ export function isPersonalWeixinChannel(channelType: ImChannelType): boolean {
   return channelType === "weixin-personal";
 }
 
+const MANUAL_CREDENTIAL_PAIRS: Partial<
+  Record<ImChannelType, readonly [publicKey: string, secretKey: string]>
+> = {
+  dingtalk: ["client_id", "client_secret"],
+  feishu: ["app_id", "app_secret"],
+  wechat: ["bot_id", "secret"],
+};
+
+export function hasCompleteManualChannelCredentials(
+  channelType: ImChannelType,
+  draft: ChannelConnectionDraft,
+): boolean {
+  const pair = MANUAL_CREDENTIAL_PAIRS[channelType];
+  if (!pair) {
+    return false;
+  }
+  return Boolean(
+    draft.config[pair[0]]?.trim()
+    && draft.credentials[pair[1]]?.trim(),
+  );
+}
+
 export function channelAccountStatusLabel(status: string): string {
   return (ACCOUNT_STATUS_LABELS[status] ?? status) || "未知";
 }

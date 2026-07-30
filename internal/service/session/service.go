@@ -1,9 +1,11 @@
 package session
 
 import (
+	"context"
 	"errors"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -48,4 +50,12 @@ func NewService(cfg config.Config, agentService *agentsvc.Service, repository SQ
 		history:      workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 		roomHistory:  workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
 	}
+}
+
+func (s *Service) ownerFiles(ctx context.Context) *workspacestore.SessionFileStore {
+	return s.files.ForOwner(authctx.OwnerUserID(ctx))
+}
+
+func (s *Service) ownerHistory(ctx context.Context) *workspacestore.AgentHistoryStore {
+	return s.history.ForOwner(authctx.OwnerUserID(ctx))
 }

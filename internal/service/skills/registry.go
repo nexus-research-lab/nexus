@@ -5,32 +5,59 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	"github.com/nexus-research-lab/nexus/internal/storage/jsoncodec"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) loadExternalRecords(ctx context.Context) (map[string]catalogRecord, error) {
-	if err := workspacesvc.EnsureUserSkillLibrary(s.config, authctx.OwnerUserID(ctx)); err != nil {
+	ownerUserID := authctx.OwnerUserID(ctx)
+	if err := workspacesvc.EnsureUserSkillLibrary(s.config, ownerUserID); err != nil {
 		return nil, err
 	}
+	ownerRoot, err := s.openOwnerSkillLibrary(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	defer ownerRoot.Close()
 	root := s.registryRoot(ctx)
 	if s.skillStore != nil {
-		if err := s.backfillImportedSkillRecords(ctx, root); err != nil {
+		if err := s.backfillImportedSkillRecords(ctx, root, ownerRoot); err != nil {
 			return nil, err
 		}
-		return s.loadExternalRecordsFromDB(ctx, root)
+		return s.loadExternalRecordsFromDB(ctx, root, ownerRoot)
 	}
-	return s.loadExternalRecordsFromRoot(root)
+	return s.loadExternalRecordsFromRootAt(root, ownerRoot)
 }
 
-func (s *Service) loadExternalRecordsFromDB(ctx context.Context, root string) (map[string]catalogRecord, error) {
+func externalOriginKind(sourceKind string) string {
+	switch strings.TrimSpace(sourceKind) {
+	case externalSourceKindClaudePlugins,
+		externalSourceKindSkillsSh,
+		externalSourceKindClawhub,
+		externalSourceKindHermesIndex,
+		externalSourceKindBrowseSh,
+		externalSourceKindWellKnown:
+		return originKindMarketplace
+	default:
+		return originKindUserImport
+	}
+}
+
+func (s *Service) loadExternalRecordsFromDB(
+	ctx context.Context,
+	root string,
+	ownerRoot *confinedfs.Root,
+) (map[string]catalogRecord, error) {
 	records, err := s.skillStore.ListImportedSkills(ctx, authctx.OwnerUserID(ctx))
 	if err != nil {
 		return nil, err
@@ -40,7 +67,7 @@ func (s *Service) loadExternalRecordsFromDB(ctx context.Context, root string) (m
 		if validateSkillName(record.SkillName) != nil {
 			continue
 		}
-		item := s.buildExternalRecordFromEntity(root, record)
+		item := s.buildExternalRecordFromEntity(root, ownerRoot, record)
 		if catalogHasSkillName(result, item.Detail.Name) {
 			continue
 		}
@@ -49,12 +76,16 @@ func (s *Service) loadExternalRecordsFromDB(ctx context.Context, root string) (m
 	return result, nil
 }
 
-func (s *Service) buildExternalRecordFromEntity(root string, record skillstore.ImportedSkillEntity) catalogRecord {
+func (s *Service) buildExternalRecordFromEntity(
+	root string,
+	ownerRoot *confinedfs.Root,
+	record skillstore.ImportedSkillEntity,
+) catalogRecord {
 	skillDir := filepath.Join(root, record.SkillName)
-	content, _, fallbackName, err := readSkillSource(skillDir)
+	contentBytes, err := readSkillRegistryFileAt(ownerRoot, record.SkillName, "SKILL.md")
 	parsed := parseSkillFrontmatter("", record.SkillName)
 	if err == nil {
-		parsed = parseSkillFrontmatter(content, fallbackName)
+		parsed = parseSkillFrontmatter(string(contentBytes), record.SkillName)
 	}
 	tags := jsoncodec.ParseStringSlice(record.TagsJSON)
 	if tags == nil {
@@ -104,6 +135,8 @@ func (s *Service) buildExternalRecordFromEntity(root string, record skillstore.I
 			SourceTrust:  record.SourceTrust,
 			ImportMode:   record.ImportMode,
 			LastError:    record.LastError,
+			StorageScope: storageScopeUserGlobal,
+			OriginKind:   externalOriginKind(record.SourceKind),
 		},
 		ReadmeMarkdown: parsed.ReadmeMarkdown,
 		Recommendation: firstNonEmpty(record.Recommendation, parsed.Recommendation, "外部导入能力。"),
@@ -111,8 +144,12 @@ func (s *Service) buildExternalRecordFromEntity(root string, record skillstore.I
 	return catalogRecord{Detail: detail, SourcePath: skillDir, Manifest: manifest}
 }
 
-func (s *Service) backfillImportedSkillRecords(ctx context.Context, root string) error {
-	fileRecords, err := s.loadExternalRecordsFromRoot(root)
+func (s *Service) backfillImportedSkillRecords(
+	ctx context.Context,
+	root string,
+	ownerRoot *confinedfs.Root,
+) error {
+	fileRecords, err := s.loadExternalRecordsFromRootAt(root, ownerRoot)
 	if err != nil {
 		return err
 	}
@@ -122,7 +159,7 @@ func (s *Service) backfillImportedSkillRecords(ctx context.Context, root string)
 		} else if existing != nil {
 			continue
 		}
-		manifest, readErr := s.readManifest(record.SourcePath)
+		manifest, readErr := readManifestAt(ownerRoot, record.Detail.Name)
 		if readErr != nil {
 			continue
 		}
@@ -138,7 +175,13 @@ func (s *Service) backfillImportedSkillRecords(ctx context.Context, root string)
 			Recommendation: record.Detail.Recommendation,
 			ReadmeMarkdown: record.Detail.ReadmeMarkdown,
 		}
-		if err = s.upsertImportedSkillRecord(ctx, record.SourcePath, manifest, parsed); err != nil {
+		if err = s.upsertImportedSkillRecordAt(
+			ctx,
+			ownerRoot,
+			record.SourcePath,
+			manifest,
+			parsed,
+		); err != nil {
 			return err
 		}
 	}
@@ -146,6 +189,47 @@ func (s *Service) backfillImportedSkillRecords(ctx context.Context, root string)
 }
 
 func (s *Service) upsertImportedSkillRecord(ctx context.Context, skillDir string, manifest externalManifest, parsed frontmatterData) error {
+	return s.upsertImportedSkillRecordWithHash(
+		ctx,
+		skillDir,
+		manifest,
+		parsed,
+		hashSkillContent(skillDir),
+	)
+}
+
+func (s *Service) upsertImportedSkillRecordAt(
+	ctx context.Context,
+	ownerRoot *confinedfs.Root,
+	skillPath string,
+	manifest externalManifest,
+	parsed frontmatterData,
+) error {
+	relativePath, err := relativeSkillPath(ownerRoot, skillPath)
+	if err != nil {
+		return err
+	}
+	payload, err := readSkillFileAtOwnerPath(ownerRoot, skillPath, "SKILL.md")
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(payload)
+	return s.upsertImportedSkillRecordWithHash(
+		ctx,
+		filepath.Join(ownerRoot.Name(), filepath.FromSlash(relativePath)),
+		manifest,
+		parsed,
+		hex.EncodeToString(sum[:]),
+	)
+}
+
+func (s *Service) upsertImportedSkillRecordWithHash(
+	ctx context.Context,
+	skillDir string,
+	manifest externalManifest,
+	parsed frontmatterData,
+	contentHash string,
+) error {
 	if s.skillStore == nil {
 		return nil
 	}
@@ -174,7 +258,7 @@ func (s *Service) upsertImportedSkillRecord(ctx context.Context, skillDir string
 		GitCommit:      manifest.GitCommit,
 		RawURL:         manifest.RawURL,
 		DetailURL:      manifest.DetailURL,
-		ContentHash:    hashSkillContent(skillDir),
+		ContentHash:    contentHash,
 		LastImportedAt: &now,
 	}
 	return s.skillStore.UpsertImportedSkill(ctx, entity)
@@ -199,7 +283,7 @@ func (s *Service) importedSkillSourceID(manifest externalManifest) string {
 }
 
 func hashSkillContent(skillDir string) string {
-	payload, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md"))
+	payload, err := readSkillDirectoryFile(skillDir, "SKILL.md")
 	if err != nil {
 		return ""
 	}
@@ -213,34 +297,66 @@ func buildSkillSourceID(kind string, sourceURL string) string {
 }
 
 func (s *Service) loadExternalRecordsFromRoot(root string) (map[string]catalogRecord, error) {
-	if err := os.MkdirAll(root, 0o755); err != nil {
+	confinedRoot, _, err := readSkillRegistryDirectories(root)
+	if err != nil {
 		return nil, err
 	}
+	defer confinedRoot.Close()
+	return loadExternalRecordsFromRegistryRoot(root, confinedRoot)
+}
+
+func (s *Service) loadExternalRecordsFromRootAt(
+	root string,
+	ownerRoot *confinedfs.Root,
+) (map[string]catalogRecord, error) {
+	confinedRoot, _, err := readSkillRegistryDirectoriesAt(ownerRoot, false)
+	if err != nil {
+		return nil, err
+	}
+	defer confinedRoot.Close()
+	return loadExternalRecordsFromRegistryRoot(root, confinedRoot)
+}
+
+func loadExternalRecordsFromRegistryRoot(
+	root string,
+	confinedRoot *confinedfs.Root,
+) (map[string]catalogRecord, error) {
 	result := map[string]catalogRecord{}
-	entries, err := os.ReadDir(root)
+	entries, err := fs.ReadDir(confinedRoot.FS(), ".")
 	if err != nil {
 		return nil, err
 	}
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		info, statErr := confinedRoot.Lstat(entry.Name())
+		if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			continue
+		}
+		skillRoot, openErr := confinedRoot.OpenRootNoSymlink(entry.Name())
+		if openErr != nil {
 			continue
 		}
 		skillDir := filepath.Join(root, entry.Name())
-		payload, readErr := os.ReadFile(filepath.Join(skillDir, ".nexus-skill.json"))
+		payload, readErr := readConfinedRegularFile(skillRoot, ".nexus-skill.json")
 		if readErr != nil {
+			skillRoot.Close()
 			continue
 		}
 		var manifest externalManifest
 		if json.Unmarshal(payload, &manifest) != nil {
+			skillRoot.Close()
 			continue
 		}
 		if !strings.EqualFold(strings.TrimSpace(manifest.SourceType), sourceTypeExternal) {
+			skillRoot.Close()
 			continue
 		}
-		content, _, skillName, sourceErr := readSkillSource(skillDir)
+		contentBytes, sourceErr := readConfinedRegularFile(skillRoot, "SKILL.md")
+		skillRoot.Close()
 		if sourceErr != nil {
 			continue
 		}
+		content := string(contentBytes)
+		skillName := entry.Name()
 		parsed := parseSkillFrontmatter(content, skillName)
 		canonicalName := firstNonEmpty(manifest.Name, parsed.Name)
 		if validateSkillName(canonicalName) != nil {
@@ -264,6 +380,8 @@ func (s *Service) loadExternalRecordsFromRoot(root string) (map[string]catalogRe
 				Locked:       false,
 				HasUpdate:    false,
 				Deletable:    true,
+				StorageScope: storageScopeUserGlobal,
+				OriginKind:   externalOriginKind(manifest.SourceKind),
 			},
 			ReadmeMarkdown: parsed.ReadmeMarkdown,
 			Recommendation: firstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。"),
@@ -277,6 +395,45 @@ func (s *Service) registryRoot(ctx context.Context) string {
 	return s.registryRootForOwner(authctx.OwnerUserID(ctx))
 }
 
+func (s *Service) openOwnerSkillLibrary(
+	ctx context.Context,
+	create bool,
+) (*confinedfs.Root, error) {
+	ownerUserID := authctx.OwnerUserID(ctx)
+	return workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+		ownerUserID,
+		workspacesvc.UserSkillLibraryRoot(s.config, ownerUserID),
+		create,
+	)
+}
+
 func (s *Service) registryRootForOwner(ownerUserID string) string {
 	return workspacesvc.UserSkillDiscoveryRoot(s.config, ownerUserID)
+}
+
+func readManifestAt(ownerRoot *confinedfs.Root, skillName string) (externalManifest, error) {
+	payload, err := readSkillDirectoryFileAt(ownerRoot, skillName, ".nexus-skill.json")
+	if err != nil {
+		return externalManifest{}, err
+	}
+	var manifest externalManifest
+	if err = json.Unmarshal(payload, &manifest); err != nil {
+		return externalManifest{}, err
+	}
+	return manifest, nil
+}
+
+func readSkillManifestAtOwnerPath(
+	ownerRoot *confinedfs.Root,
+	skillPath string,
+) (externalManifest, error) {
+	payload, err := readSkillFileAtOwnerPath(ownerRoot, skillPath, ".nexus-skill.json")
+	if err != nil {
+		return externalManifest{}, err
+	}
+	var manifest externalManifest
+	if err = json.Unmarshal(payload, &manifest); err != nil {
+		return externalManifest{}, err
+	}
+	return manifest, nil
 }

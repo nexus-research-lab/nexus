@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { MENU_ITEM_BASE_CLASS_NAME } from "@/shared/ui/menu/menu-styles";
 
 import type { UiAnchoredOverlayPosition } from "../overlay/anchored-overlay-model";
 import {
@@ -100,6 +101,7 @@ export function SelectMenuView({
               "min-w-0 font-semibold text-(--text-strong)",
               presentation.triggerLabelClassName,
             )}
+            title={presentation.activeLabel}
           >
             {presentation.activeLabel}
           </span>
@@ -221,7 +223,8 @@ function SelectMenuOption({
     <button
       aria-selected={isActive}
       className={cn(
-        "flex w-full justify-between gap-2 rounded-[10px] px-2.5 text-left transition-[background-color,color] duration-(--motion-duration-fast) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+        MENU_ITEM_BASE_CLASS_NAME,
+        "flex justify-between gap-2 px-2.5 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
         presentation.optionButtonLayoutClassName,
         presentation.optionHeightClassName,
         getSelectMenuOptionStateClassName(surface, isActive),

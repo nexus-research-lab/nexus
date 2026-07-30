@@ -7,7 +7,7 @@ type IconFrameTone = "default" | "primary" | "success" | "warning";
 type IconFrameSize = "sm" | "md" | "lg";
 
 const TONE_CLASSES: Record<IconFrameTone, string> = {
-  default: "border-transparent bg-(--chip-default-background) text-(--text-default)",
+  default: "border-(--surface-control-border) bg-(--surface-control-background) text-(--text-default)",
   primary: "",
   success: "",
   warning: "",
@@ -51,7 +51,7 @@ export function WorkspaceIconFrame({
   return (
     <div
       className={cn(
-        "chip-default flex shrink-0 items-center justify-center border",
+        "flex shrink-0 items-center justify-center border shadow-(--surface-control-shadow)",
         SIZE_CLASSES[size],
         TONE_CLASSES[tone],
         shape === "round" && "rounded-full",

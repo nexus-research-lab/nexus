@@ -4,9 +4,12 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 type uploadFileOptions struct {
@@ -18,8 +21,8 @@ func md5Hex(content []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func fileMatchesMD5(path string, expectedMD5 string, expectedSize int64) (bool, error) {
-	info, err := os.Stat(path)
+func fileMatchesMD5(root *confinedfs.Root, path string, expectedMD5 string, expectedSize int64) (bool, error) {
+	info, err := root.Stat(path)
 	if os.IsNotExist(err) {
 		return false, nil
 	}
@@ -29,15 +32,15 @@ func fileMatchesMD5(path string, expectedMD5 string, expectedSize int64) (bool, 
 	if info.IsDir() || info.Size() != expectedSize {
 		return false, nil
 	}
-	actualMD5, err := fileMD5(path)
+	actualMD5, err := fileMD5(root, path)
 	if err != nil {
 		return false, err
 	}
 	return actualMD5 == expectedMD5, nil
 }
 
-func fileMD5(path string) (string, error) {
-	file, err := os.Open(path)
+func fileMD5(root *confinedfs.Root, path string) (string, error) {
+	file, err := root.OpenFileNoSymlink(path, os.O_RDONLY, 0)
 	if err != nil {
 		return "", err
 	}
@@ -51,7 +54,7 @@ func fileMD5(path string) (string, error) {
 }
 
 func findDuplicateUploadedFile(
-	root string,
+	root *confinedfs.Root,
 	normalizedPath string,
 	expectedMD5 string,
 	expectedSize int64,
@@ -61,36 +64,35 @@ func findDuplicateUploadedFile(
 	if !ok {
 		return "", false, nil
 	}
-	dedupeRootPath, _, err := resolveWorkspacePath(root, dedupeRoot)
-	if err != nil {
-		return "", false, err
-	}
-	if _, err = os.Stat(dedupeRootPath); os.IsNotExist(err) {
+	if _, err := root.Stat(dedupeRoot); os.IsNotExist(err) {
 		return "", false, nil
 	} else if err != nil {
 		return "", false, err
 	}
 
 	var matchedPath string
-	err = filepath.Walk(dedupeRootPath, func(path string, info os.FileInfo, walkErr error) error {
+	err := root.Walk(dedupeRoot, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if entry == nil || entry.Type()&os.ModeSymlink != 0 {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
 		}
 		if info == nil || info.IsDir() || info.Size() != expectedSize {
 			return nil
 		}
-		matched, err := fileMatchesMD5(path, expectedMD5, expectedSize)
+		matched, err := fileMatchesMD5(root, path, expectedMD5, expectedSize)
 		if err != nil {
 			return err
 		}
 		if !matched {
 			return nil
 		}
-		relativePath, err := filepath.Rel(filepath.Clean(root), path)
-		if err != nil {
-			return err
-		}
-		matchedPath = filepath.ToSlash(relativePath)
+		matchedPath = filepath.ToSlash(path)
 		return filepath.SkipAll
 	})
 	if err != nil {

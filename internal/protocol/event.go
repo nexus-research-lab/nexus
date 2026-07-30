@@ -1,5 +1,5 @@
 // [INPUT]: 依赖会话/运行时跨边界状态与时间戳。
-// [OUTPUT]: 对外提供统一事件类型、请求 ACK 与权威 pending slot 快照事件。
+// [OUTPUT]: 对外提供统一事件类型、请求 ACK 与携带 handoff 关联的权威 pending slot 快照事件。
 // [POS]: protocol 包的 WebSocket 事件真相源。
 package protocol
 
@@ -30,6 +30,7 @@ const (
 	EventTypeAgentRoundStatus            EventType = "agent_round_status"
 	EventTypeSessionStatus               EventType = "session_status"
 	EventTypeRuntimeStatus               EventType = "runtime_status"
+	EventTypeCommandCatalog              EventType = "command_catalog"
 	EventTypeGoalCreated                 EventType = "goal_created"
 	EventTypeGoalUpdated                 EventType = "goal_updated"
 	EventTypeGoalStatusChanged           EventType = "goal_status_changed"
@@ -123,6 +124,44 @@ type RuntimeStatusData struct {
 	Status *RuntimeStatus `json:"status"`
 }
 
+// CommandCatalogStatus 表示当前 session 命令目录的加载状态。
+type CommandCatalogStatus string
+
+const (
+	CommandCatalogStatusLoading     CommandCatalogStatus = "loading"
+	CommandCatalogStatusReady       CommandCatalogStatus = "ready"
+	CommandCatalogStatusUnavailable CommandCatalogStatus = "unavailable"
+)
+
+// CommandExecution 表示命令由 Nexus 宿主还是 runtime 解释。
+type CommandExecution string
+
+const (
+	CommandExecutionHost          CommandExecution = "host"
+	CommandExecutionRuntimePrompt CommandExecution = "runtime_prompt"
+	CommandExecutionUnsupported   CommandExecution = "unsupported"
+)
+
+// CommandDescriptor 是浏览器可见的命令描述。
+// runtime 字段严格对齐 Claude Agent SDK，Execution 仅描述 Nexus 的发送路径。
+type CommandDescriptor struct {
+	Name           string           `json:"name"`
+	Description    string           `json:"description,omitempty"`
+	ArgumentHint   string           `json:"argument_hint,omitempty"`
+	Execution      CommandExecution `json:"execution"`
+	Enabled        bool             `json:"enabled"`
+	DisabledReason string           `json:"disabled_reason,omitempty"`
+}
+
+// CommandCatalogData 表示一个 Agent runtime 的命令目录快照。
+type CommandCatalogData struct {
+	Revision    string               `json:"revision,omitempty"`
+	RuntimeKind string               `json:"runtime_kind,omitempty"`
+	Status      CommandCatalogStatus `json:"status"`
+	AgentID     string               `json:"agent_id,omitempty"`
+	Commands    []CommandDescriptor  `json:"commands"`
+}
+
 // NewEvent 构造通用事件。
 func NewEvent(eventType EventType, data map[string]any) EventMessage {
 	return EventMessage{
@@ -147,6 +186,31 @@ func NewErrorEvent(sessionKey string, message string) EventMessage {
 func NewPongEvent(sessionKey string) EventMessage {
 	event := NewEvent(EventTypePong, map[string]any{})
 	event.SessionKey = sessionKey
+	return event
+}
+
+// NewCommandCatalogEvent 构造 session 作用域的命令目录事件。
+func NewCommandCatalogEvent(sessionKey string, data CommandCatalogData) EventMessage {
+	commands := data.Commands
+	if commands == nil {
+		commands = []CommandDescriptor{}
+	}
+	payload := map[string]any{
+		"status":   data.Status,
+		"commands": commands,
+	}
+	if strings.TrimSpace(data.Revision) != "" {
+		payload["revision"] = strings.TrimSpace(data.Revision)
+	}
+	if strings.TrimSpace(data.RuntimeKind) != "" {
+		payload["runtime_kind"] = strings.TrimSpace(data.RuntimeKind)
+	}
+	if strings.TrimSpace(data.AgentID) != "" {
+		payload["agent_id"] = strings.TrimSpace(data.AgentID)
+	}
+	event := NewEvent(EventTypeCommandCatalog, payload)
+	event.SessionKey = sessionKey
+	event.AgentID = strings.TrimSpace(data.AgentID)
 	return event
 }
 
@@ -177,10 +241,13 @@ func NewRoundStatusErrorEvent(sessionKey string, roundID string, message string)
 }
 
 // ChatAckPendingSlot 表示 chat_ack 中一个 agent slot 的占位信息。
+// RoundID 在跨多个 root 的权威快照中必填；普通单 root ACK 可沿用事件 round_id。
 type ChatAckPendingSlot struct {
 	AgentID      string `json:"agent_id"`
 	AgentRoundID string `json:"agent_round_id"`
 	MsgID        string `json:"msg_id"`
+	RoundID      string `json:"round_id,omitempty"`
+	HandoffID    string `json:"handoff_id,omitempty"`
 	Status       string `json:"status"`
 	Timestamp    int64  `json:"timestamp"`
 	Index        int    `json:"index"`

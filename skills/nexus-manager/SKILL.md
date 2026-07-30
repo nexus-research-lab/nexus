@@ -5,12 +5,30 @@ description: 管理 Nexus 的 Agent、Room、Workspace 与 Skill 系统操作。
 
 # nexus-manager
 
-管理 Nexus 平台的 Agent、Room、Workspace 与 Skill。通过 CLI 工具执行系统操作。
+管理 Nexus 平台的 Agent、Room、Workspace 与 Skill。通过 Nexus 控制面工具执行系统操作。
 
 Nexus 产品配置不走本 CLI。Provider、Agent runtime options、偏好、Channel、Connector 凭据、Skill 来源和主机 runtime settings 使用 `nexus_config` MCP：先 inspect/plan，再按 revision apply，最后核对 checks。不得直接编辑 Nexus 数据库或产品配置文件。
 
 CLI 工具：优先使用环境变量 `NEXUSCTL_COMMAND_PATH` 指向的命令；示例里的 `nexusctl` 只是简写。
 不要搜索 `cmd/nexusctl`，也不要手写 `go run ./cmd/nexusctl`，运行时入口已经注入。
+
+运行时目录约定：
+
+- `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR` 始终是当前 owner 的
+  `~/.nexus/users/<owner>/runtime`，不是宿主的 `.nexus` 根。
+- `NEXUSCTL_WORKSPACE_PATH` 是当前 Agent workspace 或其子目录。
+  `nexusctl` 启动时会根据这两个受宿主注入的路径解析
+  `.nexus/app/data/nexus.db` 与用户 workspace 基址；不要自行设置
+  `NEXUS_STATE_ROOT`、`WORKSPACE_PATH`，也不要通过路径拼接访问其他 owner。
+- `app/` 与 `users/<owner>/state/rooms/` 是宿主控制面目录，runtime 不应直接读写；
+  workspace 文件通过本 Skill 的命令操作。
+
+如果部署启用了 Linux `runtime isolation=enforce`，普通 Agent runtime 内的
+`nexusctl` 控制面调用会被拒绝。不要通过 `go run`、搜索源码入口或修改环境变量绕过；
+普通 Agent 改用对应的内置 Nexus 工具/宿主 API，或把该操作报告为当前部署不可用。
+Nexus 主智能体属于宿主控制面主体，可以使用宿主注入的
+`"$NEXUSCTL_COMMAND_PATH"`；仍必须保持当前 owner scope，不得使用
+`--global-scope`、`--scope-user-id` 或覆盖 `NEXUSCTL_USER_ID`。
 
 ## CLI 输出约定
 
@@ -20,6 +38,8 @@ CLI 工具：优先使用环境变量 `NEXUSCTL_COMMAND_PATH` 指向的命令；
 - 默认不要加 `--verbose`，只有在排查异常、确认 skill 部署过程或追踪系统初始化问题时才显式打开。
 - 子命令按领域拆分：`agent`、`room`、`conversation`、`workspace`、`skill`、`launcher`。
 - 失败时优先读 stderr 里的 JSON 错误，不要假设命令名仍旧是旧 Python 风格。
+- 成功响应通常包含 `success: true` 以及 `item` 或 `items`；失败响应读取
+  `error`、`message` 和退出码，不要按旧版 `ok/data` 字段猜测结果。
 - 多用户部署下不要把 `user_id` 写进命令模板；运行时会自动注入当前用户作用域。只有手工在终端直跑 `nexusctl` 时，才需要显式传 `--scope-user-id` 或设置 `NEXUSCTL_USER_ID`。
 
 ```bash
@@ -108,9 +128,9 @@ nexusctl room update abc123 --name "内容团队" --title "本周计划"
 nexusctl room add-member abc123 --agent-id translator
 ```
 
-- `--room_id` 和 `--agent_id` 均必填。
+- Room ID 使用第一个位置参数，成员使用必填的 `--agent-id`。
 - 仅支持群组类型 Room（`room`），不支持私聊（`dm`）。
-- 返回字段：`room_id`、`room_name`、`conversation_id`、`member_agent_ids`
+- 成功结果位于 `item`，其中包含 Room、conversation 与成员状态。
 
 #### 移除 Room 成员
 
@@ -228,11 +248,20 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 
 ## Workspace 规则
 
-每个成员创建后自动分配独立工作空间。单用户模式位于 `~/.nexus/workspace/<agent_slug>/`；多用户模式位于 `~/.nexus/workspace/<user_id>/<agent_slug>/`。
+每个成员创建后自动分配独立工作空间。系统用户位于 `~/.nexus/users/__system__/workspace/<agent_slug>/`；登录用户位于 `~/.nexus/users/<user_id>/workspace/<agent_slug>/`。
 
 ### 目录结构
 
 ```
+~/.nexus/
+  app/                              # 宿主控制面：数据库、配置、日志（runtime 不直接访问）
+  users/<owner>/
+    workspace/<agent_slug>/         # Agent 可工作的业务目录
+    runtime/                        # NEXUS_CONFIG_DIR 与 CLAUDE_CONFIG_DIR
+      projects/                     # nxs/Claude transcript
+      home/ cache/ logs/ tmp/       # runtime 私有运行时文件
+    state/rooms/                    # 宿主托管 Room ledger（runtime 不直接访问）
+
 <workspace>/
   AGENTS.md          # Agent 身份与行为规则
   USER.md            # 用户偏好
@@ -241,7 +270,8 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 
 ### 文件操作约束
 
-- **受保护目录**：`.agents/`、`.claude/` 禁止直接读写，属于内部运行时目录。
+- **受保护目录**：`.agents/`、`.claude/` 属于内部运行时目录，不要把它们当作普通
+  workspace 文档直接维护；平台或导入 Skill 的绑定通过 `skill` 命令管理。
 - **路径安全**：不允许路径穿越（`../`），所有操作限定在工作空间根目录内。
 - **命名文件**：`AGENTS.md`、`USER.md`、`RUNBOOK.md` 可通过名称直接读写，也可通过相对路径操作。
 - **文件大小限制**：实时快照推送上限 128KB，超出部分不推送。
@@ -255,7 +285,7 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 ### 技能部署
 
 - 基础 skill 与主智能体专属 skill 由系统管理，不能手动卸载。
-- 普通 skill 可通过 `install_skill` / `uninstall_skill` 管理。
+- 普通 skill 可通过 `skill install` / `skill uninstall` 管理。
 - 平台内置 skill 由全局平台库统一提供；安装到 Agent 只记录 `options.skill_ids`，不会复制一份到 Agent workspace。
 - nxs 与 Claude 通过同一个平台兼容根读取平台库：根下分别有 `.agents/skills/<skill_id>/` 和 `.claude/skills/<skill_id>/` 两个入口。
 - 外部 skill 仍可导入后安装到指定 Agent；外部安装态在兼容旧版的 workspace 文件中维护，平台内置 skill 不要直接改全局目录。
@@ -267,14 +297,18 @@ nexusctl skill uninstall --agent-id research --skill-name planner
 2. 管理成员：`agent create` / `agent get`
 3. 管理协作：`room create` / `room update` / `room add-member` / `room remove-member` / `room delete`
 4. 管理工作区：`workspace list` → `workspace get` → `workspace update`
-5. 管理技能：`list_skills` → `get_agent_skills` → `install_skill` / `uninstall_skill`；外部来源使用 `search-external` → `install-external`
+5. 管理技能：`skill list` → `skill agent-list` → `skill install` / `skill uninstall`；
+   外部来源使用 `skill search-external` → `skill install-external`
 
 ## 使用规则
 
-- **主智能体不能作为 Room 成员**，创建 Room 时不要把主智能体的 `agent_id` 放进 `agent_ids`。
-- 创建成员前，先 `validate_agent_name` 再 `create_agent`，名称不通过时告知用户原因。
+- **主智能体不能作为 Room 成员**，创建 Room 时不要把主智能体的 `agent_id`
+  传给任何 `--agent-id`。
+- 创建成员前先读取 `agent list` 确认当前作用域，随后使用 `agent create`；
+  创建失败时读取 CLI 错误并告知用户原因。
 - 创建多人 Room 时，先向用户确认成员列表，再执行创建。
 - 涉及文件修改时，先读再写；对路径和覆盖范围说清楚。
 - 涉及删除成员、删除房间、删除文件、卸载技能时，默认先确认影响范围。
-- 工具统一返回 JSON：先检查 `ok` 字段，为 `true` 时读 `data`，为 `false` 时读 `error` 并直接告知用户。
+- 工具统一返回 JSON：先检查 `success` 字段，为 `true` 时读 `item` 或 `items`，
+  为 `false` 时读 `error`、`message` 并直接告知用户。
 - 工具执行失败时不要假装成功，根据 `error` 内容给出明确反馈。

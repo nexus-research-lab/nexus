@@ -19,12 +19,13 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 
 ```
 <directory>
-cmd/        - 可执行入口（nexus-server 服务 + 自动迁移；nexusctl 命令行）
+cmd/        - 可执行入口（nexus-server 服务 + 自动迁移；nexusctl；Linux runtime launcher）
 web/        - React 前端（features / store / shared / lib，见 web/CLAUDE.md）
+desktop/    - macOS AppKit/WKWebView 与 Windows WPF/WebView2 宿主（窗口 chrome、bridge、sidecar 生命周期；Windows 用独立原生标题/菜单栏承载全部拖窗与系统命令，WebView 始终保持客户区，Theme/Dialog 将 Nexus token 投影到原生菜单与反馈窗）
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal 模型与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
-  runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 会话/round 生命周期）
-  service/    - 业务服务（agent / dm / room / room/realtime / session / workspace / skills / connectors / configuration / automation / llm ...）
+  runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook）
+  service/    - 业务服务（agent / dm / room / room/realtime / session / workspace / skills / connectors / automation / llm ...）
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
@@ -33,12 +34,22 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   cli/        - nexusctl 命令装配（按领域文件组织）
   app/        - HTTP 服务装配与生命周期
   mcp/ connectors/ workspace/ - 能力域
-  config/ storage/ infra/ migration/ version/ - 装配、一次性迁移与基础
+  config/ storage/ infra/ migration/ version/ - 装配、迁移与基础；infra/runtimeidentity 承载 Linux UID/GID、ACL、Landlock launcher，infra/confinedfs 承载宿主目录 fd 边界
 docs/       - 跨切面设计文档
 </directory>
 ```
 
 [PROTOCOL]: 变更时更新此头部，然后检查各 Go 包入口 `doc.go`（L2）
+
+## 状态根契约
+
+- `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`。
+- 用户数据位于 `.nexus/users/<owner>/`：`workspace/` 保存 Agent 工作目录与 runtime 可读的 `.rooms/` 公共附件，`runtime/` 同时作为该 owner 的 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`，宿主托管的 Room ledger 固定写入 `state/rooms/`。
+- nxs 长期记忆固定写入当前 Agent workspace 的 `MEMORY.md` 与 `memory/`；Nexus 管理的 runtime 不接受宿主环境、请求环境或远端记忆配置改写该根目录。会话摘要仍独立位于 owner 的 `runtime/projects/`。
+- Unix runtime 额外获得 `/tmp` 共享兼容读写根，以保持 App/Web 命令行为一致；敏感临时数据仍必须写入该 owner 的 `$TMPDIR`。
+- 启动只把当前 canonical 布局作为运行时读写路径；新增宿主或 runtime 文件必须直接落在对应的 `app/` 或用户根目录。历史数据只能通过明确版本化、可重试且不提供旧路径回读的安全迁移进入 canonical 布局。
+- Linux 多用户强隔离由 root-owned `nexus-runtime-launcher` 执行；产品 server 保持 `nexus-host` 普通用户，普通 Agent runtime 只获得自己的私有 GID 和当前项目组。Nexus 主智能体属于宿主控制面主体，保留 host identity 以调用当前 owner scope 的 `nexusctl`。
+- 宿主代 runtime 操作 workspace、transcript、artifact、用户 Skill 或 Room 状态时必须使用 `internal/infra/confinedfs`；owner 校验后不得重新把用户可控绝对路径直接交给 `os.*`。
 
 ## 后端依赖方向
 
@@ -56,5 +67,6 @@ cmd -> app -> handler -> service -> domain/storage
 - `runtime` 只描述 bridge 会话与执行生命周期；SDK 系统消息到产品事件的投影统一属于 `message`。
 - 测试便利入口优先留在 `_test.go`；只有跨包集成测试需要共享装配时，才在生产包保留窄入口。
 - 侧栏的聊天执行态只按 Room ID 投影；DM 是 Room 的一种，禁止把 Agent runtime 或持久化 `is_active/status` 混入聊天行，联系人侧栏也不订阅 Agent runtime。
+- Room 首条未读定位必须以完成事件的精确消息身份映射到稳定 `agent_round` 节点，并按真实到达顺序排队；Agent 回复可能插入旧 root，禁止用 Feed 尾部或 DOM 索引猜测未读边界，DM 继续沿用自身的回到底部行为。
 
 长流程按业务阶段拆成私有函数，阶段之间传递有语义的结构体；一个产品语义只保留一个投影入口。Go 文件不设机械行数上限，按业务内聚、依赖边界和阅读路径决定拆合；同一业务散落时优先合并，不以透传参数包或多层薄包装掩盖复杂度。

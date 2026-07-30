@@ -37,7 +37,7 @@ export function FeedbackBanner({
   return (
     <div
       className={cn(
-        "pointer-events-auto flex min-w-[280px] max-w-[420px] items-start gap-3 rounded-[12px] border bg-[color:color-mix(in_srgb,var(--background)_94%,white)] px-4 py-3 shadow-[0_10px_28px_rgba(0,0,0,0.10)]",
+        "pointer-events-auto flex min-w-[280px] max-w-[420px] items-start gap-3 rounded-[12px] border bg-[color:color-mix(in_srgb,var(--background)_94%,white)] px-4 py-3 shadow-(--surface-popover-shadow)",
         presentation.shellClassName,
       )}
     >
@@ -50,7 +50,7 @@ export function FeedbackBanner({
         <Icon className="h-3.5 w-3.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className={cn("text-[12px] font-bold", presentation.titleClassName)}>
+        <p className={cn("text-compact font-semibold", presentation.titleClassName)}>
           {title}
         </p>
         {presentation.items.length > 1 ? (
@@ -58,7 +58,7 @@ export function FeedbackBanner({
             {presentation.items.map((item) => (
               <span
                 className={cn(
-                  "inline-flex rounded-[6px] border bg-transparent px-2 py-0.5 text-[10px] font-medium",
+                  "inline-flex rounded-[6px] border bg-transparent px-2 py-0.5 text-2xs font-medium",
                   presentation.itemClassName,
                 )}
                 key={item}
@@ -68,7 +68,7 @@ export function FeedbackBanner({
             ))}
           </div>
         ) : (
-          <p className="mt-0.5 text-[11px] text-(--text-soft)">
+          <p className="mt-0.5 text-xs text-(--text-soft)">
             {message}
           </p>
         )}

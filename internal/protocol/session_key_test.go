@@ -52,6 +52,26 @@ func TestParseRoomSharedSessionKey(t *testing.T) {
 	}
 }
 
+func TestRoomAndDMSessionKeysHaveDistinctExecutionDomains(t *testing.T) {
+	conversationID := "conversation-execution-domain"
+	dmKey := BuildRoomAgentSessionKey(conversationID, "agent-a", RoomTypeDM)
+	groupKey := BuildRoomAgentSessionKey(conversationID, "agent-a", RoomTypeGroup)
+	sharedKey := BuildRoomSharedSessionKey(conversationID)
+
+	if dmKey == groupKey || dmKey == sharedKey || groupKey == sharedKey {
+		t.Fatalf("Room、DM 与共享流 key 不得相同: dm=%q group=%q shared=%q", dmKey, groupKey, sharedKey)
+	}
+	if parsed := ParseSessionKey(dmKey); parsed.ChatType != "dm" {
+		t.Fatalf("DM execution key 未保留 dm chat_type: %+v", parsed)
+	}
+	if parsed := ParseSessionKey(groupKey); parsed.ChatType != "group" {
+		t.Fatalf("Group execution key 未保留 group chat_type: %+v", parsed)
+	}
+	if parsed := ParseSessionKey(sharedKey); parsed.Kind != SessionKeyKindRoom || !parsed.IsShared {
+		t.Fatalf("共享流 key 不应被解析为 Agent execution key: %+v", parsed)
+	}
+}
+
 func TestRequireStructuredSessionKeyRejectsPlainShape(t *testing.T) {
 	if _, err := RequireStructuredSessionKey("plain-session-id"); err == nil {
 		t.Fatal("非结构化 key 不应通过校验")

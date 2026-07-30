@@ -9,6 +9,7 @@ import type {
 
 export interface SidebarConversationItem {
   id: string;
+  isPinned: boolean;
   kind: "room" | "dm";
   title: string;
   summary: string;
@@ -65,6 +66,9 @@ export function buildConversationItems({
     .filter((item): item is SidebarConversationItem => item !== null);
 
   return items.sort((left, right) => {
+    if (left.isPinned !== right.isPinned) {
+      return left.isPinned ? -1 : 1;
+    }
     if (left.lastActivityAt !== right.lastActivityAt) {
       return right.lastActivityAt - left.lastActivityAt;
     }
@@ -72,7 +76,7 @@ export function buildConversationItems({
   });
 }
 
-export function isMainAgentDmRoom(room: LauncherRoomSummary): boolean {
+function isMainAgentDmRoom(room: LauncherRoomSummary): boolean {
   return room.room_type === "dm" && Boolean(
     room.dm_target_agent_id && isMainAgent(room.dm_target_agent_id),
   );
@@ -82,15 +86,12 @@ function projectConversationItem(
   room: LauncherRoomSummary,
   context: ConversationProjectionContext,
 ): SidebarConversationItem | null {
-  if (isMainAgentDmRoom(room)) {
-    return null;
-  }
   const latest = context.latestByRoomId.get(room.id);
   if (!latest) {
     return null;
   }
-
   const isDm = room.room_type === "dm";
+  const isPinned = isMainAgentDmRoom(room);
   const dmAgent = room.dm_target_agent_id
     ? context.agentById.get(room.dm_target_agent_id)
     : undefined;
@@ -99,9 +100,10 @@ function projectConversationItem(
   return {
     agentId: room.dm_target_agent_id,
     avatar: room.avatar,
-    canDelete: true,
+    canDelete: !isPinned,
     conversationId: latest.conversation_id,
     id: room.id,
+    isPinned,
     kind: isDm ? "dm" : "room",
     lastActivityAt,
     members: resolveConversationMembers(room, dmAgent),
@@ -142,7 +144,7 @@ function resolveConversationMembers(
   }
   return dmAgent
     ? [{ id: dmAgent.id, name: dmAgent.name, avatar: dmAgent.avatar }]
-    : [];
+    : room.members ?? [];
 }
 
 function resolveConversationTitle(
@@ -151,7 +153,10 @@ function resolveConversationTitle(
   untitledRoomLabel: string,
 ): string {
   if (room.room_type === "dm") {
-    return dmAgent?.name ?? room.name?.trim() ?? "DM";
+    return dmAgent?.name
+      ?? room.members?.[0]?.name
+      ?? room.name?.trim()
+      ?? "DM";
   }
   return room.name?.trim() || untitledRoomLabel;
 }

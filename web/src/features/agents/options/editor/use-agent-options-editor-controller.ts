@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
@@ -11,11 +13,13 @@ import type {
   SaveFeedback,
 } from "../agent-options-editor-model";
 import {
+  buildAgentEditorCommandScopeKey,
   buildAgentEditorScopeKey,
   createAgentOptionsDraft,
 } from "./agent-options-draft";
 import { useAgentNameValidation } from "./use-agent-name-validation";
 import { useAgentOptionsDraft } from "./use-agent-options-draft";
+import { useAgentProfileTemplate } from "./use-agent-profile-template";
 import { useAgentOptionsSaveCommand } from "./use-agent-options-save-command";
 import { useAgentProviderOptions } from "./use-agent-provider-options";
 import { useAgentSaveFeedback } from "./use-agent-save-feedback";
@@ -37,21 +41,45 @@ export function useAgentOptionsEditorController({
     defaultTitle: t("agent_options.default_name"),
     initial: source.initial,
   });
-  const scopeKey = buildAgentEditorScopeKey({
+  const sourceScopeKey = buildAgentEditorScopeKey({
     draft: initialDraft,
     isActive,
     source,
   });
-  const feedback = useAgentSaveFeedback(scopeKey);
+  const commandScopeKey = buildAgentEditorCommandScopeKey({ isActive, source });
+  const feedback = useAgentSaveFeedback(commandScopeKey);
   const draftController = useAgentOptionsDraft({
     initialDraft,
     onChange: feedback.clear,
-    scopeKey,
+    scopeKey: sourceScopeKey,
   });
+  const profileTemplate = useAgentProfileTemplate(
+    source.kind === "create" && isActive,
+    sourceScopeKey,
+    t("agent_options.identity.profile_template_load_failed"),
+  );
+  const updateDraftField = draftController.updateField;
+  const appliedProfileTemplateScopeRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      source.kind !== "create"
+      || !profileTemplate.content
+      || appliedProfileTemplateScopeRef.current === sourceScopeKey
+    ) {
+      return;
+    }
+    appliedProfileTemplateScopeRef.current = sourceScopeKey;
+    updateDraftField("profileTemplate", profileTemplate.content);
+  }, [
+    profileTemplate.content,
+    sourceScopeKey,
+    source.kind,
+    updateDraftField,
+  ]);
   const tabs = useAgentOptionsTabs({
     controlledActiveTab,
     onTabChange,
-    scopeKey,
+    scopeKey: commandScopeKey,
   });
   const providerOptions = useAgentProviderOptions(
     isActive,
@@ -64,11 +92,13 @@ export function useAgentOptionsEditorController({
     hasTitleChanged,
     isActive,
     onValidateName,
-    scopeKey,
+    scopeKey: sourceScopeKey,
     title: draftController.draft.title,
   });
   const saveCommand = useAgentOptionsSaveCommand({
+    commandScopeKey,
     draft: draftController.draft,
+    draftRevisionRef: draftController.revisionRef,
     feedback,
     hasTitleChanged,
     labels: {
@@ -79,7 +109,7 @@ export function useAgentOptionsEditorController({
     onSave,
     onSaveSuccess,
     onValidateName,
-    scopeKey,
+    sourceScopeKey,
     sourceOptions,
     validation,
   });
@@ -87,6 +117,7 @@ export function useAgentOptionsEditorController({
     activeTab: tabs.activeTab,
     actions: buildEditorActions({
       feedback: feedback.feedback,
+      profileTemplateLoading: profileTemplate.loading,
       onDelete,
       saveCommand,
       showDeleteButton,
@@ -97,8 +128,9 @@ export function useAgentOptionsEditorController({
       advanced: buildAdvancedProps(draftController),
       identity: buildIdentityProps({
         draftController,
+        profileTemplate,
         providerOptions,
-        scopeKey,
+        scopeKey: sourceScopeKey,
         source,
         validation,
       }),
@@ -132,6 +164,7 @@ function useAgentOptionsTabs({
 function buildEditorActions({
   feedback,
   onDelete,
+  profileTemplateLoading,
   saveCommand,
   showDeleteButton,
   source,
@@ -139,6 +172,7 @@ function buildEditorActions({
 }: {
   feedback: SaveFeedback | null;
   onDelete?: (agentId: string) => void;
+  profileTemplateLoading: boolean;
   saveCommand: SaveCommand;
   showDeleteButton: boolean;
   source: AgentOptionsEditorSource;
@@ -153,7 +187,7 @@ function buildEditorActions({
     }),
     feedback,
     saveAction: {
-      enabled: saveCommand.canSave,
+      enabled: saveCommand.canSave && !profileTemplateLoading,
       label: resolveSaveButtonLabel({
         feedback,
         isSaving: saveCommand.isSaving,
@@ -217,12 +251,14 @@ function buildAdvancedProps({
 
 function buildIdentityProps({
   draftController: { draft, updateField },
+  profileTemplate,
   providerOptions,
   scopeKey,
   source,
   validation,
 }: {
   draftController: DraftController;
+  profileTemplate: ReturnType<typeof useAgentProfileTemplate>;
   providerOptions: ReturnType<typeof useAgentProviderOptions>;
   scopeKey: string;
   source: AgentOptionsEditorSource;
@@ -240,6 +276,7 @@ function buildIdentityProps({
     nameValidation: validation.result,
     onAvatarChange: (value: string) => updateField("avatar", value),
     onDescriptionChange: (value: string) => updateField("description", value),
+    onProfileTemplateChange: (value: string) => updateField("profileTemplate", value),
     onModelChange: (value: string) => updateField("model", value),
     onProviderChange: (value: string) => updateField("provider", value),
     onTitleChange: (value: string) => updateField("title", value),
@@ -248,7 +285,11 @@ function buildIdentityProps({
     providerOptions: providerOptions.items,
     providerOptionsError: providerOptions.error,
     providerOptionsLoading: providerOptions.loading,
+    profileTemplate: draft.profileTemplate ?? "",
+    profileTemplateError: profileTemplate.error,
+    profileTemplateLoading: profileTemplate.loading,
     scopeKey,
+    sourceMode: source.kind,
     title: draft.title,
     vibeTags: draft.vibeTags,
   };

@@ -1,91 +1,93 @@
+import { isExternalSessionConversation } from "@/lib/conversation/external-session";
 import type { RoomConversationView } from "@/types/conversation/conversation";
 
-// 中文注释：新会话入口为 76px 加 4px 左间距，宽度模型与实际布局保持一致。
-const CREATE_CONVERSATION_BUTTON_SPACE = 80;
-const TRACK_HORIZONTAL_PADDING = 2;
-// 中文注释：宽屏也只保留少量标题，避免会话标签挤占右侧工作区导航。
-const MAX_VISIBLE_CONVERSATION_TABS = 5;
+// 中文注释：历史与创建入口共用轻量导航带的 32px 边缘占位。
+const CONVERSATION_EDGE_CONTROL_SPACE = 32;
+const CONVERSATION_TAB_GAP = 2;
 
-export const ACTIVE_TAB_MIN_WIDTH = 142;
-export const INACTIVE_TAB_MIN_WIDTH = 92;
+export const ACTIVE_TAB_MIN_WIDTH = 156;
+export const CONVERSATION_TABS_VIEWPORT_INSET = 4;
+export const INACTIVE_TAB_MIN_WIDTH = 104;
 
 const ACTIVE_TAB_WIDTH_WEIGHT = 1.32;
 
-export function getRecentConversationIds(
+export function hasConversationTabsOverflow({
+  conversationCount,
+  hasCreateButton,
+  hasLeadingControl,
+  trackWidth,
+}: {
+  conversationCount: number;
+  hasCreateButton: boolean;
+  hasLeadingControl: boolean;
+  trackWidth: number;
+}): boolean {
+  if (!trackWidth || conversationCount <= 1) {
+    return false;
+  }
+  const tabViewportWidth = getAvailableConversationTabWidth({
+    hasCreateButton,
+    hasLeadingControl,
+    trackWidth,
+  });
+  const inactiveCount = conversationCount - 1;
+  const minimumTabsWidth = ACTIVE_TAB_MIN_WIDTH
+    + INACTIVE_TAB_MIN_WIDTH * inactiveCount
+    + CONVERSATION_TAB_GAP * inactiveCount;
+  return minimumTabsWidth > tabViewportWidth;
+}
+
+export function getConversationIdsByCreationTime(
   conversations: RoomConversationView[],
 ): string[] {
   return [...conversations]
     .sort((left, right) => {
-      if (left.last_activity_at !== right.last_activity_at) {
-        return right.last_activity_at - left.last_activity_at;
+      if (left.created_at !== right.created_at) {
+        return left.created_at - right.created_at;
       }
       return left.conversation_id.localeCompare(right.conversation_id);
     })
     .map((conversation) => conversation.conversation_id);
 }
 
-export function getInitialOpenConversationIds(
-  conversationId: string | null,
-  recentConversationIds: string[],
-  maxOpenCount = 1,
-): string[] {
-  const selectedId = conversationId && recentConversationIds.includes(conversationId)
-    ? conversationId
-    : recentConversationIds[0] ?? null;
-  if (!selectedId) {
-    return [];
+export function resolveSelectedDraftConversationId(
+  conversations: RoomConversationView[],
+  selectedConversationId: string | null,
+): string | null {
+  if (!selectedConversationId) {
+    return null;
   }
-
-  const capacity = Math.max(1, maxOpenCount);
-  return [
-    selectedId,
-    ...recentConversationIds.filter((id) => id !== selectedId),
-  ].slice(0, capacity);
+  const selectedConversation = conversations.find(
+    (conversation) => conversation.conversation_id === selectedConversationId,
+  );
+  return selectedConversation?.is_draft === true
+    && !isExternalSessionConversation(selectedConversation)
+    ? selectedConversation.conversation_id
+    : null;
 }
 
-export function getConversationTabCapacity({
-  hasCreateButton,
-  trackWidth,
-}: {
-  hasCreateButton: boolean;
-  trackWidth: number;
-}): number {
-  if (!trackWidth) {
-    return 1;
-  }
-
-  const availableWidth = getAvailableConversationTabWidth({
-    hasCreateButton,
-    trackWidth,
-  });
-  const capacity = availableWidth < ACTIVE_TAB_MIN_WIDTH
-    ? 1
-    : Math.floor(
-      (availableWidth - ACTIVE_TAB_MIN_WIDTH) / INACTIVE_TAB_MIN_WIDTH,
-    ) + 1;
-
-  return Math.min(MAX_VISIBLE_CONVERSATION_TABS, Math.max(1, capacity));
+export function getInitialOpenConversationIds(
+  conversationId: string | null,
+  orderedConversationIds: string[],
+): string[] {
+  const selectedId = conversationId && orderedConversationIds.includes(conversationId)
+    ? conversationId
+    : orderedConversationIds[orderedConversationIds.length - 1] ?? null;
+  return selectedId ? [selectedId] : [];
 }
 
 export function reconcileOpenConversationIds({
   conversationId,
   currentIds,
-  excludedConversationIds,
-  fillRecent,
-  maxOpenCount,
+  orderedIds,
   pendingClosedId,
-  recentIds,
 }: {
   conversationId: string | null;
   currentIds: string[];
-  excludedConversationIds?: ReadonlySet<string>;
-  fillRecent?: boolean;
-  maxOpenCount?: number;
+  orderedIds: string[];
   pendingClosedId: string | null;
-  recentIds: string[];
 }): string[] {
-  const liveIds = new Set(recentIds);
-  const capacity = Math.max(1, maxOpenCount ?? Number.MAX_SAFE_INTEGER);
+  const liveIds = new Set(orderedIds);
   const selectedId = resolveLiveConversationId(conversationId, liveIds);
   const retainedIds = retainLiveConversationIds(currentIds, liveIds);
   const selectedIds = appendSelectedConversationId(
@@ -96,23 +98,19 @@ export function reconcileOpenConversationIds({
   const ensuredIds = ensureOpenConversationId(
     selectedIds,
     selectedId,
-    recentIds,
+    orderedIds,
   );
-  const expandedIds = fillRecent
-    ? appendRecentConversationIds(
-      ensuredIds,
-      recentIds,
-      capacity,
-      buildExcludedConversationIds(excludedConversationIds, pendingClosedId),
-    )
-    : ensuredIds;
-  const resolvedIds = limitOpenConversationIds(
-    expandedIds,
-    selectedId,
-    capacity,
-  );
+  const resolvedIds = sortConversationIdsByReference(ensuredIds, orderedIds);
 
   return areIdsEqual(currentIds, resolvedIds) ? currentIds : resolvedIds;
+}
+
+function sortConversationIdsByReference(
+  currentIds: string[],
+  orderedIds: string[],
+): string[] {
+  const currentIdSet = new Set(currentIds);
+  return orderedIds.filter((id) => currentIdSet.has(id));
 }
 
 function resolveLiveConversationId(
@@ -158,75 +156,6 @@ function ensureOpenConversationId(
   return fallbackId ? [fallbackId] : currentIds;
 }
 
-function appendRecentConversationIds(
-  currentIds: string[],
-  recentIds: string[],
-  maxOpenCount: number,
-  excludedIds: ReadonlySet<string>,
-): string[] {
-  if (currentIds.length >= maxOpenCount) {
-    return currentIds;
-  }
-
-  const nextIds = [...currentIds];
-  for (const id of recentIds) {
-    if (
-      nextIds.length >= maxOpenCount
-      || excludedIds.has(id)
-      || nextIds.includes(id)
-    ) {
-      continue;
-    }
-    nextIds.push(id);
-  }
-  return nextIds;
-}
-
-function buildExcludedConversationIds(
-  excludedConversationIds: ReadonlySet<string> | undefined,
-  pendingClosedId: string | null,
-): ReadonlySet<string> {
-  if (!pendingClosedId) {
-    return excludedConversationIds ?? new Set<string>();
-  }
-
-  const excludedIds = new Set(excludedConversationIds);
-  excludedIds.add(pendingClosedId);
-  return excludedIds;
-}
-
-function limitOpenConversationIds(
-  currentIds: string[],
-  selectedId: string | null,
-  maxOpenCount: number,
-): string[] {
-  if (currentIds.length <= maxOpenCount) {
-    return currentIds;
-  }
-
-  const limitedIds = [...currentIds];
-  while (limitedIds.length > maxOpenCount) {
-    const removableIndex = findLastRemovableConversationIndex(
-      limitedIds,
-      selectedId,
-    );
-    limitedIds.splice(removableIndex >= 0 ? removableIndex : limitedIds.length - 1, 1);
-  }
-  return limitedIds;
-}
-
-function findLastRemovableConversationIndex(
-  currentIds: string[],
-  selectedId: string | null,
-): number {
-  for (let index = currentIds.length - 1; index >= 0; index -= 1) {
-    if (currentIds[index] !== selectedId) {
-      return index;
-    }
-  }
-  return -1;
-}
-
 export function resolveActiveConversationId({
   conversationId,
   optimisticId,
@@ -246,6 +175,19 @@ export function resolveActiveConversationId({
     return conversationId;
   }
   return orderedConversations[0]?.conversation_id ?? null;
+}
+
+export function shouldPersistConversationTabs({
+  activeConversationId,
+  routeConversationId,
+}: {
+  activeConversationId: string | null;
+  routeConversationId: string | null;
+}): boolean {
+  return Boolean(
+    activeConversationId
+      && routeConversationId === activeConversationId,
+  );
 }
 
 export function getCloseFallbackConversationId(
@@ -268,11 +210,15 @@ export function getCloseFallbackConversationId(
 export function calculateConversationTabWidths({
   activeConversationId,
   hasCreateButton,
+  hasLeadingControl,
+  hasTabsOverflow,
   orderedConversations,
   trackWidth,
 }: {
   activeConversationId: string | null;
   hasCreateButton: boolean;
+  hasLeadingControl: boolean;
+  hasTabsOverflow: boolean;
   orderedConversations: RoomConversationView[];
   trackWidth: number;
 }): Map<string, number> {
@@ -281,20 +227,31 @@ export function calculateConversationTabWidths({
     return widths;
   }
 
-  const availableWidth = getAvailableConversationTabWidth({
+  const tabViewportWidth = getAvailableConversationTabWidth({
     hasCreateButton,
+    hasLeadingControl,
     trackWidth,
   });
+  const availableWidth = tabViewportWidth
+    - CONVERSATION_TAB_GAP * Math.max(0, orderedConversations.length - 1);
   if (orderedConversations.length === 1) {
     widths.set(
       orderedConversations[0].conversation_id,
-      Math.max(ACTIVE_TAB_MIN_WIDTH, availableWidth),
+      Math.max(ACTIVE_TAB_MIN_WIDTH, tabViewportWidth),
     );
     return widths;
   }
 
   const inactiveCount = orderedConversations.length - 1;
   const minimumTotalWidth = ACTIVE_TAB_MIN_WIDTH + INACTIVE_TAB_MIN_WIDTH * inactiveCount;
+  if (availableWidth < minimumTotalWidth && hasTabsOverflow) {
+    return calculateOverflowConversationTabWidths({
+      activeConversationId,
+      orderedConversations,
+      tabViewportWidth,
+    });
+  }
+
   let activeWidth = ACTIVE_TAB_MIN_WIDTH;
   let inactiveWidth = INACTIVE_TAB_MIN_WIDTH;
 
@@ -317,17 +274,69 @@ export function calculateConversationTabWidths({
   return widths;
 }
 
+function calculateOverflowConversationTabWidths({
+  activeConversationId,
+  orderedConversations,
+  tabViewportWidth,
+}: {
+  activeConversationId: string | null;
+  orderedConversations: RoomConversationView[];
+  tabViewportWidth: number;
+}): Map<string, number> {
+  const widths = new Map<string, number>();
+  const inactiveCount = orderedConversations.length - 1;
+  // 中文注释：以活动标签为锚点，计算一屏能完整容纳的普通标签数。
+  const visibleInactiveCount = Math.min(
+    inactiveCount,
+    Math.max(
+      0,
+      Math.floor(
+        (tabViewportWidth - ACTIVE_TAB_MIN_WIDTH)
+        / (INACTIVE_TAB_MIN_WIDTH + CONVERSATION_TAB_GAP),
+      ),
+    ),
+  );
+  let activeWidth = ACTIVE_TAB_MIN_WIDTH;
+  let inactiveWidth = INACTIVE_TAB_MIN_WIDTH;
+
+  if (visibleInactiveCount > 0) {
+    const visibleWidth = tabViewportWidth
+      - CONVERSATION_TAB_GAP * visibleInactiveCount;
+    const weightedUnitWidth = visibleWidth
+      / (visibleInactiveCount + ACTIVE_TAB_WIDTH_WEIGHT);
+    const maximumActiveWidth = visibleWidth
+      - INACTIVE_TAB_MIN_WIDTH * visibleInactiveCount;
+    activeWidth = Math.min(
+      maximumActiveWidth,
+      Math.max(ACTIVE_TAB_MIN_WIDTH, weightedUnitWidth * ACTIVE_TAB_WIDTH_WEIGHT),
+    );
+    inactiveWidth = (visibleWidth - activeWidth) / visibleInactiveCount;
+  }
+
+  orderedConversations.forEach((conversation) => {
+    widths.set(
+      conversation.conversation_id,
+      conversation.conversation_id === activeConversationId ? activeWidth : inactiveWidth,
+    );
+  });
+  return widths;
+}
+
 function getAvailableConversationTabWidth({
   hasCreateButton,
+  hasLeadingControl,
   trackWidth,
 }: {
   hasCreateButton: boolean;
+  hasLeadingControl: boolean;
   trackWidth: number;
 }): number {
   return Math.max(
     0,
-    trackWidth - TRACK_HORIZONTAL_PADDING - (
-      hasCreateButton ? CREATE_CONVERSATION_BUTTON_SPACE : 0
+    trackWidth - CONVERSATION_TABS_VIEWPORT_INSET * 2 - (
+      hasCreateButton ? CONVERSATION_EDGE_CONTROL_SPACE : 0
+    ) - (
+      hasLeadingControl ? CONVERSATION_EDGE_CONTROL_SPACE : 0
     ),
   );
 }

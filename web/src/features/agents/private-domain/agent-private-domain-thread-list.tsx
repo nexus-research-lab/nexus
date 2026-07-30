@@ -73,7 +73,7 @@ function PrivateThreadListContent({
       return (
         <div className={presentation.className}>
           <Inbox className="h-5 w-5 text-(--text-soft)" />
-          <p className="text-[12px] font-semibold text-(--text-muted)">暂无联络记录</p>
+          <p className="text-compact font-semibold text-(--text-muted)">暂无联络记录</p>
         </div>
       );
     case "ready":

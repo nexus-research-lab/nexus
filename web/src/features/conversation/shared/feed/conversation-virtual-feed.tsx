@@ -1,15 +1,27 @@
+/**
+ * INPUT: DM 轮次数据、渲染器与共享滚动/feed refs。
+ * OUTPUT: 使用稳定身份、真实轨道估高、紧凑尾锚和可见锚点策略的虚拟消息流。
+ * POS: 普通会话超过虚拟化阈值后的 Feed 渲染入口。
+ */
 import { useCallback, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { estimateRoundHeights } from "@/hooks/conversation/use-message-height";
 
+import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import {
   resolveConversationRound,
   type ConversationFeedProps,
 } from "./conversation-feed-model";
+import { ConversationFeedTail } from "./conversation-feed-tail";
 import { ConversationRound } from "./conversation-round";
 import { useConversationRoundNavigation } from "./use-conversation-round-navigation";
 import { useConversationVirtualMetrics } from "./use-conversation-virtual-metrics";
+import {
+  shouldAdjustConversationVirtualScrollPosition,
+  useConversationVirtualInitialOffset,
+  useConversationVirtualItemKey,
+} from "./use-conversation-virtual-scroll-policy";
 
 type ConversationVirtualFeedProps = ConversationFeedProps & {
   refs: ConversationFeedProps["refs"] & {
@@ -23,7 +35,18 @@ export function ConversationVirtualFeed({
   renderer,
   source,
 }: ConversationVirtualFeedProps) {
-  const metrics = useConversationVirtualMetrics(refs.scrollRef);
+  const metrics = useConversationVirtualMetrics(
+    refs.scrollRef,
+    refs.feedRef,
+  );
+  const roundNodeIds = useMemo(
+    () => source.roundIds.map(
+      (_roundId, index) => resolveConversationRound(source, index).nodeId,
+    ),
+    [source],
+  );
+  const getItemKey = useConversationVirtualItemKey(roundNodeIds);
+  const initialOffset = useConversationVirtualInitialOffset(refs.scrollRef);
   const heightMap = useMemo(
     () => estimateRoundHeights(
       source.roundIds,
@@ -35,11 +58,15 @@ export function ConversationVirtualFeed({
   const virtualizer = useVirtualizer({
     count: source.roundIds.length,
     estimateSize: (index) => heightMap.get(source.roundIds[index]) ?? 200,
+    getItemKey,
     getScrollElement: () => refs.scrollRef.current,
+    initialOffset,
     measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 5,
     scrollPaddingStart: metrics.scrollPaddingStart,
   });
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange =
+    shouldAdjustConversationVirtualScrollPosition;
   const scrollToIndex = useCallback((
     index: number,
     options?: { behavior?: ScrollBehavior },
@@ -67,10 +94,11 @@ export function ConversationVirtualFeed({
   return (
     <div
       ref={refs.feedRef}
+      data-conversation-virtual-feed="true"
       className={
         isMobileLayout
           ? "nexus-chat-feed relative"
-          : "nexus-chat-feed relative mx-auto w-full max-w-[980px]"
+          : `nexus-chat-feed relative ${CONVERSATION_CONTENT_LANE_CLASS_NAME}`
       }
       style={{ height: virtualizer.getTotalSize() }}
     >
@@ -82,7 +110,8 @@ export function ConversationVirtualFeed({
           const state = resolveConversationRound(source, item.index);
           return (
             <ConversationRound
-              key={state.roundId}
+              isMobileLayout={isMobileLayout}
+              key={state.nodeId}
               measureRef={virtualizer.measureElement}
               renderer={renderer}
               source={source}
@@ -91,8 +120,8 @@ export function ConversationVirtualFeed({
           );
         })}
       </div>
-      <div
-        ref={refs.bottomAnchorRef}
+      <ConversationFeedTail
+        bottomAnchorRef={refs.bottomAnchorRef}
         className="absolute bottom-0 h-px w-full"
       />
     </div>

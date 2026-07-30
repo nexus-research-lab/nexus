@@ -53,6 +53,78 @@ func TestRoomSubscriptionRegistryReplaysDurableEvents(t *testing.T) {
 	}
 }
 
+func TestRoomSubscriptionRegistryReplaysFromSnapshotBoundaryZero(t *testing.T) {
+	registry := newRoomSubscriptionRegistry(8)
+	ctx := context.Background()
+	serverPending := protocol.NewChatAckEvent(
+		"room:group:conv-1",
+		"",
+		"",
+		"root-1",
+		"",
+		false,
+		[]protocol.ChatAckPendingSlot{{
+			AgentID:      "agent-1",
+			AgentRoundID: "agent-round-1",
+			MsgID:        "slot-1",
+			RoundID:      "root-1",
+			Status:       "pending",
+			Timestamp:    1,
+		}},
+	)
+	serverPending.DeliveryMode = "durable"
+	serverPending.ConversationID = "conv-1"
+	registry.Broadcast(ctx, "chat-1", serverPending)
+
+	sender := newFakeRoomRegistrySender("sender-boundary-zero")
+	boundary := int64(0)
+	if err := registry.SubscribeRoom(
+		ctx,
+		sender,
+		"chat-1",
+		"conv-1",
+		&boundary,
+	); err != nil {
+		t.Fatalf("subscribe_room 失败: %v", err)
+	}
+	event := readRoomRegistryEvent(t, sender.events)
+	if event.EventType != protocol.EventTypeChatAck {
+		t.Fatalf("replayed event = %s, want chat_ack", event.EventType)
+	}
+	if event.RoomSeq == nil || *event.RoomSeq != 1 {
+		t.Fatalf("replayed room_seq = %#v, want 1", event.RoomSeq)
+	}
+}
+
+func TestRoomSubscriptionRegistryDoesNotReplayClientAck(t *testing.T) {
+	registry := newRoomSubscriptionRegistry(8)
+	ctx := context.Background()
+	clientAck := protocol.NewChatAckEvent(
+		"room:group:conv-1",
+		"request-1",
+		"client-message-1",
+		"root-1",
+		"user-message-1",
+		true,
+		nil,
+	)
+	clientAck.ConversationID = "conv-1"
+	registry.Broadcast(ctx, "chat-1", clientAck)
+
+	sender := newFakeRoomRegistrySender("sender-client-ack")
+	boundary := int64(0)
+	if err := registry.SubscribeRoom(
+		ctx,
+		sender,
+		"chat-1",
+		"conv-1",
+		&boundary,
+	); err != nil {
+		t.Fatalf("subscribe_room 失败: %v", err)
+	}
+	assertNoRoomRegistryEvent(t, sender.events)
+}
+
 func TestRoomSubscriptionRegistryRequestsResyncWhenReplayBufferMissed(t *testing.T) {
 	registry := newRoomSubscriptionRegistry(1)
 	ctx := context.Background()

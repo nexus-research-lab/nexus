@@ -51,7 +51,7 @@ export const TourOverlayCard = forwardRef<
 
   return (
     <div
-      className="surface-popover surface-radius-lg relative max-h-[calc(100vh-64px)] w-[min(336px,calc(100vw-32px))] overflow-y-auto px-4 py-3 shadow-[0_10px_24px_color-mix(in_srgb,var(--shadow-color)_12%,transparent)]"
+      className="surface-popover surface-radius-lg relative max-h-[calc(100vh-64px)] w-[min(336px,calc(100vw-32px))] overflow-y-auto px-4 py-3"
       ref={ref}
     >
       {step.image ? (
@@ -67,7 +67,7 @@ export const TourOverlayCard = forwardRef<
           {step.title}
         </h3>
         <button
-          className="shrink-0 px-1 py-0.5 text-[11px] font-medium text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
+          className="shrink-0 px-1 py-0.5 text-xs font-medium text-(--text-muted) transition-colors duration-(--motion-duration-fast) hover:text-(--text-strong)"
           onClick={() => onClose({ completed: true })}
           type="button"
         >
@@ -75,14 +75,14 @@ export const TourOverlayCard = forwardRef<
         </button>
       </div>
 
-      <p className="mt-2 text-[12px] leading-5 text-(--text-default)">
+      <p className="mt-2 text-compact leading-5 text-(--text-default)">
         {step.description}
       </p>
 
       {step.items?.length ? <TourStepItems items={step.items} /> : null}
 
       <div className="mt-3 border-t border-(--divider-subtle-color) pt-3 flex items-center justify-between gap-3">
-        <span className="text-[11px] font-medium tabular-nums text-(--text-muted)">
+        <span className="text-xs font-medium tabular-nums text-(--text-muted)">
           {stepIndex + 1} / {stepCount}
         </span>
         <div className="flex items-center gap-2">
@@ -147,7 +147,7 @@ function TourStepItems({ items }: { items: OnboardingTourStepItem[] }) {
             key={item.text}
           >
             <Icon className="h-3.5 w-3.5 shrink-0 text-(--icon-muted)" />
-            <span className="text-[12px] leading-5 text-(--text-default)">
+            <span className="text-compact leading-5 text-(--text-default)">
               {item.text}
             </span>
           </div>

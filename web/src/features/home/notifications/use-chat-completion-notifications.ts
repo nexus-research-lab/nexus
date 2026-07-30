@@ -1,7 +1,13 @@
+/**
+ * INPUT: 全局聊天完成事件、共享聊天目录、当前路由与窗口可见性。
+ * OUTPUT: 浏览器通知、侧栏未读数字及供 Room Feed 认领的精确消息锚点。
+ * POS: 聊天完成通知副作用入口；不推导 Feed 节点或首条未读位置。
+ */
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 
 import { useHomeDirectory } from "@/features/home/home-directory-resource";
+import { hasVisibleAssistantOutput } from "@/features/conversation/shared/message/message-content-model";
 import { useSidebarStore } from "@/store/sidebar";
 import type { AssistantMessage } from "@/types/conversation/message/entity";
 import type { EventMessage } from "@/types/generated/protocol";
@@ -24,6 +30,7 @@ import {
 import {
   getActiveChatTargetFromPath,
   isChatNotificationTargetActive,
+  isGroupRoomNotificationTarget,
   type ActiveChatNotificationTarget,
 } from "./chat-notification-target";
 import { useChatNotificationSocket } from "./use-chat-notification-socket";
@@ -46,6 +53,9 @@ export function useChatCompletionNotifications(): void {
   const clearRoom = useSidebarStore(
     (state) => state.clear_chat_notifications_for_room,
   );
+  const discardRoomChatState = useSidebarStore(
+    (state) => state.discard_chat_state_for_room,
+  );
 
   const clearRoomNotifications = useCallback((roomId: string | null | undefined) => {
     if (!roomId) {
@@ -63,6 +73,12 @@ export function useChatCompletionNotifications(): void {
     }
     const activeTarget = activeTargetRef.current;
     if (activeTarget?.room_id) {
+      const activeRoom = directoryIndexRef.current.roomsById.get(
+        activeTarget.room_id,
+      );
+      if (!activeRoom || activeRoom.room_type === "room") {
+        return;
+      }
       clearRoomNotifications(activeTarget.room_id);
     } else {
       clearTarget(activeTarget?.key);
@@ -71,6 +87,30 @@ export function useChatCompletionNotifications(): void {
 
   useEffect(clearActiveNotifications, [clearActiveNotifications, directoryIndex, location.pathname]);
   useEffect(() => subscribeBrowserNotificationPermission(), []);
+  useEffect(() => {
+    if (directory.isLoading) {
+      return;
+    }
+    const knownRoomIds = new Set(directory.rooms.map((room) => room.id));
+    const state = useSidebarStore.getState();
+    const staleRoomIds = new Set(
+      [
+        ...Object.values(state.chat_unread_targets),
+        ...Object.values(state.chat_unread_anchors),
+      ].flatMap((target) => (
+        target.room_id && !knownRoomIds.has(target.room_id)
+          ? [target.room_id]
+          : []
+      )),
+    );
+    for (const roomId of staleRoomIds) {
+      discardRoomChatState(roomId);
+    }
+  }, [
+    directory.isLoading,
+    directory.rooms,
+    discardRoomChatState,
+  ]);
   useEffect(() => {
     window.addEventListener("focus", clearActiveNotifications);
     document.addEventListener("visibilitychange", clearActiveNotifications);
@@ -89,7 +129,20 @@ export function useChatCompletionNotifications(): void {
     if (!target) {
       return;
     }
-    if (isChatNotificationTargetActive(activeTargetRef.current, target) && isWindowActive()) {
+    const isActive = isChatNotificationTargetActive(
+      activeTargetRef.current,
+      target,
+    ) && isWindowActive();
+    const isGroupRoom = isGroupRoomNotificationTarget(
+      target,
+      target.room_id
+        ? index.roomsById.get(target.room_id)?.room_type
+        : null,
+    );
+    if (isGroupRoom && !hasVisibleAssistantOutput(message)) {
+      return;
+    }
+    if (isActive && !isGroupRoom) {
       if (target.room_id) {
         clearRoomNotifications(target.room_id);
       } else {
@@ -98,7 +151,20 @@ export function useChatCompletionNotifications(): void {
       return;
     }
     const messageId = getNotificationMessageId(event, message, target.key);
-    if (!recordNotification(toChatNotificationTargetState(target), messageId)) {
+    const didRecord = recordNotification(toChatNotificationTargetState(target), {
+      agent_id: message.agent_id,
+      agent_round_id: message.agent_round_id ?? event.agent_round_id,
+      message_id: messageId,
+      room_seq: event.room_seq,
+      round_id: message.round_id || event.round_id,
+      timestamp: message.timestamp || event.timestamp,
+    }, {
+      preserve_anchor: isGroupRoom,
+    });
+    if (!didRecord) {
+      return;
+    }
+    if (isActive) {
       return;
     }
     const { body, title } = buildNotificationContent(target, message, index);
@@ -112,6 +178,7 @@ export function useChatCompletionNotifications(): void {
   useChatNotificationSocket({
     directoryIndex,
     onCompletedMessage: handleCompletedMessage,
+    onRoomDeleted: discardRoomChatState,
     roomIdsKey,
   });
 }

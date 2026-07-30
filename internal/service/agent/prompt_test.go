@@ -43,6 +43,8 @@ func TestServiceBuildRuntimePromptIncludesWorkspaceFilesAndProfile(t *testing.T)
 
 	assertPromptContains(t, prompt, "BASE CUSTOM PROMPT")
 	assertPromptContains(t, prompt, "Mode: single-user system scope")
+	assertPromptContains(t, prompt, "use $TMPDIR for private data")
+	assertPromptContains(t, prompt, "/tmp is a shared compatibility directory")
 	assertPromptContains(t, prompt, "## Agent Identity")
 	assertPromptContains(t, prompt, "Identity: planner (agent-1)")
 	assertPromptContains(t, prompt, "WORKING DIRECTORY: "+workspacePath)
@@ -118,6 +120,7 @@ func TestServiceBuildRuntimePromptIncludesHumanIdentityRules(t *testing.T) {
 	assertPromptContains(t, prompt, "Do not search for `cmd/nexusctl`")
 	assertPromptContains(t, prompt, "use `WebSearch` and `WebFetch` as a pair")
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
+	assertPromptContains(t, prompt, "Never edit Nexus SQLite files directly")
 	assertPromptContains(t, prompt, "Use Nexus automation tools")
 	if strings.Contains(prompt, "scheduled-task-manager") {
 		t.Fatalf("定时任务不应再要求加载重复 skill: %s", prompt)
@@ -277,8 +280,46 @@ func TestServiceBuildRuntimePromptDirectsGoalSkill(t *testing.T) {
 	assertPromptContains(t, prompt, "绝不能先完成旧 Goal 再创建新 Goal")
 	assertPromptContains(t, prompt, "不要使用 /goal 文本命令")
 	assertPromptContains(t, prompt, "普通一次性请求、提醒和定时任务不要自动创建 Goal")
+	assertPromptContains(t, prompt, "用户明确要求 Goal 只是创建的必要条件")
+	assertPromptContains(t, prompt, "objective 已达到可执行状态")
+	assertPromptContains(t, prompt, "信息足够前禁止调用 create_goal")
+	assertPromptContains(t, prompt, "禁止先创建宽泛或占位 Goal")
+	assertPromptContains(t, prompt, "最终回复才是用户交付面")
+	assertPromptContains(t, prompt, "文本类交付直接给出完整正文")
+	assertPromptContains(t, prompt, "不得用“Goal 已完成”或简短总结代替结果")
 	assertPromptContains(t, prompt, "token_budget")
 	assertPromptContains(t, prompt, "blocked")
+}
+
+func TestServiceBuildRuntimePromptOmitsDisabledGoalSkillGuidance(t *testing.T) {
+	workspacePath := t.TempDir()
+	skillPath := filepath.Join(workspacePath, ".agents", "skills", "goal-manager")
+	if err := os.MkdirAll(skillPath, 0o755); err != nil {
+		t.Fatalf("创建 goal-manager 目录失败: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(skillPath, "SKILL.md"), []byte("---\nname: goal-manager\ndescription: test\n---\n"), 0o644); err != nil {
+		t.Fatalf("写入 goal-manager 失败: %v", err)
+	}
+
+	service := agentsvc.NewService(config.Config{
+		DefaultAgentID:   "nexus",
+		BaseSystemPrompt: "BASE CUSTOM PROMPT",
+	}, nil)
+	prompt, err := service.BuildRuntimePrompt(context.Background(), &protocol.Agent{
+		AgentID:       "agent-1",
+		Name:          "planner",
+		WorkspacePath: workspacePath,
+		Options: protocol.Options{
+			SkillIDs:         []string{"goal-manager"},
+			DisabledSkillIDs: []string{"goal-manager"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("构建运行时提示词失败: %v", err)
+	}
+	if strings.Contains(prompt, "Goal Skill 使用要求") {
+		t.Fatalf("显式停用 goal-manager 后仍注入使用要求: %q", prompt)
+	}
 }
 
 func TestServiceBuildRuntimePromptUsesMainAgentPromptOverride(t *testing.T) {
@@ -346,6 +387,11 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 	assertPromptContains(t, prompt, "You coordinate from the main chat, but you are not a Room member")
 	assertPromptContains(t, prompt, "call `AskUserQuestion` so Nexus can show the native interaction")
 	assertPromptContains(t, prompt, "Before creating durable structure, check for an existing Room, DM, member, file, or scheduled task")
+	assertPromptContains(t, prompt, "proactively delegate bounded parts of work that are too large or noisy for one context")
+	assertPromptContains(t, prompt, "shared mutable state, overlapping edits, or one task waiting on another")
+	assertPromptContains(t, prompt, "Never force work into an unrelated agent type")
+	assertPromptContains(t, prompt, "give each one a short, distinct, user-facing `name`")
+	assertPromptContains(t, prompt, "Treat subagent results as evidence, not as the user-facing answer")
 	assertPromptContains(t, prompt, "use `WebSearch` and `WebFetch` as a pair")
 	assertPromptContains(t, prompt, "Do not rely on search snippets alone")
 	assertPromptContains(t, prompt, "Use `nexus-manager` for members, Rooms, DMs, workspaces, and skills")

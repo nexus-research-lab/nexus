@@ -1,5 +1,11 @@
+/**
+ * INPUT: 会话、时间线、历史、导航、滚动与 Composer 子模型。
+ * OUTPUT: 主对话面板各视图区域消费的稳定 props 投影。
+ * POS: 会话控制器与纯视图布局之间的共享模型装配层。
+ */
 import type {
   ComponentProps,
+  PointerEvent,
   RefObject,
   TouchEvent,
   WheelEvent,
@@ -16,6 +22,7 @@ import type { ConversationTimeline } from "./timeline/timeline-model";
 import type { ConversationRoundScrollHandle } from "./timeline/scroll/round-scroll";
 
 interface ConversationPanelScrollSource {
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
   onTouchEnd: () => void;
   onTouchMove: (event: TouchEvent<HTMLDivElement>) => void;
   onTouchStart: (event: TouchEvent<HTMLDivElement>) => void;
@@ -58,6 +65,7 @@ interface ConversationViewportSessionSource {
   };
   scroll: Pick<
     ConversationPanelScrollSource,
+    | "onPointerDown"
     | "onTouchEnd"
     | "onTouchMove"
     | "onTouchStart"
@@ -123,8 +131,10 @@ function buildConversationScrollToLatestModel(
   session: ConversationScrollToLatestSessionSource,
 ): ConversationScrollToLatestModel {
   return {
+    direction: null,
     isLoading: session.conversation.is_loading,
     onClick: () => session.scroll.scrollToBottom("smooth"),
+    unreadCount: 0,
     visible: session.scroll.showScrollToBottom,
   };
 }
@@ -136,6 +146,7 @@ function buildConversationViewportModel(
   return {
     error: conversation.error,
     isHistoryLoading: conversation.is_history_loading,
+    onPointerDown: scroll.onPointerDown,
     onScroll: history.handleScroll,
     onTouchEnd: scroll.onTouchEnd,
     onTouchMove: scroll.onTouchMove,

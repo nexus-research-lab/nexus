@@ -58,10 +58,8 @@ export function ChannelsDirectory() {
         bodyScrollable
         header={(
           <WorkspaceSurfaceHeader
-            badge={t("capability.channels_badge", {
-              count: controller.channels.length || 6,
-            })}
             leading={<MessageCircle className="h-4 w-4" />}
+            narrowMode="toolbar"
             title={t("capability.channels")}
             trailing={(
               <WorkspaceSurfaceToolbarAction
@@ -87,7 +85,7 @@ export function ChannelsDirectory() {
             />
             <CapabilityFilterSelect
               ariaLabel={t("capability.channels_filter_aria")}
-              label={t("capability.category_label")}
+              label={t("capability.status_label")}
               leading={<SlidersHorizontal className="h-3.5 w-3.5" />}
               onChange={(value) => controller.setChannelFilter(
                 value as ChannelFilter,

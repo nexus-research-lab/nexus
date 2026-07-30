@@ -143,7 +143,12 @@ func (h *Handlers) HandleDeleteConnectorOAuthClient(writer http.ResponseWriter, 
 }
 
 func (h *Handlers) HandleConnectorDeviceAuthStart(writer http.ResponseWriter, request *http.Request) {
-	item, err := h.connectors.StartDeviceAuth(request.Context(), currentOwnerUserID(request), chi.URLParam(request, "connector_id"))
+	item, err := h.connectors.StartDeviceAuth(
+		request.Context(),
+		currentOwnerUserID(request),
+		chi.URLParam(request, "connector_id"),
+		connectorsvc.DeviceAuthStartMode(strings.TrimSpace(request.URL.Query().Get("mode"))),
+	)
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), "未知连接器") {
 		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
 		return

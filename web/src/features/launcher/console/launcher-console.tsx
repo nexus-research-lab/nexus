@@ -53,26 +53,28 @@ export function LauncherConsole({
 
   return (
     <section className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="pointer-events-none absolute left-3 top-3 z-20 sm:left-5 sm:top-4">
-        <div className="relative flex items-center gap-1 px-1 py-1">
-          <LottiePlayer
-            className="launcher-console-brand-decoration pointer-events-none absolute left-10 -top-4 h-12 w-12 opacity-[0.72] sm:left-3 sm:-top-15 sm:h-30 sm:w-30"
-            inlineStyle={undefined}
-            src={ANIMATIONS.BOM}
-          />
-          <img alt="" className="h-9 w-9 sm:h-10 sm:w-10" src="/logo.webp" />
+      <header
+        className="relative z-20 h-28 shrink-0"
+        data-desktop-window-drag-region
+      >
+        <LottiePlayer
+          className="launcher-console-spotlights pointer-events-none absolute opacity-[0.68]"
+          inlineStyle={undefined}
+          src={ANIMATIONS.BOM}
+        />
+        <div className="pointer-events-none absolute bottom-2 left-3 flex items-center gap-1">
+          <img alt="" className="h-10 w-10" src="/logo.webp" />
           <span
-            className="mb-3 text-[32px] font-semibold text-foreground"
+            className="launcher-console-wordmark mb-3 text-[32px] text-foreground"
             style={{
               fontFamily: '"Striper", var(--font-sans)',
-              fontWeight: 400,
             }}
           >
             nexus
           </span>
         </div>
-      </div>
-      <div className="relative min-h-0 flex-1 px-8 pb-6 pt-14">
+      </header>
+      <div className="relative min-h-0 flex-1 px-8 pb-6">
         <LauncherHeroStage
           currentAgentId={currentAgentId}
           decorativeTokens={decorativeTokens}

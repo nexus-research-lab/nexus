@@ -1,3 +1,6 @@
+// INPUT: Nexus server 环境配置、数据库 migration 与进程生命周期信号。
+// OUTPUT: 完成 schema/宿主修复后启动的 HTTP/WebSocket 服务。
+// POS: nexus-server 可执行入口，只装配启动阶段，不承载领域规则。
 package main
 
 import (
@@ -21,6 +24,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/migration"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
 	"github.com/pressly/goose/v3"
@@ -36,7 +40,7 @@ const (
 func openMigrationDB(cfg config.Config) (*sql.DB, string, error) {
 	dir := filepath.Join(appfs.Root(), "db", "migrations", storage.MigrationDirName(cfg.DatabaseDriver))
 
-	db, err := storage.OpenDB(cfg)
+	db, err := storage.OpenMigrationDB(cfg)
 	if err != nil {
 		return nil, "", fmt.Errorf("open db for migration: %w", err)
 	}
@@ -58,6 +62,20 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	version, err := goose.GetDBVersion(db)
 	if err != nil {
 		logger.Info("无法获取当前 migration 版本，尝试初始化", "err", err)
+	} else {
+		if err = migration.RepairLegacyAgentDisabledSkillSchema(
+			context.Background(),
+			cfg.DatabaseDriver,
+			db,
+			version,
+			logger,
+		); err != nil {
+			return fmt.Errorf("repair legacy migration version collision: %w", err)
+		}
+		version, err = goose.GetDBVersion(db)
+		if err != nil {
+			return fmt.Errorf("read migration version after compatibility repair: %w", err)
+		}
 	}
 
 	logger.Info("执行数据库迁移", "current_version", version, "dir", dir)
@@ -163,6 +181,11 @@ func buildRootCommand() *cobra.Command {
 }
 
 func runServer() error {
+	// 先加载宿主环境，再读取数据库与日志默认路径。
+	if err := config.LoadDotEnv(); err != nil {
+		return fmt.Errorf("加载环境配置失败: %w", err)
+	}
+
 	cfg := config.Load()
 	logger := logx.New(logx.Options{
 		Service: cfg.ProjectName,
@@ -198,13 +221,8 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
-	if err := migration.RunWorkspaceFiles(appfs.ConfigDir(), agentsvc.WorkspaceBasePath(cfg), logger); err != nil {
+	if err := migration.RunWorkspaceFiles(appfs.AppDir(), agentsvc.WorkspaceBasePath(cfg), logger); err != nil {
 		logger.Error("工作区文件迁移失败", "err", err)
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		return err
-	}
-	if err := migration.RunLegacySkillStorage(context.Background(), cfg, appfs.ConfigDir(), logger); err != nil {
-		logger.Error("旧版 Skill 存储迁移失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
@@ -213,6 +231,23 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	// 平台 Skill 是 enforce runtime 的显式只读根，必须先完成原子发布，
+	// 再由 launcher 收紧 ACL；不能把首次发布推迟到并发的聊天请求中。
+	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
+		logger.Error("平台 Skill 库初始化失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
+	if err := migration.RunRuntimeIdentitySync(context.Background(), cfg, logger); err != nil {
+		logger.Error("runtime OS identity 同步失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
+	if err := migration.RunRoomFiles(context.Background(), cfg, logger); err != nil {
+		// enforce 部署已先收紧 owner state 权限；迁移失败时保留尚未处理的旧文件，
+		// 单条历史脏数据不能阻断服务。
+		logger.Warn("Room 文件状态迁移未完成，将在下次启动重试", "err", err)
+	}
 	// Provider scope 补偿只属于桌面 App 的本地 SQLite，Web/服务器部署不触碰用户数据。
 	if strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop") && storage.IsSQLiteSQLDriver(cfg.DatabaseDriver) {
 		if err := migration.RepairDesktopProviderScope(context.Background(), cfg, logger); err != nil {
@@ -220,6 +255,11 @@ func runServer() error {
 			_, _ = fmt.Fprintln(os.Stderr, err)
 			return err
 		}
+	}
+	// 旧版本允许积累多个未产生用户输入的 Session。只在桌面 SQLite 的无并发启动窗口
+	// 自动收口一次；修复失败保留 started 标记并继续启动，后续由显式维护命令处理。
+	if err := migration.RunDesktopLegacyConversationDraftRepair(context.Background(), cfg, logger); err != nil {
+		logger.Warn("历史空白 Session 一次性兼容修复未完成，继续启动服务", "err", err)
 	}
 
 	server, err := serverapp.NewWithLogger(cfg, logger)

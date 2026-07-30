@@ -94,7 +94,6 @@ func TestServiceHandleRewriteRemovesRuntimeTailBeforeQuery(t *testing.T) {
 			},
 		},
 	})
-
 	if err := service.HandleRewriteLastUserMessage(context.Background(), RewriteRequest{
 		SessionKey:      sessionKey,
 		TargetRoundID:   "round-old",

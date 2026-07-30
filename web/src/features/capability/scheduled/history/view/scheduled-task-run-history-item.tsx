@@ -88,7 +88,7 @@ export function ScheduledTaskRunHistoryItem({
 function RunTimingMetric({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--text-muted)">
         {label}
       </p>
       <p className="mt-1.5 font-medium text-(--text-strong)">

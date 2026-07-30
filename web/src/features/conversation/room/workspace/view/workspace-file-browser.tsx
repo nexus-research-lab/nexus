@@ -2,6 +2,7 @@ import type { MouseEvent } from "react";
 import { FilePlus, FolderOpen, FolderPlus, FolderTree, LoaderCircle, Upload } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
@@ -29,6 +30,7 @@ interface WorkspaceFileBrowserProps {
   activePath: string | null;
   controller: WorkspaceFileBrowserController;
   onResizeStart: () => void;
+  stacked?: boolean;
   width: number;
 }
 
@@ -112,8 +114,8 @@ function WorkspaceFileList({
       <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) text-(--icon-default) shadow-(--surface-avatar-shadow)">
         <FolderTree className="h-4 w-4" />
       </div>
-      <p className="mt-4 text-[15px] font-semibold text-(--text-strong)">{t("room.no_files")}</p>
-      <p className="mt-1 text-[12px] leading-6 text-(--text-soft)">
+      <p className="mt-4 text-base font-semibold text-(--text-strong)">{t("room.no_files")}</p>
+      <p className="mt-1 text-compact leading-6 text-(--text-soft)">
         {t("room.workspace_empty_description")}
       </p>
     </div>
@@ -124,17 +126,23 @@ export function WorkspaceFileBrowser({
   activePath,
   controller,
   onResizeStart,
+  stacked = false,
   width,
 }: WorkspaceFileBrowserProps) {
   const {t} = useI18n();
   return (
     <div
-      className="relative flex min-h-0 shrink-0 flex-col border-l divider-subtle pl-4"
-      style={{width: `${width}px`}}
+      className={cn(
+        "relative flex min-h-0 shrink-0 flex-col border-l divider-subtle pl-4",
+        stacked && "h-[42%] min-h-[220px] max-h-[320px] w-full border-l-0 border-b pb-3 pl-0",
+      )}
+      style={{width: stacked ? "100%" : `${width}px`}}
     >
-      <PanelResizeHandle ariaLabel="调整文件列表宽度" onResizeStart={onResizeStart} />
+      {!stacked ? (
+        <PanelResizeHandle ariaLabel="调整文件列表宽度" onResizeStart={onResizeStart} />
+      ) : null}
 
-      <div className="mb-2 inline-flex min-w-0 items-center gap-1.5 radius-control-sm border border-(--divider-subtle-color) px-2.5 py-1 text-[11px] text-(--text-default)">
+      <div className="mb-2 inline-flex min-w-0 items-center gap-1.5 radius-control-sm border border-(--divider-subtle-color) px-2.5 py-1 text-xs text-(--text-default)">
         {controller.focusedDirectoryPath ? (
           <FolderOpen className="h-3 w-3 shrink-0 text-[var(--accent)]" />
         ) : (

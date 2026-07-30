@@ -20,6 +20,8 @@ type CatalogEntry struct {
 	DocsURL         string
 	Features        []string
 	UserOAuthClient bool
+	AutoOAuthClient bool
+	DeviceAuth      bool
 }
 
 // FeatureDetail 表示连接器内单个能力的说明。
@@ -83,6 +85,8 @@ var connectorCatalog = []CatalogEntry{
 		DocsURL:         "https://open.feishu.cn/document/develop-an-echo-bot/introduction",
 		Features:        []string{"阅读文档", "全文搜索", "Sheet 内容", "Bitable 内容", "创建文档", "更新 Block", "云空间列表", "知识库浏览"},
 		UserOAuthClient: true,
+		AutoOAuthClient: true,
+		DeviceAuth:      true,
 	},
 	{
 		ConnectorID:  "amap",
@@ -243,6 +247,7 @@ var connectorCatalog = []CatalogEntry{
 		Scopes:      []string{"repo", "read:user", "user:email"},
 		DocsURL:     "https://docs.github.com/en/rest",
 		Features:    []string{"仓库管理", "Issue 跟踪", "PR 审查", "代码搜索"},
+		DeviceAuth:  true,
 	},
 	{ConnectorID: "google-calendar", Name: "google-calendar", Title: "Google 日历", Description: "读取日程并创建、修改事件", Icon: "google-calendar", Category: "productivity", AuthType: "oauth2", Status: "coming_soon"},
 	{ConnectorID: "google-drive", Name: "google-drive", Title: "Google 云盘", Description: "读取、检索并管理云盘文件", Icon: "google-drive", Category: "productivity", AuthType: "oauth2", Status: "coming_soon"},

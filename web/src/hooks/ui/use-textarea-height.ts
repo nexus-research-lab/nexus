@@ -1,38 +1,20 @@
-import { RefObject, useEffect, useRef } from "react";
-import { prepare, layout } from "@chenglou/pretext";
-
-// ─── useTextareaHeight ────────────────────────────────────────────────────────
-//
-// Replaces the scrollHeight-reflow pattern:
-//   textarea.style.height = "auto";
-//   textarea.style.height = `${textarea.scrollHeight}px`;
-//
-// Reading scrollHeight forces the browser to flush pending styles and perform
-// a full layout (synchronous reflow). At 60 fps this is fine for a single
-// element, but it blocks the main thread and can cause visible jank when the
-// page is already doing other work (e.g. streaming tokens).
-//
-// pretext layout() does the same line-break arithmetic in pure JS — no DOM
-// access, no reflow. We measure the container width once (cheap ResizeObserver)
-// and recompute height on every value change without touching the DOM until
-// we have the final pixel value.
-//
-// Usage:
-//   const textareaRef = useRef<HTMLTextAreaElement>(null);
-//   useTextareaHeight(textareaRef, value, { minHeight: 24, maxHeight: 128 });
-//
-// The hook writes `style.height` on the ref directly (same as the old pattern)
-// so no React state / re-render is needed.
+/**
+ * INPUT: textarea 当前正文、浏览器真实排版结果与最小/最大高度约束。
+ * OUTPUT: 正文、原生输入或宽度变化时同步更新的有界高度，超出上限后只滚动内部正文。
+ * POS: Composer 与消息编辑器共用的无 React 状态 textarea 测量入口。
+ */
+import {
+  RefObject,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+} from "react";
 
 interface UseTextareaHeightOptions {
   /** Minimum height in px (default 24) */
   minHeight?: number;
   /** Maximum height in px, element scrolls beyond this (default 128) */
   maxHeight?: number;
-  /** Line height in px matching the textarea's CSS (default 24) */
-  lineHeight?: number;
-  /** Extra vertical padding inside the textarea in px (default 0) */
-  paddingY?: number;
 }
 
 export function useTextareaHeight(
@@ -41,64 +23,61 @@ export function useTextareaHeight(
   {
     minHeight = 24,
     maxHeight = 128,
-    lineHeight = 24,
-    paddingY = 0,
   }: UseTextareaHeightOptions = {},
 ): void {
-  // Cache container width across renders — only update on resize
-  const widthRef = useRef(0);
-  const fontRef = useRef("");
+  const optionsRef = useRef({ maxHeight, minHeight });
+  optionsRef.current = { maxHeight, minHeight };
 
-  // Measure container width + font once after mount, then watch for resizes
-  useEffect(() => {
+  const applyHeight = useCallback(() => {
     const el = ref.current;
-    if (!el) return;
-
-    const sample = () => {
-      // contentRect excludes padding/border — matches what text actually fills
-      const rect = el.getBoundingClientRect();
-      // Approximate inner width: subtract horizontal padding
-      const style = window.getComputedStyle(el);
-      const paddingLeft = parseFloat(style.paddingLeft) || 0;
-      const paddingRight = parseFloat(style.paddingRight) || 0;
-      widthRef.current = Math.max(1, rect.width - paddingLeft - paddingRight);
-      fontRef.current = style.font || `400 15px ui-sans-serif, system-ui, sans-serif`;
-    };
-
-    sample();
-
-    const observer = new ResizeObserver(sample);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [ref]);
-
-  // Recompute height without reflow on every value change
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || widthRef.current <= 0) return;
-
-    let contentHeight: number;
-    try {
-      // pretext measures the full text including \n hard breaks
-      const prepared = prepare(value || " ", fontRef.current, { whiteSpace: "pre-wrap" });
-      const result = layout(prepared, widthRef.current, lineHeight);
-      contentHeight = result.height + paddingY;
-    } catch {
-      // Fallback: count newlines × lineHeight (rough but reflow-free)
-      const lines = (value.match(/\n/g) ?? []).length + 1;
-      contentHeight = lines * lineHeight + paddingY;
+    if (!el) {
+      return;
     }
+    const { maxHeight: currentMaxHeight, minHeight: currentMinHeight } =
+      optionsRef.current;
+    const style = window.getComputedStyle(el);
+    const borderY = (parseFloat(style.borderTopWidth) || 0)
+      + (parseFloat(style.borderBottomWidth) || 0);
+    const paddingY = (parseFloat(style.paddingTop) || 0)
+      + (parseFloat(style.paddingBottom) || 0);
+    const wasAtEnd = document.activeElement === el
+      && el.selectionStart === el.value.length
+      && el.selectionEnd === el.value.length;
 
-    const clamped = Math.min(Math.max(contentHeight, minHeight), maxHeight);
+    // Reset first so scrollHeight can shrink after text or available width does.
+    // Native scrollHeight is the only source that includes the active font,
+    // textarea padding, browser line breaking, and in-progress IME composition.
+    el.style.height = "0px";
+    const contentHeight = style.boxSizing === "border-box"
+      ? el.scrollHeight + borderY
+      : Math.max(0, el.scrollHeight - paddingY);
+    const clamped = Math.min(
+      Math.max(contentHeight, currentMinHeight),
+      currentMaxHeight,
+    );
     el.style.height = `${clamped}px`;
-    el.style.overflowY = "auto";
-    if (
-      contentHeight > maxHeight &&
-      document.activeElement === el &&
-      el.selectionStart === value.length &&
-      el.selectionEnd === value.length
-    ) {
+    el.style.overflowY = contentHeight > currentMaxHeight ? "auto" : "hidden";
+    if (contentHeight > currentMaxHeight && wasAtEnd) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [value, lineHeight, minHeight, maxHeight, paddingY, ref]);
+  }, [ref]);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) {
+      return;
+    }
+    applyHeight();
+    el.addEventListener("input", applyHeight);
+    const observer = new ResizeObserver(applyHeight);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("input", applyHeight);
+      observer.disconnect();
+    };
+  }, [applyHeight, ref]);
+
+  useLayoutEffect(() => {
+    applyHeight();
+  }, [applyHeight, maxHeight, minHeight, value]);
 }

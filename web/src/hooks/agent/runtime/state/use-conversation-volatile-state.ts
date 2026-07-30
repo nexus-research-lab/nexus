@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room slot/permission 动作、execution 跟踪模式与权限过期时钟。
+ * OUTPUT: 同步可读的易失 slot/permission/execution 切片、拒绝 terminal execution 的迟到精确权限、acknowledged tombstone 与 Session 清理命令。
+ * POS: runtime 易失状态的 React owner；业务迁移委托给相邻纯 model。
+ */
 import {
   useCallback,
   useEffect,
@@ -6,16 +11,28 @@ import {
   type SetStateAction,
 } from "react";
 
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
+import {
+  filterPendingPermissionsForTerminalRoomExecutions,
+} from "@/lib/conversation/pending-permission-match";
 
 import {
   getNextPendingPermissionTimeoutMs,
   pruneExpiredPendingPermissions,
 } from "../model/pending-permission-model";
+import {
+  acknowledgeRoomAgentExecutionPermission,
+  syncRoomAgentExecutionsFromPermissions,
+  syncRoomAgentExecutionsFromSlots,
+} from "../model/room-agent-execution-state";
 
 interface UseConversationVolatileStateParams {
   onPendingPermissionCountChange: (count: number) => void;
+  trackRoomAgentExecutions: boolean;
 }
 
 function resolveStateAction<T>(next: SetStateAction<T>, current: T): T {
@@ -29,6 +46,7 @@ function resolveStateAction<T>(next: SetStateAction<T>, current: T): T {
  */
 export function useConversationVolatileState({
   onPendingPermissionCountChange,
+  trackRoomAgentExecutions,
 }: UseConversationVolatileStateParams) {
   const [pendingAgentSlots, setPendingAgentSlotsState] = useState<
     RoomPendingAgentSlotState[]
@@ -36,32 +54,101 @@ export function useConversationVolatileState({
   const [pendingPermissions, setPendingPermissionsState] = useState<
     PendingPermission[]
   >([]);
+  const [roomAgentExecutionStates, setRoomAgentExecutionStatesState] = useState<
+    RoomAgentExecutionState[]
+  >([]);
   const pendingAgentSlotsRef = useRef(pendingAgentSlots);
   const pendingPermissionsRef = useRef(pendingPermissions);
+  const roomAgentExecutionStatesRef = useRef(roomAgentExecutionStates);
 
+  const setRoomAgentExecutionStates = useCallback(
+    (nextState: SetStateAction<RoomAgentExecutionState[]>): void => {
+      const next = resolveStateAction(
+        nextState,
+        roomAgentExecutionStatesRef.current,
+      );
+      roomAgentExecutionStatesRef.current = next;
+      if (trackRoomAgentExecutions) {
+        const nextPermissions =
+          filterPendingPermissionsForTerminalRoomExecutions(
+            pendingPermissionsRef.current,
+            next,
+          );
+        if (nextPermissions !== pendingPermissionsRef.current) {
+          pendingPermissionsRef.current = nextPermissions;
+          onPendingPermissionCountChange(nextPermissions.length);
+          setPendingPermissionsState(nextPermissions);
+        }
+      }
+      setRoomAgentExecutionStatesState(next);
+    },
+    [onPendingPermissionCountChange, trackRoomAgentExecutions],
+  );
   const setPendingAgentSlots = useCallback(
     (nextState: SetStateAction<RoomPendingAgentSlotState[]>): void => {
       const next = resolveStateAction(nextState, pendingAgentSlotsRef.current);
       pendingAgentSlotsRef.current = next;
+      if (trackRoomAgentExecutions) {
+        setRoomAgentExecutionStates((states) => (
+          syncRoomAgentExecutionsFromSlots(states, next)
+        ));
+      }
       setPendingAgentSlotsState(next);
     },
-    [],
+    [setRoomAgentExecutionStates, trackRoomAgentExecutions],
   );
   const setPendingPermissions = useCallback(
     (nextState: SetStateAction<PendingPermission[]>): void => {
-      const next = resolveStateAction(nextState, pendingPermissionsRef.current);
+      const proposed = resolveStateAction(
+        nextState,
+        pendingPermissionsRef.current,
+      );
+      const next = trackRoomAgentExecutions
+        ? filterPendingPermissionsForTerminalRoomExecutions(
+            proposed,
+            roomAgentExecutionStatesRef.current,
+          )
+        : proposed;
       pendingPermissionsRef.current = next;
+      if (trackRoomAgentExecutions) {
+        setRoomAgentExecutionStates((states) => (
+          syncRoomAgentExecutionsFromPermissions(states, next)
+        ));
+      }
       onPendingPermissionCountChange(next.length);
       setPendingPermissionsState(next);
     },
-    [onPendingPermissionCountChange],
+    [
+      onPendingPermissionCountChange,
+      setRoomAgentExecutionStates,
+      trackRoomAgentExecutions,
+    ],
   );
+  const acknowledgePermissionRequest = useCallback((requestId: string): void => {
+    if (!trackRoomAgentExecutions) {
+      return;
+    }
+    const permission = pendingPermissionsRef.current.find(
+      (candidate) => candidate.request_id === requestId,
+    );
+    if (!permission) {
+      return;
+    }
+    setRoomAgentExecutionStates((states) => (
+      acknowledgeRoomAgentExecutionPermission(states, permission)
+    ));
+  }, [setRoomAgentExecutionStates, trackRoomAgentExecutions]);
   const clearLiveState = useCallback((): void => {
     setPendingAgentSlots((slots) => slots.length > 0 ? [] : slots);
     setPendingPermissions((permissions) => (
       permissions.length > 0 ? [] : permissions
     ));
-  }, [setPendingAgentSlots, setPendingPermissions]);
+    setRoomAgentExecutionStates((states) => states.length > 0 ? [] : states);
+  }, [
+    setPendingAgentSlots,
+    setPendingPermissions,
+    setRoomAgentExecutionStates,
+  ]);
   const readPendingAgentSlots = useCallback(
     () => pendingAgentSlotsRef.current,
     [],
@@ -93,12 +180,15 @@ export function useConversationVolatileState({
   }, [pendingPermissions, setPendingPermissions]);
 
   return {
+    acknowledgePermissionRequest,
     clearLiveState,
     pendingAgentSlots,
     pendingPermissions,
+    roomAgentExecutionStates,
     readPendingAgentSlots,
     readPendingPermissions,
     setPendingAgentSlots,
     setPendingPermissions,
+    setRoomAgentExecutionStates,
   };
 }

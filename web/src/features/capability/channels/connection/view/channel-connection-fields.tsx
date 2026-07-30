@@ -27,10 +27,11 @@ interface ChannelConnectionFieldsController {
   draft: ChannelConnectionDraft;
   loginLoading: boolean;
   loginView: ChannelLoginView | null;
+  personalWeixin: boolean;
   requestDeleteAccount: (account: ChannelAccountView) => void;
   setAgentId: (agentId: string) => void;
+  showsQRCode: boolean;
   submitVerifyCode: (value: string) => Promise<boolean>;
-  supportsPersonalWeixinLogin: boolean;
   updateField: (field: ChannelCredentialField, value: string) => void;
 }
 
@@ -56,13 +57,15 @@ export function ChannelConnectionFields({
       <ChannelGuide item={currentItem} />
 
       {currentItem.runtime_note ? (
-        <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2.5 text-[12px] font-medium leading-5 text-(--text-default)">
+        <div className="rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3 py-2.5 text-compact font-medium leading-5 text-(--text-default)">
           {currentItem.runtime_note}
         </div>
       ) : null}
 
-      {controller.supportsPersonalWeixinLogin ? (
+      {controller.showsQRCode ? (
         <ChannelLoginPanel
+          channelType={currentItem.channel_type}
+          channelTitle={currentItem.title}
           loading={controller.loginLoading}
           loginView={controller.loginView}
           onSubmitVerifyCode={(value) => {
@@ -71,7 +74,7 @@ export function ChannelConnectionFields({
         />
       ) : null}
 
-      {controller.supportsPersonalWeixinLogin ? (
+      {controller.personalWeixin ? (
         <ChannelAccountsPanel
           accounts={currentItem.accounts || []}
           deletingAccountId={controller.deletingAccountId}

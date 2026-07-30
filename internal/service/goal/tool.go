@@ -60,7 +60,9 @@ func (s *Service) changeStatusByModel(
 		return nil, err
 	}
 	ctx = withBudgetLimitSteeringSuppressed(ctx)
-	s.prepareExternalMutation(ctx, strings.TrimSpace(goalID))
+	if err = s.prepareExternalMutation(ctx, strings.TrimSpace(goalID)); err != nil {
+		return nil, err
+	}
 	item, err = s.loadMutableGoal(ctx, goalID)
 	if err != nil {
 		return nil, err
@@ -155,9 +157,31 @@ func (s *Service) UsageLimitForSession(ctx context.Context, sessionKey string, r
 	return s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", roundID, firstNonEmptyGoalReason(reason, "Runtime usage limit reached"))
 }
 
+// UsageLimitForGoal 把 runtime usage limit 固定投影到发起该 round 的 Goal。
+// Goal 已完成时保持终态，避免迟到 terminal 结果影响同 session 的新 Goal。
+func (s *Service) UsageLimitForGoal(ctx context.Context, goalID string, roundID string, reason string) (*protocol.Goal, error) {
+	if err := s.ensureEnabled(); err != nil {
+		return nil, err
+	}
+	item, err := s.repo.GetGoal(ctx, strings.TrimSpace(goalID))
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrGoalNotFound
+	}
+	if !protocol.IsCurrentGoalStatus(item.Status) {
+		return item, nil
+	}
+	return s.limitForSystem(ctx, *item, protocol.GoalStatusUsageLimited, "usage_limited", roundID, firstNonEmptyGoalReason(reason, "Runtime usage limit reached"))
+}
+
 func (s *Service) recordUsageForGoal(ctx context.Context, item *protocol.Goal, usage protocol.GoalUsage, roundID string) (*protocol.Goal, error) {
-	usage.TotalTokens = usage.BudgetTokens()
-	if usage.TotalTokens == 0 && usage.RuntimeSeconds == 0 {
+	if item.UsageFinalized {
+		return nil, ErrGoalInvalidState
+	}
+	usage = usage.NormalizeTotals()
+	if usage.BudgetTokens() == 0 && usage.ActualTokens() == 0 && usage.RuntimeSeconds == 0 {
 		return item, nil
 	}
 	current := item
@@ -178,7 +202,14 @@ func (s *Service) recordUsageForGoal(ctx context.Context, item *protocol.Goal, u
 	return nil, ErrGoalVersionStale
 }
 
+type atomicGoalUsageRepository interface {
+	RecordGoalUsage(context.Context, protocol.Goal, int64, []protocol.GoalEvent) (*protocol.Goal, error)
+}
+
 func (s *Service) recordUsageForLoadedGoal(ctx context.Context, item *protocol.Goal, usage protocol.GoalUsage, roundID string) (*protocol.Goal, error) {
+	if item.UsageFinalized {
+		return nil, ErrGoalInvalidState
+	}
 	expectedVersion := item.Version
 	item.Usage = item.Usage.Add(usage)
 	item.TimeUsedSeconds += usage.RuntimeSeconds
@@ -189,27 +220,60 @@ func (s *Service) recordUsageForLoadedGoal(ctx context.Context, item *protocol.G
 	}
 	item.Version++
 	item.UpdatedAt = s.nowFn()
-	updated, err := s.repo.UpdateGoal(ctx, *item, expectedVersion)
+	events := []protocol.GoalEvent{
+		s.newGoalEvent(
+			*item,
+			"usage_recorded",
+			protocol.GoalUpdateSourceSystem,
+			roundID,
+			map[string]any{"usage": usage},
+			item.UpdatedAt,
+		),
+	}
+	if budgetLimited {
+		payload := map[string]any{
+			"reason":        item.LastError,
+			"usage_total":   item.Usage.BudgetTokens(),
+			"budget_tokens": item.Usage.BudgetTokens(),
+			"actual_tokens": item.Usage.ActualTokens(),
+		}
+		if item.TokenBudget != nil {
+			payload["token_budget"] = *item.TokenBudget
+		}
+		events = append(events, s.newGoalEvent(
+			*item,
+			"budget_limited",
+			protocol.GoalUpdateSourceSystem,
+			roundID,
+			payload,
+			item.UpdatedAt,
+		))
+	}
+
+	var (
+		updated *protocol.Goal
+		err     error
+	)
+	if repository, ok := s.repo.(atomicGoalUsageRepository); ok {
+		updated, err = repository.RecordGoalUsage(ctx, *item, expectedVersion, events)
+	} else {
+		updated, err = s.repo.UpdateGoal(ctx, *item, expectedVersion)
+		if err == nil {
+			for _, event := range events {
+				if err = s.repo.AppendEvent(ctx, event); err != nil {
+					break
+				}
+			}
+		}
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrGoalVersionStale
 	}
 	if err != nil {
 		return nil, err
 	}
-	if err := s.appendEvent(ctx, *updated, "usage_recorded", protocol.GoalUpdateSourceSystem, roundID, map[string]any{"usage": usage}); err != nil {
-		return nil, err
-	}
-	if budgetLimited {
-		payload := map[string]any{
-			"reason":      item.LastError,
-			"usage_total": item.Usage.Total(),
-		}
-		if item.TokenBudget != nil {
-			payload["token_budget"] = *item.TokenBudget
-		}
-		if err := s.appendEvent(ctx, *updated, "budget_limited", protocol.GoalUpdateSourceSystem, roundID, payload); err != nil {
-			return nil, err
-		}
+	for _, event := range events {
+		s.publishGoalEvent(ctx, *updated, event)
 	}
 	if protocol.NormalizeGoalStatus(updated.Status) == protocol.GoalStatusActive {
 		s.recordWallClockGoalUsage(*updated, usage.RuntimeSeconds)

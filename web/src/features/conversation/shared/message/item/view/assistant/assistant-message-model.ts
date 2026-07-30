@@ -1,3 +1,8 @@
+/**
+ * INPUT: controller 已投影的 Assistant 活动、内容、权限、布局及交互状态。
+ * OUTPUT: Assistant 子视图按职责消费的窄状态与环境契约。
+ * POS: MessageItem controller 到 Assistant 视图的类型边界，不选择内容模式策略。
+ */
 import type {
   CSSProperties,
   ReactNode,
@@ -11,7 +16,12 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 
-import type { AssistantContentMode, ContentProjection } from "../../message-item-projection";
+import { CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME } from "../../../../conversation-panel-styles";
+import type {
+  AssistantContentMode,
+  ContentProjection,
+  PendingInteractionOwner,
+} from "../../message-item-projection";
 import type { MessageActivityState } from "../../activity/message-activity-state";
 
 export interface AssistantActivityState {
@@ -62,7 +72,9 @@ interface AssistantLayoutState {
 }
 
 export interface AssistantPermissionState {
+  all: PendingPermission[];
   matchedByToolUseId: ReadonlyMap<string, PendingPermission>;
+  owner: PendingInteractionOwner;
   unmatched: PendingPermission[];
 }
 
@@ -103,6 +115,7 @@ export interface AssistantContentEnvironment {
 export interface MessageAssistantSectionProps {
   assistant: MessageAssistantState;
   assistantContentMode: AssistantContentMode;
+  assistantEmptyState?: ReactNode;
   assistantHeaderAction?: ReactNode;
   canRespondToPermissions: boolean;
   compact: boolean;
@@ -153,25 +166,18 @@ function resolveContentWorkspaceAgentId(
   return assistantAgentId ?? workspaceAgentId;
 }
 
-export function resolveAssistantDisplayName(name?: string | null): string {
-  return name || "协作成员";
-}
-
 const ASSISTANT_LAYOUTS = {
   compact: {
-    content: "text-[15px] leading-6",
-    grid: "grid-cols-[minmax(0,1fr)]",
+    content: "pt-1 text-base leading-6",
     inner: "max-w-full",
     section: "px-0",
-    showSideAvatar: false,
+    showMetadata: true,
   },
   expanded: {
-    content: "text-[16px] leading-7",
-    grid:
-      "nexus-chat-assistant-grid-expanded grid-cols-[40px_minmax(0,1fr)] gap-3",
-    inner: "max-w-[980px]",
+    content: "w-full max-w-full pt-2 text-[16px] leading-7",
+    inner: CONVERSATION_ASSISTANT_FRAME_WIDTH_CLASS_NAME,
     section: "px-2 sm:px-3",
-    showSideAvatar: true,
+    showMetadata: false,
   },
 } as const;
 

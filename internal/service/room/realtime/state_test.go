@@ -156,6 +156,49 @@ func TestRoomSlotTracksRunningSubagentTasks(t *testing.T) {
 	}
 }
 
+func TestRoomSlotUsagePendingSurvivesTerminalLifecycle(t *testing.T) {
+	slot := &activeRoomSlot{}
+	slot.rememberSubagentTaskMessage(protocol.Message{"metadata": map[string]any{
+		"subtype": "task_started", "task_id": "task-1", "agent_id": "agent-1", "agent_type": "worker",
+	}})
+	slot.markSubagentUsagePending("task-1", 0)
+	slot.rememberSubagentTaskMessage(protocol.Message{"metadata": map[string]any{
+		"subtype": "task_notification", "task_id": "task-1", "status": "completed",
+	}})
+
+	if !slot.hasRunningSubagentTask() {
+		t.Fatal("terminal lifecycle 已结束但 usage checkpoint 未完成时仍应保留 join barrier")
+	}
+
+	slot.clearSubagentUsagePending("task-1", 0)
+	if slot.hasRunningSubagentTask() {
+		t.Fatal("usage checkpoint 完成后应释放 join barrier")
+	}
+}
+
+func TestRoomSlotUsagePendingKeepsLatestCumulativeValue(t *testing.T) {
+	slot := &activeRoomSlot{}
+	slot.markSubagentUsagePending("task-1", 0)
+	if pending := slot.subagentUsagePendingSnapshot(); pending["task-1"] != 0 {
+		t.Fatalf("explicit zero pending = %#v, want task retained with 0", pending)
+	}
+
+	slot.markSubagentUsagePending("task-1", 200)
+	slot.markSubagentUsagePending("task-1", 100)
+	if pending := slot.subagentUsagePendingSnapshot(); pending["task-1"] != 200 {
+		t.Fatalf("out-of-order cumulative snapshot moved pending backward: %#v", pending)
+	}
+	slot.clearSubagentUsagePending("task-1", 100)
+	if pending := slot.subagentUsagePendingSnapshot(); pending["task-1"] != 200 {
+		t.Fatalf("old settlement cleared newer pending: %#v", pending)
+	}
+
+	slot.clearSubagentUsagePending("task-1", 200)
+	if pending := slot.subagentUsagePendingSnapshot(); len(pending) != 0 {
+		t.Fatalf("matching settlement left pending: %#v", pending)
+	}
+}
+
 func TestRoomRoundReportsRunningSubagentTasks(t *testing.T) {
 	slot := &activeRoomSlot{}
 	slot.setSubagentTasks(map[string]struct{}{"task-1": {}})

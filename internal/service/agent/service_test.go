@@ -16,11 +16,97 @@ import (
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 
-	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
+
+func TestServiceListAgentsUsesSystemScopeWhenAuthIsDisabled(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+
+	singleUserContext := authctx.WithState(context.Background(), authctx.State{
+		AuthRequired: false,
+		UserCount:    2,
+	})
+	if _, err = service.ListAgents(singleUserContext); err != nil {
+		t.Fatalf("初始化 system agent 失败: %v", err)
+	}
+	userContext := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-b"})
+	if _, err = service.CreateAgent(userContext, protocol.CreateRequest{Name: "用户 B 助手"}); err != nil {
+		t.Fatalf("创建用户 B agent 失败: %v", err)
+	}
+
+	items, err := service.ListAgents(singleUserContext)
+	if err != nil {
+		t.Fatalf("单用户作用域列出 agent 失败: %v", err)
+	}
+	if len(items) != 1 || items[0].OwnerUserID != authctx.SystemUserID {
+		t.Fatalf("认证关闭时不应返回其他 owner agent: %+v", items)
+	}
+}
+
+func TestServiceGetAgentRejectsOwnerWorkspaceSymlink(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	ownerAContext := authctx.WithPrincipal(
+		context.Background(),
+		&authctx.Principal{UserID: "user-a"},
+	)
+	ownerBContext := authctx.WithPrincipal(
+		context.Background(),
+		&authctx.Principal{UserID: "user-b"},
+	)
+	ownerAAgent, err := service.CreateAgent(
+		ownerAContext,
+		protocol.CreateRequest{Name: "owner-a-agent"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerBAgent, err := service.CreateAgent(
+		ownerBContext,
+		protocol.CreateRequest{Name: "owner-b-agent"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignSettingsPath := filepath.Join(ownerBAgent.WorkspacePath, ".nexus", "settings.json")
+	before, err := os.ReadFile(foreignSettingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.RemoveAll(ownerAAgent.WorkspacePath); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Symlink(ownerBAgent.WorkspacePath, ownerAAgent.WorkspacePath); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	if _, err = service.GetAgent(ownerAContext, ownerAAgent.AgentID); !errors.Is(err, confinedfs.ErrSymlink) {
+		t.Fatalf("Agent 查询不能借 workspace symlink 写入另一 owner: %v", err)
+	}
+	after, err := os.ReadFile(foreignSettingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("被链接 owner 的 runtime settings 不应发生变化")
+	}
+}
 
 func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	cfg := newTestConfig(t)
@@ -82,6 +168,13 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 		t.Fatalf("workspace 目录未创建: %v", err)
 	}
 	assertRuntimeEmotionStateFile(t, created.WorkspacePath)
+	profileTemplate, err := os.ReadFile(filepath.Join(created.WorkspacePath, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("创建 Agent 时应立即写入默认行为模板: %v", err)
+	}
+	if !strings.Contains(string(profileTemplate), "## Role") {
+		t.Fatalf("默认行为模板内容不正确: %s", profileTemplate)
+	}
 	if err = os.MkdirAll(filepath.Join(created.WorkspacePath, ".agents", "skills", "skill-a"), 0o755); err != nil {
 		t.Fatalf("创建测试 skill-a 失败: %v", err)
 	}
@@ -122,6 +215,31 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 	if !validation.IsValid || !validation.IsAvailable {
 		t.Fatalf("重复名称应只作为展示名并允许复用: %+v", validation)
+	}
+}
+
+func TestCreateAgentPersistsCustomizedProfileTemplate(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	const customTemplate = "## Role\n\n- Purpose: 负责发布前质量审查\n"
+	created, err := service.CreateAgent(context.Background(), protocol.CreateRequest{
+		Name:            "质量审查助手",
+		ProfileTemplate: customTemplate,
+	})
+	if err != nil {
+		t.Fatalf("创建自定义模板 Agent 失败: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(created.WorkspacePath, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("读取自定义行为模板失败: %v", err)
+	}
+	if string(content) != customTemplate {
+		t.Fatalf("自定义行为模板未原样落盘: got=%q want=%q", content, customTemplate)
 	}
 }
 
@@ -462,7 +580,9 @@ func newTestConfig(t *testing.T) config.Config {
 	t.Helper()
 
 	root := t.TempDir()
-	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
+	stateRoot := filepath.Join(root, ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
 	return config.Config{
 		Host:           "127.0.0.1",
 		Port:           18010,
@@ -480,7 +600,7 @@ var agentTranscriptSanitizePattern = regexp.MustCompile(`[^a-zA-Z0-9]`)
 
 func agentTranscriptProjectDir(workspacePath string) string {
 	return filepath.Join(
-		os.Getenv("NEXUS_CONFIG_DIR"),
+		appfs.UserRuntimeRoot(authctx.SystemUserID),
 		"projects",
 		sanitizeAgentTranscriptPath(canonicalizeAgentTranscriptPath(workspacePath)),
 	)
@@ -574,24 +694,7 @@ func agentTranscriptHash(value string) string {
 
 func migrateSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
-
-	db, err := sql.Open("sqlite", databaseURL)
-	if err != nil {
-		t.Fatalf("打开测试数据库失败: %v", err)
-	}
-	defer func(db *sql.DB) {
-		err := db.Close()
-		if err != nil {
-
-		}
-	}(db)
-
-	if err = goose.SetDialect("sqlite3"); err != nil {
-		t.Fatalf("设置 goose 方言失败: %v", err)
-	}
-	if err = goose.Up(db, testMigrationDir(t)); err != nil {
-		t.Fatalf("执行 migration 失败: %v", err)
-	}
+	handlertest.MigrateSQLiteFromDir(t, databaseURL, testMigrationDir(t))
 }
 
 func testMigrationDir(t *testing.T) string {

@@ -12,6 +12,8 @@
 ## 约定
 
 - 新宿主字段先加入配置字段映射，不在消费者直接读取原始全局对象。
+- 窗口 chrome 只通过文档级平台标记与 `--desktop-window-controls-inset` 暴露横向控制区；不得再注入垂直 inset 推低整棵应用树。
+- `app-region` 只服务 macOS 统一标题栏；Windows 的 WebView 始终是客户区，配置层不得启动区域投影或复制拖动手势。
 - 鉴权、OAuth 和生命周期协议不得互相复制 URL 判断。
 - 原生消息 payload 的 snake_case 转换只允许出现在 `lifecycle.ts` 边界。
 - 桌面恢复逻辑必须有可证明的重试上限；存储不可用时保持当前页面。

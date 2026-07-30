@@ -1,5 +1,6 @@
-import { formatTokens } from "@/lib/format/token-count";
 import type { Goal, GoalStatus } from "@/types/conversation/goal";
+import { COMPOSER_COMPACT_LANE_CLASS_NAME } from "../composer/composer-styles";
+import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "../conversation-panel-styles";
 import type { GoalContinuationHold } from "./goal-continuation-hold";
 
 export type GoalCommandPhase = "clearing" | "pausing" | "resuming" | "updating";
@@ -33,7 +34,6 @@ export interface GoalDraftFormModel {
 interface GoalStatusTone {
   badge: string;
   icon: string;
-  meter: string;
   text: string;
 }
 
@@ -47,12 +47,11 @@ export type GoalStatusAction =
 export interface GoalStatusStripModel {
   actions: GoalStatusAction[];
   attentionMessage: string | null;
-  budgetLabel: string | null;
   isExecuting: boolean;
   statusLabel: string;
   statusTitle: string;
   tone: GoalStatusTone;
-  usagePercent: number | null;
+  usageLabel: string | null;
 }
 
 interface GoalStatusProjectionInput {
@@ -80,12 +79,13 @@ interface GoalActionRule {
 }
 
 export const GOAL_PANEL_STRIP_CLASS_NAME =
-  "mx-auto w-full max-w-[960px] px-3 sm:px-5 xl:px-6";
+  `${CONVERSATION_CONTENT_LANE_CLASS_NAME} px-3 sm:px-5 xl:px-6`;
 
-export const GOAL_PANEL_COMPACT_CLASS_NAME = "max-w-none px-2";
+export const GOAL_PANEL_COMPACT_CLASS_NAME =
+  `${COMPOSER_COMPACT_LANE_CLASS_NAME} px-4`;
 
 export const GOAL_PANEL_SURFACE_CLASS_NAME =
-  "border-b border-(--surface-canvas-border) py-1";
+  "rounded-[16px] border border-(--surface-control-border) bg-[color:color-mix(in_srgb,var(--surface-raised-background)_94%,transparent)] px-3 py-1.5 shadow-(--surface-control-shadow)";
 
 export const GOAL_PANEL_ROW_CLASS_NAME =
   "group -mx-1 flex min-h-8 items-center gap-2 px-1 py-0.5 text-(--text-default)";
@@ -94,7 +94,7 @@ export const GOAL_PANEL_LEADING_ICON_CLASS_NAME =
   "inline-flex h-5 w-5 shrink-0 items-center justify-center radius-control-xs bg-[color:color-mix(in_srgb,var(--primary)_9%,transparent)] text-(--primary)";
 
 export const GOAL_PANEL_BADGE_CLASS_NAME =
-  "inline-flex shrink-0 items-center radius-control-xs border px-1.5 py-0.5 text-[10px] font-semibold leading-none text-(--text-soft)";
+  "inline-flex shrink-0 items-center radius-control-xs border px-1.5 py-0.5 text-2xs font-semibold leading-none text-(--text-soft)";
 
 const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
   active: "运行中",
@@ -108,28 +108,24 @@ const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
 const ACTIVE_TONE: GoalStatusTone = {
   badge: "border-[color:color-mix(in_srgb,var(--success)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
   icon: "border-[color:color-mix(in_srgb,var(--success)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
-  meter: "bg-(--success)",
   text: "text-(--success)",
 };
 
 const PAUSED_TONE: GoalStatusTone = {
   badge: "border-[color:color-mix(in_srgb,var(--warning)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] text-(--warning)",
   icon: "border-[color:color-mix(in_srgb,var(--warning)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] text-(--warning)",
-  meter: "bg-(--warning)",
   text: "text-(--warning)",
 };
 
 const COMPLETE_TONE: GoalStatusTone = {
   badge: "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)",
   icon: "border-(--status-info-soft-border) bg-(--status-info-soft-bg) text-(--status-info-soft-text)",
-  meter: "bg-(--status-info-soft-text)",
   text: "text-(--status-info-soft-text)",
 };
 
 const LIMITED_TONE: GoalStatusTone = {
   badge: "border-destructive/25 bg-destructive/10 text-destructive",
   icon: "border-destructive/25 bg-destructive/10 text-destructive",
-  meter: "bg-destructive",
   text: "text-destructive",
 };
 
@@ -178,16 +174,42 @@ const RESUMABLE_GOAL_STATUSES = new Set<GoalStatus>([
   "usage_limited",
 ]);
 
-function goalUsageTotal(goal: Goal | null): number {
-  return goal?.usage?.total_tokens ?? 0;
+function positiveTokenCount(value: number | null | undefined): number {
+  return Number.isFinite(value) ? Math.max(0, value ?? 0) : 0;
 }
 
-function goalBudgetPercent(goal: Goal | null): number | null {
-  const budget = goal?.token_budget ?? null;
-  if (!budget || budget <= 0) {
-    return null;
+export function goalActualTokens(goal: Goal | null): number {
+  const usage = goal?.usage;
+  if (!usage) {
+    return 0;
   }
-  return Math.min(100, Math.round((goalUsageTotal(goal) / budget) * 100));
+  if (usage.actual_tokens !== undefined) {
+    return positiveTokenCount(usage.actual_tokens);
+  }
+  const hasBreakdown = [
+    usage.input_tokens,
+    usage.output_tokens,
+    usage.cache_creation_input_tokens,
+    usage.cache_read_input_tokens,
+    usage.reasoning_tokens,
+  ].some((value) => value !== undefined && value !== 0);
+  if (!hasBreakdown) {
+    return positiveTokenCount(usage.total_tokens);
+  }
+  return positiveTokenCount(usage.input_tokens)
+    + positiveTokenCount(usage.cache_creation_input_tokens)
+    + positiveTokenCount(usage.cache_read_input_tokens)
+    + Math.max(
+      positiveTokenCount(usage.output_tokens),
+      positiveTokenCount(usage.reasoning_tokens),
+    );
+}
+
+function goalActualTokensEstimated(goal: Goal): boolean {
+  const usage = goal.usage;
+  return goalActualTokens(goal) > 0
+    && (usage?.actual_tokens_estimated === true
+      || usage?.actual_tokens === undefined);
 }
 
 function goalStatusTone(status: GoalStatus): GoalStatusTone {
@@ -207,12 +229,11 @@ export function buildGoalStatusStripModel(
       (rule) => rule.action,
     ),
     attentionMessage: input.error ?? input.goal.last_error ?? null,
-    budgetLabel: buildGoalBudgetLabel(input.goal),
     isExecuting: input.isGenerating && input.goal.status === "active",
     statusLabel: visibleStatus.label,
     statusTitle: activeContinuationHold?.detail ?? visibleStatus.label,
     tone: goalStatusTone(visibleStatus.status),
-    usagePercent: goalBudgetPercent(input.goal),
+    usageLabel: buildGoalUsageLabel(input.goal),
   };
 }
 
@@ -232,13 +253,19 @@ function isIdleActiveGoal(input: GoalStatusProjectionInput): boolean {
   return input.goal.status === "active" && !input.isGenerating;
 }
 
-function buildGoalBudgetLabel(goal: Goal): string | null {
-  const usageTotal = goalUsageTotal(goal);
-  const budget = goal.token_budget ?? null;
-  if (budget && budget > 0) {
-    return `${formatTokens(usageTotal)} / ${formatTokens(budget)}`;
+function buildGoalUsageLabel(goal: Goal): string | null {
+  if (
+    !goal.usage
+    || (goal.status === "complete" && goal.usage_finalized !== true)
+  ) {
+    return null;
   }
-  return usageTotal > 0 ? formatTokens(usageTotal) : null;
+  const actual = goalActualTokens(goal);
+  if (actual <= 0) {
+    return null;
+  }
+  const actualLabel = `${goalActualTokensEstimated(goal) ? "≈" : ""}${actual.toLocaleString()}`;
+  return `${actualLabel} tokens`;
 }
 
 export function buildGoalActivityKey(

@@ -5,6 +5,7 @@ package realtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -17,7 +18,6 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
@@ -68,7 +68,8 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 	if resumeID == "" {
 		return "", nil
 	}
-	decision := sessionresumesvc.NewPolicy(s.history).CanResume(workspacePath, resumeID)
+	history := s.history.ForOwner(slot.OwnerUserID)
+	decision := sessionresumesvc.NewPolicy(history).CanResume(workspacePath, resumeID)
 	if decision.Allowed {
 		return resumeID, nil
 	}
@@ -105,19 +106,19 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 }
 
 func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
+	if e.round == nil {
+		return nil, errors.New("room round is required")
+	}
+	if err := requireGroupRoomContext(e.round.Context); err != nil {
+		return nil, err
+	}
 	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
 		return nil, err
 	}
 	if err := workspacepkg.EnsureUserSkillLibrary(e.service.config, e.agent.OwnerUserID); err != nil {
 		return nil, err
 	}
-	if err := workspacepkg.EnsureInitialized(
-		e.agent.AgentID,
-		e.agent.Name,
-		e.agent.WorkspacePath,
-		e.agent.IsMain,
-		e.agent.CreatedAt,
-	); err != nil {
+	if err := workspacepkg.EnsureInitializedForAgent(e.service.config, *e.agent); err != nil {
 		return nil, err
 	}
 	runtimeValue, err := e.prepareRuntime()
@@ -147,19 +148,28 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
-	if err = agentsvc.EnsureRuntimeVisionSettingsProjection(
-		e.agent.WorkspacePath,
+	if err = e.service.agents.EnsureRuntimeVisionSettingsProjection(
+		*e.agent,
 		selection.VisionProvider,
 		selection.VisionModel,
 	); err != nil {
 		return preparedSlotRuntime{}, err
 	}
-	runtimeSkillNames, err := workspacepkg.RuntimeSkillNames(e.agent.WorkspacePath, e.agent.Options.SkillIDs)
+	runtimeSkillNames, err := workspacepkg.RuntimeSkillNamesForAgent(e.service.config, *e.agent)
+	if err != nil {
+		return preparedSlotRuntime{}, err
+	}
+	runtimeDisabledSkillNames, err := workspacepkg.RuntimeDisabledSkillNamesForAgent(
+		e.service.config,
+		*e.agent,
+	)
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
+		OwnerUserID:                e.agent.OwnerUserID,
+		IsMainAgent:                e.agent.IsMain,
 		RuntimeKind:                selection.RuntimeKind,
 		Provider:                   selection.Provider,
 		Model:                      selection.Model,
@@ -170,6 +180,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(roomAllowedTools(e.agent.Options.AllowedTools, e.round.Context.Room.PrivateMessagesEnabled), e.service.runtimeImagegenDefaultEnabled(e.ctx)),
 		DisallowedTools:            roomDisallowedTools(e.agent.Options.DisallowedTools, e.round.Context.Room.PrivateMessagesEnabled),
 		SkillIDs:                   runtimeSkillNames,
+		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(e.service.config, e.agent.OwnerUserID),
 		SettingSources:             e.agent.Options.SettingSources,
 		AppendSystemPrompt:         appendPromptSection(prompt.stable, prompt.dynamic),
@@ -183,6 +194,8 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          selection.ToolSearchEnabled,
 		WebSearch:                  selection.WebSearch,
+		RuntimeIsolationMode:       e.service.config.RuntimeIsolationMode,
+		RuntimeLauncherPath:        e.service.config.RuntimeLauncherPath,
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err
@@ -253,7 +266,8 @@ func (e *slotExecution) runtimeMCPServers() map[string]sdkmcp.ServerConfig {
 		return nil
 	}
 	return e.service.mcpServers(
-		e.agent.AgentID,
+		e.ctx,
+		e.agent,
 		e.round.SessionKey,
 		e.round.RootRoundID,
 		"room",
@@ -281,6 +295,7 @@ func (e *slotExecution) applyRuntimeHooks(options agentclient.Options) agentclie
 		options = e.service.runtime.WithGuidanceHook(options, goalSessionKey)
 	}
 	options = runtimectx.WithPostToolUseGuidanceHook(options, e.service.roomSlotGuidanceHook(e.round, e.slot, workspacestore.InputQueueLocation{
+		OwnerUserID:    e.round.OwnerUserID,
 		Scope:          protocol.InputQueueScopeRoom,
 		WorkspacePath:  e.agent.WorkspacePath,
 		SessionKey:     e.slot.RuntimeSessionKey,

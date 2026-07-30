@@ -11,11 +11,11 @@ import (
 	"sync/atomic"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
-	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
@@ -51,16 +51,17 @@ func (s *Service) ensureClient(
 	if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
-	if err := workspacepkg.EnsureInitialized(
-		agentValue.AgentID,
-		agentValue.Name,
-		agentValue.WorkspacePath,
-		agentValue.IsMain,
-		agentValue.CreatedAt,
-	); err != nil {
+	if err := workspacepkg.EnsureInitializedForAgent(s.config, *agentValue); err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
-	runtimeSkillNames, err := workspacepkg.RuntimeSkillNames(agentValue.WorkspacePath, agentValue.Options.SkillIDs)
+	runtimeSkillNames, err := workspacepkg.RuntimeSkillNamesForAgent(s.config, *agentValue)
+	if err != nil {
+		return nil, "", "", "", "", "", nil, permissionMode, err
+	}
+	runtimeDisabledSkillNames, err := workspacepkg.RuntimeDisabledSkillNamesForAgent(
+		s.config,
+		*agentValue,
+	)
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
@@ -87,14 +88,23 @@ func (s *Service) ensureClient(
 	goalObjectiveRevision.Store(objectiveRevision)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
-		mcpServers = s.mcpServers(agentValue.AgentID, sessionKey, request.RoundID, "agent", agentValue.AgentID, agentValue.Name, goalObjectiveRevision)
+		mcpServers = s.mcpServers(
+			ctx,
+			agentValue,
+			sessionKey,
+			request.RoundID,
+			"agent",
+			agentValue.AgentID,
+			agentValue.Name,
+			goalObjectiveRevision,
+		)
 	}
 	runtimeSelection, err := s.resolveAgentRuntimeSelection(ctx, agentValue)
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
-	if err = agentsvc.EnsureRuntimeVisionSettingsProjection(
-		agentValue.WorkspacePath,
+	if err = s.agents.EnsureRuntimeVisionSettingsProjection(
+		*agentValue,
 		runtimeSelection.VisionProvider,
 		runtimeSelection.VisionModel,
 	); err != nil {
@@ -102,6 +112,8 @@ func (s *Service) ensureClient(
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              agentValue.WorkspacePath,
+		OwnerUserID:                agentValue.OwnerUserID,
+		IsMainAgent:                agentValue.IsMain,
 		RuntimeKind:                runtimeSelection.RuntimeKind,
 		Provider:                   runtimeSelection.Provider,
 		Model:                      runtimeSelection.Model,
@@ -112,6 +124,7 @@ func (s *Service) ensureClient(
 		AllowedTools:               toolpolicy.WithManagedRuntimeAllowedTools(agentValue.Options.AllowedTools, s.runtimeImagegenDefaultEnabled(ctx)),
 		DisallowedTools:            agentValue.Options.DisallowedTools,
 		SkillIDs:                   runtimeSkillNames,
+		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.config, agentValue.OwnerUserID),
 		SettingSources:             agentValue.Options.SettingSources,
 		AppendSystemPrompt:         appendSystemPrompt,
@@ -122,12 +135,15 @@ func (s *Service) ensureClient(
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 		WebSearch:                  runtimeSelection.WebSearch,
+		RuntimeIsolationMode:       s.config.RuntimeIsolationMode,
+		RuntimeLauncherPath:        s.config.RuntimeLauncherPath,
 	})
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
 	options = s.runtime.WithGuidanceHook(options, sessionKey)
 	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
+		OwnerUserID:   agentValue.OwnerUserID,
 		Scope:         protocol.InputQueueScopeDM,
 		WorkspacePath: agentValue.WorkspacePath,
 		SessionKey:    sessionKey,
@@ -252,7 +268,9 @@ func (s *Service) resolveReusableSDKSessionID(
 		(!hasKindFingerprint || actualKind == expectedKind) &&
 		(!hasProviderFingerprint || actualProvider == expectedProvider) &&
 		(!hasModelFingerprint || actualModel == expectedModel)
-	decision := sessionresumesvc.NewPolicy(s.history).CanResume(workspacePath, resumeID)
+	decision := sessionresumesvc.NewPolicy(
+		s.history.ForOwner(authctx.OwnerUserID(ctx)),
+	).CanResume(workspacePath, resumeID)
 	if decision.Allowed {
 		if !fingerprintMatches {
 			s.loggerFor(ctx).Info("DM session runtime 配置已变更但 transcript 可恢复，继续 resume",
@@ -316,7 +334,11 @@ func (s *Service) persistSDKSessionFingerprint(
 	sessionItem.Options[protocol.OptionRuntimeProvider] = strings.TrimSpace(provider)
 	sessionItem.Options[protocol.OptionRuntimeModel] = strings.TrimSpace(model)
 	var err error
-	sessionItem, err = s.preservePersistedSessionTitle(workspacePath, sessionItem)
+	sessionItem, err = s.preservePersistedSessionTitleForOwner(
+		authctx.OwnerUserID(ctx),
+		workspacePath,
+		sessionItem,
+	)
 	if err != nil {
 		s.loggerFor(ctx).Error("DM session runtime 配置指纹保留标题失败",
 			"session_key", sessionItem.SessionKey,
@@ -324,7 +346,10 @@ func (s *Service) persistSDKSessionFingerprint(
 		)
 		return
 	}
-	if _, err := s.files.UpsertSession(workspacePath, sessionItem); err != nil {
+	if _, err := s.files.ForOwner(authctx.OwnerUserID(ctx)).UpsertSession(
+		workspacePath,
+		sessionItem,
+	); err != nil {
 		s.loggerFor(ctx).Error("DM session runtime 配置指纹更新失败",
 			"session_key", sessionItem.SessionKey,
 			"err", err,

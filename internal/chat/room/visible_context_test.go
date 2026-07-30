@@ -138,12 +138,18 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 	for _, expected := range []string{
 		"# Nexus Room",
 		"You are a member in a multi-member Nexus Room",
-		"A non-code @member means \"act now\"",
+		"Every valid non-code @member in a final public reply means \"act now\"",
+		"Write each actionable mention as a distinct token followed by whitespace or punctuation",
+		`"@Name 请继续"`,
 		"already-published source message for activation context",
 		"never repeat, quote, paraphrase, summarize, acknowledge, or confirm",
 		"output only the new deliverable concretely assigned to you",
 		"If it assigns no concrete new work, output exactly <nexus_room_no_reply/>",
-		"Wake one member unless",
+		"When you finish delegated work and the delegating coordinator must integrate, verify, or continue",
+		`"@Coordinator 请整合以上结果并继续推进。"`,
+		"merely saying the result is available is not a handoff",
+		"Multiple @members fan out to all named members",
+		"legacy <nexus_room_fanout/> marker is unnecessary",
 		"<nexus_room_no_reply/>",
 		"Track multi-turn handoffs, stop conditions",
 		`nexus_room.send_directed_message`,
@@ -152,8 +158,12 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"wake_targets is the recipients subset",
 		"Runtime routes the recipient's single final reply by reply_route",
 		`"room host default takeover"`,
+		"assess task complexity, separable work, and member fit",
+		"avoid duplicating that work yourself",
+		"coordination, unblocking, integration, and verification",
 		"Never expose private content publicly",
-		"a completed summary must not @ anyone",
+		"A finished branch that still needs coordinator integration",
+		"only a terminal summary that requires no further action must not @ anyone",
 	} {
 		if !strings.Contains(systemPrompt, expected) {
 			t.Fatalf("Room system prompt 缺少片段 %q:\n%s", expected, systemPrompt)
@@ -166,6 +176,7 @@ func TestBuildRoomVisibleContextKeepsPublicRoomContract(t *testing.T) {
 		"<current_room_member>",
 		"recipients: string[]",
 		"next_reply_route: {...}",
+		"unless the source explicitly requests",
 	} {
 		if strings.Contains(systemPrompt, unexpected) {
 			t.Fatalf("Room system prompt 不应包含动态变量 %q:\n%s", unexpected, systemPrompt)
@@ -266,6 +277,38 @@ func TestBuildSystemPromptKeepsPrivateToolOptIn(t *testing.T) {
 	}
 	if !strings.Contains(systemPrompt, "Private Room directed message sending is disabled") {
 		t.Fatalf("Room 默认提示词应说明私信发送未开启:\n%s", systemPrompt)
+	}
+}
+
+func TestBuildRoomVisibleContextMakesHostAssessDelegationBeforeExecution(t *testing.T) {
+	contextValue := BuildVisibleContext(VisibleContextInput{
+		LatestTrigger: Trigger{
+			TriggerType:   "room_host_default",
+			Content:       "完成这项跨模块交付",
+			TargetAgentID: "agent-host",
+		},
+		AgentNameByID: map[string]string{
+			"agent-host": "Host",
+			"agent-peer": "Peer",
+		},
+		TargetAgentID: "agent-host",
+	})
+
+	for _, expected := range []string{
+		"room host default takeover",
+		"assess task complexity, separable work, and member fit",
+		"Delegate to the smallest suitable set",
+		"use @ exactly one member for a single deliverable",
+		"multiple independent, non-overlapping deliverables",
+		"@ each suitable member with one concrete deliverable",
+		"append the fanout marker required by the system rule",
+		"do not duplicate those deliverables yourself",
+		"coordination, unblocking, integration, and verification",
+		"Handle the whole task directly only when it is small or atomic",
+	} {
+		if !strings.Contains(contextValue, expected) {
+			t.Fatalf("Room host collaboration decision missing %q:\n%s", expected, contextValue)
+		}
 	}
 }
 

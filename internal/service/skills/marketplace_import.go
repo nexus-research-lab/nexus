@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -14,7 +15,9 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 // ImportUploadedArchive 从浏览器上传的 zip 导入技能。
@@ -298,16 +301,25 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 		return nil, err
 	}
 	root := s.registryRoot(ctx)
-	if err = os.MkdirAll(root, 0o755); err != nil {
-		return nil, err
-	}
 	targetDir := filepath.Join(root, parsed.Name)
-	stagingDir, err := os.MkdirTemp(root, ".external-skill-")
+	boundaryRoot := workspacesvc.UserSkillLibraryRoot(s.config, ownerUserID)
+	boundaryFS, err := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
+		ownerUserID,
+		boundaryRoot,
+		true,
+	)
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(stagingDir)
-	if err = copyDirectory(filepath.Dir(skillMDPath), stagingDir); err != nil {
+	defer boundaryFS.Close()
+	stagingRelative, err := boundaryFS.MkdirTemp(privateSkillStagingRoot, ".external-skill-", 0o700)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = boundaryFS.RemoveAll(stagingRelative)
+	}()
+	if err = copyDirectoryAt(filepath.Dir(skillMDPath), boundaryFS, stagingRelative); err != nil {
 		return nil, err
 	}
 	manifest.Name = parsed.Name
@@ -323,17 +335,21 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 	if err != nil {
 		return nil, err
 	}
-	if err = os.WriteFile(filepath.Join(stagingDir, ".nexus-skill.json"), payload, 0o644); err != nil {
+	if err = writeSkillDirectoryFileAt(boundaryFS, stagingRelative, ".nexus-skill.json", payload, 0o644); err != nil {
 		return nil, err
 	}
-	if err = workspacesvc.ReplaceDirectory(stagingDir, targetDir); err != nil {
+	targetRelative, err := relativeSkillPath(boundaryFS, targetDir)
+	if err != nil {
+		return nil, err
+	}
+	if err = workspacesvc.ReplaceDirectoryAt(boundaryFS, stagingRelative, targetRelative); err != nil {
 		return nil, err
 	}
 	if err = workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID); err != nil {
 		return nil, err
 	}
-	if err = s.upsertImportedSkillRecord(ctx, targetDir, manifest, parsed); err != nil {
-		removeErr := os.RemoveAll(targetDir)
+	if err = s.upsertImportedSkillRecordAt(ctx, boundaryFS, targetDir, manifest, parsed); err != nil {
+		removeErr := boundaryFS.RemoveAll(targetRelative)
 		refreshErr := workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID)
 		return nil, errors.Join(err, removeErr, refreshErr)
 	}
@@ -348,7 +364,7 @@ func (s *Service) ensureExternalSkillNameAvailable(ctx context.Context, name str
 	if containsSkillName(internalSkillNames, trimmed) {
 		return errors.New("内部 Skill 名称不能被外部来源覆盖")
 	}
-	for _, root := range builtinSearchRoots(projectRoot()) {
+	for _, root := range builtinSearchRootsForContext(ctx, projectRoot(), s.config.AppMode) {
 		exists, searchErr := skillNameExists(root, trimmed)
 		if searchErr != nil {
 			return searchErr
@@ -357,11 +373,16 @@ func (s *Service) ensureExternalSkillNameAvailable(ctx context.Context, name str
 			return errors.New("已有本地 Skill 使用该名称，外部来源不能覆盖")
 		}
 	}
-	root := s.registryRoot(ctx)
-	entries, err := os.ReadDir(root)
-	if err != nil && !os.IsNotExist(err) {
+	ownerRoot, err := s.openOwnerSkillLibrary(ctx, true)
+	if err != nil {
 		return err
 	}
+	defer ownerRoot.Close()
+	confinedRoot, entries, err := readSkillRegistryDirectoriesAt(ownerRoot, true)
+	if err != nil {
+		return err
+	}
+	defer confinedRoot.Close()
 	for _, entry := range entries {
 		if strings.EqualFold(entry.Name(), trimmed) && entry.Name() != trimmed {
 			return errors.New("已有外部 Skill 使用仅大小写不同的名称")
@@ -380,10 +401,15 @@ func containsSkillName(names map[string]struct{}, target string) bool {
 }
 
 func skillNameExists(root string, target string) (bool, error) {
-	entries, err := os.ReadDir(root)
+	confinedRoot, err := confinedfs.Open(root)
 	if os.IsNotExist(err) {
 		return false, nil
 	}
+	if err != nil {
+		return false, err
+	}
+	defer confinedRoot.Close()
+	entries, err := fs.ReadDir(confinedRoot.FS(), ".")
 	if err != nil {
 		return false, err
 	}
@@ -391,17 +417,28 @@ func skillNameExists(root string, target string) (bool, error) {
 		if !strings.EqualFold(entry.Name(), target) {
 			continue
 		}
-		if _, statErr := os.Stat(filepath.Join(root, entry.Name(), "SKILL.md")); statErr == nil {
+		skillRoot, openErr := confinedRoot.OpenRootNoSymlink(entry.Name())
+		if os.IsNotExist(openErr) || errors.Is(openErr, confinedfs.ErrSymlink) {
+			continue
+		}
+		if openErr != nil {
+			return false, openErr
+		}
+		skillFile, fileErr := skillRoot.OpenFileNoSymlink("SKILL.md", os.O_RDONLY, 0)
+		skillRoot.Close()
+		if fileErr == nil {
+			_ = skillFile.Close()
 			return true, nil
-		} else if !os.IsNotExist(statErr) {
-			return false, statErr
+		}
+		if !os.IsNotExist(fileErr) {
+			return false, fileErr
 		}
 	}
 	return false, nil
 }
 
 func (s *Service) readManifest(skillDir string) (externalManifest, error) {
-	payload, err := os.ReadFile(filepath.Join(skillDir, ".nexus-skill.json"))
+	payload, err := readSkillDirectoryFile(skillDir, ".nexus-skill.json")
 	if err != nil {
 		return externalManifest{}, err
 	}

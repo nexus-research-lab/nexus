@@ -42,7 +42,7 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
         value={query}
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-lg:gap-1 max-lg:px-3">
         {items.length > 0 ? items.map((item) => (
           <CapabilitySidebarItemView
             active={activeItemId === item.id}
@@ -51,7 +51,7 @@ export const CapabilitySidebarPanel = memo(function CapabilitySidebarPanel() {
             onSelect={selectItem}
           />
         )) : (
-          <div className="px-2.5 py-4 text-[12px] text-(--text-muted)">
+          <div className="px-2.5 py-4 text-compact text-(--text-muted)">
             {t("sidebar.no_matching_capabilities")}
           </div>
         )}

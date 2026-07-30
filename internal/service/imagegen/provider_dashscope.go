@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -90,13 +89,13 @@ func (s *Service) callDashScopeEditProvider(
 	if err != nil {
 		return nil, "", "", err
 	}
-	imageReference, err := dashScopeWorkspaceImage(input.WorkspacePath, input.ImagePath)
+	imageReference, err := s.dashScopeWorkspaceImage(ctx, input.WorkspacePath, input.ImagePath)
 	if err != nil {
 		return nil, "", "", err
 	}
 	content := []dashScopeContent{{Image: imageReference}}
 	if strings.TrimSpace(input.MaskPath) != "" {
-		maskReference, maskErr := dashScopeWorkspaceImage(input.WorkspacePath, input.MaskPath)
+		maskReference, maskErr := s.dashScopeWorkspaceImage(ctx, input.WorkspacePath, input.MaskPath)
 		if maskErr != nil {
 			return nil, "", "", maskErr
 		}
@@ -174,12 +173,25 @@ func dashScopeSize(size string) string {
 	}
 }
 
-func dashScopeWorkspaceImage(workspacePath string, imagePath string) (string, error) {
+func (s *Service) dashScopeWorkspaceImage(
+	ctx context.Context,
+	workspacePath string,
+	imagePath string,
+) (string, error) {
 	fullPath, err := resolveWorkspaceFile(workspacePath, imagePath)
 	if err != nil {
 		return "", err
 	}
-	payload, err := os.ReadFile(fullPath)
+	relativePath, err := filepath.Rel(filepath.Clean(workspacePath), fullPath)
+	if err != nil {
+		return "", err
+	}
+	root, err := s.openWorkspace(ctx, workspacePath, false)
+	if err != nil {
+		return "", err
+	}
+	defer root.Close()
+	payload, err := root.ReadFile(filepath.ToSlash(relativePath))
 	if err != nil {
 		return "", err
 	}

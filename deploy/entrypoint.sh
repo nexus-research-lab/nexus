@@ -3,7 +3,7 @@
 set -euo pipefail
 
 : "${DATABASE_DRIVER:=sqlite}"
-: "${DATABASE_URL:=sqlite:////home/agent/.nexus/data/nexus.db}"
+: "${DATABASE_URL:=sqlite:////home/agent/.nexus/app/data/nexus.db}"
 : "${PNPM_REGISTRY:=https://registry.npmjs.org/}"
 : "${BUN_CONFIG_REGISTRY:=${PNPM_REGISTRY}}"
 : "${PIP_INDEX_URL:=https://pypi.tuna.tsinghua.edu.cn/simple}"
@@ -53,7 +53,7 @@ PY
 }
 
 prepare_connector_credentials_key() {
-    local key_file="${CONNECTOR_CREDENTIALS_KEY_FILE:-${HOME}/.nexus/config/connector-credentials.key}"
+    local key_file="${CONNECTOR_CREDENTIALS_KEY_FILE:-${HOME}/.nexus/app/config/connector-credentials.key}"
     local file_key=""
 
     mkdir -p "$(dirname "${key_file}")"
@@ -192,6 +192,30 @@ write_json_file_in_place() {
     rm -f "${temp_file}"
 }
 
+normalize_json_object() {
+    # 中文注释：历史空配置可能被序列化成 JSON null；只把 null 视为空对象，
+    # 数组、字符串等其他形状仍需显式报错，避免启动时静默丢弃配置。
+    jq '
+        if . == null then {}
+        elif type == "object" then .
+        else error("expected a JSON object or null")
+        end
+    ' "$@"
+}
+
+merge_json_objects() {
+    # 中文注释：jq 的对象乘法不能与 null 混用。两端先规范为空对象，
+    # 保持既有深合并优先级，同时让旧版空配置可安全升级。
+    jq -s '
+        def object_or_empty:
+            if . == null then {}
+            elif type == "object" then .
+            else error("expected a JSON object or null")
+            end;
+        (.[0] | object_or_empty) * (.[1] | object_or_empty)
+    ' "$@"
+}
+
 extract_url_host() {
     local url="$1"
     local without_scheme="${url#*://}"
@@ -246,9 +270,14 @@ EOF
 }
 
 prepare_claude_settings() {
-    mkdir -p "${HOME}/.claude"
-    if [[ -d "${HOME}/.claude.json" ]]; then
-        echo "ERROR: ${HOME}/.claude.json is a directory, expected a file"
+    local state_root="${NEXUS_STATE_ROOT:-${HOME}/.nexus}"
+    local runtime_root="${NEXUS_SYSTEM_RUNTIME_ROOT:-${state_root}/users/__system__/runtime}"
+    local runtime_home="${runtime_root}/home"
+    local legacy_settings="${state_root}/settings.json"
+    local legacy_claude_file="${state_root}/.claude.json"
+    mkdir -p "${runtime_root}/.claude" "${runtime_home}"
+    if [[ -d "${runtime_root}/.claude.json" ]]; then
+        echo "ERROR: ${runtime_root}/.claude.json is a directory, expected a file"
         exit 1
     fi
 
@@ -261,14 +290,56 @@ prepare_claude_settings() {
         SETTINGS="$(echo "${SETTINGS}" | jq '. + {skipDangerousModePermissionPrompt: true}')"
     fi
 
-    echo "${SETTINGS}" > "${HOME}/.claude/settings.json"
-    echo "Settings written to ${HOME}/.claude/settings.json"
+    # 入口脚本运行在宿主 agent 身份，先合并既有配置，再叠加本次部署
+    # 明确要求的安全与运行参数。已有 runtime 文件的 ACL 由 launcher 管理，
+    # 入口脚本只负责写入内容，不重新 chmod 运行时 owner 的文件。
+    local EXISTING_SETTINGS='{}'
+    local settings_exists=false
+    if [[ -f "${legacy_settings}" ]]; then
+        EXISTING_SETTINGS="$(merge_json_objects \
+            <(printf '%s\n' "${EXISTING_SETTINGS}") \
+            "${legacy_settings}")"
+    fi
+    if [[ -f "${runtime_root}/settings.json" ]]; then
+        settings_exists=true
+        EXISTING_SETTINGS="$(merge_json_objects \
+            <(printf '%s\n' "${EXISTING_SETTINGS}") \
+            "${runtime_root}/settings.json")"
+    fi
+    SETTINGS="$(merge_json_objects \
+        <(printf '%s\n' "${EXISTING_SETTINGS}") \
+        <(printf '%s\n' "${SETTINGS}"))"
 
-    if [[ ! -f "${HOME}/.claude.json" ]]; then
-        echo '{}' > "${HOME}/.claude.json"
+    local previous_umask
+    previous_umask="$(umask)"
+    umask 077
+    printf '%s\n' "${SETTINGS}" > "${runtime_root}/settings.json"
+    if [[ "${settings_exists}" == false ]]; then
+        chmod 0600 "${runtime_root}/settings.json"
+    fi
+    umask "${previous_umask}"
+    echo "Settings written to ${runtime_root}/settings.json"
+
+    local claude_settings_exists=true
+    if [[ ! -f "${runtime_root}/.claude.json" ]]; then
+        claude_settings_exists=false
+        if [[ -f "${legacy_claude_file}" ]]; then
+            cp "${legacy_claude_file}" "${runtime_root}/.claude.json"
+        else
+            echo '{}' > "${runtime_root}/.claude.json"
+        fi
     fi
 
-    jq '. + {hasCompletedOnboarding: true}' "${HOME}/.claude.json" | write_json_file_in_place "${HOME}/.claude.json"
+    if [[ -f "${legacy_claude_file}" && "${legacy_claude_file}" != "${runtime_root}/.claude.json" ]]; then
+        merge_json_objects "${legacy_claude_file}" "${runtime_root}/.claude.json" |
+            write_json_file_in_place "${runtime_root}/.claude.json"
+    fi
+    normalize_json_object "${runtime_root}/.claude.json" |
+        jq '. + {hasCompletedOnboarding: true}' |
+        write_json_file_in_place "${runtime_root}/.claude.json"
+    if [[ "${claude_settings_exists}" == false ]]; then
+        chmod 0600 "${runtime_root}/.claude.json"
+    fi
 }
 
 resolve_sqlite_database_path() {

@@ -11,14 +11,20 @@ import (
 
 func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 	configRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
 
 	if err := EnsurePlatformSkillLibrary(); err != nil {
 		t.Fatalf("同步平台 Skill 库失败: %v", err)
 	}
-	nxsSkill := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "ima-skill", "SKILL.md")
-	claudeSkill := filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "ima-skill", "SKILL.md")
-	for _, path := range []string{nxsSkill, claudeSkill} {
+	for _, path := range []string{
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "ima-skill", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "ima-skill", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "wechat-article-search", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "wechat-article-search", "requirements.txt"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "wechat-article-search", "scripts", "search.py"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "wechat-article-search", "scripts", "search.py"),
+	} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("平台 Skill 入口缺失 %s: %v", path, err)
 		}
@@ -28,5 +34,102 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 		if target != filepath.Join("..", ".agents", "skills") {
 			t.Fatalf("Claude Skill 入口链接目标不正确: %q", target)
 		}
+	}
+}
+
+func TestEnsurePlatformSkillLibraryPublishesRuntimeReadableTree(t *testing.T) {
+	configRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
+
+	if err := EnsurePlatformSkillLibrary(); err != nil {
+		t.Fatalf("同步平台 Skill 库失败: %v", err)
+	}
+	if err := filepath.Walk(appfs.PlatformSkillRoot(), func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return nil
+		}
+		permission := info.Mode().Perm()
+		if info.IsDir() {
+			if permission != 0o755 {
+				t.Fatalf("平台 Skill 目录权限 = %o, want 755: %s", permission, path)
+			}
+			return nil
+		}
+		if permission != 0o644 && permission != 0o755 {
+			t.Fatalf("平台 Skill 文件权限 = %o, want 644 or 755: %s", permission, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("遍历平台 Skill 根失败: %v", err)
+	}
+}
+
+func TestEnsurePlatformSkillLibraryRepairsUnreadableExistingTree(t *testing.T) {
+	configRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
+
+	if err := EnsurePlatformSkillLibrary(); err != nil {
+		t.Fatalf("首次同步平台 Skill 库失败: %v", err)
+	}
+	fingerprint, err := skillLibraryFingerprint(filepath.Join(appfs.Root(), "skills"))
+	if err != nil {
+		t.Fatalf("计算平台 Skill 指纹失败: %v", err)
+	}
+	skillPath := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "SKILL.md")
+	if err := os.Chmod(skillPath, 0o600); err != nil {
+		t.Fatalf("收紧已发布 Skill 权限失败: %v", err)
+	}
+	if skillLibraryReady(appfs.PlatformSkillRoot(), fingerprint) {
+		t.Fatal("不可供 runtime 读取的 Skill 树不应被判定为就绪")
+	}
+	if err := EnsurePlatformSkillLibrary(); err != nil {
+		t.Fatalf("重新同步平台 Skill 库失败: %v", err)
+	}
+	info, err := os.Stat(skillPath)
+	if err != nil {
+		t.Fatalf("读取修复后的 Skill 失败: %v", err)
+	}
+	if info.Mode().Perm() != 0o644 {
+		t.Fatalf("修复后的 Skill 权限 = %o, want 644", info.Mode().Perm())
+	}
+}
+
+func TestReplacePlatformSkillLibraryCopiesReadOnlySource(t *testing.T) {
+	sourceRoot := filepath.Join(t.TempDir(), "skills")
+	sourceSkill := filepath.Join(sourceRoot, "goal-manager")
+	if err := os.MkdirAll(sourceSkill, 0o755); err != nil {
+		t.Fatalf("创建测试 Skill 目录失败: %v", err)
+	}
+	sourceSkillFile := filepath.Join(sourceSkill, "SKILL.md")
+	if err := os.WriteFile(sourceSkillFile, []byte("goal\n"), 0o644); err != nil {
+		t.Fatalf("写入测试 Skill 文件失败: %v", err)
+	}
+	if err := os.Chmod(sourceSkillFile, 0o444); err != nil {
+		t.Fatalf("收紧测试 Skill 文件权限失败: %v", err)
+	}
+	if err := os.Chmod(sourceSkill, 0o555); err != nil {
+		t.Fatalf("收紧测试 Skill 目录权限失败: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chmod(sourceSkill, 0o755)
+		_ = os.Chmod(sourceSkillFile, 0o644)
+	})
+
+	targetRoot := filepath.Join(t.TempDir(), "platform-skills")
+	if err := replaceCompatibleSkillLibrary(sourceRoot, targetRoot, "test-fingerprint"); err != nil {
+		t.Fatalf("只读源 Skill 应可发布到暂存目录: %v", err)
+	}
+	publishedSkill := filepath.Join(targetRoot, ".agents", "skills", "goal-manager", "SKILL.md")
+	content, err := os.ReadFile(publishedSkill)
+	if err != nil {
+		t.Fatalf("读取已发布 Skill 失败: %v", err)
+	}
+	if string(content) != "goal\n" {
+		t.Fatalf("已发布 Skill 内容 = %q, want goal", content)
 	}
 }

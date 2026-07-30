@@ -1,5 +1,5 @@
 // INPUT: Room 用户输入、内部触发与当前 round/queue 状态。
-// OUTPUT: 持久化的共享消息，或串行接力的 Room round。
+// OUTPUT: 持久化的共享消息，或带稳定 owner/root usage scope 的串行 Room round。
 // POS: Room 输入从受理到 runtime 启动的原子交接边界。
 package realtime
 
@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"maps"
@@ -166,7 +167,9 @@ func (s *Service) handleChatLocked(ctx context.Context, request ChatRequest) err
 	if len(activeRound.Slots) == 0 {
 		return execution.reportUnavailableMembers()
 	}
-	execution.startRound(activeRound, pending)
+	if !execution.startRound(activeRound, pending) {
+		return runtimectx.ErrRuntimeSessionClosing
+	}
 	return nil
 }
 
@@ -179,6 +182,9 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 
 	ctx, contextValue, err := s.internalConversationContext(ctx, conversationID, request.Internal)
 	if err != nil {
+		return nil, err
+	}
+	if err = requireGroupRoomContext(contextValue); err != nil {
 		return nil, err
 	}
 	roomID := cmp.Or(strings.TrimSpace(request.RoomID), contextValue.Room.ID)
@@ -232,7 +238,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		targetAgentIDs,
 		targetResolution,
 	)
-	history, err := s.roomHistory.ReadMessages(conversationID, nil)
+	history, err := s.roomHistory.ReadMessages(contextValue.Room.OwnerUserID, conversationID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -340,20 +346,45 @@ func newRoomUserMessage(
 	if len(attachments) > 0 {
 		result["attachments"] = attachments
 	}
+	if request.Internal || request.InputOptions.HiddenFromUser {
+		result["hidden_from_user"] = true
+	}
+	if request.Internal || request.InputOptions.Synthetic {
+		result["is_synthetic"] = true
+	}
 	return result
 }
 
 func (e *roomChatExecution) persistInput() error {
 	if !e.request.Internal || e.request.BroadcastUserMessage {
-		if err := e.service.persistSharedInlineMessage(e.conversationID, e.userMessage); err != nil {
+		if err := e.service.persistSharedInlineMessage(
+			e.contextValue.Room.OwnerUserID,
+			e.conversationID,
+			e.userMessage,
+		); err != nil {
 			return err
 		}
+		if roomRequestHasCanonicalUserInput(e.request) {
+			if err := e.service.markConversationStarted(
+				e.ctx,
+				e.conversationID,
+				roomMessageActivityTime(e.userMessage),
+			); err != nil {
+				return err
+			}
+		}
 		e.history = append(e.history, e.userMessage)
+		realtimeUserMessage := protocol.Clone(e.userMessage)
+		if clientMessageID := strings.TrimSpace(e.request.ClientMessageID); clientMessageID != "" {
+			// client_message_id 只用于当前连接把 durable 广播原子替换到 optimistic
+			// 位置；它不是历史消息身份，不能写入持久化记录。
+			realtimeUserMessage["client_message_id"] = clientMessageID
+		}
 		e.service.broadcastSharedEvent(
 			e.ctx,
 			e.sessionKey,
 			e.roomID,
-			roomdomain.WrapMessageEvent(e.roomID, e.conversationID, e.userMessage, e.request.RoundID),
+			roomdomain.WrapMessageEvent(e.roomID, e.conversationID, realtimeUserMessage, e.request.RoundID),
 		)
 	}
 	if e.request.Internal {
@@ -369,6 +400,12 @@ func (e *roomChatExecution) persistInput() error {
 		titleModel,
 	)
 	return nil
+}
+
+func roomRequestHasCanonicalUserInput(request ChatRequest) bool {
+	return !request.Internal &&
+		!request.InputOptions.HiddenFromUser &&
+		!request.InputOptions.Synthetic
 }
 
 func (e *roomChatExecution) finishWithoutTarget() (bool, error) {
@@ -402,7 +439,11 @@ func (e *roomChatExecution) finishWithoutTarget() (bool, error) {
 		"is_error":        false,
 		"timestamp":       time.Now().UnixMilli(),
 	}
-	if err := e.service.persistSharedInlineMessage(e.conversationID, hintMessage); err != nil {
+	if err := e.service.persistSharedInlineMessage(
+		e.contextValue.Room.OwnerUserID,
+		e.conversationID,
+		hintMessage,
+	); err != nil {
 		return true, err
 	}
 	e.service.broadcastSharedEvent(
@@ -561,16 +602,18 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		slotTrigger := initialTrigger
 		slotTrigger.TargetAgentID = agentID
 		slot := &activeRoomSlot{
-			RoomSessionID:      sessionRecord.ID,
-			AgentID:            agentID,
-			AgentRoundID:       agentRoundID,
-			MsgID:              msgID,
-			RuntimeSessionKey:  protocol.BuildRoomAgentSessionKey(e.conversationID, agentID, e.contextValue.Room.RoomType),
-			WorkspacePath:      agentValue.WorkspacePath,
-			Index:              index,
-			TimestampMS:        normalizeInt64(e.userMessage["timestamp"]),
-			Trigger:            slotTrigger,
-			TriggerAttachments: e.attachments,
+			RoomSessionID:         sessionRecord.ID,
+			OwnerUserID:           activeRound.OwnerUserID,
+			AgentID:               agentID,
+			AgentRoundID:          agentRoundID,
+			GoalUsageScopeRoundID: roomRootRoundID(activeRound),
+			MsgID:                 msgID,
+			RuntimeSessionKey:     protocol.BuildRoomAgentSessionKey(e.conversationID, agentID, e.contextValue.Room.RoomType),
+			WorkspacePath:         agentValue.WorkspacePath,
+			Index:                 index,
+			TimestampMS:           normalizeInt64(e.userMessage["timestamp"]),
+			Trigger:               slotTrigger,
+			TriggerAttachments:    e.attachments,
 		}
 		slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
 		slot.setStatus("pending")
@@ -584,6 +627,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 			AgentID:      agentID,
 			AgentRoundID: agentRoundID,
 			MsgID:        msgID,
+			RoundID:      roomRootRoundID(activeRound),
 			Status:       "pending",
 			Timestamp:    normalizeInt64(e.userMessage["timestamp"]),
 			Index:        index,
@@ -621,11 +665,14 @@ func (e *roomChatExecution) reportUnavailableMembers() error {
 	return nil
 }
 
-func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []protocol.ChatAckPendingSlot) {
-	roundCtx, cancel := context.WithCancel(context.Background())
+func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []protocol.ChatAckPendingSlot) bool {
+	roundCtx, cancel := context.WithCancel(context.WithoutCancel(e.ctx))
 	activeRound.Cancel = cancel
 	e.service.registerRound(activeRound)
-	e.service.runtime.StartRound(e.sessionKey, e.request.RoundID, cancel)
+	if !e.service.runtime.StartRound(e.sessionKey, e.request.RoundID, cancel) {
+		e.service.finishRound(activeRound)
+		return false
+	}
 
 	e.service.broadcastSharedEvent(
 		e.ctx,
@@ -638,6 +685,7 @@ func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []p
 	}
 	e.service.broadcastSessionStatus(e.ctx, e.sessionKey)
 	go e.service.runRound(roundCtx, activeRound, e.history, e.agentNameByID, e.agentByID)
+	return true
 }
 
 func (e *roomChatExecution) broadcastAck(pending []protocol.ChatAckPendingSlot, userMessageCommitted bool) {
@@ -798,6 +846,11 @@ func shouldBroadcastRoomChatAck(request ChatRequest) bool {
 }
 
 func (s *Service) validateChatRequest(request ChatRequest) (string, string, error) {
+	// durable user queue 只承载真实用户输入；隐藏或 synthetic 消息必须走
+	// internal 路径，避免排队后丢失来源语义并误消费 conversation draft。
+	if !request.Internal && !roomRequestHasCanonicalUserInput(request) {
+		return "", "", errors.New("hidden or synthetic input must be internal")
+	}
 	sessionKey, err := protocol.RequireStructuredSessionKey(request.SessionKey)
 	if err != nil {
 		return "", "", err
@@ -841,8 +894,12 @@ func normalizeExplicitTargetAgentIDs(values []string) []string {
 	return normalizeRoomAgentIDs(values)
 }
 
-func (s *Service) persistSharedInlineMessage(conversationID string, message protocol.Message) error {
-	if err := s.roomHistory.AppendInlineMessage(conversationID, message); err != nil {
+func (s *Service) persistSharedInlineMessage(
+	ownerUserID string,
+	conversationID string,
+	message protocol.Message,
+) error {
+	if err := s.roomHistory.AppendInlineMessage(ownerUserID, conversationID, message); err != nil {
 		return err
 	}
 	s.touchSharedConversationActivity(context.Background(), conversationID, roomMessageActivityTime(message))
@@ -850,14 +907,16 @@ func (s *Service) persistSharedInlineMessage(conversationID string, message prot
 }
 
 func (s *Service) persistSharedDurableMessage(
+	ownerUserID string,
 	conversationID string,
 	slot *activeRoomSlot,
 	message protocol.Message,
 ) error {
 	if slot == nil || !protocol.IsTranscriptNativeMessage(protocol.Message(message)) {
-		return s.persistSharedInlineMessage(conversationID, message)
+		return s.persistSharedInlineMessage(ownerUserID, conversationID, message)
 	}
 	if err := s.roomHistory.AppendTranscriptReference(
+		ownerUserID,
 		conversationID,
 		slot.WorkspacePath,
 		slot.RuntimeSessionKey,
@@ -883,6 +942,20 @@ func (s *Service) touchSharedConversationActivity(ctx context.Context, conversat
 			"err", err,
 		)
 	}
+}
+
+func (s *Service) markConversationStarted(
+	ctx context.Context,
+	conversationID string,
+	activityAt time.Time,
+) error {
+	if s == nil || s.rooms == nil {
+		return nil
+	}
+	if activityAt.IsZero() {
+		activityAt = time.Now().UTC()
+	}
+	return s.rooms.MarkConversationStarted(ctx, conversationID, activityAt)
 }
 
 func roomMessageActivityTime(message protocol.Message) time.Time {
@@ -942,6 +1015,7 @@ func roomUnixMilliActivityTime(value string) time.Time {
 // queue 与 guide 只负责填写来源差异，不能各自复制一套位置和目标字段。
 func newActiveSlotQueueEntry(
 	slot *activeRoomSlot,
+	ownerUserID string,
 	roomID string,
 	conversationID string,
 	item protocol.InputQueueItem,
@@ -955,6 +1029,7 @@ func newActiveSlotQueueEntry(
 	item.Attachments = protocol.NormalizeChatAttachments(item.Attachments, slot.AgentID)
 	return workspacestore.InputQueueEnqueue{
 		Location: workspacestore.InputQueueLocation{
+			OwnerUserID:    strings.TrimSpace(ownerUserID),
 			Scope:          protocol.InputQueueScopeRoom,
 			WorkspacePath:  slot.WorkspacePath,
 			SessionKey:     slot.RuntimeSessionKey,
@@ -985,7 +1060,7 @@ func (s *Service) enqueueForActiveAgentSlots(
 		if slot == nil {
 			continue
 		}
-		entries = append(entries, newActiveSlotQueueEntry(slot, roomID, conversationID, protocol.InputQueueItem{
+		entries = append(entries, newActiveSlotQueueEntry(slot, ownerUserID, roomID, conversationID, protocol.InputQueueItem{
 			ID:              strings.TrimSpace(roundID),
 			SourceMessageID: strings.TrimSpace(userMessageID),
 			Source:          protocol.InputQueueSourceUser,
@@ -1170,7 +1245,7 @@ func (s *Service) guideActiveAgentSlots(
 		if slot == nil {
 			continue
 		}
-		entries = append(entries, newActiveSlotQueueEntry(slot, roomID, conversationID, protocol.InputQueueItem{
+		entries = append(entries, newActiveSlotQueueEntry(slot, sourceItem.OwnerUserID, roomID, conversationID, protocol.InputQueueItem{
 			ID:              strings.TrimSpace(sourceItem.ID),
 			SourceAgentID:   strings.TrimSpace(sourceItem.SourceAgentID),
 			SourceMessageID: strings.TrimSpace(sourceItem.SourceMessageID),

@@ -43,6 +43,7 @@ function FileArtifactBlockComponent({
     path,
     workspaceAgentId,
   });
+  const actionable = [projection.canOpen, Boolean(projection.action)].some(Boolean);
   return (
     <div className={cn(projection.style.wrapper, "min-w-0", className)}>
       <FileArtifactLabel
@@ -51,12 +52,11 @@ function FileArtifactBlockComponent({
       />
       <div
         className={cn(
-          "group flex w-full min-w-0 items-center rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-left shadow-[0_1px_0_rgba(0,0,0,0.03)] transition-colors",
+          "content-artifact-row group flex w-full min-w-0 items-center text-left",
           projection.style.card,
-          [projection.canOpen, Boolean(projection.action)].some(Boolean)
-            ? "hover:border-primary/30 hover:bg-primary/5"
-            : "opacity-80",
+          !actionable && "opacity-80",
         )}
+        data-actionable={actionable ? "true" : undefined}
       >
         <FileArtifactOpenButton
           onOpen={() => onOpenWorkspaceFile?.(path, projection.openAgentId)}
@@ -66,7 +66,7 @@ function FileArtifactBlockComponent({
         <WorkspaceArtifactExternalActionButton
           action={projection.action}
           className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-(--divider-subtle-color) text-(--text-muted) transition-colors hover:border-primary/25 hover:bg-primary/8 hover:text-primary",
+            "content-artifact-external-action shrink-0",
             projection.style.externalAction,
           )}
           iconClassName={projection.style.externalIcon}
@@ -112,7 +112,7 @@ function FileArtifactOpenButton({
     >
       <span
         className={cn(
-          "flex shrink-0 items-center justify-center radius-control-sm border border-primary/15 bg-primary/8 text-primary",
+          "content-artifact-icon",
           projection.style.iconFrame,
         )}
       >
@@ -127,7 +127,7 @@ function FileArtifactOpenButton({
         >
           {projection.fileName}
         </span>
-        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] leading-4 text-(--text-muted)">
+        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-compact leading-4 text-(--text-muted)">
           <FolderOpen className="h-3 w-3 shrink-0 text-(--icon-muted)" />
           <span className="truncate">{projection.parentPath}</span>
         </span>
@@ -153,7 +153,7 @@ function FileArtifactOpenBadge({
   return (
     <span
       className={cn(
-        "shrink-0 rounded-[6px] border border-primary/15 bg-primary/8 font-medium text-primary transition-colors group-hover:bg-primary/12",
+        "content-artifact-open shrink-0 font-medium",
         className,
       )}
     >

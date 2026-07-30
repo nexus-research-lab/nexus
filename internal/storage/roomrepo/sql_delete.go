@@ -8,7 +8,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// DeleteConversation 删除话题并返回回退上下文。
+// DeleteConversation 删除对话并返回回退上下文。
 func (r *SQLRepository) DeleteConversation(ctx context.Context, ownerUserID string, roomID string, conversationID string) (*protocol.ConversationContextAggregate, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -34,6 +34,7 @@ type conversationDeletion struct {
 	roomID         string
 	conversationID string
 	fallbackID     string
+	promotionType  string
 }
 
 func (d *conversationDeletion) run() (*protocol.ConversationContextAggregate, error) {
@@ -68,44 +69,40 @@ func (d *conversationDeletion) prepare() (bool, error) {
 		return false, err
 	}
 	d.fallbackID = plan.fallbackID
+	d.promotionType = plan.promotionType
 	return true, nil
 }
 
 type conversationDeletionPlan struct {
-	targetFound bool
-	targetTopic bool
-	fallbackID  string
+	targetFound   bool
+	fallbackID    string
+	promotionType string
 }
 
 func planConversationDeletion(conversations []protocol.ConversationRecord, targetID string) (conversationDeletionPlan, error) {
 	if len(conversations) <= 1 {
 		return conversationDeletionPlan{}, errors.New("room 至少保留一个对话")
 	}
-	plan := conversationDeletionPlan{}
+	var target protocol.ConversationRecord
 	for _, conversation := range conversations {
-		plan.inspect(conversation, targetID)
+		if conversation.ID == targetID {
+			target = conversation
+			break
+		}
 	}
-	if !plan.targetFound {
-		return plan, nil
+	if target.ID == "" {
+		return conversationDeletionPlan{}, nil
 	}
-	if !plan.targetTopic {
-		return conversationDeletionPlan{}, errors.New("主对话不支持删除")
+
+	fallback := firstFallbackConversation(conversations, targetID)
+	plan := conversationDeletionPlan{
+		targetFound: true,
+		fallbackID:  fallback.ID,
 	}
-	if plan.fallbackID == "" {
-		plan.fallbackID = firstOtherConversationID(conversations, targetID)
+	if isPrimaryConversation(target) && !isPrimaryConversation(fallback) {
+		plan.promotionType = target.ConversationType
 	}
 	return plan, nil
-}
-
-func (p *conversationDeletionPlan) inspect(conversation protocol.ConversationRecord, targetID string) {
-	if conversation.ID == targetID {
-		p.targetFound = true
-		p.targetTopic = conversation.ConversationType == protocol.ConversationTypeTopic
-		return
-	}
-	if p.fallbackID == "" && isPrimaryConversation(conversation) {
-		p.fallbackID = conversation.ID
-	}
 }
 
 func isPrimaryConversation(conversation protocol.ConversationRecord) bool {
@@ -113,16 +110,44 @@ func isPrimaryConversation(conversation protocol.ConversationRecord) bool {
 		conversation.ConversationType == protocol.ConversationTypeDM
 }
 
-func firstOtherConversationID(conversations []protocol.ConversationRecord, targetID string) string {
+func firstFallbackConversation(conversations []protocol.ConversationRecord, targetID string) protocol.ConversationRecord {
+	var fallback protocol.ConversationRecord
 	for _, conversation := range conversations {
-		if conversation.ID != targetID {
-			return conversation.ID
+		if conversation.ID == targetID {
+			continue
+		}
+		if fallback.ID == "" {
+			fallback = conversation
+		}
+		if isPrimaryConversation(conversation) {
+			return conversation
 		}
 	}
-	return ""
+	return fallback
 }
 
 func (d *conversationDeletion) delete() (bool, error) {
+	if d.promotionType != "" {
+		result, err := d.tx.ExecContext(
+			d.ctx,
+			`UPDATE conversations
+SET conversation_type = `+d.repository.dialect.Bind(1)+`, updated_at = `+d.repository.dialect.CurrentTimestamp()+`
+WHERE id = `+d.repository.dialect.Bind(2)+` AND room_id = `+d.repository.dialect.Bind(3),
+			d.promotionType,
+			d.fallbackID,
+			d.roomID,
+		)
+		if err != nil {
+			return false, err
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return false, err
+		}
+		if affected != 1 {
+			return false, errors.New("回退对话提升失败")
+		}
+	}
 	if err := d.repository.deleteConversationDependents(d.ctx, d.tx, d.conversationID); err != nil {
 		return false, err
 	}

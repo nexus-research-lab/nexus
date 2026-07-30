@@ -1,6 +1,6 @@
 # 消息共享 UI
 
-- `message-avatar.tsx` 提供跨消息、Thread 与状态卡复用的身份头像和可选联络动作。
+- `message-avatar.tsx` 提供跨消息、Thread 与状态卡复用的身份头像、可选联络动作和内容 / 控件两档圆角语义。
 - `message-action-button.tsx` 提供消息头部复用的紧凑动作按钮与显式语气。
 - `message-rail.tsx` 负责过程轨道的标签与正文布局。
 

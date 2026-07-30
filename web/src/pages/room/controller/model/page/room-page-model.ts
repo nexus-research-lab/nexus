@@ -39,6 +39,7 @@ export interface RoomPageModel {
     activeSession: RoomSessionRecord | null;
     current: RoomConversationView | null;
     currentContext: RoomContextAggregate | null;
+    isSelectionReady: boolean;
     items: RoomConversationView[];
     selectedId: string | null;
   };
@@ -56,6 +57,7 @@ export interface RoomPageModel {
 interface BuildRoomPageBaseModelOptions {
   agents: Agent[];
   conversationId?: string | null;
+  preferredConversationIds?: readonly string[];
   roomContexts: RoomContextAggregate[];
   roomId?: string | null;
 }
@@ -64,6 +66,8 @@ interface BuildRoomPageModelOptions {
   base: RoomPageBaseModel;
   externalAgentSessions: AgentSession[];
   externalRoomConversations: RoomConversationView[];
+  isSelectionReady: boolean;
+  preferredConversationIds: readonly string[];
   routeRoomId: string | null;
   routeSessionKey: string | null;
 }
@@ -105,6 +109,7 @@ function resolveAvailableRoomAgents(
 export function buildRoomPageBaseModel({
   agents,
   conversationId,
+  preferredConversationIds,
   roomContexts,
   roomId,
 }: BuildRoomPageBaseModelOptions): RoomPageBaseModel {
@@ -116,6 +121,7 @@ export function buildRoomPageBaseModel({
   const selectedBaseConversationId = resolveSelectedConversationId(
     conversationId,
     baseRoomConversations,
+    preferredConversationIds,
   );
   const currentRoomContext = resolveCurrentRoomContext(
     scopedRoomContexts,
@@ -193,10 +199,21 @@ function mergeRoomConversations(
 function resolveRouteConversationId(
   routeSessionKey: string | null,
   selectedBaseConversationId: string | null,
+  preferredConversationIds: readonly string[],
+  conversations: RoomConversationView[],
 ): string | null {
-  return routeSessionKey
-    ? buildExternalSessionConversationId(routeSessionKey)
-    : selectedBaseConversationId;
+  if (routeSessionKey) {
+    return buildExternalSessionConversationId(routeSessionKey);
+  }
+  const liveConversationIds = new Set(
+    conversations.map((conversation) => conversation.conversation_id),
+  );
+  for (const preferredConversationId of preferredConversationIds) {
+    if (liveConversationIds.has(preferredConversationId)) {
+      return preferredConversationId;
+    }
+  }
+  return selectedBaseConversationId;
 }
 
 function findCurrentConversation(
@@ -226,6 +243,8 @@ export function buildRoomPageModel({
   base,
   externalAgentSessions,
   externalRoomConversations,
+  isSelectionReady,
+  preferredConversationIds,
   routeRoomId,
   routeSessionKey,
 }: BuildRoomPageModelOptions): RoomPageModel {
@@ -236,6 +255,8 @@ export function buildRoomPageModel({
   const selectedConversationId = resolveRouteConversationId(
     routeSessionKey,
     base.selectedBaseConversationId,
+    preferredConversationIds,
+    conversations,
   );
   return {
     agent: {
@@ -251,6 +272,7 @@ export function buildRoomPageModel({
       activeSession: base.activeRoomSession,
       current: findCurrentConversation(conversations, selectedConversationId),
       currentContext: base.currentRoomContext,
+      isSelectionReady,
       items: conversations,
       selectedId: selectedConversationId,
     },

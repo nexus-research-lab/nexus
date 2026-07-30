@@ -21,9 +21,9 @@ const BADGE_BASE_CLASS_NAME =
   "inline-flex shrink-0 items-center justify-center gap-1 rounded-[6px] border font-medium leading-none transition-[background,border-color,color] duration-(--motion-duration-fast)";
 
 const BADGE_SIZE_CLASS_MAP: Record<UiBadgeSize, string> = {
-  xs: "min-h-5 px-1.5 text-[10px]",
-  sm: "min-h-[22px] px-2 text-[11px]",
-  md: "min-h-6 px-2.5 text-[12px]",
+  xs: "min-h-5 px-1.5 text-2xs",
+  sm: "min-h-[22px] px-2 text-xs",
+  md: "min-h-6 px-2.5 text-compact",
 };
 
 const BADGE_TONE_CLASS_MAP: Record<UiBadgeTone, string> = {
@@ -44,7 +44,7 @@ const BADGE_TONE_CLASS_MAP: Record<UiBadgeTone, string> = {
   active:
     "border-[color:color-mix(in_srgb,var(--success)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_6%,transparent)] text-[color:color-mix(in_srgb,var(--success)_86%,var(--foreground)_14%)]",
   running:
-    "border-[color:color-mix(in_srgb,var(--success)_18%,transparent)] bg-[color:color-mix(in_srgb,var(--success)_6%,transparent)] text-[color:color-mix(in_srgb,var(--success)_86%,var(--foreground)_14%)]",
+    "border-[color:var(--status-running-soft-border)] bg-[var(--status-running-soft-bg)] text-[var(--status-running-soft-text)]",
 };
 
 export function getUiBadgeClassName(

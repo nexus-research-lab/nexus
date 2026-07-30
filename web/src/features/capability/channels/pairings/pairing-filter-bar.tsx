@@ -8,6 +8,7 @@ import {
 } from "@/features/capability/shared/capability-page-layout";
 import type { ImChannelType } from "@/lib/api/capability/channel-api";
 import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
 
 import type {
@@ -48,6 +49,8 @@ export function PairingFilterBar({
   onChange,
   searchPlaceholder,
 }: PairingFilterBarProps) {
+  const { t } = useI18n();
+
   return (
     <div className="mb-5">
       <div className="overflow-x-auto border-b border-(--divider-subtle-color)">
@@ -62,7 +65,7 @@ export function PairingFilterBar({
               <button
                 aria-selected={selected}
                 className={cn(
-                  "flex h-10 items-center gap-2 border-b-2 px-3 text-[13px] font-semibold transition-colors",
+                  "flex h-10 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors",
                   selected
                     ? "border-(--primary) text-(--text-strong)"
                     : "border-transparent text-(--text-muted) hover:text-(--text-default)",
@@ -73,7 +76,7 @@ export function PairingFilterBar({
                 type="button"
               >
                 <span>{tab.label}</span>
-                <span className="min-w-4 text-right text-[11px] tabular-nums text-(--text-soft)">
+                <span className="min-w-4 text-right text-xs tabular-nums text-(--text-soft)">
                   {counts[tab.countKey]}
                 </span>
               </button>
@@ -90,6 +93,7 @@ export function PairingFilterBar({
         />
         <CapabilityFilterSelect
           ariaLabel="按渠道筛选"
+          label={t("capability.channel_label")}
           leading={<Filter className="h-3.5 w-3.5" />}
           onChange={(value) => onChange(
             "channel",
@@ -104,6 +108,7 @@ export function PairingFilterBar({
         <CapabilityFilterSelect
           ariaLabel="按处理智能体筛选"
           className="sm:w-[220px]"
+          label={t("capability.agent_label")}
           leading={<Users className="h-3.5 w-3.5" />}
           onChange={(value) => onChange("agentId", value)}
           options={[

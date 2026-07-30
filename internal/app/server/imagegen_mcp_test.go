@@ -9,18 +9,6 @@ import (
 	imagegensvc "github.com/nexus-research-lab/nexus/internal/service/imagegen"
 )
 
-type stubImagegenAgentResolver struct {
-	record *protocol.Agent
-	err    error
-}
-
-func (s stubImagegenAgentResolver) GetAgent(context.Context, string) (*protocol.Agent, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	return s.record, nil
-}
-
 type stubImagegenMCPService struct{}
 
 func (stubImagegenMCPService) GenerateImage(
@@ -38,16 +26,22 @@ func (stubImagegenMCPService) EditImage(
 }
 
 func TestImagegenMCPBuilderAddsSDKServerForAgentRuntime(t *testing.T) {
-	builder := newImagegenMCPBuilder(stubImagegenMCPService{}, stubImagegenAgentResolver{
-		record: &protocol.Agent{
-			AgentID:       "agent-1",
-			Name:          "Painter",
-			WorkspacePath: "/workspace/agent-1",
-			OwnerUserID:   "user-1",
-		},
-	})
+	builder := newImagegenMCPBuilder(stubImagegenMCPService{})
+	agentValue := &protocol.Agent{
+		AgentID:       "agent-1",
+		Name:          "Painter",
+		WorkspacePath: "/workspace/agent-1",
+		OwnerUserID:   "user-1",
+	}
 
-	servers := builder("agent-1", "agent:agent-1:ws:dm:session-1", "agent", "agent-1", "Painter")
+	servers := builder(
+		context.Background(),
+		agentValue,
+		"agent:agent-1:ws:dm:session-1",
+		"agent",
+		"agent-1",
+		"Painter",
+	)
 	config, ok := servers["nexus_imagegen"].(sdkmcp.SDKServerConfig)
 	if !ok {
 		t.Fatalf("Agent runtime 应注入 nexus_imagegen SDK server: %+v", servers)
@@ -58,11 +52,16 @@ func TestImagegenMCPBuilderAddsSDKServerForAgentRuntime(t *testing.T) {
 }
 
 func TestImagegenMCPBuilderSkipsMissingWorkspace(t *testing.T) {
-	builder := newImagegenMCPBuilder(stubImagegenMCPService{}, stubImagegenAgentResolver{
-		record: &protocol.Agent{AgentID: "agent-1"},
-	})
+	builder := newImagegenMCPBuilder(stubImagegenMCPService{})
 
-	if servers := builder("agent-1", "session", "agent", "agent-1", "Agent"); len(servers) != 0 {
+	if servers := builder(
+		context.Background(),
+		&protocol.Agent{AgentID: "agent-1"},
+		"session",
+		"agent",
+		"agent-1",
+		"Agent",
+	); len(servers) != 0 {
 		t.Fatalf("缺少 workspace 时不应注入 nexus_imagegen: %+v", servers)
 	}
 }

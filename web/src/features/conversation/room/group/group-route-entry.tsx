@@ -1,7 +1,14 @@
+/**
+ * INPUT: 无法进入完整 Room surface 时的 Room、Agent 与会话目录。
+ * OUTPUT: 基础返回动作和排除未开始 draft 的最近会话入口。
+ * POS: Room 缺少完整上下文时的降级导航页。
+ */
+
 import { ArrowRight, MessageSquare, Sparkles, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { filterRoomHistoryConversations } from "@/features/conversation/room/surface/history/room-history-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { WorkspaceActionBar, WorkspaceActionCard } from "@/shared/ui/workspace/controls/workspace-action-bar";
 import { Agent } from "@/types/agent/agent";
@@ -25,7 +32,7 @@ export function GroupRouteEntry({
   const { t } = useI18n();
   const navigate = useNavigate();
   const roomAgent = agents[0] ?? null;
-  const recentRoomConversations = conversations
+  const recentRoomConversations = filterRoomHistoryConversations(conversations)
     .filter((conversation): conversation is RoomConversationView & { conversation_id: string } => (
       conversation.room_id === roomId && Boolean(conversation.conversation_id)
     ))
@@ -35,7 +42,7 @@ export function GroupRouteEntry({
   return (
     <div className="grid flex-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
       <section className="surface-radius-md border border-(--divider-subtle-color) px-5 py-5">
-        <h2 className="mt-2 text-[22px] font-semibold leading-7 tracking-normal text-(--text-strong)">
+        <h2 className="mt-2 text-lg font-semibold leading-7 tracking-normal text-(--text-strong)">
           {roomAgent ? roomAgent.name : t("room.route_empty_title")}
         </h2>
 
@@ -63,12 +70,12 @@ export function GroupRouteEntry({
       <aside className="surface-radius-md border border-(--divider-subtle-color) px-5 py-5">
         <div className="mt-4">
           <div className={METRIC_ROW_CLASS_NAME}>
-            <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">Room</p>
+            <p className="text-xs uppercase tracking-[0.12em] text-(--text-soft)">Room</p>
             <p className="text-sm font-semibold text-(--text-strong)">{roomId ?? "-"}</p>
           </div>
 
           <div className={METRIC_ROW_CLASS_NAME}>
-            <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">
+            <p className="text-xs uppercase tracking-[0.12em] text-(--text-soft)">
               {t("room.route_conversation")}
             </p>
             <p className="text-sm font-semibold text-(--text-strong)">{conversationId ?? "-"}</p>
@@ -76,7 +83,7 @@ export function GroupRouteEntry({
 
           {recentRoomConversations.length ? (
             <div className="pt-3">
-              <p className="text-[11px] uppercase tracking-[0.12em] text-(--text-soft)">{t("room.route_recent")}</p>
+              <p className="text-xs uppercase tracking-[0.12em] text-(--text-soft)">{t("room.route_recent")}</p>
               <div className="mt-3 divide-y divide-(--divider-subtle-color)">
                 {recentRoomConversations.map((conversation) => (
                   <button
@@ -93,7 +100,7 @@ export function GroupRouteEntry({
                     type="button"
                   >
                     <span className="truncate text-sm text-(--text-default)">
-                      {conversation.title || t("room.untitled_conversation")}
+                      {conversation.title || t("room.new_conversation")}
                     </span>
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-full text-(--icon-default) transition-colors hover:text-(--icon-strong)">
                       <ArrowRight className="h-4 w-4 shrink-0 text-(--icon-default)" />

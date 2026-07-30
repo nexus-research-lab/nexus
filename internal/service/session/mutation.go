@@ -38,7 +38,7 @@ func (s *Service) CreateSession(ctx context.Context, request CreateRequest) (*pr
 		return nil, err
 	}
 	now := time.Now().UTC()
-	created, err := s.files.UpsertSession(agentValue.WorkspacePath, normalizeSession(protocol.Session{
+	created, err := s.ownerFiles(ctx).UpsertSession(agentValue.WorkspacePath, normalizeSession(protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      parsed.AgentID,
 		ChannelType:  protocol.NormalizeStoredChannelType(parsed.Channel),
@@ -74,7 +74,7 @@ func (s *Service) UpdateSession(ctx context.Context, rawSessionKey string, reque
 	if parsed.AgentID != "" {
 		next.AgentID = parsed.AgentID
 	}
-	updated, err := s.files.UpsertSession(workspacePath, next)
+	updated, err := s.ownerFiles(ctx).UpsertSession(workspacePath, next)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 	if workspacePath == "" {
 		return ErrSessionNotFound
 	}
-	deleted, err := s.files.DeleteSession(workspacePath, sessionKey)
+	deleted, err := s.ownerFiles(ctx).DeleteSession(workspacePath, sessionKey)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,10 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 		return ErrSessionNotFound
 	}
 	if item != nil && item.SessionID != nil {
-		if _, err := s.history.DeleteTranscriptSession(workspacePath, strings.TrimSpace(*item.SessionID)); err != nil {
+		if _, err := s.ownerHistory(ctx).DeleteTranscriptSession(
+			workspacePath,
+			strings.TrimSpace(*item.SessionID),
+		); err != nil {
 			return err
 		}
 	}
@@ -152,7 +155,7 @@ func (s *Service) loadMutableWorkspaceSession(ctx context.Context, rawSessionKey
 	if err != nil {
 		return nil, "", parsed, err
 	}
-	item, workspacePath, err := s.files.FindSession(workspacePaths, sessionKey)
+	item, workspacePath, err := s.ownerFiles(ctx).FindSession(workspacePaths, sessionKey)
 	if err != nil {
 		return nil, "", parsed, err
 	}

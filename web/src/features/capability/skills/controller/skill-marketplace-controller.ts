@@ -7,6 +7,8 @@ import type {
   SkillInfo,
 } from "@/types/capability/skill";
 
+import type { SkillUpdateCheckNotice } from "./skill-update-check-model";
+
 export type DiscoveryMode = "catalog" | "external";
 export type SkillImportDialogMode = "local" | "git";
 export type SkillMarketplaceFeedbackTone = "error" | "success" | "warning";
@@ -28,7 +30,6 @@ export interface SkillMarketplaceFeedbackActions {
 
 export interface SkillCatalogController {
   activeCategory: string;
-  catalogCount: number;
   categories: Array<{ key: string; label: string }>;
   groupedSkills: Array<[string, SkillInfo[]]>;
   importedExternalSources: Map<string, Set<string>>;
@@ -68,7 +69,7 @@ export interface ExternalSkillSourcesController {
 export interface SkillOperationsController {
   busyExternalKeys: ReadonlySet<string>;
   busySkillNames: ReadonlySet<string>;
-  checkUpdateMessage: string | null;
+  checkUpdateNotice: SkillUpdateCheckNotice | null;
   checkUpdates: () => Promise<void>;
   checkingUpdates: boolean;
   deleteSkill: (skill: SkillInfo) => Promise<boolean>;

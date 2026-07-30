@@ -15,44 +15,58 @@ const COPY_ACTION_PRESENTATION: Record<"copied" | "idle", CopyActionPresentation
 };
 
 export function AssistantMessageStats({
-  compact,
   copied,
+  model,
   onCopy,
   stats,
   streaming,
 }: {
-  compact: boolean;
   copied: boolean;
+  model?: string;
   onCopy?: () => Promise<void>;
   stats: AssistantFooterStats | null;
   streaming: boolean;
 }) {
-  const items = [
+  const statsItems = [
     stats?.duration,
     stats?.tokens,
     stats?.cost,
     stats?.cacheHit,
   ].filter((item): item is string => Boolean(item));
+  const modelName = model?.trim() || null;
 
   return (
     <div className={cn(
-      "nexus-chat-message-stats flex min-w-0 items-start justify-between gap-3 pt-1.5 text-(--text-muted)",
-      compact ? "text-[10.5px]" : "text-[11px]",
+      "nexus-chat-message-stats flex min-w-0 items-center justify-between gap-3 pt-1.5 text-xs text-(--text-muted)",
     )}>
-      <div className={cn(
-        "nexus-chat-message-stat-list flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 leading-none",
-        compact ? "max-w-full" : "max-w-[calc(100%-2.5rem)]",
-      )}>
-        {items.map((item, index) => (
-          <span className="contents" key={`${item}-${index}`}>
-            {index > 0 ? (
-              <span className="shrink-0 text-(--text-soft)/70">•</span>
+      <div className="flex min-w-0 flex-1 items-center">
+        {statsItems.length > 0 ? (
+          <div className="nexus-chat-message-stat-list flex min-w-0 flex-nowrap items-center gap-x-1.5 overflow-hidden whitespace-nowrap leading-none">
+            {statsItems.map((item, index) => (
+              <span className="contents" key={`${item}-${index}`}>
+                {index > 0 ? (
+                  <span className="shrink-0 text-(--text-soft)/70">•</span>
+                ) : null}
+                <span className="min-w-0 truncate tabular-nums text-(--text-muted)">
+                  {item}
+                </span>
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {modelName ? (
+          <span
+            className={cn(
+              "flex shrink-0 items-center gap-x-1.5 whitespace-nowrap leading-none text-(--text-muted)",
+              statsItems.length > 0 && "ml-1.5",
+            )}
+          >
+            {statsItems.length > 0 ? (
+              <span className="text-(--text-soft)/70">•</span>
             ) : null}
-            <span className="min-w-0 truncate tabular-nums text-(--text-muted)">
-              {item}
-            </span>
+            <span>{modelName}</span>
           </span>
-        ))}
+        ) : null}
       </div>
 
       <AssistantStatsTrailing
@@ -77,13 +91,13 @@ function AssistantStatsTrailing({
     return (
       <span
         aria-hidden="true"
-        className="ml-auto mt-[2px] inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-(--text-soft) opacity-70"
+        className="ml-auto inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-(--text-soft) opacity-70"
       />
     );
   }
 
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-(--motion-duration-fast) sm:group-hover:opacity-100">
+    <div className="ml-auto flex h-5 shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-(--motion-duration-fast) sm:group-hover:opacity-100">
       {onCopy ? <AssistantCopyAction copied={copied} onCopy={onCopy} /> : null}
     </div>
   );

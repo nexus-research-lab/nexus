@@ -40,12 +40,14 @@ export function useAgentConversationSession({
   const runSessionTransition = useCallback(
     (reason: string, transition: SessionTransition): void => {
       cancelPendingRequestAcks(reason);
+      clearLiveSessionState();
       transition(lifecycleContext);
       resetHistoryPagination();
       resetRuntimeMachine();
     },
     [
       cancelPendingRequestAcks,
+      clearLiveSessionState,
       lifecycleContext,
       resetHistoryPagination,
       resetRuntimeMachine,
@@ -60,10 +62,13 @@ export function useAgentConversationSession({
   }, [runSessionTransition]);
 
   const loadSession = useCallback(
-    (sessionKey: string): Promise<void> => (
-      loadAgentSession(sessionKey, lifecycleContext)
-    ),
-    [lifecycleContext],
+    (sessionKey: string): Promise<void> => {
+      if (activeSessionKeyRef.current !== sessionKey) {
+        clearLiveSessionState();
+      }
+      return loadAgentSession(sessionKey, lifecycleContext);
+    },
+    [activeSessionKeyRef, clearLiveSessionState, lifecycleContext],
   );
 
   const clearSession = useCallback((): void => {
@@ -82,6 +87,7 @@ export function useAgentConversationSession({
 
       activeSessionKeyRef.current = normalizedKey;
       cancelPendingRequestAcks("会话已切换，未确认的消息发送已取消");
+      clearLiveSessionState();
       resetHistoryPagination();
       setSessionKey((currentKey) => (
         currentKey === normalizedKey ? currentKey : normalizedKey
@@ -92,7 +98,6 @@ export function useAgentConversationSession({
 
       setIsSessionLoading(false);
       resetRuntimeMachine();
-      clearLiveSessionState();
     },
     [
       activeSessionKeyRef,

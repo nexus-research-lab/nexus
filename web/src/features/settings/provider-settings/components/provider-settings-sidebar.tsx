@@ -64,7 +64,7 @@ export function ProviderSettingsSidebar({
           <div className="space-y-1 py-2">
             <button
               className={cn(
-                "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-[13px] font-semibold transition-[background,color] duration-(--motion-duration-fast)",
+                "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold transition-[background,color] duration-(--motion-duration-fast)",
                 isCreating && draftPresetKey === "custom"
                   ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
                   : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
@@ -87,7 +87,7 @@ export function ProviderSettingsSidebar({
               return (
                 <button
                   className={cn(
-                    "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-[13px] font-semibold transition-[background,color] duration-(--motion-duration-fast)",
+                    "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold transition-[background,color] duration-(--motion-duration-fast)",
                     isUnsupportedPreset
                       ? "cursor-not-allowed text-(--text-soft) opacity-50"
                       : isActive
@@ -115,7 +115,7 @@ export function ProviderSettingsSidebar({
                   />
                   <span className="min-w-0 flex-1 truncate">{preset.display_name}</span>
                   {isUnsupportedPreset ? (
-                    <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-semibold text-(--text-soft)">
+                    <span className="shrink-0 rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-2xs font-semibold text-(--text-soft)">
                       {t("settings.providers.unsupported_badge")}
                     </span>
                   ) : null}
@@ -137,7 +137,7 @@ export function ProviderSettingsSidebar({
                   key={item.provider}
                 >
                   <button
-                    className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left text-[13px] font-semibold"
+                    className="flex min-h-10 min-w-0 flex-1 items-center gap-2 px-2.5 py-2 text-left text-sm font-semibold"
                     onClick={() => onSelectProvider(item.provider)}
                     type="button"
                   >

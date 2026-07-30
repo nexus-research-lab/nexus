@@ -110,10 +110,9 @@ export function GoalStatusStrip({
 
   return (
     <div
-      className={cn(
-        GOAL_PANEL_STRIP_CLASS_NAME,
-        compact && GOAL_PANEL_COMPACT_CLASS_NAME,
-      )}
+      className={
+        compact ? GOAL_PANEL_COMPACT_CLASS_NAME : GOAL_PANEL_STRIP_CLASS_NAME
+      }
     >
       <div className={GOAL_PANEL_SURFACE_CLASS_NAME}>
         <div className={GOAL_PANEL_ROW_CLASS_NAME}>
@@ -124,7 +123,7 @@ export function GoalStatusStrip({
             scopeLabel={scopeLabel}
             statusExtra={statusExtra}
           />
-          <GoalBudget label={model.budgetLabel} />
+          <GoalUsage label={model.usageLabel} />
           <GoalStatusActions
             actions={model.actions}
             disabled={disabled}
@@ -133,7 +132,6 @@ export function GoalStatusStrip({
           />
         </div>
         <GoalAttentionMessage message={model.attentionMessage} />
-        <GoalUsageMeter model={model} />
       </div>
     </div>
   );
@@ -160,7 +158,7 @@ function GoalStatusSummary({
 }) {
   return (
     <div className="min-w-0 flex-1">
-      <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-(--text-soft)">
+      <div className="flex min-w-0 items-center gap-1.5 text-2xs font-medium text-(--text-soft)">
         <span className="truncate">{scopeLabel}</span>
         <span
           className={cn(GOAL_PANEL_BADGE_CLASS_NAME, model.tone.badge)}
@@ -171,7 +169,10 @@ function GoalStatusSummary({
         <GoalExecutionState model={model} />
         {statusExtra}
       </div>
-      <div className="mt-0.5 line-clamp-1 text-[12px] font-medium leading-5 text-(--text-strong)">
+      <div
+        className="mt-0.5 line-clamp-1 text-compact font-medium leading-5 text-(--text-strong)"
+        title={objective}
+      >
         {objective}
       </div>
     </div>
@@ -185,17 +186,14 @@ function GoalExecutionState({ model }: { model: GoalStatusStripModel }) {
   return <span className={cn("font-semibold", model.tone.text)}>执行中</span>;
 }
 
-function GoalBudget({ label }: { label: string | null }) {
+function GoalUsage({ label }: { label: string | null }) {
   if (!label) {
     return null;
   }
   return (
-    <span
-      className="hidden h-6 max-w-[128px] shrink-0 items-center gap-1 truncate rounded-[8px] px-1.5 text-[11px] font-medium text-(--text-muted) sm:inline-flex"
-      title="Token 使用"
-    >
+    <span className="hidden h-6 shrink-0 items-center gap-1 rounded-[8px] px-1.5 text-xs font-medium tabular-nums text-(--text-muted) sm:inline-flex">
       <GaugeCircle className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">{label}</span>
+      <span>{label}</span>
     </span>
   );
 }
@@ -247,22 +245,8 @@ function GoalAttentionMessage({ message }: { message: string | null }) {
     return null;
   }
   return (
-    <div className="ml-7 line-clamp-1 pb-1 text-[11px] leading-4 text-(--destructive)">
+    <div className="ml-7 line-clamp-1 pb-1 text-xs leading-4 text-(--destructive)">
       {message}
-    </div>
-  );
-}
-
-function GoalUsageMeter({ model }: { model: GoalStatusStripModel }) {
-  if (model.usagePercent === null) {
-    return null;
-  }
-  return (
-    <div className="ml-7 h-1 overflow-hidden rounded-full bg-(--surface-interactive-hover-background)">
-      <div
-        className={cn("h-full", model.tone.meter)}
-        style={{ width: `${model.usagePercent}%` }}
-      />
     </div>
   );
 }

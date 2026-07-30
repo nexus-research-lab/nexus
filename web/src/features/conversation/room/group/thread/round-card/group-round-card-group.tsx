@@ -9,14 +9,16 @@ import { Fragment, memo, useCallback, useMemo } from "react";
 
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
 import type { Message } from "@/types/conversation/message/entity";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 
-import { GroupAgentStatusCard } from "./group-agent-status-card";
-import { GroupCompletedReply } from "./group-completed-reply";
+import { GroupAgentReply } from "./group-agent-reply";
 import {
   buildGroupRoundCardModel,
   type GroupRoundUserMessageModel,
@@ -31,9 +33,10 @@ interface GroupRoundCardGroupProps {
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
-  onStopMessage: (msgId: string) => void;
+  onStopAgentRound: (agentRoundId: string) => void;
   pendingPermissions: PendingPermission[];
   pendingSlots: RoomPendingAgentSlotState[];
+  roomAgentExecutionStates: RoomAgentExecutionState[];
   roundId: string;
 }
 
@@ -45,9 +48,10 @@ function GroupRoundCardGroupInner({
   onOpenAgentContact,
   onOpenWorkspaceFile,
   onPermissionResponse,
-  onStopMessage,
+  onStopAgentRound,
   pendingPermissions,
   pendingSlots,
+  roomAgentExecutionStates,
   roundId,
 }: GroupRoundCardGroupProps) {
   const { activeThread, closeThread, openThread } = useGroupThread();
@@ -55,6 +59,7 @@ function GroupRoundCardGroupInner({
     () => buildGroupRoundCardModel({
       agentAvatarMap,
       agentNameMap,
+      executionStates: roomAgentExecutionStates,
       messages,
       pendingPermissions,
       pendingSlots,
@@ -65,6 +70,7 @@ function GroupRoundCardGroupInner({
       messages,
       pendingPermissions,
       pendingSlots,
+      roomAgentExecutionStates,
     ],
   );
   const toggleThread = useCallback((
@@ -83,7 +89,7 @@ function GroupRoundCardGroupInner({
   }, [activeThread, closeThread, openThread, roundId]);
 
   return (
-    <div className="w-full min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="w-full min-w-0">
       {model.userMessages.map((item) => (
         <GroupUserMessage
           agentAvatarMap={agentAvatarMap}
@@ -97,7 +103,7 @@ function GroupRoundCardGroupInner({
         />
       ))}
 
-      {model.entries.map((entry) => {
+      {model.entries.map((entry, entryIndex) => {
         const isThreadActive = activeThread?.roundId === roundId
           && activeThread.agentId === entry.agent_id
           && activeThread.agentRoundId === entry.agent_round_id;
@@ -105,7 +111,7 @@ function GroupRoundCardGroupInner({
           entry.agent_id,
           entry.agent_round_id,
         );
-        const stopMessageId = entry.stopMessageId;
+        const stopAgentRoundId = entry.stopAgentRoundId;
         return (
           <Fragment key={entry.entry_id}>
             {entry.guidedUserMessages.map((item) => (
@@ -120,43 +126,24 @@ function GroupRoundCardGroupInner({
                 roundId={roundId}
               />
             ))}
-            {entry.status === "done" ? (
-              <GroupCompletedReply
-                entry={entry}
-                isThreadActive={isThreadActive}
-                onClickThread={toggleEntryThread}
-                onOpenAgentContact={onOpenAgentContact}
-                onOpenWorkspaceFile={onOpenWorkspaceFile}
-                agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
-                roundId={roundId}
-              />
-            ) : (
-              <div className="border-b border-(--divider-subtle-color)">
-                <div className="w-full px-2 sm:px-3">
-                  <div className="mx-auto w-full max-w-[980px]">
-                    <GroupAgentStatusCard
-                      agentAvatar={entry.agentAvatar}
-                      agentId={entry.agent_id}
-                      agentName={entry.agentName}
-                      isThreadActive={isThreadActive}
-                      messages={entry.assistant_messages}
-                      onClickThread={toggleEntryThread}
-                      onOpenAgentContact={onOpenAgentContact}
-                      onPermissionResponse={onPermissionResponse}
-                      onStopMessage={
-                        stopMessageId
-                          ? () => onStopMessage(stopMessageId)
-                          : undefined
-                      }
-                      pendingPermissions={entry.pendingPermissions}
-                      resultSummary={entry.result_summary}
-                      status={entry.status}
-                      timestamp={entry.timestamp}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+            <GroupAgentReply
+              entry={entry}
+              isThreadActive={isThreadActive}
+              onClickThread={toggleEntryThread}
+              onOpenAgentContact={onOpenAgentContact}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              onPermissionResponse={onPermissionResponse}
+              onStopAgentRound={
+                stopAgentRoundId
+                  ? () => onStopAgentRound(stopAgentRoundId)
+                  : undefined
+              }
+              agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
+              roundId={roundId}
+              showAgentBoundary={
+                entryIndex > 0 && entry.guidedUserMessages.length === 0
+              }
+            />
           </Fragment>
         );
       })}
@@ -185,6 +172,7 @@ function GroupUserMessage({
     <div className="border-b border-(--divider-subtle-color)">
       {/* 用户消息沿用通用样式，但不渲染尚未出现的助手区域。 */}
       <MessageItem
+        animateEntry={false}
         className="border-b-0"
         currentUserAvatar={currentUserAvatar}
         agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}

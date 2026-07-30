@@ -12,6 +12,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	automationsvc "github.com/nexus-research-lab/nexus/internal/service/automation"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
@@ -26,6 +27,7 @@ import (
 	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
 	memorymaintenancesvc "github.com/nexus-research-lab/nexus/internal/service/memorymaintenance"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
+	projectpermissionsvc "github.com/nexus-research-lab/nexus/internal/service/projectpermission"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
@@ -43,6 +45,7 @@ type AppServices struct {
 	Provider          *providercfg.Service
 	Subscription      *subscriptionsvc.Service
 	Workspace         *workspacepkg.Service
+	ProjectPermission *projectpermissionsvc.Service
 	Skills            *skillsvc.Service
 	Connectors        *connectorsvc.Service
 	Configuration     *configurationsvc.Service
@@ -62,6 +65,14 @@ type AppServices struct {
 	Goal              *goalsvc.Service
 	Loops             *loopsvc.Service
 	MemoryMaintenance *memorymaintenancesvc.Coordinator
+}
+
+// Close 等待仍可能写入 workspace 的标题任务结束。
+func (s *AppServices) Close(ctx context.Context) error {
+	if s == nil || s.Title == nil {
+		return nil
+	}
+	return s.Title.Close(ctx)
 }
 
 // NewAppServices 创建完整应用依赖容器。
@@ -86,10 +97,11 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 	preferencesService := preferencessvc.NewService(cfg)
-	imagegenService := imagegensvc.NewService(providerService)
+	imagegenService := imagegensvc.NewService(providerService, cfg.WorkspacePath)
 	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
+	projectPermissionService := projectpermissionsvc.NewService(cfg)
 	skillService := skillsvc.NewServiceWithDB(cfg, db, core.Agent, workspaceService)
 	core.Room.SetSkillCatalog(skillService)
 	connectorService := connectorsvc.NewService(cfg, db)
@@ -99,6 +111,11 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	titleService := titlegen.NewService(providerService, core.Session, core.Room, permission, preferencesService)
 	titleService.SetLogger(logger.With("component", "title"))
 	runtimeManager := runtimectx.NewManager()
+	runtimeManager.SetOwnerProcessReaper(workspaceisolation.OwnerProcessReaper{
+		Mode:         workspaceisolation.Mode(cfg.RuntimeIsolationMode),
+		LauncherPath: cfg.RuntimeLauncherPath,
+	})
+	projectPermissionService.SetRuntimeSessionCloser(runtimeManager)
 	goalService.SetPreviewFiller(titleService)
 	goalObjectiveService := goalobjectivesvc.NewService(providerService, preferencesService)
 	goalObjectiveService.SetConversationResolvers(core.Agent, core.Room)
@@ -119,6 +136,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetQuotaChecker(subscriptionService)
 	dmService.SetGoalContextProvider(goalService)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
+	dmService.SetRoomConversationActivityStore(core.Room)
 	dmService.SetTitleGenerator(titleService)
 	dmService.SetExternalReplyDispatcher(dmExternalReplyDispatcher{router: channelRouter})
 	ingressService := channels.NewIngressService(cfg, core.Agent, dmService, channelRouter)
@@ -165,11 +183,11 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 
 	// 把内置配置、自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)
-	automationBuilder := newAutomationMCPBuilder(automationService, core.Agent, cfg.DefaultTimezone)
-	connectorBuilder := newConnectorMCPBuilder(connectorService, core.Agent)
+	automationBuilder := newAutomationMCPBuilder(automationService, cfg.DefaultTimezone)
+	connectorBuilder := newConnectorMCPBuilder(connectorService)
 	goalBuilder := newGoalMCPBuilder(cfg, goalService, roomRealtime)
-	imagegenBuilder := newImagegenMCPBuilder(imagegenService, core.Agent)
-	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Agent, core.Room.GetRoom)
+	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
+	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
 	mcpBuilder := combinedMCPBuilder(
 		configurationBuilder,
 		automationBuilder,
@@ -191,6 +209,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Subscription:      subscriptionService,
 		Preferences:       preferencesService,
 		Workspace:         workspaceService,
+		ProjectPermission: projectPermissionService,
 		Skills:            skillService,
 		Connectors:        connectorService,
 		Configuration:     configurationService,

@@ -13,11 +13,12 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	_ "modernc.org/sqlite"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
 
-func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
+func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -36,9 +37,9 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		Role:     authsvc.RoleOwner,
 	})
 	memberAgent := createTestAgent(t, agentService, ctx, "单聊助手")
-	dmContext, err := roomService.EnsureDirectRoom(ctx, memberAgent.AgentID)
+	roomContext, err := createSingleAgentGroupRoom(ctx, roomService, memberAgent.AgentID)
 	if err != nil {
-		t.Fatalf("创建直聊 room 失败: %v", err)
+		t.Fatalf("创建单成员 room 失败: %v", err)
 	}
 
 	client := newFakeRoomClient()
@@ -92,16 +93,18 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	service.SetUsageRecorder(usageService)
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
 
-	sharedSessionKey := protocol.BuildRoomSharedSessionKey(dmContext.Conversation.ID)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
 	sender := newRealtimeTestSender("room-sender-1")
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         dmContext.Room.ID,
-		ConversationID: dmContext.Conversation.ID,
-		Content:        "你好",
-		RoundID:        "room-round-1",
+		SessionKey:      sharedSessionKey,
+		RoomID:          roomContext.Room.ID,
+		ConversationID:  roomContext.Conversation.ID,
+		ClientRequestID: "request-room-user-1",
+		ClientMessageID: "local-room-user-1",
+		Content:         "你好",
+		RoundID:         "room-round-1",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -143,7 +146,11 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	}
 
 	pendingMsgID := ""
+	foundCorrelatedUserEvent := false
 	for _, event := range events {
+		if event.EventType == protocol.EventTypeMessage && event.Data["role"] == "user" {
+			foundCorrelatedUserEvent = event.Data["client_message_id"] == "local-room-user-1"
+		}
 		if event.EventType == protocol.EventTypeChatAck {
 			if pending, ok := event.Data["pending"].([]protocol.ChatAckPendingSlot); ok && len(pending) > 0 {
 				pendingMsgID = pending[0].MsgID
@@ -157,6 +164,9 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 				t.Fatalf("assistant message_id 不应回退成 slot msg_id: %s", pendingMsgID)
 			}
 		}
+	}
+	if !foundCorrelatedUserEvent {
+		t.Fatal("Room durable user 广播必须携带 client_message_id 以原位替换 optimistic 消息")
 	}
 
 	roomSystemPrompt := factory.LastOptions().System.Append
@@ -201,11 +211,11 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		t.Fatalf("Room runtime 应注入明确 nexusctl 命令路径: %+v", factory.LastOptions().Env)
 	}
 
-	privateSessionKey := protocol.BuildRoomAgentSessionKey(dmContext.Conversation.ID, memberAgent.AgentID, dmContext.Room.RoomType)
+	privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, memberAgent.AgentID, roomContext.Room.RoomType)
 	cursor, ok, err := workspacestore.NewAgentHistoryStore(cfg.WorkspacePath).ReadRoomPublicCursor(
 		memberAgent.WorkspacePath,
 		privateSessionKey,
-		dmContext.Conversation.ID,
+		roomContext.Conversation.ID,
 		memberAgent.AgentID,
 	)
 	if err != nil {
@@ -215,7 +225,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 		t.Fatalf("成功 round 应记录目标 agent 公区消费位置: ok=%v cursor=%+v", ok, cursor)
 	}
 	roomTranscriptBaseTime := time.Now().Add(-2 * time.Second).UTC()
-	writeRoomTranscriptFixture(t, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
+	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, memberAgent.WorkspacePath, client.sessionID, []map[string]any{
 		{
 			"type":      "user",
 			"uuid":      "room-user-1",
@@ -240,12 +250,15 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 			},
 		},
 	})
-	sharedMessages, err := roomHistory.ReadMessages(dmContext.Conversation.ID, nil)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取共享 Room 消息失败: %v", err)
 	}
 	if len(sharedMessages) != 2 {
 		t.Fatalf("共享消息数量不正确: got=%d want=2", len(sharedMessages))
+	}
+	if _, exists := sharedMessages[0]["client_message_id"]; exists {
+		t.Fatalf("client_message_id 不应写入 Room 历史消息: %+v", sharedMessages[0])
 	}
 	if sharedMessages[1]["message_id"] != "assistant-sdk-1" {
 		t.Fatalf("共享 assistant message_id 不正确: %+v", sharedMessages[1])
@@ -257,6 +270,7 @@ func TestRealtimeServiceHandleChatWithDirectRoomFallbackTarget(t *testing.T) {
 	privateMessages := readRoomPrivateHistory(
 		t,
 		cfg.WorkspacePath,
+		roomContext.Room.OwnerUserID,
 		memberAgent.WorkspacePath,
 		privateSessionKey,
 		memberAgent.AgentID,
@@ -365,7 +379,7 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 		t.Fatalf("未 @ 消息不应直接唤醒非群主成员: %+v", events)
 	}
 	roomHistory := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)
-	sharedMessages, err := roomHistory.ReadMessages(roomContext.Conversation.ID, nil)
+	sharedMessages, err := roomHistory.ReadMessages(roomContext.Room.OwnerUserID, roomContext.Conversation.ID, nil)
 	if err != nil {
 		t.Fatalf("读取 Room 公区历史失败: %v", err)
 	}
@@ -563,6 +577,9 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 	if hasStreamText(events, "<nexus_room_no_reply/>") {
 		t.Fatalf("无需回复标记不应以流式文本暴露给前端: %+v", events)
 	}
+	if !hasAgentRoundStatus(events, agentValue.AgentID, "finished") {
+		t.Fatalf("no-reply 仍须广播 slot 终态，让前端收口已发布的 thinking 快照: %+v", events)
+	}
 	usageSummary, err := usageService.Summary(ctx, "user-room-no-reply")
 	if err != nil {
 		t.Fatalf("读取 no-reply token usage 失败: %v", err)
@@ -753,8 +770,9 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	ctx := context.Background()
 	amy := createTestAgent(t, agentService, ctx, "Amy")
 	devin := createTestAgent(t, agentService, ctx, "Devin")
+	casey := createTestAgent(t, agentService, ctx, "Casey")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{amy.AgentID, devin.AgentID},
+		AgentIDs: []string{amy.AgentID, devin.AgentID, casey.AgentID},
 		Name:     "公区 @ 测试房间",
 		Title:    "主对话",
 	})
@@ -764,19 +782,29 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 
 	amyClient := newFakeRoomClient()
 	devinClient := newFakeRoomClient()
-	devinPrompt := make(chan string, 1)
-	factory := &fakeRoomFactory{clients: []*fakeRoomClient{amyClient, devinClient}}
+	caseyClient := newFakeRoomClient()
+	targetPrompts := make(chan string, 2)
+	factory := &fakeRoomFactory{clients: []*fakeRoomClient{amyClient, devinClient, caseyClient}}
 	permission := permissionctx.NewContext()
 	runtimeManager := runtimectx.NewManager()
 	service := NewServiceWithFactory(cfg, roomService, agentService, runtimeManager, permission, factory)
 
 	amyClient.onQuery = func(_ context.Context, _ string) error {
-		go sendFakeAssistantResult(amyClient, "amy-public-mention-1", "@Devin 请查询天气，并在公区回复。")
+		go sendFakeAssistantResult(
+			amyClient,
+			"amy-public-mention-1",
+			"@Devin 请查询天气，@Casey 请检查穿衣建议，并分别在公区回复。",
+		)
 		return nil
 	}
 	devinClient.onQuery = func(_ context.Context, prompt string) error {
-		devinPrompt <- prompt
+		targetPrompts <- prompt
 		go sendFakeAssistantResult(devinClient, "devin-public-mention-1", "天气查询完成。")
+		return nil
+	}
+	caseyClient.onQuery = func(_ context.Context, prompt string) error {
+		targetPrompts <- prompt
+		go sendFakeAssistantResult(caseyClient, "casey-public-mention-1", "穿衣建议检查完成。")
 		return nil
 	}
 
@@ -788,7 +816,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 		SessionKey:     sharedSessionKey,
 		RoomID:         roomContext.Room.ID,
 		ConversationID: roomContext.Conversation.ID,
-		Content:        "@Amy 让 Devin 查下天气",
+		Content:        "@Amy 让 Devin 和 Casey 分头处理",
 		RoundID:        "room-round-public-mention",
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
@@ -801,47 +829,125 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 			event.Data["status"] == "finished"
 	})
 	var assistantPayload protocol.Message
-	for _, event := range events {
+	assistantEventIndex := -1
+	for eventIndex, event := range events {
 		if event.EventType != protocol.EventTypeMessage || event.MessageID != "amy-public-mention-1" || event.Data["role"] != "assistant" {
 			continue
 		}
 		candidate := protocol.Message(event.Data)
 		if candidate["is_complete"] == true {
 			assistantPayload = candidate
+			assistantEventIndex = eventIndex
 		}
 	}
 	if assistantPayload == nil {
 		t.Fatalf("未找到最终 assistant 事件: %+v", events)
 	}
 	mentions, ok := assistantPayload["agent_mentions"].([]protocol.AgentMention)
-	if !ok || len(mentions) != 1 || mentions[0].AgentID != devin.AgentID || mentions[0].HandoffID == "" {
-		t.Fatalf("最终 assistant 事件应带可渲染且可交接的 Devin mention: %+v", assistantPayload)
+	if !ok || len(mentions) != 2 {
+		t.Fatalf("最终 assistant 事件应带两个可渲染且可交接的 mention: %+v", assistantPayload)
 	}
-	select {
-	case prompt := <-devinPrompt:
-		if !strings.Contains(prompt, "<latest_trigger>\nAmy: @Devin 请查询天气") {
-			t.Fatalf("Devin prompt 缺少公区 @ 触发上下文: %s", prompt)
+	mentionByAgentID := make(map[string]protocol.AgentMention, len(mentions))
+	for _, mention := range mentions {
+		if mention.HandoffID == "" {
+			t.Fatalf("每个目标 mention 都应带 handoff_id: %+v", mentions)
 		}
-		if strings.Contains(prompt, "type:") || strings.Contains(prompt, "fanout_targets:") {
-			t.Fatalf("Devin 动态 prompt 不应包含字段化 trigger: %s", prompt)
+		mentionByAgentID[mention.AgentID] = mention
+	}
+	for _, targetAgentID := range []string{devin.AgentID, casey.AgentID} {
+		if _, exists := mentionByAgentID[targetAgentID]; !exists {
+			t.Fatalf("最终 assistant 事件缺少目标 %s: %+v", targetAgentID, mentions)
 		}
-		if strings.Contains(prompt, "<room_member_directory>") {
-			t.Fatalf("Devin 动态 prompt 不应重复成员目录: %s", prompt)
+	}
+	publicWakeSlotByAgentID := make(map[string]protocol.ChatAckPendingSlot, len(mentions))
+	publicWakeSlotEventIndexByAgentID := make(map[string]int, len(mentions))
+	for eventIndex, event := range events {
+		if event.EventType != protocol.EventTypeChatAck {
+			continue
 		}
-	case <-time.After(time.Second):
-		t.Fatal("Devin 未被公区 @ 唤醒")
+		pending, pendingOK := event.Data["pending"].([]protocol.ChatAckPendingSlot)
+		if !pendingOK {
+			continue
+		}
+		for _, slot := range pending {
+			if _, expected := mentionByAgentID[slot.AgentID]; expected {
+				publicWakeSlotByAgentID[slot.AgentID] = slot
+				publicWakeSlotEventIndexByAgentID[slot.AgentID] = eventIndex
+			}
+		}
+	}
+	for _, targetAgentID := range []string{devin.AgentID, casey.AgentID} {
+		publicWakeSlot, foundPublicWakeSlot := publicWakeSlotByAgentID[targetAgentID]
+		if !foundPublicWakeSlot {
+			t.Fatalf("事件流缺少目标 %s 的公区 @ 唤醒 slot: %+v", targetAgentID, events)
+		}
+		if publicWakeSlot.HandoffID != mentionByAgentID[targetAgentID].HandoffID {
+			t.Fatalf(
+				"目标 %s 的 public wake slot handoff_id = %q, want source mention %q",
+				targetAgentID,
+				publicWakeSlot.HandoffID,
+				mentionByAgentID[targetAgentID].HandoffID,
+			)
+		}
+		if publicWakeSlotEventIndex := publicWakeSlotEventIndexByAgentID[targetAgentID]; assistantEventIndex < 0 ||
+			assistantEventIndex >= publicWakeSlotEventIndex {
+			t.Fatalf(
+				"source final message index = %d, target %s public wake slot index = %d; mention 状态必须先可见再由同一 handoff 接棒",
+				assistantEventIndex,
+				targetAgentID,
+				publicWakeSlotEventIndex,
+			)
+		}
+	}
+	for range 2 {
+		select {
+		case prompt := <-targetPrompts:
+			if !strings.Contains(prompt, "<latest_trigger>\nAmy: @Devin 请查询天气，@Casey 请检查穿衣建议") {
+				t.Fatalf("目标 prompt 缺少完整的多 @ 触发上下文: %s", prompt)
+			}
+			if strings.Contains(prompt, "type:") || strings.Contains(prompt, "fanout_targets:") {
+				t.Fatalf("目标动态 prompt 不应包含字段化 trigger: %s", prompt)
+			}
+			if strings.Contains(prompt, "<room_member_directory>") {
+				t.Fatalf("目标动态 prompt 不应重复成员目录: %s", prompt)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("并非所有被 @ 的目标都收到 runtime 唤醒")
+		}
 	}
 	roomSystemPrompt := factory.LastOptions().System.Append
 	if !strings.Contains(roomSystemPrompt, "<room_member_directory>") ||
-		!strings.Contains(roomSystemPrompt, "agent_id="+devin.AgentID) {
-		t.Fatalf("Devin system prompt 应包含 Room 成员目录: %s", roomSystemPrompt)
+		!strings.Contains(roomSystemPrompt, "agent_id="+devin.AgentID) ||
+		!strings.Contains(roomSystemPrompt, "agent_id="+casey.AgentID) {
+		t.Fatalf("目标 system prompt 应包含完整 Room 成员目录: %s", roomSystemPrompt)
 	}
-	if !hasChatAckPendingAgent(events, devin.AgentID) {
-		t.Fatalf("事件流缺少 Devin 公区 @ 唤醒 slot: %+v", events)
+	handoffs, err := workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath).ListRoot(
+		roomContext.Room.OwnerUserID,
+		roomContext.Conversation.ID,
+		"room-round-public-mention",
+	)
+	if err != nil {
+		t.Fatalf("读取多 @ handoff ledger 失败: %v", err)
+	}
+	if len(handoffs) != 2 {
+		t.Fatalf("多 @ source 应持久化两条独立 handoff: %+v", handoffs)
+	}
+	handoffByTargetAgentID := make(map[string]workspacestore.RoomPublicHandoff, len(handoffs))
+	for _, handoff := range handoffs {
+		handoffByTargetAgentID[handoff.TargetAgentID] = handoff
+	}
+	for _, targetAgentID := range []string{devin.AgentID, casey.AgentID} {
+		handoff, exists := handoffByTargetAgentID[targetAgentID]
+		if !exists || handoff.HandoffID != mentionByAgentID[targetAgentID].HandoffID {
+			t.Fatalf("ledger 缺少目标 %s 对应的独立 handoff: %+v", targetAgentID, handoffs)
+		}
+		if handoff.Status != "finished" {
+			t.Fatalf("目标 %s handoff 未随 runtime 收口: %+v", targetAgentID, handoff)
+		}
 	}
 }
 
-func TestRealtimeServiceBlocksReciprocalPublicMentionChain(t *testing.T) {
+func TestRealtimeServiceAllowsReciprocalPublicMentionHandoff(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
@@ -904,6 +1010,15 @@ func TestRealtimeServiceBlocksReciprocalPublicMentionChain(t *testing.T) {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
 
+	select {
+	case prompt := <-amySecondPrompt:
+		if !strings.Contains(prompt, "<latest_trigger>\nDevin: @Amy 我接完了，你继续。") {
+			t.Fatalf("reciprocal handoff 缺少 Devin 的明确触发: %s", prompt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("显式 reciprocal @ 没有再次唤醒 Amy")
+	}
+
 	finishedMentionRounds := 0
 	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
 		if event.EventType != protocol.EventTypeRoundStatus {
@@ -914,12 +1029,249 @@ func TestRealtimeServiceBlocksReciprocalPublicMentionChain(t *testing.T) {
 		if strings.HasPrefix(roundID, "room_mention_") && status == "finished" {
 			finishedMentionRounds++
 		}
-		return finishedMentionRounds >= 1
+		return finishedMentionRounds >= 2
 	})
+
+	handoffs, err := workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath).ListRoot(
+		roomContext.Room.OwnerUserID,
+		roomContext.Conversation.ID,
+		"room-round-public-mention-chain",
+	)
+	if err != nil {
+		t.Fatalf("读取 reciprocal handoff ledger 失败: %v", err)
+	}
+	if len(handoffs) != 2 {
+		t.Fatalf("A → B → A 应持久化两条独立 handoff: %+v", handoffs)
+	}
+	for _, handoff := range handoffs {
+		if handoff.Status != "finished" {
+			t.Fatalf("reciprocal handoff 未随目标 runtime 收口: %+v", handoff)
+		}
+	}
+}
+
+func TestRealtimeServiceSerializesSiblingPublicMentionReturnsToFinishedHost(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	if err != nil {
+		t.Fatalf("创建 room service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	host := createTestAgent(t, agentService, ctx, "Host")
+	workerA := createTestAgent(t, agentService, ctx, "WorkerA")
+	workerB := createTestAgent(t, agentService, ctx, "WorkerB")
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:    []string{host.AgentID, workerA.AgentID, workerB.AgentID},
+		HostAgentID: host.AgentID,
+		Name:        "成员并行回交 Host 测试房间",
+		Title:       "主对话",
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+
+	hostClient := newFakeRoomClient()
+	fastWorkerClient := newFakeRoomClient()
+	slowWorkerClient := newFakeRoomClient()
+	workerStarted := make(chan struct{}, 2)
+	hostReturnPrompts := make(chan string, 2)
+	releaseSlowWorker := make(chan struct{})
+	releaseFirstHostReturn := make(chan struct{})
+	var hostQueryCount atomic.Int32
+
+	hostClient.onQuery = func(_ context.Context, prompt string) error {
+		switch hostQueryCount.Add(1) {
+		case 1:
+			go sendFakeAssistantResult(
+				hostClient,
+				"host-delegates-two-workers",
+				"@WorkerA 请完成 A 部分，@WorkerB 请完成 B 部分。",
+			)
+		case 2:
+			hostReturnPrompts <- prompt
+			go func() {
+				<-releaseFirstHostReturn
+				sendFakeAssistantResult(hostClient, "host-consumes-first-return", "第一份已收到，继续等待另一份。")
+			}()
+		case 3:
+			hostReturnPrompts <- prompt
+			go sendFakeAssistantResult(hostClient, "host-consumes-second-return", "两份回交均已收到。")
+		}
+		return nil
+	}
+	fastWorkerClient.onQuery = func(_ context.Context, _ string) error {
+		workerStarted <- struct{}{}
+		go sendFakeAssistantResult(fastWorkerClient, "worker-fast-return", "@Host 第一份成员回交。")
+		return nil
+	}
+	slowWorkerClient.onQuery = func(_ context.Context, _ string) error {
+		workerStarted <- struct{}{}
+		go func() {
+			<-releaseSlowWorker
+			sendFakeAssistantResult(slowWorkerClient, "worker-slow-return", "@Host 第二份成员回交。")
+		}()
+		return nil
+	}
+
+	permission := permissionctx.NewContext()
+	service := NewServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permission,
+		&fakeRoomFactory{clients: []*fakeRoomClient{hostClient, fastWorkerClient, slowWorkerClient}},
+	)
+
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID)
+	sender := &realtimeTestSender{
+		key:    "room-sender-sibling-returns-to-host",
+		events: make(chan protocol.EventMessage, 512),
+	}
+	permission.BindSession(sharedSessionKey, sender)
+
+	const rootRoundID = "room-round-sibling-returns-to-host"
+	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
+		SessionKey:     sharedSessionKey,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		Content:        "@Host 请让两个成员并行处理后回交",
+		RoundID:        rootRoundID,
+	}); err != nil {
+		t.Fatalf("HandleChat 失败: %v", err)
+	}
+
+	for range 2 {
+		select {
+		case <-workerStarted:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Host 委派后并非两个成员都进入 runtime")
+		}
+	}
+
+	var firstReturnPrompt string
 	select {
-	case prompt := <-amySecondPrompt:
-		t.Fatalf("root cycle 不应再次唤醒 Amy: %s", prompt)
-	case <-time.After(300 * time.Millisecond):
+	case firstReturnPrompt = <-hostReturnPrompts:
+		if !strings.Contains(firstReturnPrompt, "<latest_trigger>\n") ||
+			!strings.Contains(firstReturnPrompt, "@Host 第一份成员回交。") {
+			t.Fatalf("Host 首次回交 prompt 缺少第一位成员触发: %s", firstReturnPrompt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Host 完成初始委派后未被第一位成员再次唤醒")
+	}
+	if hostQueryCount.Load() != 2 {
+		t.Fatalf("慢成员仍在运行时 Host 应只被再次唤醒一次: queries=%d", hostQueryCount.Load())
+	}
+
+	close(releaseSlowWorker)
+	var queuedReturn protocol.InputQueueItem
+	_ = collectRoomEventsUntil(t, sender.events, func(_ []protocol.EventMessage, event protocol.EventMessage) bool {
+		if event.EventType != protocol.EventTypeInputQueue {
+			return false
+		}
+		for _, item := range inputQueueItemsFromEvent(event) {
+			if item.Source == protocol.InputQueueSourceAgentPublicMention &&
+				item.AgentID == host.AgentID &&
+				item.SourceMessageID == "worker-slow-return" {
+				queuedReturn = item
+				return true
+			}
+		}
+		return false
+	})
+	if queuedReturn.DeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
+		queuedReturn.HandoffID == "" ||
+		queuedReturn.RootRoundID != rootRoundID {
+		t.Fatalf("第二位成员回交必须按原 root 进入 Host 串行队列: %+v", queuedReturn)
+	}
+	if hostQueryCount.Load() != 2 {
+		t.Fatalf("Host 忙时不得并发启动第二个回交 slot: queries=%d", hostQueryCount.Load())
+	}
+	select {
+	case prompt := <-hostReturnPrompts:
+		t.Fatalf("Host 首个回交尚未结束时不应消费第二个回交: %s", prompt)
+	default:
+	}
+
+	hostQueueLocation := workspacestore.InputQueueLocation{
+		OwnerUserID:    roomContext.Room.OwnerUserID,
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  host.WorkspacePath,
+		SessionKey:     protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, host.AgentID, roomContext.Room.RoomType),
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+	}
+	hostQueueItems, err := workspacestore.NewInputQueueStore(cfg.WorkspacePath).Snapshot(hostQueueLocation)
+	if err != nil {
+		t.Fatalf("读取 Host 回交队列失败: %v", err)
+	}
+	if len(hostQueueItems) != 1 || hostQueueItems[0].ID != queuedReturn.ID {
+		t.Fatalf("第二位成员回交未持久化到 Host 自己的队列: event=%+v stored=%+v", queuedReturn, hostQueueItems)
+	}
+
+	close(releaseFirstHostReturn)
+	var secondReturnPrompt string
+	select {
+	case secondReturnPrompt = <-hostReturnPrompts:
+		if !strings.Contains(secondReturnPrompt, "<latest_trigger>\n") ||
+			!strings.Contains(secondReturnPrompt, "@Host 第二份成员回交。") {
+			t.Fatalf("Host 第二次回交 prompt 缺少排队成员触发: %s", secondReturnPrompt)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Host 首个回交结束后未串行消费第二位成员回交")
+	}
+	if hostQueryCount.Load() != 3 {
+		t.Fatalf("Host 应按初始委派、第一份回交、第二份回交串行执行三次: queries=%d", hostQueryCount.Load())
+	}
+
+	handoffStore := workspacestore.NewRoomPublicHandoffStore(cfg.WorkspacePath)
+	var handoffs []workspacestore.RoomPublicHandoff
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		handoffs, err = handoffStore.ListRoot(
+			roomContext.Room.OwnerUserID,
+			roomContext.Conversation.ID,
+			rootRoundID,
+		)
+		if err != nil {
+			t.Fatalf("读取成员回交 handoff ledger 失败: %v", err)
+		}
+		allFinished := len(handoffs) == 4
+		for _, handoff := range handoffs {
+			allFinished = allFinished && handoff.Status == "finished"
+		}
+		if allFinished {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(handoffs) != 4 {
+		t.Fatalf("Host 委派两次且成员回交两次应产生四条 handoff: %+v", handoffs)
+	}
+	returnRoundIDs := make(map[string]struct{}, 2)
+	returnSources := make(map[string]struct{}, 2)
+	for _, handoff := range handoffs {
+		if handoff.Status != "finished" {
+			t.Fatalf("成员协作 handoff 未收口: %+v", handoff)
+		}
+		if handoff.TargetAgentID != host.AgentID {
+			continue
+		}
+		if handoff.TargetRoundID == "" {
+			t.Fatalf("回交 Host 的 handoff 没有实际 target round: %+v", handoff)
+		}
+		returnRoundIDs[handoff.TargetRoundID] = struct{}{}
+		returnSources[handoff.SourceAgentID] = struct{}{}
+	}
+	if len(returnRoundIDs) != 2 || len(returnSources) != 2 {
+		t.Fatalf("两个来源回交同一 Host 必须各自串行启动独立 round: %+v", handoffs)
 	}
 }
 

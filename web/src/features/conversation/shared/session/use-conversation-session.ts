@@ -1,5 +1,5 @@
 /**
- * INPUT: 会话历史、运行态、权限与 round 索引。
+ * INPUT: 会话历史、slot/权限/execution 运行态与 round 索引。
  * OUTPUT: feed、navigator 与当前轮次共享的 session 视图状态。
  * POS: 会话页面消费统一时间线模型的 React 装配入口。
  */
@@ -16,7 +16,11 @@ import type {
 } from "@/types/agent/agent-conversation";
 
 import type { ConversationRoundScrollHandle } from "../timeline/scroll/round-scroll";
-import { buildConversationScrollContentKey } from "../timeline/scroll/follow-scroll-model";
+import {
+  buildConversationAtomicLayoutKey,
+  buildConversationScrollContentKey,
+  buildConversationScrollTopologyKey,
+} from "../timeline/scroll/follow-scroll-model";
 import { useConversationHistoryLoader } from "../timeline/use-history-loader";
 import { useConversationTimeline } from "../timeline/use-conversation-timeline";
 import { useVisibleRoundWindowLoader } from "../timeline/window-loader/use-visible-window-loader";
@@ -51,16 +55,45 @@ export function useConversationSession({
     () => buildConversationScrollContentKey(sessionKey, conversation.messages),
     [conversation.messages, sessionKey],
   );
+  const scrollTopologyKey = useMemo(
+    () => buildConversationScrollTopologyKey(
+      sessionKey,
+      conversation.messages,
+      conversation.pending_agent_slots,
+      conversation.pending_permissions,
+      conversation.room_agent_execution_states,
+    ),
+    [
+      conversation.messages,
+      conversation.pending_agent_slots,
+      conversation.pending_permissions,
+      conversation.room_agent_execution_states,
+      sessionKey,
+    ],
+  );
+  const atomicLayoutKey = useMemo(
+    () => [
+      buildConversationAtomicLayoutKey(
+        sessionKey,
+        conversation.messages,
+        conversation.pending_permissions,
+      ),
+      conversation.error ?? "",
+    ].join("\u001f"),
+    [
+      conversation.error,
+      conversation.messages,
+      conversation.pending_permissions,
+      sessionKey,
+    ],
+  );
   const scroll = useFollowScroll({
-    auxiliaryBlockCount:
-      conversation.pending_agent_slots.length +
-      conversation.pending_permissions.length,
-    auxiliaryBlockKey: conversation.error,
+    atomicLayoutKey,
     contentKey: scrollContentKey,
     historyPrependToken: conversation.history_prepend_token,
-    isLoading: conversation.is_loading,
     messageCount: conversation.messages.length,
     sessionKey,
+    topologyKey: scrollTopologyKey,
   });
 
   useSessionLoader({
@@ -76,6 +109,7 @@ export function useConversationSession({
     messages: conversation.messages,
     pending_agent_slots: conversation.pending_agent_slots,
     pending_permissions: conversation.pending_permissions,
+    room_agent_execution_states: conversation.room_agent_execution_states,
     resolved_history_round_ids: conversation.resolved_history_round_ids,
     round_index_items: rawRoundIndexItems,
   });
@@ -90,6 +124,8 @@ export function useConversationSession({
       messageCount: conversation.messages.length,
       pendingAgentSlotCount: conversation.pending_agent_slots.length,
       pendingPermissionCount: conversation.pending_permissions.length,
+      roomAgentExecutionStateCount:
+        conversation.room_agent_execution_states.length,
     }),
     scopeKey: sessionKey,
     scrollRef: scroll.scrollRef,
@@ -124,6 +160,7 @@ interface VisibleRoundRevisionInput {
   messageCount: number;
   pendingAgentSlotCount: number;
   pendingPermissionCount: number;
+  roomAgentExecutionStateCount: number;
 }
 
 function buildVisibleRoundRevision({
@@ -132,12 +169,14 @@ function buildVisibleRoundRevision({
   messageCount,
   pendingAgentSlotCount,
   pendingPermissionCount,
+  roomAgentExecutionStateCount,
 }: VisibleRoundRevisionInput): string {
   return [
     feedRoundCount,
     messageCount,
     pendingAgentSlotCount,
     pendingPermissionCount,
+    roomAgentExecutionStateCount,
     liveRoundCount,
   ].join(":");
 }

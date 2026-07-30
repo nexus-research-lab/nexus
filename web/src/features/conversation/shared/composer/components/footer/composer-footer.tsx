@@ -1,4 +1,11 @@
+/**
+ * INPUT: Composer 动作、运行态、输入元数据、Nexus 标注与提交投影。
+ * OUTPUT: 按输入壳容器宽度收敛的三列 Footer。
+ * POS: Composer 壳内唯一的底部动作与状态布局。
+ */
+
 import { COMPOSER_FOOTER_CLASS_NAME } from "../../composer-styles";
+import { ComposerSubmitButton } from "../composer-submit-button";
 import { ComposerFooterActions } from "./composer-footer-actions";
 import { ComposerFooterMetadata } from "./composer-footer-metadata";
 import type { ComposerFooterProps } from "./composer-footer-model";
@@ -9,8 +16,11 @@ import {
 
 export function ComposerFooter(props: ComposerFooterProps) {
   return (
-    <div className={COMPOSER_FOOTER_CLASS_NAME}>
-      <div className="flex min-w-0 items-center gap-2 text-[10px] text-(--text-soft)">
+    <div
+      className={COMPOSER_FOOTER_CLASS_NAME}
+      data-goal-mode={props.isGoalMode ? "true" : "false"}
+    >
+      <div className="nexus-chat-composer-footer-leading flex min-w-0 items-center gap-2 text-2xs text-(--text-soft)">
         <ComposerFooterActions
           actionButtonRef={props.actionButtonRef}
           canCreateGoal={props.canCreateGoal}
@@ -39,15 +49,40 @@ export function ComposerFooter(props: ComposerFooterProps) {
           runtimeActivity={props.runtimeActivity}
         />
       </div>
-      <ComposerFooterMetadata
-        charCount={props.charCount}
-        historyIndex={props.historyIndex}
-        inputHistoryLength={props.inputHistoryLength}
-        isNearLimit={props.isNearLimit}
-        isOverLimit={props.isOverLimit}
-        maxLength={props.maxLength}
-        runtimeKind={props.runtimeKind}
-      />
+      <ComposerPoweredByNexus visible={props.showPoweredByNexus} />
+      <div className="nexus-chat-composer-footer-trailing flex min-w-0 items-center justify-self-end gap-3 overflow-hidden">
+        <ComposerFooterMetadata
+          charCount={props.charCount}
+          historyIndex={props.historyIndex}
+          inputHistoryLength={props.inputHistoryLength}
+          isNearLimit={props.isNearLimit}
+          isOverLimit={props.isOverLimit}
+          maxLength={props.maxLength}
+        />
+        <ComposerSubmitButton {...props.submit} />
+      </div>
     </div>
+  );
+}
+
+function ComposerPoweredByNexus({ visible }: { visible: boolean }) {
+  if (!visible) {
+    return (
+      <span
+        aria-hidden="true"
+        className="nexus-chat-composer-footer-brand"
+      />
+    );
+  }
+  return (
+    <span
+      className="nexus-chat-composer-footer-brand whitespace-nowrap text-center text-[11px] font-medium leading-4 tracking-[0.01em]"
+      data-composer-powered-by
+    >
+      <span className="nexus-chat-composer-footer-brand-prefix">
+        Powered by{" "}
+      </span>
+      Nexus
+    </span>
   );
 }

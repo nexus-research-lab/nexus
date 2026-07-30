@@ -19,7 +19,8 @@ func (s *Service) ensureSession(
 	parsed protocol.SessionKey,
 	sessionKey string,
 ) (protocol.Session, error) {
-	item, _, err := s.files.FindSession([]string{agentValue.WorkspacePath}, sessionKey)
+	files := s.files.ForOwner(agentValue.OwnerUserID)
+	item, _, err := files.FindSession([]string{agentValue.WorkspacePath}, sessionKey)
 	if err != nil {
 		return protocol.Session{}, err
 	}
@@ -33,7 +34,7 @@ func (s *Service) ensureSession(
 			merged := dmdomain.MergeRoomBackedSession(*item, *roomSession)
 			merged = closePersistedSessionMeta(merged)
 			if !dmdomain.SessionsEqual(*item, merged) {
-				updated, updateErr := s.files.UpsertSession(agentValue.WorkspacePath, merged)
+				updated, updateErr := files.UpsertSession(agentValue.WorkspacePath, merged)
 				if updateErr != nil {
 					return protocol.Session{}, updateErr
 				}
@@ -48,7 +49,10 @@ func (s *Service) ensureSession(
 	}
 
 	if roomSession != nil {
-		updated, updateErr := s.files.UpsertSession(agentValue.WorkspacePath, closePersistedSessionMeta(*roomSession))
+		updated, updateErr := files.UpsertSession(
+			agentValue.WorkspacePath,
+			closePersistedSessionMeta(*roomSession),
+		)
 		if updateErr != nil {
 			return protocol.Session{}, updateErr
 		}
@@ -59,7 +63,7 @@ func (s *Service) ensureSession(
 	}
 
 	now := time.Now().UTC()
-	created, err := s.files.UpsertSession(agentValue.WorkspacePath, protocol.Session{
+	created, err := files.UpsertSession(agentValue.WorkspacePath, protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      agentValue.AgentID,
 		ChannelType:  protocol.NormalizeStoredChannelType(parsed.Channel),
@@ -95,13 +99,39 @@ func (s *Service) appendRuntimeHistoryMessage(
 	sessionValue protocol.Session,
 	message protocol.Message,
 ) error {
+	return s.appendRuntimeHistoryMessageForOwner(
+		"",
+		workspacePath,
+		sessionValue,
+		message,
+	)
+}
+
+func (s *Service) appendRuntimeHistoryMessageForOwner(
+	ownerUserID string,
+	workspacePath string,
+	sessionValue protocol.Session,
+	message protocol.Message,
+) error {
 	if protocol.IsTranscriptNativeMessage(protocol.Message(message)) {
 		return nil
 	}
-	return s.history.AppendOverlayMessage(workspacePath, sessionValue.SessionKey, message)
+	return s.history.ForOwner(ownerUserID).AppendOverlayMessage(
+		workspacePath,
+		sessionValue.SessionKey,
+		message,
+	)
 }
 
 func (s *Service) refreshSessionMetaAfterRoundMarker(
+	workspacePath string,
+	current protocol.Session,
+) (*protocol.Session, error) {
+	return s.refreshSessionMetaAfterRoundMarkerForOwner("", workspacePath, current)
+}
+
+func (s *Service) refreshSessionMetaAfterRoundMarkerForOwner(
+	ownerUserID string,
 	workspacePath string,
 	current protocol.Session,
 ) (*protocol.Session, error) {
@@ -109,11 +139,11 @@ func (s *Service) refreshSessionMetaAfterRoundMarker(
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
 	var err error
-	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	current, err = s.preservePersistedSessionTitleForOwner(ownerUserID, workspacePath, current)
 	if err != nil {
 		return nil, err
 	}
-	return s.files.UpsertSession(workspacePath, current)
+	return s.files.ForOwner(ownerUserID).UpsertSession(workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaAfterMessage(
@@ -121,7 +151,17 @@ func (s *Service) refreshSessionMetaAfterMessage(
 	current protocol.Session,
 	message protocol.Message,
 ) (*protocol.Session, error) {
-	current.SessionID = s.preferPersistableMessageSessionID(
+	return s.refreshSessionMetaAfterMessageForOwner("", workspacePath, current, message)
+}
+
+func (s *Service) refreshSessionMetaAfterMessageForOwner(
+	ownerUserID string,
+	workspacePath string,
+	current protocol.Session,
+	message protocol.Message,
+) (*protocol.Session, error) {
+	current.SessionID = s.preferPersistableMessageSessionIDForOwner(
+		ownerUserID,
 		context.Background(),
 		workspacePath,
 		current,
@@ -131,14 +171,30 @@ func (s *Service) refreshSessionMetaAfterMessage(
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
 	var err error
-	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	current, err = s.preservePersistedSessionTitleForOwner(ownerUserID, workspacePath, current)
 	if err != nil {
 		return nil, err
 	}
-	return s.files.UpsertSession(workspacePath, current)
+	return s.files.ForOwner(ownerUserID).UpsertSession(workspacePath, current)
 }
 
 func (s *Service) preferPersistableMessageSessionID(
+	ctx context.Context,
+	workspacePath string,
+	current protocol.Session,
+	messageSessionID string,
+) *string {
+	return s.preferPersistableMessageSessionIDForOwner(
+		"",
+		ctx,
+		workspacePath,
+		current,
+		messageSessionID,
+	)
+}
+
+func (s *Service) preferPersistableMessageSessionIDForOwner(
+	ownerUserID string,
 	ctx context.Context,
 	workspacePath string,
 	current protocol.Session,
@@ -148,7 +204,13 @@ func (s *Service) preferPersistableMessageSessionID(
 	if trimmedSessionID == "" {
 		return current.SessionID
 	}
-	if !s.canPersistSDKSessionID(ctx, workspacePath, current, trimmedSessionID) {
+	if !s.canPersistSDKSessionIDForOwner(
+		ownerUserID,
+		ctx,
+		workspacePath,
+		current,
+		trimmedSessionID,
+	) {
 		return current.SessionID
 	}
 	return &trimmedSessionID
@@ -158,14 +220,22 @@ func (s *Service) refreshSessionMetaRuntimeState(
 	workspacePath string,
 	current protocol.Session,
 ) (*protocol.Session, error) {
+	return s.refreshSessionMetaRuntimeStateForOwner("", workspacePath, current)
+}
+
+func (s *Service) refreshSessionMetaRuntimeStateForOwner(
+	ownerUserID string,
+	workspacePath string,
+	current protocol.Session,
+) (*protocol.Session, error) {
 	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
 	var err error
-	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	current, err = s.preservePersistedSessionTitleForOwner(ownerUserID, workspacePath, current)
 	if err != nil {
 		return nil, err
 	}
-	return s.files.UpsertSession(workspacePath, current)
+	return s.files.ForOwner(ownerUserID).UpsertSession(workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaRuntimeStateByKey(ctx context.Context, sessionKey string) error {
@@ -177,14 +247,21 @@ func (s *Service) refreshSessionMetaRuntimeStateByKey(ctx context.Context, sessi
 	if err != nil {
 		return err
 	}
-	item, _, err := s.files.FindSession([]string{agentValue.WorkspacePath}, sessionKey)
+	item, _, err := s.files.ForOwner(agentValue.OwnerUserID).FindSession(
+		[]string{agentValue.WorkspacePath},
+		sessionKey,
+	)
 	if err != nil {
 		return err
 	}
 	if item == nil {
 		return nil
 	}
-	_, err = s.refreshSessionMetaRuntimeState(agentValue.WorkspacePath, *item)
+	_, err = s.refreshSessionMetaRuntimeStateForOwner(
+		agentValue.OwnerUserID,
+		agentValue.WorkspacePath,
+		*item,
+	)
 	return err
 }
 
@@ -201,7 +278,25 @@ func (s *Service) recordRoundMarkerWithOptions(
 	content string,
 	options workspacestore.RoundMarkerOptions,
 ) error {
-	return s.history.AppendRoundMarkerWithOptions(
+	return s.recordRoundMarkerWithOptionsForOwner(
+		"",
+		workspacePath,
+		sessionValue,
+		roundID,
+		content,
+		options,
+	)
+}
+
+func (s *Service) recordRoundMarkerWithOptionsForOwner(
+	ownerUserID string,
+	workspacePath string,
+	sessionValue protocol.Session,
+	roundID string,
+	content string,
+	options workspacestore.RoundMarkerOptions,
+) error {
+	return s.history.ForOwner(ownerUserID).AppendRoundMarkerWithOptions(
 		workspacePath,
 		sessionValue.SessionKey,
 		roundID,
@@ -211,8 +306,9 @@ func (s *Service) recordRoundMarkerWithOptions(
 	)
 }
 
-func (s *Service) syncSDKSessionID(
+func (s *Service) syncSDKSessionIDForOwner(
 	ctx context.Context,
+	ownerUserID string,
 	workspacePath string,
 	current protocol.Session,
 	sessionID string,
@@ -223,6 +319,7 @@ func (s *Service) syncSDKSessionID(
 	sync := sdkSessionSync{
 		service:       s,
 		ctx:           ctx,
+		ownerUserID:   strings.TrimSpace(ownerUserID),
 		workspacePath: workspacePath,
 		current:       current,
 		nextSessionID: strings.TrimSpace(sessionID),
@@ -261,6 +358,7 @@ func (f sessionRuntimeFingerprint) apply(options map[string]any) {
 type sdkSessionSync struct {
 	service            *Service
 	ctx                context.Context
+	ownerUserID        string
 	workspacePath      string
 	current            protocol.Session
 	nextSessionID      string
@@ -293,7 +391,8 @@ func (s *sdkSessionSync) prepare() bool {
 }
 
 func (s *sdkSessionSync) decideSessionPersistence() {
-	s.canPersistSession = !s.sessionIDChanged || s.service.canPersistSDKSessionID(
+	s.canPersistSession = !s.sessionIDChanged || s.service.canPersistSDKSessionIDForOwner(
+		s.ownerUserID,
 		s.ctx,
 		s.workspacePath,
 		s.current,
@@ -312,11 +411,18 @@ func (s *sdkSessionSync) apply() {
 }
 
 func (s *sdkSessionSync) persist() (protocol.Session, error) {
-	current, err := s.service.preservePersistedSessionTitle(s.workspacePath, s.current)
+	current, err := s.service.preservePersistedSessionTitleForOwner(
+		s.ownerUserID,
+		s.workspacePath,
+		s.current,
+	)
 	if err != nil {
 		return protocol.Session{}, err
 	}
-	updated, err := s.service.files.UpsertSession(s.workspacePath, current)
+	updated, err := s.service.files.ForOwner(s.ownerUserID).UpsertSession(
+		s.workspacePath,
+		current,
+	)
 	if err != nil {
 		return protocol.Session{}, err
 	}
@@ -340,13 +446,16 @@ func (s *sdkSessionSync) syncRoomSession(updated protocol.Session) error {
 	return s.service.roomStore.UpdateRoomSessionSDKSessionID(s.ctx, roomSessionID, s.nextSessionID)
 }
 
-func (s *Service) canPersistSDKSessionID(
+func (s *Service) canPersistSDKSessionIDForOwner(
+	ownerUserID string,
 	ctx context.Context,
 	workspacePath string,
 	current protocol.Session,
 	sessionID string,
 ) bool {
-	decision := sessionresumesvc.NewPolicy(s.history).CanPersist(workspacePath, sessionID)
+	decision := sessionresumesvc.NewPolicy(
+		s.history.ForOwner(ownerUserID),
+	).CanPersist(workspacePath, sessionID)
 	if decision.Allowed {
 		return true
 	}
@@ -377,11 +486,18 @@ func (s *Service) clearReusableSDKSessionID(
 	current.SessionID = nil
 	current = closePersistedSessionMeta(current)
 	var err error
-	current, err = s.preservePersistedSessionTitle(workspacePath, current)
+	current, err = s.preservePersistedSessionTitleForOwner(
+		authctx.OwnerUserID(ctx),
+		workspacePath,
+		current,
+	)
 	if err != nil {
 		return protocol.Session{}, err
 	}
-	updated, err := s.files.UpsertSession(workspacePath, current)
+	updated, err := s.files.ForOwner(authctx.OwnerUserID(ctx)).UpsertSession(
+		workspacePath,
+		current,
+	)
 	if err != nil {
 		return protocol.Session{}, err
 	}
@@ -409,12 +525,23 @@ func (s *Service) preservePersistedSessionTitle(
 	workspacePath string,
 	current protocol.Session,
 ) (protocol.Session, error) {
+	return s.preservePersistedSessionTitleForOwner("", workspacePath, current)
+}
+
+func (s *Service) preservePersistedSessionTitleForOwner(
+	ownerUserID string,
+	workspacePath string,
+	current protocol.Session,
+) (protocol.Session, error) {
 	if s == nil || s.files == nil ||
 		strings.TrimSpace(workspacePath) == "" ||
 		strings.TrimSpace(current.SessionKey) == "" {
 		return current, nil
 	}
-	persisted, _, err := s.files.FindSession([]string{workspacePath}, current.SessionKey)
+	persisted, _, err := s.files.ForOwner(ownerUserID).FindSession(
+		[]string{workspacePath},
+		current.SessionKey,
+	)
 	if err != nil {
 		return protocol.Session{}, err
 	}

@@ -1,3 +1,8 @@
+/**
+ * INPUT: DM 会话、当前 Agent、Goal、Composer 与面板环境。
+ * OUTPUT: Feed、Goal、带来源的进程和输入区纯视图模型。
+ * POS: DM Chat 控制器状态到纯视图 props 的唯一投影入口。
+ */
 import type { RefObject } from "react";
 
 import {
@@ -6,8 +11,10 @@ import {
   type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
+import { coalescePendingPermissions } from "@/lib/conversation/pending-permission-match";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
+import type { TodoItem } from "@/types/conversation/todo";
 
 import type {
   DmChatComposerModel,
@@ -49,6 +56,7 @@ interface BuildDmChatPanelViewModelOptions {
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   session: DmChatSession;
+  todos: TodoItem[];
   workspaceAgentId: string | null;
 }
 
@@ -63,11 +71,25 @@ export function buildDmChatPanelViewModel({
   onOpenAgentContact,
   onOpenWorkspaceFile,
   session,
+  todos,
   workspaceAgentId,
 }: BuildDmChatPanelViewModelOptions): DmChatPanelViewModel {
   return {
     ...buildConversationPanelFrameModel(session, environment),
     composer,
+    composerInteraction: {
+      agentAvatarMap: workspaceAgentId
+        ? { [workspaceAgentId]: currentAgentAvatar }
+        : undefined,
+      agentNameMap: workspaceAgentId && currentAgentName
+        ? { [workspaceAgentId]: currentAgentName }
+        : undefined,
+      fallbackAgentId: workspaceAgentId,
+      onResponse: session.conversation.send_permission_response,
+      permissions: coalescePendingPermissions(
+        session.conversation.pending_permissions,
+      ),
+    },
     feed: buildDmFeedModel({
       currentAgentAvatar,
       currentAgentName,
@@ -79,6 +101,14 @@ export function buildDmChatPanelViewModel({
       workspaceAgentId,
     }),
     goalPanel: buildDmGoalPanelModel(goal, goalScopeLabel, session),
+    taskSource: workspaceAgentId && currentAgentName
+      ? {
+          agentId: workspaceAgentId,
+          avatar: currentAgentAvatar,
+          name: currentAgentName,
+        }
+      : undefined,
+    todos,
   };
 }
 

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 已归并的 Assistant 快照与按帧排队的 runtime stream 事件。
+ * OUTPUT: 保持活动与终态内容单调、只向活动消息应用非回退索引内容块的消息集合。
+ * POS: 实时完整快照与延迟 stream patch 汇合前的单消息竞态保护层。
+ */
 import type {
   AssistantMessage,
   Message,
@@ -6,6 +11,12 @@ import type {
   ContentBlock,
 } from "@/types/conversation/message/content";
 import type { StreamMessage } from "@/types/conversation/message/event";
+import {
+  isLiveStreamAssistant,
+  markLiveStreamAssistant,
+  markLiveStreamRevealBlock,
+  preserveLiveStreamRevealMarker,
+} from "@/lib/conversation/live-stream-reveal";
 
 type StreamRenderableBlock = ContentBlock;
 
@@ -35,8 +46,9 @@ export function applyStreamMessage(
   }
 
   const currentMessage = messages[existingIndex] as AssistantMessage;
+  const currentWasTerminal = isTerminalAssistantMessage(currentMessage);
   const nextMessage = applyStreamEvent(currentMessage, event);
-  if (isTerminalEmptyAssistant(nextMessage)) {
+  if (!currentWasTerminal && isTerminalEmptyAssistant(nextMessage)) {
     return messages.filter((_, index) => index !== existingIndex);
   }
   if (nextMessage === currentMessage) {
@@ -50,14 +62,21 @@ export function applyStreamMessage(
 function createStreamingAssistantMessage(
   event: StreamMessage,
 ): AssistantMessage {
-  return {
+  return markLiveStreamAssistant({
     agent_id: event.agent_id,
+    ...(event.agent_round_id
+      ? { agent_round_id: event.agent_round_id }
+      : {}),
     content: [],
+    ...(event.conversation_id
+      ? { conversation_id: event.conversation_id }
+      : {}),
     is_complete: false,
     message_id: event.message_id,
     model: event.message?.model,
     role: "assistant",
     round_id: event.round_id,
+    ...(event.room_id ? { room_id: event.room_id } : {}),
     session_id: event.session_id,
     session_key: event.session_key,
     ...(event.parent_tool_use_id
@@ -68,13 +87,19 @@ function createStreamingAssistantMessage(
       : {}),
     stream_status: "streaming",
     timestamp: event.timestamp,
-  };
+  });
 }
 
 function applyStreamEvent(
   currentMessage: AssistantMessage,
   event: StreamMessage,
 ): AssistantMessage {
+  if (isTerminalAssistantMessage(currentMessage)) {
+    // 排队中的 stream 事件整体早于已提交的终态 message 快照；内容与
+    // metadata 都必须冻结，否则 cancelled/error 会被旧 delta 改回 streaming。
+    return currentMessage;
+  }
+
   const nextMessage: AssistantMessage = {
     ...currentMessage,
     content: [...currentMessage.content],
@@ -85,6 +110,17 @@ function applyStreamEvent(
   return contentChanged || hasMetadataChanged(currentMessage, nextMessage)
     ? nextMessage
     : currentMessage;
+}
+
+function isTerminalAssistantMessage(message: AssistantMessage): boolean {
+  return (
+    message.stream_status === "done"
+    || message.stream_status === "cancelled"
+    || message.stream_status === "error"
+    || message.is_complete === true
+    || Boolean(message.stop_reason)
+    || Boolean(message.result_summary)
+  );
 }
 
 function projectStreamMetadata(
@@ -110,13 +146,25 @@ function applyStreamContentBlock(
     return false;
   }
 
+  const hadCurrentBlock = message.content.length > event.index;
   let changed = false;
   while (message.content.length <= event.index) {
     message.content.push({ type: "text", text: "" });
     changed = true;
   }
-  if (!jsonEqual(message.content[event.index], event.content_block)) {
-    message.content[event.index] = event.content_block;
+  const currentBlock = message.content[event.index];
+  if (isRegressiveStreamBlock(currentBlock, event.content_block)) {
+    return changed;
+  }
+  const isNewLiveBlock = (
+    isLiveStreamAssistant(message)
+    && (!hadCurrentBlock || currentBlock.type !== event.content_block.type)
+  );
+  const incomingBlock = isNewLiveBlock
+    ? markLiveStreamRevealBlock(event.content_block)
+    : preserveLiveStreamRevealMarker(currentBlock, event.content_block);
+  if (isNewLiveBlock || !jsonEqual(currentBlock, incomingBlock)) {
+    message.content[event.index] = incomingBlock;
     changed = true;
   }
   return changed;
@@ -141,6 +189,30 @@ function isStreamRenderableBlock(
   block: StreamMessage["content_block"],
 ): block is StreamRenderableBlock {
   return Boolean(block && typeof block.type === "string");
+}
+
+function isRegressiveStreamBlock(
+  current: StreamRenderableBlock,
+  incoming: StreamRenderableBlock,
+): boolean {
+  if (current.type !== incoming.type) {
+    return false;
+  }
+  if (current.type === "text" && incoming.type === "text") {
+    return (
+      current.text.length > incoming.text.length
+      && current.text.startsWith(incoming.text)
+    );
+  }
+  if (current.type === "thinking" && incoming.type === "thinking") {
+    return (
+      current.thinking.length > incoming.thinking.length
+      && current.thinking.startsWith(incoming.thinking)
+    );
+  }
+  // 其他累计块（尤其 tool input）没有统一文本字段；旧 patch 的序列化负载
+  // 更小时不得覆盖较新的完整 snapshot。等长修正仍允许进入。
+  return JSON.stringify(current).length > JSON.stringify(incoming).length;
 }
 
 function isTerminalEmptyAssistant(message: AssistantMessage): boolean {

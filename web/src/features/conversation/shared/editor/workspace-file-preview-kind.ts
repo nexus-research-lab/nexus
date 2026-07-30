@@ -10,47 +10,47 @@ export type WorkspaceFilePreviewKind =
   | "presentation"
   | "binary";
 
-const textExtensions = new Set([
-  "txt",
-  "json",
-  "jsonl",
-  "yaml",
-  "yml",
-  "toml",
-  "xml",
-  "csv",
-  "ts",
-  "tsx",
-  "js",
-  "jsx",
-  "mjs",
-  "cjs",
-  "py",
-  "java",
-  "go",
-  "rs",
-  "rb",
-  "php",
-  "sh",
-  "bash",
-  "zsh",
-  "sql",
-  "r",
-  "css",
-  "scss",
-  "less",
-  "log",
-  "ini",
-  "conf",
-  "env",
-  "dockerfile",
-  "makefile",
-  "cmake",
-  "gradle",
-  "proto",
-  "graphql",
-  "rst",
-  "adoc",
+const TEXT_FILE_LANGUAGES = new Map<string, string | null>([
+  ["txt", null],
+  ["log", null],
+  ["json", "json"],
+  ["jsonl", "json"],
+  ["yaml", "yaml"],
+  ["yml", "yaml"],
+  ["toml", "toml"],
+  ["xml", "markup"],
+  ["csv", "csv"],
+  ["ts", "typescript"],
+  ["tsx", "tsx"],
+  ["js", "javascript"],
+  ["jsx", "jsx"],
+  ["mjs", "javascript"],
+  ["cjs", "javascript"],
+  ["py", "python"],
+  ["java", "java"],
+  ["go", "go"],
+  ["rs", "rust"],
+  ["rb", "ruby"],
+  ["php", "php"],
+  ["sh", "bash"],
+  ["bash", "bash"],
+  ["zsh", "bash"],
+  ["sql", "sql"],
+  ["r", "r"],
+  ["css", "css"],
+  ["scss", "scss"],
+  ["less", "less"],
+  ["ini", "ini"],
+  ["conf", "ini"],
+  ["env", "bash"],
+  ["dockerfile", "docker"],
+  ["makefile", "makefile"],
+  ["cmake", "cmake"],
+  ["gradle", "groovy"],
+  ["proto", "protobuf"],
+  ["graphql", "graphql"],
+  ["rst", "rest"],
+  ["adoc", "asciidoc"],
 ]);
 
 const imageExtensions = new Set([
@@ -80,7 +80,7 @@ const EXTENSION_PREVIEW_KINDS = new Map<string, WorkspaceFilePreviewKind>([
 for (const extension of imageExtensions) {
   EXTENSION_PREVIEW_KINDS.set(extension, "image");
 }
-for (const extension of textExtensions) {
+for (const extension of TEXT_FILE_LANGUAGES.keys()) {
   EXTENSION_PREVIEW_KINDS.set(extension, "text");
 }
 
@@ -97,12 +97,27 @@ const WORKSPACE_FILE_KIND_LABELS: Partial<Record<
 export function getWorkspaceFilePreviewKind(
   path: string,
 ): WorkspaceFilePreviewKind {
-  const ext = path.split(".").pop()?.toLowerCase() || "";
+  const ext = workspaceFileExtension(path);
   return EXTENSION_PREVIEW_KINDS.get(ext) ?? "binary";
+}
+
+export function getWorkspaceFileCodeLanguage(path: string): string | null {
+  return TEXT_FILE_LANGUAGES.get(workspaceFileExtension(path)) ?? null;
 }
 
 export function workspaceFileKindLabel(
   fileType: WorkspaceFilePreviewKind,
 ): string {
   return WORKSPACE_FILE_KIND_LABELS[fileType] ?? "文件预览";
+}
+
+function workspaceFileExtension(path: string): string {
+  const fileName = path.split("/").pop()?.toLowerCase() ?? "";
+  if (fileName.startsWith(".env")) {
+    return "env";
+  }
+  if (fileName.startsWith("dockerfile")) {
+    return "dockerfile";
+  }
+  return fileName.split(".").pop() ?? "";
 }

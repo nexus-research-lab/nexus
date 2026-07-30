@@ -10,13 +10,14 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.9.2
-	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.21
+	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.23
 	github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/crypto v0.50.0
 	golang.org/x/sync v0.20.0
+	golang.org/x/sys v0.43.0
 	golang.org/x/text v0.36.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/sqlite v1.46.1
@@ -38,7 +39,6 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
-	golang.org/x/sys v0.43.0 // indirect
 	modernc.org/libc v1.68.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

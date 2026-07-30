@@ -3,13 +3,12 @@
 import { useState } from "react";
 import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 
+import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { cn } from "@/shared/ui/class-name";
 import {
   type FeedbackBannerProps,
 } from "@/shared/ui/feedback/feedback-banner";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -95,15 +94,14 @@ export function ScheduledTasksDirectory() {
       <WorkspaceSurfaceScaffold
         header={(
           <WorkspaceSurfaceHeader
-            badge={t("capability.scheduled_badge", { count: resource.items.length })}
             leading={<CalendarClock className="h-4 w-4" />}
-            subtitle={t("capability.scheduled_subtitle")}
+            narrowMode="toolbar"
             title={t("capability.scheduled")}
             trailing={(
               <>
                 <WorkspaceSurfaceToolbarAction onClick={refreshTasks}>
                   <RefreshCw className="h-3.5 w-3.5" />
-                  {t("capability.refresh_all")}
+                  {t("capability.refresh")}
                 </WorkspaceSurfaceToolbarAction>
                 <WorkspaceSurfaceToolbarAction
                   onClick={() => setDialog({ kind: "create", preset: null })}
@@ -117,11 +115,10 @@ export function ScheduledTasksDirectory() {
           />
         )}
       >
-        <div
-          className={cn(
-            WORKSPACE_DETAIL_PAGE_CLASS_NAME,
-            "flex h-full min-h-0 max-w-[1480px] flex-col py-4",
-          )}
+        <CapabilityPageLayout
+          description={t("capability.scheduled_intro_description")}
+          title={t("capability.scheduled_intro_title")}
+          variant="board"
         >
           <ScheduledTaskBoard
             errorMessage={resource.errorMessage}
@@ -137,7 +134,7 @@ export function ScheduledTasksDirectory() {
             onToggleEnabled={toggleTask}
             pending={commands.pending}
           />
-        </div>
+        </CapabilityPageLayout>
       </WorkspaceSurfaceScaffold>
 
       <ScheduledTaskDialog

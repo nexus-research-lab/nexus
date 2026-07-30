@@ -98,8 +98,8 @@ codesign_target() {
 
 echo "==> Building web/dist"
 cd "${ROOT_DIR}/web"
-pnpm install --frozen-lockfile --prefer-offline
-NEXUS_DESKTOP_BUILD=1 pnpm build
+corepack pnpm@9.15.2 install --frozen-lockfile --prefer-offline
+NEXUS_DESKTOP_BUILD=1 corepack pnpm@9.15.2 build
 
 echo "==> Building Go sidecar"
 mkdir -p "${SIDECAR_BUILD_DIR}"
@@ -133,6 +133,7 @@ cp "${MACOS_DIR}/Resources/AppIcon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 
 if is_enabled "${BUNDLE_NXS_RUNTIME}"; then
   nxs_output_path="${RESOURCES_DIR}/bin/nxs"
+  nxs_ripgrep_output_path="${RESOURCES_DIR}/bin/rg"
   NXS_GOOS="${NEXUS_DESKTOP_NXS_GOOS:-darwin}"
   NXS_GOARCH="${NEXUS_DESKTOP_NXS_GOARCH:-$(go env GOARCH)}"
   if [[ -n "${NXS_RUNTIME_PATH}" ]]; then
@@ -140,14 +141,21 @@ if is_enabled "${BUNDLE_NXS_RUNTIME}"; then
       echo "missing cached nxs runtime: ${NXS_RUNTIME_PATH}" >&2
       exit 1
     fi
+    cached_ripgrep_path="$(dirname "${NXS_RUNTIME_PATH}")/rg"
+    if [[ ! -x "${cached_ripgrep_path}" ]]; then
+      echo "missing cached nxs ripgrep sidecar: ${cached_ripgrep_path}" >&2
+      exit 1
+    fi
     echo "==> Using cached bundled nxs runtime"
     cp "${NXS_RUNTIME_PATH}" "${nxs_output_path}"
+    cp "${cached_ripgrep_path}" "${nxs_ripgrep_output_path}"
   else
     echo "==> Downloading bundled nxs runtime"
     node "${ROOT_DIR}/scripts/desktop/fetch-nxs-runtime.js" \
       --goos "${NXS_GOOS}" \
       --goarch "${NXS_GOARCH}" \
-      --output "${nxs_output_path}"
+      --output "${nxs_output_path}" \
+      --ripgrep-output "${nxs_ripgrep_output_path}"
   fi
 fi
 
@@ -156,6 +164,9 @@ chmod 0755 "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" \
   "${RESOURCES_DIR}/bin/nexusctl"
 if [[ -f "${RESOURCES_DIR}/bin/nxs" ]]; then
   chmod 0755 "${RESOURCES_DIR}/bin/nxs"
+fi
+if [[ -f "${RESOURCES_DIR}/bin/rg" ]]; then
+  chmod 0755 "${RESOURCES_DIR}/bin/rg"
 fi
 
 rsync -a --delete --exclude '.DS_Store' "${ROOT_DIR}/web/dist/" "${RESOURCES_DIR}/Web/"
@@ -191,6 +202,9 @@ if [[ "${NEXUS_DESKTOP_SKIP_CODESIGN:-0}" != "1" ]] && command -v codesign >/dev
   codesign_target "${RESOURCES_DIR}/bin/nexusctl"
   if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
     codesign_target "${RESOURCES_DIR}/bin/nxs"
+  fi
+  if [[ -x "${RESOURCES_DIR}/bin/rg" ]]; then
+    codesign_target "${RESOURCES_DIR}/bin/rg"
   fi
   codesign_target "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
   codesign_target "${APP_BUNDLE}"

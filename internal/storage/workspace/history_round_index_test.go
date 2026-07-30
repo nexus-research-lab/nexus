@@ -92,10 +92,10 @@ func TestAgentHistoryStoreReadRoundIndexIgnoresLargeResultBody(t *testing.T) {
 
 func TestRoomHistoryStoreReadRoundIndexCollapsesAgentRound(t *testing.T) {
 	root := t.TempDir()
-	history := NewRoomHistoryStore(root)
+	history := newRoomHistoryTestStore(t, root)
 	conversationID := "conv-1"
 
-	if err := history.AppendInlineMessage(conversationID, protocol.Message{
+	if err := history.AppendInlineMessage(testRoomOwnerUserID, conversationID, protocol.Message{
 		"message_id": "user-1",
 		"round_id":   "round-room",
 		"agent_id":   "amy",
@@ -105,7 +105,7 @@ func TestRoomHistoryStoreReadRoundIndexCollapsesAgentRound(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("写入 room 用户消息失败: %v", err)
 	}
-	if err := history.AppendInlineMessage(conversationID, protocol.Message{
+	if err := history.AppendInlineMessage(testRoomOwnerUserID, conversationID, protocol.Message{
 		"message_id":  "result-1",
 		"round_id":    "round-room:amy",
 		"agent_id":    "amy",
@@ -117,7 +117,7 @@ func TestRoomHistoryStoreReadRoundIndexCollapsesAgentRound(t *testing.T) {
 		t.Fatalf("写入 room result 失败: %v", err)
 	}
 
-	index, err := history.ReadRoundIndex(conversationID, nil)
+	index, err := history.ReadRoundIndex(testRoomOwnerUserID, conversationID, nil)
 	if err != nil {
 		t.Fatalf("读取 room round index 失败: %v", err)
 	}
@@ -138,10 +138,10 @@ func TestRoomHistoryStoreReadRoundIndexCollapsesAgentRound(t *testing.T) {
 
 func TestRoomHistoryStoreReadRoundIndexCollectsMultipleAgents(t *testing.T) {
 	root := t.TempDir()
-	history := NewRoomHistoryStore(root)
+	history := newRoomHistoryTestStore(t, root)
 	conversationID := "conv-multi"
 
-	if err := history.AppendInlineMessage(conversationID, protocol.Message{
+	if err := history.AppendInlineMessage(testRoomOwnerUserID, conversationID, protocol.Message{
 		"message_id": "user-1",
 		"round_id":   "round-room",
 		"role":       "user",
@@ -151,7 +151,7 @@ func TestRoomHistoryStoreReadRoundIndexCollectsMultipleAgents(t *testing.T) {
 		t.Fatalf("写入 room 用户消息失败: %v", err)
 	}
 	for _, agentID := range []string{"amy", "lucy"} {
-		if err := history.AppendInlineMessage(conversationID, protocol.Message{
+		if err := history.AppendInlineMessage(testRoomOwnerUserID, conversationID, protocol.Message{
 			"message_id": "assistant-" + agentID,
 			"round_id":   "round-room:" + agentID,
 			"agent_id":   agentID,
@@ -166,7 +166,7 @@ func TestRoomHistoryStoreReadRoundIndexCollectsMultipleAgents(t *testing.T) {
 		}
 	}
 
-	index, err := history.ReadRoundIndex(conversationID, nil)
+	index, err := history.ReadRoundIndex(testRoomOwnerUserID, conversationID, nil)
 	if err != nil {
 		t.Fatalf("读取 room round index 失败: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestRoomHistoryStoreReadRoundIndexCollectsMultipleAgents(t *testing.T) {
 
 func TestRoomHistoryStoreReadRoundIndexUsesLatestMessageRound(t *testing.T) {
 	root := t.TempDir()
-	history := NewRoomHistoryStore(root)
+	history := newRoomHistoryTestStore(t, root)
 	conversationID := "conv-guidance"
 	message := protocol.Message{
 		"message_id": "user-guidance",
@@ -190,16 +190,16 @@ func TestRoomHistoryStoreReadRoundIndexUsesLatestMessageRound(t *testing.T) {
 		"content":    "然后给点建议",
 		"timestamp":  int64(1000),
 	}
-	if err := history.AppendInlineMessage(conversationID, message); err != nil {
+	if err := history.AppendInlineMessage(testRoomOwnerUserID, conversationID, message); err != nil {
 		t.Fatalf("写入排队消息失败: %v", err)
 	}
 	message["round_id"] = "round-goal"
 	message["source_round_id"] = "round-queued"
-	if err := history.AppendInlineMessage(conversationID, message); err != nil {
+	if err := history.AppendInlineMessage(testRoomOwnerUserID, conversationID, message); err != nil {
 		t.Fatalf("写入引导归组消息失败: %v", err)
 	}
 
-	index, err := history.ReadRoundIndex(conversationID, nil)
+	index, err := history.ReadRoundIndex(testRoomOwnerUserID, conversationID, nil)
 	if err != nil {
 		t.Fatalf("读取 room round index 失败: %v", err)
 	}
@@ -210,10 +210,10 @@ func TestRoomHistoryStoreReadRoundIndexUsesLatestMessageRound(t *testing.T) {
 
 func TestRoomHistoryStoreReadRoundIndexCollapsesSuffixedMarker(t *testing.T) {
 	root := t.TempDir()
-	history := NewRoomHistoryStore(root)
+	history := newRoomHistoryTestStore(t, root)
 	conversationID := "conv-suffixed-marker"
 
-	if err := history.AppendInlineMessage(conversationID, protocol.Message{
+	if err := history.AppendInlineMessage(testRoomOwnerUserID, conversationID, protocol.Message{
 		overlayKindField: overlayKindRoundMarker,
 		"round_id":       "room_mention_abc:amy",
 		"content":        "继续推进这个问题",
@@ -221,7 +221,7 @@ func TestRoomHistoryStoreReadRoundIndexCollapsesSuffixedMarker(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("写入 room marker 失败: %v", err)
 	}
-	if err := history.AppendInlineMessage(conversationID, protocol.Message{
+	if err := history.AppendInlineMessage(testRoomOwnerUserID, conversationID, protocol.Message{
 		"message_id":  "result-amy",
 		"round_id":    "room_mention_abc:amy",
 		"agent_id":    "amy",
@@ -233,7 +233,7 @@ func TestRoomHistoryStoreReadRoundIndexCollapsesSuffixedMarker(t *testing.T) {
 		t.Fatalf("写入 room result 失败: %v", err)
 	}
 
-	index, err := history.ReadRoundIndex(conversationID, nil)
+	index, err := history.ReadRoundIndex(testRoomOwnerUserID, conversationID, nil)
 	if err != nil {
 		t.Fatalf("读取 room round index 失败: %v", err)
 	}
@@ -247,4 +247,11 @@ func TestRoomHistoryStoreReadRoundIndexCollapsesSuffixedMarker(t *testing.T) {
 	if !item.HasUserMessage || len(item.AgentIDs) != 1 || item.AgentIDs[0] != "amy" {
 		t.Fatalf("带 agent 后缀的 marker 角色索引不正确: %+v", item)
 	}
+}
+
+func newRoomHistoryTestStore(t *testing.T, stateRoot string) *RoomHistoryStore {
+	t.Helper()
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	return NewRoomHistoryStore(filepath.Join(stateRoot, "users"))
 }

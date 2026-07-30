@@ -3,12 +3,15 @@ package workspace
 import (
 	"bufio"
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 )
 
 const (
@@ -47,20 +50,23 @@ func (s *Service) GetMemorySnapshot(ctx context.Context, agentID string) (*Memor
 	if err != nil {
 		return nil, err
 	}
-	root := filepath.Clean(agentValue.WorkspacePath)
 	snapshot := &MemorySnapshot{
 		Documents: []MemoryDocument{},
 		Layout:    "empty",
 	}
 	indexContent := ""
-	indexPath := filepath.Join(root, memoryEntrypointName)
-	if document, content, ok := readMemoryIndex(indexPath); ok {
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
+	if err != nil {
+		return nil, err
+	}
+	defer confinedRoot.Close()
+	if document, content, ok := readMemoryIndex(confinedRoot); ok {
 		snapshot.Index = &document
 		indexContent = content
 	}
 
 	indexedPaths := memoryIndexedPaths(indexContent)
-	documents, total := scanMemoryDocuments(ctx, root, indexedPaths)
+	documents, total := scanMemoryDocuments(ctx, confinedRoot, indexedPaths)
 	if len(documents) > memoryDocumentLimit {
 		documents = documents[:memoryDocumentLimit]
 	}
@@ -70,12 +76,12 @@ func (s *Service) GetMemorySnapshot(ctx context.Context, agentID string) (*Memor
 	return snapshot, nil
 }
 
-func readMemoryIndex(path string) (MemoryDocument, string, bool) {
-	info, err := os.Stat(path)
+func readMemoryIndex(root *confinedfs.Root) (MemoryDocument, string, bool) {
+	info, err := root.Stat(memoryEntrypointName)
 	if err != nil || !info.Mode().IsRegular() {
 		return MemoryDocument{}, "", false
 	}
-	content, err := os.ReadFile(path)
+	content, err := root.ReadFile(memoryEntrypointName)
 	if err != nil {
 		return MemoryDocument{}, "", false
 	}
@@ -89,10 +95,9 @@ func readMemoryIndex(path string) (MemoryDocument, string, bool) {
 	}, string(content), true
 }
 
-func scanMemoryDocuments(ctx context.Context, root string, indexedPaths map[string]struct{}) ([]MemoryDocument, int) {
-	memoryRoot := filepath.Join(root, memoryDirectoryName)
+func scanMemoryDocuments(ctx context.Context, root *confinedfs.Root, indexedPaths map[string]struct{}) ([]MemoryDocument, int) {
 	documents := make([]MemoryDocument, 0, 32)
-	_ = filepath.Walk(memoryRoot, func(path string, info os.FileInfo, walkErr error) error {
+	_ = root.Walk(memoryDirectoryName, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return nil
 		}
@@ -101,15 +106,18 @@ func scanMemoryDocuments(ctx context.Context, root string, indexedPaths map[stri
 			return ctx.Err()
 		default:
 		}
-		if info.IsDir() || !info.Mode().IsRegular() || !strings.EqualFold(filepath.Ext(info.Name()), ".md") {
+		if entry == nil || entry.Type()&os.ModeSymlink != 0 {
 			return nil
 		}
-		relativePath, err := filepath.Rel(root, path)
+		info, err := entry.Info()
 		if err != nil {
 			return nil
 		}
-		normalizedPath := filepath.ToSlash(relativePath)
-		frontmatter := readMemoryFrontmatter(path)
+		if info.IsDir() || !info.Mode().IsRegular() || !strings.EqualFold(filepath.Ext(info.Name()), ".md") {
+			return nil
+		}
+		normalizedPath := filepath.ToSlash(path)
+		frontmatter := readMemoryFrontmatter(root, normalizedPath)
 		_, indexed := indexedPaths[normalizedPath]
 		documents = append(documents, MemoryDocument{
 			Description: frontmatter["description"],
@@ -133,8 +141,8 @@ func scanMemoryDocuments(ctx context.Context, root string, indexedPaths map[stri
 	return documents, len(documents)
 }
 
-func readMemoryFrontmatter(path string) map[string]string {
-	file, err := os.Open(path)
+func readMemoryFrontmatter(root *confinedfs.Root, path string) map[string]string {
+	file, err := root.OpenFileNoSymlink(path, os.O_RDONLY, 0)
 	if err != nil {
 		return map[string]string{}
 	}

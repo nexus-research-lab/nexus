@@ -1,5 +1,5 @@
 // INPUT: Room Goal 状态/lead、成员目录、协作者 active slot、显式输入队列与上一轮执行结果。
-// OUTPUT: 启动 slot 前对齐的有效 lead，以及所有同 Goal 工作收敛后经原子 claim 的隐藏 continuation。
+// OUTPUT: 启动 slot 前对齐的有效 lead，以及按复杂度和成员适配分工、在同 Goal 工作收敛后原子 claim 的隐藏 continuation。
 // POS: Room 与 Goal 权限/状态机之间的续跑适配层。
 package realtime
 
@@ -70,7 +70,7 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 	}
 	if dispatchQueuedInput {
 		s.dispatchNextInputQueueItemLocked(
-			contextWithQueueOwner(ctx, entry.Item.OwnerUserID),
+			contextWithExactQueueOwner(ctx, entry.Item.OwnerUserID),
 			sessionKey,
 			contextValue.Room.ID,
 			contextValue.Conversation.ID,
@@ -469,7 +469,9 @@ Room Goal collaboration requirement:
 - Lead agent for this continuation: %s (agent_id=%s).
 - Available public delegation targets:
 %s
+- Before choosing a target, assess task complexity, separable work, and member fit. Delegate a meaningful independent deliverable rather than ceremonial work.
 - If the room-visible history does not already contain a substantive reply from at least one non-lead member for this Goal, your public reply for this turn must @ exactly one target above and assign a concrete deliverable.
+- Once work is delegated, do not independently duplicate that deliverable. Use lead time for coordination, unblocking, integration, and verification; take over only if the member is unavailable, blocked, or failed, or urgency requires it.
 - Do not call the Goal update tool in the same turn as the first public delegation.
 - Do not mark the Room Goal complete using only your own private work. Completion requires room-visible collaborator evidence plus your final audit.
 `, leadName, leadAgentID, strings.Join(lines, "\n")))

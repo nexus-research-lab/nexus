@@ -10,6 +10,7 @@ import (
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -20,7 +21,7 @@ import (
 )
 
 func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
-	workspacePath := t.TempDir()
+	workspacePath := newAutomationOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
 	dm := &fakeDMRunner{
@@ -125,7 +126,7 @@ func TestServiceRunTaskNowDeliversToRememberedWebSocketRoute(t *testing.T) {
 }
 
 func TestServiceRunTaskNowDeliversToAgentAutomationInbox(t *testing.T) {
-	workspacePath := t.TempDir()
+	workspacePath := newAutomationOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
 	dm := &fakeDMRunner{
@@ -211,7 +212,7 @@ func TestServiceRunTaskNowDeliversToAgentAutomationInbox(t *testing.T) {
 }
 
 func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
-	workspacePath := t.TempDir()
+	workspacePath := newAutomationOwnerWorkspace(t, "user-1", "agent-1")
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
 	dm := &fakeDMRunner{

@@ -14,16 +14,16 @@ import (
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	connectormcp "github.com/nexus-research-lab/nexus/internal/mcp/connectors"
 	connectormcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/connectors/contract"
-	"github.com/nexus-research-lab/nexus/internal/service/agent"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 // newConnectorMCPBuilder 返回 DM/Room 实时链路所需的 connector MCPServerBuilder。
 func newConnectorMCPBuilder(
 	svc connectormcpcontract.Service,
-	agents *agent.Service,
-) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
 	return func(
-		agentID string,
+		ctx context.Context,
+		agentValue *protocol.Agent,
 		sessionKey string,
 		roundID string,
 		sourceContextType string,
@@ -31,21 +31,19 @@ func newConnectorMCPBuilder(
 		sourceContextLabel string,
 		_ *atomic.Int64,
 	) map[string]sdkmcp.ServerConfig {
-		if svc == nil || agents == nil || strings.TrimSpace(agentID) == "" {
-			return nil
-		}
-		record, err := agents.GetAgent(context.Background(), agentID)
-		if err != nil || record == nil || strings.TrimSpace(record.OwnerUserID) == "" {
+		if svc == nil || agentValue == nil ||
+			strings.TrimSpace(agentValue.AgentID) == "" ||
+			strings.TrimSpace(agentValue.OwnerUserID) == "" {
 			return nil
 		}
 		sctx := connectormcpcontract.ServerContext{
-			OwnerUserID:        record.OwnerUserID,
-			CurrentAgentID:     agentID,
+			OwnerUserID:        agentValue.OwnerUserID,
+			CurrentAgentID:     agentValue.AgentID,
 			CurrentSessionKey:  sessionKey,
 			SourceContextType:  sourceContextType,
 			SourceContextID:    sourceContextID,
 			SourceContextLabel: sourceContextLabel,
-			IsMainAgent:        record.IsMain,
+			IsMainAgent:        agentValue.IsMain,
 		}
 		servers := map[string]sdkmcp.ServerConfig{
 			connectormcpcontract.ServerName: sdkmcp.SDKServerConfig{
@@ -53,11 +51,11 @@ func newConnectorMCPBuilder(
 				Instance: connectormcp.NewServer(svc, sctx),
 			},
 		}
-		appendAmapMCPServer(context.Background(), servers, svc, record.OwnerUserID)
-		appendDidiMCPServer(context.Background(), servers, svc, record.OwnerUserID)
-		appendDingTalkAITableMCPServer(context.Background(), servers, svc, record.OwnerUserID)
-		appendTencentDocsMCPServer(context.Background(), servers, svc, record.OwnerUserID)
-		appendYuqueMCPServer(context.Background(), servers, svc, record.OwnerUserID)
+		appendAmapMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+		appendDidiMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+		appendDingTalkAITableMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+		appendTencentDocsMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
+		appendYuqueMCPServer(ctx, servers, svc, agentValue.OwnerUserID)
 		return servers
 	}
 }
@@ -195,10 +193,11 @@ func loadConnectorMCPSnapshot(
 }
 
 func combinedMCPBuilder(
-	builders ...func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig,
-) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+	builders ...func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig,
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
 	return func(
-		agentID string,
+		ctx context.Context,
+		agentValue *protocol.Agent,
 		sessionKey string,
 		roundID string,
 		sourceContextType string,
@@ -211,7 +210,16 @@ func combinedMCPBuilder(
 			if builder == nil {
 				continue
 			}
-			for name, server := range builder(agentID, sessionKey, roundID, sourceContextType, sourceContextID, sourceContextLabel, goalObjectiveRevision) {
+			for name, server := range builder(
+				ctx,
+				agentValue,
+				sessionKey,
+				roundID,
+				sourceContextType,
+				sourceContextID,
+				sourceContextLabel,
+				goalObjectiveRevision,
+			) {
 				merged[name] = server
 			}
 		}
@@ -220,10 +228,11 @@ func combinedMCPBuilder(
 }
 
 func contextOnlyMCPBuilder(
-	builder func(string, string, string, string, string) map[string]sdkmcp.ServerConfig,
-) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+	builder func(context.Context, *protocol.Agent, string, string, string, string) map[string]sdkmcp.ServerConfig,
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
 	return func(
-		agentID string,
+		ctx context.Context,
+		agentValue *protocol.Agent,
 		sessionKey string,
 		_ string,
 		sourceContextType string,
@@ -234,16 +243,24 @@ func contextOnlyMCPBuilder(
 		if builder == nil {
 			return nil
 		}
-		return builder(agentID, sessionKey, sourceContextType, sourceContextID, sourceContextLabel)
+		return builder(
+			ctx,
+			agentValue,
+			sessionKey,
+			sourceContextType,
+			sourceContextID,
+			sourceContextLabel,
+		)
 	}
 }
 
 // roundContextMCPBuilder 适配不消费 Goal revision 的会话级 MCP builder。
 func roundContextMCPBuilder(
-	builder func(string, string, string, string, string, string) map[string]sdkmcp.ServerConfig,
-) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+	builder func(context.Context, *protocol.Agent, string, string, string, string, string) map[string]sdkmcp.ServerConfig,
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
 	return func(
-		agentID string,
+		ctx context.Context,
+		agentValue *protocol.Agent,
 		sessionKey string,
 		roundID string,
 		sourceContextType string,
@@ -254,6 +271,14 @@ func roundContextMCPBuilder(
 		if builder == nil {
 			return nil
 		}
-		return builder(agentID, sessionKey, roundID, sourceContextType, sourceContextID, sourceContextLabel)
+		return builder(
+			ctx,
+			agentValue,
+			sessionKey,
+			roundID,
+			sourceContextType,
+			sourceContextID,
+			sourceContextLabel,
+		)
 	}
 }

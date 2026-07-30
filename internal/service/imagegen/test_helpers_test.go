@@ -3,9 +3,12 @@ package imagegen
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
@@ -36,6 +39,21 @@ func (f fakePreferencesService) Get(_ context.Context, _ string) (preferencessvc
 
 func fixedNow() time.Time {
 	return time.Date(2026, 5, 14, 8, 0, 0, 0, time.UTC)
+}
+
+func newImagegenWorkspace(t *testing.T) string {
+	t.Helper()
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	workspacePath := filepath.Join(
+		appfs.UserWorkspaceRootAt(stateRoot, authctx.SystemUserID),
+		"agent-1",
+	)
+	if err := os.MkdirAll(workspacePath, 0o700); err != nil {
+		t.Fatalf("创建图片测试 workspace 失败: %v", err)
+	}
+	return workspacePath
 }
 
 func writeTestPNG(t *testing.T, path string) {

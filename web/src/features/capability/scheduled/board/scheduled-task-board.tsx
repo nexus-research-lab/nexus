@@ -16,6 +16,7 @@ import {
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiSkeleton } from "@/shared/ui/display/skeleton";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import type { ScheduledTaskPendingCommands } from "../controller/scheduled-task-directory-model";
@@ -91,11 +92,11 @@ function getScheduledTaskBoardState({
 
 function ScheduledTaskLoadingBoard() {
   return (
-    <div className="soft-scrollbar -mx-5 flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-5 xl:-mx-6 xl:px-6">
-      <div className="grid h-full min-w-[1080px] flex-1 grid-cols-4 gap-3">
+    <div className="soft-scrollbar -mx-5 flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-5 max-lg:mx-0 max-lg:overflow-x-hidden max-lg:overflow-y-auto max-lg:px-0 xl:-mx-6 xl:px-6">
+      <div className="grid h-full min-w-[1080px] flex-1 grid-cols-4 gap-3 max-lg:h-auto max-lg:min-w-0 max-lg:grid-cols-1">
         {Array.from({ length: 4 }, (_, columnIndex) => (
           <div
-            className="h-full min-h-0 border-l border-(--divider-subtle-color) p-3 pl-4 first:border-l-0 first:pl-0"
+            className="h-full min-h-0 border-l border-(--divider-subtle-color) p-3 pl-4 first:border-l-0 first:pl-0 max-lg:h-auto max-lg:border-l-0 max-lg:px-0"
             key={columnIndex}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -117,14 +118,18 @@ function ScheduledTaskErrorState({
   message: string;
   onRefresh: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center border-y border-(--divider-subtle-color) px-6 text-center">
       <CircleAlert className="h-8 w-8 text-(--destructive)" />
-      <h2 className="mt-4 text-[16px] font-semibold text-(--text-strong)">任务加载失败</h2>
-      <p className="mt-1 max-w-md text-[12px] leading-5 text-(--text-muted)">{message}</p>
+      <h2 className="mt-4 text-[16px] font-semibold text-(--text-strong)">
+        {t("capability.scheduled_load_failed")}
+      </h2>
+      <p className="mt-1 max-w-md text-compact leading-5 text-(--text-muted)">{message}</p>
       <UiButton className="mt-4" onClick={onRefresh} size="sm" tone="primary" variant="surface">
         <RefreshCw className="h-3.5 w-3.5" />
-        重新加载
+        {t("capability.reload")}
       </UiButton>
     </div>
   );
@@ -137,6 +142,8 @@ function ScheduledTaskSuggestions({
   onCreate: () => void;
   onSelect: (preset: TaskDialogCreatePreset) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <section
       className="soft-scrollbar min-h-0 flex-1 overflow-y-auto pb-4 pt-3"
@@ -147,10 +154,10 @@ function ScheduledTaskSuggestions({
           className="text-[16px] font-medium tracking-[-0.01em] text-(--text-strong)"
           id="scheduled-task-suggestions-title"
         >
-          从一个常用任务开始
+          {t("capability.scheduled_quick_start_title")}
         </h2>
-        <p className="mt-1 text-[12px] leading-5 text-(--text-muted)">
-          选择建议后仍可修改执行对象、时间和回传位置。
+        <p className="mt-1 text-compact leading-5 text-(--text-muted)">
+          {t("capability.scheduled_quick_start_description")}
         </p>
       </div>
 
@@ -169,14 +176,14 @@ function ScheduledTaskSuggestions({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="text-[13px] font-medium text-(--text-strong)">
+                  <span className="text-sm font-medium text-(--text-strong)">
                     {suggestion.title}
                   </span>
-                  <span className="text-[11px] text-(--text-soft)">
+                  <span className="text-xs text-(--text-soft)">
                     {suggestion.scheduleLabel}
                   </span>
                 </span>
-                <span className="mt-1 block text-[12px] leading-5 text-(--text-muted)">
+                <span className="mt-1 block text-compact leading-5 text-(--text-muted)">
                   {suggestion.description}
                 </span>
               </span>
@@ -186,12 +193,12 @@ function ScheduledTaskSuggestions({
       </div>
 
       <button
-        className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-(--primary) transition-colors hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
+        className="mt-4 inline-flex items-center gap-1.5 text-compact font-semibold text-(--primary) transition-colors hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_24%,transparent)]"
         onClick={onCreate}
         type="button"
       >
         <Plus className="h-3.5 w-3.5" />
-        创建自定义任务
+        {t("capability.scheduled_create_blank")}
       </button>
     </section>
   );
@@ -217,31 +224,28 @@ function ScheduledTaskBoardColumnView({
   const EmptyIcon = COLUMN_EMPTY_ICONS[column.id];
   return (
     <section
-      className="flex h-full min-h-0 min-w-0 flex-col border-l border-(--divider-subtle-color) pl-3 first:border-l-0 first:pl-0"
+      className="flex h-full min-h-0 min-w-0 flex-col border-l border-(--divider-subtle-color) pl-3 first:border-l-0 first:pl-0 max-lg:h-auto max-lg:border-l-0 max-lg:pl-0"
       aria-labelledby={`scheduled-column-${column.id}`}
     >
-      <header className="flex min-h-16 items-start justify-between gap-3 border-b border-(--divider-subtle-color) px-3 py-3">
+      <header className="flex items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3 py-2.5 max-lg:px-0">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn("h-2 w-2 shrink-0 rounded-full", COLUMN_TONE_CLASS_NAMES[column.tone])} />
             <h2
-              className="truncate text-[13px] font-semibold text-(--text-strong)"
+              className="truncate text-sm font-semibold text-(--text-strong)"
               id={`scheduled-column-${column.id}`}
             >
               {column.title}
             </h2>
           </div>
-          <p className="mt-1 truncate pl-4 text-[10.5px] text-(--text-soft)">
-            {column.description}
-          </p>
         </div>
-        <span className="shrink-0 text-[11px] font-medium tabular-nums text-(--text-muted)">
+        <span className="shrink-0 text-xs font-medium tabular-nums text-(--text-muted)">
           {column.items.length}
         </span>
       </header>
 
       {column.items.length > 0 ? (
-        <div className="soft-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2">
+        <div className="soft-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2 max-lg:overflow-visible max-lg:px-0">
           {column.items.map((task) => (
             <ScheduledTaskCard
               isDeleting={pending.get("delete")?.has(task.job_id) ?? false}
@@ -260,7 +264,7 @@ function ScheduledTaskBoardColumnView({
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center px-5 pb-12 text-center">
           <EmptyIcon className="h-6 w-6 text-(--icon-muted)" />
-          <p className="mt-2 text-[11px] leading-5 text-(--text-soft)">
+          <p className="mt-2 text-xs leading-5 text-(--text-soft)">
             {column.emptyDescription}
           </p>
         </div>
@@ -277,18 +281,8 @@ function ScheduledTaskReadyBoard({
 }) {
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label="定时任务看板">
-      <div className="mb-3 flex items-end justify-between gap-4">
-        <div>
-          <h2 className="text-[16px] font-medium tracking-[-0.01em] text-(--text-strong)">
-            任务看板
-          </h2>
-          <p className="mt-0.5 text-[11px] leading-5 text-(--text-muted)">
-            查看任务的当前状态、下次执行时间和异常情况。
-          </p>
-        </div>
-      </div>
-      <div className="soft-scrollbar -mx-5 min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-5 xl:-mx-6 xl:px-6">
-        <div className="grid h-full min-w-[1080px] grid-cols-4 gap-3">
+      <div className="soft-scrollbar -mx-5 min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-5 max-lg:mx-0 max-lg:overflow-x-hidden max-lg:overflow-y-auto max-lg:px-0 xl:-mx-6 xl:px-6">
+        <div className="grid h-full min-w-[1080px] grid-cols-4 gap-3 max-lg:h-auto max-lg:min-w-0 max-lg:grid-cols-1 max-lg:gap-4">
           {columns.map((column) => (
             <ScheduledTaskBoardColumnView
               column={column}

@@ -45,18 +45,18 @@ const THREAD_DENSITY_PRESENTATIONS: Record<
     buttonClassName: "gap-2 rounded-[10px] px-2 py-2",
     containerClassName: "p-1.5",
     listClassName: "space-y-0.5",
-    metadataClassName: "mt-1 text-[10px]",
-    summaryClassName: "line-clamp-1 text-[11.5px] leading-4",
-    titleClassName: "text-[12.5px]",
+    metadataClassName: "mt-1 text-2xs",
+    summaryClassName: "line-clamp-1 text-compact leading-4",
+    titleClassName: "text-sm",
   },
   regular: {
     activeClassName: "border-[color:color-mix(in_srgb,var(--primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]",
     buttonClassName: "gap-2.5 rounded-[12px] px-2.5 py-2.5",
     containerClassName: "p-2",
     listClassName: "space-y-1",
-    metadataClassName: "mt-1.5 text-[10.5px]",
-    summaryClassName: "line-clamp-2 text-[12px] leading-4",
-    titleClassName: "text-[13px]",
+    metadataClassName: "mt-1.5 text-xs",
+    summaryClassName: "line-clamp-2 text-compact leading-4",
+    titleClassName: "text-sm",
   },
 };
 
@@ -110,7 +110,7 @@ function buildPrivateThreadListItem(
     thread,
     title: privateThreadTitle(thread, agentId),
     titleClassName: cn(
-      "truncate font-bold text-(--text-strong)",
+      "truncate font-semibold text-(--text-strong)",
       density.titleClassName,
     ),
     workspaceAgentId: thread.participant_agent_ids[0] ?? agentId,

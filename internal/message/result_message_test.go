@@ -79,6 +79,46 @@ func TestProcessorTreatsSuccessSubtypeWithErrorFlagAsFailure(t *testing.T) {
 	}
 }
 
+func TestProcessorNormalizesProviderContentFilterResultError(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:room:test",
+		RoomID:     "room-test",
+		AgentID:    "agent-test",
+		RoundID:    "round-content-filtered",
+	}, "sdk-session-content-filtered")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeResult,
+		UUID: "result-content-filtered",
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:        "error",
+			IsError:        true,
+			Result:         "request rejected",
+			StopReason:     "sensitive",
+			TerminalReason: "invalid_request",
+			Errors:         []string{"generation stopped by Provider"},
+		},
+	})
+
+	if output.TerminalStatus != "error" || output.ResultSubtype != "error" {
+		t.Fatalf("content filter should remain a terminal error: %+v", output)
+	}
+	result := output.DurableMessages[0]
+	if result["result"] != contentFilteredDisplayText {
+		t.Fatalf("terminal result did not use fallback copy: %+v", result)
+	}
+	if result["terminal_reason"] != contentFilteredTerminalReason {
+		t.Fatalf("terminal reason was not normalized: %+v", result)
+	}
+	if result["stop_reason"] != "error" {
+		t.Fatalf("Provider stop reason was not normalized: %+v", result)
+	}
+	errors, ok := result["errors"].([]string)
+	if !ok || len(errors) != 1 || errors[0] != contentFilteredTerminalReason {
+		t.Fatalf("raw terminal error should not remain user-visible: %+v", result)
+	}
+}
+
 func TestProcessorNormalizesClaudeCodeErrorSubtype(t *testing.T) {
 	processor := NewProcessor(MessageContext{RoundID: "round-error-subtype"}, "")
 	output := processor.Process(sdkprotocol.ReceivedMessage{
@@ -89,6 +129,33 @@ func TestProcessorNormalizesClaudeCodeErrorSubtype(t *testing.T) {
 	})
 	if output.ResultSubtype != "error" || output.TerminalStatus != "error" {
 		t.Fatalf("CC error subtype = (%q, %q), want error", output.ResultSubtype, output.TerminalStatus)
+	}
+}
+
+func TestProcessorNormalizesHookStoppedResultError(t *testing.T) {
+	processor := NewProcessor(MessageContext{RoundID: "round-hook-stopped"}, "")
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeResult,
+		Result: &sdkprotocol.ResultMessage{
+			Subtype:    "error_hook_stopped",
+			IsError:    true,
+			StopReason: "hook_stopped",
+			Errors:     []string{"Tool execution stopped by hook"},
+		},
+	})
+	if output.ResultSubtype != "error" || output.TerminalStatus != "error" {
+		t.Fatalf("hook stopped terminal = (%q, %q), want error", output.ResultSubtype, output.TerminalStatus)
+	}
+	result := output.DurableMessages[0]
+	if result["runtime_subtype"] != "error_hook_stopped" {
+		t.Fatalf("runtime subtype 未保留: %+v", result)
+	}
+	errors, ok := result["errors"].([]string)
+	if !ok || len(errors) != 1 || errors[0] != hookStoppedDisplayError {
+		t.Fatalf("hook stopped 错误未使用友好文案: %+v", result)
+	}
+	if result["result"] != "" {
+		t.Fatalf("hook stopped 不应把内部英文错误投影为正文: %+v", result)
 	}
 }
 

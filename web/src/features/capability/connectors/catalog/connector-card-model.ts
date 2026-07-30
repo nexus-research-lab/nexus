@@ -8,11 +8,11 @@ export interface ConnectorCardBadgeModel {
 }
 
 export type ConnectorCardTrailingModel =
-  | { kind: "busy" | "coming-soon" | "connected" }
+  | { kind: "busy" | "coming-soon" }
   | {
-      action: "connect" | "select";
+      action: "connect" | "disconnect" | "select";
       ariaLabel: string;
-      icon: "connect" | "credential" | "oauth-client";
+      icon: "connect" | "credential" | "disconnect" | "oauth-client";
       kind: "action";
     };
 
@@ -47,7 +47,15 @@ export function buildConnectorCardModel(
     ]),
     trailing: firstCardValue<ConnectorCardTrailingModel>([
       { matches: busy, value: { kind: "busy" } },
-      { matches: state.status === "connected", value: { kind: "connected" } },
+      {
+        matches: state.status === "connected",
+        value: {
+          action: "disconnect",
+          ariaLabel: `断开 ${connector.title}`,
+          icon: "disconnect",
+          kind: "action",
+        },
+      },
       {
         matches: state.status === "coming-soon",
         value: { kind: "coming-soon" },

@@ -9,28 +9,37 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
 
 const (
-	defaultFeishuDocxAuthURL  = "https://accounts.feishu.cn/open-apis/authen/v1/authorize"
-	defaultFeishuDocxTokenURL = "https://open.feishu.cn/open-apis/authen/v2/oauth/token"
-	defaultFeishuDocxAPIURL   = "https://open.feishu.cn"
+	defaultFeishuDocxAuthURL       = "https://accounts.feishu.cn/open-apis/authen/v1/authorize"
+	defaultFeishuDocxTokenURL      = "https://open.feishu.cn/open-apis/authen/v2/oauth/token"
+	defaultFeishuDocxDeviceCodeURL = "https://accounts.feishu.cn/oauth/v1/device_authorization"
+	defaultFeishuDocxAPIURL        = "https://open.feishu.cn"
 )
 
 type feishuDocxProvider struct {
-	authURL  string
-	tokenURL string
-	apiURL   string
+	authURL       string
+	tokenURL      string
+	deviceCodeURL string
+	apiURL        string
 }
 
 // NewFeishuDocxProvider 创建飞书云文档 OAuth Provider。
 func NewFeishuDocxProvider(authURL string, tokenURL string, apiURL string) Provider {
+	return NewFeishuDocxProviderWithDeviceURL(authURL, tokenURL, defaultFeishuDocxDeviceCodeURL, apiURL)
+}
+
+// NewFeishuDocxProviderWithDeviceURL creates a Feishu provider with an overridable Device Flow endpoint.
+func NewFeishuDocxProviderWithDeviceURL(authURL string, tokenURL string, deviceCodeURL string, apiURL string) Provider {
 	return feishuDocxProvider{
-		authURL:  cmp.Or(authURL, defaultFeishuDocxAuthURL),
-		tokenURL: cmp.Or(tokenURL, defaultFeishuDocxTokenURL),
-		apiURL:   cmp.Or(apiURL, defaultFeishuDocxAPIURL),
+		authURL:       cmp.Or(authURL, defaultFeishuDocxAuthURL),
+		tokenURL:      cmp.Or(tokenURL, defaultFeishuDocxTokenURL),
+		deviceCodeURL: cmp.Or(deviceCodeURL, defaultFeishuDocxDeviceCodeURL),
+		apiURL:        cmp.Or(apiURL, defaultFeishuDocxAPIURL),
 	}
 }
 
@@ -83,6 +92,61 @@ func (p feishuDocxProvider) RefreshToken(ctx context.Context, httpClient *http.C
 		"refresh_token": req.RefreshToken,
 	}
 	return postFeishuDocxTokenJSON(ctx, httpClient, p.tokenURL, payload)
+}
+
+func (p feishuDocxProvider) RequestDeviceCode(
+	ctx context.Context,
+	httpClient *http.Client,
+	req DeviceCodeRequest,
+) (*DeviceCodeResponse, error) {
+	form := url.Values{}
+	form.Set("client_id", strings.TrimSpace(req.ClientID))
+	form.Set("scope", strings.Join(req.Scopes, " "))
+	payload, err := PostForm(
+		ctx,
+		httpClient,
+		p.deviceCodeURL,
+		form,
+		strings.TrimSpace(req.ClientID),
+		strings.TrimSpace(req.ClientSecret),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err = SniffJSONError(payload); err != nil {
+		return nil, err
+	}
+	var result DeviceCodeResponse
+	if err = json.Unmarshal(payload, &result); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(result.DeviceCode) == "" || strings.TrimSpace(result.VerificationURI) == "" {
+		return nil, errors.New("飞书 Device Flow 响应不完整")
+	}
+	if result.Interval <= 0 {
+		result.Interval = 5
+	}
+	return &result, nil
+}
+
+func (p feishuDocxProvider) ExchangeDeviceToken(
+	ctx context.Context,
+	httpClient *http.Client,
+	req DeviceTokenRequest,
+) ([]byte, error) {
+	form := url.Values{}
+	form.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+	form.Set("device_code", strings.TrimSpace(req.DeviceCode))
+	form.Set("client_id", strings.TrimSpace(req.ClientID))
+	form.Set("client_secret", strings.TrimSpace(req.ClientSecret))
+	payload, err := PostForm(ctx, httpClient, p.tokenURL, form, "", "")
+	if err != nil {
+		return nil, err
+	}
+	if err = SniffJSONError(payload); err != nil {
+		return nil, err
+	}
+	return normalizeFeishuDocxTokenResponse(payload)
 }
 
 func postFeishuDocxTokenJSON(ctx context.Context, httpClient *http.Client, endpoint string, payload map[string]string) ([]byte, error) {

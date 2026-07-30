@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+/**
+ * INPUT: Home 聊天目录、活动路由、Room/DM 未读状态与用户列表命令。
+ * OUTPUT: 侧栏筛选/创建/删除/导航控制器；Room 导航保留锚点给 Feed 消费。
+ * POS: Home 聊天侧栏有状态装配入口。
+ */
+import { useCallback, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
@@ -10,7 +15,6 @@ import { useSidebarStore } from "@/store/sidebar";
 import { useActiveRoomIds } from "../room-activity-resource";
 import {
   buildConversationItems,
-  isMainAgentDmRoom,
   normalizeSidebarQuery,
   type SidebarConversationItem,
 } from "./sidebar-conversation-model";
@@ -33,6 +37,7 @@ export function useChatSidebarController({
   const navigate = useNavigate();
   const activeItemId = useSidebarStore((state) => state.active_panel_item_id);
   const setActiveItem = useSidebarStore((state) => state.set_active_panel_item);
+  const chatUnreadAnchors = useSidebarStore((state) => state.chat_unread_anchors);
   const chatUnreadCounts = useSidebarStore((state) => state.chat_unread_counts);
   const chatUnreadTargets = useSidebarStore((state) => state.chat_unread_targets);
   const chatUnreadTimestamps = useSidebarStore((state) => state.chat_unread_timestamps);
@@ -42,7 +47,9 @@ export function useChatSidebarController({
   const clearRoomNotifications = useSidebarStore(
     (state) => state.clear_chat_notifications_for_room,
   );
-  const setNexusRoomId = useSidebarStore((state) => state.set_nexus_room_id);
+  const discardRoomChatState = useSidebarStore(
+    (state) => state.discard_chat_state_for_room,
+  );
   const activeRoomIds = useActiveRoomIds();
   const {
     agents,
@@ -55,10 +62,6 @@ export function useChatSidebarController({
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const nexusDmRoom = useMemo(
-    () => rooms.find((room) => isMainAgentDmRoom(room)) ?? null,
-    [rooms],
-  );
   const activeTarget = useMemo(
     () => getActiveChatTargetFromPath(location.pathname),
     [location.pathname],
@@ -72,41 +75,40 @@ export function useChatSidebarController({
   }), [activeRoomIds, agents, conversations, rooms, untitledRoomLabel]);
   const items = useMemo(() => projectSidebarUnreadItems({
     activeTarget,
+    chatUnreadAnchors,
     chatUnreadCounts,
     chatUnreadTargets,
     chatUnreadTimestamps,
     items: conversationItems,
-  }), [activeTarget, chatUnreadCounts, chatUnreadTargets, chatUnreadTimestamps, conversationItems]);
+  }), [
+    activeTarget,
+    chatUnreadAnchors,
+    chatUnreadCounts,
+    chatUnreadTargets,
+    chatUnreadTimestamps,
+    conversationItems,
+  ]);
   const filteredItems = useMemo(
     () => filterConversationItems(items, query),
     [items, query],
   );
-
-  useEffect(() => {
-    setNexusRoomId(nexusDmRoom?.id ?? null);
-  }, [nexusDmRoom, setNexusRoomId]);
 
   const openConversation = useCallback((item: SidebarConversationItem) => {
     const routeRoomId = item.routeRoomId ?? item.roomId;
     if (!routeRoomId) {
       return;
     }
-    if (item.roomId) {
+    if (item.kind === "dm" && item.roomId) {
       clearRoomNotifications(item.roomId);
+      clearTargetNotifications(item.unreadTargetKey || item.notificationKey);
     }
-    clearTargetNotifications(item.unreadTargetKey || item.notificationKey);
     setActiveItem(item.id);
 
-    const conversationId = item.unreadConversationId || item.conversationId;
-    const route = conversationId
-      ? AppRouteBuilders.roomConversation(routeRoomId, conversationId)
+    const route = item.unreadConversationId
+      ? AppRouteBuilders.roomConversation(routeRoomId, item.unreadConversationId)
       : AppRouteBuilders.room(routeRoomId);
     navigate(route);
   }, [clearRoomNotifications, clearTargetNotifications, navigate, setActiveItem]);
-
-  const openContacts = useCallback(() => {
-    navigate(AppRouteBuilders.contacts());
-  }, [navigate]);
 
   const submitCreate = useCallback(async (submission: RoomDialogSubmission) => {
     setIsCreating(true);
@@ -136,6 +138,7 @@ export function useChatSidebarController({
     setDeleteTarget(null);
     void deleteRoom(target.id)
       .then(() => {
+        discardRoomChatState(target.id);
         if (activeItemId === target.id) {
           setActiveItem(null);
         }
@@ -145,7 +148,13 @@ export function useChatSidebarController({
         console.error("[Sidebar] 删除 Room 失败", error);
         refreshDirectory();
       });
-  }, [activeItemId, deleteTarget, refreshDirectory, setActiveItem]);
+  }, [
+    activeItemId,
+    deleteTarget,
+    discardRoomChatState,
+    refreshDirectory,
+    setActiveItem,
+  ]);
 
   const requestDelete = useCallback((item: SidebarConversationItem) => {
     if (!item.canDelete || !item.roomId) {
@@ -174,7 +183,6 @@ export function useChatSidebarController({
     },
     directory: {
       agents,
-      hasAgents: agents.length > 0,
     },
     list: {
       isItemActive,
@@ -183,9 +191,6 @@ export function useChatSidebarController({
       openConversation,
       query,
       setQuery,
-    },
-    navigation: {
-      openContacts,
     },
   };
 }

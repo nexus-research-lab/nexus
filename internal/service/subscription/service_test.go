@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -111,10 +112,54 @@ func TestEnsureQuotaAvailableBlocksAtMonthlyLimit(t *testing.T) {
 	}
 }
 
+func TestDesktopSystemWithoutExplicitSubscriptionHasNoFreeQuota(t *testing.T) {
+	service, db := newTestServiceWithAppMode(t, "desktop")
+	fixedNow := time.Date(2026, 7, 15, 8, 30, 0, 0, time.UTC)
+	service.now = func() time.Time { return fixedNow }
+	insertUser(t, db, authctx.SystemUserID, authctx.SystemUserID, "Local User", "owner")
+	insertUsage(t, db, authctx.SystemUserID, "usage-over-free-limit", 17554299, fixedNow.Add(-time.Hour))
+
+	account, err := service.CurrentAccount(context.Background(), authctx.SystemUserID)
+	if err != nil {
+		t.Fatalf("读取 desktop 本地订阅失败: %v", err)
+	}
+	if account != nil {
+		t.Fatalf("desktop 本地用户没有显式订阅时不应伪造 Free 套餐: %+v", account)
+	}
+	if err = service.EnsureQuotaAvailable(context.Background(), authctx.SystemUserID); err != nil {
+		t.Fatalf("desktop 本地用户没有显式订阅时不应触发额度门禁: %v", err)
+	}
+}
+
+func TestDesktopSystemIgnoresExplicitSubscription(t *testing.T) {
+	service, db := newTestServiceWithAppMode(t, "desktop")
+	insertUser(t, db, authctx.SystemUserID, authctx.SystemUserID, "Local User", "owner")
+
+	if _, err := service.UpdateUserSubscription(context.Background(), UpdateUserSubscriptionInput{
+		OwnerUserID: authctx.SystemUserID,
+		PlanKey:     PlanAdmin,
+	}); err != nil {
+		t.Fatalf("写入 desktop 本地用户显式订阅失败: %v", err)
+	}
+	account, err := service.CurrentAccount(context.Background(), authctx.SystemUserID)
+	if err != nil {
+		t.Fatalf("读取 desktop 本地用户显式订阅失败: %v", err)
+	}
+	if account != nil {
+		t.Fatalf("desktop 本地用户应屏蔽订阅投影: %+v", account)
+	}
+}
+
 func newTestService(t *testing.T) (*Service, *sql.DB) {
+	t.Helper()
+	return newTestServiceWithAppMode(t, "")
+}
+
+func newTestServiceWithAppMode(t *testing.T, appMode string) (*Service, *sql.DB) {
 	t.Helper()
 
 	cfg := handlertest.NewConfig(t)
+	cfg.AppMode = appMode
 	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
 	db := handlertest.OpenSQLite(t, cfg.DatabaseURL)
 	t.Cleanup(func() { _ = db.Close() })

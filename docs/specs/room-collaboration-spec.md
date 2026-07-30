@@ -80,11 +80,13 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 普通公区发言直接使用当前 round 的 final reply，不调用 Room 工具。只有已收口的 final reply 才进入 public feed。
 
-公区 final reply 中的非代码 `@成员` 默认先作为可点击的显示 mention；只有服务端选中的目标才是真实 handoff。默认只选文本顺序中的第一个有效目标，其他 `@` 保留展示但不唤醒。需要并行 fanout 时，Agent 必须在正文末尾显式附加 `<nexus_room_fanout/>`；服务端会剥离该控制标记，并为所有有效目标创建 handoff。源 Agent 的 final reply 持久化且 source slot 成功收口后立即处理，不等待同一 root round 的其他 slot；解析使用成员 name、display name 或 agent id，反引号代码区域中的 `@` 不触发唤醒。目标重复时只唤醒一次，不能唤醒自己。
+公区 final reply 中的每个非代码 `@成员` 都同时是可点击 mention 与真实 handoff；多个有效目标会分别创建独立 handoff 并行唤醒。只想展示或讨论成员时必须写普通名字，不使用 `@`。源 Agent 的 final reply 持久化且 source slot 成功收口后立即处理，不等待同一 root round 的其他 slot；解析使用成员 name、display name 或 agent id，反引号代码区域中的 `@` 不触发唤醒。推荐在成员名后使用空白或标点；为兼容模型的中文输出，纯 ASCII 别名可直接衔接汉字正文（例如 `@Agent1以上为结果`），但 ASCII 字母、数字或连接符后缀仍视为同一标识符，`@Agent10` 不会误命中 `Agent1`。目标重复时只唤醒一次，不能唤醒自己。
 
-用户消息里的 `@成员` 是用户显式输入目标，可按前端传入的 `target_agent_ids` 做并行 fanout；Agent final reply 则严格区分显示 mention 与 handoff intent。多个不同目标按目标拆成多个独立 handoff，目标的书写顺序只决定创建顺序，不承诺回复顺序。
+用户消息与 Agent final reply 里的 `@成员` 都表达显式目标；前者按前端传入的 `target_agent_ids` 路由，后者按服务端解析出的有效 mention 路由。多个不同目标按目标拆成多个独立 handoff，目标的书写顺序只决定创建顺序，不承诺回复顺序。
 
-公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容带给目标 Agent。目标 Agent 应输出新交付；没有新工作时使用 <nexus_room_no_reply/>，平台不写入空的公区回复。
+平台不从 Agent 的通信方向推断业务拓扑，也不禁止 reciprocal handoff。只要是不同消息中的显式新 `@`，`A → B → A`、peer 间继续讨论或多人先后回交给同一成员都是真实 handoff；是否继续协作由 Agent 的明确表达和 Room Skill 决定。多个来源同时指向同一忙碌 Agent 时，每条 handoff 都独立持久化并按到达顺序进入该 Agent 的 guide/queue，始终只运行一个目标 slot。
+
+公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容带给目标 Agent。目标 Agent 应输出新交付；完成委派后若协调者还需整合、验证或继续推进，回复应包含完整公开交付，并以带明确下一步动作的 `@协调者` 回交，而不是只说“结果可用”。没有新工作或无需任何成员继续行动时使用 <nexus_room_no_reply/> 或不写 `@`，平台不写入空的公区回复。
 
 ### 4.3 @ mention 与消息注解
 
@@ -107,8 +109,8 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 
 - `start_rune/end_rune` 是半开区间，范围包含 `@`；普通字符串消息使用 `content_block_index=0`。
 - `handoff_id` 只在 Agent public handoff 上存在；用户消息的目标注解可以没有。
-- 没有 `handoff_id` 的 Agent mention 只是显示 span，不触发唤醒；前端仍按同一 span 渲染头像与可点击链接。
-- `<nexus_room_fanout/>` 是平台控制标记，不进入正文、历史、上下文或时间线。
+- 用户消息或旧历史中没有 `handoff_id` 的 mention 只是显示 span，不触发唤醒；前端仍按同一 span 渲染头像与可点击链接。当前服务端生成的 Agent public final 中，每个有效 mention 都带独立 `handoff_id`。
+- `<nexus_room_fanout/>` 是旧版兼容标记，不再改变路由；服务端仍会剥离它，确保其不进入正文、历史、上下文或时间线。
 - 消息不持久化 avatar URL；前端按当前 Room agent directory 解析头像，找不到成员时使用 `label` 和 initials 兜底。
 - 解析不明确、目标已移除或位于代码/链接 destination 中的 `@` 保留为普通文本，不创建 handoff。
 
@@ -206,7 +208,8 @@ Directed message 是 Room 私域通信的唯一协议原语。单人私信、多
 - 服务重启后的 pending wake 恢复。
 - 用户停止 root 链时收口派生任务。
 - public handoff 的持久化日志、幂等 claim 和 queue item 关联。
-- root 级 visited/cycle 检测、fanout 上限和取消传播；`hop` 上限只作为最后一道保险。
+- root 级批次 fanout、handoff 总量和取消传播；`hop` 上限只作为最后一道资源保险。
+- 显式 reciprocal handoff 不受 visited/cycle 业务拓扑限制；同一目标仍由 active slot 和持久队列强制串行。
 
 护栏只保护运行时资源，不推断业务完成。
 
@@ -259,7 +262,9 @@ Checkpoint 记录公区和私域实际消费边界。成功完成或明确 no-re
 - public 与 private 是两种可见性，不是同一消息的两个 UI 标签。
 - 只有明确的 public projection 才能写入 public feed。
 - 同一 `source_message_id + target_agent_id` 只允许一个 public handoff；重试必须复用该 handoff 的 claim、queue item 或 target round。
-- 同一 root 的 public handoff 必须通过 visited/cycle、fanout 和取消护栏；达到 hop 上限时只作为最终兜底拒绝。
+- 不同消息中的 reciprocal 或重复协作方向都是新 handoff；平台不得用 visited/cycle 规则限制 Agent 的业务通信拓扑。
+- 同一 root 只保留批次 fanout、handoff 总量、hop 和取消等纯资源护栏；达到 hop 上限时只作为最终保险拒绝。
+- 同一目标 Agent 的多个 handoff 必须由 claim、guide/queue 和 active-slot 检查串行化，不能并发启动第二个 slot。
 - source public message 必须先于其 handoff 的 target 状态和回复；sibling slot 的快慢不能改变这条因果关系。
 - 回复路线由消息记录携带，不能从自然语言或默认约定推断。
 - Room 平台不维护业务级流程状态；需要这些状态时由 Skill 自己持久化并通信。

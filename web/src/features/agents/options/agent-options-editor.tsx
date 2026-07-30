@@ -48,7 +48,7 @@ export function AgentOptionsInlineEditor({
           />
         </div>
       </div>
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t dialog-divider px-6 py-3">
+      <div className="flex shrink-0 items-center justify-end gap-2 px-6 py-3">
         <AgentOptionsEditorActions
           {...controller.actions}
           saveButtonSize="sm"
@@ -74,12 +74,12 @@ export function AgentOptionsDialogEditor({
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden max-xl:flex-col">
         <AgentOptionsNav
           activeTab={controller.activeTab}
           onTabChange={controller.onTabChange}
         />
-        <div className="flex-1 overflow-y-auto bg-transparent p-6 [overflow-anchor:none] [scrollbar-gutter:stable]">
+        <div className="min-h-0 flex-1 overflow-y-auto bg-transparent p-5 [overflow-anchor:none] [scrollbar-gutter:stable] max-sm:p-4">
           <AgentOptionsEditorContent
             activeTab={controller.activeTab}
             {...controller.content}
@@ -87,7 +87,7 @@ export function AgentOptionsDialogEditor({
           />
         </div>
       </div>
-      <div className="dialog-footer px-5 py-3.5">
+      <div className="dialog-footer">
         <AgentOptionsEditorActions
           {...controller.actions}
           cancelAction={cancelAction}

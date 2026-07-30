@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,8 +12,46 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 )
+
+func TestOpenWorkspaceRejectsOwnerWorkspaceSymlink(t *testing.T) {
+	stateRoot := t.TempDir()
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	ownerBWorkspace := filepath.Join(
+		appfs.UserWorkspaceRootAt(stateRoot, "user-b"),
+		"agent-b",
+	)
+	if err := os.MkdirAll(ownerBWorkspace, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ownerAWorkspaceRoot := appfs.UserWorkspaceRootAt(stateRoot, "user-a")
+	if err := os.MkdirAll(ownerAWorkspaceRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ownerAWorkspace := filepath.Join(ownerAWorkspaceRoot, "agent-a")
+	if err := os.Symlink(
+		filepath.Join("..", "..", "user-b", "workspace", "agent-b"),
+		ownerAWorkspace,
+	); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	service := NewService(nil, filepath.Join(stateRoot, "users"))
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID: "user-a",
+	})
+	root, err := service.openWorkspace(ctx, ownerAWorkspace, false)
+	if root != nil {
+		_ = root.Close()
+	}
+	if !errors.Is(err, confinedfs.ErrSymlink) {
+		t.Fatalf("图片服务不能借 owner workspace symlink 跨用户: %v", err)
+	}
+}
 
 func TestGenerateImageSupportsAzureDeploymentURL(t *testing.T) {
 	imageBytes := []byte{0x89, 0x50, 0x4e, 0x47}
@@ -41,15 +80,16 @@ func TestGenerateImageSupportsAzureDeploymentURL(t *testing.T) {
 	defer server.Close()
 
 	compression := 100
+	workspacePath := newImagegenWorkspace(t)
 	service := NewService(fakeProviderResolver{config: &providercfg.ImageConfig{
 		Provider:  "azure-image",
 		AuthToken: "azure-token",
 		BaseURL:   server.URL + "/openai/deployments/gpt-image-2?api-version=2024-02-01",
 		Model:     "gpt-image-2",
-	}})
+	}}, "")
 	result, _, err := service.GenerateImage(context.Background(), GenerateInput{
 		Prompt:            "A photograph of a red fox in an autumn forest",
-		WorkspacePath:     t.TempDir(),
+		WorkspacePath:     workspacePath,
 		Quality:           "low",
 		OutputFormat:      "png",
 		OutputCompression: &compression,
@@ -100,7 +140,7 @@ func TestEditImageSupportsAzureMultipartAPI(t *testing.T) {
 	}))
 	defer server.Close()
 
-	workspacePath := t.TempDir()
+	workspacePath := newImagegenWorkspace(t)
 	writeTestPNG(t, filepath.Join(workspacePath, "image_to_edit.png"))
 	writeTestPNG(t, filepath.Join(workspacePath, "mask.png"))
 	service := NewService(fakeProviderResolver{config: &providercfg.ImageConfig{
@@ -108,7 +148,7 @@ func TestEditImageSupportsAzureMultipartAPI(t *testing.T) {
 		AuthToken: "azure-token",
 		BaseURL:   server.URL + "/openai/deployments/gpt-image-2?api-version=2024-02-01",
 		Model:     "gpt-image-2",
-	}})
+	}}, "")
 	result, _, err := service.EditImage(context.Background(), EditInput{
 		Prompt:        "Make this black and white",
 		WorkspacePath: workspacePath,
@@ -156,7 +196,7 @@ func TestGenerateImageCallsOpenAICompatibleProviderAndWritesFile(t *testing.T) {
 	}))
 	defer server.Close()
 
-	workspacePath := t.TempDir()
+	workspacePath := newImagegenWorkspace(t)
 	service := NewService(fakeProviderResolver{config: &providercfg.ImageConfig{
 		Provider:  "openai",
 		AuthToken: "test-token",
@@ -165,7 +205,7 @@ func TestGenerateImageCallsOpenAICompatibleProviderAndWritesFile(t *testing.T) {
 		ProviderOptions: map[string]any{
 			"response_format": "b64_json",
 		},
-	}})
+	}}, "")
 	service.now = fixedNow
 
 	result, payload, err := service.GenerateImage(context.Background(), GenerateInput{
@@ -213,16 +253,17 @@ func TestGenerateImageNormalizesImage2PixelSizeBeforeRequest(t *testing.T) {
 	}))
 	defer server.Close()
 
+	workspacePath := newImagegenWorkspace(t)
 	service := NewService(fakeProviderResolver{config: &providercfg.ImageConfig{
 		Provider:  "openai",
 		AuthToken: "test-token",
 		BaseURL:   server.URL + "/v1",
 		Model:     "gpt-image-2",
-	}})
+	}}, "")
 
 	result, _, err := service.GenerateImage(context.Background(), GenerateInput{
 		Prompt:        "cinematic wide scene",
-		WorkspacePath: t.TempDir(),
+		WorkspacePath: workspacePath,
 		Size:          "1920x1080",
 		FileName:      "wide-scene",
 	})

@@ -1,12 +1,13 @@
-// INPUT: 已完成 Agent 输出中的公区 @ 与目标 Agent 当前执行态。
-// OUTPUT: 同 Agent 串行的 public mention guide/新轮唤醒，以及 pending wake 到 active slot 的原子交接。
-// POS: Room Agent 间公开协作的唤醒编排入口。
+// INPUT: 已完成 Agent 输出中的显式公区 @ 与目标 Agent 当前执行态。
+// OUTPUT: 任意非 self 成员间幂等 handoff、同 Agent 串行 guide/queue/新轮唤醒，以及保留 root usage scope 的 pending wake 到 active slot 原子交接。
+// POS: Room Agent 间公开协作的显式路由与纯资源护栏入口；不解释或限制业务协作拓扑。
 package realtime
 
 import (
 	"cmp"
 	"context"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"strings"
@@ -14,7 +15,7 @@ import (
 )
 
 const (
-	// hop 是最后一道保险；更早的 root admission 会先拦截环和异常 fanout。
+	// hop 是最后一道保险；更早的 root admission 只限制异常 fanout 与总量。
 	roomMaxWakeHops      = 16
 	roomMaxHandoffFanout = 8
 	roomMaxRootHandoffs  = 32
@@ -54,7 +55,12 @@ func (s *Service) collectPublicMentionWakes(
 	// 但首条 transcript 引用仍是旧快照。追加同 message_id 的引用作为可压缩更新，
 	// 让历史回放与实时渲染保持同一份 agent_mentions。
 	if len(protocolAgentMentions(message["agent_mentions"])) > 0 {
-		if err := s.persistSharedDurableMessage(roundValue.ConversationID, slot, message); err != nil {
+		if err := s.persistSharedDurableMessage(
+			roundValue.OwnerUserID,
+			roundValue.ConversationID,
+			slot,
+			message,
+		); err != nil {
 			return err
 		}
 	}
@@ -70,7 +76,11 @@ func (s *Service) collectPublicMentionWakes(
 	}
 	for _, wake := range wakes {
 		if s.publicHandoffs != nil {
-			if err := s.publicHandoffs.MarkSourceFinished(roundValue.ConversationID, wake.HandoffID); err != nil {
+			if err := s.publicHandoffs.MarkSourceFinished(
+				roundValue.OwnerUserID,
+				roundValue.ConversationID,
+				wake.HandoffID,
+			); err != nil {
 				return err
 			}
 		}
@@ -101,8 +111,8 @@ func publicMentionWakesFromMessage(
 		}
 		handoffID := strings.TrimSpace(mention.HandoffID)
 		if handoffID == "" {
-			// 没有 handoff_id 的 mention 只是展示 span；真实交接必须
-			// 由服务端显式选中并写入 ledger，不能因解析到 @ 就再次唤醒。
+			// 用户消息、旧历史或畸形 annotation 可能没有 handoff_id；
+			// 它们只作展示，不能绕过当前服务端派生并写入 ledger 的交接。
 			continue
 		}
 		if _, exists := seen[targetAgentID]; exists {
@@ -220,10 +230,16 @@ func (s *Service) startPublicMentionRoundLocked(
 	if len(wakes) == 0 {
 		return nil
 	}
-	// root admission 已经先处理 visited/cycle/fanout；hop 只作为最后一道
-	// 跨重启或异常数据兜底，避免正常链路被单一计数提前截断。
+	// root admission 已经先处理幂等、self、fanout 与总量；hop 只作为
+	// 跨重启或异常数据的最后兜底，不能承担业务拓扑判断。
 	if parentRound.HopIndex >= roomMaxWakeHops {
-		s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, wakes, "error")
+		s.terminalizePublicMentionWakes(
+			ctx,
+			parentRound.OwnerUserID,
+			parentRound.ConversationID,
+			wakes,
+			"error",
+		)
 		s.loggerFor(ctx).Warn("Room 唤醒达到跳数上限",
 			"r", parentRound.RoomID,
 			"c", parentRound.ConversationID,
@@ -247,7 +263,11 @@ func (s *Service) startPublicMentionRoundLocked(
 			claimedWakes = append(claimedWakes, wake)
 			continue
 		}
-		_, claimed, claimErr := s.publicHandoffs.Claim(parentRound.ConversationID, wake.HandoffID)
+		_, claimed, claimErr := s.publicHandoffs.Claim(
+			parentRound.OwnerUserID,
+			parentRound.ConversationID,
+			wake.HandoffID,
+		)
 		if claimErr != nil {
 			return claimErr
 		}
@@ -263,7 +283,11 @@ func (s *Service) startPublicMentionRoundLocked(
 	if err != nil {
 		return err
 	}
-	publicHistory, err := s.roomHistory.ReadMessages(contextValue.Conversation.ID, nil)
+	publicHistory, err := s.roomHistory.ReadMessages(
+		contextValue.Room.OwnerUserID,
+		contextValue.Conversation.ID,
+		nil,
+	)
 	if err != nil {
 		return err
 	}
@@ -277,7 +301,12 @@ func (s *Service) startPublicMentionRoundLocked(
 			s.publicHandoffs == nil || strings.TrimSpace(wake.HandoffID) == "" {
 			continue
 		}
-		if err := s.publicHandoffs.MarkTerminal(parentRound.ConversationID, wake.HandoffID, "error"); err != nil {
+		if err := s.publicHandoffs.MarkTerminal(
+			parentRound.OwnerUserID,
+			parentRound.ConversationID,
+			wake.HandoffID,
+			"error",
+		); err != nil {
 			s.loggerFor(ctx).Warn("目标 Agent 不可用，收口 Room handoff 失败", "handoff_id", wake.HandoffID, "err", err)
 		}
 	}
@@ -287,6 +316,9 @@ func (s *Service) startPublicMentionRoundLocked(
 	}
 	roundID := roomWakeRoundID(wakes)
 	activeRound := newPublicMentionRound(parentRound, sessionKey, roundID)
+	if strings.TrimSpace(activeRound.OwnerUserID) == "" {
+		activeRound.OwnerUserID = authctx.OwnerUserID(ctx)
+	}
 	targetAgentIDs, pending := addPublicMentionSlots(activeRound, contextValue, pendingSlots)
 	s.launchPublicMentionRound(
 		ctx,
@@ -304,7 +336,12 @@ func (s *Service) startPublicMentionRoundLocked(
 			if strings.TrimSpace(wake.HandoffID) == "" {
 				continue
 			}
-			if err := s.publicHandoffs.MarkStarted(activeRound.ConversationID, wake.HandoffID, roundID); err != nil {
+			if err := s.publicHandoffs.MarkStarted(
+				activeRound.OwnerUserID,
+				activeRound.ConversationID,
+				wake.HandoffID,
+				roundID,
+			); err != nil {
 				s.loggerFor(ctx).Warn("记录 Room handoff 启动状态失败", "handoff_id", wake.HandoffID, "err", err)
 			}
 		}
@@ -312,7 +349,7 @@ func (s *Service) startPublicMentionRoundLocked(
 	return nil
 }
 
-// admitPublicMentionWakes 在真正 claim 前做 root 级资源与拓扑护栏。
+// admitPublicMentionWakes 在真正 claim 前做幂等、self 与 root 级资源护栏。
 // 只有显式 handoff 的公区 @ 进入这里；directed message 仍由自己的路由规则管理。
 func (s *Service) admitPublicMentionWakes(
 	ctx context.Context,
@@ -336,7 +373,11 @@ func (s *Service) admitPublicMentionWakes(
 	edges := make([]workspacestore.RoomPublicHandoff, 0)
 	if s.publicHandoffs != nil {
 		var err error
-		edges, err = s.publicHandoffs.ListRoot(parentRound.ConversationID, rootRoundID)
+		edges, err = s.publicHandoffs.ListRoot(
+			parentRound.OwnerUserID,
+			parentRound.ConversationID,
+			rootRoundID,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -354,15 +395,11 @@ func (s *Service) admitPublicMentionWakes(
 			currentWakeIDs[handoffID] = struct{}{}
 		}
 	}
-	workingEdges := make([]workspacestore.RoomPublicHandoff, 0, len(edges)+len(wakes))
 	for _, edge := range edges {
-		// 同一批次的 sibling 边不能互相制造环；只把历史 root 边
-		// 带入拓扑判断，再按当前接受顺序逐条加入。
 		if _, current := currentWakeIDs[strings.TrimSpace(edge.HandoffID)]; current {
 			continue
 		}
 		historicalRootHandoffs++
-		workingEdges = append(workingEdges, edge)
 	}
 	accepted := make([]publicMentionWake, 0, len(wakes))
 	acceptedGuarded := 0
@@ -386,7 +423,13 @@ func (s *Service) admitPublicMentionWakes(
 			if strings.TrimSpace(existing.RootRoundID) != rootRoundID ||
 				strings.TrimSpace(existing.SourceAgentID) != sourceAgentID ||
 				strings.TrimSpace(existing.TargetAgentID) != targetAgentID {
-				s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, []publicMentionWake{wake}, "error")
+				s.terminalizePublicMentionWakes(
+					ctx,
+					parentRound.OwnerUserID,
+					parentRound.ConversationID,
+					[]publicMentionWake{wake},
+					"error",
+				)
 				continue
 			}
 			if roomPublicHandoffIsTerminal(existing.Status) {
@@ -395,48 +438,60 @@ func (s *Service) admitPublicMentionWakes(
 			}
 			if roomPublicHandoffIsInFlight(existing.Status) {
 				// claimed/started 可能正由另一条恢复路径消费；保持幂等，
-				// 不再用当前拓扑快照回写一个正在执行的边。
+				// 不再重新 claim 或回写一个正在执行的边。
 				accepted = append(accepted, wake)
-				workingEdges = append(workingEdges, existing)
 				acceptedGuarded++
 				continue
 			}
 		}
 		if acceptedGuarded >= roomMaxHandoffFanout {
-			s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, []publicMentionWake{wake}, "error")
+			s.terminalizePublicMentionWakes(
+				ctx,
+				parentRound.OwnerUserID,
+				parentRound.ConversationID,
+				[]publicMentionWake{wake},
+				"error",
+			)
 			continue
 		}
 		projectedRootHandoffs := historicalRootHandoffs + acceptedGuarded + 1
 		if projectedRootHandoffs > roomMaxRootHandoffs {
-			s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, []publicMentionWake{wake}, "error")
+			s.terminalizePublicMentionWakes(
+				ctx,
+				parentRound.OwnerUserID,
+				parentRound.ConversationID,
+				[]publicMentionWake{wake},
+				"error",
+			)
 			continue
 		}
 		if hasExisting {
 			// annotation 在 start 前已经 Detect；恢复路径也会再次看到同一
-			// 条边。它们仍需经过同一拓扑校验，不能因为已写 ledger 就绕过
-			// cycle/fanout 护栏。
-			if roomPublicHandoffCreatesCycle(workingEdges, sourceAgentID, targetAgentID) {
-				s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, []publicMentionWake{wake}, "error")
+			// 条边。ledger 身份必须一致，资源上限也不能因为恢复而绕过。
+			if sourceAgentID == "" || targetAgentID == "" || sourceAgentID == targetAgentID {
+				s.terminalizePublicMentionWakes(
+					ctx,
+					parentRound.OwnerUserID,
+					parentRound.ConversationID,
+					[]publicMentionWake{wake},
+					"error",
+				)
 				continue
 			}
 			accepted = append(accepted, wake)
-			workingEdges = append(workingEdges, existing)
 			acceptedGuarded++
 			continue
 		}
-		if sourceAgentID == "" || targetAgentID == "" || sourceAgentID == targetAgentID ||
-			roomPublicHandoffCreatesCycle(workingEdges, sourceAgentID, targetAgentID) {
-			s.terminalizePublicMentionWakes(ctx, parentRound.ConversationID, []publicMentionWake{wake}, "error")
+		if sourceAgentID == "" || targetAgentID == "" || sourceAgentID == targetAgentID {
+			s.terminalizePublicMentionWakes(
+				ctx,
+				parentRound.OwnerUserID,
+				parentRound.ConversationID,
+				[]publicMentionWake{wake},
+				"error",
+			)
 			continue
 		}
-		workingEdges = append(workingEdges, workspacestore.RoomPublicHandoff{
-			HandoffID:      handoffID,
-			SourceAgentID:  sourceAgentID,
-			TargetAgentID:  targetAgentID,
-			RootRoundID:    rootRoundID,
-			ConversationID: parentRound.ConversationID,
-			Status:         "source_finished",
-		})
 		accepted = append(accepted, wake)
 		acceptedGuarded++
 	}
@@ -461,47 +516,11 @@ func roomPublicHandoffIsInFlight(status string) bool {
 	}
 }
 
-func roomPublicHandoffCreatesCycle(
-	edges []workspacestore.RoomPublicHandoff,
-	sourceAgentID string,
-	targetAgentID string,
-) bool {
-	sourceAgentID = strings.TrimSpace(sourceAgentID)
-	targetAgentID = strings.TrimSpace(targetAgentID)
-	if sourceAgentID == "" || targetAgentID == "" || sourceAgentID == targetAgentID {
-		return true
-	}
-	graph := make(map[string][]string)
-	for _, edge := range edges {
-		source := strings.TrimSpace(edge.SourceAgentID)
-		target := strings.TrimSpace(edge.TargetAgentID)
-		if source == "" || target == "" {
-			continue
-		}
-		graph[source] = append(graph[source], target)
-	}
-	stack := []string{targetAgentID}
-	visited := make(map[string]struct{})
-	for len(stack) > 0 {
-		last := len(stack) - 1
-		current := stack[last]
-		stack = stack[:last]
-		if current == sourceAgentID {
-			return true
-		}
-		if _, ok := visited[current]; ok {
-			continue
-		}
-		visited[current] = struct{}{}
-		stack = append(stack, graph[current]...)
-	}
-	return false
-}
-
 // terminalizePublicMentionWakes 收口因平台护栏被拒绝的 handoff，避免
 // 已经从内存 pending 列表取出的边在 ledger 中永久停留为 source_finished。
 func (s *Service) terminalizePublicMentionWakes(
 	ctx context.Context,
+	ownerUserID string,
 	conversationID string,
 	wakes []publicMentionWake,
 	status string,
@@ -514,7 +533,7 @@ func (s *Service) terminalizePublicMentionWakes(
 		if handoffID == "" {
 			continue
 		}
-		if err := s.publicHandoffs.MarkTerminal(conversationID, handoffID, status); err != nil {
+		if err := s.publicHandoffs.MarkTerminal(ownerUserID, conversationID, handoffID, status); err != nil {
 			s.loggerFor(ctx).Warn("收口受护栏拒绝的 Room handoff 失败",
 				"conversation_id", conversationID,
 				"handoff_id", handoffID,
@@ -612,7 +631,8 @@ func addPublicMentionSlots(
 		msgID := newRealtimeID()
 		agentRoundID := protocol.NewAgentRoundID()
 		slotIndex := index
-		activeRound.Slots[msgID] = buildPublicMentionSlot(
+		slot := buildPublicMentionSlot(
+			activeRound,
 			contextValue,
 			pendingSlot.sessionRecord,
 			pendingSlot.agentValue,
@@ -621,12 +641,15 @@ func addPublicMentionSlots(
 			msgID,
 			slotIndex,
 		)
+		activeRound.Slots[msgID] = slot
 		pending = append(pending, protocol.ChatAckPendingSlot{
 			AgentID:      pendingSlot.targetAgentID,
 			AgentRoundID: agentRoundID,
 			MsgID:        msgID,
+			RoundID:      roomRootRoundID(activeRound),
+			HandoffID:    strings.TrimSpace(pendingSlot.wake.HandoffID),
 			Status:       "pending",
-			Timestamp:    time.Now().UnixMilli(),
+			Timestamp:    slot.TimestampMS,
 			Index:        slotIndex,
 		})
 	}
@@ -647,10 +670,13 @@ func (s *Service) launchPublicMentionRound(
 	sessionKey := activeRound.SessionKey
 	contextValue := activeRound.Context
 	roundID := activeRound.RoundID
-	roundCtx, cancel := context.WithCancel(context.Background())
+	roundCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	activeRound.Cancel = cancel
 	s.registerRound(activeRound)
-	s.runtime.StartRound(sessionKey, roundID, cancel)
+	if !s.runtime.StartRound(sessionKey, roundID, cancel) {
+		s.finishRound(activeRound)
+		return
+	}
 	s.loggerFor(ctx).Info(roomWakeStartLogMessage(wakes),
 		"s", sessionKey,
 		"r", contextValue.Room.ID,
@@ -661,7 +687,15 @@ func (s *Service) launchPublicMentionRound(
 	)
 	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapRoundStatusEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, roundID, "running", ""))
 	// 公区 @ 唤醒由后端发起，没有前端请求，client 关联字段留空。
-	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapChatAckEvent(sessionKey, contextValue.Room.ID, contextValue.Conversation.ID, "", "", roundID, "", false, pending))
+	// pending slot 从 ACK 到 stream/result 都属于历史 root；内部 wake round
+	// 只负责执行生命周期，不能先把卡片挂到尾部再搬回旧 root。
+	s.broadcastSharedEvent(ctx, sessionKey, contextValue.Room.ID, roomdomain.WrapServerPendingSlotsEvent(
+		sessionKey,
+		contextValue.Room.ID,
+		contextValue.Conversation.ID,
+		roomRootRoundID(activeRound),
+		pending,
+	))
 	for _, pendingSlot := range pendingSlots {
 		if normalizeWakeQueueSource(pendingSlot.wake) != protocol.InputQueueSourceAgentRoomMessage {
 			continue
@@ -675,6 +709,7 @@ func (s *Service) launchPublicMentionRound(
 }
 
 func buildPublicMentionSlot(
+	roundValue *activeRoomRound,
 	contextValue *protocol.ConversationContextAggregate,
 	sessionRecord protocol.SessionRecord,
 	agentValue *protocol.Agent,
@@ -696,15 +731,17 @@ func buildPublicMentionSlot(
 		ReplyRoute:    wake.ReplyRoute,
 	}
 	slot := &activeRoomSlot{
-		RoomSessionID:     sessionRecord.ID,
-		AgentID:           strings.TrimSpace(wake.TargetAgentID),
-		AgentRoundID:      agentRoundID,
-		MsgID:             msgID,
-		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(contextValue.Conversation.ID, wake.TargetAgentID, contextValue.Room.RoomType),
-		WorkspacePath:     agentValue.WorkspacePath,
-		Index:             index,
-		TimestampMS:       time.Now().UnixMilli(),
-		Trigger:           trigger,
+		RoomSessionID:         sessionRecord.ID,
+		OwnerUserID:           strings.TrimSpace(roundValue.OwnerUserID),
+		AgentID:               strings.TrimSpace(wake.TargetAgentID),
+		AgentRoundID:          agentRoundID,
+		GoalUsageScopeRoundID: roomRootRoundID(roundValue),
+		MsgID:                 msgID,
+		RuntimeSessionKey:     protocol.BuildRoomAgentSessionKey(contextValue.Conversation.ID, wake.TargetAgentID, contextValue.Room.RoomType),
+		WorkspacePath:         agentValue.WorkspacePath,
+		Index:                 index,
+		TimestampMS:           time.Now().UnixMilli(),
+		Trigger:               trigger,
 	}
 	slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
 	slot.setStatus("pending")
@@ -857,7 +894,12 @@ func (s *Service) queueBusyPublicMentionWakes(
 			}
 		}
 		if s.publicHandoffs != nil && strings.TrimSpace(wake.HandoffID) != "" {
-			if err := s.publicHandoffs.MarkQueued(parentRound.ConversationID, wake.HandoffID, queuedItemID); err != nil {
+			if err := s.publicHandoffs.MarkQueued(
+				parentRound.OwnerUserID,
+				parentRound.ConversationID,
+				wake.HandoffID,
+				queuedItemID,
+			); err != nil {
 				return nil, err
 			}
 		}
@@ -895,11 +937,17 @@ func (s *Service) queueBusyPublicMentionWakes(
 		}
 	}
 	if dispatchQueued {
-		go s.dispatchNextInputQueueItem(
-			contextWithQueueOwner(context.Background(), parentRound.OwnerUserID),
+		s.startSessionBackgroundTask(
 			sessionKey,
-			parentRound.RoomID,
-			parentRound.ConversationID,
+			parentRound.OwnerUserID,
+			func(taskCtx context.Context) {
+				s.dispatchNextInputQueueItem(
+					taskCtx,
+					sessionKey,
+					parentRound.RoomID,
+					parentRound.ConversationID,
+				)
+			},
 		)
 	}
 	return ready, nil

@@ -1,8 +1,11 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
 using Microsoft.Web.WebView2.Wpf;
+using Nexus.Desktop.Dialog;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
 using Nexus.Desktop.Runtime;
@@ -16,11 +19,13 @@ public partial class MainWindow : System.Windows.Window
 {
     private const double PreferredWindowWidth = 1280;
     private const double PreferredWindowHeight = 820;
-    private const double PreferredMinimumWindowWidth = 1120;
-    private const double PreferredMinimumWindowHeight = 640;
-    private const double CompactMinimumWindowWidth = 720;
-    private const double CompactMinimumWindowHeight = 520;
+    private const double PreferredMinimumWindowWidth = 360;
+    private const double PreferredMinimumWindowHeight = 520;
+    private const double CompactMinimumWindowWidth = 320;
+    private const double CompactMinimumWindowHeight = 480;
     private const double ScreenPadding = 48;
+    private const double NativeMenuMinimumWidth = 620;
+    private const double NativeNavigationMinimumWidth = 430;
 
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
@@ -42,6 +47,7 @@ public partial class MainWindow : System.Windows.Window
         this.updateChecker = updateChecker;
         InitializeComponent();
         ConfigureInitialWindowBounds();
+        UpdateTitleBarDensity(Width);
         ConfigureWebViewSurface(MainWebView);
         trayController = new DesktopTrayController(
             startupTimeline,
@@ -61,7 +67,8 @@ public partial class MainWindow : System.Windows.Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        ConfigureNativeWindowBackdrop(new WindowInteropHelper(this).Handle);
+        IntPtr windowHandle = new WindowInteropHelper(this).Handle;
+        ConfigureNativeWindowBackdrop(windowHandle);
     }
 
     protected override void OnClosing(CancelEventArgs e)
@@ -136,24 +143,29 @@ public partial class MainWindow : System.Windows.Window
     {
         webViewHost?.Dispose();
         webViewHost = null;
+        SetNavigationAvailability(canGoBack: false, canGoForward: false);
     }
 
-    private WebViewHost CreateWebViewHost(WebView2 webView)
+    private WebViewHost CreateWebViewHost(WebView2CompositionControl webView)
     {
-        return new WebViewHost(webView, runtime, startupTimeline, RecreateWebViewAsync);
+        return new WebViewHost(
+            webView,
+            runtime,
+            startupTimeline,
+            RecreateWebViewAsync);
     }
 
-    private WebView2 GetOrCreateWebViewControl()
+    private WebView2CompositionControl GetOrCreateWebViewControl()
     {
         foreach (UIElement child in WebViewContainer.Children)
         {
-            if (child is WebView2 webView)
+            if (child is WebView2CompositionControl webView)
             {
                 return webView;
             }
         }
 
-        WebView2 nextWebView = new();
+        WebView2CompositionControl nextWebView = new();
         ConfigureWebViewSurface(nextWebView);
         WebViewContainer.Children.Add(nextWebView);
         return nextWebView;
@@ -191,7 +203,7 @@ public partial class MainWindow : System.Windows.Window
 
             DisposeWebView();
             WebViewContainer.Children.Clear();
-            WebView2 replacement = new();
+            WebView2CompositionControl replacement = new();
             ConfigureWebViewSurface(replacement);
             WebViewContainer.Children.Add(replacement);
             webViewHost = CreateWebViewHost(replacement);
@@ -381,9 +393,132 @@ public partial class MainWindow : System.Windows.Window
 
     private static string MetadataDimension(double value) => ((int)Math.Round(value)).ToString();
 
-    private static void ConfigureWebViewSurface(WebView2 webView)
+    private void HandleWindowSizeChanged(object sender, SizeChangedEventArgs e) =>
+        UpdateTitleBarDensity(e.NewSize.Width);
+
+    private void UpdateTitleBarDensity(double width)
+    {
+        NativeMenu.Visibility = width >= NativeMenuMinimumWidth
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        NativeNavigation.Visibility = width >= NativeNavigationMinimumWidth
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void ShowWindowMenu(object sender, RoutedEventArgs e)
+    {
+        System.Windows.Point menuPoint = NativeTitleBar.PointToScreen(
+            new System.Windows.Point(0, NativeTitleBar.ActualHeight));
+        SystemCommands.ShowSystemMenu(this, menuPoint);
+    }
+
+    private void NavigateBack(object sender, RoutedEventArgs e)
+    {
+        WebView2CompositionControl? webView = GetActiveWebView();
+        if (webView?.CanGoBack == true)
+        {
+            webView.GoBack();
+        }
+    }
+
+    private void NavigateForward(object sender, RoutedEventArgs e)
+    {
+        WebView2CompositionControl? webView = GetActiveWebView();
+        if (webView?.CanGoForward == true)
+        {
+            webView.GoForward();
+        }
+    }
+
+    private async void ExecuteWebEditCommand(object sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem { Tag: string command })
+        {
+            return;
+        }
+
+        WebView2CompositionControl? webView = GetActiveWebView();
+        if (webView?.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        webView.Focus();
+        try
+        {
+            string commandJSON = JsonSerializer.Serialize(command);
+            await webView.CoreWebView2.ExecuteScriptAsync(
+                $"document.execCommand({commandJSON})");
+        }
+        catch (Exception exception)
+        {
+            startupTimeline.Mark("titlebar.edit_command_failed", new Dictionary<string, string>
+            {
+                ["command"] = command,
+                ["error"] = TrimMetadata(exception.Message),
+            });
+        }
+    }
+
+    private void ReloadFromTitleBar(object sender, RoutedEventArgs e) =>
+        _ = webViewHost?.ReloadAsync("titlebar_reload");
+
+    private void ClearWebCacheFromTitleBar(object sender, RoutedEventArgs e) =>
+        _ = webViewHost?.ClearCacheAndReloadAsync("titlebar_clear_cache");
+
+    private void CheckForUpdatesFromTitleBar(object sender, RoutedEventArgs e)
+    {
+        startupTimeline.Mark("titlebar.update_check_requested");
+        _ = updateChecker.CheckNowAsync(this);
+    }
+
+    private void ShowAbout(object sender, RoutedEventArgs e)
+    {
+        NexusDialogWindow.ShowMessage(
+            this,
+            "关于 Nexus",
+            $"Nexus {AppVersionInfo.Version}\n构建 {AppVersionInfo.BuildNumber}");
+    }
+
+    private void ExitApplication(object sender, RoutedEventArgs e) => ExitFromTray();
+
+    private void MinimizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+
+    private void MaximizeWindow(object sender, RoutedEventArgs e) => SystemCommands.MaximizeWindow(this);
+
+    private void RestoreWindow(object sender, RoutedEventArgs e) => SystemCommands.RestoreWindow(this);
+
+    private void CloseWindow(object sender, RoutedEventArgs e) => SystemCommands.CloseWindow(this);
+
+    private void ConfigureWebViewSurface(WebView2CompositionControl webView)
     {
         webView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
+        webView.NavigationCompleted += (_, _) => UpdateNavigationState(webView);
+        webView.SourceChanged += (_, _) => UpdateNavigationState(webView);
+    }
+
+    private WebView2CompositionControl? GetActiveWebView() =>
+        WebViewContainer.Children
+            .OfType<WebView2CompositionControl>()
+            .LastOrDefault();
+
+    private void UpdateNavigationState(WebView2CompositionControl webView)
+    {
+        if (!ReferenceEquals(webView, GetActiveWebView()))
+        {
+            return;
+        }
+
+        SetNavigationAvailability(webView.CanGoBack, webView.CanGoForward);
+    }
+
+    private void SetNavigationAvailability(bool canGoBack, bool canGoForward)
+    {
+        BackNavigationButton.IsEnabled = canGoBack;
+        ForwardNavigationButton.IsEnabled = canGoForward;
+        BackNavigationMenuItem.IsEnabled = canGoBack;
+        ForwardNavigationMenuItem.IsEnabled = canGoForward;
     }
 
     private static void ConfigureNativeWindowBackdrop(IntPtr hwnd)
@@ -396,10 +531,13 @@ public partial class MainWindow : System.Windows.Window
         TrySetDwmAttribute(hwnd, DwmWindowAttribute.SystemBackdropType, DwmSystemBackdropType.MainWindow);
         TrySetDwmAttribute(hwnd, DwmWindowAttribute.WindowCornerPreference, DwmWindowCornerPreference.Round);
         TrySetDwmAttribute(hwnd, DwmWindowAttribute.UseImmersiveDarkMode, 0);
-        TrySetDwmAttribute(hwnd, DwmWindowAttribute.CaptionColor, 0x00EFF1F0);
-        TrySetDwmAttribute(hwnd, DwmWindowAttribute.BorderColor, 0x00D8DDDA);
-        TrySetDwmAttribute(hwnd, DwmWindowAttribute.TextColor, 0x002C2117);
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.CaptionColor, DwmColor(0xF9, 0xF9, 0xF7));
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.BorderColor, DwmColor(0xD8, 0xDD, 0xDA));
+        TrySetDwmAttribute(hwnd, DwmWindowAttribute.TextColor, DwmColor(0x2C, 0x21, 0x17));
     }
+
+    private static int DwmColor(byte red, byte green, byte blue) =>
+        red | (green << 8) | (blue << 16);
 
     private static void TrySetDwmAttribute(IntPtr hwnd, int attribute, int value)
     {

@@ -9,6 +9,9 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -85,6 +88,114 @@ func TestRoomSlotGuidanceHookConsumesInputQueueGuidance(t *testing.T) {
 	}
 }
 
+func TestRoomSlotGuidanceHookUsesQueueOwnerForAttachment(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
+
+	const (
+		ownerUserID       = "owner-a"
+		otherOwnerUserID  = "owner-b"
+		conversationID    = "conversation-owner-attachment"
+		attachmentName    = "owner-note.txt"
+		runtimeSessionKey = "agent:agent-a:ws:group:conversation-owner-attachment"
+	)
+	paths := workspacestore.New(appfs.UsersRoot())
+	workspacePath := filepath.Join(appfs.UserWorkspaceRoot(ownerUserID), "agent-a")
+	workspaceRoot, err := paths.OpenOwnerWorkspacePath(ownerUserID, workspacePath, true)
+	if err != nil {
+		t.Fatalf("创建 owner workspace 失败: %v", err)
+	}
+	workspaceRoot.Close()
+	for _, owner := range []string{ownerUserID, otherOwnerUserID} {
+		assetRoot, openErr := paths.OpenRoomConversationAssetRoot(owner, conversationID, true)
+		if openErr != nil {
+			t.Fatalf("创建 %s Room 附件根失败: %v", owner, openErr)
+		}
+		if writeErr := assetRoot.WriteFileAtomic(attachmentName, []byte(owner), 0o600); writeErr != nil {
+			assetRoot.Close()
+			t.Fatalf("写入 %s Room 附件失败: %v", owner, writeErr)
+		}
+		assetRoot.Close()
+	}
+
+	location := workspacestore.InputQueueLocation{
+		OwnerUserID:    ownerUserID,
+		Scope:          protocol.InputQueueScopeRoom,
+		WorkspacePath:  workspacePath,
+		SessionKey:     runtimeSessionKey,
+		RoomID:         "room-owner-attachment",
+		ConversationID: conversationID,
+	}
+	store := workspacestore.NewInputQueueStore(appfs.UsersRoot())
+	if _, err = store.Enqueue(location, protocol.InputQueueItem{
+		ID:             "room-guide-owner-attachment",
+		Content:        "读取附件",
+		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+		RootRoundID:    "room-round-owner-attachment",
+		Attachments: []protocol.ChatAttachment{{
+			FileName:       attachmentName,
+			WorkspacePath:  attachmentName,
+			Scope:          protocol.ChatAttachmentScopeRoomConversation,
+			Kind:           protocol.ChatAttachmentKindFile,
+			RoomID:         location.RoomID,
+			ConversationID: conversationID,
+		}},
+	}); err != nil {
+		t.Fatalf("写入 owner Room 引导队列失败: %v", err)
+	}
+
+	service := &Service{
+		config:     config.Config{WorkspacePath: appfs.UsersRoot()},
+		inputQueue: store,
+	}
+	slot := &activeRoomSlot{
+		OwnerUserID:       ownerUserID,
+		AgentID:           "agent-a",
+		AgentRoundID:      "room-round-owner-attachment",
+		RuntimeSessionKey: runtimeSessionKey,
+		WorkspacePath:     workspacePath,
+	}
+	wrongOwnerCtx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID: otherOwnerUserID,
+		Role:   authctx.RoleOwner,
+	})
+	output, err := service.roomSlotGuidanceHook(nil, slot, location)(
+		wrongOwnerCtx,
+		sdkhook.Input{EventName: sdkhook.EventPostToolUse},
+		"tool-owner-attachment",
+	)
+	if err != nil {
+		t.Fatalf("执行 owner Room 引导失败: %v", err)
+	}
+	if output.SpecificOutput == nil {
+		t.Fatal("owner Room 引导缺少 additional context")
+	}
+	expectedPath := filepath.Join(
+		paths.RoomConversationAssetDir(ownerUserID, conversationID),
+		attachmentName,
+	)
+	otherPath := filepath.Join(
+		paths.RoomConversationAssetDir(otherOwnerUserID, conversationID),
+		attachmentName,
+	)
+	if !strings.Contains(output.SpecificOutput.AdditionalContext, filepath.ToSlash(expectedPath)) ||
+		strings.Contains(output.SpecificOutput.AdditionalContext, filepath.ToSlash(otherPath)) {
+		t.Fatalf("Room 引导附件未绑定队列 owner: %q", output.SpecificOutput.AdditionalContext)
+	}
+}
+
+func TestRoomGuidanceRejectsMismatchedOwnerBindings(t *testing.T) {
+	execution := roomGuidanceExecution{
+		ctx:      context.Background(),
+		round:    &activeRoomRound{OwnerUserID: "owner-b"},
+		location: workspacestore.InputQueueLocation{OwnerUserID: "owner-a"},
+	}
+	if err := execution.bindOwnerContext(); err == nil {
+		t.Fatal("Room 引导应拒绝 round 与队列位置 owner 不一致")
+	}
+}
+
 func TestRoomAckRuntimeDurableOutputWaitsForAppliedAck(t *testing.T) {
 	storeRoot := t.TempDir()
 	store := workspacestore.NewInputQueueStore(storeRoot)
@@ -148,6 +259,7 @@ func TestRoomAckRuntimeDurableOutputWaitsForAppliedAck(t *testing.T) {
 
 func TestRoomSlotGuidanceHookPreservesBusyPublicMentionSource(t *testing.T) {
 	storeRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", storeRoot)
 	store := workspacestore.NewInputQueueStore(storeRoot)
 	roomHistory := workspacestore.NewRoomHistoryStore(storeRoot)
 	conversationID := "conversation-public-mention-guide"
@@ -160,7 +272,7 @@ func TestRoomSlotGuidanceHookPreservesBusyPublicMentionSource(t *testing.T) {
 		RoomID:         "room-public-mention-guide",
 		ConversationID: conversationID,
 	}
-	if err := roomHistory.AppendInlineMessage(conversationID, protocol.Message{
+	if err := roomHistory.AppendInlineMessage("owner", conversationID, protocol.Message{
 		"message_id":      "public-mention-message",
 		"room_id":         location.RoomID,
 		"conversation_id": conversationID,
@@ -298,20 +410,24 @@ func TestRoomGuidanceAppliedAckDoesNotConsumeNewerBatch(t *testing.T) {
 
 func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	root := t.TempDir()
+	stateRoot := filepath.Join(root, ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
 	conversationID := "conversation-queue-batch"
+	storeRoot := filepath.Join(stateRoot, "users")
+	ownerWorkspaceRoot := appfs.UserWorkspaceRootAt(stateRoot, "owner")
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
 	validSlot := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-a",
 		AgentRoundID:      "agent-round-a",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(conversationID, "agent-a", protocol.RoomTypeGroup),
-		WorkspacePath:     filepath.Join(root, "agent-a"),
+		WorkspacePath:     filepath.Join(ownerWorkspaceRoot, "agent-a"),
 	}, "running")
 	invalidSlot := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-b",
 		AgentRoundID:      "agent-round-b",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(conversationID, "agent-b", protocol.RoomTypeGroup),
 	}, "running")
-	store := workspacestore.NewInputQueueStore(root)
+	store := workspacestore.NewInputQueueStore(storeRoot)
 	service := &Service{
 		inputQueue: store,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
@@ -350,7 +466,7 @@ func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 		t.Fatalf("批量失败不应留下部分 Room queue: items=%+v err=%v", items, snapshotErr)
 	}
 
-	invalidSlot.WorkspacePath = filepath.Join(root, "agent-b")
+	invalidSlot.WorkspacePath = filepath.Join(ownerWorkspaceRoot, "agent-b")
 	for attempt := 0; attempt < 2; attempt++ {
 		queued, err = service.enqueueForActiveAgentSlots(
 			context.Background(), sharedSessionKey, "room-queue-batch", conversationID,
@@ -377,19 +493,23 @@ func TestEnqueueActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 
 func TestGuideActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 	root := t.TempDir()
+	stateRoot := filepath.Join(root, ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	storeRoot := filepath.Join(stateRoot, "users")
+	ownerWorkspaceRoot := appfs.UserWorkspaceRootAt(stateRoot, "owner")
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey("conversation-batch")
 	validSlot := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-a",
 		AgentRoundID:      "agent-round-a",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey("conversation-batch", "agent-a", protocol.RoomTypeGroup),
-		WorkspacePath:     filepath.Join(root, "agent-a"),
+		WorkspacePath:     filepath.Join(ownerWorkspaceRoot, "agent-a"),
 	}, "running")
 	invalidSlot := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-b",
 		AgentRoundID:      "agent-round-b",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey("conversation-batch", "agent-b", protocol.RoomTypeGroup),
 	}, "running")
-	store := workspacestore.NewInputQueueStore(root)
+	store := workspacestore.NewInputQueueStore(storeRoot)
 	service := &Service{
 		inputQueue: store,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
@@ -425,7 +545,7 @@ func TestGuideActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 		t.Fatalf("批量失败不应留下部分 Room guide: items=%+v err=%v", items, snapshotErr)
 	}
 
-	invalidSlot.WorkspacePath = filepath.Join(root, "agent-b")
+	invalidSlot.WorkspacePath = filepath.Join(ownerWorkspaceRoot, "agent-b")
 	for attempt := 0; attempt < 2; attempt++ {
 		guided, err = service.guideActiveAgentSlots(
 			context.Background(), sharedSessionKey, "room-batch", "conversation-batch",
@@ -455,23 +575,27 @@ func TestGuideActiveAgentSlotsBatchIsAllOrNoneAndIdempotent(t *testing.T) {
 
 func TestGuideActiveAgentSlotsDoesNotSplitPublicMessageAcrossRoots(t *testing.T) {
 	root := t.TempDir()
+	stateRoot := filepath.Join(root, ".nexus")
+	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
+	storeRoot := filepath.Join(stateRoot, "users")
+	ownerWorkspaceRoot := appfs.UserWorkspaceRootAt(stateRoot, "owner")
 	conversationID := "conversation-common-root"
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
 	slotA := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-a",
 		AgentRoundID:      "agent-round-a",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(conversationID, "agent-a", protocol.RoomTypeGroup),
-		WorkspacePath:     filepath.Join(root, "agent-a"),
+		WorkspacePath:     filepath.Join(ownerWorkspaceRoot, "agent-a"),
 		TimestampMS:       100,
 	}, "running")
 	slotB := withRoomSlotStatus(&activeRoomSlot{
 		AgentID:           "agent-b",
 		AgentRoundID:      "agent-round-b",
 		RuntimeSessionKey: protocol.BuildRoomAgentSessionKey(conversationID, "agent-b", protocol.RoomTypeGroup),
-		WorkspacePath:     filepath.Join(root, "agent-b"),
+		WorkspacePath:     filepath.Join(ownerWorkspaceRoot, "agent-b"),
 		TimestampMS:       200,
 	}, "running")
-	store := workspacestore.NewInputQueueStore(root)
+	store := workspacestore.NewInputQueueStore(storeRoot)
 	service := &Service{
 		inputQueue: store,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
@@ -613,6 +737,7 @@ func TestReleaseUndeliveredRoomGuidanceDoesNotFollowReplacementRound(t *testing.
 
 func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 	storeRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", storeRoot)
 	store := workspacestore.NewInputQueueStore(storeRoot)
 	roomHistory := workspacestore.NewRoomHistoryStore(storeRoot)
 	conversationID := "conversation-guidance-order"
@@ -624,7 +749,7 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 		RoomID:         "room-1",
 		ConversationID: conversationID,
 	}
-	if err := roomHistory.AppendInlineMessage(conversationID, protocol.Message{
+	if err := roomHistory.AppendInlineMessage("owner", conversationID, protocol.Message{
 		"message_id":      "guided-user-message",
 		"session_key":     protocol.BuildRoomSharedSessionKey(conversationID),
 		"room_id":         "room-1",
@@ -655,7 +780,7 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 		roomHistory: roomHistory,
 	}
 	contextValue := &protocol.ConversationContextAggregate{
-		Room:         protocol.RoomRecord{ID: "room-1", RoomType: protocol.RoomTypeGroup},
+		Room:         protocol.RoomRecord{ID: "room-1", OwnerUserID: "owner", RoomType: protocol.RoomTypeGroup},
 		Conversation: protocol.ConversationRecord{ID: conversationID, RoomID: "room-1"},
 		Members: []protocol.MemberRecord{{
 			RoomID: "room-1", MemberType: protocol.MemberTypeAgent, MemberAgentID: agentID,
@@ -667,6 +792,7 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 		RoomID:         "room-1",
 		ConversationID: conversationID,
 		RootRoundID:    "goal-reply-round",
+		OwnerUserID:    "owner",
 		Context:        contextValue,
 	}
 	slot := &activeRoomSlot{AgentID: agentID, AgentRoundID: "agent-reply-round", RuntimeSessionKey: location.SessionKey, WorkspacePath: storeRoot}
@@ -675,7 +801,7 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 		t.Fatalf("准备 Room 引导失败: %v", err)
 	}
 	readGuidedMessage := func() protocol.Message {
-		messages, err := roomHistory.ReadMessages(conversationID, nil)
+		messages, err := roomHistory.ReadMessages("owner", conversationID, nil)
 		if err != nil {
 			t.Fatalf("读取 Room 引导历史失败: %v", err)
 		}
@@ -706,6 +832,7 @@ func TestConsumedRoomGuidanceMovesUserMessageIntoReplyRound(t *testing.T) {
 
 func TestRoomSlotGuidanceHookKeepsUnanchoredQueueItemWithPublicDelta(t *testing.T) {
 	storeRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", filepath.Join(storeRoot, ".nexus"))
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(storeRoot, ".nexus"))
 	store := workspacestore.NewInputQueueStore(storeRoot)
 	roomHistory := workspacestore.NewRoomHistoryStore(storeRoot)
@@ -718,7 +845,7 @@ func TestRoomSlotGuidanceHookKeepsUnanchoredQueueItemWithPublicDelta(t *testing.
 		RoomID:         "room-1",
 		ConversationID: conversationID,
 	}
-	if err := roomHistory.AppendInlineMessage(conversationID, protocol.Message{
+	if err := roomHistory.AppendInlineMessage("owner", conversationID, protocol.Message{
 		"message_id":      "public-1",
 		"room_id":         "room-1",
 		"conversation_id": conversationID,
@@ -755,8 +882,9 @@ func TestRoomSlotGuidanceHookKeepsUnanchoredQueueItemWithPublicDelta(t *testing.
 		ConversationID: conversationID,
 		Context: &protocol.ConversationContextAggregate{
 			Room: protocol.RoomRecord{
-				ID:       "room-1",
-				RoomType: protocol.RoomTypeGroup,
+				ID:          "room-1",
+				OwnerUserID: "owner",
+				RoomType:    protocol.RoomTypeGroup,
 			},
 			Conversation: protocol.ConversationRecord{
 				ID:     conversationID,
@@ -773,6 +901,7 @@ func TestRoomSlotGuidanceHookKeepsUnanchoredQueueItemWithPublicDelta(t *testing.
 				WorkspacePath: storeRoot,
 			}},
 		},
+		OwnerUserID: "owner",
 	}
 	output, err := service.roomSlotGuidanceHook(roundValue, slot, location)(context.Background(), sdkhook.Input{
 		EventName: sdkhook.EventPostToolUse,

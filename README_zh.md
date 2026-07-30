@@ -15,7 +15,7 @@
 ---
 
 <div align="center">
-<img src="./docs/image/launcher.png" alt="Nexus 工作台" width="90%">
+<img src="./docs/image/nexus.gif" alt="Nexus 工作台" width="100%">
 </div>
 
 ---
@@ -62,8 +62,8 @@ Provider 模型测试既接受 API base URL，也接受已经包含 operation pa
 平台 Skill 由 nxs 与 Claude 共用一份全局兼容源。Agent 只保存选中的 `skill_ids`；运行时分别通过 `.agents/skills` 和 `.claude/skills` 入口读取，同一平台 Skill 不会复制到每个 Agent 工作区。
 
 第三方导入 Skill 直接写入当前 owner 的 workspace 源：普通用户位于
-`~/.nexus/workspace/<owner>/.agents/skills`，系统 owner 位于
-`~/.nexus/workspace/.agents/skills`；Agent 只保存 `external:<skill_id>` 引用。
+`~/.nexus/users/<owner>/workspace/.agents/skills`，系统 owner 位于
+`~/.nexus/users/__system__/workspace/.agents/skills`；Agent 只保存 `external:<skill_id>` 引用。
 
 ```bash
 # macOS / Linux / WSL

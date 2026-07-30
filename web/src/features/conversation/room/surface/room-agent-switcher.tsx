@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room 成员目录、当前选择与业务外观语境。
+ * OUTPUT: 复用共享菜单生命周期的成员身份切换器及默认/Task 紧凑触发器。
+ * POS: Workspace、Subagent 与 Room 进程共用的成员切换视图。
+ */
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -15,6 +20,8 @@ import {
 import type { Agent } from "@/types/agent/agent";
 
 interface RoomAgentSwitcherProps {
+  ariaLabel?: string;
+  variant?: "default" | "task";
   members: Agent[];
   selectedId: string;
   onSelect: (id: string) => void;
@@ -22,10 +29,12 @@ interface RoomAgentSwitcherProps {
 }
 
 export function RoomAgentSwitcher({
+  ariaLabel = "切换 Agent",
   members,
   selectedId,
   onSelect,
   className,
+  variant = "default",
 }: RoomAgentSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -56,20 +65,42 @@ export function RoomAgentSwitcher({
   });
 
   return (
-    <div className={cn("relative", className)}>
+    <div
+      className={cn("relative min-w-0", className)}
+      data-room-agent-switcher-variant={variant}
+    >
       <button
         ref={triggerRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
-        className="flex max-w-[168px] items-center gap-1 border-b px-0 pb-0.5 text-[12px] text-(--text-default) transition-[border-color,color] duration-(--motion-duration-fast)"
-        style={isOpen
-          ? { borderBottom: "1px solid var(--surface-popover-border)" }
-          : { borderBottom: "1px solid color-mix(in srgb, var(--divider-subtle-color) 82%, transparent)" }}
+        aria-label={`${ariaLabel}：${selectedMember.name}`}
+        className={cn(
+          "flex min-w-0 items-center gap-1 text-compact transition-[background,border-color,color] duration-(--motion-duration-fast) focus-visible:outline-none",
+          variant === "task"
+            ? "h-7 w-full max-w-[9rem] rounded-[7px] px-1.5 font-semibold leading-none text-(--text-strong) hover:bg-(--surface-interactive-hover-background) focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+            : "max-w-[168px] border-b px-0 pb-0.5 text-(--text-default)",
+          variant === "task"
+            && isOpen
+            && "bg-(--surface-interactive-active-background)",
+        )}
+        style={variant === "default"
+          ? isOpen
+            ? { borderBottom: "1px solid var(--surface-popover-border)" }
+            : { borderBottom: "1px solid color-mix(in srgb, var(--divider-subtle-color) 82%, transparent)" }
+          : undefined}
         onClick={() => setIsOpen((prev) => !prev)}
         type="button"
       >
-        <RoomAgentAvatar className="h-4.5 w-4.5" member={selectedMember} />
-        <span className="max-w-[120px] truncate font-medium">
+        <RoomAgentAvatar
+          className={variant === "task" ? "h-4 w-4" : "h-4.5 w-4.5"}
+          member={selectedMember}
+        />
+        <span className={cn(
+          "truncate",
+          variant === "task"
+            ? "min-w-0 max-w-[104px] text-compact font-semibold leading-none"
+            : "max-w-[120px] font-medium",
+        )}>
           {selectedMember.name}
         </span>
         <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
@@ -81,10 +112,10 @@ export function RoomAgentSwitcher({
       </button>
       <UiActionMenu
         anchorRef={triggerRef}
-        ariaLabel="切换 Agent"
+        ariaLabel={ariaLabel}
         isOpen={isOpen}
         items={menuItems}
-        minWidth={296}
+        minWidth={variant === "task" ? 220 : 296}
         onClose={closeMenu}
         onSelect={onSelect}
       />
@@ -102,7 +133,7 @@ function RoomAgentAvatar({
   const avatarSrc = getIconAvatarSrc(member.avatar);
   return (
     <span className={cn(
-      "flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-full border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
+      "flex h-4 w-4 shrink-0 items-center justify-center overflow-hidden rounded-[5px] border border-(--surface-avatar-border) bg-(--surface-avatar-background) shadow-(--surface-avatar-shadow)",
       className,
     )}>
       {avatarSrc ? (
@@ -112,7 +143,7 @@ function RoomAgentAvatar({
           src={avatarSrc}
         />
       ) : (
-        <span className="text-[8px] font-bold text-(--text-strong)">
+        <span className="text-[8px] font-semibold text-(--text-strong)">
           {getInitials(member.name)}
         </span>
       )}

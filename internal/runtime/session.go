@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -27,17 +28,31 @@ func (m *Manager) GetOrCreateWithFactory(
 		factory = m.factory
 	}
 	runtimeKind := normalizedManagedRuntimeKind(options.Runtime.Kind)
+	ownerUserID := runtimeOwnerUserID(options)
 	m.mu.Lock()
 	state := m.sessions[sessionKey]
 	var existing Client
 	var existingKind agentclient.RuntimeKind
+	var existingOwnerUserID string
+	if state != nil && state.Closing {
+		m.mu.Unlock()
+		return nil, errRuntimeSessionClosing
+	}
 	if state != nil && state.Client != nil {
 		existing = state.Client
 		existingKind = state.RuntimeKind
+		existingOwnerUserID = state.OwnerUserID
 		m.touchStateLocked(state)
 	}
 	m.mu.Unlock()
 	if existing != nil {
+		if runtimeOwnerMismatch(existingOwnerUserID, ownerUserID) {
+			return nil, fmt.Errorf(
+				"runtime session owner mismatch: existing=%s requested=%s",
+				existingOwnerUserID,
+				ownerUserID,
+			)
+		}
 		if existingKind != "" && existingKind != runtimeKind {
 			return m.replaceRuntimeClient(ctx, sessionKey, existing, options, factory)
 		}
@@ -47,29 +62,42 @@ func (m *Manager) GetOrCreateWithFactory(
 			}
 			return nil, err
 		}
-		m.setRuntimeKindIfCurrent(sessionKey, existing, runtimeKind)
+		m.setRuntimeMetadataIfCurrent(sessionKey, existing, runtimeKind, ownerUserID)
 		return existing, nil
 	}
 
 	m.mu.Lock()
 	state = m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		m.mu.Unlock()
+		return nil, errRuntimeSessionClosing
+	}
 	if state.Client == nil {
 		state.Client = factory.New(options)
 		state.RuntimeKind = runtimeKind
+		state.OwnerUserID = ownerUserID
 		m.touchStateLocked(state)
 		m.mu.Unlock()
 		return state.Client, nil
 	}
 	client := state.Client
+	existingOwnerUserID = state.OwnerUserID
 	m.touchStateLocked(state)
 	m.mu.Unlock()
+	if runtimeOwnerMismatch(existingOwnerUserID, ownerUserID) {
+		return nil, fmt.Errorf(
+			"runtime session owner mismatch: existing=%s requested=%s",
+			existingOwnerUserID,
+			ownerUserID,
+		)
+	}
 	if err := client.Reconfigure(ctx, options); err != nil {
 		if shouldReplaceRuntimeClientAfterReconfigureError(err) {
 			return m.replaceRuntimeClient(ctx, sessionKey, client, options, factory)
 		}
 		return nil, err
 	}
-	m.setRuntimeKindIfCurrent(sessionKey, client, runtimeKind)
+	m.setRuntimeMetadataIfCurrent(sessionKey, client, runtimeKind, ownerUserID)
 	return client, nil
 }
 
@@ -85,13 +113,29 @@ func normalizedManagedRuntimeKind(kind agentclient.RuntimeKind) agentclient.Runt
 	}
 }
 
-func (m *Manager) setRuntimeKindIfCurrent(sessionKey string, client Client, kind agentclient.RuntimeKind) {
+func (m *Manager) setRuntimeMetadataIfCurrent(
+	sessionKey string,
+	client Client,
+	kind agentclient.RuntimeKind,
+	ownerUserID string,
+) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if state := m.sessions[sessionKey]; state != nil && state.Client == client {
+	if state := m.sessions[sessionKey]; state != nil && !state.Closing && state.Client == client {
 		state.RuntimeKind = kind
+		if ownerUserID != "" {
+			state.OwnerUserID = ownerUserID
+		}
 		m.touchStateLocked(state)
 	}
+}
+
+func runtimeOwnerUserID(options agentclient.Options) string {
+	return strings.TrimSpace(options.Env["NEXUS_RUNTIME_USER_ID"])
+}
+
+func runtimeOwnerMismatch(existing string, requested string) bool {
+	return existing != "" && existing != requested
 }
 
 func shouldReplaceRuntimeClientAfterReconfigureError(err error) bool {
@@ -111,6 +155,13 @@ func (m *Manager) replaceRuntimeClient(
 	next := factory.New(options)
 	m.mu.Lock()
 	state := m.ensureStateLocked(sessionKey)
+	if state.Closing {
+		m.mu.Unlock()
+		if next != nil {
+			_ = next.Disconnect(context.Background())
+		}
+		return nil, errRuntimeSessionClosing
+	}
 	if state.Client != stale {
 		next = state.Client
 		m.mu.Unlock()
@@ -121,6 +172,7 @@ func (m *Manager) replaceRuntimeClient(
 	}
 	state.Client = next
 	state.RuntimeKind = normalizedManagedRuntimeKind(options.Runtime.Kind)
+	state.OwnerUserID = runtimeOwnerUserID(options)
 	// 新进程不持有旧 task/thread；只有再次观测到 task 事件后才允许保活。
 	state.HasSubagentHistory = false
 	m.touchStateLocked(state)
@@ -144,7 +196,7 @@ func (m *Manager) RuntimeKind(sessionKey string) agentclient.RuntimeKind {
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil {
+	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil && !state.Closing {
 		return state.RuntimeKind
 	}
 	return ""
@@ -159,7 +211,7 @@ func (m *Manager) HasSession(sessionKey string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state := m.sessions[strings.TrimSpace(sessionKey)]
-	if state == nil || state.Client == nil {
+	if state == nil || state.Closing || state.Client == nil {
 		return false
 	}
 	if connected, ok := state.Client.(interface{ IsConnected() bool }); ok {
@@ -175,7 +227,7 @@ func (m *Manager) SessionClient(sessionKey string) Client {
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil {
+	if state := m.sessions[strings.TrimSpace(sessionKey)]; state != nil && !state.Closing {
 		return state.Client
 	}
 	return nil
@@ -190,6 +242,9 @@ func (m *Manager) MarkSubagentHistory(sessionKey string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(strings.TrimSpace(sessionKey))
+	if state.Closing {
+		return
+	}
 	state.HasSubagentHistory = true
 	m.touchStateLocked(state)
 }
@@ -202,27 +257,60 @@ func (m *Manager) HasSubagentHistory(sessionKey string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state := m.sessions[strings.TrimSpace(sessionKey)]
-	return state != nil && state.HasSubagentHistory
+	return state != nil && !state.Closing && state.HasSubagentHistory
 }
 
 // CloseSession 关闭指定 session。
 func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
-	m.mu.Lock()
-	state, ok := m.sessions[sessionKey]
-	if ok {
-		delete(m.sessions, sessionKey)
-	}
-	m.mu.Unlock()
-	if !ok || state.Client == nil {
+	sessionKey = strings.TrimSpace(sessionKey)
+	if sessionKey == "" {
 		return nil
 	}
-	if state.IdleMessageCancel != nil {
-		state.IdleMessageCancel()
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	for _, cancel := range state.RoundCancels {
+
+	m.mu.Lock()
+	target, started, closeDone := m.beginSessionCloseLocked(sessionKey)
+	if !started {
+		m.mu.Unlock()
+		return waitSessionClose(ctx, closeDone)
+	}
+	reaperErr := m.reapOwnerIfLastLocked(ctx, target.ownerUserID)
+	m.mu.Unlock()
+
+	if target.idleMessageCancel != nil {
+		target.idleMessageCancel()
+	}
+	for _, cancel := range target.roundCancels {
 		if cancel != nil {
 			cancel()
 		}
 	}
-	return state.Client.Disconnect(ctx)
+	for _, cancel := range target.backgroundCancels {
+		if cancel != nil {
+			cancel()
+		}
+	}
+
+	var disconnectErr error
+	if target.client != nil {
+		disconnectErr = target.client.Disconnect(ctx)
+	}
+	waitBackgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
+	if waitBackgroundErr != nil {
+		disconnectErr = errors.Join(disconnectErr, waitBackgroundErr)
+	}
+	waitRoundErr := waitRoundDoneForClose(ctx, target.roundDone)
+	if waitRoundErr != nil {
+		disconnectErr = errors.Join(disconnectErr, waitRoundErr)
+		m.finishSessionCloseWhenDone(target)
+	} else if waitBackgroundErr != nil {
+		// context 可能先于后台写盘任务结束；即使 round 已退出，也不能
+		// 删除 session 状态，否则任务完成前仍可通过旧引用继续写 owner 目录。
+		m.finishSessionCloseWhenDone(target)
+	} else {
+		m.finishSessionClose(target)
+	}
+	return errors.Join(reaperErr, disconnectErr)
 }

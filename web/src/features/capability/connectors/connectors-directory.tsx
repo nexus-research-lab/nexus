@@ -4,15 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
+import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
+import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ConnectorsRouteParams } from "@/types/app/route";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { ConnectorCredentialDialog } from "./auth/connector-credential-dialog";
 import { ConnectorDeviceAuthDialog } from "./auth/device-flow/connector-device-auth-dialog";
+import { FeishuAppConnectionDialog } from "./auth/feishu/feishu-app-connection-dialog";
 import { ConnectorOAuthClientDialog } from "./auth/connector-oauth-client-dialog";
 import { ShopDomainPromptDialog } from "./auth/shop-domain/shop-domain-prompt-dialog";
 import { ConnectorsGrid } from "./catalog/connectors-grid";
@@ -34,10 +36,14 @@ export function ConnectorsDirectory() {
   const { connectorId } = useParams<ConnectorsRouteParams>();
   const [configDialog, setConfigDialog] =
     useState<ConnectorConfigDialog>(null);
+  const [feishuConnectionOpen, setFeishuConnectionOpen] = useState(false);
   const {
+    cancelDeviceAuthSession,
     clearFeedback,
     closeDetail,
     handleConnect,
+    handleConnectFeishuManually,
+    handleConnectFeishuWithQr,
     handleConnectWithCredential,
     handleDeleteOauthClient: deleteOauthClient,
     handleDeviceConnected,
@@ -70,6 +76,13 @@ export function ConnectorsDirectory() {
     navigate(AppRouteBuilders.connectors());
   }, [navigate]);
   const closeConfigDialog = useCallback(() => setConfigDialog(null), []);
+  const requestConnectorConnect = useCallback((id: string) => {
+    if (id === "feishu-docx") {
+      setFeishuConnectionOpen(true);
+      return;
+    }
+    void handleConnect(id);
+  }, [handleConnect]);
 
   const handleSaveCredential = useCallback(async (
     id: string,
@@ -109,7 +122,7 @@ export function ConnectorsDirectory() {
       <WorkspaceSurfaceScaffold
         bodyScrollable
         header={(
-          <ConnectorsHeader connectedCount={controller.connectedCount} />
+          <ConnectorsHeader />
         )}
         stableGutter
       >
@@ -127,19 +140,15 @@ export function ConnectorsDirectory() {
               detail,
               kind: "oauth-client",
             })}
-            onConnect={(id) => void handleConnect(id)}
+            onConnect={requestConnectorConnect}
             onDisconnect={(id) => void handleDisconnect(id)}
+            onReplaceOauthClient={() => setFeishuConnectionOpen(true)}
           />
         ) : (
-          <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
-            <div className="mb-4">
-              <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-(--text-strong)">
-                {t("capability.connectors_intro_title")}
-              </h1>
-              <p className="mt-0.5 max-w-[640px] text-[12px] leading-5 text-(--text-muted)">
-                {t("capability.connectors_intro_description")}
-              </p>
-            </div>
+          <CapabilityPageLayout
+            description={t("capability.connectors_intro_description")}
+            title={t("capability.connectors_intro_title")}
+          >
             <ConnectorsSearchBar
               activeCategory={controller.activeCategory}
               onCategoryChange={controller.setActiveCategory}
@@ -150,12 +159,13 @@ export function ConnectorsDirectory() {
               activeCategory={controller.activeCategory}
               connectors={controller.connectors}
               loading={controller.loading}
-              onConnect={(id) => void handleConnect(id)}
+              onConnect={requestConnectorConnect}
+              onDisconnect={(id) => void handleDisconnect(id)}
               onOpenConnector={openConnectorPage}
               pendingAction={controller.pendingAction}
               searchQuery={controller.searchQuery}
             />
-          </div>
+          </CapabilityPageLayout>
         )}
       </WorkspaceSurfaceScaffold>
 
@@ -176,18 +186,54 @@ export function ConnectorsDirectory() {
           void handleSaveCredential(id, credential);
         }}
       />
+      <FeishuAppConnectionDialog
+        busy={busy}
+        isOpen={feishuConnectionOpen}
+        onClose={() => setFeishuConnectionOpen(false)}
+        onConnectManually={(clientId, clientSecret) => {
+          void (async () => {
+            if (await handleConnectFeishuManually(clientId, clientSecret)) {
+              setFeishuConnectionOpen(false);
+            }
+          })();
+        }}
+        onScan={() => {
+          void (async () => {
+            if (await handleConnectFeishuWithQr()) {
+              setFeishuConnectionOpen(false);
+            }
+          })();
+        }}
+      />
       <ConnectorDeviceAuthDialog
+        onCancel={() => void cancelDeviceAuthSession()}
         onClose={controller.closeDeviceAuthSession}
         onConnected={async (id) => {
-          await handleDeviceConnected();
-          navigate(AppRouteBuilders.connectorDetail(id));
-          await openDetail(id);
+          try {
+            await handleDeviceConnected();
+            navigate(AppRouteBuilders.connectorDetail(id));
+            await openDetail(id);
+          } catch (error) {
+            reportFeedback({
+              tone: "error",
+              title: "连接已完成",
+              message: getErrorMessage(
+                error,
+                "飞书已连接，但页面状态刷新失败，请重新打开连接器页面",
+              ),
+            });
+          }
         }}
-        onError={(message) => reportFeedback({
-          tone: "error",
-          title: "操作失败",
-          message,
-        })}
+        onError={(message) => {
+          reportFeedback({
+            tone: "error",
+            title: "操作失败",
+            message,
+          });
+          void cancelDeviceAuthSession();
+        }}
+        onNext={controller.continueDeviceAuthSession}
+        onOpenWebAuthUrl={controller.openFeishuWebAuthorizationUrl}
         session={controller.deviceAuthSession}
       />
       <ShopDomainPromptDialog

@@ -3,10 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getConnectorsApi } from "@/lib/api/capability/connector-api";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
-import {
-  countConnectedConnectors,
-  filterConnectors,
-} from "../catalog/connector-catalog-model";
+import { filterConnectors } from "../catalog/connector-catalog-model";
 
 interface UseConnectorCatalogOptions {
   onError: (message: string) => void;
@@ -47,15 +44,10 @@ export function useConnectorCatalog({ onError }: UseConnectorCatalogOptions) {
     activeCategory,
     searchQuery,
   ), [activeCategory, allConnectors, searchQuery]);
-  const connectedCount = useMemo(
-    () => countConnectedConnectors(allConnectors),
-    [allConnectors],
-  );
 
   return {
     activeCategory,
     allConnectors,
-    connectedCount,
     connectors,
     loading,
     refresh,

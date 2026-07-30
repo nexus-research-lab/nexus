@@ -5,13 +5,11 @@ import { resolveWorkspaceConversationTabPresentation } from "./workspace-convers
 interface WorkspaceConversationTabProps {
   canClose: boolean;
   closeLabel: string;
+  conversationId: string;
   externalSessionLabel: string | null;
   isActive: boolean;
   onClose: () => void;
-  onHoverChange: (hovered: boolean) => void;
-  onPreview: () => void;
   onSelect: () => void;
-  showSeparator: boolean;
   tabWidth?: number;
   title: string;
 }
@@ -19,13 +17,11 @@ interface WorkspaceConversationTabProps {
 export function WorkspaceConversationTab({
   canClose,
   closeLabel,
+  conversationId,
   externalSessionLabel,
   isActive,
   onClose,
-  onHoverChange,
-  onPreview,
   onSelect,
-  showSeparator,
   tabWidth,
   title,
 }: WorkspaceConversationTabProps) {
@@ -33,15 +29,13 @@ export function WorkspaceConversationTab({
     canClose,
     externalSessionLabel,
     isActive,
-    showSeparator,
     tabWidth,
     title,
   });
   return (
     <div
       className={presentation.rootClassName}
-      onMouseEnter={() => onHoverChange(true)}
-      onMouseLeave={() => onHoverChange(false)}
+      data-conversation-tab-id={conversationId}
       style={presentation.style}
       title={presentation.title}
     >
@@ -50,11 +44,6 @@ export function WorkspaceConversationTab({
         aria-pressed={isActive}
         className="flex h-full w-full min-w-0 items-center justify-start pl-[22px] pr-7 text-left"
         onClick={onSelect}
-        onPointerDown={(event) => {
-          if (event.button === 0) {
-            onPreview();
-          }
-        }}
         type="button"
       >
         <span
@@ -63,7 +52,7 @@ export function WorkspaceConversationTab({
         />
         <span className="min-w-0 truncate">{title}</span>
         {presentation.showExternalSessionLabel ? (
-          <span className="ml-1 inline-flex shrink-0 items-center radius-control-xs border border-[color:color-mix(in_srgb,var(--primary)_20%,transparent)] px-1 py-px text-[8.5px] font-bold leading-none text-(--primary)">
+          <span className="ml-1 inline-flex shrink-0 items-center radius-control-xs border border-[color:color-mix(in_srgb,var(--primary)_20%,transparent)] px-1 py-px text-[8.5px] font-semibold leading-none text-(--primary)">
             IM
           </span>
         ) : null}

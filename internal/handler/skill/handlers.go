@@ -62,7 +62,25 @@ func (h *Handlers) HandleGetSkillDetail(writer http.ResponseWriter, request *htt
 	h.api.WriteSuccess(writer, item)
 }
 
-// HandleAgentSkills 返回 agent 已安装技能。
+// HandleListSkillAgents 返回 Skill 在各 Agent 上的启用状态。
+func (h *Handlers) HandleListSkillAgents(writer http.ResponseWriter, request *http.Request) {
+	items, err := h.skills.ListSkillAgents(
+		request.Context(),
+		chi.URLParam(request, "skill_name"),
+	)
+	if errors.Is(err, agentpkg.ErrAgentNotFound) ||
+		(err != nil && strings.Contains(strings.ToLower(err.Error()), "not found")) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, items)
+}
+
+// HandleAgentSkills 返回 Agent 可见 Skill 及其启用状态。
 func (h *Handlers) HandleAgentSkills(writer http.ResponseWriter, request *http.Request) {
 	items, err := h.skills.GetAgentSkills(request.Context(), chi.URLParam(request, "agent_id"))
 	if errors.Is(err, agentpkg.ErrAgentNotFound) {
@@ -76,7 +94,7 @@ func (h *Handlers) HandleAgentSkills(writer http.ResponseWriter, request *http.R
 	h.api.WriteSuccess(writer, items)
 }
 
-// HandleInstallAgentSkill 安装技能到 agent。
+// HandleInstallAgentSkill 保留旧启用入口。
 func (h *Handlers) HandleInstallAgentSkill(writer http.ResponseWriter, request *http.Request) {
 	var payload struct {
 		SkillName string `json:"skill_name"`
@@ -100,7 +118,53 @@ func (h *Handlers) HandleInstallAgentSkill(writer http.ResponseWriter, request *
 	h.api.WriteSuccess(writer, item)
 }
 
-// HandleUninstallAgentSkill 卸载 agent 技能。
+// HandleSetAgentSkillEnabled 更新 Agent 的技能启用开关。
+func (h *Handlers) HandleSetAgentSkillEnabled(writer http.ResponseWriter, request *http.Request) {
+	var payload struct {
+		Enabled     *bool  `json:"enabled"`
+		TargetScope string `json:"target_scope"`
+	}
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	if payload.Enabled == nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "enabled 不能为空")
+		return
+	}
+	targetScope := skillspkg.AgentSkillTargetScope(strings.TrimSpace(payload.TargetScope))
+	if targetScope == "" {
+		h.api.WriteFailure(writer, http.StatusBadRequest, "target_scope 不能为空")
+		return
+	}
+	item, err := h.skills.SetAgentSkillEnabledInScope(
+		request.Context(),
+		chi.URLParam(request, "agent_id"),
+		chi.URLParam(request, "skill_name"),
+		*payload.Enabled,
+		targetScope,
+	)
+	if errors.Is(err, agentpkg.ErrAgentNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "skill not found") {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		if strings.Contains(err.Error(), "不能") ||
+			strings.Contains(err.Error(), "仅允许") ||
+			strings.Contains(err.Error(), "target_scope") {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleUninstallAgentSkill 保留旧停用入口。
 func (h *Handlers) HandleUninstallAgentSkill(writer http.ResponseWriter, request *http.Request) {
 	err := h.skills.UninstallSkill(request.Context(), chi.URLParam(request, "agent_id"), chi.URLParam(request, "skill_name"))
 	if errors.Is(err, agentpkg.ErrAgentNotFound) {
@@ -132,6 +196,10 @@ func (h *Handlers) HandleImportLocalSkill(writer http.ResponseWriter, request *h
 		item, err = h.skills.ImportLocalPath(request.Context(), localPath)
 	}
 	if err != nil {
+		if errors.Is(err, skillspkg.ErrLocalPathImportUnavailable) {
+			h.api.WriteFailure(writer, http.StatusForbidden, err.Error())
+			return
+		}
 		if errors.Is(err, os.ErrNotExist) || strings.Contains(err.Error(), "SKILL.md") {
 			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 			return

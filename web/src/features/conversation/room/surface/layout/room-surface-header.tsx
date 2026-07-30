@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room/DM Header 身份、会话标签、面板动作与成员管理命令。
+ * OUTPUT: 带非交互下缘渐隐的桌面 Room Header。
+ * POS: 桌面 Room Surface 顶部视觉边界；保持 60px 几何，不参与消息滚动。
+ */
 import { DmConversationHeader } from "@/features/conversation/room/dm/dm-conversation-header";
 import type { Agent } from "@/types/agent/agent";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
@@ -6,6 +11,8 @@ import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/hea
 
 import { GroupConversationHeader } from "../../group/header/group-conversation-header";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
+
+import "../room-conversation-header-edge.css";
 
 interface RoomSurfaceHeaderProps {
   activeSurfaceTab: RoomSurfaceTabKey;
@@ -105,7 +112,11 @@ export function RoomSurfaceHeader({
   );
 
   return (
-    <div data-tour-anchor={CONVERSATION_TOUR_ANCHORS.header}>
+    <div
+      className="nexus-room-conversation-header-edge"
+      data-room-conversation-header-edge="true"
+      data-tour-anchor={CONVERSATION_TOUR_ANCHORS.header}
+    >
       {header}
     </div>
   );

@@ -8,14 +8,15 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestGoalCompletionPayloadIncludesFinalUsageReport(t *testing.T) {
+func TestGoalCompletionPayloadIncludesUsageCheckpointReport(t *testing.T) {
 	budget := int64(100)
 	payload := goalCompletionPayload(&protocol.Goal{
+		ID:              "goal-1",
 		Status:          protocol.GoalStatusComplete,
 		SessionKey:      "agent:nexus:ws:dm:chat",
 		Objective:       "Finish parity",
 		TokenBudget:     &budget,
-		Usage:           protocol.GoalUsage{TotalTokens: 42},
+		Usage:           protocol.GoalUsage{TotalTokens: 42, ActualTotalTokens: 130},
 		TimeUsedSeconds: 90,
 		CreatedAt:       time.Unix(10, 0).UTC(),
 		UpdatedAt:       time.Unix(20, 0).UTC(),
@@ -25,8 +26,14 @@ func TestGoalCompletionPayloadIncludesFinalUsageReport(t *testing.T) {
 	if !ok || report == "" {
 		t.Fatalf("completionBudgetReport = %#v, want instruction", payload["completionBudgetReport"])
 	}
-	if !strings.Contains(report, "最终 Goal 用量：42 / 100 tokens，剩余 58 tokens，耗时约 1m30s。") {
-		t.Fatalf("completionBudgetReport = %q, want final usage line", report)
+	const wantReport = "Goal achieved. Use the next final response as the complete user-facing delivery. It must stand on its own and satisfy `goal.objective`: include the full requested content when content itself is the deliverable; for files or artifacts, provide exact links or paths; for implementation, research, or external-state work, present the key outcomes and relevant verification. Do not make Goal completion the headline or replace the result with a completion notice or brief summary; mention completion only secondarily if useful. Then stop and wait for user input."
+	if report != wantReport {
+		t.Fatalf("completionBudgetReport = %q, want %q", report, wantReport)
+	}
+	if payload["completionUsageCheckpointReport"] != report ||
+		payload["goalId"] != "goal-1" ||
+		payload["usageFinalized"] != false {
+		t.Fatalf("completion checkpoint metadata = %#v", payload)
 	}
 	if payload["remainingTokens"] != int64(58) {
 		t.Fatalf("remainingTokens = %#v, want 58", payload["remainingTokens"])
@@ -36,14 +43,17 @@ func TestGoalCompletionPayloadIncludesFinalUsageReport(t *testing.T) {
 		t.Fatalf("goal = %#v, want map", payload["goal"])
 	}
 	wantGoal := map[string]any{
-		"threadId":        "agent:nexus:ws:dm:chat",
-		"objective":       "Finish parity",
-		"status":          "complete",
-		"tokenBudget":     int64(100),
-		"tokensUsed":      int64(42),
-		"timeUsedSeconds": int64(90),
-		"createdAt":       int64(10),
-		"updatedAt":       int64(20),
+		"threadId":              "agent:nexus:ws:dm:chat",
+		"objective":             "Finish parity",
+		"status":                "complete",
+		"tokenBudget":           int64(100),
+		"tokensUsed":            int64(42),
+		"budgetTokens":          int64(42),
+		"actualTokens":          int64(130),
+		"actualTokensEstimated": false,
+		"timeUsedSeconds":       int64(90),
+		"createdAt":             int64(10),
+		"updatedAt":             int64(20),
 	}
 	for key, want := range wantGoal {
 		if goal[key] != want {
@@ -55,11 +65,12 @@ func TestGoalCompletionPayloadIncludesFinalUsageReport(t *testing.T) {
 func TestStructuredResultTextUsesCodexFieldOrder(t *testing.T) {
 	budget := int64(100)
 	result := structuredResult("goal marked complete", goalCompletionPayload(&protocol.Goal{
+		ID:              "goal-1",
 		Status:          protocol.GoalStatusComplete,
 		SessionKey:      "agent:nexus:ws:dm:chat",
 		Objective:       "Finish parity",
 		TokenBudget:     &budget,
-		Usage:           protocol.GoalUsage{TotalTokens: 42},
+		Usage:           protocol.GoalUsage{TotalTokens: 42, ActualTotalTokens: 130},
 		TimeUsedSeconds: 90,
 		CreatedAt:       time.Unix(10, 0).UTC(),
 		UpdatedAt:       time.Unix(20, 0).UTC(),
@@ -81,22 +92,42 @@ func TestStructuredResultTextUsesCodexFieldOrder(t *testing.T) {
     "updatedAt": 20
   },
   "remainingTokens": 58,
-  "completionBudgetReport": "Goal achieved. Send one concise final response now, then stop and wait for user input. Do not call more tools or start new work. State that this tracked Goal is complete and ready to be cleared; do not describe it as paused. Briefly summarize what ` + "`goal.objective`" + ` achieved. Include this exact final usage line in the response: ` + "`最终 Goal 用量：42 / 100 tokens，剩余 58 tokens，耗时约 1m30s。`" + `"
+  "completionBudgetReport": "Goal achieved. Use the next final response as the complete user-facing delivery. It must stand on its own and satisfy ` + "`goal.objective`" + `: include the full requested content when content itself is the deliverable; for files or artifacts, provide exact links or paths; for implementation, research, or external-state work, present the key outcomes and relevant verification. Do not make Goal completion the headline or replace the result with a completion notice or brief summary; mention completion only secondarily if useful. Then stop and wait for user input."
 }`
 	if text != want {
 		t.Fatalf("text content = %s, want %s", text, want)
 	}
+	for _, hidden := range []string{"goalId", "usageFinalized", "completionUsageCheckpointReport", "budgetTokens", "actualTokens", "actualTokensEstimated"} {
+		if strings.Contains(text, `"`+hidden+`"`) {
+			t.Fatalf("text content exposes structured-only field %q: %s", hidden, text)
+		}
+	}
 }
 
-func TestGoalCompletionReportFormatsCodexStyleUsageLine(t *testing.T) {
+func TestGoalCompletionReportPrioritizesResultDeliveryWithoutUsageDetails(t *testing.T) {
 	report := completionBudgetReport(&protocol.Goal{
 		Status:          protocol.GoalStatusComplete,
-		Usage:           protocol.GoalUsage{TotalTokens: 603673},
+		Usage:           protocol.GoalUsage{TotalTokens: 42, ActualTotalTokens: 603673},
 		TimeUsedSeconds: 23*60 + 4,
 	})
 
-	if !strings.Contains(report, "最终 Goal 用量：603,673 tokens，耗时约 23m4s。") {
-		t.Fatalf("completionBudgetReport = %q, want Codex-style usage line", report)
+	for _, expected := range []string{
+		"complete user-facing delivery",
+		"stand on its own",
+		"include the full requested content",
+		"provide exact links or paths",
+		"key outcomes and relevant verification",
+		"Do not make Goal completion the headline",
+		"mention completion only secondarily",
+	} {
+		if !strings.Contains(report, expected) {
+			t.Fatalf("completionBudgetReport = %q, want result-first guidance %q", report, expected)
+		}
+	}
+	for _, unwanted := range []string{"tokens", "elapsed", "耗时", "最终回复自身用量"} {
+		if strings.Contains(report, unwanted) {
+			t.Fatalf("completionBudgetReport = %q, should not expose %q", report, unwanted)
+		}
 	}
 }
 
@@ -122,8 +153,8 @@ func TestGoalCompletionPayloadIncludesStopInstructionWithoutUsageToReport(t *tes
 	if !ok || !strings.Contains(report, "stop and wait for user input") {
 		t.Fatalf("completionBudgetReport = %#v, want stop instruction", payload["completionBudgetReport"])
 	}
-	if !strings.Contains(report, "最终 Goal 用量：0 tokens，耗时约 0s。") {
-		t.Fatalf("completionBudgetReport = %q, want zero usage line", report)
+	if strings.Contains(report, "tokens") || strings.Contains(report, "0s") {
+		t.Fatalf("completionBudgetReport = %q, should not expose zero usage", report)
 	}
 }
 

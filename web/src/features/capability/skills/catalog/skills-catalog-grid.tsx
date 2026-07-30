@@ -1,5 +1,7 @@
 import { Loader2, Puzzle } from "lucide-react";
 
+import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { SkillInfo } from "@/types/capability/skill";
 
 import { SkillsCard } from "./skills-card";
@@ -19,6 +21,8 @@ export function SkillsCatalogGrid({
   onDeleteSkill,
   onOpenSkill,
 }: SkillsCatalogGridProps) {
+  const { t } = useI18n();
+
   if (loading) {
     return (
       <div className="flex min-h-80 items-center justify-center">
@@ -34,9 +38,11 @@ export function SkillsCatalogGrid({
           <Puzzle className="h-4 w-4 text-(--text-muted)" />
         </div>
         <div>
-          <p className="text-[14px] font-medium text-(--text-default)">没有符合条件的技能</p>
-          <p className="mt-0.5 text-[12px] text-(--text-soft)">
-            试试切换分类、来源或搜索条件
+          <p className="text-[14px] font-medium text-(--text-default)">
+            {t("capability.skills_empty_title")}
+          </p>
+          <p className="mt-0.5 text-compact text-(--text-soft)">
+            {t("capability.skills_empty_description")}
           </p>
         </div>
       </div>
@@ -47,14 +53,10 @@ export function SkillsCatalogGrid({
     <div className="space-y-6">
       {groupedSkills.map(([categoryName, items]) => (
         <section key={categoryName}>
-          <div className="mb-2 flex items-end justify-between border-b border-(--divider-subtle-color) pb-1.5">
-            <h2 className="text-[15px] font-medium text-(--text-strong)">
-              {categoryName}
-            </h2>
-            <span className="text-[11px] font-medium text-(--text-soft)">
-              {items.length} 个
-            </span>
-          </div>
+          <CapabilitySectionHeader
+            count={t("capability.result_count", { count: items.length })}
+            title={categoryName}
+          />
           <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
             {items.map((skill: SkillInfo) => (
               <SkillsCard

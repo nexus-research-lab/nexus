@@ -15,7 +15,6 @@ import {
   SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
   SETTINGS_ROW_CLASS_NAME,
-  SETTINGS_SECTION_TITLE_CLASS_NAME,
   SETTINGS_SELECT_BUTTON_CLASS_NAME,
   SETTINGS_TEXT_ROW_CLASS_NAME,
 } from "../../shared/settings-panel-ui";
@@ -40,16 +39,13 @@ export function SettingsPermissionsSection({
 
   return (
     <section className="space-y-2.5">
-      <div className="flex items-center justify-between gap-3 px-1">
-        <h2 className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
-          {t("settings.general.section_permissions")}
-        </h2>
-        {feedbackMessage ? (
-          <span className="inline-flex items-center gap-1.5 text-[11px] text-(--destructive)">
+      {feedbackMessage ? (
+        <div className="flex items-center justify-end gap-3 px-1">
+          <span className="inline-flex items-center gap-1.5 text-xs text-(--destructive)">
             {feedbackMessage}
           </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <div className={SETTINGS_CARD_CLASS_NAME}>
         <div className={SETTINGS_ROW_CLASS_NAME}>
           <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
@@ -82,7 +78,7 @@ export function SettingsPermissionsSection({
               size="xs"
               value={permissionMode}
             />
-            <p className="text-[11px] leading-4 text-(--text-soft)">
+            <p className="text-xs leading-4 text-(--text-soft)">
               {t(selectedPermissionMode.descriptionKey)}
             </p>
           </div>

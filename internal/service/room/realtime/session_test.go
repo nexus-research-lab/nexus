@@ -69,9 +69,18 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 		sourceContextLabel string
 	}
 	calls := make(chan builderCall, 1)
-	service.SetMCPServerBuilder(func(agentID string, sessionKey string, roundID string, sourceContextType string, sourceContextID string, sourceContextLabel string, _ *atomic.Int64) map[string]sdkmcp.ServerConfig {
+	service.SetMCPServerBuilder(func(
+		_ context.Context,
+		agentValue *protocol.Agent,
+		sessionKey string,
+		roundID string,
+		sourceContextType string,
+		sourceContextID string,
+		sourceContextLabel string,
+		_ *atomic.Int64,
+	) map[string]sdkmcp.ServerConfig {
 		calls <- builderCall{
-			agentID:            agentID,
+			agentID:            agentValue.AgentID,
 			sessionKey:         sessionKey,
 			roundID:            roundID,
 			sourceContextType:  sourceContextType,
@@ -158,7 +167,7 @@ func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 	if _, err = db.Exec(`UPDATE sessions SET sdk_session_id = ? WHERE id = ?`, resumeID, roomContext.Sessions[0].ID); err != nil {
 		t.Fatalf("预写入 room sdk_session_id 失败: %v", err)
 	}
-	writeRoomTranscriptFixture(t, agentValue.WorkspacePath, resumeID, []map[string]any{
+	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, agentValue.WorkspacePath, resumeID, []map[string]any{
 		{
 			"type":       "result",
 			"session_id": resumeID,
@@ -168,7 +177,7 @@ func TestRealtimeServiceUsesAndPersistsRoomSDKSessionID(t *testing.T) {
 
 	client := newFakeRoomClient()
 	client.sessionID = "22222222-2222-2222-2222-222222222222"
-	writeRoomTranscriptFixture(t, agentValue.WorkspacePath, client.sessionID, []map[string]any{
+	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, agentValue.WorkspacePath, client.sessionID, []map[string]any{
 		{
 			"type":       "result",
 			"session_id": client.sessionID,
@@ -279,7 +288,7 @@ func TestRealtimeServiceSkipsRoomSDKSessionIDWhenTranscriptMissing(t *testing.T)
 
 	client := newFakeRoomClient()
 	client.sessionID = "44444444-4444-4444-4444-444444444444"
-	writeRoomTranscriptFixture(t, agentValue.WorkspacePath, client.sessionID, []map[string]any{
+	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, agentValue.WorkspacePath, client.sessionID, []map[string]any{
 		{
 			"type":       "result",
 			"session_id": client.sessionID,
@@ -486,7 +495,7 @@ func TestRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t *testing.T)
 	if _, err = db.Exec(`UPDATE sessions SET sdk_session_id = ? WHERE id = ?`, staleResumeID, roomContext.Sessions[0].ID); err != nil {
 		t.Fatalf("预写入 room sdk_session_id 失败: %v", err)
 	}
-	writeRoomTranscriptFixture(t, agentValue.WorkspacePath, staleResumeID, []map[string]any{
+	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, agentValue.WorkspacePath, staleResumeID, []map[string]any{
 		{
 			"type":       "result",
 			"session_id": staleResumeID,
@@ -500,7 +509,7 @@ func TestRealtimeServiceRetriesRoomRuntimeWithoutStaleSDKSessionID(t *testing.T)
 
 	recoveredClient := newFakeRoomClient()
 	recoveredClient.sessionID = "66666666-6666-6666-6666-666666666666"
-	writeRoomTranscriptFixture(t, agentValue.WorkspacePath, recoveredClient.sessionID, []map[string]any{
+	writeRoomTranscriptFixture(t, roomContext.Room.OwnerUserID, agentValue.WorkspacePath, recoveredClient.sessionID, []map[string]any{
 		{
 			"type":       "result",
 			"session_id": recoveredClient.sessionID,

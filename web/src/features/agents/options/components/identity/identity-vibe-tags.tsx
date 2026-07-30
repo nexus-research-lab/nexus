@@ -6,31 +6,30 @@ import { cn } from "@/shared/ui/class-name";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { UiInput } from "@/shared/ui/form/form-control";
 
-import type { AgentIdentityVariant } from "./identity-layout";
+import {
+  IDENTITY_FIELD_LABEL_CLASS_NAMES,
+  type AgentIdentityVariant,
+} from "./identity-layout";
 
 interface VibeTagLayout {
-  addButtonSize: "md" | "sm";
+  addButtonSize: "lg" | "md";
   inputClassName: string;
-  inputSize: "sm" | "xs";
-  labelClassName: string;
+  inputSize: "md" | "sm";
   rowGapClassName: string;
 }
 
 const VIBE_TAG_LAYOUTS: Record<AgentIdentityVariant, VibeTagLayout> = {
   dialog: {
-    addButtonSize: "sm",
-    inputClassName: "w-[108px] rounded-lg",
-    inputSize: "xs",
-    labelClassName: "text-[11px] font-semibold text-(--text-muted)",
-    rowGapClassName: "gap-1",
+    addButtonSize: "lg",
+    inputClassName: "h-10 min-w-[132px] flex-1 radius-control-md",
+    inputSize: "md",
+    rowGapClassName: "gap-2",
   },
   inline: {
-    addButtonSize: "md",
-    inputClassName: "w-[112px] rounded-full",
-    inputSize: "sm",
-    labelClassName:
-      "text-[11px] font-semibold uppercase tracking-[0.12em] text-(--text-soft)",
-    rowGapClassName: "gap-2",
+    addButtonSize: "lg",
+    inputClassName: "min-w-[128px] flex-1",
+    inputSize: "md",
+    rowGapClassName: "gap-1.5",
   },
 };
 
@@ -53,6 +52,7 @@ export function IdentityVibeTags({
 }: IdentityVibeTagsProps) {
   const [tagInput, setTagInput] = useResettableState("", resetKey);
   const layout = VIBE_TAG_LAYOUTS[variant];
+  const labelClassName = IDENTITY_FIELD_LABEL_CLASS_NAMES[variant];
 
   const addTag = useCallback(() => {
     const normalizedTag = tagInput.trim();
@@ -71,48 +71,55 @@ export function IdentityVibeTags({
   }, [addTag]);
 
   return (
-    <div className="space-y-2.5">
-      <label className={layout.labelClassName}>{label}</label>
-      <div className="soft-scrollbar flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden pb-1">
-        {tags.map((tag) => (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-[color:color-mix(in_srgb,var(--primary)_16%,transparent)] bg-transparent px-2 py-0.5 text-[11px] font-medium text-primary"
-            key={tag}
-          >
-            {tag}
-            <UiIconButton
-              aria-label={`移除 ${tag}`}
-              className="ml-0.5 h-5 w-5 rounded-full"
-              onClick={() => onChange(tags.filter((item) => item !== tag))}
-              size="xs"
-              type="button"
-              variant="ghost"
-            >
-              <X className="h-3 w-3" />
-            </UiIconButton>
-          </span>
-        ))}
-        <div className={cn("flex shrink-0 items-center", layout.rowGapClassName)}>
-          <UiInput
-            className={layout.inputClassName}
-            controlSize={layout.inputSize}
-            onChange={(event) => setTagInput(event.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={addLabel}
-            type="text"
-            value={tagInput}
-          />
-          <UiIconButton
-            aria-label={addLabel}
-            onClick={addTag}
-            size={layout.addButtonSize}
-            type="button"
-            variant="ghost"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </UiIconButton>
-        </div>
+    <div className="space-y-2">
+      <label className={labelClassName}>{label}</label>
+      <div
+        className={cn(
+          "flex min-w-0 items-center",
+          layout.rowGapClassName,
+        )}
+      >
+        <UiInput
+          className={layout.inputClassName}
+          controlSize={layout.inputSize}
+          onChange={(event) => setTagInput(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={addLabel}
+          type="text"
+          value={tagInput}
+        />
+        <UiIconButton
+          aria-label={addLabel}
+          onClick={addTag}
+          size={layout.addButtonSize}
+          type="button"
+          variant="ghost"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </UiIconButton>
       </div>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {tags.map((tag) => (
+            <span
+              className="chip-default inline-flex h-7 shrink-0 items-center gap-1 px-2 text-compact font-medium text-(--text-default)"
+              key={tag}
+            >
+              {tag}
+              <UiIconButton
+                aria-label={`移除 ${tag}`}
+                className="-mr-1 h-5 w-5 text-(--icon-muted)"
+                onClick={() => onChange(tags.filter((item) => item !== tag))}
+                size="xs"
+                type="button"
+                variant="ghost"
+              >
+                <X className="h-3 w-3" />
+              </UiIconButton>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

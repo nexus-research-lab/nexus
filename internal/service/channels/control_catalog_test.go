@@ -20,6 +20,9 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	if !wechat.SupportsGroup {
 		t.Fatal("企业微信智能机器人通道应标记群聊能力")
 	}
+	if !wechat.SupportsQRCode {
+		t.Fatal("企业微信智能机器人通道应支持官方扫码绑定")
+	}
 	weixinPersonal, ok := channelCatalogByType(ChannelTypeWeixinPersonal)
 	if !ok {
 		t.Fatal("缺少个人微信通道")
@@ -42,6 +45,9 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	}
 	if field, ok := catalogCredentialField(feishu, "connection_mode"); !ok || field.Required {
 		t.Fatalf("飞书应暴露可选 connection_mode 便于线上切换长连接或 webhook: field=%+v ok=%v", field, ok)
+	}
+	if !feishu.SupportsQRCode {
+		t.Fatal("飞书通道应支持官方扫码创建应用")
 	}
 	for _, capability := range []channelmessage.Capability{
 		channelmessage.CapabilityTyping,
@@ -71,6 +77,9 @@ func TestChannelCatalogMarksImplementedChannelsReady(t *testing.T) {
 	}
 	if field, ok := catalogCredentialField(dingtalk, "robot_code"); !ok || field.Required {
 		t.Fatalf("钉钉 Stream 回复不应强制要求 Robot Code: field=%+v ok=%v", field, ok)
+	}
+	if !dingtalk.SupportsQRCode {
+		t.Fatal("钉钉通道应支持官方扫码创建机器人")
 	}
 	for _, key := range []string{"base_url", "stream_base_url"} {
 		if _, ok := catalogCredentialField(dingtalk, key); !ok {

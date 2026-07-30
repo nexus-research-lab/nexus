@@ -5,6 +5,8 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
+using Nexus.Desktop.Bridge;
+using Nexus.Desktop.Dialog;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
 using Nexus.Desktop.Sidecar;
@@ -13,7 +15,7 @@ namespace Nexus.Desktop.Update;
 
 internal sealed class DesktopUpdateChecker
 {
-    private static readonly TimeSpan AutomaticCheckInterval = TimeSpan.FromHours(24);
+    private static readonly TimeSpan AutomaticCheckInterval = TimeSpan.FromHours(4);
     private static readonly TimeSpan MetadataRequestTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan DownloadRequestTimeout = TimeSpan.FromMinutes(10);
     private const int ReleaseNotesMaxCharacters = 20_000;
@@ -23,6 +25,37 @@ internal sealed class DesktopUpdateChecker
     {
         WriteIndented = true,
     };
+    private static readonly IReadOnlyDictionary<bool, IReadOnlyList<NexusDialogAction>>
+        UpdatePromptActions = new Dictionary<bool, IReadOnlyList<NexusDialogAction>>
+        {
+            [true] =
+            [
+                new NexusDialogAction(
+                    UpdatePromptAction.Later.ToString(),
+                    "稍后",
+                    IsCancel: true),
+                new NexusDialogAction(
+                    UpdatePromptAction.OpenReleasePage.ToString(),
+                    "打开下载页"),
+                new NexusDialogAction(
+                    UpdatePromptAction.DownloadAndInstall.ToString(),
+                    "下载并更新",
+                    NexusDialogActionTone.Primary,
+                    IsDefault: true),
+            ],
+            [false] =
+            [
+                new NexusDialogAction(
+                    UpdatePromptAction.Later.ToString(),
+                    "稍后",
+                    IsCancel: true),
+                new NexusDialogAction(
+                    UpdatePromptAction.OpenReleasePage.ToString(),
+                    "打开下载页",
+                    NexusDialogActionTone.Primary,
+                    IsDefault: true),
+            ],
+        };
 
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly HttpClient httpClient;
@@ -31,6 +64,7 @@ internal sealed class DesktopUpdateChecker
     private readonly bool isDisabled;
     private readonly SemaphoreSlim checkLock = new(1, 1);
     private bool hasPerformedStartupCheck;
+    private CancellationTokenSource? automaticCheckCancellation;
 
     public DesktopUpdateChecker(DesktopStartupTimeline startupTimeline, HttpClient? httpClient = null)
     {
@@ -61,23 +95,8 @@ internal sealed class DesktopUpdateChecker
         }
         hasPerformedStartupCheck = true;
 
-        UpdateCheckState state = LoadState();
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        if (state.LastAutomaticCheckAt is not null)
-        {
-            TimeSpan elapsed = now - state.LastAutomaticCheckAt.Value;
-            if (elapsed < AutomaticCheckInterval)
-            {
-                startupTimeline.Mark("update_check.skipped", new Dictionary<string, string>
-                {
-                    ["reason"] = "recent",
-                    ["elapsed_minutes"] = Math.Max(0, (int)elapsed.TotalMinutes).ToString(),
-                });
-                return;
-            }
-        }
-
         _ = RunStartupCheckAsync(owner);
+        StartAutomaticChecks(owner);
     }
 
     public async Task<DesktopUpdateCheckResult> CheckNowAsync(System.Windows.Window owner)
@@ -101,6 +120,36 @@ internal sealed class DesktopUpdateChecker
     private async Task RunStartupCheckAsync(System.Windows.Window owner)
     {
         await CheckWithLockAsync(owner, "startup", showsUpToDateAlert: false);
+    }
+
+    private void StartAutomaticChecks(System.Windows.Window owner)
+    {
+        automaticCheckCancellation?.Cancel();
+        automaticCheckCancellation = new CancellationTokenSource();
+        CancellationToken cancellationToken = automaticCheckCancellation.Token;
+        _ = RunAutomaticChecksAsync(owner, cancellationToken);
+    }
+
+    private async Task RunAutomaticChecksAsync(
+        System.Windows.Window owner,
+        CancellationToken cancellationToken)
+    {
+        using PeriodicTimer timer = new(AutomaticCheckInterval);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (owner.Dispatcher.HasShutdownStarted)
+                {
+                    return;
+                }
+                await CheckWithLockAsync(owner, "periodic", showsUpToDateAlert: false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // 应用退出或重新装配检测器时，定时检查自然结束。
+        }
     }
 
     private async Task<DesktopUpdateCheckResult> CheckWithLockAsync(
@@ -138,7 +187,7 @@ internal sealed class DesktopUpdateChecker
             UpdateCheckState previousState = LoadState();
             SaveState(new UpdateCheckState
             {
-                LastAutomaticCheckAt = reason == "startup"
+                LastAutomaticCheckAt = reason is "startup" or "periodic"
                     ? DateTimeOffset.UtcNow
                     : previousState.LastAutomaticCheckAt,
                 LastResult = hasUpdate ? "update_available" : "up_to_date",
@@ -162,11 +211,20 @@ internal sealed class DesktopUpdateChecker
 
             if (hasUpdate)
             {
-                await ShowUpdateAvailableAsync(owner, latest);
+                DesktopPersistentStateStore.Set("desktop.update.available", latest.Version);
+                if (reason != "periodic")
+                {
+                    await ShowUpdateAvailableAsync(owner, latest);
+                }
             }
             else if (showsUpToDateAlert)
             {
+                DesktopPersistentStateStore.Remove("desktop.update.available");
                 await ShowUpToDateAsync(owner, latest);
+            }
+            else
+            {
+                DesktopPersistentStateStore.Remove("desktop.update.available");
             }
 
             return DesktopUpdateCheckResult.From(currentVersion, latest, hasUpdate);
@@ -269,18 +327,17 @@ internal sealed class DesktopUpdateChecker
         }
 
         UpdatePromptAction action = await owner.Dispatcher.InvokeAsync(() => PromptForUpdate(owner, latest));
-        switch (action)
+        var handlers = new Dictionary<UpdatePromptAction, Func<Task>>
         {
-            case UpdatePromptAction.DownloadAndInstall:
-                await DownloadAndOfferInstallAsync(owner, latest);
-                break;
-            case UpdatePromptAction.OpenReleasePage:
+            [UpdatePromptAction.DownloadAndInstall] = () => DownloadAndOfferInstallAsync(owner, latest),
+            [UpdatePromptAction.OpenReleasePage] = () =>
+            {
                 OpenReleasePage(latest, "prompt");
-                break;
-            case UpdatePromptAction.Later:
-            default:
-                break;
-        }
+                return Task.CompletedTask;
+            },
+            [UpdatePromptAction.Later] = static () => Task.CompletedTask,
+        };
+        await handlers[action]();
     }
 
     private async Task ShowUpToDateAsync(System.Windows.Window owner, DesktopReleaseInfo latest)
@@ -290,15 +347,13 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        await owner.Dispatcher.InvokeAsync(() => System.Windows.MessageBox.Show(
+        await owner.Dispatcher.InvokeAsync(() => NexusDialogWindow.ShowMessage(
             owner,
+            "Nexus 已是最新版本",
             string.Join(
                 Environment.NewLine,
                 $"当前版本：{currentVersion.DisplayText}",
-                $"最新版本：{latest.DisplayText}"),
-            "Nexus 已是最新版本",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information));
+                $"最新版本：{latest.DisplayText}")));
     }
 
     private async Task ShowCheckFailedAsync(System.Windows.Window owner, Exception exception)
@@ -308,12 +363,10 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        await owner.Dispatcher.InvokeAsync(() => System.Windows.MessageBox.Show(
+        await owner.Dispatcher.InvokeAsync(() => NexusDialogWindow.ShowMessage(
             owner,
-            exception.Message,
             "Nexus 检查更新失败",
-            MessageBoxButton.OK,
-            MessageBoxImage.Warning));
+            exception.Message));
     }
 
     private UpdatePromptAction PromptForUpdate(System.Windows.Window owner, DesktopReleaseInfo latest)
@@ -326,15 +379,17 @@ internal sealed class DesktopUpdateChecker
         });
 
         string? releaseNotes = FormatReleaseNotes(latest.ReleaseNotes);
-        var prompt = new DesktopUpdatePromptWindow(
+        string? actionID = NexusDialogWindow.Show(owner, new NexusDialogOptions(
+            "发现 Nexus 新版本",
             UpdateAvailableMessage(latest, releaseNotes),
-            releaseNotes,
-            latest.CanDownloadInstaller)
-        {
-            Owner = owner,
-        };
-        prompt.ShowDialog();
-        return prompt.PromptAction;
+            UpdatePromptActions[latest.CanDownloadInstaller],
+            DetailsTitle: releaseNotes is null ? null : "更新内容",
+            Details: releaseNotes is null ? null : DesktopReleaseNotesRenderer.Render(releaseNotes),
+            ContentWidth: 640,
+            BodyMaxHeight: 500));
+        return Enum.TryParse(actionID, out UpdatePromptAction action)
+            ? action
+            : UpdatePromptAction.Later;
     }
 
     private async Task DownloadAndOfferInstallAsync(System.Windows.Window owner, DesktopReleaseInfo latest)
@@ -360,7 +415,21 @@ internal sealed class DesktopUpdateChecker
 
         try
         {
-            DownloadedUpdate downloadedUpdate = await DownloadAndVerifyUpdateAsync(latest);
+            DesktopDownloadProgressWindow progressWindow = await owner.Dispatcher.InvokeAsync(() =>
+            {
+                var window = new DesktopDownloadProgressWindow(owner, latest);
+                window.Show();
+                return window;
+            });
+            DownloadedUpdate downloadedUpdate;
+            try
+            {
+                downloadedUpdate = await DownloadAndVerifyUpdateAsync(latest, progressWindow.Report);
+            }
+            finally
+            {
+                await owner.Dispatcher.InvokeAsync(progressWindow.Close);
+            }
             startupTimeline.Mark("update_check.download_verified", new Dictionary<string, string>
             {
                 ["latest_version"] = latest.Version,
@@ -380,7 +449,9 @@ internal sealed class DesktopUpdateChecker
         }
     }
 
-    private async Task<DownloadedUpdate> DownloadAndVerifyUpdateAsync(DesktopReleaseInfo latest)
+    private async Task<DownloadedUpdate> DownloadAndVerifyUpdateAsync(
+        DesktopReleaseInfo latest,
+        Action<long, long?> reportProgress)
     {
         string installerFileName = latest.InstallerFileName
             ?? throw new InvalidOperationException("当前 Release 缺少 Windows 安装器文件名。");
@@ -401,8 +472,8 @@ internal sealed class DesktopUpdateChecker
             : latest.InstallerSha256FileName;
         string sha256Path = Path.Combine(updateDir, SafePathSegment(sha256FileName));
 
-        await DownloadFileAsync(installerUrl, installerPath);
-        await DownloadFileAsync(sha256Url, sha256Path);
+        await DownloadFileAsync(installerUrl, installerPath, reportProgress);
+        await DownloadFileAsync(sha256Url, sha256Path, static (_, _) => { });
 
         string expectedHash = ReadExpectedSha256(sha256Path, installerFileName);
         string actualHash = ComputeSha256(installerPath);
@@ -415,7 +486,10 @@ internal sealed class DesktopUpdateChecker
         return new DownloadedUpdate(installerPath, sha256Path, actualHash.ToLowerInvariant());
     }
 
-    private async Task DownloadFileAsync(Uri url, string destinationPath)
+    private async Task DownloadFileAsync(
+        Uri url,
+        string destinationPath,
+        Action<long, long?> reportProgress)
     {
         string temporaryPath = $"{destinationPath}.download";
         TryDeleteFile(temporaryPath);
@@ -435,7 +509,16 @@ internal sealed class DesktopUpdateChecker
         await using (Stream source = await response.Content.ReadAsStreamAsync(timeout.Token))
         await using (FileStream destination = File.Create(temporaryPath))
         {
-            await source.CopyToAsync(destination, timeout.Token);
+            long receivedBytes = 0;
+            long? totalBytes = response.Content.Headers.ContentLength;
+            byte[] buffer = new byte[64 * 1024];
+            int read;
+            while ((read = await source.ReadAsync(buffer, timeout.Token)) > 0)
+            {
+                await destination.WriteAsync(buffer.AsMemory(0, read), timeout.Token);
+                receivedBytes += read;
+                reportProgress(receivedBytes, totalBytes);
+            }
         }
 
         File.Move(temporaryPath, destinationPath, overwrite: true);
@@ -451,7 +534,7 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        MessageBoxResult result = await owner.Dispatcher.InvokeAsync(() =>
+        bool shouldInstall = await owner.Dispatcher.InvokeAsync(() =>
         {
             startupTimeline.Mark("update_check.install_prompt_shown", new Dictionary<string, string>
             {
@@ -460,15 +543,15 @@ internal sealed class DesktopUpdateChecker
                 ["installer_path"] = downloadedUpdate.InstallerPath,
             });
 
-            return System.Windows.MessageBox.Show(
+            return NexusDialogWindow.Confirm(
                 owner,
-                InstallReadyMessage(latest, downloadedUpdate),
                 "Nexus 更新已就绪",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
+                InstallReadyMessage(latest, downloadedUpdate),
+                "退出并安装",
+                "稍后");
         });
 
-        if (result != MessageBoxResult.Yes)
+        if (!shouldInstall)
         {
             return;
         }
@@ -498,13 +581,12 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        MessageBoxResult result = await owner.Dispatcher.InvokeAsync(() => System.Windows.MessageBox.Show(
+        bool shouldOpenRelease = await owner.Dispatcher.InvokeAsync(() => NexusDialogWindow.Confirm(
             owner,
-            "当前 Release 缺少可自动校验的 Windows 安装器或 sha256 文件。是否打开下载页手动处理？",
             "Nexus 更新暂不可自动下载",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Information));
-        if (result == MessageBoxResult.Yes)
+            "当前 Release 缺少可自动校验的 Windows 安装器或 sha256 文件。可以打开下载页手动处理。",
+            "打开下载页"));
+        if (shouldOpenRelease)
         {
             OpenReleasePage(latest, "download_unavailable");
         }
@@ -520,13 +602,12 @@ internal sealed class DesktopUpdateChecker
             return;
         }
 
-        MessageBoxResult result = await owner.Dispatcher.InvokeAsync(() => System.Windows.MessageBox.Show(
+        bool shouldOpenRelease = await owner.Dispatcher.InvokeAsync(() => NexusDialogWindow.Confirm(
             owner,
-            $"更新下载或校验失败：{exception.Message}{Environment.NewLine}{Environment.NewLine}是否打开 Release 页面手动下载？",
             "Nexus 更新下载失败",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning));
-        if (result == MessageBoxResult.Yes)
+            $"更新下载或校验失败：{exception.Message}{Environment.NewLine}{Environment.NewLine}可以打开 Release 页面手动下载。",
+            "打开下载页"));
+        if (shouldOpenRelease)
         {
             OpenReleasePage(latest, "download_failed");
         }

@@ -3,6 +3,7 @@
 import {
   Agent,
   AgentNameValidationResult,
+  AgentProfileTemplateResponse,
   ApiAgent,
   CreateAgentParams,
   UpdateAgentParams,
@@ -42,11 +43,21 @@ export const createAgentApi = async (
       options: params.options || null,
       avatar: params.avatar ?? null,
       description: params.description ?? null,
+      profile_template: params.profile_template ?? null,
       vibe_tags: params.vibe_tags ?? [],
     }),
   });
   return transformApiAgent(result);
 };
+
+/** 获取创建 Agent 时的默认行为模板。 */
+export const getAgentProfileTemplateApi =
+  async (): Promise<AgentProfileTemplateResponse> => {
+    return requestApi<AgentProfileTemplateResponse>(
+      `${AGENT_API_BASE_URL}/agents/profile-template`,
+      { method: "GET" },
+    );
+  };
 
 /** 更新 Agent */
 export const updateAgentApi = async (

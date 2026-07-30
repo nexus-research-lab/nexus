@@ -10,18 +10,23 @@ import { flushSync } from "react-dom";
 import { isExternalSessionConversation } from "@/lib/conversation/external-session";
 import {
   calculateConversationTabWidths,
+  getConversationIdsByCreationTime,
   getCloseFallbackConversationId,
-  getConversationTabCapacity,
   getInitialOpenConversationIds,
-  getRecentConversationIds,
+  hasConversationTabsOverflow,
   reconcileOpenConversationIds,
   resolveActiveConversationId,
+  shouldPersistConversationTabs,
 } from "@/shared/ui/workspace/controls/conversation-tabs/conversation-tabs-model";
+import { useRoomNavigationStore } from "@/store/room-navigation";
 import { RoomConversationView } from "@/types/conversation/conversation";
+
+import { useConversationTabsScroll } from "./use-conversation-tabs-scroll";
 
 interface ConversationTabsControllerOptions {
   conversations: RoomConversationView[];
   conversationId: string | null;
+  hasLeadingControl: boolean;
   onCloseConversation?: (conversationId: string) => Promise<void>;
   onCreateConversation?: (title?: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
@@ -30,6 +35,7 @@ interface ConversationTabsControllerOptions {
 export function useConversationTabsController({
   conversations,
   conversationId,
+  hasLeadingControl,
   onCloseConversation,
   onCreateConversation,
   onSelectConversation,
@@ -37,24 +43,44 @@ export function useConversationTabsController({
   const trackRef = useRef<HTMLElement | null>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
-  const [hoveredConversationId, setHoveredConversationId] = useState<string | null>(null);
   const [optimisticActiveId, setOptimisticActiveId] = useState<string | null>(null);
   const [pendingClosedActiveId, setPendingClosedActiveId] = useState<string | null>(null);
-  const closedConversationIdsRef = useRef<Set<string>>(new Set());
-  const knownRecentConversationIdsRef = useRef<Set<string>>(new Set());
-  const previousTabCapacityRef = useRef(0);
   const hasCreateButton = Boolean(onCreateConversation);
-  const recentConversationIds = useMemo(
-    () => getRecentConversationIds(conversations),
+  const roomId = conversations[0]?.room_id ?? null;
+  const persistedTabs = useRoomNavigationStore((state) => (
+    roomId ? state.conversation_tabs_by_room[roomId] : undefined
+  ));
+  const saveRoomConversationTabs = useRoomNavigationStore(
+    (state) => state.save_room_conversation_tabs,
+  );
+  const orderedConversationIds = useMemo(
+    () => getConversationIdsByCreationTime(conversations),
     [conversations],
   );
-  const [openConversationIds, setOpenConversationIds] = useState<string[]>(() => (
-    getInitialOpenConversationIds(conversationId, recentConversationIds)
-  ));
-  const tabCapacity = useMemo(() => getConversationTabCapacity({
-    hasCreateButton,
-    trackWidth,
-  }), [hasCreateButton, trackWidth]);
+  const selectedConversationId = conversationId === pendingClosedActiveId
+    ? persistedTabs?.active_conversation_id ?? null
+    : conversationId ?? persistedTabs?.active_conversation_id ?? null;
+  const initialOpenConversationIds = useMemo(
+    () => persistedTabs?.open_conversation_ids ?? getInitialOpenConversationIds(
+      selectedConversationId,
+      orderedConversationIds,
+    ),
+    [orderedConversationIds, persistedTabs, selectedConversationId],
+  );
+  const openConversationIds = useMemo(
+    () => reconcileOpenConversationIds({
+      conversationId: selectedConversationId,
+      currentIds: initialOpenConversationIds,
+      orderedIds: orderedConversationIds,
+      pendingClosedId: pendingClosedActiveId,
+    }),
+    [
+      initialOpenConversationIds,
+      orderedConversationIds,
+      pendingClosedActiveId,
+      selectedConversationId,
+    ],
+  );
   const conversationsById = useMemo(
     () => new Map(
       conversations.map((conversation) => [conversation.conversation_id, conversation]),
@@ -68,51 +94,62 @@ export function useConversationTabsController({
     [conversationsById, openConversationIds],
   );
   const activeConversationId = resolveActiveConversationId({
-    conversationId,
+    conversationId: selectedConversationId,
     optimisticId: optimisticActiveId,
     orderedConversations,
+  });
+  const hasTabsOverflow = useMemo(
+    () => hasConversationTabsOverflow({
+      conversationCount: orderedConversations.length,
+      hasCreateButton,
+      hasLeadingControl,
+      trackWidth,
+    }),
+    [hasCreateButton, hasLeadingControl, orderedConversations.length, trackWidth],
+  );
+  const tabsScroll = useConversationTabsScroll({
+    activeConversationId,
+    contentKey: openConversationIds.join(":"),
   });
   const tabWidths = useMemo(() => calculateConversationTabWidths({
     activeConversationId,
     hasCreateButton,
+    hasLeadingControl,
+    hasTabsOverflow,
     orderedConversations,
     trackWidth,
-  }), [activeConversationId, hasCreateButton, orderedConversations, trackWidth]);
+  }), [
+    activeConversationId,
+    hasCreateButton,
+    hasLeadingControl,
+    hasTabsOverflow,
+    orderedConversations,
+    trackWidth,
+  ]);
 
   useTrackWidth(trackRef, setTrackWidth);
 
   useEffect(() => {
-    const previousTabCapacity = previousTabCapacityRef.current;
-    const capacityIncreased = tabCapacity > previousTabCapacity;
-    previousTabCapacityRef.current = tabCapacity;
-    const liveConversationIds = new Set(recentConversationIds);
-    const hasNewRecentConversation = recentConversationIds.some(
-      (id) => !knownRecentConversationIdsRef.current.has(id),
-    );
-    knownRecentConversationIdsRef.current = liveConversationIds;
-    for (const id of closedConversationIdsRef.current) {
-      if (!liveConversationIds.has(id)) {
-        closedConversationIdsRef.current.delete(id);
-      }
+    if (
+      !roomId
+      || !activeConversationId
+      || openConversationIds.length === 0
+      || !shouldPersistConversationTabs({
+        activeConversationId,
+        routeConversationId: conversationId,
+      })
+    ) {
+      return;
     }
-    if (conversationId && conversationId !== pendingClosedActiveId) {
-      closedConversationIdsRef.current.delete(conversationId);
-    }
-
-    // 宽度增长或已打开会话被服务端移除时，补入最近会话；手动关闭的标签不自动复开。
-    setOpenConversationIds((currentIds) => reconcileOpenConversationIds({
-      conversationId,
-      currentIds,
-      excludedConversationIds: closedConversationIdsRef.current,
-      fillRecent: capacityIncreased
-        || hasNewRecentConversation
-        || currentIds.length === 0
-        || currentIds.some((id) => !liveConversationIds.has(id)),
-      maxOpenCount: tabCapacity,
-      pendingClosedId: pendingClosedActiveId,
-      recentIds: recentConversationIds,
-    }));
-  }, [conversationId, pendingClosedActiveId, recentConversationIds, tabCapacity]);
+    // 中文注释：路由追上乐观活动项后再收敛持久化，避免旧路由把点击事务反向覆盖。
+    saveRoomConversationTabs(roomId, openConversationIds, activeConversationId);
+  }, [
+    activeConversationId,
+    conversationId,
+    openConversationIds,
+    roomId,
+    saveRoomConversationTabs,
+  ]);
 
   useEffect(() => {
     setPendingClosedActiveId((currentId) => (
@@ -139,8 +176,22 @@ export function useConversationTabsController({
   };
 
   const selectConversation = (nextConversationId: string) => {
-    closedConversationIdsRef.current.delete(nextConversationId);
-    previewConversation(nextConversationId);
+    const nextOpenConversationIds = reconcileOpenConversationIds({
+      conversationId: nextConversationId,
+      currentIds: openConversationIds,
+      orderedIds: orderedConversationIds,
+      pendingClosedId: null,
+    });
+    flushSync(() => {
+      if (roomId) {
+        saveRoomConversationTabs(
+          roomId,
+          nextOpenConversationIds,
+          nextConversationId,
+        );
+      }
+      setOptimisticActiveId(nextConversationId);
+    });
     onSelectConversation(nextConversationId);
   };
 
@@ -149,19 +200,33 @@ export function useConversationTabsController({
       return;
     }
 
-    const nextActiveId = getCloseFallbackConversationId(
+    const fallbackConversationId = getCloseFallbackConversationId(
       orderedConversations,
       targetConversationId,
     );
-    closedConversationIdsRef.current.add(targetConversationId);
-    setOpenConversationIds((currentIds) => (
-      currentIds.filter((id) => id !== targetConversationId)
-    ));
+    const nextOpenConversationIds = openConversationIds.filter(
+      (id) => id !== targetConversationId,
+    );
+    const nextActiveConversationId = targetConversationId === activeConversationId
+      ? fallbackConversationId
+      : activeConversationId;
 
-    if (targetConversationId === activeConversationId && nextActiveId) {
-      setPendingClosedActiveId(targetConversationId);
-      previewConversation(nextActiveId);
-      onSelectConversation(nextActiveId);
+    flushSync(() => {
+      if (roomId && nextActiveConversationId) {
+        saveRoomConversationTabs(
+          roomId,
+          nextOpenConversationIds,
+          nextActiveConversationId,
+        );
+      }
+      if (targetConversationId === activeConversationId && nextActiveConversationId) {
+        setPendingClosedActiveId(targetConversationId);
+        setOptimisticActiveId(nextActiveConversationId);
+      }
+    });
+
+    if (targetConversationId === activeConversationId && nextActiveConversationId) {
+      onSelectConversation(nextActiveConversationId);
     }
 
     const targetConversation = conversationsById.get(targetConversationId);
@@ -182,26 +247,16 @@ export function useConversationTabsController({
     }
   };
 
-  const setConversationHovered = (targetConversationId: string, hovered: boolean) => {
-    if (hovered) {
-      setHoveredConversationId(targetConversationId);
-      return;
-    }
-    setHoveredConversationId((currentId) => (
-      currentId === targetConversationId ? null : currentId
-    ));
-  };
-
   return {
     activeConversationId,
     closeConversation,
     createConversation,
-    hoveredConversationId,
+    hasTabsOverflow,
     isCreating,
     orderedConversations,
     previewConversation,
     selectConversation,
-    setConversationHovered,
+    tabsScroll,
     tabWidths,
     trackRef,
   };

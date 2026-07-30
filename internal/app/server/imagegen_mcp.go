@@ -10,32 +10,26 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-type imagegenAgentResolver interface {
-	GetAgent(context.Context, string) (*protocol.Agent, error)
-}
-
 // newImagegenMCPBuilder 返回 DM/Room 实时链路所需的图片生成 MCPServerBuilder。
 func newImagegenMCPBuilder(
 	svc imagegenmcpcontract.Service,
-	agents imagegenAgentResolver,
-) func(string, string, string, string, string) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string) map[string]sdkmcp.ServerConfig {
 	return func(
-		agentID string,
+		_ context.Context,
+		agentValue *protocol.Agent,
 		sessionKey string,
 		sourceContextType string,
 		sourceContextID string,
 		sourceContextLabel string,
 	) map[string]sdkmcp.ServerConfig {
-		if svc == nil || agents == nil || strings.TrimSpace(agentID) == "" {
-			return nil
-		}
-		record, err := agents.GetAgent(context.Background(), agentID)
-		if err != nil || record == nil || strings.TrimSpace(record.WorkspacePath) == "" {
+		if svc == nil || agentValue == nil ||
+			strings.TrimSpace(agentValue.AgentID) == "" ||
+			strings.TrimSpace(agentValue.WorkspacePath) == "" {
 			return nil
 		}
 		sctx := imagegenmcpcontract.ServerContext{
-			OwnerUserID:   strings.TrimSpace(record.OwnerUserID),
-			WorkspacePath: strings.TrimSpace(record.WorkspacePath),
+			OwnerUserID:   strings.TrimSpace(agentValue.OwnerUserID),
+			WorkspacePath: strings.TrimSpace(agentValue.WorkspacePath),
 		}
 		return map[string]sdkmcp.ServerConfig{
 			imagegenmcpcontract.ServerName: sdkmcp.SDKServerConfig{

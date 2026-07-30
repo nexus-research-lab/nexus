@@ -38,9 +38,10 @@ export function AskUserQuestionCard({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-[10px] border transition duration-(--motion-duration-fast) ease-out",
+        "ask-user-question-card overflow-hidden rounded-[12px] border transition duration-(--motion-duration-fast) ease-out",
         presentation.tone.borderClassName,
       )}
+      data-selected={presentation.hasSelection}
       style={{ background: presentation.tone.background }}
     >
       <AskUserQuestionCardHeader

@@ -16,13 +16,13 @@ import type { SidebarConversationItem } from "./sidebar-conversation-model";
 
 export function SidebarListLoadingRows({ count = 4 }: { count?: number }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-0.5 px-2 pb-2 max-lg:gap-1 max-lg:px-3">
       {Array.from({ length: count }, (_, index) => (
         <div
-          className="flex min-h-[54px] w-full items-center gap-2.5 rounded-[8px] px-2 py-1.5"
+          className="flex min-h-[60px] w-full items-center gap-2.5 rounded-[8px] px-2 py-2 max-lg:min-h-[80px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-3"
           key={index}
         >
-          <span className="h-8 w-8 shrink-0 animate-pulse radius-control-sm bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
+          <span className="h-10 w-10 shrink-0 animate-pulse radius-control-sm bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_74%,transparent)]" />
           <span className="min-w-0 flex-1 space-y-2">
             <span className="block h-3.5 w-24 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_76%,transparent)]" />
             <span className="block h-3 w-36 animate-pulse rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_58%,transparent)]" />
@@ -53,7 +53,7 @@ function ConversationRowLeading({
         avatar={item.avatar}
         members={item.members}
         roomId={item.roomId}
-        size="sm"
+        size="md"
         title={item.title}
         isWorking={isWorking}
       />
@@ -64,7 +64,7 @@ function ConversationRowLeading({
       avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
       isWorking={isWorking}
       name={item.members[0]?.name ?? item.title}
-      size="sm"
+      size="md"
     />
   );
 }
@@ -86,7 +86,7 @@ function ConversationRowMeta({
       {timeLabel ? (
         <span
           className={cn(
-            "text-[11px] tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
+            "text-xs tabular-nums text-(--text-soft) transition-opacity duration-(--motion-duration-fast)",
             onDelete && "group-hover/item:opacity-0",
           )}
         >
@@ -125,7 +125,7 @@ function ConversationRowStatus({
   return (
     <>
       {isWorking ? (
-        <UiBadge size="xs" tone="primary">
+        <UiBadge size="xs" tone="running">
           {workingLabel}
         </UiBadge>
       ) : null}
@@ -137,7 +137,7 @@ function ConversationRowStatus({
 function ConversationRowSummary({ item }: { item: SidebarConversationItem }) {
   return (
     <UiMarkdownContent
-      className="nexus-sidebar-conversation-summary truncate text-[12px] leading-5 text-(--text-muted) [&_*]:leading-5"
+      className="nexus-sidebar-conversation-summary truncate text-compact leading-5 text-(--text-muted) [&_*]:leading-5"
       content={item.summary}
       mermaidShowHeader={false}
       summaryMonochrome
@@ -160,8 +160,10 @@ export function ConversationRow({
   return (
     <UiListRow
       active={isActive}
-      className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5"
+      activeTone="sidebar"
+      className="min-h-[60px] gap-2.5 rounded-[10px] px-2 py-2 max-lg:min-h-[80px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-3"
       description={item.summary ? <ConversationRowSummary item={item} /> : undefined}
+      inactiveTone="muted"
       leading={<ConversationRowLeading isWorking={isWorking} item={item} />}
       meta={item.timeLabel || onDelete ? (
         <ConversationRowMeta
@@ -201,9 +203,17 @@ export function ContactRow({
   return (
     <UiListRow
       active={isActive}
-      className="min-h-[54px] gap-2.5 rounded-[8px] px-2 py-1.5"
+      activeTone="sidebar"
+      className="min-h-[54px] gap-2.5 rounded-[10px] px-2 py-1.5 max-lg:min-h-[72px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-2.5"
       description={subtitle}
-      leading={<UiAgentAvatar avatar={agent.avatar} name={agent.name} size="sm" />}
+      inactiveTone="muted"
+      leading={(
+        <UiAgentAvatar
+          avatar={agent.avatar}
+          name={agent.name}
+          size="md"
+        />
+      )}
       onClick={onOpenDirectory}
       right={(
         <UiIconButton

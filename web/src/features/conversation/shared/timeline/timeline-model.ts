@@ -1,6 +1,6 @@
 /**
- * INPUT: 会话消息、运行轮次与服务端 round 索引。
- * OUTPUT: DM / Room 共用的根轮次分组、历史窗口可见性与 feed 顺序纯投影。
+ * INPUT: 会话消息、Room slot/permission/execution 易失态、运行轮次与服务端 round 索引。
+ * OUTPUT: DM / Room 共用的消息及易失态根轮次分组、历史窗口可见性与 feed 顺序纯投影。
  * POS: 时间线顺序的唯一真相源，feed 与 navigator 不得自行修正轮次。
  */
 import type {
@@ -8,15 +8,18 @@ import type {
   Message,
   UserMessage,
 } from "@/types/conversation/message/entity";
-import type { ContentBlock } from "@/types/conversation/message/content";
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
+import type {
+  RoomAgentExecutionState,
+  RoomPendingAgentSlotState,
+} from "@/types/agent/agent-conversation";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
-import { stripRoomControlMarkers } from "../message/message-content-model";
+import { hasVisibleAssistantOutput } from "../message/message-content-model";
 
 /** DM / Room 共用的唯一时间线投影。 */
 export interface ConversationTimeline {
   message_groups: Map<string, Message[]>;
+  room_agent_execution_state_groups: Map<string, RoomAgentExecutionState[]>;
   pending_slot_groups: Map<string, RoomPendingAgentSlotState[]>;
   pending_permission_groups: Map<string, PendingPermission[]>;
   loaded_round_ids: string[];
@@ -62,6 +65,12 @@ export function groupPendingSlotsByRound(
   slots: RoomPendingAgentSlotState[],
 ): Map<string, RoomPendingAgentSlotState[]> {
   return groupByRound(slots, (slot) => slot.round_id);
+}
+
+export function groupRoomAgentExecutionStatesByRound(
+  states: RoomAgentExecutionState[],
+): Map<string, RoomAgentExecutionState[]> {
+  return groupByRound(states, (state) => state.round_id);
 }
 
 /** 删除已被加载消息迁入其他根轮次的原始 round 索引。 */
@@ -162,24 +171,6 @@ function getMessageSourceRoundId(message: Message): string {
 // 视为纯 no-reply，不在时间线显示。保守判定：任何工具/非文本块都算可见输出。
 function hasVisibleUserContent(message: UserMessage): boolean {
   return Boolean(message.content.trim()) || Boolean(message.attachments?.length);
-}
-
-function hasVisibleAssistantBlock(block: ContentBlock): boolean {
-  switch (block.type) {
-    case "thinking":
-      return false;
-    case "text":
-      return Boolean(stripRoomControlMarkers(block.text));
-    default:
-      // 工具、图片等非文本块即使没有摘要，也属于用户可见输出。
-      return true;
-  }
-}
-
-function hasVisibleAssistantOutput(message: AssistantMessage): boolean {
-  const result = message.result_summary?.result ?? "";
-  return message.content.some(hasVisibleAssistantBlock)
-    || Boolean(stripRoomControlMarkers(result));
 }
 
 function isBlankNoReplyRound(messages: Message[]): boolean {

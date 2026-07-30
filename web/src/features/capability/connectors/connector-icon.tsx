@@ -14,8 +14,8 @@ interface ConnectorIconProps {
 }
 
 const ICON_SIZE_CLASS: Record<ConnectorIconSize, string> = {
-  md: "h-9 w-9 rounded-[8px] text-[12px]",
-  lg: "h-14 w-14 surface-radius-md text-[17px]",
+  md: "h-9 w-9 rounded-[8px] text-compact",
+  lg: "h-14 w-14 surface-radius-md text-md",
 };
 
 const ICON_MASK_SIZE_CLASS: Record<ConnectorIconSize, string> = {

@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -66,8 +67,12 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 	if strings.TrimSpace(workspacePath) == "" {
 		return nil
 	}
+	ownerUserID := strings.TrimSpace(job.OwnerUserID)
+	if ownerUserID == "" {
+		return errors.New("清理自动化会话缺少 owner_user_id")
+	}
 	prefix := fmt.Sprintf("agent:%s:automation:dm:scheduled-task:%s:", strings.TrimSpace(job.AgentID), strings.TrimSpace(job.JobID))
-	files := workspacestore.NewSessionFileStore(s.config.WorkspacePath)
+	files := workspacestore.NewSessionFileStore(s.config.WorkspacePath).ForOwner(ownerUserID)
 	sessions, err := files.ListSessions(workspacePath)
 	if err != nil {
 		return err

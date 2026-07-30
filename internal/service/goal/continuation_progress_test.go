@@ -245,8 +245,18 @@ func TestServicePlanContinuationCompletesStaleCompletionToolMissSuppression(t *t
 	if completed.Status != protocol.GoalStatusComplete || goalCompletionToolRetryCount(completed.Metadata) != 0 {
 		t.Fatalf("completed = %#v, want complete with retry metadata cleared", completed)
 	}
-	if got := repo.events[len(repo.events)-1]; got.EventType != "completed" || got.RoundID != "retry-round" {
-		t.Fatalf("last event = %#v, want completed event for stale retry suppression", got)
+	if !completed.UsageFinalized || completed.UsageFinalizedAt == nil {
+		t.Fatalf("completed = %#v, want stale retry usage finalized", completed)
+	}
+	completedEvent := repo.events[len(repo.events)-2]
+	finalizedEvent := repo.events[len(repo.events)-1]
+	if completedEvent.EventType != "completed" || completedEvent.RoundID != "retry-round" ||
+		finalizedEvent.EventType != "usage_finalized" || finalizedEvent.RoundID != "retry-round" {
+		t.Fatalf(
+			"terminal events = %#v / %#v, want completed then usage_finalized",
+			completedEvent,
+			finalizedEvent,
+		)
 	}
 }
 

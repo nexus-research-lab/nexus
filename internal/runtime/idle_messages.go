@@ -16,7 +16,7 @@ func (m *Manager) StartIdleMessageDrain(sessionKey string, handler IdleMessageHa
 	}
 	m.mu.Lock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state.Client == nil || len(state.RunningRounds) > 0 {
+	if !ok || state.Closing || state.Client == nil || len(state.RunningRounds) > 0 {
 		m.mu.Unlock()
 		return
 	}

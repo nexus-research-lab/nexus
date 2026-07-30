@@ -114,7 +114,7 @@ function ProviderShapeControls({
           </span>
           {showRuntimeFormatBadge ? (
             <span
-              className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-[10px] font-medium leading-4 text-(--text-muted)"
+              className="rounded-full bg-(--surface-muted-background) px-1.5 py-0.5 text-2xs font-medium leading-4 text-(--text-muted)"
               title={t("settings.providers.api_format_runtime_hint")}
             >
               {t("settings.providers.api_format_runtime_badge")}
@@ -185,7 +185,7 @@ function ProviderApiKeyField({
       />
       {currentPreset?.key_url ? (
         <a
-          className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline"
+          className="inline-flex items-center gap-1 text-compact font-medium text-primary hover:underline"
           href={currentPreset.key_url}
           rel="noreferrer"
           target="_blank"
@@ -230,7 +230,7 @@ function ProviderEndpointField({
               key={format.api_format}
             >
               <span
-                className="inline-flex h-6 w-fit max-w-full items-center rounded-full bg-(--surface-muted-background) px-2 text-[11px] font-semibold text-(--text-muted)"
+                className="inline-flex h-6 w-fit max-w-full items-center rounded-full bg-(--surface-muted-background) px-2 text-xs font-semibold text-(--text-muted)"
                 title={API_FORMAT_LABELS[format.api_format]}
               >
                 {API_FORMAT_SHORT_LABELS[format.api_format]}

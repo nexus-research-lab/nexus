@@ -1,14 +1,11 @@
 import { Loader2, Lock } from "lucide-react";
 
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
-type SkillActionKind = "add" | "installed";
-
 interface AgentSkillCardProps {
-  actionKind: SkillActionKind;
   actionLabel: string;
   busy: boolean;
   commandBusy: boolean;
@@ -16,13 +13,12 @@ interface AgentSkillCardProps {
   skill: AgentSkillEntry;
 }
 
-const ACTION_TONE = {
-  add: "primary",
-  installed: "default",
-} as const;
+function isAgentWorkspaceSource(skill: AgentSkillEntry): boolean {
+  return skill.source_type === "workspace"
+    || skill.storage_scope === "agent_workspace";
+}
 
 export function AgentSkillCard({
-  actionKind,
   actionLabel,
   busy,
   commandBusy,
@@ -40,9 +36,9 @@ export function AgentSkillCard({
     },
     {
       key: "workspace",
-      label: t("agent_options.skills.agent_workspace_only"),
-      tone: "warning" as const,
-      visible: skill.source_type === "workspace",
+      label: t("agent_options.skills.agent_workspace_local"),
+      tone: "info" as const,
+      visible: isAgentWorkspaceSource(skill),
     },
     {
       key: "main",
@@ -53,10 +49,10 @@ export function AgentSkillCard({
   ].filter((badge) => badge.visible);
 
   return (
-    <div className="flex h-[92px] items-start justify-between gap-3 rounded-[8px] border border-(--divider-subtle-color) bg-transparent px-3 py-2.5 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)">
+    <div className="flex min-h-[108px] flex-col items-stretch justify-between gap-3 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-4 py-3.5 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) sm:flex-row sm:items-start sm:gap-4">
       <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="min-w-0 truncate text-[12.5px] font-semibold leading-[1.35] text-(--text-strong)">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="min-w-0 text-sm font-semibold leading-[1.4] text-(--text-strong)">
             {skill.title || skill.name}
           </span>
           {badges.map((badge) => (
@@ -72,28 +68,31 @@ export function AgentSkillCard({
           ))}
         </div>
         {skill.description ? (
-          <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-normal text-(--text-muted)">
+          <p className="mt-1.5 line-clamp-2 text-compact leading-[1.55] text-(--text-muted)">
             {skill.description}
           </p>
         ) : null}
       </div>
 
       {skill.locked ? (
-        <UiBadge className="mt-auto mb-auto shrink-0" size="xs" tone="success">
+        <UiBadge className="shrink-0 self-start sm:mt-auto sm:mb-auto" size="xs" tone="success">
           {t("agent_options.skills.enabled")}
         </UiBadge>
       ) : (
-        <UiButton
-          className="mt-auto mb-auto shrink-0"
-          disabled={commandBusy}
-          onClick={() => onAction(skill)}
-          size="sm"
-          tone={ACTION_TONE[actionKind]}
-          type="button"
-          variant="surface"
-        >
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : actionLabel}
-        </UiButton>
+        <div className="flex shrink-0 items-center gap-2 self-end sm:mt-auto sm:mb-auto sm:self-auto">
+          {busy ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-(--text-muted)" />
+          ) : (
+            <span className="text-xs text-(--text-muted)">{actionLabel}</span>
+          )}
+          <GlassSwitch
+            aria-label={`${actionLabel} ${skill.title || skill.name}`}
+            checked={skill.enabled_for_agent}
+            disabled={commandBusy}
+            onChange={() => onAction(skill)}
+            size="xs"
+          />
+        </div>
       )}
     </div>
   );
