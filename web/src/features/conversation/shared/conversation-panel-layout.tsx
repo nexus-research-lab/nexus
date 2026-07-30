@@ -28,7 +28,6 @@ export type ConversationViewportModel = ScrollViewportEvents & {
 
 export interface ConversationScrollToLatestModel {
   direction: "above" | "below" | null;
-  isLoading: boolean;
   onClick: () => void;
   unreadCount: number;
   visible: boolean;
@@ -151,7 +150,6 @@ export function ConversationPanelFloatingControls({
       >
         <ScrollToLatestButton
           direction={scrollToLatest.direction}
-          isLoading={scrollToLatest.isLoading}
           onClick={scrollToLatest.onClick}
           unreadCount={scrollToLatest.unreadCount}
           visible={scrollToLatest.visible}

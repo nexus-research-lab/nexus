@@ -79,7 +79,7 @@ test("scroll-to-latest is a local floating hit target without a layout band", as
   const visibleHtml = renderToStaticMarkup(React.createElement(
     ScrollToLatestButton,
     {
-      isLoading: false,
+      isLoading: true,
       onClick: () => {},
       visible: true,
     },
@@ -107,6 +107,11 @@ test("scroll-to-latest is a local floating hit target without a layout band", as
     visibleHtml,
     /\stitle=/,
     "the icon-only action must not expose a native tooltip over the feed",
+  );
+  assert.doesNotMatch(
+    visibleHtml,
+    /animate-bounce/,
+    "live output must not animate the user-controlled return action",
   );
   assert.equal(
     hiddenHtml,
@@ -333,7 +338,7 @@ test("FOLLOW and READING preserve intent at the real bottom edge", async () => {
   );
 });
 
-test("Room streaming revisions keep the follow key fresh for non-last Agent output", async () => {
+test("Room streaming revisions keep scroll coordination fresh for non-last Agent output", async () => {
   const { buildConversationScrollContentKey } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
   );
@@ -367,7 +372,58 @@ test("Room streaming revisions keep the follow key fresh for non-last Agent outp
   assert.notEqual(
     before,
     after,
-    "任意并行 Agent 的流式正文增长都必须触发主 Room 的贴底事务",
+    "任意并行 Agent 的流式正文增长都必须唤醒滚动协调，但不能等同于共享贴底写入",
+  );
+});
+
+test("upper Room Agent streaming delegates virtual height changes without pulling the bottom", async () => {
+  const { resolveConversationFollowCommitOwner } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
+  );
+
+  assert.equal(
+    resolveConversationFollowCommitOwner({
+      bottomScrollActive: false,
+      isNewSession: false,
+      isVirtualFeed: true,
+      topologyChanged: false,
+      viewportAnchorRestored: false,
+    }),
+    "virtualizer",
+    "an existing upper Agent stream must not issue a second shared bottom write",
+  );
+  assert.equal(
+    resolveConversationFollowCommitOwner({
+      bottomScrollActive: true,
+      isNewSession: false,
+      isVirtualFeed: true,
+      topologyChanged: false,
+      viewportAnchorRestored: false,
+    }),
+    "bottom",
+    "stream growth during an explicit return-to-latest transaction must still hand off to FOLLOW",
+  );
+  assert.equal(
+    resolveConversationFollowCommitOwner({
+      bottomScrollActive: false,
+      isNewSession: false,
+      isVirtualFeed: true,
+      topologyChanged: true,
+      viewportAnchorRestored: false,
+    }),
+    "bottom",
+    "a genuinely appended tail node still needs the shared bottom owner",
+  );
+  assert.equal(
+    resolveConversationFollowCommitOwner({
+      bottomScrollActive: false,
+      isNewSession: false,
+      isVirtualFeed: false,
+      topologyChanged: false,
+      viewportAnchorRestored: true,
+    }),
+    "viewport-anchor",
+    "static content growing above the viewport must preserve its visible round",
   );
 });
 
@@ -393,6 +449,7 @@ test("auto follow settles again after virtual Room measurement", async () => {
     const animator = new BottomScrollAnimator(() => container, () => {});
     animator.scroll("auto");
     assert.equal(container.scrollTop, 500);
+    assert.equal(animator.isActive(), true);
     assert.equal(
       frames.length,
       1,
@@ -405,6 +462,19 @@ test("auto follow settles again after virtual Room measurement", async () => {
       container.scrollTop,
       800,
       "virtual list height changes after layout must still finish at the bottom",
+    );
+    assert.equal(
+      animator.isActive(),
+      true,
+      "auto settlement must remain active until virtual measurements stay quiet",
+    );
+    for (let frame = 1; frame <= 4 && frames.length > 0; frame += 1) {
+      frames.shift()(frame * (1_000 / 60));
+    }
+    assert.equal(
+      animator.isActive(),
+      false,
+      "two stable frames release initialization ownership to Virtualizer",
     );
   } finally {
     if (originalWindow === undefined) {
@@ -543,17 +613,22 @@ test("explicit smooth scroll may close against a lower bottom target", async () 
   }
 });
 
-test("a user-triggered smooth scroll remains the only animated bottom path", async () => {
+test("stream growth takes over an explicit return-to-latest transaction", async () => {
   const { BottomScrollAnimator } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
   );
   const frames = [];
+  const cancelledFrames = [];
   const originalWindow = globalThis.window;
+  let nextFrameId = 0;
   globalThis.window = {
-    cancelAnimationFrame: () => {},
+    cancelAnimationFrame: (frameId) => {
+      cancelledFrames.push(frameId);
+    },
     requestAnimationFrame: (callback) => {
+      nextFrameId += 1;
       frames.push(callback);
-      return frames.length;
+      return nextFrameId;
     },
   };
 
@@ -566,15 +641,21 @@ test("a user-triggered smooth scroll remains the only animated bottom path", asy
     const animator = new BottomScrollAnimator(() => container, () => {});
     animator.scroll("smooth");
     assert.equal(frames.length, 1);
+    assert.equal(animator.isActive(), true);
 
     container.scrollHeight = 1_120;
     animator.follow();
+    assert.equal(animator.isActive(), false);
     assert.equal(
       container.scrollTop,
-      500,
-      "FOLLOW revisions must not interrupt the explicit user navigation",
+      620,
+      "the first committed stream growth must hand control back to synchronous FOLLOW",
     );
-    assert.equal(frames.length, 1);
+    assert.deepEqual(
+      cancelledFrames,
+      [1],
+      "the obsolete smooth frame must be cancelled before FOLLOW lands",
+    );
   } finally {
     if (originalWindow === undefined) {
       delete globalThis.window;
@@ -754,6 +835,32 @@ test("virtual resize correction ignores a long reply crossing the viewport", asy
     ),
     false,
     "growth at the tail of a visible long reply must not push paused reading",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 980 },
+      28,
+      {
+        getTotalSize: () => 1_000,
+        scrollOffset: 500,
+        scrollRect: { height: 500 },
+      },
+    ),
+    true,
+    "a measured tail growing from the real bottom must keep FOLLOW inside Virtualizer",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 980 },
+      28,
+      {
+        getTotalSize: () => 1_000,
+        scrollOffset: 450,
+        scrollRect: { height: 500 },
+      },
+    ),
+    false,
+    "the same tail growth must not move a reader who is away from the bottom",
   );
 });
 

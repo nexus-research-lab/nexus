@@ -1,18 +1,15 @@
 /**
- * INPUT: 输出加载态、可见态、Room 未读方向/数量与定位动作。
- * OUTPUT: 零布局占位的圆形回到底部入口，或只占自身热区的未读定位胶囊。
+ * INPUT: 可见态、Room 未读方向/数量与定位动作。
+ * OUTPUT: 不随运行态闪动的圆形回到底部入口，或只占自身热区的未读定位胶囊。
  * POS: 主对话与 Thread 共用的回到底部视觉控件。
  */
 import { ArrowDown, ArrowUp } from "lucide-react";
-
-import { cn } from "@/shared/ui/class-name";
 
 const FLOATING_ACTION_CHIP_CLASS_NAME =
   "grid h-8 w-8 place-items-center rounded-full border border-(--surface-control-border) bg-(--surface-control-background) text-(--text-default) shadow-(--surface-control-shadow) transition-[color,border-color,background,box-shadow] duration-(--motion-duration-fast) group-hover:border-(--surface-control-hover-border) group-hover:bg-(--surface-control-hover-background) group-hover:text-(--text-strong)";
 
 interface ScrollToLatestButtonProps {
   direction?: "above" | "below" | null;
-  isLoading: boolean;
   onClick: () => void;
   unreadCount?: number;
   visible: boolean;
@@ -20,7 +17,6 @@ interface ScrollToLatestButtonProps {
 
 export function ScrollToLatestButton({
   direction = null,
-  isLoading,
   onClick,
   unreadCount = 0,
   visible,
@@ -60,10 +56,7 @@ export function ScrollToLatestButton({
       <span className={FLOATING_ACTION_CHIP_CLASS_NAME}>
         <ArrowDown
           aria-hidden="true"
-          className={cn(
-            "block h-4 w-4 shrink-0",
-            isLoading ? "animate-bounce" : null,
-          )}
+          className="block h-4 w-4 shrink-0"
         />
       </span>
     </button>

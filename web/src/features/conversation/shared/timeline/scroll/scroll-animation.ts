@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前滚动容器、目标滚动行为与浏览器帧时序。
- * OUTPUT: paint 前同步 FOLLOW，或按实时底部阻尼移动的显式回到底部事务。
+ * OUTPUT: paint 前同步 FOLLOW，或只跨越既有距离并在内容增长时交还 FOLLOW 的显式回到底部事务。
  * POS: 会话 FOLLOW 与用户触发平滑定位的唯一 scrollTop 写入执行器。
  */
 import { getScrollBottomTop } from "./follow-scroll-model";
@@ -29,21 +29,27 @@ export class BottomScrollAnimator {
     private readonly observePosition: ScrollPositionObserver,
   ) {}
 
+  isActive(): boolean {
+    return this.animationMode !== null;
+  }
+
   follow(): void {
     const container = this.resolveContainer();
     if (!container) {
       return;
     }
 
-    // 用户点击“回到底部”后允许显式 smooth 事务完成；普通内容增长没有
-    // 动画中间态，React layout effect / ResizeObserver 会在 paint 前贴底。
+    // smooth 只负责跨越点击时已经存在的距离；一旦正文又提交新高度，
+    // FOLLOW 立即接管真实 bottom。初始化 settle 则保留到虚拟测高连续稳定，
+    // 避免长 Room 在首轮测量后仍停在旧 bottom。
     if (this.animationMode === "scroll") {
-      return;
-    }
-    if (this.animationMode === "settle") {
       this.cancel();
     }
     this.setPosition(container, getScrollBottomTop(container));
+    if (this.animationMode === "settle") {
+      this.stableFrameCount = 0;
+      this.scheduleFrame();
+    }
   }
 
   scroll(behavior: ScrollBehavior = "smooth"): void {
@@ -100,8 +106,19 @@ export class BottomScrollAnimator {
     }
 
     if (mode === "settle") {
-      this.setPosition(container, getScrollBottomTop(container));
-      this.resetMotion();
+      const targetTop = getScrollBottomTop(container);
+      const previousTop = container.scrollTop;
+      this.setPosition(container, targetTop);
+      this.stableFrameCount = (
+        Math.abs(targetTop - previousTop) <= SETTLE_DISTANCE_PX
+          ? this.stableFrameCount + 1
+          : 0
+      );
+      if (this.stableFrameCount >= REQUIRED_STABLE_FRAMES) {
+        this.resetMotion();
+        return;
+      }
+      this.scheduleFrame();
       return;
     }
 
