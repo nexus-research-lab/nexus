@@ -922,7 +922,7 @@ test("questions and plan confirmations use the same Composer replacement owner",
   assert.match(planHtml, />拒绝</);
 });
 
-test("DM and Room messages keep pending interactions as read-only evidence without a second action surface", async () => {
+test("DM and Room messages never remount interaction options outside the Composer", async () => {
   const { resolvePendingInteractionOwner } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/message-item-projection.ts",
   );
@@ -970,6 +970,77 @@ test("DM and Room messages keep pending interactions as read-only evidence witho
   assert.doesNotMatch(toolHtml, />允许</);
   assert.doesNotMatch(toolHtml, />拒绝</);
   assert.doesNotMatch(toolHtml, /data-human-interaction-surface/);
+
+  const questionTool = {
+    id: "tool-question-evidence",
+    input: {
+      questions: [{
+        header: "芯片类型",
+        multi_select: false,
+        options: [
+          { label: "Apple M3 / M4" },
+          { label: "ARM Cortex-M3 / M4" },
+        ],
+        question: "这里的 M3/M4 指哪类芯片？",
+      }],
+    },
+    name: "AskUserQuestion",
+    type: "tool_use",
+  };
+  const questionPermission = {
+    interaction_mode: "question",
+    request_id: "request-question-evidence",
+    tool_input: questionTool.input,
+    tool_name: questionTool.name,
+    tool_use_id: questionTool.id,
+  };
+  const questionEvidenceScenarios = [
+    {
+      content: [questionTool],
+      name: "unmatched live question",
+      pending: new Map(),
+    },
+    {
+      content: [questionTool],
+      name: "matched pending question",
+      pending: new Map([[questionTool.id, questionPermission]]),
+    },
+    {
+      content: [
+        questionTool,
+        {
+          content: "answered",
+          tool_use_id: questionTool.id,
+          type: "tool_result",
+        },
+      ],
+      name: "restored historical question",
+      pending: new Map(),
+    },
+  ];
+  for (const scenario of questionEvidenceScenarios) {
+    const questionEvidenceHtml = await renderWithI18n(
+      React.createElement(ContentRenderer, {
+        canRespondToPermissions: true,
+        content: scenario.content,
+        isStreaming: false,
+        onPermissionResponse: () => true,
+        pendingInteractionOwner: "composer",
+        pendingPermissionsByToolUseId: scenario.pending,
+      }),
+    );
+    assert.match(
+      questionEvidenceHtml,
+      /等待你的确认/,
+      `${scenario.name} should retain neutral tool evidence`,
+    );
+    assert.doesNotMatch(
+      questionEvidenceHtml,
+      /需要你的回应|芯片类型|Apple M3 \/ M4|ARM Cortex-M3 \/ M4|继续协作|ask-user-question|data-selected/,
+      `${scenario.name} must not remount the legacy question option tree`,
+    );
+  }
+
   const activityHtml = renderToStaticMarkup(React.createElement(
     MessageActivityStatus,
     { state: "waiting_permission" },

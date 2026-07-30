@@ -1,11 +1,10 @@
 /**
  * INPUT: tool block、精确匹配请求与 pending interaction owner。
- * OUTPUT: Room 内联交互、DM Composer-owned 只读证据，或普通工具执行块。
- * POS: StructuredContent 中工具展示与人工交互的分派边界。
+ * OUTPUT: 只读工具执行证据；结构化问答与权限操作统一由 Composer 持有。
+ * POS: StructuredContent 中禁止消息上下文重新挂载人工交互选项的工具展示边界。
  */
 import type { ReactNode } from "react";
 
-import type { UserQuestionAnswer } from "@/types/conversation/interaction/ask-user-question";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -16,9 +15,6 @@ import type {
   ToolUseContent,
 } from "@/types/conversation/message/content";
 
-import { ASK_USER_QUESTION_TOOL_NAME } from "../../../message-tool-names";
-import { AskUserQuestionBlock } from "../../../blocks/question/ask-user-question-block";
-import { PendingHumanQuestion } from "../../../blocks/question/pending-human-question";
 import { ToolBlock } from "../../../blocks/tool/tool-block";
 import type { ToolPermissionRequest } from "../../../blocks/tool/tool-block-types";
 import type { PendingInteractionOwner } from "../../message-item-projection";
@@ -45,13 +41,6 @@ interface ContentToolBlockState {
   waitingForPermission: boolean;
 }
 
-type QuestionSubmit = (
-  toolUseId: string,
-  answers: UserQuestionAnswer[],
-) => boolean;
-
-const DISABLED_QUESTION_SUBMIT: QuestionSubmit = () => false;
-
 export function ContentToolBlock({
   block,
   context,
@@ -64,47 +53,7 @@ export function ContentToolBlock({
     context.pendingPermission,
     context.projection,
   );
-  if (
-    context.pendingInteractionOwner === "composer"
-    && context.pendingPermission
-    && state.waitingForPermission
-  ) {
-    return renderStandardToolBlock(block, context, state);
-  }
-  if (block.name === ASK_USER_QUESTION_TOOL_NAME) {
-    return renderQuestionToolBlock(block, context, state);
-  }
   return renderStandardToolBlock(block, context, state);
-}
-
-function renderQuestionToolBlock(
-  block: ToolUseContent,
-  context: ContentToolBlockContext,
-  state: ContentToolBlockState,
-) {
-  if (context.pendingPermission && state.waitingForPermission) {
-    return (
-      <div data-human-interaction-surface>
-        <PendingHumanQuestion
-          canRespond={context.canRespondToPermissions}
-          onResponse={context.onPermissionResponse}
-          permission={context.pendingPermission}
-          readOnlyReason={context.permissionReadOnlyReason}
-          toolUse={block}
-        />
-      </div>
-    );
-  }
-  return (
-    <AskUserQuestionBlock
-      initialSubmitted={isSuccessfulResult(state.result)}
-      interactionDisabled={!context.canRespondToPermissions}
-      isReady={state.waitingForPermission}
-      onSubmit={createQuestionSubmit(context)}
-      toolResult={state.result}
-      toolUse={block}
-    />
-  );
 }
 
 function renderStandardToolBlock(
@@ -140,24 +89,6 @@ function resolveContentToolBlockState(
     toolUse,
     waitingForPermission: Boolean(pendingPermission) && !toolUse?.result,
   };
-}
-
-function createQuestionSubmit(
-  context: ContentToolBlockContext,
-): QuestionSubmit {
-  const { onPermissionResponse, pendingPermission } = context;
-  if (!pendingPermission || !onPermissionResponse) {
-    return DISABLED_QUESTION_SUBMIT;
-  }
-  return (_toolUseId, answers) => onPermissionResponse({
-    decision: "allow",
-    request_id: pendingPermission.request_id,
-    user_answers: answers,
-  });
-}
-
-function isSuccessfulResult(result: ToolResultContent | undefined): boolean {
-  return Boolean(result && !result.is_error);
 }
 
 function resolvePermissionRequest(
