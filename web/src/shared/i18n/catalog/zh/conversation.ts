@@ -1,5 +1,6 @@
 export const zhConversationMessages = {
   "tasks.label": "进程",
+  "tasks.switch_agent": "切换进程智能体",
   "tasks.step_progress": "第 {current} / {total} 步",
   "tasks.collapse_panel": "收起任务面板",
   "tasks.expand_panel": "展开任务面板",

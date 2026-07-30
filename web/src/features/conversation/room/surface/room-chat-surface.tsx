@@ -106,7 +106,6 @@ export function RoomChatSurface({
           roomId={roomId}
           roomMembers={roomMembers}
           runtimeKind={runtimeKind}
-          todos={todos}
         />
       )}
     </RoomChatErrorBoundary>

@@ -1,3 +1,8 @@
+/**
+ * INPUT: DM 会话、当前 Agent、Goal、Composer 与面板环境。
+ * OUTPUT: Feed、Goal、带来源的进程和输入区纯视图模型。
+ * POS: DM Chat 控制器状态到纯视图 props 的唯一投影入口。
+ */
 import type { RefObject } from "react";
 
 import {
@@ -96,6 +101,13 @@ export function buildDmChatPanelViewModel({
       workspaceAgentId,
     }),
     goalPanel: buildDmGoalPanelModel(goal, goalScopeLabel, session),
+    taskSource: workspaceAgentId && currentAgentName
+      ? {
+          agentId: workspaceAgentId,
+          avatar: currentAgentAvatar,
+          name: currentAgentName,
+        }
+      : undefined,
     todos,
   };
 }

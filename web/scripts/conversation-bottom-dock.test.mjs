@@ -451,6 +451,11 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
   });
   const html = await renderWithI18n(
     React.createElement(WorkspaceTaskPanel, {
+      source: {
+        agentId: "researcher",
+        avatar: null,
+        name: "Researcher",
+      },
       todos,
     }),
   );
@@ -458,6 +463,8 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
   assert.match(html, /data-workspace-task-panel="true"/);
   assert.match(html, /data-workspace-task-trigger="true"/);
   assert.match(html, /data-workspace-task-summary="正在核对布局"/);
+  assert.match(html, /data-workspace-task-agent-id="researcher"/);
+  assert.match(html, /Researcher/);
   assert.match(html, /\bh-11\b/);
   assert.match(html, /\brounded-full\b/);
   assert.match(html, /第 2 \/ 3 步/);
@@ -481,6 +488,95 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
       < taskSource.indexOf("data-placement=\"top\""),
     "the trigger must precede its detail panel in DOM and tab order",
   );
+});
+
+test("Room progress stays isolated by Agent and selection follows the latest process until chosen", async () => {
+  const { projectConversationTodoProcesses } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/todos/todo-projection-model.ts",
+  );
+  const { resolveRoomTaskSelection } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/panel/view/room-workspace-task-model.ts",
+  );
+  const sessionKey = "room:conversation";
+  const assistantMessage = ({
+    agentId,
+    content,
+    index,
+    roundId,
+  }) => ({
+    agent_id: agentId,
+    content: [{
+      id: `todo-${index}`,
+      input: { todos: content },
+      name: "TodoWrite",
+      type: "tool_use",
+    }],
+    message_id: `message-${index}`,
+    role: "assistant",
+    round_id: roundId,
+    session_key: sessionKey,
+    timestamp: index,
+  });
+  const processes = projectConversationTodoProcesses([
+    assistantMessage({
+      agentId: "lead",
+      content: [{ content: "整合结论", status: "in_progress" }],
+      index: 1,
+      roundId: "round-lead",
+    }),
+    assistantMessage({
+      agentId: "researcher",
+      content: [{ content: "核对来源", status: "in_progress" }],
+      index: 2,
+      roundId: "round-researcher",
+    }),
+  ], sessionKey);
+
+  assert.deepEqual(processes.map((process) => ({
+    agentId: process.agentId,
+    latestTaskEventIndex: process.latestTaskEventIndex,
+    todos: process.todos,
+  })), [
+    {
+      agentId: "lead",
+      latestTaskEventIndex: 0,
+      todos: [{ content: "整合结论", status: "in_progress" }],
+    },
+    {
+      agentId: "researcher",
+      latestTaskEventIndex: 1,
+      todos: [{ content: "核对来源", status: "in_progress" }],
+    },
+  ]);
+
+  const members = [
+    { agent_id: "lead", avatar: null, name: "Lead" },
+    { agent_id: "researcher", avatar: null, name: "Researcher" },
+    { agent_id: "analyst", avatar: null, name: "Analyst" },
+  ];
+  const automaticSelection = resolveRoomTaskSelection(
+    processes,
+    members,
+    null,
+  );
+  assert.equal(automaticSelection.process.agentId, "researcher");
+  assert.deepEqual(
+    automaticSelection.members.map((member) => member.agent_id),
+    ["lead", "researcher"],
+  );
+  assert.equal(
+    resolveRoomTaskSelection(processes, members, "lead").process.agentId,
+    "lead",
+  );
+
+  const roomTaskPanelSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/group/chat/panel/view/room-workspace-task-panel.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(roomTaskPanelSource, /<RoomAgentSwitcher/);
 });
 
 test("Room and DM stack Goal, Task, and scroll controls upward from the Composer", async () => {
@@ -531,8 +627,9 @@ test("Room and DM stack Goal, Task, and scroll controls upward from the Composer
   assert.match(groupView, /<ConversationPanelViewportArea/);
   assert.doesNotMatch(dmView, /bottom-\[156px\]/);
   assert.doesNotMatch(groupView, /bottom-\[156px\]/);
-  assert.match(dmView, /model\.todos\.length > 0[\s\S]*<WorkspaceTaskPanel todos=\{model\.todos\} \/>/);
-  assert.match(groupView, /model\.todos\.length > 0[\s\S]*<WorkspaceTaskPanel todos=\{model\.todos\} \/>/);
+  assert.match(dmView, /model\.todos\.length > 0[\s\S]*<WorkspaceTaskPanel[\s\S]*source=\{model\.taskSource\}[\s\S]*todos=\{model\.todos\}/);
+  assert.match(groupView, /model\.taskProcesses\.length > 0[\s\S]*<RoomWorkspaceTaskPanel[\s\S]*processes=\{model\.taskProcesses\}[\s\S]*roomMembers=\{model\.taskProcessMembers\}/);
+  assert.match(groupView, /room-workspace-task-panel/);
 
   const layoutSource = await readFile(
     path.join(

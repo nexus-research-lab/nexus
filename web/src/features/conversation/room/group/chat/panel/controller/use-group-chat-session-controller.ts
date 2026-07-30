@@ -1,7 +1,12 @@
+/**
+ * INPUT: Room 会话身份、事件回调与共享消息流。
+ * OUTPUT: 会话控制器、快照观察器及按 Agent 隔离的进程投影。
+ * POS: Group Chat transport/session 到面板模型之间的有状态装配层。
+ */
 import { useCallback, useEffect, useMemo } from "react";
 
 import { useConversationSession } from "@/features/conversation/shared/session/use-conversation-session";
-import { useConversationTodos } from "@/features/conversation/shared/todos/use-conversation-todos";
+import { useConversationTodoProcesses } from "@/features/conversation/shared/todos/use-conversation-todos";
 import {
   buildConversationActivityPatch,
   useConversationSnapshotReporter,
@@ -66,7 +71,7 @@ export function useGroupChatSessionController({
     onRoomEvent: handleRoomEvent,
   });
 
-  useGroupConversationObservers({
+  const taskProcesses = useGroupConversationObservers({
     conversationId,
     messages: session.conversation.messages,
     onConversationSnapshotChange,
@@ -74,7 +79,10 @@ export function useGroupChatSessionController({
     sessionKey: session.sessionKey,
   });
 
-  return session;
+  return {
+    ...session,
+    taskProcesses,
+  };
 }
 
 function useGroupConversationObservers({
@@ -91,15 +99,29 @@ function useGroupConversationObservers({
   ) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
   sessionKey: string | null;
-}): void {
-  const todos = useConversationTodos(messages, sessionKey);
-  useEffect(() => onTodosChange?.(todos), [onTodosChange, todos]);
+}) {
+  const taskProcesses = useConversationTodoProcesses(messages, sessionKey);
+  const latestTodos = useMemo(() => (
+    taskProcesses.reduce<{
+      latestTaskEventIndex: number;
+      todos: TodoItem[];
+    } | null>((latest, process) => (
+      !latest || process.latestTaskEventIndex > latest.latestTaskEventIndex
+        ? process
+        : latest
+    ), null)?.todos ?? []
+  ), [taskProcesses]);
+  useEffect(
+    () => onTodosChange?.(latestTodos),
+    [latestTodos, onTodosChange],
+  );
   useConversationSnapshotReporter({
     build_snapshot: buildRoomSnapshot,
     messages,
     on_snapshot_change: onConversationSnapshotChange,
     scope_key: conversationId,
   });
+  return taskProcesses;
 }
 
 function buildRoomSnapshot(
