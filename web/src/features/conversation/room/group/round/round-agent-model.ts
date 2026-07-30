@@ -379,12 +379,14 @@ function getAgentRoundStatus(
   return pendingSlot?.status ?? messageStatus;
 }
 
-function boundStatusByExecutionTerminal(
+function boundStatusByExecutionLifecycle(
   status: AgentRoundStatus,
   executionState?: RoomAgentExecutionState,
-  continuingToolTurn: boolean = false,
+  hasTerminalResult: boolean = false,
 ): AgentRoundStatus {
-  if (executionState?.phase === "active" && continuingToolTurn) {
+  if (executionState?.phase === "active" && !hasTerminalResult) {
+    // Thread lifecycle 仍 active 时，一次 Assistant message_stop / is_complete
+    // 只代表 turn 边界；主 Feed 必须继续投影动态活动状态。
     return executionState.status;
   }
   if (executionState?.phase !== "terminal") {
@@ -499,10 +501,10 @@ function buildRoomAgentRoundEntry(
         continuingToolTurn,
       )
     : executionState?.status ?? "pending";
-  const status = boundStatusByExecutionTerminal(
+  const status = boundStatusByExecutionLifecycle(
     projectedStatus,
     executionState,
-    continuingToolTurn,
+    Boolean(resultSummary),
   );
   return {
     entry_id: entryId,

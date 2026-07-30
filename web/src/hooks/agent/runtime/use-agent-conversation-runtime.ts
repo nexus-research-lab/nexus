@@ -40,6 +40,7 @@ import {
   applyRoomAgentExecutionStatus,
   applyRoomExecutionRootStatus,
   removeRoomAgentExecutionRound,
+  syncRoomAgentExecutionFromLiveMessage,
   stopRoomAgentExecutions,
   syncRoomAgentExecutionFromStream,
   syncRoomAgentExecutionsFromMessages,
@@ -200,7 +201,7 @@ export function useAgentConversationRuntime({
       trackRuntimeAssistantMessage(message);
       if (chatType === "group") {
         setRoomAgentExecutionStates((states) => (
-          syncRoomAgentExecutionsFromMessages(states, [message])
+          syncRoomAgentExecutionFromLiveMessage(states, message)
         ));
       }
       setPendingAgentSlots((slots) => (

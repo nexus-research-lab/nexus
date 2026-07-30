@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Session 的 Room execution 顺序锚点，以及 permission / slot / message / lifecycle 证据。
- * OUTPUT: keyed by root round + agent_round 且跨 permission/slot/message 共用毫秒尺度的 canonical 初始顺序、首次可见锚点和 acknowledged 非交互 tombstone。
+ * OUTPUT: keyed by root round + agent_round 且跨 permission/slot/message 共用毫秒尺度的 canonical 初始顺序、首次可见锚点和 acknowledged 非交互 tombstone；live Assistant turn 不越权收口仍在运行的 Thread。
  * POS: Room execution shell 连续性的纯状态转换；React 状态与协议发送只负责调用。
  */
 import type {
@@ -334,10 +334,38 @@ function resolveMessageStatus(
   return message.stream_status ?? "streaming";
 }
 
-export function syncRoomAgentExecutionsFromMessages(
+function resolveLiveMessageStatus(
+  message: AssistantMessage,
+): AssistantMessageStatus {
+  if (!message.result_summary) {
+    // message_stop / is_complete 只结束当前 Assistant turn。一个 Room slot
+    // 仍可能在同一 agent_round 内继续工具调用或下一次模型 turn；
+    // execution 终态必须等待 agent/root lifecycle 或 result_summary。
+    return "streaming";
+  }
+  return resolveMessageStatus(message);
+}
+
+function resolveSnapshotMessageStatus(
+  message: AssistantMessage,
+  currentState?: RoomAgentExecutionState,
+): AssistantMessageStatus {
+  return currentState && currentState.phase !== "terminal"
+    ? resolveLiveMessageStatus(message)
+    : resolveMessageStatus(message);
+}
+
+function syncRoomAgentExecutionMessageEvidence(
   current: RoomAgentExecutionState[],
   messages: Message[],
+  statusForMessage: (
+    message: AssistantMessage,
+    currentState?: RoomAgentExecutionState,
+  ) => AssistantMessageStatus,
 ): RoomAgentExecutionState[] {
+  const currentByExecution = new Map(
+    current.map((state) => [executionKey(state), state]),
+  );
   return syncEvidence(current, messages.flatMap((message) => {
     if (message.role !== "assistant") {
       return [];
@@ -350,7 +378,13 @@ export function syncRoomAgentExecutionsFromMessages(
     if (!identity) {
       return [];
     }
-    const status = resolveMessageStatus(message);
+    const status = statusForMessage(
+      message,
+      currentByExecution.get(buildExecutionKey(
+        identity.roundId,
+        identity.agentRoundId,
+      )),
+    );
     return [{
       ...identity,
       firstSeenAt: message.timestamp,
@@ -362,6 +396,30 @@ export function syncRoomAgentExecutionsFromMessages(
       status,
     }];
   }));
+}
+
+/** Snapshot 消息兼容缺少 lifecycle / result_summary 的旧历史终态。 */
+export function syncRoomAgentExecutionsFromMessages(
+  current: RoomAgentExecutionState[],
+  messages: Message[],
+): RoomAgentExecutionState[] {
+  return syncRoomAgentExecutionMessageEvidence(
+    current,
+    messages,
+    resolveSnapshotMessageStatus,
+  );
+}
+
+/** Live 消息只更新 execution 证据，不能把一次 Assistant turn 当成整个 Thread。 */
+export function syncRoomAgentExecutionFromLiveMessage(
+  current: RoomAgentExecutionState[],
+  message: AssistantMessage,
+): RoomAgentExecutionState[] {
+  return syncRoomAgentExecutionMessageEvidence(
+    current,
+    [message],
+    resolveLiveMessageStatus,
+  );
 }
 
 export function syncRoomAgentExecutionFromStream(

@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed active Room Agent Threads going visually idle in the public feed after an intermediate Assistant turn completed; the same card now keeps showing its thinking/replying activity until the authoritative Agent execution lifecycle finishes.
 - Fixed Composer height measurement using estimated line geometry that omitted real textarea padding and could retain an oversized shell during IME input or width changes. Composer now measures the browser's actual layout, and locally dispatched messages clear from the input immediately instead of waiting for the WebSocket acknowledgement; failed sends restore the submitted draft only when no newer input would be overwritten.
 - Fixed DM history reloads losing user messages and misordering Agent replies when runtime memory events reused a self-referential UUID or Goal/Skill metadata interrupted transcript alignment; valid parent chains now win, injected runtime context is excluded from user matching, hidden Goal markers cannot positionally consume ordinary input, and durable visible markers recover users when a transcript remains incomplete.
 - Scoped the desktop conversation-header fade to the chat pane's own clipped reading edge, so opening Workspace, Agent details, or Subagents no longer washes out the neighboring panel; focus-mode mobile conversations retain the full-width fade.

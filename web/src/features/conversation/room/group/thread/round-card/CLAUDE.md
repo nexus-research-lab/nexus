@@ -14,6 +14,7 @@
 - 身份映射由群聊面板完整提供，本目录不接受缺失目录后再补空对象。
 - 活动状态与最终正文沿用共享 `MessageItem` 投影；Room 只从同一 execution entry 投影“思考/执行/回复/等待”语义，并补充执行身份、Thread/停止动作和无消息终态。
 - 公区保留进行中 slot 的身份、加载标识和 Thread 入口；流式正文直接在同一 Assistant 内容列增长，不得先压成单行摘要再整体切换终态组件。
+- 公区正文的单次 turn 即使已经完成，只要同一 `agent_round_id` 的 lifecycle 仍 active，就必须在原卡片正文后继续显示共享活动提示；只有 lifecycle terminal 或 `result_summary` 才移除。
 - 卡片与 Thread 选择态以 `agent_round_id` 隔离；同 Agent 的历史执行与当前执行不得共用 React key 或展开态。
 - 单目标 guide 优先按持久化的消费方 `agent_round_id` 归卡；只有旧历史缺少该身份时才按时间兼容。
 - Agent 卡片只按稳定 `display_order` / slot 顺序排列；pending、streaming、terminal 状态变化以及 guide 到达都不得移动已展示卡片。

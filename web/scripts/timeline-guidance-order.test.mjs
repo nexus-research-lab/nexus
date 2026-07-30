@@ -1621,6 +1621,34 @@ test("Room public activity survives the pause between reply text and tool work",
     "a pending slot uses the shared activity surface exactly once",
   );
 
+  const completedPublicTurn = assistantMessage({
+    agentId: "agent-public-activity",
+    agentRoundId: "agent-round-public-activity",
+    isComplete: true,
+    messageId: "assistant-public-turn",
+    roundId: "round-public-activity",
+    status: "done",
+    stopReason: "end_turn",
+    text: "我先说明计划，随后继续在 Thread 中执行。",
+    timestamp: 2,
+  });
+  const continuedHtml = renderShell({
+    messages: [completedPublicTurn],
+    status: "streaming",
+  });
+  assert.match(continuedHtml, /我先说明计划，随后继续在/);
+  assert.match(continuedHtml, /中执行。/);
+  assert.match(
+    continuedHtml,
+    /正在思考/,
+    "an active Agent Thread keeps a public activity row after an intermediate text turn completes",
+  );
+  assert.equal(
+    continuedHtml.match(/message-activity-spinner-track/g)?.length,
+    1,
+    "the continued Thread activity stays inside the existing Agent card",
+  );
+
   const toolContinuation = {
     ...assistantMessage({
       agentId: "agent-public-activity",
@@ -5097,11 +5125,12 @@ test("Room acknowledged permission keeps one non-interactive node until evidence
   assert.equal(staleRunning[0]?.status, "error");
 });
 
-test("Room tool-use turn stop keeps its agent execution active", async () => {
+test("Room Assistant turn completion keeps its Agent execution active", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
   );
   const {
+    syncRoomAgentExecutionFromLiveMessage,
     syncRoomAgentExecutionFromStream,
     syncRoomAgentExecutionsFromMessages,
   } = await server.ssrLoadModule(
@@ -5140,6 +5169,47 @@ test("Room tool-use turn stop keeps its agent execution active", async () => {
   );
   assert.equal(fromDurableTurn[0]?.phase, "active");
   assert.equal(fromDurableTurn[0]?.status, "streaming");
+
+  const completedPublicTurn = assistantMessage({
+    agentId: "agent-tool",
+    agentRoundId,
+    isComplete: true,
+    messageId: "assistant-public-turn",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "我先同步计划，Thread 继续执行。",
+    timestamp: 3,
+  });
+  const afterCompletedLiveTurn = syncRoomAgentExecutionFromLiveMessage(
+    fromStream,
+    completedPublicTurn,
+  );
+  assert.equal(
+    afterCompletedLiveTurn[0]?.phase,
+    "active",
+    "a live Assistant turn cannot close its enclosing Agent execution",
+  );
+  assert.equal(afterCompletedLiveTurn[0]?.status, "streaming");
+  const afterActiveSnapshot = syncRoomAgentExecutionsFromMessages(
+    fromStream,
+    [completedPublicTurn],
+  );
+  assert.equal(
+    afterActiveSnapshot[0]?.phase,
+    "active",
+    "a reconnect snapshot cannot close an already observed live execution",
+  );
+  assert.equal(
+    buildRoomAgentRoundEntries(
+      [completedPublicTurn],
+      [],
+      [],
+      afterCompletedLiveTurn,
+    )[0]?.status,
+    "streaming",
+    "the public card must follow the active Agent lifecycle while its Thread continues",
+  );
 
   const activeSlot = {
     agent_id: "agent-tool",
