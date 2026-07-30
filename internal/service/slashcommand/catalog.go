@@ -11,7 +11,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
-const catalogGeneration = 1
+const catalogGeneration = 2
 
 // RuntimeCatalogSnapshot 是当前 Nexus 版本内置的单个 runtime 指令快照。
 type RuntimeCatalogSnapshot struct {
@@ -37,6 +37,11 @@ func NewCatalog() *Catalog {
 			agentclient.RuntimeNXS: newRuntimeSnapshot(
 				agentclient.RuntimeNXS,
 				[]protocol.CommandDescriptor{
+					newRuntimeCommand(
+						"compact",
+						"Free up context by summarizing the conversation so far",
+						"<optional instructions>",
+					),
 					newRuntimeCommand(
 						"model",
 						"Set the AI model for this session",

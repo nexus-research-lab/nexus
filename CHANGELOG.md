@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Aligned the nxs Composer catalog with Claude Code's shared core commands by adding native `/compact [instructions]`, while retaining `/summary` as the separate nxs session-summary operation.
 - Made Skill update checks distinguish current, update-available, and source-failure results without parsing display text; deleted Git branches now produce an actionable re-import explanation instead of the contradictory “no updates, cannot check” state.
 - Unified the DM and Room bottom work area into one Composer-based upward stack: active Goal and provider state now sit directly above the input as a narrower raised layer, while Task progress and return-to-latest controls float above that layer without an artificial runway or message-flow jump.
 - Softened the Room and DM reading edges with non-interactive component-edge fades: each header now dissolves into scrolling text without changing its 60px/52px geometry, while the Composer feathers only when it directly meets messages and yields cleanly to stacked Goal or warning surfaces.

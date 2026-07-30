@@ -29,10 +29,14 @@ canonical 名称。
 
 当前版本清单：
 
-- nxs：`model`、`summary`
-- Claude Code：`clear`、`color`、`compact`、`config`、`context`、`effort`、`fast`、
-  `goal`、`heapdump`、`init`、`insights`、`mcp`、`model`、`recap`、
-  `reload-skills`、`rename`、`review`、`security-review`、`team-onboarding`、`usage`
+- nxs：`compact`、`model`、`skills`、`summary`
+- Claude Code：`compact`、`model`、`skills`
+
+其中 `compact`、`model` 与 `skills` 是两个 runtime 在 Composer 中共享的核心入口；
+`summary` 是 nxs 独有的会话摘要维护命令。`skills` 由 Composer 打开完整 Skill
+选择器并替换为选中的具体 `/skill-name`，不会把字面量 `/skills` 发给 runtime。
+`compact` 与 `summary` 语义不同：前者立即压缩当前模型上下文并写入可恢复边界，
+后者更新独立的 session summary 文件。
 
 这份清单只承诺 Nexus 版本固定支持的内置指令，不把用户本机的 Skill、插件或
 MCP 动态命令伪装成全局可用项。

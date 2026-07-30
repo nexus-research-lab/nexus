@@ -16,7 +16,7 @@ func TestCatalogReturnsVersionedRuntimeManifests(t *testing.T) {
 	}{
 		{
 			kind:         agentclient.RuntimeNXS,
-			wantCommands: []string{"model", "skills", "summary"},
+			wantCommands: []string{"compact", "model", "skills", "summary"},
 		},
 		{
 			kind: agentclient.RuntimeClaude,
