@@ -143,9 +143,6 @@ func (m *controlMessage) handleChat() {
 		})
 	}
 	m.reportChatFailure(clientRequestID, clientMessageID, err)
-	if err == nil && m.parsed.Kind == protocol.SessionKeyKindAgent {
-		_ = m.handler.broadcastCommandCatalog(m.ctx, m.sessionKey, m.parsed)
-	}
 }
 
 func (m *controlMessage) executeHostCommand(

@@ -123,7 +123,7 @@ function resolveSlashCommandEmptyCopy(
   status: CommandCatalogStatus,
   t: ReturnType<typeof useI18n>["t"],
 ): string {
-  if (status === "cold" || status === "starting") {
+  if (status === "cold") {
     return t("composer.slash_commands_loading");
   }
   if (status === "unavailable") {

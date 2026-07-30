@@ -1,10 +1,15 @@
 package server
 
 import (
+	"context"
+
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	handlerwebsocket "github.com/nexus-research-lab/nexus/internal/handler/websocket"
-	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
+	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
+	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
+
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
 func newWebSocketHandler(
@@ -24,8 +29,34 @@ func newWebSocketHandler(
 		services.Workspace,
 		newRuntimeSnapshotProvider(services),
 		cfg.AllowedWebSocketOrigins,
-		slashcommandsvc.NewRegistry(),
+		services.SlashRegistry,
+		services.SlashCatalog,
+		newRuntimeKindResolver(services),
 	)
+}
+
+func newRuntimeKindResolver(
+	services *AppServices,
+) func(context.Context, string) (agentclient.RuntimeKind, error) {
+	return func(ctx context.Context, agentID string) (agentclient.RuntimeKind, error) {
+		if services == nil || services.Core == nil || services.Core.Agent == nil {
+			return agentclient.RuntimeNXS, nil
+		}
+		agent, err := services.Core.Agent.GetAgent(ctx, agentID)
+		if err != nil {
+			return "", err
+		}
+		selection, err := runtimeselectionsvc.NewService(services.Preferences).Resolve(
+			ctx,
+			runtimeselectionsvc.Request{Agent: agent},
+		)
+		if err != nil {
+			return "", err
+		}
+		return agentclient.RuntimeKind(
+			runtimeprovider.NormalizeRuntimeKind(selection.RuntimeKind),
+		), nil
+	}
 }
 
 func newRuntimeSnapshotProvider(services *AppServices) func(string) handlerwebsocket.RuntimeSnapshot {

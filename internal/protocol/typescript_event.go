@@ -89,7 +89,7 @@ export interface RuntimeStatusData {
   status: 'compacting' | null;
 }
 
-export type CommandCatalogStatus = 'cold' | 'starting' | 'ready' | 'unavailable';
+export type CommandCatalogStatus = 'cold' | 'ready' | 'unavailable';
 export type CommandExecution = 'host' | 'runtime' | 'unsupported';
 
 export interface CommandDescriptor {

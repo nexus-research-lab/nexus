@@ -30,6 +30,7 @@ import (
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
@@ -63,6 +64,8 @@ type AppServices struct {
 	Goal              *goalsvc.Service
 	Loops             *loopsvc.Service
 	MemoryMaintenance *memorymaintenancesvc.Coordinator
+	SlashCatalog      *slashcommandsvc.Catalog
+	SlashRegistry     *slashcommandsvc.Registry
 }
 
 // Close 等待仍可能写入 workspace 的标题任务结束。
@@ -167,6 +170,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	automationService.SetLogger(logger.With("component", "automation"))
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
+	slashCommandCatalog := slashcommandsvc.NewCatalog()
+	slashCommandRegistry := slashcommandsvc.NewRegistry()
 
 	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	automationBuilder := newAutomationMCPBuilder(automationService, cfg.DefaultTimezone)
@@ -212,6 +217,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Goal:              goalService,
 		Loops:             loopService,
 		MemoryMaintenance: memoryMaintenance,
+		SlashCatalog:      slashCommandCatalog,
+		SlashRegistry:     slashCommandRegistry,
 	}
 }
 

@@ -349,20 +349,7 @@ func (e *slotExecution) connectRuntimeOnce(runtimeValue preparedSlotRuntime) (ru
 	}
 	e.slot.setRuntimeKind(string(e.service.runtime.RuntimeKind(e.slot.RuntimeSessionKey)))
 	e.slot.setClient(client)
-	generation := e.service.runtime.BeginRuntimeConnection(
-		e.slot.RuntimeSessionKey,
-		client,
-		e.service.runtime.HasSession(e.slot.RuntimeSessionKey),
-	)
 	if err = client.Connect(e.ctx); err != nil {
-		e.service.runtime.MarkCommandCatalogColdForGeneration(
-			e.slot.RuntimeSessionKey,
-			client,
-			generation,
-		)
-		return nil, err
-	}
-	if err = e.service.runtime.SyncCommandCatalog(e.ctx, e.slot.RuntimeSessionKey, client); err != nil {
 		return nil, err
 	}
 	reusedWarmSession := hadWarmSession && previousClient == client

@@ -23,6 +23,11 @@ test("slash query only opens at the beginning of a message", async () => {
     "/src/features/conversation/shared/composer/slash-command-model.ts",
   );
 
+  assert.deepEqual(findSlashCommandTextMatch("/", 1, true), {
+    end: 1,
+    query: "",
+    start: 0,
+  });
   assert.deepEqual(findSlashCommandTextMatch("/rev", 4, true), {
     end: 4,
     query: "rev",
@@ -65,6 +70,10 @@ test("slash selection inserts a normal host or runtime message", async () => {
   assert.deepEqual(
     filterSlashCommands(commands, "code").map((command) => command.name),
     ["review"],
+  );
+  assert.deepEqual(
+    filterSlashCommands(commands, "").map((command) => command.name),
+    ["review", "compact", "github:review (MCP)"],
   );
   assert.equal(isSelectableSlashCommand(commands[0]), true);
   assert.equal(
@@ -173,7 +182,7 @@ test("Room host command catalog events stay scoped to the selected Agent", async
   assert.equal(received[0].agent_id, "agent-a");
 });
 
-test("authoritative snapshots ignore stale runtime generations", async () => {
+test("authoritative snapshots ignore stale generations and status", async () => {
   const { selectCommandCatalogSnapshot } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-data.ts",
   );
@@ -189,20 +198,20 @@ test("authoritative snapshots ignore stale runtime generations", async () => {
   assert.equal(selectCommandCatalogSnapshot(ready, {
     commands: [],
     generation: 1,
-    status: "starting",
+    status: "unavailable",
   }), ready);
   assert.equal(selectCommandCatalogSnapshot(ready, {
     commands: [],
     generation: 2,
-    status: "starting",
+    status: "unavailable",
   }), ready);
   assert.deepEqual(selectCommandCatalogSnapshot(ready, {
     commands: [],
     generation: 3,
-    status: "starting",
+    status: "unavailable",
   }), {
     commands: [],
     generation: 3,
-    status: "starting",
+    status: "unavailable",
   });
 });

@@ -43,7 +43,6 @@ func (h *Handler) handleBindSession(
 			h.sendGatewayError(ctx, sender, sessionKey, "input_queue_error", err, map[string]any{"type": "bind_session"})
 		}
 	}
-	h.startBoundCommandCatalog(ctx, sender, sessionKey, parsed)
 }
 
 func (h *Handler) handleUnbindSession(

@@ -65,9 +65,6 @@ func (s *Server) Close(ctx context.Context) error {
 	if s == nil {
 		return nil
 	}
-	if s.handlers.websocket != nil {
-		s.handlers.websocket.Close()
-	}
 	if s.services == nil {
 		return nil
 	}

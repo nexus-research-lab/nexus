@@ -1,6 +1,6 @@
-// INPUT: WebSocket session 请求、Nexus host command 与 runtime 初始化能力快照。
+// INPUT: WebSocket session 请求、Nexus host command 与内置 runtime 指令快照。
 // OUTPUT: 合并且仅含安全元数据的 session-scoped command_catalog 权威事件。
-// POS: Nexus/bridge runtime 命令目录到浏览器补全协议的唯一投影边界。
+// POS: Nexus 版本化命令目录到浏览器补全协议的唯一投影边界。
 package websocket
 
 import (
@@ -14,9 +14,7 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -45,106 +43,6 @@ func (h *Handler) commandCatalogEvent(
 	return protocol.NewCommandCatalogEvent(sessionKey, data), nil
 }
 
-func (h *Handler) broadcastCommandCatalog(
-	ctx context.Context,
-	sessionKey string,
-	parsed protocol.SessionKey,
-) error {
-	if h == nil || h.permission == nil {
-		return nil
-	}
-	data, err := h.commandCatalogData(ctx, parsed, parsed.AgentID)
-	if err != nil {
-		return err
-	}
-	errs := h.permission.BroadcastEvent(
-		ctx,
-		sessionKey,
-		protocol.NewCommandCatalogEvent(sessionKey, data),
-	)
-	if len(errs) > 0 {
-		return errs[0]
-	}
-	return nil
-}
-
-func (h *Handler) initializeBoundCommandCatalog(
-	ctx context.Context,
-	sender *handlershared.WebSocketSender,
-	sessionKey string,
-	parsed protocol.SessionKey,
-) {
-	if parsed.Kind != protocol.SessionKeyKindAgent || h.dm == nil {
-		return
-	}
-	snapshot, err := h.commandCatalogSnapshot(ctx, sessionKey)
-	if err != nil {
-		h.sendGatewayError(ctx, sender, sessionKey, "command_catalog_error", err, map[string]any{
-			"type": "bind_session",
-		})
-		return
-	}
-	if h.runtime != nil &&
-		h.runtime.HasSession(sessionKey) &&
-		(snapshot.Status == runtimectx.CommandCatalogStatusReady ||
-			snapshot.Status == runtimectx.CommandCatalogStatusUnavailable) {
-		return
-	}
-	starting := snapshot
-	starting.Status = runtimectx.CommandCatalogStatusStarting
-	h.broadcastProjectedCommandCatalog(ctx, sessionKey, parsed.AgentID, starting)
-
-	if err = h.dm.EnsureRuntimeSession(ctx, sessionKey, parsed.AgentID); err != nil {
-		failed, snapshotErr := h.commandCatalogSnapshot(ctx, sessionKey)
-		if snapshotErr != nil {
-			failed = starting
-		}
-		failed = projectCommandCatalogStartupFailure(failed)
-		h.broadcastProjectedCommandCatalog(ctx, sessionKey, parsed.AgentID, failed)
-		h.sendGatewayError(ctx, sender, sessionKey, "command_catalog_error", err, map[string]any{
-			"type": "bind_session",
-		})
-		return
-	}
-	if err = h.broadcastCommandCatalog(ctx, sessionKey, parsed); err != nil {
-		h.sendGatewayError(ctx, sender, sessionKey, "command_catalog_error", err, map[string]any{
-			"type": "bind_session",
-		})
-	}
-}
-
-func projectCommandCatalogStartupFailure(
-	snapshot runtimectx.CommandCatalogSnapshot,
-) runtimectx.CommandCatalogSnapshot {
-	// cold 只表示尚未尝试；启动失败必须投影为终态，否则 Composer 会
-	// 永久显示“正在加载”。并发的新代际若已经 ready，则保留其权威结果。
-	if snapshot.Status != runtimectx.CommandCatalogStatusReady {
-		snapshot.Status = runtimectx.CommandCatalogStatusUnavailable
-	}
-	return snapshot
-}
-
-func (h *Handler) broadcastProjectedCommandCatalog(
-	ctx context.Context,
-	sessionKey string,
-	agentID string,
-	snapshot runtimectx.CommandCatalogSnapshot,
-) {
-	if h == nil || h.permission == nil {
-		return
-	}
-	data := projectCommandCatalog(
-		snapshot,
-		agentID,
-		h.hostCommandDescriptors(slashcommandsvc.ScopeDM),
-	)
-	_ = h.permission.BroadcastEvent(
-		ctx,
-		sessionKey,
-		protocol.NewCommandCatalogEvent(sessionKey, data),
-	)
-}
-
 func (h *Handler) commandCatalogData(
 	ctx context.Context,
 	parsed protocol.SessionKey,
@@ -152,7 +50,7 @@ func (h *Handler) commandCatalogData(
 ) (protocol.CommandCatalogData, error) {
 	switch parsed.Kind {
 	case protocol.SessionKeyKindAgent:
-		snapshot, err := h.commandCatalogSnapshot(ctx, parsed.Raw)
+		snapshot, err := h.commandCatalogSnapshot(ctx, agentID)
 		if err != nil {
 			return protocol.CommandCatalogData{}, err
 		}
@@ -163,8 +61,8 @@ func (h *Handler) commandCatalogData(
 		), nil
 	case protocol.SessionKeyKindRoom:
 		return projectCommandCatalog(
-			runtimectx.CommandCatalogSnapshot{
-				Status: runtimectx.CommandCatalogStatusUnavailable,
+			slashcommandsvc.RuntimeCatalogSnapshot{
+				Status: protocol.CommandCatalogStatusUnavailable,
 			},
 			agentID,
 			h.hostCommandDescriptors(slashcommandsvc.ScopeRoom),
@@ -244,31 +142,31 @@ func (h *Handler) hostCommandDescriptors(scope slashcommandsvc.Scope) []protocol
 
 func (h *Handler) commandCatalogSnapshot(
 	ctx context.Context,
-	runtimeSessionKey string,
-) (runtimectx.CommandCatalogSnapshot, error) {
-	if h == nil || h.runtime == nil {
-		return runtimectx.CommandCatalogSnapshot{
-			Status: runtimectx.CommandCatalogStatusUnavailable,
+	agentID string,
+) (slashcommandsvc.RuntimeCatalogSnapshot, error) {
+	if h == nil || h.commandCatalog == nil {
+		return slashcommandsvc.RuntimeCatalogSnapshot{
+			Status: protocol.CommandCatalogStatusUnavailable,
 		}, nil
 	}
-	snapshot, err := h.runtime.CommandCatalog(
-		ctx,
-		runtimeSessionKey,
-		authctx.OwnerUserID(ctx),
-	)
-	if errors.Is(err, runtimectx.ErrCommandCatalogOwnerMismatch) {
-		return runtimectx.CommandCatalogSnapshot{}, errors.New("command catalog is not available for this session")
+	kind := agentclient.RuntimeNXS
+	if h.runtimeKindResolver != nil {
+		resolvedKind, err := h.runtimeKindResolver(ctx, agentID)
+		if err != nil {
+			return slashcommandsvc.RuntimeCatalogSnapshot{}, err
+		}
+		kind = resolvedKind
 	}
-	return snapshot, err
+	return h.commandCatalog.Snapshot(kind), nil
 }
 
 func projectCommandCatalog(
-	snapshot runtimectx.CommandCatalogSnapshot,
+	snapshot slashcommandsvc.RuntimeCatalogSnapshot,
 	agentID string,
 	hostCommands []protocol.CommandDescriptor,
 ) protocol.CommandCatalogData {
 	commands := projectHostCommands(hostCommands)
-	if snapshot.Status == runtimectx.CommandCatalogStatusReady {
+	if snapshot.Status == protocol.CommandCatalogStatusReady {
 		for _, command := range snapshot.Commands {
 			if descriptor, ok := projectRuntimeCommand(command); ok {
 				commands = append(commands, descriptor)
@@ -309,7 +207,7 @@ func projectHostCommands(commands []protocol.CommandDescriptor) []protocol.Comma
 }
 
 func projectRuntimeCommand(
-	command agentclient.SlashCommand,
+	command protocol.CommandDescriptor,
 ) (protocol.CommandDescriptor, bool) {
 	name := strings.TrimSpace(strings.TrimPrefix(command.Name, "/"))
 	if name == "" ||
@@ -322,7 +220,11 @@ func projectRuntimeCommand(
 		Description:  limitCommandText(command.Description, commandDescriptionMaxRunes),
 		ArgumentHint: limitCommandText(command.ArgumentHint, commandArgumentHintMaxRunes),
 		Execution:    protocol.CommandExecutionRuntime,
-		Enabled:      true,
+		Enabled:      command.Enabled,
+		DisabledReason: limitCommandText(
+			command.DisabledReason,
+			commandDescriptionMaxRunes,
+		),
 	}, true
 }
 

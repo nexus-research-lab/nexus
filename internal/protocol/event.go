@@ -129,7 +129,6 @@ type CommandCatalogStatus string
 
 const (
 	CommandCatalogStatusCold        CommandCatalogStatus = "cold"
-	CommandCatalogStatusStarting    CommandCatalogStatus = "starting"
 	CommandCatalogStatusReady       CommandCatalogStatus = "ready"
 	CommandCatalogStatusUnavailable CommandCatalogStatus = "unavailable"
 )

@@ -45,7 +45,6 @@ const RUNTIME_STATUSES = new Set<Exclude<AgentConversationRuntimeStatus, null>>(
 ]);
 const COMMAND_CATALOG_STATUSES = new Set<CommandCatalogStatus>([
   "cold",
-  "starting",
   "ready",
   "unavailable",
 ]);
@@ -176,9 +175,8 @@ export function parseCommandCatalogData(
 
 const COMMAND_CATALOG_STATUS_RANK: Record<CommandCatalogStatus, number> = {
   cold: 0,
-  starting: 1,
-  unavailable: 2,
-  ready: 3,
+  unavailable: 1,
+  ready: 2,
 };
 
 export function selectCommandCatalogSnapshot(

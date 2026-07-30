@@ -5,42 +5,34 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
 func TestProjectCommandCatalogSanitizesRuntimeMetadata(t *testing.T) {
-	snapshot := runtimectx.CommandCatalogSnapshot{
-		Status:      runtimectx.CommandCatalogStatusReady,
+	snapshot := slashcommandsvc.RuntimeCatalogSnapshot{
+		Status:      protocol.CommandCatalogStatusReady,
 		RuntimeKind: agentclient.RuntimeNXS,
-		Commands: []agentclient.SlashCommand{
+		Commands: []protocol.CommandDescriptor{
 			{
 				Name:         "/review",
 				Description:  " Review code ",
 				ArgumentHint: " <target> ",
-				Raw: map[string]any{
-					"type":         "prompt",
-					"source":       "project",
-					"body":         "private command body",
-					"path":         "/private/commands/review.md",
-					"allowedTools": []string{"Bash"},
-				},
+				Enabled:      true,
 			},
 			{
 				Name:         "compact",
 				Description:  "Compact context",
 				ArgumentHint: "",
-				Raw: map[string]any{
-					"type":   "local-jsx",
-					"source": "builtin",
-				},
+				Enabled:      true,
 			},
 			{
 				Name:        "github:review (MCP)",
 				Description: "Open the GitHub review prompt",
+				Enabled:     true,
 			},
-			{Name: "invalid command"},
+			{Name: "invalid command", Enabled: true},
 		},
 	}
 
@@ -74,11 +66,12 @@ func TestProjectCommandCatalogSanitizesRuntimeMetadata(t *testing.T) {
 	}
 }
 
-func TestProjectCommandCatalogKeepsStartingRuntimeCommandsHidden(t *testing.T) {
-	data := projectCommandCatalog(runtimectx.CommandCatalogSnapshot{
-		Status: runtimectx.CommandCatalogStatusStarting,
-		Commands: []agentclient.SlashCommand{{
-			Name: "stale",
+func TestProjectCommandCatalogKeepsUnavailableRuntimeCommandsHidden(t *testing.T) {
+	data := projectCommandCatalog(slashcommandsvc.RuntimeCatalogSnapshot{
+		Status: protocol.CommandCatalogStatusUnavailable,
+		Commands: []protocol.CommandDescriptor{{
+			Name:    "stale",
+			Enabled: true,
 		}},
 	}, "agent-a", []protocol.CommandDescriptor{{
 		Name:      "goal",
@@ -86,20 +79,21 @@ func TestProjectCommandCatalogKeepsStartingRuntimeCommandsHidden(t *testing.T) {
 		Enabled:   true,
 	}})
 
-	if data.Status != protocol.CommandCatalogStatusStarting ||
+	if data.Status != protocol.CommandCatalogStatusUnavailable ||
 		!strings.HasPrefix(data.Revision, "commands-") ||
 		len(data.Commands) != 1 ||
 		data.Commands[0].Name != "goal" {
-		t.Fatalf("catalog = %#v, want host-only starting snapshot", data)
+		t.Fatalf("catalog = %#v, want host-only unavailable snapshot", data)
 	}
 }
 
 func TestProjectCommandCatalogLetsNexusHostCommandWinNameCollision(t *testing.T) {
-	data := projectCommandCatalog(runtimectx.CommandCatalogSnapshot{
-		Status: runtimectx.CommandCatalogStatusReady,
-		Commands: []agentclient.SlashCommand{{
+	data := projectCommandCatalog(slashcommandsvc.RuntimeCatalogSnapshot{
+		Status: protocol.CommandCatalogStatusReady,
+		Commands: []protocol.CommandDescriptor{{
 			Name:        "goal",
 			Description: "Runtime goal",
+			Enabled:     true,
 		}},
 	}, "agent-a", []protocol.CommandDescriptor{{
 		Name:        "goal",
@@ -112,33 +106,5 @@ func TestProjectCommandCatalogLetsNexusHostCommandWinNameCollision(t *testing.T)
 		data.Commands[0].Execution != protocol.CommandExecutionHost ||
 		data.Commands[0].Description != "Nexus goal" {
 		t.Fatalf("catalog = %#v, want Nexus host command to reserve /goal", data)
-	}
-}
-
-func TestProjectCommandCatalogStartupFailureStopsLoading(t *testing.T) {
-	failed := projectCommandCatalogStartupFailure(
-		runtimectx.CommandCatalogSnapshot{
-			Status:     runtimectx.CommandCatalogStatusCold,
-			Generation: 3,
-		},
-	)
-	if failed.Status != runtimectx.CommandCatalogStatusUnavailable ||
-		failed.Generation != 3 {
-		t.Fatalf("failed catalog = %#v, want unavailable generation 3", failed)
-	}
-
-	ready := projectCommandCatalogStartupFailure(
-		runtimectx.CommandCatalogSnapshot{
-			Status:     runtimectx.CommandCatalogStatusReady,
-			Generation: 4,
-			Commands: []agentclient.SlashCommand{{
-				Name: "review",
-			}},
-		},
-	)
-	if ready.Status != runtimectx.CommandCatalogStatusReady ||
-		ready.Generation != 4 ||
-		len(ready.Commands) != 1 {
-		t.Fatalf("ready catalog = %#v, want concurrent ready snapshot preserved", ready)
 	}
 }

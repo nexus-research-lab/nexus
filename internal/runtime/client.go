@@ -32,11 +32,6 @@ type Client interface {
 	SessionID() string
 }
 
-// SlashCommandProvider 是运行时可选的命令目录能力，不扩大所有测试替身必须实现的 Client 面。
-type SlashCommandProvider interface {
-	SupportedCommands(context.Context) ([]agentclient.SlashCommand, error)
-}
-
 // Factory 负责创建 SDK client。
 type Factory interface {
 	New(agentclient.Options) Client
@@ -236,15 +231,6 @@ func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermis
 		return err
 	}
 	return nil
-}
-
-// SupportedCommands 返回当前已连接运行时公开的用户命令目录。
-func (c *sdkClientAdapter) SupportedCommands(ctx context.Context) ([]agentclient.SlashCommand, error) {
-	session, err := c.currentSession()
-	if err != nil {
-		return nil, err
-	}
-	return session.Control().SupportedCommands(ctx)
 }
 
 // UpdateEnvironment 将运行期环境增量推送给 nxs，不重启当前会话。

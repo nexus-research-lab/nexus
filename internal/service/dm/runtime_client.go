@@ -187,59 +187,6 @@ func (s *Service) ensureClient(
 	return client, strings.TrimSpace(string(options.Runtime.Kind)), runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, goalObjectiveRevision, permissionMode, nil
 }
 
-// EnsureRuntimeSession 按真实 DM 会话配置连接 runtime 并同步初始化能力快照，
-// 但不创建 round 或发送用户消息。
-func (s *Service) EnsureRuntimeSession(
-	ctx context.Context,
-	sessionKey string,
-	agentID string,
-) error {
-	s.inputQueueDispatchMu.Lock()
-	defer s.inputQueueDispatchMu.Unlock()
-
-	normalizedSessionKey, err := protocol.RequireStructuredSessionKey(sessionKey)
-	if err != nil {
-		return err
-	}
-	parsed := protocol.ParseSessionKey(normalizedSessionKey)
-	if parsed.Kind == protocol.SessionKeyKindRoom {
-		return ErrRoomSessionNotImplemented
-	}
-	agentValue, sessionItem, err := s.resolveDMSession(
-		ctx,
-		parsed,
-		normalizedSessionKey,
-		agentID,
-	)
-	if err != nil {
-		return err
-	}
-	snapshot, snapshotErr := s.runtime.CommandCatalog(
-		ctx,
-		normalizedSessionKey,
-		agentValue.OwnerUserID,
-	)
-	if snapshotErr != nil {
-		return snapshotErr
-	}
-	if s.runtime.HasSession(normalizedSessionKey) &&
-		(snapshot.Status == runtimectx.CommandCatalogStatusReady ||
-			snapshot.Status == runtimectx.CommandCatalogStatusUnavailable) {
-		return nil
-	}
-	_, _, _, _, _, _, _, _, err = s.ensureClient(
-		ctx,
-		normalizedSessionKey,
-		agentValue,
-		sessionItem,
-		Request{
-			SessionKey: normalizedSessionKey,
-			AgentID:    agentValue.AgentID,
-		},
-	)
-	return err
-}
-
 func resolvePermissionMode(requestMode sdkpermission.Mode, agentMode string) sdkpermission.Mode {
 	if requestMode != "" {
 		return runtimepermission.NormalizeMode(requestMode)
@@ -420,18 +367,8 @@ func (s *Service) acquireRuntimeClient(
 		s.logRuntimeStartupFailure(ctx, sessionKey, "get_or_create", options, err)
 		return nil, err
 	}
-	generation := s.runtime.BeginRuntimeConnection(
-		sessionKey,
-		client,
-		s.runtime.HasSession(sessionKey),
-	)
 	if err := client.Connect(ctx); err != nil {
-		s.runtime.MarkCommandCatalogColdForGeneration(sessionKey, client, generation)
 		s.logRuntimeStartupFailure(ctx, sessionKey, "connect", options, err)
-		return nil, err
-	}
-	if err := s.runtime.SyncCommandCatalog(ctx, sessionKey, client); err != nil {
-		s.logRuntimeStartupFailure(ctx, sessionKey, "command_catalog", options, err)
 		return nil, err
 	}
 	s.loggerFor(ctx).Info("runtime client connected",

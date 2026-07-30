@@ -8,14 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 
 	_ "modernc.org/sqlite"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -291,52 +289,6 @@ func TestAuthorizeHostCommandChecksDMWebSocketScopeWithoutStartingRuntime(t *tes
 		"another-agent",
 	); err == nil {
 		t.Fatal("mismatched agent_id host command authorization must fail")
-	}
-}
-
-func TestEnsureRuntimeSessionConnectsAndCachesCatalogWithoutSendingMessage(t *testing.T) {
-	cfg := newDMTestConfig(t)
-	migrateDMSQLite(t, cfg.DatabaseURL)
-
-	agentService := newDMAgentService(t, cfg)
-	client := newFakeDMClient()
-	client.supportedCommands = []agentclient.SlashCommand{{
-		Name:        "model",
-		Description: "Set the runtime model",
-	}}
-	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
-	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
-	sessionKey := "agent:nexus:ws:dm:slash-catalog"
-	t.Cleanup(func() {
-		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
-	})
-
-	if err := service.EnsureRuntimeSession(context.Background(), sessionKey, "nexus"); err != nil {
-		t.Fatalf("EnsureRuntimeSession() error = %v", err)
-	}
-
-	snapshot, err := runtimeManager.CommandCatalog(
-		context.Background(),
-		sessionKey,
-		authctx.OwnerUserID(context.Background()),
-	)
-	if err != nil {
-		t.Fatalf("CommandCatalog() error = %v", err)
-	}
-	if snapshot.Status != runtimectx.CommandCatalogStatusReady ||
-		len(snapshot.Commands) != 1 ||
-		snapshot.Commands[0].Name != "model" {
-		t.Fatalf("CommandCatalog() = %#v, want ready model command", snapshot)
-	}
-	client.mu.Lock()
-	connectCalls := client.connectCalls
-	queryCount := len(client.queryPrompts)
-	client.mu.Unlock()
-	if connectCalls != 1 || queryCount != 0 {
-		t.Fatalf("runtime calls = connect:%d query:%d, want connect only", connectCalls, queryCount)
-	}
-	if running := runtimeManager.GetRunningRoundIDs(sessionKey); len(running) != 0 {
-		t.Fatalf("catalog warmup started rounds: %#v", running)
 	}
 }
 
