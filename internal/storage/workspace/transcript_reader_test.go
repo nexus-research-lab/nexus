@@ -2,6 +2,108 @@ package workspace
 
 import "testing"
 
+func TestPrimaryTranscriptChainPrefersNonSelfReferentialDuplicateUUID(t *testing.T) {
+	entries := []transcriptEntry{
+		{
+			Index: 0,
+			Data: map[string]any{
+				"type": "user",
+				"uuid": "user-before-memory",
+				"message": map[string]any{
+					"role":    "user",
+					"content": "保留这条输入",
+				},
+			},
+		},
+		{
+			Index: 1,
+			Data: map[string]any{
+				"type":       "system",
+				"uuid":       "runtime-memory-saved",
+				"parentUuid": "user-before-memory",
+				"subtype":    "memory_saved",
+			},
+		},
+		{
+			Index: 2,
+			Data: map[string]any{
+				"type":       "system",
+				"uuid":       "runtime-memory-saved",
+				"parentUuid": "runtime-memory-saved",
+				"subtype":    "memory_saved",
+			},
+		},
+		{
+			Index: 3,
+			Data: map[string]any{
+				"type":       "assistant",
+				"uuid":       "assistant-after-memory",
+				"parentUuid": "runtime-memory-saved",
+				"message": map[string]any{
+					"role":    "assistant",
+					"content": []any{map[string]any{"type": "text", "text": "历史仍连续"}},
+				},
+			},
+		},
+	}
+
+	chain := buildPrimaryTranscriptChain(entries)
+	if len(chain) != 3 {
+		t.Fatalf("重复 memory UUID 不应截断主链: %+v", chain)
+	}
+	if got := stringFromAny(chain[0].Data["uuid"]); got != "user-before-memory" {
+		t.Fatalf("主链丢失 memory 事件之前的用户输入: got=%q chain=%+v", got, chain)
+	}
+	if got := stringFromAny(chain[1].Data["parentUuid"]); got != "user-before-memory" {
+		t.Fatalf("应保留非自指的 memory 事件副本: got=%q chain=%+v", got, chain)
+	}
+}
+
+func TestPrimaryTranscriptChainIgnoresSelfReferentialDuplicateTerminal(t *testing.T) {
+	entries := []transcriptEntry{
+		{
+			Index: 0,
+			Data: map[string]any{
+				"type": "user",
+				"uuid": "user-before-memory",
+				"message": map[string]any{
+					"role":    "user",
+					"content": "终点也必须保留",
+				},
+			},
+		},
+		{
+			Index: 1,
+			Data: map[string]any{
+				"type":       "system",
+				"uuid":       "runtime-memory-saved",
+				"parentUuid": "user-before-memory",
+				"subtype":    "memory_saved",
+			},
+		},
+		{
+			Index: 2,
+			Data: map[string]any{
+				"type":       "system",
+				"uuid":       "runtime-memory-saved",
+				"parentUuid": "runtime-memory-saved",
+				"subtype":    "memory_saved",
+			},
+		},
+	}
+
+	chain := buildPrimaryTranscriptChain(entries)
+	if len(chain) != 2 {
+		t.Fatalf("terminal 自指副本不应覆盖有效主链: %+v", chain)
+	}
+	if got := stringFromAny(chain[0].Data["uuid"]); got != "user-before-memory" {
+		t.Fatalf("terminal 自指副本导致用户输入丢失: got=%q chain=%+v", got, chain)
+	}
+	if got := stringFromAny(chain[1].Data["parentUuid"]); got != "user-before-memory" {
+		t.Fatalf("terminal 应使用非自指副本: got=%q chain=%+v", got, chain)
+	}
+}
+
 func TestTranscriptContinuationPromptIsSkippedFromBothChains(t *testing.T) {
 	entry := map[string]any{
 		"type": "user",

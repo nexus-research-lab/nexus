@@ -58,7 +58,7 @@ func projectTranscriptChainWithFilter(
 	currentRoundID := ""
 	var processor *message.Processor
 	var lastTimestamp int64
-	alignedMarkers := alignTranscriptRoundMarkers(chain, roundMarkers)
+	alignedMarkers := alignTranscriptRoundMarkersWithFilter(chain, roundMarkers, shouldSkip)
 	markerIndex := 0
 
 	for _, entry := range chain {
@@ -241,7 +241,23 @@ func sanitizeTranscriptUserContent(content string) string {
 		message.IsInternalTranscriptContinuationPrompt(trimmed) {
 		return ""
 	}
-	return trimmed
+	return stripTranscriptRuntimeContext(trimmed)
+}
+
+func stripTranscriptRuntimeContext(content string) string {
+	const (
+		runtimeContextOpen  = "<nexus_runtime_context>"
+		runtimeContextClose = "</nexus_runtime_context>"
+	)
+	trimmed := strings.TrimSpace(content)
+	if !strings.HasSuffix(trimmed, runtimeContextClose) {
+		return trimmed
+	}
+	openIndex := strings.LastIndex(trimmed, runtimeContextOpen)
+	if openIndex < 0 {
+		return trimmed
+	}
+	return strings.TrimSpace(trimmed[:openIndex])
 }
 
 func stampTranscriptDurableMessages(

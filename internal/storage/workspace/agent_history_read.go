@@ -102,7 +102,15 @@ func (s *AgentHistoryStore) readHistoryRows(
 		return nil, err
 	}
 
-	rows := mergeTranscriptAndOverlayRows(transcriptRows, overlayState.MessageRows)
+	rows := mergeTranscriptAndOverlayRows(
+		transcriptRows,
+		overlayState.MessageRows,
+		materializeRoundMarkerMessages(
+			sessionValue.SessionKey,
+			sessionValue.AgentID,
+			overlayState.RoundMarkers,
+		),
+	)
 	return rows, nil
 }
 
@@ -122,9 +130,17 @@ func buildOverlayOnlyHistoryRows(
 func mergeTranscriptAndOverlayRows(
 	transcriptRows []protocol.Message,
 	overlayRows []protocol.Message,
+	roundMarkerRows []protocol.Message,
 ) []protocol.Message {
-	combined := make([]protocol.Message, 0, len(transcriptRows)+len(overlayRows))
+	combined := make(
+		[]protocol.Message,
+		0,
+		len(transcriptRows)+len(overlayRows)+len(roundMarkerRows),
+	)
+	// 可见 marker 是 durable 用户输入真相；即使 transcript 断链或无法解码，
+	// 也必须进入统一 compact，由稳定 message_id 与 transcript 用户行去重。
 	combined = append(combined, transcriptRows...)
+	combined = append(combined, roundMarkerRows...)
 	combined = append(combined, overlayRows...)
 	return combined
 }
