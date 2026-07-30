@@ -53,13 +53,23 @@ func NewCatalog() *Catalog {
 				[]protocol.CommandDescriptor{
 					newRuntimeCommand(
 						"clear",
-						"Start a new session with empty context",
+						"Start a new session with empty context; the previous session remains resumable",
 						"[name]",
 					),
 					newRuntimeCommand(
+						"color",
+						"Set the prompt bar color for this session",
+						"[red|blue|green|yellow|purple|orange|pink|cyan|default]",
+					),
+					newRuntimeCommand(
 						"compact",
-						"Free up context by summarizing the conversation",
+						"Free up context by summarizing the conversation so far",
 						"<optional instructions>",
+					),
+					newRuntimeCommand(
+						"config",
+						"Set a setting by key",
+						"key=value",
 					),
 					newRuntimeCommand(
 						"context",
@@ -69,7 +79,7 @@ func NewCatalog() *Catalog {
 					newRuntimeCommand(
 						"effort",
 						"Set effort level for model usage",
-						"<low|medium|high|max|auto>",
+						"<low|medium|high|xhigh|max|ultracode|auto>",
 					),
 					newRuntimeCommand(
 						"fast",
@@ -77,8 +87,23 @@ func NewCatalog() *Catalog {
 						"[on|off]",
 					),
 					newRuntimeCommand(
+						"goal",
+						"Set a goal and keep working until the condition is met",
+						"",
+					),
+					newRuntimeCommand(
+						"heapdump",
+						"Dump the JavaScript heap to ~/Desktop",
+						"",
+					),
+					newRuntimeCommand(
 						"init",
-						"Initialize project guidance",
+						"Initialize a new CLAUDE.md file with codebase documentation",
+						"",
+					),
+					newRuntimeCommand(
+						"insights",
+						"Generate a report analyzing Claude Code sessions",
 						"",
 					),
 					newRuntimeCommand(
@@ -92,9 +117,24 @@ func NewCatalog() *Catalog {
 						"<model>",
 					),
 					newRuntimeCommand(
+						"recap",
+						"Generate a one-line session recap now",
+						"",
+					),
+					newRuntimeCommand(
+						"reload-skills",
+						"Pick up skills added or changed on disk during this session",
+						"",
+					),
+					newRuntimeCommand(
+						"rename",
+						"Rename the current conversation",
+						"[name]",
+					),
+					newRuntimeCommand(
 						"review",
-						"Review a pull request",
-						"[pull request]",
+						"Review a GitHub pull request",
+						"[pr number]",
 					),
 					newRuntimeCommand(
 						"security-review",
@@ -102,8 +142,13 @@ func NewCatalog() *Catalog {
 						"",
 					),
 					newRuntimeCommand(
+						"team-onboarding",
+						"Help teammates ramp on Claude Code with a guide from your usage",
+						"",
+					),
+					newRuntimeCommand(
 						"usage",
-						"Show plan usage limits",
+						"Show session cost, plan usage, and what contributes to the limits",
 						"",
 					),
 				},

@@ -30,8 +30,9 @@ canonical 名称。
 当前版本清单：
 
 - nxs：`model`、`summary`
-- Claude Code：`clear`、`compact`、`context`、`effort`、`fast`、`init`、`mcp`、
-  `model`、`review`、`security-review`、`usage`
+- Claude Code：`clear`、`color`、`compact`、`config`、`context`、`effort`、`fast`、
+  `goal`、`heapdump`、`init`、`insights`、`mcp`、`model`、`recap`、
+  `reload-skills`、`rename`、`review`、`security-review`、`team-onboarding`、`usage`
 
 这份清单只承诺 Nexus 版本固定支持的内置指令，不把用户本机的 Skill、插件或
 MCP 动态命令伪装成全局可用项。
