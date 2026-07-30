@@ -366,7 +366,7 @@ function syncRoomAgentExecutionMessageEvidence(
   const currentByExecution = new Map(
     current.map((state) => [executionKey(state), state]),
   );
-  return syncEvidence(current, messages.flatMap((message) => {
+  return syncEvidence(current, messages.flatMap((message, fallbackOrder) => {
     if (message.role !== "assistant") {
       return [];
     }
@@ -389,10 +389,11 @@ function syncRoomAgentExecutionMessageEvidence(
       ...identity,
       firstSeenAt: message.timestamp,
       phase: TERMINAL_STATUSES.has(status) ? "terminal" : "active",
-      ...(typeof message.display_order === "number"
+      preferredDisplayOrder:
+        typeof message.display_order === "number"
         && Number.isFinite(message.display_order)
-        ? { preferredDisplayOrder: message.display_order }
-        : {}),
+          ? message.display_order
+          : resolveObservedDisplayOrder(message.timestamp, fallbackOrder),
       status,
     }];
   }));
@@ -442,6 +443,7 @@ export function syncRoomAgentExecutionFromStream(
     ...identity,
     firstSeenAt: stream.timestamp,
     phase: "active",
+    preferredDisplayOrder: resolveObservedDisplayOrder(stream.timestamp, 0),
     status,
   });
 }
@@ -484,6 +486,7 @@ export function applyRoomAgentExecutionStatus(
     ...identity,
     firstSeenAt: observedAt,
     phase: payload.is_terminal ? "terminal" : "active",
+    preferredDisplayOrder: resolveObservedDisplayOrder(observedAt, 0),
     status,
   });
 }

@@ -4857,6 +4857,84 @@ test("Room permission-first children append after an existing reply and never mo
   );
 });
 
+test("Room stream-first children append after a visible legacy Lead reply", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    syncRoomAgentExecutionFromStream,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-visible-lead-before-streams";
+  const messages = [
+    userMessage({
+      content: "协作调研",
+      messageId: "user-visible-lead-root",
+      roundId,
+      timestamp: 1,
+    }),
+    {
+      ...userMessage({
+        content: "已创建 goal",
+        messageId: "user-visible-lead-goal",
+        roundId,
+        timestamp: 2,
+      }),
+      hidden_from_user: true,
+    },
+    assistantMessage({
+      agentId: "agent-lead",
+      isComplete: true,
+      messageId: "assistant-visible-lead",
+      roundId,
+      status: "done",
+      stopReason: "end_turn",
+      text: "我先完成分工，Analyst 和 Researcher 继续执行。",
+      timestamp: 10,
+    }),
+  ];
+  const analystStream = {
+    agent_id: "agent-analyst",
+    agent_round_id: "agent-round-analyst",
+    message_id: "assistant-analyst",
+    round_id: roundId,
+    session_key: "room:group:conversation-stream-first",
+    timestamp: 20,
+    type: "message_start",
+  };
+  const researcherStream = {
+    agent_id: "agent-researcher",
+    agent_round_id: "agent-round-researcher",
+    message_id: "assistant-researcher",
+    round_id: roundId,
+    session_key: "room:group:conversation-stream-first",
+    timestamp: 21,
+    type: "message_start",
+  };
+  const afterAnalyst = syncRoomAgentExecutionFromStream([], analystStream);
+  const afterResearcher = syncRoomAgentExecutionFromStream(
+    afterAnalyst,
+    researcherStream,
+  );
+
+  assert.deepEqual(
+    buildRoomAgentRoundEntries(
+      messages,
+      [],
+      [],
+      afterResearcher,
+    ).map((entry) => entry.agent_id),
+    ["agent-lead", "agent-analyst", "agent-researcher"],
+    "stream evidence must append after the Lead card that is already visible",
+  );
+  assert.deepEqual(
+    afterResearcher.map((state) => state.display_order),
+    [20_000, 21_000],
+    "stream-first execution anchors must use the same timestamp scale as durable Room ordering",
+  );
+});
+
 test("Room late permission enriches an observed slot without moving its Agent", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",

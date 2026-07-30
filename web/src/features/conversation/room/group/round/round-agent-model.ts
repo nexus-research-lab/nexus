@@ -120,7 +120,10 @@ function buildMessageGroups(
     if (typeof displayOrder === "number" && Number.isFinite(displayOrder)) {
       orders.set(entryId, displayOrder);
     } else if (!orders.has(entryId)) {
-      orders.set(entryId, order);
+      orders.set(
+        entryId,
+        resolveObservedDisplayOrder(message.timestamp, order),
+      );
     }
   });
   return { groups, orders };
@@ -171,13 +174,23 @@ function resolvePendingSlotDisplayOrder(
   slot: RoomPendingAgentSlotState,
   fallbackOrder: number,
 ): number {
-  if (Number.isFinite(slot.timestamp) && slot.timestamp > 0) {
+  return resolveObservedDisplayOrder(
+    slot.timestamp,
+    slot.index ?? fallbackOrder,
+  );
+}
+
+function resolveObservedDisplayOrder(
+  observedAt: number,
+  fallbackOrder: number,
+): number {
+  if (Number.isFinite(observedAt) && observedAt > 0) {
     return (
-      Math.trunc(slot.timestamp) * ROOM_DISPLAY_ORDER_SCALE
-      + Math.max(slot.index ?? 0, 0)
+      Math.trunc(observedAt) * ROOM_DISPLAY_ORDER_SCALE
+      + Math.max(fallbackOrder, 0)
     );
   }
-  return slot.index ?? fallbackOrder;
+  return Math.max(fallbackOrder, 0);
 }
 
 function buildRoomAgentRoundIndex(
