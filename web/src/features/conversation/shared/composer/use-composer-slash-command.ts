@@ -15,31 +15,42 @@ import type {
 } from "react";
 
 import { getAvailableSkillsApi } from "@/lib/api/capability/skill-api";
+import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
 import type { SkillInfo } from "@/types/capability/skill";
 import type {
   CommandCatalogData,
   CommandDescriptor,
 } from "@/types/generated/protocol";
+import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 import {
+  buildSlashModelOptions,
   filterSlashCommands,
+  filterSlashModels,
   filterSlashSkills,
   findSlashCommandTextMatch,
   formatSlashCommandInsertText,
+  formatSlashModelInsertText,
   insertSlashCommand,
+  insertSlashTextAtCursor,
+  isClaudeRuntime,
   isSelectableSlashCommand,
   SLASH_COMMAND_NAVIGATION_KEYS,
   type SlashCommandTextMatch,
+  type SlashModelOption,
 } from "./slash-command-model";
 
 const SKILLS_COMMAND_NAME = "skills";
+const MODEL_COMMAND_NAME = "model";
 
-type SlashCommandMode = "commands" | "skills";
+type SlashCommandMode = "commands" | "models" | "skills";
+type SlashCommandPickerMode = Exclude<SlashCommandMode, "commands">;
 
 interface UseComposerSlashCommandOptions {
   catalog: CommandCatalogData;
   input: string;
   isGoalMode: boolean;
+  runtimeKind: AgentRuntimeKind;
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
@@ -48,6 +59,7 @@ export function useComposerSlashCommand({
   catalog,
   input,
   isGoalMode,
+  runtimeKind,
   setInput,
   textareaRef,
 }: UseComposerSlashCommandOptions) {
@@ -58,8 +70,22 @@ export function useComposerSlashCommand({
   const [skillItems, setSkillItems] = useState<SkillInfo[]>([]);
   const [skillsLoading, setSkillsLoading] = useState(false);
   const [skillsError, setSkillsError] = useState<string | null>(null);
+  const [loadedSkillsAgentID, setLoadedSkillsAgentID] = useState<string | null>(
+    null,
+  );
+  const [modelItems, setModelItems] = useState<SlashModelOption[]>([]);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [modelQuery, setModelQuery] = useState("");
+  const [loadedModelRuntimeKind, setLoadedModelRuntimeKind] = useState("");
   const skillSearchRef = useRef<HTMLInputElement>(null);
+  const modelSearchRef = useRef<HTMLInputElement>(null);
   const skillsRequestRef = useRef(0);
+  const modelsRequestRef = useRef(0);
+  const skillsAgentID = catalog.agent_id?.trim() || "";
+  const modelRuntimeKind = catalog.runtime_kind?.trim()
+    || runtimeKind.trim()
+    || "nxs";
 
   const filteredCommands = useMemo(
     () => filterSlashCommands(catalog.commands, match?.query ?? ""),
@@ -69,25 +95,36 @@ export function useComposerSlashCommand({
     () => filterSlashSkills(skillItems, skillQuery),
     [skillItems, skillQuery],
   );
-  const visibleItems = mode === "skills" ? filteredSkills : filteredCommands;
+  const filteredModels = useMemo(
+    () => filterSlashModels(modelItems, modelQuery),
+    [modelItems, modelQuery],
+  );
+  const visibleItems = mode === "skills"
+    ? filteredSkills
+    : mode === "models"
+      ? filteredModels
+      : filteredCommands;
   const visibleActiveIndex = Math.min(
     activeIndex,
     Math.max(visibleItems.length - 1, 0),
   );
   const activeCommand = filteredCommands[visibleActiveIndex] ?? null;
   const activeSkill = filteredSkills[visibleActiveIndex] ?? null;
-  const isOpen = Boolean(match) || mode === "skills";
+  const activeModel = filteredModels[visibleActiveIndex] ?? null;
+  const isOpen = Boolean(match) || mode !== "commands";
   const skillCount = filteredSkills.length;
+  const modelCount = filteredModels.length;
 
   useEffect(() => {
     setActiveIndex(0);
-  }, [catalog.revision, match?.query, skillQuery, mode]);
+  }, [catalog.revision, match?.query, modelQuery, skillQuery, mode]);
 
   useEffect(() => {
     if (isGoalMode) {
       setMatch(null);
       setMode("commands");
       setSkillQuery("");
+      setModelQuery("");
     }
   }, [isGoalMode]);
 
@@ -106,24 +143,31 @@ export function useComposerSlashCommand({
   }, [input, isGoalMode, match, textareaRef]);
 
   useEffect(() => {
-    if (mode !== "skills") {
+    if (mode !== "skills" && mode !== "models") {
       return;
     }
     requestAnimationFrame(() => {
-      skillSearchRef.current?.focus();
+      (mode === "skills" ? skillSearchRef : modelSearchRef).current?.focus();
     });
   }, [mode]);
 
   useEffect(() => {
-    if (mode !== "skills" || skillItems.length > 0 || skillsLoading) {
+    if (
+      mode !== "skills"
+      || loadedSkillsAgentID === skillsAgentID
+      || skillsLoading
+    ) {
       return;
     }
     const requestID = ++skillsRequestRef.current;
     setSkillsLoading(true);
     setSkillsError(null);
+    setSkillItems([]);
     void (async () => {
       try {
-        const nextSkills = await getAvailableSkillsApi();
+        const nextSkills = await getAvailableSkillsApi(
+          skillsAgentID ? { agent_id: skillsAgentID } : undefined,
+        );
         if (requestID === skillsRequestRef.current) {
           setSkillItems(nextSkills);
         }
@@ -134,32 +178,82 @@ export function useComposerSlashCommand({
       } finally {
         if (requestID === skillsRequestRef.current) {
           setSkillsLoading(false);
+          setLoadedSkillsAgentID(skillsAgentID);
         }
       }
     })();
-  }, [mode, skillItems.length, skillsLoading]);
+  }, [
+    loadedSkillsAgentID,
+    mode,
+    skillsAgentID,
+    skillsLoading,
+  ]);
+
+  useEffect(() => {
+    if (
+      mode !== "models"
+      || loadedModelRuntimeKind === modelRuntimeKind
+      || modelLoading
+    ) {
+      return;
+    }
+    const requestID = ++modelsRequestRef.current;
+    setModelLoading(true);
+    setModelError(null);
+    setModelItems([]);
+    void (async () => {
+      try {
+        const response = await listProviderOptionsApi(modelRuntimeKind);
+        if (requestID === modelsRequestRef.current) {
+          setModelItems(buildSlashModelOptions(response, modelRuntimeKind));
+        }
+      } catch (error) {
+        if (requestID === modelsRequestRef.current) {
+          if (isClaudeRuntime(modelRuntimeKind)) {
+            setModelItems(buildSlashModelOptions(null, modelRuntimeKind));
+          } else {
+            setModelError(
+              error instanceof Error ? error.message : "模型列表加载失败",
+            );
+          }
+        }
+      } finally {
+        if (requestID === modelsRequestRef.current) {
+          setModelLoading(false);
+          setLoadedModelRuntimeKind(modelRuntimeKind);
+        }
+      }
+    })();
+  }, [
+    loadedModelRuntimeKind,
+    mode,
+    modelLoading,
+    modelRuntimeKind,
+  ]);
 
   const close = useCallback(() => {
     setMatch(null);
     setMode("commands");
     setSkillQuery("");
+    setModelQuery("");
     setActiveIndex(0);
   }, []);
 
-  const openSkillsPicker = useCallback(() => {
+  const openPicker = useCallback((pickerMode: SlashCommandPickerMode) => {
     if (!match) {
       return;
     }
     const nextValue = input.slice(0, match.start) + input.slice(match.end);
     setInput(nextValue);
     setMatch(null);
-    setMode("skills");
+    setMode(pickerMode);
     setSkillQuery("");
+    setModelQuery("");
     setActiveIndex(0);
   }, [input, match, setInput]);
 
   const updateForInput = useCallback((value: string) => {
-    if (mode === "skills") {
+    if (mode !== "commands") {
       return;
     }
     const cursorPosition = textareaRef.current?.selectionStart ?? value.length;
@@ -175,7 +269,11 @@ export function useComposerSlashCommand({
       return;
     }
     if (command.name === SKILLS_COMMAND_NAME) {
-      openSkillsPicker();
+      openPicker("skills");
+      return;
+    }
+    if (command.name === MODEL_COMMAND_NAME) {
+      openPicker("models");
       return;
     }
     const insertion = insertSlashCommand(input, match, command);
@@ -183,6 +281,7 @@ export function useComposerSlashCommand({
     setMatch(null);
     setMode("commands");
     setSkillQuery("");
+    setModelQuery("");
     requestAnimationFrame(() => {
       textareaRef.current?.setSelectionRange(
         insertion.cursorPosition,
@@ -190,33 +289,42 @@ export function useComposerSlashCommand({
       );
       textareaRef.current?.focus();
     });
-  }, [input, match, openSkillsPicker, setInput, textareaRef]);
+  }, [
+    input,
+    match,
+    openPicker,
+    setInput,
+    textareaRef,
+  ]);
 
-  const selectSkill = useCallback((skill: SkillInfo) => {
-    const commandText = formatSlashCommandInsertText(skill.name);
-    const cursorPosition = Math.min(
+  const insertPickerSelection = useCallback((commandText: string) => {
+    const insertion = insertSlashTextAtCursor(
+      input,
       textareaRef.current?.selectionStart ?? input.length,
-      input.length,
-    );
-    const nextValue = [
-      input.slice(0, cursorPosition),
       commandText,
-      input.slice(cursorPosition),
-    ].join("");
-    setInput(nextValue);
-    setMode("commands");
-    setSkillQuery("");
-    setMatch(null);
+    );
+    setInput(insertion.value);
+    close();
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
       if (!textarea) {
         return;
       }
-      const nextCursor = cursorPosition + commandText.length;
-      textarea.setSelectionRange(nextCursor, nextCursor);
+      textarea.setSelectionRange(
+        insertion.cursorPosition,
+        insertion.cursorPosition,
+      );
       textarea.focus();
     });
-  }, [input, setInput, textareaRef]);
+  }, [close, input, setInput, textareaRef]);
+
+  const selectSkill = useCallback((skill: SkillInfo) => {
+    insertPickerSelection(formatSlashCommandInsertText(skill.name));
+  }, [insertPickerSelection]);
+
+  const selectModel = useCallback((model: SlashModelOption) => {
+    insertPickerSelection(formatSlashModelInsertText(model));
+  }, [insertPickerSelection]);
 
   const handleCommandKeyDown = useCallback((
     event: KeyboardEvent<HTMLTextAreaElement>,
@@ -290,16 +398,57 @@ export function useComposerSlashCommand({
     return false;
   }, [activeSkill, close, mode, selectSkill, skillCount, textareaRef]);
 
+  const handleModelSearchKeyDown = useCallback((
+    event: KeyboardEvent<HTMLInputElement>,
+  ): boolean => {
+    if (mode !== "models" || !SLASH_COMMAND_NAVIGATION_KEYS.has(event.key)) {
+      return false;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+      });
+      return true;
+    }
+    if (event.key === "ArrowDown" && modelCount > 0) {
+      event.preventDefault();
+      setActiveIndex((current) => (current + 1) % modelCount);
+      return true;
+    }
+    if (event.key === "ArrowUp" && modelCount > 0) {
+      event.preventDefault();
+      setActiveIndex((current) => (
+        (current - 1 + modelCount) % modelCount
+      ));
+      return true;
+    }
+    if ((event.key === "Enter" || event.key === "Tab") && activeModel) {
+      event.preventDefault();
+      selectModel(activeModel);
+      return true;
+    }
+    return false;
+  }, [activeModel, close, mode, modelCount, selectModel, textareaRef]);
+
   return {
     activeIndex: visibleActiveIndex,
     close,
     commands: filteredCommands,
     handleCommandKeyDown,
+    handleModelSearchKeyDown,
     handleSkillSearchKeyDown,
     isOpen,
     mode,
+    modelError,
+    modelItems: filteredModels,
+    modelLoading,
+    modelQuery,
+    modelSearchRef,
     query: match?.query ?? "",
     selectCommand,
+    selectModel,
     selectSkill,
     skillCount,
     skillError: skillsError,
@@ -308,6 +457,7 @@ export function useComposerSlashCommand({
     skillQuery,
     skillSearchRef,
     setSkillQuery,
+    setModelQuery,
     status: catalog.status,
     updateForInput,
   };

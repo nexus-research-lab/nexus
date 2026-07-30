@@ -172,6 +172,17 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))
 	slashCommandCatalog := slashcommandsvc.NewCatalog()
 	slashCommandRegistry := slashcommandsvc.NewRegistry()
+	if err := slashcommandsvc.RegisterModelCommand(
+		slashCommandRegistry,
+		slashcommandsvc.ModelCommandDependencies{
+			Agents:      core.Agent,
+			Preferences: preferencesService,
+			Providers:   providerService,
+		},
+	); err != nil {
+		// 内置命令依赖由组合根静态装配；失败属于启动期编程错误。
+		panic(err)
+	}
 
 	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	automationBuilder := newAutomationMCPBuilder(automationService, cfg.DefaultTimezone)

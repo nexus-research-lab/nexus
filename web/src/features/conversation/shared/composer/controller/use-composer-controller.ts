@@ -50,6 +50,7 @@ export function useComposerController({
   onStop,
   queueWhenSessionBusy = true,
   roomMembers = EMPTY_ROOM_MEMBERS,
+  runtimeKind,
   runtimePhase,
 }: ComposerPanelProps) {
   const { t } = useI18n();
@@ -67,6 +68,7 @@ export function useComposerController({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
+  const composerShellRef = useRef<HTMLDivElement>(null);
   const focusTextareaAtEnd = useCallback(() => {
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
@@ -100,6 +102,7 @@ export function useComposerController({
     catalog: commandCatalog,
     input: draftState.input,
     isGoalMode,
+    runtimeKind,
     setInput,
     textareaRef,
   });
@@ -259,7 +262,12 @@ export function useComposerController({
   });
 
   return {
-    refs: { actionButtonRef, fileInputRef, textareaRef },
+    refs: {
+      actionButtonRef,
+      composerShellRef,
+      fileInputRef,
+      textareaRef,
+    },
     state,
     attachments: {
       attachments: attachments.attachments,
@@ -280,12 +288,19 @@ export function useComposerController({
       commands: slashCommand.commands,
       mode: slashCommand.mode,
       isOpen: slashCommand.isOpen,
+      modelError: slashCommand.modelError,
+      modelItems: slashCommand.modelItems,
+      modelLoading: slashCommand.modelLoading,
+      modelQuery: slashCommand.modelQuery,
+      modelSearchRef: slashCommand.modelSearchRef,
+      onModelQueryChange: slashCommand.setModelQuery,
+      onModelQueryKeyDown: slashCommand.handleModelSearchKeyDown,
+      onClose: slashCommand.close,
+      onSelectModel: slashCommand.selectModel,
       onSelectCommand: slashCommand.selectCommand,
       onSelectSkill: slashCommand.selectSkill,
       onSkillQueryChange: slashCommand.setSkillQuery,
       onSkillQueryKeyDown: slashCommand.handleSkillSearchKeyDown,
-      query: slashCommand.query,
-      skillCount: slashCommand.skillCount,
       skillError: slashCommand.skillError,
       skillItems: slashCommand.skillItems,
       skillLoading: slashCommand.skillLoading,

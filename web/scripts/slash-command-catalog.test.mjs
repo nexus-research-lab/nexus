@@ -107,6 +107,69 @@ test("slash selection inserts a normal host or runtime message", async () => {
   );
 });
 
+test("slash model picker keeps provider identity and native Claude aliases", async () => {
+  const {
+    buildSlashModelOptions,
+    formatSlashModelInsertText,
+    insertSlashTextAtCursor,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/slash-command-model.ts",
+  );
+  const options = buildSlashModelOptions({
+    items: [{
+      display_name: "Anthropic",
+      models: [
+        {
+          display_name: "Sonnet custom label",
+          model_id: "sonnet",
+        },
+        {
+          display_name: "Claude Sonnet 4.6",
+          model_id: "claude-sonnet-4-6",
+        },
+      ],
+      provider: "anthropic",
+    }],
+  }, "claude");
+
+  assert.equal(options[0].id, "default");
+  assert.equal(
+    options.filter((option) => option.id === "sonnet").length,
+    2,
+  );
+  assert.deepEqual(
+    options.find((option) => (
+      option.provider === "anthropic"
+      && option.id === "claude-sonnet-4-6"
+    )),
+    {
+      id: "claude-sonnet-4-6",
+      label: "Claude Sonnet 4.6",
+      provider: "anthropic",
+      providerLabel: "Anthropic",
+    },
+  );
+  assert.deepEqual(
+    insertSlashTextAtCursor(
+      "继续",
+      2,
+      formatSlashModelInsertText({
+        id: "claude-sonnet-4-6",
+        label: "Claude Sonnet 4.6",
+        provider: "anthropic",
+      }),
+    ),
+    {
+      cursorPosition: 37,
+      value: "继续/model anthropic/claude-sonnet-4-6 ",
+    },
+  );
+  assert.equal(
+    formatSlashModelInsertText({ id: "sonnet", label: "Sonnet" }),
+    "/model sonnet ",
+  );
+});
+
 test("command catalog parser accepts the public browser contract", async () => {
   const { parseCommandCatalogData } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-data.ts",

@@ -15,9 +15,9 @@ import type {
 } from "@/types/generated/protocol";
 import type { SkillInfo } from "@/types/capability/skill";
 
-import { SlashCommandPopover } from "./slash-command-popover";
-
 import { COMPOSER_TEXTAREA_MAX_HEIGHT_PX } from "../composer-styles";
+import type { SlashModelOption } from "../slash-command-model";
+import { SlashCommandPopover } from "./slash-command-popover";
 
 interface ComposerInputRowProps {
   input: {
@@ -44,15 +44,24 @@ interface ComposerInputRowProps {
     active: boolean;
     activeIndex: number;
     commands: CommandDescriptor[];
-    mode: "commands" | "skills";
+    mode: "commands" | "models" | "skills";
+    modelError: string | null;
+    modelItems: SlashModelOption[];
+    modelLoading: boolean;
+    modelQuery: string;
+    modelSearchRef: RefObject<HTMLInputElement | null>;
+    onModelQueryChange: (query: string) => void;
+    onModelQueryKeyDown: (
+      event: KeyboardEvent<HTMLInputElement>,
+    ) => boolean;
+    onClose: () => void;
+    onSelectModel: (model: SlashModelOption) => void;
     onSelectCommand: (command: CommandDescriptor) => void;
     onSelectSkill: (skill: SkillInfo) => void;
     onSkillQueryChange: (query: string) => void;
     onSkillQueryKeyDown: (
       event: KeyboardEvent<HTMLInputElement>,
     ) => boolean;
-    query: string;
-    skillCount: number;
     skillError: string | null;
     skillItems: SkillInfo[];
     skillLoading: boolean;
@@ -60,6 +69,7 @@ interface ComposerInputRowProps {
     skillSearchRef: RefObject<HTMLInputElement | null>;
     status: CommandCatalogStatus;
   };
+  composerShellRef: RefObject<HTMLDivElement | null>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
 
@@ -69,6 +79,7 @@ export function ComposerInputRow({
   layout,
   mention,
   slashCommand,
+  composerShellRef,
   textareaRef,
 }: ComposerInputRowProps) {
   return (
@@ -76,15 +87,22 @@ export function ComposerInputRow({
       {slashCommand.active ? (
         <SlashCommandPopover
           activeIndex={slashCommand.activeIndex}
-          anchorRect={textareaRef.current?.getBoundingClientRect() ?? null}
+          anchorRef={composerShellRef}
           commands={slashCommand.commands}
           mode={slashCommand.mode}
+          modelError={slashCommand.modelError}
+          modelItems={slashCommand.modelItems}
+          modelLoading={slashCommand.modelLoading}
+          modelQuery={slashCommand.modelQuery}
+          modelSearchRef={slashCommand.modelSearchRef}
+          onModelQueryChange={slashCommand.onModelQueryChange}
+          onModelQueryKeyDown={slashCommand.onModelQueryKeyDown}
+          onClose={slashCommand.onClose}
+          onSelectModel={slashCommand.onSelectModel}
           onSelectCommand={slashCommand.onSelectCommand}
           onSelectSkill={slashCommand.onSelectSkill}
           onSkillQueryChange={slashCommand.onSkillQueryChange}
           onSkillQueryKeyDown={slashCommand.onSkillQueryKeyDown}
-          query={slashCommand.query}
-          skillCount={slashCommand.skillCount}
           skillError={slashCommand.skillError}
           skillItems={slashCommand.skillItems}
           skillLoading={slashCommand.skillLoading}

@@ -41,3 +41,15 @@ export function resolveRoomMemberAgents(roomContexts: RoomContextAggregate[]): A
     buildFallbackRoomMemberAgent(agentId, roomContexts)
   ));
 }
+
+export function resolveCurrentRoomMemberAgents(
+  roomContexts: RoomContextAggregate[],
+  agentDirectory: Agent[],
+): Agent[] {
+  const directoryByID = new Map(
+    agentDirectory.map((agent) => [agent.agent_id, agent]),
+  );
+  return resolveRoomMemberAgents(roomContexts).map(
+    (agent) => directoryByID.get(agent.agent_id) ?? agent,
+  );
+}

@@ -157,9 +157,11 @@ func (m *controlMessage) executeHostCommand(
 	if m.parsed.Kind == protocol.SessionKeyKindRoom {
 		scope = slashcommandsvc.ScopeRoom
 	}
+	roundID := protocol.NewRoundID()
 	invocation := slashcommandsvc.Invocation{
 		SessionKey:      m.sessionKey,
 		AgentID:         firstStringValue(m.inbound["agent_id"], m.parsed.AgentID),
+		RoundID:         roundID,
 		Content:         m.stringValue("content"),
 		AttachmentCount: attachmentCount,
 	}
@@ -174,7 +176,6 @@ func (m *controlMessage) executeHostCommand(
 	if !matched || err != nil {
 		return matched, err
 	}
-	roundID := protocol.NewRoundID()
 	ack := protocol.NewChatAckEvent(
 		m.sessionKey,
 		clientRequestID,
@@ -193,6 +194,24 @@ func (m *controlMessage) executeHostCommand(
 		if err = m.sender.SendEvent(m.ctx, event); err != nil {
 			return true, err
 		}
+	}
+	if invalidation := result.DirectoryInvalidation; invalidation != nil {
+		m.handler.BroadcastDirectoryChanged(
+			m.ctx,
+			invalidation.Reason,
+			invalidation.Data,
+		)
+	}
+	if err = m.sender.SendEvent(
+		m.ctx,
+		protocol.NewRoundStatusEvent(
+			m.sessionKey,
+			roundID,
+			"completed",
+			"success",
+		),
+	); err != nil {
+		return true, err
 	}
 	return true, nil
 }

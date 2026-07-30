@@ -24,14 +24,23 @@ const (
 type Invocation struct {
 	SessionKey      string
 	AgentID         string
+	RoundID         string
 	Content         string
 	Arguments       string
 	AttachmentCount int
 }
 
+// DirectoryInvalidation 描述宿主命令完成后需要广播的目录失效信号。
+type DirectoryInvalidation struct {
+	Reason string
+	Data   map[string]any
+}
+
 // Result 承载宿主命令执行后需要直接返回当前客户端的瞬时事件。
 type Result struct {
-	Events []protocol.EventMessage
+	Events                []protocol.EventMessage
+	DirectoryInvalidation *DirectoryInvalidation
+	PassThrough           bool
 }
 
 // Handler 执行一条 Nexus 自有命令。
@@ -173,6 +182,9 @@ func (r *Registry) execute(
 		}
 	}
 	result, err := definition.Handler(ctx, invocation)
+	if err == nil && result.PassThrough {
+		return Result{}, false, nil
+	}
 	return result, true, err
 }
 
