@@ -117,13 +117,6 @@ func (c *modelCommand) execute(
 	}
 	selection, resolution := resolveModelCommandSelection(options, argument)
 	switch resolution {
-	case modelResolutionPassThrough:
-		if isClaudeRuntimeKind(runtimeSelection.RuntimeKind) {
-			return Result{PassThrough: true}, nil
-		}
-		return Result{}, commandInputError{
-			message: fmt.Sprintf("当前 runtime 下找不到模型 %q。", argument),
-		}
 	case modelResolutionAmbiguous:
 		return Result{}, commandInputError{
 			message: fmt.Sprintf(
@@ -164,7 +157,6 @@ type modelResolution uint8
 
 const (
 	modelResolutionMatched modelResolution = iota
-	modelResolutionPassThrough
 	modelResolutionAmbiguous
 	modelResolutionMissing
 )
@@ -188,7 +180,7 @@ func resolveModelCommandSelection(
 
 	providerName, modelName, qualified := strings.Cut(argument, "/")
 	if !qualified {
-		return modelSelection{}, modelResolutionPassThrough
+		return modelSelection{}, modelResolutionMissing
 	}
 	providerName = strings.TrimSpace(providerName)
 	modelName = strings.TrimSpace(modelName)
@@ -285,15 +277,6 @@ func firstModelCommandValue(values ...string) string {
 	return ""
 }
 
-func isClaudeRuntimeKind(runtimeKind string) bool {
-	switch strings.ToLower(strings.TrimSpace(runtimeKind)) {
-	case "claude", "cc", "claude-code", "claudecode":
-		return true
-	default:
-		return false
-	}
-}
-
 func newModelChangedEvent(
 	invocation Invocation,
 	agentValue *protocol.Agent,
@@ -317,6 +300,7 @@ func newModelChangedEvent(
 		"round_id":    strings.TrimSpace(invocation.RoundID),
 		"role":        "assistant",
 		"timestamp":   timestamp,
+		"stop_reason": "end_turn",
 		"content": []map[string]any{{
 			"type": "text",
 			"text": text,

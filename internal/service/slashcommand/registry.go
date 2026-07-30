@@ -40,7 +40,6 @@ type DirectoryInvalidation struct {
 type Result struct {
 	Events                []protocol.EventMessage
 	DirectoryInvalidation *DirectoryInvalidation
-	PassThrough           bool
 }
 
 // Handler 执行一条 Nexus 自有命令。
@@ -182,9 +181,6 @@ func (r *Registry) execute(
 		}
 	}
 	result, err := definition.Handler(ctx, invocation)
-	if err == nil && result.PassThrough {
-		return Result{}, false, nil
-	}
 	return result, true, err
 }
 

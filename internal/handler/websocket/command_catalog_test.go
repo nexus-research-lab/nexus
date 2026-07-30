@@ -87,24 +87,24 @@ func TestProjectCommandCatalogKeepsUnavailableRuntimeCommandsHidden(t *testing.T
 	}
 }
 
-func TestProjectCommandCatalogLetsNexusHostCommandWinNameCollision(t *testing.T) {
+func TestProjectCommandCatalogKeepsModelOwnedByNexusHost(t *testing.T) {
 	data := projectCommandCatalog(slashcommandsvc.RuntimeCatalogSnapshot{
 		Status: protocol.CommandCatalogStatusReady,
 		Commands: []protocol.CommandDescriptor{{
-			Name:        "goal",
-			Description: "Runtime goal",
+			Name:        "model",
+			Description: "Runtime model",
 			Enabled:     true,
 		}},
 	}, "agent-a", []protocol.CommandDescriptor{{
-		Name:        "goal",
-		Description: "Nexus goal",
+		Name:        "model",
+		Description: "Nexus model",
 		Execution:   protocol.CommandExecutionHost,
 		Enabled:     true,
 	}})
 
 	if len(data.Commands) != 1 ||
 		data.Commands[0].Execution != protocol.CommandExecutionHost ||
-		data.Commands[0].Description != "Nexus goal" {
-		t.Fatalf("catalog = %#v, want Nexus host command to reserve /goal", data)
+		data.Commands[0].Description != "Nexus model" {
+		t.Fatalf("catalog = %#v, want Nexus host command to reserve /model", data)
 	}
 }

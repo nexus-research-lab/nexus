@@ -11,7 +11,7 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
-const catalogGeneration = 3
+const catalogGeneration = 4
 
 // RuntimeCatalogSnapshot 是当前 Nexus 版本内置的单个 runtime 指令快照。
 type RuntimeCatalogSnapshot struct {
@@ -43,11 +43,6 @@ func NewCatalog() *Catalog {
 						"<optional instructions>",
 					),
 					newRuntimeCommand(
-						"model",
-						"Set the AI model for this session",
-						"<model>",
-					),
-					newRuntimeCommand(
 						"skills",
 						"Browse and insert available skills",
 						"",
@@ -61,11 +56,6 @@ func NewCatalog() *Catalog {
 						"compact",
 						"Free up context by summarizing the conversation so far",
 						"<optional instructions>",
-					),
-					newRuntimeCommand(
-						"model",
-						"Set the AI model for Claude Code",
-						"<model>",
 					),
 					newRuntimeCommand(
 						"skills",

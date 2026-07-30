@@ -107,7 +107,7 @@ test("slash selection inserts a normal host or runtime message", async () => {
   );
 });
 
-test("slash model picker keeps provider identity and native Claude aliases", async () => {
+test("slash model picker only exposes Nexus provider models", async () => {
   const {
     buildSlashModelOptions,
     formatSlashModelInsertText,
@@ -130,13 +130,14 @@ test("slash model picker keeps provider identity and native Claude aliases", asy
       ],
       provider: "anthropic",
     }],
-  }, "claude");
+  });
 
-  assert.equal(options[0].id, "default");
+  assert.equal(options[0].id, "sonnet");
   assert.equal(
     options.filter((option) => option.id === "sonnet").length,
-    2,
+    1,
   );
+  assert.equal(options.every((option) => Boolean(option.provider)), true);
   assert.deepEqual(
     options.find((option) => (
       option.provider === "anthropic"
@@ -164,10 +165,59 @@ test("slash model picker keeps provider identity and native Claude aliases", asy
       value: "继续/model anthropic/claude-sonnet-4-6 ",
     },
   );
-  assert.equal(
-    formatSlashModelInsertText({ id: "sonnet", label: "Sonnet" }),
-    "/model sonnet ",
+});
+
+test("Nexus model confirmation closes without runtime activity", async () => {
+  const { AgentConversationRuntimeMachine } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/agent-conversation-runtime-machine.ts",
   );
+  const { parseRoundStatusEventPayload } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-data.ts",
+  );
+  const machine = new AgentConversationRuntimeMachine("dm");
+  machine.trackOutboundRequest("request-model");
+  machine.trackChatAck({
+    ack_timeout_ms: 10_000,
+    client_message_id: "client-message-model",
+    client_request_id: "request-model",
+    pending: [],
+    pending_snapshot: false,
+    round_id: "round-model",
+    user_message_committed: false,
+    user_message_id: "user-model",
+  });
+  machine.trackAssistantMessage({
+    content: [{
+      text: "Set model to DeepSeek / deepseek-v4-flash",
+      type: "text",
+    }],
+    message_id: "assistant-model",
+    role: "assistant",
+    round_id: "round-model",
+    stop_reason: "end_turn",
+    timestamp: 1,
+  });
+
+  assert.equal(machine.snapshot().isLoading, false);
+  assert.deepEqual(machine.snapshot().liveRoundIds, []);
+
+  const terminal = parseRoundStatusEventPayload({
+    is_terminal: true,
+    result_subtype: "success",
+    round_id: "round-model",
+    status: "finished",
+  });
+  assert.deepEqual(terminal, {
+    is_terminal: true,
+    result_subtype: "success",
+    round_id: "round-model",
+    status: "finished",
+  });
+  assert.equal(parseRoundStatusEventPayload({
+    is_terminal: true,
+    round_id: "round-model",
+    status: "completed",
+  }), null);
 });
 
 test("command catalog parser accepts the public browser contract", async () => {

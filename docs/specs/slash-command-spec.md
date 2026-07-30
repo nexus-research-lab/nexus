@@ -29,14 +29,16 @@ canonical 名称。
 
 当前版本清单：
 
-- nxs：`compact`、`model`、`skills`
-- Claude Code：`compact`、`model`、`skills`
+- nxs runtime：`compact`、`skills`
+- Claude Code runtime：`compact`、`skills`
+- Nexus host：`model`
 
-`compact`、`model` 与 `skills` 是两个 runtime 在 Composer 中共享的核心入口。
-`skills` 由 Composer 打开完整 Skill 选择器并替换为选中的具体 `/skill-name`，
-不会把字面量 `/skills` 发给 runtime。nxs 的 session summary 是 runtime 内部
-自动维护数据，不投影为公开 Slash 指令；需要立即释放上下文时统一使用
-`/compact [instructions]`。
+两个 runtime 在 Composer 中最终都展示 `compact`、`model` 与 `skills` 三个核心
+入口，但三者的执行归属不同：`compact` 交给当前 runtime，`model` 始终由 Nexus
+校验并持久化 Agent 的 Provider/模型选择，`skills` 由 Composer 打开完整 Skill
+选择器并替换为选中的具体 `/skill-name`，不会把字面量 `/skills` 发给 runtime。
+nxs 的 session summary 是 runtime 内部自动维护数据，不投影为公开 Slash 指令；
+需要立即释放上下文时统一使用 `/compact [instructions]`。
 
 这份清单只承诺 Nexus 版本固定支持的内置指令，不把用户本机的 Skill、插件或
 MCP 动态命令伪装成全局可用项。
@@ -66,13 +68,20 @@ runtime 命令暂不投影，因此不应通过 Room 目录事件启动或绑定
 ## 执行
 
 Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `chat` 文本，例如
-`/model sonnet`。WebSocket handler 先让 host registry 尝试匹配：
+`/model anthropic/claude-sonnet-4-6`。WebSocket handler 先让 host registry
+尝试匹配：
 
 - 匹配成功：执行 host handler，返回其产生的产品事件；
 - 未匹配：原样交给 DM runtime，由 nxs/Claude 自己解析；
 - 带附件的已知 host 指令：在 handler 执行前拒绝；
 - DM 的任何 Slash 输入都标记为 atomic，清除 bridge 尚未消费的隐藏上下文，
   不追加 Goal、recovery 或 emotion context。
+
+`/model` 只接受 Nexus Provider 目录里的模型，更新 Agent 的显式
+`provider/model` 配置并广播 `agent_updated`；它不启动或调用 runtime。已存在的
+runtime 连接在下一轮发送前按新的 Agent 配置重建/恢复，模型选择因此仍由 Nexus
+保持唯一真相源。host handler 产生的确认消息带终止投影，并用规范的 `finished`
+round 状态立即收口，不能把 Composer 留在“回复中”。
 
 未知 Slash 不在 Nexus 侧报错，以便 runtime 新增指令时旧版 Nexus 仍能透传。
 Nexus 只有在 client 同时提供 set/clear 语义时才使用下一轮隐藏上下文 buffer；

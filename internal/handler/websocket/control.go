@@ -207,7 +207,7 @@ func (m *controlMessage) executeHostCommand(
 		protocol.NewRoundStatusEvent(
 			m.sessionKey,
 			roundID,
-			"completed",
+			protocol.RoundStatusFinished,
 			"success",
 		),
 	); err != nil {

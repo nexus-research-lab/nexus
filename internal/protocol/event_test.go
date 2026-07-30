@@ -103,3 +103,17 @@ func TestRoundStatusErrorEventCarriesDisplayableMessage(t *testing.T) {
 		t.Fatalf("error message = %#v", event.Data["message"])
 	}
 }
+
+func TestRoundStatusFinishedEventIsTerminal(t *testing.T) {
+	event := NewRoundStatusEvent(
+		"agent:agent-1:ws:dm:session-1",
+		"round-1",
+		RoundStatusFinished,
+		"success",
+	)
+	if event.Data["status"] != RoundStatusFinished ||
+		event.Data["is_terminal"] != true ||
+		!IsTerminalRoundStatus(RoundStatusFinished) {
+		t.Fatalf("unexpected finished round status data: %+v", event.Data)
+	}
+}

@@ -28,17 +28,6 @@ export interface SlashModelOption {
   providerLabel?: string;
 }
 
-const CLAUDE_MODEL_OPTIONS: readonly SlashModelOption[] = [
-  { id: "default", label: "Default (recommended)" },
-  { id: "sonnet", label: "Sonnet" },
-  { id: "opus", label: "Opus" },
-  { id: "haiku", label: "Haiku" },
-  { id: "best", label: "Best available" },
-  { id: "sonnet[1m]", label: "Sonnet · 1M context" },
-  { id: "opus[1m]", label: "Opus · 1M context" },
-  { id: "opusplan", label: "Opus Plan Mode" },
-];
-
 export function findSlashCommandTextMatch(
   input: string,
   cursorPosition: number,
@@ -172,9 +161,8 @@ export function insertSlashTextAtCursor(
 
 export function buildSlashModelOptions(
   response: ProviderOptionsResponse | null,
-  runtimeKind: string,
 ): SlashModelOption[] {
-  const runtimeOptions = (response?.items ?? []).flatMap((provider) =>
+  const providerOptions = (response?.items ?? []).flatMap((provider) =>
     provider.models.map((model) => ({
       id: model.model_id.trim(),
       label: model.display_name.trim() || model.model_id.trim(),
@@ -182,18 +170,7 @@ export function buildSlashModelOptions(
       providerLabel: provider.display_name.trim() || provider.provider.trim(),
     })),
   );
-  const builtInOptions = isClaudeRuntime(runtimeKind)
-    ? CLAUDE_MODEL_OPTIONS
-    : [];
-  return dedupeSlashModelOptions([...builtInOptions, ...runtimeOptions]);
-}
-
-export function isClaudeRuntime(runtimeKind: string): boolean {
-  const normalized = runtimeKind.trim().toLocaleLowerCase();
-  return normalized === "claude"
-    || normalized === "cc"
-    || normalized === "claude-code"
-    || normalized === "claudecode";
+  return dedupeSlashModelOptions(providerOptions);
 }
 
 function dedupeSlashModelOptions(

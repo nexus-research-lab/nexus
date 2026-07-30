@@ -110,7 +110,8 @@ func TestModelCommandPersistsQualifiedProviderSelection(t *testing.T) {
 	event := result.Events[0]
 	if event.EventType != protocol.EventTypeMessage ||
 		event.DeliveryMode != "ephemeral" ||
-		event.RoundID != "round-a" {
+		event.RoundID != "round-a" ||
+		event.Data["stop_reason"] != "end_turn" {
 		t.Fatalf("model changed event = %#v", event)
 	}
 }
@@ -279,7 +280,7 @@ func TestModelCommandRejectsAmbiguousModel(t *testing.T) {
 	}
 }
 
-func TestModelCommandPassesClaudeNativeAliasToRuntime(t *testing.T) {
+func TestModelCommandRejectsUnknownClaudeNativeAliasAtHost(t *testing.T) {
 	agents := &fakeModelCommandAgents{
 		agent: protocol.Agent{OwnerUserID: "owner-a"},
 	}
@@ -302,11 +303,13 @@ func TestModelCommandPassesClaudeNativeAliasToRuntime(t *testing.T) {
 			Content: "/model sonnet",
 		},
 	)
-	if err != nil || matched || agents.updateCount != 0 {
+	message, clientSafe := protocol.ClientErrorMessage(err)
+	if !matched || !clientSafe || message == "" || agents.updateCount != 0 {
 		t.Fatalf(
-			"Execute() = matched:%t err:%v updates:%d",
+			"Execute() = matched:%t err:%v client_safe:%t updates:%d",
 			matched,
 			err,
+			clientSafe,
 			agents.updateCount,
 		)
 	}

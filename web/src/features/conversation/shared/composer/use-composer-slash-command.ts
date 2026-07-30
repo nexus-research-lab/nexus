@@ -33,7 +33,6 @@ import {
   formatSlashModelInsertText,
   insertSlashCommand,
   insertSlashTextAtCursor,
-  isClaudeRuntime,
   isSelectableSlashCommand,
   SLASH_COMMAND_NAVIGATION_KEYS,
   type SlashCommandTextMatch,
@@ -205,17 +204,13 @@ export function useComposerSlashCommand({
       try {
         const response = await listProviderOptionsApi(modelRuntimeKind);
         if (requestID === modelsRequestRef.current) {
-          setModelItems(buildSlashModelOptions(response, modelRuntimeKind));
+          setModelItems(buildSlashModelOptions(response));
         }
       } catch (error) {
         if (requestID === modelsRequestRef.current) {
-          if (isClaudeRuntime(modelRuntimeKind)) {
-            setModelItems(buildSlashModelOptions(null, modelRuntimeKind));
-          } else {
-            setModelError(
-              error instanceof Error ? error.message : "模型列表加载失败",
-            );
-          }
+          setModelError(
+            error instanceof Error ? error.message : "模型列表加载失败",
+          );
         }
       } finally {
         if (requestID === modelsRequestRef.current) {

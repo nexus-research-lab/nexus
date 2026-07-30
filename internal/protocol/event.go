@@ -57,6 +57,13 @@ const (
 	EventTypePong                        EventType = "pong"
 )
 
+const (
+	RoundStatusRunning     = "running"
+	RoundStatusFinished    = "finished"
+	RoundStatusInterrupted = "interrupted"
+	RoundStatusError       = "error"
+)
+
 // EventMessage 对齐前后端统一 envelope。
 type EventMessage struct {
 	EnvelopeID      string         `json:"envelope_id,omitempty"`
@@ -223,7 +230,7 @@ func NewRoundStatusEvent(sessionKey string, roundID string, status string, resul
 	data := map[string]any{
 		"round_id":    roundID,
 		"status":      status,
-		"is_terminal": status == "finished" || status == "interrupted" || status == "error",
+		"is_terminal": IsTerminalRoundStatus(status),
 	}
 	if strings.TrimSpace(resultSubtype) != "" {
 		data["result_subtype"] = strings.TrimSpace(resultSubtype)
@@ -237,7 +244,12 @@ func NewRoundStatusEvent(sessionKey string, roundID string, status string, resul
 // error 事件本身是瞬时通知；把原因同时放进 round_status，客户端即使错过前一个事件，
 // 仍能在轮次收口时给用户一个明确反馈。
 func NewRoundStatusErrorEvent(sessionKey string, roundID string, message string) EventMessage {
-	event := NewRoundStatusEvent(sessionKey, roundID, "error", "error")
+	event := NewRoundStatusEvent(
+		sessionKey,
+		roundID,
+		RoundStatusError,
+		"error",
+	)
 	if trimmed := strings.TrimSpace(message); trimmed != "" {
 		event.Data["message"] = trimmed
 	}
@@ -295,7 +307,12 @@ func NewChatPendingSnapshotEvent(sessionKey string, roundID string, pending []Ch
 
 // IsTerminalRoundStatus 判断 round / slot 状态是否终态。
 func IsTerminalRoundStatus(status string) bool {
-	return status == "finished" || status == "interrupted" || status == "error"
+	switch status {
+	case RoundStatusFinished, RoundStatusInterrupted, RoundStatusError:
+		return true
+	default:
+		return false
+	}
 }
 
 // NewAgentRoundStatusEvent 构造 agent_round_status 事件（Room slot 生命周期）。

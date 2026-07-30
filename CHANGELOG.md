@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Aligned the nxs Composer catalog with Claude Code's shared `/compact`, `/model`, and `/skills` core while keeping session-summary maintenance internal.
+- Unified the Composer catalog around runtime-owned `/compact` and `/skills` plus Nexus-owned `/model`, while keeping session-summary maintenance internal.
 - Made Skill update checks distinguish current, update-available, and source-failure results without parsing display text; deleted Git branches now produce an actionable re-import explanation instead of the contradictory “no updates, cannot check” state.
 - Unified the DM and Room bottom work area into one Composer-based upward stack: active Goal and provider state now sit directly above the input as a narrower raised layer, while Task progress and return-to-latest controls float above that layer without an artificial runway or message-flow jump.
 - Softened the Room and DM reading edges with non-interactive component-edge fades: each header now dissolves into scrolling text without changing its 60px/52px geometry, while the Composer feathers only when it directly meets messages and yields cleanly to stacked Goal or warning surfaces.
@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed `/model` selections reporting success without changing the Agent configuration: Nexus now preserves the Provider/model pair, validates it against the selected runtime, persists it atomically, refreshes Agent state in the UI, and applies it to the next turn while retaining Claude Code's native model aliases.
+- Fixed `/model` selections reporting success without changing the Agent configuration or leaving the Composer in “Replying”: Nexus now owns the command, validates and persists the selected Provider/model pair on the Agent, refreshes Agent state, applies it to the next turn, and closes the synthetic host round with a canonical terminal event.
 - Fixed Slash inputs carrying Goal, recovery, emotion, or stale bridge context into runtime command arguments; atomic Slash rounds now clear one-shot hidden context and reject attachments, while the Composer no longer starts runtimes or issues catalog refresh requests.
 - Updated `nexus-manager` and the main-Agent runtime guidance to cover user-account registration with the host-injected owner scope, removed stale runtime-only CLI/path instructions, hid manual scope selectors from host-managed CLI help, made stale explicit scope flags a recoverable denial with an actionable retry message, and advanced the Linux runtime layout so historical `0600` diagnostics files regain the host ACL needed after the main Agent identity transition.
 - Scoped the desktop conversation-header fade to the chat pane's own clipped reading edge, so opening Workspace, Agent details, or Subagents no longer washes out the neighboring panel; focus-mode mobile conversations retain the full-width fade.
