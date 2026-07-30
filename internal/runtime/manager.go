@@ -33,6 +33,11 @@ type sessionState struct {
 	IdleMessageCancel        context.CancelFunc
 	IdleMessageDrainID       int64
 	RuntimeKind              agentclient.RuntimeKind
+	RuntimeGeneration        uint64
+	RuntimeConnectionStarted bool
+	CommandCatalogStatus     CommandCatalogStatus
+	CommandCatalogSyncing    bool
+	Commands                 []agentclient.SlashCommand
 	OwnerUserID              string
 	HasSubagentHistory       bool
 	LastUsedAt               time.Time
@@ -45,6 +50,7 @@ type Manager struct {
 	factory            Factory
 	now                func() time.Time
 	ownerProcessReaper OwnerProcessReaper
+	nextGeneration     atomic.Uint64
 	// subagentUsageTotals 只服务非 SQL goal provider 的兼容路径；
 	// 放在 Manager 根上，避免 idle session 回收后立刻丢失高水位。
 	subagentUsageTotals map[string]int64

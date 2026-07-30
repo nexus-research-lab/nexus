@@ -30,7 +30,6 @@ const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
   commands: [],
   status: "unavailable",
 };
-const IGNORE_COMMAND_CATALOG_REFRESH = () => {};
 
 export function useComposerController({
   commandCatalog = EMPTY_COMMAND_CATALOG,
@@ -47,7 +46,6 @@ export function useComposerController({
   onCreateLoopGoal,
   onEnqueueMessage,
   onPrepareAttachments,
-  onRefreshCommandCatalog = IGNORE_COMMAND_CATALOG_REFRESH,
   onSendMessage,
   onStop,
   queueWhenSessionBusy = true,
@@ -102,7 +100,6 @@ export function useComposerController({
     catalog: commandCatalog,
     input: draftState.input,
     isGoalMode,
-    onRefresh: onRefreshCommandCatalog,
     setInput,
     textareaRef,
   });

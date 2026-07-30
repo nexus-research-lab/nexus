@@ -35,7 +35,7 @@ func (h *Handler) errorEventDetail(errorType string, err error) string {
 		return "session_key 不合法"
 	case "permission_request_not_found":
 		return "未找到待确认的权限请求"
-	case "chat_error":
+	case "chat_error", "command_catalog_error":
 		return chatErrorDetail(err)
 	default:
 		if handlershared.IsClientMessageError(err) || handlershared.IsStructuredSessionKeyError(err) {

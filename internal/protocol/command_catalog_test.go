@@ -5,6 +5,7 @@ import "testing"
 func TestNewCommandCatalogEventKeepsOnlyPublicDescriptorFields(t *testing.T) {
 	event := NewCommandCatalogEvent("agent:a:ws:dm:one", CommandCatalogData{
 		Revision:    "revision-1",
+		Generation:  3,
 		RuntimeKind: "nxs",
 		Status:      CommandCatalogStatusReady,
 		AgentID:     "a",
@@ -12,7 +13,7 @@ func TestNewCommandCatalogEventKeepsOnlyPublicDescriptorFields(t *testing.T) {
 			Name:         "review",
 			Description:  "Review code",
 			ArgumentHint: "<target>",
-			Execution:    CommandExecutionRuntimePrompt,
+			Execution:    CommandExecutionRuntime,
 			Enabled:      true,
 		}},
 	})
@@ -21,6 +22,7 @@ func TestNewCommandCatalogEventKeepsOnlyPublicDescriptorFields(t *testing.T) {
 		event.SessionKey != "agent:a:ws:dm:one" ||
 		event.AgentID != "a" ||
 		event.Data["revision"] != "revision-1" ||
+		event.Data["generation"] != uint64(3) ||
 		event.Data["runtime_kind"] != "nxs" {
 		t.Fatalf("event = %#v, want scoped command catalog", event)
 	}
@@ -32,7 +34,7 @@ func TestNewCommandCatalogEventKeepsOnlyPublicDescriptorFields(t *testing.T) {
 
 func TestNewCommandCatalogEventNormalizesNilCommands(t *testing.T) {
 	event := NewCommandCatalogEvent("agent:a:ws:dm:one", CommandCatalogData{
-		Status: CommandCatalogStatusLoading,
+		Status: CommandCatalogStatusCold,
 	})
 
 	commands, ok := event.Data["commands"].([]CommandDescriptor)

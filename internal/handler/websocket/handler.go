@@ -3,6 +3,7 @@ package websocket
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
@@ -14,6 +15,7 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
 	"github.com/coder/websocket"
@@ -28,19 +30,25 @@ const (
 
 // Handler 封装 WebSocket 生命周期与控制消息分发。
 type Handler struct {
-	api            *handlershared.API
-	roomService    *roompkg.Service
-	roomRealtime   roomRealtimeService
-	dm             *dmsvc.Service
-	goals          *goalsvc.Service
-	permission     *permissionctx.Context
-	runtime        *runtimectx.Manager
-	channels       *channelspkg.Router
-	roomSubs       *roomSubscriptionRegistry
-	workspaceSubs  *workspaceSubscriptionRegistry
-	appEventSubs   *appEventSubscriptionRegistry
-	goalRPCSubs    *appServerGoalRPCRegistry
-	allowedOrigins []string
+	api                  *handlershared.API
+	roomService          *roompkg.Service
+	roomRealtime         roomRealtimeService
+	dm                   *dmsvc.Service
+	goals                *goalsvc.Service
+	permission           *permissionctx.Context
+	runtime              *runtimectx.Manager
+	channels             *channelspkg.Router
+	hostCommands         *slashcommandsvc.Registry
+	commandCatalogCtx    context.Context
+	commandCatalogCancel context.CancelFunc
+	commandCatalogMu     sync.Mutex
+	commandCatalogWG     sync.WaitGroup
+	commandCatalogClosed bool
+	roomSubs             *roomSubscriptionRegistry
+	workspaceSubs        *workspaceSubscriptionRegistry
+	appEventSubs         *appEventSubscriptionRegistry
+	goalRPCSubs          *appServerGoalRPCRegistry
+	allowedOrigins       []string
 }
 
 // roomRealtimeService 是 WebSocket 控制面和 Room 订阅恢复实际需要的最小接口。
@@ -66,21 +74,29 @@ func NewHandler(
 	workspaceService *workspacepkg.Service,
 	runtimeProvider func(string) RuntimeSnapshot,
 	allowedOrigins []string,
+	hostCommands *slashcommandsvc.Registry,
 ) *Handler {
+	if hostCommands == nil {
+		hostCommands = slashcommandsvc.NewRegistry()
+	}
+	commandCatalogCtx, commandCatalogCancel := context.WithCancel(context.Background())
 	handler := &Handler{
-		api:            api,
-		roomService:    roomService,
-		roomRealtime:   roomRealtime,
-		dm:             dm,
-		goals:          goals,
-		permission:     permission,
-		runtime:        runtime,
-		channels:       channels,
-		roomSubs:       newRoomSubscriptionRegistry(128),
-		workspaceSubs:  newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
-		appEventSubs:   newAppEventSubscriptionRegistry(),
-		goalRPCSubs:    newAppServerGoalRPCRegistry(),
-		allowedOrigins: allowedOrigins,
+		api:                  api,
+		roomService:          roomService,
+		roomRealtime:         roomRealtime,
+		dm:                   dm,
+		goals:                goals,
+		permission:           permission,
+		runtime:              runtime,
+		channels:             channels,
+		hostCommands:         hostCommands,
+		commandCatalogCtx:    commandCatalogCtx,
+		commandCatalogCancel: commandCatalogCancel,
+		roomSubs:             newRoomSubscriptionRegistry(128),
+		workspaceSubs:        newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
+		appEventSubs:         newAppEventSubscriptionRegistry(),
+		goalRPCSubs:          newAppServerGoalRPCRegistry(),
+		allowedOrigins:       allowedOrigins,
 	}
 	if roomRealtime != nil {
 		roomRealtime.SetRoomBroadcaster(handler.roomSubs)
@@ -89,6 +105,58 @@ func NewHandler(
 		goals.SetEventBroadcaster(newGoalEventBroadcaster(permission, handler.goalRPCSubs))
 	}
 	return handler
+}
+
+// Close 停止 bind_session 启动的后台 runtime 目录同步，并等待其退出。
+func (h *Handler) Close() {
+	if h == nil {
+		return
+	}
+	h.commandCatalogMu.Lock()
+	if h.commandCatalogClosed {
+		h.commandCatalogMu.Unlock()
+		return
+	}
+	h.commandCatalogClosed = true
+	if h.commandCatalogCancel != nil {
+		h.commandCatalogCancel()
+	}
+	h.commandCatalogMu.Unlock()
+	h.commandCatalogWG.Wait()
+}
+
+func (h *Handler) startBoundCommandCatalog(
+	ctx context.Context,
+	sender *handlershared.WebSocketSender,
+	sessionKey string,
+	parsed protocol.SessionKey,
+) {
+	if h == nil {
+		return
+	}
+	h.commandCatalogMu.Lock()
+	if h.commandCatalogClosed {
+		h.commandCatalogMu.Unlock()
+		return
+	}
+	h.commandCatalogWG.Add(1)
+	lifecycleCtx := h.commandCatalogCtx
+	h.commandCatalogMu.Unlock()
+
+	jobCtx, cancel := context.WithCancel(ctx)
+	stopLifecycle := func() {}
+	if lifecycleCtx != nil {
+		stop := context.AfterFunc(lifecycleCtx, cancel)
+		stopLifecycle = func() {
+			_ = stop()
+		}
+	}
+	go func() {
+		defer h.commandCatalogWG.Done()
+		defer stopLifecycle()
+		defer cancel()
+		h.initializeBoundCommandCatalog(jobCtx, sender, sessionKey, parsed)
+	}()
 }
 
 // HandleWebSocket 处理 WebSocket 会话。

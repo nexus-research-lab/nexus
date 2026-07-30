@@ -7,7 +7,8 @@
 //     连接生命周期、消息分发、带请求身份 ACK 的控制动作表、错误与取值。
 //   - room_subscription_handler.go / session_binding.go / broadcast.go：
 //     房间订阅（含权威空 slot 快照清理）、会话绑定与广播。
-//   - command_catalog.go：把当前 Agent runtime 的可派发命令目录安全投影到共享或私有 Composer。
+//   - command_catalog.go：在 bind_session 后合并 Nexus host 与 Agent runtime 命令，
+//     把当前 generation 的安全权威目录投影到共享或私有 Composer。
 //   - goal_rpc_handler.go / goal_rpc_registry.go / goal_event_broadcaster.go：
 //     Codex app-server Goal RPC、pending call 注册与事件广播。
 //   - app_event_subscription.go / room_subscription_registry.go / workspace_*.go：

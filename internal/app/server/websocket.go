@@ -4,6 +4,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	handlerwebsocket "github.com/nexus-research-lab/nexus/internal/handler/websocket"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 )
 
 func newWebSocketHandler(
@@ -23,6 +24,7 @@ func newWebSocketHandler(
 		services.Workspace,
 		newRuntimeSnapshotProvider(services),
 		cfg.AllowedWebSocketOrigins,
+		slashcommandsvc.NewRegistry(),
 	)
 }
 

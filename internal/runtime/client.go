@@ -141,6 +141,24 @@ func (c *sdkClientAdapter) SetNextTurnContext(ctx context.Context, blocks []Cont
 	return session.Control().SetNextTurnContext(ctx, sdkBlocks)
 }
 
+// ClearNextTurnContext 清除 bridge 尚未消费的单轮隐藏上下文。
+func (c *sdkClientAdapter) ClearNextTurnContext(ctx context.Context) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	control := session.Control()
+	// 新 bridge 提供显式清理；旧 bridge 的 SetNextTurnContext(nil) 也会清空
+	// 同一个 buffer，作为兼容回退，避免 Slash 等原子输入带入上一轮上下文。
+	clearer, ok := any(control).(interface {
+		ClearNextTurnContext(context.Context) error
+	})
+	if ok {
+		return clearer.ClearNextTurnContext(ctx)
+	}
+	return control.SetNextTurnContext(ctx, nil)
+}
+
 func (c *sdkClientAdapter) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
 	c.mu.Lock()
 	defer c.mu.Unlock()

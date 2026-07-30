@@ -62,7 +62,13 @@ func (s *Server) Router() http.Handler {
 
 // Close 收口服务创建的后台文件任务。
 func (s *Server) Close(ctx context.Context) error {
-	if s == nil || s.services == nil {
+	if s == nil {
+		return nil
+	}
+	if s.handlers.websocket != nil {
+		s.handlers.websocket.Close()
+	}
+	if s.services == nil {
 		return nil
 	}
 	return s.services.Close(ctx)

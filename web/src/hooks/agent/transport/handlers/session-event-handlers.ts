@@ -17,6 +17,7 @@ import {
   parseInputQueueEventPayload,
   parseRoundStatusEventPayload,
   parseRuntimeStatusData,
+  selectCommandCatalogSnapshot,
   parseSessionStatusData,
 } from "./session-event-data";
 
@@ -82,7 +83,9 @@ const handleCommandCatalog: AgentEventHandler = (event, context) => {
     payload
     && (!payload.agent_id || payload.agent_id === currentAgentID)
   ) {
-    context.state.setCommandCatalog(payload);
+    context.state.setCommandCatalog((current) => (
+      selectCommandCatalogSnapshot(current, payload)
+    ));
   }
 };
 

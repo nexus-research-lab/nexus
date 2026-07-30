@@ -44,13 +44,14 @@ const RUNTIME_STATUSES = new Set<Exclude<AgentConversationRuntimeStatus, null>>(
   "compacting",
 ]);
 const COMMAND_CATALOG_STATUSES = new Set<CommandCatalogStatus>([
-  "loading",
+  "cold",
+  "starting",
   "ready",
   "unavailable",
 ]);
 const COMMAND_EXECUTIONS = new Set<CommandExecution>([
   "host",
-  "runtime_prompt",
+  "runtime",
   "unsupported",
 ]);
 const INPUT_QUEUE_SCOPES = new Set<InputQueueItem["scope"]>(["dm", "room"]);
@@ -160,15 +161,43 @@ export function parseCommandCatalogData(
     return null;
   }
   const revision = readString(data, "revision");
+  const generation = readNumber(data, "generation");
   const runtimeKind = readString(data, "runtime_kind");
   const agentId = readString(data, "agent_id");
   return {
     status,
     commands: data.commands,
     ...(revision ? { revision } : {}),
+    ...(generation !== null && generation >= 0 ? { generation } : {}),
     ...(runtimeKind ? { runtime_kind: runtimeKind } : {}),
     ...(agentId ? { agent_id: agentId } : {}),
   };
+}
+
+const COMMAND_CATALOG_STATUS_RANK: Record<CommandCatalogStatus, number> = {
+  cold: 0,
+  starting: 1,
+  unavailable: 2,
+  ready: 3,
+};
+
+export function selectCommandCatalogSnapshot(
+  current: CommandCatalogData,
+  incoming: CommandCatalogData,
+): CommandCatalogData {
+  const currentGeneration = current.generation ?? 0;
+  const incomingGeneration = incoming.generation ?? 0;
+  if (incomingGeneration < currentGeneration) {
+    return current;
+  }
+  if (
+    incomingGeneration === currentGeneration
+    && COMMAND_CATALOG_STATUS_RANK[incoming.status]
+      < COMMAND_CATALOG_STATUS_RANK[current.status]
+  ) {
+    return current;
+  }
+  return incoming;
 }
 
 function isInputQueueItem(value: unknown): value is InputQueueItem {

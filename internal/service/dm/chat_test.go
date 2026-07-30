@@ -3,6 +3,7 @@ package dm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -227,9 +228,73 @@ func TestDMPrepareRuntimeKeepsSlashCommandPayloadClean(t *testing.T) {
 	if got := preparation.content.PlainText(); got != "/model" {
 		t.Fatalf("Slash runtime payload = %q, want clean command", got)
 	}
+	if !preparation.atomicInput {
+		t.Fatal("Slash runtime payload must be marked atomic")
+	}
 }
 
-func TestEnsureCommandCatalogRuntimeConnectsWithoutSendingMessage(t *testing.T) {
+func TestDMPrepareRuntimeRejectsSlashCommandAttachments(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{
+		client: newFakeDMClient(),
+	})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	execution, err := service.prepareChatExecution(context.Background(), Request{
+		SessionKey: "agent:nexus:ws:dm:slash-attachment",
+		Content:    "/model sonnet",
+		Attachments: []protocol.ChatAttachment{{
+			FileName:      "image.png",
+			WorkspacePath: "tmp/attachments/image.png",
+			Kind:          protocol.ChatAttachmentKindImage,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("prepareChatExecution() error = %v", err)
+	}
+	_, err = execution.prepareRuntime()
+	var target slashCommandAttachmentError
+	if !errors.As(err, &target) {
+		t.Fatalf("prepareRuntime() error = %v, want slash attachment error", err)
+	}
+}
+
+func TestAuthorizeHostCommandChecksDMWebSocketScopeWithoutStartingRuntime(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{
+		client: newFakeDMClient(),
+	})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	sessionKey := "agent:nexus:ws:dm:host-command"
+
+	if err := service.AuthorizeHostCommand(context.Background(), sessionKey, "nexus"); err != nil {
+		t.Fatalf("AuthorizeHostCommand() error = %v", err)
+	}
+	if runtimeManager.HasSession(sessionKey) {
+		t.Fatal("host command authorization must not start a runtime")
+	}
+	if err := service.AuthorizeHostCommand(
+		context.Background(),
+		"agent:nexus:tg:dm:host-command",
+		"nexus",
+	); err == nil {
+		t.Fatal("external channel host command authorization must fail")
+	}
+	if err := service.AuthorizeHostCommand(
+		context.Background(),
+		sessionKey,
+		"another-agent",
+	); err == nil {
+		t.Fatal("mismatched agent_id host command authorization must fail")
+	}
+}
+
+func TestEnsureRuntimeSessionConnectsAndCachesCatalogWithoutSendingMessage(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
@@ -246,8 +311,8 @@ func TestEnsureCommandCatalogRuntimeConnectsWithoutSendingMessage(t *testing.T) 
 		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
 	})
 
-	if err := service.EnsureCommandCatalogRuntime(context.Background(), sessionKey, "nexus"); err != nil {
-		t.Fatalf("EnsureCommandCatalogRuntime() error = %v", err)
+	if err := service.EnsureRuntimeSession(context.Background(), sessionKey, "nexus"); err != nil {
+		t.Fatalf("EnsureRuntimeSession() error = %v", err)
 	}
 
 	snapshot, err := runtimeManager.CommandCatalog(

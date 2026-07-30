@@ -11,7 +11,7 @@ L3 | 父级: ../CLAUDE.md
 - `session/`: 会话键迁移、历史窗口，以及 `controller/` 下的身份、后台消息和易失快照装配
 - `runtime/`: 后端运行态、轮次、权限与 Room slot 的唯一前端投影
 - `transport/`: WebSocket 连接、信封校验、稳定分发，以及 `handlers/` 下按协议事件族拆分的路由处理器
-- `command_catalog` 只作为 runtime prompt 补全数据返回；会话连接成功以及 runtime 一轮结束回到 idle 时只读刷新，避免保留初始化前的空快照；用户真正打开 Slash 浮层时才允许按需连接尚未启动的 DM runtime。宿主控制动作继续走既有 typed action，不在 Composer 内直接解释 runtime 内部元数据。
+- `command_catalog` 是后端在 `bind_session` 后为当前 runtime generation 启动并同步一次后推送的权威合成快照：Nexus host 命令与 nxs/Claude 初始化命令由后端合并，Composer 只消费事件，不查询目录、不启动 runtime、不按浮层打开或 idle 轮次刷新。宿主命令与 runtime 命令都以普通 Slash 文本提交，Composer 不解释 runtime 内部元数据。
 
 跨层依赖只能指向稳定的数据函数或小接口；消费者直接导入公共装配入口，不增加单纯转发的目录出口。
 公开类型由 `types/agent/agent-conversation.ts` 持有，装配入口不得重复转发类型。

@@ -31,7 +31,6 @@ interface UseComposerSlashCommandOptions {
   catalog: CommandCatalogData;
   input: string;
   isGoalMode: boolean;
-  onRefresh: () => void;
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
@@ -40,7 +39,6 @@ export function useComposerSlashCommand({
   catalog,
   input,
   isGoalMode,
-  onRefresh,
   setInput,
   textareaRef,
 }: UseComposerSlashCommandOptions) {
@@ -56,12 +54,6 @@ export function useComposerSlashCommand({
   );
   const activeCommand = filteredCommands[visibleActiveIndex] ?? null;
   const isOpen = Boolean(match);
-
-  useEffect(() => {
-    if (isOpen) {
-      onRefresh();
-    }
-  }, [isOpen, onRefresh]);
 
   useEffect(() => {
     setActiveIndex(0);

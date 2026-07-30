@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added runtime-backed Slash command discovery to DM and Room Composer, with session-scoped completion and ordinary prompt dispatch.
+- Added a backend-owned, session-scoped Slash catalog for the DM Composer: Nexus host commands are merged with the nxs/Claude initialization snapshot and pushed as one authoritative event after runtime bind; selecting either kind still sends ordinary Slash text.
 - Added exact first-unread Agent navigation to Room conversations: a compact batch-boundary marker stays attached to the first Agent reply of that unread batch, while a directional new-message pill above the Composer tracks the earliest still-unread reply even when parallel replies are inserted beneath older root turns or rendered through the virtual feed.
 - Added the internally bundled `slide-maker` Skill from `addsumtech/slides_maker` release 4.1.0, including its editable PPTX build helpers, design references, and independent review workflow.
 - Added fixed-height scrollable multi-select and confirmed batch deletion to Room conversation history, with the current conversation's available management actions kept visible. Selecting every local history item now clears all started conversations and leaves one fresh draft Session, which remains outside history until its first user message; new sessions use a localized placeholder until the existing title generator replaces it with a semantic title instead of exposing sequence numbers.
@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed Slash completion requests that could be lost before the WebSocket was ready, lazily initialized new DM runtimes when completion opens, closed stale completion popovers after submission, and kept hidden runtime context out of Slash command arguments and local command output.
+- Fixed Slash inputs carrying Goal, recovery, emotion, or stale bridge context into runtime command arguments; atomic Slash rounds now clear one-shot hidden context and reject attachments, while the Composer no longer starts runtimes or issues catalog refresh requests.
 - Updated `nexus-manager` and the main-Agent runtime guidance to cover user-account registration with the host-injected owner scope, removed stale runtime-only CLI/path instructions, hid manual scope selectors from host-managed CLI help, made stale explicit scope flags a recoverable denial with an actionable retry message, and advanced the Linux runtime layout so historical `0600` diagnostics files regain the host ACL needed after the main Agent identity transition.
 - Scoped the desktop conversation-header fade to the chat pane's own clipped reading edge, so opening Workspace, Agent details, or Subagents no longer washes out the neighboring panel; focus-mode mobile conversations retain the full-width fade.
 - Fixed startup for SQLite databases that had already recorded the former conversation-draft migration as version 56: Nexus now repairs the missing Agent disabled-Skill column, advances the legacy migration ledger safely, and retains an idempotent PostgreSQL forward repair.

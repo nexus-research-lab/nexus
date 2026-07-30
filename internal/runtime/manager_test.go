@@ -39,11 +39,40 @@ type fakeSlashCommandClient struct {
 	*fakeRuntimeClient
 	commands []agentclient.SlashCommand
 	err      error
+	calls    int
+}
+
+type disconnectedSlashCommandClient struct {
+	*fakeSlashCommandClient
+}
+
+type blockingSlashCommandClient struct {
+	*fakeRuntimeClient
+	commands []agentclient.SlashCommand
+	err      error
+	entered  chan struct{}
+	release  chan struct{}
+}
+
+func (*disconnectedSlashCommandClient) IsConnected() bool {
+	return false
 }
 
 func (c *fakeSlashCommandClient) SupportedCommands(
 	context.Context,
 ) ([]agentclient.SlashCommand, error) {
+	c.calls++
+	return c.commands, c.err
+}
+
+func (c *blockingSlashCommandClient) SupportedCommands(
+	context.Context,
+) ([]agentclient.SlashCommand, error) {
+	select {
+	case c.entered <- struct{}{}:
+	default:
+	}
+	<-c.release
 	return c.commands, c.err
 }
 
@@ -163,15 +192,22 @@ func (c *fakeRuntimeClient) SessionID() string { return "" }
 func TestManagerCommandCatalogUsesOptionalRuntimeCapability(t *testing.T) {
 	manager := NewManager()
 	sessionKey := "agent:agent-a:ws:dm:commands"
+	client := &fakeSlashCommandClient{
+		fakeRuntimeClient: &fakeRuntimeClient{},
+		commands: []agentclient.SlashCommand{{
+			Name:        "review",
+			Description: "Review code",
+		}},
+	}
 	manager.sessions[sessionKey] = &sessionState{
-		Client: &fakeSlashCommandClient{
-			fakeRuntimeClient: &fakeRuntimeClient{},
-			commands: []agentclient.SlashCommand{{
-				Name:        "review",
-				Description: "Review code",
-			}},
-		},
+		Client:      client,
 		RuntimeKind: agentclient.RuntimeNXS,
+	}
+	if err := manager.SyncCommandCatalog(context.Background(), sessionKey, client); err != nil {
+		t.Fatalf("SyncCommandCatalog() error = %v", err)
+	}
+	if err := manager.SyncCommandCatalog(context.Background(), sessionKey, client); err != nil {
+		t.Fatalf("second SyncCommandCatalog() error = %v", err)
 	}
 
 	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
@@ -183,6 +219,9 @@ func TestManagerCommandCatalogUsesOptionalRuntimeCapability(t *testing.T) {
 		len(snapshot.Commands) != 1 ||
 		snapshot.Commands[0].Name != "review" {
 		t.Fatalf("CommandCatalog() = %#v, want ready nxs catalog", snapshot)
+	}
+	if client.calls != 1 {
+		t.Fatalf("SupportedCommands() calls = %d, want one per runtime generation", client.calls)
 	}
 }
 
@@ -197,7 +236,7 @@ func TestManagerCommandCatalogDoesNotCreateRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CommandCatalog() error = %v", err)
 	}
-	if snapshot.Status != CommandCatalogStatusLoading ||
+	if snapshot.Status != CommandCatalogStatusCold ||
 		len(snapshot.Commands) != 0 ||
 		len(manager.sessions) != 0 {
 		t.Fatalf("CommandCatalog() = %#v, sessions=%d", snapshot, len(manager.sessions))
@@ -207,9 +246,13 @@ func TestManagerCommandCatalogDoesNotCreateRuntime(t *testing.T) {
 func TestManagerCommandCatalogReportsUnsupportedClient(t *testing.T) {
 	manager := NewManager()
 	sessionKey := "agent:agent-a:ws:dm:unsupported"
+	client := &fakeRuntimeClient{}
 	manager.sessions[sessionKey] = &sessionState{
-		Client:      &fakeRuntimeClient{},
+		Client:      client,
 		RuntimeKind: agentclient.RuntimeClaude,
+	}
+	if err := manager.SyncCommandCatalog(context.Background(), sessionKey, client); err != nil {
+		t.Fatalf("SyncCommandCatalog() error = %v", err)
 	}
 
 	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
@@ -219,6 +262,188 @@ func TestManagerCommandCatalogReportsUnsupportedClient(t *testing.T) {
 	if snapshot.Status != CommandCatalogStatusUnavailable ||
 		snapshot.RuntimeKind != agentclient.RuntimeClaude {
 		t.Fatalf("CommandCatalog() = %#v, want unavailable claude catalog", snapshot)
+	}
+}
+
+func TestManagerCommandCatalogTreatsUnsupportedProviderAsUnavailable(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:unsupported-provider"
+	client := &fakeSlashCommandClient{
+		fakeRuntimeClient: &fakeRuntimeClient{},
+		err:               agentclient.ErrUnsupportedCapability,
+	}
+	manager.sessions[sessionKey] = &sessionState{
+		Client:      client,
+		RuntimeKind: agentclient.RuntimeNXS,
+	}
+
+	if err := manager.SyncCommandCatalog(context.Background(), sessionKey, client); err != nil {
+		t.Fatalf("SyncCommandCatalog() error = %v, want unsupported capability to degrade", err)
+	}
+	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusUnavailable {
+		t.Fatalf("CommandCatalog() = %#v, want unavailable catalog", snapshot)
+	}
+}
+
+func TestManagerCommandCatalogStartsNewGenerationAfterReconnect(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:reconnect"
+	client := &fakeSlashCommandClient{
+		fakeRuntimeClient: &fakeRuntimeClient{},
+		commands: []agentclient.SlashCommand{{
+			Name: "review",
+		}},
+	}
+	manager.nextGeneration.Store(7)
+	manager.sessions[sessionKey] = &sessionState{
+		Client:               client,
+		RuntimeKind:          agentclient.RuntimeNXS,
+		RuntimeGeneration:    7,
+		CommandCatalogStatus: CommandCatalogStatusReady,
+		Commands:             client.commands,
+	}
+
+	manager.BeginRuntimeConnection(sessionKey, client, false)
+
+	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusStarting ||
+		snapshot.Generation != 8 ||
+		len(snapshot.Commands) != 0 {
+		t.Fatalf("reconnect snapshot = %#v, want new starting generation without old commands", snapshot)
+	}
+	if err := manager.SyncCommandCatalog(context.Background(), sessionKey, client); err != nil {
+		t.Fatalf("SyncCommandCatalog() error = %v", err)
+	}
+	snapshot, err = manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() after sync error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusReady ||
+		snapshot.Generation != 8 ||
+		len(snapshot.Commands) != 1 {
+		t.Fatalf("synced reconnect snapshot = %#v, want ready generation 8", snapshot)
+	}
+}
+
+func TestManagerCommandCatalogHidesReadySnapshotAfterDisconnect(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:disconnected"
+	client := &disconnectedSlashCommandClient{
+		fakeSlashCommandClient: &fakeSlashCommandClient{
+			fakeRuntimeClient: &fakeRuntimeClient{},
+			commands: []agentclient.SlashCommand{{
+				Name: "review",
+			}},
+		},
+	}
+	manager.sessions[sessionKey] = &sessionState{
+		Client:               client,
+		RuntimeKind:          agentclient.RuntimeNXS,
+		RuntimeGeneration:    3,
+		CommandCatalogStatus: CommandCatalogStatusReady,
+		Commands:             client.commands,
+	}
+
+	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusCold ||
+		snapshot.Generation != 3 ||
+		len(snapshot.Commands) != 0 {
+		t.Fatalf("disconnected snapshot = %#v, want cold catalog without stale commands", snapshot)
+	}
+}
+
+func TestManagerCommandCatalogStartsNewGenerationAfterColdRetry(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:retry"
+	client := &fakeSlashCommandClient{fakeRuntimeClient: &fakeRuntimeClient{}}
+	manager.nextGeneration.Store(4)
+	manager.sessions[sessionKey] = &sessionState{
+		Client:               client,
+		RuntimeKind:          agentclient.RuntimeNXS,
+		RuntimeGeneration:    4,
+		CommandCatalogStatus: CommandCatalogStatusCold,
+	}
+
+	manager.BeginRuntimeConnection(sessionKey, client, false)
+
+	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Status != CommandCatalogStatusStarting || snapshot.Generation != 5 {
+		t.Fatalf("cold retry snapshot = %#v, want starting generation 5", snapshot)
+	}
+}
+
+func TestManagerCommandCatalogDropsStaleSyncResultAfterConnectionReplacement(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:agent-a:ws:dm:stale-catalog"
+	client := &blockingSlashCommandClient{
+		fakeRuntimeClient: &fakeRuntimeClient{},
+		commands: []agentclient.SlashCommand{{
+			Name: "review",
+		}},
+		entered: make(chan struct{}, 1),
+		release: make(chan struct{}),
+	}
+	manager.nextGeneration.Store(1)
+	manager.sessions[sessionKey] = &sessionState{
+		Client:               client,
+		RuntimeKind:          agentclient.RuntimeNXS,
+		RuntimeGeneration:    1,
+		CommandCatalogStatus: CommandCatalogStatusStarting,
+	}
+	if generation := manager.BeginRuntimeConnection(sessionKey, client, false); generation != 1 {
+		t.Fatalf("first BeginRuntimeConnection() generation = %d, want 1", generation)
+	}
+
+	syncDone := make(chan error, 1)
+	go func() {
+		syncDone <- manager.SyncCommandCatalog(context.Background(), sessionKey, client)
+	}()
+	<-client.entered
+
+	if generation := manager.BeginRuntimeConnection(sessionKey, client, false); generation != 2 {
+		t.Fatalf("replacement BeginRuntimeConnection() generation = %d, want 2", generation)
+	}
+	client.err = errors.New("stale catalog transport failure")
+	close(client.release)
+	if err := <-syncDone; err != nil {
+		t.Fatalf("stale SyncCommandCatalog() error = %v", err)
+	}
+
+	snapshot, err := manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() error = %v", err)
+	}
+	if snapshot.Generation != 2 ||
+		snapshot.Status != CommandCatalogStatusStarting ||
+		len(snapshot.Commands) != 0 {
+		t.Fatalf("stale sync snapshot = %#v, want untouched generation 2", snapshot)
+	}
+
+	client.err = nil
+	if err := manager.SyncCommandCatalog(context.Background(), sessionKey, client); err != nil {
+		t.Fatalf("current SyncCommandCatalog() error = %v", err)
+	}
+	snapshot, err = manager.CommandCatalog(context.Background(), sessionKey, "")
+	if err != nil {
+		t.Fatalf("CommandCatalog() after current sync error = %v", err)
+	}
+	if snapshot.Generation != 2 ||
+		snapshot.Status != CommandCatalogStatusReady ||
+		len(snapshot.Commands) != 1 {
+		t.Fatalf("current sync snapshot = %#v, want ready generation 2", snapshot)
 	}
 }
 

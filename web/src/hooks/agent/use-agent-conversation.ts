@@ -30,16 +30,13 @@ import { useAgentConversationSocket } from "./transport/use-agent-conversation-s
 import { useAgentEventDispatcher } from "./transport/use-agent-event-dispatcher";
 import { useConversationStreamBuffer } from "./transport/use-conversation-stream-buffer";
 import {
-  buildCommandCatalogRequest,
-} from "./actions/conversation-command-builders";
-import {
   buildAgentConversationResult,
   resolveAgentConversationConfig,
 } from "./agent-conversation-model";
 
 const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
   commands: [],
-  status: "loading",
+  status: "cold",
 };
 
 export function useAgentConversation(
@@ -235,44 +232,6 @@ export function useAgentConversation(
     onError,
     setError,
   });
-  const requestCommandCatalog = useCallback((initializeRuntime: boolean) => {
-    if (!session.sessionKey || wsState !== "connected") {
-      return;
-    }
-    wsSend(buildCommandCatalogRequest({
-      agent_id: agentId,
-      conversation_id: conversationId,
-      initialize_runtime: initializeRuntime,
-      room_id: roomId,
-      session_key: session.sessionKey,
-    }));
-  }, [
-    agentId,
-    conversationId,
-    roomId,
-    session.sessionKey,
-    wsSend,
-    wsState,
-  ]);
-  const refreshCommandCatalog = useCallback(() => {
-    requestCommandCatalog(true);
-  }, [requestCommandCatalog]);
-  useEffect(() => {
-    if (
-      !session.sessionKey ||
-      wsState !== "connected" ||
-      runtimeSnapshot.phase !== "idle"
-    ) {
-      return;
-    }
-    requestCommandCatalog(false);
-  }, [
-    requestCommandCatalog,
-    runtimeSnapshot.phase,
-    session.sessionKey,
-    wsState,
-  ]);
-
   const actionContext: AgentConversationActionContext = {
     acknowledgePermissionRequest,
     activeSessionKeyRef: session.activeSessionKeyRef,
@@ -302,7 +261,6 @@ export function useAgentConversation(
     commandCatalog,
     error,
     messages,
-    refreshCommandCatalog,
     runtime: {
       pendingAgentSlots,
       pendingPermissions,

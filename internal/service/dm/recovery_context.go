@@ -29,6 +29,9 @@ func (e *dmChatExecution) recoveryContextualInputs() []runtimectx.ContextualInpu
 }
 
 func (r *roundRunner) contextualInputs() []runtimectx.ContextualInputBlock {
+	if r.atomicInput {
+		return nil
+	}
 	inputs := goalContextualInputs(r.goalContext, r.goalIDForUsage, r.sessionKey)
 	return append(inputs, r.recoveryContext...)
 }

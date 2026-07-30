@@ -63,7 +63,10 @@ export function filterSlashCommands(
 export function isSelectableSlashCommand(
   command: CommandDescriptor,
 ): boolean {
-  return command.enabled && command.execution === "runtime_prompt";
+  return command.enabled && (
+    command.execution === "host"
+    || command.execution === "runtime"
+  );
 }
 
 export function insertSlashCommand(

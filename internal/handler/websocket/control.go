@@ -3,12 +3,14 @@ package websocket
 import (
 	"context"
 	"errors"
+	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 )
 
 // sendChatFailure 回报 chat 类请求受理失败。此时后端还没有 canonical round_id，
@@ -106,6 +108,15 @@ func (m *controlMessage) dispatch() {
 
 func (m *controlMessage) handleChat() {
 	clientRequestID, clientMessageID := m.clientIDs()
+	attachments := m.attachments()
+	if handled, err := m.executeHostCommand(
+		clientRequestID,
+		clientMessageID,
+		len(attachments),
+	); handled {
+		m.reportChatFailure(clientRequestID, clientMessageID, err)
+		return
+	}
 	var err error
 	if m.usesRoomRuntime() {
 		err = m.handler.roomRealtime.HandleChat(m.ctx, roomrealtime.ChatRequest{
@@ -115,7 +126,7 @@ func (m *controlMessage) handleChat() {
 			AttachmentAgentID: m.stringValue("agent_id"),
 			Content:           m.stringValue("content"),
 			TargetAgentIDs:    stringSliceValue(m.inbound["target_agent_ids"]),
-			Attachments:       m.attachments(),
+			Attachments:       attachments,
 			ClientRequestID:   clientRequestID,
 			ClientMessageID:   clientMessageID,
 			DeliveryPolicy:    m.deliveryPolicy(),
@@ -125,13 +136,104 @@ func (m *controlMessage) handleChat() {
 			SessionKey:      m.sessionKey,
 			AgentID:         m.stringValue("agent_id"),
 			Content:         m.stringValue("content"),
-			Attachments:     m.attachments(),
+			Attachments:     attachments,
 			ClientRequestID: clientRequestID,
 			ClientMessageID: clientMessageID,
 			DeliveryPolicy:  m.deliveryPolicy(),
 		})
 	}
 	m.reportChatFailure(clientRequestID, clientMessageID, err)
+	if err == nil && m.parsed.Kind == protocol.SessionKeyKindAgent {
+		_ = m.handler.broadcastCommandCatalog(m.ctx, m.sessionKey, m.parsed)
+	}
+}
+
+func (m *controlMessage) executeHostCommand(
+	clientRequestID string,
+	clientMessageID string,
+	attachmentCount int,
+) (bool, error) {
+	if m.handler.hostCommands == nil {
+		return false, nil
+	}
+	scope := slashcommandsvc.ScopeDM
+	if m.parsed.Kind == protocol.SessionKeyKindRoom {
+		scope = slashcommandsvc.ScopeRoom
+	}
+	invocation := slashcommandsvc.Invocation{
+		SessionKey:      m.sessionKey,
+		AgentID:         firstStringValue(m.inbound["agent_id"], m.parsed.AgentID),
+		Content:         m.stringValue("content"),
+		AttachmentCount: attachmentCount,
+	}
+	result, matched, err := m.handler.hostCommands.ExecuteAuthorized(
+		m.ctx,
+		scope,
+		invocation,
+		func(ctx context.Context, authorizedInvocation slashcommandsvc.Invocation) error {
+			return m.handler.authorizeHostCommand(ctx, scope, authorizedInvocation)
+		},
+	)
+	if !matched || err != nil {
+		return matched, err
+	}
+	roundID := protocol.NewRoundID()
+	ack := protocol.NewChatAckEvent(
+		m.sessionKey,
+		clientRequestID,
+		clientMessageID,
+		roundID,
+		protocol.NewUserMessageID(),
+		false,
+		nil,
+	)
+	if err = m.sender.SendEvent(m.ctx, ack); err != nil {
+		return true, err
+	}
+	for _, event := range result.Events {
+		// host handler 只能向触发它的 session 回写事件，避免错误实现把事件投到别的会话。
+		event.SessionKey = m.sessionKey
+		if err = m.sender.SendEvent(m.ctx, event); err != nil {
+			return true, err
+		}
+	}
+	return true, nil
+}
+
+func (h *Handler) authorizeHostCommand(
+	ctx context.Context,
+	scope slashcommandsvc.Scope,
+	invocation slashcommandsvc.Invocation,
+) error {
+	switch scope {
+	case slashcommandsvc.ScopeDM:
+		if h == nil || h.dm == nil {
+			return errors.New("DM service is unavailable")
+		}
+		return h.dm.AuthorizeHostCommand(ctx, invocation.SessionKey, invocation.AgentID)
+	case slashcommandsvc.ScopeRoom:
+		if h == nil || h.roomService == nil {
+			return errors.New("Room service is unavailable")
+		}
+		parsed := protocol.ParseSessionKey(invocation.SessionKey)
+		if parsed.Kind != protocol.SessionKeyKindRoom || !parsed.IsShared {
+			return errors.New("host Slash requires a shared Room session")
+		}
+		contextValue, err := h.roomService.GetConversationContext(ctx, parsed.ConversationID)
+		if err != nil {
+			return err
+		}
+		if contextValue == nil || contextValue.Room.RoomType != protocol.RoomTypeGroup {
+			return errors.New("host Slash requires a group Room")
+		}
+		if agentID := strings.TrimSpace(invocation.AgentID); agentID != "" &&
+			!roomHasAgent(contextValue.Members, agentID) {
+			return errors.New("agent_id is not a Room member")
+		}
+		return nil
+	default:
+		return errors.New("unsupported host Slash scope")
+	}
 }
 
 func (m *controlMessage) handleRewriteLast() {

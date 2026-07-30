@@ -33,7 +33,7 @@ test("slash query only opens at the beginning of a message", async () => {
   assert.equal(findSlashCommandTextMatch("/rev", 4, false), null);
 });
 
-test("slash selection inserts a normal runtime prompt", async () => {
+test("slash selection inserts a normal host or runtime message", async () => {
   const {
     filterSlashCommands,
     insertSlashCommand,
@@ -45,19 +45,19 @@ test("slash selection inserts a normal runtime prompt", async () => {
     {
       description: "Review code",
       enabled: true,
-      execution: "runtime_prompt",
+      execution: "runtime",
       name: "review",
     },
     {
       description: "Compact context",
       enabled: true,
-      execution: "runtime_prompt",
+      execution: "runtime",
       name: "compact",
     },
     {
       description: "Open the GitHub review prompt",
       enabled: true,
-      execution: "runtime_prompt",
+      execution: "runtime",
       name: "github:review (MCP)",
     },
   ];
@@ -72,7 +72,7 @@ test("slash selection inserts a normal runtime prompt", async () => {
       ...commands[0],
       execution: "host",
     }),
-    false,
+    true,
   );
   assert.deepEqual(
     insertSlashCommand("/rev", {
@@ -108,9 +108,10 @@ test("command catalog parser accepts the public browser contract", async () => {
       argument_hint: "<target>",
       description: "Review code",
       enabled: true,
-      execution: "runtime_prompt",
+      execution: "runtime",
       name: "review",
     }],
+    generation: 3,
     revision: "commands-1",
     runtime_kind: "cc",
     status: "ready",
@@ -126,18 +127,24 @@ test("command catalog parser accepts the public browser contract", async () => {
   );
 });
 
-test("Room command catalog events stay scoped to the selected Agent", async () => {
+test("Room host command catalog events stay scoped to the selected Agent", async () => {
   const { AGENT_SESSION_EVENT_HANDLERS } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-handlers.ts",
   );
   const received = [];
+  let currentCatalog = { commands: [], status: "cold" };
   const context = {
     scope: {
       agentId: "agent-a",
       isCurrentSessionEvent: (sessionKey) => sessionKey === "room:shared",
     },
     state: {
-      setCommandCatalog: (catalog) => received.push(catalog),
+      setCommandCatalog: (next) => {
+        currentCatalog = typeof next === "function"
+          ? next(currentCatalog)
+          : next;
+        received.push(currentCatalog);
+      },
     },
   };
   const event = {
@@ -146,10 +153,10 @@ test("Room command catalog events stay scoped to the selected Agent", async () =
       agent_id: "agent-a",
       commands: [{
         enabled: true,
-        execution: "runtime_prompt",
-        name: "review",
+        execution: "host",
+        name: "goal",
       }],
-      status: "ready",
+      status: "unavailable",
     },
     event_type: "command_catalog",
     session_key: "room:shared",
@@ -166,31 +173,36 @@ test("Room command catalog events stay scoped to the selected Agent", async () =
   assert.equal(received[0].agent_id, "agent-a");
 });
 
-test("command catalog refresh carries the full Room address", async () => {
-  const { buildCommandCatalogRequest } = await server.ssrLoadModule(
-    "/src/hooks/agent/actions/conversation-command-builders.ts",
+test("authoritative snapshots ignore stale runtime generations", async () => {
+  const { selectCommandCatalogSnapshot } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-data.ts",
   );
-
-  assert.deepEqual(buildCommandCatalogRequest({
-    agent_id: "agent-a",
-    conversation_id: "conversation-a",
-    initialize_runtime: true,
-    room_id: "room-a",
-    session_key: "room:group:conversation-a",
+  const ready = {
+    commands: [{
+      enabled: true,
+      execution: "runtime",
+      name: "review",
+    }],
+    generation: 2,
+    status: "ready",
+  };
+  assert.equal(selectCommandCatalogSnapshot(ready, {
+    commands: [],
+    generation: 1,
+    status: "starting",
+  }), ready);
+  assert.equal(selectCommandCatalogSnapshot(ready, {
+    commands: [],
+    generation: 2,
+    status: "starting",
+  }), ready);
+  assert.deepEqual(selectCommandCatalogSnapshot(ready, {
+    commands: [],
+    generation: 3,
+    status: "starting",
   }), {
-    agent_id: "agent-a",
-    conversation_id: "conversation-a",
-    initialize_runtime: true,
-    room_id: "room-a",
-    session_key: "room:group:conversation-a",
-    type: "get_command_catalog",
-  });
-  assert.deepEqual(buildCommandCatalogRequest({
-    agent_id: "agent-a",
-    session_key: "agent:agent-a:ws:dm:main",
-  }), {
-    agent_id: "agent-a",
-    session_key: "agent:agent-a:ws:dm:main",
-    type: "get_command_catalog",
+    commands: [],
+    generation: 3,
+    status: "starting",
   });
 });

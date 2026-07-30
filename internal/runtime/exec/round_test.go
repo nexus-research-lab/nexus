@@ -24,6 +24,7 @@ type fakeRoundExecutionClient struct {
 	queryPrompts []string
 	queryContent []any
 	contextInput []ContextualInputBlock
+	clearCalls   int
 }
 
 func (c *fakeRoundExecutionClient) Connect(context.Context) error { return nil }
@@ -40,6 +41,11 @@ func (c *fakeRoundExecutionClient) QueryContent(_ context.Context, content any) 
 
 func (c *fakeRoundExecutionClient) SetNextTurnContext(_ context.Context, blocks []ContextualInputBlock) error {
 	c.contextInput = append([]ContextualInputBlock(nil), blocks...)
+	return c.contextErr
+}
+
+func (c *fakeRoundExecutionClient) ClearNextTurnContext(context.Context) error {
+	c.clearCalls++
 	return c.contextErr
 }
 
@@ -389,5 +395,48 @@ func TestExecuteRoundUsesStructuredContent(t *testing.T) {
 	}
 	if len(client.queryContent) != 1 {
 		t.Fatalf("结构化输入未走 QueryContent: %+v", client.queryContent)
+	}
+}
+
+func TestExecuteRoundKeepsAtomicSlashInputFreeOfContext(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-command",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		Result:    &sdkprotocol.ResultMessage{Subtype: "success"},
+	}
+	close(client.messages)
+	mapper := &fakeRoundExecutionMapper{
+		results: []RoundMapResult{{
+			TerminalStatus: "finished",
+			ResultSubtype:  "success",
+		}},
+	}
+
+	if _, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+		Content:     "/model sonnet",
+		AtomicInput: true,
+		ContextualInputs: []ContextualInputBlock{{
+			Name:    "goal",
+			Content: "must not reach the command",
+		}},
+		Client: client,
+		Mapper: mapper,
+	}); err != nil {
+		t.Fatalf("ExecuteRound atomic command error = %v", err)
+	}
+	if client.clearCalls != 1 ||
+		len(client.contextInput) != 0 ||
+		len(client.queryPrompts) != 1 ||
+		client.queryPrompts[0] != "/model sonnet" {
+		t.Fatalf(
+			"atomic command calls = clear:%d context:%#v prompts:%#v",
+			client.clearCalls,
+			client.contextInput,
+			client.queryPrompts,
+		)
 	}
 }

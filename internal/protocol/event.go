@@ -128,7 +128,8 @@ type RuntimeStatusData struct {
 type CommandCatalogStatus string
 
 const (
-	CommandCatalogStatusLoading     CommandCatalogStatus = "loading"
+	CommandCatalogStatusCold        CommandCatalogStatus = "cold"
+	CommandCatalogStatusStarting    CommandCatalogStatus = "starting"
 	CommandCatalogStatusReady       CommandCatalogStatus = "ready"
 	CommandCatalogStatusUnavailable CommandCatalogStatus = "unavailable"
 )
@@ -137,9 +138,9 @@ const (
 type CommandExecution string
 
 const (
-	CommandExecutionHost          CommandExecution = "host"
-	CommandExecutionRuntimePrompt CommandExecution = "runtime_prompt"
-	CommandExecutionUnsupported   CommandExecution = "unsupported"
+	CommandExecutionHost        CommandExecution = "host"
+	CommandExecutionRuntime     CommandExecution = "runtime"
+	CommandExecutionUnsupported CommandExecution = "unsupported"
 )
 
 // CommandDescriptor 是浏览器可见的命令描述。
@@ -156,6 +157,7 @@ type CommandDescriptor struct {
 // CommandCatalogData 表示一个 Agent runtime 的命令目录快照。
 type CommandCatalogData struct {
 	Revision    string               `json:"revision,omitempty"`
+	Generation  uint64               `json:"generation,omitempty"`
 	RuntimeKind string               `json:"runtime_kind,omitempty"`
 	Status      CommandCatalogStatus `json:"status"`
 	AgentID     string               `json:"agent_id,omitempty"`
@@ -201,6 +203,9 @@ func NewCommandCatalogEvent(sessionKey string, data CommandCatalogData) EventMes
 	}
 	if strings.TrimSpace(data.Revision) != "" {
 		payload["revision"] = strings.TrimSpace(data.Revision)
+	}
+	if data.Generation > 0 {
+		payload["generation"] = data.Generation
 	}
 	if strings.TrimSpace(data.RuntimeKind) != "" {
 		payload["runtime_kind"] = strings.TrimSpace(data.RuntimeKind)

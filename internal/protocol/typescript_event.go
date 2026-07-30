@@ -89,8 +89,8 @@ export interface RuntimeStatusData {
   status: 'compacting' | null;
 }
 
-export type CommandCatalogStatus = 'loading' | 'ready' | 'unavailable';
-export type CommandExecution = 'host' | 'runtime_prompt' | 'unsupported';
+export type CommandCatalogStatus = 'cold' | 'starting' | 'ready' | 'unavailable';
+export type CommandExecution = 'host' | 'runtime' | 'unsupported';
 
 export interface CommandDescriptor {
   name: string;
@@ -103,6 +103,7 @@ export interface CommandDescriptor {
 
 export interface CommandCatalogData {
   revision?: string;
+  generation?: number;
   runtime_kind?: string;
   status: CommandCatalogStatus;
   agent_id?: string;

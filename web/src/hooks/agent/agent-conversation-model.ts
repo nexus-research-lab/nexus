@@ -90,7 +90,6 @@ interface BuildAgentConversationResultOptions {
   commandCatalog: CommandCatalogData;
   error: string | null;
   messages: Message[];
-  refreshCommandCatalog: UseAgentConversationReturn["refresh_command_catalog"];
   runtime: AgentConversationPublicRuntime;
   session: AgentConversationPublicSession;
   wsState: WebSocketState;
@@ -101,7 +100,6 @@ export function buildAgentConversationResult({
   commandCatalog,
   error,
   messages,
-  refreshCommandCatalog,
   runtime,
   session,
   wsState,
@@ -127,7 +125,6 @@ export function buildAgentConversationResult({
     messages,
     pending_agent_slots: runtime.pendingAgentSlots,
     pending_permissions: runtime.pendingPermissions,
-    refresh_command_catalog: refreshCommandCatalog,
     room_agent_execution_states: runtime.roomAgentExecutionStates,
     resolved_history_round_ids: session.resolvedHistoryRoundIds,
     reorder_input_queue_messages: actions.reorderQueueMessages,

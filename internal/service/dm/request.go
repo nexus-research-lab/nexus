@@ -67,6 +67,7 @@ type dmChatExecution struct {
 
 type dmRuntimePreparation struct {
 	content               conversationsvc.RuntimeContent
+	atomicInput           bool
 	recoveryContext       []runtimectx.ContextualInputBlock
 	client                runtimectx.Client
 	runtimeKind           string
@@ -93,21 +94,20 @@ func (s *Service) prepareChatExecution(ctx context.Context, request Request) (*d
 	if strings.TrimSpace(request.AgentRoundID) == "" {
 		request.AgentRoundID = protocol.NewAgentRoundID()
 	}
-	agentID, err := s.resolveChatAgentID(ctx, parsed, request.AgentID)
+	agentValue, sessionItem, err := s.resolveDMSession(
+		ctx,
+		parsed,
+		sessionKey,
+		request.AgentID,
+	)
 	if err != nil {
 		return nil, err
 	}
-	request.Attachments = s.normalizeChatAttachments(request.Attachments, agentID)
-	agentValue, err := s.agents.GetAgent(ctx, agentID)
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(agentValue.OwnerUserID) != authctx.OwnerUserID(ctx) {
-		return nil, errors.New("agent owner does not match request owner")
-	}
-	sessionItem, err := s.ensureSession(ctx, agentValue, parsed, sessionKey)
-	if err != nil {
-		return nil, err
+	request.Attachments = s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
+	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
+	if conversationsvc.IsSlashCommandInput(request.Content) &&
+		protocol.ShouldGuideRunningRound(deliveryPolicy) {
+		deliveryPolicy = protocol.ChatDeliveryPolicyQueue
 	}
 	return &dmChatExecution{
 		service:             s,
@@ -118,8 +118,32 @@ func (s *Service) prepareChatExecution(ctx context.Context, request Request) (*d
 		agent:               agentValue,
 		session:             sessionItem,
 		initialMessageCount: sessionItem.MessageCount,
-		deliveryPolicy:      protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy)),
+		deliveryPolicy:      deliveryPolicy,
 	}, nil
+}
+
+func (s *Service) resolveDMSession(
+	ctx context.Context,
+	parsed protocol.SessionKey,
+	sessionKey string,
+	requestedAgentID string,
+) (*protocol.Agent, protocol.Session, error) {
+	agentID, err := s.resolveChatAgentID(ctx, parsed, requestedAgentID)
+	if err != nil {
+		return nil, protocol.Session{}, err
+	}
+	agentValue, err := s.agents.GetAgent(ctx, agentID)
+	if err != nil {
+		return nil, protocol.Session{}, err
+	}
+	if strings.TrimSpace(agentValue.OwnerUserID) != authctx.OwnerUserID(ctx) {
+		return nil, protocol.Session{}, errors.New("agent owner does not match request owner")
+	}
+	sessionItem, err := s.ensureSession(ctx, agentValue, parsed, sessionKey)
+	if err != nil {
+		return nil, protocol.Session{}, err
+	}
+	return agentValue, sessionItem, nil
 }
 
 func (s *Service) resolveChatAgentID(ctx context.Context, parsed protocol.SessionKey, requestedAgentID string) (string, error) {
@@ -195,11 +219,15 @@ func (e *dmChatExecution) interruptRunningRound() error {
 }
 
 func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
+	atomicInput := conversationsvc.IsSlashCommandInput(e.request.Content)
+	if atomicInput && len(e.request.Attachments) > 0 {
+		return dmRuntimePreparation{}, slashCommandAttachmentError{}
+	}
 	runtimeContent, err := e.service.renderRuntimeContentWithAttachments(e.ctx, e.request.Content, e.request.Attachments)
 	if err != nil {
 		return dmRuntimePreparation{}, err
 	}
-	if !runtimeContent.IsEmpty() && !conversationsvc.IsSlashCommandInput(e.request.Content) {
+	if !runtimeContent.IsEmpty() && !atomicInput {
 		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
 			e.ctx,
 			e.agent,
@@ -231,9 +259,15 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	if err = e.applyHistoryRewrite(client); err != nil {
 		return dmRuntimePreparation{}, err
 	}
+	recoveryContext := e.recoveryContextualInputs()
+	if atomicInput {
+		goalContext = ""
+		recoveryContext = nil
+	}
 	return dmRuntimePreparation{
 		content:               runtimeContent,
-		recoveryContext:       e.recoveryContextualInputs(),
+		atomicInput:           atomicInput,
+		recoveryContext:       recoveryContext,
 		client:                client,
 		runtimeKind:           runtimeKind,
 		runtimeProvider:       runtimeProvider,
@@ -258,6 +292,7 @@ func (e *dmChatExecution) newRoundRunner(preparation dmRuntimePreparation) *roun
 		clientRequestID:        e.request.ClientRequestID,
 		content:                strings.TrimSpace(e.request.Content),
 		runtimeContent:         preparation.content,
+		atomicInput:            preparation.atomicInput,
 		recoveryContext:        preparation.recoveryContext,
 		client:                 preparation.client,
 		runtimeKind:            preparation.runtimeKind,

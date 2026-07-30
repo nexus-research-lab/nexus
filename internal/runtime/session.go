@@ -75,6 +75,11 @@ func (m *Manager) GetOrCreateWithFactory(
 	if state.Client == nil {
 		state.Client = factory.New(options)
 		state.RuntimeKind = runtimeKind
+		state.RuntimeGeneration = m.nextGeneration.Add(1)
+		state.RuntimeConnectionStarted = false
+		state.CommandCatalogStatus = CommandCatalogStatusStarting
+		state.CommandCatalogSyncing = false
+		state.Commands = nil
 		state.OwnerUserID = ownerUserID
 		m.touchStateLocked(state)
 		m.mu.Unlock()
@@ -172,6 +177,11 @@ func (m *Manager) replaceRuntimeClient(
 	}
 	state.Client = next
 	state.RuntimeKind = normalizedManagedRuntimeKind(options.Runtime.Kind)
+	state.RuntimeGeneration = m.nextGeneration.Add(1)
+	state.RuntimeConnectionStarted = false
+	state.CommandCatalogStatus = CommandCatalogStatusStarting
+	state.CommandCatalogSyncing = false
+	state.Commands = nil
 	state.OwnerUserID = runtimeOwnerUserID(options)
 	// 新进程不持有旧 task/thread；只有再次观测到 task 事件后才允许保活。
 	state.HasSubagentHistory = false
@@ -211,6 +221,10 @@ func (m *Manager) HasSession(sessionKey string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state := m.sessions[strings.TrimSpace(sessionKey)]
+	return sessionStateHasConnectedClient(state)
+}
+
+func sessionStateHasConnectedClient(state *sessionState) bool {
 	if state == nil || state.Closing || state.Client == nil {
 		return false
 	}
