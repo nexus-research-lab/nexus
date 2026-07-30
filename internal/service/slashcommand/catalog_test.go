@@ -16,31 +16,14 @@ func TestCatalogReturnsVersionedRuntimeManifests(t *testing.T) {
 	}{
 		{
 			kind:         agentclient.RuntimeNXS,
-			wantCommands: []string{"model", "summary"},
+			wantCommands: []string{"model", "skills", "summary"},
 		},
 		{
 			kind: agentclient.RuntimeClaude,
 			wantCommands: []string{
-				"clear",
-				"color",
 				"compact",
-				"config",
-				"context",
-				"effort",
-				"fast",
-				"goal",
-				"heapdump",
-				"init",
-				"insights",
-				"mcp",
 				"model",
-				"recap",
-				"reload-skills",
-				"rename",
-				"review",
-				"security-review",
-				"team-onboarding",
-				"usage",
+				"skills",
 			},
 		},
 	}
@@ -78,7 +61,7 @@ func TestCatalogNormalizesAliasesAndReturnsCopies(t *testing.T) {
 		t.Fatalf("cc snapshot = %#v, want Claude manifest", claude)
 	}
 	claude.Commands[0].Name = "mutated"
-	if got := catalog.Snapshot(agentclient.RuntimeClaude).Commands[0].Name; got != "clear" {
+	if got := catalog.Snapshot(agentclient.RuntimeClaude).Commands[0].Name; got != "compact" {
 		t.Fatalf("snapshot exposed mutable command list: %q", got)
 	}
 }

@@ -1,4 +1,5 @@
 import type { CommandDescriptor } from "@/types/generated/protocol";
+import type { SkillInfo } from "@/types/capability/skill";
 
 export const SLASH_COMMAND_NAVIGATION_KEYS = new Set([
   "ArrowDown",
@@ -60,6 +61,27 @@ export function filterSlashCommands(
   });
 }
 
+export function filterSlashSkills(
+  skills: SkillInfo[],
+  query: string,
+): SkillInfo[] {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) {
+    return skills;
+  }
+  return skills.filter((skill) => {
+    const searchableText = [
+      skill.name,
+      skill.title,
+      skill.description,
+      skill.category_name,
+      skill.source_name ?? "",
+      skill.tags.join("\n"),
+    ].join("\n").toLocaleLowerCase();
+    return searchableText.includes(normalizedQuery);
+  });
+}
+
 export function isSelectableSlashCommand(
   command: CommandDescriptor,
 ): boolean {
@@ -83,4 +105,8 @@ export function insertSlashCommand(
       input.slice(match.end),
     ].join(""),
   };
+}
+
+export function formatSlashCommandInsertText(name: string): string {
+  return `/${name.trim().replace(/^\/+/u, "")} `;
 }

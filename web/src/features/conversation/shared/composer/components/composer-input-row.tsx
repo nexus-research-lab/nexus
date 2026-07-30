@@ -1,5 +1,6 @@
 import type {
   ClipboardEventHandler,
+  KeyboardEvent,
   KeyboardEventHandler,
   RefObject,
   WheelEvent,
@@ -12,6 +13,7 @@ import type {
   CommandCatalogStatus,
   CommandDescriptor,
 } from "@/types/generated/protocol";
+import type { SkillInfo } from "@/types/capability/skill";
 
 import { SlashCommandPopover } from "./slash-command-popover";
 
@@ -42,7 +44,20 @@ interface ComposerInputRowProps {
     active: boolean;
     activeIndex: number;
     commands: CommandDescriptor[];
-    onSelect: (command: CommandDescriptor) => void;
+    mode: "commands" | "skills";
+    onSelectCommand: (command: CommandDescriptor) => void;
+    onSelectSkill: (skill: SkillInfo) => void;
+    onSkillQueryChange: (query: string) => void;
+    onSkillQueryKeyDown: (
+      event: KeyboardEvent<HTMLInputElement>,
+    ) => boolean;
+    query: string;
+    skillCount: number;
+    skillError: string | null;
+    skillItems: SkillInfo[];
+    skillLoading: boolean;
+    skillQuery: string;
+    skillSearchRef: RefObject<HTMLInputElement | null>;
     status: CommandCatalogStatus;
   };
   textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -63,7 +78,18 @@ export function ComposerInputRow({
           activeIndex={slashCommand.activeIndex}
           anchorRect={textareaRef.current?.getBoundingClientRect() ?? null}
           commands={slashCommand.commands}
-          onSelect={slashCommand.onSelect}
+          mode={slashCommand.mode}
+          onSelectCommand={slashCommand.onSelectCommand}
+          onSelectSkill={slashCommand.onSelectSkill}
+          onSkillQueryChange={slashCommand.onSkillQueryChange}
+          onSkillQueryKeyDown={slashCommand.onSkillQueryKeyDown}
+          query={slashCommand.query}
+          skillCount={slashCommand.skillCount}
+          skillError={slashCommand.skillError}
+          skillItems={slashCommand.skillItems}
+          skillLoading={slashCommand.skillLoading}
+          skillQuery={slashCommand.skillQuery}
+          skillSearchRef={slashCommand.skillSearchRef}
           status={slashCommand.status}
         />
       ) : mention.active && mention.items.length > 0 ? (

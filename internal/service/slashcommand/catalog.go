@@ -23,8 +23,9 @@ type RuntimeCatalogSnapshot struct {
 
 // Catalog 保存与当前 Nexus 版本一起发布的 runtime 指令清单。
 //
-// 项目 Skill、用户命令和 MCP 动态命令不进入这里；它们仍可由用户直接输入
-// 并透传给 runtime，下一次 Nexus 版本更新时再决定是否纳入补全清单。
+// `/skills` 作为宿主侧技能选择入口会一并进入目录；其余项目 Skill、用户命令
+// 和 MCP 动态命令不进入这里，仍可由用户直接输入并透传给 runtime，下一次
+// Nexus 版本更新时再决定是否纳入补全清单。
 type Catalog struct {
 	snapshots map[agentclient.RuntimeKind]RuntimeCatalogSnapshot
 }
@@ -42,6 +43,11 @@ func NewCatalog() *Catalog {
 						"<model>",
 					),
 					newRuntimeCommand(
+						"skills",
+						"Browse and insert available skills",
+						"",
+					),
+					newRuntimeCommand(
 						"summary",
 						"Update the current session summary",
 						"",
@@ -52,64 +58,9 @@ func NewCatalog() *Catalog {
 				agentclient.RuntimeClaude,
 				[]protocol.CommandDescriptor{
 					newRuntimeCommand(
-						"clear",
-						"Start a new session with empty context; the previous session remains resumable",
-						"[name]",
-					),
-					newRuntimeCommand(
-						"color",
-						"Set the prompt bar color for this session",
-						"[red|blue|green|yellow|purple|orange|pink|cyan|default]",
-					),
-					newRuntimeCommand(
 						"compact",
 						"Free up context by summarizing the conversation so far",
 						"<optional instructions>",
-					),
-					newRuntimeCommand(
-						"config",
-						"Set a setting by key",
-						"key=value",
-					),
-					newRuntimeCommand(
-						"context",
-						"Show current context usage",
-						"",
-					),
-					newRuntimeCommand(
-						"effort",
-						"Set effort level for model usage",
-						"<low|medium|high|xhigh|max|ultracode|auto>",
-					),
-					newRuntimeCommand(
-						"fast",
-						"Toggle fast mode",
-						"[on|off]",
-					),
-					newRuntimeCommand(
-						"goal",
-						"Set a goal and keep working until the condition is met",
-						"",
-					),
-					newRuntimeCommand(
-						"heapdump",
-						"Dump the JavaScript heap to ~/Desktop",
-						"",
-					),
-					newRuntimeCommand(
-						"init",
-						"Initialize a new CLAUDE.md file with codebase documentation",
-						"",
-					),
-					newRuntimeCommand(
-						"insights",
-						"Generate a report analyzing Claude Code sessions",
-						"",
-					),
-					newRuntimeCommand(
-						"mcp",
-						"Manage MCP servers",
-						"[reconnect|enable|disable [server|all]]",
 					),
 					newRuntimeCommand(
 						"model",
@@ -117,38 +68,8 @@ func NewCatalog() *Catalog {
 						"<model>",
 					),
 					newRuntimeCommand(
-						"recap",
-						"Generate a one-line session recap now",
-						"",
-					),
-					newRuntimeCommand(
-						"reload-skills",
-						"Pick up skills added or changed on disk during this session",
-						"",
-					),
-					newRuntimeCommand(
-						"rename",
-						"Rename the current conversation",
-						"[name]",
-					),
-					newRuntimeCommand(
-						"review",
-						"Review a GitHub pull request",
-						"[pr number]",
-					),
-					newRuntimeCommand(
-						"security-review",
-						"Review pending changes for security issues",
-						"",
-					),
-					newRuntimeCommand(
-						"team-onboarding",
-						"Help teammates ramp on Claude Code with a guide from your usage",
-						"",
-					),
-					newRuntimeCommand(
-						"usage",
-						"Show session cost, plan usage, and what contributes to the limits",
+						"skills",
+						"Browse and insert available skills",
 						"",
 					),
 				},
