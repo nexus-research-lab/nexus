@@ -174,7 +174,6 @@ export function ConversationThreadPanel({
       footer={footer}
       headerAction={headerAction}
       headerAvatar={headerAvatar}
-      isLoading={resolvedIsLoading}
       messageContext={messageContext}
       model={model}
       notice={notice}

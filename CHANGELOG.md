@@ -42,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed long virtualized Room conversations shaking at the bottom while an earlier Agent streamed; upstream height changes now stay anchored by the virtual list instead of competing with shared return-to-bottom writes.
+- Fixed return-to-latest controls flashing during live Room output and lagging behind a continuously growing bottom; the control now stays visually stable, and the first stream-height revision after a click hands the viewport back to synchronous FOLLOW.
 - Fixed stream-first Room Agent executions jumping above an already visible Lead reply; message, permission, slot, stream, and lifecycle evidence now share one canonical timestamp-scale display anchor, so active Analyst/Researcher cards stay in their original arrival order.
 - Fixed active Room Agent Threads going visually idle in the public feed after an intermediate Assistant turn completed; the same card now keeps showing its thinking/replying activity until the authoritative Agent execution lifecycle finishes.
 - Removed the remaining legacy structured-question option trees from DM/Room message context, Room Thread, restored history, and expanded process content; those surfaces now retain only neutral tool evidence while the Composer remains the sole actionable question surface.
