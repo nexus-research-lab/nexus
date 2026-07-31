@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept adjacent ordered-list items in one semantic block throughout streamed Markdown rendering and preserved explicit list start values, so live replies no longer restart every numbered item at `1`.
 - Kept user-entered Nexus host Slash commands visible beside their transient confirmations, and moved explicit Skill execution to the selected runtime: Nexus now forwards the original `/skill args`, nxs and Claude Code expand their own hidden Skill context, disabled but Agent-visible Skills remain usable for one selected turn, and persistent Skill switches stay unchanged.
 - Kept transcript Slash rounds stable after refresh by aligning one marker slot per visible runtime user entry, excluding meta Skill context before marker consumption, canonicalizing command metadata back to the original Slash, and hiding legacy host-injected Skill prompts and stale `Unknown skill` artifacts.
 - Fixed `/model` selections reporting success without changing the Agent configuration, leaving the Composer in “Replying”, or disappearing at round completion: Nexus now owns the command, validates and persists the selected Provider/model pair on the Agent, refreshes Agent state, applies it to the next turn, closes the synthetic host round canonically, and retains a transient confirmation in the current timeline without creating runtime history or unread state.
