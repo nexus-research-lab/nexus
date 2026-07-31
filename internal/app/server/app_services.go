@@ -176,6 +176,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		slashCommandRegistry,
 		slashcommandsvc.ModelCommandDependencies{
 			Agents:      core.Agent,
+			Sessions:    core.Session,
 			Preferences: preferencesService,
 			Providers:   providerService,
 		},

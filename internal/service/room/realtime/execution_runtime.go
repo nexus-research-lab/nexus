@@ -234,7 +234,17 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	stablePrompt = appendPromptSection(stablePrompt, roomSkillPrompt)
 	stablePrompt = appendPromptSection(stablePrompt, roomdomain.BuildMemberDirectoryPrompt(e.agentNameByID))
 
-	permissionMode := runtimepermission.NormalizeMode(sdkpermission.Mode(e.agent.Options.PermissionMode))
+	sessionSettings := protocol.SessionRuntimeSettingsFromOptions(
+		roomAgentSessionOptions(e.round, e.agent.AgentID),
+	)
+	permissionMode := runtimepermission.NormalizeMode(
+		sdkpermission.Mode(e.agent.Options.PermissionMode),
+	)
+	if sessionSettings.PermissionMode != "" {
+		permissionMode = runtimepermission.NormalizeMode(
+			sdkpermission.Mode(sessionSettings.PermissionMode),
+		)
+	}
 	if e.round.PermissionMode != "" {
 		permissionMode = runtimepermission.NormalizeMode(e.round.PermissionMode)
 	}
@@ -399,9 +409,36 @@ func (s *Service) resolveAgentRuntimeSelection(
 		ownerUserIDs = append(ownerUserIDs, roundValue.OwnerUserID)
 	}
 	return runtimeselectionsvc.NewService(s.prefs).Resolve(ctx, runtimeselectionsvc.Request{
-		Agent:        agentValue,
-		OwnerUserIDs: ownerUserIDs,
+		Agent:          agentValue,
+		OwnerUserIDs:   ownerUserIDs,
+		SessionOptions: roomAgentSessionOptions(roundValue, agentValue.AgentID),
 	})
+}
+
+func roomAgentSessionOptions(
+	roundValue *activeRoomRound,
+	agentID string,
+) map[string]any {
+	if roundValue == nil || roundValue.Context == nil {
+		return nil
+	}
+	return roomSessionOptionsFromContext(roundValue.Context, agentID)
+}
+
+func roomSessionOptionsFromContext(
+	contextValue *protocol.ConversationContextAggregate,
+	agentID string,
+) map[string]any {
+	if contextValue == nil {
+		return nil
+	}
+	agentID = strings.TrimSpace(agentID)
+	for _, sessionValue := range contextValue.Sessions {
+		if sessionValue.AgentID == agentID && sessionValue.IsPrimary {
+			return sessionValue.Options
+		}
+	}
+	return nil
 }
 
 func roomRuntimeStartupLogFields(

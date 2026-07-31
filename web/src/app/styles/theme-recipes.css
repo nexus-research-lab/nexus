@@ -771,6 +771,11 @@
       display: none;
     }
 
+    .nexus-chat-composer-footer:not([data-goal-mode="true"]) .nexus-chat-composer-footer-metadata,
+    .nexus-chat-composer-session-permission-label {
+      display: none;
+    }
+
     .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-runtime-status {
       flex-basis: 100%;
       padding-inline-start: 2.5rem;

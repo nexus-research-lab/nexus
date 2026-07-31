@@ -3608,6 +3608,7 @@ test("Room Composer hides the global stop action when no stop capability is supp
     isGoalCreating: false,
     isGoalMode: false,
     isPreparingAttachments: false,
+    isSessionSettingsSaving: false,
     runtimeState: {
       activity: "replying",
       canStopGeneration: true,
@@ -3623,6 +3624,26 @@ test("Room Composer hides the global stop action when no stop capability is supp
   assert.equal(
     projectComposerActions({ ...base, hasStopAction: true }).shouldShowStopButton,
     true,
+  );
+  const ready = {
+    ...base,
+    hasStopAction: false,
+    inputState: projectComposerInput("next turn", 0),
+    runtimeState: {
+      activity: null,
+      canStopGeneration: false,
+      isAwaitingPermission: false,
+      sessionBusy: false,
+    },
+  };
+  assert.equal(projectComposerActions(ready).isSendDisabled, false);
+  assert.equal(
+    projectComposerActions({
+      ...ready,
+      isSessionSettingsSaving: true,
+    }).isSendDisabled,
+    true,
+    "model and permission changes must persist before the next turn starts",
   );
 });
 

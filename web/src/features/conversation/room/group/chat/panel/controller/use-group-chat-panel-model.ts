@@ -85,6 +85,7 @@ export function useGroupChatPanelModel({
   });
   const directory = useRoomAgentDirectory(roomMembers);
   const composer = useGroupChatComposerModel({
+    agentId,
     conversation: session.conversation,
     conversationId,
     goal,

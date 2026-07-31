@@ -8,6 +8,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage"
+	"github.com/nexus-research-lab/nexus/internal/storage/jsoncodec"
 )
 
 // SQLRepository 提供 Room Session 视图查询。
@@ -83,12 +84,118 @@ WHERE id = `+r.dialect.Bind(2),
 	return err
 }
 
+// UpdateRoomConversationRuntimeSettings 更新目标 Agent 模型，并统一 Conversation 权限。
+func (r *SQLRepository) UpdateRoomConversationRuntimeSettings(
+	ctx context.Context,
+	roomSessionID string,
+	targetOptions map[string]any,
+	permissionMode string,
+) ([]protocol.Session, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	rows, err := tx.QueryContext(ctx, `
+SELECT sibling.id, sibling.options_json
+FROM sessions target
+JOIN sessions sibling ON sibling.conversation_id = target.conversation_id
+WHERE target.id = `+r.dialect.Bind(1)+`
+  AND sibling.is_primary = `+r.dialect.TrueValue(),
+		roomSessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	type roomSessionOptions struct {
+		id      string
+		options map[string]any
+	}
+	sessionOptions := make([]roomSessionOptions, 0)
+	for rows.Next() {
+		var id string
+		var rawOptions string
+		if scanErr := rows.Scan(&id, &rawOptions); scanErr != nil {
+			_ = rows.Close()
+			return nil, scanErr
+		}
+		sessionOptions = append(sessionOptions, roomSessionOptions{
+			id:      id,
+			options: jsoncodec.ParseMap(rawOptions),
+		})
+	}
+	if err = rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	if len(sessionOptions) == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	for _, item := range sessionOptions {
+		options := item.options
+		if item.id == roomSessionID {
+			options = targetOptions
+		}
+		settings := protocol.SessionRuntimeSettingsFromOptions(options)
+		settings.PermissionMode = permissionMode
+		options = protocol.WithSessionRuntimeSettings(options, settings)
+		optionsJSON, marshalErr := jsoncodec.MarshalMap(options)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+		if _, err = tx.ExecContext(ctx, `
+UPDATE sessions
+SET options_json = `+r.dialect.Bind(1)+`,
+    updated_at = `+r.dialect.CurrentTimestamp()+`
+WHERE id = `+r.dialect.Bind(2),
+			optionsJSON,
+			item.id,
+		); err != nil {
+			return nil, err
+		}
+	}
+
+	projectedRows, err := tx.QueryContext(ctx, r.roomSessionSelect()+`
+WHERE s.is_primary = `+r.dialect.TrueValue()+`
+  AND c.id = (
+      SELECT conversation_id
+      FROM sessions
+      WHERE id = `+r.dialect.Bind(1)+`
+  )
+ORDER BY s.last_activity_at DESC`,
+		roomSessionID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	items, scanErr := scanRoomSessions(projectedRows)
+	closeErr := projectedRows.Close()
+	if scanErr != nil {
+		return nil, scanErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func (r *SQLRepository) roomSessionSelect() string {
 	return `
 SELECT
     s.id,
     s.agent_id,
     COALESCE(s.sdk_session_id, ''),
+    s.options_json,
     s.status,
     s.last_activity_at,
     c.last_activity_at,
@@ -126,21 +233,23 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (protocol.Session,
 		roomSessionID        string
 		agentID              string
 		sdkSessionID         string
+		optionsJSON          string
 		status               string
 		lastActivity         time.Time
 		conversationActivity sql.NullTime
 		createdAt            time.Time
-		conversationID string
-		title          string
-		roomID         string
-		roomType       string
-		roomName       string
-		messageCount   int
+		conversationID       string
+		title                string
+		roomID               string
+		roomType             string
+		roomName             string
+		messageCount         int
 	)
 	if err := scanner.Scan(
 		&roomSessionID,
 		&agentID,
 		&sdkSessionID,
+		&optionsJSON,
 		&status,
 		&lastActivity,
 		&conversationActivity,
@@ -159,7 +268,7 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (protocol.Session,
 	if conversationActivity.Valid && conversationActivity.Time.After(lastActivity) {
 		lastActivity = conversationActivity.Time
 	}
-	return protocol.Session{
+	result := protocol.Session{
 		SessionKey:     protocol.BuildRoomAgentSessionKey(conversationID, agentID, roomType),
 		AgentID:        agentID,
 		SessionID:      nullableStringPointer(sdkSessionID),
@@ -173,9 +282,13 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (protocol.Session,
 		LastActivity:   lastActivity.UTC(),
 		Title:          resolvedTitle,
 		MessageCount:   messageCount,
-		Options:        map[string]any{},
+		Options:        jsoncodec.ParseMap(optionsJSON),
 		IsActive:       status == "active",
-	}, nil
+	}
+	if result.Options == nil {
+		result.Options = map[string]any{}
+	}
+	return result, nil
 }
 
 func roomChatType(roomType string) string {

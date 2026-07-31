@@ -49,6 +49,7 @@ export interface RoomSessionRecord {
   branch_key: string;
   is_primary: boolean;
   sdk_session_id?: string | null;
+  options: Record<string, unknown>;
   status: string;
   last_activity_at?: string | null;
   created_at?: string | null;

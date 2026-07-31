@@ -183,6 +183,7 @@ export function projectComposerActions({
   isGoalCreating,
   isGoalMode,
   isPreparingAttachments,
+  isSessionSettingsSaving,
   runtimeState,
 }: {
   canCreateGoal: boolean;
@@ -192,12 +193,14 @@ export function projectComposerActions({
   isGoalCreating: boolean;
   isGoalMode: boolean;
   isPreparingAttachments: boolean;
+  isSessionSettingsSaving: boolean;
   runtimeState: ComposerRuntimeProjection;
 }): ComposerActionProjection {
   const goalSendDisabled = [
     !inputState.hasTextInput,
     inputState.isOverLimit,
     isGoalCreating,
+    isSessionSettingsSaving,
     !canCreateGoal,
     Boolean(goalCreateBlockedReason),
   ].some(Boolean);
@@ -205,6 +208,7 @@ export function projectComposerActions({
     inputState.isInputEmpty,
     inputState.isOverLimit,
     isPreparingAttachments,
+    isSessionSettingsSaving,
     runtimeState.isAwaitingPermission,
   ].some(Boolean);
   return {

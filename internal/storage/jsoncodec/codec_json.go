@@ -37,3 +37,15 @@ func ParseMap(raw string) map[string]any {
 	}
 	return result
 }
+
+// MarshalMap 编码 map JSON，并把不可持久化的值交给调用方处理。
+func MarshalMap(values map[string]any) (string, error) {
+	if values == nil {
+		values = map[string]any{}
+	}
+	payload, err := json.Marshal(values)
+	if err != nil {
+		return "", err
+	}
+	return string(payload), nil
+}

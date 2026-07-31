@@ -1,6 +1,7 @@
 package dm
 
 import (
+	"reflect"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -11,6 +12,21 @@ func MergeRoomBackedSession(current protocol.Session, roomSession protocol.Sessi
 	merged := roomSession
 	if strings.TrimSpace(StringPointerValue(merged.SessionID)) == "" && current.SessionID != nil {
 		merged.SessionID = current.SessionID
+	}
+	// Room SQL 只拥有 Session 显式覆盖；本地 overlay 继续拥有 runtime 指纹。
+	merged.Options = protocol.WithSessionRuntimeSettings(
+		current.Options,
+		protocol.SessionRuntimeSettingsFromOptions(roomSession.Options),
+	)
+	for key, value := range roomSession.Options {
+		switch key {
+		case protocol.OptionSessionProvider,
+			protocol.OptionSessionModel,
+			protocol.OptionSessionPermissionMode:
+			continue
+		default:
+			merged.Options[key] = value
+		}
 	}
 	return merged
 }
@@ -26,7 +42,8 @@ func SessionsEqual(left protocol.Session, right protocol.Session) bool {
 		left.ChannelType == right.ChannelType &&
 		left.ChatType == right.ChatType &&
 		left.Status == right.Status &&
-		left.Title == right.Title
+		left.Title == right.Title &&
+		reflect.DeepEqual(left.Options, right.Options)
 }
 
 // StringPointerValue 返回字符串指针的去空白值。

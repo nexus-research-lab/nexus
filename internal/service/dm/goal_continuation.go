@@ -36,7 +36,11 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 		return false
 	}
 	if len(items) == 0 {
-		return s.shouldDeferGoalContinuationForPlanMode(ctx, agentID)
+		return s.shouldDeferGoalContinuationForPlanMode(
+			ctx,
+			normalizedSessionKey,
+			agentID,
+		)
 	}
 	s.dispatchNextInputQueueItemAtLocation(ctx, normalizedSessionKey, agentID, location)
 	return true
@@ -66,9 +70,14 @@ func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey 
 	return false, err
 }
 
-func (s *Service) shouldDeferGoalContinuationForPlanMode(ctx context.Context, agentID string) bool {
+func (s *Service) shouldDeferGoalContinuationForPlanMode(
+	ctx context.Context,
+	sessionKey string,
+	agentID string,
+) bool {
+	sessionKey = strings.TrimSpace(sessionKey)
 	agentID = strings.TrimSpace(agentID)
-	if s == nil || s.agents == nil || agentID == "" {
+	if s == nil || s.agents == nil || sessionKey == "" || agentID == "" {
 		return false
 	}
 	agentValue, err := s.agents.GetAgent(ctx, agentID)
@@ -76,7 +85,26 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(ctx context.Context, ag
 		s.loggerFor(ctx).Warn("读取 Goal 续跑 Agent plan mode 状态失败", "agent_id", agentID, "err", err)
 		return false
 	}
-	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(agentValue.Options.PermissionMode)
+	permissionMode := agentValue.Options.PermissionMode
+	sessionValue, sessionErr := s.ensureSession(
+		ctx,
+		agentValue,
+		protocol.ParseSessionKey(sessionKey),
+		sessionKey,
+	)
+	if sessionErr != nil {
+		s.loggerFor(ctx).Warn(
+			"读取 Goal 续跑 Session plan mode 状态失败",
+			"session_key", sessionKey,
+			"agent_id", agentID,
+			"err", sessionErr,
+		)
+	} else if override := protocol.SessionRuntimeSettingsFromOptions(
+		sessionValue.Options,
+	).PermissionMode; override != "" {
+		permissionMode = override
+	}
+	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(permissionMode)
 }
 
 func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
@@ -198,7 +226,11 @@ func (s *Service) shouldDeferGoalContinuationWithoutQueueDispatch(ctx context.Co
 		s.loggerFor(ctx).Warn("读取 Goal 续跑最终队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
-	return len(items) > 0 || s.shouldDeferGoalContinuationForPlanMode(ctx, agentID)
+	return len(items) > 0 || s.shouldDeferGoalContinuationForPlanMode(
+		ctx,
+		sessionKey,
+		agentID,
+	)
 }
 
 func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context, plan protocol.GoalContinuation, dispatchErr error) {

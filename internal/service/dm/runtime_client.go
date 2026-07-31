@@ -36,7 +36,12 @@ func (s *Service) ensureClient(
 	sessionItem protocol.Session,
 	request Request,
 ) (runtimectx.Client, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode, error) {
-	permissionMode := resolvePermissionMode(request.PermissionMode, agentValue.Options.PermissionMode)
+	sessionSettings := protocol.SessionRuntimeSettingsFromOptions(sessionItem.Options)
+	permissionMode := resolvePermissionMode(
+		request.PermissionMode,
+		sessionSettings.PermissionMode,
+		agentValue.Options.PermissionMode,
+	)
 	permissionHandler := request.PermissionHandler
 	if permissionHandler == nil {
 		permissionHandler = func(permissionCtx context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
@@ -99,7 +104,11 @@ func (s *Service) ensureClient(
 			goalObjectiveRevision,
 		)
 	}
-	runtimeSelection, err := s.resolveAgentRuntimeSelection(ctx, agentValue)
+	runtimeSelection, err := s.resolveAgentRuntimeSelection(
+		ctx,
+		agentValue,
+		sessionItem.Options,
+	)
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
@@ -187,9 +196,16 @@ func (s *Service) ensureClient(
 	return client, strings.TrimSpace(string(options.Runtime.Kind)), runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, goalObjectiveRevision, permissionMode, nil
 }
 
-func resolvePermissionMode(requestMode sdkpermission.Mode, agentMode string) sdkpermission.Mode {
+func resolvePermissionMode(
+	requestMode sdkpermission.Mode,
+	sessionMode string,
+	agentMode string,
+) sdkpermission.Mode {
 	if requestMode != "" {
 		return runtimepermission.NormalizeMode(requestMode)
+	}
+	if sessionMode != "" {
+		return runtimepermission.NormalizeMode(sdkpermission.Mode(sessionMode))
 	}
 	if agentMode != "" {
 		return runtimepermission.NormalizeMode(sdkpermission.Mode(agentMode))
@@ -224,9 +240,11 @@ func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (st
 func (s *Service) resolveAgentRuntimeSelection(
 	ctx context.Context,
 	agentValue *protocol.Agent,
+	sessionOptions map[string]any,
 ) (runtimeselectionsvc.Selection, error) {
 	return runtimeselectionsvc.NewService(s.prefs).Resolve(ctx, runtimeselectionsvc.Request{
-		Agent: agentValue,
+		Agent:          agentValue,
+		SessionOptions: sessionOptions,
 	})
 }
 

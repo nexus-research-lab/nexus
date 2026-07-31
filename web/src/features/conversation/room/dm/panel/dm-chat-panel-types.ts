@@ -2,14 +2,13 @@ import type {
   AgentConversationIdentity,
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
+import type { Agent } from "@/types/agent/agent";
 import type { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface DmChatPanelProps {
-  currentAgentName: string | null;
-  currentAgentAvatar: string | null;
-  currentAgentPermissionMode: string | null;
+  currentAgent: Agent;
   sessionIdentity: AgentConversationIdentity | null;
   runtimeKind: AgentRuntimeKind;
   todos: TodoItem[];

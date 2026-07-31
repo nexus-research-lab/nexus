@@ -10,8 +10,7 @@ import (
 )
 
 type fakeModelCommandAgents struct {
-	agent       protocol.Agent
-	updateCount int
+	agent protocol.Agent
 }
 
 func (f *fakeModelCommandAgents) GetAgent(
@@ -23,19 +22,29 @@ func (f *fakeModelCommandAgents) GetAgent(
 	return &result, nil
 }
 
-func (f *fakeModelCommandAgents) UpdateAgent(
+type fakeModelCommandSessions struct {
+	settings         protocol.SessionRuntimeSettings
+	targetSessionKey string
+	updateCount      int
+}
+
+func (f *fakeModelCommandSessions) GetRuntimeSettings(
 	_ context.Context,
-	agentID string,
-	request protocol.UpdateRequest,
-) (*protocol.Agent, error) {
+	sessionKey string,
+) (protocol.SessionRuntimeSettings, error) {
+	f.targetSessionKey = sessionKey
+	return f.settings, nil
+}
+
+func (f *fakeModelCommandSessions) UpdateRuntimeSettings(
+	_ context.Context,
+	sessionKey string,
+	settings protocol.SessionRuntimeSettings,
+) (protocol.SessionRuntimeSettings, error) {
+	f.targetSessionKey = sessionKey
+	f.settings = settings
 	f.updateCount++
-	f.agent.AgentID = agentID
-	if request.Options != nil {
-		f.agent.Options.Provider = request.Options.Provider
-		f.agent.Options.Model = request.Options.Model
-	}
-	result := f.agent
-	return &result, nil
+	return settings, nil
 }
 
 type fakeModelCommandPreferences struct {
@@ -66,9 +75,13 @@ func TestModelCommandPersistsQualifiedProviderSelection(t *testing.T) {
 	agents := &fakeModelCommandAgents{
 		agent: protocol.Agent{OwnerUserID: "owner-a"},
 	}
+	sessions := &fakeModelCommandSessions{
+		settings: protocol.SessionRuntimeSettings{PermissionMode: "acceptEdits"},
+	}
 	registry := NewRegistry()
 	if err := RegisterModelCommand(registry, ModelCommandDependencies{
 		Agents:      agents,
+		Sessions:    sessions,
 		Preferences: fakeModelCommandPreferences{runtimeKind: "nxs"},
 		Providers: fakeModelCommandProviders{options: &providersvc.OptionsResponse{
 			Items: []providersvc.Option{{
@@ -97,14 +110,14 @@ func TestModelCommandPersistsQualifiedProviderSelection(t *testing.T) {
 	if err != nil || !matched {
 		t.Fatalf("Execute() = matched:%t err:%v", matched, err)
 	}
-	if agents.updateCount != 1 ||
-		agents.agent.Options.Provider != "deepseek" ||
-		agents.agent.Options.Model != "deepseek-v4-flash" {
-		t.Fatalf("agent update = %#v count=%d", agents.agent.Options, agents.updateCount)
+	if sessions.updateCount != 1 ||
+		sessions.targetSessionKey != "agent:agent-a:ws:dm:one" ||
+		sessions.settings.Provider != "deepseek" ||
+		sessions.settings.Model != "deepseek-v4-flash" ||
+		sessions.settings.PermissionMode != "acceptEdits" {
+		t.Fatalf("session update = %#v count=%d", sessions, sessions.updateCount)
 	}
-	if result.DirectoryInvalidation == nil ||
-		result.DirectoryInvalidation.Reason != "agent_updated" ||
-		len(result.Events) != 1 {
+	if result.DirectoryInvalidation != nil || len(result.Events) != 1 {
 		t.Fatalf("result = %#v", result)
 	}
 	event := result.Events[0]
@@ -120,9 +133,11 @@ func TestModelCommandResolvesUniqueUnqualifiedModel(t *testing.T) {
 	agents := &fakeModelCommandAgents{
 		agent: protocol.Agent{OwnerUserID: "owner-a"},
 	}
+	sessions := &fakeModelCommandSessions{}
 	registry := NewRegistry()
 	if err := RegisterModelCommand(registry, ModelCommandDependencies{
 		Agents:      agents,
+		Sessions:    sessions,
 		Preferences: fakeModelCommandPreferences{runtimeKind: "nxs"},
 		Providers: fakeModelCommandProviders{options: &providersvc.OptionsResponse{
 			Items: []providersvc.Option{{
@@ -140,18 +155,19 @@ func TestModelCommandResolvesUniqueUnqualifiedModel(t *testing.T) {
 		context.Background(),
 		ScopeDM,
 		Invocation{
-			AgentID: "agent-a",
-			Content: "/model deepseek-v4-flash",
+			AgentID:    "agent-a",
+			Content:    "/model deepseek-v4-flash",
+			SessionKey: "agent:agent-a:ws:dm:one",
 		},
 	)
 	if err != nil || !matched ||
-		agents.agent.Options.Provider != "deepseek" ||
-		agents.agent.Options.Model != "deepseek-v4-flash" {
+		sessions.settings.Provider != "deepseek" ||
+		sessions.settings.Model != "deepseek-v4-flash" {
 		t.Fatalf(
-			"Execute() = matched:%t err:%v options:%#v",
+			"Execute() = matched:%t err:%v settings:%#v",
 			matched,
 			err,
-			agents.agent.Options,
+			sessions.settings,
 		)
 	}
 }
@@ -160,9 +176,11 @@ func TestModelCommandPreservesSlashInsideModelID(t *testing.T) {
 	agents := &fakeModelCommandAgents{
 		agent: protocol.Agent{OwnerUserID: "owner-a"},
 	}
+	sessions := &fakeModelCommandSessions{}
 	registry := NewRegistry()
 	if err := RegisterModelCommand(registry, ModelCommandDependencies{
 		Agents:      agents,
+		Sessions:    sessions,
 		Preferences: fakeModelCommandPreferences{runtimeKind: "nxs"},
 		Providers: fakeModelCommandProviders{options: &providersvc.OptionsResponse{
 			Items: []providersvc.Option{{
@@ -180,18 +198,19 @@ func TestModelCommandPreservesSlashInsideModelID(t *testing.T) {
 		context.Background(),
 		ScopeDM,
 		Invocation{
-			AgentID: "agent-a",
-			Content: "/model openrouter/anthropic/claude-sonnet-4",
+			AgentID:    "agent-a",
+			Content:    "/model openrouter/anthropic/claude-sonnet-4",
+			SessionKey: "agent:agent-a:ws:dm:one",
 		},
 	)
 	if err != nil || !matched ||
-		agents.agent.Options.Provider != "openrouter" ||
-		agents.agent.Options.Model != "anthropic/claude-sonnet-4" {
+		sessions.settings.Provider != "openrouter" ||
+		sessions.settings.Model != "anthropic/claude-sonnet-4" {
 		t.Fatalf(
-			"Execute() = matched:%t err:%v options:%#v",
+			"Execute() = matched:%t err:%v settings:%#v",
 			matched,
 			err,
-			agents.agent.Options,
+			sessions.settings,
 		)
 	}
 }
@@ -200,9 +219,11 @@ func TestModelCommandResolvesUnqualifiedModelIDContainingSlash(t *testing.T) {
 	agents := &fakeModelCommandAgents{
 		agent: protocol.Agent{OwnerUserID: "owner-a"},
 	}
+	sessions := &fakeModelCommandSessions{}
 	registry := NewRegistry()
 	if err := RegisterModelCommand(registry, ModelCommandDependencies{
 		Agents:      agents,
+		Sessions:    sessions,
 		Preferences: fakeModelCommandPreferences{runtimeKind: "nxs"},
 		Providers: fakeModelCommandProviders{options: &providersvc.OptionsResponse{
 			Items: []providersvc.Option{{
@@ -220,18 +241,19 @@ func TestModelCommandResolvesUnqualifiedModelIDContainingSlash(t *testing.T) {
 		context.Background(),
 		ScopeDM,
 		Invocation{
-			AgentID: "agent-a",
-			Content: "/model anthropic/claude-sonnet-4",
+			AgentID:    "agent-a",
+			Content:    "/model anthropic/claude-sonnet-4",
+			SessionKey: "agent:agent-a:ws:dm:one",
 		},
 	)
 	if err != nil || !matched ||
-		agents.agent.Options.Provider != "openrouter" ||
-		agents.agent.Options.Model != "anthropic/claude-sonnet-4" {
+		sessions.settings.Provider != "openrouter" ||
+		sessions.settings.Model != "anthropic/claude-sonnet-4" {
 		t.Fatalf(
-			"Execute() = matched:%t err:%v options:%#v",
+			"Execute() = matched:%t err:%v settings:%#v",
 			matched,
 			err,
-			agents.agent.Options,
+			sessions.settings,
 		)
 	}
 }
@@ -240,9 +262,11 @@ func TestModelCommandRejectsAmbiguousModel(t *testing.T) {
 	agents := &fakeModelCommandAgents{
 		agent: protocol.Agent{OwnerUserID: "owner-a"},
 	}
+	sessions := &fakeModelCommandSessions{}
 	registry := NewRegistry()
 	if err := RegisterModelCommand(registry, ModelCommandDependencies{
 		Agents:      agents,
+		Sessions:    sessions,
 		Preferences: fakeModelCommandPreferences{runtimeKind: "nxs"},
 		Providers: fakeModelCommandProviders{options: &providersvc.OptionsResponse{
 			Items: []providersvc.Option{
@@ -269,13 +293,13 @@ func TestModelCommandRejectsAmbiguousModel(t *testing.T) {
 		},
 	)
 	message, clientSafe := protocol.ClientErrorMessage(err)
-	if !matched || !clientSafe || message == "" || agents.updateCount != 0 {
+	if !matched || !clientSafe || message == "" || sessions.updateCount != 0 {
 		t.Fatalf(
 			"Execute() = matched:%t err:%v client_safe:%t updates:%d",
 			matched,
 			err,
 			clientSafe,
-			agents.updateCount,
+			sessions.updateCount,
 		)
 	}
 }
@@ -284,9 +308,11 @@ func TestModelCommandRejectsUnknownClaudeNativeAliasAtHost(t *testing.T) {
 	agents := &fakeModelCommandAgents{
 		agent: protocol.Agent{OwnerUserID: "owner-a"},
 	}
+	sessions := &fakeModelCommandSessions{}
 	registry := NewRegistry()
 	if err := RegisterModelCommand(registry, ModelCommandDependencies{
 		Agents:      agents,
+		Sessions:    sessions,
 		Preferences: fakeModelCommandPreferences{runtimeKind: "claude"},
 		Providers: fakeModelCommandProviders{options: &providersvc.OptionsResponse{
 			Items: []providersvc.Option{},
@@ -304,13 +330,57 @@ func TestModelCommandRejectsUnknownClaudeNativeAliasAtHost(t *testing.T) {
 		},
 	)
 	message, clientSafe := protocol.ClientErrorMessage(err)
-	if !matched || !clientSafe || message == "" || agents.updateCount != 0 {
+	if !matched || !clientSafe || message == "" || sessions.updateCount != 0 {
 		t.Fatalf(
 			"Execute() = matched:%t err:%v client_safe:%t updates:%d",
 			matched,
 			err,
 			clientSafe,
-			agents.updateCount,
+			sessions.updateCount,
 		)
+	}
+}
+
+func TestModelCommandTargetsSelectedRoomAgentSession(t *testing.T) {
+	agents := &fakeModelCommandAgents{
+		agent: protocol.Agent{OwnerUserID: "owner-a"},
+	}
+	sessions := &fakeModelCommandSessions{}
+	registry := NewRegistry()
+	if err := RegisterModelCommand(registry, ModelCommandDependencies{
+		Agents:      agents,
+		Sessions:    sessions,
+		Preferences: fakeModelCommandPreferences{runtimeKind: "nxs"},
+		Providers: fakeModelCommandProviders{options: &providersvc.OptionsResponse{
+			Items: []providersvc.Option{{
+				Provider: "deepseek",
+				Models: []providersvc.ModelOption{{
+					ModelID: "deepseek-v4-flash",
+				}},
+			}},
+		}},
+	}); err != nil {
+		t.Fatalf("RegisterModelCommand() error = %v", err)
+	}
+
+	_, matched, err := registry.Execute(
+		context.Background(),
+		ScopeRoom,
+		Invocation{
+			AgentID:    "agent-b",
+			Content:    "/model deepseek-v4-flash",
+			SessionKey: "room:group:conversation-a",
+		},
+	)
+	if err != nil || !matched {
+		t.Fatalf("Execute() = matched:%t err:%v", matched, err)
+	}
+	want := protocol.BuildRoomAgentSessionKey(
+		"conversation-a",
+		"agent-b",
+		protocol.RoomTypeGroup,
+	)
+	if sessions.targetSessionKey != want {
+		t.Fatalf("target session key = %q, want %q", sessions.targetSessionKey, want)
 	}
 }

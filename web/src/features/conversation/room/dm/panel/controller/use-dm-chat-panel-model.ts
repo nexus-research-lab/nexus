@@ -11,9 +11,7 @@ import { useDmChatSessionController } from "./use-dm-chat-session-controller";
 import { useDmGoalController } from "./use-dm-goal-controller";
 
 export function useDmChatPanelModel({
-  currentAgentAvatar,
-  currentAgentName,
-  currentAgentPermissionMode,
+  currentAgent,
   initialDraft,
   layout,
   onConversationSnapshotChange,
@@ -30,8 +28,8 @@ export function useDmChatPanelModel({
   const environment = useConversationPanelEnvironment(layout);
   const sessionKey = sessionIdentity?.session_key ?? null;
   const goal = useDmGoalController({
-    agentName: currentAgentName,
-    permissionMode: currentAgentPermissionMode,
+    agentName: currentAgent.name,
+    permissionMode: currentAgent.options.permission_mode ?? null,
     sessionKey,
   });
   const session = useDmChatSessionController({
@@ -43,7 +41,7 @@ export function useDmChatPanelModel({
   });
   const goalScopeLabel = t("dm.goal_scope");
   const composer = useDmChatComposerModel({
-    agentId: sessionIdentity?.agent_id ?? null,
+    agent: currentAgent,
     conversation: session.conversation,
     goalScopeLabel,
     initialDraft: initialDraft ?? null,
@@ -62,8 +60,8 @@ export function useDmChatPanelModel({
   );
   return buildDmChatPanelViewModel({
     composer,
-    currentAgentAvatar,
-    currentAgentName,
+    currentAgentAvatar: currentAgent.avatar ?? null,
+    currentAgentName: currentAgent.name,
     environment,
     goal,
     goalScopeLabel,

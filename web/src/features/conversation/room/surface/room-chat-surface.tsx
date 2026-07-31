@@ -71,9 +71,7 @@ export function RoomChatSurface({
     <RoomChatErrorBoundary resetKey={`${currentRoomType}:${identityKey}`}>
       {isDm ? (
         <DmChatPanel
-          currentAgentName={currentAgent.name}
-          currentAgentAvatar={currentAgent.avatar ?? null}
-          currentAgentPermissionMode={currentAgent.options.permission_mode ?? null}
+          currentAgent={currentAgent}
           initialDraft={initialDraft}
           layout={layout}
           onInitialDraftConsumed={onInitialDraftConsumed}

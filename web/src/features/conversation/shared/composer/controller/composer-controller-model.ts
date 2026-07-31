@@ -31,6 +31,7 @@ interface ComposerViewStateOptions {
   isLoading: boolean;
   isLoopPickerOpen: boolean;
   isPreparingAttachments: boolean;
+  isSessionSettingsSaving: boolean;
   queueItemCount: number;
   queueWhenSessionBusy: boolean;
   runtimePhase: AgentConversationRuntimePhase | null;
@@ -64,6 +65,7 @@ export function buildComposerViewState(
     isGoalCreating: options.isGoalCreating,
     isGoalMode: modeState.isGoalMode,
     isPreparingAttachments: options.isPreparingAttachments,
+    isSessionSettingsSaving: options.isSessionSettingsSaving,
     hasStopAction: options.hasStopAction,
     runtimeState,
   });

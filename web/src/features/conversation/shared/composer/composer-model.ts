@@ -28,6 +28,7 @@ export interface ComposerPanelProps {
   isLoading: boolean;
   runtimePhase: AgentConversationRuntimePhase | null;
   runtimeKind: AgentRuntimeKind;
+  sessionSettings?: ComposerSessionSettingsScope;
   onSendMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
@@ -61,6 +62,22 @@ export interface ComposerPanelProps {
   goalModeExtra?: ReactNode;
   goalScopeLabel: string;
   tourAnchor: string;
+}
+
+export interface ComposerSessionSettingsTarget {
+  agentId: string;
+  avatar?: string | null;
+  defaultModel?: string;
+  defaultPermissionMode?: string;
+  defaultProvider?: string;
+  name: string;
+  sessionKey: string;
+}
+
+export interface ComposerSessionSettingsScope {
+  initialTargetId: string;
+  runtimeKind: AgentRuntimeKind;
+  targets: ComposerSessionSettingsTarget[];
 }
 
 export type ComposerInputMode = "message" | "goal";

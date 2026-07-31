@@ -54,6 +54,41 @@ func TestResolveUsesExplicitAgentModelAndPreferenceRuntimeKind(t *testing.T) {
 	}
 }
 
+func TestResolvePrefersSessionModelOverAgentAndGlobalDefaults(t *testing.T) {
+	service := NewService(fakePreferencesService{items: map[string]preferencessvc.Preferences{
+		"owner-1": {
+			AgentRuntimeKind: "nxs",
+			DefaultAgentOptions: protocol.Options{
+				Provider: "global-provider",
+				Model:    "global-model",
+			},
+		},
+	}})
+	selection, err := service.Resolve(context.Background(), Request{
+		Agent: &protocol.Agent{
+			OwnerUserID: "owner-1",
+			Options: protocol.Options{
+				Provider: "agent-provider",
+				Model:    "agent-model",
+			},
+		},
+		SessionOptions: protocol.WithSessionRuntimeSettings(
+			nil,
+			protocol.SessionRuntimeSettings{
+				Provider: "session-provider",
+				Model:    "session-model",
+			},
+		),
+	})
+	if err != nil {
+		t.Fatalf("Resolve 失败: %v", err)
+	}
+	if selection.Provider != "session-provider" ||
+		selection.Model != "session-model" {
+		t.Fatalf("Session 模型覆盖优先级错误: %+v", selection)
+	}
+}
+
 func TestResolveFallsBackToPreferenceDefaultModel(t *testing.T) {
 	service := NewService(fakePreferencesService{items: map[string]preferencessvc.Preferences{
 		"owner-1": {

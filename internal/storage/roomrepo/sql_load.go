@@ -272,7 +272,8 @@ func (r *SQLRepository) listSessionsByConversations(ctx context.Context, querier
 	rows, err := querier.QueryContext(ctx, fmt.Sprintf(`
 SELECT
     id, conversation_id, agent_id, runtime_id, version_no, branch_key,
-    is_primary, COALESCE(sdk_session_id, ''), status, last_activity_at, created_at, updated_at
+    is_primary, COALESCE(sdk_session_id, ''), options_json, status,
+    last_activity_at, created_at, updated_at
 FROM sessions
 WHERE conversation_id IN (%s)
 ORDER BY conversation_id ASC, last_activity_at DESC`, r.dialect.BindList(len(conversationIDs))), args...)

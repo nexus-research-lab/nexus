@@ -4,6 +4,7 @@ import {
   type ReactNode,
   type RefObject,
   useCallback,
+  useMemo,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -36,6 +37,16 @@ export interface UiActionMenuItem {
   tone?: "default" | "primary" | "danger";
 }
 
+export type UiActionMenuDensity = "compact" | "default";
+
+export interface UiActionMenuContentProps {
+  density?: UiActionMenuDensity;
+  disabled?: boolean;
+  footerItems?: UiActionMenuItem[];
+  items: UiActionMenuItem[];
+  onSelect: (value: string) => void;
+}
+
 type UiActionMenuPlacement = UiAnchoredOverlayPlacement;
 
 interface UiActionMenuProps {
@@ -43,6 +54,8 @@ interface UiActionMenuProps {
   anchorRef: RefObject<HTMLElement | null>;
   ariaLabel: string;
   className?: string;
+  density?: UiActionMenuDensity;
+  footerItems?: UiActionMenuItem[];
   isOpen: boolean;
   items: UiActionMenuItem[];
   minWidth?: number;
@@ -52,51 +65,82 @@ interface UiActionMenuProps {
 }
 
 const ACTION_MENU_MAX_HEIGHT = 320;
-const ACTION_MENU_ITEM_HEIGHT = 44;
-const ACTION_MENU_DESCRIBED_ITEM_HEIGHT = 52;
-const ACTION_MENU_ESTIMATED_VERTICAL_PADDING = 16;
+const ACTION_MENU_ITEM_HEIGHT = {
+  compact: 32,
+  default: 36,
+} as const;
+const ACTION_MENU_DESCRIBED_ITEM_HEIGHT = {
+  compact: 40,
+  default: 44,
+} as const;
+const ACTION_MENU_ITEM_CLASS_NAME = {
+  compact: {
+    described: "h-10 py-0.5",
+    plain: "h-8",
+    spacing: "gap-2 px-2",
+  },
+  default: {
+    described: "h-11 py-1",
+    plain: "h-9",
+    spacing: "gap-3 px-2.5",
+  },
+} as const;
+const ACTION_MENU_ESTIMATED_VERTICAL_PADDING = 8;
+const ACTION_MENU_FOOTER_SEPARATOR_HEIGHT = 9;
 
 function resolveActionMenuPosition({
   align,
   anchor,
+  density,
   items,
+  hasFooter,
   minWidth,
   placement,
 }: {
   align: UiAnchoredOverlayAlignment;
   anchor: HTMLElement;
+  density: UiActionMenuDensity;
   items: UiActionMenuItem[];
+  hasFooter: boolean;
   minWidth: number;
   placement: UiActionMenuPlacement;
 }) {
   const contentHeight = items.reduce(
     (height, item) => height + (
       item.description
-        ? ACTION_MENU_DESCRIBED_ITEM_HEIGHT
-        : ACTION_MENU_ITEM_HEIGHT
+        ? ACTION_MENU_DESCRIBED_ITEM_HEIGHT[density]
+        : ACTION_MENU_ITEM_HEIGHT[density]
     ),
-    ACTION_MENU_ESTIMATED_VERTICAL_PADDING,
+    ACTION_MENU_ESTIMATED_VERTICAL_PADDING
+      + (hasFooter ? ACTION_MENU_FOOTER_SEPARATOR_HEIGHT : 0),
   );
   const estimatedHeight = Math.min(
     ACTION_MENU_MAX_HEIGHT,
-    Math.max(ACTION_MENU_ITEM_HEIGHT, contentHeight),
+    Math.max(ACTION_MENU_ITEM_HEIGHT[density], contentHeight),
   );
   return resolveAnchoredOverlayPosition({
     align,
     anchor,
     estimatedHeight,
     maxHeight: ACTION_MENU_MAX_HEIGHT,
-    minHeight: ACTION_MENU_ITEM_HEIGHT,
+    minHeight: ACTION_MENU_ITEM_HEIGHT[density],
     minWidth,
     placement,
   });
 }
 
-function getItemBodyClassName(item: UiActionMenuItem) {
+function getItemBodyClassName(
+  item: UiActionMenuItem,
+  density: UiActionMenuDensity,
+) {
+  const densityClassName = ACTION_MENU_ITEM_CLASS_NAME[density];
   return cn(
     MENU_ITEM_BASE_CLASS_NAME,
-    "flex cursor-pointer items-center justify-between gap-3 px-2.5",
-    item.description ? "min-h-11 py-2" : "min-h-9 py-1.5",
+    "flex cursor-pointer items-center justify-between",
+    densityClassName.spacing,
+    item.description
+      ? densityClassName.described
+      : densityClassName.plain,
     item.disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
     getMenuItemStateClassName({
       active: item.active,
@@ -120,6 +164,8 @@ export function UiActionMenu({
   anchorRef: anchorRef,
   ariaLabel: ariaLabel,
   className: className,
+  density = "default",
+  footerItems = [],
   isOpen: isOpen,
   items,
   minWidth: minWidth = 220,
@@ -127,15 +173,21 @@ export function UiActionMenu({
   onClose: onClose,
   onSelect: onSelect,
 }: UiActionMenuProps) {
+  const allItems = useMemo(
+    () => [...items, ...footerItems],
+    [footerItems, items],
+  );
   const estimatePosition = useCallback(
     (anchor: HTMLElement) => resolveActionMenuPosition({
       align,
       anchor,
-      items,
+      density,
+      hasFooter: footerItems.length > 0,
+      items: allItems,
       minWidth,
       placement,
     }),
-    [align, items, minWidth, placement],
+    [align, allItems, density, footerItems.length, minWidth, placement],
   );
   const {
     overlayPosition: menuPosition,
@@ -156,6 +208,11 @@ export function UiActionMenu({
   if (!portalContainer) {
     return null;
   }
+  const select = (value: string) => {
+    onSelect(value);
+    onClose();
+    anchorRef.current?.focus();
+  };
 
   return createPortal(
     <div
@@ -173,56 +230,118 @@ export function UiActionMenu({
       style={menuStyle}
       {...OPEN_OVERLAY_DATA_ATTRIBUTES}
     >
-      {items.map((item) => (
-        <div
-          key={item.value}
-          aria-disabled={item.disabled || undefined}
-          className={getItemBodyClassName(item)}
-          onClick={() => {
-            if (item.disabled) {
-              return;
-            }
-            onSelect(item.value);
-            onClose();
-            anchorRef.current?.focus();
-          }}
-          onKeyDown={(event) => {
-            if (item.disabled || (event.key !== "Enter" && event.key !== " ")) {
-              return;
-            }
-            event.preventDefault();
-            onSelect(item.value);
-            onClose();
-            anchorRef.current?.focus();
-          }}
-          role="menuitem"
-          tabIndex={item.disabled ? -1 : 0}
-        >
-          <span className="flex min-w-0 flex-1 items-center gap-2">
-            {item.icon ? (
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                {item.icon}
-              </span>
-            ) : null}
-            <span className="min-w-0 flex-1">
-              <span className={cn("block truncate text-sm font-medium", getItemLabelClassName(item.tone, item.active))}>
-                {item.label}
-              </span>
-              {item.description ? (
-                <span className="block truncate text-2xs font-normal text-(--text-soft)">
-                  {item.description}
-                </span>
-              ) : null}
-            </span>
-          </span>
-          {item.trailing ? (
-            <span className="flex shrink-0 items-center">
-              {item.trailing}
-            </span>
-          ) : null}
-        </div>
-      ))}
+      <UiActionMenuContent
+        density={density}
+        footerItems={footerItems}
+        items={items}
+        onSelect={select}
+      />
     </div>,
     portalContainer,
+  );
+}
+
+export function UiActionMenuContent({
+  density = "default",
+  disabled = false,
+  footerItems = [],
+  items,
+  onSelect,
+}: UiActionMenuContentProps) {
+  return (
+    <>
+      {items.map((item) => (
+        <ActionMenuItem
+          density={density}
+          disabled={disabled}
+          item={item}
+          key={item.value}
+          onSelect={onSelect}
+        />
+      ))}
+      {footerItems.length > 0 ? (
+        <>
+          <div className="mx-1 my-1 border-t border-(--divider-subtle-color)" />
+          {footerItems.map((item) => (
+            <ActionMenuItem
+              density={density}
+              disabled={disabled}
+              item={item}
+              key={item.value}
+              onSelect={onSelect}
+            />
+          ))}
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function ActionMenuItem({
+  density,
+  disabled,
+  item,
+  onSelect,
+}: {
+  density: UiActionMenuDensity;
+  disabled: boolean;
+  item: UiActionMenuItem;
+  onSelect: (value: string) => void;
+}) {
+  const select = () => {
+    if (disabled || item.disabled) {
+      return;
+    }
+    onSelect(item.value);
+  };
+  return (
+    <div
+      aria-disabled={disabled || item.disabled || undefined}
+      className={cn(
+        getItemBodyClassName(item, density),
+        disabled && "cursor-not-allowed opacity-(--disabled-opacity)",
+      )}
+      onClick={select}
+      onKeyDown={(event) => {
+        if (
+          disabled
+          || item.disabled
+          || (event.key !== "Enter" && event.key !== " ")
+        ) {
+          return;
+        }
+        event.preventDefault();
+        select();
+      }}
+      role="menuitem"
+      tabIndex={disabled || item.disabled ? -1 : 0}
+    >
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        {item.icon ? (
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+            {item.icon}
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1">
+          <span className={cn(
+            "block truncate font-medium",
+            density === "compact" ? "text-compact" : "text-sm",
+            getItemLabelClassName(item.tone, item.active),
+          )}>
+            {item.label}
+          </span>
+          {item.description ? (
+            <span className="block truncate text-2xs font-normal text-(--text-soft)">
+              {item.description}
+            </span>
+          ) : null}
+        </span>
+      </span>
+      {item.trailing ? (
+        <span className="flex shrink-0 items-center">
+          {item.trailing}
+        </span>
+      ) : null}
+    </div>
   );
 }

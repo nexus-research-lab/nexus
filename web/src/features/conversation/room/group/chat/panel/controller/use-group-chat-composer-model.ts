@@ -10,6 +10,7 @@ import {
   buildComposerHistoryScopeKey,
 } from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { buildRoomAgentSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
@@ -32,6 +33,7 @@ type ComposerConversation = Pick<
 >;
 
 interface UseGroupChatComposerModelOptions {
+  agentId: string | null;
   conversation: ComposerConversation;
   conversationId: string | null;
   goal: RoomGoalComposerModel;
@@ -45,6 +47,7 @@ interface UseGroupChatComposerModelOptions {
 }
 
 export function useGroupChatComposerModel({
+  agentId,
   conversation,
   conversationId,
   goal,
@@ -105,6 +108,24 @@ export function useGroupChatComposerModel({
     roomMembers,
     runtimePhase: conversation.runtime_phase,
     runtimeKind,
+    sessionSettings: conversationId && roomMembers.length > 0
+      ? {
+          initialTargetId: agentId ?? roomMembers[0].agent_id,
+          runtimeKind,
+          targets: roomMembers.map((member) => ({
+            agentId: member.agent_id,
+            avatar: member.avatar,
+            defaultModel: member.options.model,
+            defaultPermissionMode: member.options.permission_mode,
+            defaultProvider: member.options.provider,
+            name: member.name,
+            sessionKey: buildRoomAgentSessionKey(
+              conversationId,
+              member.agent_id,
+            ),
+          })),
+        }
+      : undefined,
     tourAnchor: CONVERSATION_TOUR_ANCHORS.composer,
   };
 }

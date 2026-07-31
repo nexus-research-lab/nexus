@@ -35,8 +35,9 @@ type Selection struct {
 
 // Request 表示一次 Agent runtime 选择请求。
 type Request struct {
-	Agent        *protocol.Agent
-	OwnerUserIDs []string
+	Agent          *protocol.Agent
+	OwnerUserIDs   []string
+	SessionOptions map[string]any
 }
 
 // NewService 创建 runtime 选择服务。
@@ -44,11 +45,16 @@ func NewService(prefs PreferencesService) *Service {
 	return &Service{prefs: prefs}
 }
 
-// Resolve 以 Agent 显式模型优先，否则回退到用户偏好中的默认 runtime/provider/model。
+// Resolve 依次合并 Session 覆盖、Agent 默认与用户全局默认。
 func (s *Service) Resolve(ctx context.Context, request Request) (Selection, error) {
 	selection := Selection{}
+	sessionProvider, sessionModel := explicitSessionModel(request.SessionOptions)
 	agentProvider, agentModel := explicitAgentModel(request.Agent)
-	if agentProvider != "" && agentModel != "" {
+	switch {
+	case sessionProvider != "" && sessionModel != "":
+		selection.Provider = sessionProvider
+		selection.Model = sessionModel
+	case agentProvider != "" && agentModel != "":
 		selection.Provider = agentProvider
 		selection.Model = agentModel
 	}
@@ -78,6 +84,14 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 		selection.Model = cmp.Or(strings.TrimSpace(selection.Model), agentModel)
 	}
 	return selection, nil
+}
+
+func explicitSessionModel(options map[string]any) (string, string) {
+	settings := protocol.SessionRuntimeSettingsFromOptions(options)
+	if settings.Provider == "" || settings.Model == "" {
+		return "", ""
+	}
+	return settings.Provider, settings.Model
 }
 
 func (s *Service) preferences(

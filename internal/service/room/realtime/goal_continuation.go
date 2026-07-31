@@ -127,7 +127,13 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 	if agentValue == nil {
 		return true
 	}
-	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(agentValue.Options.PermissionMode)
+	permissionMode := agentValue.Options.PermissionMode
+	if override := protocol.SessionRuntimeSettingsFromOptions(
+		roomSessionOptionsFromContext(contextValue, targetAgentID),
+	).PermissionMode; override != "" {
+		permissionMode = override
+	}
+	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(permissionMode)
 }
 
 // GoalContinuationTargetMissing 判断共享 Room Goal 的 conversation 是否已被删除。

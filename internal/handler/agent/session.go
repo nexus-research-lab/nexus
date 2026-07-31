@@ -3,10 +3,12 @@ package agent
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	sessionpkg "github.com/nexus-research-lab/nexus/internal/service/session"
 
@@ -39,7 +41,7 @@ func (h *Handlers) HandleListSessions(writer http.ResponseWriter, request *http.
 
 // HandleSessionMessages 返回指定 session 的历史消息分页。
 func (h *Handlers) HandleSessionMessages(writer http.ResponseWriter, request *http.Request) {
-	sessionKey := strings.TrimSpace(chi.URLParam(request, "session_key"))
+	sessionKey := sessionKeyPathParam(request)
 	h.writeSessionMessages(writer, request, sessionKey)
 }
 
@@ -55,7 +57,7 @@ func (h *Handlers) HandleSessionMessagesByQuery(writer http.ResponseWriter, requ
 
 // HandleSessionTurns 返回指定 session 的 ConversationTurn 分页。
 func (h *Handlers) HandleSessionTurns(writer http.ResponseWriter, request *http.Request) {
-	sessionKey := strings.TrimSpace(chi.URLParam(request, "session_key"))
+	sessionKey := sessionKeyPathParam(request)
 	h.writeSessionTurns(writer, request, sessionKey)
 }
 
@@ -232,7 +234,11 @@ func (h *Handlers) HandleUpdateSession(writer http.ResponseWriter, request *http
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
-	item, err := h.sessions.UpdateSession(request.Context(), chi.URLParam(request, "session_key"), payload)
+	item, err := h.sessions.UpdateSession(
+		request.Context(),
+		sessionKeyPathParam(request),
+		payload,
+	)
 	if handlershared.IsStructuredSessionKeyError(err) {
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -252,9 +258,69 @@ func (h *Handlers) HandleUpdateSession(writer http.ResponseWriter, request *http
 	h.api.WriteSuccess(writer, item)
 }
 
+// HandleSessionRuntimeSettings 返回当前 Session 的显式运行时覆盖。
+func (h *Handlers) HandleSessionRuntimeSettings(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	settings, err := h.sessions.GetRuntimeSettings(
+		request.Context(),
+		sessionKeyPathParam(request),
+	)
+	if h.writeSessionRuntimeSettingsError(writer, err) {
+		return
+	}
+	h.api.WriteSuccess(writer, settings)
+}
+
+// HandleUpdateSessionRuntimeSettings 更新当前 Session 的显式运行时覆盖。
+func (h *Handlers) HandleUpdateSessionRuntimeSettings(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	var payload protocol.SessionRuntimeSettings
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	settings, err := h.sessions.UpdateRuntimeSettings(
+		request.Context(),
+		sessionKeyPathParam(request),
+		payload,
+	)
+	if h.writeSessionRuntimeSettingsError(writer, err) {
+		return
+	}
+	h.api.WriteSuccess(writer, settings)
+}
+
+func (h *Handlers) writeSessionRuntimeSettingsError(
+	writer http.ResponseWriter,
+	err error,
+) bool {
+	if err == nil {
+		return false
+	}
+	switch {
+	case handlershared.IsStructuredSessionKeyError(err):
+		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
+	case errors.Is(err, sessionpkg.ErrSessionNotFound):
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+	case errors.Is(err, sessionpkg.ErrSessionMutationUnsupported),
+		errors.Is(err, sessionpkg.ErrInvalidRuntimeSettings),
+		handlershared.IsClientMessageError(err):
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+	default:
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+	}
+	return true
+}
+
 // HandleDeleteSession 删除 session。
 func (h *Handlers) HandleDeleteSession(writer http.ResponseWriter, request *http.Request) {
-	err := h.sessions.DeleteSession(request.Context(), chi.URLParam(request, "session_key"))
+	err := h.sessions.DeleteSession(
+		request.Context(),
+		sessionKeyPathParam(request),
+	)
 	if handlershared.IsStructuredSessionKeyError(err) {
 		h.api.WriteFailure(writer, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -268,4 +334,14 @@ func (h *Handlers) HandleDeleteSession(writer http.ResponseWriter, request *http
 		return
 	}
 	h.api.WriteSuccess(writer, map[string]any{"success": true})
+}
+
+// sessionKeyPathParam 统一还原 URL path 中经过编码的结构化 session_key。
+func sessionKeyPathParam(request *http.Request) string {
+	raw := strings.TrimSpace(chi.URLParam(request, "session_key"))
+	decoded, err := url.PathUnescape(raw)
+	if err != nil {
+		return raw
+	}
+	return strings.TrimSpace(decoded)
 }

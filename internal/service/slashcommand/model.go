@@ -14,18 +14,26 @@ import (
 
 const (
 	modelCommandName         = "model"
-	modelCommandDescription  = "Set the AI model for this Agent"
+	modelCommandDescription  = "Set the AI model for this Session"
 	modelCommandArgumentHint = "<provider>/<model>"
 )
 
-// ModelCommandAgentService 提供模型切换所需的最小 Agent 读写能力。
+// ModelCommandAgentService 提供模型解析所需的最小 Agent 读取能力。
 type ModelCommandAgentService interface {
 	GetAgent(context.Context, string) (*protocol.Agent, error)
-	UpdateAgent(
+}
+
+// ModelCommandSessionService 提供 Session 模型覆盖的最小读写能力。
+type ModelCommandSessionService interface {
+	GetRuntimeSettings(
 		context.Context,
 		string,
-		protocol.UpdateRequest,
-	) (*protocol.Agent, error)
+	) (protocol.SessionRuntimeSettings, error)
+	UpdateRuntimeSettings(
+		context.Context,
+		string,
+		protocol.SessionRuntimeSettings,
+	) (protocol.SessionRuntimeSettings, error)
 }
 
 // ModelCommandProviderService 提供当前 runtime 可使用的完整 Provider/模型对。
@@ -39,12 +47,14 @@ type ModelCommandProviderService interface {
 // ModelCommandDependencies 是 `/model` 宿主事务依赖。
 type ModelCommandDependencies struct {
 	Agents      ModelCommandAgentService
+	Sessions    ModelCommandSessionService
 	Preferences runtimeselectionsvc.PreferencesService
 	Providers   ModelCommandProviderService
 }
 
 type modelCommand struct {
 	agents      ModelCommandAgentService
+	sessions    ModelCommandSessionService
 	preferences runtimeselectionsvc.PreferencesService
 	providers   ModelCommandProviderService
 }
@@ -65,12 +75,14 @@ func RegisterModelCommand(
 		return errors.New("slash command registry is nil")
 	}
 	if dependencies.Agents == nil ||
+		dependencies.Sessions == nil ||
 		dependencies.Preferences == nil ||
 		dependencies.Providers == nil {
 		return errors.New("model command dependencies are incomplete")
 	}
 	command := &modelCommand{
 		agents:      dependencies.Agents,
+		sessions:    dependencies.Sessions,
 		preferences: dependencies.Preferences,
 		providers:   dependencies.Providers,
 	}
@@ -129,28 +141,37 @@ func (c *modelCommand) execute(
 			message: fmt.Sprintf("当前 runtime 下找不到模型 %q。", argument),
 		}
 	}
-	updated, err := c.agents.UpdateAgent(ctx, agentID, protocol.UpdateRequest{
-		Options: &protocol.Options{
-			Provider: selection.Provider,
-			Model:    selection.Model,
-		},
-	})
+	targetSessionKey := modelCommandTargetSessionKey(
+		invocation.SessionKey,
+		agentID,
+	)
+	settings, err := c.sessions.GetRuntimeSettings(ctx, targetSessionKey)
+	if err != nil {
+		return Result{}, err
+	}
+	settings.Provider = selection.Provider
+	settings.Model = selection.Model
+	_, err = c.sessions.UpdateRuntimeSettings(ctx, targetSessionKey, settings)
 	if err != nil {
 		return Result{}, err
 	}
 	return Result{
 		Events: []protocol.EventMessage{
-			newModelChangedEvent(invocation, updated, selection),
-		},
-		DirectoryInvalidation: &DirectoryInvalidation{
-			Reason: "agent_updated",
-			Data: map[string]any{
-				"agent_id": agentID,
-				"model":    selection.Model,
-				"provider": selection.Provider,
-			},
+			newModelChangedEvent(invocation, selection),
 		},
 	}, nil
+}
+
+func modelCommandTargetSessionKey(sessionKey string, agentID string) string {
+	parsed := protocol.ParseSessionKey(sessionKey)
+	if parsed.Kind != protocol.SessionKeyKindRoom {
+		return strings.TrimSpace(sessionKey)
+	}
+	return protocol.BuildRoomAgentSessionKey(
+		parsed.ConversationID,
+		agentID,
+		protocol.RoomTypeGroup,
+	)
 }
 
 type modelResolution uint8
@@ -279,15 +300,11 @@ func firstModelCommandValue(values ...string) string {
 
 func newModelChangedEvent(
 	invocation Invocation,
-	agentValue *protocol.Agent,
 	selection modelSelection,
 ) protocol.EventMessage {
 	timestamp := time.Now().UnixMilli()
 	messageID := protocol.NewAssistantMessageID()
 	agentID := strings.TrimSpace(invocation.AgentID)
-	if agentValue != nil && strings.TrimSpace(agentValue.AgentID) != "" {
-		agentID = strings.TrimSpace(agentValue.AgentID)
-	}
 	text := fmt.Sprintf(
 		"Set model to %s / %s",
 		selection.ProviderDisplayName,
