@@ -197,6 +197,26 @@ func TestResolveLegacyRoomDirectoryOwnerSupportsBase64Name(t *testing.T) {
 	}
 }
 
+func TestFirstUnsafeRoomPathRejectsHardLink(t *testing.T) {
+	root := t.TempDir()
+	originalPath := filepath.Join(root, "overlay.jsonl")
+	if err := os.WriteFile(originalPath, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	linkedPath := filepath.Join(root, "linked.jsonl")
+	if err := os.Link(originalPath, linkedPath); err != nil {
+		t.Skipf("当前文件系统不支持硬链接: %v", err)
+	}
+
+	unsafePath, reason, found, err := firstUnsafeRoomPath(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found || reason != "hard_link" {
+		t.Fatalf("硬链接未被识别: path=%q reason=%q found=%v", unsafePath, reason, found)
+	}
+}
+
 func TestMigrateLegacyRoomFilesQuarantinesMixedConversationDirectory(t *testing.T) {
 	stateRoot := t.TempDir()
 	legacyRoot := filepath.Join(stateRoot, "app", "rooms")

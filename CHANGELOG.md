@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Slash command, model switch, Skill execution, hidden-context clearing, transcript restoration, and Claude headless runtime behavior.
 - Fixed DM and Room streaming, unread boundaries, Agent arrival order, WebSocket bindings, approval routing, drafts, history reloads, and scroll ownership.
 - Fixed Goal lifecycle and token accounting across parent/child Agents, retries, handoffs, restarts, and incomplete runtime evidence.
-- Fixed SQLite migrations, orphaned data, legacy layout upgrades, runtime ACL repair, Linux launcher permissions, and Docker startup failures.
+- Fixed SQLite migrations, orphaned data, legacy layout upgrades, runtime ACL repair, Linux launcher permissions, Windows migration builds, and Docker startup failures.
 - Fixed desktop OAuth callbacks, Feishu authorization stages, Windows update builds, Safari rendering, compact Launcher hit testing, and stale editor saves.
 
 ## [0.1.29] - 2026-07-26
