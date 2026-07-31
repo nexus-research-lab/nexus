@@ -64,7 +64,6 @@ export function GroupConversationRound({
         <GroupRoundCardGroup
           agentAvatarMap={renderer.agentAvatarMap}
           agentNameMap={renderer.agentNameMap}
-          currentUserAvatar={renderer.currentUserAvatar}
           messages={messages}
           onOpenAgentContact={renderer.onOpenAgentContact}
           onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
@@ -93,7 +92,6 @@ function StandaloneConversationRound({
       compact={renderer.compact ?? false}
       currentAgentAvatar={agent.avatar}
       currentAgentName={agent.name}
-      currentUserAvatar={renderer.currentUserAvatar}
       agentMentionDirectory={{ avatars: renderer.agentAvatarMap, names: renderer.agentNameMap }}
       isLastRound={state.isLast}
       messages={state.messages}

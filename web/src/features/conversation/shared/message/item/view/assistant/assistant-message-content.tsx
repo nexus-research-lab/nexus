@@ -8,6 +8,7 @@ import { AlertTriangle } from "lucide-react";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { MessageActivityState } from "../../activity/message-activity-state";
+import { shouldShowAssistantTimeline } from "../../message-item-projection";
 import { MessageActivityStatus } from "../message-activity-status";
 import { ContentRenderer } from "../content/content-renderer";
 import type {
@@ -146,7 +147,7 @@ function AssistantDirectContent({
       pendingInteractionOwner={permissions.owner}
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
-      showTimelineDots
+      showTimelineDots={shouldShowAssistantTimeline(environment.mode)}
       streamingBlockIndexes={direct.projection.streamingIndexes}
       workspaceAgentId={environment.workspaceAgentId}
       agentMentionDirectory={environment.agentMentionDirectory}

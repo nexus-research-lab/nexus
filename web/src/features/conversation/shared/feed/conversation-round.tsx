@@ -50,7 +50,6 @@ export function ConversationRound({
           compact={renderer.compact ?? false}
           currentAgentAvatar={renderer.currentAgentAvatar}
           currentAgentName={renderer.currentAgentName}
-          currentUserAvatar={renderer.currentUserAvatar}
           isLastRound={state.isLast}
           isLoading={state.isLive}
           messages={state.messages}

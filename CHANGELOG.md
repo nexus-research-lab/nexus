@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplified Room Thread inspectors to one identity header and one panel
+  divider, keeping final Agent replies in the main Feed while the Thread shows
+  only execution details without an internal timeline rail or dots.
 - Added an authoritative per-round context window indicator beside the Composer
   model control, including per-Agent snapshots in multi-Agent Rooms.
 - Passed the unwrapped DM and per-slot Room user intent to native memory recall,

@@ -20,7 +20,6 @@ interface UseRoomThreadSourceOptions {
   agentAvatarMap: Record<string, string | null>;
   agentNameMap: Record<string, string>;
   conversationId: string | null;
-  currentUserAvatar: string | null;
   messageGroups: Map<string, Message[]>;
   onOpenWorkspaceFile?: (path: string) => void;
   pendingPermissionGroups: Map<string, PendingPermission[]>;
@@ -33,7 +32,6 @@ export function useRoomThreadSource({
   agentAvatarMap,
   agentNameMap,
   conversationId,
-  currentUserAvatar,
   messageGroups,
   onOpenWorkspaceFile,
   pendingPermissionGroups,
@@ -52,7 +50,6 @@ export function useRoomThreadSource({
   const source = useMemo<RoomThreadLiveSource>(() => ({
     agentAvatarMap,
     agentNameMap,
-    currentUserAvatar,
     messageGroups,
     onOpenWorkspaceFile: canOpenWorkspaceFile
       ? actions.openWorkspaceFile
@@ -66,7 +63,6 @@ export function useRoomThreadSource({
     agentAvatarMap,
     agentNameMap,
     canOpenWorkspaceFile,
-    currentUserAvatar,
     messageGroups,
     pendingPermissionGroups,
     pendingSlotGroups,

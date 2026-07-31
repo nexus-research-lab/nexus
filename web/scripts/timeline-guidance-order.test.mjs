@@ -1178,6 +1178,10 @@ test("pending interactions keep first position and latest request snapshot", asy
   assert.deepEqual(projection.unmatchedPendingPermissions, [other]);
   assert.equal(resolvePendingInteractionOwner("room_result"), "composer");
   assert.equal(resolvePendingInteractionOwner("room_thread"), "composer");
+  assert.equal(
+    resolvePendingInteractionOwner("room_thread_process"),
+    "composer",
+  );
   assert.equal(resolvePendingInteractionOwner("dm_live"), "composer");
   assert.equal(resolvePendingInteractionOwner("dm_archived"), "composer");
 });
@@ -3353,6 +3357,73 @@ test("Room public cards hide thinking while Thread keeps it available", async ()
     projection.finalAssistantContent,
     null,
     "Room 已完成卡片不能把 thinking 作为最终公区正文",
+  );
+});
+
+test("Room Thread inspector keeps process without repeating the public reply", async () => {
+  const {
+    projectionFromOrderedEntries,
+    shouldShowAssistantTimeline,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/message-item-projection.ts",
+  );
+  const { resolveMessageItemFinalProjection } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-final-projection.ts",
+  );
+  const thinking = { thinking: "合并同类项", type: "thinking" };
+  const finalText = { text: "合并同类项，每点扩到约 20 字。", type: "text" };
+  const assistant = assistantMessage({
+    messageId: "assistant-room-thread-process",
+    text: finalText.text,
+    timestamp: 1,
+  });
+  assistant.content = [thinking, finalText];
+  const orderedEntries = [thinking, finalText].map((block, mergedIndex) => ({
+    block,
+    mergedIndex,
+    sourceMessageId: assistant.message_id,
+    sourceOrder: 0,
+  }));
+  const visibleTurns = [{
+    content: [thinking, finalText],
+    messageId: assistant.message_id,
+    streamingIndexes: new Set(),
+    textContent: [finalText],
+    textStreamingIndexes: new Set(),
+  }];
+  const project = (assistantContentMode) => resolveMessageItemFinalProjection({
+    assistantContentMode,
+    assistantMessages: [assistant],
+    orderedProjection: projectionFromOrderedEntries(
+      orderedEntries,
+      new Set(),
+    ),
+    resultSummary: undefined,
+    roundId: assistant.round_id,
+    streamingBlockIndexes: new Set(),
+    visibleAssistantTurns: visibleTurns,
+    visibleOrderedAssistantEntries: orderedEntries,
+  });
+
+  assert.deepEqual(
+    project("room_thread_process").directOrderedProjection.content,
+    [thinking],
+    "Room inspector 应只保留思考、工具和系统过程",
+  );
+  assert.deepEqual(
+    project("room_thread").directOrderedProjection.content,
+    [thinking, finalText],
+    "通用 transcript 仍需保留完整输出",
+  );
+  assert.equal(
+    shouldShowAssistantTimeline("room_thread_process"),
+    false,
+    "Room inspector 不应重复绘制内部时间轴线和圆点",
+  );
+  assert.equal(
+    shouldShowAssistantTimeline("room_thread"),
+    true,
+    "通用 transcript 仍需保留过程时间轴",
   );
 });
 

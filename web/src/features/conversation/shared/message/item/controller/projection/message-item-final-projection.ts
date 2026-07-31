@@ -1,6 +1,6 @@
 /**
  * INPUT: Assistant 内容模式、streamed ContentBlock、过程尾部与 canonical Room result。
- * OUTPUT: DM live/terminal 同 surface 的单调正文，以及保留非文本块身份的 Room 最终回复投影。
+ * OUTPUT: DM 单调正文、Room 公区最终回复与 Thread 纯过程投影。
  * POS: MessageItem 最终回复与过程归档的纯投影真相源。
  */
 import type {
@@ -58,6 +58,7 @@ const FINAL_ASSISTANT_CONTENT_RESOLVERS: Readonly<Record<
   dm_live: resolveArchivedFinalAssistantContent,
   room_result: resolveRoomResultFinalAssistantContent,
   room_thread: resolveHiddenFinalAssistantContent,
+  room_thread_process: resolveHiddenFinalAssistantContent,
 };
 
 export function resolveMessageItemFinalProjection({
@@ -154,9 +155,9 @@ function resolveDirectOrderedProjection(
   orderedProjection: ContentProjection,
   archivedProcessProjection: ContentProjection,
 ): ContentProjection {
-  if (mode === "dm_live") {
-    // DM 的最终回复从首个流式字开始固定在 final surface；
-    // direct 只承载会在终态折叠归档的思考、工具和系统过程。
+  if (mode === "dm_live" || mode === "room_thread_process") {
+    // DM 的最终回复固定在 final surface；Room Thread 的最终回复固定在主 Feed。
+    // 两种 direct surface 都只承载思考、工具和系统过程。
     return archivedProcessProjection;
   }
   return resolveAssistantResponseSurface(mode) === "direct"

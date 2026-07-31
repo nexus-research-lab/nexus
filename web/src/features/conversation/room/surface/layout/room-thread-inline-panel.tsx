@@ -5,6 +5,7 @@ import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/hea
 
 import { useGroupThread } from "../../group/thread/group-thread-state";
 import { useRoomThreadPanel } from "../../group/thread/live/use-room-thread-panel";
+import { RoomThreadEmptyState } from "../room-thread-empty-state";
 
 interface RoomThreadInlinePanelProps {
   activeSurfaceTab: RoomSurfaceTabKey;
@@ -48,7 +49,10 @@ export function RoomThreadInlinePanel({
         agentId={activeThread.agentId}
         agentName={threadPanelData.agentName}
         agentAvatar={threadPanelData.agentAvatar}
-        userAvatar={threadPanelData.userAvatar}
+        emptyContent={(
+          <RoomThreadEmptyState isLoading={threadPanelData.isLoading} />
+        )}
+        headerSubtitle={null}
         messages={threadPanelData.messages}
         pendingPermissions={threadPanelData.pendingPermissions}
         onPermissionResponse={threadPanelData.onPermissionResponse}
@@ -56,6 +60,7 @@ export function RoomThreadInlinePanel({
         onOpenWorkspaceFile={threadPanelData.onOpenWorkspaceFile}
         isLoading={threadPanelData.isLoading}
         layout="desktop"
+        presentation="inspector"
       />
     </section>
   );

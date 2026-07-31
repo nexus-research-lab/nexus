@@ -24,6 +24,7 @@ import type { PermissionDecisionPayload } from "@/types/conversation/interaction
 import type {
   ConversationThreadModel,
   ConversationThreadNavigationAction,
+  ConversationThreadPresentation,
   ConversationThreadRoundModel,
 } from "./conversation-thread-model";
 
@@ -33,7 +34,6 @@ export interface ConversationThreadMessageContext {
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   onStopMessage?: (msgId: string) => void;
-  userAvatar: string | null;
   workspaceAgentId: string;
 }
 
@@ -134,6 +134,7 @@ export function ConversationThreadView({
         headerAvatar={headerAvatar}
         leadingAction={model.leadingAction}
         onClose={onClose}
+        presentation={model.presentation}
         subtitle={subtitle}
         trailingAction={model.trailingAction}
       />
@@ -168,6 +169,7 @@ function ThreadHeader({
   headerAvatar,
   leadingAction,
   onClose,
+  presentation,
   subtitle,
   trailingAction,
 }: {
@@ -177,11 +179,18 @@ function ThreadHeader({
   headerAvatar: ReactNode;
   leadingAction: ConversationThreadNavigationAction;
   onClose: () => void;
+  presentation: ConversationThreadPresentation;
   subtitle: ReactNode;
   trailingAction: ConversationThreadNavigationAction;
 }) {
   return (
-    <header className="flex shrink-0 items-center gap-2 border-b border-(--divider-subtle-color) px-3 py-3">
+    <header
+      className={cn(
+        "flex shrink-0 items-center gap-2 px-3 py-3",
+        presentation === "transcript"
+          && "border-b border-(--divider-subtle-color)",
+      )}
+    >
       <ThreadNavigationButton action={leadingAction} onClick={onClose} />
       {headerAvatar ?? <ThreadAgentAvatar avatarUrl={agentAvatar} />}
       <div className="min-w-0 flex-1">
@@ -256,7 +265,10 @@ function ThreadFeed({
 }: ThreadFeedProps) {
   return (
     <div
-      className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-none px-4 py-3"
+      className={cn(
+        "soft-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-none px-4",
+        model.presentation === "inspector" ? "pb-3 pt-0" : "py-3",
+      )}
       style={{ overflowAnchor: "none" }}
       tabIndex={-1}
       onPointerDown={onPointerDown}
@@ -271,6 +283,7 @@ function ThreadFeed({
         <ThreadRounds
           emptyContent={emptyContent}
           messageContext={messageContext}
+          presentation={model.presentation}
           rounds={model.rounds}
         />
         <div className="h-px w-full" ref={bottomAnchorRef} />
@@ -282,10 +295,12 @@ function ThreadFeed({
 function ThreadRounds({
   emptyContent,
   messageContext,
+  presentation,
   rounds,
 }: {
   emptyContent: ReactNode;
   messageContext: ConversationThreadMessageContext;
+  presentation: ConversationThreadPresentation;
   rounds: ConversationThreadRoundModel[];
 }) {
   if (rounds.length === 0) {
@@ -294,28 +309,37 @@ function ThreadRounds({
   return rounds.map((round) => (
     <ThreadRound
       key={round.roundId}
+      emptyContent={emptyContent}
       messageContext={messageContext}
+      presentation={presentation}
       round={round}
     />
   ));
 }
 
 function ThreadRound({
+  emptyContent,
   messageContext,
+  presentation,
   round,
 }: {
+  emptyContent: ReactNode;
   messageContext: ConversationThreadMessageContext;
+  presentation: ConversationThreadPresentation;
   round: ConversationThreadRoundModel;
 }) {
+  const isInspector = presentation === "inspector";
   return (
     <>
       <MessageItem
-        assistantContentMode="room_thread"
+        assistantContentMode={
+          isInspector ? "room_thread_process" : "room_thread"
+        }
+        assistantEmptyState={isInspector ? emptyContent : undefined}
         className="max-w-full overflow-x-hidden"
         compact
         currentAgentAvatar={messageContext.agentAvatar}
         currentAgentName={messageContext.agentName}
-        currentUserAvatar={messageContext.userAvatar}
         defaultProcessExpanded
         isLastRound={round.isLast}
         isLoading={round.isLoading}
@@ -325,9 +349,11 @@ function ThreadRound({
         onStopMessage={messageContext.onStopMessage}
         pendingPermissions={round.pendingPermissions}
         roundId={round.roundId}
+        showAssistantHeader={!isInspector}
+        showUserMessages={!isInspector}
         workspaceAgentId={messageContext.workspaceAgentId}
       />
-      {round.showDivider ? (
+      {round.showDivider && !isInspector ? (
         <hr aria-hidden="true" className="conversation-round-divider" />
       ) : null}
     </>

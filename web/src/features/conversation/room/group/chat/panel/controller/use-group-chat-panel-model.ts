@@ -102,7 +102,6 @@ export function useGroupChatPanelModel({
     agentAvatarMap: directory.avatars,
     agentNameMap: directory.names,
     conversationId,
-    currentUserAvatar: environment.currentUserAvatar,
     messageGroups: session.timeline.message_groups,
     onOpenWorkspaceFile,
     pendingPermissionGroups: session.timeline.pending_permission_groups,

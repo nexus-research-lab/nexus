@@ -26,6 +26,7 @@ export function MessageAssistantSection({
   onOpenWorkspaceFile,
   onPermissionResponse,
   permissionReadOnlyReason,
+  showHeader,
   workspaceAgentId,
   agentMentionDirectory,
 }: MessageAssistantSectionProps) {
@@ -47,18 +48,20 @@ export function MessageAssistantSection({
     <div className={cn("nexus-chat-message-section w-full", layout.section)}>
       <div className={cn("w-full", layout.inner)}>
         <div className="nexus-chat-assistant group relative min-w-0">
-          <AssistantMessageHeader
-            avatarUrl={currentAgentAvatar}
-            canStop={assistant.header.canStop}
-            compact={compact}
-            headerAction={assistantHeaderAction}
-            model={assistant.header.model}
-            name={currentAgentName}
-            onOpenContact={openContact}
-            onStop={assistant.header.stop}
-            showMetadata={layout.showMetadata}
-            timestamp={assistant.header.timestamp}
-          />
+          {showHeader ? (
+            <AssistantMessageHeader
+              avatarUrl={currentAgentAvatar}
+              canStop={assistant.header.canStop}
+              compact={compact}
+              headerAction={assistantHeaderAction}
+              model={assistant.header.model}
+              name={currentAgentName}
+              onOpenContact={openContact}
+              onStop={assistant.header.stop}
+              showMetadata={layout.showMetadata}
+              timestamp={assistant.header.timestamp}
+            />
+          ) : null}
 
           <div
             className={cn(

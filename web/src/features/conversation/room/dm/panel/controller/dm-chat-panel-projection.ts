@@ -145,7 +145,6 @@ function buildDmFeedModel({
     renderer: {
       currentAgentAvatar,
       currentAgentName,
-      currentUserAvatar: environment.currentUserAvatar,
       onEditLastUserMessage,
       onOpenAgentContact,
       onOpenWorkspaceFile,

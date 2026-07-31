@@ -1489,6 +1489,10 @@ test("DM and Room messages never remount interaction options outside the Compose
   assert.equal(resolvePendingInteractionOwner("dm_archived"), "composer");
   assert.equal(resolvePendingInteractionOwner("room_result"), "composer");
   assert.equal(resolvePendingInteractionOwner("room_thread"), "composer");
+  assert.equal(
+    resolvePendingInteractionOwner("room_thread_process"),
+    "composer",
+  );
 
   const toolHtml = await renderWithI18n(
     React.createElement(ContentRenderer, {

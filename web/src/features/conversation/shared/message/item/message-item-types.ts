@@ -17,7 +17,6 @@ export interface MessageItemProps {
   currentAgentName?: string | null;
   currentAgentAvatar?: string | null;
   workspaceAgentId?: string | null;
-  currentUserAvatar?: string | null;
   roundId: string;
   messages: Message[];
   isLastRound?: boolean;
@@ -39,6 +38,10 @@ export interface MessageItemProps {
   /** 没有正文时仍需保留的终态说明，不伪造 assistant 消息。 */
   assistantEmptyState?: ReactNode;
   assistantContentMode?: AssistantContentMode;
+  /** 上层已有稳定身份头时可隐藏内部重复头部。 */
+  showAssistantHeader?: boolean;
+  /** 检查器只读过程时可隐藏主 Feed 已展示的用户输入。 */
+  showUserMessages?: boolean;
   className?: string;
   agentMentionDirectory?: AgentMentionDirectory;
 }
