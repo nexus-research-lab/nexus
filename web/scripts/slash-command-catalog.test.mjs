@@ -171,7 +171,10 @@ test("Nexus model confirmation closes without runtime activity", async () => {
   const { AgentConversationRuntimeMachine } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/model/agent-conversation-runtime-machine.ts",
   );
-  const { applyTerminalRoundMessageStatus } = await server.ssrLoadModule(
+  const {
+    applyTerminalRoundMessageStatus,
+    replaceOptimisticUserMessage,
+  } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
   );
   const { parseConversationMessage } = await server.ssrLoadModule(
@@ -193,8 +196,38 @@ test("Nexus model confirmation closes without runtime activity", async () => {
     pending_snapshot: false,
     round_id: "round-model",
     user_message_committed: false,
+    user_message_delivery_mode: "transient",
     user_message_id: "user-model",
   });
+  const optimisticUser = {
+    agent_id: "agent-model",
+    content: "/model deepseek/deepseek-v4-flash",
+    message_id: "client-message-model",
+    role: "user",
+    round_id: "client-message-model",
+    session_key: "agent:agent-model:ws:dm:session-model",
+    timestamp: 1,
+  };
+  assert.deepEqual(
+    replaceOptimisticUserMessage(
+      [optimisticUser],
+      "client-message-model",
+      "user-model",
+      "round-model",
+      false,
+      "transient",
+    ).map(({ delivery_mode, message_id, round_id }) => ({
+      delivery_mode,
+      message_id,
+      round_id,
+    })),
+    [{
+      delivery_mode: "transient",
+      message_id: "user-model",
+      round_id: "round-model",
+    }],
+    "host Slash ACK must retain the user command as a transient timeline item",
+  );
   const noticeEvent = parseEventMessage({
     data: {
       agent_id: "agent-model",

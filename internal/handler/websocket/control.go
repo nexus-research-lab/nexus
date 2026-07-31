@@ -176,14 +176,12 @@ func (m *controlMessage) executeHostCommand(
 	if !matched || err != nil {
 		return matched, err
 	}
-	ack := protocol.NewChatAckEvent(
+	ack := protocol.NewTransientChatAckEvent(
 		m.sessionKey,
 		clientRequestID,
 		clientMessageID,
 		roundID,
 		protocol.NewUserMessageID(),
-		false,
-		nil,
 	)
 	if err = m.sender.SendEvent(m.ctx, ack); err != nil {
 		return true, err

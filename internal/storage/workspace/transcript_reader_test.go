@@ -33,6 +33,23 @@ func TestTranscriptContinuationPromptDoesNotSkipSimilarUserContent(t *testing.T)
 	}
 }
 
+func TestTranscriptMetaUserIsSkippedForBothWireCasings(t *testing.T) {
+	for _, key := range []string{"isMeta", "is_meta"} {
+		entry := map[string]any{
+			"type": "user",
+			key:    true,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "完整 Skill 正文",
+			},
+		}
+		if !shouldSkipTranscriptEntry(entry) ||
+			!shouldSkipExplicitTranscriptEntry(entry) {
+			t.Fatalf("%s meta user 不应进入可见 transcript", key)
+		}
+	}
+}
+
 func TestPrimaryTranscriptChainIncludesParallelSubagentStructuredOutput(t *testing.T) {
 	entries := []transcriptEntry{
 		{

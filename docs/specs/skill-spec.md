@@ -129,6 +129,10 @@ Agent 设置页负责管理“这个 Agent 使用什么”：
 - 本地 Skill 显示“Agent 本地”标记，只能在所属 Agent 设置页操作；
 - 每次切换只更新目标 Agent，不携带整个 Agent 草稿，避免旧快照覆盖其他设置。
 
+Composer 的 `/skills` 选择器同时展示上述两组。可启用但未绑定的 Skill 标记为
+“单次使用”：用户明确选择后只对当前轮加载，不自动打开 Agent 设置页，也不修改
+长期启用状态。
+
 ### 5.3 同名 Skill
 
 全局 Skill 与 Agent 本地 Skill 同名时：
@@ -185,6 +189,13 @@ nxs 的显式白名单用于全局绑定，workspace Skill 按 CC 语义动态�
 出的拒绝列表可以包含未绑定的全局名称，但这只是本次运行时投影，不回写
 `disabled_skill_ids`。
 
+用户显式选择 Skill 时，Composer 只把原始 `/skill-name args` 作为普通 user
+message 发送。平台源和 owner 源已经通过 additional directories 暴露给 runtime：
+nxs 从完整 `user-invocable` 目录解析，Claude Code 沿用自身直接 Skill command
+解析；两者都在 runtime 内展开 `$ARGUMENTS`、位置参数和 Skill 目录变量。inline
+正文进入隐藏 meta user，`context: fork` 只回写隔离执行结果。显式调用不会改变
+后续轮次的发现、拒绝集合或 Agent 持久设置。
+
 ## 8. 生命周期语义
 
 | 动作 | 全局 Skill | Agent workspace Skill |
@@ -192,6 +203,7 @@ nxs 的显式白名单用于全局绑定，workspace Skill 按 CC 语义动态�
 | 导入 | 写入 owner 全局源和 manifest | 不适用 |
 | 启用 | 加入当前 Agent `skill_ids` | 清除当前 Agent 的停用项 |
 | 停用 | 从当前 Agent `skill_ids` 移除 | 写入当前 Agent `disabled_skill_ids`，保留文件 |
+| 显式单次使用 | runtime 展开当前轮，不改写 `skill_ids` | runtime 展开当前轮，不改写 `disabled_skill_ids` |
 | 更新 | 原子替换 owner 源，所有已绑定 Agent 自然读取新版本 | 修改所属 Agent 文件 |
 | 删除 | 仅用户导入源可删除；同时清理全局绑定 | 删除所属 Agent workspace 文件 |
 
@@ -212,4 +224,5 @@ nxs 的显式白名单用于全局绑定，workspace Skill 按 CC 语义动态�
 
 全局技能库解决“用户有哪些 Skill”，Agent 设置解决“这个 Agent 用哪些 Skill”；
 全局绑定写 `skill_ids`，Agent 本地停用写 `disabled_skill_ids`，workspace-local
-Skill 默认只对自己的 Agent 可见，运行时再把三者投影为 nxs/Claude 的发现与权限。
+Skill 默认只对自己的 Agent 可见；长期状态投影为 nxs/Claude 的发现与权限，
+用户明确选择则由 runtime 的显式解析路径仅授权当前轮。

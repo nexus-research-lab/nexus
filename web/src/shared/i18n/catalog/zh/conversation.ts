@@ -198,6 +198,7 @@ export const zhConversationMessages = {
   "composer.skills_search_placeholder": "搜索技能",
   "composer.skills_loading": "正在加载技能…",
   "composer.skills_empty": "没有匹配的技能",
+  "composer.skill_use_once": "单次使用",
   "composer.models_picker_title": "模型",
   "composer.models_search_placeholder": "搜索模型",
   "composer.models_loading": "正在加载模型…",

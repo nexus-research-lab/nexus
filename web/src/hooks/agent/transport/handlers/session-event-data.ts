@@ -65,6 +65,9 @@ const DELIVERY_POLICIES = new Set<InputQueueItem["delivery_policy"]>([
   "interrupt",
   "queue",
 ]);
+const CHAT_ACK_USER_MESSAGE_DELIVERY_MODES = new Set<
+  NonNullable<ChatAckData["user_message_delivery_mode"]>
+>(["durable", "ephemeral", "transient"]);
 const ASSISTANT_MESSAGE_STATUSES = new Set<
   ChatAckData["pending"][number]["status"]
 >(["cancelled", "done", "error", "pending", "streaming"]);
@@ -310,12 +313,21 @@ function isChatAckPendingSlot(
 }
 
 export function parseChatAckData(data: UnknownRecord): ChatAckData | null {
+  const invalidUserMessageDeliveryMode = (
+    data.user_message_delivery_mode !== undefined
+    && readStringFromSet(
+      data,
+      "user_message_delivery_mode",
+      CHAT_ACK_USER_MESSAGE_DELIVERY_MODES,
+    ) === null
+  );
   if (
     typeof data.user_message_committed !== "boolean"
     || typeof data.pending_snapshot !== "boolean"
     || !Array.isArray(data.pending)
     || !data.pending.every(isChatAckPendingSlot)
     || readNumber(data, "ack_timeout_ms") === null
+    || invalidUserMessageDeliveryMode
   ) {
     return null;
   }

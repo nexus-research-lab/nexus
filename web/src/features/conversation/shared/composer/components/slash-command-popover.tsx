@@ -368,6 +368,11 @@ function SlashSkillList({
                 </span>
               ) : null}
             </span>
+            {!skill.locked && !skill.enabled_for_agent ? (
+              <span className="shrink-0 text-[9px] leading-4 text-(--text-soft)">
+                {t("composer.skill_use_once")}
+              </span>
+            ) : null}
           </button>
         );
       })}

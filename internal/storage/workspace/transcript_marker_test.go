@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -207,6 +208,151 @@ func TestAgentHistoryStoreMergesOverlayResultIntoTranscriptAssistantAfterEmptyUs
 	}
 	if !foundRoundTwoUser {
 		t.Fatalf("未找到 transcript 第二轮 user: %+v", rows)
+	}
+}
+
+func TestAgentHistoryStoreKeepsSlashRoundsOrderedAndHidesLegacySkillPrompt(t *testing.T) {
+	configRoot := t.TempDir()
+	workspaceRoot := filepath.Join(configRoot, "workspace")
+	workspacePath := filepath.Join(workspaceRoot, "nexus")
+	if err := os.MkdirAll(workspacePath, 0o755); err != nil {
+		t.Fatalf("创建 workspace 失败: %v", err)
+	}
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(configRoot, "home"))
+
+	history := NewAgentHistoryStore(workspaceRoot)
+	sessionKey := "agent:nexus:ws:dm:slash-skill"
+	sessionID := "slash-skill-session"
+	const oldMarkerTimestamp = int64(1785418576650)
+	const currentMarkerTimestamp = int64(1785422116066)
+	if err := history.AppendRoundMarker(
+		workspacePath,
+		sessionKey,
+		"round-old",
+		"/wechat-article-search nexus",
+		oldMarkerTimestamp,
+	); err != nil {
+		t.Fatalf("写入旧 Slash marker 失败: %v", err)
+	}
+	if err := history.AppendRoundMarker(
+		workspacePath,
+		sessionKey,
+		"round-current",
+		"/wechat-article-search nexus 多智能体平台",
+		currentMarkerTimestamp,
+	); err != nil {
+		t.Fatalf("写入当前 Slash marker 失败: %v", err)
+	}
+
+	writeAgentTranscriptFixture(t, workspacePath, sessionID, []map[string]any{
+		{
+			"type":      "user",
+			"uuid":      "old-caveat",
+			"sessionId": sessionID,
+			"timestamp": "2026-07-30T13:36:16.661541Z",
+			"isMeta":    true,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "<local-command-caveat>internal</local-command-caveat>",
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "old-command",
+			"parentUuid": "old-caveat",
+			"sessionId":  sessionID,
+			"timestamp":  "2026-07-30T13:36:16.661551Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": `<command-name>/wechat-article-search</command-name>
+<command-message>wechat-article-search</command-message>
+<command-args>nexus</command-args>`,
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "old-unknown",
+			"parentUuid": "old-command",
+			"sessionId":  sessionID,
+			"timestamp":  "2026-07-30T13:36:16.661556Z",
+			"message": map[string]any{
+				"role":    "user",
+				"content": "Unknown skill: wechat-article-search",
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "current-internal-skill",
+			"parentUuid": "old-unknown",
+			"sessionId":  sessionID,
+			"timestamp":  "2026-07-30T14:35:16.080918Z",
+			"message": map[string]any{
+				"role": "user",
+				"content": `<system-reminder>
+The following is runtime-internal context for the next turn.
+<internal_context source="explicit_skill">
+完整 Skill 正文不应展示。
+</internal_context>
+</system-reminder>`,
+			},
+		},
+		{
+			"type":       "user",
+			"uuid":       "skill-listing",
+			"parentUuid": "current-internal-skill",
+			"sessionId":  sessionID,
+			"timestamp":  "2026-07-30T14:35:16.240029Z",
+			"isMeta":     true,
+			"message": map[string]any{
+				"role":    "user",
+				"content": "runtime skill listing",
+			},
+		},
+		{
+			"type":       "assistant",
+			"uuid":       "current-assistant",
+			"parentUuid": "skill-listing",
+			"sessionId":  sessionID,
+			"timestamp":  "2026-07-30T14:35:40.000000Z",
+			"message": map[string]any{
+				"role":        "assistant",
+				"stop_reason": "end_turn",
+				"content": []map[string]any{
+					{"type": "text", "text": "搜到 10 篇相关文章。"},
+				},
+			},
+		},
+	})
+
+	rows, err := history.ReadMessages(workspacePath, protocol.Session{
+		SessionKey: sessionKey,
+		AgentID:    "nexus",
+		SessionID:  &sessionID,
+		Options:    map[string]any{},
+	}, nil)
+	if err != nil {
+		t.Fatalf("读取 Slash Skill 历史失败: %v", err)
+	}
+
+	var orderedRounds []string
+	for _, row := range rows {
+		content := stringFromAny(row["content"])
+		if strings.Contains(content, "完整 Skill 正文") ||
+			strings.Contains(content, "runtime skill listing") ||
+			strings.Contains(content, "Unknown skill:") {
+			t.Fatalf("runtime 内部消息不应进入可见历史: %+v", row)
+		}
+		if stringFromAny(row["role"]) == "user" {
+			orderedRounds = append(orderedRounds, stringFromAny(row["round_id"]))
+		}
+		if row["message_id"] == "current-assistant" &&
+			row["round_id"] != "round-current" {
+			t.Fatalf("当前 assistant 绑定到错误 round: %+v", row)
+		}
+	}
+	if got, want := strings.Join(orderedRounds, ","), "round-old,round-current"; got != want {
+		t.Fatalf("刷新后的 Slash round 顺序错误: got=%q want=%q rows=%+v", got, want, rows)
 	}
 }
 

@@ -219,15 +219,19 @@ func (e *dmChatExecution) interruptRunningRound() error {
 }
 
 func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
-	atomicInput := conversationsvc.IsSlashCommandInput(e.request.Content)
-	if atomicInput && len(e.request.Attachments) > 0 {
+	slashInput := conversationsvc.IsSlashCommandInput(e.request.Content)
+	if slashInput && len(e.request.Attachments) > 0 {
 		return dmRuntimePreparation{}, slashCommandAttachmentError{}
 	}
-	runtimeContent, err := e.service.renderRuntimeContentWithAttachments(e.ctx, e.request.Content, e.request.Attachments)
+	runtimeContent, err := e.service.renderRuntimeContentWithAttachments(
+		e.ctx,
+		e.request.Content,
+		e.request.Attachments,
+	)
 	if err != nil {
 		return dmRuntimePreparation{}, err
 	}
-	if !runtimeContent.IsEmpty() && !atomicInput {
+	if !runtimeContent.IsEmpty() && !slashInput {
 		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
 			e.ctx,
 			e.agent,
@@ -260,7 +264,8 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		return dmRuntimePreparation{}, err
 	}
 	recoveryContext := e.recoveryContextualInputs()
-	if atomicInput {
+	atomicInput := slashInput
+	if slashInput {
 		goalContext = ""
 		recoveryContext = nil
 	}

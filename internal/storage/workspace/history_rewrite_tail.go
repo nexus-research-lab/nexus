@@ -72,7 +72,11 @@ func resolveTranscriptRoundTail(
 	if targetRoundID == "" {
 		return TranscriptRoundTail{}
 	}
-	alignedMarkers := alignTranscriptRoundMarkers(chain, roundMarkers)
+	alignedMarkers := alignTranscriptRoundMarkers(
+		chain,
+		roundMarkers,
+		shouldSkipTranscriptEntry,
+	)
 	markerIndex := 0
 	found := false
 	tail := TranscriptRoundTail{

@@ -201,6 +201,7 @@ export const enConversationMessages = {
   "composer.skills_search_placeholder": "Search skills",
   "composer.skills_loading": "Loading skills...",
   "composer.skills_empty": "No matching skills",
+  "composer.skill_use_once": "Use once",
   "composer.models_picker_title": "Models",
   "composer.models_search_placeholder": "Search models",
   "composer.models_loading": "Loading models...",

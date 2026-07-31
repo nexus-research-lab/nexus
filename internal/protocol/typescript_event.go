@@ -129,6 +129,7 @@ export interface ChatAckData {
   round_id: string;
   user_message_id: string;
   user_message_committed: boolean;
+  user_message_delivery_mode?: DeliveryMode;
   pending: ChatAckPendingSlot[];
   pending_snapshot: boolean;
   ack_timeout_ms: number;

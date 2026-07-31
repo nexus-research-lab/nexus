@@ -303,6 +303,30 @@ func NewChatAckEvent(
 	return event
 }
 
+// NewTransientChatAckEvent 确认一条只保留在当前时间线的用户输入。
+//
+// Host Slash 不进入 runtime 历史，但仍应保留用户实际执行的指令，避免 ACK
+// 把 optimistic 消息误删后只剩一条无来源的宿主确认。
+func NewTransientChatAckEvent(
+	sessionKey string,
+	clientRequestID string,
+	clientMessageID string,
+	roundID string,
+	userMessageID string,
+) EventMessage {
+	event := NewChatAckEvent(
+		sessionKey,
+		clientRequestID,
+		clientMessageID,
+		roundID,
+		userMessageID,
+		false,
+		nil,
+	)
+	event.Data["user_message_delivery_mode"] = DeliveryModeTransient
+	return event
+}
+
 // NewChatPendingSnapshotEvent 构造订阅恢复时的权威 Room slot 快照。
 // 前端必须用 pending 整体替换本地恢复值；空数组同样有意义，用于清除陈旧占位。
 func NewChatPendingSnapshotEvent(sessionKey string, roundID string, pending []ChatAckPendingSlot) EventMessage {

@@ -51,6 +51,23 @@ func TestChatAckEventDoesNotReplaceUnrelatedPendingSlots(t *testing.T) {
 	}
 }
 
+func TestTransientChatAckKeepsHostInputInCurrentTimeline(t *testing.T) {
+	event := NewTransientChatAckEvent(
+		"agent:agent-1:ws:dm:session-1",
+		"request-1",
+		"client-1",
+		"round-1",
+		"user-1",
+	)
+
+	if committed, ok := event.Data["user_message_committed"].(bool); !ok || committed {
+		t.Fatalf("user_message_committed = %#v, want false", event.Data["user_message_committed"])
+	}
+	if mode := event.Data["user_message_delivery_mode"]; mode != DeliveryModeTransient {
+		t.Fatalf("user_message_delivery_mode = %#v, want transient", mode)
+	}
+}
+
 func TestInputQueueAckEventConfirmsDurableAcceptance(t *testing.T) {
 	event := NewInputQueueAckEvent(
 		"room:group:conversation-1",

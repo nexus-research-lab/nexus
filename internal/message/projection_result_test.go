@@ -126,6 +126,23 @@ func TestIsInternalTranscriptContinuationPrompt(t *testing.T) {
 	}
 }
 
+func TestIsInternalExplicitSkillPrompt(t *testing.T) {
+	const prompt = `<system-reminder>
+The following is runtime-internal context for the next turn.
+
+<internal_context source="explicit_skill">
+The user explicitly selected a Skill.
+</internal_context>
+</system-reminder>`
+
+	if !IsInternalExplicitSkillPrompt("  " + prompt + "\n") {
+		t.Fatalf("旧版显式 Skill 内部正文应被识别")
+	}
+	if IsInternalExplicitSkillPrompt(`<internal_context source="explicit_skill">普通用户引用</internal_context>`) {
+		t.Fatalf("缺少完整内部 wrapper 的用户内容不应被误判")
+	}
+}
+
 func TestBuildSyntheticAssistantFromResultPreservesExecutionIdentity(t *testing.T) {
 	synthetic := BuildSyntheticAssistantFromResult(protocol.Message{
 		"message_id":     "result-1",

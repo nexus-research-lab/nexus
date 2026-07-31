@@ -16,7 +16,7 @@ control response 与 nxs 的同形能力仍可供 bridge 的其他宿主使用�
 
 | 层 | 责任 | 不负责 |
 | --- | --- | --- |
-| nxs / Claude Code | 解析收到的 `/name args` 普通用户文本 | 维护 Nexus Composer 目录；识别或执行 Nexus host 指令 |
+| nxs / Claude Code | 解析收到的 `/name args` 普通用户文本；解析并展开各自的 Skill Slash | 维护 Nexus Composer 目录；识别或执行 Nexus host 指令 |
 | `nexus-agent-sdk-bridge` | 统一普通文本发送和单轮隐藏上下文清理；保留通用初始化能力读取 | 合并或同步 Nexus Composer 目录；发明 Slash RPC |
 | Nexus `runtime.Manager` | 管理业务 session/runtime 连接与 round 生命周期 | 持有 Slash 目录或为补全请求启动子进程 |
 | Nexus `service/slashcommand` | 持有当前 Nexus 版本的 nxs/Claude 静态清单；注册、校验、按 DM/Room 作用域匹配和执行 host 指令 | 读取 runtime 私有 metadata；绑定 session |
@@ -74,20 +74,32 @@ Composer 选择任意 `host` 或 `runtime` 描述后，仍发送一条普通 `ch
 - 匹配成功：执行 host handler，返回其产生的产品事件；
 - 未匹配：原样交给 DM runtime，由 nxs/Claude 自己解析；
 - 带附件的已知 host 指令：在 handler 执行前拒绝；
-- DM 的任何 Slash 输入都标记为 atomic，清除 bridge 尚未消费的隐藏上下文，
-  不追加 Goal、recovery 或 emotion context。
+- DM 的 runtime Slash 输入标记为 atomic，清除 bridge 尚未消费的隐藏上下文，
+  不追加 Goal、recovery 或 emotion context；
+- `/skills` 选择器选中具体 Skill 后仍发送原始 `/skill-name args`；bridge 把它当
+  普通 user message，nxs 或 Claude Code 在 runtime 内解析并读取自身可访问的
+  `SKILL.md`；
+- inline Skill 的完整正文只作为 runtime 内部 meta user 进入模型上下文，不作为
+  tool result、普通用户正文或 Nexus next-turn context；`context: fork` 由 runtime
+  自己执行并只回写本地结果。
+
+显式单轮 Skill 可以来自当前 Agent 的“可启用”列表；这只代表用户本轮明确授权使用，
+不会改写 `skill_ids`、`disabled_skill_ids` 或 Agent 设置。nxs 把未绑定/未启用集合
+只用于模型自动发现，用户显式 Slash 从完整 `user-invocable` 目录解析；Claude Code
+沿用自己的直接 Skill command 路径。未知 Slash、不可见 Skill 和 Room scope Skill
+仍不在 Nexus 侧截获，继续保持 runtime 透传语义。
 
 `/model` 只接受 Nexus Provider 目录里的模型，更新 Agent 的显式
 `provider/model` 配置并广播 `agent_updated`；它不启动或调用 runtime。已存在的
 runtime 连接在下一轮发送前按新的 Agent 配置重建/恢复，模型选择因此仍由 Nexus
 保持唯一真相源。host handler 产生的确认消息带终止投影，并用规范的 `finished`
 round 状态立即收口，不能把 Composer 留在“回复中”；确认消息使用 `transient`
-投影保留在当前时间线，但不进入 runtime 历史、后台缓存或未读。
+投影保留在当前时间线，但不进入 runtime 历史、后台缓存或未读。对应的用户
+`/model ...` 输入同样保留为当前时间线的 `transient` 用户消息，避免确认失去来源。
 
 未知 Slash 不在 Nexus 侧报错，以便 runtime 新增指令时旧版 Nexus 仍能透传。
-Nexus 只有在 client 同时提供 set/clear 语义时才使用下一轮隐藏上下文 buffer；
-产品适配层可用旧 bridge 的 `SetNextTurnContext(nil)` 实现逻辑 clear。其他缺少
-清理能力的 client 会把上下文内联到当轮输入，不为后续 Slash 留下待消费残留。
+atomic Slash 发送前会清理 bridge 尚未消费的旧隐藏上下文；Skill 正文由 runtime
+在本轮内部生成，不进入产品侧 buffer。
 
 ## 后续扩展
 

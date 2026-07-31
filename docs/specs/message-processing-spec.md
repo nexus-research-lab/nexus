@@ -65,7 +65,10 @@ stream 事件必须保留 `tool_use` 的 block start 和 `input_json_delta`，�
 Bash / PowerShell 的运行中进度属于 ephemeral 状态：首次立即展示，此后最多每 30 秒更新一次，工具结束后由 durable tool result 收口。它不能进入 transcript 或在重连后变成历史正文。
 
 Nexus host 指令的完成确认属于 transient 状态：它不是 runtime 回复，也不应写入
-transcript，但必须在当前时间线中保留，让用户确认本地操作已经生效。
+transcript，但必须在当前时间线中保留，让用户确认本地操作已经生效。对应
+`chat_ack` 使用 `user_message_delivery_mode=transient` 把 optimistic 用户指令
+规范化为同一 round 的 transient 用户消息；`user_message_committed` 仍为 false，
+避免把“当前时间线可见”误表述成 runtime 历史已提交。
 
 round 结束只由 terminal `round_status` 定义，前端不再自己猜测。
 
@@ -179,6 +182,13 @@ Room shared 不再保存完整正文副本，而是：
 
 - API 返回的是“可展示历史”
 - 不是原始文件逐行回放
+- runtime 的 `is_meta` user、Skill 完整正文和其他内部 carrier 必须在可见 round
+  投影前过滤；旧版 `<internal_context source="explicit_skill">` 包装只用于兼容读取，
+  不能重新显示或进入模型历史
+- marker 对齐按 transcript user 槽位逐个消费；空槽位不能跳过后借用下一轮 marker，
+  否则刷新后旧的 unknown/内部消息会窃取新 Slash 的 round 身份
+- runtime command metadata 统一还原为原始 `/name args`；它与 overlay marker 相同
+  时只展示一份用户输入
 
 同一 round 的稳定顺序必须是：
 
