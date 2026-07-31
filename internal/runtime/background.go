@@ -93,6 +93,7 @@ func (m *Manager) finishBackgroundTask(sessionKey string, state *sessionState, t
 	if !state.Closing &&
 		len(state.BackgroundTasks) == 0 &&
 		state.Client == nil &&
+		len(state.ContextUsageByAgent) == 0 &&
 		len(state.RunningRounds) == 0 &&
 		len(state.RoundDone) == 0 &&
 		state.IdleMessageCancel == nil &&

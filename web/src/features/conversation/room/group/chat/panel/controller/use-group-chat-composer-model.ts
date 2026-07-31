@@ -23,6 +23,8 @@ type ComposerConversation = Pick<
   UseAgentConversationReturn,
   | "delete_input_queue_message"
   | "command_catalog"
+  | "context_usage"
+  | "context_usage_by_agent"
   | "enqueue_input_queue_message"
   | "guide_input_queue_message"
   | "input_queue_items"
@@ -86,6 +88,13 @@ export function useGroupChatComposerModel({
 
   return {
     commandCatalog: conversation.command_catalog,
+    contextUsage: conversation.context_usage,
+    contextUsageItems: roomMembers.map((member) => ({
+      agentId: member.agent_id,
+      avatar: member.avatar,
+      name: member.name,
+      usage: conversation.context_usage_by_agent[member.agent_id] ?? null,
+    })),
     defaultDeliveryPolicy,
     draftScopeKey,
     enableLoops: true,

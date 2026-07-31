@@ -57,6 +57,24 @@ func WrapAgentRoundStatusEvent(sessionKey string, roomID string, conversationID 
 	return event
 }
 
+// WrapContextUsageEvent 构建 Room Agent session 的上下文占用事件。
+func WrapContextUsageEvent(
+	sessionKey string,
+	roomID string,
+	conversationID string,
+	roundID string,
+	agentRoundID string,
+	agentID string,
+	data protocol.ContextUsageData,
+) protocol.EventMessage {
+	event := protocol.NewContextUsageEvent(sessionKey, agentID, data)
+	event.RoomID = roomID
+	event.ConversationID = conversationID
+	event.RoundID = roundID
+	event.AgentRoundID = agentRoundID
+	return event
+}
+
 // WrapChatAckEvent 构建 Room chat ack 事件。
 func WrapChatAckEvent(
 	sessionKey string,

@@ -29,6 +29,7 @@ import type {
   CommandCatalogStatus,
   CommandDescriptor,
   CommandExecution,
+  ContextUsageData,
   InputQueueAckData,
   RuntimeStatusData,
   SessionStatusData,
@@ -173,6 +174,31 @@ export function parseCommandCatalogData(
     ...(generation !== null && generation >= 0 ? { generation } : {}),
     ...(runtimeKind ? { runtime_kind: runtimeKind } : {}),
     ...(agentId ? { agent_id: agentId } : {}),
+  };
+}
+
+export function parseContextUsageData(
+  data: UnknownRecord,
+): ContextUsageData | null {
+  const totalTokens = readNumber(data, "total_tokens");
+  const maxTokens = readNumber(data, "max_tokens");
+  const percentage = readNumber(data, "percentage");
+  if (
+    totalTokens === null
+    || totalTokens < 0
+    || maxTokens === null
+    || maxTokens <= 0
+    || percentage === null
+    || percentage < 0
+  ) {
+    return null;
+  }
+  const model = readString(data, "model");
+  return {
+    total_tokens: totalTokens,
+    max_tokens: maxTokens,
+    percentage,
+    ...(model ? { model } : {}),
   };
 }
 

@@ -25,6 +25,7 @@ func newWebSocketHandler(
 		services.Goal,
 		services.Permission,
 		services.Runtime,
+		services.Core.Session,
 		services.Channels,
 		services.Workspace,
 		newRuntimeSnapshotProvider(services),

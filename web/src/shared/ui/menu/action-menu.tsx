@@ -87,6 +87,7 @@ const ACTION_MENU_ITEM_CLASS_NAME = {
 } as const;
 const ACTION_MENU_ESTIMATED_VERTICAL_PADDING = 8;
 const ACTION_MENU_FOOTER_SEPARATOR_HEIGHT = 9;
+const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem[] = [];
 
 function resolveActionMenuPosition({
   align,
@@ -165,7 +166,7 @@ export function UiActionMenu({
   ariaLabel: ariaLabel,
   className: className,
   density = "default",
-  footerItems = [],
+  footerItems = EMPTY_ACTION_MENU_ITEMS,
   isOpen: isOpen,
   items,
   minWidth: minWidth = 220,
@@ -244,7 +245,7 @@ export function UiActionMenu({
 export function UiActionMenuContent({
   density = "default",
   disabled = false,
-  footerItems = [],
+  footerItems = EMPTY_ACTION_MENU_ITEMS,
   items,
   onSelect,
 }: UiActionMenuContentProps) {

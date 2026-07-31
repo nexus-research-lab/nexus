@@ -49,8 +49,128 @@ async function renderWithI18n(element, locale = "zh") {
   );
 }
 
+test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的最近值", async () => {
+  const {
+    ComposerContextUsage,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-context-usage.tsx",
+  );
+  const {
+    projectComposerContextUsage,
+    projectContextUsage,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-context-usage-model.ts",
+  );
+  const { AGENT_SESSION_EVENT_HANDLERS } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-handlers.ts",
+  );
+  const usage = {
+    max_tokens: 258_000,
+    percentage: 75.96,
+    total_tokens: 196_000,
+  };
+
+  assert.deepEqual(projectContextUsage(usage), {
+    maxTokens: 258_000,
+    percentage: 76,
+    toneClassName: "text-(--text-soft)",
+    totalTokens: 196_000,
+  });
+  assert.equal(projectContextUsage(null), null);
+  const html = await renderWithI18n(
+    React.createElement(ComposerContextUsage, { usage }),
+  );
+  assert.match(html, /data-context-usage="76"/);
+  assert.match(html, /上下文窗口已用 76%/);
+  assert.match(html, /196\.0K/);
+  assert.match(html, /258\.0K/);
+
+  const groupedProjection = projectComposerContextUsage({
+    items: [
+      { agentId: "amy", name: "Amy", usage },
+      {
+        agentId: "devin",
+        name: "Devin",
+        usage: { ...usage, percentage: 88, total_tokens: 227_040 },
+      },
+    ],
+    usage: null,
+  });
+  assert.equal(groupedProjection.grouped, true);
+  assert.equal(groupedProjection.summary.percentage, 88);
+  assert.deepEqual(
+    groupedProjection.items.map((item) => item.name),
+    ["Amy", "Devin"],
+  );
+  const groupedHtml = await renderWithI18n(
+    React.createElement(ComposerContextUsage, {
+      items: [
+        { agentId: "amy", name: "Amy", usage },
+        { agentId: "devin", name: "Devin", usage: null },
+      ],
+      usage: null,
+    }),
+  );
+  assert.match(groupedHtml, /Room 上下文窗口，2 个 Agent，最高已用 76%/);
+
+  let usageByAgent = {};
+  const context = {
+    scope: {
+      isCurrentSessionEvent: (sessionKey) => sessionKey === "room-session",
+    },
+    state: {
+      setContextUsageByAgent: (update) => {
+        usageByAgent = typeof update === "function"
+          ? update(usageByAgent)
+          : update;
+      },
+    },
+  };
+  for (const agentId of ["amy", "devin"]) {
+    AGENT_SESSION_EVENT_HANDLERS.context_usage({
+      agent_id: agentId,
+      data: usage,
+      event_type: "context_usage",
+      protocol_version: 2,
+      session_key: "room-session",
+      timestamp: 1,
+    }, context);
+  }
+  assert.deepEqual(Object.keys(usageByAgent), ["amy", "devin"]);
+});
+
+test("Action Menu 的空 footer 使用稳定引用，避免定位状态自循环", async () => {
+  const source = await readFile(
+    path.join(webRoot, "src/shared/ui/menu/action-menu.tsx"),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem\[\] = \[\];/,
+  );
+  assert.equal(
+    (source.match(/footerItems = EMPTY_ACTION_MENU_ITEMS/g) ?? []).length,
+    2,
+  );
+  assert.doesNotMatch(source, /footerItems = \[\]/);
+});
+
+test("anchored overlay style clears the unused vertical axis", async () => {
+  const source = await readFile(
+    path.join(webRoot, "src/shared/ui/overlay/anchored-overlay-layer.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /bottom: position\.bottom \?\? "auto"/);
+  assert.match(source, /top: position\.top \?\? "auto"/);
+});
+
 test("anchored overlay end alignment follows the trigger without leaving the viewport", async () => {
-  const { resolveAnchoredOverlayPosition } = await server.ssrLoadModule(
+  const {
+    areAnchoredOverlayPositionsEqual,
+    resolveAnchoredOverlayPosition,
+  } = await server.ssrLoadModule(
     "/src/shared/ui/overlay/anchored-overlay-model.ts",
   );
   const originalWindow = globalThis.window;
@@ -80,6 +200,17 @@ test("anchored overlay end alignment follows the trigger without leaving the vie
     assert.equal(position.left, 452);
     assert.equal(position.width, 248);
     assert.equal(position.placement, "top");
+    assert.equal(
+      areAnchoredOverlayPositionsEqual(position, { ...position }),
+      true,
+    );
+    assert.equal(
+      areAnchoredOverlayPositionsEqual(position, {
+        ...position,
+        left: position.left + 1,
+      }),
+      false,
+    );
 
     globalThis.window.innerWidth = 240;
     const narrowPosition = resolveAnchoredOverlayPosition({

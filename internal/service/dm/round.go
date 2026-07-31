@@ -153,6 +153,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		r.recordTerminalAssistantUsage(finalAssistant)
 	}
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.broadcastContextUsage()
 	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(
 		context.Background(),

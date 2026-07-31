@@ -47,3 +47,27 @@ func TestRoomBackedSessionOptionsReplaceLocalOverlay(t *testing.T) {
 		t.Fatalf("Room Session 合并不应丢失本地 runtime 指纹: %+v", merged.Options)
 	}
 }
+
+func TestRoomBackedSessionKeepsLocalContextUsage(t *testing.T) {
+	current := protocol.Session{
+		SessionKey: "agent:agent-a:ws:group:conversation-a",
+		AgentID:    "agent-a",
+		ContextUsage: &protocol.ContextUsageData{
+			TotalTokens: 37_500,
+			MaxTokens:   131_100,
+			Percentage:  28.6,
+			Model:       "glm-4.5-air",
+		},
+		Options: map[string]any{},
+	}
+	roomSession := current
+	roomSession.ContextUsage = nil
+
+	merged := MergeRoomBackedSession(current, roomSession)
+	if merged.ContextUsage == nil || *merged.ContextUsage != *current.ContextUsage {
+		t.Fatalf("Room Session 合并丢失 context usage: %+v", merged.ContextUsage)
+	}
+	if SessionsEqual(current, roomSession) {
+		t.Fatal("context usage 变化必须触发本地 overlay 刷新")
+	}
+}

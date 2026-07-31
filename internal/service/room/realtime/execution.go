@@ -205,6 +205,7 @@ func (s *Service) runSlot(
 	defer func() {
 		s.runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
 	}()
+	defer execution.broadcastContextUsage(client)
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
 	defer cleanupGoalRuntime()
 

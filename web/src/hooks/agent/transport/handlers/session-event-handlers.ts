@@ -13,6 +13,7 @@ import {
   parseAgentRoundStatusEventPayload,
   parseChatAckData,
   parseCommandCatalogData,
+  parseContextUsageData,
   parseInputQueueAckData,
   parseInputQueueEventPayload,
   parseRoundStatusEventPayload,
@@ -89,6 +90,21 @@ const handleCommandCatalog: AgentEventHandler = (event, context) => {
   }
 };
 
+const handleContextUsage: AgentEventHandler = (event, context) => {
+  if (!context.scope.isCurrentSessionEvent(event.session_key || null)) {
+    return;
+  }
+  const incomingAgentID = event.agent_id?.trim() ?? "";
+  const payload = parseContextUsageData(event.data);
+  if (!incomingAgentID || !payload) {
+    return;
+  }
+  context.state.setContextUsageByAgent((current) => ({
+    ...current,
+    [incomingAgentID]: payload,
+  }));
+};
+
 const handleInputQueue = withCurrentSessionEvent((event, context) => {
   const payload = parseInputQueueEventPayload(event.data);
   if (payload) {
@@ -161,6 +177,7 @@ export const AGENT_SESSION_EVENT_HANDLERS: AgentEventHandlerMap = {
   agent_round_status: handleAgentRoundStatus,
   chat_ack: handleChatAck,
   command_catalog: handleCommandCatalog,
+  context_usage: handleContextUsage,
   error: handleErrorEvent,
   goal_cleared: handleGoalEvent,
   goal_continuation: handleGoalEvent,

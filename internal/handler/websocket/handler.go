@@ -37,6 +37,7 @@ type Handler struct {
 	goals               *goalsvc.Service
 	permission          *permissionctx.Context
 	runtime             *runtimectx.Manager
+	contextUsage        contextUsageSnapshotProvider
 	channels            *channelspkg.Router
 	hostCommands        *slashcommandsvc.Registry
 	commandCatalog      *slashcommandsvc.Catalog
@@ -67,6 +68,7 @@ func NewHandler(
 	goals *goalsvc.Service,
 	permission *permissionctx.Context,
 	runtime *runtimectx.Manager,
+	contextUsage contextUsageSnapshotProvider,
 	channels *channelspkg.Router,
 	workspaceService *workspacepkg.Service,
 	runtimeProvider func(string) RuntimeSnapshot,
@@ -86,6 +88,7 @@ func NewHandler(
 		goals:               goals,
 		permission:          permission,
 		runtime:             runtime,
+		contextUsage:        contextUsage,
 		channels:            channels,
 		hostCommands:        hostCommands,
 		commandCatalog:      commandCatalog,
@@ -103,6 +106,14 @@ func NewHandler(
 		goals.SetEventBroadcaster(newGoalEventBroadcaster(permission, handler.goalRPCSubs))
 	}
 	return handler
+}
+
+// contextUsageSnapshotProvider 是历史 Session 重绑定所需的最小持久化读取边界。
+type contextUsageSnapshotProvider interface {
+	GetPersistedContextUsageSnapshots(
+		context.Context,
+		string,
+	) (map[string]protocol.ContextUsageData, error)
 }
 
 // HandleWebSocket 处理 WebSocket 会话。

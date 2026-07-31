@@ -6,6 +6,7 @@ import (
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 func (h *Handler) handleBindSession(
@@ -38,11 +39,72 @@ func (h *Handler) handleBindSession(
 		})
 		return
 	}
+	if err = h.replayContextUsageSnapshots(ctx, sender, sessionKey); err != nil {
+		h.sendGatewayError(ctx, sender, sessionKey, "context_usage_replay_error", err, map[string]any{
+			"type": "bind_session",
+		})
+		return
+	}
 	if parsed.Kind == protocol.SessionKeyKindAgent && h.dm != nil {
 		if err := h.dm.SendInputQueueSnapshot(ctx, sessionKey, handlershared.StringValue(inbound["agent_id"])); err != nil {
 			h.sendGatewayError(ctx, sender, sessionKey, "input_queue_error", err, map[string]any{"type": "bind_session"})
 		}
 	}
+}
+
+type sessionEventSender interface {
+	SendEvent(context.Context, protocol.EventMessage) error
+}
+
+// replayContextUsageSnapshots 在重新绑定历史 Session 时恢复最后一次权威快照。
+func (h *Handler) replayContextUsageSnapshots(
+	ctx context.Context,
+	sender sessionEventSender,
+	sessionKey string,
+) error {
+	if h == nil || h.runtime == nil || sender == nil {
+		return nil
+	}
+	snapshots := h.runtime.ContextUsageSnapshots(sessionKey)
+	if h.contextUsage != nil {
+		persisted, err := h.contextUsage.GetPersistedContextUsageSnapshots(
+			ctx,
+			sessionKey,
+		)
+		if err != nil {
+			return err
+		}
+		for agentID, usage := range persisted {
+			if hasContextUsageSnapshot(snapshots, agentID) {
+				continue
+			}
+			h.runtime.RecordContextUsage(sessionKey, agentID, usage)
+		}
+		snapshots = h.runtime.ContextUsageSnapshots(sessionKey)
+	}
+	for _, snapshot := range snapshots {
+		event := protocol.NewContextUsageEvent(
+			sessionKey,
+			snapshot.AgentID,
+			snapshot.Usage,
+		)
+		if err := sender.SendEvent(ctx, event); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func hasContextUsageSnapshot(
+	snapshots []runtimectx.ContextUsageSnapshot,
+	agentID string,
+) bool {
+	for _, snapshot := range snapshots {
+		if snapshot.AgentID == agentID {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Handler) handleUnbindSession(

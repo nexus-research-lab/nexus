@@ -31,6 +31,7 @@ const (
 	EventTypeSessionStatus               EventType = "session_status"
 	EventTypeRuntimeStatus               EventType = "runtime_status"
 	EventTypeCommandCatalog              EventType = "command_catalog"
+	EventTypeContextUsage                EventType = "context_usage"
 	EventTypeGoalCreated                 EventType = "goal_created"
 	EventTypeGoalUpdated                 EventType = "goal_updated"
 	EventTypeGoalStatusChanged           EventType = "goal_status_changed"
@@ -228,6 +229,26 @@ func NewCommandCatalogEvent(sessionKey string, data CommandCatalogData) EventMes
 	event := NewEvent(EventTypeCommandCatalog, payload)
 	event.SessionKey = sessionKey
 	event.AgentID = strings.TrimSpace(data.AgentID)
+	return event
+}
+
+// NewContextUsageEvent 构造 Agent session 作用域的上下文占用事件。
+func NewContextUsageEvent(
+	sessionKey string,
+	agentID string,
+	data ContextUsageData,
+) EventMessage {
+	payload := map[string]any{
+		"total_tokens": data.TotalTokens,
+		"max_tokens":   data.MaxTokens,
+		"percentage":   data.Percentage,
+	}
+	if model := strings.TrimSpace(data.Model); model != "" {
+		payload["model"] = model
+	}
+	event := NewEvent(EventTypeContextUsage, payload)
+	event.SessionKey = strings.TrimSpace(sessionKey)
+	event.AgentID = strings.TrimSpace(agentID)
 	return event
 }
 

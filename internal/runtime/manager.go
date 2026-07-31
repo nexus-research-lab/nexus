@@ -10,10 +10,12 @@ import (
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 type sessionState struct {
 	Client                   Client
+	ContextUsageByAgent      map[string]protocol.ContextUsageData
 	RunningRounds            map[string]struct{}
 	RoundCancels             map[string]context.CancelFunc
 	RoundDone                map[string]chan struct{}
@@ -87,6 +89,7 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 	state := m.sessions[sessionKey]
 	if state == nil {
 		state = &sessionState{
+			ContextUsageByAgent:      make(map[string]protocol.ContextUsageData),
 			RunningRounds:            make(map[string]struct{}),
 			RoundCancels:             make(map[string]context.CancelFunc),
 			RoundDone:                make(map[string]chan struct{}),

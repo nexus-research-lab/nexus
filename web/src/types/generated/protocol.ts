@@ -13,6 +13,7 @@ export type EventType =
   | 'session_status'
   | 'runtime_status'
   | 'command_catalog'
+  | 'context_usage'
   | 'goal_created'
   | 'goal_updated'
   | 'goal_status_changed'
@@ -103,6 +104,13 @@ export interface CommandCatalogData {
   status: CommandCatalogStatus;
   agent_id?: string;
   commands: CommandDescriptor[];
+}
+
+export interface ContextUsageData {
+  total_tokens: number;
+  max_tokens: number;
+  percentage: number;
+  model?: string;
 }
 
 export interface ChatAckPendingSlot {

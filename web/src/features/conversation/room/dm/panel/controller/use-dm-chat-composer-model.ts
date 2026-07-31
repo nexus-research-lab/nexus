@@ -19,6 +19,7 @@ type ComposerConversation = Pick<
   UseAgentConversationReturn,
   | "delete_input_queue_message"
   | "command_catalog"
+  | "context_usage"
   | "enqueue_input_queue_message"
   | "guide_input_queue_message"
   | "input_queue_items"
@@ -79,6 +80,7 @@ export function useDmChatComposerModel({
 
   return {
     commandCatalog: conversation.command_catalog,
+    contextUsage: conversation.context_usage,
     defaultDeliveryPolicy,
     draftScopeKey,
     goalScopeLabel,

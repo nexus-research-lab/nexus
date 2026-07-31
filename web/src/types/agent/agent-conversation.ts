@@ -13,7 +13,10 @@ import type {
   Message,
 } from '@/types/conversation/message/entity';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/conversation/interaction/permission';
-import type { CommandCatalogData } from '@/types/generated/protocol';
+import type {
+  CommandCatalogData,
+  ContextUsageData,
+} from '@/types/generated/protocol';
 import { WebSocketState } from '@/types/system/websocket';
 
 export type AgentConversationChatType = 'dm' | 'group';
@@ -90,6 +93,8 @@ export interface UseAgentConversationReturn {
   room_agent_execution_states: RoomAgentExecutionState[];
   input_queue_items: InputQueueItem[];
   command_catalog: CommandCatalogData;
+  context_usage: ContextUsageData | null;
+  context_usage_by_agent: Readonly<Record<string, ContextUsageData>>;
   send_message: (
     content: string,
     options?: AgentConversationSendOptions,

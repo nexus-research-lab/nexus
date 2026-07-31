@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added an authoritative per-round context window indicator beside the Composer
+  model control, including per-Agent snapshots in multi-Agent Rooms.
 - Passed the unwrapped DM and per-slot Room user intent to native memory recall,
   keeping application context and internal continuations out of recall queries.
 - Surfaced loaded long-term memory counts in both DM and per-Agent Room threads.
@@ -20,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restored the last authoritative context-window snapshot from Session metadata
+  after frontend refreshes and backend restarts.
+- Kept upward anchored overlays attached to their triggers instead of pinning
+  context details and other popovers to the top of the viewport.
+- Prevented footerless Action Menus from entering a React update loop while
+  recalculating their anchored overlay position.
 - Decoded structured Session keys from URL path parameters before loading or saving per-Session runtime settings.
 - Restored direct pnpm invocation for macOS app builds so Node installations without Corepack can package and run the desktop app.
 

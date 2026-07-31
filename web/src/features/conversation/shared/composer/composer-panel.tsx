@@ -151,6 +151,8 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 canCreateGoal={state.canCreateGoal}
                 canUseLoop={state.canUseLoop}
                 charCount={state.charCount}
+                contextUsage={props.contextUsage}
+                contextUsageItems={props.contextUsageItems}
                 goalModeExtra={props.goalModeExtra ?? null}
                 goalScopeLabel={props.goalScopeLabel}
                 historyIndex={state.historyIndex}

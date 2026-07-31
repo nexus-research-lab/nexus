@@ -11,7 +11,10 @@ import {
   useState,
 } from "react";
 
-import type { UiAnchoredOverlayPosition } from "./anchored-overlay-model";
+import {
+  areAnchoredOverlayPositionsEqual,
+  type UiAnchoredOverlayPosition,
+} from "./anchored-overlay-model";
 
 interface AnchoredOverlayLayerOptions<T extends HTMLElement> {
   anchorRef: RefObject<T | null>;
@@ -28,10 +31,12 @@ function buildOverlayStyle(
     return { visibility: "hidden" };
   }
   return {
-    bottom: position.bottom,
+    // 消费者通常用 top-0 提供未测量前的稳定原点；定位完成后必须显式
+    // 清空另一条轴，否则 top 与 bottom 同时生效会把向上浮层钉到视口顶部。
+    bottom: position.bottom ?? "auto",
     left: position.left,
     maxHeight: position.maxHeight,
-    top: position.top,
+    top: position.top ?? "auto",
     visibility: "visible",
     width: position.width,
   };
@@ -59,7 +64,12 @@ export function useAnchoredOverlayLayer<T extends HTMLElement>({
   const updatePosition = useCallback(() => {
     const anchor = anchorRef.current;
     if (anchor) {
-      setPosition(estimatePosition(anchor));
+      const nextPosition = estimatePosition(anchor);
+      setPosition((currentPosition) => (
+        areAnchoredOverlayPositionsEqual(currentPosition, nextPosition)
+          ? currentPosition
+          : nextPosition
+      ));
     }
   }, [anchorRef, estimatePosition]);
 

@@ -173,6 +173,7 @@ func (m *Manager) replaceRuntimeClient(
 	state.Client = next
 	state.RuntimeKind = normalizedManagedRuntimeKind(options.Runtime.Kind)
 	state.OwnerUserID = runtimeOwnerUserID(options)
+	state.ContextUsageByAgent = nil
 	// 新进程不持有旧 task/thread；只有再次观测到 task 事件后才允许保活。
 	state.HasSubagentHistory = false
 	m.touchStateLocked(state)

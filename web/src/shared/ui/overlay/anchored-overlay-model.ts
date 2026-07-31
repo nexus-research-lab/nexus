@@ -10,6 +10,25 @@ export interface UiAnchoredOverlayPosition {
   width: number;
 }
 
+// areAnchoredOverlayPositionsEqual 判断两次定位是否产生相同可见几何。
+export function areAnchoredOverlayPositionsEqual(
+  current: UiAnchoredOverlayPosition | null,
+  next: UiAnchoredOverlayPosition | null,
+): boolean {
+  if (current === next) {
+    return true;
+  }
+  if (!current || !next) {
+    return false;
+  }
+  return current.bottom === next.bottom
+    && current.left === next.left
+    && current.maxHeight === next.maxHeight
+    && current.placement === next.placement
+    && current.top === next.top
+    && current.width === next.width;
+}
+
 interface ResolveAnchoredOverlayPositionOptions {
   align?: UiAnchoredOverlayAlignment;
   anchor: HTMLElement;

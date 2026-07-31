@@ -13,6 +13,10 @@ func MergeRoomBackedSession(current protocol.Session, roomSession protocol.Sessi
 	if strings.TrimSpace(StringPointerValue(merged.SessionID)) == "" && current.SessionID != nil {
 		merged.SessionID = current.SessionID
 	}
+	if current.ContextUsage != nil {
+		usage := *current.ContextUsage
+		merged.ContextUsage = &usage
+	}
 	// Room SQL 只拥有 Session 显式覆盖；本地 overlay 继续拥有 runtime 指纹。
 	merged.Options = protocol.WithSessionRuntimeSettings(
 		current.Options,
@@ -43,6 +47,7 @@ func SessionsEqual(left protocol.Session, right protocol.Session) bool {
 		left.ChatType == right.ChatType &&
 		left.Status == right.Status &&
 		left.Title == right.Title &&
+		reflect.DeepEqual(left.ContextUsage, right.ContextUsage) &&
 		reflect.DeepEqual(left.Options, right.Options)
 }
 
