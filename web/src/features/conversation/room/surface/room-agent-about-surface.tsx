@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Album,
+  Brain,
   Handshake,
   ToolCase,
   UserPen,
@@ -15,6 +16,7 @@ import {
   buildAgentOptionsEditSource,
   type AgentOptionsTabKey,
 } from "@/features/agents/options/agent-options-editor-model";
+import { AgentMemoryView } from "@/features/memory/agent-memory-view";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
@@ -22,7 +24,7 @@ import type { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions
 
 import { RoomAgentSwitcher } from "./room-agent-switcher";
 
-type RoomAgentPanelTabKey = AgentOptionsTabKey | "private_domain";
+type RoomAgentPanelTabKey = AgentOptionsTabKey | "private_domain" | "memory";
 
 interface RoomAgentAboutSurfaceProps {
   agent: Agent;
@@ -116,6 +118,8 @@ export function RoomAgentAboutSurface({
             roomId={roomId}
             variant="preview"
           />
+        ) : activeTab === "memory" ? (
+          <AgentMemoryView agent={selectedAgent} />
         ) : (
           <AgentOptionsInlineEditor
             activeTab={activeTab}
@@ -139,9 +143,10 @@ const ROOM_AGENT_PANEL_TABS: Array<{
   icon: LucideIcon;
 }> = [
   { key: "identity", label: "身份", icon: UserPen },
+  { key: "private_domain", label: "联络", icon: Handshake },
+  { key: "memory", label: "记忆", icon: Brain },
   { key: "advanced", label: "工具", icon: ToolCase },
   { key: "skills", label: "技能", icon: Album },
-  { key: "private_domain", label: "联络", icon: Handshake },
 ];
 
 function RoomAgentPanelTabs({

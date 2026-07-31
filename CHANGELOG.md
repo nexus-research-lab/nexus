@@ -10,12 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Moved model and permission controls into the Composer as per-Session overrides, with one Room-wide permission control, direct and stable Agent-to-model cascading in multi-Agent Rooms, symmetric control spacing, compact model and Agent selectors, readable icon-led permission choices, clearer approval/full-access labels, and explicit reset actions while Agent/global defaults remain intact.
+- Added a themed border and stable desktop height to the Room member picker so it stays visually distinct without resizing as Agent results change.
+- Added Agent memory browsing and editing to the chat-side profile alongside identity, contact, tools, and skills.
 - Aligned Slash command descriptions on a reserved command-name column while keeping argument hints anchored to the right edge.
 - Replaced the duplicate runtime version card with the desktop app's authoritative version, build number, and log export action in General settings.
 
 ### Fixed
 
 - Decoded structured Session keys from URL path parameters before loading or saving per-Session runtime settings.
+- Restored direct pnpm invocation for macOS app builds so Node installations without Corepack can package and run the desktop app.
 
 ## [0.1.30] - 2026-07-31
 
