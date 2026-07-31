@@ -26,6 +26,11 @@ func NewUserMessageID() string {
 	return "msg_user_" + randomIDSuffix()
 }
 
+// NewAssistantMessageID 生成 assistant 消息 id。
+func NewAssistantMessageID() string {
+	return "msg_assistant_" + randomIDSuffix()
+}
+
 // NewAgentRoundID 生成 agent slot 执行轮次 id，与 round_id 相互独立。
 func NewAgentRoundID() string {
 	return "agent_round_" + randomIDSuffix()

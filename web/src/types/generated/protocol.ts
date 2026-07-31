@@ -38,10 +38,12 @@ export type EventType =
   | 'error'
   | 'pong';
 
+export type DeliveryMode = 'durable' | 'ephemeral' | 'transient';
+
 export interface EventMessage {
   envelope_id?: string;
   protocol_version: number;
-  delivery_mode?: string;
+  delivery_mode?: DeliveryMode;
   event_type: EventType;
   session_key?: string;
   session_seq?: number;
@@ -82,8 +84,8 @@ export interface RuntimeStatusData {
   status: 'compacting' | null;
 }
 
-export type CommandCatalogStatus = 'loading' | 'ready' | 'unavailable';
-export type CommandExecution = 'host' | 'runtime_prompt' | 'unsupported';
+export type CommandCatalogStatus = 'cold' | 'ready' | 'unavailable';
+export type CommandExecution = 'host' | 'runtime' | 'unsupported';
 
 export interface CommandDescriptor {
   name: string;
@@ -96,6 +98,7 @@ export interface CommandDescriptor {
 
 export interface CommandCatalogData {
   revision?: string;
+  generation?: number;
   runtime_kind?: string;
   status: CommandCatalogStatus;
   agent_id?: string;
@@ -119,6 +122,7 @@ export interface ChatAckData {
   round_id: string;
   user_message_id: string;
   user_message_committed: boolean;
+  user_message_delivery_mode?: DeliveryMode;
   pending: ChatAckPendingSlot[];
   pending_snapshot: boolean;
   ack_timeout_ms: number;

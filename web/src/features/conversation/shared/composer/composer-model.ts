@@ -34,7 +34,6 @@ export interface ComposerPanelProps {
     attachments?: MessageAttachment[],
     targetAgentIDs?: string[],
   ) => void | Promise<void>;
-  onRefreshCommandCatalog: () => void;
   inputQueueItems: InputQueueItem[];
   onEnqueueMessage: (
     content: string,

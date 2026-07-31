@@ -3,6 +3,7 @@ package dm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -195,6 +196,99 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	outputTokens := anyToInt(usage["output_tokens"])
 	if outputTokens != 5 {
 		t.Fatalf("result usage 应保留: %+v", messages[1])
+	}
+}
+
+func TestDMPrepareRuntimeKeepsSlashCommandPayloadClean(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	client := newFakeDMClient()
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	sessionKey := "agent:nexus:ws:dm:slash-command"
+	t.Cleanup(func() {
+		_ = runtimeManager.CloseSession(context.Background(), sessionKey)
+	})
+
+	execution, err := service.prepareChatExecution(context.Background(), Request{
+		SessionKey: sessionKey,
+		Content:    "/model",
+	})
+	if err != nil {
+		t.Fatalf("prepareChatExecution() error = %v", err)
+	}
+	preparation, err := execution.prepareRuntime()
+	if err != nil {
+		t.Fatalf("prepareRuntime() error = %v", err)
+	}
+	if got := preparation.content.PlainText(); got != "/model" {
+		t.Fatalf("Slash runtime payload = %q, want clean command", got)
+	}
+	if !preparation.atomicInput {
+		t.Fatal("Slash runtime payload must be marked atomic")
+	}
+}
+
+func TestDMPrepareRuntimeRejectsSlashCommandAttachments(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{
+		client: newFakeDMClient(),
+	})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	execution, err := service.prepareChatExecution(context.Background(), Request{
+		SessionKey: "agent:nexus:ws:dm:slash-attachment",
+		Content:    "/model sonnet",
+		Attachments: []protocol.ChatAttachment{{
+			FileName:      "image.png",
+			WorkspacePath: "tmp/attachments/image.png",
+			Kind:          protocol.ChatAttachmentKindImage,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("prepareChatExecution() error = %v", err)
+	}
+	_, err = execution.prepareRuntime()
+	var target slashCommandAttachmentError
+	if !errors.As(err, &target) {
+		t.Fatalf("prepareRuntime() error = %v, want slash attachment error", err)
+	}
+}
+
+func TestAuthorizeHostCommandChecksDMWebSocketScopeWithoutStartingRuntime(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{
+		client: newFakeDMClient(),
+	})
+	service := NewService(cfg, agentService, runtimeManager, permissionctx.NewContext())
+	sessionKey := "agent:nexus:ws:dm:host-command"
+
+	if err := service.AuthorizeHostCommand(context.Background(), sessionKey, "nexus"); err != nil {
+		t.Fatalf("AuthorizeHostCommand() error = %v", err)
+	}
+	if runtimeManager.HasSession(sessionKey) {
+		t.Fatal("host command authorization must not start a runtime")
+	}
+	if err := service.AuthorizeHostCommand(
+		context.Background(),
+		"agent:nexus:tg:dm:host-command",
+		"nexus",
+	); err == nil {
+		t.Fatal("external channel host command authorization must fail")
+	}
+	if err := service.AuthorizeHostCommand(
+		context.Background(),
+		sessionKey,
+		"another-agent",
+	); err == nil {
+		t.Fatal("mismatched agent_id host command authorization must fail")
 	}
 }
 

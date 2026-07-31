@@ -1,4 +1,6 @@
 import type { CommandDescriptor } from "@/types/generated/protocol";
+import type { ProviderOptionsResponse } from "@/types/capability/provider";
+import type { SkillInfo } from "@/types/capability/skill";
 
 export const SLASH_COMMAND_NAVIGATION_KEYS = new Set([
   "ArrowDown",
@@ -17,6 +19,13 @@ export interface SlashCommandTextMatch {
 export interface SlashCommandInsertion {
   cursorPosition: number;
   value: string;
+}
+
+export interface SlashModelOption {
+  id: string;
+  label: string;
+  provider?: string;
+  providerLabel?: string;
 }
 
 export function findSlashCommandTextMatch(
@@ -60,10 +69,49 @@ export function filterSlashCommands(
   });
 }
 
+export function filterSlashSkills(
+  skills: SkillInfo[],
+  query: string,
+): SkillInfo[] {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) {
+    return skills;
+  }
+  return skills.filter((skill) => {
+    const searchableText = [
+      skill.name,
+      skill.title,
+      skill.description,
+      skill.category_name,
+      skill.source_name ?? "",
+      skill.tags.join("\n"),
+    ].join("\n").toLocaleLowerCase();
+    return searchableText.includes(normalizedQuery);
+  });
+}
+
+export function filterSlashModels(
+  models: SlashModelOption[],
+  query: string,
+): SlashModelOption[] {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  if (!normalizedQuery) {
+    return models;
+  }
+  return models.filter((model) => [
+    model.id,
+    model.label,
+    model.providerLabel ?? "",
+  ].join("\n").toLocaleLowerCase().includes(normalizedQuery));
+}
+
 export function isSelectableSlashCommand(
   command: CommandDescriptor,
 ): boolean {
-  return command.enabled && command.execution === "runtime_prompt";
+  return command.enabled && (
+    command.execution === "host"
+    || command.execution === "runtime"
+  );
 }
 
 export function insertSlashCommand(
@@ -80,4 +128,63 @@ export function insertSlashCommand(
       input.slice(match.end),
     ].join(""),
   };
+}
+
+export function formatSlashCommandInsertText(name: string): string {
+  return `/${name.trim().replace(/^\/+/u, "")} `;
+}
+
+export function formatSlashModelInsertText(model: SlashModelOption): string {
+  const modelID = model.id.trim();
+  const provider = model.provider?.trim();
+  return `/model ${provider ? `${provider}/${modelID}` : modelID} `;
+}
+
+export function insertSlashTextAtCursor(
+  input: string,
+  cursorPosition: number,
+  commandText: string,
+): SlashCommandInsertion {
+  const safeCursorPosition = Math.max(
+    0,
+    Math.min(cursorPosition, input.length),
+  );
+  return {
+    cursorPosition: safeCursorPosition + commandText.length,
+    value: [
+      input.slice(0, safeCursorPosition),
+      commandText,
+      input.slice(safeCursorPosition),
+    ].join(""),
+  };
+}
+
+export function buildSlashModelOptions(
+  response: ProviderOptionsResponse | null,
+): SlashModelOption[] {
+  const providerOptions = (response?.items ?? []).flatMap((provider) =>
+    provider.models.map((model) => ({
+      id: model.model_id.trim(),
+      label: model.display_name.trim() || model.model_id.trim(),
+      provider: provider.provider.trim(),
+      providerLabel: provider.display_name.trim() || provider.provider.trim(),
+    })),
+  );
+  return dedupeSlashModelOptions(providerOptions);
+}
+
+function dedupeSlashModelOptions(
+  options: readonly SlashModelOption[],
+): SlashModelOption[] {
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    const id = option.id.trim();
+    const provider = option.provider?.trim() ?? "";
+    const key = `${provider}\u0000${id}`.toLocaleLowerCase();
+    if (!id || seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }

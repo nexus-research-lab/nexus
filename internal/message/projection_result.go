@@ -14,6 +14,11 @@ const internalTranscriptInterruptPromptPrefix = "[Request interrupted by user"
 // 这是 SDK 在输出预算耗尽后注入的续跑哨兵，不属于用户可见对话。
 const internalTranscriptMaxOutputRecoveryPrompt = "Output token limit hit. Resume directly — no apology, no recap of what you were doing. Pick up mid-thought if that is where the cut happened. Break remaining work into smaller pieces."
 
+const (
+	internalExplicitSkillContextOpenTag  = `<internal_context source="explicit_skill">`
+	internalExplicitSkillContextCloseTag = "</internal_context>"
+)
+
 // AttachResultSummary 把 runtime result 摘要挂到 assistant 上。
 func AttachResultSummary(assistant protocol.Message, result protocol.Message) (protocol.Message, bool) {
 	if protocol.MessageRole(assistant) != "assistant" || protocol.MessageRole(result) != "result" {
@@ -189,6 +194,18 @@ func IsInternalTranscriptInterruptPrompt(content string) bool {
 // IsInternalTranscriptContinuationPrompt 判断是否为 SDK 输出预算耗尽后的内部续跑提示。
 func IsInternalTranscriptContinuationPrompt(content string) bool {
 	return strings.TrimSpace(content) == internalTranscriptMaxOutputRecoveryPrompt
+}
+
+// IsInternalExplicitSkillPrompt 判断是否为旧版宿主注入的显式 Skill 正文。
+//
+// 新版由 runtime 以 isMeta user 承载；这里仅用于读取已经落盘的旧 transcript，
+// 让它继续充当 round 边界，但绝不作为用户正文展示。
+func IsInternalExplicitSkillPrompt(content string) bool {
+	trimmed := strings.TrimSpace(content)
+	return strings.HasPrefix(trimmed, "<system-reminder>") &&
+		strings.Contains(trimmed, internalExplicitSkillContextOpenTag) &&
+		strings.Contains(trimmed, internalExplicitSkillContextCloseTag) &&
+		strings.HasSuffix(trimmed, "</system-reminder>")
 }
 
 // BuildSyntheticAssistantFromResult 在没有 assistant 可挂时构造一个终态 assistant。

@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+
+	"github.com/nexus-research-lab/nexus/internal/message"
 )
 
 func alignTranscriptRoundMarkers(
@@ -80,7 +82,7 @@ func collectTranscriptUserTurns(
 			!isTranscriptToolResult(decoded) &&
 			shouldMaterializeTranscriptUserTurn(entry.Data) {
 			turns = append(turns, transcriptUserTurn{
-				Content:         sanitizeTranscriptUserContent(transcriptUserContent(entry.Data)),
+				Content:         transcriptUserContent(entry.Data),
 				Timestamp:       entryTimestamp,
 				GoalContextOnly: isTranscriptGoalContextOnlyUserTurn(entry.Data),
 			})
@@ -181,7 +183,11 @@ func transcriptRoundMarkerPresent(marker transcriptRoundMarker) bool {
 }
 
 func shouldMaterializeTranscriptUserTurn(entry map[string]any) bool {
-	return sanitizeTranscriptUserContent(transcriptUserContent(entry)) != ""
+	if isTranscriptLocalCommandResultUserTurn(entry) {
+		return false
+	}
+	return transcriptUserContent(entry) != "" ||
+		message.IsInternalExplicitSkillPrompt(transcriptRawUserContent(entry))
 }
 
 func isTranscriptGoalContextOnlyUserTurn(entry map[string]any) bool {
@@ -197,15 +203,10 @@ func isTranscriptGoalContextOnlyUserTurn(entry map[string]any) bool {
 }
 
 func consumeTranscriptRoundMarker(markers []transcriptRoundMarker, index *int) transcriptRoundMarker {
-	if index == nil {
+	if index == nil || *index >= len(markers) {
 		return transcriptRoundMarker{}
 	}
-	for *index < len(markers) {
-		marker := markers[*index]
-		*index++
-		if strings.TrimSpace(marker.RoundID) != "" || strings.TrimSpace(marker.Content) != "" {
-			return marker
-		}
-	}
-	return transcriptRoundMarker{}
+	marker := markers[*index]
+	*index++
+	return marker
 }

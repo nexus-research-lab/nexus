@@ -13,6 +13,7 @@
 //   - retired_skills.go：已退役系统 Skill 清理迁移。
 //   - provider_scope_recovery.go：桌面 App 本地 SQLite 的旧 Provider scope 数据补偿。
 //   - room_files.go：旧 app/rooms 到用户 state/rooms 与 workspace/.rooms 的 owner 级迁移。
+//   - room_files_hardlink_*.go：跨平台 Room 文件迁移硬链接校验。
 //
 // 暴露接口：RepairLegacyAgentDisabledSkillSchema、RunWorkspaceFiles、RunRoomFiles、RunDesktopLegacyConversationDraftRepair、RunRuntimeIdentitySync、RepairDesktopProviderScope。
 //

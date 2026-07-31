@@ -1,5 +1,5 @@
 // [INPUT]: 依赖会话/运行时跨边界状态与时间戳。
-// [OUTPUT]: 对外提供统一事件类型、请求 ACK 与携带 handoff 关联的权威 pending slot 快照事件。
+// [OUTPUT]: 对外提供统一事件类型、消息恢复边界、请求 ACK 与携带 handoff 关联的权威 pending slot 快照事件。
 // [POS]: protocol 包的 WebSocket 事件真相源。
 package protocol
 
@@ -55,6 +55,19 @@ const (
 	EventTypeStreamCancelled             EventType = "stream_cancelled"
 	EventTypeError                       EventType = "error"
 	EventTypePong                        EventType = "pong"
+)
+
+const (
+	RoundStatusRunning     = "running"
+	RoundStatusFinished    = "finished"
+	RoundStatusInterrupted = "interrupted"
+	RoundStatusError       = "error"
+)
+
+const (
+	DeliveryModeDurable   = "durable"
+	DeliveryModeEphemeral = "ephemeral"
+	DeliveryModeTransient = "transient"
 )
 
 // EventMessage 对齐前后端统一 envelope。
@@ -128,7 +141,7 @@ type RuntimeStatusData struct {
 type CommandCatalogStatus string
 
 const (
-	CommandCatalogStatusLoading     CommandCatalogStatus = "loading"
+	CommandCatalogStatusCold        CommandCatalogStatus = "cold"
 	CommandCatalogStatusReady       CommandCatalogStatus = "ready"
 	CommandCatalogStatusUnavailable CommandCatalogStatus = "unavailable"
 )
@@ -137,9 +150,9 @@ const (
 type CommandExecution string
 
 const (
-	CommandExecutionHost          CommandExecution = "host"
-	CommandExecutionRuntimePrompt CommandExecution = "runtime_prompt"
-	CommandExecutionUnsupported   CommandExecution = "unsupported"
+	CommandExecutionHost        CommandExecution = "host"
+	CommandExecutionRuntime     CommandExecution = "runtime"
+	CommandExecutionUnsupported CommandExecution = "unsupported"
 )
 
 // CommandDescriptor 是浏览器可见的命令描述。
@@ -156,6 +169,7 @@ type CommandDescriptor struct {
 // CommandCatalogData 表示一个 Agent runtime 的命令目录快照。
 type CommandCatalogData struct {
 	Revision    string               `json:"revision,omitempty"`
+	Generation  uint64               `json:"generation,omitempty"`
 	RuntimeKind string               `json:"runtime_kind,omitempty"`
 	Status      CommandCatalogStatus `json:"status"`
 	AgentID     string               `json:"agent_id,omitempty"`
@@ -166,7 +180,7 @@ type CommandCatalogData struct {
 func NewEvent(eventType EventType, data map[string]any) EventMessage {
 	return EventMessage{
 		ProtocolVersion: 2,
-		DeliveryMode:    "ephemeral",
+		DeliveryMode:    DeliveryModeEphemeral,
 		EventType:       eventType,
 		Data:            data,
 		Timestamp:       time.Now().UnixMilli(),
@@ -202,6 +216,9 @@ func NewCommandCatalogEvent(sessionKey string, data CommandCatalogData) EventMes
 	if strings.TrimSpace(data.Revision) != "" {
 		payload["revision"] = strings.TrimSpace(data.Revision)
 	}
+	if data.Generation > 0 {
+		payload["generation"] = data.Generation
+	}
 	if strings.TrimSpace(data.RuntimeKind) != "" {
 		payload["runtime_kind"] = strings.TrimSpace(data.RuntimeKind)
 	}
@@ -219,7 +236,7 @@ func NewRoundStatusEvent(sessionKey string, roundID string, status string, resul
 	data := map[string]any{
 		"round_id":    roundID,
 		"status":      status,
-		"is_terminal": status == "finished" || status == "interrupted" || status == "error",
+		"is_terminal": IsTerminalRoundStatus(status),
 	}
 	if strings.TrimSpace(resultSubtype) != "" {
 		data["result_subtype"] = strings.TrimSpace(resultSubtype)
@@ -233,7 +250,12 @@ func NewRoundStatusEvent(sessionKey string, roundID string, status string, resul
 // error 事件本身是瞬时通知；把原因同时放进 round_status，客户端即使错过前一个事件，
 // 仍能在轮次收口时给用户一个明确反馈。
 func NewRoundStatusErrorEvent(sessionKey string, roundID string, message string) EventMessage {
-	event := NewRoundStatusEvent(sessionKey, roundID, "error", "error")
+	event := NewRoundStatusEvent(
+		sessionKey,
+		roundID,
+		RoundStatusError,
+		"error",
+	)
 	if trimmed := strings.TrimSpace(message); trimmed != "" {
 		event.Data["message"] = trimmed
 	}
@@ -281,6 +303,30 @@ func NewChatAckEvent(
 	return event
 }
 
+// NewTransientChatAckEvent 确认一条只保留在当前时间线的用户输入。
+//
+// Host Slash 不进入 runtime 历史，但仍应保留用户实际执行的指令，避免 ACK
+// 把 optimistic 消息误删后只剩一条无来源的宿主确认。
+func NewTransientChatAckEvent(
+	sessionKey string,
+	clientRequestID string,
+	clientMessageID string,
+	roundID string,
+	userMessageID string,
+) EventMessage {
+	event := NewChatAckEvent(
+		sessionKey,
+		clientRequestID,
+		clientMessageID,
+		roundID,
+		userMessageID,
+		false,
+		nil,
+	)
+	event.Data["user_message_delivery_mode"] = DeliveryModeTransient
+	return event
+}
+
 // NewChatPendingSnapshotEvent 构造订阅恢复时的权威 Room slot 快照。
 // 前端必须用 pending 整体替换本地恢复值；空数组同样有意义，用于清除陈旧占位。
 func NewChatPendingSnapshotEvent(sessionKey string, roundID string, pending []ChatAckPendingSlot) EventMessage {
@@ -291,7 +337,12 @@ func NewChatPendingSnapshotEvent(sessionKey string, roundID string, pending []Ch
 
 // IsTerminalRoundStatus 判断 round / slot 状态是否终态。
 func IsTerminalRoundStatus(status string) bool {
-	return status == "finished" || status == "interrupted" || status == "error"
+	switch status {
+	case RoundStatusFinished, RoundStatusInterrupted, RoundStatusError:
+		return true
+	default:
+		return false
+	}
 }
 
 // NewAgentRoundStatusEvent 构造 agent_round_status 事件（Room slot 生命周期）。

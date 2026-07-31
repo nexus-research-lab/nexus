@@ -18,7 +18,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -849,7 +848,11 @@ func firstUnsafeRoomPath(root string) (string, string, bool, error) {
 			foundReason = "special_file"
 			return filepath.SkipAll
 		}
-		if stat, ok := info.Sys().(*syscall.Stat_t); ok && stat.Nlink > 1 {
+		hasMultipleLinks, err := roomFileHasMultipleHardLinks(path, info)
+		if err != nil {
+			return err
+		}
+		if hasMultipleLinks {
 			foundPath = path
 			foundReason = "hard_link"
 			return filepath.SkipAll

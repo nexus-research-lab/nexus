@@ -13,7 +13,7 @@ export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 endif
 
-TAG ?= 0.1.29
+TAG ?= 0.1.30
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 AGENT_UID ?= 1001
@@ -43,7 +43,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev dev-nxs install gen-protocol-types lint-web test-web typecheck-web prepare-host-data \
-	check-backend check-go check-go-fresh check test run-web run-backend run-backend-go \
+	check-backend check-go-vet check-go check-go-fresh check-go-full check test run-web run-backend run-backend-go \
 	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
 
@@ -123,11 +123,17 @@ test-web: ## Run frontend behavior tests
 typecheck-web: ## Run frontend type check
 	cd web && $(PNPM) run typecheck
 
-check-go: ## Run Go build and cached test checks
-	go test -p=$(GO_TEST_PACKAGE_PARALLELISM) ./...
+check-go-vet: ## Run Go static analysis checks
+	go vet -p=$(GO_TEST_PACKAGE_PARALLELISM) ./...
 
-check-go-fresh: ## Run all Go tests without result cache
-	go test -p=$(GO_TEST_PACKAGE_PARALLELISM) -count=1 ./...
+check-go: ## Run checks for Go packages changed from the upstream branch
+	GO_TEST_PACKAGE_PARALLELISM=$(GO_TEST_PACKAGE_PARALLELISM) ./scripts/check-go-changed.sh
+
+check-go-fresh: ## Run changed Go package checks without result cache
+	GO_TEST_PACKAGE_PARALLELISM=$(GO_TEST_PACKAGE_PARALLELISM) ./scripts/check-go-changed.sh --fresh
+
+check-go-full: check-go-vet ## Run explicit full Go checks without result cache
+	go test -vet=off -p=$(GO_TEST_PACKAGE_PARALLELISM) -count=1 ./...
 
 check-backend: check-go ## Alias of Go backend checks
 

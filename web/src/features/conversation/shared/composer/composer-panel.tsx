@@ -65,6 +65,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
         data-composer-edge="true"
       >
         <div
+          ref={refs.composerShellRef}
           className={COMPOSER_SHELL_CLASS_NAME}
           data-composer-surface={
             props.interactionSurface ? "interaction" : "input"
@@ -101,6 +102,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 layout={{
                   paddingClassName: state.composerInputRowPaddingClass,
                 }}
+                composerShellRef={refs.composerShellRef}
                 mention={{
                   active: mention.mentionActive,
                   filter: mention.mentionFilter,
@@ -112,7 +114,25 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   active: slashCommand.isOpen,
                   activeIndex: slashCommand.activeIndex,
                   commands: slashCommand.commands,
-                  onSelect: slashCommand.select,
+                  mode: slashCommand.mode,
+                  modelError: slashCommand.modelError,
+                  modelItems: slashCommand.modelItems,
+                  modelLoading: slashCommand.modelLoading,
+                  modelQuery: slashCommand.modelQuery,
+                  modelSearchRef: slashCommand.modelSearchRef,
+                  onModelQueryChange: slashCommand.onModelQueryChange,
+                  onModelQueryKeyDown: slashCommand.onModelQueryKeyDown,
+                  onClose: slashCommand.onClose,
+                  onSelectModel: slashCommand.onSelectModel,
+                  onSelectCommand: slashCommand.onSelectCommand,
+                  onSelectSkill: slashCommand.onSelectSkill,
+                  onSkillQueryChange: slashCommand.onSkillQueryChange,
+                  onSkillQueryKeyDown: slashCommand.onSkillQueryKeyDown,
+                  skillError: slashCommand.skillError,
+                  skillItems: slashCommand.skillItems,
+                  skillLoading: slashCommand.skillLoading,
+                  skillQuery: slashCommand.skillQuery,
+                  skillSearchRef: slashCommand.skillSearchRef,
                   status: slashCommand.status,
                 }}
                 textareaRef={refs.textareaRef}

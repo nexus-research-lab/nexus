@@ -90,7 +90,6 @@ export interface UseAgentConversationReturn {
   room_agent_execution_states: RoomAgentExecutionState[];
   input_queue_items: InputQueueItem[];
   command_catalog: CommandCatalogData;
-  refresh_command_catalog: () => void;
   send_message: (
     content: string,
     options?: AgentConversationSendOptions,

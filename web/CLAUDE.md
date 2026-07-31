@@ -48,7 +48,7 @@ src/
 - `unknown` 错误到用户消息的基础投影只由 `lib/error-message.ts` 定义；Feature 保留领域默认文案和反馈结构，不复制同义包装函数
 - 外部 Session 通道别名、标签与合成会话 ID 只由 `lib/conversation/external-session.ts` 定义，页面和标签视图不得复制解释规则
 - 权限与问答协议归 `types/conversation/interaction/`；权限和未完成工具调用的共享匹配归 `lib/conversation/`，问答超时与系统事件展示规则归消息 Feature
-- 会话消息协议按 `types/conversation/message/{attachment,content,entity,event}.ts` 分离；WebSocket 信封和通用事件结构直接使用生成协议，消费者不得通过根 `types` barrel 或 `data: any` 绕过领域解码
+- 会话消息协议按 `types/conversation/message/{attachment,content,entity,event}.ts` 分离；WebSocket 信封和通用事件结构直接使用生成协议，消费者不得通过根 `types` barrel 或 `data: any` 绕过领域解码。`delivery_mode` 明确区分可恢复的 `durable`、随 round 收口的 `ephemeral` 与只留在当前时间线的 `transient`；只有 durable 消息可进入后台缓存和未读
 - SDK 工具输入与保留型配置对象只允许 `unknown` 值；具体工具 Feature 在消费入口校验字段，不得用断言或 `any` 把外部载荷伪装成完整领域对象
 - 定时任务协议按 `types/capability/scheduled-task/{task,run}.ts` 分离任务定义与运行结果；只声明真实消费者需要的契约，不恢复未接入的状态、事件和日报镜像
 - 引导浮层由 `shared/ui/onboarding/overlay/` 分离目标/卡片观察器、定位策略、贴纸模型和步骤视图；Portal 入口不得重新实现这些规则

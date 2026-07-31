@@ -66,12 +66,25 @@ func newRoundExecution(ctx context.Context, request RoundExecutionRequest) (*rou
 }
 
 func (e *roundExecution) query() error {
-	queryContent, err := runtimectx.PrepareRoundContentWithContext(
-		e.ctx,
-		e.request.Client,
-		roundQueryContent(e.request),
-		e.request.ContextualInputs,
+	content := roundQueryContent(e.request)
+	var (
+		queryContent any
+		err          error
 	)
+	if e.request.AtomicInput {
+		queryContent, err = runtimectx.PrepareAtomicRoundContent(
+			e.ctx,
+			e.request.Client,
+			content,
+		)
+	} else {
+		queryContent, err = runtimectx.PrepareRoundContentWithContext(
+			e.ctx,
+			e.request.Client,
+			content,
+			e.request.ContextualInputs,
+		)
+	}
 	if err != nil {
 		return err
 	}

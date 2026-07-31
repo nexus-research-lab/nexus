@@ -36,6 +36,7 @@ type RoundMapper interface {
 type RoundExecutionRequest struct {
 	Query                  string
 	Content                any
+	AtomicInput            bool
 	ContextualInputs       []ContextualInputBlock
 	InputOptions           sdkprotocol.OutboundMessageOptions
 	Client                 Client

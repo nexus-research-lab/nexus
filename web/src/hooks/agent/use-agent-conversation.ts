@@ -30,16 +30,13 @@ import { useAgentConversationSocket } from "./transport/use-agent-conversation-s
 import { useAgentEventDispatcher } from "./transport/use-agent-event-dispatcher";
 import { useConversationStreamBuffer } from "./transport/use-conversation-stream-buffer";
 import {
-  buildCommandCatalogRequest,
-} from "./actions/conversation-command-builders";
-import {
   buildAgentConversationResult,
   resolveAgentConversationConfig,
 } from "./agent-conversation-model";
 
 const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
   commands: [],
-  status: "loading",
+  status: "cold",
 };
 
 export function useAgentConversation(
@@ -235,25 +232,6 @@ export function useAgentConversation(
     onError,
     setError,
   });
-  const refreshCommandCatalog = useCallback(() => {
-    if (!session.sessionKey || wsState !== "connected") {
-      return;
-    }
-    wsSend(buildCommandCatalogRequest({
-      agent_id: agentId,
-      conversation_id: conversationId,
-      room_id: roomId,
-      session_key: session.sessionKey,
-    }));
-  }, [
-    agentId,
-    conversationId,
-    roomId,
-    session.sessionKey,
-    wsSend,
-    wsState,
-  ]);
-
   const actionContext: AgentConversationActionContext = {
     acknowledgePermissionRequest,
     activeSessionKeyRef: session.activeSessionKeyRef,
@@ -283,7 +261,6 @@ export function useAgentConversation(
     commandCatalog,
     error,
     messages,
-    refreshCommandCatalog,
     runtime: {
       pendingAgentSlots,
       pendingPermissions,

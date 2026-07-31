@@ -1,0 +1,5 @@
+// Package slashcommand 负责 Nexus host 侧 Slash 指令的注册、派发与版本化目录。
+//
+// runtime 指令仍由 nxs 或 Claude Code 执行，但 Composer 使用 Nexus 内置的稳定
+// 清单。Catalog 不依赖 bridge 初始化结果或 DM/Room session，也不会启动 runtime。
+package slashcommand

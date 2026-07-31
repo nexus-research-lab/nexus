@@ -237,6 +237,7 @@ export function useAgentConversationRuntime({
         ack.user_message_id,
         ack.round_id,
         ack.user_message_committed,
+        ack.user_message_delivery_mode,
       ));
     }
     setPendingAgentSlots((slots) => mergeChatAckPendingSlots(slots, ack));

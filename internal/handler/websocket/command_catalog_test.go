@@ -5,46 +5,38 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
 func TestProjectCommandCatalogSanitizesRuntimeMetadata(t *testing.T) {
-	snapshot := runtimectx.CommandCatalogSnapshot{
-		Status:      runtimectx.CommandCatalogStatusReady,
+	snapshot := slashcommandsvc.RuntimeCatalogSnapshot{
+		Status:      protocol.CommandCatalogStatusReady,
 		RuntimeKind: agentclient.RuntimeNXS,
-		Commands: []agentclient.SlashCommand{
+		Commands: []protocol.CommandDescriptor{
 			{
 				Name:         "/review",
 				Description:  " Review code ",
 				ArgumentHint: " <target> ",
-				Raw: map[string]any{
-					"type":         "prompt",
-					"source":       "project",
-					"body":         "private command body",
-					"path":         "/private/commands/review.md",
-					"allowedTools": []string{"Bash"},
-				},
+				Enabled:      true,
 			},
 			{
 				Name:         "compact",
 				Description:  "Compact context",
 				ArgumentHint: "",
-				Raw: map[string]any{
-					"type":   "local-jsx",
-					"source": "builtin",
-				},
+				Enabled:      true,
 			},
 			{
 				Name:        "github:review (MCP)",
 				Description: "Open the GitHub review prompt",
+				Enabled:     true,
 			},
-			{Name: "invalid command"},
+			{Name: "invalid command", Enabled: true},
 		},
 	}
 
-	data := projectCommandCatalog(snapshot, "agent-a")
+	data := projectCommandCatalog(snapshot, "agent-a", nil)
 	if data.Status != protocol.CommandCatalogStatusReady ||
 		data.RuntimeKind != "nxs" ||
 		data.AgentID != "agent-a" ||
@@ -54,13 +46,13 @@ func TestProjectCommandCatalogSanitizesRuntimeMetadata(t *testing.T) {
 	}
 	compact := data.Commands[0]
 	if compact.Name != "compact" ||
-		compact.Execution != protocol.CommandExecutionRuntimePrompt ||
+		compact.Execution != protocol.CommandExecutionRuntime ||
 		!compact.Enabled {
 		t.Fatalf("compact = %#v, want runtime-authoritative prompt command", compact)
 	}
 	mcpPrompt := data.Commands[1]
 	if mcpPrompt.Name != "github:review (MCP)" ||
-		mcpPrompt.Execution != protocol.CommandExecutionRuntimePrompt ||
+		mcpPrompt.Execution != protocol.CommandExecutionRuntime ||
 		!mcpPrompt.Enabled {
 		t.Fatalf("mcp prompt = %#v, want CC-compatible runtime prompt", mcpPrompt)
 	}
@@ -68,23 +60,51 @@ func TestProjectCommandCatalogSanitizesRuntimeMetadata(t *testing.T) {
 	if review.Name != "review" ||
 		review.Description != "Review code" ||
 		review.ArgumentHint != "<target>" ||
-		review.Execution != protocol.CommandExecutionRuntimePrompt ||
+		review.Execution != protocol.CommandExecutionRuntime ||
 		!review.Enabled {
 		t.Fatalf("review = %#v, want enabled runtime prompt", review)
 	}
 }
 
-func TestProjectCommandCatalogKeepsLoadingSnapshotEmpty(t *testing.T) {
-	data := projectCommandCatalog(runtimectx.CommandCatalogSnapshot{
-		Status: runtimectx.CommandCatalogStatusLoading,
-		Commands: []agentclient.SlashCommand{{
-			Name: "stale",
+func TestProjectCommandCatalogKeepsUnavailableRuntimeCommandsHidden(t *testing.T) {
+	data := projectCommandCatalog(slashcommandsvc.RuntimeCatalogSnapshot{
+		Status: protocol.CommandCatalogStatusUnavailable,
+		Commands: []protocol.CommandDescriptor{{
+			Name:    "stale",
+			Enabled: true,
 		}},
-	}, "agent-a")
+	}, "agent-a", []protocol.CommandDescriptor{{
+		Name:      "goal",
+		Execution: protocol.CommandExecutionHost,
+		Enabled:   true,
+	}})
 
-	if data.Status != protocol.CommandCatalogStatusLoading ||
-		data.Revision != "" ||
-		len(data.Commands) != 0 {
-		t.Fatalf("catalog = %#v, want empty loading snapshot", data)
+	if data.Status != protocol.CommandCatalogStatusUnavailable ||
+		!strings.HasPrefix(data.Revision, "commands-") ||
+		len(data.Commands) != 1 ||
+		data.Commands[0].Name != "goal" {
+		t.Fatalf("catalog = %#v, want host-only unavailable snapshot", data)
+	}
+}
+
+func TestProjectCommandCatalogKeepsModelOwnedByNexusHost(t *testing.T) {
+	data := projectCommandCatalog(slashcommandsvc.RuntimeCatalogSnapshot{
+		Status: protocol.CommandCatalogStatusReady,
+		Commands: []protocol.CommandDescriptor{{
+			Name:        "model",
+			Description: "Runtime model",
+			Enabled:     true,
+		}},
+	}, "agent-a", []protocol.CommandDescriptor{{
+		Name:        "model",
+		Description: "Nexus model",
+		Execution:   protocol.CommandExecutionHost,
+		Enabled:     true,
+	}})
+
+	if len(data.Commands) != 1 ||
+		data.Commands[0].Execution != protocol.CommandExecutionHost ||
+		data.Commands[0].Description != "Nexus model" {
+		t.Fatalf("catalog = %#v, want Nexus host command to reserve /model", data)
 	}
 }

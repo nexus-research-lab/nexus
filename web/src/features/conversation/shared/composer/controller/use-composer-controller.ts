@@ -30,7 +30,6 @@ const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
   commands: [],
   status: "unavailable",
 };
-const IGNORE_COMMAND_CATALOG_REFRESH = () => {};
 
 export function useComposerController({
   commandCatalog = EMPTY_COMMAND_CATALOG,
@@ -47,11 +46,11 @@ export function useComposerController({
   onCreateLoopGoal,
   onEnqueueMessage,
   onPrepareAttachments,
-  onRefreshCommandCatalog = IGNORE_COMMAND_CATALOG_REFRESH,
   onSendMessage,
   onStop,
   queueWhenSessionBusy = true,
   roomMembers = EMPTY_ROOM_MEMBERS,
+  runtimeKind,
   runtimePhase,
 }: ComposerPanelProps) {
   const { t } = useI18n();
@@ -68,6 +67,7 @@ export function useComposerController({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
+  const composerShellRef = useRef<HTMLDivElement>(null);
   const focusTextareaAtEnd = useCallback(() => {
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
@@ -101,7 +101,7 @@ export function useComposerController({
     catalog: commandCatalog,
     input: draftState.input,
     isGoalMode,
-    onRefresh: onRefreshCommandCatalog,
+    runtimeKind,
     setInput,
     textareaRef,
   });
@@ -195,7 +195,7 @@ export function useComposerController({
     historyItemCount: history.itemCount,
     isLoading,
     mentionActive: mention.mentionActive,
-    onSlashCommandKeyDown: slashCommand.handleKeyDown,
+    onSlashCommandKeyDown: slashCommand.handleCommandKeyDown,
     onSend: handleSend,
     onStop,
     recallNext: history.recallNext,
@@ -260,7 +260,12 @@ export function useComposerController({
   });
 
   return {
-    refs: { actionButtonRef, fileInputRef, textareaRef },
+    refs: {
+      actionButtonRef,
+      composerShellRef,
+      fileInputRef,
+      textareaRef,
+    },
     state,
     attachments: {
       attachments: attachments.attachments,
@@ -276,10 +281,29 @@ export function useComposerController({
       selectMentionItem: mention.selectMentionItem,
     },
     slashCommand: {
+      active: slashCommand.isOpen,
       activeIndex: slashCommand.activeIndex,
       commands: slashCommand.commands,
+      mode: slashCommand.mode,
       isOpen: slashCommand.isOpen,
-      select: slashCommand.select,
+      modelError: slashCommand.modelError,
+      modelItems: slashCommand.modelItems,
+      modelLoading: slashCommand.modelLoading,
+      modelQuery: slashCommand.modelQuery,
+      modelSearchRef: slashCommand.modelSearchRef,
+      onModelQueryChange: slashCommand.setModelQuery,
+      onModelQueryKeyDown: slashCommand.handleModelSearchKeyDown,
+      onClose: slashCommand.close,
+      onSelectModel: slashCommand.selectModel,
+      onSelectCommand: slashCommand.selectCommand,
+      onSelectSkill: slashCommand.selectSkill,
+      onSkillQueryChange: slashCommand.setSkillQuery,
+      onSkillQueryKeyDown: slashCommand.handleSkillSearchKeyDown,
+      skillError: slashCommand.skillError,
+      skillItems: slashCommand.skillItems,
+      skillLoading: slashCommand.skillLoading,
+      skillQuery: slashCommand.skillQuery,
+      skillSearchRef: slashCommand.skillSearchRef,
       status: slashCommand.status,
     },
     actions: {

@@ -24,6 +24,19 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+func TestMain(m *testing.M) {
+	os.Exit(handlertest.RunWithSelectedAppSkills(
+		m,
+		"goal-manager",
+		"ima-skill",
+		"imagegen",
+		"nexus-manager",
+		"room-playbook",
+		"wechat-article-search",
+		"werewolf-6p",
+	))
+}
+
 func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)

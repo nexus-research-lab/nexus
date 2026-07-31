@@ -397,6 +397,43 @@ test("Agent 首次保存接受服务端来源回写但拒绝更新的用户草�
   );
 });
 
+test("Room Agent 面板用最新目录覆盖上下文中的旧模型快照", async () => {
+  const { resolveCurrentRoomMemberAgents } = await server.ssrLoadModule(
+    "/src/pages/room/controller/model/room-member-model.ts",
+  );
+  const staleAgent = {
+    agent_id: "agent-1",
+    name: "Nexus",
+    workspace_path: "/tmp/nexus",
+    options: {
+      provider: "glm-coding-plan",
+      model: "glm-5.2",
+    },
+    created_at: 0,
+    status: "active",
+    avatar: null,
+    description: null,
+    vibe_tags: [],
+    skills_count: null,
+  };
+  const currentAgent = {
+    ...staleAgent,
+    options: {
+      provider: "deepseek",
+      model: "deepseek-v4-flash",
+    },
+  };
+  const contexts = [{
+    member_agents: [staleAgent],
+    members: [],
+  }];
+
+  assert.deepEqual(
+    resolveCurrentRoomMemberAgents(contexts, [currentAgent])[0].options,
+    currentAgent.options,
+  );
+});
+
 test("会话标签首次只打开活动项并按创建时间插入主动选择项", async () => {
   const {
     getConversationIdsByCreationTime,

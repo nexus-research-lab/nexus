@@ -59,6 +59,19 @@ func TestWebSocketSessionBinding(t *testing.T) {
 	if first.EventType != protocol.EventTypeSessionStatus {
 		t.Fatalf("应收到 session_status，实际: %+v", first)
 	}
+	catalog := readEventMatching(t, conn1, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeCommandCatalog
+	})
+	if catalog.SessionKey != sessionKey || catalog.AgentID != "nexus" {
+		t.Fatalf("command_catalog 作用域错误: %+v", catalog)
+	}
+	if catalog.Data["status"] != string(protocol.CommandCatalogStatusReady) {
+		t.Fatalf("command_catalog status = %#v, want ready", catalog.Data["status"])
+	}
+	commands, ok := catalog.Data["commands"].([]any)
+	if !ok || len(commands) == 0 {
+		t.Fatalf("command_catalog commands = %#v, want non-empty static manifest", catalog.Data["commands"])
+	}
 }
 
 func TestWebSocketDispatchesRewriteLastToControlHandler(t *testing.T) {

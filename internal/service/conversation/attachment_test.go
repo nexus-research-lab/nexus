@@ -49,6 +49,29 @@ func TestRenderRuntimeContentWithAttachments(t *testing.T) {
 	}
 }
 
+func TestIsSlashCommandInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{name: "command", content: "/model", want: true},
+		{name: "leading whitespace", content: "  /review api", want: true},
+		{name: "ordinary prompt", content: "请执行 /model", want: false},
+		{name: "empty", content: "", want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if got := IsSlashCommandInput(test.content); got != test.want {
+				t.Fatalf("IsSlashCommandInput(%q) = %t, want %t", test.content, got, test.want)
+			}
+		})
+	}
+}
+
 func TestRenderRuntimeContentWithImageAttachmentUsesImageBlock(t *testing.T) {
 	t.Parallel()
 

@@ -211,6 +211,10 @@ func (m *Manager) HasSession(sessionKey string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state := m.sessions[strings.TrimSpace(sessionKey)]
+	return sessionStateHasConnectedClient(state)
+}
+
+func sessionStateHasConnectedClient(state *sessionState) bool {
 	if state == nil || state.Closing || state.Client == nil {
 		return false
 	}

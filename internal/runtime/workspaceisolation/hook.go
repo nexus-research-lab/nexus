@@ -18,7 +18,10 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
-const workspacePolicyPublicDenial = "该操作超出当前用户被授予的工作区范围。"
+const (
+	workspacePolicyPublicDenial  = "该操作超出当前用户被授予的工作区范围。"
+	mainAgentNexusctlScopeDenial = "主智能体调用 nexusctl 时已有宿主注入的 owner 作用域；请移除 --global-scope、--scope-user-id 和作用域环境变量覆盖后重试。"
+)
 
 var shellTokenPattern = regexp.MustCompile(`[^\s"'` + "`" + `;|&()<>{}]+`)
 var shellRedirectionPathPattern = regexp.MustCompile(
@@ -95,14 +98,15 @@ func workspacePolicyCallback(mode Mode, policy Policy) sdkhook.Callback {
 		if mode == ModeAudit {
 			return allowWorkspacePolicyOutput(), nil
 		}
-		return denyWorkspacePolicyOutput(violation.terminal), nil
+		return denyWorkspacePolicyOutput(violation.terminal, violation.publicReason), nil
 	}
 }
 
 type policyViolation struct {
-	reason   string
-	path     string
-	terminal bool
+	reason       string
+	path         string
+	publicReason string
+	terminal     bool
 }
 
 func inspectToolAccess(policy Policy, input sdkhook.Input) *policyViolation {
@@ -248,7 +252,17 @@ func inspectShellAccess(
 		return &policyViolation{reason: "Shell command 为空"}
 	}
 	if reason := forbiddenNexusctlScope(policy, command); reason != "" {
-		return &policyViolation{reason: reason, terminal: true}
+		violation := &policyViolation{
+			reason:   reason,
+			terminal: !policy.IsMainAgent,
+		}
+		if policy.IsMainAgent {
+			// 主智能体已经具备当前 owner 的宿主注入作用域。旧会话仍可能
+			// 生成历史 global/scope flags；拒绝该次调用即可，让模型在同一
+			// turn 内按明确反馈移除覆盖并重试，不应把整轮变成 hook_stopped。
+			violation.publicReason = mainAgentNexusctlScopeDenial
+		}
+		return violation
 	}
 	for _, match := range shellRedirectionPathPattern.FindAllStringSubmatch(command, -1) {
 		if len(match) != 2 || strings.ContainsRune(match[1], '$') {
@@ -544,18 +558,22 @@ func allowWorkspacePolicyOutput() sdkhook.Output {
 	return sdkhook.Output{}
 }
 
-func denyWorkspacePolicyOutput(terminal bool) sdkhook.Output {
+func denyWorkspacePolicyOutput(terminal bool, publicReason string) sdkhook.Output {
+	publicReason = strings.TrimSpace(publicReason)
+	if publicReason == "" {
+		publicReason = workspacePolicyPublicDenial
+	}
 	output := sdkhook.Output{
 		SpecificOutput: &sdkhook.SpecificOutput{
 			HookEventName:            sdkhook.EventPreToolUse,
 			PermissionDecision:       sdkpermission.BehaviorDeny,
-			PermissionDecisionReason: workspacePolicyPublicDenial,
+			PermissionDecisionReason: publicReason,
 		},
 	}
 	if terminal {
 		shouldContinue := false
 		output.Continue = &shouldContinue
-		output.StopReason = workspacePolicyPublicDenial
+		output.StopReason = publicReason
 	}
 	return output
 }

@@ -112,6 +112,29 @@ func TestNormalizeHistoryRowsHidesInternalContinuationPrompt(t *testing.T) {
 	}
 }
 
+func TestNormalizeHistoryRowsHidesLegacyExplicitSkillPrompt(t *testing.T) {
+	rows := normalizeHistoryRows([]protocol.Message{
+		{
+			"message_id": "internal-skill",
+			"role":       "user",
+			"content": `<system-reminder>
+<internal_context source="explicit_skill">
+完整 Skill 正文
+</internal_context>
+</system-reminder>`,
+		},
+		{
+			"message_id": "public-user",
+			"role":       "user",
+			"content":    "/wechat-article-search nexus",
+		},
+	}, nil)
+
+	if len(rows) != 1 || rows[0]["message_id"] != "public-user" {
+		t.Fatalf("内部 Skill 正文不应进入规范化历史: %+v", rows)
+	}
+}
+
 func TestNormalizeHistoryRowsMergesExternalDeliveryReceipt(t *testing.T) {
 	rows := []protocol.Message{
 		{

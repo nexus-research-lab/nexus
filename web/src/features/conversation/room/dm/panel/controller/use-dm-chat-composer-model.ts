@@ -22,7 +22,6 @@ type ComposerConversation = Pick<
   | "guide_input_queue_message"
   | "input_queue_items"
   | "is_loading"
-  | "refresh_command_catalog"
   | "reorder_input_queue_messages"
   | "runtime_phase"
   | "send_message"
@@ -89,7 +88,6 @@ export function useDmChatComposerModel({
     onEnqueueMessage: conversation.enqueue_input_queue_message,
     onGuideQueuedMessage: conversation.guide_input_queue_message,
     onPrepareAttachments: handlers.handlePrepareAttachments,
-    onRefreshCommandCatalog: conversation.refresh_command_catalog,
     onReorderQueueMessages: conversation.reorder_input_queue_messages,
     onSendMessage: handlers.handleSendMessage,
     onStop: conversation.stop_generation,

@@ -257,11 +257,12 @@ func TestRealtimeServiceQueuesDirectedMessageWhenTargetRunning(t *testing.T) {
 	}
 
 	devinCurrentClient := newFakeRoomClient()
+	devinInitialPrompt := make(chan string, 1)
 	queuedPrompt := make(chan string, 1)
-	devinQueryCount := 0
+	var devinQueryCount atomic.Int32
 	devinCurrentClient.onQuery = func(_ context.Context, prompt string) error {
-		devinQueryCount++
-		if devinQueryCount == 1 {
+		if devinQueryCount.Add(1) == 1 {
+			devinInitialPrompt <- prompt
 			return nil
 		}
 		queuedPrompt <- prompt
@@ -294,9 +295,14 @@ func TestRealtimeServiceQueuesDirectedMessageWhenTargetRunning(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("启动 Devin 长任务失败: %v", err)
 	}
-	_ = collectRoomEventsUntil(t, sender.events, func(events []protocol.EventMessage, event protocol.EventMessage) bool {
-		return event.EventType == protocol.EventTypeStreamStart && event.AgentID == devin.AgentID
-	})
+	select {
+	case prompt := <-devinInitialPrompt:
+		if !strings.Contains(prompt, "@Devin 先处理一个长任务") {
+			t.Fatalf("Devin 首轮 prompt 缺少长任务: %s", prompt)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Devin 长任务未进入 runtime Query")
+	}
 
 	message, err := service.HandleDirectedMessage(ctx, roomContext.Room.ID, roomContext.Conversation.ID, protocol.CreateRoomDirectedMessageRequest{
 		SourceAgentID: amy.AgentID,

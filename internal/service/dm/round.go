@@ -65,6 +65,7 @@ type roundRunner struct {
 	clientRequestID             string
 	content                     string
 	runtimeContent              conversationsvc.RuntimeContent
+	atomicInput                 bool
 	recoveryContext             []runtimectx.ContextualInputBlock
 	client                      runtimectx.Client
 	runtimeKind                 string
@@ -232,6 +233,7 @@ func (r *roundRunner) executeRound(
 	}
 	return exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
+		AtomicInput:      r.atomicInput,
 		ContextualInputs: append(executionInputs, r.contextualInputs()...),
 		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation"),
 		Client:           r.client,

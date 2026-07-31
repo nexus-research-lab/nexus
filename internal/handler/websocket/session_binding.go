@@ -20,15 +20,23 @@ func (h *Handler) handleBindSession(
 	if parsed.Kind == protocol.SessionKeyKindUnknown {
 		return
 	}
+	catalogEvent, err := h.commandCatalogEvent(ctx, sessionKey, parsed, inbound)
+	if err != nil {
+		h.sendGatewayError(ctx, sender, sessionKey, "command_catalog_error", err, map[string]any{
+			"type": "bind_session",
+		})
+		return
+	}
 	h.permission.BindSession(sessionKey, sender)
 	if h.channels != nil {
 		_ = h.channels.RememberWebSocketRoute(ctx, sessionKey)
 	}
 	h.broadcastSessionStatus(ctx, sessionKey)
-	if err := h.sendCommandCatalog(ctx, sender, sessionKey, parsed, inbound); err != nil {
+	if err = sender.SendEvent(ctx, catalogEvent); err != nil {
 		h.sendGatewayError(ctx, sender, sessionKey, "command_catalog_error", err, map[string]any{
 			"type": "bind_session",
 		})
+		return
 	}
 	if parsed.Kind == protocol.SessionKeyKindAgent && h.dm != nil {
 		if err := h.dm.SendInputQueueSnapshot(ctx, sessionKey, handlershared.StringValue(inbound["agent_id"])); err != nil {

@@ -68,7 +68,8 @@ func shouldSkipInternalHistoryRow(row protocol.Message) bool {
 	case "user":
 		content := stringFromAny(row["content"])
 		return message.IsInternalTranscriptInterruptPrompt(content) ||
-			message.IsInternalTranscriptContinuationPrompt(content)
+			message.IsInternalTranscriptContinuationPrompt(content) ||
+			message.IsInternalExplicitSkillPrompt(content)
 	default:
 		return false
 	}

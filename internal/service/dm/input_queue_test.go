@@ -316,10 +316,15 @@ func TestServiceInputQueueRetryAfterImmediateDispatchIsIdempotent(t *testing.T) 
 	if !retry.Duplicate || retry.ItemID != first.ItemID {
 		t.Fatalf("重试应确认原始 DM 队列受理结果: first=%+v retry=%+v", first, retry)
 	}
+	waitContext, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err = runtimeManager.WaitBackgroundTasks(waitContext, sessionKey); err != nil {
+		t.Fatalf("等待 DM 幂等重试后台任务收敛失败: %v", err)
+	}
 	select {
 	case prompt := <-queryPrompts:
 		t.Fatalf("相同 client_message_id 重试不应触发第二轮: %q", prompt)
-	case <-time.After(200 * time.Millisecond):
+	default:
 	}
 }
 

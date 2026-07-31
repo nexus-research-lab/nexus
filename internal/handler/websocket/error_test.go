@@ -104,6 +104,17 @@ func TestChatErrorDetailUsesRuntimeNeutralFallback(t *testing.T) {
 	}
 }
 
+func TestCommandCatalogErrorUsesRuntimeStartupGuidance(t *testing.T) {
+	message := (&Handler{}).errorEventDetail(
+		"command_catalog_error",
+		errors.New(`client: cli executable "nxs" not found`),
+	)
+	if !strings.Contains(message, "nxs runtime") ||
+		!strings.Contains(message, "NEXUS_NXS_COMMAND_PATH") {
+		t.Fatalf("command catalog startup guidance = %q", message)
+	}
+}
+
 func TestNewGatewayErrorEventUsesRoundID(t *testing.T) {
 	event := (&Handler{}).newGatewayErrorEvent(
 		"agent:agent-1:ws:dm:session-1",

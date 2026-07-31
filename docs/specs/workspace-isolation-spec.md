@@ -338,10 +338,10 @@ NEXUS_MEMORY_DIR=<agent_workspace>
   仍可运行，最终写入/删除/重命名由 OS DAC/ACL 与 Landlock 决定；
 - enforce Hook 对普通 Agent 的 `nexusctl` 管理命令做早期拒绝；打包部署额外把
   CLI executable 设为宿主组专用。Nexus 主智能体是宿主控制面主体，可使用
-  `NEXUSCTL_COMMAND_PATH` 的当前 owner scope，但 Hook 拒绝
-  `--global-scope`、`--scope-user-id` 和环境变量改写。现有 CLI 直接打开宿主
-  数据库，通用 scoped broker 尚未就绪，不能让普通 runtime 误操作空数据库或
-  继承宿主控制面；
+  `NEXUSCTL_COMMAND_PATH` 的当前 owner scope。宿主注入 owner 后，CLI 帮助隐藏
+  人工作用域选择参数，显式覆盖返回可重试的 usage 错误，Hook 对 shell 文本仍做
+  拒绝。现有 CLI 直接打开宿主数据库，通用 scoped broker 尚未就绪，不能让普通
+  runtime 误操作空数据库或继承宿主控制面；
 - 不返回 `updatedInput`，只允许放行或拒绝；
 - Hook 本身不返回 `allow` 决策，避免覆盖其他 hook 或用户权限处理；越界时返回
   `deny`。Hook 失效不构成安全放行，enforce 进程仍必须通过 launcher 的最终边界；

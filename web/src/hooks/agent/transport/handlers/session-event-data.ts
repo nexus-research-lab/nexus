@@ -44,13 +44,13 @@ const RUNTIME_STATUSES = new Set<Exclude<AgentConversationRuntimeStatus, null>>(
   "compacting",
 ]);
 const COMMAND_CATALOG_STATUSES = new Set<CommandCatalogStatus>([
-  "loading",
+  "cold",
   "ready",
   "unavailable",
 ]);
 const COMMAND_EXECUTIONS = new Set<CommandExecution>([
   "host",
-  "runtime_prompt",
+  "runtime",
   "unsupported",
 ]);
 const INPUT_QUEUE_SCOPES = new Set<InputQueueItem["scope"]>(["dm", "room"]);
@@ -65,6 +65,9 @@ const DELIVERY_POLICIES = new Set<InputQueueItem["delivery_policy"]>([
   "interrupt",
   "queue",
 ]);
+const CHAT_ACK_USER_MESSAGE_DELIVERY_MODES = new Set<
+  NonNullable<ChatAckData["user_message_delivery_mode"]>
+>(["durable", "ephemeral", "transient"]);
 const ASSISTANT_MESSAGE_STATUSES = new Set<
   ChatAckData["pending"][number]["status"]
 >(["cancelled", "done", "error", "pending", "streaming"]);
@@ -160,15 +163,42 @@ export function parseCommandCatalogData(
     return null;
   }
   const revision = readString(data, "revision");
+  const generation = readNumber(data, "generation");
   const runtimeKind = readString(data, "runtime_kind");
   const agentId = readString(data, "agent_id");
   return {
     status,
     commands: data.commands,
     ...(revision ? { revision } : {}),
+    ...(generation !== null && generation >= 0 ? { generation } : {}),
     ...(runtimeKind ? { runtime_kind: runtimeKind } : {}),
     ...(agentId ? { agent_id: agentId } : {}),
   };
+}
+
+const COMMAND_CATALOG_STATUS_RANK: Record<CommandCatalogStatus, number> = {
+  cold: 0,
+  unavailable: 1,
+  ready: 2,
+};
+
+export function selectCommandCatalogSnapshot(
+  current: CommandCatalogData,
+  incoming: CommandCatalogData,
+): CommandCatalogData {
+  const currentGeneration = current.generation ?? 0;
+  const incomingGeneration = incoming.generation ?? 0;
+  if (incomingGeneration < currentGeneration) {
+    return current;
+  }
+  if (
+    incomingGeneration === currentGeneration
+    && COMMAND_CATALOG_STATUS_RANK[incoming.status]
+      < COMMAND_CATALOG_STATUS_RANK[current.status]
+  ) {
+    return current;
+  }
+  return incoming;
 }
 
 function isInputQueueItem(value: unknown): value is InputQueueItem {
@@ -283,12 +313,21 @@ function isChatAckPendingSlot(
 }
 
 export function parseChatAckData(data: UnknownRecord): ChatAckData | null {
+  const invalidUserMessageDeliveryMode = (
+    data.user_message_delivery_mode !== undefined
+    && readStringFromSet(
+      data,
+      "user_message_delivery_mode",
+      CHAT_ACK_USER_MESSAGE_DELIVERY_MODES,
+    ) === null
+  );
   if (
     typeof data.user_message_committed !== "boolean"
     || typeof data.pending_snapshot !== "boolean"
     || !Array.isArray(data.pending)
     || !data.pending.every(isChatAckPendingSlot)
     || readNumber(data, "ack_timeout_ms") === null
+    || invalidUserMessageDeliveryMode
   ) {
     return null;
   }

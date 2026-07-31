@@ -13,6 +13,8 @@ interface MarkdownRawBlock {
   start_offset: number;
 }
 
+type MarkdownListKind = "ordered" | "unordered";
+
 function getLinesWithEndings(content: string): string[] {
   return content.match(/[^\n]*(?:\n|$)/g)?.filter((line) => line.length > 0) ?? [];
 }
@@ -23,6 +25,34 @@ function isBlankLine(line: string): boolean {
 
 function isStandaloneBlockLine(line: string): boolean {
   return /^ {0,3}#{1,6}\s+\S/.test(line) || /^ {0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line);
+}
+
+function readListKind(content: string): MarkdownListKind | null {
+  const firstLine = getLinesWithEndings(content).find((line) => !isBlankLine(line));
+  if (!firstLine || isStandaloneBlockLine(firstLine)) {
+    return null;
+  }
+  if (/^ {0,3}\d{1,9}[.)](?:[ \t]+|$)/.test(firstLine)) {
+    return "ordered";
+  }
+  if (/^ {0,3}[*+-](?:[ \t]+|$)/.test(firstLine)) {
+    return "unordered";
+  }
+  return null;
+}
+
+function mergeAdjacentListBlocks(blocks: MarkdownRawBlock[]): MarkdownRawBlock[] {
+  const merged: Array<MarkdownRawBlock & { list_kind: MarkdownListKind | null }> = [];
+  for (const block of blocks) {
+    const listKind = readListKind(block.content);
+    const previous = merged.at(-1);
+    if (listKind !== null && previous?.list_kind === listKind) {
+      previous.content += block.content;
+      continue;
+    }
+    merged.push({ ...block, list_kind: listKind });
+  }
+  return merged.map(({ list_kind: _listKind, ...block }) => block);
 }
 
 function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
@@ -75,7 +105,7 @@ function splitMarkdownRawBlocks(content: string): MarkdownRawBlock[] {
   }
 
   flushBuffer();
-  return blocks;
+  return mergeAdjacentListBlocks(blocks);
 }
 
 export function splitStreamingMarkdownBlocks(content: string): MarkdownStreamBlock[] {

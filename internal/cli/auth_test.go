@@ -214,7 +214,7 @@ func executeCLICommandWithInput(
 ) (map[string]any, error, string) {
 	t.Helper()
 
-	for _, key := range []string{nexusctlUserIDEnvName} {
+	for _, key := range []string{nexusctlUserIDEnvName, nexusRuntimeScopeModeEnvName} {
 		value, ok := env[key]
 		if ok {
 			t.Setenv(key, value)
