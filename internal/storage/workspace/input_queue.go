@@ -243,6 +243,9 @@ func (s *InputQueueStore) Enqueue(
 
 	now := time.Now().UnixMilli()
 	item = normalizeInputQueueItem(location, item, now)
+	if err := protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
+		return nil, err
+	}
 	if item.ID == "" {
 		item.ID = NewInputQueueID()
 	}
@@ -298,6 +301,9 @@ func (s *InputQueueStore) EnqueueIdempotent(
 
 	now := time.Now().UnixMilli()
 	item = normalizeInputQueueItem(location, item, now)
+	if err = protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
+		return InputQueueEnqueueResult{}, err
+	}
 	if existing, ok := findAcceptedInputQueueEnqueue(location, rows, clientMessageID); ok {
 		if !MatchesInputQueueEnqueueIntent(existing, item) {
 			return InputQueueEnqueueResult{}, fmt.Errorf(
@@ -381,6 +387,8 @@ type inputQueueEnqueueIntent struct {
 	TargetAgentIDs []string
 	Source         protocol.InputQueueSource
 	OwnerUserID    string
+	WorkBinding    *protocol.ExecutionWorkBinding
+	ReviewBinding  *protocol.ExecutionReviewBinding
 }
 
 func normalizeInputQueueEnqueueIntent(item protocol.InputQueueItem) inputQueueEnqueueIntent {
@@ -394,6 +402,8 @@ func normalizeInputQueueEnqueueIntent(item protocol.InputQueueItem) inputQueueEn
 		TargetAgentIDs: targetAgentIDs,
 		Source:         protocol.NormalizeInputQueueSource(string(item.Source)),
 		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
+		WorkBinding:    normalizeExecutionWorkBinding(item.WorkBinding),
+		ReviewBinding:  normalizeExecutionReviewBinding(item.ReviewBinding),
 	}
 }
 
@@ -408,6 +418,9 @@ func (s *InputQueueStore) EnqueueBounded(
 
 	now := time.Now().UnixMilli()
 	item = normalizeInputQueueItem(location, item, now)
+	if err := protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
+		return nil, false, err
+	}
 	items, err := s.snapshotLocked(location)
 	if err != nil {
 		return nil, false, err
@@ -457,6 +470,9 @@ func (s *InputQueueStore) EnqueueBatchWithItems(entries []InputQueueEnqueue) ([]
 			return nil, err
 		}
 		item := normalizeInputQueueItem(entry.Location, entry.Item, now)
+		if err = protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
+			return nil, err
+		}
 		if item.ID == "" {
 			item.ID = NewInputQueueID()
 		}
@@ -571,6 +587,9 @@ func (s *InputQueueStore) UpdateDeliveryPolicy(
 		selected.RootRoundID = ""
 	}
 	selected.UpdatedAt = now
+	if err = protocol.ValidateInputQueueCapabilityEnvelope(*selected); err != nil {
+		return nil, err
+	}
 	if err = s.appendActionLocked(location, map[string]any{
 		"action":    inputQueueActionUpdate,
 		"item":      *selected,
@@ -731,6 +750,9 @@ func (s *InputQueueStore) DispatchGuidance(
 func matchingGuidanceItems(items []protocol.InputQueueItem, rootRoundIDs []string) []protocol.InputQueueItem {
 	guidanceItems := make([]protocol.InputQueueItem, 0)
 	for _, item := range items {
+		if item.WorkBinding != nil || item.ReviewBinding != nil {
+			continue
+		}
 		if protocol.ShouldGuideRunningRound(item.DeliveryPolicy) && matchesInputQueueGuidanceTarget(item, rootRoundIDs) {
 			guidanceItems = append(guidanceItems, item)
 		}

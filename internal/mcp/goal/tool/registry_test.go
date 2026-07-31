@@ -164,6 +164,29 @@ func TestRetargetGoalBindsCurrentSessionAndRound(t *testing.T) {
 	}
 }
 
+func TestRetargetGoalInPlanModeDoesNotMutateState(t *testing.T) {
+	svc := &fakeRetargetGoalService{
+		retargeted: &protocol.Goal{ID: "must-not-be-used"},
+	}
+	tool := retargetGoal(svc, contract.ServerContext{
+		CurrentSessionKey: "agent:nexus:ws:dm:chat",
+		CurrentRoundID:    "round-plan-mode",
+		CurrentAgentID:    "agent-1",
+		PlanMode:          true,
+	})
+
+	result, err := tool.Handler(
+		context.Background(),
+		map[string]any{"objective": "A structurally valid replacement objective"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.IsError || svc.sessionKey != "" || svc.request.Objective != "" {
+		t.Fatalf("result=%#v mutation=%q %#v", result, svc.sessionKey, svc.request)
+	}
+}
+
 func TestRetargetGoalRefreshesRevisionForFollowingUpdateInSameServer(t *testing.T) {
 	revision := contract.NewGoalObjectiveRevision(1)
 	otherSlotRevision := contract.NewGoalObjectiveRevision(1)

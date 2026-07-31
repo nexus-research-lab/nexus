@@ -45,6 +45,49 @@ func (m *Manager) QueueContextualGuidanceInputOnConsumed(
 	return m.queueGuidanceInput(sessionKey, roundID, content, contextName, onConsumed)
 }
 
+// QueueGoalContextualGuidanceInputOnConsumed 只把 Goal steering 放入至少有一个
+// 已绑定 Goal revision 的运行 session。普通聊天 round 的 revision=0，不能因
+// session 上存在 ambient Goal 而被 retarget。
+func (m *Manager) QueueGoalContextualGuidanceInputOnConsumed(
+	_ context.Context,
+	sessionKey string,
+	roundID string,
+	contextName string,
+	content string,
+	onConsumed func(),
+) ([]string, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return nil, nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil || len(state.RunningRounds) == 0 {
+		return nil, ErrNoRunningRound
+	}
+	roundIDs := make([]string, 0, len(state.RunningRounds))
+	for _, candidate := range slices.Sorted(maps.Keys(state.RunningRounds)) {
+		revision := state.GoalObjectiveRevisions[candidate]
+		if revision == nil || revision.Load() <= 0 {
+			continue
+		}
+		roundIDs = append(roundIDs, candidate)
+	}
+	if len(roundIDs) == 0 {
+		return nil, ErrNoRunningRound
+	}
+	state.GuidedInputs = append(state.GuidedInputs, GuidedInput{
+		RoundID:     strings.TrimSpace(roundID),
+		Content:     content,
+		ContextName: normalizeGuidanceContextName(contextName),
+		onConsumed:  onConsumed,
+	})
+	m.touchStateLocked(state)
+	return roundIDs, nil
+}
+
 func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content string, contextName string, onConsumed func()) ([]string, error) {
 	content = strings.TrimSpace(content)
 	if content == "" {

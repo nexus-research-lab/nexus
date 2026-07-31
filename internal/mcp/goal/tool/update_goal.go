@@ -50,6 +50,9 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 			if status != protocol.GoalStatusComplete && status != protocol.GoalStatusBlocked {
 				return errorResult(fmt.Errorf("the Goal update tool can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system")), nil
 			}
+			if sctx.PlanMode {
+				return planModeGoalMutationResult("update_goal"), nil
+			}
 			current, err := svc.Current(ctx, sctx.CurrentSessionKey)
 			if err != nil {
 				return updateGoalCurrentErrorResult(err), nil

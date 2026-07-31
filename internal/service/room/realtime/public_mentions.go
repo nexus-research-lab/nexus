@@ -6,12 +6,16 @@ package realtime
 import (
 	"cmp"
 	"context"
+	"errors"
+	"strings"
+	"time"
+
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-	"strings"
-	"time"
 )
 
 const (
@@ -223,6 +227,60 @@ func (s *Service) startPublicMentionRoundLocked(
 	if parentRound == nil || parentRound.Context == nil || len(wakes) == 0 {
 		return nil
 	}
+	admittedWakes := make([]publicMentionWake, 0, len(wakes))
+	for _, wake := range wakes {
+		if wake.ReviewBinding != nil {
+			if err := s.authorizeManagedExecutionReviewTarget(
+				ctx,
+				parentRound,
+				wake.TargetAgentID,
+				wake.ReviewBinding,
+			); err != nil {
+				if !isPermanentExecutionAdmissionError(err) {
+					return err
+				}
+				s.terminalizeRejectedExecutionWake(parentRound, wake)
+				s.loggerFor(ctx).Info(
+					"拒绝迟到的 Execution review return",
+					"review_dispatch_id",
+					wake.ReviewBinding.ReviewDispatchID,
+					"target_agent_id",
+					wake.TargetAgentID,
+					"err",
+					err,
+				)
+				continue
+			}
+			admittedWakes = append(admittedWakes, wake)
+			continue
+		}
+		if err := s.authorizeManagedExecutionTarget(
+			ctx,
+			parentRound,
+			wake.TargetAgentID,
+			wake.WorkBinding,
+		); err != nil {
+			if wake.WorkBinding == nil || !isPermanentExecutionAdmissionError(err) {
+				return err
+			}
+			s.terminalizeRejectedExecutionWake(parentRound, wake)
+			s.loggerFor(ctx).Info(
+				"拒绝迟到的 Execution work dispatch",
+				"dispatch_id",
+				wake.WorkBinding.DispatchID,
+				"target_agent_id",
+				wake.TargetAgentID,
+				"err",
+				err,
+			)
+			continue
+		}
+		admittedWakes = append(admittedWakes, wake)
+	}
+	wakes = admittedWakes
+	if len(wakes) == 0 {
+		return nil
+	}
 	wakes, err := s.admitPublicMentionWakes(ctx, parentRound, wakes)
 	if err != nil {
 		return err
@@ -320,7 +378,7 @@ func (s *Service) startPublicMentionRoundLocked(
 		activeRound.OwnerUserID = authctx.OwnerUserID(ctx)
 	}
 	targetAgentIDs, pending := addPublicMentionSlots(activeRound, contextValue, pendingSlots)
-	s.launchPublicMentionRound(
+	if !s.launchPublicMentionRound(
 		ctx,
 		activeRound,
 		wakes,
@@ -330,7 +388,9 @@ func (s *Service) startPublicMentionRoundLocked(
 		publicHistory,
 		agentNameByID,
 		agentByID,
-	)
+	) {
+		return runtimectx.ErrRuntimeSessionClosing
+	}
 	if s.publicHandoffs != nil {
 		for _, wake := range wakes {
 			if strings.TrimSpace(wake.HandoffID) == "" {
@@ -347,6 +407,30 @@ func (s *Service) startPublicMentionRoundLocked(
 		}
 	}
 	return nil
+}
+
+func isPermanentExecutionAdmissionError(err error) bool {
+	if errors.Is(err, protocol.ErrInvalidInputQueueCapabilityEnvelope) {
+		return true
+	}
+	var domainErr *orchestrationsvc.DomainError
+	return errors.As(err, &domainErr)
+}
+
+func (s *Service) terminalizeRejectedExecutionWake(
+	parentRound *activeRoomRound,
+	wake publicMentionWake,
+) {
+	if s == nil || s.publicHandoffs == nil || parentRound == nil ||
+		strings.TrimSpace(wake.HandoffID) == "" {
+		return
+	}
+	_ = s.publicHandoffs.MarkTerminal(
+		parentRound.OwnerUserID,
+		parentRound.ConversationID,
+		wake.HandoffID,
+		"interrupted",
+	)
 }
 
 // admitPublicMentionWakes 在真正 claim 前做幂等、self 与 root 级资源护栏。
@@ -605,17 +689,18 @@ func (s *Service) logMissingPublicMentionSlots(
 func newPublicMentionRound(parentRound *activeRoomRound, sessionKey string, roundID string) *activeRoomRound {
 	contextValue := parentRound.Context
 	return &activeRoomRound{
-		SessionKey:     sessionKey,
-		RoomID:         contextValue.Room.ID,
-		ConversationID: contextValue.Conversation.ID,
-		RoomType:       contextValue.Room.RoomType,
-		Context:        contextValue,
-		RoundID:        roundID,
-		RootRoundID:    cmp.Or(roomRootRoundID(parentRound), roundID),
-		HopIndex:       parentRound.HopIndex + 1,
-		OwnerUserID:    parentRound.OwnerUserID,
-		Slots:          make(map[string]*activeRoomSlot),
-		Done:           make(chan struct{}),
+		SessionKey:         sessionKey,
+		RoomID:             contextValue.Room.ID,
+		ConversationID:     contextValue.Conversation.ID,
+		CoordinatorAgentID: parentRound.CoordinatorAgentID,
+		RoomType:           contextValue.Room.RoomType,
+		Context:            contextValue,
+		RoundID:            roundID,
+		RootRoundID:        cmp.Or(roomRootRoundID(parentRound), roundID),
+		HopIndex:           parentRound.HopIndex + 1,
+		OwnerUserID:        parentRound.OwnerUserID,
+		Slots:              make(map[string]*activeRoomSlot),
+		Done:               make(chan struct{}),
 	}
 }
 
@@ -666,7 +751,7 @@ func (s *Service) launchPublicMentionRound(
 	publicHistory []protocol.Message,
 	agentNameByID map[string]string,
 	agentByID map[string]*protocol.Agent,
-) {
+) bool {
 	sessionKey := activeRound.SessionKey
 	contextValue := activeRound.Context
 	roundID := activeRound.RoundID
@@ -675,7 +760,7 @@ func (s *Service) launchPublicMentionRound(
 	s.registerRound(activeRound)
 	if !s.runtime.StartRound(sessionKey, roundID, cancel) {
 		s.finishRound(activeRound)
-		return
+		return false
 	}
 	s.loggerFor(ctx).Info(roomWakeStartLogMessage(wakes),
 		"s", sessionKey,
@@ -706,6 +791,7 @@ func (s *Service) launchPublicMentionRound(
 	}
 	s.broadcastSessionStatus(ctx, sessionKey)
 	go s.runRound(roundCtx, activeRound, publicHistory, agentNameByID, agentByID)
+	return true
 }
 
 func buildPublicMentionSlot(
@@ -742,6 +828,8 @@ func buildPublicMentionSlot(
 		Index:                 index,
 		TimestampMS:           time.Now().UnixMilli(),
 		Trigger:               trigger,
+		WorkBinding:           cloneExecutionWorkBinding(wake.WorkBinding),
+		ReviewBinding:         cloneExecutionReviewBinding(wake.ReviewBinding),
 	}
 	slot.setSDKSessionID(strings.TrimSpace(sessionRecord.SDKSessionID))
 	slot.setStatus("pending")
@@ -858,6 +946,13 @@ func (s *Service) queueBusyPublicMentionWakes(
 			rootRoundID = roomRootRoundID(parentRound)
 		}
 		queuedItemID := workspacestore.NewInputQueueID()
+		if wake.WorkBinding != nil && strings.TrimSpace(wake.WorkBinding.DispatchID) != "" {
+			queuedItemID = "execution_dispatch_" + strings.TrimSpace(wake.WorkBinding.DispatchID)
+		} else if wake.ReviewBinding != nil &&
+			strings.TrimSpace(wake.ReviewBinding.ReviewDispatchID) != "" {
+			queuedItemID = "execution_review_dispatch_" +
+				strings.TrimSpace(wake.ReviewBinding.ReviewDispatchID)
+		}
 		queuedItem := protocol.InputQueueItem{
 			ID:              queuedItemID,
 			Scope:           protocol.InputQueueScopeRoom,
@@ -876,6 +971,8 @@ func (s *Service) queueBusyPublicMentionWakes(
 			OwnerUserID:     parentRound.OwnerUserID,
 			RootRoundID:     rootRoundID,
 			HopIndex:        parentRound.HopIndex,
+			WorkBinding:     cloneExecutionWorkBinding(wake.WorkBinding),
+			ReviewBinding:   cloneExecutionReviewBinding(wake.ReviewBinding),
 		}
 		queueItems, inserted, err := s.inputQueue.EnqueueBounded(location.Location, queuedItem, 0)
 		if err != nil {

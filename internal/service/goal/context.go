@@ -2,6 +2,9 @@ package goal
 
 import (
 	"context"
+	"fmt"
+	"html"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -27,5 +30,35 @@ func (s *Service) RuntimeContext(ctx context.Context, sessionKey string) (string
 	if err != nil {
 		return "", nil, err
 	}
-	return "", item, nil
+	return renderPendingObjectiveTransitionContext(*item), item, nil
+}
+
+func renderPendingObjectiveTransitionContext(item protocol.Goal) string {
+	if !GoalObjectiveTransitionPending(item) {
+		return ""
+	}
+	transition, ok := ObjectiveTransitionFromGoal(item)
+	if !ok {
+		return `<nexus_goal_transition pending="true" phase="malformed">` +
+			`Goal objective transition state is malformed. Do not complete, block, or continue this Goal; reload it and require recovery.` +
+			`</nexus_goal_transition>`
+	}
+	action := "plan_execution"
+	instruction := "Create the complete fresh successor WorkGraph. Do not reuse or mutate the superseded predecessor."
+	if transition.Phase == ObjectiveTransitionPrepared {
+		action = "retarget_goal"
+		instruction = "Retry retarget_goal with the same requested objective so the durable rebase can finish."
+	}
+	return fmt.Sprintf(
+		`<nexus_goal_transition pending="true" phase="%s" goal_id="%s" objective_revision="%d" successor_execution_id="%s">`+
+			`<required_action tool="%s" requested_objective="%s">%s</required_action>`+
+			`</nexus_goal_transition>`,
+		html.EscapeString(string(transition.Phase)),
+		html.EscapeString(strings.TrimSpace(item.ID)),
+		item.ObjectiveRevision(),
+		html.EscapeString(transition.SuccessorExecutionID),
+		action,
+		html.EscapeString(transition.RequestedObjective),
+		instruction,
+	)
 }

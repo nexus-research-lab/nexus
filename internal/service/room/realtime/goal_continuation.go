@@ -253,10 +253,25 @@ func (s *Service) dispatchPostRoundWork(ctx context.Context, roundValue *activeR
 	if roundValue.RunningSubagents.Load() {
 		return
 	}
+	if !roomRoundHasGoalAuthority(roundValue) {
+		return
+	}
 	if s.ShouldDeferGoalContinuation(ctx, roundValue.SessionKey) {
 		return
 	}
 	s.dispatchGoalContinuation(ctx, roundValue)
+}
+
+func roomRoundHasGoalAuthority(roundValue *activeRoomRound) bool {
+	if roundValue == nil {
+		return false
+	}
+	for _, slot := range roundValue.Slots {
+		if slot != nil && slot.goalMutationAuthority().valid() {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) dispatchGoalContinuation(ctx context.Context, roundValue *activeRoomRound) {
@@ -350,6 +365,9 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	if err != nil || validated == nil {
 		return err
 	}
+	if _, err = exactGoalContinuationExecutionID(*validated); err != nil {
+		return err
+	}
 	if _, err = planner.ClaimContinuationPlan(ctx, *validated); err != nil {
 		return err
 	}
@@ -366,6 +384,10 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, pl
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
 		return errors.New("room goal continuation requires a room session key")
 	}
+	executionID, err := exactGoalContinuationExecutionID(plan)
+	if err != nil {
+		return err
+	}
 	targetAgentIDs, collaborationContext := s.goalContinuationDispatchTarget(ctx, parsed.ConversationID, plan.Goal)
 	goalContext := appendPromptSection(plan.Prompt, collaborationContext)
 	if collaborationContext != "" {
@@ -377,12 +399,25 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, pl
 		GoalContext:           goalContext,
 		GoalID:                plan.Goal.ID,
 		GoalObjectiveRevision: plan.Goal.ObjectiveRevision(),
+		ExecutionID:           executionID,
 		TargetAgentIDs:        targetAgentIDs,
+		CoordinatorAgentID:    firstRoomTargetAgentID(targetAgentIDs),
 		RoundID:               plan.RoundID,
 		DeliveryPolicy:        protocol.ChatDeliveryPolicyQueue,
 		Internal:              true,
 		InputOptions:          goalContinuationInputOptions(plan),
 	})
+}
+
+func exactGoalContinuationExecutionID(plan protocol.GoalContinuation) (string, error) {
+	executionID := protocol.GoalMetadataString(
+		plan.Goal.Metadata,
+		protocol.GoalMetadataExecutionID,
+	)
+	if strings.TrimSpace(executionID) == "" {
+		return "", errors.New("room goal continuation requires an exact execution binding")
+	}
+	return strings.TrimSpace(executionID), nil
 }
 
 func (s *Service) goalContinuationDispatchTarget(

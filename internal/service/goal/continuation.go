@@ -125,6 +125,9 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return nil, nil
 	}
+	if GoalObjectiveTransitionPending(*item) {
+		return nil, nil
+	}
 	if s.goalBudgetExhausted(*item) {
 		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusBudgetLimited, "budget_limited", previousRoundID, "Goal token budget exhausted")
 		return nil, err
@@ -223,6 +226,9 @@ func (s *Service) GoalContinuationStillCurrent(ctx context.Context, plan protoco
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return false, nil
 	}
+	if GoalObjectiveTransitionPending(*item) {
+		return false, nil
+	}
 	return item.ID == goalID &&
 		objectiveRevisionMatches(*item, plan.Goal.ObjectiveRevision()) &&
 		hasContinuationReservation(item.Metadata, plan.RoundID), nil
@@ -246,6 +252,9 @@ func (s *Service) ClaimContinuationPlan(ctx context.Context, plan protocol.GoalC
 	}
 	expectedRevision := plan.Goal.ObjectiveRevision()
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if pendingErr := rejectPendingObjectiveTransition(*current, "claim Goal continuation"); pendingErr != nil {
+			return nil, pendingErr
+		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
 		}

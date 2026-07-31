@@ -210,6 +210,25 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		targetAgentIDs,
 		targetResolution,
 	)
+	admissionRound := &activeRoomRound{
+		SessionKey:         sessionKey,
+		RoomID:             roomID,
+		ConversationID:     conversationID,
+		CoordinatorAgentID: roomCoordinatorAgentID(request.CoordinatorAgentID, contextValue),
+		Context:            contextValue,
+		RootRoundID:        request.RoundID,
+		OwnerUserID:        contextValue.Room.OwnerUserID,
+	}
+	for _, targetAgentID := range targetAgentIDs {
+		if err = s.authorizeManagedExecutionTarget(
+			ctx,
+			admissionRound,
+			targetAgentID,
+			nil,
+		); err != nil {
+			return nil, err
+		}
+	}
 	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
 	if !request.Internal {
 		targetAgentIDs, targetResolution = s.resolveActiveRoomTargets(
@@ -573,6 +592,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		SessionKey:            e.sessionKey,
 		RoomID:                e.roomID,
 		ConversationID:        e.conversationID,
+		CoordinatorAgentID:    roomCoordinatorAgentID(e.request.CoordinatorAgentID, e.contextValue),
 		RoomType:              e.contextValue.Room.RoomType,
 		Context:               e.contextValue,
 		RoundID:               e.request.RoundID,
@@ -586,6 +606,7 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		GoalContext:           strings.TrimSpace(e.request.GoalContext),
 		GoalID:                strings.TrimSpace(e.request.GoalID),
 		GoalObjectiveRevision: e.request.GoalObjectiveRevision,
+		ExecutionID:           strings.TrimSpace(e.request.ExecutionID),
 		Slots:                 make(map[string]*activeRoomSlot),
 		Done:                  make(chan struct{}),
 	}
@@ -861,6 +882,15 @@ func (s *Service) validateChatRequest(request ChatRequest) (string, string, erro
 	if !protocol.HasChatInput(request.Content, request.Attachments) &&
 		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
 		return "", "", errors.New("content is required")
+	}
+	if request.Internal &&
+		strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation" &&
+		(strings.TrimSpace(request.GoalID) == "" ||
+			request.GoalObjectiveRevision <= 0 ||
+			strings.TrimSpace(request.ExecutionID) == "") {
+		return "", "", errors.New(
+			"goal continuation requires exact goal, objective revision, and execution binding",
+		)
 	}
 	conversationID := cmp.Or(strings.TrimSpace(request.ConversationID), protocol.ParseRoomConversationID(sessionKey))
 	if conversationID == "" {

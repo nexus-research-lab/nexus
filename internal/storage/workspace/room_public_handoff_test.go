@@ -1,7 +1,10 @@
 package workspace
 
 import (
+	"errors"
 	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestRoomPublicHandoffStoreIsDurableAndIdempotent(t *testing.T) {
@@ -55,6 +58,29 @@ func TestRoomPublicHandoffStoreIsDurableAndIdempotent(t *testing.T) {
 	path := store.paths.RoomPublicHandoffsPath(testRoomOwnerUserID, conversationID)
 	if _, err := reloaded.files.readJSONL(path); err != nil {
 		t.Fatalf("handoff ledger 应写入 workspace JSONL: %v", err)
+	}
+}
+
+func TestRoomPublicHandoffRejectsIncompleteResponsibilityBinding(t *testing.T) {
+	store := NewRoomPublicHandoffStore(t.TempDir())
+	_, _, err := store.Detect(testRoomOwnerUserID, RoomPublicHandoff{
+		HandoffID:      "execution_dispatch_incomplete",
+		ConversationID: "conversation-handoff",
+		SourceMessageID: "execution_dispatch_incomplete",
+		SourceAgentID:   "agent-lead",
+		TargetAgentID:   "agent-worker",
+		Content:         "deliver the result",
+		WorkBinding: &protocol.ExecutionWorkBinding{
+			ExecutionID:  "execution-1",
+			PlanID:       "plan-1",
+			WorkItemID:   "work-1",
+			SpecID:       "spec-1",
+			AssignmentID: "assignment-1",
+			DispatchID:   "dispatch-1",
+		},
+	})
+	if !errors.Is(err, protocol.ErrInvalidInputQueueCapabilityEnvelope) {
+		t.Fatalf("error = %v, want capability envelope error", err)
 	}
 }
 

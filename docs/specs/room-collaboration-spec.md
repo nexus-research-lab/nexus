@@ -4,7 +4,7 @@
 
 本文是 Group Room 的当前通信协议。它只定义“谁能看到什么、谁何时运行、回复投到哪里”，不定义任何具体业务流程。
 
-Room 模块的对象边界见 [Room 模块规范](./room-spec.md)。本文不重复 Session Key、历史归一化和前端时间线规范；时间线的展示顺序与消息密度见 [消息处理规范](./message-processing-spec.md)。
+Room 模块的对象边界见 [Room 模块规范](./room-spec.md)。Plan、Work Item、Assignment、Submission 与 Acceptance 见 [Execution Orchestration 协议](./execution-orchestration-spec.md)；Room 只运输其可选 binding。本文不重复 Session Key、历史归一化和前端时间线规范；时间线的展示顺序与消息密度见 [消息处理规范](./message-processing-spec.md)。
 
 ## 2. 负责与不负责
 
@@ -74,19 +74,19 @@ correlation_id 是可选的不透明关联值，只用于日志、诊断和 UI �
 4. 开启 host 默认接管时的 host_agent_id。
 5. 仍无目标且存在活跃 root round 时，沿最近活跃 root round 的成员继续投递。
 
-这些是用户输入路由规则，不是业务 Skill 状态。以上规则仍没有目标时，可以保存用户消息，但不启动 Agent。
+这些是用户输入路由规则，不是业务 Skill 或 WorkGraph 状态。以上规则仍没有目标时，可以保存用户消息，但不启动 Agent。用户定向消息无论 Room 是否同时存在 managed Execution 都进入 conversation round；它不携带 WorkBinding/ReviewBinding。受管 work/review 不复用这组自然语言路由，而由各自 durable outbox 按精确 binding 启动。
 
 ### 4.2 Agent 的公开回复
 
 普通公区发言直接使用当前 round 的 final reply，不调用 Room 工具。只有已收口的 final reply 才进入 public feed。
 
-公区 final reply 中的每个非代码 `@成员` 都同时是可点击 mention 与真实 handoff；多个有效目标会分别创建独立 handoff 并行唤醒。只想展示或讨论成员时必须写普通名字，不使用 `@`。源 Agent 的 final reply 持久化且 source slot 成功收口后立即处理，不等待同一 root round 的其他 slot；解析使用成员 name、display name 或 agent id，反引号代码区域中的 `@` 不触发唤醒。推荐在成员名后使用空白或标点；为兼容模型的中文输出，纯 ASCII 别名可直接衔接汉字正文（例如 `@Agent1以上为结果`），但 ASCII 字母、数字或连接符后缀仍视为同一标识符，`@Agent10` 不会误命中 `Agent1`。目标重复时只唤醒一次，不能唤醒自己。
+公区 final reply 中的每个非代码 `@成员` 都同时是可点击 mention 与一次 conversation transport activation，但它不创建或激活 Work Item、Assignment、Submission 或 Acceptance。无论 Room 是否同时存在 active Execution，它都可邀请一个或多个成员聊天、讨论、投票、brainstorm 或提供不追踪的一次性结果；每个 target round 的 WorkBinding/ReviewBinding 都为空，source slot 即使有 binding 也不得传播。分工的唯一权威入口是 `assign_work`（接管是 `take_over_work`），由 durable Dispatch 另建 work-bound round；验收由 review-return outbox 另建 review-bound round。参与人数本身不触发 Plan，多个 mention 也不接受 WorkGraph fanout admission；只有要形成独立责任、依赖、验收或 Goal evidence 的产出才进入 Execution。只想展示或讨论成员、并不希望唤醒时必须写普通名字，不使用 `@`。源 Agent 的 final reply 持久化且 source slot 成功收口后立即处理，不等待同一 root round 的其他 slot；解析使用成员 name、display name 或 agent id，反引号代码区域中的 `@` 不触发唤醒。成员名后的空白或标点只用于可读性，不是正确性条件；服务端按成员目录最长别名匹配，已知 ASCII 或中文别名都可直接衔接汉字正文（例如 `@Agent1以上为结果`、`@研究员请继续`）。ASCII 字母、数字、下划线或连字符后缀仍视为同一标识符，`@Agent10` 不会误命中 `Agent1`。目标重复时只唤醒一次，不能唤醒自己。
 
 用户消息与 Agent final reply 里的 `@成员` 都表达显式目标；前者按前端传入的 `target_agent_ids` 路由，后者按服务端解析出的有效 mention 路由。多个不同目标按目标拆成多个独立 handoff，目标的书写顺序只决定创建顺序，不承诺回复顺序。
 
 平台不从 Agent 的通信方向推断业务拓扑，也不禁止 reciprocal handoff。只要是不同消息中的显式新 `@`，`A → B → A`、peer 间继续讨论或多人先后回交给同一成员都是真实 handoff；是否继续协作由 Agent 的明确表达和 Room Skill 决定。多个来源同时指向同一忙碌 Agent 时，每条 handoff 都独立持久化并按到达顺序进入该 Agent 的 guide/queue，始终只运行一个目标 slot。
 
-公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容带给目标 Agent。目标 Agent 应输出新交付；完成委派后若协调者还需整合、验证或继续推进，回复应包含完整公开交付，并以带明确下一步动作的 `@协调者` 回交，而不是只说“结果可用”。没有新工作或无需任何成员继续行动时使用 <nexus_room_no_reply/> 或不写 `@`，平台不写入空的公区回复。
+公区 handoff 只传递事实和触发原因，不把源 Agent 的私域内容或 Execution capability 带给目标 Agent。目标 Agent 应输出新的对话贡献或一次性结果，而不是复述触发消息。只有在确实需要另一位参与者继续对话时才用带明确下一步的 `@成员`；managed work 完成后必须调用 `submit_work`，系统用 durable review outbox 自动回交 reviewer，正确性不依赖正文里的 `@协调者`。公开回复可以展示交付，但不能代替或事后转化为 Submission、Acceptance 或 Assignment。没有新工作或无需任何成员继续行动时使用 <nexus_room_no_reply/> 或不写 `@`，平台不写入空的公区回复。
 
 ### 4.3 @ mention 与消息注解
 
@@ -251,6 +251,7 @@ Checkpoint 记录公区和私域实际消费边界。成功完成或明确 no-re
 | Directed message cursor | conversation 级 cursor store | 私域增量消费 |
 | Delayed wake | append-only wake log | 重启恢复和完成确认 |
 | Public handoff | conversation 级 append-only handoff ledger | Agent `@` 的检测、派发、恢复和去重 |
+| Execution Dispatch | SQL outbox + Room queue/slot `work_binding` | `assign_work` 的权威目标、lease/retry 与完整 Execution/Plan/Work/Assignment/Attempt 关联 |
 | Agent mention annotation | shared message / transcript reference | 历史中的目标身份和前端可点击渲染 |
 | Input queue | 持久化队列 | 忙碌 Agent 的串行接力 |
 | WebSocket/事件 | 运行时投影 | 实时 UI、诊断和重同步 |

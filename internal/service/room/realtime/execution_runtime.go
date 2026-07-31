@@ -1,6 +1,6 @@
-// INPUT: Room round/slot、Agent 配置、Goal context 与 runtime provider。
-// OUTPUT: revision 绑定且带 MCP/hooks 的 slot runtime options。
-// POS: Room slot 执行前的 runtime 装配边界。
+// INPUT: Room round/slot、稳定 execution contract、trusted WorkBinding/ReviewBinding、Agent 配置、Goal context 与 runtime provider。
+// OUTPUT: static/dynamic prompt 分层、producer/reviewer capability 绑定且带 MCP/hooks 的 slot runtime options。
+// POS: Room slot 执行前不丢失 structured dispatch capability 的 runtime 装配边界。
 package realtime
 
 import (
@@ -19,6 +19,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
@@ -41,7 +42,7 @@ type preparedSlotRuntime struct {
 }
 
 type roomRuntimePrompt struct {
-	// stable 是房间规则、技能和成员目录；成员变更时才应使 prompt cache 前缀失效。
+	// stable 是 execution contract、房间规则、技能和成员目录；这些变化才应使 prompt cache 前缀失效。
 	stable string
 	// dynamic 是 Agent runtime prompt；轮次与 Goal 上下文仍通过 user/contextual input 注入。
 	dynamic string
@@ -189,7 +190,7 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		ResumeSessionID:            e.slot.getSDKSessionID(),
 		MaxThinkingTokens:          e.agent.Options.MaxThinkingTokens,
 		MaxTurns:                   e.agent.Options.MaxTurns,
-		MCPServers:                 e.runtimeMCPServers(),
+		MCPServers:                 e.runtimeMCPServers(permissionMode),
 		ExtraEnv:                   e.service.roomRuntimeEnv(e.round, e.slot),
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          selection.ToolSearchEnabled,
@@ -226,7 +227,10 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	if err != nil {
 		return roomRuntimePrompt{}, "", err
 	}
-	stablePrompt := roomdomain.BuildSystemPrompt(e.round.Context.Room.PrivateMessagesEnabled)
+	stablePrompt := appendPromptSection(
+		orchestration.StablePrompt(),
+		roomdomain.BuildSystemPrompt(e.round.Context.Room.PrivateMessagesEnabled),
+	)
 	roomSkillPrompt, err := e.service.rooms.BuildRoomSkillPrompt(e.ctx, e.round.Context.Room.SkillNames)
 	if err != nil {
 		return roomRuntimePrompt{}, "", err
@@ -239,21 +243,67 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 		permissionMode = runtimepermission.NormalizeMode(e.round.PermissionMode)
 	}
 	e.slot.setGoalRuntimeIgnored(goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode)))
-	currentGoalID, currentObjectiveRevision := "", int64(0)
+	// The session's ambient Goal is not a round capability. Start unbound and
+	// admit only an explicit continuation or an exact Goal-bound Work/Review
+	// Execution. A successful create_goal can bind this slot later.
+	e.slot.setGoalContext("")
+	e.slot.setGoalBinding(strings.TrimSpace(e.round.SessionKey), "")
 	if !e.slot.goalRuntimeIgnored() {
-		var goalContext, goalID, goalSessionKey string
-		dynamicPrompt, goalContext, goalID, goalSessionKey, currentObjectiveRevision = e.service.resolveGoalRuntimeContextForSlot(e.ctx, e.round, e.slot, dynamicPrompt)
-		e.slot.setGoalContext(goalContext)
-		e.slot.setGoalBinding(goalSessionKey, goalID)
-		currentGoalID = strings.TrimSpace(e.slot.goalIDForUsage())
-	}
-	if e.round.Internal && e.round.GoalObjectiveRevision > 0 {
-		boundGoalID := strings.TrimSpace(e.round.GoalID)
-		if currentGoalID != boundGoalID || currentObjectiveRevision != e.round.GoalObjectiveRevision {
-			return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
+		explicitGoalID := strings.TrimSpace(e.round.GoalID)
+		explicitRevision := e.round.GoalObjectiveRevision
+		if e.round.Internal && explicitGoalID != "" && explicitRevision > 0 {
+			goalContext, currentGoalID, currentRevision, ok := e.service.goalRuntimeContext(
+				e.ctx,
+				strings.TrimSpace(e.round.SessionKey),
+			)
+			if !ok || currentGoalID != explicitGoalID || currentRevision != explicitRevision {
+				return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
+			}
+			if !e.slot.grantGoalMutationAuthority(roomGoalMutationAuthority{
+				SessionKey:        strings.TrimSpace(e.round.SessionKey),
+				GoalID:            explicitGoalID,
+				ObjectiveRevision: explicitRevision,
+				ExecutionID: firstNonEmptyString(
+					executionIDFromRoomBindings(
+						e.slot.WorkBinding,
+						e.slot.ReviewBinding,
+					),
+					e.round.ExecutionID,
+				),
+				RootRoundID: strings.TrimSpace(e.round.RootRoundID),
+				Source:      roomGoalAuthorityExplicitRound,
+			}) {
+				return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
+			}
+			e.slot.setGoalContext(goalContext)
+		} else if e.slot.WorkBinding != nil || e.slot.ReviewBinding != nil {
+			binding, bindingErr := e.service.executionGoalBinding(e.ctx, e.orchestrationActor())
+			if bindingErr != nil {
+				return roomRuntimePrompt{}, "", bindingErr
+			}
+			if strings.TrimSpace(binding.GoalID) != "" {
+				goalContext, currentGoalID, currentRevision, ok := e.service.goalRuntimeContext(
+					e.ctx,
+					binding.SessionKey,
+				)
+				if !ok ||
+					currentGoalID != strings.TrimSpace(binding.GoalID) ||
+					currentRevision != binding.GoalObjectiveRevision {
+					return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
+				}
+				if !e.slot.grantGoalMutationAuthority(roomGoalMutationAuthority{
+					SessionKey:        binding.SessionKey,
+					GoalID:            binding.GoalID,
+					ObjectiveRevision: binding.GoalObjectiveRevision,
+					ExecutionID:       binding.ExecutionID,
+					RootRoundID:       strings.TrimSpace(e.round.RootRoundID),
+					Source:            roomGoalAuthorityExecutionBinding,
+				}) {
+					return roomRuntimePrompt{}, "", goalsvc.ErrGoalRevisionStale
+				}
+				e.slot.setGoalContext(goalContext)
+			}
 		}
-		e.slot.setGoalBinding(strings.TrimSpace(e.round.SessionKey), boundGoalID)
-		e.slot.ensureGoalObjectiveRevision(e.round.GoalObjectiveRevision)
 	}
 	if override := strings.TrimSpace(e.round.GoalContext); e.round.Internal && override != "" {
 		e.slot.setGoalContext(override)
@@ -261,20 +311,54 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	return roomRuntimePrompt{stable: stablePrompt, dynamic: dynamicPrompt}, permissionMode, nil
 }
 
-func (e *slotExecution) runtimeMCPServers() map[string]sdkmcp.ServerConfig {
-	if e.service.mcpServers == nil {
-		return nil
+func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
+	var servers map[string]sdkmcp.ServerConfig
+	if e.service.mcpServers != nil {
+		servers = e.service.mcpServers(
+			e.ctx,
+			e.agent,
+			e.round.SessionKey,
+			e.round.RootRoundID,
+			"room",
+			e.round.RoomID,
+			roomSourceContextLabel(e.round),
+			e.slot.ensureGoalObjectiveRevision(0),
+			permissionMode,
+		)
 	}
-	return e.service.mcpServers(
-		e.ctx,
-		e.agent,
-		e.round.SessionKey,
-		e.round.RootRoundID,
-		"room",
-		e.round.RoomID,
-		roomSourceContextLabel(e.round),
-		e.slot.ensureGoalObjectiveRevision(0),
-	)
+	if e.service.executionMCPServers == nil {
+		return servers
+	}
+	overlay := e.service.executionMCPServers(e.ctx, runtimectx.ExecutionToolContext{
+		Agent:             e.agent,
+		ScopeSessionKey:   e.round.SessionKey,
+		RuntimeSessionKey: e.slot.RuntimeSessionKey,
+		ExecutionID: firstNonEmptyString(
+			executionIDFromRoomBindings(
+				e.slot.WorkBinding,
+				e.slot.ReviewBinding,
+			),
+			e.round.ExecutionID,
+		),
+		WorkBinding:           cloneExecutionWorkBinding(e.slot.WorkBinding),
+		ReviewBinding:         cloneExecutionReviewBinding(e.slot.ReviewBinding),
+		CoordinatorAgentID:    strings.TrimSpace(e.round.CoordinatorAgentID),
+		RootRoundID:           e.round.RootRoundID,
+		AgentRoundID:          e.slot.AgentRoundID,
+		SourceContextType:     "room",
+		SourceContextID:       e.round.RoomID,
+		RoomID:                e.round.RoomID,
+		ConversationID:        e.round.ConversationID,
+		PermissionMode:        permissionMode,
+		GoalObjectiveRevision: e.slot.ensureGoalObjectiveRevision(0),
+	})
+	if len(overlay) > 0 && servers == nil {
+		servers = make(map[string]sdkmcp.ServerConfig, len(overlay))
+	}
+	for name, server := range overlay {
+		servers[name] = server
+	}
+	return servers
 }
 
 func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
@@ -291,6 +375,7 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 
 func (e *slotExecution) applyRuntimeHooks(options agentclient.Options) agentclient.Options {
 	options = e.service.runtime.WithGuidanceHook(options, e.slot.RuntimeSessionKey)
+	options = e.service.runtime.WithSubagentAdmissionHooks(options, e.slot.RuntimeSessionKey)
 	if goalSessionKey := goalSessionKeyForSlot(e.slot); goalSessionKey != "" && goalSessionKey != e.slot.RuntimeSessionKey {
 		options = e.service.runtime.WithGuidanceHook(options, goalSessionKey)
 	}

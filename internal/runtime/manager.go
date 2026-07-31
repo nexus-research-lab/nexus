@@ -17,6 +17,7 @@ type sessionState struct {
 	RunningRounds            map[string]struct{}
 	RoundCancels             map[string]context.CancelFunc
 	RoundDone                map[string]chan struct{}
+	ProviderInterruptRoundID string
 	BackgroundTasks          map[uint64]context.CancelFunc
 	BackgroundDone           chan struct{}
 	NextBackgroundTaskID     uint64
@@ -30,6 +31,9 @@ type sessionState struct {
 	GoalAccountingGuards     map[string]goalAccountingGuard
 	GoalObjectiveRevisions   map[string]*atomic.Int64
 	GuidedInputs             []GuidedInput
+	SubagentHooks            map[string]SubagentHookCallbacks
+	SubagentHookBindings     map[string]subagentHookBinding
+	NextSubagentBindingSeq   uint64
 	IdleMessageCancel        context.CancelFunc
 	IdleMessageDrainID       int64
 	RuntimeKind              agentclient.RuntimeKind
@@ -99,6 +103,8 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 			GoalAccountingActivators: make(map[string]GoalAccountingActivate),
 			GoalAccountingGuards:     make(map[string]goalAccountingGuard),
 			GoalObjectiveRevisions:   make(map[string]*atomic.Int64),
+			SubagentHooks:            make(map[string]SubagentHookCallbacks),
+			SubagentHookBindings:     make(map[string]subagentHookBinding),
 		}
 		m.sessions[sessionKey] = state
 	}

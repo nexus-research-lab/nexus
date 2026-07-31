@@ -37,11 +37,44 @@ func (s *Service) RetargetByModel(ctx context.Context, sessionKey string, reques
 	if !canRetargetGoalStatus(current.Status) {
 		return nil, ErrGoalInvalidState
 	}
+	if current.Objective == objective {
+		if transition, ok := ObjectiveTransitionFromGoal(*current); ok &&
+			transition.TargetObjective == objective &&
+			(request.ExpectedObjectiveRevision <= 0 ||
+				request.ExpectedObjectiveRevision == transition.OldRevision ||
+				request.ExpectedObjectiveRevision == transition.NewRevision) {
+			return current, nil
+		}
+		if !objectiveRevisionMatches(*current, request.ExpectedObjectiveRevision) {
+			return nil, ErrGoalRevisionStale
+		}
+		return current, nil
+	}
 	if !objectiveRevisionMatches(*current, request.ExpectedObjectiveRevision) {
 		return nil, ErrGoalRevisionStale
 	}
-	if current.Objective == objective {
-		return current, nil
+	if s.objectiveRetarget != nil {
+		updated, coordinateErr := s.objectiveRetarget.RetargetGoalObjective(ctx, ObjectiveRetargetCommand{
+			Goal:                      *current,
+			RequestedObjective:        objective,
+			Objective:                 objective,
+			Reason:                    "user explicitly changed the Goal objective",
+			ExpectedObjectiveRevision: current.ObjectiveRevision(),
+			Source:                    protocol.GoalUpdateSourceModel,
+			RoundID:                   strings.TrimSpace(request.RoundID),
+			AgentID:                   strings.TrimSpace(request.AgentID),
+		})
+		if coordinateErr != nil {
+			return nil, coordinateErr
+		}
+		s.updatePreviewFromGoal(ctx, *updated, "")
+		return updated, nil
+	}
+	if goalHasManagedExecutionBinding(*current) {
+		return nil, fmt.Errorf(
+			"%w: Goal objective retarget coordinator is unavailable for a managed Execution",
+			ErrGoalInvalidState,
+		)
 	}
 	updated, err := s.retryGoalMutation(ctx, current, func(latest *protocol.Goal) (*protocol.Goal, error) {
 		if !objectiveRevisionMatches(*latest, request.ExpectedObjectiveRevision) {
@@ -54,6 +87,23 @@ func (s *Service) RetargetByModel(ctx context.Context, sessionKey string, reques
 	}
 	s.updatePreviewFromGoal(ctx, *updated, "")
 	return updated, nil
+}
+
+func goalHasManagedExecutionBinding(item protocol.Goal) bool {
+	if protocol.GoalMetadataString(item.Metadata, protocol.GoalMetadataExecutionID) != "" {
+		return true
+	}
+	switch protocol.GoalActivationOrigin(protocol.GoalMetadataString(
+		item.Metadata,
+		protocol.GoalMetadataActivationOrigin,
+	)) {
+	case protocol.GoalActivationOriginUserExplicit,
+		protocol.GoalActivationOriginAdaptiveInitial,
+		protocol.GoalActivationOriginAdaptivePromoted:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) retargetLoadedGoal(

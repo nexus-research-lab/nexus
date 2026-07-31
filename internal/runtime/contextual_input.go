@@ -37,6 +37,7 @@ type nextTurnContextClient interface {
 const (
 	contextOnlyTurnTrigger           = "Continue."
 	ContextualInputNameRoundRecovery = "round_recovery"
+	ContextualInputNameExecution     = "execution"
 )
 
 func PrepareRoundContentWithContext(
@@ -127,6 +128,8 @@ func internalContextSourceName(name string) string {
 	switch strings.TrimSpace(name) {
 	case "goal", "goal_context":
 		return "goal"
+	case ContextualInputNameExecution:
+		return ContextualInputNameExecution
 	case ContextualInputNameRoundRecovery:
 		return ContextualInputNameRoundRecovery
 	default:

@@ -17,7 +17,7 @@ type retargetGoalInput struct {
 
 const retargetGoalDescription = "Retarget the existing current goal only when the user explicitly corrects or replaces its objective.\n" +
 	"For a shared Room Goal, only the assigned lead agent may retarget it; other agents must send their proposal to the lead instead.\n" +
-	"Keep the same goal identity and accumulated usage. Never complete the old goal and create a new one for a correction.\n" +
+	"Keep the same goal identity and accumulated usage. Never complete the old goal and create a new Goal for a correction. When the Goal has a managed Execution, the backend supersedes its old WorkGraph, reserves one successor Execution, and returns the exact next action; retry this tool with the same target if preparation is still pending, otherwise use plan_execution to define the complete fresh successor WorkGraph.\n" +
 	"If the current goal is paused, blocked, or usage-limited, the explicit replacement activates the new objective directly without a separate resume confirmation. A budget-limited goal still requires a budget change.\n" +
 	"Do not infer a retarget from ordinary follow-up requests, your own judgment, or incidental scope details."
 
@@ -35,6 +35,9 @@ func retargetGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 			if err := decodeInput(input, &parsed); err != nil {
 				return errorResult(err), nil
 			}
+			if sctx.PlanMode {
+				return planModeGoalMutationResult("retarget_goal"), nil
+			}
 			item, err := svc.RetargetByModel(ctx, sctx.CurrentSessionKey, protocol.RetargetGoalRequest{
 				Objective:                 parsed.Objective,
 				RoundID:                   sctx.CurrentRoundID,
@@ -48,7 +51,8 @@ func retargetGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 				return errorResult(err), nil
 			}
 			sctx.StoreGoalObjectiveRevision(item.ObjectiveRevision())
-			return structuredResult("goal retargeted", goalPayload(item)), nil
+			payload := goalPayload(item)
+			return structuredResult("goal retargeted", payload), nil
 		},
 	}
 }

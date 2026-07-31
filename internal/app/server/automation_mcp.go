@@ -13,6 +13,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 // newAutomationMCPBuilder 返回 DM/Room 实时链路所需的 MCPServerBuilder。
@@ -23,7 +24,7 @@ import (
 func newAutomationMCPBuilder(
 	svc automationmcpcontract.Service,
 	defaultTimezone string,
-) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		_ context.Context,
 		agentValue *protocol.Agent,
@@ -33,6 +34,7 @@ func newAutomationMCPBuilder(
 		sourceContextID string,
 		sourceContextLabel string,
 		_ *atomic.Int64,
+		_ sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
 		sctx := automationmcpcontract.ServerContext{
 			CurrentSessionKey:   sessionKey,

@@ -8,8 +8,10 @@
 //   - session.go / round.go / idle*.go / owner.go / interrupt.go / streaming_input.go / task.go /
 //     mcp.go / goal_accounting.go：Manager 管理 session_key → SDK client、owner、运行中 round、
 //     Goal accounting、scope-aware Goal create guard、ClearGoalAccountingRounds 部分 activation
-//     回滚与 objective revision adoption，并支持按 owner 强制回收。
-//   - guidance.go / contextual_input.go / input_options.go：轮内引导、协商后的 applied ACK 消费回调、隐藏上下文和输入选项剥离。
+//     回滚与 objective revision adoption，并支持按 owner 强制回收；interrupt.go 额外区分
+//     sole-running-round provider interrupt 与 exact local context cancellation，并在 provider
+//     interrupt 窗口阻止 successor admission；shared session 不回退为可能误伤 successor 的 interrupt。
+//   - guidance.go / contextual_input.go / input_options.go / execution_tool_context.go / subagent_hook.go：轮内引导、隐藏上下文、含 structured WorkBinding/ReviewBinding 的 Execution MCP identity、由 runtime exact Goal authority mint 的协调 capability，以及按 parent round/tool_use_id 冻结 lifecycle callback 的 Agent tool 强准入、迟到事件、固定 grace deadline 持久化与进程内 fallback 路由。
 //   - diagnostics_env.go / stderr_line.go：诊断开关、stderr 归一化。
 //   - goal_usage.go / subagent_usage.go：Goal actual/budget token 口径换算与跨 round 的 nxs child task 累计量去重。
 //   - round_timeout.go / text_util.go：跨 core/exec 共用的常量与小工具。

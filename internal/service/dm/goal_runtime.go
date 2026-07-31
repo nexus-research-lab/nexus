@@ -404,6 +404,15 @@ func (r *roundRunner) currentGoalObjectiveRevision() int64 {
 	return r.goalObjectiveRevision.Load()
 }
 
+func (r *roundRunner) hasGoalRoundBinding() bool {
+	if r == nil || r.ignoreGoalRuntime() || r.currentGoalObjectiveRevision() <= 0 {
+		return false
+	}
+	r.goalUsageMu.Lock()
+	defer r.goalUsageMu.Unlock()
+	return strings.TrimSpace(r.goalIDForUsage) != ""
+}
+
 func (r *roundRunner) recordGoalMutation(logMessage string, mutation func() error, fields ...any) {
 	err := mutation()
 	if err == nil || goalsvc.IsExpectedMutationError(err) {

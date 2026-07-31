@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+
 	automationmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -21,6 +23,7 @@ func TestAutomationMCPBuilderInjectsHostToolServer(t *testing.T) {
 		"agent-1",
 		"主会话",
 		nil,
+		sdkpermission.ModeDefault,
 	)
 	config, ok := servers[automationmcpcontract.ServerName]
 	if !ok {

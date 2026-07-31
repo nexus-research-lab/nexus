@@ -7,7 +7,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"reflect"
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
@@ -45,7 +44,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	if len(entries) == 0 || !ok {
 		return
 	}
-	batch := coalesceRoomDirectedWakeEntries(entry, entries)
+	batch := isolatedRoomInputQueueDispatch(entry)
 	itemIDs := make([]string, 0, len(batch))
 	for _, candidate := range batch {
 		itemIDs = append(itemIDs, candidate.Item.ID)
@@ -54,7 +53,7 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		s.loggerFor(ctx).Error("弹出 Room 待发送队列失败", "session_key", sessionKey, "err", err)
 		return
 	}
-	dispatchedItem := mergeRoomDirectedWakeBatch(batch)
+	dispatchedItem := entry.Item
 	if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 		s.loggerFor(ctx).Warn("广播 Room 待发送队列快照失败", "session_key", sessionKey, "err", err)
 	}
@@ -78,13 +77,16 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		"item_id", dispatchedItem.ID,
 		"err", err,
 	)
-	for _, candidate := range batch {
-		if _, restoreErr := s.inputQueue.Enqueue(candidate.Location, candidate.Item); restoreErr != nil {
-			s.loggerFor(ctx).Error("恢复 Room 待发送队列项失败",
-				"session_key", sessionKey,
-				"item_id", candidate.Item.ID,
-				"err", restoreErr,
-			)
+	invalidCapabilityEnvelope := errors.Is(err, protocol.ErrInvalidInputQueueCapabilityEnvelope)
+	if !invalidCapabilityEnvelope {
+		for _, candidate := range batch {
+			if _, restoreErr := s.inputQueue.Enqueue(candidate.Location, candidate.Item); restoreErr != nil {
+				s.loggerFor(ctx).Error("恢复 Room 待发送队列项失败",
+					"session_key", sessionKey,
+					"item_id", candidate.Item.ID,
+					"err", restoreErr,
+				)
+			}
 		}
 	}
 	if snapshotErr := s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); snapshotErr != nil {
@@ -95,50 +97,24 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		message = clientMessage
 	}
 	s.broadcastSharedEvent(ctx, sessionKey, roomID, roomdomain.NewErrorEvent(sessionKey, roomID, conversationID, "input_queue_error", message, dispatchedItem.ID))
+	if invalidCapabilityEnvelope && s.canDispatchMoreInputQueueItems(ctx, sessionKey, conversationID) {
+		s.startSessionBackgroundTask(
+			sessionKey,
+			contextValue.Room.OwnerUserID,
+			func(taskCtx context.Context) {
+				s.dispatchNextInputQueueItem(taskCtx, sessionKey, roomID, conversationID)
+			},
+		)
+	}
 }
 
-const roomDirectedWakeBatchLimit = 8
-
-func coalesceRoomDirectedWakeEntries(
+func isolatedRoomInputQueueDispatch(
 	selected roomInputQueueEntry,
-	entries []roomInputQueueEntry,
 ) []roomInputQueueEntry {
-	batch := []roomInputQueueEntry{selected}
-	if selected.Item.Source != protocol.InputQueueSourceAgentRoomMessage {
-		return batch
-	}
-	selectedSeen := false
-	for _, candidate := range entries {
-		if candidate.Item.ID == selected.Item.ID {
-			selectedSeen = true
-			continue
-		}
-		if !selectedSeen || inputQueueLocationKey(candidate.Location) != inputQueueLocationKey(selected.Location) {
-			continue
-		}
-		if len(batch) >= roomDirectedWakeBatchLimit ||
-			candidate.Item.Source != selected.Item.Source ||
-			strings.TrimSpace(candidate.Item.AgentID) != strings.TrimSpace(selected.Item.AgentID) ||
-			strings.TrimSpace(candidate.Item.RootRoundID) != strings.TrimSpace(selected.Item.RootRoundID) ||
-			candidate.Item.HopIndex != selected.Item.HopIndex ||
-			!reflect.DeepEqual(candidate.Item.ReplyRoute, selected.Item.ReplyRoute) {
-			break
-		}
-		batch = append(batch, candidate)
-	}
-	return batch
-}
-
-func mergeRoomDirectedWakeBatch(batch []roomInputQueueEntry) protocol.InputQueueItem {
-	if len(batch) == 0 {
-		return protocol.InputQueueItem{}
-	}
-	merged := batch[0].Item
-	last := batch[len(batch)-1].Item
-	merged.SourceMessageID = last.SourceMessageID
-	merged.SourceAgentID = last.SourceAgentID
-	merged.UpdatedAt = last.UpdatedAt
-	return merged
+	// Content, source message, handoff and capability envelope form one durable
+	// identity. Combining adjacent directed messages would either drop content
+	// or make one round ambiguously acknowledge several independent handoffs.
+	return []roomInputQueueEntry{selected}
 }
 
 // releaseUndeliveredRoomGuidance 把错过最后一个 PostToolUse 的引导恢复成普通队列输入。
@@ -206,6 +182,9 @@ func (s *Service) dispatchInputQueueItemLocked(
 	conversationID string,
 	item protocol.InputQueueItem,
 ) error {
+	if err := protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
+		return err
+	}
 	if item.Source == protocol.InputQueueSourceAgentPublicMention ||
 		item.Source == protocol.InputQueueSourceAgentRoomMessage {
 		return s.dispatchAgentWakeQueueItem(
@@ -343,18 +322,25 @@ func (s *Service) dispatchAgentWakeQueueItem(
 			Content:       content,
 			MessageID:     cmp.Or(strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
 			ReplyRoute:    item.ReplyRoute,
+			WorkBinding:   cloneExecutionWorkBinding(item.WorkBinding),
+			ReviewBinding: cloneExecutionReviewBinding(item.ReviewBinding),
 		})
 	}
+	coordinatorAgentID := roomCoordinatorAgentID(item.SourceAgentID, contextValue)
+	if item.ReviewBinding != nil {
+		coordinatorAgentID = strings.TrimSpace(item.ReviewBinding.TargetAgentID)
+	}
 	parentRound := &activeRoomRound{
-		SessionKey:     sessionKey,
-		RoomID:         cmp.Or(strings.TrimSpace(roomID), contextValue.Room.ID),
-		ConversationID: conversationID,
-		RoomType:       contextValue.Room.RoomType,
-		Context:        contextValue,
-		RoundID:        cmp.Or(strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
-		RootRoundID:    cmp.Or(rootRoundID, strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
-		HopIndex:       item.HopIndex,
-		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
+		SessionKey:         sessionKey,
+		RoomID:             cmp.Or(strings.TrimSpace(roomID), contextValue.Room.ID),
+		ConversationID:     conversationID,
+		CoordinatorAgentID: coordinatorAgentID,
+		RoomType:           contextValue.Room.RoomType,
+		Context:            contextValue,
+		RoundID:            cmp.Or(strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
+		RootRoundID:        cmp.Or(rootRoundID, strings.TrimSpace(item.SourceMessageID), "queue_"+item.ID),
+		HopIndex:           item.HopIndex,
+		OwnerUserID:        strings.TrimSpace(item.OwnerUserID),
 	}
 	return s.startPublicMentionRoundLocked(ctx, parentRound, wakes)
 }
@@ -379,6 +365,12 @@ func (s *Service) logicalPublicHandoffRootRoundID(
 }
 
 func inputQueueWakeTriggerType(item protocol.InputQueueItem) string {
+	if item.ReviewBinding != nil {
+		return "execution_review_return"
+	}
+	if item.WorkBinding != nil {
+		return "execution_dispatch"
+	}
 	if item.Source == protocol.InputQueueSourceAgentRoomMessage {
 		return "room_directed_message"
 	}

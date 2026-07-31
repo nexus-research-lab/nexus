@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	goalmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/goal/contract"
@@ -117,6 +118,7 @@ func TestGoalMCPBuilderPassesAgentOwnerToCreateGoal(t *testing.T) {
 		"agent-1",
 		"Agent",
 		goalmcpcontract.NewGoalObjectiveRevision(1),
+		sdkpermission.ModeDefault,
 	)
 	serverConfig, ok := servers[goalmcpcontract.ServerName].(sdkmcp.SDKServerConfig)
 	if !ok || serverConfig.Instance == nil {

@@ -269,6 +269,7 @@ func (e *dmChatExecution) newRoundRunner(preparation dmRuntimePreparation) *roun
 		internal:               e.request.Internal,
 		externalReplyTarget:    e.request.ExternalReplyTarget,
 		goalContext:            preparation.goalContext,
+		executionID:            strings.TrimSpace(e.request.ExecutionID),
 		goalIDForUsage:         preparation.goalIDForUsage,
 		childGoalIDForUsage:    preparation.goalIDForUsage,
 		goalObjectiveRevision:  preparation.goalObjectiveRevision,
@@ -548,6 +549,15 @@ func (s *Service) validateRequest(request Request) (string, protocol.SessionKey,
 	if !protocol.HasChatInput(request.Content, request.Attachments) &&
 		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
 		return "", protocol.SessionKey{}, errors.New("content is required")
+	}
+	if request.Internal &&
+		strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation" &&
+		(strings.TrimSpace(request.GoalID) == "" ||
+			request.GoalObjectiveRevision <= 0 ||
+			strings.TrimSpace(request.ExecutionID) == "") {
+		return "", protocol.SessionKey{}, errors.New(
+			"goal continuation requires exact goal, objective revision, and execution binding",
+		)
 	}
 
 	parsed := protocol.ParseSessionKey(sessionKey)

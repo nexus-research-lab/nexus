@@ -151,6 +151,16 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 			return s.shouldDeferGoalContinuationWithoutQueueDispatch(ctx, sessionKey, agentID)
 		},
 	)
+	executionID := ""
+	if err == nil && validated != nil {
+		executionID = protocol.GoalMetadataString(
+			validated.Goal.Metadata,
+			protocol.GoalMetadataExecutionID,
+		)
+		if strings.TrimSpace(executionID) == "" {
+			err = errors.New("dm goal continuation requires an exact execution binding")
+		}
+	}
 	if err == nil && validated != nil {
 		_, err = s.goals.ClaimContinuationPlan(ctx, *validated)
 	}
@@ -161,6 +171,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 			GoalContext:           validated.Prompt,
 			GoalID:                validated.Goal.ID,
 			GoalObjectiveRevision: validated.Goal.ObjectiveRevision(),
+			ExecutionID:           executionID,
 			RoundID:               validated.RoundID,
 			DeliveryPolicy:        protocol.ChatDeliveryPolicyQueue,
 			BroadcastUserMessage:  false,

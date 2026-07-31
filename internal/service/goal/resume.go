@@ -91,7 +91,7 @@ func (s *Service) RunAutoResumeOnce(ctx context.Context, dispatcher Continuation
 }
 
 func (s *Service) maybeDispatchActiveGoalContinuation(ctx context.Context, item protocol.Goal) {
-	if activeGoalContinuationSuppressed(ctx) {
+	if activeGoalContinuationSuppressed(ctx) || GoalObjectiveTransitionPending(item) {
 		return
 	}
 	s.DispatchActiveGoalContinuation(ctx, item)
@@ -99,14 +99,17 @@ func (s *Service) maybeDispatchActiveGoalContinuation(ctx context.Context, item 
 
 // DispatchActiveGoalContinuation 显式触发 active Goal 的隐藏续跑。
 func (s *Service) DispatchActiveGoalContinuation(ctx context.Context, item protocol.Goal) {
-	if s == nil || s.continuations == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+	if s == nil || s.continuations == nil ||
+		protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive ||
+		GoalObjectiveTransitionPending(item) {
 		return
 	}
 	_ = s.dispatchContinuationForGoal(ctx, item, s.continuations)
 }
 
 func (s *Service) dispatchContinuationForGoal(ctx context.Context, item protocol.Goal, dispatcher ContinuationDispatcher) error {
-	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive ||
+		GoalObjectiveTransitionPending(item) {
 		return nil
 	}
 	cleared, err := s.clearMissingGoalContinuationTarget(ctx, item, dispatcher)

@@ -122,7 +122,7 @@ func TestPublicHandoffReconcilerRestoresNonSystemOwnerForQueuedDelivery(t *testi
 	}
 }
 
-func TestCoalesceRoomDirectedWakeEntriesKeepsPerTargetOrder(t *testing.T) {
+func TestRoomInputQueueDispatchKeepsOneDurableMessageIdentity(t *testing.T) {
 	location := workspacestore.InputQueueLocation{WorkspacePath: "/tmp/agent", SessionKey: "room:conversation-1:agent-1"}
 	newEntry := func(id string, source protocol.InputQueueSource, root string) roomInputQueueEntry {
 		return roomInputQueueEntry{
@@ -142,9 +142,32 @@ func TestCoalesceRoomDirectedWakeEntriesKeepsPerTargetOrder(t *testing.T) {
 		newEntry("user-1", protocol.InputQueueSourceUser, ""),
 		newEntry("direct-3", protocol.InputQueueSourceAgentRoomMessage, "root-1"),
 	}
-	batch := coalesceRoomDirectedWakeEntries(entries[0], entries)
-	if len(batch) != 2 || batch[0].Item.ID != "direct-1" || batch[1].Item.ID != "direct-2" {
-		t.Fatalf("合并应在同目标的第一条不兼容消息前停止: %+v", batch)
+	batch := isolatedRoomInputQueueDispatch(entries[0])
+	if len(batch) != 1 || batch[0].Item.ID != "direct-1" {
+		t.Fatalf("每条 durable message 必须单独派发: %+v", batch)
+	}
+}
+
+func TestRoomInputQueueDispatchAlsoIsolatesResponsibility(t *testing.T) {
+	location := workspacestore.InputQueueLocation{WorkspacePath: "/tmp/agent", SessionKey: "room:conversation-1:agent-1"}
+	entry := func(id string) roomInputQueueEntry {
+		return roomInputQueueEntry{
+			Location: location,
+			Item: protocol.InputQueueItem{
+				ID:          id,
+				AgentID:     "agent-1",
+				Source:      protocol.InputQueueSourceAgentRoomMessage,
+				RootRoundID: "root-1",
+				ReplyRoute:  protocol.RoomReplyRoute{Mode: protocol.RoomReplyRoutePublic},
+			},
+		}
+	}
+	responsibility := entry("assignment")
+	responsibility.Item.WorkBinding = &protocol.ExecutionWorkBinding{AssignmentID: "assignment-1"}
+
+	if batch := isolatedRoomInputQueueDispatch(responsibility); len(batch) != 1 ||
+		batch[0].Item.ID != responsibility.Item.ID {
+		t.Fatalf("责任消息必须保持独立 identity: %+v", batch)
 	}
 }
 

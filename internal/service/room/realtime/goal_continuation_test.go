@@ -13,6 +13,81 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+func grantTestRoomGoalAuthority(
+	slot *activeRoomSlot,
+	sessionKey string,
+	goalID string,
+) {
+	if slot == nil {
+		return
+	}
+	if strings.TrimSpace(sessionKey) == "" {
+		sessionKey = slot.RuntimeSessionKey
+	}
+	slot.grantGoalMutationAuthority(roomGoalMutationAuthority{
+		SessionKey:        sessionKey,
+		GoalID:            goalID,
+		ObjectiveRevision: 1,
+		ExecutionID:       "execution-" + strings.TrimSpace(goalID),
+		RootRoundID:       goalUsageScopeRoundIDForRoomSlot(slot),
+		Source:            roomGoalAuthorityExplicitRound,
+	})
+}
+
+func TestRoomGoalMutationAuthorityRequiresExecutionBinding(t *testing.T) {
+	authority := roomGoalMutationAuthority{
+		SessionKey:        "room:group:conversation-1",
+		GoalID:            "goal-room",
+		ObjectiveRevision: 1,
+		RootRoundID:       "round-1",
+		Source:            roomGoalAuthorityExplicitRound,
+	}
+	if authority.valid() {
+		t.Fatal("Goal authority without Execution identity was accepted")
+	}
+	authority.ExecutionID = "execution-room"
+	if !authority.valid() {
+		t.Fatal("complete Goal authority was rejected")
+	}
+}
+
+func TestRoomGoalContinuationRequestRequiresExecutionBinding(t *testing.T) {
+	request := ChatRequest{
+		SessionKey:            "room:group:conversation-1",
+		ConversationID:        "conversation-1",
+		GoalContext:           "continue",
+		GoalID:                "goal-room",
+		GoalObjectiveRevision: 1,
+		Internal:              true,
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+	if _, _, err := (&Service{}).validateChatRequest(request); err == nil {
+		t.Fatal("Goal continuation request without Execution identity was accepted")
+	}
+	request.ExecutionID = "execution-room"
+	if _, _, err := (&Service{}).validateChatRequest(request); err != nil {
+		t.Fatalf("complete Goal continuation request rejected: %v", err)
+	}
+}
+
+func attachTestRoomGoalAuthority(roundValue *activeRoomRound, goalID string) {
+	if roundValue == nil {
+		return
+	}
+	slot := &activeRoomSlot{
+		AgentID:           "agent-goal-test",
+		AgentRoundID:      strings.TrimSpace(roundValue.RoundID) + ":agent-goal-test",
+		RuntimeSessionKey: strings.TrimSpace(roundValue.SessionKey),
+	}
+	grantTestRoomGoalAuthority(slot, roundValue.SessionKey, goalID)
+	if roundValue.Slots == nil {
+		roundValue.Slots = map[string]*activeRoomSlot{}
+	}
+	roundValue.Slots["agent-goal-test"] = slot
+}
+
 func TestRoomRoundContinuationOptionsMarkedHiddenSynthetic(t *testing.T) {
 	roundValue := &activeRoomRound{
 		Internal: true,
@@ -210,6 +285,7 @@ func TestRealtimeServicePostRoundWorkPlansRoomGoalContinuation(t *testing.T) {
 		ConversationID: "conversation-1",
 		RoundID:        "round-1",
 	}
+	attachTestRoomGoalAuthority(roundValue, "goal-room")
 
 	service.dispatchPostRoundWork(context.Background(), roundValue)
 
@@ -234,6 +310,11 @@ func TestRealtimeServiceReleasesSubagentWaitAndPlansRoomGoalContinuation(t *test
 		},
 	}
 	roundValue.RunningSubagents.Store(true)
+	grantTestRoomGoalAuthority(
+		roundValue.Slots["agent-1"],
+		roundValue.SessionKey,
+		"goal-room",
+	)
 
 	service.releaseRoundSubagentWait(roundValue)
 
@@ -256,6 +337,9 @@ func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchDefers(t *t
 				ID:         "goal-room",
 				SessionKey: "room:group:conversation-1",
 				Status:     protocol.GoalStatusActive,
+				Metadata: map[string]any{
+					protocol.GoalMetadataExecutionID: "execution-goal-room",
+				},
 			},
 			RoundID: "goal_continuation_1",
 		},
@@ -272,6 +356,7 @@ func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchDefers(t *t
 		ConversationID: "conversation-1",
 		RoundID:        "round-1",
 	}
+	attachTestRoomGoalAuthority(roundValue, "goal-room")
 
 	service.dispatchPostRoundWork(context.Background(), roundValue)
 
@@ -290,6 +375,9 @@ func TestRealtimeServicePostRoundWorkRecordsRoomGoalFailureWhenDispatchFails(t *
 				ID:         "goal-room",
 				SessionKey: "agent:nexus:ws:dm:not-room",
 				Status:     protocol.GoalStatusActive,
+				Metadata: map[string]any{
+					protocol.GoalMetadataExecutionID: "execution-goal-room",
+				},
 			},
 			RoundID: "goal_continuation_1",
 		},
@@ -302,6 +390,7 @@ func TestRealtimeServicePostRoundWorkRecordsRoomGoalFailureWhenDispatchFails(t *
 		ConversationID: "conversation-1",
 		RoundID:        "round-1",
 	}
+	attachTestRoomGoalAuthority(roundValue, "goal-room")
 
 	service.dispatchPostRoundWork(context.Background(), roundValue)
 
@@ -354,7 +443,7 @@ func TestRecordGoalContinuationProgressForRoomSlotSuppressesEmptyContinuation(t 
 		RuntimeSessionKey: "agent:nexus:ws:room:test",
 		AgentRoundID:      "goal_continuation_1",
 	}
-	slot.setGoalBinding("", "goal-1")
+	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
 	roundValue := &activeRoomRound{
 		InputOptions: sdkprotocol.OutboundMessageOptions{
 			Purpose: "goal_continuation",
@@ -376,7 +465,7 @@ func TestRecordGoalContinuationProgressForRoomSlotDefersWhileSubagentRuns(t *tes
 		RuntimeSessionKey: "agent:nexus:ws:room:test",
 		AgentRoundID:      "goal_continuation_1",
 	}
-	slot.setGoalBinding("", "goal-1")
+	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
 	slot.setSubagentTasks(map[string]struct{}{"task-1": {}})
 	roundValue := &activeRoomRound{
 		InputOptions: sdkprotocol.OutboundMessageOptions{
@@ -398,7 +487,7 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsFailure(t *testing.T) {
 		RuntimeSessionKey: "agent:nexus:ws:room:test",
 		AgentRoundID:      "goal_continuation_1",
 	}
-	slot.setGoalBinding("", "goal-1")
+	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
 	roundValue := &activeRoomRound{
 		InputOptions: sdkprotocol.OutboundMessageOptions{
 			Purpose: "goal_continuation",
@@ -433,7 +522,7 @@ func TestRecordGoalContinuationProgressForRoomSlotCountsToolProgress(t *testing.
 		RuntimeSessionKey: "agent:nexus:ws:room:test",
 		AgentRoundID:      "goal_continuation_1",
 	}
-	slot.setGoalBinding("", "goal-1")
+	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
 	roundValue := &activeRoomRound{
 		InputOptions: sdkprotocol.OutboundMessageOptions{
@@ -457,7 +546,7 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsCompletionToolMiss(t *t
 		RuntimeSessionKey: "agent:nexus:ws:room:test",
 		AgentRoundID:      "goal_continuation_1",
 	}
-	slot.setGoalBinding("", "goal-1")
+	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
 	roundValue := &activeRoomRound{
 		InputOptions: sdkprotocol.OutboundMessageOptions{
 			Purpose: "goal_continuation",
@@ -488,7 +577,7 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsUserActivity(t *testing
 		RuntimeSessionKey: "agent:nexus:ws:room:test",
 		AgentRoundID:      "round-user",
 	}
-	slot.setGoalBinding("", "goal-1")
+	grantTestRoomGoalAuthority(slot, "room:group:test", "goal-1")
 	roundValue := &activeRoomRound{}
 
 	service.recordGoalContinuationProgressForSlot(context.Background(), slot, roundValue, exec.RoundExecutionResult{}, nil)
@@ -511,7 +600,7 @@ func TestRecordGoalContinuationProgressForRoomSlotRecordsCollaborationEvidence(t
 		AgentRoundID:      "room_mention_1",
 		AgentID:           "agent-peer",
 	}
-	slot.setGoalBinding("", "goal-1")
+	grantTestRoomGoalAuthority(slot, "room:group:conversation-1", "goal-1")
 
 	service.recordGoalContinuationProgressForSlot(
 		context.Background(),
@@ -536,7 +625,7 @@ func TestRecordGoalContinuationProgressForRoomSlotSkipsNoReplyCollaborationEvide
 		AgentRoundID:      "room_mention_1",
 		AgentID:           "agent-peer",
 	}
-	slot.setGoalBinding("", "goal-1")
+	grantTestRoomGoalAuthority(slot, "room:group:conversation-1", "goal-1")
 
 	service.recordGoalContinuationProgressForSlot(
 		context.Background(),

@@ -1,5 +1,5 @@
-// INPUT: Goal 创建/读取、model round durable usage scope、Room creator/lead 身份、用户更新请求与 Room 终态 readiness。
-// OUTPUT: 原子持久化 Goal/created 事件/usage scope、creator/lead 审计身份与受运行中工作保护的后续 runtime 决策。
+// INPUT: Goal 创建/读取、model round durable usage scope、Room creator/lead 身份、用户更新请求与 Execution/Room 终态 readiness。
+// OUTPUT: 原子持久化 Goal/created 事件/usage scope、creator/lead 审计身份与受 WorkGraph/运行中工作保护的后续 runtime 决策。
 // POS: Goal 应用服务主入口。
 package goal
 
@@ -25,19 +25,21 @@ const (
 
 // Service 负责 Goal 状态机、审计事件和后续运行时决策。
 type Service struct {
-	config           config.Config
-	repo             Repository
-	events           eventBroadcaster
-	guidance         guidanceDispatcher
-	preview          previewFiller
-	rewriter         objectiveRewriter
-	externalMutation externalMutationAccountant
-	runtimeInterrupt runtimeInterrupter
-	roomCompletion   roomGoalCompletionReadiness
-	continuations    ContinuationDispatcher
-	wallClock        *goalWallClockAccounting
-	nowFn            func() time.Time
-	idFactory        func(string) string
+	config              config.Config
+	repo                Repository
+	events              eventBroadcaster
+	guidance            guidanceDispatcher
+	preview             previewFiller
+	rewriter            objectiveRewriter
+	objectiveRetarget   ObjectiveRetargetCoordinator
+	externalMutation    externalMutationAccountant
+	runtimeInterrupt    runtimeInterrupter
+	executionCompletion executionGoalCompletionReadiness
+	roomCompletion      roomGoalCompletionReadiness
+	continuations       ContinuationDispatcher
+	wallClock           *goalWallClockAccounting
+	nowFn               func() time.Time
+	idFactory           func(string) string
 }
 
 // NewService 创建 Goal 服务。
@@ -95,6 +97,16 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 		delete(metadata, protocol.GoalMetadataObjectiveRevision)
 	}
 	metadata = initializeRoomGoalOwnershipMetadata(sessionKey, metadata, request.AgentID)
+	ownerUserID := strings.TrimSpace(request.OwnerUserID)
+	if ownerUserID == "" {
+		ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
+	}
+	if ownerUserID != "" {
+		if metadata == nil {
+			metadata = map[string]any{}
+		}
+		metadata[protocol.GoalMetadataOwnerUserID] = ownerUserID
+	}
 
 	now := s.nowFn()
 	tokenBudget, err := normalizeCreateBudget(request.TokenBudget)
@@ -220,6 +232,61 @@ func (s *Service) Update(ctx context.Context, goalID string, request protocol.Up
 	if err != nil {
 		return nil, err
 	}
+	if err = authorizeGoalOwner(*item, request.OwnerUserID); err != nil {
+		return nil, err
+	}
+	if request.Objective != nil &&
+		(s.objectiveRetarget != nil || goalHasManagedExecutionBinding(*item)) {
+		requestedObjective, objectiveErr := normalizeObjective(*request.Objective)
+		if objectiveErr != nil {
+			return nil, objectiveErr
+		}
+		if objectiveRetargetRequestAlreadyApplied(*item, requestedObjective) {
+			request.Objective = nil
+			if !request.TokenBudget.Present && request.Metadata == nil {
+				return item, nil
+			}
+		} else {
+			objective, _ := s.rewriteUpdateObjective(
+				ctx,
+				request,
+				item.SessionKey,
+				requestedObjective,
+				nil,
+			)
+			if item.Objective != objective && s.objectiveRetarget != nil {
+				retargeted, retargetErr := s.objectiveRetarget.RetargetGoalObjective(ctx, ObjectiveRetargetCommand{
+					Goal:                      *item,
+					RequestedObjective:        requestedObjective,
+					Objective:                 objective,
+					Reason:                    "user updated the Goal objective",
+					ExpectedObjectiveRevision: item.ObjectiveRevision(),
+					Source:                    protocol.GoalUpdateSourceUser,
+					OwnerUserID:               strings.TrimSpace(request.OwnerUserID),
+				})
+				if retargetErr != nil {
+					return nil, retargetErr
+				}
+				request.Objective = nil
+				if !request.TokenBudget.Present && request.Metadata == nil {
+					s.updatePreviewFromGoal(ctx, *retargeted, request.OwnerUserID)
+					return retargeted, nil
+				}
+				updated, updateErr := s.Update(ctx, retargeted.ID, request)
+				if updateErr != nil {
+					return nil, updateErr
+				}
+				s.updatePreviewFromGoal(ctx, *updated, request.OwnerUserID)
+				return updated, nil
+			}
+			if item.Objective != objective && goalHasManagedExecutionBinding(*item) {
+				return nil, fmt.Errorf(
+					"%w: Goal objective retarget coordinator is unavailable for a managed Execution",
+					ErrGoalInvalidState,
+				)
+			}
+		}
+	}
 	mutation, err := s.buildGoalUpdateMutation(ctx, item, request)
 	if err != nil {
 		return nil, err
@@ -261,7 +328,10 @@ func (s *Service) buildGoalUpdateMutation(
 		return goalUpdateMutation{}, err
 	}
 	if request.Metadata != nil {
-		item.Metadata = preserveRoomGoalOwnershipMetadata(*item, request.Metadata)
+		item.Metadata = preserveServerOwnedGoalMetadata(
+			*item,
+			preserveRoomGoalOwnershipMetadata(*item, request.Metadata),
+		)
 		delete(item.Metadata, protocol.GoalMetadataObjectiveRevision)
 		if objectiveRevision > 1 {
 			item.Metadata[protocol.GoalMetadataObjectiveRevision] = objectiveRevision

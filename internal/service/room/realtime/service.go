@@ -19,6 +19,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -71,11 +72,13 @@ type ChatRequest struct {
 	SessionKey            string
 	RoomID                string
 	ConversationID        string
+	CoordinatorAgentID    string
 	AttachmentAgentID     string
 	Content               string
 	GoalContext           string
 	GoalID                string
 	GoalObjectiveRevision int64
+	ExecutionID           string
 	Attachments           []protocol.ChatAttachment
 	TargetAgentIDs        []string
 	ClientRequestID       string
@@ -109,6 +112,7 @@ type MCPServerBuilder func(
 	sourceContextID string,
 	sourceContextLabel string,
 	goalObjectiveRevision *atomic.Int64,
+	permissionMode sdkpermission.Mode,
 ) map[string]sdkmcp.ServerConfig
 
 // roomContextStore 是 realtime 读取和更新持久化 Room 状态所需的最小能力集。
@@ -122,27 +126,30 @@ type roomContextStore interface {
 }
 
 type Service struct {
-	config           config.Config
-	rooms            roomContextStore
-	agents           *agentsvc.Service
-	runtime          *runtimectx.Manager
-	permission       *permissionctx.Context
-	providers        clientopts.RuntimeConfigResolver
-	prefs            roomRuntimePreferencesService
-	history          *workspacestore.AgentHistoryStore
-	roomHistory      *workspacestore.RoomHistoryStore
-	directedMessages *workspacestore.RoomDirectedMessageStore
-	directedWakes    *workspacestore.RoomDirectedMessageWakeStore
-	publicHandoffs   *workspacestore.RoomPublicHandoffStore
-	inputQueue       *workspacestore.InputQueueStore
-	usage            usageRecorder
-	quota            quotaChecker
-	goals            goalContextProvider
-	factory          roomClientFactory
-	broadcaster      RoomBroadcaster
-	logger           *slog.Logger
-	mcpServers       MCPServerBuilder
-	titles           roomTitleScheduler
+	config              config.Config
+	rooms               roomContextStore
+	agents              *agentsvc.Service
+	runtime             *runtimectx.Manager
+	permission          *permissionctx.Context
+	providers           clientopts.RuntimeConfigResolver
+	prefs               roomRuntimePreferencesService
+	history             *workspacestore.AgentHistoryStore
+	roomHistory         *workspacestore.RoomHistoryStore
+	directedMessages    *workspacestore.RoomDirectedMessageStore
+	directedWakes       *workspacestore.RoomDirectedMessageWakeStore
+	publicHandoffs      *workspacestore.RoomPublicHandoffStore
+	inputQueue          *workspacestore.InputQueueStore
+	usage               usageRecorder
+	quota               quotaChecker
+	goals               goalContextProvider
+	executionContext    executionContextProvider
+	subagentAdmission   orchestrationruntimehook.Provider
+	factory             roomClientFactory
+	broadcaster         RoomBroadcaster
+	logger              *slog.Logger
+	mcpServers          MCPServerBuilder
+	executionMCPServers runtimectx.ExecutionMCPServerBuilder
+	titles              roomTitleScheduler
 
 	// goalUsageRetryBaseDelay 为零时使用生产退避；测试只调整时钟尺度。
 	goalUsageRetryBaseDelay time.Duration
@@ -279,6 +286,16 @@ func (s *Service) SetGoalContextProvider(provider goalContextProvider) {
 // SetMCPServerBuilder 注入按会话上下文构造 MCP server 的工厂。
 func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 	s.mcpServers = builder
+}
+
+// SetExecutionMCPServerBuilder 注入需要完整 slot/round identity 的 Execution MCP overlay。
+func (s *Service) SetExecutionMCPServerBuilder(builder runtimectx.ExecutionMCPServerBuilder) {
+	s.executionMCPServers = builder
+}
+
+// SetSubagentAdmissionProvider 注入 Agent tool 的权威 WorkGraph 准入与 Attempt lifecycle。
+func (s *Service) SetSubagentAdmissionProvider(provider orchestrationruntimehook.Provider) {
+	s.subagentAdmission = provider
 }
 
 // SetTitleGenerator 注入会话标题生成器。

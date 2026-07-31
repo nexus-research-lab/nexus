@@ -293,6 +293,9 @@ func (s *Service) guideInputQueueItem(
 	if !ok {
 		return s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue)
 	}
+	if err = rejectGenericControlForBoundQueueItem(entry.Item, "guide"); err != nil {
+		return err
+	}
 	if protocol.ShouldGuideRunningRound(entry.Item.DeliveryPolicy) {
 		if _, err = s.inputQueue.UpdateDeliveryPolicy(entry.Location, entry.Item.ID, protocol.ChatDeliveryPolicyQueue); err != nil {
 			return err
@@ -815,6 +818,9 @@ func (s *Service) deleteRoomInputQueueItem(ctx context.Context, contextValue *pr
 	if err != nil || !ok {
 		return err
 	}
+	if err = rejectGenericControlForBoundQueueItem(entry.Item, "delete"); err != nil {
+		return err
+	}
 	_, err = s.inputQueue.Delete(entry.Location, itemID)
 	return err
 }
@@ -838,10 +844,32 @@ func (s *Service) reorderRoomInputQueueItems(
 			break
 		}
 	}
+	for _, entry := range entries {
+		if _, affected := locationByKey[inputQueueLocationKey(entry.Location)]; !affected {
+			continue
+		}
+		if err = rejectGenericControlForBoundQueueItem(entry.Item, "reorder"); err != nil {
+			return err
+		}
+	}
 	for _, location := range locationByKey {
 		if _, err = s.inputQueue.Reorder(location, orderedIDs); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func rejectGenericControlForBoundQueueItem(
+	item protocol.InputQueueItem,
+	action string,
+) error {
+	if item.WorkBinding == nil && item.ReviewBinding == nil {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: %s cannot alter an execution-bound queue item; use the WorkGraph lifecycle",
+		protocol.ErrInvalidInputQueueCapabilityEnvelope,
+		strings.TrimSpace(action),
+	)
 }

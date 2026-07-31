@@ -31,6 +31,9 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 			if err := decodeInput(input, &parsed); err != nil {
 				return errorResult(err), nil
 			}
+			if sctx.PlanMode {
+				return planModeGoalMutationResult("create_goal"), nil
+			}
 			item, err := svc.Create(ctx, protocol.CreateGoalRequest{
 				SessionKey:  sctx.CurrentSessionKey,
 				Objective:   parsed.Objective,

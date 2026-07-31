@@ -19,6 +19,22 @@ type fakeRoomGoalCompletionReadiness struct {
 	callCount int
 }
 
+type fakeExecutionGoalCompletionReadiness struct {
+	blocker   string
+	err       error
+	goalID    string
+	callCount int
+}
+
+func (f *fakeExecutionGoalCompletionReadiness) ExecutionGoalCompletionBlocker(
+	_ context.Context,
+	item protocol.Goal,
+) (string, error) {
+	f.callCount++
+	f.goalID = item.ID
+	return f.blocker, f.err
+}
+
 func (f *fakeRoomGoalCompletionReadiness) RoomGoalCompletionBlocker(
 	_ context.Context,
 	item protocol.Goal,
@@ -595,6 +611,43 @@ func TestServiceCompleteByModelDoesNotApplyRoomReadinessToDMGoal(t *testing.T) {
 	}
 	if completed.Status != protocol.GoalStatusComplete || readiness.callCount != 0 {
 		t.Fatalf("completed = %#v calls=%d, want DM completion without Room gate", completed, readiness.callCount)
+	}
+}
+
+func TestServiceCompleteByModelRequiresExecutionReadinessForDMGoal(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{GoalEnabled: true}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	readiness := &fakeExecutionGoalCompletionReadiness{blocker: "work_item:W2:required_not_accepted"}
+	service.SetExecutionGoalCompletionReadiness(readiness)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:execution-readiness",
+		Objective:  "complete every required Work Item",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{}); !errors.Is(err, ErrGoalInvalidState) {
+		t.Fatalf("CompleteByModel error = %v, want Execution readiness rejection", err)
+	}
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != protocol.GoalStatusActive || readiness.callCount != 1 || readiness.goalID != created.ID {
+		t.Fatalf("current = %#v readiness = %#v", current, readiness)
+	}
+
+	readiness.blocker = ""
+	completed, err := service.CompleteByModel(ctx, created.ID, protocol.CompleteGoalRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Status != protocol.GoalStatusComplete || readiness.callCount != 2 {
+		t.Fatalf("completed = %#v calls=%d", completed, readiness.callCount)
 	}
 }
 

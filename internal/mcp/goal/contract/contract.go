@@ -29,6 +29,7 @@ type ServerContext struct {
 	CurrentRoundID        string
 	CurrentAgentID        string
 	GoalObjectiveRevision *atomic.Int64
+	PlanMode              bool
 }
 
 // NewGoalObjectiveRevision 创建可由同一 MCP server 内 retarget_goal 原子推进的 revision 状态。

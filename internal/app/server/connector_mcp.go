@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 
 	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	connectormcp "github.com/nexus-research-lab/nexus/internal/mcp/connectors"
@@ -20,7 +21,7 @@ import (
 // newConnectorMCPBuilder 返回 DM/Room 实时链路所需的 connector MCPServerBuilder。
 func newConnectorMCPBuilder(
 	svc connectormcpcontract.Service,
-) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		ctx context.Context,
 		agentValue *protocol.Agent,
@@ -30,6 +31,7 @@ func newConnectorMCPBuilder(
 		sourceContextID string,
 		sourceContextLabel string,
 		_ *atomic.Int64,
+		_ sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
 		if svc == nil || agentValue == nil ||
 			strings.TrimSpace(agentValue.AgentID) == "" ||
@@ -193,8 +195,8 @@ func loadConnectorMCPSnapshot(
 }
 
 func combinedMCPBuilder(
-	builders ...func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig,
-) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+	builders ...func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig,
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		ctx context.Context,
 		agentValue *protocol.Agent,
@@ -204,6 +206,7 @@ func combinedMCPBuilder(
 		sourceContextID string,
 		sourceContextLabel string,
 		goalObjectiveRevision *atomic.Int64,
+		permissionMode sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
 		merged := map[string]sdkmcp.ServerConfig{}
 		for _, builder := range builders {
@@ -219,6 +222,7 @@ func combinedMCPBuilder(
 				sourceContextID,
 				sourceContextLabel,
 				goalObjectiveRevision,
+				permissionMode,
 			) {
 				merged[name] = server
 			}
@@ -229,7 +233,7 @@ func combinedMCPBuilder(
 
 func contextOnlyMCPBuilder(
 	builder func(context.Context, *protocol.Agent, string, string, string, string) map[string]sdkmcp.ServerConfig,
-) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		ctx context.Context,
 		agentValue *protocol.Agent,
@@ -239,6 +243,7 @@ func contextOnlyMCPBuilder(
 		sourceContextID string,
 		sourceContextLabel string,
 		_ *atomic.Int64,
+		_ sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
 		if builder == nil {
 			return nil
@@ -257,7 +262,7 @@ func contextOnlyMCPBuilder(
 // roundContextMCPBuilder 适配不消费 Goal revision 的会话级 MCP builder。
 func roundContextMCPBuilder(
 	builder func(context.Context, *protocol.Agent, string, string, string, string, string) map[string]sdkmcp.ServerConfig,
-) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		ctx context.Context,
 		agentValue *protocol.Agent,
@@ -267,6 +272,7 @@ func roundContextMCPBuilder(
 		sourceContextID string,
 		sourceContextLabel string,
 		_ *atomic.Int64,
+		_ sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
 		if builder == nil {
 			return nil

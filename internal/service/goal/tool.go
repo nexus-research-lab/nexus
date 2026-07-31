@@ -74,10 +74,16 @@ func (s *Service) changeStatusByModel(
 		if authErr := authorizeRoomGoalModelMutation(*current, agentID); authErr != nil {
 			return nil, authErr
 		}
+		if pendingErr := rejectPendingObjectiveTransition(*current, "change Goal status"); pendingErr != nil {
+			return nil, pendingErr
+		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
 		}
 		if requireRoomCollaboration {
+			if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, *current); readinessErr != nil {
+				return nil, readinessErr
+			}
 			if readinessErr := s.ensureRoomGoalCompletionReady(ctx, *current, agentID, roundID); readinessErr != nil {
 				return nil, readinessErr
 			}
