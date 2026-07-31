@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Passed the unwrapped DM and per-slot Room user intent to native memory recall,
+  keeping application context and internal continuations out of recall queries.
+- Surfaced loaded long-term memory counts in both DM and per-Agent Room threads.
 - Moved model and permission controls into the Composer as per-Session overrides, with one Room-wide permission control, direct and stable Agent-to-model cascading in multi-Agent Rooms, symmetric control spacing, compact model and Agent selectors, readable icon-led permission choices, clearer approval/full-access labels, and explicit reset actions while Agent/global defaults remain intact.
 - Added a themed border and stable desktop height to the Room member picker so it stays visually distinct without resizing as Agent results change.
 - Added Agent memory browsing and editing to the chat-side profile alongside identity, contact, tools, and skills.

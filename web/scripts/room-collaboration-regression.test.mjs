@@ -1052,6 +1052,75 @@ test("real Room cancellation guidance is projected once into Amy Thread", async 
   );
 });
 
+test("Room memory recall status is projected only into its Agent Thread", async () => {
+  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const { getRoomThreadMessages } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-thread-model.ts",
+  );
+  const { buildSystemEventBlocks } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-system-events.ts",
+  );
+  const recalled = {
+    agent_id: "367448a0264b",
+    content: "已加载 2 条长期记忆",
+    message_id: "memory-recalled-amy",
+    metadata: { subtype: "memory_recalled" },
+    role: "system",
+    timestamp: 1784083437370,
+  };
+  const saved = {
+    ...recalled,
+    content: "长期记忆已保存",
+    message_id: "memory-saved-amy",
+    metadata: { subtype: "memory_saved" },
+    timestamp: recalled.timestamp + 1,
+  };
+
+  assert.deepEqual(
+    getRoomThreadMessages([recalled], "367448a0264b")
+      .map((message) => message.message_id),
+    [recalled.message_id],
+  );
+  assert.deepEqual(
+    getRoomThreadMessages([recalled], "0ed5434a8c13"),
+    [],
+  );
+  assert.deepEqual(
+    getRoomThreadMessages([saved], "367448a0264b")
+      .map((message) => message.message_id),
+    [saved.message_id],
+  );
+  assert.deepEqual(
+    buildSystemEventBlocks([recalled], false).map((block) => ({
+      content: block.content,
+      label: block.label,
+    })),
+    [{ content: recalled.content, label: "长期记忆" }],
+  );
+  assert.deepEqual(
+    buildSystemEventBlocks([saved], false).map((block) => ({
+      content: block.content,
+      label: block.label,
+    })),
+    [{ content: saved.content, label: "长期记忆" }],
+  );
+  const publicTimeline = projectGroupAgentTimeline({
+    messageGroups: new Map([["round-memory", [recalled, saved]]]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map(),
+    roundIds: ["round-memory"],
+  });
+  assert.deepEqual(
+    publicTimeline.roundIds.flatMap(
+      (roundId) => publicTimeline.messageGroups.get(roundId) ?? [],
+    ),
+    [],
+    "长期记忆过程不能在 Room 公区生成独立消息节点",
+  );
+});
+
 test("Room chat ACK with empty pending preserves the active slot", async () => {
   const { mergeChatAckPendingSlots } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",

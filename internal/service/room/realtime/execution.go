@@ -266,7 +266,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 	return exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
 		ContextualInputs: e.contextualInputs(),
-		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(e.round), "goal_continuation"),
+		InputOptions:     roomSlotRuntimeInputOptions(e.round, e.slot),
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},
 		IdleTimeout:      e.service.config.RuntimeRoundIdleTimeout(),
@@ -574,6 +574,18 @@ func roomRoundInputOptions(roundValue *activeRoomRound) sdkprotocol.OutboundMess
 			options.Priority = "internal"
 		}
 	}
+	return options
+}
+
+// roomSlotRuntimeInputOptions 让 Recall 只搜索直接唤醒该 slot 的原始语义。
+func roomSlotRuntimeInputOptions(roundValue *activeRoomRound, slot *activeRoomSlot) sdkprotocol.OutboundMessageOptions {
+	options := runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(roundValue), "goal_continuation")
+	options.RecallQuery = ""
+	if roundValue == nil || slot == nil || roundValue.Internal ||
+		options.Meta || options.Synthetic || options.HiddenFromUser {
+		return options
+	}
+	options.RecallQuery = strings.TrimSpace(slot.Trigger.Content)
 	return options
 }
 

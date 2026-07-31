@@ -44,6 +44,10 @@ interface TimelineNode {
 }
 
 const ROOM_AGENT_NODE_PREFIX = "room-agent-round:";
+const ROOM_THREAD_ONLY_SYSTEM_SUBTYPES = new Set([
+  "memory_recalled",
+  "memory_saved",
+]);
 
 /** 每次 agent_round 从 pending 到 terminal 都保持同一个 feed node identity。 */
 export function buildGroupAgentTimelineNodeId(
@@ -105,7 +109,8 @@ function buildRootTimelineNodes({
   roomAgentExecutionStateGroups: Map<string, RoomAgentExecutionState[]>;
   rootRoundId: string;
 }): TimelineNode[] {
-  const messages = messageGroups.get(rootRoundId) ?? [];
+  const messages = (messageGroups.get(rootRoundId) ?? [])
+    .filter(isRoomMainFeedMessage);
   const pendingPermissions =
     filterPendingPermissionsForTerminalRoomExecutions(
     pendingPermissionGroups.get(rootRoundId) ?? [],
@@ -204,6 +209,14 @@ function buildRootTimelineNodes({
     rootRoundId,
   })));
   return nodes;
+}
+
+/** 记忆加载属于单个 Agent 的执行上下文，只在对应 Thread 展示。 */
+function isRoomMainFeedMessage(message: Message): boolean {
+  return message.role !== "system"
+    || !ROOM_THREAD_ONLY_SYSTEM_SUBTYPES.has(
+      message.metadata?.subtype ?? "",
+    );
 }
 
 function buildRootNode(

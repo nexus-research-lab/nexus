@@ -50,6 +50,12 @@ func normalizeInt(value any) int {
 		return int(typed)
 	case float64:
 		return int(typed)
+	case json.Number:
+		result, err := typed.Int64()
+		if err == nil {
+			return int(result)
+		}
+		return 0
 	default:
 		return 0
 	}
