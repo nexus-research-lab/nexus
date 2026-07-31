@@ -383,6 +383,7 @@ func (s *Service) ConfirmObjectiveExecutionBinding(
 		}
 		expectedVersion := current.Version
 		current.Metadata = cloneMap(current.Metadata)
+		delete(current.Metadata, protocol.GoalMetadataObjectiveAlignment)
 		current.Metadata[protocol.GoalMetadataCompletionCriteria] = append([]string(nil), criteria...)
 		transition.Phase = ObjectiveTransitionBound
 		current.Metadata[protocol.GoalMetadataObjectiveTransition] = objectiveTransitionMetadata(transition)
@@ -494,6 +495,7 @@ func preserveServerOwnedGoalMetadata(
 		protocol.GoalMetadataActivationOrigin,
 		protocol.GoalMetadataActivationReason,
 		protocol.GoalMetadataCompletionCriteria,
+		protocol.GoalMetadataObjectiveAlignment,
 		protocol.GoalMetadataExplicitCommand,
 		protocol.GoalMetadataObjectiveTransition,
 	} {

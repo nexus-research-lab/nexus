@@ -16,6 +16,7 @@ func TestStablePromptDefinesExecutionBoundaries(t *testing.T) {
 		"exact `allowed_actions`",
 		"After assigning a produce Work Item, do not perform the same deliverable",
 		"Use structured `assign_work` as the normal delegation path",
+		"do not ask the user to send “continue” between nodes",
 		"One or many raw mentions may address Room members for casual conversation",
 		"participant count alone never requires a Plan",
 		"A raw mention never activates an Assignment",

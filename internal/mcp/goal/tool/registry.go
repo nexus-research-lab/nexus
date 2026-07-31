@@ -14,6 +14,7 @@ func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool 
 		getGoal(svc, sctx),
 		createGoal(svc, sctx),
 		retargetGoal(svc, sctx),
+		auditObjectiveAlignment(svc, sctx),
 		updateGoal(svc, sctx),
 	}
 }

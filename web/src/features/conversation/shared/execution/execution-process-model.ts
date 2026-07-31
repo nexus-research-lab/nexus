@@ -1,7 +1,7 @@
 /**
- * INPUT: ExecutionView、当前选中 Work Item 与 Agent 目录。
- * OUTPUT: 状态/类型文案键、摘要段、默认焦点与 terminal 判定。
- * POS: WorkGraph 纯协议到展示语义的无状态投影。
+ * INPUT: ExecutionView。
+ * OUTPUT: 状态/类型文案键、当前节点、紧凑节点窗口、依赖深度与 terminal 判定。
+ * POS: WorkGraph 纯协议到轻量进程展示语义的无状态投影。
  */
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
@@ -72,46 +72,76 @@ const WORK_ITEM_FOCUS_PRIORITY: ExecutionWorkItemStatus[] = [
   "cancelled",
 ];
 
-export interface ExecutionSummaryPart {
-  count: number;
-  key: TranslationKey;
+export interface ExecutionNodeSummary {
+  current: ExecutionWorkItemView | null;
+  currentStep: number;
+  summary: string;
+  totalCount: number;
 }
 
-export function buildExecutionSummaryParts(
-  execution: ExecutionView,
-): ExecutionSummaryPart[] {
-  const { progress } = execution;
-  const parts: ExecutionSummaryPart[] = [
-    { count: progress.running, key: "execution.summary_running" },
-    { count: progress.blocked, key: "execution.summary_blocked" },
-    { count: progress.submitted, key: "execution.summary_submitted" },
-    { count: progress.ready, key: "execution.summary_ready" },
-  ];
-  return parts.filter((part) => part.count > 0).slice(0, 2);
+export interface ExecutionNodeWindow {
+  hiddenAfter: number;
+  hiddenBefore: number;
+  items: ExecutionWorkItemView[];
 }
 
-export function resolveSelectedWorkItem(
+export function resolveExecutionNodeSummary(
   execution: ExecutionView,
-  selectedId: string | null,
-): ExecutionWorkItemView | null {
-  const items = execution.work_items ?? [];
-  const selected = items.find((item) => item.id === selectedId);
-  if (selected) {
-    return selected;
-  }
+): ExecutionNodeSummary {
+  const items = orderedExecutionItems(execution);
+  let current: ExecutionWorkItemView | null = null;
   for (const status of WORK_ITEM_FOCUS_PRIORITY) {
     const item = items.find((candidate) => candidate.status === status);
     if (item) {
-      return item;
+      current = item;
+      break;
     }
   }
-  return items[0] ?? null;
+  current ??= items[0] ?? null;
+  const currentIndex = current
+    ? items.findIndex((item) => item.id === current?.id)
+    : -1;
+  return {
+    current,
+    currentStep: currentIndex >= 0 ? currentIndex + 1 : 0,
+    summary: current?.subject.trim() || execution.objective.trim(),
+    totalCount: items.length,
+  };
+}
+
+export function resolveExecutionNodeWindow(
+  execution: ExecutionView,
+  focusId: string | null,
+  limit = 7,
+): ExecutionNodeWindow {
+  const items = orderedExecutionItems(execution);
+  if (items.length <= limit || limit <= 0) {
+    return {
+      hiddenAfter: 0,
+      hiddenBefore: 0,
+      items,
+    };
+  }
+  const focusIndex = Math.max(
+    0,
+    items.findIndex((item) => item.id === focusId),
+  );
+  const halfWindow = Math.floor(limit / 2);
+  const start = Math.min(
+    Math.max(0, focusIndex - halfWindow),
+    items.length - limit,
+  );
+  return {
+    hiddenAfter: items.length - start - limit,
+    hiddenBefore: start,
+    items: items.slice(start, start + limit),
+  };
 }
 
 export function resolveWorkItemDepths(
   execution: ExecutionView,
 ): Record<string, number> {
-  const items = execution.work_items ?? [];
+  const items = orderedExecutionItems(execution);
   const itemById = new Map(items.map((item) => [item.id, item]));
   const result: Record<string, number> = {};
   const resolveDepth = (
@@ -136,13 +166,21 @@ export function resolveWorkItemDepths(
         depth = Math.max(depth, resolveDepth(upstream, nextVisiting) + 1);
       }
     }
-    result[item.id] = Math.min(depth, 3);
+    result[item.id] = depth;
     return result[item.id];
   };
   for (const item of items) {
     resolveDepth(item, new Set());
   }
   return result;
+}
+
+export function orderedExecutionItems(
+  execution: ExecutionView,
+): ExecutionWorkItemView[] {
+  return [...(execution.work_items ?? [])].sort(
+    (left, right) => left.position - right.position,
+  );
 }
 
 export function isTerminalExecutionStatus(status: ExecutionStatus): boolean {

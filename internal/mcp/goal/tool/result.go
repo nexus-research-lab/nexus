@@ -27,9 +27,10 @@ func structuredResult(_ string, content map[string]any) sdktool.ToolResult {
 }
 
 type goalToolTextPayload struct {
-	Goal            any `json:"goal"`
-	RemainingTokens any `json:"remainingTokens"`
-	NextAction      any `json:"nextAction,omitempty"`
+	Goal               any `json:"goal"`
+	RemainingTokens    any `json:"remainingTokens"`
+	ObjectiveAlignment any `json:"objectiveAlignment,omitempty"`
+	NextAction         any `json:"nextAction,omitempty"`
 	// CompletionBudgetReport 保持 Codex 兼容的模型可见完成指引。
 	CompletionBudgetReport any `json:"completionBudgetReport"`
 }
@@ -49,6 +50,7 @@ func goalToolTextPayloadFrom(content map[string]any) goalToolTextPayload {
 	return goalToolTextPayload{
 		Goal:                   goalTextValueFromAny(content["goal"]),
 		RemainingTokens:        content["remainingTokens"],
+		ObjectiveAlignment:     content["objectiveAlignment"],
 		NextAction:             content["nextAction"],
 		CompletionBudgetReport: content["completionBudgetReport"],
 	}

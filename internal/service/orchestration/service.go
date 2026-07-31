@@ -1,5 +1,5 @@
-// INPUT: 当前 owner/session/actor/structured WorkBinding 身份、Execution ensure/read 请求、explicit Goal gateway 与 SQL Repository port。
-// OUTPUT: 强制首次顶层完成标准、受 owner/session/scope/coordinator/Goal binding/Room WorkBinding 保护的 Execution snapshot。
+// INPUT: 当前 owner/session/actor/structured WorkBinding/ReviewBinding/round coordination 身份、Execution ensure/read 请求、explicit Goal gateway 与 SQL Repository port。
+// OUTPUT: 强制首次顶层完成标准、受 owner/session/scope/coordinator/Goal/Room binding 保护并支持 review-to-coordination 的 Execution snapshot。
 // POS: Execution Orchestration 应用服务入口；模型语义 command 见 commands.go。
 package orchestration
 
@@ -366,7 +366,11 @@ func (s *Service) GetSnapshot(
 	if err = authorizeSnapshot(actor, snapshot); err != nil {
 		return nil, err
 	}
-	return scopeSnapshotToTrustedWorkBinding(actor, executionID, snapshot)
+	return scopeSnapshotToTrustedWorkBinding(
+		s.effectiveRuntimeCoordinationActor(actor, snapshot),
+		executionID,
+		snapshot,
+	)
 }
 
 // runtimeContextSnapshot 允许 conversation-only Room round 看见“存在后台
@@ -429,7 +433,11 @@ func (s *Service) runtimeContextSnapshot(
 	if unboundRoomConversationActor(actor, snapshot) {
 		return snapshot, nil
 	}
-	return scopeSnapshotToTrustedWorkBinding(actor, executionID, snapshot)
+	return scopeSnapshotToTrustedWorkBinding(
+		s.effectiveRuntimeCoordinationActor(actor, snapshot),
+		executionID,
+		snapshot,
+	)
 }
 
 // RuntimeContext 投影当前 actor 每轮需要的有界权威执行状态。
@@ -438,6 +446,7 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 	if err != nil {
 		return "", err
 	}
+	actor = s.effectiveRuntimeCoordinationActor(actor, snapshot)
 	options := ExecutionContextOptions{
 		ActorAgentID: strings.TrimSpace(actor.AgentID),
 		Role:         actor.Role,

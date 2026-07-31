@@ -71,8 +71,10 @@ func TestContainsDoesNotBroadenUnrelatedTools(t *testing.T) {
 func TestManagedGoalToolMatchesWrappedNames(t *testing.T) {
 	for _, toolName := range []string{
 		"create_goal",
+		"audit_objective_alignment",
 		"mcp__nexus_goal__get_goal",
 		"mcp__nexus_goal__retarget_goal",
+		"mcp__nexus_goal__audit_objective_alignment",
 		"nexus_goal.update_goal",
 		"nexus_goal/update_goal",
 	} {
@@ -156,7 +158,7 @@ func TestManagedRuntimeAutoApprovalIncludesExecution(t *testing.T) {
 func TestWithManagedGoalAllowedToolsAppendsDistinctTools(t *testing.T) {
 	tools := WithManagedGoalAllowedTools([]string{"Read", "create_goal"})
 	approved := NormalizeSet(tools)
-	for _, toolName := range []string{"Read", "create_goal", "get_goal", "retarget_goal", "update_goal", "mcp__nexus_goal__get_goal", "mcp__nexus_goal__create_goal", "mcp__nexus_goal__retarget_goal", "mcp__nexus_goal__update_goal", "Skill"} {
+	for _, toolName := range []string{"Read", "create_goal", "get_goal", "retarget_goal", "audit_objective_alignment", "update_goal", "mcp__nexus_goal__get_goal", "mcp__nexus_goal__create_goal", "mcp__nexus_goal__retarget_goal", "mcp__nexus_goal__audit_objective_alignment", "mcp__nexus_goal__update_goal", "Skill"} {
 		if !Contains(approved, toolName) {
 			t.Fatalf("expected allowed tools to include %q: %+v", toolName, tools)
 		}

@@ -95,6 +95,7 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	if metadata != nil {
 		metadata = cloneMap(metadata)
 		delete(metadata, protocol.GoalMetadataObjectiveRevision)
+		delete(metadata, protocol.GoalMetadataObjectiveAlignment)
 	}
 	metadata = initializeRoomGoalOwnershipMetadata(sessionKey, metadata, request.AgentID)
 	ownerUserID := strings.TrimSpace(request.OwnerUserID)

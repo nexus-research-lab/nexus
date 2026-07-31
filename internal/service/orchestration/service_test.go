@@ -461,6 +461,278 @@ func TestServicePlanExecutionReusesStableWorkAndImmutableSpec(t *testing.T) {
 	}
 }
 
+func TestServicePlanExecutionAllowsMonotonicGraphExtension(t *testing.T) {
+	existing := PlanWorkItemDraft{
+		LogicalKey:         "research",
+		ExistingWorkItemID: "work-research",
+		Kind:               protocol.WorkItemKindProduce,
+		Subject:            "Research",
+		Objective:          "Collect evidence",
+		Deliverable:        "Evidence set",
+		AcceptanceCriteria: []string{"sources cited"},
+		Required:           true,
+		OutputScopes: []protocol.WorkOutputScope{{
+			Scope: "dir:research",
+			Mode:  protocol.WorkOutputScopeExclusive,
+		}},
+	}
+	hash, err := workSpecHash(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := executionSnapshot()
+	snapshot.Execution.Version = 5
+	snapshot.Plan = &protocol.ExecutionPlanRevision{
+		ID:          "plan-old",
+		ExecutionID: snapshot.Execution.ID,
+		Revision:    1,
+		Status:      protocol.PlanRevisionStatusActive,
+		Version:     1,
+	}
+	snapshot.WorkItems = []protocol.WorkItem{{
+		ID:          "work-research",
+		ExecutionID: snapshot.Execution.ID,
+		LogicalKey:  "research",
+		Kind:        protocol.WorkItemKindProduce,
+	}}
+	snapshot.WorkItemStates = []protocol.WorkItemState{{
+		WorkItemID:    "work-research",
+		ExecutionID:   snapshot.Execution.ID,
+		CurrentSpecID: "spec-research",
+		Status:        protocol.WorkItemStatusOpen,
+		Version:       1,
+	}}
+	snapshot.WorkItemSpecs = []protocol.WorkItemSpec{{
+		ID:          "spec-research",
+		WorkItemID:  "work-research",
+		ExecutionID: snapshot.Execution.ID,
+		Version:     1,
+		SpecHash:    hash,
+	}}
+	snapshot.PlanItems = []protocol.ExecutionPlanItem{{
+		PlanID:      "plan-old",
+		ExecutionID: snapshot.Execution.ID,
+		WorkItemID:  "work-research",
+		SpecID:      "spec-research",
+		Required:    true,
+	}}
+	var written orchestrationstore.WritePlanCommand
+	writeCalls := 0
+	service := testService(&fakeRepository{
+		snapshot: snapshot,
+		writePlan: func(
+			_ context.Context,
+			command orchestrationstore.WritePlanCommand,
+		) (*protocol.ExecutionSnapshot, error) {
+			writeCalls++
+			written = command
+			result := cloneExecutionSnapshot(snapshot)
+			result.Execution.Version++
+			result.Plan = &command.Plan
+			return result, nil
+		},
+	})
+	result, err := service.PlanExecution(
+		context.Background(),
+		coordinatorActor(),
+		PlanExecutionInput{
+			ExecutionID:      snapshot.Execution.ID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "append-verify",
+			Draft: PlanDraft{
+				RevisionReason: "append final verification",
+				Items: []PlanWorkItemDraft{
+					existing,
+					{
+						LogicalKey:         "verify",
+						Kind:               protocol.WorkItemKindVerify,
+						Subject:            "Verify",
+						Objective:          "Verify accepted evidence",
+						Deliverable:        "Verification report",
+						AcceptanceCriteria: []string{"all checks pass"},
+						Required:           true,
+						Terminal:           true,
+						DependsOn: []PlanDependencyDraft{{
+							LogicalKey: "research",
+							Kind:       protocol.WorkDependencyHard,
+						}},
+					},
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationApplied ||
+		written.SupersedeActiveWork ||
+		len(written.WorkItems) != 2 ||
+		written.WorkItems[0].WorkItem.ID != "work-research" ||
+		writeCalls != 1 {
+		t.Fatalf("result=%#v command=%#v", result, written)
+	}
+
+	existingWithNewIncomingEdge := existing
+	existingWithNewIncomingEdge.DependsOn = []PlanDependencyDraft{{
+		LogicalKey: "prerequisite",
+		Kind:       protocol.WorkDependencyHard,
+	}}
+	result, err = service.PlanExecution(
+		context.Background(),
+		coordinatorActor(),
+		PlanExecutionInput{
+			ExecutionID:      snapshot.Execution.ID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "backfill-old-readiness",
+			Draft: PlanDraft{
+				RevisionReason: "make existing research depend on a new prerequisite",
+				Items: []PlanWorkItemDraft{
+					{
+						LogicalKey:         "prerequisite",
+						Kind:               protocol.WorkItemKindProduce,
+						Subject:            "Prerequisite",
+						Objective:          "Produce an additional prerequisite",
+						Deliverable:        "Prerequisite evidence",
+						AcceptanceCriteria: []string{"evidence exists"},
+						Required:           true,
+						OutputScopes: []protocol.WorkOutputScope{{
+							Scope: "dir:prerequisite",
+							Mode:  protocol.WorkOutputScopeExclusive,
+						}},
+					},
+					existingWithNewIncomingEdge,
+					{
+						LogicalKey:         "verify",
+						Kind:               protocol.WorkItemKindVerify,
+						Subject:            "Verify",
+						Objective:          "Verify accepted evidence",
+						Deliverable:        "Verification report",
+						AcceptanceCriteria: []string{"all checks pass"},
+						Required:           true,
+						Terminal:           true,
+						DependsOn: []PlanDependencyDraft{{
+							LogicalKey: "research",
+							Kind:       protocol.WorkDependencyHard,
+						}},
+					},
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationRejected ||
+		result.ReasonCode != ErrorCodeCompletionBlocked ||
+		!strings.Contains(result.Message, "supersede_active_work=true") ||
+		writeCalls != 1 {
+		t.Fatalf(
+			"incoming edge to existing node result=%#v writeCalls=%d",
+			result,
+			writeCalls,
+		)
+	}
+}
+
+func TestServicePlanExecutionRequiresExplicitSupersedeForNodeRemoval(t *testing.T) {
+	existing := PlanWorkItemDraft{
+		LogicalKey:         "research",
+		ExistingWorkItemID: "work-research",
+		Kind:               protocol.WorkItemKindProduce,
+		Subject:            "Research",
+		Objective:          "Collect evidence",
+		Deliverable:        "Evidence set",
+		AcceptanceCriteria: []string{"sources cited"},
+		Required:           true,
+		OutputScopes: []protocol.WorkOutputScope{{
+			Scope: "dir:research",
+			Mode:  protocol.WorkOutputScopeExclusive,
+		}},
+	}
+	hash, err := workSpecHash(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := executionSnapshot()
+	snapshot.Execution.Version = 5
+	snapshot.Plan = &protocol.ExecutionPlanRevision{
+		ID:          "plan-old",
+		ExecutionID: snapshot.Execution.ID,
+		Revision:    1,
+		Status:      protocol.PlanRevisionStatusActive,
+		Version:     1,
+	}
+	snapshot.WorkItems = []protocol.WorkItem{{
+		ID:          "work-research",
+		ExecutionID: snapshot.Execution.ID,
+		LogicalKey:  "research",
+		Kind:        protocol.WorkItemKindProduce,
+	}}
+	snapshot.WorkItemStates = []protocol.WorkItemState{{
+		WorkItemID:    "work-research",
+		ExecutionID:   snapshot.Execution.ID,
+		CurrentSpecID: "spec-research",
+		Status:        protocol.WorkItemStatusOpen,
+		Version:       1,
+	}}
+	snapshot.WorkItemSpecs = []protocol.WorkItemSpec{{
+		ID:          "spec-research",
+		WorkItemID:  "work-research",
+		ExecutionID: snapshot.Execution.ID,
+		Version:     1,
+		SpecHash:    hash,
+	}}
+	snapshot.PlanItems = []protocol.ExecutionPlanItem{{
+		PlanID:      "plan-old",
+		ExecutionID: snapshot.Execution.ID,
+		WorkItemID:  "work-research",
+		SpecID:      "spec-research",
+		Required:    true,
+	}}
+	written := false
+	service := testService(&fakeRepository{
+		snapshot: snapshot,
+		writePlan: func(
+			context.Context,
+			orchestrationstore.WritePlanCommand,
+		) (*protocol.ExecutionSnapshot, error) {
+			written = true
+			return nil, nil
+		},
+	})
+	result, err := service.PlanExecution(
+		context.Background(),
+		coordinatorActor(),
+		PlanExecutionInput{
+			ExecutionID:      snapshot.Execution.ID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "omit-existing-node",
+			Draft: PlanDraft{
+				RevisionReason: "replace research",
+				Items: []PlanWorkItemDraft{{
+					LogicalKey:         "verify",
+					Kind:               protocol.WorkItemKindVerify,
+					Subject:            "Verify",
+					Objective:          "Verify replacement",
+					Deliverable:        "Verification report",
+					AcceptanceCriteria: []string{"all checks pass"},
+					Required:           true,
+					Terminal:           true,
+				}},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationRejected ||
+		result.ReasonCode != ErrorCodeCompletionBlocked ||
+		!strings.Contains(result.Message, "supersede_active_work=true") ||
+		written {
+		t.Fatalf("result=%#v written=%t", result, written)
+	}
+}
+
 func TestServiceSubmitWorkTransparentlyRunsAttempt(t *testing.T) {
 	initial := assignedExecutionSnapshot()
 	var calls []string
@@ -1798,6 +2070,7 @@ type fakeRepository struct {
 	fenceGoalIdentity func(context.Context, orchestrationstore.FenceGoalExecutionIdentityCommand) (bool, error)
 	findCurrentByGoal func(context.Context, string, int64) (*protocol.Execution, error)
 	writePlan         func(context.Context, orchestrationstore.WritePlanCommand) (*protocol.ExecutionSnapshot, error)
+	assign            func(context.Context, orchestrationstore.AssignCommand) (*protocol.ExecutionSnapshot, error)
 	startAttempt      func(context.Context, orchestrationstore.StartAttemptCommand) (*protocol.ExecutionSnapshot, error)
 	finishAttempt     func(context.Context, orchestrationstore.FinishAttemptCommand) (*protocol.ExecutionSnapshot, error)
 	scheduleSubagent  func(context.Context, orchestrationstore.ScheduleSubagentReconciliationCommand) (*protocol.ExecutionSnapshot, error)
@@ -1920,10 +2193,13 @@ func (f *fakeRepository) WritePlan(
 }
 
 func (f *fakeRepository) Assign(
-	context.Context,
-	orchestrationstore.AssignCommand,
+	ctx context.Context,
+	command orchestrationstore.AssignCommand,
 ) (*protocol.ExecutionSnapshot, error) {
-	return nil, errors.New("unexpected Assign")
+	if f.assign == nil {
+		return nil, errors.New("unexpected Assign")
+	}
+	return f.assign(ctx, command)
 }
 
 func (f *fakeRepository) StartAttempt(

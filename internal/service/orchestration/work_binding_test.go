@@ -304,6 +304,7 @@ func TestStructuredRoomReviewBindingAdmitsOnlyPendingCoordinatorReview(t *testin
 		ScopeKind:      protocol.ExecutionScopeRoom,
 		RoomID:         snapshot.Execution.RoomID,
 		ConversationID: snapshot.Execution.ConversationID,
+		RuntimeRoundID: "pending-review-round",
 	}
 	loaded, err := service.GetSnapshot(
 		context.Background(),
@@ -318,6 +319,17 @@ func TestStructuredRoomReviewBindingAdmitsOnlyPendingCoordinatorReview(t *testin
 		len(loaded.Assignments) != 1 {
 		t.Fatalf("review coordinator lost full current snapshot: %+v", loaded)
 	}
+	if err = service.mintRuntimeCoordination(actor, snapshot.Execution.ID); err != nil {
+		t.Fatal(err)
+	}
+	pendingContext, err := service.RuntimeContext(context.Background(), actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(pendingContext, `<lane type="review" />`) {
+		t.Fatalf("unresolved ReviewBinding was hidden by generic coordination:\n%s", pendingContext)
+	}
+	service.ReleaseRuntimeCoordination(actor)
 
 	wrongTarget := actor
 	wrongBinding := *binding
@@ -362,6 +374,176 @@ func TestStructuredRoomReviewBindingAdmitsOnlyPendingCoordinatorReview(t *testin
 		snapshot.Execution.ID,
 	); err == nil {
 		t.Fatal("already reviewed Submission binding was admitted")
+	}
+}
+
+func TestRoomReviewAcceptanceContinuesCoordinationAndAssignsReadyWorkSameRound(t *testing.T) {
+	snapshot, dispatch := reviewReturnSnapshot()
+	snapshot.WorkItems = append(snapshot.WorkItems, protocol.WorkItem{
+		ID:          "work-next",
+		ExecutionID: snapshot.Execution.ID,
+		LogicalKey:  "verify-sources",
+		Kind:        protocol.WorkItemKindVerify,
+	})
+	snapshot.WorkItemStates = append(snapshot.WorkItemStates, protocol.WorkItemState{
+		WorkItemID:    "work-next",
+		ExecutionID:   snapshot.Execution.ID,
+		CurrentSpecID: "spec-next",
+		Status:        protocol.WorkItemStatusOpen,
+		Version:       1,
+	})
+	snapshot.WorkItemSpecs = append(snapshot.WorkItemSpecs, protocol.WorkItemSpec{
+		ID:                 "spec-next",
+		WorkItemID:         "work-next",
+		ExecutionID:        snapshot.Execution.ID,
+		Version:            1,
+		Subject:            "Verify sources",
+		Objective:          "Verify accepted source evidence",
+		Deliverable:        "Verified source set",
+		AcceptanceCriteria: []string{"sources verified"},
+	})
+	snapshot.PlanItems = append(snapshot.PlanItems, protocol.ExecutionPlanItem{
+		PlanID:      snapshot.Plan.ID,
+		ExecutionID: snapshot.Execution.ID,
+		WorkItemID:  "work-next",
+		SpecID:      "spec-next",
+		Required:    true,
+		Position:    1,
+	})
+
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.review = func(
+		_ context.Context,
+		command orchestrationstore.ReviewCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		result := cloneExecutionSnapshot(repository.snapshot)
+		result.Execution.Version++
+		result.Assignments[0].Status = protocol.WorkAssignmentStatusCompleted
+		result.Assignments[0].Version++
+		result.Acceptances = []protocol.WorkAcceptance{command.Acceptance}
+		result.ReadyWorkItemIDs = []string{"work-next"}
+		result.CompletionBlockers = []string{
+			"work_item:work-next:required_not_accepted",
+		}
+		repository.snapshot = result
+		return result, nil
+	}
+	assignCalled := false
+	repository.assign = func(
+		_ context.Context,
+		command orchestrationstore.AssignCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		assignCalled = true
+		if command.Assignment.WorkItemID != "work-next" ||
+			command.Assignment.OwnerAgentID != "agent-analyst" ||
+			command.Dispatch == nil ||
+			command.Dispatch.Kind != protocol.ExecutionDispatchRoomDirected ||
+			command.Dispatch.TargetAgentID != "agent-analyst" {
+			t.Fatalf("continuation Assignment = %+v", command)
+		}
+		result := cloneExecutionSnapshot(repository.snapshot)
+		result.Execution.Version++
+		result.Assignments = append(result.Assignments, command.Assignment)
+		result.Attempts = append(result.Attempts, *command.RootAttempt)
+		result.Dispatches = append(result.Dispatches, *command.Dispatch)
+		result.ReadyWorkItemIDs = nil
+		repository.snapshot = result
+		return result, nil
+	}
+	service := NewService(repository)
+	service.newID = func(kind string) string {
+		return kind + "-continuation"
+	}
+	service.SetAssignmentTargetAuthorizer(assignmentTargetAuthorizerFunc(func(
+		_ context.Context,
+		request AssignmentTargetRequest,
+	) error {
+		if request.TargetAgentID != "agent-analyst" ||
+			request.RoomID != snapshot.Execution.RoomID {
+			t.Fatalf("assignment target request = %+v", request)
+		}
+		return nil
+	}))
+	actor := ActorContext{
+		OwnerUserID: snapshot.Execution.OwnerUserID,
+		SessionKey:  snapshot.Execution.SessionKey,
+		ExecutionID: snapshot.Execution.ID,
+		ReviewBinding: &protocol.ExecutionReviewBinding{
+			ExecutionID:      dispatch.ExecutionID,
+			PlanID:           dispatch.PlanID,
+			WorkItemID:       dispatch.WorkItemID,
+			SpecID:           dispatch.SpecID,
+			AssignmentID:     dispatch.AssignmentID,
+			SubmissionID:     dispatch.SubmissionID,
+			ReviewDispatchID: dispatch.ID,
+			TargetAgentID:    dispatch.TargetAgentID,
+		},
+		AgentID:        snapshot.Execution.CoordinatorAgentID,
+		Role:           ExecutionActorCoordinator,
+		ActorKind:      protocol.ExecutionActorAgent,
+		ScopeKind:      protocol.ExecutionScopeRoom,
+		RoomID:         snapshot.Execution.RoomID,
+		ConversationID: snapshot.Execution.ConversationID,
+		RootRoundID:    "root-review",
+		RuntimeRoundID: "runtime-review",
+		AgentRoundID:   "agent-review",
+	}
+
+	beforeReview, err := service.RuntimeContext(context.Background(), actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(beforeReview, `<lane type="review" />`) {
+		t.Fatalf("review return did not enter review lane:\n%s", beforeReview)
+	}
+
+	reviewed, err := service.ReviewWork(context.Background(), actor, ReviewWorkInput{
+		ExecutionID:      snapshot.Execution.ID,
+		SnapshotRevision: snapshot.Execution.Version,
+		CommandID:        "review-and-continue",
+		SubmissionID:     dispatch.SubmissionID,
+		Decision:         protocol.WorkAcceptanceAccepted,
+		CriteriaResults: []protocol.WorkAcceptanceCriterionResult{{
+			Criterion: "sources cited",
+			Passed:    true,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reviewed.Outcome != MutationApplied ||
+		!service.runtimeCoordinationActive(actor, snapshot.Execution.ID) {
+		t.Fatalf("review did not activate same-round coordination: %+v", reviewed)
+	}
+	if len(reviewed.NextActions) == 0 ||
+		reviewed.NextActions[0].Tool != "assign_work" ||
+		reviewed.NextActions[0].WorkItemID != "work-next" {
+		t.Fatalf("review continuation next actions = %+v", reviewed.NextActions)
+	}
+	afterReview, err := service.RuntimeContext(context.Background(), actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(afterReview, `<lane type="coordination" />`) ||
+		!strings.Contains(afterReview, `<action>assign_work</action>`) ||
+		!strings.Contains(afterReview, `logical_key="verify-sources"`) {
+		t.Fatalf("review continuation context = %s", afterReview)
+	}
+
+	assigned, err := service.AssignWork(context.Background(), actor, AssignWorkInput{
+		ExecutionID:      snapshot.Execution.ID,
+		SnapshotRevision: reviewed.Snapshot.Execution.Version,
+		CommandID:        "assign-ready-after-review",
+		WorkItemID:       "work-next",
+		TargetAgentID:    "agent-analyst",
+		Strategy:         protocol.AssignmentStrategyRoomMember,
+		DispatchKind:     protocol.ExecutionDispatchRoomDirected,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if assigned.Outcome != MutationApplied || !assignCalled {
+		t.Fatalf("same-round downstream assignment = %+v called=%t", assigned, assignCalled)
 	}
 }
 

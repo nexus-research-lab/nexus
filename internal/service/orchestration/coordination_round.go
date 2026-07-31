@@ -1,5 +1,5 @@
-// INPUT: trusted Room coordinator identity、physical round identity 与 explicit get/plan transition。
-// OUTPUT: round-scoped Coordination capability 的 mint、检查与释放。
+// INPUT: trusted Room coordinator identity、physical round identity 与 explicit get/plan 或 resolved ReviewBinding transition。
+// OUTPUT: round-scoped Coordination capability 的 mint、review-to-coordination 升级、检查与释放。
 // POS: conversation substrate 到 Execution coordination overlay 的后端准入边界。
 package orchestration
 
@@ -27,6 +27,13 @@ func (s *Service) ActivateRuntimeCoordination(
 		!exactGoalCoordinator(actor, snapshot) {
 		return nil
 	}
+	return s.mintRuntimeCoordination(actor, snapshot.Execution.ID)
+}
+
+func (s *Service) mintRuntimeCoordination(
+	actor ActorContext,
+	executionID string,
+) error {
 	key := runtimeCoordinationRoundKey(actor)
 	if key == "" {
 		return domainError(
@@ -38,7 +45,7 @@ func (s *Service) ActivateRuntimeCoordination(
 	if s.coordinationRounds == nil {
 		s.coordinationRounds = make(map[string]string)
 	}
-	s.coordinationRounds[key] = strings.TrimSpace(snapshot.Execution.ID)
+	s.coordinationRounds[key] = strings.TrimSpace(executionID)
 	s.coordinationMu.Unlock()
 	return nil
 }
@@ -70,6 +77,77 @@ func (s *Service) activateRuntimeCoordinationResult(
 	}
 	_ = s.ActivateRuntimeCoordination(ctx, actor, result.Snapshot)
 	return result
+}
+
+// activateReviewContinuationResult 在 trusted ReviewBinding 已提交唯一
+// Acceptance 后，把同一物理 round 升回 coordination。用户不需要另发一条
+// “继续”来解锁刚刚 Ready 的下游工作。
+func (s *Service) activateReviewContinuationResult(
+	actor ActorContext,
+	result MutationResult,
+) MutationResult {
+	if actor.PlanMode ||
+		actor.ReviewBinding == nil ||
+		result.Snapshot == nil ||
+		(result.Outcome != MutationApplied && result.Outcome != MutationNoOp) ||
+		!isCurrentExecutionStatus(result.Snapshot.Execution.Status) {
+		return result
+	}
+	if !reviewBindingResolved(actor, result.Snapshot) {
+		return result
+	}
+	if err := requireCoordinator(actor, result.Snapshot); err != nil {
+		return result
+	}
+	if err := s.mintRuntimeCoordination(actor, result.Snapshot.Execution.ID); err != nil {
+		return result
+	}
+	result.NextActions = nextActions(
+		result.Snapshot,
+		s.effectiveRuntimeCoordinationActor(actor, result.Snapshot),
+	)
+	return result
+}
+
+// effectiveRuntimeCoordinationActor 消费已完成的 ReviewBinding 展示权限，
+// 但只在同一 round 已由后端 mint coordination capability 后清除其 review lane。
+func (s *Service) effectiveRuntimeCoordinationActor(
+	actor ActorContext,
+	snapshot *protocol.ExecutionSnapshot,
+) ActorContext {
+	if snapshot != nil &&
+		actor.ReviewBinding != nil &&
+		s.runtimeCoordinationActive(actor, snapshot.Execution.ID) &&
+		reviewBindingResolved(actor, snapshot) {
+		actor.ReviewBinding = nil
+	}
+	return actor
+}
+
+func reviewBindingResolved(
+	actor ActorContext,
+	snapshot *protocol.ExecutionSnapshot,
+) bool {
+	if snapshot == nil || actor.ReviewBinding == nil {
+		return false
+	}
+	binding := normalizeExecutionReviewBinding(actor.ReviewBinding)
+	if !completeExecutionReviewBinding(binding) ||
+		binding.ExecutionID != strings.TrimSpace(snapshot.Execution.ID) ||
+		binding.TargetAgentID != strings.TrimSpace(actor.AgentID) {
+		return false
+	}
+	for _, acceptance := range snapshot.Acceptances {
+		if acceptance.SubmissionID == binding.SubmissionID &&
+			acceptance.ExecutionID == binding.ExecutionID &&
+			acceptance.PlanID == binding.PlanID &&
+			acceptance.WorkItemID == binding.WorkItemID &&
+			acceptance.SpecID == binding.SpecID &&
+			acceptance.AssignmentID == binding.AssignmentID {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) requireRuntimeCoordination(

@@ -27,9 +27,6 @@ type planExecutionInput struct {
 	ReplaceCurrentExecution bool     `json:"replace_current_execution,omitempty"`
 	ReplacementReason       string   `json:"replacement_reason,omitempty"`
 	WorkGraphJSON           string   `json:"work_graph_json,omitempty"`
-	// Items 只为 work_graph_json 成为模型协议前的进程内调用方保留解码兼容；
-	// 模型 schema 不再暴露这条 Provider 易损路径。
-	Items []planItemInput `json:"items,omitempty"`
 }
 
 type abandonExecutionInput struct {
@@ -64,34 +61,38 @@ type outputScopeInput struct {
 }
 
 func (input planExecutionInput) draft() (orchestration.PlanDraft, error) {
-	decodedItems := input.Items
 	workGraphJSON := strings.TrimSpace(input.WorkGraphJSON)
-	if workGraphJSON != "" {
-		if len(input.Items) > 0 {
+	if workGraphJSON == "" {
+		return orchestration.PlanDraft{}, fmt.Errorf(
+			"work_graph_json is required and must contain one non-empty JSON array",
+		)
+	}
+
+	var decodedItems []planItemInput
+	decoder := json.NewDecoder(bytes.NewBufferString(workGraphJSON))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decodedItems); err != nil {
+		return orchestration.PlanDraft{}, fmt.Errorf(
+			"work_graph_json must be a JSON array of Work Item objects: %w",
+			err,
+		)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
 			return orchestration.PlanDraft{}, fmt.Errorf(
-				"work_graph_json and legacy items cannot both be provided",
+				"work_graph_json must contain exactly one JSON array",
 			)
 		}
-		decoder := json.NewDecoder(bytes.NewBufferString(workGraphJSON))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&decodedItems); err != nil {
-			return orchestration.PlanDraft{}, fmt.Errorf(
-				"work_graph_json must be a JSON array of Work Item objects: %w",
-				err,
-			)
-		}
-		var trailing any
-		if err := decoder.Decode(&trailing); err != io.EOF {
-			if err == nil {
-				return orchestration.PlanDraft{}, fmt.Errorf(
-					"work_graph_json must contain exactly one JSON array",
-				)
-			}
-			return orchestration.PlanDraft{}, fmt.Errorf(
-				"work_graph_json contains trailing invalid JSON: %w",
-				err,
-			)
-		}
+		return orchestration.PlanDraft{}, fmt.Errorf(
+			"work_graph_json contains trailing invalid JSON: %w",
+			err,
+		)
+	}
+	if len(decodedItems) == 0 {
+		return orchestration.PlanDraft{}, fmt.Errorf(
+			"work_graph_json must contain at least one Work Item",
+		)
 	}
 
 	items := make([]orchestration.PlanWorkItemDraft, 0, len(decodedItems))

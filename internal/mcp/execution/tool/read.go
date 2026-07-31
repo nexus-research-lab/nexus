@@ -1,6 +1,6 @@
 // INPUT: 可选 explicit Execution id 与 session-bound actor identity。
-// OUTPUT: current/explicit 权威 snapshot 及其 revision。
-// POS: 九工具集合中的只读恢复入口。
+// OUTPUT: current/explicit 权威状态的紧凑 actor-specific context 及其 revision。
+// POS: 十工具集合中的只读恢复入口。
 package tool
 
 import (
@@ -15,8 +15,9 @@ import (
 func getExecution(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
 		Name: "get_execution",
-		Description: "Get the current authoritative Execution snapshot, or one explicit Execution by id. " +
-			"Use it to recover your role, active immutable Plan, Assignment ownership, dependencies, pending reviews, blockers, and allowed next actions.",
+		Description: "Get the compact authoritative Execution action view for the current scope, or one explicit Execution by id. " +
+			"Use it to recover your role, active immutable Plan, deterministic graph digest, Assignment ownership, dependencies, pending reviews, blockers, and allowed next actions. " +
+			"The full internal Snapshot is intentionally not returned.",
 		SearchHint:  "execution status work item assignment dependency review blocker",
 		InputSchema: getExecutionSchema(),
 		Annotations: &sdktool.ToolAnnotations{
@@ -36,6 +37,12 @@ func getExecution(svc contract.Service, sctx contract.ServerContext) sdktool.Too
 			snapshot, err := loadSnapshot(ctx, svc, actor, parsed.ExecutionID)
 			if err != nil {
 				return transportErrorResult(err), nil
+			}
+			if snapshot != nil {
+				// RuntimeContext must render the exact snapshot selected above.
+				// Without this binding, an explicit historical read could return
+				// that Execution's id/revision beside the session's current graph.
+				actor.ExecutionID = snapshot.Execution.ID
 			}
 			if activator, ok := any(svc).(interface {
 				ActivateRuntimeCoordination(

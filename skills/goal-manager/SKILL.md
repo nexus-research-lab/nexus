@@ -1,6 +1,6 @@
 ---
 name: goal-manager
-description: 当用户明确要求启动、设定、创建、继续、纠正、完成或阻塞当前会话的 Goal，或系统/开发者明确要求启用 Goal 长程执行时使用。创建前必须先确认 objective 已具备足够的可执行信息；缺少会改变结果的关键信息时先提问并等待，禁止创建占位 Goal。先加载本 skill，再按需调用 mcp__nexus_goal__get_goal/create_goal/retarget_goal/update_goal；不要用 /goal 文本命令。
+description: 当用户明确要求启动、设定、创建、继续、纠正、完成或阻塞当前会话的 Goal，或系统/开发者明确要求启用 Goal 长程执行时使用。创建前必须先确认 objective 已具备足够的可执行信息；缺少会改变结果的关键信息时先提问并等待，禁止创建占位 Goal。先加载本 skill，再按需调用 mcp__nexus_goal__get_goal/create_goal/retarget_goal/audit_objective_alignment/update_goal；不要用 /goal 文本命令。
 ---
 
 # goal-manager
@@ -16,15 +16,17 @@ Nexus 中 Goal MCP 工具在模型可见工具列表里通常带完整 MCP 前�
 - `mcp__nexus_goal__get_goal`
 - `mcp__nexus_goal__create_goal`
 - `mcp__nexus_goal__retarget_goal`
+- `mcp__nexus_goal__audit_objective_alignment`
 - `mcp__nexus_goal__update_goal`
 
-如果运行时暴露的是 Codex/plain-tool 裸名 `get_goal`、`create_goal`、`retarget_goal`、`update_goal`，它们是同一组 Goal 工具。优先调用当前工具列表中实际可见的名字；不要因为裸名不存在就放弃，先找对应的 `mcp__nexus_goal__*` 工具。
+如果运行时暴露的是 Codex/plain-tool 裸名 `get_goal`、`create_goal`、`retarget_goal`、`audit_objective_alignment`、`update_goal`，它们是同一组 Goal 工具。优先调用当前工具列表中实际可见的名字；不要因为裸名不存在就放弃，先找对应的 `mcp__nexus_goal__*` 工具。
 
 判断工具是否可用，只看当前模型可见工具列表，不看 skill 文档本身。完成目标时，如果 `mcp__nexus_goal__update_goal` 可见，下一步必须调用它；只有运行时实际暴露为裸名时才调用裸 `update_goal`。
 
 ## 必须遵守
 
 1. 用户明确要求 Goal 只是进入创建判断的必要条件，不是立即调用 `create_goal` 的指令。普通问题、一次性任务、闲聊、自动标题或常规协作仍然不能推断为 Goal。
+   自适应持久化不走本 Skill 的猜测性 `create_goal`：只有受管 Execution context 明确开放 `promote_execution_to_goal`，并带有后端验证过的跨边界证据时，才调用该 Execution 工具。复杂度、Plan 长度、Room 或子智能体参与本身都不是证据。
 2. 创建前先检查当前上下文能否形成可直接执行的 objective。至少要明确目标交付物，以及会实质改变结果的范围、对象或受众、约束和验收标准；只检查与当前任务实际相关的项，不机械索要无关信息。
 3. 若缺少的信息会改变实际交付物或执行路径，先向用户提出最少必要的澄清问题并等待回答。信息足够前禁止调用 `create_goal`，禁止先创建“写一篇作文”“完成这个项目”之类的宽泛或占位 Goal，再靠后续追问或 `retarget_goal` 补齐。
 4. 能从当前对话、文件或可靠上下文确定的信息不要重复询问。信息足够后，把已确认的关键要求合并成完整、具体的 objective，再调用 `mcp__nexus_goal__get_goal`（或裸名 `get_goal`）判断当前会话是否已有 Goal，并按需调用 `mcp__nexus_goal__create_goal`（或裸名 `create_goal`）。
@@ -32,7 +34,7 @@ Nexus 中 Goal MCP 工具在模型可见工具列表里通常带完整 MCP 前�
 6. Goal 属于当前会话。`mcp__nexus_goal__*` 工具会自动绑定当前 session，不要向用户索要 session_key，也不要自己拼 session_key。
 7. `token_budget` 只有在用户明确给出预算时才传；用户没有说预算就不要设置。
 8. 当前会话已有未结束 Goal 时，不要创建第二个 Goal。只有用户明确纠正或替换当前 active Goal 的 objective 时，调用 `mcp__nexus_goal__retarget_goal`（或裸名 `retarget_goal`）更新同一个 Goal；绝不能先完成旧 Goal 再创建新 Goal。
-9. 只有目标确实完成且没有剩余必要工作时，才调用 `mcp__nexus_goal__update_goal`（或裸名 `update_goal`）标记 `complete`。
+9. 只有目标确实完成且没有剩余必要工作时，才在当前 round 调用 `mcp__nexus_goal__audit_objective_alignment`（或裸名 `audit_objective_alignment`）提交逐条证据；仅当返回 `aligned`，才紧接着调用 `mcp__nexus_goal__update_goal`（或裸名 `update_goal`）标记 `complete`。
 10. 只有同一个阻塞条件在连续 Goal 续跑中重复出现，且没有用户输入或外部状态变化就无法推进时，才调用 `mcp__nexus_goal__update_goal`（或裸名 `update_goal`）标记 `blocked`；不要因为一次不确定、需要澄清或暂时停顿就标记阻塞。
 11. 暂停、恢复、清理、预算限制和用量限制由用户或系统控制，不要用模型工具模拟这些状态。
 12. 用户要“提醒我、每天/每周、定时做某事”时，直接使用 `nexus_automation` 定时任务工具，不要把定时任务创建成 Goal。
@@ -126,9 +128,15 @@ Nexus 中 Goal MCP 工具在模型可见工具列表里通常带完整 MCP 前�
 - 所有必要验证已做完
 - 没有剩余必须继续处理的问题
 
-完成前先做一次简短但真实的完成审计：从 objective 和用户最新要求中提取必须满足的范围、交付物、验证命令、文件或运行状态，用当前事实逐项确认。不要因为已有进展、测试看起来相关、预算接近耗尽或准备停止而标记完成；只有当前证据证明完整目标成立时才调用工具。
+完成前必须通过共享 Objective Alignment 契约做一次结构化审计。服务端提供权威 objective 与 completion criteria；模型逐项提交状态、证据或缺口。不要因为已有进展、测试看起来相关、预算接近耗尽或准备停止而标记完成。
 
-调用 Goal MCP 更新工具，不是只回复文字：
+先调用审计工具：
+
+工具：`mcp__nexus_goal__audit_objective_alignment`（或裸名 `audit_objective_alignment`）
+
+审计使用当前工具 schema 要求的单个 `report_json` 字符串。`aligned` 表示所有标准均有可复查证据；`not_aligned` 表示存在明确缺口，应继续工作；`inconclusive` 表示证据不足，应先补证。审计本身不改变 Goal 状态，也不能替代完成工具。只有当前 objective revision 和当前 round 保存的 `aligned` 报告可以支持紧接着完成。
+
+审计返回 `aligned` 后，再调用 Goal MCP 更新工具，不是只回复文字：
 
 工具：`mcp__nexus_goal__update_goal`（或裸名 `update_goal`）
 

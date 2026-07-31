@@ -702,8 +702,9 @@ type ExecutionEvent struct {
 	CreatedAt        time.Time           `json:"created_at"`
 }
 
-// ExecutionSnapshot 是模型和编排调用方需要的有界当前状态。
+// ExecutionSnapshot 是服务内编排与 HTTP/UI 投影需要的有界当前状态。
 //
+// 模型 MCP 只接收由它派生的 actor-specific context，不直接接收整份 Snapshot。
 // 历史 Attempt、Submission、Acceptance 与 event 使用独立分页接口，不应无限塞入快照。
 type ExecutionSnapshot struct {
 	Execution              Execution                       `json:"execution"`

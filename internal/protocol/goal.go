@@ -48,13 +48,14 @@ const (
 	GoalMetadataObjectiveRevision                     = "objective_revision"
 	// GoalMetadataOwnerUserID is server-owned authorization provenance for
 	// owner-scoped Goal mutations. Request metadata cannot replace it.
-	GoalMetadataOwnerUserID                           = "owner_user_id"
-	GoalMetadataExecutionID                           = "execution_id"
-	GoalMetadataPromotionCommand                      = "promotion_command"
-	GoalMetadataActivationOrigin                      = "activation_origin"
-	GoalMetadataActivationReason                      = "activation_reason"
-	GoalMetadataCompletionCriteria                    = "completion_criteria"
-	GoalMetadataExplicitCommand                       = "explicit_goal_command"
+	GoalMetadataOwnerUserID        = "owner_user_id"
+	GoalMetadataExecutionID        = "execution_id"
+	GoalMetadataPromotionCommand   = "promotion_command"
+	GoalMetadataActivationOrigin   = "activation_origin"
+	GoalMetadataActivationReason   = "activation_reason"
+	GoalMetadataCompletionCriteria = "completion_criteria"
+	GoalMetadataObjectiveAlignment = "objective_alignment"
+	GoalMetadataExplicitCommand    = "explicit_goal_command"
 	// GoalMetadataObjectiveTransition is server-owned durable state for a
 	// Goal objective revision rebase. User metadata updates must never replace
 	// or remove it.

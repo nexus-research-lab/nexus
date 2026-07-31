@@ -1,5 +1,5 @@
 // INPUT: MCP raw JSON、CallContext 与 session-bound ServerContext。
-// OUTPUT: strict typed intent、最新 Execution snapshot、服务端 fencing/idempotency 与双投影结果。
+// OUTPUT: strict typed intent、最新 Execution snapshot、服务端 fencing/idempotency 与紧凑模型结果。
 // POS: 所有 execution tool 共享的可靠性适配层。
 package tool
 
@@ -99,7 +99,32 @@ func jsonResult(payload any) sdktool.ToolResult {
 }
 
 func mutationResult(result orchestration.MutationResult) sdktool.ToolResult {
-	return jsonResult(result)
+	return jsonResult(executionMutationResult{
+		Outcome:          result.Outcome,
+		ReasonCode:       result.ReasonCode,
+		Message:          result.Message,
+		ExecutionID:      result.ExecutionID,
+		SnapshotRevision: result.SnapshotRevision,
+		ExecutionContext: result.ExecutionContext,
+		ContextStatus:    result.ContextStatus,
+		Changed:          result.Changed,
+		NextActions:      result.NextActions,
+	})
+}
+
+// executionMutationResult 是 MCP 模型面的唯一 mutation 投影。完整 Snapshot
+// 继续留在 service result 供同进程协调、HTTP/UI 和测试使用；不能与已经由它
+// 派生出的 execution_context 重复发送给模型。
+type executionMutationResult struct {
+	Outcome          orchestration.MutationOutcome `json:"outcome"`
+	ReasonCode       orchestration.ErrorCode       `json:"reason_code,omitempty"`
+	Message          string                        `json:"message,omitempty"`
+	ExecutionID      string                        `json:"execution_id,omitempty"`
+	SnapshotRevision int64                         `json:"snapshot_revision,omitempty"`
+	ExecutionContext string                        `json:"execution_context,omitempty"`
+	ContextStatus    string                        `json:"context_status,omitempty"`
+	Changed          []string                      `json:"changed,omitempty"`
+	NextActions      []orchestration.NextAction    `json:"next_actions,omitempty"`
 }
 
 type executionRuntimeContextReader interface {
@@ -115,6 +140,23 @@ func withFreshExecutionContext(
 	actor orchestration.ActorContext,
 	result orchestration.MutationResult,
 ) orchestration.MutationResult {
+	if result.Snapshot != nil {
+		switch result.Snapshot.Execution.Status {
+		case protocol.ExecutionStatusActive,
+			protocol.ExecutionStatusWaiting,
+			protocol.ExecutionStatusPaused:
+			actor.ExecutionID = strings.TrimSpace(result.ExecutionID)
+		default:
+			// Terminal mutation results describe immutable history. Refresh the
+			// session's current unmanaged/successor context instead of pinning
+			// RuntimeContext to the execution that just ended.
+			actor.ExecutionID = ""
+			actor.WorkBinding = nil
+			actor.ReviewBinding = nil
+		}
+	} else if executionID := strings.TrimSpace(result.ExecutionID); executionID != "" {
+		actor.ExecutionID = executionID
+	}
 	reader, ok := any(svc).(executionRuntimeContextReader)
 	if !ok {
 		result.ContextStatus = "refresh_required"
@@ -156,7 +198,6 @@ func snapshotResult(
 		"snapshot_revision": nil,
 		"execution_context": nil,
 		"context_status":    "refresh_required",
-		"snapshot":          snapshot,
 	}
 	if snapshot != nil {
 		payload["execution_id"] = snapshot.Execution.ID

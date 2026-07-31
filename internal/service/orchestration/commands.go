@@ -1,5 +1,5 @@
 // INPUT: 模型的 Plan、Assignment、Submission、Acceptance、Block/Resume、Takeover 与 complete 意图。
-// OUTPUT: 服务端 mint ID、logical-key 解析、透明 Attempt 状态机、显式 Plan replacement 与统一 MutationResult。
+// OUTPUT: 服务端 mint ID、logical-key 解析、单调 Plan 扩图、透明 Attempt 状态机、Acceptance 后同轮协调衔接、显式 Plan replacement 与统一 MutationResult。
 // POS: 模型语义 command 到 Repository 原子 command 的应用层适配；不暴露 start_work。
 package orchestration
 
@@ -382,6 +382,13 @@ func (s *Service) PlanExecution(
 			"review pending submissions before replacing the active Plan",
 		), nextActions(snapshot, actor)), nil
 	}
+	monotonicExtension, extensionErr := planDraftMonotonicallyExtendsSnapshot(
+		snapshot,
+		draft,
+	)
+	if extensionErr != nil {
+		return RejectedResult(snapshot, extensionErr, nil), nil
+	}
 	hasActiveWork := false
 	for _, assignment := range snapshot.Assignments {
 		if currentAssignment(assignment) {
@@ -393,6 +400,12 @@ func (s *Service) PlanExecution(
 		return RejectedResult(snapshot, domainError(
 			ErrorCodeCompletionBlocked,
 			"finish, review or take over current assignments before replacing the active Plan, or explicitly authorize superseding active work",
+		), nextActions(snapshot, actor)), nil
+	}
+	if !monotonicExtension && !input.SupersedeActiveWork {
+		return RejectedResult(snapshot, domainError(
+			ErrorCodeCompletionBlocked,
+			"removing or changing an existing Plan node or dependency requires supersede_active_work=true and a non-empty revision_reason; ordinary replan may only append nodes and downstream edges",
 		), nextActions(snapshot, actor)), nil
 	}
 	if input.SupersedeActiveWork && draft.RevisionReason == "" {
@@ -961,9 +974,19 @@ func (s *Service) ReviewWork(
 		if acceptance.Decision == protocol.WorkAcceptanceAccepted &&
 			len(snapshot.CompletionBlockers) == 0 &&
 			snapshot.Execution.Status != protocol.ExecutionStatusCompleted {
-			return s.completeAfterReview(ctx, actor, snapshot, input.CommandID, nil)
+			result, completeErr := s.completeAfterReview(
+				ctx,
+				actor,
+				snapshot,
+				input.CommandID,
+				nil,
+			)
+			return s.activateReviewContinuationResult(actor, result), completeErr
 		}
-		return NoOpResult(snapshot, "submission already has an acceptance decision"), nil
+		return s.activateReviewContinuationResult(
+			actor,
+			NoOpResult(snapshot, "submission already has an acceptance decision"),
+		), nil
 	}
 	assignment := findAssignmentByID(snapshot, submission.AssignmentID)
 	if assignment == nil || assignment.Status != protocol.WorkAssignmentStatusActive {
@@ -1011,9 +1034,19 @@ func (s *Service) ReviewWork(
 	changed := []string{"acceptance:" + acceptanceID}
 	if input.Decision == protocol.WorkAcceptanceAccepted &&
 		len(updated.CompletionBlockers) == 0 {
-		return s.completeAfterReview(ctx, actor, updated, input.CommandID, changed)
+		result, completeErr := s.completeAfterReview(
+			ctx,
+			actor,
+			updated,
+			input.CommandID,
+			changed,
+		)
+		return s.activateReviewContinuationResult(actor, result), completeErr
 	}
-	return AppliedResult(updated, changed, nextActions(updated, actor)), nil
+	return s.activateReviewContinuationResult(
+		actor,
+		AppliedResult(updated, changed, nextActions(updated, actor)),
+	), nil
 }
 
 func (s *Service) completeAfterReview(
@@ -1826,6 +1859,105 @@ func planDraftMatchesSnapshot(
 			return false, nil
 		}
 		persistedByLogicalKey := make(map[string]protocol.WorkDependencyKind, len(persistedDependencies))
+		for _, dependency := range persistedDependencies {
+			upstream, ok := workByID[dependency.DependsOnWorkItemID]
+			if !ok {
+				return false, nil
+			}
+			persistedByLogicalKey[upstream.LogicalKey] = dependency.Kind
+		}
+		for _, dependency := range candidate.DependsOn {
+			if persistedByLogicalKey[dependency.LogicalKey] != dependency.Kind {
+				return false, nil
+			}
+		}
+	}
+	return true, nil
+}
+
+func planDraftMonotonicallyExtendsSnapshot(
+	snapshot *protocol.ExecutionSnapshot,
+	draft PlanDraft,
+) (bool, error) {
+	if snapshot == nil || snapshot.Plan == nil ||
+		snapshot.Plan.Status != protocol.PlanRevisionStatusActive {
+		return true, nil
+	}
+	workByID := make(map[string]protocol.WorkItem, len(snapshot.WorkItems))
+	for _, work := range snapshot.WorkItems {
+		workByID[work.ID] = work
+	}
+	specByID := make(map[string]protocol.WorkItemSpec, len(snapshot.WorkItemSpecs))
+	for _, spec := range snapshot.WorkItemSpecs {
+		specByID[spec.ID] = spec
+	}
+	dependenciesByWorkID := make(
+		map[string][]protocol.ExecutionPlanDependency,
+		len(snapshot.Dependencies),
+	)
+	for _, dependency := range snapshot.Dependencies {
+		if dependency.PlanID == snapshot.Plan.ID {
+			dependenciesByWorkID[dependency.WorkItemID] = append(
+				dependenciesByWorkID[dependency.WorkItemID],
+				dependency,
+			)
+		}
+	}
+	candidates := make(map[string]PlanWorkItemDraft, len(draft.Items))
+	for _, candidate := range draft.Items {
+		candidates[candidate.LogicalKey] = candidate
+	}
+
+	for _, item := range snapshot.PlanItems {
+		if item.PlanID != snapshot.Plan.ID {
+			continue
+		}
+		work, exists := workByID[item.WorkItemID]
+		if !exists {
+			return false, nil
+		}
+		candidate, exists := candidates[work.LogicalKey]
+		if !exists ||
+			candidate.Kind != work.Kind ||
+			(candidate.ExistingWorkItemID != "" &&
+				candidate.ExistingWorkItemID != work.ID) ||
+			candidate.Required != item.Required ||
+			candidate.Terminal != item.Terminal {
+			return false, nil
+		}
+		parentLogicalKey := ""
+		if item.ParentWorkItemID != "" {
+			parent, ok := workByID[item.ParentWorkItemID]
+			if !ok {
+				return false, nil
+			}
+			parentLogicalKey = parent.LogicalKey
+		}
+		if candidate.ParentLogicalKey != parentLogicalKey {
+			return false, nil
+		}
+		spec, exists := specByID[item.SpecID]
+		if !exists {
+			return false, nil
+		}
+		hash, err := workSpecHash(candidate)
+		if err != nil {
+			return false, domainError(
+				ErrorCodeInvalidInput,
+				"work item spec cannot be encoded",
+			)
+		}
+		if hash != spec.SpecHash {
+			return false, nil
+		}
+		persistedDependencies := dependenciesByWorkID[work.ID]
+		if len(candidate.DependsOn) != len(persistedDependencies) {
+			return false, nil
+		}
+		persistedByLogicalKey := make(
+			map[string]protocol.WorkDependencyKind,
+			len(persistedDependencies),
+		)
 		for _, dependency := range persistedDependencies {
 			upstream, ok := workByID[dependency.DependsOnWorkItemID]
 			if !ok {

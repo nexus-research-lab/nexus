@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/execution/contract"
@@ -145,13 +146,18 @@ func (s *fakeExecutionService) ActivateRuntimeCoordination(
 func TestGetExecutionMintsExplicitRuntimeCoordinationCapability(t *testing.T) {
 	snapshot := executionSnapshot(9)
 	var activated bool
+	var contextExecutionID string
 	svc := &fakeExecutionService{
 		current: func() *protocol.ExecutionSnapshot { return snapshot },
+		contextActor: func(actor orchestration.ActorContext) {
+			contextExecutionID = actor.ExecutionID
+		},
 		activate: func(
 			actor orchestration.ActorContext,
 			activatedSnapshot *protocol.ExecutionSnapshot,
 		) error {
 			activated = actor.AgentID == "agent-1" &&
+				actor.ExecutionID == snapshot.Execution.ID &&
 				activatedSnapshot == snapshot
 			return nil
 		},
@@ -161,21 +167,89 @@ func TestGetExecutionMintsExplicitRuntimeCoordinationCapability(t *testing.T) {
 	definition := getExecution(svc, sctx)
 	if _, err := definition.ContextHandler(
 		context.Background(),
-		map[string]any{},
+		map[string]any{"execution_id": snapshot.Execution.ID},
 		nil,
 	); err != nil {
 		t.Fatal(err)
 	}
-	if !activated {
-		t.Fatal("get_execution did not mint the runtime coordination capability")
+	if !activated || contextExecutionID != snapshot.Execution.ID {
+		t.Fatalf(
+			"get_execution binding activated=%t context execution=%q",
+			activated,
+			contextExecutionID,
+		)
+	}
+}
+
+func TestExecutionToolResultsDoNotDuplicateFullSnapshot(t *testing.T) {
+	snapshot := executionSnapshot(9)
+	for index := 0; index < 128; index++ {
+		snapshot.CompletionBlockers = append(
+			snapshot.CompletionBlockers,
+			strings.Repeat("large historical blocker ", 64),
+		)
+	}
+	svc := &fakeExecutionService{
+		current: func() *protocol.ExecutionSnapshot { return snapshot },
+		assign: func(orchestration.AssignWorkInput) orchestration.MutationResult {
+			return orchestration.NoOpResult(snapshot, "captured")
+		},
+		context: `<nexus_execution_context execution_version="9">` +
+			`<allowed_actions><action>assign_work</action></allowed_actions>` +
+			`</nexus_execution_context>`,
+	}
+
+	readResult, err := getExecution(svc, executionServerContext()).ContextHandler(
+		context.Background(),
+		map[string]any{},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mutationResult, err := assignWork(svc, executionServerContext()).ContextHandler(
+		context.Background(),
+		map[string]any{
+			"logical_key":     "research",
+			"target_agent_id": "agent-2",
+		},
+		&sdktool.CallContext{ToolUseID: "tool-compact-result"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for name, result := range map[string]sdktool.ToolResult{
+		"get_execution": readResult,
+		"mutation":      mutationResult,
+	} {
+		if _, duplicated := result.StructuredContent["snapshot"]; duplicated {
+			t.Fatalf("%s result duplicated the full snapshot: %#v", name, result.StructuredContent)
+		}
+		if result.StructuredContent["execution_context"] == nil ||
+			result.StructuredContent["snapshot_revision"] != float64(9) &&
+				result.StructuredContent["snapshot_revision"] != int64(9) {
+			t.Fatalf("%s compact result = %#v", name, result.StructuredContent)
+		}
+		encoded, marshalErr := json.Marshal(result.StructuredContent)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		if len(encoded) > 4096 {
+			t.Fatalf("%s compact result is %d bytes, want <= 4096", name, len(encoded))
+		}
 	}
 }
 
 func TestAssignWorkReloadsAndInjectsLatestRevision(t *testing.T) {
 	snapshot := executionSnapshot(9)
 	var captured orchestration.AssignWorkInput
+	var contextExecutionID string
 	svc := &fakeExecutionService{
 		current: func() *protocol.ExecutionSnapshot { return snapshot },
+		contextActor: func(actor orchestration.ActorContext) {
+			contextExecutionID = actor.ExecutionID
+		},
 		assign: func(input orchestration.AssignWorkInput) orchestration.MutationResult {
 			captured = input
 			return orchestration.NoOpResult(snapshot, "captured")
@@ -202,7 +276,8 @@ func TestAssignWorkReloadsAndInjectsLatestRevision(t *testing.T) {
 		t.Fatalf("captured input = %#v", captured)
 	}
 	if result.StructuredContent["context_status"] != "authoritative" ||
-		result.StructuredContent["execution_context"] == nil {
+		result.StructuredContent["execution_context"] == nil ||
+		contextExecutionID != snapshot.Execution.ID {
 		t.Fatalf("mutation did not return a fresh action view: %#v", result.StructuredContent)
 	}
 }
@@ -277,6 +352,62 @@ func TestPlanExecutionRejectsMalformedWorkGraphJSONBeforeService(t *testing.T) {
 		result.StructuredContent["outcome"] != "rejected" ||
 		result.StructuredContent["next_actions"] == nil {
 		t.Fatalf("malformed WorkGraph result=%#v planCalled=%t", result, planCalled)
+	}
+}
+
+func TestPlanExecutionRejectsLegacyItemsTransportBeforeService(t *testing.T) {
+	planCalled := false
+	svc := &fakeExecutionService{
+		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
+			planCalled = true
+			return orchestration.NoOpResult(nil, "unexpected")
+		},
+	}
+	input := validPlanToolInput()
+	delete(input, "work_graph_json")
+	input["items"] = []any{map[string]any{
+		"logical_key": "legacy",
+	}}
+	result, err := planExecution(svc, executionServerContext()).ContextHandler(
+		context.Background(),
+		input,
+		&sdktool.CallContext{ToolUseID: "tool-legacy-items"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planCalled || !result.IsError || len(result.Content) != 1 ||
+		!strings.Contains(result.Content[0]["text"].(string), `unknown field "items"`) {
+		t.Fatalf("legacy items result=%#v planCalled=%t", result, planCalled)
+	}
+}
+
+func TestPlanExecutionRejectsEmptyWorkGraphJSONBeforeService(t *testing.T) {
+	for _, value := range []any{"", "[]", "null"} {
+		t.Run(value.(string), func(t *testing.T) {
+			planCalled := false
+			svc := &fakeExecutionService{
+				plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
+					planCalled = true
+					return orchestration.NoOpResult(nil, "unexpected")
+				},
+			}
+			input := validPlanToolInput()
+			input["work_graph_json"] = value
+			result, err := planExecution(svc, executionServerContext()).ContextHandler(
+				context.Background(),
+				input,
+				&sdktool.CallContext{ToolUseID: "tool-empty-workgraph"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if planCalled || result.IsError ||
+				result.StructuredContent["outcome"] != "rejected" ||
+				result.StructuredContent["next_actions"] == nil {
+				t.Fatalf("empty WorkGraph result=%#v planCalled=%t", result, planCalled)
+			}
+		})
 	}
 }
 
@@ -559,8 +690,10 @@ func TestPlanExecutionReplacementInjectsOldFenceAndRefreshesSuccessorContext(t *
 		planned.ReplacementReason != "user changed objective" {
 		t.Fatalf("result=%#v planned=%#v", result, planned)
 	}
-	if contextActor.ExecutionID != "" || contextActor.WorkBinding != nil {
-		t.Fatalf("successor context retained old binding: %#v", contextActor)
+	if contextActor.ExecutionID != successor.Execution.ID ||
+		contextActor.WorkBinding != nil ||
+		contextActor.ReviewBinding != nil {
+		t.Fatalf("successor context did not bind the replacement: %#v", contextActor)
 	}
 }
 

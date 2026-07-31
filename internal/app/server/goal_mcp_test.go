@@ -91,6 +91,14 @@ func (*stubGoalMCPService) RetargetByModel(context.Context, string, protocol.Ret
 	return nil, nil
 }
 
+func (*stubGoalMCPService) AuditObjectiveAlignmentByModel(
+	context.Context,
+	string,
+	protocol.AuditGoalObjectiveAlignmentRequest,
+) (*protocol.GoalObjectiveAlignmentRecord, error) {
+	return nil, nil
+}
+
 func (*stubGoalMCPService) CompleteByModel(context.Context, string, protocol.CompleteGoalRequest) (*protocol.Goal, error) {
 	return nil, nil
 }

@@ -22,6 +22,7 @@ const updateGoalDescription = "Update the existing goal.\n" +
 	"For a shared Room Goal, only the assigned lead agent may update its status; other agents must report evidence or proposals to the lead.\n" +
 	"Do not use this tool to change the objective; use retarget_goal only when the user explicitly corrects the existing active goal.\n" +
 	"Set status to `complete` only when the objective has actually been achieved and no required work remains.\n" +
+	"For a managed Goal, first call the objective-alignment audit tool in the same runtime round. Completion requires its `aligned` report for the current objective revision; the backend also enforces WorkGraph and Room readiness.\n" +
 	"Set status to `blocked` only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.\n" +
 	"If the user resumes a goal that was previously marked `blocked`, treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, set status to `blocked` again.\n" +
 	"Once the blocked threshold is satisfied, do not keep reporting that you are still blocked while leaving the goal active; set status to `blocked`.\n" +

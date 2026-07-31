@@ -21,6 +21,8 @@ const (
 	ExecutionActorCoordinator ExecutionActorRole = "coordinator"
 	ExecutionActorMember      ExecutionActorRole = "member"
 	ExecutionActorSubagent    ExecutionActorRole = "subagent"
+
+	executionGraphDigestEdgeLimit = protocol.ExecutionProjectionCollectionLimit * 4
 )
 
 // ExecutionContextOptions 提供不能从 snapshot 唯一推导的当前 actor 信息。
@@ -289,6 +291,12 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 	)
 	output.WriteString("\n  </execution>")
 
+	renderExecutionGraphDigest(
+		&output,
+		snapshot,
+		role,
+		strings.TrimSpace(options.ActorAgentID),
+	)
 	renderAssignedWork(&output, view, options.ActorAgentID)
 	renderActiveAssignments(&output, view, role)
 	renderReadyWork(&output, view, role)
@@ -308,6 +316,167 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 	renderCompletionBlockers(&output, snapshot.CompletionBlockers)
 	output.WriteString("\n</nexus_execution_context>")
 	return output.String()
+}
+
+type executionGraphDigestEdge struct {
+	from string
+	to   string
+	kind protocol.WorkDependencyKind
+}
+
+// renderExecutionGraphDigest 给模型一个从权威 WorkGraph 派生的确定性拓扑摘要。
+// 它不是写入协议：模型仍只能通过 typed Execution tools 修改状态，UI Mermaid
+// 等可视化也必须从同一 snapshot 单向派生。
+func renderExecutionGraphDigest(
+	output *strings.Builder,
+	snapshot *protocol.ExecutionSnapshot,
+	role ExecutionActorRole,
+	actorAgentID string,
+) {
+	projected := ProjectExecutionView(snapshot)
+	if projected == nil || projected.Plan == nil || len(projected.WorkItems) == 0 {
+		return
+	}
+	itemsByID := make(
+		map[string]protocol.ExecutionWorkItemView,
+		len(projected.WorkItems),
+	)
+	included := make(map[string]bool, len(projected.WorkItems))
+	for _, item := range projected.WorkItems {
+		itemsByID[item.ID] = item
+		if role == ExecutionActorCoordinator ||
+			executionGraphItemBelongsToActor(item, actorAgentID) {
+			included[item.ID] = true
+		}
+	}
+	scope := "full"
+	if role != ExecutionActorCoordinator {
+		scope = "actor_slice"
+		for changed := true; changed; {
+			changed = false
+			for workItemID := range included {
+				for _, dependencyID := range itemsByID[workItemID].DependencyIDs {
+					if !included[dependencyID] {
+						included[dependencyID] = true
+						changed = true
+					}
+				}
+			}
+		}
+	}
+	if len(included) == 0 {
+		return
+	}
+
+	fmt.Fprintf(
+		output,
+		"\n  <graph_digest notation=\"nexus-dag-v1\" scope=\"%s\" plan_revision=\"%d\">",
+		scope,
+		projected.Plan.Revision,
+	)
+	output.WriteString("\n    <nodes>")
+	logicalKeys := make(map[string]string, len(included))
+	for _, item := range projected.WorkItems {
+		if !included[item.ID] {
+			continue
+		}
+		logicalKeys[item.ID] = item.LogicalKey
+		fmt.Fprintf(
+			output,
+			"\n      <node key=\"%s\" subject=\"%s\" kind=\"%s\" status=\"%s\"",
+			xmlValue(item.LogicalKey),
+			xmlValue(item.Subject),
+			xmlValue(string(item.Kind)),
+			xmlValue(string(item.Status)),
+		)
+		if item.Required {
+			output.WriteString(` required="true"`)
+		}
+		if item.Terminal {
+			output.WriteString(` terminal="true"`)
+		}
+		if item.OwnerAgentID != "" &&
+			(role == ExecutionActorCoordinator ||
+				item.OwnerAgentID == actorAgentID) {
+			fmt.Fprintf(
+				output,
+				` owner_agent_id="%s"`,
+				xmlValue(item.OwnerAgentID),
+			)
+		}
+		if executionGraphItemBelongsToActor(item, actorAgentID) {
+			output.WriteString(` current_actor="true"`)
+		}
+		output.WriteString(" />")
+	}
+	output.WriteString("\n    </nodes>")
+
+	edges := make([]executionGraphDigestEdge, 0, len(snapshot.Dependencies))
+	for _, dependency := range snapshot.Dependencies {
+		if dependency.PlanID != projected.Plan.ID ||
+			!included[dependency.WorkItemID] ||
+			!included[dependency.DependsOnWorkItemID] {
+			continue
+		}
+		from := logicalKeys[dependency.DependsOnWorkItemID]
+		to := logicalKeys[dependency.WorkItemID]
+		if from == "" || to == "" {
+			continue
+		}
+		edges = append(edges, executionGraphDigestEdge{
+			from: from,
+			to:   to,
+			kind: dependency.Kind,
+		})
+	}
+	slices.SortFunc(edges, func(left, right executionGraphDigestEdge) int {
+		if order := strings.Compare(left.from, right.from); order != 0 {
+			return order
+		}
+		if order := strings.Compare(left.to, right.to); order != 0 {
+			return order
+		}
+		return strings.Compare(string(left.kind), string(right.kind))
+	})
+	if len(edges) > executionGraphDigestEdgeLimit {
+		fmt.Fprintf(
+			output,
+			"\n    <edges truncated=\"true\" total=\"%d\">",
+			len(edges),
+		)
+	} else {
+		output.WriteString("\n    <edges>")
+	}
+	for _, edge := range edges[:min(len(edges), executionGraphDigestEdgeLimit)] {
+		fmt.Fprintf(
+			output,
+			"\n      <edge from=\"%s\" to=\"%s\" kind=\"%s\" />",
+			xmlValue(edge.from),
+			xmlValue(edge.to),
+			xmlValue(string(edge.kind)),
+		)
+	}
+	output.WriteString("\n    </edges>")
+	output.WriteString("\n  </graph_digest>")
+}
+
+func executionGraphItemBelongsToActor(
+	item protocol.ExecutionWorkItemView,
+	actorAgentID string,
+) bool {
+	if actorAgentID == "" {
+		return false
+	}
+	if item.OwnerAgentID == actorAgentID {
+		return true
+	}
+	for _, attempt := range item.Attempts {
+		if attempt.ExecutorAgentID == actorAgentID ||
+			attempt.ParentAgentID == actorAgentID {
+			return true
+		}
+	}
+	return false
 }
 
 type executionContextView struct {

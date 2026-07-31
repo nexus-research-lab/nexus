@@ -1,5 +1,5 @@
-// INPUT: nexus_goal create request、当前 explicit Goal、current Execution 与 Goal/Orchestration 服务。
-// OUTPUT: create_goal -> Execution 和 Goal -> Ensure 两个方向共用的幂等 binding saga。
+// INPUT: nexus_goal create/retarget/alignment/lifecycle request、当前 explicit Goal、current Execution 与 Goal/Orchestration 服务。
+// OUTPUT: create_goal -> Execution、Goal -> Ensure 的 binding saga 与 Goal 工具窄透传。
 // POS: Goal 与 Execution 两个领域服务之间的应用层协调器；不把跨域事务伪装成单库原子操作。
 package server
 
@@ -418,6 +418,14 @@ func (c *explicitGoalExecutionCoordinator) RetargetByModel(
 	request protocol.RetargetGoalRequest,
 ) (*protocol.Goal, error) {
 	return c.goals.RetargetByModel(ctx, sessionKey, request)
+}
+
+func (c *explicitGoalExecutionCoordinator) AuditObjectiveAlignmentByModel(
+	ctx context.Context,
+	goalID string,
+	request protocol.AuditGoalObjectiveAlignmentRequest,
+) (*protocol.GoalObjectiveAlignmentRecord, error) {
+	return c.goals.AuditObjectiveAlignmentByModel(ctx, goalID, request)
 }
 
 // RetargetGoalObjective executes the durable Goal revision / Execution rebase

@@ -39,6 +39,10 @@ func TestRenderExecutionContextShowsOnlyActorAssignmentAndAcceptedDependencyUnlo
 
 	for _, expected := range []string{
 		`<actor agent_id="analyst" role="member" />`,
+		`<graph_digest notation="nexus-dag-v1" scope="actor_slice" plan_revision="3">`,
+		`<node key="W1" subject="Research" kind="produce" status="accepted" />`,
+		`<node key="W2" subject="Analyze" kind="produce" status="assigned" owner_agent_id="analyst" current_actor="true" />`,
+		`<edge from="W1" to="W2" kind="hard" />`,
 		`<item id="work-analysis" logical_key="W2" spec_id="spec-analysis" assignment_id="assignment-analysis"`,
 		`attempt_id="attempt-analysis" dispatch_id="dispatch-analysis"`,
 		`<deliverable>Compare &amp; verify</deliverable>`,
@@ -62,10 +66,32 @@ func TestRenderExecutionContextShowsOnlyActorAssignmentAndAcceptedDependencyUnlo
 	for _, forbiddenLeak := range []string{
 		`assignment_id="assignment-research"`,
 		`<item id="work-integration"`,
+		`<node key="W3"`,
+		`owner_agent_id="researcher"`,
 		`<submission id="submission-analysis"`,
 	} {
 		if strings.Contains(rendered, forbiddenLeak) {
 			t.Fatalf("member context leaked coordinator-only state %q:\n%s", forbiddenLeak, rendered)
+		}
+	}
+}
+
+func TestRenderExecutionContextGivesCoordinatorFullGraphDigest(t *testing.T) {
+	snapshot := executionContextTestSnapshot()
+	rendered := RenderExecutionContext(&snapshot, ExecutionContextOptions{
+		ActorAgentID: "lead",
+		Role:         ExecutionActorCoordinator,
+	})
+	for _, expected := range []string{
+		`<graph_digest notation="nexus-dag-v1" scope="full" plan_revision="3">`,
+		`<node key="W1" subject="Research" kind="produce" status="accepted" owner_agent_id="researcher" />`,
+		`<node key="W2" subject="Analyze" kind="produce" status="assigned" owner_agent_id="analyst" />`,
+		`<node key="W3" subject="Integrate" kind="integrate" status="waiting" terminal="true" />`,
+		`<edge from="W1" to="W2" kind="hard" />`,
+		`<edge from="W2" to="W3" kind="hard" />`,
+	} {
+		if !strings.Contains(rendered, expected) {
+			t.Fatalf("coordinator graph digest missing %q:\n%s", expected, rendered)
 		}
 	}
 }

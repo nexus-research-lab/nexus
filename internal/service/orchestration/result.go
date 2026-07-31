@@ -28,7 +28,9 @@ type NextAction struct {
 	Reason     string `json:"reason"`
 }
 
-// MutationResult 是模型可见 execution mutation 的统一结果。
+// MutationResult 是 service 内部的统一 mutation 结果。Snapshot 支持同进程协调
+// 与非模型消费者；MCP adapter 必须只投影紧凑字段，不能把它与
+// ExecutionContext 重复发送给模型。
 type MutationResult struct {
 	Outcome          MutationOutcome             `json:"outcome"`
 	ReasonCode       ErrorCode                   `json:"reason_code,omitempty"`

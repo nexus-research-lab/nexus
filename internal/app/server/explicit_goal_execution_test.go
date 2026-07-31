@@ -579,6 +579,14 @@ func (s *stubExplicitGoalLifecycleService) RetargetByModel(
 	return nil, errors.New("unexpected RetargetByModel")
 }
 
+func (s *stubExplicitGoalLifecycleService) AuditObjectiveAlignmentByModel(
+	context.Context,
+	string,
+	protocol.AuditGoalObjectiveAlignmentRequest,
+) (*protocol.GoalObjectiveAlignmentRecord, error) {
+	return nil, errors.New("unexpected AuditObjectiveAlignmentByModel")
+}
+
 func (s *stubExplicitGoalLifecycleService) CompleteByModel(
 	context.Context,
 	string,

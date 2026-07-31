@@ -101,7 +101,9 @@ func reviewWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	return sdktool.Tool{
 		Name: toolName,
 		Description: "Append the coordinator's acceptance decision for an immutable Submission. " +
-			"Accepted requires a passing result for every criterion and is the only decision that unlocks downstream hard dependencies. Review is intentional verification, not duplicate production.",
+			"Accepted requires a passing result for every criterion and is the only decision that unlocks downstream hard dependencies. " +
+			"After Acceptance exposes Ready work, assign it in the same round without asking the user to continue unless a real user decision or input is required. " +
+			"Review is intentional verification, not duplicate production.",
 		SearchHint:  "review accept reject changes requested criteria",
 		InputSchema: reviewWorkSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},

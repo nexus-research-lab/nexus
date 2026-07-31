@@ -142,10 +142,10 @@ const directory = {
   builder: { avatar: null, id: "builder", name: "Builder" },
 };
 
-test("WorkGraph model keeps dependency depth and delivery summary", async () => {
+test("WorkGraph model keeps dependency depth and current node summary", async () => {
   const {
-    buildExecutionSummaryParts,
-    resolveSelectedWorkItem,
+    resolveExecutionNodeSummary,
+    resolveExecutionNodeWindow,
     resolveWorkItemDepths,
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/execution-process-model.ts",
@@ -155,13 +155,71 @@ test("WorkGraph model keeps dependency depth and delivery summary", async () => 
     build: 1,
     integrate: 2,
   });
-  assert.equal(resolveSelectedWorkItem(execution, null).id, "build");
-  assert.deepEqual(buildExecutionSummaryParts(execution), [
-    { count: 1, key: "execution.summary_running" },
-  ]);
+  assert.deepEqual(resolveExecutionNodeSummary(execution), {
+    current: execution.work_items[1],
+    currentStep: 2,
+    summary: "实现 UI",
+    totalCount: 3,
+  });
+  assert.deepEqual(resolveExecutionNodeWindow(execution, "build"), {
+    hiddenAfter: 0,
+    hiddenBefore: 0,
+    items: execution.work_items,
+  });
 });
 
-test("WorkGraph panel exposes one authoritative compact progress surface", async () => {
+test("WorkGraph layout reflows when Plan nodes are added or removed", async () => {
+  const { buildExecutionGraphLayout } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-workgraph-layout.ts",
+  );
+  const branched = structuredClone(execution);
+  branched.version += 1;
+  branched.work_items.splice(2, 0, {
+    id: "review",
+    logical_key: "review",
+    kind: "review",
+    subject: "并行复核",
+    objective: "复核实现",
+    deliverable: "复核结论",
+    acceptance_criteria: ["结论明确"],
+    dependency_ids: ["research"],
+    required: true,
+    position: 2,
+    status: "ready",
+    owner_agent_id: "researcher",
+    updated_at: "2026-07-31T10:02:00Z",
+  });
+  branched.work_items[3].dependency_ids = ["build", "review"];
+  branched.work_items[3].position = 3;
+
+  const addedLayout = buildExecutionGraphLayout(branched);
+  assert.equal(addedLayout.nodes.length, 4);
+  assert.deepEqual(
+    addedLayout.edges.map((edge) => `${edge.sourceId}->${edge.targetId}`),
+    ["research->build", "research->review", "build->integrate", "review->integrate"],
+  );
+  assert.equal(
+    addedLayout.nodes.find((node) => node.item.id === "build").x,
+    addedLayout.nodes.find((node) => node.item.id === "review").x,
+  );
+  assert.notEqual(
+    addedLayout.nodes.find((node) => node.item.id === "build").y,
+    addedLayout.nodes.find((node) => node.item.id === "review").y,
+  );
+
+  const reduced = structuredClone(branched);
+  reduced.version += 1;
+  reduced.work_items = reduced.work_items.filter((item) => item.id !== "build");
+  reduced.work_items.find((item) => item.id === "integrate").dependency_ids = ["review"];
+  const reducedLayout = buildExecutionGraphLayout(reduced);
+  assert.equal(reducedLayout.nodes.length, 3);
+  assert.deepEqual(
+    reducedLayout.edges.map((edge) => `${edge.sourceId}->${edge.targetId}`),
+    ["research->review", "review->integrate"],
+  );
+});
+
+test("WorkGraph panel follows Task density and exposes the current node rail", async () => {
   const { ExecutionProcessPanel } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/execution-process-panel.tsx",
   );
@@ -174,27 +232,40 @@ test("WorkGraph panel exposes one authoritative compact progress surface", async
   );
   assert.match(html, /data-execution-process-panel/);
   assert.match(html, /data-execution-status="active"/);
-  assert.match(html, /1\/3 已验收/);
-  assert.match(html, /Lead/);
+  assert.match(html, /data-execution-node-rail/);
+  assert.match(html, /data-execution-node-agent="researcher"/);
+  assert.match(html, /data-execution-node-agent="builder"/);
+  assert.match(html, /data-execution-node-connection/);
+  assert.match(html, /第 2 \/ 3 节点/);
+  assert.match(html, /实现 UI/);
+  assert.doesNotMatch(html, /Lead/);
   assert.doesNotMatch(html, /data-workspace-task-panel/);
 });
 
-test("Work Item detail includes dependency, contract, subagent and completion boundaries", async () => {
-  const { ExecutionWorkItemDetail } = await server.ssrLoadModule(
-    "/src/features/conversation/shared/execution/execution-work-item-detail.tsx",
+test("Expanded WorkGraph is an interactive Agent-avatar DAG", async () => {
+  const { ExecutionWorkGraphCanvas } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-workgraph-canvas.tsx",
   );
   const html = await renderWithI18n(
-    React.createElement(ExecutionWorkItemDetail, {
+    React.createElement(ExecutionWorkGraphCanvas, {
+      currentId: "build",
       directory,
       execution,
-      item: execution.work_items[1],
     }),
   );
-  assert.match(html, /实现 UI/);
-  assert.match(html, /梳理协议/);
-  assert.match(html, /WorkGraph 面板/);
-  assert.match(html, /子智能体/);
-  assert.match(html, /全部必需工作项通过验收/);
+  assert.match(html, /data-execution-node-map/);
+  assert.match(html, /data-execution-workgraph-canvas/);
+  assert.match(html, /data-execution-node-detail-mode="popover"/);
+  assert.match(html, /data-execution-edge-layer/);
+  assert.match(html, /data-execution-edge-source="research"/);
+  assert.match(html, /data-execution-edge-target="build"/);
+  assert.match(html, /data-execution-current-node="true"/);
+  assert.doesNotMatch(html, /data-execution-node-selected="true"/);
+  assert.doesNotMatch(html, /data-execution-selected-node-detail/);
+  assert.match(html, /data-execution-node-agent="researcher"/);
+  assert.match(html, /data-execution-node-agent="builder"/);
+  assert.doesNotMatch(html, /验收标准/);
+  assert.doesNotMatch(html, /依赖.*1/);
 });
 
 test("Execution MCP names render as semantic activity instead of raw transport names", async () => {

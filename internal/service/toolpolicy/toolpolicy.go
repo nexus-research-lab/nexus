@@ -21,6 +21,7 @@ var managedGoalTools = []string{
 	"get_goal",
 	"create_goal",
 	"retarget_goal",
+	"audit_objective_alignment",
 	"update_goal",
 }
 
@@ -29,10 +30,12 @@ var managedGoalAllowedTools = []string{
 	"mcp__nexus_goal__get_goal",
 	"mcp__nexus_goal__create_goal",
 	"mcp__nexus_goal__retarget_goal",
+	"mcp__nexus_goal__audit_objective_alignment",
 	"mcp__nexus_goal__update_goal",
 	"get_goal",
 	"create_goal",
 	"retarget_goal",
+	"audit_objective_alignment",
 	"update_goal",
 	"Skill",
 }

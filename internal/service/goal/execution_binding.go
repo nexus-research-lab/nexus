@@ -110,6 +110,10 @@ func (s *Service) BindExplicitExecution(
 		if current.Metadata == nil {
 			current.Metadata = map[string]any{}
 		}
+		// Binding or first materialization of completion criteria changes the
+		// authoritative audit target. A report produced before this mutation
+		// must never authorize completion.
+		delete(current.Metadata, protocol.GoalMetadataObjectiveAlignment)
 		current.Metadata[protocol.GoalMetadataExecutionID] = executionID
 		if len(criteria) == 0 {
 			delete(current.Metadata, protocol.GoalMetadataCompletionCriteria)

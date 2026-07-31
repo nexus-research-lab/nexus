@@ -21,7 +21,13 @@ func TestBuildAllExposesCodexGoalToolSet(t *testing.T) {
 		names = append(names, item.Name)
 	}
 
-	want := []string{"get_goal", "create_goal", "retarget_goal", "update_goal"}
+	want := []string{
+		"get_goal",
+		"create_goal",
+		"retarget_goal",
+		"audit_objective_alignment",
+		"update_goal",
+	}
 	if !slices.Equal(names, want) {
 		t.Fatalf("tool names = %#v, want %#v", names, want)
 	}
@@ -110,6 +116,137 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 		if !strings.Contains(tool.Description, want) {
 			t.Fatalf("tool description missing result-first guidance %q: %s", want, tool.Description)
 		}
+	}
+}
+
+func TestAuditObjectiveAlignmentUsesStableScalarTransport(t *testing.T) {
+	tool := auditObjectiveAlignment(nil, contract.ServerContext{})
+	properties, ok := tool.InputSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("properties = %#v, want map", tool.InputSchema["properties"])
+	}
+	if names := slices.Sorted(maps.Keys(properties)); !slices.Equal(names, []string{"report_json"}) {
+		t.Fatalf("properties = %#v, want report_json only", names)
+	}
+	required, ok := tool.InputSchema["required"].([]string)
+	if !ok || !slices.Equal(required, []string{"report_json"}) {
+		t.Fatalf("required = %#v, want [report_json]", tool.InputSchema["required"])
+	}
+	reportJSON, ok := properties["report_json"].(map[string]any)
+	if !ok || reportJSON["type"] != "string" {
+		t.Fatalf("report_json schema = %#v, want string", properties["report_json"])
+	}
+	for _, want := range []string{
+		"backend-authoritative objective and completion criteria",
+		"does not complete",
+		"one JSON object string",
+	} {
+		if !strings.Contains(tool.Description, want) {
+			t.Fatalf("description missing %q: %s", want, tool.Description)
+		}
+	}
+}
+
+func TestAuditObjectiveAlignmentBindsCurrentGoalRoundAgentAndRevision(t *testing.T) {
+	reportJSON := `{
+		"decision":"aligned",
+		"criteria_results":[{
+			"criterion":"report accepted",
+			"status":"satisfied",
+			"evidence":[{"ref":"test://report","claim":"acceptance suite passed"}]
+		}],
+		"summary":"all completion criteria are proven"
+	}`
+	svc := &fakeUpdateGoalService{
+		current: &protocol.Goal{
+			ID:         "goal-1",
+			SessionKey: "agent:nexus:ws:dm:chat",
+			Objective:  "Ship parity",
+			Status:     protocol.GoalStatusActive,
+		},
+		alignmentRecord: &protocol.GoalObjectiveAlignmentRecord{
+			ID:                "alignment-1",
+			ObjectiveRevision: 7,
+			RoundID:           "round-audit",
+			AgentID:           "agent-1",
+			Report: protocol.ObjectiveAlignmentReport{
+				Decision: protocol.ObjectiveAlignmentAligned,
+			},
+		},
+	}
+	tool := auditObjectiveAlignment(svc, contract.ServerContext{
+		CurrentSessionKey:     "agent:nexus:ws:dm:chat",
+		CurrentRoundID:        "round-audit",
+		CurrentAgentID:        "agent-1",
+		GoalObjectiveRevision: contract.NewGoalObjectiveRevision(7),
+	})
+
+	result, err := tool.Handler(
+		context.Background(),
+		map[string]any{"report_json": reportJSON},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError {
+		t.Fatalf("result = %#v, want success", result)
+	}
+	if svc.alignmentGoalID != "goal-1" ||
+		svc.alignmentRequest.RoundID != "round-audit" ||
+		svc.alignmentRequest.AgentID != "agent-1" ||
+		svc.alignmentRequest.ExpectedObjectiveRevision != 7 ||
+		svc.alignmentRequest.Report.Decision != protocol.ObjectiveAlignmentAligned {
+		t.Fatalf("alignment call = goal:%q request:%#v", svc.alignmentGoalID, svc.alignmentRequest)
+	}
+	nextAction, ok := result.StructuredContent["nextAction"].(map[string]any)
+	if !ok || nextAction["tool"] != "update_goal" || nextAction["status"] != "complete" {
+		t.Fatalf("nextAction = %#v, want update_goal completion", result.StructuredContent["nextAction"])
+	}
+	text, _ := result.Content[0]["text"].(string)
+	if !strings.Contains(text, `"objectiveAlignment"`) {
+		t.Fatalf("text result omitted objective alignment record: %s", text)
+	}
+}
+
+func TestAuditObjectiveAlignmentRejectsMalformedJSONBeforeService(t *testing.T) {
+	for name, reportJSON := range map[string]string{
+		"unknown nested field": `{
+			"decision":"aligned",
+			"criteria_results":[{
+				"criterion":"done",
+				"status":"satisfied",
+				"evidence":[{"ref":"test://done","claim":"passed","unknown":true}]
+			}],
+			"summary":"done"
+		}`,
+		"trailing object": `{"decision":"aligned","criteria_results":[],"summary":"done"} {}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			svc := &fakeUpdateGoalService{
+				current: &protocol.Goal{ID: "must-not-load"},
+				alignmentRecord: &protocol.GoalObjectiveAlignmentRecord{
+					ID: "must-not-save",
+				},
+			}
+			result, err := auditObjectiveAlignment(
+				svc,
+				contract.ServerContext{},
+			).Handler(
+				context.Background(),
+				map[string]any{"report_json": reportJSON},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.IsError || svc.currentCalls != 0 || svc.alignmentGoalID != "" {
+				t.Fatalf(
+					"result=%#v currentCalls=%d alignmentGoalID=%q",
+					result,
+					svc.currentCalls,
+					svc.alignmentGoalID,
+				)
+			}
+		})
 	}
 }
 
@@ -561,6 +698,10 @@ func (fakeGoalService) RetargetByModel(context.Context, string, protocol.Retarge
 	return nil, nil
 }
 
+func (fakeGoalService) AuditObjectiveAlignmentByModel(context.Context, string, protocol.AuditGoalObjectiveAlignmentRequest) (*protocol.GoalObjectiveAlignmentRecord, error) {
+	return nil, nil
+}
+
 func (fakeGoalService) CompleteByModel(context.Context, string, protocol.CompleteGoalRequest) (*protocol.Goal, error) {
 	return nil, nil
 }
@@ -599,6 +740,10 @@ func (s *fakeCreateGoalService) RetargetByModel(context.Context, string, protoco
 	return nil, errors.New("RetargetByModel should not be called by create_goal")
 }
 
+func (s *fakeCreateGoalService) AuditObjectiveAlignmentByModel(context.Context, string, protocol.AuditGoalObjectiveAlignmentRequest) (*protocol.GoalObjectiveAlignmentRecord, error) {
+	return nil, errors.New("AuditObjectiveAlignmentByModel should not be called by create_goal")
+}
+
 func (s *fakeCreateGoalService) CompleteByModel(context.Context, string, protocol.CompleteGoalRequest) (*protocol.Goal, error) {
 	return nil, errors.New("CompleteByModel should not be called by create_goal")
 }
@@ -621,6 +766,9 @@ type fakeUpdateGoalService struct {
 	blockedRoundID   string
 	completedRequest protocol.CompleteGoalRequest
 	blockedRequest   protocol.BlockGoalRequest
+	alignmentRecord  *protocol.GoalObjectiveAlignmentRecord
+	alignmentRequest protocol.AuditGoalObjectiveAlignmentRequest
+	alignmentGoalID  string
 	requiredRevision int64
 	currentStarted   chan<- struct{}
 	currentRelease   <-chan struct{}
@@ -653,6 +801,19 @@ func (s *fakeUpdateGoalService) CurrentOptional(context.Context, string) (*proto
 
 func (s *fakeUpdateGoalService) RetargetByModel(context.Context, string, protocol.RetargetGoalRequest) (*protocol.Goal, error) {
 	return nil, errors.New("RetargetByModel should not be called by update_goal")
+}
+
+func (s *fakeUpdateGoalService) AuditObjectiveAlignmentByModel(
+	_ context.Context,
+	goalID string,
+	request protocol.AuditGoalObjectiveAlignmentRequest,
+) (*protocol.GoalObjectiveAlignmentRecord, error) {
+	s.alignmentGoalID = goalID
+	s.alignmentRequest = request
+	if s.alignmentRecord == nil {
+		return nil, errors.New("alignment record not configured")
+	}
+	return s.alignmentRecord, nil
 }
 
 func (s *fakeUpdateGoalService) CompleteByModel(_ context.Context, goalID string, request protocol.CompleteGoalRequest) (*protocol.Goal, error) {
@@ -709,6 +870,10 @@ func (s *fakeRetargetGoalService) RetargetByModel(_ context.Context, sessionKey 
 	s.sessionKey = sessionKey
 	s.request = request
 	return s.retargeted, s.err
+}
+
+func (s *fakeRetargetGoalService) AuditObjectiveAlignmentByModel(context.Context, string, protocol.AuditGoalObjectiveAlignmentRequest) (*protocol.GoalObjectiveAlignmentRecord, error) {
+	return nil, errors.New("AuditObjectiveAlignmentByModel should not be called by retarget_goal")
 }
 
 func (s *fakeRetargetGoalService) CompleteByModel(_ context.Context, _ string, request protocol.CompleteGoalRequest) (*protocol.Goal, error) {

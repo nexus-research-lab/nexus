@@ -229,6 +229,13 @@ func (s *Service) completeAfterCompletionToolMissRetry(ctx context.Context, item
 	if roomGoalCompletionRequiresCollaboration(*item) {
 		return s.noteEmptyContinuationProgress(ctx, item, roundID, "Room Goal completion requires room-visible non-lead collaboration")
 	}
+	if alignmentErr := s.ensureGoalObjectiveAlignmentReady(
+		*item,
+		RoomLeadAgentID(*item),
+		roundID,
+	); alignmentErr != nil {
+		return s.noteEmptyContinuationProgress(ctx, item, roundID, alignmentErr.Error())
+	}
 	if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, *item); readinessErr != nil {
 		return s.noteEmptyContinuationProgress(ctx, item, roundID, readinessErr.Error())
 	}
