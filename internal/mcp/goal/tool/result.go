@@ -1,5 +1,5 @@
 // INPUT: Goal 工具结果、状态与 actual/budget usage。
-// OUTPUT: 完整 MCP structured 投影、Codex 兼容 text 投影及精简完成指引。
+// OUTPUT: 完整 MCP structured 投影、Codex 兼容 text 投影及 result-first 完成交付指引。
 // POS: Goal MCP 工具的稳定输出边界。
 package tool
 
@@ -182,5 +182,5 @@ func completionUsageCheckpointReport(item *protocol.Goal) string {
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusComplete {
 		return ""
 	}
-	return "Goal achieved. Send one concise final response stating that the Goal is complete and briefly summarizing what `goal.objective` achieved. Then stop and wait for user input."
+	return "Goal achieved. Use the next final response as the complete user-facing delivery. It must stand on its own and satisfy `goal.objective`: include the full requested content when content itself is the deliverable; for files or artifacts, provide exact links or paths; for implementation, research, or external-state work, present the key outcomes and relevant verification. Do not make Goal completion the headline or replace the result with a completion notice or brief summary; mention completion only secondarily if useful. Then stop and wait for user input."
 }

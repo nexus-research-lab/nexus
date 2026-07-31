@@ -1,14 +1,21 @@
 /**
- * INPUT: 当前会话投影出的任务列表。
- * OUTPUT: 具备 44px 局部热区、当前步骤摘要、顺序键盘导航与可读状态的居中任务胶囊及向上明细。
+ * INPUT: 当前会话投影出的任务列表、来源 Agent 与可选来源控件。
+ * OUTPUT: 带 Agent 来源、44px 局部热区、当前步骤摘要、顺序键盘导航与可读状态的居中任务胶囊及向上明细。
  * POS: 锚在 Composer 顶边的 Workspace 会话级只读任务入口。
  */
 "use client";
 
 import { ChevronDown, ChevronUp, Circle, CircleCheck, ListChecks } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { LoadingOrb } from "@/shared/ui/feedback/loading-orb";
 import {
@@ -22,6 +29,14 @@ import { resolveWorkspaceTaskSummary } from "./workspace-task-strip-model";
 interface WorkspaceTaskPanelProps {
   todos: TodoItem[];
   className?: string;
+  source?: WorkspaceTaskSource;
+  sourceControl?: ReactNode;
+}
+
+export interface WorkspaceTaskSource {
+  agentId: string;
+  avatar: string | null;
+  name: string;
 }
 
 const TASK_PANEL_TRIGGER_CLASS_NAME =
@@ -30,6 +45,8 @@ const TASK_PANEL_TRIGGER_CLASS_NAME =
 export function WorkspaceTaskPanel({
   todos,
   className,
+  source,
+  sourceControl,
 }: WorkspaceTaskPanelProps) {
   const { t } = useI18n();
   const taskSummary = resolveWorkspaceTaskSummary(todos);
@@ -114,6 +131,15 @@ export function WorkspaceTaskPanel({
         onClick={() => setIsExpanded((current) => !current)}
         type="button"
       >
+        {source ? (
+          <>
+            <WorkspaceTaskSourceIdentity source={source} />
+            <span
+              aria-hidden="true"
+              className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)"
+            />
+          </>
+        ) : null}
         <span className="grid h-4 w-4 shrink-0 place-items-center">
           {hasRunningTask ? (
             <LoadingOrb />
@@ -153,13 +179,32 @@ export function WorkspaceTaskPanel({
             id={panelId}
           >
             <div className="flex h-10 shrink-0 items-center gap-2 px-3">
-              <span className="text-compact font-semibold text-(--text-strong)">
+              {sourceControl || source ? (
+                <>
+                  <div
+                    className="min-w-0 max-w-[9rem]"
+                    data-workspace-task-expanded-source
+                  >
+                    {sourceControl ?? (
+                      source ? <WorkspaceTaskSourceIdentity source={source} /> : null
+                    )}
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)"
+                  />
+                </>
+              ) : null}
+              <span className="shrink-0 text-compact font-semibold text-(--text-strong)">
                 {t("tasks.label")}
               </span>
-              <span className="text-compact tabular-nums text-(--text-soft)">
+              <span
+                className="shrink-0 text-compact tabular-nums text-(--text-soft)"
+                data-workspace-task-progress-label
+              >
                 {completedCount}/{totalCount}
               </span>
-              <span className="flex-1" />
+              <span className="min-w-0 flex-1" />
               {hasRunningTask ? <LoadingOrb /> : null}
               <button
                 aria-label={t("tasks.collapse_panel")}
@@ -228,5 +273,29 @@ export function WorkspaceTaskPanel({
         </div>
       ) : null}
     </aside>
+  );
+}
+
+function WorkspaceTaskSourceIdentity({
+  source,
+}: {
+  source: WorkspaceTaskSource;
+}) {
+  return (
+    <span
+      className="flex min-w-0 max-w-[8.5rem] items-center gap-1.5"
+      data-workspace-task-agent-id={source.agentId}
+      title={source.name}
+    >
+      <UiAgentAvatar
+        avatar={source.avatar}
+        className="shrink-0"
+        name={source.name}
+        size="xs"
+      />
+      <span className="min-w-0 truncate text-compact font-semibold leading-none text-(--text-default)">
+        {source.name}
+      </span>
+    </span>
   );
 }

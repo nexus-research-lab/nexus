@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前会话消息、session 与 Room Agent 身份。
+ * OUTPUT: 单会话任务列表，以及按 Agent 隔离且带最近任务事件位置的进程集合。
+ * POS: Conversation Todo/Task 工具到 DM/Room 进程 UI 的唯一纯投影入口。
+ */
 import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
 import type {
   AssistantMessage,
@@ -28,6 +33,17 @@ interface TodoRoundProjection {
   kind: TodoRoundProjectionKind;
   plan: TodoItem[];
   runtimeTasks: TodoItem[];
+}
+
+export interface ConversationTodoProcess {
+  agentId: string;
+  latestTaskEventIndex: number;
+  todos: TodoItem[];
+}
+
+interface ConversationTodoProjection {
+  latestTaskEventIndex: number;
+  todos: TodoItem[];
 }
 
 const TODO_ROUND_PROJECTORS: Record<
@@ -192,19 +208,83 @@ export function projectConversationTodos(
   messages: Message[],
   sessionKey: string | null,
 ): TodoItem[] {
+  return projectConversationTodoProjection(messages, sessionKey).todos;
+}
+
+export function projectConversationTodoProcesses(
+  messages: Message[],
+  sessionKey: string | null,
+): ConversationTodoProcess[] {
   if (!sessionKey || messages.length === 0) {
     return [];
   }
 
+  const messagesByAgent = new Map<string, {
+    indexes: number[];
+    messages: Message[];
+  }>();
+  messages.forEach((message, messageIndex) => {
+    if (!isSameSessionMessage(message, sessionKey)) {
+      return;
+    }
+    const agentId = message.agent_id.trim();
+    if (!agentId) {
+      return;
+    }
+    const group = messagesByAgent.get(agentId) ?? {
+      indexes: [],
+      messages: [],
+    };
+    group.indexes.push(messageIndex);
+    group.messages.push(message);
+    messagesByAgent.set(agentId, group);
+  });
+
+  const processes: ConversationTodoProcess[] = [];
+  for (const [agentId, group] of messagesByAgent) {
+    const projection = projectConversationTodoProjection(
+      group.messages,
+      sessionKey,
+    );
+    if (projection.todos.length === 0) {
+      continue;
+    }
+    processes.push({
+      agentId,
+      latestTaskEventIndex:
+        group.indexes[projection.latestTaskEventIndex] ?? -1,
+      todos: projection.todos,
+    });
+  }
+  return processes;
+}
+
+function projectConversationTodoProjection(
+  messages: Message[],
+  sessionKey: string | null,
+): ConversationTodoProjection {
+  if (!sessionKey || messages.length === 0) {
+    return {
+      latestTaskEventIndex: -1,
+      todos: [],
+    };
+  }
+
   const taskListProjection = projectTaskListToolTodos(messages, sessionKey);
   if (taskListProjection.observed) {
-    return taskListProjection.todos;
+    return {
+      latestTaskEventIndex: taskListProjection.latestTaskEventIndex,
+      todos: taskListProjection.todos,
+    };
   }
 
   const roundIndex = buildTodoRoundIndex(messages, sessionKey);
   const activeRoundEntry = findLatestTodoRound(roundIndex);
   if (!activeRoundEntry) {
-    return [];
+    return {
+      latestTaskEventIndex: -1,
+      todos: [],
+    };
   }
 
   const [roundId, activeRound] = activeRoundEntry;
@@ -214,7 +294,10 @@ export function projectConversationTodos(
     roundId,
     activeRound,
   );
-  return TODO_ROUND_PROJECTORS[projection.kind](projection);
+  return {
+    latestTaskEventIndex: activeRound.latestTaskEventIndex,
+    todos: TODO_ROUND_PROJECTORS[projection.kind](projection),
+  };
 }
 
 export function areTodoListsEqual(left: TodoItem[], right: TodoItem[]): boolean {
@@ -227,6 +310,24 @@ export function areTodoListsEqual(left: TodoItem[], right: TodoItem[]): boolean 
         && todo.content === other.content
         && todo.status === other.status
         && todo.active_form === other.active_form,
+      );
+    })
+  );
+}
+
+export function areTodoProcessListsEqual(
+  left: ConversationTodoProcess[],
+  right: ConversationTodoProcess[],
+): boolean {
+  return left === right || (
+    left.length === right.length
+    && left.every((process, index) => {
+      const other = right[index];
+      return Boolean(
+        other
+        && process.agentId === other.agentId
+        && process.latestTaskEventIndex === other.latestTaskEventIndex
+        && areTodoListsEqual(process.todos, other.todos),
       );
     })
   );

@@ -75,7 +75,6 @@ func resolveTranscriptRoundTail(
 	alignedMarkers := alignTranscriptRoundMarkers(
 		chain,
 		roundMarkers,
-		shouldSkipTranscriptEntry,
 	)
 	markerIndex := 0
 	found := false

@@ -1,3 +1,8 @@
+/**
+ * INPUT: 当前 session 的 TaskCreate、TaskList 与 TaskUpdate 工具消息。
+ * OUTPUT: 最新 runtime session 的任务快照及最近任务事件位置。
+ * POS: Task List 工具协议到 Conversation Todo 投影之间的纯解析层。
+ */
 import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
 import type {
   ToolResultContent,
@@ -21,6 +26,7 @@ interface TaskToolCall {
 }
 
 export interface TaskListToolProjection {
+  latestTaskEventIndex: number;
   observed: boolean;
   todos: TodoItem[];
 }
@@ -40,9 +46,10 @@ export function projectTaskListToolTodos(
   const tasksById = new Map<string, TaskListItem>();
   const toolCallsById = new Map<string, TaskToolCall>();
   const runtimeSessionId = latestRuntimeSessionId(messages, sessionKey);
+  let latestTaskEventIndex = -1;
   let observed = false;
 
-  for (const message of messages) {
+  for (const [messageIndex, message] of messages.entries()) {
     if (
       message.role !== "assistant"
       || !isSameSessionMessage(message, sessionKey)
@@ -54,6 +61,7 @@ export function projectTaskListToolTodos(
     for (const block of message.content) {
       if (block.type === "tool_use" && isTaskListToolName(block.name)) {
         observed = true;
+        latestTaskEventIndex = messageIndex;
         indexTaskToolUse(tasksById, toolCallsById, block);
         continue;
       }
@@ -65,11 +73,13 @@ export function projectTaskListToolTodos(
         continue;
       }
       observed = true;
+      latestTaskEventIndex = messageIndex;
       applyTaskToolResult(tasksById, block, toolCall, block.tool_use_id);
     }
   }
 
   return {
+    latestTaskEventIndex,
     observed,
     todos: [...tasksById.values()].map(({id: _id, ...todo}) => todo),
   };

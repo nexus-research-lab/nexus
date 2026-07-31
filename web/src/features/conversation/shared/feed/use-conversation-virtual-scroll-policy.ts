@@ -1,6 +1,6 @@
 /**
  * INPUT: 跨 optimistic ACK 稳定的节点身份与 TanStack Virtual 动态尺寸测量。
- * OUTPUT: 仅在轮次集合真实变化时更新的 item key，以及不误推可见长回复的锚点策略。
+ * OUTPUT: 仅在轮次集合真实变化时更新的 item key，以及由 Virtualizer 独占上方补偿与尾部跟随的动态测高策略。
  * POS: DM 与 Room 虚拟消息流共用的身份和尺寸变化滚动协议。
  */
 import { useCallback, useRef, type RefObject } from "react";
@@ -12,7 +12,11 @@ interface VirtualScrollItem {
 }
 
 interface VirtualScrollState {
+  getTotalSize?: () => number;
   scrollOffset: number | null;
+  scrollRect?: {
+    height: number;
+  } | null;
 }
 
 export function useConversationVirtualItemKey(
@@ -56,9 +60,30 @@ export function shouldAdjustConversationVirtualScrollPosition(
   _delta: number,
   instance: VirtualScrollState,
 ): boolean {
-  return (
+  const scrollOffset = instance.scrollOffset ?? 0;
+  const itemIsAboveViewport = (
     item.end
-    <= (instance.scrollOffset ?? 0) + VIRTUAL_ANCHOR_TOLERANCE_PX
+    <= scrollOffset + VIRTUAL_ANCHOR_TOLERANCE_PX
+  );
+  if (itemIsAboveViewport) {
+    return true;
+  }
+
+  const viewportHeight = instance.scrollRect?.height;
+  const totalSize = instance.getTotalSize?.();
+  if (
+    typeof viewportHeight !== "number"
+    || typeof totalSize !== "number"
+  ) {
+    return false;
+  }
+
+  // TanStack Virtual 在写入本次 measured size 前调用该策略，因此 totalSize
+  // 仍是变更前的真实总高。旧视口若位于底部，就由同一 Virtualizer 写入 delta：
+  // 上方 Agent 增长只移动数值 scrollTop，不移动用户眼中的底部内容。
+  return (
+    totalSize
+    <= scrollOffset + viewportHeight + VIRTUAL_ANCHOR_TOLERANCE_PX
   );
 }
 

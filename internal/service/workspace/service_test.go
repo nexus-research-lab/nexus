@@ -174,6 +174,11 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		"retarget_goal",
 		"update_goal",
 		"Skill 只负责加载这份使用说明",
+		"信息足够前禁止调用 `create_goal`",
+		"禁止先创建“写一篇作文”",
+		"最终回复是用户真正的交付面",
+		"直接完整展示正文",
+		"不要把“Goal 已完成”放在开头",
 		"不要用 /goal 文本命令",
 	} {
 		if !strings.Contains(string(goalSkill), expected) {

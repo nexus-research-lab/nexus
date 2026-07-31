@@ -33,10 +33,8 @@ export function useUserMessageEditor({
   }, [isEditing]);
 
   useTextareaHeight(textareaRef, draftContent, {
-    lineHeight: 24,
     maxHeight: 120,
     minHeight: compact ? 60 : 64,
-    paddingY: compact ? 12 : 16,
   });
 
   const cancel = useCallback(() => {

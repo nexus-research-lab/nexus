@@ -3,6 +3,7 @@ import type { zhConversationMessages } from "../zh/conversation";
 
 export const enConversationMessages = {
   "tasks.label": "Progress",
+  "tasks.switch_agent": "Switch progress agent",
   "tasks.step_progress": "Step {current} / {total}",
   "tasks.collapse_panel": "Collapse tasks panel",
   "tasks.expand_panel": "Expand tasks panel",

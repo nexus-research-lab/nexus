@@ -46,7 +46,6 @@ interface ConversationThreadViewProps {
   footer: ReactNode;
   headerAction: ReactNode;
   headerAvatar: ReactNode;
-  isLoading: boolean;
   messageContext: ConversationThreadMessageContext;
   model: ConversationThreadModel;
   notice: ReactNode;
@@ -106,7 +105,6 @@ export function ConversationThreadView({
   footer,
   headerAction,
   headerAvatar,
-  isLoading,
   messageContext,
   model,
   notice,
@@ -155,7 +153,6 @@ export function ConversationThreadView({
         scrollRef={scrollRef}
       />
       <ThreadScrollToLatest
-        isLoading={isLoading}
         show={showScrollToLatest}
         onClick={onScrollToLatest}
       />
@@ -338,17 +335,14 @@ function ThreadRound({
 }
 
 function ThreadScrollToLatest({
-  isLoading,
   onClick,
   show,
 }: {
-  isLoading: boolean;
   onClick: () => void;
   show: boolean;
 }) {
   return (
     <ScrollToLatestButton
-      isLoading={isLoading}
       onClick={onClick}
       visible={show}
     />

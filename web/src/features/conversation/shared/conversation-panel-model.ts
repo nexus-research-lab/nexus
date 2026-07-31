@@ -48,11 +48,14 @@ interface ConversationNavigatorSessionSource {
 }
 
 interface ConversationScrollToLatestSessionSource {
-  conversation: Pick<UseAgentConversationReturn, "is_loading">;
   scroll: Pick<
     ConversationPanelScrollSource,
     "scrollToBottom" | "showScrollToBottom"
   >;
+}
+
+interface ConversationRuntimeSessionSource {
+  conversation: Pick<UseAgentConversationReturn, "is_loading">;
 }
 
 interface ConversationViewportSessionSource {
@@ -76,6 +79,7 @@ interface ConversationViewportSessionSource {
 
 export type ConversationPanelSessionSource =
   & ConversationNavigatorSessionSource
+  & ConversationRuntimeSessionSource
   & ConversationScrollToLatestSessionSource
   & ConversationViewportSessionSource;
 
@@ -132,7 +136,6 @@ function buildConversationScrollToLatestModel(
 ): ConversationScrollToLatestModel {
   return {
     direction: null,
-    isLoading: session.conversation.is_loading,
     onClick: () => session.scroll.scrollToBottom("smooth"),
     unreadCount: 0,
     visible: session.scroll.showScrollToBottom,

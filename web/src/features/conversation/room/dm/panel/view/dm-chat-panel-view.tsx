@@ -22,7 +22,10 @@ import { ConversationFeed } from "@/features/conversation/shared/feed/conversati
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
-import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
+import {
+  WorkspaceTaskPanel,
+  type WorkspaceTaskSource,
+} from "@/shared/ui/workspace/surface/workspace-task-strip";
 import type { TodoItem } from "@/types/conversation/todo";
 
 export type DmChatComposerModel = Omit<
@@ -37,6 +40,7 @@ export interface DmChatPanelViewModel extends ConversationPanelFrameModel {
   composerInteraction: ComposerInteractionSurfaceProps;
   feed: FeedModel;
   goalPanel: GoalPanelModel;
+  taskSource?: WorkspaceTaskSource;
   todos: TodoItem[];
 }
 
@@ -74,7 +78,12 @@ export function DmChatPanelView({
       <ConversationPanelBottomArea
         activity={
           model.todos.length > 0
-            ? <WorkspaceTaskPanel todos={model.todos} />
+            ? (
+                <WorkspaceTaskPanel
+                  source={model.taskSource}
+                  todos={model.todos}
+                />
+              )
             : undefined
         }
         goal={<GoalPanel {...model.goalPanel} compact={isMobileLayout} />}

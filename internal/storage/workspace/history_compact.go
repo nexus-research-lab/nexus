@@ -39,10 +39,32 @@ func compactMessages(rows []protocol.Message) []protocol.Message {
 }
 
 func mergeCompactedMessage(current protocol.Message, next protocol.Message) protocol.Message {
-	if stringFromAny(current["role"]) != "assistant" || stringFromAny(next["role"]) != "assistant" {
-		return next
+	currentRole := stringFromAny(current["role"])
+	nextRole := stringFromAny(next["role"])
+	if currentRole == "user" && nextRole == "user" {
+		return mergeUserSnapshots(current, next)
 	}
-	return mergeAssistantSnapshots(current, next)
+	if currentRole == "assistant" && nextRole == "assistant" {
+		return mergeAssistantSnapshots(current, next)
+	}
+	return next
+}
+
+func mergeUserSnapshots(current protocol.Message, next protocol.Message) protocol.Message {
+	merged := protocol.Clone(next)
+	if stringFromAny(merged["session_id"]) == "" && stringFromAny(current["session_id"]) != "" {
+		merged["session_id"] = current["session_id"]
+	}
+
+	// 后一份 durable user 快照仍是完整真相，不能从旧的单 Agent 快照继承
+	// agent_round_id 等已被清除的字段。只补 transcript 独有的 session_id，
+	// 并保留最早的有效输入时间，保证 user 排在由它触发的 assistant 前面。
+	currentTimestamp := messageTimestamp(current)
+	nextTimestamp := messageTimestamp(next)
+	if currentTimestamp > 0 && (nextTimestamp <= 0 || currentTimestamp < nextTimestamp) {
+		merged["timestamp"] = current["timestamp"]
+	}
+	return merged
 }
 
 func mergeAssistantSnapshots(current protocol.Message, next protocol.Message) protocol.Message {

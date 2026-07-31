@@ -79,7 +79,7 @@ test("scroll-to-latest is a local floating hit target without a layout band", as
   const visibleHtml = renderToStaticMarkup(React.createElement(
     ScrollToLatestButton,
     {
-      isLoading: false,
+      isLoading: true,
       onClick: () => {},
       visible: true,
     },
@@ -107,6 +107,11 @@ test("scroll-to-latest is a local floating hit target without a layout band", as
     visibleHtml,
     /\stitle=/,
     "the icon-only action must not expose a native tooltip over the feed",
+  );
+  assert.doesNotMatch(
+    visibleHtml,
+    /animate-bounce/,
+    "live output must not animate the user-controlled return action",
   );
   assert.equal(
     hiddenHtml,
@@ -333,7 +338,7 @@ test("FOLLOW and READING preserve intent at the real bottom edge", async () => {
   );
 });
 
-test("Room streaming revisions keep the follow key fresh for non-last Agent output", async () => {
+test("Room streaming revisions keep scroll coordination fresh for non-last Agent output", async () => {
   const { buildConversationScrollContentKey } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
   );
@@ -367,7 +372,58 @@ test("Room streaming revisions keep the follow key fresh for non-last Agent outp
   assert.notEqual(
     before,
     after,
-    "任意并行 Agent 的流式正文增长都必须触发主 Room 的贴底事务",
+    "任意并行 Agent 的流式正文增长都必须唤醒滚动协调，但不能等同于共享贴底写入",
+  );
+});
+
+test("upper Room Agent streaming delegates virtual height changes without pulling the bottom", async () => {
+  const { resolveConversationFollowCommitOwner } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/scroll/follow-scroll-model.ts",
+  );
+
+  assert.equal(
+    resolveConversationFollowCommitOwner({
+      bottomScrollActive: false,
+      isNewSession: false,
+      isVirtualFeed: true,
+      topologyChanged: false,
+      viewportAnchorRestored: false,
+    }),
+    "virtualizer",
+    "an existing upper Agent stream must not issue a second shared bottom write",
+  );
+  assert.equal(
+    resolveConversationFollowCommitOwner({
+      bottomScrollActive: true,
+      isNewSession: false,
+      isVirtualFeed: true,
+      topologyChanged: false,
+      viewportAnchorRestored: false,
+    }),
+    "bottom",
+    "stream growth during an explicit return-to-latest transaction must still hand off to FOLLOW",
+  );
+  assert.equal(
+    resolveConversationFollowCommitOwner({
+      bottomScrollActive: false,
+      isNewSession: false,
+      isVirtualFeed: true,
+      topologyChanged: true,
+      viewportAnchorRestored: false,
+    }),
+    "bottom",
+    "a genuinely appended tail node still needs the shared bottom owner",
+  );
+  assert.equal(
+    resolveConversationFollowCommitOwner({
+      bottomScrollActive: false,
+      isNewSession: false,
+      isVirtualFeed: false,
+      topologyChanged: false,
+      viewportAnchorRestored: true,
+    }),
+    "viewport-anchor",
+    "static content growing above the viewport must preserve its visible round",
   );
 });
 
@@ -393,6 +449,7 @@ test("auto follow settles again after virtual Room measurement", async () => {
     const animator = new BottomScrollAnimator(() => container, () => {});
     animator.scroll("auto");
     assert.equal(container.scrollTop, 500);
+    assert.equal(animator.isActive(), true);
     assert.equal(
       frames.length,
       1,
@@ -405,6 +462,19 @@ test("auto follow settles again after virtual Room measurement", async () => {
       container.scrollTop,
       800,
       "virtual list height changes after layout must still finish at the bottom",
+    );
+    assert.equal(
+      animator.isActive(),
+      true,
+      "auto settlement must remain active until virtual measurements stay quiet",
+    );
+    for (let frame = 1; frame <= 4 && frames.length > 0; frame += 1) {
+      frames.shift()(frame * (1_000 / 60));
+    }
+    assert.equal(
+      animator.isActive(),
+      false,
+      "two stable frames release initialization ownership to Virtualizer",
     );
   } finally {
     if (originalWindow === undefined) {
@@ -543,17 +613,22 @@ test("explicit smooth scroll may close against a lower bottom target", async () 
   }
 });
 
-test("a user-triggered smooth scroll remains the only animated bottom path", async () => {
+test("stream growth takes over an explicit return-to-latest transaction", async () => {
   const { BottomScrollAnimator } = await server.ssrLoadModule(
     "/src/features/conversation/shared/timeline/scroll/scroll-animation.ts",
   );
   const frames = [];
+  const cancelledFrames = [];
   const originalWindow = globalThis.window;
+  let nextFrameId = 0;
   globalThis.window = {
-    cancelAnimationFrame: () => {},
+    cancelAnimationFrame: (frameId) => {
+      cancelledFrames.push(frameId);
+    },
     requestAnimationFrame: (callback) => {
+      nextFrameId += 1;
       frames.push(callback);
-      return frames.length;
+      return nextFrameId;
     },
   };
 
@@ -566,15 +641,21 @@ test("a user-triggered smooth scroll remains the only animated bottom path", asy
     const animator = new BottomScrollAnimator(() => container, () => {});
     animator.scroll("smooth");
     assert.equal(frames.length, 1);
+    assert.equal(animator.isActive(), true);
 
     container.scrollHeight = 1_120;
     animator.follow();
+    assert.equal(animator.isActive(), false);
     assert.equal(
       container.scrollTop,
-      500,
-      "FOLLOW revisions must not interrupt the explicit user navigation",
+      620,
+      "the first committed stream growth must hand control back to synchronous FOLLOW",
     );
-    assert.equal(frames.length, 1);
+    assert.deepEqual(
+      cancelledFrames,
+      [1],
+      "the obsolete smooth frame must be cancelled before FOLLOW lands",
+    );
   } finally {
     if (originalWindow === undefined) {
       delete globalThis.window;
@@ -754,6 +835,32 @@ test("virtual resize correction ignores a long reply crossing the viewport", asy
     ),
     false,
     "growth at the tail of a visible long reply must not push paused reading",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 980 },
+      28,
+      {
+        getTotalSize: () => 1_000,
+        scrollOffset: 500,
+        scrollRect: { height: 500 },
+      },
+    ),
+    true,
+    "a measured tail growing from the real bottom must keep FOLLOW inside Virtualizer",
+  );
+  assert.equal(
+    shouldAdjustConversationVirtualScrollPosition(
+      { end: 980 },
+      28,
+      {
+        getTotalSize: () => 1_000,
+        scrollOffset: 450,
+        scrollRect: { height: 500 },
+      },
+    ),
+    false,
+    "the same tail growth must not move a reader who is away from the bottom",
   );
 });
 
@@ -1619,6 +1726,34 @@ test("Room public activity survives the pause between reply text and tool work",
     pendingHtml.match(/message-activity-spinner-track/g)?.length,
     1,
     "a pending slot uses the shared activity surface exactly once",
+  );
+
+  const completedPublicTurn = assistantMessage({
+    agentId: "agent-public-activity",
+    agentRoundId: "agent-round-public-activity",
+    isComplete: true,
+    messageId: "assistant-public-turn",
+    roundId: "round-public-activity",
+    status: "done",
+    stopReason: "end_turn",
+    text: "我先说明计划，随后继续在 Thread 中执行。",
+    timestamp: 2,
+  });
+  const continuedHtml = renderShell({
+    messages: [completedPublicTurn],
+    status: "streaming",
+  });
+  assert.match(continuedHtml, /我先说明计划，随后继续在/);
+  assert.match(continuedHtml, /中执行。/);
+  assert.match(
+    continuedHtml,
+    /正在思考/,
+    "an active Agent Thread keeps a public activity row after an intermediate text turn completes",
+  );
+  assert.equal(
+    continuedHtml.match(/message-activity-spinner-track/g)?.length,
+    1,
+    "the continued Thread activity stays inside the existing Agent card",
   );
 
   const toolContinuation = {
@@ -4829,6 +4964,84 @@ test("Room permission-first children append after an existing reply and never mo
   );
 });
 
+test("Room stream-first children append after a visible legacy Lead reply", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    syncRoomAgentExecutionFromStream,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-visible-lead-before-streams";
+  const messages = [
+    userMessage({
+      content: "协作调研",
+      messageId: "user-visible-lead-root",
+      roundId,
+      timestamp: 1,
+    }),
+    {
+      ...userMessage({
+        content: "已创建 goal",
+        messageId: "user-visible-lead-goal",
+        roundId,
+        timestamp: 2,
+      }),
+      hidden_from_user: true,
+    },
+    assistantMessage({
+      agentId: "agent-lead",
+      isComplete: true,
+      messageId: "assistant-visible-lead",
+      roundId,
+      status: "done",
+      stopReason: "end_turn",
+      text: "我先完成分工，Analyst 和 Researcher 继续执行。",
+      timestamp: 10,
+    }),
+  ];
+  const analystStream = {
+    agent_id: "agent-analyst",
+    agent_round_id: "agent-round-analyst",
+    message_id: "assistant-analyst",
+    round_id: roundId,
+    session_key: "room:group:conversation-stream-first",
+    timestamp: 20,
+    type: "message_start",
+  };
+  const researcherStream = {
+    agent_id: "agent-researcher",
+    agent_round_id: "agent-round-researcher",
+    message_id: "assistant-researcher",
+    round_id: roundId,
+    session_key: "room:group:conversation-stream-first",
+    timestamp: 21,
+    type: "message_start",
+  };
+  const afterAnalyst = syncRoomAgentExecutionFromStream([], analystStream);
+  const afterResearcher = syncRoomAgentExecutionFromStream(
+    afterAnalyst,
+    researcherStream,
+  );
+
+  assert.deepEqual(
+    buildRoomAgentRoundEntries(
+      messages,
+      [],
+      [],
+      afterResearcher,
+    ).map((entry) => entry.agent_id),
+    ["agent-lead", "agent-analyst", "agent-researcher"],
+    "stream evidence must append after the Lead card that is already visible",
+  );
+  assert.deepEqual(
+    afterResearcher.map((state) => state.display_order),
+    [20_000, 21_000],
+    "stream-first execution anchors must use the same timestamp scale as durable Room ordering",
+  );
+});
+
 test("Room late permission enriches an observed slot without moving its Agent", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
@@ -5097,11 +5310,12 @@ test("Room acknowledged permission keeps one non-interactive node until evidence
   assert.equal(staleRunning[0]?.status, "error");
 });
 
-test("Room tool-use turn stop keeps its agent execution active", async () => {
+test("Room Assistant turn completion keeps its Agent execution active", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
   );
   const {
+    syncRoomAgentExecutionFromLiveMessage,
     syncRoomAgentExecutionFromStream,
     syncRoomAgentExecutionsFromMessages,
   } = await server.ssrLoadModule(
@@ -5140,6 +5354,47 @@ test("Room tool-use turn stop keeps its agent execution active", async () => {
   );
   assert.equal(fromDurableTurn[0]?.phase, "active");
   assert.equal(fromDurableTurn[0]?.status, "streaming");
+
+  const completedPublicTurn = assistantMessage({
+    agentId: "agent-tool",
+    agentRoundId,
+    isComplete: true,
+    messageId: "assistant-public-turn",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "我先同步计划，Thread 继续执行。",
+    timestamp: 3,
+  });
+  const afterCompletedLiveTurn = syncRoomAgentExecutionFromLiveMessage(
+    fromStream,
+    completedPublicTurn,
+  );
+  assert.equal(
+    afterCompletedLiveTurn[0]?.phase,
+    "active",
+    "a live Assistant turn cannot close its enclosing Agent execution",
+  );
+  assert.equal(afterCompletedLiveTurn[0]?.status, "streaming");
+  const afterActiveSnapshot = syncRoomAgentExecutionsFromMessages(
+    fromStream,
+    [completedPublicTurn],
+  );
+  assert.equal(
+    afterActiveSnapshot[0]?.phase,
+    "active",
+    "a reconnect snapshot cannot close an already observed live execution",
+  );
+  assert.equal(
+    buildRoomAgentRoundEntries(
+      [completedPublicTurn],
+      [],
+      [],
+      afterCompletedLiveTurn,
+    )[0]?.status,
+    "streaming",
+    "the public card must follow the active Agent lifecycle while its Thread continues",
+  );
 
   const activeSlot = {
     agent_id: "agent-tool",

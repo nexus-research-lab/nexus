@@ -9,7 +9,7 @@ L4 | 父级: web/src/features/conversation/shared
 - `composer-history-store.ts`: 按 Room/DM 逻辑聊天隔离并在当前浏览器或 App WebView 内持久化发送历史
 - `use-composer-history.ts`: 将持久化发送历史接入上下键召回、游标与未发送草稿恢复
 - `composer-model.ts`: 输入策略、键盘规则和布局状态表
-- `composer-draft-store.ts`: 保存正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标组成的完整草稿胶囊，并以修订号保护异步提交收尾
+- `composer-draft-store.ts`: 保存正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标组成的完整草稿胶囊，并以修订号保护本地派发认领与失败恢复
 - `composer-draft-scope.ts`: 分别生成包含 Session ID 的 Room/DM 完整草稿作用域，以及排除 Session ID 的发送历史作用域
 - `use-composer-mention.ts`: 以单一匹配对象管理 Room 成员提及，并复用共享 Mention 文本模型
 - `slash-command-model.ts`: 解析输入框起始 Slash 查询，并以纯函数完成筛选和插入
@@ -21,7 +21,7 @@ L4 | 父级: web/src/features/conversation/shared
 输入、运行时、模式和动作状态先在控制器中分别投影，再组装为扁平视图契约；面板不得重新解释发送条件和提示文案。
 运行时投影必须保留明确的发送、回复和上下文压缩阶段，Footer 不从通用 loading 状态猜测压缩行为。
 发送目标先投影为 `send/enqueue + delivery policy`，消息提交按资格判断、附件准备、投递和收尾分阶段执行。
-未发送草稿胶囊包含正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标，以包含 Session ID 的 Room/DM 作用域保存在客户端内存 Store；切换 Session 时恢复各自完整待发送状态，切换逻辑聊天时同样隔离。成功投递的消息正文仍使用不含 Session ID 的逻辑聊天作用域保存在客户端本地持久化 Store，Web 浏览器与桌面 App WebView 各自独立，禁止接入服务端或跨设备同步；每个作用域最多保留 50 条，总持久化条目保持有界。弹层开关、上传中、错误提示、Mention 匹配浮层、历史游标和召回前的未发送正文属于瞬时 UI，不进入持久化历史。每次 Session 草稿作用域变化都要把 textarea 聚焦到正文末尾并显示最后一行，不能把光标停在首字符前；历史召回后同样把光标放到正文末尾。发送或 Goal 创建成功只清空提交时修订号仍未变化的当前 Session 完整胶囊；迟到 ACK 不得删除用户继续编辑后的任一草稿字段。
+未发送草稿胶囊包含正文、图片/文件附件、Message/Goal 模式、Room Goal 负责人和 Mention 目标，以包含 Session ID 的 Room/DM 作用域保存在客户端内存 Store；切换 Session 时恢复各自完整待发送状态，切换逻辑聊天时同样隔离。成功投递的消息正文仍使用不含 Session ID 的逻辑聊天作用域保存在客户端本地持久化 Store，Web 浏览器与桌面 App WebView 各自独立，禁止接入服务端或跨设备同步；每个作用域最多保留 50 条，总持久化条目保持有界。弹层开关、上传中、错误提示、Mention 匹配浮层、历史游标和召回前的未发送正文属于瞬时 UI，不进入持久化历史。每次 Session 草稿作用域变化都要把 textarea 聚焦到正文末尾并显示最后一行，不能把光标停在首字符前；历史召回后同样把光标放到正文末尾。消息在本地协议派发并建立 optimistic/queue 请求后立即认领并清空提交时修订号仍未变化的当前 Session 完整胶囊；ACK 失败只在用户没有继续输入时恢复该胶囊，迟到结果不得删除或覆盖新草稿。Goal 创建继续在成功后按同一修订号保护清空。
 中文输入法的 composition 保护属于控制器边界，键盘命令执行前必须按顺序经过 composition、Safari 补发 Enter、Slash 导航和 Mention 导航守卫；Safari 守卫只消费 composition 结束后的 Enter 并阻止浏览器默认提交。
 Slash 命令目录只消费后端从版本化内置清单合成的快照中的公开名称、说明、参数提示和执行类型；输入恰为 `/` 时展示当前快照的全部指令，继续输入字母后按名称、说明和参数提示筛选。`/skills` 是宿主侧技能入口：一级命令只负责进入技能子面板，技能列表按快照中的当前 Agent ID 拉取并在子面板中筛选，最终只把 `/<skill> ` 写回正文；未为当前 Agent 启用的 Skill 以弱化的“单次使用”状态显示并允许显式选择，完整 `SKILL.md` 的读取、参数展开和单轮上下文注入全部由所选 runtime 负责。`/model` 同样进入模型子面板，按当前 runtime 拉取 Nexus Provider 模型选项，并为 Claude runtime 合入版本内置别名；Provider 模型选择写回 `/model <provider>/<model> `，由 Nexus 原子更新 Agent 的 Provider/模型，Claude 内置别名保持原生 `/model <alias> ` 透传。其他 host/runtime 选择只把 `/<name> ` 写回正文，发送和排队继续复用普通消息链。前端不得查询命令目录或按浮层打开触发 runtime，浮层查询和选中位置不进入草稿持久化。发送收尾或其他程序化草稿变更使正文不再匹配 Slash 查询时，浮层必须同步关闭。
 输入区 Props 由 DM/Room 的真实消费面定义，不保留无调用者的兼容参数。
@@ -29,7 +29,7 @@ Slash 命令目录只消费后端从版本化内置清单合成的快照中的�
 常规桌面 Composer 在底部保留 8px 呼吸区，使输入壳贴近窗口底边但不截断边框与阴影；不得通过改变输入壳自身高度模拟抬升。紧凑模式继续取常规间距与系统 safe area 的较大值。
 常规桌面 Composer 与消息轨道保持同一中心线，但使用独立的 880px 外层上限；桌面横向内边距扣除后，输入壳约 832px 宽，不得随超宽屏继续拉成长条。
 Composer 输入壳以 20px 圆角、约 102px 空态高度和无分割线动作区形成独立聚焦面；只有输入壳保留黑色 3.5% 的短接触阴影，搜索框与普通表单不得继承这套尺寸。
-Composer textarea 按真实可用宽度与正文共同测量，宽度变化必须立即纠正旧高度；正文最多把输入壳推高约 5 行，之后只在 textarea 内部滚动，不能继续挤压对话区。
+Composer textarea 高度只以浏览器真实 `scrollHeight` 为准，并在 React 正文、原生 input/IME 组合输入与宽度变化时同步重测；测量必须包含实际字体、换行与内边距，短文本必须从旧上限立即回缩。正文最多把输入壳推高约 5 行，之后只在 textarea 内部滚动，不能继续挤压对话区。
 Composer 输入壳外层使用绝对定位、`pointer-events: none` 的 `::before` 将自身上缘向正文羽化；普通输入与权限、问答、计划确认替换面共用同一外缘。羽化不得挂到消息 viewport 或全宽 BottomArea、增加 padding/clearance、遮挡 Task/回到底部 Dock，或改变输入壳和虚拟列表测量。
 DM 或 Room 出现 pending permission、AskUserQuestion 或计划确认时，人工介入组件必须原位替换整个输入壳内容；不得悬浮在输入框上方，也不得在消息正文或 Thread 保留第二个操作入口。未发送草稿与附件继续保存在原 Session 草稿作用域，最后一个请求完成后输入壳原位恢复并重新聚焦。多个请求按首次到达顺序在同一位置逐个接棒，重放的同 request 快照只能原位更新；Room 当前项显示请求 Agent 身份并按 `request_id` 回到原执行。
 权限与计划确认采用紧凑决策面：首行只保留请求 Agent 与工具，正文只保留一句摘要及一个必要参数，底部只有拒绝和“允许本次”；持久范围进入相邻次级菜单，不平铺状态、时间和提示词元数据。

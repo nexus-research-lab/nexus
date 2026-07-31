@@ -6,6 +6,7 @@
 
 import type { ComponentProps } from "react";
 
+import type { ConversationTodoProcess } from "@/features/conversation/shared/todos/todo-projection-model";
 import {
   ComposerInteractionSurface,
   type ComposerInteractionSurfaceProps,
@@ -23,8 +24,7 @@ import {
 } from "@/features/conversation/shared/conversation-panel-layout";
 import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
-import { WorkspaceTaskPanel } from "@/shared/ui/workspace/surface/workspace-task-strip";
-import type { TodoItem } from "@/types/conversation/todo";
+import type { Agent } from "@/types/agent/agent";
 
 import { GroupConversationFeed } from "../../feed/group-conversation-feed";
 import type { GroupConversationFeedProps } from "../../feed/group-conversation-feed-model";
@@ -34,6 +34,7 @@ import {
   RoomGoalLeadControl,
   type RoomGoalLeadControlProps,
 } from "./room-goal-lead-control";
+import { RoomWorkspaceTaskPanel } from "./room-workspace-task-panel";
 
 export type GroupChatComposerModel = Omit<
   ComponentProps<typeof ComposerPanel>,
@@ -52,7 +53,8 @@ export interface GroupChatPanelViewModel extends ConversationPanelFrameModel {
   goalPanel: GoalPanelModel;
   handoffStatuses: AgentHandoffStatusMap;
   onCreateConversation: (title?: string) => void | Promise<string | null>;
-  todos: TodoItem[];
+  taskProcesses: ConversationTodoProcess[];
+  taskProcessMembers: Agent[];
 }
 
 export function GroupChatPanelView({
@@ -95,7 +97,7 @@ function ActiveGroupConversation({
       >
         <ConversationPanelViewport
           floatingDockOccupied={
-            model.todos.length > 0 || model.scrollToLatest.visible
+            model.taskProcesses.length > 0 || model.scrollToLatest.visible
           }
           isMobileLayout={isMobileLayout}
           viewport={viewport}
@@ -107,8 +109,14 @@ function ActiveGroupConversation({
       </ConversationPanelViewportArea>
       <ConversationPanelBottomArea
         activity={
-          model.todos.length > 0
-            ? <WorkspaceTaskPanel todos={model.todos} />
+          model.taskProcesses.length > 0 && model.sessionKey
+            ? (
+                <RoomWorkspaceTaskPanel
+                  processes={model.taskProcesses}
+                  roomMembers={model.taskProcessMembers}
+                  scopeKey={model.sessionKey}
+                />
+              )
             : undefined
         }
         goal={(

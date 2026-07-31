@@ -1,3 +1,6 @@
+// INPUT: 已筛选 transcript 链、durable round marker 与用户输入时间。
+// OUTPUT: 与正式历史投影一一对应且不会跨可见性错绑的 round marker。
+// POS: transcript 用户轮次与 Nexus durable round 身份的唯一对齐边界。
 package workspace
 
 import (
@@ -9,6 +12,13 @@ import (
 )
 
 func alignTranscriptRoundMarkers(
+	chain []transcriptEntry,
+	roundMarkers []transcriptRoundMarker,
+) []transcriptRoundMarker {
+	return alignTranscriptRoundMarkersWithFilter(chain, roundMarkers, shouldSkipTranscriptEntry)
+}
+
+func alignTranscriptRoundMarkersWithFilter(
 	chain []transcriptEntry,
 	roundMarkers []transcriptRoundMarker,
 	shouldSkip func(map[string]any) bool,
@@ -33,10 +43,10 @@ func alignTranscriptRoundMarkers(
 	}
 
 	for index, turn := range userTurns {
-		if !isEmptyTranscriptRoundMarker(aligned[index]) {
+		if transcriptRoundMarkerPresent(aligned[index]) {
 			continue
 		}
-		markerIndex := findNearestRoundMarker(roundMarkers, used, turn)
+		markerIndex := findCompatibleFallbackRoundMarker(roundMarkers, used, turn)
 		if markerIndex < 0 {
 			continue
 		}
@@ -47,9 +57,9 @@ func alignTranscriptRoundMarkers(
 }
 
 type transcriptUserTurn struct {
-	Content     string
-	GoalCarrier bool
-	Timestamp   int64
+	Content         string
+	Timestamp       int64
+	GoalContextOnly bool
 }
 
 func collectTranscriptUserTurns(
@@ -71,11 +81,10 @@ func collectTranscriptUserTurns(
 		if decoded.Type == sdkprotocol.MessageTypeUser &&
 			!isTranscriptToolResult(decoded) &&
 			shouldMaterializeTranscriptUserTurn(entry.Data) {
-			goalCarrier := isTranscriptGoalContextOnlyUserTurn(entry.Data)
 			turns = append(turns, transcriptUserTurn{
-				Content:     transcriptUserContent(entry.Data),
-				GoalCarrier: goalCarrier,
-				Timestamp:   entryTimestamp,
+				Content:         transcriptUserContent(entry.Data),
+				Timestamp:       entryTimestamp,
+				GoalContextOnly: isTranscriptGoalContextOnlyUserTurn(entry.Data),
 			})
 		}
 	}
@@ -89,7 +98,7 @@ func findMatchingRoundMarker(
 ) int {
 	content := strings.TrimSpace(turn.Content)
 	if content == "" {
-		return findGoalRoundMarker(roundMarkers, used, turn)
+		return -1
 	}
 	bestIndex := -1
 	var bestDistance int64
@@ -97,7 +106,7 @@ func findMatchingRoundMarker(
 		if index < len(used) && used[index] {
 			continue
 		}
-		if strings.TrimSpace(marker.Content) != content {
+		if sanitizeTranscriptUserContent(marker.Content) != content {
 			continue
 		}
 		distance, ok := transcriptRoundMarkerDistance(turn.Timestamp, marker.Timestamp)
@@ -109,31 +118,33 @@ func findMatchingRoundMarker(
 			bestDistance = distance
 		}
 	}
-	if bestIndex < 0 {
-		return findGoalRoundMarker(roundMarkers, used, turn)
-	}
 	return bestIndex
 }
 
-func findNearestRoundMarker(
+func findCompatibleFallbackRoundMarker(
 	roundMarkers []transcriptRoundMarker,
 	used []bool,
 	turn transcriptUserTurn,
 ) int {
-	if turn.Timestamp <= 0 {
-		return findGoalRoundMarker(roundMarkers, used, turn)
-	}
-	// 中文注释：Room 等宿主流程会把可见输入包装成 runtime prompt，
-	// 内容无法精确相等时只允许在短时间窗内一对一回退，避免旧 turn 抢走新 marker。
-	const markerFallbackToleranceMS = 30 * 1000
+	const markerFallbackMaxDistanceMS = 10 * 60 * 1000
+
 	bestIndex := -1
 	var bestDistance int64
 	for index, marker := range roundMarkers {
 		if index < len(used) && used[index] {
 			continue
 		}
+		if !roundMarkerFallbackCompatible(turn, marker) {
+			continue
+		}
 		distance, ok := transcriptRoundMarkerDistance(turn.Timestamp, marker.Timestamp)
-		if !ok || distance > markerFallbackToleranceMS {
+		if !ok {
+			continue
+		}
+		if !turn.GoalContextOnly &&
+			turn.Timestamp > 0 &&
+			marker.Timestamp > 0 &&
+			distance > markerFallbackMaxDistanceMS {
 			continue
 		}
 		if bestIndex < 0 || distance < bestDistance || (distance == bestDistance && index > bestIndex) {
@@ -141,31 +152,15 @@ func findNearestRoundMarker(
 			bestDistance = distance
 		}
 	}
-	if bestIndex < 0 {
-		return findGoalRoundMarker(roundMarkers, used, turn)
-	}
 	return bestIndex
 }
 
-func findGoalRoundMarker(
-	roundMarkers []transcriptRoundMarker,
-	used []bool,
-	turn transcriptUserTurn,
-) int {
-	if !turn.GoalCarrier {
-		return -1
+func roundMarkerFallbackCompatible(turn transcriptUserTurn, marker transcriptRoundMarker) bool {
+	if turn.GoalContextOnly {
+		return marker.HiddenFromUser &&
+			(marker.Synthetic || strings.TrimSpace(marker.Purpose) == "goal_continuation")
 	}
-	for index, marker := range roundMarkers {
-		if index < len(used) && used[index] {
-			continue
-		}
-		if marker.HiddenFromUser &&
-			marker.Synthetic &&
-			strings.Contains(strings.ToLower(marker.Purpose), "goal") {
-			return index
-		}
-	}
-	return -1
+	return !marker.HiddenFromUser
 }
 
 func transcriptRoundMarkerDistance(turnTimestamp int64, markerTimestamp int64) (int64, bool) {
@@ -183,9 +178,8 @@ func transcriptRoundMarkerDistance(turnTimestamp int64, markerTimestamp int64) (
 	return markerTimestamp - turnTimestamp, true
 }
 
-func isEmptyTranscriptRoundMarker(marker transcriptRoundMarker) bool {
-	return strings.TrimSpace(marker.RoundID) == "" &&
-		strings.TrimSpace(marker.Content) == ""
+func transcriptRoundMarkerPresent(marker transcriptRoundMarker) bool {
+	return strings.TrimSpace(marker.RoundID) != "" || strings.TrimSpace(marker.Content) != ""
 }
 
 func shouldMaterializeTranscriptUserTurn(entry map[string]any) bool {

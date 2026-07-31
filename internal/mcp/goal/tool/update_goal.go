@@ -1,6 +1,6 @@
 // INPUT: active Goal 的 complete/blocked 状态变更与工具调用起点的 objective revision。
-// OUTPUT: 经 Room lead 授权并审计后的 Goal 终态工具结果。
-// POS: Goal MCP 生命周期入口；objective 纠正由 retarget_goal 负责。
+// OUTPUT: 经 Room lead 授权并审计后的 Goal 终态工具结果，以及 complete 后 result-first 最终交付契约。
+// POS: Goal MCP 生命周期入口与用户成果收口边界；objective 纠正由 retarget_goal 负责。
 package tool
 
 import (
@@ -28,7 +28,7 @@ const updateGoalDescription = "Update the existing goal.\n" +
 	"Do not use `blocked` merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.\n" +
 	"Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.\n" +
 	"You cannot use this tool to pause, resume, budget-limit, or usage-limit a goal; those status changes are controlled by the user or system.\n" +
-	"When marking a goal achieved with status `complete`, send one concise final response stating that the Goal is complete and briefly summarize the achieved outcome."
+	"When marking a goal achieved with status `complete`, call this tool before the final response, then use the next final response as the complete user-facing delivery surface. The response must stand on its own and satisfy the objective: include the full requested content when content itself is the deliverable; for files or artifacts, provide exact links or paths; for implementation, research, or external-state work, present the key outcomes and relevant verification. Do not make `Goal complete` the headline or replace the result with a completion notice or brief summary; mention completion only secondarily if useful."
 
 const updateGoalStatusDescription = "Required. Set to complete only when the objective is achieved and no required work remains. Set to blocked only after the same blocker has repeated for at least three consecutive goal turns and progress is impossible without user input or external unblock."
 

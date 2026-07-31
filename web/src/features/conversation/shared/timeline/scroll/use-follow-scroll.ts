@@ -1,7 +1,7 @@
 /**
  * INPUT: 会话内容版本、历史前插令牌与滚动容器尺寸变化。
- * OUTPUT: DM、Room、Thread 共用的跟随状态、定位入口与用户滚动处理器。
- * POS: FOLLOW 同步贴底、READING 锚定、历史恢复和资源清理的 React 编排层。
+ * OUTPUT: DM、Room、Thread 共用的跟随状态、上方增长锚定、定位入口与用户滚动处理器。
+ * POS: FOLLOW 尾部贴底、Virtualizer 测高委托、READING 锚定和资源清理的 React 编排层。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
@@ -11,6 +11,7 @@ import {
   getConversationViewportSize,
   hasScrollableOverflow,
   isAtScrollBottom,
+  resolveConversationFollowCommitOwner,
   resolveConversationViewportResizeState,
   resolveConversationViewportSizeRevision,
 } from "./follow-scroll-model";
@@ -72,7 +73,13 @@ export function useFollowScroll({
     sessionKey ?? "",
   );
 
-  if (!animatorRef.current) {
+  if (
+    !animatorRef.current
+    || typeof animatorRef.current.isActive !== "function"
+  ) {
+    // Vite HMR 会保留 Hook ref；执行器协议升级时先终止旧实例，不能让旧
+    // prototype 留在 Room 内直到整页刷新。
+    animatorRef.current?.cancel();
     animatorRef.current = new BottomScrollAnimator(
       () => scrollRef.current,
       (scrollTop) => {
@@ -129,11 +136,7 @@ export function useFollowScroll({
     container.scrollTop = resizeState.scrollTop;
     lastScrollTopRef.current = container.scrollTop;
     shouldFollowLatestRef.current = resizeState.shouldFollow;
-    if (resizeState.shouldFollow) {
-      viewportAnchorRef.current.reset();
-    } else {
-      viewportAnchorRef.current.capture(container, feedRef.current);
-    }
+    viewportAnchorRef.current.capture(container, feedRef.current);
     setScrollToBottomVisibility(resizeState.showScrollToBottom);
     return true;
   }, [cancelAnimation, setScrollToBottomVisibility]);
@@ -156,6 +159,10 @@ export function useFollowScroll({
       return;
     }
     animatorRef.current?.follow();
+    const nextContainer = scrollRef.current;
+    if (nextContainer) {
+      viewportAnchorRef.current.capture(nextContainer, feedRef.current);
+    }
   }, [retainPositionForViewportResize]);
 
   const scrollToBottom = useCallback(
@@ -210,11 +217,40 @@ export function useFollowScroll({
     }
 
     if (shouldFollowLatestRef.current) {
-      // FOLLOW 独占真实 bottom；内容、终态或权限布局提交都必须在 paint 前
-      // 同步收口，不能先恢复可见锚点再用动画追赶。
-      viewportAnchorRef.current.reset();
-      setScrollToBottomVisibility(false);
-      scheduleFollowLatest();
+      if (isNewSession) {
+        viewportAnchorRef.current.reset();
+      }
+      const feed = feedRef.current;
+      const restoredScrollTop = viewportAnchorRef.current.restore(
+        container,
+        feed,
+        { allowVirtualFeed: topologyChanged },
+      );
+      if (restoredScrollTop !== null) {
+        lastScrollTopRef.current = restoredScrollTop;
+      }
+      const owner = resolveConversationFollowCommitOwner({
+        bottomScrollActive: animatorRef.current?.isActive?.() ?? false,
+        isNewSession,
+        isVirtualFeed: feed?.dataset.conversationVirtualFeed === "true",
+        topologyChanged,
+        viewportAnchorRestored: restoredScrollTop !== null,
+      });
+      setScrollToBottomVisibility(
+        owner === "viewport-anchor"
+          && hasScrollableOverflow(container)
+          && !isAtScrollBottom(container),
+      );
+      if (owner === "bottom") {
+        if (
+          feed?.dataset.conversationVirtualFeed === "true"
+          && (isNewSession || topologyChanged)
+        ) {
+          scheduleScrollToBottom("auto");
+        } else {
+          scheduleFollowLatest();
+        }
+      }
       return;
     }
 
@@ -237,6 +273,7 @@ export function useFollowScroll({
     contentKey,
     messageCount,
     scheduleFollowLatest,
+    scheduleScrollToBottom,
     sessionKey,
     setScrollToBottomVisibility,
     topologyKey,
@@ -258,7 +295,8 @@ export function useFollowScroll({
     );
   }, [historyPrependToken, setScrollToBottomVisibility]);
 
-  // 只观察内容轨道增长；FOLLOW 同步贴底，READING 只恢复可见锚点。
+  // 只观察内容轨道增长。静态 Feed 用可见锚点区分“上方增长”和“尾部增长”；
+  // 虚拟 Feed 的普通测高只由 Virtualizer 修正，不能再叠加共享 bottom 写入。
   useEffect(() => {
     if (typeof ResizeObserver === "undefined") {
       return;
@@ -271,9 +309,35 @@ export function useFollowScroll({
       }
 
       if (shouldFollowLatestRef.current) {
-        viewportAnchorRef.current.reset();
-        setScrollToBottomVisibility(false);
-        scheduleFollowLatest();
+        const feed = feedRef.current;
+        const restoredScrollTop = viewportAnchorRef.current.restore(
+          currentContainer,
+          feed,
+        );
+        if (restoredScrollTop !== null) {
+          lastScrollTopRef.current = restoredScrollTop;
+        }
+        const owner = resolveConversationFollowCommitOwner({
+          bottomScrollActive: animatorRef.current?.isActive?.() ?? false,
+          isNewSession: false,
+          isVirtualFeed: feed?.dataset.conversationVirtualFeed === "true",
+          topologyChanged: false,
+          viewportAnchorRestored: restoredScrollTop !== null,
+        });
+        if (owner === "bottom") {
+          setScrollToBottomVisibility(false);
+          scheduleFollowLatest();
+          return;
+        }
+        const remainsAtBottom = isAtScrollBottom(currentContainer);
+        if (owner === "virtualizer" && !remainsAtBottom) {
+          // Virtualizer 没有把这次变化判为底部跟随时，保留当前画面并进入
+          // READING；后续 token 也不能再由共享 FOLLOW 突然拉回底部。
+          shouldFollowLatestRef.current = false;
+        }
+        setScrollToBottomVisibility(
+          hasScrollableOverflow(currentContainer) && !remainsAtBottom,
+        );
         return;
       }
 
@@ -332,6 +396,9 @@ export function useFollowScroll({
       : null;
     setScrollToBottomVisibility(false);
     scheduleScrollToBottom("auto");
+    if (container) {
+      viewportAnchorRef.current.capture(container, feedRef.current);
+    }
   }, [scheduleScrollToBottom, sessionKey, setScrollToBottomVisibility]);
 
   useEffect(() => cancelAnimation, [cancelAnimation]);
@@ -346,7 +413,7 @@ export function useFollowScroll({
   const onScroll = useCallback(() => {
     interactionOnScroll();
     const container = scrollRef.current;
-    if (container && !shouldFollowLatestRef.current) {
+    if (container) {
       viewportAnchorRef.current.capture(container, feedRef.current);
     }
   }, [interactionOnScroll]);

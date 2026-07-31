@@ -451,6 +451,11 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
   });
   const html = await renderWithI18n(
     React.createElement(WorkspaceTaskPanel, {
+      source: {
+        agentId: "researcher",
+        avatar: null,
+        name: "Researcher",
+      },
       todos,
     }),
   );
@@ -458,6 +463,8 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
   assert.match(html, /data-workspace-task-panel="true"/);
   assert.match(html, /data-workspace-task-trigger="true"/);
   assert.match(html, /data-workspace-task-summary="正在核对布局"/);
+  assert.match(html, /data-workspace-task-agent-id="researcher"/);
+  assert.match(html, /Researcher/);
   assert.match(html, /\bh-11\b/);
   assert.match(html, /\brounded-full\b/);
   assert.match(html, /第 2 \/ 3 步/);
@@ -480,6 +487,113 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
     taskSource.indexOf("data-workspace-task-trigger")
       < taskSource.indexOf("data-placement=\"top\""),
     "the trigger must precede its detail panel in DOM and tab order",
+  );
+  assert.ok(
+    taskSource.indexOf("data-workspace-task-expanded-source")
+      < taskSource.indexOf("data-workspace-task-progress-label"),
+    "the Agent identity must lead the expanded process header",
+  );
+});
+
+test("Room progress stays isolated by Agent and selection follows the latest process until chosen", async () => {
+  const { projectConversationTodoProcesses } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/todos/todo-projection-model.ts",
+  );
+  const { resolveRoomTaskSelection } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/panel/view/room-workspace-task-model.ts",
+  );
+  const sessionKey = "room:conversation";
+  const assistantMessage = ({
+    agentId,
+    content,
+    index,
+    roundId,
+  }) => ({
+    agent_id: agentId,
+    content: [{
+      id: `todo-${index}`,
+      input: { todos: content },
+      name: "TodoWrite",
+      type: "tool_use",
+    }],
+    message_id: `message-${index}`,
+    role: "assistant",
+    round_id: roundId,
+    session_key: sessionKey,
+    timestamp: index,
+  });
+  const processes = projectConversationTodoProcesses([
+    assistantMessage({
+      agentId: "lead",
+      content: [{ content: "整合结论", status: "in_progress" }],
+      index: 1,
+      roundId: "round-lead",
+    }),
+    assistantMessage({
+      agentId: "researcher",
+      content: [{ content: "核对来源", status: "in_progress" }],
+      index: 2,
+      roundId: "round-researcher",
+    }),
+  ], sessionKey);
+
+  assert.deepEqual(processes.map((process) => ({
+    agentId: process.agentId,
+    latestTaskEventIndex: process.latestTaskEventIndex,
+    todos: process.todos,
+  })), [
+    {
+      agentId: "lead",
+      latestTaskEventIndex: 0,
+      todos: [{ content: "整合结论", status: "in_progress" }],
+    },
+    {
+      agentId: "researcher",
+      latestTaskEventIndex: 1,
+      todos: [{ content: "核对来源", status: "in_progress" }],
+    },
+  ]);
+
+  const members = [
+    { agent_id: "lead", avatar: null, name: "Lead" },
+    { agent_id: "researcher", avatar: null, name: "Researcher" },
+    { agent_id: "analyst", avatar: null, name: "Analyst" },
+  ];
+  const automaticSelection = resolveRoomTaskSelection(
+    processes,
+    members,
+    null,
+  );
+  assert.equal(automaticSelection.process.agentId, "researcher");
+  assert.deepEqual(
+    automaticSelection.members.map((member) => member.agent_id),
+    ["lead", "researcher"],
+  );
+  assert.equal(
+    resolveRoomTaskSelection(processes, members, "lead").process.agentId,
+    "lead",
+  );
+
+  const roomTaskPanelSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/group/chat/panel/view/room-workspace-task-panel.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(roomTaskPanelSource, /<RoomAgentSwitcher/);
+  assert.match(roomTaskPanelSource, /variant="task"/);
+
+  const roomAgentSwitcherSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/room/surface/room-agent-switcher.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(
+    roomAgentSwitcherSource,
+    /variant === "task"[\s\S]*h-7 w-full max-w-\[9rem\][\s\S]*text-compact font-semibold/,
   );
 });
 
@@ -531,8 +645,9 @@ test("Room and DM stack Goal, Task, and scroll controls upward from the Composer
   assert.match(groupView, /<ConversationPanelViewportArea/);
   assert.doesNotMatch(dmView, /bottom-\[156px\]/);
   assert.doesNotMatch(groupView, /bottom-\[156px\]/);
-  assert.match(dmView, /model\.todos\.length > 0[\s\S]*<WorkspaceTaskPanel todos=\{model\.todos\} \/>/);
-  assert.match(groupView, /model\.todos\.length > 0[\s\S]*<WorkspaceTaskPanel todos=\{model\.todos\} \/>/);
+  assert.match(dmView, /model\.todos\.length > 0[\s\S]*<WorkspaceTaskPanel[\s\S]*source=\{model\.taskSource\}[\s\S]*todos=\{model\.todos\}/);
+  assert.match(groupView, /model\.taskProcesses\.length > 0[\s\S]*<RoomWorkspaceTaskPanel[\s\S]*processes=\{model\.taskProcesses\}[\s\S]*roomMembers=\{model\.taskProcessMembers\}/);
+  assert.match(groupView, /room-workspace-task-panel/);
 
   const layoutSource = await readFile(
     path.join(
@@ -922,7 +1037,7 @@ test("questions and plan confirmations use the same Composer replacement owner",
   assert.match(planHtml, />拒绝</);
 });
 
-test("DM and Room messages keep pending interactions as read-only evidence without a second action surface", async () => {
+test("DM and Room messages never remount interaction options outside the Composer", async () => {
   const { resolvePendingInteractionOwner } = await server.ssrLoadModule(
     "/src/features/conversation/shared/message/item/message-item-projection.ts",
   );
@@ -970,6 +1085,77 @@ test("DM and Room messages keep pending interactions as read-only evidence witho
   assert.doesNotMatch(toolHtml, />允许</);
   assert.doesNotMatch(toolHtml, />拒绝</);
   assert.doesNotMatch(toolHtml, /data-human-interaction-surface/);
+
+  const questionTool = {
+    id: "tool-question-evidence",
+    input: {
+      questions: [{
+        header: "芯片类型",
+        multi_select: false,
+        options: [
+          { label: "Apple M3 / M4" },
+          { label: "ARM Cortex-M3 / M4" },
+        ],
+        question: "这里的 M3/M4 指哪类芯片？",
+      }],
+    },
+    name: "AskUserQuestion",
+    type: "tool_use",
+  };
+  const questionPermission = {
+    interaction_mode: "question",
+    request_id: "request-question-evidence",
+    tool_input: questionTool.input,
+    tool_name: questionTool.name,
+    tool_use_id: questionTool.id,
+  };
+  const questionEvidenceScenarios = [
+    {
+      content: [questionTool],
+      name: "unmatched live question",
+      pending: new Map(),
+    },
+    {
+      content: [questionTool],
+      name: "matched pending question",
+      pending: new Map([[questionTool.id, questionPermission]]),
+    },
+    {
+      content: [
+        questionTool,
+        {
+          content: "answered",
+          tool_use_id: questionTool.id,
+          type: "tool_result",
+        },
+      ],
+      name: "restored historical question",
+      pending: new Map(),
+    },
+  ];
+  for (const scenario of questionEvidenceScenarios) {
+    const questionEvidenceHtml = await renderWithI18n(
+      React.createElement(ContentRenderer, {
+        canRespondToPermissions: true,
+        content: scenario.content,
+        isStreaming: false,
+        onPermissionResponse: () => true,
+        pendingInteractionOwner: "composer",
+        pendingPermissionsByToolUseId: scenario.pending,
+      }),
+    );
+    assert.match(
+      questionEvidenceHtml,
+      /等待你的确认/,
+      `${scenario.name} should retain neutral tool evidence`,
+    );
+    assert.doesNotMatch(
+      questionEvidenceHtml,
+      /需要你的回应|芯片类型|Apple M3 \/ M4|ARM Cortex-M3 \/ M4|继续协作|ask-user-question|data-selected/,
+      `${scenario.name} must not remount the legacy question option tree`,
+    );
+  }
+
   const activityHtml = renderToStaticMarkup(React.createElement(
     MessageActivityStatus,
     { state: "waiting_permission" },

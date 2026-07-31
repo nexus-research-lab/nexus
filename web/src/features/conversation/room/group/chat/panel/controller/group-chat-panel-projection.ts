@@ -10,6 +10,7 @@ import {
   type ConversationPanelEnvironment,
   type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
+import type { ConversationTodoProcess } from "@/features/conversation/shared/todos/todo-projection-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
 import { coalescePendingPermissions } from "@/lib/conversation/pending-permission-match";
 import type { Agent } from "@/types/agent/agent";
@@ -18,7 +19,6 @@ import type {
   UseAgentConversationReturn,
 } from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
-import type { TodoItem } from "@/types/conversation/todo";
 
 import type {
   GroupChatComposerModel,
@@ -61,6 +61,7 @@ type GroupChatSession = Omit<
     | "stop_generation"
   >;
   roundIndexItems: SessionRoundIndexItem[];
+  taskProcesses: ConversationTodoProcess[];
   scroll: ConversationPanelSessionSource["scroll"] & {
     bottomAnchorRef: RefObject<HTMLDivElement | null>;
     feedRef: RefObject<HTMLDivElement | null>;
@@ -84,7 +85,6 @@ interface BuildGroupChatPanelViewModelOptions {
   roomHostAutoReplyEnabled: boolean;
   roomMembers: Agent[];
   session: GroupChatSession;
-  todos: TodoItem[];
   unread: GroupConversationUnreadModel;
 }
 
@@ -103,7 +103,6 @@ export function buildGroupChatPanelViewModel({
   roomHostAutoReplyEnabled,
   roomMembers,
   session,
-  todos,
   unread,
 }: BuildGroupChatPanelViewModelOptions): GroupChatPanelViewModel {
   const frame = buildConversationPanelFrameModel(session, environment);
@@ -154,7 +153,8 @@ export function buildGroupChatPanelViewModel({
       unreadCount: hasUnreadJump ? unread.unreadCount : 0,
       visible: frame.scrollToLatest.visible || hasUnreadJump,
     },
-    todos,
+    taskProcesses: session.taskProcesses,
+    taskProcessMembers: roomMembers,
   };
 }
 

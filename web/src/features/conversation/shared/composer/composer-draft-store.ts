@@ -1,6 +1,6 @@
 /**
- * INPUT: Room/DM Session 草稿作用域、完整 Composer 草稿更新与提交时修订号。
- * OUTPUT: 按 Session 保留的文字、附件、模式、Goal 负责人和 Mention 目标快照。
+ * INPUT: Room/DM Session 草稿作用域、完整 Composer 草稿更新与本地派发事务。
+ * OUTPUT: 按 Session 保留的文字、附件、模式、Goal 负责人和 Mention 目标快照，并保护失败恢复不覆盖新输入。
  * POS: Composer 用户输入草稿的客户端内存真相源；不持久化瞬时 UI 或浏览器刷新。
  */
 
@@ -28,9 +28,13 @@ type ComposerDraftUpdate = (
 interface ComposerDraftStoreState {
   draft_revision: number;
   drafts_by_scope: Record<string, ComposerDraftSnapshot>;
-  clear_composer_draft_if_revision: (
+  claim_composer_draft_for_submission: (
     scopeKey: string,
     expectedRevision: number,
+  ) => ComposerDraftSnapshot | null;
+  restore_composer_draft_after_failed_submission: (
+    scopeKey: string,
+    submittedDraft: ComposerDraftSnapshot,
   ) => boolean;
   update_composer_draft: (
     scopeKey: string,
@@ -71,12 +75,12 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
   (set) => ({
     draft_revision: 0,
     drafts_by_scope: {},
-    clear_composer_draft_if_revision: (scopeKey, expectedRevision) => {
+    claim_composer_draft_for_submission: (scopeKey, expectedRevision) => {
       const normalizedScopeKey = normalizeDraftScopeKey(scopeKey);
       if (!normalizedScopeKey) {
-        return false;
+        return null;
       }
-      let cleared = false;
+      let submittedDraft: ComposerDraftSnapshot | null = null;
       set((state) => {
         const current = state.drafts_by_scope[normalizedScopeKey];
         if (!current || current.revision !== expectedRevision) {
@@ -84,10 +88,42 @@ export const useComposerDraftStore = create<ComposerDraftStoreState>()(
         }
         const drafts = { ...state.drafts_by_scope };
         delete drafts[normalizedScopeKey];
-        cleared = true;
+        submittedDraft = current;
         return { drafts_by_scope: drafts };
       });
-      return cleared;
+      return submittedDraft;
+    },
+    restore_composer_draft_after_failed_submission: (
+      scopeKey,
+      submittedDraft,
+    ) => {
+      const normalizedScopeKey = normalizeDraftScopeKey(scopeKey);
+      if (!normalizedScopeKey) {
+        return false;
+      }
+      let restored = false;
+      set((state) => {
+        if (state.drafts_by_scope[normalizedScopeKey]) {
+          return state;
+        }
+        const revision = state.draft_revision + 1;
+        restored = true;
+        return {
+          draft_revision: revision,
+          drafts_by_scope: {
+            ...state.drafts_by_scope,
+            [normalizedScopeKey]: {
+              attachments: [...submittedDraft.attachments],
+              goalLeadAgentId: submittedDraft.goalLeadAgentId,
+              input: submittedDraft.input,
+              inputMode: submittedDraft.inputMode,
+              revision,
+              selectedTargetIDs: [...submittedDraft.selectedTargetIDs],
+            },
+          },
+        };
+      });
+      return restored;
     },
     update_composer_draft: (scopeKey, update) => set((state) => {
       const normalizedScopeKey = normalizeDraftScopeKey(scopeKey);

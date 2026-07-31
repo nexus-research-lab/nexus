@@ -56,7 +56,6 @@ export function useComposerController({
   const { t } = useI18n();
   const draft = useComposerDraft(draftScopeKey);
   const {
-    completeMessageSubmission,
     setAttachments,
     setActionMenuOpen,
     setGoalError,
@@ -137,8 +136,6 @@ export function useComposerController({
   useTextareaHeight(textareaRef, draftState.input, {
     minHeight: 24,
     maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT_PX,
-    lineHeight: 24,
-    paddingY: 0,
   });
 
   const focusTextarea = useCallback(() => {
@@ -153,13 +150,13 @@ export function useComposerController({
 
   const resetTextareaHeight = useCallback(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = "0px";
     }
   }, []);
   const submitMessage = useComposerMessageSubmit({
     attachmentCount: attachments.attachments.length,
+    claimDraftSubmission: draft.claimMessageSubmission,
     clearAttachmentError,
-    completeDraftSubmission: completeMessageSubmission,
     defaultDeliveryPolicy,
     input: draftState.input,
     isLoading,
@@ -171,6 +168,7 @@ export function useComposerController({
     queueWhenSessionBusy,
     recordHistory: history.record,
     resetTextareaHeight,
+    restoreFailedDraftSubmission: draft.restoreFailedMessageSubmission,
     runtimePhase,
     targetAgentIDs: mention.selectedTargetIDs,
   });

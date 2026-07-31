@@ -87,7 +87,7 @@ func buildTranscriptChain(
 		return nil
 	}
 	byUUID, parentUUIDs := indexTranscriptEntries(entries)
-	terminals := transcriptTerminalEntries(entries, parentUUIDs, shouldSkip)
+	terminals := transcriptTerminalEntries(byUUID, parentUUIDs, shouldSkip)
 	if len(terminals) == 0 {
 		return nil
 	}
@@ -101,27 +101,43 @@ func buildTranscriptChain(
 
 func indexTranscriptEntries(entries []transcriptEntry) (map[string]transcriptEntry, map[string]struct{}) {
 	byUUID := make(map[string]transcriptEntry, len(entries))
-	parentUUIDs := make(map[string]struct{}, len(entries))
 	for _, entry := range entries {
 		uuid := stringFromAny(entry.Data["uuid"])
 		if uuid == "" {
 			continue
 		}
-		byUUID[uuid] = entry
-		if parentUUID := stringFromAny(entry.Data["parentUuid"]); parentUUID != "" {
+		current, exists := byUUID[uuid]
+		if !exists || preferTranscriptEntry(current, entry) {
+			byUUID[uuid] = entry
+		}
+	}
+	parentUUIDs := make(map[string]struct{}, len(byUUID))
+	for uuid, entry := range byUUID {
+		if parentUUID := stringFromAny(entry.Data["parentUuid"]); parentUUID != "" && parentUUID != uuid {
 			parentUUIDs[parentUUID] = struct{}{}
 		}
 	}
 	return byUUID, parentUUIDs
 }
 
+func preferTranscriptEntry(current transcriptEntry, candidate transcriptEntry) bool {
+	uuid := stringFromAny(candidate.Data["uuid"])
+	currentSelfReferences := stringFromAny(current.Data["parentUuid"]) == uuid
+	candidateSelfReferences := stringFromAny(candidate.Data["parentUuid"]) == uuid
+	if currentSelfReferences != candidateSelfReferences {
+		return !candidateSelfReferences
+	}
+	// 同一 UUID 的普通重复快照仍以后写为准；只有自指副本不能覆盖有效父链。
+	return candidate.Index > current.Index
+}
+
 func transcriptTerminalEntries(
-	entries []transcriptEntry,
+	entriesByUUID map[string]transcriptEntry,
 	parentUUIDs map[string]struct{},
 	shouldSkip func(map[string]any) bool,
 ) []transcriptEntry {
 	terminals := make([]transcriptEntry, 0)
-	for _, entry := range entries {
+	for _, entry := range entriesByUUID {
 		uuid := stringFromAny(entry.Data["uuid"])
 		_, isParent := parentUUIDs[uuid]
 		if uuid != "" && !isParent && !shouldSkip(entry.Data) {
