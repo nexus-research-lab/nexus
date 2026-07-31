@@ -10,30 +10,25 @@ interface WorkspaceFilePreviewPanelProps {
   agentId: string;
   className?: string;
   headerLeading?: ReactNode;
+  headerLocationLabel: string;
+  headerPortalTarget?: HTMLElement | null;
   isPreviewFocused: boolean;
   onTogglePreviewFocus: () => void;
   path: string | null;
 }
 
-function WorkspaceFilePreviewEmptyState({ leading }: { leading?: ReactNode }) {
+function WorkspaceFilePreviewEmptyState() {
   return (
-    <>
-      {leading ? (
-        <div className="flex h-7 shrink-0 items-start border-b divider-subtle px-3">
-          {leading}
-        </div>
-      ) : null}
-      <div className="flex h-full flex-1 items-center justify-center px-8 text-center">
-        <div className="max-w-sm">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            Workspace Preview
-          </p>
-          <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            从文件列表选择一个文件，这里会显示对应内容。模型写入时，也会在这里实时同步。
-          </p>
-        </div>
+    <div className="flex h-full flex-1 items-center justify-center px-8 text-center">
+      <div className="max-w-sm">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Workspace Preview
+        </p>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">
+          从文件列表选择一个文件，这里会显示对应内容。模型写入时，也会在这里实时同步。
+        </p>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -42,6 +37,8 @@ export function WorkspaceFilePreviewPanel({
   agentId,
   className,
   headerLeading,
+  headerLocationLabel,
+  headerPortalTarget,
   isPreviewFocused,
   onTogglePreviewFocus,
   path,
@@ -49,14 +46,18 @@ export function WorkspaceFilePreviewPanel({
   if (!path) {
     return (
       <section className={cn("relative flex min-h-0 min-w-0 flex-col overflow-hidden", className)}>
-        <WorkspaceFilePreviewEmptyState leading={headerLeading} />
+        <WorkspaceFilePreviewEmptyState />
       </section>
     );
   }
 
   return (
     <section className={cn("relative flex min-h-0 min-w-0 flex-col overflow-hidden", className)}>
-      <WorkspaceFilePreviewHeaderProvider leading={headerLeading}>
+      <WorkspaceFilePreviewHeaderProvider
+        headerPortalTarget={headerPortalTarget}
+        leading={headerLeading}
+        locationLabel={headerLocationLabel}
+      >
         <WorkspaceFilePreviewRouter
           agentId={agentId}
           fileName={path.split("/").at(-1) ?? ""}

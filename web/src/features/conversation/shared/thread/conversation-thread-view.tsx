@@ -19,6 +19,12 @@ import { MessageItem } from "@/features/conversation/shared/message/item/message
 import { MessageAvatar } from "@/features/conversation/shared/message/ui/message-avatar";
 import { ScrollToLatestButton } from "@/features/conversation/shared/scroll-to-latest-button";
 import { cn } from "@/shared/ui/class-name";
+import {
+  WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
+  WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+  WORKSPACE_PANEL_HEADER_ICON_CLASS,
+  WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+} from "@/shared/ui/workspace/surface/workspace-header-layout";
 import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
 
 import type {
@@ -132,6 +138,7 @@ export function ConversationThreadView({
         agentName={agentName}
         headerAction={headerAction}
         headerAvatar={headerAvatar}
+        isMobile={model.isMobile}
         leadingAction={model.leadingAction}
         onClose={onClose}
         presentation={model.presentation}
@@ -167,6 +174,7 @@ function ThreadHeader({
   agentName,
   headerAction,
   headerAvatar,
+  isMobile,
   leadingAction,
   onClose,
   presentation,
@@ -177,6 +185,7 @@ function ThreadHeader({
   agentName: string;
   headerAction: ReactNode;
   headerAvatar: ReactNode;
+  isMobile: boolean;
   leadingAction: ConversationThreadNavigationAction;
   onClose: () => void;
   presentation: ConversationThreadPresentation;
@@ -186,13 +195,21 @@ function ThreadHeader({
   return (
     <header
       className={cn(
-        "flex shrink-0 items-center gap-2 px-3 py-3",
+        "flex shrink-0 items-center gap-2",
+        isMobile ? "h-[52px]" : WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+        WORKSPACE_PANEL_HEADER_PADDING_CLASS,
         presentation === "transcript"
           && "border-b border-(--divider-subtle-color)",
       )}
     >
-      <ThreadNavigationButton action={leadingAction} onClick={onClose} />
-      {headerAvatar ?? <ThreadAgentAvatar avatarUrl={agentAvatar} />}
+      <ThreadNavigationButton
+        action={leadingAction}
+        isMobile={isMobile}
+        onClick={onClose}
+      />
+      {headerAvatar ?? (
+        <ThreadAgentAvatar avatarUrl={agentAvatar} isMobile={isMobile} />
+      )}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-(--text-strong)">
           {agentName}
@@ -200,16 +217,22 @@ function ThreadHeader({
         <ThreadSubtitle>{subtitle}</ThreadSubtitle>
       </div>
       {headerAction}
-      <ThreadNavigationButton action={trailingAction} onClick={onClose} />
+      <ThreadNavigationButton
+        action={trailingAction}
+        isMobile={isMobile}
+        onClick={onClose}
+      />
     </header>
   );
 }
 
 function ThreadNavigationButton({
   action,
+  isMobile,
   onClick,
 }: {
   action: ConversationThreadNavigationAction;
+  isMobile: boolean;
   onClick: () => void;
 }) {
   if (!action) {
@@ -220,21 +243,33 @@ function ThreadNavigationButton({
   return (
     <button
       aria-label={presentation.ariaLabel}
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-lg text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
+        isMobile ? "h-8 w-8" : WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
+      )}
       onClick={onClick}
       title={presentation.title}
       type="button"
     >
-      <Icon className="h-4 w-4" />
+      <Icon className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
     </button>
   );
 }
 
-function ThreadAgentAvatar({ avatarUrl }: { avatarUrl: string | null }) {
+function ThreadAgentAvatar({
+  avatarUrl,
+  isMobile,
+}: {
+  avatarUrl: string | null;
+  isMobile: boolean;
+}) {
   return (
     <MessageAvatar
       avatarUrl={avatarUrl}
-      className="h-8 w-8 shrink-0 radius-control-md"
+      className={cn(
+        "shrink-0 radius-control-md",
+        isMobile ? "h-8 w-8" : "h-7 w-7",
+      )}
       size="full"
     >
       {avatarUrl ? null : <Bot className="h-3.5 w-3.5" />}

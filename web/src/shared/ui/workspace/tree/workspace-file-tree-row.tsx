@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useState, type MouseEvent } from "react";
-import { ChevronRight, Folder, FolderOpen, Pencil, Trash2 } from "lucide-react";
+import { ChevronRight, Pencil, Trash2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -9,6 +9,7 @@ import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
 import {
   getWorkspaceFileTreeRowPresentation,
+  getWorkspaceDirectoryIcon,
   getWorkspaceFileVisual,
   type WorkspaceFileTreeNode,
 } from "./workspace-file-tree-model";
@@ -168,21 +169,21 @@ function WorkspaceTreeEntryIcon({
   isDirectoryTarget: boolean;
   isOpen: boolean;
 }) {
-  if (entry.is_dir) {
-    const DirectoryIcon = isOpen ? FolderOpen : Folder;
-    return (
-      <DirectoryIcon
-        className={cn(
-          "h-3.5 w-3.5 shrink-0",
-          isDirectoryTarget
-            ? "text-[color:color-mix(in_srgb,var(--accent)_82%,var(--foreground)_18%)]"
-            : "text-[var(--accent)]",
-        )}
-      />
-    );
-  }
-  const { Icon, iconClassName } = getWorkspaceFileVisual(entry.name);
-  return <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClassName)} />;
+  const iconSrc = entry.is_dir
+    ? getWorkspaceDirectoryIcon(isOpen)
+    : getWorkspaceFileVisual(entry.name).iconSrc;
+  return (
+    <img
+      alt=""
+      aria-hidden="true"
+      className={cn(
+        "h-4 w-4 shrink-0 object-contain",
+        entry.is_dir && !isDirectoryTarget && "opacity-90",
+      )}
+      draggable={false}
+      src={iconSrc}
+    />
+  );
 }
 
 function WorkspaceFileTreeRowActions({

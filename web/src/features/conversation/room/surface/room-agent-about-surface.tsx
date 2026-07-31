@@ -18,7 +18,12 @@ import {
 } from "@/features/agents/options/agent-options-editor-model";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
+import {
+  WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+  WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+} from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 
@@ -94,6 +99,7 @@ export function RoomAgentAboutSurface({
       members={roomMembers}
       selectedId={selectedAgent.agent_id}
       onSelect={setSelectedAgentId}
+      variant="panel"
     />
   ) : null;
 
@@ -159,7 +165,11 @@ function RoomAgentPanelTabs({
   onChange: (tab: RoomAgentPanelTabKey) => void;
 }) {
   return (
-    <div className="flex h-[41px] min-w-0 items-center border-b dialog-divider px-6">
+    <div className={cn(
+      "flex min-w-0 shrink-0 items-center border-b dialog-divider",
+      WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+      WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+    )}>
       {leading ? (
         <div className="mr-5 shrink-0">
           {leading}

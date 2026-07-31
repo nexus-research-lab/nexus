@@ -6,6 +6,10 @@ import { X } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import {
+  WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+  WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+} from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type {
@@ -70,12 +74,61 @@ export function SubagentTaskList({
 }: SubagentTaskListProps) {
   const { t } = useI18n();
   const model = buildSubagentTaskListModel({ data, isLoading, tasks });
+  const isDesktopPanel = !showTitle;
+  const content = (
+    <div>
+      {!isDesktopPanel && headerLeading ? (
+        <div className="mb-4 flex min-h-7 items-center">
+          {headerLeading}
+        </div>
+      ) : null}
+
+      <SubagentTaskSection
+        emptyText={t(ACTIVE_EMPTY_LABEL[model.activeEmptyState])}
+        label={t("subagents.active_section")}
+        onSelectTask={onSelectTask}
+        tasks={model.activeTasks}
+      />
+
+      {error ? (
+        <div className="mt-3 flex items-start gap-3 text-xs leading-5 text-(--destructive)">
+          <p className="min-w-0 flex-1">{error}</p>
+          <button
+            className="shrink-0 font-semibold hover:underline"
+            onClick={onRefresh}
+            type="button"
+          >
+            {t("subagents.retry")}
+          </button>
+        </div>
+      ) : null}
+
+      {model.supportNotice ? (
+        <p className="mt-3 max-w-[420px] text-sm leading-6 text-(--text-muted)">
+          {t(SUPPORT_NOTICE_LABEL[model.supportNotice])}
+        </p>
+      ) : null}
+
+      <div className="mt-5">
+        <SubagentTaskSection
+          countInLabel
+          label={t("subagents.completed_section")}
+          onSelectTask={onSelectTask}
+          tasks={model.completedTasks}
+        />
+      </div>
+    </div>
+  );
 
   return (
     <WorkspaceSurfaceView
-      bodyClassName="px-3.5 pb-5 pt-4 sm:px-4"
-      bodyScrollable
-      contentClassName="min-h-full"
+      bodyClassName={isDesktopPanel
+        ? "flex min-h-0 flex-1 flex-col px-0 py-0"
+        : "px-3.5 pb-5 pt-4 sm:px-4"}
+      bodyScrollable={!isDesktopPanel}
+      contentClassName={isDesktopPanel
+        ? "flex h-full min-h-0 flex-col"
+        : "min-h-full"}
       header={showTitle ? {
         action: (
           <WorkspaceSurfaceToolbarAction
@@ -92,48 +145,26 @@ export function SubagentTaskList({
       maxWidthClassName="max-w-none"
       title={t("subagents.panel_title")}
     >
-      <div>
-        {headerLeading ? (
-          <div className="mb-4 flex min-h-7 items-center">
-            {headerLeading}
+      {isDesktopPanel ? (
+        <>
+          <div className={cn(
+            "flex min-w-0 shrink-0 items-center border-b border-(--divider-subtle-color)",
+            WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+            WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+          )}>
+            {headerLeading ?? (
+              <span className="truncate text-xs font-medium text-(--text-soft)">
+                {t("subagents.panel_title")}
+              </span>
+            )}
           </div>
-        ) : null}
-
-        <SubagentTaskSection
-          emptyText={t(ACTIVE_EMPTY_LABEL[model.activeEmptyState])}
-          label={t("subagents.active_section")}
-          onSelectTask={onSelectTask}
-          tasks={model.activeTasks}
-        />
-
-        {error ? (
-          <div className="mt-3 flex items-start gap-3 text-xs leading-5 text-(--destructive)">
-            <p className="min-w-0 flex-1">{error}</p>
-            <button
-              className="shrink-0 font-semibold hover:underline"
-              onClick={onRefresh}
-              type="button"
-            >
-              {t("subagents.retry")}
-            </button>
+          <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-3.5 pb-5 pt-4 sm:px-4">
+            {content}
           </div>
-        ) : null}
-
-        {model.supportNotice ? (
-          <p className="mt-3 max-w-[420px] text-sm leading-6 text-(--text-muted)">
-            {t(SUPPORT_NOTICE_LABEL[model.supportNotice])}
-          </p>
-        ) : null}
-
-        <div className="mt-5">
-          <SubagentTaskSection
-            countInLabel
-            label={t("subagents.completed_section")}
-            onSelectTask={onSelectTask}
-            tasks={model.completedTasks}
-          />
-        </div>
-      </div>
+        </>
+      ) : (
+        content
+      )}
     </WorkspaceSurfaceView>
   );
 }

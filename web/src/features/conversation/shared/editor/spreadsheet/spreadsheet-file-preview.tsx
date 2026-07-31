@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Eye, FileSpreadsheet, FileWarning, LoaderCircle } from "lucide-react";
+import { Eye, FileWarning, LoaderCircle } from "lucide-react";
 
 import {
   WorkspaceFileDownloadButton,
@@ -81,21 +81,11 @@ function SpreadsheetPreviewMeta({
     loading: (
       <span className="flex min-w-0 items-center gap-1">
         <LoaderCircle className="h-3 w-3 shrink-0 animate-spin" />
-        <span className="truncate">
-          {status.state === "loading" ? status.message : ""}
-        </span>
+        <span className="truncate">加载中</span>
       </span>
     ),
   } satisfies Record<SpreadsheetPreviewStatus["state"], ReactNode>;
-  return (
-    <>
-      <span className="flex items-center gap-1">
-        <FileSpreadsheet className="h-3 w-3" />
-        xlsx 预览
-      </span>
-      {statusContent[status.state]}
-    </>
-  );
+  return statusContent[status.state];
 }
 
 function SpreadsheetPreviewOverlay({

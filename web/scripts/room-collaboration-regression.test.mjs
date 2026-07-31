@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -292,6 +293,168 @@ test("工作区源码文件复用 Markdown 代码语义高亮语言", async () =
   assert.equal(getWorkspaceFileCodeLanguage("Dockerfile.release"), "docker");
   assert.equal(getWorkspaceFileCodeLanguage(".env.local"), "bash");
   assert.equal(getWorkspaceFileCodeLanguage("notes.txt"), null);
+});
+
+test("工作区预览 breadcrumb 投影工作区根目录与文件父目录", async () => {
+  const {
+    getWorkspaceFileLocationLabel,
+    getWorkspaceRootLabel,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/workspace/controller/workspace-path-model.ts",
+  );
+
+  assert.equal(
+    getWorkspaceRootLabel("/Users/leemysw/Projects/nexus/", "工作区"),
+    "nexus",
+  );
+  assert.equal(
+    getWorkspaceRootLabel("C:\\Users\\leemysw\\Projects\\nexus", "工作区"),
+    "nexus",
+  );
+  assert.equal(getWorkspaceRootLabel("", "工作区"), "工作区");
+  assert.equal(getWorkspaceFileLocationLabel("AGENTS.md", "nexus"), "nexus");
+  assert.equal(
+    getWorkspaceFileLocationLabel("memory/project_leemysw.md", "nexus"),
+    "memory",
+  );
+  assert.equal(
+    getWorkspaceFileLocationLabel("memory/output/report.md", "nexus"),
+    "memory/output",
+  );
+});
+
+test("工作区文件 chrome 使用单行 breadcrumb 和一条内容边界", async () => {
+  const [
+    previewChromeSource,
+    previewPanelSource,
+    textHeaderSource,
+    workspaceSource,
+    fileBrowserSource,
+  ] = await Promise.all([
+    "src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+    "src/features/conversation/shared/editor/workspace-file-preview-panel.tsx",
+    "src/features/conversation/shared/editor/text/text-file-editor-header.tsx",
+    "src/features/conversation/room/workspace/room-workspace-view.tsx",
+    "src/features/conversation/room/workspace/view/workspace-file-browser.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+  const {
+    WorkspaceFilePreviewHeader,
+    WorkspaceFilePreviewHeaderProvider,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+  );
+  const breadcrumbHtml = renderToStaticMarkup(
+    React.createElement(
+      WorkspaceFilePreviewHeaderProvider,
+      {locationLabel: "nexus"},
+      React.createElement(WorkspaceFilePreviewHeader, {
+        actions: null,
+        title: "AGENTS.md",
+      }),
+    ),
+  );
+
+  const toolbarClasses = previewChromeSource.match(
+    /WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn\(([\s\S]*?)\);/,
+  )?.[1] ?? "";
+  assert.match(previewChromeSource, /createPortal\(header, headerPortalTarget\)/);
+  assert.match(breadcrumbHtml, /<header class="[^"]*border-b[^"]*h-11/);
+  assert.match(previewChromeSource, /<ChevronRight/);
+  assert.doesNotMatch(toolbarClasses, /\bborder\b|surface-panel-background/);
+  assert.doesNotMatch(previewChromeSource, /px-3 pt-0 pb-2|mt-1 flex min-w-0/);
+  assert.match(previewChromeSource, /aria-label=\{title\}/);
+  assert.match(previewChromeSource, /text-xs font-medium text-\(--text-strong\)/);
+  assert.match(breadcrumbHtml, />nexus<[\s\S]*>AGENTS\.md</);
+  assert.doesNotMatch(previewChromeSource, /visibleLabel|max-xl:hidden/);
+  assert.doesNotMatch(textHeaderSource, /presentation\.editAction === "preview"|max-xl:hidden/);
+  assert.match(textHeaderSource, /disabled=\{presentation\.saveDisabled\}/);
+  assert.match(workspaceSource, /variant="panel"/);
+  assert.match(workspaceSource, /headerLocationLabel=\{headerLocationLabel\}/);
+  assert.match(workspaceSource, /ref=\{setPreviewHeaderTarget\}/);
+  assert.match(workspaceSource, /headerPortalTarget=\{previewHeaderTarget\}/);
+  assert.match(workspaceSource, /<WorkspaceDirectoryToolbar controller=\{controller\.browser\}/);
+  assert.match(previewPanelSource, /locationLabel=\{headerLocationLabel\}/);
+  assert.match(previewPanelSource, /headerPortalTarget=\{headerPortalTarget\}/);
+  assert.match(fileBrowserSource, /flex-col border-l divider-subtle pl-4/);
+  assert.match(fileBrowserSource, /<WorkspaceFileToolbarButton/);
+  assert.match(fileBrowserSource, /<Upload className=\{WORKSPACE_PANEL_HEADER_ICON_CLASS\}/);
+  assert.match(fileBrowserSource, /<FolderPlus className=\{WORKSPACE_PANEL_HEADER_ICON_CLASS\}/);
+  assert.match(fileBrowserSource, /<FilePlus className=\{WORKSPACE_PANEL_HEADER_ICON_CLASS\}/);
+  assert.doesNotMatch(fileBrowserSource, /tone="primary"|WorkspaceSurfaceToolbarAction/);
+  assert.doesNotMatch(fileBrowserSource, /currentDirectoryLabel|<FolderOpen/);
+  assert.doesNotMatch(fileBrowserSource, /flex h-11 min-w-0 shrink-0/);
+  assert.doesNotMatch(fileBrowserSource, /radius-control-sm border/);
+});
+
+test("Room 辅助面板 header 共用高度、按钮和图标基线", async () => {
+  const [
+    layoutSource,
+    aboutSource,
+    workspaceSource,
+    subagentSource,
+    subagentListSource,
+    agentSwitcherSource,
+    threadSource,
+    previewChromeSource,
+  ] = await Promise.all([
+    "src/shared/ui/workspace/surface/workspace-header-layout.ts",
+    "src/features/conversation/room/surface/room-agent-about-surface.tsx",
+    "src/features/conversation/room/workspace/room-workspace-view.tsx",
+    "src/features/conversation/room/surface/room-subagent-task-surface.tsx",
+    "src/features/conversation/shared/subagent/subagent-task-list.tsx",
+    "src/features/conversation/room/surface/room-agent-switcher.tsx",
+    "src/features/conversation/shared/thread/conversation-thread-view.tsx",
+    "src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+
+  assert.match(layoutSource, /WORKSPACE_PANEL_HEADER_HEIGHT_CLASS = "h-11"/);
+  assert.match(layoutSource, /WORKSPACE_PANEL_HEADER_PADDING_CLASS = "px-3"/);
+  assert.match(layoutSource, /WORKSPACE_PANEL_HEADER_BUTTON_CLASS = "h-7 w-7"/);
+  assert.match(layoutSource, /WORKSPACE_PANEL_HEADER_ICON_CLASS = "h-3\.5 w-3\.5"/);
+  assert.match(aboutSource, /WORKSPACE_PANEL_HEADER_HEIGHT_CLASS/);
+  assert.match(aboutSource, /WORKSPACE_PANEL_HEADER_PADDING_CLASS/);
+  assert.doesNotMatch(aboutSource, /h-\[41px\]/);
+  assert.doesNotMatch(aboutSource, /dialog-divider px-6/);
+  assert.match(aboutSource, /<RoomAgentSwitcher[\s\S]*variant="panel"/);
+  assert.match(workspaceSource, /WORKSPACE_PANEL_HEADER_HEIGHT_CLASS/);
+  assert.match(workspaceSource, /WORKSPACE_PANEL_HEADER_PADDING_CLASS/);
+  assert.match(workspaceSource, /bodyClassName="px-0 py-0"/);
+  assert.match(subagentSource, /<RoomAgentSwitcher[\s\S]*variant="panel"/);
+  assert.match(subagentListSource, /isDesktopPanel = !showTitle/);
+  assert.match(subagentListSource, /WORKSPACE_PANEL_HEADER_HEIGHT_CLASS/);
+  assert.match(subagentListSource, /WORKSPACE_PANEL_HEADER_PADDING_CLASS/);
+  assert.match(agentSwitcherSource, /variant\?: "panel" \| "task"/);
+  assert.match(agentSwitcherSource, /variant === "panel" \? "w-28 shrink-0" : "w-full max-w-36"/);
+  assert.match(agentSwitcherSource, /className="h-4 w-4"/);
+  assert.match(agentSwitcherSource, /flex-1 truncate text-left text-compact/);
+  assert.match(
+    threadSource,
+    /isMobile \? "h-\[52px\]" : WORKSPACE_PANEL_HEADER_HEIGHT_CLASS/,
+  );
+  assert.match(threadSource, /<Icon className=\{WORKSPACE_PANEL_HEADER_ICON_CLASS\}/);
+  assert.match(previewChromeSource, /WORKSPACE_PANEL_HEADER_BUTTON_CLASS/);
+  assert.match(previewChromeSource, /WORKSPACE_PANEL_HEADER_ICON_CLASS/);
+});
+
+test("工作区文件树使用按文件名与扩展名区分的彩色图标", async () => {
+  const {
+    getWorkspaceDirectoryIcon,
+    getWorkspaceFileVisual,
+  } = await server.ssrLoadModule(
+    "/src/shared/ui/workspace/tree/workspace-file-tree-model.ts",
+  );
+  const iconSources = [
+    getWorkspaceFileVisual("components.json").iconSrc,
+    getWorkspaceFileVisual("index.html").iconSrc,
+    getWorkspaceFileVisual("package.json").iconSrc,
+    getWorkspaceFileVisual("pnpm-lock.yaml").iconSrc,
+    getWorkspaceFileVisual("tsconfig.json").iconSrc,
+    getWorkspaceFileVisual("vite.config.ts").iconSrc,
+  ];
+
+  assert.equal(new Set(iconSources).size, iconSources.length);
+  assert.notEqual(getWorkspaceDirectoryIcon(false), getWorkspaceDirectoryIcon(true));
+  iconSources.forEach((iconSource) => assert.match(iconSource, /svg/));
 });
 
 test("创建 Agent 时行为模板进入独立 API 字段", async () => {

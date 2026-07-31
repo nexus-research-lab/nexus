@@ -4,8 +4,6 @@ import { useState } from "react";
 import {
   Eye,
   EyeOff,
-  FileImage,
-  FileText,
   FileWarning,
   LoaderCircle,
 } from "lucide-react";
@@ -44,23 +42,17 @@ export function PdfPreview({
           </>
         )}
         meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3" />
-              PDF 预览
+          isLoaded ? (
+            <span className="flex items-center gap-1 text-(--success)">
+              <Eye className="h-3 w-3" />
+              已加载
             </span>
-            {isLoaded ? (
-              <span className="flex items-center gap-1 text-(--success)">
-                <Eye className="h-3 w-3" />
-                已加载
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <LoaderCircle className="h-3 w-3 animate-spin" />
-                加载中
-              </span>
-            )}
-          </>
+          ) : (
+            <span className="flex items-center gap-1">
+              <LoaderCircle className="h-3 w-3 animate-spin" />
+              加载中
+            </span>
+          )
         )}
         title={fileName}
       />
@@ -103,28 +95,22 @@ export function ImagePreview({
           </>
         )}
         meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <FileImage className="h-3 w-3" />
-              图片预览
+          hasError ? (
+            <span className="flex items-center gap-1 text-destructive">
+              <EyeOff className="h-3 w-3" />
+              加载失败
             </span>
-            {hasError ? (
-              <span className="flex items-center gap-1 text-destructive">
-                <EyeOff className="h-3 w-3" />
-                加载失败
-              </span>
-            ) : isLoaded ? (
-              <span className="flex items-center gap-1 text-(--success)">
-                <Eye className="h-3 w-3" />
-                已加载
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <LoaderCircle className="h-3 w-3 animate-spin" />
-                加载中
-              </span>
-            )}
-          </>
+          ) : isLoaded ? (
+            <span className="flex items-center gap-1 text-(--success)">
+              <Eye className="h-3 w-3" />
+              已加载
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <LoaderCircle className="h-3 w-3 animate-spin" />
+              加载中
+            </span>
+          )
         )}
         title={fileName}
       />

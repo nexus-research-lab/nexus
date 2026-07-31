@@ -1,5 +1,4 @@
-import type { ComponentType } from "react";
-import { FileSpreadsheet, FileText, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 
 import {
   WorkspaceFileDownloadButton,
@@ -14,8 +13,6 @@ export type OfficePreviewKind =
   | "spreadsheet";
 
 interface OfficePreviewDescriptor {
-  icon: ComponentType<{ className?: string }>;
-  label: string;
   loadingLabel: string;
 }
 
@@ -24,18 +21,12 @@ const OFFICE_PREVIEW_DESCRIPTORS: Record<
   OfficePreviewDescriptor
 > = {
   document: {
-    icon: FileText,
-    label: "docx 预览",
     loadingLabel: "正在加载 docx 预览组件",
   },
   presentation: {
-    icon: FileText,
-    label: "pptx 预览",
     loadingLabel: "正在加载 pptx 预览组件",
   },
   spreadsheet: {
-    icon: FileSpreadsheet,
-    label: "xlsx 预览",
     loadingLabel: "正在加载 xlsx 预览组件",
   },
 };
@@ -49,7 +40,6 @@ export function OfficePreviewFallback({
   path,
 }: WorkspaceFilePreviewProps & { kind: OfficePreviewKind }) {
   const descriptor = OFFICE_PREVIEW_DESCRIPTORS[kind];
-  const Icon = descriptor.icon;
   return (
     <>
       <WorkspaceFilePreviewHeader
@@ -67,16 +57,10 @@ export function OfficePreviewFallback({
           </>
         )}
         meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <Icon className="h-3 w-3" />
-              {descriptor.label}
-            </span>
-            <span className="flex items-center gap-1">
-              <LoaderCircle className="h-3 w-3 animate-spin" />
-              加载预览组件中
-            </span>
-          </>
+          <span className="flex items-center gap-1">
+            <LoaderCircle className="h-3 w-3 animate-spin" />
+            加载中
+          </span>
         )}
         title={fileName}
       />

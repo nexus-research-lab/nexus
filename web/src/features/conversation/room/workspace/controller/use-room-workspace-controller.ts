@@ -70,7 +70,6 @@ export function useRoomWorkspaceController({
     },
     browser: {
       clearErrorMessage,
-      currentDirectoryLabel: navigation.focusedDirectoryPath ?? "/",
       errorMessage: commands.errorMessage ?? resource.errorMessage,
       files: resource.files,
       focusedDirectoryPath: navigation.focusedDirectoryPath,

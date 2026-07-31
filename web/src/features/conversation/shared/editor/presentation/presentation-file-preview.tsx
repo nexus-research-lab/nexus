@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, Eye, FileText, FileWarning, LoaderCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, FileWarning, LoaderCircle } from "lucide-react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { cn } from "@/shared/ui/class-name";
@@ -106,28 +106,22 @@ export function PresentationFilePreview({
           </>
         )}
         meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3" />
-              pptx 预览
+          hasError ? (
+            <span className="flex items-center gap-1 text-destructive">
+              <FileWarning className="h-3 w-3" />
+              加载失败
             </span>
-            {hasError ? (
-              <span className="flex items-center gap-1 text-destructive">
-                <FileWarning className="h-3 w-3" />
-                加载失败
-              </span>
-            ) : isLoaded ? (
-              <span className="flex items-center gap-1 text-(--success)">
-                <Eye className="h-3 w-3" />
-                已加载 {status.slideCount} 页
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <LoaderCircle className="h-3 w-3 animate-spin" />
-                {isLoading ? status.message : "加载中"}
-              </span>
-            )}
-          </>
+          ) : isLoaded ? (
+            <span className="flex items-center gap-1 text-(--success)">
+              <Eye className="h-3 w-3" />
+              已加载 {status.slideCount} 页
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <LoaderCircle className="h-3 w-3 animate-spin" />
+              加载中
+            </span>
+          )
         )}
         title={fileName}
       />

@@ -1068,8 +1068,9 @@ test("Room progress stays isolated by Agent and selection follows the latest pro
   );
   assert.match(
     roomAgentSwitcherSource,
-    /variant === "task"[\s\S]*h-7 w-full max-w-\[9rem\][\s\S]*text-compact font-semibold/,
+    /variant === "panel" \? "w-28 shrink-0" : "w-full max-w-36"/,
   );
+  assert.match(roomAgentSwitcherSource, /flex h-7 w-full min-w-0/);
 });
 
 test("Room and DM stack Goal, Task, and scroll controls upward from the Composer", async () => {

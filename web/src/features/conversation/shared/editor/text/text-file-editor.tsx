@@ -30,7 +30,6 @@ export function TextFileEditor({
       <TextFileEditorHeader
         agentId={agentId}
         fileName={fileName}
-        fileType={fileType}
         isPreviewFocused={isPreviewFocused}
         onSave={() => void editor.save()}
         onToggleEditing={editor.toggleEditing}

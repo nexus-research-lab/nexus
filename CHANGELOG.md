@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Replaced hard Room auxiliary-panel dividers with an invisible resize gutter,
   alongside subtly differentiated conversation and context surfaces.
+- Simplified Workspace file chrome into one continuous header with consistent icon-only
+  actions, stable save placement, compact path breadcrumbs, and no repeated
+  directory title; file trees now use richer Material file-type icons, while
+  Room auxiliary headers now share one height, icon scale, and fixed Agent
+  filter alignment with left-aligned names.
 - Simplified Room Thread inspectors to one identity header and one panel
   divider, keeping final Agent replies in the main Feed while the Thread shows
   only execution details without an internal timeline rail or dots.

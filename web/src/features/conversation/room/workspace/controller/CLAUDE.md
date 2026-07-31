@@ -4,7 +4,7 @@ Room Workspace 的状态与命令边界。
 
 ## 职责
 
-- `workspace-path-model.ts` 只保存路径合并、父目录和前缀替换规则。
+- `workspace-path-model.ts` 只保存路径合并、父目录、显示标签和前缀替换规则。
 - `interaction/` 分离菜单/Prompt 状态、路径导航和条目事务。
 - `use-workspace-agent-scope.ts` 负责 Room Agent 选择与外部打开请求协议。
 - `use-workspace-files-resource.ts` 负责当前 Agent 的文件快照和加载错误。

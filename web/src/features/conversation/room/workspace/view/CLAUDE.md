@@ -5,7 +5,7 @@ Room Workspace 的纯视图与布局边界。
 ## 职责
 
 - `use-workspace-file-list-layout.ts` 管理文件列表宽度与拖拽监听。
-- `workspace-file-browser.tsx` 渲染目录工具栏、错误、空状态和文件树；专注模式在超窄窗口改为上下堆叠并停用横向拖拽。
+- `workspace-file-browser.tsx` 不重复渲染已由预览 breadcrumb 表达的目录标题，只在贯通顶栏右端保留无描边图标操作；目录操作复用预览 chrome 的按钮配方，不另设尺寸、颜色或交互状态。贯通顶栏贴合面板边缘，Agent 筛选器与其他 Room 辅助面板共享 12px 左起点和固定尺寸，内容区再独立恢复文件预览所需的横向留白。组件同时渲染错误、空状态和文件树；桌面分栏线从内容区开始，不切断顶栏，专注模式在超窄窗口改为上下堆叠并停用横向拖拽。
 - `workspace-dialogs.tsx` 渲染创建、重命名、删除弹窗并连接右键菜单。
 - `workspace-context-menu.tsx` 用动作数据投影右键菜单，不解释命令结果。
 
