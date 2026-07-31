@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Aligned Slash command descriptions on a reserved command-name column while keeping argument hints anchored to the right edge.
+- Replaced the duplicate runtime version card with the desktop app's authoritative version, build number, and log export action in General settings.
+
 ## [0.1.30] - 2026-07-31
 
 ### Added

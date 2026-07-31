@@ -5,7 +5,6 @@ import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/worksp
 
 import { SettingsAppearanceSection } from "./sections/settings-appearance-section";
 import { SettingsDesktopSection } from "./sections/settings-desktop-section";
-import { SettingsSystemSection } from "./sections/settings-system-section";
 import { SettingsGeneralBehaviorSection } from "./sections/settings-general-behavior-section";
 import { SettingsPermissionsSection } from "./sections/settings-permissions-section";
 import { SettingsWorkspaceSection } from "./sections/settings-workspace-section";
@@ -31,17 +30,12 @@ export function SettingsGeneralSection({
     >
       {section === "general" ? (
         <>
-          <SettingsSystemSection />
+          <SettingsDesktopSection />
           <SettingsGeneralBehaviorContent />
         </>
       ) : null}
       {section === "appearance" ? <SettingsAppearanceSection /> : null}
-      {section === "workspace" ? (
-        <>
-          <SettingsWorkspaceSection />
-          <SettingsDesktopSection />
-        </>
-      ) : null}
+      {section === "workspace" ? <SettingsWorkspaceSection /> : null}
       {section === "permissions" ? (
         <SettingsPermissionsContent />
       ) : null}

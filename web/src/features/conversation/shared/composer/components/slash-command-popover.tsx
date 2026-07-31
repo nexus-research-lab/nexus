@@ -274,7 +274,7 @@ function SlashCommandList({
                 ?? t("composer.slash_command_unavailable")}
             type="button"
           >
-            <span className="shrink-0 font-mono text-[11px] font-semibold leading-4 text-(--text-strong)">
+            <span className="w-20 shrink-0 truncate font-mono text-[11px] font-semibold leading-4 text-(--text-strong)">
               /{command.name}
             </span>
             <span className="min-w-0 flex-1 truncate text-[11px] leading-4 text-(--text-default)">

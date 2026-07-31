@@ -75,7 +75,7 @@
 | 方法 | 路径 | 说明 | 前端函数 |
 |------|------|------|---------|
 | GET | `/health` | 健康检查 | — |
-| GET | `/system/version` | 系统版本信息（project/version/git_commit/build_date/goos/goarch/target/release_url） | `getSystemVersionApi` |
+| GET | `/system/version` | 后端服务版本信息（project/version/git_commit/build_date/goos/goarch/target/release_url） | — |
 | GET | `/runtime/options` | 运行时配置（default_agent_id、默认 provider/model、preferences） | `hydrateRuntimeOptions` |
 
 `/runtime/options` 在应用启动时拉取，用于初始化默认 Agent、Provider 与用户偏好。

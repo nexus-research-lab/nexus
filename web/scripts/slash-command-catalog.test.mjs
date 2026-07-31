@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,21 @@ const server = await createServer({
 
 test.after(async () => {
   await server.close();
+});
+
+test("slash command rows reserve one stable name column", async () => {
+  const source = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/composer/components/slash-command-popover.tsx",
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /className="w-20 shrink-0 truncate font-mono[^"]*">\s*\/\{command\.name\}/,
+  );
 });
 
 test("slash query only opens at the beginning of a message", async () => {
