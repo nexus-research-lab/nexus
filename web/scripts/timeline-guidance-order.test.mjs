@@ -5042,6 +5042,123 @@ test("Room stream-first children append after a visible legacy Lead reply", asyn
   );
 });
 
+test("Room durable snapshot backfills an earlier Lead after a live child", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    syncRoomAgentExecutionFromStream,
+    syncRoomAgentExecutionsFromMessages,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-live-child-before-history";
+  const lead = assistantMessage({
+    agentId: "agent-lead",
+    agentRoundId: "agent-round-lead",
+    displayOrder: 10_000,
+    isComplete: true,
+    messageId: "assistant-history-lead",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "我先完成分工，Researcher 继续执行。",
+    timestamp: 30,
+  });
+  const researcher = assistantMessage({
+    agentId: "agent-researcher",
+    agentRoundId: "agent-round-researcher",
+    displayOrder: 20_000,
+    messageId: "assistant-live-researcher",
+    roundId,
+    status: "streaming",
+    text: "Researcher 正在调研",
+    timestamp: 31,
+  });
+  const streamFirst = syncRoomAgentExecutionFromStream([], {
+    agent_id: "agent-researcher",
+    agent_round_id: "agent-round-researcher",
+    message_id: "assistant-live-researcher",
+    round_id: roundId,
+    session_key: "room:group:conversation-live-before-history",
+    timestamp: 21,
+    type: "message_start",
+  });
+  const reconciled = syncRoomAgentExecutionsFromMessages(
+    streamFirst,
+    [lead, researcher],
+  );
+  const statesByAgent = new Map(
+    reconciled.map((state) => [state.agent_id, state]),
+  );
+
+  assert.deepEqual(
+    buildRoomAgentRoundEntries(
+      [lead, researcher],
+      [],
+      [],
+      reconciled,
+    ).map((entry) => entry.agent_id),
+    ["agent-lead", "agent-researcher"],
+    "a live child observed during history loading must not stay above its earlier durable Lead",
+  );
+  assert.equal(statesByAgent.get("agent-lead")?.display_order, 10_000);
+  assert.equal(statesByAgent.get("agent-researcher")?.display_order, 20_000);
+  assert.equal(
+    statesByAgent.get("agent-researcher")?.first_seen_at,
+    21,
+    "canonical order reconciliation must preserve the original live first-seen timestamp",
+  );
+});
+
+test("Room legacy snapshot fallback cannot speculate ahead of a live execution", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    syncRoomAgentExecutionFromStream,
+    syncRoomAgentExecutionsFromMessages,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-legacy-history-after-live";
+  const legacyLead = assistantMessage({
+    agentId: "agent-lead",
+    agentRoundId: "agent-round-legacy-lead",
+    isComplete: true,
+    messageId: "assistant-legacy-lead",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "缺少持久展示顺序的旧 Lead 回复",
+    timestamp: 10,
+  });
+  const liveResearcher = syncRoomAgentExecutionFromStream([], {
+    agent_id: "agent-researcher",
+    agent_round_id: "agent-round-live-researcher",
+    message_id: "assistant-live-researcher",
+    round_id: roundId,
+    session_key: "room:group:conversation-legacy-history",
+    timestamp: 20,
+    type: "message_start",
+  });
+  const reconciled = syncRoomAgentExecutionsFromMessages(
+    liveResearcher,
+    [legacyLead],
+  );
+
+  assert.deepEqual(
+    buildRoomAgentRoundEntries(
+      [legacyLead],
+      [],
+      [],
+      reconciled,
+    ).map((entry) => entry.agent_id),
+    ["agent-researcher", "agent-lead"],
+    "a legacy completion timestamp is not authoritative enough to move an unseen reply above a visible execution",
+  );
+});
+
 test("Room late permission enriches an observed slot without moving its Agent", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",

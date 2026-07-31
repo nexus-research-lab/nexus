@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 Session 的 Room execution 顺序锚点，以及 permission / slot / message / lifecycle 证据。
- * OUTPUT: keyed by root round + agent_round 且跨 permission/slot/message 共用毫秒尺度的 canonical 初始顺序、首次可见锚点和 acknowledged 非交互 tombstone；live Assistant turn 不越权收口仍在运行的 Thread。
+ * OUTPUT: keyed by root round + agent_round 的 execution 锚点；持久 message display_order 可纠正快照竞态，易失证据保持首次可见顺序，acknowledged tombstone 与 live turn 均单调迁移。
  * POS: Room execution shell 连续性的纯状态转换；React 状态与协议发送只负责调用。
  */
 import type {
@@ -26,6 +26,7 @@ interface RoomExecutionIdentity {
 }
 
 interface RoomExecutionEvidence extends RoomExecutionIdentity {
+  canonicalDisplayOrder?: number;
   firstSeenAt: number;
   handoffId?: string;
   phase: RoomAgentExecutionState["phase"];
@@ -91,6 +92,26 @@ function nextDisplayOrder(
   );
 }
 
+function isFiniteDisplayOrder(
+  value: number | undefined,
+): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function resolveNewDisplayOrder(
+  states: readonly RoomAgentExecutionState[],
+  evidence: RoomExecutionEvidence,
+): number {
+  if (isFiniteDisplayOrder(evidence.canonicalDisplayOrder)) {
+    return evidence.canonicalDisplayOrder;
+  }
+  const appendOrder = nextDisplayOrder(states, evidence.roundId);
+  return isFiniteDisplayOrder(evidence.preferredDisplayOrder)
+    && evidence.preferredDisplayOrder >= appendOrder
+    ? evidence.preferredDisplayOrder
+    : appendOrder;
+}
+
 function mergeMonotonicStatus(
   current: AssistantMessageStatus,
   incoming: AssistantMessageStatus,
@@ -114,19 +135,12 @@ function mergeEvidence(
   const key = buildExecutionKey(evidence.roundId, evidence.agentRoundId);
   const index = states.findIndex((state) => executionKey(state) === key);
   if (index < 0) {
-    const appendOrder = nextDisplayOrder(states, evidence.roundId);
-    const preferredOrder = evidence.preferredDisplayOrder;
     return [
       ...states,
       {
         agent_id: evidence.agentId,
         agent_round_id: evidence.agentRoundId,
-        display_order:
-          typeof preferredOrder === "number"
-          && Number.isFinite(preferredOrder)
-          && preferredOrder >= appendOrder
-            ? preferredOrder
-            : appendOrder,
+        display_order: resolveNewDisplayOrder(states, evidence),
         first_seen_at: evidence.firstSeenAt,
         ...(evidence.handoffId ? { handoff_id: evidence.handoffId } : {}),
         phase: evidence.phase,
@@ -140,8 +154,12 @@ function mergeEvidence(
   const nextPhase = resolveNextPhase(current.phase, evidence.phase);
   const nextStatus = mergeMonotonicStatus(current.status, evidence.status);
   const nextHandoffId = evidence.handoffId ?? current.handoff_id;
+  const nextOrder = isFiniteDisplayOrder(evidence.canonicalDisplayOrder)
+    ? evidence.canonicalDisplayOrder
+    : current.display_order;
   if (
     current.agent_id === evidence.agentId
+    && current.display_order === nextOrder
     && current.handoff_id === nextHandoffId
     && current.phase === nextPhase
     && current.status === nextStatus
@@ -152,6 +170,7 @@ function mergeEvidence(
   next[index] = {
     ...current,
     agent_id: evidence.agentId,
+    display_order: nextOrder,
     ...(nextHandoffId ? { handoff_id: nextHandoffId } : {}),
     phase: nextPhase,
     status: nextStatus,
@@ -385,15 +404,18 @@ function syncRoomAgentExecutionMessageEvidence(
         identity.agentRoundId,
       )),
     );
+    const canonicalDisplayOrder = isFiniteDisplayOrder(message.display_order)
+      ? message.display_order
+      : undefined;
     return [{
       ...identity,
+      ...(canonicalDisplayOrder === undefined
+        ? {}
+        : { canonicalDisplayOrder }),
       firstSeenAt: message.timestamp,
       phase: TERMINAL_STATUSES.has(status) ? "terminal" : "active",
-      preferredDisplayOrder:
-        typeof message.display_order === "number"
-        && Number.isFinite(message.display_order)
-          ? message.display_order
-          : resolveObservedDisplayOrder(message.timestamp, fallbackOrder),
+      preferredDisplayOrder: canonicalDisplayOrder
+        ?? resolveObservedDisplayOrder(message.timestamp, fallbackOrder),
       status,
     }];
   }));

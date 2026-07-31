@@ -40,10 +40,11 @@ export interface RoomPendingAgentSlotState {
 }
 
 /**
- * Room 单次 Agent 执行在当前 Session 内的首次可见顺序锚点。
+ * Room 单次 Agent 执行在当前 Session 内的展示顺序锚点。
  *
  * permission 决策成功后会先进入 acknowledged；在 slot / message / terminal
- * 证据接棒前，它只维持 execution shell，不再代表可响应权限。
+ * 证据接棒前，它只维持 execution shell，不再代表可响应权限。实时首见顺序
+ * 默认不可变，但持久 message 的显式 display_order 可在快照回填时纠正该锚点。
  */
 export interface RoomAgentExecutionState {
   agent_id: string;

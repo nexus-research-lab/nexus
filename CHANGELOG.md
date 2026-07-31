@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restored canonical Room Agent reply order when live child events arrive before the initial history snapshot: durable `display_order` now backfills earlier executions without letting legacy timestamps or later volatile evidence reshuffle visible cards.
 - Preserved explicit ordinary-Agent model selections when their Provider is temporarily unavailable: runtime now falls back to the user default and restores the original selection automatically when it becomes usable again, while the Nexus main Agent always follows the default model.
 
 ## [0.1.30] - 2026-07-31
