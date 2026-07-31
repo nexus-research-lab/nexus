@@ -160,6 +160,29 @@ LIMIT 1`,
 	return &item, nil
 }
 
+// FindLatest 返回 session 最近一次 Execution，包含 terminal 结果供 UI 回看。
+func (r *Repository) FindLatest(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+) (*protocol.Execution, error) {
+	item, err := scanExecution(r.db.QueryRowContext(ctx, r.executionSelect()+`
+WHERE owner_user_id = `+r.bind(1)+`
+  AND session_key = `+r.bind(2)+`
+ORDER BY updated_at DESC, execution_id DESC
+LIMIT 1`,
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(sessionKey),
+	))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
 // FindCurrentByGoal 返回与指定 Goal objective revision 绑定的唯一未终结 Execution。
 func (r *Repository) FindCurrentByGoal(
 	ctx context.Context,

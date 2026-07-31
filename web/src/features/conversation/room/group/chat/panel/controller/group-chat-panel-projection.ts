@@ -5,6 +5,7 @@
  */
 import type { RefObject } from "react";
 
+import type { ExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
 import {
   buildConversationPanelFrameModel,
   type ConversationPanelEnvironment,
@@ -19,6 +20,7 @@ import type {
   UseAgentConversationReturn,
 } from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
+import type { ExecutionView } from "@/types/conversation/execution";
 
 import type {
   GroupChatComposerModel,
@@ -74,6 +76,10 @@ interface BuildGroupChatPanelViewModelOptions {
   currentAgentName: string | null;
   directory: RoomAgentDirectory;
   environment: ConversationPanelEnvironment;
+  execution: {
+    dismiss: () => void;
+    execution: ExecutionView | null;
+  };
   feedTimeline: GroupAgentTimelineProjection;
   goal: RoomGoalComposerModel;
   onCreateConversation: (
@@ -94,6 +100,7 @@ export function buildGroupChatPanelViewModel({
   currentAgentName,
   directory,
   environment,
+  execution,
   feedTimeline,
   goal,
   onCreateConversation,
@@ -135,6 +142,13 @@ export function buildGroupChatPanelViewModel({
       session,
       unread,
     }),
+    executionPanel: execution.execution
+      ? {
+          directory: buildExecutionAgentDirectory(roomMembers),
+          execution: execution.execution,
+          onDismiss: execution.dismiss,
+        }
+      : null,
     goalLead: buildGoalLeadModel({ goal, roomMembers, session }),
     goalPanel: buildGoalPanelModel({
       goal,
@@ -156,6 +170,19 @@ export function buildGroupChatPanelViewModel({
     taskProcesses: session.taskProcesses,
     taskProcessMembers: roomMembers,
   };
+}
+
+function buildExecutionAgentDirectory(
+  roomMembers: Agent[],
+): ExecutionAgentDirectory {
+  return Object.fromEntries(roomMembers.map((member) => [
+    member.agent_id,
+    {
+      avatar: member.avatar ?? null,
+      id: member.agent_id,
+      name: member.name,
+    },
+  ]));
 }
 
 function buildFeedModel({

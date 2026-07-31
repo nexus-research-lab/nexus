@@ -145,6 +145,14 @@ func (s *Service) PlanExecution(
 	}
 	draft, validateErr := NormalizeAndValidatePlanDraft(input.Draft)
 	if validateErr != nil {
+		var domainErr *DomainError
+		if errors.As(validateErr, &domainErr) &&
+			domainErr.Code == ErrorCodePlanItemsEmpty {
+			return RejectedResult(nil, validateErr, []NextAction{{
+				Tool:   "plan_execution",
+				Reason: "rebuild work_graph_json as a valid JSON array containing every typed Work Item and a required terminal integrate or verify item",
+			}}), nil
+		}
 		return RejectedResult(nil, validateErr, nil), nil
 	}
 	var snapshot *protocol.ExecutionSnapshot

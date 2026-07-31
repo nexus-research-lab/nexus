@@ -11,7 +11,7 @@
 //   - room*.go：房间、成员、每 Room 唯一未开始 conversation draft、directed message。
 //   - conversation_turn.go / event.go / goal*.go / execution*.go / input_queue.go：
 //     对话投影、统一事件类型、session-scoped command catalog 与带 public handoff 关联的权威 runtime slot 快照、Goal 生命周期/objective revision、actual/budget token 双口径、最终 usage report/fence、child checkpoint/lifecycle evidence、Room parent terminal ledger 与 durable scope 回补、输入队列快照、持久接受 ACK 及互斥 work/review capability envelope 校验。
-//     execution*.go 额外定义 Goal 可选绑定下的 Execution、typed predecessor successor linkage、immutable Plan revision、stable Work Item/spec、模型执行契约单一集合上限、固定 subagent reconciliation grace、typed canonical output scope 与跨平台保守比较键、Assignment、dispatch outbox、跨 Room queue/slot/runtime 的完整 WorkBinding、含 parent-exit reconciliation deadline 的 Attempt、exact-target cancellation outbox/Binding、immutable Submission、独立 review-return outbox/ReviewBinding、append-only Acceptance 与有序幂等事件协议。
+//     execution*.go 额外定义 Goal 可选绑定下的 Execution、typed predecessor successor linkage、immutable Plan revision、stable Work Item/spec、模型执行契约单一集合上限、固定 subagent reconciliation grace、typed canonical output scope 与跨平台保守比较键、Assignment、dispatch outbox、跨 Room queue/slot/runtime 的完整 WorkBinding、含 parent-exit reconciliation deadline 的 Attempt、exact-target cancellation outbox/Binding、immutable Submission、独立 review-return outbox/ReviewBinding、append-only Acceptance、有序幂等事件协议，以及不暴露 capability identity 的 Web WorkGraph 只读投影。
 //   - chat_attachment.go / workspace_file_artifact.go / delivery_policy.go：
 //     聊天附件、工作区文件产物、投递策略。
 //   - identity.go / value.go / provider_failure.go：ID 生成、跨边界值解码与稳定 Provider 失败分类。

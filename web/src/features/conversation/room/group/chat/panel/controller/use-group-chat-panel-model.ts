@@ -6,6 +6,7 @@
 import { useMemo } from "react";
 
 import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
+import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
 
@@ -60,6 +61,11 @@ export function useGroupChatPanelModel({
     onRoomEvent,
     onTodosChange,
     roomId,
+    sessionKey,
+  });
+  const execution = useExecutionResource({
+    activityKey: `${session.conversation.messages.length}:${session.conversation.is_loading}`,
+    conversationActive: session.conversation.is_loading,
     sessionKey,
   });
   const feedTimeline = useMemo(
@@ -117,6 +123,7 @@ export function useGroupChatPanelModel({
     currentAgentName,
     directory,
     environment,
+    execution,
     feedTimeline,
     goal,
     onCreateConversation,

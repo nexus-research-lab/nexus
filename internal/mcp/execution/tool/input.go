@@ -1,9 +1,15 @@
-// INPUT: 十个 execution tool 的模型可见 JSON 参数。
-// OUTPUT: 不含 command_id/snapshot_revision/runtime identity 的 typed semantic intent。
-// POS: MCP schema 与 service command 之间的无权限输入层。
+// INPUT: 十个 execution tool 的模型可见 JSON 参数；Plan WorkGraph 以单个 JSON 字符串跨 Provider 传输。
+// OUTPUT: 严格解码且不含 command_id/snapshot_revision/runtime identity 的 typed semantic intent。
+// POS: MCP schema 与 service command 之间的无权限输入层，隔离 Provider 的深层对象数组兼容差异。
 package tool
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"strings"
+
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
@@ -13,14 +19,17 @@ type getExecutionInput struct {
 }
 
 type planExecutionInput struct {
-	ExecutionID             string          `json:"execution_id,omitempty"`
-	Objective               string          `json:"objective,omitempty"`
-	CompletionCriteria      []string        `json:"completion_criteria,omitempty"`
-	RevisionReason          string          `json:"revision_reason,omitempty"`
-	SupersedeActiveWork     bool            `json:"supersede_active_work,omitempty"`
-	ReplaceCurrentExecution bool            `json:"replace_current_execution,omitempty"`
-	ReplacementReason       string          `json:"replacement_reason,omitempty"`
-	Items                   []planItemInput `json:"items"`
+	ExecutionID             string   `json:"execution_id,omitempty"`
+	Objective               string   `json:"objective,omitempty"`
+	CompletionCriteria      []string `json:"completion_criteria,omitempty"`
+	RevisionReason          string   `json:"revision_reason,omitempty"`
+	SupersedeActiveWork     bool     `json:"supersede_active_work,omitempty"`
+	ReplaceCurrentExecution bool     `json:"replace_current_execution,omitempty"`
+	ReplacementReason       string   `json:"replacement_reason,omitempty"`
+	WorkGraphJSON           string   `json:"work_graph_json,omitempty"`
+	// Items 只为 work_graph_json 成为模型协议前的进程内调用方保留解码兼容；
+	// 模型 schema 不再暴露这条 Provider 易损路径。
+	Items []planItemInput `json:"items,omitempty"`
 }
 
 type abandonExecutionInput struct {
@@ -54,9 +63,39 @@ type outputScopeInput struct {
 	Mode  protocol.WorkOutputScopeMode `json:"mode,omitempty"`
 }
 
-func (input planExecutionInput) draft() orchestration.PlanDraft {
-	items := make([]orchestration.PlanWorkItemDraft, 0, len(input.Items))
-	for _, item := range input.Items {
+func (input planExecutionInput) draft() (orchestration.PlanDraft, error) {
+	decodedItems := input.Items
+	workGraphJSON := strings.TrimSpace(input.WorkGraphJSON)
+	if workGraphJSON != "" {
+		if len(input.Items) > 0 {
+			return orchestration.PlanDraft{}, fmt.Errorf(
+				"work_graph_json and legacy items cannot both be provided",
+			)
+		}
+		decoder := json.NewDecoder(bytes.NewBufferString(workGraphJSON))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&decodedItems); err != nil {
+			return orchestration.PlanDraft{}, fmt.Errorf(
+				"work_graph_json must be a JSON array of Work Item objects: %w",
+				err,
+			)
+		}
+		var trailing any
+		if err := decoder.Decode(&trailing); err != io.EOF {
+			if err == nil {
+				return orchestration.PlanDraft{}, fmt.Errorf(
+					"work_graph_json must contain exactly one JSON array",
+				)
+			}
+			return orchestration.PlanDraft{}, fmt.Errorf(
+				"work_graph_json contains trailing invalid JSON: %w",
+				err,
+			)
+		}
+	}
+
+	items := make([]orchestration.PlanWorkItemDraft, 0, len(decodedItems))
+	for _, item := range decodedItems {
 		dependencies := make([]orchestration.PlanDependencyDraft, 0, len(item.DependsOn))
 		for _, dependency := range item.DependsOn {
 			dependencies = append(dependencies, orchestration.PlanDependencyDraft{
@@ -90,7 +129,7 @@ func (input planExecutionInput) draft() orchestration.PlanDraft {
 	return orchestration.PlanDraft{
 		RevisionReason: input.RevisionReason,
 		Items:          items,
-	}
+	}, nil
 }
 
 type assignWorkInput struct {

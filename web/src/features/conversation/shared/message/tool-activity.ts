@@ -18,6 +18,16 @@ const TOOL_TITLE_MAP: Record<string, string> = {
   WebFetch: "抓取网页",
   Skill: "调用技能",
   Task: "委派任务",
+  get_execution: "读取工作图",
+  plan_execution: "建立执行计划",
+  abandon_execution: "终止当前执行",
+  assign_work: "指派工作项",
+  submit_work: "提交交付物",
+  review_work: "验收工作项",
+  block_work: "标记工作阻塞",
+  resume_work: "恢复工作项",
+  take_over_work: "接管工作项",
+  promote_execution_to_goal: "升级为 Goal",
 };
 
 const INPUT_SUMMARY_KEYS = [
@@ -29,12 +39,17 @@ const INPUT_SUMMARY_KEYS = [
   "description",
   "task",
   "prompt",
+  "objective",
+  "logical_key",
+  "result_summary",
+  "reason",
 ] as const;
 
 const COMMAND_SUMMARY_LIMIT = 50;
 
 export function getToolTitle(toolName: string): string {
-  return TOOL_TITLE_MAP[toolName] ?? toolName;
+  const semanticToolName = getExecutionToolLeaf(toolName);
+  return TOOL_TITLE_MAP[semanticToolName] ?? TOOL_TITLE_MAP[toolName] ?? toolName;
 }
 
 export function getToolInputSummary(input: unknown): string | null {
@@ -72,6 +87,11 @@ function getPathLeaf(value: string): string {
 function formatCommandSummary(command: string): string {
   const suffix = command.length > COMMAND_SUMMARY_LIMIT ? "..." : "";
   return `$ ${command.slice(0, COMMAND_SUMMARY_LIMIT)}${suffix}`;
+}
+
+function getExecutionToolLeaf(toolName: string): string {
+  const prefix = "mcp__nexus_execution__";
+  return toolName.startsWith(prefix) ? toolName.slice(prefix.length) : toolName;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

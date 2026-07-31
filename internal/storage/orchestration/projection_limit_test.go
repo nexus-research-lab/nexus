@@ -35,6 +35,11 @@ func TestRepositoryProjectionLimitDefenseInDepth(t *testing.T) {
 			name   string
 			mutate func(*WritePlanCommand)
 		}{
+			{name: "work items", mutate: func(command *WritePlanCommand) {
+				for len(command.WorkItems) <= protocol.ExecutionProjectionCollectionLimit {
+					command.WorkItems = append(command.WorkItems, PlanWorkItem{})
+				}
+			}},
 			{name: "acceptance criteria", mutate: func(command *WritePlanCommand) {
 				command.WorkItems[0].Spec.AcceptanceCriteria = overflow
 			}},

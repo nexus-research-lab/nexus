@@ -11,6 +11,7 @@ func TestStablePromptDefinesExecutionBoundaries(t *testing.T) {
 		"Goal is a persistence boundary",
 		"Complexity, a long Plan, Room membership, or subagent use alone never activates a Goal",
 		"A Plan revision is immutable",
+		"`work_graph_json` as one JSON array string",
 		"A worker result is a Submission, not Acceptance",
 		"exact `allowed_actions`",
 		"After assigning a produce Work Item, do not perform the same deliverable",

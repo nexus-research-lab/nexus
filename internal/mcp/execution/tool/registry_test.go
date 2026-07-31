@@ -102,12 +102,29 @@ func TestPlanExecutionSchemaExplainsInitialCriterionWithoutBurdeningReplan(t *te
 		slices.Contains(required, "objective") {
 		t.Fatalf("context-dependent creation fields became mandatory for replan: %#v", required)
 	}
+	if !slices.Contains(required, "work_graph_json") {
+		t.Fatalf("required = %#v, want work_graph_json", required)
+	}
+	if _, exposesNestedItems := properties["items"]; exposesNestedItems {
+		t.Fatalf("model schema still exposes provider-fragile nested items: %#v", properties)
+	}
+	workGraph := properties["work_graph_json"].(map[string]any)
+	if workGraph["type"] != "string" || workGraph["pattern"] != `\S` {
+		t.Fatalf("work_graph_json schema = %#v", workGraph)
+	}
+	for _, requiredText := range []string{
+		"work_graph_json",
+		"json array serialized inside one string",
+		"do not send nested work item objects as a tool argument array",
+	} {
+		if !strings.Contains(strings.ToLower(definition.Description), strings.ToLower(requiredText)) {
+			t.Fatalf("description missing %q: %s", requiredText, definition.Description)
+		}
+	}
 }
 
 func TestExecutionToolSchemasExposeProjectionCollectionLimits(t *testing.T) {
 	plan := planExecutionSchema()["properties"].(map[string]any)
-	planItem := plan["items"].(map[string]any)["items"].(map[string]any)
-	itemProperties := planItem["properties"].(map[string]any)
 	submit := submitWorkSchema()["properties"].(map[string]any)
 	review := reviewWorkSchema()["properties"].(map[string]any)
 	criterion := review["criteria_results"].(map[string]any)["items"].(map[string]any)
@@ -116,10 +133,6 @@ func TestExecutionToolSchemasExposeProjectionCollectionLimits(t *testing.T) {
 
 	for name, schema := range map[string]map[string]any{
 		"completion_criteria": plan["completion_criteria"].(map[string]any),
-		"acceptance_criteria": itemProperties["acceptance_criteria"].(map[string]any),
-		"depends_on":          itemProperties["depends_on"].(map[string]any),
-		"input_refs":          itemProperties["input_refs"].(map[string]any),
-		"output_scopes":       itemProperties["output_scopes"].(map[string]any),
 		"result_refs":         submit["result_refs"].(map[string]any),
 		"submission_evidence": submit["evidence"].(map[string]any),
 		"criteria_results":    review["criteria_results"].(map[string]any),

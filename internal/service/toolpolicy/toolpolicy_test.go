@@ -91,6 +91,19 @@ func TestManagedGoalPermissionOnlyApprovesGoalManagerSkill(t *testing.T) {
 	}
 }
 
+func TestManagedExecutionToolMatchesWrappedNames(t *testing.T) {
+	for _, toolName := range []string{
+		"plan_execution",
+		"mcp__nexus_execution__assign_work",
+		"nexus_execution.submit_work",
+		"nexus_execution/review_work",
+	} {
+		if !IsManagedExecutionTool(toolName) {
+			t.Fatalf("expected managed Execution tool to match %q", toolName)
+		}
+	}
+}
+
 func TestManagedGoalAutoApprovalFallsBackForOtherTools(t *testing.T) {
 	fallbackCalled := false
 	handler := WithManagedGoalAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
@@ -121,6 +134,25 @@ func TestManagedGoalAutoApprovalFallsBackForOtherTools(t *testing.T) {
 	}
 }
 
+func TestManagedRuntimeAutoApprovalIncludesExecution(t *testing.T) {
+	fallbackCalled := false
+	handler := WithManagedRuntimeAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		fallbackCalled = true
+		return sdkpermission.Deny(request.ToolName, false), nil
+	})
+
+	decision, err := handler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_execution__plan_execution",
+		Input:    map[string]any{"objective": "ship the feature"},
+	})
+	if err != nil {
+		t.Fatalf("Execution 权限处理失败: %v", err)
+	}
+	if decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalled {
+		t.Fatalf("Execution 权限应由托管策略放行: %+v fallback=%v", decision, fallbackCalled)
+	}
+}
+
 func TestWithManagedGoalAllowedToolsAppendsDistinctTools(t *testing.T) {
 	tools := WithManagedGoalAllowedTools([]string{"Read", "create_goal"})
 	approved := NormalizeSet(tools)
@@ -137,6 +169,23 @@ func TestWithManagedGoalAllowedToolsPreservesEmptyPolicy(t *testing.T) {
 	}
 	if tools := WithManagedGoalAllowedTools([]string{}); len(tools) != 0 {
 		t.Fatalf("empty allow policy should stay empty, got %+v", tools)
+	}
+}
+
+func TestWithManagedExecutionAllowedToolsAppendsSemanticSurface(t *testing.T) {
+	tools := WithManagedExecutionAllowedTools([]string{"Read"})
+	approved := NormalizeSet(tools)
+	for _, toolName := range []string{
+		"mcp__nexus_execution__get_execution",
+		"mcp__nexus_execution__plan_execution",
+		"mcp__nexus_execution__assign_work",
+		"mcp__nexus_execution__submit_work",
+		"mcp__nexus_execution__review_work",
+		"mcp__nexus_execution__promote_execution_to_goal",
+	} {
+		if !Contains(approved, toolName) {
+			t.Fatalf("expected allowed tools to include %q: %+v", toolName, tools)
+		}
 	}
 }
 
@@ -165,6 +214,7 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 		"Agent",
 		"nexus_imagegen",
 		"mcp__nexus_goal__get_goal",
+		"mcp__nexus_execution__plan_execution",
 		"mcp__nexus_imagegen__generate_image",
 		"mcp__nexus_imagegen__edit_image",
 	} {

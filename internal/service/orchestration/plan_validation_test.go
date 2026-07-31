@@ -1,7 +1,9 @@
 package orchestration
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -11,6 +13,41 @@ func TestValidatePlanDraftAcceptsSequentialRoomWork(t *testing.T) {
 	draft := validPlanDraft()
 	if err := ValidatePlanDraft(draft); err != nil {
 		t.Fatalf("valid Plan rejected: %v", err)
+	}
+}
+
+func TestPlanExecutionReturnsActionableRecoveryForEmptyWorkGraph(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		draft PlanDraft
+	}{
+		{name: "empty array", draft: PlanDraft{}},
+		{name: "placeholder object", draft: PlanDraft{Items: []PlanWorkItemDraft{{}}}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			service := testService(&fakeRepository{})
+			result, err := service.PlanExecution(
+				context.Background(),
+				coordinatorActor(),
+				PlanExecutionInput{
+					CommandID:          "empty-workgraph",
+					Objective:          "Deliver a verified report",
+					CompletionCriteria: []string{"report accepted"},
+					Draft:              test.draft,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Outcome != MutationRejected ||
+				result.ReasonCode != ErrorCodePlanItemsEmpty ||
+				len(result.NextActions) != 1 ||
+				result.NextActions[0].Tool != "plan_execution" ||
+				!strings.Contains(result.NextActions[0].Reason, "work_graph_json") ||
+				!strings.Contains(result.NextActions[0].Reason, "JSON array") {
+				t.Fatalf("empty WorkGraph recovery = %#v", result)
+			}
+		})
 	}
 }
 
@@ -96,6 +133,16 @@ func TestValidatePlanDraftProjectionCollectionLimit(t *testing.T) {
 	if err := ValidatePlanDraft(atLimit); err != nil {
 		t.Fatalf("32-item collections rejected: %v", err)
 	}
+
+	overItemLimit := validPlanDraft()
+	for len(overItemLimit.Items) <= protocol.ExecutionProjectionCollectionLimit {
+		overItemLimit.Items = append(overItemLimit.Items, PlanWorkItemDraft{})
+	}
+	assertDomainErrorCode(
+		t,
+		ValidatePlanDraft(overItemLimit),
+		ErrorCodeProjectionLimitExceeded,
+	)
 
 	tests := []struct {
 		name   string

@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -242,8 +243,40 @@ func TestPlanExecutionPassesAtomicInitialBoundaryWithoutEnsure(t *testing.T) {
 		planned.SnapshotRevision != 0 ||
 		planned.CommandID == "" ||
 		planned.Objective != "Deliver a verified report" ||
-		len(planned.CompletionCriteria) != 1 {
+		len(planned.CompletionCriteria) != 1 ||
+		len(planned.Draft.Items) != 2 ||
+		len(planned.Draft.Items[0].OutputScopes) != 1 ||
+		planned.Draft.Items[0].OutputScopes[0].Scope != "dir:report/research" ||
+		len(planned.Draft.Items[1].DependsOn) != 1 ||
+		planned.Draft.Items[1].DependsOn[0].LogicalKey != "research" ||
+		planned.Draft.Items[1].DependsOn[0].Kind != protocol.WorkDependencyHard {
 		t.Fatalf("planned input = %#v", planned)
+	}
+}
+
+func TestPlanExecutionRejectsMalformedWorkGraphJSONBeforeService(t *testing.T) {
+	planCalled := false
+	svc := &fakeExecutionService{
+		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
+			planCalled = true
+			return orchestration.NoOpResult(nil, "unexpected")
+		},
+	}
+	input := validPlanToolInput()
+	input["work_graph_json"] = `[{"logical_key":"research","unknown":true}]`
+	result, err := planExecution(svc, executionServerContext()).ContextHandler(
+		context.Background(),
+		input,
+		&sdktool.CallContext{ToolUseID: "tool-malformed-workgraph"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planCalled ||
+		result.IsError ||
+		result.StructuredContent["outcome"] != "rejected" ||
+		result.StructuredContent["next_actions"] == nil {
+		t.Fatalf("malformed WorkGraph result=%#v planCalled=%t", result, planCalled)
 	}
 }
 
@@ -664,39 +697,43 @@ func executionServerContext() contract.ServerContext {
 }
 
 func validPlanToolInput() map[string]any {
+	workGraph, err := json.Marshal([]any{
+		map[string]any{
+			"logical_key":         "research",
+			"kind":                "produce",
+			"subject":             "Research",
+			"objective":           "Collect evidence",
+			"deliverable":         "Evidence set",
+			"acceptance_criteria": []any{"sources cited"},
+			"required":            true,
+			"terminal":            false,
+			"output_scopes": []any{map[string]any{
+				"scope": "dir:report/research",
+				"mode":  "exclusive",
+			}},
+		},
+		map[string]any{
+			"logical_key":         "verify",
+			"kind":                "verify",
+			"subject":             "Verify",
+			"objective":           "Verify evidence",
+			"deliverable":         "Verification",
+			"acceptance_criteria": []any{"all evidence checked"},
+			"required":            true,
+			"terminal":            true,
+			"depends_on": []any{map[string]any{
+				"logical_key": "research",
+				"kind":        "hard",
+			}},
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
 	return map[string]any{
 		"objective":           "Deliver a verified report",
 		"completion_criteria": []any{"report accepted"},
 		"revision_reason":     "initial graph",
-		"items": []any{
-			map[string]any{
-				"logical_key":         "research",
-				"kind":                "produce",
-				"subject":             "Research",
-				"objective":           "Collect evidence",
-				"deliverable":         "Evidence set",
-				"acceptance_criteria": []any{"sources cited"},
-				"required":            true,
-				"terminal":            false,
-				"output_scopes": []any{map[string]any{
-					"scope": "dir:report/research",
-					"mode":  "exclusive",
-				}},
-			},
-			map[string]any{
-				"logical_key":         "verify",
-				"kind":                "verify",
-				"subject":             "Verify",
-				"objective":           "Verify evidence",
-				"deliverable":         "Verification",
-				"acceptance_criteria": []any{"all evidence checked"},
-				"required":            true,
-				"terminal":            true,
-				"depends_on": []any{map[string]any{
-					"logical_key": "research",
-					"kind":        "hard",
-				}},
-			},
-		},
+		"work_graph_json":     string(workGraph),
 	}
 }

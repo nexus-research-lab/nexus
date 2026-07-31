@@ -391,6 +391,9 @@ func normalizeAndValidatePlan(
 	dependencies []protocol.ExecutionPlanDependency,
 	now time.Time,
 ) ([]PlanWorkItem, []protocol.ExecutionPlanDependency, error) {
+	if err := protocol.ValidateExecutionProjectionLimit("items", len(source)); err != nil {
+		return nil, nil, err
+	}
 	if len(source) == 0 {
 		return nil, nil, fmt.Errorf("%w: Plan must contain at least one Work Item", ErrInvariant)
 	}

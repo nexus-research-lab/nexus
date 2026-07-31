@@ -1,0 +1,163 @@
+/**
+ * INPUT: internal/protocol/execution_view.go 的 JSON 协议。
+ * OUTPUT: DM/Room 共用的安全 WorkGraph 展示类型。
+ * POS: Execution 后端投影在 Web 端的跨会话协议镜像。
+ */
+
+export type ExecutionStatus =
+  | "active"
+  | "waiting"
+  | "paused"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "superseded";
+
+export type ExecutionWorkItemStatus =
+  | "waiting"
+  | "ready"
+  | "assigned"
+  | "running"
+  | "blocked"
+  | "submitted"
+  | "changes_requested"
+  | "accepted"
+  | "failed"
+  | "cancelled";
+
+export type ExecutionWorkItemKind =
+  | "produce"
+  | "review"
+  | "verify"
+  | "integrate";
+
+export interface ExecutionPlanView {
+  id: string;
+  revision: number;
+  status: "proposed" | "active" | "superseded" | "cancelled";
+  revision_reason?: string;
+  created_at: string;
+  activated_at?: string | null;
+}
+
+export interface ExecutionProgressView {
+  total: number;
+  required: number;
+  accepted: number;
+  running: number;
+  blocked: number;
+  submitted: number;
+  ready: number;
+  waiting: number;
+  changes_requested: number;
+  failed: number;
+  cancelled: number;
+}
+
+export interface ExecutionOutputScope {
+  scope: string;
+  mode: "exclusive" | "shared";
+}
+
+export interface ExecutionAttemptView {
+  id: string;
+  assignment_id: string;
+  parent_attempt_id?: string;
+  executor_kind: "agent" | "subagent";
+  executor_agent_id?: string;
+  parent_agent_id?: string;
+  status:
+    | "pending"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "interrupted"
+    | "cancelled"
+    | "timed_out";
+  failure_reason?: string;
+  created_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+}
+
+export interface ExecutionSubmissionView {
+  id: string;
+  submitter_agent_id: string;
+  result_summary: string;
+  result_refs?: string[];
+  evidence?: string[];
+  created_at: string;
+}
+
+export interface ExecutionCriterionResult {
+  criterion: string;
+  passed: boolean;
+  evidence?: string[];
+  note?: string;
+}
+
+export interface ExecutionAcceptanceView {
+  id: string;
+  decision: "accepted" | "rejected" | "changes_requested";
+  reviewer_kind: "agent" | "user" | "system" | "policy";
+  reviewer_id?: string;
+  criteria_results?: ExecutionCriterionResult[];
+  feedback?: string;
+  created_at: string;
+}
+
+export interface ExecutionWorkItemView {
+  id: string;
+  logical_key: string;
+  kind: ExecutionWorkItemKind;
+  subject: string;
+  objective: string;
+  deliverable: string;
+  acceptance_criteria?: string[];
+  input_refs?: string[];
+  output_scopes?: ExecutionOutputScope[];
+  dependency_ids?: string[];
+  parent_work_item_id?: string;
+  required: boolean;
+  terminal?: boolean;
+  position: number;
+  status: ExecutionWorkItemStatus;
+  block_reason?: string;
+  needed_input?: string;
+  owner_agent_id?: string;
+  assignment_id?: string;
+  assignment_status?:
+    | "assigned"
+    | "active"
+    | "released"
+    | "completed"
+    | "cancelled"
+    | "revoked";
+  assignment_strategy?: "self" | "room_member";
+  attempts?: ExecutionAttemptView[];
+  submission?: ExecutionSubmissionView;
+  acceptance?: ExecutionAcceptanceView;
+  updated_at: string;
+}
+
+export interface ExecutionView {
+  id: string;
+  session_key: string;
+  scope_kind: "dm" | "room";
+  room_id?: string;
+  conversation_id?: string;
+  coordinator_agent_id?: string;
+  objective: string;
+  completion_criteria?: string[];
+  goal_id?: string;
+  goal_objective_revision?: number;
+  status: ExecutionStatus;
+  version: number;
+  plan?: ExecutionPlanView;
+  progress: ExecutionProgressView;
+  work_items?: ExecutionWorkItemView[];
+  completion_blockers?: string[];
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+}

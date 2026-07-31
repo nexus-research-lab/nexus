@@ -44,7 +44,7 @@ func (s *Service) ensureClient(
 			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
 	}
-	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
+	permissionHandler = toolpolicy.WithManagedRuntimeAutoApproval(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err

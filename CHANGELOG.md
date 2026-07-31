@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added a single DM/Room WorkGraph progress surface backed by a safe Execution read model: it shows Plan revisions, dependency topology, Work Item ownership, Agent/subagent attempts, submissions, evidence and acceptance while preserving legacy Todo progress for ordinary chat; Nexus Execution tools now use readable activity labels and backend-authorized managed-tool policy instead of generic sensitive-tool prompts.
 - Aligned Slash command descriptions on a reserved command-name column while keeping argument hints anchored to the right edge.
 - Replaced the duplicate runtime version card with the desktop app's authoritative version, build number, and log export action in General settings.
 - Bounded every model-facing Execution contract collection to 32 items across MCP schema, Plan Mode, service normalization, and storage commands with typed overflow rejection; abnormal legacy context now marks truncation explicitly while WorkBinding/Dispatch fail closed, and file/directory output conflicts now use conservative Unicode NFC plus case-fold comparison without changing persisted display scopes.
@@ -18,7 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Changed `plan_execution` to carry the complete WorkGraph as one strictly decoded `work_graph_json` string, avoiding Provider-side loss of nested Work Item arrays while preserving typed validation and atomic Plan persistence.
 - Restored canonical Room Agent reply order when live child events arrive before the initial history snapshot: durable `display_order` now backfills earlier executions without letting legacy timestamps or later volatile evidence reshuffle visible cards.
+- Reworked the Room unread boundary from a floating button-like badge into a centered horizontal reading divider, moved unread jumps to a contextual reading position, and made long virtualized conversations refine their initial index jump against the mounted message instead of stopping short of the real unread target.
 - Preserved explicit ordinary-Agent model selections when their Provider is temporarily unavailable: runtime now falls back to the user default and restores the original selection automatically when it becomes usable again, while the Nexus main Agent always follows the default model.
 
 ## [0.1.30] - 2026-07-31

@@ -7,6 +7,7 @@
 import type { ComponentProps } from "react";
 
 import type { ConversationTodoProcess } from "@/features/conversation/shared/todos/todo-projection-model";
+import { ExecutionProcessPanel } from "@/features/conversation/shared/execution/execution-process-panel";
 import {
   ComposerInteractionSurface,
   type ComposerInteractionSurfaceProps,
@@ -49,6 +50,7 @@ export interface GroupChatPanelViewModel extends ConversationPanelFrameModel {
   composer: GroupChatComposerModel;
   composerInteraction: ComposerInteractionSurfaceProps;
   feed: GroupConversationFeedProps;
+  executionPanel: ComponentProps<typeof ExecutionProcessPanel> | null;
   goalLead: RoomGoalLeadControlProps;
   goalPanel: GoalPanelModel;
   handoffStatuses: AgentHandoffStatusMap;
@@ -97,7 +99,9 @@ function ActiveGroupConversation({
       >
         <ConversationPanelViewport
           floatingDockOccupied={
-            model.taskProcesses.length > 0 || model.scrollToLatest.visible
+            model.executionPanel !== null
+            || model.taskProcesses.length > 0
+            || model.scrollToLatest.visible
           }
           isMobileLayout={isMobileLayout}
           viewport={viewport}
@@ -109,7 +113,9 @@ function ActiveGroupConversation({
       </ConversationPanelViewportArea>
       <ConversationPanelBottomArea
         activity={
-          model.taskProcesses.length > 0 && model.sessionKey
+          model.executionPanel
+            ? <ExecutionProcessPanel {...model.executionPanel} />
+            : model.taskProcesses.length > 0 && model.sessionKey
             ? (
                 <RoomWorkspaceTaskPanel
                   processes={model.taskProcesses}

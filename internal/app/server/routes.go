@@ -12,6 +12,7 @@ func (s *Server) mountRoutes() {
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
 	s.mountGoalRoutes()
+	s.mountExecutionRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
 }
@@ -250,6 +251,14 @@ func (s *Server) mountGoalRoutes() {
 	s.router.Post(s.prefixPath("/app-server/thread/goal/set"), s.handlers.goal.HandleThreadGoalSet)
 	s.router.Post(s.prefixPath("/app-server/thread/goal/get"), s.handlers.goal.HandleThreadGoalGet)
 	s.router.Post(s.prefixPath("/app-server/thread/goal/clear"), s.handlers.goal.HandleThreadGoalClear)
+}
+
+// mountExecutionRoutes 挂载 WorkGraph 只读投影。
+func (s *Server) mountExecutionRoutes() {
+	s.router.Get(
+		s.prefixPath("/executions/latest"),
+		s.handlers.execution.HandleGetLatestExecution,
+	)
 }
 
 // mountPlaceholderRoutes 挂载保留占位路由。

@@ -42,3 +42,23 @@ func TestResolveInteractionModeKeepsEveryToolActionable(t *testing.T) {
 		})
 	}
 }
+
+func TestExecutionPermissionUsesSemanticRiskAndSummary(t *testing.T) {
+	t.Parallel()
+
+	risk, label := resolveRisk("mcp__nexus_execution__plan_execution")
+	if risk != "medium" || label != "编排" {
+		t.Fatalf("plan_execution risk = %q/%q, want medium/编排", risk, label)
+	}
+	risk, label = resolveRisk("mcp__nexus_execution__get_execution")
+	if risk != "low" || label != "只读" {
+		t.Fatalf("get_execution risk = %q/%q, want low/只读", risk, label)
+	}
+	summary := summarizeInput(
+		"mcp__nexus_execution__plan_execution",
+		map[string]any{"objective": "Ship the WorkGraph"},
+	)
+	if summary != "Ship the WorkGraph" {
+		t.Fatalf("Execution summary = %q", summary)
+	}
+}

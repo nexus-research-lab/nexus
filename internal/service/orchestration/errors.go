@@ -14,6 +14,7 @@ type ErrorCode string
 
 const (
 	ErrorCodeInvalidInput            ErrorCode = "invalid_input"
+	ErrorCodePlanItemsEmpty          ErrorCode = "plan_items_empty"
 	ErrorCodeDuplicateLogicalKey     ErrorCode = "duplicate_logical_key"
 	ErrorCodeUnknownDependency       ErrorCode = "unknown_dependency"
 	ErrorCodeDependencyCycle         ErrorCode = "dependency_cycle"

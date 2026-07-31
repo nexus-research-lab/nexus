@@ -369,7 +369,7 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 		}
 	}
 	handler = withRoomPermissionPolicy(handler, e.round.Context.Room.PrivateMessagesEnabled)
-	handler = toolpolicy.WithManagedGoalAutoApproval(handler)
+	handler = toolpolicy.WithManagedRuntimeAutoApproval(handler)
 	return toolpolicy.WithMalformedInputDeny(handler)
 }
 

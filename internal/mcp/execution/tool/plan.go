@@ -18,6 +18,8 @@ func planExecution(svc contract.Service, sctx contract.ServerContext) sdktool.To
 		Name: toolName,
 		Description: "Create one complete immutable Plan revision when coordinated delivery is useful. " +
 			"Plan expresses how work unfolds; each Work Item expresses one deliverable, dependencies prevent premature work, and output scopes prevent duplicate production. " +
+			"Pass the complete WorkGraph through work_graph_json as a JSON array serialized inside one string; do not send nested Work Item objects as a tool argument array. The backend decodes that string into typed Work Items and validates the entire graph before one atomic write. " +
+			"Every item needs logical_key, kind, subject, objective, deliverable, acceptance_criteria, required, and terminal, every produce item needs output_scopes, and the graph needs a required terminal integrate or verify item. " +
 			"If no Execution exists, objective and at least one nonblank top-level completion_criteria entry are mandatory; the backend atomically creates the Execution and first active Plan. " +
 			"An existing same-objective replan may omit both because a Plan revision never rewrites the Execution boundary. " +
 			"When the user explicitly changes a transient objective that still needs a managed WorkGraph, set replace_current_execution=true and provide the current execution_id, replacement_reason, new objective, new completion criteria, and complete successor graph. " +
@@ -35,6 +37,16 @@ func planExecution(svc contract.Service, sctx contract.ServerContext) sdktool.To
 			var parsed planExecutionInput
 			if err := decodeInput(input, &parsed); err != nil {
 				return transportErrorResult(err), nil
+			}
+			draft, draftErr := parsed.draft()
+			if draftErr != nil {
+				return rejectedResult(
+					draftErr.Error(),
+					orchestration.NextAction{
+						Tool:   toolName,
+						Reason: "send work_graph_json as one valid JSON array string containing the complete WorkGraph",
+					},
+				), nil
 			}
 			if parsed.ReplaceCurrentExecution && strings.TrimSpace(parsed.ExecutionID) == "" {
 				return rejectedResult(
@@ -94,7 +106,7 @@ func planExecution(svc contract.Service, sctx contract.ServerContext) sdktool.To
 				ReplaceCurrentExecution: parsed.ReplaceCurrentExecution,
 				ReplacementReason:       parsed.ReplacementReason,
 				SupersedeActiveWork:     parsed.SupersedeActiveWork,
-				Draft:                   parsed.draft(),
+				Draft:                   draft,
 			})
 			if serviceErr != nil {
 				return transportErrorResult(serviceErr), nil

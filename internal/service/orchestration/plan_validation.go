@@ -50,6 +50,9 @@ func ValidatePlanDraft(draft PlanDraft) error {
 
 // NormalizeAndValidatePlanDraft 返回服务端可安全持久化的规范化副本，不修改调用方输入。
 func NormalizeAndValidatePlanDraft(draft PlanDraft) (PlanDraft, error) {
+	if err := newProjectionLimitError("items", len(draft.Items), ""); err != nil {
+		return PlanDraft{}, err
+	}
 	normalized := PlanDraft{
 		RevisionReason: strings.TrimSpace(draft.RevisionReason),
 		Items:          make([]PlanWorkItemDraft, len(draft.Items)),
@@ -88,10 +91,23 @@ func NormalizeAndValidatePlanDraft(draft PlanDraft) (PlanDraft, error) {
 
 func validateNormalizedPlanDraft(draft PlanDraft) error {
 	if len(draft.Items) == 0 {
-		return newDomainError(ErrorCodeInvalidInput, "plan must contain at least one work item", "", "")
+		return newDomainError(
+			ErrorCodePlanItemsEmpty,
+			"items must contain the complete WorkGraph; empty arrays and placeholder objects are invalid",
+			"",
+			"",
+		)
 	}
 	items := make(map[string]PlanWorkItemDraft, len(draft.Items))
 	for _, item := range draft.Items {
+		if planWorkItemDraftIsPlaceholder(item) {
+			return newDomainError(
+				ErrorCodePlanItemsEmpty,
+				"items must contain populated Work Item objects; placeholder objects such as {} are invalid",
+				"",
+				"",
+			)
+		}
 		if !planLogicalKeyPattern.MatchString(item.LogicalKey) {
 			return newDomainError(
 				ErrorCodeInvalidInput,
@@ -197,6 +213,22 @@ func validateNormalizedPlanDraft(draft PlanDraft) error {
 		return err
 	}
 	return nil
+}
+
+func planWorkItemDraftIsPlaceholder(item PlanWorkItemDraft) bool {
+	return item.LogicalKey == "" &&
+		item.ExistingWorkItemID == "" &&
+		item.Kind == "" &&
+		item.Subject == "" &&
+		item.Objective == "" &&
+		item.Deliverable == "" &&
+		len(item.AcceptanceCriteria) == 0 &&
+		!item.Required &&
+		!item.Terminal &&
+		item.ParentLogicalKey == "" &&
+		len(item.DependsOn) == 0 &&
+		len(item.InputRefs) == 0 &&
+		len(item.OutputScopes) == 0
 }
 
 func normalizePlanWorkItemDraft(item PlanWorkItemDraft) (PlanWorkItemDraft, error) {

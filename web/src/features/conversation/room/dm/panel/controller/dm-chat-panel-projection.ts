@@ -5,6 +5,7 @@
  */
 import type { RefObject } from "react";
 
+import type { ExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
 import {
   buildConversationPanelFrameModel,
   type ConversationPanelEnvironment,
@@ -15,6 +16,7 @@ import { coalescePendingPermissions } from "@/lib/conversation/pending-permissio
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
 import type { TodoItem } from "@/types/conversation/todo";
+import type { ExecutionView } from "@/types/conversation/execution";
 
 import type {
   DmChatComposerModel,
@@ -50,6 +52,10 @@ interface BuildDmChatPanelViewModelOptions {
   currentAgentAvatar: string | null;
   currentAgentName: string | null;
   environment: ConversationPanelEnvironment;
+  execution: {
+    dismiss: () => void;
+    execution: ExecutionView | null;
+  };
   goal: DmGoalProjection;
   goalScopeLabel: string;
   onEditLastUserMessage: (messageId: string, content: string) => void;
@@ -65,6 +71,7 @@ export function buildDmChatPanelViewModel({
   currentAgentAvatar,
   currentAgentName,
   environment,
+  execution,
   goal,
   goalScopeLabel,
   onEditLastUserMessage,
@@ -100,6 +107,13 @@ export function buildDmChatPanelViewModel({
       session,
       workspaceAgentId,
     }),
+    executionPanel: buildDmExecutionPanelModel({
+      currentAgentAvatar,
+      currentAgentName,
+      dismiss: execution.dismiss,
+      execution: execution.execution,
+      workspaceAgentId,
+    }),
     goalPanel: buildDmGoalPanelModel(goal, goalScopeLabel, session),
     taskSource: workspaceAgentId && currentAgentName
       ? {
@@ -109,6 +123,37 @@ export function buildDmChatPanelViewModel({
         }
       : undefined,
     todos,
+  };
+}
+
+function buildDmExecutionPanelModel({
+  currentAgentAvatar,
+  currentAgentName,
+  dismiss,
+  execution,
+  workspaceAgentId,
+}: {
+  currentAgentAvatar: string | null;
+  currentAgentName: string | null;
+  dismiss: () => void;
+  execution: ExecutionView | null;
+  workspaceAgentId: string | null;
+}): DmChatPanelViewModel["executionPanel"] {
+  if (!execution) {
+    return null;
+  }
+  const directory: ExecutionAgentDirectory = {};
+  if (workspaceAgentId) {
+    directory[workspaceAgentId] = {
+      avatar: currentAgentAvatar,
+      id: workspaceAgentId,
+      name: currentAgentName || workspaceAgentId,
+    };
+  }
+  return {
+    directory,
+    execution,
+    onDismiss: dismiss,
   };
 }
 

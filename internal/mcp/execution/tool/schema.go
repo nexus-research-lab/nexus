@@ -88,12 +88,14 @@ func planExecutionSchema() map[string]any {
 	properties["supersede_active_work"] = booleanProperty("Explicitly release current Assignments, interrupt live Attempts, and cancel pending Dispatches from the prior Plan before activating this revision. Use only for an intentional replan, provide revision_reason, and never use while an unreviewed Submission exists.")
 	properties["replace_current_execution"] = booleanProperty("Replace the referenced current transient Execution with a successor because the user changed to a different objective. Requires explicit execution_id, replacement_reason, new objective, new completion_criteria, and the complete successor WorkGraph. Never use for a same-objective replan or Goal-bound Execution.")
 	properties["replacement_reason"] = nonEmptyStringProperty("Why the current transient objective is being replaced. Required only with replace_current_execution.")
-	properties["items"] = map[string]any{
-		"type":        "array",
-		"description": "The complete WorkGraph for this immutable Plan revision. Submit all items in one call.",
-		"items":       planItemSchema(),
-	}
-	return objectSchema(properties, "items")
+	properties["work_graph_json"] = nonEmptyStringProperty(
+		"The complete WorkGraph encoded as one JSON array string. This string transport avoids provider loss of nested array objects while the backend still decodes and validates the graph atomically. " +
+			"Each object must include logical_key, kind (produce/review/verify/integrate), subject, objective, deliverable, acceptance_criteria (non-empty string array), required, and terminal. " +
+			"Optional fields are existing_work_item_id, parent_logical_key, depends_on [{logical_key,kind}], input_refs, and output_scopes [{scope,mode}]. " +
+			"Use at most 32 Work Items; every produce item needs a typed output scope and the graph needs a required terminal integrate or verify item. " +
+			`A minimal valid string value is [{"logical_key":"verify","kind":"verify","subject":"Verify","objective":"Verify the outcome","deliverable":"Verification report","acceptance_criteria":["Outcome verified"],"required":true,"terminal":true}].`,
+	)
+	return objectSchema(properties, "work_graph_json")
 }
 
 func abandonExecutionSchema() map[string]any {
@@ -101,40 +103,6 @@ func abandonExecutionSchema() map[string]any {
 		"execution_id": nonEmptyStringProperty("Opaque current transient Execution id from nexus_execution_context."),
 		"reason":       nonEmptyStringProperty("Concrete user-directed reason to stop this objective without creating a successor Execution."),
 	}, "execution_id", "reason")
-}
-
-func planItemSchema() map[string]any {
-	return objectSchema(map[string]any{
-		"logical_key":           stringProperty("Stable readable key used by dependencies and later tool calls."),
-		"existing_work_item_id": stringProperty("Optional opaque id when intentionally carrying a stable Work Item into a new Plan revision."),
-		"kind":                  enumProperty("produce creates a deliverable; review checks it; verify validates outcomes; integrate assembles the final result.", "produce", "review", "verify", "integrate"),
-		"subject":               stringProperty("Short Work Item subject."),
-		"objective":             stringProperty("What this Work Item must accomplish."),
-		"deliverable":           stringProperty("Concrete output the owner must submit."),
-		"acceptance_criteria":   stringArrayProperty("Observable criteria used by review_work."),
-		"required":              booleanProperty("Whether Execution completion requires Acceptance for this item."),
-		"terminal":              booleanProperty("Whether this is a final integrate or verify item."),
-		"parent_logical_key":    stringProperty("Optional hierarchy parent within this Plan."),
-		"depends_on": map[string]any{
-			"type":        "array",
-			"description": "Dependencies within this Plan. Hard edges require upstream Acceptance.",
-			"maxItems":    protocol.ExecutionProjectionCollectionLimit,
-			"items": objectSchema(map[string]any{
-				"logical_key": stringProperty("Upstream logical key."),
-				"kind":        enumProperty("Dependency kind.", "hard", "soft"),
-			}, "logical_key"),
-		},
-		"input_refs": stringArrayProperty("Known inputs, artifacts, URLs, or identifiers."),
-		"output_scopes": map[string]any{
-			"type":        "array",
-			"description": "Typed canonical output areas used to prevent duplicate production. Every produce Work Item needs at least one. Use file:<workspace-relative-posix-path>, dir:<workspace-relative-posix-path>, or semantic:<nonempty-key>.",
-			"maxItems":    protocol.ExecutionProjectionCollectionLimit,
-			"items": objectSchema(map[string]any{
-				"scope": stringProperty("Typed scope. file/dir equality and ancestry use conservative Unicode NFC plus case-fold comparison while canonical display preserves case; semantic keys use case-sensitive exact equality. Absolute paths, backslashes, '.', and paths escaping with '..' are rejected."),
-				"mode":  enumProperty("exclusive rejects every overlapping scope; overlap is allowed only when both declarations are shared. Defaults to exclusive.", "exclusive", "shared"),
-			}, "scope"),
-		},
-	}, "logical_key", "kind", "subject", "objective", "deliverable", "acceptance_criteria", "required", "terminal")
 }
 
 func assignWorkSchema() map[string]any {
