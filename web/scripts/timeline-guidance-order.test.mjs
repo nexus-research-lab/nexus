@@ -3035,6 +3035,53 @@ test("same-RAF live text starts empty while history and recovery snapshots stay 
   assert.equal(hasLiveStreamRevealMarker(cleared[0]?.content[0]), false);
 });
 
+test("active MessageItem streaming height resets between Assistant turns", async () => {
+  const { resolveMessageItemStreamingLayoutState } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/message-item-streaming-layout.ts",
+  );
+  const tallTurn = {
+    active: true,
+    assistantTurnKey: "assistant-long-response",
+    minHeight: 960,
+  };
+
+  assert.strictEqual(
+    resolveMessageItemStreamingLayoutState(
+      tallTurn,
+      "assistant-long-response",
+      true,
+    ),
+    tallTurn,
+    "streaming revisions within one Assistant turn retain the monotonic height",
+  );
+  assert.deepEqual(
+    resolveMessageItemStreamingLayoutState(
+      tallTurn,
+      "assistant-tool-continuation",
+      true,
+    ),
+    {
+      active: true,
+      assistantTurnKey: "assistant-tool-continuation",
+      minHeight: 60,
+    },
+    "a later tool or response turn cannot inherit the preceding long response height",
+  );
+  assert.deepEqual(
+    resolveMessageItemStreamingLayoutState(
+      tallTurn,
+      "assistant-long-response",
+      false,
+    ),
+    {
+      active: false,
+      assistantTurnKey: "assistant-long-response",
+      minHeight: 60,
+    },
+    "terminal layout clears the streaming height before the same turn can resume",
+  );
+});
+
 test("DM live and terminal keep the final response on one content surface", async () => {
   const {
     projectionFromOrderedEntries,

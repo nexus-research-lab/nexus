@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Changed `plan_execution` to carry the complete WorkGraph as one strictly decoded `work_graph_json` string, avoiding Provider-side loss of nested Work Item arrays while preserving typed validation and atomic Plan persistence.
+- Removed full-screen blank gaps inside active Room Agent cards by scoping streaming height stabilization to the current Assistant turn, so tool continuations reset stale text height without reintroducing streaming jitter.
 - Restored canonical Room Agent reply order when live child events arrive before the initial history snapshot: durable `display_order` now backfills earlier executions without letting legacy timestamps or later volatile evidence reshuffle visible cards.
 - Reworked the Room unread boundary from a floating button-like badge into a centered horizontal reading divider, moved unread jumps to a contextual reading position, and made long virtualized conversations refine their initial index jump against the mounted message instead of stopping short of the real unread target.
 - Preserved explicit ordinary-Agent model selections when their Provider is temporarily unavailable: runtime now falls back to the user default and restores the original selection automatically when it becomes usable again, while the Nexus main Agent always follows the default model.
