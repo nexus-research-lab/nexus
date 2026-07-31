@@ -259,7 +259,7 @@ func (s *Service) resolveAgentRuntimeSelection(
 	ctx context.Context,
 	agentValue *protocol.Agent,
 ) (runtimeselectionsvc.Selection, error) {
-	return runtimeselectionsvc.NewService(s.prefs).Resolve(ctx, runtimeselectionsvc.Request{
+	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.prefs, s.providers).Resolve(ctx, runtimeselectionsvc.Request{
 		Agent: agentValue,
 	})
 }

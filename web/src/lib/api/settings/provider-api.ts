@@ -21,9 +21,8 @@ const SUBSCRIPTION_PROVIDER_CONFIG_BASE_URL = `${getAgentApiBaseUrl()}/admin/sub
 
 export interface DeleteProviderConfigResponse {
   provider: string;
-  replacement_provider?: string;
-  replacement_model?: string;
-  reassigned_runtime_count?: number;
+  fallback_to_default?: boolean;
+  affected_runtime_count?: number;
 }
 
 export async function listProviderConfigsApi(): Promise<

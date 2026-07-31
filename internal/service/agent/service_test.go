@@ -141,6 +141,15 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if len(items[0].Options.AllowedTools) != 0 {
 		t.Fatalf("主智能体默认不应预授权工具: %+v", items[0].Options.AllowedTools)
 	}
+	updatedMain, err := service.UpdateAgent(ctx, items[0].AgentID, protocol.UpdateRequest{
+		Options: &protocol.Options{Provider: "stale-provider", Model: "stale-model"},
+	})
+	if err != nil {
+		t.Fatalf("更新主智能体失败: %v", err)
+	}
+	if updatedMain.Options.Provider != "" || updatedMain.Options.Model != "" {
+		t.Fatalf("主智能体模型应始终跟随全局默认: %+v", updatedMain.Options)
+	}
 	assertRuntimeEmotionStateFile(t, items[0].WorkspacePath)
 
 	validation, err := service.ValidateName(ctx, "测试助手", "")

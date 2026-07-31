@@ -3,10 +3,12 @@ package runtimeselection
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	clientopts "github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimeprovider "github.com/nexus-research-lab/nexus/internal/runtime/provider"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
@@ -18,7 +20,8 @@ type PreferencesService interface {
 
 // Service 收口 Agent runtime 的最终选择逻辑。
 type Service struct {
-	prefs PreferencesService
+	prefs          PreferencesService
+	providerConfig clientopts.RuntimeConfigResolver
 }
 
 // Selection 表示启动 runtime 前已经合并完成的选择。
@@ -26,6 +29,7 @@ type Selection struct {
 	RuntimeKind                string
 	Provider                   string
 	Model                      string
+	FallbackFromExplicit       bool
 	VisionProvider             string
 	VisionModel                string
 	AgentSDKDiagnosticsEnabled bool
@@ -41,14 +45,23 @@ type Request struct {
 
 // NewService 创建 runtime 选择服务。
 func NewService(prefs PreferencesService) *Service {
-	return &Service{prefs: prefs}
+	return NewServiceWithRuntimeConfigResolver(prefs, nil)
 }
 
-// Resolve 以 Agent 显式模型优先，否则回退到用户偏好中的默认 runtime/provider/model。
+// NewServiceWithRuntimeConfigResolver 创建会在 Agent 显式模型暂不可用时回退到默认模型的选择服务。
+func NewServiceWithRuntimeConfigResolver(
+	prefs PreferencesService,
+	providerConfig clientopts.RuntimeConfigResolver,
+) *Service {
+	return &Service{prefs: prefs, providerConfig: providerConfig}
+}
+
+// Resolve 以普通 Agent 的显式模型优先；Nexus 主智能体始终回退到用户偏好中的默认 runtime/provider/model。
 func (s *Service) Resolve(ctx context.Context, request Request) (Selection, error) {
 	selection := Selection{}
 	agentProvider, agentModel := explicitAgentModel(request.Agent)
-	if agentProvider != "" && agentModel != "" {
+	hasExplicitAgentModel := agentProvider != "" && agentModel != ""
+	if hasExplicitAgentModel {
 		selection.Provider = agentProvider
 		selection.Model = agentModel
 	}
@@ -73,11 +86,50 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 			}
 		}
 	}
-	if selection.Provider == "" || selection.Model == "" {
+	if !hasExplicitAgentModel && (selection.Provider == "" || selection.Model == "") {
 		selection.Provider = cmp.Or(strings.TrimSpace(selection.Provider), agentProvider)
 		selection.Model = cmp.Or(strings.TrimSpace(selection.Model), agentModel)
 	}
+	if !hasExplicitAgentModel || s == nil || s.providerConfig == nil {
+		return selection, nil
+	}
+	if _, err = s.resolveRuntimeConfig(ctx, agentProvider, agentModel, selection.RuntimeKind); err == nil {
+		return selection, nil
+	}
+
+	fallbackProvider, fallbackModel := "", ""
+	if ok {
+		fallbackProvider = strings.TrimSpace(prefs.DefaultAgentOptions.Provider)
+		fallbackModel = strings.TrimSpace(prefs.DefaultAgentOptions.Model)
+	}
+	fallback, fallbackErr := s.resolveRuntimeConfig(
+		ctx,
+		fallbackProvider,
+		fallbackModel,
+		selection.RuntimeKind,
+	)
+	if fallbackErr != nil || fallback == nil {
+		if fallbackErr == nil {
+			fallbackErr = fmt.Errorf("默认模型解析结果为空")
+		}
+		return Selection{}, fmt.Errorf("Agent 显式模型不可用，且默认模型不可用: %w", fallbackErr)
+	}
+	selection.Provider = strings.TrimSpace(fallback.Provider)
+	selection.Model = strings.TrimSpace(fallback.Model)
+	selection.FallbackFromExplicit = true
 	return selection, nil
+}
+
+func (s *Service) resolveRuntimeConfig(
+	ctx context.Context,
+	provider string,
+	model string,
+	runtimeKind string,
+) (*clientopts.RuntimeConfig, error) {
+	if resolver, ok := s.providerConfig.(clientopts.RuntimeConfigForRuntimeResolver); ok {
+		return resolver.ResolveRuntimeConfigForRuntime(ctx, provider, model, runtimeKind)
+	}
+	return s.providerConfig.ResolveRuntimeConfig(ctx, provider, model)
 }
 
 func (s *Service) preferences(
@@ -116,7 +168,7 @@ func ownerUserIDFromRequest(ctx context.Context, request Request) string {
 }
 
 func explicitAgentModel(agent *protocol.Agent) (string, string) {
-	if agent == nil {
+	if agent == nil || agent.IsMain {
 		return "", ""
 	}
 	return strings.TrimSpace(agent.Options.Provider), strings.TrimSpace(agent.Options.Model)

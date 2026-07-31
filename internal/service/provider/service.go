@@ -25,12 +25,23 @@ var providerIDCounter atomic.Uint64
 
 // Service 提供 Provider 配置管理与运行时解析。
 type Service struct {
-	repository *providerstore.Repository
-	now        func() time.Time
-	idFactory  func(string) string
-	client     *http.Client
-	logger     *slog.Logger
+	repository                    *providerstore.Repository
+	now                           func() time.Time
+	idFactory                     func(string) string
+	client                        *http.Client
+	logger                        *slog.Logger
+	defaultAgentSelectionResolver DefaultAgentSelectionResolver
 }
+
+// DefaultAgentSelection 表示用户为 Agent runtime 选择的全局默认模型。
+type DefaultAgentSelection struct {
+	Provider    string
+	Model       string
+	RuntimeKind string
+}
+
+// DefaultAgentSelectionResolver 让 Provider 生命周期在不依赖偏好服务实现的前提下校验回退目标。
+type DefaultAgentSelectionResolver func(context.Context, string) (DefaultAgentSelection, error)
 
 type providerModelTarget struct {
 	provider providerstore.Entity
@@ -62,6 +73,11 @@ func (s *Service) SetHTTPClient(client *http.Client) {
 	if client != nil {
 		s.client = client
 	}
+}
+
+// SetDefaultAgentSelectionResolver 注入用户全局默认模型读取器。
+func (s *Service) SetDefaultAgentSelectionResolver(resolver DefaultAgentSelectionResolver) {
+	s.defaultAgentSelectionResolver = resolver
 }
 
 func (s *Service) loggerFor(ctx context.Context) *slog.Logger {

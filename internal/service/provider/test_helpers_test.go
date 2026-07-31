@@ -102,6 +102,12 @@ func stringPointer(value string) *string {
 	return &value
 }
 
+func setTestDefaultAgentSelection(service *Service, selection DefaultAgentSelection) {
+	service.SetDefaultAgentSelectionResolver(func(context.Context, string) (DefaultAgentSelection, error) {
+		return selection, nil
+	})
+}
+
 type runtimeSelection struct {
 	provider string
 	model    string

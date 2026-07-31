@@ -109,6 +109,17 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		orchestration: orchestrationService,
 	})
 	preferencesService := preferencessvc.NewService(cfg)
+	providerService.SetDefaultAgentSelectionResolver(func(ctx context.Context, ownerUserID string) (providercfg.DefaultAgentSelection, error) {
+		prefs, err := preferencesService.Get(ctx, ownerUserID)
+		if err != nil {
+			return providercfg.DefaultAgentSelection{}, err
+		}
+		return providercfg.DefaultAgentSelection{
+			Provider:    prefs.DefaultAgentOptions.Provider,
+			Model:       prefs.DefaultAgentOptions.Model,
+			RuntimeKind: prefs.AgentRuntimeKind,
+		}, nil
+	})
 	imagegenService := imagegensvc.NewService(providerService, cfg.WorkspacePath)
 	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)

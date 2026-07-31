@@ -264,6 +264,7 @@ function buildIdentityProps({
   source: AgentOptionsEditorSource;
   validation: ReturnType<typeof useAgentNameValidation>;
 }) {
+  const isMain = source.kind === "edit" && source.isMain;
   return {
     agentId: source.kind === "edit" ? source.agentId : undefined,
     avatar: draft.avatar,
@@ -271,8 +272,8 @@ function buildIdentityProps({
     defaultProvider: providerOptions.defaultProvider,
     description: draft.description,
     isValidatingName: validation.isValidating,
-    isMain: source.kind === "edit" && source.isMain,
-    model: draft.model,
+    isMain,
+    model: isMain ? "" : draft.model,
     nameValidation: validation.result,
     onAvatarChange: (value: string) => updateField("avatar", value),
     onDescriptionChange: (value: string) => updateField("description", value),
@@ -281,7 +282,7 @@ function buildIdentityProps({
     onProviderChange: (value: string) => updateField("provider", value),
     onTitleChange: (value: string) => updateField("title", value),
     onVibeTagsChange: (value: string[]) => updateField("vibeTags", value),
-    provider: draft.provider,
+    provider: isMain ? "" : draft.provider,
     providerOptions: providerOptions.items,
     providerOptionsError: providerOptions.error,
     providerOptionsLoading: providerOptions.loading,

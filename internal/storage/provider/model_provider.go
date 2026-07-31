@@ -51,3 +51,12 @@ type UsageAgentEntity struct {
 	Avatar      string
 	IsMain      bool
 }
+
+// RuntimeBindingEntity 表示 Agent 当前持久化的显式模型绑定。
+// 空 provider/model 表示跟随用户默认模型。
+type RuntimeBindingEntity struct {
+	AgentID  string
+	Provider string
+	Model    string
+	IsMain   bool
+}

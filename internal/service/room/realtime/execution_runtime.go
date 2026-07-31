@@ -483,7 +483,7 @@ func (s *Service) resolveAgentRuntimeSelection(
 	if roundValue != nil {
 		ownerUserIDs = append(ownerUserIDs, roundValue.OwnerUserID)
 	}
-	return runtimeselectionsvc.NewService(s.prefs).Resolve(ctx, runtimeselectionsvc.Request{
+	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.prefs, s.providers).Resolve(ctx, runtimeselectionsvc.Request{
 		Agent:        agentValue,
 		OwnerUserIDs: ownerUserIDs,
 	})

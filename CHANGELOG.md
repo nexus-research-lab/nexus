@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified Goal, Plan, Work Item, Assignment, subagent, and Room execution around one durable WorkGraph: Agents now receive state-derived actions, structured handoffs and trusted WorkBinding fences, explicit and adaptive Goals bind the same Execution, blocked work can resume with evidence, replans atomically supersede live responsibility chains, and duplicate production or Room wakeups are rejected by backend state. Every transition that interrupts live work now captures an exact Room slot or runtime round in a same-transaction durable cancellation outbox with lease recovery and retry, so delayed cleanup cannot stop successor work and missing physical identity is reported instead of guessed; provider-accepted interrupts are distinguished from Nexus-local round cancellation when a shared session makes provider interruption unsafe. Goal objective changes now advance through a recoverable revision rebase that terminalizes the old graph, reserves exactly one successor Execution, and blocks completion until its first Plan is durably bound. Room submissions now return through an independent durable review outbox and trusted ReviewBinding, so coordinator review no longer depends on a hand-written `@` mention.
 - Made subagent parent-round exit recovery durable with a cross-layer fixed grace deadline and a Room-independent startup/periodic reconciler, so a missing terminal SDK event cannot leave child work running after a restart; internal Goal continuation now requires an exact Goal/revision/Execution binding before claim and runtime launch; permanent Room Dispatch failures now reopen work only for the exact current unstarted responsibility, while stale graphs and real running Attempts remain untouched.
 
+### Fixed
+
+- Preserved explicit ordinary-Agent model selections when their Provider is temporarily unavailable: runtime now falls back to the user default and restores the original selection automatically when it becomes usable again, while the Nexus main Agent always follows the default model.
+
 ## [0.1.30] - 2026-07-31
 
 ### Added

@@ -139,12 +139,15 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 	}
 	ownerUserID := currentOwnerUserID(request)
 	webSearchChanged := payload.WebSearch != nil || payload.WebSearchAPIKey != nil
-	var previous preferencessvc.Preferences
-	var err error
-	if webSearchChanged {
-		previous, err = h.prefs.Get(request.Context(), ownerUserID)
-		if err != nil {
-			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+	previous, err := h.prefs.Get(request.Context(), ownerUserID)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defaultSelection, defaultSelectionChanged := updatedDefaultAgentSelection(previous, payload)
+	if defaultSelectionChanged && h.providers != nil {
+		if err = h.providers.ValidateDefaultAgentSelection(request.Context(), defaultSelection); err != nil {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
 			return
 		}
 	}
@@ -160,6 +163,15 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 		}
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if defaultSelectionChanged && h.providers != nil {
+		if _, err = h.providers.ReconcileDefaultAgentBindings(request.Context(), defaultSelection); err != nil {
+			if webSearchChanged {
+				err = errors.Join(err, h.restoreWebSearchPreferences(request.Context(), ownerUserID, previous))
+			}
+			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 	if err = h.syncWebSearchRuntime(request.Context(), item); err != nil {
 		if webSearchChanged {

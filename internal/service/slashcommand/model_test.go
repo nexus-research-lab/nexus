@@ -2,6 +2,7 @@ package slashcommand
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -113,6 +114,37 @@ func TestModelCommandPersistsQualifiedProviderSelection(t *testing.T) {
 		event.RoundID != "round-a" ||
 		event.Data["stop_reason"] != "end_turn" {
 		t.Fatalf("model changed event = %#v", event)
+	}
+}
+
+func TestModelCommandRejectsMainAgent(t *testing.T) {
+	agents := &fakeModelCommandAgents{
+		agent: protocol.Agent{IsMain: true, OwnerUserID: "owner-a"},
+	}
+	registry := NewRegistry()
+	if err := RegisterModelCommand(registry, ModelCommandDependencies{
+		Agents:      agents,
+		Preferences: fakeModelCommandPreferences{runtimeKind: "nxs"},
+		Providers:   fakeModelCommandProviders{options: &providersvc.OptionsResponse{}},
+	}); err != nil {
+		t.Fatalf("RegisterModelCommand() error = %v", err)
+	}
+
+	_, matched, err := registry.Execute(
+		context.Background(),
+		ScopeDM,
+		Invocation{AgentID: "agent-main", Content: "/model deepseek/deepseek-v4-flash"},
+	)
+	message, clientSafe := protocol.ClientErrorMessage(err)
+	if !matched || !clientSafe || !strings.Contains(message, "始终跟随") || agents.updateCount != 0 {
+		t.Fatalf(
+			"Execute() = matched:%t err:%v client_safe:%t message:%q updates:%d",
+			matched,
+			err,
+			clientSafe,
+			message,
+			agents.updateCount,
+		)
 	}
 }
 

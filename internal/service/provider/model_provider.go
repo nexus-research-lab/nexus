@@ -140,10 +140,9 @@ type DeleteInput struct {
 
 // DeleteResult 表示 Provider 删除结果。
 type DeleteResult struct {
-	Provider               string `json:"provider"`
-	ReplacementProvider    string `json:"replacement_provider,omitempty"`
-	ReplacementModel       string `json:"replacement_model,omitempty"`
-	ReassignedRuntimeCount int    `json:"reassigned_runtime_count,omitempty"`
+	Provider             string `json:"provider"`
+	FallbackToDefault    bool   `json:"fallback_to_default,omitempty"`
+	AffectedRuntimeCount int    `json:"affected_runtime_count,omitempty"`
 }
 
 // Preset 表示内置 Provider 模板。
