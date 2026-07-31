@@ -1,0 +1,25 @@
+/*
+ * INPUT: Room 桌面主聊天与右侧上下文面板。
+ * OUTPUT: 以同色留白和轻微明度差替代硬竖线的双工作面。
+ * POS: Room 桌面并列阅读面的视觉边界，不改变面板宽度与拖拽几何。
+ */
+.nexus-room-surface-split {
+  background: var(--surface-canvas-background);
+}
+
+.nexus-room-surface-conversation {
+  background: transparent;
+}
+
+.nexus-room-surface-side-panel {
+  background: color-mix(
+    in srgb,
+    var(--surface-panel-background) 72%,
+    transparent
+  );
+  box-shadow: -8px 0 20px -18px color-mix(
+    in srgb,
+    var(--shadow-color) 14%,
+    transparent
+  );
+}

@@ -16,6 +16,8 @@ import type { RoomSurfaceLayoutProps } from "./room-surface-layout-types";
 import { RoomThreadInlinePanel } from "./room-thread-inline-panel";
 import { useRoomSurfaceLayoutController } from "./use-room-surface-layout-controller";
 
+import "./room-surface-split.css";
+
 type RoomSurfaceContentProps = RoomSurfaceLayoutProps & {
   isThreadPanelOpen: boolean;
 };
@@ -114,8 +116,8 @@ export function RoomSurfaceContent({
             />
           )}
         >
-          <div className="flex h-full min-h-0 min-w-0">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="nexus-room-surface-split flex h-full min-h-0 min-w-0">
+            <div className="nexus-room-surface-conversation flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               <div
                 className="nexus-room-conversation-reading-edge min-h-0 min-w-0 flex-1"
                 data-room-conversation-reading-edge="true"

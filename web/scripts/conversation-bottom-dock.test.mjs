@@ -403,6 +403,52 @@ test("标题栏与 Composer 自身边缘羽化且不改变滚动几何", async (
   );
 });
 
+test("Room 右侧上下文面使用软分栏而不是硬竖线", async () => {
+  const [
+    resizeHandleSource,
+    splitStyles,
+    surfaceSource,
+    threadPanelSource,
+    auxiliaryPanelSource,
+  ] = await Promise.all([
+    "src/shared/ui/layout/panel-resize-handle.tsx",
+    "src/features/conversation/room/surface/layout/room-surface-split.css",
+    "src/features/conversation/room/surface/layout/room-surface-content.tsx",
+    "src/features/conversation/room/surface/layout/room-thread-inline-panel.tsx",
+    "src/features/conversation/room/surface/layout/room-surface-auxiliary-panel.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+
+  assert.match(surfaceSource, /nexus-room-surface-split/);
+  assert.match(surfaceSource, /nexus-room-surface-conversation/);
+  for (const panelSource of [threadPanelSource, auxiliaryPanelSource]) {
+    assert.match(panelSource, /nexus-room-surface-side-panel/);
+    assert.match(panelSource, /variant="gutter"/);
+    assert.doesNotMatch(panelSource, /\bborder-l\b|\bdivider-subtle\b/);
+  }
+  assert.match(resizeHandleSource, /relative w-2 shrink-0 self-stretch/);
+  assert.match(resizeHandleSource, /cursor-col-resize/);
+  assert.doesNotMatch(
+    resizeHandleSource,
+    /<span|border-l-\[6px\]|border-y-\[5px\]|group-hover\/resize/,
+  );
+  const sidePanelRule = splitStyles.match(
+    /\.nexus-room-surface-side-panel\s*\{([\s\S]*?)\}/,
+  )?.[1] ?? "";
+  assert.match(
+    sidePanelRule,
+    /background:\s*color-mix\([\s\S]*?var\(--surface-panel-background\) 72%[\s\S]*?box-shadow:\s*-8px 0 20px -18px color-mix\([\s\S]*?var\(--shadow-color\) 14%/,
+  );
+  assert.match(
+    splitStyles,
+    /\.nexus-room-surface-split\s*\{[\s\S]*?background:\s*var\(--surface-canvas-background\)/,
+  );
+  assert.match(
+    splitStyles,
+    /\.nexus-room-surface-conversation\s*\{[\s\S]*?background:\s*transparent/,
+  );
+  assert.doesNotMatch(sidePanelRule, /border(?:-left)?:|margin-left:/);
+});
+
 test("Room header keeps view and member controls on one spacing rhythm", async () => {
   const headerStyles = await readFile(
     path.join(

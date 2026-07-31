@@ -28,40 +28,43 @@ export function RoomThreadInlinePanel({
   }
 
   return (
-    <section
-      className={cn(
-        "relative ml-2 min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none",
-        className,
-      )}
-      style={{
-        width: `${sidePanelWidthPercent}%`,
-        minWidth: "360px",
-        maxWidth: "560px",
-      }}
-    >
+    <>
       <PanelResizeHandle
         ariaLabel="调整 Thread 面板宽度"
         onResizeStart={onStartSidePanelResize}
+        variant="gutter"
       />
 
-      <ConversationThreadPanel
-        roundId={activeThread.roundId}
-        agentId={activeThread.agentId}
-        agentName={threadPanelData.agentName}
-        agentAvatar={threadPanelData.agentAvatar}
-        emptyContent={(
-          <RoomThreadEmptyState isLoading={threadPanelData.isLoading} />
+      <section
+        className={cn(
+          "nexus-room-surface-side-panel relative min-h-0 min-w-0 shrink-0 flex-col overflow-hidden",
+          className,
         )}
-        headerSubtitle={null}
-        messages={threadPanelData.messages}
-        pendingPermissions={threadPanelData.pendingPermissions}
-        onPermissionResponse={threadPanelData.onPermissionResponse}
-        onClose={closeThread}
-        onOpenWorkspaceFile={threadPanelData.onOpenWorkspaceFile}
-        isLoading={threadPanelData.isLoading}
-        layout="desktop"
-        presentation="inspector"
-      />
-    </section>
+        style={{
+          width: `${sidePanelWidthPercent}%`,
+          minWidth: "360px",
+          maxWidth: "560px",
+        }}
+      >
+        <ConversationThreadPanel
+          roundId={activeThread.roundId}
+          agentId={activeThread.agentId}
+          agentName={threadPanelData.agentName}
+          agentAvatar={threadPanelData.agentAvatar}
+          emptyContent={(
+            <RoomThreadEmptyState isLoading={threadPanelData.isLoading} />
+          )}
+          headerSubtitle={null}
+          messages={threadPanelData.messages}
+          pendingPermissions={threadPanelData.pendingPermissions}
+          onPermissionResponse={threadPanelData.onPermissionResponse}
+          onClose={closeThread}
+          onOpenWorkspaceFile={threadPanelData.onOpenWorkspaceFile}
+          isLoading={threadPanelData.isLoading}
+          layout="desktop"
+          presentation="inspector"
+        />
+      </section>
+    </>
   );
 }
