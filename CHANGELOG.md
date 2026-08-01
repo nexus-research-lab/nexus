@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed the redundant Agent Skill summary and manual refresh row, letting the
+  enabled and available groups own their counts while visible data continues to
+  refresh automatically.
 - Replaced hard Room auxiliary-panel dividers with an invisible resize gutter,
   alongside subtly differentiated conversation and context surfaces.
 - Simplified Workspace file chrome into one continuous header with consistent icon-only

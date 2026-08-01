@@ -65,8 +65,6 @@ export const zhAgentMessages = {
   "agent_options.advanced.tool.notebook_edit": "编辑 Jupyter Notebook。",
   "agent_options.advanced.tool.web_fetch": "抓取网页内容。",
   "agent_options.advanced.tool.web_search": "执行网页搜索，并支持按域名过滤。",
-  "agent_options.skills.summary": "{count} 个技能",
-  "agent_options.skills.total": "共 {count}",
   "agent_options.skills.load_failed": "加载技能列表失败",
   "agent_options.skills.toggle_failed": "切换技能状态失败",
   "agent_options.skills.system_builtin": "系统内置",

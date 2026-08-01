@@ -210,11 +210,6 @@ export function useAgentSkillsController({
     void runSkillToggle(pendingDisableSkill);
   }, [pendingDisableSkill, runSkillToggle, setPendingDisableSkill]);
 
-  const refresh = useCallback((): void => {
-    setActionError(null);
-    void refreshResource();
-  }, [refreshResource, setActionError]);
-
   return {
     agentId: scopeAgentId,
     busySkillName: commandProjection.busySkillName,
@@ -225,7 +220,6 @@ export function useAgentSkillsController({
     loading,
     pendingDisableSkill,
     projection,
-    refresh,
     requestSkillAction,
     searchQuery,
     setSearchQuery,

@@ -10,7 +10,6 @@ export interface AgentSkillsProjection {
   available: AgentSkillEntry[];
   availableEmptyState: AvailableSkillsEmptyState;
   enabled: AgentSkillEntry[];
-  totalCount: number;
   visibleAvailable: AgentSkillEntry[];
 }
 
@@ -71,7 +70,6 @@ export function projectAgentSkills(
     available,
     availableEmptyState,
     enabled,
-    totalCount: skills.length,
     visibleAvailable,
   };
 }

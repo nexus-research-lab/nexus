@@ -68,8 +68,6 @@ export const enAgentMessages = {
   "agent_options.advanced.tool.notebook_edit": "Edits Jupyter notebooks.",
   "agent_options.advanced.tool.web_fetch": "Fetches web page content.",
   "agent_options.advanced.tool.web_search": "Performs web searches with domain filtering.",
-  "agent_options.skills.summary": "{count} skills",
-  "agent_options.skills.total": "{count} total",
   "agent_options.skills.load_failed": "Failed to load skills",
   "agent_options.skills.toggle_failed": "Failed to update skill state",
   "agent_options.skills.system_builtin": "System built-in",

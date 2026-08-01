@@ -183,3 +183,22 @@ test("设置和能力二级页不再恢复重复标题或私有版心", async ()
   assert.match(loopDetail, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   assert.doesNotMatch(loopDetail, /max-w-\[960px\]/);
 });
+
+test("Agent 技能页直接使用分组，不重复汇总与手动刷新", async () => {
+  const [view, content, model, zhAgent, enAgent] = await Promise.all([
+    "src/features/agents/options/components/skills/agent-options-skills-view.tsx",
+    "src/features/agents/options/components/skills/agent-options-skills-content.tsx",
+    "src/features/agents/options/components/skills/agent-skills-model.ts",
+    "src/shared/i18n/catalog/zh/agent.ts",
+    "src/shared/i18n/catalog/en/agent.ts",
+  ].map(readSource));
+
+  assert.doesNotMatch(view, /SkillsHeader|RefreshCw|UiIconButton/);
+  assert.doesNotMatch(view, /agent_options\.skills\.(?:summary|total)/);
+  assert.match(content, /EnabledSkillsSection/);
+  assert.match(content, /AvailableSkillsSection/);
+  assert.doesNotMatch(model, /totalCount: number;/);
+  assert.doesNotMatch(model, /totalCount: skills\.length/);
+  assert.doesNotMatch(zhAgent, /agent_options\.skills\.(?:summary|total)/);
+  assert.doesNotMatch(enAgent, /agent_options\.skills\.(?:summary|total)/);
+});
