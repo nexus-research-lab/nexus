@@ -50,6 +50,10 @@ test("能力、设置与联系人共用同一铺满管理内容面", async () =>
     recipes,
     /\.workspace-content-header-inner[\s\S]*?padding-inline-start: var\(--workspace-content-header-leading-inset, 0px\)/,
   );
+  assert.match(
+    recipes,
+    /:root\[data-desktop-platform="macos"\] \.workspace-content-header[\s\S]*?margin-block-start: -12px/,
+  );
   assert.match(capability, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   assert.match(capability, /WorkspaceContentHeader/);
   assert.doesNotMatch(capability, /max-w-\[1240px\]/);
