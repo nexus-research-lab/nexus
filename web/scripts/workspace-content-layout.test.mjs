@@ -197,6 +197,14 @@ test("Agent 技能页直接使用分组，不重复汇总与手动刷新", async
   assert.doesNotMatch(view, /agent_options\.skills\.(?:summary|total)/);
   assert.match(content, /EnabledSkillsSection/);
   assert.match(content, /AvailableSkillsSection/);
+  assert.match(content, /sm:flex-row sm:items-center sm:justify-between/);
+  assert.match(content, /className="min-w-0 flex-1 sm:w-\[288px\] sm:flex-none"/);
+  assert.match(content, /const filteredCount = searchQuery\.trim\(\)/);
+  assert.match(content, /filteredCount \? \(/);
+  assert.doesNotMatch(
+    content,
+    /count=\{`\$\{projection\.visibleAvailable\.length\}\/\$\{projection\.available\.length\}`\}/,
+  );
   assert.doesNotMatch(model, /totalCount: number;/);
   assert.doesNotMatch(model, /totalCount: skills\.length/);
   assert.doesNotMatch(zhAgent, /agent_options\.skills\.(?:summary|total)/);

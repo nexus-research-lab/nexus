@@ -5,6 +5,7 @@
 - 资源加载态合并、请求过期判断与命令展示态均由纯函数投影，Hook 只编排生命周期。
 - `agent-skills-model.ts` 只处理已启用/可启用分组与搜索投影。
 - 技能选项卡使用可自然增高的宽松卡片；手机端动作落到内容下方，标题、徽标和说明不得被固定高度挤压。
+- 可启用 Skill 的搜索属于分组工具，桌面与分组标题同排、手机端换到标题下方；未搜索时不显示无信息增量的 `n/n`，筛选时才显示命中数与可用总数。
 - `agent-skill-card.tsx` 明确标记当前 Agent 的本地 workspace Skill；这类 Skill 不进入全局技能库、不对其它 Agent 可见，存在时默认启用，停用只写当前 Agent 的显式停用状态。
 - `agent-options-skills-view.tsx` 只组合错误提示、内容与确认弹窗，不重复渲染技能总数或常驻手动刷新；资源已按页面可见性、窗口焦点和固定间隔自动刷新。`agent-options-skills-content.tsx` 分别渲染状态、已启用列表和可启用列表，`agent-skill-card.tsx` 只渲染单项。
 
