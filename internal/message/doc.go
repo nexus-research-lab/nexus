@@ -3,7 +3,7 @@
 // L2 | 父级: internal（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - processor.go / event_mapper.go：SDK 消息分发、状态持有与场景事件映射。
+//   - processor.go / event_mapper.go：SDK 消息分发、状态持有、内部中断文案归一化与场景事件映射。
 //   - system.go / task_event.go：可见系统事件、后台任务事件、同消息多 child token 快照与 shell 易失进度投影。
 //   - assistant_error.go / result_message.go / provider_content_filter.go：assistant API 错误、终态结果消息与 Provider 内容安全拦截归一化。
 //   - tool_result_message.go / workspace_artifact.go：工具结果消息与工作区产物投影。

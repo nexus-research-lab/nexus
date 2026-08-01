@@ -3,6 +3,8 @@ package message
 import (
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -170,5 +172,88 @@ func TestProcessorProjectsMissingResultPayloadAsVisibleError(t *testing.T) {
 	}
 	if len(output.DurableMessages) != 1 || output.DurableMessages[0]["is_error"] != true {
 		t.Fatalf("missing result should produce visible error: %+v", output.DurableMessages)
+	}
+}
+
+func TestNormalizeInterruptedOutputHidesInternalInterruptSentinel(t *testing.T) {
+	output := Output{
+		ResultSubtype:  "error",
+		TerminalStatus: "error",
+		DurableMessages: []protocol.Message{{
+			"role":     "result",
+			"subtype":  "error",
+			"is_error": true,
+			"result":   "runtime canceled",
+		}},
+	}
+
+	NormalizeInterruptedOutput(&output, InterruptWithoutMessage)
+
+	if output.ResultSubtype != "interrupted" || output.TerminalStatus != "interrupted" {
+		t.Fatalf("内部中断应收口为 interrupted: %+v", output)
+	}
+	result := output.DurableMessages[0]
+	if result["is_error"] != false || result["subtype"] != "interrupted" {
+		t.Fatalf("中断 result 语义不正确: %+v", result)
+	}
+	if _, exists := result["result"]; exists {
+		t.Fatalf("内部中断哨兵不应投影为 result: %+v", result)
+	}
+}
+
+func TestNormalizeInterruptedOutputNormalizesNativeInterruptedResult(t *testing.T) {
+	tests := map[string]struct {
+		interruptReason string
+		wantResult      string
+		wantResultField bool
+	}{
+		"internal sentinel": {
+			interruptReason: InterruptWithoutMessage,
+		},
+		"custom reason": {
+			interruptReason: "  收到新的用户消息，上一轮已停止  ",
+			wantResult:      "收到新的用户消息，上一轮已停止",
+			wantResultField: true,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			output := Output{
+				ResultSubtype:  "interrupted",
+				TerminalStatus: "interrupted",
+				DurableMessages: []protocol.Message{{
+					"role":     "result",
+					"subtype":  "interrupted",
+					"is_error": false,
+					"result":   InterruptWithoutMessage,
+				}},
+			}
+
+			NormalizeInterruptedOutput(&output, test.interruptReason)
+
+			result := output.DurableMessages[0]
+			resultText, hasResult := result["result"]
+			if hasResult != test.wantResultField || (hasResult && resultText != test.wantResult) {
+				t.Fatalf("原生 interrupted result 未归一化: %+v", result)
+			}
+		})
+	}
+}
+
+func TestNormalizeInterruptDisplayTextPreservesCustomReason(t *testing.T) {
+	tests := map[string]struct {
+		input string
+		want  string
+	}{
+		"internal sentinel": {input: "  " + InterruptWithoutMessage + "  ", want: ""},
+		"custom reason":     {input: "  收到新消息，上一轮已停止  ", want: "收到新消息，上一轮已停止"},
+		"empty":             {input: "  ", want: ""},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := NormalizeInterruptDisplayText(test.input); got != test.want {
+				t.Fatalf("NormalizeInterruptDisplayText(%q)=%q, want=%q", test.input, got, test.want)
+			}
+		})
 	}
 }

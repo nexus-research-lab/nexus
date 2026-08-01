@@ -14,6 +14,15 @@ import (
 // InterruptWithoutMessage 表示用户主动停止但不需要把默认停止文案写入结果正文。
 const InterruptWithoutMessage = "__nexus_interrupt_without_message__"
 
+// NormalizeInterruptDisplayText 把内部中断控制值收口成可安全投影的文案。
+func NormalizeInterruptDisplayText(text string) string {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == InterruptWithoutMessage {
+		return ""
+	}
+	return trimmed
+}
+
 // MessageContext 表示单轮消息处理上下文。
 type MessageContext struct {
 	SessionKey     string

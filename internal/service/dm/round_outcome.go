@@ -10,6 +10,7 @@ import (
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 )
@@ -148,6 +149,7 @@ func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 }
 
 func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, resultText string) {
+	resultText = messagepkg.NormalizeInterruptDisplayText(resultText)
 	r.service.loggerFor(context.Background()).Warn("DM round 以中断状态结束",
 		"session_key", r.sessionKey,
 		"agent_id", r.agent.AgentID,

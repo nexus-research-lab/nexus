@@ -17,10 +17,7 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 }
 
 func (s *Service) interruptSession(ctx context.Context, sessionKey string, resultText string) error {
-	displayResultText := resultText
-	if displayResultText == messagepkg.InterruptWithoutMessage {
-		displayResultText = ""
-	}
+	displayResultText := messagepkg.NormalizeInterruptDisplayText(resultText)
 	roundIDs, err := s.runtime.InterruptSession(ctx, sessionKey, resultText)
 	if err != nil {
 		if len(roundIDs) == 0 {

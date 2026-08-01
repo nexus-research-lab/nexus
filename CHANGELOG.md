@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented the internal no-message interrupt marker from appearing in live
+  DM or Room events, permission denials, persisted result summaries, legacy
+  session history, or diagnostic logs.
 - Prevented delayed runtime results from an explicitly interrupted turn from
   terminating the following prompt, while quarantining runtime sessions that
   cannot produce a clean terminal boundary.

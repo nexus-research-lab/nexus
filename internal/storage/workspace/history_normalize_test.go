@@ -1,11 +1,56 @@
 package workspace
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestNormalizeHistoryRowsHidesLegacyInterruptedResultSentinel(t *testing.T) {
+	rows := []protocol.Message{
+		{
+			"message_id":  "assistant-legacy-interrupt",
+			"session_key": "agent:nexus:ws:dm:test",
+			"agent_id":    "nexus",
+			"round_id":    "round-legacy-interrupt",
+			"role":        "assistant",
+			"content":     []map[string]any{{"type": "text", "text": "已生成的部分回复"}},
+			"timestamp":   1000,
+		},
+		{
+			"message_id":  "result-legacy-interrupt",
+			"session_key": "agent:nexus:ws:dm:test",
+			"agent_id":    "nexus",
+			"round_id":    "round-legacy-interrupt",
+			"role":        "result",
+			"subtype":     "interrupted",
+			"result":      message.InterruptWithoutMessage,
+			"timestamp":   1100,
+		},
+	}
+
+	normalized := normalizeHistoryRows(rows, nil)
+	if len(normalized) != 1 {
+		t.Fatalf("旧 result 应并回 assistant: %+v", normalized)
+	}
+	summary, ok := normalized[0]["result_summary"].(map[string]any)
+	if !ok || summary["subtype"] != "interrupted" {
+		t.Fatalf("旧中断历史缺少 interrupted 摘要: %+v", normalized[0])
+	}
+	if _, exists := summary["result"]; exists {
+		t.Fatalf("旧内部中断哨兵不应进入 result_summary: %+v", summary)
+	}
+	payload, err := json.Marshal(normalized)
+	if err != nil {
+		t.Fatalf("编码历史投影失败: %v", err)
+	}
+	if strings.Contains(string(payload), message.InterruptWithoutMessage) {
+		t.Fatalf("旧内部中断哨兵仍在历史投影中: %s", payload)
+	}
+}
 
 func TestNormalizeHistoryRowsMergesAssistantSnapshotsByMessageID(t *testing.T) {
 	rows := []protocol.Message{

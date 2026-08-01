@@ -116,17 +116,18 @@ func NormalizeInterruptedOutput(output *Output, interruptReason string) {
 	if output == nil {
 		return
 	}
-	if output.ResultSubtype != "error" && output.TerminalStatus != "error" {
+	isError := output.ResultSubtype == "error" || output.TerminalStatus == "error"
+	isInterrupted := output.ResultSubtype == "interrupted" || output.TerminalStatus == "interrupted"
+	if !isError && !isInterrupted {
 		return
 	}
 
-	resultText := strings.TrimSpace(interruptReason)
-	if resultText == "" {
+	if strings.TrimSpace(interruptReason) == "" {
 		return
 	}
-	if resultText == InterruptWithoutMessage {
-		resultText = ""
-	}
+	resultText := NormalizeInterruptDisplayText(interruptReason)
+	// SDK 可能直接返回 interrupted，也可能先返回 error。两条路径必须共用
+	// 同一展示边界，否则原生 interrupted 的 raw result 会绕过清理后落盘。
 	output.ResultSubtype = "interrupted"
 	output.TerminalStatus = "interrupted"
 	for index := range output.DurableMessages {

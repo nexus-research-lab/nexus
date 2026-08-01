@@ -322,7 +322,7 @@ func (s *Service) handleSlotCancelled(
 		"agent_id", slot.AgentID,
 		"round_id", slot.AgentRoundID,
 		"msg_id", slot.MsgID,
-		"reason", roomSlotInterruptReason(slot),
+		"reason", roomSlotInterruptDisplayReason(slot),
 	)
 	if mapper != nil {
 		s.finalizeGoalUsageForSlot(ctx, slot, result, slot.lastGoalAssistantMessage())
