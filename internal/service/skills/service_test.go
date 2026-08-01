@@ -539,6 +539,7 @@ description: 仅属于来源 Agent 的工作区 Skill
 func TestGlobalSkillReferencesKeepSourceClassification(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	platformRecord := catalogRecord{
 		Detail: Detail{Info: Info{
 			Name:       "ima-skill",
@@ -625,6 +626,7 @@ func TestUserGlobalSkillUsesGlobalAgentBinding(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("NEXUS_APP_MODE", "desktop")
 	writeTestSkillDir(
 		t,
@@ -723,6 +725,7 @@ func TestAgentWorkspaceSkillShadowsSameNamedUserGlobalSkill(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("NEXUS_APP_MODE", "desktop")
 	hostSkillRoot := filepath.Join(home, ".agents", "skills", "same-name-skill")
 	writeTestSkillDir(t, hostSkillRoot, "same-name-skill", "用户全局版本", false)
@@ -995,6 +998,7 @@ func newSkillsTestConfig(t *testing.T) config.Config {
 	root := t.TempDir()
 	stateRoot := filepath.Join(root, ".nexus")
 	t.Setenv("HOME", filepath.Join(root, "home"))
+	t.Setenv("USERPROFILE", filepath.Join(root, "home"))
 	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", stateRoot)
 	return config.Config{

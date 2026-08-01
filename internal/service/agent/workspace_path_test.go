@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -52,9 +51,7 @@ func TestWorkspaceBasePathDefaultsToUsersRoot(t *testing.T) {
 func TestWorkspaceBasePathExpandsHomeForms(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	if os.Getenv("USERPROFILE") == "" {
-		t.Setenv("USERPROFILE", home)
-	}
+	t.Setenv("USERPROFILE", home)
 
 	cases := []struct {
 		name string

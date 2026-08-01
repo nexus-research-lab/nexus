@@ -49,6 +49,7 @@ func TestEnsureHostSkillLibraryPublishesStandardAgentsRoot(t *testing.T) {
 	cfg.AppMode = "desktop"
 	home := filepath.Join(t.TempDir(), "home")
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	sourceRoot := filepath.Join(home, ".agents", "skills", "host-skill")
 	if err := os.MkdirAll(sourceRoot, 0o755); err != nil {
 		t.Fatalf("创建宿主 Skill 源失败: %v", err)

@@ -70,6 +70,7 @@ func TestStateRootNormalizesLegacyNexusConfigSubdirectory(t *testing.T) {
 func TestConfigDirDefaultsToHomeNexus(t *testing.T) {
 	homeDir := filepath.Join(t.TempDir(), "home")
 	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
 	t.Setenv(nexusConfigDirEnvName, "")
 	t.Setenv(NexusStateRootEnvName, "")
 
