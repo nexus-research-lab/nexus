@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -179,7 +180,7 @@ func assertCompletedMigrationMarker(t *testing.T, configRoot string, migrationNa
 	if err != nil {
 		t.Fatalf("读取迁移标记权限失败 %q: %v", markerPath, err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("迁移标记权限错误 %q: %o", markerPath, info.Mode().Perm())
 	}
 }

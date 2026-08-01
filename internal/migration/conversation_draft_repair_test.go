@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -367,7 +368,7 @@ func assertOneTimeRepairMarker(t *testing.T, markerPath string, expected string)
 	if err != nil {
 		t.Fatalf("读取 repair marker 权限: %v", err)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("repair marker 权限 = %o, want 600", info.Mode().Perm())
 	}
 }

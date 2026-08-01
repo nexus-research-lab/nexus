@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -163,14 +164,14 @@ func TestSaveRuntimeSettingsUsesPrivatePermissions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 runtime settings 配置目录失败: %v", err)
 	}
-	if configInfo.Mode().Perm() != 0o700 {
+	if runtime.GOOS != "windows" && configInfo.Mode().Perm() != 0o700 {
 		t.Fatalf("runtime settings 配置目录权限错误: %o", configInfo.Mode().Perm())
 	}
 	fileInfo, err := os.Stat(RuntimeSettingsPath())
 	if err != nil {
 		t.Fatalf("读取 runtime settings 文件失败: %v", err)
 	}
-	if fileInfo.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && fileInfo.Mode().Perm() != 0o600 {
 		t.Fatalf("runtime settings 文件权限错误: %o", fileInfo.Mode().Perm())
 	}
 }

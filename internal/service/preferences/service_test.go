@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -137,12 +138,15 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if statErr != nil {
 		t.Fatalf("偏好文件未写入安全路径: %v", statErr)
 	}
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("偏好文件权限不正确: got=%#o want=%#o", info.Mode().Perm(), 0o600)
 	}
 	settingsInfo, statErr := os.Stat(filepath.Dir(preferencesPath))
-	if statErr != nil || settingsInfo.Mode().Perm() != 0o700 {
+	if statErr != nil {
 		t.Fatalf("偏好目录权限不正确: info=%v err=%v", settingsInfo, statErr)
+	}
+	if runtime.GOOS != "windows" && settingsInfo.Mode().Perm() != 0o700 {
+		t.Fatalf("偏好目录权限不正确: got=%#o want=%#o", settingsInfo.Mode().Perm(), 0o700)
 	}
 }
 
@@ -176,8 +180,12 @@ func TestServiceStoresWebSearchAPIKeySeparately(t *testing.T) {
 		t.Fatalf("WebSearch 凭据未恢复: %+v", loaded.WebSearch)
 	}
 	keyPath := testUserSettingsPath(root, "user/1", "web-search-api-key")
-	if info, err := os.Stat(keyPath); err != nil || info.Mode().Perm() != 0o600 {
+	info, err := os.Stat(keyPath)
+	if err != nil {
 		t.Fatalf("API key 文件权限不正确: info=%v err=%v", info, err)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
+		t.Fatalf("API key 文件权限不正确: got=%#o want=%#o", info.Mode().Perm(), 0o600)
 	}
 	credentialContent, err := os.ReadFile(keyPath)
 	if err != nil {
