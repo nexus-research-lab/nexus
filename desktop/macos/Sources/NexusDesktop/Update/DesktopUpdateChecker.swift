@@ -520,16 +520,10 @@ final class DesktopUpdateChecker {
 
   private func promptInstall(_ latest: DesktopReleaseInfo, downloadedUpdate: DesktopDownloadedUpdate) -> Bool {
     let alert = NSAlert()
-    alert.messageText = "Nexus 更新已就绪"
-    alert.informativeText = """
-    Nexus \(latest.displayText) 已下载并通过 sha256 校验。
-    更新包：\(downloadedUpdate.packageURL.lastPathComponent)
-    sha256：\(downloadedUpdate.sha256Hash)
-
-    更新包已通过 macOS 签名与 Gatekeeper 信任评估。继续后 Nexus 会退出，替换当前 App，并自动重新打开。
-    """
+    alert.messageText = "Nexus \(latest.version) 更新已就绪"
+    alert.informativeText = "更新已完成安全校验。继续后应用会短暂退出，并自动重新打开。"
     alert.alertStyle = .informational
-    alert.addButton(withTitle: "退出并更新")
+    alert.addButton(withTitle: "立即更新")
     alert.addButton(withTitle: "稍后")
 
     startupTimeline.mark("update_check.install_prompt_shown", metadata: [

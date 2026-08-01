@@ -545,9 +545,9 @@ internal sealed class DesktopUpdateChecker
 
             return NexusDialogWindow.Confirm(
                 owner,
-                "Nexus 更新已就绪",
-                InstallReadyMessage(latest, downloadedUpdate),
-                "退出并安装",
+                $"Nexus {latest.Version} 更新已就绪",
+                "更新已完成安全校验。继续后应用会退出，由安装程序完成更新。",
+                "立即更新",
                 "稍后");
         });
 
@@ -683,17 +683,6 @@ internal sealed class DesktopUpdateChecker
 
         string clipped = normalized[..ReleaseNotesMaxCharacters].TrimEnd();
         return $"{clipped}{Environment.NewLine}{Environment.NewLine}...{Environment.NewLine}完整更新内容请打开 Release 页面查看。";
-    }
-
-    private string InstallReadyMessage(DesktopReleaseInfo latest, DownloadedUpdate downloadedUpdate)
-    {
-        return string.Join(
-            Environment.NewLine,
-            $"Nexus {latest.DisplayText} 已下载并通过 sha256 校验。",
-            $"安装器：{Path.GetFileName(downloadedUpdate.InstallerPath)}",
-            $"sha256：{downloadedUpdate.Sha256Hash}",
-            string.Empty,
-            "是否现在启动安装器？Nexus 将退出，安装器会继续完成更新。");
     }
 
     private UpdateCheckState LoadState()

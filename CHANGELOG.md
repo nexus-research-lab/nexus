@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Simplified the macOS and Windows update-ready prompts and made download progress windows substantially more compact.
+
 ## [0.1.31] - 2026-08-01
 
 ### Added
