@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -303,6 +304,23 @@ func assertPathRemoved(t *testing.T, path string) {
 func migrateRoomSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 	handlertest.MigrateSQLiteFromDir(t, databaseURL, roomMigrationDir(t))
+}
+
+func newRoomTestAgentService(
+	t *testing.T,
+	cfg config.Config,
+) (*agentsvc.Service, *sql.DB, error) {
+	t.Helper()
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("关闭 Room 测试数据库失败: %v", err)
+		}
+	})
+	return agentService, db, nil
 }
 
 func roomMigrationDir(t *testing.T) string {
