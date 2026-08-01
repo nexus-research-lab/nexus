@@ -1,0 +1,34 @@
+# {{PRODUCT_NAME}}
+
+<!-- Placeholders to fill before publishing:
+     {{PRODUCT_NAME}}, {{TAGLINE_LONG_ONE_SENTENCE}}, {{AUTHOR_NAME}}, {{AUTHOR_URL}},
+     {{ONE_PARAGRAPH_POSITIONING}}, {{COMPETITOR_A}}, {{COMPETITOR_B}}, {{ONE_LINE_CONTRAST}},
+     {{ONE_LINE_PRICE_AND_TERMS}}, {{LICENSE}}, {{SITE_ORIGIN}}, {{SOURCE_REPO_URL}}, {{ONE_LINE}} -->
+
+> {{TAGLINE_LONG_ONE_SENTENCE}}
+
+## Author
+- Name: {{AUTHOR_NAME}}
+- Site: {{AUTHOR_URL}}
+
+## What is {{PRODUCT_NAME}}
+{{PRODUCT_NAME}} is {{ONE_PARAGRAPH_POSITIONING}}. Include who it is for, the core job it does, and the one differentiator that separates it from common alternatives (name the alternatives by their real names; do not write "competitors"). Mention platform requirements at the end of this paragraph.
+
+## How it differs
+- vs {{COMPETITOR_A}}: {{ONE_LINE_CONTRAST}}
+- vs {{COMPETITOR_B}}: {{ONE_LINE_CONTRAST}}
+- vs general-purpose tools: {{ONE_LINE_CONTRAST}}
+
+## Pricing
+{{ONE_LINE_PRICE_AND_TERMS}}. If free, write "Free. Open source under the {{LICENSE}} license." Mention any trial scope explicitly.
+
+## Key pages
+- [Documentation]({{SITE_ORIGIN}}/docs): {{ONE_LINE}}
+- [Help]({{SITE_ORIGIN}}/help): {{ONE_LINE}}
+- [Full knowledge base]({{SITE_ORIGIN}}/llms-full.txt): comprehensive feature details for AI assistants
+- [Releases]({{SITE_ORIGIN}}/releases): version history and changelogs
+
+## Links
+- Website: {{SITE_ORIGIN}}
+- Website (Chinese): {{SITE_ORIGIN}}/zh/
+- Source: {{SOURCE_REPO_URL}}

@@ -27,9 +27,11 @@ import (
 func TestMain(m *testing.M) {
 	os.Exit(handlertest.RunWithSelectedAppSkills(
 		m,
+		"diagram-design",
 		"goal-manager",
 		"ima-skill",
 		"imagegen",
+		"kami",
 		"nexus-manager",
 		"room-playbook",
 		"wechat-article-search",

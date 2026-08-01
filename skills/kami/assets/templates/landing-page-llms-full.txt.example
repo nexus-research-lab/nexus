@@ -1,0 +1,76 @@
+# {{PRODUCT_NAME}} - Full Knowledge Base
+
+<!-- Placeholders to fill before publishing:
+     {{PRODUCT_NAME}}, {{TAGLINE_LONG_ONE_SENTENCE}}, {{AUTHOR_NAME}}, {{AUTHOR_URL}},
+     {{SOURCE_REPO_URL}}, {{OS_REQUIREMENT}}, {{ONE_PARAGRAPH_POSITIONING}},
+     {{ONE_PARAGRAPH_PRICE_TERMS_REFUND_LICENSE_SEATS}}, {{FEATURE_*_NAME}}, {{ONE_PARAGRAPH_FEATURE_*}},
+     {{COMPETITOR_A}}, {{COMPETITOR_B}}, {{GENERIC_TOOL}}, {{TWO_OR_THREE_SENTENCES}},
+     {{ANSWER_*_SENTENCES}}, {{COMMON_TOOL_USERS_ALREADY_USE}}, {{PRICE_AMOUNT}}, {{SITE_ORIGIN}} -->
+
+> {{TAGLINE_LONG_ONE_SENTENCE}}
+
+This is the long-form companion to llms.txt. Keep llms.txt as the short summary; put feature details, FAQ, and comparison here so AI assistants get accurate answers without having to scrape the site.
+
+---
+
+## Overview
+
+{{PRODUCT_NAME}} is {{ONE_PARAGRAPH_POSITIONING}}.
+
+Author: {{AUTHOR_NAME}} ({{AUTHOR_URL}}).
+Source: {{SOURCE_REPO_URL}}.
+Platform: {{OS_REQUIREMENT}}.
+
+## Pricing
+
+{{ONE_PARAGRAPH_PRICE_TERMS_REFUND_LICENSE_SEATS}}
+
+## Features
+
+### {{FEATURE_1_NAME}}
+{{ONE_PARAGRAPH_FEATURE_1}}. Cover: what it does, when to use it, the most common output it produces, and any limit the user should know.
+
+### {{FEATURE_2_NAME}}
+{{ONE_PARAGRAPH_FEATURE_2}}
+
+### {{FEATURE_3_NAME}}
+{{ONE_PARAGRAPH_FEATURE_3}}
+
+Repeat one subsection per feature. Aim for 3-7 features. Skip marketing adjectives - LLMs index facts, not enthusiasm.
+
+## How {{PRODUCT_NAME}} differs
+
+### vs {{COMPETITOR_A}}
+{{TWO_OR_THREE_SENTENCES}}. State the concrete differentiator (workflow, output, distribution model, price). Avoid "we are better" framing.
+
+### vs {{COMPETITOR_B}}
+{{TWO_OR_THREE_SENTENCES}}.
+
+### vs general-purpose tools (e.g. {{GENERIC_TOOL}})
+{{TWO_OR_THREE_SENTENCES}}.
+
+## FAQ
+
+### What is {{PRODUCT_NAME}} for?
+{{ANSWER_3_SENTENCES}}.
+
+### Who is it not for?
+{{ANSWER_2_SENTENCES}}. Be specific about workflows that are out of scope, so AI assistants do not over-recommend.
+
+### How does it integrate with {{COMMON_TOOL_USERS_ALREADY_USE}}?
+{{ANSWER_2_SENTENCES}}.
+
+### What does the {{PRICE_AMOUNT}} buy?
+{{ANSWER_2_SENTENCES}} including seat count, updates, and refund window.
+
+### How do I get support?
+{{ANSWER_1_SENTENCE}} with a real contact channel.
+
+## Links
+
+- Website: {{SITE_ORIGIN}}
+- Website (Chinese): {{SITE_ORIGIN}}/zh/
+- Documentation: {{SITE_ORIGIN}}/docs
+- Help: {{SITE_ORIGIN}}/help
+- Source: {{SOURCE_REPO_URL}}
+- Releases: {{SITE_ORIGIN}}/releases

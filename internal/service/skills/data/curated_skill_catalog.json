@@ -79,6 +79,12 @@
       "recommendation": "适合海报、静态视觉与导出物设计。"
     },
     {
+      "name": "diagram-design",
+      "category_key": "design-frontend",
+      "category_name": "设计与前端",
+      "recommendation": "适合把流程、架构、关系与抽象概念制作成清晰、可交付的专业图解。"
+    },
+    {
       "name": "theme-factory",
       "category_key": "design-frontend",
       "category_name": "设计与前端",
@@ -101,6 +107,12 @@
       "category_key": "content-docs",
       "category_name": "内容与文档",
       "recommendation": "适合管理 IMA 笔记、知识库、文件资料与网页收藏。"
+    },
+    {
+      "name": "kami",
+      "category_key": "content-docs",
+      "category_name": "内容与文档",
+      "recommendation": "适合把简历、报告、幻灯片与落地页排成统一、可验证的编辑式成品。"
     },
     {
       "name": "docx",

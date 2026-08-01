@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the MIT-licensed `diagram-design` built-in Skill, adapted from Cathryn
+  Lavery's pinned upstream release, with 27 editorial diagram types, local brand
+  profiles, HTML/SVG templates, the complete upstream icon gallery and 86 raw SVG
+  sources, plus explicit source and third-party provenance.
+- Added the MIT-licensed `Kami` built-in Skill from Tw93's pinned lightweight
+  package, with editorial templates for documents, slides and landing pages,
+  18 inline SVG diagram types, deterministic checks, and explicit font licensing.
 - Added confirmed Agent Memory deletion for topic and daily-log documents;
   deletion is scope-safe, keeps `MEMORY.md` itself protected, removes the
   matching index line server-side, and selects the next available memory after

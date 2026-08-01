@@ -1,0 +1,93 @@
+{
+  "$comment": "Resume content contract. Strict 2 A4 pages. Every bullet: Action + Scope + Measurable Result + Business Outcome. Verb-led, at least one number per bullet, ownership stated honestly.",
+  "type": "object",
+  "required": ["name", "contact", "summary", "metrics", "projects", "skills", "education"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1, "maxLength": 40 },
+    "title": { "type": "string", "maxLength": 60 },
+    "contact": { "type": "string", "minLength": 4, "maxLength": 160 },
+    "summary": {
+      "$comment": "About 50 English words or about 80 Chinese characters.",
+      "type": "string",
+      "minLength": 30,
+      "maxLength": 400
+    },
+    "metrics": {
+      "$comment": "Exactly 4 cards: 1 on time, 1 on scale, 2 on quantifiable results.",
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["value", "label"],
+        "properties": {
+          "value": { "type": "string", "minLength": 1, "maxLength": 16 },
+          "label": { "type": "string", "minLength": 1, "maxLength": 40 }
+        }
+      }
+    },
+    "timeline": {
+      "$comment": "3 steps showing long-range evolution.",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["period", "milestone"],
+        "properties": {
+          "period": { "type": "string", "minLength": 2, "maxLength": 30 },
+          "milestone": { "type": "string", "minLength": 4, "maxLength": 80 }
+        }
+      }
+    },
+    "projects": {
+      "$comment": "3-5 core projects. Rows must not repeat each other: role is your position in the project, actions are verb-led concrete approaches, impact is an outcome (never a restated process).",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["name", "role", "actions", "impact"],
+        "properties": {
+          "name": { "type": "string", "minLength": 2, "maxLength": 60 },
+          "period": { "type": "string", "maxLength": 30 },
+          "role": { "type": "string", "minLength": 4, "maxLength": 160 },
+          "actions": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 4,
+            "items": { "type": "string", "minLength": 10, "maxLength": 220 }
+          },
+          "impact": { "type": "string", "minLength": 10, "maxLength": 260 }
+        }
+      }
+    },
+    "public_work": {
+      "$comment": "Optional open source / talks / writing, each with a number where possible.",
+      "type": "array",
+      "maxItems": 6,
+      "items": { "type": "string", "minLength": 6, "maxLength": 200 }
+    },
+    "skills": {
+      "$comment": "Exactly 5 core skills, each carrying at least one brand-color-worthy emphasis (a number or distinctive phrase).",
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": { "type": "string", "minLength": 4, "maxLength": 160 }
+    },
+    "education": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["school"],
+        "properties": {
+          "school": { "type": "string", "minLength": 2, "maxLength": 80 },
+          "degree": { "type": "string", "maxLength": 80 },
+          "period": { "type": "string", "maxLength": 30 }
+        }
+      }
+    }
+  }
+}
