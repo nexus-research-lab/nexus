@@ -2,7 +2,6 @@ package logx
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,7 +33,7 @@ type rollingFileWriter struct {
 	mu              sync.Mutex
 }
 
-func newRollingFileWriter(options FileOptions) (io.Writer, error) {
+func newRollingFileWriter(options FileOptions) (*rollingFileWriter, error) {
 	if !options.Enabled {
 		return nil, nil
 	}
@@ -48,6 +47,19 @@ func newRollingFileWriter(options FileOptions) (io.Writer, error) {
 		return nil, err
 	}
 	return writer, nil
+}
+
+// Close 释放当前日志文件句柄，供拥有写入器生命周期的调用方收尾。
+func (w *rollingFileWriter) Close() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.writer == nil {
+		return nil
+	}
+	err := w.writer.Close()
+	w.writer = nil
+	return err
 }
 
 func (w *rollingFileWriter) Write(payload []byte) (int, error) {

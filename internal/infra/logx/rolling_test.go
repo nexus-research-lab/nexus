@@ -26,6 +26,11 @@ func TestRollingFileWriterCreatesDailyLogFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建滚动日志写入器失败: %v", err)
 	}
+	t.Cleanup(func() {
+		if closeErr := writer.Close(); closeErr != nil {
+			t.Errorf("关闭滚动日志写入器失败: %v", closeErr)
+		}
+	})
 
 	if _, err = writer.Write([]byte("hello\n")); err != nil {
 		t.Fatalf("写入日志失败: %v", err)
@@ -59,6 +64,11 @@ func TestRollingFileWriterRotatesBySize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建滚动日志写入器失败: %v", err)
 	}
+	t.Cleanup(func() {
+		if closeErr := writer.Close(); closeErr != nil {
+			t.Errorf("关闭滚动日志写入器失败: %v", closeErr)
+		}
+	})
 
 	chunk := []byte(strings.Repeat("a", 700*1024))
 	if _, err = writer.Write(chunk); err != nil {
