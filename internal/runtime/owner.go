@@ -42,38 +42,23 @@ func (m *Manager) CloseOwnerSessions(ctx context.Context, ownerUserID string) (i
 		errs = append(errs, fmt.Errorf("reap owner runtime processes: %w", reaperErr))
 	}
 	for _, target := range targets {
-		if target.idleMessageCancel != nil {
-			target.idleMessageCancel()
-		}
-		for _, cancel := range target.roundCancels {
-			if cancel != nil {
-				cancel()
-			}
-		}
-		for _, cancel := range target.backgroundCancels {
-			if cancel != nil {
-				cancel()
-			}
-		}
-		var err error
+		cancelSessionCloseTarget(target)
+		var disconnectErr error
 		if target.client != nil {
 			disconnectCtx, cancel := context.WithTimeout(ctx, RoundIdleAbortTimeout)
-			err = target.client.Disconnect(disconnectCtx)
+			disconnectErr = target.client.Disconnect(disconnectCtx)
 			cancel()
 		}
 		backgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
-		if backgroundErr != nil {
-			err = errors.Join(err, backgroundErr)
-		}
 		roundErr := waitRoundDoneForClose(ctx, target.roundDone)
-		if roundErr != nil {
-			err = errors.Join(err, roundErr)
-		}
-		if backgroundErr != nil || roundErr != nil {
-			m.finishSessionCloseWhenDone(target)
+		clientCleanupPending := errors.Is(disconnectErr, context.Canceled) ||
+			errors.Is(disconnectErr, context.DeadlineExceeded)
+		if clientCleanupPending || backgroundErr != nil || roundErr != nil {
+			m.finishSessionCloseWhenDone(target, clientCleanupPending)
 		} else {
 			m.finishSessionClose(target)
 		}
+		err := errors.Join(disconnectErr, backgroundErr, roundErr)
 		if err != nil && !IsRuntimeTransportClosedError(err) {
 			errs = append(errs, fmt.Errorf(
 				"close owner runtime session %s: %w",

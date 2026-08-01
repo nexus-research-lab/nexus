@@ -170,7 +170,9 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	}
 	ctx = contextWithExactOwner(ctx, agentValue.OwnerUserID)
 
-	s.inputQueueDispatchMu.Lock()
+	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+		return err
+	}
 	validated, err := goalsvc.ValidateContinuationForDispatch(
 		ctx,
 		s.goals,

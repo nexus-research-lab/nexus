@@ -32,6 +32,7 @@ type fakeDMClient struct {
 	queryOptions     []sdkprotocol.OutboundMessageOptions
 	reconfigureOps   []agentclient.Options
 	hookResponseAck  bool
+	onConnect        func(context.Context)
 	onQuery          func(context.Context, string)
 	onInterrupt      func(context.Context)
 }
@@ -115,7 +116,10 @@ func newFakeDMClient() *fakeDMClient {
 	}
 }
 
-func (c *fakeDMClient) Connect(context.Context) error {
+func (c *fakeDMClient) Connect(ctx context.Context) error {
+	if c.onConnect != nil {
+		c.onConnect(ctx)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.connectCalls++
@@ -196,6 +200,8 @@ func (c *fakeDMClient) RemoveMessages(_ context.Context, uuids []string) error {
 }
 
 func (c *fakeDMClient) SetPermissionMode(context.Context, sdkpermission.Mode) error { return nil }
+
+func (c *fakeDMClient) Retire() {}
 
 func (c *fakeDMClient) Disconnect(context.Context) error {
 	c.mu.Lock()

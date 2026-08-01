@@ -31,20 +31,22 @@ func (m *Manager) StartIdleMessageDrain(sessionKey string, handler IdleMessageHa
 	m.touchStateLocked(state)
 	m.mu.Unlock()
 
-	go m.runIdleMessageDrain(ctx, sessionKey, drainID, client, handler)
+	go m.runIdleMessageDrain(ctx, sessionKey, state, drainID, client, handler)
 }
 
 func (m *Manager) runIdleMessageDrain(
 	ctx context.Context,
 	sessionKey string,
+	expectedState *sessionState,
 	drainID int64,
 	client Client,
 	handler IdleMessageHandler,
 ) {
 	defer func() {
 		m.mu.Lock()
-		if state := m.sessions[sessionKey]; state != nil && state.IdleMessageDrainID == drainID {
+		if state := m.sessions[sessionKey]; state == expectedState && state.IdleMessageDrainID == drainID {
 			state.IdleMessageCancel = nil
+			m.removeClientlessSessionIfIdleLocked(sessionKey, expectedState, nil)
 		}
 		m.mu.Unlock()
 	}()
@@ -63,7 +65,7 @@ func (m *Manager) runIdleMessageDrain(
 				return
 			}
 			m.mu.Lock()
-			if state := m.sessions[sessionKey]; state != nil && state.IdleMessageDrainID == drainID {
+			if state := m.sessions[sessionKey]; state == expectedState && state.IdleMessageDrainID == drainID {
 				m.touchStateLocked(state)
 			}
 			m.mu.Unlock()

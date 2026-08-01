@@ -60,6 +60,8 @@ func (c *subagentControlClient) SetPermissionMode(context.Context, sdkpermission
 	return nil
 }
 
+func (c *subagentControlClient) Retire() {}
+
 func (c *subagentControlClient) Disconnect(context.Context) error { return nil }
 
 func (c *subagentControlClient) Reconfigure(context.Context, agentclient.Options) error { return nil }

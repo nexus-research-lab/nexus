@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented replaced or closed runtime clients from reconnecting as orphan
+  processes, fenced concurrent close and retry operations, and kept runtime
+  startup cleanup from stalling DM input behind background queue handoff.
 - Closed application-owned database pools during graceful server shutdown while
   leaving externally supplied pools under their caller's ownership.
 - Prevented concurrent callers from serially relaunching the same runtime after

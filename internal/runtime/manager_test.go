@@ -139,6 +139,8 @@ func (c *fakeRuntimeClient) SetPermissionMode(_ context.Context, mode sdkpermiss
 	return nil
 }
 
+func (c *fakeRuntimeClient) Retire() {}
+
 func (c *fakeRuntimeClient) Disconnect(context.Context) error {
 	c.disconnectCalls++
 	return c.disconnectErr
@@ -173,6 +175,34 @@ func TestSDKClientAdapterWaitReturnsStreamError(t *testing.T) {
 	}
 }
 
+func TestSDKClientAdapterRetirePermanentlyPreventsReconnect(t *testing.T) {
+	newSessionCalls := 0
+	client := &sdkClientAdapter{
+		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
+			newSessionCalls++
+			return nil, errors.New("retired client should not create a session")
+		},
+	}
+
+	client.Retire()
+	client.Retire()
+	if err := client.Connect(context.Background()); !errors.Is(err, agentclient.ErrAborted) {
+		t.Fatalf("Connect() error = %v，期望 ErrAborted", err)
+	}
+	if err := client.Reconfigure(context.Background(), agentclient.Options{}); !errors.Is(err, agentclient.ErrAborted) {
+		t.Fatalf("Reconfigure() error = %v，期望 ErrAborted", err)
+	}
+	if err := client.Disconnect(context.Background()); err != nil {
+		t.Fatalf("Disconnect() error = %v", err)
+	}
+	if err := client.Connect(context.Background()); !errors.Is(err, agentclient.ErrAborted) {
+		t.Fatalf("Disconnect() 后 Connect() error = %v，期望 ErrAborted", err)
+	}
+	if newSessionCalls != 0 {
+		t.Fatalf("retired client 创建了 %d 次 session，期望 0", newSessionCalls)
+	}
+}
+
 type fakeSDKMCPServer struct{}
 
 func (fakeSDKMCPServer) HandleMessage(context.Context, map[string]any) (map[string]any, error) {
@@ -192,6 +222,105 @@ func (f *fakeRuntimeFactory) New(agentclient.Options) Client {
 		return client
 	}
 	return f.client
+}
+
+type ownershipFenceClient struct {
+	fakeRuntimeClient
+	mu                 sync.Mutex
+	retired            bool
+	retireCalls        int
+	connectCalls       int
+	disconnectCalls    int
+	reconfigureCalls   int
+	reconfigureStarted chan struct{}
+	reconfigureRelease <-chan struct{}
+	disconnectStarted  chan struct{}
+	disconnectRelease  <-chan struct{}
+}
+
+func (c *ownershipFenceClient) Connect(context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.retired {
+		return agentclient.ErrAborted
+	}
+	c.connectCalls++
+	return nil
+}
+
+func (c *ownershipFenceClient) Retire() {
+	c.mu.Lock()
+	c.retired = true
+	c.retireCalls++
+	c.mu.Unlock()
+}
+
+func (c *ownershipFenceClient) Disconnect(ctx context.Context) error {
+	c.mu.Lock()
+	c.disconnectCalls++
+	started := c.disconnectStarted
+	release := c.disconnectRelease
+	c.mu.Unlock()
+	notifyRuntimeFence(started)
+	if release == nil {
+		return nil
+	}
+	select {
+	case <-release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *ownershipFenceClient) Reconfigure(ctx context.Context, _ agentclient.Options) error {
+	c.mu.Lock()
+	c.reconfigureCalls++
+	started := c.reconfigureStarted
+	release := c.reconfigureRelease
+	c.mu.Unlock()
+	notifyRuntimeFence(started)
+	if release == nil {
+		return nil
+	}
+	select {
+	case <-release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func notifyRuntimeFence(signal chan struct{}) {
+	if signal == nil {
+		return
+	}
+	select {
+	case signal <- struct{}{}:
+	default:
+	}
+}
+
+type runtimeClientSequenceFactory struct {
+	mu      sync.Mutex
+	clients []Client
+	index   int
+}
+
+func (f *runtimeClientSequenceFactory) New(agentclient.Options) Client {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.index >= len(f.clients) {
+		return nil
+	}
+	client := f.clients[f.index]
+	f.index++
+	return client
+}
+
+type runtimeClientResult struct {
+	client Client
+	err    error
 }
 
 func TestManagerSetPermissionModeForAgentUpdatesMatchingClients(t *testing.T) {
@@ -566,6 +695,1028 @@ func TestManagerGetOrCreateReplacesClientAfterTransportClosed(t *testing.T) {
 	if stale.disconnectCalls != 1 {
 		t.Fatalf("旧 client 应被关闭一次: %d", stale.disconnectCalls)
 	}
+}
+
+func TestManagerReplacementRetiresStaleClient(t *testing.T) {
+	stale := &ownershipFenceClient{}
+	fresh := &ownershipFenceClient{}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:retire-stale-client"
+	t.Cleanup(func() {
+		_ = manager.CloseSession(context.Background(), sessionKey)
+	})
+
+	first, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{})
+	if err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	second, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{
+		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude},
+	})
+	if err != nil {
+		t.Fatalf("切换 runtime 失败: %v", err)
+	}
+	if first != stale || second != fresh {
+		t.Fatalf("runtime 切换 client 不正确: first=%#v second=%#v", first, second)
+	}
+	if err := stale.Connect(context.Background()); !errors.Is(err, agentclient.ErrAborted) {
+		t.Fatalf("旧 client 在换代后仍可 Connect(): %v", err)
+	}
+
+	stale.mu.Lock()
+	retireCalls := stale.retireCalls
+	disconnectCalls := stale.disconnectCalls
+	stale.mu.Unlock()
+	if retireCalls != 1 || disconnectCalls != 1 {
+		t.Fatalf("旧 client 清理次数 = retire:%d disconnect:%d，期望各 1 次", retireCalls, disconnectCalls)
+	}
+}
+
+func TestManagerReconfigureLostOwnershipRetriesCurrentClient(t *testing.T) {
+	reconfigureStarted := make(chan struct{}, 1)
+	reconfigureRelease := make(chan struct{}, 1)
+	defer func() {
+		select {
+		case reconfigureRelease <- struct{}{}:
+		default:
+		}
+	}()
+	stale := &ownershipFenceClient{
+		reconfigureStarted: reconfigureStarted,
+		reconfigureRelease: reconfigureRelease,
+	}
+	fresh := &ownershipFenceClient{}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale}})
+	sessionKey := "agent:nexus:ws:dm:reconfigure-ownership"
+	t.Cleanup(func() {
+		_ = manager.CloseSession(context.Background(), sessionKey)
+	})
+	options := agentclient.Options{CWD: "/tmp/runtime-owner"}
+
+	initialStartup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("开始首次启动事务失败: %v", err)
+	}
+	if _, err = initialStartup.GetOrCreateWithFactory(context.Background(), options, nil); err != nil {
+		initialStartup.Close()
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	if err = initialStartup.Connect(context.Background()); err != nil {
+		initialStartup.Close()
+		t.Fatalf("首次连接 client 失败: %v", err)
+	}
+	initialStartup.Close()
+	staleLease, ok := manager.CaptureClientLease(sessionKey, stale)
+	if !ok {
+		t.Fatal("未捕获旧 client lease")
+	}
+	resultCh := make(chan runtimeClientResult, 1)
+	go func() {
+		client, err := manager.GetOrCreate(context.Background(), sessionKey, options)
+		resultCh <- runtimeClientResult{client: client, err: err}
+	}()
+
+	select {
+	case <-reconfigureStarted:
+	case <-time.After(time.Second):
+		t.Fatal("旧 client 未进入 Reconfigure()")
+	}
+	manager.mu.RLock()
+	expectedState := manager.sessions[sessionKey]
+	manager.mu.RUnlock()
+	if _, err := manager.replaceRuntimeClient(
+		context.Background(),
+		nil,
+		sessionKey,
+		expectedState,
+		stale,
+		options,
+		&runtimeClientSequenceFactory{clients: []Client{fresh}},
+	); err != nil {
+		t.Fatalf("并发替换 client 失败: %v", err)
+	}
+	reconfigureRelease <- struct{}{}
+
+	select {
+	case result := <-resultCh:
+		if result.err != nil {
+			t.Fatalf("失去所有权后的 GetOrCreate() error = %v", result.err)
+		}
+		if result.client != fresh {
+			t.Fatalf("失去所有权后返回 client = %#v，期望当前 fresh client", result.client)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("失去所有权后的 GetOrCreate() 未返回")
+	}
+
+	closed, err := manager.CloseSessionIfLease(context.Background(), staleLease)
+	if err != nil || closed {
+		t.Fatalf("旧 client 条件关闭结果 = closed:%v err:%v，期望忽略", closed, err)
+	}
+	if current := manager.SessionClient(sessionKey); current != fresh {
+		t.Fatalf("旧 client 条件关闭影响了当前 client: %#v", current)
+	}
+	fresh.mu.Lock()
+	freshReconfigureCalls := fresh.reconfigureCalls
+	freshDisconnectCalls := fresh.disconnectCalls
+	fresh.mu.Unlock()
+	if freshReconfigureCalls != 1 || freshDisconnectCalls != 0 {
+		t.Fatalf("当前 client 调用次数 = reconfigure:%d disconnect:%d", freshReconfigureCalls, freshDisconnectCalls)
+	}
+}
+
+func TestManagerReplacementDoesNotReturnNextAfterConcurrentClose(t *testing.T) {
+	disconnectStarted := make(chan struct{}, 2)
+	disconnectRelease := make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(disconnectRelease)
+		}
+	}()
+	stale := &ownershipFenceClient{
+		disconnectStarted: disconnectStarted,
+		disconnectRelease: disconnectRelease,
+	}
+	next := &ownershipFenceClient{}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale}})
+	sessionKey := "agent:nexus:ws:dm:replace-close-race"
+	options := agentclient.Options{}
+
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, options); err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	manager.mu.RLock()
+	expectedState := manager.sessions[sessionKey]
+	manager.mu.RUnlock()
+	resultCh := make(chan runtimeClientResult, 1)
+	go func() {
+		client, err := manager.replaceRuntimeClient(
+			context.Background(),
+			nil,
+			sessionKey,
+			expectedState,
+			stale,
+			options,
+			&runtimeClientSequenceFactory{clients: []Client{next}},
+		)
+		resultCh <- runtimeClientResult{client: client, err: err}
+	}()
+
+	select {
+	case <-disconnectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("替换流程未进入旧 client Disconnect()")
+	}
+	closeResult := make(chan error, 1)
+	go func() {
+		closeResult <- manager.CloseSession(context.Background(), sessionKey)
+	}()
+	select {
+	case <-disconnectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("并发 CloseSession() 未进入旧 client Disconnect()")
+	}
+	close(disconnectRelease)
+	released = true
+	if err := <-closeResult; err != nil {
+		t.Fatalf("并发 CloseSession() error = %v", err)
+	}
+
+	select {
+	case result := <-resultCh:
+		if result.client != nil {
+			t.Fatalf("并发关闭后替换流程仍返回 client: %#v", result.client)
+		}
+		if !errors.Is(result.err, agentclient.ErrAborted) && !errors.Is(result.err, errRuntimeSessionClosing) {
+			t.Fatalf("并发关闭后替换流程 error = %v，期望 ownership 中止", result.err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("并发关闭后的替换流程未返回")
+	}
+	if err := next.Connect(context.Background()); !errors.Is(err, agentclient.ErrAborted) {
+		t.Fatalf("并发关闭后的 next client 仍可 Connect(): %v", err)
+	}
+}
+
+func TestManagerStartupWaitsForRetiredClientCleanupBeforePublishingNext(t *testing.T) {
+	disconnectStarted := make(chan struct{}, 1)
+	disconnectRelease := make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(disconnectRelease)
+		}
+	}()
+	stale := &ownershipFenceClient{
+		disconnectStarted: disconnectStarted,
+		disconnectRelease: disconnectRelease,
+	}
+	next := &ownershipFenceClient{}
+	factory := &runtimeClientSequenceFactory{clients: []Client{stale, next}}
+	manager := NewManagerWithFactory(factory)
+	sessionKey := "agent:nexus:ws:dm:replacement-cleanup-gate"
+	t.Cleanup(func() {
+		_ = manager.CloseSession(context.Background(), sessionKey)
+	})
+	options := agentclient.Options{
+		Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude},
+	}
+
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+	replacementCh := make(chan runtimeClientResult, 1)
+	go func() {
+		client, err := manager.GetOrCreate(context.Background(), sessionKey, options)
+		replacementCh <- runtimeClientResult{client: client, err: err}
+	}()
+	select {
+	case <-disconnectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("替换流程未进入旧 client Disconnect()")
+	}
+
+	observerCh := make(chan runtimeClientResult, 1)
+	go func() {
+		startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+		if err != nil {
+			observerCh <- runtimeClientResult{err: err}
+			return
+		}
+		defer startup.Close()
+		client, err := startup.GetOrCreateWithFactory(context.Background(), options, nil)
+		if err == nil {
+			err = startup.Connect(context.Background())
+		}
+		observerCh <- runtimeClientResult{client: client, err: err}
+	}()
+	waitRuntimeStartupGateRefs(t, manager, sessionKey, 2)
+	if current := manager.SessionClient(sessionKey); current != stale {
+		t.Fatalf("旧进程清理完成前发布了 next client: %#v", current)
+	}
+	next.mu.Lock()
+	nextConnectCalls := next.connectCalls
+	next.mu.Unlock()
+	if nextConnectCalls != 0 {
+		t.Fatalf("旧进程清理完成前 next Connect() 次数 = %d", nextConnectCalls)
+	}
+	select {
+	case result := <-observerCh:
+		t.Fatalf("观察者绕过 cleanup gate 提前返回: %+v", result)
+	default:
+	}
+
+	close(disconnectRelease)
+	released = true
+	select {
+	case result := <-replacementCh:
+		if result.err != nil || result.client != next {
+			t.Fatalf("替换结果 = client:%#v err:%v", result.client, result.err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("旧进程清理后替换流程未返回")
+	}
+	select {
+	case result := <-observerCh:
+		if result.err != nil || result.client != next {
+			t.Fatalf("排队观察者结果 = client:%#v err:%v", result.client, result.err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("旧进程清理后排队观察者未返回")
+	}
+}
+
+func TestManagerCloseDeadlineKeepsLifecycleFenceUntilClientCleanupFinishes(t *testing.T) {
+	disconnectStarted := make(chan struct{}, 2)
+	disconnectRelease := make(chan struct{})
+	released := false
+	defer func() {
+		if !released {
+			close(disconnectRelease)
+		}
+	}()
+	client := &ownershipFenceClient{
+		disconnectStarted: disconnectStarted,
+		disconnectRelease: disconnectRelease,
+	}
+	factory := &runtimeClientSequenceFactory{clients: []Client{client, &ownershipFenceClient{}}}
+	manager := NewManagerWithFactory(factory)
+	sessionKey := "agent:nexus:ws:dm:close-cleanup-fence"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("首次创建 client 失败: %v", err)
+	}
+
+	closeCtx, cancelClose := context.WithCancel(context.Background())
+	closeResult := make(chan error, 1)
+	go func() {
+		closeResult <- manager.CloseSession(closeCtx, sessionKey)
+	}()
+	select {
+	case <-disconnectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("CloseSession() 未进入 client Disconnect()")
+	}
+	cancelClose()
+	select {
+	case err := <-closeResult:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("CloseSession() error = %v，期望 context.Canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("取消后 CloseSession() 未返回")
+	}
+	select {
+	case <-disconnectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("CloseSession() 未在后台继续等待 client cleanup")
+	}
+
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); !errors.Is(err, errRuntimeSessionClosing) {
+		t.Fatalf("client cleanup 未完成时 GetOrCreate() error = %v，期望 session closing", err)
+	}
+	factory.mu.Lock()
+	factoryCalls := factory.index
+	factory.mu.Unlock()
+	if factoryCalls != 1 {
+		t.Fatalf("client cleanup 未完成时 factory 调用次数 = %d，期望 1", factoryCalls)
+	}
+
+	close(disconnectRelease)
+	released = true
+	waitRuntimeSessionRemoved(t, manager, sessionKey)
+}
+
+func TestManagerOldClientLeaseCannotCloseNewConnectionGeneration(t *testing.T) {
+	client := &ownershipFenceClient{}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{client}})
+	sessionKey := "agent:nexus:ws:dm:client-generation-lease"
+	t.Cleanup(func() {
+		_ = manager.CloseSession(context.Background(), sessionKey)
+	})
+
+	firstStartup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("开始首次启动事务失败: %v", err)
+	}
+	if _, err = firstStartup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); err != nil {
+		t.Fatalf("首次 GetOrCreate() 失败: %v", err)
+	}
+	if err = firstStartup.Connect(context.Background()); err != nil {
+		t.Fatalf("首次 Connect() 失败: %v", err)
+	}
+	firstStartup.Close()
+	oldLease, ok := manager.CaptureClientLease(sessionKey, client)
+	if !ok {
+		t.Fatal("未捕获首次连接 lease")
+	}
+
+	secondStartup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("开始第二次启动事务失败: %v", err)
+	}
+	if _, err = secondStartup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); err != nil {
+		t.Fatalf("第二次 GetOrCreate() 失败: %v", err)
+	}
+	if err = secondStartup.Connect(context.Background()); err != nil {
+		t.Fatalf("第二次 Connect() 失败: %v", err)
+	}
+	secondStartup.Close()
+
+	closed, err := manager.CloseSessionIfLease(context.Background(), oldLease)
+	if err != nil || closed {
+		t.Fatalf("旧 lease 关闭结果 = closed:%v err:%v，期望忽略", closed, err)
+	}
+	if current := manager.SessionClient(sessionKey); current != client {
+		t.Fatalf("旧 lease 影响了新连接: %#v", current)
+	}
+	client.mu.Lock()
+	retireCalls := client.retireCalls
+	disconnectCalls := client.disconnectCalls
+	connectCalls := client.connectCalls
+	client.mu.Unlock()
+	if retireCalls != 0 || disconnectCalls != 0 || connectCalls != 2 {
+		t.Fatalf(
+			"client 调用次数 = connect:%d retire:%d disconnect:%d",
+			connectCalls,
+			retireCalls,
+			disconnectCalls,
+		)
+	}
+}
+
+func TestManagerCloseInvalidatesStartupThatHasNotCreatedState(t *testing.T) {
+	client := &ownershipFenceClient{}
+	factory := &runtimeClientSequenceFactory{clients: []Client{client}}
+	manager := NewManagerWithFactory(factory)
+	sessionKey := "agent:nexus:ws:dm:close-before-state"
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("开始启动事务失败: %v", err)
+	}
+
+	closeResult := make(chan error, 1)
+	go func() {
+		closeResult <- manager.CloseSession(context.Background(), sessionKey)
+	}()
+	select {
+	case err = <-closeResult:
+		if err != nil {
+			t.Fatalf("CloseSession() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("CloseSession() 未使尚未创建 state 的启动事务失效")
+	}
+	if _, err = startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); !errors.Is(err, agentclient.ErrAborted) {
+		t.Fatalf("关闭后的启动事务 GetOrCreate() error = %v，期望 ErrAborted", err)
+	}
+	startup.Close()
+	if current := manager.SessionClient(sessionKey); current != nil {
+		t.Fatalf("CloseSession() 后仍有 client: %#v", current)
+	}
+	factory.mu.Lock()
+	factoryCalls := factory.index
+	factory.mu.Unlock()
+	if factoryCalls != 0 {
+		t.Fatalf("失效的启动事务仍创建了 %d 个 client", factoryCalls)
+	}
+}
+
+func TestManagerExternalCloseInvalidatesRetryAfterStartupCleanup(t *testing.T) {
+	disconnectStarted := make(chan struct{}, 1)
+	disconnectRelease := make(chan struct{})
+	stale := &ownershipFenceClient{
+		disconnectStarted: disconnectStarted,
+		disconnectRelease: disconnectRelease,
+	}
+	fresh := &ownershipFenceClient{}
+	factory := &runtimeClientSequenceFactory{clients: []Client{stale, fresh}}
+	manager := NewManagerWithFactory(factory)
+	sessionKey := "agent:nexus:ws:dm:close-during-startup-cleanup"
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("开始启动事务失败: %v", err)
+	}
+	if _, err = startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); err != nil {
+		startup.Close()
+		t.Fatalf("创建旧 client 失败: %v", err)
+	}
+	if err = startup.Connect(context.Background()); err != nil {
+		startup.Close()
+		t.Fatalf("连接旧 client 失败: %v", err)
+	}
+
+	cleanupResult := make(chan error, 1)
+	go func() {
+		_, closeErr := startup.CloseCurrent(context.Background())
+		cleanupResult <- closeErr
+	}()
+	select {
+	case <-disconnectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("启动失败清理未进入 Disconnect()")
+	}
+	externalCloseResult := make(chan error, 1)
+	go func() {
+		externalCloseResult <- manager.CloseSession(context.Background(), sessionKey)
+	}()
+	waitRuntimeStartupGateCloseBlocks(t, manager, sessionKey, 1)
+	close(disconnectRelease)
+	if err = <-cleanupResult; err != nil {
+		t.Fatalf("启动失败清理 error = %v", err)
+	}
+	if err = <-externalCloseResult; err != nil {
+		t.Fatalf("并发 CloseSession() error = %v", err)
+	}
+	if _, err = startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); !errors.Is(err, agentclient.ErrAborted) {
+		t.Fatalf("并发关闭后的 retry error = %v，期望 ErrAborted", err)
+	}
+	startup.Close()
+	factory.mu.Lock()
+	factoryCalls := factory.index
+	factory.mu.Unlock()
+	if factoryCalls != 1 {
+		t.Fatalf("并发关闭后 retry 仍创建了新 client: factory calls = %d", factoryCalls)
+	}
+	if current := manager.SessionClient(sessionKey); current != nil {
+		t.Fatalf("并发关闭后 session 仍持有 client: %#v", current)
+	}
+}
+
+func TestManagerRetireCurrentPreservesBackgroundTaskForStartupRetry(t *testing.T) {
+	stale := &ownershipFenceClient{}
+	fresh := &ownershipFenceClient{}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:retire-current-background-retry"
+	taskStarted := make(chan struct{})
+	taskRelease := make(chan struct{})
+	taskCanceled := make(chan struct{}, 1)
+	if !manager.StartBackgroundTask(sessionKey, func(ctx context.Context) {
+		close(taskStarted)
+		select {
+		case <-ctx.Done():
+			taskCanceled <- struct{}{}
+		case <-taskRelease:
+		}
+	}) {
+		t.Fatal("登记后台任务失败")
+	}
+	<-taskStarted
+
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("开始启动事务失败: %v", err)
+	}
+	if _, err = startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); err != nil {
+		startup.Close()
+		t.Fatalf("创建旧 client 失败: %v", err)
+	}
+	if err = startup.Connect(context.Background()); err != nil {
+		startup.Close()
+		t.Fatalf("连接旧 client 失败: %v", err)
+	}
+	retired, err := startup.RetireCurrent(context.Background())
+	if err != nil || !retired {
+		startup.Close()
+		t.Fatalf("RetireCurrent() = retired:%v err:%v", retired, err)
+	}
+	select {
+	case <-taskCanceled:
+		startup.Close()
+		t.Fatal("client 启动失败清理不应取消当前 session 的后台任务")
+	default:
+	}
+	if current := manager.SessionClient(sessionKey); current != nil {
+		startup.Close()
+		t.Fatalf("RetireCurrent() 后仍发布旧 client: %#v", current)
+	}
+	client, err := startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil)
+	if err != nil || client != fresh {
+		startup.Close()
+		t.Fatalf("RetireCurrent() 后 retry client = %#v err = %v，期望 fresh", client, err)
+	}
+	if err = startup.Connect(context.Background()); err != nil {
+		startup.Close()
+		t.Fatalf("连接 retry client 失败: %v", err)
+	}
+	startup.Close()
+	close(taskRelease)
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), time.Second)
+	defer cancelWait()
+	if err = manager.WaitBackgroundTasks(waitCtx, sessionKey); err != nil {
+		t.Fatalf("等待后台任务退出失败: %v", err)
+	}
+	if err = manager.CloseSession(context.Background(), sessionKey); err != nil {
+		t.Fatalf("清理 retry client 失败: %v", err)
+	}
+}
+
+func TestManagerRetireCurrentTimeoutDoesNotAbortInFlightStartupRetry(t *testing.T) {
+	disconnectStarted := make(chan struct{}, 2)
+	disconnectRelease := make(chan struct{})
+	reconfigureStarted := make(chan struct{}, 1)
+	reconfigureRelease := make(chan struct{})
+	stale := &ownershipFenceClient{
+		disconnectStarted:  disconnectStarted,
+		disconnectRelease:  disconnectRelease,
+		reconfigureStarted: reconfigureStarted,
+		reconfigureRelease: reconfigureRelease,
+	}
+	fresh := &ownershipFenceClient{}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:retire-current-timeout-retry"
+
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("开始首次启动事务失败: %v", err)
+	}
+	if _, err = startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); err != nil {
+		startup.Close()
+		t.Fatalf("创建旧 client 失败: %v", err)
+	}
+	if err = startup.Connect(context.Background()); err != nil {
+		startup.Close()
+		t.Fatalf("连接旧 client 失败: %v", err)
+	}
+	disconnectCtx, cancelDisconnect := context.WithCancel(context.Background())
+	cancelDisconnect()
+	retired, err := startup.RetireCurrent(disconnectCtx)
+	if !retired || !errors.Is(err, context.Canceled) {
+		startup.Close()
+		t.Fatalf("RetireCurrent() = retired:%v err:%v，期望 timeout 后台清理", retired, err)
+	}
+	for range 2 {
+		select {
+		case <-disconnectStarted:
+		case <-time.After(time.Second):
+			startup.Close()
+			t.Fatal("retired client 未进入后台 Disconnect()")
+		}
+	}
+	startup.Close()
+
+	retryStartup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("开始 retry 启动事务失败: %v", err)
+	}
+	retryResult := make(chan runtimeClientResult, 1)
+	go func() {
+		defer retryStartup.Close()
+		client, retryErr := retryStartup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil)
+		if retryErr == nil {
+			retryErr = retryStartup.Connect(context.Background())
+		}
+		retryResult <- runtimeClientResult{client: client, err: retryErr}
+	}()
+	select {
+	case <-reconfigureStarted:
+	case <-time.After(time.Second):
+		close(reconfigureRelease)
+		close(disconnectRelease)
+		t.Fatal("retry 未在锁外重配置 retired client")
+	}
+
+	close(disconnectRelease)
+	waitRuntimeSessionClient(t, manager, sessionKey, nil)
+	close(reconfigureRelease)
+	select {
+	case result := <-retryResult:
+		if result.err != nil || result.client != fresh {
+			t.Fatalf("timeout cleanup 期间 retry = client:%#v err:%v，期望 fresh", result.client, result.err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timeout cleanup 后 retry 未返回")
+	}
+	if err = manager.CloseSession(context.Background(), sessionKey); err != nil {
+		t.Fatalf("清理 retry client 失败: %v", err)
+	}
+}
+
+func TestManagerRetiredClientlessStateRemovedAfterLastLifecycleExits(t *testing.T) {
+	t.Run("background", func(t *testing.T) {
+		stale := &ownershipFenceClient{}
+		manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale}})
+		sessionKey := "agent:nexus:ws:dm:retired-background-exit"
+		taskStarted := make(chan struct{})
+		taskRelease := make(chan struct{})
+		if !manager.StartBackgroundTask(sessionKey, func(context.Context) {
+			close(taskStarted)
+			<-taskRelease
+		}) {
+			t.Fatal("登记后台任务失败")
+		}
+		<-taskStarted
+
+		startup := connectRuntimeStartupForTest(t, manager, sessionKey)
+		if retired, err := startup.RetireCurrent(context.Background()); err != nil || !retired {
+			startup.Close()
+			t.Fatalf("RetireCurrent() = retired:%v err:%v", retired, err)
+		}
+		startup.Close()
+		if state := runtimeSessionStateForTest(manager, sessionKey); state == nil {
+			t.Fatal("后台任务退出前不应删除 clientless state")
+		}
+		close(taskRelease)
+		waitRuntimeSessionRemoved(t, manager, sessionKey)
+	})
+
+	t.Run("round", func(t *testing.T) {
+		stale := &ownershipFenceClient{}
+		manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale}})
+		sessionKey := "agent:nexus:ws:dm:retired-round-exit"
+		startup := connectRuntimeStartupForTest(t, manager, sessionKey)
+		if !manager.StartRound(sessionKey, "round-1", nil) {
+			startup.Close()
+			t.Fatal("登记 round 失败")
+		}
+		if retired, err := startup.RetireCurrent(context.Background()); err != nil || !retired {
+			startup.Close()
+			t.Fatalf("RetireCurrent() = retired:%v err:%v", retired, err)
+		}
+		startup.Close()
+		if state := runtimeSessionStateForTest(manager, sessionKey); state == nil {
+			t.Fatal("round 退出前不应删除 clientless state")
+		}
+		manager.MarkRoundFinished(sessionKey, "round-1")
+		waitRuntimeSessionRemoved(t, manager, sessionKey)
+	})
+
+	t.Run("idle drain", func(t *testing.T) {
+		messages := make(chan sdkprotocol.ReceivedMessage)
+		receiveStarted := make(chan struct{}, 1)
+		stale := &ownershipFenceClient{fakeRuntimeClient: fakeRuntimeClient{
+			messages:       messages,
+			receiveStarted: receiveStarted,
+		}}
+		manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale}})
+		sessionKey := "agent:nexus:ws:dm:retired-idle-drain-exit"
+		startup := connectRuntimeStartupForTest(t, manager, sessionKey)
+		manager.StartIdleMessageDrain(sessionKey, func(context.Context, sdkprotocol.ReceivedMessage) bool {
+			return true
+		})
+		select {
+		case <-receiveStarted:
+		case <-time.After(time.Second):
+			startup.Close()
+			t.Fatal("idle drain 未启动")
+		}
+		if retired, err := startup.RetireCurrent(context.Background()); err != nil || !retired {
+			startup.Close()
+			t.Fatalf("RetireCurrent() = retired:%v err:%v", retired, err)
+		}
+		startup.Close()
+		waitRuntimeSessionRemoved(t, manager, sessionKey)
+	})
+}
+
+func TestManagerRetireCurrentImmediateRetryKeepsNewIdleDrain(t *testing.T) {
+	staleMessages := make(chan sdkprotocol.ReceivedMessage)
+	freshMessages := make(chan sdkprotocol.ReceivedMessage)
+	staleStarted := make(chan struct{}, 2)
+	freshStarted := make(chan struct{}, 1)
+	stale := &ownershipFenceClient{fakeRuntimeClient: fakeRuntimeClient{
+		messages:       staleMessages,
+		receiveStarted: staleStarted,
+	}}
+	fresh := &ownershipFenceClient{fakeRuntimeClient: fakeRuntimeClient{
+		messages:       freshMessages,
+		receiveStarted: freshStarted,
+	}}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale, fresh}})
+	sessionKey := "agent:nexus:ws:dm:retire-current-new-idle-drain"
+	startup := connectRuntimeStartupForTest(t, manager, sessionKey)
+	manager.StartIdleMessageDrain(sessionKey, func(context.Context, sdkprotocol.ReceivedMessage) bool {
+		return true
+	})
+	select {
+	case <-staleStarted:
+	case <-time.After(time.Second):
+		startup.Close()
+		t.Fatal("旧 idle drain 未启动")
+	}
+	if retired, err := startup.RetireCurrent(context.Background()); err != nil || !retired {
+		startup.Close()
+		t.Fatalf("RetireCurrent() = retired:%v err:%v", retired, err)
+	}
+	client, err := startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil)
+	if err != nil || client != fresh {
+		startup.Close()
+		t.Fatalf("立即 retry = client:%#v err:%v，期望 fresh", client, err)
+	}
+	if err = startup.Connect(context.Background()); err != nil {
+		startup.Close()
+		t.Fatalf("连接 fresh client 失败: %v", err)
+	}
+	manager.StartIdleMessageDrain(sessionKey, func(context.Context, sdkprotocol.ReceivedMessage) bool {
+		return true
+	})
+	select {
+	case <-freshStarted:
+	case <-time.After(time.Second):
+		startup.Close()
+		t.Fatal("新 idle drain 未启动")
+	}
+
+	state := runtimeSessionStateForTest(manager, sessionKey)
+	if state == nil {
+		startup.Close()
+		t.Fatal("retry 后 session state 不存在")
+	}
+	staleCtx, cancelStale := context.WithCancel(context.Background())
+	cancelStale()
+	staleDrainDone := make(chan struct{})
+	go func() {
+		manager.runIdleMessageDrain(staleCtx, sessionKey, state, 1, stale, func(context.Context, sdkprotocol.ReceivedMessage) bool {
+			return true
+		})
+		close(staleDrainDone)
+	}()
+	select {
+	case <-staleDrainDone:
+	case <-time.After(time.Second):
+		startup.Close()
+		t.Fatal("旧 idle drain 未退出")
+	}
+	manager.mu.RLock()
+	current := manager.sessions[sessionKey]
+	newDrainKept := current == state && current.Client == fresh && current.IdleMessageDrainID == 2 &&
+		current.IdleMessageCancel != nil
+	manager.mu.RUnlock()
+	if !newDrainKept {
+		startup.Close()
+		t.Fatal("旧 idle drain defer 误清了 retry 后的新 drain")
+	}
+	startup.Close()
+	if err = manager.CloseSession(context.Background(), sessionKey); err != nil {
+		t.Fatalf("清理 fresh client 失败: %v", err)
+	}
+}
+
+func TestManagerRetireCurrentPreservesClientlessStateOwner(t *testing.T) {
+	stale := &ownershipFenceClient{}
+	fresh := &ownershipFenceClient{}
+	factory := &runtimeClientSequenceFactory{clients: []Client{stale, fresh}}
+	manager := NewManagerWithFactory(factory)
+	sessionKey := "agent:nexus:ws:dm:retire-current-owner"
+	taskStarted := make(chan struct{})
+	taskRelease := make(chan struct{})
+	if !manager.StartBackgroundTaskForOwner(sessionKey, "owner-a", func(context.Context) {
+		close(taskStarted)
+		<-taskRelease
+	}) {
+		t.Fatal("登记 owner 后台任务失败")
+	}
+	<-taskStarted
+
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("开始启动事务失败: %v", err)
+	}
+	ownerOptions := agentclient.Options{Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"}}
+	if _, err = startup.GetOrCreateWithFactory(context.Background(), ownerOptions, nil); err != nil {
+		startup.Close()
+		t.Fatalf("owner-a 创建 client 失败: %v", err)
+	}
+	if err = startup.Connect(context.Background()); err != nil {
+		startup.Close()
+		t.Fatalf("owner-a 连接 client 失败: %v", err)
+	}
+	if retired, retireErr := startup.RetireCurrent(context.Background()); retireErr != nil || !retired {
+		startup.Close()
+		t.Fatalf("RetireCurrent() = retired:%v err:%v", retired, retireErr)
+	}
+	otherOwnerOptions := agentclient.Options{Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-b"}}
+	if client, otherErr := startup.GetOrCreateWithFactory(context.Background(), otherOwnerOptions, nil); otherErr == nil || client != nil {
+		startup.Close()
+		t.Fatalf("owner-b 接管 clientless state = client:%#v err:%v", client, otherErr)
+	}
+	factory.mu.Lock()
+	factoryCalls := factory.index
+	factory.mu.Unlock()
+	if factoryCalls != 1 {
+		startup.Close()
+		t.Fatalf("owner mismatch 后 factory 调用次数 = %d，期望 1", factoryCalls)
+	}
+	client, err := startup.GetOrCreateWithFactory(context.Background(), ownerOptions, nil)
+	if err != nil || client != fresh {
+		startup.Close()
+		t.Fatalf("原 owner retry = client:%#v err:%v，期望 fresh", client, err)
+	}
+	if err = startup.Connect(context.Background()); err != nil {
+		startup.Close()
+		t.Fatalf("原 owner 连接 fresh client 失败: %v", err)
+	}
+	startup.Close()
+	close(taskRelease)
+	if err = manager.CloseSession(context.Background(), sessionKey); err != nil {
+		t.Fatalf("清理 owner retry client 失败: %v", err)
+	}
+}
+
+func TestManagerConcurrentCloseFencesDrainAfterOneCallerTimesOut(t *testing.T) {
+	disconnectStarted := make(chan struct{}, 2)
+	disconnectRelease := make(chan struct{})
+	stale := &ownershipFenceClient{
+		disconnectStarted: disconnectStarted,
+		disconnectRelease: disconnectRelease,
+	}
+	fresh := &ownershipFenceClient{}
+	factory := &runtimeClientSequenceFactory{clients: []Client{stale, fresh}}
+	manager := NewManagerWithFactory(factory)
+	sessionKey := "agent:nexus:ws:dm:concurrent-close-fences"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建旧 client 失败: %v", err)
+	}
+
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	firstResult := make(chan error, 1)
+	go func() {
+		firstResult <- manager.CloseSession(firstCtx, sessionKey)
+	}()
+	select {
+	case <-disconnectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("首次 CloseSession() 未进入 Disconnect()")
+	}
+	secondResult := make(chan error, 1)
+	go func() {
+		secondResult <- manager.CloseSession(context.Background(), sessionKey)
+	}()
+	waitRuntimeStartupGateCloseBlocks(t, manager, sessionKey, 2)
+	cancelFirst()
+	if err := <-firstResult; !errors.Is(err, context.Canceled) {
+		t.Fatalf("首次 CloseSession() error = %v，期望 context.Canceled", err)
+	}
+	if _, err := manager.BeginClientStartup(context.Background(), sessionKey); !errors.Is(err, ErrRuntimeSessionClosing) {
+		t.Fatalf("并发关闭未完成时 BeginClientStartup() error = %v，期望 session closing", err)
+	}
+	close(disconnectRelease)
+	select {
+	case err := <-secondResult:
+		if err != nil {
+			t.Fatalf("第二次 CloseSession() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("client cleanup 完成后第二次 CloseSession() 未返回")
+	}
+
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("关闭栅栏 drain 后 BeginClientStartup() error = %v", err)
+	}
+	client, err := startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil)
+	startup.Close()
+	if err != nil || client != fresh {
+		t.Fatalf("关闭栅栏 drain 后 client = %#v error = %v，期望 fresh", client, err)
+	}
+	if err := manager.CloseSession(context.Background(), sessionKey); err != nil {
+		t.Fatalf("清理新 client 失败: %v", err)
+	}
+}
+
+func connectRuntimeStartupForTest(t *testing.T, manager *Manager, sessionKey string) *ClientStartup {
+	t.Helper()
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	if err != nil {
+		t.Fatalf("开始启动事务失败: %v", err)
+	}
+	if _, err = startup.GetOrCreateWithFactory(context.Background(), agentclient.Options{}, nil); err != nil {
+		startup.Close()
+		t.Fatalf("创建 runtime client 失败: %v", err)
+	}
+	if err = startup.Connect(context.Background()); err != nil {
+		startup.Close()
+		t.Fatalf("连接 runtime client 失败: %v", err)
+	}
+	return startup
+}
+
+func runtimeSessionStateForTest(manager *Manager, sessionKey string) *sessionState {
+	manager.mu.RLock()
+	defer manager.mu.RUnlock()
+	return manager.sessions[sessionKey]
+}
+
+func waitRuntimeSessionClient(t *testing.T, manager *Manager, sessionKey string, want Client) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if manager.SessionClient(sessionKey) == want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("session client 未变为 %#v", want)
+}
+
+func waitRuntimeStartupGateRefs(t *testing.T, manager *Manager, sessionKey string, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		manager.mu.RLock()
+		gate := manager.startupGates[sessionKey]
+		refs := 0
+		if gate != nil {
+			refs = gate.refs
+		}
+		manager.mu.RUnlock()
+		if refs == want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("startup gate refs 未达到 %d", want)
+}
+
+func waitRuntimeStartupGateCloseBlocks(t *testing.T, manager *Manager, sessionKey string, want int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		manager.mu.RLock()
+		gate := manager.startupGates[sessionKey]
+		blocked := gate != nil && gate.closeBlocks == want && gate.closeEpoch > 0
+		manager.mu.RUnlock()
+		if blocked {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("CloseSession() startup gate closeBlocks 未达到 %d", want)
+}
+
+func waitRuntimeSessionRemoved(t *testing.T, manager *Manager, sessionKey string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		manager.mu.RLock()
+		state := manager.sessions[sessionKey]
+		manager.mu.RUnlock()
+		if state == nil {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("client cleanup 完成后 session state 未移除")
 }
 
 func TestManagerRuntimeSwitchDoesNotFailOnStaleClientCleanup(t *testing.T) {

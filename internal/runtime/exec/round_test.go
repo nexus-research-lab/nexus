@@ -87,6 +87,8 @@ func (c *fakeRoundExecutionClient) SetPermissionMode(context.Context, sdkpermiss
 	return nil
 }
 
+func (c *fakeRoundExecutionClient) Retire() {}
+
 func (c *fakeRoundExecutionClient) Disconnect(context.Context) error {
 	c.disconnects++
 	return nil

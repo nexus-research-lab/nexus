@@ -89,17 +89,8 @@ func (m *Manager) finishBackgroundTask(sessionKey string, state *sessionState, t
 		}
 	}
 	// 仅由后台队列任务临时创建、且从未建立 client/round 的状态不应
-	// 长驻 manager；否则大量空闲队列会把 session 元数据留在内存中。
-	if !state.Closing &&
-		len(state.BackgroundTasks) == 0 &&
-		state.Client == nil &&
-		len(state.ContextUsageByAgent) == 0 &&
-		len(state.RunningRounds) == 0 &&
-		len(state.RoundDone) == 0 &&
-		state.IdleMessageCancel == nil &&
-		m.sessions[sessionKey] == state {
-		delete(m.sessions, sessionKey)
-	}
+	// 长驻 manager；expected state 防止旧任务退出时误删同 key 的新状态。
+	m.removeClientlessSessionIfIdleLocked(sessionKey, state, nil)
 	m.mu.Unlock()
 }
 

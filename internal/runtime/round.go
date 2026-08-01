@@ -89,6 +89,7 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 		close(done)
 		delete(state.RoundDone, roundID)
 	}
+	m.removeClientlessSessionIfIdleLocked(sessionKey, state, nil)
 }
 
 func (m *Manager) markRoundTerminalLocked(state *sessionState, roundID string) {

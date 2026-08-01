@@ -15,6 +15,7 @@ import (
 
 type sessionState struct {
 	Client                   Client
+	StartupGeneration        uint64
 	ContextUsageByAgent      map[string]protocol.ContextUsageData
 	RunningRounds            map[string]struct{}
 	RoundCancels             map[string]context.CancelFunc
@@ -40,10 +41,18 @@ type sessionState struct {
 	LastUsedAt               time.Time
 }
 
+type sessionStartupGate struct {
+	token       chan struct{}
+	refs        int
+	closeBlocks int
+	closeEpoch  uint64
+}
+
 // Manager 管理 session_key -> SDK client 与运行中 round。
 type Manager struct {
 	mu                 sync.RWMutex
 	sessions           map[string]*sessionState
+	startupGates       map[string]*sessionStartupGate
 	factory            Factory
 	now                func() time.Time
 	ownerProcessReaper OwnerProcessReaper
@@ -69,6 +78,7 @@ func NewManagerWithFactory(factory Factory) *Manager {
 	}
 	return &Manager{
 		sessions:            make(map[string]*sessionState),
+		startupGates:        make(map[string]*sessionStartupGate),
 		factory:             factory,
 		now:                 time.Now,
 		subagentUsageTotals: make(map[string]int64),
@@ -109,6 +119,42 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 		m.touchStateLocked(state)
 	}
 	return state
+}
+
+// removeClientlessSessionIfIdleLocked 回收已经没有 client 与异步生命周期的空状态。
+// expectedState 非空时同时校验 state 身份，避免旧任务退出时误删同 key 的新状态；
+// 活动 startup 默认阻止删除，只有持有 token 的释放路径可传入自己的 gate。
+// 调用者必须持有 Manager.mu。
+func (m *Manager) removeClientlessSessionIfIdleLocked(
+	sessionKey string,
+	expectedState *sessionState,
+	allowedStartupGate *sessionStartupGate,
+) bool {
+	state := m.sessions[sessionKey]
+	if state == nil ||
+		(expectedState != nil && state != expectedState) ||
+		(m.startupGates[sessionKey] != nil && m.startupGates[sessionKey] != allowedStartupGate) ||
+		state.Closing ||
+		state.Client != nil ||
+		len(state.ContextUsageByAgent) > 0 ||
+		len(state.BackgroundTasks) > 0 ||
+		len(state.RunningRounds) > 0 ||
+		len(state.RoundCancels) > 0 ||
+		len(state.RoundDone) > 0 ||
+		len(state.GuidedInputs) > 0 ||
+		len(state.Interruptions) > 0 ||
+		len(state.GoalAccountingFlushers) > 0 ||
+		len(state.GoalAccountingClearers) > 0 ||
+		len(state.GoalAccountingFinalizers) > 0 ||
+		len(state.GoalAccountingActivators) > 0 ||
+		len(state.GoalAccountingGuards) > 0 ||
+		len(state.GoalObjectiveRevisions) > 0 ||
+		state.HasSubagentHistory ||
+		state.IdleMessageCancel != nil {
+		return false
+	}
+	delete(m.sessions, sessionKey)
+	return true
 }
 
 func closedSignal() chan struct{} {

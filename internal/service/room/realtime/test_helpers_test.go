@@ -145,6 +145,8 @@ func (c *fakeRoomClient) RemoveMessages(context.Context, []string) error { retur
 
 func (c *fakeRoomClient) SetPermissionMode(context.Context, sdkpermission.Mode) error { return nil }
 
+func (c *fakeRoomClient) Retire() {}
+
 func (c *fakeRoomClient) Disconnect(context.Context) error {
 	c.mu.Lock()
 	c.disconnects++

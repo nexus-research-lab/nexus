@@ -68,6 +68,8 @@ func (c *permissionModeTestClient) SetPermissionMode(_ context.Context, mode sdk
 	return nil
 }
 
+func (c *permissionModeTestClient) Retire() {}
+
 func (c *permissionModeTestClient) Disconnect(context.Context) error { return nil }
 
 func (c *permissionModeTestClient) Reconfigure(context.Context, agentclient.Options) error {

@@ -26,7 +26,9 @@ import (
 
 // HandleChat 处理一条 DM 写请求。显式输入与队列交接、Goal 续跑共享同一个启动边界。
 func (s *Service) HandleChat(ctx context.Context, request Request) error {
-	s.inputQueueDispatchMu.Lock()
+	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+		return err
+	}
 	defer s.inputQueueDispatchMu.Unlock()
 	return s.handleChat(ctx, request)
 }
@@ -324,6 +326,7 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" && len(e.request.RewriteRemoveMessageUUIDs) == 0 {
 		return errors.New("rewrite remove message uuids are required")
 	}
+	lease, hasLease := e.service.runtime.CaptureClientLease(e.sessionKey, client)
 	if len(e.request.RewriteRemoveMessageUUIDs) > 0 {
 		if err := client.RemoveMessages(e.ctx, e.request.RewriteRemoveMessageUUIDs); err != nil {
 			e.service.loggerFor(e.ctx).Error("DM rewrite 删除 runtime 历史失败",
@@ -345,13 +348,18 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 		RoundIDs:           e.request.RewriteRemoveRoundIDs,
 		RemoveMessageCount: e.request.RewriteRemoveMessageCount,
 	}); err != nil {
-		if closeErr := e.service.runtime.CloseSession(e.ctx, e.sessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-			e.service.loggerFor(e.ctx).Warn("DM rewrite overlay 裁剪失败后关闭 runtime 失败",
-				"session_key", e.sessionKey,
-				"agent_id", e.agent.AgentID,
-				"round_id", e.request.RoundID,
-				"err", closeErr,
-			)
+		if hasLease {
+			closeCtx, cancelClose := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
+			_, closeErr := e.service.runtime.CloseSessionIfLease(closeCtx, lease)
+			cancelClose()
+			if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+				e.service.loggerFor(e.ctx).Warn("DM rewrite overlay 裁剪失败后关闭 runtime 失败",
+					"session_key", e.sessionKey,
+					"agent_id", e.agent.AgentID,
+					"round_id", e.request.RoundID,
+					"err", closeErr,
+				)
+			}
 		}
 		return err
 	}

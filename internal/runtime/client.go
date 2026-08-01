@@ -1,5 +1,5 @@
 // INPUT: SDK bridge client、会话控制请求与子进程关闭态错误。
-// OUTPUT: Nexus runtime 所需的最小 Client 能力和稳定的连接失败、关闭语义。
+// OUTPUT: Nexus runtime 所需的最小 Client 能力和稳定的连接失败、换代、关闭语义。
 // POS: runtime Manager 与具体 SDK bridge 之间的适配边界。
 package runtime
 
@@ -27,6 +27,8 @@ type Client interface {
 	SendTaskMessage(context.Context, string, string, string) error
 	RemoveMessages(context.Context, []string) error
 	SetPermissionMode(context.Context, sdkpermission.Mode) error
+	// Retire 永久撤销 Manager 所有权；实现必须幂等、不能等待进程退出或回调 Manager。
+	Retire()
 	Disconnect(context.Context) error
 	Reconfigure(context.Context, agentclient.Options) error
 	SessionID() string
@@ -51,6 +53,7 @@ type sdkClientAdapter struct {
 	configuring              *sdkClientConfigFlight
 	cleanup                  *sdkClientSessionCleanup
 	streamErr                error
+	retired                  bool
 	newSession               func(context.Context, agentclient.Options) (*agentclient.Session, error)
 	closeSession             func(*agentclient.Session) error
 	reconfigureSession       func(context.Context, *agentclient.Session, agentclient.Options) error
@@ -91,6 +94,10 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 		return err
 	}
 	c.mu.Lock()
+	if c.retired {
+		c.mu.Unlock()
+		return agentclient.ErrAborted
+	}
 	requestLifecycleVersion := c.lifecycleVersion
 	c.mu.Unlock()
 
@@ -99,6 +106,10 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 			return err
 		}
 		c.mu.Lock()
+		if c.retired {
+			c.mu.Unlock()
+			return agentclient.ErrAborted
+		}
 		if c.lifecycleVersion != requestLifecycleVersion {
 			c.mu.Unlock()
 			return agentclient.ErrAborted
@@ -225,6 +236,9 @@ func (c *sdkClientAdapter) connectFlightWaitResult(
 ) (error, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.retired {
+		return agentclient.ErrAborted, true
+	}
 	if c.lifecycleVersion != requestLifecycleVersion {
 		return agentclient.ErrAborted, true
 	}
@@ -398,6 +412,10 @@ func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermis
 
 	c.mu.Lock()
 	currentOptions := c.options
+	if c.retired {
+		c.mu.Unlock()
+		return agentclient.ErrAborted
+	}
 	nextOptions := currentOptions
 	nextOptions.Runtime.PermissionMode = normalized
 	c.options = nextOptions
@@ -406,7 +424,7 @@ func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermis
 	session := c.session
 	c.mu.Unlock()
 	if session == nil {
-		return nil
+		return c.ensureNotRetired()
 	}
 	if err := c.applySDKSessionPermissionMode(ctx, session, normalized); err != nil {
 		c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
@@ -415,7 +433,7 @@ func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermis
 		}
 		return err
 	}
-	return nil
+	return c.ensureNotRetired()
 }
 
 // UpdateEnvironment 将运行期环境增量推送给 nxs，不重启当前会话。
@@ -432,6 +450,10 @@ func (c *sdkClientAdapter) UpdateEnvironment(ctx context.Context, environment ma
 	delta := maps.Clone(environment)
 	c.mu.Lock()
 	currentOptions := c.options
+	if c.retired {
+		c.mu.Unlock()
+		return agentclient.ErrAborted
+	}
 	nextOptions := currentOptions
 	if nextOptions.Env == nil {
 		nextOptions.Env = map[string]string{}
@@ -455,7 +477,7 @@ func (c *sdkClientAdapter) UpdateEnvironment(ctx context.Context, environment ma
 			return err
 		}
 	}
-	return nil
+	return c.ensureNotRetired()
 }
 
 func normalizePermissionMode(mode sdkpermission.Mode) sdkpermission.Mode {
@@ -476,6 +498,10 @@ func (c *sdkClientAdapter) beginSDKClientConfiguration(ctx context.Context) (*sd
 			return nil, err
 		}
 		c.mu.Lock()
+		if c.retired {
+			c.mu.Unlock()
+			return nil, agentclient.ErrAborted
+		}
 		if c.configuring == nil {
 			configuring := &sdkClientConfigFlight{done: make(chan struct{})}
 			c.configuring = configuring
@@ -488,6 +514,15 @@ func (c *sdkClientAdapter) beginSDKClientConfiguration(ctx context.Context) (*sd
 			return nil, err
 		}
 	}
+}
+
+func (c *sdkClientAdapter) ensureNotRetired() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.retired {
+		return agentclient.ErrAborted
+	}
+	return nil
 }
 
 func (c *sdkClientAdapter) finishSDKClientConfiguration(configuring *sdkClientConfigFlight) {
@@ -550,6 +585,29 @@ func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {
 		return cleanup.err
 	}
 	return nil
+}
+
+// Retire 先永久关闭 Manager 所有权，再异步隔离当前或正在连接的 SDK 会话。
+func (c *sdkClientAdapter) Retire() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	if c.retired {
+		c.mu.Unlock()
+		return
+	}
+	c.retired = true
+	session, cancel, cleanup := c.detachCurrentSessionLocked(agentclient.ErrAborted)
+	connecting := c.connecting
+	c.mu.Unlock()
+
+	if connecting != nil {
+		connecting.cancel(agentclient.ErrAborted)
+	}
+	if session != nil {
+		c.startSDKSessionCleanup(session, cancel, cleanup)
+	}
 }
 
 func (c *sdkClientAdapter) detachCurrentSessionLocked(
@@ -723,6 +781,10 @@ func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.
 
 	c.mu.Lock()
 	currentOptions := c.options
+	if c.retired {
+		c.mu.Unlock()
+		return agentclient.ErrAborted
+	}
 	session := c.session
 	if session != nil && shouldRestartForManagedGoalMCPServerSetChange(currentOptions, options) {
 		c.mu.Unlock()
@@ -733,7 +795,7 @@ func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.
 	configVersion := c.configVersion
 	c.mu.Unlock()
 	if session == nil {
-		return nil
+		return c.ensureNotRetired()
 	}
 	if err := c.applySDKSessionReconfigure(ctx, session, options); err != nil {
 		c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
@@ -742,7 +804,7 @@ func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.
 		}
 		return err
 	}
-	return nil
+	return c.ensureNotRetired()
 }
 
 func (c *sdkClientAdapter) SessionID() string {
@@ -806,6 +868,9 @@ func (c *sdkClientAdapter) Wait() error {
 func (c *sdkClientAdapter) currentSession() (*agentclient.Session, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.retired {
+		return nil, agentclient.ErrAborted
+	}
 	if c.session == nil {
 		return nil, agentclient.ErrNotConnected
 	}
