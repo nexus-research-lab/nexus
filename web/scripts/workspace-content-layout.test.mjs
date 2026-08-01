@@ -259,6 +259,9 @@ test("Agent 技能页使用紧凑响应式网格并收敛重复工具与状态",
   assert.match(card, /min-h-\[104px\]/);
   assert.match(card, /grid-cols-\[40px_minmax\(0,1fr\)_auto\]/);
   assert.match(card, /UiSeededAvatar seed=\{skill\.name\}/);
+  assert.match(card, /flex min-h-10 min-w-0 items-center overflow-hidden/);
+  assert.match(card, /flex min-h-10 shrink-0 items-center gap-2/);
+  assert.doesNotMatch(card, /pt-0\.5/);
   assert.match(card, /px-3\.5 py-3/);
   assert.match(card, /rounded-\[10px\] border border-\(--divider-subtle-color\)/);
   assert.doesNotMatch(card, />\{actionLabel\}<\/span>/);

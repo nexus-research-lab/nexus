@@ -54,8 +54,8 @@ export function AgentSkillCard({
   return (
     <div className="grid min-h-[104px] grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3.5 py-3 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)">
       <UiSeededAvatar seed={skill.name} />
-      <div className="min-w-0 overflow-hidden pt-0.5">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <div className="flex min-h-10 min-w-0 items-center overflow-hidden">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           <span className="min-w-0 text-sm font-semibold leading-[1.4] text-(--text-strong)">
             {skill.title || skill.name}
           </span>
@@ -74,7 +74,7 @@ export function AgentSkillCard({
       </div>
 
       {!skill.locked ? (
-        <div className="flex h-10 shrink-0 items-center gap-2">
+        <div className="flex min-h-10 shrink-0 items-center gap-2">
           {busy ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin text-(--text-muted)" />
           ) : null}
