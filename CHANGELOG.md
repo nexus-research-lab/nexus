@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the bootstrap Lottie animation with a lightweight CSS loading
+  indicator, removing a large runtime and external WASM fetch from the desktop
+  startup path while preserving reduced-motion and screen-reader behavior.
 - Replaced hard Room auxiliary-panel dividers with an invisible resize gutter,
   alongside subtly differentiated conversation and context surfaces.
 - Simplified Workspace file chrome into one continuous header with consistent icon-only
