@@ -11,9 +11,10 @@ async function readSource(file) {
 }
 
 test("能力、设置与联系人共用同一铺满管理内容面", async () => {
-  const [tokens, layout, header, capability, contacts, contactDetail, ...settings] =
+  const [tokens, recipes, layout, header, capability, contacts, contactDetail, ...settings] =
     await Promise.all([
       "src/app/styles/theme-tokens.css",
+      "src/app/styles/theme-recipes.css",
       "src/shared/ui/layout/workspace-content-layout.ts",
       "src/shared/ui/layout/workspace-content-header.tsx",
       "src/features/capability/shared/capability-page-layout.tsx",
@@ -39,6 +40,16 @@ test("能力、设置与联系人共用同一铺满管理内容面", async () =>
   assert.doesNotMatch(layout, /"px-5"|"xl:px-6"/);
   assert.match(header, /min-h-\[52px\]/);
   assert.match(header, /text-lg font-semibold/);
+  assert.match(header, /workspace-content-header-inner/);
+  assert.match(header, /data-desktop-window-drag-region/);
+  assert.match(
+    recipes,
+    /\.sidebar-panel-shell\[data-sidebar-collapsed="true"\][\s\S]*?\+ \.desktop-app-stage,[\s\S]*?--workspace-content-header-leading-inset/,
+  );
+  assert.match(
+    recipes,
+    /\.workspace-content-header-inner[\s\S]*?padding-inline-start: var\(--workspace-content-header-leading-inset, 0px\)/,
+  );
   assert.match(capability, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   assert.match(capability, /WorkspaceContentHeader/);
   assert.doesNotMatch(capability, /max-w-\[1240px\]/);

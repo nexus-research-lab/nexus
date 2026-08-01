@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept shared management-page headers clear of macOS traffic lights and the
+  sidebar expand control when the main sidebar is collapsed.
 - Restored the last authoritative context-window snapshot from Session metadata
   after frontend refreshes and backend restarts.
 - Kept upward anchored overlays attached to their triggers instead of pinning
