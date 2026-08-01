@@ -1,10 +1,11 @@
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
 import { AgentSkillCard } from "./agent-skill-card";
@@ -29,6 +30,9 @@ const EMPTY_AVAILABLE_MESSAGE_KEYS: Record<
   no_available: "agent_options.skills.empty_available_more",
   no_search_match: "agent_options.skills.empty_search",
 };
+
+const AGENT_SKILL_GRID_CLASS_NAME =
+  `${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-2.5`;
 
 function SkillsSectionHeader({
   title,
@@ -72,7 +76,7 @@ function EnabledSkillsSection({
           variant="inset"
         />
       ) : (
-        <div className="grid grid-cols-1 gap-2.5">
+        <div className={AGENT_SKILL_GRID_CLASS_NAME}>
           {projection.enabled.map((skill) => (
             <AgentSkillCard
               actionLabel={t("agent_options.skills.disable")}
@@ -141,7 +145,7 @@ function AvailableSkillsSection({
           variant="inset"
         />
       ) : (
-        <div className="grid grid-cols-1 gap-2.5">
+        <div className={AGENT_SKILL_GRID_CLASS_NAME}>
           {projection.visibleAvailable.map((skill) => (
             <AgentSkillCard
               actionLabel={t("agent_options.skills.enable")}

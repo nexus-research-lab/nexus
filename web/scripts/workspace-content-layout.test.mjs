@@ -184,7 +184,7 @@ test("设置和能力二级页不再恢复重复标题或私有版心", async ()
   assert.doesNotMatch(loopDetail, /max-w-\[960px\]/);
 });
 
-test("Agent 技能页保留宽松卡片并收敛重复工具与状态", async () => {
+test("Agent 技能页使用紧凑响应式网格并收敛重复工具与状态", async () => {
   const [view, content, card, model, zhAgent, enAgent] = await Promise.all([
     "src/features/agents/options/components/skills/agent-options-skills-view.tsx",
     "src/features/agents/options/components/skills/agent-options-skills-content.tsx",
@@ -202,11 +202,20 @@ test("Agent 技能页保留宽松卡片并收敛重复工具与状态", async ()
   assert.match(content, /className="min-w-0 flex-1 sm:w-\[288px\] sm:flex-none"/);
   assert.match(content, /const filteredCount = searchQuery\.trim\(\)/);
   assert.match(content, /filteredCount \? \(/);
+  assert.match(
+    content,
+    /AGENT_SKILL_GRID_CLASS_NAME =\s*`\$\{WORKSPACE_CATALOG_GRID_CLASS_NAME\} gap-2\.5`/,
+  );
+  assert.equal(
+    [...content.matchAll(/className=\{AGENT_SKILL_GRID_CLASS_NAME\}/g)].length,
+    2,
+  );
   assert.doesNotMatch(
     content,
     /count=\{`\$\{projection\.visibleAvailable\.length\}\/\$\{projection\.available\.length\}`\}/,
   );
-  assert.match(card, /min-h-\[108px\]/);
+  assert.match(card, /min-h-\[96px\]/);
+  assert.match(card, /px-3\.5 py-3/);
   assert.match(card, /rounded-\[10px\] border border-\(--divider-subtle-color\)/);
   assert.doesNotMatch(card, />\{actionLabel\}<\/span>/);
   assert.doesNotMatch(card, /agent_options\.skills\.enabled/);
