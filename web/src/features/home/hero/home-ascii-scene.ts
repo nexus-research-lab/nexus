@@ -1,9 +1,18 @@
+// INPUT: Hero 容器、Canvas、主题颜色与浏览器可见性/输入事件。
+// OUTPUT: 有限入场、按需交互和每秒时钟绘制的 ASCII 场景。
+// POS: Home Hero 的 Canvas 资源与动画生命周期边界。
+
 import {
   createHomeAsciiParticleField,
   type HomeAsciiParticle,
   type HomeAsciiPointer,
   updateHomeAsciiParticle,
 } from "./home-ascii-particle-model";
+import {
+  HOME_ASCII_INTRO_WAKE_MS,
+  HOME_ASCII_POINTER_WAKE_MS,
+  projectHomeAsciiFrame,
+} from "./home-ascii-frame-model";
 
 export const HOME_HERO_LABEL = "nexus";
 
@@ -100,6 +109,10 @@ export class HomeAsciiScene {
   private disposed = false;
   private frameId = 0;
   private animationStart = 0;
+  private activeUntil = 0;
+  private intersectionObserver: IntersectionObserver | null = null;
+  private isIntersecting = true;
+  private lastPaintAt = 0;
   private particles: HomeAsciiParticle[] = [];
   private pointer: HomeAsciiPointer | null = null;
   private rebuildFrameId = 0;
@@ -124,6 +137,9 @@ export class HomeAsciiScene {
     this.clockTimer = window.setInterval(this.tickClock, 1000);
     this.resizeObserver = new ResizeObserver(this.scheduleRebuild);
     this.resizeObserver.observe(this.section);
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    this.intersectionObserver = new IntersectionObserver(this.handleIntersectionChange);
+    this.intersectionObserver.observe(this.section);
     this.canvas.addEventListener("mousemove", this.handleMouseMove, { passive: true });
     this.canvas.addEventListener("mouseleave", this.clearPointer);
     this.canvas.addEventListener("touchstart", this.handleTouch, { passive: true });
@@ -141,6 +157,8 @@ export class HomeAsciiScene {
       window.cancelAnimationFrame(this.rebuildFrameId);
     }
     this.resizeObserver?.disconnect();
+    this.intersectionObserver?.disconnect();
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.canvas.removeEventListener("mousemove", this.handleMouseMove);
     this.canvas.removeEventListener("mouseleave", this.clearPointer);
     this.canvas.removeEventListener("touchstart", this.handleTouch);
@@ -181,7 +199,7 @@ export class HomeAsciiScene {
       width: this.viewport.width,
     });
     this.animationStart = performance.now();
-    this.frameId = window.requestAnimationFrame(this.drawFrame);
+    this.wakeAnimation(HOME_ASCII_INTRO_WAKE_MS);
   }
 
   private configureViewport(): void {
@@ -266,14 +284,24 @@ export class HomeAsciiScene {
   }
 
   private readonly drawFrame = (now: number) => {
-    if (this.disposed) {
-      this.frameId = 0;
+    this.frameId = 0;
+    if (!this.canDraw()) {
       return;
     }
-    const elapsed = (now - this.animationStart) / 1000;
-    this.drawParticles(elapsed);
-    this.drawClock();
-    this.frameId = window.requestAnimationFrame(this.drawFrame);
+    const frame = projectHomeAsciiFrame({
+      activeUntil: this.activeUntil,
+      lastPaintAt: this.lastPaintAt,
+      now,
+    });
+    if (frame.shouldPaint) {
+      const elapsed = (now - this.animationStart) / 1000;
+      this.drawParticles(elapsed);
+      this.drawClock();
+      this.lastPaintAt = now;
+    }
+    if (frame.shouldContinue) {
+      this.scheduleAnimationFrame();
+    }
   };
 
   private drawParticles(elapsed: number): void {
@@ -332,6 +360,9 @@ export class HomeAsciiScene {
       ss: pad2(now.getSeconds()),
     };
     this.measureClock();
+    if (this.particles.length > 0) {
+      this.scheduleAnimationFrame();
+    }
   };
 
   private measureClock(): void {
@@ -361,11 +392,59 @@ export class HomeAsciiScene {
       x: clientX - bounds.left,
       y: clientY - bounds.top,
     };
+    this.wakeAnimation(HOME_ASCII_POINTER_WAKE_MS);
   }
 
   private readonly clearPointer = () => {
     this.pointer = null;
+    this.wakeAnimation(HOME_ASCII_POINTER_WAKE_MS);
   };
+
+  private readonly handleVisibilityChange = () => {
+    if (document.visibilityState === "hidden") {
+      this.stopAnimation();
+      return;
+    }
+    this.tickClock();
+    this.wakeAnimation(HOME_ASCII_POINTER_WAKE_MS);
+  };
+
+  private readonly handleIntersectionChange = (entries: IntersectionObserverEntry[]) => {
+    const isIntersecting = entries.some(
+      (entry) => entry.target === this.section && entry.isIntersecting,
+    );
+    if (isIntersecting === this.isIntersecting) {
+      return;
+    }
+    this.isIntersecting = isIntersecting;
+    if (!isIntersecting) {
+      this.stopAnimation();
+      return;
+    }
+    this.tickClock();
+    this.wakeAnimation(HOME_ASCII_POINTER_WAKE_MS);
+  };
+
+  private wakeAnimation(durationMs: number): void {
+    const now = performance.now();
+    this.activeUntil = Math.max(this.activeUntil, now + durationMs);
+    this.scheduleAnimationFrame();
+  }
+
+  private scheduleAnimationFrame(): void {
+    if (this.frameId !== 0 || this.particles.length === 0 || !this.canDraw()) {
+      return;
+    }
+    this.frameId = window.requestAnimationFrame(this.drawFrame);
+  }
+
+  private canDraw(): boolean {
+    return (
+      !this.disposed &&
+      this.isIntersecting &&
+      document.visibilityState !== "hidden"
+    );
+  }
 
   private stopAnimation(): void {
     if (this.frameId === 0) {
@@ -373,6 +452,7 @@ export class HomeAsciiScene {
     }
     window.cancelAnimationFrame(this.frameId);
     this.frameId = 0;
+    this.lastPaintAt = 0;
   }
 }
 

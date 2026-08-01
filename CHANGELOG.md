@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Stopped the Home ASCII canvas from redrawing thousands of glyphs continuously
+  while idle by bounding active animation to 30 FPS, sleeping after intro and
+  pointer settling, and pausing when the surface is hidden or offscreen.
 - Restored the last authoritative context-window snapshot from Session metadata
   after frontend refreshes and backend restarts.
 - Kept upward anchored overlays attached to their triggers instead of pinning
