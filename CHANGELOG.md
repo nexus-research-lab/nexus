@@ -7,146 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.31] - 2026-08-01
+
 ### Added
 
-- Added the MIT-licensed `diagram-design` built-in Skill, adapted from Cathryn
-  Lavery's pinned upstream release, with 27 editorial diagram types, local brand
-  profiles, HTML/SVG templates, the complete upstream icon gallery and 86 raw SVG
-  sources, plus explicit source and third-party provenance.
-- Added the MIT-licensed `Kami` built-in Skill from Tw93's pinned lightweight
-  package, with editorial templates for documents, slides and landing pages,
-  18 inline SVG diagram types, deterministic checks, and explicit font licensing.
-- Added confirmed Agent Memory deletion for topic and daily-log documents;
-  deletion is scope-safe, keeps `MEMORY.md` itself protected, removes the
-  matching index line server-side, and selects the next available memory after
-  refresh.
+- Added the MIT-licensed `diagram-design` and `Kami` built-in Skills for editorial diagrams, documents, slides, and landing pages, with pinned sources and explicit third-party provenance.
+- Added safe Agent Memory browsing, editing, and confirmed deletion for topic and daily-log documents while protecting the root `MEMORY.md` index.
+- Added per-Session model and permission overrides, authoritative context-window usage, native memory-recall indicators, and per-Agent Room projections.
 
 ### Changed
 
-- Replaced the bootstrap Lottie animation with a lightweight CSS loading
-  indicator, removing a large runtime and external WASM fetch from the desktop
-  startup path while preserving reduced-motion and screen-reader behavior.
-- Rewrote the Agent Full Access warning in user-facing language without runtime
-  field names, while preserving its safety boundary and trusted-task guidance.
-- Compacted Agent Tools into a responsive permission selector and three-column
-  authorization grid with quiet safety guidance, and refined Agent Contact into
-  a neutral two-line thread directory plus softly separated 920px message
-  reading plane without repeated room counts, badges, or blue selection rails.
-- Refined Agent Memory into a compact directory and single reading plane:
-  removed repeated metrics and file metadata, collapsed type filtering and
-  refresh into the search row, opened the latest memory by default, and aligned
-  quiet notices, index entries, and body copy on one centered content axis;
-  catalog selection now matches Contact rows, while the reader uses the same
-  soft gutter and shaded inspector treatment as Room workspace panels.
-- Replaced generic Work Loop row icons with deterministic rounded-square
-  mathematical curve avatars seeded by each Loop slug.
-- Removed redundant availability, source, scope, tag, and enablement metadata
-  from installed Skill cards, keeping only identity, description, and real
-  update or delete actions while preserving technical details in Skill detail.
-- Unified capability directory entries with visible borders and compact spacing,
-  and added square identity icons to scheduled tasks and channel pairings that
-  previously relied on text alone.
-- Expanded deterministic Skill avatars with centered rotational curve families,
-  aligned their rounded-square frame with Agent avatars, and made the shared
-  avatar component the only renderer across Skill surfaces.
-- Unified installed, update, and community Skill results around one compact
-  three-column identity card, carrying the same generated mathematical curve
-  through capability catalog, detail, and preview surfaces.
-- Added deterministic, pastel Skill avatars whose static mathematical curves
-  are generated from stable Skill names across the global catalog and Agent
-  Skill cards.
-- Compacted Agent Skill cards into the shared responsive three-, two-, and
-  one-column catalog grid while retaining two-line descriptions.
-- Extended presentation-only Chinese and English descriptions to every bundled
-  Nexus Skill across catalog, detail, Agent, Room, and composer surfaces.
-- Localized system-managed Agent Skill descriptions in Chinese and English at
-  presentation time without changing the underlying Skill metadata or files.
-- Removed duplicate enable labels and locked-state badges from spacious Agent
-  Skill cards while retaining switch accessibility and existing card geometry.
-- Moved Agent Skill search into the available-group header and show its result
-  ratio only while filtering, with a full-width mobile layout.
-- Removed the redundant Agent Skill summary and manual refresh row, letting the
-  enabled and available groups own their counts while visible data continues to
-  refresh automatically.
-- Replaced hard Room auxiliary-panel dividers with an invisible resize gutter,
-  alongside subtly differentiated conversation and context surfaces.
-- Simplified Workspace file chrome into one continuous header with consistent icon-only
-  actions, stable save placement, compact path breadcrumbs, and no repeated
-  directory title; file trees now use richer Material file-type icons, while
-  Room auxiliary headers now share one height, icon scale, and fixed Agent
-  filter alignment with left-aligned names.
-- Simplified Agent detail navigation into shared text-only sections that place
-  Skills second and Contact last, removed the selected Contact identity repeated
-  in its detail header, aligned the inline avatar with the shared content gutter,
-  moved Contact Agent edits to guarded auto-save, and placed deletion in the
-  upper-right action group; Agent names now use local format checks without a
-  redundant availability request, while vibe tags stay in a fixed-height rail;
-  moved Skill library/community switching beside
-  search as a compact source filter; capability pages now use one content title
-  and place relevant actions beside it instead of repeating an icon-and-name
-  Surface Header; capability catalogs, settings, and contacts now share one
-  full-width management-content plane with one fluid 20–32px shared gutter and
-  title rhythm instead of shifting between sections; desktop catalogs now use three
-  columns, scheduled tasks retain a four-column horizontal board, and Operations
-  keeps one stable title row above its section tabs.
-- Simplified Room Thread inspectors to one identity header and one panel
-  divider, keeping final Agent replies in the main Feed while the Thread shows
-  only execution details without an internal timeline rail or dots.
-- Added an authoritative per-round context window indicator beside the Composer
-  model control, including per-Agent snapshots in multi-Agent Rooms.
-- Passed the unwrapped DM and per-slot Room user intent to native memory recall,
-  keeping application context and internal continuations out of recall queries.
-- Surfaced loaded long-term memory counts in both DM and per-Agent Room threads.
-- Moved model and permission controls into the Composer as per-Session overrides, with one Room-wide permission control, direct and stable Agent-to-model cascading in multi-Agent Rooms, symmetric control spacing, compact model and Agent selectors, readable icon-led permission choices, clearer approval/full-access labels, and explicit reset actions while Agent/global defaults remain intact.
-- Added a themed border and stable desktop height to the Room member picker so it stays visually distinct without resizing as Agent results change.
-- Added Agent memory browsing and editing to the chat-side profile alongside identity, contact, tools, and skills.
-- Aligned Slash command descriptions on a reserved command-name column while keeping argument hints anchored to the right edge.
-- Replaced the duplicate runtime version card with the desktop app's authoritative version, build number, and log export action in General settings.
+- Reworked Agent Tools, Skills, Contact, and Memory into compact responsive management surfaces with guarded auto-save, clearer permission guidance, and one consistent reading plane.
+- Unified installed, update, community, and Agent Skill cards with localized descriptions, deterministic mathematical avatars, responsive catalogs, and quieter status presentation.
+- Simplified Room threads, workspace panels, file navigation, resize gutters, member selection, and management-page headers while keeping final replies in the main conversation feed.
+- Moved model and permission selection into per-Session Composer controls with stable multi-Agent cascading, explicit reset actions, and clearer approval and full-access language.
+- Replaced the startup animation with a lightweight local indicator, suspended idle Home animation work, and smoothed visible workbench motion.
+- Made General settings show the authoritative desktop version, build number, and log export action instead of a duplicate runtime version.
 
 ### Fixed
 
-- Made the `/app` Nexus ASCII motion follow the display refresh cadence while
-  preserving idle suspension and frame-rate-independent particle movement.
-- Closed CLI-owned services and database pools after every command, preventing
-  repeated in-process commands from retaining Windows SQLite file locks.
-- Kept platform Skills publishable from read-only Windows application bundles.
-- Allowed Windows runtimes to use authorized absolute paths while correctly
-  classifying quoted paths, dynamic expansions, file URLs, and redirections.
-- Prevented replaced or closed runtime clients from reconnecting as orphan
-  processes, fenced concurrent close and retry operations, and kept runtime
-  startup cleanup from stalling DM input behind background queue handoff.
-- Closed application-owned database pools during graceful server shutdown while
-  leaving externally supplied pools under their caller's ownership.
-- Prevented concurrent callers from serially relaunching the same runtime after
-  one shared startup failure, while keeping later requests and caller-local
-  cancellations independently retryable.
-- Prevented the internal no-message interrupt marker from appearing in live
-  DM or Room events, permission denials, persisted result summaries, legacy
-  session history, or diagnostic logs.
-- Prevented delayed runtime results from an explicitly interrupted turn from
-  terminating the following prompt, while quarantining runtime sessions that
-  cannot produce a clean terminal boundary.
-- Serialized SDK runtime startup and live configuration changes, made unclean
-  round disposal nonblocking, and kept reconnects fenced only while prior
-  process shutdown remains incomplete.
-- Stopped the Home ASCII canvas from redrawing thousands of glyphs continuously
-  while idle by sleeping after intro and pointer settling, and pausing when the
-  surface is hidden or offscreen.
-- Aligned Contact Agent Skill titles and source badges with the vertical center
-  shared by their 40px avatar and trailing switch.
-- Aligned Skill card titles with the vertical center shared by their 40px avatar
-  and trailing action instead of offsetting titles toward the card top.
-- Kept shared management-page headers aligned with the Web sidebar header and
-  macOS window controls, while remaining clear of traffic lights and the
-  sidebar expand control when collapsed.
-- Restored the last authoritative context-window snapshot from Session metadata
-  after frontend refreshes and backend restarts.
-- Kept upward anchored overlays attached to their triggers instead of pinning
-  context details and other popovers to the top of the viewport.
-- Prevented footerless Action Menus from entering a React update loop while
-  recalculating their anchored overlay position.
-- Decoded structured Session keys from URL path parameters before loading or saving per-Session runtime settings.
-- Restored direct pnpm invocation for macOS app builds so Node installations without Corepack can package and run the desktop app.
+- Fixed runtime startup, replacement, interruption, reconnect, and live configuration races so stale processes or delayed results cannot affect a later turn.
+- Kept internal interrupt markers out of conversations, permission results, persisted history, and diagnostic logs.
+- Closed application, CLI, handler, logging, Session, Agent, Room, and migration resources consistently, preventing Windows file and SQLite lock leaks.
+- Hardened Windows runtime paths, shell authorization, read-only bundled Skills, file permissions, and cross-platform tests.
+- Restored context-window snapshots after refresh or restart, decoded structured Session keys, and stabilized anchored overlays and action menus.
+- Restored macOS packaging on Node installations without Corepack and kept compact headers clear of native window controls.
 
 ## [0.1.30] - 2026-07-31
 
