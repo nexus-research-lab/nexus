@@ -409,5 +409,9 @@ test("Agent 工具与联络页使用紧凑中性工作面", async () => {
       catalog,
       /agent_options\.advanced\.(?:runtime_policy|security_title)/,
     );
+    assert.doesNotMatch(
+      catalog,
+      /bypassPermissions|allowed_tools|disallowed_tools|\bhooks\b/,
+    );
   });
 });

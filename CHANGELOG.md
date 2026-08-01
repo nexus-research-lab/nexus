@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Rewrote the Agent Full Access warning in user-facing language without runtime
+  field names, while preserving its safety boundary and trusted-task guidance.
 - Compacted Agent Tools into a responsive permission selector and three-column
   authorization grid with quiet safety guidance, and refined Agent Contact into
   a neutral two-line thread directory plus softly separated 920px message
