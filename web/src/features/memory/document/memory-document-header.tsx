@@ -1,6 +1,5 @@
 import {
   ArrowLeft,
-  FileText,
   Link2,
   LoaderCircle,
   Pencil,
@@ -12,10 +11,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton, UiIconButton } from "@/shared/ui/button/button";
 import type { MemoryDocument } from "@/types/memory/memory";
 
-import {
-  formatMemoryFileSize,
-  formatMemoryModifiedTime,
-} from "../memory-utils";
+import { formatMemoryModifiedTime } from "../memory-utils";
 import {
   buildMemoryDocumentHeaderModel,
   type MemoryDocumentHeaderAction,
@@ -55,8 +51,9 @@ export function MemoryDocumentHeader({
     isSaving: controller.isSaving,
     runtimeWriting,
   });
+  const showPath = document.path !== document.title;
   return (
-    <div className="flex min-h-[62px] shrink-0 items-center gap-3 border-b border-(--divider-subtle-color) px-4 py-2.5">
+    <div className="flex min-h-[60px] shrink-0 items-center gap-3 px-5 py-3">
       <UiIconButton
         aria-label={t("common.back")}
         className="nexus-memory-compact-only"
@@ -69,7 +66,6 @@ export function MemoryDocumentHeader({
       </UiIconButton>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <FileText className="h-4 w-4 shrink-0 text-(--icon-muted)" />
           <h2 className="truncate text-[14px] font-semibold text-(--text-strong)">
             {document.title}
           </h2>
@@ -78,10 +74,12 @@ export function MemoryDocumentHeader({
           ))}
         </div>
         <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-(--text-soft)">
-          <span className="truncate font-mono">{document.path}</span>
-          <span aria-hidden="true">·</span>
-          <span className="shrink-0">{formatMemoryFileSize(document.size)}</span>
-          <span aria-hidden="true">·</span>
+          {showPath ? (
+            <>
+              <span className="truncate font-mono">{document.path}</span>
+              <span aria-hidden="true">·</span>
+            </>
+          ) : null}
           <span className="shrink-0">
             {formatMemoryModifiedTime(document.modified_at, locale)}
           </span>

@@ -132,10 +132,6 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
       refresh,
       snapshot: state.snapshot,
     },
-    summary: {
-      counts: projection.counts,
-      latestDocument: projection.latestDocument,
-    },
   };
 }
 

@@ -1,6 +1,7 @@
-import { Clock3, Link2, Search } from "lucide-react";
+import { Link2, RefreshCw, Search } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
 
@@ -24,8 +25,10 @@ interface AgentMemoryCatalogProps {
   filter: MemoryFilter;
   onFilterChange: (filter: MemoryFilter) => void;
   onQueryChange: (query: string) => void;
+  onRefresh: () => void;
   onSelectDocument: (path: string) => void;
   query: string;
+  refreshing: boolean;
   sections: MemoryCatalogSection[];
   truncated: boolean;
 }
@@ -36,22 +39,37 @@ export function AgentMemoryCatalog({
   filter,
   onFilterChange,
   onQueryChange,
+  onRefresh,
   onSelectDocument,
   query,
+  refreshing,
   sections,
   truncated,
 }: AgentMemoryCatalogProps) {
   const { locale, t } = useI18n();
   return (
-    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col border-r border-(--divider-subtle-color) bg-(--surface-raised-background)">
-      <div className="shrink-0 border-b border-(--divider-subtle-color) p-3">
-        <UiSearchInput
-          className="w-full"
-          inputClassName="text-compact"
-          onChange={onQueryChange}
-          placeholder={t("capability.memory_search_placeholder")}
-          value={query}
-        />
+    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col bg-(--surface-raised-background)">
+      <div className="shrink-0 px-3 pb-2 pt-3">
+        <div className="flex items-center gap-1.5">
+          <UiSearchInput
+            className="min-w-0 flex-1"
+            inputClassName="text-compact"
+            onChange={onQueryChange}
+            placeholder={t("capability.memory_search_placeholder")}
+            value={query}
+          />
+          <UiIconButton
+            aria-label={t("capability.refresh")}
+            className="shrink-0"
+            disabled={refreshing}
+            onClick={onRefresh}
+            size="md"
+            title={t("capability.refresh")}
+            variant="ghost"
+          >
+            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+          </UiIconButton>
+        </div>
         <div className="soft-scrollbar mt-2.5 flex gap-1 overflow-x-auto" role="tablist">
           {MEMORY_FILTER_OPTIONS.map((option) => (
             <button
@@ -73,7 +91,7 @@ export function AgentMemoryCatalog({
         </div>
       </div>
 
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-1">
         {sections.map((section) => (
           <MemoryCatalogSectionView
             key={section.key}
@@ -99,7 +117,7 @@ export function AgentMemoryCatalog({
       </div>
 
       {emptyMemoryVisible ? (
-        <div className="border-t border-(--divider-subtle-color) px-4 py-4">
+        <div className="px-4 py-4">
           <p className="text-compact font-semibold text-(--text-strong)">
             {t("capability.memory_empty_title")}
           </p>
@@ -124,10 +142,12 @@ function MemoryCatalogSectionView({
   const { t } = useI18n();
   return (
     <div className={section.key === "index" ? "mb-2" : undefined}>
-      <MemorySectionLabel
-        label={t(section.labelKey)}
-        value={section.countVisible ? String(section.rows.length) : undefined}
-      />
+      {section.countVisible ? (
+        <MemorySectionLabel
+          label={t(section.labelKey)}
+          value={String(section.rows.length)}
+        />
+      ) : null}
       <div className="space-y-0.5">
         {section.rows.map((row) => (
           <MemoryDocumentRow
@@ -165,6 +185,9 @@ function MemoryDocumentRow({
   const presentation = getMemoryDocumentPresentation(document);
   const Icon = presentation.icon;
   const stale = memoryAgeDays(document.modified_at) > MEMORY_STALE_AFTER_DAYS;
+  const description = document.description && document.description !== document.path
+    ? document.description
+    : "";
   return (
     <button
       className={cn(
@@ -194,13 +217,14 @@ function MemoryDocumentRow({
             <Link2 className="h-3 w-3 shrink-0 text-(--accent)" />
           ) : null}
         </span>
-        <span className="mt-0.5 line-clamp-2 block text-xs leading-4 text-(--text-muted)">
-          {document.description || document.path}
-        </span>
+        {description ? (
+          <span className="mt-0.5 line-clamp-2 block text-xs leading-4 text-(--text-muted)">
+            {description}
+          </span>
+        ) : null}
         <span className="mt-1 flex items-center gap-1.5 text-2xs text-(--text-soft)">
           <span>{t(presentation.labelKey)}</span>
           <span aria-hidden="true">·</span>
-          <Clock3 className="h-2.5 w-2.5" />
           <span className={stale ? "text-(--warning)" : undefined}>
             {formatMemoryModifiedTime(document.modified_at, locale)}
           </span>

@@ -226,6 +226,37 @@ test("设置和能力二级页不再恢复重复标题或私有版心", async ()
   assert.doesNotMatch(loopDetail, /max-w-\[960px\]/);
 });
 
+test("记忆页以留白替代重复摘要和表格式分隔线", async () => {
+  const [view, catalog, model, header, indexEntries, styles, zhCapability, enCapability] =
+    await Promise.all([
+      "src/features/memory/agent-memory-view.tsx",
+      "src/features/memory/catalog/agent-memory-catalog.tsx",
+      "src/features/memory/catalog/memory-catalog-model.ts",
+      "src/features/memory/document/memory-document-header.tsx",
+      "src/features/memory/document/index/memory-index-entries.tsx",
+      "src/features/memory/memory-view.css",
+      "src/shared/i18n/catalog/zh/capability.ts",
+      "src/shared/i18n/catalog/en/capability.ts",
+    ].map(readSource));
+
+  assert.doesNotMatch(view, /MemorySummary|MemoryMetrics|MemoryAgentIdentity/);
+  assert.match(view, /onRefresh=\{\(\) => void memory\.resource\.refresh\(\)\}/);
+  assert.match(catalog, /UiSearchInput/);
+  assert.match(catalog, /UiIconButton/);
+  assert.doesNotMatch(catalog, /border-r|shrink-0 border-b/);
+  assert.doesNotMatch(model, /counts:|latestDocument|countMemoryDocuments|getLatestMemoryDocument/);
+  assert.match(header, /document\.path !== document\.title/);
+  assert.doesNotMatch(header, /border-b|formatMemoryFileSize|FileText/);
+  assert.doesNotMatch(indexEntries, /divide-y|border-y|font-mono|memory_index_entries/);
+  assert.doesNotMatch(styles, /nexus-memory-(?:summary|metrics|agent-switcher)/);
+  [zhCapability, enCapability].forEach((catalogSource) => {
+    assert.doesNotMatch(
+      catalogSource,
+      /capability\.memory_(?:agent_aria|metric_index|metric_topics|metric_logs|metric_updated|ready|index_entries)/,
+    );
+  });
+});
+
 test("Agent 技能页使用紧凑响应式网格并收敛重复工具与状态", async () => {
   const [view, content, card, model, zhAgent, enAgent] = await Promise.all([
     "src/features/agents/options/components/skills/agent-options-skills-view.tsx",

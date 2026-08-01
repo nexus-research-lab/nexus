@@ -7,8 +7,8 @@
 - `catalog/` 管理 Agent 级目录快照、筛选、选择和摘要投影，所有状态绑定 `agentId`。
 - `document/` 按作用域状态、正文资源、保存事务和视图拆分 `agentId:path` 文档。
 - `use-scoped-memory-state.ts` 统一 Agent 与文档的作用域状态提交协议，旧异步结果只能提交到发起时的 scope。
-- `agent-memory-view.tsx` 只编排摘要和内容区；Agent 身份、指标、资源状态各自拥有窄视图。
-- `memory-utils.ts` 只保留跨目录共用的文档状态、Markdown frontmatter、时间与尺寸纯函数。
+- `agent-memory-view.tsx` 只编排资源状态和目录/正文工作面；当前 Agent 身份由上层上下文表达，不在记忆页重复渲染身份与摘要指标，刷新归属目录搜索工具区。
+- `memory-utils.ts` 只保留跨目录共用的文档状态、Markdown frontmatter 与时间纯函数。
 
 ## 不变量
 
@@ -17,3 +17,4 @@
 - 保存期间继续编辑时，保存结果只更新基线内容，不覆盖新草稿或自动退出编辑。
 - Memory UI 不读取或展示旧 `memory/sessions` 遗留结构。
 - 文档类型的图标、色调和标签只由 Catalog 单一描述表定义，视图不得维护平行映射。
+- 常态工作面以背景层级和留白区分目录与正文，不用重复摘要、文件路径或装饰性分隔线制造层级；仅选择、异常和编辑状态可以使用强调边界。

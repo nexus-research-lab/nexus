@@ -19,13 +19,8 @@ export const MEMORY_FILTER_OPTIONS: readonly MemoryFilterOption[] = [
 
 export interface MemoryCatalogProjection {
   allDocuments: MemoryDocument[];
-  counts: {
-    logs: number;
-    topics: number;
-  };
   emptyFilterVisible: boolean;
   emptyMemoryVisible: boolean;
-  latestDocument: MemoryDocument | null;
   sections: MemoryCatalogSection[];
   selectedDocument: MemoryDocument | null;
   truncated: boolean;
@@ -61,7 +56,6 @@ export function projectMemoryCatalog(
   query: string,
 ): MemoryCatalogProjection {
   const allDocuments = getAllMemoryDocuments(snapshot);
-  const documents = snapshot?.documents ?? [];
   const sections = buildMemoryCatalogSections(
     snapshot,
     selectedPath,
@@ -70,10 +64,8 @@ export function projectMemoryCatalog(
   );
   return {
     allDocuments,
-    counts: countMemoryDocuments(documents),
     emptyFilterVisible: sections.length === 0,
     emptyMemoryVisible: isEmptyMemorySnapshot(snapshot),
-    latestDocument: getLatestMemoryDocument(snapshot, documents),
     sections,
     selectedDocument: findSelectedMemoryDocument(allDocuments, selectedPath),
     truncated: isTruncatedMemorySnapshot(snapshot),
@@ -110,31 +102,11 @@ function isTruncatedMemorySnapshot(snapshot: MemorySnapshot | null): boolean {
   return Boolean(snapshot?.truncated);
 }
 
-function getLatestMemoryDocument(
-  snapshot: MemorySnapshot | null,
-  documents: MemoryDocument[],
-): MemoryDocument | null {
-  return documents[0] ?? snapshot?.index ?? null;
-}
-
 function findSelectedMemoryDocument(
   documents: MemoryDocument[],
   selectedPath: string,
 ): MemoryDocument | null {
   return documents.find((document) => document.path === selectedPath) ?? null;
-}
-
-function countMemoryDocuments(documents: MemoryDocument[]): {
-  logs: number;
-  topics: number;
-} {
-  return documents.reduce(
-    (counts, document) => ({
-      logs: counts.logs + Number(document.kind === "daily_log"),
-      topics: counts.topics + Number(document.kind !== "daily_log"),
-    }),
-    { logs: 0, topics: 0 },
-  );
 }
 
 function memoryDocumentMatches(

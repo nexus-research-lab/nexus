@@ -39,22 +39,3 @@
     display: inline-flex;
   }
 }
-
-@container nexus-memory-view (max-width: 520px) {
-  .nexus-memory-summary {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .nexus-memory-agent-switcher {
-    max-width: none;
-    min-width: 0;
-  }
-
-  .nexus-memory-metrics {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: space-between;
-    width: 100%;
-  }
-}

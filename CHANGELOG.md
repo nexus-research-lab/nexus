@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplified Agent Memory into a quieter two-pane browser by removing the
+  repeated Agent metrics row, duplicate paths, file sizes, index counts, and
+  table-like separators while moving refresh beside search.
 - Replaced generic Work Loop row icons with deterministic rounded-square
   mathematical curve avatars seeded by each Loop slug.
 - Removed redundant availability, source, scope, tag, and enablement metadata
