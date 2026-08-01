@@ -10,6 +10,7 @@
 - `external/` 负责社区来源结果、来源管理和预览；身份、来源、导入状态与预览内容统一由纯模型投影。
 - `import/` 负责本地与 Git 导入表单。
 - `detail/` 按路由编排、请求控制器、展示模型和纯视图分离技能详情与 Agent 使用矩阵；Markdown 与部署失败说明留在详情域。
+- Nexus 随产品提供的 Skill 在目录与详情中共用 `lib/skill-description.ts` 的双语展示说明；来源元数据和真实 Skill 内容保持不变。
 - 全局技能市场不接收 Agent workspace Skill；这类 Skill 只由对应 Agent 设置页投影。
 
 ## 约定

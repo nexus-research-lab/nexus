@@ -28,6 +28,8 @@ export interface SlashModelOption {
   providerLabel?: string;
 }
 
+type SkillDescriptionResolver = (skill: SkillInfo) => string;
+
 export function findSlashCommandTextMatch(
   input: string,
   cursorPosition: number,
@@ -72,6 +74,7 @@ export function filterSlashCommands(
 export function filterSlashSkills(
   skills: SkillInfo[],
   query: string,
+  resolveDescription: SkillDescriptionResolver = (skill) => skill.description,
 ): SkillInfo[] {
   const normalizedQuery = query.trim().toLocaleLowerCase();
   if (!normalizedQuery) {
@@ -81,7 +84,7 @@ export function filterSlashSkills(
     const searchableText = [
       skill.name,
       skill.title,
-      skill.description,
+      resolveDescription(skill),
       skill.category_name,
       skill.source_name ?? "",
       skill.tags.join("\n"),

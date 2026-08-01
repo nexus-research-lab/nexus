@@ -124,11 +124,14 @@ const SKILL_UPDATE_STATUS_RULES: readonly SkillUpdateStatusRule[] = [
   },
 ];
 
-export function buildSkillCardModel(skill: SkillInfo): SkillCardModel {
+export function buildSkillCardModel(
+  skill: SkillInfo,
+  description = skill.description,
+): SkillCardModel {
   const state = SKILL_STATE_RULES.find((rule) => rule.matches(skill))
     ?? DEFAULT_SKILL_STATE;
   return {
-    description: skill.description || "暂无描述",
+    description: description || "暂无描述",
     icon: state.icon,
     iconClassName: state.iconClassName,
     showDelete: skill.deletable,

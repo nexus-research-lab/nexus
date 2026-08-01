@@ -2,6 +2,8 @@
 
 import { Lock, Puzzle, Trash2 } from "lucide-react";
 
+import { getSkillDisplayDescription } from "@/lib/skill-description";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
@@ -34,7 +36,11 @@ export function SkillsCard({
   onSelect,
   onDelete,
 }: SkillsCardProps) {
-  const model = buildSkillCardModel(skill);
+  const { t } = useI18n();
+  const model = buildSkillCardModel(
+    skill,
+    getSkillDisplayDescription(skill, t),
+  );
   const Icon = SKILL_CARD_ICON[model.icon];
 
   return (

@@ -71,8 +71,6 @@ export const enAgentMessages = {
   "agent_options.skills.load_failed": "Failed to load skills",
   "agent_options.skills.toggle_failed": "Failed to update skill state",
   "agent_options.skills.system_builtin": "System built-in",
-  "agent_options.skills.system_description.imagegen": "Generate or edit images for photos, illustrations, textures, product shots, UI mockups, and transparent-background assets.",
-  "agent_options.skills.system_description.goal_manager": "Manage long-running goals for the current conversation, including creating, continuing, correcting, completing, or blocking a goal.",
   "agent_options.skills.agent_workspace_local": "Local to this Agent",
   "agent_options.skills.main_only": "Main only",
   "agent_options.skills.create_first": "Create the Agent before configuring skills.",

@@ -12,6 +12,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { getSkillDisplayDescription } from "@/lib/skill-description";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -122,6 +124,7 @@ function SkillDetailContent({
   onUpdate,
   snapshot,
 }: SkillDetailViewProps) {
+  const { t } = useI18n();
   if (snapshot.status === "loading") {
     return (
       <UiStateBlock
@@ -158,7 +161,10 @@ function SkillDetailContent({
       agentToggleError={agentToggleError}
       agentsLoading={agentsLoading}
       busyAgentId={busyAgentId}
-      model={buildSkillDetailPresentation(snapshot.skill)}
+      model={buildSkillDetailPresentation(
+        snapshot.skill,
+        getSkillDisplayDescription(snapshot.skill, t),
+      )}
       onAgentToggle={onAgentToggle}
       onDelete={onDelete}
       onUpdate={onUpdate}

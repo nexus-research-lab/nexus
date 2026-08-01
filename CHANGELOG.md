@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Extended presentation-only Chinese and English descriptions to every bundled
+  Nexus Skill across catalog, detail, Agent, Room, and composer surfaces.
 - Localized system-managed Agent Skill descriptions in Chinese and English at
   presentation time without changing the underlying Skill metadata or files.
 - Removed duplicate enable labels and locked-state badges from spacious Agent

@@ -1,11 +1,10 @@
 import { Loader2, Lock } from "lucide-react";
 
-import { UiBadge } from "@/shared/ui/display/badge";
+import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiBadge } from "@/shared/ui/display/badge";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { AgentSkillEntry } from "@/types/capability/skill";
-
-import { getAgentSkillDisplayDescription } from "./agent-skill-description";
 
 interface AgentSkillCardProps {
   actionLabel: string;
@@ -28,7 +27,7 @@ export function AgentSkillCard({
   skill,
 }: AgentSkillCardProps) {
   const { t } = useI18n();
-  const description = getAgentSkillDisplayDescription(skill, t);
+  const description = getSkillDisplayDescription(skill, t);
   const badges = [
     {
       icon: <Lock className="h-3 w-3" />,

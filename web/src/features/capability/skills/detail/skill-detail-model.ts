@@ -107,6 +107,7 @@ const SKILL_MARKDOWN_TRANSFORMS: readonly SkillMarkdownTransform[] = [
 
 export function buildSkillDetailPresentation(
   skill: SkillDetail,
+  description = skill.description,
 ): SkillDetailPresentation {
   const source = getSkillSourcePresentation(skill);
   const lock = SKILL_LOCK_PRESENTATION[String(skill.locked) as "false" | "true"];
@@ -149,7 +150,7 @@ export function buildSkillDetailPresentation(
     badges,
     canDelete: skill.deletable,
     canUpdate: skill.source_type === "external" && skill.has_update,
-    description: skill.description || "暂无描述",
+    description: description || "暂无描述",
     displayName,
     icon: lock.icon,
     iconClassName: lock.iconClassName || source.iconClassName,
