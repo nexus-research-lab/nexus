@@ -238,6 +238,7 @@ JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富
 |------|------|------|---------------|---------|
 | GET | `/agents/{agent_id}/workspace/files` | 文件树 | — | `getWorkspaceFilesApi` |
 | GET | `/agents/{agent_id}/workspace/memory` | SDK 文件式记忆投影（索引、主题、日志及 frontmatter 元数据） | — | `getAgentMemorySnapshotApi` |
+| DELETE | `/agents/{agent_id}/workspace/memory` | 删除正文记忆并同步清理短索引 | query: `path`（仅 `memory/**/*.md`） | `deleteAgentMemoryDocumentApi` |
 | GET | `/agents/{agent_id}/workspace/file` | 读文件内容 | query: `path` | `getWorkspaceFileContentApi` |
 | PUT | `/agents/{agent_id}/workspace/file` | 写文件内容 | `{ path, content }` | `updateWorkspaceFileContentApi` |
 | POST | `/agents/{agent_id}/workspace/upload` | 上传文件 | FormData: `file`, `path?` | `uploadWorkspaceFileApi` |
@@ -249,7 +250,7 @@ JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富
 
 桌面端调用 `reveal`；浏览器端通过 `download` 接口下载文件。
 
-长期记忆由内置 `nxs` SDK 子进程维护为 Agent 工作区中的 `MEMORY.md` 索引与 `memory/` 主题文件。Nexus 管理的 runtime 会把该工作区固定为唯一记忆根，不接受宿主环境、请求环境或远端记忆配置改写；Nexus 不参与提取或召回，只提供同一根目录的只读投影供 Web 展示，正文编辑仍使用通用工作区文件接口。
+长期记忆由内置 `nxs` SDK 子进程维护为 Agent 工作区中的 `MEMORY.md` 索引与 `memory/` 主题文件。Nexus 管理的 runtime 会把该工作区固定为唯一记忆根，不接受宿主环境、请求环境或远端记忆配置改写；Nexus 不参与提取或召回，只提供同一根目录的投影供 Web 展示，正文编辑仍使用通用工作区文件接口。删除正文记忆必须走专用接口，由服务端同时移除 `MEMORY.md` 中对应的一行索引；索引文件本身不可删除。
 
 ---
 

@@ -23,12 +23,13 @@ export function WorkspaceContentHeader({
   return (
     <header
       className={cn(
-        "mb-4 shrink-0 border-b border-(--divider-subtle-color) pb-4",
+        "workspace-content-header mb-4 shrink-0 border-b border-(--divider-subtle-color) pb-4",
         className,
       )}
+      data-desktop-window-drag-region
       data-tour-anchor={headerAnchor}
     >
-      <div className="flex min-h-[52px] flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="workspace-content-header-inner flex min-h-[52px] flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
             {title}

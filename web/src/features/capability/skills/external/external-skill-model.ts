@@ -11,6 +11,7 @@ export interface ExternalSkillImportModel {
 }
 
 export interface ExternalSkillListItemModel {
+  avatarSeed: string;
   description: string;
   importState: ExternalSkillImportModel;
   installLabel: string;
@@ -20,6 +21,7 @@ export interface ExternalSkillListItemModel {
 }
 
 export interface ExternalSkillPreviewModel {
+  avatarSeed: string;
   detailUrl: string;
   importState: ExternalSkillImportModel;
   item: ExternalSkillSearchItem;
@@ -69,6 +71,7 @@ export function buildExternalSkillListItemModel(
   busyKeys: ReadonlySet<string>,
 ): ExternalSkillListItemModel {
   return {
+    avatarSeed: item.skill_slug || item.name,
     description: item.description || item.readme_markdown || "暂无描述",
     importState: buildExternalSkillImportModel(item, importedSources, busyKeys),
     installLabel: `${formatInstallCount(item.installs)} 次安装`,
@@ -87,6 +90,7 @@ export function buildExternalSkillPreviewModel(
   if (!item) return null;
   const listItem = buildExternalSkillListItemModel(item, importedSources, busyKeys);
   return {
+    avatarSeed: listItem.avatarSeed,
     detailUrl: item.detail_url,
     importState: listItem.importState,
     item,

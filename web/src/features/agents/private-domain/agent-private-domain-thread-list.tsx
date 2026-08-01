@@ -115,6 +115,11 @@ function PrivateThreadListItem({
         <div className="flex min-w-0 items-center gap-1.5">
           <span className={item.titleClassName}>{item.title}</span>
           <ScopeIcon className="h-3.5 w-3.5 shrink-0 text-(--text-soft)" />
+          {item.timestampLabel ? (
+            <span className="ml-auto shrink-0 text-2xs tabular-nums text-(--text-soft)">
+              {item.timestampLabel}
+            </span>
+          ) : null}
         </div>
         <UiMarkdownContent
           className={item.summaryClassName}
@@ -123,11 +128,6 @@ function PrivateThreadListItem({
           variant="summary"
           workspaceAgentId={item.workspaceAgentId}
         />
-        <div className={item.metadataClassName}>
-          {item.metadata.map((value, index) => (
-            <span className="truncate" key={`${index}:${value}`}>{value}</span>
-          ))}
-        </div>
       </div>
     </button>
   );

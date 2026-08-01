@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { getAgentMemorySnapshotApi } from "@/lib/api/agent/memory-api";
+import {
+  deleteAgentMemoryDocumentApi,
+  getAgentMemorySnapshotApi,
+} from "@/lib/api/agent/memory-api";
 import type { MemorySnapshot } from "@/types/memory/memory";
 
 import {
@@ -16,6 +19,9 @@ import {
 
 interface AgentMemoryState {
   compactDocumentOpen: boolean;
+  deleteError: string | null;
+  deleteTargetPath: string;
+  deletingPath: string;
   error: string | null;
   filter: MemoryFilter;
   isLoading: boolean;
@@ -29,7 +35,12 @@ interface AgentMemoryScope extends ScopedMemoryScope {
   agentId: string;
 }
 
-export function useAgentMemory(agentId: string, fallbackError: string) {
+export function useAgentMemory(
+  agentId: string,
+  fallbackError: string,
+  fallbackDeleteError: string,
+) {
+  const deleteRequestSequenceRef = useRef(0);
   const requestSequenceRef = useRef(0);
   const { commit, scopeRef, state } = useScopedMemoryState(
     { agentId, key: agentId },
@@ -72,9 +83,11 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
   }, [agentId, commit, fallbackError, scopeRef]);
 
   useEffect(() => {
+    deleteRequestSequenceRef.current += 1;
     requestSequenceRef.current += 1;
     void refresh();
     return () => {
+      deleteRequestSequenceRef.current += 1;
       requestSequenceRef.current += 1;
     };
   }, [agentId, refresh]);
@@ -89,6 +102,12 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
     [state.filter, state.query, state.selectedPath, state.snapshot],
   );
 
+  const deleteTarget = useMemo(() => (
+    projection.allDocuments.find((document) => (
+      document.path === state.deleteTargetPath && document.kind !== "index"
+    )) ?? null
+  ), [projection.allDocuments, state.deleteTargetPath]);
+
   const selectDocument = useCallback((path: string) => {
     if (!projection.allDocuments.some((document) => document.path === path)) {
       return;
@@ -96,9 +115,97 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
     commit(agentId, (current) => ({
       ...current,
       compactDocumentOpen: true,
+      deleteError: null,
+      deleteTargetPath: "",
       selectedPath: path,
     }));
   }, [agentId, commit, projection.allDocuments]);
+
+  const requestDeleteDocument = useCallback((path: string) => {
+    if (state.deletingPath) {
+      return;
+    }
+    const target = projection.allDocuments.find((document) => document.path === path);
+    if (!target || target.kind === "index") {
+      return;
+    }
+    commit(agentId, (current) => ({
+      ...current,
+      deleteError: null,
+      deleteTargetPath: path,
+    }));
+  }, [agentId, commit, projection.allDocuments, state.deletingPath]);
+  const cancelDeleteDocument = useCallback(() => {
+    commit(agentId, (current) => ({ ...current, deleteTargetPath: "" }));
+  }, [agentId, commit]);
+  const confirmDeleteDocument = useCallback(async () => {
+    if (state.deletingPath) {
+      cancelDeleteDocument();
+      return;
+    }
+    const target = projection.allDocuments.find((document) => (
+      document.path === state.deleteTargetPath
+    ));
+    if (!target || target.kind === "index") {
+      cancelDeleteDocument();
+      return;
+    }
+
+    const expectedAgentId = agentId;
+    const requestSequence = deleteRequestSequenceRef.current + 1;
+    deleteRequestSequenceRef.current = requestSequence;
+    commit(expectedAgentId, (current) => ({
+      ...current,
+      deleteError: null,
+      deleteTargetPath: "",
+      deletingPath: target.path,
+    }));
+    try {
+      await deleteAgentMemoryDocumentApi(expectedAgentId, target.path);
+      if (!isCurrentRequest(
+        scopeRef,
+        expectedAgentId,
+        deleteRequestSequenceRef,
+        requestSequence,
+      )) {
+        return;
+      }
+      await refresh();
+      if (!isCurrentRequest(
+        scopeRef,
+        expectedAgentId,
+        deleteRequestSequenceRef,
+        requestSequence,
+      )) {
+        return;
+      }
+      commit(expectedAgentId, (current) => ({ ...current, deletingPath: "" }));
+    } catch (error) {
+      if (!isCurrentRequest(
+        scopeRef,
+        expectedAgentId,
+        deleteRequestSequenceRef,
+        requestSequence,
+      )) {
+        return;
+      }
+      commit(expectedAgentId, (current) => ({
+        ...current,
+        deleteError: error instanceof Error ? error.message : fallbackDeleteError,
+        deletingPath: "",
+      }));
+    }
+  }, [
+    agentId,
+    cancelDeleteDocument,
+    commit,
+    fallbackDeleteError,
+    projection.allDocuments,
+    refresh,
+    scopeRef,
+    state.deleteTargetPath,
+    state.deletingPath,
+  ]);
   const closeCompactDocument = useCallback(() => {
     commit(agentId, (current) => ({ ...current, compactDocumentOpen: false }));
   }, [agentId, commit]);
@@ -121,8 +228,14 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
       truncated: projection.truncated,
     },
     document: {
+      cancelDeleteDocument,
       closeCompactDocument,
       compactDocumentOpen: state.compactDocumentOpen,
+      confirmDeleteDocument,
+      deleteError: state.deleteError,
+      deleteTarget,
+      deletingPath: state.deletingPath,
+      requestDeleteDocument,
       selectDocument,
       selectedDocument: projection.selectedDocument,
     },
@@ -132,16 +245,15 @@ export function useAgentMemory(agentId: string, fallbackError: string) {
       refresh,
       snapshot: state.snapshot,
     },
-    summary: {
-      counts: projection.counts,
-      latestDocument: projection.latestDocument,
-    },
   };
 }
 
 function createAgentMemoryState(agentId: string): AgentMemoryState {
   return {
     compactDocumentOpen: false,
+    deleteError: null,
+    deleteTargetPath: "",
+    deletingPath: "",
     error: null,
     filter: "all",
     isLoading: true,

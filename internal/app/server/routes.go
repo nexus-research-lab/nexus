@@ -95,6 +95,7 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/agents/{agent_id}/private-domain/threads/{thread_id}/events"), s.handlers.room.HandleListAgentPrivateEvents)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/files"), s.handlers.workspace.HandleWorkspaceFiles)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/memory"), s.handlers.workspace.HandleWorkspaceMemory)
+	s.router.Delete(s.prefixPath("/agents/{agent_id}/workspace/memory"), s.handlers.workspace.HandleDeleteWorkspaceMemory)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/file"), s.handlers.workspace.HandleWorkspaceFile)
 	s.router.Put(s.prefixPath("/agents/{agent_id}/workspace/file"), s.handlers.workspace.HandleUpdateWorkspaceFile)
 	s.router.Post(s.prefixPath("/agents/{agent_id}/workspace/upload"), s.handlers.workspace.HandleUploadWorkspaceFile)

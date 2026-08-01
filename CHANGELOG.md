@@ -7,11 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added the MIT-licensed `diagram-design` built-in Skill, adapted from Cathryn
+  Lavery's pinned upstream release, with 27 editorial diagram types, local brand
+  profiles, HTML/SVG templates, the complete upstream icon gallery and 86 raw SVG
+  sources, plus explicit source and third-party provenance.
+- Added the MIT-licensed `Kami` built-in Skill from Tw93's pinned lightweight
+  package, with editorial templates for documents, slides and landing pages,
+  18 inline SVG diagram types, deterministic checks, and explicit font licensing.
+- Added confirmed Agent Memory deletion for topic and daily-log documents;
+  deletion is scope-safe, keeps `MEMORY.md` itself protected, removes the
+  matching index line server-side, and selects the next available memory after
+  refresh.
+
 ### Changed
 
 - Replaced the bootstrap Lottie animation with a lightweight CSS loading
   indicator, removing a large runtime and external WASM fetch from the desktop
   startup path while preserving reduced-motion and screen-reader behavior.
+- Rewrote the Agent Full Access warning in user-facing language without runtime
+  field names, while preserving its safety boundary and trusted-task guidance.
+- Compacted Agent Tools into a responsive permission selector and three-column
+  authorization grid with quiet safety guidance, and refined Agent Contact into
+  a neutral two-line thread directory plus softly separated 920px message
+  reading plane without repeated room counts, badges, or blue selection rails.
+- Refined Agent Memory into a compact directory and single reading plane:
+  removed repeated metrics and file metadata, collapsed type filtering and
+  refresh into the search row, opened the latest memory by default, and aligned
+  quiet notices, index entries, and body copy on one centered content axis;
+  catalog selection now matches Contact rows, while the reader uses the same
+  soft gutter and shaded inspector treatment as Room workspace panels.
+- Replaced generic Work Loop row icons with deterministic rounded-square
+  mathematical curve avatars seeded by each Loop slug.
+- Removed redundant availability, source, scope, tag, and enablement metadata
+  from installed Skill cards, keeping only identity, description, and real
+  update or delete actions while preserving technical details in Skill detail.
+- Unified capability directory entries with visible borders and compact spacing,
+  and added square identity icons to scheduled tasks and channel pairings that
+  previously relied on text alone.
+- Expanded deterministic Skill avatars with centered rotational curve families,
+  aligned their rounded-square frame with Agent avatars, and made the shared
+  avatar component the only renderer across Skill surfaces.
+- Unified installed, update, and community Skill results around one compact
+  three-column identity card, carrying the same generated mathematical curve
+  through capability catalog, detail, and preview surfaces.
+- Added deterministic, pastel Skill avatars whose static mathematical curves
+  are generated from stable Skill names across the global catalog and Agent
+  Skill cards.
+- Compacted Agent Skill cards into the shared responsive three-, two-, and
+  one-column catalog grid while retaining two-line descriptions.
+- Extended presentation-only Chinese and English descriptions to every bundled
+  Nexus Skill across catalog, detail, Agent, Room, and composer surfaces.
+- Localized system-managed Agent Skill descriptions in Chinese and English at
+  presentation time without changing the underlying Skill metadata or files.
+- Removed duplicate enable labels and locked-state badges from spacious Agent
+  Skill cards while retaining switch accessibility and existing card geometry.
+- Moved Agent Skill search into the available-group header and show its result
+  ratio only while filtering, with a full-width mobile layout.
+- Removed the redundant Agent Skill summary and manual refresh row, letting the
+  enabled and available groups own their counts while visible data continues to
+  refresh automatically.
 - Replaced hard Room auxiliary-panel dividers with an invisible resize gutter,
   alongside subtly differentiated conversation and context surfaces.
 - Simplified Workspace file chrome into one continuous header with consistent icon-only
@@ -74,8 +130,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   round disposal nonblocking, and kept reconnects fenced only while prior
   process shutdown remains incomplete.
 - Stopped the Home ASCII canvas from redrawing thousands of glyphs continuously
-  while idle by bounding active animation to 30 FPS, sleeping after intro and
-  pointer settling, and pausing when the surface is hidden or offscreen.
+  while idle by sleeping after intro and pointer settling, and pausing when the
+  surface is hidden or offscreen.
+- Aligned Contact Agent Skill titles and source badges with the vertical center
+  shared by their 40px avatar and trailing switch.
+- Aligned Skill card titles with the vertical center shared by their 40px avatar
+  and trailing action instead of offsetting titles toward the card top.
+- Kept shared management-page headers aligned with the Web sidebar header and
+  macOS window controls, while remaining clear of traffic lights and the
+  sidebar expand control when collapsed.
 - Restored the last authoritative context-window snapshot from Session metadata
   after frontend refreshes and backend restarts.
 - Kept upward anchored overlays attached to their triggers instead of pinning

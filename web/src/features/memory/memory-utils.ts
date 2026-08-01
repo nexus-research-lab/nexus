@@ -1,12 +1,6 @@
-import type { MemoryDocument } from "@/types/memory/memory";
-
 const FRONTMATTER_PATTERN = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 
 export const MEMORY_STALE_AFTER_DAYS = 1;
-
-export function isIndexedMemoryTopic(document: MemoryDocument): boolean {
-  return document.indexed && document.kind === "topic";
-}
 
 export function stripMemoryFrontmatter(content: string): string {
   return content.replace(FRONTMATTER_PATTERN, "").trim();
@@ -31,14 +25,4 @@ export function formatMemoryModifiedTime(modifiedAt: string, locale: string): st
     hour: "2-digit",
     minute: "2-digit",
   }).format(timestamp);
-}
-
-export function formatMemoryFileSize(size: number): string {
-  if (size < 1024) {
-    return `${size} B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${(size / 1024).toFixed(size < 10 * 1024 ? 1 : 0)} KB`;
-  }
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }

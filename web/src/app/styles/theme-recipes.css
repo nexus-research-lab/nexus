@@ -129,6 +129,30 @@
     flex: 0 0 var(--desktop-window-controls-inset, 84px);
   }
 
+  /*
+   * 管理页标题与 Surface Header 共处原生标题栏平面。侧栏折叠或页面没有侧栏时，
+   * 只增加横向安全区，避免 traffic lights 与展开按钮遮住标题，不推低正文。
+   */
+  .workspace-content-header-inner {
+    padding-inline-start: var(--workspace-content-header-leading-inset, 0px);
+    transition: padding-inline-start var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  /* 管理页默认 20px 顶部留白；统一回收 12px 后，与 Web 品牌栏及原生标题栏控件对齐。 */
+  .workspace-content-header {
+    margin-block-start: -12px;
+  }
+
+  :root[data-desktop-platform="macos"]
+    .sidebar-panel-shell[data-sidebar-collapsed="true"]
+    + .desktop-app-stage,
+  :root[data-desktop-platform="macos"] .desktop-entry-stage {
+    --workspace-content-header-leading-inset: var(
+      --desktop-window-controls-inset,
+      84px
+    );
+  }
+
   .home-desktop-drag-header {
     display: none;
   }

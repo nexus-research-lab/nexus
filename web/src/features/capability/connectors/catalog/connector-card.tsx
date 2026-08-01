@@ -3,6 +3,7 @@
 import { Clock3, KeyRound, Loader2, Plus, Settings2, Unplug } from "lucide-react";
 import { type MouseEvent } from "react";
 
+import { CAPABILITY_DIRECTORY_ROW_CLASS_NAME } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
@@ -52,7 +53,7 @@ export function ConnectorCard({
 
   return (
     <UiListRow
-      className={cn(busy && "opacity-65")}
+      className={cn(CAPABILITY_DIRECTORY_ROW_CLASS_NAME, busy && "opacity-65")}
       leading={<ConnectorIcon icon={connector.icon} title={connector.title} />}
       onClick={onSelect}
       right={(

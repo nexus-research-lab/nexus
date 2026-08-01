@@ -1,5 +1,6 @@
-import { Handshake, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
+import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 
 export function PrivateDomainToolbar({
@@ -14,22 +15,21 @@ export function PrivateDomainToolbar({
   title: string;
 }) {
   return (
-    <div className="flex h-11 items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3.5">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--primary)_10%,transparent)] text-primary">
-          <Handshake className="h-3.5 w-3.5" />
-        </span>
+    <div className="flex min-h-[48px] items-center justify-between gap-3 px-3">
+      <div className="flex min-w-0 items-baseline gap-1.5">
         <span className="truncate text-sm font-semibold text-(--text-strong)">{title}</span>
-        <span className="text-xs font-semibold text-(--text-soft)">{count}</span>
+        <span className="text-xs tabular-nums text-(--text-soft)">{count}</span>
       </div>
-      <button
+      <UiIconButton
         aria-label="刷新联络"
-        className="flex h-7 w-7 items-center justify-center rounded-full text-(--icon-default) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+        disabled={isLoading}
         onClick={onRefresh}
-        type="button"
+        size="xs"
+        title="刷新联络"
+        variant="ghost"
       >
         <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
-      </button>
+      </UiIconButton>
     </div>
   );
 }

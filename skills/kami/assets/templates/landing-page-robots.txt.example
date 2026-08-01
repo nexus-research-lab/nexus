@@ -1,0 +1,63 @@
+# Companion to landing-page.html / landing-page-en.html.
+# Drop into your repo root as robots.txt (without the .example suffix) and replace example.com with your domain.
+# AI-crawler allowlist mirrors what Kami's own site already ships - keep these open so Claude, ChatGPT, Perplexity, and Apple Intelligence can index your product.
+
+User-agent: *
+Allow: /
+
+# Add Disallow lines for paths that should not be indexed, e.g.
+# Disallow: /api/
+# Disallow: /admin/
+
+Sitemap: https://example.com/sitemap.xml
+
+# Search engines
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+# AI training crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+# AI search bots (retrieval, not training)
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: DuckAssistBot
+Allow: /

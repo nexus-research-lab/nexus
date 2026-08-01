@@ -8,7 +8,10 @@ import {
 
 import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
-import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
+import {
+  WORKSPACE_CATALOG_GRID_CLASS_NAME,
+  WORKSPACE_CONTENT_PAGE_CLASS_NAME,
+} from "@/shared/ui/layout/workspace-content-layout";
 import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
@@ -56,6 +59,25 @@ interface CapabilityFilterSelectProps {
   value: string;
 }
 
+interface CapabilityItemIconProps {
+  children: ReactNode;
+  className?: string;
+  size?: "sm" | "md";
+}
+
+const CAPABILITY_ITEM_ICON_SIZE_CLASS_NAMES = {
+  md: "h-9 w-9 rounded-[8px]",
+  sm: "h-8 w-8 rounded-[8px]",
+} as const;
+
+/** 普通能力目录统一使用紧凑三列，避免各子域维护不同横纵间距。 */
+export const CAPABILITY_DIRECTORY_GRID_CLASS_NAME =
+  `${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-2.5`;
+
+/** 目录条目保留清晰外框，让不同能力类型共享同一内容层级。 */
+export const CAPABILITY_DIRECTORY_ROW_CLASS_NAME =
+  "min-h-[88px] border-(--divider-subtle-color) bg-transparent px-3 py-3 hover:border-(--surface-interactive-hover-border)";
+
 /** 能力目录复用共享管理内容轴，标题、工具和内容始终保持同一基线。 */
 export function CapabilityPageLayout({
   actions,
@@ -99,6 +121,26 @@ export function CapabilityFilterSearchInput({
       placeholder={placeholder}
       value={value}
     />
+  );
+}
+
+/** 为没有品牌资源的能力条目提供统一的方形身份图标框。 */
+export function CapabilityItemIcon({
+  children,
+  className,
+  size = "md",
+}: CapabilityItemIconProps) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        "flex shrink-0 items-center justify-center border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--icon-default)",
+        CAPABILITY_ITEM_ICON_SIZE_CLASS_NAMES[size],
+        className,
+      )}
+    >
+      {children}
+    </span>
   );
 }
 

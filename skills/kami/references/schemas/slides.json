@@ -1,0 +1,62 @@
+{
+  "$comment": "Slide deck content contract. Ghost deck test: reading only the titles in order must tell the full argument. Every title is a full declarative assertion, never a topic label. One evidence shape per slide.",
+  "type": "object",
+  "required": ["title", "audience", "slides"],
+  "properties": {
+    "title": { "type": "string", "minLength": 2, "maxLength": 80 },
+    "subtitle": { "type": "string", "maxLength": 120 },
+    "audience": {
+      "$comment": "Who is in the room and the venue: live keynote, investor 1:1, or async share link.",
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 160
+    },
+    "minutes": { "type": "integer" },
+    "slides": {
+      "$comment": "Decks of 12+ slides need a chapter divider every 4-6 slides and at least one quote or metrics slide. Never more than 5 consecutive content slides.",
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "required": ["layout", "title"],
+        "properties": {
+          "layout": {
+            "type": "string",
+            "enum": ["cover", "chapter", "content", "quote", "metrics", "close"]
+          },
+          "eyebrow": {
+            "$comment": "Stable cross-slide section label. Must never restate the title in different words.",
+            "type": "string",
+            "maxLength": 40
+          },
+          "title": {
+            "$comment": "A page-unique declarative claim, e.g. 'Q3 revenue grew 23% because enterprise deals closed 2x faster'.",
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 110
+          },
+          "items": {
+            "$comment": "3-5 supporting items; each fits one line. A slide with fewer than 3 items and no chart merges into a neighbor.",
+            "type": "array",
+            "maxItems": 5,
+            "items": { "type": "string", "minLength": 4, "maxLength": 110 }
+          },
+          "chart": {
+            "type": "object",
+            "required": ["kind", "insight"],
+            "properties": {
+              "kind": { "type": "string", "minLength": 2, "maxLength": 40 },
+              "insight": { "type": "string", "minLength": 6, "maxLength": 160 }
+            }
+          },
+          "cap": {
+            "$comment": "Why this slide matters: a tradeoff, boundary, next step, or insight the visual cannot say. Never restates the title or the diagram.",
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      }
+    }
+  }
+}

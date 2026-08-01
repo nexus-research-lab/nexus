@@ -16,6 +16,8 @@ import type {
 
 import { getAvailableSkillsApi } from "@/lib/api/capability/skill-api";
 import { listProviderOptionsApi } from "@/lib/api/settings/provider-api";
+import { getSkillDisplayDescription } from "@/lib/skill-description";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { SkillInfo } from "@/types/capability/skill";
 import type {
   CommandCatalogData,
@@ -62,6 +64,7 @@ export function useComposerSlashCommand({
   setInput,
   textareaRef,
 }: UseComposerSlashCommandOptions) {
+  const { t } = useI18n();
   const [match, setMatch] = useState<SlashCommandTextMatch | null>(null);
   const [mode, setMode] = useState<SlashCommandMode>("commands");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -91,8 +94,12 @@ export function useComposerSlashCommand({
     [catalog.commands, match?.query],
   );
   const filteredSkills = useMemo(
-    () => filterSlashSkills(skillItems, skillQuery),
-    [skillItems, skillQuery],
+    () => filterSlashSkills(
+      skillItems,
+      skillQuery,
+      (skill) => getSkillDisplayDescription(skill, t),
+    ),
+    [skillItems, skillQuery, t],
   );
   const filteredModels = useMemo(
     () => filterSlashModels(modelItems, modelQuery),

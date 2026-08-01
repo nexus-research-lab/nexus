@@ -23,6 +23,7 @@ import { UiPanel } from "@/shared/ui/panel";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { Agent } from "@/types/agent/agent";
 
+import { ChannelIcon } from "../channel-icon";
 import {
   pairingBindingKey,
   pairingDisplayName,
@@ -201,32 +202,35 @@ function PairingRow({
   return (
     <UiPanel className="overflow-hidden rounded-[8px]" padding="none" radius="sm">
       <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(220px,0.7fr)_auto] items-center gap-3 px-3 py-3 max-lg:grid-cols-1">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <div className="min-w-0 flex-1 truncate text-[14px] font-medium text-(--text-strong)">
-              {pairingDisplayName(item)}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <ChannelIcon type={item.channel_type} />
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="min-w-0 flex-1 truncate text-[14px] font-medium text-(--text-strong)">
+                {pairingDisplayName(item)}
+              </div>
+              <UiBadge tone={STATUS_TONES[item.status]}>
+                {STATUS_LABELS[item.status]}
+              </UiBadge>
             </div>
-            <UiBadge tone={STATUS_TONES[item.status]}>
-              {STATUS_LABELS[item.status]}
-            </UiBadge>
-          </div>
-          <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden text-compact text-(--text-muted)">
-            <span className="shrink-0">
-              {CHANNEL_LABELS[item.channel_type] ?? item.channel_type}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="shrink-0">
-              {CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="min-w-0 truncate font-mono">
-              {pairingTarget(item)}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="shrink-0 text-(--text-soft)">
-              {item.last_message_at ? "最近消息" : "更新于"}{" "}
-              {formatPairingTime(activityAt)}
-            </span>
+            <div className="mt-1 flex min-w-0 items-center gap-1.5 overflow-hidden text-compact text-(--text-muted)">
+              <span className="shrink-0">
+                {CHANNEL_LABELS[item.channel_type] ?? item.channel_type}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="shrink-0">
+                {CHAT_TYPE_LABELS[item.chat_type] ?? item.chat_type}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="min-w-0 truncate font-mono">
+                {pairingTarget(item)}
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="shrink-0 text-(--text-soft)">
+                {item.last_message_at ? "最近消息" : "更新于"}{" "}
+                {formatPairingTime(activityAt)}
+              </span>
+            </div>
           </div>
         </div>
 

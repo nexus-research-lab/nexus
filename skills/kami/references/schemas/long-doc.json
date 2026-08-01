@@ -1,0 +1,63 @@
+{
+  "$comment": "Long document content contract (6-15 pages). Every chapter opens with a claim paragraph that survives the so-what test. At least one data point per paragraph; a zero-number paragraph is an opinion paragraph and should be rare.",
+  "type": "object",
+  "required": ["title", "author", "date", "summary", "chapters"],
+  "properties": {
+    "title": { "type": "string", "minLength": 2, "maxLength": 80 },
+    "subtitle": { "type": "string", "maxLength": 120 },
+    "author": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "date": { "type": "string", "minLength": 4, "maxLength": 30 },
+    "summary": {
+      "$comment": "Executive summary: at most one page plus 3-5 takeaways.",
+      "type": "object",
+      "required": ["claim", "takeaways"],
+      "properties": {
+        "claim": { "type": "string", "minLength": 60 },
+        "takeaways": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 5,
+          "items": { "type": "string", "minLength": 10, "maxLength": 220 }
+        }
+      }
+    },
+    "chapters": {
+      "$comment": "Each chapter stands alone as a mini-essay: claim, evidence, conclusion. A chapter that would fill under 40% of a page merges into its neighbor.",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "required": ["title", "claim", "paragraphs"],
+        "properties": {
+          "title": { "type": "string", "minLength": 2, "maxLength": 80 },
+          "claim": {
+            "$comment": "2-3 sentences summarizing the chapter argument.",
+            "type": "string",
+            "minLength": 40
+          },
+          "paragraphs": {
+            "type": "array",
+            "minItems": 2,
+            "items": { "type": "string", "minLength": 60 }
+          },
+          "figure": {
+            "$comment": "At most one figure per body page. Caption states the insight, not the data range.",
+            "type": "object",
+            "required": ["kind", "caption"],
+            "properties": {
+              "kind": { "type": "string", "minLength": 2, "maxLength": 40 },
+              "caption": { "type": "string", "minLength": 6, "maxLength": 200 }
+            }
+          }
+        }
+      }
+    },
+    "references": {
+      "$comment": "Source cues so readers can distinguish fact, judgment, and inference.",
+      "type": "array",
+      "maxItems": 30,
+      "items": { "type": "string", "minLength": 4, "maxLength": 240 }
+    }
+  }
+}

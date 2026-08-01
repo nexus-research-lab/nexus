@@ -11,3 +11,15 @@ export async function getAgentMemorySnapshotApi(agentId: string): Promise<Memory
     { method: "GET" },
   );
 }
+
+/** 删除 Agent workspace 中的一份正文记忆；MEMORY.md 索引由服务端同步维护。 */
+export async function deleteAgentMemoryDocumentApi(
+  agentId: string,
+  path: string,
+): Promise<unknown> {
+  const query = new URLSearchParams({ path });
+  return requestApi<unknown>(
+    `${AGENT_API_BASE_URL}/agents/${encodeURIComponent(agentId)}/workspace/memory?${query.toString()}`,
+    { method: "DELETE" },
+  );
+}
