@@ -200,6 +200,14 @@ test("Agent 技能页直接使用紧凑分组，不重复汇总、状态与手�
   assert.match(content, /AvailableSkillsSection/);
   assert.match(content, /divide-y divide-\(--divider-subtle-color\) border-y/);
   assert.doesNotMatch(content, /grid grid-cols-1 gap-2\.5/);
+  assert.match(content, /sm:flex-row sm:items-center sm:justify-between/);
+  assert.match(content, /className="min-w-0 flex-1 sm:w-\[288px\] sm:flex-none"/);
+  assert.match(content, /const filteredCount = searchQuery\.trim\(\)/);
+  assert.match(content, /filteredCount \? \(/);
+  assert.doesNotMatch(
+    content,
+    /count=\{`\$\{projection\.visibleAvailable\.length\}\/\$\{projection\.available\.length\}`\}/,
+  );
   assert.match(card, /min-h-\[76px\]/);
   assert.doesNotMatch(card, /min-h-\[108px\]|hover:border/);
   assert.doesNotMatch(card, />\{actionLabel\}<\/span>/);

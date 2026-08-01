@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved Agent Skill search into the available-group header and show its result
+  ratio only while filtering, with a full-width mobile layout.
 - Replaced bordered Agent Skill cards with compact divider rows and removed
   per-row state labels already conveyed by their groups and switches.
 - Removed the redundant Agent Skill summary and manual refresh row, letting the
