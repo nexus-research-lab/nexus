@@ -1,12 +1,6 @@
-import type { MemoryDocument } from "@/types/memory/memory";
-
 const FRONTMATTER_PATTERN = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
 
 export const MEMORY_STALE_AFTER_DAYS = 1;
-
-export function isIndexedMemoryTopic(document: MemoryDocument): boolean {
-  return document.indexed && document.kind === "topic";
-}
 
 export function stripMemoryFrontmatter(content: string): string {
   return content.replace(FRONTMATTER_PATTERN, "").trim();

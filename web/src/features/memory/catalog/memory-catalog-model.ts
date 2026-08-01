@@ -79,7 +79,7 @@ export function resolveSelectedMemoryPath(
   const documents = getAllMemoryDocuments(snapshot);
   return documents.some((document) => document.path === currentPath)
     ? currentPath
-    : documents[0]?.path ?? "";
+    : snapshot.documents[0]?.path ?? snapshot.index?.path ?? "";
 }
 
 function getAllMemoryDocuments(snapshot: MemorySnapshot | null): MemoryDocument[] {

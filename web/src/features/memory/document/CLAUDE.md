@@ -4,13 +4,13 @@
 
 ## 边界
 
-- `memory-document-model.ts` 以判别联合定义 Header 徽标、编辑操作和实时文件的 `ignore/apply/reload` 意图。
+- `memory-document-model.ts` 以判别联合定义 Header 编辑操作和实时文件的 `ignore/apply/reload` 意图。
 - `use-memory-document-state.ts` 通过共享作用域提交协议拥有文档状态，并保留保存响应与当前草稿的纯合并规则。
 - `use-memory-document-resource.ts` 只执行 HTTP 读取和实时文件意图，旧请求不得覆盖新作用域。
 - `use-memory-document-save.ts` 用不可变令牌固定保存请求的 Agent、路径和草稿，并只编排保存事务。
 - `use-memory-document.ts` 组合资源和命令，向视图返回具体控制面。
 - `index/` 独占 `MEMORY.md` 索引解析和导航视图。
 - Panel 与 Header 分别渲染独占正文状态和操作栏，不自行组合业务状态。
-- Header 只展示标题、非重复路径、更新时间和真实操作，不展示文件大小或通用文件图标；索引导航只展示标题与摘要，路径仅作为内部导航目标。
+- Header 只展示标题、更新时间、运行时状态和真实操作，真实路径只作为标题悬浮说明；标题、提示和正文共用阅读轴。索引导航只展示标题与摘要，路径仅作为内部导航目标。
 
 SDK 实时内容优先于旧 HTTP 响应。保存完成只更新已提交草稿对应的基线；用户在保存期间产生的新草稿必须保留，并继续处于编辑态。

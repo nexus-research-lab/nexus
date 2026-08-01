@@ -1,6 +1,5 @@
 import {
   ArrowLeft,
-  Link2,
   LoaderCircle,
   Pencil,
   Save,
@@ -15,8 +14,6 @@ import { formatMemoryModifiedTime } from "../memory-utils";
 import {
   buildMemoryDocumentHeaderModel,
   type MemoryDocumentHeaderAction,
-  type MemoryDocumentHeaderBadge,
-  type MemoryDocumentHeaderBadgeKind,
 } from "./memory-document-model";
 
 interface MemoryDocumentHeaderController {
@@ -46,78 +43,49 @@ export function MemoryDocumentHeader({
   const { t } = useI18n();
   const model = buildMemoryDocumentHeaderModel({
     dirty: controller.dirty,
-    document,
     editing: controller.editing,
     isSaving: controller.isSaving,
     runtimeWriting,
   });
-  const showPath = document.path !== document.title;
   return (
-    <div className="flex min-h-[60px] shrink-0 items-center gap-3 px-5 py-3">
-      <UiIconButton
-        aria-label={t("common.back")}
-        className="nexus-memory-compact-only"
-        onClick={onBack}
-        size="md"
-        title={t("common.back")}
-        variant="ghost"
-      >
-        <ArrowLeft className="h-4 w-4" />
-      </UiIconButton>
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <h2 className="truncate text-[14px] font-semibold text-(--text-strong)">
-            {document.title}
-          </h2>
-          {model.badges.map((badge) => (
-            <MemoryHeaderBadge badge={badge} key={badge.kind} />
-          ))}
-        </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-(--text-soft)">
-          {showPath ? (
-            <>
-              <span className="truncate font-mono">{document.path}</span>
-              <span aria-hidden="true">·</span>
-            </>
-          ) : null}
-          <span className="shrink-0">
+    <div className="shrink-0">
+      <div className="nexus-memory-document-content flex min-h-[60px] items-center gap-3 py-3">
+        <UiIconButton
+          aria-label={t("common.back")}
+          className="nexus-memory-compact-only"
+          onClick={onBack}
+          size="md"
+          title={t("common.back")}
+          variant="ghost"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </UiIconButton>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2
+              className="truncate text-[14px] font-semibold text-(--text-strong)"
+              title={document.path}
+            >
+              {document.title}
+            </h2>
+            {runtimeWriting ? <MemoryRuntimeWritingStatus /> : null}
+          </div>
+          <div className="mt-0.5 text-xs text-(--text-soft)">
             {formatMemoryModifiedTime(document.modified_at, locale)}
-          </span>
+          </div>
         </div>
+        <MemoryHeaderActions action={model.action} controller={controller} />
       </div>
-      <MemoryHeaderActions action={model.action} controller={controller} />
     </div>
   );
 }
 
-const HEADER_BADGE_VIEW_BY_KIND: Readonly<Record<
-  MemoryDocumentHeaderBadgeKind,
-  {
-    className: string;
-    icon: typeof Link2;
-    iconClassName: string;
-  }
->> = {
-  indexed: {
-    className: "text-emerald-600 dark:text-emerald-400",
-    icon: Link2,
-    iconClassName: "h-3 w-3",
-  },
-  runtime_writing: {
-    className: "text-(--primary)",
-    icon: LoaderCircle,
-    iconClassName: "h-3 w-3 animate-spin",
-  },
-};
-
-function MemoryHeaderBadge({ badge }: { badge: MemoryDocumentHeaderBadge }) {
+function MemoryRuntimeWritingStatus() {
   const { t } = useI18n();
-  const view = HEADER_BADGE_VIEW_BY_KIND[badge.kind];
-  const Icon = view.icon;
   return (
-    <span className={`inline-flex shrink-0 items-center gap-1 text-xs font-medium ${view.className}`}>
-      <Icon className={view.iconClassName} />
-      {t(badge.labelKey)}
+    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-(--primary)">
+      <LoaderCircle className="h-3 w-3 animate-spin" />
+      {t("capability.memory_runtime_writing")}
     </span>
   );
 }

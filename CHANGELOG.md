@@ -9,9 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Simplified Agent Memory into a quieter two-pane browser by removing the
-  repeated Agent metrics row, duplicate paths, file sizes, index counts, and
-  table-like separators while moving refresh beside search.
+- Refined Agent Memory into a compact directory and single reading plane:
+  removed repeated metrics and file metadata, collapsed type filtering and
+  refresh into the search row, opened the latest memory by default, and aligned
+  quiet notices, index entries, and body copy on one centered content axis;
+  catalog selection now matches Contact rows, while the reader uses the same
+  soft gutter and shaded inspector treatment as Room workspace panels.
 - Replaced generic Work Loop row icons with deterministic rounded-square
   mathematical curve avatars seeded by each Loop slug.
 - Removed redundant availability, source, scope, tag, and enablement metadata

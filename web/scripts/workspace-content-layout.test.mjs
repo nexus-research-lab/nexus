@@ -226,13 +226,27 @@ test("设置和能力二级页不再恢复重复标题或私有版心", async ()
   assert.doesNotMatch(loopDetail, /max-w-\[960px\]/);
 });
 
-test("记忆页以留白替代重复摘要和表格式分隔线", async () => {
-  const [view, catalog, model, header, indexEntries, styles, zhCapability, enCapability] =
-    await Promise.all([
+test("记忆页使用紧凑目录和单一阅读轴", async () => {
+  const [
+    view,
+    catalog,
+    model,
+    presentation,
+    header,
+    documentModel,
+    panel,
+    indexEntries,
+    styles,
+    zhCapability,
+    enCapability,
+  ] = await Promise.all([
       "src/features/memory/agent-memory-view.tsx",
       "src/features/memory/catalog/agent-memory-catalog.tsx",
       "src/features/memory/catalog/memory-catalog-model.ts",
+      "src/features/memory/catalog/memory-catalog-presentation.ts",
       "src/features/memory/document/memory-document-header.tsx",
+      "src/features/memory/document/memory-document-model.ts",
+      "src/features/memory/document/memory-document-panel.tsx",
       "src/features/memory/document/index/memory-index-entries.tsx",
       "src/features/memory/memory-view.css",
       "src/shared/i18n/catalog/zh/capability.ts",
@@ -242,17 +256,35 @@ test("记忆页以留白替代重复摘要和表格式分隔线", async () => {
   assert.doesNotMatch(view, /MemorySummary|MemoryMetrics|MemoryAgentIdentity/);
   assert.match(view, /onRefresh=\{\(\) => void memory\.resource\.refresh\(\)\}/);
   assert.match(catalog, /UiSearchInput/);
+  assert.match(catalog, /UiSelectMenu/);
   assert.match(catalog, /UiIconButton/);
-  assert.doesNotMatch(catalog, /border-r|shrink-0 border-b/);
+  assert.match(catalog, /SIDEBAR_SELECTION_CLASS_NAME/);
+  assert.match(catalog, /action=\{\(/);
+  assert.doesNotMatch(
+    catalog,
+    /role="tab"|formatMemoryModifiedTime|isIndexedMemoryTopic|line-clamp-2|absolute bottom-2 left-0|border-r|shrink-0 border-b/,
+  );
   assert.doesNotMatch(model, /counts:|latestDocument|countMemoryDocuments|getLatestMemoryDocument/);
-  assert.match(header, /document\.path !== document\.title/);
-  assert.doesNotMatch(header, /border-b|formatMemoryFileSize|FileText/);
-  assert.doesNotMatch(indexEntries, /divide-y|border-y|font-mono|memory_index_entries/);
+  assert.match(model, /snapshot\.documents\[0\]\?\.path \?\? snapshot\.index\?\.path/);
+  assert.match(presentation, /ICON_BY_KEY/);
+  assert.doesNotMatch(presentation, /tone:|--(?:accent|warning|primary)/);
+  assert.match(header, /nexus-memory-document-content/);
+  assert.doesNotMatch(header, /border-b|formatMemoryFileSize|FileText|Link2|MemoryHeaderBadge/);
+  assert.doesNotMatch(documentModel, /HEADER_BADGE_RULES|badges:|memory_indexed/);
+  assert.match(panel, /nexus-memory-document-content/);
+  assert.doesNotMatch(panel, /shrink-0 border-b/);
+  assert.match(indexEntries, /nexus-memory-document-content/);
+  assert.doesNotMatch(indexEntries, /Link2|divide-y|border-y|font-mono|memory_index_entries/);
+  assert.match(styles, /grid-template-columns: minmax\(240px, 288px\)/);
+  assert.match(styles, /column-gap: 8px/);
+  assert.match(styles, /box-shadow: -8px 0 20px -18px/);
+  assert.match(styles, /\.nexus-memory-document-content/);
   assert.doesNotMatch(styles, /nexus-memory-(?:summary|metrics|agent-switcher)/);
   [zhCapability, enCapability].forEach((catalogSource) => {
+    assert.match(catalogSource, /capability\.memory_filter_aria/);
     assert.doesNotMatch(
       catalogSource,
-      /capability\.memory_(?:agent_aria|metric_index|metric_topics|metric_logs|metric_updated|ready|index_entries)/,
+      /capability\.memory_(?:agent_aria|metric_index|metric_topics|metric_logs|metric_updated|ready|indexed|index_entries)/,
     );
   });
 });
