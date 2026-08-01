@@ -160,6 +160,8 @@ test("能力页目录、更新和社区结果共用数学曲线身份卡", async
   assert.match(sharedCard, /WorkspaceCatalogCard/);
   assert.match(sharedCard, /UiSeededAvatar seed=\{seed\}/);
   assert.match(sharedCard, /grid-cols-\[40px_minmax\(0,1fr\)_auto\]/);
+  assert.match(sharedCard, /flex min-h-10 min-w-0 items-center/);
+  assert.doesNotMatch(sharedCard, /min-w-0 pt-0\.5/);
   assert.match(sharedCard, /line-clamp-2/);
   [catalogCard, updateCards, externalCard].forEach((source) => {
     assert.match(source, /SkillDirectoryCard/);

@@ -74,6 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Aligned Skill card titles with the vertical center shared by their 40px avatar
+  and trailing action instead of offsetting titles toward the card top.
 - Kept shared management-page headers aligned with the Web sidebar header and
   macOS window controls, while remaining clear of traffic lights and the
   sidebar expand control when collapsed.

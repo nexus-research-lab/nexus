@@ -47,8 +47,8 @@ export function SkillDirectoryCard({
 
       <div className="pointer-events-none relative z-10 grid w-full min-w-0 grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2">
         <UiSeededAvatar seed={seed} />
-        <div className="min-w-0 pt-0.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <div className="flex min-h-10 min-w-0 items-center">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5">
             <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold text-(--text-strong)">
               {title}
             </h3>
