@@ -25,10 +25,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 	sessionService.SetRuntimeManager(runtimectx.NewManager())
@@ -189,10 +186,7 @@ func TestSessionRuntimeSettingsPersistWithoutChangingAgentDefaults(t *testing.T)
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
@@ -347,10 +341,7 @@ func TestSessionServiceListsExternalIMSessions(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
@@ -411,10 +402,7 @@ func TestTitleGenerationUpdatesExternalIMWorkspaceSession(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 
 	agentValue, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{Name: "微信助手"})
