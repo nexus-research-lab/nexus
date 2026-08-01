@@ -32,40 +32,22 @@ export function SkillsCard({
   );
   return (
     <SkillDirectoryCard
-      action={(
-        <>
-          <UiBadge size="xs" tone={model.stateTone}>{model.stateLabel}</UiBadge>
-          {model.showDelete ? (
-            <UiListActionButton
-              className="pointer-events-auto"
-              disabled={busy}
-              onClick={onDelete}
-              size="sm"
-              stopPropagation
-              title="从技能库删除"
-              tone="danger"
-            >
-              <Trash2 className="h-3 w-3" />
-            </UiListActionButton>
-          ) : null}
-        </>
-      )}
+      action={model.showDelete ? (
+        <UiListActionButton
+          className="pointer-events-auto"
+          disabled={busy}
+          onClick={onDelete}
+          size="sm"
+          stopPropagation
+          title="从技能库删除"
+          tone="danger"
+        >
+          <Trash2 className="h-3 w-3" />
+        </UiListActionButton>
+      ) : undefined}
       badges={model.showUpdate ? <UiBadge size="xs" tone="warning">有更新</UiBadge> : null}
       busy={busy}
       description={model.description}
-      meta={(
-        <>
-          <span className="shrink-0">{model.sourceLabel}</span>
-          {model.usageLabel ? (
-            <span className="shrink-0">· {model.usageLabel}</span>
-          ) : null}
-          {model.visibleTags.map((tag) => (
-            <span className="truncate" key={tag}>
-              · {tag}
-            </span>
-          ))}
-        </>
-      )}
       onSelect={onSelect}
       seed={skill.name}
       title={model.title}

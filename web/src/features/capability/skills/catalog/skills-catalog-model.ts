@@ -1,7 +1,4 @@
-import type {
-  SkillInfo,
-  SkillSourceType,
-} from "@/types/capability/skill";
+import type { SkillInfo } from "@/types/capability/skill";
 
 import type { SkillUpdateCheckNotice } from "../controller/skill-update-check-model";
 
@@ -9,12 +6,7 @@ export interface SkillCardModel {
   description: string;
   showDelete: boolean;
   showUpdate: boolean;
-  sourceLabel: string;
-  stateLabel: string;
-  stateTone: "default" | "success" | "warning";
   title: string;
-  usageLabel: string | null;
-  visibleTags: string[];
 }
 
 export type SkillUpdateStatus = "checking" | "current" | "failure" | "updates";
@@ -29,15 +21,6 @@ export interface SkillsUpdateModel {
   title: string;
 }
 
-interface SkillStatePresentation {
-  label: string;
-  tone: SkillCardModel["stateTone"];
-}
-
-interface SkillStateRule extends SkillStatePresentation {
-  matches: (skill: SkillInfo) => boolean;
-}
-
 interface SkillUpdateContext {
   checkingUpdates: boolean;
   checkUpdateNotice: SkillUpdateCheckNotice | null;
@@ -49,47 +32,6 @@ interface SkillUpdateStatusRule {
   matches: (context: SkillUpdateContext) => boolean;
   status: SkillUpdateStatus;
 }
-
-const SKILL_SOURCE_LABEL: Readonly<Record<SkillSourceType, string>> = {
-  builtin: "内置推荐",
-  external: "外部导入",
-  system: "系统内置",
-  workspace: "Agent 本地",
-};
-
-function getSkillSourceLabel(skill: SkillInfo): string {
-  if (skill.source_type === "builtin") {
-    if (skill.source_kind === "nexus_platform") return "Nexus 平台库";
-    if (skill.source_kind === "user_global") return "用户全局 Skill";
-  }
-  if (skill.origin_kind === "marketplace") return "第三方市场";
-  if (skill.origin_kind === "user_import") return "用户导入";
-  return SKILL_SOURCE_LABEL[skill.source_type];
-}
-
-const DEFAULT_SKILL_STATE: SkillStatePresentation = {
-  label: "全局可用",
-  tone: "default",
-};
-
-const SKILL_STATE_RULES: readonly SkillStateRule[] = [
-  {
-    label: "系统托管",
-    matches: (skill) => skill.locked,
-    tone: "warning",
-  },
-  {
-    label: "Agent 本地",
-    matches: (skill) => skill.storage_scope === "agent_workspace"
-      || skill.source_type === "workspace",
-    tone: "success",
-  },
-  {
-    label: "用户库",
-    matches: (skill) => skill.source_type === "external",
-    tone: "success",
-  },
-];
 
 const SKILL_UPDATE_STATUS_RULES: readonly SkillUpdateStatusRule[] = [
   {
@@ -114,22 +56,11 @@ export function buildSkillCardModel(
   skill: SkillInfo,
   description = skill.description,
 ): SkillCardModel {
-  const state = SKILL_STATE_RULES.find((rule) => rule.matches(skill))
-    ?? DEFAULT_SKILL_STATE;
   return {
     description: description || "暂无描述",
     showDelete: skill.deletable,
     showUpdate: skill.has_update,
-    sourceLabel: getSkillSourceLabel(skill),
-    stateLabel: state.label,
-    stateTone: state.tone,
     title: skill.title || skill.name,
-    usageLabel: skill.scope === "room"
-      ? "在 Room 设置中启用"
-      : skill.enabled_agent_count
-      ? `已用于 ${skill.enabled_agent_count} 个 Agent`
-      : "尚未启用",
-    visibleTags: skill.tags.slice(0, 2),
   };
 }
 

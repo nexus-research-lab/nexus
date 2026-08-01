@@ -168,3 +168,29 @@ test("能力页目录、更新和社区结果共用数学曲线身份卡", async
   assert.match(detailView, /UiSeededAvatar seed=\{model\.avatarSeed\} size="lg"/);
   assert.match(previewDialog, /UiSeededAvatar seed=\{model\.avatarSeed\} size="xs"/);
 });
+
+test("已安装 Skill 卡只保留名称、说明和真实动作", async () => {
+  const [sharedCard, catalogCard, catalogModel, detailView, detailModel] =
+    await Promise.all([
+      "src/features/capability/skills/shared/skill-directory-card.tsx",
+      "src/features/capability/skills/catalog/skills-card.tsx",
+      "src/features/capability/skills/catalog/skills-catalog-model.ts",
+      "src/features/capability/skills/detail/skill-detail-view.tsx",
+      "src/features/capability/skills/detail/skill-detail-model.ts",
+    ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+
+  assert.match(sharedCard, /!meta && "min-h-\[116px\]"/);
+  assert.doesNotMatch(catalogCard, /meta=\{|model\.(?:state|source|usage|visibleTags)/);
+  assert.match(catalogCard, /model\.showUpdate/);
+  assert.match(catalogCard, /model\.showDelete/);
+  assert.doesNotMatch(
+    catalogModel,
+    /全局可用|系统托管|Nexus 平台库|在 Room 设置中启用|尚未启用/,
+  );
+  assert.doesNotMatch(
+    catalogModel,
+    /stateLabel|stateTone|sourceLabel|usageLabel|visibleTags/,
+  );
+  assert.match(detailView, /系统托管/);
+  assert.match(detailModel, /Nexus 平台库/);
+});

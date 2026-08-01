@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { cn } from "@/shared/ui/class-name";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { WorkspaceCatalogCard } from "@/shared/ui/workspace/catalog/workspace-catalog-card";
 
@@ -30,7 +31,10 @@ export function SkillDirectoryCard({
   return (
     <WorkspaceCatalogCard
       aria-busy={busy || undefined}
-      className="group relative h-full overflow-hidden hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)"
+      className={cn(
+        "group relative h-full overflow-hidden hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
+        !meta && "min-h-[116px]",
+      )}
       muted={busy}
       size="compact"
     >

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed redundant availability, source, scope, tag, and enablement metadata
+  from installed Skill cards, keeping only identity, description, and real
+  update or delete actions while preserving technical details in Skill detail.
 - Unified capability directory entries with visible borders and compact spacing,
   and added square identity icons to scheduled tasks and channel pairings that
   previously relied on text alone.
