@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Closed CLI-owned services and database pools after every command, preventing
+  repeated in-process commands from retaining Windows SQLite file locks.
 - Kept platform Skills publishable from read-only Windows application bundles.
 - Allowed Windows runtimes to use authorized absolute paths while correctly
   classifying quoted paths, dynamic expansions, file URLs, and redirections.

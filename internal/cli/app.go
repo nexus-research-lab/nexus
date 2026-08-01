@@ -2,6 +2,8 @@ package cli
 
 import (
 	"context"
+	"errors"
+	"io"
 	"os"
 	"strings"
 
@@ -9,6 +11,7 @@ import (
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -19,8 +22,44 @@ const (
 	hostManagedScopeOverrideError = "当前运行时已由宿主注入 owner 作用域，不能再显式选择 CLI 作用域"
 )
 
+// App 持有单次 CLI 执行及其延迟创建的服务资源。
+type App struct {
+	command  *cobra.Command
+	services *cliServiceProvider
+	executed bool
+}
+
+func (a *App) SetArgs(args []string) {
+	a.command.SetArgs(args)
+}
+
+func (a *App) SetIn(reader io.Reader) {
+	a.command.SetIn(reader)
+}
+
+func (a *App) PersistentFlags() *pflag.FlagSet {
+	return a.command.PersistentFlags()
+}
+
+// Execute 无论命令成功或失败都释放本次执行拥有的服务资源。
+func (a *App) Execute() (err error) {
+	if a == nil || a.command == nil {
+		return errors.New("CLI 应用未初始化")
+	}
+	if a.executed {
+		return errors.New("CLI 应用只能执行一次")
+	}
+	a.executed = true
+	if a.services != nil {
+		defer func() {
+			err = errors.Join(err, a.services.Close(context.Background()))
+		}()
+	}
+	return a.command.Execute()
+}
+
 // New 创建 CLI 应用。
-func New(cfg config.Config) (*cobra.Command, error) {
+func New(cfg config.Config) (*App, error) {
 	services := newCLIServiceProvider(cfg)
 
 	root := &cobra.Command{
@@ -98,7 +137,7 @@ func New(cfg config.Config) (*cobra.Command, error) {
 	root.AddCommand(newImagegenCommand(services))
 	root.AddCommand(newEmotionCommand())
 
-	return root, nil
+	return &App{command: root, services: services}, nil
 }
 
 func hasHostManagedCLIScope() bool {

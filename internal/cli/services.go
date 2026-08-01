@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"sync"
 
@@ -70,4 +72,27 @@ func (p *cliServiceProvider) AuthService() (*authsvc.Service, error) {
 	}
 	p.auth = authsvc.NewServiceWithDB(p.cfg, p.authDB)
 	return p.auth, nil
+}
+
+// Close 释放 provider 在本次 CLI 执行中延迟创建的全部资源。
+func (p *cliServiceProvider) Close(ctx context.Context) error {
+	if p == nil {
+		return nil
+	}
+	p.mu.Lock()
+	app := p.app
+	authDB := p.authDB
+	p.app = nil
+	p.auth = nil
+	p.authDB = nil
+	p.mu.Unlock()
+
+	var closeErrors []error
+	if app != nil {
+		closeErrors = append(closeErrors, app.Close(ctx))
+	}
+	if authDB != nil {
+		closeErrors = append(closeErrors, authDB.Close())
+	}
+	return errors.Join(closeErrors...)
 }
