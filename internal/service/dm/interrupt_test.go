@@ -317,12 +317,14 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 	client := newFakeDMClient()
 	client.sessionID = "sdk-interrupt-old"
 	queryCount := 0
+	oldTerminalSent := make(chan struct{})
 	client.onQuery = func(_ context.Context, _ string) {
 		queryCount++
 		if queryCount != 2 {
 			return
 		}
 		go func() {
+			<-oldTerminalSent
 			client.messages <- sdkprotocol.ReceivedMessage{
 				Type:      sdkprotocol.MessageTypeResult,
 				SessionID: client.sessionID,
@@ -338,16 +340,21 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 	}
 	client.onInterrupt = func(_ context.Context) {
 		go func() {
+			// 晚于 Manager 的强制取消宽限，复现真实 nxs 中断尾包落入下一轮。
+			time.Sleep(250 * time.Millisecond)
 			client.messages <- sdkprotocol.ReceivedMessage{
 				Type:      sdkprotocol.MessageTypeResult,
 				SessionID: client.sessionID,
 				UUID:      "result-after-interrupt",
 				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "interrupted",
-					DurationMS: 1,
+					Subtype:    "error_during_execution",
+					DurationMS: 25707,
 					NumTurns:   1,
+					IsError:    true,
+					Errors:     []string{"stale interrupted request"},
 				},
 			}
+			close(oldTerminalSent)
 		}()
 	}
 

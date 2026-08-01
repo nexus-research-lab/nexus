@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -25,6 +26,7 @@ type fakeRoundExecutionClient struct {
 	queryContent []any
 	contextInput []ContextualInputBlock
 	clearCalls   int
+	receiveStart chan struct{}
 }
 
 func (c *fakeRoundExecutionClient) Connect(context.Context) error { return nil }
@@ -50,6 +52,12 @@ func (c *fakeRoundExecutionClient) ClearNextTurnContext(context.Context) error {
 }
 
 func (c *fakeRoundExecutionClient) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
+	if c.receiveStart != nil {
+		select {
+		case c.receiveStart <- struct{}{}:
+		default:
+		}
+	}
 	return c.messages
 }
 
@@ -188,6 +196,259 @@ func TestExecuteRoundPersistsDurableMessagesAndEvents(t *testing.T) {
 	}
 	if len(emitted) != 2 {
 		t.Fatalf("事件扇出次数不正确: %+v", emitted)
+	}
+}
+
+func TestExecuteRoundConsumesDelayedTerminalAfterExplicitInterrupt(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID:    "sdk-session-interrupted",
+		messages:     make(chan sdkprotocol.ReceivedMessage, 1),
+		receiveStart: make(chan struct{}, 1),
+	}
+	mapper := &fakeRoundExecutionMapper{}
+	ctx, cancel := context.WithCancel(context.Background())
+	type executionOutcome struct {
+		result RoundExecutionResult
+		err    error
+	}
+	done := make(chan executionOutcome, 1)
+	go func() {
+		result, err := ExecuteRound(ctx, RoundExecutionRequest{
+			Query:  "long-running request",
+			Client: client,
+			Mapper: mapper,
+			InterruptReason: func() string {
+				return "user stopped"
+			},
+		})
+		done <- executionOutcome{result: result, err: err}
+	}()
+
+	select {
+	case <-client.receiveStart:
+	case <-time.After(time.Second):
+		t.Fatal("round 未开始接收 runtime 消息")
+	}
+	cancel()
+
+	select {
+	case outcome := <-done:
+		t.Fatalf("显式中断不应在旧回合 result 到达前释放消息流: result=%+v err=%v", outcome.result, outcome.err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeAssistant}
+	select {
+	case outcome := <-done:
+		t.Fatalf("assistant 终态不能替代旧回合的 wire result: result=%+v err=%v", outcome.result, outcome.err)
+	case <-time.After(30 * time.Millisecond):
+	}
+
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:      sdkprotocol.MessageTypeResult,
+		SessionID: client.sessionID,
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "interrupted",
+			Usage: map[string]any{
+				"input_tokens":  12,
+				"output_tokens": 3,
+				"total_tokens":  15,
+			},
+		},
+	}
+
+	select {
+	case outcome := <-done:
+		if !errors.Is(outcome.err, ErrRoundInterrupted) {
+			t.Fatalf("消费迟到 terminal 后错误不正确: %v", outcome.err)
+		}
+		if outcome.result.TerminalStatus != "" || outcome.result.CompletedByAssistant {
+			t.Fatalf("排空阶段不应把 runtime terminal 重新投影为正常终态: %+v", outcome.result)
+		}
+		if outcome.result.Usage.TotalTokens != 15 {
+			t.Fatalf("排空阶段应保留 provider usage: %+v", outcome.result.Usage)
+		}
+		if mapper.index != 0 {
+			t.Fatalf("排空阶段不应映射或公开迟到消息，mapper calls=%d", mapper.index)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("迟到 terminal 到达后 round 未结束")
+	}
+}
+
+func TestRoundReceiveIgnoresReadyAssistantFallbackAfterExplicitInterrupt(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-interrupted-assistant",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	execution, err := newRoundExecution(context.Background(), RoundExecutionRequest{
+		Client: client,
+		Mapper: &fakeRoundExecutionMapper{},
+		InterruptReason: func() string {
+			return "user stopped"
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建 round execution 失败: %v", err)
+	}
+	execution.assistantTerminalResult = &RoundExecutionResult{
+		TerminalStatus:       "finished",
+		ResultSubtype:        "success",
+		CompletedByAssistant: true,
+	}
+	ready := make(chan time.Time)
+	close(ready)
+	execution.assistantTerminalTimer = ready
+
+	type executionOutcome struct {
+		result RoundExecutionResult
+		err    error
+	}
+	done := make(chan executionOutcome, 1)
+	go func() {
+		result, receiveErr := execution.receive()
+		done <- executionOutcome{result: result, err: receiveErr}
+	}()
+	select {
+	case outcome := <-done:
+		t.Fatalf("显式中断不应走 assistant fallback: result=%+v err=%v", outcome.result, outcome.err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:   sdkprotocol.MessageTypeResult,
+		Result: &sdkprotocol.ResultMessage{Subtype: "interrupted"},
+	}
+	select {
+	case outcome := <-done:
+		if !errors.Is(outcome.err, ErrRoundInterrupted) {
+			t.Fatalf("assistant fallback 排空错误不正确: %v", outcome.err)
+		}
+		if outcome.result.CompletedByAssistant || outcome.result.TerminalStatus != "" {
+			t.Fatalf("assistant fallback 泄漏为正常终态: %+v", outcome.result)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("assistant fallback 排空 result 后未结束")
+	}
+}
+
+func TestRoundReceiveWaitsForTerminalAfterIdleTimeoutWithExplicitInterrupt(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID: "sdk-session-interrupted-idle",
+		messages:  make(chan sdkprotocol.ReceivedMessage, 1),
+	}
+	execution, err := newRoundExecution(context.Background(), RoundExecutionRequest{
+		Client:      client,
+		Mapper:      &fakeRoundExecutionMapper{},
+		IdleTimeout: 10 * time.Millisecond,
+		InterruptReason: func() string {
+			return "user stopped"
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建 round execution 失败: %v", err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, receiveErr := execution.receive()
+		done <- receiveErr
+	}()
+	select {
+	case receiveErr := <-done:
+		t.Fatalf("显式中断不应走 idle timeout: %v", receiveErr)
+	case <-time.After(50 * time.Millisecond):
+	}
+	client.messages <- sdkprotocol.ReceivedMessage{
+		Type:   sdkprotocol.MessageTypeResult,
+		Result: &sdkprotocol.ResultMessage{Subtype: "interrupted"},
+	}
+	select {
+	case receiveErr := <-done:
+		if !errors.Is(receiveErr, ErrRoundInterrupted) {
+			t.Fatalf("idle timeout 排空错误不正确: %v", receiveErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("idle timeout 排空 result 后未结束")
+	}
+}
+
+func TestExecuteRoundDisconnectsWhenInterruptedTerminalNeverArrives(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID:    "sdk-session-unclean",
+		messages:     make(chan sdkprotocol.ReceivedMessage),
+		receiveStart: make(chan struct{}, 1),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := ExecuteRound(ctx, RoundExecutionRequest{
+			Query:                      "long-running request",
+			Client:                     client,
+			Mapper:                     &fakeRoundExecutionMapper{},
+			InterruptedTerminalTimeout: 20 * time.Millisecond,
+			InterruptReason: func() string {
+				return "user stopped"
+			},
+		})
+		done <- err
+	}()
+
+	select {
+	case <-client.receiveStart:
+	case <-time.After(time.Second):
+		t.Fatal("round 未开始接收 runtime 消息")
+	}
+	cancel()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrRoundInterrupted) {
+			t.Fatalf("terminal 超时错误不正确: %v", err)
+		}
+		if client.disconnects != 1 {
+			t.Fatalf("未收口 client 必须断开，disconnects=%d", client.disconnects)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("terminal 超时后 round 未结束")
+	}
+}
+
+func TestExecuteRoundDisconnectsWhenInterruptedStreamCloses(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID:    "sdk-session-closed-unclean",
+		messages:     make(chan sdkprotocol.ReceivedMessage),
+		receiveStart: make(chan struct{}, 1),
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := ExecuteRound(ctx, RoundExecutionRequest{
+			Query:  "long-running request",
+			Client: client,
+			Mapper: &fakeRoundExecutionMapper{},
+			InterruptReason: func() string {
+				return "user stopped"
+			},
+		})
+		done <- err
+	}()
+
+	select {
+	case <-client.receiveStart:
+	case <-time.After(time.Second):
+		t.Fatal("round 未开始接收 runtime 消息")
+	}
+	cancel()
+	close(client.messages)
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrRoundInterrupted) {
+			t.Fatalf("stream 关闭后的中断错误不正确: %v", err)
+		}
+		if client.disconnects != 1 {
+			t.Fatalf("无 terminal 即关闭的 client 必须断开，disconnects=%d", client.disconnects)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("stream 关闭后 round 未结束")
 	}
 }
 

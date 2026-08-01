@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	defaultAssistantTerminalGrace = 1500 * time.Millisecond
-	defaultRoundIdleTimeout       = 5 * time.Minute
+	defaultAssistantTerminalGrace     = 1500 * time.Millisecond
+	defaultInterruptedTerminalTimeout = 2 * time.Second
+	defaultRoundIdleTimeout           = 5 * time.Minute
 )
 
 func roundQueryContent(request RoundExecutionRequest) any {
@@ -36,6 +37,13 @@ func normalizeAssistantTerminalGrace(value time.Duration) time.Duration {
 		return value
 	}
 	return defaultAssistantTerminalGrace
+}
+
+func normalizeInterruptedTerminalTimeout(value time.Duration) time.Duration {
+	if value > 0 {
+		return value
+	}
+	return defaultInterruptedTerminalTimeout
 }
 
 func normalizeRoundIdleTimeout(timeout time.Duration) time.Duration {
@@ -75,6 +83,15 @@ func abortRoundClientAfterIdleTimeout(client Client) {
 	_ = client.Interrupt(interruptCtx)
 	interruptCancel()
 
+	disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
+	_ = client.Disconnect(disconnectCtx)
+	disconnectCancel()
+}
+
+func disconnectUncleanRoundClient(client Client) {
+	if client == nil {
+		return
+	}
 	disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
 	_ = client.Disconnect(disconnectCtx)
 	disconnectCancel()
