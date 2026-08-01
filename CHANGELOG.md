@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Localized system-managed Agent Skill descriptions in Chinese and English at
+  presentation time without changing the underlying Skill metadata or files.
 - Removed duplicate enable labels and locked-state badges from spacious Agent
   Skill cards while retaining switch accessibility and existing card geometry.
 - Moved Agent Skill search into the available-group header and show its result

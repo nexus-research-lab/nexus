@@ -5,6 +5,8 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
+import { getAgentSkillDisplayDescription } from "./agent-skill-description";
+
 interface AgentSkillCardProps {
   actionLabel: string;
   busy: boolean;
@@ -26,6 +28,7 @@ export function AgentSkillCard({
   skill,
 }: AgentSkillCardProps) {
   const { t } = useI18n();
+  const description = getAgentSkillDisplayDescription(skill, t);
   const badges = [
     {
       icon: <Lock className="h-3 w-3" />,
@@ -67,9 +70,9 @@ export function AgentSkillCard({
             </UiBadge>
           ))}
         </div>
-        {skill.description ? (
+        {description ? (
           <p className="mt-1.5 line-clamp-2 text-compact leading-[1.55] text-(--text-muted)">
-            {skill.description}
+            {description}
           </p>
         ) : null}
       </div>

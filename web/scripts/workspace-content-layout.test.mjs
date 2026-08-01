@@ -185,10 +185,11 @@ test("设置和能力二级页不再恢复重复标题或私有版心", async ()
 });
 
 test("Agent 技能页保留宽松卡片并收敛重复工具与状态", async () => {
-  const [view, content, card, model, zhAgent, enAgent] = await Promise.all([
+  const [view, content, card, description, model, zhAgent, enAgent] = await Promise.all([
     "src/features/agents/options/components/skills/agent-options-skills-view.tsx",
     "src/features/agents/options/components/skills/agent-options-skills-content.tsx",
     "src/features/agents/options/components/skills/agent-skill-card.tsx",
+    "src/features/agents/options/components/skills/agent-skill-description.ts",
     "src/features/agents/options/components/skills/agent-skills-model.ts",
     "src/shared/i18n/catalog/zh/agent.ts",
     "src/shared/i18n/catalog/en/agent.ts",
@@ -211,10 +212,19 @@ test("Agent 技能页保留宽松卡片并收敛重复工具与状态", async ()
   assert.doesNotMatch(card, />\{actionLabel\}<\/span>/);
   assert.doesNotMatch(card, /agent_options\.skills\.enabled/);
   assert.match(card, /aria-label=\{`\$\{actionLabel\}/);
+  assert.match(card, /getAgentSkillDisplayDescription\(skill, t\)/);
+  assert.match(description, /skill\.source_type !== "system"/);
+  assert.match(description, /"goal-manager": "agent_options\.skills\.system_description\.goal_manager"/);
+  assert.match(description, /imagegen: "agent_options\.skills\.system_description\.imagegen"/);
+  assert.match(description, /return skill\.description/);
   assert.doesNotMatch(model, /totalCount: number;/);
   assert.doesNotMatch(model, /totalCount: skills\.length/);
   assert.doesNotMatch(zhAgent, /agent_options\.skills\.(?:summary|total)/);
   assert.doesNotMatch(enAgent, /agent_options\.skills\.(?:summary|total)/);
   assert.doesNotMatch(zhAgent, /"agent_options\.skills\.enabled":/);
   assert.doesNotMatch(enAgent, /"agent_options\.skills\.enabled":/);
+  assert.match(zhAgent, /"agent_options\.skills\.system_description\.imagegen": "生成或编辑图片/);
+  assert.match(zhAgent, /"agent_options\.skills\.system_description\.goal_manager": "管理当前会话中的长期目标/);
+  assert.match(enAgent, /"agent_options\.skills\.system_description\.imagegen": "Generate or edit images/);
+  assert.match(enAgent, /"agent_options\.skills\.system_description\.goal_manager": "Manage long-running goals/);
 });

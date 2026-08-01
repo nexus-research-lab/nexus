@@ -68,6 +68,8 @@ export const zhAgentMessages = {
   "agent_options.skills.load_failed": "加载技能列表失败",
   "agent_options.skills.toggle_failed": "切换技能状态失败",
   "agent_options.skills.system_builtin": "系统内置",
+  "agent_options.skills.system_description.imagegen": "生成或编辑图片，适用于照片、插画、纹理、产品图、UI 效果图和透明背景素材。",
+  "agent_options.skills.system_description.goal_manager": "管理当前会话中的长期目标，包括创建、继续、纠正、完成或标记阻塞，并按目标持续推进工作。",
   "agent_options.skills.agent_workspace_local": "当前 Agent 本地",
   "agent_options.skills.main_only": "仅 Main",
   "agent_options.skills.create_first": "创建后可配置技能。",
