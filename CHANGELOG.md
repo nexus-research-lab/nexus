@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified capability directory entries with visible borders and compact spacing,
+  and added square identity icons to scheduled tasks and channel pairings that
+  previously relied on text alone.
 - Expanded deterministic Skill avatars with centered rotational curve families,
   aligned their rounded-square frame with Agent avatars, and made the shared
   avatar component the only renderer across Skill surfaces.

@@ -103,25 +103,66 @@ test("正文、Surface Header 与 Agent 详情共用响应式水平留白", asyn
 });
 
 test("管理目录在桌面统一使用三列", async () => {
-  const [layout, ...catalogs] = await Promise.all([
-    "src/shared/ui/layout/workspace-content-layout.ts",
-    "src/features/capability/connectors/catalog/connectors-grid.tsx",
-    "src/features/capability/loops/loops-directory.tsx",
-    "src/features/capability/channels/channels-directory.tsx",
-    "src/features/capability/skills/catalog/skills-catalog-grid.tsx",
-    "src/features/capability/skills/catalog/skills-update-highlight.tsx",
-    "src/features/capability/skills/external/skills-external-results.tsx",
-    "src/features/capability/scheduled/board/scheduled-task-board.tsx",
-    "src/features/contacts/contacts-directory.tsx",
-  ].map(readSource));
+  const [layout, capabilityLayout, connectors, loops, channels, ...catalogs] =
+    await Promise.all([
+      "src/shared/ui/layout/workspace-content-layout.ts",
+      "src/features/capability/shared/capability-page-layout.tsx",
+      "src/features/capability/connectors/catalog/connectors-grid.tsx",
+      "src/features/capability/loops/loops-directory.tsx",
+      "src/features/capability/channels/channels-directory.tsx",
+      "src/features/capability/skills/catalog/skills-catalog-grid.tsx",
+      "src/features/capability/skills/catalog/skills-update-highlight.tsx",
+      "src/features/capability/skills/external/skills-external-results.tsx",
+      "src/features/capability/scheduled/board/scheduled-task-board.tsx",
+      "src/features/contacts/contacts-directory.tsx",
+    ].map(readSource));
 
   assert.match(
     layout,
     /WORKSPACE_CATALOG_GRID_CLASS_NAME[\s\S]*grid-cols-1 md:grid-cols-2 xl:grid-cols-3/,
   );
+  assert.match(
+    capabilityLayout,
+    /CAPABILITY_DIRECTORY_GRID_CLASS_NAME =\s*`\$\{WORKSPACE_CATALOG_GRID_CLASS_NAME\} gap-2\.5`/,
+  );
+  [connectors, loops, channels].forEach((source) => {
+    assert.match(source, /CAPABILITY_DIRECTORY_GRID_CLASS_NAME/);
+  });
   catalogs.forEach((source) => {
     assert.match(source, /WORKSPACE_CATALOG_GRID_CLASS_NAME/);
   });
+});
+
+test("能力目录条目共用可见边框并补齐身份图标", async () => {
+  const [shared, connector, connectors, loop, channel, channels, scheduled, pairing] =
+    await Promise.all([
+      "src/features/capability/shared/capability-page-layout.tsx",
+      "src/features/capability/connectors/catalog/connector-card.tsx",
+      "src/features/capability/connectors/catalog/connectors-grid.tsx",
+      "src/features/capability/loops/loops-directory.tsx",
+      "src/features/capability/channels/catalog/channel-card.tsx",
+      "src/features/capability/channels/channels-directory.tsx",
+      "src/features/capability/scheduled/board/scheduled-task-card.tsx",
+      "src/features/capability/channels/pairings/pairing-list.tsx",
+    ].map(readSource));
+
+  assert.match(
+    shared,
+    /CAPABILITY_DIRECTORY_ROW_CLASS_NAME[\s\S]*border-\(--divider-subtle-color\)/,
+  );
+  assert.match(shared, /export function CapabilityItemIcon/);
+  [connector, loop, channel].forEach((source) => {
+    assert.match(source, /CAPABILITY_DIRECTORY_ROW_CLASS_NAME/);
+  });
+  [connectors, loop, channels].forEach((source) => {
+    assert.match(source, /CAPABILITY_DIRECTORY_GRID_CLASS_NAME/);
+    assert.doesNotMatch(source, /gap-x-8 gap-y-2/);
+  });
+  assert.match(loop, /<CapabilityItemIcon>/);
+  assert.match(scheduled, /TASK_IDENTITY_ICONS/);
+  assert.match(scheduled, /<CapabilityItemIcon/);
+  assert.match(pairing, /<UiPanel/);
+  assert.match(pairing, /<ChannelIcon type=\{item\.channel_type\}/);
 });
 
 test("全部能力目录复用同一正文标题与内容轴", async () => {

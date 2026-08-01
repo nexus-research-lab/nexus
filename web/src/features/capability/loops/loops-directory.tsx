@@ -6,9 +6,12 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import {
+  CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
+  CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
+  CapabilityItemIcon,
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
@@ -16,7 +19,6 @@ import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
@@ -149,15 +151,16 @@ export function LoopsDirectory() {
               title={t("capability.loops_empty")}
             />
           ) : (
-            <div className={`${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-x-8 gap-y-2`}>
+            <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
               {filteredLoops.map((loop) => (
                 <UiListRow
+                  className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
                   key={loop.slug}
                   onClick={() => navigate(AppRouteBuilders.loopDetail(loop.slug))}
                   leading={(
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--icon-default)">
+                    <CapabilityItemIcon>
                       <Repeat2 className="h-4 w-4" />
-                    </span>
+                    </CapabilityItemIcon>
                   )}
                   right={(
                     <UiIconButton

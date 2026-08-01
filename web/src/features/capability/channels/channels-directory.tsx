@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import {
+  CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
@@ -20,7 +21,6 @@ import {
 } from "@/shared/ui/feedback/feedback-banner";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
@@ -108,7 +108,7 @@ export function ChannelsDirectory() {
                 })}
                 title={t("capability.channels_section_title")}
               />
-              <div className={`${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-x-8 gap-y-2`}>
+              <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
                 {controller.visibleChannels.map((item) => (
                   <ChannelCard
                     item={item}
