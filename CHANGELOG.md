@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Unified installed, update, and community Skill results around one compact
+  three-column identity card, carrying the same generated mathematical curve
+  through capability catalog, detail, and preview surfaces.
 - Added deterministic, pastel Skill avatars whose static mathematical curves
   are generated from stable Skill names across the global catalog and Agent
   Skill cards.

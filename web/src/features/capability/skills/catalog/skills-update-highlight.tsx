@@ -1,15 +1,17 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, Clock3, Loader2, Puzzle, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Loader2, RefreshCw } from "lucide-react";
 
+import { getSkillDisplayDescription } from "@/lib/skill-description";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiButton } from "@/shared/ui/button/button";
 import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
-import { UiListRow } from "@/shared/ui/list/list-row";
 import type { SkillInfo } from "@/types/capability/skill";
 
 import type { SkillUpdateCheckNotice } from "../controller/skill-update-check-model";
+import { SkillDirectoryCard } from "../shared/skill-directory-card";
 import {
   buildSkillsUpdateModel,
   type SkillUpdateStatus,
@@ -65,7 +67,7 @@ function SkillUpdateStatusIcon({ status }: { status: SkillUpdateStatus }) {
   return <Icon className={cn("h-3.5 w-3.5", presentation.className)} />;
 }
 
-function UpdateSkillRow({
+function UpdateSkillCard({
   busy,
   onOpen,
   onUpdate,
@@ -76,22 +78,14 @@ function UpdateSkillRow({
   onUpdate: () => void;
   skill: SkillInfo;
 }) {
+  const { t } = useI18n();
   return (
-    <UiListRow
-      className={cn("min-h-[64px] rounded-[8px] px-2 py-1", busy && "opacity-70")}
-      leading={(
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--status-info-soft-text)">
-          <Puzzle className="h-3.5 w-3.5" />
-        </span>
-      )}
-      onClick={onOpen}
-      right={(
+    <SkillDirectoryCard
+      action={(
         <UiButton
+          className="pointer-events-auto"
           disabled={busy}
-          onClick={(event) => {
-            event.stopPropagation();
-            onUpdate();
-          }}
+          onClick={onUpdate}
           size="sm"
           tone="primary"
           type="button"
@@ -101,22 +95,19 @@ function UpdateSkillRow({
           更新
         </UiButton>
       )}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[14px] font-medium text-(--text-strong)">
-            {skill.title || skill.name}
-          </span>
-          <UiBadge size="xs" tone="warning">有更新</UiBadge>
-        </div>
-        <p className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
-          {skill.description || "暂无描述"}
-        </p>
-        <p className="mt-0.5 truncate text-2xs leading-4 text-(--text-soft)">
-          {skill.source_name || "外部导入"} · {skill.version || "unknown"}
-        </p>
-      </div>
-    </UiListRow>
+      badges={<UiBadge size="xs" tone="warning">有更新</UiBadge>}
+      busy={busy}
+      description={getSkillDisplayDescription(skill, t) || "暂无描述"}
+      meta={(
+        <>
+          <span className="truncate">{skill.source_name || "外部导入"}</span>
+          <span className="shrink-0">· {skill.version || "unknown"}</span>
+        </>
+      )}
+      onSelect={onOpen}
+      seed={skill.name}
+      title={skill.title || skill.name}
+    />
   );
 }
 
@@ -178,9 +169,9 @@ export function SkillsUpdateHighlight({
       </div>
 
       {model.showUpdates ? (
-        <div className={cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "mt-2 gap-1.5")}>
+        <div className={cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "mt-3 gap-2.5")}>
           {updates.map((skill) => (
-            <UpdateSkillRow
+            <UpdateSkillCard
               key={skill.name}
               busy={busySkillNames.has(skill.name)}
               onOpen={() => onOpenSkill(skill.name)}

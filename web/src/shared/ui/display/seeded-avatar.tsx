@@ -5,7 +5,7 @@ import { type HTMLAttributes, useMemo } from "react";
 import { getSeededAvatarAppearance } from "@/lib/seeded-avatar";
 import { cn } from "@/shared/ui/class-name";
 
-type UiSeededAvatarSize = "sm" | "md";
+type UiSeededAvatarSize = "xs" | "sm" | "md" | "lg";
 
 interface UiSeededAvatarProps extends HTMLAttributes<HTMLSpanElement> {
   seed: string;
@@ -15,8 +15,10 @@ interface UiSeededAvatarProps extends HTMLAttributes<HTMLSpanElement> {
 const SEEDED_AVATAR_SIZE_CLASS_NAME: Readonly<
   Record<UiSeededAvatarSize, string>
 > = {
+  xs: "h-8 w-8",
   sm: "h-9 w-9",
   md: "h-10 w-10",
+  lg: "h-12 w-12",
 };
 
 /** 中文注释：圆形标记只表示非人物资源，不改变 Agent 与 Room 的头像规范。 */

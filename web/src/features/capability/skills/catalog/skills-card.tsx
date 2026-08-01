@@ -4,28 +4,24 @@ import { Trash2 } from "lucide-react";
 
 import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
-import { UiListRow } from "@/shared/ui/list/list-row";
 import type { SkillInfo } from "@/types/capability/skill";
 
+import { SkillDirectoryCard } from "../shared/skill-directory-card";
 import { buildSkillCardModel } from "./skills-catalog-model";
 
 interface SkillsCardProps {
   skill: SkillInfo;
   busy?: boolean;
-  className?: string;
   onSelect: () => void;
   onDelete?: () => void;
 }
 
-/** Skill 行 —— 与连接器目录保持一致的轻量列表结构。 */
+/** Skill 卡 —— 使用能力页统一的头像驱动目录结构。 */
 export function SkillsCard({
   skill,
   busy = false,
-  className,
   onSelect,
   onDelete,
 }: SkillsCardProps) {
@@ -35,18 +31,13 @@ export function SkillsCard({
     getSkillDisplayDescription(skill, t),
   );
   return (
-    <UiListRow
-      className={cn(
-        busy && "opacity-60",
-        className,
-      )}
-      leading={<UiSeededAvatar seed={skill.name} />}
-      onClick={onSelect}
-      right={(
-        <div className="flex shrink-0 items-center gap-1.5">
-          <UiBadge tone={model.stateTone}>{model.stateLabel}</UiBadge>
+    <SkillDirectoryCard
+      action={(
+        <>
+          <UiBadge size="xs" tone={model.stateTone}>{model.stateLabel}</UiBadge>
           {model.showDelete ? (
             <UiListActionButton
+              className="pointer-events-auto"
               disabled={busy}
               onClick={onDelete}
               size="sm"
@@ -57,31 +48,27 @@ export function SkillsCard({
               <Trash2 className="h-3 w-3" />
             </UiListActionButton>
           ) : null}
-        </div>
+        </>
       )}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[14px] font-medium text-(--text-strong)">
-            {model.title}
-          </span>
-          {model.showUpdate ? <UiBadge size="xs" tone="warning">有更新</UiBadge> : null}
-        </div>
-        <div className="mt-0.5 truncate text-compact leading-[1.125rem] text-(--text-muted)">
-          {model.description}
-        </div>
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-2xs leading-4 text-(--text-soft)">
+      badges={model.showUpdate ? <UiBadge size="xs" tone="warning">有更新</UiBadge> : null}
+      busy={busy}
+      description={model.description}
+      meta={(
+        <>
           <span className="shrink-0">{model.sourceLabel}</span>
           {model.usageLabel ? (
             <span className="shrink-0">· {model.usageLabel}</span>
           ) : null}
           {model.visibleTags.map((tag) => (
-            <span key={tag} className="truncate">
+            <span className="truncate" key={tag}>
               · {tag}
             </span>
           ))}
-        </div>
-      </div>
-    </UiListRow>
+        </>
+      )}
+      onSelect={onSelect}
+      seed={skill.name}
+      title={model.title}
+    />
   );
 }

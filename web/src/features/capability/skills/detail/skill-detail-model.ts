@@ -10,13 +10,7 @@ export type SkillDetailSnapshot =
   | { errorMessage: null; skill: SkillDetail; status: "ready" };
 
 interface SkillSourcePresentation {
-  iconClassName: string;
   label: string;
-}
-
-interface SkillLockPresentation {
-  icon: SkillDetailPresentation["icon"];
-  iconClassName: string | null;
 }
 
 interface SkillDetailBadge {
@@ -26,13 +20,13 @@ interface SkillDetailBadge {
 }
 
 export interface SkillDetailPresentation {
+  avatarSeed: string;
   badges: SkillDetailBadge[];
   canDelete: boolean;
   canUpdate: boolean;
   description: string;
   displayName: string;
-  icon: "lock" | "puzzle";
-  iconClassName: string;
+  locked: boolean;
   readmeMarkdown: string;
   scope: SkillInfo["scope"];
   sourceUrl: string | null;
@@ -43,19 +37,15 @@ const SKILL_SOURCE_PRESENTATION: Record<
   SkillSourcePresentation
 > = {
   builtin: {
-    iconClassName: "text-(--icon-default)",
     label: "内置推荐",
   },
   external: {
-    iconClassName: "text-(--status-info-soft-text)",
     label: "用户导入",
   },
   system: {
-    iconClassName: "text-(--icon-default)",
     label: "系统内置",
   },
   workspace: {
-    iconClassName: "text-(--icon-default)",
     label: "Agent 本地",
   },
 };
@@ -63,25 +53,20 @@ const SKILL_SOURCE_PRESENTATION: Record<
 function getSkillSourcePresentation(skill: SkillInfo): SkillSourcePresentation {
   if (skill.source_type === "builtin") {
     if (skill.source_kind === "nexus_platform") {
-      return { iconClassName: "text-(--icon-default)", label: "Nexus 平台库" };
+      return { label: "Nexus 平台库" };
     }
     if (skill.source_kind === "user_global") {
-      return { iconClassName: "text-(--status-info-soft-text)", label: "用户全局 Skill" };
+      return { label: "用户全局 Skill" };
     }
   }
   if (skill.origin_kind === "marketplace") {
-    return { iconClassName: "text-(--status-info-soft-text)", label: "第三方市场" };
+    return { label: "第三方市场" };
   }
   if (skill.origin_kind === "user_import") {
-    return { iconClassName: "text-(--status-info-soft-text)", label: "用户导入" };
+    return { label: "用户导入" };
   }
   return SKILL_SOURCE_PRESENTATION[skill.source_type];
 }
-
-const SKILL_LOCK_PRESENTATION: Record<"false" | "true", SkillLockPresentation> = {
-  false: { icon: "puzzle", iconClassName: null },
-  true: { icon: "lock", iconClassName: "text-(--warning)" },
-};
 
 const HTTP_URL_PATTERN = /^https?:\/\//;
 const SKILL_FRONTMATTER_PATTERN = /^---\s*\n[\s\S]*?\n---\s*(?:\n+|$)/;
@@ -110,7 +95,6 @@ export function buildSkillDetailPresentation(
   description = skill.description,
 ): SkillDetailPresentation {
   const source = getSkillSourcePresentation(skill);
-  const lock = SKILL_LOCK_PRESENTATION[String(skill.locked) as "false" | "true"];
   const displayName = skill.title || skill.name;
   const optionalFlagBadges: Array<SkillDetailBadge | false> = [
     skill.scope === "room" && {
@@ -147,13 +131,13 @@ export function buildSkillDetailPresentation(
   ];
 
   return {
+    avatarSeed: skill.name,
     badges,
     canDelete: skill.deletable,
     canUpdate: skill.source_type === "external" && skill.has_update,
     description: description || "暂无描述",
     displayName,
-    icon: lock.icon,
-    iconClassName: lock.iconClassName || source.iconClassName,
+    locked: skill.locked,
     readmeMarkdown: skill.readme_markdown,
     scope: skill.scope,
     sourceUrl: getHttpSourceUrl(skill.source_ref),

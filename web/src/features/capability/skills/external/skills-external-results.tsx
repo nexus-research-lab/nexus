@@ -11,7 +11,7 @@ import type {
   ExternalSkillSourceStatus,
 } from "@/types/capability/skill";
 
-import { ExternalResultRow } from "./external-result-row";
+import { ExternalResultCard } from "./external-result-card";
 import {
   buildExternalResultsModel,
   sourceGroupEmptyMessage,
@@ -126,9 +126,9 @@ function ExternalResultsReady({
         totalCount={totalCount}
       />
       {model.visibleItems.length ? (
-        <div className={`${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-x-8 gap-y-2`}>
+        <div className={`${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-2.5`}>
           {model.visibleItems.map((item) => (
-            <ExternalResultRow
+            <ExternalResultCard
               key={externalSkillKey(item)}
               busyExternalKeys={busyExternalKeys}
               importedExternalSources={importedExternalSources}
