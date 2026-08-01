@@ -49,7 +49,7 @@ export function AgentSkillCard({
   ].filter((badge) => badge.visible);
 
   return (
-    <div className="flex min-h-[108px] flex-col items-stretch justify-between gap-3 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-4 py-3.5 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) sm:flex-row sm:items-start sm:gap-4">
+    <div className="flex min-h-[76px] flex-col items-stretch justify-between gap-2.5 px-2 py-3 transition-colors duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) sm:flex-row sm:items-center sm:gap-4">
       <div className="min-w-0 flex-1 overflow-hidden">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="min-w-0 text-sm font-semibold leading-[1.4] text-(--text-strong)">
@@ -74,17 +74,9 @@ export function AgentSkillCard({
         ) : null}
       </div>
 
-      {skill.locked ? (
-        <UiBadge className="shrink-0 self-start sm:mt-auto sm:mb-auto" size="xs" tone="success">
-          {t("agent_options.skills.enabled")}
-        </UiBadge>
-      ) : (
-        <div className="flex shrink-0 items-center gap-2 self-end sm:mt-auto sm:mb-auto sm:self-auto">
-          {busy ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-(--text-muted)" />
-          ) : (
-            <span className="text-xs text-(--text-muted)">{actionLabel}</span>
-          )}
+      {!skill.locked ? (
+        <div className="flex min-h-7 shrink-0 items-center gap-2 self-end sm:self-auto">
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin text-(--text-muted)" /> : null}
           <GlassSwitch
             aria-label={`${actionLabel} ${skill.title || skill.name}`}
             checked={skill.enabled_for_agent}
@@ -93,7 +85,7 @@ export function AgentSkillCard({
             size="xs"
           />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

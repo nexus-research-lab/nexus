@@ -68,7 +68,7 @@ function EnabledSkillsSection({
           variant="inset"
         />
       ) : (
-        <div className="grid grid-cols-1 gap-2.5">
+        <div className="divide-y divide-(--divider-subtle-color) border-y border-(--divider-subtle-color)">
           {projection.enabled.map((skill) => (
             <AgentSkillCard
               actionLabel={t("agent_options.skills.disable")}
@@ -125,7 +125,7 @@ function AvailableSkillsSection({
           variant="inset"
         />
       ) : (
-        <div className="grid grid-cols-1 gap-2.5">
+        <div className="divide-y divide-(--divider-subtle-color) border-y border-(--divider-subtle-color)">
           {projection.visibleAvailable.map((skill) => (
             <AgentSkillCard
               actionLabel={t("agent_options.skills.enable")}
