@@ -9,8 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Replaced bordered Agent Skill cards with compact divider rows and removed
-  per-row state labels already conveyed by their groups and switches.
 - Removed the redundant Agent Skill summary and manual refresh row, letting the
   enabled and available groups own their counts while visible data continues to
   refresh automatically.

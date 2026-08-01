@@ -73,6 +73,7 @@ export const enAgentMessages = {
   "agent_options.skills.system_builtin": "System built-in",
   "agent_options.skills.agent_workspace_local": "Local to this Agent",
   "agent_options.skills.main_only": "Main only",
+  "agent_options.skills.enabled": "Enabled",
   "agent_options.skills.create_first": "Create the Agent before configuring skills.",
   "agent_options.skills.enabled_section": "Enabled",
   "agent_options.skills.available_section": "Available to enable",
