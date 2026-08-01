@@ -49,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made the `/app` Nexus ASCII motion follow the display refresh cadence while
+  preserving idle suspension and frame-rate-independent particle movement.
 - Closed CLI-owned services and database pools after every command, preventing
   repeated in-process commands from retaining Windows SQLite file locks.
 - Kept platform Skills publishable from read-only Windows application bundles.

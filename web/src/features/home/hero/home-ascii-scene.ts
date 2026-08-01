@@ -112,7 +112,7 @@ export class HomeAsciiScene {
   private activeUntil = 0;
   private intersectionObserver: IntersectionObserver | null = null;
   private isIntersecting = true;
-  private lastPaintAt = 0;
+  private previousFrameAt = 0;
   private particles: HomeAsciiParticle[] = [];
   private pointer: HomeAsciiPointer | null = null;
   private rebuildFrameId = 0;
@@ -290,21 +290,21 @@ export class HomeAsciiScene {
     }
     const frame = projectHomeAsciiFrame({
       activeUntil: this.activeUntil,
-      lastPaintAt: this.lastPaintAt,
       now,
+      previousFrameAt: this.previousFrameAt,
     });
-    if (frame.shouldPaint) {
-      const elapsed = (now - this.animationStart) / 1000;
-      this.drawParticles(elapsed);
-      this.drawClock();
-      this.lastPaintAt = now;
-    }
+    const elapsed = (now - this.animationStart) / 1000;
+    this.drawParticles(elapsed, frame.motionScale);
+    this.drawClock();
+    this.previousFrameAt = now;
     if (frame.shouldContinue) {
       this.scheduleAnimationFrame();
+      return;
     }
+    this.previousFrameAt = 0;
   };
 
-  private drawParticles(elapsed: number): void {
+  private drawParticles(elapsed: number, motionScale: number): void {
     const { charset, glyphFont, height, influenceForce, influenceRadius, width } = this.viewport;
     this.context.clearRect(0, 0, width, height);
     this.context.font = glyphFont;
@@ -319,6 +319,7 @@ export class HomeAsciiScene {
       height,
       influenceForce,
       influenceRadius,
+      motionScale,
       pointer: this.pointer,
       width,
     };
@@ -447,12 +448,11 @@ export class HomeAsciiScene {
   }
 
   private stopAnimation(): void {
-    if (this.frameId === 0) {
-      return;
+    if (this.frameId !== 0) {
+      window.cancelAnimationFrame(this.frameId);
     }
-    window.cancelAnimationFrame(this.frameId);
     this.frameId = 0;
-    this.lastPaintAt = 0;
+    this.previousFrameAt = 0;
   }
 }
 
