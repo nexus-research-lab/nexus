@@ -139,6 +139,9 @@ export const enCapabilityMessages = {
   "capability.memory_editor_aria": "Edit memory Markdown",
   "capability.memory_load_failed": "Failed to load memory",
   "capability.memory_save_failed": "Failed to save memory",
+  "capability.memory_delete": "Delete memory",
+  "capability.memory_delete_confirm": "Delete “{name}”? This permanently removes the memory from the Agent workspace.",
+  "capability.memory_delete_failed": "Failed to delete memory",
   "capability.refresh": "Refresh",
   "capability.create_task": "New task",
 } satisfies MessageSegment<typeof zhCapabilityMessages>;

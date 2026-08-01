@@ -3,6 +3,7 @@ import {
   LoaderCircle,
   Pencil,
   Save,
+  Trash2,
   X,
 } from "lucide-react";
 
@@ -27,22 +28,31 @@ interface MemoryDocumentHeaderController {
 
 interface MemoryDocumentHeaderProps {
   controller: MemoryDocumentHeaderController;
+  deleteBusy: boolean;
+  deleting: boolean;
   document: MemoryDocument;
   locale: string;
   onBack: () => void;
+  onDelete: () => void;
   runtimeWriting: boolean;
 }
 
 export function MemoryDocumentHeader({
   controller,
+  deleteBusy,
+  deleting,
   document,
   locale,
   onBack,
+  onDelete,
   runtimeWriting,
 }: MemoryDocumentHeaderProps) {
   const { t } = useI18n();
   const model = buildMemoryDocumentHeaderModel({
+    deleteBusy,
+    deleting,
     dirty: controller.dirty,
+    documentKind: document.kind,
     editing: controller.editing,
     isSaving: controller.isSaving,
     runtimeWriting,
@@ -74,7 +84,12 @@ export function MemoryDocumentHeader({
             {formatMemoryModifiedTime(document.modified_at, locale)}
           </div>
         </div>
-        <MemoryHeaderActions action={model.action} controller={controller} />
+        <MemoryHeaderActions
+          action={model.action}
+          controller={controller}
+          deleteAction={model.deleteAction}
+          onDelete={onDelete}
+        />
       </div>
     </div>
   );
@@ -93,29 +108,63 @@ function MemoryRuntimeWritingStatus() {
 function MemoryHeaderActions({
   action,
   controller,
+  deleteAction,
+  onDelete,
 }: {
   action: MemoryDocumentHeaderAction;
   controller: MemoryDocumentHeaderController;
+  deleteAction: ReturnType<typeof buildMemoryDocumentHeaderModel>["deleteAction"];
+  onDelete: () => void;
 }) {
   const { t } = useI18n();
-  if (action.kind === "edit") {
-    return (
-      <UiIconButton
-        aria-label={t("common.edit")}
-        className="shrink-0"
-        disabled={action.disabled}
-        onClick={controller.startEditing}
-        size="md"
-        title={t("common.edit")}
-        variant="ghost"
-      >
-        <Pencil className="h-4 w-4" />
-      </UiIconButton>
-    );
-  }
-  const SaveIcon = action.saving ? LoaderCircle : Save;
   return (
     <div className="flex shrink-0 items-center gap-1.5">
+      {action.kind === "edit" ? (
+        <UiIconButton
+          aria-label={t("common.edit")}
+          disabled={action.disabled}
+          onClick={controller.startEditing}
+          size="md"
+          title={t("common.edit")}
+          variant="ghost"
+        >
+          <Pencil className="h-4 w-4" />
+        </UiIconButton>
+      ) : (
+        <MemoryEditingActions action={action} controller={controller} />
+      )}
+      {deleteAction.visible ? (
+        <UiIconButton
+          aria-label={t("capability.memory_delete")}
+          disabled={deleteAction.disabled}
+          onClick={onDelete}
+          size="md"
+          title={t("capability.memory_delete")}
+          tone="danger"
+          variant="ghost"
+        >
+          {deleteAction.deleting ? (
+            <LoaderCircle className="h-4 w-4 animate-spin" />
+          ) : (
+            <Trash2 className="h-4 w-4" />
+          )}
+        </UiIconButton>
+      ) : null}
+    </div>
+  );
+}
+
+function MemoryEditingActions({
+  action,
+  controller,
+}: {
+  action: Extract<MemoryDocumentHeaderAction, { kind: "editing" }>;
+  controller: MemoryDocumentHeaderController;
+}) {
+  const { t } = useI18n();
+  const SaveIcon = action.saving ? LoaderCircle : Save;
+  return (
+    <>
       <UiButton
         disabled={action.saveDisabled}
         onClick={() => void controller.save()}
@@ -134,6 +183,6 @@ function MemoryHeaderActions({
       >
         <X className="h-4 w-4" />
       </UiIconButton>
-    </div>
+    </>
   );
 }

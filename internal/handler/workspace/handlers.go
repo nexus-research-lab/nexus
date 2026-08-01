@@ -60,6 +60,30 @@ func (h *Handlers) HandleWorkspaceMemory(writer http.ResponseWriter, request *ht
 	h.api.WriteSuccess(writer, item)
 }
 
+// HandleDeleteWorkspaceMemory 删除正文记忆并同步清理 MEMORY.md 索引。
+func (h *Handlers) HandleDeleteWorkspaceMemory(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.workspace.DeleteMemoryDocument(
+		request.Context(),
+		chi.URLParam(request, "agent_id"),
+		request.URL.Query().Get("path"),
+	)
+	if errors.Is(err, agentpkg.ErrAgentNotFound) || errors.Is(err, workspacepkg.ErrFileNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		if handlershared.IsClientMessageError(err) ||
+			strings.Contains(err.Error(), "路径") ||
+			strings.Contains(err.Error(), "记忆文件") {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
 // HandleWorkspaceFile 返回单个工作区文件。
 func (h *Handlers) HandleWorkspaceFile(writer http.ResponseWriter, request *http.Request) {
 	item, err := h.workspace.GetFile(request.Context(), chi.URLParam(request, "agent_id"), request.URL.Query().Get("path"))

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added confirmed Agent Memory deletion for topic and daily-log documents;
+  deletion is scope-safe, keeps `MEMORY.md` itself protected, removes the
+  matching index line server-side, and selects the next available memory after
+  refresh.
+
 ### Changed
 
 - Refined Agent Memory into a compact directory and single reading plane:

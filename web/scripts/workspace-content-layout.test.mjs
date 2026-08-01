@@ -226,10 +226,12 @@ test("设置和能力二级页不再恢复重复标题或私有版心", async ()
   assert.doesNotMatch(loopDetail, /max-w-\[960px\]/);
 });
 
-test("记忆页使用紧凑目录和单一阅读轴", async () => {
+test("记忆页使用紧凑目录、单一阅读轴和受保护删除", async () => {
   const [
     view,
+    memoryApi,
     catalog,
+    memoryController,
     model,
     presentation,
     header,
@@ -241,7 +243,9 @@ test("记忆页使用紧凑目录和单一阅读轴", async () => {
     enCapability,
   ] = await Promise.all([
       "src/features/memory/agent-memory-view.tsx",
+      "src/lib/api/agent/memory-api.ts",
       "src/features/memory/catalog/agent-memory-catalog.tsx",
+      "src/features/memory/catalog/use-agent-memory.ts",
       "src/features/memory/catalog/memory-catalog-model.ts",
       "src/features/memory/catalog/memory-catalog-presentation.ts",
       "src/features/memory/document/memory-document-header.tsx",
@@ -255,6 +259,14 @@ test("记忆页使用紧凑目录和单一阅读轴", async () => {
 
   assert.doesNotMatch(view, /MemorySummary|MemoryMetrics|MemoryAgentIdentity/);
   assert.match(view, /onRefresh=\{\(\) => void memory\.resource\.refresh\(\)\}/);
+  assert.match(view, /ConfirmDialog/);
+  assert.match(view, /capability\.memory_delete_confirm/);
+  assert.match(memoryApi, /workspace\/memory\?\$\{query\.toString\(\)\}/);
+  assert.match(memoryApi, /method: "DELETE"/);
+  assert.match(memoryController, /deleteAgentMemoryDocumentApi/);
+  assert.match(memoryController, /deleteRequestSequenceRef/);
+  assert.match(memoryController, /target\.kind === "index"/);
+  assert.match(memoryController, /await refresh\(\)/);
   assert.match(catalog, /UiSearchInput/);
   assert.match(catalog, /UiSelectMenu/);
   assert.match(catalog, /UiIconButton/);
@@ -269,8 +281,10 @@ test("记忆页使用紧凑目录和单一阅读轴", async () => {
   assert.match(presentation, /ICON_BY_KEY/);
   assert.doesNotMatch(presentation, /tone:|--(?:accent|warning|primary)/);
   assert.match(header, /nexus-memory-document-content/);
+  assert.match(header, /Trash2/);
   assert.doesNotMatch(header, /border-b|formatMemoryFileSize|FileText|Link2|MemoryHeaderBadge/);
   assert.doesNotMatch(documentModel, /HEADER_BADGE_RULES|badges:|memory_indexed/);
+  assert.match(documentModel, /state\.documentKind !== "index"/);
   assert.match(panel, /nexus-memory-document-content/);
   assert.doesNotMatch(panel, /shrink-0 border-b/);
   assert.match(indexEntries, /nexus-memory-document-content/);
@@ -282,6 +296,8 @@ test("记忆页使用紧凑目录和单一阅读轴", async () => {
   assert.doesNotMatch(styles, /nexus-memory-(?:summary|metrics|agent-switcher)/);
   [zhCapability, enCapability].forEach((catalogSource) => {
     assert.match(catalogSource, /capability\.memory_filter_aria/);
+    assert.match(catalogSource, /capability\.memory_delete_confirm/);
+    assert.match(catalogSource, /capability\.memory_delete_failed/);
     assert.doesNotMatch(
       catalogSource,
       /capability\.memory_(?:agent_aria|metric_index|metric_topics|metric_logs|metric_updated|ready|indexed|index_entries)/,

@@ -23,8 +23,12 @@ import { useMemoryDocument } from "./use-memory-document";
 
 interface MemoryDocumentPanelProps {
   agentId: string;
+  deleteBusy: boolean;
+  deleteError: string | null;
+  deleting: boolean;
   document: MemoryDocument | null;
   onBack: () => void;
+  onDelete: () => void;
   onSaved: () => void;
   onSelectPath: (path: string) => void;
 }
@@ -33,8 +37,12 @@ type MemoryDocumentController = ReturnType<typeof useMemoryDocument>;
 
 export function MemoryDocumentPanel({
   agentId,
+  deleteBusy,
+  deleteError,
+  deleting,
   document,
   onBack,
+  onDelete,
   onSaved,
   onSelectPath,
 }: MemoryDocumentPanelProps) {
@@ -58,12 +66,19 @@ export function MemoryDocumentPanel({
     <div className="nexus-memory-document flex min-h-0 min-w-0 flex-col">
       <MemoryDocumentHeader
         controller={controller}
+        deleteBusy={deleteBusy}
+        deleting={deleting}
         document={document}
         locale={locale}
         onBack={onBack}
+        onDelete={onDelete}
         runtimeWriting={runtimeWriting}
       />
-      <MemoryDocumentAlerts controller={controller} document={document} />
+      <MemoryDocumentAlerts
+        controller={controller}
+        document={document}
+        externalError={deleteError}
+      />
       <div className="soft-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto">
         <MemoryDocumentBody
           agentId={agentId}
@@ -106,14 +121,17 @@ function MemoryDocumentEmpty() {
 function MemoryDocumentAlerts({
   controller,
   document,
+  externalError,
 }: {
   controller: MemoryDocumentController;
   document: MemoryDocument;
+  externalError: string | null;
 }) {
   const { t } = useI18n();
   const staleDays = memoryAgeDays(document.modified_at);
   const stale = staleDays > MEMORY_STALE_AFTER_DAYS;
-  if (!stale && !controller.commandError) {
+  const commandError = controller.commandError || externalError;
+  if (!stale && !commandError) {
     return null;
   }
   return (
@@ -123,9 +141,9 @@ function MemoryDocumentAlerts({
           {t("capability.memory_stale", { count: staleDays })}
         </div>
       ) : null}
-      {controller.commandError ? (
+      {commandError ? (
         <div className="rounded-[8px] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-compact leading-5 text-(--destructive)">
-          {controller.commandError}
+          {commandError}
         </div>
       ) : null}
     </div>

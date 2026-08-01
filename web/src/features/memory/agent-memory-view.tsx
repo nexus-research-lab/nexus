@@ -3,6 +3,7 @@
 import { LoaderCircle } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import type { Agent } from "@/types/agent/agent";
 
@@ -22,14 +23,29 @@ export function AgentMemoryView({ agent }: AgentMemoryViewProps) {
   const memory = useAgentMemory(
     agent.agent_id,
     t("capability.memory_load_failed"),
+    t("capability.memory_delete_failed"),
   );
+  const deleteTarget = memory.document.deleteTarget;
   return (
-    <div
-      className="nexus-memory-view flex min-h-0 min-w-0 flex-1 flex-col"
-      data-document-open={memory.document.compactDocumentOpen ? "true" : "false"}
-    >
-      <MemoryContent agentId={agent.agent_id} memory={memory} />
-    </div>
+    <>
+      <div
+        className="nexus-memory-view flex min-h-0 min-w-0 flex-1 flex-col"
+        data-document-open={memory.document.compactDocumentOpen ? "true" : "false"}
+      >
+        <MemoryContent agentId={agent.agent_id} memory={memory} />
+      </div>
+      <ConfirmDialog
+        confirmText={t("capability.memory_delete")}
+        isOpen={deleteTarget !== null}
+        message={deleteTarget
+          ? t("capability.memory_delete_confirm", { name: deleteTarget.title })
+          : ""}
+        onCancel={memory.document.cancelDeleteDocument}
+        onConfirm={() => void memory.document.confirmDeleteDocument()}
+        title={t("capability.memory_delete")}
+        variant="danger"
+      />
+    </>
   );
 }
 
@@ -74,8 +90,17 @@ function MemoryContent({
       />
       <MemoryDocumentPanel
         agentId={agentId}
+        deleteBusy={Boolean(memory.document.deletingPath)}
+        deleteError={memory.document.deleteError}
+        deleting={memory.document.deletingPath === memory.document.selectedDocument?.path}
         document={memory.document.selectedDocument}
         onBack={memory.document.closeCompactDocument}
+        onDelete={() => {
+          const selectedPath = memory.document.selectedDocument?.path;
+          if (selectedPath) {
+            memory.document.requestDeleteDocument(selectedPath);
+          }
+        }}
         onSaved={memory.resource.refresh}
         onSelectPath={memory.document.selectDocument}
       />

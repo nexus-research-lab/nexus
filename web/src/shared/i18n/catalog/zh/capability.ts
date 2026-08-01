@@ -136,6 +136,9 @@ export const zhCapabilityMessages = {
   "capability.memory_editor_aria": "编辑记忆 Markdown",
   "capability.memory_load_failed": "加载记忆失败",
   "capability.memory_save_failed": "保存记忆失败",
+  "capability.memory_delete": "删除记忆",
+  "capability.memory_delete_confirm": "确认删除“{name}”吗？此操作会从 Agent 工作区永久移除这份记忆。",
+  "capability.memory_delete_failed": "删除记忆失败",
   "capability.refresh": "刷新",
   "capability.create_task": "新建任务",
 } as const;

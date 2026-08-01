@@ -1,4 +1,5 @@
 import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
+import type { MemoryDocumentKind } from "@/types/memory/memory";
 
 export type MemoryDocumentHeaderAction =
   | {
@@ -14,10 +15,18 @@ export type MemoryDocumentHeaderAction =
 
 export interface MemoryDocumentHeaderModel {
   action: MemoryDocumentHeaderAction;
+  deleteAction: {
+    deleting: boolean;
+    disabled: boolean;
+    visible: boolean;
+  };
 }
 
 interface MemoryDocumentHeaderState {
+  deleteBusy: boolean;
+  deleting: boolean;
   dirty: boolean;
+  documentKind: MemoryDocumentKind;
   editing: boolean;
   isSaving: boolean;
   runtimeWriting: boolean;
@@ -38,6 +47,11 @@ export function buildMemoryDocumentHeaderModel(
           disabled: state.runtimeWriting,
           kind: "edit",
         },
+    deleteAction: {
+      deleting: state.deleting,
+      disabled: state.deleteBusy || state.runtimeWriting,
+      visible: state.documentKind !== "index" && !state.editing,
+    },
   };
 }
 
