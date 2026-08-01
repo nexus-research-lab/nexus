@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevented concurrent callers from serially relaunching the same runtime after
+  one shared startup failure, while keeping later requests and caller-local
+  cancellations independently retryable.
 - Prevented the internal no-message interrupt marker from appearing in live
   DM or Room events, permission denials, persisted result summaries, legacy
   session history, or diagnostic logs.

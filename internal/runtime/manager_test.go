@@ -18,6 +18,21 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+type observedDoneContext struct {
+	context.Context
+	observed chan struct{}
+	once     sync.Once
+}
+
+func newObservedDoneContext(parent context.Context) *observedDoneContext {
+	return &observedDoneContext{Context: parent, observed: make(chan struct{})}
+}
+
+func (c *observedDoneContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.observed) })
+	return c.Context.Done()
+}
+
 type fakeRuntimeClient struct {
 	reconfigureCalls   int
 	lastOptions        agentclient.Options
@@ -1531,6 +1546,74 @@ func TestSDKClientAdapterConnectRetriesWithLatestConfiguration(t *testing.T) {
 	}
 }
 
+func TestSDKClientAdapterConnectFailureRetriesWithLatestConfiguration(t *testing.T) {
+	staleStartErr := errors.New("old runtime configuration rejected")
+	latestStartErr := errors.New("new runtime executable unavailable")
+	firstAttemptStarted := make(chan struct{})
+	firstAttemptRelease := make(chan struct{})
+	attempts := make(chan agentclient.Options, 2)
+	client := &sdkClientAdapter{
+		options: agentclient.Options{Model: "old-model"},
+		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
+			attempts <- options
+			if options.Model == "old-model" {
+				close(firstAttemptStarted)
+				<-firstAttemptRelease
+				return nil, staleStartErr
+			}
+			return nil, latestStartErr
+		},
+	}
+	ownerDone := make(chan error, 1)
+	go func() { ownerDone <- client.Connect(context.Background()) }()
+	select {
+	case <-firstAttemptStarted:
+	case <-time.After(time.Second):
+		t.Fatal("旧配置 Connect 未启动")
+	}
+	waiterCtx := newObservedDoneContext(context.Background())
+	waiterDone := make(chan error, 1)
+	go func() { waiterDone <- client.Connect(waiterCtx) }()
+	select {
+	case <-waiterCtx.observed:
+	case <-time.After(time.Second):
+		t.Fatal("waiter 未加入旧配置 Connect flight")
+	}
+	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "new-model"}); err != nil {
+		t.Fatalf("连接期间 Reconfigure 失败: %v", err)
+	}
+	close(firstAttemptRelease)
+	select {
+	case options := <-attempts:
+		if options.Model != "old-model" {
+			t.Fatalf("首次启动配置=%q", options.Model)
+		}
+	default:
+		t.Fatal("缺少旧配置启动记录")
+	}
+	select {
+	case options := <-attempts:
+		if options.Model != "new-model" {
+			t.Fatalf("失败后重试配置=%q", options.Model)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("旧配置失败后未使用新配置重试")
+	}
+	for name, done := range map[string]<-chan error{
+		"owner":  ownerDone,
+		"waiter": waiterDone,
+	} {
+		select {
+		case err := <-done:
+			if !errors.Is(err, latestStartErr) {
+				t.Fatalf("%s 应共享新配置启动错误而不是旧错误: %v", name, err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("%s Connect 未结束", name)
+		}
+	}
+}
+
 func TestSDKClientAdapterDiscardCancelsInFlightConnect(t *testing.T) {
 	connectStarted := make(chan struct{})
 	client := &sdkClientAdapter{
@@ -1594,27 +1677,94 @@ func TestSDKClientAdapterConcurrentConnectWaiterHonorsContext(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterConnectOwnerCancellationDoesNotPoisonWaiter(t *testing.T) {
-	firstOpenStarted := make(chan struct{})
+func TestSDKClientAdapterConcurrentConnectSharesStableFailure(t *testing.T) {
+	const callerCount = 8
+	startErr := errors.New("runtime executable is unavailable")
+	firstStarted := make(chan struct{})
+	firstRelease := make(chan struct{})
 	var attemptsMu sync.Mutex
 	attempts := 0
 	client := &sdkClientAdapter{
-		newSession: func(ctx context.Context, _ agentclient.Options) (*agentclient.Session, error) {
+		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
+			attemptsMu.Lock()
+			attempts++
+			attempt := attempts
+			attemptsMu.Unlock()
+			if attempt == 1 {
+				close(firstStarted)
+				<-firstRelease
+			}
+			return nil, startErr
+		},
+	}
+
+	results := make(chan error, callerCount)
+	go func() { results <- client.Connect(context.Background()) }()
+	select {
+	case <-firstStarted:
+	case <-time.After(time.Second):
+		t.Fatal("首次 Connect 未启动 runtime")
+	}
+	for index := 1; index < callerCount; index++ {
+		waiterCtx := newObservedDoneContext(context.Background())
+		go func() { results <- client.Connect(waiterCtx) }()
+		select {
+		case <-waiterCtx.observed:
+		case <-time.After(time.Second):
+			t.Fatalf("waiter %d 未加入首次 Connect flight", index)
+		}
+	}
+	close(firstRelease)
+	for index := 0; index < callerCount; index++ {
+		select {
+		case err := <-results:
+			if !errors.Is(err, startErr) {
+				t.Fatalf("caller %d 错误=%v", index, err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("caller %d 未收到共享启动错误", index)
+		}
+	}
+	attemptsMu.Lock()
+	sharedAttempts := attempts
+	attemptsMu.Unlock()
+	if sharedAttempts != 1 {
+		t.Fatalf("同一并发 cohort 应只启动一次 runtime，实际=%d", sharedAttempts)
+	}
+
+	if err := client.Connect(context.Background()); !errors.Is(err, startErr) {
+		t.Fatalf("后续独立 Connect 应重新尝试并返回启动错误: %v", err)
+	}
+	attemptsMu.Lock()
+	finalAttempts := attempts
+	attemptsMu.Unlock()
+	if finalAttempts != 2 {
+		t.Fatalf("共享错误不应永久缓存，最终启动次数=%d", finalAttempts)
+	}
+}
+
+func TestSDKClientAdapterConnectOwnerCancellationDoesNotPoisonWaiter(t *testing.T) {
+	startErr := errors.New("runtime startup failed after cancellation")
+	firstOpenStarted := make(chan struct{})
+	firstOpenRelease := make(chan struct{})
+	var attemptsMu sync.Mutex
+	attempts := 0
+	client := &sdkClientAdapter{
+		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
 			attemptsMu.Lock()
 			attempts++
 			attempt := attempts
 			attemptsMu.Unlock()
 			if attempt == 1 {
 				close(firstOpenStarted)
-				<-ctx.Done()
-				return nil, ctx.Err()
+				<-firstOpenRelease
+				return nil, startErr
 			}
 			return &agentclient.Session{}, nil
 		},
 		closeSession: func(*agentclient.Session) error { return nil },
 	}
-	ownerCtx, cancelOwner := context.WithTimeout(context.Background(), 30*time.Millisecond)
-	defer cancelOwner()
+	ownerCtx, cancelOwner := context.WithCancel(context.Background())
 	ownerDone := make(chan error, 1)
 	go func() { ownerDone <- client.Connect(ownerCtx) }()
 	select {
@@ -1622,15 +1772,23 @@ func TestSDKClientAdapterConnectOwnerCancellationDoesNotPoisonWaiter(t *testing.
 	case <-time.After(time.Second):
 		t.Fatal("Connect owner 未启动 runtime")
 	}
+	waiterCtx := newObservedDoneContext(context.Background())
 	waiterDone := make(chan error, 1)
-	go func() { waiterDone <- client.Connect(context.Background()) }()
+	go func() { waiterDone <- client.Connect(waiterCtx) }()
+	select {
+	case <-waiterCtx.observed:
+	case <-time.After(time.Second):
+		t.Fatal("健康 waiter 未加入 owner Connect flight")
+	}
+	cancelOwner()
+	close(firstOpenRelease)
 	select {
 	case err := <-ownerDone:
-		if !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatalf("owner Connect 错误=%v", err)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("owner Connect 应优先返回自己的取消错误而不是启动错误: %v", err)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("owner Connect 未按 deadline 退出")
+		t.Fatal("owner Connect 未按取消退出")
 	}
 	select {
 	case err := <-waiterDone:
@@ -1645,6 +1803,69 @@ func TestSDKClientAdapterConnectOwnerCancellationDoesNotPoisonWaiter(t *testing.
 	attemptsMu.Unlock()
 	if openAttempts != 2 {
 		t.Fatalf("owner 取消后 waiter 应独立重试一次，实际=%d", openAttempts)
+	}
+}
+
+func TestSDKClientAdapterConnectFailureDoesNotCrossLifecycle(t *testing.T) {
+	startErr := errors.New("stale runtime failed to initialize")
+	firstStarted := make(chan struct{})
+	firstRelease := make(chan struct{})
+	var attemptsMu sync.Mutex
+	attempts := 0
+	client := &sdkClientAdapter{
+		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
+			attemptsMu.Lock()
+			attempts++
+			attempt := attempts
+			attemptsMu.Unlock()
+			if attempt == 1 {
+				close(firstStarted)
+				<-firstRelease
+				return nil, startErr
+			}
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error { return nil },
+	}
+	ownerDone := make(chan error, 1)
+	go func() { ownerDone <- client.Connect(context.Background()) }()
+	select {
+	case <-firstStarted:
+	case <-time.After(time.Second):
+		t.Fatal("旧 lifecycle Connect 未启动")
+	}
+
+	client.DiscardUncleanSession()
+	waiterCtx := newObservedDoneContext(context.Background())
+	waiterDone := make(chan error, 1)
+	go func() { waiterDone <- client.Connect(waiterCtx) }()
+	select {
+	case <-waiterCtx.observed:
+	case <-time.After(time.Second):
+		t.Fatal("新 lifecycle Connect 未等待旧 flight 退出")
+	}
+	close(firstRelease)
+	select {
+	case err := <-ownerDone:
+		if !errors.Is(err, agentclient.ErrAborted) {
+			t.Fatalf("旧 lifecycle Connect 错误=%v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("旧 lifecycle Connect 未退出")
+	}
+	select {
+	case err := <-waiterDone:
+		if err != nil {
+			t.Fatalf("新 lifecycle 不应继承旧启动失败: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("新 lifecycle Connect 未独立重试")
+	}
+	attemptsMu.Lock()
+	openAttempts := attempts
+	attemptsMu.Unlock()
+	if openAttempts != 2 {
+		t.Fatalf("换代后应启动一次新 runtime，实际=%d", openAttempts)
 	}
 }
 

@@ -1,5 +1,5 @@
 // INPUT: SDK bridge client、会话控制请求与子进程关闭态错误。
-// OUTPUT: Nexus runtime 所需的最小 Client 能力和稳定的关闭语义。
+// OUTPUT: Nexus runtime 所需的最小 Client 能力和稳定的连接失败、关闭语义。
 // POS: runtime Manager 与具体 SDK bridge 之间的适配边界。
 package runtime
 
@@ -59,8 +59,15 @@ type sdkClientAdapter struct {
 }
 
 type sdkClientConnectFlight struct {
-	done   chan struct{}
-	cancel context.CancelCauseFunc
+	done          chan struct{}
+	cancel        context.CancelCauseFunc
+	sharedFailure *sdkClientConnectFailure
+}
+
+type sdkClientConnectFailure struct {
+	err              error
+	configVersion    uint64
+	lifecycleVersion uint64
 }
 
 type sdkClientConfigFlight struct {
@@ -80,11 +87,17 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	c.mu.Lock()
 	requestLifecycleVersion := c.lifecycleVersion
 	c.mu.Unlock()
 
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		c.mu.Lock()
 		if c.lifecycleVersion != requestLifecycleVersion {
 			c.mu.Unlock()
@@ -110,6 +123,12 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 			if err := waitSDKClientTransition(ctx, connecting.done); err != nil {
 				return err
 			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err, terminal := c.connectFlightWaitResult(connecting, requestLifecycleVersion); terminal {
+				return err
+			}
 			continue
 		}
 		connectCtx, cancel := context.WithCancelCause(ctx)
@@ -128,7 +147,8 @@ func (c *sdkClientAdapter) runConnectFlight(
 	requestLifecycleVersion uint64,
 	connecting *sdkClientConnectFlight,
 ) error {
-	defer c.finishConnectFlight(connecting)
+	var sharedFailure *sdkClientConnectFailure
+	defer func() { c.finishConnectFlight(connecting, sharedFailure) }()
 	for {
 		c.mu.Lock()
 		if c.lifecycleVersion != requestLifecycleVersion {
@@ -148,8 +168,16 @@ func (c *sdkClientAdapter) runConnectFlight(
 			if invalidated {
 				return agentclient.ErrAborted
 			}
-			if configChanged && ctx.Err() == nil {
+			if ownerErr := ctx.Err(); ownerErr != nil {
+				return ownerErr
+			}
+			if configChanged {
 				continue
+			}
+			sharedFailure = &sdkClientConnectFailure{
+				err:              err,
+				configVersion:    configVersion,
+				lifecycleVersion: requestLifecycleVersion,
 			}
 			return err
 		}
@@ -191,9 +219,36 @@ func (c *sdkClientAdapter) runConnectFlight(
 	}
 }
 
-func (c *sdkClientAdapter) finishConnectFlight(connecting *sdkClientConnectFlight) {
+func (c *sdkClientAdapter) connectFlightWaitResult(
+	connecting *sdkClientConnectFlight,
+	requestLifecycleVersion uint64,
+) (error, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.lifecycleVersion != requestLifecycleVersion {
+		return agentclient.ErrAborted, true
+	}
+	failure := connecting.sharedFailure
+	if failure == nil ||
+		failure.lifecycleVersion != requestLifecycleVersion ||
+		failure.configVersion != c.configVersion {
+		return nil, false
+	}
+	return failure.err, true
+}
+
+func (c *sdkClientAdapter) finishConnectFlight(
+	connecting *sdkClientConnectFlight,
+	sharedFailure *sdkClientConnectFailure,
+) {
 	connecting.cancel(context.Canceled)
 	c.mu.Lock()
+	if sharedFailure != nil &&
+		(sharedFailure.lifecycleVersion != c.lifecycleVersion ||
+			sharedFailure.configVersion != c.configVersion) {
+		sharedFailure = nil
+	}
+	connecting.sharedFailure = sharedFailure
 	if c.connecting == connecting {
 		c.connecting = nil
 	}
