@@ -122,6 +122,16 @@ test("Agent 与全局技能卡共用名称种子头像", async () => {
   assert.doesNotMatch(catalogCard, /SKILL_CARD_ICON/);
 });
 
+test("工作循环目录按稳定 slug 复用数学曲线头像", async () => {
+  const source = await readFile(
+    path.join(webRoot, "src/features/capability/loops/loops-directory.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /<UiSeededAvatar seed=\{loop\.slug\} size="sm" \/>/);
+  assert.doesNotMatch(source, /<CapabilityItemIcon>/);
+});
+
 test("头像组件静态绘制数学曲线且不引入图标字典或动画", async () => {
   const [source, generator] = await Promise.all([
     "src/shared/ui/display/seeded-avatar.tsx",

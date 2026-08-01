@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced generic Work Loop row icons with deterministic rounded-square
+  mathematical curve avatars seeded by each Loop slug.
 - Removed redundant availability, source, scope, tag, and enablement metadata
   from installed Skill cards, keeping only identity, description, and real
   update or delete actions while preserving technical details in Skill detail.

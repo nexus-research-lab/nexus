@@ -11,13 +11,13 @@ import {
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
-  CapabilityItemIcon,
   CapabilityPageLayout,
   CapabilitySectionHeader,
 } from "@/features/capability/shared/capability-page-layout";
 import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
@@ -158,9 +158,7 @@ export function LoopsDirectory() {
                   key={loop.slug}
                   onClick={() => navigate(AppRouteBuilders.loopDetail(loop.slug))}
                   leading={(
-                    <CapabilityItemIcon>
-                      <Repeat2 className="h-4 w-4" />
-                    </CapabilityItemIcon>
+                    <UiSeededAvatar seed={loop.slug} size="sm" />
                   )}
                   right={(
                     <UiIconButton

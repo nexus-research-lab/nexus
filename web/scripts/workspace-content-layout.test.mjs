@@ -158,7 +158,8 @@ test("能力目录条目共用可见边框并补齐身份图标", async () => {
     assert.match(source, /CAPABILITY_DIRECTORY_GRID_CLASS_NAME/);
     assert.doesNotMatch(source, /gap-x-8 gap-y-2/);
   });
-  assert.match(loop, /<CapabilityItemIcon>/);
+  assert.match(loop, /<UiSeededAvatar seed=\{loop\.slug\} size="sm" \/>/);
+  assert.doesNotMatch(loop, /<CapabilityItemIcon>/);
   assert.match(scheduled, /TASK_IDENTITY_ICONS/);
   assert.match(scheduled, /<CapabilityItemIcon/);
   assert.match(pairing, /<UiPanel/);
