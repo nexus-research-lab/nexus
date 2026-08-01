@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added deterministic, pastel Skill avatars generated from stable Skill names
+  across the global catalog and Agent Skill cards.
 - Compacted Agent Skill cards into the shared responsive three-, two-, and
   one-column catalog grid while retaining two-line descriptions.
 - Extended presentation-only Chinese and English descriptions to every bundled

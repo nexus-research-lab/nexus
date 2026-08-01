@@ -5,12 +5,8 @@ import type {
 
 import type { SkillUpdateCheckNotice } from "../controller/skill-update-check-model";
 
-export type SkillCatalogIcon = "lock" | "puzzle";
-
 export interface SkillCardModel {
   description: string;
-  icon: SkillCatalogIcon;
-  iconClassName: string | null;
   showDelete: boolean;
   showUpdate: boolean;
   sourceLabel: string;
@@ -34,8 +30,6 @@ export interface SkillsUpdateModel {
 }
 
 interface SkillStatePresentation {
-  icon: SkillCatalogIcon;
-  iconClassName: string | null;
   label: string;
   tone: SkillCardModel["stateTone"];
 }
@@ -74,31 +68,23 @@ function getSkillSourceLabel(skill: SkillInfo): string {
 }
 
 const DEFAULT_SKILL_STATE: SkillStatePresentation = {
-  icon: "puzzle",
-  iconClassName: null,
   label: "全局可用",
   tone: "default",
 };
 
 const SKILL_STATE_RULES: readonly SkillStateRule[] = [
   {
-    icon: "lock",
-    iconClassName: "text-(--warning)",
     label: "系统托管",
     matches: (skill) => skill.locked,
     tone: "warning",
   },
   {
-    icon: "puzzle",
-    iconClassName: "text-(--status-info-soft-text)",
     label: "Agent 本地",
     matches: (skill) => skill.storage_scope === "agent_workspace"
       || skill.source_type === "workspace",
     tone: "success",
   },
   {
-    icon: "puzzle",
-    iconClassName: "text-(--status-info-soft-text)",
     label: "用户库",
     matches: (skill) => skill.source_type === "external",
     tone: "success",
@@ -132,8 +118,6 @@ export function buildSkillCardModel(
     ?? DEFAULT_SKILL_STATE;
   return {
     description: description || "暂无描述",
-    icon: state.icon,
-    iconClassName: state.iconClassName,
     showDelete: skill.deletable,
     showUpdate: skill.has_update,
     sourceLabel: getSkillSourceLabel(skill),

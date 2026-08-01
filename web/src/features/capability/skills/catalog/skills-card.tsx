@@ -1,19 +1,17 @@
 "use client";
 
-import { Lock, Puzzle, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { SkillInfo } from "@/types/capability/skill";
 
-import {
-  buildSkillCardModel,
-  type SkillCatalogIcon,
-} from "./skills-catalog-model";
+import { buildSkillCardModel } from "./skills-catalog-model";
 
 interface SkillsCardProps {
   skill: SkillInfo;
@@ -22,11 +20,6 @@ interface SkillsCardProps {
   onSelect: () => void;
   onDelete?: () => void;
 }
-
-const SKILL_CARD_ICON = {
-  lock: Lock,
-  puzzle: Puzzle,
-} satisfies Record<SkillCatalogIcon, typeof Puzzle>;
 
 /** Skill 行 —— 与连接器目录保持一致的轻量列表结构。 */
 export function SkillsCard({
@@ -41,24 +34,13 @@ export function SkillsCard({
     skill,
     getSkillDisplayDescription(skill, t),
   );
-  const Icon = SKILL_CARD_ICON[model.icon];
-
   return (
     <UiListRow
       className={cn(
         busy && "opacity-60",
         className,
       )}
-      leading={(
-        <span
-          className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background)",
-            model.iconClassName,
-          )}
-        >
-          <Icon className="h-4 w-4" />
-        </span>
-      )}
+      leading={<UiSeededAvatar seed={skill.name} />}
       onClick={onSelect}
       right={(
         <div className="flex shrink-0 items-center gap-1.5">
