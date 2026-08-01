@@ -138,8 +138,8 @@
     transition: padding-inline-start var(--motion-duration-layout) var(--motion-ease-layout);
   }
 
-  /* 管理页默认 20px 顶部留白；macOS 回收 12px 后保留 8px，与原生标题栏控件对齐。 */
-  :root[data-desktop-platform="macos"] .workspace-content-header {
+  /* 管理页默认 20px 顶部留白；统一回收 12px 后，与 Web 品牌栏及原生标题栏控件对齐。 */
+  .workspace-content-header {
     margin-block-start: -12px;
   }
 

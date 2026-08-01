@@ -52,7 +52,7 @@ test("能力、设置与联系人共用同一铺满管理内容面", async () =>
   );
   assert.match(
     recipes,
-    /:root\[data-desktop-platform="macos"\] \.workspace-content-header[\s\S]*?margin-block-start: -12px/,
+    /\.workspace-content-header\s*\{[\s\S]*?margin-block-start: -12px/,
   );
   assert.match(capability, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   assert.match(capability, /WorkspaceContentHeader/);
