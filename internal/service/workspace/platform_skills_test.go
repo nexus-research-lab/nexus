@@ -114,12 +114,16 @@ func TestReplacePlatformSkillLibraryCopiesReadOnlySource(t *testing.T) {
 	if err := replaceCompatibleSkillLibrary(sourceRoot, targetRoot, "test-fingerprint"); err != nil {
 		t.Fatalf("只读源 Skill 应可发布到暂存目录: %v", err)
 	}
-	publishedSkill := filepath.Join(targetRoot, ".agents", "skills", "goal-manager", "SKILL.md")
-	content, err := os.ReadFile(publishedSkill)
-	if err != nil {
-		t.Fatalf("读取已发布 Skill 失败: %v", err)
-	}
-	if string(content) != "goal\n" {
-		t.Fatalf("已发布 Skill 内容 = %q, want goal", content)
+	for _, publishedSkill := range []string{
+		filepath.Join(targetRoot, ".agents", "skills", "goal-manager", "SKILL.md"),
+		filepath.Join(targetRoot, ".claude", "skills", "goal-manager", "SKILL.md"),
+	} {
+		content, err := os.ReadFile(publishedSkill)
+		if err != nil {
+			t.Fatalf("读取已发布 Skill 失败 %q: %v", publishedSkill, err)
+		}
+		if string(content) != "goal\n" {
+			t.Fatalf("已发布 Skill 内容 = %q, want goal: %s", content, publishedSkill)
+		}
 	}
 }

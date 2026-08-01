@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept platform Skills publishable from read-only Windows application bundles.
 - Allowed Windows runtimes to use authorized absolute paths while correctly
   classifying quoted paths, dynamic expansions, file URLs, and redirections.
 - Prevented replaced or closed runtime clients from reconnecting as orphan
