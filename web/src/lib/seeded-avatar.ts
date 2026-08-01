@@ -20,20 +20,26 @@ interface CurvePoint {
   y: number;
 }
 
+interface CurveParameters {
+  detailScale: number;
+  values: readonly number[];
+}
+
 type CurvePointBuilder = (
   progress: number,
-  randomValues: readonly number[],
+  parameters: CurveParameters,
 ) => CurvePoint;
 type SeededRandom = () => number;
 
-const CURVE_STEP_COUNT = 144;
-const CURVE_TARGET_SIZE = 68;
+const CURVE_STEP_COUNT = 192;
+const CURVE_TARGET_RADIUS = 34;
 const LISSAJOUS_FREQUENCY_PAIRS = [
   [2, 3],
   [2, 5],
   [3, 4],
   [3, 5],
   [4, 5],
+  [5, 6],
 ] as const;
 const TAU = Math.PI * 2;
 
@@ -66,70 +72,152 @@ function randomInteger(
   return minimum + Math.floor(random() * (maximum - minimum + 1));
 }
 
-function buildOrbitPoint(
-  progress: number,
-  randomValues: readonly number[],
-): CurvePoint {
-  const t = progress * TAU;
-  const primaryFrequency = 2 + Math.floor(randomValues[0] * 5);
-  const secondaryFrequency = 2 + Math.floor(randomValues[1] * 4);
-  const radialAmplitude = 0.12 + randomValues[2] * 0.12;
-  const harmonicAmplitude = 0.08 + randomValues[3] * 0.08;
-  const primaryPhase = randomValues[4] * TAU;
-  const secondaryPhase = randomValues[5] * TAU;
-  const radius = 1 + radialAmplitude * Math.cos(
-    primaryFrequency * t + primaryPhase,
-  );
+function integerFromUnit(value: number, minimum: number, maximum: number): number {
+  return minimum + Math.floor(value * (maximum - minimum + 1));
+}
+
+function polarPoint(t: number, radius: number): CurvePoint {
   return {
-    x: radius * Math.cos(t)
-      + harmonicAmplitude * Math.cos(secondaryFrequency * t + secondaryPhase),
-    y: radius * Math.sin(t)
-      - harmonicAmplitude * Math.sin(secondaryFrequency * t + secondaryPhase),
+    x: Math.cos(t) * radius,
+    y: Math.sin(t) * radius,
   };
 }
 
-function buildLissajousPoint(
+/** 中文注释：径向起伏只改变同阶花瓣，不叠加会把视觉重心推离原点的杂波。 */
+function buildRadialPetalPoint(
   progress: number,
-  randomValues: readonly number[],
+  parameters: CurveParameters,
 ): CurvePoint {
   const t = progress * TAU;
-  const frequencies = LISSAJOUS_FREQUENCY_PAIRS[
-    Math.floor(randomValues[0] * LISSAJOUS_FREQUENCY_PAIRS.length)
-  ];
-  const [xFrequency, yFrequency] = frequencies;
-  const phase = 0.32 + randomValues[2] * 0.72;
-  const harmonicAmplitude = 0.025 + randomValues[3] * 0.045;
-  const harmonicFrequency = 2 + Math.floor(randomValues[4] * 2);
-  const harmonicPhase = randomValues[5] * TAU;
+  const petalCount = integerFromUnit(parameters.values[0], 4, 8);
+  const detailAmplitude = 0.28 + parameters.values[1] * 0.14;
+  const radius = 1
+    - detailAmplitude * parameters.detailScale * Math.cos(petalCount * t);
+  return polarPoint(t, radius);
+}
+
+/** 中文注释：两个同余谐波天然共享旋转阶数，可形成闭合且居中的轨道花纹。 */
+function buildHarmonicOrbitPoint(
+  progress: number,
+  parameters: CurveParameters,
+): CurvePoint {
+  const t = progress * TAU;
+  const rotationalOrder = integerFromUnit(parameters.values[0], 3, 7);
+  const harmonicFrequency = rotationalOrder + 1;
+  const detailAmplitude = (0.26 + parameters.values[1] * 0.16)
+    * parameters.detailScale;
   return {
-    x: Math.sin(xFrequency * t + phase)
-      + harmonicAmplitude * Math.sin(harmonicFrequency * t + harmonicPhase),
-    y: Math.sin(yFrequency * t)
-      + harmonicAmplitude * Math.cos((harmonicFrequency + 1) * t + harmonicPhase),
+    x: Math.cos(t) - detailAmplitude * Math.cos(harmonicFrequency * t),
+    y: Math.sin(t) - detailAmplitude * Math.sin(harmonicFrequency * t),
   };
 }
 
 function buildRosePoint(
   progress: number,
-  randomValues: readonly number[],
+  parameters: CurveParameters,
 ): CurvePoint {
   const t = progress * TAU;
-  const petalCount = 2 + Math.floor(randomValues[0] * 4);
-  const warpFrequency = 2 + Math.floor(randomValues[1] * 3);
-  const warpAmplitude = 0.04 + randomValues[2] * 0.1;
-  const warpPhase = randomValues[3] * TAU;
-  const radius = Math.cos(petalCount * t)
-    * (1 + warpAmplitude * Math.cos(warpFrequency * t + warpPhase));
+  const petalFrequency = integerFromUnit(parameters.values[0], 2, 6);
+  const wave = Math.cos(petalFrequency * t);
+  const fullness = 0.72 + parameters.detailScale * 0.62;
+  const radius = Math.sign(wave) * Math.abs(wave) ** fullness;
+  return polarPoint(t, radius);
+}
+
+function buildLissajousPoint(
+  progress: number,
+  parameters: CurveParameters,
+): CurvePoint {
+  const t = progress * TAU;
+  const frequencies = LISSAJOUS_FREQUENCY_PAIRS[
+    integerFromUnit(
+      parameters.values[0],
+      0,
+      LISSAJOUS_FREQUENCY_PAIRS.length - 1,
+    )
+  ];
+  const [xFrequency, yFrequency] = frequencies;
+  const phase = parameters.values[1] < 0.5 ? 0 : Math.PI / 2;
+  const yScale = 0.82 + parameters.detailScale * 0.18;
   return {
-    x: radius * Math.cos(t),
-    y: radius * Math.sin(t),
+    x: Math.sin(xFrequency * t + phase),
+    y: Math.sin(yFrequency * t) * yScale,
   };
 }
 
+function buildLemniscatePoint(
+  progress: number,
+  parameters: CurveParameters,
+): CurvePoint {
+  const t = progress * TAU;
+  const sine = Math.sin(t);
+  const cosine = Math.cos(t);
+  const denominator = 1
+    + (0.72 + parameters.detailScale * 0.56) * sine ** 2;
+  const yScale = 1.6 + parameters.values[0] * 0.55;
+  return {
+    x: cosine / denominator,
+    y: yScale * sine * cosine / denominator,
+  };
+}
+
+function buildHypotrochoidPoint(
+  progress: number,
+  parameters: CurveParameters,
+): CurvePoint {
+  const t = progress * TAU;
+  const rotationalOrder = integerFromUnit(parameters.values[0], 3, 7);
+  const orbitRadius = rotationalOrder - 1;
+  const penDistance = 0.75
+    + parameters.detailScale * (0.55 + parameters.values[1] * 0.75);
+  return {
+    x: orbitRadius * Math.cos(t)
+      + penDistance * Math.cos(orbitRadius * t),
+    y: orbitRadius * Math.sin(t)
+      - penDistance * Math.sin(orbitRadius * t),
+  };
+}
+
+function buildSuperformulaPoint(
+  progress: number,
+  parameters: CurveParameters,
+): CurvePoint {
+  const t = progress * TAU;
+  const rotationalOrder = integerFromUnit(parameters.values[0], 3, 8);
+  const angularTerm = rotationalOrder * t / 4;
+  const curvePower = 1.7 + parameters.detailScale * 2.4;
+  const radialPower = 0.72 + parameters.values[1] * 0.82;
+  const radius = (
+    Math.abs(Math.cos(angularTerm)) ** curvePower
+      + Math.abs(Math.sin(angularTerm)) ** curvePower
+  ) ** (-1 / radialPower);
+  return polarPoint(t, radius);
+}
+
+function buildPolarWeavePoint(
+  progress: number,
+  parameters: CurveParameters,
+): CurvePoint {
+  const t = progress * TAU;
+  const rotationalOrder = integerFromUnit(parameters.values[0], 3, 8);
+  const primaryAmplitude = (0.18 + parameters.values[1] * 0.14)
+    * parameters.detailScale;
+  const secondaryAmplitude = 0.05 + parameters.values[2] * 0.09;
+  const radius = 1
+    + primaryAmplitude * Math.cos(rotationalOrder * t)
+    + secondaryAmplitude * Math.cos(rotationalOrder * 2 * t);
+  return polarPoint(t, radius);
+}
+
 const CURVE_POINT_BUILDERS: readonly CurvePointBuilder[] = [
-  buildOrbitPoint,
-  buildLissajousPoint,
+  buildRadialPetalPoint,
+  buildHarmonicOrbitPoint,
   buildRosePoint,
+  buildLissajousPoint,
+  buildLemniscatePoint,
+  buildHypotrochoidPoint,
+  buildSuperformulaPoint,
+  buildPolarWeavePoint,
 ];
 
 function rotatePoint(point: CurvePoint, angle: number): CurvePoint {
@@ -141,29 +229,16 @@ function rotatePoint(point: CurvePoint, angle: number): CurvePoint {
   };
 }
 
-function normalizeCurve(points: readonly CurvePoint[]): CurvePoint[] {
-  const bounds = points.reduce(
-    (result, point) => ({
-      maximumX: Math.max(result.maximumX, point.x),
-      maximumY: Math.max(result.maximumY, point.y),
-      minimumX: Math.min(result.minimumX, point.x),
-      minimumY: Math.min(result.minimumY, point.y),
-    }),
-    {
-      maximumX: Number.NEGATIVE_INFINITY,
-      maximumY: Number.NEGATIVE_INFINITY,
-      minimumX: Number.POSITIVE_INFINITY,
-      minimumY: Number.POSITIVE_INFINITY,
-    },
+/** 中文注释：只围绕数学原点等比缩放，不按包围盒平移，保证圆心始终映射到 50,50。 */
+function fitCurveAtCenter(points: readonly CurvePoint[]): CurvePoint[] {
+  const maximumExtent = points.reduce(
+    (result, point) => Math.max(result, Math.abs(point.x), Math.abs(point.y)),
+    0,
   );
-  const width = bounds.maximumX - bounds.minimumX;
-  const height = bounds.maximumY - bounds.minimumY;
-  const scale = CURVE_TARGET_SIZE / Math.max(width, height, 1);
-  const centerX = (bounds.maximumX + bounds.minimumX) / 2;
-  const centerY = (bounds.maximumY + bounds.minimumY) / 2;
+  const scale = CURVE_TARGET_RADIUS / Math.max(maximumExtent, 1);
   return points.map((point) => ({
-    x: 50 + (point.x - centerX) * scale,
-    y: 50 + (point.y - centerY) * scale,
+    x: 50 + point.x * scale,
+    y: 50 + point.y * scale,
   }));
 }
 
@@ -172,14 +247,16 @@ function buildCurvePath(seed: string): string {
   const buildPoint = CURVE_POINT_BUILDERS[
     randomInteger(random, 0, CURVE_POINT_BUILDERS.length - 1)
   ];
-  const randomValues = Array.from({ length: 6 }, () => random());
+  const parameters: CurveParameters = {
+    detailScale: 0.56 + random() * 0.4,
+    values: Array.from({ length: 4 }, () => random()),
+  };
   const rotation = random() * TAU;
   const points = Array.from({ length: CURVE_STEP_COUNT + 1 }, (_, index) => {
     const progress = index / CURVE_STEP_COUNT;
-    const point = buildPoint(progress, randomValues);
-    return rotatePoint(point, rotation);
+    return rotatePoint(buildPoint(progress, parameters), rotation);
   });
-  return normalizeCurve(points)
+  return fitCurveAtCenter(points)
     .map((point, index) => (
       `${index === 0 ? "M" : "L"}${point.x.toFixed(2)} ${point.y.toFixed(2)}`
     ))

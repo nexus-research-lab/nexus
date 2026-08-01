@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Expanded deterministic Skill avatars with centered rotational curve families,
+  aligned their rounded-square frame with Agent avatars, and made the shared
+  avatar component the only renderer across Skill surfaces.
 - Unified installed, update, and community Skill results around one compact
   three-column identity card, carrying the same generated mathematical curve
   through capability catalog, detail, and preview surfaces.

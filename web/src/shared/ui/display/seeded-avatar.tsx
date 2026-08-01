@@ -21,7 +21,16 @@ const SEEDED_AVATAR_SIZE_CLASS_NAME: Readonly<
   lg: "h-12 w-12",
 };
 
-/** 中文注释：圆形标记只表示非人物资源，不改变 Agent 与 Room 的头像规范。 */
+const SEEDED_AVATAR_RADIUS_CLASS_NAME: Readonly<
+  Record<UiSeededAvatarSize, string>
+> = {
+  xs: "rounded-[8px]",
+  sm: "rounded-[9px]",
+  md: "rounded-[10px]",
+  lg: "rounded-[12px]",
+};
+
+/** 中文注释：所有数学曲线资源头像统一由此组件渲染，不向业务层泄漏 SVG 细节。 */
 export function UiSeededAvatar({
   className,
   seed,
@@ -39,8 +48,9 @@ export function UiSeededAvatar({
       {...props}
       aria-hidden="true"
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full border border-(--divider-subtle-color)",
+        "flex shrink-0 items-center justify-center overflow-hidden border border-(--surface-avatar-border) shadow-(--surface-avatar-shadow)",
         SEEDED_AVATAR_SIZE_CLASS_NAME[size],
+        SEEDED_AVATAR_RADIUS_CLASS_NAME[size],
         className,
       )}
       style={{
@@ -51,7 +61,7 @@ export function UiSeededAvatar({
     >
       <svg
         aria-hidden="true"
-        className="h-full w-full"
+        className="block h-full w-full"
         fill="none"
         viewBox="0 0 100 100"
       >
