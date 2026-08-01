@@ -1,5 +1,5 @@
 // INPUT: Nexus server 环境配置、数据库 migration 与进程生命周期信号。
-// OUTPUT: 完成 schema/宿主修复后启动的 HTTP/WebSocket 服务。
+// OUTPUT: 完成 schema/宿主修复后启动并完整收口的 HTTP/WebSocket 服务。
 // POS: nexus-server 可执行入口，只装配启动阶段，不承载领域规则。
 package main
 
@@ -268,6 +268,11 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	defer func() {
+		if closeErr := server.Close(context.Background()); closeErr != nil {
+			logger.Warn("服务资源关闭失败", "err", closeErr)
+		}
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

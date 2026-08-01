@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Closed application-owned database pools during graceful server shutdown while
+  leaving externally supplied pools under their caller's ownership.
 - Prevented concurrent callers from serially relaunching the same runtime after
   one shared startup failure, while keeping later requests and caller-local
   cancellations independently retryable.
