@@ -4,6 +4,7 @@ package workspace
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -35,6 +36,9 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 			t.Fatalf("Claude Skill 入口链接目标不正确: %q", target)
 		}
 	}
+	if runtime.GOOS == "windows" {
+		return
+	}
 	if err := filepath.Walk(appfs.PlatformSkillRoot(), func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -59,6 +63,9 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 }
 
 func TestEnsurePlatformSkillLibraryRepairsUnreadableExistingTree(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows FileMode cannot represent runtime readability")
+	}
 	configRoot := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_STATE_ROOT", configRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", configRoot)

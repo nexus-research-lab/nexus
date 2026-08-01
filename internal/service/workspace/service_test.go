@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -104,7 +105,7 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	nexusctlShim := filepath.Join(sharedBinDir, "nexusctl")
 	if info, statErr := os.Stat(nexusctlShim); statErr != nil {
 		t.Fatalf("共享 nexusctl shim 未生成: %v", statErr)
-	} else if info.Mode()&0o111 == 0 {
+	} else if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
 		t.Fatalf("nexusctl shim 应可执行: %s", nexusctlShim)
 	}
 	shimPayload, err := os.ReadFile(nexusctlShim)
