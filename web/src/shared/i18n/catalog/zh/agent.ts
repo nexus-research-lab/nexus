@@ -70,7 +70,6 @@ export const zhAgentMessages = {
   "agent_options.skills.system_builtin": "系统内置",
   "agent_options.skills.agent_workspace_local": "当前 Agent 本地",
   "agent_options.skills.main_only": "仅 Main",
-  "agent_options.skills.enabled": "已启用",
   "agent_options.skills.create_first": "创建后可配置技能。",
   "agent_options.skills.enabled_section": "已启用",
   "agent_options.skills.available_section": "可启用",

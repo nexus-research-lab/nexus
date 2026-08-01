@@ -74,17 +74,11 @@ export function AgentSkillCard({
         ) : null}
       </div>
 
-      {skill.locked ? (
-        <UiBadge className="shrink-0 self-start sm:mt-auto sm:mb-auto" size="xs" tone="success">
-          {t("agent_options.skills.enabled")}
-        </UiBadge>
-      ) : (
-        <div className="flex shrink-0 items-center gap-2 self-end sm:mt-auto sm:mb-auto sm:self-auto">
+      {!skill.locked ? (
+        <div className="flex min-h-7 shrink-0 items-center gap-2 self-end sm:mt-auto sm:mb-auto sm:self-auto">
           {busy ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin text-(--text-muted)" />
-          ) : (
-            <span className="text-xs text-(--text-muted)">{actionLabel}</span>
-          )}
+          ) : null}
           <GlassSwitch
             aria-label={`${actionLabel} ${skill.title || skill.name}`}
             checked={skill.enabled_for_agent}
@@ -93,7 +87,7 @@ export function AgentSkillCard({
             size="xs"
           />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

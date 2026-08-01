@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Removed duplicate enable labels and locked-state badges from spacious Agent
+  Skill cards while retaining switch accessibility and existing card geometry.
 - Moved Agent Skill search into the available-group header and show its result
   ratio only while filtering, with a full-width mobile layout.
 - Removed the redundant Agent Skill summary and manual refresh row, letting the

@@ -184,10 +184,11 @@ test("设置和能力二级页不再恢复重复标题或私有版心", async ()
   assert.doesNotMatch(loopDetail, /max-w-\[960px\]/);
 });
 
-test("Agent 技能页直接使用分组，不重复汇总与手动刷新", async () => {
-  const [view, content, model, zhAgent, enAgent] = await Promise.all([
+test("Agent 技能页保留宽松卡片并收敛重复工具与状态", async () => {
+  const [view, content, card, model, zhAgent, enAgent] = await Promise.all([
     "src/features/agents/options/components/skills/agent-options-skills-view.tsx",
     "src/features/agents/options/components/skills/agent-options-skills-content.tsx",
+    "src/features/agents/options/components/skills/agent-skill-card.tsx",
     "src/features/agents/options/components/skills/agent-skills-model.ts",
     "src/shared/i18n/catalog/zh/agent.ts",
     "src/shared/i18n/catalog/en/agent.ts",
@@ -205,8 +206,15 @@ test("Agent 技能页直接使用分组，不重复汇总与手动刷新", async
     content,
     /count=\{`\$\{projection\.visibleAvailable\.length\}\/\$\{projection\.available\.length\}`\}/,
   );
+  assert.match(card, /min-h-\[108px\]/);
+  assert.match(card, /rounded-\[10px\] border border-\(--divider-subtle-color\)/);
+  assert.doesNotMatch(card, />\{actionLabel\}<\/span>/);
+  assert.doesNotMatch(card, /agent_options\.skills\.enabled/);
+  assert.match(card, /aria-label=\{`\$\{actionLabel\}/);
   assert.doesNotMatch(model, /totalCount: number;/);
   assert.doesNotMatch(model, /totalCount: skills\.length/);
   assert.doesNotMatch(zhAgent, /agent_options\.skills\.(?:summary|total)/);
   assert.doesNotMatch(enAgent, /agent_options\.skills\.(?:summary|total)/);
+  assert.doesNotMatch(zhAgent, /"agent_options\.skills\.enabled":/);
+  assert.doesNotMatch(enAgent, /"agent_options\.skills\.enabled":/);
 });
