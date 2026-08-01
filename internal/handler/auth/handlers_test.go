@@ -27,6 +27,7 @@ func TestAuthStatusLoginAndProtectedRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()
 
@@ -81,6 +82,7 @@ func TestPersonalProfileAndChangePassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()
 
@@ -130,6 +132,7 @@ func TestDesktopPersonalProfileAllowsLocalAvatar(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 	httpServer := httptest.NewServer(server.Router())
 	defer httpServer.Close()
 

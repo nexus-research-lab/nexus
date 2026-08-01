@@ -59,6 +59,7 @@ func TestHandleRuntimeSettingsPersistsWorkspacePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 	workspacePath := filepath.Join(configRoot, "custom-workspace")
 	body := []byte(`{"workspace_path":` + strconv.Quote(workspacePath) + `}`)
 
@@ -141,6 +142,7 @@ func TestHandleNXSRuntimeStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 
 	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/settings/runtime/nxs/status", nil)
 	recorder := httptest.NewRecorder()
@@ -203,6 +205,7 @@ func TestHandleRuntimeOptionsReturnsDefaultProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 
 	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/runtime/options", nil)
 	recorder := httptest.NewRecorder()
@@ -286,6 +289,7 @@ func TestHandleRuntimeOptionsEnablesImagegenDefaultTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 
 	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/runtime/options", nil)
 	recorder := httptest.NewRecorder()
@@ -338,6 +342,7 @@ func TestHandleProviderOptionsUsesRuntimeKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 
 	defaultOptions := requestProviderOptions(t, server, "/nexus/v1/settings/providers/options")
 	if !providerOptionsContains(defaultOptions.Items, "openai") {
