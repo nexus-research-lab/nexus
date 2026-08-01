@@ -2,9 +2,11 @@ package workspaceisolation
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
+	"syscall"
 	"testing"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -12,6 +14,23 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
+
+// syscall 只在 Windows 构建导出该名称；数值来自 ERROR_PRIVILEGE_NOT_HELD。
+const windowsSymlinkPrivilegeNotHeld syscall.Errno = 1314
+
+func createWorkspaceIsolationTestSymlink(t *testing.T, target string, link string) {
+	t.Helper()
+	err := os.Symlink(target, link)
+	if err == nil {
+		return
+	}
+	if runtime.GOOS == "windows" && (errors.Is(err, windowsSymlinkPrivilegeNotHeld) ||
+		errors.Is(err, os.ErrPermission) ||
+		errors.Is(err, errors.ErrUnsupported)) {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	t.Fatalf("创建测试符号链接失败: %v", err)
+}
 
 func TestWorkspacePolicyHookAllowsOwnWorkspaceAndDeniesOtherUser(t *testing.T) {
 	root := t.TempDir()
@@ -96,9 +115,7 @@ func TestWorkspacePolicyHookOnlyAllowsCanonicalSessionSummaryEdit(t *testing.T) 
 	if err := os.MkdirAll(filepath.Dir(symlinkSummaryPath), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(outsidePath, symlinkSummaryPath); err != nil {
-		t.Fatal(err)
-	}
+	createWorkspaceIsolationTestSymlink(t, outsidePath, symlinkSummaryPath)
 	policy := testPolicy(t, workspace)
 	policy.Identity.TempDir = filepath.Join(
 		root,
@@ -186,9 +203,7 @@ func TestWorkspacePolicyHookResolvesPendingPathThroughSymlink(t *testing.T) {
 	if err := os.MkdirAll(otherWorkspace, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(otherWorkspace, filepath.Join(workspace, "escape")); err != nil {
-		t.Fatal(err)
-	}
+	createWorkspaceIsolationTestSymlink(t, otherWorkspace, filepath.Join(workspace, "escape"))
 	policy := testPolicy(t, workspace)
 	violation := inspectToolAccess(policy, sdkhook.Input{
 		CWD:      workspace,
