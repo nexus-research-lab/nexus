@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Allowed Windows runtimes to use authorized absolute paths while correctly
+  classifying quoted paths, dynamic expansions, file URLs, and redirections.
 - Prevented replaced or closed runtime clients from reconnecting as orphan
   processes, fenced concurrent close and retry operations, and kept runtime
   startup cleanup from stalling DM input behind background queue handoff.
