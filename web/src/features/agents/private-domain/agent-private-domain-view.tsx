@@ -13,7 +13,10 @@ import {
 } from "@/lib/api/agent/private-domain-api";
 import { isExternalSessionConversationId } from "@/lib/conversation/external-session";
 import { cn } from "@/shared/ui/class-name";
-import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import {
+  WORKSPACE_CONTENT_GUTTER_CLASS_NAME,
+  WORKSPACE_CONTENT_MAX_WIDTH_CLASS_NAME,
+} from "@/shared/ui/layout/workspace-content-layout";
 import { Agent } from "@/types/agent/agent";
 import {
   AgentPrivateEvent,
@@ -231,10 +234,13 @@ export function AgentPrivateDomainView({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-hidden px-5 py-5 xl:px-6">
+    <div className={cn(
+      WORKSPACE_CONTENT_GUTTER_CLASS_NAME,
+      "min-h-0 flex-1 overflow-hidden py-5",
+    )}>
       <div className={cn(
         "mx-auto grid h-full min-h-0 w-full grid-cols-[280px_minmax(320px,1fr)] gap-3 xl:grid-cols-[300px_minmax(420px,1fr)]",
-        WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME,
+        WORKSPACE_CONTENT_MAX_WIDTH_CLASS_NAME,
       )}>
         <section className="surface-radius-lg flex min-h-0 flex-col overflow-hidden border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
           <PrivateDomainToolbar

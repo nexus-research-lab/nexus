@@ -436,6 +436,53 @@ test("Room 辅助面板 header 共用高度、按钮和图标基线", async () =
   assert.match(previewChromeSource, /WORKSPACE_PANEL_HEADER_ICON_CLASS/);
 });
 
+test("Agent 详情导航共用纯文字栏目和低对比选中底色", async () => {
+  const [
+    roomAboutSource,
+    contactsSource,
+    tabStylesSource,
+    workspaceHeaderSource,
+    workspaceHeaderStyles,
+  ] = await Promise.all([
+    "src/features/conversation/room/surface/room-agent-about-surface.tsx",
+    "src/features/contacts/contacts-agent-detail.tsx",
+    "src/shared/ui/navigation/tabs-styles.ts",
+    "src/shared/ui/workspace/surface/workspace-surface-header.tsx",
+    "src/shared/ui/workspace/surface/workspace-surface-header.css",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+  const { AGENT_DETAIL_TABS } = await server.ssrLoadModule(
+    "/src/features/agents/agent-detail-navigation.ts",
+  );
+
+  assert.deepEqual(
+    AGENT_DETAIL_TABS.map((tab) => tab.key),
+    ["identity", "skills", "memory", "advanced", "private_domain"],
+  );
+  assert.ok(AGENT_DETAIL_TABS.every((tab) => !("icon" in tab)));
+  assert.match(roomAboutSource, /AGENT_DETAIL_TABS\.map/);
+  assert.match(contactsSource, /AGENT_DETAIL_TABS\.map/);
+  assert.doesNotMatch(contactsSource, /UiAgentAvatar/);
+  assert.doesNotMatch(contactsSource, /title=\{agent\.name\}/);
+  assert.doesNotMatch(contactsSource, /leadingVariant="identity"/);
+  assert.match(
+    workspaceHeaderSource,
+    /if \(!leading && !hasTitleContent\) return null;/,
+  );
+  assert.doesNotMatch(roomAboutSource, /UserPen|Handshake|Brain|ToolCase|Album/);
+  assert.doesNotMatch(contactsSource, /UserPen|Handshake|Brain|ToolCase|Album/);
+  assert.match(tabStylesSource, /ui-navigation-tab/);
+  assert.match(tabStylesSource, /text-\(--text-muted\)/);
+  assert.match(tabStylesSource, /bg-\(--surface-interactive-active-background\)/);
+  assert.match(
+    workspaceHeaderStyles,
+    /\.workspace-surface-header-tool-cluster-page-tabs\s*\{[\s\S]*?height:\s*40px;/,
+  );
+  assert.match(
+    workspaceHeaderStyles,
+    /\.workspace-surface-header-view-tab\[aria-pressed="true"\]\s*\{[\s\S]*?background:\s*var\(--surface-interactive-active-background\)/,
+  );
+});
+
 test("工作区文件树使用按文件名与扩展名区分的彩色图标", async () => {
   const {
     getWorkspaceDirectoryIcon,

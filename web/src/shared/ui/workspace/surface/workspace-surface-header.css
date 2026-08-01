@@ -30,15 +30,15 @@
 }
 
 .workspace-surface-header-tool-cluster-page-tabs {
-  --workspace-header-control-height: 38px;
-  height: 44px;
-  padding: 3px 2px 0;
+  --workspace-header-control-height: 32px;
+  height: 40px;
+  padding: 4px 2px;
 }
 
 .workspace-surface-header-tool-cluster-page-tabs
   .workspace-surface-header-view-tab {
-  gap: 7px;
-  padding-inline: 11px;
+  gap: 6px;
+  padding-inline: 10px;
   font-size: 12px;
 }
 
@@ -51,11 +51,11 @@
 
 .workspace-surface-header-tool-cluster-page-tabs
   .workspace-surface-header-view-tab[aria-pressed="true"] {
-  padding-inline: 11px;
+  padding-inline: 10px;
 }
 
 .workspace-surface-header-tool-cluster-page-tabs
-  .ui-underline-tab-item-dismissible
+  .ui-navigation-tab-item-dismissible
   .workspace-surface-header-view-tab {
   padding-right: 32px;
 }
@@ -85,7 +85,7 @@
   overflow: visible !important;
 }
 
-.workspace-surface-header-view-tabs .ui-underline-tab-item {
+.workspace-surface-header-view-tabs .ui-navigation-tab-item {
   position: relative;
 }
 
@@ -124,33 +124,8 @@
   box-shadow: none;
 }
 
-.workspace-surface-header-tool-cluster-page-tabs
-  .workspace-surface-header-view-tab {
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-}
-
-.workspace-surface-header-tool-cluster-page-tabs
-  .workspace-surface-header-view-tab:hover {
-  background: transparent;
-  color: var(--text-strong);
-}
-
-.workspace-surface-header-tool-cluster-page-tabs
-  .workspace-surface-header-view-tab[aria-pressed="true"] {
-  border-bottom-color: color-mix(
-    in srgb,
-    var(--text-strong) 72%,
-    transparent
-  );
-  background: transparent;
-  box-shadow: none;
-}
-
 .workspace-surface-header-view-tabs
-  .ui-underline-tab-item-dismissible
+  .ui-navigation-tab-item-dismissible
   .workspace-surface-header-view-tab {
   z-index: 1;
   padding-right: 30px;
@@ -181,19 +156,14 @@
   );
 }
 
-.workspace-surface-header-tool-cluster-page-tabs
-  .workspace-surface-header-view-tab[aria-pressed="true"]:active {
-  background: transparent;
-}
-
-.workspace-surface-header-view-tabs .ui-underline-tab-dismiss {
+.workspace-surface-header-view-tabs .ui-navigation-tab-dismiss {
   right: 4px;
   z-index: 2;
   opacity: 0.8;
 }
 
-.workspace-surface-header-view-tabs .ui-underline-tab-dismiss:hover,
-.workspace-surface-header-view-tabs .ui-underline-tab-dismiss:focus-visible {
+.workspace-surface-header-view-tabs .ui-navigation-tab-dismiss:hover,
+.workspace-surface-header-view-tabs .ui-navigation-tab-dismiss:focus-visible {
   opacity: 1;
 }
 

@@ -18,7 +18,6 @@ import { FeishuAppConnectionDialog } from "./auth/feishu/feishu-app-connection-d
 import { ConnectorOAuthClientDialog } from "./auth/connector-oauth-client-dialog";
 import { ShopDomainPromptDialog } from "./auth/shop-domain/shop-domain-prompt-dialog";
 import { ConnectorsGrid } from "./catalog/connectors-grid";
-import { ConnectorsHeader } from "./catalog/connectors-header";
 import { ConnectorsSearchBar } from "./catalog/connectors-search-bar";
 import { useConnectorController } from "./controller/use-connector-controller";
 import { useConnectorOauthEvents } from "./controller/use-connector-oauth-events";
@@ -121,9 +120,6 @@ export function ConnectorsDirectory() {
     <>
       <WorkspaceSurfaceScaffold
         bodyScrollable
-        header={(
-          <ConnectorsHeader />
-        )}
         stableGutter
       >
         {connectorId ? (

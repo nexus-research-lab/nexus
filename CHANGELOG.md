@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   directory title; file trees now use richer Material file-type icons, while
   Room auxiliary headers now share one height, icon scale, and fixed Agent
   filter alignment with left-aligned names.
+- Simplified Agent detail navigation into shared text-only sections that place
+  Skills second and Contact last, removed the selected Contact identity repeated
+  in its detail header, and moved Skill library/community switching beside
+  search as a compact source filter; capability pages now use one content title
+  and place relevant actions beside it instead of repeating an icon-and-name
+  Surface Header; capability catalogs, settings, and contacts now share one
+  full-width management-content plane with one fluid 20–32px shared gutter and
+  title rhythm instead of shifting between sections; desktop catalogs now use three
+  columns, scheduled tasks retain a four-column horizontal board, and Operations
+  keeps one stable title row above its section tabs.
 - Simplified Room Thread inspectors to one identity header and one panel
   divider, keeping final Agent replies in the main Feed while the Thread shows
   only execution details without an internal timeline rail or dots.

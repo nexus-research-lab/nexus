@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Clock3, Loader2, Puzzle, RefreshCw } from 
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiButton } from "@/shared/ui/button/button";
+import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiListRow } from "@/shared/ui/list/list-row";
 import type { SkillInfo } from "@/types/capability/skill";
 
@@ -177,7 +178,7 @@ export function SkillsUpdateHighlight({
       </div>
 
       {model.showUpdates ? (
-        <div className="mt-2 grid grid-cols-1 gap-1.5 md:grid-cols-2">
+        <div className={cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "mt-2 gap-1.5")}>
           {updates.map((skill) => (
             <UpdateSkillRow
               key={skill.name}

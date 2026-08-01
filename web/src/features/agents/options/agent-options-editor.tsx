@@ -1,5 +1,6 @@
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { WORKSPACE_CONTENT_GUTTER_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 
 import {
   AgentOptionsEditorActions,
@@ -36,7 +37,8 @@ export function AgentOptionsInlineEditor({
       >
         <div
           className={cn(
-            "mx-auto flex w-full flex-col px-6 py-5",
+            WORKSPACE_CONTENT_GUTTER_CLASS_NAME,
+            "mx-auto flex w-full flex-col py-5",
             isIdentityTab ? "h-full min-h-0" : "min-h-full",
             contentMaxWidthClassName,
           )}
@@ -48,7 +50,10 @@ export function AgentOptionsInlineEditor({
           />
         </div>
       </div>
-      <div className="flex shrink-0 items-center justify-end gap-2 px-6 py-3">
+      <div className={cn(
+        WORKSPACE_CONTENT_GUTTER_CLASS_NAME,
+        "flex shrink-0 items-center justify-end gap-2 py-3",
+      )}>
         <AgentOptionsEditorActions
           {...controller.actions}
           saveButtonSize="sm"

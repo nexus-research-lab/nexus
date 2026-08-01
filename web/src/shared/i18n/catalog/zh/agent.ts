@@ -9,6 +9,8 @@ export const zhAgentMessages = {
   "agent_options.save_success": "已保存",
   "agent_options.save_failed": "保存失败",
   "agent_options.nav.identity": "身份",
+  "agent_options.nav.contact": "联络",
+  "agent_options.nav.memory": "记忆",
   "agent_options.nav.tools": "工具",
   "agent_options.nav.skills": "技能",
   "agent_options.identity.name": "名称",

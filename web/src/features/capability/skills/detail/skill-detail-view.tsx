@@ -16,7 +16,7 @@ import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiPanel } from "@/shared/ui/panel";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { SkillAgentBinding } from "@/types/capability/skill";
@@ -62,7 +62,7 @@ export function SkillDetailView({
   snapshot,
 }: SkillDetailViewProps) {
   return (
-    <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
+    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
       <SkillDetailBreadcrumb
         onBack={onBack}
         title={getSkillDetailSnapshotTitle(snapshot)}

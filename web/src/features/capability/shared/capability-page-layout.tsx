@@ -8,26 +8,23 @@ import {
 
 import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
+import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { UiSelectMenuOption } from "@/shared/ui/menu/select-menu-model";
 
 interface CapabilityPageLayoutProps {
+  actions?: ReactNode;
   children: ReactNode;
   className?: string;
   description: ReactNode;
+  headerAnchor?: string;
   title: ReactNode;
-  variant?: "board" | "standard";
 }
 
 interface CapabilityFilterBarProps {
   children: ReactNode;
   className?: string;
-}
-
-interface CapabilityPageHeaderProps {
-  description: ReactNode;
-  title: ReactNode;
 }
 
 interface CapabilitySectionHeaderProps {
@@ -59,42 +56,25 @@ interface CapabilityFilterSelectProps {
   value: string;
 }
 
-/** 中文注释：能力区目录页共用宽版心和介绍区，保持各入口的两侧留白与内容节奏一致。 */
+/** 能力目录复用共享管理内容轴，标题、工具和内容始终保持同一基线。 */
 export function CapabilityPageLayout({
+  actions,
   children,
   className: className,
   description,
+  headerAnchor,
   title,
-  variant = "standard",
 }: CapabilityPageLayoutProps) {
   return (
-    <div
-      className={cn(
-        WORKSPACE_DETAIL_PAGE_CLASS_NAME,
-        "max-w-[1480px] py-5",
-        variant === "board" && "flex h-full min-h-0 flex-col",
-        className,
-      )}
-    >
-      <CapabilityPageHeader description={description} title={title} />
+    <div className={cn(WORKSPACE_CONTENT_PAGE_CLASS_NAME, className)}>
+      <WorkspaceContentHeader
+        actions={actions}
+        description={description}
+        headerAnchor={headerAnchor}
+        title={title}
+      />
       {children}
     </div>
-  );
-}
-
-function CapabilityPageHeader({
-  description,
-  title,
-}: CapabilityPageHeaderProps) {
-  return (
-    <header className="mb-4 border-b border-(--divider-subtle-color) pb-4">
-      <h1 className="text-lg font-semibold tracking-[-0.02em] text-(--text-strong)">
-        {title}
-      </h1>
-      <p className="mt-1 max-w-[640px] text-compact leading-5 text-(--text-muted)">
-        {description}
-      </p>
-    </header>
   );
 }
 

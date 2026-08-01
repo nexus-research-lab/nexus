@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -9,7 +9,6 @@ import {
   type FeedbackBannerProps,
 } from "@/shared/ui/feedback/feedback-banner";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
@@ -91,34 +90,26 @@ export function ScheduledTasksDirectory() {
 
   return (
     <>
-      <WorkspaceSurfaceScaffold
-        header={(
-          <WorkspaceSurfaceHeader
-            leading={<CalendarClock className="h-4 w-4" />}
-            narrowMode="toolbar"
-            title={t("capability.scheduled")}
-            trailing={(
-              <>
-                <WorkspaceSurfaceToolbarAction onClick={refreshTasks}>
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  {t("capability.refresh")}
-                </WorkspaceSurfaceToolbarAction>
-                <WorkspaceSurfaceToolbarAction
-                  onClick={() => setDialog({ kind: "create", preset: null })}
-                  tone="primary"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {t("capability.create_task")}
-                </WorkspaceSurfaceToolbarAction>
-              </>
-            )}
-          />
-        )}
-      >
+      <WorkspaceSurfaceScaffold>
         <CapabilityPageLayout
+          actions={(
+            <div className="flex items-center gap-2">
+              <WorkspaceSurfaceToolbarAction onClick={refreshTasks}>
+                <RefreshCw className="h-3.5 w-3.5" />
+                {t("capability.refresh")}
+              </WorkspaceSurfaceToolbarAction>
+              <WorkspaceSurfaceToolbarAction
+                onClick={() => setDialog({ kind: "create", preset: null })}
+                tone="primary"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t("capability.create_task")}
+              </WorkspaceSurfaceToolbarAction>
+            </div>
+          )}
           description={t("capability.scheduled_intro_description")}
+          className="flex h-full min-h-0 flex-col"
           title={t("capability.scheduled_intro_title")}
-          variant="board"
         >
           <ScheduledTaskBoard
             errorMessage={resource.errorMessage}

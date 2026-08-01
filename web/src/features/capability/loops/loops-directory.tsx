@@ -16,8 +16,8 @@ import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiListRow } from "@/shared/ui/list/list-row";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
@@ -102,13 +102,6 @@ export function LoopsDirectory() {
   return (
     <WorkspaceSurfaceScaffold
       bodyScrollable
-      header={(
-        <WorkspaceSurfaceHeader
-          leading={<Repeat2 className="h-4 w-4" />}
-          narrowMode="hidden"
-          title={t("capability.loops")}
-        />
-      )}
       stableGutter
     >
       {slug ? (
@@ -156,7 +149,7 @@ export function LoopsDirectory() {
               title={t("capability.loops_empty")}
             />
           ) : (
-            <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
+            <div className={`${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-x-8 gap-y-2`}>
               {filteredLoops.map((loop) => (
                 <UiListRow
                   key={loop.slug}

@@ -1,7 +1,10 @@
 "use client";
 
 import { cn } from "@/shared/ui/class-name";
-import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 
 import { SettingsAppearanceSection } from "./sections/settings-appearance-section";
 import { SettingsDesktopSection } from "./sections/settings-desktop-section";
@@ -16,29 +19,60 @@ type GeneralSettingsSectionKey =
   | "workspace"
   | "permissions";
 
+const SETTINGS_SECTION_COPY: Record<
+  GeneralSettingsSectionKey,
+  { description: TranslationKey; title: TranslationKey }
+> = {
+  appearance: {
+    description: "settings.general.section_appearance_description",
+    title: "settings.general.section_appearance",
+  },
+  general: {
+    description: "settings.general.section_general_description",
+    title: "settings.general.section_general",
+  },
+  permissions: {
+    description: "settings.general.section_permissions_description",
+    title: "settings.general.section_permissions",
+  },
+  workspace: {
+    description: "settings.general.section_workspace_description",
+    title: "settings.general.section_workspace",
+  },
+};
+
 export function SettingsGeneralSection({
   section,
 }: {
   section: GeneralSettingsSectionKey;
 }) {
+  const { t } = useI18n();
+  const copy = SETTINGS_SECTION_COPY[section];
+
   return (
     <div
       className={cn(
-        "mx-auto flex w-full flex-col gap-5 px-1 py-3",
-        WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME,
+        WORKSPACE_CONTENT_PAGE_CLASS_NAME,
+        "flex flex-col",
       )}
     >
-      {section === "general" ? (
-        <>
-          <SettingsDesktopSection />
-          <SettingsGeneralBehaviorContent />
-        </>
-      ) : null}
-      {section === "appearance" ? <SettingsAppearanceSection /> : null}
-      {section === "workspace" ? <SettingsWorkspaceSection /> : null}
-      {section === "permissions" ? (
-        <SettingsPermissionsContent />
-      ) : null}
+      <WorkspaceContentHeader
+        description={t(copy.description)}
+        title={t(copy.title)}
+      />
+      <div className="flex flex-col gap-5">
+        {section === "general" ? (
+          <>
+            <SettingsDesktopSection />
+            <SettingsGeneralBehaviorContent />
+          </>
+        ) : null}
+        {section === "appearance" ? <SettingsAppearanceSection /> : null}
+        {section === "workspace" ? <SettingsWorkspaceSection /> : null}
+        {section === "permissions" ? (
+          <SettingsPermissionsContent />
+        ) : null}
+      </div>
     </div>
   );
 }

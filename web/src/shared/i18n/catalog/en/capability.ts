@@ -107,7 +107,6 @@ export const enCapabilityMessages = {
   "capability.scheduled_intro_title": "Schedule agent work",
   "capability.scheduled_intro_description": "Create one-time or recurring tasks and track each run.",
   "capability.scheduled_quick_start_title": "Start with a common task",
-  "capability.scheduled_quick_start_description": "You can adjust the target and schedule after choosing a template.",
   "capability.scheduled_create_blank": "Create custom task",
   "capability.scheduled_load_failed": "Failed to load tasks",
   "capability.reload": "Reload",

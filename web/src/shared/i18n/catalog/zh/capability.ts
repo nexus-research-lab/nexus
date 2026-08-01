@@ -104,7 +104,6 @@ export const zhCapabilityMessages = {
   "capability.scheduled_intro_title": "安排自动工作",
   "capability.scheduled_intro_description": "创建一次或周期任务，并跟踪执行状态。",
   "capability.scheduled_quick_start_title": "从常用任务开始",
-  "capability.scheduled_quick_start_description": "选择模板后仍可调整执行对象和时间。",
   "capability.scheduled_create_blank": "创建自定义任务",
   "capability.scheduled_load_failed": "任务加载失败",
   "capability.reload": "重新加载",

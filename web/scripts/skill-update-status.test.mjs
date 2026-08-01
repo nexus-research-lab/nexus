@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -74,4 +75,53 @@ test("目录高亮直接使用结构化失败状态而不是匹配提示文案",
 
   assert.equal(model?.status, "failure");
   assert.equal(model?.statusLabel, "来源已经失效，请重新导入");
+});
+
+test("技能来源切换下沉到搜索工具区并使用无外框文字筛选", async () => {
+  const [directorySource, searchSource] = await Promise.all([
+    "src/features/capability/skills/skills-directory.tsx",
+    "src/features/capability/skills/skills-search-bar.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+
+  assert.match(directorySource, /onChangeDiscoveryMode=\{setDiscoveryMode\}/);
+  assert.match(searchSource, /data-tour-anchor=\{SKILLS_TOUR_ANCHORS\.modes\}/);
+  assert.match(searchSource, /role="group"/);
+  assert.match(searchSource, /aria-pressed=\{active\}/);
+  assert.match(searchSource, /inline-flex h-8 w-full shrink-0 items-center gap-1/);
+  assert.match(searchSource, /sm:max-w-\[520px\]/);
+  assert.match(searchSource, /bg-\(--surface-interactive-active-background\)/);
+});
+
+test("能力目录移除重复 Surface 身份并把页面动作收进正文标题区", async () => {
+  const capabilityFiles = [
+    "src/features/capability/channels/channels-directory.tsx",
+    "src/features/capability/channels/pairings-directory.tsx",
+    "src/features/capability/connectors/connectors-directory.tsx",
+    "src/features/capability/loops/loops-directory.tsx",
+    "src/features/capability/scheduled/scheduled-tasks-directory.tsx",
+    "src/features/capability/skills/skills-directory.tsx",
+  ];
+  const [layoutSource, headerSource, ...directorySources] = await Promise.all([
+    "src/features/capability/shared/capability-page-layout.tsx",
+    "src/shared/ui/layout/workspace-content-header.tsx",
+    ...capabilityFiles,
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+
+  assert.match(layoutSource, /actions\?: ReactNode/);
+  assert.match(layoutSource, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
+  assert.match(layoutSource, /WorkspaceContentHeader/);
+  assert.doesNotMatch(layoutSource, /variant\?: "board"/);
+  assert.match(headerSource, /sm:flex-row sm:items-start sm:justify-between/);
+  assert.match(headerSource, /data-tour-anchor=\{headerAnchor\}/);
+  directorySources.forEach((source, index) => {
+    assert.doesNotMatch(
+      source,
+      /WorkspaceSurfaceHeader/,
+      `${capabilityFiles[index]} 不应恢复重复的能力身份 Header`,
+    );
+  });
+  assert.match(directorySources[0], /actions=\{\(/);
+  assert.match(directorySources[1], /actions=\{\(/);
+  assert.match(directorySources[4], /actions=\{\(/);
+  assert.match(directorySources[5], /actions=\{\(/);
 });

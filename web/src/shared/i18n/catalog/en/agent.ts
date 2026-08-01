@@ -12,6 +12,8 @@ export const enAgentMessages = {
   "agent_options.save_success": "Saved",
   "agent_options.save_failed": "Save failed",
   "agent_options.nav.identity": "Identity",
+  "agent_options.nav.contact": "Contact",
+  "agent_options.nav.memory": "Memory",
   "agent_options.nav.tools": "Tools",
   "agent_options.nav.skills": "Skills",
   "agent_options.identity.name": "Name",
