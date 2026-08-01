@@ -29,9 +29,10 @@ test("种子头像对同一 Skill 标识保持稳定", async () => {
   assert.deepEqual(first, second);
   assert.match(first.backgroundColor, /^#[0-9A-F]{6}$/);
   assert.match(first.foregroundColor, /^#[0-9A-F]{6}$/);
+  assert.match(first.pathData, /^M\d+\.\d{2} \d+\.\d{2}( L\d+\.\d{2} \d+\.\d{2})+$/);
 });
 
-test("常见 Skill 名称能生成足够丰富且非运行时随机的头像", async () => {
+test("常见 Skill 名称能生成各自独立且非运行时随机的曲线", async () => {
   const { getSeededAvatarAppearance } = await server.ssrLoadModule(
     "/src/lib/seeded-avatar.ts",
   );
@@ -48,9 +49,9 @@ test("常见 Skill 名称能生成足够丰富且非运行时随机的头像", a
     "room-collaboration",
     "linear",
     "skill-creator",
-  ].map((name) => JSON.stringify(getSeededAvatarAppearance(name)));
+  ].map((name) => getSeededAvatarAppearance(name).pathData);
 
-  assert.ok(new Set(appearances).size >= 6);
+  assert.equal(new Set(appearances).size, appearances.length);
   assert.doesNotMatch(source, /Math\.random/);
 });
 
@@ -65,4 +66,15 @@ test("Agent 与全局技能卡共用名称种子头像", async () => {
     assert.match(source, /seed=\{skill\.name\}/);
   });
   assert.doesNotMatch(catalogCard, /SKILL_CARD_ICON/);
+});
+
+test("头像组件静态绘制数学曲线且不引入图标字典或动画", async () => {
+  const source = await readFile(
+    path.join(webRoot, "src/shared/ui/display/seeded-avatar.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /<svg/);
+  assert.match(source, /d=\{appearance\.pathData\}/);
+  assert.doesNotMatch(source, /lucide-react|requestAnimationFrame|animate-/);
 });

@@ -1,22 +1,8 @@
 "use client";
 
-import {
-  Asterisk,
-  Box,
-  Braces,
-  CircleDot,
-  Diamond,
-  Orbit,
-  Sparkles,
-  Zap,
-  type LucideIcon,
-} from "lucide-react";
-import type { HTMLAttributes } from "react";
+import { type HTMLAttributes, useMemo } from "react";
 
-import {
-  getSeededAvatarAppearance,
-  type SeededAvatarIcon,
-} from "@/lib/seeded-avatar";
+import { getSeededAvatarAppearance } from "@/lib/seeded-avatar";
 import { cn } from "@/shared/ui/class-name";
 
 type UiSeededAvatarSize = "sm" | "md";
@@ -26,22 +12,11 @@ interface UiSeededAvatarProps extends HTMLAttributes<HTMLSpanElement> {
   size?: UiSeededAvatarSize;
 }
 
-const SEEDED_AVATAR_ICON: Readonly<Record<SeededAvatarIcon, LucideIcon>> = {
-  asterisk: Asterisk,
-  box: Box,
-  braces: Braces,
-  "circle-dot": CircleDot,
-  diamond: Diamond,
-  orbit: Orbit,
-  sparkles: Sparkles,
-  zap: Zap,
-};
-
 const SEEDED_AVATAR_SIZE_CLASS_NAME: Readonly<
   Record<UiSeededAvatarSize, string>
 > = {
-  sm: "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4",
-  md: "h-10 w-10 [&_svg]:h-[18px] [&_svg]:w-[18px]",
+  sm: "h-9 w-9",
+  md: "h-10 w-10",
 };
 
 /** 中文注释：圆形标记只表示非人物资源，不改变 Agent 与 Room 的头像规范。 */
@@ -52,8 +27,10 @@ export function UiSeededAvatar({
   style,
   ...props
 }: UiSeededAvatarProps) {
-  const appearance = getSeededAvatarAppearance(seed);
-  const Icon = SEEDED_AVATAR_ICON[appearance.icon];
+  const appearance = useMemo(
+    () => getSeededAvatarAppearance(seed),
+    [seed],
+  );
 
   return (
     <span
@@ -70,7 +47,20 @@ export function UiSeededAvatar({
         ...style,
       }}
     >
-      <Icon strokeWidth={2.25} />
+      <svg
+        aria-hidden="true"
+        className="h-full w-full"
+        fill="none"
+        viewBox="0 0 100 100"
+      >
+        <path
+          d={appearance.pathData}
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="3.75"
+        />
+      </svg>
     </span>
   );
 }

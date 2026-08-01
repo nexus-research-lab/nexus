@@ -6,7 +6,7 @@
 - `skills-header-actions.tsx` 在手机布局用统一更多菜单承载导入、更新、来源和引导，桌面保留完整工具栏；动作由铺满工作面的共享能力正文 Header 承载，不恢复重复的技能 Surface Header 或私有水平留白。
 - 技能目录、外部搜索结果与更新列表在桌面统一显示三列，窄窗逐级收拢。
 - `controller/` 管理目录查询、外部搜索、来源配置、异步操作与反馈状态。
-- `catalog/` 负责技能目录和更新提示；Skill 卡片与 Agent 技能页共用按 `skill.name` 生成的稳定身份标记，来源/来源类型、全局使用数、Agent 启用状态与更新检查统一由 `skills-catalog-model.ts` 投影。
+- `catalog/` 负责技能目录和更新提示；Skill 卡片与 Agent 技能页共用按 `skill.name` 生成的静态数学曲线身份标记，来源/来源类型、全局使用数、Agent 启用状态与更新检查统一由 `skills-catalog-model.ts` 投影。
 - `external/` 负责社区来源结果、来源管理和预览；身份、来源、导入状态与预览内容统一由纯模型投影。
 - `import/` 负责本地与 Git 导入表单。
 - `detail/` 按路由编排、请求控制器、展示模型和纯视图分离技能详情与 Agent 使用矩阵；Markdown 与部署失败说明留在详情域。
