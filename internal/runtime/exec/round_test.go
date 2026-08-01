@@ -29,6 +29,15 @@ type fakeRoundExecutionClient struct {
 	receiveStart chan struct{}
 }
 
+type discardableRoundExecutionClient struct {
+	*fakeRoundExecutionClient
+	discards int
+}
+
+func (c *discardableRoundExecutionClient) DiscardUncleanSession() {
+	c.discards++
+}
+
 func (c *fakeRoundExecutionClient) Connect(context.Context) error { return nil }
 
 func (c *fakeRoundExecutionClient) Query(_ context.Context, prompt string) error {
@@ -408,6 +417,19 @@ func TestExecuteRoundDisconnectsWhenInterruptedTerminalNeverArrives(t *testing.T
 		}
 	case <-time.After(time.Second):
 		t.Fatal("terminal 超时后 round 未结束")
+	}
+}
+
+func TestDisconnectUncleanRoundClientUsesNonblockingDiscard(t *testing.T) {
+	client := &discardableRoundExecutionClient{fakeRoundExecutionClient: &fakeRoundExecutionClient{}}
+
+	disconnectUncleanRoundClient(client)
+
+	if client.discards != 1 {
+		t.Fatalf("未收口 SDK session 应原子隔离一次，discards=%d", client.discards)
+	}
+	if client.disconnects != 0 {
+		t.Fatalf("支持异步隔离时不应阻塞 round 等待 Disconnect，disconnects=%d", client.disconnects)
 	}
 }
 

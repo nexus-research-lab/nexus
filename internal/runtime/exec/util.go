@@ -92,6 +92,9 @@ func disconnectUncleanRoundClient(client Client) {
 	if client == nil {
 		return
 	}
+	if runtimectx.DiscardUncleanClientSession(client) {
+		return
+	}
 	disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
 	_ = client.Disconnect(disconnectCtx)
 	disconnectCancel()

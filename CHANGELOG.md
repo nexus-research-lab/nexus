@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevented delayed runtime results from an explicitly interrupted turn from
   terminating the following prompt, while quarantining runtime sessions that
   cannot produce a clean terminal boundary.
+- Serialized SDK runtime startup and live configuration changes, made unclean
+  round disposal nonblocking, and kept reconnects fenced only while prior
+  process shutdown remains incomplete.
 - Stopped the Home ASCII canvas from redrawing thousands of glyphs continuously
   while idle by bounding active animation to 30 FPS, sleeping after intro and
   pointer settling, and pausing when the surface is hidden or offscreen.

@@ -7,6 +7,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1307,5 +1308,767 @@ func TestManagerCloseIdleSessionsCountsIdleFromRoundFinish(t *testing.T) {
 	}
 	if client.disconnectCalls != 1 {
 		t.Fatalf("client 应关闭一次: %d", client.disconnectCalls)
+	}
+}
+
+func TestWaitSDKClientTransitionReturnsWhenCleanupCompletes(t *testing.T) {
+	done := make(chan struct{})
+	close(done)
+	if err := waitSDKClientTransition(context.Background(), done); err != nil {
+		t.Fatalf("已完成 cleanup 不应报错: %v", err)
+	}
+}
+
+func TestWaitSDKClientTransitionHonorsContext(t *testing.T) {
+	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := waitSDKClientTransition(ctx, done); !errors.Is(err, context.Canceled) {
+		t.Fatalf("等待 cleanup 应遵守调用方 context: %v", err)
+	}
+}
+
+func TestSDKClientAdapterCleanupFenceBlocksReconnect(t *testing.T) {
+	cleanupStarted := make(chan struct{})
+	cleanupRelease := make(chan struct{})
+	newSessionCalled := make(chan struct{}, 1)
+	var cleanupGate sync.Once
+	client := &sdkClientAdapter{
+		session:  &agentclient.Session{},
+		messages: make(chan sdkprotocol.ReceivedMessage),
+		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
+			newSessionCalled <- struct{}{}
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error {
+			shouldWait := false
+			cleanupGate.Do(func() { shouldWait = true })
+			if !shouldWait {
+				return nil
+			}
+			close(cleanupStarted)
+			<-cleanupRelease
+			return nil
+		},
+	}
+
+	client.DiscardUncleanSession()
+	select {
+	case <-cleanupStarted:
+	case <-time.After(time.Second):
+		t.Fatal("旧 session cleanup 未启动")
+	}
+	connectDone := make(chan error, 1)
+	go func() { connectDone <- client.Connect(context.Background()) }()
+	select {
+	case <-newSessionCalled:
+		t.Fatal("旧 session cleanup 完成前不应启动新 runtime")
+	case <-time.After(30 * time.Millisecond):
+	}
+
+	close(cleanupRelease)
+	select {
+	case <-newSessionCalled:
+	case <-time.After(time.Second):
+		t.Fatal("旧 session cleanup 完成后未启动新 runtime")
+	}
+	select {
+	case err := <-connectDone:
+		if err != nil {
+			t.Fatalf("cleanup 后重连失败: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cleanup 后重连未结束")
+	}
+}
+
+func TestSDKClientAdapterDisconnectDeadlineDoesNotCancelSharedCleanup(t *testing.T) {
+	cleanupStarted := make(chan struct{})
+	cleanupRelease := make(chan struct{})
+	newSessionCalled := make(chan struct{}, 1)
+	var cleanupGate sync.Once
+	client := &sdkClientAdapter{
+		session: &agentclient.Session{},
+		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
+			newSessionCalled <- struct{}{}
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error {
+			shouldWait := false
+			cleanupGate.Do(func() { shouldWait = true })
+			if !shouldWait {
+				return nil
+			}
+			close(cleanupStarted)
+			<-cleanupRelease
+			return nil
+		},
+	}
+	disconnectCtx, cancelDisconnect := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancelDisconnect()
+	if err := client.Disconnect(disconnectCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Disconnect 等待应遵守调用方 deadline: %v", err)
+	}
+	select {
+	case <-cleanupStarted:
+	default:
+		t.Fatal("Disconnect 应启动共享 cleanup")
+	}
+
+	connectCtx, cancelConnect := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancelConnect()
+	if err := client.Connect(connectCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("cleanup 未完成时 Connect 应等待同一 fence: %v", err)
+	}
+	select {
+	case <-newSessionCalled:
+		t.Fatal("调用方 Disconnect 超时不代表旧 runtime 已回收")
+	default:
+	}
+
+	close(cleanupRelease)
+	if err := client.Connect(context.Background()); err != nil {
+		t.Fatalf("共享 cleanup 完成后应允许重连: %v", err)
+	}
+	select {
+	case <-newSessionCalled:
+	case <-time.After(time.Second):
+		t.Fatal("共享 cleanup 完成后未启动新 runtime")
+	}
+}
+
+func TestSDKClientAdapterDisconnectInvalidatesInFlightConnect(t *testing.T) {
+	connectStarted := make(chan struct{})
+	connectRelease := make(chan struct{})
+	staleSessionClosed := make(chan struct{}, 1)
+	client := &sdkClientAdapter{
+		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
+			close(connectStarted)
+			<-connectRelease
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error {
+			staleSessionClosed <- struct{}{}
+			return nil
+		},
+	}
+	connectDone := make(chan error, 1)
+	go func() { connectDone <- client.Connect(context.Background()) }()
+	select {
+	case <-connectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("Connect 未进入 session 启动阶段")
+	}
+
+	disconnectCtx, cancelDisconnect := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancelDisconnect()
+	if err := client.Disconnect(disconnectCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Disconnect 应等待并受 context 约束: %v", err)
+	}
+	close(connectRelease)
+	select {
+	case err := <-connectDone:
+		if !errors.Is(err, agentclient.ErrAborted) {
+			t.Fatalf("被 Disconnect 失效的 Connect 错误=%v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("失效的 Connect 未退出")
+	}
+	select {
+	case <-staleSessionClosed:
+	case <-time.After(time.Second):
+		t.Fatal("失效 Connect 创建的 session 未关闭")
+	}
+	if client.IsConnected() {
+		t.Fatal("Disconnect 后失效 Connect 不应重新安装 session")
+	}
+}
+
+func TestSDKClientAdapterConnectRetriesWithLatestConfiguration(t *testing.T) {
+	firstAttemptRelease := make(chan struct{})
+	attempts := make(chan agentclient.Options, 2)
+	client := &sdkClientAdapter{
+		options: agentclient.Options{Model: "old-model"},
+		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
+			attempts <- options
+			if options.Model == "old-model" {
+				<-firstAttemptRelease
+			}
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error { return nil },
+	}
+	connectDone := make(chan error, 1)
+	go func() { connectDone <- client.Connect(context.Background()) }()
+	select {
+	case options := <-attempts:
+		if options.Model != "old-model" {
+			t.Fatalf("首次启动配置=%q", options.Model)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("首次 Connect 未启动")
+	}
+
+	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "new-model"}); err != nil {
+		t.Fatalf("连接期间 Reconfigure 失败: %v", err)
+	}
+	close(firstAttemptRelease)
+	select {
+	case options := <-attempts:
+		if options.Model != "new-model" {
+			t.Fatalf("重试未使用最新配置: %q", options.Model)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("配置变化后 Connect 未重试")
+	}
+	select {
+	case err := <-connectDone:
+		if err != nil {
+			t.Fatalf("使用最新配置重试失败: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("配置变化后的 Connect 未结束")
+	}
+}
+
+func TestSDKClientAdapterDiscardCancelsInFlightConnect(t *testing.T) {
+	connectStarted := make(chan struct{})
+	client := &sdkClientAdapter{
+		newSession: func(ctx context.Context, _ agentclient.Options) (*agentclient.Session, error) {
+			close(connectStarted)
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+	}
+	connectDone := make(chan error, 1)
+	go func() { connectDone <- client.Connect(context.Background()) }()
+	select {
+	case <-connectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("Connect 未进入 session 启动阶段")
+	}
+
+	client.DiscardUncleanSession()
+	select {
+	case err := <-connectDone:
+		if !errors.Is(err, agentclient.ErrAborted) {
+			t.Fatalf("Discard 后 Connect 错误=%v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Discard 未取消正在启动的 session")
+	}
+}
+
+func TestSDKClientAdapterConcurrentConnectWaiterHonorsContext(t *testing.T) {
+	connectStarted := make(chan struct{})
+	connectRelease := make(chan struct{})
+	client := &sdkClientAdapter{
+		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
+			close(connectStarted)
+			<-connectRelease
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error { return nil },
+	}
+	ownerDone := make(chan error, 1)
+	go func() { ownerDone <- client.Connect(context.Background()) }()
+	select {
+	case <-connectStarted:
+	case <-time.After(time.Second):
+		t.Fatal("owner Connect 未进入 session 启动阶段")
+	}
+
+	waiterCtx, cancelWaiter := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancelWaiter()
+	if err := client.Connect(waiterCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("并发 Connect waiter 应遵守自己的 context: %v", err)
+	}
+	close(connectRelease)
+	select {
+	case err := <-ownerDone:
+		if err != nil {
+			t.Fatalf("owner Connect 失败: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("owner Connect 未结束")
+	}
+}
+
+func TestSDKClientAdapterConnectOwnerCancellationDoesNotPoisonWaiter(t *testing.T) {
+	firstOpenStarted := make(chan struct{})
+	var attemptsMu sync.Mutex
+	attempts := 0
+	client := &sdkClientAdapter{
+		newSession: func(ctx context.Context, _ agentclient.Options) (*agentclient.Session, error) {
+			attemptsMu.Lock()
+			attempts++
+			attempt := attempts
+			attemptsMu.Unlock()
+			if attempt == 1 {
+				close(firstOpenStarted)
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error { return nil },
+	}
+	ownerCtx, cancelOwner := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancelOwner()
+	ownerDone := make(chan error, 1)
+	go func() { ownerDone <- client.Connect(ownerCtx) }()
+	select {
+	case <-firstOpenStarted:
+	case <-time.After(time.Second):
+		t.Fatal("Connect owner 未启动 runtime")
+	}
+	waiterDone := make(chan error, 1)
+	go func() { waiterDone <- client.Connect(context.Background()) }()
+	select {
+	case err := <-ownerDone:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("owner Connect 错误=%v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("owner Connect 未按 deadline 退出")
+	}
+	select {
+	case err := <-waiterDone:
+		if err != nil {
+			t.Fatalf("健康 waiter 不应继承 owner context 错误: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("健康 waiter 未重试 runtime")
+	}
+	attemptsMu.Lock()
+	openAttempts := attempts
+	attemptsMu.Unlock()
+	if openAttempts != 2 {
+		t.Fatalf("owner 取消后 waiter 应独立重试一次，实际=%d", openAttempts)
+	}
+}
+
+func TestSDKClientAdapterDisconnectDuringConfigRetryCannotReviveSession(t *testing.T) {
+	firstOpenRelease := make(chan struct{})
+	staleCloseStarted := make(chan struct{})
+	staleCloseRelease := make(chan struct{})
+	attempts := make(chan agentclient.Options, 2)
+	client := &sdkClientAdapter{
+		options: agentclient.Options{Model: "old-model"},
+		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
+			attempts <- options
+			if options.Model == "old-model" {
+				<-firstOpenRelease
+			}
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error {
+			close(staleCloseStarted)
+			<-staleCloseRelease
+			return nil
+		},
+	}
+	connectDone := make(chan error, 1)
+	go func() { connectDone <- client.Connect(context.Background()) }()
+	select {
+	case <-attempts:
+	case <-time.After(time.Second):
+		t.Fatal("首次 Connect 未启动")
+	}
+	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "new-model"}); err != nil {
+		t.Fatalf("连接期间 Reconfigure 失败: %v", err)
+	}
+	close(firstOpenRelease)
+	select {
+	case <-staleCloseStarted:
+	case <-time.After(time.Second):
+		t.Fatal("过期配置创建的 session 未进入关闭阶段")
+	}
+
+	client.DiscardUncleanSession()
+	close(staleCloseRelease)
+	select {
+	case err := <-connectDone:
+		if !errors.Is(err, agentclient.ErrAborted) {
+			t.Fatalf("生命周期失效后的配置重试错误=%v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("生命周期失效后的 Connect 未退出")
+	}
+	select {
+	case options := <-attempts:
+		t.Fatalf("旧 Connect 不应采纳新 lifecycle 再次启动: %+v", options)
+	default:
+	}
+	if client.IsConnected() {
+		t.Fatal("生命周期失效后的 Connect 不应安装 session")
+	}
+}
+
+func TestSDKClientAdapterDisconnectReturnsCleanupErrorAndAllowsReconnect(t *testing.T) {
+	closeErr := errors.New("runtime close failed")
+	newSessionCalled := false
+	client := &sdkClientAdapter{
+		session: &agentclient.Session{},
+		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
+			newSessionCalled = true
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error {
+			return closeErr
+		},
+	}
+	if err := client.Disconnect(context.Background()); !errors.Is(err, closeErr) {
+		t.Fatalf("Disconnect 应保留底层 close 错误: %v", err)
+	}
+	if err := client.Connect(context.Background()); err != nil {
+		t.Fatalf("旧 runtime 已关闭后的诊断错误不应阻止重连: %v", err)
+	}
+	if !newSessionCalled {
+		t.Fatal("旧 runtime 已关闭后应允许启动新 runtime")
+	}
+}
+
+func TestSDKClientAdapterRejectedSessionCleanupBlocksRetryUntilCompletion(t *testing.T) {
+	firstOpenRelease := make(chan struct{})
+	cleanupStarted := make(chan struct{})
+	cleanupRelease := make(chan struct{})
+	attempts := make(chan agentclient.Options, 2)
+	var cleanupGate sync.Once
+	client := &sdkClientAdapter{
+		options: agentclient.Options{Model: "old-model"},
+		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
+			attempts <- options
+			if options.Model == "old-model" {
+				<-firstOpenRelease
+			}
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error {
+			shouldWait := false
+			cleanupGate.Do(func() { shouldWait = true })
+			if !shouldWait {
+				return nil
+			}
+			close(cleanupStarted)
+			<-cleanupRelease
+			return nil
+		},
+	}
+	connectDone := make(chan error, 1)
+	go func() { connectDone <- client.Connect(context.Background()) }()
+	select {
+	case <-attempts:
+	case <-time.After(time.Second):
+		t.Fatal("首次 Connect 未启动")
+	}
+	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "new-model"}); err != nil {
+		t.Fatalf("连接期间 Reconfigure 失败: %v", err)
+	}
+	close(firstOpenRelease)
+	select {
+	case <-cleanupStarted:
+	case <-time.After(time.Second):
+		t.Fatal("过期 session cleanup 未启动")
+	}
+	select {
+	case options := <-attempts:
+		t.Fatalf("旧 runtime 回收完成前不应启动新 runtime: %+v", options)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(cleanupRelease)
+	select {
+	case options := <-attempts:
+		if options.Model != "new-model" {
+			t.Fatalf("cleanup 完成后重试配置=%q", options.Model)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cleanup 完成后未重试新 runtime")
+	}
+	select {
+	case err := <-connectDone:
+		if err != nil {
+			t.Fatalf("cleanup 完成后的 Connect 失败: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cleanup 完成后的 Connect 未结束")
+	}
+}
+
+func TestSDKClientAdapterRejectedSessionDiagnosticAllowsRetry(t *testing.T) {
+	firstOpenRelease := make(chan struct{})
+	attempts := make(chan agentclient.Options, 2)
+	client := &sdkClientAdapter{
+		options: agentclient.Options{Model: "old-model"},
+		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
+			attempts <- options
+			if options.Model == "old-model" {
+				<-firstOpenRelease
+			}
+			return &agentclient.Session{}, nil
+		},
+		closeSession: func(*agentclient.Session) error {
+			return errors.New("stale runtime exited with status 2")
+		},
+	}
+	connectDone := make(chan error, 1)
+	go func() { connectDone <- client.Connect(context.Background()) }()
+	select {
+	case <-attempts:
+	case <-time.After(time.Second):
+		t.Fatal("首次 Connect 未启动")
+	}
+	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "new-model"}); err != nil {
+		t.Fatalf("连接期间 Reconfigure 失败: %v", err)
+	}
+	close(firstOpenRelease)
+	select {
+	case options := <-attempts:
+		if options.Model != "new-model" {
+			t.Fatalf("诊断错误后重试配置=%q", options.Model)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("已完成的旧 runtime cleanup 不应阻止重试")
+	}
+	select {
+	case err := <-connectDone:
+		if err != nil {
+			t.Fatalf("已完成的旧 runtime cleanup 不应让 Connect 失败: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("诊断错误后的 Connect 未结束")
+	}
+}
+
+func TestSDKClientAdapterReconfigurePublishesAndSerializesDesiredState(t *testing.T) {
+	firstStarted := make(chan struct{})
+	firstRelease := make(chan struct{})
+	secondStarted := make(chan struct{})
+	client := &sdkClientAdapter{
+		options: agentclient.Options{Model: "old-model"},
+		session: &agentclient.Session{},
+		reconfigureSession: func(_ context.Context, _ *agentclient.Session, options agentclient.Options) error {
+			switch options.Model {
+			case "first-model":
+				close(firstStarted)
+				<-firstRelease
+			case "second-model":
+				close(secondStarted)
+			}
+			return nil
+		},
+	}
+	firstDone := make(chan error, 1)
+	go func() {
+		firstDone <- client.Reconfigure(context.Background(), agentclient.Options{Model: "first-model"})
+	}()
+	select {
+	case <-firstStarted:
+	case <-time.After(time.Second):
+		t.Fatal("首次 Reconfigure 未进入 runtime RPC")
+	}
+	client.mu.Lock()
+	modelDuringRPC := client.options.Model
+	client.mu.Unlock()
+	if modelDuringRPC != "first-model" {
+		t.Fatalf("runtime RPC 期间期望配置=%q", modelDuringRPC)
+	}
+
+	secondDone := make(chan error, 1)
+	go func() {
+		secondDone <- client.Reconfigure(context.Background(), agentclient.Options{Model: "second-model"})
+	}()
+	select {
+	case <-secondStarted:
+		t.Fatal("前一配置 RPC 完成前不应逆序触达 runtime")
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(firstRelease)
+	for name, done := range map[string]<-chan error{
+		"first":  firstDone,
+		"second": secondDone,
+	} {
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("%s Reconfigure 失败: %v", name, err)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("%s Reconfigure 未结束", name)
+		}
+	}
+	select {
+	case <-secondStarted:
+	default:
+		t.Fatal("第二次配置未触达 runtime")
+	}
+	client.mu.Lock()
+	finalModel := client.options.Model
+	client.mu.Unlock()
+	if finalModel != "second-model" {
+		t.Fatalf("最终期望配置=%q", finalModel)
+	}
+}
+
+func TestSDKClientAdapterUpdateEnvironmentPublishesDesiredBeforeRPC(t *testing.T) {
+	updateStarted := make(chan struct{})
+	updateRelease := make(chan struct{})
+	client := &sdkClientAdapter{
+		options: agentclient.Options{Env: map[string]string{"EXISTING": "1"}},
+		session: &agentclient.Session{},
+		updateSessionEnvironment: func(_ context.Context, _ *agentclient.Session, environment map[string]string) error {
+			if environment["NEW"] != "2" {
+				t.Errorf("runtime 环境增量=%v", environment)
+			}
+			close(updateStarted)
+			<-updateRelease
+			return nil
+		},
+	}
+	updateDone := make(chan error, 1)
+	go func() {
+		updateDone <- client.UpdateEnvironment(context.Background(), map[string]string{"NEW": "2"})
+	}()
+	select {
+	case <-updateStarted:
+	case <-time.After(time.Second):
+		t.Fatal("UpdateEnvironment 未进入 runtime RPC")
+	}
+	client.mu.Lock()
+	environmentDuringRPC := maps.Clone(client.options.Env)
+	client.mu.Unlock()
+	if environmentDuringRPC["EXISTING"] != "1" || environmentDuringRPC["NEW"] != "2" {
+		t.Fatalf("runtime RPC 期间期望环境=%v", environmentDuringRPC)
+	}
+	close(updateRelease)
+	select {
+	case err := <-updateDone:
+		if err != nil {
+			t.Fatalf("UpdateEnvironment 失败: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("UpdateEnvironment 未结束")
+	}
+}
+
+func TestSDKClientAdapterReconfigureRollsBackRejectedDesiredState(t *testing.T) {
+	reconfigureErr := errors.New("invalid model")
+	client := &sdkClientAdapter{
+		options: agentclient.Options{Model: "old-model"},
+		session: &agentclient.Session{},
+		reconfigureSession: func(context.Context, *agentclient.Session, agentclient.Options) error {
+			return reconfigureErr
+		},
+	}
+	if err := client.Reconfigure(context.Background(), agentclient.Options{Model: "bad-model"}); !errors.Is(err, reconfigureErr) {
+		t.Fatalf("Reconfigure 错误=%v", err)
+	}
+	client.mu.Lock()
+	options := client.options
+	configVersion := client.configVersion
+	client.mu.Unlock()
+	if options.Model != "old-model" {
+		t.Fatalf("失败配置未回滚: %q", options.Model)
+	}
+	if configVersion != 2 {
+		t.Fatalf("提交与回滚应各推进一次版本，实际=%d", configVersion)
+	}
+}
+
+func TestSDKClientAdapterConfigurationWaiterHonorsContext(t *testing.T) {
+	configuring := &sdkClientConfigFlight{done: make(chan struct{})}
+	client := &sdkClientAdapter{
+		options:     agentclient.Options{Model: "old-model"},
+		configuring: configuring,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	if err := client.Reconfigure(ctx, agentclient.Options{Model: "new-model"}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("配置等待应遵守调用方 context: %v", err)
+	}
+	if client.options.Model != "old-model" {
+		t.Fatalf("未获得配置所有权时不应修改期望状态: %q", client.options.Model)
+	}
+}
+
+func TestSDKClientAdapterPreCanceledConfigurationDoesNotMutateDesiredState(t *testing.T) {
+	tests := map[string]func(*sdkClientAdapter, context.Context) error{
+		"reconfigure": func(client *sdkClientAdapter, ctx context.Context) error {
+			return client.Reconfigure(ctx, agentclient.Options{Model: "new-model"})
+		},
+		"environment": func(client *sdkClientAdapter, ctx context.Context) error {
+			return client.UpdateEnvironment(ctx, map[string]string{"NEW": "2"})
+		},
+		"permission": func(client *sdkClientAdapter, ctx context.Context) error {
+			return client.SetPermissionMode(ctx, sdkpermission.ModeAcceptEdits)
+		},
+	}
+	for name, apply := range tests {
+		t.Run(name, func(t *testing.T) {
+			client := &sdkClientAdapter{options: agentclient.Options{
+				Model: "old-model",
+				Env:   map[string]string{"EXISTING": "1"},
+				Runtime: agentclient.RuntimeOptions{
+					PermissionMode: sdkpermission.ModePlan,
+				},
+			}}
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			if err := apply(client, ctx); !errors.Is(err, context.Canceled) {
+				t.Fatalf("预取消配置错误=%v", err)
+			}
+			if client.options.Model != "old-model" ||
+				!maps.Equal(client.options.Env, map[string]string{"EXISTING": "1"}) ||
+				client.options.Runtime.PermissionMode != sdkpermission.ModePlan {
+				t.Fatalf("预取消配置不应修改期望状态: %+v", client.options)
+			}
+			if client.configVersion != 0 {
+				t.Fatalf("预取消配置不应推进版本: %d", client.configVersion)
+			}
+		})
+	}
+}
+
+func TestSDKClientAdapterConfigFailureAfterGenerationChangeKeepsDesiredState(t *testing.T) {
+	rpcStarted := make(chan struct{})
+	rpcRelease := make(chan struct{})
+	reconfigureErr := errors.New("old runtime rejected configuration")
+	client := &sdkClientAdapter{
+		options:  agentclient.Options{Model: "old-model"},
+		session:  &agentclient.Session{},
+		messages: make(chan sdkprotocol.ReceivedMessage),
+		closeSession: func(*agentclient.Session) error {
+			return nil
+		},
+		reconfigureSession: func(context.Context, *agentclient.Session, agentclient.Options) error {
+			close(rpcStarted)
+			<-rpcRelease
+			return reconfigureErr
+		},
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- client.Reconfigure(context.Background(), agentclient.Options{Model: "new-model"})
+	}()
+	select {
+	case <-rpcStarted:
+	case <-time.After(time.Second):
+		t.Fatal("Reconfigure 未进入旧 runtime RPC")
+	}
+	client.DiscardUncleanSession()
+	close(rpcRelease)
+	select {
+	case err := <-done:
+		if !errors.Is(err, reconfigureErr) {
+			t.Fatalf("旧 runtime 配置错误=%v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("旧 runtime 配置调用未结束")
+	}
+	client.mu.Lock()
+	model := client.options.Model
+	client.mu.Unlock()
+	if model != "new-model" {
+		t.Fatalf("生命周期换代后不应回滚新代 desired state: %q", model)
 	}
 }
