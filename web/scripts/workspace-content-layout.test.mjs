@@ -85,21 +85,19 @@ test("定时任务在铺满内容面内保持四列横向看板", async () => {
   assert.doesNotMatch(board, /grid-cols-2/);
 });
 
-test("正文、Surface Header 与 Agent 详情共用响应式水平留白", async () => {
-  const [surfaceHeader, surfaceView, agentOptions, privateDomain] = await Promise.all([
+test("正文、Surface Header 与 Agent 表单共用响应式水平留白", async () => {
+  const [surfaceHeader, surfaceView, agentOptions] = await Promise.all([
     "src/shared/ui/workspace/surface/workspace-surface-header.tsx",
     "src/shared/ui/workspace/surface/workspace-surface-view.tsx",
     "src/features/agents/options/agent-options-editor.tsx",
-    "src/features/agents/private-domain/agent-private-domain-view.tsx",
   ].map(readSource));
 
-  [surfaceHeader, surfaceView, agentOptions, privateDomain].forEach((source) => {
+  [surfaceHeader, surfaceView, agentOptions].forEach((source) => {
     assert.match(source, /WORKSPACE_CONTENT_GUTTER_CLASS_NAME/);
   });
   assert.doesNotMatch(surfaceHeader, /px-5|xl:px-6/);
   assert.doesNotMatch(surfaceView, /px-4 py-4 sm:px-5 xl:px-6|px-5 py-2\.5 xl:px-6/);
   assert.doesNotMatch(agentOptions, /px-6 py-5|gap-2 px-6 py-3/);
-  assert.doesNotMatch(privateDomain, /px-5 py-5 xl:px-6/);
 });
 
 test("管理目录在桌面统一使用三列", async () => {
@@ -353,4 +351,63 @@ test("Agent 技能页使用紧凑响应式网格并收敛重复工具与状态",
   assert.doesNotMatch(enAgent, /agent_options\.skills\.(?:summary|total)/);
   assert.doesNotMatch(zhAgent, /"agent_options\.skills\.enabled":/);
   assert.doesNotMatch(enAgent, /"agent_options\.skills\.enabled":/);
+});
+
+test("Agent 工具与联络页使用紧凑中性工作面", async () => {
+  const [
+    tools,
+    privateView,
+    privateStyles,
+    privateToolbar,
+    privateList,
+    privateModel,
+    privateTimeline,
+    privateEvent,
+    zhAgent,
+    enAgent,
+  ] = await Promise.all([
+    "src/features/agents/options/components/agent-options-advanced-tab.tsx",
+    "src/features/agents/private-domain/agent-private-domain-view.tsx",
+    "src/features/agents/private-domain/agent-private-domain.css",
+    "src/features/agents/private-domain/agent-private-domain-toolbar.tsx",
+    "src/features/agents/private-domain/agent-private-domain-thread-list.tsx",
+    "src/features/agents/private-domain/agent-private-domain-thread-model.ts",
+    "src/features/agents/private-domain/timeline/agent-private-domain-timeline.tsx",
+    "src/features/agents/private-domain/timeline/agent-private-domain-event.tsx",
+    "src/shared/i18n/catalog/zh/agent.ts",
+    "src/shared/i18n/catalog/en/agent.ts",
+  ].map(readSource));
+
+  assert.match(tools, /TOOL_ICONS/);
+  assert.match(tools, /SIDEBAR_SELECTION_CLASS_NAME/);
+  assert.match(tools, /repeat\(auto-fit,minmax\(180px,1fr\)\)/);
+  assert.match(tools, /md:grid-cols-2 xl:grid-cols-3/);
+  assert.match(tools, /min-h-\[64px\]/);
+  assert.match(tools, /size="xs"/);
+  assert.doesNotMatch(tools, /UiChoiceButton|advanced\.runtime_policy|advanced\.security_title|min-h-\[96px\]/);
+
+  assert.match(privateView, /nexus-private-domain-layout/);
+  assert.match(privateView, /title="记录"/);
+  assert.doesNotMatch(privateView, /WORKSPACE_CONTENT_(?:GUTTER|MAX_WIDTH)_CLASS_NAME/);
+  assert.match(privateStyles, /grid-template-columns: minmax\(240px, 288px\) minmax\(0, 1fr\)/);
+  assert.match(privateStyles, /column-gap: 8px/);
+  assert.match(privateStyles, /box-shadow: -8px 0 20px -18px/);
+  assert.match(privateToolbar, /UiIconButton/);
+  assert.match(privateToolbar, /min-h-\[48px\]/);
+  assert.doesNotMatch(privateToolbar, /Handshake|border-b/);
+  assert.match(privateModel, /SIDEBAR_SELECTION_CLASS_NAME/);
+  assert.match(privateModel, /timestampLabel/);
+  assert.doesNotMatch(privateModel, /message_count|metadataClassName|var\(--primary\)|inset_2px/);
+  assert.doesNotMatch(privateList, /item\.metadata/);
+  assert.match(privateTimeline, /max-w-\[920px\]/);
+  assert.match(privateTimeline, /min-h-\[48px\]/);
+  assert.match(privateTimeline, /nexus-private-domain-reader/);
+  assert.doesNotMatch(privateEvent, />\s*私信\s*</);
+  assert.doesNotMatch(privateEvent, /shadow-\[/);
+  [zhAgent, enAgent].forEach((catalog) => {
+    assert.doesNotMatch(
+      catalog,
+      /agent_options\.advanced\.(?:runtime_policy|security_title)/,
+    );
+  });
 });

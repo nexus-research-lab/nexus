@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Compacted Agent Tools into a responsive permission selector and three-column
+  authorization grid with quiet safety guidance, and refined Agent Contact into
+  a neutral two-line thread directory plus softly separated 920px message
+  reading plane without repeated room counts, badges, or blue selection rails.
 - Refined Agent Memory into a compact directory and single reading plane:
   removed repeated metrics and file metadata, collapsed type filtering and
   refresh into the search row, opened the latest memory by default, and aligned

@@ -1,5 +1,5 @@
 # Agent 私域
 
-- `agent-private-domain-thread-model.ts` 统一投影线程标题、加载/空/就绪状态、密度样式、Scope 和元数据。
+- `agent-private-domain-thread-model.ts` 统一投影线程标题、加载/空/就绪状态、密度样式、Scope、最近时间和单行摘要；目录不恢复房间名、消息数等重复元数据。
 - `agent-private-domain-thread-list.tsx` 只按联合状态渲染列表，并使用固定 Scope 图标表，不重新解释线程字段。
-- `agent-private-domain-view.tsx` 负责工具栏、列表和时间线装配；完整详情使用管理工作面的共享响应式水平 gutter，Room 预览保持自身紧凑几何；时间线内部规则归 `timeline/`。
+- `agent-private-domain-view.tsx` 负责工具栏、列表和时间线装配；完整详情复用记忆页的 240–288px 紧凑目录与 8px 软分栏，右侧正文保持 920px 阅读轴，Room 预览继续使用自身紧凑几何；时间线内部规则归 `timeline/`，分栏材质归 `agent-private-domain.css`。
