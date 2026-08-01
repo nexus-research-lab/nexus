@@ -291,7 +291,7 @@ func TestWorkspacePolicyHookChecksBashAndNexusctlWithoutBlockingSystemTools(t *t
 		{name: "quoted numeric windows rooted path", command: `type "\0"`, denied: runtime.GOOS == "windows"},
 		{name: "numeric windows rooted path nine", command: `type '\9'`, denied: runtime.GOOS == "windows"},
 		{name: "windows root path", command: `type \`, denied: runtime.GOOS == "windows"},
-		{name: "windows backslash traversal", command: `type ..\..\other\secret`, denied: true},
+		{name: "bash escaped backslash traversal", command: `type ..\..\other\secret`, denied: false},
 		{
 			name:    "outside path containing equals",
 			command: "type " + filepath.Join(filepath.Dir(workspace), "outside", "file=name"),
@@ -733,6 +733,29 @@ func TestWorkspacePolicyHookRejectsPowerShellSlashRoot(t *testing.T) {
 			ToolInput: map[string]any{"command": command},
 		}); violation != nil {
 			t.Fatalf("PowerShell slash option should be allowed: %q: %#v", command, violation)
+		}
+	}
+}
+
+func TestWorkspacePolicyHookRejectsWindowsBackslashTraversal(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("反斜杠路径穿越仅由 Windows Shell 解释为目录穿越")
+	}
+	workspace := t.TempDir()
+	policy := testPolicy(t, workspace)
+	for _, test := range []struct {
+		toolName string
+		command  string
+	}{
+		{toolName: "Shell", command: `type ..\..\other\secret`},
+		{toolName: "PowerShell", command: `Get-Content ..\..\other\secret`},
+	} {
+		if violation := inspectToolAccess(policy, sdkhook.Input{
+			CWD:       workspace,
+			ToolName:  test.toolName,
+			ToolInput: map[string]any{"command": test.command},
+		}); violation == nil {
+			t.Fatalf("%s 应拒绝 Windows 反斜杠路径穿越: %q", test.toolName, test.command)
 		}
 	}
 }
