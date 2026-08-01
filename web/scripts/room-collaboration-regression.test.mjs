@@ -440,12 +440,24 @@ test("Agent 详情导航共用纯文字栏目和低对比选中底色", async ()
   const [
     roomAboutSource,
     contactsSource,
+    contactsActionsMenuSource,
+    editorSource,
+    avatarPickerSource,
+    vibeTagsSource,
+    existingCommandsSource,
+    agentApiSource,
     tabStylesSource,
     workspaceHeaderSource,
     workspaceHeaderStyles,
   ] = await Promise.all([
     "src/features/conversation/room/surface/room-agent-about-surface.tsx",
     "src/features/contacts/contacts-agent-detail.tsx",
+    "src/features/contacts/contacts-agent-detail-actions-menu.tsx",
+    "src/features/agents/options/agent-options-editor.tsx",
+    "src/features/agents/options/components/identity/identity-avatar-picker.tsx",
+    "src/features/agents/options/components/identity/identity-vibe-tags.tsx",
+    "src/features/agents/options/use-existing-agent-options-commands.ts",
+    "src/lib/api/agent/agent-api.ts",
     "src/shared/ui/navigation/tabs-styles.ts",
     "src/shared/ui/workspace/surface/workspace-surface-header.tsx",
     "src/shared/ui/workspace/surface/workspace-surface-header.css",
@@ -464,6 +476,18 @@ test("Agent 详情导航共用纯文字栏目和低对比选中底色", async ()
   assert.doesNotMatch(contactsSource, /UiAgentAvatar/);
   assert.doesNotMatch(contactsSource, /title=\{agent\.name\}/);
   assert.doesNotMatch(contactsSource, /leadingVariant="identity"/);
+  assert.match(contactsSource, /saveMode="automatic"/);
+  assert.match(contactsSource, /tone="danger"[\s\S]*?<Trash2/);
+  assert.doesNotMatch(contactsSource, /onDelete=\{onDeleteAgent\}|showDeleteButton/);
+  assert.match(contactsActionsMenuSource, /footerItems=\{footerItems\}/);
+  assert.match(contactsActionsMenuSource, /tone: "danger"/);
+  assert.match(editorSource, /saveMode === "explicit"/);
+  assert.match(avatarPickerSource, /variant === "inline" \? "items-start"/);
+  assert.match(vibeTagsSource, /h-7 min-w-0 overflow-x-auto/);
+  assert.doesNotMatch(vibeTagsSource, /flex-wrap/);
+  assert.match(existingCommandsSource, /validateAgentNameDraft/);
+  assert.doesNotMatch(existingCommandsSource, /validateAgentNameApi|agent-api/);
+  assert.doesNotMatch(agentApiSource, /validate\/name|validateAgentNameApi/);
   assert.match(
     workspaceHeaderSource,
     /if \(!leading && !hasTitleContent\) return null;/,
@@ -523,11 +547,29 @@ test("创建 Agent 时行为模板进入独立 API 字段", async () => {
   assert.equal(params.description, "");
 });
 
+test("Agent 名称只做本地格式预检且允许重名语义", async () => {
+  const { validateAgentNameDraft } = await server.ssrLoadModule(
+    "/src/features/agents/options/editor/agent-name-validation.ts",
+  );
+
+  assert.deepEqual(await validateAgentNameDraft("  Amy   Agent  "), {
+    is_available: true,
+    is_valid: true,
+    name: "  Amy   Agent  ",
+    normalized_name: "Amy Agent",
+    reason: "",
+    workspace_path: null,
+  });
+  assert.equal((await validateAgentNameDraft("A")).is_valid, false);
+  assert.equal((await validateAgentNameDraft("Amy🙂")).is_valid, false);
+});
+
 test("Agent 首次保存接受服务端来源回写但拒绝更新的用户草稿", async () => {
   const {
     buildAgentEditorCommandScopeKey,
     buildAgentEditorScopeKey,
     createAgentOptionsDraft,
+    reconcileAgentOptionsDraft,
   } = await server.ssrLoadModule(
     "/src/features/agents/options/editor/agent-options-draft.ts",
   );
@@ -579,6 +621,26 @@ test("Agent 首次保存接受服务端来源回写但拒绝更新的用户草�
     id: 1,
     sourceScopeKey: beforeSourceScopeKey,
   };
+  const beforeDraft = createAgentOptionsDraft({
+    defaultTitle: "Agent",
+    initial: beforeSource.initial,
+  });
+  const afterDraft = createAgentOptionsDraft({
+    defaultTitle: "Agent",
+    initial: afterSource.initial,
+  });
+
+  assert.equal(
+    reconcileAgentOptionsDraft(beforeDraft, beforeDraft, afterDraft),
+    afterDraft,
+    "无本地修改时应接受服务端来源回写",
+  );
+  const newerLocalDraft = { ...beforeDraft, title: "Reviewer local" };
+  assert.equal(
+    reconcileAgentOptionsDraft(newerLocalDraft, beforeDraft, afterDraft),
+    newerLocalDraft,
+    "自动保存期间的新草稿不得被旧响应覆盖",
+  );
 
   assert.notEqual(afterSourceScopeKey, beforeSourceScopeKey);
   assert.equal(
@@ -604,6 +666,40 @@ test("Agent 首次保存接受服务端来源回写但拒绝更新的用户草�
     }, false),
     false,
     "保存过程中出现的新用户草稿不得收到旧成功反馈",
+  );
+});
+
+test("Agent 自动保存只调度新的有效草稿版本", async () => {
+  const { shouldScheduleAgentOptionsAutoSave } = await server.ssrLoadModule(
+    "/src/features/agents/options/editor/use-agent-options-auto-save.ts",
+  );
+  const ready = {
+    attempted: null,
+    canSave: true,
+    draftRevision: 3,
+    enabled: true,
+    isDirty: true,
+    isSaving: false,
+    scopeKey: "agent-1",
+  };
+
+  assert.equal(shouldScheduleAgentOptionsAutoSave(ready), true);
+  assert.equal(
+    shouldScheduleAgentOptionsAutoSave({
+      ...ready,
+      attempted: { draftRevision: 3, scopeKey: "agent-1" },
+    }),
+    false,
+    "同一草稿失败后不得无休止重试",
+  );
+  assert.equal(
+    shouldScheduleAgentOptionsAutoSave({ ...ready, draftRevision: 4 }),
+    true,
+    "用户继续编辑后应调度下一次保存",
+  );
+  assert.equal(
+    shouldScheduleAgentOptionsAutoSave({ ...ready, canSave: false }),
+    false,
   );
 });
 

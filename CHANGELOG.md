@@ -18,7 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   filter alignment with left-aligned names.
 - Simplified Agent detail navigation into shared text-only sections that place
   Skills second and Contact last, removed the selected Contact identity repeated
-  in its detail header, and moved Skill library/community switching beside
+  in its detail header, aligned the inline avatar with the shared content gutter,
+  moved Contact Agent edits to guarded auto-save, and placed deletion in the
+  upper-right action group; Agent names now use local format checks without a
+  redundant availability request, while vibe tags stay in a fixed-height rail;
+  moved Skill library/community switching beside
   search as a compact source filter; capability pages now use one content title
   and place relevant actions beside it instead of repeating an icon-and-name
   Surface Header; capability catalogs, settings, and contacts now share one

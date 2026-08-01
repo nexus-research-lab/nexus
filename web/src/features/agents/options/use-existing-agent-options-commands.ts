@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 
-import { validateAgentNameApi } from "@/lib/api/agent/agent-api";
 import type {
   AgentIdentityDraft,
   AgentOptions,
@@ -8,6 +7,7 @@ import type {
 } from "@/types/agent/agent";
 
 import { buildAgentMutationParams } from "./agent-options-mutation";
+import { validateAgentNameDraft } from "./editor/agent-name-validation";
 
 interface UseExistingAgentOptionsCommandsOptions {
   updateAgent: (agentId: string, params: UpdateAgentParams) => Promise<void>;
@@ -27,6 +27,6 @@ export function useExistingAgentOptionsCommands({
 
   return {
     saveAgentOptions,
-    validateAgentName: validateAgentNameApi,
+    validateAgentName: validateAgentNameDraft,
   };
 }

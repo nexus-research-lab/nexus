@@ -36,6 +36,22 @@ export interface AgentOptionsSubmission {
   title: string;
 }
 
+export function buildAgentOptionsDraftKey(draft: AgentOptionsDraft): string {
+  return JSON.stringify(draft);
+}
+
+/** 服务端来源回写时，只覆盖尚未产生本地修改的草稿。 */
+export function reconcileAgentOptionsDraft(
+  currentDraft: AgentOptionsDraft,
+  previousSourceDraft: AgentOptionsDraft,
+  nextSourceDraft: AgentOptionsDraft,
+): AgentOptionsDraft {
+  return buildAgentOptionsDraftKey(currentDraft)
+    === buildAgentOptionsDraftKey(previousSourceDraft)
+    ? nextSourceDraft
+    : currentDraft;
+}
+
 interface CreateAgentOptionsDraftOptions {
   defaultTitle: string;
   initial: AgentOptionsEditorInitialValues;

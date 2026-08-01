@@ -112,7 +112,6 @@ export function AgentOptionsIdentityTab({
             avatar={avatar}
             avatarAlt={t("agent_options.identity.avatar_alt")}
             isValidatingName={isValidatingName}
-            nameAvailable={(path) => t("agent_options.identity.name_available", { path })}
             nameLabel={t("agent_options.identity.name")}
             namePlaceholder={t("agent_options.identity.name_placeholder")}
             nameValidation={nameValidation}

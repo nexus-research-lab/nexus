@@ -2,7 +2,6 @@
 
 import {
   Agent,
-  AgentNameValidationResult,
   AgentProfileTemplateResponse,
   ApiAgent,
   CreateAgentParams,
@@ -88,24 +87,6 @@ export const deleteAgentApi = async (
     `${AGENT_API_BASE_URL}/agents/${agentId}`,
     {
       method: "DELETE",
-    },
-  );
-};
-
-/** 校验 Agent 名称 */
-export const validateAgentNameApi = async (
-  name: string,
-  excludeAgentId?: string,
-): Promise<AgentNameValidationResult> => {
-  const query = new URLSearchParams({ name });
-  if (excludeAgentId) {
-    query.set("exclude_agent_id", excludeAgentId);
-  }
-
-  return requestApi<AgentNameValidationResult>(
-    `${AGENT_API_BASE_URL}/agents/validate/name?${query.toString()}`,
-    {
-      method: "GET",
     },
   );
 };
