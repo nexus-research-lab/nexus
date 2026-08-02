@@ -143,11 +143,20 @@ test("同名非平台 Skill 保留自己的真实说明", async () => {
 });
 
 test("Skill 详情不会重复展示相同的分类和来源", async () => {
-  const { buildSkillDetailPresentation } = await server.ssrLoadModule(
-    "/src/features/capability/skills/detail/skill-detail-model.ts",
+  const [detailModel, messagesModule] = await Promise.all([
+    server.ssrLoadModule(
+      "/src/features/capability/skills/detail/skill-detail-model.ts",
+    ),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+  const { buildSkillDetailPresentation } = detailModel;
+  const t = (key, params) => messagesModule.MESSAGES.en[key].replace(
+    /\{(\w+)\}/g,
+    (match, name) => params?.[name] ?? match,
   );
   const systemSkill = {
     ...createSkill("imagegen", "system"),
+    category_key: "system-builtins",
     category_name: "系统内置",
     deletable: false,
     has_update: false,
@@ -157,20 +166,67 @@ test("Skill 详情不会重复展示相同的分类和来源", async () => {
     version: "system",
   };
 
-  const systemBadges = buildSkillDetailPresentation(systemSkill).badges;
+  const systemBadges = buildSkillDetailPresentation(
+    systemSkill,
+    systemSkill.description,
+    { t },
+  ).badges;
   assert.deepEqual(
     systemBadges.map((badge) => badge.label),
-    ["系统内置", "版本 system"],
+    ["System built-ins", "Version system"],
   );
 
-  const platformBadges = buildSkillDetailPresentation({
+  const platformSkill = {
     ...systemSkill,
-    category_name: "图像与设计",
+    category_key: "design-frontend",
+    category_name: "设计与前端",
     source_kind: "nexus_platform",
     source_type: "builtin",
-  }).badges;
+  };
+  const platformBadges = buildSkillDetailPresentation(
+    platformSkill,
+    platformSkill.description,
+    { t },
+  ).badges;
   assert.deepEqual(
     platformBadges.map((badge) => badge.label),
-    ["图像与设计", "Nexus 平台库", "版本 system"],
+    ["Design & frontend", "Nexus library", "Version system"],
+  );
+});
+
+test("Skill Agent 使用状态跟随界面语言", async () => {
+  const [detailModel, messagesModule] = await Promise.all([
+    server.ssrLoadModule(
+      "/src/features/capability/skills/detail/skill-detail-model.ts",
+    ),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+  const t = (key, params) => messagesModule.MESSAGES.en[key].replace(
+    /\{(\w+)\}/g,
+    (match, name) => params?.[name] ?? match,
+  );
+  const binding = {
+    agent_id: "agent-1",
+    agent_name: "Amy",
+    available: true,
+    enabled: false,
+    is_main: false,
+  };
+
+  assert.deepEqual(
+    detailModel.buildSkillAgentBindingPresentation(binding, false, t),
+    {
+      description: "Independently configurable",
+      status: "Enable",
+      switchLabel: "Toggle Amy Skill",
+    },
+  );
+  assert.deepEqual(
+    detailModel.buildSkillAgentBindingPresentation(binding, true, t),
+    {
+      description: "System managed",
+      status: "Disabled",
+      switchLabel: "Toggle Amy Skill",
+    },
   );
 });

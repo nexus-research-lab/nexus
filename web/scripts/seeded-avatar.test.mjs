@@ -203,6 +203,6 @@ test("已安装 Skill 卡只保留名称、说明和真实动作", async () => {
     catalogModel,
     /stateLabel|stateTone|sourceLabel|usageLabel|visibleTags/,
   );
-  assert.match(detailView, /系统托管/);
-  assert.match(detailModel, /Nexus 平台库/);
+  assert.match(detailView, /buildSkillAgentBindingPresentation/);
+  assert.match(detailModel, /capability\.skills_source\.nexus_library/);
 });
