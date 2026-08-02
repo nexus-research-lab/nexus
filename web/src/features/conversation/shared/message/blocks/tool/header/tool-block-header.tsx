@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type {
   ToolBlockStatus,
@@ -71,7 +72,8 @@ export function ToolBlockHeader({
   onDeny,
   onToggle,
 }: ToolBlockHeaderProps) {
-  const projection = buildToolBlockHeaderProjection(model, isExpanded);
+  const { t } = useI18n();
+  const projection = buildToolBlockHeaderProjection(model, isExpanded, t);
   const toggleProps = buildToggleProps(projection.canToggle, onToggle);
   return (
     <div

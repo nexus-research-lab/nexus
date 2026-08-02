@@ -77,10 +77,15 @@ export function ComposerPermissionSurface({
   requesterName,
   total,
 }: ComposerPermissionSurfaceProps) {
-  const { t } = useI18n();
+  const localization = useI18n();
+  const { t } = localization;
   const [isScopeMenuOpen, setIsScopeMenuOpen] = useState(false);
   const scopeMenuAnchorRef = useRef<HTMLButtonElement>(null);
-  const presentation = buildPermissionPresentation(permission, kind, t);
+  const presentation = buildPermissionPresentation(
+    permission,
+    kind,
+    localization,
+  );
   const scopeItems = useMemo(
     () => [
       {
@@ -259,9 +264,13 @@ export function ComposerPermissionSurface({
 function buildPermissionPresentation(
   permission: PendingPermission,
   kind: Exclude<ComposerInteractionKind, "question">,
-  t: I18nContextValue["t"],
+  localization: I18nContextValue,
 ) {
-  const primaryDetail = getPrimaryToolInputDetail(permission.tool_input);
+  const { t } = localization;
+  const primaryDetail = getPrimaryToolInputDetail(
+    permission.tool_input,
+    localization,
+  );
   const planDetail = readStringField(permission.tool_input, "plan");
   const detail = firstDistinctText(
     [planDetail, primaryDetail?.value, getToolInputSummary(permission.tool_input)],
@@ -280,7 +289,10 @@ function buildPermissionPresentation(
     icon: kind === "plan"
       ? ListChecks
       : TOOL_ICON_BY_NAME[permission.tool_name] ?? Wrench,
-    suggestions: getReadablePermissionSuggestions(permission.suggestions),
+    suggestions: getReadablePermissionSuggestions(
+      permission.suggestions,
+      localization,
+    ),
     title,
   };
 }

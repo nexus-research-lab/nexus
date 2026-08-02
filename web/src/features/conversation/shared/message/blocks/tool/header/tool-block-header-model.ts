@@ -1,3 +1,6 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+
 import type {
   ToolBlockStatus,
   ToolBlockViewModel,
@@ -35,12 +38,14 @@ const HEADER_STATE_CLASS_BY_STATUS: Readonly<Record<ToolBlockStatus, string>> = 
   waiting_permission: "bg-(--surface-muted-background)",
 };
 
-const DETAIL_FALLBACK_BY_STATUS: Readonly<Record<ToolBlockStatus, string>> = {
-  error: "处理中…",
-  pending: "处理中…",
-  running: "处理中…",
-  success: "处理中…",
-  waiting_permission: "等待确认",
+const DETAIL_FALLBACK_KEY_BY_STATUS: Readonly<
+  Record<ToolBlockStatus, TranslationKey>
+> = {
+  error: "message.tool_processing",
+  pending: "message.tool_processing",
+  running: "message.tool_processing",
+  success: "message.tool_processing",
+  waiting_permission: "message.tool_waiting_confirmation",
 };
 
 const META_TEXT_BY_STATUS: Readonly<Record<
@@ -68,6 +73,7 @@ const LIVE_STATUS_BY_STATUS: Readonly<Record<
 export function buildToolBlockHeaderProjection(
   model: ToolBlockViewModel,
   isExpanded: boolean,
+  t: I18nContextValue["t"],
 ): ToolBlockHeaderProjection {
   const expansionState = EXPANSION_STATE_BY_FLAG[String(isExpanded)];
   const detailByExpansion: Readonly<Record<ExpansionState, string | null>> = {
@@ -83,7 +89,7 @@ export function buildToolBlockHeaderProjection(
     detailClassName: DETAIL_CLASS_BY_EXPANSION[expansionState],
     detailText: firstText([
       detailByExpansion[expansionState],
-      DETAIL_FALLBACK_BY_STATUS[model.status],
+      t(DETAIL_FALLBACK_KEY_BY_STATUS[model.status]),
     ]),
     expansionState,
     liveStatusText: LIVE_STATUS_BY_STATUS[model.status](model),

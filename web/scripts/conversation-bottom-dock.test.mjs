@@ -21,29 +21,32 @@ test.after(async () => {
   await server.close();
 });
 
+async function loadI18nValue(locale = "zh") {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  return {
+    locale,
+    setLocale: () => {},
+    t: (key, params = {}) => Object.entries(params).reduce(
+      (message, [name, value]) => message.replaceAll(
+        `{${name}}`,
+        String(value),
+      ),
+      MESSAGES[locale][key] ?? key,
+    ),
+  };
+}
+
 async function renderWithI18n(element, locale = "zh") {
   const { I18N_CONTEXT } = await server.ssrLoadModule(
     "/src/shared/i18n/i18n-context.ts",
   );
-  const { MESSAGES } = await server.ssrLoadModule(
-    "/src/shared/i18n/messages.ts",
-  );
+  const value = await loadI18nValue(locale);
   return renderToStaticMarkup(
     React.createElement(
       I18N_CONTEXT.Provider,
-      {
-        value: {
-          locale,
-          setLocale: () => {},
-          t: (key, params = {}) => Object.entries(params).reduce(
-            (message, [name, value]) => message.replaceAll(
-              `{${name}}`,
-              String(value),
-            ),
-            MESSAGES[locale][key] ?? key,
-          ),
-        },
-      },
+      { value },
       element,
     ),
   );
@@ -1280,8 +1283,12 @@ test("DM and Room pending interactions replace the Composer input in one stable 
   pending = upsertPendingPermission(pending, latest);
   assert.deepEqual(pending, [latest, second]);
   assert.deepEqual(removePendingPermission(pending, first.request_id), [second]);
+  const localization = await loadI18nValue();
   assert.deepEqual(
-    getReadablePermissionSuggestions(latest.suggestions).map(({ label }) => label),
+    getReadablePermissionSuggestions(
+      latest.suggestions,
+      localization,
+    ).map(({ label }) => label),
     ["写入本地设置"],
   );
   assert.equal(
@@ -1437,7 +1444,13 @@ test("Composer growth is capped and collapsed file tools show only the leaf name
     type: "tool_use",
   };
   const model = buildToolBlockViewModel({
+    localization: await loadI18nValue(),
     status: "running",
+    toolUse,
+  });
+  const englishModel = buildToolBlockViewModel({
+    localization: await loadI18nValue("en"),
+    status: "success",
     toolUse,
   });
 
@@ -1450,6 +1463,8 @@ test("Composer growth is capped and collapsed file tools show only the leaf name
   assert.equal(getToolInputSummary(toolInput), absolutePath);
   assert.equal(model.collapsedDetailText, "permission_test.txt");
   assert.equal(model.expandedDetailText, absolutePath);
+  assert.equal(englishModel.statusText, "Completed");
+  assert.equal(englishModel.toolTitle, "Write content");
   assert.deepEqual(
     buildProcessSummary({
       pendingPermissionCount: 0,
@@ -1549,23 +1564,22 @@ test("DM and Room messages never remount interaction options outside the Compose
     "composer",
   );
 
-  const toolHtml = await renderWithI18n(
-    React.createElement(ContentRenderer, {
-      canRespondToPermissions: true,
-      content: [{
-        id: "tool-read-only",
-        input: permission.tool_input,
-        name: permission.tool_name,
-        type: "tool_use",
-      }],
-      isStreaming: false,
-      onPermissionResponse: () => true,
-      pendingInteractionOwner: "composer",
-      pendingPermissionsByToolUseId: new Map([
-        [permission.tool_use_id, permission],
-      ]),
-    }),
-  );
+  const toolElement = React.createElement(ContentRenderer, {
+    canRespondToPermissions: true,
+    content: [{
+      id: "tool-read-only",
+      input: permission.tool_input,
+      name: permission.tool_name,
+      type: "tool_use",
+    }],
+    isStreaming: false,
+    onPermissionResponse: () => true,
+    pendingInteractionOwner: "composer",
+    pendingPermissionsByToolUseId: new Map([
+      [permission.tool_use_id, permission],
+    ]),
+  });
+  const toolHtml = await renderWithI18n(toolElement);
   assert.match(toolHtml, /待确认/);
   assert.match(toolHtml, /echo protected/);
   assert.match(toolHtml, /surface-muted-background/);
@@ -1573,6 +1587,10 @@ test("DM and Room messages never remount interaction options outside the Compose
   assert.doesNotMatch(toolHtml, />允许</);
   assert.doesNotMatch(toolHtml, />拒绝</);
   assert.doesNotMatch(toolHtml, /data-human-interaction-surface/);
+  const englishToolHtml = await renderWithI18n(toolElement, "en");
+  assert.match(englishToolHtml, /Run command/);
+  assert.match(englishToolHtml, /Waiting for approval/);
+  assert.doesNotMatch(englishToolHtml, /执行命令|待确认/);
 
   const questionTool = {
     id: "tool-question-evidence",

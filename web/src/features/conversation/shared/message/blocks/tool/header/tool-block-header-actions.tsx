@@ -7,6 +7,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
 import type { ToolBlockHeaderProjection } from "./tool-block-header-model";
@@ -95,6 +96,7 @@ function buildPermissionAction({
 }
 
 function PermissionActions({ action }: { action: PermissionAction | null }) {
+  const { t } = useI18n();
   if (!action) {
     return null;
   }
@@ -111,7 +113,7 @@ function PermissionActions({ action }: { action: PermissionAction | null }) {
         title={state.title}
         type="button"
       >
-        拒绝
+        {t("room.permission_deny")}
       </button>
       <button
         className={cn(
@@ -123,7 +125,7 @@ function PermissionActions({ action }: { action: PermissionAction | null }) {
         title={state.title}
         type="button"
       >
-        允许
+        {t("room.permission_allow")}
       </button>
     </>
   );
@@ -157,11 +159,15 @@ function CopyResultAction({
   onCopyResult: () => void;
   visible: boolean;
 }) {
+  const { t } = useI18n();
   if (!visible) {
     return null;
   }
   const CopyIcon = COPY_ICON_BY_STATE[Number(copied)];
-  const labels = ["复制结果", "已复制结果"];
+  const labels = [
+    t("message.tool_copy_result"),
+    t("message.tool_copied_result"),
+  ];
   const styles = [
     "text-(--icon-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
     "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
