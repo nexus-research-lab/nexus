@@ -5,6 +5,8 @@
  */
 import { ArrowDown, ArrowUp } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+
 const FLOATING_ACTION_CHIP_CLASS_NAME =
   "grid h-8 w-8 place-items-center rounded-full border border-(--surface-control-border) bg-(--surface-control-background) text-(--text-default) shadow-(--surface-control-shadow) transition-[color,border-color,background,box-shadow] duration-(--motion-duration-fast) group-hover:border-(--surface-control-hover-border) group-hover:bg-(--surface-control-hover-background) group-hover:text-(--text-strong)";
 
@@ -21,16 +23,23 @@ export function ScrollToLatestButton({
   unreadCount = 0,
   visible,
 }: ScrollToLatestButtonProps) {
+  const { t } = useI18n();
   if (!visible) {
     return null;
   }
   if (unreadCount > 0 && direction) {
     const DirectionIcon = direction === "above" ? ArrowUp : ArrowDown;
-    const label = `${formatUnreadCount(unreadCount)} 条新消息`;
+    const count = formatUnreadCount(unreadCount);
+    const label = t(
+      unreadCount === 1
+        ? "room.unread_count_one"
+        : "room.unread_count_other",
+      { count },
+    );
     return (
       <button
         type="button"
-        aria-label={`${label}，定位到第一条`}
+        aria-label={t("room.unread_jump_first", { label })}
         onClick={onClick}
         className="group pointer-events-auto flex h-11 items-center justify-center"
         data-room-unread-jump
@@ -48,7 +57,7 @@ export function ScrollToLatestButton({
   return (
     <button
       type="button"
-      aria-label="回到底部"
+      aria-label={t("room.scroll_to_latest")}
       onClick={onClick}
       className="group pointer-events-auto grid h-11 w-11 place-items-center justify-self-center"
       data-scroll-to-latest

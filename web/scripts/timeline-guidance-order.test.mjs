@@ -37,6 +37,17 @@ async function loadI18nValue(locale = "zh") {
   };
 }
 
+async function renderWithI18n(element, locale = "zh") {
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  return renderToStaticMarkup(React.createElement(
+    I18N_CONTEXT.Provider,
+    { value: await loadI18nValue(locale) },
+    element,
+  ));
+}
+
 test("conversation viewport suppresses the browser scroll-region outline", async () => {
   const { ConversationPanelViewport } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
@@ -93,7 +104,7 @@ test("scroll-to-latest is a local floating hit target without a layout band", as
   const { ScrollToLatestButton } = await server.ssrLoadModule(
     "/src/features/conversation/shared/scroll-to-latest-button.tsx",
   );
-  const visibleHtml = renderToStaticMarkup(React.createElement(
+  const visibleHtml = await renderWithI18n(React.createElement(
     ScrollToLatestButton,
     {
       isLoading: true,
@@ -101,7 +112,7 @@ test("scroll-to-latest is a local floating hit target without a layout band", as
       visible: true,
     },
   ));
-  const hiddenHtml = renderToStaticMarkup(React.createElement(
+  const hiddenHtml = await renderWithI18n(React.createElement(
     ScrollToLatestButton,
     {
       isLoading: false,

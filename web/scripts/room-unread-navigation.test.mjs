@@ -31,6 +31,31 @@ test.after(async () => {
   await server.close();
 });
 
+async function renderWithI18n(element, locale = "zh") {
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  const value = {
+    locale,
+    setLocale: () => {},
+    t: (key, params = {}) => Object.entries(params).reduce(
+      (message, [name, parameter]) => message.replaceAll(
+        `{${name}}`,
+        String(parameter),
+      ),
+      MESSAGES[locale][key] ?? key,
+    ),
+  };
+  return renderToStaticMarkup(React.createElement(
+    I18N_CONTEXT.Provider,
+    { value },
+    element,
+  ));
+}
+
 test("AppLayout owns the Room completion subscription outside the responsive sidebar", async () => {
   const appLayoutSource = await readFile(
     path.join(webRoot, "src/app/layout/app-layout.tsx"),
@@ -660,7 +685,7 @@ test("Room unread navigation uses a compact directional chip while DM keeps the 
   const { ScrollToLatestButton } = await server.ssrLoadModule(
     "/src/features/conversation/shared/scroll-to-latest-button.tsx",
   );
-  const roomHtml = renderToStaticMarkup(React.createElement(
+  const roomElement = React.createElement(
     ScrollToLatestButton,
     {
       direction: "above",
@@ -669,19 +694,26 @@ test("Room unread navigation uses a compact directional chip while DM keeps the 
       unreadCount: 3,
       visible: true,
     },
-  ));
-  const dmHtml = renderToStaticMarkup(React.createElement(
+  );
+  const dmElement = React.createElement(
     ScrollToLatestButton,
     {
       isLoading: false,
       onClick: () => {},
       visible: true,
     },
-  ));
+  );
+  const roomHtml = await renderWithI18n(roomElement);
+  const dmHtml = await renderWithI18n(dmElement);
+  const englishRoomHtml = await renderWithI18n(roomElement, "en");
+  const englishDmHtml = await renderWithI18n(dmElement, "en");
 
   assert.match(roomHtml, /data-room-unread-jump="true"/);
   assert.match(roomHtml, /3 条新消息/);
   assert.doesNotMatch(roomHtml, /\bw-11\b/);
   assert.match(dmHtml, /data-scroll-to-latest="true"/);
   assert.match(dmHtml, /\bw-11\b/);
+  assert.match(englishRoomHtml, /3 new messages/);
+  assert.match(englishDmHtml, /aria-label="Back to latest"/);
+  assert.doesNotMatch(englishRoomHtml, /条新消息|定位到第一条/);
 });

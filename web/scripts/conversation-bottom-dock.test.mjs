@@ -245,14 +245,14 @@ test("回到底部入口隐藏时零标记，显示时只有局部热区且没�
   const { ScrollToLatestButton } = await server.ssrLoadModule(
     "/src/features/conversation/shared/scroll-to-latest-button.tsx",
   );
-  const hidden = renderToStaticMarkup(
+  const hidden = await renderWithI18n(
     React.createElement(ScrollToLatestButton, {
       isLoading: false,
       onClick: () => {},
       visible: false,
     }),
   );
-  const visible = renderToStaticMarkup(
+  const visible = await renderWithI18n(
     React.createElement(ScrollToLatestButton, {
       isLoading: false,
       onClick: () => {},
@@ -1080,7 +1080,7 @@ test("Room and DM stack Goal, Task, and scroll controls upward from the Composer
   const { ConversationPanelBottomArea } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
   );
-  const stackedHtml = renderToStaticMarkup(
+  const stackedHtml = await renderWithI18n(
     React.createElement(
       ConversationPanelBottomArea,
       {
@@ -1186,7 +1186,7 @@ test("Task and scroll controls share a centered dock while retaining local point
   const { ConversationPanelFloatingControls } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
   );
-  const html = renderToStaticMarkup(
+  const html = await renderWithI18n(
     React.createElement(ConversationPanelFloatingControls, {
       activity: React.createElement(
         "button",

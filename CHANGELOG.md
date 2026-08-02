@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localized conversation rulers, round previews, and view-switcher accessibility labels across Chinese and English interfaces.
 - Formatted chat-sidebar activity times in the active interface language.
 - Localized Room history activity times and row actions across Chinese and English interfaces.
+- Localized conversation return-to-latest and unread-jump controls across Chinese and English interfaces.
 
 ### Changed
 
