@@ -143,6 +143,8 @@ export const enConversationMessages = {
   "room.untitled_collaboration": "Untitled group chat",
   "room.untitled_dm": "Untitled DM",
   "room.workspace_title": "Files",
+  "room.workspace_preview_title": "Workspace Preview",
+  "room.workspace_preview_empty_description": "Select a file from the list to preview it here. Changes written by the model will appear in real time.",
   "room.workspace_action_upload": "Upload file",
   "room.workspace_action_new_folder": "New folder",
   "room.workspace_action_new_file": "New file",

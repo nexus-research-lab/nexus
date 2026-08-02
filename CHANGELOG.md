@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localized conversation return-to-latest and unread-jump controls across Chinese and English interfaces.
 - Localized Room auxiliary-panel navigation, upload, and resize accessibility labels.
 - Localized the earlier-message loading state across Chinese and English conversations.
+- Localized the workspace empty-preview title and guidance across Chinese and English interfaces.
 
 ### Changed
 

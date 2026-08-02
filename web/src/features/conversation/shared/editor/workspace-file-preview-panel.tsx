@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
 import { WorkspaceFilePreviewHeaderProvider } from "./workspace-file-preview-chrome";
@@ -18,14 +19,15 @@ interface WorkspaceFilePreviewPanelProps {
 }
 
 function WorkspaceFilePreviewEmptyState() {
+  const { t } = useI18n();
   return (
     <div className="flex h-full flex-1 items-center justify-center px-8 text-center">
       <div className="max-w-sm">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          Workspace Preview
+          {t("room.workspace_preview_title")}
         </p>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          从文件列表选择一个文件，这里会显示对应内容。模型写入时，也会在这里实时同步。
+          {t("room.workspace_preview_empty_description")}
         </p>
       </div>
     </div>

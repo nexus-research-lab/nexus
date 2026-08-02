@@ -353,6 +353,27 @@ test("工作区预览 breadcrumb 投影工作区根目录与文件父目录", as
   );
 });
 
+test("工作区空预览跟随界面语言", async () => {
+  const { WorkspaceFilePreviewPanel } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/editor/workspace-file-preview-panel.tsx",
+  );
+  const element = React.createElement(WorkspaceFilePreviewPanel, {
+    agentId: "agent-a",
+    headerLocationLabel: "nexus",
+    isPreviewFocused: false,
+    onTogglePreviewFocus: () => {},
+    path: null,
+  });
+  const chinese = await renderWithI18n(element);
+  const english = await renderWithI18n(element, "en");
+
+  assert.match(chinese, /工作区预览/);
+  assert.match(chinese, /从文件列表选择一个文件/);
+  assert.match(english, /Workspace Preview/);
+  assert.match(english, /Select a file from the list to preview it here/);
+  assert.doesNotMatch(english, /工作区|从文件列表/);
+});
+
 test("工作区文件 chrome 使用单行 breadcrumb 和一条内容边界", async () => {
   const [
     previewChromeSource,

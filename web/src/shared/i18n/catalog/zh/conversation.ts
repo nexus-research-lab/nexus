@@ -140,6 +140,8 @@ export const zhConversationMessages = {
   "room.untitled_collaboration": "未命名群聊",
   "room.untitled_dm": "未命名 DM",
   "room.workspace_title": "文件资源",
+  "room.workspace_preview_title": "工作区预览",
+  "room.workspace_preview_empty_description": "从文件列表选择一个文件，这里会显示对应内容。模型写入时，也会在这里实时同步。",
   "room.workspace_action_upload": "上传文件",
   "room.workspace_action_new_folder": "新建文件夹",
   "room.workspace_action_new_file": "新建文件",
