@@ -5,6 +5,7 @@ import {
 import { FolderUp, GitBranch, Loader2 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 
@@ -42,6 +43,7 @@ function SkillImportModeTabs({
   mode,
   onSelectMode,
 }: Pick<SkillImportSourceProps, "importing" | "mode" | "onSelectMode">) {
+  const { t } = useI18n();
   return (
     <div className="inline-flex rounded-[10px] border border-(--divider-subtle-color) p-1">
       {SKILL_IMPORT_MODES.map((option) => {
@@ -61,7 +63,7 @@ function SkillImportModeTabs({
             type="button"
           >
             <Icon className="h-3.5 w-3.5" />
-            {option.label}
+            {t(option.labelKey)}
           </button>
         );
       })}
@@ -75,12 +77,13 @@ function GitSkillImportSource({
   importing,
   setDraftField,
 }: SourceViewProps) {
+  const { t } = useI18n();
   return (
     <div className="space-y-4">
       <UiField
-        description="必须是 https:// 地址；仓库根目录或指定子目录内需要有 SKILL.md。"
+        description={t("capability.skills_import_git_url_description")}
         htmlFor="skill-import-git-url"
-        label="Git 仓库 URL"
+        label={t("capability.skills_import_git_url")}
       >
         <UiInput
           disabled={importing}
@@ -95,9 +98,9 @@ function GitSkillImportSource({
       </UiField>
       <div className="grid gap-3 sm:grid-cols-2">
         <UiField
-          description="留空时使用仓库默认分支。"
+          description={t("capability.skills_import_git_branch_description")}
           htmlFor="skill-import-git-branch"
-          label="Branch"
+          label={t("capability.skills_import_git_branch")}
         >
           <UiInput
             disabled={importing}
@@ -108,9 +111,9 @@ function GitSkillImportSource({
           />
         </UiField>
         <UiField
-          description="Skill 不在仓库根目录时填写，例如 skills/werewolf-6p。"
+          description={t("capability.skills_import_git_path_description")}
           htmlFor="skill-import-git-path"
-          label="子目录 Path"
+          label={t("capability.skills_import_git_path")}
         >
           <UiInput
             disabled={importing}
@@ -135,6 +138,7 @@ function LocalSkillImportSource({
   fileInputRef,
   importing,
 }: SourceViewProps) {
+  const { t } = useI18n();
   return (
     <div className="rounded-[10px] border border-(--divider-subtle-color) px-3 py-3">
       <div className="flex items-start gap-3">
@@ -142,9 +146,11 @@ function LocalSkillImportSource({
           <FolderUp className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <h3 className="text-sm font-medium text-(--text-strong)">上传 zip 包</h3>
+          <h3 className="text-sm font-medium text-(--text-strong)">
+            {t("capability.skills_import_zip_title")}
+          </h3>
           <p className="mt-1 text-compact leading-5 text-(--text-muted)">
-            zip 内可以直接放一个 Skill 目录，也可以包含多层目录；系统会查找最靠近根部的 SKILL.md。
+            {t("capability.skills_import_zip_description")}
           </p>
           <UiButton
             className="mt-3"
@@ -155,7 +161,9 @@ function LocalSkillImportSource({
             variant="solid"
           >
             <ImportingIcon importing={importing} />
-            {importing ? "导入中" : "选择 zip 文件"}
+            {importing
+              ? t("capability.skills_importing")
+              : t("capability.skills_import_choose_zip")}
           </UiButton>
         </div>
       </div>

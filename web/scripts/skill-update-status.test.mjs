@@ -202,6 +202,40 @@ test("Git Skill 导入字段与可见标签建立可访问关联", async () => {
   });
 });
 
+test("英文 Skill 导入弹窗提供同语言控件、示例与 Room 指南", async () => {
+  const [dialogModel, messagesModule] = await Promise.all([
+    server.ssrLoadModule(
+      "/src/features/capability/skills/import/skill-import-dialog-model.ts",
+    ),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+  const t = createTranslate(messagesModule.MESSAGES.en);
+  assert.deepEqual(
+    dialogModel.SKILL_IMPORT_MODES.map((mode) => t(mode.labelKey)),
+    ["Local zip", "Git repository"],
+  );
+  const example = dialogModel.buildSkillFrontmatterExample(t);
+  assert.match(example, /title: Room Collaboration Rules/);
+  assert.match(example, /description: Collaboration workflow/);
+  assert.doesNotMatch(example, /群聊协作规则/);
+
+  const [dialog, source, footer, guide, englishGuide] = await Promise.all([
+    "src/features/capability/skills/import/skill-import-dialog.tsx",
+    "src/features/capability/skills/import/skill-import-source.tsx",
+    "src/features/capability/skills/import/skill-import-footer.tsx",
+    "src/features/capability/skills/import/skill-import-guide.tsx",
+    "../docs/specs/room-collaboration-mechanism.en.md",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+  [dialog, source, footer, guide].forEach((content) => {
+    assert.doesNotMatch(
+      content,
+      /导入 Skill|本地 zip|Git 仓库|上传 zip 包|选择 zip 文件|SKILL\.md 规范|取消/,
+    );
+  });
+  assert.match(guide, /room-collaboration-mechanism\.en\.md\?raw/);
+  assert.match(englishGuide, /^# Room Skill Authoring Guide/m);
+});
+
 test("单次定时任务使用无歧义的年在前日期", async () => {
   const { formatDatetimeDisplay } = await server.ssrLoadModule(
     "/src/features/capability/scheduled/pickers/picker-formatters.ts",
