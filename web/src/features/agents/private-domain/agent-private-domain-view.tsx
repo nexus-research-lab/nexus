@@ -12,6 +12,7 @@ import {
   listAgentPrivateThreadsApi,
 } from "@/lib/api/agent/private-domain-api";
 import { isExternalSessionConversationId } from "@/lib/conversation/external-session";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { Agent } from "@/types/agent/agent";
 import {
   AgentPrivateEvent,
@@ -33,6 +34,7 @@ export function AgentPrivateDomainView({
   conversationId: conversationId = null,
   variant = "full",
 }: AgentPrivateDomainViewProps) {
+  const { locale, t } = useI18n();
   const isPreview = variant === "preview";
   const isExternalSessionConversation = isExternalSessionConversationId(conversationId);
   const queryResetKey = [
@@ -48,6 +50,9 @@ export function AgentPrivateDomainView({
   const [threadsLoading, setThreadsLoading] = useResettableState(true, queryResetKey);
   const [eventsLoading, setEventsLoading] = useResettableState(Boolean(selectedThreadId), eventsResetKey);
   const [error, setError] = useResettableState<string | null>(null, eventsResetKey);
+  const recordsLoadError = t("agent_options.contact.load_records_failed");
+  const messagesLoadError = t("agent_options.contact.load_messages_failed");
+  const localization = useMemo(() => ({ locale, t }), [locale, t]);
 
   const query = useMemo<AgentPrivateDomainQuery>(() => ({
     room_id: roomId,
@@ -70,7 +75,7 @@ export function AgentPrivateDomainView({
         return nextThreads[0]?.thread_id ?? null;
       });
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "加载联络记录失败");
+      setError(loadError instanceof Error ? loadError.message : recordsLoadError);
       setThreads([]);
       setSelectedThreadId(null);
     } finally {
@@ -79,6 +84,7 @@ export function AgentPrivateDomainView({
   }, [
     agent.agent_id,
     query,
+    recordsLoadError,
     setError,
     setSelectedThreadId,
     setThreads,
@@ -99,7 +105,7 @@ export function AgentPrivateDomainView({
       });
       setEvents(page.items ?? []);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "加载联络消息失败");
+      setError(loadError instanceof Error ? loadError.message : messagesLoadError);
       setEvents([]);
     } finally {
       setEventsLoading(false);
@@ -107,6 +113,7 @@ export function AgentPrivateDomainView({
   }, [
     agent.agent_id,
     isPreview,
+    messagesLoadError,
     query,
     setError,
     setEvents,
@@ -124,7 +131,7 @@ export function AgentPrivateDomainView({
       })
       .catch((loadError) => {
         if (cancelled) return;
-        setError(loadError instanceof Error ? loadError.message : "加载联络记录失败");
+        setError(loadError instanceof Error ? loadError.message : recordsLoadError);
         setThreads([]);
         setSelectedThreadId(null);
       })
@@ -139,6 +146,7 @@ export function AgentPrivateDomainView({
   }, [
     agent.agent_id,
     query,
+    recordsLoadError,
     setError,
     setSelectedThreadId,
     setThreads,
@@ -163,7 +171,7 @@ export function AgentPrivateDomainView({
       })
       .catch((loadError) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "加载联络消息失败");
+          setError(loadError instanceof Error ? loadError.message : messagesLoadError);
           setEvents([]);
         }
       })
@@ -178,6 +186,7 @@ export function AgentPrivateDomainView({
   }, [
     agent.agent_id,
     isPreview,
+    messagesLoadError,
     query,
     selectedThreadId,
     setError,
@@ -204,13 +213,15 @@ export function AgentPrivateDomainView({
               count={threads.length}
               isLoading={threadsLoading || eventsLoading}
               onRefresh={handleRefresh}
-              title="联络"
+              refreshLabel={t("agent_options.contact.refresh")}
+              title={t("agent_options.contact.preview_title")}
             />
             <PrivateThreadList
               agentId={agent.agent_id}
               className="min-h-0 flex-1"
               compact
               isLoading={threadsLoading}
+              localization={localization}
               onSelect={setSelectedThreadId}
               selectedThreadId={selectedThreadId}
               threads={threads}
@@ -223,6 +234,7 @@ export function AgentPrivateDomainView({
             error={error}
             events={events}
             isLoading={eventsLoading}
+            localization={localization}
             thread={selectedThread}
           />
         </div>
@@ -237,12 +249,14 @@ export function AgentPrivateDomainView({
           count={threads.length}
           isLoading={threadsLoading || eventsLoading}
           onRefresh={handleRefresh}
-          title="记录"
+          refreshLabel={t("agent_options.contact.refresh")}
+          title={t("agent_options.contact.records_title")}
         />
         <PrivateThreadList
           agentId={agent.agent_id}
           className="min-h-0 flex-1"
           isLoading={threadsLoading}
+          localization={localization}
           onSelect={setSelectedThreadId}
           selectedThreadId={selectedThreadId}
           threads={threads}
@@ -254,6 +268,7 @@ export function AgentPrivateDomainView({
         error={error}
         events={events}
         isLoading={eventsLoading}
+        localization={localization}
         thread={selectedThread}
       />
     </div>

@@ -395,6 +395,7 @@ test("Agent 工具与联络页使用紧凑中性工作面", async () => {
     privateList,
     privateModel,
     privateTimeline,
+    privateTimelineModel,
     privateEvent,
     zhAgent,
     enAgent,
@@ -406,6 +407,7 @@ test("Agent 工具与联络页使用紧凑中性工作面", async () => {
     "src/features/agents/private-domain/agent-private-domain-thread-list.tsx",
     "src/features/agents/private-domain/agent-private-domain-thread-model.ts",
     "src/features/agents/private-domain/timeline/agent-private-domain-timeline.tsx",
+    "src/features/agents/private-domain/timeline/agent-private-domain-timeline-model.ts",
     "src/features/agents/private-domain/timeline/agent-private-domain-event.tsx",
     "src/shared/i18n/catalog/zh/agent.ts",
     "src/shared/i18n/catalog/en/agent.ts",
@@ -420,24 +422,39 @@ test("Agent 工具与联络页使用紧凑中性工作面", async () => {
   assert.doesNotMatch(tools, /UiChoiceButton|advanced\.runtime_policy|advanced\.security_title|min-h-\[96px\]/);
 
   assert.match(privateView, /nexus-private-domain-layout/);
-  assert.match(privateView, /title="记录"/);
+  assert.match(privateView, /title=\{t\("agent_options\.contact\.records_title"\)\}/);
+  assert.match(privateView, /localization=\{localization\}/);
   assert.doesNotMatch(privateView, /WORKSPACE_CONTENT_(?:GUTTER|MAX_WIDTH)_CLASS_NAME/);
   assert.match(privateStyles, /grid-template-columns: minmax\(240px, 288px\) minmax\(0, 1fr\)/);
   assert.match(privateStyles, /column-gap: 8px/);
   assert.match(privateStyles, /box-shadow: -8px 0 20px -18px/);
   assert.match(privateToolbar, /UiIconButton/);
   assert.match(privateToolbar, /min-h-\[48px\]/);
+  assert.match(privateToolbar, /aria-label=\{refreshLabel\}/);
   assert.doesNotMatch(privateToolbar, /Handshake|border-b/);
   assert.match(privateModel, /SIDEBAR_SELECTION_CLASS_NAME/);
   assert.match(privateModel, /timestampLabel/);
+  assert.match(privateModel, /formatRelativeTime\(thread\.last_timestamp, localization\.locale\)/);
   assert.doesNotMatch(privateModel, /message_count|metadataClassName|var\(--primary\)|inset_2px/);
   assert.doesNotMatch(privateList, /item\.metadata/);
+  assert.match(privateList, /agent_options\.contact\.empty_records/);
   assert.match(privateTimeline, /max-w-\[920px\]/);
   assert.match(privateTimeline, /min-h-\[48px\]/);
   assert.match(privateTimeline, /nexus-private-domain-reader/);
   assert.doesNotMatch(privateEvent, />\s*私信\s*</);
   assert.doesNotMatch(privateEvent, /shadow-\[/);
+  [
+    privateView,
+    privateToolbar,
+    privateList,
+    privateModel,
+    privateTimeline,
+    privateTimelineModel,
+  ].forEach((source) => {
+    assert.doesNotMatch(source, /刷新联络|暂无联络记录|联络消息|选择一条联络记录|私有笔记/);
+  });
   [zhAgent, enAgent].forEach((catalog) => {
+    assert.match(catalog, /agent_options\.contact\.messages_title/);
     assert.doesNotMatch(
       catalog,
       /agent_options\.advanced\.(?:runtime_policy|security_title)/,

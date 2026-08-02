@@ -7,11 +7,13 @@ export function PrivateDomainToolbar({
   count,
   isLoading: isLoading,
   onRefresh: onRefresh,
+  refreshLabel,
   title,
 }: {
   count: number;
   isLoading: boolean;
   onRefresh: () => void;
+  refreshLabel: string;
   title: string;
 }) {
   return (
@@ -21,11 +23,11 @@ export function PrivateDomainToolbar({
         <span className="text-xs tabular-nums text-(--text-soft)">{count}</span>
       </div>
       <UiIconButton
-        aria-label="刷新联络"
+        aria-label={refreshLabel}
         disabled={isLoading}
         onClick={onRefresh}
         size="xs"
-        title="刷新联络"
+        title={refreshLabel}
         variant="ghost"
       >
         <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />

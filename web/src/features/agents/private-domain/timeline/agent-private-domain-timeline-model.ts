@@ -7,7 +7,10 @@ import type {
 } from "@/types/agent/private-domain";
 import type { RoomReplyRouteMode } from "@/types/agent/agent-conversation";
 
-import { privateThreadTitle } from "../agent-private-domain-thread-model";
+import {
+  privateThreadTitle,
+  type PrivateDomainLocalization,
+} from "../agent-private-domain-thread-model";
 
 export type PrivateTimelineDensity = "compact" | "regular";
 export type PrivateTimelineBodyKind = "empty" | "error" | "events" | "select";
@@ -39,6 +42,7 @@ interface PrivateTimelineBodyInput {
   error: string | null;
   events: AgentPrivateEvent[];
   isLoading: boolean;
+  localization: PrivateDomainLocalization;
   thread: AgentPrivateThread | null;
 }
 
@@ -51,9 +55,10 @@ function participantName(
   event: AgentPrivateEvent,
   participantId: string,
   agentId: string,
+  localization: PrivateDomainLocalization,
 ): string {
   if (participantId === agentId) {
-    return "我";
+    return localization.t("agent_options.contact.self");
   }
   const participant = event.participants.find(
     (item) => item.agent_id === participantId,
@@ -65,50 +70,91 @@ function recipientNames(
   event: AgentPrivateEvent,
   recipientIds: string[],
   agentId: string,
+  localization: PrivateDomainLocalization,
 ): string[] {
   return recipientIds.map(
-    (recipientId) => participantName(event, recipientId, agentId),
+    (recipientId) => participantName(
+      event,
+      recipientId,
+      agentId,
+      localization,
+    ),
   );
+}
+
+function formatParticipantNames(
+  names: string[],
+  localization: PrivateDomainLocalization,
+): string {
+  return names.join(localization.locale === "zh" ? "、" : ", ");
 }
 
 function privateReplyRouteLabel(
   event: AgentPrivateEvent,
   agentId: string,
+  localization: PrivateDomainLocalization,
 ): string {
   const recipients = recipientNames(
     event,
     event.reply_route.recipients ?? [],
     agentId,
+    localization,
   );
   return recipients.length > 0
-    ? `回复到 ${recipients.join("、")}`
-    : "私密回复";
+    ? localization.t("agent_options.contact.reply_to", {
+      names: formatParticipantNames(recipients, localization),
+    })
+    : localization.t("agent_options.contact.private_reply");
 }
 
 const REPLY_ROUTE_LABELS: Record<
   RoomReplyRouteMode,
-  (event: AgentPrivateEvent, agentId: string) => string
+  (
+    event: AgentPrivateEvent,
+    agentId: string,
+    localization: PrivateDomainLocalization,
+  ) => string
 > = {
-  none: () => "不要求回复",
+  none: (_event, _agentId, localization) => (
+    localization.t("agent_options.contact.no_reply")
+  ),
   private: privateReplyRouteLabel,
-  public: () => "回复到公区",
+  public: (_event, _agentId, localization) => (
+    localization.t("agent_options.contact.public_reply")
+  ),
 };
 
-function eventRouteLabel(event: AgentPrivateEvent, agentId: string): string {
-  const recipients = recipientNames(event, event.recipients, agentId);
+function eventRouteLabel(
+  event: AgentPrivateEvent,
+  agentId: string,
+  localization: PrivateDomainLocalization,
+): string {
+  const recipients = recipientNames(
+    event,
+    event.recipients,
+    agentId,
+    localization,
+  );
   if (recipients.length > 0) {
-    return `给 ${recipients.join("、")}`;
+    return localization.t("agent_options.contact.to", {
+      names: formatParticipantNames(recipients, localization),
+    });
   }
-  return REPLY_ROUTE_LABELS[event.reply_route.mode](event, agentId);
+  return REPLY_ROUTE_LABELS[event.reply_route.mode](
+    event,
+    agentId,
+    localization,
+  );
 }
 
 function eventSourceName(
   source: AgentPrivateParticipant | undefined,
   event: AgentPrivateEvent,
   agentId: string,
+  localization: PrivateDomainLocalization,
 ): string {
   if (source?.agent_id === agentId) {
-    return "我";
+    return localization.t("agent_options.contact.self");
   }
   return source?.name || event.source_agent_id;
 }
@@ -116,19 +162,20 @@ function eventSourceName(
 function buildEventPresentation(
   event: AgentPrivateEvent,
   agentId: string,
+  localization: PrivateDomainLocalization,
 ): PrivateEventPresentation {
   const source = event.participants.find(
     (participant) => participant.agent_id === event.source_agent_id,
   );
   return {
-    content: event.content || "（无正文）",
+    content: event.content || localization.t("agent_options.contact.empty_content"),
     direction: event.direction,
     id: event.message_id,
-    routeLabel: eventRouteLabel(event, agentId),
+    routeLabel: eventRouteLabel(event, agentId, localization),
     source,
     sourceAgentId: event.source_agent_id,
-    sourceName: eventSourceName(source, event, agentId),
-    timestampLabel: formatRelativeTime(event.timestamp),
+    sourceName: eventSourceName(source, event, agentId, localization),
+    timestampLabel: formatRelativeTime(event.timestamp, localization.locale),
   };
 }
 
@@ -138,18 +185,30 @@ const TIMELINE_BODY_RULES: TimelineBodyRule[] = [
     matches: ({ error }) => Boolean(error),
   },
   {
-    build: () => ({ events: [], kind: "select", message: "选择一条联络记录" }),
+    build: ({ localization }) => ({
+      events: [],
+      kind: "select",
+      message: localization.t("agent_options.contact.select_record"),
+    }),
     matches: ({ thread }) => !thread,
   },
   {
-    build: () => ({ events: [], kind: "empty", message: "暂无消息" }),
+    build: ({ localization }) => ({
+      events: [],
+      kind: "empty",
+      message: localization.t("agent_options.contact.empty_messages"),
+    }),
     matches: ({ events, isLoading }) => events.length === 0 && !isLoading,
   },
 ];
 
 const EVENTS_BODY_RULE: TimelineBodyRule = {
-  build: ({ agentId, events }) => ({
-    events: events.map((event) => buildEventPresentation(event, agentId)),
+  build: ({ agentId, events, localization }) => ({
+    events: events.map((event) => buildEventPresentation(
+      event,
+      agentId,
+      localization,
+    )),
     kind: "events",
     message: "",
   }),
@@ -159,13 +218,17 @@ const EVENTS_BODY_RULE: TimelineBodyRule = {
 export function buildPrivateTimelineHeader(
   thread: AgentPrivateThread | null,
   agentId: string,
+  localization: PrivateDomainLocalization,
 ): PrivateTimelineHeaderPresentation {
   if (!thread) {
-    return { subtitle: null, title: "联络消息" };
+    return {
+      subtitle: null,
+      title: localization.t("agent_options.contact.messages_title"),
+    };
   }
   return {
-    subtitle: `${thread.room_name || "房间"} · ${thread.conversation_title || "主对话"}`,
-    title: privateThreadTitle(thread, agentId),
+    subtitle: `${thread.room_name || localization.t("agent_options.contact.default_room")} · ${thread.conversation_title || localization.t("agent_options.contact.default_conversation")}`,
+    title: privateThreadTitle(thread, agentId, localization),
   };
 }
 
