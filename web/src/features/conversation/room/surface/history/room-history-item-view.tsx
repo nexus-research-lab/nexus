@@ -42,7 +42,6 @@ interface RoomHistoryItemViewProps {
 interface ItemContentProps extends RoomHistoryItemViewProps {}
 
 interface ActionStyle {
-  ariaLabel: string;
   className: string;
   icon: ComponentType<{ className?: string }>;
 }
@@ -54,12 +53,10 @@ const ENTRY_STYLES: Record<RoomHistoryItemState, string> = {
 
 const ACTION_STYLES: Record<RoomHistoryItemAction, ActionStyle> = {
   delete: {
-    ariaLabel: "删除对话",
     className: "text-(--destructive) hover:bg-[color:color-mix(in_srgb,var(--destructive)_8%,transparent)]",
     icon: Trash2,
   },
   rename: {
-    ariaLabel: "重命名",
     className: "text-(--icon-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
     icon: Pencil,
   },
@@ -203,7 +200,7 @@ function EditingItemContent({
     <>
       <div className="flex items-center gap-1.5">
         <input
-          aria-label="编辑对话标题"
+          aria-label={presentation.editorLabels.input}
           className="min-w-0 flex-1 rounded-[10px] border border-(--input-shell-border) bg-transparent px-2.5 py-1.5 text-sm font-semibold text-(--text-strong) outline-none transition focus:border-(--surface-interactive-active-border)"
           maxLength={64}
           onChange={(event) => editor.setDraft(event.target.value)}
@@ -212,7 +209,7 @@ function EditingItemContent({
           value={editor.draft}
         />
         <button
-          aria-label="确认"
+          aria-label={presentation.editorLabels.confirm}
           className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--primary) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background)"
           onClick={editor.confirm}
           type="button"
@@ -220,7 +217,7 @@ function EditingItemContent({
           <Check className="h-3.5 w-3.5" />
         </button>
         <button
-          aria-label="取消"
+          aria-label={presentation.editorLabels.cancel}
           className="inline-flex h-6 w-6 items-center justify-center rounded-[8px] text-(--icon-default) transition duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)"
           onClick={editor.cancel}
           type="button"
@@ -268,7 +265,7 @@ function RoomHistoryItemActions({
             const Icon = style.icon;
             return (
               <button
-                aria-label={style.ariaLabel}
+                aria-label={presentation.actionLabels[action]}
                 className={cn(
                   "inline-flex h-6 w-6 items-center justify-center rounded-[8px] focus-visible:opacity-100",
                   style.className,
