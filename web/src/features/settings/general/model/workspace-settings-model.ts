@@ -1,5 +1,10 @@
 import type { RuntimeSettings } from "@/types/settings/runtime";
 
+type WorkspacePathPlaceholderKey =
+  | "settings.general.workspace_path_placeholder_macos"
+  | "settings.general.workspace_path_placeholder_posix"
+  | "settings.general.workspace_path_placeholder_windows";
+
 export interface WorkspaceSettingsSnapshot {
   currentPath: string;
   draftPath: string;
@@ -11,6 +16,19 @@ export const EMPTY_WORKSPACE_SETTINGS_SNAPSHOT: WorkspaceSettingsSnapshot = {
   draftPath: "",
   savedPath: "",
 };
+
+export function getWorkspacePathPlaceholderKey(
+  platform?: string,
+): WorkspacePathPlaceholderKey {
+  const normalizedPlatform = platform?.trim().toLowerCase();
+  if (normalizedPlatform === "windows") {
+    return "settings.general.workspace_path_placeholder_windows";
+  }
+  if (normalizedPlatform === "macos") {
+    return "settings.general.workspace_path_placeholder_macos";
+  }
+  return "settings.general.workspace_path_placeholder_posix";
+}
 
 function normalizeWorkspacePath(value?: string): string {
   return value?.trim() ?? "";

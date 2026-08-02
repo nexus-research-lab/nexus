@@ -224,3 +224,27 @@ test("英文定时任务的模板、日期和校验提示保持同一语言", as
     "Enter a task name",
   );
 });
+
+test("工作区路径示例跟随桌面平台", async () => {
+  const [model, messagesModule] = await Promise.all([
+    server.ssrLoadModule(
+      "/src/features/settings/general/model/workspace-settings-model.ts",
+    ),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+
+  const macKey = model.getWorkspacePathPlaceholderKey("macos");
+  const windowsKey = model.getWorkspacePathPlaceholderKey("windows");
+  assert.equal(
+    messagesModule.MESSAGES.en[macKey],
+    "e.g. /Users/you/Nexus/workspaces",
+  );
+  assert.equal(
+    messagesModule.MESSAGES.en[windowsKey],
+    "e.g. D:\\Nexus\\workspace",
+  );
+  assert.equal(
+    model.getWorkspacePathPlaceholderKey("linux"),
+    "settings.general.workspace_path_placeholder_posix",
+  );
+});

@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Associated Git Skill import inputs with their visible labels for reliable screen-reader navigation.
 - Displayed one-time scheduled-task dates in an unambiguous year-first order.
 - Localized scheduled-task templates, creation controls, pickers, and validation feedback in English mode.
+- Used platform-appropriate workspace path examples in desktop settings.
 
 ### Changed
 
