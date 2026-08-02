@@ -221,6 +221,15 @@ test("联系人卡片把权限协议值投影为本地化文案", async () => {
   );
 });
 
+test("联系人卡片元数据标签跟随当前语言", async () => {
+  const card = await readSource("src/features/contacts/contacts-agent-card.tsx");
+
+  ["permission", "provider", "tools", "skills"].forEach((field) => {
+    assert.match(card, new RegExp(`t\\("contacts\\.metadata\\.${field}"\\)`));
+  });
+  assert.doesNotMatch(card, />(?:权限|Provider|工具|Skill):?</);
+});
+
 test("设置和能力二级页不再恢复重复标题或私有版心", async () => {
   const [settingsPanel, operations, subscription, projects, loopDetail] = await Promise.all([
     "src/features/settings/settings-panel.tsx",

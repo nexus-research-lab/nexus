@@ -95,6 +95,8 @@ function ContactsAgentCompactCard({
   provider,
   skillsCount,
 }: ContactsAgentCardViewProps) {
+  const { t } = useI18n();
+
   return (
     <WorkspaceCatalogCard
       align="start"
@@ -133,12 +135,12 @@ function ContactsAgentCompactCard({
 
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-(--text-soft)">
             <span className="min-w-0 max-w-full truncate">
-              <span className="text-(--text-default)">Provider</span>
+              <span className="text-(--text-default)">{t("contacts.metadata.provider")}</span>
               {" · "}
               {provider}
             </span>
-            <span>工具 {allowedToolsCount}</span>
-            <span>技能 {skillsCount}</span>
+            <span>{t("contacts.metadata.tools")} {allowedToolsCount}</span>
+            <span>{t("contacts.metadata.skills")} {skillsCount}</span>
           </div>
         </div>
       </div>
@@ -173,6 +175,8 @@ function ContactsAgentComfortCard({
   provider,
   skillsCount,
 }: ContactsAgentCardViewProps) {
+  const { t } = useI18n();
+
   return (
     <WorkspaceCatalogCard
       align="center"
@@ -210,17 +214,17 @@ function ContactsAgentComfortCard({
 
           <div className="mt-2 flex flex-col items-center justify-center gap-1 text-center text-xs text-(--text-soft)">
             <div className="flex flex-wrap gap-1.5">
-              <span className="text-(--text-default)">权限:</span>
+              <span className="text-(--text-default)">{t("contacts.metadata.permission")}:</span>
               <span className="text-(--text-muted)">{permissionMode}</span>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-1.5">
-              <span className="text-(--text-default)">Provider:</span>
+              <span className="text-(--text-default)">{t("contacts.metadata.provider")}:</span>
               <span className="text-(--text-muted)">{provider}</span>
               <span className="mx-0.5">•</span>
-              <span className="text-(--text-default)">工具:</span>
+              <span className="text-(--text-default)">{t("contacts.metadata.tools")}:</span>
               <span className="text-(--text-muted)">{allowedToolsCount}</span>
               <span className="mx-0.5">•</span>
-              <span className="text-(--text-default)">Skill:</span>
+              <span className="text-(--text-default)">{t("contacts.metadata.skills")}:</span>
               <span className="text-(--text-muted)">{skillsCount}</span>
             </div>
           </div>

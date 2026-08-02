@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Standardized the Chinese Subagent empty state on the same product terminology as its panel and navigation label.
 - Showed the inherited default model state on contact cards instead of a placeholder Provider value.
 - Presented contact-card permission modes with localized product labels instead of runtime protocol values.
+- Localized contact-card metadata labels consistently across Chinese and English interfaces.
 
 ### Changed
 
