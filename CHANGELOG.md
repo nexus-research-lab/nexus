@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Preserved chronological DM history when newer durable round indexes are merged with older runtime transcripts after a responsive remount.
 - Standardized the Chinese Subagent empty state on the same product terminology as its panel and navigation label.
+- Showed the inherited default model state on contact cards instead of a placeholder Provider value.
 
 ### Changed
 

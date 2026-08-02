@@ -41,7 +41,9 @@ export function ContactsAgentCard({
   const { t } = useI18n();
 
   const permissionMode = agent.options.permission_mode || "default";
-  const provider = formatProviderLabel(agent.options.provider);
+  const provider = agent.options.provider?.trim()
+    ? formatProviderLabel(agent.options.provider)
+    : t("agent_options.identity.follow_default_provider");
   const allowedToolsCount = agent.options.allowed_tools?.length || 0;
   const skillsCount = agent.skills_count || 0;
 

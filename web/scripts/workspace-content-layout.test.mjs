@@ -197,6 +197,19 @@ test("设置分区和联系人目录复用同一 Header 几何", async () => {
   });
 });
 
+test("联系人卡片明确展示默认模型继承状态", async () => {
+  const card = await readSource("src/features/contacts/contacts-agent-card.tsx");
+
+  assert.match(
+    card,
+    /agent\.options\.provider\?\.trim\(\)[\s\S]*?formatProviderLabel\(agent\.options\.provider\)[\s\S]*?agent_options\.identity\.follow_default_provider/,
+  );
+  assert.doesNotMatch(
+    card,
+    /const provider = formatProviderLabel\(agent\.options\.provider\)/,
+  );
+});
+
 test("设置和能力二级页不再恢复重复标题或私有版心", async () => {
   const [settingsPanel, operations, subscription, projects, loopDetail] = await Promise.all([
     "src/features/settings/settings-panel.tsx",
