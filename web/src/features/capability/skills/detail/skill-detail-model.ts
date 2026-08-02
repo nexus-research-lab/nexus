@@ -114,9 +114,13 @@ export function buildSkillDetailPresentation(
     },
   ];
   const flagBadges = optionalFlagBadges.filter(isSkillDetailBadge);
+  const sourceBadges: SkillDetailBadge[] =
+    source.label.trim() === skill.category_name.trim()
+      ? []
+      : [{ key: "source", label: source.label, tone: "default" }];
   const badges: SkillDetailBadge[] = [
     { key: "category", label: skill.category_name, tone: "default" },
-    { key: "source", label: source.label, tone: "default" },
+    ...sourceBadges,
     {
       key: "version",
       label: `版本 ${skill.version || "unknown"}`,

@@ -112,3 +112,36 @@ test("同名非平台 Skill 保留自己的真实说明", async () => {
     externalSkill.description,
   );
 });
+
+test("Skill 详情不会重复展示相同的分类和来源", async () => {
+  const { buildSkillDetailPresentation } = await server.ssrLoadModule(
+    "/src/features/capability/skills/detail/skill-detail-model.ts",
+  );
+  const systemSkill = {
+    ...createSkill("imagegen", "system"),
+    category_name: "系统内置",
+    deletable: false,
+    has_update: false,
+    readme_markdown: "",
+    scope: "any",
+    source_ref: "",
+    version: "system",
+  };
+
+  const systemBadges = buildSkillDetailPresentation(systemSkill).badges;
+  assert.deepEqual(
+    systemBadges.map((badge) => badge.label),
+    ["系统内置", "版本 system"],
+  );
+
+  const platformBadges = buildSkillDetailPresentation({
+    ...systemSkill,
+    category_name: "图像与设计",
+    source_kind: "nexus_platform",
+    source_type: "builtin",
+  }).badges;
+  assert.deepEqual(
+    platformBadges.map((badge) => badge.label),
+    ["图像与设计", "Nexus 平台库", "版本 system"],
+  );
+});
