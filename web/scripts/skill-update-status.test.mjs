@@ -157,3 +157,19 @@ test("工作循环元数据不暴露协议枚举或固定英文计数", async ()
   assert.equal(getLoopTriggerLabel("interval", translate), "定时触发");
   assert.equal(getLoopTriggerLabel("custom", translate), "custom");
 });
+
+test("Git Skill 导入字段与可见标签建立可访问关联", async () => {
+  const source = await readFile(
+    path.join(
+      webRoot,
+      "src/features/capability/skills/import/skill-import-source.tsx",
+    ),
+    "utf8",
+  );
+
+  ["url", "branch", "path"].forEach((field) => {
+    const id = `skill-import-git-${field}`;
+    assert.match(source, new RegExp(`htmlFor="${id}"`));
+    assert.match(source, new RegExp(`id="${id}"`));
+  });
+});

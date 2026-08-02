@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localized contact-card metadata labels consistently across Chinese and English interfaces.
 - Removed redundant Skill detail badges when category and source resolve to the same label.
 - Localized work-loop trigger types and usage counters instead of exposing protocol values and fixed English units.
+- Associated Git Skill import inputs with their visible labels for reliable screen-reader navigation.
 
 ### Changed
 

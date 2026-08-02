@@ -79,11 +79,12 @@ function GitSkillImportSource({
     <div className="space-y-4">
       <UiField
         description="必须是 https:// 地址；仓库根目录或指定子目录内需要有 SKILL.md。"
+        htmlFor="skill-import-git-url"
         label="Git 仓库 URL"
       >
         <UiInput
-          aria-label="Git 仓库 URL"
           disabled={importing}
+          id="skill-import-git-url"
           onChange={(event) => setDraftField("url", event.target.value)}
           placeholder="https://github.com/owner/repo.git"
           ref={gitUrlInputRef}
@@ -93,9 +94,14 @@ function GitSkillImportSource({
         />
       </UiField>
       <div className="grid gap-3 sm:grid-cols-2">
-        <UiField description="留空时使用仓库默认分支。" label="Branch">
+        <UiField
+          description="留空时使用仓库默认分支。"
+          htmlFor="skill-import-git-branch"
+          label="Branch"
+        >
           <UiInput
             disabled={importing}
+            id="skill-import-git-branch"
             onChange={(event) => setDraftField("branch", event.target.value)}
             placeholder="main"
             value={draft.branch}
@@ -103,10 +109,12 @@ function GitSkillImportSource({
         </UiField>
         <UiField
           description="Skill 不在仓库根目录时填写，例如 skills/werewolf-6p。"
+          htmlFor="skill-import-git-path"
           label="子目录 Path"
         >
           <UiInput
             disabled={importing}
+            id="skill-import-git-path"
             onChange={(event) => setDraftField("path", event.target.value)}
             placeholder="skills/room-playbook"
             value={draft.path}
