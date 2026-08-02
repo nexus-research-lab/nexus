@@ -13,7 +13,7 @@ export const zhConversationMessages = {
   "subagents.panel_title": "子智能体",
   "subagents.active_section": "已开启",
   "subagents.completed_section": "完成",
-  "subagents.no_active": "没有已开启的子代理",
+  "subagents.no_active": "没有已开启的子智能体",
   "subagents.loading": "正在读取子智能体...",
   "subagents.switch_caller": "切换调用子智能体的 Agent",
   "subagents.retry": "重试",
