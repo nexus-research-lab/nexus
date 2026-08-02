@@ -22,6 +22,7 @@ const EMPTY_CONTENT_BLOCKS: ContentBlock[] = [];
 interface AssistantProcessCallchainProps {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
+  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   process: AssistantProcessState;
 }
@@ -29,6 +30,7 @@ interface AssistantProcessCallchainProps {
 export function AssistantProcessCallchain({
   activity,
   environment,
+  generatedFilesLabel,
   permissions,
   process,
 }: AssistantProcessCallchainProps) {
@@ -45,6 +47,7 @@ export function AssistantProcessCallchain({
       <ProcessToggleButton process={process} />
       <CollapsedProcessArtifacts
         artifacts={collapsedFileArtifacts}
+        label={generatedFilesLabel}
         onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
         visible={!process.expanded}
       />
@@ -95,10 +98,12 @@ function ProcessExpansionIcon({ expanded }: { expanded: boolean }) {
 
 function CollapsedProcessArtifacts({
   artifacts,
+  label,
   onOpenWorkspaceFile,
   visible,
 }: {
   artifacts: WorkspaceFileArtifactContent[];
+  label: string;
   onOpenWorkspaceFile?: (path: string) => void;
   visible: boolean;
 }) {
@@ -109,7 +114,7 @@ function CollapsedProcessArtifacts({
     <WorkspaceFileArtifactList
       artifacts={artifacts}
       className="ml-5 pb-1"
-      label="生成文件"
+      label={label}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
     />
   );

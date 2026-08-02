@@ -1638,7 +1638,7 @@ test("DM and Room messages never remount interaction options outside the Compose
 
   const activityHtml = renderToStaticMarkup(React.createElement(
     MessageActivityStatus,
-    { state: "waiting_permission" },
+    { label: "等待确认", state: "waiting_permission" },
   ));
   assert.match(activityHtml, /等待确认/);
   assert.match(activityHtml, /--text-muted/);

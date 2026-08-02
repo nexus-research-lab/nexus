@@ -35,6 +35,7 @@ import type { ContentProjection } from "../../message-item-projection";
 interface AssistantDmToolRunsProps {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
+  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   projection: ContentProjection;
   responseResumed: boolean;
@@ -43,6 +44,7 @@ interface AssistantDmToolRunsProps {
 export function AssistantDmToolRuns({
   activity,
   environment,
+  generatedFilesLabel,
   permissions,
   projection,
   responseResumed,
@@ -87,6 +89,7 @@ export function AssistantDmToolRuns({
           <DmProcessSegmentView
             activity={activity}
             environment={environment}
+            generatedFilesLabel={generatedFilesLabel}
             key={segment.id}
             permissions={permissions}
             segment={segment}
@@ -101,12 +104,14 @@ export function AssistantDmToolRuns({
 function DmProcessSegmentView({
   activity,
   environment,
+  generatedFilesLabel,
   permissions,
   segment,
   streaming,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
+  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   segment: DmProcessSegment;
   streaming: boolean;
@@ -116,6 +121,7 @@ function DmProcessSegmentView({
       <DmToolRun
         activity={activity}
         environment={environment}
+        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         segment={segment}
         streaming={streaming}
@@ -138,12 +144,14 @@ function DmProcessSegmentView({
 function DmToolRun({
   activity,
   environment,
+  generatedFilesLabel,
   permissions,
   segment,
   streaming,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
+  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   segment: DmToolRunSegment;
   streaming: boolean;
@@ -239,7 +247,7 @@ function DmToolRun({
           <WorkspaceFileArtifactList
             artifacts={artifacts}
             className="ml-5 pt-1"
-            label="生成文件"
+            label={generatedFilesLabel}
             onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
           />
         )}

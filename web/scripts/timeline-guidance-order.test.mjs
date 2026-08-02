@@ -2811,13 +2811,18 @@ test("DM tool run view expands only the active segment and leaves Room direct co
     responseResumed,
     projection = resolvedProjection,
   ) => renderToStaticMarkup(
-    React.createElement(AssistantDmToolRuns, {
-      activity,
-      environment,
-      permissions,
-      projection,
-      responseResumed,
-    }),
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(AssistantDmToolRuns, {
+        activity,
+        environment,
+        generatedFilesLabel: "生成文件",
+        permissions,
+        projection,
+        responseResumed,
+      }),
+    ),
   );
 
   const activeHtml = renderDm(false);
@@ -2919,7 +2924,7 @@ test("thinking and replying indicators render a real stepped frame track", async
     ["replying", "正在回复"],
   ]) {
     const html = renderToStaticMarkup(
-      React.createElement(MessageActivityStatus, { state }),
+      React.createElement(MessageActivityStatus, { label, state }),
     );
     assert.match(html, new RegExp(label));
     assert.match(html, /message-activity-spinner-track/);

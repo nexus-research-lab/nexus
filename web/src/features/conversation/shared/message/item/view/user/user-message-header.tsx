@@ -7,6 +7,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
 import { MessageActionButton } from "../../../ui/message-action-button";
@@ -37,6 +38,7 @@ export function UserMessageHeader({
   onRerun,
   presentation,
 }: UserMessageHeaderProps) {
+  const { t } = useI18n();
   return (
     <div
       className={cn(
@@ -48,7 +50,7 @@ export function UserMessageHeader({
       {presentation.guided ? (
         <span className="mr-1 inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-(--text-muted)">
           <CornerDownRight className="h-3.5 w-3.5" />
-          补充要求
+          {t("message.guidance")}
         </span>
       ) : null}
       <span className="nexus-chat-meta shrink-0 text-xs text-(--text-muted)">
@@ -70,15 +72,16 @@ function UserMessageActions({
   onEdit,
   onRerun,
 }: Pick<UserMessageHeaderProps, "copied" | "onCopy" | "onEdit" | "onRerun">) {
+  const { t } = useI18n();
   const action = COPY_ACTION_PRESENTATION[copied ? "copied" : "idle"];
   const CopyIcon = action.icon;
   return (
     <div className="flex shrink-0 items-center gap-0.5">
       {onRerun ? (
         <MessageActionButton
-          aria-label="重新运行"
+          aria-label={t("message.rerun")}
           onClick={onRerun}
-          title="重新运行"
+          title={t("message.rerun")}
           tone="default"
         >
           <RotateCcw className="h-3.5 w-3.5" />
@@ -86,18 +89,18 @@ function UserMessageActions({
       ) : null}
       {onEdit ? (
         <MessageActionButton
-          aria-label="编辑消息"
+          aria-label={t("message.edit")}
           onClick={onEdit}
-          title="编辑消息"
+          title={t("message.edit")}
           tone="default"
         >
           <Edit2 className="h-3.5 w-3.5" />
         </MessageActionButton>
       ) : null}
       <MessageActionButton
-        aria-label="复制消息"
+        aria-label={t("message.copy")}
         onClick={onCopy}
-        title="复制消息"
+        title={t("message.copy")}
         tone={action.tone}
       >
         <CopyIcon className="h-3.5 w-3.5" />
