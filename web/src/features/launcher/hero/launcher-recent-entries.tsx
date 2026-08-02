@@ -1,6 +1,7 @@
 import { ArrowRight } from "lucide-react";
 
 import { LAUNCHER_TOUR_ANCHORS } from "@/features/onboarding/tours/launcher-tour";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { FadeSlideIn } from "@/shared/ui/feedback/animated-hero-text";
 
 import type { RecentLauncherEntry } from "../console/launcher-console-types";
@@ -73,7 +74,13 @@ export function LauncherRecentEntries({
   onOpen,
   recentEntries,
 }: LauncherRecentEntriesProps) {
-  const presentations = recentEntries.map(buildLauncherRecentEntryPresentation);
+  const { t } = useI18n();
+  const typeLabels = {
+    dm: t("launcher.recent_dm"),
+    room: t("launcher.recent_room"),
+  };
+  const presentations = recentEntries.map((entry, index) =>
+    buildLauncherRecentEntryPresentation(entry, index, typeLabels));
   return (
     <div
       data-tour-anchor={LAUNCHER_TOUR_ANCHORS.recent}

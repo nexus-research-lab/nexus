@@ -7,7 +7,6 @@ import {
 } from "../console/launcher-console-helpers";
 
 interface EntryTypePresentation {
-  ariaPrefix: string;
   background: string;
   boxShadow: string;
   labelPrefix: string;
@@ -19,14 +18,12 @@ const ENTRY_TYPE_PRESENTATION: Record<
   EntryTypePresentation
 > = {
   dm: {
-    ariaPrefix: "私聊",
     background: "var(--launcher-agent-chip-background)",
     boxShadow: "inset 0 0 0 1px var(--launcher-agent-chip-border)",
     labelPrefix: "",
     textColor: "var(--launcher-agent-chip-text)",
   },
   room: {
-    ariaPrefix: "房间",
     background: "var(--launcher-room-chip-background)",
     boxShadow: "inset 0 0 0 1px var(--launcher-room-chip-border)",
     labelPrefix: "#",
@@ -49,14 +46,20 @@ export interface LauncherRecentEntryPresentation {
   tooltipLabel: string | null;
 }
 
+export type LauncherRecentEntryTypeLabels = Record<
+  RecentLauncherEntry["type"],
+  string
+>;
+
 export function buildLauncherRecentEntryPresentation(
   entry: RecentLauncherEntry,
   index: number,
+  typeLabels: LauncherRecentEntryTypeLabels,
 ): LauncherRecentEntryPresentation {
   const typePresentation = ENTRY_TYPE_PRESENTATION[entry.type];
   const fullLabel = `${typePresentation.labelPrefix}${entry.label}`;
   return {
-    ariaLabel: `${typePresentation.ariaPrefix} ${entry.label}`,
+    ariaLabel: `${typeLabels[entry.type]} ${entry.label}`,
     chipLabel: `${typePresentation.labelPrefix}${truncateLauncherChipLabel(entry.label)}`,
     chipStyle: {
       background: typePresentation.background,
