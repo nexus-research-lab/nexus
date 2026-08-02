@@ -181,6 +181,16 @@ test("全部能力目录复用同一正文标题与内容轴", async () => {
   });
 });
 
+test("共享搜索框使用应用本地化的清除控件", async () => {
+  const searchInput = await readSource("src/shared/ui/form/form-control.tsx");
+
+  assert.match(searchInput, /role="searchbox"/);
+  assert.match(searchInput, /type="text"/);
+  assert.match(searchInput, /aria-label=\{t\("common\.clear"\)\}/);
+  assert.match(searchInput, /onChange\(""\)/);
+  assert.doesNotMatch(searchInput, /type=\{type \?\? "search"\}/);
+});
+
 test("设置分区和联系人目录复用同一 Header 几何", async () => {
   const pages = await Promise.all([
     "src/features/contacts/contacts-directory.tsx",

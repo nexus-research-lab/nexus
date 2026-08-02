@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localized Skill detail navigation, metadata, availability controls, and action states without translating Skill-authored content.
 - Localized the default close-button accessibility label for shared dialogs.
 - Localized both Skill import modes, their authoring guidance, examples, controls, and downloaded Room guide.
+- Replaced host-language search clear controls with an app-localized clear action across shared search fields.
 
 ### Changed
 
