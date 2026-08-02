@@ -1,3 +1,4 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   CreateScheduledTaskParams,
   ScheduledTaskDeliveryTarget,
@@ -18,6 +19,8 @@ import {
   zonedDateTimeToEpochMs,
 } from "../schedule/task-schedule-time";
 
+type Translate = I18nContextValue["t"];
+
 export interface TaskDialogSubmitContext {
   agentOptions: TaskDialogLabelOption[];
   form: TaskFormDraft;
@@ -27,68 +30,94 @@ export interface TaskDialogSubmitContext {
   selectedSession: TaskDialogSessionOption | null;
 }
 
-type Validator = (context: TaskDialogSubmitContext) => string | null;
+type Validator = (
+  context: TaskDialogSubmitContext,
+  t: Translate,
+) => string | null;
 
-function validateBasics({ form }: TaskDialogSubmitContext): string | null {
+function validateBasics(
+  { form }: TaskDialogSubmitContext,
+  t: Translate,
+): string | null {
   if (!form.taskName.trim()) {
-    return "请输入任务名称";
+    return t("capability.scheduled_dialog_validation_name");
   }
   if (!form.instruction.trim()) {
-    return form.executionKind === "script" ? "请输入脚本内容" : "请输入任务指令";
+    return t(form.executionKind === "script"
+      ? "capability.scheduled_dialog_validation_script"
+      : "capability.scheduled_dialog_validation_instruction");
   }
   return null;
 }
 
-function validateTarget({ form }: TaskDialogSubmitContext): string | null {
+function validateTarget(
+  { form }: TaskDialogSubmitContext,
+  t: Translate,
+): string | null {
   if (form.executionKind === "script" || form.targetType === "agent") {
-    return form.selectedAgentId.trim() ? null : "请选择智能体";
+    return form.selectedAgentId.trim()
+      ? null
+      : t("capability.scheduled_dialog_validation_agent");
   }
-  return form.selectedRoomId.trim() ? null : "请选择 Room";
+  return form.selectedRoomId.trim()
+    ? null
+    : t("capability.scheduled_dialog_validation_room");
 }
 
-function validateExecution(context: TaskDialogSubmitContext): string | null {
+function validateExecution(
+  context: TaskDialogSubmitContext,
+  t: Translate,
+): string | null {
   const { form, selectedSession } = context;
   if (form.executionKind === "script") {
     return null;
   }
   if (form.targetType === "room" && !selectedSession) {
-    return "请选择执行成员";
+    return t("capability.scheduled_dialog_validation_member");
   }
   if (form.executionMode === "existing" && !selectedSession) {
-    return "请选择执行会话";
+    return t("capability.scheduled_dialog_validation_session");
   }
   if (form.executionMode === "dedicated" && !form.dedicatedSessionKey.trim()) {
-    return "请输入专用长期会话名称";
+    return t("capability.scheduled_dialog_validation_dedicated");
   }
   return null;
 }
 
-function validateSchedule({ schedule }: TaskDialogSubmitContext): string | null {
+function validateSchedule(
+  { schedule }: TaskDialogSubmitContext,
+  t: Translate,
+): string | null {
   if (schedule.kind === "every") {
     return toIntervalSeconds(schedule.everyValue, schedule.everyUnit) === null
-      ? "循环间隔必须是大于 0 的整数"
+      ? t("capability.scheduled_dialog_validation_interval")
       : null;
   }
   if (schedule.kind === "cron") {
     if (schedule.selectedWeekdays.length === 0) {
-      return "请至少选择一个执行日";
+      return t("capability.scheduled_dialog_validation_weekday");
     }
     return buildDailyCronExpression(
       schedule.dailyTime,
       schedule.selectedWeekdays,
-    ) ? null : "请选择有效的固定执行时间";
+    ) ? null : t("capability.scheduled_dialog_validation_daily_time");
   }
   const runAtEpoch = zonedDateTimeToEpochMs(
     schedule.runAt,
     schedule.timezone.trim() || "Asia/Shanghai",
   );
   if (runAtEpoch === null) {
-    return "请选择有效的执行时间";
+    return t("capability.scheduled_dialog_validation_run_at");
   }
-  return runAtEpoch > Date.now() ? null : "单次执行时间必须晚于当前时间";
+  return runAtEpoch > Date.now()
+    ? null
+    : t("capability.scheduled_dialog_validation_run_at_future");
 }
 
-function validateExpiration({ form, schedule }: TaskDialogSubmitContext): string | null {
+function validateExpiration(
+  { form, schedule }: TaskDialogSubmitContext,
+  t: Translate,
+): string | null {
   if (!form.expiresAt.trim()) {
     return null;
   }
@@ -97,21 +126,26 @@ function validateExpiration({ form, schedule }: TaskDialogSubmitContext): string
     schedule.timezone.trim() || "Asia/Shanghai",
   );
   if (expiresAt === null) {
-    return "请选择有效的任务有效期";
+    return t("capability.scheduled_dialog_validation_expiration");
   }
-  return expiresAt > Date.now() ? null : "任务有效期必须晚于当前时间";
+  return expiresAt > Date.now()
+    ? null
+    : t("capability.scheduled_dialog_validation_expiration_future");
 }
 
-function validateDelivery(context: TaskDialogSubmitContext): string | null {
+function validateDelivery(
+  context: TaskDialogSubmitContext,
+  t: Translate,
+): string | null {
   const { form, selectedReplySession } = context;
   if (form.executionKind === "script") {
     return null;
   }
   if (form.executionMode === "main" && form.replyMode !== "none") {
-    return "主会话任务暂不支持额外结果回传";
+    return t("capability.scheduled_dialog_validation_main_delivery");
   }
   if (form.replyMode === "selected" && !selectedReplySession) {
-    return "请选择回复会话";
+    return t("capability.scheduled_dialog_validation_reply_session");
   }
   return null;
 }
@@ -127,9 +161,10 @@ const VALIDATORS: Validator[] = [
 
 export function getTaskDialogValidationError(
   context: TaskDialogSubmitContext,
+  t: Translate,
 ): string | null {
   for (const validate of VALIDATORS) {
-    const error = validate(context);
+    const error = validate(context, t);
     if (error) {
       return error;
     }
@@ -139,11 +174,14 @@ export function getTaskDialogValidationError(
 
 function buildSessionTarget(
   context: TaskDialogSubmitContext,
+  t: Translate,
 ): ScheduledTaskSessionTarget {
   const { form, selectedSession } = context;
   if (form.targetType === "room" || form.executionMode === "existing") {
     if (!selectedSession) {
-      throw new Error(form.targetType === "room" ? "请选择执行成员" : "请选择执行会话");
+      throw new Error(t(form.targetType === "room"
+        ? "capability.scheduled_dialog_validation_member"
+        : "capability.scheduled_dialog_validation_session"));
     }
     return {
       bound_session_key: selectedSession.sessionKey,
@@ -166,6 +204,7 @@ function buildSessionTarget(
 
 function buildDelivery(
   context: TaskDialogSubmitContext,
+  t: Translate,
 ): ScheduledTaskDeliveryTarget {
   const { form, selectedReplySession, selectedSession } = context;
   if (form.replyMode === "none" || form.executionMode === "main") {
@@ -173,7 +212,7 @@ function buildDelivery(
   }
   if (form.replyMode === "selected") {
     if (!selectedReplySession) {
-      throw new Error("请选择回复会话");
+      throw new Error(t("capability.scheduled_dialog_validation_reply_session"));
     }
     return {
       channel: "websocket",
@@ -191,7 +230,10 @@ function buildDelivery(
   };
 }
 
-function buildSchedule(schedule: TaskScheduleDraft): ScheduledTaskSchedule {
+function buildSchedule(
+  schedule: TaskScheduleDraft,
+  t: Translate,
+): ScheduledTaskSchedule {
   const timezone = schedule.timezone.trim() || "Asia/Shanghai";
   if (schedule.kind === "every") {
     const intervalSeconds = toIntervalSeconds(
@@ -199,7 +241,7 @@ function buildSchedule(schedule: TaskScheduleDraft): ScheduledTaskSchedule {
       schedule.everyUnit,
     );
     if (intervalSeconds === null) {
-      throw new Error("循环间隔必须是大于 0 的整数");
+      throw new Error(t("capability.scheduled_dialog_validation_interval"));
     }
     return { interval_seconds: intervalSeconds, kind: "every", timezone };
   }
@@ -209,7 +251,7 @@ function buildSchedule(schedule: TaskScheduleDraft): ScheduledTaskSchedule {
       schedule.selectedWeekdays,
     );
     if (!cronExpression) {
-      throw new Error("请选择有效的固定执行时间");
+      throw new Error(t("capability.scheduled_dialog_validation_daily_time"));
     }
     return { cron_expression: cronExpression, kind: "cron", timezone };
   }
@@ -219,6 +261,7 @@ function buildSchedule(schedule: TaskScheduleDraft): ScheduledTaskSchedule {
 function buildExpiresAt(
   form: TaskFormDraft,
   schedule: TaskScheduleDraft,
+  t: Translate,
 ): string | undefined {
   if (!form.expiresAt.trim()) {
     return undefined;
@@ -228,18 +271,21 @@ function buildExpiresAt(
     schedule.timezone.trim() || "Asia/Shanghai",
   );
   if (epochMs === null) {
-    throw new Error("请选择有效的任务有效期");
+    throw new Error(t("capability.scheduled_dialog_validation_expiration"));
   }
   return new Date(epochMs).toISOString();
 }
 
-function resolveAgentId(context: TaskDialogSubmitContext): string {
+function resolveAgentId(
+  context: TaskDialogSubmitContext,
+  t: Translate,
+): string {
   const { form, selectedSession } = context;
   if (form.executionKind === "script" || form.targetType === "agent") {
     return form.selectedAgentId.trim();
   }
   if (!selectedSession) {
-    throw new Error("请选择执行成员");
+    throw new Error(t("capability.scheduled_dialog_validation_member"));
   }
   return selectedSession.agentId;
 }
@@ -307,16 +353,17 @@ function buildSource(
 
 export function buildScheduledTaskPayload(
   context: TaskDialogSubmitContext,
+  t: Translate,
   originalSource?: ScheduledTaskSource | null,
 ): CreateScheduledTaskParams {
   const { form, schedule } = context;
   const common = {
-    agent_id: resolveAgentId(context),
+    agent_id: resolveAgentId(context, t),
     enabled: form.enabled,
-    expires_at: buildExpiresAt(form, schedule),
+    expires_at: buildExpiresAt(form, schedule, t),
     instruction: form.instruction.trim(),
     name: form.taskName.trim(),
-    schedule: buildSchedule(schedule),
+    schedule: buildSchedule(schedule, t),
     source: buildSource(context, originalSource),
   };
   if (form.executionKind === "script") {
@@ -329,8 +376,8 @@ export function buildScheduledTaskPayload(
   }
   return {
     ...common,
-    delivery: buildDelivery(context),
+      delivery: buildDelivery(context, t),
     execution_kind: "agent",
-    session_target: buildSessionTarget(context),
+      session_target: buildSessionTarget(context, t),
   };
 }

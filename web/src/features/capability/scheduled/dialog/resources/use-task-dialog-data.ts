@@ -8,6 +8,7 @@ import {
   getRoomContexts,
   listRooms,
 } from "@/lib/api/conversation/room-resource-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent, AgentSession } from "@/types/agent/agent";
 import type {
   RoomAggregate,
@@ -66,18 +67,27 @@ export function useTaskDialogData({
   form: TaskFormDraft;
   isOpen: boolean;
 }): TaskDialogData {
+  const { t } = useI18n();
   const keys = buildTaskDialogResourceKeys(form, isOpen);
-  const agents = useDialogResource(keys.agents, loadAgents, "加载智能体失败");
-  const rooms = useDialogResource(keys.rooms, loadRooms, "加载 Room 列表失败");
+  const agents = useDialogResource(
+    keys.agents,
+    loadAgents,
+    t("capability.scheduled_dialog_load_agents_failed"),
+  );
+  const rooms = useDialogResource(
+    keys.rooms,
+    loadRooms,
+    t("capability.scheduled_dialog_load_rooms_failed"),
+  );
   const agentSessions = useDialogResource(
     keys.agentSessions,
     loadAgentSessions,
-    "加载智能体会话失败",
+    t("capability.scheduled_dialog_load_agent_sessions_failed"),
   );
   const roomContexts = useDialogResource(
     keys.roomContexts,
     loadRoomContexts,
-    "加载 Room 会话失败",
+    t("capability.scheduled_dialog_load_room_sessions_failed"),
   );
   const agentNameById = useMemo(
     () => buildAgentNameIndex(agents.items),
@@ -96,8 +106,9 @@ export function useTaskDialogData({
       form.targetType,
       { agentSessions, roomContexts },
       agentNameById,
+      t("capability.scheduled_dialog_unnamed_session"),
     ),
-    [agentNameById, agentSessions, form.targetType, roomContexts],
+    [agentNameById, agentSessions, form.targetType, roomContexts, t],
   );
 
   return {

@@ -2,6 +2,7 @@
 
 import { Pencil } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
@@ -37,6 +38,7 @@ export function ScheduledTaskDialog({
   onCreated,
   onSaved,
 }: ScheduledTaskDialogProps) {
+  const { t } = useI18n();
   const controller = useTaskDialogController({
     agentId,
     createPreset,
@@ -51,8 +53,12 @@ export function ScheduledTaskDialog({
     return null;
   }
 
-  const submitLabel = initialTask ? "保存修改" : "创建";
-  const submittingLabel = initialTask ? "保存中" : "创建中";
+  const submitLabel = initialTask
+    ? t("capability.scheduled_dialog_save")
+    : t("capability.scheduled_dialog_create");
+  const submittingLabel = initialTask
+    ? t("capability.scheduled_dialog_saving")
+    : t("capability.scheduled_dialog_creating");
 
   return (
     <UiDialogPortal>
@@ -69,9 +75,11 @@ export function ScheduledTaskDialog({
           <UiDialogHeader
             onClose={onClose}
             subtitle={initialTask
-              ? "修改任务内容或执行时间；不常用的选项收在高级设置里。"
-              : "填写任务、目标和执行时间即可创建。"}
-            title={initialTask ? "编辑任务" : "新建任务"}
+              ? t("capability.scheduled_dialog_edit_subtitle")
+              : t("capability.scheduled_dialog_new_subtitle")}
+            title={initialTask
+              ? t("capability.scheduled_dialog_edit_title")
+              : t("capability.scheduled_dialog_new_title")}
             titleId="create-task-dialog-title"
           />
 
@@ -104,7 +112,7 @@ export function ScheduledTaskDialog({
               type="button"
               variant="surface"
             >
-              取消
+              {t("common.cancel")}
             </UiButton>
             <UiButton
               className="min-w-[124px]"

@@ -184,3 +184,43 @@ test("单次定时任务使用无歧义的年在前日期", async () => {
     "2026/08/02 下午 08:29:09",
   );
 });
+
+test("英文定时任务的模板、日期和校验提示保持同一语言", async () => {
+  const [formatters, boardModel, submitModel, messagesModule] =
+    await Promise.all([
+      server.ssrLoadModule(
+        "/src/features/capability/scheduled/pickers/picker-formatters.ts",
+      ),
+      server.ssrLoadModule(
+        "/src/features/capability/scheduled/board/scheduled-task-board-model.ts",
+      ),
+      server.ssrLoadModule(
+        "/src/features/capability/scheduled/dialog/form/task-form-submit.ts",
+      ),
+      server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+    ]);
+  const translate = (key) => messagesModule.MESSAGES.en[key] ?? key;
+
+  assert.equal(
+    formatters.formatDatetimeDisplay(
+      "2026-08-02",
+      "20",
+      "29",
+      "09",
+      "en",
+    ),
+    "2026/08/02 08:29:09 PM",
+  );
+
+  const suggestions = boardModel.buildScheduledTaskSuggestions(translate);
+  assert.equal(suggestions[0].title, "Daily work brief");
+  assert.equal(suggestions[0].preset.taskName, "Daily work brief");
+  assert.match(suggestions[0].preset.instruction, /highest-priority work/);
+
+  assert.equal(
+    submitModel.getTaskDialogValidationError({
+      form: { taskName: "" },
+    }, translate),
+    "Enter a task name",
+  );
+});

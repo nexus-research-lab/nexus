@@ -68,14 +68,23 @@ const SESSION_DATA_BUILDERS: Record<
   (
     resources: TaskDialogSessionResources,
     agentNameById: Map<string, string>,
+    unnamedSessionLabel: string,
   ) => TaskDialogSessionData
 > = {
-  agent: ({ agentSessions }, agentNameById) => ({
-    options: buildAgentSessionOptions(agentSessions.items, agentNameById),
+  agent: ({ agentSessions }, agentNameById, unnamedSessionLabel) => ({
+    options: buildAgentSessionOptions(
+      agentSessions.items,
+      agentNameById,
+      unnamedSessionLabel,
+    ),
     status: resourceStatus(agentSessions),
   }),
-  room: ({ roomContexts }, agentNameById) => ({
-    options: buildRoomSessionOptions(roomContexts.items, agentNameById),
+  room: ({ roomContexts }, agentNameById, unnamedSessionLabel) => ({
+    options: buildRoomSessionOptions(
+      roomContexts.items,
+      agentNameById,
+      unnamedSessionLabel,
+    ),
     status: resourceStatus(roomContexts),
   }),
 };
@@ -115,8 +124,13 @@ export function buildTaskDialogSessionData(
   targetType: TargetType,
   resources: TaskDialogSessionResources,
   agentNameById: Map<string, string>,
+  unnamedSessionLabel: string,
 ): TaskDialogSessionData {
-  return SESSION_DATA_BUILDERS[targetType](resources, agentNameById);
+  return SESSION_DATA_BUILDERS[targetType](
+    resources,
+    agentNameById,
+    unnamedSessionLabel,
+  );
 }
 
 export function resourceStatus<T>(
@@ -138,11 +152,12 @@ function activeResourceKey(
 function buildAgentSessionOptions(
   sessions: AgentSession[],
   agentNameById: Map<string, string>,
+  unnamedSessionLabel: string,
 ): TaskDialogSessionOption[] {
   return sessions.map((session) => ({
     agentId: session.agent_id,
     label: formatSessionLabel(
-      session.title?.trim() || "未命名会话",
+      session.title?.trim() || unnamedSessionLabel,
       agentNameById.get(session.agent_id) || session.agent_id,
     ),
     sessionKey: session.session_key,
@@ -153,8 +168,13 @@ function buildAgentSessionOptions(
 function buildRoomSessionOptions(
   contexts: RoomContextAggregate[],
   agentNameById: Map<string, string>,
+  unnamedSessionLabel: string,
 ): TaskDialogSessionOption[] {
-  return buildRoomSessionSelections(contexts, agentNameById).map((option) => ({
+  return buildRoomSessionSelections(
+    contexts,
+    agentNameById,
+    unnamedSessionLabel,
+  ).map((option) => ({
     agentId: option.agent_id,
     label: option.label,
     sessionKey: option.session_key,

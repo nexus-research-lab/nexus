@@ -2,10 +2,11 @@
 
 import { type RefObject } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+
 import { PickerPopover } from "./picker-popover";
 import {
   HOUR_12_OPTIONS,
-  MERIDIEM_LABELS,
   MERIDIEM_OPTIONS,
   MINUTE_OPTIONS,
   type Meridiem,
@@ -30,6 +31,7 @@ interface DailyTimePickerProps {
 }
 
 export function DailyTimePicker(props: DailyTimePickerProps) {
+  const { t } = useI18n();
   const {
     anchorRef,
     display,
@@ -58,7 +60,9 @@ export function DailyTimePicker(props: DailyTimePickerProps) {
       <PickerPopover anchorRef={anchorRef} isOpen={isOpen} onClose={onClose}>
         <div className="grid grid-cols-3 gap-2">
           <TimePickerColumn
-            getLabel={(value) => MERIDIEM_LABELS[value]}
+            getLabel={(value) => t(value === "am"
+              ? "capability.scheduled_dialog_meridiem_am"
+              : "capability.scheduled_dialog_meridiem_pm")}
             onSelect={onMeridiemSelect}
             options={MERIDIEM_OPTIONS}
             value={meridiem}

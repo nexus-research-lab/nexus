@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { Locale, TranslationKey } from "@/shared/i18n/messages";
 import { UiCheckboxRow } from "@/shared/ui/form/checkbox-row";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiInput, UiTextarea } from "@/shared/ui/form/form-control";
@@ -23,8 +25,8 @@ import type {
   TaskScheduleDraft,
 } from "../scheduled-task-dialog-types";
 import {
-  EVERY_UNIT_OPTIONS,
-  SCHEDULE_OPTIONS,
+  buildEveryUnitOptions,
+  buildScheduleOptions,
   TIMEZONE_OPTIONS,
 } from "./task-schedule-model";
 
@@ -97,6 +99,28 @@ interface TaskSchedulePanelProps {
   view: TaskScheduleView;
 }
 
+const WEEKDAY_LABEL_KEYS: Record<Weekday, TranslationKey> = {
+  fr: "capability.scheduled_dialog_weekday_fri",
+  mo: "capability.scheduled_dialog_weekday_mon",
+  sa: "capability.scheduled_dialog_weekday_sat",
+  su: "capability.scheduled_dialog_weekday_sun",
+  th: "capability.scheduled_dialog_weekday_thu",
+  tu: "capability.scheduled_dialog_weekday_tue",
+  we: "capability.scheduled_dialog_weekday_wed",
+};
+
+function formatPickerMonth(monthKey: string, locale: Locale): string {
+  const [year, month] = monthKey.split("-").map(Number);
+  if (locale === "zh") {
+    return `${year}年${String(month).padStart(2, "0")}月`;
+  }
+  return new Intl.DateTimeFormat("en", {
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
 export function TaskSchedulePanel({
   actions,
   errorMessage,
@@ -106,23 +130,26 @@ export function TaskSchedulePanel({
   schedule,
   view,
 }: TaskSchedulePanelProps) {
+  const { locale, t } = useI18n();
   const instructionLabel = form.executionKind === "script"
-    ? "脚本内容"
-    : "任务指令";
+    ? t("capability.scheduled_dialog_script")
+    : t("capability.scheduled_dialog_instruction");
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="dialog-field">
         <div className="flex items-center justify-between gap-4">
-          <span className="dialog-label !mb-0">调度</span>
+          <span className="dialog-label !mb-0">
+            {t("capability.scheduled_dialog_schedule")}
+          </span>
           <UiSegmentedControl
             className="shrink-0"
             onChange={actions.setKind}
-            options={SCHEDULE_OPTIONS.map((option) => ({
+            options={buildScheduleOptions(t).map((option) => ({
               label: option.label,
               value: option.key,
             }))}
-            title="调度"
+            title={t("capability.scheduled_dialog_schedule")}
             value={schedule.kind}
           />
         </div>
@@ -141,7 +168,7 @@ export function TaskSchedulePanel({
           isSecondDisabled={actions.isSingleSecondDisabled}
           meridiem={view.singleMeridiemParts.meridiem}
           minute={view.singleMeridiemParts.minute}
-          monthLabel={`${view.singlePickerMonth.replace("-", "年")}月`}
+          monthLabel={formatPickerMonth(view.singlePickerMonth, locale)}
           onClose={actions.closeSinglePicker}
           onDateSelect={(date) => actions.updateSinglePicker({ date })}
           onHourSelect={(hour12) => actions.updateSinglePicker({ hour12 })}
@@ -173,7 +200,9 @@ export function TaskSchedulePanel({
             onToggle={actions.toggleDailyPicker}
           />
           <div className="dialog-field">
-            <span className="dialog-label">执行日</span>
+            <span className="dialog-label">
+              {t("capability.scheduled_dialog_execution_days")}
+            </span>
             <div className="flex flex-wrap gap-2">
               {WEEKDAY_OPTIONS.map((option) => (
                 <UiChoiceButton
@@ -184,12 +213,12 @@ export function TaskSchedulePanel({
                   onClick={() => actions.toggleWeekday(option.key)}
                   shape="pill"
                 >
-                  {option.shortLabel}
+                  {t(WEEKDAY_LABEL_KEYS[option.key])}
                 </UiChoiceButton>
               ))}
             </div>
             <p className="text-xs leading-5 text-(--text-muted)">
-              选中的日期会在这个时间执行；全选就是每天执行。
+              {t("capability.scheduled_dialog_execution_days_help")}
             </p>
           </div>
         </div>
@@ -198,7 +227,9 @@ export function TaskSchedulePanel({
       {schedule.kind === "every" ? (
         <UiPanel padding="md" variant="inset">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-semibold text-(--text-default)">每隔</span>
+            <span className="text-sm font-semibold text-(--text-default)">
+              {t("capability.scheduled_dialog_every")}
+            </span>
             <UiInput
               className="min-w-[96px]"
               controlSize="lg"
@@ -211,11 +242,11 @@ export function TaskSchedulePanel({
               value={schedule.everyValue}
             />
             <UiSelectMenu
-              ariaLabel="选择间隔单位"
+              ariaLabel={t("capability.scheduled_dialog_select_interval_unit")}
               className="min-w-[132px]"
               id="task-every-unit"
               onChange={(value) => actions.setEveryUnit(value as EveryUnit)}
-              options={EVERY_UNIT_OPTIONS.map((option) => ({
+              options={buildEveryUnitOptions(t).map((option) => ({
                 label: option.label,
                 value: option.key,
               }))}
@@ -227,9 +258,11 @@ export function TaskSchedulePanel({
       ) : null}
 
       <div className="dialog-field">
-        <label className="dialog-label" htmlFor="task-timezone">时区</label>
+        <label className="dialog-label" htmlFor="task-timezone">
+          {t("capability.scheduled_dialog_timezone")}
+        </label>
         <UiSelectMenu
-          ariaLabel="选择任务时区"
+          ariaLabel={t("capability.scheduled_dialog_select_timezone")}
           id="task-timezone"
           onChange={actions.setTimezone}
           options={TIMEZONE_OPTIONS.map((timezone) => ({
@@ -250,8 +283,8 @@ export function TaskSchedulePanel({
           id="task-instruction"
           onChange={(event) => formActions.setInstruction(event.target.value)}
           placeholder={form.executionKind === "script"
-            ? "输入要在目标工作区执行的 shell 脚本"
-            : "输入 Agent 需要执行的指令"}
+            ? t("capability.scheduled_dialog_script_placeholder")
+            : t("capability.scheduled_dialog_instruction_placeholder")}
           rows={4}
           value={form.instruction}
         />
@@ -259,7 +292,7 @@ export function TaskSchedulePanel({
 
       <UiCheckboxRow
         checked={form.enabled}
-        label="创建后立即启用任务"
+        label={t("capability.scheduled_dialog_enable_after_create")}
         onChange={formActions.setEnabled}
       />
 
@@ -267,7 +300,7 @@ export function TaskSchedulePanel({
         <UiStateBlock
           description={errorMessage}
           size="sm"
-          title="任务配置无效"
+          title={t("capability.scheduled_dialog_invalid")}
           tone="danger"
         />
       ) : null}
