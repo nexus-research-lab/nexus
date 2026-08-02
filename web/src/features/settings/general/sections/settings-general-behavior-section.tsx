@@ -101,6 +101,7 @@ export function SettingsGeneralBehaviorSection({
               {t("settings.general.agent_sdk_diagnostics_label")}
             </span>
             <GlassSwitch
+              aria-label={t("settings.general.agent_sdk_diagnostics_label")}
               checked={agentSdkDiagnosticsEnabled}
               disabled={preferencesLoading || preferencesSaving}
               onChange={onAgentSdkDiagnosticsChange}

@@ -104,6 +104,7 @@ export function ProviderSettingsDetailHeader({
   selectedCanManage,
   testModelOptions,
 }: ProviderSettingsDetailHeaderProps) {
+  const { t } = useI18n();
   const controlsDisabled = pendingAction !== null
     || !isApiFormatConfigurable
     || !selectedCanManage;
@@ -133,6 +134,9 @@ export function ProviderSettingsDetailHeader({
           testModelOptions={testModelOptions}
         />
         <GlassSwitch
+          aria-label={t("settings.providers.toggle_provider", {
+            name: detailTitle,
+          })}
           checked={enabled}
           disabled={controlsDisabled}
           size="sm"

@@ -188,6 +188,7 @@ export const zhCapabilityMessages = {
   "capability.skill_source_disabled_success": "{name} 已停用",
   "capability.skill_source_state_enabled": "已启用",
   "capability.skill_source_state_disabled": "已停用",
+  "capability.skill_source_toggle": "切换 {name} 技能来源",
   "capability.skill_source_description.browse_sh": "网站自动化 Skill 注册表，Nexus 从 browse.sh 目录解析 raw SKILL.md。",
   "capability.skill_source_description.claude_plugins": "Claude Plugins 注册表，Nexus 按 GitHub 仓库和子目录导入。",
   "capability.skill_source_description.clawhub": "ClawHub 注册表，Nexus 按 slug 下载 zip 包导入。",

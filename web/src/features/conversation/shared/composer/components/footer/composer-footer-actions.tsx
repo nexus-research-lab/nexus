@@ -55,6 +55,7 @@ export function ComposerFooterActions({
         role="presentation"
       >
         <GlassSwitch
+          aria-label={t("composer.start_goal")}
           checked={isGoalMode}
           disabled={!canCreateGoal || isGoalCreating}
           onChange={onGoalToggle}

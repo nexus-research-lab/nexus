@@ -168,6 +168,9 @@ function SourceRow({ disabled, onToggle, source }: SourceRowProps) {
       </div>
       <div className="shrink-0">
         <GlassSwitch
+          aria-label={t("capability.skill_source_toggle", {
+            name: source.name,
+          })}
           checked={source.enabled}
           disabled={disabled}
           onChange={onToggle}

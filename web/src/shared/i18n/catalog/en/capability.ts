@@ -191,6 +191,7 @@ export const enCapabilityMessages = {
   "capability.skill_source_disabled_success": "Disabled {name}",
   "capability.skill_source_state_enabled": "Enabled",
   "capability.skill_source_state_disabled": "Disabled",
+  "capability.skill_source_toggle": "Toggle {name} Skill source",
   "capability.skill_source_description.browse_sh": "Website automation Skill registry. Nexus imports the raw SKILL.md published in the browse.sh catalog.",
   "capability.skill_source_description.claude_plugins": "Claude Plugins registry. Nexus imports from the referenced GitHub repository and subdirectory.",
   "capability.skill_source_description.clawhub": "ClawHub registry. Nexus imports the zip archive published for each slug.",

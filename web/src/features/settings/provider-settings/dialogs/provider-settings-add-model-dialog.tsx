@@ -113,6 +113,7 @@ export function ProviderAddModelDialog({
                 </div>
               </div>
               <GlassSwitch
+                aria-label={t("settings.providers.enable_after_add")}
                 checked={manualModelEnabled}
                 size="xs"
                 onChange={setManualModelEnabled}

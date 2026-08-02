@@ -327,6 +327,8 @@ export const enSettingsMessages = {
   "settings.providers.add_model_description": "After adding it, you can override capabilities, context window, and request options.",
   "settings.providers.enable_after_add": "Enable after adding",
   "settings.providers.enable_after_add_description": "Enabled models appear in provider tests and Agent model choices.",
+  "settings.providers.toggle_provider": "Toggle {name} provider",
+  "settings.providers.toggle_model": "Toggle {name} model",
   "settings.providers.add": "Add",
   "settings.providers.add_and_enable": "Add and enable",
   "settings.providers.model_options": "Model options",

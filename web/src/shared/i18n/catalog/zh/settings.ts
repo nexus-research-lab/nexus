@@ -324,6 +324,8 @@ export const zhSettingsMessages = {
   "settings.providers.add_model_description": "添加后可以继续在模型配置里覆盖能力、上下文窗口和请求参数。",
   "settings.providers.enable_after_add": "添加后启用",
   "settings.providers.enable_after_add_description": "启用后会进入测试模型和 Agent 可选模型列表。",
+  "settings.providers.toggle_provider": "切换 {name} Provider",
+  "settings.providers.toggle_model": "切换 {name} 模型",
   "settings.providers.add": "添加",
   "settings.providers.add_and_enable": "添加并启用",
   "settings.providers.model_options": "模型配置",

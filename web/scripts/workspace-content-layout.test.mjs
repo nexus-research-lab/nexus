@@ -191,6 +191,16 @@ test("共享搜索框使用应用本地化的清除控件", async () => {
   assert.doesNotMatch(searchInput, /type=\{type \?\? "search"\}/);
 });
 
+test("Liquid Glass 开关强制转发具体的可访问名称", async () => {
+  const glassSwitch = await readSource(
+    "src/shared/ui/liquid-glass/glass-switch.tsx",
+  );
+
+  assert.match(glassSwitch, /"aria-label": string/);
+  assert.match(glassSwitch, /"aria-label": ariaLabel/);
+  assert.match(glassSwitch, /aria-label=\{ariaLabel\}/);
+});
+
 test("设置分区和联系人目录复用同一 Header 几何", async () => {
   const pages = await Promise.all([
     "src/features/contacts/contacts-directory.tsx",
