@@ -1,5 +1,6 @@
 import { Download, Loader2 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiListActionButton } from "@/shared/ui/list/list-action";
 import type { ExternalSkillSearchItem } from "@/types/capability/skill";
@@ -25,10 +26,12 @@ export function ExternalResultCard({
   onImport,
   onPreview,
 }: ExternalResultCardProps) {
+  const { t } = useI18n();
   const model = buildExternalSkillListItemModel(
     item,
     importedExternalSources,
     busyExternalKeys,
+    { t },
   );
 
   return (
@@ -37,6 +40,7 @@ export function ExternalResultCard({
         <ExternalResultActions
           importState={model.importState}
           onImport={onImport}
+          title={t("capability.skills_external_import_action")}
         />
       )}
       badges={<UiBadge size="xs">{model.sourceLabel}</UiBadge>}
@@ -58,11 +62,13 @@ export function ExternalResultCard({
 interface ExternalResultActionsProps {
   importState: ExternalSkillImportModel;
   onImport: () => void;
+  title: string;
 }
 
 function ExternalResultActions({
   importState,
   onImport,
+  title,
 }: ExternalResultActionsProps) {
   return (
     <>
@@ -76,7 +82,7 @@ function ExternalResultActions({
           onClick={onImport}
           size="sm"
           stopPropagation
-          title="导入到技能库"
+          title={title}
           visibility="visible"
         >
           {importState.busy ? (

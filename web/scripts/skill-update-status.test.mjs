@@ -236,6 +236,88 @@ test("英文 Skill 导入弹窗提供同语言控件、示例与 Room 指南", a
   assert.match(englishGuide, /^# Room Skill Authoring Guide/m);
 });
 
+test("英文社区 Skill 结果、预览与来源状态保持同一语言", async () => {
+  const [skillModel, resultsModel, messagesModule] = await Promise.all([
+    server.ssrLoadModule(
+      "/src/features/capability/skills/external/external-skill-model.ts",
+    ),
+    server.ssrLoadModule(
+      "/src/features/capability/skills/external/external-results-model.ts",
+    ),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+  const t = createTranslate(messagesModule.MESSAGES.en);
+  const localization = { t };
+  const item = {
+    description: "",
+    detail_url: "https://skills.sh/example/skills/pdf",
+    git_branch: "",
+    git_path: "",
+    git_url: "",
+    import_mode: "skills_sh",
+    installs: 171000,
+    name: "pdf",
+    package_spec: "example/skills/pdf",
+    raw_url: "",
+    readme_markdown: "",
+    skill_slug: "pdf",
+    source: "example/skills",
+    source_key: "skills-sh",
+    source_kind: "skills_sh",
+    source_name: "skills.sh",
+    source_trust: "community",
+    tags: [],
+    title: "pdf",
+    version: "example/skills/pdf",
+  };
+
+  const listItem = skillModel.buildExternalSkillListItemModel(
+    item,
+    new Map(),
+    new Set(),
+    localization,
+  );
+  assert.equal(listItem.description, "Search result from skills.sh");
+  assert.equal(listItem.importState.label, "Available");
+  assert.equal(listItem.installLabel, "171K installs");
+
+  const preview = skillModel.buildExternalSkillPreviewModel(
+    item,
+    new Map(),
+    new Set(),
+    false,
+    localization,
+  );
+  assert.match(preview.markdown, /does not provide an in-app preview/);
+  assert.doesNotMatch(preview.markdown, /暂不提供|打开原始页面/);
+
+  const results = resultsModel.buildExternalResultsModel({
+    activeSourceKey: "hermes",
+    items: [],
+    loading: false,
+    localization,
+    statuses: [],
+    submittedQuery: "pdf",
+    sources: [{
+      enabled: false,
+      kind: "hermes_index",
+      name: "Hermes Skills Index",
+      sort_order: 1,
+      source_id: "hermes",
+      trust: "community",
+      url: "https://example.com/hermes.json",
+    }],
+  });
+  assert.equal(
+    resultsModel.sourceGroupSummaryLabel(results.groups[0], localization),
+    "Disabled",
+  );
+  assert.match(
+    resultsModel.sourceGroupEmptyMessage(results.groups[0], localization),
+    /This source is disabled/,
+  );
+});
+
 test("单次定时任务使用无歧义的年在前日期", async () => {
   const { formatDatetimeDisplay } = await server.ssrLoadModule(
     "/src/features/capability/scheduled/pickers/picker-formatters.ts",

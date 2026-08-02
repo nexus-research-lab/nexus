@@ -4,6 +4,8 @@ import {
   listExternalSkillSourcesApi,
   updateExternalSkillSourceApi,
 } from "@/lib/api/capability/skill-api";
+import { getErrorMessage } from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ExternalSkillSourceInfo } from "@/types/capability/skill";
 
 import type {
@@ -20,6 +22,7 @@ export function useExternalSkillSources({
   active,
   feedback,
 }: UseExternalSkillSourcesOptions): ExternalSkillSourcesController {
+  const { t } = useI18n();
   const [items, setItems] = useState<ExternalSkillSourceInfo[]>([]);
   const [managerOpen, setManagerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,7 +41,10 @@ export function useExternalSkillSources({
       return requestId === requestRef.current;
     } catch (error) {
       if (requestId === requestRef.current) {
-        feedback.error(error instanceof Error ? error.message : "技能来源加载失败");
+        feedback.error(getErrorMessage(
+          error,
+          t("capability.skill_sources_load_failed"),
+        ));
       }
       return false;
     } finally {
@@ -46,7 +52,7 @@ export function useExternalSkillSources({
         setLoading(false);
       }
     }
-  }, [feedback]);
+  }, [feedback, t]);
 
   useEffect(() => {
     if (shouldLoad) {
@@ -64,14 +70,22 @@ export function useExternalSkillSources({
       await updateExternalSkillSourceApi(source.source_id, { enabled });
       setRevision((value) => value + 1);
       if (await refresh()) {
-        feedback.success(`${source.name} 已${enabled ? "启用" : "停用"}`);
+        feedback.success(t(
+          enabled
+            ? "capability.skill_source_enabled_success"
+            : "capability.skill_source_disabled_success",
+          { name: source.name },
+        ));
       }
     } catch (error) {
-      feedback.error(error instanceof Error ? error.message : "技能来源更新失败");
+      feedback.error(getErrorMessage(
+        error,
+        t("capability.skill_sources_update_failed"),
+      ));
     } finally {
       setLoading(false);
     }
-  }, [feedback, refresh]);
+  }, [feedback, refresh, t]);
 
   return {
     closeManager: () => setManagerOpen(false),

@@ -2,6 +2,7 @@
 
 import { ExternalLink, Loader2, PackagePlus } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiButton } from "@/shared/ui/button/button";
@@ -33,6 +34,7 @@ export function ExternalSkillPreviewDialog({
   onClose,
   onImport,
 }: ExternalSkillPreviewDialogProps) {
+  const { t } = useI18n();
   if (!model) return null;
 
   return (
@@ -67,7 +69,7 @@ export function ExternalSkillPreviewDialog({
                 target="_blank"
               >
                 <ExternalLink className="h-4 w-4" />
-                打开原始页面
+                {t("capability.skills_external_open_original")}
               </a>
             ) : <span />}
             <div className="flex flex-wrap items-center gap-2">
@@ -82,7 +84,7 @@ export function ExternalSkillPreviewDialog({
                 {model.importState.busy
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <PackagePlus className="h-4 w-4" />}
-                导入到技能库
+                {t("capability.skills_external_import_action")}
               </UiButton>
             </div>
           </UiDialogFooter>

@@ -61,6 +61,7 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
     catalog.importedExternalSources,
     operations.busyExternalKeys,
     external.previewLoading,
+    { t },
   );
   const feedbackItem = buildFeedbackItem(feedback, t);
 
