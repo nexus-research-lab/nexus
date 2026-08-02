@@ -83,6 +83,7 @@ src/
 - 宽侧栏由 `features/navigation/sidebar/` 管理；展开与收起共用单一常驻壳层、固定 48px 一级导航 Dock 和系统操作，Dock 图标交互面与 32px 聊天头像同尺度，只有目录可见性与外层宽度变化，路由/Store 同步只留在控制器
 - 能力侧栏归 `features/capability/sidebar/`；导航项由定义表投影，摘要刷新合并和窗口重验证只由专用资源 Hook 管理，业务行不得伪装成共享 UI
 - 能力、设置与联系人等管理页面共用 `shared/ui/layout/workspace-content-layout.ts` 定义的铺满内容面，并由单一 `--workspace-content-gutter` 在 20–32px 间随屏幕平滑调整；正文、共享 Surface Header、Agent 内联详情和横向滚动区必须保持同一左右基线。页面用 `workspace-content-header.tsx` 统一标题、单句说明与动作；能力目录由 `features/capability/shared/capability-page-layout.tsx` 组合筛选、分区节奏、三列间距、可见条目边框与无品牌资源时的方形身份图标，工作循环条目按稳定 `slug` 复用公共数学曲线头像。普通目录在桌面统一使用三列，窄窗逐级收拢；定时任务正式看板保持四列，宽度不足时横向滚动而不折成两列。不得再用 Surface Header 重复“图标 + 能力名”，作用于搜索结果的来源模式进入筛选工具区，窄屏复用应用返回栏而不重复身份标题。目录行只展示标题、一行说明和一行元数据，完整步骤与技术字段进入详情或折叠区；详情页继续使用适合长文阅读的窄版心
+- 工作循环的触发协议与统计值只由 `features/capability/loops/loop-presentation.ts` 投影为当前语言；目录和详情不得直接展示后端枚举或拼接固定英文单位
 - 技能市场由 `features/capability/skills/controller/` 按目录、外部搜索、来源和操作拆分状态；Nexus 内置 Skill 的双语说明统一由 `lib/skill-description.ts` 做只读展示投影，并由目录、详情、Agent、Room 与 Composer 复用；能力页已安装、更新与社区结果共用 `features/capability/skills/shared/skill-directory-card.tsx`，但已安装目录卡只保留名称、说明和真实动作，来源、作用域、标签与启用位置进入详情；所有 Skill 资源头像只通过 `shared/ui/display/seeded-avatar.tsx` 按稳定名称生成跨目录、详情和预览一致、圆心固定的静态数学曲线身份；子视图只消费窄 Props，不得依赖完整控制器
 - 频道连接与 IM 配对分别持有命令互斥入口；`channels/connection/login/` 独占扫码会话和串行轮询但复用连接命令锁，`channels/connection/view/` 按字段区、Footer 和展示投影拆分并由消费者定义窄接口；写操作后必须刷新当前服务端快照，视图不得复制协议字段别名
 - 定时任务弹窗的表单和调度各自维护单一草稿对象，基础字段的目标/会话文案由纯模型投影，高级设置按字段职责组合；资源层按执行模式加载依赖并拒绝过期响应，Room 任务只允许绑定明确执行成员

@@ -25,6 +25,7 @@ import type { LoopCatalogItem } from "@/types/capability/loop";
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 
 import { LoopDetailView } from "./loop-detail-view";
+import { getLoopTriggerLabel } from "./loop-presentation";
 
 const ALL_CATEGORIES = "__all__";
 
@@ -187,7 +188,9 @@ export function LoopsDirectory() {
                     <div className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-2xs leading-4 text-(--text-soft)">
                       <span className="truncate">{loop.category}</span>
                       <span aria-hidden="true">·</span>
-                      <span className="shrink-0">{loop.trigger_type}</span>
+                      <span className="shrink-0">
+                        {getLoopTriggerLabel(loop.trigger_type, t)}
+                      </span>
                       <span aria-hidden="true">·</span>
                       <span className="shrink-0">
                         {t("capability.loops_step_count", {

@@ -12,6 +12,8 @@ import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-hea
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
+import { buildLoopMetadataPresentation } from "./loop-presentation";
+
 interface LoopDetailViewProps {
   slug: string;
   onBack: () => void;
@@ -31,6 +33,9 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
   );
   const [copied, setCopied] = useState(false);
   const { error, loading, loop } = state;
+  const metadata = loop
+    ? buildLoopMetadataPresentation(loop, locale, t)
+    : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -82,13 +87,13 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
               {loop.category}
             </span>
             <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
-              {loop.trigger_type}
+              {metadata?.triggerLabel}
             </span>
             <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
-              {loop.views.toLocaleString()} views
+              {metadata?.viewsLabel}
             </span>
             <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
-              {loop.installs.toLocaleString()} installs
+              {metadata?.installsLabel}
             </span>
           </div>
           <WorkspaceContentHeader

@@ -125,3 +125,35 @@ test("能力目录移除重复 Surface 身份并把页面动作收进正文标�
   assert.match(directorySources[4], /actions=\{\(/);
   assert.match(directorySources[5], /actions=\{\(/);
 });
+
+test("工作循环元数据不暴露协议枚举或固定英文计数", async () => {
+  const { buildLoopMetadataPresentation, getLoopTriggerLabel } =
+    await server.ssrLoadModule(
+      "/src/features/capability/loops/loop-presentation.ts",
+    );
+  const messages = {
+    "capability.loops_installs": "安装 {count} 次",
+    "capability.loops_trigger_event": "事件触发",
+    "capability.loops_trigger_interval": "定时触发",
+    "capability.loops_trigger_manual": "手动",
+    "capability.loops_views": "浏览 {count} 次",
+  };
+  const translate = (key, params) =>
+    (messages[key] ?? key).replace("{count}", String(params?.count ?? ""));
+
+  assert.deepEqual(
+    buildLoopMetadataPresentation(
+      { installs: 1811, trigger_type: "manual", views: 1502 },
+      "zh",
+      translate,
+    ),
+    {
+      installsLabel: "安装 1,811 次",
+      triggerLabel: "手动",
+      viewsLabel: "浏览 1,502 次",
+    },
+  );
+  assert.equal(getLoopTriggerLabel("event", translate), "事件触发");
+  assert.equal(getLoopTriggerLabel("interval", translate), "定时触发");
+  assert.equal(getLoopTriggerLabel("custom", translate), "custom");
+});

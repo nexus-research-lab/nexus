@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Presented contact-card permission modes with localized product labels instead of runtime protocol values.
 - Localized contact-card metadata labels consistently across Chinese and English interfaces.
 - Removed redundant Skill detail badges when category and source resolve to the same label.
+- Localized work-loop trigger types and usage counters instead of exposing protocol values and fixed English units.
 
 ### Changed
 
