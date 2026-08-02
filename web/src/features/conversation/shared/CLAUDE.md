@@ -22,3 +22,4 @@
 - Session 导航只能绝对定位在 `ConversationPanelViewportArea` 内，不得用 Composer 猜测高度设置固定 bottom；Goal、附件或多行输入改变底部区域时，导航可用高度必须自动跟随真实 viewport。
 - 主消息 viewport 保留 `tabIndex={-1}` 供程序化导航，但显式移除浏览器原生轮廓；Safari 不得在滚动区底边绘制跨栏蓝线。
 - 回到底部与 Room 未读定位入口的可见文案和可访问名称必须跟随当前界面语言，不得在共享按钮中保存固定中文。
+- 更早消息加载状态属于 DM 与 Room 共用 viewport，必须从会话目录按当前界面语言投影，不得在共享布局中保存固定中文。

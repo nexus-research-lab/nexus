@@ -283,14 +283,14 @@ test("消息尾部只为真实可见的浮动 Dock 保留避让", async () => {
     onWheel: () => {},
     scrollRef: { current: null },
   };
-  const hidden = renderToStaticMarkup(
+  const hidden = await renderWithI18n(
     React.createElement(
       ConversationPanelViewport,
       { floatingDockOccupied: false, isMobileLayout: false, viewport },
       React.createElement("div", null, "message"),
     ),
   );
-  const occupied = renderToStaticMarkup(
+  const occupied = await renderWithI18n(
     React.createElement(
       ConversationPanelViewport,
       { floatingDockOccupied: true, isMobileLayout: false, viewport },
@@ -301,6 +301,28 @@ test("消息尾部只为真实可见的浮动 Dock 保留避让", async () => {
   assert.doesNotMatch(hidden, /data-conversation-dock-clearance/);
   assert.match(occupied, /data-conversation-dock-clearance/);
   assert.match(occupied, /\bh-14\b/);
+});
+
+test("加载更早消息的状态跟随界面语言", async () => {
+  const { ConversationPanelViewport } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/conversation-panel-layout.tsx",
+  );
+  const viewport = {
+    error: null,
+    isHistoryLoading: true,
+    scrollRef: { current: null },
+  };
+  const element = React.createElement(
+    ConversationPanelViewport,
+    { floatingDockOccupied: false, isMobileLayout: false, viewport },
+    React.createElement("div", null, "message"),
+  );
+  const chinese = await renderWithI18n(element);
+  const english = await renderWithI18n(element, "en");
+
+  assert.match(chinese, /正在加载更早消息\.\.\./);
+  assert.match(english, /Loading earlier messages\.\.\./);
+  assert.doesNotMatch(english, /正在加载/);
 });
 
 test("标题栏与 Composer 自身边缘羽化且不改变滚动几何", async () => {

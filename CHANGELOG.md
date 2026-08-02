@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localized Room history activity times and row actions across Chinese and English interfaces.
 - Localized conversation return-to-latest and unread-jump controls across Chinese and English interfaces.
 - Localized Room auxiliary-panel navigation, upload, and resize accessibility labels.
+- Localized the earlier-message loading state across Chinese and English conversations.
 
 ### Changed
 

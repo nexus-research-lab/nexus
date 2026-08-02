@@ -52,7 +52,7 @@ test("conversation viewport suppresses the browser scroll-region outline", async
   const { ConversationPanelViewport } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
   );
-  const html = renderToStaticMarkup(React.createElement(
+  const html = await renderWithI18n(React.createElement(
     ConversationPanelViewport,
     {
       isMobileLayout: false,

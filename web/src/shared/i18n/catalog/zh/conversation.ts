@@ -106,6 +106,7 @@ export const zhConversationMessages = {
   "room.creating": "创建中...",
   "room.new_conversation": "新会话",
   "room.no_conversations": "暂无对话",
+  "room.loading_earlier_messages": "正在加载更早消息...",
   "room.scroll_to_latest": "回到底部",
   "room.unread_count_one": "{count} 条新消息",
   "room.unread_count_other": "{count} 条新消息",

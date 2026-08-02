@@ -109,6 +109,7 @@ export const enConversationMessages = {
   "room.creating": "Creating...",
   "room.new_conversation": "New session",
   "room.no_conversations": "No conversations yet",
+  "room.loading_earlier_messages": "Loading earlier messages...",
   "room.scroll_to_latest": "Back to latest",
   "room.unread_count_one": "{count} new message",
   "room.unread_count_other": "{count} new messages",
