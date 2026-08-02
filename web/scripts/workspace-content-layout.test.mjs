@@ -465,3 +465,11 @@ test("Agent 工具与联络页使用紧凑中性工作面", async () => {
     );
   });
 });
+
+test("共享弹窗关闭按钮跟随界面语言", async () => {
+  const dialog = await readSource("src/shared/ui/dialog/dialog.tsx");
+
+  assert.match(dialog, /useI18n/);
+  assert.match(dialog, /aria-label=\{ariaLabel \?\? t\("common\.close"\)\}/);
+  assert.doesNotMatch(dialog, /ariaLabel = "关闭"/);
+});

@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localized Agent contact records, message states, reply routes, and activity times across Chinese and English interfaces.
 - Localized Skill catalog categories, update states, and import or removal feedback while preserving user-defined category names.
 - Localized Skill detail navigation, metadata, availability controls, and action states without translating Skill-authored content.
+- Localized the default close-button accessibility label for shared dialogs.
 
 ### Changed
 

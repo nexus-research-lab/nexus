@@ -1,6 +1,7 @@
 # Shared Dialog
 
 - `dialog.tsx` 只提供 Portal、Backdrop、Shell、Header、Body 与 Footer 结构原语。
+- 关闭按钮默认可访问名称使用当前语言的 `common.close`；业务只有在语义更具体时才覆盖。
 - `dialog-behavior.ts` 只装配 React 生命周期，不保存键盘规则或模态全局状态。
 - `dialog-modal-runtime.ts` 独占模态栈与页面滚动锁；叠层关闭顺序由栈顶令牌决定。
 - `dialog-focus.ts` 独占可聚焦元素发现、可见性过滤与无滚动聚焦。
