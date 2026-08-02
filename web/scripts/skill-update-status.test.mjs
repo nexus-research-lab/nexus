@@ -173,3 +173,14 @@ test("Git Skill 导入字段与可见标签建立可访问关联", async () => {
     assert.match(source, new RegExp(`id="${id}"`));
   });
 });
+
+test("单次定时任务使用无歧义的年在前日期", async () => {
+  const { formatDatetimeDisplay } = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/pickers/picker-formatters.ts",
+  );
+
+  assert.equal(
+    formatDatetimeDisplay("2026-08-02", "20", "29", "09"),
+    "2026/08/02 下午 08:29:09",
+  );
+});

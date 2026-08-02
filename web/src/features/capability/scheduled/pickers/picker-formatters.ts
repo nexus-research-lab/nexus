@@ -74,7 +74,7 @@ export function formatTimeDisplay(hour24: string, minute: string): string {
 export function formatDatetimeDisplay(dateValue: string, hour24: string, minute: string, second: string = "00"): string {
   const [year, month, day] = dateValue.split("-");
   const parts = toMeridiemParts(hour24, minute, second);
-  return `${day}/${month}/${year} ${parts.meridiem === "am" ? "上午" : "下午"} ${parts.hour12}:${parts.minute}:${parts.second}`;
+  return `${year}/${month}/${day} ${parts.meridiem === "am" ? "上午" : "下午"} ${parts.hour12}:${parts.minute}:${parts.second}`;
 }
 
 export function splitDatetimeLocalInput(value: string): { date: string; hour: string; minute: string; second: string } {
