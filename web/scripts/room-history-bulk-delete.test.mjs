@@ -207,15 +207,13 @@ test("当前会话在仍有其他会话时常驻提供单项删除动作", async
   assert.equal(presentation.actionsPersistent, true);
   assert.deepEqual(presentation.actions, ["rename", "delete"]);
 
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  yesterday.setHours(12, 0, 0, 0);
+  const oneDayAgo = Date.now() - 25 * 60 * 60 * 1000;
   const englishPresentation = buildRoomHistoryItemPresentation(
     {
       ...entry,
       conversation: {
         ...entry.conversation,
-        last_activity_at: yesterday.getTime(),
+        last_activity_at: oneDayAgo,
       },
     },
     {
