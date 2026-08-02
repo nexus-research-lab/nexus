@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localized the workspace empty-preview title and guidance across Chinese and English interfaces.
 - Localized workspace file reveal, focus, edit, save, and sync controls across desktop and web interfaces.
 - Localized Agent contact records, message states, reply routes, and activity times across Chinese and English interfaces.
+- Localized Skill catalog categories, update states, and import or removal feedback while preserving user-defined category names.
 
 ### Changed
 

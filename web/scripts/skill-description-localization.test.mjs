@@ -30,6 +30,7 @@ const BUNDLED_SKILLS = [
 
 function createSkill(name, sourceType, sourceKind) {
   return {
+    category_key: "test",
     category_name: "测试",
     description: `raw:${name}`,
     enabled_for_agent: false,
@@ -65,6 +66,34 @@ test("Nexus 全部内置 Skill 都按界面语言投影说明", async () => {
     assert.notEqual(zhDescription, enDescription, `${name} 双语说明未区分`);
     assert.deepEqual(skill, before, `${name} 的真实元数据被修改`);
   }
+});
+
+test("Nexus 分类按界面语言投影且不覆盖用户分类", async () => {
+  const [{ getSkillCategoryLabel }, { MESSAGES }] = await Promise.all([
+    server.ssrLoadModule("/src/lib/skill-category.ts"),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+  const known = {
+    category_key: "content-docs",
+    category_name: "内容与文档",
+  };
+  const custom = {
+    category_key: "customer-playbooks",
+    category_name: "Customer Playbooks",
+  };
+
+  assert.equal(
+    getSkillCategoryLabel(known, (key) => MESSAGES.en[key]),
+    "Content & docs",
+  );
+  assert.equal(
+    getSkillCategoryLabel(known, (key) => MESSAGES.zh[key]),
+    "内容与文档",
+  );
+  assert.equal(
+    getSkillCategoryLabel(custom, (key) => MESSAGES.en[key]),
+    "Customer Playbooks",
+  );
 });
 
 test("Agent 搜索使用当前语言的内置 Skill 说明", async () => {
