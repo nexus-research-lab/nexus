@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserved chronological DM history when newer durable round indexes are merged with older runtime transcripts after a responsive remount.
+
 ### Changed
 
 - Simplified the macOS and Windows update-ready prompts and made download progress windows substantially more compact.

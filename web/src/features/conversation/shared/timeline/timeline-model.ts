@@ -222,6 +222,116 @@ function appendUniqueRoundId(
   roundIds.push(normalized);
 }
 
+function normalizeRoundIds(roundIds: Iterable<string>): string[] {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const roundId of roundIds) {
+    appendUniqueRoundId(normalized, seen, roundId);
+  }
+  return normalized;
+}
+
+/**
+ * 用共同轮次作锚点，把只存在于已加载 transcript 的旧轮次放回正确位置。
+ *
+ * DM 的 durable overlay 可能晚于 transcript 启用，因此服务端轻量索引可以只含
+ * 新轮次；已加载消息仍是其窗口内的时间顺序真相，不能统一追加到索引尾部。
+ */
+function mergeIndexedAndLoadedRoundIds(
+  indexedRoundIds: string[],
+  loadedRoundIds: string[],
+): string[] {
+  const indexed = normalizeRoundIds(indexedRoundIds);
+  const loaded = normalizeRoundIds(loadedRoundIds);
+  if (indexed.length === 0) {
+    return loaded;
+  }
+  if (loaded.length === 0) {
+    return indexed;
+  }
+
+  const indexedPositionByRoundId = new Map<string, number>();
+  indexed.forEach((roundId, index) => {
+    indexedPositionByRoundId.set(roundId, index);
+  });
+
+  const nextIndexedPositions = new Array<number | null>(loaded.length).fill(null);
+  let nextIndexedPosition: number | null = null;
+  for (let index = loaded.length - 1; index >= 0; index -= 1) {
+    const position = indexedPositionByRoundId.get(loaded[index]);
+    if (position !== undefined) {
+      nextIndexedPosition = position;
+    }
+    nextIndexedPositions[index] = nextIndexedPosition;
+  }
+
+  const insertionBuckets = Array.from(
+    { length: indexed.length + 1 },
+    () => [] as string[],
+  );
+  let previousIndexedPosition: number | null = null;
+  loaded.forEach((roundId, index) => {
+    const indexedPosition = indexedPositionByRoundId.get(roundId);
+    if (indexedPosition !== undefined) {
+      previousIndexedPosition = indexedPosition;
+      return;
+    }
+
+    const nextPosition = nextIndexedPositions[index];
+    const canInsertBeforeNext = nextPosition !== null
+      && (previousIndexedPosition === null || nextPosition > previousIndexedPosition);
+    const insertionPosition = canInsertBeforeNext
+      ? nextPosition
+      : previousIndexedPosition !== null
+        ? previousIndexedPosition + 1
+        : indexed.length;
+    insertionBuckets[insertionPosition].push(roundId);
+  });
+
+  const merged: string[] = [];
+  for (let index = 0; index <= indexed.length; index += 1) {
+    merged.push(...insertionBuckets[index]);
+    if (index < indexed.length) {
+      merged.push(indexed[index]);
+    }
+  }
+  return merged;
+}
+
+function createLoadedRoundIndexItem(roundId: string): SessionRoundIndexItem {
+  return {
+    agentIds: [],
+    durationMs: null,
+    hasUserMessage: false,
+    isLive: false,
+    roundId,
+    status: null,
+    timestamp: null,
+    title: "",
+  };
+}
+
+/** 让 feed 与 navigator 共用包含旧 transcript 轮次的完整有序投影。 */
+export function mergeLoadedRoundIndexItems(
+  roundIndexItems: SessionRoundIndexItem[],
+  loadedRoundIds: string[],
+): SessionRoundIndexItem[] {
+  const itemByRoundId = new Map<string, SessionRoundIndexItem>();
+  for (const item of roundIndexItems) {
+    const roundId = item.roundId.trim();
+    if (roundId && !itemByRoundId.has(roundId)) {
+      itemByRoundId.set(roundId, item);
+    }
+  }
+  const orderedRoundIds = mergeIndexedAndLoadedRoundIds(
+    Array.from(itemByRoundId.keys()),
+    loadedRoundIds,
+  );
+  return orderedRoundIds.map(
+    (roundId) => itemByRoundId.get(roundId) ?? createLoadedRoundIndexItem(roundId),
+  );
+}
+
 function getIndexedLoadedRoundIndexes(
   indexedRoundIds: string[],
   loadedRoundIds: string[],
@@ -273,9 +383,10 @@ export function buildIndexedTimelineRoundIds(
     return loadedRoundIds;
   }
 
-  const indexedRoundIds = roundIndexItems
-    .map((item) => item.roundId.trim())
-    .filter(Boolean);
+  const indexedRoundIds = mergeIndexedAndLoadedRoundIds(
+    roundIndexItems.map((item) => item.roundId),
+    loadedRoundIds,
+  );
   const indexedRoundIdSet = new Set(indexedRoundIds);
   const loadedIndexes = getIndexedLoadedRoundIndexes(
     indexedRoundIds,

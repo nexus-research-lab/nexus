@@ -1868,6 +1868,64 @@ test("resolved history rounds remain only when visible content was projected", a
   );
 });
 
+test("partial DM round indexes preserve loaded transcript chronology after remount", async () => {
+  const {
+    buildIndexedTimelineRoundIds,
+    groupMessagesByRound,
+    mergeLoadedRoundIndexItems,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/timeline-model.ts",
+  );
+  const { buildSessionNavigationItems } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/session-navigator/session-navigator-model.ts",
+  );
+  const loadedRoundIds = [
+    "round-legacy-1",
+    "round-legacy-2",
+    "round-live-1",
+    "round-live-2",
+  ];
+  const partialIndex = [
+    roundIndexItem("round-live-1", { timestamp: 3 }),
+    roundIndexItem("round-live-2", { timestamp: 4 }),
+  ];
+
+  assert.deepEqual(
+    buildIndexedTimelineRoundIds(partialIndex, loadedRoundIds),
+    loadedRoundIds,
+    "legacy transcript rounds must stay before their shared durable index anchors",
+  );
+
+  const mergedIndex = mergeLoadedRoundIndexItems(partialIndex, loadedRoundIds);
+  assert.deepEqual(
+    mergedIndex.map((item) => item.roundId),
+    loadedRoundIds,
+    "feed and navigator must consume the same merged order",
+  );
+
+  const messages = loadedRoundIds.map((roundId, index) => userMessage({
+    content: `第 ${index + 1} 轮`,
+    messageId: `message-${index + 1}`,
+    roundId,
+    timestamp: index + 1,
+  }));
+  const navigationItems = buildSessionNavigationItems({
+    feed_round_ids: loadedRoundIds,
+    live_round_ids: [],
+    loaded_round_ids: loadedRoundIds,
+    message_groups: groupMessagesByRound(messages),
+    pending_permission_groups: new Map(),
+    pending_slot_groups: new Map(),
+    room_agent_execution_state_groups: new Map(),
+    round_index_items: mergedIndex,
+  });
+  assert.deepEqual(
+    navigationItems.map((item) => item.roundId),
+    loadedRoundIds,
+    "responsive remounts must not move freshly generated rounds ahead of old history",
+  );
+});
+
 test("deferred input ACK keeps queued user text out of the timeline", async () => {
   const { replaceOptimisticUserMessage } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",

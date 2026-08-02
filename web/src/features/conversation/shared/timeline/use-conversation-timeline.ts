@@ -23,6 +23,7 @@ import {
   groupPendingPermissionsByRound,
   groupPendingSlotsByRound,
   groupRoomAgentExecutionStatesByRound,
+  mergeLoadedRoundIndexItems,
 } from "./timeline-model";
 import type { ConversationTimeline } from "./timeline-model";
 
@@ -106,9 +107,13 @@ export function useConversationTimeline({
     ),
     [loadedRoundIds, resolvedHistoryRoundIds, unsupersededRoundIndexItems],
   );
-  const feedRoundIds = useMemo(
-    () => buildIndexedTimelineRoundIds(visibleRoundIndexItems, loadedRoundIds),
+  const mergedRoundIndexItems = useMemo(
+    () => mergeLoadedRoundIndexItems(visibleRoundIndexItems, loadedRoundIds),
     [loadedRoundIds, visibleRoundIndexItems],
+  );
+  const feedRoundIds = useMemo(
+    () => buildIndexedTimelineRoundIds(mergedRoundIndexItems, loadedRoundIds),
+    [loadedRoundIds, mergedRoundIndexItems],
   );
 
   return useMemo(
@@ -119,7 +124,7 @@ export function useConversationTimeline({
       room_agent_execution_state_groups: roomAgentExecutionStateGroups,
       loaded_round_ids: loadedRoundIds,
       feed_round_ids: feedRoundIds,
-      round_index_items: visibleRoundIndexItems,
+      round_index_items: mergedRoundIndexItems,
       live_round_ids: liveRoundIds,
     }),
     [
@@ -127,10 +132,10 @@ export function useConversationTimeline({
       liveRoundIds,
       loadedRoundIds,
       messageGroups,
+      mergedRoundIndexItems,
       pendingPermissionGroups,
       pendingSlotGroups,
       roomAgentExecutionStateGroups,
-      visibleRoundIndexItems,
     ],
   );
 }
