@@ -3,6 +3,8 @@
  * OUTPUT: 用户可读的工具标题、完整输入摘要与折叠态紧凑摘要。
  * POS: 工具执行块、过程摘要和 Composer 权限面的文本投影真相源。
  */
+import type { TranslationKey } from "@/shared/i18n/messages";
+
 const TOOL_TITLE_MAP: Record<string, string> = {
   Bash: "执行命令",
   Read: "读取内容",
@@ -20,6 +22,23 @@ const TOOL_TITLE_MAP: Record<string, string> = {
   Task: "委派任务",
 };
 
+const TOOL_TITLE_KEY_MAP: Readonly<Record<string, TranslationKey>> = {
+  AskUserQuestion: "message.tool_ask_user_question",
+  Bash: "message.tool_bash",
+  Edit: "message.tool_edit",
+  Glob: "message.tool_glob",
+  Grep: "message.tool_grep",
+  LS: "message.tool_ls",
+  MultiEdit: "message.tool_multi_edit",
+  Read: "message.tool_read",
+  Skill: "message.tool_skill",
+  Task: "message.tool_task",
+  TodoWrite: "message.tool_todo_write",
+  WebFetch: "message.tool_web_fetch",
+  WebSearch: "message.tool_web_search",
+  Write: "message.tool_write",
+};
+
 const INPUT_SUMMARY_KEYS = [
   "file_path",
   "path",
@@ -35,6 +54,10 @@ const COMMAND_SUMMARY_LIMIT = 50;
 
 export function getToolTitle(toolName: string): string {
   return TOOL_TITLE_MAP[toolName] ?? toolName;
+}
+
+export function getToolTitleKey(toolName: string): TranslationKey | null {
+  return TOOL_TITLE_KEY_MAP[toolName] ?? null;
 }
 
 export function getToolInputSummary(input: unknown): string | null {

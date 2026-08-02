@@ -2499,7 +2499,11 @@ test("recoverable malformed tool results stay out of process error counts", asyn
     ],
   });
 
-  assert.equal(summary, "查看过程");
+  assert.deepEqual(summary, {
+    kind: "details",
+    latestDetail: null,
+    metrics: [],
+  });
 });
 
 test("recoverable malformed tool use does not keep the activity indicator busy", async () => {
@@ -2579,7 +2583,7 @@ test("DM live keeps one stable open segment across consecutive tool patches", as
   );
   assert.equal(completed.id, "tool-run:tool-run-a");
   assert.equal(completed.phase, "complete");
-  assert.equal(completed.summary, "2 次工具调用 · 已完成");
+  assert.equal(completed.toolUseIds.length, 2);
 
   const [unresolvedDuringResponse] = project(
     [toolA],
@@ -2680,10 +2684,8 @@ test("DM tool segments split on narrative and preserve interactions and errors",
     },
     responseResumed: false,
   });
-  assert.equal(
-    activeFailedSegment.summary,
-    "1 次工具调用 · 正在执行 · 1 个异常",
-  );
+  assert.equal(activeFailedSegment.phase, "active");
+  assert.equal(activeFailedSegment.errorCount, 1);
   const segments = projectDmToolRunSegments({
     interactiveToolUseIds: new Set([permissionTool.id]),
     live: true,
@@ -2722,7 +2724,6 @@ test("DM tool segments split on narrative and preserve interactions and errors",
   );
   const failedSegment = segments[0];
   assert.equal(failedSegment.errorCount, 1);
-  assert.equal(failedSegment.summary, "1 次工具调用 · 已完成 · 1 个异常");
   assert.deepEqual(
     failedSegment.projection.content.map(({ type }) => type),
     [

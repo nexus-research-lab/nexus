@@ -28,11 +28,14 @@ export function AssistantMessageStats({
   stats: AssistantFooterStats | null;
   streaming: boolean;
 }) {
+  const { t } = useI18n();
   const statsItems = [
     stats?.duration,
     stats?.tokens,
     stats?.cost,
-    stats?.cacheHit,
+    stats?.cacheReadTokens
+      ? t("message.cache_read", { count: stats.cacheReadTokens })
+      : null,
   ].filter((item): item is string => Boolean(item));
   const modelName = model?.trim() || null;
 

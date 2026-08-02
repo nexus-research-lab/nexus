@@ -19,7 +19,6 @@ export interface DmToolRunSegment {
   kind: "tool_run";
   phase: DmToolRunPhase;
   projection: ContentProjection;
-  summary: string;
   toolUseIds: string[];
   unresolvedToolUseCount: number;
 }
@@ -149,7 +148,6 @@ function buildToolRunSegment({
     kind: "tool_run",
     phase,
     projection: selectProjectionIndexes(projection, run.indexes),
-    summary: buildDmToolRunSummary(toolUseIds.length, errorCount, phase),
     toolUseIds,
     unresolvedToolUseCount,
   };
@@ -300,16 +298,6 @@ function countUnresolvedToolUses(
   return toolUseIds.filter(
     (toolUseId) => !resolvedToolUseIds.has(toolUseId),
   ).length;
-}
-
-export function buildDmToolRunSummary(
-  toolUseCount: number,
-  errorCount: number,
-  phase: DmToolRunPhase,
-): string {
-  const status = phase === "active" ? "正在执行" : "已完成";
-  const errorSummary = errorCount > 0 ? ` · ${errorCount} 个异常` : "";
-  return `${toolUseCount} 次工具调用 · ${status}${errorSummary}`;
 }
 
 function contentSegmentId(block: ContentBlock, index: number): string {

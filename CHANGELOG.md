@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Used platform-appropriate workspace path examples in desktop settings.
 - Localized Launcher input and recent-chat accessibility labels across Chinese and English interfaces.
 - Localized message actions, activity states, attachments, and generated-file labels across Chinese and English interfaces.
+- Localized conversation process summaries, tool-run states, and cache statistics across Chinese and English interfaces.
 
 ### Changed
 

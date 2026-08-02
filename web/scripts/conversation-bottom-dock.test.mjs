@@ -1450,12 +1450,20 @@ test("Composer growth is capped and collapsed file tools show only the leaf name
   assert.equal(getToolInputSummary(toolInput), absolutePath);
   assert.equal(model.collapsedDetailText, "permission_test.txt");
   assert.equal(model.expandedDetailText, absolutePath);
-  assert.equal(
+  assert.deepEqual(
     buildProcessSummary({
       pendingPermissionCount: 0,
       processContent: [toolUse],
     }),
-    "1 次动作 · 最近：写入内容：permission_test.txt",
+    {
+      kind: "details",
+      latestDetail: {
+        detail: "permission_test.txt",
+        kind: "tool",
+        toolName: "Write",
+      },
+      metrics: [{ count: 1, kind: "action" }],
+    },
   );
 });
 
