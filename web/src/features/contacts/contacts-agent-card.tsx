@@ -2,6 +2,7 @@
 
 import { MessageSquareText, Users } from "lucide-react";
 
+import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import type { Agent } from "@/types/agent/agent";
@@ -40,7 +41,9 @@ export function ContactsAgentCard({
 }: ContactsAgentCardProps) {
   const { t } = useI18n();
 
-  const permissionMode = agent.options.permission_mode || "default";
+  const permissionMode = AGENT_PERMISSION_MODES.find(
+    (option) => option.value === agent.options.permission_mode,
+  ) ?? AGENT_PERMISSION_MODES[0];
   const provider = agent.options.provider?.trim()
     ? formatProviderLabel(agent.options.provider)
     : t("agent_options.identity.follow_default_provider");
@@ -58,7 +61,7 @@ export function ContactsAgentCard({
         onCreateTeam={onCreateTeam}
         onOpenProfile={onOpenProfile}
         onOpenRoom={onOpenRoom}
-        permissionMode={permissionMode}
+        permissionMode={t(permissionMode.labelKey)}
         provider={provider}
         skillsCount={skillsCount}
       />
@@ -71,7 +74,7 @@ export function ContactsAgentCard({
         onCreateTeam={onCreateTeam}
         onOpenProfile={onOpenProfile}
         onOpenRoom={onOpenRoom}
-        permissionMode={permissionMode}
+        permissionMode={t(permissionMode.labelKey)}
         provider={provider}
         skillsCount={skillsCount}
       />

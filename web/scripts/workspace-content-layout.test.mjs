@@ -210,6 +210,17 @@ test("联系人卡片明确展示默认模型继承状态", async () => {
   );
 });
 
+test("联系人卡片把权限协议值投影为本地化文案", async () => {
+  const card = await readSource("src/features/contacts/contacts-agent-card.tsx");
+
+  assert.match(card, /AGENT_PERMISSION_MODES\.find/);
+  assert.match(card, /permissionMode=\{t\(permissionMode\.labelKey\)\}/);
+  assert.doesNotMatch(
+    card,
+    /const permissionMode = agent\.options\.permission_mode \|\| "default"/,
+  );
+});
+
 test("设置和能力二级页不再恢复重复标题或私有版心", async () => {
   const [settingsPanel, operations, subscription, projects, loopDetail] = await Promise.all([
     "src/features/settings/settings-panel.tsx",
