@@ -8,6 +8,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import {
   getIconAvatarSrc,
@@ -29,13 +30,14 @@ interface RoomAgentSwitcherProps {
 }
 
 export function RoomAgentSwitcher({
-  ariaLabel = "切换 Agent",
+  ariaLabel,
   members,
   selectedId,
   onSelect,
   className,
   variant = "panel",
 }: RoomAgentSwitcherProps) {
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeMenu = useCallback(() => setIsOpen(false), []);
@@ -47,6 +49,7 @@ export function RoomAgentSwitcher({
   if (!selectedMember) {
     return null;
   }
+  const accessibleLabel = ariaLabel ?? t("room.switch_agent");
 
   const menuItems: UiActionMenuItem[] = members.map((member) => {
     const isActive = member.agent_id === selectedId;
@@ -77,7 +80,10 @@ export function RoomAgentSwitcher({
         ref={triggerRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
-        aria-label={`${ariaLabel}：${selectedMember.name}`}
+        aria-label={t("room.switch_agent_current", {
+          label: accessibleLabel,
+          name: selectedMember.name,
+        })}
         className={cn(
           "flex h-7 w-full min-w-0 items-center gap-1 rounded-[7px] px-1.5 text-compact font-semibold leading-none text-(--text-strong) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
           isOpen && "bg-(--surface-interactive-active-background)",
@@ -101,7 +107,7 @@ export function RoomAgentSwitcher({
       </button>
       <UiActionMenu
         anchorRef={triggerRef}
-        ariaLabel={ariaLabel}
+        ariaLabel={accessibleLabel}
         isOpen={isOpen}
         items={menuItems}
         minWidth={220}

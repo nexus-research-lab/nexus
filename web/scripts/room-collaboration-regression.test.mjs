@@ -22,6 +22,36 @@ test.after(async () => {
   await server.close();
 });
 
+async function loadI18nValue(locale = "zh") {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  return {
+    locale,
+    setLocale: () => {},
+    t: (key, params = {}) => Object.entries(params).reduce(
+      (message, [name, value]) => message.replaceAll(
+        `{${name}}`,
+        String(value),
+      ),
+      MESSAGES[locale][key] ?? key,
+    ),
+  };
+}
+
+async function renderWithI18n(element, locale = "zh") {
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  return renderToStaticMarkup(
+    React.createElement(
+      I18N_CONTEXT.Provider,
+      { value: await loadI18nValue(locale) },
+      element,
+    ),
+  );
+}
+
 test("Goal status shows one exact token total without budget progress", async () => {
   const {
     buildGoalStatusStripModel,
@@ -434,6 +464,52 @@ test("Room 辅助面板 header 共用高度、按钮和图标基线", async () =
   assert.match(threadSource, /<Icon className=\{WORKSPACE_PANEL_HEADER_ICON_CLASS\}/);
   assert.match(previewChromeSource, /WORKSPACE_PANEL_HEADER_BUTTON_CLASS/);
   assert.match(previewChromeSource, /WORKSPACE_PANEL_HEADER_ICON_CLASS/);
+});
+
+test("Room 辅助面板可访问名称跟随界面语言", async () => {
+  const [
+    auxiliarySource,
+    threadSource,
+    aboutSource,
+    workspaceSource,
+    fileBrowserSource,
+  ] = await Promise.all([
+    "src/features/conversation/room/surface/layout/room-surface-auxiliary-panel.tsx",
+    "src/features/conversation/room/surface/layout/room-thread-inline-panel.tsx",
+    "src/features/conversation/room/surface/room-agent-about-surface.tsx",
+    "src/features/conversation/room/workspace/room-workspace-view.tsx",
+    "src/features/conversation/room/workspace/view/workspace-file-browser.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+  const sources = [
+    auxiliarySource,
+    threadSource,
+    aboutSource,
+    workspaceSource,
+    fileBrowserSource,
+  ];
+
+  assert.match(auxiliarySource, /t\("room\.resize_auxiliary_panel"\)/);
+  assert.match(threadSource, /t\("room\.resize_thread_panel"\)/);
+  assert.match(aboutSource, /t\("room\.agent_panel_tabs"\)/);
+  assert.match(workspaceSource, /aria-label=\{t\("room\.workspace_action_upload"\)\}/);
+  assert.match(fileBrowserSource, /t\("room\.resize_workspace_file_list"\)/);
+  sources.forEach((source) => {
+    assert.doesNotMatch(
+      source,
+      /调整右侧面板宽度|调整 Thread 面板宽度|调整文件列表宽度|上传工作区文件|Agent 面板切换/,
+    );
+  });
+
+  const { RoomAgentSwitcher } = await server.ssrLoadModule(
+    "/src/features/conversation/room/surface/room-agent-switcher.tsx",
+  );
+  const html = await renderWithI18n(React.createElement(RoomAgentSwitcher, {
+    members: [{ agent_id: "amy", name: "Amy", avatar: null }],
+    onSelect: () => {},
+    selectedId: "amy",
+  }), "en");
+  assert.match(html, /aria-label="Switch Agent: Amy"/);
+  assert.doesNotMatch(html, /切换|：/);
 });
 
 test("Agent 详情导航共用纯文字栏目和低对比选中底色", async () => {

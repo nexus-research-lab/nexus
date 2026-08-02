@@ -160,7 +160,7 @@ function RoomAgentPanelTabs({
       ) : null}
       <UiTabs
         activeValue={activeTab}
-        ariaLabel="Agent 面板切换"
+        ariaLabel={t("room.agent_panel_tabs")}
         className="-mx-0.5 min-w-0 flex-1 px-0.5"
         density="compact"
         itemClassName="h-7 px-2.5"
