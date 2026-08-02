@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localized conversation process summaries, tool-run states, and cache statistics across Chinese and English interfaces.
 - Localized tool execution cards, permission details, and result actions across Chinese and English interfaces.
 - Localized conversation rulers, round previews, and view-switcher accessibility labels across Chinese and English interfaces.
+- Formatted chat-sidebar activity times in the active interface language.
 
 ### Changed
 

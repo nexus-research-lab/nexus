@@ -1256,6 +1256,30 @@ test("聊天行不读取持久化 Agent active 状态", async () => {
     Object.fromEntries(items.map((item) => [item.roomId, item.isWorking])),
     { "dm-room": false, "group-room": true, "idle-room": false },
   );
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(12, 0, 0, 0);
+  const localizedConversation = {
+    ...conversations[0],
+    last_activity: yesterday.toISOString(),
+  };
+  const englishItems = buildConversationItems({
+    agents,
+    conversations: [localizedConversation],
+    locale: "en",
+    rooms: [rooms[0]],
+    untitledRoomLabel: "Untitled room",
+  });
+  const chineseItems = buildConversationItems({
+    agents,
+    conversations: [localizedConversation],
+    locale: "zh",
+    rooms: [rooms[0]],
+    untitledRoomLabel: "未命名 Room",
+  });
+  assert.equal(englishItems[0].timeLabel, "Yesterday");
+  assert.equal(chineseItems[0].timeLabel, "昨天");
 });
 
 test("Room mention Markdown keeps the internal URL for the avatar chip", async () => {

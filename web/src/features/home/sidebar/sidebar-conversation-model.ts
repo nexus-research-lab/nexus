@@ -1,5 +1,6 @@
 import { isMainAgent } from "@/config/runtime-options";
 import { isExternalSessionChannel } from "@/lib/conversation/external-session";
+import type { Locale } from "@/shared/i18n/messages";
 import type {
   LauncherAgentSummary,
   LauncherConversationSummary,
@@ -35,6 +36,7 @@ interface ConversationProjectionContext {
   activeRoomIds: ReadonlySet<string>;
   agentById: Map<string, LauncherAgentSummary>;
   latestByRoomId: Map<string, LauncherConversationSummary>;
+  locale: Locale;
   untitledRoomLabel: string;
 }
 
@@ -45,12 +47,14 @@ export function normalizeSidebarQuery(value: string): string {
 export function buildConversationItems({
   agents,
   conversations,
+  locale = "zh",
   rooms,
   untitledRoomLabel,
   activeRoomIds = EMPTY_ACTIVE_ROOM_IDS,
 }: {
   agents: LauncherAgentSummary[];
   conversations: LauncherConversationSummary[];
+  locale?: Locale;
   rooms: LauncherRoomSummary[];
   untitledRoomLabel: string;
   activeRoomIds?: ReadonlySet<string>;
@@ -59,6 +63,7 @@ export function buildConversationItems({
     activeRoomIds,
     agentById: new Map(agents.map((agent) => [agent.id, agent])),
     latestByRoomId: buildLatestConversationByRoomId(conversations),
+    locale,
     untitledRoomLabel,
   };
   const items = rooms
@@ -72,7 +77,7 @@ export function buildConversationItems({
     if (left.lastActivityAt !== right.lastActivityAt) {
       return right.lastActivityAt - left.lastActivityAt;
     }
-    return left.title.localeCompare(right.title, "zh-CN");
+    return left.title.localeCompare(right.title, resolveIntlLocale(locale));
   });
 }
 
@@ -113,7 +118,7 @@ function projectConversationItem(
     isWorking: context.activeRoomIds.has(room.id),
     sessionKey: latest.session_key,
     summary: latest.last_reply_preview?.trim() ?? "",
-    timeLabel: formatSidebarTime(lastActivityAt),
+    timeLabel: formatSidebarTime(lastActivityAt, context.locale),
     title: resolveConversationTitle(room, dmAgent, context.untitledRoomLabel),
   };
 }
@@ -169,7 +174,7 @@ function toTimestamp(value?: string | null): number {
   return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
-function formatSidebarTime(timestamp: number): string {
+function formatSidebarTime(timestamp: number, locale: Locale): string {
   if (!timestamp) {
     return "";
   }
@@ -178,17 +183,38 @@ function formatSidebarTime(timestamp: number): string {
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const itemDayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   const dayDelta = Math.floor((todayStart - itemDayStart) / 86_400_000);
+  const intlLocale = resolveIntlLocale(locale);
 
   if (dayDelta <= 0) {
-    return date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString(intlLocale, {
+      hour: "2-digit",
+      hourCycle: "h23",
+      minute: "2-digit",
+    });
   }
   if (dayDelta === 1) {
-    return "昨天";
+    return capitalizeFirst(new Intl.RelativeTimeFormat(intlLocale, {
+      numeric: "auto",
+    }).format(-1, "day"), intlLocale);
   }
   if (dayDelta < 7) {
-    return `周${"日一二三四五六"[date.getDay()]}`;
+    return new Intl.DateTimeFormat(intlLocale, { weekday: "short" })
+      .format(date);
   }
-  return `${date.getMonth() + 1}/${date.getDate()}`;
+  return new Intl.DateTimeFormat(intlLocale, {
+    day: "numeric",
+    month: "numeric",
+  }).format(date);
+}
+
+function resolveIntlLocale(locale: Locale): string {
+  return locale === "zh" ? "zh-CN" : "en-US";
+}
+
+function capitalizeFirst(value: string, locale: string): string {
+  return value.length > 0
+    ? `${value[0].toLocaleUpperCase(locale)}${value.slice(1)}`
+    : value;
 }
 
 const EMPTY_ACTIVE_ROOM_IDS: ReadonlySet<string> = new Set();
