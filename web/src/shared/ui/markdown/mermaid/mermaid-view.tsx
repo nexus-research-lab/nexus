@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
 import { MermaidPreviewDialog } from "./mermaid-preview-dialog";
@@ -42,6 +43,7 @@ export function MermaidView({
   isStreaming = false,
   showHeader = true,
 }: MermaidViewProps) {
+  const { t } = useI18n();
   const renderIdPrefix = `mermaid-${useId().replace(/:/g, "")}`;
   const copyResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { error, is_rendering: isRendering, svg } = useMermaidSvg(
@@ -52,6 +54,9 @@ export function MermaidView({
   const [viewMode, setViewMode] = useState<MermaidViewMode>("preview");
   const [copied, setCopied] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const copySourceLabel = t(
+    copied ? "markdown.mermaid.copied_source" : "markdown.mermaid.copy_source",
+  );
 
   useEffect(() => () => {
     if (copyResetTimerRef.current) {
@@ -93,18 +98,19 @@ export function MermaidView({
           <div className="flex shrink-0 items-center gap-1">
             {viewMode === "source" ? (
               <button
+                aria-label={copySourceLabel}
                 className="inline-flex h-6 w-6 items-center justify-center rounded-[6px] text-(--text-muted) transition-colors hover:bg-(--interaction-hover-background) hover:text-(--text-strong)"
                 onClick={() => {
                   void copySource();
                 }}
-                title={copied ? "已复制源码" : "复制源码"}
+                title={copySourceLabel}
                 type="button"
               >
                 {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
             ) : null}
             <div
-              aria-label="Mermaid 显示模式"
+              aria-label={t("markdown.mermaid.display_mode")}
               className="inline-flex items-center radius-control-sm border border-(--divider-subtle-color) bg-(--surface-panel-subtle-background) p-0.5"
               role="tablist"
             >
@@ -113,14 +119,14 @@ export function MermaidView({
                 onClick={() => setViewMode("preview")}
               >
                 <Eye className="h-3.5 w-3.5" />
-                预览
+                {t("markdown.mermaid.preview")}
               </MermaidModeButton>
               <MermaidModeButton
                 active={viewMode === "source"}
                 onClick={() => setViewMode("source")}
               >
                 <Code2 className="h-3.5 w-3.5" />
-                源码
+                {t("markdown.mermaid.source")}
               </MermaidModeButton>
             </div>
           </div>

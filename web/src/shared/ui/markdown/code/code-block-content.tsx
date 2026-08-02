@@ -5,6 +5,7 @@ import { PrismAsyncLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { useTheme } from "@/shared/theme/theme-context";
 
 import { CodeShell } from "./code-shell";
@@ -103,6 +104,8 @@ export function SyntaxHighlightedCode({
 
 export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
   const { copied, copy } = useCopyToClipboard();
+  const { t } = useI18n();
+  const copyLabel = t("markdown.code.copy", { language: language || "text" });
 
   const handleCopy = () => {
     void copy(value);
@@ -114,11 +117,11 @@ export function CodeBlockContent({ language, value }: CodeBlockContentProps) {
       className="group"
       rightSlot={(
         <button
-          aria-label="Copy to clipboard"
+          aria-label={copyLabel}
           className="content-code-action"
           data-copied={copied ? "true" : undefined}
           onClick={handleCopy}
-          title={copied ? "已复制" : `复制 ${language || "text"} 代码`}
+          title={copied ? t("markdown.code.copied") : copyLabel}
           type="button"
         >
           {copied ? (

@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced host-language search clear controls with an app-localized clear action across shared search fields.
 - Localized community Skill results, previews, source filters, source management, and action feedback while preserving third-party content verbatim.
 - Forwarded required accessible names through every Liquid Glass switch so assistive technology identifies the actual setting being toggled.
+- Localized code-block actions and Mermaid loading, preview, source, error, and accessibility chrome across Chinese and English interfaces.
 
 ### Changed
 
