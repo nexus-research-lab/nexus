@@ -1,4 +1,5 @@
 import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
 
@@ -26,6 +27,7 @@ interface TextFileEditorPresentationInput {
   isExternalWriting: boolean;
   isSaving: boolean;
   liveState: WorkspaceLiveFileState | undefined;
+  translate: I18nContextValue["t"];
 }
 
 interface TextEditorBodyModeInput {
@@ -54,14 +56,6 @@ const BODY_MODE_RULES: Array<{
   },
 ];
 
-const EDIT_ACTION_COPY: Record<
-  TextEditorEditAction,
-  { label: string }
-> = {
-  edit: { label: "编辑" },
-  preview: { label: "预览" },
-};
-
 function resolveBodyMode(
   input: TextEditorBodyModeInput,
 ): TextEditorBodyMode {
@@ -70,27 +64,35 @@ function resolveBodyMode(
 
 function buildSyncedLabel(
   diffStats: WorkspaceLiveFileState["diff_stats"],
+  translate: I18nContextValue["t"],
 ): string {
   if (!diffStats) {
-    return "已同步最新内容";
+    return translate("workspace_file.synced");
   }
-  return `已同步最新内容 · +${diffStats.additions} -${diffStats.deletions}`;
+  return translate("workspace_file.synced_with_changes", {
+    additions: diffStats.additions,
+    deletions: diffStats.deletions,
+  });
 }
 
 function buildSyncPresentation(
   liveState: WorkspaceLiveFileState | undefined,
   isExternalWriting: boolean,
+  translate: I18nContextValue["t"],
 ): TextEditorSyncPresentation | null {
   // API 写入由保存动作反馈；这里只展示外部写入，避免同一事务出现两套状态。
   if (!liveState || liveState.source === "api") {
     return null;
   }
   if (isExternalWriting) {
-    return { kind: "writing", label: "模型正在实时写入该文件" };
+    return {
+      kind: "writing",
+      label: translate("workspace_file.model_writing"),
+    };
   }
   return {
     kind: "synced",
-    label: buildSyncedLabel(liveState.diff_stats),
+    label: buildSyncedLabel(liveState.diff_stats, translate),
   };
 }
 
@@ -101,14 +103,17 @@ export function buildTextFileEditorPresentation({
   isExternalWriting,
   isSaving,
   liveState,
+  translate,
 }: TextFileEditorPresentationInput): TextFileEditorPresentation {
   const editAction: TextEditorEditAction = isEditing ? "preview" : "edit";
   return {
     bodyMode: resolveBodyMode({ fileType, isEditing, isExternalWriting }),
     editAction,
-    editLabel: EDIT_ACTION_COPY[editAction].label,
+    editLabel: translate(editAction === "edit"
+      ? "common.edit"
+      : "workspace_file.preview"),
     saveDisabled: !isDirty || isSaving || isExternalWriting,
-    saveLabel: isSaving ? "保存中" : "保存",
-    sync: buildSyncPresentation(liveState, isExternalWriting),
+    saveLabel: translate(isSaving ? "common.saving" : "common.save"),
+    sync: buildSyncPresentation(liveState, isExternalWriting, translate),
   };
 }

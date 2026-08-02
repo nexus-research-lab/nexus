@@ -374,6 +374,77 @@ test("工作区空预览跟随界面语言", async () => {
   assert.doesNotMatch(english, /工作区|从文件列表/);
 });
 
+test("工作区文件操作跟随界面语言", async () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    __NEXUS_DESKTOP_RUNTIME__: { app_mode: "desktop" },
+  };
+  try {
+    const englishI18n = await loadI18nValue("en");
+    const chineseI18n = await loadI18nValue("zh");
+    const { getWorkspaceFileExternalActionCopy } = await server.ssrLoadModule(
+      "/src/lib/workspace-file-action.ts",
+    );
+    assert.deepEqual(
+      getWorkspaceFileExternalActionCopy(englishI18n.t, "MEMORY.md"),
+      {
+        ariaLabel: "Show MEMORY.md in folder",
+        label: "Open",
+        mode: "reveal",
+        title: "Show MEMORY.md in folder",
+      },
+    );
+    assert.equal(
+      getWorkspaceFileExternalActionCopy(chineseI18n.t, "MEMORY.md").title,
+      "在文件夹中显示 MEMORY.md",
+    );
+
+    const {
+      WorkspaceFileDownloadButton,
+      WorkspaceFilePreviewFocusButton,
+    } = await server.ssrLoadModule(
+      "/src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+    );
+    const chrome = React.createElement(React.Fragment, null,
+      React.createElement(WorkspaceFileDownloadButton, {
+        agentId: "agent-a",
+        fileName: "MEMORY.md",
+        path: "MEMORY.md",
+      }),
+      React.createElement(WorkspaceFilePreviewFocusButton, {
+        isPreviewFocused: false,
+        onTogglePreviewFocus: () => {},
+      }),
+      React.createElement(WorkspaceFilePreviewFocusButton, {
+        isPreviewFocused: true,
+        onTogglePreviewFocus: () => {},
+      }),
+    );
+    const englishChrome = await renderWithI18n(chrome, "en");
+    assert.match(englishChrome, /aria-label="Show MEMORY\.md in folder"/);
+    assert.match(englishChrome, /aria-label="Focus preview"/);
+    assert.match(englishChrome, /aria-label="Show file list"/);
+    assert.doesNotMatch(englishChrome, /文件夹|聚焦|文件列表/);
+
+    const { buildTextFileEditorPresentation } = await server.ssrLoadModule(
+      "/src/features/conversation/shared/editor/text/text-file-editor-model.ts",
+    );
+    const presentation = buildTextFileEditorPresentation({
+      fileType: "markdown",
+      isDirty: true,
+      isEditing: false,
+      isExternalWriting: false,
+      isSaving: false,
+      liveState: undefined,
+      translate: englishI18n.t,
+    });
+    assert.equal(presentation.editLabel, "Edit");
+    assert.equal(presentation.saveLabel, "Save");
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
 test("工作区文件 chrome 使用单行 breadcrumb 和一条内容边界", async () => {
   const [
     previewChromeSource,

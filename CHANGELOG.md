@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localized Room auxiliary-panel navigation, upload, and resize accessibility labels.
 - Localized the earlier-message loading state across Chinese and English conversations.
 - Localized the workspace empty-preview title and guidance across Chinese and English interfaces.
+- Localized workspace file reveal, focus, edit, save, and sync controls across desktop and web interfaces.
 
 ### Changed
 

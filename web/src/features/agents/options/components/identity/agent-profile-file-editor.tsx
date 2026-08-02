@@ -34,6 +34,7 @@ export function AgentProfileFileEditor({
     isExternalWriting: editor.isExternalWriting,
     isSaving: editor.isSaving,
     liveState: editor.liveState,
+    translate: t,
   });
   const isBusy = editor.isLoading || editor.isExternalWriting || editor.isSaving;
 

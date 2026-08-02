@@ -93,6 +93,7 @@ export function WorkspaceContextMenu({
     onDownload,
     onRename,
     renameLabel: t("home.rename"),
+    translate: t,
   });
 
   return createPortal(
@@ -128,6 +129,7 @@ function buildEntryActions({
   onDownload,
   onRename,
   renameLabel,
+  translate,
 }: {
   deleteLabel: string;
   entry: WorkspaceFileEntry | null;
@@ -135,13 +137,14 @@ function buildEntryActions({
   onDownload: () => void;
   onRename: () => void;
   renameLabel: string;
+  translate: ReturnType<typeof useI18n>["t"];
 }): WorkspaceMenuAction[] {
   if (!entry) {
     return [];
   }
   const actions: WorkspaceMenuAction[] = [];
   if (!entry.is_dir) {
-    const copy = getWorkspaceFileExternalActionCopy(entry.name);
+    const copy = getWorkspaceFileExternalActionCopy(translate, entry.name);
     actions.push({
       ariaLabel: copy.ariaLabel,
       Icon: copy.mode === "reveal" ? FolderOpen : Download,

@@ -12,6 +12,7 @@ import {
   getWorkspaceFilePreviewUrl,
 } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -77,9 +78,10 @@ export function ImagePreview({
   isPreviewFocused,
   onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
+  const { t } = useI18n();
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
   const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
 
   return (
@@ -148,7 +150,8 @@ export function BinaryFilePlaceholder({
   isPreviewFocused,
   onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
-  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
+  const { t } = useI18n();
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
   const actionDescription = fileActionCopy.mode === "reveal"
     ? "在文件夹中显示此文件"
     : "获取此文件";

@@ -12,6 +12,7 @@ import {
 
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import {
   WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
@@ -130,7 +131,8 @@ export function WorkspaceFileDownloadButton({
   path: string;
   fileName: string;
 }) {
-  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
+  const { t } = useI18n();
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
   const handleExternalAction = () => {
     void downloadWorkspaceFileApi(agentId, path, fileName).catch((error) => {
       console.error(`[WorkspaceFileDownloadButton] ${fileActionCopy.label} workspace 文件失败:`, error);
@@ -187,10 +189,13 @@ export function WorkspaceFilePreviewFocusButton({
   isPreviewFocused: boolean;
   onTogglePreviewFocus: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <WorkspaceFileToolbarButton
       onClick={onTogglePreviewFocus}
-      title={isPreviewFocused ? "还原文件树" : "聚焦预览"}
+      title={t(isPreviewFocused
+        ? "workspace_file.show_file_list"
+        : "workspace_file.focus_preview")}
     >
       {isPreviewFocused ? (
         <Minimize2 className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />

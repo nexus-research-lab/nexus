@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+
 import type { WorkspaceFilePreviewKind } from "../workspace-file-preview-kind";
 import type { WorkspaceFilePreviewProps } from "../workspace-file-preview-types";
 import { TextFileEditorBody } from "./text-file-editor-body";
@@ -15,6 +17,7 @@ export function TextFileEditor({
   onTogglePreviewFocus,
   path,
 }: WorkspaceFilePreviewProps & { fileType: WorkspaceFilePreviewKind }) {
+  const { t } = useI18n();
   const editor = useTextFileEditor({ agentId, path });
   const presentation = buildTextFileEditorPresentation({
     fileType,
@@ -23,6 +26,7 @@ export function TextFileEditor({
     isExternalWriting: editor.isExternalWriting,
     isSaving: editor.isSaving,
     liveState: editor.liveState,
+    translate: t,
   });
 
   return (
