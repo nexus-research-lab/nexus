@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import type { RefObject } from "react";
 
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+
 import type { ConversationRoundScrollHandleRef } from "../timeline/scroll/round-scroll";
 import type { ConversationTimeline } from "../timeline/timeline-model";
 import {
@@ -11,6 +13,7 @@ import { useActiveRound } from "./use-active-round";
 import { useRoundJump } from "./jump/use-round-jump";
 
 interface UseConversationSessionNavigationParams {
+  localization: Pick<I18nContextValue, "locale" | "t">;
   timeline: ConversationTimeline;
   onLoadRoundWindow?: (roundId: string) => Promise<boolean>;
   onNavigateStart?: () => void;
@@ -26,6 +29,7 @@ interface PreviewSelection {
 
 /** 只组合导航展示状态；滚动同步和跳转事务由各自控制器维护。 */
 export function useConversationSessionNavigation({
+  localization,
   timeline,
   onLoadRoundWindow,
   onNavigateStart,
@@ -34,8 +38,8 @@ export function useConversationSessionNavigation({
   scrollRef,
 }: UseConversationSessionNavigationParams) {
   const items = useMemo(
-    () => buildSessionNavigationItems(timeline),
-    [timeline],
+    () => buildSessionNavigationItems(timeline, localization),
+    [localization, timeline],
   );
   const roundIds = useMemo(
     () => items.map((item) => item.roundId),

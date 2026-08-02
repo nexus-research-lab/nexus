@@ -3,6 +3,7 @@
 import { ChevronDown, X, type LucideIcon } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { WORKSPACE_CONTENT_GUTTER_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
@@ -267,13 +268,14 @@ function WorkspaceSurfaceTabs<TTabKey extends string>({
   tabs: WorkspaceSurfaceHeaderTab<TTabKey>[];
   tabsNavAnchor?: string;
 }) {
+  const { t } = useI18n();
   if (tabs.length === 0) return null;
 
   return (
     <>
       <UiTabs
         activeValue={activeTab}
-        ariaLabel="视图切换"
+        ariaLabel={t("common.view_switcher")}
         className={cn(
           "workspace-surface-header-view-tabs min-w-0 overflow-visible",
           hasLeading ? "shrink-0" : "flex-1",

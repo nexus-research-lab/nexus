@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Localized message actions, activity states, attachments, and generated-file labels across Chinese and English interfaces.
 - Localized conversation process summaries, tool-run states, and cache statistics across Chinese and English interfaces.
 - Localized tool execution cards, permission details, and result actions across Chinese and English interfaces.
+- Localized conversation rulers, round previews, and view-switcher accessibility labels across Chinese and English interfaces.
 
 ### Changed
 

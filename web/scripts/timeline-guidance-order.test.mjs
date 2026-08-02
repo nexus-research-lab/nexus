@@ -20,6 +20,23 @@ test.after(async () => {
   await server.close();
 });
 
+async function loadI18nValue(locale = "zh") {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  return {
+    locale,
+    setLocale: () => {},
+    t: (key, params = {}) => Object.entries(params).reduce(
+      (message, [name, value]) => message.replaceAll(
+        `{${name}}`,
+        String(value),
+      ),
+      MESSAGES[locale][key] ?? key,
+    ),
+  };
+}
+
 test("conversation viewport suppresses the browser scroll-region outline", async () => {
   const { ConversationPanelViewport } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
@@ -1909,20 +1926,57 @@ test("partial DM round indexes preserve loaded transcript chronology after remou
     roundId,
     timestamp: index + 1,
   }));
-  const navigationItems = buildSessionNavigationItems({
-    feed_round_ids: loadedRoundIds,
-    live_round_ids: [],
-    loaded_round_ids: loadedRoundIds,
-    message_groups: groupMessagesByRound(messages),
-    pending_permission_groups: new Map(),
-    pending_slot_groups: new Map(),
-    room_agent_execution_state_groups: new Map(),
-    round_index_items: mergedIndex,
-  });
+  const navigationItems = buildSessionNavigationItems(
+    {
+      feed_round_ids: loadedRoundIds,
+      live_round_ids: [],
+      loaded_round_ids: loadedRoundIds,
+      message_groups: groupMessagesByRound(messages),
+      pending_permission_groups: new Map(),
+      pending_slot_groups: new Map(),
+      room_agent_execution_state_groups: new Map(),
+      round_index_items: mergedIndex,
+    },
+    await loadI18nValue(),
+  );
   assert.deepEqual(
     navigationItems.map((item) => item.roundId),
     loadedRoundIds,
     "responsive remounts must not move freshly generated rounds ahead of old history",
+  );
+});
+
+test("conversation navigation fallbacks follow the interface language", async () => {
+  const { buildSessionNavigationItems } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/session-navigator/session-navigator-model.ts",
+  );
+  const { formatSpeakerSummary } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/session-navigator/session-navigator-ruler-model.ts",
+  );
+  const localization = await loadI18nValue("en");
+  const navigationItems = buildSessionNavigationItems(
+    {
+      feed_round_ids: ["round-unloaded"],
+      live_round_ids: [],
+      loaded_round_ids: [],
+      message_groups: new Map(),
+      pending_permission_groups: new Map(),
+      pending_slot_groups: new Map(),
+      room_agent_execution_state_groups: new Map(),
+      round_index_items: [roundIndexItem("round-unloaded", {
+        hasUserMessage: true,
+        status: "error",
+      })],
+    },
+    localization,
+  );
+
+  assert.equal(navigationItems[0].title, "Round 1");
+  assert.equal(navigationItems[0].summary, "Scroll to load details");
+  assert.equal(navigationItems[0].meta, "Failed");
+  assert.equal(
+    formatSpeakerSummary(navigationItems[0], localization.t),
+    "User",
   );
 });
 

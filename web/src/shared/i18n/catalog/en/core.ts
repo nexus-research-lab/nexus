@@ -22,6 +22,7 @@ export const enCoreMessages = {
   "common.guide_center": "Guide Center",
   "common.view_guide": "View Guide",
   "common.more_actions": "More actions",
+  "common.view_switcher": "Switch views",
   "common.reset_guides": "Reset All Guides",
   "common.reviewed": "Seen",
   "common.edit": "Edit",
