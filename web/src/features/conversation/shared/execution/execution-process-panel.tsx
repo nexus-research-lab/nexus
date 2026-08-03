@@ -47,6 +47,12 @@ export function ExecutionProcessPanel({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const nodeSummary = resolveExecutionNodeSummary(execution);
   const terminal = isTerminalExecutionStatus(execution.status);
+  const nodeProgressLabel = nodeSummary.totalCount > 0
+    ? t("execution.node_progress", {
+        current: nodeSummary.currentStep,
+        total: nodeSummary.totalCount,
+      })
+    : t(EXECUTION_STATUS_LABEL_KEY[execution.status]);
 
   useEffect(() => {
     if (!isExpanded) {
@@ -77,40 +83,35 @@ export function ExecutionProcessPanel({
         ref={triggerRef}
         aria-controls={panelId}
         aria-expanded={isExpanded}
-        aria-label={
+        aria-label={`${
           isExpanded
             ? t("execution.collapse_panel")
             : t("execution.expand_panel")
-        }
+        } · ${nodeSummary.summary} · ${nodeProgressLabel}`}
         className={cn(
-          "pointer-events-auto flex min-h-12 min-w-[15rem] max-w-full items-center gap-2 rounded-[16px] px-3 py-1.5 text-xs text-(--text-default) transition-[background,border-color,color,box-shadow] hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) hover:text-(--text-strong)",
+          "pointer-events-auto flex min-h-10 min-w-10 max-w-full items-center justify-center rounded-[14px] px-2.5 py-1.5 text-xs text-(--text-default) transition-[background,border-color,color,box-shadow] hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) hover:text-(--text-strong)",
           EXECUTION_TRIGGER_CLASS_NAME,
         )}
         data-execution-node-summary={nodeSummary.summary}
         data-execution-process-trigger
+        data-execution-trigger-content={
+          nodeSummary.totalCount > 0 ? "node-rail" : "status"
+        }
         onClick={() => setIsExpanded((current) => !current)}
+        title={`${nodeSummary.summary} · ${nodeProgressLabel}`}
         type="button"
       >
-        <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <span className="min-w-0 flex-1 truncate text-compact font-semibold text-(--text-default)">
-              {nodeSummary.summary}
-            </span>
-            <span className="shrink-0 text-[10px] tabular-nums text-(--text-soft)">
-              {nodeSummary.totalCount > 0
-                ? t("execution.node_progress", {
-                    current: nodeSummary.currentStep,
-                    total: nodeSummary.totalCount,
-                  })
-                : t(EXECUTION_STATUS_LABEL_KEY[execution.status])}
-            </span>
-          </span>
+        {nodeSummary.totalCount > 0 ? (
           <ExecutionNodeRail
             currentId={nodeSummary.current?.id ?? null}
             directory={directory}
             execution={execution}
           />
-        </span>
+        ) : (
+          <span className="truncate text-compact text-(--text-soft)">
+            {nodeProgressLabel}
+          </span>
+        )}
       </button>
 
       {isExpanded ? (
@@ -128,12 +129,14 @@ export function ExecutionProcessPanel({
           >
             <ExecutionPanelHeader
               execution={execution}
+              nodeProgressLabel={nodeProgressLabel}
               onDismiss={terminal
                 ? () => {
                     setIsExpanded(false);
                     onDismiss();
                   }
                 : null}
+              summary={nodeSummary.summary}
             />
             {execution.plan && (execution.work_items?.length ?? 0) > 0 ? (
               <ExecutionWorkGraphCanvas
@@ -158,26 +161,32 @@ export function ExecutionProcessPanel({
 
 function ExecutionPanelHeader({
   execution,
+  nodeProgressLabel,
   onDismiss,
+  summary,
 }: {
   execution: ExecutionView;
+  nodeProgressLabel: string;
   onDismiss: (() => void) | null;
+  summary: string;
 }) {
   const { t } = useI18n();
   return (
     <header className="flex h-10 shrink-0 items-center gap-2 px-3">
       <span
-        className="shrink-0 text-compact font-semibold text-(--text-strong)"
+        className="min-w-0 flex-1 truncate text-compact font-semibold text-(--text-strong)"
+        data-execution-panel-heading
         title={execution.plan
-          ? t("execution.plan_revision", { revision: execution.plan.revision })
-          : undefined}
+          ? `${summary} · ${t("execution.plan_revision", {
+              revision: execution.plan.revision,
+            })}`
+          : summary}
       >
-        {t("execution.label")}
+        {summary}
       </span>
       <span className="shrink-0 text-compact tabular-nums text-(--text-soft)">
-        {execution.progress.accepted}/{execution.progress.total}
+        {nodeProgressLabel}
       </span>
-      <span className="min-w-0 flex-1" />
       {onDismiss ? (
         <button
           aria-label={t("execution.dismiss")}
@@ -210,7 +219,7 @@ function ExecutionNodeRail({
   return (
     <span
       aria-hidden="true"
-      className="mt-1 flex min-w-0 items-center"
+      className="flex min-w-0 items-center"
       data-execution-node-rail
     >
       {nodeWindow.hiddenBefore > 0 ? (

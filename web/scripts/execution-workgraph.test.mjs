@@ -232,6 +232,7 @@ test("WorkGraph panel follows Task density and exposes the current node rail", a
   );
   assert.match(html, /data-execution-process-panel/);
   assert.match(html, /data-execution-status="active"/);
+  assert.match(html, /data-execution-trigger-content="node-rail"/);
   assert.match(html, /data-execution-node-rail/);
   assert.match(html, /data-execution-node-agent="researcher"/);
   assert.match(html, /data-execution-node-agent="builder"/);
