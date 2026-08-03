@@ -61,6 +61,7 @@ type GroupChatSession = Omit<
     | "runtime_phase"
     | "send_permission_response"
     | "stop_generation"
+    | "stopping_agent_round_ids"
   >;
   roundIndexItems: SessionRoundIndexItem[];
   taskProcesses: ConversationTodoProcess[];
@@ -227,6 +228,7 @@ function buildFeedModel({
       onPermissionResponse: conversation.send_permission_response,
       onStopAgentRound: conversation.stop_generation,
       runtimePhase: conversation.runtime_phase,
+      stoppingAgentRoundIds: conversation.stopping_agent_round_ids,
     },
     source: {
       liveRoundIds: conversation.live_round_ids,

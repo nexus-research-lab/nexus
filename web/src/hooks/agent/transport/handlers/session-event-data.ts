@@ -1,6 +1,6 @@
 /**
- * INPUT: Session/runtime/queue/round/chat ACK 的未知 WebSocket 载荷。
- * OUTPUT: 经字段级校验且保留 public handoff 关联的窄事件数据。
+ * INPUT: Session/runtime/queue/round/chat/interrupt ACK 的未知 WebSocket 载荷。
+ * OUTPUT: 经字段级校验且保留 public handoff 与精确停止关联的窄事件数据。
  * POS: Agent Session 事件副作用前的协议解码边界。
  */
 import {
@@ -31,6 +31,7 @@ import type {
   CommandExecution,
   ContextUsageData,
   InputQueueAckData,
+  InterruptAckData,
   RuntimeStatusData,
   SessionStatusData,
 } from "@/types/generated/protocol";
@@ -412,4 +413,27 @@ export function parseInputQueueAckData(
     return null;
   }
   return data as unknown as InputQueueAckData;
+}
+
+export function parseInterruptAckData(
+  data: UnknownRecord,
+): InterruptAckData | null {
+  if (
+    !readString(data, "client_request_id")
+    || typeof data.accepted !== "boolean"
+    || readNumber(data, "ack_timeout_ms") === null
+    || (
+      data.round_id !== undefined
+      && data.round_id !== ""
+      && !readString(data, "round_id")
+    )
+    || (
+      data.agent_round_id !== undefined
+      && data.agent_round_id !== ""
+      && !readString(data, "agent_round_id")
+    )
+  ) {
+    return null;
+  }
+  return data as unknown as InterruptAckData;
 }

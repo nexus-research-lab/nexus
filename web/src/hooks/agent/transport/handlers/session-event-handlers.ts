@@ -15,6 +15,7 @@ import {
   parseCommandCatalogData,
   parseContextUsageData,
   parseInputQueueAckData,
+  parseInterruptAckData,
   parseInputQueueEventPayload,
   parseRoundStatusEventPayload,
   parseRuntimeStatusData,
@@ -119,6 +120,13 @@ const handleInputQueueAck = withCurrentSessionEvent((event, context) => {
   }
 });
 
+const handleInterruptAck = withCurrentSessionEvent((event, context) => {
+  const ack = parseInterruptAckData(event.data);
+  if (ack?.accepted) {
+    context.runtime.resolvePendingRequestAck(ack.client_request_id);
+  }
+});
+
 const handleGoalEvent = withCurrentSessionEvent((event, context) => {
   context.callbacks.onRoomEvent(
     event.event_type,
@@ -187,6 +195,7 @@ export const AGENT_SESSION_EVENT_HANDLERS: AgentEventHandlerMap = {
   goal_updated: handleGoalEvent,
   input_queue: handleInputQueue,
   input_queue_ack: handleInputQueueAck,
+  interrupt_ack: handleInterruptAck,
   round_status: handleRoundStatus,
   runtime_status: handleRuntimeStatus,
   session_status: handleSessionStatus,

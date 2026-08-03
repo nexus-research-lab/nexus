@@ -25,6 +25,7 @@ function MessageItemInner({
   isLoading,
   activityState,
   runtimePhase,
+  unresolvedToolStatus,
   pendingPermissions,
   onEditUserMessage,
   onOpenAgentContact,
@@ -95,6 +96,7 @@ function MessageItemInner({
         onOpenAgentContact={onOpenAgentContact}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         workspaceAgentId={workspaceAgentId}
+        unresolvedToolStatus={unresolvedToolStatus}
         hiddenToolNames={hiddenToolNames}
         assistantHeaderAction={assistantHeaderAction}
         assistantEmptyState={assistantEmptyState}

@@ -13,6 +13,7 @@ export type ToolBlockStatus =
   | "running"
   | "success"
   | "error"
+  | "stopped"
   | "waiting_permission";
 
 export interface ToolPermissionRequest {

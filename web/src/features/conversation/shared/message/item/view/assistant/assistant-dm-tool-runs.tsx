@@ -307,6 +307,7 @@ function DmProcessSegmentContent({
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
       streamingBlockIndexes={projection.streamingIndexes}
+      unresolvedToolStatus={environment.unresolvedToolStatus}
       workspaceAgentId={environment.workspaceAgentId}
     />
   );

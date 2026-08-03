@@ -31,6 +31,7 @@ export function RoomMobileThreadOverlay() {
         pendingPermissions={threadPanelData.pendingPermissions}
         presentation="inspector"
         roundId={activeThread.roundId}
+        unresolvedToolStatus={threadPanelData.unresolvedToolStatus}
       />
     </div>
   );

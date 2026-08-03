@@ -15,3 +15,4 @@ Room result 的 activity 仍由共享 `MessageActivityStatus` 呈现：无正文
 DM 的 final 正文节点从 live 首字到 terminal backlog 排空必须保持同一组件位置；direct 过程与归档过程可以切换，但不得借此迁移或重挂正文。
 DM live 工具段只能以首个 `tool_use.id` 作为 React 身份；流式 patch、结果与后续连续工具只能更新同一段，AskUserQuestion 和当前人工交互工具必须留在独立内容段。
 权限只能由单一 owner 渲染：DM 与 Room 的完整响应面都由 Composer 原位替换输入壳；消息与 Thread 中的匹配工具只能显示等待状态，unmatched 请求不得再挂载正文控件。
+Room execution 的 cancelled/error 终态必须同时投影到主 Feed 与 Thread 的未完成工具块；已有真实 `tool_result` 始终优先，只有缺失结果的工具才使用消息级终态覆盖。

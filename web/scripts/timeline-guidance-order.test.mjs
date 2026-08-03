@@ -6002,13 +6002,18 @@ test("targeted stop mutates only its execution after the interrupt is sent", asy
   };
 
   const sent = createContext("sent");
-  assert.equal(
-    stopSessionGeneration(sent.context, permissionA.agent_round_id),
-    true,
+  const request = stopSessionGeneration(
+    sent.context,
+    permissionA.agent_round_id,
   );
+  assert.ok(request);
   assert.equal(
     sent.read().sentCommand.agent_round_id,
     permissionA.agent_round_id,
+  );
+  assert.equal(
+    sent.read().sentCommand.client_request_id,
+    request.client_request_id,
   );
   assert.deepEqual(
     sent.read().permissions.map((permission) => permission.request_id),
@@ -6020,7 +6025,7 @@ test("targeted stop mutates only its execution after the interrupt is sent", asy
   const dropped = createContext("dropped");
   assert.equal(
     stopSessionGeneration(dropped.context, permissionA.agent_round_id),
-    false,
+    null,
   );
   assert.deepEqual(
     dropped.read().permissions.map((permission) => permission.request_id),
@@ -6032,6 +6037,187 @@ test("targeted stop mutates only its execution after the interrupt is sent", asy
     "a failed interrupt must leave runtime-facing interaction state retryable",
   );
   assert.equal(dropped.read().error, "中断请求发送失败，请稍后重试");
+});
+
+test("Room exact stop survives slot cleanup and settles ACK/terminal races per Agent", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const { confirmRoomAgentExecutionStop } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const {
+    addStoppingAgentRoundId,
+    removeStoppingAgentRoundId,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/state/use-conversation-volatile-state.ts",
+  );
+  const { buildRoomExecutionActivityKey } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/panel/controller/use-group-chat-panel-model.ts",
+  );
+  const { parseInterruptAckData } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-data.ts",
+  );
+  const roundId = "round-stop-race";
+  const stateA = {
+    agent_id: "agent-a",
+    agent_round_id: "agent-round-a",
+    display_order: 1,
+    first_seen_at: 1,
+    phase: "active",
+    round_id: roundId,
+    status: "streaming",
+  };
+  const stateB = {
+    ...stateA,
+    agent_id: "agent-b",
+    agent_round_id: "agent-round-b",
+    display_order: 2,
+  };
+  const completedTurn = assistantMessage({
+    agentId: stateA.agent_id,
+    agentRoundId: stateA.agent_round_id,
+    isComplete: true,
+    messageId: "assistant-a-tool-boundary",
+    roundId,
+    status: "done",
+    stopReason: "tool_use",
+    text: "先完成一段输出",
+    timestamp: 2,
+  });
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: {},
+    executionStates: [stateA, stateB],
+    messages: [completedTurn],
+    pendingPermissions: [],
+    pendingSlots: [],
+  });
+  assert.equal(
+    model.entries.find((entry) => entry.agent_id === stateA.agent_id)
+      ?.stopAgentRoundId,
+    stateA.agent_round_id,
+    "the exact stop target must come from execution identity after pending slot cleanup",
+  );
+
+  let stopping = addStoppingAgentRoundId([], stateA.agent_round_id);
+  assert.strictEqual(
+    addStoppingAgentRoundId(stopping, stateA.agent_round_id),
+    stopping,
+    "a double click must not register the same exact target twice",
+  );
+  stopping = addStoppingAgentRoundId(stopping, stateB.agent_round_id);
+  stopping = removeStoppingAgentRoundId(stopping, stateA.agent_round_id);
+  const terminalBeforeAck = removeStoppingAgentRoundId(
+    stopping,
+    stateA.agent_round_id,
+  );
+  assert.deepEqual(
+    terminalBeforeAck,
+    [stateB.agent_round_id],
+    "terminal-before-ACK settlement must be idempotent and preserve Agent B",
+  );
+
+  const stoppedStates = confirmRoomAgentExecutionStop(
+    [stateA, stateB],
+    stateA.agent_round_id,
+  );
+  assert.equal(stoppedStates[0].phase, "terminal");
+  assert.equal(stoppedStates[0].status, "cancelled");
+  assert.strictEqual(stoppedStates[1], stateB);
+  assert.strictEqual(
+    confirmRoomAgentExecutionStop(stoppedStates, stateA.agent_round_id),
+    stoppedStates,
+    "ACK-before-terminal and terminal-before-ACK must converge idempotently",
+  );
+  assert.notEqual(
+    buildRoomExecutionActivityKey(1, true, [stateA, stateB]),
+    buildRoomExecutionActivityKey(1, true, stoppedStates),
+    "the WorkGraph resource must refresh when one Agent reaches interrupted terminal",
+  );
+  assert.deepEqual(
+    parseInterruptAckData({
+      accepted: true,
+      ack_timeout_ms: 10_000,
+      agent_round_id: stateA.agent_round_id,
+      client_request_id: "request-stop-a",
+      round_id: roundId,
+    }),
+    {
+      accepted: true,
+      ack_timeout_ms: 10_000,
+      agent_round_id: stateA.agent_round_id,
+      client_request_id: "request-stop-a",
+      round_id: roundId,
+    },
+  );
+});
+
+test("Room stopping controls and unresolved tools share the interrupted terminal state", async () => {
+  const { ContentRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
+  );
+  const { GroupAgentExecutionShell } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-execution-shell.tsx",
+  );
+  const { resolveToolBlockStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer-model.ts",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const provider = (child) => React.createElement(I18nProvider, null, child);
+  const shellHtml = renderToStaticMarkup(provider(React.createElement(
+    GroupAgentExecutionShell,
+    {
+      agentAvatar: null,
+      agentId: "agent-stopping",
+      agentName: "Researcher",
+      isStopping: true,
+      isThreadActive: false,
+      messages: [assistantMessage({
+        agentId: "agent-stopping",
+        agentRoundId: "agent-round-stopping",
+        messageId: "assistant-stopping",
+        status: "done",
+        stopReason: "tool_use",
+        text: "准备调用工具",
+        timestamp: 1,
+      })],
+      onClickThread: () => {},
+      onPermissionResponse: () => true,
+      onStopAgentRound: () => {},
+      pendingPermissions: [],
+      roundId: "round-stopping:agent-stopping",
+      status: "streaming",
+      timestamp: 1,
+    },
+  )));
+  assert.match(shellHtml, /停止中…/);
+  assert.match(shellHtml, /disabled=""/);
+
+  const toolUse = {
+    id: "tool-interrupted",
+    input: { file_path: "report.md" },
+    name: "Write",
+    type: "tool_use",
+  };
+  const toolHtml = renderToStaticMarkup(provider(React.createElement(
+    ContentRenderer,
+    {
+      content: [toolUse],
+      unresolvedToolStatus: "stopped",
+    },
+  )));
+  assert.match(toolHtml, /已停止/);
+  assert.doesNotMatch(toolHtml, />执行中</);
+  assert.doesNotMatch(toolHtml, /处理中…/);
+  assert.equal(resolveToolBlockStatus(undefined, false, "stopped"), "stopped");
+  assert.equal(
+    resolveToolBlockStatus({ result: { content: "ok", is_error: false } }, false, "stopped"),
+    "success",
+    "a real provider result must outrank the terminal fallback",
+  );
 });
 
 test("Room virtual height keeps Composer interactions out of the feed estimate", async () => {

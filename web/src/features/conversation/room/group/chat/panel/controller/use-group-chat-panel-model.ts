@@ -1,6 +1,6 @@
 /**
  * INPUT: Group Chat props、共享 Session/Composer/Goal 资源与 Room Agent 时间线。
- * OUTPUT: 含首条未读 Agent 定位、Feed、Composer 和 Goal 的完整面板模型。
+ * OUTPUT: 含首条未读 Agent 定位、Feed、Composer、Goal 与 Agent 终态驱动的 WorkGraph 刷新模型。
  * POS: Group Chat 有状态装配入口；纯投影与未读队列分别下沉到专属模块。
  */
 import { useMemo } from "react";
@@ -9,6 +9,7 @@ import { useConversationPanelEnvironment } from "@/features/conversation/shared/
 import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
+import type { RoomAgentExecutionState } from "@/types/agent/agent-conversation";
 
 import { projectGroupAgentTimeline } from "../../feed/group-agent-timeline-model";
 import { useGroupConversationUnread } from "../../feed/use-group-conversation-unread";
@@ -64,7 +65,11 @@ export function useGroupChatPanelModel({
     sessionKey,
   });
   const execution = useExecutionResource({
-    activityKey: `${session.conversation.messages.length}:${session.conversation.is_loading}`,
+    activityKey: buildRoomExecutionActivityKey(
+      session.conversation.messages.length,
+      session.conversation.is_loading,
+      session.conversation.room_agent_execution_states,
+    ),
     conversationActive: session.conversation.is_loading,
     sessionKey,
   });
@@ -135,6 +140,20 @@ export function useGroupChatPanelModel({
     session,
     unread,
   });
+}
+
+export function buildRoomExecutionActivityKey(
+  messageCount: number,
+  isLoading: boolean,
+  states: readonly RoomAgentExecutionState[],
+): string {
+  return [
+    messageCount,
+    isLoading,
+    ...states.map((state) => (
+      `${state.agent_round_id}:${state.phase}:${state.status}`
+    )),
+  ].join("|");
 }
 
 function useRoomAgentDirectory(roomMembers: Agent[]): RoomAgentDirectory {

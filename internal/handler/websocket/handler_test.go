@@ -193,6 +193,59 @@ func TestWebSocketInputQueueAckAndErrorPreserveClientIDs(t *testing.T) {
 	}
 }
 
+func TestWebSocketRoomInterruptAckPreservesExactTarget(t *testing.T) {
+	cfg := handlertest.NewConfig(t)
+	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
+
+	server, err := serverapp.New(cfg)
+	if err != nil {
+		t.Fatalf("创建 HTTP 服务失败: %v", err)
+	}
+	t.Cleanup(func() { _ = server.Close(context.Background()) })
+
+	httpServer := httptest.NewServer(server.Router())
+	defer httpServer.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http") + "/nexus/v1/chat/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	if err != nil {
+		t.Fatalf("连接 websocket 失败: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "test done") }()
+
+	const (
+		sessionKey      = "room:group:conversation-interrupt-ack"
+		clientRequestID = "request-interrupt-agent-a"
+		roundID         = "round-interrupt-agent-a"
+		agentRoundID    = "agent-round-interrupt-agent-a"
+	)
+	if err = wsjson.Write(ctx, conn, map[string]any{
+		"type":              "interrupt",
+		"session_key":       sessionKey,
+		"round_id":          roundID,
+		"agent_round_id":    agentRoundID,
+		"client_request_id": clientRequestID,
+	}); err != nil {
+		t.Fatalf("发送精确 Room interrupt 失败: %v", err)
+	}
+
+	ack := readEventMatching(t, conn, func(event protocol.EventMessage) bool {
+		return event.EventType == protocol.EventTypeInterruptAck
+	})
+	if ack.SessionKey != sessionKey ||
+		ack.RoundID != roundID ||
+		ack.AgentRoundID != agentRoundID ||
+		ack.Data["accepted"] != true ||
+		ack.Data["client_request_id"] != clientRequestID ||
+		ack.Data["round_id"] != roundID ||
+		ack.Data["agent_round_id"] != agentRoundID {
+		t.Fatalf("interrupt_ack 未完整回显精确目标: %+v", ack)
+	}
+}
+
 func TestWebSocketDesktopSessionToken(t *testing.T) {
 	cfg := handlertest.NewConfig(t)
 	cfg.DesktopSessionToken = "desktop-token"

@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * INPUT: Room Agent 执行身份、消息、人工介入状态、局部说话人边界与用户动作。
- * OUTPUT: 从 pending 到 terminal 始终复用 MessageItem 的稳定 Agent 执行外壳；首次 handoff 只做一次不重挂内容的轻量淡入。
+ * INPUT: Room Agent 执行身份、消息、stopping/人工介入状态、局部说话人边界与用户动作。
+ * OUTPUT: 从 pending、stopping 到 terminal 始终复用 MessageItem 的稳定 Agent 执行外壳与精确控制条；首次 handoff 只做一次不重挂内容的轻量淡入。
  * POS: Room 主 Feed 单个 agent_round 的唯一 Assistant 展示面。
  */
 import { Square } from "lucide-react";
-import { memo, useCallback, useMemo } from "react";
+import { memo, useMemo } from "react";
 
 import type { AgentMentionDirectory } from "@/features/conversation/shared/message/agent-mention-chip";
 import { MessageItem } from "@/features/conversation/shared/message/item/message-item";
@@ -37,6 +37,7 @@ interface GroupAgentExecutionShellProps {
   agentMentionDirectory?: AgentMentionDirectory;
   agentName: string;
   isThreadActive: boolean;
+  isStopping?: boolean;
   messages: AssistantMessage[];
   onClickThread: () => void;
   onOpenAgentContact?: (agentId: string) => void;
@@ -57,6 +58,7 @@ function GroupAgentExecutionShellInner({
   agentMentionDirectory,
   agentName,
   isThreadActive,
+  isStopping = false,
   messages,
   onClickThread,
   onOpenAgentContact,
@@ -111,12 +113,7 @@ function GroupAgentExecutionShellInner({
     pendingPermissions,
     status,
   });
-  const handleStopMessage = useCallback(() => {
-    onStopAgentRound?.();
-  }, [onStopAgentRound]);
-  const showFallbackStop = isActive
-    && messages.length === 0
-    && Boolean(onStopAgentRound);
+  const showStop = isActive && Boolean(onStopAgentRound);
 
   return (
     <div
@@ -148,17 +145,24 @@ function GroupAgentExecutionShellInner({
               active={isThreadActive}
               onClick={onClickThread}
             />
-            {showFallbackStop ? (
+            {showStop ? (
               <button
-                aria-label={t("room.agent_stop")}
-                className="flex h-7 items-center gap-1 rounded-md px-2 text-xs text-(--text-muted) transition-colors hover:bg-(--interaction-hover-background) hover:text-(--text-default)"
+                aria-label={t(isStopping
+                  ? "room.agent_stopping"
+                  : "room.agent_stop")}
+                className="flex h-7 items-center gap-1 rounded-md px-2 text-xs text-(--text-muted) transition-colors hover:bg-(--interaction-hover-background) hover:text-(--text-default) disabled:cursor-wait disabled:opacity-70"
+                disabled={isStopping}
                 onClick={onStopAgentRound}
-                title={t("room.agent_stop")}
+                title={t(isStopping
+                  ? "room.agent_stopping"
+                  : "room.agent_stop")}
                 type="button"
               >
                 <Square className="h-3 w-3 fill-current" />
                 <span className="hidden sm:inline">
-                  {t("room.agent_stop")}
+                  {t(isStopping
+                    ? "room.agent_stopping"
+                    : "room.agent_stop")}
                 </span>
               </button>
             ) : null}
@@ -173,13 +177,11 @@ function GroupAgentExecutionShellInner({
         onOpenAgentContact={onOpenAgentContact}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         onPermissionResponse={onPermissionResponse}
-        onStopMessage={
-          isActive && messages.length > 0 && onStopAgentRound
-            ? handleStopMessage
-            : undefined
-        }
         pendingPermissions={pendingPermissions}
         roundId={roundId}
+        unresolvedToolStatus={status === "cancelled"
+          ? "stopped"
+          : status === "error" ? "error" : undefined}
         workspaceAgentId={agentId}
       />
     </div>

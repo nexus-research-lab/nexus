@@ -14,6 +14,7 @@ import { GroupAgentExecutionShell } from "./group-agent-execution-shell";
 interface GroupAgentReplyProps {
   entry: GroupRoundAgentCardModel;
   isThreadActive: boolean;
+  isStopping?: boolean;
   onClickThread: () => void;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
@@ -27,6 +28,7 @@ interface GroupAgentReplyProps {
 export function GroupAgentReply({
   entry,
   isThreadActive,
+  isStopping = false,
   onClickThread,
   onOpenAgentContact,
   onOpenWorkspaceFile,
@@ -43,6 +45,7 @@ export function GroupAgentReply({
       agentMentionDirectory={agentMentionDirectory}
       agentName={entry.agentName}
       isThreadActive={isThreadActive}
+      isStopping={isStopping}
       messages={entry.assistant_messages}
       onClickThread={onClickThread}
       onOpenAgentContact={onOpenAgentContact}

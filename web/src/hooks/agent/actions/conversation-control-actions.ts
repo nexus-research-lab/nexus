@@ -12,6 +12,10 @@ import {
   type AgentConversationActionContext,
 } from "./conversation-action-context";
 import { buildConversationAddress } from "./conversation-command-builders";
+import {
+  createOutboundRequestDescriptor,
+  type OutboundRequestDescriptor,
+} from "./outbound-request";
 
 function getLatestUserRoundId(messages: Message[]): string | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -25,22 +29,24 @@ function getLatestUserRoundId(messages: Message[]): string | undefined {
 export function stopSessionGeneration(
   context: AgentConversationActionContext,
   agentRoundId?: string,
-): boolean {
+): OutboundRequestDescriptor | null {
   const result = resolveConversationActionContext(context);
   if (!result.ok) {
     context.setError(conversationContextError(result.reason));
-    return false;
+    return null;
   }
 
+  const request = createOutboundRequestDescriptor();
   const command: WebSocketMessage = {
     type: "interrupt",
     ...buildConversationAddress(result.value),
+    client_request_id: request.client_request_id,
     round_id: getLatestUserRoundId(context.messages),
     ...(agentRoundId ? { agent_round_id: agentRoundId } : {}),
   } as WebSocketMessage;
   if (context.wsSend(command).disposition !== "sent") {
     context.setError("中断请求发送失败，请稍后重试");
-    return false;
+    return null;
   }
   if (agentRoundId) {
     const normalizedAgentRoundId = agentRoundId.trim();
@@ -52,7 +58,7 @@ export function stopSessionGeneration(
     context.setPendingPermissions([]);
   }
   context.setError(null);
-  return true;
+  return request;
 }
 
 function removePendingPermission(

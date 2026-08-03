@@ -2,7 +2,7 @@
  * useAgentConversation Hook 类型定义
  *
  * [INPUT]: 依赖会话消息和权限协议
- * [OUTPUT]: 对外提供 UseAgentConversationOptions、UseAgentConversationReturn、Room execution/handoff 易失锚点与历史窗口解析状态
+ * [OUTPUT]: 对外提供 UseAgentConversationOptions、UseAgentConversationReturn、Room execution/handoff/精确停止易失锚点与历史窗口解析状态
  * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -92,6 +92,8 @@ export interface UseAgentConversationReturn {
   error: string | null;
   pending_agent_slots: RoomPendingAgentSlotState[];
   room_agent_execution_states: RoomAgentExecutionState[];
+  /** 已发送且尚未被 terminal event 或 interrupt_ack 收口的精确停止目标。 */
+  stopping_agent_round_ids: string[];
   input_queue_items: InputQueueItem[];
   command_catalog: CommandCatalogData;
   context_usage: ContextUsageData | null;

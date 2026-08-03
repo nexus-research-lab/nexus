@@ -10,6 +10,7 @@ import type {
 import type { AssistantContentMode } from "./message-item-projection";
 import type { MessageActivityState } from "./activity/message-activity-state";
 import type { AgentMentionDirectory } from "../agent-mention-chip";
+import type { UnresolvedToolStatus } from "./view/content/content-renderer-contract";
 
 export interface MessageItemProps {
   animateEntry?: boolean;
@@ -24,6 +25,7 @@ export interface MessageItemProps {
   /** Consumer-owned execution evidence projected onto the shared activity vocabulary. */
   activityState?: MessageActivityState | null;
   runtimePhase?: AgentConversationRuntimePhase | null;
+  unresolvedToolStatus?: UnresolvedToolStatus;
   pendingPermissions?: PendingPermission[];
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   canRespondToPermissions?: boolean;

@@ -28,6 +28,7 @@ export function MessageAssistantSection({
   permissionReadOnlyReason,
   showHeader,
   workspaceAgentId,
+  unresolvedToolStatus,
   agentMentionDirectory,
 }: MessageAssistantSectionProps) {
   const layout = resolveAssistantMessageLayout(compact);
@@ -84,6 +85,7 @@ export function MessageAssistantSection({
                   onOpenWorkspaceFile,
                   onPermissionResponse,
                   permissionReadOnlyReason,
+                  unresolvedToolStatus,
                   workspaceAgentId: scope.contentWorkspaceAgentId,
                   agentMentionDirectory,
                   onOpenAgentContact,

@@ -645,3 +645,14 @@ func TestBroadcastSharedEventDoesNotDuplicateObserverWhenUsingPermissionBroadcas
 	default:
 	}
 }
+
+func TestHandleInterruptExactTargetIsIdempotentAfterNaturalCompletion(t *testing.T) {
+	service := &Service{rounds: newRoomRoundRegistry()}
+	err := service.HandleInterrupt(context.Background(), InterruptRequest{
+		SessionKey:   protocol.BuildRoomSharedSessionKey("conversation-stop-race"),
+		AgentRoundID: "agent-round-already-finished",
+	})
+	if err != nil {
+		t.Fatalf("自然完成后的精确停止应幂等成功，实际 error = %v", err)
+	}
+}

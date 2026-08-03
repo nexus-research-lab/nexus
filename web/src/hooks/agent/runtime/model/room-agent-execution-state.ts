@@ -561,6 +561,33 @@ export function stopRoomAgentExecutions(
   return changed ? next : current;
 }
 
+/** interrupt_ack 可先于 terminal event 被消费；按精确身份幂等收口当前执行。 */
+export function confirmRoomAgentExecutionStop(
+  current: RoomAgentExecutionState[],
+  agentRoundId: string,
+): RoomAgentExecutionState[] {
+  const normalizedAgentRoundId = agentRoundId.trim();
+  if (!normalizedAgentRoundId) {
+    return current;
+  }
+  let changed = false;
+  const next = current.map((state) => {
+    if (
+      state.agent_round_id !== normalizedAgentRoundId
+      || state.phase === "terminal"
+    ) {
+      return state;
+    }
+    changed = true;
+    return {
+      ...state,
+      phase: "terminal" as const,
+      status: "cancelled" as const,
+    };
+  });
+  return changed ? next : current;
+}
+
 export function isVisibleRoomAgentExecutionState(
   state: RoomAgentExecutionState,
 ): boolean {

@@ -1,6 +1,6 @@
 /**
- * INPUT: tool block、精确匹配请求与 pending interaction owner。
- * OUTPUT: 只读工具执行证据；结构化问答与权限操作统一由 Composer 持有。
+ * INPUT: tool block、精确匹配请求、execution terminal fallback 与 pending interaction owner。
+ * OUTPUT: 可由 stopped/error 收口的只读工具执行证据；结构化问答与权限操作统一由 Composer 持有。
  * POS: StructuredContent 中禁止消息上下文重新挂载人工交互选项的工具展示边界。
  */
 import type { ReactNode } from "react";
@@ -18,6 +18,7 @@ import type {
 import { ToolBlock } from "../../../blocks/tool/tool-block";
 import type { ToolPermissionRequest } from "../../../blocks/tool/tool-block-types";
 import type { PendingInteractionOwner } from "../../message-item-projection";
+import type { UnresolvedToolStatus } from "./content-renderer-contract";
 import {
   resolveToolBlockStatus,
   type StructuredContentProjection,
@@ -32,6 +33,7 @@ interface ContentToolBlockContext {
   pendingPermission?: PendingPermission;
   permissionReadOnlyReason?: string;
   projection: StructuredContentProjection;
+  unresolvedToolStatus?: UnresolvedToolStatus;
   workspaceAgentId?: string | null;
 }
 
@@ -69,7 +71,11 @@ function renderStandardToolBlock(
         liveProgress={context.projection.taskProgressByToolUseId.get(block.id) ?? null}
         onOpenWorkspaceFile={context.onOpenWorkspaceFile}
         permissionRequest={resolvePermissionRequest(context, state)}
-        status={resolveToolBlockStatus(state.toolUse, state.waitingForPermission)}
+        status={resolveToolBlockStatus(
+          state.toolUse,
+          state.waitingForPermission,
+          context.unresolvedToolStatus,
+        )}
         toolResult={state.result}
         toolUse={block}
         workspaceAgentId={context.workspaceAgentId}

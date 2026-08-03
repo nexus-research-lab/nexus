@@ -34,6 +34,7 @@ const HEADER_STATE_CLASS_BY_STATUS: Readonly<Record<ToolBlockStatus, string>> = 
   error: "",
   pending: "",
   running: "bg-primary/5",
+  stopped: "bg-(--surface-muted-background)",
   success: "",
   waiting_permission: "bg-(--surface-muted-background)",
 };
@@ -44,6 +45,7 @@ const DETAIL_FALLBACK_KEY_BY_STATUS: Readonly<
   error: "message.tool_processing",
   pending: "message.tool_processing",
   running: "message.tool_processing",
+  stopped: "message.stopped",
   success: "message.tool_processing",
   waiting_permission: "message.tool_waiting_confirmation",
 };
@@ -55,6 +57,7 @@ const META_TEXT_BY_STATUS: Readonly<Record<
   error: (model) => model.durationText,
   pending: (model) => model.durationText,
   running: (model) => model.durationText,
+  stopped: (model) => model.durationText,
   success: (model) => model.durationText,
   waiting_permission: (model) => model.waitingActionHint,
 };
@@ -66,6 +69,7 @@ const LIVE_STATUS_BY_STATUS: Readonly<Record<
   error: () => null,
   pending: () => null,
   running: (model) => model.liveStatusText,
+  stopped: () => null,
   success: () => null,
   waiting_permission: () => null,
 };

@@ -4,7 +4,7 @@
 
 - `group-round-card-model.ts` 聚合一轮内的用户消息、Agent 执行身份、人工介入请求和权威展示顺序。
 - `group-round-card-group.tsx` 按统一 entries 顺序编排用户消息与 Agent slot，不按运行状态重排。
-- `group-agent-reply.tsx` 只把 entry 装配进 `group-agent-execution-shell.tsx`；后者从 pending、streaming、waiting 到 terminal 始终复用同一个 `MessageItem` Assistant 外壳，并只在无消息的新 handoff 首次出现时做一次合成层淡入。`group-agent-execution-model.ts` 从 pending 起复用“正在思考”，正文流式时复用“正在回复”，其余按已有 slot/message/permission 证据翻译共享 activity 语义，并为没有任何 Assistant 消息的失败/停止终态补齐窄投影，不复制运行状态机、正文或 result 规则。
+- `group-agent-reply.tsx` 只把 entry 装配进 `group-agent-execution-shell.tsx`；后者从 pending、streaming、stopping 到 terminal 始终复用同一个 `MessageItem` Assistant 外壳，并只在无消息的新 handoff 首次出现时做一次合成层淡入。`group-agent-execution-model.ts` 从 pending 起复用“正在思考”，正文流式时复用“正在回复”，其余按已有 slot/message/permission 证据翻译共享 activity 语义，并为没有任何 Assistant 消息的失败/停止终态补齐窄投影，不复制运行状态机、正文或 result 规则。
 - 进行中的 Agent 卡片复用 assistant 消息通道的宽度与响应式基线，禁止在 feed 通道内再次居中或叠加横向缩进。
 - `thread-action-button.tsx` 是主 Feed 中 Thread 开关的唯一视觉实现；可见文案固定为 `Thread`，选中态表达已打开，右栏按钮提供显式关闭入口，开关动作由无障碍标签准确描述。
 - 相邻 Agent 依靠身份头、留白与头像同轴的短提示建立边界，不使用贯穿正文列的横线；Markdown `hr` 只表达模型正文语义。
@@ -24,4 +24,4 @@
 - 每个 pending interaction 只由 Composer 提供操作面；Agent 槽位与终态正文不得重复渲染结构化问题或批准按钮。
 - 带 root round 与 `agent_round_id` 的权限若对应 execution 已由 lifecycle 收口，必须在卡片与 root fallback 两层同时过滤，不能以通用交互卡重新出现。
 - 所有会让 runtime 等待用户响应的请求都由 Composer 原位替换输入框并成为唯一操作面；Room 主卡片与 Thread 只保留请求身份、等待状态和执行结果等只读证据，不得重复批准、回答或计划确认按钮。
-- 活动卡片的停止按钮只绑定自身 `stopAgentRoundId`，调用链必须传递 `agent_round_id`，终态 result 到达后不得被迟到的 streaming 事件复活。
+- 每个活动卡片的 Thread/停止控制条不依赖 pending slot 或某一条 Assistant message；停止按钮只绑定 entry 自身的精确 `agent_round_id`，`stopping` 时原位禁用，terminal/ACK 到达后不得被迟到的 streaming 事件复活。

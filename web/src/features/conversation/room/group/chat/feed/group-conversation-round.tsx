@@ -73,6 +73,7 @@ export function GroupConversationRound({
           pendingSlots={pendingSlots}
           roomAgentExecutionStates={roomAgentExecutionStates}
           roundId={rootRoundId}
+          stoppingAgentRoundIds={renderer.stoppingAgentRoundIds}
         />
       ) : (
         <StandaloneConversationRound renderer={renderer} state={state} />

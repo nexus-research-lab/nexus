@@ -8,6 +8,7 @@ export type EventType =
   | 'chat_ack'
   | 'input_queue'
   | 'input_queue_ack'
+  | 'interrupt_ack'
   | 'round_status'
   | 'agent_round_status'
   | 'session_status'
@@ -143,6 +144,14 @@ export interface InputQueueAckData {
   item_id: string;
   client_request_id: string;
   client_message_id: string;
+  ack_timeout_ms: number;
+}
+
+export interface InterruptAckData {
+  accepted: boolean;
+  client_request_id: string;
+  round_id?: string;
+  agent_round_id?: string;
   ack_timeout_ms: number;
 }
 

@@ -18,6 +18,7 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 import type { Message } from "@/types/conversation/message/entity";
+import type { UnresolvedToolStatus } from "@/features/conversation/shared/message/item/view/content/content-renderer-contract";
 
 import {
   buildConversationThreadModel,
@@ -62,6 +63,7 @@ interface ConversationThreadPanelProps {
   emptyContent?: ReactNode;
   sessionKey?: string;
   workspaceAgentId?: string | null;
+  unresolvedToolStatus?: UnresolvedToolStatus;
 }
 
 const EMPTY_PENDING_PERMISSIONS: PendingPermission[] = [];
@@ -93,6 +95,7 @@ export function ConversationThreadPanel({
   emptyContent,
   sessionKey,
   workspaceAgentId,
+  unresolvedToolStatus,
 }: ConversationThreadPanelProps) {
   const resolvedAgentAvatar = valueOrDefault(agentAvatar, null);
   const resolvedPendingPermissions = valueOrDefault(
@@ -164,6 +167,7 @@ export function ConversationThreadPanel({
     onOpenWorkspaceFile,
     onPermissionResponse,
     onStopMessage,
+    unresolvedToolStatus,
     workspaceAgentId: model.workspaceAgentId,
   };
 

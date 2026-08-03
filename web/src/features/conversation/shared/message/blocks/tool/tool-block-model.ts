@@ -77,6 +77,11 @@ const STATUS_META: Readonly<Record<
     labelKey: "message.tool_status_running",
     tone: "running",
   },
+  stopped: {
+    badgeClassName: "bg-(--surface-muted-background) text-(--text-muted)",
+    labelKey: "message.tool_status_stopped",
+    tone: "default",
+  },
   success: {
     badgeClassName: "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
     labelKey: "message.tool_status_success",
@@ -148,6 +153,7 @@ const WAITING_DETAIL_BY_STATUS: Readonly<Record<
   error: () => null,
   pending: () => null,
   running: () => null,
+  stopped: () => null,
   success: () => null,
   waiting_permission: (permission) => permission.fieldSummary,
 };

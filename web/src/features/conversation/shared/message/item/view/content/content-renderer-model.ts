@@ -78,14 +78,15 @@ export function shouldMountTextContentBlock(
 export function resolveToolBlockStatus(
   toolUse: ToolUseProjection | undefined,
   waitingForPermission: boolean,
+  unresolvedToolStatus?: Extract<ToolBlockStatus, "error" | "stopped">,
 ): ToolBlockStatus {
-  if (waitingForPermission) {
-    return "waiting_permission";
+  if (toolUse?.result) {
+    return toolUse.result.is_error ? "error" : "success";
   }
-  if (!toolUse?.result) {
-    return "running";
+  if (unresolvedToolStatus) {
+    return unresolvedToolStatus;
   }
-  return toolUse.result.is_error ? "error" : "success";
+  return waitingForPermission ? "waiting_permission" : "running";
 }
 
 export function isHiddenSystemEvent(block: SystemEventContent): boolean {

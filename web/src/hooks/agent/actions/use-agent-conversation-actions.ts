@@ -1,11 +1,8 @@
 import {
   useCallback,
   useRef,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
 
-import type { RoomPendingAgentSlotState } from "@/types/agent/agent-conversation";
 import type {
   AgentConversationDeliveryPolicy,
   AgentConversationSendOptions,
@@ -33,12 +30,15 @@ import type { OutboundRequestDescriptor } from "./outbound-request";
 
 interface UseAgentConversationActionsParams {
   actionContext: AgentConversationActionContext;
+  beginAgentRoundStop: (agentRoundId: string) => boolean;
   clearOutboundRequest: (clientRequestId: string) => void;
+  confirmAgentRoundStop: (agentRoundId: string) => void;
   handleRequestAckTimeout: (
     clientRequestId: string,
     message: string,
   ) => void;
-  setPendingAgentSlots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
+  readStoppingAgentRoundIds: () => string[];
+  settleAgentRoundStop: (agentRoundId: string) => void;
   settleChatAckWaitFailure: (
     clientRequestId: string,
     clientMessageId: string,
@@ -68,9 +68,12 @@ type SettleOutboundRequestFailure = (
  */
 export function useAgentConversationActions({
   actionContext,
+  beginAgentRoundStop,
   clearOutboundRequest,
+  confirmAgentRoundStop,
   handleRequestAckTimeout,
-  setPendingAgentSlots,
+  readStoppingAgentRoundIds,
+  settleAgentRoundStop,
   settleChatAckWaitFailure,
   settleRequestAckWaitFailure,
   trackOutboundRequest,
@@ -92,6 +95,7 @@ export function useAgentConversationActions({
     async (
       sendRequest: SendOutboundRequest,
       settleFailure: SettleOutboundRequestFailure,
+      timeoutMessage = "消息未送达后端，请重试",
     ): Promise<void> => {
       const request = await sendRequest();
       if (!request) {
@@ -103,7 +107,7 @@ export function useAgentConversationActions({
 
       try {
         await waitForRequestAck(requestId, () => {
-          handleRequestAckTimeout(requestId, "消息未送达后端，请重试");
+          handleRequestAckTimeout(requestId, timeoutMessage);
         });
       } catch (error) {
         settleFailure(request, error);
@@ -216,20 +220,46 @@ export function useAgentConversationActions({
 
   const stopGeneration = useCallback(
     (agentRoundId?: string): void => {
-      const sent = stopSessionGeneration(
-        actionContextRef.current,
-        agentRoundId,
-      );
-      if (!sent || !agentRoundId) {
+      const normalizedAgentRoundId = agentRoundId?.trim() ?? "";
+      if (
+        normalizedAgentRoundId
+        && readStoppingAgentRoundIds().includes(normalizedAgentRoundId)
+      ) {
         return;
       }
-      setPendingAgentSlots((currentSlots) => currentSlots.map((slot) => (
-        slot.agent_round_id === agentRoundId
-          ? { ...slot, status: "cancelled" }
-          : slot
-      )));
+      const request = stopSessionGeneration(
+        actionContextRef.current,
+        normalizedAgentRoundId || undefined,
+      );
+      if (!request) {
+        return;
+      }
+      if (normalizedAgentRoundId) {
+        beginAgentRoundStop(normalizedAgentRoundId);
+      }
+      void sendWithAck(
+        () => request,
+        (failedRequest, error) => {
+          if (normalizedAgentRoundId) {
+            settleAgentRoundStop(normalizedAgentRoundId);
+          }
+          settleRequestAckWaitFailure(failedRequest.client_request_id, error);
+        },
+        "停止请求未被后端确认，请重试",
+      ).then(() => {
+        if (normalizedAgentRoundId) {
+          confirmAgentRoundStop(normalizedAgentRoundId);
+        }
+      }).catch(() => undefined);
     },
-    [setPendingAgentSlots],
+    [
+      beginAgentRoundStop,
+      confirmAgentRoundStop,
+      readStoppingAgentRoundIds,
+      sendWithAck,
+      settleAgentRoundStop,
+      settleRequestAckWaitFailure,
+    ],
   );
 
   const sendPermissionResponse = useCallback(
