@@ -134,9 +134,11 @@ func TestModelCommandRejectsMainAgent(t *testing.T) {
 	agents := &fakeModelCommandAgents{
 		agent: protocol.Agent{IsMain: true, OwnerUserID: "owner-a"},
 	}
+	sessions := &fakeModelCommandSessions{}
 	registry := NewRegistry()
 	if err := RegisterModelCommand(registry, ModelCommandDependencies{
 		Agents:      agents,
+		Sessions:    sessions,
 		Preferences: fakeModelCommandPreferences{runtimeKind: "nxs"},
 		Providers:   fakeModelCommandProviders{options: &providersvc.OptionsResponse{}},
 	}); err != nil {
@@ -149,14 +151,14 @@ func TestModelCommandRejectsMainAgent(t *testing.T) {
 		Invocation{AgentID: "agent-main", Content: "/model deepseek/deepseek-v4-flash"},
 	)
 	message, clientSafe := protocol.ClientErrorMessage(err)
-	if !matched || !clientSafe || !strings.Contains(message, "始终跟随") || agents.updateCount != 0 {
+	if !matched || !clientSafe || !strings.Contains(message, "始终跟随") || sessions.updateCount != 0 {
 		t.Fatalf(
 			"Execute() = matched:%t err:%v client_safe:%t message:%q updates:%d",
 			matched,
 			err,
 			clientSafe,
 			message,
-			agents.updateCount,
+			sessions.updateCount,
 		)
 	}
 }
