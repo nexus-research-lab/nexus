@@ -1,6 +1,7 @@
 package handlertest
 
 import (
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"errors"
@@ -189,6 +190,16 @@ func OpenSQLite(t testing.TB, databaseURL string) *sql.DB {
 		t.Fatalf("打开测试数据库失败: %v", err)
 	}
 	return db
+}
+
+// CloseServer 在测试结束时释放 HTTP Server 自行持有的数据库与后台资源。
+func CloseServer(t testing.TB, server interface{ Close(context.Context) error }) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := server.Close(context.Background()); err != nil {
+			t.Errorf("关闭 HTTP 服务失败: %v", err)
+		}
+	})
 }
 
 // MigrateSQLite 执行 SQLite migration。

@@ -24,6 +24,7 @@ import { useComposerDraft } from "./use-composer-draft";
 import { useComposerGoalActions } from "./use-composer-goal-actions";
 import { useComposerKeyboard } from "./use-composer-keyboard";
 import { useComposerMessageSubmit } from "./use-composer-message-submit";
+import { useComposerSessionSettings } from "./use-composer-session-settings";
 
 const EMPTY_ROOM_MEMBERS: Agent[] = [];
 const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
@@ -52,8 +53,12 @@ export function useComposerController({
   roomMembers = EMPTY_ROOM_MEMBERS,
   runtimeKind,
   runtimePhase,
+  sessionSettings,
 }: ComposerPanelProps) {
   const { t } = useI18n();
+  const sessionSettingsController = useComposerSessionSettings(
+    sessionSettings,
+  );
   const draft = useComposerDraft(draftScopeKey);
   const {
     setAttachments,
@@ -184,12 +189,20 @@ export function useComposerController({
   });
   const { submitGoal } = goal;
   const handleSend = useCallback(async () => {
+    if (sessionSettingsController.saving) {
+      return;
+    }
     if (isGoalMode) {
       await submitGoal();
     } else {
       await submitMessage();
     }
-  }, [isGoalMode, submitGoal, submitMessage]);
+  }, [
+    isGoalMode,
+    sessionSettingsController.saving,
+    submitGoal,
+    submitMessage,
+  ]);
   const keyboard = useComposerKeyboard({
     historyIndex: history.index,
     historyItemCount: history.itemCount,
@@ -253,6 +266,7 @@ export function useComposerController({
     isLoading,
     isLoopPickerOpen: draftState.isLoopPickerOpen,
     isPreparingAttachments: attachments.isPreparingAttachments,
+    isSessionSettingsSaving: sessionSettingsController.saving,
     hasStopAction: Boolean(onStop),
     queueItemCount: inputQueueItems.length,
     queueWhenSessionBusy,
@@ -266,6 +280,7 @@ export function useComposerController({
       fileInputRef,
       textareaRef,
     },
+    sessionSettings: sessionSettingsController,
     state,
     attachments: {
       attachments: attachments.attachments,

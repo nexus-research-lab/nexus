@@ -96,10 +96,10 @@ func TestExecutionOrchestrationMigrationCanRollbackAndReapply(t *testing.T) {
 	if err = goose.Up(db, migrationDir); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
-	if err = goose.DownTo(db, migrationDir, 59); err != nil {
+	if err = goose.DownTo(db, migrationDir, 60); err != nil {
 		t.Fatalf("roll back orchestration migration: %v", err)
 	}
-	if err = goose.UpTo(db, migrationDir, 60); err != nil {
+	if err = goose.UpTo(db, migrationDir, 63); err != nil {
 		t.Fatalf("reapply orchestration migration: %v", err)
 	}
 }

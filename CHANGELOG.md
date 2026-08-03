@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplified the macOS and Windows update-ready prompts and made download progress windows substantially more compact.
 - Added a single DM/Room WorkGraph progress surface backed by a safe Execution read model: it follows the existing Task capsule and opens an interactive, dynamically reflowing DAG of actual Agent avatars and dependency edges, with compact task text shown only in a node-anchored popover after clicking an avatar; Nexus Execution tools now use readable activity labels and backend-authorized managed-tool policy instead of generic sensitive-tool prompts.
 - Added a shared Objective Alignment contract and managed Goal audit tool: model completion now requires criterion-level evidence saved as `aligned` for the current objective revision and runtime round, while the audit remains independent from Goal lifecycle so the same semantic kernel can later guard conditional Execution loops.
 - Added a deterministic actor-scoped graph digest to model Execution context: coordinators see the current DAG, members see only their responsibility slice and accepted upstream topology, and Mermaid remains a derived UI/debug view rather than an execution protocol.
@@ -29,6 +30,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restored canonical Room Agent reply order when live child events arrive before the initial history snapshot: durable `display_order` now backfills earlier executions without letting legacy timestamps or later volatile evidence reshuffle visible cards.
 - Reworked the Room unread boundary from a floating button-like badge into a centered horizontal reading divider, moved unread jumps to a contextual reading position, and made long virtualized conversations refine their initial index jump against the mounted message instead of stopping short of the real unread target.
 - Preserved explicit ordinary-Agent model selections when their Provider is temporarily unavailable: runtime now falls back to the user default and restores the original selection automatically when it becomes usable again, while the Nexus main Agent always follows the default model.
+## [0.1.31] - 2026-08-01
+
+### Added
+
+- Added the MIT-licensed `diagram-design` and `Kami` built-in Skills for editorial diagrams, documents, slides, and landing pages, with pinned sources and explicit third-party provenance.
+- Added safe Agent Memory browsing, editing, and confirmed deletion for topic and daily-log documents while protecting the root `MEMORY.md` index.
+- Added per-Session model and permission overrides, authoritative context-window usage, native memory-recall indicators, and per-Agent Room projections.
+
+### Changed
+
+- Reworked Agent Tools, Skills, Contact, and Memory into compact responsive management surfaces with guarded auto-save, clearer permission guidance, and one consistent reading plane.
+- Unified installed, update, community, and Agent Skill cards with localized descriptions, deterministic mathematical avatars, responsive catalogs, and quieter status presentation.
+- Simplified Room threads, workspace panels, file navigation, resize gutters, member selection, and management-page headers while keeping final replies in the main conversation feed.
+- Moved model and permission selection into per-Session Composer controls with stable multi-Agent cascading, explicit reset actions, and clearer approval and full-access language.
+- Replaced the startup animation with a lightweight local indicator, suspended idle Home animation work, and smoothed visible workbench motion.
+- Made General settings show the authoritative desktop version, build number, and log export action instead of a duplicate runtime version.
+
+### Fixed
+
+- Fixed runtime startup, replacement, interruption, reconnect, and live configuration races so stale processes or delayed results cannot affect a later turn.
+- Kept internal interrupt markers out of conversations, permission results, persisted history, and diagnostic logs.
+- Closed application, CLI, handler, logging, Session, Agent, Room, and migration resources consistently, preventing Windows file and SQLite lock leaks.
+- Hardened Windows runtime paths, shell authorization, read-only bundled Skills, file permissions, and cross-platform tests.
+- Restored context-window snapshots after refresh or restart, decoded structured Session keys, and stabilized anchored overlays and action menus.
+- Restored macOS packaging on Node installations without Corepack and kept compact headers clear of native window controls.
 
 ## [0.1.30] - 2026-07-31
 

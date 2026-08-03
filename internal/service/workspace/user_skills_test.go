@@ -12,15 +12,15 @@ import (
 
 func TestEnsureUserSkillLibrarySharesNXSAndClaudeRoots(t *testing.T) {
 	cfg := testSkillConfig(t)
-	if err := EnsureUserSkillLibrary(cfg, "owner-a"); err != nil {
-		t.Fatalf("创建用户级 Skill 源失败: %v", err)
-	}
 	sourcePath := filepath.Join(UserSkillDiscoveryRoot(cfg, "owner-a"), "demo-skill", "SKILL.md")
 	if err := os.MkdirAll(filepath.Dir(sourcePath), 0o755); err != nil {
 		t.Fatalf("创建用户级 Skill 目录失败: %v", err)
 	}
 	if err := os.WriteFile(sourcePath, []byte("demo"), 0o644); err != nil {
 		t.Fatalf("写入用户级 Skill 失败: %v", err)
+	}
+	if err := EnsureUserSkillLibrary(cfg, "owner-a"); err != nil {
+		t.Fatalf("创建用户级 Skill 源失败: %v", err)
 	}
 	claudePath := filepath.Join(UserSkillLibraryRoot(cfg, "owner-a"), ".claude", "skills", "demo-skill", "SKILL.md")
 	if payload, err := os.ReadFile(claudePath); err != nil {
@@ -49,6 +49,7 @@ func TestEnsureHostSkillLibraryPublishesStandardAgentsRoot(t *testing.T) {
 	cfg.AppMode = "desktop"
 	home := filepath.Join(t.TempDir(), "home")
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	sourceRoot := filepath.Join(home, ".agents", "skills", "host-skill")
 	if err := os.MkdirAll(sourceRoot, 0o755); err != nil {
 		t.Fatalf("创建宿主 Skill 源失败: %v", err)

@@ -74,14 +74,14 @@ func resultNeedsAssistantProjection(result protocol.Message) bool {
 		normalizeString(result["agent_round_id"]) != "" {
 		return true
 	}
-	return NormalizeDisplayText(normalizeString(result["result"])) != ""
+	return NormalizeDisplayText(resultProjectionText(result)) != ""
 }
 
 // BuildAssistantResultSummary 只保留 assistant 终态需要的结果摘要。
 func BuildAssistantResultSummary(result protocol.Message, assistantText string) map[string]any {
 	resultMessageID := normalizeString(result["message_id"])
 	resultSubtype := normalizeString(result["subtype"])
-	resultValue := normalizeString(result["result"])
+	resultValue := resultProjectionText(result)
 	summary := map[string]any{
 		"message_id":      resultMessageID,
 		"timestamp":       messageTimestamp(result),
@@ -114,6 +114,14 @@ func BuildAssistantResultSummary(result protocol.Message, assistantText string) 
 		}
 	}
 	return summary
+}
+
+func resultProjectionText(result protocol.Message) string {
+	resultText := normalizeString(result["result"])
+	if NormalizeResultSubtype(normalizeString(result["subtype"])) == "interrupted" {
+		return NormalizeInterruptDisplayText(resultText)
+	}
+	return resultText
 }
 
 func copyNonEmptyResultField(target map[string]any, source protocol.Message, key string) {
@@ -238,7 +246,7 @@ func BuildSyntheticAssistantFromResult(result protocol.Message) protocol.Message
 	} else {
 		synthetic["stop_reason"] = "end_turn"
 	}
-	if resultText := normalizeString(result["result"]); resultText != "" {
+	if resultText := resultProjectionText(result); resultText != "" {
 		synthetic["content"] = []map[string]any{{
 			"type": "text",
 			"text": resultText,

@@ -49,8 +49,128 @@ async function renderWithI18n(element, locale = "zh") {
   );
 }
 
+test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的最近值", async () => {
+  const {
+    ComposerContextUsage,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-context-usage.tsx",
+  );
+  const {
+    projectComposerContextUsage,
+    projectContextUsage,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-context-usage-model.ts",
+  );
+  const { AGENT_SESSION_EVENT_HANDLERS } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-handlers.ts",
+  );
+  const usage = {
+    max_tokens: 258_000,
+    percentage: 75.96,
+    total_tokens: 196_000,
+  };
+
+  assert.deepEqual(projectContextUsage(usage), {
+    maxTokens: 258_000,
+    percentage: 76,
+    toneClassName: "text-(--text-soft)",
+    totalTokens: 196_000,
+  });
+  assert.equal(projectContextUsage(null), null);
+  const html = await renderWithI18n(
+    React.createElement(ComposerContextUsage, { usage }),
+  );
+  assert.match(html, /data-context-usage="76"/);
+  assert.match(html, /上下文窗口已用 76%/);
+  assert.match(html, /196\.0K/);
+  assert.match(html, /258\.0K/);
+
+  const groupedProjection = projectComposerContextUsage({
+    items: [
+      { agentId: "amy", name: "Amy", usage },
+      {
+        agentId: "devin",
+        name: "Devin",
+        usage: { ...usage, percentage: 88, total_tokens: 227_040 },
+      },
+    ],
+    usage: null,
+  });
+  assert.equal(groupedProjection.grouped, true);
+  assert.equal(groupedProjection.summary.percentage, 88);
+  assert.deepEqual(
+    groupedProjection.items.map((item) => item.name),
+    ["Amy", "Devin"],
+  );
+  const groupedHtml = await renderWithI18n(
+    React.createElement(ComposerContextUsage, {
+      items: [
+        { agentId: "amy", name: "Amy", usage },
+        { agentId: "devin", name: "Devin", usage: null },
+      ],
+      usage: null,
+    }),
+  );
+  assert.match(groupedHtml, /Room 上下文窗口，2 个 Agent，最高已用 76%/);
+
+  let usageByAgent = {};
+  const context = {
+    scope: {
+      isCurrentSessionEvent: (sessionKey) => sessionKey === "room-session",
+    },
+    state: {
+      setContextUsageByAgent: (update) => {
+        usageByAgent = typeof update === "function"
+          ? update(usageByAgent)
+          : update;
+      },
+    },
+  };
+  for (const agentId of ["amy", "devin"]) {
+    AGENT_SESSION_EVENT_HANDLERS.context_usage({
+      agent_id: agentId,
+      data: usage,
+      event_type: "context_usage",
+      protocol_version: 2,
+      session_key: "room-session",
+      timestamp: 1,
+    }, context);
+  }
+  assert.deepEqual(Object.keys(usageByAgent), ["amy", "devin"]);
+});
+
+test("Action Menu 的空 footer 使用稳定引用，避免定位状态自循环", async () => {
+  const source = await readFile(
+    path.join(webRoot, "src/shared/ui/menu/action-menu.tsx"),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem\[\] = \[\];/,
+  );
+  assert.equal(
+    (source.match(/footerItems = EMPTY_ACTION_MENU_ITEMS/g) ?? []).length,
+    2,
+  );
+  assert.doesNotMatch(source, /footerItems = \[\]/);
+});
+
+test("anchored overlay style clears the unused vertical axis", async () => {
+  const source = await readFile(
+    path.join(webRoot, "src/shared/ui/overlay/anchored-overlay-layer.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /bottom: position\.bottom \?\? "auto"/);
+  assert.match(source, /top: position\.top \?\? "auto"/);
+});
+
 test("anchored overlay end alignment follows the trigger without leaving the viewport", async () => {
-  const { resolveAnchoredOverlayPosition } = await server.ssrLoadModule(
+  const {
+    areAnchoredOverlayPositionsEqual,
+    resolveAnchoredOverlayPosition,
+  } = await server.ssrLoadModule(
     "/src/shared/ui/overlay/anchored-overlay-model.ts",
   );
   const originalWindow = globalThis.window;
@@ -80,6 +200,17 @@ test("anchored overlay end alignment follows the trigger without leaving the vie
     assert.equal(position.left, 452);
     assert.equal(position.width, 248);
     assert.equal(position.placement, "top");
+    assert.equal(
+      areAnchoredOverlayPositionsEqual(position, { ...position }),
+      true,
+    );
+    assert.equal(
+      areAnchoredOverlayPositionsEqual(position, {
+        ...position,
+        left: position.left + 1,
+      }),
+      false,
+    );
 
     globalThis.window.innerWidth = 240;
     const narrowPosition = resolveAnchoredOverlayPosition({
@@ -272,6 +403,52 @@ test("标题栏与 Composer 自身边缘羽化且不改变滚动几何", async (
   );
 });
 
+test("Room 右侧上下文面使用软分栏而不是硬竖线", async () => {
+  const [
+    resizeHandleSource,
+    splitStyles,
+    surfaceSource,
+    threadPanelSource,
+    auxiliaryPanelSource,
+  ] = await Promise.all([
+    "src/shared/ui/layout/panel-resize-handle.tsx",
+    "src/features/conversation/room/surface/layout/room-surface-split.css",
+    "src/features/conversation/room/surface/layout/room-surface-content.tsx",
+    "src/features/conversation/room/surface/layout/room-thread-inline-panel.tsx",
+    "src/features/conversation/room/surface/layout/room-surface-auxiliary-panel.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+
+  assert.match(surfaceSource, /nexus-room-surface-split/);
+  assert.match(surfaceSource, /nexus-room-surface-conversation/);
+  for (const panelSource of [threadPanelSource, auxiliaryPanelSource]) {
+    assert.match(panelSource, /nexus-room-surface-side-panel/);
+    assert.match(panelSource, /variant="gutter"/);
+    assert.doesNotMatch(panelSource, /\bborder-l\b|\bdivider-subtle\b/);
+  }
+  assert.match(resizeHandleSource, /relative w-2 shrink-0 self-stretch/);
+  assert.match(resizeHandleSource, /cursor-col-resize/);
+  assert.doesNotMatch(
+    resizeHandleSource,
+    /<span|border-l-\[6px\]|border-y-\[5px\]|group-hover\/resize/,
+  );
+  const sidePanelRule = splitStyles.match(
+    /\.nexus-room-surface-side-panel\s*\{([\s\S]*?)\}/,
+  )?.[1] ?? "";
+  assert.match(
+    sidePanelRule,
+    /background:\s*color-mix\([\s\S]*?var\(--surface-panel-background\) 72%[\s\S]*?box-shadow:\s*-8px 0 20px -18px color-mix\([\s\S]*?var\(--shadow-color\) 14%/,
+  );
+  assert.match(
+    splitStyles,
+    /\.nexus-room-surface-split\s*\{[\s\S]*?background:\s*var\(--surface-canvas-background\)/,
+  );
+  assert.match(
+    splitStyles,
+    /\.nexus-room-surface-conversation\s*\{[\s\S]*?background:\s*transparent/,
+  );
+  assert.doesNotMatch(sidePanelRule, /border(?:-left)?:|margin-left:/);
+});
+
 test("Room header keeps view and member controls on one spacing rhythm", async () => {
   const headerStyles = await readFile(
     path.join(
@@ -383,6 +560,90 @@ test("Composer Footer keeps Powered by Nexus in its physical center column", asy
       onGoalToggle: () => {},
       onLoopSelect: () => {},
       runtimeActivity: null,
+      sessionSettingsController: {
+        busy: false,
+        ensureTargetsLoaded: () => {},
+        error: null,
+        hasModelOverride: false,
+        hasPermissionOverride: false,
+        inheritedModel: "agent-model",
+        inheritedPermissionMode: "default",
+        inheritedProvider: "agent-provider",
+        isDangerousPermission: false,
+        modelBusy: false,
+        modelLabel: "agent-model",
+        permissionLabel: "默认",
+        providerOptions: null,
+        resetModel: () => {},
+        resetPermission: () => {},
+        resetTarget: () => {},
+        saving: false,
+        scope: {
+          initialTargetId: "agent-1",
+          runtimeKind: "nxs",
+          targets: [
+            {
+              agentId: "agent-1",
+              defaultModel: "agent-model",
+              defaultPermissionMode: "default",
+              defaultProvider: "agent-provider",
+              name: "Nexus",
+              sessionKey: "agent:agent-1:ws:group:conversation-1",
+            },
+            {
+              agentId: "agent-2",
+              defaultModel: "",
+              defaultPermissionMode: "acceptEdits",
+              defaultProvider: "",
+              name: "Amy",
+              sessionKey: "agent:agent-2:ws:group:conversation-1",
+            },
+          ],
+        },
+        selectTarget: () => {},
+        settings: {
+          model: "",
+          permission_mode: "",
+          provider: "",
+        },
+        target: {
+          agentId: "agent-1",
+          defaultModel: "agent-model",
+          defaultPermissionMode: "default",
+          defaultProvider: "agent-provider",
+          name: "Nexus",
+          sessionKey: "agent:agent-1:ws:group:conversation-1",
+        },
+        targetViews: [
+          {
+            busy: false,
+            modelLabel: "agent-model",
+            target: {
+              agentId: "agent-1",
+              defaultModel: "agent-model",
+              defaultPermissionMode: "default",
+              defaultProvider: "agent-provider",
+              name: "Nexus",
+              sessionKey: "agent:agent-1:ws:group:conversation-1",
+            },
+          },
+          {
+            busy: false,
+            modelLabel: "global-model",
+            target: {
+              agentId: "agent-2",
+              defaultModel: "",
+              defaultPermissionMode: "acceptEdits",
+              defaultProvider: "",
+              name: "Amy",
+              sessionKey: "agent:agent-2:ws:group:conversation-1",
+            },
+          },
+        ],
+        updateModel: () => {},
+        updatePermission: () => {},
+      },
+      sessionSettingsDisabled: false,
       showPoweredByNexus: true,
       submit: {
         enterLabel: "发送",
@@ -401,6 +662,15 @@ test("Composer Footer keeps Powered by Nexus in its physical center column", asy
   assert.match(html, /\bnexus-chat-composer-footer\b/);
   assert.match(html, /data-composer-powered-by="true"/);
   assert.match(html, /Powered by\s*<\/span>Nexus/);
+  assert.match(html, /aria-label="当前 Session 权限"/);
+  assert.match(html, /aria-label="当前 Session 模型"/);
+  assert.doesNotMatch(html, /aria-label="Agent 设置"/);
+  assert.doesNotMatch(html, />agent-model</);
+  assert.match(
+    html,
+    /nexus-chat-composer-footer-trailing[^"]*\bgap-2\b/,
+    "Composer controls keep the same 8px rhythm on both sides",
+  );
   const recipeSource = await readFile(
     path.join(webRoot, "src/app/styles/theme-recipes.css"),
     "utf8",
@@ -417,6 +687,211 @@ test("Composer Footer keeps Powered by Nexus in its physical center column", asy
     recipeSource,
     /var\(--text-soft\) 52%[\s\S]*var\(--input-shell-background\)/,
     "the centered brand stays below normal secondary-text contrast",
+  );
+});
+
+test("DM Composer keeps direct Session permission and model controls", async () => {
+  const { ComposerSessionControls } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-session-controls.tsx",
+  );
+  const target = {
+    agentId: "agent-1",
+    defaultModel: "agent-model",
+    defaultPermissionMode: "default",
+    defaultProvider: "agent-provider",
+    name: "Nexus",
+    sessionKey: "agent:agent-1:session-1",
+  };
+  const controller = {
+    busy: false,
+    ensureTargetsLoaded: () => {},
+    error: null,
+    hasModelOverride: false,
+    hasPermissionOverride: false,
+    inheritedModel: "agent-model",
+    inheritedPermissionMode: "default",
+    inheritedProvider: "agent-provider",
+    isDangerousPermission: false,
+    modelBusy: false,
+    modelLabel: "agent-model",
+    permissionLabel: "默认",
+    providerOptions: null,
+    resetModel: () => {},
+    resetPermission: () => {},
+    resetTarget: () => {},
+    saving: false,
+    scope: {
+      initialTargetId: target.agentId,
+      runtimeKind: "nxs",
+      targets: [target],
+    },
+    selectTarget: () => {},
+    settings: {
+      model: "",
+      permission_mode: "",
+      provider: "",
+    },
+    target,
+    targetViews: [{
+      busy: false,
+      modelLabel: "agent-model",
+      target,
+    }],
+    updateModel: () => {},
+    updatePermission: () => {},
+  };
+  const html = await renderWithI18n(
+    React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(ComposerSessionControls, {
+        controller,
+        disabled: false,
+        slot: "leading",
+      }),
+      React.createElement(ComposerSessionControls, {
+        controller,
+        disabled: false,
+        slot: "trailing",
+      }),
+    ),
+  );
+
+  assert.match(html, /aria-label="当前 Session 权限"/);
+  assert.match(html, /aria-label="当前 Session 模型"/);
+  assert.match(html, />agent-model</);
+  assert.doesNotMatch(html, /aria-label="Agent 设置"/);
+});
+
+test("Session setting menus expose concrete choices and a separate reset action", async () => {
+  const {
+    buildResetSessionSettingItem,
+    buildSessionModelItems,
+    buildSessionPermissionItems,
+    RESET_SESSION_SETTING_VALUE,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-session-control-options.tsx",
+  );
+  const controller = {
+    inheritedModel: "model-a",
+    inheritedPermissionMode: "default",
+    inheritedProvider: "provider-a",
+    providerOptions: {
+      items: [{
+        display_name: "Provider A",
+        models: [{
+          display_name: "Model A",
+          model_id: "model-a",
+        }],
+        provider: "provider-a",
+      }],
+    },
+    settings: {
+      model: "",
+      permission_mode: "",
+      provider: "",
+    },
+  };
+  const translate = (key) => key;
+  const modelItems = buildSessionModelItems(controller);
+  const permissionItems = buildSessionPermissionItems(controller, translate);
+  const resetItem = buildResetSessionSettingItem(true, translate);
+
+  assert.equal(modelItems.length, 1);
+  assert.equal(modelItems[0].active, true);
+  assert.equal(permissionItems.length, 5);
+  assert.equal(permissionItems[0].active, true);
+  assert.equal(
+    permissionItems.every((item) => item.description),
+    true,
+    "permission choices retain a concise second line",
+  );
+  assert.equal(
+    permissionItems.every((item) => item.icon),
+    true,
+    "permission choices retain a semantic leading icon",
+  );
+  assert.equal(resetItem.value, RESET_SESSION_SETTING_VALUE);
+  assert.equal(resetItem.disabled, true);
+  assert.equal(
+    permissionItems.some((item) => item.value === RESET_SESSION_SETTING_VALUE),
+    false,
+    "reset remains below the concrete choices",
+  );
+
+  const menuStyleSource = await readFile(
+    path.join(webRoot, "src/shared/ui/menu/menu-styles.ts"),
+    "utf8",
+  );
+  assert.match(
+    menuStyleSource,
+    /radius-control-lg/,
+    "4px inset menu rows stay concentric with the 16px popover",
+  );
+
+  const roomModelSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(
+    roomModelSource,
+    /canHoverSelect[\s\S]*onPointerEnter/,
+    "hovering a Room Agent opens its model choices without another detail page",
+  );
+  assert.doesNotMatch(
+    roomModelSource,
+    /RoomAgentSettingsDetail|RoomSettingsDetailRow/,
+    "Room model selection no longer carries the obsolete Agent detail layer",
+  );
+  const sessionControlsSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/composer/components/footer/composer-session-controls.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(
+    sessionControlsSource,
+    /SESSION_PERMISSION_MENU_WIDTH = 288/,
+    "permission menus retain their readable width",
+  );
+  assert.match(
+    sessionControlsSource,
+    /SESSION_MODEL_MENU_WIDTH = 256/,
+    "DM model choices use the compact menu width",
+  );
+  assert.match(
+    sessionControlsSource,
+    /ariaLabel=\{t\("composer\.session_model"\)\}[\s\S]*density="compact"/,
+    "DM model choices use compact Action Menu rows",
+  );
+  assert.match(
+    roomModelSource,
+    /ROOM_MODEL_MENU_WIDTH = 256/,
+    "Room model choices use the compact model width",
+  );
+  assert.match(
+    roomModelSource,
+    /ROOM_MODEL_AGENT_MENU_WIDTH = 224/,
+    "Room Agent selection stays narrower than the model choices",
+  );
+  assert.match(
+    roomModelSource,
+    /UiActionMenuContent[\s\S]*density="compact"/,
+    "Room model choices reuse compact Action Menu rows",
+  );
+  assert.match(
+    roomModelSource,
+    /function RoomModelPanel[\s\S]*OVERLAY_SURFACE_CLASS_NAME/,
+    "Room cascade surfaces stay on stable child panels instead of the resizing root",
+  );
+  assert.match(
+    roomModelSource,
+    /Math\.max\(agentHeight, modelHeight\)/,
+    "Room cascade reserves a stable height before the first Agent hover",
   );
 });
 
@@ -593,8 +1068,9 @@ test("Room progress stays isolated by Agent and selection follows the latest pro
   );
   assert.match(
     roomAgentSwitcherSource,
-    /variant === "task"[\s\S]*h-7 w-full max-w-\[9rem\][\s\S]*text-compact font-semibold/,
+    /variant === "panel" \? "w-28 shrink-0" : "w-full max-w-36"/,
   );
+  assert.match(roomAgentSwitcherSource, /flex h-7 w-full min-w-0/);
 });
 
 test("Room and DM stack Goal, Task, and scroll controls upward from the Composer", async () => {
@@ -1060,6 +1536,10 @@ test("DM and Room messages never remount interaction options outside the Compose
   assert.equal(resolvePendingInteractionOwner("dm_archived"), "composer");
   assert.equal(resolvePendingInteractionOwner("room_result"), "composer");
   assert.equal(resolvePendingInteractionOwner("room_thread"), "composer");
+  assert.equal(
+    resolvePendingInteractionOwner("room_thread_process"),
+    "composer",
+  );
 
   const toolHtml = await renderWithI18n(
     React.createElement(ContentRenderer, {

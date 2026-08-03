@@ -1,5 +1,5 @@
 // INPUT: DM session、稳定 execution contract、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层且带诊断、权限和 PostToolUse hooks 的可复用 runtime client。
+// OUTPUT: static/dynamic prompt 分层、换代安全且带诊断、权限和 PostToolUse hooks 的可复用 runtime client。
 // POS: DM 服务的 runtime client 装配边界。
 package dm
 
@@ -37,7 +37,27 @@ func (s *Service) ensureClient(
 	sessionItem protocol.Session,
 	request Request,
 ) (runtimectx.Client, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode, error) {
-	permissionMode := resolvePermissionMode(request.PermissionMode, agentValue.Options.PermissionMode)
+	startup, err := s.runtime.BeginClientStartup(ctx, sessionKey)
+	if err != nil {
+		return nil, "", "", "", "", "", nil, sdkpermission.ModeDefault, err
+	}
+	defer startup.Close()
+	latestSession, _, err := s.files.ForOwner(agentValue.OwnerUserID).FindSession(
+		[]string{agentValue.WorkspacePath},
+		sessionKey,
+	)
+	if err != nil {
+		return nil, "", "", "", "", "", nil, sdkpermission.ModeDefault, err
+	}
+	if latestSession != nil {
+		sessionItem = *latestSession
+	}
+	sessionSettings := protocol.SessionRuntimeSettingsFromOptions(sessionItem.Options)
+	permissionMode := resolvePermissionMode(
+		request.PermissionMode,
+		sessionSettings.PermissionMode,
+		agentValue.Options.PermissionMode,
+	)
 	permissionHandler := request.PermissionHandler
 	if permissionHandler == nil {
 		permissionHandler = func(permissionCtx context.Context, permissionRequest sdkpermission.Request) (sdkpermission.Decision, error) {
@@ -120,7 +140,11 @@ func (s *Service) ensureClient(
 			mcpServers[name] = server
 		}
 	}
-	runtimeSelection, err := s.resolveAgentRuntimeSelection(ctx, agentValue)
+	runtimeSelection, err := s.resolveAgentRuntimeSelection(
+		ctx,
+		agentValue,
+		sessionItem.Options,
+	)
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
@@ -185,8 +209,17 @@ func (s *Service) ensureClient(
 			"runtime_provider", runtimeProvider,
 		)...,
 	)
-	client, err := s.acquireRuntimeClient(ctx, sessionKey, options)
+	client, err := s.acquireRuntimeClient(ctx, startup, options)
 	if err != nil {
+		retired, closeErr := retireDMRuntimeClient(ctx, startup)
+		if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+			s.loggerFor(ctx).Warn("清理启动失败的 DM runtime 返回错误",
+				"session_key", sessionKey,
+				"agent_id", agentValue.AgentID,
+				"startup_err", err,
+				"cleanup_err", closeErr,
+			)
+		}
 		if strings.TrimSpace(options.Session.ResumeID) == "" || !runtimectx.IsRuntimeTransportClosedError(err) {
 			return nil, "", "", "", "", "", nil, permissionMode, err
 		}
@@ -196,15 +229,27 @@ func (s *Service) ensureClient(
 			"sdk_session_id", options.Session.ResumeID,
 			"err", err,
 		)
-		if closeErr := s.runtime.CloseSession(ctx, sessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-			return nil, "", "", "", "", "", nil, permissionMode, closeErr
+		if !retired {
+			return nil, "", "", "", "", "", nil, permissionMode, err
 		}
 		if _, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem); clearErr != nil {
 			return nil, "", "", "", "", "", nil, permissionMode, clearErr
 		}
 		options.Session.ResumeID = ""
-		client, err = s.acquireRuntimeClient(ctx, sessionKey, options)
+		if errors.Is(closeErr, context.Canceled) || errors.Is(closeErr, context.DeadlineExceeded) {
+			return nil, "", "", "", "", "", nil, permissionMode, err
+		}
+		client, err = s.acquireRuntimeClient(ctx, startup, options)
 		if err != nil {
+			if _, cleanupErr := retireDMRuntimeClient(ctx, startup); cleanupErr != nil &&
+				!runtimectx.IsRuntimeTransportClosedError(cleanupErr) {
+				s.loggerFor(ctx).Warn("清理重试失败的 DM runtime 返回错误",
+					"session_key", sessionKey,
+					"agent_id", agentValue.AgentID,
+					"startup_err", err,
+					"cleanup_err", cleanupErr,
+				)
+			}
 			return nil, "", "", "", "", "", nil, permissionMode, err
 		}
 	}
@@ -221,9 +266,25 @@ func joinDMRuntimePrompts(stable string, dynamic string) string {
 	return strings.Join(parts, "\n\n---\n\n")
 }
 
-func resolvePermissionMode(requestMode sdkpermission.Mode, agentMode string) sdkpermission.Mode {
+func retireDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartup) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimectx.RoundIdleAbortTimeout)
+	defer cancel()
+	return startup.RetireCurrent(closeCtx)
+}
+
+func resolvePermissionMode(
+	requestMode sdkpermission.Mode,
+	sessionMode string,
+	agentMode string,
+) sdkpermission.Mode {
 	if requestMode != "" {
 		return runtimepermission.NormalizeMode(requestMode)
+	}
+	if sessionMode != "" {
+		return runtimepermission.NormalizeMode(sdkpermission.Mode(sessionMode))
 	}
 	if agentMode != "" {
 		return runtimepermission.NormalizeMode(sdkpermission.Mode(agentMode))
@@ -258,9 +319,11 @@ func (s *Service) goalRuntimeContext(ctx context.Context, sessionKey string) (st
 func (s *Service) resolveAgentRuntimeSelection(
 	ctx context.Context,
 	agentValue *protocol.Agent,
+	sessionOptions map[string]any,
 ) (runtimeselectionsvc.Selection, error) {
 	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.prefs, s.providers).Resolve(ctx, runtimeselectionsvc.Request{
-		Agent: agentValue,
+		Agent:          agentValue,
+		SessionOptions: sessionOptions,
 	})
 }
 
@@ -393,20 +456,20 @@ func (s *Service) persistSDKSessionFingerprint(
 
 func (s *Service) acquireRuntimeClient(
 	ctx context.Context,
-	sessionKey string,
+	startup *runtimectx.ClientStartup,
 	options agentclient.Options,
 ) (runtimectx.Client, error) {
-	client, err := s.runtime.GetOrCreate(ctx, sessionKey, options)
+	client, err := startup.GetOrCreateWithFactory(ctx, options, nil)
 	if err != nil {
-		s.logRuntimeStartupFailure(ctx, sessionKey, "get_or_create", options, err)
-		return nil, err
+		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "get_or_create", options, err)
+		return client, err
 	}
-	if err := client.Connect(ctx); err != nil {
-		s.logRuntimeStartupFailure(ctx, sessionKey, "connect", options, err)
-		return nil, err
+	if err := startup.Connect(ctx); err != nil {
+		s.logRuntimeStartupFailure(ctx, startup.SessionKey(), "connect", options, err)
+		return client, err
 	}
 	s.loggerFor(ctx).Info("runtime client connected",
-		"session_key", sessionKey,
+		"session_key", startup.SessionKey(),
 		"sdk_session_id", strings.TrimSpace(client.SessionID()),
 	)
 	return client, nil

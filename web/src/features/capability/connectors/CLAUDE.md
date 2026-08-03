@@ -3,6 +3,7 @@
 - 根目录只保留目录入口和跨 catalog/detail 使用的图标。
 - `model/` 负责 catalog 与 detail 共享的连接状态和动作语义。
 - `catalog/` 负责搜索、分组和连接器列表。
+- 目录卡片复用能力域共享的可见边框与三列间距，品牌图标继续由 `ConnectorIcon` 统一渲染。
 - `detail/` 负责详情状态、主动作与能力展示。
 - `auth/` 负责 OAuth、Device Flow、直接凭证和附加认证信息。
 - `controller/` 负责列表、详情和命令状态的组合，不向视图暴露宽接口。

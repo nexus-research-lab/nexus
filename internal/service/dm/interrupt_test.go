@@ -2,14 +2,18 @@ package dm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
 
@@ -34,6 +38,7 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 					Subtype:    "interrupted",
 					DurationMS: 1,
 					NumTurns:   1,
+					Result:     messagepkg.InterruptWithoutMessage,
 				},
 			}
 		}()
@@ -64,6 +69,7 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	})
 	assertContainsRoundStatus(t, events, "interrupted")
 	assertNotContainsResultSubtype(t, events, "interrupted")
+	assertNoInternalInterruptSentinel(t, events)
 
 	client.mu.Lock()
 	interruptCalls := client.interruptCalls
@@ -95,6 +101,24 @@ func TestServiceHandleInterruptEmitsInterruptedRound(t *testing.T) {
 	summary, ok := messages[1]["result_summary"].(map[string]any)
 	if !ok || summary["subtype"] != "interrupted" {
 		t.Fatalf("中断后未挂载 interrupted result_summary: %+v", messages)
+	}
+	assertNoInternalInterruptSentinel(t, messages)
+	overlayPath := workspacestore.New(cfg.WorkspacePath).SessionOverlayPath(workspacePath, sessionKey)
+	overlayPayload, err := os.ReadFile(overlayPath)
+	if err != nil {
+		t.Fatalf("读取中断 overlay 失败: %v", err)
+	}
+	assertNoInternalInterruptSentinel(t, string(overlayPayload))
+}
+
+func assertNoInternalInterruptSentinel(t *testing.T, value any) {
+	t.Helper()
+	payload, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("编码中断投影失败: %v", err)
+	}
+	if strings.Contains(string(payload), messagepkg.InterruptWithoutMessage) {
+		t.Fatalf("内部中断哨兵泄漏到用户可见投影: %s", payload)
 	}
 }
 
@@ -173,6 +197,7 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 					Subtype:    "interrupted",
 					DurationMS: 1,
 					NumTurns:   1,
+					Result:     messagepkg.InterruptWithoutMessage,
 				},
 			}
 		}()
@@ -209,6 +234,7 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 			event.Data["status"] == "finished"
 	})
 	assertContainsRoundStatus(t, events, "finished")
+	assertNoInternalInterruptSentinel(t, events)
 
 	client.mu.Lock()
 	interruptCalls := client.interruptCalls
@@ -223,6 +249,16 @@ func TestServiceHandleChatInterruptPolicyStopsRunningRound(t *testing.T) {
 	}
 	if len(sentContents) != 0 {
 		t.Fatalf("打断策略不应走 streaming input: %+v", sentContents)
+	}
+	_, workspacePath := mustFindDMSession(t, service, cfg, sessionKey)
+	overlayPath := workspacestore.New(cfg.WorkspacePath).SessionOverlayPath(workspacePath, sessionKey)
+	overlayPayload, err := os.ReadFile(overlayPath)
+	if err != nil {
+		t.Fatalf("读取打断策略 overlay 失败: %v", err)
+	}
+	assertNoInternalInterruptSentinel(t, string(overlayPayload))
+	if !strings.Contains(string(overlayPayload), "收到新的用户消息，上一轮已停止") {
+		t.Fatalf("原生 interrupted result 未保留自定义打断文案: %s", overlayPayload)
 	}
 }
 
@@ -317,12 +353,14 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 	client := newFakeDMClient()
 	client.sessionID = "sdk-interrupt-old"
 	queryCount := 0
+	oldTerminalSent := make(chan struct{})
 	client.onQuery = func(_ context.Context, _ string) {
 		queryCount++
 		if queryCount != 2 {
 			return
 		}
 		go func() {
+			<-oldTerminalSent
 			client.messages <- sdkprotocol.ReceivedMessage{
 				Type:      sdkprotocol.MessageTypeResult,
 				SessionID: client.sessionID,
@@ -338,16 +376,21 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 	}
 	client.onInterrupt = func(_ context.Context) {
 		go func() {
+			// 晚于 Manager 的强制取消宽限，复现真实 nxs 中断尾包落入下一轮。
+			time.Sleep(250 * time.Millisecond)
 			client.messages <- sdkprotocol.ReceivedMessage{
 				Type:      sdkprotocol.MessageTypeResult,
 				SessionID: client.sessionID,
 				UUID:      "result-after-interrupt",
 				Result: &sdkprotocol.ResultMessage{
-					Subtype:    "interrupted",
-					DurationMS: 1,
+					Subtype:    "error_during_execution",
+					DurationMS: 25707,
 					NumTurns:   1,
+					IsError:    true,
+					Errors:     []string{"stale interrupted request"},
 				},
 			}
+			close(oldTerminalSent)
 		}()
 	}
 

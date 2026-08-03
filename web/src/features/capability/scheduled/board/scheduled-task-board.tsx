@@ -17,6 +17,10 @@ import { UiButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import { UiSkeleton } from "@/shared/ui/display/skeleton";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import {
+  WORKSPACE_CATALOG_GRID_CLASS_NAME,
+  WORKSPACE_CONTENT_BLEED_CLASS_NAME,
+} from "@/shared/ui/layout/workspace-content-layout";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import type { ScheduledTaskPendingCommands } from "../controller/scheduled-task-directory-model";
@@ -92,11 +96,14 @@ function getScheduledTaskBoardState({
 
 function ScheduledTaskLoadingBoard() {
   return (
-    <div className="soft-scrollbar -mx-5 flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-5 max-lg:mx-0 max-lg:overflow-x-hidden max-lg:overflow-y-auto max-lg:px-0 xl:-mx-6 xl:px-6">
-      <div className="grid h-full min-w-[1080px] flex-1 grid-cols-4 gap-3 max-lg:h-auto max-lg:min-w-0 max-lg:grid-cols-1">
+    <div className={cn(
+      WORKSPACE_CONTENT_BLEED_CLASS_NAME,
+      "soft-scrollbar flex min-h-0 flex-1 overflow-x-auto overflow-y-hidden",
+    )}>
+      <div className="grid h-full min-w-[1080px] flex-1 grid-cols-4 gap-3">
         {Array.from({ length: 4 }, (_, columnIndex) => (
           <div
-            className="h-full min-h-0 border-l border-(--divider-subtle-color) p-3 pl-4 first:border-l-0 first:pl-0 max-lg:h-auto max-lg:border-l-0 max-lg:px-0"
+            className="h-full min-h-0 border-l border-(--divider-subtle-color) p-3 pl-4 first:border-l-0 first:pl-0"
             key={columnIndex}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -156,12 +163,9 @@ function ScheduledTaskSuggestions({
         >
           {t("capability.scheduled_quick_start_title")}
         </h2>
-        <p className="mt-1 text-compact leading-5 text-(--text-muted)">
-          {t("capability.scheduled_quick_start_description")}
-        </p>
       </div>
 
-      <div className="mt-4 grid [grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))] gap-2">
+      <div className={cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "mt-4 gap-2")}>
         {SCHEDULED_TASK_SUGGESTIONS.map((suggestion) => {
           const SuggestionIcon = SUGGESTION_ICONS[suggestion.icon];
           return (
@@ -224,10 +228,10 @@ function ScheduledTaskBoardColumnView({
   const EmptyIcon = COLUMN_EMPTY_ICONS[column.id];
   return (
     <section
-      className="flex h-full min-h-0 min-w-0 flex-col border-l border-(--divider-subtle-color) pl-3 first:border-l-0 first:pl-0 max-lg:h-auto max-lg:border-l-0 max-lg:pl-0"
+      className="flex h-full min-h-0 min-w-0 flex-col border-l border-(--divider-subtle-color) pl-3 first:border-l-0 first:pl-0"
       aria-labelledby={`scheduled-column-${column.id}`}
     >
-      <header className="flex items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3 py-2.5 max-lg:px-0">
+      <header className="flex items-center justify-between gap-3 border-b border-(--divider-subtle-color) px-3 py-2.5">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={cn("h-2 w-2 shrink-0 rounded-full", COLUMN_TONE_CLASS_NAMES[column.tone])} />
@@ -245,7 +249,7 @@ function ScheduledTaskBoardColumnView({
       </header>
 
       {column.items.length > 0 ? (
-        <div className="soft-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2 max-lg:overflow-visible max-lg:px-0">
+        <div className="soft-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2">
           {column.items.map((task) => (
             <ScheduledTaskCard
               isDeleting={pending.get("delete")?.has(task.job_id) ?? false}
@@ -281,8 +285,11 @@ function ScheduledTaskReadyBoard({
 }) {
   return (
     <section className="flex min-h-0 flex-1 flex-col" aria-label="定时任务看板">
-      <div className="soft-scrollbar -mx-5 min-h-0 flex-1 overflow-x-auto overflow-y-hidden px-5 max-lg:mx-0 max-lg:overflow-x-hidden max-lg:overflow-y-auto max-lg:px-0 xl:-mx-6 xl:px-6">
-        <div className="grid h-full min-w-[1080px] grid-cols-4 gap-3 max-lg:h-auto max-lg:min-w-0 max-lg:grid-cols-1 max-lg:gap-4">
+      <div className={cn(
+        WORKSPACE_CONTENT_BLEED_CLASS_NAME,
+        "soft-scrollbar min-h-0 flex-1 overflow-x-auto overflow-y-hidden",
+      )}>
+        <div className="grid h-full min-w-[1080px] grid-cols-4 gap-3">
           {columns.map((column) => (
             <ScheduledTaskBoardColumnView
               column={column}

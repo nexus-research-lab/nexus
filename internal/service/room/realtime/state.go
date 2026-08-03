@@ -819,6 +819,14 @@ func roomSlotInterruptReason(slot *activeRoomSlot) string {
 	return slot.getInterruptReason()
 }
 
+func roomInterruptDisplayReason(reason string) string {
+	return messagepkg.NormalizeInterruptDisplayText(reason)
+}
+
+func roomSlotInterruptDisplayReason(slot *activeRoomSlot) string {
+	return roomInterruptDisplayReason(roomSlotInterruptReason(slot))
+}
+
 func (slot *activeRoomSlot) beginNoReplyCandidate() {
 	if slot == nil {
 		return

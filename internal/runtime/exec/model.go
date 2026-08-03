@@ -34,21 +34,22 @@ type RoundMapper interface {
 
 // RoundExecutionRequest 表示执行单轮查询所需的回调与依赖。
 type RoundExecutionRequest struct {
-	Query                  string
-	Content                any
-	AtomicInput            bool
-	ContextualInputs       []ContextualInputBlock
-	InputOptions           sdkprotocol.OutboundMessageOptions
-	Client                 Client
-	Mapper                 RoundMapper
-	IdleTimeout            time.Duration
-	InterruptReason        func() string
-	AssistantTerminalGrace time.Duration
-	SyncSessionID          func(string) error
-	AfterQuery             func() error
-	HandleDurableMessage   func(protocol.Message) error
-	EmitEvent              func(protocol.EventMessage) error
-	ObserveIncomingMessage func(sdkprotocol.ReceivedMessage)
+	Query                      string
+	Content                    any
+	AtomicInput                bool
+	ContextualInputs           []ContextualInputBlock
+	InputOptions               sdkprotocol.OutboundMessageOptions
+	Client                     Client
+	Mapper                     RoundMapper
+	IdleTimeout                time.Duration
+	InterruptReason            func() string
+	InterruptedTerminalTimeout time.Duration
+	AssistantTerminalGrace     time.Duration
+	SyncSessionID              func(string) error
+	AfterQuery                 func() error
+	HandleDurableMessage       func(protocol.Message) error
+	EmitEvent                  func(protocol.EventMessage) error
+	ObserveIncomingMessage     func(sdkprotocol.ReceivedMessage)
 }
 
 // RoundExecutionResult 表示 round 执行的终态结果。

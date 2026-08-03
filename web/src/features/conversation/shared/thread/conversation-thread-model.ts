@@ -9,6 +9,7 @@ export interface ConversationThreadRound {
 export type ConversationThreadLayout = "desktop" | "mobile";
 export type ConversationThreadNavigation = "auto" | "back" | "close";
 export type ConversationThreadNavigationAction = "back" | "close" | null;
+export type ConversationThreadPresentation = "inspector" | "transcript";
 
 export interface ConversationThreadRoundModel extends ConversationThreadRound {
   isLast: boolean;
@@ -21,6 +22,7 @@ export interface ConversationThreadModel {
   allMessages: Message[];
   isMobile: boolean;
   leadingAction: ConversationThreadNavigationAction;
+  presentation: ConversationThreadPresentation;
   rounds: ConversationThreadRoundModel[];
   sessionKey: string;
   trailingAction: ConversationThreadNavigationAction;
@@ -34,6 +36,7 @@ interface ConversationThreadModelInput {
   messages: Message[];
   navigation: ConversationThreadNavigation;
   pendingPermissions: PendingPermission[];
+  presentation: ConversationThreadPresentation;
   roundId: string;
   rounds?: ConversationThreadRound[];
   sessionKey?: string;
@@ -74,6 +77,7 @@ export function buildConversationThreadModel(
     allMessages: sourceRounds.flatMap((round) => round.messages),
     isMobile: input.layout === "mobile",
     leadingAction: navigation.leadingAction,
+    presentation: input.presentation,
     rounds: sourceRounds.map((round, index) => {
       const isLast = index === lastRoundIndex;
       return {

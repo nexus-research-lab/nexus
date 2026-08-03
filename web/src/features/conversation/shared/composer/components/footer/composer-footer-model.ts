@@ -1,6 +1,14 @@
 import type { ReactNode, RefObject } from "react";
 
-import type { ComposerRuntimeActivity } from "../../composer-model";
+import type { ContextUsageData } from "@/types/generated/protocol";
+
+import type {
+  ComposerContextUsageItem,
+  ComposerRuntimeActivity,
+} from "../../composer-model";
+import type {
+  ComposerSessionSettingsController,
+} from "../../controller/use-composer-session-settings";
 import type { ComposerSubmitButtonProps } from "../composer-submit-button";
 
 export interface ComposerFooterProps {
@@ -9,6 +17,8 @@ export interface ComposerFooterProps {
   canCreateGoal: boolean;
   canUseLoop: boolean;
   charCount: number;
+  contextUsage: ContextUsageData | null;
+  contextUsageItems?: readonly ComposerContextUsageItem[];
   goalModeExtra: ReactNode;
   goalScopeLabel: string;
   historyIndex: number;
@@ -27,6 +37,8 @@ export interface ComposerFooterProps {
   onGoalToggle: (checked: boolean) => void;
   onLoopSelect: () => void;
   runtimeActivity: ComposerRuntimeActivity;
+  sessionSettingsController: ComposerSessionSettingsController;
+  sessionSettingsDisabled: boolean;
   showPoweredByNexus: boolean;
   submit: ComposerSubmitButtonProps;
 }

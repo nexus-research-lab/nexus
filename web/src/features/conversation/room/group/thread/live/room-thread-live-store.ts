@@ -13,7 +13,6 @@ import type {
 export interface RoomThreadLiveSource {
   agentAvatarMap: Record<string, string | null>;
   agentNameMap: Record<string, string>;
-  currentUserAvatar: string | null;
   messageGroups: Map<string, Message[]>;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;

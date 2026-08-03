@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import {
+  CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
@@ -20,7 +21,6 @@ import {
 } from "@/shared/ui/feedback/feedback-banner";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
@@ -56,24 +56,17 @@ export function ChannelsDirectory() {
     <>
       <WorkspaceSurfaceScaffold
         bodyScrollable
-        header={(
-          <WorkspaceSurfaceHeader
-            leading={<MessageCircle className="h-4 w-4" />}
-            narrowMode="toolbar"
-            title={t("capability.channels")}
-            trailing={(
-              <WorkspaceSurfaceToolbarAction
-                onClick={() => void controller.refresh()}
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                {t("capability.refresh")}
-              </WorkspaceSurfaceToolbarAction>
-            )}
-          />
-        )}
         stableGutter
       >
         <CapabilityPageLayout
+          actions={(
+            <WorkspaceSurfaceToolbarAction
+              onClick={() => void controller.refresh()}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              {t("capability.refresh")}
+            </WorkspaceSurfaceToolbarAction>
+          )}
           description={t("capability.channels_intro_description")}
           title={t("capability.channels_intro_title")}
         >
@@ -115,7 +108,7 @@ export function ChannelsDirectory() {
                 })}
                 title={t("capability.channels_section_title")}
               />
-              <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
+              <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
                 {controller.visibleChannels.map((item) => (
                   <ChannelCard
                     item={item}

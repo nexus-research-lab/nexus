@@ -5,7 +5,8 @@
 // 成员清单：
 //   - service.go / query.go / history.go：Service、查询、历史消息。
 //   - mutation.go / model.go / util.go：增删改、模型、辅助。
-//   - runtime.go / subagent_task.go / workspace.go：运行时、父会话可见子任务生命周期与独立 transcript 聚合、workspace。
+//   - runtime.go / context_usage.go / subagent_task.go / workspace.go：运行时、
+//     Session 元数据上下文快照恢复、父会话可见子任务生命周期与独立 transcript 聚合、workspace。
 //   - repository.go：持久化。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

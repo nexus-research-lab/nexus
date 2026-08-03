@@ -1,28 +1,28 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  Album,
-  Handshake,
-  ToolCase,
-  UserPen,
-  type LucideIcon,
-} from "lucide-react";
 
+import {
+  AGENT_DETAIL_TABS,
+  type AgentDetailTabKey,
+} from "@/features/agents/agent-detail-navigation";
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsInlineEditor } from "@/features/agents/options/agent-options-editor";
 import {
   buildAgentOptionsEditSource,
-  type AgentOptionsTabKey,
 } from "@/features/agents/options/agent-options-editor-model";
+import { AgentMemoryView } from "@/features/memory/agent-memory-view";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
+import { cn } from "@/shared/ui/class-name";
+import { UiTabs } from "@/shared/ui/navigation/tabs";
+import {
+  WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+  WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+} from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { WorkspaceSurfaceView } from "@/shared/ui/workspace/surface/workspace-surface-view";
 import type { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 
 import { RoomAgentSwitcher } from "./room-agent-switcher";
-
-type RoomAgentPanelTabKey = AgentOptionsTabKey | "private_domain";
 
 interface RoomAgentAboutSurfaceProps {
   agent: Agent;
@@ -31,7 +31,7 @@ interface RoomAgentAboutSurfaceProps {
   roomMembers: Agent[];
   isVisible: boolean;
   requestedAgentId?: string | null;
-  requestedTab?: RoomAgentPanelTabKey;
+  requestedTab?: AgentDetailTabKey;
   requestKey?: number;
   onSaveAgentOptions: (
     agentId: string,
@@ -59,7 +59,7 @@ export function RoomAgentAboutSurface({
 }: RoomAgentAboutSurfaceProps) {
   const { t } = useI18n();
   const [selectedAgentId, setSelectedAgentId] = useState(agent.agent_id);
-  const [activeTab, setActiveTab] = useState<RoomAgentPanelTabKey>("identity");
+  const [activeTab, setActiveTab] = useState<AgentDetailTabKey>("identity");
 
   useEffect(() => {
     setSelectedAgentId(requestedAgentId ?? agent.agent_id);
@@ -92,6 +92,7 @@ export function RoomAgentAboutSurface({
       members={roomMembers}
       selectedId={selectedAgent.agent_id}
       onSelect={setSelectedAgentId}
+      variant="panel"
     />
   ) : null;
 
@@ -116,6 +117,8 @@ export function RoomAgentAboutSurface({
             roomId={roomId}
             variant="preview"
           />
+        ) : activeTab === "memory" ? (
+          <AgentMemoryView agent={selectedAgent} />
         ) : (
           <AgentOptionsInlineEditor
             activeTab={activeTab}
@@ -133,44 +136,39 @@ export function RoomAgentAboutSurface({
   );
 }
 
-const ROOM_AGENT_PANEL_TABS: Array<{
-  key: RoomAgentPanelTabKey;
-  label: string;
-  icon: LucideIcon;
-}> = [
-  { key: "identity", label: "身份", icon: UserPen },
-  { key: "advanced", label: "工具", icon: ToolCase },
-  { key: "skills", label: "技能", icon: Album },
-  { key: "private_domain", label: "联络", icon: Handshake },
-];
-
 function RoomAgentPanelTabs({
   activeTab: activeTab,
   leading: leading,
   onChange: onChange,
 }: {
-  activeTab: RoomAgentPanelTabKey;
+  activeTab: AgentDetailTabKey;
   leading?: ReactNode;
-  onChange: (tab: RoomAgentPanelTabKey) => void;
+  onChange: (tab: AgentDetailTabKey) => void;
 }) {
+  const { t } = useI18n();
+
   return (
-    <div className="flex h-[41px] min-w-0 items-center border-b dialog-divider px-6">
+    <div className={cn(
+      "flex min-w-0 shrink-0 items-center border-b dialog-divider",
+      WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+      WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+    )}>
       {leading ? (
         <div className="mr-5 shrink-0">
           {leading}
         </div>
       ) : null}
-      <UiUnderlineTabs
+      <UiTabs
         activeValue={activeTab}
         ariaLabel="Agent 面板切换"
         className="-mx-0.5 min-w-0 flex-1 px-0.5"
-        itemClassName="h-full"
+        density="compact"
+        itemClassName="h-7 px-2.5"
         onChange={onChange}
-        options={ROOM_AGENT_PANEL_TABS.map((item) => ({
-          icon: item.icon,
-          label: item.label,
-          title: item.label,
-          value: item.key,
+        options={AGENT_DETAIL_TABS.map((tab) => ({
+          label: t(tab.labelKey),
+          title: t(tab.labelKey),
+          value: tab.key,
         }))}
       />
     </div>

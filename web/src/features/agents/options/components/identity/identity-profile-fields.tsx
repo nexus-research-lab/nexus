@@ -27,7 +27,6 @@ interface IdentityProfileFieldsProps {
   avatar: string;
   avatarAlt: string;
   isValidatingName: boolean;
-  nameAvailable: (path: string) => string;
   nameLabel: string;
   namePlaceholder: string;
   nameValidation: AgentNameValidationResult | null;
@@ -38,7 +37,7 @@ interface IdentityProfileFieldsProps {
   variant: AgentIdentityVariant;
 }
 
-type NameValidationFeedbackTone = "danger" | "muted" | "success";
+type NameValidationFeedbackTone = "danger" | "muted";
 
 interface NameValidationFeedback {
   message: string;
@@ -47,7 +46,7 @@ interface NameValidationFeedback {
 
 type NameValidationFeedbackContext = Pick<
   IdentityProfileFieldsProps,
-  "isValidatingName" | "nameAvailable" | "nameValidation" | "validatingLabel"
+  "isValidatingName" | "nameValidation" | "validatingLabel"
 >;
 
 type NameValidationFeedbackRule = (
@@ -60,20 +59,17 @@ const VALIDATION_FEEDBACK_CLASS: Record<
 > = {
   danger: "text-(--destructive)",
   muted: "text-muted-foreground",
-  success: "text-(--success)",
 };
 
 const NAME_VALIDATION_FEEDBACK_RULES: NameValidationFeedbackRule[] = [
   createValidatingFeedback,
   createRejectedNameFeedback,
-  createAvailableNameFeedback,
 ];
 
 export function IdentityProfileFields({
   avatar,
   avatarAlt,
   isValidatingName,
-  nameAvailable,
   nameLabel,
   namePlaceholder,
   nameValidation,
@@ -87,7 +83,6 @@ export function IdentityProfileFields({
   const labelClassName = IDENTITY_FIELD_LABEL_CLASS_NAMES[variant];
   const validationFeedback = resolveValidationFeedback({
     isValidatingName,
-    nameAvailable,
     nameValidation,
     validatingLabel,
   });
@@ -154,17 +149,4 @@ function createRejectedNameFeedback(
 ): NameValidationFeedback | null {
   const reason = context.nameValidation?.reason;
   return reason ? { message: reason, tone: "danger" } : null;
-}
-
-function createAvailableNameFeedback(
-  context: NameValidationFeedbackContext,
-): NameValidationFeedback | null {
-  const validation = context.nameValidation;
-  if (!validation?.is_valid || !validation.is_available) {
-    return null;
-  }
-  return {
-    message: context.nameAvailable(validation.workspace_path ?? ""),
-    tone: "success",
-  };
 }

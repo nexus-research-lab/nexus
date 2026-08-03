@@ -3,7 +3,7 @@
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { UiButton } from "@/shared/ui/button/button";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import type {
   ConnectorDetail,
   ConnectorFeatureDetail,
@@ -46,7 +46,7 @@ function ConnectorDetailLoading({
   onBack,
 }: Pick<ConnectorDetailViewProps, "detail" | "onBack">) {
   return (
-    <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
+    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
       <ConnectorDetailBreadcrumb detail={detail} onBack={onBack} />
       <UiStateBlock
         className="min-h-[420px]"
@@ -60,7 +60,7 @@ function ConnectorDetailLoading({
 
 function ConnectorDetailMissing({ onBack }: { onBack: () => void }) {
   return (
-    <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
+    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
       <ConnectorDetailBreadcrumb detail={null} onBack={onBack} />
       <UiStateBlock
         actions={(
@@ -104,7 +104,7 @@ export function ConnectorDetailView({
   const state = getConnectorState(detail);
   const features = getConnectorFeatureDetails(detail);
   return (
-    <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
+    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
       <ConnectorDetailBreadcrumb detail={detail} onBack={onBack} />
       <div className="pt-6">
         <ConnectorDetailHeader

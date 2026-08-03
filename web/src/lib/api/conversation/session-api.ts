@@ -31,6 +31,12 @@ import {
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 
+export interface SessionRuntimeSettings {
+  provider: string;
+  model: string;
+  permission_mode: string;
+}
+
 export const getConversations = async (): Promise<Conversation[]> => {
   const result = await requestApi<ApiConversation[]>(
     `${AGENT_API_BASE_URL}/sessions`,
@@ -83,4 +89,30 @@ export async function getSessionRoundIndexApi(
     },
   );
   return transformApiSessionRoundIndex(result);
+}
+
+export async function getSessionRuntimeSettingsApi(
+  sessionKey: string,
+): Promise<SessionRuntimeSettings> {
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
+  return requestApi<SessionRuntimeSettings>(
+    `${AGENT_API_BASE_URL}/sessions/${encodeURIComponent(normalizedSessionKey)}/runtime-settings`,
+    {
+      method: "GET",
+    },
+  );
+}
+
+export async function updateSessionRuntimeSettingsApi(
+  sessionKey: string,
+  settings: SessionRuntimeSettings,
+): Promise<SessionRuntimeSettings> {
+  const normalizedSessionKey = assertStructuredSessionKey(sessionKey);
+  return requestApi<SessionRuntimeSettings>(
+    `${AGENT_API_BASE_URL}/sessions/${encodeURIComponent(normalizedSessionKey)}/runtime-settings`,
+    {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    },
+  );
 }

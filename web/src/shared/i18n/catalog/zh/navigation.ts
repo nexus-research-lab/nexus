@@ -47,6 +47,7 @@ export const zhNavigationMessages = {
   "home.delete_confirm": "删除确认",
   "home.delete_message": "确定要删除「{name}」吗？此操作不可撤销。",
   "contacts.title": "智能体管理",
+  "contacts.description": "创建和配置智能体，并从这里进入协作。",
   "contacts.new_agent": "新建智能体",
   "contacts.new_agent_description": "创建可加入聊天与群聊的 AI 成员",
   "contacts.chat": "聊天",

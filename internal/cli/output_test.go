@@ -134,16 +134,45 @@ func captureCLIStreams(t *testing.T, command interface{ Execute() error }) (stri
 		os.Stderr = originalStderr
 	}()
 
+	stdoutCapture := startCLIPipeCapture(stdoutReader)
+	stderrCapture := startCLIPipeCapture(stderrReader)
 	executeErr := command.Execute()
-	_ = stdoutWriter.Close()
-	_ = stderrWriter.Close()
+	stdout := finishCLIPipeCapture(t, stdoutWriter, stdoutCapture)
+	stderr := finishCLIPipeCapture(t, stderrWriter, stderrCapture)
 
-	var stdoutBuffer bytes.Buffer
-	var stderrBuffer bytes.Buffer
-	_, _ = stdoutBuffer.ReadFrom(stdoutReader)
-	_, _ = stderrBuffer.ReadFrom(stderrReader)
-	_ = stdoutReader.Close()
-	_ = stderrReader.Close()
+	return strings.TrimSpace(string(stdout)), strings.TrimSpace(string(stderr)), executeErr
+}
 
-	return strings.TrimSpace(stdoutBuffer.String()), strings.TrimSpace(stderrBuffer.String()), executeErr
+type cliPipeCapture struct {
+	payload []byte
+	err     error
+}
+
+func startCLIPipeCapture(reader *os.File) <-chan cliPipeCapture {
+	result := make(chan cliPipeCapture, 1)
+	go func() {
+		var buffer bytes.Buffer
+		_, readErr := buffer.ReadFrom(reader)
+		if closeErr := reader.Close(); readErr == nil {
+			readErr = closeErr
+		}
+		result <- cliPipeCapture{payload: buffer.Bytes(), err: readErr}
+	}()
+	return result
+}
+
+func finishCLIPipeCapture(
+	t *testing.T,
+	writer *os.File,
+	result <-chan cliPipeCapture,
+) []byte {
+	t.Helper()
+	if err := writer.Close(); err != nil {
+		t.Fatalf("关闭 CLI 输出管道失败: %v", err)
+	}
+	captured := <-result
+	if captured.err != nil {
+		t.Fatalf("读取 CLI 输出失败: %v", captured.err)
+	}
+	return captured.payload
 }

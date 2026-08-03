@@ -5,7 +5,9 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
@@ -25,6 +27,20 @@ func (r *fakeTokenUsageRecorder) RecordMessageUsage(_ context.Context, input usa
 type permissionModeTestClient struct {
 	modes           []sdkpermission.Mode
 	hookResponseAck bool
+}
+
+type roomInterruptPermissionSender struct {
+	key    string
+	events chan protocol.EventMessage
+}
+
+func (s *roomInterruptPermissionSender) Key() string { return s.key }
+
+func (s *roomInterruptPermissionSender) IsClosed() bool { return false }
+
+func (s *roomInterruptPermissionSender) SendEvent(_ context.Context, event protocol.EventMessage) error {
+	s.events <- event
+	return nil
 }
 
 func (c *permissionModeTestClient) Connect(context.Context) error { return nil }
@@ -51,6 +67,8 @@ func (c *permissionModeTestClient) SetPermissionMode(_ context.Context, mode sdk
 	c.modes = append(c.modes, mode)
 	return nil
 }
+
+func (c *permissionModeTestClient) Retire() {}
 
 func (c *permissionModeTestClient) Disconnect(context.Context) error { return nil }
 
@@ -137,6 +155,89 @@ func TestSetPermissionModeForAgentUpdatesActiveRoomSlots(t *testing.T) {
 	}
 	if len(other.modes) != 0 || len(terminal.modes) != 0 {
 		t.Fatalf("非活动目标不应更新：other=%#v terminal=%#v", other.modes, terminal.modes)
+	}
+}
+
+func TestInterruptActiveSlotSeparatesControlAndDisplayReasons(t *testing.T) {
+	tests := map[string]struct {
+		interruptReason string
+		wantStored      string
+		wantDecision    string
+	}{
+		"default stop": {
+			wantStored: messagepkg.InterruptWithoutMessage,
+		},
+		"custom reason": {
+			interruptReason: "  收到新消息，上一轮已停止  ",
+			wantStored:      "收到新消息，上一轮已停止",
+			wantDecision:    "收到新消息，上一轮已停止",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			permission := permissionctx.NewContext()
+			conversationID := "conversation-interrupt-display"
+			sessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
+			runtimeSessionKey := protocol.BuildRoomAgentSessionKey(conversationID, "agent-1", protocol.RoomTypeGroup)
+			sender := &roomInterruptPermissionSender{
+				key:    "room-interrupt-display-" + name,
+				events: make(chan protocol.EventMessage, 4),
+			}
+			permission.BindSession(runtimeSessionKey, sender)
+
+			decisionCh := make(chan sdkpermission.Decision, 1)
+			go func() {
+				decision, _ := permission.RequestPermission(context.Background(), runtimeSessionKey, sdkpermission.Request{
+					ToolName: "Read",
+					Input:    map[string]any{"file_path": "go.mod"},
+				})
+				decisionCh <- decision
+			}()
+
+			select {
+			case event := <-sender.events:
+				if event.EventType != protocol.EventTypePermissionRequest {
+					t.Fatalf("期望 permission_request，实际: %+v", event)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("等待 Room 权限请求失败")
+			}
+
+			slot := &activeRoomSlot{
+				AgentID:           "agent-1",
+				AgentRoundID:      "agent-round-1",
+				MsgID:             "assistant-1",
+				RuntimeSessionKey: runtimeSessionKey,
+			}
+			slot.setStatus("running")
+			slot.closeDone()
+			service := &Service{
+				permission: permission,
+				runtime:    runtimectx.NewManager(),
+			}
+			if err := service.interruptActiveSlot(context.Background(), &activeRoomRound{
+				SessionKey:     sessionKey,
+				RoomID:         "room-1",
+				ConversationID: conversationID,
+			}, slot, test.interruptReason); err != nil {
+				t.Fatalf("interruptActiveSlot() error = %v", err)
+			}
+
+			if got := roomSlotInterruptReason(slot); got != test.wantStored {
+				t.Fatalf("slot 控制值=%q，期望=%q", got, test.wantStored)
+			}
+			select {
+			case decision := <-decisionCh:
+				if decision.Behavior != sdkpermission.BehaviorDeny || !decision.Interrupt {
+					t.Fatalf("中断权限决策不正确: %+v", decision)
+				}
+				if decision.Message != test.wantDecision {
+					t.Fatalf("权限展示文案=%q，期望=%q", decision.Message, test.wantDecision)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("等待 Room 权限取消决策失败")
+			}
+		})
 	}
 }
 

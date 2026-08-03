@@ -98,8 +98,11 @@ export function IdentityVibeTags({
           <Plus className="h-3.5 w-3.5" />
         </UiIconButton>
       </div>
-      {tags.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
+      <div
+        aria-label={label}
+        className="h-7 min-w-0 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        <div className="flex h-7 min-w-max items-center gap-2">
           {tags.map((tag) => (
             <span
               className="chip-default inline-flex h-7 shrink-0 items-center gap-1 px-2 text-compact font-medium text-(--text-default)"
@@ -119,7 +122,7 @@ export function IdentityVibeTags({
             </span>
           ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -1,10 +1,11 @@
 import type { MouseEvent } from "react";
-import { FilePlus, FolderOpen, FolderPlus, FolderTree, LoaderCircle, Upload } from "lucide-react";
+import { FilePlus, FolderPlus, FolderTree, LoaderCircle, Upload } from "lucide-react";
 
+import { WorkspaceFileToolbarButton } from "@/features/conversation/shared/editor/workspace-file-preview-chrome";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
-import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
+import { WORKSPACE_PANEL_HEADER_ICON_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import { WorkspaceFileTree } from "@/shared/ui/workspace/tree/workspace-file-tree";
 import type { WorkspaceFileEntry } from "@/types/agent/agent";
 
@@ -14,7 +15,6 @@ interface WorkspaceFileBrowserController {
   isUploading: boolean;
   errorMessage: string | null;
   focusedDirectoryPath: string | null;
-  currentDirectoryLabel: string;
   clearErrorMessage: () => void;
   handleClickFile: (path: string) => void;
   handleClickDirectory: (path: string) => void;
@@ -34,49 +34,48 @@ interface WorkspaceFileBrowserProps {
   width: number;
 }
 
-function WorkspaceDirectoryToolbar({controller}: {controller: WorkspaceFileBrowserController}) {
+type WorkspaceDirectoryToolbarController = Pick<
+  WorkspaceFileBrowserController,
+  "handleUploadClick" | "isUploading" | "openCreatePrompt"
+>;
+
+export function WorkspaceDirectoryToolbar({
+  controller,
+}: {
+  controller: WorkspaceDirectoryToolbarController;
+}) {
   const {t} = useI18n();
   const uploadKey = controller.isUploading
     ? "room.workspace_uploading"
     : "room.workspace_action_upload";
 
   return (
-    <div className="soft-scrollbar flex items-center gap-1 overflow-x-auto whitespace-nowrap pb-1 max-xl:gap-2">
-      <WorkspaceSurfaceToolbarAction
-        ariaLabel={t(uploadKey)}
-        className="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
+    <div className="flex shrink-0 items-center gap-0.5">
+      <WorkspaceFileToolbarButton
         disabled={controller.isUploading}
         onClick={() => controller.handleUploadClick()}
         title={t(uploadKey)}
-        tone="primary"
       >
         {controller.isUploading ? (
-          <LoaderCircle className="h-3 w-3 animate-spin" />
+          <LoaderCircle className={cn(WORKSPACE_PANEL_HEADER_ICON_CLASS, "animate-spin")} />
         ) : (
-          <Upload className="h-3 w-3" />
+          <Upload className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
         )}
-        <span className="max-xl:hidden">{t(uploadKey)}</span>
-      </WorkspaceSurfaceToolbarAction>
+      </WorkspaceFileToolbarButton>
 
-      <WorkspaceSurfaceToolbarAction
-        ariaLabel={t("room.workspace_action_new_folder")}
-        className="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
+      <WorkspaceFileToolbarButton
         onClick={() => controller.openCreatePrompt("directory")}
         title={t("room.workspace_action_new_folder")}
       >
-        <FolderPlus className="h-3 w-3" />
-        <span className="max-xl:hidden">{t("room.workspace_action_new_folder")}</span>
-      </WorkspaceSurfaceToolbarAction>
+        <FolderPlus className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
+      </WorkspaceFileToolbarButton>
 
-      <WorkspaceSurfaceToolbarAction
-        ariaLabel={t("room.workspace_action_new_file")}
-        className="max-xl:h-7 max-xl:w-7 max-xl:justify-center max-xl:gap-0"
+      <WorkspaceFileToolbarButton
         onClick={() => controller.openCreatePrompt("file")}
         title={t("room.workspace_action_new_file")}
       >
-        <FilePlus className="h-3 w-3" />
-        <span className="max-xl:hidden">{t("room.workspace_action_new_file")}</span>
-      </WorkspaceSurfaceToolbarAction>
+        <FilePlus className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
+      </WorkspaceFileToolbarButton>
     </div>
   );
 }
@@ -134,26 +133,14 @@ export function WorkspaceFileBrowser({
     <div
       className={cn(
         "relative flex min-h-0 shrink-0 flex-col border-l divider-subtle pl-4",
-        stacked && "h-[42%] min-h-[220px] max-h-[320px] w-full border-l-0 border-b pb-3 pl-0",
+        stacked &&
+          "h-[42%] min-h-[220px] max-h-[320px] w-full border-l-0 border-b pb-3 pl-0",
       )}
       style={{width: stacked ? "100%" : `${width}px`}}
     >
       {!stacked ? (
         <PanelResizeHandle ariaLabel="调整文件列表宽度" onResizeStart={onResizeStart} />
       ) : null}
-
-      <div className="mb-2 inline-flex min-w-0 items-center gap-1.5 radius-control-sm border border-(--divider-subtle-color) px-2.5 py-1 text-xs text-(--text-default)">
-        {controller.focusedDirectoryPath ? (
-          <FolderOpen className="h-3 w-3 shrink-0 text-[var(--accent)]" />
-        ) : (
-          <FolderTree className="h-3 w-3 shrink-0 text-(--icon-muted)" />
-        )}
-        <span className="truncate font-medium text-(--text-strong)">
-          {controller.currentDirectoryLabel}
-        </span>
-      </div>
-
-      <WorkspaceDirectoryToolbar controller={controller} />
 
       {controller.errorMessage ? (
         <div className="mb-4 flex items-center justify-between surface-radius-md border border-destructive/20 bg-destructive/6 px-4 py-3 text-sm text-destructive">
@@ -168,7 +155,10 @@ export function WorkspaceFileBrowser({
         </div>
       ) : null}
 
-      <div className="min-h-0 flex-1 overflow-hidden" onContextMenu={controller.handleRootContextMenu}>
+      <div
+        className="min-h-0 flex-1 overflow-hidden"
+        onContextMenu={controller.handleRootContextMenu}
+      >
         <WorkspaceFileList activePath={activePath} controller={controller} />
       </div>
     </div>

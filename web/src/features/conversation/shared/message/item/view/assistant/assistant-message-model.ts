@@ -126,6 +126,7 @@ export interface MessageAssistantSectionProps {
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissionReadOnlyReason?: string;
+  showHeader: boolean;
   workspaceAgentId?: string | null;
   agentMentionDirectory?: import("../../../agent-mention-chip").AgentMentionDirectory;
 }

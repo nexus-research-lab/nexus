@@ -39,8 +39,9 @@ type Selection struct {
 
 // Request 表示一次 Agent runtime 选择请求。
 type Request struct {
-	Agent        *protocol.Agent
-	OwnerUserIDs []string
+	Agent          *protocol.Agent
+	OwnerUserIDs   []string
+	SessionOptions map[string]any
 }
 
 // NewService 创建 runtime 选择服务。
@@ -56,12 +57,18 @@ func NewServiceWithRuntimeConfigResolver(
 	return &Service{prefs: prefs, providerConfig: providerConfig}
 }
 
-// Resolve 以普通 Agent 的显式模型优先；Nexus 主智能体始终回退到用户偏好中的默认 runtime/provider/model。
+// Resolve 依次合并 Session 覆盖、普通 Agent 显式模型与用户全局默认；Nexus 主智能体不读取历史 Agent 模型。
 func (s *Service) Resolve(ctx context.Context, request Request) (Selection, error) {
 	selection := Selection{}
+	sessionProvider, sessionModel := explicitSessionModel(request.SessionOptions)
 	agentProvider, agentModel := explicitAgentModel(request.Agent)
-	hasExplicitAgentModel := agentProvider != "" && agentModel != ""
-	if hasExplicitAgentModel {
+	hasExplicitSessionModel := sessionProvider != "" && sessionModel != ""
+	hasExplicitAgentModel := !hasExplicitSessionModel && agentProvider != "" && agentModel != ""
+	switch {
+	case hasExplicitSessionModel:
+		selection.Provider = sessionProvider
+		selection.Model = sessionModel
+	case hasExplicitAgentModel:
 		selection.Provider = agentProvider
 		selection.Model = agentModel
 	}
@@ -130,6 +137,14 @@ func (s *Service) resolveRuntimeConfig(
 		return resolver.ResolveRuntimeConfigForRuntime(ctx, provider, model, runtimeKind)
 	}
 	return s.providerConfig.ResolveRuntimeConfig(ctx, provider, model)
+}
+
+func explicitSessionModel(options map[string]any) (string, string) {
+	settings := protocol.SessionRuntimeSettingsFromOptions(options)
+	if settings.Provider == "" || settings.Model == "" {
+		return "", ""
+	}
+	return settings.Provider, settings.Model
 }
 
 func (s *Service) preferences(

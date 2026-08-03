@@ -48,7 +48,10 @@ export function IdentityAvatarPicker({
             name={name || avatarAlt}
             size={AVATAR_TRIGGER_SIZE[variant]}
           />
-          <span className="inline-flex h-7 items-center gap-1 radius-control-sm px-2 text-compact font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-interactive-hover-background) group-hover:text-(--text-strong)">
+          <span className={cn(
+            "inline-flex h-7 items-center gap-1 radius-control-sm text-compact font-medium text-(--text-muted) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-interactive-hover-background) group-hover:text-(--text-strong)",
+            variant === "inline" ? "-ml-1 px-1" : "px-2",
+          )}>
             {t("agent_options.identity.change_avatar")}
             <ChevronDown
               className={cn(
@@ -60,7 +63,10 @@ export function IdentityAvatarPicker({
         </>
       )}
       startIconId={AGENT_ICON_ID_START}
-      triggerClassName="group relative flex shrink-0 flex-col items-center gap-1.5 rounded-[12px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--background)"
+      triggerClassName={cn(
+        "group relative flex shrink-0 flex-col gap-1.5 rounded-[12px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-(--background)",
+        variant === "inline" ? "items-start" : "items-center",
+      )}
       value={avatar}
     />
   );

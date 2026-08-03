@@ -24,7 +24,7 @@ import { buildExternalSkillPreviewModel } from "./external/external-skill-model"
 import { SkillSourceManagerDialog } from "./external/skill-source-manager-dialog";
 import { SkillsExternalResults } from "./external/skills-external-results";
 import { SkillImportDialog } from "./import/skill-import-dialog";
-import { SkillsHeader } from "./skills-header";
+import { SkillsHeaderActions } from "./skills-header-actions";
 import { SkillsSearchBar } from "./skills-search-bar";
 import { SKILLS_TOUR_ANCHORS } from "@/features/onboarding/tours/skills-tour";
 
@@ -82,21 +82,6 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
 
       <WorkspaceSurfaceScaffold
         bodyScrollable
-        header={(
-          <div data-tour-anchor={SKILLS_TOUR_ANCHORS.header}>
-            <SkillsHeader
-              checkingUpdates={operations.checkingUpdates}
-              detailOpen={Boolean(skillName)}
-              discoveryMode={discoveryMode}
-              importing={operations.importing}
-              onChangeDiscoveryMode={setDiscoveryMode}
-              onCheckUpdates={() => void operations.checkUpdates()}
-              onOpenImport={operations.setImportDialogMode}
-              onOpenSources={sources.openManager}
-              onReplayTour={onReplayTour}
-            />
-          </div>
-        )}
         stableGutter
       >
         {skillName ? (
@@ -111,7 +96,18 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
           />
         ) : (
           <CapabilityPageLayout
+            actions={(
+              <SkillsHeaderActions
+                checkingUpdates={operations.checkingUpdates}
+                importing={operations.importing}
+                onCheckUpdates={() => void operations.checkUpdates()}
+                onOpenImport={operations.setImportDialogMode}
+                onOpenSources={sources.openManager}
+                onReplayTour={onReplayTour}
+              />
+            )}
             description={t("capability.skills_intro_description")}
+            headerAnchor={SKILLS_TOUR_ANCHORS.header}
             title={t("capability.skills_intro_title")}
           >
             <div data-tour-anchor={SKILLS_TOUR_ANCHORS.search}>
@@ -124,6 +120,7 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
                 externalQuery={external.query}
                 onChangeCategory={catalog.setActiveCategory}
                 onChangeCatalogQuery={catalog.setQuery}
+                onChangeDiscoveryMode={setDiscoveryMode}
                 onChangeExternalQuery={external.setQuery}
                 onSubmitExternalSearch={external.submit}
               />

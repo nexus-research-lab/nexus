@@ -38,7 +38,9 @@ func (s *Service) inputQueueGuidanceHook(
 		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
 			return sdkhook.Output{}, nil
 		}
-		s.inputQueueDispatchMu.Lock()
+		if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+			return sdkhook.Output{}, err
+		}
 		defer s.inputQueueDispatchMu.Unlock()
 		runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
 		if len(runningRoundIDs) == 0 {

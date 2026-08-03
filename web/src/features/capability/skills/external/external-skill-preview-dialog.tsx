@@ -1,8 +1,9 @@
 "use client";
 
-import { ExternalLink, Loader2, PackagePlus, Puzzle } from "lucide-react";
+import { ExternalLink, Loader2, PackagePlus } from "lucide-react";
 
 import { UiBadge } from "@/shared/ui/display/badge";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiButton } from "@/shared/ui/button/button";
 import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 import {
@@ -39,7 +40,8 @@ export function ExternalSkillPreviewDialog({
       <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
         <UiDialogShell className="h-[84vh]" size="xl">
           <UiDialogHeader
-            icon={<Puzzle className="h-4 w-4" />}
+            icon={<UiSeededAvatar seed={model.avatarSeed} size="xs" />}
+            iconClassName="overflow-visible bg-transparent"
             onClose={onClose}
             subtitle={model.subtitle}
             title={model.title}

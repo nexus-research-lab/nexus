@@ -30,8 +30,15 @@ import { useComposerController } from "./controller/use-composer-controller";
 
 const ComposerPanelView = memo((props: ComposerPanelProps) => {
   const { t } = useI18n();
-  const { actions, attachments, mention, refs, slashCommand, state } =
-    useComposerController(props);
+  const {
+    actions,
+    attachments,
+    mention,
+    refs,
+    sessionSettings,
+    slashCommand,
+    state,
+  } = useComposerController(props);
 
   return (
     <section
@@ -144,6 +151,8 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 canCreateGoal={state.canCreateGoal}
                 canUseLoop={state.canUseLoop}
                 charCount={state.charCount}
+                contextUsage={props.contextUsage}
+                contextUsageItems={props.contextUsageItems}
                 goalModeExtra={props.goalModeExtra ?? null}
                 goalScopeLabel={props.goalScopeLabel}
                 historyIndex={state.historyIndex}
@@ -164,6 +173,10 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 onGoalToggle={actions.toggleGoalInput}
                 onLoopSelect={actions.openLoopPicker}
                 runtimeActivity={state.runtimeActivity}
+                sessionSettingsController={sessionSettings}
+                sessionSettingsDisabled={
+                  props.isLoading || state.runtimeActivity !== null
+                }
                 showPoweredByNexus
                 submit={{
                   enterLabel: state.inlineEnterLabel,

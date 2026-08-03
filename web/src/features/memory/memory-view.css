@@ -5,7 +5,29 @@
 
 .nexus-memory-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 288px) minmax(0, 1fr);
+  column-gap: 8px;
+  background: var(--surface-canvas-background);
+}
+
+.nexus-memory-document {
+  background: color-mix(
+    in srgb,
+    var(--surface-panel-background) 72%,
+    transparent
+  );
+  box-shadow: -8px 0 20px -18px color-mix(
+    in srgb,
+    var(--shadow-color) 14%,
+    transparent
+  );
+}
+
+.nexus-memory-document-content {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 920px;
+  padding-inline: 24px;
 }
 
 .nexus-memory-compact-only {
@@ -16,6 +38,7 @@
   .nexus-memory-layout {
     display: block;
     height: 100%;
+    background: transparent;
   }
 
   .nexus-memory-document {
@@ -41,20 +64,7 @@
 }
 
 @container nexus-memory-view (max-width: 520px) {
-  .nexus-memory-summary {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .nexus-memory-agent-switcher {
-    max-width: none;
-    min-width: 0;
-  }
-
-  .nexus-memory-metrics {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    justify-content: space-between;
-    width: 100%;
+  .nexus-memory-document-content {
+    padding-inline: 16px;
   }
 }

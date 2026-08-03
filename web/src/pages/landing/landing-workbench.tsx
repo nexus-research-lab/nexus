@@ -191,7 +191,6 @@ function LandingWorkbenchChat() {
             assistantContentMode="dm_archived"
             currentAgentAvatar="/icon/agent/8.png"
             currentAgentName="Amy"
-            currentUserAvatar="/icon/agent/17.png"
             isLastRound={index === demoRounds.length - 1}
             key={round.round_id}
             messages={round.messages}

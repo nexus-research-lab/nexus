@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -23,20 +25,108 @@ const (
 	mainAgentNexusctlScopeDenial = "主智能体调用 nexusctl 时已有宿主注入的 owner 作用域；请移除 --global-scope、--scope-user-id 和作用域环境变量覆盖后重试。"
 )
 
-var shellTokenPattern = regexp.MustCompile(`[^\s"'` + "`" + `;|&()<>{}]+`)
-var shellRedirectionPathPattern = regexp.MustCompile(
-	`(?:^|[\s;|&])(?:&>|[012]?>>|[012]?>)\s*([^\s"'` + "`" + `;|&()<>{}]+)`,
-)
 var unixShellVariablePattern = regexp.MustCompile(
 	`\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[^}]+\})`,
 )
+var simpleBracedUnixShellVariablePattern = regexp.MustCompile(`^\$\{[A-Za-z_][A-Za-z0-9_]*\}$`)
+var bracedUnixShellTokenPattern = regexp.MustCompile(
+	`[^\s"'` + "`" + `;|&(){}]*\$\{[^}]+\}[^\s"'` + "`" + `;|&(){}]*`,
+)
+var windowsDriveExpansionPattern = regexp.MustCompile(`(?:^|[-=+?])[A-Za-z]:`)
+var rootedExpansionPattern = regexp.MustCompile(`(?:^|[-=+?])(?:[/\\]|~(?:[/\\]|$))`)
+var shellRemoteURLPattern = regexp.MustCompile(`(?i)^([A-Za-z][A-Za-z0-9+.-]*)://`)
+var shellRemoteURLExpansionPattern = regexp.MustCompile(
+	`(?i)(?:[-=+?])([A-Za-z][A-Za-z0-9+.-]*):/{2}`,
+)
+var shellFileURLExpansionPattern = regexp.MustCompile(`(?i)(?:[-=+?])file:/+`)
 var windowsShellVariablePattern = regexp.MustCompile(`%[A-Za-z_][A-Za-z0-9_]*%`)
-var nexusctlScopeEnvironmentOverridePattern = regexp.MustCompile(
-	`(?i)(?:^|[\s;&|])(?:NEXUSCTL_USER_ID|NEXUSCTL_WORKSPACE_PATH|NEXUS_STATE_ROOT|NEXUS_CONFIG_DIR|CLAUDE_CONFIG_DIR)=`,
+var powerShellBracedScopeEnvironmentAssignmentPattern = regexp.MustCompile(
+	`(?i)\$\{env:(?:CLAUDE_CONFIG_DIR|NEXUS_CONFIG_DIR|NEXUS_RUNTIME_SCOPE_MODE|NEXUS_STATE_ROOT|NEXUSCTL_USER_ID|NEXUSCTL_WORKSPACE_PATH)\}\s*=`,
 )
-var nexusctlScopeFlagOverridePattern = regexp.MustCompile(
-	`(?i)--(?:global-scope|scope-user-id)(?:[=\s]|$)`,
+var nexusctlCommandTextPattern = regexp.MustCompile(
+	`(?i)(?:^|[^A-Za-z0-9_.-])nexusctl(?:\.(?:bat|cmd|exe|ps1))?(?:$|[^A-Za-z0-9_.-])`,
 )
+var shellEscapeReplacer = strings.NewReplacer(`\`, "", "^", "", "`", "")
+
+var nexusctlScopeEnvironmentNames = map[string]struct{}{
+	"CLAUDE_CONFIG_DIR":        {},
+	"NEXUS_CONFIG_DIR":         {},
+	"NEXUS_RUNTIME_SCOPE_MODE": {},
+	"NEXUS_STATE_ROOT":         {},
+	"NEXUSCTL_USER_ID":         {},
+	"NEXUSCTL_WORKSPACE_PATH":  {},
+}
+
+var nexusctlScopeFlags = map[string]struct{}{
+	"--global-scope":  {},
+	"--scope-user-id": {},
+}
+
+var nexusctlExecutableNames = map[string]struct{}{
+	"nexusctl":     {},
+	"nexusctl.bat": {},
+	"nexusctl.cmd": {},
+	"nexusctl.exe": {},
+	"nexusctl.ps1": {},
+}
+
+var powerShellEnvironmentMutationCommands = map[string]struct{}{
+	"ci":          {},
+	"clear-item":  {},
+	"new-item":    {},
+	"ni":          {},
+	"remove-item": {},
+	"ri":          {},
+	"sc":          {},
+	"set-content": {},
+	"set-item":    {},
+	"si":          {},
+}
+
+var windowsSlashOptions = map[string]map[string]struct{}{
+	"cmd": {
+		"/?": {}, "/a": {}, "/c": {}, "/d": {}, "/e": {}, "/f": {},
+		"/k": {}, "/q": {}, "/s": {}, "/u": {}, "/v": {},
+	},
+	"cmd.exe": {
+		"/?": {}, "/a": {}, "/c": {}, "/d": {}, "/e": {}, "/f": {},
+		"/k": {}, "/q": {}, "/s": {}, "/u": {}, "/v": {},
+	},
+	"findstr": {
+		"/?": {}, "/b": {}, "/c": {}, "/e": {}, "/f": {}, "/i": {},
+		"/l": {}, "/m": {}, "/n": {}, "/o": {}, "/off[line]": {},
+		"/p": {}, "/r": {}, "/s": {}, "/v": {}, "/x": {},
+	},
+	"findstr.exe": {
+		"/?": {}, "/b": {}, "/c": {}, "/e": {}, "/f": {}, "/i": {},
+		"/l": {}, "/m": {}, "/n": {}, "/o": {}, "/off[line]": {},
+		"/p": {}, "/r": {}, "/s": {}, "/v": {}, "/x": {},
+	},
+	"ping":     {"/?": {}},
+	"ping.exe": {"/?": {}},
+}
+
+var powerShellEncodedCommandFlags = map[string]struct{}{
+	"-e": {}, "-ec": {}, "-en": {}, "-enc": {}, "-enco": {},
+	"-encod": {}, "-encode": {}, "-encoded": {}, "-encodedc": {},
+	"-encodedco": {}, "-encodedcom": {}, "-encodedcomm": {},
+	"-encodedcomma": {}, "-encodedcomman": {}, "-encodedcommand": {},
+}
+
+var shellPathArgumentCommands = map[string]struct{}{
+	"add-content": {}, "cat": {}, "cd": {}, "chdir": {}, "clear-content": {},
+	"copy": {}, "copy-item": {}, "cp": {}, "curl": {}, "del": {}, "dir": {},
+	"erase": {}, "export-csv": {}, "find": {}, "gc": {}, "gci": {},
+	"get-acl": {}, "get-childitem": {}, "get-content": {}, "get-filehash": {},
+	"get-item": {}, "gi": {}, "grep": {}, "head": {}, "import-clixml": {},
+	"import-csv": {}, "invoke-item": {}, "less": {}, "ls": {}, "mkdir": {},
+	"more": {}, "move": {}, "move-item": {}, "mv": {}, "new-item": {},
+	"ni": {}, "node": {}, "out-file": {}, "python": {}, "python3": {},
+	"readlink": {}, "realpath": {}, "remove-item": {}, "rename-item": {},
+	"resolve-path": {}, "ri": {}, "rm": {}, "rmdir": {}, "set-content": {},
+	"set-location": {}, "stat": {}, "tail": {}, "test-path": {}, "touch": {},
+	"type": {}, "wget": {},
+}
 
 var readPathToolNames = map[string]struct{}{
 	"glob": {}, "grep": {}, "lsp": {}, "ls": {}, "read": {}, "viewimage": {},
@@ -129,7 +219,7 @@ func inspectToolAccess(policy Policy, input sdkhook.Input) *policyViolation {
 		return nil
 	}
 	if toolName == "bash" || toolName == "shell" || toolName == "powershell" {
-		return inspectShellAccess(policy, cwd, toolInput)
+		return inspectShellAccess(policy, cwd, toolName, toolInput)
 	}
 
 	writeTool := false
@@ -236,6 +326,7 @@ func inspectGenericPathFields(
 func inspectShellAccess(
 	policy Policy,
 	cwd string,
+	toolName string,
 	input map[string]any,
 ) *policyViolation {
 	for _, candidate := range collectPathFields(input) {
@@ -251,7 +342,22 @@ func inspectShellAccess(
 	if !ok || strings.TrimSpace(command) == "" {
 		return &policyViolation{reason: "Shell command 为空"}
 	}
-	if reason := forbiddenNexusctlScope(policy, command); reason != "" {
+	return inspectShellCommand(policy, cwd, toolName, command, 0)
+}
+
+func inspectShellCommand(
+	policy Policy,
+	cwd string,
+	toolName string,
+	command string,
+	depth int,
+) *policyViolation {
+	if depth >= 4 {
+		return &policyViolation{reason: "Shell 嵌套命令层级过深"}
+	}
+	syntax := shellSyntaxFor(toolName)
+	windowsSlashRoot := runtime.GOOS == "windows" && toolName != "bash"
+	if reason := forbiddenNexusctlScope(policy, command, syntax); reason != "" {
 		violation := &policyViolation{
 			reason:   reason,
 			terminal: !policy.IsMainAgent,
@@ -264,13 +370,25 @@ func inspectShellAccess(
 		}
 		return violation
 	}
-	for _, match := range shellRedirectionPathPattern.FindAllStringSubmatch(command, -1) {
-		if len(match) != 2 || strings.ContainsRune(match[1], '$') {
-			continue
+	if shellCommandUsesEncodedPowerShell(command, syntax) {
+		return &policyViolation{reason: "PowerShell EncodedCommand 无法由宿主静态检查"}
+	}
+	for _, path := range shellRedirectionPaths(command, syntax) {
+		if variableIndex := firstShellVariableIndex(path); variableIndex >= 0 {
+			if policy.IsMainAgent {
+				return &policyViolation{reason: "主智能体 Shell 重定向目标不能包含动态变量", path: path}
+			}
+			if shellDynamicPathPrefixAuthorized(policy, cwd, path, true, windowsSlashRoot) {
+				continue
+			}
+			if variableIndex == 0 {
+				continue
+			}
+			return &policyViolation{reason: "Shell 重定向动态路径前缀不可写", path: path}
 		}
-		resolved, err := resolveToolPath(cwd, match[1])
+		resolved, err := resolveShellToolPath(cwd, path, windowsSlashRoot)
 		if err != nil {
-			return &policyViolation{reason: err.Error(), path: match[1]}
+			return &policyViolation{reason: err.Error(), path: path}
 		}
 		if resolved == "/dev/null" || resolved == "/dev/tty" {
 			continue
@@ -279,15 +397,35 @@ func inspectShellAccess(
 			return &policyViolation{reason: "Shell 重定向目标不可写", path: resolved}
 		}
 	}
-	for _, token := range shellTokenPattern.FindAllString(command, -1) {
-		path, ok := shellTokenPath(token)
+	if path := complexBracedShellPath(command); path != "" {
+		return &policyViolation{reason: "Shell 路径包含复杂环境变量展开", path: path}
+	}
+	pathParts := shellCommandParts(command, syntax)
+	for index, part := range pathParts {
+		if part.operator != 0 || shellNumericEscapeArgument(pathParts, index) ||
+			windowsSlashOption(pathParts, index, windowsSlashRoot) {
+			continue
+		}
+		if bracedShellRemoteURLValue(part.value) {
+			continue
+		}
+		if policy.IsMainAgent && mainAgentDynamicPathArgument(pathParts, index) {
+			return &policyViolation{reason: "主智能体 Shell 路径不能包含动态变量", path: part.value}
+		}
+		if standaloneComplexBracedShellValue(part.value) {
+			continue
+		}
+		path, ok := shellTokenPath(part.value, windowsSlashRoot)
 		if !ok {
 			continue
 		}
-		if shellDynamicPathPrefixAuthorized(policy, cwd, path) {
+		if policy.IsMainAgent && firstShellVariableIndex(path) >= 0 {
+			return &policyViolation{reason: "主智能体 Shell 路径不能包含动态变量", path: path}
+		}
+		if shellDynamicPathPrefixAuthorized(policy, cwd, path, false, windowsSlashRoot) {
 			continue
 		}
-		resolved, err := resolveToolPath(cwd, path)
+		resolved, err := resolveShellToolPath(cwd, path, windowsSlashRoot)
 		if err != nil {
 			return &policyViolation{reason: err.Error(), path: path}
 		}
@@ -298,12 +436,455 @@ func inspectShellAccess(
 			return &policyViolation{reason: "Shell 显式路径越界", path: resolved}
 		}
 	}
+	for _, nested := range nestedShellCommands(command, syntax) {
+		if violation := inspectShellCommand(
+			policy,
+			cwd,
+			nested.toolName,
+			nested.command,
+			depth+1,
+		); violation != nil {
+			return violation
+		}
+	}
 	return nil
+}
+
+type shellCommandPart struct {
+	value    string
+	operator rune
+	quoted   bool
+	unquoted bool
+}
+
+type shellSyntax struct {
+	backslashEscape bool
+	backtickEscape  bool
+	caretEscape     bool
+}
+
+type nestedShellCommand struct {
+	toolName string
+	command  string
+}
+
+func shellSyntaxFor(toolName string) shellSyntax {
+	switch toolName {
+	case "bash":
+		return shellSyntax{backslashEscape: true}
+	case "powershell":
+		return shellSyntax{backtickEscape: true}
+	case "shell":
+		return shellSyntax{caretEscape: runtime.GOOS == "windows"}
+	default:
+		return shellSyntax{}
+	}
+}
+
+func shellCommandUsesEncodedPowerShell(command string, syntax shellSyntax) bool {
+	parts := shellCommandParts(command, syntax)
+	for index, part := range parts {
+		if part.operator != 0 {
+			continue
+		}
+		name := strings.TrimSuffix(strings.ToLower(filepath.Base(part.value)), ".exe")
+		if name != "powershell" && name != "pwsh" {
+			continue
+		}
+		for cursor := index + 1; cursor < len(parts) && parts[cursor].operator == 0; cursor++ {
+			if _, ok := powerShellEncodedCommandFlags[strings.ToLower(parts[cursor].value)]; ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func nestedShellCommands(command string, syntax shellSyntax) []nestedShellCommand {
+	parts := shellCommandParts(command, syntax)
+	commands := make([]nestedShellCommand, 0)
+	for index, part := range parts {
+		if part.operator != 0 {
+			continue
+		}
+		name := strings.TrimSuffix(strings.ToLower(filepath.Base(part.value)), ".exe")
+		toolName, flags, joinRemainder := nestedShellDescriptor(name)
+		if toolName == "" {
+			continue
+		}
+		flagIndex := nextMatchingShellWord(parts, index, toolName, flags)
+		commandIndex := nextShellWordIndex(parts, flagIndex)
+		if flagIndex < 0 || commandIndex < 0 {
+			continue
+		}
+		nestedCommand := parts[commandIndex].value
+		if joinRemainder {
+			nestedCommand = joinShellWords(parts, commandIndex)
+		}
+		if strings.TrimSpace(nestedCommand) != "" {
+			commands = append(commands, nestedShellCommand{
+				toolName: toolName,
+				command:  nestedCommand,
+			})
+		}
+	}
+	return commands
+}
+
+func nestedShellDescriptor(name string) (string, map[string]struct{}, bool) {
+	switch name {
+	case "bash", "dash", "sh", "zsh":
+		return "bash", map[string]struct{}{"-c": {}}, false
+	case "cmd":
+		return "shell", map[string]struct{}{`/c`: {}, `/k`: {}}, true
+	case "powershell", "pwsh":
+		return "powershell", map[string]struct{}{"-c": {}, "-command": {}}, true
+	default:
+		return "", nil, false
+	}
+}
+
+func nextMatchingShellWord(
+	parts []shellCommandPart,
+	index int,
+	toolName string,
+	values map[string]struct{},
+) int {
+	for cursor := index + 1; cursor < len(parts); cursor++ {
+		if parts[cursor].operator != 0 {
+			return -1
+		}
+		value := strings.ToLower(parts[cursor].value)
+		if _, ok := values[value]; ok ||
+			(toolName == "bash" && len(value) > 2 && strings.HasPrefix(value, "-") &&
+				!strings.HasPrefix(value, "--") && strings.HasSuffix(value, "c")) {
+			return cursor
+		}
+	}
+	return -1
+}
+
+func nextShellWordIndex(parts []shellCommandPart, index int) int {
+	if index < 0 || index+1 >= len(parts) || parts[index+1].operator != 0 {
+		return -1
+	}
+	return index + 1
+}
+
+func joinShellWords(parts []shellCommandPart, index int) string {
+	words := make([]string, 0)
+	for ; index < len(parts) && parts[index].operator == 0; index++ {
+		words = append(words, parts[index].value)
+	}
+	return strings.Join(words, " ")
+}
+
+// shellRedirectionPaths 从同一份词法结果读取写目标，避免把引号中的 `>`
+// 当作重定向，也覆盖带空格目标、追加与 noclobber 覆盖形式。
+func shellRedirectionPaths(command string, syntax shellSyntax) []string {
+	parts := shellCommandParts(command, syntax)
+	paths := make([]string, 0)
+	for index, part := range parts {
+		if part.operator != '>' ||
+			(index > 0 && parts[index-1].operator == '>') {
+			continue
+		}
+		targetIndex := index + 1
+		for targetIndex < len(parts) && parts[targetIndex].operator == '>' {
+			targetIndex++
+		}
+		if targetIndex < len(parts) && parts[targetIndex].operator == '|' {
+			targetIndex++
+		}
+		if targetIndex >= len(parts) {
+			continue
+		}
+		if parts[targetIndex].operator == '&' {
+			targetIndex++
+			if targetIndex >= len(parts) || parts[targetIndex].operator != 0 ||
+				parts[targetIndex].value == "-" || digitsOnly(parts[targetIndex].value) {
+				continue
+			}
+		}
+		if parts[targetIndex].operator == 0 {
+			paths = append(paths, parts[targetIndex].value)
+		}
+	}
+	return paths
+}
+
+func digitsOnly(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, character := range value {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func shellCommandParts(command string, syntax shellSyntax) []shellCommandPart {
+	parts := make([]shellCommandPart, 0)
+	var current strings.Builder
+	var quote rune
+	quoted := false
+	unquoted := false
+	flush := func() {
+		if current.Len() == 0 {
+			quoted = false
+			unquoted = false
+			return
+		}
+		parts = append(parts, shellCommandPart{
+			value:    current.String(),
+			quoted:   quoted,
+			unquoted: unquoted,
+		})
+		current.Reset()
+		quoted = false
+		unquoted = false
+	}
+	characters := []rune(command)
+	for index := 0; index < len(characters); index++ {
+		character := characters[index]
+		if quote != 0 {
+			if index+1 < len(characters) &&
+				quotedShellEscapesNext(syntax, quote, character, characters[index+1]) {
+				current.WriteRune(characters[index+1])
+				index++
+				continue
+			}
+			if character == quote {
+				quote = 0
+				continue
+			}
+			current.WriteRune(character)
+			continue
+		}
+		if index+1 < len(characters) && shellEscapesNext(syntax, character, characters[index+1]) {
+			current.WriteRune(characters[index+1])
+			unquoted = true
+			index++
+			continue
+		}
+		if character == '$' && index+1 < len(characters) && characters[index+1] == '{' {
+			current.WriteRune(character)
+			current.WriteRune(characters[index+1])
+			unquoted = true
+			index++
+			depth := 1
+			for index+1 < len(characters) && depth > 0 {
+				index++
+				character = characters[index]
+				current.WriteRune(character)
+				switch character {
+				case '{':
+					depth++
+				case '}':
+					depth--
+				}
+			}
+			continue
+		}
+		switch {
+		case character == '\'' || character == '"':
+			quote = character
+			quoted = true
+		case character == '\r' || character == '\n':
+			flush()
+			parts = append(parts, shellCommandPart{operator: ';'})
+		case unicode.IsSpace(character):
+			flush()
+		case strings.ContainsRune(";|&()<>{}", character):
+			flush()
+			parts = append(parts, shellCommandPart{operator: character})
+		default:
+			current.WriteRune(character)
+			unquoted = true
+		}
+	}
+	flush()
+	return parts
+}
+
+func shellEscapesNext(syntax shellSyntax, character rune, next rune) bool {
+	if (syntax.backtickEscape && character == '`') ||
+		(syntax.caretEscape && character == '^') {
+		return true
+	}
+	return syntax.backslashEscape && character == '\\' &&
+		(unicode.IsSpace(next) || strings.ContainsRune("`;'\"|&()<>{}", next))
+}
+
+func quotedShellEscapesNext(syntax shellSyntax, quote rune, character rune, next rune) bool {
+	if syntax.backtickEscape && quote == '"' && character == '`' {
+		return true
+	}
+	if syntax.caretEscape && character == '^' {
+		return true
+	}
+	if syntax.backtickEscape && quote == '\'' && character == '\'' && next == '\'' {
+		return true
+	}
+	return syntax.backslashEscape && quote == '"' && character == '\\' &&
+		strings.ContainsRune("$`\"\\\r\n", next)
+}
+
+func shellNumericEscapeArgument(parts []shellCommandPart, index int) bool {
+	part := parts[index]
+	if !part.quoted || part.unquoted || len(part.value) != 2 || part.value[0] != '\\' ||
+		part.value[1] < '0' || part.value[1] > '9' {
+		return false
+	}
+	return shellCommandName(parts, index) == "tr"
+}
+
+func windowsSlashOption(parts []shellCommandPart, index int, windowsSlashRoot bool) bool {
+	value := parts[index].value
+	if !windowsSlashRoot || !isWindowsSlashRootRelativeShellPath(value) ||
+		strings.ContainsAny(value[1:], `/\`) {
+		return false
+	}
+	options := windowsSlashOptions[shellCommandName(parts, index)]
+	if len(options) == 0 {
+		return false
+	}
+	name, _, _ := strings.Cut(strings.ToLower(value), ":")
+	_, ok := options[name]
+	return ok
+}
+
+func shellCommandName(parts []shellCommandPart, index int) string {
+	start := 0
+	for cursor := index - 1; cursor >= 0; cursor-- {
+		if strings.ContainsRune(";|&()", parts[cursor].operator) {
+			start = cursor + 1
+			break
+		}
+	}
+	for cursor := start; cursor < index; cursor++ {
+		candidate := parts[cursor]
+		if candidate.operator != 0 || strings.Contains(candidate.value, "=") {
+			continue
+		}
+		return strings.ToLower(filepath.Base(candidate.value))
+	}
+	return ""
+}
+
+// complexBracedShellPath 只拒绝参与路径或显式携带父目录跳转的复杂展开。
+// 普通 `echo ${NAME:-default}` 不属于路径访问，保留给 shell 处理。
+func complexBracedShellPath(command string) string {
+	for _, token := range bracedUnixShellTokenPattern.FindAllString(command, -1) {
+		for _, expansion := range unixShellVariablePattern.FindAllString(token, -1) {
+			if simpleBracedUnixShellVariablePattern.MatchString(expansion) {
+				continue
+			}
+			if bracedExpansionRemoteURL(token, expansion) {
+				continue
+			}
+			outside := strings.Replace(token, expansion, "", 1)
+			if strings.ContainsAny(outside, `/\`) || strings.Contains(expansion, "..") ||
+				windowsDriveExpansionPattern.MatchString(expansion) ||
+				rootedExpansionPattern.MatchString(expansion) ||
+				shellFileURLExpansionPattern.MatchString(expansion) ||
+				bracedReplacementRooted(expansion) {
+				return token
+			}
+		}
+	}
+	return ""
+}
+
+func bracedExpansionRemoteURL(token string, expansion string) bool {
+	index := strings.Index(token, expansion)
+	if index < 0 {
+		return false
+	}
+	prefix := token[:index]
+	if prefix != "" && (!strings.HasSuffix(prefix, "=") || strings.ContainsAny(prefix, `/\\`)) {
+		return false
+	}
+	match := shellRemoteURLExpansionPattern.FindStringSubmatch(expansion)
+	return len(match) == 2 && !strings.EqualFold(match[1], "file")
+}
+
+func bracedShellRemoteURLValue(value string) bool {
+	expansion := unixShellVariablePattern.FindString(value)
+	return expansion != "" && bracedExpansionRemoteURL(value, expansion)
+}
+
+func bracedReplacementRooted(expansion string) bool {
+	body := strings.TrimSuffix(strings.TrimPrefix(expansion, "${"), "}")
+	operatorIndex := strings.IndexRune(body, '/')
+	if operatorIndex < 0 {
+		return false
+	}
+	patternStart := operatorIndex + 1
+	if patternStart < len(body) && body[patternStart] == '/' {
+		patternStart++
+	}
+	replacementOffset := strings.IndexRune(body[patternStart:], '/')
+	if replacementOffset < 0 {
+		return false
+	}
+	replacement := body[patternStart+replacementOffset+1:]
+	return strings.HasPrefix(replacement, "/") || strings.HasPrefix(replacement, `\`) ||
+		strings.HasPrefix(replacement, "~/") || strings.HasPrefix(replacement, `~\`) ||
+		isWindowsAbsoluteShellPath(replacement) || isWindowsDriveRelativeShellPath(replacement)
+}
+
+func standaloneComplexBracedShellValue(value string) bool {
+	if _, assigned, ok := strings.Cut(value, "="); ok {
+		value = assigned
+	}
+	expansion := unixShellVariablePattern.FindString(value)
+	return expansion == value && !simpleBracedUnixShellVariablePattern.MatchString(expansion)
+}
+
+func mainAgentDynamicPathArgument(parts []shellCommandPart, index int) bool {
+	part := parts[index]
+	if firstShellVariableIndex(part.value) < 0 || nexusctlCommandVariable(part.value) {
+		return false
+	}
+	if name, _, assigned := strings.Cut(part.value, "="); assigned && shellAssignmentName(name) {
+		return false
+	}
+	commandName := shellCommandName(parts, index)
+	if commandName == "" {
+		return true
+	}
+	_, ok := shellPathArgumentCommands[commandName]
+	return ok
+}
+
+func shellAssignmentName(value string) bool {
+	if value == "" || !((value[0] >= 'a' && value[0] <= 'z') ||
+		(value[0] >= 'A' && value[0] <= 'Z') || value[0] == '_') {
+		return false
+	}
+	for index := 1; index < len(value); index++ {
+		character := value[index]
+		if !((character >= 'a' && character <= 'z') ||
+			(character >= 'A' && character <= 'Z') ||
+			(character >= '0' && character <= '9') || character == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 // shellDynamicPathPrefixAuthorized 只判断变量前已经明确出现的静态目录。
 // 变量展开后的最终目标仍由 launcher/Landlock 的系统调用边界裁决。
-func shellDynamicPathPrefixAuthorized(policy Policy, cwd string, path string) bool {
+func shellDynamicPathPrefixAuthorized(
+	policy Policy,
+	cwd string,
+	path string,
+	write bool,
+	windowsSlashRoot bool,
+) bool {
 	variableIndex := firstShellVariableIndex(path)
 	if variableIndex <= 0 || explicitShellTraversal(path) {
 		return false
@@ -312,14 +893,14 @@ func shellDynamicPathPrefixAuthorized(policy Policy, cwd string, path string) bo
 	if prefix == "" {
 		return false
 	}
-	resolved, err := resolveToolPath(cwd, prefix)
+	resolved, err := resolveShellToolPath(cwd, prefix, windowsSlashRoot)
 	if err != nil {
 		return false
 	}
-	if shellSystemPath(resolved) {
+	if !write && shellSystemPath(resolved) {
 		return true
 	}
-	_, err = policy.authorize(resolved, false)
+	_, err = policy.authorize(resolved, write)
 	return err == nil
 }
 
@@ -357,19 +938,140 @@ func shellSystemPath(path string) bool {
 	return false
 }
 
-func forbiddenNexusctlScope(policy Policy, command string) string {
-	lower := strings.ToLower(command)
-	if !strings.Contains(lower, "nexusctl") {
+func forbiddenNexusctlScope(policy Policy, command string, syntax shellSyntax) string {
+	parts := shellCommandParts(command, syntax)
+	if !shellCommandUsesNexusctl(parts) && !commandReferencesBracedNexusctlVariable(command) &&
+		!nexusctlCommandTextPattern.MatchString(command) {
 		return ""
 	}
 	if policy.IsMainAgent {
-		if nexusctlScopeEnvironmentOverridePattern.MatchString(command) ||
-			nexusctlScopeFlagOverridePattern.MatchString(command) {
+		if shellCommandOverridesNexusctlScope(parts, command) {
 			return "主智能体 nexusctl 必须使用宿主注入的 owner 作用域"
 		}
 		return ""
 	}
 	return "runtime 暂不提供直接 nexusctl 控制面 broker"
+}
+
+func shellCommandUsesNexusctl(parts []shellCommandPart) bool {
+	for _, part := range parts {
+		if part.operator != 0 {
+			continue
+		}
+		for _, candidate := range shellTokenCandidates(part) {
+			if _, value, assigned := strings.Cut(candidate, "="); assigned {
+				candidate = value
+			}
+			if nexusctlCommandVariable(candidate) || nexusctlExecutable(candidate) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func shellCommandOverridesNexusctlScope(parts []shellCommandPart, command string) bool {
+	if powerShellBracedScopeEnvironmentAssignmentPattern.MatchString(command) {
+		return true
+	}
+	for index, part := range parts {
+		if part.operator != 0 {
+			continue
+		}
+		for _, candidate := range shellTokenCandidates(part) {
+			name, value, assigned := strings.Cut(candidate, "=")
+			if _, ok := nexusctlScopeFlags[strings.ToLower(name)]; ok {
+				return true
+			}
+			if assigned {
+				if _, ok := nexusctlScopeFlags[strings.ToLower(value)]; ok {
+					return true
+				}
+			}
+			if assigned && (nexusctlScopeEnvironment(name) || powerShellScopeEnvironment(name)) {
+				return true
+			}
+			if powerShellScopeEnvironment(name) && nextShellWordIsEquals(parts, index) {
+				return true
+			}
+			if powerShellScopeEnvironment(name) && powerShellEnvironmentMutation(parts, index) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func commandReferencesBracedNexusctlVariable(command string) bool {
+	upper := strings.ToUpper(command)
+	return strings.Contains(upper, "${NEXUSCTL_COMMAND_PATH}") ||
+		strings.Contains(upper, "${ENV:NEXUSCTL_COMMAND_PATH}")
+}
+
+func shellTokenCandidates(part shellCommandPart) []string {
+	candidates := []string{part.value}
+	unescaped := shellEscapeReplacer.Replace(part.value)
+	candidates = append(candidates, unescaped)
+	if part.quoted {
+		candidates = append(candidates, strings.ReplaceAll(unescaped, "$", ""))
+	}
+	return slices.Compact(candidates)
+}
+
+func nexusctlCommandVariable(value string) bool {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "$NEXUSCTL_COMMAND_PATH",
+		"${NEXUSCTL_COMMAND_PATH}",
+		"%NEXUSCTL_COMMAND_PATH%",
+		"$ENV:NEXUSCTL_COMMAND_PATH",
+		"${ENV:NEXUSCTL_COMMAND_PATH}":
+		return true
+	default:
+		return false
+	}
+}
+
+func nexusctlExecutable(value string) bool {
+	if index := strings.LastIndexAny(value, `/\`); index >= 0 {
+		value = value[index+1:]
+	}
+	_, ok := nexusctlExecutableNames[strings.ToLower(strings.TrimSpace(value))]
+	return ok
+}
+
+func nexusctlScopeEnvironment(value string) bool {
+	value = strings.ToUpper(strings.TrimSpace(value))
+	_, ok := nexusctlScopeEnvironmentNames[value]
+	return ok
+}
+
+func powerShellScopeEnvironment(value string) bool {
+	value = strings.ToUpper(strings.TrimSpace(value))
+	switch {
+	case strings.HasPrefix(value, "ENV:"):
+		return nexusctlScopeEnvironment(strings.TrimPrefix(value, "ENV:"))
+	case strings.HasPrefix(value, "$ENV:"):
+		return nexusctlScopeEnvironment(strings.TrimPrefix(value, "$ENV:"))
+	case strings.HasPrefix(value, "${ENV:") && strings.HasSuffix(value, "}"):
+		return nexusctlScopeEnvironment(strings.TrimSuffix(strings.TrimPrefix(value, "${ENV:"), "}"))
+	default:
+		return false
+	}
+}
+
+func powerShellEnvironmentMutation(parts []shellCommandPart, index int) bool {
+	_, ok := powerShellEnvironmentMutationCommands[shellCommandName(parts, index)]
+	return ok
+}
+
+func nextShellWordIsEquals(parts []shellCommandPart, index int) bool {
+	for index++; index < len(parts); index++ {
+		if parts[index].operator != 0 {
+			return false
+		}
+		return parts[index].value == "="
+	}
+	return false
 }
 
 type pathCandidate struct {
@@ -423,15 +1125,36 @@ func collectPathFields(input map[string]any) []pathCandidate {
 	return slices.Compact(candidates)
 }
 
+func resolveShellToolPath(cwd string, raw string, windowsSlashRoot bool) (string, error) {
+	raw = trimPowerShellFileSystemProvider(strings.TrimSpace(raw))
+	if path, ok, err := localFileURLPath(strings.TrimSpace(raw)); ok || err != nil {
+		if err != nil {
+			return "", err
+		}
+		raw = path
+	}
+	if windowsSlashRoot && isWindowsSlashRootRelativeShellPath(strings.TrimSpace(raw)) {
+		return "", fmt.Errorf("工具路径包含 Windows 当前盘根路径")
+	}
+	return resolveToolPath(cwd, raw)
+}
+
 func resolveToolPath(cwd string, raw string) (string, error) {
 	value := strings.TrimSpace(raw)
+	value = trimPowerShellFileSystemProvider(value)
 	if value == "" {
 		return "", fmt.Errorf("工具路径为空")
 	}
 	if strings.HasPrefix(value, "~") {
 		return "", fmt.Errorf("工具路径包含未展开的 home 简写")
 	}
-	if isWindowsAbsoluteShellPath(value) {
+	if isWindowsDriveRelativeShellPath(value) {
+		return "", fmt.Errorf("工具路径包含 Windows 驱动器相对路径")
+	}
+	if runtime.GOOS == "windows" && isWindowsRootRelativeShellPath(value) {
+		return "", fmt.Errorf("工具路径包含 Windows 当前盘根路径")
+	}
+	if runtime.GOOS != "windows" && isWindowsAbsoluteShellPath(value) {
 		return "", fmt.Errorf("工具路径包含 Windows 绝对路径")
 	}
 	if strings.ContainsRune(value, '$') {
@@ -467,18 +1190,36 @@ func nonGlobPrefix(path string) string {
 	return filepath.Dir(prefix)
 }
 
-func shellTokenPath(token string) (string, bool) {
+func shellTokenPath(token string, windowsSlashRoot bool) (string, bool) {
 	token = strings.TrimSpace(token)
 	token = strings.Trim(token, `"'`)
-	// shellTokenPattern 会把命令替换 `$(...)` 的 `$` 单独切出来。
-	// 单独的 `$` 是 shell 语法，不是路径；把它当成环境变量会误拒绝
-	// 合法的命令（例如 `ps -u $(whoami)`）。真正带路径语义的变量
-	// 仍会在下面保留并交给未展开变量检查。
-	if token == "" || token == "$" || strings.Contains(token, "://") {
+	// 单独的 `$` 是 shell 语法，不是路径；真正带路径语义的变量仍会
+	// 在下面保留并交给未展开变量检查。
+	if token == "" || token == "$" || shellRemoteURL(token) {
 		return "", false
 	}
+	token = trimPowerShellFileSystemProvider(token)
+	if _, fileURL, err := localFileURLPath(token); fileURL || err != nil {
+		return token, true
+	}
+	if shellRemoteURL(token) {
+		return "", false
+	}
+	if isWindowsAbsoluteShellPath(token) || isWindowsDriveRelativeShellPath(token) ||
+		(windowsSlashRoot && isWindowsSlashRootRelativeShellPath(token)) {
+		return token, true
+	}
+	if filepath.IsAbs(token) || strings.HasPrefix(token, "~") ||
+		explicitShellTraversal(token) ||
+		((unixShellVariablePattern.MatchString(token) || windowsShellVariablePattern.MatchString(token)) &&
+			strings.ContainsAny(token, `/\\`)) {
+		return token, true
+	}
+	if value, ok := shellColonOptionValue(token); ok {
+		return shellTokenPath(value, windowsSlashRoot)
+	}
 	if _, value, ok := strings.Cut(token, "="); ok {
-		token = value
+		return shellTokenPath(value, windowsSlashRoot)
 	}
 	token = strings.Trim(token, ",:")
 	switch {
@@ -488,21 +1229,96 @@ func shellTokenPath(token string) (string, bool) {
 		// shell 会在执行前把 ~ 展开到 home；宿主 hook 无法安全推断
 		// 目标用户，因此宁可拒绝未展开的 home 简写，避免绕过 owner 根。
 		return token, true
-	case unixShellVariablePattern.MatchString(token) ||
-		windowsShellVariablePattern.MatchString(token):
+	case unixShellVariablePattern.MatchString(token) || windowsShellVariablePattern.MatchString(token):
 		// 裸变量不携带可静态判断的路径语义，交给系统调用级隔离；
 		// 带目录分隔符的变量路径继续检查其静态前缀。
 		if strings.ContainsAny(token, `/\`) {
 			return token, true
 		}
 		return "", false
-	case isWindowsAbsoluteShellPath(token):
-		return token, true
-	case token == "..", strings.HasPrefix(token, "../"), strings.Contains(token, "/../"):
+	case runtime.GOOS == "windows" && isWindowsRootRelativeShellPath(token),
+		explicitShellTraversal(token):
 		return token, true
 	default:
 		return "", false
 	}
+}
+
+func shellColonOptionValue(value string) (string, bool) {
+	if len(value) < 4 || value[0] != '-' {
+		return "", false
+	}
+	separator := strings.IndexRune(value[1:], ':')
+	if separator < 1 {
+		return "", false
+	}
+	separator++
+	for _, character := range value[1:separator] {
+		if !unicode.IsLetter(character) && character != '-' {
+			return "", false
+		}
+	}
+	return value[separator+1:], true
+}
+
+func shellRemoteURL(value string) bool {
+	match := shellRemoteURLPattern.FindStringSubmatch(strings.TrimSpace(value))
+	return len(match) == 2 && !strings.EqualFold(match[1], "file")
+}
+
+func localFileURLPath(value string) (string, bool, error) {
+	value = strings.TrimSpace(value)
+	if !strings.HasPrefix(strings.ToLower(value), "file:") {
+		return "", false, nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return "", true, fmt.Errorf("解析 file URL: %w", err)
+	}
+	path, err := url.PathUnescape(parsed.EscapedPath())
+	if err != nil {
+		return "", true, fmt.Errorf("解析 file URL 路径: %w", err)
+	}
+	if runtime.GOOS == "windows" && len(path) >= 3 && path[0] == '/' &&
+		((path[1] >= 'a' && path[1] <= 'z') || (path[1] >= 'A' && path[1] <= 'Z')) &&
+		path[2] == ':' {
+		path = path[1:]
+	}
+	if parsed.Host != "" && !strings.EqualFold(parsed.Host, "localhost") {
+		path = `\\` + parsed.Host + `/` + strings.TrimLeft(path, "/")
+	}
+	return filepath.FromSlash(path), true, nil
+}
+
+func trimPowerShellFileSystemProvider(value string) string {
+	for _, prefix := range []string{
+		"FileSystem::",
+		`Microsoft.PowerShell.Core\FileSystem::`,
+	} {
+		if len(value) >= len(prefix) && strings.EqualFold(value[:len(prefix)], prefix) {
+			return value[len(prefix):]
+		}
+	}
+	return value
+}
+
+func isWindowsDriveRelativeShellPath(value string) bool {
+	return len(value) >= 2 &&
+		((value[0] >= 'a' && value[0] <= 'z') ||
+			(value[0] >= 'A' && value[0] <= 'Z')) &&
+		value[1] == ':' &&
+		(len(value) == 2 || (value[2] != '\\' && value[2] != '/'))
+}
+
+func isWindowsRootRelativeShellPath(value string) bool {
+	if !strings.HasPrefix(value, `\`) || strings.HasPrefix(value, `\\`) {
+		return false
+	}
+	return true
+}
+
+func isWindowsSlashRootRelativeShellPath(value string) bool {
+	return strings.HasPrefix(value, "/") && !strings.HasPrefix(value, "//")
 }
 
 func isWindowsAbsoluteShellPath(value string) bool {

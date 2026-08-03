@@ -8,6 +8,7 @@ import type {
 
 import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
 import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
+import { shouldShowAssistantTimeline } from "../../message-item-projection";
 import { ContentRenderer } from "../content/content-renderer";
 import type {
   AssistantActivityState,
@@ -144,7 +145,7 @@ function ExpandedProcessContent({
         pendingInteractionOwner={permissions.owner}
         pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
         permissionReadOnlyReason={environment.permissionReadOnlyReason}
-        showTimelineDots
+        showTimelineDots={shouldShowAssistantTimeline(environment.mode)}
         streamingBlockIndexes={process.projection.streamingIndexes}
         workspaceAgentId={environment.workspaceAgentId}
       />

@@ -7,8 +7,12 @@
 import { COMPOSER_FOOTER_CLASS_NAME } from "../../composer-styles";
 import { ComposerSubmitButton } from "../composer-submit-button";
 import { ComposerFooterActions } from "./composer-footer-actions";
+import { ComposerContextUsage } from "./composer-context-usage";
 import { ComposerFooterMetadata } from "./composer-footer-metadata";
 import type { ComposerFooterProps } from "./composer-footer-model";
+import {
+  ComposerSessionControls,
+} from "./composer-session-controls";
 import {
   ComposerFooterStatus,
   ComposerGoalModeIndicator,
@@ -35,6 +39,11 @@ export function ComposerFooter(props: ComposerFooterProps) {
           onGoalToggle={props.onGoalToggle}
           onLoopSelect={props.onLoopSelect}
         />
+        <ComposerSessionControls
+          controller={props.sessionSettingsController}
+          disabled={props.sessionSettingsDisabled}
+          slot="leading"
+        />
         <ComposerGoalModeIndicator
           extra={props.goalModeExtra}
           isCreating={props.isGoalCreating}
@@ -50,7 +59,16 @@ export function ComposerFooter(props: ComposerFooterProps) {
         />
       </div>
       <ComposerPoweredByNexus visible={props.showPoweredByNexus} />
-      <div className="nexus-chat-composer-footer-trailing flex min-w-0 items-center justify-self-end gap-3 overflow-hidden">
+      <div className="nexus-chat-composer-footer-trailing flex min-w-0 items-center justify-self-end gap-2 overflow-hidden">
+        <ComposerContextUsage
+          items={props.contextUsageItems}
+          usage={props.contextUsage}
+        />
+        <ComposerSessionControls
+          controller={props.sessionSettingsController}
+          disabled={props.sessionSettingsDisabled}
+          slot="trailing"
+        />
         <ComposerFooterMetadata
           charCount={props.charCount}
           historyIndex={props.historyIndex}

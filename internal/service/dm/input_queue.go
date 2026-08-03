@@ -37,7 +37,9 @@ func (s *Service) HandleInputQueue(
 	if err != nil {
 		return protocol.InputQueueMutationResult{}, err
 	}
-	s.inputQueueDispatchMu.Lock()
+	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+		return protocol.InputQueueMutationResult{}, err
+	}
 	defer s.inputQueueDispatchMu.Unlock()
 
 	action := strings.TrimSpace(request.Action)
@@ -209,7 +211,9 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	agentID string,
 	location workspacestore.InputQueueLocation,
 ) bool {
-	s.inputQueueDispatchMu.Lock()
+	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+		return false
+	}
 	defer s.inputQueueDispatchMu.Unlock()
 
 	if strings.TrimSpace(normalizedSessionKey) == "" || len(s.runtime.GetRunningRoundIDs(normalizedSessionKey)) > 0 {

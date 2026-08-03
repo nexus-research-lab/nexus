@@ -13,10 +13,10 @@ export function ThreadActionButton({
   onClick,
 }: ThreadActionButtonProps) {
   const { t } = useI18n();
-  const label = t(active ? "room.thread_close" : "room.thread_open");
+  const actionLabel = t(active ? "room.thread_close" : "room.thread_open");
   return (
     <button
-      aria-label={label}
+      aria-label={actionLabel}
       className={cn(
         "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
         active
@@ -24,10 +24,10 @@ export function ThreadActionButton({
           : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:bg-(--interaction-hover-background) hover:text-(--text-default)",
       )}
       onClick={onClick}
-      title={label}
+      title={actionLabel}
       type="button"
     >
-      {label}
+      {t("room.thread_label")}
     </button>
   );
 }

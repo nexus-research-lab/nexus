@@ -49,7 +49,9 @@ function isRoomThreadMessage(
     return false;
   }
   if (message.role === "system") {
-    return message.metadata?.subtype === "guided_input";
+    return ["guided_input", "memory_recalled", "memory_saved"].includes(
+      message.metadata?.subtype ?? "",
+    );
   }
   return !agentRoundId
     || message.agent_round_id?.trim() === agentRoundId

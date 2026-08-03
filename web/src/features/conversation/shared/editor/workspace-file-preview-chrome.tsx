@@ -1,33 +1,68 @@
 "use client";
 
 import { createContext, type ReactNode, useContext } from "react";
-import { Download, FolderOpen, Maximize2, Minimize2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import {
+  ChevronRight,
+  Download,
+  FolderOpen,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
 import { cn } from "@/shared/ui/class-name";
+import {
+  WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
+  WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+  WORKSPACE_PANEL_HEADER_ICON_CLASS,
+  WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+} from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 const WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn(
-  "inline-flex h-6 items-center justify-center gap-1.5 rounded-[6px] border px-1.5 text-[9px] font-semibold leading-none transition-colors",
-  "border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--text-default)",
-  "hover:border-primary/30 hover:bg-primary/8 hover:text-primary",
-  "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) disabled:hover:border-(--divider-subtle-color) disabled:hover:bg-(--surface-panel-background) disabled:hover:text-(--text-default)",
-  "max-xl:w-8 max-xl:px-0 max-xl:gap-0",
+  "inline-flex items-center justify-center rounded-[6px] text-(--text-default) transition-colors",
+  WORKSPACE_PANEL_HEADER_BUTTON_CLASS,
+  "hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
+  "disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) disabled:hover:bg-transparent disabled:hover:text-(--text-default)",
 );
 
-const WorkspaceFilePreviewHeaderLeadingContext = createContext<ReactNode>(null);
+interface WorkspaceFilePreviewHeaderContextValue {
+  headerPortalTarget?: HTMLElement | null;
+  leading?: ReactNode;
+  locationLabel: string;
+}
+
+const WorkspaceFilePreviewHeaderContext =
+  createContext<WorkspaceFilePreviewHeaderContextValue>({locationLabel: ""});
 
 export function WorkspaceFilePreviewHeaderProvider({
   children,
+  headerPortalTarget,
   leading,
+  locationLabel,
 }: {
   children: ReactNode;
+  headerPortalTarget?: HTMLElement | null;
   leading?: ReactNode;
+  locationLabel: string;
 }) {
   return (
-    <WorkspaceFilePreviewHeaderLeadingContext.Provider value={leading}>
+    <WorkspaceFilePreviewHeaderContext.Provider
+      value={{headerPortalTarget, leading, locationLabel}}
+    >
       {children}
-    </WorkspaceFilePreviewHeaderLeadingContext.Provider>
+    </WorkspaceFilePreviewHeaderContext.Provider>
+  );
+}
+
+function WorkspaceFileBreadcrumbSeparator() {
+  return (
+    <ChevronRight
+      aria-hidden="true"
+      className="h-3 w-3 shrink-0 text-(--icon-muted)"
+    />
   );
 }
 
@@ -40,45 +75,62 @@ export function WorkspaceFilePreviewHeader({
   meta?: ReactNode;
   title: string;
 }) {
-  const leading = useContext(WorkspaceFilePreviewHeaderLeadingContext);
-  return (
-    <div className="overflow-hidden border-b divider-subtle px-3 pt-0 pb-2">
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          {leading ? <div className="shrink-0">{leading}</div> : null}
-          <p
-            className="min-w-0 flex-1 truncate text-xs font-semibold uppercase leading-5 tracking-[0.16em] text-muted-foreground"
-            title={title}
-          >
-            {title}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2 self-start">
-          {actions}
-        </div>
-      </div>
-      {meta ? (
-        <div className="mt-1 flex min-w-0 items-center gap-2 text-2xs text-muted-foreground">
-          {meta}
-        </div>
-      ) : null}
-    </div>
+  const {headerPortalTarget, leading, locationLabel} = useContext(
+    WorkspaceFilePreviewHeaderContext,
   );
+  const hasLocation = Boolean(leading || locationLabel);
+  const header = (
+    <header
+      className={cn(
+        "flex min-w-0 shrink-0 items-center gap-3 overflow-hidden border-b divider-subtle",
+        WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
+        WORKSPACE_PANEL_HEADER_PADDING_CLASS,
+        headerPortalTarget && "h-full min-h-0 border-b-0 px-0",
+      )}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        {leading ? <div className="shrink-0">{leading}</div> : null}
+        {leading && locationLabel ? <WorkspaceFileBreadcrumbSeparator /> : null}
+        {locationLabel ? (
+          <span
+            className="min-w-0 max-w-[42%] truncate text-xs font-normal text-(--text-soft)"
+            title={locationLabel}
+          >
+            {locationLabel}
+          </span>
+        ) : null}
+        {hasLocation ? <WorkspaceFileBreadcrumbSeparator /> : null}
+        <p
+          className="min-w-0 flex-1 truncate text-xs font-medium text-(--text-strong)"
+          title={title}
+        >
+          {title}
+        </p>
+        {meta ? (
+          <div className="hidden min-w-0 shrink items-center gap-2 overflow-hidden whitespace-nowrap text-2xs text-(--text-soft) sm:flex">
+            {meta}
+          </div>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 items-center gap-0.5">{actions}</div>
+    </header>
+  );
+  if (headerPortalTarget === null) {
+    return null;
+  }
+  return headerPortalTarget ? createPortal(header, headerPortalTarget) : header;
 }
 
 export function WorkspaceFileDownloadButton({
   agentId,
   path,
   fileName,
-  label,
 }: {
   agentId: string;
   path: string;
   fileName: string;
-  label?: string;
 }) {
   const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
-  const visibleLabel = label ?? fileActionCopy.label;
   const handleExternalAction = () => {
     void downloadWorkspaceFileApi(agentId, path, fileName).catch((error) => {
       console.error(`[WorkspaceFileDownloadButton] ${fileActionCopy.label} workspace 文件失败:`, error);
@@ -94,11 +146,10 @@ export function WorkspaceFileDownloadButton({
       type="button"
     >
       {fileActionCopy.mode === "reveal" ? (
-        <FolderOpen className="h-3.5 w-3.5" />
+        <FolderOpen className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
       ) : (
-        <Download className="h-3.5 w-3.5" />
+        <Download className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
       )}
-      <span className="max-xl:hidden">{visibleLabel}</span>
     </button>
   );
 }
@@ -112,10 +163,11 @@ export function WorkspaceFileToolbarButton({
   children: ReactNode;
   disabled?: boolean;
   onClick: () => void;
-  title?: string;
+  title: string;
 }) {
   return (
     <button
+      aria-label={title}
       className={WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME}
       disabled={disabled}
       onMouseDown={(event) => event.preventDefault()}
@@ -140,8 +192,11 @@ export function WorkspaceFilePreviewFocusButton({
       onClick={onTogglePreviewFocus}
       title={isPreviewFocused ? "还原文件树" : "聚焦预览"}
     >
-      {isPreviewFocused ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-      <span className="max-xl:hidden">{isPreviewFocused ? "还原" : "放大"}</span>
+      {isPreviewFocused ? (
+        <Minimize2 className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
+      ) : (
+        <Maximize2 className={WORKSPACE_PANEL_HEADER_ICON_CLASS} />
+      )}
     </WorkspaceFileToolbarButton>
   );
 }

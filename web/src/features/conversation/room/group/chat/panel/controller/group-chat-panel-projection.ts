@@ -221,7 +221,6 @@ function buildFeedModel({
       agentNameMap: directory.names,
       currentAgentAvatar,
       currentAgentName,
-      currentUserAvatar: environment.currentUserAvatar,
       isLastRoundPendingPermissions: conversation.pending_permissions,
       onOpenAgentContact,
       onOpenWorkspaceFile,

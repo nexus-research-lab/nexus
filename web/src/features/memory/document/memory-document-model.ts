@@ -1,15 +1,5 @@
-import type { TranslationKey } from "@/shared/i18n/messages";
 import type { WorkspaceLiveFileState } from "@/types/app/workspace-live";
-import type { MemoryDocument } from "@/types/memory/memory";
-
-import { isIndexedMemoryTopic } from "../memory-utils";
-
-export type MemoryDocumentHeaderBadgeKind = "indexed" | "runtime_writing";
-
-export interface MemoryDocumentHeaderBadge {
-  kind: MemoryDocumentHeaderBadgeKind;
-  labelKey: TranslationKey;
-}
+import type { MemoryDocumentKind } from "@/types/memory/memory";
 
 export type MemoryDocumentHeaderAction =
   | {
@@ -25,33 +15,22 @@ export type MemoryDocumentHeaderAction =
 
 export interface MemoryDocumentHeaderModel {
   action: MemoryDocumentHeaderAction;
-  badges: MemoryDocumentHeaderBadge[];
+  deleteAction: {
+    deleting: boolean;
+    disabled: boolean;
+    visible: boolean;
+  };
 }
 
 interface MemoryDocumentHeaderState {
+  deleteBusy: boolean;
+  deleting: boolean;
   dirty: boolean;
-  document: MemoryDocument;
+  documentKind: MemoryDocumentKind;
   editing: boolean;
   isSaving: boolean;
   runtimeWriting: boolean;
 }
-
-interface MemoryDocumentHeaderBadgeRule extends MemoryDocumentHeaderBadge {
-  visible: (state: MemoryDocumentHeaderState) => boolean;
-}
-
-const HEADER_BADGE_RULES: readonly MemoryDocumentHeaderBadgeRule[] = [
-  {
-    kind: "indexed",
-    labelKey: "capability.memory_indexed",
-    visible: ({ document }) => isIndexedMemoryTopic(document),
-  },
-  {
-    kind: "runtime_writing",
-    labelKey: "capability.memory_runtime_writing",
-    visible: ({ runtimeWriting }) => runtimeWriting,
-  },
-];
 
 export function buildMemoryDocumentHeaderModel(
   state: MemoryDocumentHeaderState,
@@ -68,9 +47,11 @@ export function buildMemoryDocumentHeaderModel(
           disabled: state.runtimeWriting,
           kind: "edit",
         },
-    badges: HEADER_BADGE_RULES
-      .filter((rule) => rule.visible(state))
-      .map(({ kind, labelKey }) => ({ kind, labelKey })),
+    deleteAction: {
+      deleting: state.deleting,
+      disabled: state.deleteBusy || state.runtimeWriting,
+      visible: state.documentKind !== "index" && !state.editing,
+    },
   };
 }
 

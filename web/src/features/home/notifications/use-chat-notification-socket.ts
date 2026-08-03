@@ -14,6 +14,7 @@ import {
 } from "@/features/home/room-activity-resource";
 import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
+import { notifySessionRuntimeSettingsUpdated } from "@/lib/conversation/session-runtime-settings-events";
 import { readString } from "@/lib/unknown-value";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
@@ -57,6 +58,14 @@ export function useChatNotificationSocket({
       return;
     }
     if (event.event_type === "directory_changed") {
+      if (
+        readString(event.data, "reason")
+        === "session_runtime_settings_updated"
+      ) {
+        notifySessionRuntimeSettingsUpdated(
+          readString(event.data, "session_key") ?? "",
+        );
+      }
       refreshAgentDirectory(event);
       notifyRoomDirectoryUpdated();
       return;

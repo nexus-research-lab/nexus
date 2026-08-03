@@ -70,6 +70,8 @@ func (c *roomCancellationProviderClient) SetPermissionMode(
 	return nil
 }
 
+func (c *roomCancellationProviderClient) Retire() {}
+
 func (c *roomCancellationProviderClient) Disconnect(context.Context) error {
 	return nil
 }

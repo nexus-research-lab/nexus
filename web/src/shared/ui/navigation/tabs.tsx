@@ -5,12 +5,12 @@ import { type LucideIcon, X } from "lucide-react";
 
 import {
   getUiTabDismissClassName,
-  getUiUnderlineTabClassName,
-  getUiUnderlineTabsNavClassName,
+  getUiTabClassName,
+  getUiTabsNavClassName,
   type UiTabsDensity,
 } from "@/shared/ui/navigation/tabs-styles";
 
-interface UiUnderlineTabOption<TValue extends string> {
+interface UiTabOption<TValue extends string> {
   anchor?: string;
   className?: string;
   icon?: LucideIcon;
@@ -19,7 +19,7 @@ interface UiUnderlineTabOption<TValue extends string> {
   value: TValue;
 }
 
-interface UiUnderlineTabsProps<TValue extends string> {
+interface UiTabsProps<TValue extends string> {
   activeValue?: TValue;
   ariaLabel: string;
   className?: string;
@@ -29,10 +29,10 @@ interface UiUnderlineTabsProps<TValue extends string> {
   onChange?: (value: TValue) => void;
   onDismissActive?: (value: TValue) => void;
   dismissActiveLabel?: string;
-  options: Array<UiUnderlineTabOption<TValue>>;
+  options: Array<UiTabOption<TValue>>;
 }
 
-export function UiUnderlineTabs<TValue extends string>({
+export function UiTabs<TValue extends string>({
   activeValue: activeValue,
   ariaLabel: ariaLabel,
   className: className,
@@ -43,26 +43,26 @@ export function UiUnderlineTabs<TValue extends string>({
   onDismissActive: onDismissActive,
   dismissActiveLabel: dismissActiveLabel = "关闭",
   options,
-}: UiUnderlineTabsProps<TValue>) {
+}: UiTabsProps<TValue>) {
   return (
     <nav
       aria-label={ariaLabel}
-      className={getUiUnderlineTabsNavClassName(className)}
+      className={getUiTabsNavClassName(className)}
       data-tour-anchor={navAnchor}
     >
       {options.map((option) => {
         const Icon = option.icon;
         const isActive = activeValue === option.value;
         const wrapperClassName = [
-          "ui-underline-tab-item",
-          onDismissActive ? "ui-underline-tab-item-dismissible" : "",
+          "ui-navigation-tab-item",
+          onDismissActive ? "ui-navigation-tab-item-dismissible" : "",
           option.className ?? "",
         ].filter(Boolean).join(" ");
         const tabButton = (
           <button
             aria-current={isActive ? "page" : undefined}
             aria-pressed={isActive}
-            className={getUiUnderlineTabClassName(
+            className={getUiTabClassName(
               { active: isActive, density },
               onDismissActive
                 ? `${itemClassName ?? ""} pr-8`
@@ -98,7 +98,7 @@ export function UiUnderlineTabs<TValue extends string>({
             <button
               aria-label={dismissActiveLabel}
               className={getUiTabDismissClassName(
-                "ui-underline-tab-dismiss absolute right-1 top-1/2 -translate-y-1/2",
+                "ui-navigation-tab-dismiss absolute right-1 top-1/2 -translate-y-1/2",
               )}
               onClick={(event) => {
                 event.stopPropagation();

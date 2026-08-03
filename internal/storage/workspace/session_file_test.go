@@ -26,13 +26,26 @@ func TestUpsertSessionCreatesMissingWorkspace(t *testing.T) {
 		Status:       "active",
 		CreatedAt:    now,
 		LastActivity: now,
-		IsActive:     true,
+		ContextUsage: &protocol.ContextUsageData{
+			TotalTokens: 37_500,
+			MaxTokens:   131_100,
+			Percentage:  28.6,
+			Model:       "glm-4.5-air",
+		},
+		IsActive: true,
 	})
 	if err != nil {
 		t.Fatalf("UpsertSession() error = %v", err)
 	}
 	if created == nil || created.SessionKey != "agent:test:websocket:dm:user" {
 		t.Fatalf("UpsertSession() created = %+v", created)
+	}
+	if created.ContextUsage == nil ||
+		created.ContextUsage.TotalTokens != 37_500 ||
+		created.ContextUsage.MaxTokens != 131_100 ||
+		created.ContextUsage.Percentage != 28.6 ||
+		created.ContextUsage.Model != "glm-4.5-air" {
+		t.Fatalf("UpsertSession() context_usage = %+v", created.ContextUsage)
 	}
 }
 

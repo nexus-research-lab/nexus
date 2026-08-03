@@ -43,7 +43,6 @@ export interface GroupConversationRoundRenderer {
   compact?: boolean;
   currentAgentAvatar: string | null;
   currentAgentName: string | null;
-  currentUserAvatar: string | null;
   isLastRoundPendingPermissions: PendingPermission[];
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;

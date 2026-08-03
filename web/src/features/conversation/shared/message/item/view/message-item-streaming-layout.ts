@@ -9,7 +9,10 @@ import { useEffect, useRef, type CSSProperties, type RefObject } from "react";
 import type { ContentBlock } from "@/types/conversation/message/content";
 
 import { extractTextFromContentBlocks } from "../../message-content-model";
-import { resolveAssistantResponseSurface } from "../message-item-projection";
+import {
+  resolveAssistantResponseSurface,
+  type AssistantContentMode,
+} from "../message-item-projection";
 
 const STREAMING_MIN_HEIGHT = 60;
 const STREAMING_LAYOUT_DELAY_MS = 150;
@@ -19,11 +22,7 @@ const STREAMING_LINE_HEIGHT = 28;
 
 type MessageItemStreamingLayoutOptions = {
   assistantTurnKey: string | null;
-  assistantContentMode:
-    | "dm_live"
-    | "dm_archived"
-    | "room_thread"
-    | "room_result";
+  assistantContentMode: AssistantContentMode;
   directContent: ContentBlock[];
   finalAssistantText: string;
   showCursor: boolean;

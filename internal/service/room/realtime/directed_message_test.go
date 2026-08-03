@@ -43,7 +43,7 @@ func TestRealtimeServiceCreatesDirectedMessageWithoutPublicLeak(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestRealtimeServiceProjectsDirectedMessageReplyToPrivateRoute(t *testing.T)
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -235,7 +235,7 @@ func TestRealtimeServiceQueuesDirectedMessageWhenTargetRunning(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestRealtimeServiceCarriesPublicRouteFromPrivateHandback(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -467,7 +467,7 @@ func TestRealtimeServiceRejectsInvalidDirectedMessageRoute(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}

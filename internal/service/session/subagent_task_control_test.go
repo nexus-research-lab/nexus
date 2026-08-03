@@ -60,6 +60,8 @@ func (c *subagentControlClient) SetPermissionMode(context.Context, sdkpermission
 	return nil
 }
 
+func (c *subagentControlClient) Retire() {}
+
 func (c *subagentControlClient) Disconnect(context.Context) error { return nil }
 
 func (c *subagentControlClient) Reconfigure(context.Context, agentclient.Options) error { return nil }
@@ -75,10 +77,7 @@ func (f subagentControlFactory) New(agentclient.Options) runtimectx.Client { ret
 func TestSessionServiceRoutesCompletedNXSTaskControlsToRoomHostRuntime(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
@@ -87,12 +86,13 @@ func TestSessionServiceRoutesCompletedNXSTaskControlsToRoomHostRuntime(t *testin
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
 	runtimeSessionKey := protocol.BuildRoomAgentSessionKey(conversationID, "host-agent", protocol.RoomTypeGroup)
 	client := &subagentControlClient{}
-	if _, err = runtimeManager.GetOrCreateWithFactory(
+	_, err := runtimeManager.GetOrCreateWithFactory(
 		context.Background(),
 		runtimeSessionKey,
 		agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeNXS}},
 		subagentControlFactory{client: client},
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("创建 nxs slot runtime 失败: %v", err)
 	}
 
@@ -150,10 +150,7 @@ func TestSessionServiceRoutesCompletedNXSTaskControlsToRoomHostRuntime(t *testin
 func TestSessionServiceRejectsCCSendBeforeRuntimeWire(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
@@ -162,12 +159,13 @@ func TestSessionServiceRejectsCCSendBeforeRuntimeWire(t *testing.T) {
 	sharedSessionKey := protocol.BuildRoomSharedSessionKey(conversationID)
 	runtimeSessionKey := protocol.BuildRoomAgentSessionKey(conversationID, "host-agent", protocol.RoomTypeGroup)
 	client := &subagentControlClient{}
-	if _, err = runtimeManager.GetOrCreateWithFactory(
+	_, err := runtimeManager.GetOrCreateWithFactory(
 		context.Background(),
 		runtimeSessionKey,
 		agentclient.Options{Runtime: agentclient.RuntimeOptions{Kind: agentclient.RuntimeClaude}},
 		subagentControlFactory{client: client},
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("创建 CC slot runtime 失败: %v", err)
 	}
 	history := workspacestore.NewRoomHistoryStore(cfg.WorkspacePath)

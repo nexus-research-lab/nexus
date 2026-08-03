@@ -84,16 +84,6 @@ for (const extension of TEXT_FILE_LANGUAGES.keys()) {
   EXTENSION_PREVIEW_KINDS.set(extension, "text");
 }
 
-const WORKSPACE_FILE_KIND_LABELS: Partial<Record<
-  WorkspaceFilePreviewKind,
-  string
->> = {
-  html: "HTML 预览",
-  markdown: "Markdown 预览",
-  mermaid: "Mermaid 预览",
-  text: "文本预览",
-};
-
 export function getWorkspaceFilePreviewKind(
   path: string,
 ): WorkspaceFilePreviewKind {
@@ -103,12 +93,6 @@ export function getWorkspaceFilePreviewKind(
 
 export function getWorkspaceFileCodeLanguage(path: string): string | null {
   return TEXT_FILE_LANGUAGES.get(workspaceFileExtension(path)) ?? null;
-}
-
-export function workspaceFileKindLabel(
-  fileType: WorkspaceFilePreviewKind,
-): string {
-  return WORKSPACE_FILE_KIND_LABELS[fileType] ?? "文件预览";
 }
 
 function workspaceFileExtension(path: string): string {

@@ -12,13 +12,13 @@ import {
   listAgentPrivateThreadsApi,
 } from "@/lib/api/agent/private-domain-api";
 import { isExternalSessionConversationId } from "@/lib/conversation/external-session";
-import { cn } from "@/shared/ui/class-name";
-import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { Agent } from "@/types/agent/agent";
 import {
   AgentPrivateEvent,
   AgentPrivateThread,
 } from "@/types/agent/private-domain";
+
+import "./agent-private-domain.css";
 
 interface AgentPrivateDomainViewProps {
   agent: Agent;
@@ -231,36 +231,31 @@ export function AgentPrivateDomainView({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-hidden px-5 py-5 xl:px-6">
-      <div className={cn(
-        "mx-auto grid h-full min-h-0 w-full grid-cols-[280px_minmax(320px,1fr)] gap-3 xl:grid-cols-[300px_minmax(420px,1fr)]",
-        WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME,
-      )}>
-        <section className="surface-radius-lg flex min-h-0 flex-col overflow-hidden border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_54%,transparent)]">
-          <PrivateDomainToolbar
-            count={threads.length}
-            isLoading={threadsLoading}
-            onRefresh={handleRefresh}
-            title="联络"
-          />
-          <PrivateThreadList
-            agentId={agent.agent_id}
-            className="min-h-0 flex-1"
-            isLoading={threadsLoading}
-            onSelect={setSelectedThreadId}
-            selectedThreadId={selectedThreadId}
-            threads={threads}
-          />
-        </section>
-
-        <PrivateEventTimeline
-          agentId={agent.agent_id}
-          error={error}
-          events={events}
-          isLoading={eventsLoading}
-          thread={selectedThread}
+    <div className="nexus-private-domain-layout grid min-h-0 min-w-0 flex-1 overflow-hidden">
+      <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-(--surface-raised-background)">
+        <PrivateDomainToolbar
+          count={threads.length}
+          isLoading={threadsLoading || eventsLoading}
+          onRefresh={handleRefresh}
+          title="记录"
         />
-      </div>
+        <PrivateThreadList
+          agentId={agent.agent_id}
+          className="min-h-0 flex-1"
+          isLoading={threadsLoading}
+          onSelect={setSelectedThreadId}
+          selectedThreadId={selectedThreadId}
+          threads={threads}
+        />
+      </aside>
+
+      <PrivateEventTimeline
+        agentId={agent.agent_id}
+        error={error}
+        events={events}
+        isLoading={eventsLoading}
+        thread={selectedThread}
+      />
     </div>
   );
 }

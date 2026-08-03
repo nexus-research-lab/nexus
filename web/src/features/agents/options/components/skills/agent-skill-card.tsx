@@ -1,7 +1,9 @@
 import { Loader2, Lock } from "lucide-react";
 
-import { UiBadge } from "@/shared/ui/display/badge";
+import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiBadge } from "@/shared/ui/display/badge";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
@@ -26,6 +28,7 @@ export function AgentSkillCard({
   skill,
 }: AgentSkillCardProps) {
   const { t } = useI18n();
+  const description = getSkillDisplayDescription(skill, t);
   const badges = [
     {
       icon: <Lock className="h-3 w-3" />,
@@ -49,9 +52,10 @@ export function AgentSkillCard({
   ].filter((badge) => badge.visible);
 
   return (
-    <div className="flex min-h-[108px] flex-col items-stretch justify-between gap-3 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-4 py-3.5 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background) sm:flex-row sm:items-start sm:gap-4">
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <div className="grid min-h-[104px] grid-cols-[40px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-3.5 py-3 transition-[background,border-color] duration-(--motion-duration-fast) hover:border-(--surface-interactive-hover-border) hover:bg-(--surface-interactive-hover-background)">
+      <UiSeededAvatar seed={skill.name} />
+      <div className="flex min-h-10 min-w-0 items-center overflow-hidden">
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           <span className="min-w-0 text-sm font-semibold leading-[1.4] text-(--text-strong)">
             {skill.title || skill.name}
           </span>
@@ -67,24 +71,13 @@ export function AgentSkillCard({
             </UiBadge>
           ))}
         </div>
-        {skill.description ? (
-          <p className="mt-1.5 line-clamp-2 text-compact leading-[1.55] text-(--text-muted)">
-            {skill.description}
-          </p>
-        ) : null}
       </div>
 
-      {skill.locked ? (
-        <UiBadge className="shrink-0 self-start sm:mt-auto sm:mb-auto" size="xs" tone="success">
-          {t("agent_options.skills.enabled")}
-        </UiBadge>
-      ) : (
-        <div className="flex shrink-0 items-center gap-2 self-end sm:mt-auto sm:mb-auto sm:self-auto">
+      {!skill.locked ? (
+        <div className="flex min-h-10 shrink-0 items-center gap-2">
           {busy ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin text-(--text-muted)" />
-          ) : (
-            <span className="text-xs text-(--text-muted)">{actionLabel}</span>
-          )}
+          ) : null}
           <GlassSwitch
             aria-label={`${actionLabel} ${skill.title || skill.name}`}
             checked={skill.enabled_for_agent}
@@ -93,7 +86,13 @@ export function AgentSkillCard({
             size="xs"
           />
         </div>
-      )}
+      ) : null}
+
+      {description ? (
+        <p className="col-span-3 line-clamp-2 text-compact leading-[1.55] text-(--text-muted)">
+          {description}
+        </p>
+      ) : null}
     </div>
   );
 }

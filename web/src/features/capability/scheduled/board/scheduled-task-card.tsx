@@ -1,10 +1,15 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
+  CalendarCheck2,
   CalendarClock,
+  CircleAlert,
+  CirclePause,
   Clock3,
   History,
+  LoaderCircle,
   MoreHorizontal,
   PauseCircle,
   Pencil,
@@ -13,6 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 
+import { CapabilityItemIcon } from "@/features/capability/shared/capability-page-layout";
 import { UiIconButton } from "@/shared/ui/button/button";
 import { cn } from "@/shared/ui/class-name";
 import {
@@ -23,6 +29,7 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import {
   getScheduledTaskCardPresentation,
+  type ScheduledTaskBoardColumnId,
 } from "./scheduled-task-board-model";
 
 interface ScheduledTaskCardProps {
@@ -38,6 +45,23 @@ interface ScheduledTaskCardProps {
 }
 
 type TaskMenuAction = "delete" | "edit" | "toggle";
+
+const TASK_IDENTITY_ICONS: Record<ScheduledTaskBoardColumnId, LucideIcon> = {
+  attention: CircleAlert,
+  running: LoaderCircle,
+  scheduled: CalendarCheck2,
+  stopped: CirclePause,
+};
+
+const TASK_IDENTITY_TONE_CLASS_NAMES: Record<
+  ScheduledTaskBoardColumnId,
+  string
+> = {
+  attention: "text-(--warning)",
+  running: "text-(--primary)",
+  scheduled: "text-(--success)",
+  stopped: "text-(--icon-muted)",
+};
 
 export function ScheduledTaskCard({
   isDeleting,
@@ -58,6 +82,7 @@ export function ScheduledTaskCard({
     isRunning,
     isToggling,
   });
+  const TaskIdentityIcon = TASK_IDENTITY_ICONS[presentation.columnId];
   const toggleIcon = task.enabled
     ? <PauseCircle className="h-3.5 w-3.5" />
     : <PlayCircle className="h-3.5 w-3.5" />;
@@ -97,37 +122,46 @@ export function ScheduledTaskCard({
           : "border-(--divider-subtle-color)",
       )}
     >
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <span className="min-w-0 truncate text-xs font-medium text-(--text-soft)">
-          {presentation.contextLabel}
-        </span>
-        <UiIconButton
-          ref={menuAnchorRef}
-          aria-expanded={isMenuOpen}
-          aria-haspopup="menu"
-          aria-label="更多操作"
-          className="-mr-1 -mt-1 shrink-0"
-          onClick={() => setIsMenuOpen((current) => !current)}
+      <div className="flex min-w-0 items-start gap-2.5">
+        <CapabilityItemIcon
+          className={TASK_IDENTITY_TONE_CLASS_NAMES[presentation.columnId]}
           size="sm"
-          title="更多操作"
-          variant="ghost"
         >
-          <MoreHorizontal className="h-4 w-4" />
-        </UiIconButton>
-        <UiActionMenu
-          anchorRef={menuAnchorRef}
-          ariaLabel="任务操作"
-          isOpen={isMenuOpen}
-          items={menuItems}
-          minWidth={156}
-          onClose={closeMenu}
-          onSelect={(value) => actionHandlers[value as TaskMenuAction]()}
-        />
+          <TaskIdentityIcon className="h-3.5 w-3.5" />
+        </CapabilityItemIcon>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start justify-between gap-2">
+            <span className="min-w-0 truncate text-xs font-medium text-(--text-soft)">
+              {presentation.contextLabel}
+            </span>
+            <UiIconButton
+              ref={menuAnchorRef}
+              aria-expanded={isMenuOpen}
+              aria-haspopup="menu"
+              aria-label="更多操作"
+              className="-mr-1 -mt-1 shrink-0"
+              onClick={() => setIsMenuOpen((current) => !current)}
+              size="sm"
+              title="更多操作"
+              variant="ghost"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </UiIconButton>
+            <UiActionMenu
+              anchorRef={menuAnchorRef}
+              ariaLabel="任务操作"
+              isOpen={isMenuOpen}
+              items={menuItems}
+              minWidth={156}
+              onClose={closeMenu}
+              onSelect={(value) => actionHandlers[value as TaskMenuAction]()}
+            />
+          </div>
+          <h3 className="mt-1 truncate text-[14px] font-semibold leading-5 text-(--text-strong)">
+            {task.name}
+          </h3>
+        </div>
       </div>
-
-      <h3 className="mt-1 truncate text-[14px] font-semibold leading-5 text-(--text-strong)">
-        {task.name}
-      </h3>
       <p className="mt-1 truncate text-compact leading-5 text-(--text-muted)">
         {task.instruction}
       </p>

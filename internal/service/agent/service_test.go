@@ -29,20 +29,17 @@ func TestServiceListAgentsUsesSystemScopeWhenAuthIsDisabled(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 
 	singleUserContext := authctx.WithState(context.Background(), authctx.State{
 		AuthRequired: false,
 		UserCount:    2,
 	})
-	if _, err = service.ListAgents(singleUserContext); err != nil {
+	if _, err := service.ListAgents(singleUserContext); err != nil {
 		t.Fatalf("初始化 system agent 失败: %v", err)
 	}
 	userContext := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-b"})
-	if _, err = service.CreateAgent(userContext, protocol.CreateRequest{Name: "用户 B 助手"}); err != nil {
+	if _, err := service.CreateAgent(userContext, protocol.CreateRequest{Name: "用户 B 助手"}); err != nil {
 		t.Fatalf("创建用户 B agent 失败: %v", err)
 	}
 
@@ -58,10 +55,7 @@ func TestServiceListAgentsUsesSystemScopeWhenAuthIsDisabled(t *testing.T) {
 func TestServiceGetAgentRejectsOwnerWorkspaceSymlink(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 	ownerAContext := authctx.WithPrincipal(
 		context.Background(),
 		&authctx.Principal{UserID: "user-a"},
@@ -112,10 +106,7 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 
@@ -231,10 +222,7 @@ func TestCreateAgentPersistsCustomizedProfileTemplate(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 	const customTemplate = "## Role\n\n- Purpose: 负责发布前质量审查\n"
 	created, err := service.CreateAgent(context.Background(), protocol.CreateRequest{
 		Name:            "质量审查助手",
@@ -256,17 +244,13 @@ func TestServiceProjectsNexusAvatarForLegacyMainAgent(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
-	defer db.Close()
+	service, db := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
-	if _, err = service.ListAgents(ctx); err != nil {
+	if _, err := service.ListAgents(ctx); err != nil {
 		t.Fatalf("初始化主智能体失败: %v", err)
 	}
-	if _, err = db.Exec(`UPDATE agents SET avatar = NULL WHERE id = ?`, cfg.DefaultAgentID); err != nil {
+	if _, err := db.Exec(`UPDATE agents SET avatar = NULL WHERE id = ?`, cfg.DefaultAgentID); err != nil {
 		t.Fatalf("模拟旧主智能体头像数据失败: %v", err)
 	}
 
@@ -283,10 +267,7 @@ func TestServicePersistsAgentRuntimeProviderModel(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 	maxTurns := 6
@@ -345,10 +326,7 @@ func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "sam"})
@@ -378,11 +356,7 @@ func TestServiceAllowsDuplicateAndSlugCollidingAgentNames(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
-	defer db.Close()
+	service, db := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 	first, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a b"})
@@ -433,11 +407,7 @@ func TestServiceHardDeletesAgentAndAllowsNameReuse(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
-	defer db.Close()
+	service, db := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可重建助手"})
@@ -469,10 +439,7 @@ func TestServiceUsesAgentIDWorkspacePathAndRenameKeepsWorkspace(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "chatbuddy"})
@@ -530,10 +497,7 @@ func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 	goalCleaner := &fakeAgentGoalCleaner{}
 	service.SetGoalCleaner(goalCleaner)
 
@@ -704,6 +668,20 @@ func agentTranscriptHash(value string) string {
 func migrateSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 	handlertest.MigrateSQLiteFromDir(t, databaseURL, testMigrationDir(t))
+}
+
+func newAgentTestService(t *testing.T, cfg config.Config) (*agentpkg.Service, *sql.DB) {
+	t.Helper()
+	service, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("关闭 Agent 测试数据库失败: %v", err)
+		}
+	})
+	return service, db
 }
 
 func testMigrationDir(t *testing.T) string {

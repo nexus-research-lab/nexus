@@ -752,3 +752,47 @@ func TestServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 		t.Fatal("Goal continuation should defer while the target agent is in plan mode")
 	}
 }
+
+func TestServiceGoalContinuationDefersForSessionPlanOverride(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	service := NewService(
+		cfg,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+	)
+	sessionKey := "agent:nexus:ws:dm:test-goal-session-plan"
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(
+		dmMainWorkspacePath(cfg),
+		protocol.Session{
+			SessionKey:   sessionKey,
+			AgentID:      cfg.DefaultAgentID,
+			ChannelType:  protocol.SessionChannelWebSocket,
+			ChatType:     protocol.RoomTypeDM,
+			Status:       "closed",
+			CreatedAt:    now,
+			LastActivity: now,
+			Title:        "Session Plan",
+			Options: protocol.WithSessionRuntimeSettings(
+				nil,
+				protocol.SessionRuntimeSettings{
+					PermissionMode: string(sdkpermission.ModePlan),
+				},
+			),
+		},
+	); err != nil {
+		t.Fatalf("写入 Session plan override 失败: %v", err)
+	}
+
+	if !service.ShouldDeferGoalContinuation(
+		context.Background(),
+		sessionKey,
+		cfg.DefaultAgentID,
+	) {
+		t.Fatal("Session plan override 应阻止 Goal 自动续跑")
+	}
+}

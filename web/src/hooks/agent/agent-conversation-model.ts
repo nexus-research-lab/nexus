@@ -10,7 +10,10 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message/entity";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
-import type { CommandCatalogData } from "@/types/generated/protocol";
+import type {
+  CommandCatalogData,
+  ContextUsageData,
+} from "@/types/generated/protocol";
 import type { WebSocketState } from "@/types/system/websocket";
 
 import type { AgentConversationRuntimeSnapshot } from "./runtime/model/conversation-runtime-state";
@@ -88,6 +91,8 @@ interface AgentConversationPublicSession {
 interface BuildAgentConversationResultOptions {
   actions: AgentConversationPublicActions;
   commandCatalog: CommandCatalogData;
+  contextUsage: ContextUsageData | null;
+  contextUsageByAgent: Readonly<Record<string, ContextUsageData>>;
   error: string | null;
   messages: Message[];
   runtime: AgentConversationPublicRuntime;
@@ -98,6 +103,8 @@ interface BuildAgentConversationResultOptions {
 export function buildAgentConversationResult({
   actions,
   commandCatalog,
+  contextUsage,
+  contextUsageByAgent,
   error,
   messages,
   runtime,
@@ -108,6 +115,8 @@ export function buildAgentConversationResult({
     bind_session_key: session.bindSessionKey,
     clear_session: session.clearSession,
     command_catalog: commandCatalog,
+    context_usage: contextUsage,
+    context_usage_by_agent: contextUsageByAgent,
     delete_input_queue_message: actions.deleteQueueMessage,
     enqueue_input_queue_message: actions.enqueueQueueMessage,
     error,

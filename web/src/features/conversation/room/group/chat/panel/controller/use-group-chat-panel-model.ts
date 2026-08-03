@@ -91,6 +91,7 @@ export function useGroupChatPanelModel({
   });
   const directory = useRoomAgentDirectory(roomMembers);
   const composer = useGroupChatComposerModel({
+    agentId,
     conversation: session.conversation,
     conversationId,
     goal,
@@ -107,7 +108,6 @@ export function useGroupChatPanelModel({
     agentAvatarMap: directory.avatars,
     agentNameMap: directory.names,
     conversationId,
-    currentUserAvatar: environment.currentUserAvatar,
     messageGroups: session.timeline.message_groups,
     onOpenWorkspaceFile,
     pendingPermissionGroups: session.timeline.pending_permission_groups,

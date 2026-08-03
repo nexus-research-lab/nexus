@@ -9,6 +9,7 @@ import {
   buildComposerHistoryScopeKey,
 } from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { Agent } from "@/types/agent/agent";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
@@ -18,6 +19,7 @@ type ComposerConversation = Pick<
   UseAgentConversationReturn,
   | "delete_input_queue_message"
   | "command_catalog"
+  | "context_usage"
   | "enqueue_input_queue_message"
   | "guide_input_queue_message"
   | "input_queue_items"
@@ -29,7 +31,7 @@ type ComposerConversation = Pick<
 >;
 
 interface UseDmChatComposerModelOptions {
-  agentId: string | null;
+  agent: Agent;
   conversation: ComposerConversation;
   goalScopeLabel: string;
   initialDraft: string | null;
@@ -41,7 +43,7 @@ interface UseDmChatComposerModelOptions {
 }
 
 export function useDmChatComposerModel({
-  agentId,
+  agent,
   conversation,
   goalScopeLabel,
   initialDraft,
@@ -52,6 +54,7 @@ export function useDmChatComposerModel({
   runtimeKind,
 }: UseDmChatComposerModelOptions): DmChatComposerModel {
   const { t } = useI18n();
+  const agentId = agent.agent_id;
   const defaultDeliveryPolicy = useDefaultChatDeliveryPolicy();
   const draftScopeKey = buildComposerDraftScopeKey({ agentId, sessionKey });
   const historyScopeKey = buildComposerHistoryScopeKey({ agentId });
@@ -77,6 +80,7 @@ export function useDmChatComposerModel({
 
   return {
     commandCatalog: conversation.command_catalog,
+    contextUsage: conversation.context_usage,
     defaultDeliveryPolicy,
     draftScopeKey,
     goalScopeLabel,
@@ -93,6 +97,21 @@ export function useDmChatComposerModel({
     onStop: conversation.stop_generation,
     runtimePhase: conversation.runtime_phase,
     runtimeKind,
+    sessionSettings: sessionKey
+      ? {
+          initialTargetId: agent.agent_id,
+          runtimeKind,
+          targets: [{
+            agentId: agent.agent_id,
+            avatar: agent.avatar,
+            defaultModel: agent.options.model,
+            defaultPermissionMode: agent.options.permission_mode,
+            defaultProvider: agent.options.provider,
+            name: agent.name,
+            sessionKey,
+          }],
+        }
+      : undefined,
     tourAnchor: CONVERSATION_TOUR_ANCHORS.composer,
   };
 }

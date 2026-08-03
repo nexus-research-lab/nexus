@@ -1,11 +1,12 @@
 // INPUT: 应用配置、数据库与基础服务依赖。
-// OUTPUT: 完整 AppServices 依赖图及跨域 runtime 装配。
+// OUTPUT: 完整 AppServices 依赖图、跨域 runtime 装配及自有数据库生命周期。
 // POS: Nexus server 服务装配根。
 package server
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -69,14 +70,22 @@ type AppServices struct {
 	MemoryMaintenance *memorymaintenancesvc.Coordinator
 	SlashCatalog      *slashcommandsvc.Catalog
 	SlashRegistry     *slashcommandsvc.Registry
+	ownsDB            bool
 }
 
-// Close 等待仍可能写入 workspace 的标题任务结束。
+// Close 等待仍可能写入 workspace 的标题任务结束，并释放容器自行打开的数据库。
 func (s *AppServices) Close(ctx context.Context) error {
-	if s == nil || s.Title == nil {
+	if s == nil {
 		return nil
 	}
-	return s.Title.Close(ctx)
+	var closeErrors []error
+	if s.Title != nil {
+		closeErrors = append(closeErrors, s.Title.Close(ctx))
+	}
+	if s.ownsDB && s.DB != nil {
+		closeErrors = append(closeErrors, s.DB.Close())
+	}
+	return errors.Join(closeErrors...)
 }
 
 // NewAppServices 创建完整应用依赖容器。
@@ -85,7 +94,9 @@ func NewAppServices(cfg config.Config, logger *slog.Logger) (*AppServices, error
 	if err != nil {
 		return nil, err
 	}
-	return NewAppServicesWithDB(cfg, db, logger), nil
+	services := NewAppServicesWithDB(cfg, db, logger)
+	services.ownsDB = true
+	return services, nil
 }
 
 // NewAppServicesWithDB 使用共享 DB 创建完整应用依赖容器。
@@ -209,6 +220,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		slashCommandRegistry,
 		slashcommandsvc.ModelCommandDependencies{
 			Agents:      core.Agent,
+			Sessions:    core.Session,
 			Preferences: preferencesService,
 			Providers:   providerService,
 		},

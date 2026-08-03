@@ -89,7 +89,6 @@ type ConversationNavigatorModel = Omit<
 >;
 
 export interface ConversationPanelEnvironment {
-  currentUserAvatar: string | null;
   isMobileLayout: boolean;
   providerWarningVisible: boolean;
 }

@@ -25,7 +25,6 @@ export interface ConversationRoundRenderer {
   compact?: boolean;
   currentAgentAvatar?: string | null;
   currentAgentName: string | null;
-  currentUserAvatar?: string | null;
   onEditLastUserMessage?: (messageId: string, newContent: string) => void;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;

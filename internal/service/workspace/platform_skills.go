@@ -338,7 +338,7 @@ func replaceCompatibleSkillLibrary(sourceRoot string, targetRoot string, fingerp
 		temporaryFS.Close()
 		return err
 	}
-	err = agentsFS.CopyTreeFrom(sourceFS)
+	err = copyRuntimeReadableSkillTree(agentsFS, sourceFS)
 	sourceFS.Close()
 	agentsFS.Close()
 	if err != nil {
@@ -362,7 +362,7 @@ func replaceCompatibleSkillLibrary(sourceRoot string, targetRoot string, fingerp
 			temporaryFS.Close()
 			return createErr
 		}
-		copyErr := claudeFS.CopyTreeFrom(agentsFS)
+		copyErr := copyRuntimeReadableSkillTree(claudeFS, agentsFS)
 		agentsFS.Close()
 		claudeFS.Close()
 		if copyErr != nil {
@@ -389,6 +389,73 @@ func replaceCompatibleSkillLibrary(sourceRoot string, targetRoot string, fingerp
 		return err
 	}
 	return nil
+}
+
+// copyRuntimeReadableSkillTree 在复制时直接投影 runtime 需要的权限。
+// Windows 会把只读 mode 映射成文件属性，不能先照搬再通过目录句柄恢复。
+func copyRuntimeReadableSkillTree(target *confinedfs.Root, source *confinedfs.Root) error {
+	entries, err := fs.ReadDir(source.FS(), ".")
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		info, err := source.Lstat(entry.Name())
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return confinedfs.ErrSymlink
+		}
+		if info.IsDir() {
+			sourceChild, err := source.OpenRootNoSymlink(entry.Name())
+			if err != nil {
+				return err
+			}
+			targetChild, createErr := target.OpenOrCreateRootNoSymlink(entry.Name(), 0o755)
+			if createErr != nil {
+				sourceChild.Close()
+				return createErr
+			}
+			copyErr := copyRuntimeReadableSkillTree(targetChild, sourceChild)
+			sourceCloseErr := sourceChild.Close()
+			targetCloseErr := targetChild.Close()
+			if copyErr != nil {
+				return copyErr
+			}
+			if sourceCloseErr != nil {
+				return sourceCloseErr
+			}
+			if targetCloseErr != nil {
+				return targetCloseErr
+			}
+			continue
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("platform skill source contains a special file: %s", entry.Name())
+		}
+		sourceFile, err := source.OpenFileNoSymlink(entry.Name(), os.O_RDONLY, 0)
+		if err != nil {
+			return err
+		}
+		openedInfo, err := sourceFile.Stat()
+		if err != nil {
+			sourceFile.Close()
+			return err
+		}
+		mode := os.FileMode(0o644)
+		if openedInfo.Mode().Perm()&0o111 != 0 {
+			mode = 0o755
+		}
+		copyErr := target.WriteFileAtomicFrom(entry.Name(), sourceFile, mode)
+		closeErr := sourceFile.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+	}
+	return target.ChmodRoot(0o755)
 }
 
 func normalizeRuntimeReadableTree(root *confinedfs.Root) error {

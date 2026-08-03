@@ -6,6 +6,8 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { AppRouteBuilders } from "@/app/router/route-paths";
 import {
+  CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
+  CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
   CapabilityFilterBar,
   CapabilityFilterSearchInput,
   CapabilityFilterSelect,
@@ -15,9 +17,9 @@ import {
 import { listLoopsApi } from "@/lib/api/capability/loop-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiIconButton } from "@/shared/ui/button/button";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
 import { UiListRow } from "@/shared/ui/list/list-row";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 import { writeTextToClipboard } from "@/hooks/ui/clipboard";
@@ -102,13 +104,6 @@ export function LoopsDirectory() {
   return (
     <WorkspaceSurfaceScaffold
       bodyScrollable
-      header={(
-        <WorkspaceSurfaceHeader
-          leading={<Repeat2 className="h-4 w-4" />}
-          narrowMode="hidden"
-          title={t("capability.loops")}
-        />
-      )}
       stableGutter
     >
       {slug ? (
@@ -156,15 +151,14 @@ export function LoopsDirectory() {
               title={t("capability.loops_empty")}
             />
           ) : (
-            <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
+            <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
               {filteredLoops.map((loop) => (
                 <UiListRow
+                  className={CAPABILITY_DIRECTORY_ROW_CLASS_NAME}
                   key={loop.slug}
                   onClick={() => navigate(AppRouteBuilders.loopDetail(loop.slug))}
                   leading={(
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-(--divider-subtle-color) bg-(--surface-panel-background) text-(--icon-default)">
-                      <Repeat2 className="h-4 w-4" />
-                    </span>
+                    <UiSeededAvatar seed={loop.slug} size="sm" />
                   )}
                   right={(
                     <UiIconButton

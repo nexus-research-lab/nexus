@@ -22,11 +22,10 @@ func TestPruneEmptyConversationsIgnoresTitlesAndIsIdempotent(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	defer db.Close()
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
@@ -168,11 +167,10 @@ func TestPruneEmptyConversationsPreservesCanonicalGroupUserInput(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	defer db.Close()
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
@@ -237,11 +235,10 @@ func TestPruneEmptyConversationsClearsDraftWhenNoEmptyConversationRemains(t *tes
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	defer db.Close()
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
@@ -278,11 +275,10 @@ func TestPruneEmptyConversationsReadsCanonicalDMHistory(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	defer db.Close()
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
@@ -340,11 +336,10 @@ func TestPruneEmptyConversationsPreservesConservativeActivityEvidence(t *testing
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	defer db.Close()
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
@@ -451,11 +446,10 @@ func TestPruneEmptyConversationsPreservesReferenceOnlyPersistentRecords(t *testi
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	defer db.Close()
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
@@ -624,11 +618,10 @@ func TestPruneEmptyConversationsSkipsUnknownArtifactEvidence(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	defer db.Close()
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 
@@ -675,11 +668,10 @@ func TestPruneEmptyConversationsSkipsUnknownPersistentReferenceProbe(t *testing.
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	defer db.Close()
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 

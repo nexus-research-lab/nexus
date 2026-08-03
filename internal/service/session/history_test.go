@@ -19,10 +19,7 @@ func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *test
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
@@ -58,10 +55,7 @@ func TestSessionServiceReconcilesStaleActiveWorkspaceMeta(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 	runtimeManager := runtimectx.NewManager()
 	sessionService.SetRuntimeManager(runtimeManager)
@@ -125,10 +119,7 @@ func TestSessionServiceReadsTranscriptHistoryWithRoundMarkers(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
@@ -214,10 +205,7 @@ func TestSessionServiceReadsRoomTopicHistoryFromWorkspaceMetaSessionID(t *testin
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 

@@ -8,6 +8,12 @@ import { pickAgentEditableOptions } from "@/lib/agent-options";
 import { getRandomAgentAvatarIconId } from "@/lib/avatar";
 
 export type AgentOptionsTabKey = "identity" | "skills" | "advanced";
+export type AgentOptionsSaveMode = "automatic" | "explicit";
+
+export interface AgentOptionsPersistenceState {
+  message: string;
+  phase: "error" | "idle" | "pending" | "saving" | "success";
+}
 
 export interface AgentEditorInitialOptions extends Partial<AgentConfigOptions> {
   permission_mode?: string;
@@ -87,7 +93,9 @@ export interface AgentOptionsFormProps {
 export interface AgentOptionsInlineEditorProps extends AgentOptionsFormProps {
   activeTab: AgentOptionsTabKey;
   contentMaxWidthClassName: string;
+  onPersistenceStateChange?: (state: AgentOptionsPersistenceState) => void;
   onTabChange: (tab: AgentOptionsTabKey) => void;
+  saveMode?: AgentOptionsSaveMode;
 }
 
 export interface AgentOptionsDialogEditorProps extends AgentOptionsFormProps {
@@ -98,6 +106,7 @@ export interface AgentOptionsControllerOptions extends AgentOptionsFormProps {
   activeTab?: AgentOptionsTabKey;
   onSaveSuccess?: () => void;
   onTabChange?: (tab: AgentOptionsTabKey) => void;
+  saveMode?: AgentOptionsSaveMode;
 }
 
 export type SaveFeedback = {

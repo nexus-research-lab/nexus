@@ -2,7 +2,10 @@
 
 import { Link2 } from "lucide-react";
 
-import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
+import {
+  CAPABILITY_DIRECTORY_GRID_CLASS_NAME,
+  CapabilitySectionHeader,
+} from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ConnectorInfo } from "@/types/capability/connector";
 
@@ -70,7 +73,7 @@ export function ConnectorsGrid({
             })}
             title={section.title}
           />
-          <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
+          <div className={CAPABILITY_DIRECTORY_GRID_CLASS_NAME}>
             {section.connectors.map((connector) => (
               <ConnectorCard
                 key={connector.connector_id}

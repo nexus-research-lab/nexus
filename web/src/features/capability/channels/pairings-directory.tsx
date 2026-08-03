@@ -14,7 +14,6 @@ import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import type { FeedbackBannerProps } from "@/shared/ui/feedback/feedback-banner";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/workspace-surface-toolbar-action";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 
@@ -39,37 +38,30 @@ export function PairingsDirectory() {
     <>
       <WorkspaceSurfaceScaffold
         bodyScrollable
-        header={(
-          <WorkspaceSurfaceHeader
-            leading={<ShieldCheck className="h-4 w-4" />}
-            narrowMode="toolbar"
-            title={t("capability.pairings")}
-            trailing={(
-              <>
-                <WorkspaceSurfaceToolbarAction
-                  onClick={() => void controller.refresh()}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  {t("capability.refresh")}
-                </WorkspaceSurfaceToolbarAction>
-                <WorkspaceSurfaceToolbarAction
-                  disabled={controller.agents.length === 0 || controller.busy}
-                  onClick={controller.openCreate}
-                  title={controller.agents.length === 0
-                    ? "需要先创建智能体"
-                    : "新增 IM 配对"}
-                  tone="primary"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {t("capability.pairings_create")}
-                </WorkspaceSurfaceToolbarAction>
-              </>
-            )}
-          />
-        )}
         stableGutter
       >
         <CapabilityPageLayout
+          actions={(
+            <div className="flex items-center gap-2">
+              <WorkspaceSurfaceToolbarAction
+                onClick={() => void controller.refresh()}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                {t("capability.refresh")}
+              </WorkspaceSurfaceToolbarAction>
+              <WorkspaceSurfaceToolbarAction
+                disabled={controller.agents.length === 0 || controller.busy}
+                onClick={controller.openCreate}
+                title={controller.agents.length === 0
+                  ? "需要先创建智能体"
+                  : "新增 IM 配对"}
+                tone="primary"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                {t("capability.pairings_create")}
+              </WorkspaceSurfaceToolbarAction>
+            </div>
+          )}
           description={t("capability.pairings_intro_description")}
           title={t("capability.pairings_intro_title")}
         >

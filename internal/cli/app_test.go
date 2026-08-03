@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -67,5 +68,34 @@ func TestManualCLIScopeFlagsRemainAvailableOutsideManagedRuntime(t *testing.T) {
 		if flag.Hidden {
 			t.Fatalf("人工 CLI 模式不应隐藏 flag: %s", name)
 		}
+	}
+}
+
+func TestCLIExecuteReleasesDatabasesAfterSuccessAndFailure(t *testing.T) {
+	testCases := []struct {
+		name      string
+		args      []string
+		wantError bool
+	}{
+		{name: "success", args: []string{"agent", "list"}},
+		{name: "command error", args: []string{"agent", "get", "missing-agent"}, wantError: true},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := newCLITestConfig(t)
+			migrateCLISQLite(t, cfg.DatabaseURL)
+			app, err := New(cfg)
+			if err != nil {
+				t.Fatalf("创建 CLI 应用失败: %v", err)
+			}
+			app.SetArgs(testCase.args)
+			_, _, executeErr := captureCLIStreams(t, app)
+			if (executeErr != nil) != testCase.wantError {
+				t.Fatalf("CLI 执行结果错误: err=%v wantError=%t", executeErr, testCase.wantError)
+			}
+			if err := os.Remove(cfg.DatabaseURL); err != nil {
+				t.Fatalf("CLI 执行后数据库仍被占用: %v", err)
+			}
+		})
 	}
 }

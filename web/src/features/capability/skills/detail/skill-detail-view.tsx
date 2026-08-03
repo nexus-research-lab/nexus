@@ -5,18 +5,17 @@ import {
   ChevronRight,
   ExternalLink,
   Loader2,
-  Lock,
-  Puzzle,
   RefreshCw,
   Trash2,
-  type LucideIcon,
 } from "lucide-react";
 
+import { getSkillDisplayDescription } from "@/lib/skill-description";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiPanel } from "@/shared/ui/panel";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { SkillAgentBinding } from "@/types/capability/skill";
@@ -44,11 +43,6 @@ interface SkillDetailViewProps {
   snapshot: SkillDetailSnapshot;
 }
 
-const SKILL_ICON_MAP: Record<SkillDetailPresentation["icon"], LucideIcon> = {
-  lock: Lock,
-  puzzle: Puzzle,
-};
-
 export function SkillDetailView({
   activeAction,
   agentBindings,
@@ -62,7 +56,7 @@ export function SkillDetailView({
   snapshot,
 }: SkillDetailViewProps) {
   return (
-    <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
+    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
       <SkillDetailBreadcrumb
         onBack={onBack}
         title={getSkillDetailSnapshotTitle(snapshot)}
@@ -122,6 +116,7 @@ function SkillDetailContent({
   onUpdate,
   snapshot,
 }: SkillDetailViewProps) {
+  const { t } = useI18n();
   if (snapshot.status === "loading") {
     return (
       <UiStateBlock
@@ -158,7 +153,10 @@ function SkillDetailContent({
       agentToggleError={agentToggleError}
       agentsLoading={agentsLoading}
       busyAgentId={busyAgentId}
-      model={buildSkillDetailPresentation(snapshot.skill)}
+      model={buildSkillDetailPresentation(
+        snapshot.skill,
+        getSkillDisplayDescription(snapshot.skill, t),
+      )}
       onAgentToggle={onAgentToggle}
       onDelete={onDelete}
       onUpdate={onUpdate}
@@ -205,7 +203,7 @@ function SkillDetailReady({
             errorMessage={agentToggleError}
             agentsLoading={agentsLoading}
             busyAgentId={busyAgentId}
-            locked={model.icon === "lock"}
+            locked={model.locked}
             onToggle={onAgentToggle}
           />
         )}
@@ -344,20 +342,11 @@ function SkillDetailHero({
   onDelete: () => void;
   onUpdate: () => void;
 }) {
-  const SkillIcon = SKILL_ICON_MAP[model.icon];
-
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-4">
-          <div
-            className={cn(
-              "flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-panel-background)",
-              model.iconClassName,
-            )}
-          >
-            <SkillIcon className="h-6 w-6" />
-          </div>
+          <UiSeededAvatar seed={model.avatarSeed} size="lg" />
           <h1 className="min-w-0 text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
             <span className="truncate">{model.displayName}</span>
           </h1>

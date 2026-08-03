@@ -3,6 +3,21 @@ export function getParentWorkspacePath(path: string): string | null {
   return separatorIndex < 0 ? null : path.slice(0, separatorIndex);
 }
 
+export function getWorkspaceRootLabel(
+  workspacePath: string,
+  fallbackLabel: string,
+): string {
+  const pathSegments = workspacePath.split(/[\\/]+/).filter(Boolean);
+  return pathSegments.at(-1) ?? fallbackLabel;
+}
+
+export function getWorkspaceFileLocationLabel(
+  filePath: string,
+  workspaceRootLabel: string,
+): string {
+  return getParentWorkspacePath(filePath) || workspaceRootLabel;
+}
+
 export function getWorkspaceFocusPath(path?: string | null): string | null {
   return path ? getParentWorkspacePath(path) : null;
 }

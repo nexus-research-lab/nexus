@@ -27,6 +27,7 @@ func TestScheduledTaskObservabilityHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 
 	createRecorder := serveAutomationJSON(t, server, http.MethodPost, "/nexus/v1/capability/scheduled/tasks", []byte(`{
 		"name": "新闻日报",
@@ -141,6 +142,7 @@ func TestScheduledTaskDeliveryRecoveryHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 
 	createRecorder := serveAutomationJSON(t, server, http.MethodPost, "/nexus/v1/capability/scheduled/tasks", []byte(`{
 		"name": "飞书日报",

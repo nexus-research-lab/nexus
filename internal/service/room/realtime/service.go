@@ -133,6 +133,7 @@ type Service struct {
 	permission          *permissionctx.Context
 	providers           clientopts.RuntimeConfigResolver
 	prefs               roomRuntimePreferencesService
+	files               *workspacestore.SessionFileStore
 	history             *workspacestore.AgentHistoryStore
 	roomHistory         *workspacestore.RoomHistoryStore
 	directedMessages    *workspacestore.RoomDirectedMessageStore
@@ -223,6 +224,7 @@ func NewServiceWithFactory(
 		agents:              agentService,
 		runtime:             runtimeManager,
 		permission:          permission,
+		files:               workspacestore.NewSessionFileStore(cfg.WorkspacePath),
 		history:             workspacestore.NewAgentHistoryStore(cfg.WorkspacePath),
 		roomHistory:         workspacestore.NewRoomHistoryStore(cfg.WorkspacePath),
 		directedMessages:    workspacestore.NewRoomDirectedMessageStore(cfg.WorkspacePath),

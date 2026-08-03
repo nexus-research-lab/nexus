@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { getAvailableSkillsApi } from "@/lib/api/capability/skill-api";
+import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { SkillInfo } from "@/types/capability/skill";
 
@@ -47,22 +48,32 @@ export function useRoomSkillOptions(query: string) {
   const normalizedQuery = query.trim().toLowerCase();
   const options = useMemo<RoomSkillOption[]>(
     () => state.items
-      .filter((skill) => matchesSkill(skill, normalizedQuery))
       .map((skill) => ({
-        description: skill.description || skill.title,
+        description: getSkillDisplayDescription(skill, t),
+        skill,
+      }))
+      .filter(({ description, skill }) => (
+        matchesSkill(skill, description, normalizedQuery)
+      ))
+      .map(({ description, skill }) => ({
+        description: description || skill.title,
         label: skill.name,
         value: skill.name,
       })),
-    [normalizedQuery, state.items],
+    [normalizedQuery, state.items, t],
   );
   return { ...state, options };
 }
 
-function matchesSkill(skill: SkillInfo, query: string): boolean {
+function matchesSkill(
+  skill: SkillInfo,
+  description: string,
+  query: string,
+): boolean {
   if (!query) {
     return true;
   }
-  return [skill.name, skill.title, skill.description].some((value) =>
+  return [skill.name, skill.title, description].some((value) =>
     value.toLowerCase().includes(query),
   );
 }

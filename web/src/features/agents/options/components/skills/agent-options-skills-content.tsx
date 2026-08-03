@@ -1,10 +1,11 @@
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { UiSearchInput } from "@/shared/ui/form/form-control";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { UiSearchInput } from "@/shared/ui/form/form-control";
+import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
 import { AgentSkillCard } from "./agent-skill-card";
@@ -30,17 +31,20 @@ const EMPTY_AVAILABLE_MESSAGE_KEYS: Record<
   no_search_match: "agent_options.skills.empty_search",
 };
 
+const AGENT_SKILL_GRID_CLASS_NAME =
+  `${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-2.5`;
+
 function SkillsSectionHeader({
-  count,
   title,
+  trailing,
 }: {
-  count: ReactNode;
   title: string;
+  trailing?: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <h4 className="text-sm font-semibold text-(--text-strong)">{title}</h4>
-      <span className="text-xs text-(--text-soft)">{count}</span>
+      {trailing}
     </div>
   );
 }
@@ -58,8 +62,12 @@ function EnabledSkillsSection({
   return (
     <section className="space-y-3.5">
       <SkillsSectionHeader
-        count={projection.enabled.length}
         title={t("agent_options.skills.enabled_section")}
+        trailing={(
+          <span className="text-xs text-(--text-soft)">
+            {projection.enabled.length}
+          </span>
+        )}
       />
       {projection.enabled.length === 0 ? (
         <UiStateBlock
@@ -68,7 +76,7 @@ function EnabledSkillsSection({
           variant="inset"
         />
       ) : (
-        <div className="grid grid-cols-1 gap-2.5">
+        <div className={AGENT_SKILL_GRID_CLASS_NAME}>
           {projection.enabled.map((skill) => (
             <AgentSkillCard
               actionLabel={t("agent_options.skills.disable")}
@@ -105,18 +113,30 @@ function AvailableSkillsSection({
   const emptyMessage = projection.availableEmptyState
     ? t(EMPTY_AVAILABLE_MESSAGE_KEYS[projection.availableEmptyState])
     : null;
+  const filteredCount = searchQuery.trim()
+    ? `${projection.visibleAvailable.length}/${projection.available.length}`
+    : null;
   return (
     <section className="space-y-3.5">
       <SkillsSectionHeader
-        count={`${projection.visibleAvailable.length}/${projection.available.length}`}
         title={t("agent_options.skills.available_section")}
-      />
-      <UiSearchInput
-        controlSize="md"
-        onChange={setSearchQuery}
-        placeholder={t("agent_options.skills.search_placeholder")}
-        value={searchQuery}
-        variant="dialog"
+        trailing={(
+          <div className="flex w-full items-center gap-3 sm:w-auto">
+            {filteredCount ? (
+              <span className="shrink-0 text-xs text-(--text-soft)">
+                {filteredCount}
+              </span>
+            ) : null}
+            <UiSearchInput
+              className="min-w-0 flex-1 sm:w-[288px] sm:flex-none"
+              controlSize="md"
+              onChange={setSearchQuery}
+              placeholder={t("agent_options.skills.search_placeholder")}
+              value={searchQuery}
+              variant="dialog"
+            />
+          </div>
+        )}
       />
       {emptyMessage ? (
         <UiStateBlock
@@ -125,7 +145,7 @@ function AvailableSkillsSection({
           variant="inset"
         />
       ) : (
-        <div className="grid grid-cols-1 gap-2.5">
+        <div className={AGENT_SKILL_GRID_CLASS_NAME}>
           {projection.visibleAvailable.map((skill) => (
             <AgentSkillCard
               actionLabel={t("agent_options.skills.enable")}

@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom";
 import { Check, Lock } from "lucide-react";
 
+import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
@@ -326,6 +327,7 @@ function SlashSkillList({
     >
       {items.map((skill, index) => {
         const title = skill.title?.trim() || skill.name;
+        const description = getSkillDisplayDescription(skill, t);
         return (
           <button
             aria-selected={index === activeIndex}
@@ -340,7 +342,7 @@ function SlashSkillList({
               onSelect(skill);
             }}
             role="option"
-            title={skill.description || title}
+            title={description || title}
             type="button"
           >
             <span
@@ -362,9 +364,9 @@ function SlashSkillList({
               <span className="block truncate font-mono text-[11px] font-medium leading-4 text-(--text-strong)">
                 /{skill.name}
               </span>
-              {skill.description ? (
+              {description ? (
                 <span className="block truncate text-[10px] leading-4 text-(--text-muted)">
-                  {skill.description}
+                  {description}
                 </span>
               ) : null}
             </span>

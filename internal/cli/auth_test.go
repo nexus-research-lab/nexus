@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -240,21 +239,16 @@ func executeCLICommandWithInput(
 		os.Stdout = originalStdout
 	}()
 
+	outputCapture := startCLIPipeCapture(reader)
 	executeErr := command.Execute()
-	_ = writer.Close()
+	outputPayload := finishCLIPipeCapture(t, writer, outputCapture)
 
-	var buffer bytes.Buffer
-	if _, err = buffer.ReadFrom(reader); err != nil {
-		t.Fatalf("读取 CLI 输出失败: %v", err)
-	}
-	_ = reader.Close()
-
-	output := strings.TrimSpace(buffer.String())
+	output := strings.TrimSpace(string(outputPayload))
 	if executeErr != nil {
 		return nil, executeErr, output
 	}
 	var payload map[string]any
-	if err = json.Unmarshal(buffer.Bytes(), &payload); err != nil {
+	if err = json.Unmarshal(outputPayload, &payload); err != nil {
 		t.Fatalf("解析 CLI JSON 输出失败: %v, output=%s", err, output)
 	}
 	return payload, nil, output

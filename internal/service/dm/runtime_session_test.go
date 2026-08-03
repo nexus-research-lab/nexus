@@ -2,6 +2,7 @@ package dm
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,136 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+func TestServiceHandleChatStartupFailureDoesNotWaitForBackgroundDispatchInputGate(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	startupErr := errors.New("runtime startup failed")
+	client := newFakeDMClient()
+	client.connectErrors = []error{startupErr}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(
+		cfg,
+		newDMAgentService(t, cfg),
+		runtimeManager,
+		permissionctx.NewContext(),
+	)
+	sessionKey := "agent:nexus:ws:dm:startup-background-gate"
+	waiterEntered := make(chan struct{})
+	waiterResult := make(chan error, 1)
+	client.onConnect = func(context.Context) {
+		if !runtimeManager.StartBackgroundTask(sessionKey, func(taskCtx context.Context) {
+			close(waiterEntered)
+			err := service.inputQueueDispatchMu.LockContext(taskCtx)
+			if err == nil {
+				service.inputQueueDispatchMu.Unlock()
+			}
+			waiterResult <- err
+		}) {
+			t.Error("启动失败前登记后台派发任务失败")
+			return
+		}
+		<-waiterEntered
+	}
+
+	handleCtx, cancelHandle := context.WithCancel(context.Background())
+	defer cancelHandle()
+	handleDone := make(chan error, 1)
+	go func() {
+		handleDone <- service.HandleChat(handleCtx, Request{
+			SessionKey: sessionKey,
+			Content:    "触发 runtime 启动失败",
+			RoundID:    "round-startup-background-gate",
+		})
+	}()
+
+	select {
+	case err := <-handleDone:
+		if !errors.Is(err, startupErr) {
+			t.Fatalf("HandleChat() error = %v, want %v", err, startupErr)
+		}
+	case <-time.After(3 * time.Second):
+		cancelHandle()
+		t.Fatal("HandleChat 清理启动失败的 runtime 时与后台派发锁死")
+	}
+	select {
+	case err := <-waiterResult:
+		if err != nil {
+			t.Fatalf("后台派发锁等待结果 = %v，期望前台释放后取得锁", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("前台启动失败返回后后台派发锁等待未退出")
+	}
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), time.Second)
+	defer cancelWait()
+	if err := runtimeManager.WaitBackgroundTasks(waitCtx, sessionKey); err != nil {
+		t.Fatalf("等待后台派发任务退出失败: %v", err)
+	}
+	if runtimeManager.HasSession(sessionKey) {
+		t.Fatal("启动失败的 runtime session 未清理")
+	}
+	client.mu.Lock()
+	connectCalls := client.connectCalls
+	disconnectCalls := client.disconnectCalls
+	client.mu.Unlock()
+	if connectCalls != 1 || disconnectCalls != 1 {
+		t.Fatalf("runtime 调用次数 = connect:%d disconnect:%d", connectCalls, disconnectCalls)
+	}
+}
+
+func TestServiceBackgroundHandleChatStartupFailureDoesNotWaitForItself(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	startupErr := errors.New("background runtime startup failed")
+	connectStarted := make(chan struct{})
+	client := newFakeDMClient()
+	client.connectErrors = []error{startupErr}
+	client.onConnect = func(context.Context) {
+		close(connectStarted)
+	}
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(
+		cfg,
+		newDMAgentService(t, cfg),
+		runtimeManager,
+		permissionctx.NewContext(),
+	)
+	sessionKey := "agent:nexus:ws:dm:background-startup-self-cleanup"
+	handleResult := make(chan error, 1)
+	if !runtimeManager.StartBackgroundTask(sessionKey, func(taskCtx context.Context) {
+		handleResult <- service.HandleChat(taskCtx, Request{
+			SessionKey: sessionKey,
+			Content:    "后台派发触发 runtime 启动失败",
+			RoundID:    "round-background-startup-self-cleanup",
+		})
+	}) {
+		t.Fatal("登记后台 HandleChat 任务失败")
+	}
+	select {
+	case <-connectStarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("后台 HandleChat 未进入 runtime Connect()")
+	}
+	select {
+	case err := <-handleResult:
+		if !errors.Is(err, startupErr) {
+			t.Fatalf("后台 HandleChat() error = %v, want %v", err, startupErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("后台 HandleChat 清理启动失败的 client 时等待自身退出")
+	}
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), time.Second)
+	defer cancelWait()
+	if err := runtimeManager.WaitBackgroundTasks(waitCtx, sessionKey); err != nil {
+		t.Fatalf("等待后台 HandleChat 任务退出失败: %v", err)
+	}
+	if runtimeManager.HasSession(sessionKey) {
+		t.Fatal("后台启动失败的 runtime session 未清理")
+	}
+}
 
 func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	cfg := newDMTestConfig(t)

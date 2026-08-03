@@ -5,7 +5,7 @@
 - `external-skill-model.ts` 统一外部技能身份、来源、安装量、导入状态和预览内容投影。
 - `external-results-model.ts` 统一来源分组、筛选回退、排序和结果阶段判定。
 - `skills-external-results.tsx` 只持有当前来源选择，并按结果阶段组合筛选器和列表。
-- `external-result-row.tsx` 只渲染单条结果及其导入动作。
+- `external-result-card.tsx` 通过共享 Skill 目录卡渲染单条结果、稳定数学曲线身份及其导入动作。
 - 预览和来源管理弹窗只消费自身声明的具体模型或窄接口。
 
 ## 不变量

@@ -18,6 +18,7 @@ func TestHandleEnsureDirectRoomAllowsMainAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 HTTP 服务失败: %v", err)
 	}
+	handlertest.CloseServer(t, server)
 
 	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/rooms/dm/"+cfg.DefaultAgentID, nil)
 	recorder := httptest.NewRecorder()

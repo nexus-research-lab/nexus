@@ -60,7 +60,7 @@ func (s *Server) Router() http.Handler {
 	return s.router
 }
 
-// Close 收口服务创建的后台文件任务。
+// Close 收口后台文件任务与 Server 自行创建的共享资源。
 func (s *Server) Close(ctx context.Context) error {
 	if s == nil {
 		return nil

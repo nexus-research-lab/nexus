@@ -8,6 +8,7 @@ import {
 import { useWorkspaceLiveStore } from "@/store/workspace-live";
 import type {
   CommandCatalogData,
+  ContextUsageData,
 } from "@/types/generated/protocol";
 import type {
   WebSocketMessage,
@@ -63,6 +64,9 @@ export function useAgentConversation(
   const [commandCatalog, setCommandCatalog] = useState<CommandCatalogData>(
     EMPTY_COMMAND_CATALOG,
   );
+  const [contextUsageByAgent, setContextUsageByAgent] = useState<
+    Record<string, ContextUsageData>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const sessionSeqCursorRef = useRef(0);
   const roomSeqCursorRef = useRef(0);
@@ -135,6 +139,9 @@ export function useAgentConversation(
   useEffect(() => {
     setCommandCatalog(EMPTY_COMMAND_CATALOG);
   }, [agentId, session.sessionKey]);
+  useEffect(() => {
+    setContextUsageByAgent({});
+  }, [session.sessionKey]);
 
   const isCurrentRoomEvent = useCallback(
     (incomingRoomId?: string | null): boolean => (
@@ -204,6 +211,7 @@ export function useAgentConversation(
     },
     state: {
       setCommandCatalog,
+      setContextUsageByAgent,
       setError,
       setInputQueueItems: session.setInputQueueItems,
       setMessages,
@@ -259,6 +267,8 @@ export function useAgentConversation(
   return buildAgentConversationResult({
     actions,
     commandCatalog,
+    contextUsage: agentId ? contextUsageByAgent[agentId] ?? null : null,
+    contextUsageByAgent,
     error,
     messages,
     runtime: {

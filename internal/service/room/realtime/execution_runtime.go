@@ -1,5 +1,5 @@
 // INPUT: Room round/slot、稳定 execution contract、trusted WorkBinding/ReviewBinding、Agent 配置、Goal context 与 runtime provider。
-// OUTPUT: static/dynamic prompt 分层、producer/reviewer capability 绑定且带 MCP/hooks 的 slot runtime options。
+// OUTPUT: static/dynamic prompt 分层、producer/reviewer capability 绑定、revision 绑定且换代安全的 slot runtime client。
 // POS: Room slot 执行前不丢失 structured dispatch capability 的 runtime 装配边界。
 package realtime
 
@@ -208,17 +208,6 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	e.slot.setRuntimeKind(string(options.Runtime.Kind))
 	options = e.applyRuntimeHooks(options)
 	runtimeProvider := clientopts.ResolvedRuntimeProvider(selection.Provider, options)
-	resumeID, err := e.service.resolveReusableRoomSDKSessionID(
-		e.ctx,
-		e.logger,
-		e.agent.WorkspacePath,
-		e.slot,
-		options.Session.ResumeID,
-	)
-	if err != nil {
-		return preparedSlotRuntime{}, err
-	}
-	options.Session.ResumeID = resumeID
 	return preparedSlotRuntime{options: options, selection: selection, provider: runtimeProvider}, nil
 }
 
@@ -238,7 +227,17 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 	stablePrompt = appendPromptSection(stablePrompt, roomSkillPrompt)
 	stablePrompt = appendPromptSection(stablePrompt, roomdomain.BuildMemberDirectoryPrompt(e.agentNameByID))
 
-	permissionMode := runtimepermission.NormalizeMode(sdkpermission.Mode(e.agent.Options.PermissionMode))
+	sessionSettings := protocol.SessionRuntimeSettingsFromOptions(
+		roomAgentSessionOptions(e.round, e.agent.AgentID),
+	)
+	permissionMode := runtimepermission.NormalizeMode(
+		sdkpermission.Mode(e.agent.Options.PermissionMode),
+	)
+	if sessionSettings.PermissionMode != "" {
+		permissionMode = runtimepermission.NormalizeMode(
+			sdkpermission.Mode(sessionSettings.PermissionMode),
+		)
+	}
 	if e.round.PermissionMode != "" {
 		permissionMode = runtimepermission.NormalizeMode(e.round.PermissionMode)
 	}
@@ -391,51 +390,116 @@ func (e *slotExecution) applyRuntimeHooks(options agentclient.Options) agentclie
 }
 
 func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runtimectx.Client, error) {
-	client, err := e.connectRuntimeOnce(*runtimeValue)
+	startup, err := e.service.runtime.BeginClientStartup(e.ctx, e.slot.RuntimeSessionKey)
+	if err != nil {
+		return nil, err
+	}
+	defer startup.Close()
+	currentResumeID, err := e.reloadSlotSDKSessionID()
+	if err != nil {
+		return nil, err
+	}
+	resumeID, err := e.service.resolveReusableRoomSDKSessionID(
+		e.ctx,
+		e.logger,
+		e.agent.WorkspacePath,
+		e.slot,
+		currentResumeID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	runtimeValue.options.Session.ResumeID = resumeID
+
+	client, err := e.connectRuntimeOnce(startup, *runtimeValue)
 	if err != nil && strings.TrimSpace(runtimeValue.options.Session.ResumeID) != "" && runtimectx.IsRuntimeTransportClosedError(err) {
 		e.logger.Warn("Room SDK session resume 失效，清除后重试",
 			append(roomRuntimeConnectFailureLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot, err),
 				"sdk_session_id", strings.TrimSpace(runtimeValue.options.Session.ResumeID),
 			)...,
 		)
-		if closeErr := e.service.runtime.CloseSession(context.Background(), e.slot.RuntimeSessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-			return nil, closeErr
+		retired, closeErr := retireRoomRuntimeClient(startup)
+		if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+			e.logger.Warn("清理失效 resume 的 Room runtime 返回错误",
+				"startup_err", err,
+				"cleanup_err", closeErr,
+			)
 		}
-		if clearErr := e.service.clearSlotSDKSessionID(e.ctx, e.slot); clearErr != nil {
-			return nil, clearErr
+		if retired {
+			if clearErr := e.service.clearSlotSDKSessionID(e.ctx, e.slot); clearErr != nil {
+				return nil, clearErr
+			}
+			runtimeValue.options.Session.ResumeID = ""
+			if !errors.Is(closeErr, context.Canceled) && !errors.Is(closeErr, context.DeadlineExceeded) {
+				client, err = e.connectRuntimeOnce(startup, *runtimeValue)
+			}
 		}
-		runtimeValue.options.Session.ResumeID = ""
-		client, err = e.connectRuntimeOnce(*runtimeValue)
 	}
 	if err == nil {
 		return client, nil
 	}
-	if closeErr := e.service.runtime.CloseSession(context.Background(), e.slot.RuntimeSessionKey); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+	if _, closeErr := retireRoomRuntimeClient(startup); closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
 		e.logger.Warn("清理启动失败的 Room runtime 返回错误", "err", closeErr)
 	}
 	e.logger.Error("Room runtime 启动失败", roomRuntimeConnectFailureLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot, err)...)
 	return nil, err
 }
 
-func (e *slotExecution) connectRuntimeOnce(runtimeValue preparedSlotRuntime) (runtimectx.Client, error) {
+func (e *slotExecution) reloadSlotSDKSessionID() (string, error) {
+	cached := e.slot.getSDKSessionID()
+	if e.service.rooms == nil || strings.TrimSpace(e.round.ConversationID) == "" {
+		return cached, nil
+	}
+	contextValue, err := e.service.rooms.GetConversationContext(e.ctx, e.round.ConversationID)
+	if err != nil {
+		return "", err
+	}
+	if contextValue == nil {
+		return cached, nil
+	}
+	roomSessionID := strings.TrimSpace(e.slot.RoomSessionID)
+	for _, sessionRecord := range contextValue.Sessions {
+		if strings.TrimSpace(sessionRecord.ID) != roomSessionID {
+			continue
+		}
+		resumeID := strings.TrimSpace(sessionRecord.SDKSessionID)
+		if resumeID == "" {
+			e.slot.clearSDKSessionID()
+		} else {
+			e.slot.setSDKSessionID(resumeID)
+		}
+		return resumeID, nil
+	}
+	return cached, nil
+}
+
+func retireRoomRuntimeClient(startup *runtimectx.ClientStartup) (bool, error) {
+	closeCtx, cancel := context.WithTimeout(context.Background(), runtimectx.RoundIdleAbortTimeout)
+	defer cancel()
+	return startup.RetireCurrent(closeCtx)
+}
+
+func (e *slotExecution) connectRuntimeOnce(
+	startup *runtimectx.ClientStartup,
+	runtimeValue preparedSlotRuntime,
+) (runtimectx.Client, error) {
 	e.logger.Info("准备启动 Room runtime",
 		roomRuntimeStartupLogFields(runtimeValue.options, runtimeValue.selection, runtimeValue.provider, e.slot)...,
 	)
 	previousClient := e.service.runtime.SessionClient(e.slot.RuntimeSessionKey)
 	hadWarmSession := e.service.runtime.HasSession(e.slot.RuntimeSessionKey)
-	client, err := e.service.runtime.GetOrCreateWithFactory(
+	client, err := startup.GetOrCreateWithFactory(
 		e.ctx,
-		e.slot.RuntimeSessionKey,
 		runtimeValue.options,
 		e.service.factory,
 	)
 	if err != nil {
-		return nil, err
+		return client, err
 	}
 	e.slot.setRuntimeKind(string(e.service.runtime.RuntimeKind(e.slot.RuntimeSessionKey)))
 	e.slot.setClient(client)
-	if err = client.Connect(e.ctx); err != nil {
-		return nil, err
+	if err = startup.Connect(e.ctx); err != nil {
+		return client, err
 	}
 	reusedWarmSession := hadWarmSession && previousClient == client
 	e.slot.setContextColdStart(roomContextColdStart(runtimeValue.options.Session.ResumeID, reusedWarmSession))
@@ -484,9 +548,36 @@ func (s *Service) resolveAgentRuntimeSelection(
 		ownerUserIDs = append(ownerUserIDs, roundValue.OwnerUserID)
 	}
 	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.prefs, s.providers).Resolve(ctx, runtimeselectionsvc.Request{
-		Agent:        agentValue,
-		OwnerUserIDs: ownerUserIDs,
+		Agent:          agentValue,
+		OwnerUserIDs:   ownerUserIDs,
+		SessionOptions: roomAgentSessionOptions(roundValue, agentValue.AgentID),
 	})
+}
+
+func roomAgentSessionOptions(
+	roundValue *activeRoomRound,
+	agentID string,
+) map[string]any {
+	if roundValue == nil || roundValue.Context == nil {
+		return nil
+	}
+	return roomSessionOptionsFromContext(roundValue.Context, agentID)
+}
+
+func roomSessionOptionsFromContext(
+	contextValue *protocol.ConversationContextAggregate,
+	agentID string,
+) map[string]any {
+	if contextValue == nil {
+		return nil
+	}
+	agentID = strings.TrimSpace(agentID)
+	for _, sessionValue := range contextValue.Sessions {
+		if sessionValue.AgentID == agentID && sessionValue.IsPrimary {
+			return sessionValue.Options
+		}
+	}
+	return nil
 }
 
 func roomRuntimeStartupLogFields(

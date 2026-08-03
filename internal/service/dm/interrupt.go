@@ -71,10 +71,7 @@ func (s *Service) interruptExactRound(ctx context.Context, sessionKey string, ro
 }
 
 func (s *Service) interruptSession(ctx context.Context, sessionKey string, resultText string) error {
-	displayResultText := resultText
-	if displayResultText == messagepkg.InterruptWithoutMessage {
-		displayResultText = ""
-	}
+	displayResultText := messagepkg.NormalizeInterruptDisplayText(resultText)
 	roundIDs, err := s.runtime.InterruptSession(ctx, sessionKey, resultText)
 	if err != nil {
 		if len(roundIDs) == 0 {

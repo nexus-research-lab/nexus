@@ -8,6 +8,8 @@ import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
+import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
 interface LoopDetailViewProps {
@@ -63,7 +65,7 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[960px] px-4 py-4 sm:px-6 lg:px-8">
+    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
       <UiButton className="max-lg:hidden" size="sm" variant="text" onClick={onBack}>
         <ArrowLeft className="h-4 w-4" />
         {t("common.back")}
@@ -75,32 +77,25 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
         <div className="py-10 text-sm text-(--destructive)">{error}</div>
       ) : loop ? (
         <div className="mt-3 space-y-5">
-          <header className="border-b border-(--divider-subtle-color) pb-4">
-            <div className="mb-2 flex flex-wrap items-center gap-1.5">
-              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs font-medium text-(--text-muted)">
-                {loop.category}
-              </span>
-              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
-                {loop.trigger_type}
-              </span>
-              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
-                {loop.views.toLocaleString()} views
-              </span>
-              <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
-                {loop.installs.toLocaleString()} installs
-              </span>
-            </div>
-            <div>
-              <div className="min-w-0">
-                <h1 className="text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
-                  {loop.title}
-                </h1>
-                <p className="mt-1 max-w-[760px] text-sm leading-5 text-(--text-muted)">
-                  {loop.description}
-                </p>
-              </div>
-            </div>
-          </header>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs font-medium text-(--text-muted)">
+              {loop.category}
+            </span>
+            <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
+              {loop.trigger_type}
+            </span>
+            <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
+              {loop.views.toLocaleString()} views
+            </span>
+            <span className="radius-control-xs border border-(--divider-subtle-color) px-1.5 py-0.5 text-2xs text-(--text-soft)">
+              {loop.installs.toLocaleString()} installs
+            </span>
+          </div>
+          <WorkspaceContentHeader
+            className="mb-0"
+            description={loop.description}
+            title={loop.title}
+          />
 
           <section>
             <h2 className="text-base font-medium text-(--text-strong)">{t("capability.loops_steps")}</h2>

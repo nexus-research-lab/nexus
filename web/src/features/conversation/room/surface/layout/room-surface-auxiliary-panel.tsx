@@ -103,41 +103,44 @@ export function RoomSurfaceAuxiliaryPanel({
   ];
 
   return (
-    <section
-      className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
-      style={{
-        width: `${sidePanelWidthPercent}%`,
-        ...AUXILIARY_PANEL_WIDTH_LIMITS,
-      }}
-    >
+    <>
       <PanelResizeHandle
         ariaLabel="调整右侧面板宽度"
         onResizeStart={onStartSidePanelResize}
+        variant="gutter"
       />
 
-      {persistentPanels.map((panel) => (
-        <div
-          key={panel.key}
-          className={cn(
-            "flex h-full min-h-0 min-w-0 flex-1 flex-col",
-            activeSurfaceTab !== panel.key && "hidden",
-          )}
-        >
-          {panel.content}
-        </div>
-      ))}
+      <section
+        className="nexus-room-surface-side-panel relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden"
+        style={{
+          width: `${sidePanelWidthPercent}%`,
+          ...AUXILIARY_PANEL_WIDTH_LIMITS,
+        }}
+      >
+        {persistentPanels.map((panel) => (
+          <div
+            key={panel.key}
+            className={cn(
+              "flex h-full min-h-0 min-w-0 flex-1 flex-col",
+              activeSurfaceTab !== panel.key && "hidden",
+            )}
+          >
+            {panel.content}
+          </div>
+        ))}
 
-      {activeSurfaceTab === "subagents" && subagentTaskSource ? (
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-          <RoomSubagentTaskSurface
-            currentAgentId={currentAgent.agent_id}
-            onClose={onClose}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
-            roomMembers={roomMembers}
-            source={subagentTaskSource}
-          />
-        </div>
-      ) : null}
-    </section>
+        {activeSurfaceTab === "subagents" && subagentTaskSource ? (
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+            <RoomSubagentTaskSurface
+              currentAgentId={currentAgent.agent_id}
+              onClose={onClose}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              roomMembers={roomMembers}
+              source={subagentTaskSource}
+            />
+          </div>
+        ) : null}
+      </section>
+    </>
   );
 }

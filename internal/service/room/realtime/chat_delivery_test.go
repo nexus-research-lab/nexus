@@ -22,7 +22,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -407,7 +407,7 @@ func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -464,7 +464,7 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -601,7 +601,7 @@ func TestRealtimeServiceHostConsumesQueuedInputAsSoonAsItsSlotFinishes(t *testin
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -764,7 +764,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -957,7 +957,7 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionHandoff(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -1060,7 +1060,7 @@ func TestRealtimeServiceSerializesSiblingPublicMentionReturnsToFinishedHost(t *t
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -1285,7 +1285,7 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}

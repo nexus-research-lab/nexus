@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { cn } from "@/shared/ui/class-name";
+import { WORKSPACE_CONTENT_GUTTER_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 
 import { WorkspaceSurfaceScaffold } from "./workspace-surface-scaffold";
 
@@ -41,7 +42,11 @@ export function WorkspaceSurfaceView({
 }: WorkspaceSurfaceViewProps) {
   return (
     <WorkspaceSurfaceScaffold
-      bodyClassName={cn("px-4 py-4 sm:px-5 xl:px-6", bodyClassName)}
+      bodyClassName={cn(
+        WORKSPACE_CONTENT_GUTTER_CLASS_NAME,
+        "py-4",
+        bodyClassName,
+      )}
       bodyScrollable={bodyScrollable}
       header={header?.kind === "page" ? (
         <WorkspaceSurfacePageHeader
@@ -73,7 +78,7 @@ function WorkspaceSurfacePageHeader({
   title: string;
 }) {
   return (
-    <div className="px-5 py-2.5 xl:px-6">
+    <div className={cn(WORKSPACE_CONTENT_GUTTER_CLASS_NAME, "py-2.5")}>
       <div className={cn("mx-auto flex w-full items-center justify-between gap-3", maxWidthClassName)}>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-[16px] font-semibold leading-5 tracking-normal text-(--text-strong)">

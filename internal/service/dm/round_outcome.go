@@ -10,6 +10,7 @@ import (
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 )
@@ -33,6 +34,7 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 		ErrorMessage:   err.Error(),
 	})
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.broadcastContextUsage()
 	persistedSessionID := ""
 	if r.session.SessionID != nil {
 		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
@@ -147,6 +149,7 @@ func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 }
 
 func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, resultText string) {
+	resultText = messagepkg.NormalizeInterruptDisplayText(resultText)
 	r.service.loggerFor(context.Background()).Warn("DM round 以中断状态结束",
 		"session_key", r.sessionKey,
 		"agent_id", r.agent.AgentID,
@@ -155,6 +158,7 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 	)
 	r.finalizeGoalUsage(context.Background(), result, r.lastGoalAssistantMessage())
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.broadcastContextUsage()
 	persistedSessionID := ""
 	if r.session.SessionID != nil {
 		persistedSessionID = strings.TrimSpace(*r.session.SessionID)

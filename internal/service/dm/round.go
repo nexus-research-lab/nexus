@@ -156,6 +156,7 @@ func (r *roundRunner) run(ctx context.Context) {
 		r.recordTerminalAssistantUsage(finalAssistant)
 	}
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
+	r.broadcastContextUsage()
 	r.refreshSessionMetaAfterRoundFinished()
 	r.service.broadcastEventWithTimeout(
 		context.Background(),
@@ -235,7 +236,7 @@ func (r *roundRunner) executeRound(
 		Content:          r.runtimeContent.Payload(),
 		AtomicInput:      r.atomicInput,
 		ContextualInputs: append(executionInputs, r.contextualInputs()...),
-		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation"),
+		InputOptions:     r.runtimeInputOptions(),
 		Client:           r.client,
 		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
 		IdleTimeout:      r.service.config.RuntimeRoundIdleTimeout(),
@@ -284,6 +285,17 @@ func (r *roundRunner) executeRound(
 			return nil
 		},
 	})
+}
+
+// runtimeInputOptions 把产品包装前的真实用户文本单独交给原生 Recall。
+func (r *roundRunner) runtimeInputOptions() sdkprotocol.OutboundMessageOptions {
+	options := runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation")
+	options.RecallQuery = ""
+	if r == nil || r.internal || r.atomicInput || options.Meta || options.Synthetic || options.HiddenFromUser {
+		return options
+	}
+	options.RecallQuery = strings.TrimSpace(r.content)
+	return options
 }
 
 func (r *roundRunner) handleDurableMessage(message protocol.Message) error {

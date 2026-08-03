@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import type {
   ExternalSkillSearchItem,
   ExternalSkillSourceInfo,
   ExternalSkillSourceStatus,
 } from "@/types/capability/skill";
 
-import { ExternalResultRow } from "./external-result-row";
+import { ExternalResultCard } from "./external-result-card";
 import {
   buildExternalResultsModel,
   sourceGroupEmptyMessage,
@@ -125,9 +126,9 @@ function ExternalResultsReady({
         totalCount={totalCount}
       />
       {model.visibleItems.length ? (
-        <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
+        <div className={`${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-2.5`}>
           {model.visibleItems.map((item) => (
-            <ExternalResultRow
+            <ExternalResultCard
               key={externalSkillKey(item)}
               busyExternalKeys={busyExternalKeys}
               importedExternalSources={importedExternalSources}
