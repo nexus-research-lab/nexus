@@ -8,7 +8,7 @@
   显式启用 `enforce` 并完成部署验收
 - 日期：2026-07-24
 - 适用范围：Linux 服务端多用户部署
-- 当前结论：以操作系统 UID/GID 为主边界，项目组/ACL 负责显式协作，runtime hook 和最终路径校验负责策略收口；`.nexus` 是统一状态根，`app/` 保存 Nexus 宿主数据，runtime 配置和会话按用户独立存放
+- 当前结论：以操作系统 UID/GID 为主边界，项目组/ACL 负责显式协作，runtime hook 和最终路径校验负责策略收口；`.nexus/app` 保存 Nexus 宿主数据，默认 `.nexus/users` 可在非 `enforce` 模式整体迁移，runtime 配置和会话按用户独立存放
 
 本文定义安全边界和运行契约。当前实现提供 opt-in 的 Linux 强隔离链路；由于本地
 macOS 无法执行 setuid、POSIX ACL 和 Landlock，发布前仍需在目标 Linux 内核、文件系统
@@ -148,9 +148,11 @@ UserScope
 
 ## 6. 文件系统布局与权限
 
-### 6.1 `.nexus` 作为统一状态根，`app/` 保存宿主数据
+### 6.1 `.nexus` 保存宿主数据，`users/` 是可独立迁移的用户数据根
 
-`nexus_state_root` 固定使用 `.nexus`。不再在里面重复创建 `.nexus` 子目录；宿主自己的控制面数据统一放在 `app/`，用户 runtime 放在 `users/<owner_user_id>/`。
+`nexus_state_root` 固定使用 `.nexus`。不再在里面重复创建 `.nexus` 子目录；宿主自己的控制面数据统一放在 `app/`。默认 users 根是 `.nexus/users`，桌面端或非 `enforce` 部署可以把完整 users 根迁到其他绝对路径，但不能只迁某个 Agent 的 workspace。
+
+users 根变更遵循“先复制、后切换”：设置保存时复制所有 owner 的 `workspace/`、`runtime/` 与 `state/`，并按新 workspace 绝对路径重映射 `runtime/projects` transcript 目录；重启的无并发窗口补拷增量并事务更新 Agent 路径。`app/`、数据库、设置和日志始终留在 `nexus_state_root`；旧 users 根不会自动删除，便于失败回退和人工确认。Linux `runtime isolation enforce` 的 launcher/UID/ACL 布局仍固定使用 root-owned `.nexus/users`，因此不接受应用内自定义 users 根。
 
 `NEXUS_CONFIG_DIR` 和 `CLAUDE_CONFIG_DIR` 会产生大量属于 runtime 用户的文件；这些文件不能写入 `app/`，而应写入当前用户的 `<user_root>`：
 
@@ -163,7 +165,7 @@ UserScope
     cache/                            # 宿主共享 cache
     shared/                            # root-owned 只读 Skill、二进制、模板
 
-  users/
+  users/                              # 默认 users 根，可整体迁到独立绝对路径
     <owner_user_id>/                  # 当前用户数据根，private group
       workspace/
         .rooms/                       # owner 级公共附件，runtime 可读写但不承载控制状态
@@ -184,7 +186,7 @@ UserScope
     <shared_workspace_id>/            # 项目 group/ACL 共享目录
 ```
 
-桌面端默认使用 `~/.nexus`；Docker 可以把宿主目录挂载到 `/home/agent/.nexus`；服务端也可以把整个状态根映射到 `/var/lib/nexus`。`app/` 与 `users/` 必须是不同权限子树，但可以共用同一个 `.nexus` volume。
+桌面端默认使用 `~/.nexus`，也可以只迁移默认的 `~/.nexus/users`；Docker 可以把宿主目录挂载到 `/home/agent/.nexus`；服务端也可以把整个状态根映射到 `/var/lib/nexus`。`app/` 与 users 根必须是不同权限子树；默认可以共用同一个 `.nexus` volume，迁移后也可以位于不同 volume。
 
 权限约束：
 

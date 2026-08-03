@@ -73,8 +73,8 @@ func (s *Store) openOwnerWorkspaceRoot(
 		return nil, errors.New("workspace path store is nil")
 	}
 	return openManagedSubtree(
-		s.StateRoot,
-		appfs.UserWorkspaceRootAt(s.StateRoot, ownerUserID),
+		s.UsersRoot,
+		appfs.UserWorkspaceRootAtUsersRoot(s.UsersRoot, ownerUserID),
 		create,
 		storageDirectoryMode(),
 	)
@@ -88,9 +88,9 @@ func (s *Store) openOwnerTranscriptProjectsRoot(
 		return nil, errors.New("workspace path store is nil")
 	}
 	return openManagedSubtree(
-		s.StateRoot,
+		s.UsersRoot,
 		filepath.Join(
-			appfs.UserRuntimeRootAt(s.StateRoot, ownerUserID),
+			appfs.UserRuntimeRootAtUsersRoot(s.UsersRoot, ownerUserID),
 			"projects",
 		),
 		create,
@@ -106,7 +106,7 @@ func (s *SessionFileStore) openRoomRoot(
 		return nil, errors.New("workspace storage root is nil")
 	}
 	return openManagedSubtree(
-		s.paths.StateRoot,
+		s.paths.UsersRoot,
 		s.paths.RoomConversationRoot(ownerUserID),
 		create,
 		0o700,

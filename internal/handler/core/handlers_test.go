@@ -77,6 +77,10 @@ func TestHandleRuntimeSettingsPersistsWorkspacePath(t *testing.T) {
 	if settings.WorkspacePath != workspacePath {
 		t.Fatalf("WorkspacePath = %q, want %q", settings.WorkspacePath, workspacePath)
 	}
+	wantAppliedPath := agentpkg.WorkspaceBasePath(cfg)
+	if settings.AppliedUsersPath != wantAppliedPath {
+		t.Fatalf("AppliedUsersPath = %q, want %q", settings.AppliedUsersPath, wantAppliedPath)
+	}
 
 	request = httptest.NewRequest(http.MethodGet, "/nexus/v1/settings/runtime", nil)
 	recorder = httptest.NewRecorder()

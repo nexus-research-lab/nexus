@@ -59,12 +59,13 @@ func TestStoreRoomConversationDirUsesConversationIDName(t *testing.T) {
 
 func TestStoreRoomConversationAssetDirUsesOwnerWorkspace(t *testing.T) {
 	stateRoot := t.TempDir()
-	store := New("")
+	usersRoot := filepath.Join(stateRoot, "users")
+	store := New(usersRoot)
 	store.StateRoot = stateRoot
 	conversationID := "conversation/assets"
 	got := store.RoomConversationAssetDir(testRoomOwnerUserID, conversationID)
 	want := filepath.Join(
-		appfs.UserRoomAssetsRootAt(stateRoot, testRoomOwnerUserID),
+		appfs.UserRoomAssetsRootAtUsersRoot(usersRoot, testRoomOwnerUserID),
 		encodeConversationDirName(conversationID),
 	)
 	if got != want {
@@ -81,8 +82,8 @@ func TestStoreUsesAppHostRoot(t *testing.T) {
 	if store.HomeRoot != filepath.Join(stateRoot, "app") {
 		t.Fatalf("宿主存储根不正确: got=%q", store.HomeRoot)
 	}
-	if store.WorkspaceRoot != filepath.Join(stateRoot, "users") {
-		t.Fatalf("workspace 默认根不正确: got=%q", store.WorkspaceRoot)
+	if store.UsersRoot != filepath.Join(stateRoot, "users") {
+		t.Fatalf("users 默认根不正确: got=%q", store.UsersRoot)
 	}
 	if got := store.RoomConversationRoot(testRoomOwnerUserID); got != filepath.Join(
 		stateRoot,
@@ -99,8 +100,8 @@ func TestStoreUsesAppHostRoot(t *testing.T) {
 	if customStore.HomeRoot != filepath.Join(stateRoot, "app") {
 		t.Fatalf("自定义 workspace 不应改变宿主存储根: got=%q", customStore.HomeRoot)
 	}
-	if customStore.WorkspaceRoot != customWorkspace {
-		t.Fatalf("自定义 workspace 根不正确: got=%q", customStore.WorkspaceRoot)
+	if customStore.UsersRoot != customWorkspace {
+		t.Fatalf("自定义 users 根不正确: got=%q", customStore.UsersRoot)
 	}
 }
 

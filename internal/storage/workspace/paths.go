@@ -9,23 +9,23 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// Store 负责生成 workspace 侧存储路径。
+// Store 负责从同一 users 根生成 workspace、runtime 与 owner state 路径。
 type Store struct {
-	WorkspaceRoot string
-	StateRoot     string
-	HomeRoot      string
+	UsersRoot string
+	StateRoot string
+	HomeRoot  string
 }
 
-// New 创建 workspace store。
+// New 创建 owner 用户数据 store；root 是 users 根而不是单个 Agent workspace。
 func New(root string) *Store {
-	workspaceRoot := strings.TrimSpace(root)
-	if workspaceRoot == "" {
-		workspaceRoot = appfs.UsersRoot()
+	usersRoot := strings.TrimSpace(root)
+	if usersRoot == "" {
+		usersRoot = appfs.UsersRoot()
 	}
 	return &Store{
-		WorkspaceRoot: workspaceRoot,
-		StateRoot:     appfs.StateRoot(),
-		HomeRoot:      appfs.AppDir(),
+		UsersRoot: usersRoot,
+		StateRoot: appfs.StateRoot(),
+		HomeRoot:  appfs.AppDir(),
 	}
 }
 
@@ -61,13 +61,13 @@ func (s *Store) RoomConversationDir(ownerUserID string, conversationID string) s
 
 // RoomConversationRoot 返回指定用户的 Room 宿主状态根。
 func (s *Store) RoomConversationRoot(ownerUserID string) string {
-	return appfs.UserRoomRootAt(s.StateRoot, ownerUserID)
+	return appfs.UserRoomRootAtUsersRoot(s.UsersRoot, ownerUserID)
 }
 
 // RoomConversationAssetDir 返回 runtime 可读取的 Room 对话公共资产目录。
 func (s *Store) RoomConversationAssetDir(ownerUserID string, conversationID string) string {
 	return filepath.Join(
-		appfs.UserRoomAssetsRootAt(s.StateRoot, ownerUserID),
+		appfs.UserRoomAssetsRootAtUsersRoot(s.UsersRoot, ownerUserID),
 		encodeConversationDirName(conversationID),
 	)
 }

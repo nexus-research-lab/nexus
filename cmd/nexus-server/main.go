@@ -24,6 +24,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/migration"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
+	userrootsvc "github.com/nexus-research-lab/nexus/internal/service/userroot"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
@@ -220,6 +221,19 @@ func runServer() error {
 		logger.Error("数据库迁移失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
+	}
+	// users 根在设置保存时先完成主体复制；启动窗口只补齐最后增量并原子切换数据库投影。
+	// 旧版本没有迁移账本时也从既有 Agent 路径反推原根，避免错误设置锁死桌面 App。
+	var usersReconcileErr error
+	cfg, usersReconcileErr = userrootsvc.ReconcileOnStartup(
+		context.Background(),
+		cfg,
+		logger,
+	)
+	if usersReconcileErr != nil {
+		logger.Error("users 根切换协调失败", "err", usersReconcileErr)
+		_, _ = fmt.Fprintln(os.Stderr, usersReconcileErr)
+		return usersReconcileErr
 	}
 	if err := migration.RunWorkspaceFiles(appfs.AppDir(), agentsvc.WorkspaceBasePath(cfg), logger); err != nil {
 		logger.Error("工作区文件迁移失败", "err", err)

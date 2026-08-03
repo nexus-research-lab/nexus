@@ -28,5 +28,7 @@ export async function updateRuntimeSettingsApi(
   return requestApi<RuntimeSettings>(SETTINGS_RUNTIME_API_BASE_URL, {
     method: "PATCH",
     body: { ...params },
+    // users 根可能跨卷复制大量数据，不能沿用普通 API 的 30 秒超时。
+    timeout_ms: 0,
   });
 }

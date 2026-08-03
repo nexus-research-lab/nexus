@@ -936,6 +936,10 @@ func TestBuildAgentClientOptionsInjectsScopedUserEnv(t *testing.T) {
 		options.Env[claudeConfigDirEnvName] != expectedRuntimeRoot {
 		t.Fatalf("nxs 与 Claude 未使用统一用户 runtime 根: %+v", options.Env)
 	}
+	if options.Env[nexusctlStateRootEnvName] != stateRoot ||
+		options.Env[nexusctlUsersRootEnvName] != filepath.Join(stateRoot, "users") {
+		t.Fatalf("nexusctl 未收到分离的宿主根与 users 根: %+v", options.Env)
+	}
 	if options.Env["HOME"] != filepath.Join(expectedRuntimeRoot, "home") ||
 		options.Env["USERPROFILE"] != filepath.Join(expectedRuntimeRoot, "home") ||
 		options.Env["XDG_CACHE_HOME"] != filepath.Join(expectedRuntimeRoot, "cache") ||
@@ -943,6 +947,29 @@ func TestBuildAgentClientOptionsInjectsScopedUserEnv(t *testing.T) {
 		options.Env["TEMP"] != filepath.Join(expectedRuntimeRoot, "tmp") ||
 		options.Env["TMP"] != filepath.Join(expectedRuntimeRoot, "tmp") {
 		t.Fatalf("用户 runtime 环境目录不完整: %+v", options.Env)
+	}
+}
+
+func TestBuildAgentClientOptionsUsesConfiguredUsersRootForRuntime(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	usersRoot := filepath.Join(t.TempDir(), "moved-users")
+	t.Setenv(appfs.NexusStateRootEnvName, stateRoot)
+	t.Setenv(appfs.NexusUsersRootEnvName, usersRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", "")
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-123"})
+
+	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: filepath.Join(usersRoot, "user-123", "workspace", "agent-a"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantRuntimeRoot := filepath.Join(usersRoot, "user-123", "runtime")
+	if options.Env[nexusConfigDirEnvName] != wantRuntimeRoot ||
+		options.Env[claudeConfigDirEnvName] != wantRuntimeRoot ||
+		options.Env[nexusctlStateRootEnvName] != stateRoot ||
+		options.Env[nexusctlUsersRootEnvName] != usersRoot {
+		t.Fatalf("配置 users 根未贯穿 runtime/CLI 环境: %+v", options.Env)
 	}
 }
 

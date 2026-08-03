@@ -56,6 +56,7 @@ func newHandlerSet(
 		services.Preferences,
 	)
 	core.SetRuntimeManager(services.Runtime)
+	core.SetUsersRootStager(services.UsersRoot)
 	return handlerSet{
 		auth: authhandler.New(api, services.Auth, services.Usage, services.Subscription),
 		core: core,

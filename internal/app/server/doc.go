@@ -3,7 +3,7 @@
 // L2 | 父级: internal/app（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - server.go / lifecycle.go / app_services.go / core_services.go：服务生命周期与依赖装配。
+//   - server.go / lifecycle.go / app_services.go / core_services.go：服务生命周期、users 根迁移器与依赖装配。
 //   - routes.go / routes_web.go / handlers.go / websocket.go：HTTP/Web 路由与 WS 入口。
 //   - *_mcp.go：automation / connector / goal / imagegen / room 内建 MCP server 装配及 DM runner / Room slot revision 状态绑定。
 //   - goal_interrupt.go / goal_resume.go / goal_guidance.go / realtime_invalidation.go：Goal 中断、恢复、DM/Room steering 与实时失效。

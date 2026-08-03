@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -12,8 +11,8 @@ import (
 )
 
 // listRoomOwnerPathSegments 返回已经落盘的用户路径段，供进程恢复任务逐用户扫描。
-func listRoomOwnerPathSegments(stateRoot string) ([]string, error) {
-	root, err := openManagedSubtree(stateRoot, filepath.Join(stateRoot, "users"), false, 0)
+func listRoomOwnerPathSegments(usersRoot string) ([]string, error) {
+	root, err := openManagedSubtree(usersRoot, usersRoot, false, 0)
 	if errors.Is(err, os.ErrNotExist) {
 		return []string{}, nil
 	}

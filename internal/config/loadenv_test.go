@@ -155,9 +155,24 @@ func TestSaveRuntimeSettingsUsesPrivatePermissions(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_STATE_ROOT", stateRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", "")
+	appliedPath := filepath.Join(stateRoot, "users")
 
-	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: "/tmp/workspace"}); err != nil {
+	if _, err := SaveRuntimeSettings(RuntimeSettings{
+		WorkspacePath:    "/tmp/workspace",
+		AppliedUsersPath: appliedPath,
+		StagingUsersPath: "/tmp/users-staging",
+	}); err != nil {
 		t.Fatalf("写入 runtime settings 失败: %v", err)
+	}
+	settings, err := LoadRuntimeSettings()
+	if err != nil {
+		t.Fatalf("读回 runtime settings 失败: %v", err)
+	}
+	if settings.AppliedUsersPath != appliedPath {
+		t.Fatalf("AppliedUsersPath = %q, want %q", settings.AppliedUsersPath, appliedPath)
+	}
+	if settings.StagingUsersPath != "/tmp/users-staging" {
+		t.Fatalf("StagingUsersPath = %q", settings.StagingUsersPath)
 	}
 
 	configInfo, err := os.Stat(filepath.Join(stateRoot, "app", "config"))

@@ -1,6 +1,6 @@
-// INPUT: UI 持久化的宿主 workspace 根、环境 workspace 与 runtime 调用方路径。
+// INPUT: UI 持久化的宿主 users 根、历史 workspace 字段与 runtime 调用方路径。
 // OUTPUT: 私有 runtime-settings 文件及不会误把 Agent 当前目录当宿主根的配置。
-// POS: config 包的宿主运行设置与 workspace 根规范化边界。
+// POS: config 包的宿主运行设置与 users 根规范化边界。
 package config
 
 import (
@@ -19,8 +19,10 @@ const runtimeSettingsFileName = "runtime-settings.json"
 
 // RuntimeSettings 表示可由 UI 持久化的主机级运行配置。
 type RuntimeSettings struct {
-	WorkspacePath string `json:"workspace_path,omitempty"`
-	UpdatedAt     string `json:"updated_at,omitempty"`
+	WorkspacePath    string `json:"workspace_path,omitempty"`
+	AppliedUsersPath string `json:"applied_users_path,omitempty"`
+	StagingUsersPath string `json:"staging_users_path,omitempty"`
+	UpdatedAt        string `json:"updated_at,omitempty"`
 }
 
 // RuntimeSettingsPath 返回主机级运行配置文件路径。
@@ -101,8 +103,10 @@ func openRuntimeSettingsRoot(create bool) (*confinedfs.Root, error) {
 
 func normalizeRuntimeSettings(settings RuntimeSettings) RuntimeSettings {
 	return RuntimeSettings{
-		WorkspacePath: strings.TrimSpace(settings.WorkspacePath),
-		UpdatedAt:     strings.TrimSpace(settings.UpdatedAt),
+		WorkspacePath:    strings.TrimSpace(settings.WorkspacePath),
+		AppliedUsersPath: strings.TrimSpace(settings.AppliedUsersPath),
+		StagingUsersPath: strings.TrimSpace(settings.StagingUsersPath),
+		UpdatedAt:        strings.TrimSpace(settings.UpdatedAt),
 	}
 }
 
@@ -138,7 +142,7 @@ func shouldUseRuntimeSettingsWorkspacePath(envWorkspacePath string) bool {
 		return false
 	}
 	return sameCleanPath(value, filepath.Join(appfs.StateRoot(), "workspace")) ||
-		sameCleanPath(value, appfs.UsersRoot())
+		sameCleanPath(value, appfs.DefaultUsersRoot())
 }
 
 func normalizeWorkspacePath(path string) string {
@@ -148,7 +152,7 @@ func normalizeWorkspacePath(path string) string {
 	}
 	legacyDefault := filepath.Join(appfs.StateRoot(), "workspace")
 	if sameCleanPath(value, legacyDefault) {
-		return appfs.UsersRoot()
+		return appfs.DefaultUsersRoot()
 	}
 	return value
 }

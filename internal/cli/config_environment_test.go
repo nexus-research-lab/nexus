@@ -48,6 +48,37 @@ func TestLoadConfigRestoresHostRootsFromUserRuntime(t *testing.T) {
 	}
 }
 
+func TestLoadConfigRestoresSeparatedHostAndUsersRoots(t *testing.T) {
+	root := t.TempDir()
+	stateRoot := filepath.Join(root, ".nexus")
+	usersRoot := filepath.Join(t.TempDir(), "moved-user-data")
+	ownerSegment := "user_demo"
+	runtimeRoot := appfs.UserRuntimeRootAtUsersRoot(usersRoot, ownerSegment)
+	agentWorkspace := filepath.Join(usersRoot, ownerSegment, "workspace", "nexus")
+	t.Setenv(appfs.NexusStateRootEnvName, "")
+	t.Setenv(appfs.NexusUsersRootEnvName, "")
+	t.Setenv(nexusConfigDirEnvName, runtimeRoot)
+	t.Setenv(nexusctlStateRootEnvName, stateRoot)
+	t.Setenv(nexusctlUsersRootEnvName, usersRoot)
+	t.Setenv(nexusctlWorkspacePathEnvName, agentWorkspace)
+	t.Setenv(workspacePathEnvName, agentWorkspace)
+	t.Setenv("DATABASE_DRIVER", "")
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("NEXUS_APP_MODE", "")
+
+	cfg := LoadConfig()
+
+	if got, want := cfg.DatabaseURL, filepath.Join(stateRoot, "app", "data", "nexus.db"); got != want {
+		t.Fatalf("nexusctl database path = %q, want %q", got, want)
+	}
+	if cfg.WorkspacePath != usersRoot {
+		t.Fatalf("nexusctl users root = %q, want %q", cfg.WorkspacePath, usersRoot)
+	}
+	if got := appfs.UserRuntimeRoot(ownerSegment); got != runtimeRoot {
+		t.Fatalf("nexusctl runtime root = %q, want %q", got, runtimeRoot)
+	}
+}
+
 func TestLoadConfigFallsBackToCanonicalUsersRoot(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	runtimeRoot := appfs.UserRuntimeRootAt(stateRoot, "user_demo")

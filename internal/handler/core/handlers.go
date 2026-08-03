@@ -27,11 +27,21 @@ type Handlers struct {
 	prefs     *preferencessvc.Service
 	nxs       *nxsruntimesvc.Service
 	runtime   *runtimectx.Manager
+	usersRoot usersRootStager
+}
+
+type usersRootStager interface {
+	Stage(context.Context, string) (config.RuntimeSettings, error)
 }
 
 // SetRuntimeManager 绑定活跃 Agent runtime 管理器。
 func (h *Handlers) SetRuntimeManager(manager *runtimectx.Manager) {
 	h.runtime = manager
+}
+
+// SetUsersRootStager 绑定宿主 users 根迁移器。
+func (h *Handlers) SetUsersRootStager(stager usersRootStager) {
+	h.usersRoot = stager
 }
 
 // New 创建核心 handlers。
@@ -226,7 +236,11 @@ func (h *Handlers) HandleUpdateRuntimeSettings(writer http.ResponseWriter, reque
 	if !h.api.BindJSON(writer, request, &payload) {
 		return
 	}
-	settings, err := config.SaveRuntimeSettings(payload)
+	if h.usersRoot == nil {
+		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "users root migration unavailable")
+		return
+	}
+	settings, err := h.usersRoot.Stage(request.Context(), payload.WorkspacePath)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return

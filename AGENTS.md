@@ -31,7 +31,7 @@ skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
   protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal 模型与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
   runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook）
-  service/    - 业务服务（agent / dm / room / room/realtime / session / workspace / skills / connectors / automation / llm ...）
+  service/    - 业务服务（agent / dm / room / room/realtime / session / workspace / userroot / skills / connectors / automation / llm ...）；userroot 负责 users 数据根的预迁移与启动原子切换
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影

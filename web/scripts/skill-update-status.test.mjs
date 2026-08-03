@@ -369,7 +369,7 @@ test("英文定时任务的模板、日期和校验提示保持同一语言", as
   );
 });
 
-test("工作区路径示例跟随桌面平台", async () => {
+test("用户数据根示例跟随桌面平台", async () => {
   const [model, messagesModule] = await Promise.all([
     server.ssrLoadModule(
       "/src/features/settings/general/model/workspace-settings-model.ts",
@@ -381,11 +381,11 @@ test("工作区路径示例跟随桌面平台", async () => {
   const windowsKey = model.getWorkspacePathPlaceholderKey("windows");
   assert.equal(
     messagesModule.MESSAGES.en[macKey],
-    "e.g. /Users/you/Nexus/workspaces",
+    "e.g. /Users/you/Nexus/users",
   );
   assert.equal(
     messagesModule.MESSAGES.en[windowsKey],
-    "e.g. D:\\Nexus\\workspace",
+    "e.g. D:\\Nexus\\users",
   );
   assert.equal(
     model.getWorkspacePathPlaceholderKey("linux"),
