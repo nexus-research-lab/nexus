@@ -8,12 +8,14 @@ type WorkspacePathPlaceholderKey =
 export interface WorkspaceSettingsSnapshot {
   currentPath: string;
   draftPath: string;
+  restartRequired: boolean;
   savedPath: string;
 }
 
 export const EMPTY_WORKSPACE_SETTINGS_SNAPSHOT: WorkspaceSettingsSnapshot = {
   currentPath: "",
   draftPath: "",
+  restartRequired: false,
   savedPath: "",
 };
 
@@ -41,6 +43,7 @@ export function buildWorkspaceSettingsSnapshot(
   return {
     currentPath: normalizeWorkspacePath(settings.current_workspace_path),
     draftPath: savedPath,
+    restartRequired: settings.restart_required === true,
     savedPath,
   };
 }
@@ -56,5 +59,9 @@ export function canSaveWorkspaceSettings(
   snapshot: WorkspaceSettingsSnapshot,
   busy: boolean,
 ): boolean {
-  return !busy && normalizeWorkspacePath(snapshot.draftPath) !== snapshot.savedPath;
+  const draftPath = normalizeWorkspacePath(snapshot.draftPath);
+  if (busy || draftPath === snapshot.savedPath) {
+    return false;
+  }
+  return snapshot.restartRequired || draftPath !== snapshot.currentPath;
 }

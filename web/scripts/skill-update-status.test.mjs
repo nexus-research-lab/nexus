@@ -392,3 +392,30 @@ test("用户数据根示例跟随桌面平台", async () => {
     "settings.general.workspace_path_placeholder_posix",
   );
 });
+
+test("已生效的用户数据根不会触发无效保存", async () => {
+  const model = await server.ssrLoadModule(
+    "/src/features/settings/general/model/workspace-settings-model.ts",
+  );
+  const applied = model.buildWorkspaceSettingsSnapshot({
+    current_workspace_path: "/Users/you/.nexus/users",
+    restart_required: false,
+    workspace_path: "",
+  });
+  const sameDefault = model.replaceWorkspaceDraft(
+    applied,
+    "/Users/you/.nexus/users",
+  );
+  assert.equal(model.canSaveWorkspaceSettings(sameDefault, false), false);
+
+  const pending = model.buildWorkspaceSettingsSnapshot({
+    current_workspace_path: "/Users/you/.nexus/users",
+    restart_required: true,
+    workspace_path: "/Volumes/Nexus/users",
+  });
+  const cancelPending = model.replaceWorkspaceDraft(
+    pending,
+    "/Users/you/.nexus/users",
+  );
+  assert.equal(model.canSaveWorkspaceSettings(cancelPending, false), true);
+});

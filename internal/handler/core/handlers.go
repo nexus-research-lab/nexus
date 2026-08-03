@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	clientopts "github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -279,10 +282,26 @@ func currentOwnerUserID(request *http.Request) string {
 }
 
 func (h *Handlers) runtimeSettingsResponse(settings config.RuntimeSettings) map[string]any {
+	currentRoot := agentpkg.WorkspaceBasePath(h.config)
+	targetRoot := appfs.DefaultUsersRoot()
+	if strings.TrimSpace(settings.WorkspacePath) != "" {
+		targetRoot = agentpkg.WorkspaceBasePath(config.Config{
+			WorkspacePath: settings.WorkspacePath,
+		})
+	}
 	return map[string]any{
 		"workspace_path":         strings.TrimSpace(settings.WorkspacePath),
-		"current_workspace_path": agentpkg.WorkspaceBasePath(h.config),
-		"restart_required":       true,
+		"current_workspace_path": currentRoot,
+		"restart_required":       !sameRuntimeSettingsPath(currentRoot, targetRoot),
 		"updated_at":             strings.TrimSpace(settings.UpdatedAt),
 	}
+}
+
+func sameRuntimeSettingsPath(left string, right string) bool {
+	left = filepath.Clean(strings.TrimSpace(left))
+	right = filepath.Clean(strings.TrimSpace(right))
+	if os.PathSeparator == '\\' {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
 }

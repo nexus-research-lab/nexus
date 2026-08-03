@@ -20,6 +20,7 @@ import (
 	corehandler "github.com/nexus-research-lab/nexus/internal/handler/core"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
@@ -101,6 +102,35 @@ func TestHandleRuntimeSettingsPersistsWorkspacePath(t *testing.T) {
 	}
 	if payload.Data.WorkspacePath != workspacePath || payload.Data.CurrentWorkspacePath == "" || !payload.Data.RestartRequired {
 		t.Fatalf("runtime settings 响应不正确: %+v", payload.Data)
+	}
+}
+
+func TestHandleRuntimeSettingsReportsNoRestartForAppliedDefaultRoot(t *testing.T) {
+	configRoot := t.TempDir()
+	t.Setenv("NEXUS_STATE_ROOT", configRoot)
+	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
+	t.Setenv(appfs.NexusUsersRootEnvName, "")
+	cfg := handlertest.NewConfig(t)
+	cfg.WorkspacePath = appfs.DefaultUsersRoot()
+	handler := corehandler.New(cfg, handlershared.NewAPI(nil), nil, nil)
+
+	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/settings/runtime", nil)
+	recorder := httptest.NewRecorder()
+	handler.HandleGetRuntimeSettings(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("状态码不正确: got=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		Data struct {
+			RestartRequired bool `json:"restart_required"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Data.RestartRequired {
+		t.Fatal("当前默认 users 根已经生效时不应提示重启")
 	}
 }
 
