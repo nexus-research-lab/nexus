@@ -17,7 +17,7 @@ func (s *Store) workspacePathBelongsToOwner(ownerUserID string, workspacePath st
 		return false
 	}
 	configuredOwnerRoot := filepath.Join(
-		s.UsersRoot,
+		s.WorkspaceRoot,
 		appfs.UserPathSegment(ownerUserID),
 		"workspace",
 	)

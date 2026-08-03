@@ -47,7 +47,7 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 		api:      api,
 		router:   chi.NewRouter(),
 		services: appServices,
-		handlers: newHandlerSet(api, appServices, websocketHandler, cfg),
+		handlers: newHandlerSet(api, appServices, websocketHandler),
 	}
 
 	server.mountMiddleware(logger)

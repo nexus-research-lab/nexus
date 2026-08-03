@@ -322,7 +322,7 @@ func (s *RoomPublicHandoffStore) Pending(ownerUserID string, conversationID stri
 func (s *RoomPublicHandoffStore) PendingAll() ([]RoomPublicHandoff, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	owners, err := listRoomOwnerPathSegments(s.paths.UsersRoot)
+	owners, err := listRoomOwnerPathSegments(s.paths.StateRoot)
 	if err != nil {
 		return nil, err
 	}

@@ -30,7 +30,7 @@ func (s *Store) OpenRoomConversationAssetRoot(
 	if s == nil {
 		return nil, errors.New("workspace storage root is nil")
 	}
-	workspaceRootPath := appfs.UserWorkspaceRootAtUsersRoot(s.UsersRoot, ownerUserID)
+	workspaceRootPath := appfs.UserWorkspaceRootAt(s.StateRoot, ownerUserID)
 	workspaceRoot, err := s.openOwnerWorkspaceRoot(ownerUserID, create)
 	if err != nil {
 		return nil, err

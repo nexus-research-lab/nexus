@@ -1,26 +1,19 @@
 package core_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"slices"
-	"strconv"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	corehandler "github.com/nexus-research-lab/nexus/internal/handler/core"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
@@ -30,7 +23,7 @@ import (
 )
 
 func TestHandleSystemVersion(t *testing.T) {
-	handler := corehandler.New(config.Config{}, handlershared.NewAPI(nil), nil, nil)
+	handler := corehandler.New(handlershared.NewAPI(nil), nil, nil)
 	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/system/version", nil)
 	recorder := httptest.NewRecorder()
 
@@ -47,127 +40,6 @@ func TestHandleSystemVersion(t *testing.T) {
 	}
 	if payload.Data.Project != versionpkg.ProjectName || payload.Data.Target == "" {
 		t.Fatalf("版本响应不正确: %+v", payload.Data)
-	}
-}
-
-func TestHandleRuntimeSettingsPersistsWorkspacePath(t *testing.T) {
-	configRoot := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", configRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
-	cfg := handlertest.NewConfig(t)
-	handlertest.MigrateSQLite(t, cfg.DatabaseURL)
-	server, err := serverapp.New(cfg)
-	if err != nil {
-		t.Fatalf("创建 HTTP 服务失败: %v", err)
-	}
-	handlertest.CloseServer(t, server)
-	workspacePath := filepath.Join(configRoot, "custom-workspace")
-	body := []byte(`{"workspace_path":` + strconv.Quote(workspacePath) + `}`)
-
-	request := httptest.NewRequest(http.MethodPatch, "/nexus/v1/settings/runtime", bytes.NewReader(body))
-	recorder := httptest.NewRecorder()
-	server.Router().ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("状态码不正确: got=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-	settings, err := config.LoadRuntimeSettings()
-	if err != nil {
-		t.Fatalf("读取 runtime settings 失败: %v", err)
-	}
-	wantAppliedPath := agentpkg.WorkspaceBasePath(cfg)
-	if settings.PendingUsersPath != workspacePath {
-		t.Fatalf("PendingUsersPath = %q, want %q", settings.PendingUsersPath, workspacePath)
-	}
-	if settings.WorkspacePath != wantAppliedPath {
-		t.Fatalf("WorkspacePath = %q, want active %q", settings.WorkspacePath, wantAppliedPath)
-	}
-	if settings.AppliedUsersPath != wantAppliedPath {
-		t.Fatalf("AppliedUsersPath = %q, want %q", settings.AppliedUsersPath, wantAppliedPath)
-	}
-
-	request = httptest.NewRequest(http.MethodGet, "/nexus/v1/settings/runtime", nil)
-	recorder = httptest.NewRecorder()
-	server.Router().ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("状态码不正确: got=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-	var payload struct {
-		Data struct {
-			WorkspacePath        string `json:"workspace_path"`
-			CurrentWorkspacePath string `json:"current_workspace_path"`
-			RestartRequired      bool   `json:"restart_required"`
-		} `json:"data"`
-	}
-	if err = json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("解析响应失败: %v", err)
-	}
-	if payload.Data.WorkspacePath != workspacePath || payload.Data.CurrentWorkspacePath == "" || !payload.Data.RestartRequired {
-		t.Fatalf("runtime settings 响应不正确: %+v", payload.Data)
-	}
-}
-
-func TestHandleRuntimeSettingsReportsNoRestartForAppliedDefaultRoot(t *testing.T) {
-	configRoot := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", configRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
-	t.Setenv(appfs.NexusUsersRootEnvName, "")
-	cfg := handlertest.NewConfig(t)
-	cfg.WorkspacePath = appfs.DefaultUsersRoot()
-	handler := corehandler.New(cfg, handlershared.NewAPI(nil), nil, nil)
-
-	request := httptest.NewRequest(http.MethodGet, "/nexus/v1/settings/runtime", nil)
-	recorder := httptest.NewRecorder()
-	handler.HandleGetRuntimeSettings(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("状态码不正确: got=%d body=%s", recorder.Code, recorder.Body.String())
-	}
-	var payload struct {
-		Data struct {
-			RestartRequired bool `json:"restart_required"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
-		t.Fatal(err)
-	}
-	if payload.Data.RestartRequired {
-		t.Fatal("当前默认 users 根已经生效时不应提示重启")
-	}
-}
-
-func TestHandleRuntimeSettingsRejectsMember(t *testing.T) {
-	configRoot := t.TempDir()
-	t.Setenv("NEXUS_STATE_ROOT", configRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
-	handler := corehandler.New(config.Config{}, handlershared.NewAPI(nil), nil, nil)
-	memberCtx := authsvc.WithPrincipal(context.Background(), &authsvc.Principal{
-		UserID: "member-a",
-		Role:   authsvc.RoleMember,
-	})
-
-	for _, method := range []string{http.MethodGet, http.MethodPatch} {
-		request := httptest.NewRequest(
-			method,
-			"/nexus/v1/settings/runtime",
-			bytes.NewReader([]byte(`{"workspace_path":"/tmp/foreign"}`)),
-		).WithContext(memberCtx)
-		recorder := httptest.NewRecorder()
-		if method == http.MethodGet {
-			handler.HandleGetRuntimeSettings(recorder, request)
-		} else {
-			handler.HandleUpdateRuntimeSettings(recorder, request)
-		}
-		if recorder.Code != http.StatusForbidden {
-			t.Fatalf("%s runtime settings 状态码不正确: got=%d body=%s", method, recorder.Code, recorder.Body.String())
-		}
-	}
-	if _, err := config.LoadRuntimeSettings(); err != nil {
-		t.Fatalf("成员被拒后读取 runtime settings 失败: %v", err)
-	}
-	if _, err := os.Stat(config.RuntimeSettingsPath()); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("成员请求不应创建宿主 runtime settings: %v", err)
 	}
 }
 

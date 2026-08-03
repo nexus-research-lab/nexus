@@ -369,7 +369,7 @@ test("英文定时任务的模板、日期和校验提示保持同一语言", as
   );
 });
 
-test("用户数据根示例跟随桌面平台", async () => {
+test("桌面数据根示例跟随平台", async () => {
   const [model, messagesModule] = await Promise.all([
     server.ssrLoadModule(
       "/src/features/settings/general/model/workspace-settings-model.ts",
@@ -377,45 +377,35 @@ test("用户数据根示例跟随桌面平台", async () => {
     server.ssrLoadModule("/src/shared/i18n/messages.ts"),
   ]);
 
-  const macKey = model.getWorkspacePathPlaceholderKey("macos");
-  const windowsKey = model.getWorkspacePathPlaceholderKey("windows");
+  const macStateRootKey = model.getStateRootPlaceholderKey("macos");
+  const windowsStateRootKey = model.getStateRootPlaceholderKey("windows");
   assert.equal(
-    messagesModule.MESSAGES.en[macKey],
-    "e.g. /Users/you/Nexus/users",
+    messagesModule.MESSAGES.en[macStateRootKey],
+    "e.g. /Volumes/NexusData",
   );
   assert.equal(
-    messagesModule.MESSAGES.en[windowsKey],
-    "e.g. D:\\Nexus\\users",
-  );
-  assert.equal(
-    model.getWorkspacePathPlaceholderKey("linux"),
-    "settings.general.workspace_path_placeholder_posix",
+    messagesModule.MESSAGES.en[windowsStateRootKey],
+    "e.g. D:\\NexusData",
   );
 });
 
-test("已生效的用户数据根不会触发无效保存", async () => {
+test("桌面数据根只有发生变化时才允许迁移", async () => {
   const model = await server.ssrLoadModule(
     "/src/features/settings/general/model/workspace-settings-model.ts",
   );
-  const applied = model.buildWorkspaceSettingsSnapshot({
-    current_workspace_path: "/Users/you/.nexus/users",
-    restart_required: false,
-    workspace_path: "",
+  const applied = model.buildStateRootSettingsSnapshot({
+    current_path: "/Users/you/.nexus",
   });
-  const sameDefault = model.replaceWorkspaceDraft(
+  const samePath = model.replaceWorkspaceDraft(
     applied,
-    "/Users/you/.nexus/users",
+    "/Users/you/.nexus",
   );
-  assert.equal(model.canSaveWorkspaceSettings(sameDefault, false), false);
-
-  const pending = model.buildWorkspaceSettingsSnapshot({
-    current_workspace_path: "/Users/you/.nexus/users",
-    restart_required: true,
-    workspace_path: "/Volumes/Nexus/users",
-  });
-  const cancelPending = model.replaceWorkspaceDraft(
-    pending,
-    "/Users/you/.nexus/users",
+  assert.equal(model.canSaveWorkspaceSettings(samePath, false), false);
+  const changedPath = model.replaceWorkspaceDraft(
+    applied,
+    "/Volumes/NexusData",
   );
-  assert.equal(model.canSaveWorkspaceSettings(cancelPending, false), true);
+  assert.equal(model.canSaveWorkspaceSettings(changedPath, false), true);
+  const emptyPath = model.replaceWorkspaceDraft(applied, "  ");
+  assert.equal(model.canSaveWorkspaceSettings(emptyPath, false), false);
 });

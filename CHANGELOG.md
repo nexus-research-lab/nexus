@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Decoded Windows sidecar stdout and stderr as UTF-8 so startup diagnostics preserve readable structured logs.
-- Disabled users-root saves when the resolved path is already active, while preserving pending migration rollback.
-- Scheduled user-data-root changes without touching live files, then migrated the complete `users` tree and rebased runtime transcript indexes during the next offline startup to prevent Windows, macOS, and Linux relaunch failures without moving host data under `app`.
+- Relocated the complete macOS or Windows desktop state root after confirmation, then restarted directly and safely rebased stored paths with automatic rollback on startup failure.
+- Removed the unsafe host-workspace HTTP setting; server deployments now configure their workspace root only through the deployment environment.
 - Avoided duplicating a durable Agent failure as a second conversation system-error bubble.
 - Kept runtime stream diagnostics in structured logs while showing concise recovery guidance in DM and Room conversations.
 - Preserved chronological DM history when newer durable round indexes are merged with older runtime transcripts after a responsive remount.

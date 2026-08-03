@@ -49,8 +49,9 @@ export function SettingsSidebarNavigation({
     ...group,
     items: group.items.filter(
       (item) =>
-        item.key !== "operations" ||
-        (!isDesktopRuntime() && canUseOperations(status?.role)),
+        (item.key !== "workspace" || isDesktopRuntime()) &&
+        (item.key !== "operations" ||
+          (!isDesktopRuntime() && canUseOperations(status?.role))),
     ),
   })).filter((group) => group.items.length > 0);
 

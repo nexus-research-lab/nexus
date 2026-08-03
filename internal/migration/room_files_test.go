@@ -96,7 +96,6 @@ func TestMigrateLegacyRoomFilesSplitsStateByOwner(t *testing.T) {
 	result, err := migrateLegacyRoomFiles(
 		context.Background(),
 		stateRoot,
-		filepath.Join(stateRoot, "users"),
 		legacyRoot,
 		entries,
 		fakeConversationOwnerLookup{
@@ -239,7 +238,6 @@ func TestMigrateLegacyRoomFilesQuarantinesMixedConversationDirectory(t *testing.
 	result, err := migrateLegacyRoomFiles(
 		context.Background(),
 		stateRoot,
-		filepath.Join(stateRoot, "users"),
 		legacyRoot,
 		entries,
 		fakeConversationOwnerLookup{
@@ -299,7 +297,6 @@ func TestMigrateLegacyRoomFilesQuarantinesHardLinkedState(t *testing.T) {
 	result, err := migrateLegacyRoomFiles(
 		context.Background(),
 		stateRoot,
-		filepath.Join(stateRoot, "users"),
 		legacyRoot,
 		entries,
 		fakeConversationOwnerLookup{"conversation-a": "user-a"},

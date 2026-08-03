@@ -60,8 +60,6 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Post(s.prefixPath("/settings/profile/password"), s.handlers.auth.HandleChangePassword)
 	s.router.Get(s.prefixPath("/settings/preferences"), s.handlers.core.HandleGetPreferences)
 	s.router.Patch(s.prefixPath("/settings/preferences"), s.handlers.core.HandleUpdatePreferences)
-	s.router.Get(s.prefixPath("/settings/runtime"), s.handlers.core.HandleGetRuntimeSettings)
-	s.router.Patch(s.prefixPath("/settings/runtime"), s.handlers.core.HandleUpdateRuntimeSettings)
 	s.router.Get(s.prefixPath("/settings/runtime/nxs/status"), s.handlers.core.HandleNXSRuntimeStatus)
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
 }

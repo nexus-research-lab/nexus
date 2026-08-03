@@ -13,7 +13,7 @@
 //   - room_history.go / room_directed_message.go / room_directed_message_wake.go / session_file.go / artifact_probe.go / jsonl.go：
 //     保留 Agent 执行身份的房间历史、定向消息、延迟唤醒、带最后一次上下文占用快照的会话文件、只读目录证据探测与 JSONL。
 //   - permissions.go / confined_path.go / transcript_confined.go：enforce 新建权限、
-//     users/owner/workspace 根绑定和 transcript confined-fd 访问。
+//     owner/workspace 根绑定和 transcript confined-fd 访问。
 //   - paths.go / transcript_path.go / transcript_project_hash.go / value_coerce.go：
 //     路径、transcript 项目目录名、工程 hash、值转换。
 //

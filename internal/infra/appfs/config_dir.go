@@ -3,7 +3,6 @@ package appfs
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,7 @@ import (
 
 const nexusConfigDirEnvName = "NEXUS_CONFIG_DIR"
 const NexusStateRootEnvName = "NEXUS_STATE_ROOT"
-const NexusUsersRootEnvName = "NEXUS_USERS_ROOT"
+const NexusPreviousStateRootEnvName = "NEXUS_PREVIOUS_STATE_ROOT"
 
 // StateRoot 返回 Nexus 的统一持久化状态根。
 //
@@ -34,42 +33,19 @@ func AppDir() string {
 	return filepath.Join(StateRoot(), "app")
 }
 
-// DefaultUsersRoot 返回状态根内的默认用户数据根。
-func DefaultUsersRoot() string {
-	return filepath.Join(StateRoot(), "users")
-}
-
-// UsersRoot 返回当前进程生效的所有用户数据根。
+// UsersRoot 返回所有用户数据根。
 func UsersRoot() string {
-	value := strings.TrimSpace(os.Getenv(NexusUsersRootEnvName))
-	if value == "" {
-		return DefaultUsersRoot()
-	}
-	return filepath.Clean(expandHome(value))
-}
-
-// ConfigureUsersRoot 为当前宿主进程切换用户数据根。
-func ConfigureUsersRoot(path string) error {
-	path = filepath.Clean(expandHome(strings.TrimSpace(path)))
-	if path == "" || path == "." || !filepath.IsAbs(path) {
-		return errors.New("users root must be an absolute path")
-	}
-	return os.Setenv(NexusUsersRootEnvName, path)
+	return filepath.Join(StateRoot(), "users")
 }
 
 // UserDataRoot 返回指定用户的数据根。
 func UserDataRoot(ownerUserID string) string {
-	return UserDataRootAtUsersRoot(UsersRoot(), ownerUserID)
+	return UserDataRootAt(StateRoot(), ownerUserID)
 }
 
 // UserDataRootAt 返回指定状态根下的用户数据根。
 func UserDataRootAt(stateRoot string, ownerUserID string) string {
-	return UserDataRootAtUsersRoot(filepath.Join(filepath.Clean(stateRoot), "users"), ownerUserID)
-}
-
-// UserDataRootAtUsersRoot 返回指定 users 根下的用户数据根。
-func UserDataRootAtUsersRoot(usersRoot string, ownerUserID string) string {
-	return filepath.Join(filepath.Clean(usersRoot), UserPathSegment(ownerUserID))
+	return filepath.Join(filepath.Clean(stateRoot), "users", UserPathSegment(ownerUserID))
 }
 
 // UserPathSegment 将用户标识转换为可安全拼接到路径中的单一路径段。
@@ -79,64 +55,44 @@ func UserPathSegment(ownerUserID string) string {
 
 // UserRuntimeRoot 返回指定用户的 runtime 根。
 func UserRuntimeRoot(ownerUserID string) string {
-	return UserRuntimeRootAtUsersRoot(UsersRoot(), ownerUserID)
+	return UserRuntimeRootAt(StateRoot(), ownerUserID)
 }
 
 // UserRuntimeRootAt 返回指定状态根下的用户 runtime 根。
 func UserRuntimeRootAt(stateRoot string, ownerUserID string) string {
-	return UserRuntimeRootAtUsersRoot(filepath.Join(filepath.Clean(stateRoot), "users"), ownerUserID)
-}
-
-// UserRuntimeRootAtUsersRoot 返回指定 users 根下的用户 runtime 根。
-func UserRuntimeRootAtUsersRoot(usersRoot string, ownerUserID string) string {
-	return filepath.Join(UserDataRootAtUsersRoot(usersRoot, ownerUserID), "runtime")
+	return filepath.Join(UserDataRootAt(stateRoot, ownerUserID), "runtime")
 }
 
 // UserStateRoot 返回指定用户由 Nexus 宿主管理的状态根。
 //
 // 该目录不属于 NEXUS_CONFIG_DIR/CLAUDE_CONFIG_DIR，runtime 进程不能写入。
 func UserStateRoot(ownerUserID string) string {
-	return UserStateRootAtUsersRoot(UsersRoot(), ownerUserID)
+	return UserStateRootAt(StateRoot(), ownerUserID)
 }
 
 // UserStateRootAt 返回指定状态根下的用户宿主状态根。
 func UserStateRootAt(stateRoot string, ownerUserID string) string {
-	return UserStateRootAtUsersRoot(filepath.Join(filepath.Clean(stateRoot), "users"), ownerUserID)
-}
-
-// UserStateRootAtUsersRoot 返回指定 users 根下的用户宿主状态根。
-func UserStateRootAtUsersRoot(usersRoot string, ownerUserID string) string {
-	return filepath.Join(UserDataRootAtUsersRoot(usersRoot, ownerUserID), "state")
+	return filepath.Join(UserDataRootAt(stateRoot, ownerUserID), "state")
 }
 
 // UserRoomRoot 返回指定用户的 Room 宿主状态根。
 func UserRoomRoot(ownerUserID string) string {
-	return UserRoomRootAtUsersRoot(UsersRoot(), ownerUserID)
+	return UserRoomRootAt(StateRoot(), ownerUserID)
 }
 
 // UserRoomRootAt 返回指定状态根下的用户 Room 宿主状态根。
 func UserRoomRootAt(stateRoot string, ownerUserID string) string {
-	return UserRoomRootAtUsersRoot(filepath.Join(filepath.Clean(stateRoot), "users"), ownerUserID)
-}
-
-// UserRoomRootAtUsersRoot 返回指定 users 根下的用户 Room 宿主状态根。
-func UserRoomRootAtUsersRoot(usersRoot string, ownerUserID string) string {
-	return filepath.Join(UserStateRootAtUsersRoot(usersRoot, ownerUserID), "rooms")
+	return filepath.Join(UserStateRootAt(stateRoot, ownerUserID), "rooms")
 }
 
 // UserWorkspaceRoot 返回指定用户的 workspace 根。
 func UserWorkspaceRoot(ownerUserID string) string {
-	return UserWorkspaceRootAtUsersRoot(UsersRoot(), ownerUserID)
+	return UserWorkspaceRootAt(StateRoot(), ownerUserID)
 }
 
 // UserWorkspaceRootAt 返回指定状态根下的用户 workspace 根。
 func UserWorkspaceRootAt(stateRoot string, ownerUserID string) string {
-	return UserWorkspaceRootAtUsersRoot(filepath.Join(filepath.Clean(stateRoot), "users"), ownerUserID)
-}
-
-// UserWorkspaceRootAtUsersRoot 返回指定 users 根下的用户 workspace 根。
-func UserWorkspaceRootAtUsersRoot(usersRoot string, ownerUserID string) string {
-	return filepath.Join(UserDataRootAtUsersRoot(usersRoot, ownerUserID), "workspace")
+	return filepath.Join(UserDataRootAt(stateRoot, ownerUserID), "workspace")
 }
 
 // UserRoomAssetsRoot 返回指定用户可供 runtime 读取的 Room 公共资产根。
@@ -144,42 +100,32 @@ func UserWorkspaceRootAtUsersRoot(usersRoot string, ownerUserID string) string {
 // Room ledger 留在宿主 state，附件则属于用户 workspace 数据；两者不能共享
 // 权限根，否则为了读取附件会同时暴露 handoff、wake 等宿主控制状态。
 func UserRoomAssetsRoot(ownerUserID string) string {
-	return UserRoomAssetsRootAtUsersRoot(UsersRoot(), ownerUserID)
+	return UserRoomAssetsRootAt(StateRoot(), ownerUserID)
 }
 
 // UserRoomAssetsRootAt 返回指定状态根下的用户 Room 公共资产根。
 func UserRoomAssetsRootAt(stateRoot string, ownerUserID string) string {
-	return UserRoomAssetsRootAtUsersRoot(filepath.Join(filepath.Clean(stateRoot), "users"), ownerUserID)
-}
-
-// UserRoomAssetsRootAtUsersRoot 返回指定 users 根下的 Room 公共资产根。
-func UserRoomAssetsRootAtUsersRoot(usersRoot string, ownerUserID string) string {
-	return filepath.Join(UserWorkspaceRootAtUsersRoot(usersRoot, ownerUserID), ".rooms")
+	return filepath.Join(UserWorkspaceRootAt(stateRoot, ownerUserID), ".rooms")
 }
 
 // EnsureUserRuntimeLayout 创建用户级 runtime 必需目录。
 func EnsureUserRuntimeLayout(ownerUserID string) error {
-	return EnsureUserRuntimeLayoutAtUsersRoot(UsersRoot(), ownerUserID)
+	return EnsureUserRuntimeLayoutAt(StateRoot(), ownerUserID)
 }
 
 // EnsureUserRuntimeLayoutAt 在指定状态根创建用户级 runtime 必需目录。
 func EnsureUserRuntimeLayoutAt(stateRoot string, ownerUserID string) error {
-	usersRoot := filepath.Join(filepath.Clean(strings.TrimSpace(stateRoot)), "users")
-	return EnsureUserRuntimeLayoutAtUsersRoot(usersRoot, ownerUserID)
-}
-
-// EnsureUserRuntimeLayoutAtUsersRoot 在指定 users 根创建用户 runtime 必需目录。
-func EnsureUserRuntimeLayoutAtUsersRoot(usersRoot string, ownerUserID string) error {
-	usersRoot = filepath.Clean(strings.TrimSpace(usersRoot))
-	if err := os.MkdirAll(usersRoot, 0o700); err != nil {
+	stateRoot = filepath.Clean(strings.TrimSpace(stateRoot))
+	if err := os.MkdirAll(stateRoot, 0o700); err != nil {
 		return err
 	}
-	root, err := confinedfs.Open(usersRoot)
+	root, err := confinedfs.Open(stateRoot)
 	if err != nil {
 		return err
 	}
 	defer root.Close()
 	runtimeRelative := filepath.ToSlash(filepath.Join(
+		"users",
 		UserPathSegment(ownerUserID),
 		"runtime",
 	))

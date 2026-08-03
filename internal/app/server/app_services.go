@@ -34,7 +34,6 @@ import (
 	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
-	userrootsvc "github.com/nexus-research-lab/nexus/internal/service/userroot"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
 )
@@ -47,7 +46,6 @@ type AppServices struct {
 	Provider          *providercfg.Service
 	Subscription      *subscriptionsvc.Service
 	Workspace         *workspacepkg.Service
-	UsersRoot         *userrootsvc.Manager
 	ProjectPermission *projectpermissionsvc.Service
 	Skills            *skillsvc.Service
 	Connectors        *connectorsvc.Service
@@ -115,7 +113,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
-	usersRootManager := userrootsvc.NewManager(cfg, db, logger.With("component", "users.root"))
 	projectPermissionService := projectpermissionsvc.NewService(cfg)
 	skillService := skillsvc.NewServiceWithDB(cfg, db, core.Agent, workspaceService)
 	core.Room.SetSkillCatalog(skillService)
@@ -225,7 +222,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Subscription:      subscriptionService,
 		Preferences:       preferencesService,
 		Workspace:         workspaceService,
-		UsersRoot:         usersRootManager,
 		ProjectPermission: projectPermissionService,
 		Skills:            skillService,
 		Connectors:        connectorService,

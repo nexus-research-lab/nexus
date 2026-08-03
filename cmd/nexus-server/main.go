@@ -24,7 +24,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/migration"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
-	userrootsvc "github.com/nexus-research-lab/nexus/internal/service/userroot"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	"github.com/nexus-research-lab/nexus/internal/storage"
 
@@ -222,18 +221,12 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
-	// users 根只在没有业务并发的启动窗口迁移并切换数据库投影。
-	// 旧版本没有迁移账本时从既有 Agent 路径反推原根，避免错误设置锁死桌面 App。
-	var usersReconcileErr error
-	cfg, usersReconcileErr = userrootsvc.ReconcileOnStartup(
-		context.Background(),
-		cfg,
-		logger,
-	)
-	if usersReconcileErr != nil {
-		logger.Error("users 根切换协调失败", "err", usersReconcileErr)
-		_, _ = fmt.Fprintln(os.Stderr, usersReconcileErr)
-		return usersReconcileErr
+	// 桌面宿主先离线复制整个状态根；新实例在任何业务服务启动前提交绝对路径重映射。
+	// 这里失败会让宿主保留旧根并自动回退，不能带着一半迁移的数据继续启动。
+	if err := migration.RunDesktopStateRootRebase(context.Background(), cfg, logger); err != nil {
+		logger.Error("桌面状态根迁移提交失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
 	}
 	if err := migration.RunWorkspaceFiles(appfs.AppDir(), agentsvc.WorkspaceBasePath(cfg), logger); err != nil {
 		logger.Error("工作区文件迁移失败", "err", err)

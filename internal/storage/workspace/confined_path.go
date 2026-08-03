@@ -23,7 +23,7 @@ func (s *SessionFileStore) openStorePath(target string, createRoot bool) (*confi
 	if target == "" || target == "." {
 		return nil, "", errors.New("workspace storage path is empty")
 	}
-	candidates := []string{s.paths.HomeRoot, s.paths.UsersRoot}
+	candidates := []string{s.paths.HomeRoot, s.paths.WorkspaceRoot}
 	slices.SortStableFunc(candidates, func(left, right string) int {
 		return len(right) - len(left)
 	})

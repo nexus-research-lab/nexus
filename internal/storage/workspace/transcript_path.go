@@ -71,7 +71,7 @@ func (s *AgentHistoryStore) transcriptProjectsRootForWorkspace(
 ) string {
 	if strings.TrimSpace(s.ownerUserID) != "" {
 		return filepath.Join(
-			appfs.UserRuntimeRootAtUsersRoot(s.paths.UsersRoot, s.ownerUserID),
+			appfs.UserRuntimeRootAt(s.paths.StateRoot, s.ownerUserID),
 			"projects",
 		)
 	}

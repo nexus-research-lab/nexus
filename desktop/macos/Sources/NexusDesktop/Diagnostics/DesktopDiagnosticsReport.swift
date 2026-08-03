@@ -125,6 +125,8 @@ enum DesktopDiagnosticsReport {
   private static func pathsPayload() -> [String: Any] {
     return [
       "root_dir": DesktopPaths.rootDirectory.path,
+      "previous_root_dir": DesktopStateRootStore.previousRootDirectory?.path ?? NSNull(),
+      "bootstrap_store": DesktopStateRootStore.bootstrapLocation,
       "data_dir": DesktopPaths.dataDirectory.path,
       "logs_dir": logsDirectory().path,
       "debug_dir": DesktopPaths.debugDirectory.path,

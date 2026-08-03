@@ -79,16 +79,7 @@ func RunRoomFiles(
 	}
 	defer db.Close()
 	owners := roomrepo.NewSQLRepository(cfg.DatabaseDriver, db)
-	usersRoot := workspacestore.New(cfg.WorkspacePath).UsersRoot
-	result, err := migrateLegacyRoomFiles(
-		ctx,
-		appfs.StateRoot(),
-		usersRoot,
-		legacyRoot,
-		entries,
-		owners,
-		logger,
-	)
+	result, err := migrateLegacyRoomFiles(ctx, appfs.StateRoot(), legacyRoot, entries, owners, logger)
 	if err != nil {
 		return err
 	}
@@ -107,7 +98,6 @@ func RunRoomFiles(
 func migrateLegacyRoomFiles(
 	ctx context.Context,
 	stateRoot string,
-	usersRoot string,
 	legacyRoot string,
 	entries []os.DirEntry,
 	owners conversationOwnerLookup,
@@ -116,7 +106,6 @@ func migrateLegacyRoomFiles(
 	migrator := &legacyRoomFileMigrator{
 		ctx:            ctx,
 		stateRoot:      stateRoot,
-		usersRoot:      usersRoot,
 		legacyRoot:     legacyRoot,
 		quarantineRoot: filepath.Join(stateRoot, "app", ".migration-quarantine", "room-state-v1"),
 		owners:         owners,
@@ -136,7 +125,6 @@ func migrateLegacyRoomFiles(
 type legacyRoomFileMigrator struct {
 	ctx            context.Context
 	stateRoot      string
-	usersRoot      string
 	legacyRoot     string
 	quarantineRoot string
 	owners         conversationOwnerLookup
@@ -162,7 +150,7 @@ func (m *legacyRoomFileMigrator) migrateEntry(entry os.DirEntry) error {
 		}
 		count, quarantined, err := migrateLegacyRoomWakeFile(
 			m.ctx,
-			m.usersRoot,
+			m.stateRoot,
 			sourcePath,
 			m.quarantineRoot,
 			m.owners,
@@ -218,11 +206,12 @@ func (m *legacyRoomFileMigrator) migrateConversation(sourcePath string, director
 		)
 	}
 
-	pathStore := workspacestore.New(m.usersRoot)
+	pathStore := workspacestore.New("")
+	pathStore.StateRoot = m.stateRoot
 	stateTarget := pathStore.RoomConversationDir(ownerUserID, conversationID)
 	assetTarget := pathStore.RoomConversationAssetDir(ownerUserID, conversationID)
 	for _, target := range []string{stateTarget, assetTarget} {
-		if unsafePath, found, checkErr := unsafeMigrationTarget(m.usersRoot, target); checkErr != nil {
+		if unsafePath, found, checkErr := unsafeMigrationTarget(m.stateRoot, target); checkErr != nil {
 			return checkErr
 		} else if found {
 			return m.quarantine(
@@ -483,7 +472,7 @@ func rewriteNestedString(value any, key string, replacement string) {
 
 func migrateLegacyRoomWakeFile(
 	ctx context.Context,
-	usersRoot string,
+	stateRoot string,
 	sourcePath string,
 	quarantineRoot string,
 	owners conversationOwnerLookup,
@@ -543,10 +532,10 @@ func migrateLegacyRoomWakeFile(
 	}
 	for ownerUserID, ownerLines := range grouped {
 		targetPath := filepath.Join(
-			appfs.UserRoomRootAtUsersRoot(usersRoot, ownerUserID),
+			appfs.UserRoomRootAt(stateRoot, ownerUserID),
 			"directed_message_wakes.jsonl",
 		)
-		if unsafePath, found, checkErr := unsafeMigrationTarget(usersRoot, targetPath); checkErr != nil {
+		if unsafePath, found, checkErr := unsafeMigrationTarget(stateRoot, targetPath); checkErr != nil {
 			return 0, 0, checkErr
 		} else if found {
 			return 0, 0, fmt.Errorf("Room wake 迁移目标包含不安全路径: %s", unsafePath)

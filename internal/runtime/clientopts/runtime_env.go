@@ -21,8 +21,6 @@ import (
 const nexusctlUserIDEnvName = "NEXUSCTL_USER_ID"
 const nexusctlWorkspacePathEnvName = "NEXUSCTL_WORKSPACE_PATH"
 const nexusctlCommandPathEnvName = "NEXUSCTL_COMMAND_PATH"
-const nexusctlStateRootEnvName = "NEXUSCTL_STATE_ROOT"
-const nexusctlUsersRootEnvName = "NEXUSCTL_USERS_ROOT"
 const nexusConfigDirEnvName = "NEXUS_CONFIG_DIR"
 const claudeConfigDirEnvName = "CLAUDE_CONFIG_DIR"
 const nexusAppRootEnvName = "NEXUS_APP_ROOT"
@@ -466,7 +464,6 @@ func managedUserRuntimeEnv(
 	workspacePath = strings.TrimSpace(workspacePath)
 	env := map[string]string{
 		appfs.NexusStateRootEnvName:        "",
-		appfs.NexusUsersRootEnvName:        "",
 		nexusAppRootEnvName:                "",
 		nexusConfigDirEnvName:              runtimeRoot,
 		claudeConfigDirEnvName:             runtimeRoot,
@@ -493,8 +490,6 @@ func managedUserRuntimeEnv(
 		nexusAgentRuntimeEnvName:           strings.TrimSpace(runtimeKind),
 		nexusNXSCommandPathEnvName:         "",
 		nexusClaudeCommandPathEnvName:      "",
-		nexusctlStateRootEnvName:           appfs.StateRoot(),
-		nexusctlUsersRootEnvName:           appfs.UsersRoot(),
 		nexusMemoryDirEnvName:              workspacePath,
 		nexusEnableRemoteMemoryEnvName:     "",
 		nexusRemoteMemoryDirEnvName:        "",

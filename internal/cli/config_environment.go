@@ -14,10 +14,8 @@ import (
 )
 
 const (
-	nexusConfigDirEnvName    = "NEXUS_CONFIG_DIR"
-	workspacePathEnvName     = "WORKSPACE_PATH"
-	nexusctlStateRootEnvName = "NEXUSCTL_STATE_ROOT"
-	nexusctlUsersRootEnvName = "NEXUSCTL_USERS_ROOT"
+	nexusConfigDirEnvName = "NEXUS_CONFIG_DIR"
+	workspacePathEnvName  = "WORKSPACE_PATH"
 )
 
 // LoadConfig 从当前进程环境加载 nexusctl 使用的宿主配置。
@@ -32,9 +30,6 @@ func LoadConfig() config.Config {
 // nexusctl 则直接装配宿主服务，不能把该目录误当成 NEXUS_STATE_ROOT，也不能
 // 把当前 Agent workspace 误当成所有用户的 workspace 基址。
 func normalizeRuntimeLayoutEnvironment() {
-	if normalizeExplicitRuntimeLayoutEnvironment() {
-		return
-	}
 	stateRoot, ownerSegment, ok := stateRootFromRuntimeConfigDir(
 		os.Getenv(nexusConfigDirEnvName),
 	)
@@ -58,28 +53,6 @@ func normalizeRuntimeLayoutEnvironment() {
 		workspaceBase = filepath.Join(stateRoot, "users")
 	}
 	_ = os.Setenv(workspacePathEnvName, workspaceBase)
-}
-
-func normalizeExplicitRuntimeLayoutEnvironment() bool {
-	stateRoot := filepath.Clean(strings.TrimSpace(os.Getenv(nexusctlStateRootEnvName)))
-	usersRoot := filepath.Clean(strings.TrimSpace(os.Getenv(nexusctlUsersRootEnvName)))
-	runtimeRoot := filepath.Clean(strings.TrimSpace(os.Getenv(nexusConfigDirEnvName)))
-	if stateRoot == "." || usersRoot == "." || runtimeRoot == "." ||
-		!filepath.IsAbs(stateRoot) || !filepath.IsAbs(usersRoot) || !filepath.IsAbs(runtimeRoot) {
-		return false
-	}
-	ownerRoot := filepath.Dir(runtimeRoot)
-	ownerSegment := filepath.Base(ownerRoot)
-	if !equalCLIPathSegment(filepath.Base(runtimeRoot), "runtime") ||
-		ownerSegment == "." || ownerSegment == string(filepath.Separator) ||
-		!sameCLIPath(filepath.Dir(ownerRoot), usersRoot) ||
-		!sameCLIPath(runtimeRoot, appfs.UserRuntimeRootAtUsersRoot(usersRoot, ownerSegment)) {
-		return false
-	}
-	_ = os.Setenv(appfs.NexusStateRootEnvName, stateRoot)
-	_ = os.Setenv(appfs.NexusUsersRootEnvName, usersRoot)
-	_ = os.Setenv(workspacePathEnvName, usersRoot)
-	return true
 }
 
 func stateRootFromRuntimeConfigDir(configDir string) (string, string, bool) {

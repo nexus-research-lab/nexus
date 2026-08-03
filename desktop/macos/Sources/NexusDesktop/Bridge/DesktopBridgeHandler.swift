@@ -64,6 +64,19 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
         "build_number": runtime.buildNumber,
         "platform": runtime.platform,
       ]
+    case "app.get_state_root":
+      return DesktopStateRootStore.statusPayload()
+    case "app.relocate_state_root":
+      let target = try DesktopStateRootMigration.scheduleMigration(
+        to: request.stringPayload("path")
+      )
+      DispatchQueue.main.async {
+        NSApp.terminate(nil)
+      }
+      return [
+        "restarting": true,
+        "target_path": target.path,
+      ]
     case "app.open_external_url":
       let rawURL = request.stringPayload("url")
       try openExternalURL(rawURL)

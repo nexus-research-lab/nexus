@@ -2,25 +2,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDesktopRuntimeConfig } from "@/config/desktop-runtime/runtime-config";
 import {
-  getRuntimeSettingsApi,
-  updateRuntimeSettingsApi,
-} from "@/lib/api/settings/runtime-api";
+  getDesktopStateRoot,
+  relocateDesktopStateRoot,
+} from "@/lib/desktop-bridge";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import {
   EMPTY_WORKSPACE_SETTINGS_SNAPSHOT,
-  buildWorkspaceSettingsSnapshot,
+  buildStateRootSettingsSnapshot,
   canSaveWorkspaceSettings,
-  getWorkspacePathPlaceholderKey,
+  getStateRootPlaceholderKey,
   replaceWorkspaceDraft,
 } from "./model/workspace-settings-model";
 
 export function useWorkspaceSettings() {
   const { t } = useI18n();
-  const placeholder = t(getWorkspacePathPlaceholderKey(
-    getDesktopRuntimeConfig()?.platform,
-  ));
+  const runtime = getDesktopRuntimeConfig();
+  const placeholder = t(getStateRootPlaceholderKey(runtime?.platform));
   const [snapshot, setSnapshot] = useState(
     EMPTY_WORKSPACE_SETTINGS_SNAPSHOT,
   );
@@ -32,18 +31,18 @@ export function useWorkspaceSettings() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void getRuntimeSettingsApi()
+    void getDesktopStateRoot()
       .then((result) => {
         if (!cancelled) {
-          setSnapshot(buildWorkspaceSettingsSnapshot(result));
-          setFeedbackMessage("");
+          setSnapshot(buildStateRootSettingsSnapshot(result));
+          setFeedbackMessage(result.migration_error ?? "");
         }
       })
       .catch((error: unknown) => {
         if (!cancelled) {
           setFeedbackMessage(getErrorMessage(
             error,
-            t("settings.general.workspace_path_load_failed"),
+            t("settings.general.state_root_load_failed"),
           ));
         }
       })
@@ -65,15 +64,12 @@ export function useWorkspaceSettings() {
     setSaving(true);
     setFeedbackMessage("");
     try {
-      const result = await updateRuntimeSettingsApi({
-        workspace_path: snapshot.draftPath.trim(),
-      });
-      setSnapshot(buildWorkspaceSettingsSnapshot(result));
-      setFeedbackMessage(t("settings.general.workspace_path_saved"));
+      await relocateDesktopStateRoot(snapshot.draftPath.trim());
+      setFeedbackMessage(t("settings.general.state_root_restarting"));
     } catch (error) {
       setFeedbackMessage(getErrorMessage(
         error,
-        t("settings.general.workspace_path_save_failed"),
+        t("settings.general.state_root_save_failed"),
       ));
     } finally {
       savingRef.current = false;

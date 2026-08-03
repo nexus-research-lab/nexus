@@ -1,7 +1,6 @@
 package server
 
 import (
-	"github.com/nexus-research-lab/nexus/internal/config"
 	agenthandler "github.com/nexus-research-lab/nexus/internal/handler/agent"
 	authhandler "github.com/nexus-research-lab/nexus/internal/handler/auth"
 	automationhandler "github.com/nexus-research-lab/nexus/internal/handler/automation"
@@ -46,17 +45,14 @@ func newHandlerSet(
 	api *handlershared.API,
 	services *AppServices,
 	websocketHandler *handlerwebsocket.Handler,
-	cfg config.Config,
 ) handlerSet {
 	core := corehandler.New(
-		cfg,
 		api,
 		services.Core.Agent,
 		services.Provider,
 		services.Preferences,
 	)
 	core.SetRuntimeManager(services.Runtime)
-	core.SetUsersRootScheduler(services.UsersRoot)
 	return handlerSet{
 		auth: authhandler.New(api, services.Auth, services.Usage, services.Subscription),
 		core: core,

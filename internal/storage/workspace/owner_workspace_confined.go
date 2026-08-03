@@ -37,13 +37,13 @@ func (s *Store) OpenOwnerWorkspacePath(
 		)
 	}
 	configuredOwnerRoot := filepath.Join(
-		s.UsersRoot,
+		s.WorkspaceRoot,
 		appfs.UserPathSegment(ownerUserID),
 		"workspace",
 	)
 	if sameManagedWorkspacePath(configuredOwnerRoot, workspacePath) {
 		return openManagedSubtree(
-			s.UsersRoot,
+			s.WorkspaceRoot,
 			workspacePath,
 			create,
 			storageDirectoryMode(),
@@ -70,13 +70,13 @@ func (s *Store) RemoveOwnerWorkspacePath(
 		)
 	}
 	configuredOwnerRoot := filepath.Join(
-		s.UsersRoot,
+		s.WorkspaceRoot,
 		appfs.UserPathSegment(ownerUserID),
 		"workspace",
 	)
 	if directChildPath(configuredOwnerRoot, workspacePath) {
 		return removeManagedWorkspaceChild(
-			s.UsersRoot,
+			s.WorkspaceRoot,
 			configuredOwnerRoot,
 			workspacePath,
 		)
@@ -130,13 +130,13 @@ func (s *Store) openWorkspacePathForOwner(
 		)
 	}
 	configuredOwnerRoot := filepath.Join(
-		s.UsersRoot,
+		s.WorkspaceRoot,
 		appfs.UserPathSegment(ownerUserID),
 		"workspace",
 	)
 	if directChildPath(configuredOwnerRoot, workspacePath) {
 		return openManagedSubtree(
-			s.UsersRoot,
+			s.WorkspaceRoot,
 			workspacePath,
 			create,
 			storageDirectoryMode(),
@@ -186,7 +186,7 @@ func (s *Store) OpenRoomConversationAssetFile(
 	conversationID string,
 	relativePath string,
 ) (string, *os.File, error) {
-	workspaceRootPath := appfs.UserWorkspaceRootAtUsersRoot(s.UsersRoot, ownerUserID)
+	workspaceRootPath := appfs.UserWorkspaceRootAt(s.StateRoot, ownerUserID)
 	workspaceRoot, err := s.openOwnerWorkspaceRoot(ownerUserID, false)
 	if err != nil {
 		return "", nil, err

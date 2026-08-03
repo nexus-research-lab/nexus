@@ -84,7 +84,6 @@ func TestUserPathsKeepStableOwnerSegment(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv(NexusStateRootEnvName, stateRoot)
 	t.Setenv(nexusConfigDirEnvName, "")
-	t.Setenv(NexusUsersRootEnvName, "")
 
 	if got := UserRuntimeRoot("__system__"); got != filepath.Join(stateRoot, "users", "__system__", "runtime") {
 		t.Fatalf("系统用户 runtime 路径不稳定: got=%q", got)
@@ -97,36 +96,6 @@ func TestUserPathsKeepStableOwnerSegment(t *testing.T) {
 	}
 	if got := UserPathSegment("owner."); got == UserPathSegment("owner") {
 		t.Fatalf("Windows 会折叠的尾点 owner 不应归一化到同一目录: got=%q", got)
-	}
-}
-
-func TestConfiguredUsersRootMovesAllUserSubtreesOnly(t *testing.T) {
-	stateRoot := filepath.Join(t.TempDir(), ".nexus")
-	usersRoot := filepath.Join(t.TempDir(), "nexus-users")
-	t.Setenv(NexusStateRootEnvName, stateRoot)
-	t.Setenv(nexusConfigDirEnvName, "")
-	t.Setenv(NexusUsersRootEnvName, "")
-
-	if err := ConfigureUsersRoot(usersRoot); err != nil {
-		t.Fatal(err)
-	}
-	if got := AppDir(); got != filepath.Join(stateRoot, "app") {
-		t.Fatalf("宿主 app 根不应随 users 根移动: %q", got)
-	}
-	if got := UserWorkspaceRoot("owner-a"); got != filepath.Join(usersRoot, "owner-a", "workspace") {
-		t.Fatalf("workspace 根未跟随 users 根: %q", got)
-	}
-	if got := UserRuntimeRoot("owner-a"); got != filepath.Join(usersRoot, "owner-a", "runtime") {
-		t.Fatalf("runtime 根未跟随 users 根: %q", got)
-	}
-	if got := UserRoomRoot("owner-a"); got != filepath.Join(usersRoot, "owner-a", "state", "rooms") {
-		t.Fatalf("Room 状态根未跟随 users 根: %q", got)
-	}
-	if err := EnsureUserRuntimeLayout("owner-a"); err != nil {
-		t.Fatalf("创建迁移后的 runtime 布局失败: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(usersRoot, "owner-a", "runtime", "projects")); err != nil {
-		t.Fatalf("runtime 布局仍写入默认 users 根: %v", err)
 	}
 }
 

@@ -7,6 +7,7 @@ enum DesktopShellError: LocalizedError {
   case portUnavailable(Int)
   case sidecarExited
   case invalidRuntimeConfig
+  case invalidStateRootBootstrap
   case sessionTokenUnavailable
   case appAlreadyRunning
   case singleInstanceLockUnavailable
@@ -32,6 +33,8 @@ enum DesktopShellError: LocalizedError {
       return "Go sidecar 在健康检查前退出。"
     case .invalidRuntimeConfig:
       return "无法生成桌面运行时配置。"
+    case .invalidStateRootBootstrap:
+      return "Nexus 桌面启动指针格式不正确。"
     case .sessionTokenUnavailable:
       return "无法生成桌面本地会话 token。"
     case .appAlreadyRunning:
