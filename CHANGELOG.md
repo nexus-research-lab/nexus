@@ -7,53 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.32] - 2026-08-03
+
 ### Added
 
 - Added a conversational first-run Nexus experience that guides users through model setup, connection verification, and a concise product introduction before their first task.
 
+### Changed
+
+- Localized the remaining conversation, Room, workspace, Agent, Skill, automation, Launcher, Markdown, and accessibility controls across Chinese and English interfaces while preserving user-authored and third-party content.
+- Simplified the macOS and Windows update-ready prompts and made download progress windows substantially more compact.
+
 ### Fixed
 
 - Decoded Windows sidecar stdout and stderr as UTF-8 so startup diagnostics preserve readable structured logs.
-- Relocated the complete macOS or Windows desktop state root after confirmation, then restarted directly and safely rebased stored paths with automatic rollback on startup failure.
-- Removed the unsafe host-workspace HTTP setting; server deployments now configure their workspace root only through the deployment environment.
-- Avoided duplicating a durable Agent failure as a second conversation system-error bubble.
-- Kept runtime stream diagnostics in structured logs while showing concise recovery guidance in DM and Room conversations.
+- Relocated the complete desktop state root through an offline restart-safe migration with stored-path rebasing and rollback, while keeping server workspace roots environment-controlled.
+- Kept runtime diagnostics in structured logs, showed concise recovery guidance, and prevented durable Agent failures from producing duplicate conversation errors.
 - Preserved chronological DM history when newer durable round indexes are merged with older runtime transcripts after a responsive remount.
-- Standardized the Chinese Subagent empty state on the same product terminology as its panel and navigation label.
-- Showed the inherited default model state on contact cards instead of a placeholder Provider value.
-- Presented contact-card permission modes with localized product labels instead of runtime protocol values.
-- Localized contact-card metadata labels consistently across Chinese and English interfaces.
-- Removed redundant Skill detail badges when category and source resolve to the same label.
-- Localized work-loop trigger types and usage counters instead of exposing protocol values and fixed English units.
-- Associated Git Skill import inputs with their visible labels for reliable screen-reader navigation.
-- Displayed one-time scheduled-task dates in an unambiguous year-first order.
-- Localized scheduled-task templates, creation controls, pickers, and validation feedback in English mode.
-- Used platform-appropriate workspace path examples in desktop settings.
-- Localized Launcher input and recent-chat accessibility labels across Chinese and English interfaces.
-- Localized message actions, activity states, attachments, and generated-file labels across Chinese and English interfaces.
-- Localized conversation process summaries, tool-run states, and cache statistics across Chinese and English interfaces.
-- Localized tool execution cards, permission details, and result actions across Chinese and English interfaces.
-- Localized conversation rulers, round previews, and view-switcher accessibility labels across Chinese and English interfaces.
-- Formatted chat-sidebar activity times in the active interface language.
-- Localized Room history activity times and row actions across Chinese and English interfaces.
-- Localized conversation return-to-latest and unread-jump controls across Chinese and English interfaces.
-- Localized Room auxiliary-panel navigation, upload, and resize accessibility labels.
-- Localized the earlier-message loading state across Chinese and English conversations.
-- Localized the workspace empty-preview title and guidance across Chinese and English interfaces.
-- Localized workspace file reveal, focus, edit, save, and sync controls across desktop and web interfaces.
-- Localized Agent contact records, message states, reply routes, and activity times across Chinese and English interfaces.
-- Localized Skill catalog categories, update states, and import or removal feedback while preserving user-defined category names.
-- Localized Skill detail navigation, metadata, availability controls, and action states without translating Skill-authored content.
-- Localized the default close-button accessibility label for shared dialogs.
-- Localized both Skill import modes, their authoring guidance, examples, controls, and downloaded Room guide.
-- Replaced host-language search clear controls with an app-localized clear action across shared search fields.
-- Localized community Skill results, previews, source filters, source management, and action feedback while preserving third-party content verbatim.
-- Forwarded required accessible names through every Liquid Glass switch so assistive technology identifies the actual setting being toggled.
-- Localized code-block actions and Mermaid loading, preview, source, error, and accessibility chrome across Chinese and English interfaces.
-
-### Changed
-
-- Simplified the macOS and Windows update-ready prompts and made download progress windows substantially more compact.
+- Corrected inherited model and permission labels, scheduled dates, platform-native workspace paths, Skill metadata duplication, and assistive names across shared controls.
 
 ## [0.1.31] - 2026-08-01
 
