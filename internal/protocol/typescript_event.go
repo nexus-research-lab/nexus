@@ -36,6 +36,7 @@ export type EventType =
   | 'scheduled_task_changed'
   | 'room_member_added'
   | 'room_member_removed'
+  | 'room_member_participation_changed'
   | 'room_deleted'
   | 'room_directed_message'
   | 'room_directed_message_consumed'

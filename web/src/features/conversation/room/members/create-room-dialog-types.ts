@@ -2,6 +2,7 @@ export interface RoomMemberAgentOption {
   agent_id: string;
   avatar?: string | null;
   name: string;
+  room_participation_paused?: boolean;
 }
 
 export interface RoomDialogSubmission {
@@ -10,6 +11,7 @@ export interface RoomDialogSubmission {
   hostAgentId: string | null;
   hostAutoReplyEnabled: boolean;
   name: string;
+  pausedAgentIds: string[];
   privateMessagesEnabled: boolean;
   skillNames: string[];
 }
@@ -22,6 +24,7 @@ export interface CreateRoomDialogProps {
   initialHostAgentId?: string | null;
   initialHostAutoReplyEnabled?: boolean;
   initialName?: string;
+  initialPausedAgentIds?: string[];
   initialPrivateMessagesEnabled?: boolean;
   initialRoomSkillNames?: string[];
   initialSelectedAgentIds?: string[];
@@ -38,6 +41,7 @@ export interface RoomDialogFormState {
   hostAutoReplyEnabled: boolean;
   memberQuery: string;
   name: string;
+  pausedAgentIds: string[];
   privateMessagesEnabled: boolean;
   selectedAgentIds: string[];
   selectedSkillNames: string[];

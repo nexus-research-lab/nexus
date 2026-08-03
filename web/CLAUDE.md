@@ -62,6 +62,7 @@ src/
 - 子智能体列表与线程复用 `shared/subagent/use-scoped-resource.ts` 的作用域请求协议；线程按资源和纯投影拆分为只读执行记录，公共 Hook 只做装配；Room 由私有适配层复用成员选择器并按任务 `host_agent_id` 过滤，共享域不得反向依赖 Room
 - Room 主 Feed 与 Thread 共用 `room/group/round/round-agent-model.ts` 的 Agent 聚合状态；状态优先级不得在视图中重复推导
 - Room 创建与管理弹窗只通过 `members/use-create-room-form.ts` 管理不变量，并以 `RoomDialogSubmission` 对象提交；视图组件不得在渲染期修正表单状态
+- Room 成员的 `participation_paused` 是 Room 级持久调度状态：管理弹窗只维护成员草稿，页面命令只提交真实差异；后端暂停时收口该成员当前 slot 并闸住 queue、Agent wake、Goal continuation 与 WorkGraph dispatch，恢复后继续原样保留的工作，前端不得把它降格为一次性停止输出
 - Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；聊天完成订阅固定挂在 `AppLayout`，不得依赖宽屏侧栏是否渲染；bootstrap 请求、刷新排队和全局目录事件不得在消费者中重复实现；聊天执行态统一由 `home/room-activity-resource.ts` 按 `roomId` 短期投影，DM 与群组共用规则，聊天和联系人侧栏均不订阅 Agent runtime
 - Home 侧栏只通过 `home/sidebar/` 组合聊天和联系人入口；Room/DM 基础投影与未读叠加必须独立缓存，视图不得直接调用 Room API 或拼通知键
 - Group Room 完成事件须同时记录精确消息锚点与未读计数；Room 导航不得预先清除它们，只有对应 Feed 证明消息已进入视口后才逐条消费。DM 仍在进入会话时清理自身未读，未读计数和最后更新时间不能推断第一条未读 Agent 回复
@@ -79,7 +80,7 @@ src/
 - Workspace 文件快照与写命令按 Agent 作用域隔离；同 Agent 的后发刷新使先发请求失效，外部打开 Agent 信号只消费一次
 - Room 页面数据资源必须绑定当前 `roomId`；模型只做投影，命令只返回当前作用域结果，会话快照只通过专用协议写回
 - Room 页面私有控制器归 `pages/room/controller/`，浏览器协调归 `pages/room/orchestration/`；领域 Feature 不读取路由，页面不解释服务端资源协议
-- Room 成员管理由页面命令层绑定作用域并按成员依赖顺序执行；Header 只提交完整表单对象，Surface 不传播成员增删和设置更新的散装回调
+- Room 成员管理由页面命令层绑定作用域并按“添加成员 → 更新设置 → 暂停/恢复变化 → 移除成员”的依赖顺序执行；Header 只提交完整表单对象，Surface 不传播成员增删、参与状态和设置更新的散装回调
 - Contacts 页面使用互斥编辑状态，资源和 CRUD 归 `pages/contacts/controller/`，URL 选择与 Room 跳转归 `pages/contacts/orchestration/`
 - 宽侧栏由 `features/navigation/sidebar/` 管理；展开与收起共用单一常驻壳层、固定 48px 一级导航 Dock 和系统操作，Dock 图标交互面与 32px 聊天头像同尺度，只有目录可见性与外层宽度变化，路由/Store 同步只留在控制器
 - 能力侧栏归 `features/capability/sidebar/`；导航项由定义表投影，摘要刷新合并和窗口重验证只由专用资源 Hook 管理，业务行不得伪装成共享 UI

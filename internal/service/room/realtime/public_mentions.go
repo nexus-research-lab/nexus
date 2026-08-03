@@ -194,7 +194,7 @@ func (s *Service) startQueuedPublicMentionWakesLocked(ctx context.Context, round
 	if len(wakes) == 0 {
 		return false
 	}
-	if err := s.startPublicMentionRoundLocked(ctx, roundValue, wakes); err != nil {
+	if err := s.startPublicMentionRoundLocked(ctx, roundValue, wakes, true); err != nil {
 		s.loggerFor(ctx).Error("启动 Room 公区 @ 唤醒失败",
 			"r", roundValue.RoomID,
 			"c", roundValue.ConversationID,
@@ -216,17 +216,41 @@ func (s *Service) startPublicMentionRound(
 	}
 	lease := s.lockRoomDispatch(parentRound.SessionKey, parentRound.ConversationID)
 	defer lease.Unlock()
-	return s.startPublicMentionRoundLocked(ctx, parentRound, wakes)
+	return s.startPublicMentionRoundLocked(ctx, parentRound, wakes, true)
 }
 
 func (s *Service) startPublicMentionRoundLocked(
 	ctx context.Context,
 	parentRound *activeRoomRound,
 	wakes []publicMentionWake,
+	refreshContextOptions ...bool,
 ) error {
 	if parentRound == nil || parentRound.Context == nil || len(wakes) == 0 {
 		return nil
 	}
+	refreshContext := true
+	if len(refreshContextOptions) > 0 {
+		refreshContext = refreshContextOptions[0]
+	}
+	var err error
+	if refreshContext && s.rooms != nil {
+		currentContextValue, lookupErr := s.rooms.GetConversationContextForSystem(
+			ctx,
+			parentRound.ConversationID,
+		)
+		if lookupErr != nil {
+			return lookupErr
+		}
+		if currentContextValue != nil {
+			if err = requireGroupRoomContext(currentContextValue); err != nil {
+				return err
+			}
+			parentRound.Context = currentContextValue
+			parentRound.RoomID = currentContextValue.Room.ID
+			parentRound.OwnerUserID = currentContextValue.Room.OwnerUserID
+		}
+	}
+	ctx = contextWithExactQueueOwner(ctx, parentRound.OwnerUserID)
 	admittedWakes := make([]publicMentionWake, 0, len(wakes))
 	for _, wake := range wakes {
 		if wake.ReviewBinding != nil {
@@ -281,7 +305,7 @@ func (s *Service) startPublicMentionRoundLocked(
 	if len(wakes) == 0 {
 		return nil
 	}
-	wakes, err := s.admitPublicMentionWakes(ctx, parentRound, wakes)
+	wakes, err = s.admitPublicMentionWakes(ctx, parentRound, wakes)
 	if err != nil {
 		return err
 	}
@@ -860,7 +884,10 @@ func roomWakeStartLogMessage(wakes []publicMentionWake) string {
 	return "启动 Room 公区 @ 唤醒 round"
 }
 
-func roomWakeQueuedLogMessage(wake publicMentionWake) string {
+func roomWakeQueuedLogMessage(wake publicMentionWake, participationPaused bool) string {
+	if participationPaused {
+		return "Room 成员暂停参与，Agent 唤醒保留在后端待发送队列"
+	}
 	if normalizeWakeQueueSource(wake) == protocol.InputQueueSourceAgentRoomMessage {
 		return "Room directed message 目标正忙，写入后端待发送队列"
 	}
@@ -900,7 +927,15 @@ func (s *Service) queueBusyPublicMentionWakes(
 		}
 	}
 	busySlots := s.findActiveDeliverySlotsByAgent(sessionKey, parentRound.ConversationID, targetAgentIDs)
-	if len(busySlots) == 0 {
+	_, pausedAgentIDs := partitionRoomParticipationTargets(
+		parentRound.Context.Members,
+		targetAgentIDs,
+	)
+	pausedTargets := make(map[string]struct{}, len(pausedAgentIDs))
+	for _, agentID := range pausedAgentIDs {
+		pausedTargets[agentID] = struct{}{}
+	}
+	if len(busySlots) == 0 && len(pausedTargets) == 0 {
 		return wakes, nil
 	}
 
@@ -917,7 +952,8 @@ func (s *Service) queueBusyPublicMentionWakes(
 			continue
 		}
 		busySlot := busySlots[targetAgentID]
-		if busySlot == nil {
+		_, participationPaused := pausedTargets[targetAgentID]
+		if busySlot == nil && !participationPaused {
 			ready = append(ready, wake)
 			continue
 		}
@@ -934,7 +970,9 @@ func (s *Service) queueBusyPublicMentionWakes(
 		queueSource := normalizeWakeQueueSource(wake)
 		deliveryPolicy := protocol.ChatDeliveryPolicyQueue
 		rootRoundID := roomRootRoundID(parentRound)
-		if queueSource == protocol.InputQueueSourceAgentPublicMention && s.supportsRoomGuidanceAck(busySlot) {
+		if !participationPaused &&
+			queueSource == protocol.InputQueueSourceAgentPublicMention &&
+			s.supportsRoomGuidanceAck(busySlot) {
 			// 公区 @ 已经是目标 Agent 可见的新上下文。目标忙碌时先绑定它
 			// 当前 slot 的 PostToolUse hook；只有 hook 没有消费，slot 收尾才会
 			// 把它降级为普通 queue 并续开下一轮，避免同 Agent 并发第二个 slot。
@@ -1012,14 +1050,19 @@ func (s *Service) queueBusyPublicMentionWakes(
 			dispatchQueued = true
 		}
 		queued = true
-		s.loggerFor(ctx).Info(roomWakeQueuedLogMessage(wake),
+		activeAgentRoundID := ""
+		if busySlot != nil {
+			activeAgentRoundID = busySlot.AgentRoundID
+		}
+		s.loggerFor(ctx).Info(roomWakeQueuedLogMessage(wake, participationPaused),
 			"s", sessionKey,
 			"qs", location.Location.SessionKey,
 			"r", parentRound.RoomID,
 			"c", parentRound.ConversationID,
 			"src", wake.SourceAgentID,
 			"t", targetAgentID,
-			"active_round_id", busySlot.AgentRoundID,
+			"active_round_id", activeAgentRoundID,
+			"participation_paused", participationPaused,
 			"delivery_policy", deliveryPolicy,
 		)
 		if queueSource == protocol.InputQueueSourceAgentRoomMessage {

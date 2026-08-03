@@ -15,7 +15,10 @@ import { saveRoomManagement } from "./room-management-command";
 
 interface UseRoomPageCommandsOptions {
   roomId?: string | null;
-  roomMembers: readonly { agent_id: string }[];
+  roomMembers: readonly {
+    agent_id: string;
+    room_participation_paused?: boolean;
+  }[];
   refreshRoomContexts: () => Promise<RoomContextAggregate[]>;
   saveExistingAgentOptions: (
     agentId: string,
@@ -110,7 +113,7 @@ export function useRoomPageCommands({
       ROOM_COMMAND_POLICIES.mutate,
       (scopeRoomId) => saveRoomManagement(
         scopeRoomId,
-        roomMembers.map((member) => member.agent_id),
+        roomMembers,
         submission,
       ),
     );

@@ -5,6 +5,7 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 
 const REFRESH_EVENT_TYPES = new Set([
+  "room_member_participation_changed",
   "room_resync_required",
   "session_resync_required",
 ]);

@@ -21,14 +21,15 @@ const (
 	MemberTypeAgent = "agent"
 )
 
-// MemberRecord 表示房间成员记录。
+// MemberRecord 表示房间成员及其持久参与闸门。
 type MemberRecord struct {
-	ID            string    `json:"id"`
-	RoomID        string    `json:"room_id"`
-	MemberType    string    `json:"member_type"`
-	MemberUserID  string    `json:"member_user_id,omitempty"`
-	MemberAgentID string    `json:"member_agent_id,omitempty"`
-	JoinedAt      time.Time `json:"joined_at,omitempty"`
+	ID                  string    `json:"id"`
+	RoomID              string    `json:"room_id"`
+	MemberType          string    `json:"member_type"`
+	MemberUserID        string    `json:"member_user_id,omitempty"`
+	MemberAgentID       string    `json:"member_agent_id,omitempty"`
+	ParticipationPaused bool      `json:"participation_paused"`
+	JoinedAt            time.Time `json:"joined_at,omitempty"`
 }
 
 // RoomRecord 表示房间记录。

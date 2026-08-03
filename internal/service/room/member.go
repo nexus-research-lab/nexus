@@ -1,3 +1,6 @@
+// INPUT: Room 成员增删与持久 participation_paused 变更请求。
+// OUTPUT: 经成员身份和 Room 类型校验后的最新主 conversation 上下文。
+// POS: Room 成员生命周期与参与状态的业务事务边界。
 package room
 
 import (
@@ -75,4 +78,54 @@ func (s *Service) RemoveRoomMember(ctx context.Context, roomID string, agentID s
 	artifactErr := s.cleanupConversationArtifacts(ctx, roomContexts, false, map[string]struct{}{normalizedAgentID: {}})
 	goalErr := s.cleanupGoalsForRoomMemberContexts(ctx, roomContexts, normalizedAgentID)
 	return contextValue, errors.Join(runtimeErr, artifactErr, goalErr)
+}
+
+// SetRoomMemberParticipation 持久化 group Room Agent 的参与暂停状态。
+// 活跃 runtime 的中断和恢复调度由 realtime 在 conversation 派发锁内完成。
+func (s *Service) SetRoomMemberParticipation(
+	ctx context.Context,
+	roomID string,
+	agentID string,
+	paused bool,
+) (*protocol.ConversationContextAggregate, error) {
+	normalizedRoomID := strings.TrimSpace(roomID)
+	normalizedAgentID := strings.TrimSpace(agentID)
+	if normalizedRoomID == "" || normalizedAgentID == "" {
+		return nil, ErrRoomMemberNotFound
+	}
+	roomContexts, err := s.GetRoomContexts(ctx, normalizedRoomID)
+	if err != nil {
+		return nil, err
+	}
+	if len(roomContexts) == 0 {
+		return nil, ErrRoomNotFound
+	}
+	if roomContexts[0].Room.RoomType != protocol.RoomTypeGroup {
+		return nil, errors.New("DM room does not support member participation controls")
+	}
+	memberFound := false
+	for _, member := range roomContexts[0].Members {
+		if member.MemberType == protocol.MemberTypeAgent &&
+			strings.TrimSpace(member.MemberAgentID) == normalizedAgentID {
+			memberFound = true
+			break
+		}
+	}
+	if !memberFound {
+		return nil, ErrRoomMemberNotFound
+	}
+	contextValue, err := s.repository.SetRoomMemberParticipation(
+		ctx,
+		authctx.OwnerUserID(ctx),
+		normalizedRoomID,
+		normalizedAgentID,
+		paused,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if contextValue == nil {
+		return nil, ErrRoomMemberNotFound
+	}
+	return contextValue, nil
 }

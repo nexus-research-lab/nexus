@@ -3,7 +3,7 @@
 // L2 | 父级: internal/service/room（L1 见上级 AGENTS.md）
 //
 // 文件按业务内聚分组（一个业务一个文件，不按机械行数拆分）：
-//   - service.go：服务装配、依赖接口、事件广播与持久化 Room 上下文适配。
+//   - service.go / member_participation.go：服务装配、依赖接口、事件广播，以及在 conversation 派发锁内持久化并暂停/恢复成员 queue、Goal 与 WorkGraph 调度。
 //   - chat.go / attachments.go：输入受理、目标解析、共享消息持久化、直接或 queue/guide 物化用户消息的 draft 消费和活跃 slot 投递；附件归一化被 chat/execution/guidance 共用。
 //   - state.go / conversation_rounds.go：round/slot 内存状态模型；conversation 级注册表、派发顺序锁、round 注册，以及可为空、按 slot 携带 root round_id 与 public handoff 关联的权威活跃快照。
 //   - execution.go / execution_runtime.go / execution_dispatch.go / execution_review_dispatch.go / execution_cancellation_dispatch.go / execution_attempt_terminal.go / execution_evidence.go / runtime_policy.go / recovery_context.go / execution_context.go / execution_slot_status.go / interrupt.go / subagent_idle_drain.go：slot 执行主链、带 current Spec/accepted dependency WorkContract 的 structured Assignment Dispatch/admission、Submission review-return durable handoff 与 ReviewBinding admission、完整 WorkBinding 校验后的 old-slot provider/local cancellation outcome、root Attempt 原子终态、compact 持久证据、runtime 选项、上一轮失败恢复与每轮 actor-specific WorkGraph 上下文、Room 工具权限策略、连接诊断、终态同步、中断与父子 usage 后台重试。

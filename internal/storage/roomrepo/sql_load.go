@@ -79,7 +79,7 @@ LIMIT 1`, strings.TrimSpace(conversationID))
 
 func (r *SQLRepository) listMembers(ctx context.Context, querier roomQueryer, roomID string) ([]protocol.MemberRecord, error) {
 	rows, err := querier.QueryContext(ctx, `
-SELECT id, room_id, member_type, COALESCE(member_user_id, ''), COALESCE(member_agent_id, ''), joined_at
+SELECT id, room_id, member_type, COALESCE(member_user_id, ''), COALESCE(member_agent_id, ''), participation_paused, joined_at
 FROM members
 WHERE room_id = `+r.dialect.Bind(1)+`
 ORDER BY joined_at ASC`, roomID)
@@ -144,7 +144,7 @@ func (r *SQLRepository) listMembersByRoomIDs(
 		return map[string][]protocol.MemberRecord{}, nil
 	}
 	query := fmt.Sprintf(`
-SELECT id, room_id, member_type, COALESCE(member_user_id, ''), COALESCE(member_agent_id, ''), joined_at
+SELECT id, room_id, member_type, COALESCE(member_user_id, ''), COALESCE(member_agent_id, ''), participation_paused, joined_at
 FROM members
 WHERE room_id IN (%s)
 ORDER BY joined_at ASC`, r.dialect.BindList(len(roomIDs)))

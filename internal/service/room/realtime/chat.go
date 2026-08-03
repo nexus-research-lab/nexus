@@ -210,6 +210,15 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		targetAgentIDs,
 		targetResolution,
 	)
+	if request.Internal {
+		_, pausedTargetAgentIDs := partitionRoomParticipationTargets(
+			contextValue.Members,
+			targetAgentIDs,
+		)
+		if len(pausedTargetAgentIDs) > 0 {
+			return nil, errors.New("Room member participation is paused")
+		}
+	}
 	admissionRound := &activeRoomRound{
 		SessionKey:         sessionKey,
 		RoomID:             roomID,
@@ -489,25 +498,40 @@ func (e *roomChatExecution) routeActiveSlots() (bool, error) {
 	if e.request.Internal {
 		return false, nil
 	}
+	pausedAgentIDs, err := e.queuePausedTargets()
+	if err != nil {
+		return true, err
+	}
+	if len(pausedAgentIDs) > 0 {
+		e.targetAgentIDs = filterHandledAgentIDs(
+			e.targetAgentIDs,
+			pausedAgentIDs,
+		)
+		if len(e.targetAgentIDs) == 0 {
+			e.broadcastAck(nil, false)
+			e.service.broadcastSessionStatus(e.ctx, e.sessionKey)
+			return true, nil
+		}
+	}
 
 	var (
 		handledAgentIDs map[string]struct{}
-		err             error
+		routeErr        error
 	)
 	switch e.deliveryPolicy {
 	case protocol.ChatDeliveryPolicyQueue, protocol.ChatDeliveryPolicyAuto:
-		handledAgentIDs, err = e.queueActiveSlots()
+		handledAgentIDs, routeErr = e.queueActiveSlots()
 	case protocol.ChatDeliveryPolicyGuide:
-		handledAgentIDs, err = e.guideActiveSlots()
+		handledAgentIDs, routeErr = e.guideActiveSlots()
 		// 多目标分散在不同 root，或只有部分目标忙碌时，不能把同一条
 		// public message 注入多个 root。忙碌目标各自排队，空闲目标在
 		// 后续 buildRound 中立即启动。
-		if err == nil && len(handledAgentIDs) == 0 {
-			handledAgentIDs, err = e.queueActiveSlots()
+		if routeErr == nil && len(handledAgentIDs) == 0 {
+			handledAgentIDs, routeErr = e.queueActiveSlots()
 		}
 		e.deliveryPolicy = protocol.ChatDeliveryPolicyQueue
 	case protocol.ChatDeliveryPolicyInterrupt:
-		err = e.service.interruptAgentSlots(
+		routeErr = e.service.interruptAgentSlots(
 			e.ctx,
 			e.sessionKey,
 			e.targetAgentIDs,
@@ -515,8 +539,8 @@ func (e *roomChatExecution) routeActiveSlots() (bool, error) {
 			true,
 		)
 	}
-	if err != nil {
-		return true, err
+	if routeErr != nil {
+		return true, routeErr
 	}
 	if len(handledAgentIDs) == 0 {
 		return false, nil
@@ -528,6 +552,30 @@ func (e *roomChatExecution) routeActiveSlots() (bool, error) {
 	e.broadcastAck(nil, false)
 	e.service.broadcastSessionStatus(e.ctx, e.sessionKey)
 	return true, nil
+}
+
+func (e *roomChatExecution) queuePausedTargets() (map[string]struct{}, error) {
+	queuedAgentIDs, err := e.service.enqueueForPausedAgentTargets(
+		e.ctx,
+		e.contextValue,
+		e.targetAgentIDs,
+		strings.TrimSpace(e.request.Content),
+		e.attachments,
+		e.request.RoundID,
+		e.request.UserMessageID,
+		authctx.OwnerUserID(e.ctx),
+	)
+	if err != nil || len(queuedAgentIDs) == 0 {
+		return queuedAgentIDs, err
+	}
+	if err = e.service.broadcastRoomInputQueueSnapshot(
+		e.ctx,
+		e.sessionKey,
+		e.contextValue,
+	); err != nil {
+		return nil, err
+	}
+	return queuedAgentIDs, nil
 }
 
 func (e *roomChatExecution) queueActiveSlots() (map[string]struct{}, error) {
@@ -1117,6 +1165,72 @@ func (s *Service) enqueueForActiveAgentSlots(
 			"msg_id", slot.MsgID,
 			"content_chars", utf8.RuneCountInString(strings.TrimSpace(content)),
 			"content_preview", logx.PreviewText(content, 240),
+		)
+	}
+	return queuedAgentIDs, nil
+}
+
+func (s *Service) enqueueForPausedAgentTargets(
+	ctx context.Context,
+	contextValue *protocol.ConversationContextAggregate,
+	targetAgentIDs []string,
+	content string,
+	attachments []protocol.ChatAttachment,
+	roundID string,
+	userMessageID string,
+	ownerUserID string,
+) (map[string]struct{}, error) {
+	queuedAgentIDs := make(map[string]struct{})
+	if contextValue == nil {
+		return queuedAgentIDs, nil
+	}
+	_, pausedAgentIDs := partitionRoomParticipationTargets(
+		contextValue.Members,
+		targetAgentIDs,
+	)
+	if len(pausedAgentIDs) == 0 {
+		return queuedAgentIDs, nil
+	}
+	locationsByAgentID, err := s.roomInputQueueLocationsByAgent(ctx, contextValue)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]workspacestore.InputQueueEnqueue, 0, len(pausedAgentIDs))
+	for _, agentID := range pausedAgentIDs {
+		location, ok := locationsByAgentID[agentID]
+		if !ok {
+			continue
+		}
+		entries = append(entries, workspacestore.InputQueueEnqueue{
+			Location: location.Location,
+			Item: protocol.InputQueueItem{
+				ID:              strings.TrimSpace(roundID),
+				Scope:           protocol.InputQueueScopeRoom,
+				SessionKey:      location.Location.SessionKey,
+				RoomID:          contextValue.Room.ID,
+				ConversationID:  contextValue.Conversation.ID,
+				AgentID:         agentID,
+				TargetAgentIDs:  []string{agentID},
+				SourceMessageID: strings.TrimSpace(userMessageID),
+				Source:          protocol.InputQueueSourceUser,
+				Content:         strings.TrimSpace(content),
+				Attachments:     protocol.NormalizeChatAttachments(attachments, agentID),
+				DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+				OwnerUserID:     strings.TrimSpace(ownerUserID),
+				RootRoundID:     strings.TrimSpace(roundID),
+			},
+		})
+	}
+	if err = s.inputQueue.EnqueueBatch(entries); err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		queuedAgentIDs[entry.Item.AgentID] = struct{}{}
+		s.loggerFor(ctx).Info(
+			"Room 成员暂停参与，用户输入保留在目标队列",
+			"conversation_id", contextValue.Conversation.ID,
+			"agent_id", entry.Item.AgentID,
+			"round_id", roundID,
 		)
 	}
 	return queuedAgentIDs, nil

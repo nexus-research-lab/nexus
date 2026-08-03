@@ -188,6 +188,7 @@ export interface RoomEventPayload {
   room_id?: string;
   conversation_id?: string;
   agent_id?: string;
+  paused?: boolean;
   agent_name?: string;
   message_id?: string;
   event_kind?: "created" | "wake_scheduled" | "wake_started" | "wake_queued";

@@ -39,6 +39,9 @@ export function RoomMemberManagerDialog({
       initialHostAgentId={initialHostAgentId ?? null}
       initialHostAutoReplyEnabled={initialHostAutoReplyEnabled}
       initialName={initialName}
+      initialPausedAgentIds={roomMembers
+        .filter((member) => member.room_participation_paused)
+        .map((member) => member.agent_id)}
       initialPrivateMessagesEnabled={initialPrivateMessagesEnabled}
       initialRoomSkillNames={initialRoomSkillNames}
       initialSelectedAgentIds={roomMembers.map((member) => member.agent_id)}

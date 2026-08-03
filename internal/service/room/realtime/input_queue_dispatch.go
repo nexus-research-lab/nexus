@@ -40,7 +40,12 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 		s.loggerFor(ctx).Error("读取 Room 待发送队列失败", "session_key", sessionKey, "err", err)
 		return
 	}
-	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, conversationID, entries)
+	entry, ok := s.findDispatchableInputQueueEntry(
+		sessionKey,
+		conversationID,
+		contextValue.Members,
+		entries,
+	)
 	if len(entries) == 0 || !ok {
 		return
 	}
@@ -377,13 +382,25 @@ func inputQueueWakeTriggerType(item protocol.InputQueueItem) string {
 	return "public_mention"
 }
 
-func (s *Service) canDispatchInputQueueItem(sessionKey string, conversationID string, item protocol.InputQueueItem) bool {
+func (s *Service) canDispatchInputQueueItem(
+	sessionKey string,
+	conversationID string,
+	members []protocol.MemberRecord,
+	item protocol.InputQueueItem,
+) bool {
 	if protocol.ShouldGuideRunningRound(item.DeliveryPolicy) {
 		return false
 	}
 	targetAgentIDs := inputQueueTargetAgentIDs(item)
 	if len(targetAgentIDs) > 0 {
-		return len(s.findActiveDeliverySlotsByAgent(sessionKey, conversationID, targetAgentIDs)) == 0
+		participatingAgentIDs, pausedAgentIDs := partitionRoomParticipationTargets(
+			members,
+			targetAgentIDs,
+		)
+		if len(pausedAgentIDs) > 0 || len(participatingAgentIDs) == 0 {
+			return false
+		}
+		return len(s.findActiveDeliverySlotsByAgent(sessionKey, conversationID, participatingAgentIDs)) == 0
 	}
 	return len(s.runtime.GetRunningRoundIDs(sessionKey)) == 0
 }
@@ -391,13 +408,19 @@ func (s *Service) canDispatchInputQueueItem(sessionKey string, conversationID st
 func (s *Service) findDispatchableInputQueueEntry(
 	sessionKey string,
 	conversationID string,
+	members []protocol.MemberRecord,
 	entries []roomInputQueueEntry,
 ) (roomInputQueueEntry, bool) {
 	for _, entry := range entries {
 		if protocol.ShouldGuideRunningRound(entry.Item.DeliveryPolicy) {
 			continue
 		}
-		if s.canDispatchInputQueueItem(sessionKey, conversationID, entry.Item) {
+		if s.canDispatchInputQueueItem(
+			sessionKey,
+			conversationID,
+			members,
+			entry.Item,
+		) {
 			return entry, true
 		}
 	}
@@ -413,7 +436,12 @@ func (s *Service) canDispatchMoreInputQueueItems(ctx context.Context, sessionKey
 	if err != nil || len(entries) == 0 {
 		return false
 	}
-	_, ok := s.findDispatchableInputQueueEntry(sessionKey, conversationID, entries)
+	_, ok := s.findDispatchableInputQueueEntry(
+		sessionKey,
+		conversationID,
+		contextValue.Members,
+		entries,
+	)
 	return ok
 }
 

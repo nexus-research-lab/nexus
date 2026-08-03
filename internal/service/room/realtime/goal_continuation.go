@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
@@ -64,7 +65,12 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 	if len(entries) == 0 {
 		return s.shouldDeferGoalContinuationForTargetStateLocked(ctx, sessionKey, contextValue)
 	}
-	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, conversationID, entries)
+	entry, ok := s.findDispatchableInputQueueEntry(
+		sessionKey,
+		conversationID,
+		contextValue.Members,
+		entries,
+	)
 	if !ok {
 		return true
 	}
@@ -104,6 +110,16 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 	if activeBlocker != "" {
 		return true
 	}
+	currentGoal := s.currentRoomGoalForSession(ctx, sessionKey)
+	if targetAgentID := goalContinuationMemberTargetAgentID(
+		contextValue,
+		currentGoal,
+	); targetAgentID != "" && roomdomain.IsMemberParticipationPaused(
+		contextValue.Members,
+		targetAgentID,
+	) {
+		return true
+	}
 	if s.agents == nil {
 		return false
 	}
@@ -112,8 +128,14 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 		s.loggerFor(ctx).Warn("读取 Room Goal 续跑 Agent plan mode 状态失败", "conversation_id", contextValue.Conversation.ID, "err", err)
 		return false
 	}
-	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, s.currentRoomGoalForSession(ctx, sessionKey))
+	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, currentGoal)
 	if targetAgentID == "" {
+		return true
+	}
+	if roomdomain.IsMemberParticipationPaused(
+		contextValue.Members,
+		targetAgentID,
+	) {
 		return true
 	}
 	if len(s.findActiveDeliverySlotsByAgent(
@@ -167,6 +189,43 @@ func (s *Service) GoalContinuationConversationMissing(ctx context.Context, conve
 		return false, err
 	}
 	return contextValue == nil, nil
+}
+
+// goalContinuationMemberTargetAgentID 只用 Room 持久成员身份定位续跑责任人，
+// 让 participation gate 不依赖易失的 Agent 目录加载结果。
+func goalContinuationMemberTargetAgentID(
+	contextValue *protocol.ConversationContextAggregate,
+	goal *protocol.Goal,
+) string {
+	if contextValue == nil {
+		return ""
+	}
+	memberAgentIDs := make(map[string]struct{}, len(contextValue.Members))
+	for _, member := range contextValue.Members {
+		if member.MemberType != protocol.MemberTypeAgent {
+			continue
+		}
+		agentID := strings.TrimSpace(member.MemberAgentID)
+		if agentID != "" {
+			memberAgentIDs[agentID] = struct{}{}
+		}
+	}
+	if goal != nil {
+		leadAgentID := goalsvc.RoomLeadAgentID(*goal)
+		if _, ok := memberAgentIDs[leadAgentID]; ok {
+			return leadAgentID
+		}
+	}
+	hostAgentID := strings.TrimSpace(contextValue.Room.HostAgentID)
+	if _, ok := memberAgentIDs[hostAgentID]; ok {
+		return hostAgentID
+	}
+	if len(memberAgentIDs) == 1 {
+		for agentID := range memberAgentIDs {
+			return agentID
+		}
+	}
+	return ""
 }
 
 func goalContinuationTargetAgentID(

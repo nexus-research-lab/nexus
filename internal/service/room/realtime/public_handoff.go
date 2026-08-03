@@ -579,7 +579,17 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		WorkBinding:   cloneExecutionWorkBinding(handoff.WorkBinding),
 		ReviewBinding: cloneExecutionReviewBinding(handoff.ReviewBinding),
 	}
-	return s.startPublicMentionRound(ctx, parentRound, []publicMentionWake{wake})
+	lease := s.lockRoomDispatch(parentRound.SessionKey, parentRound.ConversationID)
+	defer lease.Unlock()
+	// internalConversationContext above already loaded the persistent Room state
+	// under the same reconciliation turn. Avoid a duplicate system lookup while
+	// still entering the common participation-aware wake path.
+	return s.startPublicMentionRoundLocked(
+		ctx,
+		parentRound,
+		[]publicMentionWake{wake},
+		false,
+	)
 }
 
 func (s *Service) publicHandoffQueueItemPresent(

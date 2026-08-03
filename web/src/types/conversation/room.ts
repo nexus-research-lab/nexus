@@ -6,6 +6,7 @@ export interface RoomMember {
   member_type: string;
   member_user_id?: string | null;
   member_agent_id?: string | null;
+  participation_paused: boolean;
   joined_at?: string | null;
 }
 

@@ -47,6 +47,7 @@ const (
 	EventTypeScheduledTaskChanged        EventType = "scheduled_task_changed"
 	EventTypeRoomMemberAdded             EventType = "room_member_added"
 	EventTypeRoomMemberRemoved           EventType = "room_member_removed"
+	EventTypeRoomMemberParticipation     EventType = "room_member_participation_changed"
 	EventTypeRoomDeleted                 EventType = "room_deleted"
 	EventTypeRoomDirectedMessage         EventType = "room_directed_message"
 	EventTypeRoomDirectedMessageConsumed EventType = "room_directed_message_consumed"

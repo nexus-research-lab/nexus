@@ -28,6 +28,7 @@ export interface RoomDialogContentProps {
   initialHostAgentId: string | null;
   initialHostAutoReplyEnabled: boolean;
   initialName: string;
+  initialPausedAgentIds: string[];
   initialPrivateMessagesEnabled: boolean;
   initialRoomSkillNames: string[];
   initialSelectedAgentIds: string[];
@@ -62,6 +63,7 @@ export function resolveRoomDialogContentProps(
       false,
     ),
     initialName: valueOrDefault(props.initialName, ""),
+    initialPausedAgentIds: valueOrDefault(props.initialPausedAgentIds, []),
     initialPrivateMessagesEnabled: valueOrDefault(
       props.initialPrivateMessagesEnabled,
       false,
@@ -86,6 +88,7 @@ export function buildRoomDialogInstanceKey(
     hostAgentId: props.initialHostAgentId?.trim() ?? "",
     hostAutoReplyEnabled: props.initialHostAutoReplyEnabled,
     name: props.initialName,
+    pausedAgentIds: props.initialPausedAgentIds,
     privateMessagesEnabled: props.initialPrivateMessagesEnabled,
     selectedAgentIds: props.initialSelectedAgentIds,
     selectedSkillNames: props.initialRoomSkillNames,
