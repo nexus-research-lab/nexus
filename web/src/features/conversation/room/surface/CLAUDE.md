@@ -14,5 +14,6 @@
 - `room-subagent-task-surface.tsx` 复用成员切换器，把当前 Session 的全部 Room 子智能体按实际调用者 `host_agent_id` 投影到共享只读任务表面；轮次不得成为隐藏条件。
 - Room Agent 简介按身份、技能、记忆、工具、联络组织；配置复用 Agent Options 的 Edit 来源工厂，记忆复用 `AgentMemoryView`，不在 Surface 复制可编辑字段表或文件式记忆状态。
 - 桌面辅助面板切换时内容起点必须稳定：简介标签栏、工作区文件栏、子智能体调用者与 Thread 检查器共用 Workspace Surface 的紧凑头部几何与图标基线。
+- 桌面辅助面板的 Agent 导航、文件上传和全部缩放拖拽入口必须使用当前界面语言生成可访问名称，不得在业务 Surface 固定中文。
 - 桌面分栏、右侧面板与 Thread 编排统一位于 `layout/`。
 - 会话历史排序、能力投影、标题编辑和条目视图统一位于 `history/`。

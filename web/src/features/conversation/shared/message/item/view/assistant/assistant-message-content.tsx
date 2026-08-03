@@ -9,7 +9,7 @@ import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { MessageActivityState } from "../../activity/message-activity-state";
 import { shouldShowAssistantTimeline } from "../../message-item-projection";
-import { MessageActivityStatus } from "../message-activity-status";
+import { LocalizedMessageActivityStatus } from "../message-activity-status";
 import { ContentRenderer } from "../content/content-renderer";
 import type {
   AssistantActivityState,
@@ -41,6 +41,7 @@ export function AssistantMessageContent({
   process,
   showMaxTokensWarning,
 }: AssistantMessageContentProps) {
+  const { t } = useI18n();
   return (
     <>
       <StandaloneActivity activity={activity} />
@@ -49,6 +50,7 @@ export function AssistantMessageContent({
         activity={activity}
         direct={direct}
         environment={environment}
+        generatedFilesLabel={t("message.generated_files")}
         permissions={permissions}
         responseResumed={final.isStreaming}
         responseStreaming={final.isStreaming}
@@ -56,6 +58,7 @@ export function AssistantMessageContent({
       <AssistantProcessCallchain
         activity={activity}
         environment={environment}
+        generatedFilesLabel={t("message.generated_files")}
         permissions={permissions}
         process={process}
       />
@@ -92,7 +95,7 @@ function RoomResultTrailingActivity({
   ) {
     return null;
   }
-  return <MessageActivityStatus className="pt-1" state={activity.state} />;
+  return <LocalizedMessageActivityStatus className="pt-1" state={activity.state} />;
 }
 
 function StandaloneActivity({
@@ -103,13 +106,14 @@ function StandaloneActivity({
   if (!activity.standalone || !activity.state) {
     return null;
   }
-  return <MessageActivityStatus className="py-1" state={activity.state} />;
+  return <LocalizedMessageActivityStatus className="py-1" state={activity.state} />;
 }
 
 function AssistantDirectContent({
   activity,
   direct,
   environment,
+  generatedFilesLabel,
   permissions,
   responseResumed,
   responseStreaming,
@@ -117,6 +121,7 @@ function AssistantDirectContent({
   activity: AssistantActivityState;
   direct: AssistantDirectState;
   environment: AssistantContentEnvironment;
+  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   responseResumed: boolean;
   responseStreaming: boolean;
@@ -129,6 +134,7 @@ function AssistantDirectContent({
       <AssistantDmToolRuns
         activity={activity}
         environment={environment}
+        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         projection={direct.projection}
         responseResumed={responseResumed}
@@ -193,11 +199,11 @@ function AssistantFinalContent({
 const EMPTY_STREAM_STATUS = {
   cancelled: {
     className: "text-xs italic text-(--text-soft)",
-    label: "已停止",
+    labelKey: "message.stopped",
   },
   error: {
     className: "text-xs italic text-rose-500",
-    label: "执行失败",
+    labelKey: "message.failed",
   },
 } as const;
 
@@ -206,11 +212,12 @@ function EmptyStreamStatus({
 }: {
   status: AssistantActivityState["emptyStreamStatus"];
 }) {
+  const { t } = useI18n();
   if (!status) {
     return null;
   }
   const presentation = EMPTY_STREAM_STATUS[status];
-  return <span className={presentation.className}>{presentation.label}</span>;
+  return <span className={presentation.className}>{t(presentation.labelKey)}</span>;
 }
 
 function MaxTokensWarning({ visible }: { visible: boolean }) {

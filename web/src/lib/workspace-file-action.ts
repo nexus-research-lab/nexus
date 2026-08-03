@@ -1,4 +1,5 @@
 import { isDesktopRuntime } from "@/config/desktop-runtime";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 export interface WorkspaceFileExternalActionCopy {
   ariaLabel: string;
@@ -8,21 +9,29 @@ export interface WorkspaceFileExternalActionCopy {
 }
 
 export const getWorkspaceFileExternalActionCopy = (
+  translate: I18nContextValue["t"],
   fileName?: string,
 ): WorkspaceFileExternalActionCopy => {
-  const normalizedFileName = fileName?.trim() || "文件";
+  const normalizedFileName = fileName?.trim()
+    || translate("workspace_file.default_name");
   if (isDesktopRuntime()) {
+    const title = translate("workspace_file.reveal_named", {
+      name: normalizedFileName,
+    });
     return {
-      ariaLabel: `在文件夹中显示 ${normalizedFileName}`,
-      label: "打开",
+      ariaLabel: title,
+      label: translate("workspace_file.open"),
       mode: "reveal",
-      title: `在文件夹中显示 ${normalizedFileName}`,
+      title,
     };
   }
+  const title = translate("workspace_file.download_named", {
+    name: normalizedFileName,
+  });
   return {
-    ariaLabel: `下载 ${normalizedFileName}`,
-    label: "下载",
+    ariaLabel: title,
+    label: translate("workspace_file.download"),
     mode: "download",
-    title: `下载 ${normalizedFileName}`,
+    title,
   };
 };

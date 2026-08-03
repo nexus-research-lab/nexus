@@ -154,7 +154,7 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   style={{ color: "var(--launcher-input-icon)" }}
                 />
                 <input
-                  aria-label="输入启动器指令"
+                  aria-label={t("launcher.query_input")}
                   ref={queryInput.input.ref}
                   className="flex-1 bg-transparent text-base outline-none shadow-none ring-0 placeholder:text-(--launcher-input-placeholder) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none"
                   style={{ color: "var(--launcher-input-text)" }}
@@ -193,7 +193,11 @@ export const LauncherHeroStage = memo(function LauncherHeroStage({
                   {isQueryLoading ? (
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-(--divider-strong-color) border-t-transparent" />
                   ) : (
-                    <img alt="Send" className="h-11 w-11 object-contain" src="/nexus/launcher-send-mascot.png" />
+                    <img
+                      alt={t("launcher.send")}
+                      className="h-11 w-11 object-contain"
+                      src="/nexus/launcher-send-mascot.png"
+                    />
                   )}
                 </button>
               </div>

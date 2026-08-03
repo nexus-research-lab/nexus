@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Bot, Square } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
 import { formatMessageTime } from "../../../message-time";
@@ -37,7 +38,8 @@ export function AssistantMessageHeader({
   showMetadata,
   timestamp,
 }: AssistantMessageHeaderProps) {
-  const displayName = name || "协作成员";
+  const { t } = useI18n();
+  const displayName = name || t("message.assistant_fallback");
   const layout = HEADER_LAYOUTS[compact ? "compact" : "expanded"];
   return (
     <div
@@ -125,19 +127,20 @@ function AssistantStopAction({
   canStop: boolean;
   onStop: () => void;
 }) {
+  const { t } = useI18n();
   if (!canStop) {
     return null;
   }
   return (
     <MessageActionButton
-      aria-label="停止生成"
+      aria-label={t("composer.stop_generation")}
       className="flex items-center gap-1 px-1.5 py-0.5 text-xs"
       onClick={onStop}
       tone="default"
       type="button"
     >
       <Square className="h-3 w-3 fill-current" />
-      <span>停止</span>
+      <span>{t("composer.stop_generation")}</span>
     </MessageActionButton>
   );
 }
@@ -166,16 +169,17 @@ function AssistantMessageAvatar({
   displayName: string;
   onOpenContact?: () => void;
 }) {
+  const { t } = useI18n();
   const presentation = AVATAR_PRESENTATION[compact ? "compact" : "full"];
   return (
     <MessageAvatar
-      ariaLabel={`打开 ${displayName} 的联络`}
+      ariaLabel={t("room.agent_contact_open", { name: displayName })}
       avatarUrl={avatarUrl}
       className={presentation.className}
       onClick={onOpenContact}
       radius="control"
       size={presentation.size}
-      title={`打开 ${displayName} 的联络`}
+      title={t("room.agent_contact_open", { name: displayName })}
     >
       <AssistantAvatarFallback
         avatarUrl={avatarUrl}

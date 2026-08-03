@@ -5,6 +5,7 @@
  */
 
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import type { Locale } from "@/shared/i18n/messages";
 
 import type { RoomHistoryEntry } from "./room-history-model";
 
@@ -18,10 +19,16 @@ export interface RoomHistoryItemSelectionPresentation {
 }
 
 export interface RoomHistoryItemPresentation {
+  actionLabels: Record<RoomHistoryItemAction, string>;
   actions: RoomHistoryItemAction[];
   actionsPersistent: boolean;
   activityLabel: string;
   externalSessionLabel: string | null;
+  editorLabels: {
+    cancel: string;
+    confirm: string;
+    input: string;
+  };
   mode: RoomHistoryItemMode;
   selection: RoomHistoryItemSelectionPresentation | null;
   state: RoomHistoryItemState;
@@ -29,6 +36,9 @@ export interface RoomHistoryItemPresentation {
 }
 
 interface RoomHistoryItemCopy {
+  actionLabels: Record<RoomHistoryItemAction, string>;
+  editorLabels: RoomHistoryItemPresentation["editorLabels"];
+  locale: Locale;
   untitled: string;
 }
 
@@ -82,9 +92,14 @@ export function buildRoomHistoryItemPresentation(
 ): RoomHistoryItemPresentation {
   const actions = itemActions(entry, isEditing, isSelecting);
   return {
+    actionLabels: copy.actionLabels,
     actions,
     actionsPersistent: entry.isActive && actions.length > 0,
-    activityLabel: formatRelativeTime(entry.conversation.last_activity_at),
+    activityLabel: formatRelativeTime(
+      entry.conversation.last_activity_at,
+      copy.locale,
+    ),
+    editorLabels: copy.editorLabels,
     externalSessionLabel: entry.externalSessionLabel,
     mode: itemMode(isEditing, isSelecting),
     selection: isSelecting

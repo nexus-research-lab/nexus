@@ -2,20 +2,16 @@ export type Weekday = "mo" | "tu" | "we" | "th" | "fr" | "sa" | "su";
 export type Meridiem = "am" | "pm";
 
 export const MERIDIEM_OPTIONS: readonly Meridiem[] = ["am", "pm"];
-export const MERIDIEM_LABELS: Readonly<Record<Meridiem, string>> = {
-  am: "上午",
-  pm: "下午",
-};
 export const HOUR_12_OPTIONS = Array.from({ length: 12 }, (_, index) => `${index + 1}`.padStart(2, "0"));
 export const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => `${index}`.padStart(2, "0"));
 export const SECOND_OPTIONS = Array.from({ length: 60 }, (_, index) => `${index}`.padStart(2, "0"));
 
-export const WEEKDAY_OPTIONS: Array<{ key: Weekday; shortLabel: string; cronValue: number }> = [
-  { key: "mo", shortLabel: "一", cronValue: 1 },
-  { key: "tu", shortLabel: "二", cronValue: 2 },
-  { key: "we", shortLabel: "三", cronValue: 3 },
-  { key: "th", shortLabel: "四", cronValue: 4 },
-  { key: "fr", shortLabel: "五", cronValue: 5 },
-  { key: "sa", shortLabel: "六", cronValue: 6 },
-  { key: "su", shortLabel: "日", cronValue: 0 },
+export const WEEKDAY_OPTIONS: Array<{ key: Weekday; cronValue: number }> = [
+  { key: "mo", cronValue: 1 },
+  { key: "tu", cronValue: 2 },
+  { key: "we", cronValue: 3 },
+  { key: "th", cronValue: 4 },
+  { key: "fr", cronValue: 5 },
+  { key: "sa", cronValue: 6 },
+  { key: "su", cronValue: 0 },
 ];

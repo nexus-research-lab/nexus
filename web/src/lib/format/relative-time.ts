@@ -1,18 +1,23 @@
+import type { Locale } from "@/shared/i18n/messages";
+
 interface RelativeTimeUnit {
-  label: string;
   seconds: number;
+  unit: "day" | "hour" | "minute" | "second";
 }
 
 const RELATIVE_TIME_UNITS: RelativeTimeUnit[] = [
-  { label: "天", seconds: 86_400 },
-  { label: "小时", seconds: 3_600 },
-  { label: "分钟", seconds: 60 },
-  { label: "秒", seconds: 1 },
+  { seconds: 86_400, unit: "day" },
+  { seconds: 3_600, unit: "hour" },
+  { seconds: 60, unit: "minute" },
+  { seconds: 1, unit: "second" },
 ];
 
-export function formatRelativeTime(timestamp: number): string {
+export function formatRelativeTime(
+  timestamp: number,
+  locale: Locale = "zh",
+): string {
   if (!Number.isFinite(timestamp) || timestamp <= 0) {
-    return "刚刚";
+    return formatJustNow(locale);
   }
 
   const normalizedTimestamp = timestamp < 1_000_000_000_000
@@ -25,6 +30,16 @@ export function formatRelativeTime(timestamp: number): string {
     (candidate) => elapsedSeconds >= candidate.seconds,
   );
   return unit
-    ? `${Math.floor(elapsedSeconds / unit.seconds)}${unit.label}前`
-    : "刚刚";
+    ? new Intl.RelativeTimeFormat(resolveIntlLocale(locale), {
+      numeric: "always",
+    }).format(-Math.floor(elapsedSeconds / unit.seconds), unit.unit)
+    : formatJustNow(locale);
+}
+
+function resolveIntlLocale(locale: Locale): string {
+  return locale === "zh" ? "zh-CN" : "en-US";
+}
+
+function formatJustNow(locale: Locale): string {
+  return locale === "zh" ? "刚刚" : "Just now";
 }

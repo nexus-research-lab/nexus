@@ -3,6 +3,7 @@
 import { lazy, Suspense } from "react";
 import { LoaderCircle } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { type MermaidViewProps } from "./mermaid-view";
 
@@ -16,6 +17,8 @@ function MermaidViewLoadingFallback({
   compact = false,
   constrainHeight: constrainHeight = true,
 }: Pick<MermaidViewProps, "className" | "compact" | "constrainHeight">) {
+  const { t } = useI18n();
+
   return (
     <div
       className={cn(
@@ -31,7 +34,7 @@ function MermaidViewLoadingFallback({
         )}
       >
         <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-        正在加载 Mermaid 预览
+        {t("markdown.mermaid.loading")}
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import type {
   AgentPrivateThread,
 } from "@/types/agent/private-domain";
 
+import type { PrivateDomainLocalization } from "../agent-private-domain-thread-model";
 import { PrivateEventBubble } from "./agent-private-domain-event";
 import {
   buildPrivateTimelineBody,
@@ -28,6 +29,7 @@ interface PrivateTimelineProps {
   error: string | null;
   events: AgentPrivateEvent[];
   isLoading: boolean;
+  localization: PrivateDomainLocalization;
   thread: AgentPrivateThread | null;
 }
 
@@ -136,16 +138,18 @@ export function PrivateEventTimeline({
   error,
   events,
   isLoading,
+  localization,
   thread,
 }: PrivateTimelineProps) {
   const density: PrivateTimelineDensity = compact ? "compact" : "regular";
   const style = TIMELINE_DENSITY_STYLES[density];
-  const header = buildPrivateTimelineHeader(thread, agentId);
+  const header = buildPrivateTimelineHeader(thread, agentId, localization);
   const body = buildPrivateTimelineBody({
     agentId,
     error,
     events,
     isLoading,
+    localization,
     thread,
   });
 

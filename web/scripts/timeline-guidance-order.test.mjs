@@ -20,11 +20,39 @@ test.after(async () => {
   await server.close();
 });
 
+async function loadI18nValue(locale = "zh") {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  return {
+    locale,
+    setLocale: () => {},
+    t: (key, params = {}) => Object.entries(params).reduce(
+      (message, [name, value]) => message.replaceAll(
+        `{${name}}`,
+        String(value),
+      ),
+      MESSAGES[locale][key] ?? key,
+    ),
+  };
+}
+
+async function renderWithI18n(element, locale = "zh") {
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  return renderToStaticMarkup(React.createElement(
+    I18N_CONTEXT.Provider,
+    { value: await loadI18nValue(locale) },
+    element,
+  ));
+}
+
 test("conversation viewport suppresses the browser scroll-region outline", async () => {
   const { ConversationPanelViewport } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
   );
-  const html = renderToStaticMarkup(React.createElement(
+  const html = await renderWithI18n(React.createElement(
     ConversationPanelViewport,
     {
       isMobileLayout: false,
@@ -76,7 +104,7 @@ test("scroll-to-latest is a local floating hit target without a layout band", as
   const { ScrollToLatestButton } = await server.ssrLoadModule(
     "/src/features/conversation/shared/scroll-to-latest-button.tsx",
   );
-  const visibleHtml = renderToStaticMarkup(React.createElement(
+  const visibleHtml = await renderWithI18n(React.createElement(
     ScrollToLatestButton,
     {
       isLoading: true,
@@ -84,7 +112,7 @@ test("scroll-to-latest is a local floating hit target without a layout band", as
       visible: true,
     },
   ));
-  const hiddenHtml = renderToStaticMarkup(React.createElement(
+  const hiddenHtml = await renderWithI18n(React.createElement(
     ScrollToLatestButton,
     {
       isLoading: false,
@@ -1868,6 +1896,101 @@ test("resolved history rounds remain only when visible content was projected", a
   );
 });
 
+test("partial DM round indexes preserve loaded transcript chronology after remount", async () => {
+  const {
+    buildIndexedTimelineRoundIds,
+    groupMessagesByRound,
+    mergeLoadedRoundIndexItems,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/timeline/timeline-model.ts",
+  );
+  const { buildSessionNavigationItems } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/session-navigator/session-navigator-model.ts",
+  );
+  const loadedRoundIds = [
+    "round-legacy-1",
+    "round-legacy-2",
+    "round-live-1",
+    "round-live-2",
+  ];
+  const partialIndex = [
+    roundIndexItem("round-live-1", { timestamp: 3 }),
+    roundIndexItem("round-live-2", { timestamp: 4 }),
+  ];
+
+  assert.deepEqual(
+    buildIndexedTimelineRoundIds(partialIndex, loadedRoundIds),
+    loadedRoundIds,
+    "legacy transcript rounds must stay before their shared durable index anchors",
+  );
+
+  const mergedIndex = mergeLoadedRoundIndexItems(partialIndex, loadedRoundIds);
+  assert.deepEqual(
+    mergedIndex.map((item) => item.roundId),
+    loadedRoundIds,
+    "feed and navigator must consume the same merged order",
+  );
+
+  const messages = loadedRoundIds.map((roundId, index) => userMessage({
+    content: `第 ${index + 1} 轮`,
+    messageId: `message-${index + 1}`,
+    roundId,
+    timestamp: index + 1,
+  }));
+  const navigationItems = buildSessionNavigationItems(
+    {
+      feed_round_ids: loadedRoundIds,
+      live_round_ids: [],
+      loaded_round_ids: loadedRoundIds,
+      message_groups: groupMessagesByRound(messages),
+      pending_permission_groups: new Map(),
+      pending_slot_groups: new Map(),
+      room_agent_execution_state_groups: new Map(),
+      round_index_items: mergedIndex,
+    },
+    await loadI18nValue(),
+  );
+  assert.deepEqual(
+    navigationItems.map((item) => item.roundId),
+    loadedRoundIds,
+    "responsive remounts must not move freshly generated rounds ahead of old history",
+  );
+});
+
+test("conversation navigation fallbacks follow the interface language", async () => {
+  const { buildSessionNavigationItems } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/session-navigator/session-navigator-model.ts",
+  );
+  const { formatSpeakerSummary } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/session-navigator/session-navigator-ruler-model.ts",
+  );
+  const localization = await loadI18nValue("en");
+  const navigationItems = buildSessionNavigationItems(
+    {
+      feed_round_ids: ["round-unloaded"],
+      live_round_ids: [],
+      loaded_round_ids: [],
+      message_groups: new Map(),
+      pending_permission_groups: new Map(),
+      pending_slot_groups: new Map(),
+      room_agent_execution_state_groups: new Map(),
+      round_index_items: [roundIndexItem("round-unloaded", {
+        hasUserMessage: true,
+        status: "error",
+      })],
+    },
+    localization,
+  );
+
+  assert.equal(navigationItems[0].title, "Round 1");
+  assert.equal(navigationItems[0].summary, "Scroll to load details");
+  assert.equal(navigationItems[0].meta, "Failed");
+  assert.equal(
+    formatSpeakerSummary(navigationItems[0], localization.t),
+    "User",
+  );
+});
+
 test("deferred input ACK keeps queued user text out of the timeline", async () => {
   const { replaceOptimisticUserMessage } = await server.ssrLoadModule(
     "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
@@ -2441,7 +2564,11 @@ test("recoverable malformed tool results stay out of process error counts", asyn
     ],
   });
 
-  assert.equal(summary, "查看过程");
+  assert.deepEqual(summary, {
+    kind: "details",
+    latestDetail: null,
+    metrics: [],
+  });
 });
 
 test("recoverable malformed tool use does not keep the activity indicator busy", async () => {
@@ -2521,7 +2648,7 @@ test("DM live keeps one stable open segment across consecutive tool patches", as
   );
   assert.equal(completed.id, "tool-run:tool-run-a");
   assert.equal(completed.phase, "complete");
-  assert.equal(completed.summary, "2 次工具调用 · 已完成");
+  assert.equal(completed.toolUseIds.length, 2);
 
   const [unresolvedDuringResponse] = project(
     [toolA],
@@ -2622,10 +2749,8 @@ test("DM tool segments split on narrative and preserve interactions and errors",
     },
     responseResumed: false,
   });
-  assert.equal(
-    activeFailedSegment.summary,
-    "1 次工具调用 · 正在执行 · 1 个异常",
-  );
+  assert.equal(activeFailedSegment.phase, "active");
+  assert.equal(activeFailedSegment.errorCount, 1);
   const segments = projectDmToolRunSegments({
     interactiveToolUseIds: new Set([permissionTool.id]),
     live: true,
@@ -2664,7 +2789,6 @@ test("DM tool segments split on narrative and preserve interactions and errors",
   );
   const failedSegment = segments[0];
   assert.equal(failedSegment.errorCount, 1);
-  assert.equal(failedSegment.summary, "1 次工具调用 · 已完成 · 1 个异常");
   assert.deepEqual(
     failedSegment.projection.content.map(({ type }) => type),
     [
@@ -2753,13 +2877,18 @@ test("DM tool run view expands only the active segment and leaves Room direct co
     responseResumed,
     projection = resolvedProjection,
   ) => renderToStaticMarkup(
-    React.createElement(AssistantDmToolRuns, {
-      activity,
-      environment,
-      permissions,
-      projection,
-      responseResumed,
-    }),
+    React.createElement(
+      I18nProvider,
+      null,
+      React.createElement(AssistantDmToolRuns, {
+        activity,
+        environment,
+        generatedFilesLabel: "生成文件",
+        permissions,
+        projection,
+        responseResumed,
+      }),
+    ),
   );
 
   const activeHtml = renderDm(false);
@@ -2861,7 +2990,7 @@ test("thinking and replying indicators render a real stepped frame track", async
     ["replying", "正在回复"],
   ]) {
     const html = renderToStaticMarkup(
-      React.createElement(MessageActivityStatus, { state }),
+      React.createElement(MessageActivityStatus, { label, state }),
     );
     assert.match(html, new RegExp(label));
     assert.match(html, /message-activity-spinner-track/);

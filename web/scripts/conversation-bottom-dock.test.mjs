@@ -21,29 +21,32 @@ test.after(async () => {
   await server.close();
 });
 
+async function loadI18nValue(locale = "zh") {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  return {
+    locale,
+    setLocale: () => {},
+    t: (key, params = {}) => Object.entries(params).reduce(
+      (message, [name, value]) => message.replaceAll(
+        `{${name}}`,
+        String(value),
+      ),
+      MESSAGES[locale][key] ?? key,
+    ),
+  };
+}
+
 async function renderWithI18n(element, locale = "zh") {
   const { I18N_CONTEXT } = await server.ssrLoadModule(
     "/src/shared/i18n/i18n-context.ts",
   );
-  const { MESSAGES } = await server.ssrLoadModule(
-    "/src/shared/i18n/messages.ts",
-  );
+  const value = await loadI18nValue(locale);
   return renderToStaticMarkup(
     React.createElement(
       I18N_CONTEXT.Provider,
-      {
-        value: {
-          locale,
-          setLocale: () => {},
-          t: (key, params = {}) => Object.entries(params).reduce(
-            (message, [name, value]) => message.replaceAll(
-              `{${name}}`,
-              String(value),
-            ),
-            MESSAGES[locale][key] ?? key,
-          ),
-        },
-      },
+      { value },
       element,
     ),
   );
@@ -242,14 +245,14 @@ test("回到底部入口隐藏时零标记，显示时只有局部热区且没�
   const { ScrollToLatestButton } = await server.ssrLoadModule(
     "/src/features/conversation/shared/scroll-to-latest-button.tsx",
   );
-  const hidden = renderToStaticMarkup(
+  const hidden = await renderWithI18n(
     React.createElement(ScrollToLatestButton, {
       isLoading: false,
       onClick: () => {},
       visible: false,
     }),
   );
-  const visible = renderToStaticMarkup(
+  const visible = await renderWithI18n(
     React.createElement(ScrollToLatestButton, {
       isLoading: false,
       onClick: () => {},
@@ -280,14 +283,14 @@ test("消息尾部只为真实可见的浮动 Dock 保留避让", async () => {
     onWheel: () => {},
     scrollRef: { current: null },
   };
-  const hidden = renderToStaticMarkup(
+  const hidden = await renderWithI18n(
     React.createElement(
       ConversationPanelViewport,
       { floatingDockOccupied: false, isMobileLayout: false, viewport },
       React.createElement("div", null, "message"),
     ),
   );
-  const occupied = renderToStaticMarkup(
+  const occupied = await renderWithI18n(
     React.createElement(
       ConversationPanelViewport,
       { floatingDockOccupied: true, isMobileLayout: false, viewport },
@@ -298,6 +301,28 @@ test("消息尾部只为真实可见的浮动 Dock 保留避让", async () => {
   assert.doesNotMatch(hidden, /data-conversation-dock-clearance/);
   assert.match(occupied, /data-conversation-dock-clearance/);
   assert.match(occupied, /\bh-14\b/);
+});
+
+test("加载更早消息的状态跟随界面语言", async () => {
+  const { ConversationPanelViewport } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/conversation-panel-layout.tsx",
+  );
+  const viewport = {
+    error: null,
+    isHistoryLoading: true,
+    scrollRef: { current: null },
+  };
+  const element = React.createElement(
+    ConversationPanelViewport,
+    { floatingDockOccupied: false, isMobileLayout: false, viewport },
+    React.createElement("div", null, "message"),
+  );
+  const chinese = await renderWithI18n(element);
+  const english = await renderWithI18n(element, "en");
+
+  assert.match(chinese, /正在加载更早消息\.\.\./);
+  assert.match(english, /Loading earlier messages\.\.\./);
+  assert.doesNotMatch(english, /正在加载/);
 });
 
 test("标题栏与 Composer 自身边缘羽化且不改变滚动几何", async () => {
@@ -1077,7 +1102,7 @@ test("Room and DM stack Goal, Task, and scroll controls upward from the Composer
   const { ConversationPanelBottomArea } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
   );
-  const stackedHtml = renderToStaticMarkup(
+  const stackedHtml = await renderWithI18n(
     React.createElement(
       ConversationPanelBottomArea,
       {
@@ -1183,7 +1208,7 @@ test("Task and scroll controls share a centered dock while retaining local point
   const { ConversationPanelFloatingControls } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
   );
-  const html = renderToStaticMarkup(
+  const html = await renderWithI18n(
     React.createElement(ConversationPanelFloatingControls, {
       activity: React.createElement(
         "button",
@@ -1280,8 +1305,12 @@ test("DM and Room pending interactions replace the Composer input in one stable 
   pending = upsertPendingPermission(pending, latest);
   assert.deepEqual(pending, [latest, second]);
   assert.deepEqual(removePendingPermission(pending, first.request_id), [second]);
+  const localization = await loadI18nValue();
   assert.deepEqual(
-    getReadablePermissionSuggestions(latest.suggestions).map(({ label }) => label),
+    getReadablePermissionSuggestions(
+      latest.suggestions,
+      localization,
+    ).map(({ label }) => label),
     ["写入本地设置"],
   );
   assert.equal(
@@ -1437,7 +1466,13 @@ test("Composer growth is capped and collapsed file tools show only the leaf name
     type: "tool_use",
   };
   const model = buildToolBlockViewModel({
+    localization: await loadI18nValue(),
     status: "running",
+    toolUse,
+  });
+  const englishModel = buildToolBlockViewModel({
+    localization: await loadI18nValue("en"),
+    status: "success",
     toolUse,
   });
 
@@ -1450,12 +1485,22 @@ test("Composer growth is capped and collapsed file tools show only the leaf name
   assert.equal(getToolInputSummary(toolInput), absolutePath);
   assert.equal(model.collapsedDetailText, "permission_test.txt");
   assert.equal(model.expandedDetailText, absolutePath);
-  assert.equal(
+  assert.equal(englishModel.statusText, "Completed");
+  assert.equal(englishModel.toolTitle, "Write content");
+  assert.deepEqual(
     buildProcessSummary({
       pendingPermissionCount: 0,
       processContent: [toolUse],
     }),
-    "1 次动作 · 最近：写入内容：permission_test.txt",
+    {
+      kind: "details",
+      latestDetail: {
+        detail: "permission_test.txt",
+        kind: "tool",
+        toolName: "Write",
+      },
+      metrics: [{ count: 1, kind: "action" }],
+    },
   );
 });
 
@@ -1541,23 +1586,22 @@ test("DM and Room messages never remount interaction options outside the Compose
     "composer",
   );
 
-  const toolHtml = await renderWithI18n(
-    React.createElement(ContentRenderer, {
-      canRespondToPermissions: true,
-      content: [{
-        id: "tool-read-only",
-        input: permission.tool_input,
-        name: permission.tool_name,
-        type: "tool_use",
-      }],
-      isStreaming: false,
-      onPermissionResponse: () => true,
-      pendingInteractionOwner: "composer",
-      pendingPermissionsByToolUseId: new Map([
-        [permission.tool_use_id, permission],
-      ]),
-    }),
-  );
+  const toolElement = React.createElement(ContentRenderer, {
+    canRespondToPermissions: true,
+    content: [{
+      id: "tool-read-only",
+      input: permission.tool_input,
+      name: permission.tool_name,
+      type: "tool_use",
+    }],
+    isStreaming: false,
+    onPermissionResponse: () => true,
+    pendingInteractionOwner: "composer",
+    pendingPermissionsByToolUseId: new Map([
+      [permission.tool_use_id, permission],
+    ]),
+  });
+  const toolHtml = await renderWithI18n(toolElement);
   assert.match(toolHtml, /待确认/);
   assert.match(toolHtml, /echo protected/);
   assert.match(toolHtml, /surface-muted-background/);
@@ -1565,6 +1609,10 @@ test("DM and Room messages never remount interaction options outside the Compose
   assert.doesNotMatch(toolHtml, />允许</);
   assert.doesNotMatch(toolHtml, />拒绝</);
   assert.doesNotMatch(toolHtml, /data-human-interaction-surface/);
+  const englishToolHtml = await renderWithI18n(toolElement, "en");
+  assert.match(englishToolHtml, /Run command/);
+  assert.match(englishToolHtml, /Waiting for approval/);
+  assert.doesNotMatch(englishToolHtml, /执行命令|待确认/);
 
   const questionTool = {
     id: "tool-question-evidence",
@@ -1638,7 +1686,7 @@ test("DM and Room messages never remount interaction options outside the Compose
 
   const activityHtml = renderToStaticMarkup(React.createElement(
     MessageActivityStatus,
-    { state: "waiting_permission" },
+    { label: "等待确认", state: "waiting_permission" },
   ));
   assert.match(activityHtml, /等待确认/);
   assert.match(activityHtml, /--text-muted/);

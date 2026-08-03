@@ -61,7 +61,7 @@ export function SettingsWorkspaceSection() {
               controlSize="sm"
               disabled={controller.busy}
               onChange={(event) => controller.setDraftPath(event.target.value)}
-              placeholder={t("settings.general.workspace_path_placeholder")}
+              placeholder={controller.placeholder}
               value={controller.draftPath}
               variant="surface"
             />

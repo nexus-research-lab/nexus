@@ -181,6 +181,26 @@ test("全部能力目录复用同一正文标题与内容轴", async () => {
   });
 });
 
+test("共享搜索框使用应用本地化的清除控件", async () => {
+  const searchInput = await readSource("src/shared/ui/form/form-control.tsx");
+
+  assert.match(searchInput, /role="searchbox"/);
+  assert.match(searchInput, /type="text"/);
+  assert.match(searchInput, /aria-label=\{t\("common\.clear"\)\}/);
+  assert.match(searchInput, /onChange\(""\)/);
+  assert.doesNotMatch(searchInput, /type=\{type \?\? "search"\}/);
+});
+
+test("Liquid Glass 开关强制转发具体的可访问名称", async () => {
+  const glassSwitch = await readSource(
+    "src/shared/ui/liquid-glass/glass-switch.tsx",
+  );
+
+  assert.match(glassSwitch, /"aria-label": string/);
+  assert.match(glassSwitch, /"aria-label": ariaLabel/);
+  assert.match(glassSwitch, /aria-label=\{ariaLabel\}/);
+});
+
 test("设置分区和联系人目录复用同一 Header 几何", async () => {
   const pages = await Promise.all([
     "src/features/contacts/contacts-directory.tsx",
@@ -195,6 +215,39 @@ test("设置分区和联系人目录复用同一 Header 几何", async () => {
     assert.match(source, /WorkspaceContentHeader/);
     assert.match(source, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   });
+});
+
+test("联系人卡片明确展示默认模型继承状态", async () => {
+  const card = await readSource("src/features/contacts/contacts-agent-card.tsx");
+
+  assert.match(
+    card,
+    /agent\.options\.provider\?\.trim\(\)[\s\S]*?formatProviderLabel\(agent\.options\.provider\)[\s\S]*?agent_options\.identity\.follow_default_provider/,
+  );
+  assert.doesNotMatch(
+    card,
+    /const provider = formatProviderLabel\(agent\.options\.provider\)/,
+  );
+});
+
+test("联系人卡片把权限协议值投影为本地化文案", async () => {
+  const card = await readSource("src/features/contacts/contacts-agent-card.tsx");
+
+  assert.match(card, /AGENT_PERMISSION_MODES\.find/);
+  assert.match(card, /permissionMode=\{t\(permissionMode\.labelKey\)\}/);
+  assert.doesNotMatch(
+    card,
+    /const permissionMode = agent\.options\.permission_mode \|\| "default"/,
+  );
+});
+
+test("联系人卡片元数据标签跟随当前语言", async () => {
+  const card = await readSource("src/features/contacts/contacts-agent-card.tsx");
+
+  ["permission", "provider", "tools", "skills"].forEach((field) => {
+    assert.match(card, new RegExp(`t\\("contacts\\.metadata\\.${field}"\\)`));
+  });
+  assert.doesNotMatch(card, />(?:权限|Provider|工具|Skill):?</);
 });
 
 test("设置和能力二级页不再恢复重复标题或私有版心", async () => {
@@ -362,6 +415,7 @@ test("Agent 工具与联络页使用紧凑中性工作面", async () => {
     privateList,
     privateModel,
     privateTimeline,
+    privateTimelineModel,
     privateEvent,
     zhAgent,
     enAgent,
@@ -373,6 +427,7 @@ test("Agent 工具与联络页使用紧凑中性工作面", async () => {
     "src/features/agents/private-domain/agent-private-domain-thread-list.tsx",
     "src/features/agents/private-domain/agent-private-domain-thread-model.ts",
     "src/features/agents/private-domain/timeline/agent-private-domain-timeline.tsx",
+    "src/features/agents/private-domain/timeline/agent-private-domain-timeline-model.ts",
     "src/features/agents/private-domain/timeline/agent-private-domain-event.tsx",
     "src/shared/i18n/catalog/zh/agent.ts",
     "src/shared/i18n/catalog/en/agent.ts",
@@ -387,24 +442,39 @@ test("Agent 工具与联络页使用紧凑中性工作面", async () => {
   assert.doesNotMatch(tools, /UiChoiceButton|advanced\.runtime_policy|advanced\.security_title|min-h-\[96px\]/);
 
   assert.match(privateView, /nexus-private-domain-layout/);
-  assert.match(privateView, /title="记录"/);
+  assert.match(privateView, /title=\{t\("agent_options\.contact\.records_title"\)\}/);
+  assert.match(privateView, /localization=\{localization\}/);
   assert.doesNotMatch(privateView, /WORKSPACE_CONTENT_(?:GUTTER|MAX_WIDTH)_CLASS_NAME/);
   assert.match(privateStyles, /grid-template-columns: minmax\(240px, 288px\) minmax\(0, 1fr\)/);
   assert.match(privateStyles, /column-gap: 8px/);
   assert.match(privateStyles, /box-shadow: -8px 0 20px -18px/);
   assert.match(privateToolbar, /UiIconButton/);
   assert.match(privateToolbar, /min-h-\[48px\]/);
+  assert.match(privateToolbar, /aria-label=\{refreshLabel\}/);
   assert.doesNotMatch(privateToolbar, /Handshake|border-b/);
   assert.match(privateModel, /SIDEBAR_SELECTION_CLASS_NAME/);
   assert.match(privateModel, /timestampLabel/);
+  assert.match(privateModel, /formatRelativeTime\(thread\.last_timestamp, localization\.locale\)/);
   assert.doesNotMatch(privateModel, /message_count|metadataClassName|var\(--primary\)|inset_2px/);
   assert.doesNotMatch(privateList, /item\.metadata/);
+  assert.match(privateList, /agent_options\.contact\.empty_records/);
   assert.match(privateTimeline, /max-w-\[920px\]/);
   assert.match(privateTimeline, /min-h-\[48px\]/);
   assert.match(privateTimeline, /nexus-private-domain-reader/);
   assert.doesNotMatch(privateEvent, />\s*私信\s*</);
   assert.doesNotMatch(privateEvent, /shadow-\[/);
+  [
+    privateView,
+    privateToolbar,
+    privateList,
+    privateModel,
+    privateTimeline,
+    privateTimelineModel,
+  ].forEach((source) => {
+    assert.doesNotMatch(source, /刷新联络|暂无联络记录|联络消息|选择一条联络记录|私有笔记/);
+  });
   [zhAgent, enAgent].forEach((catalog) => {
+    assert.match(catalog, /agent_options\.contact\.messages_title/);
     assert.doesNotMatch(
       catalog,
       /agent_options\.advanced\.(?:runtime_policy|security_title)/,
@@ -414,4 +484,12 @@ test("Agent 工具与联络页使用紧凑中性工作面", async () => {
       /bypassPermissions|allowed_tools|disallowed_tools|\bhooks\b/,
     );
   });
+});
+
+test("共享弹窗关闭按钮跟随界面语言", async () => {
+  const dialog = await readSource("src/shared/ui/dialog/dialog.tsx");
+
+  assert.match(dialog, /useI18n/);
+  assert.match(dialog, /aria-label=\{ariaLabel \?\? t\("common\.close"\)\}/);
+  assert.doesNotMatch(dialog, /ariaLabel = "关闭"/);
 });

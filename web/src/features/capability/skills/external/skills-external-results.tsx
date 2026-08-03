@@ -44,17 +44,19 @@ export function SkillsExternalResults({
   sources,
   submittedQuery,
 }: SkillsExternalResultsProps) {
+  const { t } = useI18n();
   const [activeSourceKey, setActiveSourceKey] = useState<string | null>(null);
   const model = useMemo(
     () => buildExternalResultsModel({
       activeSourceKey,
       items: results,
+      localization: { t },
       loading,
       sources,
       statuses: sourceStatuses,
       submittedQuery,
     }),
-    [activeSourceKey, loading, results, sourceStatuses, sources, submittedQuery],
+    [activeSourceKey, loading, results, sourceStatuses, sources, submittedQuery, t],
   );
 
   return (
@@ -141,7 +143,7 @@ function ExternalResultsReady({
       ) : (
         <div className="rounded-[8px] border border-dashed border-(--divider-subtle-color) px-3 py-2 text-xs text-(--text-soft)">
           {model.selectedGroup
-            ? sourceGroupEmptyMessage(model.selectedGroup)
+            ? sourceGroupEmptyMessage(model.selectedGroup, { t })
             : t("capability.skills_external_empty")}
         </div>
       )}
@@ -162,13 +164,16 @@ function ExternalSourceFilters({
   selectedSourceKey,
   totalCount,
 }: ExternalSourceFiltersProps) {
+  const { t } = useI18n();
   return (
     <div className="mb-3 flex flex-wrap gap-1.5">
       <ExternalSourceFilter
-        label="全部来源"
+        label={t("capability.skills_external_all_sources")}
         onClick={() => onSelect(null)}
         selected={!selectedSourceKey}
-        summary={`${totalCount} 个`}
+        summary={t("capability.skills_external_source_result_count", {
+          count: totalCount,
+        })}
       />
       {groups.map((group) => (
         <ExternalSourceFilter
@@ -176,7 +181,7 @@ function ExternalSourceFilters({
           label={group.label}
           onClick={() => onSelect(selectedSourceKey === group.key ? null : group.key)}
           selected={selectedSourceKey === group.key}
-          summary={sourceGroupSummaryLabel(group)}
+          summary={sourceGroupSummaryLabel(group, { t })}
           title={group.error || group.label}
         />
       ))}

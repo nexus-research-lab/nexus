@@ -79,7 +79,7 @@ export function buildMessageStats(
     duration: resolveDuration(resultSummary),
     tokens: resolveTokens(resultSummary),
     cost: resolveCost(resultSummary),
-    cacheHit: resolveCacheHit(resultSummary),
+    cacheReadTokens: resolveCacheReadTokens(resultSummary),
   };
   return Object.values(stats).some(Boolean) ? stats : null;
 }
@@ -106,7 +106,7 @@ function resolveTokens(summary?: ResultSummary): string | null {
     : null;
 }
 
-function resolveCacheHit(summary?: ResultSummary): string | null {
+function resolveCacheReadTokens(summary?: ResultSummary): string | null {
   const cacheHit = summary?.usage?.cache_read_input_tokens ?? 0;
-  return cacheHit > 0 ? `缓存 ${formatCompactCount(cacheHit)}` : null;
+  return cacheHit > 0 ? formatCompactCount(cacheHit) : null;
 }

@@ -2,6 +2,8 @@
 
 import { memo } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+
 import { CodeShell } from "./code-shell";
 
 interface StreamingCodeBlockProps {
@@ -13,12 +15,14 @@ export const StreamingCodeBlock = memo(function StreamingCodeBlock({
   language,
   value,
 }: StreamingCodeBlockProps) {
+  const { t } = useI18n();
+
   return (
     <CodeShell
       language={language}
       rightSlot={(
         <span className="message-code-font text-xs" style={{ color: "var(--text-muted)" }}>
-          输出中
+          {t("markdown.code.streaming")}
         </span>
       )}
       contentClassName="overflow-x-auto"

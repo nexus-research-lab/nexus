@@ -23,6 +23,7 @@ import type {
   PendingInteractionOwner,
 } from "../../message-item-projection";
 import type { MessageActivityState } from "../../activity/message-activity-state";
+import type { ProcessSummaryProjection } from "../../process/message-process-summary";
 
 export interface AssistantActivityState {
   emptyStreamStatus: "cancelled" | "error" | null;
@@ -52,7 +53,7 @@ export interface AssistantFooterState {
 }
 
 export interface AssistantFooterStats {
-  cacheHit: string | null;
+  cacheReadTokens: string | null;
   cost: string | null;
   duration: string | null;
   tokens: string | null;
@@ -82,7 +83,7 @@ export interface AssistantProcessState {
   anchorRef: RefObject<HTMLElement | null>;
   expanded: boolean;
   projection: ContentProjection;
-  summary: string;
+  summary: ProcessSummaryProjection;
   toggle: () => void;
   visible: boolean;
 }

@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 import { ChevronRight, MessageSquareText } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBody,
@@ -47,6 +48,8 @@ export function ConversationSessionNavigator({
   scopeKey,
   scrollRef,
 }: ConversationSessionNavigatorProps) {
+  const localization = useI18n();
+  const { t } = localization;
   const {
     activeItem,
     clearPreview,
@@ -56,6 +59,7 @@ export function ConversationSessionNavigator({
     previewItem,
     previewItemAt,
   } = useConversationSessionNavigation({
+    localization,
     timeline,
     onLoadRoundWindow,
     onNavigateStart,
@@ -71,7 +75,7 @@ export function ConversationSessionNavigator({
   const trackHeight = getRulerTrackHeight(items.length);
   return (
     <nav
-      aria-label="会话导航"
+      aria-label={t("room.session_navigator_label")}
       className={cn(
         "pointer-events-none hidden h-auto w-11 select-none xl:block",
         className,
@@ -104,7 +108,9 @@ export function ConversationSessionNavigator({
                   key={item.roundId}
                   type="button"
                   aria-current={isActive ? "true" : undefined}
-                  aria-label={`跳转到${item.title}`}
+                  aria-label={t("room.session_navigator_jump", {
+                    title: item.title,
+                  })}
                   className="flex min-h-0 w-12 flex-1 items-center justify-start rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                   onClick={() => {
                     jumpToRound(item);
@@ -198,7 +204,7 @@ export function ConversationSessionNavigator({
                       }}
                     />
                     <span className="truncate">
-                      {formatSpeakerSummary(previewItem, agentNameMap)}
+                      {formatSpeakerSummary(previewItem, t, agentNameMap)}
                     </span>
                     <span className="text-(--text-soft)">·</span>
                     <span className="truncate">{previewItem.meta}</span>

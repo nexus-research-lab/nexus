@@ -30,6 +30,7 @@ const BUNDLED_SKILLS = [
 
 function createSkill(name, sourceType, sourceKind) {
   return {
+    category_key: "test",
     category_name: "测试",
     description: `raw:${name}`,
     enabled_for_agent: false,
@@ -65,6 +66,34 @@ test("Nexus 全部内置 Skill 都按界面语言投影说明", async () => {
     assert.notEqual(zhDescription, enDescription, `${name} 双语说明未区分`);
     assert.deepEqual(skill, before, `${name} 的真实元数据被修改`);
   }
+});
+
+test("Nexus 分类按界面语言投影且不覆盖用户分类", async () => {
+  const [{ getSkillCategoryLabel }, { MESSAGES }] = await Promise.all([
+    server.ssrLoadModule("/src/lib/skill-category.ts"),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+  const known = {
+    category_key: "content-docs",
+    category_name: "内容与文档",
+  };
+  const custom = {
+    category_key: "customer-playbooks",
+    category_name: "Customer Playbooks",
+  };
+
+  assert.equal(
+    getSkillCategoryLabel(known, (key) => MESSAGES.en[key]),
+    "Content & docs",
+  );
+  assert.equal(
+    getSkillCategoryLabel(known, (key) => MESSAGES.zh[key]),
+    "内容与文档",
+  );
+  assert.equal(
+    getSkillCategoryLabel(custom, (key) => MESSAGES.en[key]),
+    "Customer Playbooks",
+  );
 });
 
 test("Agent 搜索使用当前语言的内置 Skill 说明", async () => {
@@ -110,5 +139,94 @@ test("同名非平台 Skill 保留自己的真实说明", async () => {
   assert.equal(
     getSkillDisplayDescription(externalSkill, translate),
     externalSkill.description,
+  );
+});
+
+test("Skill 详情不会重复展示相同的分类和来源", async () => {
+  const [detailModel, messagesModule] = await Promise.all([
+    server.ssrLoadModule(
+      "/src/features/capability/skills/detail/skill-detail-model.ts",
+    ),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+  const { buildSkillDetailPresentation } = detailModel;
+  const t = (key, params) => messagesModule.MESSAGES.en[key].replace(
+    /\{(\w+)\}/g,
+    (match, name) => params?.[name] ?? match,
+  );
+  const systemSkill = {
+    ...createSkill("imagegen", "system"),
+    category_key: "system-builtins",
+    category_name: "系统内置",
+    deletable: false,
+    has_update: false,
+    readme_markdown: "",
+    scope: "any",
+    source_ref: "",
+    version: "system",
+  };
+
+  const systemBadges = buildSkillDetailPresentation(
+    systemSkill,
+    systemSkill.description,
+    { t },
+  ).badges;
+  assert.deepEqual(
+    systemBadges.map((badge) => badge.label),
+    ["System built-ins", "Version system"],
+  );
+
+  const platformSkill = {
+    ...systemSkill,
+    category_key: "design-frontend",
+    category_name: "设计与前端",
+    source_kind: "nexus_platform",
+    source_type: "builtin",
+  };
+  const platformBadges = buildSkillDetailPresentation(
+    platformSkill,
+    platformSkill.description,
+    { t },
+  ).badges;
+  assert.deepEqual(
+    platformBadges.map((badge) => badge.label),
+    ["Design & frontend", "Nexus library", "Version system"],
+  );
+});
+
+test("Skill Agent 使用状态跟随界面语言", async () => {
+  const [detailModel, messagesModule] = await Promise.all([
+    server.ssrLoadModule(
+      "/src/features/capability/skills/detail/skill-detail-model.ts",
+    ),
+    server.ssrLoadModule("/src/shared/i18n/messages.ts"),
+  ]);
+  const t = (key, params) => messagesModule.MESSAGES.en[key].replace(
+    /\{(\w+)\}/g,
+    (match, name) => params?.[name] ?? match,
+  );
+  const binding = {
+    agent_id: "agent-1",
+    agent_name: "Amy",
+    available: true,
+    enabled: false,
+    is_main: false,
+  };
+
+  assert.deepEqual(
+    detailModel.buildSkillAgentBindingPresentation(binding, false, t),
+    {
+      description: "Independently configurable",
+      status: "Enable",
+      switchLabel: "Toggle Amy Skill",
+    },
+  );
+  assert.deepEqual(
+    detailModel.buildSkillAgentBindingPresentation(binding, true, t),
+    {
+      description: "System managed",
+      status: "Disabled",
+      switchLabel: "Toggle Amy Skill",
+    },
   );
 });

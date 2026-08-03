@@ -1,4 +1,8 @@
+import { getSkillCategoryLabel } from "@/lib/skill-category";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
+  SkillAgentBinding,
   SkillDetail,
   SkillInfo,
   SkillSourceType,
@@ -10,7 +14,7 @@ export type SkillDetailSnapshot =
   | { errorMessage: null; skill: SkillDetail; status: "ready" };
 
 interface SkillSourcePresentation {
-  label: string;
+  labelKey: TranslationKey;
 }
 
 interface SkillDetailBadge {
@@ -32,38 +36,46 @@ export interface SkillDetailPresentation {
   sourceUrl: string | null;
 }
 
+export interface SkillAgentBindingPresentation {
+  description: string;
+  status: string;
+  switchLabel: string;
+}
+
+type SkillDetailLocalization = Pick<I18nContextValue, "t">;
+
 const SKILL_SOURCE_PRESENTATION: Record<
   SkillSourceType,
   SkillSourcePresentation
 > = {
   builtin: {
-    label: "内置推荐",
+    labelKey: "capability.skills_source.builtin",
   },
   external: {
-    label: "用户导入",
+    labelKey: "capability.skills_source.user_import",
   },
   system: {
-    label: "系统内置",
+    labelKey: "capability.skills_source.system",
   },
   workspace: {
-    label: "Agent 本地",
+    labelKey: "capability.skills_source.agent_local",
   },
 };
 
 function getSkillSourcePresentation(skill: SkillInfo): SkillSourcePresentation {
   if (skill.source_type === "builtin") {
     if (skill.source_kind === "nexus_platform") {
-      return { label: "Nexus 平台库" };
+      return { labelKey: "capability.skills_source.nexus_library" };
     }
     if (skill.source_kind === "user_global") {
-      return { label: "用户全局 Skill" };
+      return { labelKey: "capability.skills_source.user_global" };
     }
   }
   if (skill.origin_kind === "marketplace") {
-    return { label: "第三方市场" };
+    return { labelKey: "capability.skills_source.marketplace" };
   }
   if (skill.origin_kind === "user_import") {
-    return { label: "用户导入" };
+    return { labelKey: "capability.skills_source.user_import" };
   }
   return SKILL_SOURCE_PRESENTATION[skill.source_type];
 }
@@ -92,34 +104,43 @@ const SKILL_MARKDOWN_TRANSFORMS: readonly SkillMarkdownTransform[] = [
 
 export function buildSkillDetailPresentation(
   skill: SkillDetail,
-  description = skill.description,
+  description: string,
+  localization: SkillDetailLocalization,
 ): SkillDetailPresentation {
   const source = getSkillSourcePresentation(skill);
+  const sourceLabel = localization.t(source.labelKey);
+  const categoryLabel = getSkillCategoryLabel(skill, localization.t);
   const displayName = skill.title || skill.name;
   const optionalFlagBadges: Array<SkillDetailBadge | false> = [
     skill.scope === "room" && {
       key: "room",
-      label: "Room 专用",
+      label: localization.t("capability.skills_badge.room_only"),
       tone: "default" as const,
     },
     skill.has_update && {
       key: "update",
-      label: "有更新",
+      label: localization.t("capability.skills_update_available"),
       tone: "warning" as const,
     },
     skill.locked && {
       key: "locked",
-      label: "系统锁定",
+      label: localization.t("capability.skills_badge.system_locked"),
       tone: "warning" as const,
     },
   ];
   const flagBadges = optionalFlagBadges.filter(isSkillDetailBadge);
+  const sourceBadges: SkillDetailBadge[] =
+    sourceLabel.trim() === categoryLabel.trim()
+      ? []
+      : [{ key: "source", label: sourceLabel, tone: "default" }];
   const badges: SkillDetailBadge[] = [
-    { key: "category", label: skill.category_name, tone: "default" },
-    { key: "source", label: source.label, tone: "default" },
+    { key: "category", label: categoryLabel, tone: "default" },
+    ...sourceBadges,
     {
       key: "version",
-      label: `版本 ${skill.version || "unknown"}`,
+      label: localization.t("capability.skills_badge.version", {
+        version: skill.version || "unknown",
+      }),
       tone: "default",
     },
     ...flagBadges,
@@ -135,12 +156,47 @@ export function buildSkillDetailPresentation(
     badges,
     canDelete: skill.deletable,
     canUpdate: skill.source_type === "external" && skill.has_update,
-    description: description || "暂无描述",
+    description: description || localization.t("capability.skills_no_description"),
     displayName,
     locked: skill.locked,
     readmeMarkdown: skill.readme_markdown,
     scope: skill.scope,
     sourceUrl: getHttpSourceUrl(skill.source_ref),
+  };
+}
+
+export function buildSkillAgentBindingPresentation(
+  binding: SkillAgentBinding,
+  locked: boolean,
+  t: I18nContextValue["t"],
+): SkillAgentBindingPresentation {
+  const switchLabel = t("capability.skills_detail_binding_switch", {
+    name: binding.agent_name,
+  });
+  if (locked) {
+    return {
+      description: t("capability.skills_detail_binding_system_managed"),
+      status: binding.enabled
+        ? t("capability.skills_detail_binding_enabled")
+        : t("capability.skills_detail_binding_disabled"),
+      switchLabel,
+    };
+  }
+  if (!binding.available) {
+    return {
+      description: t("capability.skills_detail_binding_unavailable"),
+      status: t("capability.skills_detail_binding_cannot_enable"),
+      switchLabel,
+    };
+  }
+  return {
+    description: binding.is_main
+      ? t("capability.skills_detail_binding_main_agent")
+      : t("capability.skills_detail_binding_independent"),
+    status: binding.enabled
+      ? t("capability.skills_detail_binding_enabled")
+      : t("capability.skills_detail_binding_enable"),
+    switchLabel,
   };
 }
 

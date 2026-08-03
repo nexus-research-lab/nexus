@@ -7,8 +7,9 @@ import {
   type TextareaHTMLAttributes,
   forwardRef,
 } from "react";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import {
   getUiFormControlClassName,
@@ -38,12 +39,13 @@ interface UiTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   variant?: UiFormControlVariant;
 }
 
-interface UiSearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "size"> {
+interface UiSearchInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "size" | "type" | "value"> {
   action?: ReactNode;
   className?: string;
   controlSize?: UiFormControlSize;
   inputClassName?: string;
   onChange: (value: string) => void;
+  value: string;
   variant?: UiFormControlVariant;
 }
 
@@ -124,14 +126,16 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
   action,
   className,
   controlSize: controlSize,
+  disabled,
   inputClassName: inputClassName,
   onChange: onChange,
   placeholder = "搜索",
-  type,
+  readOnly,
   value,
   variant,
   ...props
 }: UiSearchInputProps, ref) {
+  const { t } = useI18n();
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     onChange(event.target.value);
   };
@@ -149,13 +153,32 @@ export const UiSearchInput = forwardRef<HTMLInputElement, UiSearchInputProps>(fu
           "min-w-0 flex-1 bg-transparent text-(--text-strong) outline-none shadow-none ring-0 placeholder:text-(--text-soft) focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none",
           inputClassName,
         )}
+        disabled={disabled}
         onChange={handleChange}
         placeholder={placeholder}
-        type={type ?? "search"}
+        readOnly={readOnly}
+        role="searchbox"
+        type="text"
         value={value}
         ref={ref}
         {...props}
       />
+      {value ? (
+        <button
+          aria-label={t("common.clear")}
+          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] text-(--icon-default) transition hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default) disabled:pointer-events-none disabled:opacity-45"
+          disabled={disabled || readOnly}
+          onClick={(event) => {
+            event.preventDefault();
+            onChange("");
+          }}
+          onMouseDown={(event) => event.preventDefault()}
+          title={t("common.clear")}
+          type="button"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
       {action}
     </label>
   );

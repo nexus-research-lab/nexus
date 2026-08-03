@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, type PointerEvent } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import {
   UiDialogBackdrop,
@@ -28,6 +29,7 @@ export function MermaidPreviewDialog({
   onClose,
   svg,
 }: MermaidPreviewDialogProps) {
+  const { t } = useI18n();
   const imageUrl = useMemo(() => buildSvgDataUrl(svg), [svg]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<PreviewDragState | null>(null);
@@ -103,14 +105,14 @@ export function MermaidPreviewDialog({
           size="wide"
         >
           <h2 className="sr-only" id="mermaid-image-preview-title">
-            Mermaid 预览
+            {t("markdown.mermaid.preview_title")}
           </h2>
           <UiDialogCloseButton
             className="absolute right-3 top-3 z-10 border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_88%,transparent)] text-(--surface-paper-foreground) shadow-sm backdrop-blur"
             onClose={onClose}
           />
           <div
-            aria-label="放大预览 Mermaid 图表"
+            aria-label={t("markdown.mermaid.open_preview")}
             className={cn(
               "soft-scrollbar min-h-0 flex-1 select-none overflow-auto overscroll-contain bg-(--surface-paper-background)",
               isDragging ? "cursor-grabbing" : "cursor-grab",
@@ -124,7 +126,7 @@ export function MermaidPreviewDialog({
           >
             <div className="flex min-h-full min-w-full items-start justify-start p-6">
               <img
-                alt="Mermaid 图表预览"
+                alt={t("markdown.mermaid.preview_image_alt")}
                 className="max-h-none max-w-none object-contain"
                 draggable={false}
                 src={imageUrl}

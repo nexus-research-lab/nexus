@@ -28,7 +28,7 @@ import type { TaskDialogCreatePreset } from "../dialog/scheduled-task-dialog-typ
 import { ScheduledTaskCard } from "./scheduled-task-card";
 import {
   buildScheduledTaskBoard,
-  SCHEDULED_TASK_SUGGESTIONS,
+  buildScheduledTaskSuggestions,
   type ScheduledTaskBoardColumn,
   type ScheduledTaskSuggestion,
 } from "./scheduled-task-board-model";
@@ -150,6 +150,7 @@ function ScheduledTaskSuggestions({
   onSelect: (preset: TaskDialogCreatePreset) => void;
 }) {
   const { t } = useI18n();
+  const suggestions = buildScheduledTaskSuggestions(t);
 
   return (
     <section
@@ -166,7 +167,7 @@ function ScheduledTaskSuggestions({
       </div>
 
       <div className={cn(WORKSPACE_CATALOG_GRID_CLASS_NAME, "mt-4 gap-2")}>
-        {SCHEDULED_TASK_SUGGESTIONS.map((suggestion) => {
+        {suggestions.map((suggestion) => {
           const SuggestionIcon = SUGGESTION_ICONS[suggestion.icon];
           return (
             <button

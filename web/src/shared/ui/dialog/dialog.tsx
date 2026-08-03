@@ -10,6 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { useDialogModalBehavior } from "@/shared/ui/dialog/dialog-behavior";
 import {
@@ -251,7 +252,7 @@ export function UiDialogFooter({
 }
 
 export function UiDialogCloseButton({
-  ariaLabel = "关闭",
+  ariaLabel,
   className,
   onClose,
 }: {
@@ -259,9 +260,10 @@ export function UiDialogCloseButton({
   className?: string;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <button
-      aria-label={ariaLabel}
+      aria-label={ariaLabel ?? t("common.close")}
       className={cn(DIALOG_ICON_BUTTON_CLASS_NAME, className)}
       onClick={(event) => {
         event.preventDefault();

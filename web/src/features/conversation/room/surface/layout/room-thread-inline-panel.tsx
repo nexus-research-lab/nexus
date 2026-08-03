@@ -1,4 +1,5 @@
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
@@ -20,6 +21,7 @@ export function RoomThreadInlinePanel({
   sidePanelWidthPercent,
   onStartSidePanelResize,
 }: RoomThreadInlinePanelProps) {
+  const { t } = useI18n();
   const { activeThread, closeThread } = useGroupThread();
   const threadPanelData = useRoomThreadPanel();
 
@@ -30,7 +32,7 @@ export function RoomThreadInlinePanel({
   return (
     <>
       <PanelResizeHandle
-        ariaLabel="调整 Thread 面板宽度"
+        ariaLabel={t("room.resize_thread_panel")}
         onResizeStart={onStartSidePanelResize}
         variant="gutter"
       />

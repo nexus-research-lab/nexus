@@ -63,7 +63,7 @@ func (s *Service) searchClaudePluginsSource(ctx context.Context, source external
 		items = append(items, ExternalSkillSearchItem{
 			Name:           name,
 			Title:          firstNonEmpty(anyString(row["title"]), name),
-			Description:    firstNonEmpty(repairClaudePluginsText(anyString(row["description"])), "来自 claude-plugins.dev 的搜索结果"),
+			Description:    repairClaudePluginsText(anyString(row["description"])),
 			Source:         firstNonEmpty(anyString(row["namespace"]), gitURL, source.URL),
 			PackageSpec:    packageSpec,
 			SkillSlug:      name,
@@ -130,7 +130,7 @@ func (s *Service) searchSkillsShSource(ctx context.Context, source externalSkill
 		item := ExternalSkillSearchItem{
 			Name:           name,
 			Title:          firstNonEmpty(anyString(row["title"]), name),
-			Description:    firstNonEmpty(anyString(row["description"]), "来自 skills.sh 的搜索结果"),
+			Description:    anyString(row["description"]),
 			Source:         sourceRef,
 			PackageSpec:    packageSpec,
 			SkillSlug:      skillSlug,
@@ -189,7 +189,7 @@ func (s *Service) searchClawhubSource(ctx context.Context, source externalSkillS
 		items = append(items, ExternalSkillSearchItem{
 			Name:           slug,
 			Title:          name,
-			Description:    firstNonEmpty(anyString(row["summary"]), anyString(row["description"]), "来自 clawhub.ai 的搜索结果"),
+			Description:    firstNonEmpty(anyString(row["summary"]), anyString(row["description"])),
 			Source:         firstNonEmpty(owner, source.URL),
 			PackageSpec:    rawURL,
 			SkillSlug:      slug,

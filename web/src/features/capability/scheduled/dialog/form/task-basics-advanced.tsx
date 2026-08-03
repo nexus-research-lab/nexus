@@ -2,6 +2,7 @@
 
 import { Settings2 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiChoiceButton } from "@/shared/ui/form/choice";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
@@ -14,18 +15,18 @@ import {
   buildExecutionSessionPresentation,
   buildReplySessionPresentation,
   buildTaskAdvancedSummary,
-  EXECUTION_KIND_HELP,
-  EXECUTION_MODE_HELP,
-  REPLY_MODE_HELP,
   type TaskBasicsActions,
   type TaskBasicsData,
   type TaskSelectPresentation,
 } from "./task-basics-model";
 import {
-  EXECUTION_KIND_OPTIONS,
-  EXECUTION_MODE_OPTIONS,
-  REPLY_MODE_OPTIONS,
-  TARGET_TYPE_OPTIONS,
+  buildExecutionKindOptions,
+  buildExecutionModeOptions,
+  buildReplyModeOptions,
+  buildTargetTypeOptions,
+  getExecutionKindHelp,
+  getExecutionModeHelp,
+  getReplyModeHelp,
 } from "./task-form-options";
 
 interface TaskBasicsAdvancedProps {
@@ -108,14 +109,15 @@ function TaskTargetTypeField({
   actions,
   form,
 }: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
+  const { t } = useI18n();
   if (form.executionKind !== "agent") {
     return null;
   }
   return (
     <TaskChoiceField
-      label="发送到"
+      label={t("capability.scheduled_dialog_send_to")}
       onChange={actions.setTargetType}
-      options={TARGET_TYPE_OPTIONS}
+      options={buildTargetTypeOptions(t)}
       value={form.targetType}
     />
   );
@@ -125,15 +127,19 @@ function TaskDedicatedSessionField({
   actions,
   form,
 }: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
+  const { t } = useI18n();
   if (form.executionMode !== "dedicated") {
     return null;
   }
   return (
-    <UiField htmlFor="task-dedicated-session-key" label="专用长期会话名称">
+    <UiField
+      htmlFor="task-dedicated-session-key"
+      label={t("capability.scheduled_dialog_dedicated_session")}
+    >
       <UiInput
         id="task-dedicated-session-key"
         onChange={(event) => actions.setDedicatedSessionKey(event.target.value)}
-        placeholder="例如 daily-ops"
+        placeholder={t("capability.scheduled_dialog_dedicated_session_placeholder")}
         value={form.dedicatedSessionKey}
       />
     </UiField>
@@ -144,16 +150,17 @@ function TaskExecutionModeField({
   actions,
   form,
 }: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
+  const { t } = useI18n();
   if (form.executionKind !== "agent" || form.targetType !== "agent") {
     return null;
   }
   return (
     <>
       <TaskChoiceField
-        help={EXECUTION_MODE_HELP[form.executionMode]}
-        label="执行会话"
+        help={getExecutionModeHelp(form.executionMode, t)}
+        label={t("capability.scheduled_dialog_execution_session")}
         onChange={actions.setExecutionMode}
-        options={EXECUTION_MODE_OPTIONS}
+        options={buildExecutionModeOptions(t)}
         value={form.executionMode}
       />
       <TaskDedicatedSessionField actions={actions} form={form} />
@@ -166,7 +173,8 @@ function TaskExecutionSessionField({
   data,
   form,
 }: TaskBasicsAdvancedProps) {
-  const presentation = buildExecutionSessionPresentation(form, data);
+  const { t } = useI18n();
+  const presentation = buildExecutionSessionPresentation(form, data, t);
   if (!presentation) {
     return null;
   }
@@ -184,6 +192,7 @@ function TaskReplySessionField({
   data,
   form,
 }: TaskBasicsAdvancedProps) {
+  const { t } = useI18n();
   if (form.replyMode !== "selected") {
     return null;
   }
@@ -191,12 +200,13 @@ function TaskReplySessionField({
     <TaskSessionField
       id="task-reply-session-key"
       onChange={actions.setSelectedReplySessionKey}
-      presentation={buildReplySessionPresentation(form, data)}
+      presentation={buildReplySessionPresentation(form, data, t)}
     />
   );
 }
 
 function TaskDeliveryFields(props: TaskBasicsAdvancedProps) {
+  const { t } = useI18n();
   const { actions, form } = props;
   if (form.executionKind !== "agent") {
     return null;
@@ -204,13 +214,13 @@ function TaskDeliveryFields(props: TaskBasicsAdvancedProps) {
   return (
     <>
       <TaskChoiceField
-        help={REPLY_MODE_HELP[form.replyMode]}
+        help={getReplyModeHelp(form.replyMode, t)}
         isDisabled={(replyMode) => (
           form.executionMode === "main" && replyMode !== "none"
         )}
-        label="结果回传"
+        label={t("capability.scheduled_dialog_delivery")}
         onChange={actions.setReplyMode}
-        options={REPLY_MODE_OPTIONS}
+        options={buildReplyModeOptions(t)}
         value={form.replyMode}
       />
       <TaskReplySessionField {...props} />
@@ -222,11 +232,12 @@ function TaskExpirationField({
   actions,
   form,
 }: Pick<TaskBasicsAdvancedProps, "actions" | "form">) {
+  const { t } = useI18n();
   return (
     <UiField
-      description="可选。到期后任务会自动停用，时间按任务时区计算。"
+      description={t("capability.scheduled_dialog_expiration_description")}
       htmlFor="task-expires-at"
-      label="任务有效期"
+      label={t("capability.scheduled_dialog_expiration")}
     >
       <UiInput
         id="task-expires-at"
@@ -239,25 +250,26 @@ function TaskExpirationField({
 }
 
 export function TaskBasicsAdvanced(props: TaskBasicsAdvancedProps) {
+  const { t } = useI18n();
   const { actions, form } = props;
   return (
     <details className="group rounded-[10px] border border-(--divider-subtle-color) px-3 py-2.5">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-(--text-default)">
         <span className="inline-flex items-center gap-2">
           <Settings2 className="h-3.5 w-3.5 text-(--icon-default)" />
-          高级设置
+          {t("capability.scheduled_dialog_advanced")}
         </span>
         <span className="truncate text-xs font-normal text-(--text-muted)">
-          {buildTaskAdvancedSummary(form)}
+          {buildTaskAdvancedSummary(form, t)}
         </span>
       </summary>
 
       <div className="mt-4 flex flex-col gap-4 border-t border-(--divider-subtle-color) pt-4">
         <TaskChoiceField
-          help={EXECUTION_KIND_HELP[form.executionKind]}
-          label="执行方式"
+          help={getExecutionKindHelp(form.executionKind, t)}
+          label={t("capability.scheduled_dialog_execution_kind")}
           onChange={actions.setExecutionKind}
-          options={EXECUTION_KIND_OPTIONS}
+          options={buildExecutionKindOptions(t)}
           value={form.executionKind}
         />
         <TaskTargetTypeField actions={actions} form={form} />

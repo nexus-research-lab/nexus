@@ -29,6 +29,7 @@ export function SkillsCard({
   const model = buildSkillCardModel(
     skill,
     getSkillDisplayDescription(skill, t),
+    t("capability.skills_no_description"),
   );
   return (
     <SkillDirectoryCard
@@ -39,13 +40,17 @@ export function SkillsCard({
           onClick={onDelete}
           size="sm"
           stopPropagation
-          title="从技能库删除"
+          title={t("capability.skills_remove")}
           tone="danger"
         >
           <Trash2 className="h-3 w-3" />
         </UiListActionButton>
       ) : undefined}
-      badges={model.showUpdate ? <UiBadge size="xs" tone="warning">有更新</UiBadge> : null}
+      badges={model.showUpdate ? (
+        <UiBadge size="xs" tone="warning">
+          {t("capability.skills_update_available")}
+        </UiBadge>
+      ) : null}
       busy={busy}
       description={model.description}
       onSelect={onSelect}

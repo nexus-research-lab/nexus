@@ -16,6 +16,7 @@ import {
   updateSingleSkillApi,
 } from "@/lib/api/capability/skill-api";
 import { getErrorMessage } from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ExternalSkillSearchItem, SkillInfo } from "@/types/capability/skill";
 
 import { formatDeployFailureMessage } from "../detail/skill-deploy-failures";
@@ -66,6 +67,7 @@ export function useSkillOperations({
   refreshCatalog,
   updateAvailableCount,
 }: UseSkillOperationsOptions): SkillOperationsController {
+  const { locale, t } = useI18n();
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [checkUpdateNotice, setCheckUpdateNotice] =
     useState<SkillUpdateCheckNotice | null>(null);
@@ -100,7 +102,10 @@ export function useSkillOperations({
       await refreshCatalog();
     } catch (error) {
       if (manual) {
-        feedback.error(getErrorMessage(error, "技能更新检查失败"));
+        feedback.error(getErrorMessage(
+          error,
+          t("capability.skills_update_check_failed"),
+        ));
       } else {
         recordUpdateCheck();
       }
@@ -108,7 +113,7 @@ export function useSkillOperations({
       checkingRef.current = false;
       setCheckingUpdates(false);
     }
-  }, [feedback, recordUpdateCheck, refreshCatalog]);
+  }, [feedback, recordUpdateCheck, refreshCatalog, t]);
 
   useEffect(() => {
     const now = Date.now();
@@ -130,52 +135,67 @@ export function useSkillOperations({
     setBusyKey(setBusySkillNames, skillName, true);
     try {
       const detail = await updateSingleSkillApi(skillName);
-      const warning = formatDeployFailureMessage(skillName, detail.deploy_failures);
+      const warning = formatDeployFailureMessage(
+        skillName,
+        detail.deploy_failures,
+        { locale, t },
+      );
       if (warning) feedback.warning(warning);
-      else feedback.success(`已更新 ${skillName}`);
+      else feedback.success(t("capability.skills_updated", { name: skillName }));
       await refreshCatalog();
       return true;
     } catch (error) {
-      feedback.error(getErrorMessage(error, "技能更新失败"));
+      feedback.error(getErrorMessage(
+        error,
+        t("capability.skills_update_failed"),
+      ));
       return false;
     } finally {
       setBusyKey(setBusySkillNames, skillName, false);
     }
-  }, [feedback, refreshCatalog]);
+  }, [feedback, locale, refreshCatalog, t]);
 
   const deleteSkill = useCallback(async (skill: SkillInfo) => {
     feedback.clear();
     setBusyKey(setBusySkillNames, skill.name, true);
     try {
       await deleteSkillApi(skill.name);
-      feedback.success(`${skill.title || skill.name} 已从技能库删除`);
+      feedback.success(t("capability.skills_removed", {
+        name: skill.title || skill.name,
+      }));
       await refreshCatalog();
       return true;
     } catch (error) {
-      feedback.error(getErrorMessage(error, "技能删除失败"));
+      feedback.error(getErrorMessage(
+        error,
+        t("capability.skills_delete_failed"),
+      ));
       return false;
     } finally {
       setBusyKey(setBusySkillNames, skill.name, false);
     }
-  }, [feedback, refreshCatalog]);
+  }, [feedback, refreshCatalog, t]);
 
   const importLocal = useCallback(async (file: File) => {
     if (importingRef.current) return;
     importingRef.current = true;
     setImporting(true);
-    feedback.start(`正在导入：${file.name}...`);
+    feedback.start(t("capability.skills_importing_file", { name: file.name }));
     try {
       await importLocalSkillApi(file);
-      feedback.success(`已导入：${file.name}`);
+      feedback.success(t("capability.skills_imported_file", { name: file.name }));
       setImportDialogMode(null);
       await refreshCatalog();
     } catch (error) {
-      feedback.error(getErrorMessage(error, "技能导入失败"));
+      feedback.error(getErrorMessage(
+        error,
+        t("capability.skills_import_failed"),
+      ));
     } finally {
       importingRef.current = false;
       setImporting(false);
     }
-  }, [feedback, refreshCatalog]);
+  }, [feedback, refreshCatalog, t]);
 
   const importGit = useCallback(async (
     url: string,
@@ -186,39 +206,49 @@ export function useSkillOperations({
     if (!normalizedUrl || importingRef.current) return;
     importingRef.current = true;
     setImporting(true);
-    feedback.start("正在从 Git 拉取并导入 Skill...");
+    feedback.start(t("capability.skills_git_importing"));
     try {
       await importGitSkillApi(
         normalizedUrl,
         branch?.trim() || undefined,
         path?.trim() || undefined,
       );
-      feedback.success("已通过 Git 导入");
+      feedback.success(t("capability.skills_git_imported"));
       setImportDialogMode(null);
       await refreshCatalog();
     } catch (error) {
-      feedback.error(getErrorMessage(error, "Git 技能导入失败"));
+      feedback.error(getErrorMessage(
+        error,
+        t("capability.skills_git_import_failed"),
+      ));
     } finally {
       importingRef.current = false;
       setImporting(false);
     }
-  }, [feedback, refreshCatalog]);
+  }, [feedback, refreshCatalog, t]);
 
   const importExternal = useCallback(async (item: ExternalSkillSearchItem) => {
     const key = externalSkillKey(item);
     setBusyKey(setBusyExternalKeys, key, true);
-    feedback.start(`正在导入：${item.skill_slug}...`);
+    feedback.start(t("capability.skills_importing_file", {
+      name: item.skill_slug,
+    }));
     try {
       await importExternalSkillApi(item);
-      feedback.success(`已导入：${item.skill_slug}`);
+      feedback.success(t("capability.skills_imported_file", {
+        name: item.skill_slug,
+      }));
       await refreshCatalog();
       closeExternalPreview();
     } catch (error) {
-      feedback.error(getErrorMessage(error, "外部技能导入失败"));
+      feedback.error(getErrorMessage(
+        error,
+        t("capability.skills_external_import_failed"),
+      ));
     } finally {
       setBusyKey(setBusyExternalKeys, key, false);
     }
-  }, [closeExternalPreview, feedback, refreshCatalog]);
+  }, [closeExternalPreview, feedback, refreshCatalog, t]);
 
   return {
     busyExternalKeys,

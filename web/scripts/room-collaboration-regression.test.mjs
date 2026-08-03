@@ -22,6 +22,36 @@ test.after(async () => {
   await server.close();
 });
 
+async function loadI18nValue(locale = "zh") {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  return {
+    locale,
+    setLocale: () => {},
+    t: (key, params = {}) => Object.entries(params).reduce(
+      (message, [name, value]) => message.replaceAll(
+        `{${name}}`,
+        String(value),
+      ),
+      MESSAGES[locale][key] ?? key,
+    ),
+  };
+}
+
+async function renderWithI18n(element, locale = "zh") {
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  return renderToStaticMarkup(
+    React.createElement(
+      I18N_CONTEXT.Provider,
+      { value: await loadI18nValue(locale) },
+      element,
+    ),
+  );
+}
+
 test("Goal status shows one exact token total without budget progress", async () => {
   const {
     buildGoalStatusStripModel,
@@ -323,6 +353,98 @@ test("工作区预览 breadcrumb 投影工作区根目录与文件父目录", as
   );
 });
 
+test("工作区空预览跟随界面语言", async () => {
+  const { WorkspaceFilePreviewPanel } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/editor/workspace-file-preview-panel.tsx",
+  );
+  const element = React.createElement(WorkspaceFilePreviewPanel, {
+    agentId: "agent-a",
+    headerLocationLabel: "nexus",
+    isPreviewFocused: false,
+    onTogglePreviewFocus: () => {},
+    path: null,
+  });
+  const chinese = await renderWithI18n(element);
+  const english = await renderWithI18n(element, "en");
+
+  assert.match(chinese, /工作区预览/);
+  assert.match(chinese, /从文件列表选择一个文件/);
+  assert.match(english, /Workspace Preview/);
+  assert.match(english, /Select a file from the list to preview it here/);
+  assert.doesNotMatch(english, /工作区|从文件列表/);
+});
+
+test("工作区文件操作跟随界面语言", async () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    __NEXUS_DESKTOP_RUNTIME__: { app_mode: "desktop" },
+  };
+  try {
+    const englishI18n = await loadI18nValue("en");
+    const chineseI18n = await loadI18nValue("zh");
+    const { getWorkspaceFileExternalActionCopy } = await server.ssrLoadModule(
+      "/src/lib/workspace-file-action.ts",
+    );
+    assert.deepEqual(
+      getWorkspaceFileExternalActionCopy(englishI18n.t, "MEMORY.md"),
+      {
+        ariaLabel: "Show MEMORY.md in folder",
+        label: "Open",
+        mode: "reveal",
+        title: "Show MEMORY.md in folder",
+      },
+    );
+    assert.equal(
+      getWorkspaceFileExternalActionCopy(chineseI18n.t, "MEMORY.md").title,
+      "在文件夹中显示 MEMORY.md",
+    );
+
+    const {
+      WorkspaceFileDownloadButton,
+      WorkspaceFilePreviewFocusButton,
+    } = await server.ssrLoadModule(
+      "/src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+    );
+    const chrome = React.createElement(React.Fragment, null,
+      React.createElement(WorkspaceFileDownloadButton, {
+        agentId: "agent-a",
+        fileName: "MEMORY.md",
+        path: "MEMORY.md",
+      }),
+      React.createElement(WorkspaceFilePreviewFocusButton, {
+        isPreviewFocused: false,
+        onTogglePreviewFocus: () => {},
+      }),
+      React.createElement(WorkspaceFilePreviewFocusButton, {
+        isPreviewFocused: true,
+        onTogglePreviewFocus: () => {},
+      }),
+    );
+    const englishChrome = await renderWithI18n(chrome, "en");
+    assert.match(englishChrome, /aria-label="Show MEMORY\.md in folder"/);
+    assert.match(englishChrome, /aria-label="Focus preview"/);
+    assert.match(englishChrome, /aria-label="Show file list"/);
+    assert.doesNotMatch(englishChrome, /文件夹|聚焦|文件列表/);
+
+    const { buildTextFileEditorPresentation } = await server.ssrLoadModule(
+      "/src/features/conversation/shared/editor/text/text-file-editor-model.ts",
+    );
+    const presentation = buildTextFileEditorPresentation({
+      fileType: "markdown",
+      isDirty: true,
+      isEditing: false,
+      isExternalWriting: false,
+      isSaving: false,
+      liveState: undefined,
+      translate: englishI18n.t,
+    });
+    assert.equal(presentation.editLabel, "Edit");
+    assert.equal(presentation.saveLabel, "Save");
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
 test("工作区文件 chrome 使用单行 breadcrumb 和一条内容边界", async () => {
   const [
     previewChromeSource,
@@ -434,6 +556,52 @@ test("Room 辅助面板 header 共用高度、按钮和图标基线", async () =
   assert.match(threadSource, /<Icon className=\{WORKSPACE_PANEL_HEADER_ICON_CLASS\}/);
   assert.match(previewChromeSource, /WORKSPACE_PANEL_HEADER_BUTTON_CLASS/);
   assert.match(previewChromeSource, /WORKSPACE_PANEL_HEADER_ICON_CLASS/);
+});
+
+test("Room 辅助面板可访问名称跟随界面语言", async () => {
+  const [
+    auxiliarySource,
+    threadSource,
+    aboutSource,
+    workspaceSource,
+    fileBrowserSource,
+  ] = await Promise.all([
+    "src/features/conversation/room/surface/layout/room-surface-auxiliary-panel.tsx",
+    "src/features/conversation/room/surface/layout/room-thread-inline-panel.tsx",
+    "src/features/conversation/room/surface/room-agent-about-surface.tsx",
+    "src/features/conversation/room/workspace/room-workspace-view.tsx",
+    "src/features/conversation/room/workspace/view/workspace-file-browser.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+  const sources = [
+    auxiliarySource,
+    threadSource,
+    aboutSource,
+    workspaceSource,
+    fileBrowserSource,
+  ];
+
+  assert.match(auxiliarySource, /t\("room\.resize_auxiliary_panel"\)/);
+  assert.match(threadSource, /t\("room\.resize_thread_panel"\)/);
+  assert.match(aboutSource, /t\("room\.agent_panel_tabs"\)/);
+  assert.match(workspaceSource, /aria-label=\{t\("room\.workspace_action_upload"\)\}/);
+  assert.match(fileBrowserSource, /t\("room\.resize_workspace_file_list"\)/);
+  sources.forEach((source) => {
+    assert.doesNotMatch(
+      source,
+      /调整右侧面板宽度|调整 Thread 面板宽度|调整文件列表宽度|上传工作区文件|Agent 面板切换/,
+    );
+  });
+
+  const { RoomAgentSwitcher } = await server.ssrLoadModule(
+    "/src/features/conversation/room/surface/room-agent-switcher.tsx",
+  );
+  const html = await renderWithI18n(React.createElement(RoomAgentSwitcher, {
+    members: [{ agent_id: "amy", name: "Amy", avatar: null }],
+    onSelect: () => {},
+    selectedId: "amy",
+  }), "en");
+  assert.match(html, /aria-label="Switch Agent: Amy"/);
+  assert.doesNotMatch(html, /切换|：/);
 });
 
 test("Agent 详情导航共用纯文字栏目和低对比选中底色", async () => {
@@ -1256,6 +1424,30 @@ test("聊天行不读取持久化 Agent active 状态", async () => {
     Object.fromEntries(items.map((item) => [item.roomId, item.isWorking])),
     { "dm-room": false, "group-room": true, "idle-room": false },
   );
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(12, 0, 0, 0);
+  const localizedConversation = {
+    ...conversations[0],
+    last_activity: yesterday.toISOString(),
+  };
+  const englishItems = buildConversationItems({
+    agents,
+    conversations: [localizedConversation],
+    locale: "en",
+    rooms: [rooms[0]],
+    untitledRoomLabel: "Untitled room",
+  });
+  const chineseItems = buildConversationItems({
+    agents,
+    conversations: [localizedConversation],
+    locale: "zh",
+    rooms: [rooms[0]],
+    untitledRoomLabel: "未命名 Room",
+  });
+  assert.equal(englishItems[0].timeLabel, "Yesterday");
+  assert.equal(chineseItems[0].timeLabel, "昨天");
 });
 
 test("Room mention Markdown keeps the internal URL for the avatar chip", async () => {

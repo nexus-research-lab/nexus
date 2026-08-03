@@ -61,8 +61,9 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
     catalog.importedExternalSources,
     operations.busyExternalKeys,
     external.previewLoading,
+    { t },
   );
-  const feedbackItem = buildFeedbackItem(feedback);
+  const feedbackItem = buildFeedbackItem(feedback, t);
 
   return (
     <>
@@ -196,12 +197,15 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
 
 function buildFeedbackItem(
   feedback: SkillMarketplaceFeedback | null,
+  t: ReturnType<typeof useI18n>["t"],
 ): FeedbackBannerProps | null {
   if (!feedback) return null;
   const titles = {
-    error: "操作失败",
-    success: "已完成",
-    warning: feedback.pending ? "处理中" : "部分完成",
+    error: t("capability.skills_feedback_error"),
+    success: t("capability.skills_feedback_success"),
+    warning: feedback.pending
+      ? t("capability.skills_feedback_processing")
+      : t("capability.skills_feedback_partial"),
   } as const;
   return {
     message: feedback.message,

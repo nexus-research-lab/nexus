@@ -228,9 +228,12 @@ export function formatSessionLabel(title: string, agentName: string): string {
 export function buildRoomSessionSelections(
   contexts: RoomContextAggregate[],
   agentNameById: Map<string, string>,
+  unnamedSessionLabel: string,
 ): RoomSessionSelection[] {
   return contexts.flatMap((context) => {
-    const roomTitle = context.conversation.title?.trim() || context.room.name?.trim() || "未命名会话";
+    const roomTitle = context.conversation.title?.trim()
+      || context.room.name?.trim()
+      || unnamedSessionLabel;
     const roomType = context.room.room_type;
     return context.sessions.map((session) => {
       const agentName = agentNameById.get(session.agent_id) || session.agent_id;

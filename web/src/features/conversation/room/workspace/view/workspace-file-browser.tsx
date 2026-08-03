@@ -139,7 +139,10 @@ export function WorkspaceFileBrowser({
       style={{width: stacked ? "100%" : `${width}px`}}
     >
       {!stacked ? (
-        <PanelResizeHandle ariaLabel="调整文件列表宽度" onResizeStart={onResizeStart} />
+        <PanelResizeHandle
+          ariaLabel={t("room.resize_workspace_file_list")}
+          onResizeStart={onResizeStart}
+        />
       ) : null}
 
       {controller.errorMessage ? (

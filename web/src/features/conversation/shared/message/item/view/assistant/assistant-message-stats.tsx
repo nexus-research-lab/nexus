@@ -1,5 +1,6 @@
 import { Check, Copy, type LucideIcon } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
 import type { AssistantFooterStats } from "./assistant-message-model";
@@ -27,11 +28,14 @@ export function AssistantMessageStats({
   stats: AssistantFooterStats | null;
   streaming: boolean;
 }) {
+  const { t } = useI18n();
   const statsItems = [
     stats?.duration,
     stats?.tokens,
     stats?.cost,
-    stats?.cacheHit,
+    stats?.cacheReadTokens
+      ? t("message.cache_read", { count: stats.cacheReadTokens })
+      : null,
   ].filter((item): item is string => Boolean(item));
   const modelName = model?.trim() || null;
 
@@ -110,17 +114,18 @@ function AssistantCopyAction({
   copied: boolean;
   onCopy: () => Promise<void>;
 }) {
+  const { t } = useI18n();
   const presentation = COPY_ACTION_PRESENTATION[copied ? "copied" : "idle"];
   const Icon = presentation.icon;
   return (
     <button
-      aria-label="复制回答"
+      aria-label={t("message.copy_reply")}
       className={cn(
         "inline-flex h-5 w-5 items-center justify-center rounded-md text-(--icon-muted) transition-[color,background] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-strong)",
         presentation.className,
       )}
       onClick={onCopy}
-      title="复制回答"
+      title={t("message.copy_reply")}
       type="button"
     >
       <Icon className="h-3 w-3" />

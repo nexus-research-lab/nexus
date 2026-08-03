@@ -32,7 +32,7 @@ export function RoomHistoryItem({
   onSelect,
   onToggleSelection,
 }: RoomHistoryItemProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const editor = useConversationTitleEditor({
     onRename,
     title: entry.conversation.title ?? "",
@@ -53,6 +53,16 @@ export function RoomHistoryItem({
       isSelecting,
     },
     {
+      actionLabels: {
+        delete: t("room.history_delete"),
+        rename: t("room.history_rename"),
+      },
+      editorLabels: {
+        cancel: t("common.cancel"),
+        confirm: t("room.history_confirm_rename"),
+        input: t("room.history_edit_title"),
+      },
+      locale,
       untitled: t("room.new_conversation"),
     },
   );

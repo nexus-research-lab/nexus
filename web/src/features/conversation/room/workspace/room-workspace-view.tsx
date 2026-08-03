@@ -91,7 +91,7 @@ export function RoomWorkspaceView({
     <>
       <input
         ref={fileInputRef}
-        aria-label="上传工作区文件"
+        aria-label={t("room.workspace_action_upload")}
         className="hidden"
         multiple
         onChange={controller.fileInput.onChange}

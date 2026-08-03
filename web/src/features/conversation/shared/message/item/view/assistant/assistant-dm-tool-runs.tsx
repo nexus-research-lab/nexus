@@ -10,12 +10,13 @@ import { ChevronDown, ChevronRight, Wrench } from "lucide-react";
 
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
 import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
 import { useWorkspaceFileArtifactsFromContent } from "../../../blocks/artifact/workspace-file-artifact-utils";
 import {
-  buildDmToolRunSummary,
   projectDmToolRunSegments,
   type DmProcessSegment,
   type DmToolRunSegment,
@@ -35,6 +36,7 @@ import type { ContentProjection } from "../../message-item-projection";
 interface AssistantDmToolRunsProps {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
+  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   projection: ContentProjection;
   responseResumed: boolean;
@@ -43,6 +45,7 @@ interface AssistantDmToolRunsProps {
 export function AssistantDmToolRuns({
   activity,
   environment,
+  generatedFilesLabel,
   permissions,
   projection,
   responseResumed,
@@ -87,6 +90,7 @@ export function AssistantDmToolRuns({
           <DmProcessSegmentView
             activity={activity}
             environment={environment}
+            generatedFilesLabel={generatedFilesLabel}
             key={segment.id}
             permissions={permissions}
             segment={segment}
@@ -101,12 +105,14 @@ export function AssistantDmToolRuns({
 function DmProcessSegmentView({
   activity,
   environment,
+  generatedFilesLabel,
   permissions,
   segment,
   streaming,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
+  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   segment: DmProcessSegment;
   streaming: boolean;
@@ -116,6 +122,7 @@ function DmProcessSegmentView({
       <DmToolRun
         activity={activity}
         environment={environment}
+        generatedFilesLabel={generatedFilesLabel}
         permissions={permissions}
         segment={segment}
         streaming={streaming}
@@ -138,16 +145,19 @@ function DmProcessSegmentView({
 function DmToolRun({
   activity,
   environment,
+  generatedFilesLabel,
   permissions,
   segment,
   streaming,
 }: {
   activity: AssistantActivityState;
   environment: AssistantContentEnvironment;
+  generatedFilesLabel: string;
   permissions: AssistantPermissionState;
   segment: DmToolRunSegment;
   streaming: boolean;
 }) {
+  const { t } = useI18n();
   const expansion = useScrollAnchoredState(false);
   const [closedToolUseCount, setClosedToolUseCount] = useResettableState(
     0,
@@ -179,10 +189,11 @@ function DmToolRun({
   );
   const contentId = `${segment.id}-content`;
   const error = segment.errorCount > 0;
-  const summary = buildDmToolRunSummary(
+  const summary = formatDmToolRunSummary(
     segment.toolUseIds.length,
     segment.errorCount,
     phase,
+    t,
   );
 
   return (
@@ -239,13 +250,35 @@ function DmToolRun({
           <WorkspaceFileArtifactList
             artifacts={artifacts}
             className="ml-5 pt-1"
-            label="生成文件"
+            label={generatedFilesLabel}
             onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
           />
         )}
       </div>
     </TimelineBlock>
   );
+}
+
+function formatDmToolRunSummary(
+  toolUseCount: number,
+  errorCount: number,
+  phase: DmToolRunSegment["phase"],
+  t: I18nContextValue["t"],
+): string {
+  const countKey = toolUseCount === 1
+    ? "message.tool_run_count_one"
+    : "message.tool_run_count_other";
+  const statusKey = phase === "active"
+    ? "message.tool_run_active"
+    : "message.tool_run_complete";
+  const parts = [t(countKey, { count: toolUseCount }), t(statusKey)];
+  if (errorCount > 0) {
+    const errorKey = errorCount === 1
+      ? "message.tool_run_error_one"
+      : "message.tool_run_error_other";
+    parts.push(t(errorKey, { count: errorCount }));
+  }
+  return parts.join(" · ");
 }
 
 function DmProcessSegmentContent({

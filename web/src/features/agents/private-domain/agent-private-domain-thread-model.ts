@@ -1,7 +1,10 @@
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 import type { AgentPrivateThread } from "@/types/agent/private-domain";
+
+export type PrivateDomainLocalization = Pick<I18nContextValue, "locale" | "t">;
 
 export interface PrivateThreadListItemPresentation {
   buttonClassName: string;
@@ -63,16 +66,17 @@ const IDLE_THREAD_CLASS_NAME =
 export function privateThreadTitle(
   thread: AgentPrivateThread,
   agentId: string,
+  localization: PrivateDomainLocalization,
 ): string {
   const peers = thread.participants.filter(
     (participant) => participant.agent_id !== agentId,
   );
   if (peers.length === 0) {
-    return "私有笔记";
+    return localization.t("agent_options.contact.private_note");
   }
   return peers
     .map((participant) => participant.name || participant.agent_id)
-    .join("、");
+    .join(localization.locale === "zh" ? "、" : ", ");
 }
 
 function buildPrivateThreadListItem(
@@ -80,6 +84,7 @@ function buildPrivateThreadListItem(
   agentId: string,
   selectedThreadId: string | null,
   density: PrivateThreadDensityPresentation,
+  localization: PrivateDomainLocalization,
 ): PrivateThreadListItemPresentation {
   const isActive = thread.thread_id === selectedThreadId;
   return {
@@ -89,7 +94,8 @@ function buildPrivateThreadListItem(
       isActive ? density.activeClassName : IDLE_THREAD_CLASS_NAME,
     ),
     ownerAgentId: agentId,
-    preview: thread.last_content_preview || "联络消息",
+    preview: thread.last_content_preview
+      || localization.t("agent_options.contact.messages_title"),
     scope: thread.scope,
     summaryClassName: cn(
       "mt-1 text-(--text-muted) [&_*]:leading-4",
@@ -97,9 +103,9 @@ function buildPrivateThreadListItem(
     ),
     thread,
     timestampLabel: thread.last_timestamp
-      ? formatRelativeTime(thread.last_timestamp)
+      ? formatRelativeTime(thread.last_timestamp, localization.locale)
       : "",
-    title: privateThreadTitle(thread, agentId),
+    title: privateThreadTitle(thread, agentId, localization),
     titleClassName: cn(
       "min-w-0 flex-1 truncate font-semibold text-(--text-strong)",
       density.titleClassName,
@@ -113,6 +119,7 @@ export function getPrivateThreadListPresentation({
   className,
   compact,
   isLoading,
+  localization,
   selectedThreadId,
   threads,
 }: {
@@ -120,6 +127,7 @@ export function getPrivateThreadListPresentation({
   className?: string;
   compact: boolean;
   isLoading: boolean;
+  localization: PrivateDomainLocalization;
   selectedThreadId: string | null;
   threads: AgentPrivateThread[];
 }): PrivateThreadListPresentation {
@@ -151,6 +159,7 @@ export function getPrivateThreadListPresentation({
       agentId,
       selectedThreadId,
       density,
+      localization,
     )),
     kind: "ready",
     listClassName: density.listClassName,

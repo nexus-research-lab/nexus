@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { getDesktopRuntimeConfig } from "@/config/desktop-runtime/runtime-config";
 import {
   getRuntimeSettingsApi,
   updateRuntimeSettingsApi,
@@ -11,11 +12,15 @@ import {
   EMPTY_WORKSPACE_SETTINGS_SNAPSHOT,
   buildWorkspaceSettingsSnapshot,
   canSaveWorkspaceSettings,
+  getWorkspacePathPlaceholderKey,
   replaceWorkspaceDraft,
 } from "./model/workspace-settings-model";
 
 export function useWorkspaceSettings() {
   const { t } = useI18n();
+  const placeholder = t(getWorkspacePathPlaceholderKey(
+    getDesktopRuntimeConfig()?.platform,
+  ));
   const [snapshot, setSnapshot] = useState(
     EMPTY_WORKSPACE_SETTINGS_SNAPSHOT,
   );
@@ -82,6 +87,7 @@ export function useWorkspaceSettings() {
     currentPath: snapshot.currentPath,
     draftPath: snapshot.draftPath,
     feedbackMessage,
+    placeholder,
     save,
     saveDisabled: !canSaveWorkspaceSettings(snapshot, busy),
     saving,

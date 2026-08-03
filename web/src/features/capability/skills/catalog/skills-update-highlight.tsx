@@ -92,15 +92,22 @@ function UpdateSkillCard({
           variant="solid"
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          更新
+          {t("capability.skills_update")}
         </UiButton>
       )}
-      badges={<UiBadge size="xs" tone="warning">有更新</UiBadge>}
+      badges={(
+        <UiBadge size="xs" tone="warning">
+          {t("capability.skills_update_available")}
+        </UiBadge>
+      )}
       busy={busy}
-      description={getSkillDisplayDescription(skill, t) || "暂无描述"}
+      description={getSkillDisplayDescription(skill, t)
+        || t("capability.skills_no_description")}
       meta={(
         <>
-          <span className="truncate">{skill.source_name || "外部导入"}</span>
+          <span className="truncate">
+            {skill.source_name || t("capability.skills_external_import")}
+          </span>
           <span className="shrink-0">· {skill.version || "unknown"}</span>
         </>
       )}
@@ -121,12 +128,13 @@ export function SkillsUpdateHighlight({
   onUpdateSkill,
   updates,
 }: SkillsUpdateHighlightProps) {
+  const { locale, t } = useI18n();
   const model = buildSkillsUpdateModel({
     checkingUpdates,
     checkUpdateNotice,
     lastUpdateCheckedAt,
     updateCount: updates.length,
-  });
+  }, { locale, t });
   if (!model) {
     return null;
   }

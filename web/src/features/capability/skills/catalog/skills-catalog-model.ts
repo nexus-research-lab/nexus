@@ -1,6 +1,12 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { SkillInfo } from "@/types/capability/skill";
 
-import type { SkillUpdateCheckNotice } from "../controller/skill-update-check-model";
+import {
+  formatSkillUpdateCheckNotice,
+  type SkillUpdateCheckNotice,
+} from "../controller/skill-update-check-model";
+
+type SkillCatalogLocalization = Pick<I18nContextValue, "locale" | "t">;
 
 export interface SkillCardModel {
   description: string;
@@ -54,10 +60,11 @@ const SKILL_UPDATE_STATUS_RULES: readonly SkillUpdateStatusRule[] = [
 
 export function buildSkillCardModel(
   skill: SkillInfo,
-  description = skill.description,
+  description: string,
+  emptyDescription: string,
 ): SkillCardModel {
   return {
-    description: description || "暂无描述",
+    description: description || emptyDescription,
     showDelete: skill.deletable,
     showUpdate: skill.has_update,
     title: skill.title || skill.name,
@@ -66,6 +73,7 @@ export function buildSkillCardModel(
 
 export function buildSkillsUpdateModel(
   context: SkillUpdateContext,
+  localization: SkillCatalogLocalization,
 ): SkillsUpdateModel | null {
   const shouldShow = context.checkingUpdates
     || context.checkUpdateNotice !== null
@@ -78,35 +86,55 @@ export function buildSkillsUpdateModel(
   const noticeStatus = context.checkUpdateNotice?.status;
   return {
     actionDisabled: context.checkingUpdates,
-    actionLabel: context.checkingUpdates ? "检查中" : "重新检查",
+    actionLabel: context.checkingUpdates
+      ? localization.t("capability.skills_checking")
+      : localization.t("capability.skills_recheck"),
     badgeLabel: context.updateCount > 0
-      ? `${context.updateCount} 个可更新`
+      ? localization.t("capability.skills_updates_count", {
+        count: context.updateCount,
+      })
       : null,
     showUpdates: context.updateCount > 0,
     status: context.checkingUpdates ? "checking" : noticeStatus ?? status,
-    statusLabel: buildSkillUpdateStatusLabel(context),
-    title: context.updateCount > 0 ? "可更新 Skill" : "更新检查",
+    statusLabel: buildSkillUpdateStatusLabel(context, localization),
+    title: context.updateCount > 0
+      ? localization.t("capability.skills_updates_title")
+      : localization.t("capability.skills_update_check_title"),
   };
 }
 
-function buildSkillUpdateStatusLabel(context: SkillUpdateContext): string {
+function buildSkillUpdateStatusLabel(
+  context: SkillUpdateContext,
+  localization: SkillCatalogLocalization,
+): string {
   if (context.checkingUpdates) {
-    return "正在检查远端版本...";
+    return localization.t("capability.skills_checking_remote");
   }
   if (context.checkUpdateNotice) {
-    return context.checkUpdateNotice.message;
+    return formatSkillUpdateCheckNotice(
+      context.checkUpdateNotice,
+      localization.t,
+    );
   }
-  return `上次检查 ${formatCheckedTime(context.lastUpdateCheckedAt)}`;
+  return localization.t("capability.skills_last_checked", {
+    time: formatCheckedTime(context.lastUpdateCheckedAt, localization),
+  });
 }
 
-function formatCheckedTime(value: number | null): string {
+function formatCheckedTime(
+  value: number | null,
+  localization: SkillCatalogLocalization,
+): string {
   if (!value) {
-    return "尚未检查";
+    return localization.t("capability.skills_never_checked");
   }
-  return new Date(value).toLocaleString("zh-CN", {
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    month: "2-digit",
-  });
+  return new Date(value).toLocaleString(
+    localization.locale === "zh" ? "zh-CN" : "en-US",
+    {
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      month: "2-digit",
+    },
+  );
 }

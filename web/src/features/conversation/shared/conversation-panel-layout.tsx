@@ -5,6 +5,8 @@
  */
 import type { ComponentProps, ReactNode, RefObject } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+
 import { ConversationErrorBubble } from "./conversation-error-bubble";
 import { CONVERSATION_CONTENT_LANE_CLASS_NAME } from "./conversation-panel-styles";
 import { ProviderUnavailableBanner } from "./provider-unavailable-banner";
@@ -69,6 +71,7 @@ export function ConversationPanelViewport({
   tourAnchor?: string;
   viewport: ConversationViewportModel;
 }) {
+  const { t } = useI18n();
   return (
     <div
       data-tour-anchor={tourAnchor}
@@ -89,7 +92,7 @@ export function ConversationPanelViewport({
     >
       {viewport.isHistoryLoading ? (
         <div className={`${CONVERSATION_CONTENT_LANE_CLASS_NAME} mb-3 flex items-center justify-center text-xs text-muted-foreground`}>
-          正在加载更早消息...
+          {t("room.loading_earlier_messages")}
         </div>
       ) : null}
       {children}

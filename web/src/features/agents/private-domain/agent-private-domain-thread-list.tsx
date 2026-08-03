@@ -10,6 +10,7 @@ import {
 import { PrivateParticipantAvatarStack } from "@/features/agents/private-domain/agent-private-domain-avatar";
 import {
   getPrivateThreadListPresentation,
+  type PrivateDomainLocalization,
   type PrivateThreadListItemPresentation,
   type PrivateThreadListPresentation,
 } from "@/features/agents/private-domain/agent-private-domain-thread-model";
@@ -27,6 +28,7 @@ export function PrivateThreadList({
   className,
   compact = false,
   isLoading,
+  localization,
   onSelect,
   selectedThreadId,
   threads,
@@ -35,6 +37,7 @@ export function PrivateThreadList({
   className?: string;
   compact?: boolean;
   isLoading: boolean;
+  localization: PrivateDomainLocalization;
   onSelect: (threadId: string) => void;
   selectedThreadId: string | null;
   threads: AgentPrivateThread[];
@@ -44,11 +47,13 @@ export function PrivateThreadList({
     className,
     compact,
     isLoading,
+    localization,
     selectedThreadId,
     threads,
   });
   return (
     <PrivateThreadListContent
+      emptyLabel={localization.t("agent_options.contact.empty_records")}
       onSelect={onSelect}
       presentation={presentation}
     />
@@ -56,9 +61,11 @@ export function PrivateThreadList({
 }
 
 function PrivateThreadListContent({
+  emptyLabel,
   onSelect,
   presentation,
 }: {
+  emptyLabel: string;
   onSelect: (threadId: string) => void;
   presentation: PrivateThreadListPresentation;
 }) {
@@ -73,7 +80,7 @@ function PrivateThreadListContent({
       return (
         <div className={presentation.className}>
           <Inbox className="h-5 w-5 text-(--text-soft)" />
-          <p className="text-compact font-semibold text-(--text-muted)">暂无联络记录</p>
+          <p className="text-compact font-semibold text-(--text-muted)">{emptyLabel}</p>
         </div>
       );
     case "ready":

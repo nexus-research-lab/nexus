@@ -1,3 +1,5 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+
 import type { SessionNavigationItem } from "./session-navigator-model";
 
 export const RULER_TRACK_TOP_SAFE_INSET_PX = 56;
@@ -76,15 +78,18 @@ export function buildTickVisual(
 
 export function formatSpeakerSummary(
   item: SessionNavigationItem,
+  t: I18nContextValue["t"],
   agentNameMap?: Record<string, string>,
 ): string {
-  const speakers = item.hasUserMessage ? ["用户"] : [];
+  const speakers = item.hasUserMessage
+    ? [t("room.session_navigator_user")]
+    : [];
   speakers.push(
     ...item.agentIds.map(
       (agentId) => agentNameMap?.[agentId] || `Agent ${agentId.slice(0, 6)}`,
     ),
   );
-  return speakers.join(" · ") || "未加载";
+  return speakers.join(" · ") || t("room.session_navigator_unloaded");
 }
 
 function buildTickSegments(item: SessionNavigationItem): string[] {

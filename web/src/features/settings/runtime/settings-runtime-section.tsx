@@ -768,6 +768,7 @@ function ToolSearchRow({
           {t("settings.runtime.tool_search_label")}
         </span>
         <GlassSwitch
+          aria-label={t("settings.runtime.tool_search_label")}
           checked={checked}
           disabled={disabled}
           onChange={onChange}

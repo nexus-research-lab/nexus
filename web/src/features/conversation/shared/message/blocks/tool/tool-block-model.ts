@@ -1,10 +1,12 @@
 import type { PermissionUpdate } from "@/types/conversation/interaction/permission";
 import { formatTokens } from "@/lib/format/token-count";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 
 import {
   getCompactToolInputSummary,
   getToolInputSummary,
-  getToolTitle,
+  getToolTitleKey,
 } from "../../tool-activity";
 import type {
   ToolBlockProps,
@@ -16,19 +18,19 @@ import type {
   ToolStatusTone,
 } from "./tool-block-types";
 
-const FIELD_LABEL_MAP: Readonly<Record<string, string>> = {
-  answers: "回答",
-  command: "命令",
-  description: "说明",
-  directories: "目录",
-  file_path: "文件路径",
-  mode: "模式",
-  path: "路径",
-  pattern: "匹配内容",
-  prompt: "提示词",
-  query: "搜索内容",
-  task: "任务",
-  url: "网址",
+const FIELD_LABEL_KEY_MAP: Readonly<Record<string, TranslationKey>> = {
+  answers: "message.tool_field_answers",
+  command: "message.tool_field_command",
+  description: "message.tool_field_description",
+  directories: "message.tool_field_directories",
+  file_path: "message.tool_field_file_path",
+  mode: "message.tool_field_mode",
+  path: "message.tool_field_path",
+  pattern: "message.tool_field_pattern",
+  prompt: "message.tool_field_prompt",
+  query: "message.tool_field_query",
+  task: "message.tool_field_task",
+  url: "message.tool_field_url",
 };
 
 const PRIMARY_INPUT_KEYS = [
@@ -43,46 +45,46 @@ const PRIMARY_INPUT_KEYS = [
   "task",
 ] as const;
 
-const DESTINATION_LABEL_MAP: Readonly<Record<string, string>> = {
-  localSettings: "本地设置",
-  projectSettings: "项目设置",
-  session: "仅本会话",
-  userSettings: "用户设置",
+const DESTINATION_LABEL_KEY_MAP: Readonly<Record<string, TranslationKey>> = {
+  localSettings: "message.tool_destination_local_settings",
+  projectSettings: "message.tool_destination_project_settings",
+  session: "message.tool_destination_session",
+  userSettings: "message.tool_destination_user_settings",
 };
 
-const BEHAVIOR_LABEL_MAP: Readonly<Record<string, string>> = {
-  allow: "允许",
-  ask: "继续询问",
-  deny: "拒绝",
+const BEHAVIOR_LABEL_KEY_MAP: Readonly<Record<string, TranslationKey>> = {
+  allow: "message.tool_behavior_allow",
+  ask: "message.tool_behavior_ask",
+  deny: "message.tool_behavior_deny",
 };
 
 const STATUS_META: Readonly<Record<
   ToolBlockStatus,
-  { badgeClassName: string; label: string; tone: ToolStatusTone }
+  { badgeClassName: string; labelKey: TranslationKey; tone: ToolStatusTone }
 >> = {
   error: {
     badgeClassName: "bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] text-(--destructive)",
-    label: "失败",
+    labelKey: "message.tool_status_error",
     tone: "error",
   },
   pending: {
     badgeClassName: "bg-primary/10 text-primary",
-    label: "待处理",
+    labelKey: "message.tool_status_pending",
     tone: "default",
   },
   running: {
     badgeClassName: "bg-primary/10 text-primary",
-    label: "执行中",
+    labelKey: "message.tool_status_running",
     tone: "running",
   },
   success: {
     badgeClassName: "bg-[color:color-mix(in_srgb,var(--success)_10%,transparent)] text-(--success)",
-    label: "完成",
+    labelKey: "message.tool_status_success",
     tone: "success",
   },
   waiting_permission: {
     badgeClassName: "border border-(--divider-subtle-color) bg-transparent text-(--text-muted)",
-    label: "待确认",
+    labelKey: "message.tool_status_waiting_permission",
     tone: "waiting",
   },
 };
@@ -94,14 +96,16 @@ interface PermissionProjection {
 }
 
 interface PermissionValueFormatter {
-  format: (value: unknown) => string;
+  format: (value: unknown, localization: ToolBlockLocalization) => string;
   matches: (value: unknown) => boolean;
 }
+
+type ToolBlockLocalization = Pick<I18nContextValue, "locale" | "t">;
 
 const PERMISSION_VALUE_FORMATTERS: ReadonlyArray<PermissionValueFormatter> = [
   {
     matches: (value) => value == null || value === "",
-    format: () => "空",
+    format: (_value, { t }) => t("message.tool_value_empty"),
   },
   {
     matches: (value) => typeof value === "string",
@@ -113,17 +117,23 @@ const PERMISSION_VALUE_FORMATTERS: ReadonlyArray<PermissionValueFormatter> = [
   },
   {
     matches: Array.isArray,
-    format: (value) => (value as unknown[])
-      .map((item) => formatPermissionValue(item))
-      .join("、"),
+    format: (value, localization) => (value as unknown[])
+      .map((item) => formatPermissionValue(item, localization))
+      .join(localization.locale === "zh" ? "、" : ", "),
   },
   {
     matches: isObjectValue,
-    format: (value) => Object.entries(value as Record<string, unknown>)
-      .map(([key, nestedValue]) => (
-        `${getFieldLabel(key)}：${formatPermissionValue(nestedValue)}`
+    format: (value, localization) => Object.entries(
+      value as Record<string, unknown>,
+    )
+      .map(([key, nestedValue]) => localization.t(
+        "message.tool_field_pair",
+        {
+          label: getFieldLabel(key, localization),
+          value: formatPermissionValue(nestedValue, localization),
+        },
       ))
-      .join("；"),
+      .join(localization.locale === "zh" ? "；" : "; "),
   },
   {
     matches: () => true,
@@ -152,6 +162,7 @@ export function buildToolBlockViewModel({
   permissionRequest,
   interactionDisabled = false,
   interactionDisabledReason,
+  localization,
 }: Pick<
   ToolBlockProps,
   | "endTime"
@@ -163,17 +174,21 @@ export function buildToolBlockViewModel({
   | "status"
   | "toolResult"
   | "toolUse"
->): ToolBlockViewModel {
+> & { localization: ToolBlockLocalization }): ToolBlockViewModel {
+  const { t } = localization;
   const finalStatus = resolveFinalStatus(Boolean(toolResult?.is_error), status);
   const statusMeta = STATUS_META[finalStatus];
-  const permission = buildPermissionProjection(permissionRequest);
+  const permission = buildPermissionProjection(localization, permissionRequest);
   const collapsedInputSummary = getCompactToolInputSummary(toolUse.input);
   const expandedInputSummary = getToolInputSummary(toolUse.input);
   const resultSummary = projectOptional(
     toolResult,
-    (result) => getResultSummary(result.content),
+    (result) => getResultSummary(result.content, localization),
   );
-  const expandedInputDetail = getPrimaryToolInputDetail(toolUse.input);
+  const expandedInputDetail = getPrimaryToolInputDetail(
+    toolUse.input,
+    localization,
+  );
   const waitingDetail = WAITING_DETAIL_BY_STATUS[finalStatus](permission);
 
   return {
@@ -190,18 +205,19 @@ export function buildToolBlockViewModel({
       resultSummary,
     ]),
     hasResult: Boolean(toolResult),
-    liveStatusText: formatLiveProgress(liveProgress),
+    liveStatusText: formatLiveProgress(liveProgress, localization),
     primaryInputDetail: permission.primaryInputDetail,
     readableSuggestions: permission.readableSuggestions,
     status: finalStatus,
     statusBadgeClassName: statusMeta.badgeClassName,
-    statusText: statusMeta.label,
+    statusText: t(statusMeta.labelKey),
     statusTone: statusMeta.tone,
-    toolTitle: getToolTitle(toolUse.name),
+    toolTitle: getLocalizedToolTitle(toolUse.name, localization),
     waitingActionHint: formatWaitingActionHint(
       interactionDisabled,
       interactionDisabledReason,
       permissionRequest?.expires_at,
+      localization,
     ),
   };
 }
@@ -217,54 +233,71 @@ function resolveFinalStatus(
   return rules.find((rule) => rule.matches)!.value;
 }
 
-function formatPermissionValue(value: unknown): string {
+function formatPermissionValue(
+  value: unknown,
+  localization: ToolBlockLocalization,
+): string {
   return PERMISSION_VALUE_FORMATTERS
     .find((formatter) => formatter.matches(value))!
-    .format(value);
+    .format(value, localization);
 }
 
 export function getReadablePermissionSuggestions(
   suggestions: PermissionUpdate[] = [],
+  localization: ToolBlockLocalization,
 ): ToolPermissionSuggestion[] {
   return suggestions.map((suggestion, index) => {
     const destination = resolveMappedLabel(
       suggestion.destination,
-      DESTINATION_LABEL_MAP,
-      "当前会话",
+      DESTINATION_LABEL_KEY_MAP,
+      "message.tool_destination_current_session",
+      localization,
     );
     const behavior = resolveMappedLabel(
       suggestion.behavior,
-      BEHAVIOR_LABEL_MAP,
-      "更新规则",
+      BEHAVIOR_LABEL_KEY_MAP,
+      "message.tool_behavior_update_rule",
+      localization,
     );
     return {
       index,
-      label: buildSuggestionLabel(behavior, destination),
+      label: buildSuggestionLabel(
+        suggestion.behavior,
+        behavior,
+        destination,
+        localization,
+      ),
     };
   });
 }
 
 function resolveMappedLabel(
   value: string | undefined,
-  labels: Readonly<Record<string, string>>,
-  fallback: string,
+  labelKeys: Readonly<Record<string, TranslationKey>>,
+  fallbackKey: TranslationKey,
+  { t }: ToolBlockLocalization,
 ): string {
   if (!value) {
-    return fallback;
+    return t(fallbackKey);
   }
-  return labels[value] ?? value;
+  const labelKey = labelKeys[value];
+  return labelKey ? t(labelKey) : value;
 }
 
-function buildSuggestionLabel(behavior: string, destination: string): string {
-  const formatters = [
-    () => `${behavior}并写入${destination}`,
-    () => `写入${destination}`,
-  ];
-  return formatters[Number(behavior === "允许")]();
+function buildSuggestionLabel(
+  behaviorValue: string | undefined,
+  behavior: string,
+  destination: string,
+  { t }: ToolBlockLocalization,
+): string {
+  return behaviorValue === "allow"
+    ? t("message.tool_suggestion_write", { destination })
+    : t("message.tool_suggestion_behavior", { behavior, destination });
 }
 
 export function getPrimaryToolInputDetail(
   input: unknown,
+  localization: ToolBlockLocalization,
 ): ToolPrimaryInputDetail | null {
   const record = asRecord(input);
   if (!record) {
@@ -273,17 +306,20 @@ export function getPrimaryToolInputDetail(
   for (const key of PRIMARY_INPUT_KEYS) {
     const value = getStringField(record, key);
     if (value) {
-      return { key, label: getFieldLabel(key), value };
+      return { key, label: getFieldLabel(key, localization), value };
     }
   }
   return null;
 }
 
-function getResultSummary(content: unknown): string {
+function getResultSummary(
+  content: unknown,
+  { t }: ToolBlockLocalization,
+): string {
   if (typeof content === "string") {
     return truncateResultSummary(content);
   }
-  return "JSON 数据";
+  return t("message.tool_json_data");
 }
 
 function truncateResultSummary(content: string): string {
@@ -294,6 +330,7 @@ function truncateResultSummary(content: string): string {
 }
 
 function buildPermissionProjection(
+  localization: ToolBlockLocalization,
   permissionRequest?: ToolPermissionRequest,
 ): PermissionProjection {
   if (!permissionRequest) {
@@ -305,20 +342,23 @@ function buildPermissionProjection(
   }
   const primaryInputDetail = getPrimaryToolInputDetail(
     permissionRequest.tool_input,
+    localization,
   );
   const fields = Object.entries(permissionRequest.tool_input)
     .filter(([key]) => key !== primaryInputDetail?.key)
     .map(([key, value]) => ({
-      label: getFieldLabel(key),
-      value: formatPermissionValue(value),
+      label: getFieldLabel(key, localization),
+      value: formatPermissionValue(value, localization),
     }));
   return {
     fieldSummary: firstText([
-      fields.map((field) => `${field.label}：${field.value}`).join(" · "),
+      fields.map((field) => localization.t("message.tool_field_pair", field))
+        .join(" · "),
     ]),
     primaryInputDetail,
     readableSuggestions: getReadablePermissionSuggestions(
       permissionRequest.suggestions,
+      localization,
     ),
   };
 }
@@ -344,23 +384,29 @@ function resolveEndTime(endTime?: number): number {
 
 function formatLiveProgress(
   liveProgress: ToolBlockProps["liveProgress"],
+  localization: ToolBlockLocalization,
 ): string | null {
   if (!liveProgress) {
     return null;
   }
   return firstText([
     [
-      formatCurrentToolName(liveProgress.last_tool_name),
+      formatCurrentToolName(liveProgress.last_tool_name, localization),
       formatLiveTokenCount(liveProgress.usage?.total_tokens),
     ].filter(Boolean).join(" · "),
   ]);
 }
 
-function formatCurrentToolName(toolName?: string | null): string | null {
+function formatCurrentToolName(
+  toolName: string | null | undefined,
+  localization: ToolBlockLocalization,
+): string | null {
   if (!toolName) {
     return null;
   }
-  return `当前 ${toolName}`;
+  return localization.t("message.tool_current", {
+    tool: getLocalizedToolTitle(toolName, localization),
+  });
 }
 
 function formatLiveTokenCount(totalTokens: unknown): string | null {
@@ -377,21 +423,35 @@ function formatWaitingActionHint(
   interactionDisabled: boolean,
   interactionDisabledReason: string | undefined,
   expiresAt: string | undefined,
+  localization: ToolBlockLocalization,
 ): string {
   const rules = [
     {
       matches: interactionDisabled,
-      value: firstText([interactionDisabledReason, "当前暂不可操作"])!,
+      value: firstText([
+        interactionDisabledReason,
+        localization.t("message.tool_unavailable"),
+      ])!,
     },
-    { matches: true, value: formatPermissionDeadline(expiresAt) },
+    {
+      matches: true,
+      value: formatPermissionDeadline(expiresAt, localization),
+    },
   ];
   return rules.find((rule) => rule.matches)!.value;
 }
 
-function formatPermissionDeadline(expiresAt?: string): string {
+function formatPermissionDeadline(
+  expiresAt: string | undefined,
+  localization: ToolBlockLocalization,
+): string {
   return expiresAt
-    ? `${new Date(expiresAt).toLocaleTimeString()} 前确认`
-    : "确认后继续执行";
+    ? localization.t("message.tool_confirm_before", {
+      time: new Date(expiresAt).toLocaleTimeString(
+        localization.locale === "zh" ? "zh-CN" : "en-US",
+      ),
+    })
+    : localization.t("message.tool_continue_after_confirmation");
 }
 
 function projectOptional<Input, Output>(
@@ -430,6 +490,18 @@ function getStringField(
     : null;
 }
 
-function getFieldLabel(key: string): string {
-  return FIELD_LABEL_MAP[key] ?? key;
+function getFieldLabel(
+  key: string,
+  { t }: ToolBlockLocalization,
+): string {
+  const labelKey = FIELD_LABEL_KEY_MAP[key];
+  return labelKey ? t(labelKey) : key;
+}
+
+function getLocalizedToolTitle(
+  toolName: string,
+  { t }: ToolBlockLocalization,
+): string {
+  const titleKey = getToolTitleKey(toolName);
+  return titleKey ? t(titleKey) : toolName;
 }

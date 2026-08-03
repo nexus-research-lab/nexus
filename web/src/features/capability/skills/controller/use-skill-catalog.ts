@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getAvailableSkillsApi } from "@/lib/api/capability/skill-api";
+import { getSkillCategoryLabel } from "@/lib/skill-category";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { SkillInfo } from "@/types/capability/skill";
 
 import type { SkillCatalogController } from "./skill-marketplace-controller";
@@ -16,6 +18,8 @@ export function useSkillCatalog({
   active,
   onError,
 }: UseSkillCatalogOptions): SkillCatalogController {
+  const { t } = useI18n();
+  const catalogLoadFailed = t("capability.skills_catalog_load_failed");
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -43,14 +47,18 @@ export function useSkillCatalog({
       }
     } catch (error) {
       if (requestId === requestRef.current) {
-        onError(error instanceof Error ? error.message : "技能目录加载失败");
+        onError(
+          error instanceof Error
+            ? error.message
+            : catalogLoadFailed,
+        );
       }
     } finally {
       if (requestId === requestRef.current) {
         setLoading(false);
       }
     }
-  }, [onError]);
+  }, [catalogLoadFailed, onError]);
 
   useEffect(() => {
     if (!active) return;
@@ -60,13 +68,16 @@ export function useSkillCatalog({
   const categories = useMemo(() => {
     const categoryNames = new Map<string, string>();
     skills.forEach((skill) => {
-      categoryNames.set(skill.category_key, skill.category_name);
+      categoryNames.set(
+        skill.category_key,
+        getSkillCategoryLabel(skill, t),
+      );
     });
     return [
-      { key: "all", label: "全部" },
+      { key: "all", label: t("capability.category_all") },
       ...Array.from(categoryNames, ([key, label]) => ({ key, label })),
     ];
-  }, [skills]);
+  }, [skills, t]);
   const availableCategoryKeys = useMemo(
     () => new Set(categories.map((category) => category.key)),
     [categories],
@@ -81,14 +92,17 @@ export function useSkillCatalog({
     [selectedCategory, skills],
   );
   const groupedSkills = useMemo(() => {
-    const groups = new Map<string, SkillInfo[]>();
+    const groups = new Map<string, [string, SkillInfo[]]>();
     visibleSkills.forEach((skill) => {
-      const group = groups.get(skill.category_name) ?? [];
-      group.push(skill);
-      groups.set(skill.category_name, group);
+      const group = groups.get(skill.category_key) ?? [
+        getSkillCategoryLabel(skill, t),
+        [],
+      ];
+      group[1].push(skill);
+      groups.set(skill.category_key, group);
     });
-    return Array.from(groups);
-  }, [visibleSkills]);
+    return Array.from(groups.values());
+  }, [t, visibleSkills]);
   const updateAvailableSkills = useMemo(
     () => skills.filter((skill) => skill.has_update),
     [skills],

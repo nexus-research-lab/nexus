@@ -19,7 +19,12 @@ export function CapabilitySwitch({
         <span className="text-(--icon-default)">{icon}</span>
         <span className="truncate">{label}</span>
       </div>
-      <GlassSwitch checked={checked} size="xs" onChange={onChange} />
+      <GlassSwitch
+        aria-label={label}
+        checked={checked}
+        size="xs"
+        onChange={onChange}
+      />
     </div>
   );
 }

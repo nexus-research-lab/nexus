@@ -4,6 +4,8 @@ import {
   getExternalSkillPreviewApi,
   searchExternalSkillsApi,
 } from "@/lib/api/capability/skill-api";
+import { getErrorMessage } from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   ExternalSkillSearchItem,
   ExternalSkillSourceStatus,
@@ -25,6 +27,7 @@ export function useExternalSkillSearch({
   onError,
   sourceRevision,
 }: UseExternalSkillSearchOptions): ExternalSkillSearchController {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [searchRevision, setSearchRevision] = useState(0);
@@ -76,7 +79,10 @@ export function useExternalSkillSearch({
         if (abortController.signal.aborted) return;
         if (requestId !== searchRequestRef.current) return;
         setSourceStatuses([]);
-        onError(error instanceof Error ? error.message : "外部技能搜索失败");
+        onError(getErrorMessage(
+          error,
+          t("capability.skills_external_search_failed"),
+        ));
       } finally {
         if (searchAbortRef.current === abortController) {
           searchAbortRef.current = null;
@@ -88,7 +94,7 @@ export function useExternalSkillSearch({
     })();
 
     return () => abortController.abort();
-  }, [active, onError, searchRevision, sourceRevision, submittedQuery]);
+  }, [active, onError, searchRevision, sourceRevision, submittedQuery, t]);
 
   const submit = useCallback(() => {
     const normalizedQuery = query.trim();
@@ -123,14 +129,17 @@ export function useExternalSkillSearch({
         : current);
     } catch (error) {
       if (requestId === previewRequestRef.current) {
-        onError(error instanceof Error ? error.message : "技能预览加载失败");
+        onError(getErrorMessage(
+          error,
+          t("capability.skills_external_preview_failed"),
+        ));
       }
     } finally {
       if (requestId === previewRequestRef.current) {
         setPreviewLoading(false);
       }
     }
-  }, [onError]);
+  }, [onError, t]);
 
   return {
     closePreview,

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import type {
@@ -67,6 +68,7 @@ export function RoomSurfaceAuxiliaryPanel({
   roomMembers,
   subagentTaskSource,
 }: RoomSurfaceAuxiliaryPanelProps) {
+  const { t } = useI18n();
   const persistentPanels: Array<{
     content: ReactNode;
     key: "workspace" | "about";
@@ -105,7 +107,7 @@ export function RoomSurfaceAuxiliaryPanel({
   return (
     <>
       <PanelResizeHandle
-        ariaLabel="调整右侧面板宽度"
+        ariaLabel={t("room.resize_auxiliary_panel")}
         onResizeStart={onStartSidePanelResize}
         variant="gutter"
       />

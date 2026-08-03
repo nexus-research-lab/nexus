@@ -1,3 +1,5 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+
 import type {
   ExecutionKind,
   ExecutionMode,
@@ -8,9 +10,11 @@ import type {
   TaskFormDraft,
 } from "../scheduled-task-dialog-types";
 import {
-  EXECUTION_MODE_OPTIONS,
-  REPLY_MODE_OPTIONS,
+  buildExecutionModeOptions,
+  buildReplyModeOptions,
 } from "./task-form-options";
+
+type Translate = I18nContextValue["t"];
 
 interface ResourceStatus {
   error: string | null;
@@ -74,20 +78,22 @@ interface SessionCopy {
   label: string;
 }
 
-const TARGET_COPY: Record<TargetType, TargetCopy> = {
-  agent: {
-    ariaLabel: "选择目标智能体",
-    emptyPlaceholder: "请选择智能体",
-    label: "目标智能体",
-    loadingPlaceholder: "正在加载智能体...",
-  },
-  room: {
-    ariaLabel: "选择目标 Room",
-    emptyPlaceholder: "请选择 Room",
-    label: "目标 Room",
-    loadingPlaceholder: "正在加载 Room...",
-  },
-};
+function buildTargetCopy(t: Translate): Record<TargetType, TargetCopy> {
+  return {
+    agent: {
+      ariaLabel: t("capability.scheduled_dialog_select_target_agent"),
+      emptyPlaceholder: t("capability.scheduled_dialog_select_agent"),
+      label: t("capability.scheduled_dialog_target_agent"),
+      loadingPlaceholder: t("capability.scheduled_dialog_loading_agents"),
+    },
+    room: {
+      ariaLabel: t("capability.scheduled_dialog_select_target_room"),
+      emptyPlaceholder: t("capability.scheduled_dialog_select_room"),
+      label: t("capability.scheduled_dialog_target_room"),
+      loadingPlaceholder: t("capability.scheduled_dialog_loading_rooms"),
+    },
+  };
+}
 
 const TARGET_TYPE_BY_EXECUTION_KIND: Record<
   ExecutionKind,
@@ -126,38 +132,22 @@ const NEEDS_EXECUTION_SESSION: Record<
   room: () => true,
 };
 
-const SESSION_COPY: Record<TargetType, SessionCopy> = {
-  agent: {
-    ariaLabel: "选择执行会话",
-    emptyMessage: "这个智能体没有可选会话",
-    emptyPlaceholder: "请选择会话",
-    label: "执行会话",
-  },
-  room: {
-    ariaLabel: "选择执行成员",
-    emptyMessage: "这个 Room 没有可选会话",
-    emptyPlaceholder: "请选择执行成员",
-    label: "执行成员",
-  },
-};
-
-export const EXECUTION_KIND_HELP: Record<ExecutionKind, string> = {
-  agent: "由 Agent 会话执行任务，适合需要上下文、工具调用或自然语言处理的任务。",
-  script: "在目标智能体工作区直接执行脚本，输出会记录到运行历史和产物文件。",
-};
-
-export const EXECUTION_MODE_HELP: Record<ExecutionMode, string> = {
-  dedicated: "第一次执行时创建一个专用长期会话，之后持续复用。",
-  existing: "复用当前已有的执行上下文。",
-  main: "交给目标智能体的主会话处理，适合把任务继续接在主线对话里。",
-  temporary: "每次执行都会新开一个临时会话，不延续旧上下文。",
-};
-
-export const REPLY_MODE_HELP: Record<ReplyMode, string> = {
-  execution: "结果回到这次执行关联的会话。",
-  none: "执行结果只保存在任务自己的执行会话里。",
-  selected: "结果会额外推送到你指定的一个已有会话。",
-};
+function buildSessionCopy(t: Translate): Record<TargetType, SessionCopy> {
+  return {
+    agent: {
+      ariaLabel: t("capability.scheduled_dialog_select_execution_session"),
+      emptyMessage: t("capability.scheduled_dialog_no_agent_sessions"),
+      emptyPlaceholder: t("capability.scheduled_dialog_select_session"),
+      label: t("capability.scheduled_dialog_execution_session"),
+    },
+    room: {
+      ariaLabel: t("capability.scheduled_dialog_select_execution_member"),
+      emptyMessage: t("capability.scheduled_dialog_no_room_sessions"),
+      emptyPlaceholder: t("capability.scheduled_dialog_select_member"),
+      label: t("capability.scheduled_dialog_execution_member"),
+    },
+  };
+}
 
 function buildTaskSelectOptions(
   placeholder: string,
@@ -169,9 +159,10 @@ function buildTaskSelectOptions(
 export function buildTaskTargetPresentation(
   form: TaskFormDraft,
   data: TaskBasicsData,
+  t: Translate,
 ): TaskTargetPresentation {
   const targetType = TARGET_TYPE_BY_EXECUTION_KIND[form.executionKind](form);
-  const copy = TARGET_COPY[targetType];
+  const copy = buildTargetCopy(t)[targetType];
   const source = TARGET_SOURCE[targetType](form, data);
   const placeholder = source.resource.loading
     ? copy.loadingPlaceholder
@@ -196,26 +187,28 @@ function choiceLabel<Value extends string>(
   return options.find((option) => option.key === value)?.label ?? value;
 }
 
-const ADVANCED_SUMMARY: Record<ExecutionKind, (form: TaskFormDraft) => string> = {
-  agent: (form) => [
-    choiceLabel(EXECUTION_MODE_OPTIONS, form.executionMode),
-    choiceLabel(REPLY_MODE_OPTIONS, form.replyMode),
-  ].join(" · "),
-  script: () => "脚本",
-};
-
-export function buildTaskAdvancedSummary(form: TaskFormDraft): string {
-  return ADVANCED_SUMMARY[form.executionKind](form);
+export function buildTaskAdvancedSummary(
+  form: TaskFormDraft,
+  t: Translate,
+): string {
+  if (form.executionKind === "script") {
+    return t("capability.scheduled_dialog_script");
+  }
+  return [
+    choiceLabel(buildExecutionModeOptions(t), form.executionMode),
+    choiceLabel(buildReplyModeOptions(t), form.replyMode),
+  ].join(" · ");
 }
 
 function sessionEmptyMessage(
   form: TaskFormDraft,
   data: TaskBasicsData,
+  copy: Record<TargetType, SessionCopy>,
 ): string | null {
   if (!isSessionCatalogEmpty(form, data)) {
     return null;
   }
-  return SESSION_COPY[form.targetType].emptyMessage;
+  return copy[form.targetType].emptyMessage;
 }
 
 function isSessionCatalogEmpty(
@@ -236,8 +229,11 @@ function needsExecutionSession(form: TaskFormDraft): boolean {
 function sessionPlaceholder(
   loading: boolean,
   emptyPlaceholder: string,
+  t: Translate,
 ): string {
-  return loading ? "正在加载会话..." : emptyPlaceholder;
+  return loading
+    ? t("capability.scheduled_dialog_loading_sessions")
+    : emptyPlaceholder;
 }
 
 function sessionSelectDisabled(data: TaskBasicsData): boolean {
@@ -247,20 +243,22 @@ function sessionSelectDisabled(data: TaskBasicsData): boolean {
 export function buildExecutionSessionPresentation(
   form: TaskFormDraft,
   data: TaskBasicsData,
+  t: Translate,
 ): TaskSelectPresentation | null {
   if (!needsExecutionSession(form)) {
     return null;
   }
 
-  const copy = SESSION_COPY[form.targetType];
+  const sessionCopy = buildSessionCopy(t);
+  const copy = sessionCopy[form.targetType];
   return {
     ariaLabel: copy.ariaLabel,
-    description: sessionEmptyMessage(form, data),
+    description: sessionEmptyMessage(form, data, sessionCopy),
     disabled: sessionSelectDisabled(data),
     error: data.sessions.error,
     label: copy.label,
     options: buildTaskSelectOptions(
-      sessionPlaceholder(data.sessions.loading, copy.emptyPlaceholder),
+      sessionPlaceholder(data.sessions.loading, copy.emptyPlaceholder, t),
       data.sessionOptions,
     ),
     value: form.selectedSessionKey,
@@ -270,15 +268,20 @@ export function buildExecutionSessionPresentation(
 export function buildReplySessionPresentation(
   form: TaskFormDraft,
   data: TaskBasicsData,
+  t: Translate,
 ): TaskSelectPresentation {
   return {
-    ariaLabel: "选择回复会话",
+    ariaLabel: t("capability.scheduled_dialog_select_reply_session"),
     description: null,
     disabled: sessionSelectDisabled(data),
     error: data.sessions.error,
-    label: "回复会话",
+    label: t("capability.scheduled_dialog_reply_session"),
     options: buildTaskSelectOptions(
-      sessionPlaceholder(data.sessions.loading, "请选择回复会话"),
+      sessionPlaceholder(
+        data.sessions.loading,
+        t("capability.scheduled_dialog_choose_reply_session"),
+        t,
+      ),
       data.sessionOptions,
     ),
     value: form.selectedReplySessionKey,
