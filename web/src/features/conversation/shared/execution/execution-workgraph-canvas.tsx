@@ -1,11 +1,11 @@
 /**
  * INPUT: 当前 Execution、Agent 目录与当前节点。
- * OUTPUT: 可点击 Agent 头像节点、有向依赖边和单节点任务摘要组成的动态 DAG 画布。
+ * OUTPUT: 按自身真实宽度重排的 Agent 节点、依赖边与单节点摘要。
  * POS: Execution 展开态的唯一 WorkGraph 主视图；快照更新即重排，不复制编排状态。
  */
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
@@ -36,11 +36,13 @@ export function ExecutionWorkGraphCanvas({
   const { t } = useI18n();
   const markerId = `execution-arrow-${useId().replace(/:/g, "")}`;
   const items = useMemo(() => orderedExecutionItems(execution), [execution]);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [availableWidth, setAvailableWidth] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
   const layout = useMemo(
-    () => buildExecutionGraphLayout(execution),
-    [execution],
+    () => buildExecutionGraphLayout(execution, availableWidth ?? undefined),
+    [availableWidth, execution],
   );
   const selectedNode = layout.nodes.find(
     (node) => node.item.id === selectedItem?.id,
@@ -52,9 +54,37 @@ export function ExecutionWorkGraphCanvas({
     }
   }, [items, selectedId]);
 
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const updateWidth = () => {
+      const style = window.getComputedStyle(viewport);
+      const horizontalPadding = (Number.parseFloat(style.paddingLeft) || 0)
+        + (Number.parseFloat(style.paddingRight) || 0);
+      const width = Math.max(
+        0,
+        viewport.clientWidth - horizontalPadding,
+      );
+      const nextWidth = Math.floor(width);
+      setAvailableWidth((current) => current === nextWidth ? current : nextWidth);
+    };
+    updateWidth();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-execution-node-map>
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-auto px-2 py-2">
+      <div
+        ref={viewportRef}
+        className="soft-scrollbar min-h-0 flex-1 overflow-auto px-2 py-2"
+      >
         <div
           aria-label={t("execution.label")}
           className="relative mx-auto overflow-visible rounded-[12px] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_62%,transparent)]"

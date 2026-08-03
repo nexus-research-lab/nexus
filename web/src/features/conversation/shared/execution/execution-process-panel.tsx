@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前/最近 ExecutionView、Agent 目录与 terminal dismiss 动作。
- * OUTPUT: Composer 上方 Task 风格的当前节点胶囊，以及向上展开的紧凑只读节点图。
+ * OUTPUT: Composer 上方的紧凑节点胶囊，以及服从活动 Dock 本地宽度的可展开只读节点图。
  * POS: DM 与 Room 共用的权威 Execution 进度 UI；存在时替代 legacy Todo 进程。
  */
 "use client";
@@ -73,7 +73,7 @@ export function ExecutionProcessPanel({
       aria-label={t("execution.label")}
       aria-live="polite"
       className={cn(
-        "pointer-events-none relative flex min-w-0 max-w-[min(36rem,calc(100vw-4rem))] justify-center",
+        "pointer-events-none relative flex w-full min-w-0 max-w-[580px] justify-center",
         className,
       )}
       data-execution-process-panel
@@ -89,7 +89,7 @@ export function ExecutionProcessPanel({
             : t("execution.expand_panel")
         } · ${nodeSummary.summary} · ${nodeProgressLabel}`}
         className={cn(
-          "pointer-events-auto flex min-h-10 min-w-10 max-w-full items-center justify-center rounded-[14px] px-2.5 py-1.5 text-xs text-(--text-default) transition-[background,border-color,color,box-shadow] hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) hover:text-(--text-strong)",
+          "pointer-events-auto flex min-h-10 min-w-10 max-w-full items-center justify-center overflow-hidden rounded-[14px] px-2.5 py-1.5 text-xs text-(--text-default) transition-[background,border-color,color,box-shadow] hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) hover:text-(--text-strong)",
           EXECUTION_TRIGGER_CLASS_NAME,
         )}
         data-execution-node-summary={nodeSummary.summary}
@@ -115,11 +115,11 @@ export function ExecutionProcessPanel({
       </button>
 
       {isExpanded ? (
-        <div className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2">
+        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.5rem)] flex justify-center">
           <section
             aria-label={t("execution.label")}
             className={cn(
-              "pointer-events-auto flex max-h-[min(440px,54dvh)] w-[min(580px,calc(100vw-2rem))] origin-bottom flex-col overflow-hidden",
+              "pointer-events-auto flex max-h-[min(440px,54dvh)] w-full origin-bottom flex-col overflow-hidden",
               OVERLAY_SURFACE_CLASS_NAME,
               ANCHORED_OVERLAY_MOTION_CLASS_NAME,
             )}

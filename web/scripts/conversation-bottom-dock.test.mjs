@@ -556,7 +556,7 @@ test("shared WebSocket session leases keep a live Room bound until its last cons
   );
 });
 
-test("Composer Footer keeps Powered by Nexus in its physical center column", async () => {
+test("Composer Footer centers its brand only while the input shell has room", async () => {
   const { ComposerFooter } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/components/footer/composer-footer.tsx",
   );
@@ -686,7 +686,7 @@ test("Composer Footer keeps Powered by Nexus in its physical center column", asy
 
   assert.match(html, /\bnexus-chat-composer-footer\b/);
   assert.match(html, /data-composer-powered-by="true"/);
-  assert.match(html, /Powered by\s*<\/span>Nexus/);
+  assert.match(html, />Powered by Nexus<\/span>/);
   assert.match(html, /aria-label="当前 Session 权限"/);
   assert.match(html, /aria-label="当前 Session 模型"/);
   assert.doesNotMatch(html, /aria-label="Agent 设置"/);
@@ -706,7 +706,8 @@ test("Composer Footer keeps Powered by Nexus in its physical center column", asy
   );
   assert.match(
     recipeSource,
-    /@container nexus-chat-composer \(max-width: 420px\)/,
+    /@container nexus-chat-composer \(max-width: 640px\)[\s\S]*?grid-template-areas: "leading trailing";[\s\S]*?\.nexus-chat-composer-footer-brand\s*\{[\s\S]*?display: none;/,
+    "compact composers remove the decorative center column",
   );
   assert.match(
     recipeSource,
@@ -1229,6 +1230,10 @@ test("Task and scroll controls share a centered dock while retaining local point
   assert.match(html, /data-conversation-dock-scroll="true"/);
   assert.match(html, /\bjustify-center\b/);
   assert.match(html, /\bgap-1\b/);
+  assert.match(
+    html,
+    /class="[^"]*\bflex-1\b[^"]*" data-conversation-dock-activity/,
+  );
   assert.match(html, /data-test-task-control="true"/);
   assert.match(html, /data-scroll-to-latest="true"/);
 

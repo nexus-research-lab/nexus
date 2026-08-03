@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made narrow conversation workspaces responsive: the Composer hides its decorative `Powered by Nexus` label, while WorkGraph overlays and node spacing follow the local chat width instead of the full window.
 - Let a Room coordinator continue the managed WorkGraph immediately after accepting a review: the same physical round now upgrades from ReviewBinding to coordination, exposes newly Ready work, and can create the next directed Assignment without asking the user to send “continue” between nodes.
 - Changed `plan_execution` to accept exactly one WorkGraph transport: a strictly decoded, non-empty `work_graph_json` string. The legacy nested `items` path is rejected, avoiding Provider-side field loss while preserving typed validation and atomic Plan persistence.
 - Removed duplicate full Execution Snapshots from MCP results, keeping only revision, recovery actions and authoritative actor-specific context; Goal completion-tool fallback can no longer bypass the current-round Objective Alignment gate.

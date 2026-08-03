@@ -1,6 +1,6 @@
 /**
  * INPUT: Composer 动作、运行态、输入元数据、Nexus 标注与提交投影。
- * OUTPUT: 按输入壳容器宽度收敛的三列 Footer。
+ * OUTPUT: 按输入壳容器宽度在宽壳三列与窄壳双列间收敛的 Footer。
  * POS: Composer 壳内唯一的底部动作与状态布局。
  */
 
@@ -97,10 +97,7 @@ function ComposerPoweredByNexus({ visible }: { visible: boolean }) {
       className="nexus-chat-composer-footer-brand whitespace-nowrap text-center text-[11px] font-medium leading-4 tracking-[0.01em]"
       data-composer-powered-by
     >
-      <span className="nexus-chat-composer-footer-brand-prefix">
-        Powered by{" "}
-      </span>
-      Nexus
+      Powered by Nexus
     </span>
   );
 }

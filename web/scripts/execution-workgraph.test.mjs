@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -217,6 +218,14 @@ test("WorkGraph layout reflows when Plan nodes are added or removed", async () =
     reducedLayout.edges.map((edge) => `${edge.sourceId}->${edge.targetId}`),
     ["research->review", "review->integrate"],
   );
+
+  const constrainedLayout = buildExecutionGraphLayout(execution, 340);
+  assert.equal(constrainedLayout.width, 340);
+  assert.equal(
+    constrainedLayout.nodes[1].x - constrainedLayout.nodes[0].x,
+    110,
+    "the graph compresses layer spacing before introducing horizontal scroll",
+  );
 });
 
 test("WorkGraph panel follows Task density and exposes the current node rail", async () => {
@@ -241,6 +250,17 @@ test("WorkGraph panel follows Task density and exposes the current node rail", a
   assert.match(html, /实现 UI/);
   assert.doesNotMatch(html, /Lead/);
   assert.doesNotMatch(html, /data-workspace-task-panel/);
+
+  const panelSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/execution/execution-process-panel.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(panelSource, /flex w-full min-w-0 max-w-\[580px\]/);
+  assert.match(panelSource, /absolute inset-x-0[\s\S]*w-full origin-bottom/);
+  assert.doesNotMatch(panelSource, /100vw/);
 });
 
 test("Expanded WorkGraph is an interactive Agent-avatar DAG", async () => {
