@@ -107,7 +107,7 @@ src/
 - Composer 上方 WorkGraph 的展开宽度由活动 Dock 的本地空间约束，DAG 按自身实测宽度压缩层间距，只有低于最小可读间距时才横向滚动；禁止再用全窗口宽度推断被侧栏和辅助面板挤压后的聊天栏尺寸
 - 会话底部工作区由 `conversation/shared/conversation-panel-layout.tsx` 统一组合为一个以 Composer 为底座的向上工作栈：Goal/告警紧贴 Composer 形成第一层，当前会话 Task 以“当前步骤/总步数 · 当前摘要”胶囊占据工作栈顶边的中心主位，回到底部在同一行相邻显示且 Task 缺席时单独居中。透明 Dock 与中间包装不接收指针，只有两个真实按钮拥有局部热区；禁止再用透明 runway 拉开 Goal 与 Composer。只有 Task 或回到底部控件真实可见时才在消息尾部保留避让，隐藏时不制造空白；控件显隐和 Task 展开不得改变阅读 viewport 高度。Task 数据沿 Room/DM 面板模型进入共享视图，不在 Room Surface 顶部另设状态条。Composer Footer 使用输入壳容器宽度收敛动作：宽壳居中显示 `Powered by Nexus`，窄壳隐藏品牌标注并把空间还给功能控件；窄壳 Goal 模式必须重排为两行并保留负责人、取消和提交动作，不以全窗口断点推导壳内密度
 - Composer 附件只由 `shared/composer/attachments/` 的有序规则表分类并生成文件选择过滤；剪贴板先投影为明确动作，整批校验必须先于上传，DM/Room 必须提供窄上传目标
-- 停止动作按执行所有权归属：DM 可由 Composer 提供 `onStop`；Room 当前阶段只在对应 Agent execution 常驻控制条通过 `agent_round_id` 定向中断，入口不得依赖 pending slot 或单条消息，命令必须携带请求 ACK 身份并在 stopping 时防止重复提交
+- 停止动作按执行所有权归属：DM 可由 Composer 提供当前会话 `onStop`；Room Agent execution 常驻控制条通过自身 `agent_round_id` 定向中断，Composer 的“全部停止”只聚合点击瞬间仍 active 且尚未 stopping 的精确目标并逐个发送同一命令，禁止退化为无目标 session interrupt
 - General 设置由 `features/settings/general/` 统一编排；默认模型值直接派生自用户偏好和 Provider 默认值，不维护镜像选择状态
 - 设置目录由 `features/settings/settings-navigation-model.ts` 定义，主应用侧栏与独立设置窗口必须复用 `settings-sidebar-navigation.tsx`；当前分区只由 URL 查询参数派生，不维护第二份选中状态；运营分区只对非桌面端 owner/admin 暴露，旧 `/operations` 入口必须收敛到设置目录
 - 运营能力归 `features/settings/operations/`，可以组合设置域内的 Provider 与共享视图；不得恢复与 `settings` 双向依赖的顶层 `features/operations/`

@@ -174,6 +174,7 @@ export const zhConversationMessages = {
   "room.agent_handoff_active": "已交接",
   "room.agent_stop": "停止 Agent",
   "room.agent_stopping": "停止中…",
+  "room.stop_all_outputs": "全部停止",
   "room.permission_deny": "拒绝",
   "room.permission_allow": "允许",
   "room.creating": "创建中...",

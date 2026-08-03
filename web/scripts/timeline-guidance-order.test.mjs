@@ -3894,6 +3894,48 @@ test("Room Composer hides the global stop action when no stop capability is supp
   );
 });
 
+test("Room Composer stop-all freezes exact active multi-Agent targets at click time", async () => {
+  const {
+    collectActiveRoomAgentRoundIds,
+    stopRoomAgentOutputs,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/panel/controller/use-group-chat-composer-model.ts",
+  );
+  const conversation = {
+    room_agent_execution_states: [
+      { agent_round_id: "round-agent-a", phase: "active" },
+      { agent_round_id: "round-agent-b", phase: "pending_permission" },
+      { agent_round_id: "round-agent-finished", phase: "terminal" },
+    ],
+    pending_agent_slots: [
+      { agent_round_id: "round-agent-a", status: "streaming" },
+      { agent_round_id: "round-agent-c", status: "pending" },
+      { agent_round_id: "round-agent-finished", status: "completed" },
+    ],
+    stopping_agent_round_ids: ["round-agent-b"],
+  };
+  const targets = collectActiveRoomAgentRoundIds(conversation);
+
+  assert.deepEqual(
+    targets,
+    ["round-agent-a", "round-agent-c"],
+    "terminal, duplicate, and already-stopping rounds must not enter the batch",
+  );
+
+  const stopped = [];
+  stopRoomAgentOutputs(targets, (agentRoundId) => {
+    stopped.push(agentRoundId);
+    if (agentRoundId === "round-agent-a") {
+      targets.push("round-agent-late");
+    }
+  });
+  assert.deepEqual(
+    stopped,
+    ["round-agent-a", "round-agent-c"],
+    "the first synchronous stop response must not mutate the click-time batch",
+  );
+});
+
 test("message protocol preserves CC rich blocks and contains unknown provider blocks", async () => {
   const {
     parseConversationMessage,

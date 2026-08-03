@@ -188,7 +188,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   onStop: props.onStop,
                   sendLabel: state.sendButtonLabel,
                   shouldStop: state.shouldShowStopButton,
-                  stopLabel: t("composer.stop_generation"),
+                  stopLabel: props.stopLabel ?? t("composer.stop_generation"),
                 }}
               />
             </>

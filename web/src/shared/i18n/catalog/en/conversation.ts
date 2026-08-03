@@ -177,6 +177,7 @@ export const enConversationMessages = {
   "room.agent_handoff_active": "Handed off",
   "room.agent_stop": "Stop Agent",
   "room.agent_stopping": "Stopping…",
+  "room.stop_all_outputs": "Stop all",
   "room.permission_deny": "Deny",
   "room.permission_allow": "Allow",
   "room.creating": "Creating...",

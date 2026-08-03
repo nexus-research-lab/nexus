@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added a Room Composer “Stop all” action that freezes the active Agent-round target set at click time and sends one exact acknowledged interrupt per member.
 - Simplified the macOS and Windows update-ready prompts and made download progress windows substantially more compact.
 - Added a single DM/Room WorkGraph progress surface backed by a safe Execution read model: it follows the existing Task capsule and opens an interactive, dynamically reflowing DAG of actual Agent avatars and dependency edges, with compact task text shown only in a node-anchored popover after clicking an avatar; Nexus Execution tools now use readable activity labels and backend-authorized managed-tool policy instead of generic sensitive-tool prompts.
 - Simplified the collapsed WorkGraph control to its avatar node rail and moved the current node title and progress into the expanded graph header.

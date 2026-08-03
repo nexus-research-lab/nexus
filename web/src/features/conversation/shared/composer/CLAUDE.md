@@ -36,6 +36,6 @@ DM 或 Room 出现 pending permission、AskUserQuestion 或计划确认时，人
 Composer Footer 使用输入壳命名容器形成“动作/权限—Powered by Nexus—模型/提交”三列；模型与权限只写当前 Session 覆盖，空覆盖表示继续继承 Agent 默认值。DM 隐式使用当前 Agent，直接展示权限和模型；Room 左侧权限一次作用于当前 Conversation 的全部 Agent Session，右侧模型先列 Agent，并在横向空间足够时悬浮级联其模型选项。模型配置目标只存在于浮层内部，关闭后忘记，Room 的消息路由仍只由当前 Room 与正文 `@` 提及决定，不得把模型目标伪装成发送对象或借此回写 Agent 默认配置。中心品牌标注属于壳内三级弱信息，颜色必须由 `text-soft` 与输入壳背景混合后进一步后退。窄壳普通模式只收起设置/权限文字、前缀和非必要元数据，Goal 模式改为“控制/提交 + 居中品牌”的两行网格，并允许 scope 文案收敛，但负责人、取消和提交动作必须完整可操作；不得重新把品牌移到壳外或使用全窗口断点决定提交按钮标签。
 新消息提交以 `auto` 贴住真实内容底部，随后每段正文增长都连续上推历史内容；只有用户显式点击“回到底部”或导航时才允许可见的平滑滚动。
 Composer 的可用发送、排队与 Goal 确认使用 Nexus 品牌行动蓝，禁用发送回落为中性灰；Plus、附件与普通工具保持灰黑，停止和错误用红色，完成用绿色，字数临界用琥珀色，发送中/回复中/压缩中属于活动态而不是成功态。
-队列命令和附件准备是 DM/Room 的共同能力；停止动作只由 DM Composer 在提供 `onStop` 时渲染，Room 的停止归对应 Agent slot，不把全局停止回调塞进输入区。
+队列命令和附件准备是 DM/Room 的共同能力；DM Composer 的停止针对当前会话，Room Composer 的“全部停止”必须在点击时冻结所有 active slot 的精确 `agent_round_id`，逐个复用定向停止，禁止退化为无目标的 session interrupt。
 Mention 目标只投影成员标记和标签；匹配、插入、键盘与浮层规则归 `shared/ui/mention/`。Slash 键盘导航不得注册 document 级监听，必须由 textarea 或子面板搜索框显式分派；外部点击、Escape 收口及 resize/scroll 重定位统一复用 `shared/ui/overlay/anchored-overlay-layer.ts`。
 附件必须先整批校验再上传；DM/Room 只提供目标作用域，不得复制格式规则或上传循环。

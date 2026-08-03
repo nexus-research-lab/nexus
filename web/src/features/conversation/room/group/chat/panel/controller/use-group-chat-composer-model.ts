@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room Composer 会话、精确 Agent execution/slot/stopping 状态与发送资源。
+ * OUTPUT: 带点击时精确目标快照“全部停止”的 Room Composer 模型。
+ * POS: Room 会话能力到共享 Composer Props 的唯一动作装配边界。
+ */
 import { useCallback } from "react";
 
 import { prepareRoomConversationAttachments } from "@/features/conversation/shared/composer/attachments/composer-attachments";
@@ -29,9 +34,13 @@ type ComposerConversation = Pick<
   | "guide_input_queue_message"
   | "input_queue_items"
   | "is_loading"
+  | "pending_agent_slots"
   | "reorder_input_queue_messages"
+  | "room_agent_execution_states"
   | "runtime_phase"
   | "send_message"
+  | "stop_generation"
+  | "stopping_agent_round_ids"
 >;
 
 interface UseGroupChatComposerModelOptions {
@@ -85,6 +94,32 @@ export function useGroupChatComposerModel({
     sendMessage: conversation.send_message,
     sessionKey,
   });
+  const {
+    pending_agent_slots: pendingAgentSlots,
+    room_agent_execution_states: roomAgentExecutionStates,
+    stop_generation: stopGeneration,
+    stopping_agent_round_ids: stoppingAgentRoundIds,
+  } = conversation;
+  const activeAgentRoundIds = collectActiveRoomAgentRoundIds({
+    pending_agent_slots: pendingAgentSlots,
+    room_agent_execution_states: roomAgentExecutionStates,
+    stopping_agent_round_ids: stoppingAgentRoundIds,
+  });
+  const stopAllAgentOutputs = useCallback(() => {
+    stopRoomAgentOutputs(
+      collectActiveRoomAgentRoundIds({
+        pending_agent_slots: pendingAgentSlots,
+        room_agent_execution_states: roomAgentExecutionStates,
+        stopping_agent_round_ids: stoppingAgentRoundIds,
+      }),
+      stopGeneration,
+    );
+  }, [
+    pendingAgentSlots,
+    roomAgentExecutionStates,
+    stopGeneration,
+    stoppingAgentRoundIds,
+  ]);
 
   return {
     commandCatalog: conversation.command_catalog,
@@ -113,10 +148,14 @@ export function useGroupChatComposerModel({
     onPrepareAttachments: handlers.handlePrepareAttachments,
     onReorderQueueMessages: conversation.reorder_input_queue_messages,
     onSendMessage: handlers.handleSendMessage,
+    onStop: activeAgentRoundIds.length > 0
+      ? stopAllAgentOutputs
+      : undefined,
     queueWhenSessionBusy: true,
     roomMembers,
     runtimePhase: conversation.runtime_phase,
     runtimeKind,
+    stopLabel: t("room.stop_all_outputs"),
     sessionSettings: conversationId && roomMembers.length > 0
       ? {
           initialTargetId: agentId ?? roomMembers[0].agent_id,
@@ -137,4 +176,56 @@ export function useGroupChatComposerModel({
       : undefined,
     tourAnchor: CONVERSATION_TOUR_ANCHORS.composer,
   };
+}
+
+type RoomStopConversation = Pick<
+  ComposerConversation,
+  | "pending_agent_slots"
+  | "room_agent_execution_states"
+  | "stopping_agent_round_ids"
+>;
+
+/** 按 execution 首见顺序冻结当前可停止目标，并用 slot 补齐 ACK 前空窗。 */
+export function collectActiveRoomAgentRoundIds(
+  conversation: RoomStopConversation,
+): string[] {
+  const stopping = new Set(
+    conversation.stopping_agent_round_ids.map((value) => value.trim()),
+  );
+  const result: string[] = [];
+  const seen = new Set<string>();
+  const append = (agentRoundId: string): void => {
+    const normalizedAgentRoundId = agentRoundId.trim();
+    if (
+      !normalizedAgentRoundId
+      || stopping.has(normalizedAgentRoundId)
+      || seen.has(normalizedAgentRoundId)
+    ) {
+      return;
+    }
+    seen.add(normalizedAgentRoundId);
+    result.push(normalizedAgentRoundId);
+  };
+  for (const state of conversation.room_agent_execution_states) {
+    if (state.phase !== "terminal") {
+      append(state.agent_round_id);
+    }
+  }
+  for (const slot of conversation.pending_agent_slots) {
+    if (slot.status === "pending" || slot.status === "streaming") {
+      append(slot.agent_round_id);
+    }
+  }
+  return result;
+}
+
+/** 点击后立即复制目标，某个同步停止回调不得改变本批后续成员。 */
+export function stopRoomAgentOutputs(
+  activeAgentRoundIds: readonly string[],
+  stopGeneration: (agentRoundId: string) => void,
+): void {
+  const targetSnapshot = [...activeAgentRoundIds];
+  for (const agentRoundId of targetSnapshot) {
+    stopGeneration(agentRoundId);
+  }
 }
