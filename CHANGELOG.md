@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a conversational first-run Nexus experience that guides users through model setup, connection verification, and a concise product introduction before their first task.
+
 ### Fixed
 
 - Decoded Windows sidecar stdout and stderr as UTF-8 so startup diagnostics preserve readable structured logs.
