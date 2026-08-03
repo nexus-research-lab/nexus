@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
@@ -140,6 +141,8 @@ internal sealed class SidecarSupervisor : IDisposable
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             CreateNoWindow = true,
         };
 
