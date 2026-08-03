@@ -11,7 +11,7 @@ import type { AssistantMessage } from "@/types/conversation/message/entity";
 
 import {
   normalizeAssistantMessage,
-  resolveAssistantResultErrorMessage,
+  resolveAssistantResultErrorBannerMessage,
 } from "../../message/assistant-message-model";
 import { upsertRealtimeMessage } from "../../message/message-collection-model";
 import type {
@@ -64,8 +64,8 @@ const handleMessage: AgentEventHandler = (event, context) => {
     context.runtime.trackAssistantMessage(
       normalizedMessage as AssistantMessage,
     );
-    const resultError = resolveAssistantResultErrorMessage(
-      normalizedMessage.result_summary,
+    const resultError = resolveAssistantResultErrorBannerMessage(
+      normalizedMessage as AssistantMessage,
     );
     if (resultError) {
       context.state.setError(resultError);

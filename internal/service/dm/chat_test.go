@@ -741,5 +741,5 @@ func TestServiceHandleChatFailsRoundWhenStreamEndsWithoutTerminalResult(t *testi
 	assertContainsStreamEventType(t, events, "message_start")
 	assertContainsStreamEventType(t, events, "content_block_delta")
 	assertContainsResultSubtype(t, events, "error")
-	assertContainsErrorEventForMessage(t, events, "assistant-premature")
+	assertNotContainsErrorEventForMessage(t, events, "assistant-premature")
 }

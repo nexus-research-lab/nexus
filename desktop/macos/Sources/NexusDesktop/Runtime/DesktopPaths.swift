@@ -2,7 +2,7 @@ import Foundation
 
 enum DesktopPaths {
   static var rootDirectory: URL {
-    URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".nexus", isDirectory: true)
+    DesktopStateRootStore.activeRootDirectory
   }
 
   static var appDirectory: URL {

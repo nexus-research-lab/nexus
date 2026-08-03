@@ -75,5 +75,8 @@ function SettingsSectionContent({
   if (section === "runtime") {
     return <SettingsRuntimeSection />;
   }
+  if (section === "workspace" && !isDesktopRuntime()) {
+    return <Navigate replace to={AppRouteBuilders.settings()} />;
+  }
   return <SettingsGeneralSection section={section} />;
 }

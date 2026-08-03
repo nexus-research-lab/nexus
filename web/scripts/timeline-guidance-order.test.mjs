@@ -3377,6 +3377,46 @@ test("history restores only the latest assistant round error", async () => {
     latestAssistantResultErrorMessage([failed]),
     "provider stream failed",
   );
+  const runtimeExitMessage =
+    "Agent runtime 的响应流意外结束，本轮未完成。会话会在下一条消息自动恢复，请重试。";
+  assert.equal(
+    latestAssistantResultErrorMessage([assistantMessage({
+      messageId: "assistant-runtime-exit",
+      resultSummary: {
+        duration_api_ms: 0,
+        duration_ms: 0,
+        is_error: true,
+        num_turns: 0,
+        result: runtimeExitMessage,
+        subtype: "error",
+        timestamp: 2,
+      },
+      roundId: "round-runtime-exit",
+      text: "",
+      timestamp: 2,
+    })]),
+    null,
+    "result-only failure is already visible as the final assistant reply",
+  );
+  assert.equal(
+    latestAssistantResultErrorMessage([assistantMessage({
+      messageId: "assistant-partial-runtime-exit",
+      resultSummary: {
+        duration_api_ms: 0,
+        duration_ms: 0,
+        is_error: true,
+        num_turns: 0,
+        result: runtimeExitMessage,
+        subtype: "error",
+        timestamp: 2,
+      },
+      roundId: "round-partial-runtime-exit",
+      text: "已完成一部分输出",
+      timestamp: 2,
+    })]),
+    runtimeExitMessage,
+    "partial assistant output still needs a separate terminal error banner",
+  );
   assert.equal(
     latestAssistantResultErrorMessage([
       failed,
@@ -3435,6 +3475,60 @@ test("history restores only the latest assistant round error", async () => {
     }),
     DEFAULT_ASSISTANT_ERROR_MESSAGE,
   );
+});
+
+test("round status updates lifecycle without duplicating durable error copy", async () => {
+  const { AGENT_SESSION_EVENT_HANDLERS } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-handlers.ts",
+  );
+  const applied = [];
+  let errorWrites = 0;
+  const context = {
+    runtime: {
+      applyAgentRoundStatus: (payload) => {
+        applied.push(["agent", payload.status]);
+      },
+      applyRoundStatus: (_roundId, status) => {
+        applied.push(["round", status]);
+      },
+    },
+    scope: { isCurrentSessionEvent: () => true },
+    state: {
+      setError: () => {
+        errorWrites += 1;
+      },
+    },
+  };
+
+  AGENT_SESSION_EVENT_HANDLERS.agent_round_status({
+    data: {
+      agent_id: "agent-1",
+      agent_round_id: "agent-round-1",
+      is_terminal: true,
+      round_id: "round-1",
+      status: "error",
+    },
+    event_type: "agent_round_status",
+    protocol_version: 2,
+    session_key: "room:group:conversation-1",
+    timestamp: 1,
+  }, context);
+  AGENT_SESSION_EVENT_HANDLERS.round_status({
+    data: {
+      is_terminal: true,
+      message: "already projected by durable result",
+      result_subtype: "error",
+      round_id: "round-1",
+      status: "error",
+    },
+    event_type: "round_status",
+    protocol_version: 2,
+    session_key: "room:group:conversation-1",
+    timestamp: 2,
+  }, context);
+
+  assert.deepEqual(applied, [["agent", "error"], ["round", "error"]]);
+  assert.equal(errorWrites, 0);
 });
 
 test("terminal round status keeps its displayable error message", async () => {

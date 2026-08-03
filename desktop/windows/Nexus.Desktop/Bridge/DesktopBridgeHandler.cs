@@ -2,8 +2,10 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
+using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using Nexus.Desktop.Diagnostics;
+using Nexus.Desktop.Lifecycle;
 using Nexus.Desktop.Runtime;
 using Nexus.Desktop.Sidecar;
 
@@ -48,6 +50,8 @@ internal sealed class DesktopBridgeHandler
                     build_number = runtime.BuildNumber,
                     platform = runtime.Platform,
                 },
+                "app.get_state_root" => DesktopStateRootStore.StatusPayload(),
+                "app.relocate_state_root" => RelocateStateRoot(payload),
                 "app.open_external_url" => OpenExternalUrl(payload),
                 "app.export_logs" => ExportLogs(),
                 "app.open_route" => await OpenRouteAsync(payload),
@@ -89,6 +93,10 @@ internal sealed class DesktopBridgeHandler
                 _ => throw new NotSupportedException($"不支持的桌面桥接请求：{kind}"),
             };
             await ResolveAsync(requestID, result);
+            if (string.Equals(kind, "app.relocate_state_root", StringComparison.Ordinal))
+            {
+                _ = Application.Current.Dispatcher.InvokeAsync(() => App.RequestApplicationExit(0));
+            }
         }
         catch (Exception exception)
         {
@@ -113,6 +121,16 @@ internal sealed class DesktopBridgeHandler
             UseShellExecute = true,
         });
         return new { opened = true };
+    }
+
+    private static object RelocateStateRoot(JsonElement payload)
+    {
+        string targetPath = DesktopStateRootMigration.ScheduleMigration(StringPayload(payload, "path"));
+        return new
+        {
+            restarting = true,
+            target_path = targetPath,
+        };
     }
 
     private object ExportLogs()

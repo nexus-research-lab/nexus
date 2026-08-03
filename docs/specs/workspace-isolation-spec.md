@@ -152,6 +152,8 @@ UserScope
 
 `nexus_state_root` 固定使用 `.nexus`。不再在里面重复创建 `.nexus` 子目录；宿主自己的控制面数据统一放在 `app/`，用户 runtime 放在 `users/<owner_user_id>/`。
 
+桌面端改变数据目录时迁移的是完整 `NEXUS_STATE_ROOT`，不拆分 `app/` 与 `users/`。原生宿主在确认后退出 sidecar，离线复制状态根，通过宿主外的启动指针切换到目标并直接重启；新实例完成数据库、transcript 与 Room 结构化绝对路径重映射后才清理旧根，启动失败则回滚指针。Linux 服务端和 `enforce` 部署的状态根仍由部署配置与权限模型管理，不提供应用内迁移。
+
 `NEXUS_CONFIG_DIR` 和 `CLAUDE_CONFIG_DIR` 会产生大量属于 runtime 用户的文件；这些文件不能写入 `app/`，而应写入当前用户的 `<user_root>`：
 
 ```text
@@ -184,7 +186,7 @@ UserScope
     <shared_workspace_id>/            # 项目 group/ACL 共享目录
 ```
 
-桌面端默认使用 `~/.nexus`；Docker 可以把宿主目录挂载到 `/home/agent/.nexus`；服务端也可以把整个状态根映射到 `/var/lib/nexus`。`app/` 与 `users/` 必须是不同权限子树，但可以共用同一个 `.nexus` volume。
+桌面端默认使用 `~/.nexus`，也可以整体迁移这个状态根；Docker 可以把宿主目录挂载到 `/home/agent/.nexus`；服务端也可以把整个状态根映射到 `/var/lib/nexus`。`app/` 与 `users/` 必须是不同权限子树，但始终属于同一个状态根。
 
 权限约束：
 

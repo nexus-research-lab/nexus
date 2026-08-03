@@ -131,6 +131,34 @@ export function resolveAssistantResultErrorMessage(
   return terminalReason || DEFAULT_ASSISTANT_ERROR_MESSAGE;
 }
 
+// resolveAssistantResultErrorBannerMessage 只返回尚未由最终回复承载的错误。
+// result 是唯一正文或与正文相同时，消息气泡已经完整说明失败，无需再叠加系统气泡。
+export function resolveAssistantResultErrorBannerMessage(
+  message: AssistantMessage,
+): string | null {
+  const error = resolveAssistantResultErrorMessage(message.result_summary);
+  if (!error) {
+    return null;
+  }
+  const resultText = normalizeDisplayText(message.result_summary?.result ?? "");
+  if (!resultText) {
+    return error;
+  }
+  const assistantText = normalizeDisplayText(
+    message.content
+      .filter((block): block is Extract<ContentBlock, { type: "text" }> => (
+        block.type === "text"
+      ))
+      .map((block) => block.text)
+      .join("\n\n"),
+  );
+  return !assistantText || assistantText === resultText ? null : error;
+}
+
+function normalizeDisplayText(value: string): string {
+  return value.replaceAll("\r\n", "\n").trim();
+}
+
 // latestAssistantResultErrorMessage 只检查终态 result_summary，不把工具自身
 // 的 is_error 当成整轮失败；这样可恢复工具错误不会污染会话错误栏。
 export function latestAssistantResultErrorMessage(
@@ -154,7 +182,7 @@ export function latestAssistantResultErrorMessage(
   // 正常消息都带 root round_id；缺失时只能信任最新一条，避免把旧轮次错误
   // 误挂到一个没有身份的历史快照上。
   if (!latestRoundId) {
-    return resolveAssistantResultErrorMessage(latestAssistant.result_summary);
+    return resolveAssistantResultErrorBannerMessage(latestAssistant);
   }
 
   // Room 同一 root round 可能有多个 Agent。不能只看最后一条 Assistant，
@@ -169,7 +197,7 @@ export function latestAssistantResultErrorMessage(
     ) {
       continue;
     }
-    const error = resolveAssistantResultErrorMessage(message.result_summary);
+    const error = resolveAssistantResultErrorBannerMessage(message);
     if (error) {
       return error;
     }

@@ -3,6 +3,7 @@ package exec
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +49,46 @@ func TestExecuteRoundReturnsInterruptedWhenSDKAborted(t *testing.T) {
 	})
 	if !errors.Is(err, ErrRoundInterrupted) {
 		t.Fatalf("期望返回 ErrRoundInterrupted，实际 %v", err)
+	}
+}
+
+func TestRoundErrorDisplayMessageHidesStreamDiagnostics(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "closed stream",
+			err: &RoundStreamClosedError{
+				MessagesSeen:  61,
+				LastSessionID: "sdk-session-secret",
+				WaitError:     "signal: killed",
+			},
+			want: "Agent runtime 的响应流意外结束，本轮未完成。会话会在下一条消息自动恢复，请重试。",
+		},
+		{
+			name: "wrapped idle timeout",
+			err:  fmt.Errorf("执行失败: %w", ErrRoundStreamIdleTimeout),
+			want: "Agent runtime 长时间没有响应，本轮已停止，请重试。",
+		},
+		{
+			name: "provider error remains actionable",
+			err:  errors.New("provider_error=rate_limit"),
+			want: "provider_error=rate_limit",
+		},
+		{
+			name: "nil",
+			want: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := RoundErrorDisplayMessage(test.err); got != test.want {
+				t.Fatalf("RoundErrorDisplayMessage() = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 

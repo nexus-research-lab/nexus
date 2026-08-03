@@ -138,6 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         supervisor.stop()
         return
       }
+      completePendingStateRootMigration()
       await DesktopWebCacheInvalidator.clearCachesIfNeeded(
         runtime: runtime,
         startupTimeline: startupTimeline
@@ -171,7 +172,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       guard !terminationRequested else {
         return
       }
+      if rollbackPendingStateRootMigration(error: error) {
+        return
+      }
       showStartupError(error)
+    }
+  }
+
+  private func completePendingStateRootMigration() {
+    do {
+      guard let previousRoot = try DesktopStateRootStore.completeMigration() else {
+        return
+      }
+      startupTimeline.mark("state_root.migration_committed", metadata: [
+        "previous_root": previousRoot.path,
+        "state_root": DesktopPaths.rootDirectory.path,
+      ])
+      Task.detached {
+        do {
+          try FileManager.default.removeItem(at: previousRoot)
+        } catch {
+          NSLog("[Nexus State Root] old root cleanup failed: \(error.localizedDescription)")
+        }
+      }
+    } catch {
+      startupTimeline.mark("state_root.migration_commit_failed", metadata: [
+        "error": error.localizedDescription,
+      ])
+    }
+  }
+
+  private func rollbackPendingStateRootMigration(error: Error) -> Bool {
+    guard let previousRoot = DesktopStateRootStore.previousRootDirectory else {
+      return false
+    }
+    do {
+      _ = DesktopStateRootStore.rollbackMigration(message: error.localizedDescription)
+      try DesktopStateRootMigration.scheduleRelaunchAfterExit(source: previousRoot)
+      terminationRequested = true
+      startupTimeline.mark("state_root.migration_rolled_back", metadata: [
+        "error": error.localizedDescription,
+        "state_root": previousRoot.path,
+      ])
+      NSApp.terminate(nil)
+      return true
+    } catch {
+      startupTimeline.mark("state_root.migration_rollback_failed", metadata: [
+        "error": error.localizedDescription,
+      ])
+      return false
     }
   }
 

@@ -1,5 +1,7 @@
 type DesktopBridgeKind =
   | "app.get_app_version"
+  | "app.get_state_root"
+  | "app.relocate_state_root"
   | "app.open_external_url"
   | "app.export_logs"
   | "app.open_route"
@@ -30,6 +32,17 @@ export interface DesktopExportLogsResult {
   path?: string;
 }
 
+export interface DesktopStateRootStatus {
+  current_path: string;
+  default_path: string;
+  migration_error?: string | null;
+}
+
+export interface DesktopStateRootMigrationResult {
+  restarting: boolean;
+  target_path: string;
+}
+
 export interface DesktopPersistentStateResult {
   key: string;
   value?: string | null;
@@ -51,6 +64,17 @@ export function isDesktopBridgeAvailable(): boolean {
 
 export async function getDesktopAppVersion(): Promise<DesktopAppVersion> {
   return invokeDesktopBridge<Record<string, never>, DesktopAppVersion>("app.get_app_version", {});
+}
+
+export async function getDesktopStateRoot(): Promise<DesktopStateRootStatus> {
+  return invokeDesktopBridge<Record<string, never>, DesktopStateRootStatus>("app.get_state_root", {});
+}
+
+export async function relocateDesktopStateRoot(path: string): Promise<DesktopStateRootMigrationResult> {
+  return invokeDesktopBridge<{ path: string }, DesktopStateRootMigrationResult>(
+    "app.relocate_state_root",
+    { path },
+  );
 }
 
 export async function openDesktopExternalURL(url: string): Promise<void> {

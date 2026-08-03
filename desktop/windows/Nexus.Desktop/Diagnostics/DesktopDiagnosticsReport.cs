@@ -156,6 +156,8 @@ internal static class DesktopDiagnosticsReport
         {
             ["application_data_dir"] = DesktopPaths.ApplicationDataDirectory,
             ["config_root"] = DesktopPaths.RootDirectory,
+            ["previous_root_dir"] = DesktopStateRootStore.PreviousRootDirectory,
+            ["bootstrap_store"] = DesktopStateRootStore.BootstrapLocation,
             ["config_dir"] = DesktopPaths.ConfigDirectory,
             ["transcript_projects_dir"] = DesktopPaths.ProjectsDirectory,
             ["workspace_dir"] = DesktopPaths.WorkspaceDirectory,

@@ -221,6 +221,13 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	// 桌面宿主先离线复制整个状态根；新实例在任何业务服务启动前提交绝对路径重映射。
+	// 这里失败会让宿主保留旧根并自动回退，不能带着一半迁移的数据继续启动。
+	if err := migration.RunDesktopStateRootRebase(context.Background(), cfg, logger); err != nil {
+		logger.Error("桌面状态根迁移提交失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
 	if err := migration.RunWorkspaceFiles(appfs.AppDir(), agentsvc.WorkspaceBasePath(cfg), logger); err != nil {
 		logger.Error("工作区文件迁移失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)

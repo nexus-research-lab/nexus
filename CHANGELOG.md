@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Kept every active Room Agent's exact stop control available after its pending placeholder is replaced, added correlated interrupt acknowledgements and stopping feedback, and terminalized unresolved Feed, Thread, tool, and WorkGraph activity after interruption.
+- Decoded Windows sidecar stdout and stderr as UTF-8 so startup diagnostics preserve readable structured logs.
+- Relocated the complete macOS or Windows desktop state root after confirmation, then restarted directly and safely rebased stored paths with automatic rollback on startup failure.
+- Removed the unsafe host-workspace HTTP setting; server deployments now configure their workspace root only through the deployment environment.
+- Avoided duplicating a durable Agent failure as a second conversation system-error bubble.
+- Kept runtime stream diagnostics in structured logs while showing concise recovery guidance in DM and Room conversations.
 - Preserved chronological DM history when newer durable round indexes are merged with older runtime transcripts after a responsive remount.
 - Standardized the Chinese Subagent empty state on the same product terminology as its panel and navigation label.
 - Showed the inherited default model state on contact cards instead of a placeholder Provider value.

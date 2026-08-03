@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	clientopts "github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
@@ -21,7 +20,6 @@ import (
 // Handlers 封装核心 HTTP handlers。
 type Handlers struct {
 	api       *handlershared.API
-	config    config.Config
 	agents    *agentpkg.Service
 	providers *providercfg.Service
 	prefs     *preferencessvc.Service
@@ -36,7 +34,6 @@ func (h *Handlers) SetRuntimeManager(manager *runtimectx.Manager) {
 
 // New 创建核心 handlers。
 func New(
-	cfg config.Config,
 	api *handlershared.API,
 	agents *agentpkg.Service,
 	providers *providercfg.Service,
@@ -48,7 +45,6 @@ func New(
 	}
 	return &Handlers{
 		api:       api,
-		config:    cfg,
 		agents:    agents,
 		providers: providers,
 		prefs:     prefService,
@@ -214,52 +210,6 @@ func (h *Handlers) syncWebSearchRuntime(ctx context.Context, preferences prefere
 	return nil
 }
 
-// HandleGetRuntimeSettings 返回当前主机级运行配置。
-func (h *Handlers) HandleGetRuntimeSettings(writer http.ResponseWriter, request *http.Request) {
-	if !canManageHostRuntimeSettings(request.Context()) {
-		h.api.WriteFailure(writer, http.StatusForbidden, "host runtime settings access required")
-		return
-	}
-	settings, err := config.LoadRuntimeSettings()
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, h.runtimeSettingsResponse(settings))
-}
-
-// HandleUpdateRuntimeSettings 更新当前主机级运行配置。
-func (h *Handlers) HandleUpdateRuntimeSettings(writer http.ResponseWriter, request *http.Request) {
-	if !canManageHostRuntimeSettings(request.Context()) {
-		h.api.WriteFailure(writer, http.StatusForbidden, "host runtime settings access required")
-		return
-	}
-	var payload config.RuntimeSettings
-	if !h.api.BindJSON(writer, request, &payload) {
-		return
-	}
-	settings, err := config.SaveRuntimeSettings(payload)
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	h.api.WriteSuccess(writer, h.runtimeSettingsResponse(settings))
-}
-
-func canManageHostRuntimeSettings(ctx context.Context) bool {
-	principal := authsvc.PrincipalFromContext(ctx)
-	if principal == nil {
-		// 未启用认证时只有本地单用户，宿主设置仍由当前用户管理。
-		return true
-	}
-	switch strings.TrimSpace(principal.Role) {
-	case authsvc.RoleOwner, authsvc.RoleAdmin:
-		return true
-	default:
-		return false
-	}
-}
-
 // HandleNXSRuntimeStatus 返回当前主机上 nxs runtime 的本地可用状态。
 func (h *Handlers) HandleNXSRuntimeStatus(writer http.ResponseWriter, request *http.Request) {
 	h.api.WriteSuccess(writer, h.nxs.Status())
@@ -274,13 +224,4 @@ func (h *Handlers) currentPreferences(request *http.Request) (preferencessvc.Pre
 
 func currentOwnerUserID(request *http.Request) string {
 	return authsvc.OwnerUserID(request.Context())
-}
-
-func (h *Handlers) runtimeSettingsResponse(settings config.RuntimeSettings) map[string]any {
-	return map[string]any{
-		"workspace_path":         strings.TrimSpace(settings.WorkspacePath),
-		"current_workspace_path": agentpkg.WorkspaceBasePath(h.config),
-		"restart_required":       true,
-		"updated_at":             strings.TrimSpace(settings.UpdatedAt),
-	}
 }
