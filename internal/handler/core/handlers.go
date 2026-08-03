@@ -10,7 +10,6 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	clientopts "github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	agentpkg "github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -30,11 +29,11 @@ type Handlers struct {
 	prefs     *preferencessvc.Service
 	nxs       *nxsruntimesvc.Service
 	runtime   *runtimectx.Manager
-	usersRoot usersRootStager
+	usersRoot usersRootScheduler
 }
 
-type usersRootStager interface {
-	Stage(context.Context, string) (config.RuntimeSettings, error)
+type usersRootScheduler interface {
+	Schedule(context.Context, string) (config.RuntimeSettings, error)
 }
 
 // SetRuntimeManager 绑定活跃 Agent runtime 管理器。
@@ -42,9 +41,9 @@ func (h *Handlers) SetRuntimeManager(manager *runtimectx.Manager) {
 	h.runtime = manager
 }
 
-// SetUsersRootStager 绑定宿主 users 根迁移器。
-func (h *Handlers) SetUsersRootStager(stager usersRootStager) {
-	h.usersRoot = stager
+// SetUsersRootScheduler 绑定宿主 users 根迁移调度器。
+func (h *Handlers) SetUsersRootScheduler(scheduler usersRootScheduler) {
+	h.usersRoot = scheduler
 }
 
 // New 创建核心 handlers。
@@ -243,7 +242,7 @@ func (h *Handlers) HandleUpdateRuntimeSettings(writer http.ResponseWriter, reque
 		h.api.WriteFailure(writer, http.StatusServiceUnavailable, "users root migration unavailable")
 		return
 	}
-	settings, err := h.usersRoot.Stage(request.Context(), payload.WorkspacePath)
+	settings, err := h.usersRoot.Schedule(request.Context(), payload.WorkspacePath)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 		return
@@ -283,14 +282,21 @@ func currentOwnerUserID(request *http.Request) string {
 
 func (h *Handlers) runtimeSettingsResponse(settings config.RuntimeSettings) map[string]any {
 	currentRoot := agentpkg.WorkspaceBasePath(h.config)
-	targetRoot := appfs.DefaultUsersRoot()
-	if strings.TrimSpace(settings.WorkspacePath) != "" {
+	selectedPath := strings.TrimSpace(settings.WorkspacePath)
+	targetRoot := currentRoot
+	if migratingRoot := strings.TrimSpace(settings.MigratingUsersPath); migratingRoot != "" {
+		selectedPath = migratingRoot
+		targetRoot = migratingRoot
+	} else if pendingRoot := strings.TrimSpace(settings.PendingUsersPath); pendingRoot != "" {
+		selectedPath = pendingRoot
+		targetRoot = pendingRoot
+	} else if selectedPath != "" {
 		targetRoot = agentpkg.WorkspaceBasePath(config.Config{
-			WorkspacePath: settings.WorkspacePath,
+			WorkspacePath: selectedPath,
 		})
 	}
 	return map[string]any{
-		"workspace_path":         strings.TrimSpace(settings.WorkspacePath),
+		"workspace_path":         selectedPath,
 		"current_workspace_path": currentRoot,
 		"restart_required":       !sameRuntimeSettingsPath(currentRoot, targetRoot),
 		"updated_at":             strings.TrimSpace(settings.UpdatedAt),

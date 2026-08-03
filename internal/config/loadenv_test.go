@@ -140,7 +140,10 @@ func TestLoadWorkspacePathUsesRuntimeSettingsWhenEnvEmpty(t *testing.T) {
 	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", filepath.Join(root, ".nexus"))
 	t.Setenv("WORKSPACE_PATH", "")
-	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: workspacePath}); err != nil {
+	if _, err := SaveRuntimeSettings(RuntimeSettings{
+		WorkspacePath:    workspacePath,
+		AppliedUsersPath: workspacePath,
+	}); err != nil {
 		t.Fatalf("写入 runtime settings 失败: %v", err)
 	}
 
@@ -158,9 +161,10 @@ func TestSaveRuntimeSettingsUsesPrivatePermissions(t *testing.T) {
 	appliedPath := filepath.Join(stateRoot, "users")
 
 	if _, err := SaveRuntimeSettings(RuntimeSettings{
-		WorkspacePath:    "/tmp/workspace",
-		AppliedUsersPath: appliedPath,
-		StagingUsersPath: "/tmp/users-staging",
+		WorkspacePath:      "/tmp/workspace",
+		AppliedUsersPath:   appliedPath,
+		PendingUsersPath:   "/tmp/pending-users",
+		MigratingUsersPath: "/tmp/migrating-users",
 	}); err != nil {
 		t.Fatalf("写入 runtime settings 失败: %v", err)
 	}
@@ -171,10 +175,12 @@ func TestSaveRuntimeSettingsUsesPrivatePermissions(t *testing.T) {
 	if settings.AppliedUsersPath != appliedPath {
 		t.Fatalf("AppliedUsersPath = %q, want %q", settings.AppliedUsersPath, appliedPath)
 	}
-	if settings.StagingUsersPath != "/tmp/users-staging" {
-		t.Fatalf("StagingUsersPath = %q", settings.StagingUsersPath)
+	if settings.PendingUsersPath != "/tmp/pending-users" {
+		t.Fatalf("PendingUsersPath = %q", settings.PendingUsersPath)
 	}
-
+	if settings.MigratingUsersPath != "/tmp/migrating-users" {
+		t.Fatalf("MigratingUsersPath = %q", settings.MigratingUsersPath)
+	}
 	configInfo, err := os.Stat(filepath.Join(stateRoot, "app", "config"))
 	if err != nil {
 		t.Fatalf("读取 runtime settings 配置目录失败: %v", err)
@@ -219,7 +225,10 @@ func TestLoadWorkspacePathKeepsExplicitEnv(t *testing.T) {
 	t.Setenv("NEXUS_STATE_ROOT", "")
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
 	t.Setenv("WORKSPACE_PATH", envPath)
-	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: persistedPath}); err != nil {
+	if _, err := SaveRuntimeSettings(RuntimeSettings{
+		WorkspacePath:    persistedPath,
+		AppliedUsersPath: persistedPath,
+	}); err != nil {
 		t.Fatalf("写入 runtime settings 失败: %v", err)
 	}
 
@@ -238,7 +247,10 @@ func TestLoadWorkspacePathOverridesDesktopDefaultEnv(t *testing.T) {
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
 	t.Setenv("NEXUS_APP_MODE", "desktop")
 	t.Setenv("WORKSPACE_PATH", filepath.Join(configDir, "workspace"))
-	if _, err := SaveRuntimeSettings(RuntimeSettings{WorkspacePath: persistedPath}); err != nil {
+	if _, err := SaveRuntimeSettings(RuntimeSettings{
+		WorkspacePath:    persistedPath,
+		AppliedUsersPath: persistedPath,
+	}); err != nil {
 		t.Fatalf("写入 runtime settings 失败: %v", err)
 	}
 
@@ -246,6 +258,54 @@ func TestLoadWorkspacePathOverridesDesktopDefaultEnv(t *testing.T) {
 
 	if cfg.WorkspacePath != persistedPath {
 		t.Fatalf("WorkspacePath = %q, want persisted %q", cfg.WorkspacePath, persistedPath)
+	}
+}
+
+func TestLoadWorkspacePathIgnoresPendingUsersRoot(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, ".nexus")
+	activePath := filepath.Join(root, "active-users")
+	pendingPath := filepath.Join(root, "pending-users")
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	t.Setenv("NEXUS_APP_MODE", "desktop")
+	t.Setenv("WORKSPACE_PATH", filepath.Join(configDir, "users"))
+	if _, err := SaveRuntimeSettings(RuntimeSettings{
+		WorkspacePath:    activePath,
+		AppliedUsersPath: activePath,
+		PendingUsersPath: pendingPath,
+	}); err != nil {
+		t.Fatalf("写入 runtime settings 失败: %v", err)
+	}
+
+	cfg := Load()
+
+	if cfg.WorkspacePath != activePath {
+		t.Fatalf("待迁移 users 根提前生效: got=%q want=%q", cfg.WorkspacePath, activePath)
+	}
+}
+
+func TestLoadWorkspacePathIgnoresMigratingUsersRoot(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, ".nexus")
+	activePath := filepath.Join(root, "active-users")
+	migratingPath := filepath.Join(root, "migrating-users")
+	t.Setenv("NEXUS_STATE_ROOT", "")
+	t.Setenv("NEXUS_CONFIG_DIR", configDir)
+	t.Setenv("NEXUS_APP_MODE", "desktop")
+	t.Setenv("WORKSPACE_PATH", filepath.Join(configDir, "users"))
+	if _, err := SaveRuntimeSettings(RuntimeSettings{
+		WorkspacePath:      activePath,
+		AppliedUsersPath:   activePath,
+		MigratingUsersPath: migratingPath,
+	}); err != nil {
+		t.Fatalf("写入 runtime settings 失败: %v", err)
+	}
+
+	cfg := Load()
+
+	if cfg.WorkspacePath != activePath {
+		t.Fatalf("迁移中的 users 根提前生效: got=%q want=%q", cfg.WorkspacePath, activePath)
 	}
 }
 

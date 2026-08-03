@@ -75,10 +75,13 @@ func TestHandleRuntimeSettingsPersistsWorkspacePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 runtime settings 失败: %v", err)
 	}
-	if settings.WorkspacePath != workspacePath {
-		t.Fatalf("WorkspacePath = %q, want %q", settings.WorkspacePath, workspacePath)
-	}
 	wantAppliedPath := agentpkg.WorkspaceBasePath(cfg)
+	if settings.PendingUsersPath != workspacePath {
+		t.Fatalf("PendingUsersPath = %q, want %q", settings.PendingUsersPath, workspacePath)
+	}
+	if settings.WorkspacePath != wantAppliedPath {
+		t.Fatalf("WorkspacePath = %q, want active %q", settings.WorkspacePath, wantAppliedPath)
+	}
 	if settings.AppliedUsersPath != wantAppliedPath {
 		t.Fatalf("AppliedUsersPath = %q, want %q", settings.AppliedUsersPath, wantAppliedPath)
 	}

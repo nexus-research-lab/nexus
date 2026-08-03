@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Decoded Windows sidecar stdout and stderr as UTF-8 so startup diagnostics preserve readable structured logs.
 - Disabled users-root saves when the resolved path is already active, while preserving pending migration rollback.
-- Migrated the complete `users` tree and rebased runtime transcript indexes before accepting a user-data-root change, then reconciled legacy pending paths before desktop startup to prevent Windows, macOS, and Linux relaunch failures without moving host data under `app`.
+- Scheduled user-data-root changes without touching live files, then migrated the complete `users` tree and rebased runtime transcript indexes during the next offline startup to prevent Windows, macOS, and Linux relaunch failures without moving host data under `app`.
 - Avoided duplicating a durable Agent failure as a second conversation system-error bubble.
 - Kept runtime stream diagnostics in structured logs while showing concise recovery guidance in DM and Room conversations.
 - Preserved chronological DM history when newer durable round indexes are merged with older runtime transcripts after a responsive remount.

@@ -152,7 +152,7 @@ UserScope
 
 `nexus_state_root` 固定使用 `.nexus`。不再在里面重复创建 `.nexus` 子目录；宿主自己的控制面数据统一放在 `app/`。默认 users 根是 `.nexus/users`，桌面端或非 `enforce` 部署可以把完整 users 根迁到其他绝对路径，但不能只迁某个 Agent 的 workspace。
 
-users 根变更遵循“先复制、后切换”：设置保存时复制所有 owner 的 `workspace/`、`runtime/` 与 `state/`，并按新 workspace 绝对路径重映射 `runtime/projects` transcript 目录；重启的无并发窗口补拷增量并事务更新 Agent 路径。`app/`、数据库、设置和日志始终留在 `nexus_state_root`；旧 users 根不会自动删除，便于失败回退和人工确认。Linux `runtime isolation enforce` 的 launcher/UID/ACL 布局仍固定使用 root-owned `.nexus/users`，因此不接受应用内自定义 users 根。
+users 根变更只在启动的无业务并发窗口执行：设置保存时校验目标并登记待迁移根；下次启动先确认目标仍为空并持久化迁移认领状态，再复制所有 owner 的 `workspace/`、`runtime/` 与 `state/`，按新 workspace 绝对路径重映射 `runtime/projects` transcript 目录，最后事务更新 Agent 路径与生效设置。未认领的非空目标绝不覆盖，已认领但中断的目标可在下次启动续拷；任一步失败都继续使用旧根启动，不允许运行中的 server 同时写两棵 users 树。`app/`、数据库、设置和日志始终留在 `nexus_state_root`；旧 users 根不会自动删除，便于失败回退和人工确认。Linux `runtime isolation enforce` 的 launcher/UID/ACL 布局仍固定使用 root-owned `.nexus/users`，因此不接受应用内自定义 users 根。
 
 `NEXUS_CONFIG_DIR` 和 `CLAUDE_CONFIG_DIR` 会产生大量属于 runtime 用户的文件；这些文件不能写入 `app/`，而应写入当前用户的 `<user_root>`：
 

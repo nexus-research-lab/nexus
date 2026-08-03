@@ -30,39 +30,31 @@ type workspaceRootFixture struct {
 	records     []agentWorkspaceRecord
 }
 
-func TestStageCopiesAllOwnersBeforeStartupSwitchesAgentPaths(t *testing.T) {
+func TestScheduleDefersFileChangesUntilStartupMigratesAndSwitchesAgentPaths(t *testing.T) {
 	fixture := newWorkspaceRootFixture(t, false)
 	manager := NewManager(fixture.config, fixture.db, logx.NewDiscardLogger())
 
-	settings, err := manager.Stage(t.Context(), fixture.targetRoot)
+	settings, err := manager.Schedule(t.Context(), fixture.targetRoot)
 	if err != nil {
-		t.Fatalf("Stage() error = %v", err)
+		t.Fatalf("Schedule() error = %v", err)
 	}
-	if settings.WorkspacePath != fixture.targetRoot || settings.AppliedUsersPath != fixture.oldRoot {
-		t.Fatalf("Stage() settings = %+v", settings)
+	if !samePath(settings.WorkspacePath, fixture.oldRoot) ||
+		settings.AppliedUsersPath != fixture.oldRoot ||
+		settings.PendingUsersPath != fixture.targetRoot ||
+		settings.MigratingUsersPath != "" {
+		t.Fatalf("Schedule() settings = %+v", settings)
 	}
-	assertMigratedWorkspaceContent(t, fixture.targetRoot, "before-restart")
-	assertWorkspaceLinksMigrated(t, fixture)
-	assertFileContent(
-		t,
-		filepath.Join(fixture.targetRoot, "__system__", "runtime", "must-migrate.txt"),
-		"runtime\n",
-	)
-	assertFileContent(
-		t,
-		filepath.Join(fixture.targetRoot, "__system__", "state", "rooms", "must-migrate.txt"),
-		"state\n",
-	)
-	assertTranscriptProjectRebased(t, fixture)
-	assertRoomWorkspacePathsRebased(t, fixture)
+	if _, err = os.Lstat(fixture.targetRoot); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("设置保存不应在运行期创建目标 users 根: %v", err)
+	}
 	assertDatabaseWorkspaceRoot(t, fixture.db, fixture.records, fixture.oldRoot)
 
 	systemMarker := filepath.Join(resolveAgentPathAt(fixture.oldRoot, fixture.records[0]), "marker.txt")
-	deletedAfterStage := filepath.Join(resolveAgentPathAt(fixture.oldRoot, fixture.records[0]), "deleted-after-stage.txt")
-	if err = os.Remove(deletedAfterStage); err != nil {
+	deletedBeforeRestart := filepath.Join(resolveAgentPathAt(fixture.oldRoot, fixture.records[0]), "deleted-after-stage.txt")
+	if err = os.Remove(deletedBeforeRestart); err != nil {
 		t.Fatal(err)
 	}
-	if err = os.WriteFile(systemMarker, []byte("after-stage\n"), 0o600); err != nil {
+	if err = os.WriteFile(systemMarker, []byte("after-schedule\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err = fixture.db.Close(); err != nil {
@@ -70,7 +62,6 @@ func TestStageCopiesAllOwnersBeforeStartupSwitchesAgentPaths(t *testing.T) {
 	}
 
 	startupConfig := fixture.config
-	startupConfig.WorkspacePath = fixture.targetRoot
 	reconciled, err := ReconcileOnStartup(t.Context(), startupConfig, logx.NewDiscardLogger())
 	if err != nil {
 		t.Fatalf("ReconcileOnStartup() error = %v", err)
@@ -82,9 +73,21 @@ func TestStageCopiesAllOwnersBeforeStartupSwitchesAgentPaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(content) != "after-stage\n" {
-		t.Fatalf("startup 增量未补拷: %q", content)
+	if string(content) != "after-schedule\n" {
+		t.Fatalf("启动迁移未读取最终源数据: %q", content)
 	}
+	assertMigratedWorkspaceContent(t, fixture.targetRoot, "after-schedule")
+	assertWorkspaceLinksMigrated(t, fixture, "after-schedule\n")
+	assertFileContent(
+		t,
+		filepath.Join(fixture.targetRoot, "__system__", "runtime", "must-migrate.txt"),
+		"runtime\n",
+	)
+	assertFileContent(
+		t,
+		filepath.Join(fixture.targetRoot, "__system__", "state", "rooms", "must-migrate.txt"),
+		"state\n",
+	)
 	assertTranscriptProjectRebased(t, fixture)
 	assertRoomWorkspacePathsRebased(t, fixture)
 	if _, err = os.Lstat(filepath.Join(
@@ -104,9 +107,15 @@ func TestStageCopiesAllOwnersBeforeStartupSwitchesAgentPaths(t *testing.T) {
 	if stored.AppliedUsersPath != fixture.targetRoot {
 		t.Fatalf("AppliedUsersPath = %q, want %q", stored.AppliedUsersPath, fixture.targetRoot)
 	}
+	if stored.PendingUsersPath != "" {
+		t.Fatalf("PendingUsersPath = %q, want empty", stored.PendingUsersPath)
+	}
+	if stored.MigratingUsersPath != "" {
+		t.Fatalf("MigratingUsersPath = %q, want empty", stored.MigratingUsersPath)
+	}
 	service := agentsvc.NewService(
-		startupConfig,
-		agentrepo.NewSQLRepository(startupConfig.DatabaseDriver, db),
+		reconciled,
+		agentrepo.NewSQLRepository(reconciled.DatabaseDriver, db),
 	)
 	if err = service.EnsureReady(context.Background()); err != nil {
 		t.Fatalf("迁移后 Agent.EnsureReady() 不应再阻断启动: %v", err)
@@ -128,7 +137,6 @@ func TestReconcileOnStartupRecoversLegacySettingWithoutAppliedRoot(t *testing.T)
 	}
 
 	startupConfig := fixture.config
-	startupConfig.WorkspacePath = fixture.targetRoot
 	reconciled, err := ReconcileOnStartup(t.Context(), startupConfig, logx.NewDiscardLogger())
 	if err != nil {
 		t.Fatalf("ReconcileOnStartup() error = %v", err)
@@ -145,13 +153,14 @@ func TestReconcileOnStartupRecoversLegacySettingWithoutAppliedRoot(t *testing.T)
 func TestReconcileTrustsCommittedAgentPathsWhenAppliedLedgerIsStale(t *testing.T) {
 	fixture := newWorkspaceRootFixture(t, false)
 	manager := NewManager(fixture.config, fixture.db, logx.NewDiscardLogger())
-	if _, err := manager.Stage(t.Context(), fixture.targetRoot); err != nil {
+	if _, err := manager.Schedule(t.Context(), fixture.targetRoot); err != nil {
 		t.Fatal(err)
 	}
-	if err := updateAgentWorkspacePaths(
+	if err := applyTransition(
 		t.Context(),
 		fixture.db,
 		fixture.records,
+		fixture.oldRoot,
 		fixture.targetRoot,
 		fixture.config.DatabaseDriver,
 	); err != nil {
@@ -166,7 +175,6 @@ func TestReconcileTrustsCommittedAgentPathsWhenAppliedLedgerIsStale(t *testing.T
 	}
 
 	startupConfig := fixture.config
-	startupConfig.WorkspacePath = fixture.targetRoot
 	if _, err := ReconcileOnStartup(t.Context(), startupConfig, logx.NewDiscardLogger()); err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +188,7 @@ func TestReconcileTrustsCommittedAgentPathsWhenAppliedLedgerIsStale(t *testing.T
 	}
 }
 
-func TestStageRejectsNonEmptyUnmanagedTarget(t *testing.T) {
+func TestScheduleRejectsNonEmptyUnmanagedTarget(t *testing.T) {
 	fixture := newWorkspaceRootFixture(t, false)
 	if err := os.MkdirAll(fixture.targetRoot, 0o700); err != nil {
 		t.Fatal(err)
@@ -190,13 +198,98 @@ func TestStageRejectsNonEmptyUnmanagedTarget(t *testing.T) {
 	}
 	manager := NewManager(fixture.config, fixture.db, logx.NewDiscardLogger())
 
-	if _, err := manager.Stage(t.Context(), fixture.targetRoot); err == nil {
+	if _, err := manager.Schedule(t.Context(), fixture.targetRoot); err == nil {
 		t.Fatal("非空目标根不应被静默覆盖")
 	}
 	if _, err := os.Stat(config.RuntimeSettingsPath()); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("迁移失败不应写入新设置: %v", err)
 	}
 	assertDatabaseWorkspaceRoot(t, fixture.db, fixture.records, fixture.oldRoot)
+}
+
+func TestReconcileDoesNotOverwriteTargetPopulatedAfterSchedule(t *testing.T) {
+	fixture := newWorkspaceRootFixture(t, false)
+	manager := NewManager(fixture.config, fixture.db, logx.NewDiscardLogger())
+	if _, err := manager.Schedule(t.Context(), fixture.targetRoot); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(fixture.targetRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	unrelatedPath := filepath.Join(fixture.targetRoot, "unrelated.txt")
+	if err := os.WriteFile(unrelatedPath, []byte("keep\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reconciled, err := ReconcileOnStartup(t.Context(), fixture.config, logx.NewDiscardLogger())
+	if err != nil {
+		t.Fatalf("目标被占用时仍应使用旧根启动: %v", err)
+	}
+	if !samePath(agentsvc.WorkspaceBasePath(reconciled), fixture.oldRoot) {
+		t.Fatalf("fallback workspace root = %q, want %q", agentsvc.WorkspaceBasePath(reconciled), fixture.oldRoot)
+	}
+	assertFileContent(t, unrelatedPath, "keep\n")
+	db := openWorkspaceRootTestDB(t, fixture.databaseURL)
+	defer db.Close()
+	assertDatabaseWorkspaceRoot(t, db, fixture.records, fixture.oldRoot)
+	settings, err := config.LoadRuntimeSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !samePath(settings.AppliedUsersPath, fixture.oldRoot) ||
+		!samePath(settings.PendingUsersPath, fixture.targetRoot) ||
+		settings.MigratingUsersPath != "" {
+		t.Fatalf("occupied target settings = %+v", settings)
+	}
+}
+
+func TestReconcileResumesClaimedMigration(t *testing.T) {
+	fixture := newWorkspaceRootFixture(t, false)
+	manager := NewManager(fixture.config, fixture.db, logx.NewDiscardLogger())
+	settings, err := manager.Schedule(t.Context(), fixture.targetRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings.PendingUsersPath = ""
+	settings.MigratingUsersPath = fixture.targetRoot
+	if _, err = config.SaveRuntimeSettings(settings); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.MkdirAll(fixture.targetRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	partialPath := filepath.Join(fixture.targetRoot, "partial-copy.txt")
+	if err = os.WriteFile(partialPath, []byte("stale\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err = fixture.db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reconciled, err := ReconcileOnStartup(t.Context(), fixture.config, logx.NewDiscardLogger())
+	if err != nil {
+		t.Fatalf("已认领的部分迁移应可续跑: %v", err)
+	}
+	if !samePath(agentsvc.WorkspaceBasePath(reconciled), fixture.targetRoot) {
+		t.Fatalf("reconciled workspace root = %q, want %q", agentsvc.WorkspaceBasePath(reconciled), fixture.targetRoot)
+	}
+	if _, err = os.Lstat(partialPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("续跑应清理不属于源 users 树的部分文件: %v", err)
+	}
+	db := openWorkspaceRootTestDB(t, fixture.databaseURL)
+	defer db.Close()
+	assertDatabaseWorkspaceRoot(t, db, fixture.records, fixture.targetRoot)
+	stored, err := config.LoadRuntimeSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.PendingUsersPath != "" || stored.MigratingUsersPath != "" ||
+		!samePath(stored.AppliedUsersPath, fixture.targetRoot) {
+		t.Fatalf("resumed migration settings = %+v", stored)
+	}
 }
 
 func TestCopyUsersTreeMirrorsCaseChangedEntryName(t *testing.T) {
@@ -229,12 +322,12 @@ func TestCopyUsersTreeMirrorsCaseChangedEntryName(t *testing.T) {
 	}
 }
 
-func TestStageRejectsUsersRootOverlappingHostAppData(t *testing.T) {
+func TestScheduleRejectsUsersRootOverlappingHostAppData(t *testing.T) {
 	fixture := newWorkspaceRootFixture(t, false)
 	targetRoot := filepath.Join(appfs.AppDir(), "moved-users")
 	manager := NewManager(fixture.config, fixture.db, logx.NewDiscardLogger())
 
-	if _, err := manager.Stage(t.Context(), targetRoot); err == nil {
+	if _, err := manager.Schedule(t.Context(), targetRoot); err == nil {
 		t.Fatal("users 根不能放进宿主 app 数据目录")
 	}
 	if _, err := os.Stat(config.RuntimeSettingsPath()); !errors.Is(err, os.ErrNotExist) {
@@ -243,12 +336,12 @@ func TestStageRejectsUsersRootOverlappingHostAppData(t *testing.T) {
 	assertDatabaseWorkspaceRoot(t, fixture.db, fixture.records, fixture.oldRoot)
 }
 
-func TestStageRejectsCustomUsersRootWithEnforce(t *testing.T) {
+func TestScheduleRejectsCustomUsersRootWithEnforce(t *testing.T) {
 	fixture := newWorkspaceRootFixture(t, true)
 	fixture.config.RuntimeIsolationMode = "enforce"
 	manager := NewManager(fixture.config, fixture.db, logx.NewDiscardLogger())
 
-	if _, err := manager.Stage(t.Context(), fixture.targetRoot); err == nil {
+	if _, err := manager.Schedule(t.Context(), fixture.targetRoot); err == nil {
 		t.Fatal("enforce 的 root-owned users 根不能由应用设置改写")
 	}
 	if _, err := os.Stat(config.RuntimeSettingsPath()); !errors.Is(err, os.ErrNotExist) {
@@ -271,7 +364,6 @@ func TestReconcileFailureRestoresAppliedRootInsteadOfBlockingStartup(t *testing.
 	}
 
 	startupConfig := fixture.config
-	startupConfig.WorkspacePath = fixture.targetRoot
 	reconciled, err := ReconcileOnStartup(t.Context(), startupConfig, logx.NewDiscardLogger())
 	if err != nil {
 		t.Fatalf("迁移失败应回退旧根继续启动: %v", err)
@@ -284,7 +376,8 @@ func TestReconcileFailureRestoresAppliedRootInsteadOfBlockingStartup(t *testing.
 		t.Fatal(err)
 	}
 	if !samePath(settings.WorkspacePath, fixture.oldRoot) ||
-		!samePath(settings.AppliedUsersPath, fixture.oldRoot) {
+		!samePath(settings.AppliedUsersPath, fixture.oldRoot) ||
+		settings.PendingUsersPath != "" {
 		t.Fatalf("fallback settings = %+v", settings)
 	}
 	db := openWorkspaceRootTestDB(t, fixture.databaseURL)
@@ -319,6 +412,15 @@ func TestReconcileRejectsAppOverlapAndRecoversDefaultUsersRoot(t *testing.T) {
 	defer db.Close()
 	assertDatabaseWorkspaceRoot(t, db, fixture.records, fallbackRoot)
 	assertMigratedWorkspaceContent(t, fallbackRoot, "before-restart")
+	settings, err := config.LoadRuntimeSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.WorkspacePath != "" ||
+		!samePath(settings.AppliedUsersPath, fallbackRoot) ||
+		settings.PendingUsersPath != "" {
+		t.Fatalf("invalid target recovery settings = %+v", settings)
+	}
 }
 
 func TestReconcileRecoversAlreadyAppliedCustomRootForEnforce(t *testing.T) {
@@ -481,7 +583,11 @@ func newWorkspaceRootFixture(t *testing.T, useDefaultRoot bool) *workspaceRootFi
 	return fixture
 }
 
-func assertWorkspaceLinksMigrated(t *testing.T, fixture *workspaceRootFixture) {
+func assertWorkspaceLinksMigrated(
+	t *testing.T,
+	fixture *workspaceRootFixture,
+	wantHardlinkContent string,
+) {
 	t.Helper()
 	sourceWorkspace := resolveAgentPathAt(fixture.oldRoot, fixture.records[0])
 	targetWorkspace := resolveAgentPathAt(fixture.targetRoot, fixture.records[0])
@@ -495,7 +601,7 @@ func assertWorkspaceLinksMigrated(t *testing.T, fixture *workspaceRootFixture) {
 		}
 	}
 	if _, err := os.Lstat(filepath.Join(sourceWorkspace, "marker-hardlink")); err == nil {
-		assertFileContent(t, filepath.Join(targetWorkspace, "marker-hardlink"), "before-restart\n")
+		assertFileContent(t, filepath.Join(targetWorkspace, "marker-hardlink"), wantHardlinkContent)
 	}
 }
 

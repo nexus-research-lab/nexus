@@ -222,8 +222,8 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
-	// users 根在设置保存时先完成主体复制；启动窗口只补齐最后增量并原子切换数据库投影。
-	// 旧版本没有迁移账本时也从既有 Agent 路径反推原根，避免错误设置锁死桌面 App。
+	// users 根只在没有业务并发的启动窗口迁移并切换数据库投影。
+	// 旧版本没有迁移账本时从既有 Agent 路径反推原根，避免错误设置锁死桌面 App。
 	var usersReconcileErr error
 	cfg, usersReconcileErr = userrootsvc.ReconcileOnStartup(
 		context.Background(),

@@ -18,11 +18,13 @@ import (
 const runtimeSettingsFileName = "runtime-settings.json"
 
 // RuntimeSettings 表示可由 UI 持久化的主机级运行配置。
+// Pending 与 Migrating 互斥：前者尚未接触目标，后者允许启动中断后续拷。
 type RuntimeSettings struct {
-	WorkspacePath    string `json:"workspace_path,omitempty"`
-	AppliedUsersPath string `json:"applied_users_path,omitempty"`
-	StagingUsersPath string `json:"staging_users_path,omitempty"`
-	UpdatedAt        string `json:"updated_at,omitempty"`
+	WorkspacePath      string `json:"workspace_path,omitempty"`
+	AppliedUsersPath   string `json:"applied_users_path,omitempty"`
+	PendingUsersPath   string `json:"pending_users_path,omitempty"`
+	MigratingUsersPath string `json:"migrating_users_path,omitempty"`
+	UpdatedAt          string `json:"updated_at,omitempty"`
 }
 
 // RuntimeSettingsPath 返回主机级运行配置文件路径。
@@ -103,10 +105,11 @@ func openRuntimeSettingsRoot(create bool) (*confinedfs.Root, error) {
 
 func normalizeRuntimeSettings(settings RuntimeSettings) RuntimeSettings {
 	return RuntimeSettings{
-		WorkspacePath:    strings.TrimSpace(settings.WorkspacePath),
-		AppliedUsersPath: strings.TrimSpace(settings.AppliedUsersPath),
-		StagingUsersPath: strings.TrimSpace(settings.StagingUsersPath),
-		UpdatedAt:        strings.TrimSpace(settings.UpdatedAt),
+		WorkspacePath:      strings.TrimSpace(settings.WorkspacePath),
+		AppliedUsersPath:   strings.TrimSpace(settings.AppliedUsersPath),
+		PendingUsersPath:   strings.TrimSpace(settings.PendingUsersPath),
+		MigratingUsersPath: strings.TrimSpace(settings.MigratingUsersPath),
+		UpdatedAt:          strings.TrimSpace(settings.UpdatedAt),
 	}
 }
 
@@ -118,7 +121,9 @@ func configuredWorkspacePath(envWorkspacePath string) string {
 	if err != nil {
 		return normalizeWorkspacePath(envWorkspacePath)
 	}
-	settingsWorkspacePath := strings.TrimSpace(settings.WorkspacePath)
+	// 运行中的进程和宿主 CLI 只认已经提交的 users 根；待迁移目标不能
+	// 通过一次新的 Config.Load 提前变成有效安全边界。
+	settingsWorkspacePath := strings.TrimSpace(settings.AppliedUsersPath)
 	if settingsWorkspacePath == "" {
 		return normalizeWorkspacePath(envWorkspacePath)
 	}
