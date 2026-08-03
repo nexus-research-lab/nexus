@@ -3,7 +3,6 @@ import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { AssistantMessageStatus } from "@/types/conversation/message/entity";
 import type { EventMessage } from "@/types/generated/protocol";
 
-import { DEFAULT_ASSISTANT_ERROR_MESSAGE } from "../../message/assistant-message-model";
 import type {
   AgentEventHandler,
   AgentEventHandlerMap,
@@ -130,12 +129,6 @@ const handleRoundStatus = withCurrentSessionEvent((event, context) => {
   const payload = parseRoundStatusEventPayload(event.data);
   if (payload) {
     context.runtime.applyRoundStatus(payload.round_id, payload.status);
-    if (payload.status === "error") {
-      context.state.setError(
-        payload.error_message
-        ?? DEFAULT_ASSISTANT_ERROR_MESSAGE,
-      );
-    }
   }
 });
 
@@ -143,11 +136,6 @@ const handleAgentRoundStatus = withCurrentSessionEvent((event, context) => {
   const payload = parseAgentRoundStatusEventPayload(event.data);
   if (payload) {
     context.runtime.applyAgentRoundStatus(payload);
-    if (payload.status === "error") {
-      context.state.setError(
-        "Room 中的一个 Agent 执行失败，当前轮次已停止。请稍后重试。",
-      );
-    }
   }
 });
 

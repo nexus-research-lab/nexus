@@ -7,7 +7,7 @@
 - 重连的 authoritative pending snapshot 即使为空且聚合 `round_id` 为空也必须接收并清理陈旧槽位；并发多 root 快照由每个 slot 自己的 `round_id` 定位，聚合 `round_id` 只作为单 root fallback。只有空的非 snapshot 无关联 ACK 继续拒绝。
 - `resync-event-handlers.ts` 统一推进 Session/Room 游标，并在缺口重拉完成且连接有效时重新订阅。
 - `permission/` 分离权限事件的未知载荷解码与当前 Session 状态增删；重复 request 快照必须原位替换，禁止改变首次到达顺序导致 Composer 当前确认跳项。
-- `session-event-handlers.ts` 处理错误、Session/runtime 状态、队列、Goal、轮次和消息状态。
+- `session-event-handlers.ts` 处理错误、Session/runtime 状态、队列、Goal、轮次和消息状态；round status 只推进生命周期，错误文案由 durable result 或显式 error 事件单点投影。
 - `session-event-data.ts` 解码 Session/runtime 状态、队列、轮次和 chat / input_queue ACK 载荷，不承载副作用。
 - `scope-event-handlers.ts` 处理 Agent runtime、Workspace 与 Room 级事件。
 - 每个文件导出事件类型到处理器的纯映射；路由器显式注册并拒绝重复事件所有权。
