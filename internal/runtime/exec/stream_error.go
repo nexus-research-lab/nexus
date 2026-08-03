@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -78,6 +79,22 @@ func (e *RoundStreamIdleTimeoutError) Error() string {
 
 func (e *RoundStreamIdleTimeoutError) Unwrap() error {
 	return ErrRoundStreamIdleTimeout
+}
+
+// RoundErrorDisplayMessage 把执行内核的诊断错误收敛成可持久化的用户文案。
+// 完整字段只进入结构化日志，避免 session、message 与进程信息进入会话历史。
+func RoundErrorDisplayMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	switch {
+	case errors.Is(err, ErrRoundStreamClosedBeforeTerminal):
+		return "Agent runtime 的响应流意外结束，本轮未完成。会话会在下一条消息自动恢复，请重试。"
+	case errors.Is(err, ErrRoundStreamIdleTimeout):
+		return "Agent runtime 长时间没有响应，本轮已停止，请重试。"
+	default:
+		return err.Error()
+	}
 }
 
 func appendRoundStreamStopErrorDetail(detail string, diagnostics RoundStreamStopDiagnostics) string {

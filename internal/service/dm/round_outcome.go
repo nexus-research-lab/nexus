@@ -28,10 +28,11 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 	}
 	fields = append(fields, dmRoundFailureDiagnostics(err, r)...)
 	r.service.loggerFor(context.Background()).Error("DM round 执行失败", fields...)
+	displayError := exec.RoundErrorDisplayMessage(err)
 	r.finalizeGoalUsage(context.Background(), result, r.lastGoalAssistantMessage())
 	r.recordGoalContinuationProgress(exec.RoundExecutionResult{
 		TerminalStatus: "error",
-		ErrorMessage:   err.Error(),
+		ErrorMessage:   displayError,
 	})
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.broadcastContextUsage()
@@ -52,7 +53,7 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 		"duration_api_ms": 0,
 		"num_turns":       0,
 		"usage":           map[string]any{},
-		"result":          err.Error(),
+		"result":          displayError,
 		"is_error":        true,
 	}
 	if persistErr := r.service.history.ForOwner(r.ownerUserID).AppendOverlayMessage(
@@ -91,7 +92,7 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
 		}
 	}
-	errorEvent := protocol.NewErrorEvent(r.sessionKey, err.Error())
+	errorEvent := protocol.NewErrorEvent(r.sessionKey, displayError)
 	r.refreshSessionMetaAfterRoundFinished()
 	errorEvent.AgentID = r.agent.AgentID
 	errorEvent.RoundID = r.roundID
@@ -100,7 +101,7 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 		errorEvent.MessageID = messageID
 	}
 	r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, errorEvent)
-	roundStatus := protocol.NewRoundStatusErrorEvent(r.sessionKey, r.roundID, err.Error())
+	roundStatus := protocol.NewRoundStatusErrorEvent(r.sessionKey, r.roundID, displayError)
 	roundStatus.AgentID = r.agent.AgentID
 	roundStatus.RoundID = r.roundID
 	roundStatus.AgentRoundID = r.agentRoundID

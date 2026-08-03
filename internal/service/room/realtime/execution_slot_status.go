@@ -197,17 +197,18 @@ func (s *Service) handleSlotFailure(
 	}
 	fields = append(fields, roomSlotFailureDiagnostics(err, slot, mapper)...)
 	s.loggerFor(ctx).Error("Room slot 执行失败", fields...)
+	displayError := exec.RoundErrorDisplayMessage(err)
 	lastAssistant := slot.lastGoalAssistantMessage()
 	// durable assistant 已进入 slot 内存、但共享/私有历史持久化可能失败。
 	// failure 收口仍须用该快照结算并关闭 parent usage，不能只记录错误状态。
 	s.finalizeGoalUsageForSlot(ctx, slot, result, lastAssistant)
 	s.recordGoalContinuationProgressForSlot(ctx, slot, roundValue, exec.RoundExecutionResult{
 		TerminalStatus: "error",
-		ErrorMessage:   err.Error(),
+		ErrorMessage:   displayError,
 	}, lastAssistant)
 	s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "error")
 	s.markPublicHandoffTerminal(ctx, roundValue, slot, "error")
-	slot.setErrorMessage(err.Error())
+	slot.setErrorMessage(displayError)
 	// 原因先于终态发布，确保 root round 观察到 error 时一定能读取详情。
 	slot.setStatus("error")
 	s.broadcastAgentRoundStatus(ctx, roundValue, slot, "error")
@@ -225,7 +226,7 @@ func (s *Service) handleSlotFailure(
 		"duration_ms":     0,
 		"duration_api_ms": 0,
 		"num_turns":       0,
-		"result":          err.Error(),
+		"result":          displayError,
 		"is_error":        true,
 		"timestamp":       time.Now().UnixMilli(),
 	}
@@ -249,7 +250,7 @@ func (s *Service) handleSlotFailure(
 				),
 			)
 		}
-		s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", err.Error(), roundValue.RootRoundID))
+		s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", displayError, roundValue.RootRoundID))
 	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
 		protocol.EventTypeStreamEnd,
