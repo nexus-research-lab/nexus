@@ -243,8 +243,16 @@ bridge 可以继续把 `CLAUDE_CONFIG_DIR` 与 `NEXUS_CONFIG_DIR` 保持同步�
 - `nexus/internal/infra/appfs/config_dir.go`
 
 当前版本只把 canonical `.nexus/app`、`.nexus/users/<owner>` 与
-`.nexus/shared-workspaces` 作为运行时读写布局。针对旧版曾将 Room 文件写入
-共享 `app/rooms` 的安全问题，启动期保留一个有完成标记的定向迁移：
+`.nexus/shared-workspaces` 作为运行时读写布局。启动期仍保留版本化的旧状态根与
+workspace 迁移，以允许用户跨多个发布版本直接升级；迁移只执行 rename、不覆盖式
+合并和 owner 数据库映射，不提供旧路径运行时回读。v0.1.30 首次启用最终的
+owner 目录布局时曾遗漏 v0.1.27 与 v0.1.28 的直接升级入口；若受影响版本已误建
+`app/data/nexus.db` 与 `users/` 数据，先把两个新分支隔离到
+`app/.migration-quarantine/skipped-state-layout-v1/`，恢复旧库、Agent workspace、
+transcript 与 Room 源文件后，再以旧数据优先、外键完整的单事务补入新库非冲突
+记录，并把不冲突的 owner 文件并回 canonical `users/`。文件冲突继续保留在隔离区。
+
+针对旧版曾将 Room 文件写入共享 `app/rooms` 的安全问题，启动期保留一个有完成标记的定向迁移：
 
 - 先从数据库按 `conversation_id` 确认 `owner_user_id`，再迁入对应
   `users/<owner>/state/rooms`，不能从目录名或文件内声明猜测 owner；
