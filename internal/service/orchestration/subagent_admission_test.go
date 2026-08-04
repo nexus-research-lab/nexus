@@ -10,19 +10,30 @@ import (
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
 
-func TestSubagentAdmissionRejectsNoAssignment(t *testing.T) {
+func TestSubagentAdmissionAllowsRuntimeOnlyWithoutManagedAssignment(t *testing.T) {
 	snapshot := assignedExecutionSnapshot()
 	snapshot.Assignments = nil
 	snapshot.Attempts = nil
 	result := admitSubagentWithSnapshot(t, snapshot, subagentActor(), "tool-1")
-	assertSubagentAdmissionRejected(t, result, ErrorCodeNoDelegableAssignment)
+	assertRuntimeOnlySubagentAdmission(t, result)
 }
 
-func TestSubagentAdmissionRejectsMultipleCandidates(t *testing.T) {
+func TestSubagentAdmissionAllowsRuntimeOnlyWithMultipleManagedCandidates(t *testing.T) {
 	snapshot := assignedExecutionSnapshot()
 	addSecondDelegableAssignment(snapshot)
 	result := admitSubagentWithSnapshot(t, snapshot, subagentActor(), "tool-1")
-	assertSubagentAdmissionRejected(t, result, ErrorCodeAmbiguousAssignment)
+	assertRuntimeOnlySubagentAdmission(t, result)
+}
+
+func TestSubagentAdmissionAllowsRuntimeOnlyWithoutExecutionOrToolCorrelation(t *testing.T) {
+	assertRuntimeOnlySubagentAdmission(
+		t,
+		admitSubagentWithSnapshot(t, nil, subagentActor(), "tool-1"),
+	)
+	assertRuntimeOnlySubagentAdmission(
+		t,
+		admitSubagentWithSnapshot(t, assignedExecutionSnapshot(), subagentActor(), ""),
+	)
 }
 
 func TestSubagentAdmissionRejectsWrongOwnerOrSession(t *testing.T) {
@@ -66,6 +77,38 @@ func TestSubagentAdmissionRejectsPlanMode(t *testing.T) {
 	actor.PlanMode = true
 	result := admitSubagentWithSnapshot(t, assignedExecutionSnapshot(), actor, "tool-1")
 	assertSubagentAdmissionRejected(t, result, ErrorCodePlanMode)
+}
+
+func TestSubagentLifecycleAllowsRuntimeOnlyWithoutManagedBinding(t *testing.T) {
+	service := NewService(&fakeRepository{})
+	actor := subagentActor()
+	start, err := service.ObserveSubagentStart(
+		context.Background(),
+		actor,
+		SubagentLifecycleInput{SDKAgentID: "sdk-child"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRuntimeOnlySubagentAdmission(t, start)
+	stop, err := service.ObserveSubagentStop(
+		context.Background(),
+		actor,
+		SubagentLifecycleInput{SDKAgentID: "sdk-child"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRuntimeOnlySubagentAdmission(t, stop)
+	exit, err := service.ObserveSubagentParentRoundExit(
+		context.Background(),
+		actor,
+		SubagentParentRoundExitInput{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRuntimeOnlySubagentAdmission(t, exit)
 }
 
 func TestSubagentAdmissionAllowsDistinctConcurrentLaunch(t *testing.T) {
@@ -173,25 +216,22 @@ func TestSubagentAdmissionReusesExactToolBinding(t *testing.T) {
 	}
 }
 
-func TestSubagentAdmissionFailsClosedOnIncompleteWorkBinding(t *testing.T) {
+func TestSubagentAdmissionFallsBackToRuntimeOnlyOnIncompleteManagedBinding(t *testing.T) {
 	for _, testCase := range []struct {
 		name   string
 		mutate func(*protocol.ExecutionSnapshot)
-		reason ErrorCode
 	}{
 		{
 			name: "missing current state",
 			mutate: func(snapshot *protocol.ExecutionSnapshot) {
 				snapshot.WorkItemStates = nil
 			},
-			reason: ErrorCodeNoDelegableAssignment,
 		},
 		{
 			name: "stale plan item",
 			mutate: func(snapshot *protocol.ExecutionSnapshot) {
 				snapshot.PlanItems[0].SpecID = "spec-stale"
 			},
-			reason: ErrorCodeNoDelegableAssignment,
 		},
 		{
 			name: "unreviewed submission",
@@ -207,21 +247,19 @@ func TestSubagentAdmissionFailsClosedOnIncompleteWorkBinding(t *testing.T) {
 					Sequence:     1,
 				}}
 			},
-			reason: ErrorCodeNoDelegableAssignment,
 		},
 		{
 			name: "parent executor mismatch",
 			mutate: func(snapshot *protocol.ExecutionSnapshot) {
 				snapshot.Attempts[0].ExecutorAgentID = "agent-other"
 			},
-			reason: ErrorCodeSubagentBindingMissing,
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			snapshot := assignedExecutionSnapshot()
 			testCase.mutate(snapshot)
 			result := admitSubagentWithSnapshot(t, snapshot, subagentActor(), "tool-1")
-			assertSubagentAdmissionRejected(t, result, testCase.reason)
+			assertRuntimeOnlySubagentAdmission(t, result)
 		})
 	}
 }
@@ -265,7 +303,7 @@ func TestSubagentAdmissionAllowsUniqueCandidateAndPersistsBinding(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Allowed || result.Binding == nil {
+	if !result.Allowed || result.Mode != SubagentAdmissionManaged || result.Binding == nil {
 		t.Fatalf("admission = %#v, want allowed durable binding", result)
 	}
 	if result.Binding.AttemptID != "attempt-child" ||
@@ -488,6 +526,19 @@ func assertSubagentAdmissionRejected(
 	t.Helper()
 	if result.Allowed || result.ReasonCode != reason || result.Binding != nil {
 		t.Fatalf("admission = %#v, want rejected %s", result, reason)
+	}
+}
+
+func assertRuntimeOnlySubagentAdmission(
+	t *testing.T,
+	result SubagentAdmissionResult,
+) {
+	t.Helper()
+	if !result.Allowed ||
+		result.Mode != SubagentAdmissionRuntimeOnly ||
+		result.Binding != nil ||
+		result.ReasonCode != "" {
+		t.Fatalf("admission = %#v, want runtime-only allow", result)
 	}
 }
 

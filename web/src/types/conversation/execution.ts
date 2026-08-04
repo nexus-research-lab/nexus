@@ -90,6 +90,7 @@ export type ExecutionGraphNodeVisibility = "primary" | "nested" | "detail";
 
 export type ExecutionGraphEdgeKind =
   | "dependency"
+  | "dispatch"
   | "spawn"
   | "invoke"
   | "guard"

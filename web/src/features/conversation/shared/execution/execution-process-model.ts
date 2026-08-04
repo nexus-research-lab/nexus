@@ -1,8 +1,9 @@
 /**
- * INPUT: ExecutionView。
- * OUTPUT: 状态/类型文案键、当前节点、紧凑节点窗口、依赖深度与 terminal 判定。
+ * INPUT: ExecutionView、持久 Agent 目录与 runtime Subagent identity。
+ * OUTPUT: 状态/类型文案键、当前节点、稳定 Agent/Subagent 头像身份、一级 Agent 活动态、依赖深度与 WorkGraph 生命周期判定。
  * POS: WorkGraph 纯协议到轻量进程展示语义的无状态投影。
  */
+import { subagentTaskAvatarDataUrl } from "@/features/conversation/shared/subagent/subagent-task-model";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
   ExecutionGraphNodeView,
@@ -112,6 +113,29 @@ export interface ExecutionGraphNodeWindow {
   nodes: ExecutionGraphNodeView[];
 }
 
+/**
+ * 只有具备托管 Plan/Work Item 的 Execution 才是用户选择启动的工作图。
+ * 普通对话轮次产生的 runtime 观测节点不能让工作图入口常驻。
+ */
+export function hasManagedExecutionGraph(
+  execution: ExecutionView | null,
+): boolean {
+  return Boolean(
+    execution
+    && (execution.plan || (execution.work_items?.length ?? 0) > 0),
+  );
+}
+
+export function isExecutionActivityVisible(
+  execution: ExecutionView | null,
+): execution is ExecutionView {
+  return Boolean(
+    hasManagedExecutionGraph(execution)
+    && execution
+    && !isTerminalExecutionStatus(execution.status),
+  );
+}
+
 export function resolveExecutionNodeSummary(
   execution: ExecutionView,
 ): ExecutionNodeSummary {
@@ -217,6 +241,48 @@ export function resolveExecutionGraphNodeWindow(
     hiddenBefore: start,
     nodes: nodes.slice(start, start + limit),
   };
+}
+
+/**
+ * Composer 只表达参与当前托管执行的一级 Agent，不重复展示同一 Agent 的
+ * Work Item，也不把 Subagent、Tool 或 Gate 混入实时跳转入口。
+ */
+export function resolveExecutionPrimaryAgentNodes(
+  execution: ExecutionView,
+  limit = 5,
+): ExecutionGraphNodeView[] {
+  const selectedByAgent = new Map<string, ExecutionGraphNodeView>();
+  for (const node of orderedExecutionGraphNodes(execution)) {
+    if (node.kind !== "agent" || node.visibility !== "primary") {
+      continue;
+    }
+    const item = resolveExecutionGraphNodeItem(execution, node);
+    const agentKey = node.agent_id?.trim()
+      || item?.owner_agent_id?.trim();
+    if (!agentKey) {
+      continue;
+    }
+    const selected = selectedByAgent.get(agentKey);
+    if (!selected) {
+      selectedByAgent.set(agentKey, node);
+      continue;
+    }
+    const selectedItem = resolveExecutionGraphNodeItem(execution, selected);
+    const selectedPriority = WORK_ITEM_FOCUS_PRIORITY.indexOf(
+      resolveExecutionGraphNodeStatus(selected, selectedItem),
+    );
+    const candidatePriority = WORK_ITEM_FOCUS_PRIORITY.indexOf(
+      resolveExecutionGraphNodeStatus(node, item),
+    );
+    if (candidatePriority < selectedPriority) {
+      selectedByAgent.set(agentKey, node);
+    }
+  }
+  return [...selectedByAgent.values()]
+    .sort((left, right) => (
+      left.position - right.position || left.id.localeCompare(right.id)
+    ))
+    .slice(0, Math.max(0, limit));
 }
 
 export function resolveWorkItemDepths(
@@ -363,6 +429,31 @@ export function resolveExecutionAgent(
     id: normalized,
     name: normalized,
   };
+}
+
+export function resolveExecutionGraphNodeAgent(
+  directory: ExecutionAgentDirectory,
+  node: ExecutionGraphNodeView,
+  item: ExecutionWorkItemView | null,
+): ExecutionAgentIdentity | null {
+  if (node.kind === "tool") {
+    return null;
+  }
+  if (node.kind === "subagent") {
+    const identity = node.subject_id?.trim()
+      || node.attempt_id?.trim()
+      || node.agent_id?.trim()
+      || node.id;
+    return {
+      avatar: subagentTaskAvatarDataUrl(identity),
+      id: `subagent:${identity}`,
+      name: node.name?.trim() || node.agent_id?.trim() || "Subagent",
+    };
+  }
+  return resolveExecutionAgent(
+    directory,
+    node.agent_id ?? item?.owner_agent_id,
+  );
 }
 
 export function compactExecutionNodeObjective(

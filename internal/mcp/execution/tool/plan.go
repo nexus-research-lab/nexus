@@ -16,15 +16,11 @@ func planExecution(svc contract.Service, sctx contract.ServerContext) sdktool.To
 	const toolName = "plan_execution"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Create one complete immutable Plan revision when coordinated delivery is useful. " +
-			"Plan expresses how work unfolds; each Work Item expresses one deliverable, declared dependencies prevent premature work, and optional output scopes can prevent duplicate production. " +
-			"Pass the complete WorkGraph once through the native items array. Populate the actual argument object in this call; never send {} as a placeholder or merely announce a later call. The schema uses the common function-calling subset shared across Providers, and the backend validates the entire graph before one atomic write. " +
-			"Every item needs logical_key, kind, subject, objective, and deliverable. Required/terminal flags, acceptance criteria, dependencies, integration, verification, and output scopes are Agent-selected contract details: include them when they improve the task rather than to satisfy a fixed workflow. " +
-			"If no Execution exists, objective and at least one nonblank top-level completion_criteria entry are mandatory; the backend atomically creates the Execution and first active Plan. " +
-			"An existing same-objective replan may omit both because a Plan revision never rewrites the Execution boundary. " +
-			"Ordinary replan is monotonic: resubmit every existing node unchanged, then append new nodes and edges whose target is new. An old node may be an upstream dependency of a new node; a new edge may not target an old node because that would change its readiness contract. Removing or changing an existing node or its incoming dependencies requires supersede_active_work=true and a non-empty revision_reason. Activate any successor revision only at a quiescent boundary with no current Assignment or unreviewed Submission. " +
-			"When the user explicitly changes a transient objective that still needs a managed WorkGraph, set replace_current_execution=true and provide the current execution_id, replacement_reason, new objective, new completion criteria, and complete successor graph. " +
-			"Never use replacement for a Goal-bound Execution or a direct atomic task.",
+		Description: "Atomically create one complete immutable Plan revision from the native items array. " +
+			"Send the actual non-empty Work Item objects in this call; never send {} or a placeholder. " +
+			"A first Plan requires objective and at least one nonblank completion criterion; a same-objective replan may omit both and cannot rewrite that boundary. " +
+			"Append-only revisions preserve existing nodes and incoming edges. Non-monotonic changes require supersede_active_work with revision_reason at an allowed quiescent boundary. " +
+			"Replacing a different transient objective requires the explicit replacement fields and complete successor graph; Goal-bound Executions cannot be replaced here.",
 		SearchHint:  "plan execution work graph completion criteria dependencies duplicate work deliverables",
 		InputSchema: planExecutionSchema(),
 		Annotations: &sdktool.ToolAnnotations{

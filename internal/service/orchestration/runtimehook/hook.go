@@ -1,6 +1,6 @@
 // INPUT: Orchestration subagent admission provider、当前 actor 与 SDK hook payload。
-// OUTPUT: runtime.Manager 可热切换的 callbacks、脱敏拒绝结果与内部持久化错误日志。
-// POS: service 领域结果到 bridge hook wire semantics 的适配层。
+// OUTPUT: runtime.Manager 可热切换的 callbacks、managed/runtime-only 放行、脱敏拒绝结果与内部持久化错误日志。
+// POS: service 领域结果到 bridge hook wire semantics 的适配层；无 managed binding 不等于禁止原生能力。
 package runtimehook
 
 import (
@@ -129,7 +129,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 			if err != nil {
 				return err
 			}
-			if !result.Allowed || result.Binding == nil {
+			if !result.Allowed {
 				return fmt.Errorf(
 					"subagent reconciliation schedule rejected: [%s] %s",
 					result.ReasonCode,
@@ -164,13 +164,9 @@ func admissionOutput(
 			"authoritative subagent admission state could not be persisted",
 		)
 	}
-	if !result.Allowed || result.Binding == nil {
+	if !result.Allowed {
 		reasonCode := string(result.ReasonCode)
 		message := result.Message
-		if result.Allowed {
-			reasonCode = subagentAdmissionErrorCode
-			message = "subagent admission returned no durable binding"
-		}
 		return runtimectx.DenySubagentHookOutput(event, reasonCode, message)
 	}
 	return sdkhook.Output{}

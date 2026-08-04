@@ -5,7 +5,10 @@
  */
 import type { RefObject } from "react";
 
-import { buildExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
+import {
+  buildExecutionAgentDirectory,
+  isExecutionActivityVisible,
+} from "@/features/conversation/shared/execution/execution-process-model";
 import {
   buildConversationPanelFrameModel,
   type ConversationPanelEnvironment,
@@ -91,6 +94,7 @@ interface BuildGroupChatPanelViewModelOptions {
     title?: string,
   ) => void | Promise<string | null>;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string) => void;
   roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
@@ -110,6 +114,7 @@ export function buildGroupChatPanelViewModel({
   goal,
   onCreateConversation,
   onOpenAgentContact,
+  onOpenWorkGraph,
   onOpenWorkspaceFile,
   roomHostAgentId,
   roomHostAutoReplyEnabled,
@@ -147,12 +152,18 @@ export function buildGroupChatPanelViewModel({
       session,
       unread,
     }),
-    executionPanel: execution.execution
+    executionPanel: isExecutionActivityVisible(execution.execution)
       ? {
           directory: buildExecutionAgentDirectory(roomMembers),
           execution: execution.execution,
-          onDismiss: execution.dismiss,
-          taskRuns: session.taskRuns,
+          onNavigateToRound: (roundId: string) => {
+            session.roundScrollRef.current?.scrollToRoundId(roundId, {
+              align: "focus",
+              behavior: "smooth",
+              target: "round",
+            });
+          },
+          onOpenGraph: onOpenWorkGraph,
         }
       : null,
     goalLead: buildGoalLeadModel({ goal, roomMembers, session }),

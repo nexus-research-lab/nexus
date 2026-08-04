@@ -21,6 +21,7 @@ export interface GroupChatPanelProps {
   onInitialDraftConsumed?: () => void;
   onExecutionTaskRunsChange?: (runs: ConversationTaskRun[]) => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onTodosChange?: (todos: TodoItem[]) => void;

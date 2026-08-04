@@ -20,6 +20,7 @@ export interface DmChatPanelProps {
   onInitialDraftConsumed?: () => void;
   onExecutionTaskRunsChange?: (runs: ConversationTaskRun[]) => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
   onConversationSnapshotChange?: (snapshot: SessionSnapshotPayload) => void;

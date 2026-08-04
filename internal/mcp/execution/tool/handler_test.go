@@ -853,9 +853,9 @@ func TestAuditExecutionAlignmentPassesTypedReportAndLeavesRoutingToAgent(t *test
 	}
 	if !strings.Contains(
 		auditExecutionAlignment(nil, contract.ServerContext{}).Description,
-		"Agent chooses the next action",
+		"never transitions the Execution",
 	) {
-		t.Fatal("alignment tool description must keep routing advisory")
+		t.Fatal("alignment tool description must keep the atomic non-transition contract")
 	}
 }
 

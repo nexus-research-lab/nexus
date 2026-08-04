@@ -241,6 +241,133 @@ func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
 	}
 }
 
+func TestRuntimeGraphViewRepairsMissingParentEdge(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 4, 9, 0, 0, 0, time.UTC)
+	rootID := "runtime-agent-repair"
+	toolID := "runtime-tool-repair"
+	view := &protocol.ExecutionView{}
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{
+		GraphID: "round:repair",
+		Nodes: []protocol.ExecutionRuntimeNodeRun{
+			{
+				ID: rootID, Kind: protocol.ExecutionRuntimeNodeAgent,
+				SubjectID: "agent-round-repair", AgentRoundID: "agent-round-repair",
+				AgentID: "agent-1", Status: protocol.ExecutionRuntimeNodeRunning,
+				StartedAt: now, UpdatedAt: now,
+			},
+			{
+				ID: toolID, Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "tool-repair", AgentRoundID: "agent-round-repair",
+				AgentID: "agent-1", Name: "search",
+				Status:    protocol.ExecutionRuntimeNodeRunning,
+				StartedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+			},
+		},
+	})
+
+	tool := graphNodeByID(view.Graph.Nodes, toolID)
+	if tool.ParentNodeID != rootID ||
+		!hasExecutionGraphEdge(
+			view.Graph.Edges,
+			protocol.ExecutionGraphEdgeInvoke,
+			rootID,
+			toolID,
+		) {
+		t.Fatalf("missing runtime parent edge was not repaired: %+v", view.Graph)
+	}
+}
+
+func TestRuntimeGraphViewBindsManagedRoundsAndFiltersConversationRoots(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 4, 10, 0, 0, 0, time.UTC)
+	workID := "work-managed"
+	coordinatorID := "runtime-coordinator"
+	workRoundID := "runtime-work-round"
+	toolID := "runtime-work-tool"
+	view := &protocol.ExecutionView{
+		ID: "execution-managed",
+		WorkItems: []protocol.ExecutionWorkItemView{{
+			ID: workID,
+		}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{{
+			ID:         workID,
+			Kind:       protocol.ExecutionGraphNodeAgent,
+			Visibility: protocol.ExecutionGraphNodePrimary,
+			WorkItemID: workID,
+			AgentID:    "worker-1",
+		}}},
+	}
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{
+		GraphID: "execution:execution-managed",
+		Nodes: []protocol.ExecutionRuntimeNodeRun{
+			{
+				ID: coordinatorID, Kind: protocol.ExecutionRuntimeNodeAgent,
+				SubjectID: "coord-round", AgentRoundID: "coord-round",
+				AgentID: "lead-1", Status: protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now, UpdatedAt: now,
+				Metadata: map[string]any{"execution_lane": "coordination"},
+			},
+			{
+				ID: "runtime-conversation-only", Kind: protocol.ExecutionRuntimeNodeAgent,
+				SubjectID: "chat-round", AgentRoundID: "chat-round",
+				AgentID: "observer-1", Status: protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now, UpdatedAt: now,
+			},
+			{
+				ID: "runtime-work-agent", Kind: protocol.ExecutionRuntimeNodeAgent,
+				SubjectID: workRoundID, AgentRoundID: workRoundID,
+				AgentID: "worker-1", Status: protocol.ExecutionRuntimeNodeRunning,
+				StartedAt: now, UpdatedAt: now,
+				Metadata: map[string]any{
+					"execution_lane": "work",
+					"work_item_id":   workID,
+				},
+			},
+			{
+				ID: toolID, Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "tool-managed", AgentRoundID: workRoundID,
+				AgentID: "worker-1", Name: "search",
+				Status:    protocol.ExecutionRuntimeNodeRunning,
+				StartedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+			},
+		},
+		Edges: []protocol.ExecutionRuntimeEdgeRun{{
+			ID: "runtime-work-invoke", SourceNodeID: "runtime-work-agent",
+			TargetNodeID: toolID, Kind: protocol.ExecutionRuntimeEdgeInvoke,
+			CreatedAt: now.Add(time.Second),
+		}},
+	})
+
+	if len(view.Graph.Nodes) != 3 {
+		t.Fatalf("managed graph nodes = %+v", view.Graph.Nodes)
+	}
+	for _, node := range view.Graph.Nodes {
+		if node.ID == "runtime-conversation-only" || node.ID == "runtime-work-agent" {
+			t.Fatalf("unbound or duplicate runtime Agent leaked into managed graph: %+v", node)
+		}
+	}
+	work := graphNodeByID(view.Graph.Nodes, workID)
+	if work.AgentRoundID != workRoundID || work.LifecycleStatus != "running" {
+		t.Fatalf("managed Work Item did not absorb exact runtime round: %+v", work)
+	}
+	if !hasExecutionGraphEdge(
+		view.Graph.Edges,
+		protocol.ExecutionGraphEdgeInvoke,
+		workID,
+		toolID,
+	) || !hasExecutionGraphEdge(
+		view.Graph.Edges,
+		protocol.ExecutionGraphEdgeDispatch,
+		coordinatorID,
+		workID,
+	) {
+		t.Fatalf("managed runtime graph edges = %+v", view.Graph.Edges)
+	}
+}
+
 func TestAuditExecutionAlignmentRecordsOptionalGateWithoutRoutingExecution(t *testing.T) {
 	t.Parallel()
 

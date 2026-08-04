@@ -1,57 +1,47 @@
 /**
- * INPUT: 当前/最近 ExecutionView、Agent 目录、精确 Agent round Task run 与 terminal dismiss 动作。
- * OUTPUT: Composer 上方的紧凑节点胶囊，以及服从活动 Dock 本地宽度的可展开只读节点图。
- * POS: DM 与 Room 共用的权威 Execution 进度 UI；存在时替代 legacy Todo 进程。
+ * INPUT: 当前托管 Execution、Agent 目录、打开完整工作图与精确 Agent round 导航动作。
+ * OUTPUT: Composer 上方只包含一级 Agent 的实时活动 Dock；不复制完整图、Tool、Gate 或 Subagent。
+ * POS: DM 与 Room 共用的 WorkGraph 快速入口；完整节点关系与详情只在右侧 WorkGraph Surface 展示。
  */
 "use client";
 
-import { X } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { Workflow } from "lucide-react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
-import {
-  ANCHORED_OVERLAY_MOTION_CLASS_NAME,
-  OVERLAY_SURFACE_CLASS_NAME,
-} from "@/shared/ui/overlay/overlay-styles";
 import type { ExecutionView } from "@/types/conversation/execution";
-import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 
 import {
   EXECUTION_STATUS_LABEL_KEY,
-  isTerminalExecutionStatus,
-  resolveExecutionAgent,
+  resolveExecutionGraphNodeAgent,
   resolveExecutionGraphNodeItem,
   resolveExecutionGraphNodeStatus,
-  resolveExecutionGraphNodeWindow,
   resolveExecutionNodeSummary,
+  resolveExecutionPrimaryAgentNodes,
   type ExecutionAgentDirectory,
+  WORK_ITEM_STATUS_LABEL_KEY,
 } from "./execution-process-model";
 import { ExecutionNodeAvatar } from "./execution-node-avatar";
-import { ExecutionWorkGraphCanvas } from "./execution-workgraph-canvas";
 
-const EXECUTION_TRIGGER_CLASS_NAME =
+const EXECUTION_DOCK_CLASS_NAME =
   "border border-(--surface-control-border) bg-(--surface-control-background) shadow-(--surface-control-shadow)";
 
 export function ExecutionProcessPanel({
   className,
   directory,
   execution,
-  onDismiss,
-  taskRuns = [],
+  onNavigateToRound,
+  onOpenGraph,
 }: {
   className?: string;
   directory: ExecutionAgentDirectory;
   execution: ExecutionView;
-  onDismiss: () => void;
-  taskRuns?: readonly ConversationTaskRun[];
+  onNavigateToRound?: (roundId: string) => void;
+  onOpenGraph?: () => void;
 }) {
   const { t } = useI18n();
-  const [isExpanded, setIsExpanded] = useState(false);
-  const panelId = useId();
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const nodeSummary = resolveExecutionNodeSummary(execution);
-  const terminal = isTerminalExecutionStatus(execution.status);
+  const agentNodes = resolveExecutionPrimaryAgentNodes(execution);
   const nodeProgressLabel = nodeSummary.totalCount > 0
     ? t("execution.node_progress", {
         current: nodeSummary.currentStep,
@@ -59,225 +49,94 @@ export function ExecutionProcessPanel({
       })
     : t(EXECUTION_STATUS_LABEL_KEY[execution.status]);
 
-  useEffect(() => {
-    if (!isExpanded) {
-      return;
-    }
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        triggerRef.current?.focus();
-        setIsExpanded(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isExpanded]);
-
   return (
     <aside
-      aria-label={t("execution.label")}
+      aria-label={t("execution.agent_activity")}
       aria-live="polite"
       className={cn(
-        "pointer-events-none relative flex w-full min-w-0 max-w-[580px] justify-center",
+        "pointer-events-none relative flex w-full min-w-0 max-w-[460px] justify-center",
         className,
       )}
       data-execution-process-panel
       data-execution-status={execution.status}
     >
-      <button
-        ref={triggerRef}
-        aria-controls={panelId}
-        aria-expanded={isExpanded}
-        aria-label={`${
-          isExpanded
-            ? t("execution.collapse_panel")
-            : t("execution.expand_panel")
-        } · ${nodeSummary.summary} · ${nodeProgressLabel}`}
+      <div
         className={cn(
-          "pointer-events-auto flex min-h-10 min-w-10 max-w-full items-center justify-center overflow-hidden rounded-[14px] px-2.5 py-1.5 text-xs text-(--text-default) transition-[background,border-color,color,box-shadow] hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) hover:text-(--text-strong)",
-          EXECUTION_TRIGGER_CLASS_NAME,
+          "pointer-events-auto flex min-h-12 max-w-full items-center gap-1.5 overflow-hidden rounded-[16px] p-1.5",
+          EXECUTION_DOCK_CLASS_NAME,
         )}
-        data-execution-node-summary={nodeSummary.summary}
-        data-execution-process-trigger
-        data-execution-trigger-content={
-          nodeSummary.totalCount > 0 ? "node-rail" : "status"
-        }
-        onClick={() => setIsExpanded((current) => !current)}
-        title={`${nodeSummary.summary} · ${nodeProgressLabel}`}
-        type="button"
+        data-execution-agent-activity-dock
       >
-        {nodeSummary.totalCount > 0 ? (
-          <ExecutionNodeRail
-            currentId={nodeSummary.currentNode?.id ?? null}
-            directory={directory}
-            execution={execution}
-          />
-        ) : (
-          <span className="truncate text-compact text-(--text-soft)">
-            {nodeProgressLabel}
-          </span>
-        )}
-      </button>
-
-      {isExpanded ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-[calc(100%+0.5rem)] flex justify-center">
-          <section
-            aria-label={t("execution.label")}
-            className={cn(
-              "pointer-events-auto flex max-h-[min(440px,54dvh)] w-full origin-bottom flex-col overflow-hidden",
-              OVERLAY_SURFACE_CLASS_NAME,
-              ANCHORED_OVERLAY_MOTION_CLASS_NAME,
-            )}
-            data-execution-workgraph
-            data-placement="top"
-            id={panelId}
-          >
-            <ExecutionPanelHeader
-              execution={execution}
-              nodeProgressLabel={nodeProgressLabel}
-              onDismiss={terminal
-                ? () => {
-                    setIsExpanded(false);
-                    onDismiss();
+        {agentNodes.map((node, index) => {
+          const item = resolveExecutionGraphNodeItem(execution, node);
+          const owner = resolveExecutionGraphNodeAgent(directory, node, item);
+          const status = resolveExecutionGraphNodeStatus(node, item);
+          const live = status === "running";
+          const statusLabel = t(WORK_ITEM_STATUS_LABEL_KEY[status]);
+          const subject = item?.subject.trim()
+            || node.description?.trim()
+            || owner?.name
+            || t("execution.owner_unassigned");
+          const title = `${owner?.name ?? t("execution.owner_unassigned")} · ${subject} · ${statusLabel}`;
+          const canNavigate = Boolean(node.agent_round_id && onNavigateToRound);
+          return (
+            <span className="inline-flex shrink-0 items-center" key={node.id}>
+              {index > 0 ? (
+                <span
+                  aria-hidden="true"
+                  className="h-px w-3 bg-(--divider-subtle-color)"
+                  data-execution-agent-connection
+                />
+              ) : null}
+              <button
+                aria-label={canNavigate
+                  ? t("execution.jump_to_agent_output", {
+                      agent: owner?.name ?? t("execution.owner_unassigned"),
+                    })
+                  : `${t("execution.open_workgraph")} · ${title}`}
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] transition-[background,transform] hover:bg-(--surface-interactive-hover-background) hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+                data-execution-agent-activity={owner?.id ?? node.id}
+                data-execution-agent-live={live ? "true" : undefined}
+                data-execution-agent-round-id={node.agent_round_id || undefined}
+                onClick={() => {
+                  if (node.agent_round_id && onNavigateToRound) {
+                    onNavigateToRound(node.agent_round_id);
+                    return;
                   }
-                : null}
-              summary={nodeSummary.summary}
-            />
-            {(execution.graph?.nodes?.length ?? 0) > 0
-              || (execution.work_items?.length ?? 0) > 0 ? (
-              <ExecutionWorkGraphCanvas
-                currentId={nodeSummary.currentNode?.id ?? null}
-                directory={directory}
-                execution={execution}
-                key={execution.id}
-                taskRuns={taskRuns}
-              />
-            ) : (
-              <div className="grid min-h-24 place-items-center px-6 py-6 text-center">
-                <p className="text-xs text-(--text-soft)">
-                  {t("execution.no_plan")}
-                </p>
-              </div>
-            )}
-          </section>
-        </div>
-      ) : null}
-    </aside>
-  );
-}
+                  onOpenGraph?.();
+                }}
+                title={title}
+                type="button"
+              >
+                <ExecutionNodeAvatar
+                  agent={owner}
+                  current={live}
+                  kind="agent"
+                  size="graph"
+                  status={status}
+                  title={title}
+                  tone="activity"
+                />
+              </button>
+            </span>
+          );
+        })}
 
-function ExecutionPanelHeader({
-  execution,
-  nodeProgressLabel,
-  onDismiss,
-  summary,
-}: {
-  execution: ExecutionView;
-  nodeProgressLabel: string;
-  onDismiss: (() => void) | null;
-  summary: string;
-}) {
-  const { t } = useI18n();
-  return (
-    <header className="flex h-10 shrink-0 items-center gap-2 px-3">
-      <span
-        className="min-w-0 flex-1 truncate text-compact font-semibold text-(--text-strong)"
-        data-execution-panel-heading
-        title={execution.plan
-          ? `${summary} · ${t("execution.plan_revision", {
-              revision: execution.plan.revision,
-            })}`
-          : summary}
-      >
-        {summary}
-      </span>
-      <span className="shrink-0 text-compact tabular-nums text-(--text-soft)">
-        {nodeProgressLabel}
-      </span>
-      {onDismiss ? (
+        <span
+          aria-hidden="true"
+          className="mx-0.5 h-6 w-px shrink-0 bg-(--divider-subtle-color)"
+        />
         <button
-          aria-label={t("execution.dismiss")}
-          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--icon-default)"
-          onClick={onDismiss}
-          title={t("execution.dismiss")}
+          aria-label={t("execution.open_workgraph")}
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+          data-execution-open-workgraph
+          onClick={onOpenGraph}
+          title={`${t("execution.open_workgraph")} · ${nodeSummary.summary} · ${nodeProgressLabel}`}
           type="button"
         >
-          <X className="h-3.5 w-3.5" />
+          <Workflow aria-hidden="true" className="h-4 w-4" />
         </button>
-      ) : null}
-    </header>
-  );
-}
-
-function ExecutionNodeRail({
-  currentId,
-  directory,
-  execution,
-}: {
-  currentId: string | null;
-  directory: ExecutionAgentDirectory;
-  execution: ExecutionView;
-}) {
-  const { t } = useI18n();
-  const nodeWindow = resolveExecutionGraphNodeWindow(execution, currentId);
-  if (nodeWindow.nodes.length === 0) {
-    return null;
-  }
-  return (
-    <span
-      aria-hidden="true"
-      className="flex min-w-0 items-center"
-      data-execution-node-rail
-    >
-      {nodeWindow.hiddenBefore > 0 ? (
-        <span className="mr-1 text-[9px] leading-none text-(--text-soft)">…</span>
-      ) : null}
-      {nodeWindow.nodes.map((node, index) => {
-        const item = resolveExecutionGraphNodeItem(execution, node);
-        const owner = node.kind === "tool"
-          ? null
-          : resolveExecutionAgent(
-            directory,
-            node.agent_id ?? item?.owner_agent_id,
-          );
-        const status = resolveExecutionGraphNodeStatus(node, item);
-        const title = node.kind === "tool"
-          ? node.name ?? t("execution.node_tool")
-          : node.kind === "gate"
-          ? `${t(node.name === "objective_alignment"
-            ? "execution.node_alignment_gate"
-            : "execution.node_gate")} · ${
-            owner?.name ?? t("execution.owner_unassigned")
-          }`
-          : node.kind === "subagent"
-          ? `${t("execution.attempt_subagent")} · ${item?.subject ?? ""}`
-          : `${item?.subject ?? node.description ?? owner?.name ?? t("execution.owner_unassigned")} · ${
-            owner?.name ?? t("execution.owner_unassigned")
-          }`;
-        return (
-          <span className="inline-flex items-center" key={node.id}>
-            {index > 0 ? (
-              <span
-                className="h-px w-2.5 bg-(--divider-subtle-color)"
-                data-execution-node-connection
-              />
-            ) : null}
-            <ExecutionNodeAvatar
-              agent={owner}
-              current={node.id === currentId}
-              kind={node.kind}
-              size={node.kind === "subagent" || node.kind === "tool"
-                ? "nested"
-                : "compact"}
-              status={status}
-              title={title}
-            />
-          </span>
-        );
-      })}
-      {nodeWindow.hiddenAfter > 0 ? (
-        <span className="ml-1 text-[9px] leading-none text-(--text-soft)">…</span>
-      ) : null}
-    </span>
+      </div>
+    </aside>
   );
 }

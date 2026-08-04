@@ -225,7 +225,7 @@ func TestRepositoryRejectRetryAcceptTakeoverAndCompletion(t *testing.T) {
 	}
 }
 
-func TestRepositoryAllowsConcurrentChildAttemptsWithDistinctToolBindings(t *testing.T) {
+func TestRepositoryAllowsConcurrentChildAttemptsInSharedParentRound(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()
 	snapshot, err := repository.Create(ctx, createTestCommand("child-parallel"))
@@ -246,29 +246,39 @@ func TestRepositoryAllowsConcurrentChildAttemptsWithDistinctToolBindings(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot = startTestAttempt(
-		t,
-		ctx,
-		repository,
-		snapshot,
-		"assignment-child-parent",
-		"attempt-child-parent",
-	)
+	parentAssignment := findAssignment(t, snapshot, "assignment-child-parent")
+	parent := findAttempt(t, snapshot, "attempt-child-parent")
+	parent.RuntimeSessionKey = "runtime-session-shared"
+	parent.RuntimeRoundID = "runtime-round-shared"
+	parent.AgentRoundID = "agent-round-shared"
+	snapshot, err = repository.StartAttempt(ctx, StartAttemptCommand{
+		ExpectedExecutionVersion:  snapshot.Execution.Version,
+		ExpectedAssignmentVersion: parentAssignment.Version,
+		ExpectedAttemptVersion:    parent.Version,
+		Attempt:                   parent,
+		Meta:                      testMeta("start-child-parent"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for index, toolUseID := range []string{"tool-child-a", "tool-child-b"} {
 		assignment := findAssignment(t, snapshot, "assignment-child-parent")
 		child := protocol.WorkAttempt{
-			ID:              fmt.Sprintf("attempt-subagent-%d", index+1),
-			ExecutionID:     snapshot.Execution.ID,
-			PlanID:          snapshot.Plan.ID,
-			WorkItemID:      assignment.WorkItemID,
-			SpecID:          assignment.SpecID,
-			AssignmentID:    assignment.ID,
-			ParentAttemptID: "attempt-child-parent",
-			ExecutorKind:    protocol.AttemptExecutorSubagent,
-			ParentAgentID:   "agent-a",
-			ToolUseID:       toolUseID,
-			Status:          protocol.WorkAttemptStatusRunning,
+			ID:                fmt.Sprintf("attempt-subagent-%d", index+1),
+			ExecutionID:       snapshot.Execution.ID,
+			PlanID:            snapshot.Plan.ID,
+			WorkItemID:        assignment.WorkItemID,
+			SpecID:            assignment.SpecID,
+			AssignmentID:      assignment.ID,
+			ParentAttemptID:   "attempt-child-parent",
+			ExecutorKind:      protocol.AttemptExecutorSubagent,
+			ParentAgentID:     "agent-a",
+			RuntimeSessionKey: parent.RuntimeSessionKey,
+			RuntimeRoundID:    parent.RuntimeRoundID,
+			AgentRoundID:      parent.AgentRoundID,
+			ToolUseID:         toolUseID,
+			Status:            protocol.WorkAttemptStatusRunning,
 		}
 		snapshot, err = repository.StartAttempt(ctx, StartAttemptCommand{
 			ExpectedExecutionVersion:  snapshot.Execution.Version,

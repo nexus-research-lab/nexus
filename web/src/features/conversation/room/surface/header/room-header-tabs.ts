@@ -49,9 +49,12 @@ const ROOM_HEADER_TAB_DEFINITIONS: readonly RoomHeaderTabDefinition[] = [
 
 export function buildRoomHeaderTabs(
   t: I18nContextValue["t"],
+  { workgraphAvailable = true }: { workgraphAvailable?: boolean } = {},
 ): RoomHeaderTab[] {
-  return ROOM_HEADER_TAB_DEFINITIONS.map(({ labelKey, ...tab }) => ({
-    ...tab,
-    label: t(labelKey),
-  }));
+  return ROOM_HEADER_TAB_DEFINITIONS
+    .filter((tab) => tab.key !== "workgraph" || workgraphAvailable)
+    .map(({ labelKey, ...tab }) => ({
+      ...tab,
+      label: t(labelKey),
+    }));
 }

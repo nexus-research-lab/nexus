@@ -16,9 +16,8 @@ func assignWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	const toolName = "assign_work"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Assign one ready Work Item to exactly one responsible Agent. " +
-			"In a Room, use strategy=room_member when you choose a tracked responsibility handoff; the backend records and dispatches the Assignment. Room messages and @ remain the content channel, but they do not replace the Assignment state marker. " +
-			"Assignment expresses responsibility. A responsible Agent may later use a subagent internally without transferring ownership.",
+		Description: "Create and dispatch one Assignment for a ready Work Item to exactly one responsible Agent. " +
+			"Use strategy=room_member for a tracked Room handoff and strategy=self for the current Agent. This records ownership; a later subagent remains internal to that owner.",
 		SearchHint:  "assign work room handoff responsibility agent",
 		InputSchema: assignWorkSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},
@@ -54,9 +53,8 @@ func submitWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	const toolName = "submit_work"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Submit the current Assignment owner's concrete result and evidence for review. " +
-			"In a Room, the backend durably routes a cross-Agent review to the selected reviewer; self-review stays in the current WorkBinding. Use Room communication for substantive findings, while this tool records the immutable Submission fact. " +
-			"Do not call start_work or report machine state: the backend records the Attempt automatically. Submission does not unlock downstream hard dependencies until accepted.",
+		Description: "Append the current Assignment owner's concrete result and evidence as an immutable Submission for the selected reviewer. " +
+			"The backend correlates the Attempt and routes review; downstream hard dependencies remain locked until Acceptance.",
 		SearchHint:  "submit work deliverable evidence assignment",
 		InputSchema: submitWorkSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},
@@ -100,10 +98,8 @@ func reviewWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	const toolName = "review_work"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Append the Assignment-selected reviewer's decision for an immutable Submission. The reviewer may be the owner, Lead, or another authorized Room Agent. " +
-			"Accepted requires a passing result for every criterion and is the only decision that unlocks downstream hard dependencies. " +
-			"After Acceptance exposes Ready work, continue from the new state in the same round when authorized, or send substantive findings through Room communication; do not ask the user to continue unless a real user decision or input is required. " +
-			"Review is intentional verification, not duplicate production.",
+		Description: "Append the Assignment-selected reviewer's immutable decision for one Submission. " +
+			"Accepted requires a passing result for every acceptance criterion and is the only decision that unlocks downstream hard dependencies.",
 		SearchHint:  "review accept reject changes requested criteria",
 		InputSchema: reviewWorkSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},
@@ -137,8 +133,7 @@ func blockWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	const toolName = "block_work"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Record that a Work Item cannot continue without one specific external input or authority. " +
-			"Do not use this for ordinary Plan dependencies; those are derived automatically.",
+		Description: "Put one Work Item into waiting_input because a specific external input or authority is missing. Ordinary Plan dependencies are derived automatically and are not blockers.",
 		SearchHint:  "block work external input authority dependency",
 		InputSchema: blockWorkSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},
@@ -170,8 +165,7 @@ func resumeWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	const toolName = "resume_work"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Reopen one waiting_input Work Item only after its exact external blocker is resolved. " +
-			"Provide concrete resolution evidence; this creates no Assignment and never revives an old Attempt.",
+		Description: "Reopen one waiting_input Work Item after its exact external blocker is resolved. Provide resolution evidence; this creates no Assignment and never revives an old Attempt.",
 		SearchHint:  "resume unblock work resolved input evidence",
 		InputSchema: resumeWorkSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},

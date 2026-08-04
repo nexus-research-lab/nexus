@@ -36,6 +36,9 @@ func TestBuildAllExposesCodexGoalToolSet(t *testing.T) {
 func TestBuildAllKeepsGoalToolsDiscoverable(t *testing.T) {
 	tools := BuildAll(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
 	for _, item := range tools {
+		if words := len(strings.Fields(item.Description)); words > 120 {
+			t.Fatalf("%s description has %d words, want at most 120", item.Name, words)
+		}
 		if item.AlwaysLoad {
 			t.Fatalf("%s should stay deferred behind ToolSearch", item.Name)
 		}
@@ -100,22 +103,13 @@ func TestUpdateGoalSchemaMatchesCodexStatusOnlyShape(t *testing.T) {
 	if !ok || !slices.Equal(enum, []string{"complete", "blocked"}) {
 		t.Fatalf("status.enum = %#v, want [complete blocked]", status["enum"])
 	}
-	for _, want := range []string{"achieved or genuinely blocked", "three consecutive goal turns", "budget-limit, or usage-limit"} {
+	for _, want := range []string{"complete or blocked", "three consecutive Goal turns", "pause, resume, budget and usage states"} {
 		if !strings.Contains(tool.Description, want) {
 			t.Fatalf("tool description missing %q: %s", want, tool.Description)
 		}
 	}
-	for _, want := range []string{
-		"complete user-facing delivery surface",
-		"include the full requested content",
-		"provide exact links or paths",
-		"present the key outcomes and relevant verification",
-		"Do not make `Goal complete` the headline",
-		"mention completion only secondarily",
-	} {
-		if !strings.Contains(tool.Description, want) {
-			t.Fatalf("tool description missing result-first guidance %q: %s", want, tool.Description)
-		}
+	if strings.Contains(tool.Description, "complete user-facing delivery surface") {
+		t.Fatalf("update_goal description leaked final-response guidance: %s", tool.Description)
 	}
 }
 
@@ -263,8 +257,9 @@ func TestRetargetGoalSchemaRequiresOnlyObjective(t *testing.T) {
 	if !ok || !slices.Equal(required, []string{"objective"}) {
 		t.Fatalf("required = %#v, want [objective]", tool.InputSchema["required"])
 	}
-	for _, want := range []string{"user explicitly corrects", "same goal identity", "Never complete the old goal", "without a separate resume confirmation"} {
-		if !strings.Contains(tool.Description, want) {
+	description := strings.ToLower(tool.Description)
+	for _, want := range []string{"user explicitly corrects", "same goal identity", "never complete the old goal", "successor workgraph", "assigned lead"} {
+		if !strings.Contains(description, want) {
 			t.Fatalf("tool description missing %q: %s", want, tool.Description)
 		}
 	}
@@ -574,36 +569,27 @@ func TestCreateGoalSchemaMatchesCodexBudgetShape(t *testing.T) {
 	}
 }
 
-func TestCreateGoalDescriptionAddsCollaborationOnlyForSharedRoom(t *testing.T) {
+func TestCreateGoalDescriptionStaysScopeNeutral(t *testing.T) {
 	dmTool := createGoal(nil, contract.ServerContext{CurrentSessionKey: "agent:nexus:ws:dm:chat"})
 	roomTool := createGoal(nil, contract.ServerContext{CurrentSessionKey: "room:group:conversation-1"})
 
-	if roomTool.Description == dmTool.Description {
-		t.Fatal("Room and single-agent create_goal descriptions should differ")
+	if roomTool.Description != dmTool.Description {
+		t.Fatalf("create_goal atomic contract should be scope-neutral: dm=%q room=%q", dmTool.Description, roomTool.Description)
 	}
 	for _, expected := range []string{
-		"In a shared Room",
-		"assess task complexity, separable work, and member fit",
-		"Prefer meaningful delegation",
-		"do not duplicate the assigned deliverable yourself",
-		"coordination, unblocking, integration, and verification",
-		"only when it is small or atomic",
+		"explicit user or system Goal intent",
+		"complete execution-ready objective",
+		"Do not create a broad placeholder",
+		"Set token_budget only from an explicit budget",
+		"retarget_goal on that same Goal",
 	} {
-		if !strings.Contains(roomTool.Description, expected) {
-			t.Fatalf("Room create_goal collaboration guidance missing %q: %s", expected, roomTool.Description)
+		if !strings.Contains(dmTool.Description, expected) {
+			t.Fatalf("create_goal atomic contract missing %q: %s", expected, dmTool.Description)
 		}
 	}
-	for _, expected := range []string{
-		"Create a goal only when explicitly requested",
-		"Explicit Goal intent is necessary but not sufficient",
-		"concrete, execution-ready objective without material guessing",
-		"ask the user and wait for the answer",
-		"Do not create a broad or placeholder Goal",
-		"include the confirmed requirements in the objective",
-		"Set token_budget only when an explicit token budget is requested",
-	} {
-		if !strings.Contains(dmTool.Description, expected) || !strings.Contains(roomTool.Description, expected) {
-			t.Fatalf("shared create_goal guidance missing %q: dm=%q room=%q", expected, dmTool.Description, roomTool.Description)
+	for _, skillGuidance := range []string{"Prefer meaningful delegation", "coordination, unblocking", "ask the user and wait"} {
+		if strings.Contains(roomTool.Description, skillGuidance) {
+			t.Fatalf("create_goal description leaked Skill guidance %q: %s", skillGuidance, roomTool.Description)
 		}
 	}
 }

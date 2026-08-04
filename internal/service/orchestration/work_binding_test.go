@@ -718,7 +718,7 @@ func TestStructuredRoomWorkBindingSelectsOneSubagentCandidateAndDynamicContext(t
 	}
 	if !strings.Contains(
 		rendered,
-		`candidate_assignment_count="1" assignment_id="assignment-1"`,
+		`candidate_assignment_count="1" binding_mode="managed" assignment_id="assignment-1"`,
 	) ||
 		strings.Contains(rendered, `assignment_id="assignment-2"`) {
 		t.Fatalf("bound dynamic context = %s", rendered)
@@ -749,8 +749,9 @@ func TestStructuredRoomWorkBindingSelectsOneSubagentCandidateAndDynamicContext(t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if unboundResult.Allowed ||
-		unboundResult.ReasonCode != ErrorCodeConversationOnly {
+	if !unboundResult.Allowed ||
+		unboundResult.Mode != SubagentAdmissionRuntimeOnly ||
+		unboundResult.Binding != nil {
 		t.Fatalf("unbound multi-assignment admission = %#v", unboundResult)
 	}
 }

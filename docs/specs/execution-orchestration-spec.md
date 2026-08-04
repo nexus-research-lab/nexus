@@ -49,7 +49,18 @@
 - 由 owner、Lead 或另一个 Room member review；自审不自动成立，但可以通过独立的 Submission/Acceptance 事实显式完成。
 - 是否并行、是否增加复核节点、是否根据 objective alignment 再运行一轮。
 
-Prompt 与 `execution-orchestrator` Skill 只提供推荐和例子；动态 execution context 提供当前事实与可用能力。Agent 根据任务内容自行组合。代码不得因为“标准流程应该这样走”而拒绝一个在权限、引用和状态上合法的选择。
+编排知识采用 progressive disclosure，而不是把整套流程重复塞进 Prompt 和每个 MCP 描述：
+
+| 层级 | 只负责 |
+| --- | --- |
+| 常驻 Prompt | 任务优先、稳定语义、何时加载 Skill、context 权威性和连续执行边界 |
+| `execution-orchestrator` / `goal-manager` 入口 | 当前问题应该读取哪一类策略，不复制全部细节 |
+| Skill `references/` | 结构选择、图控制、通信连续性，以及 Goal 创建/完成/Room 生命周期的按需知识 |
+| 动态 execution context | 当前 actor、lane、binding、revision、图切片、blocker 与 `allowed_actions` |
+| MCP schema/description | 一次调用的原子作用、真实参数、状态前置条件和不可破坏的硬语义 |
+| Bridge/Hook | Tool、Subagent 与 runtime lifecycle 的自动观测和准入事件 |
+
+Prompt 与 Skill 只提供推荐和例子；动态 execution context 提供当前事实与可用能力。Agent 根据任务内容自行组合。代码不得因为“标准流程应该这样走”而拒绝一个在权限、引用和状态上合法的选择。MCP 描述不得再次收纳 Room 协作方法、用例路由、最终回复风格或完整编排教程；这些内容属于 Skill。Skill 也不得复制瞬时工具 schema、opaque identity 或版本字段。
 
 能力选择使用正交信号而不是用例白名单：局部记忆压力对应 Task，上下文隔离价值对应 Subagent，独立责任和显式拓扑对应 Work Item/Plan，持久身份交接对应 Room Assignment，证据会改变路线时对应 Gate/Loop，跨 boundary 持续性风险对应 Goal。任一信号都只说明一种结构可能有价值，不自动要求其他结构；Agent 从直接执行开始，选择足以表达真实任务的最少结构。
 
@@ -291,6 +302,7 @@ Attempt 表示一次真实执行尝试。
 
 - 一个 Assignment 默认最多一个 running Attempt。
 - 只有显式的 redundant verification policy 才允许多个并行 Attempt。
+- `(runtime_session_key, runtime_round_id, agent_round_id)` 只在 root Attempt 之间唯一；同一物理 parent round 内启动的 child Attempt 合法共享该三元组，并以 `parent_attempt_id + tool_use_id` 区分。Room round identity 不能误当成整张 Attempt 树的唯一键。
 - `SubagentStart` 只能激活一个已经绑定 Assignment 的 Attempt。
 - `SubagentStop` 只结束 child Attempt，并把结果证据交还父 Agent；不能自动创建 Submission，更不能直接 Acceptance。
 - child terminal evidence 以当前 Assignment 下最新的 `subagent_result` 重新投影，只包含 Attempt/status、是否有最后消息与 transcript ref；实际 Agent tool result 仍属于父 round。若父 round 已结束，迟到结果保留为 child Attempt evidence，后继父 round可以显式读取 transcript、重试或整合，但系统不自动唤醒、不自动 Submission，也不把它归给 successor Assignment。
@@ -564,7 +576,7 @@ Room 成员不能：
 
 ### 7.4 子智能体
 
-子智能体是父 Agent Assignment 下的一次 Attempt executor。
+子智能体是父 Agent 为隔离上下文、局部并行或专业注意力而启动的本地 executor。父 Agent 仍负责整合和最终交付；当当前 round 存在可精确验证的 managed Assignment 时，Nexus 额外把该运行绑定为 child Attempt，否则它只属于 runtime Graph。
 
 子智能体不能：
 
@@ -577,17 +589,16 @@ Room 成员不能：
 
 子智能体可以在本地使用临时 Task/Todo，但这些局部步骤不成为 shared WorkGraph 的第二真相源。
 
-原生 `Agent` 工具必须经过 `PreToolUse` 强准入，不能只依赖 Prompt 自觉。后端只在以下条件同时成立时放行：
+原生 `Agent` 工具经过 `PreToolUse`，但 Hook 只保护 Plan Mode、身份、授权和受管状态一致性，不能把“当前是否值得委派”变成代码策略。准入分为两种合法模式：
 
-1. 当前不是 Plan Mode，且 actor 属于权威 managed Execution。
-2. 当前 Agent 恰好拥有一个 bounded、未完成的 current Assignment；零个或多个都拒绝。
-3. 该 Assignment 恰好存在一个 pending/running parent Agent Attempt。
-4. 该 Assignment 不存在 pending/running child subagent Attempt。
-5. 后端用本次 `tool_use_id` 原子预留 child Attempt；模型不提供 Execution、Assignment、Attempt 或 version。
+1. `managed`：当前不是 Plan Mode，当前 Agent 恰好有一个可精确验证的 bounded current Assignment、一个 pending/running parent Agent Attempt，并且本次存在唯一 `tool_use_id`。后端原子预留 child Attempt；模型不提供 Execution、Assignment、Attempt 或 version。
+2. `runtime_only`：没有 managed Execution、当前是普通 conversation、没有 Assignment、存在零个或多个可委派 Assignment、缺少 durable correlation，或当前责任不适合绑定时，原生子智能体仍可运行。Bridge 继续记录 Agent/Subagent/Tool Node Run 与方向边，但该运行不创建 Assignment/Attempt/Submission/Acceptance，也不能充当 Goal completion evidence。
 
-动态 `<nexus_execution_context>` 必须投影同一准入结果：`subagent_admission` 包含 `eligible`、原生工具名 `Agent`、`candidate_assignment_count`，以及 eligible 时的唯一 Assignment/parent Attempt 或拒绝时的稳定 `reason_code`。只有 eligible 时，`allowed_actions` 才包含 `Agent`。这只是原生 Agent/Task 能力的准入提示，不新增 Orchestration MCP 工具。
+Plan Mode 仍禁止真实执行；错误 owner、stale WorkBinding、权限缺失和 managed 写入失败仍拒绝。无法精确命中 managed lifecycle 时，后端不猜测、不改写 Attempt，并让事件按 runtime-only 观测继续；已有 child Attempt 由精确迟到事件或 durable reconciliation 收口。
 
-`tool_use_id → child Attempt` 是 launch binding，也承担重复调用 fence。runtime manager 按物理 parent round 注册 callback；`PreToolUse` 成功时把 callback、parent round、tool ID 与当时可见的 SDK session/task identity 冻结为 immutable lifecycle binding。后续 `SubagentStart/Stop/PostToolUseFailure` 只能命中该 binding：优先使用可信 callback correlation，再使用唯一的 task/SDK Agent identity；零匹配或多匹配都 fail closed。parent round 结束只撤销新的 launch capability，已创建的 child binding 保留到迟到 Stop/重复事件完成幂等收口，不能被 successor round 覆盖。不能把 SDK `agent_id` 猜写成 `child_session_id` 或 `sdk_task_id`。`SubagentStop` 只终结 child Attempt，不自动产生 Submission、Acceptance 或 Goal completion evidence。
+动态 `<nexus_execution_context>` 投影同一事实：`subagent_admission` 包含 `eligible`、原生工具名 `Agent`、`candidate_assignment_count` 和 `binding_mode=managed|runtime_only`。managed 模式给出唯一 Assignment/parent Attempt；runtime-only 模式说明为什么不能记为受管证据。除 Plan Mode 外，`allowed_actions` 可以包含 `Agent`；这只是可用能力和记账模式，不是要求模型一定调用。
+
+`tool_use_id → child Attempt` 只属于 managed 模式，也承担重复写入 fence。runtime manager 按物理 parent round 注册 callback；managed `PreToolUse` 成功时把 callback、parent round、tool ID 与当时可见的 SDK session/task identity 冻结为 immutable lifecycle binding。后续 `SubagentStart/Stop/PostToolUseFailure` 只有精确命中时才更新该 Attempt：优先使用可信 callback correlation，再使用唯一的 task/SDK Agent identity；零匹配或多匹配都不得猜写受管状态，但不会撤销 runtime-only 图观测。parent round 结束只撤销新的 managed launch capability，已创建的 child binding 保留到迟到 Stop/重复事件完成幂等收口，不能被 successor round 覆盖。不能把 SDK `agent_id` 猜写成 `child_session_id` 或 `sdk_task_id`。`SubagentStop` 只终结精确 child Attempt，不自动产生 Submission、Acceptance 或 Goal completion evidence。
 
 同一 parent Assignment 可以拥有多个并行 child subagent Attempt，前提是每次 launch 都有唯一 `tool_use_id`，后续 lifecycle 能精确命中该 binding；缺失或歧义 correlation 的单个事件 fail closed，不能按“最新 child”猜测。真正彼此独立、需要跨 Agent 交接或单独验收的责任通常更适合拆成多个 Work Item，但这仍是 Agent 的选择。
 
@@ -767,7 +778,7 @@ runtime 发出 `compact_boundary` 后，DM/Room 执行器先把该事实写入 S
 7. **只用硬事实收窄 affordance。** dynamic context 的 `allowed_actions` 使用真实工具名，只按身份/权限、round binding、Plan Mode、当前状态和引用完整性收窄：没有 Ready Work 就不提供 `assign_work`，没有自己的 current Assignment 就不提供 `submit_work`；`review_work` 可由精确 ReviewBinding、选定 self reviewer 的 WorkBinding，或当前 coordinator 的有效 CoordinationBinding获得。conversation-only member 不挂载 Execution MCP；conversation-only coordinator 只可读取或显式建图。replacement、abandonment、Goal 冲突和用户禁用等仍是硬权限/状态边界。是否应调用某项合法工具、是否独立 review、是否再跑一轮由 Agent 决定，不能再用产品偏好做第二层隐藏白名单。该列表不限制研究、编码和浏览等普通 conversation/task 工具。
 8. **把下一动作所需语义放在动作旁。** `assigned_work`、`ready_work`、coordinator `active_assignments` 与 `pending_reviews` 投影 current Spec 的 logical key、objective、deliverable、acceptance criteria、`input_refs`、canonical `output_scopes` 与有序 `resolved_dependencies`；每条依赖给出 upstream Work Item/logical key/current Spec 与 kind，只有已经 Accepted 的 upstream 才携带 immutable Submission summary/refs/evidence 和 Acceptance criteria results，未验收依赖只暴露 status/blocker。structured Room WorkBinding 保留自身 mutation capability 以及这些直接上游的只读 WorkItem/Spec/PlanItem/dependency/output claim/accepted delivery 投影，继续过滤 sibling live Assignment/Attempt/Dispatch/state 和任何 unreviewed payload。若上次 Submission 被 rejected / changes requested，还必须携带 latest review decision、feedback 与逐条 criteria results。`resume_work` 记录的 resolution/evidence 同时进入后续 `ready_work` 和新 owner 的 `assigned_work`，避免模型依赖聊天历史猜返工要求或刚补齐的外部输入。任何带 `truncated=true` 的异常历史投影都表示上下文不完整，模型不得据此提交、验收或宣称 completion，应等待后端修复或改走 fail-closed 恢复。
 9. **人类可读名不是关联键。** 模型可以看到 `logical_key=W2` 和 subject，但 Assignment、Attempt、Dispatch 依赖服务端 ID；不得靠显示名、自然语言相似度或 `@` 文本猜 binding。
-10. **结构化路径是主路径。** Room 分工由 `assign_work` 创建 Assignment + Dispatch；子智能体由 pending Attempt + `PreToolUse: Agent` permit 绑定。自然语言 `@` 与 SDK Task 只做兼容/投影，不承担正确性。
+10. **结构化路径是可追责交付的主路径。** Room 分工由 `assign_work` 创建 Assignment + Dispatch；子智能体若存在 exact managed responsibility，则由 pending Attempt + `PreToolUse: Agent` 自动绑定。普通 `@`、runtime-only Subagent 与 SDK Task 可以完成对话、局部探索和节点内工作，但不承担共享 Assignment、Acceptance 或 Goal completion 的正确性。
 11. **完成应由审计触发。** 任一 Acceptance、runtime terminal event 或图修订后服务端重算 Execution readiness；若 Plan 声明 terminal 节点则纳入审计。Stop/Goal complete 只消费 blocker audit，模型不需要手工同步一串“已完成”状态。
 
 因此，模型面对的决策路径应始终接近：
@@ -850,13 +861,13 @@ Plan Mode 对普通首次 Plan、replan 和 replacement draft 都只 normalize/v
 - 已声明 output scope 时不存在冲突。
 - 调用者有 coordinator 权限；`self` 可用于单 Agent、DM 或 Room coordinator 自己承担工作。
 
-Room member Assignment 在同一事务创建 Assignment 与 Dispatch outbox；DM self Assignment 与 Room member Assignment 都创建 pending root Agent Attempt。当前 Agent 之后选择 subagent 时，`PreToolUse: Agent` 在父 Attempt 上原子创建并绑定 running child Attempt。事务提交前不得发送 Room wake 或启动子智能体。
+Room member Assignment 在同一事务创建 Assignment 与 Dispatch outbox；DM self Assignment 与 Room member Assignment 都创建 pending root Agent Attempt。当前 Agent 之后选择 subagent 且责任与 correlation 可精确命中时，`PreToolUse: Agent` 在父 Attempt 上原子创建并绑定 running child Attempt；否则仅形成 runtime-only 子图。managed 事务提交前不得把 child launch 宣称为已绑定，也不得发送 Room wake。
 
 结构化 Room Assignment 成功后，由 outbox 自动投递；模型不需要再手写 `@member` 才让分工生效。
 
 ### 10.4 自动 Attempt 激活
 
-不向模型暴露 `start_work`、`mark_running` 或 `complete_attempt`。普通 self work 在首个相关执行动作时由 runtime 自动 claim；Room root Attempt 只有在 target slot 的 runtime query 真正被接受后才从 pending 原子变为 running，单纯排队、handoff admission 或 SQL outbox delivery 都不能伪造“已开始”；子智能体由 `PreToolUse: Agent` 创建后端持有的 launch binding，`SubagentStart/Stop` 只校验或补充实际 runtime evidence。
+不向模型暴露 `start_work`、`mark_running` 或 `complete_attempt`。普通 self work 在首个相关执行动作时由 runtime 自动 claim；Room root Attempt 只有在 target slot 的 runtime query 真正被接受后才从 pending 原子变为 running，单纯排队、handoff admission 或 SQL outbox delivery 都不能伪造“已开始”；managed 子智能体由 `PreToolUse: Agent` 创建后端持有的 launch binding，`SubagentStart/Stop` 只校验或补充实际 runtime evidence，runtime-only 子智能体不写 Attempt。
 
 ### 10.5 `submit_work`
 
@@ -1039,12 +1050,12 @@ Hook 只处理 runtime 边界；最终合法性由 Orchestration Service 在事�
 | --- | --- |
 | SessionStart | 注入 actor 当前 Execution Context |
 | UserPromptSubmit | 重新读取 revision 与 allowed actions |
-| PreToolUse: Agent | 要求绑定 Ready Assignment/pending Attempt，拒绝重复或 stale work |
+| PreToolUse: Agent | 精确责任可用时绑定 child Attempt；否则 runtime-only 放行；Plan Mode、错误授权或 managed 持久化失败才拒绝 |
 | PreToolUse: execution mutation | 先做 authority、dependency、scope、version 检查 |
 | TaskCreated | 绑定或投影 Nexus Work Item metadata |
 | TaskCompleted | 在 SDK 状态写入前检查 Nexus submission/acceptance 规则 |
-| SubagentStart | 只按 PreToolUse 冻结的 immutable parent binding 原子激活 Attempt并记录 runtime identity；歧义 fail closed |
-| SubagentStop | 按同一 immutable binding 结束 child Attempt并把结果证据交还父 Agent；不自动创建 Submission |
+| SubagentStart | 精确 binding 可用时记录 managed runtime identity；否则只记录 runtime Graph，不猜写 Attempt |
+| SubagentStop | 精确 binding 可用时结束 child Attempt；否则只关闭 runtime Node Run；均不自动创建 Submission |
 | PostToolUse | 注入状态变化后的有界 Context |
 | PostToolUseFailure | 记录 Attempt/command failure evidence，不自动 block Goal |
 | SessionStart(source=compact) | 从 SQL snapshot 重新注入 Assignment、禁止重复执行范围和 blockers |
@@ -1054,7 +1065,7 @@ Hook 只处理 runtime 边界；最终合法性由 Orchestration Service 在事�
 | Goal completion service | 检查 WorkGraph、runtime quietness 和 usage settlement |
 
 不能依靠 PreToolUse 检查普通 public `@`，因为 `@` 在 final assistant message 持久化后才解析；必须在 Room handoff admission 服务层检查。
-`SubagentStart` 本身不能阻止一个违规启动；硬门禁必须位于 `PreToolUse: Agent`，`SubagentStart` 只负责对已获准的 Attempt 记录实际 runtime identity。
+`SubagentStart` 本身不能阻止启动；确定性的 Plan Mode、授权和 managed 状态写入门禁位于 `PreToolUse: Agent`。`SubagentStart` 只负责把实际 runtime identity 精确关联到已有 Attempt，关联不了就保留为 runtime-only 观测。
 
 Hook 只拒绝确定性违规：
 
@@ -1323,7 +1334,7 @@ room realtime -> narrow handoff/attempt interface
 2. 多步单 Agent 任务建立 Plan，但可在单轮完成而不保留 Goal。
 3. 明显跨轮任务从 transient Execution 原子提升为 Goal。
 4. compact 前后不重复创建 Plan、Assignment 或 subagent。
-5. 两个独立 Work Item 可由不同 Room Agent 并行；同一 parent Agent 也可在唯一 `tool_use_id` correlation 下运行多个 active child subagent。
+5. 两个独立 Work Item 可由不同 Room Agent 并行；同一 parent Agent 也可在同一物理 Room round 内，通过各自唯一的 `tool_use_id` correlation 运行多个 active child subagent。
 6. 有依赖的 Work Item 在上游 Accepted 前不能启动。
 7. 两个 Work Item 都声明相同 exclusive output scope 时不能并行；未声明 scope 不使 Plan 无效。
 8. 显式 review/verify 可以读取被审查 Work Item 的相同结果。

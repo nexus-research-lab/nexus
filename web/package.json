@@ -2,6 +2,9 @@
   "name": "web",
   "version": "0.1.32",
   "private": true,
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0"
+  },
   "packageManager": "pnpm@9.15.2",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 3000",

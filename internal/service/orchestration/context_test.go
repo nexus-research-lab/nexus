@@ -215,6 +215,7 @@ func TestRenderUnmanagedExecutionContextMakesRoleAndActionsExplicit(t *testing.T
 		`<execution state="unmanaged" />`,
 		`<actor agent_id="lead" role="coordinator" />`,
 		`<action>plan_execution</action>`,
+		`<action>Agent</action>`,
 		`<action>assign_work</action>`,
 	} {
 		if !strings.Contains(coordinator, expected) {
@@ -233,6 +234,7 @@ func TestRenderUnmanagedExecutionContextMakesRoleAndActionsExplicit(t *testing.T
 	memberAllowed := member[strings.Index(member, "<allowed_actions>"):strings.Index(member, "</allowed_actions>")]
 	if !strings.Contains(member, `role="member"`) ||
 		!strings.Contains(member, `<action>create_shared_execution</action>`) ||
+		!strings.Contains(memberAllowed, `<action>Agent</action>`) ||
 		strings.Contains(memberAllowed, "<action>get_execution</action>") ||
 		strings.Contains(memberAllowed, "<action>plan_execution</action>") {
 		t.Fatalf("unmanaged Room member context = %s", member)
@@ -262,7 +264,8 @@ func TestRenderConversationExecutionContextKeepsBackgroundWorkGraphUnbound(t *te
 	allowedStart := strings.Index(rendered, "<allowed_actions>")
 	allowedEnd := strings.Index(rendered, "</allowed_actions>")
 	allowed := rendered[allowedStart:allowedEnd]
-	if strings.Contains(allowed, "<action>") ||
+	if !strings.Contains(allowed, "<action>Agent</action>") ||
+		strings.Contains(allowed, "<action>submit_work</action>") ||
 		strings.Contains(rendered, "<assigned_work>") ||
 		strings.Contains(rendered, "<active_assignments>") {
 		t.Fatalf("conversation round received WorkGraph authority:\n%s", rendered)
@@ -299,11 +302,13 @@ func TestRenderConversationExecutionContextGivesOnlyCoordinatorBootstrapActions(
 		"submit_work",
 		"review_work",
 		"promote_execution_to_goal",
-		"Agent",
 	} {
 		if strings.Contains(allowed, "<action>"+forbidden+"</action>") {
 			t.Fatalf("conversation coordinator received %q:\n%s", forbidden, rendered)
 		}
+	}
+	if !strings.Contains(allowed, "<action>Agent</action>") {
+		t.Fatalf("conversation coordinator lost native subagent affordance:\n%s", rendered)
 	}
 	if strings.Contains(rendered, "<assigned_work>") ||
 		strings.Contains(rendered, "<active_assignments>") {
@@ -462,6 +467,9 @@ func TestRenderExecutionContextTerminalExecutionExposesInspectionOnly(t *testing
 	if !strings.Contains(allowed, "<action>get_execution</action>") {
 		t.Fatalf("terminal Execution cannot be inspected:\n%s", rendered)
 	}
+	if !strings.Contains(allowed, "<action>Agent</action>") {
+		t.Fatalf("terminal background Execution blocked native subagent use:\n%s", rendered)
+	}
 	for _, action := range []string{
 		"plan_execution",
 		"abandon_execution",
@@ -472,7 +480,6 @@ func TestRenderExecutionContextTerminalExecutionExposesInspectionOnly(t *testing
 		"resume_work",
 		"take_over_work",
 		"promote_execution_to_goal",
-		"Agent",
 	} {
 		if strings.Contains(allowed, "<action>"+action+"</action>") {
 			t.Fatalf("terminal Execution exposed %q:\n%s", action, rendered)
@@ -492,7 +499,7 @@ func TestRenderExecutionContextPublishesOnlyCurrentlyCallableOrchestrationAction
 	):strings.Index(member, "</allowed_actions>")]
 	if !strings.Contains(
 		member,
-		"<action_scope>allowed_actions and forbidden_actions govern Execution orchestration controls only;",
+		"<action_scope>allowed_actions and forbidden_actions govern listed Execution controls and native Agent delegation;",
 	) ||
 		strings.Contains(memberAllowed, "<action>submit_work</action>") ||
 		strings.Contains(memberAllowed, "<action>block_work</action>") {
@@ -780,14 +787,14 @@ func TestRenderExecutionContextLetsReleasedCurrentSpecOwnerResume(t *testing.T) 
 	}
 }
 
-func TestRenderExecutionContextMakesNativeSubagentAdmissionExact(t *testing.T) {
+func TestRenderExecutionContextProjectsManagedAndRuntimeOnlySubagentModes(t *testing.T) {
 	unique := assignedExecutionSnapshot()
 	rendered := RenderExecutionContext(unique, ExecutionContextOptions{
 		ActorAgentID: "agent-worker",
 		Role:         ExecutionActorMember,
 	})
 	for _, expected := range []string{
-		`<subagent_admission eligible="true" native_tool="Agent" candidate_assignment_count="1" assignment_id="assignment-1" work_item_id="work-1" parent_attempt_id="attempt-1" />`,
+		`<subagent_admission eligible="true" native_tool="Agent" candidate_assignment_count="1" binding_mode="managed" assignment_id="assignment-1" work_item_id="work-1" parent_attempt_id="attempt-1" />`,
 		`<action>Agent</action>`,
 	} {
 		if !strings.Contains(rendered, expected) {
@@ -802,16 +809,16 @@ func TestRenderExecutionContextMakesNativeSubagentAdmissionExact(t *testing.T) {
 		Role:         ExecutionActorMember,
 	})
 	for _, expected := range []string{
-		`<subagent_admission eligible="false" native_tool="Agent" candidate_assignment_count="2" reason_code="ambiguous_assignment">`,
-		`<reason>the current Agent has multiple delegable Assignments; select one through the WorkGraph before launching a subagent</reason>`,
+		`<subagent_admission eligible="true" native_tool="Agent" candidate_assignment_count="2" binding_mode="runtime_only" managed_binding_reason="ambiguous_assignment">`,
+		`<note>native delegation is available, but this run is runtime observation only and does not claim managed Work Item evidence: the current Agent has multiple delegable Assignments; select one through the WorkGraph before launching a subagent</note>`,
 	} {
 		if !strings.Contains(rendered, expected) {
 			t.Fatalf("ambiguous subagent context missing %q:\n%s", expected, rendered)
 		}
 	}
 	allowed := rendered[strings.Index(rendered, "<allowed_actions>"):strings.Index(rendered, "</allowed_actions>")]
-	if strings.Contains(allowed, "<action>Agent</action>") {
-		t.Fatalf("ambiguous Assignment exposed native Agent affordance:\n%s", rendered)
+	if !strings.Contains(allowed, "<action>Agent</action>") {
+		t.Fatalf("runtime-only mode hid native Agent affordance:\n%s", rendered)
 	}
 
 	rendered = RenderExecutionContext(unique, ExecutionContextOptions{

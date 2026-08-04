@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
@@ -71,6 +73,35 @@ func TestCallbacksProjectStructuredAdmissionDenial(t *testing.T) {
 	}
 }
 
+func TestCallbacksAllowRuntimeOnlySubagentWithoutDurableBinding(t *testing.T) {
+	provider := &fakeProvider{
+		admitResult: orchestration.SubagentAdmissionResult{
+			Allowed: true,
+			Mode:    orchestration.SubagentAdmissionRuntimeOnly,
+		},
+		parentResult: orchestration.SubagentAdmissionResult{
+			Allowed: true,
+			Mode:    orchestration.SubagentAdmissionRuntimeOnly,
+		},
+	}
+	callbacks := Callbacks(provider, Context{})
+	output, err := callbacks.PreToolUse(
+		context.Background(),
+		sdkhook.Input{},
+		"runtime-only-tool",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput != nil || output.Continue != nil {
+		t.Fatalf("runtime-only output = %#v, want no-op", output)
+	}
+	now := time.Date(2030, time.January, 2, 3, 4, 5, 0, time.UTC)
+	if err = callbacks.ParentRoundExit(context.Background(), orchestrationRoundExitInput(now)); err != nil {
+		t.Fatalf("runtime-only parent exit = %v", err)
+	}
+}
+
 func TestCallbacksLogPersistenceCauseButReturnSanitizedDenial(t *testing.T) {
 	var logs bytes.Buffer
 	provider := &fakeProvider{admitErr: errors.New("database is locked (SQLITE_BUSY)")}
@@ -126,13 +157,14 @@ func TestCallbacksForwardSubagentStopWithoutInventingTaskIdentity(t *testing.T) 
 }
 
 type fakeProvider struct {
-	admitResult orchestration.SubagentAdmissionResult
-	admitErr    error
-	startResult orchestration.SubagentAdmissionResult
-	stopResult  orchestration.SubagentAdmissionResult
-	launch      orchestration.SubagentLaunchInput
-	start       orchestration.SubagentLifecycleInput
-	stop        orchestration.SubagentLifecycleInput
+	admitResult  orchestration.SubagentAdmissionResult
+	admitErr     error
+	startResult  orchestration.SubagentAdmissionResult
+	stopResult   orchestration.SubagentAdmissionResult
+	parentResult orchestration.SubagentAdmissionResult
+	launch       orchestration.SubagentLaunchInput
+	start        orchestration.SubagentLifecycleInput
+	stop         orchestration.SubagentLifecycleInput
 }
 
 func (f *fakeProvider) AdmitSubagentLaunch(
@@ -167,8 +199,18 @@ func (f *fakeProvider) ObserveSubagentParentRoundExit(
 	_ orchestration.ActorContext,
 	_ orchestration.SubagentParentRoundExitInput,
 ) (orchestration.SubagentAdmissionResult, error) {
+	if f.parentResult.Allowed || f.parentResult.ReasonCode != "" {
+		return f.parentResult, nil
+	}
 	return orchestration.SubagentAdmissionResult{
 		Allowed: true,
 		Binding: &orchestration.SubagentAttemptBinding{AttemptID: "attempt-child"},
 	}, nil
+}
+
+func orchestrationRoundExitInput(now time.Time) runtimectx.SubagentRoundExitInput {
+	return runtimectx.SubagentRoundExitInput{
+		ParentRoundExitedAt: now,
+		ReconcileAfter:      now.Add(30 * time.Second),
+	}
 }

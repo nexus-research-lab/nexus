@@ -84,7 +84,7 @@ INSERT INTO runtime_graph_edge_runs (
 	if err = db.QueryRow(`SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if nodeCount != 3 || edgeCount != 3 || foreignKeyViolations != 0 || version != 66 {
+	if nodeCount != 3 || edgeCount != 3 || foreignKeyViolations != 0 || version != 67 {
 		t.Fatalf(
 			"migration result nodes=%d edges=%d fk=%d version=%d",
 			nodeCount,

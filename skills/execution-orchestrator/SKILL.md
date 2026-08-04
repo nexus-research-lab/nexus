@@ -1,98 +1,47 @@
 ---
 name: execution-orchestrator
-description: 当你需要决定一项非原子任务是否以及如何使用 Goal、Plan/WorkGraph、Task/Todo、子智能体、Room 分工、审核或迭代 Loop，或当前上下文已经进入受管 Execution 时使用。它提供选择与协同建议，不要求普通任务或 Room 闲聊强制建图。
+description: 当任务可能需要在直接执行、Task/Todo、Subagent、Plan/WorkGraph、Room Assignment、Gate/Loop 或 Goal 之间做选择，或当前 round 已包含 nexus_execution_context 时使用。负责选择最小充分结构并按需加载图控制或通信参考；不把复杂度、参与人数或一次 @ 自动升级为托管流程。
 ---
 
 # Execution Orchestrator
 
-这是一份决策指南，不是一条固定流水线。你拥有执行方式的选择权；后端只负责身份、权限、幂等、状态一致性和已声明依赖。先完成任务，再让工作图忠实反映真正发生的过程。
+把本 Skill 当作编排导航，不当作固定流水线。先完成任务，再让工作图忠实反映真正发生的过程。
 
 稳定语义只有一句：
 
 > Goal 决定持续追求什么；Plan 决定工作怎样展开；Work Item 决定谁交付什么；子智能体帮助一个 Agent 完成自己的工作项；Room 负责让多个 Agent 的工作项可见地交接和协同。
 
-## 先判断是否需要编排
+## 使用步骤
 
-从直接执行开始，不按“任务复杂”“步骤很多”“Room 人多”套用固定流程。分别判断这些相互独立的信号，只增加表达价值高于协调成本的结构：
+1. 先读取当前任务事实和 `<nexus_execution_context>`。存在 context 时，以其中的 lane、binding、snapshot revision、依赖和 `allowed_actions` 为准。
+2. 从直接执行开始，逐项判断是否真的需要局部记忆、上下文隔离、独立责任、持久拓扑、条件检查或跨执行边界持续性。
+3. 只加入价值高于协调成本的结构；这些能力可以组合，也可以一个都不用。
+4. 根据当前决策只读取下面最相关的参考文件，并完整读完该文件再行动。
+5. 执行任务并持续消费真实结果。状态工具记录事实，图负责展示状态，最终回复优先交付内容而不是复述流程。
 
-| 信号 | 选择 |
+## 最小选择表
+
+| 真实需要 | 首选表达 |
 | --- | --- |
-| 容易遗漏局部步骤，或节点内进度值得展示 | Task/Todo |
-| 隔离上下文、专业注意力或局部并行的收益高于结果合并成本 | Subagent |
-| 出现可独立交付、明确 owner、验收或接管的责任 | Work Item + Assignment |
-| 真实依赖、并行分支、恢复点或整合顺序值得持久化 | Plan/WorkGraph |
-| 另一持久 Agent 需要跨轮拥有责任并可见交接 | Room Assignment；内容仍通过消息和 `@` 传递 |
-| 检查结果会改变交付、返工、等待或升级路线 | Gate；需要再运行时形成 Loop |
-| objective 必须跨 round、上下文、外部等待、中断、预算或高恢复成本继续存在 | Goal（在上下文开放时） |
+| 连贯且可在当前上下文直接完成 | 直接 Agent Loop |
+| 当前 Agent 容易遗漏局部步骤 | Task/Todo |
+| 隔离上下文、专业视角或局部并行有净收益 | Subagent |
+| 出现独立 owner、交付、验收或接管 | Work Item + Assignment |
+| 真实依赖、并行分支或恢复点值得持久化 | Plan/WorkGraph |
+| 持久 Agent 之间需要跨轮责任与可见交接 | Room Assignment |
+| 检查结果会改变下一步路线 | Gate；需要再运行时形成 Loop |
+| objective 应跨 round、等待、中断或上下文边界继续存在 | Goal；随后加载 `goal-manager` |
 
-这些选择可以自由组合，也可以一个都不用。参与人数本身不要求 Plan：单 Agent 可以有 WorkGraph，Room 聊天也可以没有 Plan；一个 Agent 节点里可以同时有 Task 和 Subagent；简单任务可能需要 Goal，复杂任务也可能不需要。后端给出的建议事实和 `allowed_actions` 只说明状态与能力，不替你决定工作风格。
+## 按需参考
 
-## 如何选择执行节点
+- 决定 **Task、Subagent、Work Item、Room 或 Goal 的层级与组合**时，读取 [references/structure-selection.md](references/structure-selection.md)。
+- 设计或修改 **依赖、并行、审核、Gate、Loop、追加节点或 replan** 时，读取 [references/graph-control.md](references/graph-control.md)。
+- 处理 **Room `@`、父子 Agent 消息、MCP 状态标记、Bridge 观测、handoff 后连续执行**时，读取 [references/communication-and-continuity.md](references/communication-and-continuity.md)。
 
-### Agent
+## 稳定边界
 
-Agent 是承担责任和用户沟通的主要节点。Lead/创建者也是实际执行者：它可以规划、研究、整合、审核、接管和最终交付，不只是给别人分任务。把 Lead 真正做的步骤体现在它自己的 Agent 节点中。
-
-### Task/Todo
-
-用于当前 Agent 内部的局部清单。Task 不建立新的所有者、交接或验收关系，应展开在对应 Agent 或 Work Item 节点内部，而不是伪装成并行协作者。
-
-### Subagent
-
-当独立上下文、专业视角或局部并行确实有帮助时使用。子智能体服务于父 Agent 当前拥有的工作项；父 Agent 仍负责整合、验证和交付。不要为了让图显得复杂而拆子智能体。
-
-### Room member
-
-当工作需要不同的持久身份、可见责任、跨轮交接或共享结果时选择 Room member。`@` 是对话和内容传递协议；Execution 工具记录责任与状态。两者可以一起使用，但不能互相冒充。
-
-### Tool
-
-普通工具调用由 Bridge 自动观测并折叠在当前 Agent/Subagent 节点中。只有持续时间长、失败、影响控制流或对理解任务关键的工具，才值得在主图中突出显示；无需让模型手工汇报工具状态。
-
-### Gate / Review
-
-Gate 表示一个真正改变后续路径的检查，而不是每一步都要用户确认。Assignment 可选择自己、Lead 或另一 Agent 作为 reviewer：
-
-- reviewer 与 owner 相同：自审折叠在同一 Agent 节点；
-- reviewer 不同：图中显示独立 Gate/审核节点；
-- 高风险、争议大或确实需要独立证据时，优先考虑独立审核；否则不必机械增加节点。
-
-## 并行、依赖和动态扩展
-
-- 只有没有真实前置依赖、输入稳定且输出责任不冲突的工作才并行。
-- 如果 B 必须使用 A 的交付结果，就声明依赖并等待 A 的验收结果；不要为了“并发率”伪造并行。
-- 一个大 Agent 节点内部可以同时包含 Task、工具和子智能体分支；WorkGraph 展示跨责任主干，运行图展示节点内部实际执行。
-- 执行中发现新范围时，可追加后继节点和边；保留已经发生的 Node Run 和历史交付，不通过改写历史来伪装原计划一直如此。以当前工具返回的可变更边界为准。
-
-## Loop 的具体含义
-
-Loop 是“执行—检查—根据结果继续或回到某一步”，不是把静态 `depends_on` 写成非法环。
-
-例如撰写技术报告：
-
-1. Writer 生成报告草稿；
-2. 需要证据化检查时，可调用 `audit_execution_alignment`，让 Gate 检查“关键结论是否有来源、比较维度是否完整、目标读者能否直接使用”；
-3. Gate 只返回结论与缺口；你决定是让 Writer 启动新一轮 Node Run、追加节点、继续取证、等待输入，还是采用其他路线；
-4. 你判断可以收口时，再进入 Lead 的最终整合和交付。
-
-每次真正启动的新一轮都必须有独立 Node Run 身份；Gate 结果保持可见，但不替你路由。Goal 生命周期不是使用 Loop 的前提。
-
-## 执行时的行为
-
-- 一旦启动节点，就持续消费工具、子智能体、依赖和审核结果，直到产出真实交付、遇到具体外部阻塞或形成终态。不要仅因为一次 handoff 就停止并要求用户发送“继续”。
-- 在消息里优先给出研究、分析、代码、证据、决策和最终结果。图和后端事件已经展示状态，不要用大段“已分派、正在等待、下一步”取代任务内容。
-- 如果当前 `<nexus_execution_context>` 存在，遵守其中的 lane、绑定、版本和 `allowed_actions`。这些是能力边界，不是要求你必须调用所有可用工具。
-- 状态工具只记录事实；真正的协作内容继续通过 Room 消息、父子 Agent 消息或产物传递。
-
-## 用例只是校验，不是触发器
-
-| 情况 | 通常选择 |
-| --- | --- |
-| 一次性小任务 | 直接 Agent Loop |
-| 单 Agent 多步骤 | Task/Todo |
-| 当前工作项需要隔离研究或局部并行 | Subagent |
-| 多 Agent 有独立交付与交接 | Plan + Work Item + Room |
-| 结果需要条件性返工 | Gate + 多轮 Node Run |
-| 跨轮持续或外部等待 | Goal（在上下文开放时） |
-
-这张表只用于检查上面的决策信号是否被正确理解，不能反向作为固定路由。若任务事实支持另一种方式，可以选择另一种，并让实际运行事件解释图，而不是强迫任务迎合预先设定的图。
+- 参与人数、任务复杂度、Plan 长度或 Subagent 数量本身都不是触发器。
+- 普通聊天、brainstorm、投票和一次性帮助可以只走消息，不必建图。
+- Lead/创建者也是执行者，可以研究、整合、自审、接管和最终交付。
+- 不为展示效果制造 Tool、Subagent、Gate 或审核节点；Bridge 和后端会投影真实运行。
+- 节点启动后继续推进到真实交付、具体外部阻塞或终态，不因一次 handoff 要求用户发送“继续”。

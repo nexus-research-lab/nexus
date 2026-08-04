@@ -107,6 +107,8 @@ const execution = {
         work_item_id: "build",
         attempt_id: "attempt-child",
         parent_node_id: "build",
+        subject_id: "sdk-task-child",
+        name: "Research helper",
         run_status: "running",
         position: 1,
       },
@@ -218,6 +220,9 @@ const directory = {
 test("WorkGraph model keeps dependency depth and current node summary", async () => {
   const {
     compactExecutionNodeObjective,
+    hasManagedExecutionGraph,
+    isExecutionActivityVisible,
+    resolveExecutionPrimaryAgentNodes,
     resolveExecutionNodeSummary,
     resolveExecutionNodeWindow,
     resolveWorkItemDepths,
@@ -229,6 +234,15 @@ test("WorkGraph model keeps dependency depth and current node summary", async ()
     build: 1,
     integrate: 2,
   });
+  assert.equal(hasManagedExecutionGraph(execution), true);
+  assert.equal(isExecutionActivityVisible(execution), true);
+  assert.deepEqual(
+    resolveExecutionPrimaryAgentNodes(execution).map((node) => node.id),
+    ["research", "build"],
+  );
+  const completed = structuredClone(execution);
+  completed.status = "completed";
+  assert.equal(isExecutionActivityVisible(completed), false);
   assert.deepEqual(resolveExecutionNodeSummary(execution), {
     current: execution.work_items[1],
     currentNode: execution.graph.nodes[2],
@@ -384,15 +398,15 @@ test("WorkGraph layout reflows when Plan nodes are added or removed", async () =
 
   const constrainedLayout = buildExecutionGraphLayout(execution, 340);
   assert.equal(constrainedLayout.width, 340);
-  assert.equal(
-    constrainedLayout.nodes[1].x - constrainedLayout.nodes[0].x,
-    110,
-    "the graph compresses layer spacing before introducing horizontal scroll",
+  assert.ok(
+    constrainedLayout.nodes[1].x > constrainedLayout.nodes[0].x,
+    "the main responsibility chain remains left-to-right after clustering",
   );
 });
 
 test("Planless runtime graph promotes active tools and keeps ordinary tools in detail", async () => {
   const {
+    hasManagedExecutionGraph,
     resolveExecutionNodeSummary,
     orderedExecutionGraphNodes,
   } = await server.ssrLoadModule(
@@ -477,6 +491,8 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
     updated_at: "2026-08-03T10:00:01Z",
   };
 
+  assert.equal(hasManagedExecutionGraph(runtimeExecution), false);
+
   assert.deepEqual(
     orderedExecutionGraphNodes(runtimeExecution).map((node) => node.id),
     ["agent-run-1", "tool-run-1"],
@@ -488,9 +504,25 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
   assert.equal(summary.summary, "search");
   const layout = buildExecutionGraphLayout(runtimeExecution);
   assert.equal(layout.nodes.length, 2);
+  assert.equal(layout.groups.length, 1);
+  assert.deepEqual(layout.groups[0].nodeIds, ["agent-run-1", "tool-run-1"]);
   assert.deepEqual(
     layout.edges.map((edge) => `${edge.kind}:${edge.sourceId}->${edge.targetId}`),
     ["invoke:agent-run-1->tool-run-1"],
+  );
+  assert.ok(
+    layout.nodes.find((node) => node.node.id === "tool-run-1").y
+      > layout.nodes.find((node) => node.node.id === "agent-run-1").y,
+    "runtime children expand below their owning Agent",
+  );
+
+  const missingEdge = structuredClone(runtimeExecution);
+  missingEdge.graph.edges = [];
+  const repairedLayout = buildExecutionGraphLayout(missingEdge);
+  assert.deepEqual(
+    repairedLayout.edges.map((edge) => `${edge.kind}:${edge.sourceId}->${edge.targetId}`),
+    ["invoke:agent-run-1->tool-run-1"],
+    "a visible child with durable parent identity never becomes an orphan icon",
   );
 });
 
@@ -657,7 +689,7 @@ test("WorkGraph node Task uses exact Agent round correlation", async () => {
   assert.doesNotMatch(html, /整理结果/);
 });
 
-test("WorkGraph panel follows Task density and exposes the current node rail", async () => {
+test("Composer WorkGraph dock exposes only primary Agent activity", async () => {
   const { ExecutionProcessPanel } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/execution-process-panel.tsx",
   );
@@ -670,11 +702,23 @@ test("WorkGraph panel follows Task density and exposes the current node rail", a
   );
   assert.match(html, /data-execution-process-panel/);
   assert.match(html, /data-execution-status="active"/);
-  assert.match(html, /data-execution-trigger-content="node-rail"/);
-  assert.match(html, /data-execution-node-rail/);
+  assert.match(html, /data-execution-agent-activity-dock/);
+  assert.match(html, /data-execution-open-workgraph/);
+  assert.match(html, /data-execution-agent-activity="researcher"/);
+  assert.match(html, /data-execution-agent-activity="builder"/);
+  assert.match(html, /data-execution-agent-live="true"/);
+  assert.match(html, /data-execution-agent-round-id="agent-round-build-1"/);
   assert.match(html, /data-execution-node-agent="researcher"/);
   assert.match(html, /data-execution-node-agent="builder"/);
-  assert.match(html, /data-execution-node-connection/);
+  assert.doesNotMatch(html, /data-execution-node-agent="subagent:sdk-task-child"/);
+  assert.match(html, /data-execution-agent-connection/);
+  assert.doesNotMatch(html, /data-execution-node-connection/);
+  assert.ok(
+    html.lastIndexOf("data-execution-agent-activity")
+      < html.indexOf("data-execution-open-workgraph"),
+    "the WorkGraph control should follow the connected Agent activity rail",
+  );
+  assert.doesNotMatch(html, /data-execution-node-kind="tool"/);
   assert.match(html, /第 2 \/ 3 节点/);
   assert.match(html, /实现 UI/);
   assert.doesNotMatch(html, /Lead/);
@@ -687,12 +731,12 @@ test("WorkGraph panel follows Task density and exposes the current node rail", a
     ),
     "utf8",
   );
-  assert.match(panelSource, /flex w-full min-w-0 max-w-\[580px\]/);
-  assert.match(panelSource, /absolute inset-x-0[\s\S]*w-full origin-bottom/);
-  assert.doesNotMatch(panelSource, /100vw/);
+  assert.match(panelSource, /max-w-\[460px\]/);
+  assert.doesNotMatch(panelSource, /ExecutionWorkGraphCanvas/);
+  assert.doesNotMatch(panelSource, /ANCHORED_OVERLAY_MOTION_CLASS_NAME/);
 });
 
-test("Expanded WorkGraph is an interactive Agent-avatar DAG", async () => {
+test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", async () => {
   const { ExecutionWorkGraphCanvas } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/execution-workgraph-canvas.tsx",
   );
@@ -706,20 +750,36 @@ test("Expanded WorkGraph is an interactive Agent-avatar DAG", async () => {
   );
   assert.match(html, /data-execution-node-map/);
   assert.match(html, /data-execution-workgraph-canvas/);
-  assert.match(html, /data-execution-node-detail-mode="popover"/);
+  assert.match(html, /data-execution-board-grid/);
+  assert.match(html, /data-execution-node-detail-mode="inspector"/);
   assert.match(html, /data-execution-edge-layer/);
   assert.match(html, /data-execution-edge-source="research"/);
   assert.match(html, /data-execution-edge-target="build"/);
   assert.match(html, /data-execution-edge-kind="spawn"/);
   assert.match(html, /data-execution-edge-target="attempt-child"/);
+  assert.match(html, /data-execution-subgraph-root="build"/);
   assert.match(html, /data-execution-current-node="true"/);
   assert.doesNotMatch(html, /data-execution-node-selected="true"/);
   assert.doesNotMatch(html, /data-execution-selected-node-detail/);
   assert.match(html, /data-execution-node-agent="researcher"/);
   assert.match(html, /data-execution-node-agent="builder"/);
+  assert.match(html, /data-execution-node-agent="subagent:sdk-task-child"/);
   assert.match(html, /data-execution-node-kind="subagent"/);
+  assert.match(html, /data:image\/svg\+xml/);
   assert.doesNotMatch(html, /验收标准/);
   assert.doesNotMatch(html, /依赖.*1/);
+
+  const canvasSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/execution/execution-workgraph-canvas.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(canvasSource, /ExecutionNodeInspector/);
+  assert.match(canvasSource, /execution\.acceptance/);
+  assert.match(canvasSource, /execution\.submission/);
+  assert.doesNotMatch(canvasSource, /ExecutionNodePopover/);
 });
 
 test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail", async () => {
@@ -743,7 +803,30 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
   assert.match(html, /data-execution-workgraph-canvas/);
   assert.match(html, /实现 UI/);
 
-  const [shellSource, dmControllerSource, groupControllerSource, headerSource, headerCss] =
+  const { buildRoomHeaderTabs } = await server.ssrLoadModule(
+    "/src/features/conversation/room/surface/header/room-header-tabs.ts",
+  );
+  const keyAsLabel = (key) => key;
+  assert.equal(
+    buildRoomHeaderTabs(keyAsLabel, { workgraphAvailable: false })
+      .some((tab) => tab.key === "workgraph"),
+    false,
+  );
+  assert.equal(
+    buildRoomHeaderTabs(keyAsLabel, { workgraphAvailable: true })
+      .some((tab) => tab.key === "workgraph"),
+    true,
+  );
+
+  const [
+    shellSource,
+    dmControllerSource,
+    groupControllerSource,
+    dmProjectionSource,
+    groupProjectionSource,
+    headerSource,
+    headerCss,
+  ] =
     await Promise.all([
       readFile(path.join(
         webRoot,
@@ -759,6 +842,14 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
       ), "utf8"),
       readFile(path.join(
         webRoot,
+        "src/features/conversation/room/dm/panel/controller/dm-chat-panel-projection.ts",
+      ), "utf8"),
+      readFile(path.join(
+        webRoot,
+        "src/features/conversation/room/group/chat/panel/controller/group-chat-panel-projection.ts",
+      ), "utf8"),
+      readFile(path.join(
+        webRoot,
         "src/features/conversation/room/surface/header/room-header-tabs.ts",
       ), "utf8"),
       readFile(path.join(
@@ -769,6 +860,10 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
   assert.equal((shellSource.match(/useExecutionResource\(/g) ?? []).length, 1);
   assert.doesNotMatch(dmControllerSource, /useExecutionResource/);
   assert.doesNotMatch(groupControllerSource, /useExecutionResource/);
+  assert.match(dmProjectionSource, /scrollToRoundId\(roundId/);
+  assert.match(groupProjectionSource, /scrollToRoundId\(roundId/);
+  assert.match(dmProjectionSource, /isExecutionActivityVisible/);
+  assert.match(groupProjectionSource, /isExecutionActivityVisible/);
   assert.match(shellSource, /executionResource=\{executionResource\}/);
   assert.match(headerSource, /key: "workgraph"/);
   assert.match(headerCss, /workspace-surface-header-with-session-tabs[\s\S]*32px/);

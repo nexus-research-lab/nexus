@@ -29,6 +29,7 @@ interface DmConversationHeaderProps {
   onReplayTour?: () => void;
   onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
+  workgraphAvailable: boolean;
 }
 
 export const DmConversationHeader = memo(function DmConversationHeader({
@@ -45,11 +46,12 @@ export const DmConversationHeader = memo(function DmConversationHeader({
   onReplayTour,
   onSelectConversation,
   onUpdateConversationTitle,
+  workgraphAvailable,
 }: DmConversationHeaderProps) {
   const { t } = useI18n();
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
   const headerTitle = currentAgentName?.trim() || t("room.untitled_dm");
-  const roomTabs = buildRoomHeaderTabs(t);
+  const roomTabs = buildRoomHeaderTabs(t, { workgraphAvailable });
   const collapsedRoomTabs = useRoomHeaderOverflowTabs(roomTabs);
 
   return (

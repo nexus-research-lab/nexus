@@ -1,6 +1,6 @@
 // INPUT: 当前 actor 的权威 Execution snapshot 与 SDK Agent hook identity。
-// OUTPUT: tool_use_id 绑定的唯一 child Attempt、生命周期校验、durable parent-exit deadline 与终态持久化。
-// POS: 原生 Agent 工具到 Assignment-owned subagent Attempt 的 fail-closed 准入边界。
+// OUTPUT: 可选的 tool_use_id child Attempt 绑定、runtime-only 放行、生命周期校验、durable parent-exit deadline 与终态持久化。
+// POS: 原生 Agent 工具的运行准入与可选 managed WorkGraph 记账边界；策略选择不由状态机强制。
 package orchestration
 
 import (
@@ -84,16 +84,27 @@ type SubagentAttemptBinding struct {
 	ToolUseID       string `json:"tool_use_id"`
 }
 
+// SubagentAdmissionMode 区分受管 WorkGraph 记账与仅由 Bridge 观测的本地执行。
+type SubagentAdmissionMode string
+
+const (
+	SubagentAdmissionManaged     SubagentAdmissionMode = "managed"
+	SubagentAdmissionRuntimeOnly SubagentAdmissionMode = "runtime_only"
+)
+
 // SubagentAdmissionResult 为 Hook 提供稳定、结构化的 allow/deny 原因。
 type SubagentAdmissionResult struct {
 	Allowed    bool                    `json:"allowed"`
+	Mode       SubagentAdmissionMode   `json:"mode,omitempty"`
 	ReasonCode ErrorCode               `json:"reason_code,omitempty"`
 	Message    string                  `json:"message,omitempty"`
 	Binding    *SubagentAttemptBinding `json:"binding,omitempty"`
 }
 
 // AdmitSubagentLaunch 在 Agent tool 真正执行前按唯一 tool_use_id 预留 child Attempt。
-// 同一 parent 可以并行多个 child；重复 launch 幂等复用原 binding。
+// 能精确命中 current Assignment 时写入 managed binding；否则允许 runtime-only
+// 执行，由 Bridge 记录运行图，但不把它伪装成共享 WorkGraph 交付证据。
+// 同一 parent 可以并行多个 child；重复 managed launch 幂等复用原 binding。
 func (s *Service) AdmitSubagentLaunch(
 	ctx context.Context,
 	actor ActorContext,
@@ -106,14 +117,8 @@ func (s *Service) AdmitSubagentLaunch(
 		return rejectedSubagentAdmission(planModeError()), nil
 	}
 	toolUseID := strings.TrimSpace(input.ToolUseID)
-	if toolUseID == "" {
-		return rejectedSubagentAdmission(domainError(
-			ErrorCodeInvalidInput,
-			"Agent tool_use_id is required for a durable subagent binding",
-		)), nil
-	}
 	for attempt := range subagentAdmissionMutationAttempts {
-		snapshot, err := s.subagentSnapshot(ctx, actor)
+		snapshot, err := s.optionalSubagentSnapshot(ctx, actor)
 		if err != nil {
 			var domainErr *DomainError
 			if errors.As(err, &domainErr) {
@@ -130,17 +135,19 @@ func (s *Service) AdmitSubagentLaunch(
 			return SubagentAdmissionResult{}, err
 		}
 		if snapshot == nil {
-			return rejectedSubagentAdmission(domainError(
-				ErrorCodeNoCurrentExecution,
-				"a managed Execution is required before launching a subagent",
-			)), nil
+			return allowedRuntimeOnlySubagentAdmission(), nil
 		}
-		if existing := activeSubagentAttempt(snapshot, actor.AgentID, toolUseID); existing != nil {
-			return allowedSubagentAdmission(bindingFromAttempt(*existing)), nil
+		if toolUseID != "" {
+			if existing := activeSubagentAttempt(snapshot, actor.AgentID, toolUseID); existing != nil {
+				return allowedSubagentAdmission(bindingFromAttempt(*existing)), nil
+			}
 		}
 		assignment, parent, resolveErr := resolveSubagentLaunchCandidate(snapshot, actor.AgentID)
-		if resolveErr != nil {
-			return rejectedSubagentAdmission(resolveErr), nil
+		if resolveErr != nil || toolUseID == "" {
+			// Missing or ambiguous responsibility only means this launch cannot be
+			// counted as a managed child Attempt. It is not a reason to prevent the
+			// Agent from using its native local delegation capability.
+			return allowedRuntimeOnlySubagentAdmission(), nil
 		}
 		if parent.Status == protocol.WorkAttemptStatusPending {
 			updated, startErr := s.repository.StartAttempt(ctx, orchestrationstore.StartAttemptCommand{
@@ -223,14 +230,15 @@ func (s *Service) AdmitSubagentLaunch(
 		}
 		return allowedSubagentAdmission(bindingForAttempt(updated, child.ID)), nil
 	}
-	snapshot, err := s.subagentSnapshot(ctx, actor)
+	snapshot, err := s.optionalSubagentSnapshot(ctx, actor)
 	if err != nil {
 		return SubagentAdmissionResult{}, err
 	}
-	if snapshot != nil {
-		if child := activeSubagentAttempt(snapshot, actor.AgentID, toolUseID); child != nil {
-			return allowedSubagentAdmission(bindingFromAttempt(*child)), nil
-		}
+	if snapshot == nil {
+		return allowedRuntimeOnlySubagentAdmission(), nil
+	}
+	if child := activeSubagentAttempt(snapshot, actor.AgentID, toolUseID); child != nil {
+		return allowedSubagentAdmission(bindingFromAttempt(*child)), nil
 	}
 	return rejectedSubagentAdmission(domainError(
 		ErrorCodeStaleExecution,
@@ -254,8 +262,8 @@ func waitForSubagentAdmissionRetry(ctx context.Context, attempt int) error {
 	}
 }
 
-// ObserveSubagentStart 校验 bridge 的 start 事件精确命中 child Attempt。
-// 缺少 tool_use_id 时只允许当前恰有一个 active child，绝不按最新时间猜测。
+// ObserveSubagentStart 在可精确命中时返回 managed child Attempt；无法命中时
+// 保留 runtime-only 观测，不按最新时间猜测，也不阻断已经开始的原生执行。
 func (s *Service) ObserveSubagentStart(
 	ctx context.Context,
 	actor ActorContext,
@@ -267,7 +275,7 @@ func (s *Service) ObserveSubagentStart(
 	if actor.PlanMode {
 		return rejectedSubagentAdmission(planModeError()), nil
 	}
-	snapshot, err := s.subagentSnapshot(ctx, actor)
+	snapshot, err := s.optionalSubagentSnapshot(ctx, actor)
 	if err != nil {
 		var domainErr *DomainError
 		if errors.As(err, &domainErr) {
@@ -276,14 +284,11 @@ func (s *Service) ObserveSubagentStart(
 		return SubagentAdmissionResult{}, err
 	}
 	if snapshot == nil {
-		return rejectedSubagentAdmission(domainError(
-			ErrorCodeNoCurrentExecution,
-			"subagent start has no managed Execution",
-		)), nil
+		return allowedRuntimeOnlySubagentAdmission(), nil
 	}
 	child, resolveErr := resolveActiveSubagentBinding(snapshot, actor.AgentID, input.ToolUseID)
 	if resolveErr != nil {
-		return rejectedSubagentAdmission(resolveErr), nil
+		return allowedRuntimeOnlySubagentAdmission(), nil
 	}
 	return allowedSubagentAdmission(bindingFromAttempt(*child)), nil
 }
@@ -301,7 +306,7 @@ func (s *Service) ObserveSubagentStop(
 		return rejectedSubagentAdmission(planModeError()), nil
 	}
 	for range subagentAdmissionMutationAttempts {
-		snapshot, err := s.subagentSnapshot(ctx, actor)
+		snapshot, err := s.optionalSubagentSnapshot(ctx, actor)
 		if err != nil {
 			var domainErr *DomainError
 			if errors.As(err, &domainErr) {
@@ -310,17 +315,14 @@ func (s *Service) ObserveSubagentStop(
 			return SubagentAdmissionResult{}, err
 		}
 		if snapshot == nil {
-			return rejectedSubagentAdmission(domainError(
-				ErrorCodeNoCurrentExecution,
-				"subagent stop has no managed Execution",
-			)), nil
+			return allowedRuntimeOnlySubagentAdmission(), nil
 		}
 		child, resolveErr := resolveActiveSubagentBinding(snapshot, actor.AgentID, input.ToolUseID)
 		if resolveErr != nil {
 			if stopped := matchingTerminalSubagentAttempt(snapshot, actor.AgentID, input); stopped != nil {
 				return allowedSubagentAdmission(bindingFromAttempt(*stopped)), nil
 			}
-			return rejectedSubagentAdmission(resolveErr), nil
+			return allowedRuntimeOnlySubagentAdmission(), nil
 		}
 		terminal := *child
 		terminal.Status = protocol.WorkAttemptStatusSucceeded
@@ -371,23 +373,8 @@ func (s *Service) ObserveSubagentParentRoundExit(
 	if actor.PlanMode {
 		return rejectedSubagentAdmission(planModeError()), nil
 	}
-	if !protocol.ValidSubagentReconciliationDeadline(
-		input.ParentRoundExitedAt,
-		input.ReconcileAfter,
-	) {
-		return rejectedSubagentAdmission(domainError(
-			ErrorCodeInvalidInput,
-			"subagent reconciliation deadline must equal parent round exit plus 30 seconds",
-		)), nil
-	}
-	repository, ok := s.repository.(subagentReconciliationRepository)
-	if !ok {
-		return SubagentAdmissionResult{}, fmt.Errorf(
-			"orchestration repository does not support durable subagent reconciliation",
-		)
-	}
 	for range subagentAdmissionMutationAttempts {
-		snapshot, err := s.subagentSnapshot(ctx, actor)
+		snapshot, err := s.optionalSubagentSnapshot(ctx, actor)
 		if err != nil {
 			var domainErr *DomainError
 			if errors.As(err, &domainErr) {
@@ -396,10 +383,7 @@ func (s *Service) ObserveSubagentParentRoundExit(
 			return SubagentAdmissionResult{}, err
 		}
 		if snapshot == nil {
-			return rejectedSubagentAdmission(domainError(
-				ErrorCodeNoCurrentExecution,
-				"parent round exit has no managed Execution",
-			)), nil
+			return allowedRuntimeOnlySubagentAdmission(), nil
 		}
 		lifecycle := SubagentLifecycleInput{
 			ToolUseID:    strings.TrimSpace(input.ToolUseID),
@@ -419,7 +403,22 @@ func (s *Service) ObserveSubagentParentRoundExit(
 			); stopped != nil {
 				return allowedSubagentAdmission(bindingFromAttempt(*stopped)), nil
 			}
-			return rejectedSubagentAdmission(resolveErr), nil
+			return allowedRuntimeOnlySubagentAdmission(), nil
+		}
+		if !protocol.ValidSubagentReconciliationDeadline(
+			input.ParentRoundExitedAt,
+			input.ReconcileAfter,
+		) {
+			return rejectedSubagentAdmission(domainError(
+				ErrorCodeInvalidInput,
+				"subagent reconciliation deadline must equal parent round exit plus 30 seconds",
+			)), nil
+		}
+		repository, ok := s.repository.(subagentReconciliationRepository)
+		if !ok {
+			return SubagentAdmissionResult{}, fmt.Errorf(
+				"orchestration repository does not support durable subagent reconciliation",
+			)
 		}
 		updated, scheduleErr := repository.ScheduleSubagentReconciliation(
 			ctx,
@@ -606,6 +605,25 @@ func (s *Service) subagentSnapshot(
 		return s.GetSnapshot(ctx, actor, executionID)
 	}
 	return s.GetCurrent(ctx, actor)
+}
+
+// optionalSubagentSnapshot 把“当前 round 没有可用 managed WorkGraph”解释为
+// runtime-only 能力，而不弱化错误 owner、stale binding 等真实授权失败。
+func (s *Service) optionalSubagentSnapshot(
+	ctx context.Context,
+	actor ActorContext,
+) (*protocol.ExecutionSnapshot, error) {
+	snapshot, err := s.subagentSnapshot(ctx, actor)
+	if err == nil {
+		return snapshot, nil
+	}
+	var domainErr *DomainError
+	if errors.As(err, &domainErr) &&
+		(domainErr.Code == ErrorCodeConversationOnly ||
+			domainErr.Code == ErrorCodeNoCurrentExecution) {
+		return nil, nil
+	}
+	return nil, err
 }
 
 func delegableWorkItem(
@@ -834,9 +852,24 @@ func bindingFromAttempt(attempt protocol.WorkAttempt) *SubagentAttemptBinding {
 }
 
 func allowedSubagentAdmission(binding *SubagentAttemptBinding) SubagentAdmissionResult {
+	if binding == nil {
+		return rejectedSubagentAdmission(domainError(
+			ErrorCodeSubagentBindingMissing,
+			"managed subagent state did not return its durable Attempt binding",
+		))
+	}
 	return SubagentAdmissionResult{
 		Allowed: true,
+		Mode:    SubagentAdmissionManaged,
 		Binding: binding,
+	}
+}
+
+func allowedRuntimeOnlySubagentAdmission() SubagentAdmissionResult {
+	return SubagentAdmissionResult{
+		Allowed: true,
+		Mode:    SubagentAdmissionRuntimeOnly,
+		Message: "native subagent execution is allowed without managed WorkGraph evidence",
 	}
 }
 

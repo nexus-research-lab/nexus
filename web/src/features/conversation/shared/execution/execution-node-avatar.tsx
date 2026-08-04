@@ -1,6 +1,6 @@
 /**
- * INPUT: Graph 节点类型、状态、当前标记与可选持久 Agent。
- * OUTPUT: 带状态环的 Agent 头像或轻量 Subagent 图标。
+ * INPUT: Graph 节点类型、状态、当前标记、展示语义与可选持久或 runtime Agent identity。
+ * OUTPUT: 带生命周期或实时工作状态的 Agent/Subagent 头像与轻量 Tool/Gate 图标。
  * POS: Composer 节点轨迹与展开 Execution Graph 共用的节点视觉原语。
  */
 "use client";
@@ -24,6 +24,7 @@ export function ExecutionNodeAvatar({
   size = "compact",
   status,
   title,
+  tone = "status",
 }: {
   agent: ExecutionAgentIdentity | null;
   current?: boolean;
@@ -32,6 +33,7 @@ export function ExecutionNodeAvatar({
   size?: "compact" | "graph" | "nested";
   status: ExecutionWorkItemStatus;
   title: string;
+  tone?: "activity" | "status";
 }) {
   const graph = size === "graph";
   const nested = size === "nested";
@@ -44,15 +46,18 @@ export function ExecutionNodeAvatar({
           : nested
           ? "h-8.5 w-8.5 rounded-[11px]"
           : "h-6 w-6 rounded-[8px]",
-        executionNodeFrameTone(status),
+        executionNodeFrameTone(status, tone),
         current
-          && "scale-105 ring-2 ring-[color:var(--status-running-soft-border)] ring-offset-1 ring-offset-(--surface-panel-background)",
+          && (tone === "activity"
+            ? "scale-105 ring-2 ring-[color:color-mix(in_srgb,var(--success)_24%,transparent)] ring-offset-1 ring-offset-(--surface-panel-background)"
+            : "scale-105 ring-2 ring-[color:var(--status-running-soft-border)] ring-offset-1 ring-offset-(--surface-panel-background)"),
         selected && graph && "ring-2 ring-(--primary)",
       )}
       data-execution-node-agent={agent?.id ?? ""}
       data-execution-node-current={current ? "true" : undefined}
       data-execution-node-kind={kind}
       data-execution-node-status={status}
+      data-execution-node-tone={tone}
       title={title}
     >
       {kind === "tool" ? (
@@ -84,6 +89,7 @@ export function ExecutionNodeAvatar({
           size={graph ? "md" : "xs"}
         />
       ) : kind === "subagent" ? (
+        // 防御性 fallback；正常 WorkGraph 投影会为每个 Subagent 提供稳定头像。
         <Bot
           aria-hidden="true"
           className={cn(
@@ -115,14 +121,30 @@ export function ExecutionNodeAvatar({
         className={cn(
           "absolute -bottom-0.5 -right-0.5 rounded-full border border-(--surface-control-background)",
           graph ? "h-2.5 w-2.5" : nested ? "h-2 w-2" : "h-2 w-2",
-          executionNodeDotTone(status),
+          executionNodeDotTone(status, tone),
         )}
       />
     </span>
   );
 }
 
-function executionNodeFrameTone(status: ExecutionWorkItemStatus): string {
+function executionNodeFrameTone(
+  status: ExecutionWorkItemStatus,
+  tone: "activity" | "status",
+): string {
+  if (tone === "activity") {
+    if (status === "running") {
+      return "border-(--success)";
+    }
+    if (
+      status === "blocked"
+      || status === "changes_requested"
+      || status === "failed"
+    ) {
+      return "border-(--warning)";
+    }
+    return "border-(--surface-control-border)";
+  }
   if (status === "accepted") {
     return "border-(--success)";
   }
@@ -144,7 +166,23 @@ function executionNodeFrameTone(status: ExecutionWorkItemStatus): string {
   return "border-(--surface-control-border)";
 }
 
-function executionNodeDotTone(status: ExecutionWorkItemStatus): string {
+function executionNodeDotTone(
+  status: ExecutionWorkItemStatus,
+  tone: "activity" | "status",
+): string {
+  if (tone === "activity") {
+    if (status === "running") {
+      return "bg-(--success)";
+    }
+    if (
+      status === "blocked"
+      || status === "changes_requested"
+      || status === "failed"
+    ) {
+      return "bg-(--warning)";
+    }
+    return "bg-(--icon-muted)";
+  }
   if (status === "accepted") {
     return "bg-(--success)";
   }

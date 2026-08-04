@@ -5,7 +5,10 @@
  */
 import type { RefObject } from "react";
 
-import type { ExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
+import {
+  isExecutionActivityVisible,
+  type ExecutionAgentDirectory,
+} from "@/features/conversation/shared/execution/execution-process-model";
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import {
   buildConversationPanelFrameModel,
@@ -62,6 +65,7 @@ interface BuildDmChatPanelViewModelOptions {
   goalScopeLabel: string;
   onEditLastUserMessage: (messageId: string, content: string) => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string) => void;
   session: DmChatSession;
   todos: TodoItem[];
@@ -78,6 +82,7 @@ export function buildDmChatPanelViewModel({
   goalScopeLabel,
   onEditLastUserMessage,
   onOpenAgentContact,
+  onOpenWorkGraph,
   onOpenWorkspaceFile,
   session,
   todos,
@@ -112,9 +117,15 @@ export function buildDmChatPanelViewModel({
     executionPanel: buildDmExecutionPanelModel({
       currentAgentAvatar,
       currentAgentName,
-      dismiss: execution.dismiss,
       execution: execution.execution,
-      taskRuns: session.taskRuns,
+      onNavigateToRound: (roundId: string) => {
+        session.roundScrollRef.current?.scrollToRoundId(roundId, {
+          align: "focus",
+          behavior: "smooth",
+          target: "round",
+        });
+      },
+      onOpenGraph: onOpenWorkGraph,
       workspaceAgentId,
     }),
     goalPanel: buildDmGoalPanelModel(goal, goalScopeLabel, session),
@@ -132,19 +143,19 @@ export function buildDmChatPanelViewModel({
 function buildDmExecutionPanelModel({
   currentAgentAvatar,
   currentAgentName,
-  dismiss,
   execution,
-  taskRuns,
+  onNavigateToRound,
+  onOpenGraph,
   workspaceAgentId,
 }: {
   currentAgentAvatar: string | null;
   currentAgentName: string | null;
-  dismiss: () => void;
   execution: ExecutionView | null;
-  taskRuns: ConversationTaskRun[];
+  onNavigateToRound: (roundId: string) => void;
+  onOpenGraph?: () => void;
   workspaceAgentId: string | null;
 }): DmChatPanelViewModel["executionPanel"] {
-  if (!execution) {
+  if (!isExecutionActivityVisible(execution)) {
     return null;
   }
   const directory: ExecutionAgentDirectory = {};
@@ -158,8 +169,8 @@ function buildDmExecutionPanelModel({
   return {
     directory,
     execution,
-    onDismiss: dismiss,
-    taskRuns,
+    onNavigateToRound,
+    onOpenGraph,
   };
 }
 

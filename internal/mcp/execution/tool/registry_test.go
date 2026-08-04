@@ -40,6 +40,9 @@ func TestBuildAllExposesOnlySemanticExecutionTools(t *testing.T) {
 
 func TestExecutionToolSchemasHideFencingAndIdempotency(t *testing.T) {
 	for _, definition := range BuildAll(nil, contract.ServerContext{}) {
+		if words := len(strings.Fields(definition.Description)); words > 120 {
+			t.Fatalf("%s description has %d words, want at most 120", definition.Name, words)
+		}
 		encoded, err := json.Marshal(definition.InputSchema)
 		if err != nil {
 			t.Fatalf("%s schema: %v", definition.Name, err)
@@ -70,21 +73,24 @@ func TestExecutionToolSchemasHideFencingAndIdempotency(t *testing.T) {
 	}
 }
 
-func TestRoomAssignmentDescriptionMakesStructuredHandoffPrimary(t *testing.T) {
+func TestRoomAssignmentDescriptionKeepsOnlyAtomicOwnershipContract(t *testing.T) {
 	definition := assignWork(nil, contract.ServerContext{})
-	for _, required := range []string{"tracked responsibility handoff", "records and dispatches", "content channel", "do not replace"} {
+	for _, required := range []string{"Create and dispatch", "exactly one responsible Agent", "tracked Room handoff", "records ownership"} {
 		if !strings.Contains(definition.Description, required) {
 			t.Fatalf("description missing %q: %s", required, definition.Description)
 		}
+	}
+	if strings.Contains(definition.Description, "content channel") {
+		t.Fatalf("assignment description leaked communication guidance: %s", definition.Description)
 	}
 }
 
 func TestPlanExecutionSchemaExplainsInitialCriterionWithoutBurdeningReplan(t *testing.T) {
 	definition := planExecution(nil, contract.ServerContext{})
 	for _, requiredText := range []string{
-		"at least one nonblank top-level",
+		"at least one nonblank completion criterion",
 		"same-objective replan may omit",
-		"never rewrites",
+		"cannot rewrite",
 	} {
 		if !strings.Contains(strings.ToLower(definition.Description), strings.ToLower(requiredText)) {
 			t.Fatalf("description missing %q: %s", requiredText, definition.Description)
@@ -130,8 +136,8 @@ func TestPlanExecutionSchemaExplainsInitialCriterionWithoutBurdeningReplan(t *te
 	assertClosedObjectSchemas(t, definition.InputSchema)
 	for _, requiredText := range []string{
 		"native items array",
-		"actual argument object",
-		"never send {} as a placeholder",
+		"actual non-empty work item objects",
+		"never send {} or a placeholder",
 	} {
 		if !strings.Contains(strings.ToLower(definition.Description), strings.ToLower(requiredText)) {
 			t.Fatalf("description missing %q: %s", requiredText, definition.Description)
@@ -168,7 +174,7 @@ func TestAuditExecutionAlignmentUsesPortableNativeReportSchema(t *testing.T) {
 			t.Fatalf("portable alignment schema contains %s: %s", unsupported, encoded)
 		}
 	}
-	for _, requiredText := range []string{"optionally audit", "never completes", "agent chooses"} {
+	for _, requiredText := range []string{"three-state evidence audit", "never transitions", "selects the next route"} {
 		if !strings.Contains(strings.ToLower(definition.Description), requiredText) {
 			t.Fatalf("alignment description missing %q: %s", requiredText, definition.Description)
 		}

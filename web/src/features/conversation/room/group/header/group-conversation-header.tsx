@@ -46,6 +46,7 @@ interface GroupConversationHeaderProps {
   roomMembers: Agent[];
   roomPrivateMessagesEnabled: boolean;
   roomSkillNames: string[];
+  workgraphAvailable: boolean;
 }
 
 export const GroupConversationHeader = memo(function GroupConversationHeader({
@@ -71,6 +72,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
   roomMembers,
   roomPrivateMessagesEnabled,
   roomSkillNames,
+  workgraphAvailable,
 }: GroupConversationHeaderProps) {
   const { t } = useI18n();
   const showMembersInGuideMenu = useMediaQuery(
@@ -79,7 +81,7 @@ export const GroupConversationHeader = memo(function GroupConversationHeader({
   const widePanelCollapsed = useSidebarStore((state) => state.wide_panel_collapsed);
   const [memberDialogRoomId, setMemberDialogRoomId] = useState<string | null>(null);
   const headerTitle = currentRoomTitle?.trim() || t("room.untitled_collaboration");
-  const roomTabs = buildRoomHeaderTabs(t);
+  const roomTabs = buildRoomHeaderTabs(t, { workgraphAvailable });
   const collapsedRoomTabs = useRoomHeaderOverflowTabs(roomTabs);
   const handleOpenMemberList = async () => {
     const scopeRoomId = roomId;

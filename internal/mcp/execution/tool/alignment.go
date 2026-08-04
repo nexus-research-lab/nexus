@@ -18,9 +18,8 @@ func auditExecutionAlignment(
 	const toolName = "audit_execution_alignment"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Optionally audit the current Execution objective against its authoritative completion criteria and record the result as a visible Gate. " +
-			"Use it when an evidence-based checkpoint would help you decide whether to finish, continue, extend the graph, revisit work, or wait. " +
-			"The Gate never completes an Execution, starts a Goal, retries work, or selects a route; after it returns, the Agent chooses the next action.",
+		Description: "Record an optional three-state evidence audit of the current Execution objective against its authoritative completion criteria as a visible Gate. " +
+			"It never transitions the Execution, starts a Goal, retries work or selects the next route.",
 		SearchHint:  "execution objective alignment gate checkpoint evidence loop",
 		InputSchema: auditExecutionAlignmentSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},

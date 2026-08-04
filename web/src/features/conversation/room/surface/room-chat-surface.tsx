@@ -35,6 +35,7 @@ interface RoomChatSurfaceProps {
   onCreateConversation: (title?: string) => Promise<string | null>;
   onExecutionTaskRunsChange: (runs: ConversationTaskRun[]) => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onTodosChange: (todos: TodoItem[]) => void;
@@ -59,6 +60,7 @@ export function RoomChatSurface({
   onCreateConversation: onCreateConversation,
   onExecutionTaskRunsChange,
   onOpenAgentContact: onOpenAgentContact,
+  onOpenWorkGraph,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
   onRoomEvent: onRoomEvent,
   onTodosChange: onTodosChange,
@@ -85,6 +87,7 @@ export function RoomChatSurface({
           onConversationSnapshotChange={onConversationSnapshotChange}
           onExecutionTaskRunsChange={onExecutionTaskRunsChange}
           onOpenAgentContact={onOpenAgentContact}
+          onOpenWorkGraph={onOpenWorkGraph}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onRoomEvent={onRoomEvent}
           onTodosChange={onTodosChange}
@@ -106,6 +109,7 @@ export function RoomChatSurface({
           onCreateConversation={onCreateConversation}
           onExecutionTaskRunsChange={onExecutionTaskRunsChange}
           onOpenAgentContact={onOpenAgentContact}
+          onOpenWorkGraph={onOpenWorkGraph}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onRoomEvent={onRoomEvent}
           onTodosChange={onTodosChange}

@@ -39,6 +39,7 @@ interface RoomSurfaceHeaderProps {
   roomMembers: Agent[];
   roomPrivateMessagesEnabled: boolean;
   roomSkillNames: string[];
+  workgraphAvailable: boolean;
 }
 
 export function RoomSurfaceHeader({
@@ -66,6 +67,7 @@ export function RoomSurfaceHeader({
   roomMembers,
   roomPrivateMessagesEnabled,
   roomSkillNames,
+  workgraphAvailable,
 }: RoomSurfaceHeaderProps) {
   const header = isDm ? (
     <DmConversationHeader
@@ -74,6 +76,7 @@ export function RoomSurfaceHeader({
       conversations={conversations}
       currentAgentName={currentAgent.name}
       currentAgentAvatar={currentAgent.avatar ?? null}
+      workgraphAvailable={workgraphAvailable}
       onChangeTab={onChangeSurfaceTab}
       onCloseActiveTab={onCloseAuxiliaryPanel}
       onCloseConversation={onCloseConversation}
@@ -108,6 +111,7 @@ export function RoomSurfaceHeader({
       roomMembers={roomMembers}
       roomPrivateMessagesEnabled={roomPrivateMessagesEnabled}
       roomSkillNames={roomSkillNames}
+      workgraphAvailable={workgraphAvailable}
     />
   );
 

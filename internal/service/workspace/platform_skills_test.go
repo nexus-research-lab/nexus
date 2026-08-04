@@ -19,6 +19,16 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 		t.Fatalf("同步平台 Skill 库失败: %v", err)
 	}
 	for _, path := range []string{
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "execution-orchestrator", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "execution-orchestrator", "references", "structure-selection.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "execution-orchestrator", "references", "graph-control.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "execution-orchestrator", "references", "communication-and-continuity.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "references", "create-and-retarget.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "references", "complete-and-block.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "references", "room-goals.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "execution-orchestrator", "references", "graph-control.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "goal-manager", "references", "complete-and-block.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "SKILL.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "SOURCE.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "LICENSE"),

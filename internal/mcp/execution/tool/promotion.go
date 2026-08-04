@@ -15,9 +15,8 @@ func promoteExecutionToGoal(svc contract.Service, sctx contract.ServerContext) s
 	const toolName = "promote_execution_to_goal"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Promote the current transient Execution into a durable Goal when the Agent judges that the objective should survive the current execution boundary. " +
-			"Cross-round work, external waits, recovery cost, Room dependencies, or substantial complexity can inform that choice. " +
-			"The backend validates objective/criteria presence, authority, user configuration, current state, and Goal conflicts; it does not require a fixed workflow signal or a particular Plan shape.",
+		Description: "Bind the current transient Execution to a durable Goal using one Agent-selected activation reason. " +
+			"The backend validates objective and criteria presence, authority, user configuration, current state and Goal conflicts.",
 		SearchHint:  "promote execution goal persistence boundary recovery wait",
 		InputSchema: promoteExecutionSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},

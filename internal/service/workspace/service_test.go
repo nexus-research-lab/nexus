@@ -158,61 +158,62 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			t.Fatalf("workspace 初始化后仍保留已退役定时任务 skill %s: %v", skillDir, statErr)
 		}
 	}
-	goalSkillPath := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "SKILL.md")
-	if _, err = os.Stat(goalSkillPath); err != nil {
-		t.Fatalf("系统托管 goal-manager skill 未部署: %v", err)
+	platformAgentSkills := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills")
+	managedSkillContracts := map[string][]string{
+		filepath.Join("goal-manager", "SKILL.md"): {
+			"mcp__nexus_goal__get_goal",
+			"Skill 只加载使用规则",
+			"references/create-and-retarget.md",
+			"execution-orchestrator",
+			"token_budget",
+		},
+		filepath.Join("goal-manager", "references", "create-and-retarget.md"): {
+			"promote_execution_to_goal",
+			"信息足够前禁止调用 `create_goal`",
+			"保留同一 Goal 身份和累计用量",
+		},
+		filepath.Join("goal-manager", "references", "complete-and-block.md"): {
+			"audit_objective_alignment",
+			"最终回复必须脱离过程消息",
+			"至少连续三个 Goal turns",
+		},
+		filepath.Join("goal-manager", "references", "room-goals.md"): {
+			"Lead 身份",
+			"Work Item + Assignment",
+			"可见协作完成条件",
+		},
+		filepath.Join("execution-orchestrator", "SKILL.md"): {
+			"Goal 决定持续追求什么",
+			"最小选择表",
+			"references/structure-selection.md",
+			"参与人数、任务复杂度",
+			"不因一次 handoff",
+		},
+		filepath.Join("execution-orchestrator", "references", "structure-selection.md"): {
+			"独立判断信号",
+			"用例只是校验",
+			"加载 `goal-manager`",
+		},
+		filepath.Join("execution-orchestrator", "references", "graph-control.md"): {
+			"两层图",
+			"自审折叠在同一 Agent 节点",
+			"Goal 生命周期不是使用 Loop 的前提",
+		},
+		filepath.Join("execution-orchestrator", "references", "communication-and-continuity.md"): {
+			"四个平面",
+			"MCP 可以记录交付状态",
+			"不要要求用户发送“继续”",
+		},
 	}
-	goalSkill, err := os.ReadFile(goalSkillPath)
-	if err != nil {
-		t.Fatalf("读取 goal-manager skill 失败: %v", err)
-	}
-	for _, expected := range []string{
-		"nexus_goal",
-		"mcp__nexus_goal__get_goal",
-		"mcp__nexus_goal__create_goal",
-		"mcp__nexus_goal__retarget_goal",
-		"mcp__nexus_goal__audit_objective_alignment",
-		"mcp__nexus_goal__update_goal",
-		"create_goal",
-		"get_goal",
-		"retarget_goal",
-		"audit_objective_alignment",
-		"update_goal",
-		"Skill 只负责加载这份使用说明",
-		"信息足够前禁止调用 `create_goal`",
-		"禁止先创建“写一篇作文”",
-		"最终回复是用户真正的交付面",
-		"当前 objective revision 和当前 round",
-		"直接完整展示正文",
-		"不要把“Goal 已完成”放在开头",
-		"不要用 /goal 文本命令",
-	} {
-		if !strings.Contains(string(goalSkill), expected) {
-			t.Fatalf("goal-manager skill 缺少 %q", expected)
+	for relativePath, expectedValues := range managedSkillContracts {
+		payload, readErr := os.ReadFile(filepath.Join(platformAgentSkills, relativePath))
+		if readErr != nil {
+			t.Fatalf("读取系统托管 Skill 文件 %s 失败: %v", relativePath, readErr)
 		}
-	}
-	executionSkillPath := filepath.Join(
-		appfs.PlatformSkillRoot(),
-		".agents",
-		"skills",
-		"execution-orchestrator",
-		"SKILL.md",
-	)
-	executionSkill, err := os.ReadFile(executionSkillPath)
-	if err != nil {
-		t.Fatalf("读取 execution-orchestrator skill 失败: %v", err)
-	}
-	for _, expected := range []string{
-		"Goal 决定持续追求什么",
-		"这是一份决策指南，不是一条固定流水线",
-		"参与人数本身不要求 Plan",
-		"相互独立的信号",
-		"用例只是校验，不是触发器",
-		"自审折叠在同一 Agent 节点",
-		"Goal 生命周期不是使用 Loop 的前提",
-	} {
-		if !strings.Contains(string(executionSkill), expected) {
-			t.Fatalf("execution-orchestrator skill 缺少 %q", expected)
+		for _, expected := range expectedValues {
+			if !strings.Contains(string(payload), expected) {
+				t.Fatalf("系统托管 Skill 文件 %s 缺少 %q", relativePath, expected)
+			}
 		}
 	}
 

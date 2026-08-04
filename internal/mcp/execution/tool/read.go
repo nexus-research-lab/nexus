@@ -15,9 +15,8 @@ import (
 func getExecution(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
 		Name: "get_execution",
-		Description: "Get the compact authoritative Execution action view for the current scope, or one explicit Execution by id. " +
-			"Use it to recover your role, active immutable Plan, deterministic graph digest, Assignment ownership, dependencies, pending reviews, blockers, and allowed next actions. " +
-			"The full internal Snapshot is intentionally not returned.",
+		Description: "Read the compact authoritative actor-specific view of the current Execution, or one explicit Execution by id. " +
+			"It includes the graph digest, owned work, dependencies, reviews, blockers and allowed next actions without exposing the internal Snapshot.",
 		SearchHint:  "execution status work item assignment dependency review blocker",
 		InputSchema: getExecutionSchema(),
 		Annotations: &sdktool.ToolAnnotations{

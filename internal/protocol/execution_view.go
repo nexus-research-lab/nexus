@@ -86,12 +86,13 @@ const (
 	ExecutionGraphNodeDetail  ExecutionGraphNodeVisibility = "detail"
 )
 
-// ExecutionGraphEdgeKind 区分共享责任依赖、Agent 内部 child spawn、可选语义
-// Gate、正式审核和把控制权返回 Agent 的观测回边。
+// ExecutionGraphEdgeKind 区分共享责任依赖、协调者 dispatch、Agent 内部
+// child spawn、可选语义 Gate、正式审核和把控制权返回 Agent 的观测回边。
 type ExecutionGraphEdgeKind string
 
 const (
 	ExecutionGraphEdgeDependency ExecutionGraphEdgeKind = "dependency"
+	ExecutionGraphEdgeDispatch   ExecutionGraphEdgeKind = "dispatch"
 	ExecutionGraphEdgeSpawn      ExecutionGraphEdgeKind = "spawn"
 	ExecutionGraphEdgeInvoke     ExecutionGraphEdgeKind = "invoke"
 	ExecutionGraphEdgeGuard      ExecutionGraphEdgeKind = "guard"

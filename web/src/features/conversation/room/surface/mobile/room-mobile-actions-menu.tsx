@@ -22,6 +22,7 @@ import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/hea
 type RoomMobileAuxiliaryTab = Exclude<RoomSurfaceTabKey, "chat">;
 
 interface RoomMobileActionsMenuProps {
+  canOpenWorkgraph: boolean;
   canOpenSubagents: boolean;
   onCreateConversation: () => Promise<string | null>;
   onManageMembers?: () => void;
@@ -30,6 +31,7 @@ interface RoomMobileActionsMenuProps {
 }
 
 export function RoomMobileActionsMenu({
+  canOpenWorkgraph,
   canOpenSubagents,
   onCreateConversation,
   onManageMembers,
@@ -51,11 +53,11 @@ export function RoomMobileActionsMenu({
       label: t("room.members"),
       value: "members",
     }] : []),
-    {
+    ...(canOpenWorkgraph ? [{
       icon: <Workflow className="h-4 w-4 text-(--icon-muted)" />,
       label: t("room.workgraph"),
       value: "workgraph",
-    },
+    }] : []),
     {
       disabled: !canOpenSubagents,
       icon: <Bot className="h-4 w-4 text-(--icon-muted)" />,

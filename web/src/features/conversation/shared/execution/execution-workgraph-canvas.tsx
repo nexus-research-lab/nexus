@@ -1,11 +1,19 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点与精确 Agent round Task run。
- * OUTPUT: 仅显示 Agent/Subagent/Tool/Gate 图标、方向边和按点击展开节点详情的分层运行图。
- * POS: DM/Room 共用的 Execution Graph 主视图；不从文本或布局反推运行身份。
+ * OUTPUT: 在工作板网格上显示精简图标与方向边，并在独立检查器中展示所选节点的任务信息。
+ * POS: DM/Room 共用的 Execution Graph 主视图；子图只按结构化父身份分组，不从自由文本反推关系。
  */
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { X } from "lucide-react";
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -24,7 +32,7 @@ import { ExecutionNodeTaskList } from "./execution-node-task-list";
 import { resolveExecutionNodeTaskRun } from "./execution-node-task-model";
 import {
   compactExecutionNodeObjective,
-  resolveExecutionAgent,
+  resolveExecutionGraphNodeAgent,
   resolveExecutionGraphNodeStatus,
   type ExecutionAgentDirectory,
   WORK_ITEM_STATUS_LABEL_KEY,
@@ -106,27 +114,39 @@ export function ExecutionWorkGraphCanvas({
   }, []);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-execution-node-map>
+    <div className="relative flex min-h-0 flex-1 overflow-hidden" data-execution-node-map>
       <div
         ref={viewportRef}
-        className="soft-scrollbar min-h-0 flex-1 overflow-auto px-2 py-2"
+        className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-auto p-2"
+        data-execution-board-grid
+        style={{
+          backgroundImage: "linear-gradient(to right, color-mix(in srgb, var(--divider-subtle-color) 58%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--divider-subtle-color) 58%, transparent) 1px, transparent 1px)",
+          backgroundPosition: "-1px -1px",
+          backgroundSize: "24px 24px",
+        }}
       >
         <div
           aria-label={t("execution.label")}
-          className="relative mx-auto overflow-visible rounded-[12px] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_62%,transparent)]"
+          className="relative mx-auto overflow-visible rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_42%,transparent)]"
           data-execution-workgraph-canvas
-          data-execution-node-detail-mode="popover"
+          data-execution-node-detail-mode="inspector"
           role="group"
           style={{ height: layout.height, width: layout.width }}
         >
-          {selectedLayoutNode ? (
-            <button
-              aria-label={t("execution.close_node_details")}
-              className="absolute inset-0 z-0 cursor-default focus-visible:outline-none"
-              onClick={() => setSelectedId(null)}
-              type="button"
+          {layout.groups.map((group) => (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute z-0 rounded-[18px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_78%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_48%,transparent)]"
+              data-execution-subgraph-root={group.id}
+              key={group.id}
+              style={{
+                height: group.height,
+                left: group.x,
+                top: group.y,
+                width: group.width,
+              }}
             />
-          ) : null}
+          ))}
           <svg
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
@@ -160,7 +180,7 @@ export function ExecutionWorkGraphCanvas({
                   fill="none"
                   key={edge.id}
                   markerEnd={`url(#${markerId})`}
-                  opacity={emphasized ? 0.9 : 0.46}
+                  opacity={emphasized ? 0.96 : 0.68}
                   stroke={emphasized
                     ? "var(--primary)"
                     : "var(--divider-subtle-color)"}
@@ -170,19 +190,14 @@ export function ExecutionWorkGraphCanvas({
                     ? "5 3"
                     : undefined}
                   strokeLinecap="round"
-                  strokeWidth={emphasized ? 1.6 : 1.25}
+                  strokeWidth={emphasized ? 1.7 : 1.4}
                 />
               );
             })}
           </svg>
 
           {layout.nodes.map(({ item, node, size, x, y }) => {
-            const owner = node.kind === "tool"
-              ? null
-              : resolveExecutionAgent(
-                directory,
-                node.agent_id ?? item?.owner_agent_id,
-              );
+            const owner = resolveExecutionGraphNodeAgent(directory, node, item);
             const status = resolveExecutionGraphNodeStatus(node, item);
             const selected = node.id === selectedId;
             const current = node.id === currentId;
@@ -224,54 +239,54 @@ export function ExecutionWorkGraphCanvas({
               </button>
             );
           })}
-
-          {selectedLayoutNode ? (
-            <ExecutionNodePopover
-              attempt={selectedAttempt}
-              directory={directory}
-              item={selectedItem}
-              layoutHeight={layout.height}
-              layoutWidth={layout.width}
-              node={selectedLayoutNode.node}
-              taskRun={selectedTaskRun}
-              x={selectedLayoutNode.x}
-              y={selectedLayoutNode.y}
-            />
-          ) : null}
         </div>
       </div>
+      {selectedLayoutNode ? (
+        <ExecutionNodeInspector
+          attempt={selectedAttempt}
+          directory={directory}
+          execution={execution}
+          item={selectedItem}
+          node={selectedLayoutNode.node}
+          onClose={() => setSelectedId(null)}
+          taskRun={selectedTaskRun}
+        />
+      ) : null}
     </div>
   );
 }
 
-function ExecutionNodePopover({
+function ExecutionNodeInspector({
   attempt,
   directory,
+  execution,
   item,
-  layoutHeight,
-  layoutWidth,
   node,
+  onClose,
   taskRun,
-  x,
-  y,
 }: {
   attempt: ExecutionAttemptView | null;
   directory: ExecutionAgentDirectory;
+  execution: ExecutionView;
   item: ExecutionWorkItemView | null;
-  layoutHeight: number;
-  layoutWidth: number;
   node: ExecutionGraphNodeView;
+  onClose: () => void;
   taskRun: ConversationTaskRun | null;
-  x: number;
-  y: number;
 }) {
   const { t } = useI18n();
-  const owner = node.kind === "tool"
-    ? null
-    : resolveExecutionAgent(
-      directory,
-      node.agent_id ?? item?.owner_agent_id,
-    );
+  const parentNode = node.parent_node_id
+    ? execution.graph?.nodes?.find((candidate) => candidate.id === node.parent_node_id)
+      ?? null
+    : null;
+  const parentItem = parentNode
+    ? execution.work_items?.find((candidate) => (
+      candidate.id === parentNode.work_item_id
+    )) ?? null
+    : null;
+  const owner = resolveExecutionGraphNodeAgent(directory, node, item)
+    ?? (parentNode
+      ? resolveExecutionGraphNodeAgent(directory, parentNode, parentItem)
+      : null);
   const objectiveSource = item?.objective
     ?? node.description
     ?? node.name
@@ -285,61 +300,116 @@ function ExecutionNodePopover({
     ? t(ATTEMPT_STATUS_LABEL_KEY[attempt.status])
     : t(WORK_ITEM_STATUS_LABEL_KEY[status]);
   const heading = graphNodeHeading(node, item, t);
-  const openRight = x <= layoutWidth / 2;
-  const estimatedHeight = taskRun ? 214 : 104;
-  const top = Math.max(8, Math.min(y - 42, layoutHeight - estimatedHeight));
+  const relatedSubject = node.kind === "agent" ? "" : item?.subject.trim() ?? "";
+  const submission = item?.submission?.result_summary.trim() ?? "";
+  const review = item?.acceptance?.feedback?.trim() ?? "";
   return (
-    <article
-      className="absolute z-20 w-[15rem] rounded-[10px] border border-(--surface-control-border) bg-(--surface-control-background) px-3 py-2.5 shadow-(--surface-control-shadow)"
+    <aside
+      className="soft-scrollbar w-[min(19rem,44%)] min-w-60 shrink-0 overflow-auto border-l dialog-divider bg-(--surface-panel-background) max-sm:absolute max-sm:inset-x-2 max-sm:bottom-2 max-sm:z-30 max-sm:max-h-[56%] max-sm:w-auto max-sm:min-w-0 max-sm:rounded-[14px] max-sm:border max-sm:border-(--surface-control-border) max-sm:shadow-(--surface-control-shadow)"
       aria-label={`${t("execution.details")}: ${heading}`}
       data-execution-selected-node-detail={node.id}
-      role="dialog"
-      style={{
-        left: openRight ? x + 34 : x - 34,
-        top,
-        transform: openRight ? undefined : "translateX(-100%)",
-      }}
     >
-      <div className="flex min-w-0 items-center gap-2">
-        <h3 className="min-w-0 flex-1 truncate text-compact font-semibold text-(--text-strong)">
-          {heading}
-        </h3>
-        <span className={cn(
-          "shrink-0 text-[10px] font-medium",
-          selectedStatusTone(status),
-        )}>
-          {statusLabel}
-        </span>
-      </div>
-      {node.kind === "subagent" && item ? (
-        <p className="mt-0.5 truncate text-[10px] text-(--text-soft)">
-          {item.subject}
-        </p>
-      ) : null}
-      {objective ? (
-        <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-(--text-default)">
-          {objective}
-        </p>
-      ) : null}
-      <p className="mt-1.5 flex min-w-0 gap-1 text-[10px] leading-4 text-(--text-soft)">
-        <span className="shrink-0">
-          {node.kind === "tool"
-            ? node.name ?? t("execution.node_tool")
-            : node.kind === "subagent"
-            ? t("execution.attempt_subagent")
-            : owner?.name ?? t("execution.owner_unassigned")}
-        </span>
-        {showDeliverable ? (
-          <>
-            <span aria-hidden="true">·</span>
-            <span className="min-w-0 truncate text-(--text-default)">
-              {deliverable}
+      <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-panel-background) px-3 py-3">
+        <ExecutionNodeAvatar
+          agent={owner}
+          current={status === "running"}
+          kind={node.kind}
+          size="graph"
+          status={status}
+          title={heading}
+        />
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-compact font-semibold text-(--text-strong)">
+            {heading}
+          </h3>
+          <p className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] text-(--text-soft)">
+            {owner ? <span className="truncate">{owner.name}</span> : null}
+            {owner ? <span aria-hidden="true">·</span> : null}
+            <span className={cn("shrink-0 font-medium", selectedStatusTone(status))}>
+              {statusLabel}
             </span>
-          </>
+          </p>
+        </div>
+        <button
+          aria-label={t("execution.close_node_details")}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+          onClick={onClose}
+          title={t("execution.close_node_details")}
+          type="button"
+        >
+          <X aria-hidden="true" className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="space-y-3 px-3 py-3">
+        {relatedSubject ? (
+          <p className="text-[11px] font-medium leading-4 text-(--text-default)">
+            {relatedSubject}
+          </p>
         ) : null}
-      </p>
-      {taskRun ? <ExecutionNodeTaskList run={taskRun} /> : null}
-    </article>
+        {objective ? (
+          <NodeDetailSection label={t("execution.objective")}>
+            <p>{objective}</p>
+          </NodeDetailSection>
+        ) : null}
+        {showDeliverable ? (
+          <NodeDetailSection label={t("execution.deliverable")}>
+            <p>{deliverable}</p>
+          </NodeDetailSection>
+        ) : null}
+        {(item?.acceptance_criteria?.length ?? 0) > 0 ? (
+          <NodeDetailSection label={t("execution.acceptance")}>
+            <ul className="space-y-1">
+              {item?.acceptance_criteria?.slice(0, 4).map((criterion) => (
+                <li className="flex gap-2" key={criterion}>
+                  <span aria-hidden="true" className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-(--icon-muted)" />
+                  <span>{criterion}</span>
+                </li>
+              ))}
+            </ul>
+          </NodeDetailSection>
+        ) : null}
+        {item?.block_reason?.trim() ? (
+          <NodeDetailSection label={t("execution.blocker")}>
+            <p>{item.block_reason.trim()}</p>
+          </NodeDetailSection>
+        ) : null}
+        {item?.needed_input?.trim() ? (
+          <NodeDetailSection label={t("execution.needed_input")}>
+            <p>{item.needed_input.trim()}</p>
+          </NodeDetailSection>
+        ) : null}
+        {submission ? (
+          <NodeDetailSection label={t("execution.submission")}>
+            <p>{submission}</p>
+          </NodeDetailSection>
+        ) : null}
+        {review ? (
+          <NodeDetailSection label={t("execution.review")}>
+            <p>{review}</p>
+          </NodeDetailSection>
+        ) : null}
+        {taskRun ? <ExecutionNodeTaskList run={taskRun} /> : null}
+      </div>
+    </aside>
+  );
+}
+
+function NodeDetailSection({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <section>
+      <h4 className="mb-1 text-[10px] font-medium text-(--text-soft)">
+        {label}
+      </h4>
+      <div className="text-[11px] leading-[1.55] text-(--text-default)">
+        {children}
+      </div>
+    </section>
   );
 }
 
@@ -362,9 +432,8 @@ function graphNodeTitle(
       : `${subject ? `${subject} · ` : ""}${gate}`;
   }
   if (node.kind === "subagent") {
-    return item?.subject
-      ? `${t("execution.attempt_subagent")} · ${item.subject}`
-      : t("execution.attempt_subagent");
+    const identity = ownerName || t("execution.attempt_subagent");
+    return item?.subject ? `${identity} · ${item.subject}` : identity;
   }
   const subject = item?.subject
     ?? node.description?.trim()
@@ -387,7 +456,7 @@ function graphNodeHeading(
       : t("execution.node_gate");
   }
   if (node.kind === "subagent") {
-    return t("execution.attempt_subagent");
+    return node.name?.trim() || t("execution.attempt_subagent");
   }
   return item?.subject
     ?? node.description?.trim()

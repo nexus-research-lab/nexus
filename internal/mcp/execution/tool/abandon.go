@@ -15,9 +15,8 @@ func abandonExecution(svc contract.Service, sctx contract.ServerContext) sdktool
 	const toolName = "abandon_execution"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Cancel the referenced current transient Execution because the user explicitly stopped or abandoned that objective. " +
-			"The backend atomically cancels the old Plan and unfinished execution chains, preserves immutable submissions, acceptances and audit history, and creates no successor. " +
-			"Use this before returning to direct unmanaged work for a different atomic request. Never use it for a Goal-bound Execution or merely to change the route for the same objective.",
+		Description: "Atomically cancel the explicitly referenced current transient Execution without a successor while preserving immutable submissions, acceptances and audit history. " +
+			"Use only for explicit abandonment, never for a Goal-bound Execution or a route change within the same objective.",
 		SearchHint:  "abandon cancel stop transient execution objective no successor",
 		InputSchema: abandonExecutionSchema(),
 		Annotations: &sdktool.ToolAnnotations{

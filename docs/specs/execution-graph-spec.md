@@ -151,7 +151,8 @@ Policy 中的硬部分只来自后端事实和用户配置，不按模型名称�
 表示父 Agent 在自己的责任内启动的独立子上下文。
 
 - 使用子智能体头像和轻量分支标记。
-- 必须绑定 exact parent Node Run、tool use、child task/session 和父 Work Item。
+- 使用 child task/session、SDK Agent 或 Attempt 的稳定 identity 生成自己的头像，不借用父 Agent 头像。
+- 必须绑定 exact parent Node Run 和可用的 child/tool identity；存在 managed Assignment 时再绑定父 Work Item/Attempt，没有时保留为 runtime-only 子图。
 - 可以展开自己的 Agent Loop 与 Tool Runs。
 - 子智能体完成只返回父 Agent，不自动完成 Work Item、Submission、Acceptance 或 Goal。
 
@@ -545,6 +546,8 @@ DM/单 Agent 和 Room 使用同一组件：
 - 单 Agent 无 Plan 时显示 root Agent 与其 Tool/Subagent Loop。
 - 单 Agent 有 Plan 时按 Work Item 分组。
 - Room 显示多个 Agent 节点，通过 message/handoff edges 连接。
+- 托管 WorkGraph 中，带 Coordination binding 的创建者/Lead 通过 `dispatch` 边进入首个责任节点；带 Work/Review binding 的 runtime Agent 合并回对应 Work Item/Gate，不重复生成平行头像。
+- 无 Work/Review/Coordination binding 的普通 Room reply root 不混入托管 WorkGraph；它仍属于 Conversation activity，不能为了视觉连续而伪造依赖边。
 - casual Room chat 可以显示轻量 message activity，但不能被误投影成 managed WorkGraph progress。
 
 ## 14. 示例

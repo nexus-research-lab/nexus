@@ -21,6 +21,7 @@ interface RoomSurfaceLayoutControllerOptions {
   isThreadPanelOpen: boolean;
   onChangeSurfaceTab: (tab: RoomSurfaceTabKey) => void;
   roomId: string | null;
+  workgraphAvailable: boolean;
 }
 
 export function useRoomSurfaceLayoutController({
@@ -32,6 +33,7 @@ export function useRoomSurfaceLayoutController({
   isThreadPanelOpen,
   onChangeSurfaceTab,
   roomId,
+  workgraphAvailable,
 }: RoomSurfaceLayoutControllerOptions) {
   const [aboutRequest, setAboutRequest] = useState<RoomAgentAboutRequest>({
     agent_id: null,
@@ -77,6 +79,12 @@ export function useRoomSurfaceLayoutController({
       onChangeSurfaceTab("chat");
     }
   }, [activeSurfaceTab, onChangeSurfaceTab, subagentTaskSource]);
+
+  useEffect(() => {
+    if (activeSurfaceTab === "workgraph" && !workgraphAvailable) {
+      onChangeSurfaceTab("chat");
+    }
+  }, [activeSurfaceTab, onChangeSurfaceTab, workgraphAvailable]);
 
   return {
     aboutRequest,

@@ -51,6 +51,9 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 		}
 	}
 	allowed := []string(nil)
+	if !options.PlanMode {
+		allowed = append(allowed, "Agent")
+	}
 	if role == ExecutionActorCoordinator {
 		allowed = append(allowed, "get_execution", "plan_execution")
 	}
@@ -65,7 +68,6 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 		"take_over_work",
 		"audit_execution_alignment",
 		"promote_execution_to_goal",
-		"Agent",
 	}
 	if role != ExecutionActorCoordinator {
 		forbidden = append(forbidden, "create_shared_execution")
@@ -75,7 +77,7 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 		})
 	}
 	if options.PlanMode {
-		forbidden = append(forbidden, "execute_work_in_plan_mode")
+		forbidden = append(forbidden, "execute_work_in_plan_mode", "Agent")
 	}
 
 	var output strings.Builder
@@ -117,7 +119,7 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 		&output,
 		2,
 		"action_scope",
-		"allowed_actions and forbidden_actions govern Execution orchestration controls only; normal task tools remain governed by the task and tool policy",
+		"allowed_actions and forbidden_actions govern listed Execution controls and native Agent delegation; all other task tools remain governed by the task and tool policy",
 	)
 	renderStringList(&output, "allowed_actions", "action", allowed)
 	renderStringList(&output, "forbidden_actions", "action", forbidden)
@@ -140,8 +142,11 @@ func RenderConversationExecutionContext(
 		role = ExecutionActorCoordinator
 	}
 	allowed := []string(nil)
+	if !options.PlanMode {
+		allowed = append(allowed, "Agent")
+	}
 	if role == ExecutionActorCoordinator {
-		allowed = []string{"get_execution", "plan_execution"}
+		allowed = append(allowed, "get_execution", "plan_execution")
 	}
 	forbidden := []string{
 		"abandon_execution",
@@ -153,8 +158,10 @@ func RenderConversationExecutionContext(
 		"take_over_work",
 		"audit_execution_alignment",
 		"promote_execution_to_goal",
-		"Agent",
 		"treat_conversation_as_work_evidence",
+	}
+	if options.PlanMode {
+		forbidden = append(forbidden, "Agent")
 	}
 	if role != ExecutionActorCoordinator {
 		forbidden = append([]string{"get_execution", "plan_execution"}, forbidden...)
@@ -312,7 +319,7 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 		&output,
 		2,
 		"action_scope",
-		"allowed_actions and forbidden_actions govern Execution orchestration controls only; normal task tools remain governed by the task and tool policy",
+		"allowed_actions and forbidden_actions govern listed Execution controls and native Agent delegation; all other task tools remain governed by the task and tool policy",
 	)
 	renderActionBoundary(&output, view, role, options, subagentEligible)
 	renderCompletionBlockers(&output, snapshot.CompletionBlockers)
@@ -1074,17 +1081,17 @@ func renderSubagentAdmissionBoundary(
 			options.ActorAgentID,
 		)
 	}
-	eligible := resolveErr == nil
+	eligible := !options.PlanMode
 	fmt.Fprintf(
 		output,
 		"\n  <subagent_admission eligible=\"%t\" native_tool=\"Agent\" candidate_assignment_count=\"%d\"",
 		eligible,
 		candidateCount,
 	)
-	if eligible {
+	if resolveErr == nil {
 		fmt.Fprintf(
 			output,
-			" assignment_id=\"%s\" work_item_id=\"%s\" parent_attempt_id=\"%s\" />",
+			" binding_mode=\"managed\" assignment_id=\"%s\" work_item_id=\"%s\" parent_attempt_id=\"%s\" />",
 			xmlValue(assignment.ID),
 			xmlValue(assignment.WorkItemID),
 			xmlValue(parent.ID),
@@ -1098,10 +1105,24 @@ func renderSubagentAdmissionBoundary(
 		reasonCode = domainErr.Code
 		reasonMessage = domainErr.Message
 	}
-	fmt.Fprintf(output, " reason_code=\"%s\">", xmlValue(string(reasonCode)))
-	writeXMLTextElement(output, 4, "reason", reasonMessage)
+	if eligible {
+		fmt.Fprintf(
+			output,
+			" binding_mode=\"runtime_only\" managed_binding_reason=\"%s\">",
+			xmlValue(string(reasonCode)),
+		)
+		writeXMLTextElement(
+			output,
+			4,
+			"note",
+			"native delegation is available, but this run is runtime observation only and does not claim managed Work Item evidence: "+reasonMessage,
+		)
+	} else {
+		fmt.Fprintf(output, " reason_code=\"%s\">", xmlValue(string(reasonCode)))
+		writeXMLTextElement(output, 4, "reason", reasonMessage)
+	}
 	output.WriteString("\n  </subagent_admission>")
-	return false
+	return eligible
 }
 
 func renderActionBoundary(
@@ -1112,6 +1133,9 @@ func renderActionBoundary(
 	subagentEligible bool,
 ) {
 	allowed := []string{"get_execution"}
+	if subagentEligible {
+		allowed = append(allowed, "Agent")
+	}
 	forbidden := make([]string, 0)
 	current := isCurrentExecutionStatus(view.snapshot.Execution.Status)
 	transientCoordinator := role == ExecutionActorCoordinator &&
@@ -1130,7 +1154,6 @@ func renderActionBoundary(
 			"take_over_work",
 			"audit_execution_alignment",
 			"promote_execution_to_goal",
-			"Agent",
 		)
 		renderStringList(output, "allowed_actions", "action", allowed)
 		renderStringList(output, "forbidden_actions", "action", forbidden)
@@ -1227,9 +1250,7 @@ func renderActionBoundary(
 			"complete_goal",
 		)
 	}
-	if subagentEligible && role != ExecutionActorSubagent {
-		allowed = append(allowed, "Agent")
-	} else {
+	if !subagentEligible {
 		forbidden = append(forbidden, "Agent")
 	}
 	renderStringList(output, "allowed_actions", "action", allowed)

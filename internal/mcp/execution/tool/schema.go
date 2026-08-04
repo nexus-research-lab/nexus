@@ -96,7 +96,7 @@ func planExecutionSchema() map[string]any {
 	properties["objective"] = stringProperty("Execution objective. Required and nonblank when no current Execution exists; omit during replan because it cannot rewrite the existing objective.")
 	properties["completion_criteria"] = portableStringArrayProperty("Execution-level completion criteria. When no current Execution exists, provide at least one nonblank top-level criterion. Existing Execution replans may omit this field and never rewrite it.")
 	properties["revision_reason"] = stringProperty("Why this complete immutable Plan revision is needed.")
-	properties["supersede_active_work"] = booleanProperty("Authorize a non-monotonic replan that removes or changes an existing node or its incoming dependencies, and release current Assignments, interrupt live Attempts, and cancel pending Dispatches when present. Provide revision_reason and never use while an unreviewed Submission exists. Omit for a quiescent append-only extension whose new edges target only new nodes.")
+	properties["supersede_active_work"] = booleanProperty("Authorize a non-monotonic replan that changes existing nodes or incoming dependencies. Requires revision_reason and an allowed quiescent boundary; omit for append-only extension.")
 	properties["replace_current_execution"] = booleanProperty("Replace the referenced current transient Execution with a successor because the user changed to a different objective. Requires explicit execution_id, replacement_reason, new objective, new completion_criteria, and the complete successor WorkGraph. Never use for a same-objective replan or Goal-bound Execution.")
 	properties["replacement_reason"] = stringProperty("Why the current transient objective is being replaced. Required and nonblank only with replace_current_execution.")
 	properties["items"] = map[string]any{
@@ -153,7 +153,7 @@ func assignWorkSchema() map[string]any {
 	properties["strategy"] = enumProperty("self for the current Agent, including a Room coordinator's own work; room_member for a structured Room handoff.", "self", "room_member")
 	properties["reason"] = stringProperty("Why this Agent owns this Work Item.")
 	properties["instruction"] = stringProperty("Optional handoff instruction. The service supplies the immutable deliverable and criteria.")
-	properties["dispatch_kind"] = enumProperty("Room delivery route for a tracked room_member Assignment. Ordinary @ communication may still carry context and results, but does not create responsibility.", "room_directed", "room_public")
+	properties["dispatch_kind"] = enumProperty("Room delivery route for a tracked room_member Assignment.", "room_directed", "room_public")
 	return objectSchema(properties, "target_agent_id")
 }
 
