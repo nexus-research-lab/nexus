@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Repaired existing isolated Agent workspaces once and kept unreadable subtrees from breaking the complete workspace file list or live subscription.
+- Prevented workspace subscription failures from being projected as conversation backend errors.
 
 ## [0.1.32] - 2026-08-03
 

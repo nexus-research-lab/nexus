@@ -31,7 +31,16 @@ function getEventRoundId(event: EventMessage): string | null {
   return dataRoundId || envelopeRoundId || null;
 }
 
+function isWorkspaceSubscriptionError(event: EventMessage): boolean {
+  return readString(event.data, "type") === "subscribe_workspace"
+    || readString(event.data, "error_type") === "workspace_subscription_error"
+    || readString(event.data, "error_type") === "invalid_workspace_subscription";
+}
+
 const handleErrorEvent: AgentEventHandler = (event, context) => {
+  if (isWorkspaceSubscriptionError(event)) {
+    return;
+  }
   const incomingSessionKey = event.session_key || null;
   if (
     incomingSessionKey
