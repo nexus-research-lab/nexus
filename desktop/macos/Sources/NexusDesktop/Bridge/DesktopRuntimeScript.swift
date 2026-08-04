@@ -3,6 +3,7 @@ import Foundation
 enum DesktopRuntimeScript {
   static func make(
     runtime: SidecarRuntimeConfig,
+    windowCloseButtonCenter: CGPoint,
     windowControlsLeadingInset: CGFloat
   ) throws -> String {
     let payload: [String: Any] = [
@@ -14,6 +15,8 @@ enum DesktopRuntimeScript {
       "build_number": runtime.buildNumber,
       "platform": runtime.platform,
       "oauth_redirect_uri": runtime.oauthRedirectURL.absoluteString,
+      "desktop_window_close_button_center_x": Double(windowCloseButtonCenter.x),
+      "desktop_window_close_button_center_y": Double(windowCloseButtonCenter.y),
       "desktop_window_controls_inset": Double(windowControlsLeadingInset),
     ]
     let data = try JSONSerialization.data(withJSONObject: payload, options: [])

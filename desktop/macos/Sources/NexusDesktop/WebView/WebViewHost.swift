@@ -29,6 +29,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   init(
     runtime: SidecarRuntimeConfig,
     surfaceName: String,
+    windowCloseButtonCenter: CGPoint,
     windowControlsLeadingInset: CGFloat,
     startupTimeline: DesktopStartupTimeline? = nil,
     onWebReady: @escaping @MainActor () -> Void,
@@ -65,6 +66,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
       frame: .zero,
       configuration: try WebViewConfigurationFactory.make(
         runtime: runtime,
+        windowCloseButtonCenter: windowCloseButtonCenter,
         windowControlsLeadingInset: windowControlsLeadingInset,
         bridgeHandler: bridgeHandler,
         lifecycleHandler: lifecycleHandler,

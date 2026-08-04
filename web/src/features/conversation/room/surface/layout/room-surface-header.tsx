@@ -1,7 +1,7 @@
 /**
  * INPUT: Room/DM Header 身份、会话标签、面板动作与成员管理命令。
  * OUTPUT: 带非交互下缘渐隐的桌面 Room Header。
- * POS: 桌面 Room Surface 顶部视觉边界；保持 60px 几何，不参与消息滚动。
+ * POS: 桌面 Room Surface 顶部视觉边界；保持共享桌面 Header 几何，不参与消息滚动。
  */
 import { DmConversationHeader } from "@/features/conversation/room/dm/dm-conversation-header";
 import type { Agent } from "@/types/agent/agent";

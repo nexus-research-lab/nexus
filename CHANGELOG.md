@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Moved the desktop update shortcut into the sidebar footer and aligned it with the sidebar's utility actions.
+- Tightened macOS management headers and aligned the Nexus wordmark, sidebar toggle, and Dock axes with the native window controls.
 
 ### Fixed
 

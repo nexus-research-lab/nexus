@@ -39,7 +39,13 @@ test("能力、设置与联系人共用同一铺满管理内容面", async () =>
   assert.match(layout, /px-\[var\(--workspace-content-gutter\)\]/);
   assert.doesNotMatch(layout, /"px-5"|"xl:px-6"/);
   assert.match(header, /min-h-\[52px\]/);
-  assert.match(header, /text-lg font-semibold/);
+  assert.match(
+    header,
+    /sm:h-\[var\(--workspace-header-height,60px\)\] sm:pb-0/,
+  );
+  assert.match(header, /sm:h-full sm:min-h-0 sm:flex-row sm:items-center/);
+  assert.match(header, /text-md font-semibold leading-5/);
+  assert.match(header, /mt-0\.5 max-w-\[640px\] text-compact leading-4/);
   assert.match(header, /workspace-content-header-inner/);
   assert.match(header, /data-desktop-window-drag-region/);
   assert.match(
@@ -54,6 +60,10 @@ test("能力、设置与联系人共用同一铺满管理内容面", async () =>
     recipes,
     /\.workspace-content-header\s*\{[\s\S]*?margin-block-start: -12px/,
   );
+  assert.match(
+    recipes,
+    /@media \(width >= 40rem\)[\s\S]*?\.workspace-content-header\s*\{[\s\S]*?margin-block-start: -20px/,
+  );
   assert.match(capability, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   assert.match(capability, /WorkspaceContentHeader/);
   assert.doesNotMatch(capability, /max-w-\[1240px\]/);
@@ -65,6 +75,54 @@ test("能力、设置与联系人共用同一铺满管理内容面", async () =>
   settings.forEach((source) => {
     assert.match(source, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   });
+});
+
+test("macOS 顶栏共用分隔线与原生红灯双轴中心", async () => {
+  const [
+    recipes,
+    homeLayout,
+    headerLayout,
+    runtimeConfig,
+    metrics,
+    runtimeScript,
+  ] =
+    await Promise.all([
+      readSource("src/app/styles/theme-recipes.css"),
+      readSource("src/lib/layout/home-layout.ts"),
+      readSource("src/shared/ui/workspace/surface/workspace-header-layout.ts"),
+      readSource("src/config/desktop-runtime/runtime-config.ts"),
+      readFile(
+        path.join(
+          webRoot,
+          "../desktop/macos/Sources/NexusDesktop/Window/DesktopWindowMetrics.swift",
+        ),
+        "utf8",
+      ),
+      readFile(
+        path.join(
+          webRoot,
+          "../desktop/macos/Sources/NexusDesktop/Bridge/DesktopRuntimeScript.swift",
+        ),
+        "utf8",
+      ),
+    ]);
+
+  assert.doesNotMatch(
+    recipes,
+    /\.workspace-surface-header-inner\s*\{[^}]*padding-bottom:\s*8px/,
+  );
+  assert.match(recipes, /--desktop-window-close-button-center-x/);
+  assert.match(recipes, /--desktop-window-close-button-center-y/);
+  assert.match(recipes, /--workspace-header-height/);
+  assert.match(homeLayout, /--sidebar-shell-leading-padding,4px/);
+  assert.match(headerLayout, /--workspace-header-height,60px/);
+  assert.match(runtimeConfig, /desktop_window_close_button_center_x/);
+  assert.match(runtimeConfig, /desktop_window_close_button_center_y/);
+  assert.match(runtimeConfig, /--desktop-window-close-button-center-x/);
+  assert.match(runtimeConfig, /--desktop-window-close-button-center-y/);
+  assert.match(metrics, /windowCloseButtonCenter/);
+  assert.match(runtimeScript, /desktop_window_close_button_center_x/);
+  assert.match(runtimeScript, /desktop_window_close_button_center_y/);
 });
 
 test("定时任务在铺满内容面内保持四列横向看板", async () => {

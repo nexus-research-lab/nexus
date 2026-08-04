@@ -163,9 +163,12 @@ final class WindowManager: NSObject, NSWindowDelegate {
       window.contentView?.layoutSubtreeIfNeeded()
       let windowControlsLeadingInset =
         DesktopWindowMetrics.windowControlsLeadingInset(in: window)
+      let windowCloseButtonCenter =
+        DesktopWindowMetrics.windowCloseButtonCenter(in: window)
       let host = try WebViewHost(
         runtime: runtime,
         surfaceName: "main",
+        windowCloseButtonCenter: windowCloseButtonCenter,
         windowControlsLeadingInset: windowControlsLeadingInset,
         startupTimeline: startupTimeline,
         onWebReady: { [weak self] in
@@ -200,6 +203,12 @@ final class WindowManager: NSObject, NSWindowDelegate {
         "min_height": Self.metadataDimension(windowSizing.minimumSize.height),
         "min_width": Self.metadataDimension(windowSizing.minimumSize.width),
         "width": Self.metadataDimension(windowSizing.frame.width),
+        "window_close_button_center_x": Self.metadataDimension(
+          windowCloseButtonCenter.x
+        ),
+        "window_close_button_center_y": Self.metadataDimension(
+          windowCloseButtonCenter.y
+        ),
         "window_controls_leading_inset": Self.metadataDimension(
           windowControlsLeadingInset
         ),
