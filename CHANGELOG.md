@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Moved the desktop update shortcut into the sidebar footer and aligned it with the sidebar's utility actions.
 
+### Fixed
+
+- Repaired historical managed session-summary ACLs once so the host policy can validate owner-scoped updates without weakening runtime isolation.
+
 ## [0.1.33] - 2026-08-04
 
 ### Changed
