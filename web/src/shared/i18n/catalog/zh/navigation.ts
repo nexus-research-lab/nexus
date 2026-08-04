@@ -91,6 +91,8 @@ export const zhNavigationMessages = {
   "onboarding.provider_setup_provider_show_less": "收起其他服务",
   "onboarding.provider_setup_provider_continue": "继续",
   "onboarding.provider_setup_custom_action": "自定义服务",
+  "onboarding.provider_setup_ccswitch_action": "从 CC Switch 导入",
+  "onboarding.provider_setup_ccswitch_default_failed": "CC Switch 没有返回可用的默认模型，请重新选择。",
   "onboarding.provider_setup_custom_title": "连接自定义服务",
   "onboarding.provider_setup_custom_description": "适用于 OpenAI 或 Anthropic 兼容接口。",
   "onboarding.provider_setup_custom_name": "服务名称",

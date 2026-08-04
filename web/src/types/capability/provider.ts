@@ -178,6 +178,61 @@ export interface ProviderTestResult {
   tested_at?: string | null;
 }
 
+export type CCSwitchAppType = "claude" | "codex";
+export type CCSwitchProviderStatus = "ready" | "incomplete" | "unsupported";
+
+export interface CCSwitchModelPreview {
+  model_id: string;
+  display_name: string;
+  context_window?: number | null;
+  capabilities?: string[];
+}
+
+export interface CCSwitchProviderPreview {
+  source_key: string;
+  app_type: CCSwitchAppType;
+  name: string;
+  provider: string;
+  api_format?: string;
+  base_url?: string;
+  current: boolean;
+  existing: boolean;
+  can_sync: boolean;
+  current_runtime_supported: boolean;
+  status: CCSwitchProviderStatus;
+  reason?: string;
+  runtime_support?: string[];
+  default_model?: string;
+  models: CCSwitchModelPreview[];
+}
+
+export interface CCSwitchPreview {
+  detected: boolean;
+  config_dir: string;
+  database_path: string;
+  schema_version?: number;
+  provider_count: number;
+  ready_count: number;
+  model_count: number;
+  needs_default: boolean;
+  recommended_source?: string;
+  providers: CCSwitchProviderPreview[];
+}
+
+export interface CCSwitchSyncPayload {
+  config_dir?: string;
+  source_keys: string[];
+  set_default?: boolean;
+}
+
+export interface CCSwitchSyncResult {
+  created: number;
+  updated: number;
+  provider_count: number;
+  model_count: number;
+  default_selection?: ProviderModelSelection;
+}
+
 export function formatProviderLabel(provider?: string | null, displayName?: string | null): string {
   const normalizedDisplayName = displayName?.trim();
   if (normalizedDisplayName) {

@@ -94,6 +94,8 @@ export const enNavigationMessages = {
   "onboarding.provider_setup_provider_show_less": "Show fewer services",
   "onboarding.provider_setup_provider_continue": "Continue",
   "onboarding.provider_setup_custom_action": "Custom service",
+  "onboarding.provider_setup_ccswitch_action": "Import CC Switch",
+  "onboarding.provider_setup_ccswitch_default_failed": "CC Switch did not return a usable default model. Choose another service.",
   "onboarding.provider_setup_custom_title": "Connect a custom service",
   "onboarding.provider_setup_custom_description": "For OpenAI- or Anthropic-compatible endpoints.",
   "onboarding.provider_setup_custom_name": "Service name",

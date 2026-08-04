@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { Cable } from "lucide-react";
 
+import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/provider-ccswitch-dialog";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
@@ -35,6 +38,8 @@ export function ProviderSettingsPanel({
   visibilityScope = "private",
 }: ProviderSettingsPanelProps) {
   const { t } = useI18n();
+  const [ccSwitchOpen, setCCSwitchOpen] = useState(false);
+  const canImportFromCCSwitch = visibilityScope === "private" && isDesktopRuntime();
   const { state, actions, modelActions } =
     useProviderSettingsController(visibilityScope);
 
@@ -62,11 +67,13 @@ export function ProviderSettingsPanel({
           isEditing={state.isEditing}
           loading={state.loading}
           onCreateFromPreset={actions.handleCreateFromPreset}
+          onOpenCCSwitchImport={() => setCCSwitchOpen(true)}
           onRequestDeleteProvider={actions.handleRequestDeleteProvider}
           onSelectProvider={actions.handleSelectProvider}
           pendingAction={state.pendingAction}
           presetSidebarItems={state.presetSidebarItems}
           selectedProvider={state.selectedProvider}
+          showCCSwitchImport={canImportFromCCSwitch}
         />
 
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -215,6 +222,14 @@ export function ProviderSettingsPanel({
         selectedCanManage={state.selectedCanManage}
         setModelOptions={modelActions.setModelOptions}
       />
+
+      {canImportFromCCSwitch ? (
+        <ProviderCCSwitchDialog
+          isOpen={ccSwitchOpen}
+          onClose={() => setCCSwitchOpen(false)}
+          onSynced={actions.handleCCSwitchSynced}
+        />
+      ) : null}
     </>
   );
 }

@@ -42,6 +42,74 @@ func (h *Handlers) HandleListProviderPresets(writer http.ResponseWriter, request
 	h.api.WriteSuccess(writer, h.providers.ListPresets())
 }
 
+// HandlePreviewCCSwitch 只读返回本机 CC Switch Provider 同步预览。
+func (h *Handlers) HandlePreviewCCSwitch(writer http.ResponseWriter, request *http.Request) {
+	var payload providercfg.CCSwitchPreviewInput
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	prefs, err := h.currentPreferences(request)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	payload.RuntimeKind = prefs.AgentRuntimeKind
+	result, err := h.providers.PreviewCCSwitch(request.Context(), payload)
+	if err != nil {
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
+// HandleSyncCCSwitch 把所选 CC Switch Provider 同步到当前用户私有配置。
+func (h *Handlers) HandleSyncCCSwitch(writer http.ResponseWriter, request *http.Request) {
+	var payload providercfg.CCSwitchSyncInput
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	prefs, err := h.currentPreferences(request)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	payload.RuntimeKind = prefs.AgentRuntimeKind
+	result, err := h.providers.SyncCCSwitch(request.Context(), payload)
+	if err != nil {
+		h.api.WriteFailure(writer, providerMutationErrorStatus(err), err.Error())
+		return
+	}
+	if result.DefaultSelection != nil && h.prefs != nil {
+		if _, err = h.prefs.Update(
+			request.Context(),
+			authsvc.OwnerUserID(request.Context()),
+			ccSwitchDefaultPreferencesUpdate(prefs, *result.DefaultSelection),
+		); err != nil {
+			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
+// ccSwitchDefaultPreferencesUpdate 让显式默认选择同时覆盖对话与后台任务。
+func ccSwitchDefaultPreferencesUpdate(
+	prefs preferencessvc.Preferences,
+	selection providercfg.ModelSelection,
+) preferencessvc.UpdateRequest {
+	options := prefs.DefaultAgentOptions
+	options.Provider = selection.Provider
+	options.Model = selection.Model
+	background := preferencessvc.ModelSelection{
+		Provider: selection.Provider,
+		Model:    selection.Model,
+	}
+	return preferencessvc.UpdateRequest{
+		DefaultAgentOptions:             &options,
+		DefaultBackgroundModelSelection: &background,
+	}
+}
+
 // HandleListProviderOptions 返回 provider 下拉选项。
 func (h *Handlers) HandleListProviderOptions(writer http.ResponseWriter, request *http.Request) {
 	runtimeKind := strings.TrimSpace(request.URL.Query().Get("agent_runtime_kind"))

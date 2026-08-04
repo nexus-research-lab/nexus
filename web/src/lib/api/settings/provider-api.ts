@@ -3,6 +3,9 @@
 import { getAgentApiBaseUrl } from "@/config/runtime-endpoints";
 import { requestApi } from "@/lib/api/core/http";
 import type {
+  CCSwitchPreview,
+  CCSwitchSyncPayload,
+  CCSwitchSyncResult,
   FetchProviderModelsResponse,
   ProviderConfigPayload,
   ProviderConfigRecord,
@@ -17,6 +20,7 @@ import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 const PROVIDER_CONFIG_BASE_URL = `${getAgentApiBaseUrl()}/settings/providers`;
 const PROVIDER_PRESETS_URL = `${getAgentApiBaseUrl()}/settings/provider-presets`;
+const CC_SWITCH_IMPORT_URL = `${getAgentApiBaseUrl()}/settings/provider-imports/cc-switch`;
 const SUBSCRIPTION_PROVIDER_CONFIG_BASE_URL = `${getAgentApiBaseUrl()}/admin/subscription/providers`;
 
 export interface DeleteProviderConfigResponse {
@@ -65,6 +69,24 @@ export async function listProviderOptionsApi(
 export async function listProviderPresetsApi(): Promise<ProviderPreset[]> {
   return requestApi<ProviderPreset[]>(PROVIDER_PRESETS_URL, {
     method: "GET",
+  });
+}
+
+export async function previewCCSwitchApi(
+  configDir?: string,
+): Promise<CCSwitchPreview> {
+  return requestApi<CCSwitchPreview>(`${CC_SWITCH_IMPORT_URL}/preview`, {
+    method: "POST",
+    body: JSON.stringify({ config_dir: configDir?.trim() || undefined }),
+  });
+}
+
+export async function syncCCSwitchApi(
+  payload: CCSwitchSyncPayload,
+): Promise<CCSwitchSyncResult> {
+  return requestApi<CCSwitchSyncResult>(`${CC_SWITCH_IMPORT_URL}/sync`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 

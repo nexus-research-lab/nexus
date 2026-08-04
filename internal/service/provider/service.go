@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -25,11 +26,12 @@ var providerIDCounter atomic.Uint64
 
 // Service 提供 Provider 配置管理与运行时解析。
 type Service struct {
-	repository *providerstore.Repository
-	now        func() time.Time
-	idFactory  func(string) string
-	client     *http.Client
-	logger     *slog.Logger
+	repository  *providerstore.Repository
+	now         func() time.Time
+	idFactory   func(string) string
+	client      *http.Client
+	logger      *slog.Logger
+	desktopMode bool
 }
 
 type providerModelTarget struct {
@@ -40,11 +42,12 @@ type providerModelTarget struct {
 // NewServiceWithDB 使用共享 DB 创建 Provider 配置服务。
 func NewServiceWithDB(cfg config.Config, db *sql.DB) *Service {
 	return &Service{
-		repository: providerstore.NewRepository(cfg, db),
-		now:        func() time.Time { return time.Now().UTC() },
-		idFactory:  newProviderID,
-		client:     &http.Client{Timeout: 30 * time.Second},
-		logger:     logx.NewDiscardLogger(),
+		repository:  providerstore.NewRepository(cfg, db),
+		now:         func() time.Time { return time.Now().UTC() },
+		idFactory:   newProviderID,
+		client:      &http.Client{Timeout: 30 * time.Second},
+		logger:      logx.NewDiscardLogger(),
+		desktopMode: strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop"),
 	}
 }
 

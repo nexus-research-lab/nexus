@@ -8,6 +8,7 @@
 //   - model_*.go：模型卡发现、内置已知窗口、拉取、校验、编解码、选择，以及分阶段变更与清洗。
 //   - runtime_config.go / image_config.go：Agent 运行时解析与分阶段图片 Provider/模型选择。
 //   - catalog_provider.go / model_provider.go：目录、端点策略与模型。
+//   - ccswitch_*.go：CC Switch 本地配置只读发现、兼容性预览与幂等同步。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package provider

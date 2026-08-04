@@ -236,6 +236,46 @@ test("设置分区和联系人目录复用同一 Header 几何", async () => {
   });
 });
 
+test("CC Switch 入口只在桌面 Provider 设置和初始化向导中显示", async () => {
+  const [panel, sidebar, controller, onboarding, dialog] = await Promise.all([
+    "src/features/settings/provider-settings/provider-settings-panel.tsx",
+    "src/features/settings/provider-settings/components/provider-settings-sidebar.tsx",
+    "src/features/settings/provider-settings/use-provider-settings-controller.ts",
+    "src/features/onboarding/provider-setup/provider-setup-dialog.tsx",
+    "src/features/provider-imports/cc-switch/provider-ccswitch-dialog.tsx",
+  ].map(readSource));
+
+  assert.match(panel, /isDesktopRuntime/);
+  assert.match(
+    panel,
+    /const canImportFromCCSwitch = visibilityScope === "private" && isDesktopRuntime\(\)/,
+  );
+  assert.match(panel, /showCCSwitchImport=\{canImportFromCCSwitch\}/);
+  assert.doesNotMatch(panel, /ccswitch_action/);
+  assert.match(sidebar, /onOpenCCSwitchImport/);
+  assert.match(sidebar, /settings\.providers\.ccswitch_action/);
+  assert.match(onboarding, /const canImportFromCCSwitch = isDesktopRuntime\(\)/);
+  assert.match(onboarding, /supportsCCSwitch=\{canImportFromCCSwitch\}/);
+  assert.match(onboarding, /onboarding\.provider_setup_ccswitch_action/);
+  assert.match(onboarding, /onSynced=\{handleCCSwitchSynced\}/);
+  assert.match(onboarding, /requireDefault/);
+  assert.match(
+    onboarding,
+    /const handleCCSwitchSynced[\s\S]*?default_selection[\s\S]*?persistDefaultModelSelections[\s\S]*?setScene\("ready"\)/,
+  );
+  assert.match(onboarding, /default_background_model_selection: selection/);
+  assert.match(controller, /setUserPreferences\(await getUserPreferencesApi\(\)\)/);
+  assert.match(dialog, /const canSync = selectedSources\.size > 0 && \(!requireDefault \|\| canSetDefault\)/);
+  assert.match(dialog, /requireDefault[\s\S]*?settings\.providers\.ccswitch_import_title/);
+  assert.match(dialog, /selectedSources\.size > 1 \|\| selectedModelCount > 1/);
+  assert.match(dialog, /!item\.can_sync \?/);
+  assert.match(
+    dialog,
+    /className="h-\[500px\] max-h-\[calc\(100dvh-2rem\)\] !max-w-\[620px\]"/,
+  );
+  assert.match(dialog, /<UiDialogBody className="!min-h-0 !flex-1 p-0" scrollable>/);
+});
+
 test("联系人卡片明确展示默认模型继承状态", async () => {
   const card = await readSource("src/features/contacts/contacts-agent-card.tsx");
 

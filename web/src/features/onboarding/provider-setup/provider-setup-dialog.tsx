@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  ArrowDownToLine,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -22,7 +23,9 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getDefaultAgentRuntimeKind, setUserPreferences } from "@/config/runtime-options";
+import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/provider-ccswitch-dialog";
 import { invalidateProviderAvailability } from "@/hooks/capability/use-provider-availability";
 import {
   createProviderConfigApi,
@@ -50,6 +53,7 @@ import { getDialogNoteClassName } from "@/shared/ui/dialog/dialog-styles";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type {
+  CCSwitchSyncResult,
   ProviderApiFormat,
   ProviderConfigRecord,
 } from "@/types/capability/provider";
@@ -101,7 +105,9 @@ export function ProviderSetupDialog({
 }: ProviderSetupDialogProps) {
   const { t } = useI18n();
   const runtimeKind = getDefaultAgentRuntimeKind();
+  const canImportFromCCSwitch = isDesktopRuntime();
   const [scene, setScene] = useState<SetupScene>("provider");
+  const [ccSwitchOpen, setCCSwitchOpen] = useState(false);
   const [presets, setPresets] = useState<ProviderSetupPreset[]>([]);
   const [customSetups, setCustomSetups] = useState<ProviderSetupPreset[]>([]);
   const [providers, setProviders] = useState<ProviderConfigRecord[]>([]);
@@ -160,6 +166,7 @@ export function ProviderSetupDialog({
     setScene("provider");
     setLoading(true);
     setBusy(false);
+    setCCSwitchOpen(false);
     setError(null);
     setResult(null);
     setApiKey("");
@@ -314,16 +321,7 @@ export function ProviderSetupDialog({
       if (!model) {
         throw new Error(t("onboarding.provider_setup_model_required"));
       }
-      const currentPreferences = await getUserPreferencesApi();
-      const savedPreferences = await updateUserPreferencesApi({
-        default_agent_options: {
-          ...currentPreferences.default_agent_options,
-          model,
-          provider,
-        },
-      });
-      setUserPreferences(savedPreferences);
-      invalidateProviderAvailability();
+      await persistDefaultModelSelections({ model, provider });
       setResult({
         model,
         provider: draft.displayName.trim(),
@@ -390,6 +388,22 @@ export function ProviderSetupDialog({
     }, "custom");
   };
 
+  const handleCCSwitchSynced = async (syncResult: CCSwitchSyncResult) => {
+    const selection = syncResult.default_selection;
+    if (!selection) {
+      throw new Error(t("onboarding.provider_setup_ccswitch_default_failed"));
+    }
+    await persistDefaultModelSelections({
+      model: selection.model,
+      provider: selection.provider,
+    });
+    setResult({
+      model: selection.model_display_name || selection.model,
+      provider: selection.provider_display_name || selection.provider,
+    });
+    setScene("ready");
+  };
+
   const close = () => {
     if (!busy) {
       onClose();
@@ -405,16 +419,17 @@ export function ProviderSetupDialog({
   };
 
   return (
-    <UiDialogPortal>
-      <UiDialogBackdrop
-        className="z-[11050]"
-        closeOnBackdrop={!busy}
-        describedBy={DIALOG_DESCRIPTION_ID}
-        labelledBy={DIALOG_TITLE_ID}
-        onClose={close}
-      >
-        <div className="w-full max-w-[620px]">
-          <UiDialogShell className="h-[500px] max-h-[calc(100dvh-2rem)]" size="lg">
+    <>
+      <UiDialogPortal>
+        <UiDialogBackdrop
+          className="z-[11050]"
+          closeOnBackdrop={!busy}
+          describedBy={DIALOG_DESCRIPTION_ID}
+          labelledBy={DIALOG_TITLE_ID}
+          onClose={close}
+        >
+          <div className="w-full max-w-[620px]">
+            <UiDialogShell className="h-[500px] max-h-[calc(100dvh-2rem)]" size="lg">
             <UiDialogHeader className="!h-12 !border-b-0 !px-5 !py-0" closeLabel={t("common.close")} onClose={close}>
               <div className="flex min-w-0 flex-1 items-center gap-2.5">
                 <img alt="" className="h-6 w-6" src="/logo.webp" />
@@ -452,12 +467,14 @@ export function ProviderSetupDialog({
                           setError(null);
                           setScene("custom");
                         }}
+                        onImportCCSwitch={() => setCCSwitchOpen(true)}
                         onSelect={selectPreset}
                         onShowAllChange={setShowAllProviders}
                         presets={presets}
                         providers={providers}
                         selectedPresetKey={selectedPresetKey}
                         showAll={showAllProviders}
+                        supportsCCSwitch={canImportFromCCSwitch}
                         supportsCustom={customSetups.length > 0}
                       />
                     ) : null}
@@ -537,10 +554,19 @@ export function ProviderSetupDialog({
                 </div>
               </div>
             </UiDialogBody>
-          </UiDialogShell>
-        </div>
-      </UiDialogBackdrop>
-    </UiDialogPortal>
+            </UiDialogShell>
+          </div>
+        </UiDialogBackdrop>
+      </UiDialogPortal>
+      {canImportFromCCSwitch ? (
+        <ProviderCCSwitchDialog
+          isOpen={ccSwitchOpen}
+          onClose={() => setCCSwitchOpen(false)}
+          onSynced={handleCCSwitchSynced}
+          requireDefault
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -604,24 +630,28 @@ function ProviderScene({
   loading,
   onContinue,
   onCustom,
+  onImportCCSwitch,
   onSelect,
   onShowAllChange,
   presets,
   providers,
   selectedPresetKey,
   showAll,
+  supportsCCSwitch,
   supportsCustom,
 }: {
   error: string | null;
   loading: boolean;
   onContinue: () => void;
   onCustom: () => void;
+  onImportCCSwitch: () => void;
   onSelect: (preset: ProviderSetupPreset) => void;
   onShowAllChange: (showAll: boolean) => void;
   presets: ProviderSetupPreset[];
   providers: ProviderConfigRecord[];
   selectedPresetKey: string;
   showAll: boolean;
+  supportsCCSwitch: boolean;
   supportsCustom: boolean;
 }) {
   const { t } = useI18n();
@@ -701,16 +731,28 @@ function ProviderScene({
         ) : null}
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
-        <UiButton
-          className="mr-auto"
-          disabled={!supportsCustom || loading}
-          onClick={onCustom}
-          size="sm"
-          variant="surface"
-        >
-          <Settings2 className="h-3.5 w-3.5" />
-          {t("onboarding.provider_setup_custom_action")}
-        </UiButton>
+        <div className="mr-auto flex flex-wrap items-center gap-2">
+          <UiButton
+            disabled={!supportsCustom || loading}
+            onClick={onCustom}
+            size="sm"
+            variant="surface"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            {t("onboarding.provider_setup_custom_action")}
+          </UiButton>
+          {supportsCCSwitch ? (
+            <UiButton
+              disabled={loading}
+              onClick={onImportCCSwitch}
+              size="sm"
+              variant="surface"
+            >
+              <ArrowDownToLine className="h-3.5 w-3.5" />
+              {t("onboarding.provider_setup_ccswitch_action")}
+            </UiButton>
+          ) : null}
+        </div>
         <UiButton
           disabled={!selectedPresetKey || loading}
           onClick={onContinue}
@@ -1281,4 +1323,25 @@ function createCustomProviderKey(): string {
   const timestamp = Date.now().toString(36);
   const random = Math.random().toString(36).slice(2, 8);
   return `custom-${timestamp}-${random}`;
+}
+
+async function persistDefaultModelSelections({
+  model,
+  provider,
+}: {
+  model: string;
+  provider: string;
+}): Promise<void> {
+  const currentPreferences = await getUserPreferencesApi();
+  const selection = { model, provider };
+  const savedPreferences = await updateUserPreferencesApi({
+    default_agent_options: {
+      ...currentPreferences.default_agent_options,
+      model,
+      provider,
+    },
+    default_background_model_selection: selection,
+  });
+  setUserPreferences(savedPreferences);
+  invalidateProviderAvailability();
 }
