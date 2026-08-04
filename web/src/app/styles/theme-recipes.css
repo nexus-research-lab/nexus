@@ -912,7 +912,7 @@
   .dialog-input:focus-within {
     background: var(--modal-input-focus-background);
     border-color: color-mix(in srgb, var(--modal-input-focus-border) 96%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--modal-input-focus-border) 32%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--modal-input-focus-border) 28%, transparent);
   }
 
   .dialog-divider {

@@ -42,6 +42,23 @@ export function listProviderSetupPresets(
     .filter((item): item is ProviderSetupPreset => item !== null);
 }
 
+/** 初始化向导只暴露当前 Agent runtime 可直接使用的自定义 LLM 协议。 */
+export function listCustomProviderSetupFormats(
+  presets: readonly ProviderPreset[],
+  runtimeKind: AgentRuntimeKind,
+): ProviderSetupPreset[] {
+  const customPreset = presets.find((preset) => preset.preset_key === "custom");
+  if (!customPreset) {
+    return [];
+  }
+  return customPreset.formats
+    .filter((format) => (
+      isLLMFormat(format)
+      && isRuntimeCompatibleFormat(format.api_format, runtimeKind)
+    ))
+    .map((format) => ({ format, preset: customPreset }));
+}
+
 export function resolveProviderSetupFormat(
   preset: ProviderPreset,
   runtimeKind: AgentRuntimeKind,
