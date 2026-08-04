@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Streamlined first-run Provider setup with direct model selection, a docked action bar for long catalogs, and in-dialog custom LLM connections.
 - Changed the default permission for new preferences and Agents to automatically accept file edits while retaining approval rules for other actions.
 
+### Fixed
+
+- Repaired existing isolated Agent workspaces once and kept unreadable subtrees from breaking the complete workspace file list or live subscription.
+
 ## [0.1.32] - 2026-08-03
 
 ### Added

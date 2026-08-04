@@ -10,9 +10,9 @@ import "time"
 const (
 	registryVersion = 1
 
-	// v10 重新归一 owner runtime 内历史 0600 文件的 ACL mask。主智能体
-	// 切换为宿主 UID 后仍需续写同一 session 的 provider diagnostics。
-	userLayoutVersion = 10
+	// v11 一次性归一 Agent workspace 内由旧 nxs 以 0700/0600 创建的
+	// AutoMemory 路径；后续托管 runtime 会在创建时保留宿主 ACL mask。
+	userLayoutVersion = 11
 
 	defaultTicketTTL   = 24 * time.Hour
 	defaultUIDMinimum  = 20000
