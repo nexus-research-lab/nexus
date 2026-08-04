@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added separately signed and notarized macOS installers for Apple Silicon and Intel, with architecture-aware automatic updates.
 
+### Changed
+
+- Moved the desktop update shortcut into the sidebar footer and aligned it with the sidebar's utility actions.
+
 ## [0.1.33] - 2026-08-04
 
 ### Changed

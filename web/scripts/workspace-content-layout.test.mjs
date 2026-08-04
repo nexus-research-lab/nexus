@@ -100,6 +100,25 @@ test("正文、Surface Header 与 Agent 表单共用响应式水平留白", asyn
   assert.doesNotMatch(agentOptions, /px-6 py-5|gap-2 px-6 py-3/);
 });
 
+test("桌面更新入口进入侧边栏底部操作区", async () => {
+  const [panel, footer, indicator, resource] = await Promise.all([
+    "src/features/navigation/sidebar/view/sidebar-panel.tsx",
+    "src/features/navigation/sidebar/view/sidebar-utility-actions.tsx",
+    "src/features/navigation/sidebar/view/sidebar-update-indicator.tsx",
+    "src/features/navigation/sidebar/view/use-sidebar-update-version.ts",
+  ].map(readSource));
+
+  assert.doesNotMatch(panel, /SidebarUpdateIndicator/);
+  assert.match(footer, /useSidebarUpdateVersion/);
+  assert.match(footer, /<SidebarUpdateIndicator/);
+  assert.match(footer, /expandedRight: props\.showLogout/);
+  assert.match(indicator, /sidebar-update-indicator relative/);
+  assert.match(indicator, /className=\{cn\(/);
+  assert.doesNotMatch(indicator, /bg-emerald|hover:bg-emerald/);
+  assert.match(resource, /desktop\.update\.available/);
+  assert.match(resource, /getDesktopPersistentState/);
+});
+
 test("管理目录在桌面统一使用三列", async () => {
   const [layout, capabilityLayout, connectors, loops, channels, ...catalogs] =
     await Promise.all([
