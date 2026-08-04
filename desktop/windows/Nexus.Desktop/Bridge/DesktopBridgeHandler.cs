@@ -95,7 +95,8 @@ internal sealed class DesktopBridgeHandler
             await ResolveAsync(requestID, result);
             if (string.Equals(kind, "app.relocate_state_root", StringComparison.Ordinal))
             {
-                _ = Application.Current.Dispatcher.InvokeAsync(() => App.RequestApplicationExit(0));
+                _ = System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                    () => App.RequestApplicationExit(0));
             }
         }
         catch (Exception exception)

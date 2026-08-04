@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using Nexus.Desktop.Sidecar;
 
 namespace Nexus.Desktop.Lifecycle;
@@ -114,7 +115,8 @@ internal static class DesktopStateRootMigration
         {
             startInfo.ArgumentList.Add(argument);
         }
-        Process.Start(startInfo) ?? throw new InvalidOperationException("无法启动 Nexus 状态根迁移进程。");
+        _ = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("无法启动 Nexus 状态根迁移进程。");
     }
 
     private static void Validate(string source, string target)
