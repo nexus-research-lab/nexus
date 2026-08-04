@@ -1,7 +1,11 @@
 package runtimehook
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
@@ -67,6 +71,27 @@ func TestCallbacksProjectStructuredAdmissionDenial(t *testing.T) {
 	}
 }
 
+func TestCallbacksLogPersistenceCauseButReturnSanitizedDenial(t *testing.T) {
+	var logs bytes.Buffer
+	provider := &fakeProvider{admitErr: errors.New("database is locked (SQLITE_BUSY)")}
+	output, err := Callbacks(provider, Context{
+		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+	}).PreToolUse(context.Background(), sdkhook.Input{}, "tool-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput == nil ||
+		output.SpecificOutput.PermissionDecisionReason !=
+			"[subagent_admission_error] authoritative subagent admission state could not be persisted" {
+		t.Fatalf("persistence denial = %#v", output)
+	}
+	if strings.Contains(output.SpecificOutput.PermissionDecisionReason, "SQLITE_BUSY") ||
+		!strings.Contains(logs.String(), "SQLITE_BUSY") ||
+		!strings.Contains(logs.String(), "PreToolUse") {
+		t.Fatalf("sanitized denial = %q, internal log = %q", output.SpecificOutput.PermissionDecisionReason, logs.String())
+	}
+}
+
 func TestCallbacksForwardSubagentStopWithoutInventingTaskIdentity(t *testing.T) {
 	provider := &fakeProvider{
 		stopResult: orchestration.SubagentAdmissionResult{
@@ -102,6 +127,7 @@ func TestCallbacksForwardSubagentStopWithoutInventingTaskIdentity(t *testing.T) 
 
 type fakeProvider struct {
 	admitResult orchestration.SubagentAdmissionResult
+	admitErr    error
 	startResult orchestration.SubagentAdmissionResult
 	stopResult  orchestration.SubagentAdmissionResult
 	launch      orchestration.SubagentLaunchInput
@@ -115,7 +141,7 @@ func (f *fakeProvider) AdmitSubagentLaunch(
 	input orchestration.SubagentLaunchInput,
 ) (orchestration.SubagentAdmissionResult, error) {
 	f.launch = input
-	return f.admitResult, nil
+	return f.admitResult, f.admitErr
 }
 
 func (f *fakeProvider) ObserveSubagentStart(

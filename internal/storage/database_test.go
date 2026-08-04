@@ -1,8 +1,10 @@
 package storage
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -100,5 +102,45 @@ func TestOpenMigrationDBLeavesSQLiteForeignKeysDisabled(t *testing.T) {
 	}
 	if enabled != 0 {
 		t.Fatalf("migration foreign_keys = %d, want 0", enabled)
+	}
+}
+
+func TestOpenDBStartsSQLiteTransactionsImmediate(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "immediate.db")
+	db, err := OpenDB(config.Config{
+		DatabaseDriver: "sqlite",
+		DatabaseURL:    databasePath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err = db.Exec(`CREATE TABLE writes (id INTEGER PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+
+	competitor, err := sql.Open(
+		"sqlite",
+		databasePath+"?_pragma=busy_timeout(25)&_pragma=foreign_keys(1)",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	competitor.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = competitor.Close() })
+
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, writeErr := competitor.Exec(`INSERT INTO writes (id) VALUES (1)`); writeErr == nil || !strings.Contains(strings.ToLower(writeErr.Error()), "locked") {
+		_ = tx.Rollback()
+		t.Fatalf("competing write error = %v, want immediate transaction lock", writeErr)
+	}
+	if err = tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = competitor.Exec(`INSERT INTO writes (id) VALUES (1)`); err != nil {
+		t.Fatalf("write after immediate transaction release: %v", err)
 	}
 }

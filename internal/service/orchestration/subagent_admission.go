@@ -14,7 +14,10 @@ import (
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
 
-const subagentAdmissionMutationAttempts = 3
+const (
+	subagentAdmissionMutationAttempts = 3
+	subagentAdmissionRetryDelay       = 10 * time.Millisecond
+)
 
 // SubagentLaunchInput 是 PreToolUse 提供的宿主可信执行 identity。
 //
@@ -109,12 +112,20 @@ func (s *Service) AdmitSubagentLaunch(
 			"Agent tool_use_id is required for a durable subagent binding",
 		)), nil
 	}
-	for range subagentAdmissionMutationAttempts {
+	for attempt := range subagentAdmissionMutationAttempts {
 		snapshot, err := s.subagentSnapshot(ctx, actor)
 		if err != nil {
 			var domainErr *DomainError
 			if errors.As(err, &domainErr) {
 				return rejectedSubagentAdmission(err), nil
+			}
+			if orchestrationstore.IsTransientMutationError(err) {
+				if attempt+1 < subagentAdmissionMutationAttempts {
+					if waitErr := waitForSubagentAdmissionRetry(ctx, attempt); waitErr != nil {
+						return SubagentAdmissionResult{}, waitErr
+					}
+				}
+				continue
 			}
 			return SubagentAdmissionResult{}, err
 		}
@@ -143,7 +154,12 @@ func (s *Service) AdmitSubagentLaunch(
 					"parent-attempt-start",
 				),
 			})
-			if errors.Is(startErr, orchestrationstore.ErrVersionConflict) {
+			if subagentAdmissionRetryable(startErr) {
+				if attempt+1 < subagentAdmissionMutationAttempts {
+					if waitErr := waitForSubagentAdmissionRetry(ctx, attempt); waitErr != nil {
+						return SubagentAdmissionResult{}, waitErr
+					}
+				}
 				continue
 			}
 			if startErr != nil {
@@ -194,8 +210,12 @@ func (s *Service) AdmitSubagentLaunch(
 				"child-attempt-start",
 			),
 		})
-		if errors.Is(startErr, orchestrationstore.ErrVersionConflict) ||
-			errors.Is(startErr, orchestrationstore.ErrInvariant) {
+		if subagentAdmissionRetryable(startErr) {
+			if attempt+1 < subagentAdmissionMutationAttempts {
+				if waitErr := waitForSubagentAdmissionRetry(ctx, attempt); waitErr != nil {
+					return SubagentAdmissionResult{}, waitErr
+				}
+			}
 			continue
 		}
 		if startErr != nil {
@@ -216,6 +236,22 @@ func (s *Service) AdmitSubagentLaunch(
 		ErrorCodeStaleExecution,
 		"execution state changed concurrently; reload before launching a subagent",
 	)), nil
+}
+
+func subagentAdmissionRetryable(err error) bool {
+	return orchestrationstore.IsTransientMutationError(err) ||
+		errors.Is(err, orchestrationstore.ErrInvariant)
+}
+
+func waitForSubagentAdmissionRetry(ctx context.Context, attempt int) error {
+	timer := time.NewTimer(subagentAdmissionRetryDelay * time.Duration(attempt+1))
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // ObserveSubagentStart 校验 bridge 的 start 事件精确命中 child Attempt。

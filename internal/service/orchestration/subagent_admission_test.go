@@ -2,6 +2,7 @@ package orchestration
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -116,6 +117,50 @@ func TestSubagentAdmissionAllowsDistinctConcurrentLaunch(t *testing.T) {
 		result.Binding.AttemptID != "attempt-child-second" ||
 		len(repository.snapshot.Attempts) != 3 {
 		t.Fatalf("concurrent admission = %#v, attempts=%#v", result, repository.snapshot.Attempts)
+	}
+}
+
+func TestSubagentAdmissionRetriesTransientPersistenceFailure(t *testing.T) {
+	snapshot := assignedExecutionSnapshot()
+	snapshot.Assignments[0].Status = protocol.WorkAssignmentStatusActive
+	snapshot.Assignments[0].Version = 2
+	snapshot.Attempts[0].Status = protocol.WorkAttemptStatusRunning
+	snapshot.Attempts[0].Version = 2
+	repository := &fakeRepository{snapshot: snapshot}
+	startCalls := 0
+	repository.startAttempt = func(
+		_ context.Context,
+		command orchestrationstore.StartAttemptCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		startCalls++
+		if startCalls <= 2 {
+			return nil, errors.New("database is locked (SQLITE_BUSY)")
+		}
+		updated := cloneExecutionSnapshot(repository.snapshot)
+		updated.Execution.Version++
+		updated.Assignments[0].Version++
+		child := command.Attempt
+		child.Status = protocol.WorkAttemptStatusRunning
+		child.Version = 1
+		updated.Attempts = append(updated.Attempts, child)
+		repository.snapshot = updated
+		return updated, nil
+	}
+	service := NewService(repository)
+	service.newID = func(string) string { return "attempt-child-after-lock" }
+
+	result, err := service.AdmitSubagentLaunch(
+		context.Background(),
+		subagentActor(),
+		SubagentLaunchInput{ToolUseID: "tool-after-lock"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Allowed || result.Binding == nil ||
+		result.Binding.AttemptID != "attempt-child-after-lock" ||
+		startCalls != 3 {
+		t.Fatalf("retried admission = %#v, start calls = %d", result, startCalls)
 	}
 }
 

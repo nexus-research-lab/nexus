@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Started SQLite transactions with an immediate writer reservation and retried transient admission conflicts from a fresh authoritative snapshot, so an authorized native Agent child starts instead of disappearing behind a generic PreToolUse failure; unexpected persistence failures now retain their internal diagnostic cause.
 - Kept every active Room Agent's exact stop control available after its pending placeholder is replaced, added correlated interrupt acknowledgements and stopping feedback, and terminalized unresolved Feed, Thread, tool, and WorkGraph activity after interruption.
 - Decoded Windows sidecar stdout and stderr as UTF-8 so startup diagnostics preserve readable structured logs.
 - Relocated the complete macOS or Windows desktop state root after confirmation, then restarted directly and safely rebased stored paths with automatic rollback on startup failure.

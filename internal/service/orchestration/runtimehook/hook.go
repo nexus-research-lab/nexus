@@ -1,11 +1,12 @@
 // INPUT: Orchestration subagent admission provider、当前 actor 与 SDK hook payload。
-// OUTPUT: runtime.Manager 可热切换的 PreToolUse/Start/Stop/failure callbacks。
+// OUTPUT: runtime.Manager 可热切换的 callbacks、脱敏拒绝结果与内部持久化错误日志。
 // POS: service 领域结果到 bridge hook wire semantics 的适配层。
 package runtimehook
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
@@ -44,6 +45,7 @@ type Context struct {
 	Actor             orchestration.ActorContext
 	RuntimeSessionKey string
 	RoomSessionID     string
+	Logger            *slog.Logger
 }
 
 // Callbacks 把当前 round identity 闭包化；Manager 在 warm session 上动态替换它。
@@ -63,7 +65,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 				RoomSessionID:     value.RoomSessionID,
 				SDKSessionID:      input.SessionID,
 			})
-			return admissionOutput(sdkhook.EventPreToolUse, result, err), nil
+			return admissionOutput(ctx, value.Logger, sdkhook.EventPreToolUse, result, err), nil
 		},
 		PostToolUseFailure: func(
 			ctx context.Context,
@@ -78,7 +80,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 				Interrupted:  input.IsInterrupt,
 				Error:        firstValue(input.Error, input.ErrorDetails, "Agent tool failed before subagent completion"),
 			})
-			return admissionOutput(sdkhook.EventPostToolUseFailure, result, err), nil
+			return admissionOutput(ctx, value.Logger, sdkhook.EventPostToolUseFailure, result, err), nil
 		},
 		SubagentStart: func(
 			ctx context.Context,
@@ -90,7 +92,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 				SDKAgentID:   input.AgentID,
 				AgentType:    input.AgentType,
 			})
-			return admissionOutput(sdkhook.EventSubagentStart, result, err), nil
+			return admissionOutput(ctx, value.Logger, sdkhook.EventSubagentStart, result, err), nil
 		},
 		SubagentStop: func(
 			ctx context.Context,
@@ -106,7 +108,7 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 				Interrupted:          input.IsInterrupt,
 				Error:                firstValue(input.Error, input.ErrorDetails),
 			})
-			return admissionOutput(sdkhook.EventSubagentStop, result, err), nil
+			return admissionOutput(ctx, value.Logger, sdkhook.EventSubagentStop, result, err), nil
 		},
 		ParentRoundExit: func(
 			ctx context.Context,
@@ -140,11 +142,22 @@ func Callbacks(provider Provider, value Context) runtimectx.SubagentHookCallback
 }
 
 func admissionOutput(
+	ctx context.Context,
+	logger *slog.Logger,
 	event sdkhook.Event,
 	result orchestration.SubagentAdmissionResult,
 	err error,
 ) sdkhook.Output {
 	if err != nil {
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.ErrorContext(
+			ctx,
+			"Subagent admission persistence failed",
+			"hook_event", event,
+			"error", err,
+		)
 		return runtimectx.DenySubagentHookOutput(
 			event,
 			subagentAdmissionErrorCode,

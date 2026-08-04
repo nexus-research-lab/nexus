@@ -227,6 +227,7 @@ func (r *roundRunner) executeRound(
 				orchestrationruntimehook.Context{
 					Actor:             actor,
 					RuntimeSessionKey: r.sessionKey,
+					Logger:            r.service.loggerFor(ctx),
 				},
 			),
 		)

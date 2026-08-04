@@ -1,5 +1,5 @@
 // INPUT: 数据库驱动、连接 URL 与 SQLite 运行/迁移连接语义。
-// OUTPUT: 带连接池约束、busy timeout 与运行期外键保护的 sql.DB。
+// OUTPUT: 带连接池约束、immediate transaction、busy timeout 与运行期外键保护的 sql.DB。
 // POS: storage 包的数据库连接入口；migration 必须显式使用无外键连接。
 package storage
 
@@ -103,6 +103,12 @@ func sqliteConnectionDSN(dsn string, enforceForeignKeys bool) (string, error) {
 	if enforceForeignKeys {
 		foreignKeys = "foreign_keys(1)"
 	}
+	// Mutation repositories perform an idempotency read before their first
+	// write. Deferred SQLite transactions can lose that read-to-write upgrade
+	// with SQLITE_BUSY_SNAPSHOT, which intentionally bypasses busy_timeout.
+	// Reserving the single-writer slot at BeginTx keeps that transaction atomic;
+	// busy_timeout then applies while competing writers are still ahead of it.
+	values.Set("_txlock", "immediate")
 	values["_pragma"] = append(pragmas, "busy_timeout(5000)", foreignKeys)
 	return base + "?" + values.Encode(), nil
 }

@@ -327,6 +327,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 					Actor:             actor,
 					RuntimeSessionKey: e.slot.RuntimeSessionKey,
 					RoomSessionID:     e.slot.RoomSessionID,
+					Logger:            e.service.loggerFor(e.ctx),
 				},
 			),
 		)

@@ -5,9 +5,28 @@ package orchestration
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+// IsTransientMutationError reports storage failures that can succeed after the
+// caller discards the current transaction and retries from a fresh snapshot.
+// SQLite may return BUSY immediately when a deferred transaction loses its
+// read-to-write upgrade race, even when busy_timeout is configured.
+func IsTransientMutationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrVersionConflict) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "database is locked") ||
+		strings.Contains(message, "database table is locked") ||
+		strings.Contains(message, "sqlite_busy") ||
+		strings.Contains(message, "sqlite_locked")
+}
 
 var (
 	// ErrVersionConflict 表示 Execution 或子 aggregate 的 expected version 已过期。

@@ -2,6 +2,7 @@
 //
 // L2:
 //   - repository.go: Repository、command 幂等、Execution CAS 与事件序列事务。
+//   - errors.go: 稳定存储错误与可安全重开事务的瞬时冲突分类。
 //   - commands.go: 有语义的存储命令。
 //   - execution.go / execution_transition.go / goal_retarget.go / evidence.go: Execution 创建、Goal revision graph supersede 与 reserved successor 校验、首次 Plan 原子写入、transient replacement/abandonment、查询、Goal 绑定、runtime/scheduler 持久证据与完成。
 //   - plan.go: immutable Plan/Spec/membership/dependency/output claim 写入、执行契约集合上限防御与显式 active-work replacement。
