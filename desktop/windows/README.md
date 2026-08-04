@@ -13,7 +13,7 @@
 - 主窗口保持 `1280×820` 默认启动尺寸；常规屏幕可缩小到 `360×520`，极小可用工作区回退到 `320×480`，由 Web 层切换为手机布局。
 - GitHub OAuth：桌面包只注入公开 `NEXUS_DESKTOP_GITHUB_CLIENT_ID`，WebView 内使用 Device Flow 授权码完成连接，不打包 Client Secret。
 
-第一阶段已支持 Inno Setup 安装器、WebView2 Evergreen Runtime bootstrapper、可选 Authenticode 签名和启动后更新检测/下载校验；托盘和全局快捷键在后续阶段补齐。
+第一阶段已支持 Inno Setup 安装器、WebView2 Evergreen Runtime bootstrapper、可选 Authenticode 签名和启动后更新检测/下载校验。覆盖安装前，安装器会通过单实例退出协议结束仍驻留托盘的 Nexus，并等待可执行文件解除占用。
 
 ## 构建
 
