@@ -86,9 +86,15 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 			Reason: "runtime_not_nxs",
 		}, nil
 	}
-	provider, model, err := r.backgroundSelection(ownerContext, agentValue.OwnerUserID, selection)
+	provider, model, available, err := r.backgroundSelection(ownerContext, agentValue.OwnerUserID, selection)
 	if err != nil {
 		return agentclient.AutoDreamResult{}, err
+	}
+	if !available {
+		return agentclient.AutoDreamResult{
+			Status: agentclient.AutoDreamStatusSkipped,
+			Reason: autoDreamProviderUnavailableReason,
+		}, nil
 	}
 	options, err := clientopts.BuildAgentClientOptions(ownerContext, r.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:        agentValue.WorkspacePath,
@@ -132,13 +138,13 @@ func (r *runtimeDreamRunner) backgroundSelection(
 	ctx context.Context,
 	ownerUserID string,
 	selection runtimeselectionsvc.Selection,
-) (string, string, error) {
+) (string, string, bool, error) {
 	provider := strings.TrimSpace(selection.Provider)
 	model := strings.TrimSpace(selection.Model)
 	if r.preferences != nil {
 		preferences, err := r.preferences.Get(ctx, strings.TrimSpace(ownerUserID))
 		if err != nil {
-			return "", "", err
+			return "", "", false, err
 		}
 		background := preferences.DefaultBackgroundModelSelection
 		if strings.TrimSpace(background.Provider) != "" && strings.TrimSpace(background.Model) != "" {
@@ -147,9 +153,9 @@ func (r *runtimeDreamRunner) backgroundSelection(
 		}
 	}
 	if provider == "" || model == "" {
-		return "", "", errors.New("AutoDream 缺少可用的 provider/model")
+		return "", "", false, nil
 	}
-	return provider, model, nil
+	return provider, model, true, nil
 }
 
 func contextForAgentOwner(ctx context.Context, agentValue protocol.Agent) context.Context {

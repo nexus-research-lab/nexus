@@ -15,6 +15,11 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
+const (
+	autoDreamProviderUnavailableReason        = "provider_unavailable"
+	autoDreamProviderUnavailableRetryInterval = time.Hour
+)
+
 type agentCatalog interface {
 	ListAllAgentRecordsForMaintenance(context.Context) ([]protocol.Agent, error)
 	EnsureRuntimeSettingsProjection(protocol.Agent) error
@@ -177,12 +182,21 @@ func (c *Coordinator) runAgent(parent context.Context, agentValue protocol.Agent
 		c.logger.Error("唤醒 Agent AutoDream 失败", "agent_id", agentValue.AgentID, "err", err)
 		return
 	}
+	now := c.nowTime()
 	nextCheck := time.UnixMilli(result.NextCheckAtMS)
-	if result.NextCheckAtMS <= 0 || !nextCheck.After(c.nowTime()) {
-		nextCheck = c.nowTime().Add(c.config.SweepInterval)
+	providerUnavailable := result.Status == agentclient.AutoDreamStatusSkipped &&
+		strings.TrimSpace(result.Reason) == autoDreamProviderUnavailableReason
+	if providerUnavailable {
+		nextCheck = now.Add(max(c.config.SweepInterval, autoDreamProviderUnavailableRetryInterval))
+	} else if result.NextCheckAtMS <= 0 || !nextCheck.After(now) {
+		nextCheck = now.Add(c.config.SweepInterval)
 	}
 	c.scheduleNext(key, nextCheck)
-	c.logger.Info("Agent AutoDream 检查完成",
+	level := slog.LevelInfo
+	if providerUnavailable {
+		level = slog.LevelDebug
+	}
+	c.logger.Log(ctx, level, "Agent AutoDream 检查完成",
 		"agent_id", agentValue.AgentID,
 		"status", result.Status,
 		"reason", result.Reason,
