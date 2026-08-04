@@ -105,6 +105,23 @@ export function RoomSurfaceShell({
   );
   const defaultRuntimeKind = useDefaultAgentRuntimeKind();
   const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");
+  const [executionEventRevision, setExecutionEventRevision] = useState(0);
+  const handleRoomEvent = useCallback<NonNullable<RoomSurfaceShellProps["onRoomEvent"]>>(
+    (eventType, data) => {
+      if (
+        eventType === "message"
+        || eventType === "round_status"
+        || eventType === "agent_round_status"
+        || eventType === "session_status"
+        || eventType.startsWith("goal_")
+        || eventType.endsWith("_resync_required")
+      ) {
+        setExecutionEventRevision((current) => current + 1);
+      }
+      onRoomEvent?.(eventType, data);
+    },
+    [onRoomEvent],
+  );
   const storedRuntimeKind = currentRoomConversation?.options.runtime_kind;
   const runtimeKind = typeof storedRuntimeKind === "string"
     ? normalizeAgentRuntimeKind(storedRuntimeKind)
@@ -126,8 +143,8 @@ export function RoomSurfaceShell({
       currentRoomConversation?.message_count ?? 0,
       currentRoomConversation?.last_activity_at ?? 0,
       currentRoomConversation?.is_active ?? false,
+      executionEventRevision,
     ].join(":"),
-    conversationActive: Boolean(currentRoomConversation?.is_active),
     sessionKey: executionSessionKey,
   });
   const handleExecutionTaskRunsChange = useCallback((runs: ConversationTaskRun[]) => {
@@ -179,7 +196,7 @@ export function RoomSurfaceShell({
         onDeleteConversation={onDeleteConversation}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         onReplayTour={onReplayTour}
-        onRoomEvent={onRoomEvent}
+        onRoomEvent={handleRoomEvent}
         onSaveAgentOptions={onSaveAgentOptions}
         onSelectConversation={onSelectConversation}
         onTodosChange={onTodosChange}
@@ -235,7 +252,7 @@ export function RoomSurfaceShell({
       onStartSidePanelResize={onStartSidePanelResize}
       onTodosChange={onTodosChange}
       surfaceSplitRef={surfaceSplitRef}
-      onRoomEvent={onRoomEvent}
+      onRoomEvent={handleRoomEvent}
     />
   );
 }

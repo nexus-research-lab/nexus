@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 session_key 与 Execution 只读 API。
- * OUTPUT: 带请求竞态保护、活动态轮询恢复和 terminal 收起语义的 WorkGraph 资源。
+ * OUTPUT: 带请求竞态保护、WS 失效合并、可见性恢复和低频兜底的 WorkGraph 资源。
  * POS: DM/Room 共用的 Execution 前端状态入口。
  */
 "use client";
@@ -14,11 +14,11 @@ import type {
   ExecutionView,
 } from "@/types/conversation/execution";
 
-const ACTIVE_EXECUTION_POLL_MS = 1_500;
+const ACTIVE_EXECUTION_FALLBACK_POLL_MS = 30_000;
+const EXECUTION_INVALIDATION_DEBOUNCE_MS = 200;
 const ACTIVE_EXECUTION_STATUSES = new Set<ExecutionStatus>([
   "active",
   "waiting",
-  "paused",
 ]);
 
 interface ExecutionResourceSnapshot {
@@ -47,11 +47,9 @@ function emptySnapshot(sessionKey: string | null): ExecutionResourceSnapshot {
 
 export function useExecutionResource({
   activityKey = null,
-  conversationActive = false,
   sessionKey,
 }: {
   activityKey?: number | string | null;
-  conversationActive?: boolean;
   sessionKey: string | null;
 }): ExecutionResource {
   const [snapshot, setSnapshot] = useState<ExecutionResourceSnapshot>(() => (
@@ -114,21 +112,36 @@ export function useExecutionResource({
   }, [dismissedExecutionId, sessionKey]);
 
   useEffect(() => {
-    void refresh(true);
-  }, [activityKey, refresh]);
+    const timeout = window.setTimeout(() => {
+      void refresh(true);
+    }, EXECUTION_INVALIDATION_DEBOUNCE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [activityKey, refresh, sessionKey]);
 
   useEffect(() => {
     const executionActive = rawExecution
       ? ACTIVE_EXECUTION_STATUSES.has(rawExecution.status)
       : false;
-    if (!conversationActive && !executionActive) {
+    if (!executionActive) {
       return;
     }
     const interval = window.setInterval(() => {
-      void refresh(false);
-    }, ACTIVE_EXECUTION_POLL_MS);
+      if (document.visibilityState === "visible") {
+        void refresh(false);
+      }
+    }, ACTIVE_EXECUTION_FALLBACK_POLL_MS);
     return () => window.clearInterval(interval);
-  }, [conversationActive, rawExecution, refresh]);
+  }, [rawExecution, refresh]);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void refresh(false);
+      }
+    };
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => document.removeEventListener("visibilitychange", refreshWhenVisible);
+  }, [refresh]);
 
   return {
     dismiss: () => {

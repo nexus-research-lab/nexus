@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Replaced the 1.5-second conversation-wide WorkGraph polling loop with debounced WebSocket invalidation, visibility-aware refresh, and a 30-second active-execution fallback shared by Web and desktop clients.
 - Distinguished completed tool transport from rejected business mutations across DM, Room, Goal continuation, and WorkGraph: rejected calls now stay visible as recoverable failures with concise reason summaries and control-return edges instead of green success cards or raw JSON.
 - Preserved every visible Room user message while root messages are repartitioned into Agent-round nodes, and coalesced optimistic/canonical root identities without allowing a later map write to replace unrelated follow-up input.
 - Persisted bounded, redacted Tool/Subagent result and error summaries with duration evidence, suppressed internal runtime control sentinels, and rendered failed control returns plus only explicitly correlated Agent-chosen retries as distinct WorkGraph back edges.

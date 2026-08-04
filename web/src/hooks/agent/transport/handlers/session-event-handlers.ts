@@ -61,6 +61,7 @@ const handleSessionStatus = withCurrentSessionEvent((event, context) => {
   if (payload) {
     context.runtime.syncSessionStatus(payload);
   }
+  context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
 });
 
 const handleRuntimeStatus = withCurrentSessionEvent((event, context) => {
@@ -138,6 +139,7 @@ const handleRoundStatus = withCurrentSessionEvent((event, context) => {
   if (payload) {
     context.runtime.applyRoundStatus(payload.round_id, payload.status);
   }
+  context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
 });
 
 const handleAgentRoundStatus = withCurrentSessionEvent((event, context) => {
@@ -145,6 +147,7 @@ const handleAgentRoundStatus = withCurrentSessionEvent((event, context) => {
   if (payload) {
     context.runtime.applyAgentRoundStatus(payload);
   }
+  context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
 });
 
 const handleChatAck = withCurrentSessionEvent((event, context) => {

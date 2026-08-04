@@ -974,3 +974,38 @@ test("Execution MCP names render as semantic activity instead of raw transport n
     "完成前后端闭环",
   );
 });
+
+test("Execution resource uses realtime invalidation with a bounded visible fallback", async () => {
+  const [resourceSource, shellSource, messageHandlerSource, sessionHandlerSource] =
+    await Promise.all([
+      readFile(path.join(
+        webRoot,
+        "src/features/conversation/shared/execution/use-execution-resource.ts",
+      ), "utf8"),
+      readFile(path.join(
+        webRoot,
+        "src/features/conversation/room/surface/room-surface-shell.tsx",
+      ), "utf8"),
+      readFile(path.join(
+        webRoot,
+        "src/hooks/agent/transport/handlers/agent-message-event-handlers.ts",
+      ), "utf8"),
+      readFile(path.join(
+        webRoot,
+        "src/hooks/agent/transport/handlers/session-event-handlers.ts",
+      ), "utf8"),
+    ]);
+
+  assert.match(resourceSource, /ACTIVE_EXECUTION_FALLBACK_POLL_MS = 30_000/);
+  assert.match(resourceSource, /EXECUTION_INVALIDATION_DEBOUNCE_MS = 200/);
+  assert.match(resourceSource, /document\.visibilityState === "visible"/);
+  assert.doesNotMatch(resourceSource, /conversationActive/);
+  assert.doesNotMatch(resourceSource, /"paused",/);
+  assert.match(shellSource, /executionEventRevision/);
+  assert.match(shellSource, /eventType === "agent_round_status"/);
+  assert.match(messageHandlerSource, /onRoomEvent\?\.\(event\.event_type/);
+  assert.equal(
+    (sessionHandlerSource.match(/onRoomEvent\?\.\(event\.event_type/g) ?? []).length,
+    3,
+  );
+});
