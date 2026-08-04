@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Kept Agent Skill cards readable when the conversation detail panel is resized by adapting the grid to the panel's actual width and clamping long titles to two lines.
 - Repaired existing isolated Agent workspaces once and kept unreadable subtrees from breaking the complete workspace file list or live subscription.
 - Prevented workspace subscription failures from being projected as conversation backend errors.
 - Prevented Windows upgrades from failing with access denied when Nexus was still running in the system tray.

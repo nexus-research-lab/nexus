@@ -356,10 +356,11 @@ test("记忆页使用紧凑目录、单一阅读轴和受保护删除", async ()
   });
 });
 
-test("Agent 技能页使用紧凑响应式网格并收敛重复工具与状态", async () => {
-  const [view, content, card, model, zhAgent, enAgent] = await Promise.all([
+test("Agent 技能页按自身宽度响应并收敛重复工具与状态", async () => {
+  const [view, content, styles, card, model, zhAgent, enAgent] = await Promise.all([
     "src/features/agents/options/components/skills/agent-options-skills-view.tsx",
     "src/features/agents/options/components/skills/agent-options-skills-content.tsx",
+    "src/features/agents/options/components/skills/agent-options-skills.css",
     "src/features/agents/options/components/skills/agent-skill-card.tsx",
     "src/features/agents/options/components/skills/agent-skills-model.ts",
     "src/shared/i18n/catalog/zh/agent.ts",
@@ -376,12 +377,21 @@ test("Agent 技能页使用紧凑响应式网格并收敛重复工具与状态",
   assert.match(content, /filteredCount \? \(/);
   assert.match(
     content,
-    /AGENT_SKILL_GRID_CLASS_NAME =\s*`\$\{WORKSPACE_CATALOG_GRID_CLASS_NAME\} gap-2\.5`/,
+    /AGENT_SKILL_GRID_CLASS_NAME = "agent-options-skills-grid"/,
   );
+  assert.doesNotMatch(content, /WORKSPACE_CATALOG_GRID_CLASS_NAME/);
   assert.equal(
     [...content.matchAll(/className=\{AGENT_SKILL_GRID_CLASS_NAME\}/g)].length,
     2,
   );
+  assert.match(view, /agent-options-skills-container/);
+  assert.match(styles, /container-name: agent-options-skills/);
+  assert.match(styles, /container-type: inline-size/);
+  assert.match(styles, /grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styles, /@container agent-options-skills \(min-width: 560px\)/);
+  assert.match(styles, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@container agent-options-skills \(min-width: 800px\)/);
+  assert.match(styles, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.doesNotMatch(
     content,
     /count=\{`\$\{projection\.visibleAvailable\.length\}\/\$\{projection\.available\.length\}`\}/,
@@ -390,6 +400,7 @@ test("Agent 技能页使用紧凑响应式网格并收敛重复工具与状态",
   assert.match(card, /grid-cols-\[40px_minmax\(0,1fr\)_auto\]/);
   assert.match(card, /UiSeededAvatar seed=\{skill\.name\}/);
   assert.match(card, /flex min-h-10 min-w-0 items-center overflow-hidden/);
+  assert.match(card, /line-clamp-2 min-w-0 text-sm font-semibold/);
   assert.match(card, /flex min-h-10 shrink-0 items-center gap-2/);
   assert.doesNotMatch(card, /pt-0\.5/);
   assert.match(card, /px-3\.5 py-3/);

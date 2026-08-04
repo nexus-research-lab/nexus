@@ -56,7 +56,7 @@ export function AgentSkillCard({
       <UiSeededAvatar seed={skill.name} />
       <div className="flex min-h-10 min-w-0 items-center overflow-hidden">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-          <span className="min-w-0 text-sm font-semibold leading-[1.4] text-(--text-strong)">
+          <span className="line-clamp-2 min-w-0 text-sm font-semibold leading-[1.4] text-(--text-strong)">
             {skill.title || skill.name}
           </span>
           {badges.map((badge) => (
