@@ -126,8 +126,8 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if items[0].Options.Provider != "" {
 		t.Fatalf("主智能体应跟随默认 provider，不应写死显式 provider: %+v", items[0].Options)
 	}
-	if items[0].Options.PermissionMode != "default" {
-		t.Fatalf("主智能体默认权限应为询问模式: %+v", items[0].Options)
+	if items[0].Options.PermissionMode != protocol.DefaultAgentPermissionMode {
+		t.Fatalf("主智能体默认权限应自动接受编辑: %+v", items[0].Options)
 	}
 	if len(items[0].Options.AllowedTools) != 0 {
 		t.Fatalf("主智能体默认不应预授权工具: %+v", items[0].Options.AllowedTools)
@@ -154,6 +154,9 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 	if created.Avatar == "" {
 		t.Fatal("创建 Agent 时应自动分配头像")
+	}
+	if created.Options.PermissionMode != protocol.DefaultAgentPermissionMode {
+		t.Fatalf("新 Agent 默认权限应自动接受编辑: %+v", created.Options)
 	}
 	if _, err = os.Stat(created.WorkspacePath); err != nil {
 		t.Fatalf("workspace 目录未创建: %v", err)

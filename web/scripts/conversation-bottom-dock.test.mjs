@@ -788,6 +788,22 @@ test("DM Composer keeps direct Session permission and model controls", async () 
   assert.doesNotMatch(html, /aria-label="Agent 设置"/);
 });
 
+test("新 Agent 与新 Session 默认自动接受编辑", async () => {
+  const [agentOptionsSource, runtimeOptionsSource] = await Promise.all([
+    readFile(path.join(webRoot, "src/lib/agent-options.ts"), "utf8"),
+    readFile(path.join(webRoot, "src/config/runtime-options.ts"), "utf8"),
+  ]);
+
+  assert.match(
+    agentOptionsSource,
+    /DEFAULT_AGENT_PERMISSION_MODE = "acceptEdits"/,
+  );
+  assert.match(
+    runtimeOptionsSource,
+    /permission_mode: DEFAULT_AGENT_PERMISSION_MODE/,
+  );
+});
+
 test("Session setting menus expose concrete choices and a separate reset action", async () => {
   const {
     buildResetSessionSettingItem,

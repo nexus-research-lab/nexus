@@ -15,10 +15,10 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestDefaultPreferencesAskByDefault(t *testing.T) {
+func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	prefs := DefaultPreferences()
-	if prefs.DefaultAgentOptions.PermissionMode != "default" {
-		t.Fatalf("默认权限应为询问模式: %+v", prefs.DefaultAgentOptions)
+	if prefs.DefaultAgentOptions.PermissionMode != protocol.DefaultAgentPermissionMode {
+		t.Fatalf("默认权限应自动接受编辑: %+v", prefs.DefaultAgentOptions)
 	}
 	if len(prefs.DefaultAgentOptions.AllowedTools) != 0 {
 		t.Fatalf("默认不应预授权工具: %+v", prefs.DefaultAgentOptions.AllowedTools)
@@ -37,8 +37,8 @@ func TestDefaultPreferencesAskByDefault(t *testing.T) {
 	}
 
 	normalized := normalizePreferences(Preferences{})
-	if normalized.DefaultAgentOptions.PermissionMode != "default" {
-		t.Fatalf("空偏好归一化后应为询问模式: %+v", normalized.DefaultAgentOptions)
+	if normalized.DefaultAgentOptions.PermissionMode != protocol.DefaultAgentPermissionMode {
+		t.Fatalf("空偏好归一化后应自动接受编辑: %+v", normalized.DefaultAgentOptions)
 	}
 	if normalized.AgentRuntimeKind != "nxs" {
 		t.Fatalf("空偏好归一化后 runtime 应为 nxs: %+v", normalized)

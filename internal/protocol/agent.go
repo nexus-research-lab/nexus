@@ -2,6 +2,9 @@ package protocol
 
 import "time"
 
+// DefaultAgentPermissionMode 是新用户与新 Agent 共用的产品默认权限。
+const DefaultAgentPermissionMode = "acceptEdits"
+
 // Options 表示 Agent 运行时配置。
 type Options struct {
 	Provider          string         `json:"provider,omitempty"`
