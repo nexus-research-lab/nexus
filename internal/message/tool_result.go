@@ -12,10 +12,11 @@ import (
 
 // ToolResultObservation 表示 assistant 快照中一次已物化的工具结果。
 type ToolResultObservation struct {
-	ToolUseID string
-	ToolName  string
-	ErrorCode string
-	IsError   bool
+	ToolUseID       string
+	ToolName        string
+	ErrorCode       string
+	IsError         bool
+	MutationOutcome protocol.MutationResultOutcome
 	// Recoverable 表示只用于模型自愈的内部工具结果，不代表真实工具执行。
 	Recoverable bool
 }
@@ -55,12 +56,22 @@ func AssistantToolResults(message protocol.Message) []ToolResultObservation {
 			continue
 		}
 		metadata := mapValue(block["metadata"])
+		mutationResult, _ := protocol.ParseMutationResultEnvelope(
+			map[string]any{
+				"outcome":     metadata[protocol.MutationOutcomeMetadataKey],
+				"message":     metadata[protocol.MutationMessageMetadataKey],
+				"reason_code": metadata[protocol.MutationReasonCodeMetadataKey],
+			},
+			block["structured_output"],
+			block["content"],
+		)
 		observations = append(observations, ToolResultObservation{
-			ToolUseID:   toolUseID,
-			ToolName:    toolNames[toolUseID],
-			ErrorCode:   normalizeString(block["error_code"]),
-			IsError:     boolValue(block["is_error"]),
-			Recoverable: normalizeString(metadata[internalToolResultKindMetadataKey]) == malformedToolInputResultKind,
+			ToolUseID:       toolUseID,
+			ToolName:        toolNames[toolUseID],
+			ErrorCode:       normalizeString(block["error_code"]),
+			IsError:         boolValue(block["is_error"]),
+			MutationOutcome: mutationResult.Outcome,
+			Recoverable:     normalizeString(metadata[internalToolResultKindMetadataKey]) == malformedToolInputResultKind,
 		})
 	}
 	return observations
@@ -103,6 +114,10 @@ func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 	if observation.Recoverable {
 		return false
 	}
+	if observation.MutationOutcome == protocol.MutationResultRejected ||
+		observation.MutationOutcome == protocol.MutationResultNoOp {
+		return false
+	}
 	switch CanonicalToolName(observation.ToolName) {
 	case "", "update_goal":
 		return false
@@ -119,7 +134,8 @@ func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 
 func assistantHasSuccessfulGoalUpdateTool(message protocol.Message) bool {
 	for _, observation := range AssistantToolResults(message) {
-		if observation.IsError {
+		if observation.IsError ||
+			observation.MutationOutcome == protocol.MutationResultRejected {
 			continue
 		}
 		if CanonicalToolName(observation.ToolName) == "update_goal" {

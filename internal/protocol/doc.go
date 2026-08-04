@@ -16,7 +16,7 @@
 //     event.go 同时承载 runtime 每轮结束后的 Agent session 上下文占用事件。
 //   - chat_attachment.go / workspace_file_artifact.go / delivery_policy.go：
 //     聊天附件、工作区文件产物、投递策略。
-//   - identity.go / value.go / provider_failure.go：ID 生成、跨边界值解码与稳定 Provider 失败分类。
+//   - identity.go / value.go / provider_failure.go / tool_result.go：ID 生成、跨边界值解码、稳定 Provider 失败分类，以及工具传输状态之外的显式 mutation 结果语义。
 //   - generate.go / typescript_event.go：前端 TS 类型代码生成入口（go:generate）。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

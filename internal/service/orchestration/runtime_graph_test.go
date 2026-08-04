@@ -173,6 +173,51 @@ func TestRuntimeGraphRecordsSanitizedFailureAndObservedControlReturn(t *testing.
 	}
 }
 
+func TestRuntimeGraphTreatsRejectedMutationAsFailedControlReturn(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 4, 12, 15, 0, 0, time.UTC)
+	repository := &runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+	actor := ActorContext{
+		OwnerUserID: "owner-1", SessionKey: "session-1", AgentID: "agent-1",
+		RootRoundID: "round-1", RuntimeRoundID: "round-1", AgentRoundID: "agent-round-1",
+	}
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "user",
+		"uuid": "tool-result-rejected",
+		"message": map[string]any{
+			"role": "user",
+			"content": []any{map[string]any{
+				"type": "tool_result", "tool_use_id": "tool-plan", "is_error": false,
+				"content": `{"message":"items is required and must contain at least one complete Work Item object","outcome":"rejected","reason_code":"invalid_input"}`,
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.nodes) != 2 || len(repository.edges) != 2 {
+		t.Fatalf("runtime writes nodes=%+v edges=%+v", repository.nodes, repository.edges)
+	}
+	tool := repository.nodes[1]
+	if tool.Status != protocol.ExecutionRuntimeNodeFailed || !tool.Failed ||
+		tool.ErrorCode != "invalid_input" ||
+		tool.ErrorSummary != "items is required and must contain at least one complete Work Item object" ||
+		tool.ResultSummary != "" || tool.Metadata["mutation_outcome"] != "rejected" {
+		t.Fatalf("rejected mutation node = %+v", tool)
+	}
+	if repository.edges[1].Kind != protocol.ExecutionRuntimeEdgeLoopBack ||
+		repository.edges[1].SourceNodeID != tool.ID ||
+		repository.edges[1].TargetNodeID != repository.nodes[0].ID {
+		t.Fatalf("rejected mutation control return = %+v", repository.edges[1])
+	}
+}
+
 func TestCompactRuntimeGraphSummaryHidesInternalSentinels(t *testing.T) {
 	t.Parallel()
 

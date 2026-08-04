@@ -11,13 +11,13 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-// MutationOutcome 表示 command 是否改变了权威状态。
-type MutationOutcome string
+// MutationOutcome 复用跨消息、UI 与 loop guard 的协议语义。
+type MutationOutcome = protocol.MutationResultOutcome
 
 const (
-	MutationApplied  MutationOutcome = "applied"
-	MutationNoOp     MutationOutcome = "no_op"
-	MutationRejected MutationOutcome = "rejected"
+	MutationApplied  = protocol.MutationResultApplied
+	MutationNoOp     = protocol.MutationResultNoOp
+	MutationRejected = protocol.MutationResultRejected
 )
 
 // NextAction 是基于最新 snapshot 的有序、非授权性恢复建议。

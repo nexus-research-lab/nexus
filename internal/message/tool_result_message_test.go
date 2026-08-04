@@ -252,6 +252,50 @@ func TestProcessorPreservesTaskListStructuredOutputFromTranscript(t *testing.T) 
 	}
 }
 
+func TestProcessorAnnotatesRejectedMutationWithoutChangingTransportError(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-rejected-mutation",
+		ParentID:   "round-rejected-mutation",
+	}, "")
+	processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Message: sdkprotocol.ConversationEnvelope{
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.ToolUseBlock{ID: "tool-plan", Name: "mcp__nexus_execution__plan_execution"},
+				},
+			},
+		},
+	})
+
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "user",
+		"message": map[string]any{
+			"role": "user",
+			"content": []any{map[string]any{
+				"type": "tool_result", "tool_use_id": "tool-plan", "is_error": false,
+				"content": `{"outcome":"rejected","reason_code":"invalid_input","message":"items is required"}`,
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := processor.Process(message)
+	blocks, _ := output.DurableMessages[0]["content"].([]map[string]any)
+	metadata, _ := blocks[1]["metadata"].(map[string]any)
+	if blocks[1]["is_error"] != false {
+		t.Fatalf("transport is_error changed: %+v", blocks[1])
+	}
+	if metadata["_nexus_mutation_outcome"] != "rejected" ||
+		metadata["_nexus_mutation_message"] != "items is required" ||
+		metadata["_nexus_mutation_reason_code"] != "invalid_input" {
+		t.Fatalf("mutation metadata = %+v", metadata)
+	}
+}
+
 func TestProcessorDropsUnmatchedSuccessfulToolResultMessage(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",

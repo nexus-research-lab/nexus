@@ -1,13 +1,20 @@
+/**
+ * INPUT: Tool use/result、运行状态、权限请求与本地化上下文。
+ * OUTPUT: 区分 transport error、semantic rejection 与 success 的工具卡片视图模型。
+ * POS: DM/Room 共用 ToolBlock 的纯展示投影，不决定 Agent 的恢复路线。
+ */
 import type { PermissionUpdate } from "@/types/conversation/interaction/permission";
 import { formatTokens } from "@/lib/format/token-count";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import type { ToolResultContent } from "@/types/conversation/message/content";
 
 import {
   getCompactToolInputSummary,
   getToolInputSummary,
   getToolTitleKey,
 } from "../../tool-activity";
+import { projectToolResultMutation } from "../../tool-result-semantic-model";
 import type {
   ToolBlockProps,
   ToolBlockStatus,
@@ -76,6 +83,11 @@ const STATUS_META: Readonly<Record<
     badgeClassName: "bg-primary/10 text-primary",
     labelKey: "message.tool_status_running",
     tone: "running",
+  },
+  rejected: {
+    badgeClassName: "bg-[color:color-mix(in_srgb,var(--destructive)_10%,transparent)] text-(--destructive)",
+    labelKey: "message.tool_status_rejected",
+    tone: "error",
   },
   stopped: {
     badgeClassName: "bg-(--surface-muted-background) text-(--text-muted)",
@@ -153,6 +165,7 @@ const WAITING_DETAIL_BY_STATUS: Readonly<Record<
   error: () => null,
   pending: () => null,
   running: () => null,
+  rejected: () => null,
   stopped: () => null,
   success: () => null,
   waiting_permission: (permission) => permission.fieldSummary,
@@ -182,30 +195,33 @@ export function buildToolBlockViewModel({
   | "toolUse"
 > & { localization: ToolBlockLocalization }): ToolBlockViewModel {
   const { t } = localization;
-  const finalStatus = resolveFinalStatus(Boolean(toolResult?.is_error), status);
+  const finalStatus = resolveFinalStatus(toolResult, status);
   const statusMeta = STATUS_META[finalStatus];
   const permission = buildPermissionProjection(localization, permissionRequest);
   const collapsedInputSummary = getCompactToolInputSummary(toolUse.input);
   const expandedInputSummary = getToolInputSummary(toolUse.input);
   const resultSummary = projectOptional(
     toolResult,
-    (result) => getResultSummary(result.content, localization),
+    (result) => getResultSummary(result, localization),
   );
   const expandedInputDetail = getPrimaryToolInputDetail(
     toolUse.input,
     localization,
   );
   const waitingDetail = WAITING_DETAIL_BY_STATUS[finalStatus](permission);
+  const rejectedDetail = finalStatus === "rejected" ? resultSummary : null;
 
   return {
     collapsedDetailText: firstText([
       waitingDetail,
+      rejectedDetail,
       collapsedInputSummary,
       resultSummary,
     ]),
     durationText: formatDuration(startTime, endTime),
     expandedDetailText: firstText([
       waitingDetail,
+      rejectedDetail,
       expandedInputDetail?.value.trim(),
       expandedInputSummary,
       resultSummary,
@@ -229,11 +245,15 @@ export function buildToolBlockViewModel({
 }
 
 function resolveFinalStatus(
-  resultIsError: boolean,
+  result: ToolResultContent | undefined,
   status: ToolBlockStatus,
 ): ToolBlockStatus {
   const rules = [
-    { matches: resultIsError, value: "error" as const },
+    { matches: Boolean(result?.is_error), value: "error" as const },
+    {
+      matches: projectToolResultMutation(result)?.outcome === "rejected",
+      value: "rejected" as const,
+    },
     { matches: true, value: status },
   ];
   return rules.find((rule) => rule.matches)!.value;
@@ -319,9 +339,14 @@ export function getPrimaryToolInputDetail(
 }
 
 function getResultSummary(
-  content: unknown,
+  result: ToolResultContent,
   { t }: ToolBlockLocalization,
 ): string {
+  const mutation = projectToolResultMutation(result);
+  if (mutation?.outcome === "rejected") {
+    return mutation.message || t("message.tool_rejection_without_detail");
+  }
+  const content = result.content;
   if (typeof content === "string") {
     return truncateResultSummary(content);
   }

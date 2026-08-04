@@ -12,6 +12,7 @@ import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 
 import { WorkspaceFileArtifactList } from "../../../blocks/artifact/workspace-file-artifacts";
@@ -164,7 +165,7 @@ function DmToolRun({
     segment.id,
   );
   useEffect(() => {
-    if (segment.phase !== "complete") {
+    if (segment.phase === "active") {
       return;
     }
     setClosedToolUseCount((currentCount) => (
@@ -182,13 +183,19 @@ function DmToolRun({
       || segment.toolUseIds.length > closedToolUseCount
     )
   );
-  const phase = active ? "active" : "complete";
+  const phase = active
+    ? "active"
+    : segment.errorCount > 0
+    ? "error"
+    : segment.rejectedCount > 0
+    ? "rejected"
+    : "complete";
   const expanded = active || expansion.isOpen;
   const artifacts = useWorkspaceFileArtifactsFromContent(
     segment.projection.content,
   );
   const contentId = `${segment.id}-content`;
-  const error = segment.errorCount > 0;
+  const error = segment.errorCount > 0 || segment.rejectedCount > 0;
   const summary = formatDmToolRunSummary(
     segment.toolUseIds.length,
     segment.errorCount,
@@ -268,9 +275,12 @@ function formatDmToolRunSummary(
   const countKey = toolUseCount === 1
     ? "message.tool_run_count_one"
     : "message.tool_run_count_other";
-  const statusKey = phase === "active"
-    ? "message.tool_run_active"
-    : "message.tool_run_complete";
+  const statusKey = {
+    active: "message.tool_run_active",
+    complete: "message.tool_run_complete",
+    error: "message.tool_run_failed",
+    rejected: "message.tool_run_rejected",
+  }[phase] as TranslationKey;
   const parts = [t(countKey, { count: toolUseCount }), t(statusKey)];
   if (errorCount > 0) {
     const errorKey = errorCount === 1

@@ -30,6 +30,7 @@ const TOOL_STATUS_ICON_MAP: Readonly<Record<
   error: { className: "", icon: XCircle },
   pending: { className: "", icon: Sparkles },
   running: { className: "animate-spin", icon: Loader },
+  rejected: { className: "", icon: XCircle },
   stopped: { className: "", icon: Square },
   success: { className: "", icon: CheckCircle },
   waiting_permission: { className: "", icon: Clock },

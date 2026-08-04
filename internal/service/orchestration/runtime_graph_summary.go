@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -30,6 +32,8 @@ type runtimeGraphNodeEvidence struct {
 	summaryTruncated bool
 	durationMS       int64
 	retryOfSubjectID string
+	mutationOutcome  protocol.MutationResultOutcome
+	semanticFailed   bool
 }
 
 // runtimeGraphLifecycleEvents 保留 Bridge 的 canonical lifecycle，并把
@@ -115,16 +119,36 @@ func applyRuntimeToolResultEvidence(
 			continue
 		}
 		raw := toolResult.RawPayload()
+		mutationResult, hasMutationResult := protocol.ParseMutationResultEnvelope(
+			message.User.ToolUseResult,
+			message.Raw["toolUseResult"],
+			raw["structured_output"],
+			raw["content"],
+			toolResult.Content,
+		)
+		if hasMutationResult {
+			evidence.mutationOutcome = mutationResult.Outcome
+		}
 		evidence.errorCode = firstNonEmpty(
+			mutationResult.ReasonCode,
 			mapString(raw, "error_code"),
 			mapString(raw, "code"),
 		)
 		summary, truncated := compactRuntimeGraphSummary(runtimeGraphResultText(toolResult.Content))
+		if mutationResult.Message != "" {
+			summary, truncated = compactRuntimeGraphSummary(mutationResult.Message)
+		}
 		evidence.summaryTruncated = evidence.summaryTruncated || truncated
 		if toolResult.IsError {
 			evidence.errorSummary = summary
 			if evidence.errorSummary == "" {
 				evidence.errorSummary = "Tool execution failed"
+			}
+		} else if mutationResult.Outcome == protocol.MutationResultRejected {
+			evidence.semanticFailed = true
+			evidence.errorSummary = summary
+			if evidence.errorSummary == "" {
+				evidence.errorSummary = "Tool request was rejected"
 			}
 		} else if summary != "" {
 			evidence.resultSummary = summary
@@ -150,6 +174,15 @@ func runtimeGraphReadableValue(value any, depth int) string {
 	}
 	switch typed := value.(type) {
 	case string:
+		trimmed := strings.TrimSpace(typed)
+		if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+			var nested any
+			if json.Unmarshal([]byte(trimmed), &nested) == nil {
+				if readable := runtimeGraphReadableValue(nested, depth+1); readable != "" {
+					return readable
+				}
+			}
+		}
 		return typed
 	case []any:
 		parts := make([]string, 0, min(len(typed), 4))

@@ -149,6 +149,26 @@ func TestAssistantHasCountedToolProgressIgnoresRecoverableMalformedInput(t *test
 	}
 }
 
+func TestAssistantHasCountedToolProgressIgnoresRejectedMutation(t *testing.T) {
+	message := protocol.Message{
+		"role": "assistant",
+		"content": []map[string]any{
+			{"type": "tool_use", "id": "tool-plan", "name": "mcp__nexus_execution__plan_execution"},
+			{
+				"type": "tool_result", "tool_use_id": "tool-plan", "is_error": false,
+				"content": `{"outcome":"rejected","reason_code":"invalid_input","message":"items is required"}`,
+			},
+		},
+	}
+	results := AssistantToolResults(message)
+	if len(results) != 1 || results[0].MutationOutcome != protocol.MutationResultRejected {
+		t.Fatalf("AssistantToolResults() = %+v", results)
+	}
+	if AssistantHasCountedToolProgress(message) {
+		t.Fatal("rejected mutation must not satisfy the Goal continuation progress guard")
+	}
+}
+
 func TestAssistantMissedGoalCompletionTool(t *testing.T) {
 	message := protocol.Message{
 		"role": "assistant",

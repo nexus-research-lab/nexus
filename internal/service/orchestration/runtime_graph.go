@@ -124,8 +124,12 @@ func (s *Service) ObserveRuntimeMessage(
 		if mapErr != nil {
 			continue
 		}
-		status := runtimeGraphStatus(event)
 		evidence := runtimeGraphEvidenceForEvent(message, event)
+		status := runtimeGraphStatus(event)
+		if evidence.semanticFailed &&
+			status == protocol.ExecutionRuntimeNodeSucceeded {
+			status = protocol.ExecutionRuntimeNodeFailed
+		}
 		nodeID := runtimeGraphNodeID(identity, nodeKind, event.SubjectID)
 		sourceNodeID := rootNodeID
 		if parentNodeID := parentNodeBySubject[strings.TrimSpace(event.ParentSubjectID)]; parentNodeID != "" {
@@ -140,6 +144,9 @@ func (s *Service) ObserveRuntimeMessage(
 			metadata[key] = value
 		}
 		metadata["bridge_event_id"] = event.EventID
+		if evidence.mutationOutcome != "" {
+			metadata["mutation_outcome"] = string(evidence.mutationOutcome)
+		}
 		if err = repository.UpsertRuntimeGraphNode(ctx, protocol.ExecutionRuntimeNodeRun{
 			ID:               nodeID,
 			GraphID:          identity.GraphID,
@@ -156,7 +163,7 @@ func (s *Service) ObserveRuntimeMessage(
 			Name:             event.Name,
 			Description:      event.Description,
 			Status:           status,
-			Failed:           event.Failed,
+			Failed:           status == protocol.ExecutionRuntimeNodeFailed,
 			ResultSummary:    evidence.resultSummary,
 			ErrorCode:        evidence.errorCode,
 			ErrorSummary:     evidence.errorSummary,

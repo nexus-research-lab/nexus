@@ -7,6 +7,7 @@ import {
 import {
   getCompactToolInputSummary,
 } from "../../tool-activity";
+import { isRejectedToolResult } from "../../tool-result-semantic-model";
 
 const PROCESS_SUMMARY_DETAIL_LIMIT = 72;
 
@@ -25,7 +26,7 @@ const PROCESS_METRICS: ProcessMetric[] = [
   {
     kind: "error",
     matches: (block) => block.type === "tool_result"
-      && Boolean(block.is_error)
+      && (Boolean(block.is_error) || isRejectedToolResult(block))
       && !isRecoverableToolResult(block),
   },
   {

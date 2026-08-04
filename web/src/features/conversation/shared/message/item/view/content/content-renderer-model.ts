@@ -12,6 +12,7 @@ import type {
 } from "@/types/conversation/message/content";
 
 import type { ToolBlockStatus } from "../../../blocks/tool/tool-block-types";
+import { isRejectedToolResult } from "../../../tool-result-semantic-model";
 
 const API_RETRY_VISIBLE_ATTEMPT = 4;
 
@@ -81,7 +82,10 @@ export function resolveToolBlockStatus(
   unresolvedToolStatus?: Extract<ToolBlockStatus, "error" | "stopped">,
 ): ToolBlockStatus {
   if (toolUse?.result) {
-    return toolUse.result.is_error ? "error" : "success";
+    if (toolUse.result.is_error) {
+      return "error";
+    }
+    return isRejectedToolResult(toolUse.result) ? "rejected" : "success";
   }
   if (unresolvedToolStatus) {
     return unresolvedToolStatus;

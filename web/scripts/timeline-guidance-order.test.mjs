@@ -2767,7 +2767,7 @@ test("DM tool segments split on narrative and preserve interactions and errors",
       {
         id: "tool-run:tool-failed",
         kind: "tool_run",
-        phase: "complete",
+        phase: "error",
       },
       { id: "content:thinking:5", kind: "content", phase: undefined },
       {
@@ -2978,6 +2978,125 @@ test("DM tool run view expands only the active segment and leaves Room direct co
   );
   assert.doesNotMatch(roomHtml, /data-dm-tool-run-list/);
   assert.match(roomHtml, /读取内容/);
+});
+
+test("semantic tool rejection stays distinct from transport completion in DM and Room", async () => {
+  const { AssistantDmToolRuns } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
+  );
+  const { ContentRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
+  );
+  const { resolveToolBlockStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer-model.ts",
+  );
+  const { ToolBlockResult } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx",
+  );
+  const { projectDmToolRunSegments } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
+  );
+  const { buildProcessSummary } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/message-process-summary.ts",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const tool = {
+    type: "tool_use",
+    id: "tool-plan-rejected",
+    name: "mcp__nexus_execution__plan_execution",
+    input: { objective: "产出 LPL 本周看点简报" },
+  };
+  const result = {
+    type: "tool_result",
+    tool_use_id: tool.id,
+    is_error: false,
+    content: JSON.stringify({
+      message: "items is required and must contain at least one complete Work Item object",
+      next_actions: [{
+        reason: "send items as one non-empty native array",
+        tool: "plan_execution",
+      }],
+      outcome: "rejected",
+      reason_code: "invalid_input",
+    }),
+  };
+  const projection = {
+    content: [tool, result],
+    streamingIndexes: new Set(),
+  };
+  const [segment] = projectDmToolRunSegments({
+    interactiveToolUseIds: new Set(),
+    live: true,
+    projection,
+    responseResumed: true,
+  });
+  assert.equal(segment.phase, "rejected");
+  assert.equal(segment.rejectedCount, 1);
+  assert.equal(segment.errorCount, 0);
+  assert.equal(
+    resolveToolBlockStatus({ result }, false),
+    "rejected",
+    "a completed transport must not turn a rejected mutation green",
+  );
+  assert.deepEqual(
+    buildProcessSummary({
+      pendingPermissionCount: 0,
+      processContent: [tool, result],
+    }).metrics,
+    [
+      { count: 1, kind: "action" },
+      { count: 1, kind: "error" },
+    ],
+  );
+
+  const provider = (child) => React.createElement(I18nProvider, null, child);
+  const dmHtml = renderToStaticMarkup(provider(React.createElement(
+    AssistantDmToolRuns,
+    {
+      activity: {
+        emptyStreamStatus: null,
+        showCursor: true,
+        standalone: false,
+        state: "executing",
+      },
+      environment: {
+        canRespondToPermissions: true,
+        hiddenToolNames: [],
+        mode: "dm_live",
+      },
+      generatedFilesLabel: "生成文件",
+      permissions: {
+        all: [],
+        matchedByToolUseId: new Map(),
+        owner: "content",
+        unmatched: [],
+      },
+      projection,
+      responseResumed: true,
+    },
+  )));
+  assert.match(dmHtml, /data-dm-tool-run-phase="rejected"/);
+  assert.match(dmHtml, /已拒绝/);
+  assert.doesNotMatch(dmHtml, />完成</);
+
+  const roomHtml = renderToStaticMarkup(provider(React.createElement(
+    ContentRenderer,
+    { content: [tool, result] },
+  )));
+  assert.match(roomHtml, /已拒绝/);
+  assert.match(roomHtml, /items is required/);
+  assert.doesNotMatch(roomHtml, /next_actions/);
+
+  const detailHtml = renderToStaticMarkup(provider(React.createElement(
+    ToolBlockResult,
+    { toolResult: result },
+  )));
+  assert.match(detailHtml, /data-tool-result-semantic-outcome="rejected"/);
+  assert.match(detailHtml, /items is required/);
+  assert.match(detailHtml, /invalid_input/);
+  assert.doesNotMatch(detailHtml, /next_actions/);
 });
 
 test("thinking and replying indicators render a real stepped frame track", async () => {
