@@ -109,6 +109,7 @@ final class DesktopUpdateChecker {
       "reason": reason.rawValue,
       "current_version": currentVersion.version,
       "current_build": currentVersion.buildNumber,
+      "current_architecture": DesktopArchitecture.current,
     ])
 
     do {
@@ -164,13 +165,31 @@ final class DesktopUpdateChecker {
 
   private func fetchLatestRelease() async throws -> DesktopReleaseInfo {
     let release: GitHubRelease = try await fetchJSON(Self.latestReleaseURL)
-    let metadataAsset = Self.findMacOSMetadataAsset(release.assets)
-    let packageAsset = Self.findMacOSPackageAsset(release.assets)
-    let packageSHA256Asset = Self.findMacOSPackageSHA256Asset(release.assets, packageAsset: packageAsset)
+    let currentArchitecture = DesktopArchitecture.current
+    let metadataAsset = DesktopReleaseAssetSelector.macOSMetadataAsset(
+      in: release.assets,
+      architecture: currentArchitecture
+    )
+    let packageAsset = DesktopReleaseAssetSelector.macOSPackageAsset(
+      in: release.assets,
+      architecture: currentArchitecture
+    )
+    let packageSHA256Asset = DesktopReleaseAssetSelector.macOSPackageSHA256Asset(
+      in: release.assets,
+      packageAsset: packageAsset,
+      architecture: currentArchitecture
+    )
 
     if let metadataURL = metadataAsset?.browserDownloadURL {
       do {
         let metadata: DesktopPackageMetadata = try await fetchJSON(metadataURL)
+        if let packageArchitecture = metadata.architecture,
+           !DesktopArchitecture.matches(packageArchitecture, expected: currentArchitecture) {
+          throw DesktopUpdateError.packageArchitectureMismatch(
+            expected: currentArchitecture,
+            actual: packageArchitecture
+          )
+        }
         return DesktopReleaseInfo(
           version: metadata.version,
           buildNumber: metadata.buildNumber,
@@ -767,40 +786,6 @@ private extension DesktopUpdateChecker {
     echo "Nexus update installer finished"
   } >> "${LOG_PATH}" 2>&1
   """
-
-  static func findMacOSMetadataAsset(_ assets: [GitHubReleaseAsset]) -> GitHubReleaseAsset? {
-    assets.first { asset in
-      let name = asset.name.lowercased()
-      return name.contains("macos") && name.hasSuffix(".metadata.json")
-    }
-  }
-
-  static func findMacOSPackageAsset(_ assets: [GitHubReleaseAsset]) -> GitHubReleaseAsset? {
-    assets.first { asset in
-      let name = asset.name.lowercased()
-      return name.contains("macos") && (name.hasSuffix(".dmg") || name.hasSuffix(".zip"))
-    }
-  }
-
-  static func findMacOSPackageSHA256Asset(
-    _ assets: [GitHubReleaseAsset],
-    packageAsset: GitHubReleaseAsset?
-  ) -> GitHubReleaseAsset? {
-    if let packageAsset {
-      let exactMatch = assets.first { asset in
-        asset.name.caseInsensitiveCompare("\(packageAsset.name).sha256") == .orderedSame
-      }
-      if let exactMatch {
-        return exactMatch
-      }
-    }
-
-    return assets.first { asset in
-      let name = asset.name.lowercased()
-      return name.contains("macos") &&
-        (name.hasSuffix(".dmg.sha256") || name.hasSuffix(".zip.sha256"))
-    }
-  }
 
   static func formatReleaseNotes(_ rawNotes: String?) -> String? {
     guard let rawNotes else {

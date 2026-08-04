@@ -11,7 +11,28 @@ BUILD_NUMBER="${NEXUS_DESKTOP_BUILD_NUMBER:-$(git -C "${ROOT_DIR}" rev-list --co
 APP_BUILD_DIR="${NEXUS_DESKTOP_APP_BUILD_DIR:-${MACOS_DIR}/.build/app}"
 APP_BUNDLE="${APP_BUILD_DIR}/${APP_NAME}.app"
 OUTPUT_DIR="${NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR:-${MACOS_DIR}/.build/package}"
-DIST_NAME="${NEXUS_DESKTOP_PACKAGE_NAME:-${APP_NAME}-macos-${APP_VERSION}-${BUILD_NUMBER}}"
+
+case "${NEXUS_DESKTOP_TARGET_ARCH:-$(uname -m)}" in
+  arm64 | aarch64)
+    TARGET_ARCH="arm64"
+    TARGET_GOARCH="arm64"
+    PACKAGE_ARCH_LABEL="arm64"
+    PACKAGE_ARCH_DISPLAY="Apple Silicon (arm64)"
+    ;;
+  x86_64 | amd64 | intel)
+    TARGET_ARCH="x86_64"
+    TARGET_GOARCH="amd64"
+    PACKAGE_ARCH_LABEL="intel"
+    PACKAGE_ARCH_DISPLAY="Intel (x86_64)"
+    ;;
+  *)
+    echo "unsupported macOS target architecture: ${NEXUS_DESKTOP_TARGET_ARCH:-$(uname -m)}" >&2
+    echo "supported architectures: arm64, x86_64" >&2
+    exit 1
+    ;;
+esac
+
+DIST_NAME="${NEXUS_DESKTOP_PACKAGE_NAME:-${APP_NAME}-macos-${PACKAGE_ARCH_LABEL}-${APP_VERSION}-${BUILD_NUMBER}}"
 STAGING_ROOT="${OUTPUT_DIR}/staging"
 STAGING_DIR="${STAGING_ROOT}/${DIST_NAME}"
 DMG_DIR="${STAGING_ROOT}/${DIST_NAME}-dmg"
@@ -44,6 +65,17 @@ is_enabled() {
       return 1
       ;;
   esac
+}
+
+require_macho_architecture() {
+  local executable_path="$1"
+  local executable_architectures
+  executable_architectures="$(lipo -archs "${executable_path}" 2>/dev/null || true)"
+  if [[ " ${executable_architectures} " != *" ${TARGET_ARCH} "* ]]; then
+    echo "macOS package architecture mismatch: ${executable_path}" >&2
+    echo "expected ${TARGET_ARCH}, got ${executable_architectures:-unknown}" >&2
+    exit 1
+  fi
 }
 
 detect_app_signature() {
@@ -168,6 +200,8 @@ export NEXUS_DESKTOP_VERSION="${APP_VERSION}"
 export NEXUS_DESKTOP_BUILD_NUMBER="${BUILD_NUMBER}"
 export NEXUS_DESKTOP_APP_BUILD_DIR="${APP_BUILD_DIR}"
 export NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME="${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-1}"
+export NEXUS_DESKTOP_TARGET_ARCH="${TARGET_ARCH}"
+export NEXUS_DESKTOP_NXS_GOARCH="${NEXUS_DESKTOP_NXS_GOARCH:-${TARGET_GOARCH}}"
 
 if [[ "${NEXUS_DESKTOP_PACKAGE_SKIP_BUILD:-0}" != "1" ]]; then
   "${ROOT_DIR}/scripts/desktop/build-macos-app.sh"
@@ -178,10 +212,20 @@ if [[ ! -d "${APP_BUNDLE}" ]]; then
   exit 1
 fi
 
+require_macho_architecture "${APP_BUNDLE}/Contents/MacOS/${EXECUTABLE_NAME}"
+require_macho_architecture "${APP_BUNDLE}/Contents/MacOS/nexus-server"
+require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/nexusctl"
+
 NXS_RUNTIME_PATH="${APP_BUNDLE}/Contents/Resources/bin/nxs"
 if is_enabled "${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME}" && [[ ! -x "${NXS_RUNTIME_PATH}" ]]; then
   echo "missing bundled nxs runtime: ${NXS_RUNTIME_PATH}" >&2
   exit 1
+fi
+if [[ -x "${NXS_RUNTIME_PATH}" ]]; then
+  require_macho_architecture "${NXS_RUNTIME_PATH}"
+fi
+if [[ -x "${APP_BUNDLE}/Contents/Resources/bin/rg" ]]; then
+  require_macho_architecture "${APP_BUNDLE}/Contents/Resources/bin/rg"
 fi
 
 plutil -lint "${APP_BUNDLE}/Contents/Info.plist" >/dev/null
@@ -213,6 +257,7 @@ fi
   printf 'Nexus macOS app package\n\n'
   printf 'Version: %s\n' "${APP_VERSION}"
   printf 'Build: %s\n' "${BUILD_NUMBER}"
+  printf 'Architecture: %s\n' "${PACKAGE_ARCH_DISPLAY}"
   printf 'Commit: %s\n' "${COMMIT_SHORT}"
   printf 'Created: %s\n\n' "${CREATED_AT}"
   if [[ "${PACKAGE_SIGNING_DEVELOPER_ID}" == "true" && "${PACKAGE_SIGNING_NOTARIZED}" == "true" ]]; then
@@ -238,6 +283,7 @@ PACKAGE_EXECUTABLE_NAME="${EXECUTABLE_NAME}" \
 PACKAGE_BUNDLE_IDENTIFIER="${BUNDLE_IDENTIFIER}" \
 PACKAGE_APP_VERSION="${APP_VERSION}" \
 PACKAGE_BUILD_NUMBER="${BUILD_NUMBER}" \
+PACKAGE_ARCHITECTURE="${TARGET_ARCH}" \
 PACKAGE_CREATED_AT="${CREATED_AT}" \
 PACKAGE_COMMIT_SHA="${COMMIT_SHA}" \
 PACKAGE_COMMIT_SHORT="${COMMIT_SHORT}" \
@@ -262,6 +308,7 @@ const metadata = {
   executable_name: env.PACKAGE_EXECUTABLE_NAME,
   bundle_identifier: env.PACKAGE_BUNDLE_IDENTIFIER,
   platform: "macos",
+  architecture: env.PACKAGE_ARCHITECTURE,
   version: env.PACKAGE_APP_VERSION,
   build_number: env.PACKAGE_BUILD_NUMBER,
   created_at: env.PACKAGE_CREATED_AT,

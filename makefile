@@ -44,7 +44,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev dev-nxs install gen-protocol-types lint-web test-web typecheck-web prepare-host-data \
 	check-backend check-go-vet check-go check-go-fresh check-go-full check test run-web run-backend run-backend-go \
-	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
+	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
 
 # Show help
@@ -161,6 +161,9 @@ app-package: ## 构建 macOS app zip、sha256 和 metadata
 
 app-dmg: ## 构建 macOS app dmg、sha256 和 metadata
 	NEXUS_DESKTOP_PACKAGE_FORMAT=dmg ./scripts/desktop/package-macos-app.sh
+
+app-dmg-intel: ## 构建 Intel x86_64 macOS dmg、sha256 和 metadata
+	NEXUS_DESKTOP_TARGET_ARCH=x86_64 NEXUS_DESKTOP_NXS_GOARCH=amd64 NEXUS_DESKTOP_PACKAGE_FORMAT=dmg ./scripts/desktop/package-macos-app.sh
 
 build-dmg: app-dmg ## app-dmg 的别名
 

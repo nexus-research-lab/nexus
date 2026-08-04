@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added separately signed and notarized macOS installers for Apple Silicon and Intel, with architecture-aware automatic updates.
+
 ## [0.1.33] - 2026-08-04
 
 ### Changed

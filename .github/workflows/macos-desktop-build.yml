@@ -38,10 +38,21 @@ env:
 
 jobs:
   build:
-    name: Validate macOS desktop build, smoke, and package
-    runs-on: macos-latest
+    name: Validate macOS ${{ matrix.display_name }} build, smoke, and package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - display_name: Apple Silicon
+            runner: macos-15
+            target_arch: arm64
+          - display_name: Intel
+            runner: macos-15-intel
+            target_arch: x86_64
+    runs-on: ${{ matrix.runner }}
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
+      NEXUS_DESKTOP_TARGET_ARCH: ${{ matrix.target_arch }}
       NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
       NEXUS_DESKTOP_SMOKE_MAIN_TIMEOUT_SECONDS: "45"
       NEXUS_DESKTOP_SMOKE_LAUNCHER_TIMEOUT_SECONDS: "30"
@@ -96,6 +107,10 @@ jobs:
           }
 
           const metadata = JSON.parse(fs.readFileSync(path.join(outputDir, metadataPath), "utf8"));
+          const expectedArchitecture = process.env.NEXUS_DESKTOP_TARGET_ARCH;
+          if (metadata.architecture !== expectedArchitecture) {
+            throw new Error(`expected ${expectedArchitecture} metadata, got ${metadata.architecture ?? "unknown"}`);
+          }
           if (metadata.signing?.kind !== "ad-hoc") {
             throw new Error(`expected ad-hoc CI package, got ${metadata.signing?.kind ?? "unknown"}`);
           }

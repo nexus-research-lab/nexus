@@ -81,7 +81,8 @@ winget install Anthropic.ClaudeCode
 
 ### Desktop Apps
 
-- macOS: `Nexus-macos-<version>-<build>.dmg`
+- macOS Apple Silicon: `Nexus-macos-arm64-<version>-<build>.dmg`
+- macOS Intel: `Nexus-macos-intel-<version>-<build>.dmg`
 - Windows: `NexusSetup-<version>-<build>.exe`
 
 Verify the matching `.sha256` file before installing. Desktop app data is stored under `~/.nexus`.
