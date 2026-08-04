@@ -220,8 +220,10 @@ const directory = {
 test("WorkGraph model keeps dependency depth and current node summary", async () => {
   const {
     compactExecutionNodeObjective,
+    hasExecutionGraph,
     hasManagedExecutionGraph,
     isExecutionActivityVisible,
+    normalizeExecutionNodeDisplayText,
     resolveExecutionPrimaryAgentNodes,
     resolveExecutionNodeSummary,
     resolveExecutionNodeWindow,
@@ -235,10 +237,32 @@ test("WorkGraph model keeps dependency depth and current node summary", async ()
     integrate: 2,
   });
   assert.equal(hasManagedExecutionGraph(execution), true);
+  assert.equal(hasExecutionGraph(execution), true);
   assert.equal(isExecutionActivityVisible(execution), true);
   assert.deepEqual(
     resolveExecutionPrimaryAgentNodes(execution).map((node) => node.id),
     ["research", "build"],
+  );
+  const withLead = structuredClone(execution);
+  withLead.graph.nodes.push({
+    id: "lead-round",
+    kind: "agent",
+    visibility: "primary",
+    work_item_id: "",
+    agent_id: "lead",
+    lifecycle_status: "running",
+    position: 99,
+  });
+  withLead.graph.edges.push({
+    id: "coordination:lead:research",
+    kind: "coordination",
+    source_node_id: "lead-round",
+    target_node_id: "research",
+  });
+  assert.deepEqual(
+    resolveExecutionPrimaryAgentNodes(withLead).map((node) => node.id),
+    ["lead-round", "research", "build"],
+    "the coordinator remains first even when its runtime node arrived later",
   );
   const completed = structuredClone(execution);
   completed.status = "completed";
@@ -269,6 +293,16 @@ test("WorkGraph model keeps dependency depth and current node summary", async ()
   assert.equal(
     compactExecutionNodeObjective("Researcher - source review", "Researcher"),
     "source review",
+  );
+  assert.equal(
+    normalizeExecutionNodeDisplayText("__nexus_interrupt_without_message__"),
+    "",
+  );
+  assert.equal(
+    normalizeExecutionNodeDisplayText(
+      "Page failed <nexus_room_no_reply/> __nexus_internal_control__",
+    ),
+    "Page failed",
   );
 
   const contained = structuredClone(execution);
@@ -406,7 +440,9 @@ test("WorkGraph layout reflows when Plan nodes are added or removed", async () =
 
 test("Planless runtime graph promotes active tools and keeps ordinary tools in detail", async () => {
   const {
+    hasExecutionGraph,
     hasManagedExecutionGraph,
+    isExecutionActivityVisible,
     resolveExecutionNodeSummary,
     orderedExecutionGraphNodes,
   } = await server.ssrLoadModule(
@@ -492,6 +528,8 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
   };
 
   assert.equal(hasManagedExecutionGraph(runtimeExecution), false);
+  assert.equal(hasExecutionGraph(runtimeExecution), true);
+  assert.equal(isExecutionActivityVisible(runtimeExecution), true);
 
   assert.deepEqual(
     orderedExecutionGraphNodes(runtimeExecution).map((node) => node.id),
@@ -523,6 +561,55 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
     repairedLayout.edges.map((edge) => `${edge.kind}:${edge.sourceId}->${edge.targetId}`),
     ["invoke:agent-run-1->tool-run-1"],
     "a visible child with durable parent identity never becomes an orphan icon",
+  );
+
+  const retriedExecution = structuredClone(runtimeExecution);
+  retriedExecution.graph.nodes[1] = {
+    ...retriedExecution.graph.nodes[1],
+    error_code: "fetch_failed",
+    error_summary: "The requested page could not be reached.",
+    lifecycle_status: "failed",
+  };
+  retriedExecution.graph.nodes.push({
+    id: "tool-run-retry",
+    kind: "tool",
+    visibility: "nested",
+    work_item_id: "",
+    parent_node_id: "agent-run-1",
+    subject_id: "tool-3",
+    name: "search",
+    lifecycle_status: "running",
+    position: 3,
+  });
+  retriedExecution.graph.edges.push(
+    {
+      id: "control-return-1",
+      kind: "loop_back",
+      source_node_id: "tool-run-1",
+      target_node_id: "agent-run-1",
+    },
+    {
+      id: "invoke-retry",
+      kind: "invoke",
+      source_node_id: "agent-run-1",
+      target_node_id: "tool-run-retry",
+    },
+    {
+      id: "retry-1",
+      kind: "retry",
+      source_node_id: "tool-run-1",
+      target_node_id: "tool-run-retry",
+    },
+  );
+  const retriedLayout = buildExecutionGraphLayout(retriedExecution);
+  assert.deepEqual(
+    retriedLayout.edges.map((edge) => edge.kind),
+    ["invoke", "loop_back", "invoke", "retry"],
+  );
+  assert.ok(
+    retriedLayout.nodes.find((node) => node.node.id === "tool-run-retry").y
+      > retriedLayout.nodes.find((node) => node.node.id === "agent-run-1").y,
+    "an Agent-chosen retry remains a downward runtime child",
   );
 });
 
@@ -751,7 +838,7 @@ test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", 
   assert.match(html, /data-execution-node-map/);
   assert.match(html, /data-execution-workgraph-canvas/);
   assert.match(html, /data-execution-board-grid/);
-  assert.match(html, /data-execution-node-detail-mode="inspector"/);
+  assert.match(html, /data-execution-node-detail-mode="popover"/);
   assert.match(html, /data-execution-edge-layer/);
   assert.match(html, /data-execution-edge-source="research"/);
   assert.match(html, /data-execution-edge-target="build"/);
@@ -777,6 +864,11 @@ test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", 
     "utf8",
   );
   assert.match(canvasSource, /ExecutionNodeInspector/);
+  assert.match(canvasSource, /ExecutionNodeRunList/);
+  assert.match(canvasSource, /data-execution-selected-node-detail-mode="popover"/);
+  assert.match(canvasSource, /execution\.error_summary/);
+  assert.match(canvasSource, /execution\.result_summary/);
+  assert.match(canvasSource, /execution\.control_return_observed/);
   assert.match(canvasSource, /execution\.acceptance/);
   assert.match(canvasSource, /execution\.submission/);
   assert.doesNotMatch(canvasSource, /ExecutionNodePopover/);

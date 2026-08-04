@@ -91,11 +91,13 @@ export type ExecutionGraphNodeVisibility = "primary" | "nested" | "detail";
 export type ExecutionGraphEdgeKind =
   | "dependency"
   | "dispatch"
+  | "coordination"
   | "spawn"
   | "invoke"
   | "guard"
   | "review"
-  | "loop_back";
+  | "loop_back"
+  | "retry";
 
 export interface ExecutionGraphNodeView {
   id: string;
@@ -114,6 +116,13 @@ export interface ExecutionGraphNodeView {
   reviewer_kind?: "agent" | "user" | "system" | "policy";
   responsibility_status?: ExecutionWorkItemStatus;
   run_status?: ExecutionAttemptView["status"];
+  result_summary?: string;
+  error_code?: string;
+  error_summary?: string;
+  summary_truncated?: boolean;
+  duration_ms?: number;
+  started_at?: string;
+  finished_at?: string;
   position: number;
 }
 

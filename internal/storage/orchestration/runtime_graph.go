@@ -31,12 +31,15 @@ INSERT INTO runtime_graph_node_runs (
     node_run_id, graph_id, owner_user_id, session_key, execution_id,
     node_kind, subject_id, parent_subject_id, root_round_id,
     runtime_round_id, agent_round_id, agent_id, name, description,
-    status, failed, started_at, updated_at, finished_at, metadata_json
+    status, failed, result_summary, error_code, error_summary,
+    summary_truncated, duration_ms, started_at, updated_at, finished_at,
+    metadata_json
 ) VALUES (`+
 		r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+
 		r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+
 		r.bind(10)+`, `+r.bind(11)+`, `+r.bind(12)+`, `+r.bind(13)+`, `+r.bind(14)+`, `+
-		r.bind(15)+`, `+r.bind(16)+`, `+r.bind(17)+`, `+r.bind(18)+`, `+r.bind(19)+`, `+r.jsonBind(20)+`
+		r.bind(15)+`, `+r.bind(16)+`, `+r.bind(17)+`, `+r.bind(18)+`, `+r.bind(19)+`, `+
+		r.bind(20)+`, `+r.bind(21)+`, `+r.bind(22)+`, `+r.bind(23)+`, `+r.bind(24)+`, `+r.jsonBind(25)+`
 )
 ON CONFLICT (node_run_id) DO UPDATE SET
     execution_id = COALESCE(runtime_graph_node_runs.execution_id, excluded.execution_id),
@@ -51,6 +54,17 @@ ON CONFLICT (node_run_id) DO UPDATE SET
     failed = CASE
         WHEN runtime_graph_node_runs.failed OR excluded.failed THEN TRUE
         ELSE FALSE
+    END,
+    result_summary = COALESCE(NULLIF(excluded.result_summary, ''), runtime_graph_node_runs.result_summary),
+    error_code = COALESCE(NULLIF(excluded.error_code, ''), runtime_graph_node_runs.error_code),
+    error_summary = COALESCE(NULLIF(excluded.error_summary, ''), runtime_graph_node_runs.error_summary),
+    summary_truncated = CASE
+        WHEN runtime_graph_node_runs.summary_truncated OR excluded.summary_truncated THEN TRUE
+        ELSE FALSE
+    END,
+    duration_ms = CASE
+        WHEN excluded.duration_ms > 0 THEN excluded.duration_ms
+        ELSE runtime_graph_node_runs.duration_ms
     END,
     updated_at = CASE
         WHEN excluded.updated_at > runtime_graph_node_runs.updated_at THEN excluded.updated_at
@@ -74,6 +88,11 @@ ON CONFLICT (node_run_id) DO UPDATE SET
 		nullString(item.Description),
 		item.Status,
 		item.Failed,
+		nullString(item.ResultSummary),
+		nullString(item.ErrorCode),
+		nullString(item.ErrorSummary),
+		item.SummaryTruncated,
+		item.DurationMS,
 		r.timestamp(item.StartedAt),
 		r.timestamp(item.UpdatedAt),
 		nullTime(item.FinishedAt),
@@ -240,7 +259,9 @@ func (r *Repository) GetRuntimeGraph(
 SELECT node_run_id, graph_id, owner_user_id, session_key, execution_id,
        node_kind, subject_id, parent_subject_id, root_round_id,
        runtime_round_id, agent_round_id, agent_id, name, description,
-       status, failed, started_at, updated_at, finished_at, metadata_json
+       status, failed, result_summary, error_code, error_summary,
+       summary_truncated, duration_ms, started_at, updated_at, finished_at,
+       metadata_json
 FROM runtime_graph_node_runs
 WHERE owner_user_id = %s AND session_key = %s AND %s
 ORDER BY started_at, node_run_id
@@ -351,6 +372,7 @@ func scanRuntimeGraphNode(
 ) (protocol.ExecutionRuntimeNodeRun, error) {
 	var item protocol.ExecutionRuntimeNodeRun
 	var executionID, parentSubjectID, agentID, name, description sql.NullString
+	var resultSummary, errorCode, errorSummary sql.NullString
 	var finishedAt sql.NullTime
 	var kind, status, metadataJSON string
 	err := scanner.Scan(
@@ -370,6 +392,11 @@ func scanRuntimeGraphNode(
 		&description,
 		&status,
 		&item.Failed,
+		&resultSummary,
+		&errorCode,
+		&errorSummary,
+		&item.SummaryTruncated,
+		&item.DurationMS,
 		&item.StartedAt,
 		&item.UpdatedAt,
 		&finishedAt,
@@ -385,6 +412,9 @@ func scanRuntimeGraphNode(
 	item.Name = nullStringValue(name)
 	item.Description = nullStringValue(description)
 	item.Status = protocol.ExecutionRuntimeNodeStatus(status)
+	item.ResultSummary = nullStringValue(resultSummary)
+	item.ErrorCode = nullStringValue(errorCode)
+	item.ErrorSummary = nullStringValue(errorSummary)
 	item.FinishedAt = nullTimePointer(finishedAt)
 	item.Metadata, err = parseMap(metadataJSON)
 	return item, err
@@ -429,7 +459,8 @@ func validateRuntimeGraphEdge(item protocol.ExecutionRuntimeEdgeRun) error {
 	case protocol.ExecutionRuntimeEdgeInvoke,
 		protocol.ExecutionRuntimeEdgeSpawn,
 		protocol.ExecutionRuntimeEdgeGuard,
-		protocol.ExecutionRuntimeEdgeLoopBack:
+		protocol.ExecutionRuntimeEdgeLoopBack,
+		protocol.ExecutionRuntimeEdgeRetry:
 		return nil
 	default:
 		return fmt.Errorf("%w: runtime graph edge kind %q is invalid", ErrInvariant, item.Kind)

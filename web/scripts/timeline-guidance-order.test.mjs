@@ -6802,6 +6802,57 @@ test("Room projects every agent_round as a stable root-local feed node", async (
   );
 });
 
+test("Room timeline conserves user messages while optimistic roots become canonical", async () => {
+  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const clientMessageId = "client-room-conservation";
+  const optimistic = {
+    ...userMessage({
+      content: "先分析这件事",
+      messageId: clientMessageId,
+      roundId: "optimistic-room-round",
+      timestamp: 1,
+    }),
+    client_message_id: clientMessageId,
+  };
+  const canonical = {
+    ...optimistic,
+    content: "先分析这件事（已确认）",
+    message_id: "canonical-room-message",
+    round_id: "canonical-room-round",
+    timestamp: 2,
+  };
+  const followUp = userMessage({
+    content: "再补充可靠性维度",
+    messageId: "room-follow-up",
+    roundId: "canonical-room-round",
+    timestamp: 3,
+  });
+  const projection = projectGroupAgentTimeline({
+    messageGroups: new Map([
+      ["optimistic-room-round", [optimistic]],
+      ["canonical-room-round", [canonical, followUp]],
+    ]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map(),
+    roundIds: ["optimistic-room-round", "canonical-room-round"],
+  });
+
+  assert.deepEqual(projection.roundIds, [clientMessageId]);
+  assert.equal(
+    projection.rootRoundIds.get(clientMessageId),
+    "canonical-room-round",
+  );
+  assert.deepEqual(
+    projection.messageGroups.get(clientMessageId)?.map(
+      (message) => message.message_id,
+    ),
+    ["canonical-room-message", "room-follow-up"],
+    "canonical ACK replacement must not overwrite another visible user message",
+  );
+});
+
 test("single-target Room guidance attaches only to its consuming agent", async () => {
   const { buildGroupRoundCardModel } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",

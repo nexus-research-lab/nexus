@@ -10,7 +10,7 @@
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go / room_attempt_terminal.go：Assignment target preflight、带 current Spec/accepted dependency WorkContract 的 Room Assignment outbox、permanent cancel/transient retry、跨 Agent review-return 与 exact runtime cancellation outbox consumer port、review admission 与 slot root Attempt 终态桥；自审沿 WorkBinding 同轮继续。
 //   - subagent_admission.go：SDK Agent tool 的 runtime-only 放行与可选 managed launch binding、瞬时存储冲突退避重试、child Attempt 生命周期、parent round exit durable reconciliation 与 terminal evidence。
 //   - review.go：Submission、Acceptance、依赖解锁与 completion audit。
-//   - context.go / execution_view.go / runtime_graph*.go / execution_alignment.go：面向当前 actor 的有界 <nexus_execution_context>、确定性 graph digest、current input/output、已验收依赖、terminal subagent result ref、恢复/guarded replan、Agent-selected objective alignment Gate，以及去除 capability identity、按 durable parent identity 保证子图边完整的 Web WorkGraph/Runtime Graph 只读投影。
+//   - context.go / execution_view.go / runtime_graph*.go / execution_alignment.go：面向当前 actor 的有界 <nexus_execution_context>、确定性 graph digest、current input/output、已验收依赖、terminal subagent result ref、恢复/guarded replan、Agent-selected objective alignment Gate，以及去除 capability identity、按 durable parent identity 保证子图边完整、只记录已发生控制返回与 exact retry 事实的 Web WorkGraph/Runtime Graph 只读投影。
 //   - prompt.go / prompt_policy.md：所有 DM、Room、Goal continuation 共用的稳定执行契约。
 //   - goal_policy.go / promotion.go / evidence.go / explicit_goal.go：只受权限与状态硬门槛约束的 Agent-selected adaptive promotion、runtime/scheduler 建议信号，以及 explicit/adaptive Goal revision successor 的双向 binding/confirmation。
 //   - result.go：所有模型可见 mutation 共用的 outcome/reason/next_actions envelope。

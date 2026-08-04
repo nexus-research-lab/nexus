@@ -7,6 +7,7 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -64,6 +65,7 @@ func mergeExecutionRuntimeGraph(
 	reviewNodeByWorkItem := make(map[string]string)
 	subagentNodeByTask := make(map[string]string)
 	graphNodeByID := make(map[string]int)
+	coordinatorNodeIDs := make([]string, 0)
 	for index, node := range view.Graph.Nodes {
 		graphNodeByID[node.ID] = index
 		if node.Kind == protocol.ExecutionGraphNodeAgent && node.WorkItemID != "" {
@@ -77,6 +79,10 @@ func mergeExecutionRuntimeGraph(
 		}
 		if node.Kind == protocol.ExecutionGraphNodeSubagent && node.SubjectID != "" {
 			subagentNodeByTask[node.SubjectID] = node.ID
+		}
+		if node.Kind == protocol.ExecutionGraphNodeAgent && node.WorkItemID == "" &&
+			node.AgentID != "" && node.AgentID == view.CoordinatorAgentID {
+			coordinatorNodeIDs = append(coordinatorNodeIDs, node.ID)
 		}
 	}
 
@@ -109,7 +115,6 @@ func mergeExecutionRuntimeGraph(
 		}
 	}
 	runtimeNodeProjection := make(map[string]string, len(runtimeGraph.Nodes))
-	coordinatorNodeIDs := make([]string, 0)
 	for _, runtimeNode := range runtimeGraph.Nodes {
 		if managedExecution {
 			if _, allowed := allowedAgentRound[runtimeNode.AgentRoundID]; !allowed {
@@ -125,6 +130,10 @@ func mergeExecutionRuntimeGraph(
 				boundNodeID = agentNodeByWorkItem[workItemID]
 			case "review":
 				boundNodeID = reviewNodeByWorkItem[workItemID]
+			case "coordination":
+				if len(coordinatorNodeIDs) > 0 {
+					boundNodeID = coordinatorNodeIDs[0]
+				}
 			}
 			if boundNodeID != "" {
 				runtimeNodeProjection[runtimeNode.ID] = boundNodeID
@@ -134,18 +143,14 @@ func mergeExecutionRuntimeGraph(
 			}
 			if existingID := agentNodeByRound[runtimeNode.AgentRoundID]; existingID != "" {
 				runtimeNodeProjection[runtimeNode.ID] = existingID
-				if index, exists := graphNodeByID[existingID]; exists {
-					view.Graph.Nodes[index].LifecycleStatus = string(runtimeNode.Status)
-				}
+				updateBoundExecutionGraphNode(view, graphNodeByID, existingID, runtimeNode)
 				continue
 			}
 		}
 		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeSubagent {
 			if existingID := subagentNodeByTask[runtimeNode.SubjectID]; existingID != "" {
 				runtimeNodeProjection[runtimeNode.ID] = existingID
-				if index, exists := graphNodeByID[existingID]; exists {
-					view.Graph.Nodes[index].LifecycleStatus = string(runtimeNode.Status)
-				}
+				updateBoundExecutionGraphNode(view, graphNodeByID, existingID, runtimeNode)
 				continue
 			}
 		}
@@ -205,8 +210,11 @@ func mergeExecutionRuntimeGraph(
 			kind = protocol.ExecutionGraphEdgeGuard
 		case protocol.ExecutionRuntimeEdgeLoopBack:
 			kind = protocol.ExecutionGraphEdgeLoopBack
+		case protocol.ExecutionRuntimeEdgeRetry:
+			kind = protocol.ExecutionGraphEdgeRetry
 		}
-		if runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeLoopBack {
+		if runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeLoopBack &&
+			runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeRetry {
 			incomingRuntimeNode[targetID] = struct{}{}
 			bindExecutionGraphNodeParent(view, graphNodeByID, sourceID, targetID)
 		}
@@ -260,7 +268,7 @@ func mergeExecutionRuntimeGraph(
 		}
 		incomingRuntimeNode[targetID] = struct{}{}
 	}
-	appendCoordinatorDispatchEdges(
+	appendCoordinatorCoordinationEdges(
 		view,
 		graphNodeByID,
 		existingEdges,
@@ -284,9 +292,20 @@ func updateBoundExecutionGraphNode(
 		node.AgentID = runtimeNode.AgentID
 	}
 	node.LifecycleStatus = string(runtimeNode.Status)
+	node.ResultSummary = runtimeNode.ResultSummary
+	node.ErrorCode = runtimeNode.ErrorCode
+	node.ErrorSummary = runtimeNode.ErrorSummary
+	node.SummaryTruncated = runtimeNode.SummaryTruncated
+	node.DurationMS = runtimeNodeDurationMS(runtimeNode)
+	startedAt := runtimeNode.StartedAt.UTC()
+	node.StartedAt = &startedAt
+	if runtimeNode.FinishedAt != nil {
+		finishedAt := runtimeNode.FinishedAt.UTC()
+		node.FinishedAt = &finishedAt
+	}
 }
 
-func appendCoordinatorDispatchEdges(
+func appendCoordinatorCoordinationEdges(
 	view *protocol.ExecutionView,
 	graphNodeByID map[string]int,
 	existingEdges map[string]struct{},
@@ -297,6 +316,10 @@ func appendCoordinatorDispatchEdges(
 	}
 	incomingWorkItemNode := make(map[string]struct{})
 	for _, edge := range view.Graph.Edges {
+		if edge.Kind == protocol.ExecutionGraphEdgeLoopBack ||
+			edge.Kind == protocol.ExecutionGraphEdgeRetry {
+			continue
+		}
 		if targetIndex, exists := graphNodeByID[edge.TargetNodeID]; exists &&
 			view.Graph.Nodes[targetIndex].Kind == protocol.ExecutionGraphNodeAgent &&
 			view.Graph.Nodes[targetIndex].WorkItemID != "" {
@@ -318,7 +341,7 @@ func appendCoordinatorDispatchEdges(
 				continue
 			}
 			key := executionGraphEdgeKey(
-				protocol.ExecutionGraphEdgeDispatch,
+				protocol.ExecutionGraphEdgeCoordination,
 				coordinatorID,
 				targetID,
 			)
@@ -327,8 +350,8 @@ func appendCoordinatorDispatchEdges(
 			}
 			existingEdges[key] = struct{}{}
 			view.Graph.Edges = append(view.Graph.Edges, protocol.ExecutionGraphEdgeView{
-				ID:           "dispatch:" + coordinatorID + ":" + targetID,
-				Kind:         protocol.ExecutionGraphEdgeDispatch,
+				ID:           "coordination:" + coordinatorID + ":" + targetID,
+				Kind:         protocol.ExecutionGraphEdgeCoordination,
 				SourceNodeID: coordinatorID,
 				TargetNodeID: targetID,
 			})
@@ -416,18 +439,45 @@ func projectRuntimeGraphNode(
 			lifecycleStatus = strings.TrimSpace(decision)
 		}
 	}
-	return protocol.ExecutionGraphNodeView{
-		ID:              item.ID,
-		Kind:            kind,
-		Visibility:      visibility,
-		AgentID:         item.AgentID,
-		AgentRoundID:    item.AgentRoundID,
-		SubjectID:       item.SubjectID,
-		Name:            item.Name,
-		Description:     item.Description,
-		LifecycleStatus: lifecycleStatus,
-		Position:        position,
+	startedAt := item.StartedAt.UTC()
+	var finishedAt *time.Time
+	if item.FinishedAt != nil {
+		value := item.FinishedAt.UTC()
+		finishedAt = &value
 	}
+	return protocol.ExecutionGraphNodeView{
+		ID:               item.ID,
+		Kind:             kind,
+		Visibility:       visibility,
+		AgentID:          item.AgentID,
+		AgentRoundID:     item.AgentRoundID,
+		SubjectID:        item.SubjectID,
+		Name:             item.Name,
+		Description:      item.Description,
+		LifecycleStatus:  lifecycleStatus,
+		ResultSummary:    item.ResultSummary,
+		ErrorCode:        item.ErrorCode,
+		ErrorSummary:     item.ErrorSummary,
+		SummaryTruncated: item.SummaryTruncated,
+		DurationMS:       runtimeNodeDurationMS(item),
+		StartedAt:        &startedAt,
+		FinishedAt:       finishedAt,
+		Position:         position,
+	}
+}
+
+func runtimeNodeDurationMS(item protocol.ExecutionRuntimeNodeRun) int64 {
+	if item.DurationMS > 0 {
+		return item.DurationMS
+	}
+	if item.FinishedAt == nil || item.StartedAt.IsZero() {
+		return 0
+	}
+	duration := item.FinishedAt.Sub(item.StartedAt)
+	if duration <= 0 {
+		return 0
+	}
+	return duration.Milliseconds()
 }
 
 func runtimeToolPromoted(item protocol.ExecutionRuntimeNodeRun) bool {

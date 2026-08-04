@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点与精确 Agent round Task run。
- * OUTPUT: 在工作板网格上显示精简图标与方向边，并在独立检查器中展示所选节点的任务信息。
+ * OUTPUT: 在工作板网格上显示精简图标与方向边，并用节点旁悬浮检查器展示目标、结果、错误与子级运行事实。
  * POS: DM/Room 共用的 Execution Graph 主视图；子图只按结构化父身份分组，不从自由文本反推关系。
  */
 "use client";
@@ -11,6 +11,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
 } from "react";
 import { X } from "lucide-react";
@@ -32,6 +33,7 @@ import { ExecutionNodeTaskList } from "./execution-node-task-list";
 import { resolveExecutionNodeTaskRun } from "./execution-node-task-model";
 import {
   compactExecutionNodeObjective,
+  normalizeExecutionNodeDisplayText,
   resolveExecutionGraphNodeAgent,
   resolveExecutionGraphNodeStatus,
   type ExecutionAgentDirectory,
@@ -52,6 +54,10 @@ const ATTEMPT_STATUS_LABEL_KEY: Record<
   timed_out: "execution.attempt_timed_out",
 };
 
+const NODE_INSPECTOR_WIDTH = 304;
+const NODE_INSPECTOR_GAP = 12;
+const NODE_INSPECTOR_EDGE_PADDING = 8;
+
 export function ExecutionWorkGraphCanvas({
   currentId,
   directory,
@@ -65,6 +71,8 @@ export function ExecutionWorkGraphCanvas({
 }) {
   const { t } = useI18n();
   const markerId = `execution-arrow-${useId().replace(/:/g, "")}`;
+  const loopMarkerId = `${markerId}-loop`;
+  const retryMarkerId = `${markerId}-retry`;
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [availableWidth, setAvailableWidth] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -84,6 +92,14 @@ export function ExecutionWorkGraphCanvas({
   const selectedTaskRun = selectedItem && selectedLayoutNode?.node.kind === "agent"
     ? resolveExecutionNodeTaskRun(selectedItem, taskRuns)
     : null;
+  const selectedInspectorStyle = selectedLayoutNode
+    ? resolveNodeInspectorStyle(
+        layout.width,
+        selectedLayoutNode.x,
+        selectedLayoutNode.y,
+        selectedLayoutNode.size,
+      )
+    : undefined;
 
   useEffect(() => {
     if (selectedId && !layout.nodes.some((node) => node.node.id === selectedId)) {
@@ -129,7 +145,7 @@ export function ExecutionWorkGraphCanvas({
           aria-label={t("execution.label")}
           className="relative mx-auto overflow-visible rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_42%,transparent)]"
           data-execution-workgraph-canvas
-          data-execution-node-detail-mode="inspector"
+          data-execution-node-detail-mode="popover"
           role="group"
           style={{ height: layout.height, width: layout.width }}
         >
@@ -166,6 +182,30 @@ export function ExecutionWorkGraphCanvas({
               >
                 <path d="M 0 0 L 5 2.5 L 0 5 z" fill="var(--icon-muted)" />
               </marker>
+              <marker
+                id={loopMarkerId}
+                markerHeight="5"
+                markerUnits="strokeWidth"
+                markerWidth="5"
+                orient="auto"
+                refX="4"
+                refY="2.5"
+                viewBox="0 0 5 5"
+              >
+                <path d="M 0 0 L 5 2.5 L 0 5 z" fill="var(--warning)" />
+              </marker>
+              <marker
+                id={retryMarkerId}
+                markerHeight="5"
+                markerUnits="strokeWidth"
+                markerWidth="5"
+                orient="auto"
+                refX="4"
+                refY="2.5"
+                viewBox="0 0 5 5"
+              >
+                <path d="M 0 0 L 5 2.5 L 0 5 z" fill="var(--primary)" />
+              </marker>
             </defs>
             {layout.edges.map((edge) => {
               const emphasized = edge.sourceId === selectedId
@@ -179,14 +219,20 @@ export function ExecutionWorkGraphCanvas({
                   data-execution-edge-target={edge.targetId}
                   fill="none"
                   key={edge.id}
-                  markerEnd={`url(#${markerId})`}
+                  markerEnd={`url(#${edge.kind === "loop_back"
+                    ? loopMarkerId
+                    : edge.kind === "retry"
+                    ? retryMarkerId
+                    : markerId})`}
                   opacity={emphasized ? 0.96 : 0.68}
-                  stroke={emphasized
+                  stroke={edge.kind === "loop_back"
+                    ? "var(--warning)"
+                    : edge.kind === "retry" || emphasized
                     ? "var(--primary)"
                     : "var(--divider-subtle-color)"}
                   strokeDasharray={edge.kind === "spawn" || edge.kind === "invoke"
                     ? "3 3"
-                    : edge.kind === "loop_back"
+                    : edge.kind === "loop_back" || edge.kind === "retry"
                     ? "5 3"
                     : undefined}
                   strokeLinecap="round"
@@ -239,19 +285,20 @@ export function ExecutionWorkGraphCanvas({
               </button>
             );
           })}
+          {selectedLayoutNode && selectedInspectorStyle ? (
+            <ExecutionNodeInspector
+              attempt={selectedAttempt}
+              directory={directory}
+              execution={execution}
+              item={selectedItem}
+              node={selectedLayoutNode.node}
+              onClose={() => setSelectedId(null)}
+              style={selectedInspectorStyle}
+              taskRun={selectedTaskRun}
+            />
+          ) : null}
         </div>
       </div>
-      {selectedLayoutNode ? (
-        <ExecutionNodeInspector
-          attempt={selectedAttempt}
-          directory={directory}
-          execution={execution}
-          item={selectedItem}
-          node={selectedLayoutNode.node}
-          onClose={() => setSelectedId(null)}
-          taskRun={selectedTaskRun}
-        />
-      ) : null}
     </div>
   );
 }
@@ -263,6 +310,7 @@ function ExecutionNodeInspector({
   item,
   node,
   onClose,
+  style,
   taskRun,
 }: {
   attempt: ExecutionAttemptView | null;
@@ -271,6 +319,7 @@ function ExecutionNodeInspector({
   item: ExecutionWorkItemView | null;
   node: ExecutionGraphNodeView;
   onClose: () => void;
+  style: CSSProperties;
   taskRun: ConversationTaskRun | null;
 }) {
   const { t } = useI18n();
@@ -303,11 +352,31 @@ function ExecutionNodeInspector({
   const relatedSubject = node.kind === "agent" ? "" : item?.subject.trim() ?? "";
   const submission = item?.submission?.result_summary.trim() ?? "";
   const review = item?.acceptance?.feedback?.trim() ?? "";
+  const resultSummary = node.result_summary?.trim() ?? "";
+  const errorSummary = normalizeExecutionNodeDisplayText(
+    node.error_summary || attempt?.failure_reason || "",
+  );
+  const visibleErrorSummary = errorSummary
+    || (status === "failed" ? t("execution.error_summary_unavailable") : "");
+  const retryEdges = (execution.graph?.edges ?? []).filter((edge) => (
+    edge.kind === "retry"
+    && (edge.source_node_id === node.id || edge.target_node_id === node.id)
+  ));
+  const controlReturnObserved = (execution.graph?.edges ?? []).some((edge) => (
+    edge.kind === "loop_back" && edge.source_node_id === node.id
+  ));
+  const childNodes = (execution.graph?.nodes ?? [])
+    .filter((candidate) => candidate.parent_node_id === node.id)
+    .sort((left, right) => (
+      left.position - right.position || left.id.localeCompare(right.id)
+    ));
   return (
     <aside
-      className="soft-scrollbar w-[min(19rem,44%)] min-w-60 shrink-0 overflow-auto border-l dialog-divider bg-(--surface-panel-background) max-sm:absolute max-sm:inset-x-2 max-sm:bottom-2 max-sm:z-30 max-sm:max-h-[56%] max-sm:w-auto max-sm:min-w-0 max-sm:rounded-[14px] max-sm:border max-sm:border-(--surface-control-border) max-sm:shadow-(--surface-control-shadow)"
+      className="soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] overflow-auto rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) shadow-(--surface-control-shadow)"
       aria-label={`${t("execution.details")}: ${heading}`}
       data-execution-selected-node-detail={node.id}
+      data-execution-selected-node-detail-mode="popover"
+      style={style}
     >
       <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-panel-background) px-3 py-3">
         <ExecutionNodeAvatar
@@ -378,6 +447,41 @@ function ExecutionNodeInspector({
             <p>{item.needed_input.trim()}</p>
           </NodeDetailSection>
         ) : null}
+        {visibleErrorSummary ? (
+          <NodeDetailSection label={t("execution.error_summary")}>
+            <p>{visibleErrorSummary}</p>
+            {node.error_code?.trim() ? (
+              <p className="mt-1 font-mono text-[10px] text-(--text-soft)">
+                {node.error_code.trim()}
+              </p>
+            ) : null}
+          </NodeDetailSection>
+        ) : null}
+        {resultSummary ? (
+          <NodeDetailSection label={t("execution.result_summary")}>
+            <p>{resultSummary}</p>
+            {node.summary_truncated ? (
+              <p className="mt-1 text-[10px] text-(--text-soft)">
+                {t("execution.summary_truncated")}
+              </p>
+            ) : null}
+          </NodeDetailSection>
+        ) : null}
+        {(node.duration_ms ?? 0) > 0 ? (
+          <NodeDetailSection label={t("execution.duration")}>
+            <p>{formatNodeDuration(node.duration_ms ?? 0)}</p>
+          </NodeDetailSection>
+        ) : null}
+        {controlReturnObserved ? (
+          <NodeDetailSection label={t("execution.control_return")}>
+            <p>{t("execution.control_return_observed")}</p>
+          </NodeDetailSection>
+        ) : null}
+        {retryEdges.length > 0 ? (
+          <NodeDetailSection label={t("execution.retry_relation")}>
+            <p>{t("execution.retry_relation_count", { count: retryEdges.length })}</p>
+          </NodeDetailSection>
+        ) : null}
         {submission ? (
           <NodeDetailSection label={t("execution.submission")}>
             <p>{submission}</p>
@@ -389,6 +493,13 @@ function ExecutionNodeInspector({
           </NodeDetailSection>
         ) : null}
         {taskRun ? <ExecutionNodeTaskList run={taskRun} /> : null}
+        {childNodes.length > 0 ? (
+          <ExecutionNodeRunList
+            directory={directory}
+            execution={execution}
+            nodes={childNodes}
+          />
+        ) : null}
       </div>
     </aside>
   );
@@ -411,6 +522,113 @@ function NodeDetailSection({
       </div>
     </section>
   );
+}
+
+function ExecutionNodeRunList({
+  directory,
+  execution,
+  nodes,
+}: {
+  directory: ExecutionAgentDirectory;
+  execution: ExecutionView;
+  nodes: readonly ExecutionGraphNodeView[];
+}) {
+  const { t } = useI18n();
+  return (
+    <NodeDetailSection label={t("execution.runtime_activity")}>
+      <ul className="space-y-1.5" data-execution-runtime-activity>
+        {nodes.slice(0, 8).map((node) => {
+          const item = execution.work_items?.find(
+            (candidate) => candidate.id === node.work_item_id,
+          ) ?? null;
+          const owner = resolveExecutionGraphNodeAgent(directory, node, item);
+          const status = resolveExecutionGraphNodeStatus(node, item);
+          const summary = node.error_summary?.trim()
+            || node.result_summary?.trim()
+            || node.description?.trim()
+            || "";
+          return (
+            <li
+              className="flex min-w-0 gap-2 rounded-[9px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-control-background)_68%,transparent)] px-2 py-1.5"
+              data-execution-runtime-node={node.id}
+              key={node.id}
+            >
+              <ExecutionNodeAvatar
+                agent={owner}
+                current={status === "running"}
+                kind={node.kind}
+                size="nested"
+                status={status}
+                title={graphNodeHeading(node, item, t)}
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate font-medium text-(--text-default)">
+                    {graphNodeHeading(node, item, t)}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "h-1.5 w-1.5 shrink-0 rounded-full bg-current",
+                      selectedStatusTone(status),
+                    )}
+                  />
+                </div>
+                {summary ? (
+                  <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-(--text-soft)">
+                    {summary}
+                  </p>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {nodes.length > 8 ? (
+        <p className="mt-1 text-[10px] text-(--text-soft)">
+          {t("execution.runtime_activity_more", { count: nodes.length - 8 })}
+        </p>
+      ) : null}
+    </NodeDetailSection>
+  );
+}
+
+function resolveNodeInspectorStyle(
+  canvasWidth: number,
+  x: number,
+  y: number,
+  nodeSize: number,
+): CSSProperties {
+  const width = Math.min(
+    NODE_INSPECTOR_WIDTH,
+    Math.max(240, canvasWidth - NODE_INSPECTOR_EDGE_PADDING * 2),
+  );
+  const right = x + nodeSize / 2 + NODE_INSPECTOR_GAP;
+  const fitsRight = right + width
+    <= canvasWidth - NODE_INSPECTOR_EDGE_PADDING;
+  const left = fitsRight
+    ? right
+    : Math.max(
+        NODE_INSPECTOR_EDGE_PADDING,
+        x - nodeSize / 2 - NODE_INSPECTOR_GAP - width,
+      );
+  return {
+    left,
+    top: Math.max(NODE_INSPECTOR_EDGE_PADDING, y - 32),
+    width,
+  };
+}
+
+function formatNodeDuration(durationMS: number): string {
+  if (durationMS < 1_000) {
+    return `${Math.round(durationMS)}ms`;
+  }
+  const seconds = durationMS / 1_000;
+  if (seconds < 60) {
+    return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ${Math.round(seconds % 60)}s`;
 }
 
 function graphNodeTitle(

@@ -143,7 +143,41 @@ func ProjectExecutionView(snapshot *protocol.ExecutionSnapshot) *protocol.Execut
 		incrementExecutionProgress(&result.Progress, item)
 	}
 	result.Graph = projectExecutionGraphView(result.WorkItems)
+	projectExecutionCoordinatorNode(result)
 	return result
+}
+
+// projectExecutionCoordinatorNode 把 Room 已存在的 creator/Lead 责任身份
+// 投影为稳定主节点。它只表示协调责任与已声明拓扑，不会启动
+// round、创建 Assignment 或替 Agent 选择下一步。
+func projectExecutionCoordinatorNode(view *protocol.ExecutionView) {
+	if view == nil || view.ScopeKind != protocol.ExecutionScopeRoom ||
+		strings.TrimSpace(view.CoordinatorAgentID) == "" || len(view.WorkItems) == 0 {
+		return
+	}
+	nodeID := "coordinator:" + view.ID
+	view.Graph.Nodes = append([]protocol.ExecutionGraphNodeView{{
+		ID:              nodeID,
+		Kind:            protocol.ExecutionGraphNodeAgent,
+		Visibility:      protocol.ExecutionGraphNodePrimary,
+		AgentID:         view.CoordinatorAgentID,
+		SubjectID:       view.ID,
+		Name:            "coordinate",
+		Description:     view.Objective,
+		LifecycleStatus: "planned",
+		Position:        -1,
+	}}, view.Graph.Nodes...)
+	for _, item := range view.WorkItems {
+		if len(item.DependencyIDs) > 0 {
+			continue
+		}
+		view.Graph.Edges = append(view.Graph.Edges, protocol.ExecutionGraphEdgeView{
+			ID:           "coordination:" + nodeID + ":" + item.ID,
+			Kind:         protocol.ExecutionGraphEdgeCoordination,
+			SourceNodeID: nodeID,
+			TargetNodeID: item.ID,
+		})
+	}
 }
 
 // projectExecutionGraphView 只从已经脱敏的 UI Work Item/Attempt 投影运行图。

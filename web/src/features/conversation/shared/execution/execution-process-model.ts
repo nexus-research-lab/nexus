@@ -1,9 +1,10 @@
 /**
  * INPUT: ExecutionView、持久 Agent 目录与 runtime Subagent identity。
- * OUTPUT: 状态/类型文案键、当前节点、稳定 Agent/Subagent 头像身份、一级 Agent 活动态、依赖深度与 WorkGraph 生命周期判定。
+ * OUTPUT: 状态/类型文案键、当前节点、可展示摘要、稳定 Agent/Subagent 头像身份、一级 Agent 活动态、依赖深度与 WorkGraph 生命周期判定。
  * POS: WorkGraph 纯协议到轻量进程展示语义的无状态投影。
  */
 import { subagentTaskAvatarDataUrl } from "@/features/conversation/shared/subagent/subagent-task-model";
+import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
   ExecutionGraphNodeView,
@@ -26,6 +27,14 @@ interface ExecutionAgentDirectorySource {
   agent_id: string;
   avatar?: string | null;
   name: string;
+}
+
+const EXECUTION_INTERNAL_SENTINEL_PATTERN = /__nexus_[a-z0-9_]+__/gi;
+
+export function normalizeExecutionNodeDisplayText(value: string): string {
+  return stripRoomControlMarkers(
+    value.replace(EXECUTION_INTERNAL_SENTINEL_PATTERN, " "),
+  ).replace(/\s+/g, " ").trim();
 }
 
 export function buildExecutionAgentDirectory(
@@ -126,11 +135,26 @@ export function hasManagedExecutionGraph(
   );
 }
 
+/**
+ * Runtime-only Agent Loop 与托管 WorkGraph 共用同一读模型。
+ * 这里只判断是否存在可见运行事实，不把它升级为 Plan、
+ * Assignment 或 Goal，也不改变 Agent 的结构选择。
+ */
+export function hasExecutionGraph(
+  execution: ExecutionView | null,
+): boolean {
+  return Boolean(
+    execution
+    && ((execution.graph?.nodes?.length ?? 0) > 0
+      || (execution.work_items?.length ?? 0) > 0),
+  );
+}
+
 export function isExecutionActivityVisible(
   execution: ExecutionView | null,
 ): execution is ExecutionView {
   return Boolean(
-    hasManagedExecutionGraph(execution)
+    hasExecutionGraph(execution)
     && execution
     && !isTerminalExecutionStatus(execution.status),
   );
@@ -280,9 +304,29 @@ export function resolveExecutionPrimaryAgentNodes(
   }
   return [...selectedByAgent.values()]
     .sort((left, right) => (
-      left.position - right.position || left.id.localeCompare(right.id)
+      primaryAgentNodeRank(execution, left)
+      - primaryAgentNodeRank(execution, right)
+      || left.position - right.position
+      || left.id.localeCompare(right.id)
     ))
     .slice(0, Math.max(0, limit));
+}
+
+function primaryAgentNodeRank(
+  execution: ExecutionView,
+  node: ExecutionGraphNodeView,
+): number {
+  const coordinatorAgentId = execution.coordinator_agent_id?.trim();
+  if (coordinatorAgentId && node.agent_id?.trim() === coordinatorAgentId) {
+    return 0;
+  }
+  if (execution.graph?.edges?.some((edge) => (
+    (edge.kind === "coordination" || edge.kind === "dispatch")
+    && edge.source_node_id === node.id
+  ))) {
+    return 0;
+  }
+  return 1;
 }
 
 export function resolveWorkItemDepths(

@@ -220,8 +220,10 @@ export function buildExecutionGraphLayout(
       id: edge.id,
       kind: edge.kind,
       path: rootByNodeId.get(source.node.id) === rootByNodeId.get(target.node.id)
-        && edge.kind !== "loop_back"
+        && !isExecutionControlEdge(edge.kind)
         ? buildNestedEdgePath(source, target)
+        : isExecutionControlEdge(edge.kind)
+        ? buildControlEdgePath(source, target)
         : buildEdgePath(source, target),
       sourceId: edge.source_node_id,
       targetId: edge.target_node_id,
@@ -254,7 +256,7 @@ function executionGraphEdges(
   ));
   const incomingNodeIds = new Set(
     filtered
-      .filter((edge) => edge.kind !== "loop_back")
+      .filter((edge) => !isExecutionControlEdge(edge.kind))
       .map((edge) => edge.target_node_id),
   );
   for (const node of nodes) {
@@ -332,7 +334,7 @@ function resolveClusterRoots(
   }
   for (const edge of edges) {
     const target = nodeById.get(edge.target_node_id);
-    if (!target || target.visibility === "primary" || edge.kind === "loop_back") {
+    if (!target || target.visibility === "primary" || isExecutionControlEdge(edge.kind)) {
       continue;
     }
     parentById.set(target.id, edge.source_node_id);
@@ -464,7 +466,7 @@ function resolveGraphNodeDepths(
   const nodeIds = new Set(nodes.map((node) => node.id));
   const upstreamByNodeId = new Map<string, string[]>();
   for (const edge of edges) {
-    if (edge.kind === "loop_back") {
+    if (isExecutionControlEdge(edge.kind)) {
       continue;
     }
     if (!nodeIds.has(edge.source_node_id) || !nodeIds.has(edge.target_node_id)) {
@@ -544,6 +546,25 @@ function buildNestedEdgePath(
     `${target.x} ${targetY - curve}`,
     `${target.x} ${targetY}`,
   ].join(" ");
+}
+
+function buildControlEdgePath(
+  source: ExecutionGraphNodeLayout,
+  target: ExecutionGraphNodeLayout,
+): string {
+  const sourceX = source.x + source.size / 2;
+  const targetX = target.x + target.size / 2;
+  const controlX = Math.max(sourceX, targetX) + 28;
+  return [
+    `M ${sourceX} ${source.y}`,
+    `C ${controlX} ${source.y}`,
+    `${controlX} ${target.y}`,
+    `${targetX} ${target.y}`,
+  ].join(" ");
+}
+
+function isExecutionControlEdge(kind: ExecutionGraphEdgeKind): boolean {
+  return kind === "loop_back" || kind === "retry";
 }
 
 function buildEdgePath(

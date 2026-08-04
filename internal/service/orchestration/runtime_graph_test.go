@@ -128,6 +128,106 @@ func TestRuntimeGraphObservesBridgeToolLifecycleWithoutModelStatusCall(t *testin
 	}
 }
 
+func TestRuntimeGraphRecordsSanitizedFailureAndObservedControlReturn(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
+	repository := &runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+	actor := ActorContext{
+		OwnerUserID: "owner-1", SessionKey: "session-1", AgentID: "agent-1",
+		RootRoundID: "round-1", RuntimeRoundID: "round-1", AgentRoundID: "agent-round-1",
+	}
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "user",
+		"uuid": "tool-result-1",
+		"message": map[string]any{
+			"role": "user",
+			"content": []any{map[string]any{
+				"type": "tool_result", "tool_use_id": "tool-1",
+				"is_error": true, "error_code": "page_unavailable",
+				"content": "Authorization: Bearer live-secret could not fetch the page",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.nodes) != 2 || len(repository.edges) != 2 {
+		t.Fatalf("runtime writes nodes=%+v edges=%+v", repository.nodes, repository.edges)
+	}
+	tool := repository.nodes[1]
+	if tool.Status != protocol.ExecutionRuntimeNodeFailed ||
+		tool.ErrorCode != "page_unavailable" ||
+		tool.ErrorSummary != "Authorization: Bearer <redacted> could not fetch the page" {
+		t.Fatalf("sanitized failure = %+v", tool)
+	}
+	if repository.edges[1].Kind != protocol.ExecutionRuntimeEdgeLoopBack ||
+		repository.edges[1].SourceNodeID != tool.ID ||
+		repository.edges[1].TargetNodeID != repository.nodes[0].ID {
+		t.Fatalf("control return edge = %+v", repository.edges[1])
+	}
+}
+
+func TestCompactRuntimeGraphSummaryHidesInternalSentinels(t *testing.T) {
+	t.Parallel()
+
+	got, truncated := compactRuntimeGraphSummary(
+		"  __nexus_interrupt_without_message__  ",
+	)
+	if got != "" || truncated {
+		t.Fatalf("internal sentinel summary = %q truncated=%t", got, truncated)
+	}
+	got, truncated = compactRuntimeGraphSummary(
+		"request failed __nexus_internal_control__ after 2s",
+	)
+	if got != "request failed after 2s" || truncated {
+		t.Fatalf("mixed sentinel summary = %q truncated=%t", got, truncated)
+	}
+}
+
+func TestRuntimeGraphRecordsOnlyExactlyCorrelatedRetry(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 4, 12, 30, 0, 0, time.UTC)
+	previous := protocol.ExecutionRuntimeNodeRun{
+		ID: "runtime-tool-previous", Kind: protocol.ExecutionRuntimeNodeTool,
+		SubjectID: "tool-previous", AgentRoundID: "agent-round-1",
+	}
+	repository := &runtimeGraphRepositoryFake{
+		fakeRepository: &fakeRepository{},
+		graph:          protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{previous}},
+	}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+	actor := ActorContext{
+		OwnerUserID: "owner-1", SessionKey: "session-1", AgentID: "agent-1",
+		RootRoundID: "round-1", RuntimeRoundID: "round-1", AgentRoundID: "agent-round-1",
+	}
+	message := sdkprotocol.ReceivedMessage{
+		UUID: "assistant-retry-1",
+		RuntimeLifecycle: []sdkprotocol.RuntimeLifecycleEvent{{
+			EventID: "retry-event-1", NodeKind: sdkprotocol.RuntimeLifecycleNodeTool,
+			Phase: sdkprotocol.RuntimeLifecycleStarted, SubjectID: "tool-retry",
+			Name: "search", Status: "running",
+			Metadata: map[string]string{"retry_of_tool_use_id": "tool-previous"},
+		}},
+	}
+	if err := service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.edges) != 2 ||
+		repository.edges[1].Kind != protocol.ExecutionRuntimeEdgeRetry ||
+		repository.edges[1].SourceNodeID != previous.ID ||
+		repository.edges[1].TargetNodeID != repository.nodes[1].ID {
+		t.Fatalf("exact retry edge = %+v", repository.edges)
+	}
+}
+
 func TestRuntimeGraphNestsChildToolsUnderExactSubagentIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -285,20 +385,25 @@ func TestRuntimeGraphViewBindsManagedRoundsAndFiltersConversationRoots(t *testin
 	now := time.Date(2026, 8, 4, 10, 0, 0, 0, time.UTC)
 	workID := "work-managed"
 	coordinatorID := "runtime-coordinator"
+	coordinatorNodeID := "coordinator:execution-managed"
 	workRoundID := "runtime-work-round"
 	toolID := "runtime-work-tool"
 	view := &protocol.ExecutionView{
-		ID: "execution-managed",
+		ID: "execution-managed", CoordinatorAgentID: "lead-1",
 		WorkItems: []protocol.ExecutionWorkItemView{{
 			ID: workID,
 		}},
-		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{{
-			ID:         workID,
-			Kind:       protocol.ExecutionGraphNodeAgent,
-			Visibility: protocol.ExecutionGraphNodePrimary,
-			WorkItemID: workID,
-			AgentID:    "worker-1",
-		}}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{
+			{
+				ID: coordinatorNodeID, Kind: protocol.ExecutionGraphNodeAgent,
+				Visibility: protocol.ExecutionGraphNodePrimary, AgentID: "lead-1",
+			},
+			{
+				ID: workID, Kind: protocol.ExecutionGraphNodeAgent,
+				Visibility: protocol.ExecutionGraphNodePrimary,
+				WorkItemID: workID, AgentID: "worker-1",
+			},
+		}},
 	}
 	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{
 		GraphID: "execution:execution-managed",
@@ -345,13 +450,18 @@ func TestRuntimeGraphViewBindsManagedRoundsAndFiltersConversationRoots(t *testin
 		t.Fatalf("managed graph nodes = %+v", view.Graph.Nodes)
 	}
 	for _, node := range view.Graph.Nodes {
-		if node.ID == "runtime-conversation-only" || node.ID == "runtime-work-agent" {
+		if node.ID == "runtime-conversation-only" || node.ID == "runtime-work-agent" ||
+			node.ID == coordinatorID {
 			t.Fatalf("unbound or duplicate runtime Agent leaked into managed graph: %+v", node)
 		}
 	}
 	work := graphNodeByID(view.Graph.Nodes, workID)
 	if work.AgentRoundID != workRoundID || work.LifecycleStatus != "running" {
 		t.Fatalf("managed Work Item did not absorb exact runtime round: %+v", work)
+	}
+	coordinator := graphNodeByID(view.Graph.Nodes, coordinatorNodeID)
+	if coordinator.AgentRoundID != "coord-round" || coordinator.LifecycleStatus != "succeeded" {
+		t.Fatalf("stable coordinator node did not absorb its runtime round: %+v", coordinator)
 	}
 	if !hasExecutionGraphEdge(
 		view.Graph.Edges,
@@ -360,8 +470,8 @@ func TestRuntimeGraphViewBindsManagedRoundsAndFiltersConversationRoots(t *testin
 		toolID,
 	) || !hasExecutionGraphEdge(
 		view.Graph.Edges,
-		protocol.ExecutionGraphEdgeDispatch,
-		coordinatorID,
+		protocol.ExecutionGraphEdgeCoordination,
+		coordinatorNodeID,
 		workID,
 	) {
 		t.Fatalf("managed runtime graph edges = %+v", view.Graph.Edges)

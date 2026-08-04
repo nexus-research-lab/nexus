@@ -82,10 +82,7 @@ func (s *Service) ObserveRuntimeMessage(
 	if err != nil {
 		return err
 	}
-	events := message.RuntimeLifecycle
-	if len(events) == 0 {
-		events = sdkprotocol.DeriveRuntimeLifecycleEvents(message)
-	}
+	events := runtimeGraphLifecycleEvents(message)
 	if len(events) == 0 {
 		return nil
 	}
@@ -101,6 +98,12 @@ func (s *Service) ObserveRuntimeMessage(
 	parentNodeBySubject := map[string]string{
 		identity.AgentRoundID: rootNodeID,
 	}
+	nodeByKindSubject := map[string]string{
+		runtimeGraphKindSubjectKey(
+			protocol.ExecutionRuntimeNodeAgent,
+			identity.AgentRoundID,
+		): rootNodeID,
+	}
 	if graph, graphErr := repository.GetRuntimeGraph(
 		ctx,
 		identity.OwnerUserID,
@@ -109,6 +112,9 @@ func (s *Service) ObserveRuntimeMessage(
 		identity.RootRoundID,
 	); graphErr == nil {
 		indexRuntimeGraphParents(parentNodeBySubject, graph.Nodes)
+		for _, node := range graph.Nodes {
+			nodeByKindSubject[runtimeGraphKindSubjectKey(node.Kind, node.SubjectID)] = node.ID
+		}
 	}
 	for _, event := range events {
 		if err = s.observeRuntimeSubagentLifecycle(ctx, actor, event); err != nil {
@@ -119,6 +125,7 @@ func (s *Service) ObserveRuntimeMessage(
 			continue
 		}
 		status := runtimeGraphStatus(event)
+		evidence := runtimeGraphEvidenceForEvent(message, event)
 		nodeID := runtimeGraphNodeID(identity, nodeKind, event.SubjectID)
 		sourceNodeID := rootNodeID
 		if parentNodeID := parentNodeBySubject[strings.TrimSpace(event.ParentSubjectID)]; parentNodeID != "" {
@@ -134,26 +141,31 @@ func (s *Service) ObserveRuntimeMessage(
 		}
 		metadata["bridge_event_id"] = event.EventID
 		if err = repository.UpsertRuntimeGraphNode(ctx, protocol.ExecutionRuntimeNodeRun{
-			ID:              nodeID,
-			GraphID:         identity.GraphID,
-			OwnerUserID:     identity.OwnerUserID,
-			SessionKey:      identity.SessionKey,
-			ExecutionID:     identity.ExecutionID,
-			Kind:            nodeKind,
-			SubjectID:       strings.TrimSpace(event.SubjectID),
-			ParentSubjectID: strings.TrimSpace(event.ParentSubjectID),
-			RootRoundID:     identity.RootRoundID,
-			RuntimeRoundID:  identity.RuntimeRoundID,
-			AgentRoundID:    identity.AgentRoundID,
-			AgentID:         firstNonEmpty(event.AgentID, identity.AgentID),
-			Name:            event.Name,
-			Description:     event.Description,
-			Status:          status,
-			Failed:          event.Failed,
-			StartedAt:       now,
-			UpdatedAt:       now,
-			FinishedAt:      finishedAt,
-			Metadata:        metadata,
+			ID:               nodeID,
+			GraphID:          identity.GraphID,
+			OwnerUserID:      identity.OwnerUserID,
+			SessionKey:       identity.SessionKey,
+			ExecutionID:      identity.ExecutionID,
+			Kind:             nodeKind,
+			SubjectID:        strings.TrimSpace(event.SubjectID),
+			ParentSubjectID:  strings.TrimSpace(event.ParentSubjectID),
+			RootRoundID:      identity.RootRoundID,
+			RuntimeRoundID:   identity.RuntimeRoundID,
+			AgentRoundID:     identity.AgentRoundID,
+			AgentID:          firstNonEmpty(event.AgentID, identity.AgentID),
+			Name:             event.Name,
+			Description:      event.Description,
+			Status:           status,
+			Failed:           event.Failed,
+			ResultSummary:    evidence.resultSummary,
+			ErrorCode:        evidence.errorCode,
+			ErrorSummary:     evidence.errorSummary,
+			SummaryTruncated: evidence.summaryTruncated,
+			DurationMS:       evidence.durationMS,
+			StartedAt:        now,
+			UpdatedAt:        now,
+			FinishedAt:       finishedAt,
+			Metadata:         metadata,
 		}); err != nil {
 			return err
 		}
@@ -170,7 +182,38 @@ func (s *Service) ObserveRuntimeMessage(
 		if err = repository.UpsertRuntimeGraphEdge(ctx, edge); err != nil {
 			return err
 		}
+		if event.Phase == sdkprotocol.RuntimeLifecycleFinished &&
+			status == protocol.ExecutionRuntimeNodeFailed {
+			if err = upsertRuntimeGraphEdge(
+				ctx,
+				repository,
+				identity,
+				nodeID,
+				sourceNodeID,
+				protocol.ExecutionRuntimeEdgeLoopBack,
+				now,
+			); err != nil {
+				return err
+			}
+		}
+		if previousNodeID := nodeByKindSubject[runtimeGraphKindSubjectKey(
+			nodeKind,
+			evidence.retryOfSubjectID,
+		)]; previousNodeID != "" && previousNodeID != nodeID {
+			if err = upsertRuntimeGraphEdge(
+				ctx,
+				repository,
+				identity,
+				previousNodeID,
+				nodeID,
+				protocol.ExecutionRuntimeEdgeRetry,
+				now,
+			); err != nil {
+				return err
+			}
+		}
 		subjectID := strings.TrimSpace(event.SubjectID)
+		nodeByKindSubject[runtimeGraphKindSubjectKey(nodeKind, subjectID)] = nodeID
 		if _, alreadyBound := parentNodeBySubject[subjectID]; !alreadyBound || nodeKind == protocol.ExecutionRuntimeNodeSubagent {
 			parentNodeBySubject[subjectID] = nodeID
 		}
@@ -181,6 +224,13 @@ func (s *Service) ObserveRuntimeMessage(
 		}
 	}
 	return nil
+}
+
+func runtimeGraphKindSubjectKey(
+	kind protocol.ExecutionRuntimeNodeKind,
+	subjectID string,
+) string {
+	return string(kind) + "\x00" + strings.TrimSpace(subjectID)
 }
 
 func indexRuntimeGraphParents(

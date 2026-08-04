@@ -9,7 +9,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-func TestRuntimeGraphGateMigrationPreservesExistingGraphAndAcceptsControlFlow(t *testing.T) {
+func TestRuntimeGraphGateAndSummaryMigrationsPreserveGraphAndAcceptControlFlow(t *testing.T) {
 	db, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "runtime-graph.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -53,11 +53,20 @@ INSERT INTO runtime_graph_edge_runs (
 INSERT INTO runtime_graph_node_runs (
     node_run_id, graph_id, owner_user_id, session_key, execution_id,
     node_kind, subject_id, root_round_id, runtime_round_id, agent_round_id,
-    status, started_at, updated_at, metadata_json
-) VALUES (
+    status, result_summary, error_code, error_summary, summary_truncated,
+    duration_ms, started_at, updated_at, metadata_json
+) VALUES
+(
     'node-gate', 'graph-1', 'owner-1', 'session-1', 'execution-1',
     'gate', 'alignment-1', 'round-1', 'round-1', 'agent-round-1',
-    'succeeded', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{"decision":"not_aligned"}'
+    'succeeded', NULL, NULL, NULL, FALSE, 0,
+    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{"decision":"not_aligned"}'
+),
+(
+    'node-tool-retry', 'graph-1', 'owner-1', 'session-1', 'execution-1',
+    'tool', 'tool-2', 'round-1', 'round-1', 'agent-round-1',
+    'succeeded', 'Found the page', NULL, NULL, FALSE, 42,
+    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, '{}'
 );
 INSERT INTO runtime_graph_edge_runs (
     edge_run_id, graph_id, owner_user_id, session_key,
@@ -66,7 +75,9 @@ INSERT INTO runtime_graph_edge_runs (
     ('edge-guard', 'graph-1', 'owner-1', 'session-1',
      'node-agent', 'node-gate', 'guard', CURRENT_TIMESTAMP),
     ('edge-loop', 'graph-1', 'owner-1', 'session-1',
-     'node-gate', 'node-agent', 'loop_back', CURRENT_TIMESTAMP);
+     'node-gate', 'node-agent', 'loop_back', CURRENT_TIMESTAMP),
+    ('edge-retry', 'graph-1', 'owner-1', 'session-1',
+     'node-tool', 'node-tool-retry', 'retry', CURRENT_TIMESTAMP);
 `); err != nil {
 		t.Fatalf("insert Gate control flow after migration: %v", err)
 	}
@@ -84,7 +95,7 @@ INSERT INTO runtime_graph_edge_runs (
 	if err = db.QueryRow(`SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if nodeCount != 3 || edgeCount != 3 || foreignKeyViolations != 0 || version != 67 {
+	if nodeCount != 4 || edgeCount != 4 || foreignKeyViolations != 0 || version != 68 {
 		t.Fatalf(
 			"migration result nodes=%d edges=%d fk=%d version=%d",
 			nodeCount,

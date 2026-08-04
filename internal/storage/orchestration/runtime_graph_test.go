@@ -159,3 +159,82 @@ func TestRepositoryRuntimeGraphPersistsAlignmentGateAndLoopObservation(t *testin
 		t.Fatalf("runtime edges = %+v", graph.Edges)
 	}
 }
+
+func TestRepositoryRuntimeGraphPersistsTerminalSummaryAndExactRetryEdge(t *testing.T) {
+	t.Parallel()
+
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 4, 13, 0, 0, 0, time.UTC)
+	root := protocol.ExecutionRuntimeNodeRun{
+		ID: "runtime-root-summary", GraphID: "round:summary",
+		OwnerUserID: "owner-summary", SessionKey: "session-summary",
+		Kind: protocol.ExecutionRuntimeNodeAgent, SubjectID: "agent-round-summary",
+		RootRoundID: "round-summary", RuntimeRoundID: "round-summary",
+		AgentRoundID: "agent-round-summary", AgentID: "agent-summary",
+		Status: protocol.ExecutionRuntimeNodeRunning, StartedAt: now, UpdatedAt: now,
+	}
+	previous := root
+	previous.ID = "runtime-tool-failed"
+	previous.Kind = protocol.ExecutionRuntimeNodeTool
+	previous.SubjectID = "tool-failed"
+	previous.Name = "search"
+	previous.Status = protocol.ExecutionRuntimeNodeFailed
+	previous.Failed = true
+	previous.ErrorCode = "not_found"
+	previous.ErrorSummary = "Page not found"
+	previous.SummaryTruncated = true
+	previous.DurationMS = 1250
+	finishedAt := now.Add(1250 * time.Millisecond)
+	previous.FinishedAt = &finishedAt
+	retry := previous
+	retry.ID = "runtime-tool-retry"
+	retry.SubjectID = "tool-retry"
+	retry.Status = protocol.ExecutionRuntimeNodeSucceeded
+	retry.Failed = false
+	retry.ErrorCode = ""
+	retry.ErrorSummary = ""
+	retry.ResultSummary = "Found the page"
+	retry.SummaryTruncated = false
+	retry.StartedAt = now.Add(2 * time.Second)
+	retry.UpdatedAt = retry.StartedAt
+	retryFinishedAt := retry.StartedAt.Add(400 * time.Millisecond)
+	retry.FinishedAt = &retryFinishedAt
+	retry.DurationMS = 400
+	for _, node := range []protocol.ExecutionRuntimeNodeRun{root, previous, retry} {
+		if err := repository.UpsertRuntimeGraphNode(ctx, node); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := repository.UpsertRuntimeGraphEdge(ctx, protocol.ExecutionRuntimeEdgeRun{
+		ID: "runtime-retry-edge", GraphID: root.GraphID,
+		OwnerUserID: root.OwnerUserID, SessionKey: root.SessionKey,
+		SourceNodeID: previous.ID, TargetNodeID: retry.ID,
+		Kind: protocol.ExecutionRuntimeEdgeRetry, CreatedAt: retry.StartedAt,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	graph, err := repository.GetRuntimeGraph(ctx, root.OwnerUserID, root.SessionKey, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(graph.Nodes) != 3 || len(graph.Edges) != 1 {
+		t.Fatalf("runtime graph = %+v", graph)
+	}
+	byID := make(map[string]protocol.ExecutionRuntimeNodeRun, len(graph.Nodes))
+	for _, node := range graph.Nodes {
+		byID[node.ID] = node
+	}
+	if stored := byID[previous.ID]; stored.ErrorCode != previous.ErrorCode ||
+		stored.ErrorSummary != previous.ErrorSummary || !stored.SummaryTruncated ||
+		stored.DurationMS != previous.DurationMS {
+		t.Fatalf("stored failure summary = %+v", stored)
+	}
+	if stored := byID[retry.ID]; stored.ResultSummary != retry.ResultSummary ||
+		stored.DurationMS != retry.DurationMS {
+		t.Fatalf("stored retry summary = %+v", stored)
+	}
+	if graph.Edges[0].Kind != protocol.ExecutionRuntimeEdgeRetry {
+		t.Fatalf("stored retry edge = %+v", graph.Edges[0])
+	}
+}

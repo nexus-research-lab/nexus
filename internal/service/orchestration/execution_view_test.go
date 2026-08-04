@@ -106,11 +106,16 @@ func TestProjectExecutionViewPreservesResponsibilityAndAcceptanceFlow(t *testing
 		waiting.DependencyIDs[0] != "work-b" {
 		t.Fatalf("dependency projection is incomplete: %+v", waiting)
 	}
-	if len(view.Graph.Nodes) != 6 {
-		t.Fatalf("graph node count = %d, want 6: %+v", len(view.Graph.Nodes), view.Graph.Nodes)
+	if len(view.Graph.Nodes) != 7 {
+		t.Fatalf("graph node count = %d, want 7: %+v", len(view.Graph.Nodes), view.Graph.Nodes)
 	}
-	if len(view.Graph.Edges) != 5 {
-		t.Fatalf("graph edge count = %d, want 5: %+v", len(view.Graph.Edges), view.Graph.Edges)
+	if len(view.Graph.Edges) != 6 {
+		t.Fatalf("graph edge count = %d, want 6: %+v", len(view.Graph.Edges), view.Graph.Edges)
+	}
+	coordinator := graphNodeByID(view.Graph.Nodes, "coordinator:execution-1")
+	if coordinator.Kind != protocol.ExecutionGraphNodeAgent ||
+		coordinator.AgentID != "lead" || coordinator.Position != -1 {
+		t.Fatalf("Room coordinator node projection is incomplete: %+v", coordinator)
 	}
 	if graphNodeByID(view.Graph.Nodes, "work-b") != (protocol.ExecutionGraphNodeView{
 		ID:                   "work-b",
@@ -147,6 +152,11 @@ func TestProjectExecutionViewPreservesResponsibilityAndAcceptanceFlow(t *testing
 		t.Fatalf("planned Lead gate projection is incomplete: %+v", plannedGate)
 	}
 	if !hasExecutionGraphEdge(
+		view.Graph.Edges,
+		protocol.ExecutionGraphEdgeCoordination,
+		coordinator.ID,
+		"work-a",
+	) || !hasExecutionGraphEdge(
 		view.Graph.Edges,
 		protocol.ExecutionGraphEdgeDependency,
 		"review:assignment-a",

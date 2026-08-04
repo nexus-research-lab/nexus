@@ -86,18 +86,22 @@ const (
 	ExecutionGraphNodeDetail  ExecutionGraphNodeVisibility = "detail"
 )
 
-// ExecutionGraphEdgeKind 区分共享责任依赖、协调者 dispatch、Agent 内部
-// child spawn、可选语义 Gate、正式审核和把控制权返回 Agent 的观测回边。
+// ExecutionGraphEdgeKind 区分共享责任依赖、只读协调责任、真实 dispatch、
+// Agent 内部 child spawn、可选语义 Gate、正式审核和控制返回事实。
 type ExecutionGraphEdgeKind string
 
 const (
 	ExecutionGraphEdgeDependency ExecutionGraphEdgeKind = "dependency"
 	ExecutionGraphEdgeDispatch   ExecutionGraphEdgeKind = "dispatch"
-	ExecutionGraphEdgeSpawn      ExecutionGraphEdgeKind = "spawn"
-	ExecutionGraphEdgeInvoke     ExecutionGraphEdgeKind = "invoke"
-	ExecutionGraphEdgeGuard      ExecutionGraphEdgeKind = "guard"
-	ExecutionGraphEdgeReview     ExecutionGraphEdgeKind = "review"
-	ExecutionGraphEdgeLoopBack   ExecutionGraphEdgeKind = "loop_back"
+	// ExecutionGraphEdgeCoordination 只投影 coordinator 对已声明根工作项的责任，
+	// 不表示已经创建 Assignment、启动 round 或选择了下一步。
+	ExecutionGraphEdgeCoordination ExecutionGraphEdgeKind = "coordination"
+	ExecutionGraphEdgeSpawn        ExecutionGraphEdgeKind = "spawn"
+	ExecutionGraphEdgeInvoke       ExecutionGraphEdgeKind = "invoke"
+	ExecutionGraphEdgeGuard        ExecutionGraphEdgeKind = "guard"
+	ExecutionGraphEdgeReview       ExecutionGraphEdgeKind = "review"
+	ExecutionGraphEdgeLoopBack     ExecutionGraphEdgeKind = "loop_back"
+	ExecutionGraphEdgeRetry        ExecutionGraphEdgeKind = "retry"
 )
 
 // ExecutionGraphNodeView 把稳定责任节点与其当前 Node Run 分开表达。
@@ -119,6 +123,13 @@ type ExecutionGraphNodeView struct {
 	ReviewerKind         WorkReviewerKind             `json:"reviewer_kind,omitempty"`
 	ResponsibilityStatus ExecutionWorkItemViewStatus  `json:"responsibility_status,omitempty"`
 	RunStatus            WorkAttemptStatus            `json:"run_status,omitempty"`
+	ResultSummary        string                       `json:"result_summary,omitempty"`
+	ErrorCode            string                       `json:"error_code,omitempty"`
+	ErrorSummary         string                       `json:"error_summary,omitempty"`
+	SummaryTruncated     bool                         `json:"summary_truncated,omitempty"`
+	DurationMS           int64                        `json:"duration_ms,omitempty"`
+	StartedAt            *time.Time                   `json:"started_at,omitempty"`
+	FinishedAt           *time.Time                   `json:"finished_at,omitempty"`
 	Position             int                          `json:"position"`
 }
 

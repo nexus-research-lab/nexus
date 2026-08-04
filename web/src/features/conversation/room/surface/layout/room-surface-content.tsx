@@ -8,7 +8,7 @@
 
 import { cn } from "@/shared/ui/class-name";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import { hasManagedExecutionGraph } from "@/features/conversation/shared/execution/execution-process-model";
+import { hasExecutionGraph } from "@/features/conversation/shared/execution/execution-process-model";
 
 import { RoomChatSurface } from "../room-chat-surface";
 import { RoomSurfaceAuxiliaryPanel } from "./room-surface-auxiliary-panel";
@@ -69,7 +69,7 @@ export function RoomSurfaceContent({
   surfaceSplitRef,
 }: RoomSurfaceContentProps) {
   const isDm = currentRoomType === "dm";
-  const workgraphAvailable = hasManagedExecutionGraph(executionResource.execution);
+  const workgraphAvailable = hasExecutionGraph(executionResource.execution);
   const layout = useRoomSurfaceLayoutController({
     activeSurfaceTab,
     conversationId,

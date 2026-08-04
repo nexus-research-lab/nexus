@@ -101,7 +101,7 @@ G = (V nodes, E edges, S state, P policy)
 
 ### 4.2 E：边
 
-边描述可执行路由和数据方向。Graph definition 中可以存在直通、条件、扇出、扇入和有界回边；每次实际穿越形成不可变 `EdgeRun`。
+边描述可执行路由和数据方向。Graph definition 中可以存在直通、条件、扇出、扇入和有界回边；每次实际穿越形成不可变 `EdgeRun`。观测到 Tool/child result 返回父 Agent 可以自动写运行边，因为这是 runtime 已发生的事实；自动写边不等于自动调度下一个动作。
 
 UI 默认只画方向箭头，不在边上显示文字。edge kind、条件、消息引用和 state mapping 只在点击详情时出现。
 
@@ -209,14 +209,16 @@ Work Item 是节点分组和共享交付边界，不是 runtime node kind。
 | --- | --- |
 | `dependency` | 下游 Work Item 不能在上游 Accepted 前开始 |
 | `dispatch` | Assignment/Graph scheduler 启动目标 Agent Node |
+| `coordination` | 只读投影 coordinator 对已声明根工作项的责任，不表示已调度或选路 |
 | `tool_call` | Agent/Subagent 调用 Tool |
-| `tool_result` | Tool observation 返回调用者 |
+| `tool_result` | Tool observation 返回 exact 调用者；只是运行事实，不替 Agent 选下一步 |
 | `spawn` | Agent/Subagent 创建 child Subagent |
 | `child_result` | child result 返回 exact parent run |
 | `message` | Agent 之间通过 Room/DM 协议传递内容 |
 | `handoff` | 消息或产物被绑定为正式工作交接 |
 | `condition_true` / `condition_false` | Gate 选择后续路径 |
-| `loop_back` | 受 guard、次数、预算和 deadline 约束的回边 |
+| `loop_back` | 失败、未对齐或其他已发生的控制返回；它不代表后端已选择重试 |
+| `retry` | Agent 或显式 policy 已经启动的新 Node Run 对 exact 旧 Run 的关联 |
 | `fan_out` / `fan_in` | 并行分支的启动和汇合 |
 
 `@`、Room directed message、parent-child message、tool result 都是 transport 或 source metadata，不改变 Graph edge 的基本方向语义。普通聊天消息可以形成可观察 message edge，但不自动升级为 dependency、handoff、Submission 或 Acceptance。
@@ -274,6 +276,11 @@ NodeRun {
   child_session_id?
   iteration
   status
+  result_summary?
+  error_code?
+  error_summary?
+  summary_truncated
+  duration_ms?
   input_state_revision
   output_state_revision?
   started_at
@@ -309,6 +316,8 @@ WorkGraph responsibility
 
 View 不是写入格式。前端不得从节点位置、DOM 顺序、头像或消息文本反推业务状态。
 
+Result/Error 只是经后端脱敏、截断的用户可见摘要；原始 Tool input/output 仍留在 runtime transcript 或 Artifact 中。`retry` 关系只能来自 provider-neutral lifecycle 的 exact previous run identity 或 Agent 显式 graph mutation；工具名、参数相似度、时间邻近性和 UI 位置都不是重试证据。
+
 ## 8. Hook 事件协议
 
 Hooks 的职责是观察、绑定、校验和更新 Graph Run，不负责替 Agent 发明工作拆解。
@@ -317,8 +326,8 @@ Hooks 的职责是观察、绑定、校验和更新 Graph Run，不负责替 Age
 | --- | --- | --- |
 | `agent_run_started` | session + agent round + actor | 创建/恢复 Agent Node Run |
 | `pre_tool_use` | parent run + tool use id + tool name | 创建 Tool Run 与 call edge，执行 Policy admission |
-| `post_tool_use` | exact tool use id | 关闭 Tool Run，写 output refs，返回 Agent |
-| `post_tool_use_failure` | exact tool use id | 记录失败和可恢复事实，把路线选择留给 Agent 或显式 policy |
+| `post_tool_use` | exact tool use id | 关闭 Tool Run，写有界结果摘要/output refs，记录返回 exact Agent |
+| `post_tool_use_failure` | exact tool use id | 记录脱敏错误摘要与控制回边，把重试、改用其他工具、重规划或停止留给 Agent |
 | `task_created/updated/completed` | task id + owning run | 更新节点内部 Task，不创建主图节点 |
 | `subagent_started` | parent run + tool use id + child identity | 创建 nested Subagent Node Run 与 spawn edge |
 | `subagent_message` | child/parent run + message id | 记录 parent-child message edge |
@@ -628,6 +637,8 @@ Agent 应只对真实独立分支 fan-out；后端严格执行已声明 dependen
 14. loop 每轮都有独立 Node Run、guard 与退出原因；可选 loop policy 与系统预算共同限制风险。
 15. Claude、GLM、OpenAI 和其他 Provider 通过 capability/event normalization 使用同一协议，不按模型白名单分叉。
 16. UI 默认只显示头像、重要工具/Gate 图标、状态环和方向；详情按点击展开。
+17. 收到失败 Tool/Subagent 的终态事实时可以记录返回父 Agent 的 `loop_back`，但不得自动创建重试 Run；`retry` 只在 Agent 或显式 policy 已启动新 Run 且携带 exact previous run identity 时成立。
+18. 节点结果和错误摘要必须有界、脱敏，不持久化 Tool input、凭证或完整原始输出。
 
 ## 17. 非目标
 
