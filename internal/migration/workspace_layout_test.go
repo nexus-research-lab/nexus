@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -90,6 +91,70 @@ func TestRunWorkspaceLayoutMigratesOwnersAndAgentPaths(t *testing.T) {
 	if err := RunWorkspaceLayout(t.Context(), cfg, stateRoot, discardMigrationLogger()); err != nil {
 		t.Fatalf("重复执行 workspace 布局迁移失败: %v", err)
 	}
+}
+
+func TestRunWorkspaceLayoutLeavesPermissionsToIsolationLauncher(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 不提供 Unix 权限位语义")
+	}
+
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	databaseURL := filepath.Join(stateRoot, "app", "data", "nexus.db")
+	usersRoot := filepath.Join(stateRoot, "users")
+	ownerRoot := filepath.Join(usersRoot, "user_demo")
+	legacyWorkspace := filepath.Join(stateRoot, "workspace", "user_demo", "agent-a")
+	legacyFile := filepath.Join(legacyWorkspace, "state.json")
+	writeMigrationTestFile(t, legacyFile, "legacy\n")
+	for _, directory := range []string{usersRoot, ownerRoot, legacyWorkspace} {
+		if err := os.MkdirAll(directory, 0o770); err != nil {
+			t.Fatalf("创建强隔离 workspace 目录失败 %q: %v", directory, err)
+		}
+		if err := os.Chmod(directory, 0o770); err != nil {
+			t.Fatalf("设置强隔离 workspace 目录权限失败 %q: %v", directory, err)
+		}
+	}
+	if err := os.Chmod(legacyFile, 0o660); err != nil {
+		t.Fatalf("设置强隔离 workspace 文件权限失败: %v", err)
+	}
+
+	db := createWorkspaceLayoutDB(t, databaseURL)
+	insertWorkspaceLayoutUser(t, db, "user_demo")
+	insertWorkspaceLayoutAgent(t, db, "agent-a", "user_demo", legacyWorkspace)
+	if err := db.Close(); err != nil {
+		t.Fatalf("关闭迁移准备数据库失败: %v", err)
+	}
+
+	cfg := config.Config{DatabaseDriver: "sqlite", DatabaseURL: databaseURL}
+	if err := runWorkspaceLayout(
+		t.Context(),
+		cfg,
+		stateRoot,
+		discardMigrationLogger(),
+		true,
+	); err != nil {
+		t.Fatalf("launcher 管理权限时执行 workspace 迁移失败: %v", err)
+	}
+
+	targetWorkspace := filepath.Join(ownerRoot, "workspace", "agent-a")
+	targetFile := filepath.Join(targetWorkspace, "state.json")
+	assertMigrationFileContent(t, targetFile, "legacy\n")
+	for _, directory := range []string{usersRoot, ownerRoot, targetWorkspace} {
+		info, err := os.Stat(directory)
+		if err != nil {
+			t.Fatalf("读取强隔离 workspace 目录权限失败 %q: %v", directory, err)
+		}
+		if info.Mode().Perm() != 0o770 {
+			t.Fatalf("workspace 迁移不应覆盖 launcher 目录权限 %q: %o", directory, info.Mode().Perm())
+		}
+	}
+	fileInfo, err := os.Stat(targetFile)
+	if err != nil {
+		t.Fatalf("读取强隔离 workspace 文件权限失败: %v", err)
+	}
+	if fileInfo.Mode().Perm() != 0o660 {
+		t.Fatalf("workspace 迁移不应覆盖 launcher 文件权限: %o", fileInfo.Mode().Perm())
+	}
+	assertCompletedMigrationMarker(t, filepath.Join(stateRoot, "app"), workspaceLayoutMigrationName)
 }
 
 func TestRunWorkspaceLayoutRejectsConflictingWorkspace(t *testing.T) {

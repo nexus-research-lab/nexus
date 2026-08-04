@@ -38,6 +38,22 @@ func RunWorkspaceLayout(
 	stateRoot string,
 	logger *slog.Logger,
 ) error {
+	return runWorkspaceLayout(
+		ctx,
+		cfg,
+		stateRoot,
+		logger,
+		appfs.RuntimeIsolationEnforced(),
+	)
+}
+
+func runWorkspaceLayout(
+	ctx context.Context,
+	cfg config.Config,
+	stateRoot string,
+	logger *slog.Logger,
+	launcherManagesPermissions bool,
+) error {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -108,7 +124,10 @@ func RunWorkspaceLayout(
 	if err = updateWorkspaceLayoutAgentPaths(ctx, db, cfg.DatabaseDriver, updates); err != nil {
 		return err
 	}
-	if err = hardenLayoutTree(filepath.Join(stateRoot, "users")); err != nil {
+	if err = hardenMigratedWorkspaceLayout(
+		filepath.Join(stateRoot, "users"),
+		launcherManagesPermissions,
+	); err != nil {
 		return fmt.Errorf("收紧 workspace 用户目录权限: %w", err)
 	}
 	if err = writeWorkspaceFileMigrationMarker(markerPath); err != nil {
@@ -121,6 +140,18 @@ func RunWorkspaceLayout(
 		"migrated_transcript_projects", migratedProjects,
 	)
 	return nil
+}
+
+func hardenMigratedWorkspaceLayout(
+	usersRoot string,
+	launcherManagesPermissions bool,
+) error {
+	if launcherManagesPermissions {
+		// 强隔离目录由 root launcher 持有；迁移只提交数据与路径，随后统一的
+		// identity sync 会恢复 owner、私有组和默认 ACL，普通 server 不应 chmod。
+		return nil
+	}
+	return hardenLayoutTree(usersRoot)
 }
 
 func validateWorkspaceOwnerSegments(stateRoot string, owners map[string]struct{}) error {
