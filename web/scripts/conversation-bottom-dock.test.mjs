@@ -1114,6 +1114,56 @@ test("Room progress stays isolated by Agent and selection follows the latest pro
   assert.match(roomAgentSwitcherSource, /flex h-7 w-full min-w-0/);
 });
 
+test("TodoWrite normalizes persisted task aliases and rejects malformed items", async () => {
+  const { projectConversationTodos } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/todos/todo-projection-model.ts",
+  );
+  const sessionKey = "agent:finance:ws:dm:legacy";
+  const todos = projectConversationTodos([{
+    agent_id: "finance",
+    content: [{
+      id: "legacy-todo-write",
+      input: {
+        todos: [
+          {
+            activeForm: " Analyzing account propagation ",
+            status: "completed",
+            task: " 分析压测科目变动传导至完整三张报表的解决方案 ",
+          },
+          {
+            active_form: "编写新版需求文档",
+            content: "编写新版需求文档并做好版本管理",
+            status: "in_progress",
+          },
+          null,
+          {status: "pending", task: ""},
+          {status: "blocked", task: "无效状态"},
+        ],
+      },
+      name: "TodoWrite",
+      type: "tool_use",
+    }],
+    message_id: "legacy-assistant",
+    role: "assistant",
+    round_id: "legacy-round",
+    session_key: sessionKey,
+    timestamp: 1,
+  }], sessionKey);
+
+  assert.deepEqual(todos, [
+    {
+      active_form: "Analyzing account propagation",
+      content: "分析压测科目变动传导至完整三张报表的解决方案",
+      status: "completed",
+    },
+    {
+      active_form: "编写新版需求文档",
+      content: "编写新版需求文档并做好版本管理",
+      status: "in_progress",
+    },
+  ]);
+});
+
 test("Room and DM stack Goal, Task, and scroll controls upward from the Composer", async () => {
   const { ConversationPanelBottomArea } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
