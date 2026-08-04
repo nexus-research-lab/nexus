@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevented workspace subscription failures from being projected as conversation backend errors.
 - Prevented Windows upgrades from failing with access denied when Nexus was still running in the system tray.
 - Repaired the v0.1.30 state-layout migration gap for direct upgrades from v0.1.27 and v0.1.28, restoring Agent workspace, transcript, and Room files while safely preserving data created by affected releases.
+- Prevented isolated Linux deployments from restart-looping when the restored state-layout migration encountered launcher-owned directories.
 
 ## [0.1.32] - 2026-08-03
 

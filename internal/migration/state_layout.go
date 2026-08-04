@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 )
 
@@ -158,6 +159,18 @@ var stateLayoutNestedHostEntries = map[string]struct{}{
 // Finder 的 .DS_Store 可再生元数据是唯一例外；目标已存在时保留目标并
 // 丢弃旧缓存。其他目标冲突直接返回错误，调用方可处理后重试。
 func RunStateLayout(stateRoot string, logger *slog.Logger) error {
+	return runStateLayout(
+		stateRoot,
+		logger,
+		appfs.RuntimeIsolationEnforced(),
+	)
+}
+
+func runStateLayout(
+	stateRoot string,
+	logger *slog.Logger,
+	launcherManagesPermissions bool,
+) error {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -245,16 +258,13 @@ func RunStateLayout(stateRoot string, logger *slog.Logger) error {
 	if err = moveUnknownStateEntries(stateRoot, systemRuntimeRoot); err != nil {
 		return err
 	}
-	if err = hardenLayoutTree(appRoot); err != nil {
-		return fmt.Errorf("收紧 app 状态权限: %w", err)
-	}
-	if err = hardenLayoutTree(usersRoot); err != nil {
-		return fmt.Errorf("收紧用户状态权限: %w", err)
-	}
-	if err = hardenLayoutTree(sharedRoot); err != nil {
-		return fmt.Errorf("收紧共享 workspace 权限: %w", err)
-	}
-	if err = hardenStateRoot(stateRoot); err != nil {
+	if err = hardenMigratedStateLayout(
+		stateRoot,
+		appRoot,
+		usersRoot,
+		sharedRoot,
+		launcherManagesPermissions,
+	); err != nil {
 		return err
 	}
 	if err = writeLayoutMigrationMarker(markerPath); err != nil {
@@ -265,6 +275,34 @@ func RunStateLayout(stateRoot string, logger *slog.Logger) error {
 		"state_root", stateRoot,
 		"affected_entries", affected,
 	)
+	return nil
+}
+
+func hardenMigratedStateLayout(
+	stateRoot string,
+	appRoot string,
+	usersRoot string,
+	sharedRoot string,
+	launcherManagesPermissions bool,
+) error {
+	if launcherManagesPermissions {
+		// 强隔离目录由 root launcher 持有，并通过宿主/owner/project ACL
+		// 维持协作权限。普通 server 只迁移数据；随后执行的 identity sync
+		// 会以唯一权限事实源重新归一整棵状态树。
+		return nil
+	}
+	if err := hardenLayoutTree(appRoot); err != nil {
+		return fmt.Errorf("收紧 app 状态权限: %w", err)
+	}
+	if err := hardenLayoutTree(usersRoot); err != nil {
+		return fmt.Errorf("收紧用户状态权限: %w", err)
+	}
+	if err := hardenLayoutTree(sharedRoot); err != nil {
+		return fmt.Errorf("收紧共享 workspace 权限: %w", err)
+	}
+	if err := hardenStateRoot(stateRoot); err != nil {
+		return err
+	}
 	return nil
 }
 

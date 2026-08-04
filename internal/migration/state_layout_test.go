@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -250,6 +251,65 @@ func TestRunStateLayoutPreservesCompletedTreePermissions(t *testing.T) {
 	if info.Mode().Perm() != 0o660 {
 		t.Fatalf("完成标记后不应重新收紧 runtime ACL mask: %o", info.Mode().Perm())
 	}
+}
+
+func TestRunStateLayoutLeavesPermissionsToIsolationLauncher(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 不提供 Unix 权限位语义")
+	}
+
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	appRoot := filepath.Join(stateRoot, "app")
+	usersRoot := filepath.Join(stateRoot, "users")
+	sharedRoot := filepath.Join(stateRoot, "shared-workspaces")
+	sharedFile := filepath.Join(sharedRoot, "project", "README.md")
+	writeMigrationTestFile(t, filepath.Join(stateRoot, "data", "nexus.db"), "database\n")
+	writeMigrationTestFile(t, sharedFile, "shared\n")
+	for _, directory := range []string{stateRoot, appRoot, usersRoot, sharedRoot} {
+		if err := os.MkdirAll(directory, 0o770); err != nil {
+			t.Fatalf("创建强隔离目录失败 %q: %v", directory, err)
+		}
+		if err := os.Chmod(directory, 0o770); err != nil {
+			t.Fatalf("设置强隔离目录权限失败 %q: %v", directory, err)
+		}
+	}
+	if err := os.Chmod(sharedFile, 0o660); err != nil {
+		t.Fatalf("设置强隔离文件权限失败: %v", err)
+	}
+
+	if err := runStateLayout(
+		stateRoot,
+		discardMigrationLogger(),
+		true,
+	); err != nil {
+		t.Fatalf("launcher 管理权限时执行状态迁移失败: %v", err)
+	}
+
+	for _, directory := range []string{stateRoot, appRoot, usersRoot, sharedRoot} {
+		info, err := os.Stat(directory)
+		if err != nil {
+			t.Fatalf("读取强隔离目录权限失败 %q: %v", directory, err)
+		}
+		if info.Mode().Perm() != 0o770 {
+			t.Fatalf("迁移不应覆盖 launcher 目录权限 %q: %o", directory, info.Mode().Perm())
+		}
+	}
+	sharedInfo, err := os.Stat(sharedFile)
+	if err != nil {
+		t.Fatalf("读取强隔离文件权限失败: %v", err)
+	}
+	if sharedInfo.Mode().Perm() != 0o660 {
+		t.Fatalf("迁移不应覆盖 launcher 文件权限: %o", sharedInfo.Mode().Perm())
+	}
+	assertMigrationFileContent(
+		t,
+		filepath.Join(appRoot, "data", "nexus.db"),
+		"database\n",
+	)
+	assertLayoutMigrationMarker(
+		t,
+		filepath.Join(appRoot, ".migrations", stateLayoutMigrationName),
+	)
 }
 
 func TestRunStateLayoutMergesIdenticalDestinations(t *testing.T) {
