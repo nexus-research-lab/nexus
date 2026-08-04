@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.33] - 2026-08-04
+
 ### Changed
 
 - Streamlined first-run Provider setup with direct model selection, a docked action bar for long catalogs, and in-dialog custom LLM connections.
@@ -16,12 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Prevented persisted TodoWrite plans that use legacy task fields from crashing the conversation task panel.
 - Kept Agent Skill cards readable when the conversation detail panel is resized by adapting the grid to the panel's actual width and clamping long titles to two lines.
-- Repaired existing isolated Agent workspaces once and kept unreadable subtrees from breaking the complete workspace file list or live subscription.
-- Prevented workspace subscription failures from being projected as conversation backend errors.
+- Repaired existing isolated Agent workspaces and prevented unreadable subtrees or subscription failures from breaking file access or appearing as conversation errors.
 - Prevented Windows upgrades from failing with access denied when Nexus was still running in the system tray.
-- Repaired the v0.1.30 state-layout migration gap for direct upgrades from v0.1.27 and v0.1.28, restoring Agent workspace, transcript, and Room files while safely preserving data created by affected releases.
-- Prevented isolated Linux deployments from restart-looping when the restored state-layout migration encountered launcher-owned directories.
-- Prevented the follow-up workspace-layout migration from changing launcher-owned user directory permissions in isolated Linux deployments.
+- Repaired direct upgrades from v0.1.27 and v0.1.28 so Agent workspaces, transcripts, and Room files migrate safely without changing launcher-owned permissions or causing isolated Linux restart loops.
 
 ## [0.1.32] - 2026-08-03
 
