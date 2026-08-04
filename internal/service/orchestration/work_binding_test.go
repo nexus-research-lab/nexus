@@ -280,7 +280,7 @@ func TestStructuredRoomWorkBindingRejectsStaleOrInputSelectedIdentity(t *testing
 	}
 }
 
-func TestStructuredRoomReviewBindingAdmitsOnlyPendingCoordinatorReview(t *testing.T) {
+func TestStructuredRoomReviewBindingAdmitsOnlyItsSelectedPendingReview(t *testing.T) {
 	snapshot, dispatch := reviewReturnSnapshot()
 	binding := &protocol.ExecutionReviewBinding{
 		ExecutionID:      dispatch.ExecutionID,
@@ -317,7 +317,7 @@ func TestStructuredRoomReviewBindingAdmitsOnlyPendingCoordinatorReview(t *testin
 	if len(loaded.Submissions) != 1 ||
 		len(loaded.ReviewDispatches) != 1 ||
 		len(loaded.Assignments) != 1 {
-		t.Fatalf("review coordinator lost full current snapshot: %+v", loaded)
+		t.Fatalf("selected reviewer lost its bounded review snapshot: %+v", loaded)
 	}
 	if err = service.mintRuntimeCoordination(actor, snapshot.Execution.ID); err != nil {
 		t.Fatal(err)
@@ -374,6 +374,47 @@ func TestStructuredRoomReviewBindingAdmitsOnlyPendingCoordinatorReview(t *testin
 		snapshot.Execution.ID,
 	); err == nil {
 		t.Fatal("already reviewed Submission binding was admitted")
+	}
+}
+
+func TestStructuredRoomReviewBindingAllowsSelectedMemberReviewer(t *testing.T) {
+	snapshot, dispatch := reviewReturnSnapshot()
+	dispatch.TargetAgentID = "agent-reviewer"
+	snapshot.Assignments[0].ReturnToAgentID = dispatch.TargetAgentID
+	snapshot.ReviewDispatches[0] = dispatch
+	actor := ActorContext{
+		OwnerUserID:    snapshot.Execution.OwnerUserID,
+		SessionKey:     snapshot.Execution.SessionKey,
+		ExecutionID:    snapshot.Execution.ID,
+		AgentID:        dispatch.TargetAgentID,
+		Role:           ExecutionActorMember,
+		ActorKind:      protocol.ExecutionActorAgent,
+		ScopeKind:      protocol.ExecutionScopeRoom,
+		RoomID:         snapshot.Execution.RoomID,
+		ConversationID: snapshot.Execution.ConversationID,
+		ReviewBinding: &protocol.ExecutionReviewBinding{
+			ExecutionID:      dispatch.ExecutionID,
+			PlanID:           dispatch.PlanID,
+			WorkItemID:       dispatch.WorkItemID,
+			SpecID:           dispatch.SpecID,
+			AssignmentID:     dispatch.AssignmentID,
+			SubmissionID:     dispatch.SubmissionID,
+			ReviewDispatchID: dispatch.ID,
+			TargetAgentID:    dispatch.TargetAgentID,
+		},
+	}
+	loaded, err := NewService(&fakeRepository{snapshot: snapshot}).GetSnapshot(
+		context.Background(),
+		actor,
+		snapshot.Execution.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Assignments) != 1 ||
+		len(loaded.Submissions) != 1 ||
+		len(loaded.ReviewDispatches) != 1 {
+		t.Fatalf("member reviewer snapshot = %+v", loaded)
 	}
 }
 
@@ -544,6 +585,89 @@ func TestRoomReviewAcceptanceContinuesCoordinationAndAssignsReadyWorkSameRound(t
 	}
 	if assigned.Outcome != MutationApplied || !assignCalled {
 		t.Fatalf("same-round downstream assignment = %+v called=%t", assigned, assignCalled)
+	}
+}
+
+func TestRoomCoordinatorSelfReviewContinuesFromWorkBindingSameRound(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	snapshot.Assignments[0].OwnerAgentID = snapshot.Execution.CoordinatorAgentID
+	snapshot.Assignments[0].ReturnToAgentID = snapshot.Execution.CoordinatorAgentID
+	snapshot.Assignments[0].Status = protocol.WorkAssignmentStatusActive
+	snapshot.Submissions = []protocol.WorkSubmission{{
+		ID:               "submission-self-review",
+		ExecutionID:      binding.ExecutionID,
+		PlanID:           binding.PlanID,
+		WorkItemID:       binding.WorkItemID,
+		SpecID:           binding.SpecID,
+		AssignmentID:     binding.AssignmentID,
+		AttemptID:        binding.AttemptID,
+		SubmitterAgentID: snapshot.Execution.CoordinatorAgentID,
+		ResultSummary:    "Lead-owned evidence is ready",
+	}}
+	snapshot.CompletionBlockers = []string{"another selected Work Item remains"}
+
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.review = func(
+		_ context.Context,
+		command orchestrationstore.ReviewCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		result := cloneExecutionSnapshot(repository.snapshot)
+		result.Execution.Version++
+		result.Acceptances = append(result.Acceptances, command.Acceptance)
+		repository.snapshot = result
+		return result, nil
+	}
+	service := NewService(repository)
+	bindingCopy := binding
+	actor := ActorContext{
+		OwnerUserID:    snapshot.Execution.OwnerUserID,
+		SessionKey:     snapshot.Execution.SessionKey,
+		ExecutionID:    binding.ExecutionID,
+		WorkBinding:    &bindingCopy,
+		AgentID:        snapshot.Execution.CoordinatorAgentID,
+		Role:           ExecutionActorCoordinator,
+		ActorKind:      protocol.ExecutionActorAgent,
+		ScopeKind:      protocol.ExecutionScopeRoom,
+		RoomID:         snapshot.Execution.RoomID,
+		ConversationID: snapshot.Execution.ConversationID,
+		RootRoundID:    "root-self-review",
+		RuntimeRoundID: "runtime-self-review",
+		AgentRoundID:   "agent-self-review",
+	}
+
+	beforeReview, err := service.RuntimeContext(context.Background(), actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(beforeReview, `<lane type="work" />`) ||
+		!strings.Contains(beforeReview, `<action>review_work</action>`) {
+		t.Fatalf("self-review WorkBinding context = %s", beforeReview)
+	}
+
+	reviewed, err := service.ReviewWork(context.Background(), actor, ReviewWorkInput{
+		ExecutionID:      binding.ExecutionID,
+		SnapshotRevision: snapshot.Execution.Version,
+		CommandID:        "review-own-work-same-round",
+		SubmissionID:     "submission-self-review",
+		Decision:         protocol.WorkAcceptanceAccepted,
+		CriteriaResults: []protocol.WorkAcceptanceCriterionResult{{
+			Criterion: "sources cited",
+			Passed:    true,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reviewed.Outcome != MutationApplied ||
+		!service.runtimeCoordinationActive(actor, binding.ExecutionID) {
+		t.Fatalf("self-review did not return to same-round coordination: %+v", reviewed)
+	}
+	afterReview, err := service.RuntimeContext(context.Background(), actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(afterReview, `<lane type="coordination" />`) {
+		t.Fatalf("self-review continuation context = %s", afterReview)
 	}
 }
 

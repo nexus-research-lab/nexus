@@ -11,10 +11,11 @@
 - 模型通过哪些稳定提示、动态上下文和工具观察、改变执行状态。
 - 后端如何通过状态机、Hook 和 Room handoff 准入阻止重复、越权和错误完成。
 
-本文暂不规定前端组件、布局或交互。前端未来只能投影本文的后端事实，不得创建第二套执行语义。
+本文同时规定前端投影边界：UI 只把本文的后端事实压缩成图标优先的工作图，不创建第二套执行语义。
 
 相关协议：
 
+- [Execution Graph 协议](./execution-graph-spec.md) 定义 WorkGraph 责任如何展开为 Agent、Subagent、Tool、Gate、Hook 事件和可恢复运行图。
 - [Room 协作协议](./room-collaboration-spec.md) 定义公共/私域通信、wake、reply route 和 handoff ledger。
 - [Room 模块规范](./room-spec.md) 定义 Room、conversation、session 和成员结构。
 - [Session Key 规范](./session-key-spec.md) 定义执行上下文的稳定作用域身份。
@@ -38,7 +39,21 @@
 - Hook 是 runtime 事件适配器和准入护栏，不是持久化真相源。
 - Prompt 教模型如何判断，不能替代服务端状态机。
 
-### 3.2 Goal 是持续性边界，不是复杂度容器
+### 3.2 硬约束只保护事实，不规定工作风格
+
+后端代码只强制安全、身份与权限、幂等、不可变历史、状态一致性，以及 Agent 已经声明的真实依赖或资源冲突。下列选择属于 Agent 的执行策略，不是服务端准入条件：
+
+- 是否为当前请求创建 Goal 或 Plan。
+- 是否声明 terminal 节点、逐条 acceptance criteria 或 output scope。
+- Ready 工作由 Lead 自己做、交给 Room 成员，还是在自己的 Assignment 内使用一个或多个 subagent。
+- 由 owner、Lead 或另一个 Room member review；自审不自动成立，但可以通过独立的 Submission/Acceptance 事实显式完成。
+- 是否并行、是否增加复核节点、是否根据 objective alignment 再运行一轮。
+
+Prompt 与 `execution-orchestrator` Skill 只提供推荐和例子；动态 execution context 提供当前事实与可用能力。Agent 根据任务内容自行组合。代码不得因为“标准流程应该这样走”而拒绝一个在权限、引用和状态上合法的选择。
+
+能力选择使用正交信号而不是用例白名单：局部记忆压力对应 Task，上下文隔离价值对应 Subagent，独立责任和显式拓扑对应 Work Item/Plan，持久身份交接对应 Room Assignment，证据会改变路线时对应 Gate/Loop，跨 boundary 持续性风险对应 Goal。任一信号都只说明一种结构可能有价值，不自动要求其他结构；Agent 从直接执行开始，选择足以表达真实任务的最少结构。
+
+### 3.3 Goal 是持续性边界，不是复杂度容器
 
 复杂任务可能在一个 execution boundary 内完成，因此只需要 Plan。简单任务也可能因为等待、重试或跨轮恢复而需要 Goal。
 
@@ -46,21 +61,21 @@ Goal 的判定问题是：
 
 > 当前 objective 是否必须在本轮执行、当前上下文、预算边界、外部等待或 Agent 交接之后继续存在？
 
-### 3.3 Plan 是 Work Item 图，不是权限模式
+### 3.4 Plan 是 Work Item 图，不是权限模式
 
 - Execution Plan 是一个有 revision 的 Work Item 有向无环图。
 - Plan Mode 是只允许检查和提出方案的 runtime permission mode。
 - Plan Mode 可以验证 Proposed Plan、transient replacement 或 abandonment，但不能写 Execution/Plan、激活 Assignment/Attempt 或触发 Goal continuation。
 
-### 3.4 委派转移执行，不转移最终责任
+### 3.5 委派转移执行，不转移最终责任
 
-- 把 Work Item 分配给 Room 成员时，Lead 仍负责依赖正确性、验收和最终整合。
+- 把 Work Item 分配给 Room 成员时，Lead 仍负责共享图能够收口和最终交付；具体 Submission 可由 Lead、owner 或另一个被选中的 Room member review。
 - 当前 Agent 使用子智能体时，父 Agent 仍是 Assignment owner；子智能体只是该 Assignment 的 Attempt executor。
 - worker 的结果是 Submission，不是 Acceptance。
 
-### 3.5 并行必须显式且可证明
+### 3.6 并行由 Agent 选择，声明的冲突由后端保护
 
-两个 Work Item 只有同时满足以下条件才可并行：
+Agent 决定是否并行时应检查：
 
 - 所有依赖已 Accepted。
 - 输入在本次执行期间稳定。
@@ -68,11 +83,11 @@ Goal 的判定问题是：
 - exclusive output scope 不冲突。
 - 不存在一项等待另一项结果的隐含依赖。
 
-每个 `produce` Work Item 必须至少声明一个 typed canonical output scope；缺少 scope 的生产项不能进入 Plan，否则后端无法可靠阻止两个执行者重复交付同一结果。语法固定为 `file:<workspace-relative-posix-path>`、`dir:<workspace-relative-posix-path>` 或 `semantic:<nonempty-key>`：file 只按同一路径重叠，dir 与自身及任意后代 file/dir 重叠，semantic 按 key 精确重叠；只有双方都声明 `shared` 才允许重叠，任一方为 `exclusive` 都必须拒绝。
+typed canonical output scope 是可选的精确冲突声明。Agent 认为重复交付风险值得保护时，可使用 `file:<workspace-relative-posix-path>`、`dir:<workspace-relative-posix-path>` 或 `semantic:<nonempty-key>`；一旦声明，后端严格执行重叠规则：file 只按同一路径重叠，dir 与自身及任意后代 file/dir 重叠，semantic 按 key 精确重叠，只有双方都声明 `shared` 才允许重叠。未声明 scope 不构成无效 Plan，也不能由后端凭自然语言猜出冲突。
 
-需要独立复核时必须显式声明 `review` 或 `verify` 关系，不能用两个相同的 `produce` Work Item 模拟复核。
+需要独立复核时，Agent 可以增加 `review` / `verify` Work Item，或把 `return_to_agent_id` 指向另一名 Room Agent；不需要独立复核时可由 owner 或 Lead 显式自审。两个相同的 `produce` Work Item 不应被当成复核，因为它们表达的是两份生产责任。
 
-### 3.6 Room/DM 是对话底座，Execution 是可选叠加层
+### 3.7 Room/DM 是对话底座，Execution 是可选叠加层
 
 系统不能把“当前 Room/session 存在 active Execution”解释成整个会话进入 managed mode。一个 Room 或 DM 在同一时间可以同时承载普通聊天、协调、受管工作、验收和后台 Goal continuation；Execution 只约束携带其可信 capability 的具体 round。
 
@@ -87,7 +102,7 @@ Goal 的判定问题是：
 
 因此 active Execution 是当前会话的后台事实，不是 Room 的全局开关；Goal 也是持续性 envelope，不是聊天模式。
 
-### 3.7 每个 round 的 lane 只由可信 envelope 决定
+### 3.8 每个 round 的 lane 只由可信 envelope 决定
 
 模型每次被唤醒前，后端必须根据服务端注入的身份和 binding 选择 lane，不能从正文动词、`@` 数量、参与人数或模型自述猜测：
 
@@ -95,18 +110,18 @@ Goal 的判定问题是：
 | --- | --- | --- |
 | conversation | Room round 没有 WorkBinding、ReviewBinding、exact Goal binding 或 round-scoped CoordinationBinding | 回应当前对话、使用普通任务工具；成员不能读取 WorkGraph，coordinator 只可显式 `get_execution` / `plan_execution` 进入协调面 |
 | coordination | exact Goal ID/revision，或 Execution coordinator 在当前物理 round 显式调用 `get_execution` / 成功 `plan_execution` 后由后端 mint 的 CoordinationBinding | 建 Plan/replan、分配、解阻、接管、审计完成；普通聊天本身仍不成为工作证据 |
-| work | 完整 WorkBinding | 只执行、阻塞、提交该 Assignment；不能修改 sibling 或自行验收 |
-| review | 完整 ReviewBinding | 审查 binding 指定的 immutable Submission；Acceptance 成功落库后，同一物理 round 自动转入 coordination，不等待用户逐节点确认 |
+| work | 完整 WorkBinding | 执行、阻塞、提交该 Assignment；不能修改 sibling。若该 owner 也是 Assignment 选定的 reviewer，可在同一可信 binding 内显式 review 自己的 Submission |
+| review | 完整 ReviewBinding | 选定 reviewer 审查 binding 指定的 immutable Submission；是否由 Lead、owner 或另一成员承担取决于 Assignment |
 | subagent | parent WorkBinding + server-created child Attempt binding | 只帮助父 Agent 完成同一 Work Item；stop 只终结 child Attempt |
 
 稳定不变量：
 
 - 裸 `@` 永远产生 conversation round；即使目标已有 Assignment、Room 有 active Execution，也不激活责任。
-- `assign_work` 的 durable Dispatch outbox 是创建 work lane 的唯一 Room 入口；`submit_work` 的 durable review-return outbox 是创建 review lane 的唯一 Room 入口。
-- `review_work` 成功写入目标 Submission 的唯一 Acceptance 后，后端为同一 `(owner, session, agent, physical round, execution)` mint CoordinationBinding，并消费已完成的 review lane。coordinator 可立即分配刚刚 Ready 的下游 Work Item；只有真实缺少用户选择、输入或授权时才暂停，不能把每个 graph 节点变成“请发送继续”的人工闸门。
+- `assign_work` 的 durable Dispatch outbox 是创建跨 Agent work lane 的唯一 Room 入口。只有 reviewer 与 owner 不同，`submit_work` 才创建 durable review-return outbox 和独立 review lane；显式自审继续使用当前 WorkBinding，不把结果重新投递给自己。
+- `review_work` 成功写入目标 Submission 的唯一 Acceptance 后会消费已完成的 review lane。若 reviewer 同时是 coordinator，同一物理 round 可继续协调；若 reviewer 是另一成员，Acceptance 仍会可靠解锁图，协调者从持久状态和后续 wake 继续，不要求用户逐节点发送“继续”。
 - 普通消息不复制 source round 的 WorkBinding/ReviewBinding。worker 在受管 round 中 `@` 另一个成员，只会建立新的 conversation round。
 - non-coordinator Room member 没有 binding 时不挂载 Execution MCP，后端直接调用也返回 `conversation_only`；Prompt 不是唯一护栏。
-- coordinator 身份使 Agent 有资格进入协调面，但不是 round-start 的隐式 CoordinationBinding。普通 coordinator Room round 仍从 conversation 开始，只开放 `get_execution` 与 `plan_execution`；前者显式读取现有责任，后者显式建立或修订协调图。后端为成功转换 mint `(owner, session, agent, physical round, execution)` capability，其他 mutation 在 capability 缺失时返回 `conversation_only`，round 结束立即释放。Room `review_work` 仍要求目标 Submission 的 ReviewBinding。DM 单 Agent中 coordinator、self worker 与 reviewer 可以由同一 Agent 承担，责任仍由 self Assignment/Submission/Acceptance 显式表达。
+- coordinator 身份使 Agent 有资格进入协调面，但不是 round-start 的隐式 CoordinationBinding。普通 coordinator Room round 仍从 conversation 开始，只开放 `get_execution` 与 `plan_execution`；前者显式读取现有责任，后者显式建立或修订协调图。后端为成功转换 mint `(owner, session, agent, physical round, execution)` capability，其他 mutation 在 capability 缺失时返回 `conversation_only`，round 结束立即释放。Room `review_work` 接受精确 ReviewBinding、选定 self reviewer 的当前 WorkBinding，或当前 coordinator 的有效 CoordinationBinding；DM 单 Agent 中三种角色也可由同一 Agent 承担。
 - `get_execution` 在当前 scope 没有 Execution 时返回权威 `state=unmanaged`，不会凭一次读取创建 Execution 或 CoordinationBinding；该 round 仍是 conversation，只有完整且成功的 `plan_execution` 才建立首个 WorkGraph 并进入 coordination。
 - 实时 steering/guidance 只进入已经存在的 target round，并继承 target round 的 lane；它不能把 conversation round 升级为 work，也不能把一个 Assignment 的 capability 带到另一个 slot。
 - 携带 WorkBinding/ReviewBinding 的 queue item 必须保持 `delivery_policy=queue`、单一精确 target，并单独启动 round；它不能被改成 guidance、与相邻消息合并或在恢复时降级成普通 directed message。workspace write 与 realtime consume 两端都必须校验，坏的历史 envelope fail closed 后继续处理后续消息。
@@ -247,7 +262,7 @@ Assignment 表示当前由谁对 Work Item 的交付负责。
 - Assignment 只能引用同一 Execution、同一 Plan 中的 Work Item/Spec 组合。
 - Assignment owner 与 Attempt executor 可以不同，但 owner 始终承担结果责任；`subagent` 只允许出现在 Attempt executor_kind，不是 Assignment owner/strategy。
 - Room Lead 可以分配共享 Work Item；普通成员不能重分配 sibling Work Item。
-- 单 Agent managed Execution 中，自己执行也需要显式或派生的 self Assignment，避免“无人负责但状态 running”。Room self Assignment 还必须有独立 reviewer 路径。
+- 单 Agent 或 Room managed Execution 中，Lead 自己执行也需要显式或派生的 self Assignment，避免“无人负责但状态 running”。`return_to_agent_id` 明确选择 owner、Lead 或另一成员作为 reviewer；后端不强制独立 reviewer。
 
 ### 4.6 Attempt
 
@@ -309,7 +324,7 @@ Review 由有权限的 reviewer 对 Submission 作出：
 
 Acceptance 是独立、append-only 的审查决定，保存 submission、decision、reviewer、逐条 criteria result、feedback 和 causal round。Submission 本身不可变，也不保存可被覆盖的 review 状态。一个 Submission 最多一个 Acceptance decision；reject 后通过新的 Attempt 和 Submission 返工。
 
-Room Submission 还会在同一 SQL transaction 创建独立的 `ExecutionReviewDispatch`。它只负责把待审 Submission 可靠回交给 Assignment 预先规范化的 `return_to_agent_id`，不复用 worker Dispatch，也不创建 reviewer Assignment/Attempt。投递到 Room 后使用独立 `ReviewBinding`，完整绑定 Execution、Plan、Work Item、Spec、Assignment、Submission、review dispatch 与 reviewer target。
+当 Assignment 选择跨 Agent reviewer 时，Room Submission 还会在同一 SQL transaction 创建独立的 `ExecutionReviewDispatch`。它只负责把待审 Submission 可靠回交给 Assignment 预先规范化的 `return_to_agent_id`，不复用 worker Dispatch，也不创建 reviewer Assignment/Attempt。投递到 Room 后使用独立 `ReviewBinding`，完整绑定 Execution、Plan、Work Item、Spec、Assignment、Submission、review dispatch 与 reviewer target。owner 被选为 reviewer 时不创建回投；原 WorkBinding 可以记录 Acceptance，并在 coordinator 自审时把同一物理 round 升回 coordination。
 
 只有 `decision=accept` 的 Acceptance 才能：
 
@@ -327,17 +342,17 @@ Room Submission 还会在同一 SQL transaction 创建独立的 `ExecutionReview
 
 循环校验不依赖完整 Goal 生命周期。Goal continuation 中“按 objective、completion criteria 和权威证据逐项证明结果是否达成”的部分必须抽成共享 `ObjectiveAlignmentAudit`，输入固定为 objective、completion criteria、当前状态引用和 evidence，输出固定为：
 
-- `aligned`：每条 criterion 都有足够权威证据，沿成功出口结束。
-- `not_aligned`：存在已确认差距，保存 gaps 与证据后沿显式回边进入下一轮。
-- `inconclusive`：证据不足或互相矛盾，进入 blocked/waiting，不得把“不确定”当成失败而无限重跑。
+- `aligned`：每条 criterion 都有足够权威证据，Agent 可据此选择结束、交付或继续优化。
+- `not_aligned`：存在已确认差距，保存 gaps 与证据并把控制权返回 Agent；Agent 决定修订、扩图、再运行、交接或阻塞。
+- `inconclusive`：证据不足或互相矛盾，保存缺失信息并把控制权返回 Agent；Agent 决定继续取证、等待、询问或采用其他合法路线。
 
-Goal completion 和 loop guard 复用同一 audit contract，但权限与生命周期彼此独立：前者决定持久 Goal 能否完成，后者只决定当前 Execution 的控制流。没有 Goal 的 transient Execution 也可以循环；只有循环需要跨 execution boundary、外部等待、定时恢复或超出本轮预算时，才按正常 promotion 规则考虑 Goal。
+Goal completion 和 Execution Gate 复用同一 audit contract，但权限与生命周期彼此独立：前者作为 Goal 完成审计的一部分，后者只是当前 Execution 的可选语义观测，不替 Agent 决定控制流。没有 Goal 的 transient Execution 也可以循环；只有循环需要跨 execution boundary、外部等待、定时恢复或超出本轮预算时，才由 Agent 按正常 promotion 规则考虑 Goal。
 
-每次回边都必须创建新的 immutable `NodeRun`/iteration identity。Assignment、Attempt、Submission、Acceptance 与 alignment result 绑定该次 run；上一轮 Accepted 证据保持不可变，禁止通过清空 Work Item 状态来“重新运行”。回边至少保存 guard run、target node、next iteration、alignment decision 与 gaps。重复 delivery、Hook 或 review 只能幂等得到同一个 next iteration。
+`audit_execution_alignment` 只记录当前 Agent Run → Gate 的 `guard` 边；未对齐或不确定时再记录 Gate → 当前 Agent 的 `loop_back` 观测边，表示工具结果已经把控制权交还调用者。它不会自动创建下一轮。只有 Agent 随后实际选择再运行时，runtime 才创建新的 immutable `NodeRun`/iteration identity。上一轮 Accepted 证据保持不可变，禁止通过清空 Work Item 状态来“重新运行”。
 
-每个 transient loop 必须有明确的 `max_iterations`；达到上限但仍未对齐时进入 paused/blocked 并返回 gaps，不得伪造完成。无界或长期周期工作必须再由 Goal、预算/时间边界或 Automation 承担持续性。可视化可以把 `control_edge` 画成回环箭头，但状态和调度不得把它投影成 `depends_on`。
+Agent 可以为 transient loop 选择 `max_iterations`、预算或时间边界，尤其在外部工具成本高或收敛不确定时；这是一项推荐策略，不是每张图的固定 schema 要求。系统级预算、取消和权限边界始终有效。无界或长期周期工作通常应由 Goal 或 Automation 承担持续性。可视化可以把 `control_edge` 画成回环箭头，但状态和调度不得把它投影成 `depends_on`。
 
-当前交付状态必须对模型和开发者明确：共享 Objective Alignment 契约及 Goal completion 适配已经存在；Execution 持久化目前仍只有 DAG `depends_on`，还没有 `control_edge`、NodeRun iteration 或 loop dispatch。因此当前的 review→返工、Goal continuation 和普通 Plan revision 都不叫 Graph Loop。后续 loop guard 落地后，`not_aligned` 应由后端自动创建下一 NodeRun/Assignment；Room 可把该投递显示成 `@Agent`，但无需让用户逐节点查看或发送“继续”。
+当前交付状态必须对模型和开发者明确：共享 Objective Alignment 契约、Goal completion 适配和可选 Execution alignment Gate 已经存在；runtime NodeRun/EdgeRun 已能记录 Agent、Tool、Subagent、alignment Gate 与 review 返工回边，但静态 Plan 的 `depends_on` 仍是 DAG，尚未把通用 `control_edge` 作为可写 Plan 结构。alignment 得到任何结论后，都由 Agent 决定修订、追加节点、再运行、交付或阻塞；后端只为实际选择创建新的 immutable run、幂等投递并保持历史。Room 可把投递显示成 `@Agent`，无需用户逐节点查看或发送“继续”。
 
 ## 5. 状态机
 
@@ -385,7 +400,7 @@ Goal 可以进入 complete，当且仅当：
 Goal objective revision 与 Execution binding 一致
 AND 当前 active/recovery Execution 已 completed
 AND 所有 required Work Item 已 accepted
-AND terminal integrate/verify Work Item 已 accepted
+AND 若 Plan 声明了 terminal Work Item，则这些节点已 accepted
 AND 没有 running Attempt
 AND 没有绑定当前 Execution 的待激活 Dispatch、Room handoff
 AND 没有绑定当前 Execution 的必须消费 input queue item
@@ -393,7 +408,7 @@ AND 没有 pending Submission
 AND terminal Goal usage 已结算
 ```
 
-Room 中“某个非 Lead Agent 回复过”不是完成证据。多 Agent 协作只由被非 Lead owner 提交并最终 Accepted 的 required Work Item 证明。
+Room 中“某个 Agent 回复过”不是完成证据。多 Agent 协作由实际 Assignment、Submission 与 required Work Item 的 Acceptance 证明；Lead 自己拥有的节点同样进入图和审计。
 
 ## 6. Goal 激活与自适应提升
 
@@ -415,6 +430,7 @@ activation_reason:
   scheduled_retry
   context_boundary
   recovery_required
+  substantial_complexity
 ```
 
 `context_boundary` 是当前唯一的上下文容量类枚举：后端观察到的 compact/context boundary 与受信 usage exhaustion 都映射到它，不新增 `usage_boundary`。二者必须通过不同的 runtime command/event provenance 供审计，但 Goal 记录的 activation reason 相同。
@@ -422,41 +438,38 @@ activation_reason:
 ### 6.2 判定规则
 
 ```text
-should_promote_execution_adaptively =
-    every(hard_gate)
-    AND (
-        any(observed_persistence_signal)
-        OR any(predicted_durable_signal)
-    )
+promotion_available = every(authority_and_state_gate)
+should_promote = Agent judgment from task facts and optional signals
 ```
 
-这是 adaptive promotion 的判定。用户显式要求 Goal 仍走 `create_goal` 的显式路径；显式路径不需要先观察 durable signal，但仍必须满足 objective clarity、原始授权、当前 permission mode 和 Goal service policy。
+用户显式要求 Goal 仍走 `create_goal`；已有 transient Execution 时，Agent 也可以选择 `promote_execution_to_goal`。两条路径都服从 objective clarity、原始授权、当前 permission mode、用户配置与 Goal 冲突检查，但不要求先命中某个持久性证据白名单。
 
-Adaptive promotion 的硬门槛全部满足：
+Promotion 的后端硬门槛只有：
 
 - objective 明确且 completion criteria 可形成。
 - 原始用户 scope 授权继续推进；promotion 不增加权限。
 - 当前不是 Plan Mode，用户没有关闭自动 Goal。
 - 当前有可绑定的 Execution，且同一 scope 没有另一个 active Goal。
-- 剩余工作是 required，而不是可忽略的后台优化。
 
-至少一个结构化持续性信号成立：
+是否仍值得继续推进不是额外的后端 Plan-shape 门禁：current active/waiting 状态已经阻止 terminal Execution 被提升，Agent 可以结合目标语义、尚未声明的新范围或恢复成本决定是否建立 Goal。
+
+系统可以向 Agent 提供结构化建议事实：
 
 - 已观察：当前 boundary 到达时仍有 required Work Item、pending Submission、未完成 Assignment/Attempt、待消费的绑定 handoff，或 recovery 正在恢复旧 Execution。
 - 可预测且 durable：已创建顺序 Room dependency/dispatch、必须等待外部状态、已安排跨 turn retry，或已知 context/usage boundary 前无法完成 required work。
 
-`context_boundary` 不能由模型传入布尔值证明。runtime 收到真实 `compact_boundary` system message，或后端观察到受信 usage exhaustion 时，以 runtime actor 写入带 CAS、typed command provenance 和审计事件的同一种 Execution evidence；模型刷新 `get_execution` 后，才可能看到对应 promotion affordance。当前实现已接入 `compact_boundary`；usage source 只有在 backend usage accountant 明确记录后才能走同一入口，不能由 token 猜测代替。`scheduled_retry` 同理只能由实际 scheduler 调用内部 evidence 入口，单次 API retry 或模型口头承诺稍后重试都不成立。
+`context_boundary`、`scheduled_retry` 等系统事实不能由模型传入布尔值伪造。runtime 与 scheduler 仍以 CAS、typed provenance 和审计事件记录这些事实，供 Agent 判断和 UI 解释；它们缺失时工具仍可调用，只要硬门槛成立。`substantial_complexity` 是 Agent 对长时恢复成本、范围和协调负担的语义判断，只作为审计理由，不要求后端证明固定阈值。
 
-Room 中只有已绑定到其他 Agent 的 required Assignment/Dispatch，或尚未完成的真实跨 Agent dependency chain，才能构成 Room durable signal。房主自己的顺序 hard dependency、未分配的草稿依赖和 optional Work Item 的等待都不触发 Goal。
+Room 中已绑定到其他 Agent 的 Assignment/Dispatch、尚未完成的跨 Agent dependency chain、Lead 自己需要跨轮整合的工作，以及高恢复成本都可以影响判断。参与人数本身不自动创建 Goal。
 
-以下只能作为建图证据，不能单独触发 Goal：
+以下事实不能由后端机械等同为 Goal，但 Agent 可以结合任务语义使用：
 
-- 提示词很长、步骤很多或模型主观认为“复杂”。
+- 提示词很长、步骤很多或整体复杂度较高。
 - 使用了 Plan 或子智能体。
 - Room 中有多个 Agent，但所有交付可在当前 boundary 内完成。
 - 只剩 runtime-local、optional 或不可验收的后台工作。
 
-“自动提升”不是后台定时器凭复杂度自行创建 Goal。后端先从 WorkGraph、runtime evidence、Goal policy 与配置计算并投影 `goal_promotion` affordance；只有模型在 coordination lane 选择并调用 `promote_execution_to_goal`，后端才重新验证同一证据并提交 promotion。用户显式要求持续追求则走独立 `create_goal` 路径。没有足够证据时保持 transient Execution；未知情况 fail closed，不猜测持久化意图，也不绕过权限、Plan Mode 与 objective clarity 门槛。
+“自适应提升”仍由 Agent 在 coordination lane 主动选择，不是后台定时器。后端投影可用性和建议事实；Agent 调用后，服务端重新验证硬门槛并提交 promotion，不重新裁决“这个任务是否足够值得”。未知权限或状态 fail closed，但任务策略不 fail closed。
 
 ### 6.3 Execution promotion
 
@@ -468,7 +481,7 @@ Room 中只有已绑定到其他 Agent 的 required Assignment/Dispatch，或尚
 - 记录 `goal_promoted` 事件。
 - 禁止重建或复制 Plan。
 - 同一 Execution 的 promotion 使用 idempotency command ID，重复调用返回同一 Goal binding。
-- 记录判定来源、满足的 persistence signals 与 objective/Execution version fence，便于恢复和审计。
+- 记录 Agent 选择的 activation reason、当时可见的建议 signals 与 objective/Execution version fence，便于恢复和审计；signals 可以为空。
 
 Goal 延长 intent 的生命期，不扩大权限。遇到需要新授权、危险操作或重大用户选择时，Goal 必须 blocked。
 
@@ -513,21 +526,21 @@ Goal 一旦绑定 managed Execution，objective 变化不再是 Goal row 的普�
 ### 7.2 Room Host 与 Goal Lead
 
 - 没有 Goal 时，Room host 是当前 root execution 的默认 coordinator。
-- active Room Goal 存在时，Goal Lead 是 Goal-bound Execution 的 coordinator 和 shared WorkGraph reviewer。
+- active Room Goal 存在时，Goal Lead 是 Goal-bound Execution 的 coordinator；它可以 review，也可以为具体 Assignment 选择 owner 或另一成员 review。
 - creator、host 与 Goal Lead 的身份必须由后端上下文明确给出，不能让模型从名字推断。
 
 Lead 负责：
 
 - 创建和修订 shared Plan。
-- 定义依赖和验收标准。
+- 在有帮助时定义依赖、验收标准和输出范围。
 - 分配 Ready Work Item。
-- 验收或退回 Submission。
+- 自己验收、或选择另一名 Agent 验收/退回 Submission。
 - 处理失败、阻塞、接管和重分配。
-- 确保最终 integrate/verify Work Item 被独立执行和验收，并据此完成最终交付。
+- 让自己的协调、整合、复核、接管和最终交付步骤也成为可见 NodeRun；是否拆成独立 Work Item 由任务需要决定。
 - 发起 Goal completion audit。
 - 在用户明确改变或放弃当前 non-Goal objective 时发起 transient Execution replacement/abandonment；Goal-bound objective 变化仍走 Goal revision/rebase。
 
-Lead 若亲自执行 shared Work Item，仍不能 Acceptance 自己的 Submission；该 Work Item 必须由另一个获授权 reviewer、用户或系统验收。Lead 作为 coordinator 的权限不能消除 Room 中生产与验收的分离。当前协议尚未持久化独立 `reviewer_agent_id/reviewer_kind`，也没有 user/system Review admission，因此后端暂时以 `room_independent_reviewer_required` 拒绝所有 Room self Assignment；正式的 produce、integrate 和 terminal verify Work Item 必须分配给其他成员，由 Lead 验收后负责最终回复。只有独立 reviewer 身份、唤醒和权限链全部落地后才能重新开放。
+Lead 可以亲自执行 shared Work Item，并把 `return_to_agent_id` 设为自己完成显式自审；也可以选择另一名 Room Agent 独立复核。自审不会因 owner 身份自动成立，仍要保存 immutable Submission 和 append-only Acceptance。独立 reviewer 同样只获得目标 Submission 的精确能力，不因此获得整个图的 coordinator 权限。生产与验收是否分离是 Agent 的质量策略，不是 Room self Assignment 的代码门禁。
 
 ### 7.3 Room 成员
 
@@ -536,6 +549,8 @@ Room 成员可以：
 - 读取与自己 Assignment 有关的稳定输入。
 - 开始、阻塞、提交自己的 Work Item。
 - 在自己 Assignment 范围内使用 subagent。
+- 当自己是 Assignment 选定的 reviewer 时 review 对应 Submission，包括显式自审。
+- 被其他 Assignment 选中时，通过精确 ReviewBinding 独立 review 对应 Submission。
 - 向 Lead 提议 Plan 修改或新 Work Item。
 
 Room 成员不能：
@@ -574,11 +589,11 @@ Room 成员不能：
 
 `tool_use_id → child Attempt` 是 launch binding，也承担重复调用 fence。runtime manager 按物理 parent round 注册 callback；`PreToolUse` 成功时把 callback、parent round、tool ID 与当时可见的 SDK session/task identity 冻结为 immutable lifecycle binding。后续 `SubagentStart/Stop/PostToolUseFailure` 只能命中该 binding：优先使用可信 callback correlation，再使用唯一的 task/SDK Agent identity；零匹配或多匹配都 fail closed。parent round 结束只撤销新的 launch capability，已创建的 child binding 保留到迟到 Stop/重复事件完成幂等收口，不能被 successor round 覆盖。不能把 SDK `agent_id` 猜写成 `child_session_id` 或 `sdk_task_id`。`SubagentStop` 只终结 child Attempt，不自动产生 Submission、Acceptance 或 Goal completion evidence。
 
-当前 WorkGraph admission 仍明确限制同一 parent Assignment 同时最多一个 active child subagent；不同物理 parent round 可以安全共存，但无 correlation 的 lifecycle 绝不按“最新 round”路由。需要真正并行的独立 Work Item 时，优先分配给不同 Room Agent。
+同一 parent Assignment 可以拥有多个并行 child subagent Attempt，前提是每次 launch 都有唯一 `tool_use_id`，后续 lifecycle 能精确命中该 binding；缺失或歧义 correlation 的单个事件 fail closed，不能按“最新 child”猜测。真正彼此独立、需要跨 Agent 交接或单独验收的责任通常更适合拆成多个 Work Item，但这仍是 Agent 的选择。
 
 ## 8. 模型决策协议
 
-模型在 substantial execution 前按固定顺序判断：
+模型在 substantial execution 前参考以下问题；它们是决策清单，不是要求每次逐项输出或固定流水线：
 
 1. 当前是 Plan Mode 吗？如果是，只验证 Proposed Plan、transient replacement 或 abandonment，不执行任何 mutation。
 2. 当前 round 是 conversation、coordination、work、review 还是 subagent？conversation 先正常回应；只有 Room coordinator 判断请求确需可追踪交付时，才显式调用 `get_execution` / `plan_execution` 进入 coordination。
@@ -586,14 +601,14 @@ Room 成员不能：
 4. 用户是在改变同一 objective 的执行路线、改为不同 transient objective，还是只放弃？前者普通 replan；第二种由 coordinator 用带 `replace_current_execution` 的完整 `plan_execution` 原子创建 successor graph；第三种用 `abandon_execution` 只取消旧 graph。Goal-bound Execution 对后两者返回 `goal_retarget_required`。
 5. 用户是否明确要求持久追求，或当前 Execution 是否需要自适应 Goal？
 6. 请求是否是一个原子 deliverable？
-7. 如果不是，创建或修订 Plan revision。
+7. 如果图能明显改善并行、交接、恢复或可见性，创建或修订 Plan revision；否则直接执行。
 8. 读取 Ready Work Item。
 9. 为每个 Ready Work Item 选择 self、subagent 或 Room member。
-10. 并行前验证 dependency、input stability 和 output scope。
-11. 等待 Submission，执行 Review。
-12. 解锁下游并重复。
-13. 执行 terminal integration/verification。
-14. 运行 Execution/Goal completion audit。
+10. 并行前验证已声明 dependency，并在有价值时声明 input stability 或 output scope。
+11. 在任务需要时提交和 Review；reviewer 可以是 owner、Lead 或另一成员。
+12. 根据新证据、ready 节点和 alignment gaps 自行决定继续、扩图、返工或收口。
+13. 在有价值时执行独立 integration/verification，而不是为了固定流程制造节点。
+14. 对受管 Execution/Goal 运行完成审计。
 
 执行策略边界：
 
@@ -720,7 +735,7 @@ Main、Base、Room 和 Goal continuation 不得各自复制并演化另一套相
 </nexus_execution_context>
 ```
 
-动态上下文只包含当前 actor 做决定所需的有界状态，不转储完整事件日志。`graph_digest` 是从 typed WorkGraph 单向生成的确定性读模型：coordinator 得到完整当前 DAG，member/subagent 只得到自己的节点与所需上游切片。它帮助模型快速理解拓扑，但不是写入格式或真相源；`work_graph_json`、服务端实体和校验器才是权威协议。UI/调试可以从同一读模型派生 Mermaid，不得把 Mermaid 文本反向解析成执行状态。
+动态上下文只包含当前 actor 做决定所需的有界状态，不转储完整事件日志。`graph_digest` 是从 typed WorkGraph 单向生成的确定性读模型：coordinator 得到完整当前 DAG，member/subagent 只得到自己的节点与所需上游切片。它帮助模型快速理解拓扑，但不是写入格式或真相源；`plan_execution.items` 的原生对象协议、服务端实体和校验器才是权威协议。UI/调试可以从同一读模型派生 Mermaid，不得把 Mermaid 文本反向解析成执行状态。
 
 `allowed_actions` 只能表达工具级 affordance，但 `plan_execution` 同时承载普通 replan 与 Execution replacement，因此动态上下文还必须投影 `execution_transition`。`replace_current_allowed` 控制 `replace_current_execution` flag，`abandon_allowed` 控制 `abandon_execution`，`validation_only` 标记 Plan Mode 的 write-free proposal。transient coordinator 为 true；Room member/subagent 为 false 并带 authority reason；Goal-bound coordinator 仍可拥有普通 `plan_execution` replan，但 replacement/abandonment 为 false 且稳定 `reason_code=goal_retarget_required`。
 
@@ -743,24 +758,24 @@ runtime 发出 `compact_boundary` 后，DM/Room 执行器先把该事实写入 S
 
 如果把模型当成 Execution Orchestration 的真实使用者，控制面必须满足：
 
-1. **先给定位，再给工具。** 每轮上下文必须明确 actor role、当前唯一 Assignment、dependency、deliverable、acceptance criteria、completion blocker 和 exact allowed actions；不能要求模型从聊天历史重建这些事实。
+1. **先给定位，再给工具。** 每轮上下文明确 actor role、当前 Assignment、已声明的 dependency/deliverable/criteria、completion blocker 和当前可用能力；不能要求模型从聊天历史重建这些事实，也不能把建议伪装成 `allowed_actions` 权限。
 2. **模型只做语义决策。** 模型负责 Plan、分配、提交、验收、阻塞、接管和 promotion proposal；`running`、Attempt identity、outbox claim、event sequence、version increment 与恢复由工具适配器、Hook 和服务端自动维护。
 3. **原子任务零工具税。** 一个当前 boundary 内可完成的小交付可直接执行；不能为了展示“进度”强迫模型创建 Goal、Plan、Work Item 或手工 start/complete 状态。
-4. **一次提交完整意图。** `plan_execution` 通过一个 `work_graph_json` 字符串批量提交完整 WorkGraph，服务端严格解码其中的 JSON array、mint opaque IDs，并返回 logical key → ID 映射、Ready 项和下一动作。禁止让模型用多个低级 create/update 调用拼半成品 Plan。
+4. **一次提交完整意图。** `plan_execution` 通过一个原生 `items` 对象数组批量提交完整 WorkGraph；模型可见 schema 使用跨 Provider 的公共 function-calling 子集，服务端无条件严格解码、mint opaque IDs，并返回 logical key → ID 映射、Ready 项和下一动作。禁止让模型用多个低级 create/update 调用拼半成品 Plan，也禁止把 JSON 再编码进字符串。
 5. **不让模型维护并发控制。** MCP adapter 从当前 snapshot 注入 expected revision；优先用 `tool_use_id` 形成 idempotency command ID，bridge 未提供时使用 server session/round、工具名、canonical input 与 snapshot revision 的稳定 hash。应用服务再按具体 mutation 派生不同的 event command key，因此一次复合工具调用的 Ensure、Plan 或 Goal binding 子步骤不会互相冲突。底层内部 API 仍强制 CAS。发生 stale 时返回新的 revision、actor-specific context 和可重试动作，不让模型猜 version。
 6. **工具结果必须可恢复且不重复状态。** 每个 mutation 返回 `applied | no_op | rejected`、稳定 reason code、最新 snapshot revision、实际改变、有序 `next_actions` 与一份 actor-specific `execution_context`。完整 Snapshot 保留给同进程协调和 HTTP/UI 读模型，Execution MCP 不再把它与派生 context 同时发给模型。若任一 MCP 结果仍超过 runtime 上限，SDK 只保存原始结果并提示按 schema、搜索、`jq` 或 offset/limit 定向读取；只有用户明确要求 exhaustive whole-result audit，或正确性确实依赖每条记录时，才要求全文读取。
-7. **只暴露当前可用 affordance。** dynamic context 的 `allowed_actions` 使用真实工具名，并同时受当前状态与 round lane 约束：没有 Ready Work 就不暴露 `assign_work`，没有自己的 current Assignment/WorkBinding 就不暴露 `submit_work`，Room coordinator 没有目标 Submission 的 ReviewBinding 或没有待审 Submission时不暴露 `review_work`；有 unreviewed Submission 的 Work Item 不再成为 `block_work` / `take_over_work` 候选，但其他安全 Work Item 仍可继续并行，`active_assignments` 逐项标记 `responsibility_mutation_allowed` 与 pending Submission。conversation-only member 不挂载 Execution MCP；conversation-only coordinator 即使保留固定 MCP registry，也只允许 `get_execution` / `plan_execution`，其他 mutation 由 round-scoped CoordinationBinding 在服务端拒绝。只有进入 coordination 的当前 transient Execution coordinator 才能获得 `execution_transition.replace_current_allowed` / `abandon_allowed`；Plan Mode 用 `validation_only=true` 强制 write-free proposal。Goal-bound coordinator 仍可拥有 `plan_execution` 做普通 replan，但 replacement/abandonment affordance 为 false 并稳定返回 `goal_retarget_required`；Room member 与 subagent 两者均为 false。配置关闭或存在 Goal 冲突时不暴露 promotion。该列表只约束 Execution Orchestration 控制动作，不限制研究、编码和浏览等普通 conversation/task 工具。即使 runtime 不能动态隐藏工具，服务端也必须按 round binding、目标 Work Item/current Spec 以同一权限表拒绝。
+7. **只用硬事实收窄 affordance。** dynamic context 的 `allowed_actions` 使用真实工具名，只按身份/权限、round binding、Plan Mode、当前状态和引用完整性收窄：没有 Ready Work 就不提供 `assign_work`，没有自己的 current Assignment 就不提供 `submit_work`；`review_work` 可由精确 ReviewBinding、选定 self reviewer 的 WorkBinding，或当前 coordinator 的有效 CoordinationBinding获得。conversation-only member 不挂载 Execution MCP；conversation-only coordinator 只可读取或显式建图。replacement、abandonment、Goal 冲突和用户禁用等仍是硬权限/状态边界。是否应调用某项合法工具、是否独立 review、是否再跑一轮由 Agent 决定，不能再用产品偏好做第二层隐藏白名单。该列表不限制研究、编码和浏览等普通 conversation/task 工具。
 8. **把下一动作所需语义放在动作旁。** `assigned_work`、`ready_work`、coordinator `active_assignments` 与 `pending_reviews` 投影 current Spec 的 logical key、objective、deliverable、acceptance criteria、`input_refs`、canonical `output_scopes` 与有序 `resolved_dependencies`；每条依赖给出 upstream Work Item/logical key/current Spec 与 kind，只有已经 Accepted 的 upstream 才携带 immutable Submission summary/refs/evidence 和 Acceptance criteria results，未验收依赖只暴露 status/blocker。structured Room WorkBinding 保留自身 mutation capability 以及这些直接上游的只读 WorkItem/Spec/PlanItem/dependency/output claim/accepted delivery 投影，继续过滤 sibling live Assignment/Attempt/Dispatch/state 和任何 unreviewed payload。若上次 Submission 被 rejected / changes requested，还必须携带 latest review decision、feedback 与逐条 criteria results。`resume_work` 记录的 resolution/evidence 同时进入后续 `ready_work` 和新 owner 的 `assigned_work`，避免模型依赖聊天历史猜返工要求或刚补齐的外部输入。任何带 `truncated=true` 的异常历史投影都表示上下文不完整，模型不得据此提交、验收或宣称 completion，应等待后端修复或改走 fail-closed 恢复。
 9. **人类可读名不是关联键。** 模型可以看到 `logical_key=W2` 和 subject，但 Assignment、Attempt、Dispatch 依赖服务端 ID；不得靠显示名、自然语言相似度或 `@` 文本猜 binding。
 10. **结构化路径是主路径。** Room 分工由 `assign_work` 创建 Assignment + Dispatch；子智能体由 pending Attempt + `PreToolUse: Agent` permit 绑定。自然语言 `@` 与 SDK Task 只做兼容/投影，不承担正确性。
-11. **完成应由审计触发。** 接受 terminal Work Item 后服务端自动重算 Execution readiness；Stop/Goal complete 只消费 blocker audit。模型不需要手工同步一串“已完成”状态。
+11. **完成应由审计触发。** 任一 Acceptance、runtime terminal event 或图修订后服务端重算 Execution readiness；若 Plan 声明 terminal 节点则纳入审计。Stop/Goal complete 只消费 blocker audit，模型不需要手工同步一串“已完成”状态。
 
 因此，模型面对的决策路径应始终接近：
 
 ```text
 直接做一个原子交付
-OR plan_execution → assign_work → submit_work → review_work
-                                    └→ block/takeover when needed
+OR Agent 自行组合 plan / assign / subagent / submit / review / alignment
+   后端记录实际发生的 NodeRun/EdgeRun，并只拒绝不安全或不一致的动作
 
 用户明确换成 different transient objective
 → plan_execution(replace_current_execution=true, complete successor graph)
@@ -773,7 +788,7 @@ OR plan_execution → assign_work → submit_work → review_work
 
 required work 必须跨 boundary
 → propose promotion
-→ backend policy decides
+→ Agent 说明选择，backend 只校验权限/状态/用户配置
 → resume the same Execution
 ```
 
@@ -791,13 +806,12 @@ Execution Orchestration 提供产品级 MCP 工具：
 
 批量创建或修订 Plan 和 Work Item；带明确 replacement fields 时原子创建不同 objective 的 successor Execution + active Plan。
 
-必须：
+结构要求：
 
-- 提供完整 dependency edges。
-- 提供 deliverable 和 acceptance criteria。
-- 每个 `produce` Work Item 至少提供一个 output scope。
-- 标出 required 与 terminal integrate/verify Work Item。
-- 提交 base revision，防止覆盖并发修改。
+- `items` 非空，每项提供 logical key、kind、subject、objective 与 deliverable。
+- 只声明真实 dependency；声明后必须引用完整且无环。
+- acceptance criteria、output scope、required/terminal 标记按任务需要选填。
+- adapter 从 snapshot 注入 base revision，防止模型手工维护并发版本。
 
 runtime Plan Mode 下，`plan_execution` 只做完整 normalize/validate 并返回 proposal 结果，不 mint Plan/Work Item/Spec ID、不写 SQL、不创建 Execution，也不启动任何工作；离开 Plan Mode 后重交同一完整 draft，才创建 Execution 并激活 immutable Plan revision。SQL 中的 `proposed` 状态保留给未来由用户或控制面显式保存的草案，不由当前模型工具暗中持久化。
 任何文字、Spec 或 dependency 修改都产生新的 immutable Plan revision；不得原地改写历史 revision。
@@ -808,7 +822,7 @@ runtime Plan Mode 下，`plan_execution` 只做完整 normalize/validate 并返�
 
 模型输入使用本次 Plan 内唯一的 `logical_key` 表达 dependency；服务端生成 opaque Plan/WorkItem/Spec ID。一次调用必须原子成功或整体拒绝，不能留下半张工作图。
 
-模型可见 schema 和 adapter 都只接受一个 `work_graph_json` JSON array string，不再保留容易被部分 Provider 丢失的 `array<object>` 旁路。每项至少包含 `logical_key`、`kind`、`subject`、`objective`、`deliverable`、非空 `acceptance_criteria`、`required` 和 `terminal`；produce 项还必须给 typed output scope，整张图必须包含 required terminal integrate/verify 项。adapter 使用 `DisallowUnknownFields` 严格解码字符串，并拒绝空字符串、空数组、未知字段与尾随 JSON；service 继续执行 32 项上限、DAG、terminal 与 output-scope 校验，因此 transport 兼容不会弱化领域契约或原子性。
+模型可见 schema 和 adapter 只接受一个原生 `items: array<object>` 协议，不保留 JSON-inside-JSON 字符串旁路。schema 只使用 `object/properties/required/additionalProperties/type/items/enum/description` 这组公共 function-calling 关键字，不用模型白名单或 Provider 私有字段决定工具是否可调用；bridge 与 SDK 必须无损传递同一份嵌套 schema 和 arguments。每项至少包含 `logical_key`、`kind`、`subject`、`objective` 和 `deliverable`；`required` / `terminal` 默认 false，criteria、dependency、input refs 和 output scopes 均可省略。adapter 使用 `DisallowUnknownFields` 解码整个参数对象，service 继续执行身份、非空核心字段、32 项上限、引用完整性、DAG 以及已声明 scope 冲突校验，因此模型生成不能替代领域契约或原子性。
 
 默认情况下，current Assignment、live Attempt 或待投递 Dispatch 会阻止 ordinary Plan revision replacement。若同一 objective 的旧图已经不再有效，coordinator 必须显式提交 `supersede_active_work=true` 和非空 `revision_reason`；同一事务先捕获每个 live/pending Attempt 的 Cancellation dispatch，再释放旧 Assignment、终结 Attempt、取消 pending/claimed Assignment/Review Dispatch，最后激活新 revision。任何 unreviewed Submission 都继续阻止这种 replan，不能借改 Plan 擦除已交付但尚未验收的结果。与当前 active Plan 规范化后完全一致的 draft 返回 semantic no-op，即使 retry 使用了新的 tool-use ID 也不产生空 revision。
 
@@ -833,8 +847,8 @@ Plan Mode 对普通首次 Plan、replan 和 replacement draft 都只 normalize/v
 - Work Item 为 Ready。
 - dependency 全部 Accepted。
 - 没有 current Assignment。
-- output scope 没有冲突。
-- 调用者有 coordinator 权限；`self` 只用于单 Agent/DM Execution，Room 暂时要求 `room_member` owner。
+- 已声明 output scope 时不存在冲突。
+- 调用者有 coordinator 权限；`self` 可用于单 Agent、DM 或 Room coordinator 自己承担工作。
 
 Room member Assignment 在同一事务创建 Assignment 与 Dispatch outbox；DM self Assignment 与 Room member Assignment 都创建 pending root Agent Attempt。当前 Agent 之后选择 subagent 时，`PreToolUse: Agent` 在父 Attempt 上原子创建并绑定 running child Attempt。事务提交前不得发送 Room wake 或启动子智能体。
 
@@ -846,7 +860,7 @@ Room member Assignment 在同一事务创建 Assignment 与 Dispatch outbox；DM
 
 ### 10.5 `submit_work`
 
-提交结果、引用和证据。成功后 Work Item 进入 submitted，Assignment 等待 reviewer。
+提交结果、引用和证据。成功后 Work Item 进入 submitted，Assignment 等待其 `return_to_agent_id` 选定的 reviewer；该 reviewer 可以与 owner 相同。
 
 ### 10.6 `review_work`
 
@@ -875,9 +889,9 @@ Room member Assignment 在同一事务创建 Assignment 与 Dispatch outbox；DM
 
 ### 10.10 `promote_execution_to_goal`
 
-请求把当前 transient Execution 绑定到新 Goal。工具调用只是 proposal；服务端必须重新执行 adaptive hard gate + durable signal 判定。
+请求把当前 transient Execution 绑定到新 Goal。Agent 决定 persistence 是否值得；服务端只重新校验身份/权限、用户配置、current Execution、Goal 冲突、objective/completion boundary 与剩余工作。
 
-模型只提供可选 objective proposal 与一个当前上下文已经列出的 activation reason。adapter 注入当前 Execution identity/revision，后端从权威 snapshot 读取 objective、completion criteria、Plan 和 durable signal，并再次检查配置开关、当前 Goal 冲突与用户 authority。proposal 不能扩展 objective，也不能创建第二份 Plan。
+模型只提供可选 objective proposal 与 activation reason。adapter 注入当前 Execution identity/revision，后端从权威 snapshot 读取 objective、completion criteria 和 Plan，并检查配置开关、当前 Goal 冲突与用户 authority。Room dependency、外部等待、恢复成本、上下文边界和复杂度都是可参考理由，不是必须被后端证明的白名单。proposal 不能扩展 objective，也不能创建第二份 Plan。
 
 ### 10.11 `abandon_execution`
 
@@ -923,6 +937,7 @@ SDK Task/Todo 继续用于：
 产品边界：
 
 - shared/Goal-bound Work Item 必须先存在于 Nexus WorkGraph。
+- UI 可以把 runtime-local Task 作为对应 Work Item 的局部步骤展开，但必须由当前 WorkAttempt 的 `executor_agent_id + agent_round_id` 与消息精确关联；缺少任一身份或不匹配时不展示，不能按 Agent、消息位置或时间猜测。
 - TaskCreated/TaskCompleted Hook 可以把 Nexus metadata 绑定到对应 Work Item。
 - Task completion 不能越过 Nexus Acceptance。
 - owner、claim、Room collaboration 和 handoff 语义属于 Nexus，不写回 SDK core 作为第二套 team protocol。
@@ -989,15 +1004,15 @@ B 依赖 A 时，B 的结构化 Dispatch 只能在 A Accepted 后创建或投递
 
 ### 12.3 Submission 与回交
 
-Room member 调用 `submit_work` 时，一个 SQL transaction 同时写入 immutable Submission、`ExecutionReviewDispatch` outbox 与 append-only event。review target 来自 Assignment 创建时已经规范化的 `return_to_agent_id`；当前 Room reviewer 协议要求它是 coordinator，未来若引入独立 reviewer，也必须先扩展持久身份与权限链。
+Room Agent 调用 `submit_work` 时，一个 SQL transaction 写入 immutable Submission 与 append-only event；仅当 `return_to_agent_id` 不同于 owner 时，同一事务再写入 `ExecutionReviewDispatch` outbox。review target 来自 Assignment 创建时已经规范化的 `return_to_agent_id`，可以是 owner、Lead 或另一名当前 Room member。
 
 事务提交后，独立 consumer 使用 lease/CAS claim、retry 和 receipt，把待审 Submission 幂等写入 target 的 durable Room handoff 与 input queue。该回交携带 `execution_id/plan_id/work_item_id/spec_id/assignment_id/submission_id/review_dispatch_id/target_agent_id` 的完整 `review_binding`；它不携带 worker Attempt，也不伪造 reviewer Assignment/Attempt。
 
-coordinator slot 只有在服务端重新校验 Execution、active Plan、current Assignment、未审 Submission、review target 与 outbox binding 后才会启动。其 actor context 直接投影 `pending_reviews` 并开放 `review_work`。因此正确性不依赖 worker 在正文中手写 `@Coordinator`；公开 deliverable 或 mention 仍可用于人类可见沟通和 legacy transport，但既不创建 review truth，也不产生 Acceptance。
+reviewer slot 只有在服务端重新校验 Execution、active Plan、current Assignment、未审 Submission、review target 与 outbox binding 后才会启动。其 actor context 直接投影 `pending_reviews` 并开放 `review_work`。因此正确性不依赖 worker 在正文中手写 `@Coordinator`；公开 deliverable 或 mention 仍用于真实内容沟通和人类可见性，但不创建 review truth，也不产生 Acceptance。
 
-`review_work` 成功写入 Acceptance 后，只要 Execution 仍可继续，后端就在当前物理 round 内把 ReviewBinding 升级为 CoordinationBinding。新的 `ready_work` 和 `assign_work` 立即出现在同一轮 context 中，Lead 可以直接创建下一条结构化 Assignment；Room 投递可显示为定向 `@Agent`，用户不需要查看或确认每个中间节点。若没有 Ready work、验收要求返工，或确实需要用户决策/输入/授权，状态机才停在对应 blocker，而不是无条件等待一条“继续”消息。
+`review_work` 成功写入 Acceptance 后，新的 Ready 状态立即成为持久事实。若 reviewer 是 coordinator，当前物理 round 可转入 CoordinationBinding 并直接继续；若 reviewer 是 owner 或另一成员，实质性结果通过 Room 通信回到需要它的 Agent，而 reviewer 不自动获得额外协调权限。用户不需要查看或确认每个中间节点。只有没有可继续的工作、Agent 选择返工，或确实需要用户决策/输入/授权时，状态机才停在对应 blocker。
 
-SQL transaction 的原子边界止于 Submission 与 review-return outbox。Room workspace ledger 是另一持久化域，只能在 commit 后幂等投递；SQL outbox 是待投递真相源，稳定 dedupe key 防止重试生成第二条 handoff/queue。Execution terminal、Plan/Assignment replaced 或 Submission 已被 review 时，pending/claimed/failed return 被取消；已投递但迟到的 Room queue 在实际 wake 前也必须重新 admission 并拒绝，不能进入 successor Execution。
+跨 Agent review 的 SQL transaction 原子边界止于 Submission 与 review-return outbox；自审事务只有 Submission，不制造自投递。Room workspace ledger 是另一持久化域，只能在 commit 后幂等投递；SQL outbox 是待投递真相源，稳定 dedupe key 防止重试生成第二条 handoff/queue。Execution terminal、Plan/Assignment replaced 或 Submission 已被 review 时，pending/claimed/failed return 被取消；已投递但迟到的 Room queue 在实际 wake 前也必须重新 admission 并拒绝，不能进入 successor Execution。
 
 ### 12.4 物理中断 outbox
 
@@ -1088,7 +1103,7 @@ Hook 只拒绝确定性违规：
 W1 Researcher: 收集官方规格与证据
 W2 Analyst: 基于 W1 Accepted 结果完成差异分析
     depends_on: W1
-W3 Analyst: 整合并验证最终报告草稿
+W3 Lead: 整合并交付最终报告草稿
     depends_on: W2
 ```
 
@@ -1097,13 +1112,13 @@ W3 Analyst: 整合并验证最终报告草稿
 1. Lead 建立 shared Plan。
 2. W1 为 Ready，W2/W3 为 Blocked。
 3. Lead 分配并只激活 W1。
-4. Lead 不执行 W1 output scope。
+4. Researcher 拥有 W1；Lead 不重复生产同一份结果。
 5. Researcher 提交 W1。
-6. Lead Review；接受后 W2 变 Ready。
+6. W1 由 Assignment 选中的 reviewer 验收；可以是 Researcher 自审、Lead 或另一成员。接受后 W2 变 Ready。
 7. Lead 激活 Analyst 的 W2。
-8. Analyst 提交，Lead 接受。
-9. W3 变 Ready，由 Analyst 执行并提交，Lead 不重复执行同一 output scope。
-10. Lead 验收 terminal integration/verification，并基于 Accepted 结果完成最终回复。
+8. Analyst 提交，由选中的 reviewer 接受。
+9. W3 变 Ready，Lead 通过 self Assignment 执行整合；该 Lead 节点和其工具/子智能体运行同样显示在工作图中。
+10. Lead 可显式自审 W3，也可选择另一 reviewer；是否把它声明为 terminal 由 Lead 决定。
 11. Execution/Goal completion audit。
 
 Lead 在第一条消息同时 `@Researcher` 和 `@Analyst` 作为普通聊天完全合法；它只产生两个 conversation round。若 Lead 试图把这条裸 mention 当成正式并行派工，则该派工无效：裸 `@` 没有创建任何 Assignment，而且 W2 尚未 Ready，只有 W1 的 structured Dispatch 可以启动受管工作。
@@ -1170,7 +1185,7 @@ Room handoff、durable input queue、slot 与 runtime 位于 SQL 事务之外，
 | runtime Task/Todo | SDK/runtime local projection |
 | Room handoff / queue | 现有 Room workspace ledger |
 
-所有 mutable aggregate 使用 optimistic version；每个 command 都携带调用方稳定的 idempotency command ID。普通首次 Plan 必须在一个 SQL transaction 内创建 Execution、完整 WorkGraph 与 active Plan；Room `submit_work` 必须在一个 SQL transaction 内创建 immutable Submission 与 review-return outbox；任何把 pending/running Attempt 置为 interrupted 的 mutation 必须先在同一 transaction 写入 per-Attempt Cancellation outbox；transient replacement 必须在一个 SQL transaction 内 terminalize 旧 Execution 并创建 successor Execution + active Plan；Goal revision rebase 必须先以 durable Goal transition 保留意图和 reserved successor，再分别幂等提交 old graph supersede、Goal revision commit、successor Execution+Plan 与 Goal binding confirmation；abandonment 在一个 SQL transaction 内只取消旧 graph。Room workspace ledger 只在 commit 后幂等 reconciliation，runtime physical interrupt 只在 commit 后由 cancellation consumer 投递；正确性由 SQL outbox、terminal state 与 admission fence 保证。
+所有 mutable aggregate 使用 optimistic version；每个 command 都携带调用方稳定的 idempotency command ID。普通首次 Plan 必须在一个 SQL transaction 内创建 Execution、完整 WorkGraph 与 active Plan；Room `submit_work` 必须在一个 SQL transaction 内创建 immutable Submission，并仅为跨 Agent review 同事务创建 review-return outbox；任何把 pending/running Attempt 置为 interrupted 的 mutation 必须先在同一 transaction 写入 per-Attempt Cancellation outbox；transient replacement 必须在一个 SQL transaction 内 terminalize 旧 Execution 并创建 successor Execution + active Plan；Goal revision rebase 必须先以 durable Goal transition 保留意图和 reserved successor，再分别幂等提交 old graph supersede、Goal revision commit、successor Execution+Plan 与 Goal binding confirmation；abandonment 在一个 SQL transaction 内只取消旧 graph。Room workspace ledger 只在 commit 后幂等 reconciliation，runtime physical interrupt 只在 commit 后由 cancellation consumer 投递；正确性由 SQL outbox、terminal state 与 admission fence 保证。
 
 数据库必须保证：
 
@@ -1297,7 +1312,10 @@ room realtime -> narrow handoff/attempt interface
 
 ### 阶段四：UI 投影
 
-不在本文当前交付范围。未来 UI 只消费 Execution/Plan/WorkItem/Assignment/Attempt 事件和查询，不定义新状态。
+- 已用同一 runtime graph/read model 投影单 Agent、DM 和 Room 工作图。
+- 默认只显示 Agent、Subagent、关键 Gate 与折叠后的 Tool group；边只表达方向，详情点击节点再看。
+- Lead/creator 的 coordinate、integrate、review、takeover 和 delivery run 与成员节点使用同一语义。
+- UI 不定义新状态，也不要求用户逐节点确认。
 
 ## 20. 必须通过的行为场景
 
@@ -1305,15 +1323,15 @@ room realtime -> narrow handoff/attempt interface
 2. 多步单 Agent 任务建立 Plan，但可在单轮完成而不保留 Goal。
 3. 明显跨轮任务从 transient Execution 原子提升为 Goal。
 4. compact 前后不重复创建 Plan、Assignment 或 subagent。
-5. 两个独立 Work Item 可由不同 Room Agent 并行；同一 parent Agent 在当前 SDK correlation 限制下最多一个 active child subagent。
+5. 两个独立 Work Item 可由不同 Room Agent 并行；同一 parent Agent 也可在唯一 `tool_use_id` correlation 下运行多个 active child subagent。
 6. 有依赖的 Work Item 在上游 Accepted 前不能启动。
-7. 相同 exclusive output scope 的 produce Work Item 不能并行。
+7. 两个 Work Item 都声明相同 exclusive output scope 时不能并行；未声明 scope 不使 Plan 无效。
 8. 显式 review/verify 可以读取被审查 Work Item 的相同结果。
-9. subagent stop 只终结 child Attempt；父 Agent 整合并显式 Submission，授权 reviewer 验收后才 Accepted。
-10. Room Lead 分配后不重复执行成员的 produce scope。
+9. subagent stop 只终结精确 child Attempt；父 Agent 整合并显式 Submission，选定 reviewer 验收后才 Accepted。
+10. Room Lead 可以拥有自己的 Work Item、在其中使用 subagent，并选择自审或独立 reviewer；它不自动复制另一个 owner 已承担的交付。
 11. 一条含两个 `@` 的消息只启动两个 conversation round，不启动 `Researcher → Analyst` 的任何 Assignment；依赖链只由 structured Dispatch 推进。
 12. Room member 不能修改 sibling Work Item 或完成 shared Goal。
-13. member Submission 被 Lead reject 后可以返工并保留历史 Attempt。
+13. member Submission 被任一选定 reviewer reject 后可以返工并保留历史 Attempt。
 14. Agent failure 后 takeover 不产生两个 current Assignment。
 15. 迟到的旧 owner Submission 不覆盖新 Assignment。
 16. Goal objective revision 变化会拒绝 stale Plan/Attempt mutation。
@@ -1326,8 +1344,8 @@ room realtime -> narrow handoff/attempt interface
 23. dependency、Assignment、Attempt、Submission 不能跨 Execution、Plan 或 Spec chain 写入。
 24. Submission 不可变，reject/accept 只能新增 Acceptance decision；reject 后返工产生新 Submission。
 25. Plan 的任何文本、Spec 或 dependency 修改都产生新 revision，历史快照不可改写。
-26. 自动 Goal 只有在全部 hard gate 和至少一个 durable persistence signal 成立时创建，复杂度本身不触发。
-27. 自动 Goal 在用户禁用、Plan Mode、objective 模糊、需新授权或只剩 optional 后台工作时不创建。
+26. Agent 可以根据跨轮、外部等待、Room dependency、恢复成本或任务复杂度自适应提出 Goal；这些是推荐证据，不是后端工作流白名单。
+27. Goal promotion 只在用户禁用、Plan Mode、身份/权限冲突、已有冲突 Goal、Execution 非 current/active，或需要新增授权时被后端拒绝。
 28. `SessionStart(source=compact)` 恢复同一 SQL snapshot；`PostCompact` 不被当成持久状态注入。
 29. 普通首次 `plan_execution` 原子创建 Execution、完整 WorkGraph 与 active Plan；失败时不留下 planless Execution。
 30. 同一 objective 只改变路线时使用普通 `plan_execution` replan；设置 `replace_current_execution` 被拒绝，不创建 successor Execution。
@@ -1347,8 +1365,8 @@ room realtime -> narrow handoff/attempt interface
 44. provider interrupt 的唯一性检查与调用之间禁止 successor admission；延迟的 Room/DM cancellation 只命中捕获时的 WorkBinding/runtime round，旧 target 已结束或 stale 时幂等收束，不中断同 session、同 Agent 的 successor。
 45. pending Attempt 不调用 runtime并落为 `not_required/not_started`；running Attempt 缺 exact identity 或 exact local/provider 能力时落为 `unsupported`，不伪报 physical interruption。
 46. 同一 Room 同时存在 active Execution 时，无 binding 的用户定向消息、裸 `@` 和 directed message 仍可正常聊天；non-coordinator member 不获得 Execution MCP，直接 mutation 返回 `conversation_only`。
-47. Room `review_work` 只接受 review-return outbox 注入的 exact ReviewBinding；普通 coordinator 聊天或 WorkBinding round 不能验收 Submission。
-48. input queue/guidance 不改变 target round lane，普通消息链路不会复制 WorkBinding/ReviewBinding；Assignment 与 review 只能由各自 durable outbox 创建。
+47. Room `review_work` 接受 review-return outbox 注入的 exact ReviewBinding、Assignment 选定 self reviewer 的 exact WorkBinding，或当前 coordinator 的有效 CoordinationBinding；其他成员不能越权验收。
+48. input queue/guidance 不改变 target round lane，普通消息链路不会复制 WorkBinding/ReviewBinding；跨 Agent Assignment 与 review lane 只能由各自 durable outbox 创建，自审沿当前 WorkBinding 完成。
 49. active Execution 存在时，普通 Room coordinator round 仍从 conversation 开始；跳过 `get_execution` / successful `plan_execution` 直接 `assign_work`、takeover、promotion 或 abandonment 返回 `conversation_only`。显式转换后同一物理 round 可协调，round 结束 capability 被释放。
 50. internal Goal continuation 只有 exact Goal ID/revision/Execution ID 三元组与 SQL Execution/coordinator 全部匹配时直接进入 coordination；任一字段缺失会在 claim 前失败，ambient Goal、旧 revision、错误 Execution 和普通聊天不能获得 Goal mutation authority。
 51. 旧 parent round 的迟到 SubagentStart/Stop 不会路由给 successor callbacks；复用 SDK Agent identity 或缺少唯一 correlation 时 fail closed。
@@ -1362,8 +1380,7 @@ room realtime -> narrow handoff/attempt interface
 
 本文当前不规定：
 
-- 前端步骤条、进程卡片、Room feed 或 Goal panel 的组件实现。
-- 用 LLM 文本相似度自动猜测所有语义重复；模型必须声明 deliverable 和 output scope。
+- 用 LLM 文本相似度自动猜测所有语义重复；Work Item 必须有 deliverable，output scope 只在 Agent 希望后端保护冲突时声明。
 - 用 Execution Orchestration 替代 Room public/private 通信协议。
 - 用 Goal 替代 Automation 的定时、重复或日历调度。
 - 允许 Goal continuation 获得超出用户原始请求的新权限。

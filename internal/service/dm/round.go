@@ -232,7 +232,8 @@ func (r *roundRunner) executeRound(
 		)
 		defer r.service.runtime.ClearSubagentHookCallbacks(r.sessionKey, r.roundID)
 	}
-	return exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
+	r.service.beginExecutionRuntimeGraph(actor)
+	result, executeErr := exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
 		AtomicInput:      r.atomicInput,
 		ContextualInputs: append(executionInputs, r.contextualInputs()...),
@@ -244,6 +245,7 @@ func (r *roundRunner) executeRound(
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
+			r.service.observeExecutionRuntimeGraph(actor, incoming)
 			r.observeExecutionPersistenceEvidence(actor, incoming)
 			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
 				return
@@ -285,6 +287,16 @@ func (r *roundRunner) executeRound(
 			return nil
 		},
 	})
+	failureReason := ""
+	if executeErr != nil {
+		failureReason = executeErr.Error()
+	}
+	r.service.finishExecutionRuntimeGraph(
+		actor,
+		result.TerminalStatus,
+		failureReason,
+	)
+	return result, executeErr
 }
 
 // runtimeInputOptions 把产品包装前的真实用户文本单独交给原生 Recall。

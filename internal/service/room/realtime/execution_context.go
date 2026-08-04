@@ -6,7 +6,9 @@ package realtime
 import (
 	"context"
 	"strings"
+	"time"
 
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
@@ -15,11 +17,60 @@ type executionContextProvider interface {
 	RuntimeContext(context.Context, orchestrationsvc.ActorContext) (string, error)
 }
 
+type executionRuntimeGraphObserver interface {
+	BeginRuntimeRound(context.Context, orchestrationsvc.ActorContext) error
+	ObserveRuntimeMessage(context.Context, orchestrationsvc.ActorContext, sdkprotocol.ReceivedMessage) error
+	FinishRuntimeRound(context.Context, orchestrationsvc.ActorContext, string, string) error
+}
+
 type executionGoalBindingProvider interface {
 	RuntimeGoalBinding(
 		context.Context,
 		orchestrationsvc.ActorContext,
 	) (orchestrationsvc.RuntimeGoalBinding, error)
+}
+
+func (s *Service) beginExecutionRuntimeGraph(actor orchestrationsvc.ActorContext) {
+	observer, ok := s.executionContext.(executionRuntimeGraphObserver)
+	if !ok || observer == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := observer.BeginRuntimeRound(ctx, actor); err != nil {
+		s.logger.Warn("记录 Room AgentRun 开始失败", "err", err)
+	}
+}
+
+func (s *Service) observeExecutionRuntimeGraph(
+	actor orchestrationsvc.ActorContext,
+	message sdkprotocol.ReceivedMessage,
+) {
+	observer, ok := s.executionContext.(executionRuntimeGraphObserver)
+	if !ok || observer == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := observer.ObserveRuntimeMessage(ctx, actor, message); err != nil {
+		s.logger.Warn("记录 Room Runtime NodeRun 失败", "err", err)
+	}
+}
+
+func (s *Service) finishExecutionRuntimeGraph(
+	actor orchestrationsvc.ActorContext,
+	terminalStatus string,
+	failureReason string,
+) {
+	observer, ok := s.executionContext.(executionRuntimeGraphObserver)
+	if !ok || observer == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := observer.FinishRuntimeRound(ctx, actor, terminalStatus, failureReason); err != nil {
+		s.logger.Warn("收口 Room AgentRun 失败", "err", err)
+	}
 }
 
 type executionCoordinationLifecycle interface {

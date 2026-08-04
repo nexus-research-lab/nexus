@@ -67,8 +67,12 @@ func TestSubagentAdmissionRejectsPlanMode(t *testing.T) {
 	assertSubagentAdmissionRejected(t, result, ErrorCodePlanMode)
 }
 
-func TestSubagentAdmissionRejectsRepeatedLaunch(t *testing.T) {
+func TestSubagentAdmissionAllowsDistinctConcurrentLaunch(t *testing.T) {
 	snapshot := assignedExecutionSnapshot()
+	snapshot.Assignments[0].Status = protocol.WorkAssignmentStatusActive
+	snapshot.Assignments[0].Version = 2
+	snapshot.Attempts[0].Status = protocol.WorkAttemptStatusRunning
+	snapshot.Attempts[0].Version = 2
 	snapshot.Attempts = append(snapshot.Attempts, protocol.WorkAttempt{
 		ID:              "attempt-child",
 		ExecutionID:     snapshot.Execution.ID,
@@ -83,8 +87,45 @@ func TestSubagentAdmissionRejectsRepeatedLaunch(t *testing.T) {
 		Status:          protocol.WorkAttemptStatusRunning,
 		Version:         1,
 	})
-	result := admitSubagentWithSnapshot(t, snapshot, subagentActor(), "tool-second")
-	assertSubagentAdmissionRejected(t, result, ErrorCodeSubagentAlreadyActive)
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.startAttempt = func(
+		_ context.Context,
+		command orchestrationstore.StartAttemptCommand,
+	) (*protocol.ExecutionSnapshot, error) {
+		updated := cloneExecutionSnapshot(repository.snapshot)
+		updated.Execution.Version++
+		updated.Assignments[0].Version++
+		child := command.Attempt
+		child.Status = protocol.WorkAttemptStatusRunning
+		child.Version = 1
+		updated.Attempts = append(updated.Attempts, child)
+		repository.snapshot = updated
+		return updated, nil
+	}
+	service := NewService(repository)
+	service.newID = func(string) string { return "attempt-child-second" }
+	result, err := service.AdmitSubagentLaunch(
+		context.Background(),
+		subagentActor(),
+		SubagentLaunchInput{ToolUseID: "tool-second"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Allowed || result.Binding == nil ||
+		result.Binding.AttemptID != "attempt-child-second" ||
+		len(repository.snapshot.Attempts) != 3 {
+		t.Fatalf("concurrent admission = %#v, attempts=%#v", result, repository.snapshot.Attempts)
+	}
+}
+
+func TestSubagentAdmissionReusesExactToolBinding(t *testing.T) {
+	snapshot := runningSubagentSnapshot()
+	child := snapshot.Attempts[len(snapshot.Attempts)-1]
+	result := admitSubagentWithSnapshot(t, snapshot, subagentActor(), child.ToolUseID)
+	if !result.Allowed || result.Binding == nil || result.Binding.AttemptID != child.ID {
+		t.Fatalf("replayed admission = %#v, want existing child %s", result, child.ID)
+	}
 }
 
 func TestSubagentAdmissionFailsClosedOnIncompleteWorkBinding(t *testing.T) {

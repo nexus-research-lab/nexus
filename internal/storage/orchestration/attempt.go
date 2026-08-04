@@ -299,6 +299,10 @@ WHERE assignment_id = `+r.bind(1)+`
 			strings.TrimSpace(item.ParentAgentID) == "" {
 			return fmt.Errorf("%w: child Attempt requires subagent executor and parent agent", ErrInvariant)
 		}
+		item.ToolUseID = strings.TrimSpace(item.ToolUseID)
+		if item.ToolUseID == "" {
+			return fmt.Errorf("%w: child Attempt requires an exact tool_use_id", ErrInvariant)
+		}
 		parent, err := r.getAttempt(ctx, tx, item.ParentAttemptID)
 		if err != nil {
 			return err
@@ -307,17 +311,19 @@ WHERE assignment_id = `+r.bind(1)+`
 			parent.Status != protocol.WorkAttemptStatusRunning {
 			return fmt.Errorf("%w: parent Attempt is not running in this Assignment", ErrInvariant)
 		}
-		var siblings int
+		var duplicateBinding int
 		if err = tx.QueryRowContext(ctx, `
 SELECT COUNT(1) FROM execution_attempts
 WHERE parent_attempt_id = `+r.bind(1)+`
+  AND tool_use_id = `+r.bind(2)+`
   AND status IN ('pending', 'running')`,
 			item.ParentAttemptID,
-		).Scan(&siblings); err != nil {
+			item.ToolUseID,
+		).Scan(&duplicateBinding); err != nil {
 			return err
 		}
-		if siblings != 0 {
-			return fmt.Errorf("%w: parent Attempt already has a current child Attempt", ErrInvariant)
+		if duplicateBinding != 0 {
+			return fmt.Errorf("%w: parent Attempt already has a child for this tool_use_id", ErrInvariant)
 		}
 	}
 	item.Status = protocol.WorkAttemptStatusRunning

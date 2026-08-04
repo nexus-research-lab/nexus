@@ -42,7 +42,7 @@ type PlanDependencyDraft struct {
 	Kind       protocol.WorkDependencyKind
 }
 
-// ValidatePlanDraft 检查完整性、DAG、terminal 和并行 output scope。
+// ValidatePlanDraft 检查结构完整性、DAG 与已声明 output scope 冲突。
 func ValidatePlanDraft(draft PlanDraft) error {
 	_, err := NormalizeAndValidatePlanDraft(draft)
 	return err
@@ -135,10 +135,10 @@ func validateNormalizedPlanDraft(draft PlanDraft) error {
 				"",
 			)
 		}
-		if len(item.AcceptanceCriteria) == 0 || slices.Contains(item.AcceptanceCriteria, "") {
+		if slices.Contains(item.AcceptanceCriteria, "") {
 			return newDomainError(
 				ErrorCodeAcceptanceCriteriaEmpty,
-				"at least one non-empty acceptance criterion is required",
+				"acceptance criteria must be non-empty when provided",
 				item.LogicalKey,
 				"",
 			)
@@ -146,13 +146,8 @@ func validateNormalizedPlanDraft(draft PlanDraft) error {
 		items[item.LogicalKey] = item
 	}
 
-	terminalFound := false
 	graph := make(map[string][]string, len(items))
 	for _, item := range draft.Items {
-		if item.Terminal && item.Required &&
-			(item.Kind == protocol.WorkItemKindIntegrate || item.Kind == protocol.WorkItemKindVerify) {
-			terminalFound = true
-		}
 		if item.ParentLogicalKey != "" {
 			if _, exists := items[item.ParentLogicalKey]; !exists {
 				return newDomainError(
@@ -192,14 +187,6 @@ func validateNormalizedPlanDraft(draft PlanDraft) error {
 			seenDependencies[dependency.LogicalKey] = struct{}{}
 			graph[item.LogicalKey] = append(graph[item.LogicalKey], dependency.LogicalKey)
 		}
-	}
-	if !terminalFound {
-		return newDomainError(
-			ErrorCodeTerminalWorkMissing,
-			"Plan requires a required terminal integrate or verify Work Item",
-			"",
-			"",
-		)
 	}
 	if cycle := firstDependencyCycle(graph); len(cycle) > 0 {
 		return newDomainError(
@@ -334,14 +321,6 @@ func validateOutputScopes(items []PlanWorkItemDraft) error {
 	}
 	claims := make([]claim, 0)
 	for _, item := range items {
-		if item.Kind == protocol.WorkItemKindProduce && len(item.OutputScopes) == 0 {
-			return newDomainError(
-				ErrorCodeInvalidInput,
-				"produce Work Item requires at least one explicit output scope",
-				item.LogicalKey,
-				"",
-			)
-		}
 		seen := make(map[string]struct{}, len(item.OutputScopes))
 		for _, scope := range item.OutputScopes {
 			comparisonKey, keyErr := protocol.WorkOutputScopeComparisonKey(scope)

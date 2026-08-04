@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 
+import { ExecutionWorkGraphSurface } from "@/features/conversation/shared/execution/execution-workgraph-surface";
+import { buildExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
+import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
@@ -28,6 +32,8 @@ interface RoomSurfaceAuxiliaryPanelProps {
   activeWorkspacePath: string | null;
   conversationId: string | null;
   currentAgent: Agent;
+  executionResource: ExecutionResource;
+  executionTaskRuns: ConversationTaskRun[];
   sidePanelWidthPercent: number;
   isDm: boolean;
   onClose: () => void;
@@ -57,6 +63,8 @@ export function RoomSurfaceAuxiliaryPanel({
   activeWorkspacePath,
   conversationId,
   currentAgent,
+  executionResource,
+  executionTaskRuns,
   sidePanelWidthPercent,
   isDm,
   onClose,
@@ -69,10 +77,24 @@ export function RoomSurfaceAuxiliaryPanel({
   subagentTaskSource,
 }: RoomSurfaceAuxiliaryPanelProps) {
   const { t } = useI18n();
+  const executionDirectory = buildExecutionAgentDirectory([
+    ...roomMembers.filter((agent) => agent.agent_id !== currentAgent.agent_id),
+    currentAgent,
+  ]);
   const persistentPanels: Array<{
     content: ReactNode;
-    key: "workspace" | "about";
+    key: "workgraph" | "workspace" | "about";
   }> = [
+    {
+      key: "workgraph",
+      content: (
+        <ExecutionWorkGraphSurface
+          directory={executionDirectory}
+          resource={executionResource}
+          taskRuns={executionTaskRuns}
+        />
+      ),
+    },
     {
       key: "workspace",
       content: (

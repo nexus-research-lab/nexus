@@ -1,4 +1,4 @@
-// INPUT: Room Submission review-return outbox、trusted reviewer target 与 Room delivery receipt。
+// INPUT: Room Submission review-return outbox、Assignment 选择的 reviewer target 与 Room delivery receipt。
 // OUTPUT: 独立于 worker Dispatch 的 claim/retry/deliver loop 与迟到回交 admission。
 // POS: Submission commit 后可靠唤醒 reviewer，不依赖模型手写 @Coordinator。
 package orchestration
@@ -263,9 +263,8 @@ func authorizeReviewDispatchSnapshot(
 	}
 	targetAgentID = strings.TrimSpace(targetAgentID)
 	if targetAgentID == "" ||
-		targetAgentID != strings.TrimSpace(dispatch.TargetAgentID) ||
-		targetAgentID != strings.TrimSpace(snapshot.Execution.CoordinatorAgentID) {
-		return nil, errors.New("review return target is not the current coordinator")
+		targetAgentID != strings.TrimSpace(dispatch.TargetAgentID) {
+		return nil, errors.New("review return target does not match the selected reviewer")
 	}
 	var assignment *protocol.WorkAssignment
 	for index := range snapshot.Assignments {

@@ -816,6 +816,48 @@ func TestServiceSubmitWorkTransparentlyRunsAttempt(t *testing.T) {
 	}
 }
 
+func TestReviewDispatchExistsOnlyForCrossAgentReturn(t *testing.T) {
+	snapshot := assignedExecutionSnapshot()
+	snapshot.Execution.ScopeKind = protocol.ExecutionScopeRoom
+	snapshot.Execution.CoordinatorAgentID = "agent-lead"
+	assignment := snapshot.Assignments[0]
+	assignment.OwnerAgentID = "agent-worker"
+
+	assignment.ReturnToAgentID = "agent-worker"
+	if needsReviewDispatch(snapshot, &assignment) {
+		t.Fatal("self-review must stay in the current Agent responsibility")
+	}
+
+	assignment.ReturnToAgentID = "agent-reviewer"
+	if !needsReviewDispatch(snapshot, &assignment) {
+		t.Fatal("cross-Agent review must create a durable Room return")
+	}
+	instruction := reviewDispatchInstruction(
+		snapshot,
+		&assignment,
+		protocol.WorkSubmission{
+			ID:            "submission-1",
+			ResultSummary: "evidence ready",
+		},
+		protocol.WorkItem{LogicalKey: "research"},
+	)
+	for _, expected := range []string{
+		"coordinator agent-lead",
+		"Room communication",
+		"do not send a status-only handoff",
+		"do not wait for a user continuation message",
+	} {
+		if !strings.Contains(instruction, expected) {
+			t.Fatalf("cross-Agent review instruction missing %q: %s", expected, instruction)
+		}
+	}
+
+	snapshot.Execution.ScopeKind = protocol.ExecutionScopeDM
+	if needsReviewDispatch(snapshot, &assignment) {
+		t.Fatal("DM review does not need a Room return outbox")
+	}
+}
+
 func TestServiceSubmitWorkRequiresResumeBeforeStartingAttempt(t *testing.T) {
 	snapshot := assignedExecutionSnapshot()
 	snapshot.WorkItemStates[0].Status = protocol.WorkItemStatusWaitingInput
@@ -843,7 +885,7 @@ func TestServiceSubmitWorkRequiresResumeBeforeStartingAttempt(t *testing.T) {
 	}
 }
 
-func TestServiceRejectsRoomAgentAcceptingOwnSubmission(t *testing.T) {
+func TestServiceAllowsSelectedRoomAgentToReviewOwnSubmission(t *testing.T) {
 	snapshot := assignedExecutionSnapshot()
 	snapshot.Execution.ScopeKind = protocol.ExecutionScopeRoom
 	snapshot.Execution.RoomID = "room-1"
@@ -873,11 +915,18 @@ func TestServiceRejectsRoomAgentAcceptingOwnSubmission(t *testing.T) {
 		TargetAgentID: "agent-worker",
 		Status:        protocol.ExecutionReviewDispatchStatusDelivered,
 	}}
+	snapshot.CompletionBlockers = []string{"another required Work Item remains"}
 	repository := &fakeRepository{
 		snapshot: snapshot,
-		review: func(context.Context, orchestrationstore.ReviewCommand) (*protocol.ExecutionSnapshot, error) {
-			t.Fatal("self-review must be rejected before persistence")
-			return nil, nil
+		review: func(_ context.Context, command orchestrationstore.ReviewCommand) (*protocol.ExecutionSnapshot, error) {
+			if command.Acceptance.ReviewerID != "agent-worker" ||
+				command.Acceptance.SubmissionID != "submission-1" {
+				t.Fatalf("self review command = %+v", command)
+			}
+			result := cloneExecutionSnapshot(snapshot)
+			result.Execution.Version++
+			result.Acceptances = append(result.Acceptances, command.Acceptance)
+			return result, nil
 		},
 	}
 	service := testService(repository)
@@ -911,7 +960,7 @@ func TestServiceRejectsRoomAgentAcceptingOwnSubmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != MutationRejected || result.ReasonCode != ErrorCodeWrongReviewer {
+	if result.Outcome != MutationApplied {
 		t.Fatalf("result = %#v", result)
 	}
 }
@@ -955,7 +1004,7 @@ func TestServiceRequiresReviewBindingForRoomCoordinator(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result.Outcome != MutationRejected ||
-		result.ReasonCode != ErrorCodeReviewBindingRequired {
+		result.ReasonCode != ErrorCodeConversationOnly {
 		t.Fatalf("unbound Room review result = %#v", result)
 	}
 }
@@ -1516,7 +1565,7 @@ func TestServicePromotionReusesGatewayGoalAfterBindConflict(t *testing.T) {
 			GoalID:                "goal-stable",
 			GoalObjectiveRevision: 1,
 			ActivationOrigin:      protocol.GoalActivationOriginAdaptivePromoted,
-			ActivationReason:      protocol.GoalActivationReasonObservedBoundary,
+			ActivationReason:      protocol.GoalActivationReasonSubstantialComplexity,
 		}, nil
 	})
 	bindCalls := 0
@@ -1576,7 +1625,7 @@ func TestServicePromotionReusesGatewayGoalAfterBindConflict(t *testing.T) {
 	}
 }
 
-func TestServicePromotionRejectsComplexPlanWithoutDurableEvidence(t *testing.T) {
+func TestServicePromotionAllowsAgentChoiceWithoutSuggestedSignal(t *testing.T) {
 	snapshot := executionSnapshot()
 	snapshot.Execution.CompletionCriteria = []string{"verified"}
 	snapshot.Plan = &protocol.ExecutionPlanRevision{
@@ -1595,13 +1644,33 @@ func TestServicePromotionRejectsComplexPlanWithoutDurableEvidence(t *testing.T) 
 		})
 	}
 	gatewayCalled := false
-	service := testService(&fakeRepository{snapshot: snapshot})
+	repository := &fakeRepository{
+		snapshot: snapshot,
+		bindGoal: func(
+			_ context.Context,
+			command orchestrationstore.BindGoalCommand,
+		) (*protocol.ExecutionSnapshot, error) {
+			updated := cloneExecutionSnapshot(snapshot)
+			updated.Execution.Version++
+			updated.Execution.GoalID = command.Execution.GoalID
+			updated.Execution.GoalObjectiveRevision = command.Execution.GoalObjectiveRevision
+			updated.Execution.GoalActivationOrigin = command.Execution.GoalActivationOrigin
+			updated.Execution.GoalActivationReason = command.Execution.GoalActivationReason
+			return updated, nil
+		},
+	}
+	service := testService(repository)
 	service.SetGoalPromotionGateway(goalPromotionGatewayFunc(func(
 		context.Context,
 		GoalPromotionRequest,
 	) (GoalPromotionBinding, error) {
 		gatewayCalled = true
-		return GoalPromotionBinding{}, nil
+		return GoalPromotionBinding{
+			GoalID:                "goal-agent-choice",
+			GoalObjectiveRevision: 1,
+			ActivationOrigin:      protocol.GoalActivationOriginAdaptivePromoted,
+			ActivationReason:      protocol.GoalActivationReasonObservedBoundary,
+		}, nil
 	}))
 	result, err := service.PromoteExecutionToGoal(
 		context.Background(),
@@ -1610,15 +1679,16 @@ func TestServicePromotionRejectsComplexPlanWithoutDurableEvidence(t *testing.T) 
 			ExecutionID:      snapshot.Execution.ID,
 			SnapshotRevision: snapshot.Execution.Version,
 			CommandID:        "tool-complex",
-			ActivationReason: protocol.GoalActivationReasonObservedBoundary,
+			ActivationReason: protocol.GoalActivationReasonSubstantialComplexity,
 		},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != MutationRejected ||
-		result.ReasonCode != ErrorCodeDurableSignalMissing ||
-		gatewayCalled {
+	if result.Outcome != MutationApplied ||
+		result.Snapshot == nil ||
+		result.Snapshot.Execution.GoalID != "goal-agent-choice" ||
+		!gatewayCalled {
 		t.Fatalf("result=%#v gatewayCalled=%t", result, gatewayCalled)
 	}
 }

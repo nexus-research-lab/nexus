@@ -1,7 +1,11 @@
 import { useCallback, useEffect } from "react";
 
 import { useConversationSession } from "@/features/conversation/shared/session/use-conversation-session";
-import { useConversationTodos } from "@/features/conversation/shared/todos/use-conversation-todos";
+import {
+  useConversationTaskRuns,
+  useConversationTodos,
+} from "@/features/conversation/shared/todos/use-conversation-todos";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import {
   buildConversationActivityPatch,
   useConversationSnapshotReporter,
@@ -46,7 +50,7 @@ export function useDmChatSessionController({
     onRoomEvent: handleRoomEvent,
   });
 
-  useDmConversationObservers({
+  const taskRuns = useDmConversationObservers({
     identity,
     messages: session.conversation.messages,
     onConversationSnapshotChange,
@@ -54,7 +58,10 @@ export function useDmChatSessionController({
     sessionKey: session.sessionKey,
   });
 
-  return session;
+  return {
+    ...session,
+    taskRuns,
+  };
 }
 
 function useDmConversationObservers({
@@ -69,8 +76,9 @@ function useDmConversationObservers({
   onConversationSnapshotChange?: (snapshot: SessionSnapshotPayload) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
   sessionKey: string | null;
-}): void {
+}): ConversationTaskRun[] {
   const todos = useConversationTodos(messages, sessionKey);
+  const taskRuns = useConversationTaskRuns(messages, sessionKey);
   useEffect(() => onTodosChange?.(todos), [onTodosChange, todos]);
   const buildSnapshot = useCallback(
     (input: ConversationSnapshotBuildInput) => buildDmSnapshot(input, identity),
@@ -82,6 +90,7 @@ function useDmConversationObservers({
     on_snapshot_change: onConversationSnapshotChange,
     scope_key: sessionKey,
   });
+  return taskRuns;
 }
 
 function buildDmSnapshot(

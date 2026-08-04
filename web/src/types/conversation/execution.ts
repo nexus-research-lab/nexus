@@ -66,6 +66,10 @@ export interface ExecutionAttemptView {
   executor_kind: "agent" | "subagent";
   executor_agent_id?: string;
   parent_agent_id?: string;
+  agent_round_id?: string;
+  child_session_id?: string;
+  task_id?: string;
+  tool_use_id?: string;
   status:
     | "pending"
     | "running"
@@ -78,6 +82,50 @@ export interface ExecutionAttemptView {
   created_at: string;
   started_at?: string | null;
   finished_at?: string | null;
+}
+
+export type ExecutionGraphNodeKind = "agent" | "subagent" | "tool" | "gate";
+
+export type ExecutionGraphNodeVisibility = "primary" | "nested" | "detail";
+
+export type ExecutionGraphEdgeKind =
+  | "dependency"
+  | "spawn"
+  | "invoke"
+  | "guard"
+  | "review"
+  | "loop_back";
+
+export interface ExecutionGraphNodeView {
+  id: string;
+  kind: ExecutionGraphNodeKind;
+  visibility: ExecutionGraphNodeVisibility;
+  work_item_id: string;
+  attempt_id?: string;
+  parent_node_id?: string;
+  agent_id?: string;
+  agent_round_id?: string;
+  subject_id?: string;
+  name?: string;
+  description?: string;
+  lifecycle_status?: string;
+  review_dispatch_id?: string;
+  reviewer_kind?: "agent" | "user" | "system" | "policy";
+  responsibility_status?: ExecutionWorkItemStatus;
+  run_status?: ExecutionAttemptView["status"];
+  position: number;
+}
+
+export interface ExecutionGraphEdgeView {
+  id: string;
+  kind: ExecutionGraphEdgeKind;
+  source_node_id: string;
+  target_node_id: string;
+}
+
+export interface ExecutionGraphView {
+  nodes?: ExecutionGraphNodeView[];
+  edges?: ExecutionGraphEdgeView[];
 }
 
 export interface ExecutionSubmissionView {
@@ -134,6 +182,9 @@ export interface ExecutionWorkItemView {
     | "cancelled"
     | "revoked";
   assignment_strategy?: "self" | "room_member";
+  review_agent_id?: string;
+  review_dispatch_id?: string;
+  review_status?: string;
   attempts?: ExecutionAttemptView[];
   submission?: ExecutionSubmissionView;
   acceptance?: ExecutionAcceptanceView;
@@ -143,7 +194,7 @@ export interface ExecutionWorkItemView {
 export interface ExecutionView {
   id: string;
   session_key: string;
-  scope_kind: "dm" | "room";
+  scope_kind?: "dm" | "room";
   room_id?: string;
   conversation_id?: string;
   coordinator_agent_id?: string;
@@ -156,6 +207,7 @@ export interface ExecutionView {
   plan?: ExecutionPlanView;
   progress: ExecutionProgressView;
   work_items?: ExecutionWorkItemView[];
+  graph?: ExecutionGraphView;
   completion_blockers?: string[];
   created_at: string;
   updated_at: string;

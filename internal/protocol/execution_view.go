@@ -1,6 +1,6 @@
-// INPUT: ExecutionSnapshot 中当前 active Plan 的业务状态。
-// OUTPUT: 面向 Web/桌面端的安全 WorkGraph 只读投影，不暴露 command、lease 或 runtime capability identity。
-// POS: Execution Orchestration 状态机与 DM/Room 进程 UI 之间的跨边界展示协议。
+// INPUT: ExecutionSnapshot 中当前 active Plan、责任状态与 WorkAttempt 运行身份。
+// OUTPUT: 面向 Web/桌面端的安全 WorkGraph 与 Agent/Subagent 分层运行图；不暴露 command、lease 或 runtime capability identity。
+// POS: Execution Orchestration 状态机与 DM/Room Execution Graph UI 之间的跨边界展示协议。
 package protocol
 
 import "time"
@@ -54,11 +54,85 @@ type ExecutionAttemptView struct {
 	ExecutorKind    AttemptExecutorKind `json:"executor_kind"`
 	ExecutorAgentID string              `json:"executor_agent_id,omitempty"`
 	ParentAgentID   string              `json:"parent_agent_id,omitempty"`
+	AgentRoundID    string              `json:"agent_round_id,omitempty"`
+	ChildSessionID  string              `json:"child_session_id,omitempty"`
+	TaskID          string              `json:"task_id,omitempty"`
+	ToolUseID       string              `json:"tool_use_id,omitempty"`
 	Status          WorkAttemptStatus   `json:"status"`
 	FailureReason   string              `json:"failure_reason,omitempty"`
 	CreatedAt       time.Time           `json:"created_at"`
 	StartedAt       *time.Time          `json:"started_at,omitempty"`
 	FinishedAt      *time.Time          `json:"finished_at,omitempty"`
+}
+
+// ExecutionGraphNodeKind 是当前已由权威领域身份支撑的运行图节点类型。
+// Gate 来自 Assignment review binding / durable review dispatch；Tool 来自 Bridge
+// lifecycle identity，二者都不依赖模型用自然语言汇报状态。
+type ExecutionGraphNodeKind string
+
+const (
+	ExecutionGraphNodeAgent    ExecutionGraphNodeKind = "agent"
+	ExecutionGraphNodeSubagent ExecutionGraphNodeKind = "subagent"
+	ExecutionGraphNodeTool     ExecutionGraphNodeKind = "tool"
+	ExecutionGraphNodeGate     ExecutionGraphNodeKind = "gate"
+)
+
+// ExecutionGraphNodeVisibility 控制默认主图与节点内展开层级。
+type ExecutionGraphNodeVisibility string
+
+const (
+	ExecutionGraphNodePrimary ExecutionGraphNodeVisibility = "primary"
+	ExecutionGraphNodeNested  ExecutionGraphNodeVisibility = "nested"
+	ExecutionGraphNodeDetail  ExecutionGraphNodeVisibility = "detail"
+)
+
+// ExecutionGraphEdgeKind 区分共享责任依赖、Agent 内部 child spawn、可选语义
+// Gate、正式审核和把控制权返回 Agent 的观测回边。
+type ExecutionGraphEdgeKind string
+
+const (
+	ExecutionGraphEdgeDependency ExecutionGraphEdgeKind = "dependency"
+	ExecutionGraphEdgeSpawn      ExecutionGraphEdgeKind = "spawn"
+	ExecutionGraphEdgeInvoke     ExecutionGraphEdgeKind = "invoke"
+	ExecutionGraphEdgeGuard      ExecutionGraphEdgeKind = "guard"
+	ExecutionGraphEdgeReview     ExecutionGraphEdgeKind = "review"
+	ExecutionGraphEdgeLoopBack   ExecutionGraphEdgeKind = "loop_back"
+)
+
+// ExecutionGraphNodeView 把稳定责任节点与其当前 Node Run 分开表达。
+// Agent 节点 ID 沿用 Work Item ID；Subagent 节点 ID 沿用 child Attempt ID。
+type ExecutionGraphNodeView struct {
+	ID                   string                       `json:"id"`
+	Kind                 ExecutionGraphNodeKind       `json:"kind"`
+	Visibility           ExecutionGraphNodeVisibility `json:"visibility"`
+	WorkItemID           string                       `json:"work_item_id"`
+	AttemptID            string                       `json:"attempt_id,omitempty"`
+	ParentNodeID         string                       `json:"parent_node_id,omitempty"`
+	AgentID              string                       `json:"agent_id,omitempty"`
+	AgentRoundID         string                       `json:"agent_round_id,omitempty"`
+	SubjectID            string                       `json:"subject_id,omitempty"`
+	Name                 string                       `json:"name,omitempty"`
+	Description          string                       `json:"description,omitempty"`
+	LifecycleStatus      string                       `json:"lifecycle_status,omitempty"`
+	ReviewDispatchID     string                       `json:"review_dispatch_id,omitempty"`
+	ReviewerKind         WorkReviewerKind             `json:"reviewer_kind,omitempty"`
+	ResponsibilityStatus ExecutionWorkItemViewStatus  `json:"responsibility_status,omitempty"`
+	RunStatus            WorkAttemptStatus            `json:"run_status,omitempty"`
+	Position             int                          `json:"position"`
+}
+
+// ExecutionGraphEdgeView 是前端只画方向、点击后再解释语义的 typed edge。
+type ExecutionGraphEdgeView struct {
+	ID           string                 `json:"id"`
+	Kind         ExecutionGraphEdgeKind `json:"kind"`
+	SourceNodeID string                 `json:"source_node_id"`
+	TargetNodeID string                 `json:"target_node_id"`
+}
+
+// ExecutionGraphView 是 WorkGraph responsibility 与 WorkAttempt runtime 的确定性分层读模型。
+type ExecutionGraphView struct {
+	Nodes []ExecutionGraphNodeView `json:"nodes,omitempty"`
+	Edges []ExecutionGraphEdgeView `json:"edges,omitempty"`
 }
 
 // ExecutionSubmissionView 展示当前 spec 最近一次不可变交付声明。
@@ -105,6 +179,9 @@ type ExecutionWorkItemView struct {
 	AssignmentID       string                      `json:"assignment_id,omitempty"`
 	AssignmentStatus   WorkAssignmentStatus        `json:"assignment_status,omitempty"`
 	AssignmentStrategy AssignmentStrategy          `json:"assignment_strategy,omitempty"`
+	ReviewAgentID      string                      `json:"review_agent_id,omitempty"`
+	ReviewDispatchID   string                      `json:"review_dispatch_id,omitempty"`
+	ReviewStatus       string                      `json:"review_status,omitempty"`
 	Attempts           []ExecutionAttemptView      `json:"attempts,omitempty"`
 	Submission         *ExecutionSubmissionView    `json:"submission,omitempty"`
 	Acceptance         *ExecutionAcceptanceView    `json:"acceptance,omitempty"`
@@ -128,6 +205,7 @@ type ExecutionView struct {
 	Plan                  *ExecutionPlanView      `json:"plan,omitempty"`
 	Progress              ExecutionProgressView   `json:"progress"`
 	WorkItems             []ExecutionWorkItemView `json:"work_items,omitempty"`
+	Graph                 ExecutionGraphView      `json:"graph"`
 	CompletionBlockers    []string                `json:"completion_blockers,omitempty"`
 	CreatedAt             time.Time               `json:"created_at"`
 	UpdatedAt             time.Time               `json:"updated_at"`

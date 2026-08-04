@@ -8,6 +8,8 @@
 
 import { useMemo, useState } from "react";
 
+import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { RoomMemberManagerDialog } from "@/features/conversation/room/members/room-member-manager-dialog";
@@ -54,11 +56,14 @@ interface RoomMobileSurfaceProps {
   currentRoomTitle: string;
   currentRoomType: string;
   currentTodos: TodoItem[];
+  executionResource: ExecutionResource;
+  executionTaskRuns: ConversationTaskRun[];
   initialDraft?: string | null;
   onBackToDirectory: () => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
+  onExecutionTaskRunsChange: (runs: ConversationTaskRun[]) => void;
   onInitialDraftConsumed?: () => void;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
@@ -105,11 +110,14 @@ export function RoomMobileSurface({
   currentRoomTitle,
   currentRoomType,
   currentTodos,
+  executionResource,
+  executionTaskRuns,
   initialDraft = null,
   onBackToDirectory,
   onConversationSnapshotChange,
   onCreateConversation,
   onDeleteConversation,
+  onExecutionTaskRunsChange,
   onInitialDraftConsumed,
   onManageRoom,
   onOpenMemberManager,
@@ -156,7 +164,7 @@ export function RoomMobileSurface({
     setMemberDialogRoomId(scopeRoomId);
   };
   const handleOpenAuxiliaryTab = (
-    tab: "about" | "subagents" | "workspace",
+    tab: "about" | "subagents" | "workgraph" | "workspace",
   ) => {
     if (tab === "subagents") {
       setActiveAuxiliaryTab(null);
@@ -182,10 +190,12 @@ export function RoomMobileSurface({
       currentAgent={currentAgent}
       currentAgentSessionIdentity={currentAgentSessionIdentity}
       currentRoomType={currentRoomType}
+      executionResource={executionResource}
       initialDraft={initialDraft}
       layout="mobile"
       onConversationSnapshotChange={onConversationSnapshotChange}
       onCreateConversation={onCreateConversation}
+      onExecutionTaskRunsChange={onExecutionTaskRunsChange}
       onInitialDraftConsumed={onInitialDraftConsumed}
       onOpenWorkspaceFile={handleOpenWorkspaceFile}
       onRoomEvent={onRoomEvent}
@@ -267,6 +277,8 @@ export function RoomMobileSurface({
         activeWorkspacePath={activeWorkspacePath}
         conversationId={conversationId}
         currentAgent={currentAgent}
+        executionResource={executionResource}
+        executionTaskRuns={executionTaskRuns}
         isDm={isDm}
         onClose={() => setActiveAuxiliaryTab(null)}
         onOpenWorkspaceFile={handleOpenWorkspaceFile}

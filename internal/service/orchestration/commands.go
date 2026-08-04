@@ -72,7 +72,7 @@ type SubmitWorkInput struct {
 	ToolUseID         string
 }
 
-// ReviewWorkInput 是 coordinator 对 immutable Submission 的唯一 decision。
+// ReviewWorkInput 是 Assignment 选定 reviewer 对 immutable Submission 的唯一 decision。
 type ReviewWorkInput struct {
 	ExecutionID      string
 	SnapshotRevision int64
@@ -150,7 +150,7 @@ func (s *Service) PlanExecution(
 			domainErr.Code == ErrorCodePlanItemsEmpty {
 			return RejectedResult(nil, validateErr, []NextAction{{
 				Tool:   "plan_execution",
-				Reason: "rebuild work_graph_json as a valid JSON array containing every typed Work Item and a required terminal integrate or verify item",
+				Reason: "rebuild items as a non-empty native array containing every intended Work Item",
 			}}), nil
 		}
 		return RejectedResult(nil, validateErr, nil), nil
@@ -885,7 +885,7 @@ func (s *Service) SubmitWork(
 		Evidence:         normalizeNonEmptyValues(input.Evidence),
 	}
 	var reviewDispatch *protocol.ExecutionReviewDispatch
-	if snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom {
+	if needsReviewDispatch(snapshot, assignment) {
 		reviewDispatch = &protocol.ExecutionReviewDispatch{
 			ID:            s.id("review_dispatch"),
 			ExecutionID:   assignment.ExecutionID,
@@ -897,11 +897,11 @@ func (s *Service) SubmitWork(
 			DedupeKey:     "review-return:" + submissionRecord.ID,
 			TargetAgentID: strings.TrimSpace(assignment.ReturnToAgentID),
 			Status:        protocol.ExecutionReviewDispatchStatusPending,
-			Instruction: fmt.Sprintf(
-				"Review Submission %s for Work Item %s. Result: %s",
-				submissionRecord.ID,
-				work.LogicalKey,
-				submissionRecord.ResultSummary,
+			Instruction: reviewDispatchInstruction(
+				snapshot,
+				assignment,
+				submissionRecord,
+				work,
 			),
 		}
 	}
@@ -946,19 +946,11 @@ func (s *Service) ReviewWork(
 		actor,
 		input.ExecutionID,
 		input.SnapshotRevision,
-		true,
+		false,
 		false,
 	)
 	if err != nil || rejected != nil {
 		return resultOrZero(rejected), err
-	}
-	if snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
-		normalizeActorKind(actor.ActorKind) == protocol.ExecutionActorAgent &&
-		actor.ReviewBinding == nil {
-		return RejectedResult(snapshot, domainError(
-			ErrorCodeReviewBindingRequired,
-			"Room review requires the trusted ReviewBinding delivered for this Submission",
-		), nextActions(snapshot, actor)), nil
 	}
 	if strings.TrimSpace(input.CommandID) == "" {
 		return RejectedResult(snapshot, domainError(ErrorCodeInvalidInput, "command_id is required"), nil), nil
@@ -995,14 +987,13 @@ func (s *Service) ReviewWork(
 			"submission Assignment is not active",
 		), nextActions(snapshot, actor)), nil
 	}
-	if snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
-		normalizeActorKind(actor.ActorKind) == protocol.ExecutionActorAgent &&
-		(assignment.OwnerAgentID == strings.TrimSpace(actor.AgentID) ||
-			submission.SubmitterAgentID == strings.TrimSpace(actor.AgentID)) {
-		return RejectedResult(snapshot, domainError(
-			ErrorCodeWrongReviewer,
-			"Room submissions must be accepted by an authorized Agent other than their Assignment owner or submitter",
-		), nextActions(snapshot, actor)), nil
+	if reviewAuthErr := s.authorizeRoomReviewActor(
+		actor,
+		snapshot,
+		assignment,
+		submission,
+	); reviewAuthErr != nil {
+		return RejectedResult(snapshot, reviewAuthErr, nextActions(snapshot, actor)), nil
 	}
 	if validationErr := validateReview(snapshot, *submission, input); validationErr != nil {
 		return RejectedResult(snapshot, validationErr, nil), nil
@@ -1047,6 +1038,53 @@ func (s *Service) ReviewWork(
 		actor,
 		AppliedResult(updated, changed, nextActions(updated, actor)),
 	), nil
+}
+
+func (s *Service) authorizeRoomReviewActor(
+	actor ActorContext,
+	snapshot *protocol.ExecutionSnapshot,
+	assignment *protocol.WorkAssignment,
+	submission *protocol.WorkSubmission,
+) error {
+	if snapshot == nil || assignment == nil || submission == nil {
+		return domainError(ErrorCodeInvalidInput, "review target is incomplete")
+	}
+	if snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom ||
+		normalizeActorKind(actor.ActorKind) != protocol.ExecutionActorAgent {
+		return nil
+	}
+	actorID := strings.TrimSpace(actor.AgentID)
+	if actorID == "" || actorID != strings.TrimSpace(assignment.ReturnToAgentID) {
+		return domainError(
+			ErrorCodeWrongReviewer,
+			"Room review is reserved for the reviewer selected by this Assignment",
+		)
+	}
+	if actor.ReviewBinding != nil {
+		return nil
+	}
+	if actor.WorkBinding != nil {
+		binding := normalizeExecutionWorkBinding(actor.WorkBinding)
+		if binding.AssignmentID == assignment.ID &&
+			binding.WorkItemID == assignment.WorkItemID &&
+			binding.SpecID == assignment.SpecID {
+			return nil
+		}
+		return domainError(
+			ErrorCodeReviewBindingRequired,
+			"Room self-review must stay inside the trusted Assignment binding",
+		)
+	}
+	if actorID == strings.TrimSpace(snapshot.Execution.CoordinatorAgentID) {
+		if err := s.requireRuntimeCoordination(actor, snapshot); err != nil {
+			return err
+		}
+		return nil
+	}
+	return domainError(
+		ErrorCodeReviewBindingRequired,
+		"Room review requires the trusted binding for the selected reviewer",
+	)
 }
 
 func (s *Service) completeAfterReview(
@@ -1489,12 +1527,6 @@ func (s *Service) buildAssignmentChain(
 				"self Assignment must not request a Room Dispatch",
 			)
 		}
-		if snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom {
-			return protocol.WorkAssignment{}, nil, protocol.WorkAttempt{}, domainError(
-				ErrorCodeRoomReviewerRequired,
-				"Room self Assignment is unavailable until an independent reviewer is bound; assign this Work Item to another Room member",
-			)
-		}
 	}
 	if strategy == protocol.AssignmentStrategyRoomMember &&
 		target == strings.TrimSpace(actor.AgentID) {
@@ -1511,13 +1543,6 @@ func (s *Service) buildAssignmentChain(
 		return protocol.WorkAssignment{}, nil, protocol.WorkAttempt{}, domainError(
 			ErrorCodeInvalidInput,
 			"Assignment return target requires a coordinator",
-		)
-	}
-	if snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
-		returnTo != coordinatorAgentID {
-		return protocol.WorkAssignment{}, nil, protocol.WorkAttempt{}, domainError(
-			ErrorCodeRoomReviewerRequired,
-			"Room Assignment return_to_agent_id must be the current coordinator until an independent reviewer is bound",
 		)
 	}
 	assignment := protocol.WorkAssignment{
@@ -2212,6 +2237,49 @@ func reviewerKind(actor ActorContext) protocol.WorkReviewerKind {
 	return protocol.WorkReviewerAgent
 }
 
+func reviewDispatchInstruction(
+	snapshot *protocol.ExecutionSnapshot,
+	assignment *protocol.WorkAssignment,
+	submission protocol.WorkSubmission,
+	work protocol.WorkItem,
+) string {
+	base := fmt.Sprintf(
+		"Review Submission %s for Work Item %s. Result: %s",
+		submission.ID,
+		work.LogicalKey,
+		submission.ResultSummary,
+	)
+	if snapshot == nil || assignment == nil {
+		return base
+	}
+	reviewerID := strings.TrimSpace(assignment.ReturnToAgentID)
+	coordinatorID := strings.TrimSpace(snapshot.Execution.CoordinatorAgentID)
+	ownerID := strings.TrimSpace(assignment.OwnerAgentID)
+	switch {
+	case reviewerID != "" && reviewerID == ownerID:
+		return base + " The Assignment selected self-review, so keep the review inside the current Agent responsibility and continue from the recorded decision when possible."
+	case reviewerID != "" && coordinatorID != "" && reviewerID != coordinatorID:
+		return fmt.Sprintf(
+			"%s After recording the decision, send the substantive findings to coordinator %s through Room communication so the collaboration can continue; do not send a status-only handoff and do not wait for a user continuation message.",
+			base,
+			coordinatorID,
+		)
+	default:
+		return base + " After recording the decision, continue coordination from the resulting state when possible; do not wait for a user continuation message."
+	}
+}
+
+func needsReviewDispatch(
+	snapshot *protocol.ExecutionSnapshot,
+	assignment *protocol.WorkAssignment,
+) bool {
+	return snapshot != nil &&
+		assignment != nil &&
+		snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
+		strings.TrimSpace(assignment.ReturnToAgentID) !=
+			strings.TrimSpace(assignment.OwnerAgentID)
+}
+
 func nextActions(
 	snapshot *protocol.ExecutionSnapshot,
 	actor ActorContext,
@@ -2231,21 +2299,24 @@ func nextActions(
 				Reason:     "Work Item is ready and has no current Assignment",
 			})
 		}
-		for _, work := range snapshot.WorkItems {
-			if submission := latestUnreviewedSubmission(snapshot, work.ID); submission != nil {
-				assignment := findAssignmentByID(snapshot, submission.AssignmentID)
-				if snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
-					assignment != nil &&
-					assignment.OwnerAgentID == strings.TrimSpace(actor.AgentID) {
-					continue
-				}
-				actions = append(actions, NextAction{
-					Tool:       "review_work",
-					WorkItemID: work.ID,
-					LogicalKey: work.LogicalKey,
-					Reason:     "Submission is awaiting an Acceptance decision",
-				})
+	}
+	for _, work := range snapshot.WorkItems {
+		if submission := latestUnreviewedSubmission(snapshot, work.ID); submission != nil {
+			assignment := findAssignmentByID(snapshot, submission.AssignmentID)
+			if snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
+				(assignment == nil ||
+					strings.TrimSpace(assignment.ReturnToAgentID) != strings.TrimSpace(actor.AgentID)) {
+				continue
 			}
+			if snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom && !isCoordinator {
+				continue
+			}
+			actions = append(actions, NextAction{
+				Tool:       "review_work",
+				WorkItemID: work.ID,
+				LogicalKey: work.LogicalKey,
+				Reason:     "Submission is awaiting the selected review decision",
+			})
 		}
 	}
 	for _, work := range snapshot.WorkItems {

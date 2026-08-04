@@ -26,6 +26,7 @@ type fakeExecutionService struct {
 	block         func(orchestration.BlockWorkInput) orchestration.MutationResult
 	resume        func(orchestration.ResumeWorkInput) orchestration.MutationResult
 	takeover      func(orchestration.TakeOverWorkInput) orchestration.MutationResult
+	alignment     func(orchestration.AuditExecutionAlignmentInput) orchestration.MutationResult
 	promote       func(orchestration.PromoteExecutionToGoalInput) orchestration.MutationResult
 	context       string
 	contextActor  func(orchestration.ActorContext)
@@ -108,6 +109,13 @@ func (s *fakeExecutionService) ResumeWork(_ context.Context, _ orchestration.Act
 func (s *fakeExecutionService) TakeOverWork(_ context.Context, _ orchestration.ActorContext, input orchestration.TakeOverWorkInput) (orchestration.MutationResult, error) {
 	if s.takeover != nil {
 		return s.takeover(input), nil
+	}
+	return orchestration.MutationResult{}, nil
+}
+
+func (s *fakeExecutionService) AuditExecutionAlignment(_ context.Context, _ orchestration.ActorContext, input orchestration.AuditExecutionAlignmentInput) (orchestration.MutationResult, error) {
+	if s.alignment != nil {
+		return s.alignment(input), nil
 	}
 	return orchestration.MutationResult{}, nil
 }
@@ -329,7 +337,7 @@ func TestPlanExecutionPassesAtomicInitialBoundaryWithoutEnsure(t *testing.T) {
 	}
 }
 
-func TestPlanExecutionRejectsMalformedWorkGraphJSONBeforeService(t *testing.T) {
+func TestPlanExecutionRejectsUnknownNestedItemFieldBeforeService(t *testing.T) {
 	planCalled := false
 	svc := &fakeExecutionService{
 		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
@@ -338,7 +346,10 @@ func TestPlanExecutionRejectsMalformedWorkGraphJSONBeforeService(t *testing.T) {
 		},
 	}
 	input := validPlanToolInput()
-	input["work_graph_json"] = `[{"logical_key":"research","unknown":true}]`
+	input["items"] = []any{map[string]any{
+		"logical_key": "research",
+		"unknown":     true,
+	}}
 	result, err := planExecution(svc, executionServerContext()).ContextHandler(
 		context.Background(),
 		input,
@@ -347,15 +358,13 @@ func TestPlanExecutionRejectsMalformedWorkGraphJSONBeforeService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if planCalled ||
-		result.IsError ||
-		result.StructuredContent["outcome"] != "rejected" ||
-		result.StructuredContent["next_actions"] == nil {
-		t.Fatalf("malformed WorkGraph result=%#v planCalled=%t", result, planCalled)
+	if planCalled || !result.IsError || len(result.Content) != 1 ||
+		!strings.Contains(result.Content[0]["text"].(string), `unknown field "unknown"`) {
+		t.Fatalf("unknown nested field result=%#v planCalled=%t", result, planCalled)
 	}
 }
 
-func TestPlanExecutionRejectsLegacyItemsTransportBeforeService(t *testing.T) {
+func TestPlanExecutionRejectsLegacyStringTransportBeforeService(t *testing.T) {
 	planCalled := false
 	svc := &fakeExecutionService{
 		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
@@ -364,27 +373,31 @@ func TestPlanExecutionRejectsLegacyItemsTransportBeforeService(t *testing.T) {
 		},
 	}
 	input := validPlanToolInput()
-	delete(input, "work_graph_json")
-	input["items"] = []any{map[string]any{
-		"logical_key": "legacy",
-	}}
+	delete(input, "items")
+	input["work_graph_json"] = `[{"logical_key":"legacy"}]`
 	result, err := planExecution(svc, executionServerContext()).ContextHandler(
 		context.Background(),
 		input,
-		&sdktool.CallContext{ToolUseID: "tool-legacy-items"},
+		&sdktool.CallContext{ToolUseID: "tool-legacy-string"},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if planCalled || !result.IsError || len(result.Content) != 1 ||
-		!strings.Contains(result.Content[0]["text"].(string), `unknown field "items"`) {
-		t.Fatalf("legacy items result=%#v planCalled=%t", result, planCalled)
+		!strings.Contains(result.Content[0]["text"].(string), `unknown field "work_graph_json"`) {
+		t.Fatalf("legacy string result=%#v planCalled=%t", result, planCalled)
 	}
 }
 
-func TestPlanExecutionRejectsEmptyWorkGraphJSONBeforeService(t *testing.T) {
-	for _, value := range []any{"", "[]", "null"} {
-		t.Run(value.(string), func(t *testing.T) {
+func TestPlanExecutionRejectsEmptyItemsBeforeService(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		items any
+	}{
+		{name: "missing", items: nil},
+		{name: "empty", items: []any{}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
 			planCalled := false
 			svc := &fakeExecutionService{
 				plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
@@ -393,7 +406,11 @@ func TestPlanExecutionRejectsEmptyWorkGraphJSONBeforeService(t *testing.T) {
 				},
 			}
 			input := validPlanToolInput()
-			input["work_graph_json"] = value
+			if test.items == nil {
+				delete(input, "items")
+			} else {
+				input["items"] = test.items
+			}
 			result, err := planExecution(svc, executionServerContext()).ContextHandler(
 				context.Background(),
 				input,
@@ -405,7 +422,7 @@ func TestPlanExecutionRejectsEmptyWorkGraphJSONBeforeService(t *testing.T) {
 			if planCalled || result.IsError ||
 				result.StructuredContent["outcome"] != "rejected" ||
 				result.StructuredContent["next_actions"] == nil {
-				t.Fatalf("empty WorkGraph result=%#v planCalled=%t", result, planCalled)
+				t.Fatalf("empty items result=%#v planCalled=%t", result, planCalled)
 			}
 		})
 	}
@@ -796,6 +813,52 @@ func TestStrictDecoderRejectsModelSuppliedSnapshotRevision(t *testing.T) {
 	}
 }
 
+func TestAuditExecutionAlignmentPassesTypedReportAndLeavesRoutingToAgent(t *testing.T) {
+	snapshot := executionSnapshot(9)
+	snapshot.Execution.Objective = "Ship the verified report"
+	snapshot.Execution.CompletionCriteria = []string{"report is verified"}
+	var captured orchestration.AuditExecutionAlignmentInput
+	svc := &fakeExecutionService{
+		current: func() *protocol.ExecutionSnapshot { return snapshot },
+		alignment: func(input orchestration.AuditExecutionAlignmentInput) orchestration.MutationResult {
+			captured = input
+			result := orchestration.AppliedResult(snapshot, []string{"runtime_gate:gate-1"}, nil)
+			result.Message = "Agent retains control"
+			return result
+		},
+	}
+	result, err := auditExecutionAlignment(svc, executionServerContext()).ContextHandler(
+		context.Background(),
+		map[string]any{
+			"decision": "not_aligned",
+			"criteria_results": []any{map[string]any{
+				"criterion": "report is verified",
+				"status":    "unsatisfied",
+				"gap":       "verification has not run",
+			}},
+			"summary": "The report still needs verification.",
+		},
+		&sdktool.CallContext{ToolUseID: "tool-alignment"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError ||
+		captured.ExecutionID != snapshot.Execution.ID ||
+		captured.SnapshotRevision != 9 ||
+		captured.CommandID != "tool-alignment" ||
+		captured.Report.Decision != protocol.ObjectiveAlignmentNotAligned ||
+		len(captured.Report.CriteriaResults) != 1 {
+		t.Fatalf("result=%+v captured=%+v", result, captured)
+	}
+	if !strings.Contains(
+		auditExecutionAlignment(nil, contract.ServerContext{}).Description,
+		"Agent chooses the next action",
+	) {
+		t.Fatal("alignment tool description must keep routing advisory")
+	}
+}
+
 func executionSnapshot(revision int64) *protocol.ExecutionSnapshot {
 	return &protocol.ExecutionSnapshot{
 		Execution: protocol.Execution{
@@ -830,7 +893,7 @@ func executionServerContext() contract.ServerContext {
 }
 
 func validPlanToolInput() map[string]any {
-	workGraph, err := json.Marshal([]any{
+	items := []any{
 		map[string]any{
 			"logical_key":         "research",
 			"kind":                "produce",
@@ -859,14 +922,11 @@ func validPlanToolInput() map[string]any {
 				"kind":        "hard",
 			}},
 		},
-	})
-	if err != nil {
-		panic(err)
 	}
 	return map[string]any{
 		"objective":           "Deliver a verified report",
 		"completion_criteria": []any{"report accepted"},
 		"revision_reason":     "initial graph",
-		"work_graph_json":     string(workGraph),
+		"items":               items,
 	}
 }

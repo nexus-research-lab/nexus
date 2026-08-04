@@ -198,12 +198,6 @@ func TestNormalizeAndValidatePlanRejectsInvalidOutputClaims(t *testing.T) {
 				command.WorkItems[0].OutputClaims[0].Mode = "private"
 			},
 		},
-		{
-			name: "missing produce claim",
-			mutate: func(command *WritePlanCommand) {
-				command.WorkItems[0].OutputClaims = nil
-			},
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -219,5 +213,19 @@ func TestNormalizeAndValidatePlanRejectsInvalidOutputClaims(t *testing.T) {
 				t.Fatalf("error = %v, want ErrInvariant", err)
 			}
 		})
+	}
+}
+
+func TestNormalizeAndValidatePlanAllowsUndeclaredOutputScope(t *testing.T) {
+	command := testPlanCommand("scope-optional", 1, "scope-optional", "", 1)
+	command.WorkItems[0].OutputClaims = nil
+
+	if _, _, err := normalizeAndValidatePlan(
+		command.Plan,
+		command.WorkItems,
+		command.Dependencies,
+		time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC),
+	); err != nil {
+		t.Fatalf("normalize plan without declared output scope: %v", err)
 	}
 }

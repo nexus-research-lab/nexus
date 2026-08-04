@@ -3,10 +3,9 @@
  * OUTPUT: 含首条未读 Agent 定位、Feed、Composer、Goal 与 Agent 终态驱动的 WorkGraph 刷新模型。
  * POS: Group Chat 有状态装配入口；纯投影与未读队列分别下沉到专属模块。
  */
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
-import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
 import type { RoomAgentExecutionState } from "@/types/agent/agent-conversation";
@@ -29,10 +28,12 @@ export function useGroupChatPanelModel({
   conversationId,
   currentAgentAvatar,
   currentAgentName,
+  executionResource,
   initialDraft,
   layout,
   onConversationSnapshotChange,
   onCreateConversation,
+  onExecutionTaskRunsChange,
   onInitialDraftConsumed,
   onOpenAgentContact,
   onOpenWorkspaceFile,
@@ -64,15 +65,9 @@ export function useGroupChatPanelModel({
     roomId,
     sessionKey,
   });
-  const execution = useExecutionResource({
-    activityKey: buildRoomExecutionActivityKey(
-      session.conversation.messages.length,
-      session.conversation.is_loading,
-      session.conversation.room_agent_execution_states,
-    ),
-    conversationActive: session.conversation.is_loading,
-    sessionKey,
-  });
+  useEffect(() => {
+    onExecutionTaskRunsChange?.(session.taskRuns);
+  }, [onExecutionTaskRunsChange, session.taskRuns]);
   const feedTimeline = useMemo(
     () => projectGroupAgentTimeline({
       messageGroups: session.timeline.message_groups,
@@ -128,7 +123,7 @@ export function useGroupChatPanelModel({
     currentAgentName,
     directory,
     environment,
-    execution,
+    execution: executionResource,
     feedTimeline,
     goal,
     onCreateConversation,

@@ -1,11 +1,11 @@
 // INPUT: 当前 transient Execution 的授权、完成条件与结构化持续性证据。
-// OUTPUT: 可审计、fail-closed 的 adaptive Goal promotion 决策。
-// POS: 模型可提出 promotion，但后端是否允许自动持久化的唯一纯规则入口。
+// OUTPUT: hard availability blockers 与可选 persistence 建议信号。
+// POS: 后端只裁决权限/状态；是否值得提升由 Agent 决定。
 package orchestration
 
 import "strings"
 
-// GoalPromotionSignal 是允许 transient Execution 自适应提升的持久性证据。
+// GoalPromotionSignal 是帮助 Agent 判断 persistence 的权威建议事实。
 type GoalPromotionSignal string
 
 const (
@@ -20,7 +20,7 @@ const (
 // AdaptiveGoalEvidence 是后端能够验证的 promotion 输入。
 //
 // Complexity、Plan 长度、Room 成员数量和 subagent 数量故意不在此结构中：
-// 它们可以帮助模型建图，但不能成为自动持久化授权。
+// 它们属于 Agent 的语义判断，不需要伪装成后端可证明的授权事实。
 type AdaptiveGoalEvidence struct {
 	ExecutionID                 string
 	ObjectiveClear              bool
@@ -49,9 +49,8 @@ type AdaptiveGoalDecision struct {
 	Blockers []string
 }
 
-// EvaluateAdaptiveGoalPromotion 对自动 Goal 提升执行硬门槛 + durable signal 判定。
-//
-// 未知或缺失事实按不允许处理；这条规则不处理用户显式 create_goal。
+// EvaluateAdaptiveGoalPromotion 分离硬 availability 与建议 signal。
+// 缺少 signal 不再阻止 Agent 基于任务语义选择 Goal。
 func EvaluateAdaptiveGoalPromotion(evidence AdaptiveGoalEvidence) AdaptiveGoalDecision {
 	decision := AdaptiveGoalDecision{}
 	if strings.TrimSpace(evidence.ExecutionID) == "" {
@@ -84,9 +83,6 @@ func EvaluateAdaptiveGoalPromotion(evidence AdaptiveGoalEvidence) AdaptiveGoalDe
 	if strings.TrimSpace(evidence.ConflictingGoalID) != "" {
 		decision.Blockers = append(decision.Blockers, "goal_conflict")
 	}
-	if !evidence.RequiredWorkRemaining {
-		decision.Blockers = append(decision.Blockers, "no_required_work_remaining")
-	}
 	if len(decision.Blockers) > 0 {
 		return decision
 	}
@@ -108,10 +104,6 @@ func EvaluateAdaptiveGoalPromotion(evidence AdaptiveGoalEvidence) AdaptiveGoalDe
 	}
 	if evidence.PredictedContextBoundary {
 		decision.Signals = append(decision.Signals, GoalPromotionSignalContextBoundary)
-	}
-	if len(decision.Signals) == 0 {
-		decision.Blockers = append(decision.Blockers, "durable_signal_missing")
-		return decision
 	}
 	decision.Promote = true
 	return decision

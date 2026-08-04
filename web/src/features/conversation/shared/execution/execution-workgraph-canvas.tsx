@@ -1,58 +1,87 @@
 /**
- * INPUT: 当前 Execution、Agent 目录与当前节点。
- * OUTPUT: 按自身真实宽度重排的 Agent 节点、依赖边与单节点摘要。
- * POS: Execution 展开态的唯一 WorkGraph 主视图；快照更新即重排，不复制编排状态。
+ * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点与精确 Agent round Task run。
+ * OUTPUT: 仅显示 Agent/Subagent/Tool/Gate 图标、方向边和按点击展开节点详情的分层运行图。
+ * POS: DM/Room 共用的 Execution Graph 主视图；不从文本或布局反推运行身份。
  */
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 import type {
+  ExecutionAttemptView,
+  ExecutionGraphNodeView,
   ExecutionView,
   ExecutionWorkItemStatus,
   ExecutionWorkItemView,
 } from "@/types/conversation/execution";
 
 import { ExecutionNodeAvatar } from "./execution-node-avatar";
+import { ExecutionNodeTaskList } from "./execution-node-task-list";
+import { resolveExecutionNodeTaskRun } from "./execution-node-task-model";
 import {
-  orderedExecutionItems,
+  compactExecutionNodeObjective,
   resolveExecutionAgent,
+  resolveExecutionGraphNodeStatus,
   type ExecutionAgentDirectory,
   WORK_ITEM_STATUS_LABEL_KEY,
 } from "./execution-process-model";
 import { buildExecutionGraphLayout } from "./execution-workgraph-layout";
 
+const ATTEMPT_STATUS_LABEL_KEY: Record<
+  ExecutionAttemptView["status"],
+  TranslationKey
+> = {
+  cancelled: "execution.attempt_cancelled",
+  failed: "execution.attempt_failed",
+  interrupted: "execution.attempt_interrupted",
+  pending: "execution.attempt_pending",
+  running: "execution.attempt_running",
+  succeeded: "execution.attempt_succeeded",
+  timed_out: "execution.attempt_timed_out",
+};
+
 export function ExecutionWorkGraphCanvas({
   currentId,
   directory,
   execution,
+  taskRuns,
 }: {
   currentId: string | null;
   directory: ExecutionAgentDirectory;
   execution: ExecutionView;
+  taskRuns: readonly ConversationTaskRun[];
 }) {
   const { t } = useI18n();
   const markerId = `execution-arrow-${useId().replace(/:/g, "")}`;
-  const items = useMemo(() => orderedExecutionItems(execution), [execution]);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [availableWidth, setAvailableWidth] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selectedItem = items.find((item) => item.id === selectedId) ?? null;
   const layout = useMemo(
     () => buildExecutionGraphLayout(execution, availableWidth ?? undefined),
     [availableWidth, execution],
   );
-  const selectedNode = layout.nodes.find(
-    (node) => node.item.id === selectedItem?.id,
+  const selectedLayoutNode = layout.nodes.find(
+    (candidate) => candidate.node.id === selectedId,
   ) ?? null;
+  const selectedItem = selectedLayoutNode?.item ?? null;
+  const selectedAttempt = selectedLayoutNode?.node.attempt_id
+    ? selectedItem?.attempts?.find(
+      (attempt) => attempt.id === selectedLayoutNode.node.attempt_id,
+    ) ?? null
+    : null;
+  const selectedTaskRun = selectedItem && selectedLayoutNode?.node.kind === "agent"
+    ? resolveExecutionNodeTaskRun(selectedItem, taskRuns)
+    : null;
 
   useEffect(() => {
-    if (selectedId && !items.some((item) => item.id === selectedId)) {
+    if (selectedId && !layout.nodes.some((node) => node.node.id === selectedId)) {
       setSelectedId(null);
     }
-  }, [items, selectedId]);
+  }, [layout.nodes, selectedId]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -63,10 +92,7 @@ export function ExecutionWorkGraphCanvas({
       const style = window.getComputedStyle(viewport);
       const horizontalPadding = (Number.parseFloat(style.paddingLeft) || 0)
         + (Number.parseFloat(style.paddingRight) || 0);
-      const width = Math.max(
-        0,
-        viewport.clientWidth - horizontalPadding,
-      );
+      const width = Math.max(0, viewport.clientWidth - horizontalPadding);
       const nextWidth = Math.floor(width);
       setAvailableWidth((current) => current === nextWidth ? current : nextWidth);
     };
@@ -93,7 +119,7 @@ export function ExecutionWorkGraphCanvas({
           role="group"
           style={{ height: layout.height, width: layout.width }}
         >
-          {selectedItem ? (
+          {selectedLayoutNode ? (
             <button
               aria-label={t("execution.close_node_details")}
               className="absolute inset-0 z-0 cursor-default focus-visible:outline-none"
@@ -122,12 +148,13 @@ export function ExecutionWorkGraphCanvas({
               </marker>
             </defs>
             {layout.edges.map((edge) => {
-              const emphasized = edge.sourceId === selectedItem?.id
-                || edge.targetId === selectedItem?.id
+              const emphasized = edge.sourceId === selectedId
+                || edge.targetId === selectedId
                 || edge.targetId === currentId;
               return (
                 <path
                   d={edge.path}
+                  data-execution-edge-kind={edge.kind}
                   data-execution-edge-source={edge.sourceId}
                   data-execution-edge-target={edge.targetId}
                   fill="none"
@@ -137,6 +164,11 @@ export function ExecutionWorkGraphCanvas({
                   stroke={emphasized
                     ? "var(--primary)"
                     : "var(--divider-subtle-color)"}
+                  strokeDasharray={edge.kind === "spawn" || edge.kind === "invoke"
+                    ? "3 3"
+                    : edge.kind === "loop_back"
+                    ? "5 3"
+                    : undefined}
                   strokeLinecap="round"
                   strokeWidth={emphasized ? 1.6 : 1.25}
                 />
@@ -144,50 +176,66 @@ export function ExecutionWorkGraphCanvas({
             })}
           </svg>
 
-          {layout.nodes.map(({ item, x, y }) => {
-            const owner = resolveExecutionAgent(directory, item.owner_agent_id);
-            const selected = item.id === selectedItem?.id;
-            const current = item.id === currentId;
+          {layout.nodes.map(({ item, node, size, x, y }) => {
+            const owner = node.kind === "tool"
+              ? null
+              : resolveExecutionAgent(
+                directory,
+                node.agent_id ?? item?.owner_agent_id,
+              );
+            const status = resolveExecutionGraphNodeStatus(node, item);
+            const selected = node.id === selectedId;
+            const current = node.id === currentId;
+            const title = graphNodeTitle(node, item, owner?.name, t);
             return (
               <button
-                aria-label={`${t("execution.details")}: ${item.subject}`}
+                aria-label={`${t("execution.details")}: ${title}`}
                 aria-pressed={selected}
-                className="absolute z-10 grid h-14 w-14 place-items-center rounded-[16px] transition-[left,top,transform] duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+                className="absolute z-10 grid place-items-center rounded-[16px] transition-[left,top,transform] duration-300 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+                data-execution-attempt-id={node.attempt_id || undefined}
                 data-execution-current-node={current ? "true" : undefined}
+                data-execution-graph-node-id={node.id}
                 data-execution-node-selected={selected ? "true" : undefined}
-                data-execution-work-item-id={item.id}
-                key={item.id}
-                onClick={() => setSelectedId((currentId) => (
-                  currentId === item.id ? null : item.id
+                data-execution-work-item-id={node.work_item_id || undefined}
+                key={node.id}
+                onClick={() => setSelectedId((value) => (
+                  value === node.id ? null : node.id
                 ))}
-                style={{ left: x - 28, top: y - 28 }}
-                title={`${item.subject} · ${
-                  owner?.name ?? t("execution.owner_unassigned")
-                }`}
+                style={{
+                  height: size + 8,
+                  left: x - (size + 8) / 2,
+                  top: y - (size + 8) / 2,
+                  width: size + 8,
+                }}
+                title={title}
                 type="button"
               >
                 <ExecutionNodeAvatar
                   agent={owner}
                   current={current}
+                  kind={node.kind}
                   selected={selected}
-                  size="graph"
-                  status={item.status}
-                  title={`${item.subject} · ${
-                    owner?.name ?? t("execution.owner_unassigned")
-                  }`}
+                  size={node.kind === "subagent" || node.kind === "tool"
+                    ? "nested"
+                    : "graph"}
+                  status={status}
+                  title={title}
                 />
               </button>
             );
           })}
 
-          {selectedItem && selectedNode ? (
+          {selectedLayoutNode ? (
             <ExecutionNodePopover
+              attempt={selectedAttempt}
               directory={directory}
               item={selectedItem}
               layoutHeight={layout.height}
               layoutWidth={layout.width}
-              x={selectedNode.x}
-              y={selectedNode.y}
+              node={selectedLayoutNode.node}
+              taskRun={selectedTaskRun}
+              x={selectedLayoutNode.x}
+              y={selectedLayoutNode.y}
             />
           ) : null}
         </div>
@@ -197,29 +245,54 @@ export function ExecutionWorkGraphCanvas({
 }
 
 function ExecutionNodePopover({
+  attempt,
   directory,
   item,
   layoutHeight,
   layoutWidth,
+  node,
+  taskRun,
   x,
   y,
 }: {
+  attempt: ExecutionAttemptView | null;
   directory: ExecutionAgentDirectory;
-  item: ExecutionWorkItemView;
+  item: ExecutionWorkItemView | null;
   layoutHeight: number;
   layoutWidth: number;
+  node: ExecutionGraphNodeView;
+  taskRun: ConversationTaskRun | null;
   x: number;
   y: number;
 }) {
   const { t } = useI18n();
-  const owner = resolveExecutionAgent(directory, item.owner_agent_id);
+  const owner = node.kind === "tool"
+    ? null
+    : resolveExecutionAgent(
+      directory,
+      node.agent_id ?? item?.owner_agent_id,
+    );
+  const objectiveSource = item?.objective
+    ?? node.description
+    ?? node.name
+    ?? "";
+  const objective = compactExecutionNodeObjective(objectiveSource, owner?.name);
+  const deliverable = item?.deliverable.trim() ?? "";
+  const showDeliverable = deliverable
+    && deliverable.toLocaleLowerCase() !== objective.toLocaleLowerCase();
+  const status = resolveExecutionGraphNodeStatus(node, item);
+  const statusLabel = attempt && node.kind === "subagent"
+    ? t(ATTEMPT_STATUS_LABEL_KEY[attempt.status])
+    : t(WORK_ITEM_STATUS_LABEL_KEY[status]);
+  const heading = graphNodeHeading(node, item, t);
   const openRight = x <= layoutWidth / 2;
-  const top = Math.max(8, Math.min(y - 42, layoutHeight - 104));
+  const estimatedHeight = taskRun ? 214 : 104;
+  const top = Math.max(8, Math.min(y - 42, layoutHeight - estimatedHeight));
   return (
     <article
-      className="absolute z-20 w-[13rem] rounded-[10px] border border-(--surface-control-border) bg-(--surface-control-background) px-3 py-2.5 shadow-(--surface-control-shadow)"
-      aria-label={`${t("execution.details")}: ${item.subject}`}
-      data-execution-selected-node-detail={item.id}
+      className="absolute z-20 w-[15rem] rounded-[10px] border border-(--surface-control-border) bg-(--surface-control-background) px-3 py-2.5 shadow-(--surface-control-shadow)"
+      aria-label={`${t("execution.details")}: ${heading}`}
+      data-execution-selected-node-detail={node.id}
       role="dialog"
       style={{
         left: openRight ? x + 34 : x - 34,
@@ -229,29 +302,97 @@ function ExecutionNodePopover({
     >
       <div className="flex min-w-0 items-center gap-2">
         <h3 className="min-w-0 flex-1 truncate text-compact font-semibold text-(--text-strong)">
-          {item.subject}
+          {heading}
         </h3>
         <span className={cn(
           "shrink-0 text-[10px] font-medium",
-          selectedStatusTone(item.status),
+          selectedStatusTone(status),
         )}>
-          {t(WORK_ITEM_STATUS_LABEL_KEY[item.status])}
+          {statusLabel}
         </span>
       </div>
-      <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-(--text-default)">
-        {item.objective}
-      </p>
+      {node.kind === "subagent" && item ? (
+        <p className="mt-0.5 truncate text-[10px] text-(--text-soft)">
+          {item.subject}
+        </p>
+      ) : null}
+      {objective ? (
+        <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-(--text-default)">
+          {objective}
+        </p>
+      ) : null}
       <p className="mt-1.5 flex min-w-0 gap-1 text-[10px] leading-4 text-(--text-soft)">
         <span className="shrink-0">
-          {owner?.name ?? t("execution.owner_unassigned")}
+          {node.kind === "tool"
+            ? node.name ?? t("execution.node_tool")
+            : node.kind === "subagent"
+            ? t("execution.attempt_subagent")
+            : owner?.name ?? t("execution.owner_unassigned")}
         </span>
-        <span aria-hidden="true">·</span>
-        <span className="min-w-0 truncate text-(--text-default)">
-          {item.deliverable}
-        </span>
+        {showDeliverable ? (
+          <>
+            <span aria-hidden="true">·</span>
+            <span className="min-w-0 truncate text-(--text-default)">
+              {deliverable}
+            </span>
+          </>
+        ) : null}
       </p>
+      {taskRun ? <ExecutionNodeTaskList run={taskRun} /> : null}
     </article>
   );
+}
+
+function graphNodeTitle(
+  node: ExecutionGraphNodeView,
+  item: ExecutionWorkItemView | null,
+  ownerName: string | undefined,
+  t: (key: TranslationKey) => string,
+): string {
+  if (node.kind === "tool") {
+    return node.name?.trim() || t("execution.node_tool");
+  }
+  if (node.kind === "gate") {
+    const subject = item?.subject ?? node.description?.trim();
+    const gate = node.name === "objective_alignment"
+      ? t("execution.node_alignment_gate")
+      : t("execution.node_gate");
+    return ownerName
+      ? `${subject ? `${subject} · ` : ""}${gate} · ${ownerName}`
+      : `${subject ? `${subject} · ` : ""}${gate}`;
+  }
+  if (node.kind === "subagent") {
+    return item?.subject
+      ? `${t("execution.attempt_subagent")} · ${item.subject}`
+      : t("execution.attempt_subagent");
+  }
+  const subject = item?.subject
+    ?? node.description?.trim()
+    ?? ownerName
+    ?? t("execution.owner_unassigned");
+  return ownerName ? `${subject} · ${ownerName}` : subject;
+}
+
+function graphNodeHeading(
+  node: ExecutionGraphNodeView,
+  item: ExecutionWorkItemView | null,
+  t: (key: TranslationKey) => string,
+): string {
+  if (node.kind === "tool") {
+    return node.name?.trim() || t("execution.node_tool");
+  }
+  if (node.kind === "gate") {
+    return node.name === "objective_alignment"
+      ? t("execution.node_alignment_gate")
+      : t("execution.node_gate");
+  }
+  if (node.kind === "subagent") {
+    return t("execution.attempt_subagent");
+  }
+  return item?.subject
+    ?? node.description?.trim()
+    ?? node.name?.trim()
+    ?? t("execution.owner_unassigned");
 }
 
 function selectedStatusTone(status: ExecutionWorkItemStatus): string {

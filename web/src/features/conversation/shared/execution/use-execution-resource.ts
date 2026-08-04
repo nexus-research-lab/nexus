@@ -28,6 +28,14 @@ interface ExecutionResourceSnapshot {
   sessionKey: string | null;
 }
 
+export interface ExecutionResource {
+  dismiss: () => void;
+  error: string | null;
+  execution: ExecutionView | null;
+  isLoading: boolean;
+  refresh: () => void;
+}
+
 function emptySnapshot(sessionKey: string | null): ExecutionResourceSnapshot {
   return {
     error: null,
@@ -45,7 +53,7 @@ export function useExecutionResource({
   activityKey?: number | string | null;
   conversationActive?: boolean;
   sessionKey: string | null;
-}) {
+}): ExecutionResource {
   const [snapshot, setSnapshot] = useState<ExecutionResourceSnapshot>(() => (
     emptySnapshot(sessionKey)
   ));

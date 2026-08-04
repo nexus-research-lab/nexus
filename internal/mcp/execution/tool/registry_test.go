@@ -27,6 +27,7 @@ func TestBuildAllExposesOnlySemanticExecutionTools(t *testing.T) {
 		"block_work",
 		"resume_work",
 		"take_over_work",
+		"audit_execution_alignment",
 		"promote_execution_to_goal",
 	}
 	if !slices.Equal(names, want) {
@@ -71,7 +72,7 @@ func TestExecutionToolSchemasHideFencingAndIdempotency(t *testing.T) {
 
 func TestRoomAssignmentDescriptionMakesStructuredHandoffPrimary(t *testing.T) {
 	definition := assignWork(nil, contract.ServerContext{})
-	for _, required := range []string{"structured", "backend dispatches", "do not duplicate", "@ message"} {
+	for _, required := range []string{"tracked responsibility handoff", "records and dispatches", "content channel", "do not replace"} {
 		if !strings.Contains(definition.Description, required) {
 			t.Fatalf("description missing %q: %s", required, definition.Description)
 		}
@@ -91,10 +92,8 @@ func TestPlanExecutionSchemaExplainsInitialCriterionWithoutBurdeningReplan(t *te
 	}
 	properties := definition.InputSchema["properties"].(map[string]any)
 	criteria := properties["completion_criteria"].(map[string]any)
-	items := criteria["items"].(map[string]any)
-	if criteria["minItems"] != 1 ||
-		criteria["maxItems"] != protocol.ExecutionProjectionCollectionLimit ||
-		items["pattern"] != `\S` {
+	criteriaItems := criteria["items"].(map[string]any)
+	if criteria["type"] != "array" || criteriaItems["type"] != "string" {
 		t.Fatalf("completion_criteria schema = %#v", criteria)
 	}
 	required := definition.InputSchema["required"].([]string)
@@ -102,20 +101,37 @@ func TestPlanExecutionSchemaExplainsInitialCriterionWithoutBurdeningReplan(t *te
 		slices.Contains(required, "objective") {
 		t.Fatalf("context-dependent creation fields became mandatory for replan: %#v", required)
 	}
-	if !slices.Contains(required, "work_graph_json") {
-		t.Fatalf("required = %#v, want work_graph_json", required)
+	if !slices.Contains(required, "items") {
+		t.Fatalf("required = %#v, want items", required)
 	}
-	if _, exposesNestedItems := properties["items"]; exposesNestedItems {
-		t.Fatalf("model schema still exposes provider-fragile nested items: %#v", properties)
+	if _, exposesStringTransport := properties["work_graph_json"]; exposesStringTransport {
+		t.Fatalf("model schema still exposes JSON-inside-JSON transport: %#v", properties)
 	}
-	workGraph := properties["work_graph_json"].(map[string]any)
-	if workGraph["type"] != "string" || workGraph["pattern"] != `\S` {
-		t.Fatalf("work_graph_json schema = %#v", workGraph)
+	workGraph := properties["items"].(map[string]any)
+	itemSchema := workGraph["items"].(map[string]any)
+	itemProperties := itemSchema["properties"].(map[string]any)
+	itemRequired := itemSchema["required"].([]string)
+	if workGraph["type"] != "array" ||
+		itemSchema["type"] != "object" ||
+		itemProperties["logical_key"].(map[string]any)["type"] != "string" ||
+		!slices.Contains(itemRequired, "deliverable") {
+		t.Fatalf("items schema = %#v", workGraph)
 	}
+	encoded, err := json.Marshal(definition.InputSchema)
+	if err != nil {
+		t.Fatalf("marshal plan schema: %v", err)
+	}
+	for _, unsupported := range []string{`"pattern":`, `"minItems":`, `"maxItems":`} {
+		if strings.Contains(string(encoded), unsupported) {
+			t.Fatalf("portable plan schema contains provider-specific keyword %s: %s", unsupported, encoded)
+		}
+	}
+	assertPortableSchemaKeywords(t, definition.InputSchema)
+	assertClosedObjectSchemas(t, definition.InputSchema)
 	for _, requiredText := range []string{
-		"work_graph_json",
-		"json array serialized inside one string",
-		"do not send nested work item objects as a tool argument array",
+		"native items array",
+		"actual argument object",
+		"never send {} as a placeholder",
 	} {
 		if !strings.Contains(strings.ToLower(definition.Description), strings.ToLower(requiredText)) {
 			t.Fatalf("description missing %q: %s", requiredText, definition.Description)
@@ -123,8 +139,94 @@ func TestPlanExecutionSchemaExplainsInitialCriterionWithoutBurdeningReplan(t *te
 	}
 }
 
+func TestAuditExecutionAlignmentUsesPortableNativeReportSchema(t *testing.T) {
+	definition := auditExecutionAlignment(nil, contract.ServerContext{})
+	assertPortableSchemaKeywords(t, definition.InputSchema)
+	assertClosedObjectSchemas(t, definition.InputSchema)
+
+	required := definition.InputSchema["required"].([]string)
+	for _, field := range []string{"decision", "criteria_results", "summary"} {
+		if !slices.Contains(required, field) {
+			t.Fatalf("alignment required = %#v, missing %s", required, field)
+		}
+	}
+	properties := definition.InputSchema["properties"].(map[string]any)
+	criteria := properties["criteria_results"].(map[string]any)
+	criterion := criteria["items"].(map[string]any)
+	criterionProperties := criterion["properties"].(map[string]any)
+	evidence := criterionProperties["evidence"].(map[string]any)
+	if criteria["type"] != "array" || criterion["type"] != "object" ||
+		evidence["type"] != "array" || evidence["items"].(map[string]any)["type"] != "object" {
+		t.Fatalf("alignment report schema = %#v", criteria)
+	}
+	encoded, err := json.Marshal(definition.InputSchema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, unsupported := range []string{`"pattern":`, `"minItems":`, `"maxItems":`} {
+		if strings.Contains(string(encoded), unsupported) {
+			t.Fatalf("portable alignment schema contains %s: %s", unsupported, encoded)
+		}
+	}
+	for _, requiredText := range []string{"optionally audit", "never completes", "agent chooses"} {
+		if !strings.Contains(strings.ToLower(definition.Description), requiredText) {
+			t.Fatalf("alignment description missing %q: %s", requiredText, definition.Description)
+		}
+	}
+}
+
+func assertPortableSchemaKeywords(t *testing.T, schema map[string]any) {
+	t.Helper()
+	allowed := map[string]struct{}{
+		"type":                 {},
+		"properties":           {},
+		"required":             {},
+		"additionalProperties": {},
+		"items":                {},
+		"enum":                 {},
+		"description":          {},
+	}
+	for key := range schema {
+		if _, ok := allowed[key]; !ok {
+			t.Fatalf("portable plan schema contains unsupported keyword %q: %#v", key, schema)
+		}
+	}
+	if properties, ok := schema["properties"].(map[string]any); ok {
+		for propertyName, rawProperty := range properties {
+			property, propertyOK := rawProperty.(map[string]any)
+			if !propertyOK {
+				t.Fatalf("portable plan property %q = %#v, want schema object", propertyName, rawProperty)
+			}
+			assertPortableSchemaKeywords(t, property)
+		}
+	}
+	if rawItems, ok := schema["items"]; ok {
+		items, itemsOK := rawItems.(map[string]any)
+		if !itemsOK {
+			t.Fatalf("portable plan items = %#v, want schema object", rawItems)
+		}
+		assertPortableSchemaKeywords(t, items)
+	}
+}
+
+func assertClosedObjectSchemas(t *testing.T, value any) {
+	t.Helper()
+	switch typed := value.(type) {
+	case map[string]any:
+		if typed["type"] == "object" && typed["additionalProperties"] != false {
+			t.Fatalf("object schema must reject additional properties: %#v", typed)
+		}
+		for _, child := range typed {
+			assertClosedObjectSchemas(t, child)
+		}
+	case []any:
+		for _, child := range typed {
+			assertClosedObjectSchemas(t, child)
+		}
+	}
+}
+
 func TestExecutionToolSchemasExposeProjectionCollectionLimits(t *testing.T) {
-	plan := planExecutionSchema()["properties"].(map[string]any)
 	submit := submitWorkSchema()["properties"].(map[string]any)
 	review := reviewWorkSchema()["properties"].(map[string]any)
 	criterion := review["criteria_results"].(map[string]any)["items"].(map[string]any)
@@ -132,7 +234,6 @@ func TestExecutionToolSchemasExposeProjectionCollectionLimits(t *testing.T) {
 	resume := resumeWorkSchema()["properties"].(map[string]any)
 
 	for name, schema := range map[string]map[string]any{
-		"completion_criteria": plan["completion_criteria"].(map[string]any),
 		"result_refs":         submit["result_refs"].(map[string]any),
 		"submission_evidence": submit["evidence"].(map[string]any),
 		"criteria_results":    review["criteria_results"].(map[string]any),
@@ -142,5 +243,13 @@ func TestExecutionToolSchemasExposeProjectionCollectionLimits(t *testing.T) {
 		if schema["maxItems"] != protocol.ExecutionProjectionCollectionLimit {
 			t.Fatalf("%s maxItems = %#v", name, schema["maxItems"])
 		}
+	}
+}
+
+func TestGoalPromotionSchemaAllowsAgentSelectedComplexityReason(t *testing.T) {
+	properties := promoteExecutionSchema()["properties"].(map[string]any)
+	reasons := properties["activation_reason"].(map[string]any)["enum"].([]string)
+	if !slices.Contains(reasons, string(protocol.GoalActivationReasonSubstantialComplexity)) {
+		t.Fatalf("Goal promotion reasons = %#v", reasons)
 	}
 }

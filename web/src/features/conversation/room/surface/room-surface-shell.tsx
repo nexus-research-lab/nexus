@@ -2,9 +2,12 @@
 
 import { useCallback, useState } from "react";
 
+import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
+import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
@@ -106,6 +109,30 @@ export function RoomSurfaceShell({
   const runtimeKind = typeof storedRuntimeKind === "string"
     ? normalizeAgentRuntimeKind(storedRuntimeKind)
     : defaultRuntimeKind;
+  const executionSessionKey = currentRoomType === "dm"
+    ? currentAgentSessionIdentity?.session_key ?? null
+    : conversationId
+    ? buildRoomSharedSessionKey(conversationId)
+    : null;
+  const [executionTaskRunState, setExecutionTaskRunState] = useState<{
+    sessionKey: string | null;
+    runs: ConversationTaskRun[];
+  }>({ sessionKey: null, runs: [] });
+  const executionTaskRuns = executionTaskRunState.sessionKey === executionSessionKey
+    ? executionTaskRunState.runs
+    : [];
+  const executionResource = useExecutionResource({
+    activityKey: [
+      currentRoomConversation?.message_count ?? 0,
+      currentRoomConversation?.last_activity_at ?? 0,
+      currentRoomConversation?.is_active ?? false,
+    ].join(":"),
+    conversationActive: Boolean(currentRoomConversation?.is_active),
+    sessionKey: executionSessionKey,
+  });
+  const handleExecutionTaskRunsChange = useCallback((runs: ConversationTaskRun[]) => {
+    setExecutionTaskRunState({ sessionKey: executionSessionKey, runs });
+  }, [executionSessionKey]);
 
   const handleCreateConversationInShell = useCallback(async (title?: string) => {
     const nextConversationId = await onCreateConversation(title);
@@ -139,7 +166,10 @@ export function RoomSurfaceShell({
         currentRoomTitle={currentRoomTitle}
         runtimeKind={runtimeKind}
         currentTodos={currentTodos}
+        executionResource={executionResource}
+        executionTaskRuns={executionTaskRuns}
         initialDraft={initialDraft}
+        onExecutionTaskRunsChange={handleExecutionTaskRunsChange}
         onInitialDraftConsumed={onInitialDraftConsumed}
         onManageRoom={onManageRoom}
         onOpenMemberManager={onOpenMemberManager}
@@ -181,7 +211,10 @@ export function RoomSurfaceShell({
       currentAgentSessionIdentity={currentAgentSessionIdentity}
       conversationId={conversationId}
       currentRoomConversations={currentRoomConversations}
+      executionResource={executionResource}
+      executionTaskRuns={executionTaskRuns}
       initialDraft={initialDraft}
+      onExecutionTaskRunsChange={handleExecutionTaskRunsChange}
       onInitialDraftConsumed={onInitialDraftConsumed}
       currentTodos={currentTodos}
       sidePanelWidthPercent={sidePanelWidthPercent}

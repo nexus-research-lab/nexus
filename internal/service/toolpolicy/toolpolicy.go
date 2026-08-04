@@ -50,6 +50,7 @@ var managedExecutionTools = []string{
 	"block_work",
 	"resume_work",
 	"take_over_work",
+	"audit_execution_alignment",
 	"promote_execution_to_goal",
 }
 
@@ -64,6 +65,7 @@ var managedExecutionAllowedTools = []string{
 	"mcp__nexus_execution__block_work",
 	"mcp__nexus_execution__resume_work",
 	"mcp__nexus_execution__take_over_work",
+	"mcp__nexus_execution__audit_execution_alignment",
 	"mcp__nexus_execution__promote_execution_to_goal",
 	"get_execution",
 	"plan_execution",
@@ -74,6 +76,7 @@ var managedExecutionAllowedTools = []string{
 	"block_work",
 	"resume_work",
 	"take_over_work",
+	"audit_execution_alignment",
 	"promote_execution_to_goal",
 }
 

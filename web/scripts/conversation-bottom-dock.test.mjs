@@ -997,7 +997,10 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
 });
 
 test("Room progress stays isolated by Agent and selection follows the latest process until chosen", async () => {
-  const { projectConversationTodoProcesses } = await server.ssrLoadModule(
+  const {
+    projectConversationTaskRuns,
+    projectConversationTodoProcesses,
+  } = await server.ssrLoadModule(
     "/src/features/conversation/shared/todos/todo-projection-model.ts",
   );
   const { resolveRoomTaskSelection } = await server.ssrLoadModule(
@@ -1006,11 +1009,13 @@ test("Room progress stays isolated by Agent and selection follows the latest pro
   const sessionKey = "room:conversation";
   const assistantMessage = ({
     agentId,
+    agentRoundId,
     content,
     index,
     roundId,
   }) => ({
     agent_id: agentId,
+    agent_round_id: agentRoundId,
     content: [{
       id: `todo-${index}`,
       input: { todos: content },
@@ -1074,6 +1079,48 @@ test("Room progress stays isolated by Agent and selection follows the latest pro
     resolveRoomTaskSelection(processes, members, "lead").process.agentId,
     "lead",
   );
+
+  const taskRuns = projectConversationTaskRuns([
+    assistantMessage({
+      agentId: "researcher",
+      agentRoundId: "agent-round-1",
+      content: [{ content: "收集来源", status: "completed" }],
+      index: 3,
+      roundId: "round-shared-1",
+    }),
+    assistantMessage({
+      agentId: "researcher",
+      agentRoundId: "agent-round-2",
+      content: [{ content: "补充来源", status: "in_progress" }],
+      index: 4,
+      roundId: "round-shared-2",
+    }),
+    assistantMessage({
+      agentId: "researcher",
+      content: [{ content: "不可归属", status: "in_progress" }],
+      index: 5,
+      roundId: "round-without-agent-round",
+    }),
+  ], sessionKey);
+  assert.deepEqual(taskRuns.map((run) => ({
+    agentId: run.agentId,
+    agentRoundId: run.agentRoundId,
+    latestTaskEventIndex: run.latestTaskEventIndex,
+    todos: run.todos,
+  })), [
+    {
+      agentId: "researcher",
+      agentRoundId: "agent-round-1",
+      latestTaskEventIndex: 0,
+      todos: [{ content: "收集来源", status: "completed" }],
+    },
+    {
+      agentId: "researcher",
+      agentRoundId: "agent-round-2",
+      latestTaskEventIndex: 1,
+      todos: [{ content: "补充来源", status: "in_progress" }],
+    },
+  ]);
 
   const roomTaskPanelSource = await readFile(
     path.join(

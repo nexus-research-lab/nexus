@@ -190,6 +190,12 @@ func TestAssignWorkRejectsInvalidTargetBeforePersistence(t *testing.T) {
 			actor.ScopeKind = test.snapshot.Execution.ScopeKind
 			actor.RoomID = test.snapshot.Execution.RoomID
 			actor.ConversationID = test.snapshot.Execution.ConversationID
+			actor.RuntimeRoundID = "assign-invalid-round"
+			if actor.ScopeKind == protocol.ExecutionScopeRoom {
+				if err := service.mintRuntimeCoordination(actor, test.snapshot.Execution.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
 			result, err := service.AssignWork(context.Background(), actor, AssignWorkInput{
 				ExecutionID:      test.snapshot.Execution.ID,
 				SnapshotRevision: test.snapshot.Execution.Version,
@@ -210,15 +216,32 @@ func TestAssignWorkRejectsInvalidTargetBeforePersistence(t *testing.T) {
 	}
 }
 
-func TestAssignWorkRejectsRoomSelfAssignmentWithoutIndependentReviewer(t *testing.T) {
+func TestAssignWorkAllowsRoomCoordinatorSelfAssignmentAndReview(t *testing.T) {
 	snapshot := roomAssignmentSnapshot()
 	repository := &fakeRepository{snapshot: snapshot}
+	repository.assign = func(_ context.Context, command orchestrationstore.AssignCommand) (*protocol.ExecutionSnapshot, error) {
+		if command.Assignment.OwnerAgentID != "agent-lead" ||
+			command.Assignment.ReturnToAgentID != "agent-lead" ||
+			command.Assignment.Strategy != protocol.AssignmentStrategySelf ||
+			command.Dispatch != nil {
+			t.Fatalf("Room coordinator Assignment = %+v, dispatch=%+v", command.Assignment, command.Dispatch)
+		}
+		result := cloneExecutionSnapshot(snapshot)
+		result.Execution.Version++
+		result.Assignments = append(result.Assignments, command.Assignment)
+		result.Attempts = append(result.Attempts, *command.RootAttempt)
+		return result, nil
+	}
 	service := testService(repository)
 	actor := coordinatorActor()
 	actor.SessionKey = snapshot.Execution.SessionKey
 	actor.ScopeKind = protocol.ExecutionScopeRoom
 	actor.RoomID = snapshot.Execution.RoomID
 	actor.ConversationID = snapshot.Execution.ConversationID
+	actor.RuntimeRoundID = "assign-room-self-round"
+	if err := service.mintRuntimeCoordination(actor, snapshot.Execution.ID); err != nil {
+		t.Fatal(err)
+	}
 
 	result, err := service.AssignWork(context.Background(), actor, AssignWorkInput{
 		ExecutionID:      snapshot.Execution.ID,
@@ -231,9 +254,117 @@ func TestAssignWorkRejectsRoomSelfAssignmentWithoutIndependentReviewer(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Outcome != MutationRejected ||
-		result.ReasonCode != ErrorCodeRoomReviewerRequired {
+	if result.Outcome != MutationApplied {
 		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestAssignWorkAllowsRoomCoordinatorWorkWithIndependentReviewer(t *testing.T) {
+	snapshot := roomAssignmentSnapshot()
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.assign = func(_ context.Context, command orchestrationstore.AssignCommand) (*protocol.ExecutionSnapshot, error) {
+		if command.Assignment.OwnerAgentID != "agent-lead" ||
+			command.Assignment.ReturnToAgentID != "agent-reviewer" ||
+			command.Assignment.Strategy != protocol.AssignmentStrategySelf ||
+			command.Dispatch != nil {
+			t.Fatalf("Room coordinator Assignment = %+v, dispatch=%+v", command.Assignment, command.Dispatch)
+		}
+		result := cloneExecutionSnapshot(snapshot)
+		result.Execution.Version++
+		result.Assignments = append(result.Assignments, command.Assignment)
+		result.Attempts = append(result.Attempts, *command.RootAttempt)
+		return result, nil
+	}
+	service := testService(repository)
+	service.SetAssignmentTargetAuthorizer(assignmentTargetAuthorizerFunc(func(
+		_ context.Context,
+		request AssignmentTargetRequest,
+	) error {
+		if request.TargetAgentID != "agent-reviewer" {
+			t.Fatalf("independent reviewer preflight = %+v", request)
+		}
+		return nil
+	}))
+	actor := coordinatorActor()
+	actor.SessionKey = snapshot.Execution.SessionKey
+	actor.ScopeKind = protocol.ExecutionScopeRoom
+	actor.RoomID = snapshot.Execution.RoomID
+	actor.ConversationID = snapshot.Execution.ConversationID
+	actor.RuntimeRoundID = "assign-room-independent-review-round"
+	if err := service.mintRuntimeCoordination(actor, snapshot.Execution.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := service.AssignWork(context.Background(), actor, AssignWorkInput{
+		ExecutionID:      snapshot.Execution.ID,
+		SnapshotRevision: snapshot.Execution.Version,
+		CommandID:        "assign-room-lead-work",
+		WorkItemID:       "work-1",
+		TargetAgentID:    actor.AgentID,
+		ReturnToAgentID:  "agent-reviewer",
+		Strategy:         protocol.AssignmentStrategySelf,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationApplied {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestAssignWorkAllowsRoomMemberToRemainItsSelectedReviewer(t *testing.T) {
+	snapshot := roomAssignmentSnapshot()
+	repository := &fakeRepository{snapshot: snapshot}
+	repository.assign = func(_ context.Context, command orchestrationstore.AssignCommand) (*protocol.ExecutionSnapshot, error) {
+		if command.Assignment.OwnerAgentID != "agent-worker" ||
+			command.Assignment.ReturnToAgentID != "agent-worker" ||
+			command.Assignment.Strategy != protocol.AssignmentStrategyRoomMember ||
+			command.Dispatch == nil {
+			t.Fatalf("self-reviewing member Assignment = %+v, dispatch=%+v", command.Assignment, command.Dispatch)
+		}
+		result := cloneExecutionSnapshot(snapshot)
+		result.Execution.Version++
+		result.Assignments = append(result.Assignments, command.Assignment)
+		result.Dispatches = append(result.Dispatches, *command.Dispatch)
+		result.Attempts = append(result.Attempts, *command.RootAttempt)
+		return result, nil
+	}
+	authorizedTargets := make([]string, 0, 1)
+	service := testService(repository)
+	service.SetAssignmentTargetAuthorizer(assignmentTargetAuthorizerFunc(func(
+		_ context.Context,
+		request AssignmentTargetRequest,
+	) error {
+		authorizedTargets = append(authorizedTargets, request.TargetAgentID)
+		return nil
+	}))
+	actor := coordinatorActor()
+	actor.SessionKey = snapshot.Execution.SessionKey
+	actor.ScopeKind = protocol.ExecutionScopeRoom
+	actor.RoomID = snapshot.Execution.RoomID
+	actor.ConversationID = snapshot.Execution.ConversationID
+	actor.RuntimeRoundID = "assign-room-member-self-review-round"
+	if err := service.mintRuntimeCoordination(actor, snapshot.Execution.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := service.AssignWork(context.Background(), actor, AssignWorkInput{
+		ExecutionID:      snapshot.Execution.ID,
+		SnapshotRevision: snapshot.Execution.Version,
+		CommandID:        "assign-member-self-review",
+		WorkItemID:       "work-1",
+		TargetAgentID:    "agent-worker",
+		ReturnToAgentID:  "agent-worker",
+		Strategy:         protocol.AssignmentStrategyRoomMember,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationApplied {
+		t.Fatalf("result = %+v", result)
+	}
+	if len(authorizedTargets) != 1 || authorizedTargets[0] != "agent-worker" {
+		t.Fatalf("authorized targets = %#v, want the member checked once", authorizedTargets)
 	}
 }
 

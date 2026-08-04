@@ -169,16 +169,6 @@ func TestRenderExecutionContextCoordinatorSeesReadyWorkAndPendingReview(t *testi
 	if strings.Contains(rendered, `<item id="work-integration"`) {
 		t.Fatalf("terminal work must remain blocked until analysis is accepted:\n%s", rendered)
 	}
-	unbound := RenderExecutionContext(&snapshot, ExecutionContextOptions{
-		ActorAgentID: "lead",
-		ScopeKind:    protocol.ExecutionScopeRoom,
-	})
-	unboundAllowedStart := strings.Index(unbound, "<allowed_actions>")
-	unboundAllowedEnd := strings.Index(unbound, "</allowed_actions>")
-	unboundAllowed := unbound[unboundAllowedStart:unboundAllowedEnd]
-	if strings.Contains(unboundAllowed, "<action>review_work</action>") {
-		t.Fatalf("unbound Room coordinator received review affordance:\n%s", unbound)
-	}
 }
 
 func TestRenderExecutionContextShowsCanonicalObjectiveAndWaitingInputEvidence(t *testing.T) {
@@ -321,8 +311,10 @@ func TestRenderConversationExecutionContextGivesOnlyCoordinatorBootstrapActions(
 	}
 }
 
-func TestRenderExecutionContextExposesOnlyEvidenceBackedGoalPromotion(t *testing.T) {
+func TestRenderExecutionContextExposesEligibleGoalPromotionWithSuggestedReason(t *testing.T) {
 	snapshot := executionContextTestSnapshot()
+	snapshot.Execution.GoalID = ""
+	snapshot.Execution.GoalObjectiveRevision = 0
 	eligible := RenderExecutionContext(&snapshot, ExecutionContextOptions{
 		ActorAgentID: "lead",
 		GoalPromotionReasons: []protocol.GoalActivationReason{
@@ -342,13 +334,13 @@ func TestRenderExecutionContextExposesOnlyEvidenceBackedGoalPromotion(t *testing
 
 	blocked := RenderExecutionContext(&snapshot, ExecutionContextOptions{
 		ActorAgentID:          "lead",
-		GoalPromotionBlockers: []string{"durable_signal_missing"},
+		GoalPromotionBlockers: []string{"automatic_goal_disabled"},
 	})
 	blockedAllowedStart := strings.Index(blocked, "<allowed_actions>")
 	blockedAllowedEnd := strings.Index(blocked, "</allowed_actions>")
 	blockedAllowed := blocked[blockedAllowedStart:blockedAllowedEnd]
 	if !strings.Contains(blocked, `<goal_promotion eligible="false">`) ||
-		!strings.Contains(blocked, `<blocker>durable_signal_missing</blocker>`) ||
+		!strings.Contains(blocked, `<blocker>automatic_goal_disabled</blocker>`) ||
 		strings.Contains(blockedAllowed, "<action>promote_execution_to_goal</action>") {
 		t.Fatalf("blocked promotion context = %s", blocked)
 	}
@@ -962,22 +954,24 @@ func executionContextTestSnapshot() protocol.ExecutionSnapshot {
 		},
 		Assignments: []protocol.WorkAssignment{
 			{
-				ID:           "assignment-research",
-				ExecutionID:  "execution-1",
-				PlanID:       "plan-1",
-				WorkItemID:   "work-research",
-				SpecID:       "spec-research",
-				OwnerAgentID: "researcher",
-				Status:       protocol.WorkAssignmentStatusCompleted,
+				ID:              "assignment-research",
+				ExecutionID:     "execution-1",
+				PlanID:          "plan-1",
+				WorkItemID:      "work-research",
+				SpecID:          "spec-research",
+				OwnerAgentID:    "researcher",
+				ReturnToAgentID: "lead",
+				Status:          protocol.WorkAssignmentStatusCompleted,
 			},
 			{
-				ID:           "assignment-analysis",
-				ExecutionID:  "execution-1",
-				PlanID:       "plan-1",
-				WorkItemID:   "work-analysis",
-				SpecID:       "spec-analysis",
-				OwnerAgentID: "analyst",
-				Status:       protocol.WorkAssignmentStatusActive,
+				ID:              "assignment-analysis",
+				ExecutionID:     "execution-1",
+				PlanID:          "plan-1",
+				WorkItemID:      "work-analysis",
+				SpecID:          "spec-analysis",
+				OwnerAgentID:    "analyst",
+				ReturnToAgentID: "lead",
+				Status:          protocol.WorkAssignmentStatusActive,
 			},
 		},
 		Attempts: []protocol.WorkAttempt{

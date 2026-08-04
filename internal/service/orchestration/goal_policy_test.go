@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestEvaluateAdaptiveGoalPromotionRequiresHardGatesAndDurableSignal(t *testing.T) {
+func TestEvaluateAdaptiveGoalPromotionReportsSuggestedSignals(t *testing.T) {
 	base := AdaptiveGoalEvidence{
 		ExecutionID:                 "execution-1",
 		ObjectiveClear:              true,
@@ -29,16 +29,15 @@ func TestEvaluateAdaptiveGoalPromotionRequiresHardGatesAndDurableSignal(t *testi
 	}
 }
 
-func TestEvaluateAdaptiveGoalPromotionRejectsComplexityWithoutDurableEvidence(t *testing.T) {
+func TestEvaluateAdaptiveGoalPromotionAllowsAgentJudgmentWithoutSuggestedSignal(t *testing.T) {
 	decision := EvaluateAdaptiveGoalPromotion(AdaptiveGoalEvidence{
 		ExecutionID:                 "execution-1",
 		ObjectiveClear:              true,
 		CompletionCriteriaAvailable: true,
 		ScopeAuthorizesContinuation: true,
-		RequiredWorkRemaining:       true,
 	})
-	if decision.Promote || !slices.Contains(decision.Blockers, "durable_signal_missing") {
-		t.Fatalf("complexity without a durable signal must fail closed: %+v", decision)
+	if !decision.Promote || len(decision.Blockers) != 0 || len(decision.Signals) != 0 {
+		t.Fatalf("eligible promotion without suggested signals = %+v", decision)
 	}
 }
 
@@ -78,9 +77,6 @@ func TestEvaluateAdaptiveGoalPromotionRejectsEveryHardBoundary(t *testing.T) {
 		{name: "conflicting goal", mutate: func(value *AdaptiveGoalEvidence) {
 			value.ConflictingGoalID = "goal-other"
 		}, blocker: "goal_conflict"},
-		{name: "completed", mutate: func(value *AdaptiveGoalEvidence) {
-			value.RequiredWorkRemaining = false
-		}, blocker: "no_required_work_remaining"},
 	}
 
 	for _, test := range tests {
@@ -116,7 +112,6 @@ func TestEvaluateAdaptiveGoalPromotionReportsAllFailedHardGates(t *testing.T) {
 		"new_authority_required",
 		"plan_mode",
 		"automatic_goal_disabled",
-		"no_required_work_remaining",
 	} {
 		if !slices.Contains(decision.Blockers, blocker) {
 			t.Fatalf("decision should expose blocker %q: %+v", blocker, decision)

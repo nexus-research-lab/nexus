@@ -34,11 +34,9 @@ func scopeSnapshotToTrustedWorkBinding(
 				strings.TrimSpace(actor.ExecutionID) != binding.ExecutionID) ||
 			strings.TrimSpace(actor.AgentID) != binding.TargetAgentID ||
 			snapshot == nil ||
-			snapshot.Execution.ID != binding.ExecutionID ||
-			strings.TrimSpace(snapshot.Execution.CoordinatorAgentID) !=
-				binding.TargetAgentID {
+			snapshot.Execution.ID != binding.ExecutionID {
 			return nil, workBindingMismatch(
-				"structured Room review binding is outside its coordinator Execution",
+				"structured Room review binding is outside its selected reviewer Execution",
 			)
 		}
 		dispatch := protocol.ExecutionReviewDispatch{
@@ -58,7 +56,7 @@ func scopeSnapshotToTrustedWorkBinding(
 		); err != nil {
 			return nil, workBindingMismatch(err.Error())
 		}
-		return snapshot, nil
+		return snapshotForExecutionReviewBinding(snapshot, binding)
 	}
 	if snapshot != nil &&
 		snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
@@ -93,6 +91,19 @@ func scopeSnapshotToTrustedWorkBinding(
 	return snapshotForExecutionWorkBinding(snapshot, binding)
 }
 
+func snapshotForExecutionReviewBinding(
+	snapshot *protocol.ExecutionSnapshot,
+	binding protocol.ExecutionReviewBinding,
+) (*protocol.ExecutionSnapshot, error) {
+	return snapshotForExecutionWorkBinding(snapshot, protocol.ExecutionWorkBinding{
+		ExecutionID:  binding.ExecutionID,
+		PlanID:       binding.PlanID,
+		WorkItemID:   binding.WorkItemID,
+		SpecID:       binding.SpecID,
+		AssignmentID: binding.AssignmentID,
+	})
+}
+
 func unboundRoomConversationActor(
 	actor ActorContext,
 	snapshot *protocol.ExecutionSnapshot,
@@ -100,7 +111,7 @@ func unboundRoomConversationActor(
 	return snapshot != nil &&
 		snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
 		actor.ScopeKind == protocol.ExecutionScopeRoom &&
-		actor.ActorKind == protocol.ExecutionActorAgent &&
+		normalizeActorKind(actor.ActorKind) == protocol.ExecutionActorAgent &&
 		actor.WorkBinding == nil &&
 		actor.ReviewBinding == nil &&
 		strings.TrimSpace(actor.GoalID) == "" &&

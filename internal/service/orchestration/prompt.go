@@ -1,6 +1,6 @@
-// INPUT: 编译期稳定 execution contract。
-// OUTPUT: 可由 DM、Room、主智能体、普通 Agent 与 Goal continuation 共用的系统提示段。
-// POS: Execution Orchestration 模型决策规则的唯一文本真相源。
+// INPUT: 编译期稳定的最小 execution capability contract。
+// OUTPUT: DM、Room、主智能体、普通 Agent 与 Goal continuation 共用的短系统提示段。
+// POS: 常驻安全边界；详细选择方法按需加载 execution-orchestrator Skill。
 package orchestration
 
 import (

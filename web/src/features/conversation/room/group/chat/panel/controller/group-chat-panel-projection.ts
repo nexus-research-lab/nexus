@@ -5,13 +5,16 @@
  */
 import type { RefObject } from "react";
 
-import type { ExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
+import { buildExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
 import {
   buildConversationPanelFrameModel,
   type ConversationPanelEnvironment,
   type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
-import type { ConversationTodoProcess } from "@/features/conversation/shared/todos/todo-projection-model";
+import type {
+  ConversationTaskRun,
+  ConversationTodoProcess,
+} from "@/features/conversation/shared/todos/todo-projection-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
 import { coalescePendingPermissions } from "@/lib/conversation/pending-permission-match";
 import type { Agent } from "@/types/agent/agent";
@@ -65,6 +68,7 @@ type GroupChatSession = Omit<
   >;
   roundIndexItems: SessionRoundIndexItem[];
   taskProcesses: ConversationTodoProcess[];
+  taskRuns: ConversationTaskRun[];
   scroll: ConversationPanelSessionSource["scroll"] & {
     bottomAnchorRef: RefObject<HTMLDivElement | null>;
     feedRef: RefObject<HTMLDivElement | null>;
@@ -148,6 +152,7 @@ export function buildGroupChatPanelViewModel({
           directory: buildExecutionAgentDirectory(roomMembers),
           execution: execution.execution,
           onDismiss: execution.dismiss,
+          taskRuns: session.taskRuns,
         }
       : null,
     goalLead: buildGoalLeadModel({ goal, roomMembers, session }),
@@ -171,19 +176,6 @@ export function buildGroupChatPanelViewModel({
     taskProcesses: session.taskProcesses,
     taskProcessMembers: roomMembers,
   };
-}
-
-function buildExecutionAgentDirectory(
-  roomMembers: Agent[],
-): ExecutionAgentDirectory {
-  return Object.fromEntries(roomMembers.map((member) => [
-    member.agent_id,
-    {
-      avatar: member.avatar ?? null,
-      id: member.agent_id,
-      name: member.name,
-    },
-  ]));
 }
 
 function buildFeedModel({

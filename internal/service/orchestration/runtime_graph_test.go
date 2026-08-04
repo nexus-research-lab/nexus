@@ -1,0 +1,366 @@
+package orchestration
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+)
+
+type runtimeGraphRepositoryFake struct {
+	*fakeRepository
+	nodes          []protocol.ExecutionRuntimeNodeRun
+	edges          []protocol.ExecutionRuntimeEdgeRun
+	reconciled     int
+	finishedStatus protocol.ExecutionRuntimeNodeStatus
+	graph          protocol.ExecutionRuntimeGraph
+}
+
+func (f *runtimeGraphRepositoryFake) UpsertRuntimeGraphNode(
+	_ context.Context,
+	item protocol.ExecutionRuntimeNodeRun,
+) error {
+	f.nodes = append(f.nodes, item)
+	return nil
+}
+
+func (f *runtimeGraphRepositoryFake) UpsertRuntimeGraphEdge(
+	_ context.Context,
+	item protocol.ExecutionRuntimeEdgeRun,
+) error {
+	f.edges = append(f.edges, item)
+	return nil
+}
+
+func (f *runtimeGraphRepositoryFake) ReconcileRuntimeGraphAgent(
+	context.Context,
+	string,
+	string,
+	string,
+	string,
+	time.Time,
+) error {
+	f.reconciled++
+	return nil
+}
+
+func (f *runtimeGraphRepositoryFake) FinishRuntimeGraphRound(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ string,
+	status protocol.ExecutionRuntimeNodeStatus,
+	_ time.Time,
+) error {
+	f.finishedStatus = status
+	return nil
+}
+
+func (f *runtimeGraphRepositoryFake) GetRuntimeGraph(
+	context.Context,
+	string,
+	string,
+	string,
+	string,
+) (protocol.ExecutionRuntimeGraph, error) {
+	return f.graph, nil
+}
+
+func TestRuntimeGraphObservesBridgeToolLifecycleWithoutModelStatusCall(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 3, 10, 0, 0, 0, time.UTC)
+	repository := &runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+	actor := ActorContext{
+		OwnerUserID:    "owner-1",
+		SessionKey:     "session-1",
+		AgentID:        "agent-1",
+		RootRoundID:    "round-1",
+		RuntimeRoundID: "round-1",
+		AgentRoundID:   "agent-round-1",
+	}
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "assistant",
+		"uuid": "assistant-1",
+		"message": map[string]any{
+			"role": "assistant",
+			"content": []any{map[string]any{
+				"type":  "tool_use",
+				"id":    "tool-1",
+				"name":  "search",
+				"input": map[string]any{"secret": "not persisted"},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
+		t.Fatal(err)
+	}
+	if repository.reconciled != 1 || len(repository.nodes) != 2 || len(repository.edges) != 1 {
+		t.Fatalf("runtime graph writes = reconcile:%d nodes:%d edges:%d", repository.reconciled, len(repository.nodes), len(repository.edges))
+	}
+	tool := repository.nodes[1]
+	if tool.Kind != protocol.ExecutionRuntimeNodeTool ||
+		tool.SubjectID != "tool-1" || tool.Name != "search" ||
+		tool.Status != protocol.ExecutionRuntimeNodeRunning {
+		t.Fatalf("unexpected tool node: %+v", tool)
+	}
+	if _, leaked := tool.Metadata["secret"]; leaked {
+		t.Fatalf("tool input leaked into runtime graph metadata: %+v", tool.Metadata)
+	}
+	if err = service.FinishRuntimeRound(
+		context.Background(),
+		actor,
+		"",
+		"round interrupted",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if repository.finishedStatus != protocol.ExecutionRuntimeNodeInterrupted {
+		t.Fatalf("finished status = %q, want interrupted", repository.finishedStatus)
+	}
+}
+
+func TestRuntimeGraphNestsChildToolsUnderExactSubagentIdentity(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 3, 10, 30, 0, 0, time.UTC)
+	actor := ActorContext{
+		OwnerUserID:    "owner-1",
+		SessionKey:     "session-1",
+		AgentID:        "agent-1",
+		RootRoundID:    "round-1",
+		RuntimeRoundID: "round-1",
+		AgentRoundID:   "agent-round-1",
+	}
+	subagentNodeID := "runtime-subagent-1"
+	repository := &runtimeGraphRepositoryFake{
+		fakeRepository: &fakeRepository{},
+		graph: protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{{
+			ID:           subagentNodeID,
+			Kind:         protocol.ExecutionRuntimeNodeSubagent,
+			SubjectID:    "task-1",
+			AgentRoundID: "agent-round-1",
+			Metadata:     map[string]any{"tool_use_id": "spawn-tool-1"},
+		}}},
+	}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type":               "assistant",
+		"uuid":               "assistant-child-1",
+		"parent_tool_use_id": "spawn-tool-1",
+		"message": map[string]any{
+			"role": "assistant",
+			"content": []any{map[string]any{
+				"type": "tool_use",
+				"id":   "child-tool-1",
+				"name": "read_file",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.edges) != 1 ||
+		repository.edges[0].SourceNodeID != subagentNodeID ||
+		repository.edges[0].Kind != protocol.ExecutionRuntimeEdgeInvoke {
+		t.Fatalf("child tool edge = %+v", repository.edges)
+	}
+}
+
+func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 3, 10, 0, 0, 0, time.UTC)
+	rootID := "runtime-agent-1"
+	toolID := "runtime-tool-1"
+	repository := &runtimeGraphRepositoryFake{
+		fakeRepository: &fakeRepository{},
+		graph: protocol.ExecutionRuntimeGraph{
+			GraphID: "round:round-1",
+			Nodes: []protocol.ExecutionRuntimeNodeRun{
+				{
+					ID: "runtime-agent-1", GraphID: "round:round-1",
+					OwnerUserID: "owner-1", SessionKey: "session-1",
+					Kind: protocol.ExecutionRuntimeNodeAgent, SubjectID: "agent-round-1",
+					RootRoundID: "round-1", RuntimeRoundID: "round-1",
+					AgentRoundID: "agent-round-1", AgentID: "agent-1",
+					Status:    protocol.ExecutionRuntimeNodeRunning,
+					StartedAt: now, UpdatedAt: now,
+				},
+				{
+					ID: "runtime-tool-1", GraphID: "round:round-1",
+					OwnerUserID: "owner-1", SessionKey: "session-1",
+					Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-1",
+					RootRoundID: "round-1", RuntimeRoundID: "round-1",
+					AgentRoundID: "agent-round-1", AgentID: "agent-1", Name: "search",
+					Status:    protocol.ExecutionRuntimeNodeRunning,
+					StartedAt: now, UpdatedAt: now,
+				},
+			},
+			Edges: []protocol.ExecutionRuntimeEdgeRun{{
+				ID: "runtime-edge-1", GraphID: "round:round-1",
+				OwnerUserID: "owner-1", SessionKey: "session-1",
+				SourceNodeID: rootID, TargetNodeID: toolID,
+				Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now,
+			}},
+		},
+	}
+	view, err := NewService(repository).GetLatestView(
+		context.Background(),
+		"owner-1",
+		"session-1",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view == nil || view.Plan != nil || len(view.WorkItems) != 0 ||
+		view.ID != "round:round-1" || view.Status != protocol.ExecutionStatusActive {
+		t.Fatalf("unexpected planless view: %+v", view)
+	}
+	if len(view.Graph.Nodes) != 2 || len(view.Graph.Edges) != 1 {
+		t.Fatalf("unexpected planless graph: %+v", view.Graph)
+	}
+	tool := graphNodeByID(view.Graph.Nodes, toolID)
+	if tool.Kind != protocol.ExecutionGraphNodeTool ||
+		tool.Visibility != protocol.ExecutionGraphNodeNested ||
+		tool.ParentNodeID != rootID ||
+		tool.LifecycleStatus != "running" {
+		t.Fatalf("unexpected planless tool projection: %+v", tool)
+	}
+}
+
+func TestAuditExecutionAlignmentRecordsOptionalGateWithoutRoutingExecution(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 3, 11, 0, 0, 0, time.UTC)
+	snapshot := executionSnapshot()
+	snapshot.Execution.RootRoundID = "round-1"
+	snapshot.Execution.Objective = "Ship the verified report"
+	snapshot.Execution.CompletionCriteria = []string{"report is verified"}
+	repository := &runtimeGraphRepositoryFake{
+		fakeRepository: &fakeRepository{snapshot: snapshot},
+	}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+	actor := coordinatorActor()
+	actor.ExecutionID = snapshot.Execution.ID
+	actor.RootRoundID = "round-1"
+	actor.RuntimeRoundID = "runtime-round-1"
+	actor.AgentRoundID = "agent-round-1"
+
+	result, err := service.AuditExecutionAlignment(
+		context.Background(),
+		actor,
+		AuditExecutionAlignmentInput{
+			ExecutionID:      snapshot.Execution.ID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "tool-alignment-1",
+			Report: protocol.ObjectiveAlignmentReport{
+				Decision: protocol.ObjectiveAlignmentNotAligned,
+				CriteriaResults: []protocol.ObjectiveAlignmentCriterionResult{{
+					Criterion: "report is verified",
+					Status:    protocol.ObjectiveAlignmentCriterionUnsatisfied,
+					Gap:       "verification has not run",
+				}},
+				Summary: "The report still needs verification.",
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationApplied ||
+		snapshot.Execution.Status != protocol.ExecutionStatusActive ||
+		len(repository.nodes) != 2 || len(repository.edges) != 2 {
+		t.Fatalf("result=%+v nodes=%+v edges=%+v", result, repository.nodes, repository.edges)
+	}
+	gate := repository.nodes[1]
+	if gate.Kind != protocol.ExecutionRuntimeNodeGate ||
+		gate.Name != "objective_alignment" ||
+		gate.Metadata["decision"] != "not_aligned" {
+		t.Fatalf("gate = %+v", gate)
+	}
+	if repository.edges[0].Kind != protocol.ExecutionRuntimeEdgeGuard ||
+		repository.edges[1].Kind != protocol.ExecutionRuntimeEdgeLoopBack ||
+		repository.edges[1].TargetNodeID != repository.nodes[0].ID {
+		t.Fatalf("gate edges = %+v", repository.edges)
+	}
+	rootNodeID := repository.nodes[0].ID
+
+	repository.graph = protocol.ExecutionRuntimeGraph{
+		GraphID: repository.nodes[0].GraphID,
+		Nodes:   repository.nodes,
+		Edges:   repository.edges,
+	}
+	view, err := service.GetLatestView(
+		context.Background(),
+		snapshot.Execution.OwnerUserID,
+		snapshot.Execution.SessionKey,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectedGate := graphNodeByID(view.Graph.Nodes, gate.ID)
+	if projectedGate.Kind != protocol.ExecutionGraphNodeGate ||
+		projectedGate.LifecycleStatus != "not_aligned" ||
+		!hasExecutionGraphEdge(
+			view.Graph.Edges,
+			protocol.ExecutionGraphEdgeGuard,
+			rootNodeID,
+			gate.ID,
+		) ||
+		!hasExecutionGraphEdge(
+			view.Graph.Edges,
+			protocol.ExecutionGraphEdgeLoopBack,
+			gate.ID,
+			rootNodeID,
+		) {
+		t.Fatalf("projected graph = %+v", view.Graph)
+	}
+}
+
+func TestAuditExecutionAlignmentRejectsIncompleteReportBeforeGraphWrite(t *testing.T) {
+	t.Parallel()
+
+	snapshot := executionSnapshot()
+	snapshot.Execution.Objective = "Ship"
+	snapshot.Execution.CompletionCriteria = []string{"tested"}
+	repository := &runtimeGraphRepositoryFake{
+		fakeRepository: &fakeRepository{snapshot: snapshot},
+	}
+	actor := coordinatorActor()
+	actor.RootRoundID = "round-1"
+	actor.RuntimeRoundID = "runtime-round-1"
+	actor.AgentRoundID = "agent-round-1"
+	result, err := NewService(repository).AuditExecutionAlignment(
+		context.Background(),
+		actor,
+		AuditExecutionAlignmentInput{
+			ExecutionID:      snapshot.Execution.ID,
+			SnapshotRevision: snapshot.Execution.Version,
+			CommandID:        "tool-alignment-invalid",
+			Report: protocol.ObjectiveAlignmentReport{
+				Decision: protocol.ObjectiveAlignmentAligned,
+				Summary:  "looks done",
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Outcome != MutationRejected || len(repository.nodes) != 0 || len(repository.edges) != 0 {
+		t.Fatalf("result=%+v nodes=%+v edges=%+v", result, repository.nodes, repository.edges)
+	}
+}

@@ -336,7 +336,8 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		)
 	}
 	e.slot.beginNoReplyCandidate()
-	return exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
+	e.service.beginExecutionRuntimeGraph(actor)
+	result, executeErr := exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
 		ContextualInputs: append(executionInputs, e.contextualInputs()...),
 		InputOptions:     roomSlotRuntimeInputOptions(e.round, e.slot),
@@ -353,6 +354,7 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 			return e.sendQueuedInputs(client)
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
+			e.service.observeExecutionRuntimeGraph(actor, incoming)
 			e.observeExecutionPersistenceEvidence(actor, incoming)
 			e.observeIncomingMessage(incoming)
 		},
@@ -362,6 +364,16 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		HandleDurableMessage: e.handleDurableMessage,
 		EmitEvent:            e.emitEvent,
 	})
+	failureReason := ""
+	if executeErr != nil {
+		failureReason = executeErr.Error()
+	}
+	e.service.finishExecutionRuntimeGraph(
+		actor,
+		result.TerminalStatus,
+		failureReason,
+	)
+	return result, executeErr
 }
 
 func (e *slotExecution) prepareDispatchPayload() (any, error) {

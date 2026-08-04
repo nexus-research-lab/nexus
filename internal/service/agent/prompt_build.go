@@ -148,7 +148,7 @@ func buildManagedSkillUsageSection(scope promptBuildScope) string {
 			"- Nexus 中 Goal MCP 工具通常显示为 mcp__nexus_goal__get_goal、mcp__nexus_goal__create_goal、mcp__nexus_goal__retarget_goal、mcp__nexus_goal__audit_objective_alignment、mcp__nexus_goal__update_goal；如果运行时只暴露对应裸名，它们是同一组能力。",
 			"- 不要使用 /goal 文本命令；Goal 的模型入口是 goal-manager + mcp__nexus_goal__* 工具，用户入口是界面的启动 Goal 按钮。",
 			"- `create_goal` 只用于用户或系统/开发者明确要求持久 Goal 的显式路径；普通一次性请求、提醒和定时任务不要自动创建 Goal，也不要调用它。",
-			"- 自适应 Goal 走 Execution 的 `promote_execution_to_goal`，不是猜测性调用 `create_goal`：只有当前 execution context 明确开放该 action 且后端给出可恢复边界、跨 Agent 依赖、外部等待/重试或 context boundary 等持久证据时才可调用；任务复杂、Plan 很长、Room 或子智能体参与本身都不够。",
+			"- 自适应 Goal 走 Execution 的 `promote_execution_to_goal`，不是猜测性调用 `create_goal`：当前 execution context 开放该 action 时，由你判断 objective 是否应跨当前执行边界持续。跨轮工作、外部等待、恢复成本、Room 依赖或 substantial complexity 都可作为理由；后端只校验权限、用户配置、冲突和状态一致性，不要求固定持久证据白名单。Plan、Room 或子智能体参与本身既不强制创建 Goal，也不禁止你结合任务事实选择 Goal。",
 			"- 用户明确要求 Goal 只是创建的必要条件，不是立即创建指令。调用 create_goal 前，必须先从当前上下文确认 objective 已达到可执行状态：目标交付物，以及会实质改变结果的范围、对象、约束和验收标准等关键信息已经明确。",
 			"- 若仍缺少会实质改变执行结果的信息，先向用户提问并等待回答；信息足够前禁止调用 create_goal，禁止先创建宽泛或占位 Goal 再补信息或 retarget。能从已有上下文可靠确定的信息不要重复询问。",
 			"- 信息足够后，把已确认的关键要求合并成完整、具体的 objective，再创建 Goal 并按该 objective 执行。",

@@ -99,6 +99,7 @@ func TestManagedExecutionToolMatchesWrappedNames(t *testing.T) {
 		"mcp__nexus_execution__assign_work",
 		"nexus_execution.submit_work",
 		"nexus_execution/review_work",
+		"mcp__nexus_execution__audit_execution_alignment",
 	} {
 		if !IsManagedExecutionTool(toolName) {
 			t.Fatalf("expected managed Execution tool to match %q", toolName)
@@ -183,6 +184,7 @@ func TestWithManagedExecutionAllowedToolsAppendsSemanticSurface(t *testing.T) {
 		"mcp__nexus_execution__assign_work",
 		"mcp__nexus_execution__submit_work",
 		"mcp__nexus_execution__review_work",
+		"mcp__nexus_execution__audit_execution_alignment",
 		"mcp__nexus_execution__promote_execution_to_goal",
 	} {
 		if !Contains(approved, toolName) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -221,6 +222,74 @@ func TestRepositoryRejectRetryAcceptTakeoverAndCompletion(t *testing.T) {
 	}
 	if snapshot.Execution.Status != protocol.ExecutionStatusCompleted {
 		t.Fatalf("Execution status = %q, want completed", snapshot.Execution.Status)
+	}
+}
+
+func TestRepositoryAllowsConcurrentChildAttemptsWithDistinctToolBindings(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	snapshot, err := repository.Create(ctx, createTestCommand("child-parallel"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = repository.WritePlan(
+		ctx,
+		testPlanCommand("child-parallel", snapshot.Execution.Version, "child-parallel", "", 1),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = repository.Assign(
+		ctx,
+		assignTestCommand(snapshot, "work-child-parallel-1", "spec-child-parallel-1", "child-parent", "agent-a"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot = startTestAttempt(
+		t,
+		ctx,
+		repository,
+		snapshot,
+		"assignment-child-parent",
+		"attempt-child-parent",
+	)
+
+	for index, toolUseID := range []string{"tool-child-a", "tool-child-b"} {
+		assignment := findAssignment(t, snapshot, "assignment-child-parent")
+		child := protocol.WorkAttempt{
+			ID:              fmt.Sprintf("attempt-subagent-%d", index+1),
+			ExecutionID:     snapshot.Execution.ID,
+			PlanID:          snapshot.Plan.ID,
+			WorkItemID:      assignment.WorkItemID,
+			SpecID:          assignment.SpecID,
+			AssignmentID:    assignment.ID,
+			ParentAttemptID: "attempt-child-parent",
+			ExecutorKind:    protocol.AttemptExecutorSubagent,
+			ParentAgentID:   "agent-a",
+			ToolUseID:       toolUseID,
+			Status:          protocol.WorkAttemptStatusRunning,
+		}
+		snapshot, err = repository.StartAttempt(ctx, StartAttemptCommand{
+			ExpectedExecutionVersion:  snapshot.Execution.Version,
+			ExpectedAssignmentVersion: assignment.Version,
+			Attempt:                   child,
+			Meta:                      testMeta("start-" + toolUseID),
+		})
+		if err != nil {
+			t.Fatalf("start child %s: %v", toolUseID, err)
+		}
+	}
+
+	runningChildren := 0
+	for _, attempt := range snapshot.Attempts {
+		if attempt.ParentAttemptID == "attempt-child-parent" &&
+			attempt.Status == protocol.WorkAttemptStatusRunning {
+			runningChildren++
+		}
+	}
+	if runningChildren != 2 {
+		t.Fatalf("running child Attempts = %d, want 2", runningChildren)
 	}
 }
 

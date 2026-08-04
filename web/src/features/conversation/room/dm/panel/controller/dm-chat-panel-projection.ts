@@ -6,6 +6,7 @@
 import type { RefObject } from "react";
 
 import type { ExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import {
   buildConversationPanelFrameModel,
   type ConversationPanelEnvironment,
@@ -37,6 +38,7 @@ type DmChatSession = Omit<
     | "send_permission_response"
   >;
   roundIndexItems: SessionRoundIndexItem[];
+  taskRuns: ConversationTaskRun[];
   scroll: ConversationPanelSessionSource["scroll"] & {
     bottomAnchorRef: RefObject<HTMLDivElement | null>;
     feedRef: RefObject<HTMLDivElement | null>;
@@ -112,6 +114,7 @@ export function buildDmChatPanelViewModel({
       currentAgentName,
       dismiss: execution.dismiss,
       execution: execution.execution,
+      taskRuns: session.taskRuns,
       workspaceAgentId,
     }),
     goalPanel: buildDmGoalPanelModel(goal, goalScopeLabel, session),
@@ -131,12 +134,14 @@ function buildDmExecutionPanelModel({
   currentAgentName,
   dismiss,
   execution,
+  taskRuns,
   workspaceAgentId,
 }: {
   currentAgentAvatar: string | null;
   currentAgentName: string | null;
   dismiss: () => void;
   execution: ExecutionView | null;
+  taskRuns: ConversationTaskRun[];
   workspaceAgentId: string | null;
 }): DmChatPanelViewModel["executionPanel"] {
   if (!execution) {
@@ -154,6 +159,7 @@ function buildDmExecutionPanelModel({
     directory,
     execution,
     onDismiss: dismiss,
+    taskRuns,
   };
 }
 

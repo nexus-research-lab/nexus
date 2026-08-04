@@ -176,6 +176,92 @@ func TestRepositoryRoomSubmitAtomicallyCreatesReviewDispatch(t *testing.T) {
 	}
 }
 
+func TestRepositoryRoomSelfReviewSubmitNeedsNoReviewDispatch(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	snapshot, err := repository.Create(ctx, createTestCommand("self-review"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err = repository.WritePlan(
+		ctx,
+		testPlanCommand(
+			"self-review",
+			snapshot.Execution.Version,
+			"self-review",
+			"",
+			1,
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assign := assignTestCommand(
+		snapshot,
+		"work-self-review-1",
+		"spec-self-review-1",
+		"self-review",
+		"agent-worker",
+	)
+	assign.Assignment.Strategy = protocol.AssignmentStrategyRoomMember
+	assign.Assignment.ReturnToAgentID = "agent-worker"
+	assign.Dispatch = &protocol.ExecutionDispatch{
+		ID:            "dispatch-self-review",
+		DedupeKey:     "assignment:self-review",
+		TargetAgentID: "agent-worker",
+		Kind:          protocol.ExecutionDispatchRoomDirected,
+		Status:        protocol.ExecutionDispatchStatusPending,
+		Instruction:   "deliver and self-review result",
+	}
+	snapshot, err = repository.Assign(ctx, assign)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot = startTestAttempt(
+		t,
+		ctx,
+		repository,
+		snapshot,
+		assign.Assignment.ID,
+		assign.RootAttempt.ID,
+	)
+	snapshot = finishTestAttempt(
+		t,
+		ctx,
+		repository,
+		snapshot,
+		assign.RootAttempt.ID,
+		protocol.WorkAttemptStatusSucceeded,
+	)
+	assignment := findAssignment(t, snapshot, assign.Assignment.ID)
+	snapshot, err = repository.Submit(ctx, SubmitCommand{
+		ExpectedExecutionVersion:  snapshot.Execution.Version,
+		ExpectedAssignmentVersion: assignment.Version,
+		Submission: protocol.WorkSubmission{
+			ID:               "submission-self-review",
+			ExecutionID:      assignment.ExecutionID,
+			PlanID:           assignment.PlanID,
+			WorkItemID:       assignment.WorkItemID,
+			SpecID:           assignment.SpecID,
+			AssignmentID:     assignment.ID,
+			AttemptID:        assign.RootAttempt.ID,
+			SubmitterAgentID: "agent-worker",
+			ResultSummary:    "completed self-review result",
+		},
+		Meta: testMeta("submit-self-review"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Submissions) != 1 || len(snapshot.ReviewDispatches) != 0 {
+		t.Fatalf(
+			"self-review Submission created a redundant return: submissions=%+v dispatches=%+v",
+			snapshot.Submissions,
+			snapshot.ReviewDispatches,
+		)
+	}
+}
+
 func TestRepositoryTerminalizerCancelsClaimedReviewDispatch(t *testing.T) {
 	repository, snapshot, reviewDispatch := setupClaimableReviewDispatch(t, "terminal-review")
 	ctx := context.Background()

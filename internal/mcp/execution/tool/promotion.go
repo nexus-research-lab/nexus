@@ -1,6 +1,6 @@
-// INPUT: 模型的 durable-boundary proposal 与权威 Execution snapshot。
-// OUTPUT: 后端 policy 允许时绑定 Goal，否则返回结构化拒绝。
-// POS: 模型只能提议 Goal promotion，不能提交证据布尔值或自行创建绑定。
+// INPUT: Agent 选择的 persistence reason 与权威 Execution snapshot。
+// OUTPUT: 权限/状态允许时绑定 Goal，否则返回结构化拒绝。
+// POS: Agent 决定是否需要 Goal；adapter 隐藏身份、版本和绑定细节。
 package tool
 
 import (
@@ -15,9 +15,9 @@ func promoteExecutionToGoal(svc contract.Service, sctx contract.ServerContext) s
 	const toolName = "promote_execution_to_goal"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Propose promoting the current transient Execution into a durable Goal after a real execution boundary is observed. " +
-			"The backend independently verifies objective clarity, acceptance criteria, remaining required work, authority, configuration, existing Goal state, and durable evidence. " +
-			"Task complexity, Plan length, Room size, or subagent use alone never qualifies.",
+		Description: "Promote the current transient Execution into a durable Goal when the Agent judges that the objective should survive the current execution boundary. " +
+			"Cross-round work, external waits, recovery cost, Room dependencies, or substantial complexity can inform that choice. " +
+			"The backend validates objective/criteria presence, authority, user configuration, current state, and Goal conflicts; it does not require a fixed workflow signal or a particular Plan shape.",
 		SearchHint:  "promote execution goal persistence boundary recovery wait",
 		InputSchema: promoteExecutionSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},

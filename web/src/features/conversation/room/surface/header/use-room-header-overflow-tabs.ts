@@ -10,9 +10,10 @@ import type {
 const ROOM_HEADER_TAB_COLLAPSE_QUERIES: Partial<
   Record<RoomSurfaceTabKey, string>
 > = {
-  about: "(max-width: 1239px)",
-  workspace: "(max-width: 1119px)",
-  subagents: "(max-width: 1039px)",
+  about: "(max-width: 1359px)",
+  workspace: "(max-width: 1239px)",
+  subagents: "(max-width: 1119px)",
+  workgraph: "(max-width: 1039px)",
 };
 
 export function useRoomHeaderOverflowTabs(
@@ -27,10 +28,14 @@ export function useRoomHeaderOverflowTabs(
   const collapseSubagents = useMediaQuery(
     ROOM_HEADER_TAB_COLLAPSE_QUERIES.subagents ?? "",
   );
+  const collapseWorkgraph = useMediaQuery(
+    ROOM_HEADER_TAB_COLLAPSE_QUERIES.workgraph ?? "",
+  );
   const collapsedKeys = new Set<RoomSurfaceTabKey>([
     ...(collapseAbout ? ["about" as const] : []),
     ...(collapseWorkspace ? ["workspace" as const] : []),
     ...(collapseSubagents ? ["subagents" as const] : []),
+    ...(collapseWorkgraph ? ["workgraph" as const] : []),
   ]);
 
   return tabs.filter((tab) => collapsedKeys.has(tab.key));

@@ -43,8 +43,8 @@ func TestPlanExecutionReturnsActionableRecoveryForEmptyWorkGraph(t *testing.T) {
 				result.ReasonCode != ErrorCodePlanItemsEmpty ||
 				len(result.NextActions) != 1 ||
 				result.NextActions[0].Tool != "plan_execution" ||
-				!strings.Contains(result.NextActions[0].Reason, "work_graph_json") ||
-				!strings.Contains(result.NextActions[0].Reason, "JSON array") {
+				!strings.Contains(result.NextActions[0].Reason, "items") ||
+				!strings.Contains(result.NextActions[0].Reason, "native array") {
 				t.Fatalf("empty WorkGraph recovery = %#v", result)
 			}
 		})
@@ -70,8 +70,9 @@ func TestValidatePlanDraftEnforcesTypedOutputScopeConflicts(t *testing.T) {
 	t.Run("missing produce scope", func(t *testing.T) {
 		draft := validPlanDraft()
 		draft.Items[0].OutputScopes = nil
-		err := ValidatePlanDraft(draft)
-		assertDomainErrorCode(t, err, ErrorCodeInvalidInput)
+		if err := ValidatePlanDraft(draft); err != nil {
+			t.Fatalf("optional produce scope rejected: %v", err)
+		}
 	})
 	t.Run("duplicate produce", func(t *testing.T) {
 		draft := validPlanDraft()
@@ -170,16 +171,20 @@ func TestValidatePlanDraftProjectionCollectionLimit(t *testing.T) {
 	}
 }
 
-func TestValidatePlanDraftRequiresAcceptanceCriteriaAndTerminal(t *testing.T) {
+func TestValidatePlanDraftAllowsAgentSelectedAcceptanceCriteriaAndTerminal(t *testing.T) {
 	t.Run("criteria", func(t *testing.T) {
 		draft := validPlanDraft()
 		draft.Items[0].AcceptanceCriteria = nil
-		assertDomainErrorCode(t, ValidatePlanDraft(draft), ErrorCodeAcceptanceCriteriaEmpty)
+		if err := ValidatePlanDraft(draft); err != nil {
+			t.Fatalf("optional acceptance criteria rejected: %v", err)
+		}
 	})
 	t.Run("terminal", func(t *testing.T) {
 		draft := validPlanDraft()
 		draft.Items[2].Terminal = false
-		assertDomainErrorCode(t, ValidatePlanDraft(draft), ErrorCodeTerminalWorkMissing)
+		if err := ValidatePlanDraft(draft); err != nil {
+			t.Fatalf("Plan without a terminal marker rejected: %v", err)
+		}
 	})
 }
 

@@ -36,13 +36,27 @@ func (s *Service) GetLatestView(
 		return nil, err
 	}
 	if execution == nil {
+		planlessView, planlessErr := s.getPlanlessRuntimeGraphView(
+			ctx,
+			ownerUserID,
+			sessionKey,
+		)
+		if planlessErr != nil {
+			return nil, planlessErr
+		}
 		latestRepository, ok := s.repository.(latestExecutionRepository)
 		if !ok {
-			return nil, nil
+			return planlessView, nil
 		}
 		execution, err = latestRepository.FindLatest(ctx, ownerUserID, sessionKey)
-		if err != nil || execution == nil {
+		if err != nil {
 			return nil, err
+		}
+		if execution == nil {
+			return planlessView, nil
+		}
+		if planlessView != nil && planlessView.UpdatedAt.After(execution.UpdatedAt) {
+			return planlessView, nil
 		}
 	}
 	snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
@@ -53,7 +67,24 @@ func (s *Service) GetLatestView(
 		snapshot.Execution.SessionKey != sessionKey {
 		return nil, domainError(ErrorCodeWrongOwner, "Execution is outside the requested owner/session")
 	}
-	return ProjectExecutionView(snapshot), nil
+	result := ProjectExecutionView(snapshot)
+	if result == nil {
+		return nil, nil
+	}
+	if repository, ok := s.repository.(runtimeGraphRepository); ok {
+		runtimeGraph, graphErr := repository.GetRuntimeGraph(
+			ctx,
+			ownerUserID,
+			sessionKey,
+			execution.ID,
+			execution.RootRoundID,
+		)
+		if graphErr != nil {
+			return nil, graphErr
+		}
+		mergeExecutionRuntimeGraph(result, runtimeGraph)
+	}
+	return result, nil
 }
 
 // ProjectExecutionView 把权威 snapshot 投影成稳定且安全的 UI 读取模型。
@@ -111,7 +142,201 @@ func ProjectExecutionView(snapshot *protocol.ExecutionSnapshot) *protocol.Execut
 		result.WorkItems = append(result.WorkItems, item)
 		incrementExecutionProgress(&result.Progress, item)
 	}
+	result.Graph = projectExecutionGraphView(result.WorkItems)
 	return result
+}
+
+// projectExecutionGraphView 只从已经脱敏的 UI Work Item/Attempt 投影运行图。
+// Work Item parent 是 containment，不参与 dependency；历史 child run 保留为
+// detail，当前 parent 下最近一次 child run 才进入默认 nested 展开层。
+func projectExecutionGraphView(
+	items []protocol.ExecutionWorkItemView,
+) protocol.ExecutionGraphView {
+	result := protocol.ExecutionGraphView{
+		Nodes: make([]protocol.ExecutionGraphNodeView, 0, len(items)),
+		Edges: make([]protocol.ExecutionGraphEdgeView, 0),
+	}
+	rootNodeByAttemptID := make(map[string]string)
+	childNodeByAttemptID := make(map[string]string)
+	latestChildByParentAttemptID := make(map[string]string)
+	gateNodeByWorkItemID := make(map[string]string)
+	for _, item := range items {
+		for _, attempt := range item.Attempts {
+			if attempt.ParentAttemptID == "" {
+				rootNodeByAttemptID[attempt.ID] = item.ID
+				continue
+			}
+			childNodeByAttemptID[attempt.ID] = attempt.ID
+			latestChildByParentAttemptID[attempt.ParentAttemptID] = attempt.ID
+		}
+	}
+
+	for _, item := range items {
+		rootAttempt := latestRootExecutionAttempt(item.Attempts)
+		agentID := item.OwnerAgentID
+		attemptID := ""
+		agentRoundID := ""
+		var runStatus protocol.WorkAttemptStatus
+		if rootAttempt != nil {
+			agentID = firstNonEmpty(rootAttempt.ExecutorAgentID, agentID)
+			attemptID = rootAttempt.ID
+			agentRoundID = rootAttempt.AgentRoundID
+			runStatus = rootAttempt.Status
+		}
+		result.Nodes = append(result.Nodes, protocol.ExecutionGraphNodeView{
+			ID:                   item.ID,
+			Kind:                 protocol.ExecutionGraphNodeAgent,
+			Visibility:           protocol.ExecutionGraphNodePrimary,
+			WorkItemID:           item.ID,
+			AttemptID:            attemptID,
+			AgentID:              agentID,
+			AgentRoundID:         agentRoundID,
+			ResponsibilityStatus: item.Status,
+			RunStatus:            runStatus,
+			Position:             item.Position,
+		})
+
+		if gate, ok := executionReviewGateNode(item); ok {
+			gateNodeByWorkItemID[item.ID] = gate.ID
+			result.Nodes = append(result.Nodes, gate)
+			result.Edges = append(result.Edges, protocol.ExecutionGraphEdgeView{
+				ID:           fmt.Sprintf("review:%s:%s", item.ID, gate.ID),
+				Kind:         protocol.ExecutionGraphEdgeReview,
+				SourceNodeID: item.ID,
+				TargetNodeID: gate.ID,
+			})
+			if item.Acceptance != nil &&
+				item.Acceptance.Decision == protocol.WorkAcceptanceChangesRequested {
+				result.Edges = append(result.Edges, protocol.ExecutionGraphEdgeView{
+					ID:           fmt.Sprintf("loop:%s:%s", gate.ID, item.ID),
+					Kind:         protocol.ExecutionGraphEdgeLoopBack,
+					SourceNodeID: gate.ID,
+					TargetNodeID: item.ID,
+				})
+			}
+		}
+
+		for _, attempt := range item.Attempts {
+			if attempt.ParentAttemptID == "" {
+				continue
+			}
+			parentNodeID := rootNodeByAttemptID[attempt.ParentAttemptID]
+			if parentNodeID == "" {
+				parentNodeID = childNodeByAttemptID[attempt.ParentAttemptID]
+			}
+			if parentNodeID == "" {
+				parentNodeID = item.ID
+			}
+			visibility := protocol.ExecutionGraphNodeDetail
+			if latestChildByParentAttemptID[attempt.ParentAttemptID] == attempt.ID {
+				visibility = protocol.ExecutionGraphNodeNested
+			}
+			result.Nodes = append(result.Nodes, protocol.ExecutionGraphNodeView{
+				ID:           attempt.ID,
+				Kind:         protocol.ExecutionGraphNodeSubagent,
+				Visibility:   visibility,
+				WorkItemID:   item.ID,
+				AttemptID:    attempt.ID,
+				ParentNodeID: parentNodeID,
+				AgentID:      attempt.ExecutorAgentID,
+				AgentRoundID: attempt.AgentRoundID,
+				SubjectID:    attempt.TaskID,
+				Name:         "subagent",
+				RunStatus:    attempt.Status,
+				Position:     item.Position,
+			})
+		}
+	}
+
+	for _, item := range items {
+		for _, dependencyID := range item.DependencyIDs {
+			sourceNodeID := dependencyID
+			if gateNodeID := gateNodeByWorkItemID[dependencyID]; gateNodeID != "" {
+				sourceNodeID = gateNodeID
+			}
+			result.Edges = append(result.Edges, protocol.ExecutionGraphEdgeView{
+				ID:           fmt.Sprintf("dependency:%s:%s", sourceNodeID, item.ID),
+				Kind:         protocol.ExecutionGraphEdgeDependency,
+				SourceNodeID: sourceNodeID,
+				TargetNodeID: item.ID,
+			})
+		}
+		for _, attempt := range item.Attempts {
+			if attempt.ParentAttemptID == "" {
+				continue
+			}
+			parentNodeID := rootNodeByAttemptID[attempt.ParentAttemptID]
+			if parentNodeID == "" {
+				parentNodeID = childNodeByAttemptID[attempt.ParentAttemptID]
+			}
+			if parentNodeID == "" {
+				parentNodeID = item.ID
+			}
+			result.Edges = append(result.Edges, protocol.ExecutionGraphEdgeView{
+				ID:           fmt.Sprintf("spawn:%s:%s", parentNodeID, attempt.ID),
+				Kind:         protocol.ExecutionGraphEdgeSpawn,
+				SourceNodeID: parentNodeID,
+				TargetNodeID: attempt.ID,
+			})
+		}
+	}
+	return result
+}
+
+// executionReviewGateNode 只根据 durable Assignment return binding、review
+// dispatch 或 Acceptance 建立 Gate。协调者角色本身不会凭空生成节点。
+func executionReviewGateNode(
+	item protocol.ExecutionWorkItemView,
+) (protocol.ExecutionGraphNodeView, bool) {
+	reviewerID := strings.TrimSpace(item.ReviewAgentID)
+	if item.Acceptance != nil && strings.TrimSpace(item.Acceptance.ReviewerID) != "" {
+		reviewerID = strings.TrimSpace(item.Acceptance.ReviewerID)
+	}
+	formalReview := reviewerID != "" && reviewerID != strings.TrimSpace(item.OwnerAgentID)
+	if !formalReview {
+		return protocol.ExecutionGraphNodeView{}, false
+	}
+	identity := firstNonEmpty(item.AssignmentID, item.ReviewDispatchID)
+	if identity == "" && item.Acceptance != nil {
+		identity = item.Acceptance.ID
+	}
+	if identity == "" {
+		return protocol.ExecutionGraphNodeView{}, false
+	}
+	status := strings.TrimSpace(item.ReviewStatus)
+	reviewerKind := protocol.WorkReviewerAgent
+	if item.Acceptance != nil {
+		status = string(item.Acceptance.Decision)
+		reviewerKind = item.Acceptance.ReviewerKind
+	}
+	if status == "" {
+		status = "planned"
+	}
+	return protocol.ExecutionGraphNodeView{
+		ID:               "review:" + identity,
+		Kind:             protocol.ExecutionGraphNodeGate,
+		Visibility:       protocol.ExecutionGraphNodePrimary,
+		WorkItemID:       item.ID,
+		AgentID:          reviewerID,
+		SubjectID:        identity,
+		Name:             "review",
+		Description:      item.Subject,
+		LifecycleStatus:  status,
+		ReviewDispatchID: item.ReviewDispatchID,
+		ReviewerKind:     reviewerKind,
+		Position:         item.Position,
+	}, true
+}
+
+func latestRootExecutionAttempt(
+	attempts []protocol.ExecutionAttemptView,
+) *protocol.ExecutionAttemptView {
+	for index := len(attempts) - 1; index >= 0; index-- {
+		if attempts[index].ParentAttemptID == "" {
+			return &attempts[index]
+		}
+	}
+	return nil
 }
 
 func projectExecutionWorkItemView(
@@ -159,6 +384,15 @@ func projectExecutionWorkItemView(
 		item.AssignmentID = assignment.ID
 		item.AssignmentStatus = assignment.Status
 		item.AssignmentStrategy = assignment.Strategy
+		item.ReviewAgentID = assignment.ReturnToAgentID
+		if dispatch := latestReviewDispatchForAssignment(
+			snapshot,
+			assignment.ID,
+		); dispatch != nil {
+			item.ReviewDispatchID = dispatch.ID
+			item.ReviewStatus = string(dispatch.Status)
+			item.ReviewAgentID = firstNonEmpty(dispatch.TargetAgentID, item.ReviewAgentID)
+		}
 	}
 	item.Attempts = projectExecutionAttempts(snapshot, workItem.ID, spec.ID)
 	if submission, exists := view.submissions[workItem.ID]; exists &&
@@ -187,6 +421,22 @@ func projectExecutionWorkItemView(
 	return item
 }
 
+func latestReviewDispatchForAssignment(
+	snapshot *protocol.ExecutionSnapshot,
+	assignmentID string,
+) *protocol.ExecutionReviewDispatch {
+	if snapshot == nil || strings.TrimSpace(assignmentID) == "" {
+		return nil
+	}
+	for index := len(snapshot.ReviewDispatches) - 1; index >= 0; index-- {
+		dispatch := &snapshot.ReviewDispatches[index]
+		if dispatch.AssignmentID == assignmentID {
+			return dispatch
+		}
+	}
+	return nil
+}
+
 func projectExecutionAttempts(
 	snapshot *protocol.ExecutionSnapshot,
 	workItemID string,
@@ -204,6 +454,10 @@ func projectExecutionAttempts(
 			ExecutorKind:    attempt.ExecutorKind,
 			ExecutorAgentID: attempt.ExecutorAgentID,
 			ParentAgentID:   attempt.ParentAgentID,
+			AgentRoundID:    attempt.AgentRoundID,
+			ChildSessionID:  attempt.ChildSessionID,
+			TaskID:          attempt.SDKTaskID,
+			ToolUseID:       attempt.ToolUseID,
 			Status:          attempt.Status,
 			FailureReason:   attempt.FailureReason,
 			CreatedAt:       attempt.CreatedAt,

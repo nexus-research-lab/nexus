@@ -1,14 +1,10 @@
-// INPUT: 十个 execution tool 的模型可见 JSON 参数；Plan WorkGraph 以单个 JSON 字符串跨 Provider 传输。
+// INPUT: 十一个 execution tool 的模型可见 JSON 参数；Plan WorkGraph 与 alignment report 使用原生 typed arrays。
 // OUTPUT: 严格解码且不含 command_id/snapshot_revision/runtime identity 的 typed semantic intent。
-// POS: MCP schema 与 service command 之间的无权限输入层，隔离 Provider 的深层对象数组兼容差异。
+// POS: MCP schema 与 service command 之间的无权限输入层；跨 Provider 传输后由领域层复核完整图。
 package tool
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
-	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
@@ -19,14 +15,14 @@ type getExecutionInput struct {
 }
 
 type planExecutionInput struct {
-	ExecutionID             string   `json:"execution_id,omitempty"`
-	Objective               string   `json:"objective,omitempty"`
-	CompletionCriteria      []string `json:"completion_criteria,omitempty"`
-	RevisionReason          string   `json:"revision_reason,omitempty"`
-	SupersedeActiveWork     bool     `json:"supersede_active_work,omitempty"`
-	ReplaceCurrentExecution bool     `json:"replace_current_execution,omitempty"`
-	ReplacementReason       string   `json:"replacement_reason,omitempty"`
-	WorkGraphJSON           string   `json:"work_graph_json,omitempty"`
+	ExecutionID             string          `json:"execution_id,omitempty"`
+	Objective               string          `json:"objective,omitempty"`
+	CompletionCriteria      []string        `json:"completion_criteria,omitempty"`
+	RevisionReason          string          `json:"revision_reason,omitempty"`
+	SupersedeActiveWork     bool            `json:"supersede_active_work,omitempty"`
+	ReplaceCurrentExecution bool            `json:"replace_current_execution,omitempty"`
+	ReplacementReason       string          `json:"replacement_reason,omitempty"`
+	Items                   []planItemInput `json:"items"`
 }
 
 type abandonExecutionInput struct {
@@ -61,42 +57,14 @@ type outputScopeInput struct {
 }
 
 func (input planExecutionInput) draft() (orchestration.PlanDraft, error) {
-	workGraphJSON := strings.TrimSpace(input.WorkGraphJSON)
-	if workGraphJSON == "" {
+	if len(input.Items) == 0 {
 		return orchestration.PlanDraft{}, fmt.Errorf(
-			"work_graph_json is required and must contain one non-empty JSON array",
+			"items is required and must contain at least one complete Work Item object",
 		)
 	}
 
-	var decodedItems []planItemInput
-	decoder := json.NewDecoder(bytes.NewBufferString(workGraphJSON))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&decodedItems); err != nil {
-		return orchestration.PlanDraft{}, fmt.Errorf(
-			"work_graph_json must be a JSON array of Work Item objects: %w",
-			err,
-		)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		if err == nil {
-			return orchestration.PlanDraft{}, fmt.Errorf(
-				"work_graph_json must contain exactly one JSON array",
-			)
-		}
-		return orchestration.PlanDraft{}, fmt.Errorf(
-			"work_graph_json contains trailing invalid JSON: %w",
-			err,
-		)
-	}
-	if len(decodedItems) == 0 {
-		return orchestration.PlanDraft{}, fmt.Errorf(
-			"work_graph_json must contain at least one Work Item",
-		)
-	}
-
-	items := make([]orchestration.PlanWorkItemDraft, 0, len(decodedItems))
-	for _, item := range decodedItems {
+	items := make([]orchestration.PlanWorkItemDraft, 0, len(input.Items))
+	for _, item := range input.Items {
 		dependencies := make([]orchestration.PlanDependencyDraft, 0, len(item.DependsOn))
 		for _, dependency := range item.DependsOn {
 			dependencies = append(dependencies, orchestration.PlanDependencyDraft{
@@ -197,4 +165,19 @@ type promoteExecutionInput struct {
 	ExecutionID       string                        `json:"execution_id,omitempty"`
 	ObjectiveProposal string                        `json:"objective_proposal,omitempty"`
 	ActivationReason  protocol.GoalActivationReason `json:"activation_reason"`
+}
+
+type auditExecutionAlignmentInput struct {
+	ExecutionID     string                                       `json:"execution_id,omitempty"`
+	Decision        protocol.ObjectiveAlignmentDecision          `json:"decision"`
+	CriteriaResults []protocol.ObjectiveAlignmentCriterionResult `json:"criteria_results"`
+	Summary         string                                       `json:"summary"`
+}
+
+func (input auditExecutionAlignmentInput) report() protocol.ObjectiveAlignmentReport {
+	return protocol.ObjectiveAlignmentReport{
+		Decision:        input.Decision,
+		CriteriaResults: input.CriteriaResults,
+		Summary:         input.Summary,
+	}
 }

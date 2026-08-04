@@ -8,14 +8,15 @@
 - `runtime-task-model.ts` 将不同消息源投影为统一任务候选，再通过单一入口归并到任务 Map。
 - `task-tool-names.ts` 统一声明对话任务工具名，供任务条与消息隐藏规则共同消费。
 - `task-list-tool-model.ts` 将 `TaskCreate` / `TaskList` / `TaskUpdate` 的结构化结果投影为会话级任务列表。
-- `todo-projection-model.ts` 单次扫描消息建立轮次索引，选择最新任务轮次后按显式展示策略投影任务条；Room 在同一入口按 `agent_id` 隔离为多份进程，禁止把不同 Agent 的 Todo/Task 合并。
-- `use-conversation-todos.ts` 只负责单进程与 Room 多 Agent 进程投影的 React memo 和结果引用稳定。
+- `todo-projection-model.ts` 单次扫描消息建立轮次索引，选择最新任务轮次后按显式展示策略投影任务条；Room legacy 面板按 `agent_id` 隔离多份进程，WorkGraph 节点局部进程另按 `agent_id + agent_round_id` 保留每次精确 Task run。
+- `use-conversation-todos.ts` 只负责单进程、Room 多 Agent 进程与精确 Agent round Task run 投影的 React memo 和结果引用稳定。
 
 ## 不变量
 
 - 只处理与当前 session 等价的消息；旧 Todo/runtime 事件按轮次投影，新 Task List 按 session 持续投影。
 - Task List 只消费当前最新 runtime session，避免 Room 多 Agent 或 runtime 重建后串入旧任务文件。
 - Room 每个 Agent 独立选择自己的最新 runtime session；进程最近事件位置只用于默认来源选择，不得改变成员目录顺序。
+- WorkGraph 只能消费同时具备 Agent 与 Agent round 身份的 Task run；缺失关联键的本地任务继续留在 legacy 进程，不得猜挂到节点。
 - 一旦观察到 Task List 工具，以它的列表快照和增量更新为真相，不再回退到旧 TodoWrite 计划。
 - Task List 优先消费结构化结果；文本只作为旧历史与非标准 runtime 的稳定降级路径。
 - 同一轮 TodoWrite 计划与 runtime task 始终合并，不根据消息 role 改变规则。

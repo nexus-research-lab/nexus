@@ -60,11 +60,11 @@ func TestProjectExecutionViewPreservesResponsibilityAndAcceptanceFlow(t *testing
 			{PlanID: "plan-1", ExecutionID: "execution-1", WorkItemID: "work-b", SpecID: "spec-b", Scope: "dir:web/src/features/execution", Mode: protocol.WorkOutputScopeExclusive},
 		},
 		Assignments: []protocol.WorkAssignment{
-			{ID: "assignment-a", ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-a", SpecID: "spec-a", OwnerAgentID: "researcher", Status: protocol.WorkAssignmentStatusCompleted},
-			{ID: "assignment-b", ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-b", SpecID: "spec-b", OwnerAgentID: "builder", Status: protocol.WorkAssignmentStatusActive, Strategy: protocol.AssignmentStrategyRoomMember},
+			{ID: "assignment-a", ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-a", SpecID: "spec-a", OwnerAgentID: "researcher", ReturnToAgentID: "lead", Status: protocol.WorkAssignmentStatusCompleted},
+			{ID: "assignment-b", ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-b", SpecID: "spec-b", OwnerAgentID: "builder", ReturnToAgentID: "lead", Status: protocol.WorkAssignmentStatusActive, Strategy: protocol.AssignmentStrategyRoomMember},
 		},
 		Attempts: []protocol.WorkAttempt{
-			{ID: "attempt-root", AssignmentID: "assignment-b", ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-b", SpecID: "spec-b", ExecutorKind: protocol.AttemptExecutorAgent, ExecutorAgentID: "builder", Status: protocol.WorkAttemptStatusRunning, CreatedAt: now, StartedAt: &started},
+			{ID: "attempt-root", AssignmentID: "assignment-b", ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-b", SpecID: "spec-b", ExecutorKind: protocol.AttemptExecutorAgent, ExecutorAgentID: "builder", AgentRoundID: "agent-round-builder-1", Status: protocol.WorkAttemptStatusRunning, CreatedAt: now, StartedAt: &started},
 			{ID: "attempt-child", AssignmentID: "assignment-b", ExecutionID: "execution-1", PlanID: "plan-1", WorkItemID: "work-b", SpecID: "spec-b", ParentAttemptID: "attempt-root", ExecutorKind: protocol.AttemptExecutorSubagent, ParentAgentID: "builder", Status: protocol.WorkAttemptStatusRunning, CreatedAt: started},
 		},
 		Submissions: []protocol.WorkSubmission{
@@ -96,6 +96,7 @@ func TestProjectExecutionViewPreservesResponsibilityAndAcceptanceFlow(t *testing
 	if running.Status != protocol.ExecutionWorkItemViewRunning ||
 		running.OwnerAgentID != "builder" ||
 		len(running.Attempts) != 2 ||
+		running.Attempts[0].AgentRoundID != "agent-round-builder-1" ||
 		len(running.OutputScopes) != 1 {
 		t.Fatalf("running work projection is incomplete: %+v", running)
 	}
@@ -105,4 +106,153 @@ func TestProjectExecutionViewPreservesResponsibilityAndAcceptanceFlow(t *testing
 		waiting.DependencyIDs[0] != "work-b" {
 		t.Fatalf("dependency projection is incomplete: %+v", waiting)
 	}
+	if len(view.Graph.Nodes) != 6 {
+		t.Fatalf("graph node count = %d, want 6: %+v", len(view.Graph.Nodes), view.Graph.Nodes)
+	}
+	if len(view.Graph.Edges) != 5 {
+		t.Fatalf("graph edge count = %d, want 5: %+v", len(view.Graph.Edges), view.Graph.Edges)
+	}
+	if graphNodeByID(view.Graph.Nodes, "work-b") != (protocol.ExecutionGraphNodeView{
+		ID:                   "work-b",
+		Kind:                 protocol.ExecutionGraphNodeAgent,
+		Visibility:           protocol.ExecutionGraphNodePrimary,
+		WorkItemID:           "work-b",
+		AttemptID:            "attempt-root",
+		AgentID:              "builder",
+		AgentRoundID:         "agent-round-builder-1",
+		ResponsibilityStatus: protocol.ExecutionWorkItemViewRunning,
+		RunStatus:            protocol.WorkAttemptStatusRunning,
+		Position:             1,
+	}) {
+		t.Fatalf("primary Agent node projection is incomplete: %+v", graphNodeByID(view.Graph.Nodes, "work-b"))
+	}
+	child := graphNodeByID(view.Graph.Nodes, "attempt-child")
+	if child.Kind != protocol.ExecutionGraphNodeSubagent ||
+		child.Visibility != protocol.ExecutionGraphNodeNested ||
+		child.ParentNodeID != "work-b" ||
+		child.WorkItemID != "work-b" ||
+		child.RunStatus != protocol.WorkAttemptStatusRunning {
+		t.Fatalf("nested Subagent node projection is incomplete: %+v", child)
+	}
+	acceptedGate := graphNodeByID(view.Graph.Nodes, "review:assignment-a")
+	if acceptedGate.Kind != protocol.ExecutionGraphNodeGate ||
+		acceptedGate.AgentID != "lead" ||
+		acceptedGate.LifecycleStatus != "accepted" {
+		t.Fatalf("accepted Lead gate projection is incomplete: %+v", acceptedGate)
+	}
+	plannedGate := graphNodeByID(view.Graph.Nodes, "review:assignment-b")
+	if plannedGate.Kind != protocol.ExecutionGraphNodeGate ||
+		plannedGate.AgentID != "lead" ||
+		plannedGate.LifecycleStatus != "planned" {
+		t.Fatalf("planned Lead gate projection is incomplete: %+v", plannedGate)
+	}
+	if !hasExecutionGraphEdge(
+		view.Graph.Edges,
+		protocol.ExecutionGraphEdgeDependency,
+		"review:assignment-a",
+		"work-b",
+	) || !hasExecutionGraphEdge(
+		view.Graph.Edges,
+		protocol.ExecutionGraphEdgeDependency,
+		"review:assignment-b",
+		"work-c",
+	) || !hasExecutionGraphEdge(
+		view.Graph.Edges,
+		protocol.ExecutionGraphEdgeSpawn,
+		"work-b",
+		"attempt-child",
+	) {
+		t.Fatalf("typed graph edges are incomplete: %+v", view.Graph.Edges)
+	}
+}
+
+func TestProjectExecutionGraphViewShowsChangesRequestedAsBoundedLoop(t *testing.T) {
+	t.Parallel()
+
+	graph := projectExecutionGraphView([]protocol.ExecutionWorkItemView{{
+		ID:               "work-a",
+		Subject:          "Draft",
+		Position:         0,
+		Status:           protocol.ExecutionWorkItemViewChangesRequested,
+		OwnerAgentID:     "writer",
+		AssignmentID:     "assignment-a",
+		ReviewAgentID:    "lead",
+		ReviewDispatchID: "review-dispatch-a",
+		ReviewStatus:     string(protocol.ExecutionReviewDispatchStatusDelivered),
+		Acceptance: &protocol.ExecutionAcceptanceView{
+			ID:           "acceptance-a",
+			Decision:     protocol.WorkAcceptanceChangesRequested,
+			ReviewerKind: protocol.WorkReviewerAgent,
+			ReviewerID:   "lead",
+		},
+	}})
+
+	gate := graphNodeByID(graph.Nodes, "review:assignment-a")
+	if gate.Kind != protocol.ExecutionGraphNodeGate ||
+		gate.ReviewDispatchID != "review-dispatch-a" ||
+		gate.LifecycleStatus != string(protocol.WorkAcceptanceChangesRequested) {
+		t.Fatalf("changes-requested gate projection is incomplete: %+v", gate)
+	}
+	if !hasExecutionGraphEdge(
+		graph.Edges,
+		protocol.ExecutionGraphEdgeReview,
+		"work-a",
+		gate.ID,
+	) || !hasExecutionGraphEdge(
+		graph.Edges,
+		protocol.ExecutionGraphEdgeLoopBack,
+		gate.ID,
+		"work-a",
+	) {
+		t.Fatalf("changes-requested loop edges are incomplete: %+v", graph.Edges)
+	}
+}
+
+func TestProjectExecutionGraphViewDoesNotTurnContainmentIntoDependency(t *testing.T) {
+	t.Parallel()
+
+	graph := projectExecutionGraphView([]protocol.ExecutionWorkItemView{
+		{
+			ID:       "parent",
+			Position: 0,
+			Status:   protocol.ExecutionWorkItemViewRunning,
+		},
+		{
+			ID:               "child-group",
+			ParentWorkItemID: "parent",
+			Position:         1,
+			Status:           protocol.ExecutionWorkItemViewReady,
+		},
+	})
+	if len(graph.Edges) != 0 {
+		t.Fatalf("containment created executable edges: %+v", graph.Edges)
+	}
+}
+
+func graphNodeByID(
+	nodes []protocol.ExecutionGraphNodeView,
+	id string,
+) protocol.ExecutionGraphNodeView {
+	for _, node := range nodes {
+		if node.ID == id {
+			return node
+		}
+	}
+	return protocol.ExecutionGraphNodeView{}
+}
+
+func hasExecutionGraphEdge(
+	edges []protocol.ExecutionGraphEdgeView,
+	kind protocol.ExecutionGraphEdgeKind,
+	sourceID string,
+	targetID string,
+) bool {
+	for _, edge := range edges {
+		if edge.Kind == kind &&
+			edge.SourceNodeID == sourceID &&
+			edge.TargetNodeID == targetID {
+			return true
+		}
+	}
+	return false
 }

@@ -160,6 +160,7 @@ func (s *Service) authorizeAssignmentTarget(
 	dispatch *protocol.ExecutionDispatch,
 ) error {
 	target := strings.TrimSpace(assignment.OwnerAgentID)
+	reviewer := strings.TrimSpace(assignment.ReturnToAgentID)
 	actorID := strings.TrimSpace(actor.AgentID)
 	switch assignment.Strategy {
 	case protocol.AssignmentStrategySelf:
@@ -175,7 +176,17 @@ func (s *Service) authorizeAssignmentTarget(
 				"self Assignment must not create a Room Dispatch",
 			)
 		}
-		return nil
+		if snapshot == nil || snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom ||
+			reviewer == target {
+			return nil
+		}
+		return s.authorizeRoomMemberTarget(
+			ctx,
+			actorID,
+			reviewer,
+			snapshot,
+			"reviewer",
+		)
 	case protocol.AssignmentStrategyRoomMember:
 		if snapshot == nil || snapshot.Execution.ScopeKind != protocol.ExecutionScopeRoom {
 			return domainError(
@@ -195,33 +206,70 @@ func (s *Service) authorizeAssignmentTarget(
 				"room_member Assignment requires a structured Room Dispatch",
 			)
 		}
-		if s.assignmentTargets == nil {
+		if err := s.authorizeRoomMemberTarget(
+			ctx,
+			actorID,
+			target,
+			snapshot,
+			"target",
+		); err != nil {
+			return err
+		}
+		if reviewer == "" {
 			return domainError(
-				ErrorCodeAssignmentTargetInvalid,
-				"Room assignment target authorizer is unavailable",
+				ErrorCodeRoomReviewerRequired,
+				"Room Assignment requires an explicit review return target",
 			)
 		}
-		if err := s.assignmentTargets.AuthorizeAssignmentTarget(ctx, AssignmentTargetRequest{
-			OwnerUserID:    snapshot.Execution.OwnerUserID,
-			SessionKey:     snapshot.Execution.SessionKey,
-			ExecutionID:    snapshot.Execution.ID,
-			RoomID:         snapshot.Execution.RoomID,
-			ConversationID: snapshot.Execution.ConversationID,
-			ActorAgentID:   actorID,
-			TargetAgentID:  target,
-			Strategy:       assignment.Strategy,
-		}); err != nil {
-			return newDomainError(
-				ErrorCodeAssignmentTargetInvalid,
-				"target is not an authorized Room member: "+strings.TrimSpace(err.Error()),
-				"",
-				target,
-			)
+		if reviewer == target {
+			return nil
 		}
-		return nil
+		if reviewer == strings.TrimSpace(snapshot.Execution.CoordinatorAgentID) {
+			return nil
+		}
+		return s.authorizeRoomMemberTarget(
+			ctx,
+			actorID,
+			reviewer,
+			snapshot,
+			"reviewer",
+		)
 	default:
 		return domainError(ErrorCodeAssignmentTargetInvalid, "unknown Assignment strategy")
 	}
+}
+
+func (s *Service) authorizeRoomMemberTarget(
+	ctx context.Context,
+	actorAgentID string,
+	targetAgentID string,
+	snapshot *protocol.ExecutionSnapshot,
+	role string,
+) error {
+	if s.assignmentTargets == nil {
+		return domainError(
+			ErrorCodeAssignmentTargetInvalid,
+			"Room assignment target authorizer is unavailable",
+		)
+	}
+	if err := s.assignmentTargets.AuthorizeAssignmentTarget(ctx, AssignmentTargetRequest{
+		OwnerUserID:    snapshot.Execution.OwnerUserID,
+		SessionKey:     snapshot.Execution.SessionKey,
+		ExecutionID:    snapshot.Execution.ID,
+		RoomID:         snapshot.Execution.RoomID,
+		ConversationID: snapshot.Execution.ConversationID,
+		ActorAgentID:   actorAgentID,
+		TargetAgentID:  targetAgentID,
+		Strategy:       protocol.AssignmentStrategyRoomMember,
+	}); err != nil {
+		return newDomainError(
+			ErrorCodeAssignmentTargetInvalid,
+			role+" is not an authorized Room member: "+strings.TrimSpace(err.Error()),
+			"",
+			targetAgentID,
+		)
+	}
+	return nil
 }
 
 // AuthorizeRoomRuntimeTarget 是逐 round 的 Execution capability admission。

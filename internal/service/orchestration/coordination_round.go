@@ -79,21 +79,21 @@ func (s *Service) activateRuntimeCoordinationResult(
 	return result
 }
 
-// activateReviewContinuationResult 在 trusted ReviewBinding 已提交唯一
-// Acceptance 后，把同一物理 round 升回 coordination。用户不需要另发一条
-// “继续”来解锁刚刚 Ready 的下游工作。
+// activateReviewContinuationResult 在 coordinator 通过 trusted ReviewBinding
+// 或 selected self-review WorkBinding 提交唯一 Acceptance 后，把同一物理
+// round 升回 coordination。用户不需要另发一条“继续”。
 func (s *Service) activateReviewContinuationResult(
 	actor ActorContext,
 	result MutationResult,
 ) MutationResult {
 	if actor.PlanMode ||
-		actor.ReviewBinding == nil ||
 		result.Snapshot == nil ||
 		(result.Outcome != MutationApplied && result.Outcome != MutationNoOp) ||
 		!isCurrentExecutionStatus(result.Snapshot.Execution.Status) {
 		return result
 	}
-	if !reviewBindingResolved(actor, result.Snapshot) {
+	if !reviewBindingResolved(actor, result.Snapshot) &&
+		!workBindingReviewResolved(actor, result.Snapshot) {
 		return result
 	}
 	if err := requireCoordinator(actor, result.Snapshot); err != nil {
@@ -115,13 +115,44 @@ func (s *Service) effectiveRuntimeCoordinationActor(
 	actor ActorContext,
 	snapshot *protocol.ExecutionSnapshot,
 ) ActorContext {
-	if snapshot != nil &&
-		actor.ReviewBinding != nil &&
-		s.runtimeCoordinationActive(actor, snapshot.Execution.ID) &&
-		reviewBindingResolved(actor, snapshot) {
-		actor.ReviewBinding = nil
+	if snapshot != nil && s.runtimeCoordinationActive(actor, snapshot.Execution.ID) {
+		if actor.ReviewBinding != nil && reviewBindingResolved(actor, snapshot) {
+			actor.ReviewBinding = nil
+		}
+		if actor.WorkBinding != nil && workBindingReviewResolved(actor, snapshot) {
+			actor.WorkBinding = nil
+		}
 	}
 	return actor
+}
+
+func workBindingReviewResolved(
+	actor ActorContext,
+	snapshot *protocol.ExecutionSnapshot,
+) bool {
+	if snapshot == nil || actor.WorkBinding == nil {
+		return false
+	}
+	binding := normalizeExecutionWorkBinding(actor.WorkBinding)
+	assignment := findAssignmentByID(snapshot, binding.AssignmentID)
+	if assignment == nil ||
+		assignment.ExecutionID != binding.ExecutionID ||
+		assignment.PlanID != binding.PlanID ||
+		assignment.WorkItemID != binding.WorkItemID ||
+		assignment.SpecID != binding.SpecID ||
+		strings.TrimSpace(assignment.ReturnToAgentID) != strings.TrimSpace(actor.AgentID) {
+		return false
+	}
+	for index := range snapshot.Submissions {
+		submission := &snapshot.Submissions[index]
+		if submission.AssignmentID == assignment.ID &&
+			submission.WorkItemID == assignment.WorkItemID &&
+			submission.SpecID == assignment.SpecID &&
+			acceptanceForSubmission(snapshot, submission.ID) != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func reviewBindingResolved(

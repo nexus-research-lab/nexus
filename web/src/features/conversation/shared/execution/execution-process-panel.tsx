@@ -1,5 +1,5 @@
 /**
- * INPUT: 当前/最近 ExecutionView、Agent 目录与 terminal dismiss 动作。
+ * INPUT: 当前/最近 ExecutionView、Agent 目录、精确 Agent round Task run 与 terminal dismiss 动作。
  * OUTPUT: Composer 上方的紧凑节点胶囊，以及服从活动 Dock 本地宽度的可展开只读节点图。
  * POS: DM 与 Room 共用的权威 Execution 进度 UI；存在时替代 legacy Todo 进程。
  */
@@ -15,13 +15,16 @@ import {
   OVERLAY_SURFACE_CLASS_NAME,
 } from "@/shared/ui/overlay/overlay-styles";
 import type { ExecutionView } from "@/types/conversation/execution";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 
 import {
   EXECUTION_STATUS_LABEL_KEY,
   isTerminalExecutionStatus,
   resolveExecutionAgent,
+  resolveExecutionGraphNodeItem,
+  resolveExecutionGraphNodeStatus,
+  resolveExecutionGraphNodeWindow,
   resolveExecutionNodeSummary,
-  resolveExecutionNodeWindow,
   type ExecutionAgentDirectory,
 } from "./execution-process-model";
 import { ExecutionNodeAvatar } from "./execution-node-avatar";
@@ -35,11 +38,13 @@ export function ExecutionProcessPanel({
   directory,
   execution,
   onDismiss,
+  taskRuns = [],
 }: {
   className?: string;
   directory: ExecutionAgentDirectory;
   execution: ExecutionView;
   onDismiss: () => void;
+  taskRuns?: readonly ConversationTaskRun[];
 }) {
   const { t } = useI18n();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -103,7 +108,7 @@ export function ExecutionProcessPanel({
       >
         {nodeSummary.totalCount > 0 ? (
           <ExecutionNodeRail
-            currentId={nodeSummary.current?.id ?? null}
+            currentId={nodeSummary.currentNode?.id ?? null}
             directory={directory}
             execution={execution}
           />
@@ -138,12 +143,14 @@ export function ExecutionProcessPanel({
                 : null}
               summary={nodeSummary.summary}
             />
-            {execution.plan && (execution.work_items?.length ?? 0) > 0 ? (
+            {(execution.graph?.nodes?.length ?? 0) > 0
+              || (execution.work_items?.length ?? 0) > 0 ? (
               <ExecutionWorkGraphCanvas
-                currentId={nodeSummary.current?.id ?? null}
+                currentId={nodeSummary.currentNode?.id ?? null}
                 directory={directory}
                 execution={execution}
                 key={execution.id}
+                taskRuns={taskRuns}
               />
             ) : (
               <div className="grid min-h-24 place-items-center px-6 py-6 text-center">
@@ -212,8 +219,8 @@ function ExecutionNodeRail({
   execution: ExecutionView;
 }) {
   const { t } = useI18n();
-  const nodeWindow = resolveExecutionNodeWindow(execution, currentId);
-  if (nodeWindow.items.length === 0) {
+  const nodeWindow = resolveExecutionGraphNodeWindow(execution, currentId);
+  if (nodeWindow.nodes.length === 0) {
     return null;
   }
   return (
@@ -225,10 +232,30 @@ function ExecutionNodeRail({
       {nodeWindow.hiddenBefore > 0 ? (
         <span className="mr-1 text-[9px] leading-none text-(--text-soft)">…</span>
       ) : null}
-      {nodeWindow.items.map((item, index) => {
-        const owner = resolveExecutionAgent(directory, item.owner_agent_id);
+      {nodeWindow.nodes.map((node, index) => {
+        const item = resolveExecutionGraphNodeItem(execution, node);
+        const owner = node.kind === "tool"
+          ? null
+          : resolveExecutionAgent(
+            directory,
+            node.agent_id ?? item?.owner_agent_id,
+          );
+        const status = resolveExecutionGraphNodeStatus(node, item);
+        const title = node.kind === "tool"
+          ? node.name ?? t("execution.node_tool")
+          : node.kind === "gate"
+          ? `${t(node.name === "objective_alignment"
+            ? "execution.node_alignment_gate"
+            : "execution.node_gate")} · ${
+            owner?.name ?? t("execution.owner_unassigned")
+          }`
+          : node.kind === "subagent"
+          ? `${t("execution.attempt_subagent")} · ${item?.subject ?? ""}`
+          : `${item?.subject ?? node.description ?? owner?.name ?? t("execution.owner_unassigned")} · ${
+            owner?.name ?? t("execution.owner_unassigned")
+          }`;
         return (
-          <span className="inline-flex items-center" key={item.id}>
+          <span className="inline-flex items-center" key={node.id}>
             {index > 0 ? (
               <span
                 className="h-px w-2.5 bg-(--divider-subtle-color)"
@@ -237,11 +264,13 @@ function ExecutionNodeRail({
             ) : null}
             <ExecutionNodeAvatar
               agent={owner}
-              current={item.id === currentId}
-              status={item.status}
-              title={`${item.subject} · ${
-                owner?.name ?? t("execution.owner_unassigned")
-              }`}
+              current={node.id === currentId}
+              kind={node.kind}
+              size={node.kind === "subagent" || node.kind === "tool"
+                ? "nested"
+                : "compact"}
+              status={status}
+              title={title}
             />
           </span>
         );

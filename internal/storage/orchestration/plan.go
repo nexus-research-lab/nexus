@@ -583,9 +583,6 @@ func validateOutputClaims(items []PlanWorkItem) error {
 	claims := make([]claimOwner, 0)
 	seen := make(map[string]struct{})
 	for _, work := range items {
-		if work.WorkItem.Kind == protocol.WorkItemKindProduce && len(work.OutputClaims) == 0 {
-			return fmt.Errorf("%w: produce Work Item %q requires an output claim", ErrInvariant, work.WorkItem.ID)
-		}
 		for _, claim := range work.OutputClaims {
 			comparisonKey, err := protocol.WorkOutputScopeComparisonKey(protocol.WorkOutputScope{
 				Scope: claim.Scope,

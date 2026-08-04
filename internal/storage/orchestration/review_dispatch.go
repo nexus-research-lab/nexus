@@ -1,5 +1,5 @@
-// INPUT: Room Submission 的 review-return outbox、consumer lease、delivery receipt 与 retry schedule。
-// OUTPUT: 与 Submission 同事务创建、可恢复 claim/deliver/retry/cancel 的独立 reviewer 投递状态机。
+// INPUT: 跨 Agent Room Submission 的 review-return outbox、consumer lease、delivery receipt 与 retry schedule。
+// OUTPUT: 跨 Agent review 与 Submission 同事务创建、可恢复 claim/deliver/retry/cancel；自审不制造回投。
 // POS: review 回交不复用 worker Assignment Dispatch，也不伪造 reviewer Attempt。
 package orchestration
 
@@ -31,8 +31,12 @@ func (r *Repository) normalizeReviewDispatch(
 		return nil, nil
 	}
 	if source == nil {
+		if strings.TrimSpace(assignment.ReturnToAgentID) ==
+			strings.TrimSpace(assignment.OwnerAgentID) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf(
-			"%w: Room Submission requires a review-return Dispatch",
+			"%w: cross-Agent Room Submission requires a review-return Dispatch",
 			ErrInvariant,
 		)
 	}

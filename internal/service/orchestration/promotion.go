@@ -1,4 +1,4 @@
-// INPUT: 已通过 adaptive policy 的 Execution snapshot 与持久化证据。
+// INPUT: Agent 选择的 persistence reason 与通过权限/状态校验的 Execution snapshot。
 // OUTPUT: Goal identity/revision 和激活原因，供后续 BindGoal command 使用。
 // POS: Orchestration 到 Goal 服务的消费侧端口；本包不直接修改 Goal 状态。
 package orchestration
@@ -6,7 +6,6 @@ package orchestration
 import (
 	"context"
 	"errors"
-	"slices"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -21,7 +20,9 @@ const (
 
 	ErrorCodeGoalPromotionDisabled ErrorCode = "goal_promotion_disabled"
 	ErrorCodeGoalConflict          ErrorCode = "goal_conflict"
-	ErrorCodeDurableSignalMissing  ErrorCode = "durable_signal_missing"
+	// ErrorCodeDurableSignalMissing 保留给历史客户端解析；新 promotion 不再以
+	// 缺少推荐信号拒绝 Agent 的合法选择。
+	ErrorCodeDurableSignalMissing ErrorCode = "durable_signal_missing"
 )
 
 var (
@@ -31,10 +32,8 @@ var (
 	ErrGoalPromotionConflict = errors.New("another Goal is active in this scope")
 )
 
-// GoalPromotionProposal 是模型能够提出但不能自行证明的 Goal promotion 意图。
-//
-// Objective clarity、remaining work、Room dependency、existing Goal 和配置开关都必须
-// 由后端从 snapshot/配置派生，故意不接受模型布尔值。
+// GoalPromotionProposal 是模型基于任务语义选择的 Goal promotion 意图。
+// 权限、current state、existing Goal 和配置开关仍由后端派生。
 type GoalPromotionProposal struct {
 	ObjectiveProposal string
 	ActivationReason  protocol.GoalActivationReason
@@ -157,34 +156,10 @@ func (s *Service) PromoteExecutionToGoal(
 			"promotion requires an objective and completion criteria",
 		), nil), nil
 	}
-	if !requiredWorkRemaining(snapshot) {
-		return RejectedResult(snapshot, domainError(
-			ErrorCodeCompletionBlocked,
-			"promotion is not allowed after all required work is accepted",
-		), nextActions(snapshot, actor)), nil
-	}
 	if !validAdaptiveActivationReason(input.ActivationReason) {
 		return RejectedResult(snapshot, domainError(
 			ErrorCodeInvalidInput,
 			"activation_reason must identify a durable adaptive boundary",
-		), nil), nil
-	}
-	evidence := adaptiveEvidenceFromSnapshot(snapshot, actor)
-	decision := EvaluateAdaptiveGoalPromotion(evidence)
-	if !decision.Promote {
-		code := ErrorCodeInvalidInput
-		if slices.Contains(decision.Blockers, "durable_signal_missing") {
-			code = ErrorCodeDurableSignalMissing
-		}
-		return RejectedResult(snapshot, domainError(
-			code,
-			"adaptive Goal policy rejected promotion: "+strings.Join(decision.Blockers, ", "),
-		), nil), nil
-	}
-	if !decisionSupportsReason(decision, input.ActivationReason) {
-		return RejectedResult(snapshot, domainError(
-			ErrorCodeDurableSignalMissing,
-			"activation_reason is not backed by authoritative durable evidence",
 		), nil), nil
 	}
 	if s.goalPromotionGateway == nil {
@@ -377,7 +352,8 @@ func validAdaptiveActivationReason(reason protocol.GoalActivationReason) bool {
 		protocol.GoalActivationReasonExternalWait,
 		protocol.GoalActivationReasonScheduledRetry,
 		protocol.GoalActivationReasonContextBoundary,
-		protocol.GoalActivationReasonRecoveryRequired:
+		protocol.GoalActivationReasonRecoveryRequired,
+		protocol.GoalActivationReasonSubstantialComplexity:
 		return true
 	default:
 		return false
@@ -502,30 +478,6 @@ func remainingRequiredWork(snapshot *protocol.ExecutionSnapshot) map[string]stri
 		result[item.WorkItemID] = item.SpecID
 	}
 	return result
-}
-
-func decisionSupportsReason(
-	decision AdaptiveGoalDecision,
-	reason protocol.GoalActivationReason,
-) bool {
-	var signal GoalPromotionSignal
-	switch reason {
-	case protocol.GoalActivationReasonObservedBoundary:
-		signal = GoalPromotionSignalObservedBoundary
-	case protocol.GoalActivationReasonRoomDependencyChain:
-		signal = GoalPromotionSignalRoomDependency
-	case protocol.GoalActivationReasonExternalWait:
-		signal = GoalPromotionSignalExternalWait
-	case protocol.GoalActivationReasonScheduledRetry:
-		signal = GoalPromotionSignalScheduledRetry
-	case protocol.GoalActivationReasonRecoveryRequired:
-		signal = GoalPromotionSignalRecovery
-	case protocol.GoalActivationReasonContextBoundary:
-		signal = GoalPromotionSignalContextBoundary
-	default:
-		return false
-	}
-	return slices.Contains(decision.Signals, signal)
 }
 
 func metadataBool(metadata map[string]any, key string) bool {

@@ -1,7 +1,6 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
-import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
 import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { DmChatPanelProps } from "../dm-chat-panel-types";
@@ -13,9 +12,11 @@ import { useDmGoalController } from "./use-dm-goal-controller";
 
 export function useDmChatPanelModel({
   currentAgent,
+  executionResource,
   initialDraft,
   layout,
   onConversationSnapshotChange,
+  onExecutionTaskRunsChange,
   onInitialDraftConsumed,
   onOpenAgentContact,
   onOpenWorkspaceFile,
@@ -40,11 +41,9 @@ export function useDmChatPanelModel({
     onRoomEvent,
     onTodosChange,
   });
-  const execution = useExecutionResource({
-    activityKey: `${session.conversation.messages.length}:${session.conversation.is_loading}`,
-    conversationActive: session.conversation.is_loading,
-    sessionKey,
-  });
+  useEffect(() => {
+    onExecutionTaskRunsChange?.(session.taskRuns);
+  }, [onExecutionTaskRunsChange, session.taskRuns]);
   const goalScopeLabel = t("dm.goal_scope");
   const composer = useDmChatComposerModel({
     agent: currentAgent,
@@ -69,7 +68,7 @@ export function useDmChatPanelModel({
     currentAgentAvatar: currentAgent.avatar ?? null,
     currentAgentName: currentAgent.name,
     environment,
-    execution,
+    execution: executionResource,
     goal,
     goalScopeLabel,
     onEditLastUserMessage: handleEditLastUserMessage,

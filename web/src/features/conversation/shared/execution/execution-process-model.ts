@@ -5,6 +5,7 @@
  */
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
+  ExecutionGraphNodeView,
   ExecutionStatus,
   ExecutionView,
   ExecutionWorkItemKind,
@@ -19,6 +20,25 @@ export interface ExecutionAgentIdentity {
 }
 
 export type ExecutionAgentDirectory = Record<string, ExecutionAgentIdentity>;
+
+interface ExecutionAgentDirectorySource {
+  agent_id: string;
+  avatar?: string | null;
+  name: string;
+}
+
+export function buildExecutionAgentDirectory(
+  agents: readonly ExecutionAgentDirectorySource[],
+): ExecutionAgentDirectory {
+  return Object.fromEntries(agents.map((agent) => [
+    agent.agent_id,
+    {
+      avatar: agent.avatar ?? null,
+      id: agent.agent_id,
+      name: agent.name,
+    },
+  ]));
+}
 
 export const EXECUTION_STATUS_LABEL_KEY: Record<
   ExecutionStatus,
@@ -74,6 +94,7 @@ const WORK_ITEM_FOCUS_PRIORITY: ExecutionWorkItemStatus[] = [
 
 export interface ExecutionNodeSummary {
   current: ExecutionWorkItemView | null;
+  currentNode: ExecutionGraphNodeView | null;
   currentStep: number;
   summary: string;
   totalCount: number;
@@ -83,6 +104,12 @@ export interface ExecutionNodeWindow {
   hiddenAfter: number;
   hiddenBefore: number;
   items: ExecutionWorkItemView[];
+}
+
+export interface ExecutionGraphNodeWindow {
+  hiddenAfter: number;
+  hiddenBefore: number;
+  nodes: ExecutionGraphNodeView[];
 }
 
 export function resolveExecutionNodeSummary(
@@ -98,14 +125,39 @@ export function resolveExecutionNodeSummary(
     }
   }
   current ??= items[0] ?? null;
+  const graphNodes = orderedExecutionGraphNodes(execution);
+  let currentNode = current
+    ? graphNodes.find((node) => (
+        node.work_item_id === current?.id
+        && node.kind === "subagent"
+        && node.run_status === "running"
+      ))
+      ?? graphNodes.find((node) => (
+        node.work_item_id === current?.id && node.kind === "agent"
+      ))
+      ?? null
+    : graphNodes.find((node) => (
+      node.kind !== "agent"
+      && resolveExecutionGraphNodeStatus(node, null) === "running"
+    ))
+      ?? graphNodes.find((node) => resolveExecutionGraphNodeStatus(node, null) === "running")
+      ?? graphNodes[0]
+      ?? null;
   const currentIndex = current
     ? items.findIndex((item) => item.id === current?.id)
-    : -1;
+    : currentNode
+      ? graphNodes.findIndex((node) => node.id === currentNode?.id)
+      : -1;
+  const totalCount = items.length > 0 ? items.length : graphNodes.length;
   return {
     current,
+    currentNode,
     currentStep: currentIndex >= 0 ? currentIndex + 1 : 0,
-    summary: current?.subject.trim() || execution.objective.trim(),
-    totalCount: items.length,
+    summary: current?.subject.trim()
+      || currentNode?.description?.trim()
+      || currentNode?.name?.trim()
+      || execution.objective.trim(),
+    totalCount,
   };
 }
 
@@ -138,6 +190,35 @@ export function resolveExecutionNodeWindow(
   };
 }
 
+export function resolveExecutionGraphNodeWindow(
+  execution: ExecutionView,
+  focusId: string | null,
+  limit = 7,
+): ExecutionGraphNodeWindow {
+  const nodes = orderedExecutionGraphNodes(execution);
+  if (nodes.length <= limit || limit <= 0) {
+    return {
+      hiddenAfter: 0,
+      hiddenBefore: 0,
+      nodes,
+    };
+  }
+  const focusIndex = Math.max(
+    0,
+    nodes.findIndex((node) => node.id === focusId),
+  );
+  const halfWindow = Math.floor(limit / 2);
+  const start = Math.min(
+    Math.max(0, focusIndex - halfWindow),
+    nodes.length - limit,
+  );
+  return {
+    hiddenAfter: nodes.length - start - limit,
+    hiddenBefore: start,
+    nodes: nodes.slice(start, start + limit),
+  };
+}
+
 export function resolveWorkItemDepths(
   execution: ExecutionView,
 ): Record<string, number> {
@@ -155,10 +236,7 @@ export function resolveWorkItemDepths(
       return 0;
     }
     const nextVisiting = new Set(visiting).add(item.id);
-    const upstreamIds = [
-      ...(item.dependency_ids ?? []),
-      ...(item.parent_work_item_id ? [item.parent_work_item_id] : []),
-    ];
+    const upstreamIds = item.dependency_ids ?? [];
     let depth = 0;
     for (const upstreamId of upstreamIds) {
       const upstream = itemById.get(upstreamId);
@@ -173,6 +251,88 @@ export function resolveWorkItemDepths(
     resolveDepth(item, new Set());
   }
   return result;
+}
+
+export function orderedExecutionGraphNodes(
+  execution: ExecutionView,
+): ExecutionGraphNodeView[] {
+  const projected = (execution.graph?.nodes ?? []).filter(
+    (node) => node.visibility !== "detail",
+  );
+  if (projected.length > 0) {
+    return [...projected].sort((left, right) => (
+      left.position - right.position
+      || graphNodeKindOrder(left) - graphNodeKindOrder(right)
+      || left.id.localeCompare(right.id)
+    ));
+  }
+  return orderedExecutionItems(execution).map((item) => ({
+    agent_id: item.owner_agent_id,
+    id: item.id,
+    kind: "agent",
+    position: item.position,
+    responsibility_status: item.status,
+    visibility: "primary",
+    work_item_id: item.id,
+  }));
+}
+
+export function resolveExecutionGraphNodeItem(
+  execution: ExecutionView,
+  node: ExecutionGraphNodeView,
+): ExecutionWorkItemView | null {
+  return execution.work_items?.find((item) => item.id === node.work_item_id)
+    ?? null;
+}
+
+export function resolveExecutionGraphNodeStatus(
+  node: ExecutionGraphNodeView,
+  item: ExecutionWorkItemView | null,
+): ExecutionWorkItemStatus {
+  if (node.kind === "agent" && (node.responsibility_status || item?.status)) {
+    return node.responsibility_status ?? item?.status ?? "waiting";
+  }
+  switch (node.lifecycle_status) {
+    case "aligned":
+    case "accepted":
+    case "succeeded":
+      return "accepted";
+    case "running":
+    case "claimed":
+      return "running";
+    case "pending":
+    case "planned":
+      return "assigned";
+    case "delivered":
+      return "submitted";
+    case "changes_requested":
+    case "not_aligned":
+      return "changes_requested";
+    case "inconclusive":
+      return "blocked";
+    case "failed":
+    case "rejected":
+    case "interrupted":
+      return "failed";
+    case "cancelled":
+      return "cancelled";
+  }
+  switch (node.run_status) {
+    case "pending":
+      return "assigned";
+    case "running":
+      return "running";
+    case "succeeded":
+      return "accepted";
+    case "failed":
+    case "interrupted":
+    case "timed_out":
+      return "failed";
+    case "cancelled":
+      return "cancelled";
+    default:
+      return item?.status ?? "waiting";
+  }
 }
 
 export function orderedExecutionItems(
@@ -203,4 +363,35 @@ export function resolveExecutionAgent(
     id: normalized,
     name: normalized,
   };
+}
+
+export function compactExecutionNodeObjective(
+  objective: string,
+  ownerName: string | undefined,
+): string {
+  const value = objective.trim();
+  const owner = ownerName?.trim() ?? "";
+  if (!owner || value.length <= owner.length) {
+    return value;
+  }
+  const prefix = value.slice(0, owner.length);
+  const remainder = value.slice(owner.length);
+  const separator = remainder.match(/^(?:\s*-\s+|[\s:：·,，—–]+)/u)?.[0];
+  if (prefix.toLocaleLowerCase() !== owner.toLocaleLowerCase() || !separator) {
+    return value;
+  }
+  return remainder.slice(separator.length).trim() || value;
+}
+
+function graphNodeKindOrder(node: ExecutionGraphNodeView): number {
+  switch (node.kind) {
+    case "agent":
+      return 0;
+    case "subagent":
+      return 1;
+    case "tool":
+      return 2;
+    case "gate":
+      return 3;
+  }
 }

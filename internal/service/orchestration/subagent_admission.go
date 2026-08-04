@@ -89,10 +89,8 @@ type SubagentAdmissionResult struct {
 	Binding    *SubagentAttemptBinding `json:"binding,omitempty"`
 }
 
-// AdmitSubagentLaunch 在 Agent tool 真正执行前预留唯一 child Attempt。
-//
-// 并发 launch 依赖 Repository CAS 收口；冲突后重新读取 snapshot，再以
-// active child Attempt 明确拒绝，不能因 hook 重试创建第二条执行链。
+// AdmitSubagentLaunch 在 Agent tool 真正执行前按唯一 tool_use_id 预留 child Attempt。
+// 同一 parent 可以并行多个 child；重复 launch 幂等复用原 binding。
 func (s *Service) AdmitSubagentLaunch(
 	ctx context.Context,
 	actor ActorContext,
@@ -125,6 +123,9 @@ func (s *Service) AdmitSubagentLaunch(
 				ErrorCodeNoCurrentExecution,
 				"a managed Execution is required before launching a subagent",
 			)), nil
+		}
+		if existing := activeSubagentAttempt(snapshot, actor.AgentID, toolUseID); existing != nil {
+			return allowedSubagentAdmission(bindingFromAttempt(*existing)), nil
 		}
 		assignment, parent, resolveErr := resolveSubagentLaunchCandidate(snapshot, actor.AgentID)
 		if resolveErr != nil {
@@ -207,11 +208,8 @@ func (s *Service) AdmitSubagentLaunch(
 		return SubagentAdmissionResult{}, err
 	}
 	if snapshot != nil {
-		if child := activeSubagentAttempt(snapshot, actor.AgentID, ""); child != nil {
-			return rejectedSubagentAdmission(domainError(
-				ErrorCodeSubagentAlreadyActive,
-				"the current Assignment already has a pending or running subagent Attempt",
-			)), nil
+		if child := activeSubagentAttempt(snapshot, actor.AgentID, toolUseID); child != nil {
+			return allowedSubagentAdmission(bindingFromAttempt(*child)), nil
 		}
 	}
 	return rejectedSubagentAdmission(domainError(
@@ -220,9 +218,8 @@ func (s *Service) AdmitSubagentLaunch(
 	)), nil
 }
 
-// ObserveSubagentStart 校验 bridge 的 start 事件仍指向唯一 active child Attempt。
-//
-// SDK 不提供 parent tool_use_id，不能据 agent_id 猜写 child_session_id/sdk_task_id。
+// ObserveSubagentStart 校验 bridge 的 start 事件精确命中 child Attempt。
+// 缺少 tool_use_id 时只允许当前恰有一个 active child，绝不按最新时间猜测。
 func (s *Service) ObserveSubagentStart(
 	ctx context.Context,
 	actor ActorContext,
@@ -255,7 +252,7 @@ func (s *Service) ObserveSubagentStart(
 	return allowedSubagentAdmission(bindingFromAttempt(*child)), nil
 }
 
-// ObserveSubagentStop 终结唯一 active child Attempt；它不创建 Submission 或 Acceptance。
+// ObserveSubagentStop 终结精确 child Attempt；它不创建 Submission 或 Acceptance。
 func (s *Service) ObserveSubagentStop(
 	ctx context.Context,
 	actor ActorContext,
@@ -539,17 +536,6 @@ func resolveSubagentLaunchCandidate(
 			"the Assignment must have exactly one pending or running parent Attempt",
 		)
 	}
-	for _, attempt := range snapshot.Attempts {
-		if attempt.AssignmentID == assignment.ID &&
-			attempt.ExecutorKind == protocol.AttemptExecutorSubagent &&
-			(attempt.Status == protocol.WorkAttemptStatusPending ||
-				attempt.Status == protocol.WorkAttemptStatusRunning) {
-			return nil, nil, domainError(
-				ErrorCodeSubagentAlreadyActive,
-				"the current Assignment already has a pending or running subagent Attempt",
-			)
-		}
-	}
 	return &assignment, &parents[0], nil
 }
 
@@ -665,8 +651,7 @@ func delegableWorkItem(
 			continue
 		}
 		return strings.TrimSpace(spec.Objective) != "" &&
-			strings.TrimSpace(spec.Deliverable) != "" &&
-			len(normalizeNonEmptyValues(spec.AcceptanceCriteria)) > 0
+			strings.TrimSpace(spec.Deliverable) != ""
 	}
 	return false
 }

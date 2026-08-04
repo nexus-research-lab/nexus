@@ -63,6 +63,7 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 		"block_work",
 		"resume_work",
 		"take_over_work",
+		"audit_execution_alignment",
 		"promote_execution_to_goal",
 		"Agent",
 	}
@@ -150,6 +151,7 @@ func RenderConversationExecutionContext(
 		"block_work",
 		"resume_work",
 		"take_over_work",
+		"audit_execution_alignment",
 		"promote_execution_to_goal",
 		"Agent",
 		"treat_conversation_as_work_evidence",
@@ -304,7 +306,7 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 	renderResumableWork(&output, view, role, options.ActorAgentID)
 	renderPlanRevisionBoundary(&output, view, role, options)
 	renderExecutionTransitionBoundary(&output, snapshot, role, options)
-	renderGoalPromotionBoundary(&output, options)
+	renderGoalPromotionBoundary(&output, snapshot, options)
 	subagentEligible := renderSubagentAdmissionBoundary(&output, snapshot, options)
 	writeXMLTextElement(
 		&output,
@@ -850,7 +852,7 @@ func renderPendingReviews(
 	actorAgentID string,
 ) {
 	output.WriteString("\n  <pending_reviews>")
-	if role == ExecutionActorCoordinator {
+	if role != ExecutionActorSubagent {
 		for _, workItemID := range view.pendingReviewWorkItemIDs(actorAgentID) {
 			submission := view.submissions[workItemID]
 			item := view.workItems[workItemID]
@@ -989,6 +991,7 @@ func renderPlanRevisionBoundary(
 
 func renderGoalPromotionBoundary(
 	output *strings.Builder,
+	snapshot *protocol.ExecutionSnapshot,
 	options ExecutionContextOptions,
 ) {
 	reasons := slices.Clone(options.GoalPromotionReasons)
@@ -998,7 +1001,11 @@ func renderGoalPromotionBoundary(
 	fmt.Fprintf(
 		output,
 		"\n  <goal_promotion eligible=\"%t\">",
-		len(reasons) > 0 && len(blockers) == 0 && !options.PlanMode,
+		snapshot != nil &&
+			isCurrentExecutionStatus(snapshot.Execution.Status) &&
+			strings.TrimSpace(snapshot.Execution.GoalID) == "" &&
+			len(blockers) == 0 &&
+			!options.PlanMode,
 	)
 	for _, reason := range reasons {
 		writeXMLTextElement(output, 4, "activation_reason", string(reason))
@@ -1121,6 +1128,7 @@ func renderActionBoundary(
 			"block_work",
 			"resume_work",
 			"take_over_work",
+			"audit_execution_alignment",
 			"promote_execution_to_goal",
 			"Agent",
 		)
@@ -1146,6 +1154,7 @@ func renderActionBoundary(
 			"block_work",
 			"resume_work",
 			"take_over_work",
+			"audit_execution_alignment",
 			"promote_execution_to_goal",
 			"Agent",
 		)
@@ -1163,23 +1172,18 @@ func renderActionBoundary(
 	}
 	switch role {
 	case ExecutionActorCoordinator:
+		allowed = append(allowed, "audit_execution_alignment")
 		setAvailability("plan_execution", availability.canRevisePlan || transientCoordinator)
 		setAvailability("abandon_execution", transientCoordinator)
 		setAvailability("assign_work", availability.hasReadyWork)
 		setAvailability("submit_work", availability.hasOwnedSubmittableAssignment)
-		setAvailability(
-			"review_work",
-			availability.hasPendingReview &&
-				(options.ScopeKind != protocol.ExecutionScopeRoom ||
-					options.ReviewBound),
-		)
+		setAvailability("review_work", availability.hasPendingReview)
 		setAvailability("block_work", availability.hasBlockableWork)
 		setAvailability("resume_work", availability.hasResumableWork)
 		setAvailability("take_over_work", availability.hasCurrentAssignment)
 		setAvailability(
 			"promote_execution_to_goal",
-			len(options.GoalPromotionReasons) > 0 &&
-				len(options.GoalPromotionBlockers) == 0,
+			transientCoordinator && len(options.GoalPromotionBlockers) == 0,
 		)
 		forbidden = append(
 			forbidden,
@@ -1188,7 +1192,9 @@ func renderActionBoundary(
 			"treat_runtime_stop_as_acceptance",
 		)
 	case ExecutionActorMember:
+		allowed = append(allowed, "audit_execution_alignment")
 		setAvailability("submit_work", availability.hasOwnedSubmittableAssignment)
+		setAvailability("review_work", availability.hasPendingReview)
 		setAvailability("block_work", availability.hasOwnedCurrentAssignment)
 		setAvailability("resume_work", availability.hasOwnedResumableWork)
 		forbidden = append(
@@ -1196,12 +1202,10 @@ func renderActionBoundary(
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
-			"review_work",
 			"take_over_work",
 			"promote_execution_to_goal",
 			"mutate_shared_plan",
 			"mutate_sibling_work",
-			"accept_own_shared_submission",
 			"complete_shared_goal",
 		)
 	case ExecutionActorSubagent:
@@ -1215,6 +1219,7 @@ func renderActionBoundary(
 			"block_work",
 			"resume_work",
 			"take_over_work",
+			"audit_execution_alignment",
 			"promote_execution_to_goal",
 			"mutate_shared_plan",
 			"assign_room_member",
@@ -1337,7 +1342,7 @@ func (view executionContextView) pendingReviewWorkItemIDs(actorAgentID string) [
 			continue
 		}
 		if view.snapshot.Execution.ScopeKind == protocol.ExecutionScopeRoom &&
-			assignment.OwnerAgentID == strings.TrimSpace(actorAgentID) {
+			strings.TrimSpace(assignment.ReturnToAgentID) != strings.TrimSpace(actorAgentID) {
 			continue
 		}
 		workItemIDs = append(workItemIDs, workItemID)

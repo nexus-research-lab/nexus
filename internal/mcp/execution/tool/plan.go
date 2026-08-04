@@ -17,9 +17,9 @@ func planExecution(svc contract.Service, sctx contract.ServerContext) sdktool.To
 	return sdktool.Tool{
 		Name: toolName,
 		Description: "Create one complete immutable Plan revision when coordinated delivery is useful. " +
-			"Plan expresses how work unfolds; each Work Item expresses one deliverable, dependencies prevent premature work, and output scopes prevent duplicate production. " +
-			"Pass the complete WorkGraph through work_graph_json as a JSON array serialized inside one string; do not send nested Work Item objects as a tool argument array. The backend decodes that string into typed Work Items and validates the entire graph before one atomic write. " +
-			"Every item needs logical_key, kind, subject, objective, deliverable, acceptance_criteria, required, and terminal, every produce item needs output_scopes, and the graph needs a required terminal integrate or verify item. " +
+			"Plan expresses how work unfolds; each Work Item expresses one deliverable, declared dependencies prevent premature work, and optional output scopes can prevent duplicate production. " +
+			"Pass the complete WorkGraph once through the native items array. Populate the actual argument object in this call; never send {} as a placeholder or merely announce a later call. The schema uses the common function-calling subset shared across Providers, and the backend validates the entire graph before one atomic write. " +
+			"Every item needs logical_key, kind, subject, objective, and deliverable. Required/terminal flags, acceptance criteria, dependencies, integration, verification, and output scopes are Agent-selected contract details: include them when they improve the task rather than to satisfy a fixed workflow. " +
 			"If no Execution exists, objective and at least one nonblank top-level completion_criteria entry are mandatory; the backend atomically creates the Execution and first active Plan. " +
 			"An existing same-objective replan may omit both because a Plan revision never rewrites the Execution boundary. " +
 			"Ordinary replan is monotonic: resubmit every existing node unchanged, then append new nodes and edges whose target is new. An old node may be an upstream dependency of a new node; a new edge may not target an old node because that would change its readiness contract. Removing or changing an existing node or its incoming dependencies requires supersede_active_work=true and a non-empty revision_reason. Activate any successor revision only at a quiescent boundary with no current Assignment or unreviewed Submission. " +
@@ -45,7 +45,7 @@ func planExecution(svc contract.Service, sctx contract.ServerContext) sdktool.To
 					draftErr.Error(),
 					orchestration.NextAction{
 						Tool:   toolName,
-						Reason: "send work_graph_json as one valid JSON array string containing the complete WorkGraph",
+						Reason: "send items as one non-empty native array containing every complete Work Item object",
 					},
 				), nil
 			}

@@ -98,7 +98,9 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "imagegen", "SKILL.md")); err != nil {
 		t.Fatalf("Claude 兼容 imagegen skill 未同步: %v", err)
 	}
-	if !slices.Contains(agentValue.Options.SkillIDs, "imagegen") || !slices.Contains(agentValue.Options.SkillIDs, "goal-manager") {
+	if !slices.Contains(agentValue.Options.SkillIDs, "imagegen") ||
+		!slices.Contains(agentValue.Options.SkillIDs, "goal-manager") ||
+		!slices.Contains(agentValue.Options.SkillIDs, "execution-orchestrator") {
 		t.Fatalf("Agent 应只记录平台 Skill ID: %#v", agentValue.Options.SkillIDs)
 	}
 	sharedBinDir := filepath.Join(os.Getenv("NEXUS_CONFIG_DIR"), "app", ".agents", "bin")
@@ -187,6 +189,30 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	} {
 		if !strings.Contains(string(goalSkill), expected) {
 			t.Fatalf("goal-manager skill 缺少 %q", expected)
+		}
+	}
+	executionSkillPath := filepath.Join(
+		appfs.PlatformSkillRoot(),
+		".agents",
+		"skills",
+		"execution-orchestrator",
+		"SKILL.md",
+	)
+	executionSkill, err := os.ReadFile(executionSkillPath)
+	if err != nil {
+		t.Fatalf("读取 execution-orchestrator skill 失败: %v", err)
+	}
+	for _, expected := range []string{
+		"Goal 决定持续追求什么",
+		"这是一份决策指南，不是一条固定流水线",
+		"参与人数本身不要求 Plan",
+		"相互独立的信号",
+		"用例只是校验，不是触发器",
+		"自审折叠在同一 Agent 节点",
+		"Goal 生命周期不是使用 Loop 的前提",
+	} {
+		if !strings.Contains(string(executionSkill), expected) {
+			t.Fatalf("execution-orchestrator skill 缺少 %q", expected)
 		}
 	}
 

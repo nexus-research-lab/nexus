@@ -17,7 +17,7 @@ func assignWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	return sdktool.Tool{
 		Name: toolName,
 		Description: "Assign one ready Work Item to exactly one responsible Agent. " +
-			"In a Room, use strategy=room_member for a structured, visible handoff; the backend dispatches it, so do not duplicate the assignment with a hand-written @ message. " +
+			"In a Room, use strategy=room_member when you choose a tracked responsibility handoff; the backend records and dispatches the Assignment. Room messages and @ remain the content channel, but they do not replace the Assignment state marker. " +
 			"Assignment expresses responsibility. A responsible Agent may later use a subagent internally without transferring ownership.",
 		SearchHint:  "assign work room handoff responsibility agent",
 		InputSchema: assignWorkSchema(),
@@ -55,7 +55,7 @@ func submitWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	return sdktool.Tool{
 		Name: toolName,
 		Description: "Submit the current Assignment owner's concrete result and evidence for review. " +
-			"In a Room, the backend durably routes the immutable Submission to its configured reviewer; do not depend on a hand-written @ message for review return. " +
+			"In a Room, the backend durably routes a cross-Agent review to the selected reviewer; self-review stays in the current WorkBinding. Use Room communication for substantive findings, while this tool records the immutable Submission fact. " +
 			"Do not call start_work or report machine state: the backend records the Attempt automatically. Submission does not unlock downstream hard dependencies until accepted.",
 		SearchHint:  "submit work deliverable evidence assignment",
 		InputSchema: submitWorkSchema(),
@@ -100,9 +100,9 @@ func reviewWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	const toolName = "review_work"
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Append the coordinator's acceptance decision for an immutable Submission. " +
+		Description: "Append the Assignment-selected reviewer's decision for an immutable Submission. The reviewer may be the owner, Lead, or another authorized Room Agent. " +
 			"Accepted requires a passing result for every criterion and is the only decision that unlocks downstream hard dependencies. " +
-			"After Acceptance exposes Ready work, assign it in the same round without asking the user to continue unless a real user decision or input is required. " +
+			"After Acceptance exposes Ready work, continue from the new state in the same round when authorized, or send substantive findings through Room communication; do not ask the user to continue unless a real user decision or input is required. " +
 			"Review is intentional verification, not duplicate production.",
 		SearchHint:  "review accept reject changes requested criteria",
 		InputSchema: reviewWorkSchema(),

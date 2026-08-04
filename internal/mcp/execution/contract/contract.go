@@ -1,5 +1,5 @@
 // INPUT: 当前 owner/Agent/scope/session/round identity、trusted WorkBinding/ReviewBinding 与 Orchestration 应用服务。
-// OUTPUT: 十个模型语义工具共用的权威 actor context 和窄服务接口。
+// OUTPUT: 十一个模型语义工具共用的权威 actor context 和窄服务接口。
 // POS: MCP tool adapter 与 service/orchestration 之间不接受模型伪造业务身份的消费侧契约。
 package contract
 
@@ -29,6 +29,11 @@ type Service interface {
 	BlockWork(context.Context, orchestration.ActorContext, orchestration.BlockWorkInput) (orchestration.MutationResult, error)
 	ResumeWork(context.Context, orchestration.ActorContext, orchestration.ResumeWorkInput) (orchestration.MutationResult, error)
 	TakeOverWork(context.Context, orchestration.ActorContext, orchestration.TakeOverWorkInput) (orchestration.MutationResult, error)
+	AuditExecutionAlignment(
+		context.Context,
+		orchestration.ActorContext,
+		orchestration.AuditExecutionAlignmentInput,
+	) (orchestration.MutationResult, error)
 	PromoteExecutionToGoal(
 		context.Context,
 		orchestration.ActorContext,

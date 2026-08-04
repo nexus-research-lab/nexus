@@ -34,6 +34,8 @@ export function RoomSurfaceContent({
   currentRoomType,
   runtimeKind,
   currentTodos,
+  executionResource,
+  executionTaskRuns,
   sidePanelWidthPercent,
   initialDraft = null,
   isResizingSidePanel,
@@ -43,6 +45,7 @@ export function RoomSurfaceContent({
   onConversationSnapshotChange,
   onCreateConversation,
   onDeleteConversation,
+  onExecutionTaskRunsChange,
   onInitialDraftConsumed,
   onManageRoom,
   onOpenMemberManager,
@@ -128,10 +131,12 @@ export function RoomSurfaceContent({
                   currentAgent={currentAgent}
                   currentAgentSessionIdentity={currentAgentSessionIdentity}
                   currentRoomType={currentRoomType}
+                  executionResource={executionResource}
                   initialDraft={initialDraft}
                   layout="desktop"
                   onConversationSnapshotChange={onConversationSnapshotChange}
                   onCreateConversation={onCreateConversation}
+                  onExecutionTaskRunsChange={onExecutionTaskRunsChange}
                   onInitialDraftConsumed={onInitialDraftConsumed}
                   onOpenAgentContact={layout.handleOpenAgentContact}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
@@ -154,6 +159,8 @@ export function RoomSurfaceContent({
                 activeWorkspacePath={activeWorkspacePath}
                 conversationId={conversationId}
                 currentAgent={currentAgent}
+                executionResource={executionResource}
+                executionTaskRuns={executionTaskRuns}
                 sidePanelWidthPercent={sidePanelWidthPercent}
                 isDm={isDm}
                 onClose={layout.handleCloseAuxiliaryPanel}

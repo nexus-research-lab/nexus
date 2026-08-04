@@ -8,6 +8,7 @@ import {
   MoreHorizontal,
   Plus,
   UsersRound,
+  Workflow,
 } from "lucide-react";
 import { useRef, useState } from "react";
 
@@ -50,6 +51,11 @@ export function RoomMobileActionsMenu({
       label: t("room.members"),
       value: "members",
     }] : []),
+    {
+      icon: <Workflow className="h-4 w-4 text-(--icon-muted)" />,
+      label: t("room.workgraph"),
+      value: "workgraph",
+    },
     {
       disabled: !canOpenSubagents,
       icon: <Bot className="h-4 w-4 text-(--icon-muted)" />,

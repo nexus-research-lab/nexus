@@ -49,13 +49,14 @@ const (
 type GoalActivationReason string
 
 const (
-	GoalActivationReasonPersistenceRequested GoalActivationReason = "persistence_requested"
-	GoalActivationReasonObservedBoundary     GoalActivationReason = "observed_boundary"
-	GoalActivationReasonRoomDependencyChain  GoalActivationReason = "room_dependency_chain"
-	GoalActivationReasonExternalWait         GoalActivationReason = "external_wait"
-	GoalActivationReasonScheduledRetry       GoalActivationReason = "scheduled_retry"
-	GoalActivationReasonContextBoundary      GoalActivationReason = "context_boundary"
-	GoalActivationReasonRecoveryRequired     GoalActivationReason = "recovery_required"
+	GoalActivationReasonPersistenceRequested  GoalActivationReason = "persistence_requested"
+	GoalActivationReasonObservedBoundary      GoalActivationReason = "observed_boundary"
+	GoalActivationReasonRoomDependencyChain   GoalActivationReason = "room_dependency_chain"
+	GoalActivationReasonExternalWait          GoalActivationReason = "external_wait"
+	GoalActivationReasonScheduledRetry        GoalActivationReason = "scheduled_retry"
+	GoalActivationReasonContextBoundary       GoalActivationReason = "context_boundary"
+	GoalActivationReasonRecoveryRequired      GoalActivationReason = "recovery_required"
+	GoalActivationReasonSubstantialComplexity GoalActivationReason = "substantial_complexity"
 )
 
 // Execution 表示一次可恢复、可选绑定 Goal 的实际推进。
