@@ -6,6 +6,7 @@ package migration
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -27,6 +28,7 @@ const workspaceLayoutMigrationName = "20260723_workspace_layout_v1"
 type workspaceLayoutAgent struct {
 	id                       string
 	ownerUserID              string
+	persistedOwnerUserID     string
 	workspacePath            string
 	legacyTranscriptProjects []string
 }
@@ -111,8 +113,17 @@ func runWorkspaceLayout(
 
 	updates := make([]workspaceLayoutAgent, 0)
 	for _, agent := range agents {
-		targetPath, ok := targetWorkspacePath(stateRoot, agent.ownerUserID, agent.workspacePath)
-		if !ok || filepath.Clean(targetPath) == filepath.Clean(agent.workspacePath) {
+		targetPath := agent.workspacePath
+		if mappedPath, ok := targetWorkspacePath(
+			stateRoot,
+			agent.ownerUserID,
+			agent.workspacePath,
+		); ok {
+			targetPath = mappedPath
+		}
+		ownerChanged := agent.persistedOwnerUserID != agent.ownerUserID
+		pathChanged := filepath.Clean(targetPath) != filepath.Clean(agent.workspacePath)
+		if !ownerChanged && !pathChanged {
 			continue
 		}
 		updates = append(updates, workspaceLayoutAgent{
@@ -270,10 +281,11 @@ ORDER BY id ASC`)
 	agents := make([]workspaceLayoutAgent, 0)
 	for rows.Next() {
 		var agent workspaceLayoutAgent
-		if err = rows.Scan(&agent.id, &agent.ownerUserID, &agent.workspacePath); err != nil {
+		if err = rows.Scan(&agent.id, &agent.persistedOwnerUserID, &agent.workspacePath); err != nil {
 			return nil, fmt.Errorf("扫描 workspace Agent 记录: %w", err)
 		}
-		agent.ownerUserID = normalizeWorkspaceOwner(agent.ownerUserID)
+		agent.persistedOwnerUserID = strings.TrimSpace(agent.persistedOwnerUserID)
+		agent.ownerUserID = normalizeWorkspaceOwner(agent.persistedOwnerUserID)
 		agent.workspacePath = strings.TrimSpace(agent.workspacePath)
 		agents = append(agents, agent)
 	}
@@ -549,11 +561,25 @@ func normalizeMigrationPath(path string, stateRoot string) string {
 	return filepath.Clean(absolute)
 }
 
+// normalizeWorkspaceOwner 去除旧数据中误落库的 JSON 字符串外壳。
+//
+// 历史 Agent 路径会在拼目录时丢掉双引号，因此 `user_x` 与
+// `"user_x"` 会指向同一旧目录。只解码完整且合法的 JSON 字符串，
+// 其他 owner 仍保持原值并继续接受路径碰撞检查。
 func normalizeWorkspaceOwner(ownerUserID string) string {
-	if value := strings.TrimSpace(ownerUserID); value != "" {
-		return value
+	value := strings.TrimSpace(ownerUserID)
+	if value == "" {
+		return authctx.SystemUserID
 	}
-	return authctx.SystemUserID
+	if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+		var decoded string
+		if err := json.Unmarshal([]byte(value), &decoded); err == nil {
+			if decoded = strings.TrimSpace(decoded); decoded != "" {
+				return decoded
+			}
+		}
+	}
+	return value
 }
 
 func updateWorkspaceLayoutAgentPaths(
@@ -572,10 +598,18 @@ func updateWorkspaceLayoutAgentPaths(
 	defer tx.Rollback()
 
 	dialect := storage.NewSQLDialect(driver)
-	query := "UPDATE agents SET workspace_path = " + dialect.Bind(1) + " WHERE id = " + dialect.Bind(2)
+	query := "UPDATE agents SET workspace_path = " + dialect.Bind(1) +
+		", owner_user_id = " + dialect.Bind(2) +
+		" WHERE id = " + dialect.Bind(3)
 	for _, update := range updates {
-		if _, err = tx.ExecContext(ctx, query, update.workspacePath, update.id); err != nil {
-			return fmt.Errorf("更新 Agent %s workspace 路径: %w", update.id, err)
+		if _, err = tx.ExecContext(
+			ctx,
+			query,
+			update.workspacePath,
+			update.ownerUserID,
+			update.id,
+		); err != nil {
+			return fmt.Errorf("更新 Agent %s owner 与 workspace 路径: %w", update.id, err)
 		}
 	}
 	if err = tx.Commit(); err != nil {

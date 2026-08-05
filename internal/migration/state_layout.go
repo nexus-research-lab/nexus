@@ -156,8 +156,8 @@ var stateLayoutNestedHostEntries = map[string]struct{}{
 // RunStateLayout 执行宿主状态根布局迁移。
 //
 // 迁移只使用 rename 或不覆盖式合并，不会丢弃有差异的业务源数据。
-// Finder 的 .DS_Store 可再生元数据是唯一例外；目标已存在时保留目标并
-// 丢弃旧缓存。其他目标冲突直接返回错误，调用方可处理后重试。
+// Finder 的 .DS_Store 与 cache 是可再生数据：旧 cache 直接删除，
+// .DS_Store 冲突时保留目标。其他目标冲突直接返回错误，调用方可处理后重试。
 func RunStateLayout(stateRoot string, logger *slog.Logger) error {
 	return runStateLayout(
 		stateRoot,
@@ -242,9 +242,12 @@ func runStateLayout(
 		var moveErr error
 		sourcePath := filepath.Join(stateRoot, name)
 		targetPath := filepath.Join(appRoot, name)
-		if name == "config" {
+		switch name {
+		case "config":
 			moved, moveErr = moveLegacyHostConfig(sourcePath, targetPath)
-		} else {
+		case "cache":
+			moved, moveErr = removeLegacyCache(sourcePath)
+		default:
 			moved, moveErr = moveLayoutEntry(sourcePath, targetPath)
 		}
 		if moveErr != nil {
@@ -708,6 +711,23 @@ func moveLayoutEntry(sourcePath string, targetPath string) (bool, error) {
 	return retryMissingLayoutSource(sourcePath, func() (bool, error) {
 		return moveLayoutEntryOnce(sourcePath, targetPath)
 	})
+}
+
+// removeLegacyCache 删除旧 cache。
+//
+// 桌面壳会在 sidecar 启动前初始化 WebView 缓存和版本标记，因此新旧 cache
+// 同时存在是正常升级状态。cache 不承载 Nexus 业务真相且全部可再生，旧目录
+// 直接删除，不能用内容冲突阻断数据库、workspace 与 Room 的后续迁移。
+func removeLegacyCache(sourcePath string) (bool, error) {
+	if _, err := os.Lstat(sourcePath); errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("读取旧缓存根 %q: %w", sourcePath, err)
+	}
+	if err := os.RemoveAll(sourcePath); err != nil {
+		return false, fmt.Errorf("清理可再生的旧缓存 %q: %w", sourcePath, err)
+	}
+	return true, nil
 }
 
 // retryMissingLayoutSource 将迁移期间的瞬态 ENOENT 与真实错误区分开。

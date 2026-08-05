@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Normalized legacy JSON-quoted owner IDs so equivalent workspace directories no longer collide during desktop upgrades.
+- Discarded regenerable legacy WebView and application caches so cache-version differences no longer block v0.1.27/v0.1.28 desktop upgrades.
 - Repaired historical managed session-summary ACLs once so the host policy can validate owner-scoped updates without weakening runtime isolation.
 - Treated AutoDream Agents without an available provider and model as a deferred check instead of repeatedly logging runtime errors.
 - Prevented malformed persisted task items from crashing the conversation panel.

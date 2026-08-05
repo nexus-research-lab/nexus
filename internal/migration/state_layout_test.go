@@ -329,6 +329,55 @@ func TestRunStateLayoutMergesIdenticalDestinations(t *testing.T) {
 	assertMigrationFileContent(t, filepath.Join(stateRoot, "app", "data", "new.db"), "new\n")
 }
 
+func TestRunStateLayoutRemovesLegacyCacheWhenCanonicalMissing(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	sourcePath := filepath.Join(stateRoot, "cache", "WebView2", "last-runtime-version.txt")
+	targetPath := filepath.Join(stateRoot, "app", "cache", "WebView2", "last-runtime-version.txt")
+	writeMigrationTestFile(t, sourcePath, "0.1.27\n")
+
+	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("迁移唯一旧缓存失败: %v", err)
+	}
+
+	assertMigrationPathMissing(t, filepath.Join(stateRoot, "cache"))
+	assertMigrationPathMissing(t, targetPath)
+}
+
+func TestRunStateLayoutPrefersCanonicalCacheOnConflict(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	sourceRoot := filepath.Join(stateRoot, "cache")
+	targetRoot := filepath.Join(stateRoot, "app", "cache")
+	writeMigrationTestFile(
+		t,
+		filepath.Join(sourceRoot, "WebView2", "last-runtime-version.txt"),
+		"0.1.27\n",
+	)
+	writeMigrationTestFile(t, filepath.Join(sourceRoot, "WebView2", "legacy-only.bin"), "legacy cache\n")
+	writeMigrationTestFile(
+		t,
+		filepath.Join(targetRoot, "WebView2", "last-runtime-version.txt"),
+		"0.1.33\n",
+	)
+	writeMigrationTestFile(t, filepath.Join(targetRoot, "WebView2", "current-only.bin"), "current cache\n")
+
+	if err := RunStateLayout(stateRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("新旧缓存冲突不应阻断状态迁移: %v", err)
+	}
+
+	assertMigrationPathMissing(t, sourceRoot)
+	assertMigrationFileContent(
+		t,
+		filepath.Join(targetRoot, "WebView2", "last-runtime-version.txt"),
+		"0.1.33\n",
+	)
+	assertMigrationFileContent(
+		t,
+		filepath.Join(targetRoot, "WebView2", "current-only.bin"),
+		"current cache\n",
+	)
+	assertMigrationPathMissing(t, filepath.Join(targetRoot, "WebView2", "legacy-only.bin"))
+}
+
 func TestRunStateLayoutIgnoresConflictingFinderMetadata(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	writeMigrationTestFile(t, filepath.Join(stateRoot, "rooms", ".DS_Store"), "legacy-finder-cache\n")

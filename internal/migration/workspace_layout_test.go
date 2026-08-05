@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -222,6 +223,42 @@ func TestRunWorkspaceLayoutNormalizesLegacyOwnerPathSegments(t *testing.T) {
 	assertWorkspaceLayoutAgentPath(t, db, "agent-a", targetWorkspace)
 }
 
+func TestRunWorkspaceLayoutNormalizesJSONQuotedOwnerIDs(t *testing.T) {
+	stateRoot := filepath.Join(t.TempDir(), ".nexus")
+	databaseURL := filepath.Join(stateRoot, "app", "data", "nexus.db")
+	ownerUserID := "user_83b9da59d344b590"
+	quotedOwnerUserID := strconv.Quote(ownerUserID)
+	legacyWorkspace := filepath.Join(stateRoot, "workspace", ownerUserID, "agent-a")
+	targetWorkspace := filepath.Join(
+		stateRoot,
+		"users",
+		ownerUserID,
+		"workspace",
+		"agent-a",
+	)
+	writeMigrationTestFile(t, filepath.Join(legacyWorkspace, "state.json"), "legacy\n")
+
+	db := createWorkspaceLayoutDB(t, databaseURL)
+	insertWorkspaceLayoutUser(t, db, ownerUserID)
+	insertWorkspaceLayoutUser(t, db, quotedOwnerUserID)
+	insertWorkspaceLayoutAgent(t, db, "agent-a", quotedOwnerUserID, legacyWorkspace)
+	if err := db.Close(); err != nil {
+		t.Fatalf("关闭迁移准备数据库失败: %v", err)
+	}
+
+	cfg := config.Config{DatabaseDriver: "sqlite", DatabaseURL: databaseURL}
+	if err := RunWorkspaceLayout(t.Context(), cfg, stateRoot, discardMigrationLogger()); err != nil {
+		t.Fatalf("执行 JSON 引号 owner 迁移失败: %v", err)
+	}
+
+	assertMigrationFileContent(t, filepath.Join(targetWorkspace, "state.json"), "legacy\n")
+	assertMigrationPathMissing(t, legacyWorkspace)
+	db = openWorkspaceLayoutDB(t, databaseURL)
+	defer db.Close()
+	assertWorkspaceLayoutAgentPath(t, db, "agent-a", targetWorkspace)
+	assertWorkspaceLayoutAgentOwner(t, db, "agent-a", ownerUserID)
+}
+
 func TestWorkspaceOwnerSourceNamesRejectTraversal(t *testing.T) {
 	stateRoot := filepath.Join(t.TempDir(), ".nexus")
 	names := workspaceOwnerSourceNames(stateRoot, "../outside")
@@ -344,5 +381,29 @@ func assertWorkspaceLayoutAgentPath(
 	}
 	if actualPath != expectedPath {
 		t.Fatalf("Agent %s workspace_path = %q, want %q", agentID, actualPath, expectedPath)
+	}
+}
+
+func assertWorkspaceLayoutAgentOwner(
+	t *testing.T,
+	db *sql.DB,
+	agentID string,
+	expectedOwnerUserID string,
+) {
+	t.Helper()
+	var actualOwnerUserID string
+	if err := db.QueryRow(
+		`SELECT owner_user_id FROM agents WHERE id = ?`,
+		agentID,
+	).Scan(&actualOwnerUserID); err != nil {
+		t.Fatalf("读取 workspace 布局测试 Agent owner 失败: %v", err)
+	}
+	if actualOwnerUserID != expectedOwnerUserID {
+		t.Fatalf(
+			"Agent %s owner_user_id = %q, want %q",
+			agentID,
+			actualOwnerUserID,
+			expectedOwnerUserID,
+		)
 	}
 }
