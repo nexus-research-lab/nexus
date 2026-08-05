@@ -7,35 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.34] - 2026-08-05
+
 ### Added
 
 - Added native folder pickers to the desktop data-directory setting on macOS and Windows.
 - Added separately signed and notarized macOS installers for Apple Silicon and Intel, with architecture-aware automatic updates.
-- Added read-only CC Switch discovery and idempotent Provider/model sync on desktop, including runtime compatibility guidance, first-run onboarding import, default chat/background model setup, and direct use in Nexus model selectors.
+- Added read-only CC Switch discovery and idempotent Provider/model import across onboarding and settings, with runtime compatibility guidance and default model setup.
 
 ### Changed
 
-- Aligned Composer permission decisions to equal-width 32px controls with Nexus control radii.
-- Removed the redundant Composer replying status while retaining its keyboard stop hint.
-- Reworked structured Agent questions into a compact Composer-native surface with row selections, inline custom answers, and one shared decision line.
-- Moved the desktop update shortcut into the sidebar footer and aligned it with the sidebar's utility actions.
-- Tightened macOS management headers and aligned the Nexus wordmark, sidebar toggle, and Dock axes with the native window controls.
+- Unified Composer send, stop, permission, question, status, and context surfaces into stable compact controls that preserve layout across pending and completed states.
+- Moved the desktop update shortcut into the sidebar footer and aligned macOS management headers, wordmark, sidebar toggle, and Dock axes with native window controls.
 
 ### Fixed
 
-- Stabilized Composer geometry when rounds finish with circular 32px send/stop actions, a persistent neutral disabled-send surface, a reserved context-usage slot, and a finer context ring stroke.
-- Kept the Agent creation dialog at a stable viewport-relative size while switching between configuration tabs.
-- Preserved structured permission timeout reasons from runtime decisions through tool results, removing brittle English-message matching from conversation rendering.
-- Normalized legacy JSON-quoted owner IDs so equivalent workspace directories no longer collide during desktop upgrades.
-- Discarded regenerable legacy WebView and application caches so cache-version differences no longer block v0.1.27/v0.1.28 desktop upgrades.
-- Repaired historical managed session-summary ACLs once so the host policy can validate owner-scoped updates without weakening runtime isolation.
+- Kept Agent configuration dialogs stable across tabs, preserved structured permission timeout reasons, and prevented malformed persisted tasks from crashing conversations.
+- Hardened direct desktop upgrades across quoted owner IDs, regenerable caches, historical summary ACLs, and launcher-owned Linux permissions without recursive mode rewrites.
 - Treated AutoDream Agents without an available provider and model as a deferred check instead of repeatedly logging runtime errors.
-- Prevented malformed persisted task items from crashing the conversation panel.
-- Acknowledged persisted DM messages before slow runtime startup, continued their in-process rounds after WebSocket disconnects, and reconciled lost ACKs from durable history or queue evidence without discarding messages whose acceptance remains uncertain.
-- Routed default main Agent creation through the same versioned workspace lifecycle as ordinary Agents without adding initialization work to later read paths.
-- Moved optional desktop host Skill discovery out of health checks and request paths, publishing bounded live-updating last-known-good snapshots through one stable managed root shared by Catalog and runtimes.
-- Aligned platform, host, owner, and Agent-local Skill discovery on direct-child canonical names, repaired Claude fallback projections, rejected the unsupported `.agents/<name>` shape, and skipped unchanged Agent workspace initialization safely.
-- Stopped desktop state, workspace, skipped-layout, and Room migrations from recursively rewriting filesystem modes while preserving launcher-managed Linux ACLs.
+- Made DM acceptance durable across slow runtime startup, WebSocket disconnects, and lost-ACK recovery without discarding uncertain messages.
+- Routed main Agent creation through versioned workspace initialization and made platform, host, owner, and Agent Skill discovery canonical, bounded, live-updating, and consistent with runtime projections.
 
 ## [0.1.33] - 2026-08-04
 
