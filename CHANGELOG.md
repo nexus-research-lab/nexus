@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserved structured permission timeout reasons from runtime decisions through tool results, removing brittle English-message matching from conversation rendering.
 - Normalized legacy JSON-quoted owner IDs so equivalent workspace directories no longer collide during desktop upgrades.
 - Discarded regenerable legacy WebView and application caches so cache-version differences no longer block v0.1.27/v0.1.28 desktop upgrades.
 - Repaired historical managed session-summary ACLs once so the host policy can validate owner-scoped updates without weakening runtime isolation.

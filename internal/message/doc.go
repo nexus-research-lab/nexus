@@ -9,7 +9,6 @@
 //   - tool_result_message.go / workspace_artifact.go：工具结果消息与工作区产物投影。
 //   - segment_assistant.go / projection_result.go / tool_result.go：assistant 分段、流式工具输入、保留执行身份的结果摘要挂载与工具结果观测。
 //   - factory_guidance.go：运行中 round 的用户引导消息。
-//   - codes_permission_error.go：结构化权限错误码推导。
 //   - helpers.go：共享归一化与单路径 block 投影辅助。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

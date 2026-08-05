@@ -243,6 +243,9 @@ func mergeNormalizedBlockPayload(payload map[string]any, block sdkprotocol.Conte
 			payload["tool_use_id"] = value.ToolUseID
 			payload["content"] = decodeRawJSON(value.Content)
 			payload["is_error"] = value.IsError
+			if value.ErrorCode != "" {
+				payload["error_code"] = value.ErrorCode
+			}
 			payload["mime_type"] = emptyToNil(value.MimeType)
 		}
 	}
