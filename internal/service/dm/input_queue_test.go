@@ -148,6 +148,8 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey:           sessionKey,
 		Content:              "这是补充要求",
+		ClientRequestID:      "request-queue-2",
+		ClientMessageID:      "client-message-queue-2",
 		RoundID:              "round-queue-2",
 		UserMessageID:        "msg-user-queue-2",
 		BroadcastUserMessage: true,
@@ -177,7 +179,9 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	items, err := service.inputQueue.Snapshot(location)
-	if err != nil || len(items) != 1 || items[0].SourceMessageID != "msg-user-queue-2" {
+	if err != nil || len(items) != 1 ||
+		items[0].SourceMessageID != "msg-user-queue-2" ||
+		items[0].ClientMessageID != "client-message-queue-2" {
 		t.Fatalf("运行中 DM 输入应留在 durable queue: items=%+v err=%v", items, err)
 	}
 	select {
@@ -235,7 +239,9 @@ func TestServiceHandleChatQueuesRunningRoundByDefault(t *testing.T) {
 	rows = readDMSessionHistory(t, cfg, service, sessionKey)
 	found := false
 	for _, row := range rows {
-		if row["message_id"] == "msg-user-queue-2" && row["round_id"] == "round-queue-2" {
+		if row["message_id"] == "msg-user-queue-2" &&
+			row["round_id"] == "round-queue-2" &&
+			row["client_message_id"] == "client-message-queue-2" {
 			found = true
 		}
 	}
@@ -410,8 +416,10 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	if err := service.HandleChat(context.Background(), Request{
 		SessionKey:           sessionKey,
 		Content:              "等工具结果回来后优先看错误日志",
+		ClientMessageID:      "client-message-guide-2",
 		RoundID:              "round-guide-2",
 		UserMessageID:        "msg-user-guide-2",
+		AgentRoundID:         "agent-round-guide-2",
 		DeliveryPolicy:       protocol.ChatDeliveryPolicyGuide,
 		BroadcastUserMessage: true,
 	}); err != nil {
@@ -431,6 +439,8 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	if len(items) != 1 ||
 		items[0].ID != "round-guide-2" ||
 		items[0].SourceMessageID != "msg-user-guide-2" ||
+		items[0].AgentRoundID != "agent-round-guide-2" ||
+		items[0].ClientMessageID != "client-message-guide-2" ||
 		items[0].DeliveryPolicy != protocol.ChatDeliveryPolicyGuide ||
 		items[0].RootRoundID != "round-guide-1" {
 		t.Fatalf("引导消息应先持久等待当前 round 的 PostToolUse: %+v", items)
@@ -513,6 +523,8 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	if guidanceEvent.Data["role"] != "user" ||
 		guidanceEvent.Data["round_id"] != "round-guide-1" ||
 		guidanceEvent.Data["source_round_id"] != "round-guide-2" ||
+		guidanceEvent.Data["agent_round_id"] != "agent-round-guide-2" ||
+		guidanceEvent.Data["client_message_id"] != "client-message-guide-2" ||
 		guidanceEvent.DeliveryMode != "durable" {
 		t.Fatalf("已消费引导应作为 durable user 归入当前回复: %+v", guidanceEvent)
 	}
@@ -532,7 +544,9 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 		if row["message_id"] == "msg-user-guide-2" {
 			foundGuidance = row["role"] == "user" &&
 				row["round_id"] == "round-guide-1" &&
-				row["source_round_id"] == "round-guide-2"
+				row["source_round_id"] == "round-guide-2" &&
+				row["agent_round_id"] == "agent-round-guide-2" &&
+				row["client_message_id"] == "client-message-guide-2"
 		}
 	}
 	if !foundGuidance {

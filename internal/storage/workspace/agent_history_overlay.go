@@ -101,6 +101,9 @@ func (s *AgentHistoryStore) AppendRoundMarkerWithOptions(
 	if agentRoundID := strings.TrimSpace(options.AgentRoundID); agentRoundID != "" {
 		row["agent_round_id"] = agentRoundID
 	}
+	if clientMessageID := strings.TrimSpace(options.ClientMessageID); clientMessageID != "" {
+		row["client_message_id"] = clientMessageID
+	}
 	if sourceRoundID := strings.TrimSpace(options.SourceRoundID); sourceRoundID != "" {
 		row["source_round_id"] = sourceRoundID
 	}
@@ -233,18 +236,19 @@ func (s *AgentHistoryStore) readOverlayHistoryState(
 		switch stringFromAny(row[overlayKindField]) {
 		case overlayKindRoundMarker:
 			roundMarkers = append(roundMarkers, transcriptRoundMarker{
-				RoundID:        stringFromAny(row["round_id"]),
-				SourceRoundID:  stringFromAny(row["source_round_id"]),
-				UserMessageID:  stringFromAny(row["user_message_id"]),
-				AgentRoundID:   stringFromAny(row["agent_round_id"]),
-				Content:        stringFromAny(row["content"]),
-				Attachments:    protocol.ChatAttachmentsFromAny(row["attachments"]),
-				Timestamp:      messageTimestamp(protocol.Message(row)),
-				DeliveryPolicy: stringFromAny(row["delivery_policy"]),
-				HiddenFromUser: boolValueAny(row["hidden_from_user"]),
-				Synthetic:      boolValueAny(row["is_synthetic"]),
-				Purpose:        stringFromAny(row["purpose"]),
-				Metadata:       stringMapFromAny(row["metadata"]),
+				RoundID:         stringFromAny(row["round_id"]),
+				SourceRoundID:   stringFromAny(row["source_round_id"]),
+				UserMessageID:   stringFromAny(row["user_message_id"]),
+				AgentRoundID:    stringFromAny(row["agent_round_id"]),
+				ClientMessageID: stringFromAny(row["client_message_id"]),
+				Content:         stringFromAny(row["content"]),
+				Attachments:     protocol.ChatAttachmentsFromAny(row["attachments"]),
+				Timestamp:       messageTimestamp(protocol.Message(row)),
+				DeliveryPolicy:  stringFromAny(row["delivery_policy"]),
+				HiddenFromUser:  boolValueAny(row["hidden_from_user"]),
+				Synthetic:       boolValueAny(row["is_synthetic"]),
+				Purpose:         stringFromAny(row["purpose"]),
+				Metadata:        stringMapFromAny(row["metadata"]),
 			})
 			continue
 		}

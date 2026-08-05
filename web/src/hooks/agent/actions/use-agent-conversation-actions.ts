@@ -36,7 +36,7 @@ interface UseAgentConversationActionsParams {
   clearOutboundRequest: (clientRequestId: string) => void;
   handleRequestAckTimeout: (
     clientRequestId: string,
-    message: string,
+    clientMessageId: string,
   ) => void;
   setPendingAgentSlots: Dispatch<SetStateAction<RoomPendingAgentSlotState[]>>;
   settleChatAckWaitFailure: (
@@ -98,12 +98,18 @@ export function useAgentConversationActions({
         return;
       }
 
-      const { client_request_id: requestId } = request;
+      const {
+        client_message_id: clientMessageId,
+        client_request_id: requestId,
+      } = request;
       trackOutboundRequest(requestId);
 
       try {
         await waitForRequestAck(requestId, () => {
-          handleRequestAckTimeout(requestId, "消息未送达后端，请重试");
+          handleRequestAckTimeout(
+            requestId,
+            clientMessageId,
+          );
         });
       } catch (error) {
         settleFailure(request, error);

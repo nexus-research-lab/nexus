@@ -48,7 +48,7 @@ interface AgentEventTransport {
   sessionSeqCursorRef: RefObject<number>;
   wsSendRef: RefObject<ConversationSocketSend>;
   wsStateRef: RefObject<WebSocketState>;
-  reloadCurrentSession: () => Promise<void>;
+  reloadCurrentSession: () => Promise<Message[] | null>;
 }
 
 interface AgentEventState {

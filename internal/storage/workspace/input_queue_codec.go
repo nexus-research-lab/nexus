@@ -20,6 +20,8 @@ func normalizeInputQueueItem(
 	item.RoomID = strings.TrimSpace(firstNonEmpty(item.RoomID, location.RoomID))
 	item.ConversationID = strings.TrimSpace(firstNonEmpty(item.ConversationID, location.ConversationID))
 	item.AgentID = strings.TrimSpace(item.AgentID)
+	item.AgentRoundID = strings.TrimSpace(item.AgentRoundID)
+	item.ClientMessageID = strings.TrimSpace(item.ClientMessageID)
 	item.SourceAgentID = strings.TrimSpace(item.SourceAgentID)
 	item.SourceMessageID = strings.TrimSpace(item.SourceMessageID)
 	item.HandoffID = strings.TrimSpace(item.HandoffID)
@@ -67,6 +69,8 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 			RoomID:          stringFromAny(typed["room_id"]),
 			ConversationID:  stringFromAny(typed["conversation_id"]),
 			AgentID:         stringFromAny(typed["agent_id"]),
+			AgentRoundID:    stringFromAny(typed["agent_round_id"]),
+			ClientMessageID: stringFromAny(typed["client_message_id"]),
 			SourceAgentID:   stringFromAny(typed["source_agent_id"]),
 			SourceMessageID: stringFromAny(typed["source_message_id"]),
 			HandoffID:       stringFromAny(typed["handoff_id"]),

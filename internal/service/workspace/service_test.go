@@ -232,6 +232,45 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	}
 }
 
+func TestServiceInitializesDefaultMainWorkspaceDuringBootstrap(t *testing.T) {
+	cfg := newWorkspaceTestConfig(t)
+	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := NewService(cfg, agentService)
+
+	mainAgent, err := agentService.GetDefaultAgent(context.Background())
+	if err != nil {
+		t.Fatalf("创建默认主 Agent 失败: %v", err)
+	}
+	root, err := workspaceService.openAgentWorkspace(mainAgent, false)
+	if err != nil {
+		t.Fatalf("打开默认主 Agent workspace 失败: %v", err)
+	}
+	defer root.Close()
+	if !workspaceManagedStateReady(root, true) {
+		t.Fatal("默认主 Agent 落库前应完成完整 workspace 初始化")
+	}
+
+	stateRoot, marker, err := openWorkspaceInitializationState(*mainAgent)
+	if err != nil {
+		t.Fatalf("打开默认主 Agent 初始化状态失败: %v", err)
+	}
+	defer stateRoot.Close()
+	payload, err := stateRoot.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("默认主 Agent 缺少初始化 marker: %v", err)
+	}
+	if strings.TrimSpace(string(payload)) != workspaceInitializationVersion(*mainAgent) {
+		t.Fatalf("默认主 Agent 初始化 marker 不匹配: %q", payload)
+	}
+}
+
 func TestListFilesDoesNotInitializeWorkspace(t *testing.T) {
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)

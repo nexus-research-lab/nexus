@@ -9,4 +9,4 @@
 - 历史、实时快照、流式 patch 和本地 optimistic 消息最终都必须满足 `message_id` 唯一。
 - Assistant 进度必须单调：更新的完整 message 快照可补齐终态字段，但任何排队中的旧 stream event 都不能缩短正文、回滚状态或覆盖已经展示的终态 metadata。
 - Room durable user 广播携带 `client_message_id` 时，必须在同一次集合更新中原位替换 optimistic 节点；随后 ACK 只做幂等收口。
-- `client_message_id` 不写入历史；当前页面合并随后到达的历史快照时必须保留本地 visual identity，避免 acknowledged 用户气泡重新挂载。
+- `client_message_id` 作为受理关联字段写入 durable 用户历史；当前页面合并随后到达的历史快照时仍须保留本地 visual identity，避免 acknowledged 用户气泡重新挂载。

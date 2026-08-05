@@ -1,5 +1,5 @@
 // INPUT: DM 用户请求、内部 Goal 续跑与当前会话运行态。
-// OUTPUT: 恰好一次的运行中投递、持久队列登记或新 round 启动。
+// OUTPUT: 运行中投递、持久队列登记或新 round 启动。
 // POS: DM 输入受理与 runtime 启动的串行交接边界。
 package dm
 
@@ -26,15 +26,39 @@ import (
 
 // HandleChat 处理一条 DM 写请求。显式输入与队列交接、Goal 续跑共享同一个启动边界。
 func (s *Service) HandleChat(ctx context.Context, request Request) error {
+	return s.handleChatLocked(ctx, request, chatExecutionInline)
+}
+
+// HandleRealtimeChat 持久化并 ACK 后，把 round 生命周期与实时连接分离。
+func (s *Service) HandleRealtimeChat(ctx context.Context, request Request) error {
+	return s.handleChatLocked(ctx, request, chatExecutionDetached)
+}
+
+type chatExecutionMode uint8
+
+const (
+	chatExecutionInline chatExecutionMode = iota
+	chatExecutionDetached
+)
+
+func (s *Service) handleChatLocked(
+	ctx context.Context,
+	request Request,
+	mode chatExecutionMode,
+) error {
 	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
 		return err
 	}
 	defer s.inputQueueDispatchMu.Unlock()
-	return s.handleChat(ctx, request)
+	return s.handleChat(ctx, request, mode)
 }
 
 // handleChat 要求调用方已为显式输入持有 inputQueueDispatchMu；内部输入由各调度器自行保证互斥。
-func (s *Service) handleChat(ctx context.Context, request Request) error {
+func (s *Service) handleChat(
+	ctx context.Context,
+	request Request,
+	mode chatExecutionMode,
+) error {
 	execution, err := s.prepareChatExecution(ctx, request)
 	if err != nil {
 		return err
@@ -42,12 +66,16 @@ func (s *Service) handleChat(ctx context.Context, request Request) error {
 	if handled, routeErr := execution.routeRunningInput(); handled || routeErr != nil {
 		return routeErr
 	}
+	if mode == chatExecutionDetached && !execution.request.Internal {
+		return execution.acceptAndLaunch()
+	}
 	if err = execution.prepareRunner(); err != nil {
 		return err
 	}
 	if err = execution.persistRound(); err != nil {
 		return err
 	}
+	execution.logAcceptance()
 	execution.launch()
 	return nil
 }
@@ -81,7 +109,10 @@ type dmRuntimePreparation struct {
 	permissionMode        sdkpermission.Mode
 }
 
-func (s *Service) prepareChatExecution(ctx context.Context, request Request) (*dmChatExecution, error) {
+func (s *Service) prepareChatExecution(
+	ctx context.Context,
+	request Request,
+) (*dmChatExecution, error) {
 	sessionKey, parsed, err := s.validateRequest(request)
 	if err != nil {
 		return nil, err
@@ -192,13 +223,7 @@ func (e *dmChatExecution) routeRunningInput() (bool, error) {
 }
 
 func (e *dmChatExecution) prepareRunner() error {
-	if err := e.service.ensureQuotaAvailable(e.ctx); err != nil {
-		if e.request.Internal && strings.TrimSpace(e.request.GoalID) != "" {
-			e.service.recordGoalQuotaLimit(e.ctx, e.sessionKey, e.request.RoundID, err)
-		}
-		return err
-	}
-	if err := e.interruptRunningRound(); err != nil {
+	if err := e.prepareRoundStart(); err != nil {
 		return err
 	}
 	preparation, err := e.prepareRuntime()
@@ -208,9 +233,61 @@ func (e *dmChatExecution) prepareRunner() error {
 	if !e.startRound() {
 		return runtimectx.ErrRuntimeSessionClosing
 	}
-	e.runner = e.newRoundRunner(preparation)
+	e.runner = e.newRoundRunner()
+	e.runner.bindRuntime(preparation)
 	e.registerRunner()
 	return nil
+}
+
+func (e *dmChatExecution) prepareRoundStart() error {
+	if err := e.service.ensureQuotaAvailable(e.ctx); err != nil {
+		if e.request.Internal && strings.TrimSpace(e.request.GoalID) != "" {
+			e.service.recordGoalQuotaLimit(e.ctx, e.sessionKey, e.request.RoundID, err)
+		}
+		return err
+	}
+	if err := e.interruptRunningRound(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *dmChatExecution) acceptAndLaunch() error {
+	if err := e.prepareRoundStart(); err != nil {
+		return err
+	}
+	if !e.startRound() {
+		return runtimectx.ErrRuntimeSessionClosing
+	}
+	e.runner = e.newRoundRunner()
+	if err := e.persistRound(); err != nil {
+		return err
+	}
+	e.logAcceptance()
+	e.broadcastAcceptance()
+	go e.runAcceptedRound()
+	return nil
+}
+
+func (e *dmChatExecution) runAcceptedRound() {
+	preparation, err := e.prepareRuntime()
+	if err != nil {
+		defer e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
+		e.runner.failRuntimeStartup(err)
+		return
+	}
+	e.runner.bindRuntime(preparation)
+	e.registerRunner()
+	e.service.scheduleTitleGeneration(
+		e.roundCtx,
+		e.parsed,
+		e.runner.session,
+		e.runner.content,
+		e.initialMessageCount,
+		e.runner.runtimeProvider,
+		e.runner.runtimeModel,
+	)
+	e.runner.run(e.roundCtx)
 }
 
 func (e *dmChatExecution) interruptRunningRound() error {
@@ -221,12 +298,13 @@ func (e *dmChatExecution) interruptRunningRound() error {
 }
 
 func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
+	runtimeCtx := e.runtimeContext()
 	slashInput := conversationsvc.IsSlashCommandInput(e.request.Content)
 	if slashInput && len(e.request.Attachments) > 0 {
 		return dmRuntimePreparation{}, slashCommandAttachmentError{}
 	}
 	runtimeContent, err := e.service.renderRuntimeContentWithAttachments(
-		e.ctx,
+		runtimeCtx,
 		e.request.Content,
 		e.request.Attachments,
 	)
@@ -235,20 +313,20 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	}
 	if !runtimeContent.IsEmpty() && !slashInput {
 		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
-			e.ctx,
+			runtimeCtx,
 			e.agent,
 			"dm:"+strings.TrimSpace(e.sessionKey),
 		))
 	}
 	client, runtimeKind, runtimeProvider, runtimeModel, goalIDForUsage, goalContext, goalObjectiveRevision, permissionMode, err := e.service.ensureClient(
-		e.ctx,
+		runtimeCtx,
 		e.sessionKey,
 		e.agent,
 		e.session,
 		e.request,
 	)
 	if err != nil {
-		e.service.loggerFor(e.ctx).Error("DM runtime client 初始化失败",
+		e.service.loggerFor(runtimeCtx).Error("DM runtime client 初始化失败",
 			"session_key", e.sessionKey,
 			"agent_id", e.agent.AgentID,
 			"round_id", e.request.RoundID,
@@ -286,50 +364,68 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 	}, nil
 }
 
-func (e *dmChatExecution) newRoundRunner(preparation dmRuntimePreparation) *roundRunner {
+func (e *dmChatExecution) runtimeContext() context.Context {
+	if e.roundCtx != nil {
+		return e.roundCtx
+	}
+	return e.ctx
+}
+
+func (e *dmChatExecution) newRoundRunner() *roundRunner {
 	return &roundRunner{
-		service:                e.service,
-		workspacePath:          e.agent.WorkspacePath,
-		session:                e.session,
-		agent:                  e.agent,
-		sessionKey:             e.sessionKey,
-		roundID:                e.request.RoundID,
-		agentRoundID:           e.request.AgentRoundID,
-		userMessageID:          e.request.UserMessageID,
-		clientRequestID:        e.request.ClientRequestID,
-		content:                strings.TrimSpace(e.request.Content),
-		runtimeContent:         preparation.content,
-		atomicInput:            preparation.atomicInput,
-		recoveryContext:        preparation.recoveryContext,
-		client:                 preparation.client,
-		runtimeKind:            preparation.runtimeKind,
-		runtimeProvider:        preparation.runtimeProvider,
-		runtimeModel:           preparation.runtimeModel,
-		ownerUserID:            strings.TrimSpace(e.agent.OwnerUserID),
-		mapper:                 dmdomain.NewMessageMapper(e.sessionKey, e.agent.AgentID, e.request.RoundID, e.request.AgentRoundID, e.request.UserMessageID, e.agent.WorkspacePath),
-		inputOptions:           e.request.InputOptions,
-		internal:               e.request.Internal,
-		externalReplyTarget:    e.request.ExternalReplyTarget,
-		goalContext:            preparation.goalContext,
-		goalIDForUsage:         preparation.goalIDForUsage,
-		childGoalIDForUsage:    preparation.goalIDForUsage,
-		goalObjectiveRevision:  preparation.goalObjectiveRevision,
-		goalUsage:              goalsvc.NewRuntimeUsageAccumulator(strings.TrimSpace(preparation.goalIDForUsage) != ""),
-		goalUsageStarted:       time.Now(),
-		goalUsageScopeConsumed: strings.TrimSpace(preparation.goalIDForUsage) != "",
-		permissionMode:         preparation.permissionMode,
-		permissionHandler:      e.request.PermissionHandler,
+		service:               e.service,
+		workspacePath:         e.agent.WorkspacePath,
+		session:               e.session,
+		agent:                 e.agent,
+		sessionKey:            e.sessionKey,
+		roundID:               e.request.RoundID,
+		agentRoundID:          e.request.AgentRoundID,
+		userMessageID:         e.request.UserMessageID,
+		clientRequestID:       e.request.ClientRequestID,
+		content:               strings.TrimSpace(e.request.Content),
+		ownerUserID:           strings.TrimSpace(e.agent.OwnerUserID),
+		mapper:                dmdomain.NewMessageMapper(e.sessionKey, e.agent.AgentID, e.request.RoundID, e.request.AgentRoundID, e.request.UserMessageID, e.agent.WorkspacePath),
+		inputOptions:          e.request.InputOptions,
+		internal:              e.request.Internal,
+		externalReplyTarget:   e.request.ExternalReplyTarget,
+		goalObjectiveRevision: &atomic.Int64{},
+		goalUsage:             goalsvc.NewRuntimeUsageAccumulator(false),
+		goalUsageStarted:      time.Now(),
+		permissionHandler:     e.request.PermissionHandler,
 	}
 }
 
+func (r *roundRunner) bindRuntime(preparation dmRuntimePreparation) {
+	r.runtimeContent = preparation.content
+	r.atomicInput = preparation.atomicInput
+	r.recoveryContext = preparation.recoveryContext
+	r.client = preparation.client
+	r.runtimeKind = preparation.runtimeKind
+	r.runtimeProvider = preparation.runtimeProvider
+	r.runtimeModel = preparation.runtimeModel
+	r.goalContext = preparation.goalContext
+	r.goalIDForUsage = preparation.goalIDForUsage
+	r.childGoalIDForUsage = preparation.goalIDForUsage
+	if preparation.goalObjectiveRevision != nil {
+		r.goalObjectiveRevision = preparation.goalObjectiveRevision
+	}
+	r.goalUsage = goalsvc.NewRuntimeUsageAccumulator(
+		strings.TrimSpace(preparation.goalIDForUsage) != "",
+	)
+	r.goalUsageStarted = time.Now()
+	r.goalUsageScopeConsumed = strings.TrimSpace(preparation.goalIDForUsage) != ""
+	r.permissionMode = preparation.permissionMode
+}
+
 func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
+	runtimeCtx := e.runtimeContext()
 	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" && len(e.request.RewriteRemoveMessageUUIDs) == 0 {
 		return errors.New("rewrite remove message uuids are required")
 	}
 	lease, hasLease := e.service.runtime.CaptureClientLease(e.sessionKey, client)
 	if len(e.request.RewriteRemoveMessageUUIDs) > 0 {
-		if err := client.RemoveMessages(e.ctx, e.request.RewriteRemoveMessageUUIDs); err != nil {
-			e.service.loggerFor(e.ctx).Error("DM rewrite 删除 runtime 历史失败",
+		if err := client.RemoveMessages(runtimeCtx, e.request.RewriteRemoveMessageUUIDs); err != nil {
+			e.service.loggerFor(runtimeCtx).Error("DM rewrite 删除 runtime 历史失败",
 				"session_key", e.sessionKey,
 				"agent_id", e.agent.AgentID,
 				"round_id", e.request.RoundID,
@@ -340,7 +436,7 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 			return err
 		}
 	}
-	if err := e.service.pruneHistoryRewriteTail(e.ctx, rewritePruneInput{
+	if err := e.service.pruneHistoryRewriteTail(runtimeCtx, rewritePruneInput{
 		WorkspacePath:      e.agent.WorkspacePath,
 		SessionKey:         e.sessionKey,
 		TargetRoundID:      e.request.RewriteTargetRoundID,
@@ -353,7 +449,7 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 			_, closeErr := e.service.runtime.CloseSessionIfLease(closeCtx, lease)
 			cancelClose()
 			if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-				e.service.loggerFor(e.ctx).Warn("DM rewrite overlay 裁剪失败后关闭 runtime 失败",
+				e.service.loggerFor(runtimeCtx).Warn("DM rewrite overlay 裁剪失败后关闭 runtime 失败",
 					"session_key", e.sessionKey,
 					"agent_id", e.agent.AgentID,
 					"round_id", e.request.RoundID,
@@ -399,34 +495,38 @@ func (e *dmChatExecution) registerRunner() {
 		e.runner.goalUsageScopeWasConsumed,
 	)
 	e.service.runtime.RegisterGoalObjectiveRevision(e.sessionKey, e.request.RoundID, e.runner.goalObjectiveRevision)
+}
+
+func (e *dmChatExecution) logAcceptance() {
 	e.service.loggerFor(e.ctx).Info("受理 DM 会话消息",
 		"session_key", e.sessionKey,
 		"agent_id", e.agent.AgentID,
 		"round_id", e.request.RoundID,
-		"client_request_id", e.runner.clientRequestID,
-		"content_chars", utf8.RuneCountInString(e.runner.content),
-		"content_preview", logx.PreviewText(e.runner.content, 240),
+		"client_request_id", e.request.ClientRequestID,
+		"content_chars", utf8.RuneCountInString(strings.TrimSpace(e.request.Content)),
+		"content_preview", logx.PreviewText(strings.TrimSpace(e.request.Content), 240),
 		"attachment_count", len(e.request.Attachments),
 	)
 }
 
 func (e *dmChatExecution) persistRound() error {
 	markerOptions := workspacestore.RoundMarkerOptions{
-		UserMessageID:  e.request.UserMessageID,
-		AgentRoundID:   e.request.AgentRoundID,
-		DeliveryPolicy: string(e.deliveryPolicy),
-		Attachments:    e.request.Attachments,
-		HiddenFromUser: e.request.Internal || e.request.InputOptions.HiddenFromUser,
-		Synthetic:      e.request.InputOptions.Synthetic || e.request.Internal,
-		Purpose:        e.request.InputOptions.Purpose,
-		Metadata:       e.request.InputOptions.Metadata,
+		UserMessageID:   e.request.UserMessageID,
+		AgentRoundID:    e.request.AgentRoundID,
+		ClientMessageID: e.request.ClientMessageID,
+		DeliveryPolicy:  string(e.deliveryPolicy),
+		Attachments:     e.request.Attachments,
+		HiddenFromUser:  e.request.Internal || e.request.InputOptions.HiddenFromUser,
+		Synthetic:       e.request.InputOptions.Synthetic || e.request.Internal,
+		Purpose:         e.request.InputOptions.Purpose,
+		Metadata:        e.request.InputOptions.Metadata,
 	}
 	if err := e.service.recordRoundMarkerWithOptionsForOwner(
-		e.runner.ownerUserID,
-		e.runner.workspacePath,
-		e.runner.session,
-		e.runner.roundID,
-		e.runner.content,
+		e.agent.OwnerUserID,
+		e.agent.WorkspacePath,
+		e.session,
+		e.request.RoundID,
+		strings.TrimSpace(e.request.Content),
 		markerOptions,
 	); err != nil {
 		return e.failPersistence(
@@ -441,33 +541,49 @@ func (e *dmChatExecution) persistRound() error {
 	}
 	if dmRequestHasCanonicalUserInput(e.request) && dmRoomConversationID(e.parsed) != "" {
 		if err := e.service.markRoomConversationStarted(
-			e.ctx,
+			e.runtimeContext(),
 			e.sessionKey,
 			time.Now().UTC(),
 		); err != nil {
-			return e.failPersistence(
-				err,
-				"Room conversation 活动状态写入失败",
-				"Room conversation 活动状态失败后刷新 session meta 失败",
-				"Room conversation 活动状态写入失败",
+			// round marker 已是 durable acceptance point，后续派生状态失败
+			// 不能把已受理输入变成永远不会执行的幽灵消息。
+			e.service.loggerFor(e.runtimeContext()).Warn(
+				"DM 已受理后写入 Room conversation 活动状态失败",
+				"session_key", e.sessionKey,
+				"agent_id", e.agent.AgentID,
+				"round_id", e.request.RoundID,
+				"err", err,
 			)
 		}
 	}
 	updatedSession, err := e.service.refreshSessionMetaAfterRoundMarkerForOwner(
-		e.runner.ownerUserID,
-		e.runner.workspacePath,
-		e.runner.session,
+		e.agent.OwnerUserID,
+		e.agent.WorkspacePath,
+		e.session,
 	)
 	if err != nil {
-		return e.failPersistence(
-			err,
-			"会话元数据持久化失败",
-			"DM 轮次元数据失败后刷新 session meta 失败",
-			"DM 轮次元数据持久化失败",
+		e.service.loggerFor(e.runtimeContext()).Warn(
+			"DM 已受理后刷新会话元数据失败",
+			"session_key", e.sessionKey,
+			"agent_id", e.agent.AgentID,
+			"round_id", e.request.RoundID,
+			"err", err,
 		)
+		// 保持 runner 的派生计数单调；后续任一成功的消息 meta 写入都能
+		// 把这次 durable user marker 一并收敛回 session 快照。
+		e.session = closePersistedSessionMeta(e.session)
+		e.session.LastActivity = time.Now().UTC()
+		e.session.MessageCount++
+		if e.runner != nil {
+			e.runner.session = e.session
+		}
+		return nil
 	}
 	if updatedSession != nil {
-		e.runner.session = *updatedSession
+		e.session = *updatedSession
+		if e.runner != nil {
+			e.runner.session = *updatedSession
+		}
 	}
 	return nil
 }
@@ -539,28 +655,46 @@ func (e *dmChatExecution) launch() {
 		)
 		e.broadcastAck()
 	}
+	e.broadcastRoundStarted(e.ctx)
+	go e.runner.run(e.roundCtx)
+}
+
+func (e *dmChatExecution) broadcastAcceptance() {
+	e.broadcastAck()
+	e.broadcastRoundStarted(e.runtimeContext())
+}
+
+func (e *dmChatExecution) broadcastRoundStarted(ctx context.Context) {
 	if e.request.BroadcastUserMessage {
 		e.service.broadcastUserRoundMarker(
-			e.ctx,
-			e.runner.session,
-			e.runner.roundID,
+			ctx,
+			e.session,
+			e.request.RoundID,
 			"",
 			e.request.UserMessageID,
-			e.runner.content,
+			strings.TrimSpace(e.request.Content),
 			e.deliveryPolicy,
 			e.request.Attachments,
 		)
 	}
 	if strings.TrimSpace(e.request.RewriteTargetRoundID) != "" {
-		e.service.broadcastHistoryRewriteResync(e.ctx, e.sessionKey, e.request.RewriteTargetRoundID, e.request.RoundID)
+		e.service.broadcastHistoryRewriteResync(
+			ctx,
+			e.sessionKey,
+			e.request.RewriteTargetRoundID,
+			e.request.RoundID,
+		)
 	}
-	e.service.broadcastEventWithTimeout(e.ctx, e.sessionKey, protocol.NewRoundStatusEvent(e.sessionKey, e.request.RoundID, "running", ""))
-	e.service.broadcastSessionStatus(e.ctx, e.sessionKey)
-	go e.runner.run(e.roundCtx)
+	e.service.broadcastEventWithTimeout(
+		ctx,
+		e.sessionKey,
+		protocol.NewRoundStatusEvent(e.sessionKey, e.request.RoundID, protocol.RoundStatusRunning, ""),
+	)
+	e.service.broadcastSessionStatus(ctx, e.sessionKey)
 }
 
 func (e *dmChatExecution) broadcastAck() {
-	e.service.broadcastEventWithTimeout(e.ctx, e.sessionKey, protocol.NewChatAckEvent(
+	e.service.broadcastEventWithTimeout(e.runtimeContext(), e.sessionKey, protocol.NewChatAckEvent(
 		e.sessionKey,
 		e.request.ClientRequestID,
 		e.request.ClientMessageID,
@@ -596,6 +730,9 @@ func (s *Service) validateRequest(request Request) (string, protocol.SessionKey,
 	if !protocol.HasChatInput(request.Content, request.Attachments) &&
 		!(request.Internal && strings.TrimSpace(request.GoalContext) != "") {
 		return "", protocol.SessionKey{}, errors.New("content is required")
+	}
+	if len(strings.TrimSpace(request.ClientMessageID)) > protocol.MaxClientMessageIDBytes {
+		return "", protocol.SessionKey{}, errors.New("client_message_id 过长")
 	}
 
 	parsed := protocol.ParseSessionKey(sessionKey)

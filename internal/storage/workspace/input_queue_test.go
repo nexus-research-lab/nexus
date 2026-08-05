@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -136,8 +137,13 @@ func TestInputQueueReplayIgnoresPersistedMismatchedOwner(t *testing.T) {
 	if len(items) != 0 {
 		t.Fatalf("owner 不匹配的历史队列项不应被恢复: %+v", items)
 	}
-	if _, ok, err := store.FindAcceptedEnqueue(location, "foreign-request"); err != nil || ok {
-		t.Fatalf("owner 不匹配的幂等记录不应被接受: ok=%v err=%v", ok, err)
+	accepted, err := store.EnqueueIdempotent(location, protocol.InputQueueItem{
+		Content:     "合法恢复项",
+		OwnerUserID: location.OwnerUserID,
+		Scope:       location.Scope,
+	}, "foreign-request")
+	if err != nil || accepted.Duplicate {
+		t.Fatalf("owner 不匹配的历史记录不能占用幂等键: result=%+v err=%v", accepted, err)
 	}
 }
 
@@ -389,16 +395,16 @@ func TestInputQueueStoreIdempotentEnqueueSurvivesDispatch(t *testing.T) {
 		t.Fatalf("unexpected dispatch: item=%+v remaining=%+v", dispatched, remaining)
 	}
 
-	found, ok, err := NewInputQueueStore(root).FindAcceptedEnqueue(location, "client-message-1")
-	if err != nil || !ok || found.ID != acceptedID {
-		t.Fatalf("accepted enqueue must survive dispatch: item=%+v ok=%v err=%v", found, ok, err)
-	}
 	retry := intent
 	retry.ID = "ignored-retry-id"
 	retry.CreatedAt = 999
 	retry.UpdatedAt = 999
 	retry.TargetAgentIDs = []string{"agent-a", "agent-b"}
-	duplicate, err := store.EnqueueIdempotent(location, retry, "client-message-1")
+	duplicate, err := NewInputQueueStore(root).EnqueueIdempotent(
+		location,
+		retry,
+		"client-message-1",
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -425,6 +431,22 @@ func TestInputQueueStoreIdempotentEnqueueSurvivesDispatch(t *testing.T) {
 	}
 	if enqueueRows != 1 {
 		t.Fatalf("idempotent retry appended %d enqueue rows, want 1", enqueueRows)
+	}
+}
+
+func TestInputQueueStoreRejectsOversizedClientMessageID(t *testing.T) {
+	root := t.TempDir()
+	store := NewInputQueueStore(root)
+	_, err := store.EnqueueIdempotent(InputQueueLocation{
+		Scope:         protocol.InputQueueScopeDM,
+		WorkspacePath: filepath.Join(root, "agent"),
+		SessionKey:    "agent:alpha:ws:dm:oversized-id",
+	}, protocol.InputQueueItem{
+		Content: "bounded",
+		Source:  protocol.InputQueueSourceUser,
+	}, strings.Repeat("x", protocol.MaxClientMessageIDBytes+1))
+	if err == nil || !strings.Contains(err.Error(), "too long") {
+		t.Fatalf("超长 client_message_id 应在写盘前拒绝: %v", err)
 	}
 }
 

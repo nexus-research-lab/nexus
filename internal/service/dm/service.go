@@ -78,7 +78,7 @@ func (m *contextMutex) Unlock() {
 
 // Request 表示一次 DM 会话写入请求。
 // RoundID / UserMessageID / AgentRoundID 由后端 mint：
-// WS 入口不填，HandleChat 内部生成；后端内部调用方（automation / queue / goal）可预置 RoundID。
+// WS 入口不填，由聊天入口生成；后端内部调用方（automation / queue / goal）可预置 RoundID。
 type Request struct {
 	SessionKey                string
 	AgentID                   string

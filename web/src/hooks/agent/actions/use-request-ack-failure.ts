@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
+import type { InputQueueItem } from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message/entity";
 import type { WebSocketState } from "@/types/system/websocket";
 
@@ -8,36 +9,137 @@ import { removeFailedOutboundUserMessage } from "../runtime/model/conversation-r
 
 interface UseRequestAckFailureOptions {
   clearOutboundRequest: (clientRequestId: string) => void;
+  getInputQueueItems: () => readonly InputQueueItem[];
+  hasPendingRequestAck: (clientRequestId: string) => boolean;
   rejectPendingRequestAck: (
     clientRequestId: string,
-    reason: string,
+    cause: string | Error,
   ) => boolean;
+  reloadCurrentSession: () => Promise<Message[] | null>;
+  resolvePendingRequestAck: (clientRequestId?: string | null) => boolean;
   setError: Dispatch<SetStateAction<string | null>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   wsReconnectRef: RefObject<() => void>;
   wsStateRef: RefObject<WebSocketState>;
 }
 
+export function hasAcceptedClientMessage(
+  messages: Message[],
+  clientMessageId: string,
+  inputQueueItems: readonly InputQueueItem[] = [],
+): boolean {
+  return messages.some((item) => (
+    item.role === "user" && item.client_message_id === clientMessageId
+  )) || inputQueueItems.some((item) => (
+    item.source === "user" && item.client_message_id === clientMessageId
+  ));
+}
+
+export type RequestAckRecoveryOutcome = "accepted" | "unknown";
+
+export class RequestAcceptanceUnknownError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RequestAcceptanceUnknownError";
+  }
+}
+
+interface RecoverRequestAckTimeoutOptions {
+  clientMessageId: string;
+  inputQueueItems: () => readonly InputQueueItem[];
+  reconnect: () => void;
+  reload: () => Promise<Message[] | null>;
+  websocketState: () => WebSocketState;
+}
+
+function restoreLiveSubscription(
+  reconnect: () => void,
+  state: WebSocketState,
+): void {
+  // connecting/reconnecting 已经会在成功后重放 session binding；其余状态
+  // 必须主动换连接，既覆盖半开 connected，也能救回已耗尽重试的 failed。
+  if (state !== "connecting" && state !== "reconnecting") {
+    reconnect();
+  }
+}
+
+/** ACK 超时后寻找 durable 正向证据，并重建可能丢事件的订阅。 */
+export async function recoverRequestAckTimeout({
+  clientMessageId,
+  inputQueueItems,
+  reconnect,
+  reload,
+  websocketState,
+}: RecoverRequestAckTimeoutOptions): Promise<RequestAckRecoveryOutcome> {
+  restoreLiveSubscription(reconnect, websocketState());
+  let messages: Message[] = [];
+  try {
+    messages = await reload() ?? [];
+  } catch {
+    // 历史读取失败不应遮蔽已经到达的 durable 队列快照。
+  }
+  if (hasAcceptedClientMessage(
+    messages,
+    clientMessageId,
+    inputQueueItems(),
+  )) {
+    return "accepted";
+  }
+  // 超时、历史缺失与当前队列缺失都不是拒绝证据：消息可能已经入队但
+  // 尚未收到重连快照，也可能刚出队而 round marker 仍在写入。
+  return "unknown";
+}
+
 export function useRequestAckFailure({
   clearOutboundRequest,
+  getInputQueueItems,
+  hasPendingRequestAck,
   rejectPendingRequestAck,
+  reloadCurrentSession,
+  resolvePendingRequestAck,
   setError,
   setMessages,
   wsReconnectRef,
   wsStateRef,
 }: UseRequestAckFailureOptions) {
-  // 超时只拒绝 ACK 等待并触发重连，失败消息由 Promise catch 统一收口。
+  // ACK 丢失不等于后端未受理；超时先重建连接并寻找正向证据，
+  // 缺少证据时仍保留 optimistic 消息。
   const handleRequestAckTimeout = useCallback((
     clientRequestId: string,
-    message: string,
+    clientMessageId: string,
   ): void => {
-    if (!rejectPendingRequestAck(clientRequestId, message)) {
-      return;
-    }
-    if (wsStateRef.current === "connected") {
-      wsReconnectRef.current();
-    }
-  }, [rejectPendingRequestAck, wsReconnectRef, wsStateRef]);
+    void recoverRequestAckTimeout({
+      clientMessageId,
+      inputQueueItems: getInputQueueItems,
+      reconnect: () => wsReconnectRef.current(),
+      reload: reloadCurrentSession,
+      websocketState: () => wsStateRef.current,
+    }).then((outcome) => {
+      // reload 期间真实 ACK 可能已经到达；此时不能再次 settle，否则会在
+      // ACK registry 留下永远无人消费的 early-ACK 状态。
+      if (!hasPendingRequestAck(clientRequestId)) {
+        return;
+      }
+      if (outcome === "accepted") {
+        resolvePendingRequestAck(clientRequestId);
+        return;
+      }
+      rejectPendingRequestAck(
+        clientRequestId,
+        new RequestAcceptanceUnknownError(
+          "连接超时，暂时无法确认消息是否已受理；已保留消息并重新连接",
+        ),
+      );
+    });
+  }, [
+    getInputQueueItems,
+    hasPendingRequestAck,
+    rejectPendingRequestAck,
+    reloadCurrentSession,
+    resolvePendingRequestAck,
+    wsReconnectRef,
+    wsStateRef,
+  ]);
 
   const settleRequestAckWaitFailure = useCallback((
     clientRequestId: string,
@@ -56,6 +158,9 @@ export function useRequestAckFailure({
     cause: unknown,
   ): void => {
     settleRequestAckWaitFailure(clientRequestId, cause);
+    if (cause instanceof RequestAcceptanceUnknownError) {
+      return;
+    }
     setMessages((currentMessages) => (
       removeFailedOutboundUserMessage(currentMessages, clientMessageId)
     ));

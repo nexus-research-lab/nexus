@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// MaxClientMessageIDBytes 限制客户端关联 ID，避免历史和队列索引被异常输入撑大。
+const MaxClientMessageIDBytes = 512
+
 // randomIDSuffix 生成 12 字节随机 hex；随机源不可用时退化为纳秒时间戳。
 func randomIDSuffix() string {
 	buffer := make([]byte, 12)

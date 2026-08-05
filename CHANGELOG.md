@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repaired historical managed session-summary ACLs once so the host policy can validate owner-scoped updates without weakening runtime isolation.
 - Treated AutoDream Agents without an available provider and model as a deferred check instead of repeatedly logging runtime errors.
 - Prevented malformed persisted task items from crashing the conversation panel.
+- Acknowledged persisted DM messages before slow runtime startup, continued their in-process rounds after WebSocket disconnects, and reconciled lost ACKs from durable history or queue evidence without discarding messages whose acceptance remains uncertain.
+- Routed default main Agent creation through the same versioned workspace lifecycle as ordinary Agents without adding initialization work to later read paths.
 - Moved optional desktop host Skill discovery out of health checks and request paths, publishing bounded live-updating last-known-good snapshots through one stable managed root shared by Catalog and runtimes.
 - Aligned platform, host, owner, and Agent-local Skill discovery on direct-child canonical names, repaired Claude fallback projections, rejected the unsupported `.agents/<name>` shape, and skipped unchanged Agent workspace initialization safely.
 - Stopped desktop state, workspace, skipped-layout, and Room migrations from recursively rewriting filesystem modes while preserving launcher-managed Linux ACLs.

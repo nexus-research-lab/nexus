@@ -203,7 +203,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 				Priority:       "internal",
 				Metadata:       validated.Metadata,
 			},
-		})
+		}, chatExecutionInline)
 	}
 	s.inputQueueDispatchMu.Unlock()
 	if err == nil && validated == nil {

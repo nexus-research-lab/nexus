@@ -17,7 +17,8 @@ func TestAgentHistoryStoreMaterializesRoundMarkerMetadata(t *testing.T) {
 	sessionKey := "agent:nexus:fs:group:oc_group_123"
 
 	if err := history.AppendRoundMarkerWithOptions(workspacePath, sessionKey, "round-1", "检查今天的定时任务发送情况", 1000, RoundMarkerOptions{
-		SourceRoundID: "round-source-1",
+		SourceRoundID:   "round-source-1",
+		ClientMessageID: "message-1",
 		Metadata: map[string]string{
 			"im.channel":             "feishu",
 			"im.platform_message_id": "om_1",
@@ -47,6 +48,9 @@ func TestAgentHistoryStoreMaterializesRoundMarkerMetadata(t *testing.T) {
 	}
 	if userRow["source_round_id"] != "round-source-1" {
 		t.Fatalf("round marker source_round_id 未投影到历史消息: %+v", userRow)
+	}
+	if userRow["client_message_id"] != "message-1" {
+		t.Fatalf("round marker 客户端消息身份未投影到历史消息: %+v", userRow)
 	}
 	metadata, ok := userRow["metadata"].(map[string]string)
 	if !ok {

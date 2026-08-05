@@ -132,7 +132,7 @@ func (m *controlMessage) handleChat() {
 			DeliveryPolicy:    m.deliveryPolicy(),
 		})
 	} else {
-		err = m.handler.dm.HandleChat(m.ctx, dmsvc.Request{
+		err = m.handler.dm.HandleRealtimeChat(m.ctx, dmsvc.Request{
 			SessionKey:      m.sessionKey,
 			AgentID:         m.stringValue("agent_id"),
 			Content:         m.stringValue("content"),

@@ -212,6 +212,50 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 }
 
+func TestServiceRetriesMainAgentWorkspaceLifecycleBeforePersisting(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, db := newAgentTestService(t, cfg)
+	manager := &recordingWorkspaceManager{initializeErr: errors.New("initialize failed")}
+	service.SetWorkspaceManager(manager)
+	ctx := context.Background()
+
+	if _, err := service.ListAgents(ctx); err == nil {
+		t.Fatal("workspace 初始化失败时不应提交主 Agent")
+	}
+	assertNoRowsForAgent(t, db, "agents", "id", cfg.DefaultAgentID)
+	if len(manager.initialized) != 1 || !manager.initialized[0].IsMain {
+		t.Fatalf("主 Agent 应进入 workspace 生命周期: %+v", manager.initialized)
+	}
+
+	manager.initializeErr = nil
+	items, err := service.ListAgents(ctx)
+	if err != nil {
+		t.Fatalf("重试主 Agent workspace 生命周期失败: %v", err)
+	}
+	if len(items) != 1 || items[0].AgentID != cfg.DefaultAgentID {
+		t.Fatalf("主 Agent 重试后未正确落库: %+v", items)
+	}
+	if len(manager.initialized) != 2 {
+		t.Fatalf("workspace 初始化调用次数 = %d, want 2", len(manager.initialized))
+	}
+	initialized := manager.initialized[1]
+	if initialized.AgentID != items[0].AgentID ||
+		initialized.OwnerUserID != items[0].OwnerUserID ||
+		initialized.WorkspacePath != items[0].WorkspacePath ||
+		!initialized.IsMain || initialized.CreatedAt.IsZero() {
+		t.Fatalf("workspace 生命周期收到的主 Agent 身份不完整: %+v", initialized)
+	}
+
+	if _, err = service.GetDefaultAgent(ctx); err != nil {
+		t.Fatalf("再次读取主 Agent 失败: %v", err)
+	}
+	if len(manager.initialized) != 2 {
+		t.Fatalf("普通读取不应重复初始化 workspace: calls=%d", len(manager.initialized))
+	}
+}
+
 func TestCreateAgentPersistsCustomizedProfileTemplate(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
@@ -562,6 +606,26 @@ type fakeAgentGoalCleaner struct {
 
 type failingWorkspaceStateCleaner struct {
 	removeCalls int
+}
+
+type recordingWorkspaceManager struct {
+	initialized   []protocol.Agent
+	initializeErr error
+}
+
+func (r *recordingWorkspaceManager) InitializeAgentWorkspace(
+	_ context.Context,
+	agentValue protocol.Agent,
+) error {
+	r.initialized = append(r.initialized, agentValue)
+	return r.initializeErr
+}
+
+func (*recordingWorkspaceManager) RemoveAgentWorkspaceState(
+	context.Context,
+	protocol.Agent,
+) error {
+	return nil
 }
 
 func (*failingWorkspaceStateCleaner) InitializeAgentWorkspace(
