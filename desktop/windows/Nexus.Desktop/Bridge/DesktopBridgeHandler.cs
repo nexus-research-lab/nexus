@@ -144,7 +144,7 @@ internal sealed class DesktopBridgeHandler
             InitialDirectory = ExistingDirectory(StringPayload(payload, "initial_path")),
             Multiselect = false,
         };
-        bool? accepted = Application.Current?.MainWindow is Window owner
+        bool? accepted = System.Windows.Application.Current?.MainWindow is System.Windows.Window owner
             ? dialog.ShowDialog(owner)
             : dialog.ShowDialog();
         if (accepted == true)
