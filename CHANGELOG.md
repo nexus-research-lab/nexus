@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reused Provider brand icons in the first-run model setup and prioritized domestic API-key services in its catalog.
 - Added WorkGraph Node Run history with bounded result/error detail and exact structured Artifact links, plus local-only collapse, full-text search, zoom, fit, and current-node navigation for large DM and Room graphs.
 - Added persistent Room member pause and resume controls that stop the member's current slots, preserve exact queued work, and gate Agent wake, Goal continuation, and WorkGraph dispatch until participation resumes.
 - Added a Room Composer “Stop all” action that freezes the active Agent-round target set at click time and sends one exact acknowledged interrupt per member.
