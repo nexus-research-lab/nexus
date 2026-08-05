@@ -14,6 +14,7 @@ type runtimeGraphRepositoryFake struct {
 	*fakeRepository
 	nodes          []protocol.ExecutionRuntimeNodeRun
 	edges          []protocol.ExecutionRuntimeEdgeRun
+	artifacts      []protocol.ExecutionRuntimeArtifactRef
 	reconciled     int
 	finishedStatus protocol.ExecutionRuntimeNodeStatus
 	graph          protocol.ExecutionRuntimeGraph
@@ -32,6 +33,14 @@ func (f *runtimeGraphRepositoryFake) UpsertRuntimeGraphEdge(
 	item protocol.ExecutionRuntimeEdgeRun,
 ) error {
 	f.edges = append(f.edges, item)
+	return nil
+}
+
+func (f *runtimeGraphRepositoryFake) UpsertRuntimeGraphArtifact(
+	_ context.Context,
+	item protocol.ExecutionRuntimeArtifactRef,
+) error {
+	f.artifacts = append(f.artifacts, item)
 	return nil
 }
 
@@ -644,26 +653,12 @@ func TestRuntimeGraphViewKeepsEveryManagedAgentRun(t *testing.T) {
 	}
 }
 
-func TestRuntimeGraphArtifactsAttachOnlyToExactToolRun(t *testing.T) {
+func TestRuntimeGraphArtifactsPersistBeforeToolRunByExactIdentity(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 8, 4, 11, 0, 0, 0, time.UTC)
-	tool := protocol.ExecutionRuntimeNodeRun{
-		ID: "runtime-tool-artifact", GraphID: "round:artifact",
-		OwnerUserID: "owner-1", SessionKey: "session-1",
-		Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-artifact",
-		RootRoundID: "round-1", RuntimeRoundID: "round-1",
-		AgentRoundID: "agent-round-1", AgentID: "agent-1",
-		Status:    protocol.ExecutionRuntimeNodeSucceeded,
-		StartedAt: now, UpdatedAt: now,
-		Metadata: map[string]any{"bridge_event_id": "tool-result"},
-	}
 	repository := &runtimeGraphRepositoryFake{
 		fakeRepository: &fakeRepository{},
-		graph: protocol.ExecutionRuntimeGraph{
-			GraphID: tool.GraphID,
-			Nodes:   []protocol.ExecutionRuntimeNodeRun{tool},
-		},
 	}
 	service := NewService(repository)
 	service.now = func() time.Time { return now.Add(time.Second) }
@@ -692,15 +687,32 @@ func TestRuntimeGraphArtifactsAttachOnlyToExactToolRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(repository.nodes) != 1 {
-		t.Fatalf("artifact writes = %+v", repository.nodes)
+	if len(repository.nodes) != 0 {
+		t.Fatalf("artifact observation must not rewrite runtime nodes: %+v", repository.nodes)
 	}
-	artifacts := runtimeGraphNodeArtifacts(repository.nodes[0])
-	if len(artifacts) != 1 || artifacts[0].Path != "reports/result.md" ||
-		artifacts[0].SourceToolUseID != "tool-artifact" {
-		t.Fatalf("exact runtime artifacts = %+v", artifacts)
+	if len(repository.artifacts) != 2 {
+		t.Fatalf("durable artifact refs = %+v", repository.artifacts)
 	}
-	projected := projectRuntimeGraphNode(repository.nodes[0], 0, true)
+	byToolUseID := make(map[string]protocol.ExecutionRuntimeArtifactRef, len(repository.artifacts))
+	for _, ref := range repository.artifacts {
+		byToolUseID[ref.ToolUseID] = ref
+	}
+	ref := byToolUseID["tool-artifact"]
+	if ref.ID == "" || ref.GraphID != "round:round-1" ||
+		ref.AgentRoundID != "agent-round-1" || ref.Artifact.Path != "reports/result.md" {
+		t.Fatalf("exact runtime artifact ref = %+v", ref)
+	}
+	if unknown := byToolUseID["unknown-tool"]; unknown.ID == "" ||
+		unknown.Artifact.Path != "reports/unknown.md" {
+		t.Fatalf("artifact arriving before its Tool NodeRun was dropped: %+v", unknown)
+	}
+	projected := projectRuntimeGraphNode(protocol.ExecutionRuntimeNodeRun{
+		ID: "runtime-tool-artifact", Kind: protocol.ExecutionRuntimeNodeTool,
+		SubjectID: "tool-artifact", AgentRoundID: "agent-round-1",
+		Status:    protocol.ExecutionRuntimeNodeSucceeded,
+		StartedAt: now, UpdatedAt: now,
+		Artifacts: []protocol.WorkspaceFileArtifactBlock{ref.Artifact},
+	}, 0, true)
 	if len(projected.Runs) != 1 || len(projected.Runs[0].Artifacts) != 1 {
 		t.Fatalf("projected runtime artifacts = %+v", projected.Runs)
 	}

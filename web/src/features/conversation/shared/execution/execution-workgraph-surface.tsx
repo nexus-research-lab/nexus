@@ -37,12 +37,7 @@ export function ExecutionWorkGraphSurface({
   const { t } = useI18n();
   const execution = resource.execution;
   const summary = execution ? resolveExecutionNodeSummary(execution) : null;
-  const hasNodes = Boolean(
-    hasExecutionGraph(execution)
-    && execution
-    && ((execution.graph?.nodes?.length ?? 0) > 0
-      || (execution.work_items?.length ?? 0) > 0),
-  );
+  const hasNodes = hasExecutionGraph(execution);
   const runtimeProjectionPartial = Boolean(
     execution?.graph?.runtime_nodes_truncated
     || execution?.graph?.runtime_edges_truncated,

@@ -442,7 +442,7 @@ export function ExecutionWorkGraphCanvas({
                   />
                   <path
                     aria-hidden="true"
-                    className="pointer-events-auto cursor-pointer focus-visible:outline-none"
+                    className="pointer-events-auto cursor-pointer"
                     d={edge.path}
                     data-execution-edge-line-hit={edge.id}
                     fill="none"

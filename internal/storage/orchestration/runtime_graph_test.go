@@ -389,7 +389,7 @@ func TestRepositoryRuntimeGraphKeepsRootAndLatestNodeWhenProjectionIsPartial(t *
 	}
 }
 
-func TestRepositoryRuntimeGraphArtifactSurvivesArtifactBeforeToolNode(t *testing.T) {
+func TestRepositoryRuntimeGraphArtifactSurvivesArtifactBeforeToolNodeAndGraphPromotion(t *testing.T) {
 	t.Parallel()
 
 	repository := newRepositoryTestStore(t)
@@ -405,8 +405,9 @@ func TestRepositoryRuntimeGraphArtifactSurvivesArtifactBeforeToolNode(t *testing
 		WorkspaceAgentID: "agent-artifact",
 	}
 	ref := protocol.ExecutionRuntimeArtifactRef{
-		ID: "runtime-artifact-before-node", GraphID: "round:artifact-before-node",
+		ID: "runtime-artifact-before-node", GraphID: "execution:artifact-promoted",
 		OwnerUserID: "owner-artifact", SessionKey: "session-artifact",
+		ExecutionID: "artifact-promoted",
 		RootRoundID: "round-artifact", AgentRoundID: "agent-round-artifact",
 		ToolUseID: artifact.SourceToolUseID, Artifact: artifact,
 		CreatedAt: now, UpdatedAt: now,
@@ -417,9 +418,10 @@ func TestRepositoryRuntimeGraphArtifactSurvivesArtifactBeforeToolNode(t *testing
 		}
 	}
 	root := protocol.ExecutionRuntimeNodeRun{
-		ID: "runtime-root-artifact", GraphID: ref.GraphID,
+		ID: "runtime-root-artifact", GraphID: "round:artifact-before-promotion",
 		OwnerUserID: ref.OwnerUserID, SessionKey: ref.SessionKey,
-		Kind: protocol.ExecutionRuntimeNodeAgent, SubjectID: ref.AgentRoundID,
+		ExecutionID: ref.ExecutionID,
+		Kind:        protocol.ExecutionRuntimeNodeAgent, SubjectID: ref.AgentRoundID,
 		RootRoundID: ref.RootRoundID, RuntimeRoundID: ref.RootRoundID,
 		AgentRoundID: ref.AgentRoundID, AgentID: "agent-artifact",
 		Status: protocol.ExecutionRuntimeNodeRunning, StartedAt: now, UpdatedAt: now,

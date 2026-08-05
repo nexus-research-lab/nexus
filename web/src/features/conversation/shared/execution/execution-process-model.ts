@@ -10,7 +10,6 @@ import type {
   ExecutionGraphNodeView,
   ExecutionStatus,
   ExecutionView,
-  ExecutionWorkItemKind,
   ExecutionWorkItemStatus,
   ExecutionWorkItemView,
 } from "@/types/conversation/execution";
@@ -79,16 +78,6 @@ export const WORK_ITEM_STATUS_LABEL_KEY: Record<
   cancelled: "execution.work_status_cancelled",
 };
 
-export const WORK_ITEM_KIND_LABEL_KEY: Record<
-  ExecutionWorkItemKind,
-  TranslationKey
-> = {
-  produce: "execution.kind_produce",
-  review: "execution.kind_review",
-  verify: "execution.kind_verify",
-  integrate: "execution.kind_integrate",
-};
-
 const WORK_ITEM_FOCUS_PRIORITY: ExecutionWorkItemStatus[] = [
   "running",
   "blocked",
@@ -108,18 +97,6 @@ export interface ExecutionNodeSummary {
   currentStep: number;
   summary: string;
   totalCount: number;
-}
-
-export interface ExecutionNodeWindow {
-  hiddenAfter: number;
-  hiddenBefore: number;
-  items: ExecutionWorkItemView[];
-}
-
-export interface ExecutionGraphNodeWindow {
-  hiddenAfter: number;
-  hiddenBefore: number;
-  nodes: ExecutionGraphNodeView[];
 }
 
 /**
@@ -209,64 +186,6 @@ export function resolveExecutionNodeSummary(
   };
 }
 
-export function resolveExecutionNodeWindow(
-  execution: ExecutionView,
-  focusId: string | null,
-  limit = 7,
-): ExecutionNodeWindow {
-  const items = orderedExecutionItems(execution);
-  if (items.length <= limit || limit <= 0) {
-    return {
-      hiddenAfter: 0,
-      hiddenBefore: 0,
-      items,
-    };
-  }
-  const focusIndex = Math.max(
-    0,
-    items.findIndex((item) => item.id === focusId),
-  );
-  const halfWindow = Math.floor(limit / 2);
-  const start = Math.min(
-    Math.max(0, focusIndex - halfWindow),
-    items.length - limit,
-  );
-  return {
-    hiddenAfter: items.length - start - limit,
-    hiddenBefore: start,
-    items: items.slice(start, start + limit),
-  };
-}
-
-export function resolveExecutionGraphNodeWindow(
-  execution: ExecutionView,
-  focusId: string | null,
-  limit = 7,
-): ExecutionGraphNodeWindow {
-  const nodes = orderedExecutionGraphNodes(execution);
-  if (nodes.length <= limit || limit <= 0) {
-    return {
-      hiddenAfter: 0,
-      hiddenBefore: 0,
-      nodes,
-    };
-  }
-  const focusIndex = Math.max(
-    0,
-    nodes.findIndex((node) => node.id === focusId),
-  );
-  const halfWindow = Math.floor(limit / 2);
-  const start = Math.min(
-    Math.max(0, focusIndex - halfWindow),
-    nodes.length - limit,
-  );
-  return {
-    hiddenAfter: nodes.length - start - limit,
-    hiddenBefore: start,
-    nodes: nodes.slice(start, start + limit),
-  };
-}
-
 /**
  * Composer 只表达参与当前托管执行的一级 Agent，不重复展示同一 Agent 的
  * Work Item，也不把 Subagent、Tool 或 Gate 混入实时跳转入口。
@@ -327,40 +246,6 @@ function primaryAgentNodeRank(
     return 0;
   }
   return 1;
-}
-
-export function resolveWorkItemDepths(
-  execution: ExecutionView,
-): Record<string, number> {
-  const items = orderedExecutionItems(execution);
-  const itemById = new Map(items.map((item) => [item.id, item]));
-  const result: Record<string, number> = {};
-  const resolveDepth = (
-    item: ExecutionWorkItemView,
-    visiting: Set<string>,
-  ): number => {
-    if (result[item.id] !== undefined) {
-      return result[item.id];
-    }
-    if (visiting.has(item.id)) {
-      return 0;
-    }
-    const nextVisiting = new Set(visiting).add(item.id);
-    const upstreamIds = item.dependency_ids ?? [];
-    let depth = 0;
-    for (const upstreamId of upstreamIds) {
-      const upstream = itemById.get(upstreamId);
-      if (upstream) {
-        depth = Math.max(depth, resolveDepth(upstream, nextVisiting) + 1);
-      }
-    }
-    result[item.id] = depth;
-    return result[item.id];
-  };
-  for (const item of items) {
-    resolveDepth(item, new Set());
-  }
-  return result;
 }
 
 export function orderedExecutionGraphNodes(

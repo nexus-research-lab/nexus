@@ -13,11 +13,11 @@ import {
   resolveExecutionGraphNodeItem,
 } from "./execution-process-model";
 
-export const EXECUTION_GRAPH_MIN_ZOOM = 0.5;
-export const EXECUTION_GRAPH_MAX_ZOOM = 1.5;
+const EXECUTION_GRAPH_MIN_ZOOM = 0.5;
+const EXECUTION_GRAPH_MAX_ZOOM = 1.5;
 export const EXECUTION_GRAPH_ZOOM_STEP = 0.1;
 
-export interface ExecutionGraphCollapseProjection {
+interface ExecutionGraphCollapseProjection {
   descendantCountByNodeId: Map<string, number>;
   hiddenNodeIds: Set<string>;
 }

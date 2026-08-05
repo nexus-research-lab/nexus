@@ -18,13 +18,9 @@ const (
 	runtimeGraphArtifactLimit        = protocol.ExecutionRuntimeGraphArtifactProjectionLimit
 )
 
-type runtimeGraphArtifactRepository interface {
-	UpsertRuntimeGraphArtifact(context.Context, protocol.ExecutionRuntimeArtifactRef) error
-}
-
 // ObserveRuntimeArtifacts 把 durable message 已确认的结构化 Artifact 先按 exact
 // ToolUse 独立持久化。Tool NodeRun 可以先到或后到；读取时才回挂，不凭路径或
-// 工具名称造节点。旧测试/替代仓储没有该能力时保留直接回挂兼容路径。
+// 工具名称造节点。所有 Runtime Graph 仓储共享同一到达顺序无关的写契约。
 func (s *Service) ObserveRuntimeArtifacts(
 	ctx context.Context,
 	actor ActorContext,
@@ -42,75 +38,33 @@ func (s *Service) ObserveRuntimeArtifacts(
 	if err != nil {
 		return err
 	}
-	if durableRepository, durable := s.repository.(runtimeGraphArtifactRepository); durable {
-		now := s.now().UTC()
-		for toolUseID, artifacts := range artifactsByToolUseID {
-			for _, artifact := range artifacts {
-				ref := protocol.ExecutionRuntimeArtifactRef{
-					GraphID:      identity.GraphID,
-					OwnerUserID:  identity.OwnerUserID,
-					SessionKey:   identity.SessionKey,
-					ExecutionID:  identity.ExecutionID,
-					RootRoundID:  identity.RootRoundID,
-					AgentRoundID: identity.AgentRoundID,
-					ToolUseID:    toolUseID,
-					Artifact:     artifact,
-					CreatedAt:    now,
-					UpdatedAt:    now,
-				}
-				ref.ID = stableRuntimeGraphID(
-					"runtime_artifact",
-					identity.OwnerUserID,
-					identity.SessionKey,
-					identity.AgentRoundID,
-					toolUseID,
-					artifact.ID,
-					artifact.Path,
-				)
-				if err = durableRepository.UpsertRuntimeGraphArtifact(ctx, ref); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
-	graph, err := repository.GetRuntimeGraph(
-		ctx,
-		identity.OwnerUserID,
-		identity.SessionKey,
-		identity.ExecutionID,
-		identity.RootRoundID,
-	)
-	if err != nil {
-		return err
-	}
-	toolNodeBySubject := make(map[string]protocol.ExecutionRuntimeNodeRun)
-	for _, node := range graph.Nodes {
-		if node.Kind != protocol.ExecutionRuntimeNodeTool ||
-			node.AgentRoundID != identity.AgentRoundID {
-			continue
-		}
-		toolNodeBySubject[strings.TrimSpace(node.SubjectID)] = node
-	}
+	now := s.now().UTC()
 	for toolUseID, artifacts := range artifactsByToolUseID {
-		node, exists := toolNodeBySubject[toolUseID]
-		if !exists {
-			continue
-		}
-		merged := mergeRuntimeGraphArtifacts(runtimeGraphNodeArtifacts(node), artifacts)
-		metadata := make(map[string]any, len(node.Metadata)+1)
-		for key, value := range node.Metadata {
-			metadata[key] = value
-		}
-		metadata[runtimeGraphArtifactsMetadataKey] = merged
-		node.Artifacts = merged
-		node.Metadata = metadata
-		now := s.now().UTC()
-		if now.After(node.UpdatedAt) {
-			node.UpdatedAt = now
-		}
-		if err = repository.UpsertRuntimeGraphNode(ctx, node); err != nil {
-			return err
+		for _, artifact := range artifacts {
+			ref := protocol.ExecutionRuntimeArtifactRef{
+				GraphID:      identity.GraphID,
+				OwnerUserID:  identity.OwnerUserID,
+				SessionKey:   identity.SessionKey,
+				ExecutionID:  identity.ExecutionID,
+				RootRoundID:  identity.RootRoundID,
+				AgentRoundID: identity.AgentRoundID,
+				ToolUseID:    toolUseID,
+				Artifact:     artifact,
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			}
+			ref.ID = stableRuntimeGraphID(
+				"runtime_artifact",
+				identity.OwnerUserID,
+				identity.SessionKey,
+				identity.AgentRoundID,
+				toolUseID,
+				artifact.ID,
+				artifact.Path,
+			)
+			if err = repository.UpsertRuntimeGraphArtifact(ctx, ref); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -187,6 +141,7 @@ func runtimeGraphNodeArtifacts(
 	item protocol.ExecutionRuntimeNodeRun,
 ) []protocol.WorkspaceFileArtifactBlock {
 	result := mergeRuntimeGraphArtifacts(nil, item.Artifacts)
+	// 只读兼容独立 Artifact 表落地前已写入 Node metadata 的本地历史数据。
 	raw, exists := item.Metadata[runtimeGraphArtifactsMetadataKey]
 	if !exists || raw == nil {
 		return result

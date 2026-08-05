@@ -19,6 +19,7 @@ import (
 type runtimeGraphRepository interface {
 	UpsertRuntimeGraphNode(context.Context, protocol.ExecutionRuntimeNodeRun) error
 	UpsertRuntimeGraphEdge(context.Context, protocol.ExecutionRuntimeEdgeRun) error
+	UpsertRuntimeGraphArtifact(context.Context, protocol.ExecutionRuntimeArtifactRef) error
 	ReconcileRuntimeGraphAgent(context.Context, string, string, string, string, time.Time) error
 	FinishRuntimeGraphRound(context.Context, string, string, string, protocol.ExecutionRuntimeNodeStatus, time.Time) error
 	GetRuntimeGraph(context.Context, string, string, string, string) (protocol.ExecutionRuntimeGraph, error)

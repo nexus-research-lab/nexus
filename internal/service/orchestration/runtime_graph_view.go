@@ -460,7 +460,7 @@ func projectRuntimeGraphNode(
 	case protocol.ExecutionRuntimeNodeTool:
 		kind = protocol.ExecutionGraphNodeTool
 		visibility = protocol.ExecutionGraphNodeDetail
-		if runtimeToolPromoted(item, promoted) {
+		if item.Status != protocol.ExecutionRuntimeNodeSucceeded || promoted {
 			visibility = protocol.ExecutionGraphNodeNested
 		}
 	case protocol.ExecutionRuntimeNodeGate:
@@ -632,16 +632,6 @@ func runtimeGraphVisibilityHint(item protocol.ExecutionRuntimeNodeRun) bool {
 	default:
 		return false
 	}
-}
-
-func runtimeToolPromoted(
-	item protocol.ExecutionRuntimeNodeRun,
-	promoted bool,
-) bool {
-	if item.Status != protocol.ExecutionRuntimeNodeSucceeded {
-		return true
-	}
-	return promoted
 }
 
 func executionGraphEdgeKey(

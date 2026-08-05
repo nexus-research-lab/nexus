@@ -217,7 +217,7 @@ const directory = {
   builder: { avatar: null, id: "builder", name: "Builder" },
 };
 
-test("WorkGraph model keeps dependency depth and current node summary", async () => {
+test("WorkGraph model keeps the managed/runtime boundary and current node summary", async () => {
   const {
     compactExecutionNodeObjective,
     hasExecutionGraph,
@@ -226,16 +226,9 @@ test("WorkGraph model keeps dependency depth and current node summary", async ()
     normalizeExecutionNodeDisplayText,
     resolveExecutionPrimaryAgentNodes,
     resolveExecutionNodeSummary,
-    resolveExecutionNodeWindow,
-    resolveWorkItemDepths,
   } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/execution-process-model.ts",
   );
-  assert.deepEqual(resolveWorkItemDepths(execution), {
-    research: 0,
-    build: 1,
-    integrate: 2,
-  });
   assert.equal(hasManagedExecutionGraph(execution), true);
   assert.equal(hasExecutionGraph(execution), true);
   assert.equal(isExecutionActivityVisible(execution), true);
@@ -274,11 +267,6 @@ test("WorkGraph model keeps dependency depth and current node summary", async ()
     summary: "实现 UI",
     totalCount: 3,
   });
-  assert.deepEqual(resolveExecutionNodeWindow(execution, "build"), {
-    hiddenAfter: 0,
-    hiddenBefore: 0,
-    items: execution.work_items,
-  });
   assert.equal(
     compactExecutionNodeObjective(
       "Researcher 收集与 Room 工作图相关的公开资料",
@@ -304,21 +292,24 @@ test("WorkGraph model keeps dependency depth and current node summary", async ()
     ),
     "Page failed",
   );
-
-  const contained = structuredClone(execution);
-  contained.work_items[2].dependency_ids = [];
-  contained.work_items[2].parent_work_item_id = "build";
-  assert.equal(
-    resolveWorkItemDepths(contained).integrate,
-    0,
-    "Work Item containment must not become a readiness/layout dependency",
-  );
 });
 
-test("WorkGraph layout reflows when Plan nodes are added or removed", async () => {
+test("WorkGraph layout reflows without treating containment as dependency", async () => {
   const { buildExecutionGraphLayout } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/execution-workgraph-layout.ts",
   );
+  const contained = structuredClone(execution);
+  contained.work_items[2].dependency_ids = [];
+  contained.work_items[2].parent_work_item_id = "build";
+  delete contained.graph;
+  assert.equal(
+    buildExecutionGraphLayout(contained).edges.some((edge) => (
+      edge.sourceId === "build" && edge.targetId === "integrate"
+    )),
+    false,
+    "Work Item containment must not become a readiness/layout dependency",
+  );
+
   const branched = structuredClone(execution);
   branched.version += 1;
   branched.work_items.splice(2, 0, {

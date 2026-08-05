@@ -29,7 +29,7 @@ const VERTICAL_PADDING = 24;
 const MIN_CANVAS_WIDTH = 340;
 const MIN_CANVAS_HEIGHT = 136;
 
-export interface ExecutionGraphNodeLayout {
+interface ExecutionGraphNodeLayout {
   item: ExecutionWorkItemView | null;
   node: ExecutionGraphNodeView;
   size: number;
@@ -37,7 +37,7 @@ export interface ExecutionGraphNodeLayout {
   y: number;
 }
 
-export interface ExecutionGraphEdgeLayout {
+interface ExecutionGraphEdgeLayout {
   edge: ExecutionGraphEdgeView;
   id: string;
   kind: ExecutionGraphEdgeKind;
@@ -48,7 +48,7 @@ export interface ExecutionGraphEdgeLayout {
   y: number;
 }
 
-export interface ExecutionGraphGroupLayout {
+interface ExecutionGraphGroupLayout {
   height: number;
   id: string;
   nodeIds: string[];
@@ -57,7 +57,7 @@ export interface ExecutionGraphGroupLayout {
   y: number;
 }
 
-export interface ExecutionGraphLayout {
+interface ExecutionGraphLayout {
   edges: ExecutionGraphEdgeLayout[];
   groups: ExecutionGraphGroupLayout[];
   height: number;
