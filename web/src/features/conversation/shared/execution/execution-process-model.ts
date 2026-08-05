@@ -100,22 +100,23 @@ export interface ExecutionNodeSummary {
 }
 
 /**
- * 只有具备托管 Plan/Work Item 的 Execution 才是用户选择启动的工作图。
- * 普通对话轮次产生的 runtime 观测节点不能让工作图入口常驻。
+ * plan_execution 只有在原子写入 active Plan 与非空 Work Items 后才算
+ * 成功创建工作图。普通对话轮次的 runtime 观测节点不能触发任何
+ * WorkGraph UI。
  */
 export function hasManagedExecutionGraph(
   execution: ExecutionView | null,
 ): boolean {
   return Boolean(
     execution
-    && (execution.plan || (execution.work_items?.length ?? 0) > 0),
+    && execution.plan?.status === "active"
+    && (execution.work_items?.length ?? 0) > 0,
   );
 }
 
 /**
- * Runtime-only Agent Loop 与托管 WorkGraph 共用同一读模型。
- * 这里只判断是否存在可见运行事实，不把它升级为 Plan、
- * Assignment 或 Goal，也不改变 Agent 的结构选择。
+ * Runtime-only Agent Loop 与托管 WorkGraph 共用同一读模型。这个判定
+ * 只供图内部节点投影使用，不代表 WorkGraph UI 已可用。
  */
 export function hasExecutionGraph(
   execution: ExecutionView | null,
@@ -131,7 +132,7 @@ export function isExecutionActivityVisible(
   execution: ExecutionView | null,
 ): execution is ExecutionView {
   return Boolean(
-    hasExecutionGraph(execution)
+    hasManagedExecutionGraph(execution)
     && execution
     && !isTerminalExecutionStatus(execution.status),
   );

@@ -232,6 +232,12 @@ test("WorkGraph model keeps the managed/runtime boundary and current node summar
   assert.equal(hasManagedExecutionGraph(execution), true);
   assert.equal(hasExecutionGraph(execution), true);
   assert.equal(isExecutionActivityVisible(execution), true);
+  const planWithoutItems = structuredClone(execution);
+  planWithoutItems.work_items = [];
+  assert.equal(hasManagedExecutionGraph(planWithoutItems), false);
+  const itemsWithoutActivePlan = structuredClone(execution);
+  itemsWithoutActivePlan.plan.status = "proposed";
+  assert.equal(hasManagedExecutionGraph(itemsWithoutActivePlan), false);
   assert.deepEqual(
     resolveExecutionPrimaryAgentNodes(execution).map((node) => node.id),
     ["research", "build"],
@@ -520,7 +526,11 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
 
   assert.equal(hasManagedExecutionGraph(runtimeExecution), false);
   assert.equal(hasExecutionGraph(runtimeExecution), true);
-  assert.equal(isExecutionActivityVisible(runtimeExecution), true);
+  assert.equal(
+    isExecutionActivityVisible(runtimeExecution),
+    false,
+    "runtime-only observations do not expose the Composer WorkGraph dock",
+  );
 
   assert.deepEqual(
     orderedExecutionGraphNodes(runtimeExecution).map((node) => node.id),
@@ -1013,6 +1023,8 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
     groupControllerSource,
     dmProjectionSource,
     groupProjectionSource,
+    desktopSurfaceSource,
+    mobileSurfaceSource,
     headerSource,
     headerCss,
   ] =
@@ -1039,6 +1051,14 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
       ), "utf8"),
       readFile(path.join(
         webRoot,
+        "src/features/conversation/room/surface/layout/room-surface-content.tsx",
+      ), "utf8"),
+      readFile(path.join(
+        webRoot,
+        "src/features/conversation/room/surface/mobile/room-mobile-surface.tsx",
+      ), "utf8"),
+      readFile(path.join(
+        webRoot,
         "src/features/conversation/room/surface/header/room-header-tabs.ts",
       ), "utf8"),
       readFile(path.join(
@@ -1053,6 +1073,14 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
   assert.match(groupProjectionSource, /scrollToRoundId\(roundId/);
   assert.match(dmProjectionSource, /isExecutionActivityVisible/);
   assert.match(groupProjectionSource, /isExecutionActivityVisible/);
+  assert.match(
+    desktopSurfaceSource,
+    /hasManagedExecutionGraph\(\s*executionResource\.execution,?\s*\)/,
+  );
+  assert.match(
+    mobileSurfaceSource,
+    /hasManagedExecutionGraph\(\s*executionResource\.execution,?\s*\)/,
+  );
   assert.match(shellSource, /executionResource=\{executionResource\}/);
   assert.match(headerSource, /key: "workgraph"/);
   assert.match(headerCss, /workspace-surface-header-with-session-tabs[\s\S]*32px/);

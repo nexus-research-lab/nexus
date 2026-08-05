@@ -1,10 +1,10 @@
 # Execution WorkGraph
 
 - `use-execution-resource.ts` 只读取后端 `ExecutionView`，以 WebSocket activity invalidation 合并刷新；30 秒活动态检查只用于断线恢复，并在读取失败而保留旧快照时显式暴露 stale/last-successful-at，不派生第二套状态机。
-- `execution-process-panel.tsx` 是 Composer 上方的实时 Agent Dock：只显示去重后的一级 Agent 责任节点，以轻量连线保留协作链路感知，工作图入口固定在右侧；绿色只表示该 Agent 正在运行。点击带精确 `agent_round_id` 的头像跳转到对应消息轮次，图标按钮打开右侧完整工作图。这里不得复制 DAG，也不得混入 Tool、Gate 或 Subagent。
-- `execution-workgraph-surface.tsx` 是 Header “工作图”入口对应的完整辅助 Surface；它与缩略入口消费 `room-surface-shell.tsx` 中同一个 `ExecutionResource` 和同一组 Task runs，不得自行轮询、复制状态机或制造第二份图快照。
+- `execution-process-panel.tsx` 是 Composer 上方的实时 Agent Dock：只有 `plan_execution` 成功持久化 active Plan 和非空 Work Items 后才显示；它只展示去重后的一级 Agent 责任节点，以轻量连线保留协作链路感知，工作图入口固定在右侧；绿色只表示该 Agent 正在运行。点击带精确 `agent_round_id` 的头像跳转到对应消息轮次，图标按钮打开右侧完整工作图。这里不得复制 DAG，也不得混入 Tool、Gate 或 Subagent。
+- `execution-workgraph-surface.tsx` 是 Header “工作图”入口对应的完整辅助 Surface；Header、移动端菜单与 Composer Dock 共用 `hasManagedExecutionGraph` 判定创建成功，普通 runtime-only 图不得暴露任何 WorkGraph UI。Surface 与缩略入口消费 `room-surface-shell.tsx` 中同一个 `ExecutionResource` 和同一组 Task runs，不得自行轮询、复制状态机或制造第二份图快照。
 - `execution-node-avatar.tsx` 是 Agent Dock 与完整节点图共用的 Agent/Subagent/未分配节点原语；完整图投影生命周期，Dock 投影实时活动，二者不得复用绿色表达不同状态。Subagent 使用 child runtime identity 的稳定头像，不借用父 Work Item owner 头像。
-- `execution-process-model.ts` 只做标签、当前节点、一级 Agent 去重、Lead/coordination 优先顺序、稳定头像 identity 与运行图可见性投影。无 Plan 的 runtime-only Agent Loop 也能暴露同一 WorkGraph UI，但不得因此冒充 managed Execution、Assignment 或 Goal。`coordination` 只表达 Lead 对已声明根工作项的责任，禁止冒充已经发生的 dispatch；`parent_work_item_id` 是 containment，禁止进入 readiness 或布局边。
+- `execution-process-model.ts` 只做标签、当前节点、一级 Agent 去重、Lead/coordination 优先顺序、稳定头像 identity 与运行图可见性投影。无 Plan 的 runtime-only Agent Loop 可保留同一读模型作为上下文与诊断事实，但不得触发 Header、移动端菜单或 Composer Dock，也不得因此冒充 managed Execution、Assignment 或 Goal。`coordination` 只表达 Lead 对已声明根工作项的责任，禁止冒充已经发生的 dispatch；`parent_work_item_id` 是 containment，禁止进入 readiness 或布局边。
 - `execution-node-task-model.ts` 只允许以 WorkAttempt 的 `executor_agent_id + agent_round_id` 精确关联 Conversation Task run；缺失或不匹配时不展示，禁止按 Agent、消息位置或时间猜测节点归属。
 - `execution-node-task-list.tsx` 只把命中的 runtime-local Task 作为节点局部步骤展示，不把 Task 状态提升为 Work Item、Submission 或 Acceptance。
 - `execution-workgraph-layout.ts` 保持主责任图横向依赖/dispatch 层级，把同一 Agent 的可见 Tool/Subagent 按结构化父身份向下组织成紧凑子图；后端显式边优先，历史快照仅在可见节点已有 `parent_node_id`、同一 `agent_round_id` 或唯一同责任 Agent 时补出 invoke/spawn 方向边，禁止留下孤点或从文字猜关系。`loop_back` 只表达失败或 Gate 后控制权已经返回，`retry` 只表达 Agent 已明确选择并精确关联的再次执行；两者都是控制边，不参与父级或深度推断。托管 WorkGraph 只接收已绑定 Work/Review/Coordination lane 的 runtime Agent，普通 Room reply root 留在 Conversation activity。
