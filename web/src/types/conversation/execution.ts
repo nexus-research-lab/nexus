@@ -99,6 +99,39 @@ export type ExecutionGraphEdgeKind =
   | "loop_back"
   | "retry";
 
+export interface ExecutionGraphArtifactView {
+  id?: string;
+  type: "workspace_file_artifact";
+  path: string;
+  display_path?: string;
+  label?: string;
+  title?: string;
+  artifact_kind?: string;
+  mime_type?: string;
+  operation?: string;
+  scope?: "agent_workspace";
+  workspace_agent_id?: string;
+  source_tool_use_id?: string;
+  source_tool_name?: string;
+}
+
+export interface ExecutionGraphNodeRunView {
+  id: string;
+  attempt_id?: string;
+  runtime_node_id?: string;
+  agent_round_id?: string;
+  subject_id?: string;
+  status?: string;
+  result_summary?: string;
+  error_code?: string;
+  error_summary?: string;
+  summary_truncated?: boolean;
+  duration_ms?: number;
+  started_at?: string;
+  finished_at?: string;
+  artifacts?: ExecutionGraphArtifactView[];
+}
+
 export interface ExecutionGraphNodeView {
   id: string;
   kind: ExecutionGraphNodeKind;
@@ -123,6 +156,7 @@ export interface ExecutionGraphNodeView {
   duration_ms?: number;
   started_at?: string;
   finished_at?: string;
+  runs?: ExecutionGraphNodeRunView[];
   position: number;
 }
 

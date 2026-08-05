@@ -238,3 +238,86 @@ func TestRepositoryRuntimeGraphPersistsTerminalSummaryAndExactRetryEdge(t *testi
 		t.Fatalf("stored retry edge = %+v", graph.Edges[0])
 	}
 }
+
+func TestRepositoryRuntimeGraphSurvivesOutOfOrderDuplicateAndDisconnect(t *testing.T) {
+	t.Parallel()
+
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 4, 14, 0, 0, 0, time.UTC)
+	root := protocol.ExecutionRuntimeNodeRun{
+		ID: "runtime-root-fault", GraphID: "round:fault",
+		OwnerUserID: "owner-fault", SessionKey: "session-fault",
+		Kind: protocol.ExecutionRuntimeNodeAgent, SubjectID: "agent-round-fault",
+		RootRoundID: "round-fault", RuntimeRoundID: "round-fault",
+		AgentRoundID: "agent-round-fault", AgentID: "agent-fault",
+		Status: protocol.ExecutionRuntimeNodeRunning, StartedAt: now, UpdatedAt: now,
+	}
+	finishedAt := now.Add(2 * time.Second)
+	toolFinished := protocol.ExecutionRuntimeNodeRun{
+		ID: "runtime-tool-fault", GraphID: root.GraphID,
+		OwnerUserID: root.OwnerUserID, SessionKey: root.SessionKey,
+		Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-fault",
+		RootRoundID: root.RootRoundID, RuntimeRoundID: root.RuntimeRoundID,
+		AgentRoundID: root.AgentRoundID, AgentID: root.AgentID,
+		Name: "provider-neutral-tool", Status: protocol.ExecutionRuntimeNodeSucceeded,
+		ResultSummary: "Completed before its start event was replayed",
+		StartedAt:     now.Add(time.Second), UpdatedAt: finishedAt, FinishedAt: &finishedAt,
+	}
+	if err := repository.UpsertRuntimeGraphNode(ctx, root); err != nil {
+		t.Fatal(err)
+	}
+	// The terminal observation can arrive before a delayed/replayed start.
+	if err := repository.UpsertRuntimeGraphNode(ctx, toolFinished); err != nil {
+		t.Fatal(err)
+	}
+	lateStart := toolFinished
+	lateStart.Status = protocol.ExecutionRuntimeNodeRunning
+	lateStart.ResultSummary = ""
+	lateStart.FinishedAt = nil
+	lateStart.UpdatedAt = now.Add(4 * time.Second)
+	if err := repository.UpsertRuntimeGraphNode(ctx, lateStart); err != nil {
+		t.Fatal(err)
+	}
+	edge := protocol.ExecutionRuntimeEdgeRun{
+		ID: "runtime-edge-fault", GraphID: root.GraphID,
+		OwnerUserID: root.OwnerUserID, SessionKey: root.SessionKey,
+		SourceNodeID: root.ID, TargetNodeID: toolFinished.ID,
+		Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now.Add(time.Second),
+	}
+	for index := 0; index < 2; index++ {
+		if err := repository.UpsertRuntimeGraphEdge(ctx, edge); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Simulate a provider disconnect after the tool has already completed.
+	if err := repository.FinishRuntimeGraphRound(
+		ctx,
+		root.OwnerUserID,
+		root.SessionKey,
+		root.AgentRoundID,
+		protocol.ExecutionRuntimeNodeFailed,
+		now.Add(5*time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+	graph, err := repository.GetRuntimeGraph(ctx, root.OwnerUserID, root.SessionKey, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(graph.Nodes) != 2 || len(graph.Edges) != 1 {
+		t.Fatalf("fault-injected runtime graph = %+v", graph)
+	}
+	byID := make(map[string]protocol.ExecutionRuntimeNodeRun, len(graph.Nodes))
+	for _, node := range graph.Nodes {
+		byID[node.ID] = node
+	}
+	if byID[root.ID].Status != protocol.ExecutionRuntimeNodeFailed {
+		t.Fatalf("disconnected root = %+v", byID[root.ID])
+	}
+	if byID[toolFinished.ID].Status != protocol.ExecutionRuntimeNodeSucceeded ||
+		byID[toolFinished.ID].FinishedAt == nil ||
+		byID[toolFinished.ID].ResultSummary != toolFinished.ResultSummary {
+		t.Fatalf("late start reopened terminal tool = %+v", byID[toolFinished.ID])
+	}
+}

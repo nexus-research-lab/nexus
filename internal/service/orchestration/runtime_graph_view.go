@@ -303,6 +303,7 @@ func updateBoundExecutionGraphNode(
 		finishedAt := runtimeNode.FinishedAt.UTC()
 		node.FinishedAt = &finishedAt
 	}
+	mergeExecutionGraphNodeRun(node, runtimeNode)
 }
 
 func appendCoordinatorCoordinationEdges(
@@ -462,7 +463,96 @@ func projectRuntimeGraphNode(
 		DurationMS:       runtimeNodeDurationMS(item),
 		StartedAt:        &startedAt,
 		FinishedAt:       finishedAt,
+		Runs:             []protocol.ExecutionGraphNodeRunView{runtimeGraphNodeRunView(item)},
 		Position:         position,
+	}
+}
+
+func mergeExecutionGraphNodeRun(
+	node *protocol.ExecutionGraphNodeView,
+	item protocol.ExecutionRuntimeNodeRun,
+) {
+	if node == nil {
+		return
+	}
+	runtimeRun := runtimeGraphNodeRunView(item)
+	for index := range node.Runs {
+		candidate := &node.Runs[index]
+		exactRuntimeNode := candidate.RuntimeNodeID != "" &&
+			candidate.RuntimeNodeID == runtimeRun.RuntimeNodeID
+		exactAgentRound := candidate.AgentRoundID != "" &&
+			candidate.AgentRoundID == runtimeRun.AgentRoundID
+		exactSubject := node.Kind != protocol.ExecutionGraphNodeAgent &&
+			candidate.SubjectID != "" && candidate.SubjectID == runtimeRun.SubjectID
+		if !exactRuntimeNode && !exactAgentRound && !exactSubject {
+			continue
+		}
+		mergeExecutionGraphRun(candidate, runtimeRun)
+		return
+	}
+	node.Runs = append(node.Runs, runtimeRun)
+	slices.SortFunc(node.Runs, func(left, right protocol.ExecutionGraphNodeRunView) int {
+		if left.StartedAt != nil && right.StartedAt != nil {
+			if order := left.StartedAt.Compare(*right.StartedAt); order != 0 {
+				return order
+			}
+		}
+		return strings.Compare(left.ID, right.ID)
+	})
+}
+
+func mergeExecutionGraphRun(
+	target *protocol.ExecutionGraphNodeRunView,
+	source protocol.ExecutionGraphNodeRunView,
+) {
+	if target == nil {
+		return
+	}
+	target.RuntimeNodeID = source.RuntimeNodeID
+	target.AgentRoundID = firstNonEmpty(source.AgentRoundID, target.AgentRoundID)
+	target.SubjectID = firstNonEmpty(source.SubjectID, target.SubjectID)
+	target.Status = firstNonEmpty(source.Status, target.Status)
+	target.ResultSummary = firstNonEmpty(source.ResultSummary, target.ResultSummary)
+	target.ErrorCode = firstNonEmpty(source.ErrorCode, target.ErrorCode)
+	target.ErrorSummary = firstNonEmpty(source.ErrorSummary, target.ErrorSummary)
+	target.SummaryTruncated = target.SummaryTruncated || source.SummaryTruncated
+	if source.DurationMS > 0 {
+		target.DurationMS = source.DurationMS
+	}
+	if source.StartedAt != nil {
+		target.StartedAt = source.StartedAt
+	}
+	if source.FinishedAt != nil {
+		target.FinishedAt = source.FinishedAt
+	}
+	if len(source.Artifacts) > 0 {
+		target.Artifacts = source.Artifacts
+	}
+}
+
+func runtimeGraphNodeRunView(
+	item protocol.ExecutionRuntimeNodeRun,
+) protocol.ExecutionGraphNodeRunView {
+	startedAt := item.StartedAt.UTC()
+	var finishedAt *time.Time
+	if item.FinishedAt != nil {
+		value := item.FinishedAt.UTC()
+		finishedAt = &value
+	}
+	return protocol.ExecutionGraphNodeRunView{
+		ID:               item.ID,
+		RuntimeNodeID:    item.ID,
+		AgentRoundID:     item.AgentRoundID,
+		SubjectID:        item.SubjectID,
+		Status:           string(item.Status),
+		ResultSummary:    item.ResultSummary,
+		ErrorCode:        item.ErrorCode,
+		ErrorSummary:     item.ErrorSummary,
+		SummaryTruncated: item.SummaryTruncated,
+		DurationMS:       runtimeNodeDurationMS(item),
+		StartedAt:        &startedAt,
+		FinishedAt:       finishedAt,
+		Artifacts:        runtimeGraphNodeArtifacts(item),
 	}
 }
 

@@ -7,14 +7,20 @@ import { FileArtifactBlock } from "./file/file-artifact-block";
 
 interface WorkspaceFileArtifactListProps {
   artifacts: WorkspaceFileArtifactContent[];
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: (
+    path: string,
+    workspaceAgentId?: string | null,
+  ) => void;
   label?: string;
   className?: string;
 }
 
 interface WorkspaceFileArtifactBlockProps {
   artifact: WorkspaceFileArtifactContent;
-  onOpenWorkspaceFile?: (path: string) => void;
+  onOpenWorkspaceFile?: (
+    path: string,
+    workspaceAgentId?: string | null,
+  ) => void;
   compact?: boolean;
   className?: string;
 }

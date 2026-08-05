@@ -117,19 +117,19 @@ func TestProjectExecutionViewPreservesResponsibilityAndAcceptanceFlow(t *testing
 		coordinator.AgentID != "lead" || coordinator.Position != -1 {
 		t.Fatalf("Room coordinator node projection is incomplete: %+v", coordinator)
 	}
-	if graphNodeByID(view.Graph.Nodes, "work-b") != (protocol.ExecutionGraphNodeView{
-		ID:                   "work-b",
-		Kind:                 protocol.ExecutionGraphNodeAgent,
-		Visibility:           protocol.ExecutionGraphNodePrimary,
-		WorkItemID:           "work-b",
-		AttemptID:            "attempt-root",
-		AgentID:              "builder",
-		AgentRoundID:         "agent-round-builder-1",
-		ResponsibilityStatus: protocol.ExecutionWorkItemViewRunning,
-		RunStatus:            protocol.WorkAttemptStatusRunning,
-		Position:             1,
-	}) {
-		t.Fatalf("primary Agent node projection is incomplete: %+v", graphNodeByID(view.Graph.Nodes, "work-b"))
+	workNode := graphNodeByID(view.Graph.Nodes, "work-b")
+	if workNode.ID != "work-b" ||
+		workNode.Kind != protocol.ExecutionGraphNodeAgent ||
+		workNode.Visibility != protocol.ExecutionGraphNodePrimary ||
+		workNode.WorkItemID != "work-b" ||
+		workNode.AttemptID != "attempt-root" ||
+		workNode.AgentID != "builder" ||
+		workNode.AgentRoundID != "agent-round-builder-1" ||
+		workNode.ResponsibilityStatus != protocol.ExecutionWorkItemViewRunning ||
+		workNode.RunStatus != protocol.WorkAttemptStatusRunning ||
+		workNode.Position != 1 || len(workNode.Runs) != 1 ||
+		workNode.Runs[0].AttemptID != "attempt-root" {
+		t.Fatalf("primary Agent node projection is incomplete: %+v", workNode)
 	}
 	child := graphNodeByID(view.Graph.Nodes, "attempt-child")
 	if child.Kind != protocol.ExecutionGraphNodeSubagent ||

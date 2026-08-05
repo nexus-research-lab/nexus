@@ -277,32 +277,39 @@ func (s *Service) runSlot(
 }
 
 func (e *slotExecution) orchestrationActor() orchestration.ActorContext {
-	goalAuthority := e.slot.goalMutationAuthority()
+	return roomOrchestrationActor(e.round, e.slot)
+}
+
+func roomOrchestrationActor(
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+) orchestration.ActorContext {
+	goalAuthority := slot.goalMutationAuthority()
 	actor := orchestration.ActorContext{
-		OwnerUserID: e.round.OwnerUserID,
-		SessionKey:  e.round.SessionKey,
+		OwnerUserID: roundValue.OwnerUserID,
+		SessionKey:  roundValue.SessionKey,
 		ExecutionID: firstNonEmptyString(
 			executionIDFromRoomBindings(
-				e.slot.WorkBinding,
-				e.slot.ReviewBinding,
+				slot.WorkBinding,
+				slot.ReviewBinding,
 			),
-			e.round.ExecutionID,
+			roundValue.ExecutionID,
 		),
-		WorkBinding:           cloneExecutionWorkBinding(e.slot.WorkBinding),
-		ReviewBinding:         cloneExecutionReviewBinding(e.slot.ReviewBinding),
+		WorkBinding:           cloneExecutionWorkBinding(slot.WorkBinding),
+		ReviewBinding:         cloneExecutionReviewBinding(slot.ReviewBinding),
 		GoalID:                strings.TrimSpace(goalAuthority.GoalID),
 		GoalObjectiveRevision: goalAuthority.ObjectiveRevision,
-		AgentID:               e.slot.AgentID,
+		AgentID:               slot.AgentID,
 		ActorKind:             protocol.ExecutionActorAgent,
 		ScopeKind:             protocol.ExecutionScopeRoom,
-		RoomID:                e.round.RoomID,
-		ConversationID:        e.round.ConversationID,
-		RootRoundID:           e.round.RootRoundID,
-		RuntimeRoundID:        e.slot.AgentRoundID,
-		AgentRoundID:          e.slot.AgentRoundID,
-		PlanMode:              e.round.PermissionMode == sdkpermission.ModePlan,
+		RoomID:                roundValue.RoomID,
+		ConversationID:        roundValue.ConversationID,
+		RootRoundID:           roundValue.RootRoundID,
+		RuntimeRoundID:        slot.AgentRoundID,
+		AgentRoundID:          slot.AgentRoundID,
+		PlanMode:              roundValue.PermissionMode == sdkpermission.ModePlan,
 	}
-	actor.Role = roomExecutionActorRole(e.round.CoordinatorAgentID, e.slot.AgentID)
+	actor.Role = roomExecutionActorRole(roundValue.CoordinatorAgentID, slot.AgentID)
 	return actor
 }
 
@@ -481,6 +488,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 			return err
 		}
 	}
+	e.service.observeExecutionRuntimeArtifacts(e.orchestrationActor(), messageValue)
 	e.service.recordGoalUsageFromSlotAssistantMessage(e.ctx, e.slot, messageValue)
 	return nil
 }

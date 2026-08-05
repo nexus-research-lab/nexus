@@ -1,5 +1,5 @@
 // INPUT: Bridge provider-neutral lifecycle event 与 Nexus round identity。
-// OUTPUT: 可幂等持久化并与托管 WorkGraph 合并的 Runtime NodeRun / EdgeRun。
+// OUTPUT: 可幂等持久化并与托管 WorkGraph 合并的 Runtime NodeRun / EdgeRun，以及 exact ToolRun 的结构化 Artifact 引用。
 // POS: runtime 观测事实的协议模型；不承载 Plan、Assignment 或 Goal 生命周期。
 package protocol
 
@@ -41,31 +41,32 @@ const (
 
 // ExecutionRuntimeNodeRun 是一次可恢复、可去重的运行节点事实。
 type ExecutionRuntimeNodeRun struct {
-	ID               string                     `json:"id"`
-	GraphID          string                     `json:"graph_id"`
-	OwnerUserID      string                     `json:"owner_user_id"`
-	SessionKey       string                     `json:"session_key"`
-	ExecutionID      string                     `json:"execution_id,omitempty"`
-	Kind             ExecutionRuntimeNodeKind   `json:"kind"`
-	SubjectID        string                     `json:"subject_id"`
-	ParentSubjectID  string                     `json:"parent_subject_id,omitempty"`
-	RootRoundID      string                     `json:"root_round_id"`
-	RuntimeRoundID   string                     `json:"runtime_round_id"`
-	AgentRoundID     string                     `json:"agent_round_id"`
-	AgentID          string                     `json:"agent_id,omitempty"`
-	Name             string                     `json:"name,omitempty"`
-	Description      string                     `json:"description,omitempty"`
-	Status           ExecutionRuntimeNodeStatus `json:"status"`
-	Failed           bool                       `json:"failed,omitempty"`
-	ResultSummary    string                     `json:"result_summary,omitempty"`
-	ErrorCode        string                     `json:"error_code,omitempty"`
-	ErrorSummary     string                     `json:"error_summary,omitempty"`
-	SummaryTruncated bool                       `json:"summary_truncated,omitempty"`
-	DurationMS       int64                      `json:"duration_ms,omitempty"`
-	StartedAt        time.Time                  `json:"started_at"`
-	UpdatedAt        time.Time                  `json:"updated_at"`
-	FinishedAt       *time.Time                 `json:"finished_at,omitempty"`
-	Metadata         map[string]any             `json:"metadata,omitempty"`
+	ID               string                       `json:"id"`
+	GraphID          string                       `json:"graph_id"`
+	OwnerUserID      string                       `json:"owner_user_id"`
+	SessionKey       string                       `json:"session_key"`
+	ExecutionID      string                       `json:"execution_id,omitempty"`
+	Kind             ExecutionRuntimeNodeKind     `json:"kind"`
+	SubjectID        string                       `json:"subject_id"`
+	ParentSubjectID  string                       `json:"parent_subject_id,omitempty"`
+	RootRoundID      string                       `json:"root_round_id"`
+	RuntimeRoundID   string                       `json:"runtime_round_id"`
+	AgentRoundID     string                       `json:"agent_round_id"`
+	AgentID          string                       `json:"agent_id,omitempty"`
+	Name             string                       `json:"name,omitempty"`
+	Description      string                       `json:"description,omitempty"`
+	Status           ExecutionRuntimeNodeStatus   `json:"status"`
+	Failed           bool                         `json:"failed,omitempty"`
+	ResultSummary    string                       `json:"result_summary,omitempty"`
+	ErrorCode        string                       `json:"error_code,omitempty"`
+	ErrorSummary     string                       `json:"error_summary,omitempty"`
+	SummaryTruncated bool                         `json:"summary_truncated,omitempty"`
+	DurationMS       int64                        `json:"duration_ms,omitempty"`
+	StartedAt        time.Time                    `json:"started_at"`
+	UpdatedAt        time.Time                    `json:"updated_at"`
+	FinishedAt       *time.Time                   `json:"finished_at,omitempty"`
+	Artifacts        []WorkspaceFileArtifactBlock `json:"artifacts,omitempty"`
+	Metadata         map[string]any               `json:"metadata,omitempty"`
 }
 
 // ExecutionRuntimeEdgeRun 是两个已持久化 NodeRun 之间的运行边。

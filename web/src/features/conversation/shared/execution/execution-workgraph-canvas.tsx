@@ -6,6 +6,7 @@
 "use client";
 
 import {
+  Fragment,
   useEffect,
   useId,
   useMemo,
@@ -14,7 +15,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { X } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, X } from "lucide-react";
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -29,6 +30,7 @@ import type {
 } from "@/types/conversation/execution";
 
 import { ExecutionNodeAvatar } from "./execution-node-avatar";
+import { ExecutionNodeRunHistory } from "./execution-node-run-history";
 import { ExecutionNodeTaskList } from "./execution-node-task-list";
 import { resolveExecutionNodeTaskRun } from "./execution-node-task-model";
 import {
@@ -40,6 +42,16 @@ import {
   WORK_ITEM_STATUS_LABEL_KEY,
 } from "./execution-process-model";
 import { buildExecutionGraphLayout } from "./execution-workgraph-layout";
+import { ExecutionWorkGraphControls } from "./execution-workgraph-controls";
+import {
+  clampExecutionGraphZoom,
+  EXECUTION_GRAPH_ZOOM_STEP,
+  nextExecutionGraphSearchResult,
+  projectExecutionGraphCollapse,
+  resolveExecutionGraphFitZoom,
+  resolveExecutionGraphNodeAncestors,
+  searchExecutionGraphNodes,
+} from "./execution-workgraph-interaction-model";
 
 const ATTEMPT_STATUS_LABEL_KEY: Record<
   ExecutionAttemptView["status"],
@@ -62,11 +74,16 @@ export function ExecutionWorkGraphCanvas({
   currentId,
   directory,
   execution,
+  onOpenWorkspaceFile,
   taskRuns,
 }: {
   currentId: string | null;
   directory: ExecutionAgentDirectory;
   execution: ExecutionView;
+  onOpenWorkspaceFile?: (
+    path: string,
+    workspaceAgentId?: string | null,
+  ) => void;
   taskRuns: readonly ConversationTaskRun[];
 }) {
   const { t } = useI18n();
@@ -74,12 +91,34 @@ export function ExecutionWorkGraphCanvas({
   const loopMarkerId = `${markerId}-loop`;
   const retryMarkerId = `${markerId}-retry`;
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const nodeRefs = useRef(new Map<string, HTMLButtonElement>());
   const [availableWidth, setAvailableWidth] = useState<number | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const layout = useMemo(
-    () => buildExecutionGraphLayout(execution, availableWidth ?? undefined),
-    [availableWidth, execution],
+  const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(
+    () => new Set(),
   );
+  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const collapse = useMemo(
+    () => projectExecutionGraphCollapse(execution, collapsedNodeIds),
+    [collapsedNodeIds, execution],
+  );
+  const layout = useMemo(
+    () => buildExecutionGraphLayout(
+      execution,
+      availableWidth ?? undefined,
+      collapse.hiddenNodeIds,
+    ),
+    [availableWidth, collapse.hiddenNodeIds, execution],
+  );
+  const searchResultIds = useMemo(
+    () => searchExecutionGraphNodes(execution, query),
+    [execution, query],
+  );
+  const currentSearchResultIndex = selectedId
+    ? searchResultIds.indexOf(selectedId)
+    : -1;
   const selectedLayoutNode = layout.nodes.find(
     (candidate) => candidate.node.id === selectedId,
   ) ?? null;
@@ -102,10 +141,42 @@ export function ExecutionWorkGraphCanvas({
     : undefined;
 
   useEffect(() => {
-    if (selectedId && !layout.nodes.some((node) => node.node.id === selectedId)) {
+    if (
+      selectedId
+      && !(execution.graph?.nodes ?? []).some((node) => node.id === selectedId)
+    ) {
       setSelectedId(null);
     }
-  }, [layout.nodes, selectedId]);
+  }, [execution.graph?.nodes, selectedId]);
+
+  useEffect(() => {
+    if (!query || searchResultIds.length === 0 || currentSearchResultIndex >= 0) {
+      return;
+    }
+    const nodeId = searchResultIds[0];
+    const ancestors = new Set(resolveExecutionGraphNodeAncestors(execution, nodeId));
+    setCollapsedNodeIds((current) => {
+      const next = new Set([...current].filter((id) => !ancestors.has(id)));
+      return next.size === current.size ? current : next;
+    });
+    setSelectedId(nodeId);
+    setPendingFocusId(nodeId);
+  }, [currentSearchResultIndex, execution, query, searchResultIds]);
+
+  useEffect(() => {
+    if (!pendingFocusId || !layout.nodes.some((item) => item.node.id === pendingFocusId)) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      nodeRefs.current.get(pendingFocusId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "center",
+      });
+      setPendingFocusId(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [layout.nodes, pendingFocusId]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -129,12 +200,75 @@ export function ExecutionWorkGraphCanvas({
     return () => observer.disconnect();
   }, []);
 
+  const revealNode = (nodeId: string | null) => {
+    if (!nodeId) {
+      return;
+    }
+    const ancestors = new Set(resolveExecutionGraphNodeAncestors(execution, nodeId));
+    setCollapsedNodeIds((current) => {
+      const next = new Set([...current].filter((id) => !ancestors.has(id)));
+      return next.size === current.size ? current : next;
+    });
+    setSelectedId(nodeId);
+    setPendingFocusId(nodeId);
+  };
+  const navigateSearch = (direction: -1 | 1) => {
+    revealNode(nextExecutionGraphSearchResult(searchResultIds, selectedId, direction));
+  };
+  const collapsibleNodeIds = [...collapse.descendantCountByNodeId.keys()];
+  const collapsedCount = collapsibleNodeIds.filter((id) => collapsedNodeIds.has(id)).length;
+  const fitGraph = () => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    setZoom(resolveExecutionGraphFitZoom({
+      contentHeight: layout.height,
+      contentWidth: layout.width,
+      viewportHeight: viewport.clientHeight,
+      viewportWidth: viewport.clientWidth,
+    }));
+  };
+
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden" data-execution-node-map>
+      <ExecutionWorkGraphControls
+        collapsibleCount={collapsibleNodeIds.length}
+        collapsedCount={collapsedCount}
+        currentResultIndex={currentSearchResultIndex}
+        onCollapseAll={() => setCollapsedNodeIds(new Set(collapsibleNodeIds))}
+        onExpandAll={() => setCollapsedNodeIds(new Set())}
+        onFit={fitGraph}
+        onLocateCurrent={() => revealNode(currentId)}
+        onNextResult={() => navigateSearch(1)}
+        onPreviousResult={() => navigateSearch(-1)}
+        onQueryChange={setQuery}
+        onResetZoom={() => setZoom(1)}
+        onZoomIn={() => setZoom((value) => clampExecutionGraphZoom(
+          value + EXECUTION_GRAPH_ZOOM_STEP,
+        ))}
+        onZoomOut={() => setZoom((value) => clampExecutionGraphZoom(
+          value - EXECUTION_GRAPH_ZOOM_STEP,
+        ))}
+        query={query}
+        resultCount={searchResultIds.length}
+        zoom={zoom}
+      />
       <div
         ref={viewportRef}
         className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-auto p-2"
         data-execution-board-grid
+        onWheel={(event) => {
+          if (!event.ctrlKey && !event.metaKey) {
+            return;
+          }
+          event.preventDefault();
+          setZoom((value) => clampExecutionGraphZoom(
+            value + (event.deltaY < 0
+              ? EXECUTION_GRAPH_ZOOM_STEP
+              : -EXECUTION_GRAPH_ZOOM_STEP),
+          ));
+        }}
         style={{
           backgroundImage: "linear-gradient(to right, color-mix(in srgb, var(--divider-subtle-color) 58%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--divider-subtle-color) 58%, transparent) 1px, transparent 1px)",
           backgroundPosition: "-1px -1px",
@@ -142,12 +276,24 @@ export function ExecutionWorkGraphCanvas({
         }}
       >
         <div
+          className="relative mx-auto"
+          data-execution-workgraph-scale={zoom}
+          style={{
+            height: layout.height * zoom,
+            width: layout.width * zoom,
+          }}
+        >
+        <div
           aria-label={t("execution.label")}
-          className="relative mx-auto overflow-visible rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_42%,transparent)]"
+          className="relative origin-top-left overflow-visible rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_42%,transparent)]"
           data-execution-workgraph-canvas
           data-execution-node-detail-mode="popover"
           role="group"
-          style={{ height: layout.height, width: layout.width }}
+          style={{
+            height: layout.height,
+            transform: `scale(${zoom})`,
+            width: layout.width,
+          }}
         >
           {layout.groups.map((group) => (
             <div
@@ -248,7 +394,10 @@ export function ExecutionWorkGraphCanvas({
             const selected = node.id === selectedId;
             const current = node.id === currentId;
             const title = graphNodeTitle(node, item, owner?.name, t);
+            const descendantCount = collapse.descendantCountByNodeId.get(node.id) ?? 0;
+            const collapsed = collapsedNodeIds.has(node.id);
             return (
+              <Fragment key={node.id}>
               <button
                 aria-label={`${t("execution.details")}: ${title}`}
                 aria-pressed={selected}
@@ -258,10 +407,16 @@ export function ExecutionWorkGraphCanvas({
                 data-execution-graph-node-id={node.id}
                 data-execution-node-selected={selected ? "true" : undefined}
                 data-execution-work-item-id={node.work_item_id || undefined}
-                key={node.id}
                 onClick={() => setSelectedId((value) => (
                   value === node.id ? null : node.id
                 ))}
+                ref={(element) => {
+                  if (element) {
+                    nodeRefs.current.set(node.id, element);
+                  } else {
+                    nodeRefs.current.delete(node.id);
+                  }
+                }}
                 style={{
                   height: size + 8,
                   left: x - (size + 8) / 2,
@@ -283,6 +438,42 @@ export function ExecutionWorkGraphCanvas({
                   title={title}
                 />
               </button>
+              {descendantCount > 0 ? (
+                <button
+                  aria-label={collapsed
+                    ? t("execution.expand_node")
+                    : t("execution.collapse_node")}
+                  aria-pressed={collapsed}
+                  className="absolute z-20 flex h-5 min-w-5 items-center justify-center gap-0.5 rounded-full border border-(--surface-control-border) bg-(--surface-panel-background) px-1 text-[9px] font-semibold tabular-nums text-(--text-soft) shadow-sm transition hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+                  data-execution-collapse-node={node.id}
+                  data-execution-hidden-node-count={collapsed ? descendantCount : 0}
+                  onClick={() => setCollapsedNodeIds((currentValue) => {
+                    const next = new Set(currentValue);
+                    if (next.has(node.id)) {
+                      next.delete(node.id);
+                    } else {
+                      next.add(node.id);
+                    }
+                    return next;
+                  })}
+                  style={{
+                    left: x + size / 2 - 5,
+                    top: y + size / 2 - 5,
+                  }}
+                  title={collapsed
+                    ? t("execution.expand_node")
+                    : t("execution.collapse_node")}
+                  type="button"
+                >
+                  {collapsed ? (
+                    <ChevronsUpDown className="h-2.5 w-2.5" />
+                  ) : (
+                    <ChevronsDownUp className="h-2.5 w-2.5" />
+                  )}
+                  <span>{descendantCount}</span>
+                </button>
+              ) : null}
+              </Fragment>
             );
           })}
           {selectedLayoutNode && selectedInspectorStyle ? (
@@ -293,11 +484,13 @@ export function ExecutionWorkGraphCanvas({
               item={selectedItem}
               node={selectedLayoutNode.node}
               onClose={() => setSelectedId(null)}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
               style={selectedInspectorStyle}
               taskRun={selectedTaskRun}
             />
           ) : null}
         </div>
+      </div>
       </div>
     </div>
   );
@@ -310,6 +503,7 @@ function ExecutionNodeInspector({
   item,
   node,
   onClose,
+  onOpenWorkspaceFile,
   style,
   taskRun,
 }: {
@@ -319,6 +513,10 @@ function ExecutionNodeInspector({
   item: ExecutionWorkItemView | null;
   node: ExecutionGraphNodeView;
   onClose: () => void;
+  onOpenWorkspaceFile?: (
+    path: string,
+    workspaceAgentId?: string | null,
+  ) => void;
   style: CSSProperties;
   taskRun: ConversationTaskRun | null;
 }) {
@@ -493,6 +691,12 @@ function ExecutionNodeInspector({
           </NodeDetailSection>
         ) : null}
         {taskRun ? <ExecutionNodeTaskList run={taskRun} /> : null}
+        <ExecutionNodeRunHistory
+          item={item}
+          node={node}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          workspaceAgentId={owner?.id ?? node.agent_id}
+        />
         {childNodes.length > 0 ? (
           <ExecutionNodeRunList
             directory={directory}

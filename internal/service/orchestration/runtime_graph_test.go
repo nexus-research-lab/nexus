@@ -523,6 +523,162 @@ func TestRuntimeGraphViewBindsManagedRoundsAndFiltersConversationRoots(t *testin
 	}
 }
 
+func TestRuntimeGraphViewKeepsEveryManagedAgentRun(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 4, 10, 30, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		ID:        "execution-history",
+		WorkItems: []protocol.ExecutionWorkItemView{{ID: "work-history"}},
+		Graph: protocol.ExecutionGraphView{Nodes: []protocol.ExecutionGraphNodeView{{
+			ID: "work-history", Kind: protocol.ExecutionGraphNodeAgent,
+			Visibility: protocol.ExecutionGraphNodePrimary,
+			WorkItemID: "work-history", AgentID: "worker-1",
+		}}},
+	}
+	firstFinished := now.Add(time.Second)
+	secondFinished := now.Add(3 * time.Second)
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "runtime-agent-first", Kind: protocol.ExecutionRuntimeNodeAgent,
+			SubjectID: "round-first", AgentRoundID: "round-first", AgentID: "worker-1",
+			Status: protocol.ExecutionRuntimeNodeFailed, Failed: true,
+			ErrorSummary: "Provider disconnected", StartedAt: now, UpdatedAt: firstFinished,
+			FinishedAt: &firstFinished,
+			Metadata: map[string]any{
+				"execution_lane": "work",
+				"work_item_id":   "work-history",
+			},
+		},
+		{
+			ID: "runtime-agent-second", Kind: protocol.ExecutionRuntimeNodeAgent,
+			SubjectID: "round-second", AgentRoundID: "round-second", AgentID: "worker-1",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, ResultSummary: "Recovered",
+			StartedAt: now.Add(2 * time.Second), UpdatedAt: secondFinished,
+			FinishedAt: &secondFinished,
+			Metadata: map[string]any{
+				"execution_lane": "work",
+				"work_item_id":   "work-history",
+			},
+		},
+	}})
+
+	node := graphNodeByID(view.Graph.Nodes, "work-history")
+	if len(node.Runs) != 2 ||
+		node.Runs[0].RuntimeNodeID != "runtime-agent-first" ||
+		node.Runs[0].ErrorSummary != "Provider disconnected" ||
+		node.Runs[1].RuntimeNodeID != "runtime-agent-second" ||
+		node.Runs[1].ResultSummary != "Recovered" ||
+		node.LifecycleStatus != string(protocol.ExecutionRuntimeNodeSucceeded) {
+		t.Fatalf("managed NodeRun history = %+v", node)
+	}
+}
+
+func TestRuntimeGraphArtifactsAttachOnlyToExactToolRun(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 4, 11, 0, 0, 0, time.UTC)
+	tool := protocol.ExecutionRuntimeNodeRun{
+		ID: "runtime-tool-artifact", GraphID: "round:artifact",
+		OwnerUserID: "owner-1", SessionKey: "session-1",
+		Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-artifact",
+		RootRoundID: "round-1", RuntimeRoundID: "round-1",
+		AgentRoundID: "agent-round-1", AgentID: "agent-1",
+		Status:    protocol.ExecutionRuntimeNodeSucceeded,
+		StartedAt: now, UpdatedAt: now,
+		Metadata: map[string]any{"bridge_event_id": "tool-result"},
+	}
+	repository := &runtimeGraphRepositoryFake{
+		fakeRepository: &fakeRepository{},
+		graph: protocol.ExecutionRuntimeGraph{
+			GraphID: tool.GraphID,
+			Nodes:   []protocol.ExecutionRuntimeNodeRun{tool},
+		},
+	}
+	service := NewService(repository)
+	service.now = func() time.Time { return now.Add(time.Second) }
+	actor := ActorContext{
+		OwnerUserID: "owner-1", SessionKey: "session-1", AgentID: "agent-1",
+		RootRoundID: "round-1", RuntimeRoundID: "round-1", AgentRoundID: "agent-round-1",
+	}
+	err := service.ObserveRuntimeArtifacts(context.Background(), actor, protocol.Message{
+		"content": []any{
+			map[string]any{
+				"type": protocol.ContentBlockTypeWorkspaceFileArtifact,
+				"id":   "workspace_file:tool-artifact:reports/result.md",
+				"path": "reports/result.md", "display_path": "reports/result.md",
+				"workspace_agent_id": "agent-1", "source_tool_use_id": "tool-artifact",
+			},
+			map[string]any{
+				"type": protocol.ContentBlockTypeWorkspaceFileArtifact,
+				"path": "../outside.txt", "source_tool_use_id": "tool-artifact",
+			},
+			map[string]any{
+				"type": protocol.ContentBlockTypeWorkspaceFileArtifact,
+				"path": "reports/unknown.md", "source_tool_use_id": "unknown-tool",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.nodes) != 1 {
+		t.Fatalf("artifact writes = %+v", repository.nodes)
+	}
+	artifacts := runtimeGraphNodeArtifacts(repository.nodes[0])
+	if len(artifacts) != 1 || artifacts[0].Path != "reports/result.md" ||
+		artifacts[0].SourceToolUseID != "tool-artifact" {
+		t.Fatalf("exact runtime artifacts = %+v", artifacts)
+	}
+	projected := projectRuntimeGraphNode(repository.nodes[0], 0)
+	if len(projected.Runs) != 1 || len(projected.Runs[0].Artifacts) != 1 {
+		t.Fatalf("projected runtime artifacts = %+v", projected.Runs)
+	}
+}
+
+func TestRuntimeGraphReadsProviderNeutralToolResultShapes(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		content any
+		want    string
+	}{
+		{name: "plain text", content: "Found the page", want: "Found the page"},
+		{name: "content blocks", content: []any{
+			map[string]any{"type": "text", "text": "Found through MCP"},
+		}, want: "Found through MCP"},
+		{name: "structured result", content: map[string]any{
+			"result": map[string]any{"message": "Found through server tool"},
+		}, want: "Found through server tool"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			message, err := sdkprotocol.DecodeMessage(map[string]any{
+				"type": "user", "uuid": "result-" + tt.name,
+				"message": map[string]any{
+					"role": "user",
+					"content": []any{map[string]any{
+						"type": "tool_result", "tool_use_id": "tool-provider",
+						"content": tt.content,
+					}},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			evidence := runtimeGraphEvidenceForEvent(message, sdkprotocol.RuntimeLifecycleEvent{
+				NodeKind:  sdkprotocol.RuntimeLifecycleNodeTool,
+				Phase:     sdkprotocol.RuntimeLifecycleFinished,
+				SubjectID: "tool-provider",
+			})
+			if evidence.resultSummary != tt.want {
+				t.Fatalf("provider-neutral result summary = %q, want %q", evidence.resultSummary, tt.want)
+			}
+		})
+	}
+}
+
 func TestAuditExecutionAlignmentRecordsOptionalGateWithoutRoutingExecution(t *testing.T) {
 	t.Parallel()
 

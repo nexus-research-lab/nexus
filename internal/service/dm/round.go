@@ -199,21 +199,7 @@ func (r *roundRunner) executeRound(
 	ctx context.Context,
 	logger *slog.Logger,
 ) (exec.RoundExecutionResult, error) {
-	actor := orchestration.ActorContext{
-		OwnerUserID:           r.ownerUserID,
-		SessionKey:            r.sessionKey,
-		ExecutionID:           strings.TrimSpace(r.executionID),
-		GoalID:                strings.TrimSpace(r.goalIDForUsage),
-		GoalObjectiveRevision: r.currentGoalObjectiveRevision(),
-		AgentID:               r.agent.AgentID,
-		Role:                  orchestration.ExecutionActorCoordinator,
-		ActorKind:             protocol.ExecutionActorAgent,
-		ScopeKind:             protocol.ExecutionScopeDM,
-		RootRoundID:           r.roundID,
-		RuntimeRoundID:        r.roundID,
-		AgentRoundID:          r.agentRoundID,
-		PlanMode:              r.permissionMode == sdkpermission.ModePlan,
-	}
+	actor := r.orchestrationActor()
 	executionInputs, err := r.service.executionContextualInputs(ctx, actor)
 	if err != nil {
 		return exec.RoundExecutionResult{}, err
@@ -300,6 +286,24 @@ func (r *roundRunner) executeRound(
 	return result, executeErr
 }
 
+func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
+	return orchestration.ActorContext{
+		OwnerUserID:           r.ownerUserID,
+		SessionKey:            r.sessionKey,
+		ExecutionID:           strings.TrimSpace(r.executionID),
+		GoalID:                strings.TrimSpace(r.goalIDForUsage),
+		GoalObjectiveRevision: r.currentGoalObjectiveRevision(),
+		AgentID:               r.agent.AgentID,
+		Role:                  orchestration.ExecutionActorCoordinator,
+		ActorKind:             protocol.ExecutionActorAgent,
+		ScopeKind:             protocol.ExecutionScopeDM,
+		RootRoundID:           r.roundID,
+		RuntimeRoundID:        r.roundID,
+		AgentRoundID:          r.agentRoundID,
+		PlanMode:              r.permissionMode == sdkpermission.ModePlan,
+	}
+}
+
 // runtimeInputOptions 把产品包装前的真实用户文本单独交给原生 Recall。
 func (r *roundRunner) runtimeInputOptions() sdkprotocol.OutboundMessageOptions {
 	options := runtimectx.RuntimeInputOptionsForPurpose(r.inputOptions, "goal_continuation")
@@ -323,6 +327,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	if err := r.persistMessage(message); err != nil {
 		return err
 	}
+	r.service.observeExecutionRuntimeArtifacts(r.orchestrationActor(), message)
 	settledSubagentUsage := r.recordSubagentGoalUsage(context.Background(), message)
 	r.rememberSubagentTaskMessage(message)
 	for _, settled := range settledSubagentUsage {

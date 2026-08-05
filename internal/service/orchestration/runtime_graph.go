@@ -104,6 +104,7 @@ func (s *Service) ObserveRuntimeMessage(
 			identity.AgentRoundID,
 		): rootNodeID,
 	}
+	runtimeNodeByID := make(map[string]protocol.ExecutionRuntimeNodeRun)
 	if graph, graphErr := repository.GetRuntimeGraph(
 		ctx,
 		identity.OwnerUserID,
@@ -114,6 +115,7 @@ func (s *Service) ObserveRuntimeMessage(
 		indexRuntimeGraphParents(parentNodeBySubject, graph.Nodes)
 		for _, node := range graph.Nodes {
 			nodeByKindSubject[runtimeGraphKindSubjectKey(node.Kind, node.SubjectID)] = node.ID
+			runtimeNodeByID[node.ID] = node
 		}
 	}
 	for _, event := range events {
@@ -139,7 +141,11 @@ func (s *Service) ObserveRuntimeMessage(
 		if event.Phase == sdkprotocol.RuntimeLifecycleFinished {
 			finishedAt = &now
 		}
-		metadata := make(map[string]any, len(event.Metadata)+1)
+		previousNode := runtimeNodeByID[nodeID]
+		metadata := make(map[string]any, len(previousNode.Metadata)+len(event.Metadata)+1)
+		for key, value := range previousNode.Metadata {
+			metadata[key] = value
+		}
 		for key, value := range event.Metadata {
 			metadata[key] = value
 		}
@@ -147,7 +153,7 @@ func (s *Service) ObserveRuntimeMessage(
 		if evidence.mutationOutcome != "" {
 			metadata["mutation_outcome"] = string(evidence.mutationOutcome)
 		}
-		if err = repository.UpsertRuntimeGraphNode(ctx, protocol.ExecutionRuntimeNodeRun{
+		nodeRun := protocol.ExecutionRuntimeNodeRun{
 			ID:               nodeID,
 			GraphID:          identity.GraphID,
 			OwnerUserID:      identity.OwnerUserID,
@@ -173,9 +179,11 @@ func (s *Service) ObserveRuntimeMessage(
 			UpdatedAt:        now,
 			FinishedAt:       finishedAt,
 			Metadata:         metadata,
-		}); err != nil {
+		}
+		if err = repository.UpsertRuntimeGraphNode(ctx, nodeRun); err != nil {
 			return err
 		}
+		runtimeNodeByID[nodeID] = nodeRun
 		edge := protocol.ExecutionRuntimeEdgeRun{
 			GraphID:      identity.GraphID,
 			OwnerUserID:  identity.OwnerUserID,

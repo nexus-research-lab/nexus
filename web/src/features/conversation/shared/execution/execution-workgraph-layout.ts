@@ -1,5 +1,5 @@
 /**
- * INPUT: 权威 Execution Graph 节点/边与当前画布可用宽度。
+ * INPUT: 权威 Execution Graph 节点/边、当前画布可用宽度与纯 UI 隐藏节点集合。
  * OUTPUT: 主责任图横向展开、Agent 内部运行节点向下形成有界子图，并保证有父身份的可见节点始终带方向边。
  * POS: 后端 Agent/Subagent/Tool/Gate Graph View 到交互画布之间的无状态分层子图投影。
  */
@@ -74,9 +74,12 @@ interface ExecutionGraphCluster {
 export function buildExecutionGraphLayout(
   execution: ExecutionView,
   availableWidth?: number,
+  hiddenNodeIds: ReadonlySet<string> = new Set(),
 ): ExecutionGraphLayout {
   const constrainedWidth = normalizeAvailableWidth(availableWidth);
-  const graphNodes = orderedExecutionGraphNodes(execution);
+  const graphNodes = orderedExecutionGraphNodes(execution).filter(
+    (node) => !hiddenNodeIds.has(node.id),
+  );
   if (graphNodes.length === 0) {
     return {
       edges: [],

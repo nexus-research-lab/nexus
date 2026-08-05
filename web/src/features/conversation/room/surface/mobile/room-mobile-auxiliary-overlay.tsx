@@ -95,6 +95,7 @@ export function RoomMobileAuxiliaryOverlay({
               )),
               currentAgent,
             ])}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
             resource={executionResource}
             taskRuns={executionTaskRuns}
           />

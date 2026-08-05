@@ -1,5 +1,5 @@
 // INPUT: ExecutionSnapshot 中当前 active Plan、责任状态与 WorkAttempt 运行身份。
-// OUTPUT: 面向 Web/桌面端的安全 WorkGraph 与 Agent/Subagent 分层运行图；不暴露 command、lease 或 runtime capability identity。
+// OUTPUT: 面向 Web/桌面端的安全 WorkGraph、Agent/Subagent 分层运行图、NodeRun 历史与 Artifact 引用；不暴露 command、lease 或 runtime capability identity。
 // POS: Execution Orchestration 状态机与 DM/Room Execution Graph UI 之间的跨边界展示协议。
 package protocol
 
@@ -104,6 +104,26 @@ const (
 	ExecutionGraphEdgeRetry        ExecutionGraphEdgeKind = "retry"
 )
 
+// ExecutionGraphNodeRunView 是稳定 GraphNode 下的一次不可变运行事实。
+// managed Attempt 与 runtime NodeRun 会按 exact round/subject identity 合并，
+// 避免把同一次物理运行重复展示成两条历史。
+type ExecutionGraphNodeRunView struct {
+	ID               string                       `json:"id"`
+	AttemptID        string                       `json:"attempt_id,omitempty"`
+	RuntimeNodeID    string                       `json:"runtime_node_id,omitempty"`
+	AgentRoundID     string                       `json:"agent_round_id,omitempty"`
+	SubjectID        string                       `json:"subject_id,omitempty"`
+	Status           string                       `json:"status,omitempty"`
+	ResultSummary    string                       `json:"result_summary,omitempty"`
+	ErrorCode        string                       `json:"error_code,omitempty"`
+	ErrorSummary     string                       `json:"error_summary,omitempty"`
+	SummaryTruncated bool                         `json:"summary_truncated,omitempty"`
+	DurationMS       int64                        `json:"duration_ms,omitempty"`
+	StartedAt        *time.Time                   `json:"started_at,omitempty"`
+	FinishedAt       *time.Time                   `json:"finished_at,omitempty"`
+	Artifacts        []WorkspaceFileArtifactBlock `json:"artifacts,omitempty"`
+}
+
 // ExecutionGraphNodeView 把稳定责任节点与其当前 Node Run 分开表达。
 // Agent 节点 ID 沿用 Work Item ID；Subagent 节点 ID 沿用 child Attempt ID。
 type ExecutionGraphNodeView struct {
@@ -130,6 +150,7 @@ type ExecutionGraphNodeView struct {
 	DurationMS           int64                        `json:"duration_ms,omitempty"`
 	StartedAt            *time.Time                   `json:"started_at,omitempty"`
 	FinishedAt           *time.Time                   `json:"finished_at,omitempty"`
+	Runs                 []ExecutionGraphNodeRunView  `json:"runs,omitempty"`
 	Position             int                          `json:"position"`
 }
 

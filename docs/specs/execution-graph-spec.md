@@ -318,6 +318,8 @@ View 不是写入格式。前端不得从节点位置、DOM 顺序、头像或�
 
 Result/Error 只是经后端脱敏、截断的用户可见摘要；原始 Tool input/output 仍留在 runtime transcript 或 Artifact 中。`retry` 关系只能来自 provider-neutral lifecycle 的 exact previous run identity 或 Agent 显式 graph mutation；工具名、参数相似度、时间邻近性和 UI 位置都不是重试证据。
 
+同一个稳定责任节点可以包含多次有序 NodeRun。托管 Attempt 与 runtime Agent Run 通过 exact Work/Review/Coordination binding 合并到同一节点，既不覆盖旧运行，也不生成平行责任节点。Artifact 只接受 durable message 中携带 `source_tool_use_id` 的结构化引用，并绑定到同一 owner、session、agent round 下的 exact Tool NodeRun；后端不按文件名、工具名或时间邻近性猜测归属，也不读取 Artifact 内容来决定下一步。
+
 ## 8. Hook 事件协议
 
 Hooks 的职责是观察、绑定、校验和更新 Graph Run，不负责替 Agent 发明工作拆解。
@@ -326,7 +328,7 @@ Hooks 的职责是观察、绑定、校验和更新 Graph Run，不负责替 Age
 | --- | --- | --- |
 | `agent_run_started` | session + agent round + actor | 创建/恢复 Agent Node Run |
 | `pre_tool_use` | parent run + tool use id + tool name | 创建 Tool Run 与 call edge，执行 Policy admission |
-| `post_tool_use` | exact tool use id | 关闭 Tool Run，写有界结果摘要/output refs，记录返回 exact Agent |
+| `post_tool_use` | exact tool use id | 关闭 Tool Run，写有界结果摘要/output refs，记录返回 exact Agent；后续 durable message 可按同一 id 回挂结构化 Artifact |
 | `post_tool_use_failure` | exact tool use id | 记录脱敏错误摘要与控制回边，把重试、改用其他工具、重规划或停止留给 Agent |
 | `task_created/updated/completed` | task id + owning run | 更新节点内部 Task，不创建主图节点 |
 | `subagent_started` | parent run + tool use id + child identity | 创建 nested Subagent Node Run 与 spawn edge |
@@ -351,6 +353,8 @@ Hooks 的职责是观察、绑定、校验和更新 Graph Run，不负责替 Age
 - Policy/admission Hook 失败必须 fail closed，并返回明确 reason code。
 - terminal Hook 必须可幂等重放。
 - parent round 退出后，已创建的 child binding 仍保留到 child terminal 或 reconciliation deadline。
+- duplicate start/terminal/edge event 必须收敛到同一 stable identity；terminal 先于 start 到达时，迟到 start 不能把终态降回 running。
+- Provider 断连或 root round 结束时，只关闭仍未终态的 exact runs；已完成的 sibling、Artifact 与历史 NodeRun 不得丢失或被重放。
 
 ## 9. 模型 Graph Context
 
@@ -540,6 +544,8 @@ Room 连接多个持久 Agent 节点。`@` 与 directed message 是 Agent-to-Age
 - retry、failure、blocker 与 Gate 结果；
 - Node Run 历史和 loop iterations。
 
+每条历史 Run 独立保留状态、开始/结束时间、耗时、有界结果或错误摘要以及 exact Artifact。可安全解析为 workspace 相对路径的 Artifact/正式交付引用可以进入现有 Workspace 预览；外部 URL、绝对路径和越界路径只展示文本，不变成文件动作。
+
 ### 13.3 分层展开
 
 - 顶层：Work Item groups 与 primary nodes。
@@ -547,6 +553,8 @@ Room 连接多个持久 Agent 节点。`@` 与 directed message 是 Agent-to-Age
 - 点击 Subagent：展开 child Loop。
 - 点击次数徽标：展开重复 Tool Runs 或 loop iterations。
 - 点击边：展示 route kind、message/artifact refs 和 state mapping。
+
+大图导航属于本地只读 viewport：用户可以折叠/展开子图、全文搜索节点与 Run 事实、缩放/适配画布、定位当前节点。搜索命中隐藏节点时只展开其祖先并移动视口；这些操作不写回 Graph、不创建 Plan/Attempt，也不触发重试或改路。
 
 ### 13.4 单 Agent 与 Room
 

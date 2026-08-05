@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made runtime Graph projection converge under duplicate and out-of-order lifecycle events and Provider disconnects without downgrading terminal runs, replaying successful tools, or dropping completed siblings and Artifact evidence.
 - Replaced the 1.5-second conversation-wide WorkGraph polling loop with debounced WebSocket invalidation, visibility-aware refresh, and a 30-second active-execution fallback shared by Web and desktop clients.
 - Distinguished completed tool transport from rejected business mutations across DM, Room, Goal continuation, and WorkGraph: rejected calls now stay visible as recoverable failures with concise reason summaries and control-return edges instead of green success cards or raw JSON.
 - Preserved every visible Room user message while root messages are repartitioned into Agent-round nodes, and coalesced optimistic/canonical root identities without allowing a later map write to replace unrelated follow-up input.
@@ -59,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Added WorkGraph Node Run history with bounded result/error detail and exact structured Artifact links, plus local-only collapse, full-text search, zoom, fit, and current-node navigation for large DM and Room graphs.
 - Added persistent Room member pause and resume controls that stop the member's current slots, preserve exact queued work, and gate Agent wake, Goal continuation, and WorkGraph dispatch until participation resumes.
 - Added a Room Composer “Stop all” action that freezes the active Agent-round target set at click time and sends one exact acknowledged interrupt per member.
 - Simplified the macOS and Windows update-ready prompts and made download progress windows substantially more compact.

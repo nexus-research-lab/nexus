@@ -90,6 +90,7 @@ export function RoomSurfaceAuxiliaryPanel({
       content: (
         <ExecutionWorkGraphSurface
           directory={executionDirectory}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
           resource={executionResource}
           taskRuns={executionTaskRuns}
         />

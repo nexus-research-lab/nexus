@@ -227,6 +227,7 @@ func projectExecutionGraphView(
 			AgentRoundID:         agentRoundID,
 			ResponsibilityStatus: item.Status,
 			RunStatus:            runStatus,
+			Runs:                 rootExecutionAttemptRuns(item.Attempts),
 			Position:             item.Position,
 		})
 
@@ -277,6 +278,7 @@ func projectExecutionGraphView(
 				SubjectID:    attempt.TaskID,
 				Name:         "subagent",
 				RunStatus:    attempt.Status,
+				Runs:         []protocol.ExecutionGraphNodeRunView{executionAttemptRunView(attempt)},
 				Position:     item.Position,
 			})
 		}
@@ -315,6 +317,39 @@ func projectExecutionGraphView(
 		}
 	}
 	return result
+}
+
+func rootExecutionAttemptRuns(
+	attempts []protocol.ExecutionAttemptView,
+) []protocol.ExecutionGraphNodeRunView {
+	result := make([]protocol.ExecutionGraphNodeRunView, 0, len(attempts))
+	for _, attempt := range attempts {
+		if attempt.ParentAttemptID != "" {
+			continue
+		}
+		result = append(result, executionAttemptRunView(attempt))
+	}
+	return result
+}
+
+func executionAttemptRunView(
+	attempt protocol.ExecutionAttemptView,
+) protocol.ExecutionGraphNodeRunView {
+	startedAt := attempt.StartedAt
+	if startedAt == nil {
+		createdAt := attempt.CreatedAt.UTC()
+		startedAt = &createdAt
+	}
+	return protocol.ExecutionGraphNodeRunView{
+		ID:           attempt.ID,
+		AttemptID:    attempt.ID,
+		AgentRoundID: attempt.AgentRoundID,
+		SubjectID:    firstNonEmpty(attempt.TaskID, attempt.ChildSessionID, attempt.ToolUseID),
+		Status:       string(attempt.Status),
+		ErrorSummary: attempt.FailureReason,
+		StartedAt:    startedAt,
+		FinishedAt:   attempt.FinishedAt,
+	}
 }
 
 // executionReviewGateNode 只根据 durable Assignment return binding、review

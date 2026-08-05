@@ -22,10 +22,15 @@ import type { ExecutionResource } from "./use-execution-resource";
 
 export function ExecutionWorkGraphSurface({
   directory,
+  onOpenWorkspaceFile,
   resource,
   taskRuns,
 }: {
   directory: ExecutionAgentDirectory;
+  onOpenWorkspaceFile?: (
+    path: string,
+    workspaceAgentId?: string | null,
+  ) => void;
   resource: ExecutionResource;
   taskRuns: readonly ConversationTaskRun[];
 }) {
@@ -79,6 +84,7 @@ export function ExecutionWorkGraphSurface({
           directory={directory}
           execution={execution}
           key={execution.id}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
           taskRuns={taskRuns}
         />
       ) : (

@@ -823,6 +823,74 @@ test("Composer WorkGraph dock exposes only primary Agent activity", async () => 
   assert.doesNotMatch(panelSource, /ANCHORED_OVERLAY_MOTION_CLASS_NAME/);
 });
 
+test("WorkGraph interaction model collapses, searches, and fits large graphs without mutating topology", async () => {
+  const {
+    clampExecutionGraphZoom,
+    nextExecutionGraphSearchResult,
+    projectExecutionGraphCollapse,
+    resolveExecutionGraphFitZoom,
+    resolveExecutionGraphNodeAncestors,
+    resolveExecutionWorkspaceReference,
+    searchExecutionGraphNodes,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-workgraph-interaction-model.ts",
+  );
+  const { buildExecutionGraphLayout } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-workgraph-layout.ts",
+  );
+  const searchable = structuredClone(execution);
+  const child = searchable.graph.nodes.find((node) => node.id === "attempt-child");
+  child.runs = [{
+    id: "runtime-child-1",
+    status: "failed",
+    error_summary: "Browser session disconnected",
+    artifacts: [{
+      id: "workspace_file:tool-1:reports/result.md",
+      type: "workspace_file_artifact",
+      path: "reports/result.md",
+      source_tool_use_id: "tool-1",
+    }],
+  }];
+
+  const collapsed = projectExecutionGraphCollapse(searchable, new Set(["build"]));
+  assert.deepEqual([...collapsed.hiddenNodeIds], ["attempt-child"]);
+  assert.equal(collapsed.descendantCountByNodeId.get("build"), 1);
+  assert.deepEqual(
+    resolveExecutionGraphNodeAncestors(searchable, "attempt-child"),
+    ["build"],
+  );
+  const collapsedLayout = buildExecutionGraphLayout(
+    searchable,
+    700,
+    collapsed.hiddenNodeIds,
+  );
+  assert.equal(
+    collapsedLayout.nodes.some((node) => node.node.id === "attempt-child"),
+    false,
+  );
+  assert.deepEqual(searchExecutionGraphNodes(searchable, "disconnected"), [
+    "attempt-child",
+  ]);
+  assert.deepEqual(searchExecutionGraphNodes(searchable, "reports/result.md"), [
+    "attempt-child",
+  ]);
+  assert.equal(
+    nextExecutionGraphSearchResult(["research", "build"], "build", 1),
+    "research",
+  );
+  assert.equal(clampExecutionGraphZoom(9), 1.5);
+  assert.equal(clampExecutionGraphZoom(0.1), 0.5);
+  assert.equal(resolveExecutionGraphFitZoom({
+    contentHeight: 600,
+    contentWidth: 1_000,
+    viewportHeight: 400,
+    viewportWidth: 600,
+  }), 0.58);
+  assert.equal(resolveExecutionWorkspaceReference("reports/result.md"), "reports/result.md");
+  assert.equal(resolveExecutionWorkspaceReference("../outside.txt"), null);
+  assert.equal(resolveExecutionWorkspaceReference("https://example.com/result"), null);
+});
+
 test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", async () => {
   const { ExecutionWorkGraphCanvas } = await server.ssrLoadModule(
     "/src/features/conversation/shared/execution/execution-workgraph-canvas.tsx",
@@ -838,6 +906,9 @@ test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", 
   assert.match(html, /data-execution-node-map/);
   assert.match(html, /data-execution-workgraph-canvas/);
   assert.match(html, /data-execution-board-grid/);
+  assert.match(html, /data-execution-workgraph-controls/);
+  assert.match(html, /data-execution-workgraph-scale="1"/);
+  assert.match(html, /data-execution-collapse-node="build"/);
   assert.match(html, /data-execution-node-detail-mode="popover"/);
   assert.match(html, /data-execution-edge-layer/);
   assert.match(html, /data-execution-edge-source="research"/);
@@ -865,6 +936,8 @@ test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", 
   );
   assert.match(canvasSource, /ExecutionNodeInspector/);
   assert.match(canvasSource, /ExecutionNodeRunList/);
+  assert.match(canvasSource, /ExecutionNodeRunHistory/);
+  assert.match(canvasSource, /ExecutionWorkGraphControls/);
   assert.match(canvasSource, /data-execution-selected-node-detail-mode="popover"/);
   assert.match(canvasSource, /execution\.error_summary/);
   assert.match(canvasSource, /execution\.result_summary/);
