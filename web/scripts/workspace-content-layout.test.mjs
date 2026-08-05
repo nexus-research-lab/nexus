@@ -158,6 +158,16 @@ test("正文、Surface Header 与 Agent 表单共用响应式水平留白", asyn
   assert.doesNotMatch(agentOptions, /px-6 py-5|gap-2 px-6 py-3/);
 });
 
+test("创建 Agent 弹窗切换栏目时保持稳定尺寸", async () => {
+  const dialog = await readSource(
+    "src/features/agents/options/dialog/agent-options-dialog.tsx",
+  );
+
+  assert.match(dialog, /h-\[min\(82dvh,760px\)\]/);
+  assert.match(dialog, /max-sm:h-\[calc\(100dvh-16px\)\]/);
+  assert.doesNotMatch(dialog, /max-h-\[min\(82dvh,760px\)\]/);
+});
+
 test("桌面更新入口进入侧边栏底部操作区", async () => {
   const [panel, footer, indicator, resource] = await Promise.all([
     "src/features/navigation/sidebar/view/sidebar-panel.tsx",
