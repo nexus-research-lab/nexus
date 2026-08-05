@@ -152,11 +152,8 @@ func (s *Service) runSlot(
 		slot.AgentRoundID,
 		agentValue.WorkspacePath,
 	)
-	mapper.SetDurableMessageTransformer(func(message protocol.Message) protocol.Message {
-		return s.transformRoomDurableMessage(roundValue, slot, message)
-	})
-	mapper.SetProjectedMessageTransformer(func(message protocol.Message) protocol.Message {
-		return s.transformRoomDurableMessage(roundValue, slot, message)
+	mapper.SetMessageDecorator(func(message protocol.Message) {
+		s.decorateRoomMessage(roundValue, slot, message)
 	})
 	execution := &slotExecution{
 		service:       s,

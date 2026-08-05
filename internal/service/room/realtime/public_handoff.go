@@ -84,14 +84,14 @@ func resolveRoomMentionMatches(
 	return result
 }
 
-func (s *Service) transformRoomDurableMessage(
+func (s *Service) decorateRoomMessage(
 	roundValue *activeRoomRound,
 	slot *activeRoomSlot,
 	message protocol.Message,
-) protocol.Message {
+) {
 	setRoomDisplayOrder(slot, message)
 	if !roomShouldAnnotatePublicMessage(roundValue, slot, message) {
-		return message
+		return
 	}
 	if err := s.annotatePublicAssistantMessage(roundValue, slot, message); err != nil {
 		s.loggerFor(context.Background()).Warn("Room 公区 @ 标注写入 handoff ledger 失败",
@@ -100,7 +100,6 @@ func (s *Service) transformRoomDurableMessage(
 			"err", err,
 		)
 	}
-	return message
 }
 
 // setRoomDisplayOrder 为同一 root round 的 Agent 回复提供跨重启稳定的启动顺序。
