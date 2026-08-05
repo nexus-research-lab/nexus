@@ -61,11 +61,6 @@ func normalizeInt(value any) int {
 	}
 }
 
-func normalizeInt64(value any) int64 {
-	result, _ := normalizeInt64Value(value)
-	return result
-}
-
 func normalizeInt64Value(value any) (int64, bool) {
 	switch typed := value.(type) {
 	case int:
