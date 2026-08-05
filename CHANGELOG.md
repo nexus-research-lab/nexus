@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added native folder pickers to the desktop data-directory setting on macOS and Windows.
 - Added separately signed and notarized macOS installers for Apple Silicon and Intel, with architecture-aware automatic updates.
 - Added read-only CC Switch discovery and idempotent Provider/model sync on desktop, including runtime compatibility guidance, first-run onboarding import, default chat/background model setup, and direct use in Nexus model selectors.
 

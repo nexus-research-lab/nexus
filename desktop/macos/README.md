@@ -21,7 +21,7 @@
 - 主窗口保持 `1280×820` 默认启动尺寸；常规屏幕可缩小到 `360×520`，极小可用工作区回退到 `320×480`，由 Web 层切换为手机布局。
 - Shell 不再默认注册 `Option + Space` 全局唤起；窗口菜单仍保留“显示启动器”入口，设置页不再展示启动器快捷键配置。
 - Shell 会按窗口职责加载 `app.html`、`settings.html`、`oauth-callback.html`，并用 `desktop_route` 把原始业务路由交给前端；`/launcher` 由主窗口 `app.html` 承载，sidecar 静态 fallback 支持直接刷新 `/launcher`、`/app`、`/settings` 和 OAuth callback。
-- 最小 native bridge 已支持版本读取、完整状态根迁移、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。
+- 最小 native bridge 已支持版本读取、状态根目录选择与完整迁移、外链打开、日志导出、主窗口路由打开和全局快捷键状态读写。
 - 日志导出包会包含 `diagnostics.json`，记录版本、系统、bundle、runtime URL、关键目录和本地文件存在性；启动失败会在 `~/.nexus/app/logs` 写入 `startup-failure-*.json`。
 - Shell 会写 `[Nexus Startup]` 冷启动时间线，覆盖 sidecar、窗口、WebView navigation、Web ready 和 reveal；日志导出的 `diagnostics.json` 会带上 `startup_timeline`。
 - 窗口遮挡、最小化和恢复事件会进入启动时间线，便于继续验证 occlusion 下的 WebView 行为。

@@ -66,6 +66,12 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       ]
     case "app.get_state_root":
       return DesktopStateRootStore.statusPayload()
+    case "app.choose_state_root":
+      return chooseStateRoot(
+        initialPath: request.stringPayload("initial_path"),
+        title: request.stringPayload("title"),
+        prompt: request.stringPayload("prompt")
+      )
     case "app.relocate_state_root":
       let target = try DesktopStateRootMigration.scheduleMigration(
         to: request.stringPayload("path")
@@ -123,6 +129,49 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
       throw DesktopBridgeError.invalidURL
     }
     try DesktopExternalURLPolicy.open(url)
+  }
+
+  private func chooseStateRoot(initialPath: String, title: String, prompt: String) -> [String: Any] {
+    let panel = NSOpenPanel()
+    panel.title = title.isEmpty ? "选择新的 Nexus 数据目录" : title
+    panel.prompt = prompt.isEmpty ? "选择目录" : prompt
+    panel.canChooseFiles = false
+    panel.canChooseDirectories = true
+    panel.allowsMultipleSelection = false
+    panel.canCreateDirectories = true
+    panel.resolvesAliases = true
+    panel.treatsFilePackagesAsDirectories = false
+    panel.directoryURL = existingDirectoryURL(for: initialPath)
+
+    guard panel.runModal() == .OK, let destination = panel.url else {
+      return ["cancelled": true]
+    }
+    return [
+      "cancelled": false,
+      "path": destination.standardizedFileURL.path,
+    ]
+  }
+
+  private func existingDirectoryURL(for rawPath: String) -> URL? {
+    let trimmedPath = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedPath.isEmpty else {
+      return nil
+    }
+
+    let fileManager = FileManager.default
+    var candidate = URL(fileURLWithPath: trimmedPath, isDirectory: true).standardizedFileURL
+    while true {
+      var isDirectory: ObjCBool = false
+      if fileManager.fileExists(atPath: candidate.path, isDirectory: &isDirectory),
+         isDirectory.boolValue {
+        return candidate
+      }
+      let parent = candidate.deletingLastPathComponent()
+      guard parent.path != candidate.path else {
+        return nil
+      }
+      candidate = parent
+    }
   }
 
   private func exportLogs() throws -> [String: Any] {

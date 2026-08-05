@@ -1,6 +1,7 @@
 type DesktopBridgeKind =
   | "app.get_app_version"
   | "app.get_state_root"
+  | "app.choose_state_root"
   | "app.relocate_state_root"
   | "app.open_external_url"
   | "app.export_logs"
@@ -43,6 +44,11 @@ export interface DesktopStateRootMigrationResult {
   target_path: string;
 }
 
+export interface DesktopStateRootSelectionResult {
+  cancelled: boolean;
+  path?: string;
+}
+
 export interface DesktopPersistentStateResult {
   key: string;
   value?: string | null;
@@ -68,6 +74,20 @@ export async function getDesktopAppVersion(): Promise<DesktopAppVersion> {
 
 export async function getDesktopStateRoot(): Promise<DesktopStateRootStatus> {
   return invokeDesktopBridge<Record<string, never>, DesktopStateRootStatus>("app.get_state_root", {});
+}
+
+export async function chooseDesktopStateRoot(
+  initialPath: string,
+  title: string,
+  prompt: string,
+): Promise<DesktopStateRootSelectionResult> {
+  return invokeDesktopBridge<
+    { initial_path: string; prompt: string; title: string },
+    DesktopStateRootSelectionResult
+  >(
+    "app.choose_state_root",
+    { initial_path: initialPath, prompt, title },
+  );
 }
 
 export async function relocateDesktopStateRoot(path: string): Promise<DesktopStateRootMigrationResult> {
