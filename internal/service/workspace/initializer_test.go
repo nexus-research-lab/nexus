@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
+	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -183,6 +185,80 @@ func TestEnsureInitializedSerializesConcurrentWorkspaceInitialization(t *testing
 	}
 }
 
+func TestEnsureInitializedOnceUsesHostStateAndValidatesManagedInputs(t *testing.T) {
+	useTemporaryWorkspaceStateRoot(t)
+	root := t.TempDir()
+	rootFS, err := confinedfs.Open(root)
+	if err != nil {
+		t.Fatalf("打开 workspace 失败: %v", err)
+	}
+	defer rootFS.Close()
+	agentValue := protocol.Agent{
+		AgentID:       "agent-1",
+		OwnerUserID:   "owner-1",
+		Name:          "Planner",
+		WorkspacePath: root,
+		CreatedAt:     time.Now(),
+	}
+	if err = EnsureInitializedOnceForAgentAt(rootFS, agentValue); err != nil {
+		t.Fatalf("首次初始化 workspace 失败: %v", err)
+	}
+	markerPath := filepath.Join(
+		appfs.UserStateRoot(agentValue.OwnerUserID),
+		workspaceInitializationStateDirectory,
+		appfs.UserPathSegment(agentValue.AgentID)+".manifest",
+	)
+	if _, err = os.Stat(markerPath); err != nil {
+		t.Fatalf("宿主 workspace 初始化状态未写入: %v", err)
+	}
+	if err = rootFS.Remove("USER.md"); err != nil {
+		t.Fatalf("删除模板失败: %v", err)
+	}
+	if err = EnsureInitializedOnceForAgentAt(rootFS, agentValue); err != nil {
+		t.Fatalf("命中初始化版本标记失败: %v", err)
+	}
+	if _, err = rootFS.Stat("USER.md"); !os.IsNotExist(err) {
+		t.Fatalf("用户删除的普通模板不应被同版本补写: %v", err)
+	}
+	if err = rootFS.Remove(".agents/emotion.json"); err != nil {
+		t.Fatalf("删除托管 runtime 状态失败: %v", err)
+	}
+	if err = EnsureInitializedOnceForAgentAt(rootFS, agentValue); err != nil {
+		t.Fatalf("修复托管 runtime 状态失败: %v", err)
+	}
+	if _, err = rootFS.Stat(".agents/emotion.json"); err != nil {
+		t.Fatalf("托管 runtime 状态未修复: %v", err)
+	}
+	managedSkillPath := ".agents/skills/imagegen/SKILL.md"
+	if err = rootFS.MkdirAll(filepath.Dir(managedSkillPath), workspaceDirectoryMode()); err != nil {
+		t.Fatalf("创建过期 workspace Skill 目录失败: %v", err)
+	}
+	if err = rootFS.WriteFileAtomic(managedSkillPath, []byte("stale\n"), workspaceFileMode()); err != nil {
+		t.Fatalf("写入过期 workspace Skill 副本失败: %v", err)
+	}
+	if err = EnsureInitializedOnceForAgentAt(rootFS, agentValue); err != nil {
+		t.Fatalf("清理过期 workspace Skill 副本失败: %v", err)
+	}
+	if _, err = rootFS.Stat(managedSkillPath); !os.IsNotExist(err) {
+		t.Fatalf("过期 workspace Skill 副本未清理: %v", err)
+	}
+	if err = os.WriteFile(markerPath, []byte("revision=stale\n"), 0o600); err != nil {
+		t.Fatalf("写入旧初始化版本失败: %v", err)
+	}
+	if err = EnsureInitializedOnceForAgentAt(rootFS, agentValue); err != nil {
+		t.Fatalf("初始化版本变化后重跑失败: %v", err)
+	}
+	if _, err = rootFS.Stat("USER.md"); err != nil {
+		t.Fatalf("初始化版本变化后应重新补齐模板: %v", err)
+	}
+	if err = removeWorkspaceInitializationState(agentValue); err != nil {
+		t.Fatalf("删除 workspace 初始化状态失败: %v", err)
+	}
+	if _, err = os.Stat(markerPath); !os.IsNotExist(err) {
+		t.Fatalf("Agent 删除后不应残留 workspace 初始化状态: %v", err)
+	}
+}
+
 func TestEnsureInitializedRemovesBundledSkillCopies(t *testing.T) {
 	useTemporaryWorkspaceStateRoot(t)
 	root := t.TempDir()
@@ -209,7 +285,7 @@ func TestRuntimeSkillNamesKeepsWorkspaceDeployedSkills(t *testing.T) {
 	workspacePath := t.TempDir()
 	for _, relative := range []string{
 		filepath.Join(".agents", "skills", "external-skill", "SKILL.md"),
-		filepath.Join(".agents", "workspace-local", "SKILL.md"),
+		filepath.Join(".agents", "skills", "workspace-local", "SKILL.md"),
 		filepath.Join(".claude", "skills", "claude-only", "SKILL.md"),
 		filepath.Join(".claude", "skills", "IMAGEGEN", "SKILL.md"),
 	} {

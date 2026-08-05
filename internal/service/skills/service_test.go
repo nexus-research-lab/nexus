@@ -39,6 +39,19 @@ func TestMain(m *testing.M) {
 	))
 }
 
+func TestValidateSkillNameRejectsReservedCanonicalNames(t *testing.T) {
+	for _, name := range []string{"", " padded", "padded ", "external:demo", "EXTERNAL:demo"} {
+		if err := validateSkillName(name); err == nil {
+			t.Fatalf("Skill 保留 canonical name 应被拒绝: %q", name)
+		}
+	}
+	for _, name := range []string{"demo-skill", "财务分析"} {
+		if err := validateSkillName(name); err != nil {
+			t.Fatalf("有效 Skill canonical name 被拒绝 %q: %v", name, err)
+		}
+	}
+}
+
 func TestServiceImportsAndEnablesSkill(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
@@ -210,44 +223,12 @@ workspace skill body
 		t.Fatalf("删除本地 Skill 后不应残留停用状态: %#v", reloadedAgent.Options.DisabledSkillIDs)
 	}
 
-	directAgentLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".agents", "direct-agent-skill")
-	if err = os.MkdirAll(directAgentLocalSkillRoot, 0o755); err != nil {
-		t.Fatalf("创建 agent 直属本地 skill 目录失败: %v", err)
-	}
-	if err = os.WriteFile(filepath.Join(directAgentLocalSkillRoot, "SKILL.md"), []byte(`---
-name: direct-agent-skill
-title: Direct Agent Skill
-description: 兼容直接位于 .agents 下的技能目录
----
-
-# direct-agent-skill
-`), 0o644); err != nil {
-		t.Fatalf("写入 agent 直属本地 skill 失败: %v", err)
-	}
-	items, err = service.GetAgentSkills(ctx, agentValue.AgentID)
-	if err != nil {
-		t.Fatalf("读取含 agent 直属本地 skill 的列表失败: %v", err)
-	}
-	directAgentLocalSkill, ok := findSkill(items, "direct-agent-skill")
-	if !ok {
-		t.Fatalf("agent 直属本地 skill 未暴露: %+v", items)
-	}
-	if directAgentLocalSkill.SourceType != sourceTypeWorkspace || !directAgentLocalSkill.EnabledForAgent || directAgentLocalSkill.Locked {
-		t.Fatalf("agent 直属本地 skill 状态不正确: %+v", directAgentLocalSkill)
-	}
-	if err = service.UninstallSkill(ctx, agentValue.AgentID, "direct-agent-skill"); err != nil {
-		t.Fatalf("agent 直属本地 skill 应允许从当前智能体移除: %v", err)
-	}
-	if _, err = os.Stat(directAgentLocalSkillRoot); !os.IsNotExist(err) {
-		t.Fatalf("agent 直属本地 skill 移除后目录仍存在: %v", err)
-	}
-
 	claudeLocalSkillRoot := filepath.Join(agentValue.WorkspacePath, ".claude", "skills", "claude-agent-skill")
 	if err = os.MkdirAll(claudeLocalSkillRoot, 0o755); err != nil {
 		t.Fatalf("创建 Agent Claude 本地 Skill 目录失败: %v", err)
 	}
 	if err = os.WriteFile(filepath.Join(claudeLocalSkillRoot, "SKILL.md"), []byte(`---
-name: claude-agent-skill
+name: wrong-claude-frontmatter-name
 title: Claude Agent Skill
 description: Claude 在 .claude/skills 下创建的技能目录
 ---
@@ -266,6 +247,9 @@ description: Claude 在 .claude/skills 下创建的技能目录
 	}
 	if claudeAgentSkill.SourceType != sourceTypeWorkspace || !claudeAgentSkill.EnabledForAgent || claudeAgentSkill.Locked {
 		t.Fatalf("Agent Claude 本地 Skill 状态不正确: %+v", claudeAgentSkill)
+	}
+	if _, exists := findSkill(items, "wrong-claude-frontmatter-name"); exists {
+		t.Fatalf("Agent 本地 Skill 不应用 frontmatter name 改写 canonical name: %+v", items)
 	}
 	if err = service.UninstallSkill(ctx, agentValue.AgentID, "claude-agent-skill"); err != nil {
 		t.Fatalf("Agent Claude 本地 Skill 应允许从当前智能体移除: %v", err)
@@ -356,6 +340,9 @@ skill body
 func TestBuiltinPlatformSkillStoresIDWithoutWorkspaceCopy(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	migrateSkillsSQLite(t, cfg.DatabaseURL)
+	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
+		t.Fatalf("初始化测试平台 Skill 失败: %v", err)
+	}
 
 	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
@@ -578,9 +565,9 @@ func TestGlobalSkillReferencesKeepSourceClassification(t *testing.T) {
 		t.Fatalf("用户全局 Skill 来源类型 = %q, want %q", got, originKindUserImport)
 	}
 	roots := builtinSearchRoots(appfs.Root())
-	agentSkillsRoot := filepath.Join(home, ".agents", "skills")
+	agentSkillsRoot := filepath.Join(appfs.HostSkillRoot(), ".agents", "skills")
 	if !slices.Contains(roots, agentSkillsRoot) {
-		t.Fatalf("全局目录未发现标准 Agent Skill 根: %s", agentSkillsRoot)
+		t.Fatalf("全局目录未发现受管宿主 Skill 根: %s", agentSkillsRoot)
 	}
 	for _, unsupportedRoot := range []string{
 		filepath.Join(home, ".codex", "skills"),
@@ -603,12 +590,8 @@ func TestAuthenticatedSkillCatalogOnlyScansUserGlobalRootInDesktopMode(t *testin
 
 	t.Setenv("NEXUS_APP_MODE", "desktop")
 	roots = builtinSearchRootsForContext(ctx, appfs.Root(), "desktop")
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Fatalf("读取用户目录失败: %v", err)
-	}
-	if !slices.Contains(roots, filepath.Join(home, ".agents", "skills")) {
-		t.Fatalf("桌面模式应扫描标准 Agent Skill 根: %#v", roots)
+	if !slices.Contains(roots, filepath.Join(appfs.HostSkillRoot(), ".agents", "skills")) {
+		t.Fatalf("桌面模式应读取受管宿主 Skill 根: %#v", roots)
 	}
 }
 
@@ -637,6 +620,9 @@ func TestUserGlobalSkillUsesGlobalAgentBinding(t *testing.T) {
 		"用户全局 Skill",
 		false,
 	)
+	if err = workspacepkg.EnsureHostSkillLibrary(cfg); err != nil {
+		t.Fatalf("同步宿主 Skill 投影失败: %v", err)
+	}
 
 	ctx := context.Background()
 	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
@@ -711,6 +697,84 @@ func TestUserGlobalSkillUsesGlobalAgentBinding(t *testing.T) {
 	}
 }
 
+func TestHostSkillCanonicalNameUsesDirectoryName(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	cfg.AppMode = "desktop"
+	home := filepath.Join(filepath.Dir(cfg.WorkspacePath), "home")
+	sourceDir := filepath.Join(home, ".agents", "skills", "directory-name")
+	writeTestSkillDir(
+		t,
+		sourceDir,
+		"frontmatter-name",
+		"Frontmatter 标题",
+		false,
+	)
+	if err := workspacepkg.EnsureHostSkillLibrary(cfg); err != nil {
+		t.Fatalf("同步宿主 Skill 投影失败: %v", err)
+	}
+	writeTestSkillDir(t, sourceDir, "frontmatter-name", "未同步的宿主标题", false)
+
+	items, err := NewService(cfg, nil, nil).ListSkills(context.Background(), Query{})
+	if err != nil {
+		t.Fatalf("读取宿主 Skill 目录失败: %v", err)
+	}
+	item, ok := findSkill(items, "directory-name")
+	if !ok {
+		t.Fatalf("目录名 canonical Skill 缺失: %+v", items)
+	}
+	if item.Title != "Frontmatter 标题" || item.SourceKind != sourceKindUserGlobal {
+		t.Fatalf("宿主 Skill 元数据投影不正确: %+v", item)
+	}
+	expectedSource := filepath.Join(appfs.HostSkillRoot(), ".agents", "skills", "directory-name")
+	if filepath.Clean(item.SourceRef) != filepath.Clean(expectedSource) {
+		t.Fatalf("宿主 Catalog 未读取受管快照: %q, want %q", item.SourceRef, expectedSource)
+	}
+	if _, exists := findSkill(items, "frontmatter-name"); exists {
+		t.Fatalf("frontmatter name 不应替代目录 canonical name: %+v", items)
+	}
+	if err = workspacepkg.EnsureHostSkillLibrary(cfg); err != nil {
+		t.Fatalf("刷新宿主 Skill 投影失败: %v", err)
+	}
+	items, err = NewService(cfg, nil, nil).ListSkills(context.Background(), Query{})
+	if err != nil {
+		t.Fatalf("读取刷新后的宿主 Skill 目录失败: %v", err)
+	}
+	item, ok = findSkill(items, "directory-name")
+	if !ok || item.Title != "未同步的宿主标题" {
+		t.Fatalf("宿主快照显式刷新后未更新: %+v", item)
+	}
+}
+
+func TestOwnerGlobalSkillCanonicalNameUsesDirectoryName(t *testing.T) {
+	cfg := newSkillsTestConfig(t)
+	skillRoot := filepath.Join(
+		workspacepkg.UserSkillDiscoveryRoot(cfg, authctx.SystemUserID),
+		"owner-directory-name",
+	)
+	writeTestSkillDir(
+		t,
+		skillRoot,
+		"owner-frontmatter-name",
+		"Owner Frontmatter 标题",
+		true,
+	)
+
+	items, err := NewService(cfg, nil, nil).ListSkills(context.Background(), Query{})
+	if err != nil {
+		t.Fatalf("读取 owner 全局 Skill 目录失败: %v", err)
+	}
+	item, ok := findSkill(items, "owner-directory-name")
+	if !ok {
+		t.Fatalf("owner 目录名 canonical Skill 缺失: %+v", items)
+	}
+	if item.Title != "Owner Frontmatter 标题" || item.StorageScope != storageScopeUserGlobal {
+		t.Fatalf("owner 全局 Skill 元数据投影不正确: %+v", item)
+	}
+	if _, exists := findSkill(items, "owner-frontmatter-name"); exists {
+		t.Fatalf("owner manifest/frontmatter 不应改写目录 canonical name: %+v", items)
+	}
+}
+
 func TestAgentWorkspaceSkillShadowsSameNamedUserGlobalSkill(t *testing.T) {
 	cfg := newSkillsTestConfig(t)
 	cfg.AppMode = "desktop"
@@ -731,6 +795,9 @@ func TestAgentWorkspaceSkillShadowsSameNamedUserGlobalSkill(t *testing.T) {
 	t.Setenv("NEXUS_APP_MODE", "desktop")
 	hostSkillRoot := filepath.Join(home, ".agents", "skills", "same-name-skill")
 	writeTestSkillDir(t, hostSkillRoot, "same-name-skill", "用户全局版本", false)
+	if err = workspacepkg.EnsureHostSkillLibrary(cfg); err != nil {
+		t.Fatalf("同步宿主 Skill 投影失败: %v", err)
+	}
 
 	agentValue, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{
 		Name: "本地 Skill 测试助手",

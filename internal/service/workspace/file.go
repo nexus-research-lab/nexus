@@ -14,7 +14,7 @@ import (
 
 // ListFiles 返回 Agent workspace 的文件树。
 func (s *Service) ListFiles(ctx context.Context, agentID string) ([]FileEntry, error) {
-	agentValue, err := s.ensureAgentWorkspace(ctx, agentID)
+	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
 	if err != nil {
 		return nil, err
 	}

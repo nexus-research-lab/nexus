@@ -19,7 +19,13 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
-var userSkillLibraryLocks sync.Map
+type userSkillLibraryState struct {
+	sync.Mutex
+	ready          bool
+	fallbackMirror bool
+}
+
+var userSkillLibraryStates sync.Map
 
 // UserSkillLibraryRoot 返回指定 owner 的共享 Skill 根。
 //
@@ -38,7 +44,10 @@ func UserSkillDiscoveryRoot(cfg config.Config, ownerUserID string) string {
 func SkillLibraryRoots(cfg config.Config, ownerUserID string) []string {
 	roots := []string{appfs.PlatformSkillRoot()}
 	if strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop") {
-		if info, err := os.Stat(appfs.HostSkillRoot()); err == nil && info.IsDir() {
+		// 宿主根在服务接受请求前创建；内容可以仍为空，但坏路径不能作为
+		// --add-dir 传给 runtime，把可选来源故障扩大成会话启动失败。
+		if info, err := os.Lstat(appfs.HostSkillRoot()); err == nil &&
+			info.Mode()&os.ModeSymlink == 0 && info.IsDir() {
 			roots = append(roots, appfs.HostSkillRoot())
 		}
 	}
@@ -47,34 +56,49 @@ func SkillLibraryRoots(cfg config.Config, ownerUserID string) []string {
 
 // EnsureUserSkillLibrary 确保用户外部 Skill 同时具备 nxs 与 Claude 发现入口。
 func EnsureUserSkillLibrary(cfg config.Config, ownerUserID string) error {
-	if err := syncUserSkillLibrary(cfg, ownerUserID, false); err != nil {
-		return err
-	}
-	return EnsureHostSkillLibrary(cfg)
+	return withUserSkillLibraryState(cfg, ownerUserID, false)
 }
 
 // RefreshUserSkillLibrary 在 owner 源变化后刷新 Claude fallback 镜像。
 func RefreshUserSkillLibrary(cfg config.Config, ownerUserID string) error {
-	if err := syncUserSkillLibrary(cfg, ownerUserID, true); err != nil {
-		return err
-	}
-	return EnsureHostSkillLibrary(cfg)
+	return withUserSkillLibraryState(cfg, ownerUserID, true)
 }
 
-func syncUserSkillLibrary(cfg config.Config, ownerUserID string, refreshMirror bool) error {
+func withUserSkillLibraryState(cfg config.Config, ownerUserID string, forceRefresh bool) error {
 	root := UserSkillLibraryRoot(cfg, ownerUserID)
-	lockValue, _ := userSkillLibraryLocks.LoadOrStore(root, &sync.Mutex{})
-	lock := lockValue.(*sync.Mutex)
-	lock.Lock()
-	defer lock.Unlock()
+	stateValue, _ := userSkillLibraryStates.LoadOrStore(root, &userSkillLibraryState{})
+	state := stateValue.(*userSkillLibraryState)
+	state.Lock()
+	defer state.Unlock()
+	if state.ready && !forceRefresh && userSkillLibraryReady(cfg, ownerUserID, state) {
+		return nil
+	}
+	snapshot, err := syncUserSkillLibrary(cfg, ownerUserID)
+	if err != nil {
+		state.ready = false
+		return err
+	}
+	state.ready = true
+	state.fallbackMirror = snapshot.fallbackMirror
+	return nil
+}
 
+type userSkillLibrarySnapshot struct {
+	fallbackMirror bool
+}
+
+func syncUserSkillLibrary(
+	cfg config.Config,
+	ownerUserID string,
+) (userSkillLibrarySnapshot, error) {
+	root := UserSkillLibraryRoot(cfg, ownerUserID)
 	confinedRoot, err := workspacestore.New(cfg.WorkspacePath).OpenOwnerWorkspacePath(
 		ownerUserID,
 		root,
 		true,
 	)
 	if err != nil {
-		return err
+		return userSkillLibrarySnapshot{}, err
 	}
 	defer confinedRoot.Close()
 	agentsDirectory, err := confinedRoot.OpenOrCreateRootNoSymlink(
@@ -82,29 +106,71 @@ func syncUserSkillLibrary(cfg config.Config, ownerUserID string, refreshMirror b
 		workspaceDirectoryMode(),
 	)
 	if err != nil {
-		return err
+		return userSkillLibrarySnapshot{}, err
 	}
-	_ = agentsDirectory.Close()
+	if closeErr := agentsDirectory.Close(); closeErr != nil {
+		return userSkillLibrarySnapshot{}, closeErr
+	}
 	relativeTarget := filepath.Join("..", ".agents", "skills")
 	if currentTarget, err := confinedRoot.Readlink(".claude/skills"); err == nil {
 		if currentTarget == relativeTarget {
-			return nil
+			return userSkillLibrarySnapshot{}, nil
 		}
-	} else if info, statErr := confinedRoot.Lstat(".claude/skills"); statErr == nil &&
-		info.Mode()&os.ModeSymlink == 0 &&
-		info.IsDir() &&
-		!refreshMirror {
-		return nil
+	}
+	if info, statErr := confinedRoot.Lstat(".claude/skills"); statErr == nil &&
+		info.Mode()&os.ModeSymlink == 0 && info.IsDir() {
+		// 已进入无 symlink 权限的 fallback 后保持目录身份。镜像先在 staging
+		// 构建，成功后再替换，刷新失败时旧版仍可供正在运行的 Claude 读取。
+		if mirrorErr := mirrorDirectoryAt(confinedRoot, ".agents/skills", ".claude/skills"); mirrorErr != nil {
+			return userSkillLibrarySnapshot{}, fmt.Errorf("刷新用户 Skill Claude 镜像失败: %w", mirrorErr)
+		}
+		return userSkillLibrarySnapshot{fallbackMirror: true}, nil
 	}
 	// 后续操作必须继续使用已经固定的 owner 根 fd。这里不能在完成
 	// owner 校验后重新按绝对路径打开 root，否则目录项被替换时会出现
 	// TOCTOU 窗口。
-	if err := ensureRelativeSymlinkAt(confinedRoot, ".claude/skills", relativeTarget); err == nil {
-		return nil
-	} else if mirrorErr := mirrorDirectoryAt(confinedRoot, ".agents/skills", ".claude/skills"); mirrorErr != nil {
-		return fmt.Errorf("创建用户 Skill Claude 入口失败: %w；镜像目录也失败: %v", err, mirrorErr)
+	symlinkErr := ensureRelativeSymlinkAt(confinedRoot, ".claude/skills", relativeTarget)
+	if symlinkErr == nil {
+		return userSkillLibrarySnapshot{}, nil
 	}
-	return nil
+	if mirrorErr := mirrorDirectoryAt(confinedRoot, ".agents/skills", ".claude/skills"); mirrorErr != nil {
+		return userSkillLibrarySnapshot{}, fmt.Errorf(
+			"创建用户 Skill Claude 入口失败: %v；镜像目录也失败: %w",
+			symlinkErr,
+			mirrorErr,
+		)
+	}
+	return userSkillLibrarySnapshot{
+		fallbackMirror: true,
+	}, nil
+}
+
+func userSkillLibraryReady(
+	cfg config.Config,
+	ownerUserID string,
+	state *userSkillLibraryState,
+) bool {
+	root := UserSkillLibraryRoot(cfg, ownerUserID)
+	confinedRoot, err := workspacestore.New(cfg.WorkspacePath).OpenOwnerWorkspacePath(
+		ownerUserID,
+		root,
+		false,
+	)
+	if err != nil {
+		return false
+	}
+	defer confinedRoot.Close()
+	if currentTarget, readErr := confinedRoot.Readlink(".claude/skills"); readErr == nil {
+		return !state.fallbackMirror && currentTarget == filepath.Join("..", ".agents", "skills")
+	}
+	if !state.fallbackMirror {
+		return false
+	}
+	info, err := confinedRoot.Lstat(".claude/skills")
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return false
+	}
+	return true
 }
 
 // ReplaceDirectory 原子替换一个 Skill 源目录，避免 runtime 读到半份文件。

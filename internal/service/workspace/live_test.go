@@ -134,6 +134,49 @@ func TestServiceFlushesWorkspaceLiveWrites(t *testing.T) {
 	}
 }
 
+func TestSubscribeLiveDoesNotInitializeWorkspace(t *testing.T) {
+	cfg := newWorkspaceTestConfig(t)
+	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := NewService(cfg, agentService)
+	ctx := context.Background()
+
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "纯读订阅助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	managedSkillPath := filepath.Join(
+		agentValue.WorkspacePath,
+		".agents",
+		"skills",
+		"imagegen",
+		"SKILL.md",
+	)
+	if err = os.MkdirAll(filepath.Dir(managedSkillPath), 0o755); err != nil {
+		t.Fatalf("创建过期 Skill 目录失败: %v", err)
+	}
+	if err = os.WriteFile(managedSkillPath, []byte("stale\n"), 0o644); err != nil {
+		t.Fatalf("写入过期 Skill 副本失败: %v", err)
+	}
+
+	token, err := workspaceService.SubscribeLive(ctx, agentValue.AgentID, func(LiveEvent) {})
+	if err != nil {
+		t.Fatalf("订阅 workspace live 失败: %v", err)
+	}
+	workspaceService.UnsubscribeLive(token)
+	if payload, readErr := os.ReadFile(managedSkillPath); readErr != nil {
+		t.Fatalf("订阅路径不应清理 workspace 内容: %v", readErr)
+	} else if string(payload) != "stale\n" {
+		t.Fatalf("订阅路径修改了 workspace 内容: %q", payload)
+	}
+}
+
 func waitWorkspaceLiveEvent(t *testing.T, events <-chan LiveEvent, match func(LiveEvent) bool) LiveEvent {
 	t.Helper()
 

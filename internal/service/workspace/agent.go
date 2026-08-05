@@ -12,27 +12,15 @@ import (
 )
 
 func (s *Service) ensureAgentWorkspace(ctx context.Context, agentID string) (*protocol.Agent, error) {
-	if err := EnsurePlatformSkillLibrary(); err != nil {
-		return nil, err
-	}
 	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
 	if err != nil {
-		return nil, err
-	}
-	if err = EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
 		return nil, err
 	}
 	root, err := s.openAgentWorkspace(agentValue, true)
 	if err != nil {
 		return nil, err
 	}
-	if err = EnsureInitializedAt(
-		root,
-		agentValue.AgentID,
-		agentValue.Name,
-		agentValue.IsMain,
-		agentValue.CreatedAt,
-	); err != nil {
+	if err = EnsureInitializedOnceForAgentAt(root, *agentValue); err != nil {
 		_ = root.Close()
 		return nil, err
 	}
@@ -40,6 +28,21 @@ func (s *Service) ensureAgentWorkspace(ctx context.Context, agentID string) (*pr
 		return nil, err
 	}
 	return agentValue, nil
+}
+
+// InitializeAgentWorkspace 在显式 Agent 创建阶段补齐版本化 workspace。
+func (s *Service) InitializeAgentWorkspace(_ context.Context, agentValue protocol.Agent) error {
+	root, err := s.openAgentWorkspace(&agentValue, true)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return EnsureInitializedOnceForAgentAt(root, agentValue)
+}
+
+// RemoveAgentWorkspaceState 删除 Agent 生命周期产生的宿主初始化标记。
+func (s *Service) RemoveAgentWorkspaceState(_ context.Context, agentValue protocol.Agent) error {
+	return removeWorkspaceInitializationState(agentValue)
 }
 
 // EnsureAgentWorkspace 校验 owner 归属并完成 Agent workspace 初始化。
@@ -75,11 +78,5 @@ func EnsureInitializedForAgent(cfg config.Config, agentValue protocol.Agent) err
 		return err
 	}
 	defer root.Close()
-	return EnsureInitializedAt(
-		root,
-		agentValue.AgentID,
-		agentValue.Name,
-		agentValue.IsMain,
-		agentValue.CreatedAt,
-	)
+	return EnsureInitializedOnceForAgentAt(root, agentValue)
 }

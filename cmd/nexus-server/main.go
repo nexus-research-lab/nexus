@@ -264,6 +264,11 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	// 宿主 Skill 是桌面可选来源。只在启动窗口创建稳定根，
+	// 内容校验与刷新交给后台 watcher，不应阻断服务健康。
+	if err := workspacepkg.PrepareHostSkillLibrary(cfg); err != nil {
+		logger.Warn("宿主 Skill 兼容根准备失败，继续启动服务", "err", err)
+	}
 	if err := migration.RunRuntimeIdentitySync(context.Background(), cfg, logger); err != nil {
 		logger.Error("runtime OS identity 同步失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -302,6 +307,11 @@ func runServer() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	go workspacepkg.WatchHostSkillLibrary(
+		ctx,
+		cfg,
+		logger.With("component", "workspace.host_skills"),
+	)
 
 	logger.Info("服务启动中",
 		"addr", cfg.Address(),

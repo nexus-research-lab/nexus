@@ -429,6 +429,28 @@ func TestServiceHardDeletesAgentAndAllowsNameReuse(t *testing.T) {
 	}
 }
 
+func TestServiceDeleteAgentIgnoresWorkspaceMarkerCleanupFailure(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, db := newAgentTestService(t, cfg)
+	ctx := context.Background()
+	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可清理助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	cleaner := &failingWorkspaceStateCleaner{}
+	service.SetWorkspaceManager(cleaner)
+
+	if err = service.DeleteAgent(ctx, created.AgentID); err != nil {
+		t.Fatalf("可重建 marker 清理失败不应阻断 Agent 删除: %v", err)
+	}
+	if cleaner.removeCalls != 1 {
+		t.Fatalf("workspace marker 清理次数 = %d, want 1", cleaner.removeCalls)
+	}
+	assertNoRowsForAgent(t, db, "agents", "id", created.AgentID)
+}
+
 func TestServiceUsesAgentIDWorkspacePathAndRenameKeepsWorkspace(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
@@ -536,6 +558,25 @@ func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 
 type fakeAgentGoalCleaner struct {
 	agentIDs []string
+}
+
+type failingWorkspaceStateCleaner struct {
+	removeCalls int
+}
+
+func (*failingWorkspaceStateCleaner) InitializeAgentWorkspace(
+	context.Context,
+	protocol.Agent,
+) error {
+	return nil
+}
+
+func (f *failingWorkspaceStateCleaner) RemoveAgentWorkspaceState(
+	context.Context,
+	protocol.Agent,
+) error {
+	f.removeCalls++
+	return errors.New("marker cleanup failed")
 }
 
 func (f *fakeAgentGoalCleaner) DeleteGoalsForAgent(_ context.Context, agentID string) (int, error) {

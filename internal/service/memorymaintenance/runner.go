@@ -56,9 +56,6 @@ func NewCoordinator(
 
 func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protocol.Agent) (agentclient.AutoDreamResult, error) {
 	ownerContext := contextForAgentOwner(ctx, agentValue)
-	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
-		return agentclient.AutoDreamResult{}, err
-	}
 	if err := workspacepkg.EnsureUserSkillLibrary(r.config, agentValue.OwnerUserID); err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}

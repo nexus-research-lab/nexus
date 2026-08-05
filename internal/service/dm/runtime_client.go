@@ -65,9 +65,6 @@ func (s *Service) ensureClient(
 	}
 	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
-	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
-		return nil, "", "", "", "", "", nil, permissionMode, err
-	}
 	if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
