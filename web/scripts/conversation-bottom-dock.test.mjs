@@ -158,7 +158,6 @@ test("round 结束前后 Composer 提交动作保持稳定几何", async () => {
     "/src/features/conversation/shared/composer/components/composer-submit-button.tsx",
   );
   const props = {
-    enterLabel: "发送",
     isDisabled: true,
     isGoalCreating: false,
     isGoalMode: false,
@@ -183,7 +182,10 @@ test("round 结束前后 Composer 提交动作保持稳定几何", async () => {
   for (const actionHtml of [sendHtml, stopHtml]) {
     assert.match(actionHtml, /\bnexus-chat-composer-submit\b/);
     assert.match(actionHtml, /\bmin-h-8\b/);
+    assert.doesNotMatch(actionHtml, /nexus-chat-composer-submit-slot/);
   }
+  assert.doesNotMatch(sendHtml, /\bnexus-chat-composer-submit-stop\b/);
+  assert.match(stopHtml, /\bnexus-chat-composer-submit-stop\b/);
 
   const recipeSource = await readFile(
     path.join(webRoot, "src/app/styles/theme-recipes.css"),
@@ -191,8 +193,37 @@ test("round 结束前后 Composer 提交动作保持稳定几何", async () => {
   );
   assert.match(
     recipeSource,
-    /@container nexus-chat-composer \(min-width: 640px\)[\s\S]*?\.nexus-chat-composer-submit \{[\s\S]*?width: 5rem;/,
+    /\.nexus-chat-composer-submit \{[\s\S]*?width: 2rem;[\s\S]*?padding-inline: 0;[\s\S]*?border-radius: 999px;/,
   );
+  assert.match(
+    recipeSource,
+    /\.nexus-chat-composer-submit:disabled \{[\s\S]*?opacity: 1;[\s\S]*?background: var\(--text-soft\);[\s\S]*?color: #fff;/,
+  );
+  assert.doesNotMatch(recipeSource, /nexus-chat-composer-submit-slot/);
+});
+
+test("Composer 回复阶段只保留停止快捷键提示", async () => {
+  const { projectComposerFooterStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-footer-model.ts",
+  );
+  const projection = projectComposerFooterStatus({
+    activeError: null,
+    copy: {
+      compacting: "正在压缩上下文",
+      goalCreating: "正在创建 Goal",
+      preparingAttachments: "正在准备附件",
+      replying: "回复中",
+      sending: "发送中",
+      stopHint: "[ESC 停止]",
+    },
+    isGoalCreating: false,
+    isPreparingAttachments: false,
+    runtimeActivity: "replying",
+  });
+
+  assert.equal(projection.message, null);
+  assert.equal(projection.frames, null);
+  assert.equal(projection.hint, "[ESC 停止]");
 });
 
 test("Action Menu 的空 footer 使用稳定引用，避免定位状态自循环", async () => {
@@ -724,7 +755,6 @@ test("Composer Footer keeps Powered by Nexus in its physical center column", asy
       sessionSettingsDisabled: false,
       showPoweredByNexus: true,
       submit: {
-        enterLabel: "发送",
         isDisabled: true,
         isGoalCreating: false,
         isGoalMode: false,
@@ -1496,6 +1526,18 @@ test("DM and Room pending interactions replace the Composer input in one stable 
   assert.match(interactionHtml, />允许本次</);
   assert.match(interactionHtml, /aria-label="选择允许范围"/);
   assert.match(interactionHtml, />拒绝</);
+  assert.match(
+    interactionHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-28\b[^"]*" data-composer-permission-action="deny"/,
+  );
+  assert.match(
+    interactionHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-28\b[^"]*" data-composer-permission-action="allow"/,
+  );
+  assert.doesNotMatch(
+    interactionHtml,
+    /rounded-(?:full|l-full|r-full)/,
+  );
   const interactionEnglishHtml = await renderWithI18n(interaction, "en");
   assert.match(interactionEnglishHtml, />Allow once</);
   assert.match(interactionEnglishHtml, />Deny</);
@@ -1718,6 +1760,14 @@ test("questions and plan confirmations use the same Composer replacement owner",
   assert.match(planHtml, /先验证数据源，再生成最终报告/);
   assert.match(planHtml, />允许本次</);
   assert.match(planHtml, />拒绝</);
+  assert.match(
+    planHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="deny"/,
+  );
+  assert.match(
+    planHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="allow"/,
+  );
 });
 
 test("DM and Room messages never remount interaction options outside the Composer", async () => {

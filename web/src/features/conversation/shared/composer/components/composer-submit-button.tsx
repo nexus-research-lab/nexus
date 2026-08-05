@@ -10,7 +10,6 @@ import {
 } from "../composer-styles";
 
 export interface ComposerSubmitButtonProps {
-  enterLabel: string;
   isDisabled: boolean;
   isGoalCreating: boolean;
   isGoalMode: boolean;
@@ -29,7 +28,6 @@ interface ComposerSubmitProjection {
   ariaLabel: string;
   className: string;
   disabled: boolean;
-  inlineLabel: string | null;
   visual: ComposerSubmitVisual;
 }
 
@@ -66,7 +64,6 @@ export function ComposerSubmitButton(props: ComposerSubmitButtonProps) {
       }
       type="button"
     >
-      <ComposerSubmitInlineLabel label={projection.inlineLabel} />
       {content[projection.visual]}
     </button>
   );
@@ -100,32 +97,18 @@ function projectComposerSubmitButton(
       ariaLabel: props.sendLabel,
       className: cn(
         COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME,
-        // 中文注释：默认退后 —— 不可发送时降级为无底无边框的 ghost 态，可发送时才呈现蓝色主动作。
-        "nexus-chat-composer-submit gap-1.5 disabled:border-transparent disabled:bg-transparent disabled:text-(--icon-muted) disabled:shadow-none",
+        "nexus-chat-composer-submit gap-1.5",
       ),
       disabled: props.isDisabled,
-      inlineLabel: props.enterLabel,
     },
     stop: {
       ariaLabel: props.stopLabel,
       className: cn(
         COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME,
-        "nexus-chat-composer-submit gap-1.5",
+        "nexus-chat-composer-submit nexus-chat-composer-submit-stop gap-1.5",
       ),
       disabled: false,
-      inlineLabel: null,
     },
   };
   return { action, ...behavior[action], visual };
-}
-
-function ComposerSubmitInlineLabel({ label }: { label: string | null }) {
-  if (!label) {
-    return null;
-  }
-  return (
-    <span className="nexus-chat-composer-submit-label text-compact font-semibold">
-      {label}
-    </span>
-  );
 }

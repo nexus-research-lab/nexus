@@ -105,7 +105,7 @@ function ComposerInteractionRequest({
           "soft-scrollbar max-h-[min(46vh,30rem)] overflow-y-auto [&_button]:min-h-11 [&_button]:min-w-11 sm:[&_button]:min-w-0",
           kind === "question"
             ? "p-3 sm:p-4 sm:[&_button]:min-h-8"
-            : "p-4 sm:p-5 sm:[&_button]:min-h-9",
+            : "p-4 sm:p-5 sm:[&_button]:min-h-8",
         )}
       >
         <InteractionBody

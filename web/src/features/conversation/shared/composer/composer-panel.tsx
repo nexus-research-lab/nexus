@@ -179,7 +179,6 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 }
                 showPoweredByNexus
                 submit={{
-                  enterLabel: state.inlineEnterLabel,
                   isDisabled: state.isSendDisabled,
                   isGoalCreating: state.isGoalCreating,
                   isGoalMode: state.isGoalMode,

@@ -124,7 +124,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 16px  overlay      /* popover、dialog、sheet */
 20px  composer     /* 唯一的主输入焦点 */
 24px  shell        /* 认证、故障等独立壳 */
-999px full         /* 状态点、真实 pill、明确要求的圆形头像 */
+999px full         /* 状态点、真实 pill、明确要求的圆形头像或主图标动作 */
 ```
 
 - button、input、menu item 用 `control`；不用 `lg`、`xl` 或 pill 制造「高级感」，不把常规按钮和筛选项 pill 化。

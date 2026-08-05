@@ -769,19 +769,19 @@
     grid-area: trailing;
   }
 
-  .nexus-chat-composer-submit-label {
-    display: none;
+  .nexus-chat-composer-submit {
+    width: 2rem;
+    padding-inline: 0;
+    border-radius: 999px;
   }
 
-  @container nexus-chat-composer (min-width: 640px) {
-    /* 运行前后固定提交动作宽度，避免停止按钮切回发送按钮时 Footer 横跳。 */
-    .nexus-chat-composer-submit {
-      width: 5rem;
-    }
-
-    .nexus-chat-composer-submit-label {
-      display: inline;
-    }
+  /* 空输入仍保留中性圆形动作，避免发送入口在可用性变化时消失。 */
+  .nexus-chat-composer-submit:disabled {
+    opacity: 1;
+    border-color: transparent;
+    background: var(--text-soft);
+    color: #fff;
+    box-shadow: none;
   }
 
   @container nexus-chat-composer (max-width: 520px) {
