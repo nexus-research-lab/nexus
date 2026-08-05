@@ -201,8 +201,10 @@ func MergeSkippedStateLayoutUsers(stateRoot string, logger *slog.Logger) error {
 	if err = mergeRecoveredLayoutDirectory(recoveryUsersRoot, canonicalUsersRoot, &result); err != nil {
 		return err
 	}
-	if err = hardenLayoutTree(canonicalUsersRoot); err != nil {
-		return fmt.Errorf("收紧恢复后的用户状态权限: %w", err)
+	if shouldHardenMigratedPermissions(appfs.RuntimeIsolationEnforced()) {
+		if err = hardenLayoutTree(canonicalUsersRoot); err != nil {
+			return fmt.Errorf("收紧恢复后的用户状态权限: %w", err)
+		}
 	}
 	if err = writeWorkspaceFileMigrationMarker(markerPath); err != nil {
 		return err

@@ -242,17 +242,33 @@ func (m *legacyRoomFileMigrator) migrateConversation(sourcePath string, director
 	); err != nil {
 		return fmt.Errorf("迁移 Room conversation %s: %w", conversationID, err)
 	}
-	if err = chmodPrivateTree(stateTarget); err != nil {
+	if err = hardenMigratedRoomFiles(
+		stateTarget,
+		assetTarget,
+		appfs.RuntimeIsolationEnforced(),
+	); err != nil {
 		return err
 	}
-	if _, statErr := os.Lstat(assetTarget); statErr == nil {
-		if err = chmodPrivateTree(assetTarget); err != nil {
-			return err
-		}
-	} else if !errors.Is(statErr, os.ErrNotExist) {
-		return statErr
-	}
 	m.result.conversations++
+	return nil
+}
+
+func hardenMigratedRoomFiles(
+	stateTarget string,
+	assetTarget string,
+	launcherManagesPermissions bool,
+) error {
+	if !shouldHardenMigratedPermissions(launcherManagesPermissions) {
+		return nil
+	}
+	if err := chmodPrivateTree(stateTarget); err != nil {
+		return err
+	}
+	if _, err := os.Lstat(assetTarget); err == nil {
+		return chmodPrivateTree(assetTarget)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	return nil
 }
 

@@ -288,10 +288,9 @@ func hardenMigratedStateLayout(
 	sharedRoot string,
 	launcherManagesPermissions bool,
 ) error {
-	if launcherManagesPermissions {
-		// 强隔离目录由 root launcher 持有，并通过宿主/owner/project ACL
-		// 维持协作权限。普通 server 只迁移数据；随后执行的 identity sync
-		// 会以唯一权限事实源重新归一整棵状态树。
+	if !shouldHardenMigratedPermissions(launcherManagesPermissions) {
+		// 桌面端保留宿主用户的原生权限；Linux enforce 由 root launcher
+		// 通过宿主/owner/project ACL 维护，迁移只负责移动数据。
 		return nil
 	}
 	if err := hardenLayoutTree(appRoot); err != nil {

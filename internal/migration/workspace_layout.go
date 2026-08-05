@@ -157,9 +157,9 @@ func hardenMigratedWorkspaceLayout(
 	usersRoot string,
 	launcherManagesPermissions bool,
 ) error {
-	if launcherManagesPermissions {
-		// 强隔离目录由 root launcher 持有；迁移只提交数据与路径，随后统一的
-		// identity sync 会恢复 owner、私有组和默认 ACL，普通 server 不应 chmod。
+	if !shouldHardenMigratedPermissions(launcherManagesPermissions) {
+		// 桌面端保留宿主用户的原生权限；Linux enforce 由 launcher 的
+		// identity sync 恢复 owner、私有组和默认 ACL。
 		return nil
 	}
 	return hardenLayoutTree(usersRoot)

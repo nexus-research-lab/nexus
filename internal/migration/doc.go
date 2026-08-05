@@ -6,6 +6,7 @@
 //   - state_layout.go：把旧状态根安全迁入 app 与 users 前置目录，支持跨版本直升。
 //   - workspace_layout.go：按 owner 重排旧 workspace 并同步 Agent 路径。
 //   - skipped_state_layout.go：修复 v0.1.30 根目录迁移缺口并安全合并错误窗口的新数据。
+//   - migration_permissions.go：统一桌面、普通服务与 Linux enforce 的迁移权限职责。
 //   - workspace_files.go：工作区文件迁移账本、顺序执行与完成标记。
 //   - agent_disabled_skill_schema.go：SQLite 旧版 00056 编号冲突的启动前 schema 与 Goose 账本兼容修复。
 //   - conversation_draft_repair.go：桌面 SQLite 升级期按 canonical 用户输入收口旧空白 Session，并以 started 标记阻止自动重扫。
