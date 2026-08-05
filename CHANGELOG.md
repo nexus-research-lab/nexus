@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Repaired historical managed session-summary ACLs once so the host policy can validate owner-scoped updates without weakening runtime isolation.
 - Treated AutoDream Agents without an available provider and model as a deferred check instead of repeatedly logging runtime errors.
+- Prevented malformed persisted task items from crashing the conversation panel.
 
 ## [0.1.33] - 2026-08-04
 

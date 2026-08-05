@@ -940,7 +940,7 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
   const { WorkspaceTaskPanel } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/surface/workspace-task-strip.tsx",
   );
-  const { resolveWorkspaceTaskSummary } = await server.ssrLoadModule(
+  const { resolveWorkspaceTaskState } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/surface/workspace-task-strip-model.ts",
   );
   const todos = [
@@ -958,13 +958,34 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
       status: "pending",
     },
   ];
-  assert.deepEqual(resolveWorkspaceTaskSummary(todos), {
-    completedCount: 1,
-    currentStep: 2,
-    hasRunningTask: true,
-    summary: "正在核对布局",
-    totalCount: 3,
+  assert.deepEqual(resolveWorkspaceTaskState(todos), {
+    summary: {
+      completedCount: 1,
+      currentStep: 2,
+      hasRunningTask: true,
+      summary: "正在核对布局",
+      totalCount: 3,
+    },
+    todos,
   });
+  assert.deepEqual(resolveWorkspaceTaskState([
+    { status: "pending" },
+    { task: "兼容旧任务字段", status: "in_progress" },
+    { content: null, status: "completed" },
+  ]), {
+    summary: {
+      completedCount: 0,
+      currentStep: 1,
+      hasRunningTask: true,
+      summary: "兼容旧任务字段",
+      totalCount: 1,
+    },
+    todos: [{
+      content: "兼容旧任务字段",
+      status: "in_progress",
+    }],
+  });
+  assert.equal(resolveWorkspaceTaskState(null), null);
   const html = await renderWithI18n(
     React.createElement(WorkspaceTaskPanel, {
       source: {
