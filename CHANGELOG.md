@@ -15,11 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Reworked structured Agent questions into a compact Composer-native surface with row selections, inline custom answers, and one shared decision line.
 - Moved the desktop update shortcut into the sidebar footer and aligned it with the sidebar's utility actions.
 - Tightened macOS management headers and aligned the Nexus wordmark, sidebar toggle, and Dock axes with the native window controls.
 
 ### Fixed
 
+- Stabilized Composer geometry when rounds finish by keeping submit actions and the context-usage slot at fixed dimensions, while refining the context ring stroke.
+- Kept the Agent creation dialog at a stable viewport-relative size while switching between configuration tabs.
 - Preserved structured permission timeout reasons from runtime decisions through tool results, removing brittle English-message matching from conversation rendering.
 - Normalized legacy JSON-quoted owner IDs so equivalent workspace directories no longer collide during desktop upgrades.
 - Discarded regenerable legacy WebView and application caches so cache-version differences no longer block v0.1.27/v0.1.28 desktop upgrades.

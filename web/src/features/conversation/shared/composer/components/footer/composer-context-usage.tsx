@@ -98,7 +98,13 @@ export function ComposerContextUsage({
     onClose: close,
   });
   if (!projection) {
-    return null;
+    return (
+      <span
+        aria-hidden="true"
+        className="h-7 w-7 shrink-0"
+        data-context-usage-slot="empty"
+      />
+    );
   }
 
   const summary = projection.summary;
@@ -121,8 +127,9 @@ export function ComposerContextUsage({
         ref={anchorRef}
         aria-describedby={isOpen ? overlayId : undefined}
         aria-label={ariaLabel}
-        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] outline-none transition-colors hover:bg-(--surface-interactive-hover-background) focus-visible:bg-(--surface-interactive-hover-background)"
+        className="radius-control-sm inline-flex h-7 w-7 shrink-0 items-center justify-center outline-none transition-colors hover:bg-(--surface-interactive-hover-background) focus-visible:bg-(--surface-interactive-hover-background)"
         data-context-usage={summary.percentage}
+        data-context-usage-slot="ready"
         onBlur={scheduleClose}
         onClick={() => isOpen ? close() : open()}
         onFocus={open}
@@ -141,9 +148,9 @@ export function ComposerContextUsage({
             cy="10"
             fill="none"
             pathLength="100"
-            r="7.25"
+            r="7.5"
             stroke="currentColor"
-            strokeWidth="3"
+            strokeWidth="2"
           />
           <circle
             className={summary.toneClassName}
@@ -151,11 +158,11 @@ export function ComposerContextUsage({
             cy="10"
             fill="none"
             pathLength="100"
-            r="7.25"
+            r="7.5"
             stroke="currentColor"
             strokeDasharray={`${summary.percentage} 100`}
             strokeLinecap="round"
-            strokeWidth="3"
+            strokeWidth="2"
           />
         </svg>
       </button>
@@ -253,7 +260,7 @@ function ContextUsageAgentRow({
 }) {
   const { t } = useI18n();
   return (
-    <div className="flex min-h-8 items-center gap-1.5 rounded-[8px] px-1.5 py-1">
+    <div className="radius-control-sm flex min-h-8 items-center gap-1.5 px-1.5 py-1">
       <UiAgentAvatar
         avatar={item.avatar}
         name={item.name}

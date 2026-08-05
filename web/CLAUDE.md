@@ -69,7 +69,7 @@ src/
 - Agent Options 的可编辑字段和创建/更新参数只由 `agents/options/` 投影；Contacts 与 Room 不得复制 Options 字段表或 Agent 更新载荷
 - Agent Options 业务弹窗归 `agents/options/dialog/`；`shared/ui/dialog/` 只提供无业务编辑器依赖的弹窗原语
 - Agent 技能页由 `agents/options/components/skills/` 分离可取消列表资源、互斥安装命令、搜索投影和视图；异步结果必须匹配当前 Agent，状态机不得留在卡片组件
-- AskUserQuestion 以按问题索引的原子回答草稿为唯一交互状态；工具作用域、结果恢复和提交互斥由 question controller 管理，header/card 不解析轮次协议
+- AskUserQuestion 以按问题索引的原子回答草稿为唯一交互状态；工具作用域、结果恢复和提交互斥由 question controller 管理，item/view 不解析轮次协议；Composer 是唯一外层 task surface，选项只使用行级选择态，不恢复嵌套卡片
 - AskUserQuestion 的未知工具输入只由 question model 校验并归一化；camelCase 兼容停留在解析入口，内部契约只保留 `multi_select`
 - 消息文本协议、时间格式和消息项投影分别归属 `message-content-model.ts`、`message-time.ts` 与 `item/message-item-projection.ts`；DOM 测量和活动状态不得进入通用 helper
 - 消息项控制器返回按 User/Assistant 及视觉职责分组的具体状态；视图在消费侧定义窄契约，禁止恢复跨视图的扁平 `MessageItemState`

@@ -774,6 +774,11 @@
   }
 
   @container nexus-chat-composer (min-width: 640px) {
+    /* 运行前后固定提交动作宽度，避免停止按钮切回发送按钮时 Footer 横跳。 */
+    .nexus-chat-composer-submit {
+      width: 5rem;
+    }
+
     .nexus-chat-composer-submit-label {
       display: inline;
     }

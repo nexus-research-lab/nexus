@@ -80,13 +80,24 @@ test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的�
     totalTokens: 196_000,
   });
   assert.equal(projectContextUsage(null), null);
+  const emptyHtml = await renderWithI18n(
+    React.createElement(ComposerContextUsage, { usage: null }),
+  );
+  assert.match(emptyHtml, /data-context-usage-slot="empty"/);
+  assert.doesNotMatch(emptyHtml, /<button/);
   const html = await renderWithI18n(
     React.createElement(ComposerContextUsage, { usage }),
   );
+  assert.match(html, /data-context-usage-slot="ready"/);
   assert.match(html, /data-context-usage="76"/);
   assert.match(html, /上下文窗口已用 76%/);
   assert.match(html, /196\.0K/);
   assert.match(html, /258\.0K/);
+  assert.equal(
+    (html.match(/stroke-width="2"/g) ?? []).length,
+    2,
+    "context track and progress use the same restrained 2px stroke",
+  );
 
   const groupedProjection = projectComposerContextUsage({
     items: [
@@ -140,6 +151,48 @@ test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的�
     }, context);
   }
   assert.deepEqual(Object.keys(usageByAgent), ["amy", "devin"]);
+});
+
+test("round 结束前后 Composer 提交动作保持稳定几何", async () => {
+  const { ComposerSubmitButton } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/composer-submit-button.tsx",
+  );
+  const props = {
+    enterLabel: "发送",
+    isDisabled: true,
+    isGoalCreating: false,
+    isGoalMode: false,
+    isPreparingAttachments: false,
+    onSend: () => {},
+    onStop: () => {},
+    sendLabel: "发送消息",
+    stopLabel: "停止生成",
+  };
+  const sendHtml = renderToStaticMarkup(
+    React.createElement(ComposerSubmitButton, {
+      ...props,
+      shouldStop: false,
+    }),
+  );
+  const stopHtml = renderToStaticMarkup(
+    React.createElement(ComposerSubmitButton, {
+      ...props,
+      shouldStop: true,
+    }),
+  );
+  for (const actionHtml of [sendHtml, stopHtml]) {
+    assert.match(actionHtml, /\bnexus-chat-composer-submit\b/);
+    assert.match(actionHtml, /\bmin-h-8\b/);
+  }
+
+  const recipeSource = await readFile(
+    path.join(webRoot, "src/app/styles/theme-recipes.css"),
+    "utf8",
+  );
+  assert.match(
+    recipeSource,
+    /@container nexus-chat-composer \(min-width: 640px\)[\s\S]*?\.nexus-chat-composer-submit \{[\s\S]*?width: 5rem;/,
+  );
 });
 
 test("Action Menu 的空 footer 使用稳定引用，避免定位状态自循环", async () => {
@@ -1630,8 +1683,30 @@ test("questions and plan confirmations use the same Composer replacement owner",
     }),
   );
   assert.match(questionHtml, /data-composer-interaction-kind="question"/);
+  assert.match(questionHtml, /需要你的回应/);
   assert.match(questionHtml, /这次分析采用哪种研究口径？/);
+  assert.match(questionHtml, /ask-user-question-option/);
+  assert.match(questionHtml, /type="radio"/);
+  assert.match(questionHtml, /没有合适选项？直接输入回答…/);
+  assert.match(questionHtml, />拒绝</);
   assert.match(questionHtml, /继续协作/);
+  assert.doesNotMatch(
+    questionHtml,
+    /ask-user-question-card|ask-user-question-submit|border-l-2/,
+    "structured questions should stay inside one Composer surface",
+  );
+
+  const englishQuestionHtml = await renderWithI18n(
+    React.createElement(ComposerInteractionSurface, {
+      onResponse: () => true,
+      permissions: [question],
+    }),
+    "en",
+  );
+  assert.match(englishQuestionHtml, /Needs your response/);
+  assert.match(englishQuestionHtml, /No suitable option\? Type your answer…/);
+  assert.match(englishQuestionHtml, />Deny</);
+  assert.match(englishQuestionHtml, />Continue</);
 
   const planHtml = await renderWithI18n(
     React.createElement(ComposerInteractionSurface, {

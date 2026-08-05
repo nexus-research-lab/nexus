@@ -14,6 +14,7 @@ interface AskUserQuestionBlockProps {
   initialSubmitted?: boolean;
   interactionDisabled?: boolean;
   isReady?: boolean;
+  onDeny?: () => void;
   onSubmit: (
     toolUseId: string,
     answers: UserQuestionAnswer[],
@@ -26,6 +27,7 @@ export function AskUserQuestionBlock({
   initialSubmitted = false,
   interactionDisabled = false,
   isReady = true,
+  onDeny,
   onSubmit,
   toolResult,
   toolUse,
@@ -56,7 +58,7 @@ export function AskUserQuestionBlock({
       expanded={controller.isExpanded}
       isReady={controller.isReady}
       isSubmitting={controller.isSubmitting}
-      onExpandedChange={controller.setIsExpanded}
+      onDeny={onDeny}
       onSubmit={() => void controller.submit()}
       onToggleOption={controller.toggleOption}
       onUpdateCustomAnswer={controller.updateCustomAnswer}
@@ -64,7 +66,6 @@ export function AskUserQuestionBlock({
       readOnly={controller.readOnly}
       status={controller.status}
       submitEnabled={controller.submitEnabled}
-      totalSelected={controller.totalSelected}
     />
   );
 }

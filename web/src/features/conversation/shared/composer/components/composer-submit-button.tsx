@@ -108,7 +108,10 @@ function projectComposerSubmitButton(
     },
     stop: {
       ariaLabel: props.stopLabel,
-      className: COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME,
+      className: cn(
+        COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME,
+        "nexus-chat-composer-submit gap-1.5",
+      ),
       disabled: false,
       inlineLabel: null,
     },

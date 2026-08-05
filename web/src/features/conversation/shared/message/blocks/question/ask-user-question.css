@@ -1,78 +1,109 @@
 /**
- * INPUT: AskUserQuestion semantic surface and interaction tokens.
- * OUTPUT: Neutral grayscale question cards, option controls, and answer actions.
- * POS: Visual contract for the shared conversation question block.
+ * INPUT: AskUserQuestion 行式选择器与 Composer 交互令牌。
+ * OUTPUT: 单层中性选中态、清晰焦点和克制的状态过渡。
+ * POS: 共享问答交互面的视觉契约，不承载业务状态判断。
  */
 
-.ask-user-question {
-  overflow: visible;
+.ask-user-question-list {
+  display: grid;
+  gap: 16px;
 }
 
-.ask-user-question-card {
-  border-color: var(--surface-control-border);
-  background: var(--surface-control-background);
-  box-shadow: var(--surface-control-shadow);
-}
-
-.ask-user-question-card[data-selected="true"] {
-  border-color: var(--surface-interactive-active-border);
-  background: var(--surface-interactive-active-background);
-  box-shadow: var(--surface-interactive-active-shadow);
-}
-
-.ask-user-question-card-header[data-expanded="true"] {
-  position: relative;
-  z-index: 1;
-  background: color-mix(
-    in srgb,
-    var(--surface-control-background) 76%,
-    var(--surface-interactive-hover-background) 24%
-  );
-  box-shadow: 0 5px 14px color-mix(in srgb, var(--text-strong) 4%, transparent);
+.ask-user-question-item + .ask-user-question-item {
+  padding-top: 16px;
+  border-top: 1px solid var(--divider-subtle-color);
 }
 
 .ask-user-question-options {
   display: grid;
-  gap: 8px;
+  gap: 2px;
 }
 
-.ask-user-question-option {
-  border: 1px solid var(--surface-control-border);
-  border-radius: 10px;
-  background: var(--surface-control-field-background);
-  box-shadow: var(--surface-control-field-shadow);
-}
-
-.ask-user-question-option:not(:disabled):hover {
-  border-color: var(--surface-control-hover-border);
-  background: var(--surface-control-hover-background);
-}
-
-.ask-user-question-option[data-selected="true"] {
-  border-color: var(--surface-interactive-active-border);
-  background: var(--surface-interactive-active-background);
-  box-shadow: var(--surface-interactive-active-shadow);
-}
-
+.ask-user-question-option,
 .ask-user-question-custom-answer {
-  border: 1px solid var(--surface-control-border);
-  border-radius: 10px;
-  background: var(--surface-control-field-background);
-  box-shadow: var(--surface-control-field-shadow);
+  border-radius: var(--content-radius-control);
+  background: transparent;
   transition:
-    border-color var(--motion-duration-fast) ease,
-    box-shadow var(--motion-duration-fast) ease;
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-standard),
+    opacity var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
+.ask-user-question-option:not([data-read-only="true"]):hover,
+.ask-user-question-custom-answer:not([data-read-only="true"]):hover {
+  background: var(--interaction-hover-background);
+}
+
+.ask-user-question-option[data-selected="true"],
+.ask-user-question-custom-answer[data-selected="true"],
 .ask-user-question-custom-answer:focus-within {
-  border-color: var(--surface-interactive-active-border);
-  box-shadow: var(--surface-interactive-active-shadow);
+  background: var(--interaction-active-background);
 }
 
-.ask-user-question-submit,
-.ask-user-question-submitted {
-  border: 1px solid var(--surface-control-border);
-  border-radius: 10px;
-  background: var(--surface-control-background);
-  box-shadow: var(--surface-control-shadow);
+.ask-user-question-option:has(input:focus-visible),
+.ask-user-question-custom-answer:has(textarea:focus-visible) {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 36%, transparent);
+}
+
+.ask-user-question-option[data-read-only="true"],
+.ask-user-question-custom-answer[data-read-only="true"] {
+  cursor: default;
+}
+
+.ask-user-question-option[data-read-only="true"]:not([data-selected="true"]),
+.ask-user-question-custom-answer[data-read-only="true"]:not([data-selected="true"]) {
+  opacity: 0.64;
+}
+
+.ask-user-question-option-indicator,
+.ask-user-question-custom-answer-icon {
+  border: 1px solid var(--divider-strong-color);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) var(--motion-ease-standard),
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.ask-user-question-option[data-selected="true"]
+  .ask-user-question-option-indicator {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.ask-user-question-custom-answer[data-selected="true"]
+  .ask-user-question-custom-answer-icon,
+.ask-user-question-custom-answer:focus-within
+  .ask-user-question-custom-answer-icon {
+  border-color: color-mix(in srgb, var(--primary) 52%, var(--divider-strong-color));
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 9%, transparent);
+}
+
+.ask-user-question-custom-answer textarea {
+  field-sizing: content;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ask-user-question-option-check,
+  .ask-user-question-custom-answer-check {
+    animation: ask-user-question-check-in var(--motion-duration-fast)
+      var(--motion-ease-standard);
+  }
+}
+
+@keyframes ask-user-question-check-in {
+  from {
+    opacity: 0;
+    transform: translateX(-3px) scale(0.86);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
 }

@@ -5,11 +5,13 @@
  * OUTPUT: 原位替换输入壳内容的权限、计划确认或结构化问答组件。
  * POS: Composer 内唯一可操作的会话人工介入 surface。
  */
+import { MessageSquare } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
 import { PendingHumanQuestion } from "@/features/conversation/shared/message/blocks/question/pending-human-question";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 import type {
   PendingPermission,
   PermissionDecisionPayload,
@@ -98,7 +100,14 @@ function ComposerInteractionRequest({
       data-composer-interaction-surface
       data-pending-interaction-request-id={permission.request_id}
     >
-      <div className="soft-scrollbar max-h-[min(46vh,30rem)] overflow-y-auto p-4 sm:p-5 [&_button]:min-h-11 [&_button]:min-w-11 sm:[&_button]:min-h-9 sm:[&_button]:min-w-0">
+      <div
+        className={cn(
+          "soft-scrollbar max-h-[min(46vh,30rem)] overflow-y-auto [&_button]:min-h-11 [&_button]:min-w-11 sm:[&_button]:min-w-0",
+          kind === "question"
+            ? "p-3 sm:p-4 sm:[&_button]:min-h-8"
+            : "p-4 sm:p-5 sm:[&_button]:min-h-9",
+        )}
+      >
         <InteractionBody
           isResponding={isResponding}
           kind={kind}
@@ -151,13 +160,12 @@ function InteractionBody({
 }): ReactNode {
   if (kind === "question") {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2">
         <QuestionRequester requester={requester} total={total} />
         <PendingHumanQuestion
           canRespond={!isResponding}
           onResponse={onResponse}
           permission={permission}
-          readOnlyReason={isResponding ? "正在提交回应…" : undefined}
         />
       </div>
     );
@@ -182,9 +190,7 @@ function QuestionRequester({
   requester: InteractionRequester;
   total: number;
 }) {
-  if (!requester.name && total <= 1) {
-    return null;
-  }
+  const { t } = useI18n();
   return (
     <div className="flex min-w-0 items-center gap-2 text-sm text-(--text-muted)">
       {requester.name ? (
@@ -198,8 +204,16 @@ function QuestionRequester({
           <span className="truncate font-medium text-(--text-strong)">
             {requester.name}
           </span>
+          <span aria-hidden className="text-(--text-soft)">·</span>
         </>
       ) : null}
+      <MessageSquare
+        aria-hidden
+        className="h-4 w-4 shrink-0 text-(--icon-muted)"
+      />
+      <span className="truncate">
+        {t("composer.question_request_title")}
+      </span>
       {total > 1 ? (
         <span
           className="ml-auto shrink-0 text-xs tabular-nums text-(--text-soft)"
