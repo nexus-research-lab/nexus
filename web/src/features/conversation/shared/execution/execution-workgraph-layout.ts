@@ -38,11 +38,14 @@ export interface ExecutionGraphNodeLayout {
 }
 
 export interface ExecutionGraphEdgeLayout {
+  edge: ExecutionGraphEdgeView;
   id: string;
   kind: ExecutionGraphEdgeKind;
   path: string;
   sourceId: string;
   targetId: string;
+  x: number;
+  y: number;
 }
 
 export interface ExecutionGraphGroupLayout {
@@ -220,6 +223,7 @@ export function buildExecutionGraphLayout(
       continue;
     }
     edges.push({
+      edge,
       id: edge.id,
       kind: edge.kind,
       path: rootByNodeId.get(source.node.id) === rootByNodeId.get(target.node.id)
@@ -230,6 +234,8 @@ export function buildExecutionGraphLayout(
         : buildEdgePath(source, target),
       sourceId: edge.source_node_id,
       targetId: edge.target_node_id,
+      x: (source.x + target.x) / 2,
+      y: (source.y + target.y) / 2,
     });
   }
 

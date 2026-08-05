@@ -27,14 +27,17 @@ const (
 
 // ExecutionContextOptions 提供不能从 snapshot 唯一推导的当前 actor 信息。
 type ExecutionContextOptions struct {
-	ActorAgentID          string
-	Role                  ExecutionActorRole
-	ScopeKind             protocol.ExecutionScopeKind
-	WorkBound             bool
-	ReviewBound           bool
-	PlanMode              bool
-	GoalPromotionReasons  []protocol.GoalActivationReason
-	GoalPromotionBlockers []string
+	ActorAgentID            string
+	Role                    ExecutionActorRole
+	ScopeKind               protocol.ExecutionScopeKind
+	WorkBound               bool
+	ReviewBound             bool
+	PlanMode                bool
+	GoalPromotionReasons    []protocol.GoalActivationReason
+	GoalPromotionBlockers   []string
+	RuntimeGraph            *protocol.ExecutionRuntimeGraph
+	RuntimeGraphRelation    string
+	RuntimeGraphUnavailable bool
 }
 
 // RenderUnmanagedExecutionContext 明确当前没有权威 WorkGraph，避免模型把缺少
@@ -115,6 +118,7 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 			"no managed Assignment exists; act only on the current legacy Room trigger and do not create shared work",
 		)
 	}
+	renderRuntimeGraphFacts(&output, options)
 	writeXMLTextElement(
 		&output,
 		2,
@@ -222,6 +226,7 @@ func RenderConversationExecutionContext(
 		"handoff",
 		"raw mentions are conversation transport only; accountable work arrives in a separate structured dispatch carrying a WorkBinding, and review arrives with a ReviewBinding",
 	)
+	renderRuntimeGraphFacts(&output, options)
 	writeXMLTextElement(
 		&output,
 		2,
@@ -306,6 +311,7 @@ func RenderExecutionContext(snapshot *protocol.ExecutionSnapshot, options Execut
 		role,
 		strings.TrimSpace(options.ActorAgentID),
 	)
+	renderRuntimeGraphFacts(&output, options)
 	renderAssignedWork(&output, view, options.ActorAgentID)
 	renderActiveAssignments(&output, view, role)
 	renderReadyWork(&output, view, role)

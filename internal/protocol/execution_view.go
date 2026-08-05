@@ -156,16 +156,23 @@ type ExecutionGraphNodeView struct {
 
 // ExecutionGraphEdgeView 是前端只画方向、点击后再解释语义的 typed edge。
 type ExecutionGraphEdgeView struct {
-	ID           string                 `json:"id"`
-	Kind         ExecutionGraphEdgeKind `json:"kind"`
-	SourceNodeID string                 `json:"source_node_id"`
-	TargetNodeID string                 `json:"target_node_id"`
+	ID              string                 `json:"id"`
+	Kind            ExecutionGraphEdgeKind `json:"kind"`
+	SourceNodeID    string                 `json:"source_node_id"`
+	TargetNodeID    string                 `json:"target_node_id"`
+	SourceNodeRunID string                 `json:"source_node_run_id,omitempty"`
+	TargetNodeRunID string                 `json:"target_node_run_id,omitempty"`
+	CreatedAt       *time.Time             `json:"created_at,omitempty"`
 }
 
 // ExecutionGraphView 是 WorkGraph responsibility 与 WorkAttempt runtime 的确定性分层读模型。
 type ExecutionGraphView struct {
-	Nodes []ExecutionGraphNodeView `json:"nodes,omitempty"`
-	Edges []ExecutionGraphEdgeView `json:"edges,omitempty"`
+	Nodes                 []ExecutionGraphNodeView `json:"nodes,omitempty"`
+	Edges                 []ExecutionGraphEdgeView `json:"edges,omitempty"`
+	RuntimeNodeTotal      int                      `json:"runtime_node_total"`
+	RuntimeEdgeTotal      int                      `json:"runtime_edge_total"`
+	RuntimeNodesTruncated bool                     `json:"runtime_nodes_truncated"`
+	RuntimeEdgesTruncated bool                     `json:"runtime_edges_truncated"`
 }
 
 // ExecutionSubmissionView 展示当前 spec 最近一次不可变交付声明。

@@ -57,7 +57,14 @@ func mergeExecutionRuntimeGraph(
 	view *protocol.ExecutionView,
 	runtimeGraph protocol.ExecutionRuntimeGraph,
 ) {
-	if view == nil || len(runtimeGraph.Nodes) == 0 {
+	if view == nil {
+		return
+	}
+	view.Graph.RuntimeNodeTotal = runtimeGraph.NodeTotal
+	view.Graph.RuntimeEdgeTotal = runtimeGraph.EdgeTotal
+	view.Graph.RuntimeNodesTruncated = runtimeGraph.NodesTruncated
+	view.Graph.RuntimeEdgesTruncated = runtimeGraph.EdgesTruncated
+	if len(runtimeGraph.Nodes) == 0 {
 		return
 	}
 	agentNodeByRound := make(map[string]string)
@@ -115,6 +122,7 @@ func mergeExecutionRuntimeGraph(
 		}
 	}
 	runtimeNodeProjection := make(map[string]string, len(runtimeGraph.Nodes))
+	promotedRuntimeNodeIDs := runtimeGraphPromotedNodeIDs(runtimeGraph)
 	for _, runtimeNode := range runtimeGraph.Nodes {
 		if managedExecution {
 			if _, allowed := allowedAgentRound[runtimeNode.AgentRoundID]; !allowed {
@@ -154,7 +162,8 @@ func mergeExecutionRuntimeGraph(
 				continue
 			}
 		}
-		projected := projectRuntimeGraphNode(runtimeNode, len(view.Graph.Nodes))
+		_, promoted := promotedRuntimeNodeIDs[runtimeNode.ID]
+		projected := projectRuntimeGraphNode(runtimeNode, len(view.Graph.Nodes), promoted)
 		runtimeNodeProjection[runtimeNode.ID] = projected.ID
 		graphNodeByID[projected.ID] = len(view.Graph.Nodes)
 		view.Graph.Nodes = append(view.Graph.Nodes, projected)
@@ -220,14 +229,19 @@ func mergeExecutionRuntimeGraph(
 		}
 		key := executionGraphEdgeKey(kind, sourceID, targetID)
 		if _, duplicate := existingEdges[key]; duplicate {
+			enrichExecutionGraphRuntimeEdge(view, key, runtimeEdge)
 			continue
 		}
+		createdAt := runtimeEdge.CreatedAt.UTC()
 		existingEdges[key] = struct{}{}
 		view.Graph.Edges = append(view.Graph.Edges, protocol.ExecutionGraphEdgeView{
-			ID:           runtimeEdge.ID,
-			Kind:         kind,
-			SourceNodeID: sourceID,
-			TargetNodeID: targetID,
+			ID:              runtimeEdge.ID,
+			Kind:            kind,
+			SourceNodeID:    sourceID,
+			TargetNodeID:    targetID,
+			SourceNodeRunID: runtimeEdge.SourceNodeID,
+			TargetNodeRunID: runtimeEdge.TargetNodeID,
+			CreatedAt:       &createdAt,
 		})
 	}
 	// Early runtime graph versions could persist a NodeRun before its EdgeRun.
@@ -274,6 +288,24 @@ func mergeExecutionRuntimeGraph(
 		existingEdges,
 		coordinatorNodeIDs,
 	)
+}
+
+func enrichExecutionGraphRuntimeEdge(
+	view *protocol.ExecutionView,
+	key string,
+	runtimeEdge protocol.ExecutionRuntimeEdgeRun,
+) {
+	for index := range view.Graph.Edges {
+		edge := &view.Graph.Edges[index]
+		if executionGraphEdgeKey(edge.Kind, edge.SourceNodeID, edge.TargetNodeID) != key {
+			continue
+		}
+		createdAt := runtimeEdge.CreatedAt.UTC()
+		edge.SourceNodeRunID = runtimeEdge.SourceNodeID
+		edge.TargetNodeRunID = runtimeEdge.TargetNodeID
+		edge.CreatedAt = &createdAt
+		return
+	}
 }
 
 func updateBoundExecutionGraphNode(
@@ -417,6 +449,7 @@ func runtimeGraphNodeKindOrder(kind protocol.ExecutionRuntimeNodeKind) int {
 func projectRuntimeGraphNode(
 	item protocol.ExecutionRuntimeNodeRun,
 	position int,
+	promoted bool,
 ) protocol.ExecutionGraphNodeView {
 	kind := protocol.ExecutionGraphNodeAgent
 	visibility := protocol.ExecutionGraphNodePrimary
@@ -427,7 +460,7 @@ func projectRuntimeGraphNode(
 	case protocol.ExecutionRuntimeNodeTool:
 		kind = protocol.ExecutionGraphNodeTool
 		visibility = protocol.ExecutionGraphNodeDetail
-		if runtimeToolPromoted(item) {
+		if runtimeToolPromoted(item, promoted) {
 			visibility = protocol.ExecutionGraphNodeNested
 		}
 	case protocol.ExecutionRuntimeNodeGate:
@@ -570,27 +603,45 @@ func runtimeNodeDurationMS(item protocol.ExecutionRuntimeNodeRun) int64 {
 	return duration.Milliseconds()
 }
 
-func runtimeToolPromoted(item protocol.ExecutionRuntimeNodeRun) bool {
+func runtimeGraphPromotedNodeIDs(
+	graph protocol.ExecutionRuntimeGraph,
+) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, node := range graph.Nodes {
+		if len(node.Artifacts) > 0 || runtimeGraphVisibilityHint(node) {
+			result[node.ID] = struct{}{}
+		}
+	}
+	for _, edge := range graph.Edges {
+		if edge.Kind != protocol.ExecutionRuntimeEdgeLoopBack &&
+			edge.Kind != protocol.ExecutionRuntimeEdgeRetry {
+			continue
+		}
+		result[edge.SourceNodeID] = struct{}{}
+		result[edge.TargetNodeID] = struct{}{}
+	}
+	return result
+}
+
+func runtimeGraphVisibilityHint(item protocol.ExecutionRuntimeNodeRun) bool {
+	value, _ := item.Metadata[protocol.ExecutionRuntimeMetadataWorkGraphVisibility].(string)
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case string(protocol.ExecutionGraphNodeNested),
+		string(protocol.ExecutionGraphNodePrimary):
+		return true
+	default:
+		return false
+	}
+}
+
+func runtimeToolPromoted(
+	item protocol.ExecutionRuntimeNodeRun,
+	promoted bool,
+) bool {
 	if item.Status != protocol.ExecutionRuntimeNodeSucceeded {
 		return true
 	}
-	name := strings.ToLower(strings.TrimSpace(item.Name))
-	for _, marker := range []string{
-		"plan_execution",
-		"assign_work",
-		"submit_work",
-		"review_work",
-		"take_over_work",
-		"create_goal",
-		"update_goal",
-		"spawn_agent",
-		"subagent",
-	} {
-		if strings.Contains(name, marker) {
-			return true
-		}
-	}
-	return false
+	return promoted
 }
 
 func executionGraphEdgeKey(

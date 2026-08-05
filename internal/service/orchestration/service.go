@@ -455,6 +455,7 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 		ReviewBound:  actor.ReviewBinding != nil,
 		PlanMode:     actor.PlanMode,
 	}
+	s.populateRuntimeGraphContext(ctx, actor, snapshot, &options)
 	if snapshot == nil {
 		return RenderUnmanagedExecutionContext(options), nil
 	}

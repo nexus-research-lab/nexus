@@ -15,11 +15,16 @@ import (
 
 const (
 	runtimeGraphArtifactsMetadataKey = "workspace_artifacts"
-	runtimeGraphArtifactLimit        = 16
+	runtimeGraphArtifactLimit        = protocol.ExecutionRuntimeGraphArtifactProjectionLimit
 )
 
-// ObserveRuntimeArtifacts 把 durable message 已确认的结构化 Artifact 回挂到
-// exact Tool NodeRun。缺少对应 NodeRun 时 fail closed，不凭路径或工具名称造节点。
+type runtimeGraphArtifactRepository interface {
+	UpsertRuntimeGraphArtifact(context.Context, protocol.ExecutionRuntimeArtifactRef) error
+}
+
+// ObserveRuntimeArtifacts 把 durable message 已确认的结构化 Artifact 先按 exact
+// ToolUse 独立持久化。Tool NodeRun 可以先到或后到；读取时才回挂，不凭路径或
+// 工具名称造节点。旧测试/替代仓储没有该能力时保留直接回挂兼容路径。
 func (s *Service) ObserveRuntimeArtifacts(
 	ctx context.Context,
 	actor ActorContext,
@@ -36,6 +41,38 @@ func (s *Service) ObserveRuntimeArtifacts(
 	identity, err := runtimeGraphIdentityFromActor(actor)
 	if err != nil {
 		return err
+	}
+	if durableRepository, durable := s.repository.(runtimeGraphArtifactRepository); durable {
+		now := s.now().UTC()
+		for toolUseID, artifacts := range artifactsByToolUseID {
+			for _, artifact := range artifacts {
+				ref := protocol.ExecutionRuntimeArtifactRef{
+					GraphID:      identity.GraphID,
+					OwnerUserID:  identity.OwnerUserID,
+					SessionKey:   identity.SessionKey,
+					ExecutionID:  identity.ExecutionID,
+					RootRoundID:  identity.RootRoundID,
+					AgentRoundID: identity.AgentRoundID,
+					ToolUseID:    toolUseID,
+					Artifact:     artifact,
+					CreatedAt:    now,
+					UpdatedAt:    now,
+				}
+				ref.ID = stableRuntimeGraphID(
+					"runtime_artifact",
+					identity.OwnerUserID,
+					identity.SessionKey,
+					identity.AgentRoundID,
+					toolUseID,
+					artifact.ID,
+					artifact.Path,
+				)
+				if err = durableRepository.UpsertRuntimeGraphArtifact(ctx, ref); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
 	}
 	graph, err := repository.GetRuntimeGraph(
 		ctx,

@@ -30,6 +30,77 @@ func TestRenderExecutionContextMarksAbnormalHistoricalProjectionTruncation(t *te
 	}
 }
 
+func TestRenderExecutionContextScopesObservedRuntimeFactsWithoutChoosingNextAction(t *testing.T) {
+	now := time.Date(2026, 8, 5, 11, 0, 0, 0, time.UTC)
+	failed := protocol.ExecutionRuntimeNodeRun{
+		ID: "runtime-tool-failed", GraphID: "execution:execution-context",
+		Kind: protocol.ExecutionRuntimeNodeTool, SubjectID: "tool-search-failed",
+		AgentRoundID: "agent-round-analyst", AgentID: "analyst", Name: "search",
+		Status: protocol.ExecutionRuntimeNodeFailed, Failed: true,
+		ErrorCode: "page_unavailable", ErrorSummary: "The requested page was unavailable",
+		StartedAt: now, UpdatedAt: now,
+	}
+	retried := failed
+	retried.ID = "runtime-tool-retried"
+	retried.SubjectID = "tool-search-retried"
+	retried.Status = protocol.ExecutionRuntimeNodeSucceeded
+	retried.Failed = false
+	retried.ErrorCode = ""
+	retried.ErrorSummary = ""
+	retried.ResultSummary = "The page was retrieved"
+	retried.UpdatedAt = now.Add(time.Second)
+	retried.Artifacts = []protocol.WorkspaceFileArtifactBlock{{
+		ID: "artifact-result", Type: protocol.ContentBlockTypeWorkspaceFileArtifact,
+		Path: "reports/source.md", SourceToolUseID: retried.SubjectID,
+	}}
+	otherAgent := failed
+	otherAgent.ID = "runtime-tool-other-agent"
+	otherAgent.SubjectID = "tool-private"
+	otherAgent.AgentID = "lead"
+	otherAgent.ErrorSummary = "OTHER AGENT PRIVATE INTERMEDIATE"
+	runtimeGraph := protocol.ExecutionRuntimeGraph{
+		GraphID: "execution:execution-context",
+		Nodes:   []protocol.ExecutionRuntimeNodeRun{failed, retried, otherAgent},
+		Edges: []protocol.ExecutionRuntimeEdgeRun{{
+			ID: "runtime-retry", Kind: protocol.ExecutionRuntimeEdgeRetry,
+			SourceNodeID: failed.ID, TargetNodeID: retried.ID, CreatedAt: now.Add(time.Second),
+		}},
+		NodeTotal: 40, EdgeTotal: 45, NodesTruncated: true,
+	}
+	rendered := RenderExecutionContext(
+		func() *protocol.ExecutionSnapshot {
+			snapshot := executionContextTestSnapshot()
+			return &snapshot
+		}(),
+		ExecutionContextOptions{
+			ActorAgentID:         "analyst",
+			Role:                 ExecutionActorMember,
+			RuntimeGraph:         &runtimeGraph,
+			RuntimeGraphRelation: "current_execution",
+		},
+	)
+	for _, expected := range []string{
+		`<runtime_facts available="true" mode="observed_facts_only" relation="current_execution" graph_id="execution:execution-context" partial="true" node_total="40" edge_total="45" visible_node_total="2">`,
+		`code="page_unavailable">The requested page was unavailable</error>`,
+		`<result_summary>The page was retrieved</result_summary>`,
+		`tool_use_id="tool-search-retried" path="reports/source.md"`,
+		`kind="retry" source_node_id="runtime-tool-failed"`,
+	} {
+		if !strings.Contains(rendered, expected) {
+			t.Fatalf("runtime facts missing %q:\n%s", expected, rendered)
+		}
+	}
+	for _, forbidden := range []string{
+		"OTHER AGENT PRIVATE INTERMEDIATE",
+		"next_action",
+		"retry this tool",
+	} {
+		if strings.Contains(rendered, forbidden) {
+			t.Fatalf("runtime facts leaked or prescribed %q:\n%s", forbidden, rendered)
+		}
+	}
+}
+
 func TestRenderExecutionContextShowsOnlyActorAssignmentAndAcceptedDependencyUnlock(t *testing.T) {
 	snapshot := executionContextTestSnapshot()
 	rendered := RenderExecutionContext(&snapshot, ExecutionContextOptions{

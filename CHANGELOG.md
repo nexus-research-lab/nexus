@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Made WorkGraph completeness explicit and recovery-safe: runtime projection now keeps the root and latest runs in a dedicated 256-node/512-edge UI window, reports partial totals instead of silently dropping current work, and persists exact Tool Artifact references independently of message/NodeRun arrival order.
+- Kept the last successful WebSocket-refreshed graph visibly marked as stale after a read failure, and made typed edges reliably mouse/keyboard-accessible and inspectable with source/target nodes, exact runtime identities, observed timestamps, and autonomy-preserving retry/control-return explanations; completed retry targets now remain visible from structural edge facts instead of a hard-coded tool-name list, and Gate nodes retain their distinct visual identity.
+- Fed bounded, actor-scoped observed Tool/Subagent/Gate outcomes, errors, Artifacts, and exact control edges back into dynamic Agent context after resume or compaction without exposing another Agent's intermediate output or prescribing a route, retry, or next action.
 - Made runtime Graph projection converge under duplicate and out-of-order lifecycle events and Provider disconnects without downgrading terminal runs, replaying successful tools, or dropping completed siblings and Artifact evidence.
 - Replaced the 1.5-second conversation-wide WorkGraph polling loop with debounced WebSocket invalidation, visibility-aware refresh, and a 30-second active-execution fallback shared by Web and desktop clients.
 - Distinguished completed tool transport from rejected business mutations across DM, Room, Goal continuation, and WorkGraph: rejected calls now stay visible as recoverable failures with concise reason summaries and control-return edges instead of green success cards or raw JSON.

@@ -165,11 +165,18 @@ export interface ExecutionGraphEdgeView {
   kind: ExecutionGraphEdgeKind;
   source_node_id: string;
   target_node_id: string;
+  source_node_run_id?: string;
+  target_node_run_id?: string;
+  created_at?: string;
 }
 
 export interface ExecutionGraphView {
   nodes?: ExecutionGraphNodeView[];
   edges?: ExecutionGraphEdgeView[];
+  runtime_node_total?: number;
+  runtime_edge_total?: number;
+  runtime_nodes_truncated?: boolean;
+  runtime_edges_truncated?: boolean;
 }
 
 export interface ExecutionSubmissionView {

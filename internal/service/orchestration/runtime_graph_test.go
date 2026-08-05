@@ -333,7 +333,11 @@ func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
 	repository := &runtimeGraphRepositoryFake{
 		fakeRepository: &fakeRepository{},
 		graph: protocol.ExecutionRuntimeGraph{
-			GraphID: "round:round-1",
+			GraphID:        "round:round-1",
+			NodeTotal:      40,
+			EdgeTotal:      50,
+			NodesTruncated: true,
+			EdgesTruncated: true,
 			Nodes: []protocol.ExecutionRuntimeNodeRun{
 				{
 					ID: "runtime-agent-1", GraphID: "round:round-1",
@@ -377,12 +381,78 @@ func TestGetLatestViewReturnsPlanlessAgentToolGraph(t *testing.T) {
 	if len(view.Graph.Nodes) != 2 || len(view.Graph.Edges) != 1 {
 		t.Fatalf("unexpected planless graph: %+v", view.Graph)
 	}
+	if view.Graph.RuntimeNodeTotal != 40 || view.Graph.RuntimeEdgeTotal != 50 ||
+		!view.Graph.RuntimeNodesTruncated || !view.Graph.RuntimeEdgesTruncated {
+		t.Fatalf("planless graph hid projection completeness: %+v", view.Graph)
+	}
+	projectedEdge := view.Graph.Edges[0]
+	if projectedEdge.SourceNodeRunID != rootID || projectedEdge.TargetNodeRunID != toolID ||
+		projectedEdge.CreatedAt == nil || !projectedEdge.CreatedAt.Equal(now) {
+		t.Fatalf("runtime edge lost exact observation identity: %+v", projectedEdge)
+	}
 	tool := graphNodeByID(view.Graph.Nodes, toolID)
 	if tool.Kind != protocol.ExecutionGraphNodeTool ||
 		tool.Visibility != protocol.ExecutionGraphNodeNested ||
 		tool.ParentNodeID != rootID ||
 		tool.LifecycleStatus != "running" {
 		t.Fatalf("unexpected planless tool projection: %+v", tool)
+	}
+}
+
+func TestRuntimeGraphRetryKeepsSucceededToolVisibleWithoutToolNameRouting(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 5, 9, 0, 0, 0, time.UTC)
+	rootID := "runtime-agent-retry"
+	failedID := "runtime-tool-failed"
+	retriedID := "runtime-tool-retried"
+	view := &protocol.ExecutionView{}
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{
+		GraphID: "round:retry",
+		Nodes: []protocol.ExecutionRuntimeNodeRun{
+			{
+				ID: rootID, Kind: protocol.ExecutionRuntimeNodeAgent,
+				SubjectID: "agent-round-retry", AgentRoundID: "agent-round-retry",
+				AgentID: "agent-1", Status: protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now, UpdatedAt: now,
+			},
+			{
+				ID: failedID, Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "lookup-1", ParentSubjectID: "agent-round-retry",
+				AgentRoundID: "agent-round-retry", AgentID: "agent-1",
+				Name: "future_web_lookup", Status: protocol.ExecutionRuntimeNodeFailed,
+				StartedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+			},
+			{
+				ID: retriedID, Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "lookup-2", ParentSubjectID: "agent-round-retry",
+				AgentRoundID: "agent-round-retry", AgentID: "agent-1",
+				Name: "future_web_lookup", Status: protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now.Add(2 * time.Second), UpdatedAt: now.Add(2 * time.Second),
+			},
+		},
+		Edges: []protocol.ExecutionRuntimeEdgeRun{
+			{ID: "invoke-failed", SourceNodeID: rootID, TargetNodeID: failedID, Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now},
+			{ID: "loop-failed", SourceNodeID: failedID, TargetNodeID: rootID, Kind: protocol.ExecutionRuntimeEdgeLoopBack, CreatedAt: now.Add(time.Second)},
+			{ID: "invoke-retried", SourceNodeID: rootID, TargetNodeID: retriedID, Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now.Add(2 * time.Second)},
+			{ID: "retry-observed", SourceNodeID: failedID, TargetNodeID: retriedID, Kind: protocol.ExecutionRuntimeEdgeRetry, CreatedAt: now.Add(2 * time.Second)},
+		},
+	})
+
+	retried := graphNodeByID(view.Graph.Nodes, retriedID)
+	if retried.Visibility != protocol.ExecutionGraphNodeNested {
+		t.Fatalf("succeeded retry target was hidden after completion: %+v", retried)
+	}
+	foundRetry := false
+	for _, edge := range view.Graph.Edges {
+		if edge.Kind == protocol.ExecutionGraphEdgeRetry &&
+			edge.SourceNodeID == failedID && edge.TargetNodeID == retriedID {
+			foundRetry = true
+			break
+		}
+	}
+	if !foundRetry {
+		t.Fatalf("agent-chosen retry relation missing: %+v", view.Graph.Edges)
 	}
 }
 
@@ -630,7 +700,7 @@ func TestRuntimeGraphArtifactsAttachOnlyToExactToolRun(t *testing.T) {
 		artifacts[0].SourceToolUseID != "tool-artifact" {
 		t.Fatalf("exact runtime artifacts = %+v", artifacts)
 	}
-	projected := projectRuntimeGraphNode(repository.nodes[0], 0)
+	projected := projectRuntimeGraphNode(repository.nodes[0], 0, true)
 	if len(projected.Runs) != 1 || len(projected.Runs[0].Artifacts) != 1 {
 		t.Fatalf("projected runtime artifacts = %+v", projected.Runs)
 	}

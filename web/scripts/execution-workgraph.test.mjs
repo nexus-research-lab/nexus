@@ -915,6 +915,9 @@ test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", 
   assert.match(html, /data-execution-edge-target="build"/);
   assert.match(html, /data-execution-edge-kind="spawn"/);
   assert.match(html, /data-execution-edge-target="attempt-child"/);
+  assert.match(html, /data-execution-edge-line-hit="dependency:research:build"/);
+  assert.match(html, /button[^>]+data-execution-edge-hit-target="dependency:research:build"/);
+  assert.match(html, /data-execution-edge-hit-kind="dependency"/);
   assert.match(html, /data-execution-subgraph-root="build"/);
   assert.match(html, /data-execution-current-node="true"/);
   assert.doesNotMatch(html, /data-execution-node-selected="true"/);
@@ -925,7 +928,7 @@ test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", 
   assert.match(html, /data-execution-node-kind="subagent"/);
   assert.match(html, /data:image\/svg\+xml/);
   assert.doesNotMatch(html, /验收标准/);
-  assert.doesNotMatch(html, /依赖.*1/);
+  assert.doesNotMatch(html, />依赖\s*1\s*</);
 
   const canvasSource = await readFile(
     path.join(
@@ -935,6 +938,7 @@ test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", 
     "utf8",
   );
   assert.match(canvasSource, /ExecutionNodeInspector/);
+  assert.match(canvasSource, /ExecutionEdgeInspector/);
   assert.match(canvasSource, /ExecutionNodeRunList/);
   assert.match(canvasSource, /ExecutionNodeRunHistory/);
   assert.match(canvasSource, /ExecutionWorkGraphControls/);
@@ -959,6 +963,8 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
         error: null,
         execution,
         isLoading: false,
+        isStale: false,
+        lastSuccessfulAt: null,
         refresh: () => {},
       },
       taskRuns: [],
@@ -967,6 +973,33 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
   assert.match(html, /data-execution-workgraph-surface/);
   assert.match(html, /data-execution-workgraph-canvas/);
   assert.match(html, /实现 UI/);
+
+  const partialHTML = await renderWithI18n(
+    React.createElement(ExecutionWorkGraphSurface, {
+      directory,
+      resource: {
+        dismiss: () => {},
+        error: "read failed",
+        execution: {
+          ...execution,
+          graph: {
+            ...execution.graph,
+            runtime_node_total: 44,
+            runtime_nodes_truncated: true,
+          },
+        },
+        isLoading: false,
+        isStale: true,
+        lastSuccessfulAt: Date.now(),
+        refresh: () => {},
+      },
+      taskRuns: [],
+    }),
+  );
+  assert.match(partialHTML, /data-execution-workgraph-partial="true"/);
+  assert.match(partialHTML, /data-execution-workgraph-stale="true"/);
+  assert.match(partialHTML, />部分</);
+  assert.match(partialHTML, />未同步</);
 
   const { buildRoomHeaderTabs } = await server.ssrLoadModule(
     "/src/features/conversation/room/surface/header/room-header-tabs.ts",

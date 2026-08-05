@@ -9,7 +9,7 @@
 //   - assignment.go: Assignment、Dispatch、root Attempt 与 takeover。
 //   - dispatch.go / review_dispatch.go / cancellation_dispatch.go: Room Assignment、跨 Agent Submission review-return 与 exact runtime cancellation outbox 的 list/claim/deliver/retry/cancel/recovery lease CAS；自审不制造回投；永久 Assignment Dispatch 失败只在 current active Plan/Spec 下同事务回收尚未启动的责任，stale graph 只终结旧 outbox；所有主动收束 live Attempt 的控制路径在同事务、状态更新前统一捕获 target。
 //   - attempt.go / subagent_reconciliation.go: root-only Room round identity、同 round 多 child tool binding、Attempt start/terminal 生命周期，以及精确 T+30s parent round exit grace deadline 的 durable schedule/跨进程 expired 查询。
-//   - runtime_graph.go: Bridge 生命周期事件及可选 alignment Gate 形成的 provider-neutral Agent/Tool/Subagent/Gate NodeRun、有界结果/错误摘要、控制回边与 exact retry 边幂等存储；与 command CAS 隔离。
+//   - runtime_graph.go / runtime_graph_artifact.go: Bridge 生命周期事件及可选 alignment Gate 形成的 provider-neutral Agent/Tool/Subagent/Gate NodeRun、有界结果/错误摘要、控制回边与 exact retry 边幂等存储；用户图独立窗口保留根与最新节点并返回 partial/total，durable Artifact ref 按 exact ToolUse 到达顺序无关地回挂；与 command CAS 隔离。
 //   - submission.go: immutable Submission、按需同事务跨 Agent review-return outbox 与 append-only Acceptance。
 //   - state.go: 显式 Block/Resume、旧 Assignment/Attempt/Dispatch 收束与派生 readiness/completion。
 //   - query.go / scan.go: 有界 Snapshot 与 SQL row 投影。

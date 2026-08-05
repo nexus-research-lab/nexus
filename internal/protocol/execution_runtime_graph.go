@@ -5,6 +5,25 @@ package protocol
 
 import "time"
 
+const (
+	// ExecutionRuntimeGraphNodeProjectionLimit 是用户可见 Runtime Graph 的
+	// 单次节点窗口。它独立于模型执行契约的 32 项限制；超限必须通过 total /
+	// truncated 明示，并保留最新运行与根 Agent。
+	ExecutionRuntimeGraphNodeProjectionLimit = 256
+	// ExecutionRuntimeGraphEdgeProjectionLimit 为当前节点窗口保留足够的运行边，
+	// 包括 Agent 已经选择并实际发生的 retry / loop_back 控制返回。
+	ExecutionRuntimeGraphEdgeProjectionLimit = 512
+	// ExecutionRuntimeGraphArtifactProjectionLimit 限制单个 Tool NodeRun 展示的
+	// exact Artifact 数量；durable 引用仍可继续积累并在后续产品能力中分页读取。
+	ExecutionRuntimeGraphArtifactProjectionLimit = 16
+)
+
+const (
+	// ExecutionRuntimeMetadataWorkGraphVisibility 是 provider-neutral 的展示提示；
+	// 它只能提升既有运行事实的可见层级，不能触发、路由或重试任何工作。
+	ExecutionRuntimeMetadataWorkGraphVisibility = "workgraph_visibility"
+)
+
 // ExecutionRuntimeNodeKind 是 runtime 自动观测层的节点类型。
 type ExecutionRuntimeNodeKind string
 
@@ -81,9 +100,30 @@ type ExecutionRuntimeEdgeRun struct {
 	CreatedAt    time.Time                `json:"created_at"`
 }
 
+// ExecutionRuntimeArtifactRef 是 durable message 中 exact ToolUse 对应的结构化
+// Artifact 事实。它独立于 Tool NodeRun 到达顺序持久化，读取时再按
+// agent_round_id + tool_use_id 回挂。
+type ExecutionRuntimeArtifactRef struct {
+	ID           string                     `json:"id"`
+	GraphID      string                     `json:"graph_id"`
+	OwnerUserID  string                     `json:"owner_user_id"`
+	SessionKey   string                     `json:"session_key"`
+	ExecutionID  string                     `json:"execution_id,omitempty"`
+	RootRoundID  string                     `json:"root_round_id"`
+	AgentRoundID string                     `json:"agent_round_id"`
+	ToolUseID    string                     `json:"tool_use_id"`
+	Artifact     WorkspaceFileArtifactBlock `json:"artifact"`
+	CreatedAt    time.Time                  `json:"created_at"`
+	UpdatedAt    time.Time                  `json:"updated_at"`
+}
+
 // ExecutionRuntimeGraph 是 session 最近运行图或当前 Execution 的运行层快照。
 type ExecutionRuntimeGraph struct {
-	GraphID string                    `json:"graph_id,omitempty"`
-	Nodes   []ExecutionRuntimeNodeRun `json:"nodes,omitempty"`
-	Edges   []ExecutionRuntimeEdgeRun `json:"edges,omitempty"`
+	GraphID        string                    `json:"graph_id,omitempty"`
+	Nodes          []ExecutionRuntimeNodeRun `json:"nodes,omitempty"`
+	Edges          []ExecutionRuntimeEdgeRun `json:"edges,omitempty"`
+	NodeTotal      int                       `json:"node_total"`
+	EdgeTotal      int                       `json:"edge_total"`
+	NodesTruncated bool                      `json:"nodes_truncated"`
+	EdgesTruncated bool                      `json:"edges_truncated"`
 }

@@ -24,6 +24,7 @@ const ACTIVE_EXECUTION_STATUSES = new Set<ExecutionStatus>([
 interface ExecutionResourceSnapshot {
   error: string | null;
   execution: ExecutionView | null;
+  lastSuccessfulAt: number | null;
   loading: boolean;
   sessionKey: string | null;
 }
@@ -33,6 +34,8 @@ export interface ExecutionResource {
   error: string | null;
   execution: ExecutionView | null;
   isLoading: boolean;
+  isStale: boolean;
+  lastSuccessfulAt: number | null;
   refresh: () => void;
 }
 
@@ -40,6 +43,7 @@ function emptySnapshot(sessionKey: string | null): ExecutionResourceSnapshot {
   return {
     error: null,
     execution: null,
+    lastSuccessfulAt: null,
     loading: Boolean(sessionKey),
     sessionKey,
   };
@@ -79,6 +83,9 @@ export function useExecutionResource({
       setSnapshot((current) => ({
         error: null,
         execution: current.sessionKey === sessionKey ? current.execution : null,
+        lastSuccessfulAt: current.sessionKey === sessionKey
+          ? current.lastSuccessfulAt
+          : null,
         loading: true,
         sessionKey,
       }));
@@ -91,6 +98,7 @@ export function useExecutionResource({
       setSnapshot({
         error: null,
         execution: latest,
+        lastSuccessfulAt: Date.now(),
         loading: false,
         sessionKey,
       });
@@ -152,6 +160,8 @@ export function useExecutionResource({
     error: visibleSnapshot.error,
     execution,
     isLoading: visibleSnapshot.loading,
+    isStale: Boolean(visibleSnapshot.error && execution),
+    lastSuccessfulAt: visibleSnapshot.lastSuccessfulAt,
     refresh: () => void refresh(false),
   };
 }

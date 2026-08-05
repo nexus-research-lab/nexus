@@ -43,12 +43,22 @@ export function ExecutionWorkGraphSurface({
     && ((execution.graph?.nodes?.length ?? 0) > 0
       || (execution.work_items?.length ?? 0) > 0),
   );
+  const runtimeProjectionPartial = Boolean(
+    execution?.graph?.runtime_nodes_truncated
+    || execution?.graph?.runtime_edges_truncated,
+  );
+  const lastSuccessfulAt = resource.lastSuccessfulAt
+    ? new Date(resource.lastSuccessfulAt).toISOString()
+    : null;
 
   return (
     <section
       aria-label={t("execution.label")}
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
       data-execution-workgraph-surface
+      data-execution-workgraph-stale={resource.isStale ? "true" : undefined}
+      data-execution-workgraph-partial={runtimeProjectionPartial ? "true" : undefined}
+      data-execution-last-successful-at={lastSuccessfulAt ?? undefined}
     >
       <header className="flex h-11 shrink-0 items-center gap-2 border-b dialog-divider px-3">
         <Workflow className="h-4 w-4 shrink-0 text-(--icon-muted)" />
@@ -63,6 +73,32 @@ export function ExecutionWorkGraphSurface({
                   total: summary.totalCount,
                 })
               : t(EXECUTION_STATUS_LABEL_KEY[execution.status])}
+          </span>
+        ) : null}
+        {runtimeProjectionPartial ? (
+          <span
+            aria-label={t("execution.surface_partial", {
+              count: execution?.graph?.runtime_node_total ?? 0,
+            })}
+            className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
+            title={t("execution.surface_partial", {
+              count: execution?.graph?.runtime_node_total ?? 0,
+            })}
+          >
+            <CircleAlert aria-hidden="true" className="h-3 w-3" />
+            <span>{t("execution.surface_partial_short")}</span>
+          </span>
+        ) : null}
+        {resource.isStale ? (
+          <span
+            aria-label={t("execution.surface_stale")}
+            className="flex shrink-0 items-center gap-1 rounded-full bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-(--warning)"
+            title={lastSuccessfulAt
+              ? t("execution.surface_stale_at", { time: lastSuccessfulAt })
+              : t("execution.surface_stale")}
+          >
+            <CircleAlert aria-hidden="true" className="h-3 w-3" />
+            <span>{t("execution.surface_stale_short")}</span>
           </span>
         ) : null}
         {resource.error ? (

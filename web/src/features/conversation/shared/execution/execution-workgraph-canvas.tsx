@@ -1,6 +1,6 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点与精确 Agent round Task run。
- * OUTPUT: 在工作板网格上显示精简图标与方向边，并用节点旁悬浮检查器展示目标、结果、错误与子级运行事实。
+ * OUTPUT: 在工作板网格上显示精简图标与可解释方向边，并用悬浮检查器展示目标、结果、错误、子级运行与 exact control-return 事实。
  * POS: DM/Room 共用的 Execution Graph 主视图；子图只按结构化父身份分组，不从自由文本反推关系。
  */
 "use client";
@@ -23,6 +23,8 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 import type {
   ExecutionAttemptView,
+  ExecutionGraphEdgeKind,
+  ExecutionGraphEdgeView,
   ExecutionGraphNodeView,
   ExecutionView,
   ExecutionWorkItemStatus,
@@ -66,6 +68,30 @@ const ATTEMPT_STATUS_LABEL_KEY: Record<
   timed_out: "execution.attempt_timed_out",
 };
 
+const EDGE_KIND_LABEL_KEY: Record<ExecutionGraphEdgeKind, TranslationKey> = {
+  coordination: "execution.edge_coordination",
+  dependency: "execution.edge_dependency",
+  dispatch: "execution.edge_dispatch",
+  guard: "execution.edge_guard",
+  invoke: "execution.edge_invoke",
+  loop_back: "execution.edge_loop_back",
+  retry: "execution.edge_retry",
+  review: "execution.edge_review",
+  spawn: "execution.edge_spawn",
+};
+
+const EDGE_KIND_DETAIL_KEY: Record<ExecutionGraphEdgeKind, TranslationKey> = {
+  coordination: "execution.edge_coordination_detail",
+  dependency: "execution.edge_dependency_detail",
+  dispatch: "execution.edge_dispatch_detail",
+  guard: "execution.edge_guard_detail",
+  invoke: "execution.edge_invoke_detail",
+  loop_back: "execution.edge_loop_back_detail",
+  retry: "execution.edge_retry_detail",
+  review: "execution.edge_review_detail",
+  spawn: "execution.edge_spawn_detail",
+};
+
 const NODE_INSPECTOR_WIDTH = 304;
 const NODE_INSPECTOR_GAP = 12;
 const NODE_INSPECTOR_EDGE_PADDING = 8;
@@ -98,8 +124,13 @@ export function ExecutionWorkGraphCanvas({
   );
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const toggleEdge = (edgeId: string) => {
+    setSelectedId(null);
+    setSelectedEdgeId((current) => current === edgeId ? null : edgeId);
+  };
   const collapse = useMemo(
     () => projectExecutionGraphCollapse(execution, collapsedNodeIds),
     [collapsedNodeIds, execution],
@@ -122,6 +153,9 @@ export function ExecutionWorkGraphCanvas({
   const selectedLayoutNode = layout.nodes.find(
     (candidate) => candidate.node.id === selectedId,
   ) ?? null;
+  const selectedLayoutEdge = layout.edges.find(
+    (candidate) => candidate.id === selectedEdgeId,
+  ) ?? null;
   const selectedItem = selectedLayoutNode?.item ?? null;
   const selectedAttempt = selectedLayoutNode?.node.attempt_id
     ? selectedItem?.attempts?.find(
@@ -139,6 +173,14 @@ export function ExecutionWorkGraphCanvas({
         selectedLayoutNode.size,
       )
     : undefined;
+  const selectedEdgeInspectorStyle = selectedLayoutEdge
+    ? resolveNodeInspectorStyle(
+        layout.width,
+        selectedLayoutEdge.x,
+        selectedLayoutEdge.y,
+        0,
+      )
+    : undefined;
 
   useEffect(() => {
     if (
@@ -148,6 +190,12 @@ export function ExecutionWorkGraphCanvas({
       setSelectedId(null);
     }
   }, [execution.graph?.nodes, selectedId]);
+
+  useEffect(() => {
+    if (selectedEdgeId && !layout.edges.some((edge) => edge.id === selectedEdgeId)) {
+      setSelectedEdgeId(null);
+    }
+  }, [layout.edges, selectedEdgeId]);
 
   useEffect(() => {
     if (!query || searchResultIds.length === 0 || currentSearchResultIndex >= 0) {
@@ -160,6 +208,7 @@ export function ExecutionWorkGraphCanvas({
       return next.size === current.size ? current : next;
     });
     setSelectedId(nodeId);
+    setSelectedEdgeId(null);
     setPendingFocusId(nodeId);
   }, [currentSearchResultIndex, execution, query, searchResultIds]);
 
@@ -210,6 +259,7 @@ export function ExecutionWorkGraphCanvas({
       return next.size === current.size ? current : next;
     });
     setSelectedId(nodeId);
+    setSelectedEdgeId(null);
     setPendingFocusId(nodeId);
   };
   const navigateSearch = (direction: -1 | 1) => {
@@ -310,9 +360,10 @@ export function ExecutionWorkGraphCanvas({
             />
           ))}
           <svg
-            aria-hidden="true"
+            aria-label={t("execution.edge_layer")}
             className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
             data-execution-edge-layer
+            role="group"
             viewBox={`0 0 ${layout.width} ${layout.height}`}
           >
             <defs>
@@ -356,37 +407,83 @@ export function ExecutionWorkGraphCanvas({
             {layout.edges.map((edge) => {
               const emphasized = edge.sourceId === selectedId
                 || edge.targetId === selectedId
-                || edge.targetId === currentId;
+                || edge.targetId === currentId
+                || edge.id === selectedEdgeId;
               return (
-                <path
-                  d={edge.path}
-                  data-execution-edge-kind={edge.kind}
-                  data-execution-edge-source={edge.sourceId}
-                  data-execution-edge-target={edge.targetId}
-                  fill="none"
-                  key={edge.id}
-                  markerEnd={`url(#${edge.kind === "loop_back"
-                    ? loopMarkerId
-                    : edge.kind === "retry"
-                    ? retryMarkerId
-                    : markerId})`}
-                  opacity={emphasized ? 0.96 : 0.68}
-                  stroke={edge.kind === "loop_back"
-                    ? "var(--warning)"
-                    : edge.kind === "retry" || emphasized
-                    ? "var(--primary)"
-                    : "var(--divider-subtle-color)"}
-                  strokeDasharray={edge.kind === "spawn" || edge.kind === "invoke"
-                    ? "3 3"
-                    : edge.kind === "loop_back" || edge.kind === "retry"
-                    ? "5 3"
-                    : undefined}
-                  strokeLinecap="round"
-                  strokeWidth={emphasized ? 1.7 : 1.4}
-                />
+                <Fragment key={edge.id}>
+                  <path
+                    aria-hidden="true"
+                    d={edge.path}
+                    data-execution-edge-kind={edge.kind}
+                    data-execution-edge-selected={edge.id === selectedEdgeId
+                      ? "true"
+                      : undefined}
+                    data-execution-edge-source={edge.sourceId}
+                    data-execution-edge-target={edge.targetId}
+                    fill="none"
+                    markerEnd={`url(#${edge.kind === "loop_back"
+                      ? loopMarkerId
+                      : edge.kind === "retry"
+                      ? retryMarkerId
+                      : markerId})`}
+                    opacity={emphasized ? 0.96 : 0.68}
+                    stroke={edge.kind === "loop_back"
+                      ? "var(--warning)"
+                      : edge.kind === "retry" || emphasized
+                      ? "var(--primary)"
+                      : "var(--divider-subtle-color)"}
+                    strokeDasharray={edge.kind === "spawn" || edge.kind === "invoke"
+                      ? "3 3"
+                      : edge.kind === "loop_back" || edge.kind === "retry"
+                      ? "5 3"
+                      : undefined}
+                    strokeLinecap="round"
+                    strokeWidth={emphasized ? 1.7 : 1.4}
+                  />
+                  <path
+                    aria-hidden="true"
+                    className="pointer-events-auto cursor-pointer focus-visible:outline-none"
+                    d={edge.path}
+                    data-execution-edge-line-hit={edge.id}
+                    fill="none"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleEdge(edge.id);
+                    }}
+                    stroke="transparent"
+                    strokeLinecap="round"
+                    strokeWidth="12"
+                    style={{ pointerEvents: "stroke" }}
+                  />
+                </Fragment>
               );
             })}
           </svg>
+
+          {layout.edges.map((edge) => (
+            <button
+              aria-label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
+              className="absolute z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary) focus-visible:ring-offset-1"
+              data-execution-edge-hit-kind={edge.kind}
+              data-execution-edge-hit-target={edge.id}
+              key={`edge-control:${edge.id}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleEdge(edge.id);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") {
+                  return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                toggleEdge(edge.id);
+              }}
+              style={{ left: edge.x, top: edge.y }}
+              title={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
+              type="button"
+            />
+          ))}
 
           {layout.nodes.map(({ item, node, size, x, y }) => {
             const owner = resolveExecutionGraphNodeAgent(directory, node, item);
@@ -407,9 +504,10 @@ export function ExecutionWorkGraphCanvas({
                 data-execution-graph-node-id={node.id}
                 data-execution-node-selected={selected ? "true" : undefined}
                 data-execution-work-item-id={node.work_item_id || undefined}
-                onClick={() => setSelectedId((value) => (
-                  value === node.id ? null : node.id
-                ))}
+                onClick={() => {
+                  setSelectedEdgeId(null);
+                  setSelectedId((value) => value === node.id ? null : node.id);
+                }}
                 ref={(element) => {
                   if (element) {
                     nodeRefs.current.set(node.id, element);
@@ -487,6 +585,14 @@ export function ExecutionWorkGraphCanvas({
               onOpenWorkspaceFile={onOpenWorkspaceFile}
               style={selectedInspectorStyle}
               taskRun={selectedTaskRun}
+            />
+          ) : null}
+          {selectedLayoutEdge && selectedEdgeInspectorStyle ? (
+            <ExecutionEdgeInspector
+              edge={selectedLayoutEdge.edge}
+              execution={execution}
+              onClose={() => setSelectedEdgeId(null)}
+              style={selectedEdgeInspectorStyle}
             />
           ) : null}
         </div>
@@ -709,6 +815,113 @@ function ExecutionNodeInspector({
   );
 }
 
+function ExecutionEdgeInspector({
+  edge,
+  execution,
+  onClose,
+  style,
+}: {
+  edge: ExecutionGraphEdgeView;
+  execution: ExecutionView;
+  onClose: () => void;
+  style: CSSProperties;
+}) {
+  const { t } = useI18n();
+  const nodes = execution.graph?.nodes ?? [];
+  const sourceNode = nodes.find((node) => node.id === edge.source_node_id) ?? null;
+  const targetNode = nodes.find((node) => node.id === edge.target_node_id) ?? null;
+  const sourceItem = sourceNode
+    ? execution.work_items?.find((item) => item.id === sourceNode.work_item_id) ?? null
+    : null;
+  const targetItem = targetNode
+    ? execution.work_items?.find((item) => item.id === targetNode.work_item_id) ?? null
+    : null;
+  const sourceHeading = sourceNode
+    ? graphNodeHeading(sourceNode, sourceItem, t)
+    : edge.source_node_id;
+  const targetHeading = targetNode
+    ? graphNodeHeading(targetNode, targetItem, t)
+    : edge.target_node_id;
+  const sourceSummary = normalizeExecutionNodeDisplayText(
+    sourceNode?.error_summary || sourceNode?.result_summary || "",
+  );
+  const targetSummary = normalizeExecutionNodeDisplayText(
+    targetNode?.error_summary || targetNode?.result_summary || "",
+  );
+  return (
+    <aside
+      aria-label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
+      className="soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] overflow-auto rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) shadow-(--surface-control-shadow)"
+      data-execution-selected-edge-detail={edge.id}
+      style={style}
+    >
+      <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-panel-background) px-3 py-3">
+        <span
+          aria-hidden="true"
+          className={cn(
+            "h-8 w-1 shrink-0 rounded-full",
+            edge.kind === "loop_back"
+              ? "bg-(--warning)"
+              : edge.kind === "retry"
+              ? "bg-(--primary)"
+              : "bg-(--icon-muted)",
+          )}
+        />
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-compact font-semibold text-(--text-strong)">
+            {t("execution.edge_details")}
+          </h3>
+          <p className="mt-0.5 truncate text-[10px] font-medium text-(--text-soft)">
+            {t(EDGE_KIND_LABEL_KEY[edge.kind])}
+          </p>
+        </div>
+        <button
+          aria-label={t("execution.close_edge_details")}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-[8px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+          onClick={onClose}
+          title={t("execution.close_edge_details")}
+          type="button"
+        >
+          <X aria-hidden="true" className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      <div className="space-y-3 px-3 py-3">
+        <NodeDetailSection label={t("execution.edge_relation")}>
+          <p>{t(EDGE_KIND_DETAIL_KEY[edge.kind])}</p>
+        </NodeDetailSection>
+        <NodeDetailSection label={t("execution.edge_source")}>
+          <p className="font-medium text-(--text-default)">{sourceHeading}</p>
+          {sourceSummary ? (
+            <p className="mt-1 text-(--text-soft)">{sourceSummary}</p>
+          ) : null}
+        </NodeDetailSection>
+        <NodeDetailSection label={t("execution.edge_target")}>
+          <p className="font-medium text-(--text-default)">{targetHeading}</p>
+          {targetSummary ? (
+            <p className="mt-1 text-(--text-soft)">{targetSummary}</p>
+          ) : null}
+        </NodeDetailSection>
+        {edge.created_at ? (
+          <NodeDetailSection label={t("execution.edge_observed_at")}>
+            <p className="font-mono text-[10px]">
+              {formatEdgeObservedAt(edge.created_at)}
+            </p>
+          </NodeDetailSection>
+        ) : null}
+        {edge.source_node_run_id || edge.target_node_run_id ? (
+          <NodeDetailSection label={t("execution.edge_run_identity")}>
+            <p className="break-all font-mono text-[10px] text-(--text-soft)">
+              {edge.source_node_run_id || edge.source_node_id}
+              <span aria-hidden="true"> → </span>
+              {edge.target_node_run_id || edge.target_node_id}
+            </p>
+          </NodeDetailSection>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
 function NodeDetailSection({
   children,
   label,
@@ -833,6 +1046,11 @@ function formatNodeDuration(durationMS: number): string {
   }
   const minutes = Math.floor(seconds / 60);
   return `${minutes}m ${Math.round(seconds % 60)}s`;
+}
+
+function formatEdgeObservedAt(value: string): string {
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.getTime()) ? value : timestamp.toISOString();
 }
 
 function graphNodeTitle(

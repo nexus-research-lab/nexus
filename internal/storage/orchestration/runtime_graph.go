@@ -7,11 +7,21 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+const runtimeGraphNodeSelectColumns = `
+SELECT node_run_id, graph_id, owner_user_id, session_key, execution_id,
+       node_kind, subject_id, parent_subject_id, root_round_id,
+       runtime_round_id, agent_round_id, agent_id, name, description,
+       status, failed, result_summary, error_code, error_summary,
+       summary_truncated, duration_ms, started_at, updated_at, finished_at,
+       metadata_json
+FROM runtime_graph_node_runs`
 
 // UpsertRuntimeGraphNode 幂等推进一个 runtime NodeRun；终态不会被迟到的 started
 // 或 progress 事件重新打开。该观测写失败不得触发业务工具重放。
@@ -220,8 +230,9 @@ WHERE owner_user_id = `+r.bind(6)+`
 	return err
 }
 
-// GetRuntimeGraph 返回当前 Execution 关联的所有运行层节点；没有 Execution 时
-// 返回 session 最近一次 root round。结果受统一 projection collection limit 约束。
+// GetRuntimeGraph 返回当前 Execution 关联的运行层节点；没有 Execution 时返回
+// session 最近一次 root round。用户图使用独立的较大窗口，优先保留最新运行，
+// 超限时额外保留根 Agent 并通过 total / truncated 明示不完整性。
 func (r *Repository) GetRuntimeGraph(
 	ctx context.Context,
 	ownerUserID string,
@@ -255,41 +266,108 @@ func (r *Repository) GetRuntimeGraph(
 		args = append(args, graphID)
 	}
 
-	query := fmt.Sprintf(`
-SELECT node_run_id, graph_id, owner_user_id, session_key, execution_id,
-       node_kind, subject_id, parent_subject_id, root_round_id,
-       runtime_round_id, agent_round_id, agent_id, name, description,
-       status, failed, result_summary, error_code, error_summary,
-       summary_truncated, duration_ms, started_at, updated_at, finished_at,
-       metadata_json
+	countQuery := fmt.Sprintf(`
+SELECT COUNT(*)
 FROM runtime_graph_node_runs
+WHERE owner_user_id = %s AND session_key = %s AND %s`,
+		r.bind(1), r.bind(2), condition,
+	)
+	result := protocol.ExecutionRuntimeGraph{}
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&result.NodeTotal); err != nil {
+		return protocol.ExecutionRuntimeGraph{}, err
+	}
+	result.NodesTruncated = result.NodeTotal > protocol.ExecutionRuntimeGraphNodeProjectionLimit
+	query := fmt.Sprintf(`%s
 WHERE owner_user_id = %s AND session_key = %s AND %s
-ORDER BY started_at, node_run_id
-LIMIT %d`, r.bind(1), r.bind(2), condition, protocol.ExecutionProjectionCollectionLimit)
+ORDER BY updated_at DESC, started_at DESC, node_run_id DESC
+LIMIT %d`,
+		runtimeGraphNodeSelectColumns,
+		r.bind(1),
+		r.bind(2),
+		condition,
+		protocol.ExecutionRuntimeGraphNodeProjectionLimit,
+	)
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return protocol.ExecutionRuntimeGraph{}, err
 	}
 	defer rows.Close()
 
-	result := protocol.ExecutionRuntimeGraph{}
-	graphIDs := make(map[string]struct{})
 	for rows.Next() {
 		item, scanErr := scanRuntimeGraphNode(rows)
 		if scanErr != nil {
 			return protocol.ExecutionRuntimeGraph{}, scanErr
 		}
 		result.Nodes = append(result.Nodes, item)
-		graphIDs[item.GraphID] = struct{}{}
-		if result.GraphID == "" {
-			result.GraphID = item.GraphID
-		}
 	}
-	if err = rows.Err(); err != nil || len(graphIDs) == 0 {
+	if err = rows.Err(); err != nil || len(result.Nodes) == 0 {
 		return result, err
 	}
-	result.Edges, err = r.listRuntimeGraphEdges(ctx, ownerUserID, sessionKey, graphIDs)
-	return result, err
+	if result.NodesTruncated {
+		anchor, anchorErr := r.runtimeGraphRootAnchor(ctx, condition, args)
+		if anchorErr != nil {
+			return protocol.ExecutionRuntimeGraph{}, anchorErr
+		}
+		if anchor != nil && !runtimeGraphContainsNode(result.Nodes, anchor.ID) {
+			result.Nodes[len(result.Nodes)-1] = *anchor
+		}
+	}
+	slices.SortFunc(result.Nodes, func(left, right protocol.ExecutionRuntimeNodeRun) int {
+		if order := left.StartedAt.Compare(right.StartedAt); order != 0 {
+			return order
+		}
+		return strings.Compare(left.ID, right.ID)
+	})
+	result.GraphID = result.Nodes[0].GraphID
+	graphIDs := make(map[string]struct{})
+	nodeIDs := make(map[string]struct{}, len(result.Nodes))
+	for _, item := range result.Nodes {
+		graphIDs[item.GraphID] = struct{}{}
+		nodeIDs[item.ID] = struct{}{}
+	}
+	result.Edges, result.EdgeTotal, result.EdgesTruncated, err = r.listRuntimeGraphEdges(
+		ctx,
+		ownerUserID,
+		sessionKey,
+		graphIDs,
+		nodeIDs,
+	)
+	if err != nil {
+		return protocol.ExecutionRuntimeGraph{}, err
+	}
+	if err = r.attachRuntimeGraphArtifacts(ctx, ownerUserID, sessionKey, result.Nodes); err != nil {
+		return protocol.ExecutionRuntimeGraph{}, err
+	}
+	return result, nil
+}
+
+func (r *Repository) runtimeGraphRootAnchor(
+	ctx context.Context,
+	condition string,
+	args []any,
+) (*protocol.ExecutionRuntimeNodeRun, error) {
+	query := fmt.Sprintf(`%s
+WHERE owner_user_id = %s AND session_key = %s AND %s
+  AND node_kind = 'agent'
+ORDER BY started_at, node_run_id
+LIMIT 1`, runtimeGraphNodeSelectColumns, r.bind(1), r.bind(2), condition)
+	item, err := scanRuntimeGraphNode(r.db.QueryRowContext(ctx, query, args...))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func runtimeGraphContainsNode(nodes []protocol.ExecutionRuntimeNodeRun, nodeID string) bool {
+	for _, node := range nodes {
+		if node.ID == nodeID {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Repository) latestRuntimeGraphID(
@@ -315,11 +393,13 @@ func (r *Repository) listRuntimeGraphEdges(
 	ownerUserID string,
 	sessionKey string,
 	graphIDs map[string]struct{},
-) ([]protocol.ExecutionRuntimeEdgeRun, error) {
+	nodeIDs map[string]struct{},
+) ([]protocol.ExecutionRuntimeEdgeRun, int, bool, error) {
 	ids := make([]string, 0, len(graphIDs))
 	for graphID := range graphIDs {
 		ids = append(ids, graphID)
 	}
+	slices.Sort(ids)
 	placeholders := make([]string, len(ids))
 	args := make([]any, 0, 2+len(ids))
 	args = append(args, ownerUserID, sessionKey)
@@ -327,22 +407,54 @@ func (r *Repository) listRuntimeGraphEdges(
 		placeholders[index] = r.bind(index + 3)
 		args = append(args, graphID)
 	}
+	var total int
+	countQuery := fmt.Sprintf(`
+SELECT COUNT(*)
+FROM runtime_graph_edge_runs
+WHERE owner_user_id = %s AND session_key = %s
+  AND graph_id IN (%s)`, r.bind(1), r.bind(2), strings.Join(placeholders, ", "))
+	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, false, err
+	}
+	selectedNodeIDs := make([]string, 0, len(nodeIDs))
+	for nodeID := range nodeIDs {
+		selectedNodeIDs = append(selectedNodeIDs, nodeID)
+	}
+	slices.Sort(selectedNodeIDs)
+	if len(selectedNodeIDs) == 0 {
+		return nil, total, total > 0, nil
+	}
+	edgeArgs := slices.Clone(args)
+	sourcePlaceholders := make([]string, len(selectedNodeIDs))
+	targetPlaceholders := make([]string, len(selectedNodeIDs))
+	for index, nodeID := range selectedNodeIDs {
+		sourcePlaceholders[index] = r.bind(len(edgeArgs) + 1)
+		edgeArgs = append(edgeArgs, nodeID)
+	}
+	for index, nodeID := range selectedNodeIDs {
+		targetPlaceholders[index] = r.bind(len(edgeArgs) + 1)
+		edgeArgs = append(edgeArgs, nodeID)
+	}
 	query := fmt.Sprintf(`
 SELECT edge_run_id, graph_id, owner_user_id, session_key,
        source_node_run_id, target_node_run_id, edge_kind, created_at
 FROM runtime_graph_edge_runs
 WHERE owner_user_id = %s AND session_key = %s
   AND graph_id IN (%s)
-ORDER BY created_at, edge_run_id
+  AND source_node_run_id IN (%s)
+  AND target_node_run_id IN (%s)
+ORDER BY created_at DESC, edge_run_id DESC
 LIMIT %d`,
 		r.bind(1),
 		r.bind(2),
 		strings.Join(placeholders, ", "),
-		protocol.ExecutionProjectionCollectionLimit,
+		strings.Join(sourcePlaceholders, ", "),
+		strings.Join(targetPlaceholders, ", "),
+		protocol.ExecutionRuntimeGraphEdgeProjectionLimit,
 	)
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.db.QueryContext(ctx, query, edgeArgs...)
 	if err != nil {
-		return nil, err
+		return nil, 0, false, err
 	}
 	defer rows.Close()
 	result := make([]protocol.ExecutionRuntimeEdgeRun, 0)
@@ -359,12 +471,21 @@ LIMIT %d`,
 			&kind,
 			&item.CreatedAt,
 		); err != nil {
-			return nil, err
+			return nil, 0, false, err
 		}
 		item.Kind = protocol.ExecutionRuntimeEdgeKind(kind)
 		result = append(result, item)
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, false, err
+	}
+	slices.SortFunc(result, func(left, right protocol.ExecutionRuntimeEdgeRun) int {
+		if order := left.CreatedAt.Compare(right.CreatedAt); order != 0 {
+			return order
+		}
+		return strings.Compare(left.ID, right.ID)
+	})
+	return result, total, total > len(result), nil
 }
 
 func scanRuntimeGraphNode(

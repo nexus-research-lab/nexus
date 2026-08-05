@@ -69,6 +69,15 @@ export function ExecutionNodeAvatar({
           )}
           strokeWidth={1.8}
         />
+      ) : kind === "gate" ? (
+        <ShieldCheck
+          aria-hidden="true"
+          className={cn(
+            "text-(--icon-default)",
+            nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
+          )}
+          strokeWidth={1.8}
+        />
       ) : agent ? (
         <UiAgentAvatar
           avatar={agent.avatar}
@@ -91,15 +100,6 @@ export function ExecutionNodeAvatar({
       ) : kind === "subagent" ? (
         // 防御性 fallback；正常 WorkGraph 投影会为每个 Subagent 提供稳定头像。
         <Bot
-          aria-hidden="true"
-          className={cn(
-            "text-(--icon-default)",
-            nested ? "h-4 w-4" : graph ? "h-5 w-5" : "h-3 w-3",
-          )}
-          strokeWidth={1.8}
-        />
-      ) : kind === "gate" ? (
-        <ShieldCheck
           aria-hidden="true"
           className={cn(
             "text-(--icon-default)",
