@@ -1,0 +1,20 @@
+-- +goose Up
+ALTER TABLE IF EXISTS skill_sources
+ADD COLUMN IF NOT EXISTS managed_by VARCHAR(32) NOT NULL DEFAULT 'system';
+ALTER TABLE IF EXISTS skill_sources
+ADD COLUMN IF NOT EXISTS auth_type VARCHAR(32) NOT NULL DEFAULT 'none';
+ALTER TABLE IF EXISTS skill_sources
+ADD COLUMN IF NOT EXISTS credentials_encrypted TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE IF EXISTS imported_skills
+ADD COLUMN IF NOT EXISTS source_skill_id VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE IF EXISTS imported_skills
+ADD COLUMN IF NOT EXISTS artifact_sha256 VARCHAR(64) NOT NULL DEFAULT '';
+
+-- +goose Down
+ALTER TABLE IF EXISTS imported_skills DROP COLUMN IF EXISTS artifact_sha256;
+ALTER TABLE IF EXISTS imported_skills DROP COLUMN IF EXISTS source_skill_id;
+
+ALTER TABLE IF EXISTS skill_sources DROP COLUMN IF EXISTS credentials_encrypted;
+ALTER TABLE IF EXISTS skill_sources DROP COLUMN IF EXISTS auth_type;
+ALTER TABLE IF EXISTS skill_sources DROP COLUMN IF EXISTS managed_by;

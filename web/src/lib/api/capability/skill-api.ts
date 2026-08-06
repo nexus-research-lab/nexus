@@ -12,6 +12,7 @@ import type { RequestApiOptions } from "@/lib/api/core/http-request";
 import type {
   AgentSkillEntry,
   CheckSkillUpdatesResponse,
+  CreateExternalSkillSourceRequest,
   ExternalSkillSourceInfo,
   ExternalSkillSourceRequest,
   ExternalSkillSearchItem,
@@ -150,15 +151,17 @@ export const importGitSkillApi = async (
   });
 };
 
-/** 从社区来源搜索外部 Skill */
+/** 从社区或私有来源搜索外部 Skill */
 export const searchExternalSkillsApi = async (
   q: string,
   includeReadme: boolean = false,
+  sourceId?: string,
   signal?: AbortSignal,
 ): Promise<SearchExternalSkillsResponse> => {
   const query = buildQuery({
     q,
     include_readme: includeReadme ? "true" : undefined,
+    source_id: sourceId,
   });
   return requestSkillApi<SearchExternalSkillsResponse>(
     `/skills/search/external${query}`,
@@ -182,10 +185,20 @@ export const getExternalSkillPreviewApi = async (
   );
 };
 
-/** 从社区来源导入指定 Skill */
+/** 从社区或私有来源导入指定 Skill */
 export const importExternalSkillApi = async (
   item: ExternalSkillSearchItem,
 ): Promise<SkillDetail> => {
+  if (item.source_kind === "private_registry") {
+    return requestSkillApi<SkillDetail>("/skills/import/source", {
+      method: "POST",
+      timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
+      body: JSON.stringify({
+        source_id: item.source_key,
+        skill_id: item.package_spec,
+      }),
+    });
+  }
   return requestSkillApi<SkillDetail>("/skills/import/skills-sh", {
     method: "POST",
     timeout_ms: SKILL_GIT_OPERATION_TIMEOUT_MS,
@@ -193,7 +206,7 @@ export const importExternalSkillApi = async (
   });
 };
 
-/** 获取社区 Skill 来源配置 */
+/** 获取社区与私有 Skill 来源配置 */
 export const listExternalSkillSourcesApi =
   async (): Promise<ExternalSkillSourceInfo[]> => {
     return requestSkillApi<ExternalSkillSourceInfo[]>("/skills/sources", {
@@ -201,7 +214,17 @@ export const listExternalSkillSourcesApi =
     });
   };
 
-/** 更新社区 Skill 来源配置 */
+/** 新增一个私有 Skill 来源 */
+export const createExternalSkillSourceApi = async (
+  payload: CreateExternalSkillSourceRequest,
+): Promise<ExternalSkillSourceInfo> => {
+  return requestSkillApi<ExternalSkillSourceInfo>("/skills/sources", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+};
+
+/** 更新 Skill 来源配置 */
 export const updateExternalSkillSourceApi = async (
   sourceId: string,
   payload: Partial<ExternalSkillSourceRequest>,
@@ -212,6 +235,16 @@ export const updateExternalSkillSourceApi = async (
       method: "PATCH",
       body: JSON.stringify(payload),
     },
+  );
+};
+
+/** 删除一个私有 Skill 来源 */
+export const deleteExternalSkillSourceApi = async (
+  sourceId: string,
+): Promise<void> => {
+  await requestSkillApi<{ success: boolean }>(
+    `/skills/sources/${encodeURIComponent(sourceId)}`,
+    { method: "DELETE" },
   );
 };
 

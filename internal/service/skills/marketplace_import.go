@@ -153,6 +153,9 @@ func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillS
 
 // ImportExternalSkill 按搜索结果携带的来源信息导入技能。
 func (s *Service) ImportExternalSkill(ctx context.Context, item ExternalSkillSearchItem) (*Detail, error) {
+	if strings.TrimSpace(item.SourceKind) == externalSourceKindPrivateRegistry {
+		return nil, errors.New("私有来源必须通过 source_id 和 skill_id 导入")
+	}
 	mode := normalizeImportMode(firstNonEmpty(item.ImportMode, inferExternalImportMode(item)))
 	manifest := externalManifest{
 		Name:           externalItemSkillName(item),

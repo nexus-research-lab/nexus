@@ -73,7 +73,9 @@ export function externalSkillKey(item: ExternalSkillSearchItem): string {
 export function isExternalSkillPreviewUnavailable(
   item: ExternalSkillSearchItem,
 ): boolean {
-  return item.source_kind === "skills_sh" || item.import_mode === "skills_sh";
+  return item.source_kind === "skills_sh"
+    || item.import_mode === "skills_sh"
+    || (item.source_kind === "private_registry" && !item.readme_markdown);
 }
 
 export function buildExternalSkillListItemModel(

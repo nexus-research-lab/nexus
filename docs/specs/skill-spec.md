@@ -245,7 +245,356 @@ nxs 从完整 `user-invocable` 目录解析，Claude Code 沿用自身直接 Ski
 - 把 Agent workspace Skill 放进全局技能库或其他 Agent 的设置页；
 - 把 internal Skill 混进公开第三方市场。
 
-## 10. 一句话总结
+## 10. 自定义私有来源
+
+### 10.1 目标与边界
+
+自定义私有来源用于企业将不适合放入公开 GitHub 或社区市场的
+Skill 通过自建 HTTPS 服务分发给 Nexus。第一版只解决以下闭环：
+
+1. 用户在技能来源面板添加一个私有服务器；
+2. Nexus 使用用户保存的访问凭据搜索该服务器；
+3. 用户预览并将某个 Skill 导入 owner 全局技能库；
+4. Nexus 按远端内容摘要检查更新，经用户确认后原子替换本地版本；
+5. 已绑定该 Skill 的 Agent 保留原有绑定，下一轮自然读取新版本。
+
+这是 Nexus 来源适配协议，不改变 Skill 包内容规范。下载的 zip 仍必须是
+包含 `SKILL.md` 的 Agent Skills 目录。
+
+第一版不包含自动静默更新、服务端推送、依赖解析、跨来源联邦、mTLS、
+自定义 CA、跨域下载或 Claude Plugin Marketplace 兼容。这些能力只能在
+真实需求出现后作为独立扩展，不进入最小协议。
+
+### 10.2 设计依据
+
+已接入的社区来源主要有两种检索模式：
+
+- `claude-plugins.dev`、`skills.sh` 和 `clawhub.ai` 提供带 `q` 的服务端搜索
+  API，只返回当前查询的少量结果；
+- Hermes Skills Index 和 `browse.sh` 返回全量 JSON，由 Nexus 在本地过滤。
+
+私有来源选择第一种模式：一个搜索接口加一个 zip 下载接口。它避免
+反复下载大型全量索引，也不要求企业实现通用 marketplace、Git 服务或包管理器。
+
+### 10.3 私有服务器协议
+
+用户配置的 `url` 是私有来源 base URL。Nexus 去掉末尾 `/` 后，在其后追加
+`/api/skills`。例如：
+
+```text
+来源 URL: https://skills.example.internal/registry
+搜索 URL: https://skills.example.internal/registry/api/skills
+```
+
+#### 搜索和精确查询
+
+搜索 Skill：
+
+```http
+GET /registry/api/skills?q=知识&limit=20
+Authorization: Bearer <token>
+Accept: application/json
+```
+
+检查已安装 Skill 的当前版本：
+
+```http
+GET /registry/api/skills?id=internal-knowledge
+Authorization: Bearer <token>
+Accept: application/json
+```
+
+约定：
+
+- `q` 和 `id` 互斥；
+- `q` 是 UTF-8 查询，服务端按 `name`、`title`、`description` 和 `tags`
+  匹配；
+- `id` 是大小写敏感的精确查询，必须返回零或一条；
+- 两者都不传时返回默认列表；
+- `limit` 默认为 20，最大为 100；
+- 搜索结果按相关度降序，相关度相同时按 `name` 升序；
+- 第一版不做 cursor/offset 分页，响应最多返回 `limit` 条；
+- `total` 是应用 `limit` 前的匹配总数。
+
+响应：
+
+```json
+{
+  "skills": [
+    {
+      "id": "internal-knowledge",
+      "name": "internal-knowledge",
+      "title": "内部知识助手",
+      "description": "组织内部制度、产品资料和常见问题检索指南。",
+      "version": "1.3.0",
+      "tags": ["knowledge", "internal", "assistant"],
+      "download_url": "api/skills/internal-knowledge/download",
+      "sha256": "8c0f7cf04741b6be4e3b5c0b0c6bdf6a5ae8231aa3d4ab8e9fb4d9f5a3c2e117",
+      "size": 182340,
+      "readme_markdown": ""
+    }
+  ],
+  "total": 1
+}
+```
+
+| 字段 | 必填 | 约定 |
+| --- | --- | --- |
+| `id` | 是 | 来源内稳定身份，发布后不得复用给另一个 Skill |
+| `name` | 是 | canonical name，必须通过 Nexus Skill 名称校验；同一 `id` 发布后不得变更 |
+| `title` | 是 | 用户可见标题 |
+| `description` | 是 | 搜索摘要 |
+| `version` | 是 | 非空展示版本；更新判断不依赖 SemVer 比较 |
+| `tags` | 否 | 字符串数组，最多 32 项 |
+| `download_url` | 是 | zip 下载地址，必须与来源 base URL 同源，且不得在 URL 中嵌入凭据或查询参数 |
+| `sha256` | 是 | zip 原始字节的 SHA-256，64 位小写十六进制 |
+| `size` | 否 | zip 字节数，用于进度和提前拒绝超限包 |
+| `readme_markdown` | 否 | 已授权用户可见的预览内容，最大 2 MiB |
+
+`title`、`description`、`tags` 和 `readme_markdown` 只是搜索与预览投影。导入后
+`SKILL.md` 是内容真相源；其 frontmatter `name` 必须与搜索结果 `name` 一致。
+
+#### 下载
+
+`download_url` 可以是绝对 HTTPS URL，也可以是相对来源 base URL 的 URL。Nexus
+始终相对归一化后的 `<base_url>/` 解析。例如上述
+`api/skills/internal-knowledge/download` 解析为：
+
+```http
+GET /registry/api/skills/internal-knowledge/download
+Authorization: Bearer <token>
+Accept: application/zip
+```
+
+成功响应必须为 `200 OK`，内容是单个 zip Skill 包。Nexus 不依赖 `ETag`
+或 `Content-Length` 判断完整性，而是对实际读取的字节重新计算 SHA-256。
+
+包结构：
+
+```text
+internal-knowledge/
+├── SKILL.md
+├── scripts/
+├── references/
+└── assets/
+```
+
+包内必须只有一个可发现 Skill；顶层目录名、`SKILL.md` frontmatter `name` 与响应
+`name` 必须一致。
+
+### 10.4 Nexus 来源管理 API
+
+私有来源与默认社区来源继续共用 `skill_sources`，但必须区分系统配置和
+用户创建的记录。
+
+列表：
+
+```http
+GET /skills/sources
+```
+
+创建并测试连接：
+
+```http
+POST /skills/sources
+Content-Type: application/json
+
+{
+  "name": "内部技能库",
+  "url": "https://skills.example.internal/registry",
+  "auth_type": "bearer",
+  "token": "secret-token"
+}
+```
+
+创建时 Nexus 先请求 `/api/skills?limit=1`。只有在远端返回成功状态且响应通过
+结构校验后才持久化来源。
+
+修改展示名、开关或轮换凭据：
+
+```http
+PATCH /skills/sources/{source_id}
+Content-Type: application/json
+
+{
+  "name": "内部技能库",
+  "enabled": true,
+  "auth_type": "bearer",
+  "token": "new-secret-token"
+}
+```
+
+`token` 缺省表示保留已存凭据。将 `auth_type` 更新为 `none` 时必须同时删除
+已存凭据。来源 `url` 在创建后不可修改；更换地址必须删除后重新创建，
+避免一个已信任的来源身份被无感指向另一个服务器。
+
+删除用户来源：
+
+```http
+DELETE /skills/sources/{source_id}
+```
+
+删除来源只删除配置与凭据，不删除已导入 Skill，也不修改 Agent 绑定。这些
+Skill 仍可离线使用，但检查更新时明确报告来源不存在。系统和部署配置来源
+不可通过该端点删除。
+
+`GET /skills/sources` 对私有来源增加以下投影：
+
+```json
+{
+  "source_id": "skill_src_...",
+  "name": "内部技能库",
+  "kind": "private_registry",
+  "url": "https://skills.example.internal/registry",
+  "trust": "private",
+  "managed_by": "user",
+  "auth_type": "bearer",
+  "credential_configured": true,
+  "enabled": true,
+  "deletable": true,
+  "last_checked_at": null,
+  "last_error": ""
+}
+```
+
+列表、错误、日志、WebSocket 事件和浏览器状态都不得包含 token。
+
+### 10.5 搜索边界与隐私
+
+外部搜索接口增加可选的服务端作用域：
+
+```http
+GET /skills/search/external?q=知识&source_id={source_id}
+```
+
+- 传入 `source_id` 时只能请求当前 owner 的该来源；
+- 来源已停用、不存在或不属于当前 owner 时拒绝请求；
+- 不传 `source_id` 时才保留现有的多来源并发搜索；
+- 前端来源筛选必须下推到该参数，不能先搜索全部来源再在浏览器过滤；
+- 当用户选择私有来源时，搜索词不得发送给任何公共社区来源；
+- UI 的“全部来源”属于用户明确选择的联合检索，不是私有筛选的展示
+  别名。
+
+私有来源搜索结果继续投影为 `ExternalSkillSearchItem`，其 `source_kind` 固定为
+`private_registry`、`source_trust` 固定为 `private`。前端继续复用现有卡片、来源
+筛选和预览模型，不建立一套私有市场页。
+
+### 10.6 导入与更新
+
+私有搜索结果不能沿用“前端回传完整下载 URL”作为信任边界。前端只提交稳定
+身份：
+
+```http
+POST /skills/import/source
+Content-Type: application/json
+
+{
+  "source_id": "skill_src_...",
+  "skill_id": "internal-knowledge"
+}
+```
+
+后端必须使用当前 owner 的来源凭据重新请求
+`/api/skills?id=internal-knowledge`，取得当前 `download_url` 和 `sha256` 后才下载。
+客户端传入的标题、信任级别、下载地址或内容摘要都不是授权依据。
+
+导入记录除现有来源字段外，持久化：
+
+```text
+source_skill_id
+artifact_sha256
+```
+
+检查更新时，Nexus 按 `source_id + source_skill_id` 重新查询远端：
+
+- 远端 `sha256` 与 `artifact_sha256` 相同：已是最新；
+- 两者不同：标记有更新；
+- 远端 Skill 不存在或来源已删除：保留本地内容并记录明确失败原因；
+- 来源请求失败：只影响该 Skill，不把批量结果投影为“暂无更新”；
+- `version` 只用于展示，不实现 SemVer 排序、自动降级或静默更新。
+
+更新沿用现有用户全局 Skill 分阶段原子替换。替换成功后只刷新 owner 技能库和
+导入记录，不重写 Agent `skill_ids`。
+
+### 10.7 持久化
+
+`skill_sources` 增加：
+
+| 字段 | 说明 |
+| --- | --- |
+| `managed_by` | `system` 或 `user`；只有 `user` 来源可删除 |
+| `auth_type` | `none` 或 `bearer` |
+| `credentials_encrypted` | AES-GCM 加密后的凭据，空值表示无认证 |
+
+`imported_skills` 增加：
+
+| 字段 | 说明 |
+| --- | --- |
+| `source_skill_id` | 私有来源内稳定 Skill ID |
+| `artifact_sha256` | 已安装 zip 的完整内容摘要 |
+
+用户来源的 `source_id` 继续由归一化后的 `kind + url` 确定，且所有读写继续
+带 `owner_user_id`。用户删除后重新添加同一 URL 时恢复同一 `source_id`，既有
+导入记录可再次恢复更新能力。
+
+现有环境变量配置的来源保持 `managed_by=system`。来源列表和实际搜索不再使用
+“必须存在于进程配置”过滤数据库中的用户来源；系统来源与用户来源在存储层
+归一后，再按 `managed_by` 投影管理能力。
+
+### 10.8 凭据和出站安全
+
+- 第一版只支持 `none` 和 `bearer`；
+- token 复用 Nexus 已有 AES-GCM 凭据加密能力与
+  `CONNECTOR_CREDENTIALS_KEY`，不新增第二套密钥；
+- 前端永远不接收 token，搜索、预览、导入和更新都由 Go 服务端添加
+  `Authorization` 头；
+- 来源 base URL、搜索 URL 与 `download_url` 必须保持同源；Nexus 不跟随远端重定向；
+- 生产来源只允许 HTTPS，不提供“忽略 TLS 校验”开关；
+- 桌面本地模式允许当前用户显式配置的 HTTPS 内网地址；
+- 认证的 Web 部署只能访问管理员配置的私有来源 host 白名单，防止普通用户将
+  Nexus 变成内网请求代理；
+- token、`Authorization` 头和含凭据的错误不得进入应用日志、来源 `last_error`
+  或前端反馈；
+- 记录远端失败时只保留状态码与脱敏原因。
+
+私有 zip 下载继续受现有 32 MiB 压缩内容上限保护，并补齐解压后总字节数、
+单文件字节数与条目数上限。任何绝对路径、`..`、符号链接、硬链接或特殊
+文件都必须在写入 owner 技能库之前被拒绝。下载、校验或解压失败时保留
+last-known-good 目录。
+
+### 10.9 前端交互
+
+现有“管理技能来源”弹窗增加“添加自定义来源”主动作，表单只包含：
+
+```text
+来源名称
+服务器地址
+认证方式：无认证 / Bearer Token
+Token（仅 Bearer Token 时显示）
+```
+
+提交按钮文案为“验证并添加”。私有来源行显示“私有”、“已配置凭据”或“无认证”
+标记，并提供开关、更换凭据和删除动作。系统来源仍只提供开关。
+
+搜索页继续使用现有来源筛选、Skill 卡片和预览弹窗。选中某个私有来源后，
+只向后端传递该 `source_id`；视图不自行持有或修正认证状态。
+
+### 10.10 验收标准
+
+1. 两个 owner 可以对同一 URL 配置不同 token，且搜索结果与凭据互不可见。
+2. 用户选中私有来源搜索时，公共社区来源不收到该查询。
+3. 服务端返回合法结果后，用户可预览、导入并绑定给 Agent。
+4. 同名冲突继续沿用现有封闭状态，不覆盖系统、平台或其他用户导入 Skill。
+5. 远端 zip 变更 `sha256` 后，“检查更新”只标记该 Skill；更新成功后 Agent
+   绑定不变。
+6. 远端超时、返回非法 JSON、错误摘要或非法 zip 时，本地 last-known-good
+   内容不变，错误按来源或 Skill 精确展示。
+7. API 响应、日志、`last_error` 与前端状态中不出现 token。
+8. 删除来源后已导入 Skill 仍可离线使用；重新添加同一 URL 后可恢复更新。
+9. 单个私有来源失败不阻断其他已启用来源返回搜索结果。
+10. SQLite 与 Postgres 使用同一领域语义，新增字段和 owner 约束在两类迁移中保持一致。
+
+## 11. 一句话总结
 
 全局技能库解决“用户有哪些 Skill”，Agent 设置解决“这个 Agent 用哪些 Skill”；
 全局绑定写 `skill_ids`，Agent 本地停用写 `disabled_skill_ids`，workspace-local

@@ -100,6 +100,8 @@ HTTP_PORT=80
 HOST_DATA_DIR=./data
 # Optional: source deployments must set this manually; Docker generates and persists one when empty.
 CONNECTOR_CREDENTIALS_KEY=
+# Optional: allow authenticated users to add these private Skill registry hosts.
+SKILLS_PRIVATE_SOURCE_ALLOWED_HOSTS=skills.example.com
 # Optional: server-side outbound proxy for backend IM/OAuth HTTP and WebSocket requests.
 HTTPS_PROXY=
 NO_PROXY=localhost,127.0.0.1,::1,nexus,nginx

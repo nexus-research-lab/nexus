@@ -265,11 +265,14 @@ JSONL 的 `output_file`，服务端也会将它投影成与主会话一致的富
 | GET | `/skills/{skill_name}/agents` | 当前用户各 Agent 的启用矩阵 | `getSkillAgentsApi` |
 | POST | `/skills/import/local` | 导入本地技能；认证部署仅允许 FormData `file`，未认证本地单用户部署兼容 `local_path` | `importLocalSkillApi` |
 | POST | `/skills/import/git` | 从 Git 仓库导入（body: `{ url, branch, path }`） | `importGitSkillApi` |
-| GET | `/skills/search/external` | 搜索社区技能（query: `q`,`include_readme`） | `searchExternalSkillsApi` |
+| GET | `/skills/search/external` | 搜索社区或私有技能（query: `q`,`include_readme`,`source_id`）；传 `source_id` 时只请求该来源 | `searchExternalSkillsApi` |
 | GET | `/skills/external/preview` | 社区技能预览（query: `detail_url`） | `getExternalSkillPreviewApi` |
 | POST | `/skills/import/skills-sh` | 从社区来源导入 | `importExternalSkillApi` |
-| GET | `/skills/sources` | 社区来源配置列表 | `listExternalSkillSourcesApi` |
+| POST | `/skills/import/source` | 从私有来源导入（body: `{ source_id, skill_id }`），服务端重新解析索引与下载地址 | `importExternalSkillApi` |
+| GET | `/skills/sources` | 社区与私有来源配置列表；凭据只返回是否已配置 | `listExternalSkillSourcesApi` |
+| POST | `/skills/sources` | 测试并新增私有来源（body: `{ name, url, auth_type, token? }`） | `createExternalSkillSourceApi` |
 | PATCH | `/skills/sources/{source_id}` | 更新来源配置 | `updateExternalSkillSourceApi` |
+| DELETE | `/skills/sources/{source_id}` | 删除用户私有来源；不删除已导入 Skill | `deleteExternalSkillSourceApi` |
 | POST | `/skills/check-updates` | 检查更新 | `checkSkillUpdatesApi` |
 | POST | `/skills/update-imported` | 批量更新已导入 | `updateImportedSkillsApi` |
 | POST | `/skills/{skill_name}/update` | 更新单个技能 | `updateSingleSkillApi` |

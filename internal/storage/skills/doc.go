@@ -3,7 +3,7 @@
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - repository.go / source.go / imported.go：仓储入口、技能来源与导入记录读写。
+//   - repository.go / source.go / imported.go：仓储入口、用户私有来源凭据元数据与可更新导入记录读写。
 //   - model_skill.go：SourceEntity 等模型。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）

@@ -112,6 +112,8 @@ export interface ExternalSkillSearchItem {
     raw_url: string;
     tags: string[];
     version: string;
+    artifact_sha256?: string;
+    artifact_size?: number;
 }
 
 export interface ExternalSkillSourceStatus {
@@ -133,10 +135,24 @@ export interface ExternalSkillSourceInfo {
     sort_order: number;
     last_checked_at?: string;
     last_error?: string;
+    managed_by: "system" | "user" | string;
+    auth_type: "none" | "bearer" | string;
+    credential_configured: boolean;
+    deletable: boolean;
 }
 
 export interface ExternalSkillSourceRequest {
+    name?: string;
     enabled?: boolean;
+    auth_type?: "none" | "bearer";
+    token?: string;
+}
+
+export interface CreateExternalSkillSourceRequest {
+    name: string;
+    url: string;
+    auth_type: "none" | "bearer";
+    token?: string;
 }
 
 export interface SearchExternalSkillsResponse {

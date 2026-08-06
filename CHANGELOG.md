@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added owner-scoped private Skill sources with server-side JSON search, encrypted Bearer credentials, checksum-verified ZIP imports, and online update checks.
+
 ### Changed
 
 - Made the desktop-only sidebar update action start the native macOS and Windows download, verification, and installation flow instead of opening the GitHub release page.

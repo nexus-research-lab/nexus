@@ -25,6 +25,8 @@ export function useSkillMarketplace(): SkillMarketplaceController {
     active: discoveryMode === "external",
     onError: feedbackActions.error,
     sourceRevision: sources.revision,
+    sources: sources.items,
+    sourcesLoading: sources.loading,
   });
   const operations = useSkillOperations({
     closeExternalPreview: external.closePreview,

@@ -4,18 +4,21 @@ import "time"
 
 // SourceEntity 表示 skill 来源配置。
 type SourceEntity struct {
-	OwnerUserID   string
-	SourceID      string
-	Name          string
-	Kind          string
-	URL           string
-	Trust         string
-	Enabled       bool
-	SortOrder     int
-	LastCheckedAt *time.Time
-	LastError     string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	OwnerUserID          string
+	SourceID             string
+	Name                 string
+	Kind                 string
+	URL                  string
+	Trust                string
+	ManagedBy            string
+	AuthType             string
+	CredentialsEncrypted string
+	Enabled              bool
+	SortOrder            int
+	LastCheckedAt        *time.Time
+	LastError            string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // ImportedSkillEntity 表示已导入 skill 的数据库状态。
@@ -35,6 +38,8 @@ type ImportedSkillEntity struct {
 	SourceRef       string
 	SourceName      string
 	SourceTrust     string
+	SourceSkillID   string
+	ArtifactSHA256  string
 	ImportMode      string
 	GitURL          string
 	GitBranch       string

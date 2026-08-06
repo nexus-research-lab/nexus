@@ -46,11 +46,13 @@ func (r *Repository) UpsertImportedSkill(ctx context.Context, item ImportedSkill
 INSERT INTO imported_skills (
     owner_user_id, skill_name, title, description, scope, tags, category_key, category_name,
     recommendation, version, source_id, source_kind, source_ref, source_name, source_trust,
-    import_mode, git_url, git_branch, git_path, git_commit, raw_url, detail_url, content_hash,
+    source_skill_id, artifact_sha256, import_mode, git_url, git_branch, git_path, git_commit,
+    raw_url, detail_url, content_hash,
     update_available, last_imported_at, last_checked_at, last_error, created_at, updated_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
     $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27,
+    $28, $29,
     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 )
 ON CONFLICT (owner_user_id, skill_name) DO UPDATE SET
@@ -67,6 +69,8 @@ ON CONFLICT (owner_user_id, skill_name) DO UPDATE SET
     source_ref = EXCLUDED.source_ref,
     source_name = EXCLUDED.source_name,
     source_trust = EXCLUDED.source_trust,
+    source_skill_id = EXCLUDED.source_skill_id,
+    artifact_sha256 = EXCLUDED.artifact_sha256,
     import_mode = EXCLUDED.import_mode,
     git_url = EXCLUDED.git_url,
     git_branch = EXCLUDED.git_branch,
@@ -88,10 +92,11 @@ ON CONFLICT (owner_user_id, skill_name) DO UPDATE SET
 INSERT INTO imported_skills (
     owner_user_id, skill_name, title, description, scope, tags, category_key, category_name,
     recommendation, version, source_id, source_kind, source_ref, source_name, source_trust,
-    import_mode, git_url, git_branch, git_path, git_commit, raw_url, detail_url, content_hash,
+    source_skill_id, artifact_sha256, import_mode, git_url, git_branch, git_path, git_commit,
+    raw_url, detail_url, content_hash,
     update_available, last_imported_at, last_checked_at, last_error, created_at, updated_at
 ) VALUES (
-    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 )
 ON CONFLICT(owner_user_id, skill_name) DO UPDATE SET
@@ -108,6 +113,8 @@ ON CONFLICT(owner_user_id, skill_name) DO UPDATE SET
     source_ref = excluded.source_ref,
     source_name = excluded.source_name,
     source_trust = excluded.source_trust,
+    source_skill_id = excluded.source_skill_id,
+    artifact_sha256 = excluded.artifact_sha256,
     import_mode = excluded.import_mode,
     git_url = excluded.git_url,
     git_branch = excluded.git_branch,
@@ -153,7 +160,8 @@ func importedSkillSelectSQL() string {
 	return `
 SELECT owner_user_id, skill_name, title, description, scope, tags, category_key, category_name,
        recommendation, version, source_id, source_kind, source_ref, source_name, source_trust,
-       import_mode, git_url, git_branch, git_path, git_commit, raw_url, detail_url, content_hash,
+       source_skill_id, artifact_sha256, import_mode, git_url, git_branch, git_path, git_commit,
+       raw_url, detail_url, content_hash,
        update_available, last_imported_at, last_checked_at, last_error, created_at, updated_at
 FROM imported_skills
 `
@@ -176,6 +184,8 @@ func importedSkillArgs(item ImportedSkillEntity) []any {
 		strings.TrimSpace(item.SourceRef),
 		strings.TrimSpace(item.SourceName),
 		strings.TrimSpace(item.SourceTrust),
+		strings.TrimSpace(item.SourceSkillID),
+		strings.TrimSpace(item.ArtifactSHA256),
 		strings.TrimSpace(item.ImportMode),
 		strings.TrimSpace(item.GitURL),
 		strings.TrimSpace(item.GitBranch),
@@ -223,6 +233,8 @@ func scanImportedSkill(row rowScanner) (ImportedSkillEntity, error) {
 		&item.SourceRef,
 		&item.SourceName,
 		&item.SourceTrust,
+		&item.SourceSkillID,
+		&item.ArtifactSHA256,
 		&item.ImportMode,
 		&item.GitURL,
 		&item.GitBranch,

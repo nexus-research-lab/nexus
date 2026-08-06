@@ -8,6 +8,7 @@ import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   ExternalSkillSearchItem,
+  ExternalSkillSourceInfo,
   ExternalSkillSourceStatus,
 } from "@/types/capability/skill";
 
@@ -20,16 +21,21 @@ interface UseExternalSkillSearchOptions {
   active: boolean;
   onError: (message: string) => void;
   sourceRevision: number;
+  sources: ExternalSkillSourceInfo[];
+  sourcesLoading: boolean;
 }
 
 export function useExternalSkillSearch({
   active,
   onError,
   sourceRevision,
+  sources,
+  sourcesLoading,
 }: UseExternalSkillSearchOptions): ExternalSkillSearchController {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
+  const [sourceId, setSourceId] = useState("");
   const [searchRevision, setSearchRevision] = useState(0);
   const [results, setResults] = useState<ExternalSkillSearchItem[]>([]);
   const [sourceStatuses, setSourceStatuses] = useState<ExternalSkillSourceStatus[]>([]);
@@ -39,6 +45,10 @@ export function useExternalSkillSearch({
   const searchRequestRef = useRef(0);
   const searchAbortRef = useRef<AbortController | null>(null);
   const previewRequestRef = useRef(0);
+  const selectedSourceSearchable = !sourceId || (
+    !sourcesLoading
+    && sources.some((source) => source.source_id === sourceId && source.enabled)
+  );
 
   const clearResults = useCallback(() => {
     searchAbortRef.current?.abort();
@@ -56,7 +66,12 @@ export function useExternalSkillSearch({
   }, [active, clearResults, query]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!sourceId || sourcesLoading || selectedSourceSearchable) return;
+    setSourceId("");
+  }, [selectedSourceSearchable, sourceId, sourcesLoading]);
+
+  useEffect(() => {
+    if (!active || !selectedSourceSearchable) return;
     const normalizedQuery = submittedQuery.trim();
     if (normalizedQuery.length < MIN_EXTERNAL_SEARCH_LENGTH) return;
 
@@ -70,6 +85,7 @@ export function useExternalSkillSearch({
         const response = await searchExternalSkillsApi(
           normalizedQuery,
           false,
+          sourceId || undefined,
           abortController.signal,
         );
         if (requestId !== searchRequestRef.current) return;
@@ -94,7 +110,16 @@ export function useExternalSkillSearch({
     })();
 
     return () => abortController.abort();
-  }, [active, onError, searchRevision, sourceRevision, submittedQuery, t]);
+  }, [
+    active,
+    onError,
+    searchRevision,
+    selectedSourceSearchable,
+    sourceId,
+    sourceRevision,
+    submittedQuery,
+    t,
+  ]);
 
   const submit = useCallback(() => {
     const normalizedQuery = query.trim();
@@ -150,6 +175,8 @@ export function useExternalSkillSearch({
     query,
     results,
     setQuery,
+    setSourceId,
+    sourceId,
     sourceStatuses,
     submit,
     submittedQuery,

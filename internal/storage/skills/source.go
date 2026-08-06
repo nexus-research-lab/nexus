@@ -10,7 +10,8 @@ import (
 
 func (r *Repository) ListSources(ctx context.Context, ownerUserID string) ([]SourceEntity, error) {
 	rows, err := r.db.QueryContext(ctx, `
-SELECT owner_user_id, source_id, name, kind, url, trust, enabled, sort_order,
+SELECT owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
+       credentials_encrypted, enabled, sort_order,
        last_checked_at, last_error, created_at, updated_at
 FROM skill_sources
 WHERE owner_user_id = `+r.bind(1)+`
@@ -24,7 +25,8 @@ ORDER BY sort_order ASC, created_at ASC, name ASC`, strings.TrimSpace(ownerUserI
 
 func (r *Repository) ListEnabledSources(ctx context.Context, ownerUserID string) ([]SourceEntity, error) {
 	rows, err := r.db.QueryContext(ctx, `
-SELECT owner_user_id, source_id, name, kind, url, trust, enabled, sort_order,
+SELECT owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
+       credentials_encrypted, enabled, sort_order,
        last_checked_at, last_error, created_at, updated_at
 FROM skill_sources
 WHERE owner_user_id = `+r.bind(1)+` AND enabled = `+r.boolLiteral(true)+`
@@ -38,7 +40,8 @@ ORDER BY sort_order ASC, created_at ASC, name ASC`, strings.TrimSpace(ownerUserI
 
 func (r *Repository) GetSource(ctx context.Context, ownerUserID string, sourceID string) (*SourceEntity, error) {
 	row := r.db.QueryRowContext(ctx, `
-SELECT owner_user_id, source_id, name, kind, url, trust, enabled, sort_order,
+SELECT owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
+       credentials_encrypted, enabled, sort_order,
        last_checked_at, last_error, created_at, updated_at
 FROM skill_sources
 WHERE owner_user_id = `+r.bind(1)+` AND source_id = `+r.bind(2),
@@ -59,8 +62,9 @@ func (r *Repository) EnsureSource(ctx context.Context, item SourceEntity) error 
 	if r.isPostgres {
 		_, err := r.db.ExecContext(ctx, `
 INSERT INTO skill_sources (
-    owner_user_id, source_id, name, kind, url, trust, enabled, sort_order, created_at, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
+    credentials_encrypted, enabled, sort_order, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (owner_user_id, kind, url) DO NOTHING`,
 			strings.TrimSpace(item.OwnerUserID),
 			strings.TrimSpace(item.SourceID),
@@ -68,6 +72,9 @@ ON CONFLICT (owner_user_id, kind, url) DO NOTHING`,
 			strings.TrimSpace(item.Kind),
 			strings.TrimSpace(item.URL),
 			strings.TrimSpace(item.Trust),
+			strings.TrimSpace(item.ManagedBy),
+			strings.TrimSpace(item.AuthType),
+			strings.TrimSpace(item.CredentialsEncrypted),
 			item.Enabled,
 			item.SortOrder,
 		)
@@ -75,8 +82,9 @@ ON CONFLICT (owner_user_id, kind, url) DO NOTHING`,
 	}
 	_, err := r.db.ExecContext(ctx, `
 INSERT INTO skill_sources (
-    owner_user_id, source_id, name, kind, url, trust, enabled, sort_order, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
+    credentials_encrypted, enabled, sort_order, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT(owner_user_id, kind, url) DO NOTHING`,
 		strings.TrimSpace(item.OwnerUserID),
 		strings.TrimSpace(item.SourceID),
@@ -84,6 +92,9 @@ ON CONFLICT(owner_user_id, kind, url) DO NOTHING`,
 		strings.TrimSpace(item.Kind),
 		strings.TrimSpace(item.URL),
 		strings.TrimSpace(item.Trust),
+		strings.TrimSpace(item.ManagedBy),
+		strings.TrimSpace(item.AuthType),
+		strings.TrimSpace(item.CredentialsEncrypted),
 		item.Enabled,
 		item.SortOrder,
 	)
@@ -94,13 +105,17 @@ func (r *Repository) UpsertSource(ctx context.Context, item SourceEntity) error 
 	if r.isPostgres {
 		_, err := r.db.ExecContext(ctx, `
 INSERT INTO skill_sources (
-    owner_user_id, source_id, name, kind, url, trust, enabled, sort_order, last_error, created_at, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
+    credentials_encrypted, enabled, sort_order, last_error, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (owner_user_id, source_id) DO UPDATE SET
     name = EXCLUDED.name,
     kind = EXCLUDED.kind,
     url = EXCLUDED.url,
     trust = EXCLUDED.trust,
+    managed_by = EXCLUDED.managed_by,
+    auth_type = EXCLUDED.auth_type,
+    credentials_encrypted = EXCLUDED.credentials_encrypted,
     enabled = EXCLUDED.enabled,
     sort_order = EXCLUDED.sort_order,
     last_error = EXCLUDED.last_error,
@@ -111,13 +126,17 @@ ON CONFLICT (owner_user_id, source_id) DO UPDATE SET
 	}
 	_, err := r.db.ExecContext(ctx, `
 INSERT INTO skill_sources (
-    owner_user_id, source_id, name, kind, url, trust, enabled, sort_order, last_error, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
+    credentials_encrypted, enabled, sort_order, last_error, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT(owner_user_id, source_id) DO UPDATE SET
     name = excluded.name,
     kind = excluded.kind,
     url = excluded.url,
     trust = excluded.trust,
+    managed_by = excluded.managed_by,
+    auth_type = excluded.auth_type,
+    credentials_encrypted = excluded.credentials_encrypted,
     enabled = excluded.enabled,
     sort_order = excluded.sort_order,
     last_error = excluded.last_error,
@@ -150,6 +169,17 @@ func (r *Repository) RecordSourceCheck(ctx context.Context, ownerUserID string, 
 	return err
 }
 
+// DeleteSource 删除当前用户的一条 skill 来源。
+func (r *Repository) DeleteSource(ctx context.Context, ownerUserID string, sourceID string) error {
+	_, err := r.db.ExecContext(
+		ctx,
+		"DELETE FROM skill_sources WHERE owner_user_id = "+r.bind(1)+" AND source_id = "+r.bind(2),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(sourceID),
+	)
+	return err
+}
+
 func sourceArgs(item SourceEntity) []any {
 	return []any{
 		strings.TrimSpace(item.OwnerUserID),
@@ -158,6 +188,9 @@ func sourceArgs(item SourceEntity) []any {
 		strings.TrimSpace(item.Kind),
 		strings.TrimSpace(item.URL),
 		strings.TrimSpace(item.Trust),
+		strings.TrimSpace(item.ManagedBy),
+		strings.TrimSpace(item.AuthType),
+		strings.TrimSpace(item.CredentialsEncrypted),
 		item.Enabled,
 		item.SortOrder,
 		strings.TrimSpace(item.LastError),
@@ -186,6 +219,9 @@ func scanSource(row rowScanner) (SourceEntity, error) {
 		&item.Kind,
 		&item.URL,
 		&item.Trust,
+		&item.ManagedBy,
+		&item.AuthType,
+		&item.CredentialsEncrypted,
 		&item.Enabled,
 		&item.SortOrder,
 		&lastChecked,

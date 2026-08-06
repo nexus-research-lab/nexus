@@ -140,6 +140,17 @@ func (s *Service) updateSingleSkillRecord(ctx context.Context, record catalogRec
 		return s.ImportSkillsSh(ctx, manifest.SourceRef, manifest.Name)
 	case "url":
 		return s.ImportSkillURL(ctx, firstNonEmpty(manifest.RawURL, manifest.SourceRef, manifest.DetailURL), manifest)
+	case externalSourceKindPrivateRegistry:
+		source, sourceErr := s.privateSkillSource(ctx, manifest.SourceKey)
+		if sourceErr != nil {
+			return nil, sourceErr
+		}
+		return s.importPrivateRegistrySkill(
+			ctx,
+			source,
+			firstNonEmpty(manifest.SourceSkillID, manifest.SourceRef),
+			manifest.Name,
+		)
 	default:
 		return nil, errors.New("该 skill 来源不支持更新")
 	}
@@ -159,6 +170,8 @@ func (s *Service) checkSingleSkillRecord(ctx context.Context, record catalogReco
 		return remoteCommit != "" && remoteCommit != strings.TrimSpace(manifest.GitCommit), nil
 	case "url":
 		return s.checkURLSkillUpdate(ctx, record, manifest)
+	case externalSourceKindPrivateRegistry:
+		return s.checkPrivateRegistrySkillUpdate(ctx, manifest)
 	default:
 		return false, errSkillUpdateCheckUnsupported
 	}
