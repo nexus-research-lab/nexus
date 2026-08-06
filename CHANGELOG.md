@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Aligned capability detail navigation with the shared workspace header and native macOS window controls.
+- Added a subtle motion-safe text flow across all message activity indicators.
 
 ## [0.1.34] - 2026-08-05
 

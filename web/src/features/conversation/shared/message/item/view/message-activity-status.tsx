@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 消息活动状态。
- * OUTPUT: 图标、思考/执行/回复的逐帧活动提示，以及中性静态的待确认状态。
+ * OUTPUT: 图标、逐帧提示和统一的活动文字流光。
  * POS: DM/Room 共用的活动呈现；不推导 runtime 状态，也不占用消息正文身份。
  */
 import {
@@ -23,6 +23,7 @@ import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 
 import type { MessageActivityState } from "../activity/message-activity-state";
+import "./message-activity-status.css";
 
 interface MessageActivityPresentation {
   icon: LucideIcon;
@@ -135,7 +136,11 @@ export function MessageActivityStatus({
 }
 
 function MessageActivityLabel({ label }: { label: string }) {
-  return <span className="truncate">{label}</span>;
+  return (
+    <span className="message-activity-label-flow truncate">
+      {label}
+    </span>
+  );
 }
 
 function MessageLoadingDots({

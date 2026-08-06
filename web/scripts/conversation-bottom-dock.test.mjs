@@ -1902,10 +1902,55 @@ test("DM and Room messages never remount interaction options outside the Compose
   ));
   assert.match(activityHtml, /等待确认/);
   assert.match(activityHtml, /--text-muted/);
+  assert.match(activityHtml, /message-activity-label-flow/);
   assert.doesNotMatch(
     activityHtml,
     /--warning|message-activity-spinner-track/,
   );
+
+  const inputActivityHtml = renderToStaticMarkup(React.createElement(
+    MessageActivityStatus,
+    { label: "等待输入", state: "waiting_input" },
+  ));
+  const activityStyles = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/message/item/view/message-activity-status.css",
+    ),
+    "utf8",
+  );
+  assert.match(inputActivityHtml, /message-activity-label-flow/);
+  assert.match(inputActivityHtml, /message-activity-spinner-track/);
+  assert.match(activityStyles, /@keyframes nexus-message-activity-text-flow/);
+  assert.match(
+    activityStyles,
+    /animation: nexus-message-activity-text-flow 2\.4s ease-in-out infinite/,
+  );
+  assert.match(
+    activityStyles,
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]*?animation: none/,
+  );
+
+  for (const state of [
+    "browsing",
+    "compacting",
+    "executing",
+    "replying",
+    "sending",
+    "thinking",
+    "waiting_input",
+    "waiting_permission",
+  ]) {
+    const stateHtml = renderToStaticMarkup(React.createElement(
+      MessageActivityStatus,
+      { label: state, state },
+    ));
+    assert.match(
+      stateHtml,
+      /message-activity-label-flow/,
+      `${state} should use the shared text flow`,
+    );
+  }
 
   const unmatchedHtml = await renderWithI18n(
     React.createElement(AssistantMessageContent, {
