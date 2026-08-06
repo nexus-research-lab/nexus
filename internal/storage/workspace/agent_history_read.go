@@ -178,6 +178,9 @@ func materializeRoundMarkerMessages(
 		if agentRoundID := strings.TrimSpace(marker.AgentRoundID); agentRoundID != "" {
 			row["agent_round_id"] = agentRoundID
 		}
+		if clientMessageID := strings.TrimSpace(marker.ClientMessageID); clientMessageID != "" {
+			row["client_message_id"] = clientMessageID
+		}
 		if sourceRoundID := strings.TrimSpace(marker.SourceRoundID); sourceRoundID != "" {
 			row["source_round_id"] = sourceRoundID
 		}

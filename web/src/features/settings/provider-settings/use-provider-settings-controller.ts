@@ -1,7 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 
+import { setUserPreferences } from "@/config/runtime-options";
+import { getUserPreferencesApi } from "@/lib/api/settings/preferences-api";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import type { ProviderConfigRecord } from "@/types/capability/provider";
+import type {
+  CCSwitchSyncResult,
+  ProviderConfigRecord,
+} from "@/types/capability/provider";
 
 import { getProviderSettingsApi } from "./provider-settings-api";
 import { useProviderCommand } from "./actions/use-provider-command";
@@ -60,7 +65,7 @@ export function useProviderSettingsController(
     t,
   });
   const { resetModelControls } = modelActions;
-  const { createFromPreset, selectProvider } = workspace;
+  const { createFromPreset, refreshAll, selectProvider } = workspace;
 
   const handleSelectProvider = useCallback((provider: string) => {
     if (selectProvider(provider)) {
@@ -94,6 +99,20 @@ export function useProviderSettingsController(
   ]);
 
   const dismissFeedback = useCallback(() => setFeedback(null), []);
+  const handleCCSwitchSynced = useCallback(async (result: CCSwitchSyncResult) => {
+    if (result.default_selection) {
+      setUserPreferences(await getUserPreferencesApi());
+    }
+    setFeedback({
+      tone: "success",
+      title: t("settings.providers.ccswitch_sync_success_title"),
+      message: t("settings.providers.ccswitch_sync_success_message", {
+        models: result.model_count,
+        providers: result.provider_count,
+      }),
+    });
+    await refreshAll(result.default_selection?.provider ?? null);
+  }, [refreshAll, t]);
   return {
     state: {
       ...presentation,
@@ -116,6 +135,7 @@ export function useProviderSettingsController(
       closeDeleteDialog: configActions.closeDeleteDialog,
       dismissFeedback,
       handleApiFormatChange: configActions.handleApiFormatChange,
+      handleCCSwitchSynced,
       handleCreateFromPreset,
       handleDelete: configActions.handleDelete,
       handleEnabledChange: configActions.handleEnabledChange,

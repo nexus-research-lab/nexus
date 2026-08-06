@@ -342,6 +342,12 @@ func (s *Service) persistConsumedGuidanceUserMessage(
 		protocol.ChatDeliveryPolicyGuide,
 		item.Attachments,
 	)
+	if clientMessageID := strings.TrimSpace(item.ClientMessageID); clientMessageID != "" {
+		messageValue["client_message_id"] = clientMessageID
+	}
+	if agentRoundID := strings.TrimSpace(item.AgentRoundID); agentRoundID != "" {
+		messageValue["agent_round_id"] = agentRoundID
+	}
 	if err := s.history.ForOwner(location.OwnerUserID).AppendOverlayMessage(
 		location.WorkspacePath,
 		sessionItem.SessionKey,

@@ -200,6 +200,9 @@ func TestContextRequestPermissionTimeoutBroadcastsResolved(t *testing.T) {
 		if decision.Behavior != sdkpermission.BehaviorDeny {
 			t.Fatalf("期望 deny，实际: %+v", decision)
 		}
+		if decision.ErrorCode != sdkpermission.ErrorCodeRequestTimeout {
+			t.Fatalf("期望结构化 timeout error code，实际: %+v", decision)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("等待超时结果失败")
 	}

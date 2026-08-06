@@ -29,6 +29,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
   init(
     runtime: SidecarRuntimeConfig,
     surfaceName: String,
+    windowCloseButtonCenter: CGPoint,
     windowControlsLeadingInset: CGFloat,
     startupTimeline: DesktopStartupTimeline? = nil,
     onWebReady: @escaping @MainActor () -> Void,
@@ -36,7 +37,8 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
     globalShortcutStatusProvider: @escaping () -> [String: Any],
     globalShortcutEnabledUpdater: @escaping (Bool) -> [String: Any],
     globalShortcutAcceleratorUpdater: @escaping (String) -> [String: Any],
-    globalShortcutAcceleratorResetter: @escaping () -> [String: Any]
+    globalShortcutAcceleratorResetter: @escaping () -> [String: Any],
+    updateStarter: @escaping () -> String
   ) throws {
     self.runtime = runtime
     self.surfaceName = surfaceName
@@ -48,7 +50,8 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
       globalShortcutStatusProvider: globalShortcutStatusProvider,
       globalShortcutEnabledUpdater: globalShortcutEnabledUpdater,
       globalShortcutAcceleratorUpdater: globalShortcutAcceleratorUpdater,
-      globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter
+      globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter,
+      updateStarter: updateStarter
     )
     lifecycleHandler = DesktopLifecycleHandler(
       runtime: runtime,
@@ -65,6 +68,7 @@ final class WebViewHost: NSObject, WKNavigationDelegate, WKUIDelegate {
       frame: .zero,
       configuration: try WebViewConfigurationFactory.make(
         runtime: runtime,
+        windowCloseButtonCenter: windowCloseButtonCenter,
         windowControlsLeadingInset: windowControlsLeadingInset,
         bridgeHandler: bridgeHandler,
         lifecycleHandler: lifecycleHandler,

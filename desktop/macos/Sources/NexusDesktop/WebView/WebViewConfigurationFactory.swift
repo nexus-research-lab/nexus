@@ -3,6 +3,7 @@ import WebKit
 enum WebViewConfigurationFactory {
   static func make(
     runtime: SidecarRuntimeConfig,
+    windowCloseButtonCenter: CGPoint,
     windowControlsLeadingInset: CGFloat,
     bridgeHandler: DesktopBridgeHandler,
     lifecycleHandler: DesktopLifecycleHandler,
@@ -14,6 +15,7 @@ enum WebViewConfigurationFactory {
 
     let runtimeScript = try DesktopRuntimeScript.make(
       runtime: runtime,
+      windowCloseButtonCenter: windowCloseButtonCenter,
       windowControlsLeadingInset: windowControlsLeadingInset
     )
     let userScript = WKUserScript(

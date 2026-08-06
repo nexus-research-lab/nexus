@@ -101,6 +101,46 @@ func TestCoordinatorRunOnceRespectsEnabledAndNextCheck(t *testing.T) {
 	coordinator.Stop()
 }
 
+func TestCoordinatorBacksOffUnavailableProvider(t *testing.T) {
+	now := time.Date(2026, 8, 4, 17, 0, 0, 0, time.UTC)
+	agentValue := newDreamTestAgent(t, "agent-unavailable", true)
+	runner := &fakeDreamRunner{
+		done: make(chan struct{}, 2),
+		result: agentclient.AutoDreamResult{
+			Status: agentclient.AutoDreamStatusSkipped,
+			Reason: autoDreamProviderUnavailableReason,
+		},
+	}
+	coordinator := newCoordinator(config.MemoryMaintenanceConfig{
+		MaxConcurrent: 1,
+		RunTimeout:    time.Minute,
+		SweepInterval: 10 * time.Minute,
+	}, fakeAgentCatalog{agents: []protocol.Agent{agentValue}}, runner)
+	coordinator.now = func() time.Time { return now }
+
+	if err := coordinator.runOnce(context.Background()); err != nil {
+		t.Fatalf("runOnce() error = %v", err)
+	}
+	waitDreamCall(t, runner.done)
+	coordinator.wg.Wait()
+	key := agentKey(agentValue)
+	coordinator.mu.Lock()
+	nextCheck := coordinator.nextChecks[key]
+	coordinator.mu.Unlock()
+	wantNextCheck := now.Add(autoDreamProviderUnavailableRetryInterval)
+	if !nextCheck.Equal(wantNextCheck) {
+		t.Fatalf("next check = %s, want %s", nextCheck, wantNextCheck)
+	}
+
+	now = wantNextCheck.Add(-time.Minute)
+	if err := coordinator.runOnce(context.Background()); err != nil {
+		t.Fatalf("early runOnce() error = %v", err)
+	}
+	if got := runner.callCount(); got != 1 {
+		t.Fatalf("call count = %d, want provider backoff suppression", got)
+	}
+}
+
 func TestRuntimeDreamRunnerPrefersOwnerBackgroundSelection(t *testing.T) {
 	runner := &runtimeDreamRunner{preferences: fakePreferencesService{preferences: preferencessvc.Preferences{
 		DefaultBackgroundModelSelection: preferencessvc.ModelSelection{
@@ -108,29 +148,44 @@ func TestRuntimeDreamRunnerPrefersOwnerBackgroundSelection(t *testing.T) {
 			Model:    "background-model",
 		},
 	}}}
-	provider, model, err := runner.backgroundSelection(context.Background(), "owner-1", runtimeselectionsvc.Selection{
+	provider, model, available, err := runner.backgroundSelection(context.Background(), "owner-1", runtimeselectionsvc.Selection{
 		Provider: "agent-provider",
 		Model:    "agent-model",
 	})
 	if err != nil {
 		t.Fatalf("backgroundSelection() error = %v", err)
 	}
-	if provider != "background-provider" || model != "background-model" {
+	if !available || provider != "background-provider" || model != "background-model" {
 		t.Fatalf("background selection = %s/%s, want owner background provider/model", provider, model)
 	}
 }
 
 func TestRuntimeDreamRunnerFallsBackToAgentSelection(t *testing.T) {
 	runner := &runtimeDreamRunner{preferences: fakePreferencesService{}}
-	provider, model, err := runner.backgroundSelection(context.Background(), "owner-1", runtimeselectionsvc.Selection{
+	provider, model, available, err := runner.backgroundSelection(context.Background(), "owner-1", runtimeselectionsvc.Selection{
 		Provider: "agent-provider",
 		Model:    "agent-model",
 	})
 	if err != nil {
 		t.Fatalf("backgroundSelection() error = %v", err)
 	}
-	if provider != "agent-provider" || model != "agent-model" {
+	if !available || provider != "agent-provider" || model != "agent-model" {
 		t.Fatalf("background selection = %s/%s, want Agent fallback", provider, model)
+	}
+}
+
+func TestRuntimeDreamRunnerSkipsUnavailableSelection(t *testing.T) {
+	runner := &runtimeDreamRunner{preferences: fakePreferencesService{}}
+	provider, model, available, err := runner.backgroundSelection(
+		context.Background(),
+		"owner-1",
+		runtimeselectionsvc.Selection{},
+	)
+	if err != nil {
+		t.Fatalf("backgroundSelection() error = %v", err)
+	}
+	if available || provider != "" || model != "" {
+		t.Fatalf("background selection = %s/%s available=%t, want unavailable", provider, model, available)
 	}
 }
 

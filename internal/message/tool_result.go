@@ -8,6 +8,8 @@ import (
 	"unicode"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 // ToolResultObservation 表示 assistant 快照中一次已物化的工具结果。
@@ -125,7 +127,7 @@ func toolResultCountsForGoalProgress(observation ToolResultObservation) bool {
 		return !observation.IsError
 	}
 	switch normalizeString(observation.ErrorCode) {
-	case askUserQuestionTimeoutErrorCode, askUserQuestionChannelUnavailableCode:
+	case string(sdkpermission.ErrorCodeRequestTimeout):
 		return false
 	default:
 		return true

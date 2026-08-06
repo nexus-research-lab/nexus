@@ -124,7 +124,7 @@ Nexus 蓝是唯一通用强调色，三主题共用一个语义：**`--primary` 
 16px  overlay      /* popover、dialog、sheet */
 20px  composer     /* 唯一的主输入焦点 */
 24px  shell        /* 认证、故障等独立壳 */
-999px full         /* 状态点、真实 pill、明确要求的圆形头像 */
+999px full         /* 状态点、真实 pill、明确要求的圆形头像或主图标动作 */
 ```
 
 - button、input、menu item 用 `control`；不用 `lg`、`xl` 或 pill 制造「高级感」，不把常规按钮和筛选项 pill 化。
@@ -275,7 +275,7 @@ disabled 降对比不隐藏、保留可解释文案；loading 保持原尺寸与
 
 - 工具调用、搜索、读写和思考摘要默认单行过程项：状态图标、简短动词、目标摘要和可展开 affordance；running 用局部 spinner 或文本状态；completed 收敛为低对比结果行；不绘制大面积蓝色进度卡。
 - thinking 只显示产品允许公开的摘要；展开行为不得改变已读正文的因果顺序。
-- AskUserQuestion / permission 是用户必须行动的唯一强交互 surface：`content` 圆角、单层边界、清楚问题、最少必要选项和一个蓝色提交动作；选项是行级选择器，不是彩色答案卡；提交后收敛成一条完成状态或可展开摘要。
+- AskUserQuestion / permission 是用户必须行动的唯一强交互 surface：承载壳沿用所在上下文的圆角，内部选项与按钮统一使用 `control` 圆角，禁止 pill 化；保持单层边界、清楚问题、最少必要选项和一个高对比主动作；选项是行级选择器，不是彩色答案卡；提交后收敛成一条完成状态或可展开摘要。
 - 权限解释必须说明将执行什么、作用域和风险；拒绝与取消是 ghost / secondary，不把所有动作做成 primary。
 - error / warning 短、具体、可恢复：问题、影响、下一步动作；语义色只服务图标和关键文本，不铺满整块背景。
 - empty state 只保留一个下一步动作和必要说明；不使用插画、统计卡或大段教学文案填空。

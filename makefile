@@ -13,7 +13,7 @@ export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
 endif
 endif
 
-TAG ?= 0.1.32
+TAG ?= 0.1.34
 BACKEND_PORT ?= 8010
 WEB_PORT ?= 3000
 AGENT_UID ?= 1001
@@ -44,7 +44,7 @@ GO_TEST_PACKAGE_PARALLELISM ?= 4
 .PHONY: help build build-backend build-web package-release start stop restart logs logs-all logs-nginx clean status \
 	dev dev-nxs install gen-protocol-types lint-web test-web typecheck-web prepare-host-data \
 	check-backend check-go-vet check-go check-go-fresh check-go-full check test run-web run-backend run-backend-go \
-	app-build-dev app-run-dev app-build app-run app-smoke app-package app-dmg build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
+	app-build-dev app-run-dev app-build app-run app-run-onboarding app-smoke app-package app-dmg app-dmg-intel build-dmg app-check app-win-build app-win-run app-win-smoke app-win-package \
 	pull deploy start-no-build ssl-check ssl-issue ssl-renew ssl-renew-dry-run
 
 # Show help
@@ -153,6 +153,12 @@ app-build: ## 构建 ad-hoc macOS .app
 app-run: ## 构建并运行 ad-hoc macOS .app
 	./scripts/desktop/run-macos-app.sh
 
+app-run-onboarding: ## 使用隔离状态构建并运行 macOS 首次初始化测试 App
+	@run_id="$$(date +%s)"; \
+		NEXUS_DESKTOP_STATE_ROOT="/tmp/nexus-onboarding-$${run_id}" \
+		NEXUS_DESKTOP_PREFERENCES_SUITE="com.leemysw.nexus.onboarding-test.$${run_id}" \
+		$(MAKE) app-run
+
 app-smoke: ## 烟测已组装的 macOS .app
 	./scripts/desktop/smoke-macos-app.sh
 
@@ -161,6 +167,9 @@ app-package: ## 构建 macOS app zip、sha256 和 metadata
 
 app-dmg: ## 构建 macOS app dmg、sha256 和 metadata
 	NEXUS_DESKTOP_PACKAGE_FORMAT=dmg ./scripts/desktop/package-macos-app.sh
+
+app-dmg-intel: ## 构建 Intel x86_64 macOS dmg、sha256 和 metadata
+	NEXUS_DESKTOP_TARGET_ARCH=x86_64 NEXUS_DESKTOP_NXS_GOARCH=amd64 NEXUS_DESKTOP_PACKAGE_FORMAT=dmg ./scripts/desktop/package-macos-app.sh
 
 build-dmg: app-dmg ## app-dmg 的别名
 

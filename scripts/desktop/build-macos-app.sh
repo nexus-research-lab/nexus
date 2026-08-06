@@ -49,6 +49,30 @@ NEXUSCTL_BUILD_PATH="${SIDECAR_BUILD_DIR}/nexusctl"
 SWIFT_PRODUCT="NexusDesktop"
 BUNDLE_NXS_RUNTIME="${NEXUS_DESKTOP_BUNDLE_NXS_RUNTIME:-0}"
 NXS_RUNTIME_PATH="${NEXUS_DESKTOP_NXS_RUNTIME_PATH:-}"
+HOST_ARCH="$(uname -m)"
+
+case "${NEXUS_DESKTOP_TARGET_ARCH:-${HOST_ARCH}}" in
+  arm64 | aarch64)
+    TARGET_ARCH="arm64"
+    TARGET_GOARCH="arm64"
+    ;;
+  x86_64 | amd64 | intel)
+    TARGET_ARCH="x86_64"
+    TARGET_GOARCH="amd64"
+    ;;
+  *)
+    echo "unsupported macOS target architecture: ${NEXUS_DESKTOP_TARGET_ARCH:-${HOST_ARCH}}" >&2
+    echo "supported architectures: arm64, x86_64" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "${TARGET_ARCH}" == "${HOST_ARCH}" ]]; then
+  DEFAULT_CGO_ENABLED="$(go env CGO_ENABLED)"
+else
+  DEFAULT_CGO_ENABLED=0
+fi
+BUILD_CGO_ENABLED="${CGO_ENABLED:-${DEFAULT_CGO_ENABLED}}"
 
 is_enabled() {
   case "$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')" in
@@ -96,6 +120,17 @@ codesign_target() {
   codesign "${args[@]}" "${target}" >/dev/null
 }
 
+require_macho_architecture() {
+  local executable_path="$1"
+  local executable_architectures
+  executable_architectures="$(lipo -archs "${executable_path}" 2>/dev/null || true)"
+  if [[ " ${executable_architectures} " != *" ${TARGET_ARCH} "* ]]; then
+    echo "macOS executable architecture mismatch: ${executable_path}" >&2
+    echo "expected ${TARGET_ARCH}, got ${executable_architectures:-unknown}" >&2
+    exit 1
+  fi
+}
+
 echo "==> Building web/dist"
 cd "${ROOT_DIR}/web"
 pnpm install --frozen-lockfile --prefer-offline
@@ -104,22 +139,22 @@ NEXUS_DESKTOP_BUILD=1 pnpm build
 echo "==> Building Go sidecar"
 mkdir -p "${SIDECAR_BUILD_DIR}"
 cd "${ROOT_DIR}"
-CGO_ENABLED="${CGO_ENABLED:-1}" go build \
+CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
   -trimpath \
   -ldflags="-s -w" \
   -o "${SIDECAR_BUILD_PATH}" \
   ./cmd/nexus-server
 
 echo "==> Building nexusctl"
-CGO_ENABLED="${CGO_ENABLED:-1}" go build \
+CGO_ENABLED="${BUILD_CGO_ENABLED}" GOOS=darwin GOARCH="${TARGET_GOARCH}" go build \
   -trimpath \
   -ldflags="-s -w" \
   -o "${NEXUSCTL_BUILD_PATH}" \
   ./cmd/nexusctl
 
-echo "==> Building Swift shell"
-swift build --package-path "${MACOS_DIR}" -c release
-SWIFT_BIN_PATH="$(swift build --package-path "${MACOS_DIR}" -c release --show-bin-path)"
+echo "==> Building Swift shell (${TARGET_ARCH})"
+swift build --package-path "${MACOS_DIR}" -c release --arch "${TARGET_ARCH}"
+SWIFT_BIN_PATH="$(swift build --package-path "${MACOS_DIR}" -c release --arch "${TARGET_ARCH}" --show-bin-path)"
 
 echo "==> Assembling ${APP_BUNDLE}"
 rm -rf "${APP_BUNDLE}"
@@ -135,7 +170,11 @@ if is_enabled "${BUNDLE_NXS_RUNTIME}"; then
   nxs_output_path="${RESOURCES_DIR}/bin/nxs"
   nxs_ripgrep_output_path="${RESOURCES_DIR}/bin/rg"
   NXS_GOOS="${NEXUS_DESKTOP_NXS_GOOS:-darwin}"
-  NXS_GOARCH="${NEXUS_DESKTOP_NXS_GOARCH:-$(go env GOARCH)}"
+  NXS_GOARCH="${NEXUS_DESKTOP_NXS_GOARCH:-${TARGET_GOARCH}}"
+  if [[ "${NXS_GOARCH}" != "${TARGET_GOARCH}" ]]; then
+    echo "bundled nxs architecture ${NXS_GOARCH} does not match app target ${TARGET_GOARCH}" >&2
+    exit 1
+  fi
   if [[ -n "${NXS_RUNTIME_PATH}" ]]; then
     if [[ ! -x "${NXS_RUNTIME_PATH}" ]]; then
       echo "missing cached nxs runtime: ${NXS_RUNTIME_PATH}" >&2
@@ -157,6 +196,16 @@ if is_enabled "${BUNDLE_NXS_RUNTIME}"; then
       --output "${nxs_output_path}" \
       --ripgrep-output "${nxs_ripgrep_output_path}"
   fi
+fi
+
+require_macho_architecture "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}"
+require_macho_architecture "${MACOS_CONTENTS_DIR}/nexus-server"
+require_macho_architecture "${RESOURCES_DIR}/bin/nexusctl"
+if [[ -x "${RESOURCES_DIR}/bin/nxs" ]]; then
+  require_macho_architecture "${RESOURCES_DIR}/bin/nxs"
+fi
+if [[ -x "${RESOURCES_DIR}/bin/rg" ]]; then
+  require_macho_architecture "${RESOURCES_DIR}/bin/rg"
 fi
 
 chmod 0755 "${MACOS_CONTENTS_DIR}/${EXECUTABLE_NAME}" \

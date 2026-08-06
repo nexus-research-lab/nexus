@@ -78,6 +78,61 @@ function isSameSessionMessage(message: Message, sessionKey: string): boolean {
   return !message.session_key || areEquivalentSessionKeys(message.session_key, sessionKey);
 }
 
+function todoWriteString(
+  todo: Record<string, unknown>,
+  keys: string[],
+): string | null {
+  for (const key of keys) {
+    const value = todo[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+function todoWriteStatus(value: unknown): TodoItem["status"] | null {
+  switch (typeof value === "string" ? value.trim() : "") {
+    case "completed":
+      return "completed";
+    case "in_progress":
+      return "in_progress";
+    case "pending":
+      return "pending";
+    default:
+      return null;
+  }
+}
+
+function todoWriteItem(value: unknown): TodoItem | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const todo = value as Record<string, unknown>;
+  // 早期 transcript 使用 task；外部载荷必须在进入 UI 前统一为 TodoItem。
+  const content = todoWriteString(todo, ["content", "task"]);
+  const status = todoWriteStatus(todo.status);
+  if (!content || !status) {
+    return null;
+  }
+  const activeForm = todoWriteString(todo, ["activeForm", "active_form"]);
+  return {
+    content,
+    status,
+    ...(activeForm ? {active_form: activeForm} : {}),
+  };
+}
+
+function todoWritePlan(value: unknown): TodoItem[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  return value.flatMap((item) => {
+    const todo = todoWriteItem(item);
+    return todo ? [todo] : [];
+  });
+}
+
 function extractTodoPlan(message: AssistantMessage): TodoItem[] | null {
   if (!Array.isArray(message.content)) {
     return null;
@@ -87,10 +142,11 @@ function extractTodoPlan(message: AssistantMessage): TodoItem[] | null {
     if (
       block?.type === "tool_use"
       && block.name === "TodoWrite"
-      && block.input
-      && Array.isArray(block.input.todos)
     ) {
-      plan = block.input.todos;
+      const nextPlan = todoWritePlan(block.input?.todos);
+      if (nextPlan) {
+        plan = nextPlan;
+      }
     }
   }
   return plan;

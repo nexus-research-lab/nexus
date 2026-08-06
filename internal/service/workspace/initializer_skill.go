@@ -141,20 +141,15 @@ func ListDeployedSkills(workspacePath string) ([]string, error) {
 
 // ListDeployedSkillsAt 从已验证的 workspace 根枚举已部署 skill。
 func ListDeployedSkillsAt(root *confinedfs.Root) ([]string, error) {
-	type skillParent struct {
-		relativePath     string
-		requireSkillFile bool
-	}
-	parents := []skillParent{
+	parents := []string{
 		// Claude 兼容入口可能是普通镜像目录，不能只依赖 .agents/skills。
-		{relativePath: ".agents/skills", requireSkillFile: true},
-		{relativePath: ".agents", requireSkillFile: true},
-		{relativePath: ".claude/skills", requireSkillFile: true},
+		".agents/skills",
+		".claude/skills",
 	}
 	result := []string{}
 	seen := map[string]struct{}{}
 	for _, parent := range parents {
-		parentRoot, err := root.OpenRootNoSymlink(parent.relativePath)
+		parentRoot, err := root.OpenRootNoSymlink(parent)
 		if os.IsNotExist(err) || errors.Is(err, confinedfs.ErrSymlink) {
 			continue
 		}
@@ -175,14 +170,12 @@ func ListDeployedSkillsAt(root *confinedfs.Root) ([]string, error) {
 			if openErr != nil {
 				continue
 			}
-			if parent.requireSkillFile {
-				skillFile, fileErr := skillRoot.OpenFileNoSymlink("SKILL.md", os.O_RDONLY, 0)
-				if fileErr != nil {
-					skillRoot.Close()
-					continue
-				}
-				_ = skillFile.Close()
+			skillFile, fileErr := skillRoot.OpenFileNoSymlink("SKILL.md", os.O_RDONLY, 0)
+			if fileErr != nil {
+				skillRoot.Close()
+				continue
 			}
+			_ = skillFile.Close()
 			_ = skillRoot.Close()
 			key := strings.ToLower(strings.TrimSpace(entry.Name()))
 			if key == "" {

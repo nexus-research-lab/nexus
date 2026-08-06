@@ -1,10 +1,12 @@
 type DesktopBridgeKind =
   | "app.get_app_version"
   | "app.get_state_root"
+  | "app.choose_state_root"
   | "app.relocate_state_root"
   | "app.open_external_url"
   | "app.export_logs"
   | "app.open_route"
+  | "app.start_update"
   | "app.get_persistent_state"
   | "app.set_persistent_state"
   | "app.remove_persistent_state"
@@ -43,9 +45,18 @@ export interface DesktopStateRootMigrationResult {
   target_path: string;
 }
 
+export interface DesktopStateRootSelectionResult {
+  cancelled: boolean;
+  path?: string;
+}
+
 export interface DesktopPersistentStateResult {
   key: string;
   value?: string | null;
+}
+
+export interface DesktopUpdateStartResult {
+  status: "disabled" | "in_progress" | "started" | "unavailable";
 }
 
 interface NativeDesktopBridge {
@@ -70,6 +81,20 @@ export async function getDesktopStateRoot(): Promise<DesktopStateRootStatus> {
   return invokeDesktopBridge<Record<string, never>, DesktopStateRootStatus>("app.get_state_root", {});
 }
 
+export async function chooseDesktopStateRoot(
+  initialPath: string,
+  title: string,
+  prompt: string,
+): Promise<DesktopStateRootSelectionResult> {
+  return invokeDesktopBridge<
+    { initial_path: string; prompt: string; title: string },
+    DesktopStateRootSelectionResult
+  >(
+    "app.choose_state_root",
+    { initial_path: initialPath, prompt, title },
+  );
+}
+
 export async function relocateDesktopStateRoot(path: string): Promise<DesktopStateRootMigrationResult> {
   return invokeDesktopBridge<{ path: string }, DesktopStateRootMigrationResult>(
     "app.relocate_state_root",
@@ -90,6 +115,13 @@ export async function exportDesktopLogs(): Promise<DesktopExportLogsResult> {
 
 export async function openDesktopRoute(route: string): Promise<void> {
   await invokeDesktopBridge<{ route: string }, { opened: boolean }>("app.open_route", { route });
+}
+
+export async function startDesktopUpdate(): Promise<DesktopUpdateStartResult> {
+  return invokeDesktopBridge<Record<string, never>, DesktopUpdateStartResult>(
+    "app.start_update",
+    {},
+  );
 }
 
 export async function getDesktopPersistentState(key: string): Promise<DesktopPersistentStateResult> {

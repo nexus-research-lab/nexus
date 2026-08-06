@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -31,6 +32,7 @@ type Service struct {
 	client                        *http.Client
 	logger                        *slog.Logger
 	defaultAgentSelectionResolver DefaultAgentSelectionResolver
+	desktopMode                   bool
 }
 
 // DefaultAgentSelection 表示用户为 Agent runtime 选择的全局默认模型。
@@ -51,11 +53,12 @@ type providerModelTarget struct {
 // NewServiceWithDB 使用共享 DB 创建 Provider 配置服务。
 func NewServiceWithDB(cfg config.Config, db *sql.DB) *Service {
 	return &Service{
-		repository: providerstore.NewRepository(cfg, db),
-		now:        func() time.Time { return time.Now().UTC() },
-		idFactory:  newProviderID,
-		client:     &http.Client{Timeout: 30 * time.Second},
-		logger:     logx.NewDiscardLogger(),
+		repository:  providerstore.NewRepository(cfg, db),
+		now:         func() time.Time { return time.Now().UTC() },
+		idFactory:   newProviderID,
+		client:      &http.Client{Timeout: 30 * time.Second},
+		logger:      logx.NewDiscardLogger(),
+		desktopMode: strings.EqualFold(strings.TrimSpace(cfg.AppMode), "desktop"),
 	}
 }
 

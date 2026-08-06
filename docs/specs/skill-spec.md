@@ -21,6 +21,10 @@ Agent 的设置页才是启停 Skill 的入口；每个 Agent 可以有不同的
 | 用户导入 / 第三方市场 | `<workspace>/<owner>/workspace/.agents/skills/<name>/` | 可见 | 可按 Agent 启停 | 未绑定即停用 | 导入、更新、删除、启用、停用 |
 | Agent 工作区 Skill | `<agent workspace>/.agents/skills` 或 `.claude/skills` | 不可见 | 仅所属 Agent 可见 | 文件存在即启用 | 启用、停用、删除 |
 
+同名投影的优先级固定为：Agent 工作区 > 系统/平台 > 桌面宿主 > owner 导入。
+后一层不能用 frontmatter `name` 绕过前一层；若需要并存，必须在来源目录阶段使用
+不同的 canonical name。
+
 Room 不是一种文件来源，而是 `scope: room` 使用范围。Room Skill 仍来自平台、
 宿主或用户导入源，继续出现在全局技能库中，但不能绑定到单个 Agent，只能在
 Room 配置中选择。
@@ -46,6 +50,20 @@ Nexus **不会扫描** `~/.codex/skills`、`~/.claude/skills`、`~/.cc-switch/sk
 或其他外部 Skill 目录。`.claude/skills` 只是在受管兼容根中为 Claude Code 提供
 与 `.agents/skills` 相同内容的发现入口，不是第二个来源。
 
+每个发现根只接受一层 `skill-name/SKILL.md`，canonical name 始终是
+`skill-name` 目录名；frontmatter 或导入 manifest 中的 `name` 只作展示元数据，
+不改写绑定键。目录名不得包含首尾空白，也不得使用持久化引用保留前缀
+`external:`；绑定键按大小写不敏感去重。
+宿主根允许顶层目录链接表示一个 Skill，但目标必须位于当前用户 home 内、
+目标根直接包含真实 `SKILL.md`，且 Skill 内部不允许二次链接或特殊文件。
+嵌套的 bundle/collection 不是这一层的发现单元；未来如引入 connector 层，
+应在该层导入时展开并命名，不改变 canonical 根的直接子目录契约。
+
+Agent workspace 是独立的动态层：Nexus 会读取 nxs/Codex 原生的
+`.agents/skills/<name>` 以及 Claude Code 原生的 `.claude/skills/<name>`。
+这不等于扫描宿主 `~/.claude/skills`；也不支持无 `skills` 层级的
+`.agents/<name>` 伪根。
+
 平台源和宿主源会分别同步到：
 
 ```text
@@ -55,8 +73,14 @@ Nexus **不会扫描** `~/.codex/skills`、`~/.claude/skills`、`~/.cc-switch/sk
 <config>/host-skills/.claude/skills
 ```
 
-同步使用源内容指纹、临时目录和原子替换。Nexus 不把全局 Skill 复制到每个
-Agent workspace；workspace 中出现的文件一律按该 Agent 的本地来源处理。
+平台源使用内容指纹和整库分阶段发布。宿主源在服务启动时先创建稳定的
+`<config>/host-skills/.agents/skills` 目录，再由后台 watcher 有界校验并按
+Skill 分阶段替换。单个 Skill 更新失败时保留该项 last-known-good，不阻断同级
+Skill 刷新；源中明确删除的 Skill 则从投影删除。Catalog 与 runtime 都只读取
+这一受管投影，不各自重新扫描宿主 home。
+
+Nexus 不把全局 Skill 复制到每个 Agent workspace；workspace 中出现的文件
+一律按该 Agent 的本地来源处理。
 
 用户导入的 Skill 按 owner 隔离，目录为：
 
@@ -177,7 +201,7 @@ Content-Type: application/json
 
 启动 runtime 前，宿主完成以下步骤：
 
-1. 同步平台、宿主和 owner 全局兼容根；
+1. 使用已发布的平台根、稳定宿主快照和当前 owner 全局根；
 2. 从 `skill_ids` 将 `external:<name>` 还原为 canonical name；
 3. 从 Agent workspace 动态发现本地 Skill；
 4. 将全局绑定名称与未停用的本地名称传给 nxs；
@@ -217,6 +241,7 @@ nxs 从完整 `user-invocable` 目录解析，Claude Code 沿用自身直接 Ski
 - 用 Skill 名称而不带 `target_scope` 修改同名来源；
 - 把路径写入 `skill_ids`；
 - 扫描 `~/.codex`、宿主 `~/.claude`、`.cc-switch` 或未声明的外部目录；
+- 把宿主 canonical 根中的嵌套 collection 递归展开为 Skill；
 - 把 Agent workspace Skill 放进全局技能库或其他 Agent 的设置页；
 - 把 internal Skill 混进公开第三方市场。
 

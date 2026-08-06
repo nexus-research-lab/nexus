@@ -8,10 +8,7 @@ import {
 
 export interface ComposerViewCopy {
   defaultPlaceholder: string;
-  enterQueue: string;
-  enterSend: string;
   goalConfirm: string;
-  goalEnterStart: string;
   goalPlaceholder: string;
   sendMessage: string;
 }
@@ -41,7 +38,6 @@ const RUNTIME_ACTIVITY_BY_PHASE: Partial<Record<
 
 export interface ComposerModeProjection {
   activeError: string | null;
-  enterLabel: string;
   isGoalMode: boolean;
   placeholder: string;
   sendButtonLabel: string;
@@ -102,24 +98,15 @@ export function projectComposerMode({
   goalCreateBlockedReason,
   goalError,
   inputMode,
-  queueWhenSessionBusy,
-  sessionBusy,
 }: {
   attachmentError: string | null;
   copy: ComposerViewCopy;
   goalCreateBlockedReason: string | null;
   goalError: string | null;
   inputMode: ComposerInputMode;
-  queueWhenSessionBusy: boolean;
-  sessionBusy: boolean;
 }): ComposerModeProjection {
   const isGoalMode = inputMode === "goal";
-  const modeCopy = resolveModeCopy(
-    isGoalMode,
-    copy,
-    queueWhenSessionBusy,
-    sessionBusy,
-  );
+  const modeCopy = resolveModeCopy(isGoalMode, copy);
   return {
     activeError: resolveActiveError(
       isGoalMode,
@@ -135,34 +122,17 @@ export function projectComposerMode({
 function resolveModeCopy(
   isGoalMode: boolean,
   copy: ComposerViewCopy,
-  queueWhenSessionBusy: boolean,
-  sessionBusy: boolean,
 ) {
   if (isGoalMode) {
     return {
-      enterLabel: copy.goalEnterStart,
       placeholder: copy.goalPlaceholder,
       sendButtonLabel: copy.goalConfirm,
     };
   }
   return {
-    enterLabel: resolveMessageEnterLabel(
-      copy,
-      queueWhenSessionBusy,
-      sessionBusy,
-    ),
     placeholder: copy.defaultPlaceholder,
     sendButtonLabel: copy.sendMessage,
   };
-}
-
-function resolveMessageEnterLabel(
-  copy: ComposerViewCopy,
-  queueWhenSessionBusy: boolean,
-  sessionBusy: boolean,
-): string {
-  const shouldQueue = [queueWhenSessionBusy, sessionBusy].every(Boolean);
-  return shouldQueue ? copy.enterQueue : copy.enterSend;
 }
 
 function resolveActiveError(

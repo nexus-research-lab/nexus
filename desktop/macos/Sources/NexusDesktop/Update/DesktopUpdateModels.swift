@@ -157,15 +157,112 @@ struct GitHubReleaseAsset: Decodable {
   }
 }
 
+enum DesktopReleaseAssetSelector {
+  static func macOSMetadataAsset(
+    in assets: [GitHubReleaseAsset],
+    architecture: String = DesktopArchitecture.current
+  ) -> GitHubReleaseAsset? {
+    macOSAsset(in: assets, architecture: architecture) { name in
+      name.contains("macos") && name.hasSuffix(".metadata.json")
+    }
+  }
+
+  static func macOSPackageAsset(
+    in assets: [GitHubReleaseAsset],
+    architecture: String = DesktopArchitecture.current
+  ) -> GitHubReleaseAsset? {
+    macOSAsset(in: assets, architecture: architecture) { name in
+      name.contains("macos") && (name.hasSuffix(".dmg") || name.hasSuffix(".zip"))
+    }
+  }
+
+  static func macOSPackageSHA256Asset(
+    in assets: [GitHubReleaseAsset],
+    packageAsset: GitHubReleaseAsset?,
+    architecture: String = DesktopArchitecture.current
+  ) -> GitHubReleaseAsset? {
+    if let packageAsset {
+      return assets.first { asset in
+        asset.name.caseInsensitiveCompare("\(packageAsset.name).sha256") == .orderedSame
+      }
+    }
+
+    return macOSAsset(in: assets, architecture: architecture) { name in
+      name.contains("macos") &&
+        (name.hasSuffix(".dmg.sha256") || name.hasSuffix(".zip.sha256"))
+    }
+  }
+
+  private static func macOSAsset(
+    in assets: [GitHubReleaseAsset],
+    architecture: String,
+    matches: (String) -> Bool
+  ) -> GitHubReleaseAsset? {
+    let candidates = assets.filter { matches($0.name.lowercased()) }
+    if let expectedArchitecture = DesktopArchitecture.normalized(architecture),
+       let exactMatch = candidates.first(where: {
+         macOSAssetArchitecture($0.name) == expectedArchitecture
+       }) {
+      return exactMatch
+    }
+    return candidates.first { macOSAssetArchitecture($0.name) == nil }
+  }
+
+  private static func macOSAssetArchitecture(_ name: String) -> String? {
+    let normalizedName = name.lowercased()
+    if normalizedName.contains("-arm64-") || normalizedName.contains("-aarch64-") {
+      return "arm64"
+    }
+    if normalizedName.contains("-x86_64-") ||
+      normalizedName.contains("-amd64-") ||
+      normalizedName.contains("-intel-") {
+      return "x86_64"
+    }
+    return nil
+  }
+}
+
 struct DesktopPackageMetadata: Decodable {
+  let architecture: String?
   let version: String
   let buildNumber: String
   let signing: DesktopPackageSigning?
 
   private enum CodingKeys: String, CodingKey {
+    case architecture
     case version
     case buildNumber = "build_number"
     case signing
+  }
+}
+
+enum DesktopArchitecture {
+  static var current: String {
+    #if arch(arm64)
+      return "arm64"
+    #elseif arch(x86_64)
+      return "x86_64"
+    #else
+      return "unknown"
+    #endif
+  }
+
+  static func normalized(_ value: String) -> String? {
+    switch value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+    case "arm64", "aarch64":
+      return "arm64"
+    case "x86_64", "amd64", "intel":
+      return "x86_64"
+    default:
+      return nil
+    }
+  }
+
+  static func matches(_ candidate: String, expected: String) -> Bool {
+    guard let candidate = normalized(candidate), let expected = normalized(expected) else {
+      return false
+    }
+    return candidate == expected
   }
 }
 
@@ -210,6 +307,7 @@ enum DesktopUpdateError: LocalizedError {
   case unsupportedPackageFormat(String)
   case appBundleNotFound
   case unsupportedInstallLocation
+  case packageArchitectureMismatch(expected: String, actual: String)
   case appBundleIdentityUnavailable
   case appBundleIdentityMismatch(expected: String, actual: String)
   case processFailed(String, Int32, String)
@@ -234,6 +332,8 @@ enum DesktopUpdateError: LocalizedError {
       return "更新包中没有找到可替换的 Nexus.app。"
     case .unsupportedInstallLocation:
       return "当前 Nexus.app 所在位置不可自动替换。"
+    case let .packageArchitectureMismatch(expected, actual):
+      return "更新包架构不匹配，期望 \(expected)，实际 \(actual)。"
     case .appBundleIdentityUnavailable:
       return "更新包缺少可验证的 App 标识，无法自动安装。"
     case let .appBundleIdentityMismatch(expected, actual):

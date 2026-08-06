@@ -68,16 +68,6 @@ func (p *Processor) enrichToolResultBlock(
 	}
 	p.attachTaskToolStructuredOutput(enriched, structuredOutput)
 	attachMutationResultMetadata(enriched, structuredOutput)
-	if boolValue(enriched["is_error"]) {
-		toolUseID := normalizeString(enriched["tool_use_id"])
-		if toolUseID != "" {
-			toolName := p.segment.FindToolName(toolUseID)
-			errorCode := inferPermissionErrorCode(toolName, normalizeString(enriched["content"]))
-			if errorCode != "" {
-				enriched["error_code"] = errorCode
-			}
-		}
-	}
 	return enriched
 }
 

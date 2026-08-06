@@ -1,0 +1,148 @@
+package message
+
+import (
+	"testing"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+
+	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
+)
+
+func TestEventMapperProjectsCompactRuntimeStatusLifecycle(t *testing.T) {
+	mapper := NewEventMapper(EventMapperOptions{
+		Context: MessageContext{
+			SessionKey: "agent:nexus:ws:dm:test",
+			AgentID:    "nexus",
+			RoundID:    "round-compact",
+		},
+	})
+
+	statuses := map[string]any{
+		"compacting": protocol.RuntimeStatusCompacting,
+		"":           nil,
+	}
+	for status, want := range statuses {
+		t.Run(status, func(t *testing.T) {
+			result, err := mapper.Map(sdkprotocol.ReceivedMessage{
+				Type:    sdkprotocol.MessageTypeSystem,
+				Subtype: "status",
+				System: &sdkprotocol.SystemMessage{
+					Subtype: "status",
+					Status:  &sdkprotocol.StatusSystemMessage{Status: status},
+				},
+			})
+			if err != nil {
+				t.Fatalf("Map(status=%q) error = %v", status, err)
+			}
+			if len(result.Events) != 1 || result.Events[0].EventType != protocol.EventTypeRuntimeStatus {
+				t.Fatalf("events = %+v", result.Events)
+			}
+			if result.Events[0].Data["status"] != want {
+				t.Fatalf("data = %+v, want status %#v", result.Events[0].Data, want)
+			}
+		})
+	}
+}
+
+func TestEventMapperDecoratesDurableAndProjectedMessages(t *testing.T) {
+	mapper := NewEventMapper(EventMapperOptions{
+		Context: MessageContext{
+			SessionKey: "agent:nexus:ws:dm:test",
+			AgentID:    "nexus",
+			RoundID:    "round-decoration",
+		},
+	})
+	decoratedRoles := make([]string, 0, 3)
+	mapper.SetMessageDecorator(func(message protocol.Message) {
+		decoratedRoles = append(decoratedRoles, protocol.MessageRole(message))
+		message["decorated"] = true
+	})
+
+	assistant, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{Message: sdkprotocol.ConversationEnvelope{
+			ID:         "assistant-decoration",
+			StopReason: "end_turn",
+			Content:    []sdkprotocol.ContentBlock{sdkprotocol.TextBlock{Text: "完成"}},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("assistant Map() error = %v", err)
+	}
+	if len(assistant.DurableMessages) != 1 || assistant.DurableMessages[0]["decorated"] != true {
+		t.Fatalf("assistant durable 未装饰: %+v", assistant.DurableMessages)
+	}
+	if len(assistant.Events) != 1 || assistant.Events[0].DeliveryMode != protocol.DeliveryModeDurable {
+		t.Fatalf("assistant durable event 不正确: %+v", assistant.Events)
+	}
+
+	result, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeResult,
+		Result: &sdkprotocol.ResultMessage{
+			Subtype: "success",
+			Result:  "完成",
+		},
+	})
+	if err != nil {
+		t.Fatalf("result Map() error = %v", err)
+	}
+	if len(result.DurableMessages) != 1 || result.DurableMessages[0]["decorated"] != true {
+		t.Fatalf("result durable 未装饰: %+v", result.DurableMessages)
+	}
+	if len(result.Events) != 1 || result.Events[0].Data["decorated"] != true {
+		t.Fatalf("result assistant 投影未装饰: %+v", result.Events)
+	}
+	wantRoles := []string{"assistant", "result", "assistant"}
+	if len(decoratedRoles) != len(wantRoles) {
+		t.Fatalf("装饰顺序 = %+v, want %+v", decoratedRoles, wantRoles)
+	}
+	for index, role := range wantRoles {
+		if decoratedRoles[index] != role {
+			t.Fatalf("装饰顺序 = %+v, want %+v", decoratedRoles, wantRoles)
+		}
+	}
+	if mapper.LastAssistantMessage()["decorated"] != true {
+		t.Fatalf("终态 assistant 快照未保留装饰字段: %+v", mapper.LastAssistantMessage())
+	}
+}
+
+func TestEventMapperDecoratesExplicitResultProjection(t *testing.T) {
+	mapper := NewEventMapper(EventMapperOptions{
+		Context: MessageContext{RoundID: "round-explicit-projection"},
+	})
+	mapper.SetMessageDecorator(func(message protocol.Message) {
+		message["decorated"] = true
+	})
+
+	projected := mapper.ProjectResultMessage(protocol.Message{
+		"message_id": "result-explicit-projection",
+		"round_id":   "round-explicit-projection",
+		"role":       "result",
+		"subtype":    "error",
+		"is_error":   true,
+		"result":     "runtime failed",
+	})
+	if len(projected) == 0 || projected["decorated"] != true {
+		t.Fatalf("显式 result 投影未装饰: %+v", projected)
+	}
+	if mapper.LastAssistantMessage()["decorated"] != true {
+		t.Fatalf("显式投影未更新终态快照: %+v", mapper.LastAssistantMessage())
+	}
+}
+
+func TestEventMapperKeepsEmptySuccessfulResultDurableWithoutEvent(t *testing.T) {
+	mapper := NewEventMapper(EventMapperOptions{
+		Context: MessageContext{RoundID: "round-empty-result"},
+	})
+
+	result, err := mapper.Map(sdkprotocol.ReceivedMessage{
+		Type:   sdkprotocol.MessageTypeResult,
+		Result: &sdkprotocol.ResultMessage{Subtype: "success"},
+	})
+	if err != nil {
+		t.Fatalf("Map() error = %v", err)
+	}
+	if len(result.DurableMessages) != 1 || len(result.Events) != 0 {
+		t.Fatalf("空 success result 映射不正确: %+v", result)
+	}
+}

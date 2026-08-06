@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
@@ -145,6 +145,7 @@ func discoverWorkspaceSkillDirsAt(
 	confinedRoot *confinedfs.Root,
 ) map[string]string {
 	result := map[string]string{}
+	seen := map[string]struct{}{}
 	addSkillDirs := func(parent string) {
 		parentRoot, err := confinedRoot.OpenRootNoSymlink(parent)
 		if err != nil {
@@ -156,6 +157,13 @@ func discoverWorkspaceSkillDirsAt(
 			return
 		}
 		for _, entry := range entries {
+			if validateSkillName(entry.Name()) != nil {
+				continue
+			}
+			key := strings.ToLower(strings.TrimSpace(entry.Name()))
+			if _, exists := seen[key]; exists {
+				continue
+			}
 			info, statErr := parentRoot.Lstat(entry.Name())
 			if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 				continue
@@ -171,13 +179,11 @@ func discoverWorkspaceSkillDirsAt(
 			}
 			skillFile.Close()
 			skillDir := filepath.ToSlash(filepath.Join(parent, entry.Name()))
-			if _, exists := result[entry.Name()]; !exists {
-				result[entry.Name()] = skillDir
-			}
+			seen[key] = struct{}{}
+			result[entry.Name()] = skillDir
 		}
 	}
 	addSkillDirs(".agents/skills")
-	addSkillDirs(".agents")
 	addSkillDirs(".claude/skills")
 	return result
 }
@@ -230,6 +236,7 @@ func (s *Service) agentsReferencingSkill(ctx context.Context, skillName string) 
 
 func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRecord, error) {
 	records := map[string]catalogRecord{}
+	names := map[string]struct{}{}
 	curatedEntries, err := s.loadCuratedEntries()
 	if err != nil {
 		return nil, err
@@ -239,26 +246,31 @@ func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRec
 		if err != nil {
 			return nil, err
 		}
-		records[skillName] = record
+		addCatalogRecord(records, names, record)
 	}
 	platformRoot := filepath.Clean(filepath.Join(projectRoot(), "skills"))
+	hostRoot := filepath.Clean(filepath.Join(appfs.HostSkillRoot(), ".agents", "skills"))
 	for _, root := range builtinSearchRootsForContext(ctx, projectRoot(), s.config.AppMode) {
 		entries, err := readConfinedDirectoryEntries(root)
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil {
+			if os.IsNotExist(err) || filepath.Clean(root) == hostRoot {
+				continue
+			}
 			return nil, err
 		}
 		for _, entry := range entries {
-			if !entry.IsDir() {
+			info, infoErr := entry.Info()
+			if infoErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 				continue
 			}
 			skillName := entry.Name()
+			if validateSkillName(skillName) != nil {
+				continue
+			}
 			if containsSkillName(systemSkillNames, skillName) {
 				continue
 			}
 			if containsSkillName(internalSkillNames, skillName) {
-				continue
-			}
-			if catalogHasSkillName(records, skillName) {
 				continue
 			}
 			sourceKind := builtinSourceKind(root, platformRoot)
@@ -266,30 +278,38 @@ func (s *Service) loadCatalogRecords(ctx context.Context) (map[string]catalogRec
 			if buildErr != nil {
 				continue
 			}
-			records[skillName] = record
+			addCatalogRecord(records, names, record)
 		}
 	}
 	externalRecords, err := s.loadExternalRecords(ctx)
 	if err != nil {
 		return nil, err
 	}
-	for name, record := range externalRecords {
-		if catalogHasSkillName(records, name) {
+	for _, record := range externalRecords {
+		if !addCatalogRecord(records, names, record) {
 			// 平台/系统源优先，避免历史外部同名 Skill 在产品升级后覆盖官方源。
 			continue
 		}
-		records[name] = record
 	}
 	return records, nil
 }
 
-func catalogHasSkillName(records map[string]catalogRecord, name string) bool {
-	for existingName := range records {
-		if strings.EqualFold(strings.TrimSpace(existingName), strings.TrimSpace(name)) {
-			return true
-		}
+func addCatalogRecord(
+	records map[string]catalogRecord,
+	names map[string]struct{},
+	record catalogRecord,
+) bool {
+	name := strings.TrimSpace(record.Detail.Name)
+	key := strings.ToLower(name)
+	if name == "" {
+		return false
 	}
-	return false
+	if _, exists := names[key]; exists {
+		return false
+	}
+	names[key] = struct{}{}
+	records[name] = record
+	return true
 }
 
 func builtinSourceKind(root string, platformRoot string) string {
@@ -322,8 +342,8 @@ func (s *Service) buildSystemRecord(skillName string) (catalogRecord, error) {
 	parsed := parseSkillFrontmatter(content, skillName)
 	detail := Detail{
 		Info: Info{
-			Name:         parsed.Name,
-			Title:        firstNonEmpty(parsed.Title, parsed.Name),
+			Name:         skillName,
+			Title:        firstNonEmpty(parsed.Title, parsed.Name, skillName),
 			Description:  parsed.Description,
 			Scope:        defaultSkillScope(parsed.Scope),
 			Tags:         parsed.Tags,
@@ -350,8 +370,8 @@ func (s *Service) buildBuiltinRecord(sourceDir string, curated map[string]string
 	parsed := parseSkillFrontmatter(content, skillName)
 	detail := Detail{
 		Info: Info{
-			Name:         parsed.Name,
-			Title:        firstNonEmpty(parsed.Title, parsed.Name),
+			Name:         skillName,
+			Title:        firstNonEmpty(parsed.Title, parsed.Name, skillName),
 			Description:  parsed.Description,
 			Scope:        defaultSkillScope(parsed.Scope),
 			Tags:         parsed.Tags,
@@ -390,8 +410,8 @@ func buildWorkspaceRecordAt(
 	recommendation := firstNonEmpty(parsed.Recommendation, "当前 Agent 工作区的本地 Skill，仅对当前 Agent 可见并默认启用。")
 	detail := Detail{
 		Info: Info{
-			Name:         parsed.Name,
-			Title:        firstNonEmpty(parsed.Title, parsed.Name),
+			Name:         skillName,
+			Title:        firstNonEmpty(parsed.Title, parsed.Name, skillName),
 			Description:  parsed.Description,
 			Scope:        defaultSkillScope(parsed.Scope),
 			Tags:         parsed.Tags,
@@ -442,9 +462,9 @@ func cloneCuratedEntries(source map[string]map[string]string) map[string]map[str
 }
 
 func builtinSearchRoots(root string) []string {
-	roots := []string{filepath.Join(root, "skills")}
-	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
-		roots = append(roots, filepath.Join(home, ".agents", "skills"))
+	roots := []string{
+		filepath.Join(root, "skills"),
+		filepath.Join(appfs.HostSkillRoot(), ".agents", "skills"),
 	}
 	seen := map[string]struct{}{}
 	result := make([]string, 0, len(roots))
@@ -459,14 +479,12 @@ func builtinSearchRoots(root string) []string {
 	return result
 }
 
-// builtinSearchRootsForContext 按部署模式限制 ~/.agents/skills 的扫描边界。
+// builtinSearchRootsForContext 按部署模式限制宿主 Skill 快照的可见边界。
 //
-// 桌面模式的 workspace 与本机用户一一对应，可以读取标准 Agent Skill 目录；
-// 多用户服务只允许平台源，避免把服务进程的宿主文件暴露给登录用户。
-func builtinSearchRootsForContext(ctx context.Context, root string, appMode string) []string {
-	if state, ok := authctx.StateFromContext(ctx); ok &&
-		state.AuthRequired &&
-		!strings.EqualFold(strings.TrimSpace(appMode), "desktop") {
+// 多用户服务只允许平台源；桌面 Catalog 与 runtime 统一读取受管快照，
+// 不直接重新扫描宿主 home。
+func builtinSearchRootsForContext(_ context.Context, root string, appMode string) []string {
+	if !strings.EqualFold(strings.TrimSpace(appMode), "desktop") {
 		return []string{filepath.Join(root, "skills")}
 	}
 	return builtinSearchRoots(root)

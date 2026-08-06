@@ -248,10 +248,7 @@ export function useComposerController({
     compact,
     copy: {
       defaultPlaceholder: t("composer.default_placeholder"),
-      enterQueue: t("composer.enter_queue"),
-      enterSend: t("composer.enter_send"),
       goalConfirm: t("composer.goal_confirm"),
-      goalEnterStart: t("composer.goal_enter_start"),
       goalPlaceholder: t("composer.goal_placeholder"),
       sendMessage: t("composer.send_message"),
     },
@@ -269,7 +266,6 @@ export function useComposerController({
     isSessionSettingsSaving: sessionSettingsController.saving,
     hasStopAction: Boolean(onStop),
     queueItemCount: inputQueueItems.length,
-    queueWhenSessionBusy,
     runtimePhase,
   });
 

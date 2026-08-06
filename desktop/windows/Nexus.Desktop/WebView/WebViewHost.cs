@@ -19,6 +19,7 @@ internal sealed class WebViewHost : IDisposable
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync;
+    private readonly Func<string> updateStarter;
     private DesktopBridgeHandler? bridgeHandler;
     private bool disposed;
     private bool resumeCheckInFlight;
@@ -32,12 +33,14 @@ internal sealed class WebViewHost : IDisposable
         WebView2CompositionControl webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
-        Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync)
+        Func<DesktopWebRoute, string, string, Task> recreateWebViewAsync,
+        Func<string> updateStarter)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
         this.recreateWebViewAsync = recreateWebViewAsync;
+        this.updateStarter = updateStarter;
     }
 
     public async Task InitializeAsync()
@@ -74,7 +77,12 @@ internal sealed class WebViewHost : IDisposable
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopRuntimeScript.Make(runtime));
         await core.AddScriptToExecuteOnDocumentCreatedAsync(DesktopBridgeScript.Make());
 
-        bridgeHandler = new DesktopBridgeHandler(core, runtime, startupTimeline, OpenRouteAsync);
+        bridgeHandler = new DesktopBridgeHandler(
+            core,
+            runtime,
+            startupTimeline,
+            OpenRouteAsync,
+            updateStarter);
         core.WebMessageReceived += async (_, args) => await HandleWebMessageAsync(args);
         core.NavigationStarting += HandleNavigationStarting;
         core.NavigationCompleted += (_, _) => startupTimeline.Mark("webview.navigation_completed");

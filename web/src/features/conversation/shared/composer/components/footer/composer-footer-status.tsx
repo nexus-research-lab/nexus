@@ -86,7 +86,7 @@ export function ComposerFooterStatus({
   return (
     <span className={`nexus-chat-composer-runtime-status flex min-w-0 items-center gap-2 ${status.className}`}>
       <ComposerStatusIndicator frames={status.frames} />
-      <span className={status.messageClassName}>{status.message}</span>
+      <ComposerStatusMessage status={status} />
       <ComposerStatusHint status={status} />
     </span>
   );
@@ -97,6 +97,17 @@ function ComposerStatusIndicator({ frames }: { frames: string[] | null }) {
     return null;
   }
   return <LoadingOrb frames={frames} />;
+}
+
+function ComposerStatusMessage({
+  status,
+}: {
+  status: ComposerFooterStatusProjection;
+}) {
+  if (!status.message) {
+    return null;
+  }
+  return <span className={status.messageClassName}>{status.message}</span>;
 }
 
 function ComposerStatusHint({

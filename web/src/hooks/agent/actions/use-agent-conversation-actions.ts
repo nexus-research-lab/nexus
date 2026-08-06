@@ -35,7 +35,8 @@ interface UseAgentConversationActionsParams {
   confirmAgentRoundStop: (agentRoundId: string) => void;
   handleRequestAckTimeout: (
     clientRequestId: string,
-    message: string,
+    clientMessageId: string,
+    unknownMessage?: string,
   ) => void;
   readStoppingAgentRoundIds: () => string[];
   settleAgentRoundStop: (agentRoundId: string) => void;
@@ -95,19 +96,26 @@ export function useAgentConversationActions({
     async (
       sendRequest: SendOutboundRequest,
       settleFailure: SettleOutboundRequestFailure,
-      timeoutMessage = "消息未送达后端，请重试",
+      timeoutMessage?: string,
     ): Promise<void> => {
       const request = await sendRequest();
       if (!request) {
         return;
       }
 
-      const { client_request_id: requestId } = request;
+      const {
+        client_message_id: clientMessageId,
+        client_request_id: requestId,
+      } = request;
       trackOutboundRequest(requestId);
 
       try {
         await waitForRequestAck(requestId, () => {
-          handleRequestAckTimeout(requestId, timeoutMessage);
+          handleRequestAckTimeout(
+            requestId,
+            clientMessageId,
+            timeoutMessage,
+          );
         });
       } catch (error) {
         settleFailure(request, error);

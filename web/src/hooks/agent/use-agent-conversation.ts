@@ -80,6 +80,7 @@ export function useAgentConversation(
 
   const {
     cancel_pending_request_acks: cancelPendingRequestAcks,
+    has_pending_request_ack: hasPendingRequestAck,
     reject_pending_request_ack: rejectPendingRequestAck,
     resolve_pending_request_ack: resolvePendingRequestAck,
     wait_for_request_ack: waitForRequestAck,
@@ -141,6 +142,12 @@ export function useAgentConversation(
       setPendingPermissions,
     },
   });
+  const inputQueueItemsRef = useRef(session.inputQueueItems);
+  inputQueueItemsRef.current = session.inputQueueItems;
+  const getInputQueueItems = useCallback(
+    () => inputQueueItemsRef.current,
+    [],
+  );
   useEffect(() => {
     setCommandCatalog(EMPTY_COMMAND_CATALOG);
   }, [agentId, session.sessionKey]);
@@ -167,7 +174,11 @@ export function useAgentConversation(
     settleRequestAckWaitFailure,
   } = useRequestAckFailure({
     clearOutboundRequest,
+    getInputQueueItems,
+    hasPendingRequestAck,
     rejectPendingRequestAck,
+    reloadCurrentSession: session.reloadCurrentSession,
+    resolvePendingRequestAck,
     setError,
     setMessages,
     wsReconnectRef,

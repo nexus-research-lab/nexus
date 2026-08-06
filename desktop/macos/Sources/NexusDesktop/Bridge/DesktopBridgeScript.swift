@@ -47,9 +47,11 @@ enum DesktopBridgeScript {
               reject(error);
               return;
             }
-            window.setTimeout(() => {
-              rejectPending(request.request_id, "Desktop bridge request timed out");
-            }, 60000);
+            if (request.kind !== "app.choose_state_root") {
+              window.setTimeout(() => {
+                rejectPending(request.request_id, "Desktop bridge request timed out");
+              }, 60000);
+            }
           });
         },
         resolve(requestID, payload) {

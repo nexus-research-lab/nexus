@@ -70,6 +70,8 @@ func (s *Server) mountProviderRoutes() {
 	s.router.Get(s.prefixPath("/settings/provider-presets"), s.handlers.provider.HandleListProviderPresets)
 	s.router.Get(s.prefixPath("/settings/providers"), s.handlers.provider.HandleListProviderConfigs)
 	s.router.Get(s.prefixPath("/settings/providers/options"), s.handlers.provider.HandleListProviderOptions)
+	s.router.Post(s.prefixPath("/settings/provider-imports/cc-switch/preview"), s.handlers.provider.HandlePreviewCCSwitch)
+	s.router.Post(s.prefixPath("/settings/provider-imports/cc-switch/sync"), s.handlers.provider.HandleSyncCCSwitch)
 	s.router.Post(s.prefixPath("/settings/providers"), s.handlers.provider.HandleCreateProviderConfig)
 	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/fetch"), s.handlers.provider.HandleFetchProviderModels)
 	s.router.Put(s.prefixPath("/settings/providers/{provider}/models/{model_id}"), s.handlers.provider.HandleUpdateProviderModel)

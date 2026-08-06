@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getDesktopRuntimeConfig } from "@/config/desktop-runtime/runtime-config";
 import {
+  chooseDesktopStateRoot,
   getDesktopStateRoot,
   relocateDesktopStateRoot,
 } from "@/lib/desktop-bridge";
@@ -24,8 +25,10 @@ export function useWorkspaceSettings() {
     EMPTY_WORKSPACE_SETTINGS_SNAPSHOT,
   );
   const [loading, setLoading] = useState(true);
+  const [selecting, setSelecting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  const selectingRef = useRef(false);
   const savingRef = useRef(false);
 
   useEffect(() => {
@@ -56,6 +59,34 @@ export function useWorkspaceSettings() {
     };
   }, [t]);
 
+  const selectDirectory = useCallback(async () => {
+    if (selectingRef.current) {
+      return;
+    }
+    selectingRef.current = true;
+    setSelecting(true);
+    setFeedbackMessage("");
+    try {
+      const result = await chooseDesktopStateRoot(
+        snapshot.draftPath.trim(),
+        t("settings.general.state_root_select_title"),
+        t("settings.general.state_root_select_action"),
+      );
+      const selectedPath = result.path?.trim() ?? "";
+      if (!result.cancelled && selectedPath) {
+        setSnapshot((current) => replaceWorkspaceDraft(current, selectedPath));
+      }
+    } catch (error) {
+      setFeedbackMessage(getErrorMessage(
+        error,
+        t("settings.general.state_root_select_failed"),
+      ));
+    } finally {
+      selectingRef.current = false;
+      setSelecting(false);
+    }
+  }, [snapshot.draftPath, t]);
+
   const save = useCallback(async () => {
     if (savingRef.current) {
       return;
@@ -77,7 +108,7 @@ export function useWorkspaceSettings() {
     }
   }, [snapshot.draftPath, t]);
 
-  const busy = loading || saving;
+  const busy = loading || selecting || saving;
   return {
     busy,
     currentPath: snapshot.currentPath,
@@ -86,6 +117,8 @@ export function useWorkspaceSettings() {
     placeholder,
     save,
     saveDisabled: !canSaveWorkspaceSettings(snapshot, busy),
+    selectDirectory,
+    selecting,
     saving,
     setDraftPath: (value: string) => {
       setSnapshot((current) => replaceWorkspaceDraft(current, value));

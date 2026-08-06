@@ -19,6 +19,9 @@ func validateSkillName(name string) error {
 	if trimmed == "" {
 		return errors.New("skill name 不能为空")
 	}
+	if trimmed != name {
+		return errors.New("skill name 不能包含首尾空白")
+	}
 	if trimmed == "." || trimmed == ".." || strings.ContainsAny(trimmed, "/\\\x00") {
 		return errors.New("skill name 不能包含路径分隔符")
 	}

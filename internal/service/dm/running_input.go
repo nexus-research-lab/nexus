@@ -32,21 +32,26 @@ func (s *Service) queueRunningInput(
 		WorkspacePath: agentValue.WorkspacePath,
 		SessionKey:    sessionKey,
 	}
-	items, err := s.inputQueue.Enqueue(location, protocol.InputQueueItem{
+	acceptedItem, items, err := s.enqueueRunningInput(location, protocol.InputQueueItem{
 		ID:              request.RoundID,
 		Scope:           protocol.InputQueueScopeDM,
 		SessionKey:      sessionKey,
 		AgentID:         agentValue.AgentID,
+		AgentRoundID:    request.AgentRoundID,
+		ClientMessageID: request.ClientMessageID,
 		SourceMessageID: request.UserMessageID,
 		Source:          protocol.InputQueueSourceUser,
 		Content:         content,
 		Attachments:     attachments,
 		DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
 		OwnerUserID:     agentValue.OwnerUserID,
-	})
+	}, request.ClientMessageID)
 	if err != nil {
 		return false, err
 	}
+	request.RoundID = acceptedItem.ID
+	request.UserMessageID = acceptedItem.SourceMessageID
+	request.AgentRoundID = acceptedItem.AgentRoundID
 	s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(
 		sessionKey,
@@ -91,11 +96,13 @@ func (s *Service) guideRunningInput(
 		WorkspacePath: agentValue.WorkspacePath,
 		SessionKey:    sessionKey,
 	}
-	items, err := s.inputQueue.Enqueue(location, protocol.InputQueueItem{
+	acceptedItem, items, err := s.enqueueRunningInput(location, protocol.InputQueueItem{
 		ID:              request.RoundID,
 		Scope:           protocol.InputQueueScopeDM,
 		SessionKey:      sessionKey,
 		AgentID:         agentValue.AgentID,
+		AgentRoundID:    request.AgentRoundID,
+		ClientMessageID: request.ClientMessageID,
 		SourceMessageID: request.UserMessageID,
 		Source:          protocol.InputQueueSourceUser,
 		Content:         content,
@@ -103,10 +110,13 @@ func (s *Service) guideRunningInput(
 		DeliveryPolicy:  protocol.ChatDeliveryPolicyGuide,
 		OwnerUserID:     agentValue.OwnerUserID,
 		RootRoundID:     targetRoundID,
-	})
+	}, request.ClientMessageID)
 	if err != nil {
 		return false, err
 	}
+	request.RoundID = acceptedItem.ID
+	request.UserMessageID = acceptedItem.SourceMessageID
+	request.AgentRoundID = acceptedItem.AgentRoundID
 	items, recovered, err := s.recoverStaleInputQueueGuidance(location, request.RoundID, targetRoundID, items)
 	if err != nil {
 		return false, err
@@ -138,4 +148,20 @@ func (s *Service) guideRunningInput(
 		"content_preview", logx.PreviewText(content, 240),
 	)
 	return true, nil
+}
+
+func (s *Service) enqueueRunningInput(
+	location workspacestore.InputQueueLocation,
+	item protocol.InputQueueItem,
+	clientMessageID string,
+) (protocol.InputQueueItem, []protocol.InputQueueItem, error) {
+	if strings.TrimSpace(clientMessageID) == "" {
+		items, err := s.inputQueue.Enqueue(location, item)
+		return item, items, err
+	}
+	result, err := s.inputQueue.EnqueueIdempotent(location, item, clientMessageID)
+	if err != nil {
+		return protocol.InputQueueItem{}, nil, err
+	}
+	return result.Item, result.Items, nil
 }

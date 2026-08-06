@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
@@ -207,7 +208,7 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 	}
 	root, err := s.openAgentWorkspace(workspaceAgent, false)
 	if err != nil {
-		_ = s.removeAgentWorkspace(workspaceAgent)
+		_ = s.cleanupAgentWorkspace(ctx, workspaceAgent)
 		return nil, err
 	}
 	if err = ensureRuntimeEmotionStateAt(root); err == nil {
@@ -218,7 +219,7 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 		err = closeErr
 	}
 	if err != nil {
-		_ = s.removeAgentWorkspace(workspaceAgent)
+		_ = s.cleanupAgentWorkspace(ctx, workspaceAgent)
 		return nil, err
 	}
 	record := BuildCreateRecord(
@@ -231,9 +232,21 @@ func (s *Service) CreateAgent(ctx context.Context, request protocol.CreateReques
 		"active",
 		false,
 	)
+	if err = s.initializeAgentWorkspace(ctx, protocol.Agent{
+		AgentID:       record.AgentID,
+		OwnerUserID:   record.OwnerUserID,
+		Name:          record.Name,
+		WorkspacePath: record.WorkspacePath,
+		Status:        record.Status,
+		IsMain:        record.IsMain,
+		CreatedAt:     time.Now().UTC(),
+	}); err != nil {
+		_ = s.cleanupAgentWorkspace(ctx, workspaceAgent)
+		return nil, err
+	}
 	created, err := s.repository.CreateAgent(ctx, record)
 	if err != nil {
-		_ = s.removeAgentWorkspace(workspaceAgent)
+		_ = s.cleanupAgentWorkspace(ctx, workspaceAgent)
 		return nil, err
 	}
 	if err = s.ensureAgentRuntimeState(*created); err != nil {
@@ -474,7 +487,7 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 			return err
 		}
 	}
-	if err = s.removeAgentWorkspace(*existing); err != nil {
+	if err = s.cleanupAgentWorkspace(ctx, *existing); err != nil {
 		return err
 	}
 	deleteOwnerUserID := existing.OwnerUserID

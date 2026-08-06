@@ -38,6 +38,8 @@ type InputQueueItem struct {
 	RoomID          string                  `json:"room_id,omitempty"`
 	ConversationID  string                  `json:"conversation_id,omitempty"`
 	AgentID         string                  `json:"agent_id,omitempty"`
+	AgentRoundID    string                  `json:"agent_round_id,omitempty"`
+	ClientMessageID string                  `json:"client_message_id,omitempty"`
 	SourceAgentID   string                  `json:"source_agent_id,omitempty"`
 	SourceMessageID string                  `json:"source_message_id,omitempty"`
 	HandoffID       string                  `json:"handoff_id,omitempty"`

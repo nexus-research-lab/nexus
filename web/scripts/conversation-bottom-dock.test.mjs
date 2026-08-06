@@ -80,13 +80,24 @@ test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的�
     totalTokens: 196_000,
   });
   assert.equal(projectContextUsage(null), null);
+  const emptyHtml = await renderWithI18n(
+    React.createElement(ComposerContextUsage, { usage: null }),
+  );
+  assert.match(emptyHtml, /data-context-usage-slot="empty"/);
+  assert.doesNotMatch(emptyHtml, /<button/);
   const html = await renderWithI18n(
     React.createElement(ComposerContextUsage, { usage }),
   );
+  assert.match(html, /data-context-usage-slot="ready"/);
   assert.match(html, /data-context-usage="76"/);
   assert.match(html, /上下文窗口已用 76%/);
   assert.match(html, /196\.0K/);
   assert.match(html, /258\.0K/);
+  assert.equal(
+    (html.match(/stroke-width="2"/g) ?? []).length,
+    2,
+    "context track and progress use the same restrained 2px stroke",
+  );
 
   const groupedProjection = projectComposerContextUsage({
     items: [
@@ -140,6 +151,79 @@ test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的�
     }, context);
   }
   assert.deepEqual(Object.keys(usageByAgent), ["amy", "devin"]);
+});
+
+test("round 结束前后 Composer 提交动作保持稳定几何", async () => {
+  const { ComposerSubmitButton } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/composer-submit-button.tsx",
+  );
+  const props = {
+    isDisabled: true,
+    isGoalCreating: false,
+    isGoalMode: false,
+    isPreparingAttachments: false,
+    onSend: () => {},
+    onStop: () => {},
+    sendLabel: "发送消息",
+    stopLabel: "停止生成",
+  };
+  const sendHtml = renderToStaticMarkup(
+    React.createElement(ComposerSubmitButton, {
+      ...props,
+      shouldStop: false,
+    }),
+  );
+  const stopHtml = renderToStaticMarkup(
+    React.createElement(ComposerSubmitButton, {
+      ...props,
+      shouldStop: true,
+    }),
+  );
+  for (const actionHtml of [sendHtml, stopHtml]) {
+    assert.match(actionHtml, /\bnexus-chat-composer-submit\b/);
+    assert.match(actionHtml, /\bmin-h-8\b/);
+    assert.doesNotMatch(actionHtml, /nexus-chat-composer-submit-slot/);
+  }
+  assert.doesNotMatch(sendHtml, /\bnexus-chat-composer-submit-stop\b/);
+  assert.match(stopHtml, /\bnexus-chat-composer-submit-stop\b/);
+
+  const recipeSource = await readFile(
+    path.join(webRoot, "src/app/styles/theme-recipes.css"),
+    "utf8",
+  );
+  assert.match(
+    recipeSource,
+    /\.nexus-chat-composer-submit \{[\s\S]*?width: 2rem;[\s\S]*?padding-inline: 0;[\s\S]*?border-radius: 999px;/,
+  );
+  assert.match(
+    recipeSource,
+    /\.nexus-chat-composer-submit:disabled \{[\s\S]*?opacity: 1;[\s\S]*?background: var\(--text-soft\);[\s\S]*?color: #fff;/,
+  );
+  assert.doesNotMatch(recipeSource, /nexus-chat-composer-submit-slot/);
+});
+
+test("Composer 回复阶段只保留停止快捷键提示", async () => {
+  const { projectComposerFooterStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-footer-model.ts",
+  );
+  const projection = projectComposerFooterStatus({
+    activeError: null,
+    copy: {
+      compacting: "正在压缩上下文",
+      goalCreating: "正在创建 Goal",
+      preparingAttachments: "正在准备附件",
+      replying: "回复中",
+      sending: "发送中",
+      stopHint: "[ESC 停止]",
+    },
+    isGoalCreating: false,
+    isPreparingAttachments: false,
+    runtimeActivity: "replying",
+  });
+
+  assert.equal(projection.message, null);
+  assert.equal(projection.frames, null);
+  assert.equal(projection.hint, "[ESC 停止]");
 });
 
 test("Action Menu 的空 footer 使用稳定引用，避免定位状态自循环", async () => {
@@ -671,7 +755,6 @@ test("Composer Footer centers its brand only while the input shell has room", as
       sessionSettingsDisabled: false,
       showPoweredByNexus: true,
       submit: {
-        enterLabel: "发送",
         isDisabled: true,
         isGoalCreating: false,
         isGoalMode: false,
@@ -787,6 +870,22 @@ test("DM Composer keeps direct Session permission and model controls", async () 
   assert.match(html, /aria-label="当前 Session 模型"/);
   assert.match(html, />agent-model</);
   assert.doesNotMatch(html, /aria-label="Agent 设置"/);
+});
+
+test("新 Agent 与新 Session 默认自动接受编辑", async () => {
+  const [agentOptionsSource, runtimeOptionsSource] = await Promise.all([
+    readFile(path.join(webRoot, "src/lib/agent-options.ts"), "utf8"),
+    readFile(path.join(webRoot, "src/config/runtime-options.ts"), "utf8"),
+  ]);
+
+  assert.match(
+    agentOptionsSource,
+    /DEFAULT_AGENT_PERMISSION_MODE = "acceptEdits"/,
+  );
+  assert.match(
+    runtimeOptionsSource,
+    /permission_mode: DEFAULT_AGENT_PERMISSION_MODE/,
+  );
 });
 
 test("Session setting menus expose concrete choices and a separate reset action", async () => {
@@ -925,7 +1024,7 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
   const { WorkspaceTaskPanel } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/surface/workspace-task-strip.tsx",
   );
-  const { resolveWorkspaceTaskSummary } = await server.ssrLoadModule(
+  const { resolveWorkspaceTaskState } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/surface/workspace-task-strip-model.ts",
   );
   const todos = [
@@ -943,13 +1042,34 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
       status: "pending",
     },
   ];
-  assert.deepEqual(resolveWorkspaceTaskSummary(todos), {
-    completedCount: 1,
-    currentStep: 2,
-    hasRunningTask: true,
-    summary: "正在核对布局",
-    totalCount: 3,
+  assert.deepEqual(resolveWorkspaceTaskState(todos), {
+    summary: {
+      completedCount: 1,
+      currentStep: 2,
+      hasRunningTask: true,
+      summary: "正在核对布局",
+      totalCount: 3,
+    },
+    todos,
   });
+  assert.deepEqual(resolveWorkspaceTaskState([
+    { status: "pending" },
+    { task: "兼容旧任务字段", status: "in_progress" },
+    { content: null, status: "completed" },
+  ]), {
+    summary: {
+      completedCount: 0,
+      currentStep: 1,
+      hasRunningTask: true,
+      summary: "兼容旧任务字段",
+      totalCount: 1,
+    },
+    todos: [{
+      content: "兼容旧任务字段",
+      status: "in_progress",
+    }],
+  });
+  assert.equal(resolveWorkspaceTaskState(null), null);
   const html = await renderWithI18n(
     React.createElement(WorkspaceTaskPanel, {
       source: {
@@ -1144,6 +1264,56 @@ test("Room progress stays isolated by Agent and selection follows the latest pro
     /variant === "panel" \? "w-28 shrink-0" : "w-full max-w-36"/,
   );
   assert.match(roomAgentSwitcherSource, /flex h-7 w-full min-w-0/);
+});
+
+test("TodoWrite normalizes persisted task aliases and rejects malformed items", async () => {
+  const { projectConversationTodos } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/todos/todo-projection-model.ts",
+  );
+  const sessionKey = "agent:finance:ws:dm:legacy";
+  const todos = projectConversationTodos([{
+    agent_id: "finance",
+    content: [{
+      id: "legacy-todo-write",
+      input: {
+        todos: [
+          {
+            activeForm: " Analyzing account propagation ",
+            status: "completed",
+            task: " 分析压测科目变动传导至完整三张报表的解决方案 ",
+          },
+          {
+            active_form: "编写新版需求文档",
+            content: "编写新版需求文档并做好版本管理",
+            status: "in_progress",
+          },
+          null,
+          {status: "pending", task: ""},
+          {status: "blocked", task: "无效状态"},
+        ],
+      },
+      name: "TodoWrite",
+      type: "tool_use",
+    }],
+    message_id: "legacy-assistant",
+    role: "assistant",
+    round_id: "legacy-round",
+    session_key: sessionKey,
+    timestamp: 1,
+  }], sessionKey);
+
+  assert.deepEqual(todos, [
+    {
+      active_form: "Analyzing account propagation",
+      content: "分析压测科目变动传导至完整三张报表的解决方案",
+      status: "completed",
+    },
+    {
+      active_form: "编写新版需求文档",
+      content: "编写新版需求文档并做好版本管理",
+      status: "in_progress",
+    },
+  ]);
 });
 
 test("Room and DM stack Goal, Task, and scroll controls upward from the Composer", async () => {
@@ -1408,6 +1578,18 @@ test("DM and Room pending interactions replace the Composer input in one stable 
   assert.match(interactionHtml, />允许本次</);
   assert.match(interactionHtml, /aria-label="选择允许范围"/);
   assert.match(interactionHtml, />拒绝</);
+  assert.match(
+    interactionHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-28\b[^"]*" data-composer-permission-action="deny"/,
+  );
+  assert.match(
+    interactionHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-28\b[^"]*" data-composer-permission-action="allow"/,
+  );
+  assert.doesNotMatch(
+    interactionHtml,
+    /rounded-(?:full|l-full|r-full)/,
+  );
   const interactionEnglishHtml = await renderWithI18n(interaction, "en");
   assert.match(interactionEnglishHtml, />Allow once</);
   assert.match(interactionEnglishHtml, />Deny</);
@@ -1595,8 +1777,30 @@ test("questions and plan confirmations use the same Composer replacement owner",
     }),
   );
   assert.match(questionHtml, /data-composer-interaction-kind="question"/);
+  assert.match(questionHtml, /需要你的回应/);
   assert.match(questionHtml, /这次分析采用哪种研究口径？/);
+  assert.match(questionHtml, /ask-user-question-option/);
+  assert.match(questionHtml, /type="radio"/);
+  assert.match(questionHtml, /没有合适选项？直接输入回答…/);
+  assert.match(questionHtml, />拒绝</);
   assert.match(questionHtml, /继续协作/);
+  assert.doesNotMatch(
+    questionHtml,
+    /ask-user-question-card|ask-user-question-submit|border-l-2/,
+    "structured questions should stay inside one Composer surface",
+  );
+
+  const englishQuestionHtml = await renderWithI18n(
+    React.createElement(ComposerInteractionSurface, {
+      onResponse: () => true,
+      permissions: [question],
+    }),
+    "en",
+  );
+  assert.match(englishQuestionHtml, /Needs your response/);
+  assert.match(englishQuestionHtml, /No suitable option\? Type your answer…/);
+  assert.match(englishQuestionHtml, />Deny</);
+  assert.match(englishQuestionHtml, />Continue</);
 
   const planHtml = await renderWithI18n(
     React.createElement(ComposerInteractionSurface, {
@@ -1608,6 +1812,14 @@ test("questions and plan confirmations use the same Composer replacement owner",
   assert.match(planHtml, /先验证数据源，再生成最终报告/);
   assert.match(planHtml, />允许本次</);
   assert.match(planHtml, />拒绝</);
+  assert.match(
+    planHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="deny"/,
+  );
+  assert.match(
+    planHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="allow"/,
+  );
 });
 
 test("DM and Room messages never remount interaction options outside the Composer", async () => {

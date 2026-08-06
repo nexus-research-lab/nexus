@@ -7,7 +7,7 @@ import { Circle, CircleCheck } from "lucide-react";
 
 import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { resolveWorkspaceTaskSummary } from "@/shared/ui/workspace/surface/workspace-task-strip-model";
+import { resolveWorkspaceTaskState } from "@/shared/ui/workspace/surface/workspace-task-strip-model";
 import type { TodoItem } from "@/types/conversation/todo";
 
 const MAX_VISIBLE_TASKS = 5;
@@ -18,10 +18,11 @@ export function ExecutionNodeTaskList({
   run: ConversationTaskRun;
 }) {
   const { t } = useI18n();
-  const summary = resolveWorkspaceTaskSummary(run.todos);
-  if (!summary) {
+  const taskState = resolveWorkspaceTaskState(run.todos);
+  if (!taskState) {
     return null;
   }
+  const { summary } = taskState;
   const visibleTodos = resolveVisibleTodos(run.todos, summary.currentStep - 1);
   const hiddenCount = run.todos.length - visibleTodos.length;
 

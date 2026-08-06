@@ -4,6 +4,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Win32;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Lifecycle;
 using Nexus.Desktop.Runtime;
@@ -17,17 +18,20 @@ internal sealed class DesktopBridgeHandler
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly Func<string, Task> openRoute;
+    private readonly Func<string> updateStarter;
 
     public DesktopBridgeHandler(
         CoreWebView2 webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
-        Func<string, Task> openRoute)
+        Func<string, Task> openRoute,
+        Func<string> updateStarter)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
         this.openRoute = openRoute;
+        this.updateStarter = updateStarter;
     }
 
     public async Task HandleAsync(JsonElement payload)
@@ -51,10 +55,12 @@ internal sealed class DesktopBridgeHandler
                     platform = runtime.Platform,
                 },
                 "app.get_state_root" => DesktopStateRootStore.StatusPayload(),
+                "app.choose_state_root" => ChooseStateRoot(payload),
                 "app.relocate_state_root" => RelocateStateRoot(payload),
                 "app.open_external_url" => OpenExternalUrl(payload),
                 "app.export_logs" => ExportLogs(),
                 "app.open_route" => await OpenRouteAsync(payload),
+                "app.start_update" => new { status = updateStarter() },
                 "app.get_persistent_state" => GetPersistentState(payload),
                 "app.set_persistent_state" => SetPersistentState(payload),
                 "app.remove_persistent_state" => RemovePersistentState(payload),
@@ -132,6 +138,52 @@ internal sealed class DesktopBridgeHandler
             restarting = true,
             target_path = targetPath,
         };
+    }
+
+    private static object ChooseStateRoot(JsonElement payload)
+    {
+        OpenFolderDialog dialog = new()
+        {
+            Title = StringPayload(payload, "title"),
+            InitialDirectory = ExistingDirectory(StringPayload(payload, "initial_path")),
+            Multiselect = false,
+        };
+        bool? accepted = System.Windows.Application.Current?.MainWindow is System.Windows.Window owner
+            ? dialog.ShowDialog(owner)
+            : dialog.ShowDialog();
+        if (accepted == true)
+        {
+            return new { cancelled = false, path = dialog.FolderName };
+        }
+        return new { cancelled = true };
+    }
+
+    private static string ExistingDirectory(string rawPath)
+    {
+        string fallback = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrWhiteSpace(rawPath))
+        {
+            return fallback;
+        }
+        try
+        {
+            string candidate = Path.GetFullPath(rawPath.Trim());
+            while (!Directory.Exists(candidate))
+            {
+                string? parent = Path.GetDirectoryName(candidate);
+                if (string.IsNullOrWhiteSpace(parent)
+                    || string.Equals(parent, candidate, StringComparison.OrdinalIgnoreCase))
+                {
+                    return fallback;
+                }
+                candidate = parent;
+            }
+            return candidate;
+        }
+        catch (Exception exception) when (exception is ArgumentException or IOException or NotSupportedException)
+        {
+            return fallback;
+        }
     }
 
     private object ExportLogs()

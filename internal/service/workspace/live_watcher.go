@@ -88,7 +88,7 @@ func (m *liveManager) addWatchersLocked(state *agentWatcher, root string) error 
 	defer confinedRoot.Close()
 	return confinedRoot.Walk(".", func(relativePath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return handleWorkspaceWalkError(relativePath, entry, walkErr)
 		}
 		if entry == nil {
 			return nil
@@ -98,7 +98,10 @@ func (m *liveManager) addWatchersLocked(state *agentWatcher, root string) error 
 			normalizedPath = "."
 		}
 		info, err := lstatWorkspacePath(confinedRoot, normalizedPath)
-		if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		if err != nil {
+			return handleWorkspaceWalkError(normalizedPath, entry, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 			if entry.IsDir() {
 				return fs.SkipDir
 			}
@@ -111,7 +114,10 @@ func (m *liveManager) addWatchersLocked(state *agentWatcher, root string) error 
 		if normalizedPath != "." {
 			watchPath = filepath.Join(root, filepath.FromSlash(normalizedPath))
 		}
-		return addPinnedWorkspaceWatch(state, confinedRoot, normalizedPath, watchPath)
+		if err = addPinnedWorkspaceWatch(state, confinedRoot, normalizedPath, watchPath); err != nil {
+			return handleWorkspaceWalkError(normalizedPath, entry, err)
+		}
+		return nil
 	})
 }
 
@@ -123,7 +129,7 @@ func (m *liveManager) captureSnapshotsLocked(state *agentWatcher) error {
 	defer root.Close()
 	return root.Walk(".", func(relativePath string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return handleWorkspaceWalkError(relativePath, entry, walkErr)
 		}
 		if entry == nil {
 			return nil
@@ -137,7 +143,7 @@ func (m *liveManager) captureSnapshotsLocked(state *agentWatcher) error {
 			return nil
 		}
 		if infoErr != nil {
-			return infoErr
+			return handleWorkspaceWalkError(normalizedPath, entry, infoErr)
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
 			if entry.IsDir() {

@@ -121,7 +121,7 @@ func defaultAgentOptions(isMain bool) protocol.Options {
 	}
 	return protocol.Options{
 		AllowedTools:     []string{},
-		PermissionMode:   "default",
+		PermissionMode:   protocol.DefaultAgentPermissionMode,
 		SkillIDs:         skillIDs,
 		DisabledSkillIDs: []string{},
 		SettingSources:   []string{"project"},

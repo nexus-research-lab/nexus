@@ -19,6 +19,7 @@
 - WorkGraph 只能消费同时具备 Agent 与 Agent round 身份的 Task run；缺失关联键的本地任务继续留在 legacy 进程，不得猜挂到节点。
 - 一旦观察到 Task List 工具，以它的列表快照和增量更新为真相，不再回退到旧 TodoWrite 计划。
 - Task List 优先消费结构化结果；文本只作为旧历史与非标准 runtime 的稳定降级路径。
+- TodoWrite 在消费边界校验每个任务，并把当前 `content` 与历史 transcript 的 `task`、`activeForm` 统一投影为 `TodoItem`；未知或残缺任务不得进入 UI。
 - 同一轮 TodoWrite 计划与 runtime task 始终合并，不根据消息 role 改变规则。
 - 消息源只解析身份、内容候选和状态；旧内容、旧表单与 Map 写入规则不得重复实现。
 - 状态别名用数据表维护，不在视图或轮次扫描中复制分支。

@@ -139,7 +139,7 @@ test("能力目录移除重复 Surface 身份并把页面动作收进正文标�
   assert.match(layoutSource, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   assert.match(layoutSource, /WorkspaceContentHeader/);
   assert.doesNotMatch(layoutSource, /variant\?: "board"/);
-  assert.match(headerSource, /sm:flex-row sm:items-start sm:justify-between/);
+  assert.match(headerSource, /sm:flex-row sm:items-center sm:justify-between/);
   assert.match(headerSource, /data-tour-anchor=\{headerAnchor\}/);
   directorySources.forEach((source, index) => {
     assert.doesNotMatch(

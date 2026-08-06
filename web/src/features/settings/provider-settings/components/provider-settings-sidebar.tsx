@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowDownToLine, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -27,11 +27,13 @@ interface ProviderSettingsSidebarProps {
   isEditing: boolean;
   loading: boolean;
   onCreateFromPreset: (presetKey: string) => void;
+  onOpenCCSwitchImport: () => void;
   onRequestDeleteProvider: (item: ProviderConfigRecord) => void;
   onSelectProvider: (provider: string) => void;
   pendingAction: ProviderPendingAction | null;
   presetSidebarItems: ProviderPreset[];
   selectedProvider: string | null;
+  showCCSwitchImport: boolean;
 }
 
 export function ProviderSettingsSidebar({
@@ -42,11 +44,13 @@ export function ProviderSettingsSidebar({
   isEditing,
   loading,
   onCreateFromPreset,
+  onOpenCCSwitchImport,
   onRequestDeleteProvider,
   onSelectProvider,
   pendingAction,
   presetSidebarItems,
   selectedProvider,
+  showCCSwitchImport,
 }: ProviderSettingsSidebarProps) {
   const { t } = useI18n();
 
@@ -62,21 +66,36 @@ export function ProviderSettingsSidebar({
           </div>
         ) : (
           <div className="space-y-1 py-2">
-            <button
-              className={cn(
-                "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold transition-[background,color] duration-(--motion-duration-fast)",
-                isCreating && draftPresetKey === "custom"
-                  ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
-                  : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
-              )}
-              onClick={() => onCreateFromPreset("custom")}
-              type="button"
-            >
-              <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-dashed border-(--surface-interactive-active-border) text-primary">
-                <Plus className="h-3.5 w-3.5" />
-              </span>
-              <span className="min-w-0 flex-1 truncate">{t("settings.providers.custom_provider")}</span>
-            </button>
+            <div className="mb-2 space-y-1 border-b border-(--divider-subtle-color) pb-2">
+              <button
+                className={cn(
+                  "flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold transition-[background,color] duration-(--motion-duration-fast)",
+                  isCreating && draftPresetKey === "custom"
+                    ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
+                    : "text-(--text-default) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)",
+                )}
+                onClick={() => onCreateFromPreset("custom")}
+                type="button"
+              >
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-dashed border-(--surface-interactive-active-border) text-primary">
+                  <Plus className="h-3.5 w-3.5" />
+                </span>
+                <span className="min-w-0 flex-1 truncate">{t("settings.providers.custom_provider")}</span>
+              </button>
+
+              {showCCSwitchImport ? (
+                <button
+                  className="flex min-h-10 w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-sm font-semibold text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong)"
+                  onClick={onOpenCCSwitchImport}
+                  type="button"
+                >
+                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border border-(--divider-subtle-color) bg-(--surface-muted-background) text-(--icon-muted)">
+                    <ArrowDownToLine className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{t("settings.providers.ccswitch_action")}</span>
+                </button>
+              ) : null}
+            </div>
 
             {presetSidebarItems.map((preset) => {
               const item = configuredByPreset.get(preset.preset_key);

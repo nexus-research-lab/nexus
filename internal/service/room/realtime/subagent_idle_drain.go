@@ -32,11 +32,8 @@ func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, round
 			slot.AgentRoundID,
 			slot.WorkspacePath,
 		)
-		mapper.SetDurableMessageTransformer(func(message protocol.Message) protocol.Message {
-			return s.transformRoomDurableMessage(roundValue, slot, message)
-		})
-		mapper.SetProjectedMessageTransformer(func(message protocol.Message) protocol.Message {
-			return s.transformRoomDurableMessage(roundValue, slot, message)
+		mapper.SetMessageDecorator(func(message protocol.Message) {
+			s.decorateRoomMessage(roundValue, slot, message)
 		})
 		s.runtime.StartIdleMessageDrain(
 			slot.RuntimeSessionKey,

@@ -276,7 +276,11 @@ func (c *Context) RequestPermission(
 		return sdkpermission.Deny("Permission request cancelled", request.ToolName == "AskUserQuestion"), nil
 	case <-timer.C:
 		c.finalizeRequest(pending, "expired")
-		return sdkpermission.Deny("Permission request timeout", request.ToolName == "AskUserQuestion"), nil
+		return sdkpermission.DenyWithErrorCode(
+			"Permission request timeout",
+			sdkpermission.ErrorCodeRequestTimeout,
+			request.ToolName == "AskUserQuestion",
+		), nil
 	}
 }
 

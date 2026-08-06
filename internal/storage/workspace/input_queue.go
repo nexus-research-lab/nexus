@@ -263,8 +263,8 @@ func (s *InputQueueStore) Enqueue(
 	return s.snapshotLocked(location)
 }
 
-// FindAcceptedEnqueue 查找此前已持久接受的客户端入队请求。
-// 即使队列项已经派发，append-only enqueue 行仍会命中。
+// FindAcceptedEnqueue 按客户端消息 ID 查找已持久化的队列入队事实。
+// Room 批量派发需要先恢复 canonical item，不能把一次重试扩成第二批任务。
 func (s *InputQueueStore) FindAcceptedEnqueue(
 	location InputQueueLocation,
 	clientMessageID string,
@@ -294,6 +294,9 @@ func (s *InputQueueStore) EnqueueIdempotent(
 	if clientMessageID == "" {
 		return InputQueueEnqueueResult{}, errors.New("client_message_id is required")
 	}
+	if len(clientMessageID) > protocol.MaxClientMessageIDBytes {
+		return InputQueueEnqueueResult{}, errors.New("client_message_id is too long")
+	}
 	rows, err := s.inputQueueRowsLocked(location)
 	if err != nil {
 		return InputQueueEnqueueResult{}, err
@@ -301,6 +304,7 @@ func (s *InputQueueStore) EnqueueIdempotent(
 
 	now := time.Now().UnixMilli()
 	item = normalizeInputQueueItem(location, item, now)
+	item.ClientMessageID = clientMessageID
 	if err = protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
 		return InputQueueEnqueueResult{}, err
 	}
@@ -366,6 +370,7 @@ func findAcceptedInputQueueEnqueue(
 			!inputQueueItemMatchesLocationOwner(location, item) {
 			continue
 		}
+		item.ClientMessageID = clientMessageID
 		return normalizeInputQueueItem(location, item, normalizeInputQueueTimestamp(row["timestamp"])), true
 	}
 	return protocol.InputQueueItem{}, false

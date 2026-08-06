@@ -202,9 +202,15 @@ try {
   $versionPackage = "github.com/nexus-research-lab/nexus/internal/version"
   $ldflags = "-s -w -X $versionPackage.AppVersion=$appVersion -X $versionPackage.GitCommit=$gitCommit -X $versionPackage.BuildDate=$buildDate"
   go build -trimpath -ldflags $ldflags -o $sidecarPath ./cmd/nexus-server
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to build nexus-server with exit code $LASTEXITCODE"
+  }
 
   Write-Host "==> Building nexusctl"
   go build -trimpath -ldflags $ldflags -o $nexusctlPath ./cmd/nexusctl
+  if ($LASTEXITCODE -ne 0) {
+    throw "Failed to build nexusctl with exit code $LASTEXITCODE"
+  }
 } finally {
   if ($null -eq $previousCgoEnabled) { Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue } else { $env:CGO_ENABLED = $previousCgoEnabled }
   if ($null -eq $previousGoos) { Remove-Item Env:GOOS -ErrorAction SilentlyContinue } else { $env:GOOS = $previousGoos }
@@ -222,6 +228,9 @@ dotnet publish $projectPath `
   -p:NexusDesktopFileVersion=$fileVersion `
   -p:NexusDesktopAssemblyVersion=$fileVersion `
   -o $publishDir
+if ($LASTEXITCODE -ne 0) {
+  throw "Failed to publish Windows shell with exit code $LASTEXITCODE"
+}
 
 Write-Host "==> Assembling $OutputDir"
 Stop-OutputDirProcesses $OutputDir

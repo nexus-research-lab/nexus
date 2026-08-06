@@ -39,7 +39,13 @@ test("能力、设置与联系人共用同一铺满管理内容面", async () =>
   assert.match(layout, /px-\[var\(--workspace-content-gutter\)\]/);
   assert.doesNotMatch(layout, /"px-5"|"xl:px-6"/);
   assert.match(header, /min-h-\[52px\]/);
-  assert.match(header, /text-lg font-semibold/);
+  assert.match(
+    header,
+    /sm:h-\[var\(--workspace-header-height,60px\)\] sm:pb-0/,
+  );
+  assert.match(header, /sm:h-full sm:min-h-0 sm:flex-row sm:items-center/);
+  assert.match(header, /text-md font-semibold leading-5/);
+  assert.match(header, /mt-0\.5 max-w-\[640px\] text-compact leading-4/);
   assert.match(header, /workspace-content-header-inner/);
   assert.match(header, /data-desktop-window-drag-region/);
   assert.match(
@@ -54,6 +60,10 @@ test("能力、设置与联系人共用同一铺满管理内容面", async () =>
     recipes,
     /\.workspace-content-header\s*\{[\s\S]*?margin-block-start: -12px/,
   );
+  assert.match(
+    recipes,
+    /@media \(width >= 40rem\)[\s\S]*?\.workspace-content-header\s*\{[\s\S]*?margin-block-start: -20px/,
+  );
   assert.match(capability, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   assert.match(capability, /WorkspaceContentHeader/);
   assert.doesNotMatch(capability, /max-w-\[1240px\]/);
@@ -65,6 +75,54 @@ test("能力、设置与联系人共用同一铺满管理内容面", async () =>
   settings.forEach((source) => {
     assert.match(source, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   });
+});
+
+test("macOS 顶栏共用分隔线与原生红灯双轴中心", async () => {
+  const [
+    recipes,
+    homeLayout,
+    headerLayout,
+    runtimeConfig,
+    metrics,
+    runtimeScript,
+  ] =
+    await Promise.all([
+      readSource("src/app/styles/theme-recipes.css"),
+      readSource("src/lib/layout/home-layout.ts"),
+      readSource("src/shared/ui/workspace/surface/workspace-header-layout.ts"),
+      readSource("src/config/desktop-runtime/runtime-config.ts"),
+      readFile(
+        path.join(
+          webRoot,
+          "../desktop/macos/Sources/NexusDesktop/Window/DesktopWindowMetrics.swift",
+        ),
+        "utf8",
+      ),
+      readFile(
+        path.join(
+          webRoot,
+          "../desktop/macos/Sources/NexusDesktop/Bridge/DesktopRuntimeScript.swift",
+        ),
+        "utf8",
+      ),
+    ]);
+
+  assert.doesNotMatch(
+    recipes,
+    /\.workspace-surface-header-inner\s*\{[^}]*padding-bottom:\s*8px/,
+  );
+  assert.match(recipes, /--desktop-window-close-button-center-x/);
+  assert.match(recipes, /--desktop-window-close-button-center-y/);
+  assert.match(recipes, /--workspace-header-height/);
+  assert.match(homeLayout, /--sidebar-shell-leading-padding,4px/);
+  assert.match(headerLayout, /--workspace-header-height,60px/);
+  assert.match(runtimeConfig, /desktop_window_close_button_center_x/);
+  assert.match(runtimeConfig, /desktop_window_close_button_center_y/);
+  assert.match(runtimeConfig, /--desktop-window-close-button-center-x/);
+  assert.match(runtimeConfig, /--desktop-window-close-button-center-y/);
+  assert.match(metrics, /windowCloseButtonCenter/);
+  assert.match(runtimeScript, /desktop_window_close_button_center_x/);
+  assert.match(runtimeScript, /desktop_window_close_button_center_y/);
 });
 
 test("定时任务在铺满内容面内保持四列横向看板", async () => {
@@ -98,6 +156,88 @@ test("正文、Surface Header 与 Agent 表单共用响应式水平留白", asyn
   assert.doesNotMatch(surfaceHeader, /px-5|xl:px-6/);
   assert.doesNotMatch(surfaceView, /px-4 py-4 sm:px-5 xl:px-6|px-5 py-2\.5 xl:px-6/);
   assert.doesNotMatch(agentOptions, /px-6 py-5|gap-2 px-6 py-3/);
+});
+
+test("创建 Agent 弹窗切换栏目时保持稳定尺寸", async () => {
+  const dialog = await readSource(
+    "src/features/agents/options/dialog/agent-options-dialog.tsx",
+  );
+
+  assert.match(dialog, /h-\[min\(82dvh,760px\)\]/);
+  assert.match(dialog, /max-sm:h-\[calc\(100dvh-16px\)\]/);
+  assert.doesNotMatch(dialog, /max-h-\[min\(82dvh,760px\)\]/);
+});
+
+test("桌面更新入口在侧边栏底部直接启动原生更新", async () => {
+  const [
+    panel,
+    footer,
+    indicator,
+    resource,
+    bridge,
+    macOSBridge,
+    macOSUpdater,
+    windowsBridge,
+    windowsUpdater,
+  ] = await Promise.all([
+    ...[
+      "src/features/navigation/sidebar/view/sidebar-panel.tsx",
+      "src/features/navigation/sidebar/view/sidebar-utility-actions.tsx",
+      "src/features/navigation/sidebar/view/sidebar-update-indicator.tsx",
+      "src/features/navigation/sidebar/view/use-sidebar-update-version.ts",
+      "src/lib/desktop-bridge/desktop-bridge.ts",
+    ].map(readSource),
+    readFile(
+      path.join(
+        webRoot,
+        "../desktop/macos/Sources/NexusDesktop/Bridge/DesktopBridgeHandler.swift",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(
+        webRoot,
+        "../desktop/macos/Sources/NexusDesktop/Update/DesktopUpdateChecker.swift",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(
+        webRoot,
+        "../desktop/windows/Nexus.Desktop/Bridge/DesktopBridgeHandler.cs",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(
+        webRoot,
+        "../desktop/windows/Nexus.Desktop/Update/DesktopUpdateChecker.cs",
+      ),
+      "utf8",
+    ),
+  ]);
+
+  assert.doesNotMatch(panel, /SidebarUpdateIndicator/);
+  assert.match(footer, /useSidebarUpdateVersion/);
+  assert.match(footer, /<SidebarUpdateIndicator/);
+  assert.match(footer, /expandedRight: props\.showLogout/);
+  assert.match(indicator, /sidebar-update-indicator relative/);
+  assert.match(indicator, /className=\{cn\(/);
+  assert.match(indicator, /<button/);
+  assert.match(indicator, /startDesktopUpdate\(\)/);
+  assert.doesNotMatch(indicator, /href=|releases\/latest|target=/);
+  assert.doesNotMatch(indicator, /bg-emerald|hover:bg-emerald/);
+  assert.match(resource, /desktop\.update\.available/);
+  assert.match(resource, /isDesktopRuntime\(\)/);
+  assert.match(resource, /isDesktopBridgeAvailable\(\)/);
+  assert.match(resource, /getDesktopPersistentState/);
+  assert.match(bridge, /"app\.start_update"/);
+  assert.match(macOSBridge, /case "app\.start_update"/);
+  assert.match(macOSUpdater, /startAvailableUpdate\(\)/);
+  assert.match(macOSUpdater, /await downloadAndInstallUpdate\(latest\)/);
+  assert.match(windowsBridge, /"app\.start_update"/);
+  assert.match(windowsUpdater, /StartAvailableUpdate\(System\.Windows\.Window owner\)/);
+  assert.match(windowsUpdater, /await DownloadAndOfferInstallAsync\(owner, latest\)/);
 });
 
 test("管理目录在桌面统一使用三列", async () => {
@@ -215,6 +355,46 @@ test("设置分区和联系人目录复用同一 Header 几何", async () => {
     assert.match(source, /WorkspaceContentHeader/);
     assert.match(source, /WORKSPACE_CONTENT_PAGE_CLASS_NAME/);
   });
+});
+
+test("CC Switch 入口只在桌面 Provider 设置和初始化向导中显示", async () => {
+  const [panel, sidebar, controller, onboarding, dialog] = await Promise.all([
+    "src/features/settings/provider-settings/provider-settings-panel.tsx",
+    "src/features/settings/provider-settings/components/provider-settings-sidebar.tsx",
+    "src/features/settings/provider-settings/use-provider-settings-controller.ts",
+    "src/features/onboarding/provider-setup/provider-setup-dialog.tsx",
+    "src/features/provider-imports/cc-switch/provider-ccswitch-dialog.tsx",
+  ].map(readSource));
+
+  assert.match(panel, /isDesktopRuntime/);
+  assert.match(
+    panel,
+    /const canImportFromCCSwitch = visibilityScope === "private" && isDesktopRuntime\(\)/,
+  );
+  assert.match(panel, /showCCSwitchImport=\{canImportFromCCSwitch\}/);
+  assert.doesNotMatch(panel, /ccswitch_action/);
+  assert.match(sidebar, /onOpenCCSwitchImport/);
+  assert.match(sidebar, /settings\.providers\.ccswitch_action/);
+  assert.match(onboarding, /const canImportFromCCSwitch = isDesktopRuntime\(\)/);
+  assert.match(onboarding, /supportsCCSwitch=\{canImportFromCCSwitch\}/);
+  assert.match(onboarding, /onboarding\.provider_setup_ccswitch_action/);
+  assert.match(onboarding, /onSynced=\{handleCCSwitchSynced\}/);
+  assert.match(onboarding, /requireDefault/);
+  assert.match(
+    onboarding,
+    /const handleCCSwitchSynced[\s\S]*?default_selection[\s\S]*?persistDefaultModelSelections[\s\S]*?setScene\("ready"\)/,
+  );
+  assert.match(onboarding, /default_background_model_selection: selection/);
+  assert.match(controller, /setUserPreferences\(await getUserPreferencesApi\(\)\)/);
+  assert.match(dialog, /const canSync = selectedSources\.size > 0 && \(!requireDefault \|\| canSetDefault\)/);
+  assert.match(dialog, /requireDefault[\s\S]*?settings\.providers\.ccswitch_import_title/);
+  assert.match(dialog, /selectedSources\.size > 1 \|\| selectedModelCount > 1/);
+  assert.match(dialog, /!item\.can_sync \?/);
+  assert.match(
+    dialog,
+    /className="h-\[500px\] max-h-\[calc\(100dvh-2rem\)\] !max-w-\[620px\]"/,
+  );
+  assert.match(dialog, /<UiDialogBody className="!min-h-0 !flex-1 p-0" scrollable>/);
 });
 
 test("联系人卡片明确展示默认模型继承状态", async () => {
@@ -356,10 +536,11 @@ test("记忆页使用紧凑目录、单一阅读轴和受保护删除", async ()
   });
 });
 
-test("Agent 技能页使用紧凑响应式网格并收敛重复工具与状态", async () => {
-  const [view, content, card, model, zhAgent, enAgent] = await Promise.all([
+test("Agent 技能页按自身宽度响应并收敛重复工具与状态", async () => {
+  const [view, content, styles, card, model, zhAgent, enAgent] = await Promise.all([
     "src/features/agents/options/components/skills/agent-options-skills-view.tsx",
     "src/features/agents/options/components/skills/agent-options-skills-content.tsx",
+    "src/features/agents/options/components/skills/agent-options-skills.css",
     "src/features/agents/options/components/skills/agent-skill-card.tsx",
     "src/features/agents/options/components/skills/agent-skills-model.ts",
     "src/shared/i18n/catalog/zh/agent.ts",
@@ -376,12 +557,21 @@ test("Agent 技能页使用紧凑响应式网格并收敛重复工具与状态",
   assert.match(content, /filteredCount \? \(/);
   assert.match(
     content,
-    /AGENT_SKILL_GRID_CLASS_NAME =\s*`\$\{WORKSPACE_CATALOG_GRID_CLASS_NAME\} gap-2\.5`/,
+    /AGENT_SKILL_GRID_CLASS_NAME = "agent-options-skills-grid"/,
   );
+  assert.doesNotMatch(content, /WORKSPACE_CATALOG_GRID_CLASS_NAME/);
   assert.equal(
     [...content.matchAll(/className=\{AGENT_SKILL_GRID_CLASS_NAME\}/g)].length,
     2,
   );
+  assert.match(view, /agent-options-skills-container/);
+  assert.match(styles, /container-name: agent-options-skills/);
+  assert.match(styles, /container-type: inline-size/);
+  assert.match(styles, /grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styles, /@container agent-options-skills \(min-width: 560px\)/);
+  assert.match(styles, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@container agent-options-skills \(min-width: 800px\)/);
+  assert.match(styles, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.doesNotMatch(
     content,
     /count=\{`\$\{projection\.visibleAvailable\.length\}\/\$\{projection\.available\.length\}`\}/,
@@ -390,6 +580,7 @@ test("Agent 技能页使用紧凑响应式网格并收敛重复工具与状态",
   assert.match(card, /grid-cols-\[40px_minmax\(0,1fr\)_auto\]/);
   assert.match(card, /UiSeededAvatar seed=\{skill\.name\}/);
   assert.match(card, /flex min-h-10 min-w-0 items-center overflow-hidden/);
+  assert.match(card, /line-clamp-2 min-w-0 text-sm font-semibold/);
   assert.match(card, /flex min-h-10 shrink-0 items-center gap-2/);
   assert.doesNotMatch(card, /pt-0\.5/);
   assert.match(card, /px-3\.5 py-3/);

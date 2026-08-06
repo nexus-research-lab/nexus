@@ -19,6 +19,9 @@ import (
 func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
+	if err := EnsurePlatformSkillLibrary(); err != nil {
+		t.Fatalf("初始化测试平台 Skill 失败: %v", err)
+	}
 
 	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
@@ -259,5 +262,77 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	}
 	if _, err = workspaceService.UpdateFile(ctx, agentValue.AgentID, "nested/.git/config", "x"); err == nil {
 		t.Fatal("不应允许写入嵌套仓库内部目录")
+	}
+}
+
+func TestServiceInitializesDefaultMainWorkspaceDuringBootstrap(t *testing.T) {
+	cfg := newWorkspaceTestConfig(t)
+	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := NewService(cfg, agentService)
+
+	mainAgent, err := agentService.GetDefaultAgent(context.Background())
+	if err != nil {
+		t.Fatalf("创建默认主 Agent 失败: %v", err)
+	}
+	root, err := workspaceService.openAgentWorkspace(mainAgent, false)
+	if err != nil {
+		t.Fatalf("打开默认主 Agent workspace 失败: %v", err)
+	}
+	defer root.Close()
+	if !workspaceManagedStateReady(root, true) {
+		t.Fatal("默认主 Agent 落库前应完成完整 workspace 初始化")
+	}
+
+	stateRoot, marker, err := openWorkspaceInitializationState(*mainAgent)
+	if err != nil {
+		t.Fatalf("打开默认主 Agent 初始化状态失败: %v", err)
+	}
+	defer stateRoot.Close()
+	payload, err := stateRoot.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("默认主 Agent 缺少初始化 marker: %v", err)
+	}
+	if strings.TrimSpace(string(payload)) != workspaceInitializationVersion(*mainAgent) {
+		t.Fatalf("默认主 Agent 初始化 marker 不匹配: %q", payload)
+	}
+}
+
+func TestListFilesDoesNotInitializeWorkspace(t *testing.T) {
+	cfg := newWorkspaceTestConfig(t)
+	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := NewService(cfg, agentService)
+	ctx := context.Background()
+
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "只读文件树助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	if err = os.Remove(filepath.Join(agentValue.WorkspacePath, "USER.md")); err != nil {
+		t.Fatalf("删除初始化产物 USER.md 失败: %v", err)
+	}
+
+	files, err := workspaceService.ListFiles(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("列出 workspace 文件失败: %v", err)
+	}
+	if containsWorkspacePath(files, "USER.md") {
+		t.Fatalf("文件列表不应补写缺失模板: %+v", files)
+	}
+	if _, statErr := os.Stat(filepath.Join(agentValue.WorkspacePath, "USER.md")); !os.IsNotExist(statErr) {
+		t.Fatalf("文件列表产生了初始化副作用 USER.md: %v", statErr)
 	}
 }

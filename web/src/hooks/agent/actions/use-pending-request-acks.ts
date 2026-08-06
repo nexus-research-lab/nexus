@@ -10,7 +10,7 @@ type PendingRequestAck = {
 
 export interface PendingRequestAckRegistry {
   pending: Map<string, PendingRequestAck>;
-  rejected: Map<string, string>;
+  rejected: Map<string, Error>;
   settled: Set<string>;
 }
 
@@ -44,18 +44,26 @@ export function resolvePendingRequestAck(
 export function rejectPendingRequestAck(
   registry: PendingRequestAckRegistry,
   clientRequestId: string,
-  reason: string,
+  cause: string | Error,
 ): boolean {
+  const error = cause instanceof Error ? cause : new Error(cause);
   registry.settled.delete(clientRequestId);
   const pendingRequest = registry.pending.get(clientRequestId);
   if (!pendingRequest) {
-    registry.rejected.set(clientRequestId, reason);
+    registry.rejected.set(clientRequestId, error);
     return false;
   }
   globalThis.clearTimeout(pendingRequest.timeout_id);
   registry.pending.delete(clientRequestId);
-  pendingRequest.reject(new Error(reason));
+  pendingRequest.reject(error);
   return true;
+}
+
+export function hasPendingRequestAck(
+  registry: PendingRequestAckRegistry,
+  clientRequestId: string,
+): boolean {
+  return registry.pending.has(clientRequestId);
 }
 
 export function cancelPendingRequestAcks(
@@ -85,10 +93,10 @@ export function waitForRequestAck(
       resolve();
       return;
     }
-    const rejectedReason = registry.rejected.get(clientRequestId);
-    if (rejectedReason) {
+    const rejectedError = registry.rejected.get(clientRequestId);
+    if (rejectedError) {
       registry.rejected.delete(clientRequestId);
-      reject(new Error(rejectedReason));
+      reject(rejectedError);
       return;
     }
     const timeoutId = globalThis.setTimeout(onTimeout, timeoutMs);
@@ -111,9 +119,13 @@ export function usePendingRequestAcks() {
 
   const rejectRequestAck = useCallback((
     clientRequestId: string,
-    reason: string,
+    reason: string | Error,
   ) => (
     rejectPendingRequestAck(registryRef.current, clientRequestId, reason)
+  ), []);
+
+  const hasRequestAck = useCallback((clientRequestId: string) => (
+    hasPendingRequestAck(registryRef.current, clientRequestId)
   ), []);
 
   const cancelRequestAcks = useCallback((reason: string) => {
@@ -129,6 +141,7 @@ export function usePendingRequestAcks() {
 
   return {
     cancel_pending_request_acks: cancelRequestAcks,
+    has_pending_request_ack: hasRequestAck,
     reject_pending_request_ack: rejectRequestAck,
     resolve_pending_request_ack: resolveRequestAck,
     wait_for_request_ack: waitForAck,

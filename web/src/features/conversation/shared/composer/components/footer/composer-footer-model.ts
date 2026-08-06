@@ -56,7 +56,7 @@ export interface ComposerFooterStatusProjection {
   className: string;
   frames: string[] | null;
   hint: string | null;
-  message: string;
+  message: string | null;
   messageClassName: string;
 }
 
@@ -124,6 +124,15 @@ function projectRuntimeActivityStatus(
 ): ComposerFooterStatusProjection | null {
   if (!activity) {
     return null;
+  }
+  if (activity === "replying") {
+    return {
+      className: "text-(--text-soft)",
+      frames: null,
+      hint: copy.stopHint,
+      message: null,
+      messageClassName: "",
+    };
   }
   const definition = RUNTIME_STATUS_DEFINITIONS[activity];
   return buildActiveStatus(

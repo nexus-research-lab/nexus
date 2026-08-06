@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Folder, Loader2, RefreshCw } from "lucide-react";
+import { Folder, FolderOpen, Loader2, RefreshCw } from "lucide-react";
 
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { UiInput } from "@/shared/ui/form/form-control";
@@ -60,16 +60,32 @@ export function SettingsWorkspaceSection() {
               </div>
             </div>
             <div className="flex min-w-0 items-center gap-2">
-              <UiInput
-                aria-label={t(titleKey)}
-                className="font-mono"
-                controlSize="sm"
-                disabled={controller.busy}
-                onChange={(event) => controller.setDraftPath(event.target.value)}
-                placeholder={controller.placeholder}
-                value={controller.draftPath}
-                variant="surface"
-              />
+              <div className="relative min-w-0 flex-1">
+                <UiInput
+                  aria-label={t(titleKey)}
+                  className="pr-9 font-mono"
+                  controlSize="sm"
+                  disabled={controller.busy}
+                  onChange={(event) => controller.setDraftPath(event.target.value)}
+                  placeholder={controller.placeholder}
+                  value={controller.draftPath}
+                  variant="surface"
+                />
+                <button
+                  aria-label={t("settings.general.state_root_select_action")}
+                  className="absolute right-1 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-[7px] text-(--icon-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:pointer-events-none disabled:opacity-(--disabled-opacity)"
+                  disabled={controller.busy}
+                  onClick={() => void controller.selectDirectory()}
+                  title={t("settings.general.state_root_select_action")}
+                  type="button"
+                >
+                  {controller.selecting ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
               <button
                 className={`${SETTINGS_CONTROL_HEIGHT_CLASS_NAME} inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[10px] border border-(--divider-subtle-color) bg-transparent px-2.5 ${SETTINGS_CONTROL_TEXT_CLASS_NAME} text-(--text-default) transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) disabled:opacity-(--disabled-opacity)`}
                 disabled={controller.saveDisabled}

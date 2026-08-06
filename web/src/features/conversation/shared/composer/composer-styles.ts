@@ -40,7 +40,10 @@ export const COMPOSER_PRIMARY_ACTION_BUTTON_CLASS_NAME =
   getUiButtonClassName({ size: "sm", tone: "primary", variant: "solid" }, "shrink-0");
 
 export const COMPOSER_DANGER_ACTION_BUTTON_CLASS_NAME =
-  getUiIconButtonClassName({ size: "lg", tone: "danger", variant: "surface" }, "shrink-0");
+  getUiButtonClassName(
+    { size: "sm", tone: "danger", variant: "surface" },
+    "shrink-0",
+  );
 
 export const COMPOSER_SHELL_CLASS_NAME =
   "input-shell nexus-chat-composer-shell workbench-input-shell overflow-hidden rounded-[20px]";

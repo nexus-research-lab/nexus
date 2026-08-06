@@ -10,8 +10,9 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/larksuite/oapi-sdk-go/v3 v3.9.2
-	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.26
+	github.com/nexus-research-lab/nexus-agent-sdk-bridge v0.1.27
 	github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1
+	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pressly/goose/v3 v3.27.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/cobra v1.10.2

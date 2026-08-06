@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
@@ -25,16 +26,21 @@ type Service struct {
 
 // NewService 创建 workspace 服务。
 func NewService(cfg config.Config, agents *agentsvc.Service) *Service {
-	return &Service{
+	service := &Service{
 		config: cfg,
 		agents: agents,
 		live:   newLiveManager(),
 	}
+	if agents != nil {
+		agents.SetWorkspaceManager(service)
+	}
+	return service
 }
 
 // SubscribeLive 订阅指定 Agent 的 workspace 实时事件。
 func (s *Service) SubscribeLive(ctx context.Context, agentID string, listener LiveListener) (string, error) {
-	agentValue, err := s.ensureAgentWorkspace(ctx, agentID)
+	// 订阅只需要 owner 记录和现有目录，不得顺带改写模板、Skill 或 shim。
+	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
 	if err != nil {
 		return "", err
 	}

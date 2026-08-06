@@ -97,6 +97,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restored canonical Room Agent reply order when live child events arrive before the initial history snapshot: durable `display_order` now backfills earlier executions without letting legacy timestamps or later volatile evidence reshuffle visible cards.
 - Reworked the Room unread boundary from a floating button-like badge into a centered horizontal reading divider, moved unread jumps to a contextual reading position, and made long virtualized conversations refine their initial index jump against the mounted message instead of stopping short of the real unread target.
 - Preserved explicit ordinary-Agent model selections when their Provider is temporarily unavailable: runtime now falls back to the user default and restores the original selection automatically when it becomes usable again, while the Nexus main Agent always follows the default model.
+### Changed
+
+- Made the desktop-only sidebar update action start the native macOS and Windows download, verification, and installation flow instead of opening the GitHub release page.
+
+## [0.1.34] - 2026-08-05
+
+### Added
+
+- Added native folder pickers to the desktop data-directory setting on macOS and Windows.
+- Added separately signed and notarized macOS installers for Apple Silicon and Intel, with architecture-aware automatic updates.
+- Added read-only CC Switch discovery and idempotent Provider/model import across onboarding and settings, with runtime compatibility guidance and default model setup.
+
+### Changed
+
+- Unified Composer send, stop, permission, question, status, and context surfaces into stable compact controls that preserve layout across pending and completed states.
+- Moved the desktop update shortcut into the sidebar footer and aligned macOS management headers, wordmark, sidebar toggle, and Dock axes with native window controls.
+
+### Fixed
+
+- Kept Agent configuration dialogs stable across tabs, preserved structured permission timeout reasons, and prevented malformed persisted tasks from crashing conversations.
+- Hardened direct desktop upgrades across quoted owner IDs, regenerable caches, historical summary ACLs, and launcher-owned Linux permissions without recursive mode rewrites.
+- Treated AutoDream Agents without an available provider and model as a deferred check instead of repeatedly logging runtime errors.
+- Made DM acceptance durable across slow runtime startup, WebSocket disconnects, and lost-ACK recovery without discarding uncertain messages.
+- Routed main Agent creation through versioned workspace initialization and made platform, host, owner, and Agent Skill discovery canonical, bounded, live-updating, and consistent with runtime projections.
+
+## [0.1.33] - 2026-08-04
+
+### Changed
+
+- Streamlined first-run Provider setup with direct model selection, a docked action bar for long catalogs, and in-dialog custom LLM connections.
+- Changed the default permission for new preferences and Agents to automatically accept file edits while retaining approval rules for other actions.
+
+### Fixed
+
+- Prevented persisted TodoWrite plans that use legacy task fields from crashing the conversation task panel.
+- Kept Agent Skill cards readable when the conversation detail panel is resized by adapting the grid to the panel's actual width and clamping long titles to two lines.
+- Repaired existing isolated Agent workspaces and prevented unreadable subtrees or subscription failures from breaking file access or appearing as conversation errors.
+- Prevented Windows upgrades from failing with access denied when Nexus was still running in the system tray.
+- Repaired direct upgrades from v0.1.27 and v0.1.28 so Agent workspaces, transcripts, and Room files migrate safely without changing launcher-owned permissions or causing isolated Linux restart loops.
 
 ## [0.1.32] - 2026-08-03
 

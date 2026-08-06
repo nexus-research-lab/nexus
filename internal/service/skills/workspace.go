@@ -22,11 +22,11 @@ func undeployWorkspaceLocalSkillAt(
 	if workspaceRoot == "." || sourcePath == "." {
 		return errors.New("workspace skill path is empty")
 	}
-	agentsRoot := filepath.Join(workspaceRoot, ".agents")
+	agentsSkillsRoot := filepath.Join(workspaceRoot, ".agents", "skills")
 	claudeSkillsRoot := filepath.Join(workspaceRoot, ".claude", "skills")
-	sourceUnderAgents := pathIsChildOf(sourcePath, agentsRoot)
+	sourceUnderAgentsSkills := pathIsChildOf(sourcePath, agentsSkillsRoot)
 	sourceUnderClaudeSkills := pathIsChildOf(sourcePath, claudeSkillsRoot)
-	if !sourceUnderAgents && !sourceUnderClaudeSkills {
+	if !sourceUnderAgentsSkills && !sourceUnderClaudeSkills {
 		return errors.New("workspace skill path is outside supported skill directories")
 	}
 	sourceRelative, err := filepath.Rel(workspaceRoot, sourcePath)
@@ -47,7 +47,7 @@ func undeployWorkspaceLocalSkillAt(
 			continue
 		}
 		seen[trimmedName] = struct{}{}
-		if sourceUnderAgents {
+		if sourceUnderAgentsSkills {
 			linkPath, relativeErr := filepath.Rel(
 				workspaceRoot,
 				filepath.Join(claudeSkillsRoot, trimmedName),

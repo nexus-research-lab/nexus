@@ -2,7 +2,8 @@ import type { AgentOptions } from "@/types/agent/agent";
 
 export const DEFAULT_AGENT_OPTION_PROVIDER = "";
 export const DEFAULT_AGENT_OPTION_MODEL = "";
-export const DEFAULT_AGENT_PERMISSION_MODE = "default";
+// 新建 Agent 默认批准文件编辑，其他操作仍交给 runtime 权限规则。
+export const DEFAULT_AGENT_PERMISSION_MODE = "acceptEdits";
 
 export const AGENT_PERMISSION_MODES = [
   {

@@ -6,6 +6,8 @@ interface DesktopRuntimeConfig {
   appVersion?: string;
   authToken?: string;
   buildNumber?: string;
+  desktopWindowCloseButtonCenterX?: number;
+  desktopWindowCloseButtonCenterY?: number;
   desktopWindowControlsInset?: number;
   oauthRedirectUri?: string;
   platform?: string;
@@ -14,6 +16,10 @@ interface DesktopRuntimeConfig {
 
 const DESKTOP_WINDOW_CONTROLS_INSET_PROPERTY =
   "--desktop-window-controls-inset";
+const DESKTOP_WINDOW_CLOSE_BUTTON_CENTER_X_PROPERTY =
+  "--desktop-window-close-button-center-x";
+const DESKTOP_WINDOW_CLOSE_BUTTON_CENTER_Y_PROPERTY =
+  "--desktop-window-close-button-center-y";
 
 declare global {
   interface Window {
@@ -44,6 +50,22 @@ function normalizeDesktopRuntimeConfig(
   if (typeof controlsInset === "number" && Number.isFinite(controlsInset)) {
     normalized.desktopWindowControlsInset = controlsInset;
   }
+  const closeButtonCenterX =
+    runtimeConfig.desktop_window_close_button_center_x;
+  if (
+    typeof closeButtonCenterX === "number"
+    && Number.isFinite(closeButtonCenterX)
+  ) {
+    normalized.desktopWindowCloseButtonCenterX = closeButtonCenterX;
+  }
+  const closeButtonCenterY =
+    runtimeConfig.desktop_window_close_button_center_y;
+  if (
+    typeof closeButtonCenterY === "number"
+    && Number.isFinite(closeButtonCenterY)
+  ) {
+    normalized.desktopWindowCloseButtonCenterY = closeButtonCenterY;
+  }
   return normalized;
 }
 
@@ -70,6 +92,20 @@ export function applyDesktopRuntimeDocumentFlags(): void {
     document.documentElement.style.setProperty(
       DESKTOP_WINDOW_CONTROLS_INSET_PROPERTY,
       `${controlsInset}px`,
+    );
+  }
+  const closeButtonCenterX = runtimeConfig.desktopWindowCloseButtonCenterX;
+  if (typeof closeButtonCenterX === "number" && closeButtonCenterX >= 0) {
+    document.documentElement.style.setProperty(
+      DESKTOP_WINDOW_CLOSE_BUTTON_CENTER_X_PROPERTY,
+      `${closeButtonCenterX}px`,
+    );
+  }
+  const closeButtonCenterY = runtimeConfig.desktopWindowCloseButtonCenterY;
+  if (typeof closeButtonCenterY === "number" && closeButtonCenterY >= 0) {
+    document.documentElement.style.setProperty(
+      DESKTOP_WINDOW_CLOSE_BUTTON_CENTER_Y_PROPERTY,
+      `${closeButtonCenterY}px`,
     );
   }
 }

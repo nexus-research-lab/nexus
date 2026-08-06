@@ -149,6 +149,8 @@ export interface InputQueueItem {
   room_id?: string;
   conversation_id?: string;
   agent_id?: string;
+  agent_round_id?: string;
+  client_message_id?: string;
   source_agent_id?: string;
   source_message_id?: string;
   handoff_id?: string;

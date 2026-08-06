@@ -53,13 +53,16 @@ func RunRoomFiles(
 	appRoot := appfs.AppDir()
 	markerPath := workspaceFileMigrationMarker(appRoot, roomStateMigrationName)
 	applied, err := workspaceFileMigrationApplied(markerPath)
-	if err != nil || applied {
+	if err != nil {
 		return err
 	}
 
 	legacyRoot := filepath.Join(appRoot, "rooms")
 	info, err := os.Lstat(legacyRoot)
 	if errors.Is(err, os.ErrNotExist) {
+		if applied {
+			return nil
+		}
 		return writeWorkspaceFileMigrationMarker(markerPath)
 	}
 	if err != nil {
@@ -67,6 +70,11 @@ func RunRoomFiles(
 	}
 	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 		return fmt.Errorf("旧 Room 状态根不是安全目录: %q", legacyRoot)
+	}
+	if applied {
+		// v0.1.30 曾在旧状态根迁入 app 之前写下空完成标记。完成标记不能
+		// 压过后来发现的真实源目录，否则 Room 历史会永久留在旧位置。
+		logger.Warn("Room 迁移完成标记早于旧目录，重新执行迁移", "legacy_root", legacyRoot)
 	}
 	entries, err := os.ReadDir(legacyRoot)
 	if err != nil {
@@ -83,8 +91,10 @@ func RunRoomFiles(
 	if err != nil {
 		return err
 	}
-	if err = writeWorkspaceFileMigrationMarker(markerPath); err != nil {
-		return err
+	if !applied {
+		if err = writeWorkspaceFileMigrationMarker(markerPath); err != nil {
+			return err
+		}
 	}
 	logger.Info("Room 文件状态迁移完成",
 		"migration", roomStateMigrationName,
@@ -232,17 +242,33 @@ func (m *legacyRoomFileMigrator) migrateConversation(sourcePath string, director
 	); err != nil {
 		return fmt.Errorf("迁移 Room conversation %s: %w", conversationID, err)
 	}
-	if err = chmodPrivateTree(stateTarget); err != nil {
+	if err = hardenMigratedRoomFiles(
+		stateTarget,
+		assetTarget,
+		appfs.RuntimeIsolationEnforced(),
+	); err != nil {
 		return err
 	}
-	if _, statErr := os.Lstat(assetTarget); statErr == nil {
-		if err = chmodPrivateTree(assetTarget); err != nil {
-			return err
-		}
-	} else if !errors.Is(statErr, os.ErrNotExist) {
-		return statErr
-	}
 	m.result.conversations++
+	return nil
+}
+
+func hardenMigratedRoomFiles(
+	stateTarget string,
+	assetTarget string,
+	launcherManagesPermissions bool,
+) error {
+	if !shouldHardenMigratedPermissions(launcherManagesPermissions) {
+		return nil
+	}
+	if err := chmodPrivateTree(stateTarget); err != nil {
+		return err
+	}
+	if _, err := os.Lstat(assetTarget); err == nil {
+		return chmodPrivateTree(assetTarget)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	return nil
 }
 

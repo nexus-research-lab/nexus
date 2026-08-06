@@ -113,9 +113,6 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	if err := requireGroupRoomContext(e.round.Context); err != nil {
 		return nil, err
 	}
-	if err := workspacepkg.EnsurePlatformSkillLibrary(); err != nil {
-		return nil, err
-	}
 	if err := workspacepkg.EnsureUserSkillLibrary(e.service.config, e.agent.OwnerUserID); err != nil {
 		return nil, err
 	}

@@ -50,7 +50,7 @@ export function AgentOptionsDialog({
         onClose={onClose}
       >
         <UiDialogShell
-          className="max-h-[min(82dvh,760px)] max-sm:h-[calc(100dvh-16px)] max-sm:max-h-none"
+          className="h-[min(82dvh,760px)] max-sm:h-[calc(100dvh-16px)]"
           size="wide"
           style={{ maxWidth: "900px" }}
         >

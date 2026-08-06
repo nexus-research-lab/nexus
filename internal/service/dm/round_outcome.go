@@ -36,16 +36,12 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 	})
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.broadcastContextUsage()
-	persistedSessionID := ""
-	if r.session.SessionID != nil {
-		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
-	}
 	resultMessage := protocol.Message{
 		"message_id":      "result_" + r.roundID,
 		"session_key":     r.sessionKey,
 		"agent_id":        r.agent.AgentID,
 		"round_id":        r.roundID,
-		"session_id":      dmdomain.FirstNonEmpty(r.client.SessionID(), persistedSessionID),
+		"session_id":      r.outcomeSessionID(),
 		"role":            "result",
 		"timestamp":       time.Now().UnixMilli(),
 		"subtype":         "error",
@@ -121,6 +117,22 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 	r.dispatchNextInputQueueItem()
 }
 
+func (r *roundRunner) failRuntimeStartup(err error) {
+	r.failRound(exec.RoundExecutionResult{}, err)
+}
+
+func (r *roundRunner) outcomeSessionID() string {
+	runtimeSessionID := ""
+	if r.client != nil {
+		runtimeSessionID = strings.TrimSpace(r.client.SessionID())
+	}
+	persistedSessionID := ""
+	if r.session.SessionID != nil {
+		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
+	}
+	return dmdomain.FirstNonEmpty(runtimeSessionID, persistedSessionID)
+}
+
 func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 	fields := make([]any, 0, 16)
 	var streamClosed *exec.RoundStreamClosedError
@@ -164,16 +176,12 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 	r.finalizeGoalUsage(context.Background(), result, r.lastGoalAssistantMessage())
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
 	r.broadcastContextUsage()
-	persistedSessionID := ""
-	if r.session.SessionID != nil {
-		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
-	}
 	resultMessage := protocol.Message{
 		"message_id":      "result_" + r.roundID,
 		"session_key":     r.sessionKey,
 		"agent_id":        r.agent.AgentID,
 		"round_id":        r.roundID,
-		"session_id":      dmdomain.FirstNonEmpty(r.client.SessionID(), persistedSessionID),
+		"session_id":      r.outcomeSessionID(),
 		"role":            "result",
 		"timestamp":       time.Now().UnixMilli(),
 		"subtype":         "interrupted",

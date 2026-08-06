@@ -299,15 +299,6 @@ export function buildQuestionAnswers(
   }));
 }
 
-export function countQuestionAnswers(draft: QuestionDraft): number {
-  return draft.reduce(
-    (count, answer) => count
-      + answer.selectedOptions.size
-      + (answer.customAnswer.trim() ? 1 : 0),
-    0,
-  );
-}
-
 export function summarizeQuestionAnswers(
   draft: QuestionDraft,
   limit = 3,

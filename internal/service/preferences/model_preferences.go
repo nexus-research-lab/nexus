@@ -144,7 +144,7 @@ func DefaultPreferences() Preferences {
 		},
 		WebSearch: WebSearchSettings{Enabled: true},
 		DefaultAgentOptions: protocol.Options{
-			PermissionMode:  "default",
+			PermissionMode:  protocol.DefaultAgentPermissionMode,
 			AllowedTools:    []string{},
 			DisallowedTools: []string{},
 			SettingSources:  []string{"project"},
@@ -160,7 +160,7 @@ func normalizePreferences(item Preferences) Preferences {
 	runtimeKind := runtimeprovider.NormalizeRuntimeKind(item.AgentRuntimeKind)
 	options := item.DefaultAgentOptions
 	if strings.TrimSpace(options.PermissionMode) == "" {
-		options.PermissionMode = "default"
+		options.PermissionMode = protocol.DefaultAgentPermissionMode
 	}
 	options.PermissionMode = string(runtimepermission.NormalizeMode(sdkpermission.Mode(options.PermissionMode)))
 	options.Provider = strings.TrimSpace(options.Provider)
