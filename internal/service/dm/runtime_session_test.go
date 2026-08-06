@@ -210,7 +210,8 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"Before substantial execution, every Agent assesses atomicity",
-		"Use native subagents inside its own responsibility",
+		"Use native subagents only when their benefit exceeds",
+		"When one Agent owns the combined deliverable, keep one Work Item and use separate native subagents",
 		"the parent integrates, verifies, and delivers",
 	} {
 		if !strings.Contains(promptOptions.AppendStatic, expected) {

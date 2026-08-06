@@ -305,6 +305,8 @@ func TestPreparePlanExecutionSealsCompleteDocumentAndTrustedFence(t *testing.T) 
 	var capturedActor orchestration.ActorContext
 	var capturedInput orchestration.PreparePlanExecutionInput
 	proposal := sealedPlanProposal()
+	proposal.GoalID = "goal-1"
+	proposal.GoalObjectiveRevision = 7
 	svc := &fakeExecutionService{
 		prepare: func(
 			actor orchestration.ActorContext,
@@ -348,12 +350,109 @@ func TestPreparePlanExecutionSealsCompleteDocumentAndTrustedFence(t *testing.T) 
 		result.StructuredContent["proposal_id"] != proposal.ID ||
 		result.StructuredContent["proposal_digest"] != proposal.ContentDigest ||
 		result.StructuredContent["proposal_status"] != string(protocol.ExecutionPlanProposalStatusSealed) ||
+		result.StructuredContent["objective_source"] != "goal" ||
+		result.StructuredContent["completion_criteria_source"] != "plan_document" ||
 		result.StructuredContent["item_count"] != float64(2) {
 		t.Fatalf("prepared result = %#v", result.StructuredContent)
 	}
 	actions, ok := result.StructuredContent["next_actions"].([]any)
 	if !ok || len(actions) != 1 || actions[0].(map[string]any)["tool"] != "plan_execution" {
 		t.Fatalf("prepare next actions = %#v", result.StructuredContent["next_actions"])
+	}
+}
+
+func TestPlanProposalBoundarySourcesFollowOperationAuthority(t *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		operation protocol.ExecutionPlanProposalOperation
+		goalID    string
+		objective string
+		criteria  string
+	}{
+		{name: "Goal-bound create", operation: protocol.ExecutionPlanProposalCreate, goalID: "goal-1", objective: "goal", criteria: "plan_document"},
+		{name: "Goal-free create", operation: protocol.ExecutionPlanProposalCreate, objective: "plan_document", criteria: "plan_document"},
+		{name: "replan", operation: protocol.ExecutionPlanProposalReplan, objective: "execution", criteria: "execution"},
+		{name: "replace", operation: protocol.ExecutionPlanProposalReplace, objective: "plan_document", criteria: "plan_document"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			proposal := &protocol.ExecutionPlanProposal{
+				GoalID: testCase.goalID,
+				Document: protocol.ExecutionPlanProposalDocument{
+					Operation: testCase.operation,
+				},
+			}
+			if got := planProposalObjectiveSource(proposal); got != testCase.objective {
+				t.Fatalf("objective source = %q, want %q", got, testCase.objective)
+			}
+			if got := planProposalCompletionCriteriaSource(proposal); got != testCase.criteria {
+				t.Fatalf("criteria source = %q, want %q", got, testCase.criteria)
+			}
+		})
+	}
+}
+
+func TestPreparePlanExecutionReturnsCompleteParserContractOnDocumentError(t *testing.T) {
+	svc := &fakeExecutionService{
+		prepare: func(
+			orchestration.ActorContext,
+			orchestration.PreparePlanExecutionInput,
+		) (*protocol.ExecutionPlanProposal, error) {
+			return nil, &orchestration.DomainError{
+				Code:    orchestration.ErrorCodePlanDocumentInvalid,
+				Message: "plan document $.items[0].dependencies at line 11, column 5: unknown field",
+			}
+		},
+	}
+	result, err := preparePlanExecution(svc, executionServerContext()).ContextHandler(
+		context.Background(),
+		validPreparePlanToolInput(),
+		&sdktool.CallContext{ToolUseID: "tool-invalid-plan"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.IsError ||
+		result.StructuredContent["outcome"] != "rejected" ||
+		result.StructuredContent["reason_code"] != "plan_document_invalid" {
+		t.Fatalf("document rejection = %#v", result.StructuredContent)
+	}
+	encoded, err := json.Marshal(result.StructuredContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(encoded) > 4096 {
+		t.Fatalf("document rejection is %d bytes, want <= 4096", len(encoded))
+	}
+	payload := string(encoded)
+	contract := orchestration.ExecutionPlanDocumentSchemaContract()
+	documentContract, ok := result.StructuredContent["document_contract"].(map[string]any)
+	if !ok {
+		t.Fatalf("document contract = %#v", result.StructuredContent["document_contract"])
+	}
+	if documentContract["minimal_valid_create_example"] != contract.MinimalValidCreateExample {
+		t.Fatalf("repair example = %#v", documentContract["minimal_valid_create_example"])
+	}
+	for _, expected := range append(
+		append([]string{}, contract.AllowedRootFields...),
+		contract.AllowedItemFields...,
+	) {
+		if !strings.Contains(payload, expected) {
+			t.Fatalf("document rejection missing parser field %q: %s", expected, payload)
+		}
+	}
+	for operation, requirement := range contract.OperationRequirements {
+		if !strings.Contains(payload, operation) || !strings.Contains(payload, requirement) {
+			t.Fatalf("document rejection missing %s requirement %q: %s", operation, requirement, payload)
+		}
+	}
+	for _, expected := range []string{
+		"dependencies",
+		"depends_on or soft_depends_on",
+		"do not remove fields one by one",
+	} {
+		if !strings.Contains(payload, expected) {
+			t.Fatalf("document rejection missing repair guidance %q: %s", expected, payload)
+		}
 	}
 }
 

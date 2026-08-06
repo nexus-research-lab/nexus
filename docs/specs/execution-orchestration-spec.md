@@ -522,9 +522,11 @@ Goal 延长 intent 的生命期，不扩大权限。遇到需要新授权、危�
 用户显式要求持续追求时走 `create_goal`，不伪造 adaptive signal。显式路径与 Execution 仍只有一条状态链：
 
 - scope 中已有兼容 transient Execution：`create_goal` 创建或复用 Goal 后，以 `user_explicit + persistence_requested` 绑定该 Execution，保留其 Plan 和全部执行历史。
-- 先有 Goal、后 prepare Plan：Goal metadata 先 CAS 预留唯一 Execution ID；`prepare_plan_execution` 把该 Goal ID/revision、activation provenance 与 reserved target seal 进 proposal，`plan_execution` materialize 时复用该 identity。任一阶段失败重试都不能创建第二个 Execution。
+- 同时需要新 Goal 与首张 WorkGraph 时，两步具有因果顺序而不是并行关系：必须先等待 `create_goal` 成功，再调用 `prepare_plan_execution` seal 绑定该 Goal fence 的 proposal。模型提示、Goal/Execution Skill 与两个工具描述都必须保留这一顺序；后端仍在 prepare/materialize 两阶段重读 active Goal 并拒绝竞态，不能把“失败保护”放宽成隐式猜测未来 Goal。
+- 先有 Goal、后 prepare Plan：`create_goal` 在创建 Goal 时先持久化由 explicit command 确定的唯一 Execution ID；`prepare_plan_execution` 只读地把该 Goal ID/revision、activation provenance 与 reserved target seal 进 proposal，`plan_execution` materialize 时复用该 identity。任一阶段失败重试都不能创建第二个 Execution。历史上已经写入 explicit command 但缺少 `execution_id` 的 Goal，从该 server-owned command 确定性恢复同一 reservation，续跑与 proposal seal 共享该身份，并在 materialization CAS 时把反向 binding 写实。
+- fresh Goal-bound `operation: create` 的 objective 权威来自 active Goal，而不是 provider 重复提交的 Plan transport：输入可以省略或概述 root objective，service 必须在校验与 digest 前写入 exact Goal objective，并在 materialization 时按 Goal ID/revision/objective/reservation 重新验证。首次 Plan 的 completion criteria 仍由 Plan 把 Goal 操作化，materialize 后写入 Goal/Execution binding 并在同一 objective revision 内冻结。
 - 重复调用只修复尚未落地的一侧，不创建第二个 Goal、Execution 或 Plan。
-- objective、scope 或已有 binding 不兼容时，分别返回稳定的 `goal_objective_conflict`、`goal_scope_conflict`、`goal_binding_conflict`，不能静默分叉。
+- Goal 与已经存在的 Execution objective、scope 或已有 binding 不兼容时，分别返回稳定的 `goal_objective_conflict`、`goal_scope_conflict`、`goal_binding_conflict`，不能静默分叉；provider Plan transport 与 Goal 原文的措辞差异不属于两个权威对象之间的冲突。
 - Goal completion 必须找到 objective revision 一致的绑定 Execution，并通过同一 WorkGraph completion audit；缺 binding、binding 冲突或审计器不可用均 fail closed。
 - 模型完成托管 Goal 还必须先保存当前 objective revision、当前 physical round 的 `aligned` Objective Alignment report；completion-tool-miss 的系统兜底消费同一报告，不能从最终回复文字伪造。用户或 app-server 显式设置 Goal 状态仍属于控制面 authority，只执行 WorkGraph/readiness 硬门禁，不要求用户先模拟一次模型语义审计。
 
@@ -844,12 +846,14 @@ Plan 创建、replan 与 transient replacement 共用固定两步协议：
 
 第一步承载完整语义，第二步只提交 opaque receipt。YAML string 是唯一模型传输格式；解析后的 canonical typed document 与 trusted authority/target envelope 共同计算 digest，只有 service/storage 生成的 typed 实体可以进入 domain validation 和权威 transaction。
 
+root boundary 的权威来源由 operation 与当前状态决定：active Goal 下的 fresh `create` 从 Goal 继承 exact objective，Goal-free `create` 与 `replace` 使用文档 objective，`replan` 从当前 Execution 继承 objective 与 completion criteria。新建 Goal-bound graph 时必须先完成 `create_goal`，不能与 `prepare_plan_execution` 并行；Goal-bound create 的输入 objective 可以省略。改变 Goal 必须先走 `retarget_goal`，不能通过 Plan transport 改写。
+
 Nexus Plan Document v1 的形状如下：
 
 ```yaml
 nexus_plan: 1
 operation: create # create | replan | replace
-objective: "Produce and verify a small report"
+objective: "Produce and verify a small report" # active Goal create 或任意 replan 可省略
 completion_criteria:
   - "The verified report exists"
 revision_reason: ""          # replan 时必须非空
@@ -877,6 +881,8 @@ items:
 `operation: create` 用于当前 scope 没有 current Execution；`replan` 必须命中 current Execution、提供非空 `revision_reason`，并保持其 immutable objective/completion boundary；当该 Execution 合法存在但尚无 active Plan 时，empty base-Plan fence 表示给它原子写入第一个 Plan，document 中所有 Work Item 都必须是新 identity。`replace` 只用于用户明确改成不同 transient objective，必须提供新的 objective、completion criteria、`replacement_reason` 与完整 successor graph。Goal-bound Execution 不允许 `replace`，必须进入 Goal retarget/rebase。
 
 `items` 必须非空；每项至少提供唯一 `logical_key`、`kind`、`subject`、`objective` 与 `deliverable`。dependency 只用本 document 内 logical key 表达；服务端生成 opaque Plan/WorkItem/Spec ID。acceptance criteria、parent、hard/soft dependency、input ref、exclusive/shared output scope、required/terminal 标记按任务需要声明。parser 只接受一个 UTF-8 YAML mapping，拒绝空文档、未知或重复 key、multi-document、null、隐式 timestamp、anchor/alias、merge key、自定义 tag、placeholder、资源上限超限和无效 graph，并返回稳定 path 与 line/column。随后 service 继续执行身份、核心字段、32 项集合上限、引用完整性、DAG、output scope 冲突、operation 与 authoritative state 校验。
+
+parser 的 allowed/required 字段集合同时是 MCP `plan_document` schema 的唯一字段真相源；模型说明不得再用 `dependencies`、`description`、`acceptance`、`scopes` 等概括词代替真实 key。Plan Document 被拒绝时，结果除精确 path/line/column 外还返回同一真相源生成的 `document_contract`：全部 root/item allowed fields、每项 required fields、常见错误别名修正和一份 parser-valid create example。调用方应据此一次重写完整 YAML，不得根据首个错误逐字段删除或猜测下一字段。
 
 成功 prepare 后，proposal 持久保存 canonical document、originating-round provenance、owner/session/scope/coordinator、target Execution ID/version、base Plan ID、Goal ID/revision/activation provenance、Goal-reserved successor、typed predecessor 与覆盖这些 immutable 字段的 digest。proposal ID 不是 capability；每次读取/commit 仍须匹配 trusted access identity。document 一经 seal 不可编辑，模型若改变任何节点、边、文字或 operation，必须重新 prepare 得到新 proposal。对 `create` proposal，prepare 与 commit 都必须通过 trusted resolver 获得完整 Goal activation；一份 seal 时 Goal-free 的 proposal 不会在 commit 时自动吸附当时的 ambient Goal。
 

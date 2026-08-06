@@ -581,6 +581,8 @@ func TestCreateGoalDescriptionStaysScopeNeutral(t *testing.T) {
 		"complete execution-ready objective",
 		"Do not create a broad placeholder",
 		"Set token_budget only from an explicit budget",
+		"wait for this call to succeed before prepare_plan_execution",
+		"never launch them in parallel",
 		"retarget_goal on that same Goal",
 	} {
 		if !strings.Contains(dmTool.Description, expected) {

@@ -193,7 +193,7 @@ func (s *Service) PrepareObjectiveRetarget(
 				Phase:                ObjectiveTransitionPrepared,
 				OldRevision:          command.ExpectedObjectiveRevision,
 				NewRevision:          command.ExpectedObjectiveRevision + 1,
-				OldExecutionID:       protocol.GoalMetadataString(current.Metadata, protocol.GoalMetadataExecutionID),
+				OldExecutionID:       protocol.GoalReservedExecutionID(*current),
 				SuccessorExecutionID: command.SuccessorExecutionID,
 				RequestedObjective:   requestedObjective,
 				TargetObjective:      command.Objective,

@@ -367,6 +367,22 @@ func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchDefers(t *t
 	}
 }
 
+func TestExactGoalContinuationExecutionIDRecoversLegacyExplicitReservation(t *testing.T) {
+	const commandID = "explicit_goal_legacy_room"
+	plan := protocol.GoalContinuation{Goal: protocol.Goal{Metadata: map[string]any{
+		protocol.GoalMetadataExplicitCommand:  commandID,
+		protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
+		protocol.GoalMetadataActivationReason: string(protocol.GoalActivationReasonPersistenceRequested),
+	}}}
+	executionID, err := exactGoalContinuationExecutionID(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expected := protocol.ExplicitGoalReservedExecutionID(commandID); executionID != expected {
+		t.Fatalf("legacy continuation execution = %q, want %q", executionID, expected)
+	}
+}
+
 func TestRealtimeServicePostRoundWorkRecordsRoomGoalFailureWhenDispatchFails(t *testing.T) {
 	goalProvider := &fakeRoomGoalContextProvider{
 		stillCurrent: true,

@@ -1,6 +1,6 @@
-// INPUT: 已完成语义校验和规范化、但尚未成为权威 Execution/Plan 的完整 WorkGraph proposal。
+// INPUT: 已按 Goal/document/current Execution 选择 canonical root boundary 并完成语义校验、但尚未成为权威 Execution/Plan 的完整 WorkGraph proposal。
 // OUTPUT: 跨 round 可恢复的 sealed proposal、materialization receipt 与 Goal confirmation 状态。
-// POS: Provider/Plan Mode 与 Execution Orchestration 权威事务之间的非权威持久化协议。
+// POS: Provider/Plan Mode 与 Execution Orchestration 权威事务之间的非权威持久化协议；持久 proposal 不保留非权威 Goal objective 转述。
 package protocol
 
 import (
@@ -45,6 +45,7 @@ const (
 )
 
 // ExecutionPlanProposalDocument 是 parser、持久层和 materializer 共享的 canonical 文档。
+// Parser 可暂时产出缺省 boundary；service 必须按 operation/authority 补全后才能 digest 与持久化。
 // Items 的顺序就是未来 Plan membership 的 position；调用方必须在计算 digest 前完成
 // string normalization 以及 dependency/output scope 的稳定排序。
 type ExecutionPlanProposalDocument struct {
@@ -104,8 +105,9 @@ type ExecutionPlanProposal struct {
 	GoalObjectiveRevision int64                `json:"goal_objective_revision,omitempty"`
 	GoalActivationOrigin  GoalActivationOrigin `json:"goal_activation_origin,omitempty"`
 	GoalActivationReason  GoalActivationReason `json:"goal_activation_reason,omitempty"`
-	// GoalReservedExecutionID 是 Goal transition 在 proposal seal 之前已经
-	// 持久化的 successor identity。它属于 immutable exact fence，不是
+	// GoalReservedExecutionID 是 explicit Goal 创建或 Goal transition 在
+	// proposal seal 之前已经持久化的 successor identity。旧显式 Goal 可从
+	// server-owned command 确定性恢复；它仍属于 immutable exact fence，不是
 	// materializer 可以另行生成或改写的运行态 receipt。
 	GoalReservedExecutionID string `json:"goal_reserved_execution_id,omitempty"`
 	ReplacesExecutionID     string `json:"replaces_execution_id,omitempty"`

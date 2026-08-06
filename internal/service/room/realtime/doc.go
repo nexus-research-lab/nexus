@@ -10,7 +10,7 @@
 //     execution_context_usage.go 额外持久化每 Agent 终态上下文占用快照及 Session 元数据，并隔离中断控制值与展示文案；精确 agent_round 中断对自然完成竞态保持幂等。
 //   - input_queue.go / input_queue_dispatch.go / guidance_input.go：持久化输入队列（受理/上下文/存储）、队列派发和运行中引导。
 //   - directed_message.go / public_message.go / public_mentions.go / public_handoff.go / public_context.go：Room 协作消息（含唤醒调度与 timer 注册表）、公开消息因果、mention 唤醒、handoff 标注/回收和 slot 可见上下文。
-//   - goal_runtime.go / goal_usage_scope_lock.go / goal_continuation.go / quota.go：Room 与 Goal runtime 的适配（parent 用量、跨 slot runtime 的 root-scope child lifecycle evidence/用量、external bind 串行化、scope create guard、exact Goal/revision/Execution continuation capability、终态 fence、取消/完成度/账号额度门槛）与 Goal 接力派发。
+//   - goal_runtime.go / goal_usage_scope_lock.go / goal_continuation.go / quota.go：Room 与 Goal runtime 的适配（parent 用量、跨 slot runtime 的 root-scope child lifecycle evidence/用量、external bind 串行化、scope create guard、含旧显式 Goal 确定性恢复的 exact Goal/revision/Execution continuation capability、终态 fence、取消/完成度/账号额度门槛）与 Goal 接力派发。
 //
 // 测试按 package 边界和行为聚合：realtime 白盒测试归入 state_test.go（状态/广播/派发锁）、
 // collaboration_test.go（协作与路由）、goal_runtime_test.go / goal_runtime_external_boundary_test.go /

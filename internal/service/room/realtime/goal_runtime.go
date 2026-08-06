@@ -1198,10 +1198,7 @@ func (s *Service) ensureModelCreatedRoomGoalBinding(
 		goalSessionKey,
 		goalID,
 		goal.ObjectiveRevision(),
-		protocol.GoalMetadataString(
-			goal.Metadata,
-			protocol.GoalMetadataExecutionID,
-		),
+		protocol.GoalReservedExecutionID(*goal),
 		roomGoalAuthorityModelCreate,
 	)
 	return goalID, goalSessionKey

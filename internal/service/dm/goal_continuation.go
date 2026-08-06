@@ -1,5 +1,5 @@
 // INPUT: DM Goal continuation plan、显式输入队列与当前 runtime 状态。
-// OUTPUT: 用户输入优先约束下经最终校验、原子 claim 后启动的隐藏续跑。
+// OUTPUT: 用户输入优先约束下经最终校验、使用稳定或旧记录恢复的 Execution reservation、原子 claim 后启动的隐藏续跑。
 // POS: DM 与 Goal 状态机之间的续跑适配层。
 package dm
 
@@ -183,10 +183,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	)
 	executionID := ""
 	if err == nil && validated != nil {
-		executionID = protocol.GoalMetadataString(
-			validated.Goal.Metadata,
-			protocol.GoalMetadataExecutionID,
-		)
+		executionID = protocol.GoalReservedExecutionID(validated.Goal)
 		if strings.TrimSpace(executionID) == "" {
 			err = errors.New("dm goal continuation requires an exact execution binding")
 		}

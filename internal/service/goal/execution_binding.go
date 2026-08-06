@@ -1,4 +1,4 @@
-// INPUT: active explicit Goal、预留 Execution identity、objective revision 与 completion criteria。
+// INPUT: active explicit Goal、持久化或可确定性恢复的预留 Execution identity、objective revision 与 completion criteria。
 // OUTPUT: 幂等 CAS 持久化的 Goal -> Execution metadata 及 execution_bound 审计事件。
 // POS: Goal 侧反向 binding 真相入口；Execution aggregate 的正向 binding 由 orchestration.BindGoal 管理。
 package goal
@@ -61,10 +61,7 @@ func (s *Service) BindExplicitExecution(
 				ErrGoalExecutionBindingConflict,
 			)
 		}
-		existingExecutionID := protocol.GoalMetadataString(
-			current.Metadata,
-			protocol.GoalMetadataExecutionID,
-		)
+		existingExecutionID := protocol.GoalReservedExecutionID(*current)
 		if existingExecutionID != "" && existingExecutionID != executionID {
 			return nil, fmt.Errorf(
 				"%w: Goal is already reserved for Execution %s",

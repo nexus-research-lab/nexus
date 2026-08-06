@@ -3,7 +3,13 @@
 // POS: nexus_execution 工具的模型调用协议。
 package tool
 
-import "github.com/nexus-research-lab/nexus/internal/protocol"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
+)
 
 func objectSchema(properties map[string]any, required ...string) map[string]any {
 	if properties == nil {
@@ -69,10 +75,28 @@ func getExecutionSchema() map[string]any {
 
 func preparePlanExecutionSchema() map[string]any {
 	return objectSchema(map[string]any{
-		"plan_document": nonEmptyStringProperty(
-			"Complete strict Nexus Plan Document v1 as one YAML string: nexus_plan is 1; operation is create, replan, or replace; item kind is produce, review, verify, or integrate; dependencies are logical-key string sequences; output scopes use file:<path>, dir:<path>, or semantic:<key>. Never send JSON objects, placeholders, fragments, or multiple documents.",
-		),
+		"plan_document": nonEmptyStringProperty(planDocumentSchemaDescription()),
 	}, "plan_document")
+}
+
+func planDocumentSchemaDescription() string {
+	contract := orchestration.ExecutionPlanDocumentSchemaContract()
+	return fmt.Sprintf(
+		"Complete strict Nexus Plan Document v%d as one YAML string; nexus_plan is 1. Parser-required root keys: %s. Allowed root keys only: %s. Every item requires: %s. Allowed item keys only: %s. Item kind is produce, review, verify, or integrate. Operation requirements: create: %s. replan: %s. replace: %s. Exact field corrections: dependencies is invalid; use %s. description is invalid; use %s. acceptance is invalid; use %s. scopes is invalid; use %s. Dependencies are logical-key string sequences. Output scopes use file:<path>, dir:<path>, or semantic:<key>. Minimal valid create example (replace the generic text with the actual plan):\n%s\nWhen a new Goal is required, finish create_goal before this call; never launch them in parallel. Never send JSON objects, placeholders, fragments, aliases, or multiple documents.",
+		contract.Version,
+		strings.Join(contract.ParserRequiredRootFields, ", "),
+		strings.Join(contract.AllowedRootFields, ", "),
+		strings.Join(contract.RequiredItemFields, ", "),
+		strings.Join(contract.AllowedItemFields, ", "),
+		contract.OperationRequirements["create"],
+		contract.OperationRequirements["replan"],
+		contract.OperationRequirements["replace"],
+		contract.CommonAliasCorrections["dependencies"],
+		contract.CommonAliasCorrections["description"],
+		contract.CommonAliasCorrections["acceptance"],
+		contract.CommonAliasCorrections["scopes"],
+		contract.MinimalValidCreateExample,
+	)
 }
 
 func planExecutionSchema() map[string]any {

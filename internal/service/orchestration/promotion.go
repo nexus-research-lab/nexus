@@ -244,10 +244,7 @@ func (s *Service) GoalExecutionCompletionBlocker(
 	if goal.ID == "" {
 		return "", nil
 	}
-	executionID := protocol.GoalMetadataString(
-		goal.Metadata,
-		protocol.GoalMetadataExecutionID,
-	)
+	executionID := protocol.GoalReservedExecutionID(goal)
 	activationOrigin := protocol.GoalActivationOrigin(protocol.GoalMetadataString(
 		goal.Metadata,
 		protocol.GoalMetadataActivationOrigin,

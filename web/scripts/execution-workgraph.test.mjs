@@ -981,6 +981,7 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
   const crowdedReturnGroup = crowdedReturnLayout.groups.find(
     (group) => group.id === "agent-run-1",
   );
+  const controlFrameSafeGap = 16;
   assert.equal(crowdedReturnEdges.length, 3);
   for (const returnEdge of crowdedReturnEdges) {
     for (const point of orthogonalPathPoints(returnEdge.path)) {
@@ -997,6 +998,17 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
           && point.y >= crowdedReturnGroup.y
           && point.y <= crowdedReturnGroup.y + crowdedReturnGroup.height,
         `return ${returnEdge.id} remains inside its owning subgraph frame`,
+      );
+      assert.ok(
+        point.x >= crowdedReturnGroup.x + controlFrameSafeGap
+          && point.x <= crowdedReturnGroup.x
+            + crowdedReturnGroup.width
+            - controlFrameSafeGap
+          && point.y >= crowdedReturnGroup.y + controlFrameSafeGap
+          && point.y <= crowdedReturnGroup.y
+            + crowdedReturnGroup.height
+            - controlFrameSafeGap,
+        `return ${returnEdge.id} keeps a visible safe gap from its subgraph frame`,
       );
     }
   }

@@ -29,7 +29,7 @@ const CONTROL_EDGE_KIND_LANE_GAP = 8;
 const CONTROL_EDGE_ROUTE_LANE_COUNT = 8;
 const CONTROL_EDGE_NODE_CLEARANCE = 4;
 const CONTROL_EDGE_PORT_STEP = 6;
-const CONTROL_EDGE_FRAME_INSET = 6;
+const CONTROL_EDGE_FRAME_SAFE_GAP = 16;
 const GROUP_PADDING = 40;
 const HORIZONTAL_PADDING = 24;
 const VERTICAL_PADDING = 24;
@@ -888,9 +888,10 @@ function buildControlEdgePath(
 }
 
 // 子节点先沿正常流程方向离开当前节点层，再从层外的水平轨道接入左右
-// 侧轨，最后水平进入父节点。同一子图、目标与侧面的回连允许选择完全
-// 相同的 U 形总线，仅保留各源节点自己的接入竖线；路由只把节点碰撞
-// 视为硬约束，不再为了躲避其他线条制造大量平行轨道。
+// 侧轨，最后水平进入父节点。子图内的左右侧轨与底部总线固定内缩到
+// 圆角框的安全槽中，避免线条贴住边框或圆角。同一子图、目标与侧面的回连
+// 允许选择完全相同的 U 形总线，仅保留各源节点自己的接入竖线；路由只把
+// 节点碰撞视为硬约束，不再为了躲避其他线条制造大量平行轨道。
 function buildSideControlEdgeCandidates(
   source: ExecutionGraphNodeLayout,
   target: ExecutionGraphNodeLayout,
@@ -922,8 +923,8 @@ function buildSideControlEdgeCandidates(
     const targetX = target.x + side * target.size / 2;
     const baseRailX = context.group
       ? side < 0
-        ? context.group.x + CONTROL_EDGE_FRAME_INSET
-        : context.group.x + context.group.width - CONTROL_EDGE_FRAME_INSET
+        ? context.group.x + CONTROL_EDGE_FRAME_SAFE_GAP
+        : context.group.x + context.group.width - CONTROL_EDGE_FRAME_SAFE_GAP
       : side < 0
         ? Math.min(source.x - source.size / 2, targetX) - CONTROL_EDGE_GUTTER
         : Math.max(source.x + source.size / 2, targetX) + CONTROL_EDGE_GUTTER;
@@ -934,10 +935,10 @@ function buildSideControlEdgeCandidates(
       const outerY = context.group
         ? returnsUpward
           ? context.group.y + context.group.height
-            - CONTROL_EDGE_FRAME_INSET
+            - CONTROL_EDGE_FRAME_SAFE_GAP
             - lane * CONTROL_EDGE_KIND_LANE_GAP
           : context.group.y
-            + CONTROL_EDGE_FRAME_INSET
+            + CONTROL_EDGE_FRAME_SAFE_GAP
             + lane * CONTROL_EDGE_KIND_LANE_GAP
         : sourceLayerBoundary
           + (returnsUpward ? 1 : -1)

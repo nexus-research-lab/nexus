@@ -268,6 +268,23 @@ func TestGoalExecutionCompletionBlockerFailsClosedForExplicitBinding(t *testing.
 	if blocker != "execution_binding_pending:explicit" {
 		t.Fatalf("blocker = %q", blocker)
 	}
+	legacyGoal := protocol.Goal{
+		ID:         "goal-explicit-legacy",
+		SessionKey: "session-legacy",
+		Metadata: map[string]any{
+			protocol.GoalMetadataExplicitCommand:  "explicit_goal_legacy",
+			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
+			protocol.GoalMetadataActivationReason: string(protocol.GoalActivationReasonPersistenceRequested),
+		},
+	}
+	blocker, err = service.GoalExecutionCompletionBlocker(context.Background(), legacyGoal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedLegacyID := protocol.ExplicitGoalReservedExecutionID("explicit_goal_legacy")
+	if blocker != "execution_binding_missing:"+expectedLegacyID {
+		t.Fatalf("legacy blocker = %q", blocker)
+	}
 
 	snapshot := executionSnapshot()
 	snapshot.Execution.GoalID = "goal-explicit"

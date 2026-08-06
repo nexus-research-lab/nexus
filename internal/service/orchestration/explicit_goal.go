@@ -1,6 +1,6 @@
-// INPUT: 当前 active explicit Goal 的应用层 preflight、Execution snapshot 与幂等 command identity。
-// OUTPUT: Goal -> Execution 预留 binding，以及 transient Execution -> explicit Goal 的无损 CAS binding。
-// POS: 显式 Goal 与 Execution 共享状态链的领域协调边界；Goal persistence 仍由应用层 gateway 负责。
+// INPUT: 当前 active explicit Goal 的只读 authority fence、Execution snapshot 与幂等 command identity。
+// OUTPUT: 带 canonical Goal objective 的 proposal activation、Goal -> Execution 预留 binding，以及 transient Execution -> explicit Goal 的无损 CAS binding。
+// POS: 显式 Goal 与 Execution 共享状态链的领域协调边界；Plan transport 不拥有 Goal objective，Goal persistence 仍由应用层 gateway 负责。
 package orchestration
 
 import (
@@ -41,6 +41,19 @@ type ExplicitGoalBindingRequest struct {
 	RootRoundID           string
 }
 
+// ExplicitGoalActivationRequest 只携带 proposal sealing 所需的 trusted
+// authority fence。Plan 文档中的 objective/criteria 不是 Goal activation 的
+// 权威输入；fresh Goal-bound create 必须从 activation 继承 canonical objective。
+type ExplicitGoalActivationRequest struct {
+	ExistingGoalID        string
+	GoalObjectiveRevision int64
+	OwnerUserID           string
+	SessionKey            string
+	ScopeKind             protocol.ExecutionScopeKind
+	ConversationID        string
+	AgentID               string
+}
+
 // ExplicitGoalBinding 是可直接写入 Execution aggregate root 的完整 Goal identity。
 type ExplicitGoalBinding struct {
 	ExecutionID           string
@@ -57,6 +70,7 @@ type ExplicitGoalBinding struct {
 type ExplicitGoalActivation struct {
 	GoalID                string
 	GoalObjectiveRevision int64
+	Objective             string
 	ActivationOrigin      protocol.GoalActivationOrigin
 	ActivationReason      protocol.GoalActivationReason
 	ReservedExecutionID   string
@@ -67,7 +81,7 @@ type ExplicitGoalActivation struct {
 type ExplicitGoalActivationResolver interface {
 	ResolveExplicitGoalActivation(
 		context.Context,
-		ExplicitGoalBindingRequest,
+		ExplicitGoalActivationRequest,
 	) (*ExplicitGoalActivation, error)
 }
 

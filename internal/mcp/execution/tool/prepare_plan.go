@@ -11,6 +11,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/execution/contract"
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
@@ -28,12 +29,12 @@ func preparePlanExecution(
 	guard := selectPlanTransportGuard(guards)
 	return sdktool.Tool{
 		Name: toolName,
-		Description: "Validate and durably seal one complete Nexus Plan Document v1 without mutating Execution, Plan, or Goal state. " +
-			"Pass the entire YAML document in plan_document as one non-empty string. Use nexus_plan: 1; operation create, replan, or replace; root objective, completion_criteria, optional revision controls, and items. " +
-			"Each item uses logical_key; kind produce, review, verify, or integrate; subject, objective, deliverable, acceptance_criteria, required, terminal; optional parent_logical_key; string-sequence depends_on, soft_depends_on, and input_refs; canonical file:<path>, dir:<path>, or semantic:<key> output_scopes and shared_output_scopes. " +
-			"Unknown keys, duplicate keys, aliases, custom tags, multiple documents, placeholders, invalid graphs, and stale target boundaries are rejected. " +
-			"On success, call plan_execution once with the returned proposal_id and proposal_digest. Preparation is allowed in Plan Mode because the proposal is non-authoritative and recoverable.",
-		SearchHint:  "prepare validate plan document yaml work graph proposal dependencies",
+		Description: "Validate and durably seal one complete Nexus Plan Document v1 without mutating state. " +
+			"Pass one YAML string with nexus_plan: 1; operation create, replan, or replace; and item kind produce, review, verify, or integrate. " +
+			"Every item requires exact keys logical_key, kind, subject, objective, and deliverable. See plan_document schema for the complete parser-backed fields and example, including acceptance_criteria, depends_on, and file:<path>, dir:<path>, or semantic:<key> scopes. " +
+			"For a Goal-bound graph, finish create_goal first; never launch it in parallel with preparation. Active-Goal create may omit only root objective; every create/replace requires completion_criteria. Replan preserves the current boundary. Change Goal via retarget_goal. " +
+			"Unknown keys and aliases are rejected. On success, call plan_execution with the returned receipt. Plan Mode may prepare.",
+		SearchHint:  "prepare validate plan document yaml work graph proposal depends_on acceptance_criteria",
 		InputSchema: preparePlanExecutionSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},
 		ContextHandler: func(
@@ -66,6 +67,9 @@ func preparePlanExecution(
 				},
 			)
 			if err != nil {
+				if result, ok := planDocumentRejectionResult(toolName, err); ok {
+					return result, nil
+				}
 				var domainErr *orchestration.DomainError
 				if errors.As(err, &domainErr) {
 					return mutationResult(orchestration.RejectedResult(nil, err, []orchestration.NextAction{{
@@ -76,18 +80,20 @@ func preparePlanExecution(
 				return transportErrorResult(err), nil
 			}
 			return jsonResult(map[string]any{
-				"outcome":                  "prepared",
-				"proposal_id":              proposal.ID,
-				"proposal_digest":          proposal.ContentDigest,
-				"proposal_status":          proposal.Status,
-				"operation":                proposal.Document.Operation,
-				"target_execution_id":      emptyStringToNil(proposal.TargetExecutionID),
-				"target_execution_version": proposal.TargetExecutionVersion,
-				"base_plan_id":             emptyStringToNil(proposal.BasePlanID),
-				"goal_id":                  emptyStringToNil(proposal.GoalID),
-				"goal_objective_revision":  proposal.GoalObjectiveRevision,
-				"item_count":               len(proposal.Document.Items),
-				"message":                  "Complete Plan proposal is sealed; commit it without changing the document.",
+				"outcome":                    "prepared",
+				"proposal_id":                proposal.ID,
+				"proposal_digest":            proposal.ContentDigest,
+				"proposal_status":            proposal.Status,
+				"operation":                  proposal.Document.Operation,
+				"target_execution_id":        emptyStringToNil(proposal.TargetExecutionID),
+				"target_execution_version":   proposal.TargetExecutionVersion,
+				"base_plan_id":               emptyStringToNil(proposal.BasePlanID),
+				"goal_id":                    emptyStringToNil(proposal.GoalID),
+				"goal_objective_revision":    proposal.GoalObjectiveRevision,
+				"objective_source":           planProposalObjectiveSource(proposal),
+				"completion_criteria_source": planProposalCompletionCriteriaSource(proposal),
+				"item_count":                 len(proposal.Document.Items),
+				"message":                    "Complete Plan proposal is sealed; commit it without changing the document.",
 				"next_actions": []orchestration.NextAction{{
 					Tool:   "plan_execution",
 					Reason: "pass this exact proposal_id and proposal_digest to atomically materialize the sealed Plan",
@@ -95,6 +101,61 @@ func preparePlanExecution(
 			}), nil
 		},
 	}
+}
+
+type planDocumentRepairResult struct {
+	Outcome          orchestration.MutationOutcome            `json:"outcome"`
+	ReasonCode       orchestration.ErrorCode                  `json:"reason_code"`
+	Message          string                                   `json:"message"`
+	NextActions      []orchestration.NextAction               `json:"next_actions,omitempty"`
+	DocumentContract orchestration.PlanDocumentSchemaContract `json:"document_contract"`
+}
+
+func planDocumentRejectionResult(
+	toolName string,
+	err error,
+) (sdktool.ToolResult, bool) {
+	var documentErr *orchestration.PlanDocumentError
+	var domainErr *orchestration.DomainError
+	isDocumentError := errors.As(err, &documentErr)
+	if errors.As(err, &domainErr) && domainErr.Code == orchestration.ErrorCodePlanDocumentInvalid {
+		isDocumentError = true
+	}
+	if !isDocumentError {
+		return sdktool.ToolResult{}, false
+	}
+	result := orchestration.RejectedResult(nil, err, []orchestration.NextAction{{
+		Tool:   toolName,
+		Reason: "rewrite the complete YAML once from document_contract; do not remove fields one by one or invent aliases",
+	}})
+	return jsonResult(planDocumentRepairResult{
+		Outcome:          result.Outcome,
+		ReasonCode:       result.ReasonCode,
+		Message:          result.Message,
+		NextActions:      result.NextActions,
+		DocumentContract: orchestration.ExecutionPlanDocumentSchemaContract(),
+	}), true
+}
+
+func planProposalObjectiveSource(proposal *protocol.ExecutionPlanProposal) string {
+	if proposal == nil {
+		return ""
+	}
+	if proposal.Document.Operation == protocol.ExecutionPlanProposalReplan {
+		return "execution"
+	}
+	if proposal.Document.Operation == protocol.ExecutionPlanProposalCreate &&
+		strings.TrimSpace(proposal.GoalID) != "" {
+		return "goal"
+	}
+	return "plan_document"
+}
+
+func planProposalCompletionCriteriaSource(proposal *protocol.ExecutionPlanProposal) string {
+	if proposal != nil && proposal.Document.Operation == protocol.ExecutionPlanProposalReplan {
+		return "execution"
+	}
+	return "plan_document"
 }
 
 func malformedPlanTransportResult(toolName, message string, attempt uint32) sdktool.ToolResult {

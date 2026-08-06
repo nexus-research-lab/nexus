@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -56,6 +57,32 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("平台 Skill 入口缺失 %s: %v", path, err)
 		}
+	}
+	graphControlPath := filepath.Join(
+		appfs.PlatformSkillRoot(),
+		".agents", "skills", "execution-orchestrator", "references", "graph-control.md",
+	)
+	graphControl, err := os.ReadFile(graphControlPath)
+	if err != nil {
+		t.Fatalf("读取已同步图控制契约失败: %v", err)
+	}
+	for _, exactField := range []string{
+		"logical_key",
+		"subject",
+		"objective",
+		"deliverable",
+		"acceptance_criteria",
+		"depends_on",
+		"soft_depends_on",
+		"output_scopes",
+		"shared_output_scopes",
+	} {
+		if !strings.Contains(string(graphControl), exactField) {
+			t.Fatalf("已同步图控制契约缺少精确字段 %q", exactField)
+		}
+	}
+	if !strings.Contains(string(graphControl), "不要根据单个报错逐字段删改") {
+		t.Fatal("已同步图控制契约缺少一次性完整修复指引")
 	}
 	linkPath := filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills")
 	if target, err := os.Readlink(linkPath); err == nil {

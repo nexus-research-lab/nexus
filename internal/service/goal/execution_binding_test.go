@@ -32,7 +32,7 @@ func TestBindExplicitExecutionIsIdempotentAndFenced(t *testing.T) {
 	input := ExplicitExecutionBinding{
 		GoalID:                    created.ID,
 		ExpectedObjectiveRevision: created.ObjectiveRevision(),
-		ExecutionID:               "execution-1",
+		ExecutionID:               protocol.ExplicitGoalReservedExecutionID("explicit-command-1"),
 		CompletionCriteria:        []string{" report accepted ", "tests pass"},
 		RoundID:                   "round-plan",
 	}
@@ -43,7 +43,7 @@ func TestBindExplicitExecutionIsIdempotentAndFenced(t *testing.T) {
 	if got := protocol.GoalMetadataString(
 		bound.Metadata,
 		protocol.GoalMetadataExecutionID,
-	); got != "execution-1" {
+	); got != input.ExecutionID {
 		t.Fatalf("execution binding = %q", got)
 	}
 	if bound.Version != created.Version+1 {

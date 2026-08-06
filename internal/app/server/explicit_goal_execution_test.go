@@ -61,6 +61,9 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 	goals := &stubExplicitGoalLifecycleService{}
 	executions := &stubExplicitExecutionService{}
 	coordinator := newExplicitGoalExecutionCoordinator(goals, executions)
+	expectedExecutionID := protocol.ExplicitGoalReservedExecutionID(
+		explicitGoalCommandID(request, request.Objective),
+	)
 
 	created, err := coordinator.Create(context.Background(), request)
 	if err != nil {
@@ -69,8 +72,24 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 	if got := protocol.GoalMetadataString(
 		created.Metadata,
 		protocol.GoalMetadataExecutionID,
-	); got != "" {
-		t.Fatalf("new Goal unexpectedly bound before Plan: %q", got)
+	); got != expectedExecutionID {
+		t.Fatalf("new Goal reservation = %q, want %q", got, expectedExecutionID)
+	}
+	activation, err := coordinator.ResolveExplicitGoalActivation(
+		context.Background(),
+		orchestrationsvc.ExplicitGoalActivationRequest{
+			OwnerUserID: request.OwnerUserID,
+			SessionKey:  request.SessionKey,
+			ScopeKind:   protocol.ExecutionScopeDM,
+			AgentID:     request.AgentID,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activation == nil || activation.ReservedExecutionID != expectedExecutionID ||
+		activation.Objective != request.Objective {
+		t.Fatalf("proposal activation = %#v", activation)
 	}
 	binding, err := coordinator.PrepareExplicitGoalBinding(
 		context.Background(),
@@ -88,7 +107,7 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if binding.ExecutionID != "execution-reserved" ||
+	if binding.ExecutionID != expectedExecutionID ||
 		binding.GoalID != created.ID ||
 		binding.ActivationOrigin != protocol.GoalActivationOriginUserExplicit {
 		t.Fatalf("binding = %#v", binding)
@@ -99,7 +118,7 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 	if got := protocol.GoalMetadataString(
 		goals.current.Metadata,
 		protocol.GoalMetadataExecutionID,
-	); got != "execution-reserved" {
+	); got != expectedExecutionID {
 		t.Fatalf("reserved Goal execution metadata = %q", got)
 	}
 
@@ -121,7 +140,7 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if replayed.ExecutionID != "execution-reserved" {
+	if replayed.ExecutionID != expectedExecutionID {
 		t.Fatalf("replayed binding = %#v", replayed)
 	}
 }
@@ -524,13 +543,12 @@ func TestResolveExplicitGoalActivationProjectsExistingReservedExecution(t *testi
 	)
 	activation, err := coordinator.ResolveExplicitGoalActivation(
 		context.Background(),
-		orchestrationsvc.ExplicitGoalBindingRequest{
+		orchestrationsvc.ExplicitGoalActivationRequest{
 			ExistingGoalID:        goal.ID,
 			GoalObjectiveRevision: goal.ObjectiveRevision(),
 			OwnerUserID:           "owner-1",
 			SessionKey:            goal.SessionKey,
 			ScopeKind:             protocol.ExecutionScopeDM,
-			Objective:             goal.Objective,
 			AgentID:               "agent-lead",
 		},
 	)
@@ -538,8 +556,46 @@ func TestResolveExplicitGoalActivationProjectsExistingReservedExecution(t *testi
 		t.Fatal(err)
 	}
 	if activation == nil || activation.ReservedExecutionID != "execution-reserved" ||
+		activation.Objective != goal.Objective ||
 		activation.ReplacesExecutionID != "execution-old" {
 		t.Fatalf("activation = %#v, want reserved Execution projection", activation)
+	}
+}
+
+func TestResolveExplicitGoalActivationRecoversLegacyExplicitReservation(t *testing.T) {
+	const commandID = "explicit_goal_legacy_command"
+	goal := &protocol.Goal{
+		ID:         "goal-legacy-reservation",
+		SessionKey: "agent:nexus:ws:dm:legacy-reservation",
+		Objective:  "Deliver a verified report",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID:      "owner-1",
+			protocol.GoalMetadataExplicitCommand:  commandID,
+			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
+			protocol.GoalMetadataActivationReason: string(protocol.GoalActivationReasonPersistenceRequested),
+		},
+	}
+	coordinator := newExplicitGoalExecutionCoordinator(
+		&stubExplicitGoalLifecycleService{current: goal},
+		&stubExplicitExecutionService{},
+	)
+	activation, err := coordinator.ResolveExplicitGoalActivation(
+		context.Background(),
+		orchestrationsvc.ExplicitGoalActivationRequest{
+			OwnerUserID: "owner-1",
+			SessionKey:  goal.SessionKey,
+			ScopeKind:   protocol.ExecutionScopeDM,
+			AgentID:     "agent-lead",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := protocol.ExplicitGoalReservedExecutionID(commandID)
+	if activation == nil || activation.ReservedExecutionID != expected {
+		t.Fatalf("legacy activation = %#v, want reservation %q", activation, expected)
 	}
 }
 
@@ -562,11 +618,10 @@ func TestResolveExplicitGoalActivationRejectsCrossOwnerGoal(t *testing.T) {
 	)
 	_, err := coordinator.ResolveExplicitGoalActivation(
 		context.Background(),
-		orchestrationsvc.ExplicitGoalBindingRequest{
+		orchestrationsvc.ExplicitGoalActivationRequest{
 			OwnerUserID: "owner-1",
 			SessionKey:  goal.SessionKey,
 			ScopeKind:   protocol.ExecutionScopeDM,
-			Objective:   goal.Objective,
 			AgentID:     "agent-lead",
 		},
 	)

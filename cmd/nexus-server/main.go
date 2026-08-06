@@ -76,6 +76,15 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("read migration version after compatibility repair: %w", err)
 		}
+		if err = migration.RepairLegacyExecutionIdentityClaimSchema(
+			context.Background(),
+			cfg.DatabaseDriver,
+			db,
+			version,
+			logger,
+		); err != nil {
+			return fmt.Errorf("repair legacy execution identity claim schema: %w", err)
+		}
 	}
 
 	logger.Info("执行数据库迁移", "current_version", version, "dir", dir)

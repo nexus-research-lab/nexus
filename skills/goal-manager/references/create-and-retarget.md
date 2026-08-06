@@ -26,7 +26,8 @@
 1. 形成 execution-ready objective。
 2. 调用 `get_goal` 确认当前会话没有未结束 Goal。
 3. 调用 `create_goal`；只有用户明确给出预算时才传 `token_budget`。
-4. 创建成功后用一句话确认目标，然后继续执行，不解释底层工具。
+4. 如果还要建立绑定该 Goal 的 WorkGraph，必须等待 `create_goal` 成功后再调用 `prepare_plan_execution`；二者不是独立动作，不得放进同一个并行工具批次。Plan 会从 active Goal 继承 exact objective。
+5. 创建成功后用一句话确认目标，然后继续执行，不解释底层工具。
 
 ## 纠正 objective
 

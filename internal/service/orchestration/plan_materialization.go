@@ -1,5 +1,5 @@
-// INPUT: sealed proposal id+digest、当前 trusted access identity 与 proposal recovery state。
-// OUTPUT: exact-fence CAS、稳定 command/Execution identity、原子 Plan materialization 与 durable Goal confirmation receipt。
+// INPUT: 带 canonical root boundary 的 sealed proposal id+digest、当前 trusted access identity 与 proposal recovery state。
+// OUTPUT: Goal ID/revision/objective/reservation exact-fence CAS、稳定 command/Execution identity、原子 Plan materialization 与 durable Goal confirmation receipt。
 // POS: ExecutionPlanProposal saga 的唯一权威提交和重放边界。
 package orchestration
 
@@ -376,7 +376,6 @@ func (s *Service) validateProposalTargetFence(
 		activation, resolveErr := s.resolveProposalGoalActivation(
 			ctx,
 			sealedActor,
-			proposal.Document,
 		)
 		if resolveErr != nil {
 			return nil, resolveErr
@@ -546,6 +545,7 @@ func proposalGoalActivationMatches(
 	}
 	return strings.TrimSpace(proposal.GoalID) == strings.TrimSpace(activation.GoalID) &&
 		proposal.GoalObjectiveRevision == activation.GoalObjectiveRevision &&
+		strings.TrimSpace(proposal.Document.Objective) == strings.TrimSpace(activation.Objective) &&
 		proposal.GoalActivationOrigin == activation.ActivationOrigin &&
 		proposal.GoalActivationReason == activation.ActivationReason &&
 		strings.TrimSpace(proposal.GoalReservedExecutionID) ==

@@ -1,6 +1,6 @@
 // INPUT: nexus_goal create/retarget/alignment/lifecycle request、当前 explicit Goal、current Execution 与 Goal/Orchestration 服务。
-// OUTPUT: create_goal -> Execution、Goal -> Ensure 的 binding saga 与 Goal 工具窄透传。
-// POS: Goal 与 Execution 两个领域服务之间的应用层协调器；不把跨域事务伪装成单库原子操作。
+// OUTPUT: create_goal -> Execution 稳定 reservation、带 canonical objective 的只读 Plan activation、严格 Goal/Execution binding saga 与 Goal 工具窄透传。
+// POS: Goal 与 Execution 两个领域服务之间的应用层协调器；Plan transport 不裁决 Goal objective，也不把跨域事务伪装成单库原子操作。
 package server
 
 import (
@@ -309,10 +309,7 @@ func (c *explicitGoalExecutionCoordinator) PrepareExplicitGoalBinding(
 	}
 
 	candidateID := strings.TrimSpace(request.CandidateExecutionID)
-	storedID := protocol.GoalMetadataString(
-		current.Metadata,
-		protocol.GoalMetadataExecutionID,
-	)
+	storedID := protocol.GoalReservedExecutionID(*current)
 	if request.ExistingExecution && storedID != "" && storedID != candidateID {
 		return nil, fmt.Errorf(
 			"%w: Goal is reserved for Execution %s, not current Execution %s",
@@ -383,7 +380,7 @@ func (c *explicitGoalExecutionCoordinator) PrepareExplicitGoalBinding(
 
 func (c *explicitGoalExecutionCoordinator) ResolveExplicitGoalActivation(
 	ctx context.Context,
-	request orchestrationsvc.ExplicitGoalBindingRequest,
+	request orchestrationsvc.ExplicitGoalActivationRequest,
 ) (*orchestrationsvc.ExplicitGoalActivation, error) {
 	if c == nil || c.goals == nil {
 		return nil, errors.New("explicit Goal activation resolver is unavailable")
@@ -404,7 +401,7 @@ func (c *explicitGoalExecutionCoordinator) ResolveExplicitGoalActivation(
 		}
 		return nil, orchestrationsvc.ErrExplicitGoalBindingConflict
 	}
-	if err = validateGoalForExplicitBinding(*current, request); err != nil {
+	if err = validateGoalForExplicitActivation(*current, request); err != nil {
 		return nil, err
 	}
 	if expectedGoalID := strings.TrimSpace(request.ExistingGoalID); expectedGoalID != "" &&
@@ -435,19 +432,17 @@ func (c *explicitGoalExecutionCoordinator) ResolveExplicitGoalActivation(
 	activation := &orchestrationsvc.ExplicitGoalActivation{
 		GoalID:                strings.TrimSpace(current.ID),
 		GoalObjectiveRevision: current.ObjectiveRevision(),
+		Objective:             strings.TrimSpace(current.Objective),
 		ActivationOrigin:      origin,
 		ActivationReason:      reason,
-		ReservedExecutionID: strings.TrimSpace(protocol.GoalMetadataString(
-			current.Metadata,
-			protocol.GoalMetadataExecutionID,
-		)),
+		ReservedExecutionID:   protocol.GoalReservedExecutionID(*current),
 	}
 	if transition, transitioning := goalsvc.ObjectiveTransitionFromGoal(*current); transitioning &&
 		transition.SuccessorExecutionID == activation.ReservedExecutionID &&
 		!transition.OldExecutionFenced {
 		activation.ReplacesExecutionID = strings.TrimSpace(transition.OldExecutionID)
 	}
-	if activation.GoalObjectiveRevision <= 0 ||
+	if activation.GoalObjectiveRevision <= 0 || activation.Objective == "" ||
 		(request.GoalObjectiveRevision > 0 &&
 			activation.GoalObjectiveRevision != request.GoalObjectiveRevision) ||
 		activation.ActivationOrigin == "" || activation.ActivationReason == "" {
@@ -554,10 +549,7 @@ func (c *explicitGoalExecutionCoordinator) RetargetGoalObjective(
 		if storedOwnerUserID != "" && storedOwnerUserID != ownerUserID {
 			return nil, fmt.Errorf("%w: Goal belongs to another owner", goalsvc.ErrGoalForbidden)
 		}
-		oldExecutionID := protocol.GoalMetadataString(
-			command.Goal.Metadata,
-			protocol.GoalMetadataExecutionID,
-		)
+		oldExecutionID := protocol.GoalReservedExecutionID(command.Goal)
 		materialized := false
 		if oldExecutionID != "" {
 			var ownerErr error
@@ -739,6 +731,32 @@ func validateGoalForExplicitBinding(
 	goal protocol.Goal,
 	request orchestrationsvc.ExplicitGoalBindingRequest,
 ) error {
+	if err := validateGoalForExplicitActivation(goal, orchestrationsvc.ExplicitGoalActivationRequest{
+		ExistingGoalID:        request.ExistingGoalID,
+		GoalObjectiveRevision: request.GoalObjectiveRevision,
+		OwnerUserID:           request.OwnerUserID,
+		SessionKey:            request.SessionKey,
+		ScopeKind:             request.ScopeKind,
+		ConversationID:        request.ConversationID,
+		AgentID:               request.AgentID,
+	}); err != nil {
+		return err
+	}
+	if strings.TrimSpace(goal.Objective) != strings.TrimSpace(request.Objective) {
+		return fmt.Errorf(
+			"%w: active Goal objective %q differs from Execution objective %q",
+			orchestrationsvc.ErrExplicitGoalObjectiveConflict,
+			goal.Objective,
+			request.Objective,
+		)
+	}
+	return nil
+}
+
+func validateGoalForExplicitActivation(
+	goal protocol.Goal,
+	request orchestrationsvc.ExplicitGoalActivationRequest,
+) error {
 	requestOwnerUserID := strings.TrimSpace(request.OwnerUserID)
 	if requestOwnerUserID == "" {
 		return fmt.Errorf(
@@ -781,14 +799,6 @@ func validateGoalForExplicitBinding(
 			orchestrationsvc.ErrExplicitGoalScopeConflict,
 		)
 	}
-	if strings.TrimSpace(goal.Objective) != strings.TrimSpace(request.Objective) {
-		return fmt.Errorf(
-			"%w: active Goal objective %q differs from Execution objective %q",
-			orchestrationsvc.ErrExplicitGoalObjectiveConflict,
-			goal.Objective,
-			request.Objective,
-		)
-	}
 	if goalScope == protocol.ExecutionScopeRoom {
 		leadAgentID := goalsvc.RoomLeadAgentID(goal)
 		if leadAgentID == "" || leadAgentID != strings.TrimSpace(request.AgentID) {
@@ -815,7 +825,7 @@ func explicitGoalMetadata(
 	metadata[protocol.GoalMetadataActivationOrigin] = string(protocol.GoalActivationOriginUserExplicit)
 	metadata[protocol.GoalMetadataActivationReason] = string(protocol.GoalActivationReasonPersistenceRequested)
 	if snapshot == nil {
-		delete(metadata, protocol.GoalMetadataExecutionID)
+		metadata[protocol.GoalMetadataExecutionID] = protocol.ExplicitGoalReservedExecutionID(commandID)
 		delete(metadata, protocol.GoalMetadataCompletionCriteria)
 		return metadata
 	}
@@ -855,7 +865,8 @@ func explicitGoalRetryMatches(
 		protocol.GoalMetadataExecutionID,
 	)
 	if snapshot == nil {
-		return executionID == ""
+		expectedID := protocol.ExplicitGoalReservedExecutionID(commandID)
+		return executionID == "" || executionID == expectedID
 	}
 	if executionID != snapshot.Execution.ID {
 		return false

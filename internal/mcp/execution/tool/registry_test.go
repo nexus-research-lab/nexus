@@ -9,6 +9,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/mcp/execution/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 )
 
 func TestBuildAllExposesOnlySemanticExecutionTools(t *testing.T) {
@@ -53,6 +54,34 @@ func TestPlanPreparationIsDurableButNotReadOnly(t *testing.T) {
 	} {
 		if got := readOnlyByName[name]; got != wantReadOnly {
 			t.Fatalf("%s read-only annotation = %t, want %t", name, got, wantReadOnly)
+		}
+	}
+}
+
+func TestGoalBoundPlanPreparationRequiresGoalFirst(t *testing.T) {
+	definitions := BuildAll(nil, contract.ServerContext{})
+	definitionIndex := -1
+	for i := range definitions {
+		if definitions[i].Name == "prepare_plan_execution" {
+			definitionIndex = i
+			break
+		}
+	}
+	if definitionIndex < 0 {
+		t.Fatal("prepare_plan_execution definition missing")
+	}
+	definition := definitions[definitionIndex]
+	for _, expected := range []string{"finish create_goal first", "never launch it in parallel"} {
+		if !strings.Contains(definition.Description, expected) {
+			t.Fatalf("prepare_plan_execution description missing %q: %s", expected, definition.Description)
+		}
+	}
+	properties := definition.InputSchema["properties"].(map[string]any)
+	planDocument := properties["plan_document"].(map[string]any)
+	description := planDocument["description"].(string)
+	for _, expected := range []string{"finish create_goal before this call", "never launch them in parallel"} {
+		if !strings.Contains(description, expected) {
+			t.Fatalf("plan_document description missing %q: %s", expected, description)
 		}
 	}
 }
@@ -124,10 +153,39 @@ func TestPlanToolSchemasExposeOnlyDocumentThenExactSealedReference(t *testing.T)
 		t.Fatalf("prepare schema = %#v", prepare.InputSchema)
 	}
 	planDocumentDescription := prepareProperties["plan_document"].(map[string]any)["description"].(string)
-	for _, requiredText := range []string{"nexus_plan is 1", "produce, review, verify, or integrate", "semantic:<key>"} {
+	planDocumentContract := orchestration.ExecutionPlanDocumentSchemaContract()
+	for _, requiredText := range []string{
+		"nexus_plan is 1",
+		"produce, review, verify, or integrate",
+		"semantic:<key>",
+		"active Goal",
+		"inherits the exact Goal objective",
+	} {
 		if !strings.Contains(planDocumentDescription, requiredText) {
 			t.Fatalf("plan_document description missing %q: %s", requiredText, planDocumentDescription)
 		}
+	}
+	for _, field := range append(
+		append([]string{}, planDocumentContract.AllowedRootFields...),
+		planDocumentContract.AllowedItemFields...,
+	) {
+		if !strings.Contains(planDocumentDescription, field) {
+			t.Fatalf("plan_document description missing parser field %q", field)
+		}
+	}
+	for alias, correction := range planDocumentContract.CommonAliasCorrections {
+		if !strings.Contains(planDocumentDescription, alias+" is invalid") ||
+			!strings.Contains(planDocumentDescription, correction) {
+			t.Fatalf("plan_document description missing alias correction %q -> %q", alias, correction)
+		}
+	}
+	for operation, requirement := range planDocumentContract.OperationRequirements {
+		if !strings.Contains(planDocumentDescription, operation+": "+requirement) {
+			t.Fatalf("plan_document description missing %s requirement %q", operation, requirement)
+		}
+	}
+	if !strings.Contains(planDocumentDescription, planDocumentContract.MinimalValidCreateExample) {
+		t.Fatal("plan_document description does not include the parser-valid create example")
 	}
 	commitProperties := commit.InputSchema["properties"].(map[string]any)
 	commitRequired := commit.InputSchema["required"].([]string)

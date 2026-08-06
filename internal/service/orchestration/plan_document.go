@@ -69,38 +69,14 @@ type parsedPlanItem struct {
 	fields map[string]planYAMLField
 }
 
-var planDocumentFields = map[string]struct{}{
-	"nexus_plan":            {},
-	"operation":             {},
-	"objective":             {},
-	"completion_criteria":   {},
-	"revision_reason":       {},
-	"supersede_active_work": {},
-	"replacement_reason":    {},
-	"items":                 {},
-}
+var planDocumentFields = planDocumentFieldSet(planDocumentAllowedRootFields)
 
-var planDocumentItemFields = map[string]struct{}{
-	"logical_key":           {},
-	"existing_work_item_id": {},
-	"kind":                  {},
-	"subject":               {},
-	"objective":             {},
-	"deliverable":           {},
-	"acceptance_criteria":   {},
-	"required":              {},
-	"terminal":              {},
-	"parent_logical_key":    {},
-	"depends_on":            {},
-	"soft_depends_on":       {},
-	"input_refs":            {},
-	"output_scopes":         {},
-	"shared_output_scopes":  {},
-}
+var planDocumentItemFields = planDocumentFieldSet(planDocumentAllowedItemFields)
 
 // ParseExecutionPlanDocument decodes exactly one strict YAML document. The
-// returned protocol document is the canonical typed value used for proposal
-// digesting; its WorkGraph arrays no longer retain YAML key or formatting order.
+// returned typed transport value has normalized WorkGraph arrays but becomes
+// digest-ready only after PreparePlanExecution resolves its operation-specific
+// root boundary authority.
 func ParseExecutionPlanDocument(
 	source string,
 ) (protocol.ExecutionPlanProposalDocument, PlanDraft, error) {

@@ -1,6 +1,6 @@
-// INPUT: 单个 strict Nexus Plan Document、trusted actor/scope/Goal identity 与当前 Execution snapshot。
-// OUTPUT: 跨 round 可恢复、不可变且绑定 exact target fence 的 sealed ExecutionPlanProposal。
-// POS: Provider 字符串传输与权威 Plan materialization 之间的非权威应用服务边界。
+// INPUT: 单个 strict Nexus Plan Document、trusted actor/scope/Goal authority 与当前 Execution snapshot。
+// OUTPUT: 按 Goal/document/current Execution 选择并 canonicalize root boundary、跨 round 可恢复且绑定 exact target fence 的 sealed ExecutionPlanProposal。
+// POS: Provider 字符串传输与权威 Plan materialization 之间的非权威应用服务边界；Goal-bound create 的 transport objective 不具备权威性。
 package orchestration
 
 import (
@@ -113,6 +113,19 @@ func (s *Service) PreparePlanExecution(
 	if err != nil {
 		return nil, err
 	}
+	var activation *ExplicitGoalActivation
+	if document.Operation == protocol.ExecutionPlanProposalCreate && snapshot == nil {
+		activation, err = s.resolveProposalGoalActivation(ctx, actor)
+		if err != nil {
+			return nil, err
+		}
+		if activation != nil {
+			// The active Goal owns the persistent objective. The provider may omit
+			// or paraphrase the transport field, but the sealed document and digest
+			// must carry the exact server-owned Goal boundary.
+			document.Objective = strings.TrimSpace(activation.Objective)
+		}
+	}
 	if err = s.validatePreparedPlanProposal(actor, document, draft, snapshot); err != nil {
 		return nil, err
 	}
@@ -153,10 +166,6 @@ func (s *Service) PreparePlanExecution(
 		proposal.GoalActivationOrigin = snapshot.Execution.GoalActivationOrigin
 		proposal.GoalActivationReason = snapshot.Execution.GoalActivationReason
 	} else {
-		activation, resolveErr := s.resolveProposalGoalActivation(ctx, actor, document)
-		if resolveErr != nil {
-			return nil, resolveErr
-		}
 		if activation != nil {
 			proposal.GoalID = activation.GoalID
 			proposal.GoalObjectiveRevision = activation.GoalObjectiveRevision
@@ -192,7 +201,6 @@ func (s *Service) PreparePlanExecution(
 func (s *Service) resolveProposalGoalActivation(
 	ctx context.Context,
 	actor ActorContext,
-	document protocol.ExecutionPlanProposalDocument,
 ) (*ExplicitGoalActivation, error) {
 	resolver, ok := s.explicitGoalGateway.(ExplicitGoalActivationResolver)
 	if !ok {
@@ -202,17 +210,14 @@ func (s *Service) resolveProposalGoalActivation(
 		return nil, domainError(ErrorCodeGoalBindingConflict,
 			"trusted Goal activation provenance is unavailable for Plan preparation")
 	}
-	activation, err := resolver.ResolveExplicitGoalActivation(ctx, ExplicitGoalBindingRequest{
+	activation, err := resolver.ResolveExplicitGoalActivation(ctx, ExplicitGoalActivationRequest{
 		ExistingGoalID:        strings.TrimSpace(actor.GoalID),
 		GoalObjectiveRevision: actor.GoalObjectiveRevision,
 		OwnerUserID:           strings.TrimSpace(actor.OwnerUserID),
 		SessionKey:            strings.TrimSpace(actor.SessionKey),
 		ScopeKind:             normalizedProposalScope(actor.ScopeKind),
 		ConversationID:        strings.TrimSpace(actor.ConversationID),
-		Objective:             strings.TrimSpace(document.Objective),
-		CompletionCriteria:    slices.Clone(document.CompletionCriteria),
 		AgentID:               strings.TrimSpace(actor.AgentID),
-		RootRoundID:           strings.TrimSpace(actor.RootRoundID),
 	})
 	if err != nil {
 		return nil, mapExplicitGoalGatewayError(err)
@@ -229,7 +234,9 @@ func (s *Service) resolveProposalGoalActivation(
 	activation.GoalID = strings.TrimSpace(activation.GoalID)
 	activation.ReservedExecutionID = strings.TrimSpace(activation.ReservedExecutionID)
 	activation.ReplacesExecutionID = strings.TrimSpace(activation.ReplacesExecutionID)
+	activation.Objective = strings.TrimSpace(activation.Objective)
 	if activation.GoalID == "" || activation.GoalObjectiveRevision <= 0 ||
+		activation.Objective == "" ||
 		activation.ActivationOrigin == "" || activation.ActivationReason == "" ||
 		(strings.TrimSpace(actor.GoalID) != "" && activation.GoalID != strings.TrimSpace(actor.GoalID)) ||
 		(actor.GoalObjectiveRevision > 0 &&
