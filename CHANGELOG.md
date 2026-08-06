@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restored K3-compatible WorkGraph authoring through the proven scalar `plan_document` transport and exact sealed-proposal commit, removing the failed wide incremental-item protocol; substantial tasks now prompt every Agent to assess useful Subagent decomposition, while Room coordinators create a managed graph only when responsibility or topology must persist and never replace structured Assignment with raw `@` dispatch.
+- Kept exact Goal-bound Room workers and reviewers in their scoped capability lanes after adaptive promotion instead of rejecting their next wake as a stale coordinator binding.
 - Kept the Header, mobile menu, and Composer WorkGraph dock hidden until `plan_execution` has atomically persisted an active Plan with non-empty Work Items; ordinary runtime-only Agent and Tool observations no longer make WorkGraph UI appear.
 - Made WorkGraph completeness explicit and recovery-safe: runtime projection now keeps the root and latest runs in a dedicated 256-node/512-edge UI window, reports partial totals instead of silently dropping current work, and persists exact Tool Artifact references independently of message/NodeRun arrival order.
 - Kept the last successful WebSocket-refreshed graph visibly marked as stale after a read failure, and made typed edges reliably mouse/keyboard-accessible and inspectable with source/target nodes, exact runtime identities, observed timestamps, and autonomy-preserving retry/control-return explanations; completed retry targets now remain visible from structural edge facts instead of a hard-coded tool-name list, and Gate nodes retain their distinct visual identity.

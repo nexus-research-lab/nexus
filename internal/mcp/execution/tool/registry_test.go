@@ -115,6 +115,12 @@ func TestPlanToolSchemasExposeOnlyDocumentThenExactSealedReference(t *testing.T)
 		!slices.Equal(prepareRequired, []string{"plan_document"}) {
 		t.Fatalf("prepare schema = %#v", prepare.InputSchema)
 	}
+	planDocumentDescription := prepareProperties["plan_document"].(map[string]any)["description"].(string)
+	for _, requiredText := range []string{"nexus_plan is 1", "produce, review, verify, or integrate", "semantic:<key>"} {
+		if !strings.Contains(planDocumentDescription, requiredText) {
+			t.Fatalf("plan_document description missing %q: %s", requiredText, planDocumentDescription)
+		}
+	}
 	commitProperties := commit.InputSchema["properties"].(map[string]any)
 	commitRequired := commit.InputSchema["required"].([]string)
 	if len(commitProperties) != 2 ||
@@ -152,6 +158,9 @@ func TestPlanToolSchemasExposeOnlyDocumentThenExactSealedReference(t *testing.T)
 
 	for _, requiredText := range []string{
 		"complete nexus plan document",
+		"nexus_plan: 1",
+		"produce, review, verify, or integrate",
+		"semantic:<key>",
 		"unknown keys",
 		"plan mode",
 		"plan_execution",

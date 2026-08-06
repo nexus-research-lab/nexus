@@ -29,10 +29,10 @@ func preparePlanExecution(
 	return sdktool.Tool{
 		Name: toolName,
 		Description: "Validate and durably seal one complete Nexus Plan Document v1 without mutating Execution, Plan, or Goal state. " +
-			"Pass the entire YAML document in plan_document as one non-empty string. The root keys are nexus_plan, operation, objective, completion_criteria, optional revision controls, and items. " +
-			"Each item declares logical_key, kind, subject, objective, deliverable, acceptance_criteria, required, terminal, parent_logical_key, depends_on, soft_depends_on, input_refs, output_scopes, and shared_output_scopes. " +
+			"Pass the entire YAML document in plan_document as one non-empty string. Use nexus_plan: 1; operation create, replan, or replace; root objective, completion_criteria, optional revision controls, and items. " +
+			"Each item uses logical_key; kind produce, review, verify, or integrate; subject, objective, deliverable, acceptance_criteria, required, terminal; optional parent_logical_key; string-sequence depends_on, soft_depends_on, and input_refs; canonical file:<path>, dir:<path>, or semantic:<key> output_scopes and shared_output_scopes. " +
 			"Unknown keys, duplicate keys, aliases, custom tags, multiple documents, placeholders, invalid graphs, and stale target boundaries are rejected. " +
-			"On success, call plan_execution once with the returned proposal_id and proposal_digest. Preparation is allowed in Plan Mode because the proposal is non-authoritative and recoverable across rounds/restarts.",
+			"On success, call plan_execution once with the returned proposal_id and proposal_digest. Preparation is allowed in Plan Mode because the proposal is non-authoritative and recoverable.",
 		SearchHint:  "prepare validate plan document yaml work graph proposal dependencies",
 		InputSchema: preparePlanExecutionSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},

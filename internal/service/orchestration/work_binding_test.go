@@ -938,6 +938,95 @@ func TestRoomExactGoalContinuationEntersCoordinationWithoutConversationBootstrap
 	}
 }
 
+func TestRoomExactGoalBoundWorkerKeepsScopedWorkCapability(t *testing.T) {
+	snapshot, binding := structuredRoomWorkBindingSnapshot()
+	snapshot.Execution.GoalID = "goal-room"
+	snapshot.Execution.GoalObjectiveRevision = 4
+	service := NewService(&fakeRepository{snapshot: snapshot})
+	actor := structuredRoomMemberActor(binding)
+	actor.GoalID = snapshot.Execution.GoalID
+	actor.GoalObjectiveRevision = snapshot.Execution.GoalObjectiveRevision
+
+	rendered, err := service.RuntimeContext(context.Background(), actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rendered, `<lane type="work" />`) ||
+		!strings.Contains(rendered, `<goal id="goal-room"`) ||
+		!strings.Contains(rendered, `assignment_id="assignment-1"`) ||
+		strings.Contains(rendered, `assignment_id="assignment-2"`) {
+		t.Fatalf("Goal-bound worker context = %s", rendered)
+	}
+
+	actor.GoalObjectiveRevision--
+	if _, err = service.RuntimeContext(context.Background(), actor); err == nil {
+		t.Fatal("stale Goal-bound worker revision was accepted")
+	} else {
+		var domainErr *DomainError
+		if !errors.As(err, &domainErr) ||
+			domainErr.Code != ErrorCodeGoalBindingConflict {
+			t.Fatalf("stale Goal-bound worker error = %v", err)
+		}
+	}
+
+	actor.GoalObjectiveRevision = snapshot.Execution.GoalObjectiveRevision
+	actor.WorkBinding = nil
+	if _, err = service.RuntimeContext(context.Background(), actor); err == nil {
+		t.Fatal("unbound non-coordinator reused the Room Goal capability")
+	} else {
+		var domainErr *DomainError
+		if !errors.As(err, &domainErr) ||
+			domainErr.Code != ErrorCodeGoalBindingConflict {
+			t.Fatalf("unbound Room member Goal error = %v", err)
+		}
+	}
+}
+
+func TestRoomExactGoalBoundMemberReviewerKeepsScopedReviewCapability(t *testing.T) {
+	snapshot, dispatch := reviewReturnSnapshot()
+	dispatch.TargetAgentID = "agent-reviewer"
+	snapshot.Assignments[0].ReturnToAgentID = dispatch.TargetAgentID
+	snapshot.ReviewDispatches[0] = dispatch
+	snapshot.Execution.GoalID = "goal-room"
+	snapshot.Execution.GoalObjectiveRevision = 4
+	actor := ActorContext{
+		OwnerUserID:           snapshot.Execution.OwnerUserID,
+		SessionKey:            snapshot.Execution.SessionKey,
+		ExecutionID:           snapshot.Execution.ID,
+		AgentID:               dispatch.TargetAgentID,
+		Role:                  ExecutionActorMember,
+		ActorKind:             protocol.ExecutionActorAgent,
+		ScopeKind:             protocol.ExecutionScopeRoom,
+		RoomID:                snapshot.Execution.RoomID,
+		ConversationID:        snapshot.Execution.ConversationID,
+		GoalID:                snapshot.Execution.GoalID,
+		GoalObjectiveRevision: snapshot.Execution.GoalObjectiveRevision,
+		ReviewBinding: &protocol.ExecutionReviewBinding{
+			ExecutionID:      dispatch.ExecutionID,
+			PlanID:           dispatch.PlanID,
+			WorkItemID:       dispatch.WorkItemID,
+			SpecID:           dispatch.SpecID,
+			AssignmentID:     dispatch.AssignmentID,
+			SubmissionID:     dispatch.SubmissionID,
+			ReviewDispatchID: dispatch.ID,
+			TargetAgentID:    dispatch.TargetAgentID,
+		},
+	}
+
+	rendered, err := NewService(&fakeRepository{snapshot: snapshot}).RuntimeContext(
+		context.Background(),
+		actor,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rendered, `<lane type="review" />`) ||
+		!strings.Contains(rendered, `<goal id="goal-room"`) ||
+		!strings.Contains(rendered, `<submission id="`+dispatch.SubmissionID+`"`) {
+		t.Fatalf("Goal-bound member reviewer context = %s", rendered)
+	}
+}
+
 func structuredRoomWorkBindingSnapshot() (
 	*protocol.ExecutionSnapshot,
 	protocol.ExecutionWorkBinding,

@@ -186,7 +186,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			"Goal 决定持续追求什么",
 			"最小选择表",
 			"references/structure-selection.md",
-			"参与人数、任务复杂度",
+			"每个 Agent 都先评估任务是否原子",
+			"用户有没有说“协作”",
 			"不因一次 handoff",
 		},
 		filepath.Join("execution-orchestrator", "references", "structure-selection.md"): {
@@ -196,6 +197,8 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 		},
 		filepath.Join("execution-orchestrator", "references", "graph-control.md"): {
 			"两层图",
+			"nexus_plan: 1",
+			"produce`、`review`、`verify` 或 `integrate",
 			"自审折叠在同一 Agent 节点",
 			"Goal 生命周期不是使用 Loop 的前提",
 		},

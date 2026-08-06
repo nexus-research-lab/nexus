@@ -9,6 +9,10 @@
 
 Task 属于 Agent 节点内部的局部步骤；Subagent 和 Tool 属于实际运行子图。不要把三者都提升成平级 Work Item，也不要用运行事件反向改写已经发生的责任历史。
 
+## Plan Document 传输
+
+需要建立或调整责任图时，把完整 YAML 作为单个 `plan_document` string 交给 `prepare_plan_execution`，校验成功后只把返回的 `proposal_id` 与 `proposal_digest` 原样交给一次 `plan_execution`。文档使用 `nexus_plan: 1`，`operation` 只能是 `create`、`replan` 或 `replace`；Work Item 的 `kind` 只能是 `produce`、`review`、`verify` 或 `integrate`；依赖字段是 logical key 的 string sequence；输出范围必须使用 `file:<path>`、`dir:<path>` 或 `semantic:<key>`。不要把对象或数组直接作为工具参数，也不要自行猜测旧字段或枚举。
+
 ## 并行与依赖
 
 - 输入稳定、输出责任不冲突且没有真实前置依赖时才并行。

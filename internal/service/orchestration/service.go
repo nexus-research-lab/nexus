@@ -1,5 +1,5 @@
 // INPUT: 当前 owner/session/actor/structured WorkBinding/ReviewBinding/round coordination 身份、Execution ensure/read 请求、explicit Goal gateway 与 SQL Repository port。
-// OUTPUT: 强制首次顶层完成标准、受 owner/session/scope/coordinator/Goal/Room binding 保护并支持 review-to-coordination 的 Execution snapshot。
+// OUTPUT: 强制首次顶层完成标准、受 owner/session/scope/coordinator/Goal/Room Work/Review binding 保护并支持 review-to-coordination 的 Execution snapshot。
 // POS: Execution Orchestration 应用服务入口；模型语义 command 见 commands.go。
 package orchestration
 
@@ -421,15 +421,18 @@ func (s *Service) runtimeContextSnapshot(
 	}
 	if goalID := strings.TrimSpace(actor.GoalID); goalID != "" ||
 		actor.GoalObjectiveRevision > 0 {
+		unboundCoordinatorMismatch := actor.WorkBinding == nil &&
+			actor.ReviewBinding == nil &&
+			strings.TrimSpace(snapshot.Execution.CoordinatorAgentID) !=
+				strings.TrimSpace(actor.AgentID)
 		if goalID == "" ||
 			actor.GoalObjectiveRevision <= 0 ||
 			strings.TrimSpace(snapshot.Execution.GoalID) != goalID ||
 			snapshot.Execution.GoalObjectiveRevision != actor.GoalObjectiveRevision ||
-			strings.TrimSpace(snapshot.Execution.CoordinatorAgentID) !=
-				strings.TrimSpace(actor.AgentID) {
+			unboundCoordinatorMismatch {
 			return nil, domainError(
 				ErrorCodeGoalBindingConflict,
-				"runtime Goal coordination binding is stale or does not match the current Execution",
+				"runtime Goal binding is stale or does not match the current Execution capability",
 			)
 		}
 	}
@@ -464,7 +467,9 @@ func (s *Service) RuntimeContext(ctx context.Context, actor ActorContext) (strin
 	}
 	options.ScopeKind = snapshot.Execution.ScopeKind
 	if strings.TrimSpace(actor.GoalID) != "" &&
-		actor.GoalObjectiveRevision > 0 {
+		actor.GoalObjectiveRevision > 0 &&
+		actor.WorkBinding == nil &&
+		actor.ReviewBinding == nil {
 		if err = s.ActivateRuntimeCoordination(ctx, actor, snapshot); err != nil {
 			return "", err
 		}

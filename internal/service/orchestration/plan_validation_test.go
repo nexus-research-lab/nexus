@@ -66,6 +66,16 @@ func TestValidatePlanDraftRejectsCycleAndUnknownDependency(t *testing.T) {
 	})
 }
 
+func TestValidatePlanDraftReportsSupportedWorkItemKinds(t *testing.T) {
+	draft := validPlanDraft()
+	draft.Items[0].Kind = protocol.WorkItemKind("task")
+	err := ValidatePlanDraft(draft)
+	assertDomainErrorCode(t, err, ErrorCodeInvalidInput)
+	if !strings.Contains(err.Error(), "produce, review, verify, or integrate") {
+		t.Fatalf("work item kind error is not actionable: %v", err)
+	}
+}
+
 func TestValidatePlanDraftEnforcesTypedOutputScopeConflicts(t *testing.T) {
 	t.Run("missing produce scope", func(t *testing.T) {
 		draft := validPlanDraft()

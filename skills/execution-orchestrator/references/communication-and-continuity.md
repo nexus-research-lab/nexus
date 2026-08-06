@@ -17,6 +17,8 @@
 
 需要持久责任时，先用结构化 Assignment 确立 owner 和 reviewer，再通过 Room 消息或定向消息传递实质上下文。完成后，内容通过消息或产物交回，Submission/Review 工具只记录不可变的交付与验收事实。
 
+Lead 应从任务实际结构判断是否需要持久成员责任，而不是检查用户有没有说“协作”。若完成任务需要多个持久成员分别拥有可追责交付，或存在依赖、并行、汇总、验收、恢复与连续性交接，就先准备完整 Plan Document，并提交服务端返回的 exact sealed proposal，再根据刷新后的 `ready_work` 创建 Assignment。图 materialize 前 `assign_work` 不可用是正常 bootstrap，不是改用裸 `@` 派活的理由。
+
 只想聊天、brainstorm、投票或获取一次性帮助时，直接使用普通消息和 `@`，不要创建 WorkGraph。成员名后的空格只影响可读性，后端会按已知别名匹配；不要依赖 mention 文本伪造 binding。
 
 父 Agent 与 Subagent 之间遵循同样原则：父 Agent 下发边界和已有证据，子 Agent 返回局部结果，父 Agent 负责整合与最终提交。

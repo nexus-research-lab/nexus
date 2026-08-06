@@ -208,6 +208,15 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	if strings.Contains(promptOptions.AppendDynamic, "## Execution Orchestration") {
 		t.Fatalf("DM dynamic prompt 不应重复 execution contract: %s", promptOptions.AppendDynamic)
 	}
+	for _, expected := range []string{
+		"Before substantial execution, every Agent assesses atomicity",
+		"Use native subagents inside its own responsibility",
+		"the parent integrates, verifies, and delivers",
+	} {
+		if !strings.Contains(promptOptions.AppendStatic, expected) {
+			t.Fatalf("DM 固定 execution contract 缺少全 Agent 自适应分解规则 %q: %s", expected, promptOptions.AppendStatic)
+		}
+	}
 	if !strings.Contains(appendSystemPrompt, "执行规则：必须先加载工作区规则") {
 		t.Fatalf("runtime prompt 未注入 AGENTS.md 内容: %s", appendSystemPrompt)
 	}

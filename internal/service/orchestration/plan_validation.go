@@ -125,7 +125,12 @@ func validateNormalizedPlanDraft(draft PlanDraft) error {
 			)
 		}
 		if !validWorkItemKind(item.Kind) {
-			return newDomainError(ErrorCodeInvalidInput, "unknown work item kind", item.LogicalKey, "")
+			return newDomainError(
+				ErrorCodeInvalidInput,
+				"unknown work item kind; expected produce, review, verify, or integrate",
+				item.LogicalKey,
+				"",
+			)
 		}
 		if item.Subject == "" || item.Objective == "" || item.Deliverable == "" {
 			return newDomainError(
