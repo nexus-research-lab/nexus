@@ -1,11 +1,91 @@
 package orchestration
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+type latestExecutionViewRepository struct {
+	*runtimeGraphRepositoryFake
+	current       *protocol.Execution
+	latest        *protocol.Execution
+	managedGraph  protocol.ExecutionRuntimeGraph
+	planlessGraph protocol.ExecutionRuntimeGraph
+}
+
+func (repository *latestExecutionViewRepository) FindCurrentManaged(
+	context.Context,
+	string,
+	string,
+) (*protocol.Execution, error) {
+	return repository.current, nil
+}
+
+func (repository *latestExecutionViewRepository) FindLatestManaged(
+	context.Context,
+	string,
+	string,
+) (*protocol.Execution, error) {
+	return repository.latest, nil
+}
+
+func (repository *latestExecutionViewRepository) GetRuntimeGraph(
+	_ context.Context,
+	_ string,
+	_ string,
+	executionID string,
+	_ string,
+) (protocol.ExecutionRuntimeGraph, error) {
+	if executionID == "" {
+		return repository.planlessGraph, nil
+	}
+	return repository.managedGraph, nil
+}
+
+func TestGetLatestViewKeepsTerminalManagedGraphAheadOfNewerPlanlessRound(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 15, 0, 0, 0, time.UTC)
+	snapshot := assignedExecutionSnapshot()
+	snapshot.Execution.Status = protocol.ExecutionStatusCompleted
+	snapshot.Execution.UpdatedAt = now
+	latest := snapshot.Execution
+	repository := &latestExecutionViewRepository{
+		runtimeGraphRepositoryFake: &runtimeGraphRepositoryFake{
+			fakeRepository: &fakeRepository{snapshot: snapshot},
+		},
+		latest: &latest,
+		planlessGraph: protocol.ExecutionRuntimeGraph{
+			GraphID: "round:later-chat",
+			Nodes: []protocol.ExecutionRuntimeNodeRun{{
+				ID:           "runtime-agent-later-chat",
+				Kind:         protocol.ExecutionRuntimeNodeAgent,
+				SubjectID:    "round-later-chat",
+				AgentRoundID: "round-later-chat",
+				AgentID:      "agent-1",
+				Status:       protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt:    now.Add(time.Minute),
+				UpdatedAt:    now.Add(time.Minute),
+			}},
+		},
+	}
+
+	view, err := NewService(repository).GetLatestView(
+		context.Background(),
+		snapshot.Execution.OwnerUserID,
+		snapshot.Execution.SessionKey,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view == nil || view.ID != snapshot.Execution.ID || view.Plan == nil ||
+		len(view.WorkItems) == 0 || view.Status != protocol.ExecutionStatusCompleted {
+		t.Fatalf("latest managed WorkGraph was replaced by a planless round: %+v", view)
+	}
+}
 
 func TestProjectExecutionViewPreservesResponsibilityAndAcceptanceFlow(t *testing.T) {
 	t.Parallel()

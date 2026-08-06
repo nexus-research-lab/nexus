@@ -30,7 +30,7 @@ func New(api *handlershared.API, executions executionViewer) *Handlers {
 	return &Handlers{api: api, executions: executions}
 }
 
-// HandleGetLatestExecution 返回 session 当前或最近一次 WorkGraph。
+// HandleGetLatestExecution 返回 session 当前或最近一次 managed WorkGraph。
 func (h *Handlers) HandleGetLatestExecution(
 	writer http.ResponseWriter,
 	request *http.Request,

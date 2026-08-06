@@ -1511,6 +1511,28 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
   assert.match(html, /data-execution-workgraph-canvas/);
   assert.match(html, /实现 UI/);
 
+  const runtimeOnlyHTML = await renderWithI18n(
+    React.createElement(ExecutionWorkGraphSurface, {
+      directory,
+      resource: {
+        dismiss: () => {},
+        error: null,
+        execution: {
+          ...execution,
+          plan: null,
+          work_items: [],
+        },
+        isLoading: false,
+        isStale: false,
+        lastSuccessfulAt: null,
+        refresh: () => {},
+      },
+      taskRuns: [],
+    }),
+  );
+  assert.doesNotMatch(runtimeOnlyHTML, /data-execution-workgraph-canvas/);
+  assert.match(runtimeOnlyHTML, />当前会话还没有工作图</);
+
   const partialHTML = await renderWithI18n(
     React.createElement(ExecutionWorkGraphSurface, {
       directory,
@@ -1543,12 +1565,7 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
   );
   const keyAsLabel = (key) => key;
   assert.equal(
-    buildRoomHeaderTabs(keyAsLabel, { workgraphAvailable: false })
-      .some((tab) => tab.key === "workgraph"),
-    false,
-  );
-  assert.equal(
-    buildRoomHeaderTabs(keyAsLabel, { workgraphAvailable: true })
+    buildRoomHeaderTabs(keyAsLabel)
       .some((tab) => tab.key === "workgraph"),
     true,
   );
@@ -1562,6 +1579,8 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
     desktopSurfaceSource,
     mobileSurfaceSource,
     headerSource,
+    headerOverflowSource,
+    desktopLayoutControllerSource,
     headerCss,
   ] =
     await Promise.all([
@@ -1599,6 +1618,14 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
       ), "utf8"),
       readFile(path.join(
         webRoot,
+        "src/features/conversation/room/surface/header/use-room-header-overflow-tabs.ts",
+      ), "utf8"),
+      readFile(path.join(
+        webRoot,
+        "src/features/conversation/room/surface/layout/use-room-surface-layout-controller.ts",
+      ), "utf8"),
+      readFile(path.join(
+        webRoot,
         "src/shared/ui/workspace/surface/workspace-surface-header.css",
       ), "utf8"),
     ]);
@@ -1609,9 +1636,9 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
   assert.match(groupProjectionSource, /scrollToRoundId\(roundId/);
   assert.match(dmProjectionSource, /isExecutionActivityVisible/);
   assert.match(groupProjectionSource, /isExecutionActivityVisible/);
-  assert.match(
+  assert.doesNotMatch(
     desktopSurfaceSource,
-    /hasManagedExecutionGraph\(\s*executionResource\.execution,?\s*\)/,
+    /hasManagedExecutionGraph/,
   );
   assert.match(
     mobileSurfaceSource,
@@ -1619,6 +1646,12 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
   );
   assert.match(shellSource, /executionResource=\{executionResource\}/);
   assert.match(headerSource, /key: "workgraph"/);
+  assert.doesNotMatch(headerSource, /workgraphAvailable/);
+  assert.doesNotMatch(headerOverflowSource, /workgraph:/);
+  assert.doesNotMatch(
+    desktopLayoutControllerSource,
+    /activeSurfaceTab === "workgraph"/,
+  );
   assert.match(headerCss, /workspace-surface-header-with-session-tabs[\s\S]*32px/);
 });
 

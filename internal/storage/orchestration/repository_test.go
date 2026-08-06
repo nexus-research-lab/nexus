@@ -123,6 +123,77 @@ func TestRepositoryEnforcesOneCurrentExecutionPerSession(t *testing.T) {
 	}
 }
 
+func TestRepositoryManagedExecutionViewWaitsForARealReplacementGraph(t *testing.T) {
+	repository := newRepositoryTestStore(t)
+	ctx := context.Background()
+	firstCommand := createTestCommand("view-first")
+	firstSnapshot, err := repository.Create(ctx, firstCommand)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstSnapshot, err = repository.WritePlan(
+		ctx,
+		testPlanCommand("view-first", firstSnapshot.Execution.Version, "view-first", "", 1),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repository.db.Exec(
+		`UPDATE executions SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE execution_id = ?`,
+		firstSnapshot.Execution.ID,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	secondCommand := createTestCommand("view-second")
+	secondCommand.Execution.SessionKey = firstCommand.Execution.SessionKey
+	secondSnapshot, err := repository.Create(ctx, secondCommand)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentManaged, err := repository.FindCurrentManaged(
+		ctx,
+		firstCommand.Execution.OwnerUserID,
+		firstCommand.Execution.SessionKey,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if currentManaged != nil {
+		t.Fatalf("transient replacement appeared as current WorkGraph: %+v", currentManaged)
+	}
+	latestManaged, err := repository.FindLatestManaged(
+		ctx,
+		firstCommand.Execution.OwnerUserID,
+		firstCommand.Execution.SessionKey,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if latestManaged == nil || latestManaged.ID != firstSnapshot.Execution.ID {
+		t.Fatalf("latest managed WorkGraph = %+v, want %s", latestManaged, firstSnapshot.Execution.ID)
+	}
+
+	secondSnapshot, err = repository.WritePlan(
+		ctx,
+		testPlanCommand("view-second", secondSnapshot.Execution.Version, "view-second", "", 1),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentManaged, err = repository.FindCurrentManaged(
+		ctx,
+		firstCommand.Execution.OwnerUserID,
+		firstCommand.Execution.SessionKey,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if currentManaged == nil || currentManaged.ID != secondSnapshot.Execution.ID {
+		t.Fatalf("new managed WorkGraph = %+v, want %s", currentManaged, secondSnapshot.Execution.ID)
+	}
+}
+
 func TestRepositoryRejectRetryAcceptTakeoverAndCompletion(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()

@@ -2,13 +2,12 @@
 
 /**
  * INPUT: 桌面 Room 会话、任务快照、右栏状态与页面命令。
- * OUTPUT: 将任务快照交给聊天 Bottom Dock，并仅在托管 Plan 成功创建后暴露工作图右栏。
+ * OUTPUT: 将任务快照交给聊天 Bottom Dock，并提供常驻的工作图右栏入口与无图空态。
  * POS: Room 桌面 Surface 的主内容装配层；对话视觉效果必须裁剪在聊天栏内。
  */
 
 import { cn } from "@/shared/ui/class-name";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
-import { hasManagedExecutionGraph } from "@/features/conversation/shared/execution/execution-process-model";
 
 import { RoomChatSurface } from "../room-chat-surface";
 import { RoomSurfaceAuxiliaryPanel } from "./room-surface-auxiliary-panel";
@@ -69,9 +68,6 @@ export function RoomSurfaceContent({
   surfaceSplitRef,
 }: RoomSurfaceContentProps) {
   const isDm = currentRoomType === "dm";
-  const workgraphAvailable = hasManagedExecutionGraph(
-    executionResource.execution,
-  );
   const layout = useRoomSurfaceLayoutController({
     activeSurfaceTab,
     conversationId,
@@ -81,7 +77,6 @@ export function RoomSurfaceContent({
     isThreadPanelOpen,
     onChangeSurfaceTab,
     roomId,
-    workgraphAvailable,
   });
 
   return (
@@ -121,7 +116,6 @@ export function RoomSurfaceContent({
               roomMembers={roomMembers}
               roomPrivateMessagesEnabled={roomPrivateMessagesEnabled}
               roomSkillNames={roomSkillNames}
-              workgraphAvailable={workgraphAvailable}
             />
           )}
         >

@@ -1,5 +1,5 @@
 // INPUT: Execution aggregate root、Goal binding 与 completion command。
-// OUTPUT: Execution 创建/查询、无损 Goal 绑定及受审计完成。
+// OUTPUT: Execution 创建/查询、managed WorkGraph 当前/历史选择、无损 Goal 绑定及受审计完成。
 // POS: Execution 生命周期的 SQL 真相边界。
 package orchestration
 
@@ -160,16 +160,50 @@ LIMIT 1`,
 	return &item, nil
 }
 
-// FindLatest 返回 session 最近一次 Execution，包含 terminal 结果供 UI 回看。
-func (r *Repository) FindLatest(
+// FindCurrentManaged 返回 session 最近的未终结 managed Execution。只有 active
+// Plan 已包含 Work Item 时才算正式 WorkGraph，transient Execution 不得替换旧图。
+func (r *Repository) FindCurrentManaged(
 	ctx context.Context,
 	ownerUserID string,
 	sessionKey string,
 ) (*protocol.Execution, error) {
+	return r.findManagedExecution(ctx, ownerUserID, sessionKey, true)
+}
+
+// FindLatestManaged 返回 session 最近一次正式 WorkGraph，包含 terminal 结果供 UI
+// 回看；后续 transient Execution 或 planless runtime round 不参与替换。
+func (r *Repository) FindLatestManaged(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+) (*protocol.Execution, error) {
+	return r.findManagedExecution(ctx, ownerUserID, sessionKey, false)
+}
+
+func (r *Repository) findManagedExecution(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+	currentOnly bool,
+) (*protocol.Execution, error) {
+	statusPredicate := ""
+	if currentOnly {
+		statusPredicate = `
+  AND executions.status IN ('active', 'waiting', 'paused')`
+	}
 	item, err := scanExecution(r.db.QueryRowContext(ctx, r.executionSelect()+`
-WHERE owner_user_id = `+r.bind(1)+`
-  AND session_key = `+r.bind(2)+`
-ORDER BY updated_at DESC, execution_id DESC
+WHERE executions.owner_user_id = `+r.bind(1)+`
+  AND executions.session_key = `+r.bind(2)+statusPredicate+`
+  AND EXISTS (
+      SELECT 1
+      FROM execution_plan_revisions plan
+      JOIN execution_plan_items item
+        ON item.plan_id = plan.plan_id
+       AND item.execution_id = plan.execution_id
+      WHERE plan.execution_id = executions.execution_id
+        AND plan.status = 'active'
+  )
+ORDER BY executions.updated_at DESC, executions.execution_id DESC
 LIMIT 1`,
 		strings.TrimSpace(ownerUserID),
 		strings.TrimSpace(sessionKey),

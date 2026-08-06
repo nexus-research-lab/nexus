@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前 session_key 与 Execution 只读 API。
- * OUTPUT: 带请求竞态保护、WS 失效合并、可见性恢复和低频兜底的 WorkGraph 资源。
+ * OUTPUT: 带请求竞态保护、WS 失效合并、最近 managed 图保留和低频兜底的 WorkGraph 资源。
  * POS: DM/Room 共用的 Execution 前端状态入口。
  */
 "use client";

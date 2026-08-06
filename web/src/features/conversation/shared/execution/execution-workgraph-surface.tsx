@@ -14,6 +14,7 @@ import { UiIconButton } from "@/shared/ui/button/button";
 import {
   EXECUTION_STATUS_LABEL_KEY,
   hasExecutionGraph,
+  hasManagedExecutionGraph,
   resolveExecutionNodeSummary,
   type ExecutionAgentDirectory,
 } from "./execution-process-model";
@@ -35,7 +36,9 @@ export function ExecutionWorkGraphSurface({
   taskRuns: readonly ConversationTaskRun[];
 }) {
   const { t } = useI18n();
-  const execution = resource.execution;
+  const execution = hasManagedExecutionGraph(resource.execution)
+    ? resource.execution
+    : null;
   const summary = execution ? resolveExecutionNodeSummary(execution) : null;
   const hasNodes = hasExecutionGraph(execution);
   const runtimeProjectionPartial = Boolean(

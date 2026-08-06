@@ -16,8 +16,14 @@ type latestExecutionRepository interface {
 	FindLatest(context.Context, string, string) (*protocol.Execution, error)
 }
 
+type managedExecutionViewRepository interface {
+	FindCurrentManaged(context.Context, string, string) (*protocol.Execution, error)
+	FindLatestManaged(context.Context, string, string) (*protocol.Execution, error)
+}
+
 // GetLatestView 返回 session 当前 Execution；没有未终结 Execution 时保留最近一次
-// terminal 结果，使用户能看到完成、取消或失败结论并自行收起。
+// terminal 结果，且后续 planless runtime round 不得覆盖这张正式 WorkGraph。
+// 只有从未创建过 managed Execution 时才回退到 runtime-only 诊断图。
 func (s *Service) GetLatestView(
 	ctx context.Context,
 	ownerUserID string,
@@ -31,33 +37,34 @@ func (s *Service) GetLatestView(
 	if s.repository == nil {
 		return nil, fmt.Errorf("orchestration repository is nil")
 	}
-	execution, err := s.repository.FindCurrent(ctx, ownerUserID, sessionKey)
+	var (
+		execution       *protocol.Execution
+		err             error
+		managedSelector bool
+	)
+	if managedRepository, ok := s.repository.(managedExecutionViewRepository); ok {
+		managedSelector = true
+		execution, err = managedRepository.FindCurrentManaged(ctx, ownerUserID, sessionKey)
+		if err == nil && execution == nil {
+			execution, err = managedRepository.FindLatestManaged(ctx, ownerUserID, sessionKey)
+		}
+	} else {
+		execution, err = s.repository.FindCurrent(ctx, ownerUserID, sessionKey)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if execution == nil {
-		planlessView, planlessErr := s.getPlanlessRuntimeGraphView(
-			ctx,
-			ownerUserID,
-			sessionKey,
-		)
-		if planlessErr != nil {
-			return nil, planlessErr
-		}
+	if execution == nil && !managedSelector {
 		latestRepository, ok := s.repository.(latestExecutionRepository)
-		if !ok {
-			return planlessView, nil
+		if ok {
+			execution, err = latestRepository.FindLatest(ctx, ownerUserID, sessionKey)
+			if err != nil {
+				return nil, err
+			}
 		}
-		execution, err = latestRepository.FindLatest(ctx, ownerUserID, sessionKey)
-		if err != nil {
-			return nil, err
-		}
-		if execution == nil {
-			return planlessView, nil
-		}
-		if planlessView != nil && planlessView.UpdatedAt.After(execution.UpdatedAt) {
-			return planlessView, nil
-		}
+	}
+	if execution == nil {
+		return s.getPlanlessRuntimeGraphView(ctx, ownerUserID, sessionKey)
 	}
 	snapshot, err := s.repository.GetSnapshot(ctx, execution.ID)
 	if err != nil || snapshot == nil {
