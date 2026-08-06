@@ -1,3 +1,5 @@
+import { UsersRound } from "lucide-react";
+
 import type { Agent } from "@/types/agent/agent";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
@@ -19,12 +21,15 @@ export function GroupMemberAvatarStack({
 
   return (
     <button
+      aria-label={t("room.members")}
       className="workspace-surface-header-control-segment workspace-surface-header-member-control flex h-9 items-center gap-1.5 px-2.5 text-xs font-medium text-(--text-default) transition-[background,color,box-shadow] duration-(--motion-duration-fast) hover:text-(--text-strong)"
       data-tour-anchor={tourAnchor}
       onClick={onClick}
+      title={t("room.members")}
       type="button"
     >
-      <div className="flex items-center -space-x-1.5">
+      <UsersRound className="workspace-surface-header-member-icon hidden h-3.5 w-3.5" />
+      <div className="workspace-surface-header-member-avatars flex items-center -space-x-1.5">
         {visibleMembers.map((member) => (
           <UiAgentAvatar
             avatar={member.avatar}
@@ -41,7 +46,7 @@ export function GroupMemberAvatarStack({
           </span>
         ) : null}
       </div>
-      <span className="hidden sm:inline">{t("room.members")}</span>
+      <span className="workspace-surface-header-member-label">{t("room.members")}</span>
     </button>
   );
 }

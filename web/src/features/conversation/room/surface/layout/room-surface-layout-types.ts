@@ -43,7 +43,6 @@ export interface RoomSurfaceLayoutProps {
   isResizingSidePanel: boolean;
   currentTodos: TodoItem[];
   surfaceSplitRef: RefObject<HTMLElement | null>;
-  onReplayTour?: () => void;
   onChangeSurfaceTab: (tab: RoomSurfaceTabKey) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;

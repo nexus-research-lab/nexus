@@ -207,6 +207,63 @@ test("新建定时任务弹窗切换计划时保持稳定尺寸", async () => {
   assert.doesNotMatch(dialog, /max-h-\[90vh\]/);
 });
 
+test("Room 中等宽度保留桌面工具栏并让右侧入口渐进收敛", async () => {
+  const [
+    layout,
+    roomHeader,
+    dmHeader,
+    groupHeader,
+    memberControl,
+    mobileMenu,
+    sharedHeader,
+    styles,
+  ] =
+    await Promise.all([
+      "src/lib/layout/home-layout.ts",
+      "src/features/conversation/room/surface/layout/room-surface-header.tsx",
+      "src/features/conversation/room/dm/dm-conversation-header.tsx",
+      "src/features/conversation/room/group/header/group-conversation-header.tsx",
+      "src/features/conversation/room/group/header/group-member-avatar-stack.tsx",
+      "src/features/conversation/room/surface/mobile/room-mobile-actions-menu.tsx",
+      "src/shared/ui/workspace/surface/workspace-surface-header.tsx",
+      "src/shared/ui/workspace/surface/workspace-surface-header.css",
+    ].map(readSource));
+
+  assert.match(layout, /CONVERSATION_FOCUS_MEDIA_QUERY = "\(max-width: 559px\)"/);
+  assert.match(roomHeader, /tab === activeSurfaceTab[\s\S]*?onCloseAuxiliaryPanel\(\)/);
+  assert.match(sharedHeader, /workspace-surface-header-view-tab-label/);
+  assert.doesNotMatch(sharedHeader, /onDismissActive/);
+  assert.doesNotMatch(dmHeader, /RoomHeaderGuideMenu|onReplayTour|collapsedTabs/);
+  assert.doesNotMatch(
+    groupHeader,
+    /RoomHeaderGuideMenu|onReplayTour|useMediaQuery|min-\[1120px\]|collapsedTabs/,
+  );
+  assert.match(groupHeader, /navigationTrailing={[\s\S]*?<GroupMemberAvatarStack/);
+  assert.match(memberControl, /workspace-surface-header-member-icon/);
+  assert.match(mobileMenu, /MoreHorizontal/);
+  assert.doesNotMatch(mobileMenu, /view_guide|Compass|onReplayTour/);
+  assert.doesNotMatch(
+    styles,
+    /workspace-surface-header-view-tab-item-(?:about|workspace|subagents)[\s\S]*?display:\s*none/,
+  );
+  assert.match(
+    styles,
+    /@container workspace-surface-header \(max-width: 720px\)[\s\S]*?workspace-surface-header-view-tab-label[\s\S]*?clip: rect\(0, 0, 0, 0\)/,
+  );
+  assert.match(
+    styles,
+    /workspace-surface-header-view-tab\[aria-pressed="true"\]:hover[\s\S]*?color-mix/,
+  );
+  assert.match(
+    styles,
+    /workspace-surface-header-with-session-tabs[\s\S]*?workspace-surface-header-inner[\s\S]*?padding-inline-end: 12px/,
+  );
+  assert.match(
+    styles,
+    /@container workspace-surface-header \(max-width: 720px\)[\s\S]*?workspace-surface-header-member-control[\s\S]*?workspace-surface-header-member-icon[\s\S]*?display: block/,
+  );
+});
+
 test("桌面更新入口在侧边栏底部直接启动原生更新", async () => {
   const [
     panel,

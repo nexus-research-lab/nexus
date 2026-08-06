@@ -66,7 +66,6 @@ interface RoomMobileSurfaceProps {
     path: string | null,
     workspaceAgentId?: string | null,
   ) => void;
-  onReplayTour?: () => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onSaveAgentOptions: (
     agentId: string,
@@ -114,7 +113,6 @@ export function RoomMobileSurface({
   onManageRoom,
   onOpenMemberManager,
   onOpenWorkspaceFile,
-  onReplayTour,
   onRoomEvent,
   onSaveAgentOptions,
   onSelectConversation,
@@ -227,7 +225,6 @@ export function RoomMobileSurface({
                 ? () => void handleOpenMemberList()
                 : undefined}
               onOpenAuxiliaryTab={handleOpenAuxiliaryTab}
-              onReplayTour={onReplayTour}
             />
           </>
         )}

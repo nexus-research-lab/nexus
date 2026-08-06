@@ -47,7 +47,6 @@ export function RoomSurfaceContent({
   onManageRoom,
   onOpenMemberManager,
   onOpenWorkspaceFile,
-  onReplayTour,
   onRoomEvent,
   onSaveAgentOptions,
   onSelectConversation,
@@ -103,7 +102,6 @@ export function RoomSurfaceContent({
               onDeleteConversation={onDeleteConversation}
               onManageRoom={onManageRoom}
               onOpenMemberManager={onOpenMemberManager}
-              onReplayTour={onReplayTour}
               onSelectConversation={onSelectConversation}
               onUpdateConversationTitle={onUpdateConversationTitle}
               roomAvatar={roomAvatar}

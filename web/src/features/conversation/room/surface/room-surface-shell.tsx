@@ -39,7 +39,6 @@ interface RoomSurfaceShellProps {
   isResizingSidePanel: boolean;
   currentTodos: TodoItem[];
   surfaceSplitRef: React.RefObject<HTMLElement | null>;
-  onReplayTour?: () => void;
   onBackToDirectory: () => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;
@@ -80,7 +79,6 @@ export function RoomSurfaceShell({
   isResizingSidePanel,
   currentTodos,
   surfaceSplitRef,
-  onReplayTour,
   onBackToDirectory,
   onCreateConversation,
   onSelectConversation,
@@ -148,7 +146,6 @@ export function RoomSurfaceShell({
         onCreateConversation={handleCreateConversationInShell}
         onDeleteConversation={onDeleteConversation}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
-        onReplayTour={onReplayTour}
         onRoomEvent={onRoomEvent}
         onSaveAgentOptions={onSaveAgentOptions}
         onSelectConversation={onSelectConversation}
@@ -186,7 +183,6 @@ export function RoomSurfaceShell({
       currentTodos={currentTodos}
       sidePanelWidthPercent={sidePanelWidthPercent}
       isResizingSidePanel={isResizingSidePanel}
-      onReplayTour={onReplayTour}
       onManageRoom={onManageRoom}
       onOpenMemberManager={onOpenMemberManager}
       onSaveAgentOptions={onSaveAgentOptions}
