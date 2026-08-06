@@ -9,7 +9,6 @@ import (
 	"maps"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
@@ -21,6 +20,11 @@ type Sender interface {
 	Key() string
 	IsClosed() bool
 	SendEvent(context.Context, protocol.EventMessage) error
+}
+
+// RoomBroadcaster 把带 Room 路由的人工交互事件投影给 Room 订阅者。
+type RoomBroadcaster interface {
+	Broadcast(context.Context, string, protocol.EventMessage) []error
 }
 
 type senderBinding struct {
@@ -47,7 +51,8 @@ type Context struct {
 	sessionRoutes   map[string]sessionRouteBinding
 	nextRouteLease  uint64
 	pendingRequests map[string]*PendingRequest
-	requestTimeout  time.Duration
+	pendingChanged  chan struct{}
+	roomBroadcaster RoomBroadcaster
 }
 
 // NewContext 创建权限运行时上下文。
@@ -57,8 +62,28 @@ func NewContext() *Context {
 		senderSessions:  make(map[string]map[string]struct{}),
 		sessionRoutes:   make(map[string]sessionRouteBinding),
 		pendingRequests: make(map[string]*PendingRequest),
-		requestTimeout:  time.Minute,
+		pendingChanged:  make(chan struct{}),
 	}
+}
+
+// SetRoomBroadcaster 注入 Room 事件广播器，让侧栏等房间级订阅者共享人工交互状态。
+func (c *Context) SetRoomBroadcaster(broadcaster RoomBroadcaster) {
+	c.mu.Lock()
+	c.roomBroadcaster = broadcaster
+	c.mu.Unlock()
+}
+
+// PendingRequestState 返回 runtime session 当前是否等待人工交互，以及下一次状态变化信号。
+// 调用方收到 changed 后必须重新读取；Context 会为每次变化轮换 channel。
+func (c *Context) PendingRequestState(sessionKey string) (pending bool, changed <-chan struct{}) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, request := range c.pendingRequests {
+		if request.SessionKey == sessionKey {
+			return true, c.pendingChanged
+		}
+	}
+	return false, c.pendingChanged
 }
 
 // BindSession 绑定 sender 到 session。
@@ -254,18 +279,10 @@ func (c *Context) RequestPermission(
 	pending := c.newPendingRequest(sessionKey, request)
 	c.mu.Lock()
 	c.pendingRequests[pending.RequestID] = pending
+	c.notifyPendingRequestsChangedLocked()
 	c.mu.Unlock()
 
 	go c.dispatchPendingRequest(pending)
-
-	timeout := c.requestTimeout
-	if deadline, ok := ctx.Deadline(); ok {
-		if remaining := time.Until(deadline); remaining > 0 && remaining < timeout {
-			timeout = remaining
-		}
-	}
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
 
 	select {
 	case decision := <-pending.ResponseCh:
@@ -274,14 +291,12 @@ func (c *Context) RequestPermission(
 	case <-ctx.Done():
 		c.finalizeRequest(pending, "cancelled")
 		return sdkpermission.Deny("Permission request cancelled", request.ToolName == "AskUserQuestion"), nil
-	case <-timer.C:
-		c.finalizeRequest(pending, "expired")
-		return sdkpermission.DenyWithErrorCode(
-			"Permission request timeout",
-			sdkpermission.ErrorCodeRequestTimeout,
-			request.ToolName == "AskUserQuestion",
-		), nil
 	}
+}
+
+func (c *Context) notifyPendingRequestsChangedLocked() {
+	close(c.pendingChanged)
+	c.pendingChanged = make(chan struct{})
 }
 
 // HandlePermissionResponse 处理前端提交的权限决策。

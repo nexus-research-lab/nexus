@@ -1,5 +1,5 @@
-// [INPUT]: 依赖 Room 订阅请求、权限校验、实时服务的活跃 slot 状态与当前 durable Room 序号。
-// [OUTPUT]: 先发送可为空/多 root 的权威 pending slot 快照，再从客户端游标或快照前捕获的序号边界建立订阅并补放期间的 durable server pending 事件。
+// [INPUT]: 依赖 Room 订阅请求、权限校验、活跃 slot、待确认人工交互与 durable Room 序号。
+// [OUTPUT]: 先发送权威执行/交互快照，再从游标或快照前序号边界建立订阅并补放期间的 durable 事件。
 // [POS]: websocket handler 的 Room 权威快照与无缝事件恢复入口。
 package websocket
 
@@ -31,7 +31,7 @@ func (h *Handler) handleSubscribeRoom(
 	if h.roomSubs != nil {
 		latestRoomSeq = h.roomSubs.CurrentRoomSeq(roomID)
 	}
-	h.restoreRoomPendingSlots(ctx, sender, roomID, conversationID)
+	h.restoreRoomActivitySnapshot(ctx, sender, roomID, conversationID)
 	if h.roomSubs != nil {
 		lastSeenRoomSeq := handlershared.Int64Value(inbound["last_seen_room_seq"])
 		replayBoundary := latestRoomSeq
@@ -97,13 +97,23 @@ func (h *Handler) validateRoomSubscription(ctx context.Context, roomID string, c
 	return nil
 }
 
-func (h *Handler) restoreRoomPendingSlots(
+func (h *Handler) restoreRoomActivitySnapshot(
 	ctx context.Context,
 	sender *handlershared.WebSocketSender,
 	roomID string,
 	conversationID string,
 ) {
-	if h.roomRealtime == nil || strings.TrimSpace(conversationID) == "" {
+	pendingInteractionRequestIDs := []string{}
+	if h.permission != nil {
+		pendingInteractionRequestIDs = h.permission.PendingRequestIDsForRoom(roomID, conversationID)
+	}
+	if strings.TrimSpace(conversationID) == "" {
+		event := protocol.NewChatPendingInteractionSnapshotEvent(pendingInteractionRequestIDs)
+		event.RoomID = roomID
+		_ = sender.SendEvent(ctx, event)
+		return
+	}
+	if h.roomRealtime == nil {
 		return
 	}
 
@@ -119,7 +129,12 @@ func (h *Handler) restoreRoomPendingSlots(
 
 	// 订阅恢复值是后端权威快照；即使为空也要发送，多 root 则由每个 slot
 	// 自己的 round_id 定位，以清除或重建浏览器中的运行占位。
-	event := protocol.NewChatPendingSnapshotEvent(sessionKey, roundID, pending)
+	event := protocol.NewChatPendingSnapshotEvent(
+		sessionKey,
+		roundID,
+		pending,
+		pendingInteractionRequestIDs,
+	)
 	event.RoomID = roomID
 	event.ConversationID = conversationID
 	event.RoundID = roundID

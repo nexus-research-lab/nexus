@@ -3,8 +3,8 @@
 // L2 | 父级: internal/runtime（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - round.go：ExecuteRound 阶段编排与单轮接收状态；显式中断后以 wire result
-//     排空共享流，本地后处理失败时保留已观察到的 terminal usage。
+//   - round.go：ExecuteRound 阶段编排与单轮接收状态；人工交互期间暂停空闲计时，
+//     显式中断后以 wire result 排空共享流，本地后处理失败时保留已观察到的 terminal usage。
 //   - model.go：RoundExecutionRequest/Result、RoundMapper、RoundMapResult、ErrRoundInterrupted。
 //   - stream_diagnostics.go / stream_error.go：流停止诊断、流关闭与空闲超时错误，
 //     以及隔离内部诊断与会话展示文案的投影入口。

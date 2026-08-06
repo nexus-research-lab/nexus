@@ -43,6 +43,32 @@ func TestDMRoomConversationIDOnlyAcceptsRoomDMExecutionKey(t *testing.T) {
 	}
 }
 
+func TestDMRoomPermissionRouteOnlyProjectsCanonicalWebSocketDM(t *testing.T) {
+	roomID := "room-1"
+	conversationID := "conversation-1"
+	session := protocol.Session{
+		RoomID:         &roomID,
+		ConversationID: &conversationID,
+	}
+	webSocketSessionKey := protocol.BuildRoomAgentSessionKey(
+		conversationID,
+		"agent-a",
+		protocol.RoomTypeDM,
+	)
+	gotRoomID, gotConversationID := dmRoomPermissionRoute(webSocketSessionKey, session)
+	if gotRoomID != roomID || gotConversationID != conversationID {
+		t.Fatalf("canonical DM 权限路由不正确: room=%q conversation=%q", gotRoomID, gotConversationID)
+	}
+
+	gotRoomID, gotConversationID = dmRoomPermissionRoute(
+		"agent:agent-a:telegram:dm:chat-1",
+		session,
+	)
+	if gotRoomID != "" || gotConversationID != "" {
+		t.Fatalf("外部 DM 不应投影到聊天侧栏: room=%q conversation=%q", gotRoomID, gotConversationID)
+	}
+}
+
 func TestDMBroadcastEventHasTotalTimeout(t *testing.T) {
 	previousTimeout := dmBroadcastTimeout
 	dmBroadcastTimeout = 20 * time.Millisecond

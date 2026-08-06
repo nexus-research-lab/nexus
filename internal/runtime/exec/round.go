@@ -1,5 +1,5 @@
-// INPUT: runtime query、SDK 消息流与 map/persist/emit 回调。
-// OUTPUT: 单轮终态；本地后处理失败时仍携带已收到的 provider terminal usage。
+// INPUT: runtime query、SDK 消息流、人工交互暂停信号与 map/persist/emit 回调。
+// OUTPUT: 排除人工等待时间的单轮终态；本地后处理失败时仍携带 provider terminal usage。
 // POS: runtime exec 包的 query → receive → map → persist → emit 主状态机。
 package exec
 
@@ -41,6 +41,8 @@ type roundExecution struct {
 	idleTimeout             time.Duration
 	idleTimer               *time.Timer
 	idleTimeoutCh           <-chan time.Time
+	idlePaused              bool
+	idlePauseChanged        <-chan struct{}
 	assistantTerminalResult *RoundExecutionResult
 	assistantTerminalTimer  <-chan time.Time
 }
@@ -102,9 +104,7 @@ func (e *roundExecution) query() error {
 
 func (e *roundExecution) receive() (RoundExecutionResult, error) {
 	e.startReceiving()
-	if e.idleTimer != nil {
-		defer e.idleTimer.Stop()
-	}
+	defer e.stopIdleTimer()
 	for {
 		if e.interruptedDrainRequired() {
 			return e.receiveInterruptedTerminal(nil)
@@ -121,10 +121,16 @@ func (e *roundExecution) receive() (RoundExecutionResult, error) {
 			}
 			return roundResultWithElapsed(*e.assistantTerminalResult, e.startedAt), nil
 		case <-e.idleTimeoutCh:
+			e.refreshIdlePauseState()
+			if e.idlePaused {
+				continue
+			}
 			if e.explicitInterruptRequested() {
 				return e.receiveInterruptedTerminal(nil)
 			}
 			return e.handleIdleTimeout()
+		case <-e.idlePauseChanged:
+			e.refreshIdlePauseState()
 		case incoming, ok := <-e.messageCh:
 			if e.interruptedDrainRequired() {
 				if !ok {
@@ -194,11 +200,7 @@ func (e *roundExecution) consumeInterruptedMessage(incoming *sdkprotocol.Receive
 
 func (e *roundExecution) startReceiving() {
 	e.messageCh = e.request.Client.ReceiveMessages(e.ctx)
-	if e.idleTimeout <= 0 {
-		return
-	}
-	e.idleTimer = time.NewTimer(e.idleTimeout)
-	e.idleTimeoutCh = e.idleTimer.C
+	e.refreshIdlePauseState()
 }
 
 func (e *roundExecution) handleIdleTimeout() (RoundExecutionResult, error) {
@@ -272,10 +274,60 @@ func (e *roundExecution) observeIncoming(incoming sdkprotocol.ReceivedMessage) {
 	e.messagesSeen++
 	e.lastMessage = incoming
 	e.streamDiagnostics.Observe(incoming, e.messagesSeen, time.Now())
-	resetRoundIdleTimer(e.idleTimer, e.idleTimeout)
+	e.refreshIdlePauseState()
+	if !e.idlePaused {
+		e.resetIdleTimer()
+	}
 	if e.request.ObserveIncomingMessage != nil {
 		e.request.ObserveIncomingMessage(incoming)
 	}
+}
+
+func (e *roundExecution) refreshIdlePauseState() {
+	if e.idleTimeout <= 0 {
+		return
+	}
+	wasPaused := e.idlePaused
+	paused := false
+	var changed <-chan struct{}
+	if e.request.IdlePauseState != nil {
+		paused, changed = e.request.IdlePauseState()
+	}
+	e.idlePaused = paused
+	e.idlePauseChanged = changed
+	if paused {
+		e.stopIdleTimer()
+		return
+	}
+	if wasPaused || e.idleTimer == nil {
+		e.resetIdleTimer()
+	}
+}
+
+func (e *roundExecution) resetIdleTimer() {
+	if e.idleTimeout <= 0 || e.idlePaused {
+		return
+	}
+	if e.idleTimer == nil {
+		e.idleTimer = time.NewTimer(e.idleTimeout)
+	} else {
+		resetRoundIdleTimer(e.idleTimer, e.idleTimeout)
+	}
+	e.idleTimeoutCh = e.idleTimer.C
+}
+
+func (e *roundExecution) stopIdleTimer() {
+	if e.idleTimer == nil {
+		e.idleTimeoutCh = nil
+		return
+	}
+	if !e.idleTimer.Stop() {
+		select {
+		case <-e.idleTimer.C:
+		default:
+		}
+	}
+	e.idleTimeoutCh = nil
 }
 
 func (e *roundExecution) syncSessionID(sessionID string) error {

@@ -235,6 +235,9 @@ func NewServiceWithFactory(
 // SetRoomBroadcaster 注入 Room 共享事件广播器。
 func (s *Service) SetRoomBroadcaster(broadcaster RoomBroadcaster) {
 	s.broadcaster = broadcaster
+	if s.permission != nil {
+		s.permission.SetRoomBroadcaster(broadcaster)
+	}
 }
 
 // SetLogger 注入业务日志实例。

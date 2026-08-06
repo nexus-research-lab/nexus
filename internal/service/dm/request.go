@@ -473,13 +473,24 @@ func (e *dmChatExecution) startRound() bool {
 		return false
 	}
 	e.roundCtx = roundCtx
+	roomID, conversationID := dmRoomPermissionRoute(e.sessionKey, e.session)
 	e.service.permission.BindSessionRoute(e.sessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: e.sessionKey,
+		RoomID:             roomID,
+		ConversationID:     conversationID,
 		AgentID:            e.agent.AgentID,
 		RoundID:            e.request.RoundID,
 		AgentRoundID:       e.request.AgentRoundID,
 	})
 	return true
+}
+
+func dmRoomPermissionRoute(sessionKey string, session protocol.Session) (string, string) {
+	if dmRoomConversationID(protocol.ParseSessionKey(sessionKey)) == "" {
+		return "", ""
+	}
+	return strings.TrimSpace(dmdomain.StringPointerValue(session.RoomID)),
+		strings.TrimSpace(dmdomain.StringPointerValue(session.ConversationID))
 }
 
 func (e *dmChatExecution) registerRunner() {

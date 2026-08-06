@@ -66,4 +66,5 @@ export const enCoreMessages = {
   "status.sending": "Sending",
   "status.replying": "Replying",
   "status.working": "Working",
+  "status.needs_response": "Needs response",
 } satisfies MessageSegment<typeof zhCoreMessages>;

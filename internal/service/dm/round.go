@@ -204,6 +204,9 @@ func (r *roundRunner) executeRound(
 		Client:           r.client,
 		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
 		IdleTimeout:      r.service.config.RuntimeRoundIdleTimeout(),
+		IdlePauseState: func() (bool, <-chan struct{}) {
+			return r.service.permission.PendingRequestState(r.sessionKey)
+		},
 		InterruptReason: func() string {
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
@@ -281,8 +284,11 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	r.rememberGoalAssistantMessage(message)
 	r.recordGoalUsageFromAssistantMessage(message)
 	if message["role"] == "assistant" {
+		roomID, conversationID := dmRoomPermissionRoute(r.sessionKey, r.session)
 		r.service.permission.BindSessionRoute(r.sessionKey, permissionctx.RouteContext{
 			DispatchSessionKey: r.sessionKey,
+			RoomID:             roomID,
+			ConversationID:     conversationID,
 			AgentID:            r.agent.AgentID,
 			MessageID:          dmdomain.NormalizeString(message["message_id"]),
 			RoundID:            r.roundID,

@@ -268,6 +268,9 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},
 		IdleTimeout:      e.service.config.RuntimeRoundIdleTimeout(),
+		IdlePauseState: func() (bool, <-chan struct{}) {
+			return e.service.permission.PendingRequestState(e.slot.RuntimeSessionKey)
+		},
 		InterruptReason: func() string {
 			return roomSlotInterruptReason(e.slot)
 		},

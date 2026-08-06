@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -112,6 +113,33 @@ type fakeRoundExecutionMapper struct {
 	results   []RoundMapResult
 	err       error
 	index     int
+}
+
+type fakeRoundIdlePauseState struct {
+	mu      sync.Mutex
+	paused  bool
+	changed chan struct{}
+}
+
+func newFakeRoundIdlePauseState() *fakeRoundIdlePauseState {
+	return &fakeRoundIdlePauseState{changed: make(chan struct{})}
+}
+
+func (s *fakeRoundIdlePauseState) Snapshot() (bool, <-chan struct{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.paused, s.changed
+}
+
+func (s *fakeRoundIdlePauseState) SetPaused(paused bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.paused == paused {
+		return
+	}
+	s.paused = paused
+	close(s.changed)
+	s.changed = make(chan struct{})
 }
 
 func (m *fakeRoundExecutionMapper) Map(
@@ -1304,5 +1332,56 @@ func TestExecuteRoundReturnsIdleTimeoutDiagnostics(t *testing.T) {
 	}
 	if client.interrupts != 1 || client.disconnects != 1 {
 		t.Fatalf("idle timeout 未中止 runtime client: interrupts=%d disconnects=%d", client.interrupts, client.disconnects)
+	}
+}
+
+func TestExecuteRoundPausesIdleTimeoutUntilInteractionResolves(t *testing.T) {
+	client := &fakeRoundExecutionClient{
+		sessionID:    "sdk-session-paused-idle",
+		messages:     make(chan sdkprotocol.ReceivedMessage),
+		receiveStart: make(chan struct{}, 1),
+	}
+	idlePause := newFakeRoundIdlePauseState()
+	done := make(chan error, 1)
+	go func() {
+		_, err := ExecuteRound(context.Background(), RoundExecutionRequest{
+			Query:          "等待用户确认",
+			Client:         client,
+			Mapper:         &fakeRoundExecutionMapper{},
+			IdleTimeout:    100 * time.Millisecond,
+			IdlePauseState: idlePause.Snapshot,
+		})
+		done <- err
+	}()
+
+	select {
+	case <-client.receiveStart:
+	case <-time.After(time.Second):
+		t.Fatal("round 未开始接收 runtime 消息")
+	}
+	idlePause.SetPaused(true)
+	select {
+	case err := <-done:
+		t.Fatalf("人工交互待确认期间不应触发 idle timeout: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	idlePause.SetPaused(false)
+	select {
+	case err := <-done:
+		t.Fatalf("人工交互结束后应重新获得完整 idle 窗口: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrRoundStreamIdleTimeout) {
+			t.Fatalf("恢复计时后的错误不正确: %v", err)
+		}
+		if client.interrupts != 1 || client.disconnects != 1 {
+			t.Fatalf("恢复后的真实 idle timeout 应中止 client: interrupts=%d disconnects=%d", client.interrupts, client.disconnects)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("人工交互结束后 idle timer 未恢复")
 	}
 }

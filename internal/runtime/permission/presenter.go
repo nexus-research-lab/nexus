@@ -42,7 +42,6 @@ func buildPermissionPayload(pending *PendingRequest) map[string]any {
 		"risk_label":       riskLabel,
 		"summary":          summarizeInput(pending.ToolName, pending.ToolInput),
 		"suggestions":      serializePermissionUpdates(pending.Suggestions),
-		"expires_at":       pending.ExpiresAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
 

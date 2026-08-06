@@ -17,6 +17,28 @@ type permissionTestSender struct {
 	events chan protocol.EventMessage
 }
 
+type permissionTestRoomBroadcaster struct {
+	roomIDs chan string
+	events  chan protocol.EventMessage
+}
+
+func newPermissionTestRoomBroadcaster() *permissionTestRoomBroadcaster {
+	return &permissionTestRoomBroadcaster{
+		roomIDs: make(chan string, 8),
+		events:  make(chan protocol.EventMessage, 8),
+	}
+}
+
+func (b *permissionTestRoomBroadcaster) Broadcast(
+	_ context.Context,
+	roomID string,
+	event protocol.EventMessage,
+) []error {
+	b.roomIDs <- roomID
+	b.events <- event
+	return nil
+}
+
 func newPermissionTestSender(key string) *permissionTestSender {
 	return &permissionTestSender{
 		key:    key,
@@ -64,18 +86,32 @@ func TestContextRequestPermissionAndReplay(t *testing.T) {
 	if firstEvent.Data["tool_name"] != "Read" {
 		t.Fatalf("tool_name 不正确: %+v", firstEvent.Data)
 	}
+	if _, ok := firstEvent.Data["expires_at"]; ok {
+		t.Fatalf("不限时请求不应下发 expires_at: %+v", firstEvent.Data)
+	}
+	firstRequestID, _ := firstEvent.Data["request_id"].(string)
+	if firstRequestID == "" {
+		t.Fatalf("request_id 为空: %+v", firstEvent.Data)
+	}
 
 	ctx.UnbindSession(sessionKey, senderA)
+	select {
+	case decision := <-resultCh:
+		t.Fatalf("断线等待期间不应自动结束: %+v", decision)
+	case <-time.After(20 * time.Millisecond):
+	}
 	ctx.BindSession(sessionKey, senderB)
 
 	replayed := readPermissionEventByType(t, senderB.events, protocol.EventTypePermissionRequest)
 	if replayed.EventType != protocol.EventTypePermissionRequest {
 		t.Fatalf("期望重放 permission_request，实际: %+v", replayed)
 	}
-
 	requestID, _ := replayed.Data["request_id"].(string)
-	if requestID == "" {
-		t.Fatalf("request_id 为空: %+v", replayed.Data)
+	if requestID != firstRequestID {
+		t.Fatalf("重连必须重放同一 pending 请求: got %q, want %q", requestID, firstRequestID)
+	}
+	if _, ok := replayed.Data["expires_at"]; ok {
+		t.Fatalf("重放的不限时请求不应下发 expires_at: %+v", replayed.Data)
 	}
 	if !ctx.HandlePermissionResponse(map[string]any{
 		"request_id": requestID,
@@ -105,10 +141,10 @@ func TestContextRequestPermissionAndReplay(t *testing.T) {
 	}
 }
 
-func TestContextReplayPendingRequestsUsesStableExpirationAndRequestOrder(t *testing.T) {
+func TestContextReplayPendingRequestsUsesStableCreationAndRequestOrder(t *testing.T) {
 	ctx := NewContext()
 	sessionKey := "agent:nexus:ws:dm:test-replay-order"
-	expiresAt := time.Now().Add(time.Minute)
+	createdAt := time.Now()
 	pendingRequests := []*PendingRequest{
 		{
 			RequestID:          "permission-later",
@@ -116,7 +152,7 @@ func TestContextReplayPendingRequestsUsesStableExpirationAndRequestOrder(t *test
 			DispatchSessionKey: sessionKey,
 			ToolName:           "Read",
 			ToolInput:          map[string]any{"file_path": "/tmp/later"},
-			ExpiresAt:          expiresAt.Add(time.Second),
+			CreatedAt:          createdAt.Add(time.Second),
 		},
 		{
 			RequestID:          "permission-b",
@@ -124,7 +160,7 @@ func TestContextReplayPendingRequestsUsesStableExpirationAndRequestOrder(t *test
 			DispatchSessionKey: sessionKey,
 			ToolName:           "Read",
 			ToolInput:          map[string]any{"file_path": "/tmp/b"},
-			ExpiresAt:          expiresAt,
+			CreatedAt:          createdAt,
 		},
 		{
 			RequestID:          "permission-a",
@@ -132,7 +168,7 @@ func TestContextReplayPendingRequestsUsesStableExpirationAndRequestOrder(t *test
 			DispatchSessionKey: sessionKey,
 			ToolName:           "Read",
 			ToolInput:          map[string]any{"file_path": "/tmp/a"},
-			ExpiresAt:          expiresAt,
+			CreatedAt:          createdAt,
 		},
 	}
 
@@ -146,7 +182,7 @@ func TestContextReplayPendingRequestsUsesStableExpirationAndRequestOrder(t *test
 		DispatchSessionKey: "agent:nexus:ws:dm:other",
 		ToolName:           "Read",
 		ToolInput:          map[string]any{"file_path": "/tmp/other"},
-		ExpiresAt:          expiresAt.Add(-time.Second),
+		CreatedAt:          createdAt.Add(-time.Second),
 	}
 	ctx.mu.Unlock()
 
@@ -165,19 +201,20 @@ func TestContextReplayPendingRequestsUsesStableExpirationAndRequestOrder(t *test
 	}
 }
 
-func TestContextRequestPermissionTimeoutBroadcastsResolved(t *testing.T) {
+func TestContextRequestPermissionWaitsUntilContextCancelled(t *testing.T) {
 	ctx := NewContext()
-	ctx.requestTimeout = 20 * time.Millisecond
-	sessionKey := "agent:nexus:ws:dm:test-timeout"
-	sender := newPermissionTestSender("sender-timeout")
+	sessionKey := "agent:nexus:ws:dm:test-context-cancel"
+	sender := newPermissionTestSender("sender-context-cancel")
 	ctx.BindSession(sessionKey, sender)
 
+	requestCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	resultCh := make(chan sdkpermission.Decision, 1)
 	go func() {
-		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkpermission.Request{
-			ToolName: "Read",
+		decision, _ := ctx.RequestPermission(requestCtx, sessionKey, sdkpermission.Request{
+			ToolName: "AskUserQuestion",
 			Input: map[string]any{
-				"file_path": "README.md",
+				"questions": []any{},
 			},
 		})
 		resultCh <- decision
@@ -187,24 +224,139 @@ func TestContextRequestPermissionTimeoutBroadcastsResolved(t *testing.T) {
 	if requestEvent.EventType != protocol.EventTypePermissionRequest {
 		t.Fatalf("期望 permission_request，实际: %+v", requestEvent)
 	}
-	resolved := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequestResolved)
-	if resolved.EventType != protocol.EventTypePermissionRequestResolved {
-		t.Fatalf("期望 permission_request_resolved，实际: %+v", resolved)
+	select {
+	case decision := <-resultCh:
+		t.Fatalf("人工交互不应按墙钟自动结束: %+v", decision)
+	case <-time.After(20 * time.Millisecond):
 	}
-	if resolved.Data["status"] != "expired" {
-		t.Fatalf("timeout resolved status 不正确: %+v", resolved.Data)
-	}
+	cancel()
 
 	select {
 	case decision := <-resultCh:
 		if decision.Behavior != sdkpermission.BehaviorDeny {
 			t.Fatalf("期望 deny，实际: %+v", decision)
 		}
-		if decision.ErrorCode != sdkpermission.ErrorCodeRequestTimeout {
-			t.Fatalf("期望结构化 timeout error code，实际: %+v", decision)
+		if !decision.Interrupt {
+			t.Fatalf("AskUserQuestion 随 context 取消时应中断当前交互: %+v", decision)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("等待超时结果失败")
+		t.Fatal("等待 context 取消结果失败")
+	}
+
+	resolved := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequestResolved)
+	if resolved.EventType != protocol.EventTypePermissionRequestResolved {
+		t.Fatalf("期望 permission_request_resolved，实际: %+v", resolved)
+	}
+	if resolved.Data["status"] != "cancelled" {
+		t.Fatalf("context 取消 resolved status 不正确: %+v", resolved.Data)
+	}
+}
+
+func TestContextPendingStateTracksRequestLifecycle(t *testing.T) {
+	ctx := NewContext()
+	sessionKey := "agent:nexus:ws:dm:test-pending-state"
+	sender := newPermissionTestSender("sender-pending-state")
+	ctx.BindSession(sessionKey, sender)
+	pending, changed := ctx.PendingRequestState(sessionKey)
+	if pending {
+		t.Fatal("初始 session 不应处于待确认状态")
+	}
+
+	resultCh := make(chan sdkpermission.Decision, 1)
+	go func() {
+		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkpermission.Request{
+			ToolName: "Write",
+			Input:    map[string]any{"file_path": "README.md"},
+		})
+		resultCh <- decision
+	}()
+	requestEvent := readPermissionEventByType(t, sender.events, protocol.EventTypePermissionRequest)
+	select {
+	case <-changed:
+	case <-time.After(time.Second):
+		t.Fatal("pending 登记后未发布状态变化")
+	}
+	pending, changed = ctx.PendingRequestState(sessionKey)
+	if !pending {
+		t.Fatal("权限请求等待期间应暂停 round idle timer")
+	}
+
+	if !ctx.HandlePermissionResponse(map[string]any{
+		"request_id": requestEvent.Data["request_id"],
+		"decision":   "deny",
+	}) {
+		t.Fatal("处理 permission_response 失败")
+	}
+	select {
+	case <-changed:
+	case <-time.After(time.Second):
+		t.Fatal("pending 结束后未发布状态变化")
+	}
+	if pending, _ = ctx.PendingRequestState(sessionKey); pending {
+		t.Fatal("拒绝后应恢复 round idle timer")
+	}
+	select {
+	case <-resultCh:
+	case <-time.After(time.Second):
+		t.Fatal("权限请求未在拒绝后结束")
+	}
+}
+
+func TestContextProjectsPendingLifecycleAndRoomSnapshot(t *testing.T) {
+	ctx := NewContext()
+	broadcaster := newPermissionTestRoomBroadcaster()
+	ctx.SetRoomBroadcaster(broadcaster)
+	sessionKey := "agent:nexus:ws:dm:test-room-projection"
+	ctx.BindSessionRoute(sessionKey, RouteContext{
+		DispatchSessionKey: sessionKey,
+		RoomID:             "room-1",
+		ConversationID:     "conversation-1",
+		RoundID:            "round-1",
+	})
+
+	resultCh := make(chan sdkpermission.Decision, 1)
+	go func() {
+		decision, _ := ctx.RequestPermission(context.Background(), sessionKey, sdkpermission.Request{
+			ToolName: "AskUserQuestion",
+			Input:    map[string]any{"questions": []any{}},
+		})
+		resultCh <- decision
+	}()
+	requestEvent := readPermissionEventByType(t, broadcaster.events, protocol.EventTypePermissionRequest)
+	if roomID := <-broadcaster.roomIDs; roomID != "room-1" {
+		t.Fatalf("Room 投影目标不正确: %q", roomID)
+	}
+	if requestEvent.DeliveryMode != protocol.DeliveryModeDurable {
+		t.Fatalf("Room 人工交互事件必须可按 room_seq 重放: %+v", requestEvent)
+	}
+	requestID, _ := requestEvent.Data["request_id"].(string)
+	if got := ctx.PendingRequestIDsForRoom("room-1", "conversation-1"); !slices.Equal(got, []string{requestID}) {
+		t.Fatalf("Room pending 快照不正确: %v", got)
+	}
+	if got := ctx.PendingRequestIDsForRoom("room-1", "conversation-other"); len(got) != 0 {
+		t.Fatalf("会话过滤不正确: %v", got)
+	}
+
+	if !ctx.HandlePermissionResponse(map[string]any{
+		"request_id": requestID,
+		"decision":   "allow",
+	}) {
+		t.Fatal("处理 permission_response 失败")
+	}
+	resolved := readPermissionEventByType(t, broadcaster.events, protocol.EventTypePermissionRequestResolved)
+	if roomID := <-broadcaster.roomIDs; roomID != "room-1" {
+		t.Fatalf("Room resolved 投影目标不正确: %q", roomID)
+	}
+	if resolved.DeliveryMode != protocol.DeliveryModeDurable {
+		t.Fatalf("Room resolved 事件必须可按 room_seq 重放: %+v", resolved)
+	}
+	if got := ctx.PendingRequestIDsForRoom("room-1", ""); len(got) != 0 {
+		t.Fatalf("请求结束后 Room pending 快照未清空: %v", got)
+	}
+	select {
+	case <-resultCh:
+	case <-time.After(time.Second):
+		t.Fatal("权限请求未在批准后结束")
 	}
 }
 

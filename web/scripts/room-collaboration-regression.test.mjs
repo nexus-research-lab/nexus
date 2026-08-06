@@ -1367,10 +1367,12 @@ test("Room 快照只在存在用户输入时把新 Session 标记为已开始", 
 
 test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
   const {
-    getActiveRoomIds,
+    getRoomActivity,
     pruneRoomActivity,
     replaceRoomActivitySnapshot,
+    replaceRoomInteractionSnapshot,
     updateRoomActivity,
+    updateRoomInteraction,
   } = await server.ssrLoadModule("/src/features/home/room-activity-resource.ts");
 
   pruneRoomActivity(new Set());
@@ -1380,14 +1382,45 @@ test("聊天侧栏只按 Room 活动态显示 DM 和群组", async () => {
   updateRoomActivity("group-room", "group-round", "running", "agent_round", "slot-b");
   updateRoomActivity("group-room", "group-round", "finished", "agent_round", "slot-a");
   assert.deepEqual(
-    [...getActiveRoomIds()].sort(),
-    ["dm-room", "group-room"],
+    Object.fromEntries([...getRoomActivity()].sort()),
+    { "dm-room": "working", "group-room": "working" },
     "DM 和群组必须共享同一 Room 活动态集合",
   );
 
+  updateRoomInteraction("group-room", "permission-a", true);
+  updateRoomInteraction("group-room", "permission-b", true);
+  assert.equal(
+    getRoomActivity().get("group-room"),
+    "waiting",
+    "待确认状态必须覆盖同一 Room 的工作中展示",
+  );
+  updateRoomInteraction("group-room", "permission-a", false);
+  assert.equal(
+    getRoomActivity().get("group-room"),
+    "waiting",
+    "仍有其他人工交互时不能提前恢复工作中",
+  );
   updateRoomActivity("group-room", "group-round", "finished");
-  replaceRoomActivitySnapshot("dm-room", "dm-round", false);
-  assert.deepEqual([...getActiveRoomIds()], [], "终态应清除 Room 活动态");
+  updateRoomInteraction("group-room", "permission-b", false);
+  replaceRoomActivitySnapshot("dm-room", "dm-round", false, ["permission-replayed"]);
+  assert.deepEqual(
+    Object.fromEntries(getRoomActivity()),
+    { "dm-room": "waiting" },
+    "重连快照必须恢复待确认状态",
+  );
+  replaceRoomActivitySnapshot("dm-room", "dm-round", false, []);
+  assert.deepEqual(Object.fromEntries(getRoomActivity()), {}, "空快照应清除 Room 活动态");
+
+  updateRoomActivity("group-room", "group-round-new", "running");
+  replaceRoomInteractionSnapshot("group-room", ["permission-global"]);
+  assert.equal(getRoomActivity().get("group-room"), "waiting");
+  replaceRoomInteractionSnapshot("group-room", []);
+  assert.equal(
+    getRoomActivity().get("group-room"),
+    "working",
+    "Room 全局交互快照不得清除 conversation 执行槽",
+  );
+  replaceRoomActivitySnapshot("group-room", "group-round-new", false, []);
 });
 
 test("聊天行不读取持久化 Agent active 状态", async () => {
@@ -1414,16 +1447,29 @@ test("聊天行不读取持久化 Agent active 状态", async () => {
   }));
 
   const items = buildConversationItems({
-    activeRoomIds: new Set(["group-room"]),
     agents,
     conversations,
+    roomActivity: new Map([
+      ["dm-room", "waiting"],
+      ["group-room", "working"],
+    ]),
     rooms,
     untitledRoomLabel: "未命名 Room",
   });
   assert.deepEqual(
-    Object.fromEntries(items.map((item) => [item.roomId, item.isWorking])),
-    { "dm-room": false, "group-room": true, "idle-room": false },
+    Object.fromEntries(items.map((item) => [item.roomId, item.activityStatus])),
+    { "dm-room": "waiting", "group-room": "working", "idle-room": null },
   );
+
+  const { ConversationRow } = await server.ssrLoadModule(
+    "/src/features/home/sidebar/sidebar-list-rows.tsx",
+  );
+  const waitingHtml = await renderWithI18n(React.createElement(ConversationRow, {
+    isActive: false,
+    item: items.find((item) => item.roomId === "dm-room"),
+    onClick: () => {},
+  }));
+  assert.match(waitingHtml, /待确认/);
 
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);

@@ -63,4 +63,5 @@ export const zhCoreMessages = {
   "status.sending": "发送中",
   "status.replying": "回复中",
   "status.working": "工作中",
+  "status.needs_response": "待确认",
 } as const;
