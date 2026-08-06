@@ -125,6 +125,35 @@ test("macOS 顶栏共用分隔线与原生红灯双轴中心", async () => {
   assert.match(runtimeScript, /desktop_window_close_button_center_y/);
 });
 
+test("能力二级页导航复用原生窗口控件中线", async () => {
+  const [header, skillDetail, connectorDetail, loopDetail] = await Promise.all([
+    "src/shared/ui/layout/workspace-content-header.tsx",
+    "src/features/capability/skills/detail/skill-detail-view.tsx",
+    "src/features/capability/connectors/detail/connector-detail-header.tsx",
+    "src/features/capability/loops/loop-detail-view.tsx",
+  ].map(readSource));
+
+  assert.match(header, /export function WorkspaceContentDetailHeader/);
+  assert.match(
+    header,
+    /workspace-content-header hidden h-\[var\(--workspace-header-height,60px\)\] shrink-0 lg:block/,
+  );
+  assert.match(
+    header,
+    /workspace-content-header-inner flex h-full min-w-0 items-center/,
+  );
+  assert.match(
+    header,
+    /WorkspaceContentDetailHeader[\s\S]*?data-desktop-window-drag-region/,
+  );
+  [skillDetail, connectorDetail, loopDetail].forEach((source) => {
+    assert.match(source, /WorkspaceContentDetailHeader/);
+  });
+  assert.doesNotMatch(skillDetail, /max-lg:hidden/);
+  assert.doesNotMatch(connectorDetail, /max-lg:hidden/);
+  assert.doesNotMatch(loopDetail, /max-lg:hidden/);
+});
+
 test("定时任务在铺满内容面内保持四列横向看板", async () => {
   const [layout, directory, board] = await Promise.all([
     "src/shared/ui/layout/workspace-content-layout.ts",
