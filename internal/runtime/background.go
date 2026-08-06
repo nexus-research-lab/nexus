@@ -42,6 +42,10 @@ func (m *Manager) startBackgroundTask(
 	}
 
 	m.mu.Lock()
+	if ownerUserID != "" && m.ownerReapActiveLocked(ownerUserID) {
+		m.mu.Unlock()
+		return false
+	}
 	// 队列接力可能发生在首个 runtime client 建立之前。先登记一个
 	// 无 client 的 session 状态，才能把这段会写盘的工作纳入同一生命周期。
 	state := m.ensureStateLocked(sessionKey)
@@ -92,21 +96,6 @@ func (m *Manager) finishBackgroundTask(sessionKey string, state *sessionState, t
 	// 长驻 manager；expected state 防止旧任务退出时误删同 key 的新状态。
 	m.removeClientlessSessionIfIdleLocked(sessionKey, state, nil)
 	m.mu.Unlock()
-}
-
-func backgroundTaskCleanup(
-	state *sessionState,
-) ([]context.CancelFunc, <-chan struct{}) {
-	if state == nil {
-		return nil, nil
-	}
-	cancels := make([]context.CancelFunc, 0, len(state.BackgroundTasks))
-	for _, cancel := range state.BackgroundTasks {
-		if cancel != nil {
-			cancels = append(cancels, cancel)
-		}
-	}
-	return cancels, state.BackgroundDone
 }
 
 func waitBackgroundTasks(ctx context.Context, done <-chan struct{}) error {

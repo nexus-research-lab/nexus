@@ -3,8 +3,6 @@ package runtime
 import (
 	"context"
 	"errors"
-	"maps"
-	"slices"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
@@ -28,11 +26,11 @@ type streamingInputOptionsClient interface {
 func (m *Manager) SendContentToRunningRound(ctx context.Context, sessionKey string, content any) ([]string, error) {
 	m.mu.Lock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || state.Client == nil || len(state.RunningRounds) == 0 {
+	if !ok || state == nil || state.Client == nil || !state.Rounds.active() {
 		m.mu.Unlock()
 		return nil, ErrNoRunningRound
 	}
-	roundIDs := slices.Sorted(maps.Keys(state.RunningRounds))
+	roundIDs := state.Rounds.runningIDs()
 	client := state.Client
 	m.touchStateLocked(state)
 	m.mu.Unlock()
@@ -45,16 +43,11 @@ func (m *Manager) SendContentToRunningRound(ctx context.Context, sessionKey stri
 
 // SendClientContent 通过 SDK streaming input 向活动 client 投递用户输入。
 func SendClientContent(ctx context.Context, client Client, content any) error {
-	return SendClientContentWithOptions(ctx, client, content, sdkprotocol.OutboundMessageOptions{})
-}
-
-// SendClientContentWithOptions 通过 SDK streaming input 投递带附加语义的用户输入。
-func SendClientContentWithOptions(ctx context.Context, client Client, content any, options sdkprotocol.OutboundMessageOptions) error {
 	if client == nil {
 		return ErrNoRunningRound
 	}
 	if sender, ok := client.(streamingInputOptionsClient); ok {
-		return sender.SendContentWithOptions(ctx, content, nil, "", options)
+		return sender.SendContentWithOptions(ctx, content, nil, "", sdkprotocol.OutboundMessageOptions{})
 	}
 	sender, ok := client.(streamingInputClient)
 	if !ok {

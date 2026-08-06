@@ -11,7 +11,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
@@ -698,15 +697,16 @@ func TestBuildAgentClientOptionsProjectsHostManagedEnvironment(t *testing.T) {
 }
 
 func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
+	webSearch := WebSearchConfig{
+		Enabled:         true,
+		Provider:        "brave",
+		DefaultCount:    7,
+		TimeoutSeconds:  30,
+		CacheTTLSeconds: 60,
+		Country:         "CN",
+	}.WithAPIKey("search-key")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		WebSearch: preferencessvc.WebSearchSettings{
-			Enabled:         true,
-			Provider:        "brave",
-			DefaultCount:    7,
-			TimeoutSeconds:  30,
-			CacheTTLSeconds: 60,
-			Country:         "CN",
-		}.WithWebSearchAPIKey("search-key"),
+		WebSearch: webSearch,
 	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
@@ -722,7 +722,7 @@ func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
 		t.Fatalf("Nexus 未完整投影 WebSearch 配置: %#v", config)
 	}
 
-	searXNGEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, preferencessvc.WebSearchSettings{
+	searXNGEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, WebSearchConfig{
 		Enabled:  true,
 		Provider: "searxng",
 		BaseURL:  "https://search.example.com",
@@ -734,10 +734,11 @@ func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
 		t.Fatalf("SearXNG 必须投影 Base URL: %#v", config)
 	}
 
-	anySearchEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, preferencessvc.WebSearchSettings{
+	anySearch := WebSearchConfig{
 		Enabled:  true,
 		Provider: "anysearch",
-	}.WithWebSearchAPIKey("anysearch-key"))
+	}.WithAPIKey("anysearch-key")
+	anySearchEnv := BuildWebSearchRuntimeEnv(runtimeKindNXS, anySearch)
 	if anySearchEnv["NEXUS_WEBSEARCH_API_KEY"] != "anysearch-key" {
 		t.Fatalf("AnySearch API key 未投影: %+v", anySearchEnv)
 	}

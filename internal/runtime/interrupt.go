@@ -1,9 +1,10 @@
+// INPUT: session、interrupt reason 与当前 round registry 快照。
+// OUTPUT: 同代 round 中断、强制取消与退出等待。
+// POS: Manager 的原子中断入口。
 package runtime
 
 import (
 	"context"
-	"maps"
-	"slices"
 	"strings"
 	"time"
 )
@@ -18,44 +19,30 @@ type reasonInterruptClient interface {
 
 // InterruptSession 中断当前 session 的全部运行中 round。
 func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reason string) ([]string, error) {
-	m.mu.RLock()
-	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || state.Closing {
-		m.mu.RUnlock()
-		return nil, nil
-	}
-
-	roundIDs := slices.Sorted(maps.Keys(state.RunningRounds))
-	doneSignals := make([]chan struct{}, 0, len(state.RoundDone))
-	cancels := make([]context.CancelFunc, 0, len(state.RoundCancels))
-	for _, roundID := range roundIDs {
-		if done, ok := state.RoundDone[roundID]; ok && done != nil {
-			doneSignals = append(doneSignals, done)
-		}
-		if cancel, ok := state.RoundCancels[roundID]; ok && cancel != nil {
-			cancels = append(cancels, cancel)
-		}
-	}
-	client := state.Client
-	m.mu.RUnlock()
-
-	if len(roundIDs) == 0 {
-		return nil, nil
-	}
-
 	interruptReason := strings.TrimSpace(reason)
 
 	m.mu.Lock()
-	state = m.sessions[sessionKey]
-	if state == nil || state.Closing {
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil || state.Closing {
 		m.mu.Unlock()
 		return nil, nil
 	}
-	m.touchStateLocked(state)
-	for _, roundID := range roundIDs {
-		state.Interruptions[roundID] = interruptReason
+
+	roundIDs := state.Rounds.runningIDs()
+	if len(roundIDs) == 0 {
+		m.mu.Unlock()
+		return nil, nil
 	}
-	client = state.Client
+
+	doneSignals := state.Rounds.doneSignals(roundIDs...)
+	cancels := state.Rounds.cancelFuncs(roundIDs...)
+	for _, roundID := range roundIDs {
+		if round := state.Rounds.get(roundID); round != nil {
+			round.interruption = interruptReason
+		}
+	}
+	client := state.Client
+	m.touchStateLocked(state)
 	m.mu.Unlock()
 
 	if client == nil {
@@ -109,7 +96,11 @@ func (m *Manager) GetInterruptReason(sessionKey string, roundID string) string {
 	if !ok || state == nil {
 		return ""
 	}
-	return strings.TrimSpace(state.Interruptions[roundID])
+	round := state.Rounds.get(roundID)
+	if round == nil {
+		return ""
+	}
+	return strings.TrimSpace(round.interruption)
 }
 
 func waitRoundDoneSignals(

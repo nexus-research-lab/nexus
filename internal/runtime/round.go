@@ -5,46 +5,240 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
+	"sync/atomic"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
-// StartRound 注册运行中的 round，并记录其取消函数。
-//
-// 返回 false 表示 session 已进入关闭流程，调用方不得再启动会写盘的
-// round；传入的 cancel 仍会被调用，避免调用方持有的执行上下文泄漏。
-func (m *Manager) StartRound(sessionKey string, roundID string, cancel context.CancelFunc) bool {
-	if sessionKey == "" || roundID == "" {
+// ErrRuntimeRoundAlreadyRunning 表示同一 round 已经登记为运行中。
+var ErrRuntimeRoundAlreadyRunning = errors.New("runtime round is already running")
+
+var errRuntimeRoundInvalid = errors.New("runtime round requires session key and round id")
+
+// goalAccountingHooks 聚合一个 round 的 Goal 计量回调与 revision fence。
+type goalAccountingHooks struct {
+	flush             GoalAccountingFlush
+	clear             GoalAccountingClear
+	finalize          GoalAccountingFinalize
+	activate          GoalAccountingActivate
+	guard             goalAccountingGuard
+	objectiveRevision *atomic.Int64
+}
+
+func (h goalAccountingHooks) empty() bool {
+	return h.flush == nil &&
+		h.clear == nil &&
+		h.finalize == nil &&
+		h.activate == nil &&
+		h.guard.consumed == nil &&
+		h.objectiveRevision == nil
+}
+
+// roundState 保存一个 round 从运行到收尾所需的全部状态。
+type roundState struct {
+	running      bool
+	cancel       context.CancelFunc
+	done         chan struct{}
+	interruption string
+	goal         goalAccountingHooks
+}
+
+func (s *roundState) empty() bool {
+	return !s.running &&
+		s.cancel == nil &&
+		s.done == nil &&
+		s.interruption == "" &&
+		s.goal.empty()
+}
+
+// roundRegistry 以 round ID 为唯一键管理执行、退出和 Goal accounting 状态。
+type roundRegistry struct {
+	items map[string]*roundState
+}
+
+func (r *roundRegistry) ensure(roundID string) *roundState {
+	if r.items == nil {
+		r.items = make(map[string]*roundState)
+	}
+	state := r.items[roundID]
+	if state == nil {
+		state = &roundState{}
+		r.items[roundID] = state
+	}
+	return state
+}
+
+func (r *roundRegistry) get(roundID string) *roundState {
+	if r == nil {
+		return nil
+	}
+	return r.items[roundID]
+}
+
+func (r *roundRegistry) matchingIDs(match func(*roundState) bool) []string {
+	if r == nil || len(r.items) == 0 {
+		return nil
+	}
+	roundIDs := make([]string, 0, len(r.items))
+	for roundID, state := range r.items {
+		if state != nil && match(state) {
+			roundIDs = append(roundIDs, roundID)
+		}
+	}
+	slices.Sort(roundIDs)
+	return roundIDs
+}
+
+func (r *roundRegistry) runningIDs() []string {
+	return r.matchingIDs(func(state *roundState) bool { return state.running })
+}
+
+func (r *roundRegistry) active() bool {
+	if r == nil {
 		return false
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	state := m.ensureStateLocked(sessionKey)
-	if state.Closing {
+	for _, state := range r.items {
+		if state != nil && state.running {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *roundRegistry) runningCount() int {
+	count := 0
+	if r == nil {
+		return count
+	}
+	for _, state := range r.items {
+		if state != nil && state.running {
+			count++
+		}
+	}
+	return count
+}
+
+func (r *roundRegistry) selected(roundIDs []string) []*roundState {
+	if r == nil || len(r.items) == 0 {
+		return nil
+	}
+	if len(roundIDs) == 0 {
+		roundIDs = r.matchingIDs(func(*roundState) bool { return true })
+	}
+	states := make([]*roundState, 0, len(roundIDs))
+	for _, roundID := range roundIDs {
+		if state := r.items[roundID]; state != nil {
+			states = append(states, state)
+		}
+	}
+	return states
+}
+
+func (r *roundRegistry) cancelFuncs(roundIDs ...string) []context.CancelFunc {
+	states := r.selected(roundIDs)
+	cancels := make([]context.CancelFunc, 0, len(states))
+	for _, state := range states {
+		if state.cancel != nil {
+			cancels = append(cancels, state.cancel)
+		}
+	}
+	return cancels
+}
+
+func (r *roundRegistry) doneSignals(roundIDs ...string) []chan struct{} {
+	states := r.selected(roundIDs)
+	done := make([]chan struct{}, 0, len(states))
+	for _, state := range states {
+		if state.done != nil {
+			done = append(done, state.done)
+		}
+	}
+	return done
+}
+
+func (r *roundRegistry) prune(roundID string) {
+	if state := r.get(roundID); state != nil && state.empty() {
+		delete(r.items, roundID)
+	}
+}
+
+func (r *roundRegistry) cleanup(roundID string) {
+	state := r.get(roundID)
+	if state == nil {
+		return
+	}
+	delete(r.items, roundID)
+	if state.done != nil {
+		close(state.done)
+	}
+}
+
+func (r *roundRegistry) empty() bool {
+	return r == nil || len(r.items) == 0
+}
+
+// StartRound 注册运行中的 round，并记录其取消函数。
+//
+// 返回错误表示 round 未登记成功；传入的 cancel 仍会被调用，避免调用方
+// 持有的执行上下文泄漏。
+func (m *Manager) StartRound(
+	ctx context.Context,
+	sessionKey string,
+	roundID string,
+	cancel context.CancelFunc,
+) error {
+	fail := func(err error) error {
 		if cancel != nil {
 			cancel()
 		}
-		return false
+		return err
 	}
-	if state.IdleMessageCancel != nil {
-		state.IdleMessageCancel()
-		state.IdleMessageCancel = nil
+	if sessionKey == "" || roundID == "" {
+		return fail(errRuntimeRoundInvalid)
 	}
-	state.RunningRounds[roundID] = struct{}{}
-	m.touchStateLocked(state)
-	delete(state.Interruptions, roundID)
-	if cancel != nil {
-		state.RoundCancels[roundID] = cancel
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if _, exists := state.RoundDone[roundID]; !exists {
-		state.RoundDone[roundID] = make(chan struct{})
+	for {
+		if err := ctx.Err(); err != nil {
+			return fail(err)
+		}
+
+		m.mu.Lock()
+		state := m.ensureStateLocked(sessionKey)
+		if state.Closing {
+			m.mu.Unlock()
+			return fail(ErrRuntimeSessionClosing)
+		}
+		if drain := state.IdleMessageDrain; drain != nil {
+			drain.cancel()
+			m.mu.Unlock()
+			if err := waitIdleMessageDrain(ctx, drain); err != nil {
+				return fail(err)
+			}
+			continue
+		}
+		round := state.Rounds.get(roundID)
+		if round != nil && round.running {
+			m.mu.Unlock()
+			return fail(ErrRuntimeRoundAlreadyRunning)
+		}
+		round = state.Rounds.ensure(roundID)
+		round.running = true
+		round.cancel = cancel
+		round.interruption = ""
+		if round.done == nil {
+			round.done = make(chan struct{})
+		}
+		m.touchStateLocked(state)
+		m.mu.Unlock()
+		return nil
 	}
-	return true
 }
 
 // MarkRoundTerminal 把 round 从运行态中移除，但保留退出信号。
@@ -77,18 +271,7 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 		return
 	}
 	m.markRoundTerminalLocked(state, roundID)
-	delete(state.RoundCancels, roundID)
-	delete(state.Interruptions, roundID)
-	delete(state.GoalAccountingFlushers, roundID)
-	delete(state.GoalAccountingClearers, roundID)
-	delete(state.GoalAccountingFinalizers, roundID)
-	delete(state.GoalAccountingActivators, roundID)
-	delete(state.GoalAccountingGuards, roundID)
-	delete(state.GoalObjectiveRevisions, roundID)
-	if done, ok := state.RoundDone[roundID]; ok {
-		close(done)
-		delete(state.RoundDone, roundID)
-	}
+	state.Rounds.cleanup(roundID)
 	m.removeClientlessSessionIfIdleLocked(sessionKey, state, nil)
 }
 
@@ -96,9 +279,11 @@ func (m *Manager) markRoundTerminalLocked(state *sessionState, roundID string) {
 	if state == nil {
 		return
 	}
-	delete(state.RunningRounds, roundID)
+	if round := state.Rounds.get(roundID); round != nil {
+		round.running = false
+	}
 	m.touchStateLocked(state)
-	if len(state.RunningRounds) == 0 {
+	if !state.Rounds.active() {
 		state.GuidedInputs = nil
 	}
 }
@@ -108,10 +293,10 @@ func (m *Manager) GetRunningRoundIDs(sessionKey string) []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || len(state.RunningRounds) == 0 {
+	if !ok || state == nil {
 		return []string{}
 	}
-	return slices.Sorted(maps.Keys(state.RunningRounds))
+	return state.Rounds.runningIDs()
 }
 
 // CountRunningRounds 统计指定 Agent 当前活跃 round 数量。
@@ -124,13 +309,13 @@ func (m *Manager) CountRunningRounds(agentID string) int {
 
 	total := 0
 	for sessionKey, state := range m.sessions {
-		if len(state.RunningRounds) == 0 {
+		if state == nil || !state.Rounds.active() {
 			continue
 		}
 		if !strings.HasPrefix(sessionKey, "agent:"+agentID+":") {
 			continue
 		}
-		total += len(state.RunningRounds)
+		total += state.Rounds.runningCount()
 	}
 	return total
 }

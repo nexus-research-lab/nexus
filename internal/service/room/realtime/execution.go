@@ -188,14 +188,14 @@ func (s *Service) runSlot(
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
 		return
 	}
-	if !s.runtime.StartRound(slot.RuntimeSessionKey, slot.AgentRoundID, cancel) {
+	if err := s.runtime.StartRound(slotCtx, slot.RuntimeSessionKey, slot.AgentRoundID, cancel); err != nil {
 		s.handleSlotFailure(
 			slotCtx,
 			roundValue,
 			slot,
 			mapper,
 			exec.RoundExecutionResult{},
-			runtimectx.ErrRuntimeSessionClosing,
+			err,
 		)
 		return
 	}

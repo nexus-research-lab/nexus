@@ -6,7 +6,6 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -54,11 +53,11 @@ func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || len(state.RunningRounds) == 0 {
+	if !ok || state == nil || !state.Rounds.active() {
 		return nil, ErrNoRunningRound
 	}
 
-	roundIDs := slices.Sorted(maps.Keys(state.RunningRounds))
+	roundIDs := state.Rounds.runningIDs()
 	state.GuidedInputs = append(state.GuidedInputs, GuidedInput{
 		RoundID:     strings.TrimSpace(roundID),
 		Content:     content,

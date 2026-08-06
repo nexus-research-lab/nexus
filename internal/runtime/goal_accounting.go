@@ -5,7 +5,6 @@ package runtime
 
 import (
 	"context"
-	"maps"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -34,27 +33,45 @@ type goalAccountingGuard struct {
 	consumed     GoalAccountingConsumed
 }
 
-// RegisterGoalObjectiveRevision 让运行中 round 的 MCP 与终态回调共享同一 objective revision。
-func (m *Manager) RegisterGoalObjectiveRevision(sessionKey string, roundID string, revision *atomic.Int64) {
+// updateGoalAccountingHooks 统一维护 round 的可选 Goal accounting 能力。
+func (m *Manager) updateGoalAccountingHooks(
+	sessionKey string,
+	roundID string,
+	present bool,
+	update func(*goalAccountingHooks),
+) {
 	sessionKey = strings.TrimSpace(sessionKey)
 	roundID = strings.TrimSpace(roundID)
-	if sessionKey == "" || roundID == "" {
+	if sessionKey == "" || roundID == "" || update == nil {
 		return
 	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	state := m.ensureStateLocked(sessionKey)
-	if state.Closing {
+	state := m.sessions[sessionKey]
+	if state == nil && present {
+		state = m.ensureStateLocked(sessionKey)
+	}
+	if state == nil || state.Closing {
 		return
 	}
-	if state.GoalObjectiveRevisions == nil {
-		state.GoalObjectiveRevisions = make(map[string]*atomic.Int64)
+	round := state.Rounds.get(roundID)
+	if present {
+		round = state.Rounds.ensure(roundID)
 	}
-	if revision == nil {
-		delete(state.GoalObjectiveRevisions, roundID)
+	if round == nil {
 		return
 	}
-	state.GoalObjectiveRevisions[roundID] = revision
+	update(&round.goal)
+	state.Rounds.prune(roundID)
+	m.removeClientlessSessionIfIdleLocked(sessionKey, state, nil)
+}
+
+// RegisterGoalObjectiveRevision 让运行中 round 的 MCP 与终态回调共享同一 objective revision。
+func (m *Manager) RegisterGoalObjectiveRevision(sessionKey string, roundID string, revision *atomic.Int64) {
+	m.updateGoalAccountingHooks(sessionKey, roundID, revision != nil, func(hooks *goalAccountingHooks) {
+		hooks.objectiveRevision = revision
+	})
 }
 
 // AdoptGoalObjectiveRevision 在 steering 真正被 runtime 消费后推进运行中 round 的 revision fence。
@@ -65,25 +82,24 @@ func (m *Manager) AdoptGoalObjectiveRevision(sessionKey string, revision int64) 
 	}
 	m.mu.RLock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || len(state.GoalObjectiveRevisions) == 0 {
+	if !ok || state == nil {
 		m.mu.RUnlock()
 		return nil
 	}
-	roundIDs := slices.Sorted(maps.Keys(state.GoalObjectiveRevisions))
+	roundIDs := state.Rounds.matchingIDs(func(round *roundState) bool {
+		return round.goal.objectiveRevision != nil
+	})
 	revisions := make([]*atomic.Int64, 0, len(roundIDs))
 	for _, roundID := range roundIDs {
-		revisions = append(revisions, state.GoalObjectiveRevisions[roundID])
+		revisions = append(revisions, state.Rounds.get(roundID).goal.objectiveRevision)
 	}
 	m.mu.RUnlock()
 
 	adopted := make([]string, 0, len(roundIDs))
-	for index, state := range revisions {
-		if state == nil {
-			continue
-		}
+	for index, objectiveRevision := range revisions {
 		for {
-			current := state.Load()
-			if revision <= current || state.CompareAndSwap(current, revision) {
+			current := objectiveRevision.Load()
+			if revision <= current || objectiveRevision.CompareAndSwap(current, revision) {
 				break
 			}
 		}
@@ -94,42 +110,16 @@ func (m *Manager) AdoptGoalObjectiveRevision(sessionKey string, revision int64) 
 
 // RegisterGoalAccountingFlush 注册或移除运行中 round 的 Goal accounting flush 回调。
 func (m *Manager) RegisterGoalAccountingFlush(sessionKey string, roundID string, flush GoalAccountingFlush) {
-	sessionKey = strings.TrimSpace(sessionKey)
-	roundID = strings.TrimSpace(roundID)
-	if sessionKey == "" || roundID == "" {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	state := m.ensureStateLocked(sessionKey)
-	if state.Closing {
-		return
-	}
-	if flush == nil {
-		delete(state.GoalAccountingFlushers, roundID)
-		return
-	}
-	state.GoalAccountingFlushers[roundID] = flush
+	m.updateGoalAccountingHooks(sessionKey, roundID, flush != nil, func(hooks *goalAccountingHooks) {
+		hooks.flush = flush
+	})
 }
 
 // RegisterGoalAccountingClear 注册或移除运行中 round 的 Goal accounting clear 回调。
 func (m *Manager) RegisterGoalAccountingClear(sessionKey string, roundID string, clear GoalAccountingClear) {
-	sessionKey = strings.TrimSpace(sessionKey)
-	roundID = strings.TrimSpace(roundID)
-	if sessionKey == "" || roundID == "" {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	state := m.ensureStateLocked(sessionKey)
-	if state.Closing {
-		return
-	}
-	if clear == nil {
-		delete(state.GoalAccountingClearers, roundID)
-		return
-	}
-	state.GoalAccountingClearers[roundID] = clear
+	m.updateGoalAccountingHooks(sessionKey, roundID, clear != nil, func(hooks *goalAccountingHooks) {
+		hooks.clear = clear
+	})
 }
 
 // RegisterGoalAccountingFinalize 注册或移除运行中 round 的 Goal terminal 对账回调。
@@ -138,45 +128,16 @@ func (m *Manager) RegisterGoalAccountingFinalize(
 	roundID string,
 	finalize GoalAccountingFinalize,
 ) {
-	sessionKey = strings.TrimSpace(sessionKey)
-	roundID = strings.TrimSpace(roundID)
-	if sessionKey == "" || roundID == "" {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	state := m.ensureStateLocked(sessionKey)
-	if state.GoalAccountingFinalizers == nil {
-		state.GoalAccountingFinalizers = make(map[string]GoalAccountingFinalize)
-	}
-	if finalize == nil {
-		delete(state.GoalAccountingFinalizers, roundID)
-		return
-	}
-	state.GoalAccountingFinalizers[roundID] = finalize
+	m.updateGoalAccountingHooks(sessionKey, roundID, finalize != nil, func(hooks *goalAccountingHooks) {
+		hooks.finalize = finalize
+	})
 }
 
 // RegisterGoalAccountingActivate 注册或移除运行中 round 的 Goal accounting active 回调。
 func (m *Manager) RegisterGoalAccountingActivate(sessionKey string, roundID string, activate GoalAccountingActivate) {
-	sessionKey = strings.TrimSpace(sessionKey)
-	roundID = strings.TrimSpace(roundID)
-	if sessionKey == "" || roundID == "" {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	state := m.ensureStateLocked(sessionKey)
-	if state.Closing {
-		return
-	}
-	if state.GoalAccountingActivators == nil {
-		state.GoalAccountingActivators = make(map[string]GoalAccountingActivate)
-	}
-	if activate == nil {
-		delete(state.GoalAccountingActivators, roundID)
-		return
-	}
-	state.GoalAccountingActivators[roundID] = activate
+	m.updateGoalAccountingHooks(sessionKey, roundID, activate != nil, func(hooks *goalAccountingHooks) {
+		hooks.activate = activate
+	})
 }
 
 // RegisterGoalAccountingCreateGuard 注册或移除 live runtime scope 的 Goal 创建保护。
@@ -187,26 +148,13 @@ func (m *Manager) RegisterGoalAccountingCreateGuard(
 	scopeRoundID string,
 	consumed GoalAccountingConsumed,
 ) {
-	sessionKey = strings.TrimSpace(sessionKey)
-	roundID = strings.TrimSpace(roundID)
 	scopeRoundID = strings.TrimSpace(scopeRoundID)
-	if sessionKey == "" || roundID == "" {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	state := m.ensureStateLocked(sessionKey)
-	if state.GoalAccountingGuards == nil {
-		state.GoalAccountingGuards = make(map[string]goalAccountingGuard)
-	}
-	if consumed == nil {
-		delete(state.GoalAccountingGuards, roundID)
-		return
-	}
-	state.GoalAccountingGuards[roundID] = goalAccountingGuard{
-		scopeRoundID: scopeRoundID,
-		consumed:     consumed,
-	}
+	m.updateGoalAccountingHooks(sessionKey, roundID, consumed != nil, func(hooks *goalAccountingHooks) {
+		hooks.guard = goalAccountingGuard{
+			scopeRoundID: scopeRoundID,
+			consumed:     consumed,
+		}
+	})
 }
 
 // GoalAccountingCreateConflicts 返回会与新 Goal 争用 live runtime scope 的 round。
@@ -220,27 +168,24 @@ func (m *Manager) GoalAccountingCreateConflicts(sessionKey string, scopeRoundID 
 
 	m.mu.RLock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || len(state.GoalAccountingGuards) == 0 {
+	if !ok || state == nil {
 		m.mu.RUnlock()
 		return nil
 	}
-	roundIDs := slices.Sorted(maps.Keys(state.GoalAccountingGuards))
+	roundIDs := state.Rounds.matchingIDs(func(round *roundState) bool {
+		guard := round.goal.guard
+		return guard.consumed != nil && (scopeRoundID == "" || guard.scopeRoundID == scopeRoundID)
+	})
 	guards := make([]goalAccountingGuard, 0, len(roundIDs))
-	candidateRoundIDs := make([]string, 0, len(roundIDs))
 	for _, roundID := range roundIDs {
-		guard := state.GoalAccountingGuards[roundID]
-		if scopeRoundID != "" && guard.scopeRoundID != scopeRoundID {
-			continue
-		}
-		candidateRoundIDs = append(candidateRoundIDs, roundID)
-		guards = append(guards, guard)
+		guards = append(guards, state.Rounds.get(roundID).goal.guard)
 	}
 	m.mu.RUnlock()
 
-	conflicts := make([]string, 0, len(candidateRoundIDs))
+	conflicts := make([]string, 0, len(roundIDs))
 	for index, guard := range guards {
-		if guard.consumed != nil && guard.consumed() {
-			conflicts = append(conflicts, candidateRoundIDs[index])
+		if guard.consumed() {
+			conflicts = append(conflicts, roundIDs[index])
 		}
 	}
 	return conflicts
@@ -254,23 +199,22 @@ func (m *Manager) FlushGoalAccounting(ctx context.Context, sessionKey string) ([
 	}
 	m.mu.RLock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || len(state.GoalAccountingFlushers) == 0 {
+	if !ok || state == nil {
 		m.mu.RUnlock()
 		return nil, nil
 	}
-	roundIDs := slices.Sorted(maps.Keys(state.GoalAccountingFlushers))
+	roundIDs := state.Rounds.matchingIDs(func(round *roundState) bool {
+		return round.goal.flush != nil
+	})
 	flushers := make([]GoalAccountingFlush, 0, len(roundIDs))
 	for _, roundID := range roundIDs {
-		flushers = append(flushers, state.GoalAccountingFlushers[roundID])
+		flushers = append(flushers, state.Rounds.get(roundID).goal.flush)
 	}
 	m.mu.RUnlock()
 
 	var firstErr error
 	flushed := make([]string, 0, len(roundIDs))
 	for index, flush := range flushers {
-		if flush == nil {
-			continue
-		}
 		if err := flush(ctx); err != nil && firstErr == nil {
 			firstErr = err
 		}
@@ -287,22 +231,21 @@ func (m *Manager) ClearGoalAccounting(sessionKey string) []string {
 	}
 	m.mu.RLock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || len(state.GoalAccountingClearers) == 0 {
+	if !ok || state == nil {
 		m.mu.RUnlock()
 		return nil
 	}
-	roundIDs := slices.Sorted(maps.Keys(state.GoalAccountingClearers))
+	roundIDs := state.Rounds.matchingIDs(func(round *roundState) bool {
+		return round.goal.clear != nil
+	})
 	clearers := make([]GoalAccountingClear, 0, len(roundIDs))
 	for _, roundID := range roundIDs {
-		clearers = append(clearers, state.GoalAccountingClearers[roundID])
+		clearers = append(clearers, state.Rounds.get(roundID).goal.clear)
 	}
 	m.mu.RUnlock()
 
 	cleared := make([]string, 0, len(roundIDs))
 	for index, clear := range clearers {
-		if clear == nil {
-			continue
-		}
 		clear()
 		cleared = append(cleared, roundIDs[index])
 	}
@@ -324,35 +267,34 @@ func (m *Manager) ClearGoalAccountingRounds(sessionKey string, requestedRoundIDs
 	if len(requested) == 0 {
 		return nil
 	}
+	roundIDs := make([]string, 0, len(requested))
+	for roundID := range requested {
+		roundIDs = append(roundIDs, roundID)
+	}
+	slices.Sort(roundIDs)
 
 	m.mu.RLock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || len(state.GoalAccountingClearers) == 0 {
+	if !ok || state == nil {
 		m.mu.RUnlock()
 		return nil
 	}
-	roundIDs := slices.Sorted(maps.Keys(requested))
 	clearers := make([]GoalAccountingClear, 0, len(roundIDs))
 	matchedRoundIDs := make([]string, 0, len(roundIDs))
 	for _, roundID := range roundIDs {
-		clear, exists := state.GoalAccountingClearers[roundID]
-		if !exists {
+		round := state.Rounds.get(roundID)
+		if round == nil || round.goal.clear == nil {
 			continue
 		}
 		matchedRoundIDs = append(matchedRoundIDs, roundID)
-		clearers = append(clearers, clear)
+		clearers = append(clearers, round.goal.clear)
 	}
 	m.mu.RUnlock()
 
-	cleared := make([]string, 0, len(matchedRoundIDs))
-	for index, clear := range clearers {
-		if clear == nil {
-			continue
-		}
+	for _, clear := range clearers {
 		clear()
-		cleared = append(cleared, matchedRoundIDs[index])
 	}
-	return cleared
+	return matchedRoundIDs
 }
 
 // BeginGoalAccountingFinalizing 要求 complete Goal 的运行中 round 保留绑定，
@@ -364,26 +306,24 @@ func (m *Manager) BeginGoalAccountingFinalizing(sessionKey string) []string {
 	}
 	m.mu.RLock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || len(state.GoalAccountingFinalizers) == 0 {
+	if !ok || state == nil {
 		m.mu.RUnlock()
 		return nil
 	}
-	roundIDs := slices.Sorted(maps.Keys(state.GoalAccountingFinalizers))
+	roundIDs := state.Rounds.matchingIDs(func(round *roundState) bool {
+		return round.goal.finalize != nil
+	})
 	finalizers := make([]GoalAccountingFinalize, 0, len(roundIDs))
 	for _, roundID := range roundIDs {
-		finalizers = append(finalizers, state.GoalAccountingFinalizers[roundID])
+		finalizers = append(finalizers, state.Rounds.get(roundID).goal.finalize)
 	}
 	m.mu.RUnlock()
 
 	finalizing := make([]string, 0, len(roundIDs))
 	for index, finalize := range finalizers {
-		if finalize == nil {
-			continue
+		if finalize() {
+			finalizing = append(finalizing, roundIDs[index])
 		}
-		if !finalize() {
-			continue
-		}
-		finalizing = append(finalizing, roundIDs[index])
 	}
 	return finalizing
 }
@@ -397,23 +337,22 @@ func (m *Manager) ActivateGoalAccounting(ctx context.Context, sessionKey string,
 	}
 	m.mu.RLock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || len(state.GoalAccountingActivators) == 0 {
+	if !ok || state == nil {
 		m.mu.RUnlock()
 		return nil, nil
 	}
-	roundIDs := slices.Sorted(maps.Keys(state.GoalAccountingActivators))
+	roundIDs := state.Rounds.matchingIDs(func(round *roundState) bool {
+		return round.goal.activate != nil
+	})
 	activators := make([]GoalAccountingActivate, 0, len(roundIDs))
 	for _, roundID := range roundIDs {
-		activators = append(activators, state.GoalAccountingActivators[roundID])
+		activators = append(activators, state.Rounds.get(roundID).goal.activate)
 	}
 	m.mu.RUnlock()
 
 	var firstErr error
 	activated := make([]string, 0, len(roundIDs))
 	for index, activate := range activators {
-		if activate == nil {
-			continue
-		}
 		if err := activate(ctx, goalID); err != nil {
 			if firstErr == nil {
 				firstErr = err

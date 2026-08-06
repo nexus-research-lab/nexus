@@ -354,7 +354,7 @@ func TestDMRegisterRunnerWiresGoalFinalizingUntilRoundCleanup(t *testing.T) {
 		roundID    = "round-finalizing-hook"
 	)
 	manager := runtimectx.NewManager()
-	manager.StartRound(sessionKey, roundID, func() {})
+	_ = manager.StartRound(context.Background(), sessionKey, roundID, func() {})
 	accumulator := goalsvc.NewRuntimeUsageAccumulator(true)
 	revision := &atomic.Int64{}
 	provider := &fakeDMGoalUsageFinalizer{
@@ -430,7 +430,7 @@ func TestDMRegisterRunnerGuardsConsumedScopeUntilRoundFinished(t *testing.T) {
 		goalID     = "goal-existing"
 	)
 	manager := runtimectx.NewManager()
-	manager.StartRound(sessionKey, roundID, func() {})
+	_ = manager.StartRound(context.Background(), sessionKey, roundID, func() {})
 	provider := &fakeDMGoalUsageFinalizer{
 		fakeGoalContextProvider: &fakeGoalContextProvider{},
 		report: protocol.GoalUsageReport{
@@ -515,7 +515,7 @@ func TestDMGoalCreateGuardBecomesConsumedAfterExternalAndModelActivation(t *test
 			sessionKey := "agent:nexus:ws:dm:create-guard-" + strings.ReplaceAll(test.name, " ", "-")
 			roundID := "round-create-guard-" + strings.ReplaceAll(test.name, " ", "-")
 			manager := runtimectx.NewManager()
-			manager.StartRound(sessionKey, roundID, func() {})
+			_ = manager.StartRound(context.Background(), sessionKey, roundID, func() {})
 			provider := &fakeGoalContextProvider{
 				runtimeGoal: &protocol.Goal{ID: "goal-model", SessionKey: sessionKey},
 			}
@@ -696,7 +696,7 @@ func TestDMGoalFinalizingHookDeclinesIgnoredOrUnboundRound(t *testing.T) {
 				roundID    = "round-declined-finalizing-hook"
 			)
 			manager := runtimectx.NewManager()
-			manager.StartRound(sessionKey, roundID, func() {})
+			_ = manager.StartRound(context.Background(), sessionKey, roundID, func() {})
 			service := &Service{runtime: manager}
 			if test.withFinalizer {
 				service.goals = &fakeDMGoalUsageFinalizer{

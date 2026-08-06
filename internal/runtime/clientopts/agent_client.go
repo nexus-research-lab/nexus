@@ -15,7 +15,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
-	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
 var agentSessionDeniedTools = []string{
@@ -74,7 +73,7 @@ type AgentClientOptionsInput struct {
 	ExtraEnv                   map[string]string
 	AgentSDKDiagnosticsEnabled bool
 	ToolSearchEnabled          bool
-	WebSearch                  preferencessvc.WebSearchSettings
+	WebSearch                  WebSearchConfig
 	RuntimeIsolationMode       string
 	RuntimeLauncherPath        string
 }
@@ -126,7 +125,7 @@ func BuildAgentClientOptionsWithConfig(
 	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, webSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 	// 身份与作用域是宿主授权事实，不能交给调用方的 ExtraEnv 覆盖。
 	// 必须在所有可配置环境合并后再次写入，确保 runtime 内的 nexusctl、
@@ -187,7 +186,7 @@ func BuildAgentClientOptionsWithConfig(
 		options.Runtime.MaxTurns = *input.MaxTurns
 	}
 	if len(input.MCPServers) > 0 {
-		options.MCP.Servers = cloneMCPServers(input.MCPServers)
+		options.MCP.Servers = maps.Clone(input.MCPServers)
 	}
 	options, err = workspaceisolation.Apply(
 		ctx,
@@ -304,13 +303,4 @@ func resolveProviderRuntimeConfig(
 func runtimeSupportsAPIFormat(runtimeKind string, apiFormat string) bool {
 	profile := resolveRuntimeProfile(runtimeKind, os.Getenv)
 	return profile.supportsAPIFormat(apiFormat)
-}
-
-func cloneMCPServers(
-	current map[string]sdkmcp.ServerConfig,
-) map[string]sdkmcp.ServerConfig {
-	if len(current) == 0 {
-		return nil
-	}
-	return maps.Clone(current)
 }

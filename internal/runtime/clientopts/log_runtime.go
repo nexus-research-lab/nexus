@@ -63,15 +63,15 @@ func RuntimeStartupLogFields(options agentclient.Options) []any {
 		"api_provider_env", strings.TrimSpace(options.Env[nexusAPIProviderEnvName]),
 		"openai_protocol_env", strings.TrimSpace(options.Env[nexusOpenAIProtocolEnvName]),
 		"nexus_runtime_provider_env", strings.TrimSpace(options.Env[NexusRuntimeProviderEnvName]),
-		"anthropic_base_url_env", RuntimeEnvConfigured(options.Env, anthropicBaseURLEnvName),
-		"anthropic_model_env", RuntimeEnvConfigured(options.Env, anthropicModelEnvName),
-		"anthropic_auth_token_env", RuntimeEnvConfigured(options.Env, anthropicAuthTokenEnvName),
-		"anthropic_api_key_env", RuntimeEnvConfigured(options.Env, anthropicAPIKeyEnvName),
-		"openai_base_url_env", RuntimeEnvConfigured(options.Env, "OPENAI_BASE_URL"),
-		"openai_model_env", RuntimeEnvConfigured(options.Env, "OPENAI_MODEL"),
-		"openai_api_key_env", RuntimeEnvConfigured(options.Env, "OPENAI_API_KEY"),
-		"nxs_command_path_env", RuntimeEnvConfigured(options.Env, nexusNXSCommandPathEnvName),
-		"nexusctl_command_path_env", RuntimeEnvConfigured(options.Env, nexusctlCommandPathEnvName),
+		"anthropic_base_url_env", runtimeEnvConfigured(options.Env, anthropicBaseURLEnvName),
+		"anthropic_model_env", runtimeEnvConfigured(options.Env, anthropicModelEnvName),
+		"anthropic_auth_token_env", runtimeEnvConfigured(options.Env, anthropicAuthTokenEnvName),
+		"anthropic_api_key_env", runtimeEnvConfigured(options.Env, anthropicAPIKeyEnvName),
+		"openai_base_url_env", runtimeEnvConfigured(options.Env, "OPENAI_BASE_URL"),
+		"openai_model_env", runtimeEnvConfigured(options.Env, "OPENAI_MODEL"),
+		"openai_api_key_env", runtimeEnvConfigured(options.Env, "OPENAI_API_KEY"),
+		"nxs_command_path_env", runtimeEnvConfigured(options.Env, nexusNXSCommandPathEnvName),
+		"nexusctl_command_path_env", runtimeEnvConfigured(options.Env, nexusctlCommandPathEnvName),
 		"diagnostics_enabled", runtimectx.AgentSDKDiagnosticsEnabled(options.Env),
 		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),
 	}
@@ -110,22 +110,21 @@ func legacyRuntimeStartupLogFields(options agentclient.Options) []any {
 		"api_provider_env", strings.TrimSpace(options.Env[nexusAPIProviderEnvName]),
 		"openai_protocol_env", strings.TrimSpace(options.Env[nexusOpenAIProtocolEnvName]),
 		"nexus_runtime_provider_env", strings.TrimSpace(options.Env[NexusRuntimeProviderEnvName]),
-		"anthropic_base_url_env", RuntimeEnvConfigured(options.Env, anthropicBaseURLEnvName),
-		"anthropic_model_env", RuntimeEnvConfigured(options.Env, anthropicModelEnvName),
-		"anthropic_auth_token_env", RuntimeEnvConfigured(options.Env, anthropicAuthTokenEnvName),
-		"anthropic_api_key_env", RuntimeEnvConfigured(options.Env, anthropicAPIKeyEnvName),
-		"openai_base_url_env", RuntimeEnvConfigured(options.Env, "OPENAI_BASE_URL"),
-		"openai_model_env", RuntimeEnvConfigured(options.Env, "OPENAI_MODEL"),
-		"openai_api_key_env", RuntimeEnvConfigured(options.Env, "OPENAI_API_KEY"),
-		"nxs_command_path_env", RuntimeEnvConfigured(options.Env, nexusNXSCommandPathEnvName),
-		"nexusctl_command_path_env", RuntimeEnvConfigured(options.Env, nexusctlCommandPathEnvName),
+		"anthropic_base_url_env", runtimeEnvConfigured(options.Env, anthropicBaseURLEnvName),
+		"anthropic_model_env", runtimeEnvConfigured(options.Env, anthropicModelEnvName),
+		"anthropic_auth_token_env", runtimeEnvConfigured(options.Env, anthropicAuthTokenEnvName),
+		"anthropic_api_key_env", runtimeEnvConfigured(options.Env, anthropicAPIKeyEnvName),
+		"openai_base_url_env", runtimeEnvConfigured(options.Env, "OPENAI_BASE_URL"),
+		"openai_model_env", runtimeEnvConfigured(options.Env, "OPENAI_MODEL"),
+		"openai_api_key_env", runtimeEnvConfigured(options.Env, "OPENAI_API_KEY"),
+		"nxs_command_path_env", runtimeEnvConfigured(options.Env, nexusNXSCommandPathEnvName),
+		"nexusctl_command_path_env", runtimeEnvConfigured(options.Env, nexusctlCommandPathEnvName),
 		"diagnostics_enabled", runtimectx.AgentSDKDiagnosticsEnabled(options.Env),
 		"diagnostics_env", runtimectx.AgentSDKDiagnosticsValue(options.Env),
 	}
 }
 
-// RuntimeEnvConfigured 判断 runtime 环境变量是否已显式配置。
-func RuntimeEnvConfigured(env map[string]string, key string) bool {
+func runtimeEnvConfigured(env map[string]string, key string) bool {
 	if env == nil {
 		return false
 	}

@@ -4,13 +4,14 @@
 //
 // 成员清单：
 //   - client.go：Client 接口、Factory 与 sdkClientAdapter（runtime 需要的最小 SDK 能力抽象），
-//     并统一收口并发连接失败、永久撤销失去 Manager 所有权的 client、识别关闭态控制错误
-//     及隔离未收口的 SDK 会话。
+//     并统一收口并发连接失败、永久撤销失去 Manager 所有权的 client、取消换代中的
+//     connect/config RPC、识别关闭态控制错误及隔离未收口的 SDK 会话。
 //   - session.go / round.go / idle*.go / owner.go / interrupt.go / streaming_input.go / task.go /
 //     mcp.go / goal_accounting.go：Manager 管理 session_key → SDK client、owner、运行中 round、
-//     key 级启动与关闭栅栏、client 换代、lease 条件关闭、Goal accounting、
+//     key 级启动与关闭栅栏、client 换代、lease 条件关闭、round keyed state、
+//     idle 消息消费者租约，以及不占用全局锁的 owner epoch/reap flight；Goal accounting、
 //     scope-aware Goal create guard、ClearGoalAccountingRounds 部分 activation 回滚与
-//     objective revision adoption，并支持按 owner 强制回收。
+//     objective revision adoption 均随 round state 统一清理。
 //   - guidance.go / contextual_input.go / input_options.go：轮内引导、协商后的 applied ACK 消费回调、隐藏上下文和输入选项剥离。
 //   - diagnostics_env.go / stderr_line.go：诊断开关、stderr 归一化。
 //   - goal_usage.go / subagent_usage.go / context_usage.go：Goal actual/budget token

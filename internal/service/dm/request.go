@@ -469,7 +469,7 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 func (e *dmChatExecution) startRound() bool {
 	roundBase := contextWithExactOwner(context.WithoutCancel(e.ctx), e.agent.OwnerUserID)
 	roundCtx, cancel := context.WithCancel(roundBase)
-	if !e.service.runtime.StartRound(e.sessionKey, e.request.RoundID, cancel) {
+	if err := e.service.runtime.StartRound(roundCtx, e.sessionKey, e.request.RoundID, cancel); err != nil {
 		return false
 	}
 	e.roundCtx = roundCtx

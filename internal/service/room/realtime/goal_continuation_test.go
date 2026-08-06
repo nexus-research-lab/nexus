@@ -261,7 +261,7 @@ func TestRealtimeServicePostRoundWorkReleasesRoomGoalPlanWhenDispatchDefers(t *t
 		},
 	}
 	goalProvider.onPlan = func() {
-		runtimeManager.StartRound("room:group:conversation-1", "queued-user-round", nil)
+		_ = runtimeManager.StartRound(context.Background(), "room:group:conversation-1", "queued-user-round", nil)
 	}
 	service := &Service{
 		goals:   goalProvider,

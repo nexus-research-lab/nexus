@@ -6,7 +6,6 @@ package runtime
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -14,31 +13,21 @@ import (
 )
 
 type sessionState struct {
-	Client                   Client
-	StartupGeneration        uint64
-	ContextUsageByAgent      map[string]protocol.ContextUsageData
-	RunningRounds            map[string]struct{}
-	RoundCancels             map[string]context.CancelFunc
-	RoundDone                map[string]chan struct{}
-	BackgroundTasks          map[uint64]context.CancelFunc
-	BackgroundDone           chan struct{}
-	NextBackgroundTaskID     uint64
-	Closing                  bool
-	CloseDone                chan struct{}
-	Interruptions            map[string]string
-	GoalAccountingFlushers   map[string]GoalAccountingFlush
-	GoalAccountingClearers   map[string]GoalAccountingClear
-	GoalAccountingFinalizers map[string]GoalAccountingFinalize
-	GoalAccountingActivators map[string]GoalAccountingActivate
-	GoalAccountingGuards     map[string]goalAccountingGuard
-	GoalObjectiveRevisions   map[string]*atomic.Int64
-	GuidedInputs             []GuidedInput
-	IdleMessageCancel        context.CancelFunc
-	IdleMessageDrainID       int64
-	RuntimeKind              agentclient.RuntimeKind
-	OwnerUserID              string
-	HasSubagentHistory       bool
-	LastUsedAt               time.Time
+	Client               Client
+	StartupGeneration    uint64
+	ContextUsageByAgent  map[string]protocol.ContextUsageData
+	Rounds               roundRegistry
+	BackgroundTasks      map[uint64]context.CancelFunc
+	BackgroundDone       chan struct{}
+	NextBackgroundTaskID uint64
+	Closing              bool
+	CloseDone            chan struct{}
+	GuidedInputs         []GuidedInput
+	IdleMessageDrain     *idleMessageDrain
+	RuntimeKind          agentclient.RuntimeKind
+	OwnerUserID          string
+	HasSubagentHistory   bool
+	LastUsedAt           time.Time
 }
 
 type sessionStartupGate struct {
@@ -56,6 +45,7 @@ type Manager struct {
 	factory            Factory
 	now                func() time.Time
 	ownerProcessReaper OwnerProcessReaper
+	owners             map[string]*ownerLifecycle
 	// subagentUsageTotals 只服务非 SQL goal provider 的兼容路径；
 	// 放在 Manager 根上，避免 idle session 回收后立刻丢失高水位。
 	subagentUsageTotals map[string]int64
@@ -81,6 +71,7 @@ func NewManagerWithFactory(factory Factory) *Manager {
 		startupGates:        make(map[string]*sessionStartupGate),
 		factory:             factory,
 		now:                 time.Now,
+		owners:              make(map[string]*ownerLifecycle),
 		subagentUsageTotals: make(map[string]int64),
 	}
 }
@@ -99,19 +90,9 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 	state := m.sessions[sessionKey]
 	if state == nil {
 		state = &sessionState{
-			ContextUsageByAgent:      make(map[string]protocol.ContextUsageData),
-			RunningRounds:            make(map[string]struct{}),
-			RoundCancels:             make(map[string]context.CancelFunc),
-			RoundDone:                make(map[string]chan struct{}),
-			BackgroundTasks:          make(map[uint64]context.CancelFunc),
-			BackgroundDone:           closedSignal(),
-			Interruptions:            make(map[string]string),
-			GoalAccountingFlushers:   make(map[string]GoalAccountingFlush),
-			GoalAccountingClearers:   make(map[string]GoalAccountingClear),
-			GoalAccountingFinalizers: make(map[string]GoalAccountingFinalize),
-			GoalAccountingActivators: make(map[string]GoalAccountingActivate),
-			GoalAccountingGuards:     make(map[string]goalAccountingGuard),
-			GoalObjectiveRevisions:   make(map[string]*atomic.Int64),
+			ContextUsageByAgent: make(map[string]protocol.ContextUsageData),
+			BackgroundTasks:     make(map[uint64]context.CancelFunc),
+			BackgroundDone:      closedSignal(),
 		}
 		m.sessions[sessionKey] = state
 	}
@@ -138,19 +119,10 @@ func (m *Manager) removeClientlessSessionIfIdleLocked(
 		state.Client != nil ||
 		len(state.ContextUsageByAgent) > 0 ||
 		len(state.BackgroundTasks) > 0 ||
-		len(state.RunningRounds) > 0 ||
-		len(state.RoundCancels) > 0 ||
-		len(state.RoundDone) > 0 ||
+		!state.Rounds.empty() ||
 		len(state.GuidedInputs) > 0 ||
-		len(state.Interruptions) > 0 ||
-		len(state.GoalAccountingFlushers) > 0 ||
-		len(state.GoalAccountingClearers) > 0 ||
-		len(state.GoalAccountingFinalizers) > 0 ||
-		len(state.GoalAccountingActivators) > 0 ||
-		len(state.GoalAccountingGuards) > 0 ||
-		len(state.GoalObjectiveRevisions) > 0 ||
 		state.HasSubagentHistory ||
-		state.IdleMessageCancel != nil {
+		state.IdleMessageDrain != nil {
 		return false
 	}
 	delete(m.sessions, sessionKey)

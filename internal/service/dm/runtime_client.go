@@ -36,7 +36,7 @@ func (s *Service) ensureClient(
 	sessionItem protocol.Session,
 	request Request,
 ) (runtimectx.Client, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode, error) {
-	startup, err := s.runtime.BeginClientStartup(ctx, sessionKey)
+	startup, err := s.runtime.BeginClientStartup(ctx, sessionKey, agentValue.OwnerUserID)
 	if err != nil {
 		return nil, "", "", "", "", "", nil, sdkpermission.ModeDefault, err
 	}

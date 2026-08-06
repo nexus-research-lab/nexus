@@ -795,7 +795,7 @@ func TestRegisterSlotGoalRuntimeMakesGoalGuidanceQueueable(t *testing.T) {
 		RuntimeSessionKey: "agent:nexus:ws:room:conversation-1:agent-1",
 		AgentRoundID:      "room-round-1:agent-1",
 	}
-	manager.StartRound(slot.RuntimeSessionKey, slot.AgentRoundID, nil)
+	_ = manager.StartRound(context.Background(), slot.RuntimeSessionKey, slot.AgentRoundID, nil)
 
 	cleanup := service.registerSlotGoalRuntime(slot)
 	roundIDs, err := manager.QueueGuidanceInput(context.Background(), slot.RuntimeSessionKey, "goal-event-1", "budget reached")
@@ -912,8 +912,8 @@ func TestQueueRoomContextualGuidanceTargetsEveryActiveSlotExceptCaller(t *testin
 		AgentRoundID:      "round-root:agent-peer",
 		RuntimeSessionKey: "agent:peer:ws:group:conversation-1",
 	}
-	manager.StartRound(lead.RuntimeSessionKey, lead.AgentRoundID, nil)
-	manager.StartRound(caller.RuntimeSessionKey, caller.AgentRoundID, nil)
+	_ = manager.StartRound(context.Background(), lead.RuntimeSessionKey, lead.AgentRoundID, nil)
+	_ = manager.StartRound(context.Background(), caller.RuntimeSessionKey, caller.AgentRoundID, nil)
 	service := &Service{
 		runtime: manager,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
@@ -987,7 +987,7 @@ func TestQueueRoomContextualGuidanceContinuesAfterUnavailableTarget(t *testing.T
 		AgentRoundID:      "round-root:agent-active",
 		RuntimeSessionKey: "agent:b-active:ws:group:conversation-best-effort",
 	}
-	manager.StartRound(active.RuntimeSessionKey, active.AgentRoundID, nil)
+	_ = manager.StartRound(context.Background(), active.RuntimeSessionKey, active.AgentRoundID, nil)
 	service := &Service{
 		runtime: manager,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{

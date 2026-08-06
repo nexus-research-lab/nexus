@@ -6,6 +6,7 @@
 //   - agent_client.go / runtime_env.go / runtime_profile.go：client 选项、nxs/Claude
 //     Skill 动态发现与显式停用投影、单次模型配置解析、provider 协议环境、
 //     按 owner 锁定的 workspace/长期记忆环境、按 runtime 隔离的模型上限环境与 profile。
+//   - web_search.go：runtime 自有的 WebSearch 配置与环境投影。
 //   - model_provider.go：运行时 Provider、模型能力与上下文上限解析结果。
 //   - log_runtime.go：runtime 日志选项。
 //

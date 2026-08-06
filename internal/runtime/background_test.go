@@ -150,8 +150,8 @@ func TestManagerCloseSessionWaitsForTerminalRoundFinalizer(t *testing.T) {
 	manager := NewManager()
 	sessionKey := "agent:main:ws:dm:terminal-finalizer-race"
 	roundID := "round-terminal"
-	if !manager.StartRound(sessionKey, roundID, nil) {
-		t.Fatal("round 未启动")
+	if err := manager.StartRound(context.Background(), sessionKey, roundID, nil); err != nil {
+		t.Fatalf("round 未启动: %v", err)
 	}
 	manager.MarkRoundTerminal(sessionKey, roundID)
 	if running := manager.GetRunningRoundIDs(sessionKey); len(running) != 0 {
