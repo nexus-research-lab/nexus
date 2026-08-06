@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Matched Composer WorkGraph Dock Agent avatars to the chat message avatar's 32-pixel footprint and tightened the surrounding controls and spacing without changing full-graph node sizing.
 - Kept terminal root Agent Attempts visible in bounded Execution snapshots independently from newer child Subagent Attempts, so `submit_work` can record its Submission and the Room slot can settle idempotently after subagent-backed work.
 - Completed the WorkGraph's read-only whiteboard navigation with blank/Space/middle/right-button panning, two-dimensional trackpad scrolling, pointer-anchored wheel and pinch zoom, blank double-click zoom, keyboard pan/zoom/fit controls, resize-aware symmetric travel space, stable focus centering, screen-size detail inspectors, and blank-click or Escape dismissal without stealing graph interactions.
 - Removed the redundant rounded background and border from the WorkGraph's internal layout canvas so the whiteboard grid remains the single main surface while only real ownership subgraphs retain visible frames.

@@ -1281,6 +1281,12 @@ test("Composer WorkGraph dock exposes only primary Agent activity", async () => 
   assert.doesNotMatch(html, /data-execution-node-agent="subagent:sdk-task-child"/);
   assert.match(html, /data-execution-agent-connection/);
   assert.doesNotMatch(html, /data-execution-node-connection/);
+  assert.match(
+    html,
+    /h-8 w-8 rounded-\[10px\]/,
+    "the Dock Agent frame matches the chat message avatar's 32px footprint",
+  );
+  assert.doesNotMatch(html, /h-11 w-11 rounded-\[13px\]/);
   assert.ok(
     html.lastIndexOf("data-execution-agent-activity")
       < html.indexOf("data-execution-open-workgraph"),
@@ -1300,6 +1306,7 @@ test("Composer WorkGraph dock exposes only primary Agent activity", async () => 
     "utf8",
   );
   assert.match(panelSource, /max-w-\[460px\]/);
+  assert.match(panelSource, /size="dock"/);
   assert.doesNotMatch(panelSource, /ExecutionWorkGraphCanvas/);
   assert.doesNotMatch(panelSource, /ANCHORED_OVERLAY_MOTION_CLASS_NAME/);
 });

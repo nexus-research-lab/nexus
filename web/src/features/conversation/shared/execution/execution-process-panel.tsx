@@ -62,7 +62,7 @@ export function ExecutionProcessPanel({
     >
       <div
         className={cn(
-          "pointer-events-auto flex min-h-12 max-w-full items-center gap-1.5 overflow-hidden rounded-[16px] p-1.5",
+          "pointer-events-auto flex max-w-full items-center gap-1 overflow-hidden rounded-[14px] p-1",
           EXECUTION_DOCK_CLASS_NAME,
         )}
         data-execution-agent-activity-dock
@@ -84,7 +84,7 @@ export function ExecutionProcessPanel({
               {index > 0 ? (
                 <span
                   aria-hidden="true"
-                  className="h-px w-3 bg-(--divider-subtle-color)"
+                  className="h-px w-2.5 bg-(--divider-subtle-color)"
                   data-execution-agent-connection
                 />
               ) : null}
@@ -94,7 +94,7 @@ export function ExecutionProcessPanel({
                       agent: owner?.name ?? t("execution.owner_unassigned"),
                     })
                   : `${t("execution.open_workgraph")} · ${title}`}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] transition-[background,transform] hover:bg-(--surface-interactive-hover-background) hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] transition-[background,transform] hover:bg-(--surface-interactive-hover-background) hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
                 data-execution-agent-activity={owner?.id ?? node.id}
                 data-execution-agent-live={live ? "true" : undefined}
                 data-execution-agent-round-id={node.agent_round_id || undefined}
@@ -112,7 +112,7 @@ export function ExecutionProcessPanel({
                   agent={owner}
                   current={live}
                   kind="agent"
-                  size="graph"
+                  size="dock"
                   status={status}
                   title={title}
                   tone="activity"
@@ -124,11 +124,11 @@ export function ExecutionProcessPanel({
 
         <span
           aria-hidden="true"
-          className="mx-0.5 h-6 w-px shrink-0 bg-(--divider-subtle-color)"
+          className="mx-0.5 h-5 w-px shrink-0 bg-(--divider-subtle-color)"
         />
         <button
           aria-label={t("execution.open_workgraph")}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] text-(--icon-muted) transition-[background,color] hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--primary)"
           data-execution-open-workgraph
           onClick={onOpenGraph}
           title={`${t("execution.open_workgraph")} · ${nodeSummary.summary} · ${nodeProgressLabel}`}

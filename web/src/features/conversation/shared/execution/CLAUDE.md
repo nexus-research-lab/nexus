@@ -1,7 +1,7 @@
 # Execution WorkGraph
 
 - `use-execution-resource.ts` 只读取后端 `ExecutionView`，以 WebSocket activity invalidation 合并刷新；30 秒活动态检查只用于断线恢复，并在读取失败而保留旧快照时显式暴露 stale/last-successful-at，不派生第二套状态机。
-- `execution-process-panel.tsx` 是 Composer 上方的实时 Agent Dock：只有 `plan_execution` 成功持久化 active Plan 和非空 Work Items 后才显示；它只展示去重后的一级 Agent 责任节点，以轻量连线保留协作链路感知，工作图入口固定在右侧；绿色只表示该 Agent 正在运行。点击带精确 `agent_round_id` 的头像跳转到对应消息轮次，图标按钮打开右侧完整工作图。这里不得复制 DAG，也不得混入 Tool、Gate 或 Subagent。
+- `execution-process-panel.tsx` 是 Composer 上方的实时 Agent Dock：只有 `plan_execution` 成功持久化 active Plan 和非空 Work Items 后才显示；它只展示去重后的一级 Agent 责任节点，以轻量连线保留协作链路感知，工作图入口固定在右侧；Agent 节点外框固定为与展开聊天消息头像一致的 32px，Dock 只在其外保留紧凑点击热区和状态环；绿色只表示该 Agent 正在运行。点击带精确 `agent_round_id` 的头像跳转到对应消息轮次，图标按钮打开右侧完整工作图。这里不得复制 DAG，也不得混入 Tool、Gate 或 Subagent。
 - `execution-workgraph-surface.tsx` 是 Header “工作图”入口对应的完整辅助 Surface；Header、移动端菜单与 Composer Dock 共用 `hasManagedExecutionGraph` 判定创建成功，普通 runtime-only 图不得暴露任何 WorkGraph UI。Surface 与缩略入口消费 `room-surface-shell.tsx` 中同一个 `ExecutionResource` 和同一组 Task runs，不得自行轮询、复制状态机或制造第二份图快照。
 - `execution-node-avatar.tsx` 是 Agent Dock 与完整节点图共用的 Agent/Subagent/未分配节点原语；完整图投影生命周期，Dock 投影实时活动，二者不得复用绿色表达不同状态。Subagent 使用 child runtime identity 的稳定头像，不借用父 Work Item owner 头像。Tool 图标由 `execution-tool-visual.ts` 按搜索、抓取、本地检查、浏览器、命令/代码、写入/编辑、消息、生成、工作流控制与外部 capability 区分，状态仍只由边框和角标颜色表达，禁止让所有动作退化为同一扳手或另造一套状态色。
 - `execution-process-model.ts` 只做标签、当前节点、一级 Agent 去重、Lead/coordination 优先顺序、稳定头像 identity 与运行图可见性投影。无 Plan 的 runtime-only Agent Loop 可保留同一读模型作为上下文与诊断事实，但不得触发 Header、移动端菜单或 Composer Dock，也不得因此冒充 managed Execution、Assignment 或 Goal。`coordination` 只表达 Lead 对已声明根工作项的责任，禁止冒充已经发生的 dispatch；`parent_work_item_id` 是 containment，禁止进入 readiness 或布局边。
