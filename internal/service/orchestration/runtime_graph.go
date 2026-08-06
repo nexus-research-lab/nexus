@@ -293,9 +293,11 @@ func (s *Service) observeRuntimeSubagentLifecycle(
 		return nil
 	}
 	input := SubagentLifecycleInput{
-		ToolUseID:  toolUseID,
-		SDKAgentID: strings.TrimSpace(event.AgentID),
-		AgentType:  strings.TrimSpace(event.Name),
+		ToolUseID:      toolUseID,
+		SDKTaskID:      strings.TrimSpace(event.SubjectID),
+		SDKAgentID:     strings.TrimSpace(event.AgentID),
+		ChildSessionID: strings.TrimSpace(event.ChildSessionID),
+		AgentType:      strings.TrimSpace(event.Name),
 	}
 	var (
 		result SubagentAdmissionResult

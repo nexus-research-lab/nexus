@@ -373,6 +373,35 @@ func TestRepositoryKeepsRootAttemptAlongsideConcurrentChildren(t *testing.T) {
 		t.Fatalf("running child Attempts = %d, want 2", runningChildren)
 	}
 
+	for _, childID := range []string{"attempt-subagent-1", "attempt-subagent-2"} {
+		snapshot = finishTestAttempt(
+			t,
+			ctx,
+			repository,
+			snapshot,
+			childID,
+			protocol.WorkAttemptStatusSucceeded,
+		)
+	}
+	boundedChildren := 0
+	for _, attempt := range snapshot.Attempts {
+		if attempt.ParentAttemptID == parent.ID {
+			boundedChildren++
+		}
+	}
+	if boundedChildren != 1 {
+		t.Fatalf("bounded Snapshot child Attempts = %d, want latest 1", boundedChildren)
+	}
+	workGraphChildren, err := repository.ListWorkGraphChildAttempts(ctx, snapshot.Plan.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(workGraphChildren) != 2 ||
+		workGraphChildren[0].ID != "attempt-subagent-1" ||
+		workGraphChildren[1].ID != "attempt-subagent-2" {
+		t.Fatalf("WorkGraph child Attempt history = %#v, want both siblings", workGraphChildren)
+	}
+
 	snapshot = finishTestAttempt(
 		t,
 		ctx,

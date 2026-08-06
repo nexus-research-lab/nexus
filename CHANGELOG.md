@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Restored every durable child Attempt as an independent Subagent WorkGraph node even when the operational Snapshot retains only its latest terminal child; native Agent task history now recovers exact task identity, avatar metadata, completion status, and child Tool ownership, while the launch Tool remains correlation evidence instead of overwriting the child lifecycle.
+- Preserved every Tool NodeRun as its own WorkGraph node instead of folding failed and successful calls into one aggregate; exact runtime retry identities now add only a retry edge, while an unlinked latest success after a same-owner failure is still promoted so recovery remains visible without inventing a relationship.
 - Kept the desktop Header WorkGraph entry permanently visible and pinned outside overflow menus; opening it now retains the session's latest completed managed graph until a newer managed WorkGraph is created, while later runtime-only conversation rounds remain excluded from the canvas.
 - Clarified orchestration guidance so independent managed parallel Work Items go to different Room Agents, while one Agent uses Subagents inside a single owned responsibility; assigning sibling Work Items to the same Agent is now described truthfully as a serial queue instead of parallel execution.
 - Matched Composer WorkGraph Dock Agent avatars to the chat message avatar's 32-pixel footprint and tightened the surrounding controls and spacing without changing full-graph node sizing.

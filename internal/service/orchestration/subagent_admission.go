@@ -34,7 +34,9 @@ type SubagentLaunchInput struct {
 type SubagentLifecycleInput struct {
 	ToolUseID            string
 	SDKSessionID         string
+	SDKTaskID            string
 	SDKAgentID           string
+	ChildSessionID       string
 	AgentType            string
 	AgentTranscriptPath  string
 	LastAssistantMessage string
@@ -325,6 +327,22 @@ func (s *Service) ObserveSubagentStop(
 			return allowedRuntimeOnlySubagentAdmission(), nil
 		}
 		terminal := *child
+		terminal.SDKSessionID = firstNonEmpty(
+			strings.TrimSpace(input.SDKSessionID),
+			terminal.SDKSessionID,
+		)
+		terminal.SDKTaskID = firstNonEmpty(
+			strings.TrimSpace(input.SDKTaskID),
+			terminal.SDKTaskID,
+		)
+		terminal.ChildSessionID = firstNonEmpty(
+			strings.TrimSpace(input.ChildSessionID),
+			terminal.ChildSessionID,
+		)
+		terminal.ExecutorAgentID = firstNonEmpty(
+			strings.TrimSpace(input.SDKAgentID),
+			terminal.ExecutorAgentID,
+		)
 		terminal.Status = protocol.WorkAttemptStatusSucceeded
 		terminal.FailureReason = ""
 		if input.Interrupted {

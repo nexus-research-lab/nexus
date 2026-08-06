@@ -1,5 +1,5 @@
-// INPUT: owner/session 只读查询与当前或最近一次 ExecutionSnapshot。
-// OUTPUT: 去除控制面 identity、按 Plan position 排序并派生交付阶段的 protocol.ExecutionView。
+// INPUT: owner/session 只读查询、当前或最近一次有界 ExecutionSnapshot 与 WorkGraph child Attempt 历史。
+// OUTPUT: 去除控制面 identity、保留每个 durable Subagent、按 Plan position 排序并派生交付阶段的 protocol.ExecutionView。
 // POS: Execution 状态机到 HTTP/DM/Room WorkGraph UI 的唯一展示投影。
 package orchestration
 
@@ -19,6 +19,10 @@ type latestExecutionRepository interface {
 type managedExecutionViewRepository interface {
 	FindCurrentManaged(context.Context, string, string) (*protocol.Execution, error)
 	FindLatestManaged(context.Context, string, string) (*protocol.Execution, error)
+}
+
+type workGraphAttemptRepository interface {
+	ListWorkGraphChildAttempts(context.Context, string) ([]protocol.WorkAttempt, error)
 }
 
 // GetLatestView 返回 session 当前 Execution；没有未终结 Execution 时保留最近一次
@@ -74,6 +78,15 @@ func (s *Service) GetLatestView(
 		snapshot.Execution.SessionKey != sessionKey {
 		return nil, domainError(ErrorCodeWrongOwner, "Execution is outside the requested owner/session")
 	}
+	if snapshot.Plan != nil {
+		if repository, ok := s.repository.(workGraphAttemptRepository); ok {
+			childAttempts, historyErr := repository.ListWorkGraphChildAttempts(ctx, snapshot.Plan.ID)
+			if historyErr != nil {
+				return nil, historyErr
+			}
+			snapshot = snapshotWithWorkGraphChildAttempts(snapshot, childAttempts)
+		}
+	}
 	result := ProjectExecutionView(snapshot)
 	if result == nil {
 		return nil, nil
@@ -98,6 +111,44 @@ func (s *Service) GetLatestView(
 		mergeExecutionRuntimeGraph(result, runtimeGraph)
 	}
 	return result, nil
+}
+
+func snapshotWithWorkGraphChildAttempts(
+	snapshot *protocol.ExecutionSnapshot,
+	childAttempts []protocol.WorkAttempt,
+) *protocol.ExecutionSnapshot {
+	if snapshot == nil || snapshot.Plan == nil || len(childAttempts) == 0 {
+		return snapshot
+	}
+	result := *snapshot
+	result.Attempts = slices.Clone(snapshot.Attempts)
+	seen := make(map[string]struct{}, len(result.Attempts)+len(childAttempts))
+	for _, attempt := range result.Attempts {
+		seen[attempt.ID] = struct{}{}
+	}
+	for _, attempt := range childAttempts {
+		if strings.TrimSpace(attempt.ID) == "" ||
+			strings.TrimSpace(attempt.ParentAttemptID) == "" ||
+			attempt.ExecutionID != snapshot.Execution.ID ||
+			attempt.PlanID != snapshot.Plan.ID {
+			continue
+		}
+		if _, duplicate := seen[attempt.ID]; duplicate {
+			continue
+		}
+		seen[attempt.ID] = struct{}{}
+		result.Attempts = append(result.Attempts, attempt)
+	}
+	slices.SortFunc(result.Attempts, func(left, right protocol.WorkAttempt) int {
+		if order := strings.Compare(left.WorkItemID, right.WorkItemID); order != 0 {
+			return order
+		}
+		if order := left.CreatedAt.Compare(right.CreatedAt); order != 0 {
+			return order
+		}
+		return strings.Compare(left.ID, right.ID)
+	})
+	return &result
 }
 
 // ProjectExecutionView 把权威 snapshot 投影成稳定且安全的 UI 读取模型。

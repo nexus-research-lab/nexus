@@ -454,7 +454,7 @@ func TestRuntimeGraphViewBindsLaunchToolsAndChildrenToSiblingSubagents(t *testin
 					ParentAttemptID: "attempt-root",
 					ExecutorKind:    protocol.AttemptExecutorSubagent,
 					ToolUseID:       "spawn-first",
-					Status:          protocol.WorkAttemptStatusRunning,
+					Status:          protocol.WorkAttemptStatusInterrupted,
 					CreatedAt:       now.Add(time.Second),
 				},
 				{
@@ -549,6 +549,8 @@ func TestRuntimeGraphViewBindsLaunchToolsAndChildrenToSiblingSubagents(t *testin
 	secondTool := graphNodeByID(view.Graph.Nodes, secondToolRunID)
 	if firstSubagent.ParentNodeID != "work-a" || secondSubagent.ParentNodeID != "work-a" ||
 		firstSubagent.AgentID != "" || secondSubagent.AgentID != "" ||
+		firstSubagent.RunStatus != protocol.WorkAttemptStatusInterrupted ||
+		firstSubagent.LifecycleStatus != "" ||
 		firstTool.ParentNodeID != firstSubagent.ID ||
 		secondTool.ParentNodeID != secondSubagent.ID ||
 		firstTool.Visibility != protocol.ExecutionGraphNodeNested ||
@@ -941,7 +943,14 @@ func TestRuntimeGraphRetryKeepsSucceededToolVisibleWithoutToolNameRouting(t *tes
 		},
 	})
 
+	failed := graphNodeByID(view.Graph.Nodes, failedID)
 	retried := graphNodeByID(view.Graph.Nodes, retriedID)
+	if failed.ID == retried.ID ||
+		len(failed.Runs) != 1 || len(retried.Runs) != 1 ||
+		failed.LifecycleStatus != string(protocol.ExecutionRuntimeNodeFailed) ||
+		retried.LifecycleStatus != string(protocol.ExecutionRuntimeNodeSucceeded) {
+		t.Fatalf("retry NodeRuns were folded instead of preserved: failed=%+v retried=%+v", failed, retried)
+	}
 	if retried.Visibility != protocol.ExecutionGraphNodeNested {
 		t.Fatalf("succeeded retry target was hidden after completion: %+v", retried)
 	}
@@ -955,6 +964,64 @@ func TestRuntimeGraphRetryKeepsSucceededToolVisibleWithoutToolNameRouting(t *tes
 	}
 	if !foundRetry {
 		t.Fatalf("agent-chosen retry relation missing: %+v", view.Graph.Edges)
+	}
+}
+
+func TestRuntimeGraphKeepsUnlinkedFailureAndRecoveryAsSeparateVisibleNodes(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 15, 0, 0, 0, time.UTC)
+	rootID := "runtime-agent-unlinked-recovery"
+	failedID := "runtime-read-failed"
+	succeededID := "runtime-read-succeeded"
+	view := &protocol.ExecutionView{}
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{
+		GraphID: "round:unlinked-recovery",
+		Nodes: []protocol.ExecutionRuntimeNodeRun{
+			{
+				ID: rootID, Kind: protocol.ExecutionRuntimeNodeAgent,
+				SubjectID: "agent-round-unlinked", AgentRoundID: "agent-round-unlinked",
+				AgentID: "agent-1", Status: protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now, UpdatedAt: now,
+			},
+			{
+				ID: failedID, Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "read-1", ParentSubjectID: "agent-round-unlinked",
+				AgentRoundID: "agent-round-unlinked", AgentID: "agent-1",
+				Name: "Read", Status: protocol.ExecutionRuntimeNodeFailed,
+				StartedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+			},
+			{
+				ID: succeededID, Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "read-2", ParentSubjectID: "agent-round-unlinked",
+				AgentRoundID: "agent-round-unlinked", AgentID: "agent-1",
+				Name: "Read", Status: protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now.Add(2 * time.Second), UpdatedAt: now.Add(2 * time.Second),
+			},
+		},
+		Edges: []protocol.ExecutionRuntimeEdgeRun{
+			{ID: "invoke-failed", SourceNodeID: rootID, TargetNodeID: failedID, Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now.Add(time.Second)},
+			{ID: "invoke-succeeded", SourceNodeID: rootID, TargetNodeID: succeededID, Kind: protocol.ExecutionRuntimeEdgeInvoke, CreatedAt: now.Add(2 * time.Second)},
+		},
+	})
+
+	failed := graphNodeByID(view.Graph.Nodes, failedID)
+	succeeded := graphNodeByID(view.Graph.Nodes, succeededID)
+	if failed.ID == succeeded.ID || len(failed.Runs) != 1 || len(succeeded.Runs) != 1 {
+		t.Fatalf("unlinked NodeRuns were folded: failed=%+v succeeded=%+v", failed, succeeded)
+	}
+	if failed.Visibility != protocol.ExecutionGraphNodeNested ||
+		succeeded.Visibility != protocol.ExecutionGraphNodeNested {
+		t.Fatalf("failure and latest recovery must both stay visible: failed=%+v succeeded=%+v", failed, succeeded)
+	}
+	if failed.LifecycleStatus != string(protocol.ExecutionRuntimeNodeFailed) ||
+		succeeded.LifecycleStatus != string(protocol.ExecutionRuntimeNodeSucceeded) {
+		t.Fatalf("independent NodeRun status was lost: failed=%+v succeeded=%+v", failed, succeeded)
+	}
+	for _, edge := range view.Graph.Edges {
+		if edge.Kind == protocol.ExecutionGraphEdgeRetry {
+			t.Fatalf("unlinked calls must not invent a retry edge: %+v", view.Graph.Edges)
+		}
 	}
 }
 

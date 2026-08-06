@@ -1,5 +1,5 @@
 // INPUT: durable Runtime Graph 与可选 managed ExecutionView。
-// OUTPUT: planless 单智能体图，或按 exact launch ToolUse 合并到独立 Subagent、过滤纯 progress facet 且按结构事实分层可见性的 WorkGraph 运行层。
+// OUTPUT: planless 单智能体图，或按 exact launch ToolUse 合并到独立 Subagent、过滤纯 progress facet、保持每个 Tool NodeRun 独立且按结构事实分层可见性的 WorkGraph 运行层。
 // POS: Runtime NodeRun 到 icon-first Graph UI 的唯一展示投影；可从持久父身份修复历史缺边快照，并保持 primary 责任、nested runtime 与 detail 历史的边界。
 package orchestration
 
@@ -178,9 +178,17 @@ func mergeExecutionRuntimeGraph(
 			}
 		}
 		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeSubagent {
-			if existingID := subagentNodeByTask[runtimeNode.SubjectID]; existingID != "" {
+			existingID := subagentNodeByTask[strings.TrimSpace(runtimeNode.SubjectID)]
+			if existingID == "" {
+				toolUseID := strings.TrimSpace(runtimeGraphMetadataString(runtimeNode, "tool_use_id"))
+				existingID = subagentNodeByToolUse[toolUseID]
+			}
+			if existingID != "" {
 				runtimeNodeProjection[runtimeNode.ID] = existingID
 				updateBoundExecutionGraphNode(view, graphNodeByID, existingID, runtimeNode)
+				if runtimeNode.SubjectID != "" {
+					subagentNodeByTask[strings.TrimSpace(runtimeNode.SubjectID)] = existingID
+				}
 				continue
 			}
 		}
@@ -188,7 +196,9 @@ func mergeExecutionRuntimeGraph(
 			if existingID := subagentNodeByToolUse[strings.TrimSpace(runtimeNode.SubjectID)]; existingID != "" {
 				runtimeNodeProjection[runtimeNode.ID] = existingID
 				runtimeSubagentLaunchNodeIDs[runtimeNode.ID] = struct{}{}
-				updateBoundExecutionGraphNode(view, graphNodeByID, existingID, runtimeNode)
+				// Agent Tool 只证明“发起了哪一个 child”。它与 child Attempt
+				// 投影为同一 Subagent 后，不得用 launch Tool 的成功/失败覆盖
+				// 子任务自身的生命周期与结果。
 				continue
 			}
 		}
@@ -435,6 +445,17 @@ func updateBoundExecutionGraphNode(
 		node.AgentRoundID = runtimeNode.AgentRoundID
 		if runtimeNode.AgentID != "" {
 			node.AgentID = runtimeNode.AgentID
+		}
+	}
+	if runtimeNode.Kind == protocol.ExecutionRuntimeNodeSubagent {
+		if runtimeNode.SubjectID != "" {
+			node.SubjectID = runtimeNode.SubjectID
+		}
+		if runtimeNode.Name != "" {
+			node.Name = runtimeNode.Name
+		}
+		if runtimeNode.Description != "" {
+			node.Description = runtimeNode.Description
 		}
 	}
 	node.LifecycleStatus = string(runtimeNode.Status)
@@ -755,8 +776,60 @@ func runtimeGraphPromotedNodeIDs(
 		result[edge.SourceNodeID] = struct{}{}
 		result[edge.TargetNodeID] = struct{}{}
 	}
+	promoteRuntimeGraphRecoverySuccesses(graph, result)
 	promoteRuntimeGraphSubagentRepresentativeTools(graph, result)
 	return result
+}
+
+// promoteRuntimeGraphRecoverySuccesses 只负责避免画布停留在“失败但看不见后来
+// 成功”的误导状态。它不创建 retry 边，也不把两个 NodeRun 合并：只有 durable
+// retry_of 事实才能表达重试关系；同一直接 owner 下同类工具的时间顺序只用于
+// 提升最后一个失败后成功的独立节点。
+func promoteRuntimeGraphRecoverySuccesses(
+	graph protocol.ExecutionRuntimeGraph,
+	promoted map[string]struct{},
+) {
+	groups := make(map[string][]protocol.ExecutionRuntimeNodeRun)
+	for _, node := range graph.Nodes {
+		if node.Kind != protocol.ExecutionRuntimeNodeTool {
+			continue
+		}
+		ownerKey := firstNonEmpty(
+			strings.TrimSpace(node.ParentSubjectID),
+			strings.TrimSpace(node.AgentRoundID),
+		)
+		actionKey := runtimeGraphCanonicalToolLeaf(node.Name)
+		if ownerKey == "" || actionKey == "" {
+			continue
+		}
+		key := strings.TrimSpace(node.AgentID) + "\x00" + ownerKey + "\x00" + actionKey
+		groups[key] = append(groups[key], node)
+	}
+	for _, nodes := range groups {
+		slices.SortFunc(nodes, func(left, right protocol.ExecutionRuntimeNodeRun) int {
+			if order := left.StartedAt.Compare(right.StartedAt); order != 0 {
+				return order
+			}
+			return strings.Compare(left.ID, right.ID)
+		})
+		failureObserved := false
+		latestRecoveryID := ""
+		for _, node := range nodes {
+			switch node.Status {
+			case protocol.ExecutionRuntimeNodeFailed,
+				protocol.ExecutionRuntimeNodeCancelled,
+				protocol.ExecutionRuntimeNodeInterrupted:
+				failureObserved = true
+			case protocol.ExecutionRuntimeNodeSucceeded:
+				if failureObserved {
+					latestRecoveryID = node.ID
+				}
+			}
+		}
+		if latestRecoveryID != "" {
+			promoted[latestRecoveryID] = struct{}{}
+		}
+	}
 }
 
 const runtimeGraphSubagentRepresentativeToolLimit = 3

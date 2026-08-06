@@ -2,6 +2,8 @@ package orchestration
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,10 +12,11 @@ import (
 
 type latestExecutionViewRepository struct {
 	*runtimeGraphRepositoryFake
-	current       *protocol.Execution
-	latest        *protocol.Execution
-	managedGraph  protocol.ExecutionRuntimeGraph
-	planlessGraph protocol.ExecutionRuntimeGraph
+	current           *protocol.Execution
+	latest            *protocol.Execution
+	managedGraph      protocol.ExecutionRuntimeGraph
+	planlessGraph     protocol.ExecutionRuntimeGraph
+	workGraphAttempts []protocol.WorkAttempt
 }
 
 func (repository *latestExecutionViewRepository) FindCurrentManaged(
@@ -43,6 +46,34 @@ func (repository *latestExecutionViewRepository) GetRuntimeGraph(
 		return repository.planlessGraph, nil
 	}
 	return repository.managedGraph, nil
+}
+
+func (repository *latestExecutionViewRepository) ListWorkGraphChildAttempts(
+	context.Context,
+	string,
+) ([]protocol.WorkAttempt, error) {
+	return repository.workGraphAttempts, nil
+}
+
+type runtimeGraphSubagentCompleteHistory struct {
+	tasks []RuntimeGraphSubagentTaskHistory
+	tools []RuntimeGraphSubagentToolHistory
+}
+
+func (history runtimeGraphSubagentCompleteHistory) ListRuntimeGraphSubagentTaskHistory(
+	context.Context,
+	string,
+	string,
+) ([]RuntimeGraphSubagentTaskHistory, error) {
+	return history.tasks, nil
+}
+
+func (history runtimeGraphSubagentCompleteHistory) ListRuntimeGraphSubagentToolHistory(
+	context.Context,
+	string,
+	string,
+) ([]RuntimeGraphSubagentToolHistory, error) {
+	return history.tools, nil
 }
 
 func TestGetLatestViewKeepsTerminalManagedGraphAheadOfNewerPlanlessRound(t *testing.T) {
@@ -84,6 +115,166 @@ func TestGetLatestViewKeepsTerminalManagedGraphAheadOfNewerPlanlessRound(t *test
 	if view == nil || view.ID != snapshot.Execution.ID || view.Plan == nil ||
 		len(view.WorkItems) == 0 || view.Status != protocol.ExecutionStatusCompleted {
 		t.Fatalf("latest managed WorkGraph was replaced by a planless round: %+v", view)
+	}
+}
+
+func TestGetLatestViewProjectsEveryHistoricalSubagentWithExactTaskLifecycle(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 16, 0, 0, 0, time.UTC)
+	snapshot := assignedExecutionSnapshot()
+	snapshot.Execution.RootRoundID = "root-round-1"
+	snapshot.Attempts[0].AgentRoundID = "agent-round-1"
+	snapshot.Attempts[0].Status = protocol.WorkAttemptStatusSucceeded
+	root := snapshot.Attempts[0]
+	children := make([]protocol.WorkAttempt, 0, 4)
+	runtimeNodes := []protocol.ExecutionRuntimeNodeRun{{
+		ID:             "runtime-agent-1",
+		GraphID:        "execution:execution-1",
+		OwnerUserID:    snapshot.Execution.OwnerUserID,
+		SessionKey:     snapshot.Execution.SessionKey,
+		ExecutionID:    snapshot.Execution.ID,
+		Kind:           protocol.ExecutionRuntimeNodeAgent,
+		SubjectID:      "agent-round-1",
+		RootRoundID:    "root-round-1",
+		RuntimeRoundID: "runtime-round-1",
+		AgentRoundID:   "agent-round-1",
+		AgentID:        "agent-worker",
+		Status:         protocol.ExecutionRuntimeNodeSucceeded,
+		StartedAt:      now,
+		UpdatedAt:      now,
+	}}
+	runtimeEdges := make([]protocol.ExecutionRuntimeEdgeRun, 0, 4)
+	tasks := make([]RuntimeGraphSubagentTaskHistory, 0, 4)
+	for index := 1; index <= 4; index++ {
+		attemptID := fmt.Sprintf("attempt-child-%d", index)
+		toolUseID := fmt.Sprintf("launch-agent-%d", index)
+		taskID := fmt.Sprintf("task-%d", index)
+		child := protocol.WorkAttempt{
+			ID:              attemptID,
+			ExecutionID:     snapshot.Execution.ID,
+			PlanID:          snapshot.Plan.ID,
+			WorkItemID:      root.WorkItemID,
+			SpecID:          root.SpecID,
+			AssignmentID:    root.AssignmentID,
+			ParentAttemptID: root.ID,
+			ExecutorKind:    protocol.AttemptExecutorSubagent,
+			ParentAgentID:   "agent-worker",
+			AgentRoundID:    "agent-round-1",
+			ToolUseID:       toolUseID,
+			Status:          protocol.WorkAttemptStatusInterrupted,
+			CreatedAt:       now.Add(time.Duration(index) * time.Second),
+		}
+		children = append(children, child)
+		launchNodeID := fmt.Sprintf("runtime-launch-%d", index)
+		runtimeNodes = append(runtimeNodes, protocol.ExecutionRuntimeNodeRun{
+			ID:              launchNodeID,
+			GraphID:         "execution:execution-1",
+			OwnerUserID:     snapshot.Execution.OwnerUserID,
+			SessionKey:      snapshot.Execution.SessionKey,
+			ExecutionID:     snapshot.Execution.ID,
+			Kind:            protocol.ExecutionRuntimeNodeTool,
+			SubjectID:       toolUseID,
+			ParentSubjectID: "agent-round-1",
+			RootRoundID:     "root-round-1",
+			RuntimeRoundID:  "runtime-round-1",
+			AgentRoundID:    "agent-round-1",
+			AgentID:         "agent-worker",
+			Name:            "Agent",
+			Status:          protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt:       now.Add(time.Duration(index) * time.Second),
+			UpdatedAt:       now.Add(time.Duration(index) * time.Second),
+		})
+		runtimeEdges = append(runtimeEdges, protocol.ExecutionRuntimeEdgeRun{
+			ID:           fmt.Sprintf("invoke-%d", index),
+			GraphID:      "execution:execution-1",
+			OwnerUserID:  snapshot.Execution.OwnerUserID,
+			SessionKey:   snapshot.Execution.SessionKey,
+			SourceNodeID: "runtime-agent-1",
+			TargetNodeID: launchNodeID,
+			Kind:         protocol.ExecutionRuntimeEdgeInvoke,
+			CreatedAt:    now.Add(time.Duration(index) * time.Second),
+		})
+		tasks = append(tasks, RuntimeGraphSubagentTaskHistory{
+			TaskID:         taskID,
+			AgentID:        fmt.Sprintf("child-agent-%d", index),
+			AgentType:      "Explore",
+			ChildSessionID: fmt.Sprintf("child-session-%d", index),
+			Description:    fmt.Sprintf("Parallel analysis %d", index),
+			Status:         "completed",
+			ToolUseID:      toolUseID,
+			StartedAt:      now.Add(time.Duration(index) * time.Second).UnixMilli(),
+			UpdatedAt:      now.Add(time.Duration(index+1) * time.Second).UnixMilli(),
+		})
+	}
+	// The operational Snapshot intentionally retains only its latest terminal
+	// child; WorkGraph history must restore every sibling.
+	snapshot.Attempts = append(snapshot.Attempts, children[len(children)-1])
+	current := snapshot.Execution
+	repository := &latestExecutionViewRepository{
+		runtimeGraphRepositoryFake: &runtimeGraphRepositoryFake{
+			fakeRepository: &fakeRepository{snapshot: snapshot},
+		},
+		current:           &current,
+		workGraphAttempts: children,
+		managedGraph: protocol.ExecutionRuntimeGraph{
+			GraphID:   "execution:execution-1",
+			Nodes:     runtimeNodes,
+			Edges:     runtimeEdges,
+			NodeTotal: len(runtimeNodes),
+			EdgeTotal: len(runtimeEdges),
+		},
+	}
+	service := NewService(repository)
+	service.SetRuntimeGraphSubagentToolHistoryProvider(runtimeGraphSubagentCompleteHistory{
+		tasks: tasks,
+		tools: []RuntimeGraphSubagentToolHistory{{
+			ParentToolUseID: "launch-agent-1",
+			TaskID:          "task-1",
+			AgentID:         "child-agent-1",
+			ToolUseID:       "child-web-fetch-1",
+			Name:            "WebFetch",
+			Status:          "completed",
+			StartedAt:       now.Add(2 * time.Second).UnixMilli(),
+			FinishedAt:      now.Add(3 * time.Second).UnixMilli(),
+		}},
+	})
+	view, err := service.GetLatestView(
+		context.Background(),
+		snapshot.Execution.OwnerUserID,
+		snapshot.Execution.SessionKey,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	subagents := make([]protocol.ExecutionGraphNodeView, 0, 4)
+	childTool := protocol.ExecutionGraphNodeView{}
+	for _, node := range view.Graph.Nodes {
+		if node.Kind == protocol.ExecutionGraphNodeSubagent {
+			subagents = append(subagents, node)
+		}
+		if node.Kind == protocol.ExecutionGraphNodeTool && strings.EqualFold(node.Name, "Agent") {
+			t.Fatalf("Agent launch leaked as a separate Tool node: %+v", node)
+		}
+		if node.Kind == protocol.ExecutionGraphNodeTool && node.SubjectID == "child-web-fetch-1" {
+			childTool = node
+		}
+	}
+	if len(subagents) != 4 {
+		t.Fatalf("Subagent node count = %d, want 4: %+v", len(subagents), view.Graph.Nodes)
+	}
+	for index, node := range subagents {
+		want := index + 1
+		if node.AttemptID != fmt.Sprintf("attempt-child-%d", want) ||
+			node.SubjectID != fmt.Sprintf("task-%d", want) ||
+			node.AgentID != fmt.Sprintf("child-agent-%d", want) ||
+			node.LifecycleStatus != string(protocol.ExecutionRuntimeNodeSucceeded) {
+			t.Fatalf("Subagent %d lost exact identity/status: %+v", want, node)
+		}
+	}
+	if childTool.ID == "" || childTool.ParentNodeID != "attempt-child-1" ||
+		childTool.LifecycleStatus != string(protocol.ExecutionRuntimeNodeSucceeded) {
+		t.Fatalf("Subagent child Tool lost exact ownership/status: %+v", childTool)
 	}
 }
 

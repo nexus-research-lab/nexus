@@ -13,5 +13,5 @@
 //   - runtime_graph.go / runtime_graph_artifact.go: Bridge 生命周期事件及可选 alignment Gate 形成的 provider-neutral Agent/Tool/Subagent/Gate NodeRun、有界结果/错误摘要、控制回边与 exact retry 边幂等存储；用户图独立窗口保留根与最新节点并返回 partial/total，durable Artifact ref 按 exact ToolUse 到达顺序无关地回挂；与 command CAS 隔离。
 //   - submission.go: immutable Submission、按需同事务跨 Agent review-return outbox 与 append-only Acceptance。
 //   - state.go: 显式 Block/Resume、旧 Assignment/Attempt/Dispatch 收束与派生 readiness/completion。
-//   - query.go / scan.go: 根 Agent 与 child Subagent Attempt 分域压缩的有界 Snapshot 与 SQL row 投影。
+//   - query.go / scan.go / workgraph.go: 根 Agent 与 child Subagent Attempt 分域压缩的有界 Snapshot、SQL row 投影，以及不扩张模型上下文的 WorkGraph 完整 child Attempt 历史读取。
 package orchestration

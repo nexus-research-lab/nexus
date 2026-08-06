@@ -362,7 +362,11 @@ func TestSubagentStopTerminatesOnlyTheBoundChildAttempt(t *testing.T) {
 		context.Background(),
 		subagentActor(),
 		SubagentLifecycleInput{
+			ToolUseID:           "tool-agent-1",
+			SDKSessionID:        "sdk-session-1",
+			SDKTaskID:           "sdk-task-1",
 			SDKAgentID:          "sdk-agent-1",
+			ChildSessionID:      "child-session-1",
 			AgentType:           "researcher",
 			AgentTranscriptPath: "/tmp/subagent.jsonl",
 		},
@@ -377,8 +381,10 @@ func TestSubagentStopTerminatesOnlyTheBoundChildAttempt(t *testing.T) {
 	child := repository.snapshot.Attempts[1]
 	if child.Status != protocol.WorkAttemptStatusSucceeded ||
 		child.Metadata["sdk_agent_id"] != "sdk-agent-1" ||
-		child.ChildSessionID != "" ||
-		child.SDKTaskID != "" {
+		child.ExecutorAgentID != "sdk-agent-1" ||
+		child.SDKSessionID != "sdk-session-1" ||
+		child.ChildSessionID != "child-session-1" ||
+		child.SDKTaskID != "sdk-task-1" {
 		t.Fatalf("terminal child Attempt = %#v", child)
 	}
 }
