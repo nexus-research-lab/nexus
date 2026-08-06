@@ -655,6 +655,48 @@ func TestBuildAgentClientOptionsDefaultsToNXSChatCompletionsProviderEnv(t *testi
 	}
 }
 
+func TestBuildAgentClientOptionsProjectsHostManagedEnvironment(t *testing.T) {
+	tests := []struct {
+		name                    string
+		runtimeKind             string
+		wantAutoDreamWakeMode   string
+		wantProviderManagedFlag string
+	}{
+		{
+			name:                    "nxs",
+			runtimeKind:             runtimeKindNXS,
+			wantAutoDreamWakeMode:   "host",
+			wantProviderManagedFlag: "1",
+		},
+		{
+			name:        "claude",
+			runtimeKind: runtimeKindClaude,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			options, err := BuildAgentClientOptions(
+				context.Background(),
+				fakeRuntimeConfigResolver{},
+				AgentClientOptionsInput{
+					RuntimeKind:   test.runtimeKind,
+					WorkspacePath: t.TempDir(),
+				},
+			)
+			if err != nil {
+				t.Fatalf("BuildAgentClientOptions() error = %v", err)
+			}
+			if got := options.Env[nexusAutoDreamWakeModeEnvName]; got != test.wantAutoDreamWakeMode {
+				t.Fatalf("%s = %q, want %q", nexusAutoDreamWakeModeEnvName, got, test.wantAutoDreamWakeMode)
+			}
+			if got := options.Env[nexusProviderManagedByHostEnvName]; got != test.wantProviderManagedFlag {
+				t.Fatalf("%s = %q, want %q", nexusProviderManagedByHostEnvName, got, test.wantProviderManagedFlag)
+			}
+		})
+	}
+}
+
 func TestBuildAgentClientOptionsInjectsWebSearchConfigForNXS(t *testing.T) {
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WebSearch: preferencessvc.WebSearchSettings{
