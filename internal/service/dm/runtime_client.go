@@ -131,6 +131,7 @@ func (s *Service) ensureClient(
 			SourceContextType:     "agent",
 			SourceContextID:       agentValue.AgentID,
 			PermissionMode:        permissionMode,
+			GoalID:                goalIDForUsage,
 			GoalObjectiveRevision: goalObjectiveRevision,
 		})
 		if len(overlay) > 0 && mcpServers == nil {

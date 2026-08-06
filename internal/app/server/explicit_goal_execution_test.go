@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -75,6 +76,7 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 		context.Background(),
 		orchestrationsvc.ExplicitGoalBindingRequest{
 			CandidateExecutionID: "execution-reserved",
+			OwnerUserID:          request.OwnerUserID,
 			SessionKey:           request.SessionKey,
 			ScopeKind:            protocol.ExecutionScopeDM,
 			Objective:            request.Objective,
@@ -107,6 +109,7 @@ func TestExplicitCreateGoalThenEnsurePreflightReservesSameStateChain(t *testing.
 		context.Background(),
 		orchestrationsvc.ExplicitGoalBindingRequest{
 			CandidateExecutionID: "execution-new-random-id",
+			OwnerUserID:          request.OwnerUserID,
 			SessionKey:           request.SessionKey,
 			ScopeKind:            protocol.ExecutionScopeDM,
 			Objective:            request.Objective,
@@ -217,6 +220,7 @@ func TestExplicitGoalPreflightRejectsExecutionBoundToDifferentGoal(t *testing.T)
 		context.Background(),
 		orchestrationsvc.ExplicitGoalBindingRequest{
 			CandidateExecutionID: "execution-current",
+			OwnerUserID:          request.OwnerUserID,
 			ExistingExecution:    true,
 			ExistingGoalID:       "goal-other",
 			SessionKey:           request.SessionKey,
@@ -450,6 +454,7 @@ func TestGoalExecutionPreflightPreservesAdaptiveProvenanceAcrossDMAndRoom(t *tes
 				Status:     protocol.GoalStatusActive,
 				Version:    1,
 				Metadata: map[string]any{
+					protocol.GoalMetadataOwnerUserID:      "owner-1",
 					protocol.GoalMetadataActivationOrigin: string(test.origin),
 					protocol.GoalMetadataActivationReason: string(test.reason),
 				},
@@ -466,6 +471,7 @@ func TestGoalExecutionPreflightPreservesAdaptiveProvenanceAcrossDMAndRoom(t *tes
 				context.Background(),
 				orchestrationsvc.ExplicitGoalBindingRequest{
 					CandidateExecutionID: "execution-adaptive",
+					OwnerUserID:          "owner-1",
 					SessionKey:           test.sessionKey,
 					ScopeKind:            test.scope,
 					ConversationID:       test.conversation,
@@ -484,6 +490,88 @@ func TestGoalExecutionPreflightPreservesAdaptiveProvenanceAcrossDMAndRoom(t *tes
 				t.Fatalf("adaptive binding = %#v", binding)
 			}
 		})
+	}
+}
+
+func TestResolveExplicitGoalActivationProjectsExistingReservedExecution(t *testing.T) {
+	goal := &protocol.Goal{
+		ID:         "goal-reserved",
+		SessionKey: "agent:nexus:ws:dm:reserved",
+		Objective:  "Deliver a verified report",
+		Status:     protocol.GoalStatusActive,
+		Version:    3,
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID:      "owner-1",
+			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
+			protocol.GoalMetadataActivationReason: string(protocol.GoalActivationReasonPersistenceRequested),
+			protocol.GoalMetadataExecutionID:      "execution-reserved",
+			protocol.GoalMetadataObjectiveTransition: map[string]any{
+				"transition_id":          "transition-1",
+				"command_id":             "command-1",
+				"phase":                  string(goalsvc.ObjectiveTransitionAwaitingPlan),
+				"old_revision":           int64(2),
+				"new_revision":           int64(3),
+				"old_execution_id":       "execution-old",
+				"old_execution_fenced":   false,
+				"successor_execution_id": "execution-reserved",
+				"target_objective":       "Deliver a verified report",
+			},
+		},
+	}
+	coordinator := newExplicitGoalExecutionCoordinator(
+		&stubExplicitGoalLifecycleService{current: goal},
+		&stubExplicitExecutionService{},
+	)
+	activation, err := coordinator.ResolveExplicitGoalActivation(
+		context.Background(),
+		orchestrationsvc.ExplicitGoalBindingRequest{
+			ExistingGoalID:        goal.ID,
+			GoalObjectiveRevision: goal.ObjectiveRevision(),
+			OwnerUserID:           "owner-1",
+			SessionKey:            goal.SessionKey,
+			ScopeKind:             protocol.ExecutionScopeDM,
+			Objective:             goal.Objective,
+			AgentID:               "agent-lead",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if activation == nil || activation.ReservedExecutionID != "execution-reserved" ||
+		activation.ReplacesExecutionID != "execution-old" {
+		t.Fatalf("activation = %#v, want reserved Execution projection", activation)
+	}
+}
+
+func TestResolveExplicitGoalActivationRejectsCrossOwnerGoal(t *testing.T) {
+	goal := &protocol.Goal{
+		ID:         "goal-other-owner",
+		SessionKey: "agent:nexus:ws:dm:owner-fence",
+		Objective:  "Deliver a verified report",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+		Metadata: map[string]any{
+			protocol.GoalMetadataOwnerUserID:      "owner-other",
+			protocol.GoalMetadataActivationOrigin: string(protocol.GoalActivationOriginUserExplicit),
+			protocol.GoalMetadataActivationReason: string(protocol.GoalActivationReasonPersistenceRequested),
+		},
+	}
+	coordinator := newExplicitGoalExecutionCoordinator(
+		&stubExplicitGoalLifecycleService{current: goal},
+		&stubExplicitExecutionService{},
+	)
+	_, err := coordinator.ResolveExplicitGoalActivation(
+		context.Background(),
+		orchestrationsvc.ExplicitGoalBindingRequest{
+			OwnerUserID: "owner-1",
+			SessionKey:  goal.SessionKey,
+			ScopeKind:   protocol.ExecutionScopeDM,
+			Objective:   goal.Objective,
+			AgentID:     "agent-lead",
+		},
+	)
+	if !errors.Is(err, orchestrationsvc.ErrExplicitGoalBindingConflict) {
+		t.Fatalf("ResolveExplicitGoalActivation() error = %v, want owner binding conflict", err)
 	}
 }
 
@@ -541,6 +629,10 @@ func (s *stubExplicitGoalLifecycleService) Create(
 	if s.current != nil {
 		return nil, goalsvc.ErrGoalConflict
 	}
+	metadata := cloneExplicitGoalMetadata(request.Metadata)
+	if ownerUserID := strings.TrimSpace(request.OwnerUserID); ownerUserID != "" {
+		metadata[protocol.GoalMetadataOwnerUserID] = ownerUserID
+	}
 	s.current = &protocol.Goal{
 		ID:          "goal-explicit",
 		SessionKey:  request.SessionKey,
@@ -549,7 +641,7 @@ func (s *stubExplicitGoalLifecycleService) Create(
 		TokenBudget: request.TokenBudget,
 		Version:     1,
 		CreatedBy:   request.CreatedBy,
-		Metadata:    cloneExplicitGoalMetadata(request.Metadata),
+		Metadata:    metadata,
 	}
 	return cloneExplicitGoal(s.current), nil
 }

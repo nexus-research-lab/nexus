@@ -30,6 +30,7 @@ type ExecutionToolContext struct {
 	RoomID                string
 	ConversationID        string
 	PermissionMode        sdkpermission.Mode
+	GoalID                string
 	GoalObjectiveRevision *atomic.Int64
 }
 

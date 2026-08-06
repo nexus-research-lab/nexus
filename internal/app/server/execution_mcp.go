@@ -87,6 +87,7 @@ func resolveExecutionMCPServerContext(
 		ExecutionID:       strings.TrimSpace(runtimeContext.ExecutionID),
 		WorkBinding:       cloneExecutionMCPWorkBinding(runtimeContext.WorkBinding),
 		ReviewBinding:     cloneExecutionMCPReviewBinding(runtimeContext.ReviewBinding),
+		GoalID:            strings.TrimSpace(runtimeContext.GoalID),
 		RootRoundID:       strings.TrimSpace(runtimeContext.RootRoundID),
 		RuntimeRoundID:    runtimeRoundID,
 		AgentRoundID:      strings.TrimSpace(runtimeContext.AgentRoundID),
@@ -94,6 +95,9 @@ func resolveExecutionMCPServerContext(
 		ConversationID:    strings.TrimSpace(runtimeContext.ConversationID),
 		PlanMode: runtimepermission.NormalizeMode(runtimeContext.PermissionMode) ==
 			sdkpermission.ModePlan,
+	}
+	if runtimeContext.GoalObjectiveRevision != nil {
+		serverContext.GoalObjectiveRevision = runtimeContext.GoalObjectiveRevision.Load()
 	}
 	if scopeKind == protocol.ExecutionScopeRoom {
 		if serverContext.RoomID == "" || serverContext.ConversationID == "" {

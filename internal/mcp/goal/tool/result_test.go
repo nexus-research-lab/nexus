@@ -210,14 +210,14 @@ func TestGoalPayloadDirectsPendingObjectiveTransitionToSuccessorPlan(t *testing.
 		},
 	})
 	action, ok := payload["nextAction"].(map[string]any)
-	if !ok || action["tool"] != "plan_execution" ||
+	if !ok || action["tool"] != "prepare_plan_execution" ||
 		!strings.Contains(action["reason"].(string), "successor WorkGraph") {
 		t.Fatalf("nextAction = %#v", payload["nextAction"])
 	}
 	textResult := structuredResult("goal retargeted", payload)
 	text, _ := textResult.Content[0]["text"].(string)
 	if !strings.Contains(text, `"nextAction"`) ||
-		!strings.Contains(text, `"plan_execution"`) {
+		!strings.Contains(text, `"prepare_plan_execution"`) {
 		t.Fatalf("structured result omitted next action: %s", text)
 	}
 }

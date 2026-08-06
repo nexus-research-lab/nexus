@@ -58,10 +58,15 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 		allowed = append(allowed, "Agent")
 	}
 	if role == ExecutionActorCoordinator {
-		allowed = append(allowed, "get_execution", "plan_execution")
+		allowed = append(allowed, "get_execution", "prepare_plan_execution")
+		if !options.PlanMode {
+			allowed = append(allowed, "plan_execution")
+		}
 	}
 	forbidden := []string{
 		"get_execution",
+		"prepare_plan_execution",
+		"plan_execution",
 		"abandon_execution",
 		"assign_work",
 		"submit_work",
@@ -76,7 +81,8 @@ func RenderUnmanagedExecutionContext(options ExecutionContextOptions) string {
 		forbidden = append(forbidden, "create_shared_execution")
 	} else {
 		forbidden = slices.DeleteFunc(forbidden, func(value string) bool {
-			return value == "get_execution"
+			return value == "get_execution" || value == "prepare_plan_execution" ||
+				(!options.PlanMode && value == "plan_execution")
 		})
 	}
 	if options.PlanMode {
@@ -150,7 +156,10 @@ func RenderConversationExecutionContext(
 		allowed = append(allowed, "Agent")
 	}
 	if role == ExecutionActorCoordinator {
-		allowed = append(allowed, "get_execution", "plan_execution")
+		allowed = append(allowed, "get_execution", "prepare_plan_execution")
+		if !options.PlanMode {
+			allowed = append(allowed, "plan_execution")
+		}
 	}
 	forbidden := []string{
 		"abandon_execution",
@@ -168,7 +177,9 @@ func RenderConversationExecutionContext(
 		forbidden = append(forbidden, "Agent")
 	}
 	if role != ExecutionActorCoordinator {
-		forbidden = append([]string{"get_execution", "plan_execution"}, forbidden...)
+		forbidden = append([]string{"get_execution", "prepare_plan_execution", "plan_execution"}, forbidden...)
+	} else if options.PlanMode {
+		forbidden = append([]string{"plan_execution"}, forbidden...)
 	}
 
 	var output strings.Builder
@@ -208,13 +219,13 @@ func RenderConversationExecutionContext(
 			&output,
 			4,
 			"rule",
-			"stay in conversation for chat, brainstorming, and untracked one-offs; call get_execution to inspect existing responsibility or plan_execution to deliberately enter coordinated accountable delivery",
+			"stay in conversation for chat, brainstorming, and untracked one-offs; call get_execution to inspect existing responsibility, or prepare_plan_execution then plan_execution to deliberately enter coordinated accountable delivery",
 		)
 		writeXMLTextElement(
 			&output,
 			4,
 			"trigger",
-			"use plan_execution only when the request needs multiple tracked deliverables, dependencies, durable handoff, acceptance, or cross-boundary continuation; participant count and raw mentions are never sufficient",
+			"prepare and commit a Plan only when the request needs multiple tracked deliverables, dependencies, durable handoff, acceptance, or cross-boundary continuation; participant count and raw mentions are never sufficient",
 		)
 		output.WriteString("\n  </coordination_transition>")
 	} else {
@@ -1063,7 +1074,7 @@ func renderExecutionTransitionBoundary(
 		output,
 		4,
 		"rule",
-		"same objective uses an immutable Plan revision; a different transient objective uses plan_execution with replace_current_execution=true and a complete successor boundary; stopping without a successor uses abandon_execution",
+		"same objective uses a replan document; a different transient objective uses a replace document with a complete successor boundary; prepare_plan_execution seals either document and plan_execution commits only its proposal id+digest; stopping without a successor uses abandon_execution",
 	)
 	output.WriteString("\n  </execution_transition>")
 }
@@ -1150,6 +1161,7 @@ func renderActionBoundary(
 	if !current {
 		forbidden = append(
 			forbidden,
+			"prepare_plan_execution",
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
@@ -1167,7 +1179,8 @@ func renderActionBoundary(
 	}
 	if options.PlanMode {
 		if role == ExecutionActorCoordinator {
-			allowed = append(allowed, "plan_execution")
+			allowed = append(allowed, "prepare_plan_execution")
+			forbidden = append(forbidden, "plan_execution")
 		}
 		if transientCoordinator {
 			allowed = append(allowed, "abandon_execution")
@@ -1202,6 +1215,7 @@ func renderActionBoundary(
 	switch role {
 	case ExecutionActorCoordinator:
 		allowed = append(allowed, "audit_execution_alignment")
+		setAvailability("prepare_plan_execution", availability.canRevisePlan || transientCoordinator)
 		setAvailability("plan_execution", availability.canRevisePlan || transientCoordinator)
 		setAvailability("abandon_execution", transientCoordinator)
 		setAvailability("assign_work", availability.hasReadyWork)
@@ -1228,6 +1242,7 @@ func renderActionBoundary(
 		setAvailability("resume_work", availability.hasOwnedResumableWork)
 		forbidden = append(
 			forbidden,
+			"prepare_plan_execution",
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",
@@ -1240,6 +1255,7 @@ func renderActionBoundary(
 	case ExecutionActorSubagent:
 		forbidden = append(
 			forbidden,
+			"prepare_plan_execution",
 			"plan_execution",
 			"abandon_execution",
 			"assign_work",

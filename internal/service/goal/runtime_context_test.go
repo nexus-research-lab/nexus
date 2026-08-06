@@ -34,7 +34,7 @@ func TestRenderPendingObjectiveTransitionContextSurvivesRoundRestart(t *testing.
 	rendered := renderPendingObjectiveTransitionContext(item)
 	for _, expected := range []string{
 		`phase="awaiting_plan"`,
-		`tool="plan_execution"`,
+		`tool="prepare_plan_execution"`,
 		`successor_execution_id="execution-successor"`,
 		`requested_objective="User successor objective"`,
 	} {

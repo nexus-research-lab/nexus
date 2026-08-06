@@ -43,4 +43,8 @@ var (
 	ErrDispatchLease = errors.New("execution dispatch lease conflict")
 	// ErrProjectionLimitExceeded 表示命令会写入无法无损投影给模型的集合。
 	ErrProjectionLimitExceeded = protocol.ErrExecutionProjectionLimitExceeded
+	// ErrPlanProposalAccess 表示 proposal 不属于调用方提供的 exact owner/session/scope/coordinator。
+	ErrPlanProposalAccess = errors.New("execution plan proposal access conflict")
+	// ErrPlanProposalNotDue 表示另一个 materializer 仍持有未过期 lease。
+	ErrPlanProposalNotDue = errors.New("execution plan proposal retry is not due")
 )

@@ -51,6 +51,8 @@ func resolveRisk(toolName string) (string, string) {
 		switch executionTool {
 		case "get_execution":
 			return "low", "只读"
+		case "prepare_plan_execution":
+			return "low", "封存提案"
 		case "abandon_execution":
 			return "high", "终止编排"
 		default:

@@ -27,17 +27,18 @@ var (
 // ExistingExecution 区分“给已存在 transient Execution 补绑定”和“为尚未创建的
 // Execution 预留 identity”；后者可以复用 Goal metadata 中由上次失败尝试留下的 ID。
 type ExplicitGoalBindingRequest struct {
-	CandidateExecutionID string
-	ExistingExecution    bool
-	ExistingGoalID       string
-	OwnerUserID          string
-	SessionKey           string
-	ScopeKind            protocol.ExecutionScopeKind
-	ConversationID       string
-	Objective            string
-	CompletionCriteria   []string
-	AgentID              string
-	RootRoundID          string
+	CandidateExecutionID  string
+	ExistingExecution     bool
+	ExistingGoalID        string
+	GoalObjectiveRevision int64
+	OwnerUserID           string
+	SessionKey            string
+	ScopeKind             protocol.ExecutionScopeKind
+	ConversationID        string
+	Objective             string
+	CompletionCriteria    []string
+	AgentID               string
+	RootRoundID           string
 }
 
 // ExplicitGoalBinding 是可直接写入 Execution aggregate root 的完整 Goal identity。
@@ -48,6 +49,26 @@ type ExplicitGoalBinding struct {
 	ActivationOrigin      protocol.GoalActivationOrigin
 	ActivationReason      protocol.GoalActivationReason
 	ReplacesExecutionID   string
+}
+
+// ExplicitGoalActivation 是 proposal sealing 所需的只读 Goal provenance。
+// ReservedExecutionID 只投影 Goal metadata 中已经持久化的 successor identity；
+// resolver 本身不预留 identity，也不写 Goal metadata。
+type ExplicitGoalActivation struct {
+	GoalID                string
+	GoalObjectiveRevision int64
+	ActivationOrigin      protocol.GoalActivationOrigin
+	ActivationReason      protocol.GoalActivationReason
+	ReservedExecutionID   string
+	ReplacesExecutionID   string
+}
+
+// ExplicitGoalActivationResolver 在 Plan Mode 也必须保持只读。
+type ExplicitGoalActivationResolver interface {
+	ResolveExplicitGoalActivation(
+		context.Context,
+		ExplicitGoalBindingRequest,
+	) (*ExplicitGoalActivation, error)
 }
 
 // ExplicitGoalBindingGateway 隔离 Goal service，并在创建 Execution 前持久化反向 metadata。
@@ -180,17 +201,18 @@ func (s *Service) prepareExplicitGoalBinding(
 		return nil, nil
 	}
 	return s.explicitGoalGateway.PrepareExplicitGoalBinding(ctx, ExplicitGoalBindingRequest{
-		CandidateExecutionID: strings.TrimSpace(execution.ID),
-		ExistingExecution:    existing,
-		ExistingGoalID:       strings.TrimSpace(execution.GoalID),
-		OwnerUserID:          strings.TrimSpace(execution.OwnerUserID),
-		SessionKey:           strings.TrimSpace(execution.SessionKey),
-		ScopeKind:            execution.ScopeKind,
-		ConversationID:       strings.TrimSpace(execution.ConversationID),
-		Objective:            strings.TrimSpace(execution.Objective),
-		CompletionCriteria:   append([]string(nil), execution.CompletionCriteria...),
-		AgentID:              strings.TrimSpace(actor.AgentID),
-		RootRoundID:          strings.TrimSpace(actor.RootRoundID),
+		CandidateExecutionID:  strings.TrimSpace(execution.ID),
+		ExistingExecution:     existing,
+		ExistingGoalID:        strings.TrimSpace(execution.GoalID),
+		GoalObjectiveRevision: execution.GoalObjectiveRevision,
+		OwnerUserID:           strings.TrimSpace(execution.OwnerUserID),
+		SessionKey:            strings.TrimSpace(execution.SessionKey),
+		ScopeKind:             execution.ScopeKind,
+		ConversationID:        strings.TrimSpace(execution.ConversationID),
+		Objective:             strings.TrimSpace(execution.Objective),
+		CompletionCriteria:    append([]string(nil), execution.CompletionCriteria...),
+		AgentID:               strings.TrimSpace(actor.AgentID),
+		RootRoundID:           strings.TrimSpace(actor.RootRoundID),
 	})
 }
 
@@ -203,7 +225,7 @@ func (s *Service) confirmGoalExecutionBinding(
 	}
 	confirmer, ok := s.explicitGoalGateway.(goalExecutionBindingConfirmer)
 	if !ok {
-		return nil
+		return errors.New("Goal execution binding confirmation is unavailable")
 	}
 	return confirmer.ConfirmGoalExecutionBinding(ctx, GoalExecutionBindingConfirmation{
 		GoalID:                snapshot.Execution.GoalID,
@@ -211,6 +233,29 @@ func (s *Service) confirmGoalExecutionBinding(
 		ExecutionID:           snapshot.Execution.ID,
 		CompletionCriteria:    append([]string(nil), snapshot.Execution.CompletionCriteria...),
 	})
+}
+
+// GoalBindingConfirmationPendingError 区分“权威 mutation 已提交但 Goal 回执
+// 尚未确认”和“mutation 前的既有 Goal 回执暂时不可用”。proposal materializer
+// 依靠 DurableMutation 决定是否可以先保存 materialized receipt，再异步重试确认。
+type GoalBindingConfirmationPendingError struct {
+	Snapshot        *protocol.ExecutionSnapshot
+	DurableMutation bool
+	Err             error
+}
+
+func (e *GoalBindingConfirmationPendingError) Error() string {
+	if e == nil || e.Err == nil {
+		return "Goal binding confirmation is pending"
+	}
+	return "Goal binding confirmation is pending: " + e.Err.Error()
+}
+
+func (e *GoalBindingConfirmationPendingError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
 }
 
 func (s *Service) persistExplicitGoalBinding(

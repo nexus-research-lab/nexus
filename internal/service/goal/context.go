@@ -43,8 +43,8 @@ func renderPendingObjectiveTransitionContext(item protocol.Goal) string {
 			`Goal objective transition state is malformed. Do not complete, block, or continue this Goal; reload it and require recovery.` +
 			`</nexus_goal_transition>`
 	}
-	action := "plan_execution"
-	instruction := "Create the complete fresh successor WorkGraph. Do not reuse or mutate the superseded predecessor."
+	action := "prepare_plan_execution"
+	instruction := "Prepare the complete fresh successor WorkGraph document, then commit its sealed proposal. Do not reuse or mutate the superseded predecessor."
 	if transition.Phase == ObjectiveTransitionPrepared {
 		action = "retarget_goal"
 		instruction = "Retry retarget_goal with the same requested objective so the durable rebase can finish."

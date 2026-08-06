@@ -35,6 +35,6 @@
 1. 调用 `get_goal` 确认 active Goal。
 2. 调用 `retarget_goal`，传入完整替代 objective。
 3. 保留同一 Goal 身份和累计用量，不先完成旧 Goal，也不创建新 Goal。
-4. 若工具返回 pending Goal/Execution rebase，按原 target 重试或执行返回的 `plan_execution` next action，不自行拼接旧 WorkGraph。
+4. 若工具返回 pending Goal/Execution rebase，按原 target 重试，或先按返回的 `prepare_plan_execution` 指引提交完整 successor Plan Document，再将其原样返回的 `proposal_id` 与 `proposal_digest` 交给 `plan_execution`。不得自行拼接或复用旧 WorkGraph。
 
 暂停、blocked 或 usage-limited Goal 的显式 retarget 由后端决定如何激活；budget-limited Goal 仍需要用户或控制面调整预算。

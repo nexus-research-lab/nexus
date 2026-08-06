@@ -76,7 +76,8 @@ Goal 的判定问题是：
 
 - Execution Plan 是一个有 revision 的 Work Item 有向无环图。
 - Plan Mode 是只允许检查和提出方案的 runtime permission mode。
-- Plan Mode 可以验证 Proposed Plan、transient replacement 或 abandonment，但不能写 Execution/Plan、激活 Assignment/Attempt 或触发 Goal continuation。
+- Plan Mode 可以通过 `prepare_plan_execution` 严格校验完整 Plan、transient replacement 或 replan，并把结果 seal 为 durable non-authoritative proposal；这类 proposal 不是 Execution/Plan/Goal 真相，不能激活 Assignment/Attempt 或触发 Goal continuation。
+- `plan_execution` 是权威 materialization 边界，在 Plan Mode 必须拒绝；离开 Plan Mode 后可以直接提交此前返回的同一 `proposal_id + proposal_digest`，不要求模型重建文档。
 
 ### 3.5 委派转移执行，不转移最终责任
 
@@ -119,8 +120,8 @@ typed canonical output scope 是可选的精确冲突声明。Agent 认为重复
 
 | lane | 可信依据 | 可做的事 |
 | --- | --- | --- |
-| conversation | Room round 没有 WorkBinding、ReviewBinding、exact Goal binding 或 round-scoped CoordinationBinding | 回应当前对话、使用普通任务工具；成员不能读取 WorkGraph，coordinator 只可显式 `get_execution` / `plan_execution` 进入协调面 |
-| coordination | exact Goal ID/revision，或 Execution coordinator 在当前物理 round 显式调用 `get_execution` / 成功 `plan_execution` 后由后端 mint 的 CoordinationBinding | 建 Plan/replan、分配、解阻、接管、审计完成；普通聊天本身仍不成为工作证据 |
+| conversation | Room round 没有 WorkBinding、ReviewBinding、exact Goal binding 或 round-scoped CoordinationBinding | 回应当前对话、使用普通任务工具；成员不能读取 WorkGraph，coordinator 只可显式 `get_execution`，或先 `prepare_plan_execution` 再 `plan_execution` 进入协调面 |
+| coordination | exact Goal ID/revision，或 Execution coordinator 在当前物理 round 显式调用 `get_execution` / 成功 materialize `plan_execution` 后由后端 mint 的 CoordinationBinding | prepare/commit Plan 或 replan、分配、解阻、接管、审计完成；普通聊天本身仍不成为工作证据 |
 | work | 完整 WorkBinding | 执行、阻塞、提交该 Assignment；不能修改 sibling。若该 owner 也是 Assignment 选定的 reviewer，可在同一可信 binding 内显式 review 自己的 Submission |
 | review | 完整 ReviewBinding | 选定 reviewer 审查 binding 指定的 immutable Submission；是否由 Lead、owner 或另一成员承担取决于 Assignment |
 | subagent | parent WorkBinding + server-created child Attempt binding | 只帮助父 Agent 完成同一 Work Item；stop 只终结 child Attempt |
@@ -132,8 +133,8 @@ typed canonical output scope 是可选的精确冲突声明。Agent 认为重复
 - `review_work` 成功写入目标 Submission 的唯一 Acceptance 后会消费已完成的 review lane。若 reviewer 同时是 coordinator，同一物理 round 可继续协调；若 reviewer 是另一成员，Acceptance 仍会可靠解锁图，协调者从持久状态和后续 wake 继续，不要求用户逐节点发送“继续”。
 - 普通消息不复制 source round 的 WorkBinding/ReviewBinding。worker 在受管 round 中 `@` 另一个成员，只会建立新的 conversation round。
 - non-coordinator Room member 没有 binding 时不挂载 Execution MCP，后端直接调用也返回 `conversation_only`；Prompt 不是唯一护栏。
-- coordinator 身份使 Agent 有资格进入协调面，但不是 round-start 的隐式 CoordinationBinding。普通 coordinator Room round 仍从 conversation 开始，只开放 `get_execution` 与 `plan_execution`；前者显式读取现有责任，后者显式建立或修订协调图。后端为成功转换 mint `(owner, session, agent, physical round, execution)` capability，其他 mutation 在 capability 缺失时返回 `conversation_only`，round 结束立即释放。Room `review_work` 接受精确 ReviewBinding、选定 self reviewer 的当前 WorkBinding，或当前 coordinator 的有效 CoordinationBinding；DM 单 Agent 中三种角色也可由同一 Agent 承担。
-- `get_execution` 在当前 scope 没有 Execution 时返回权威 `state=unmanaged`，不会凭一次读取创建 Execution 或 CoordinationBinding；该 round 仍是 conversation，只有完整且成功的 `plan_execution` 才建立首个 WorkGraph 并进入 coordination。
+- coordinator 身份使 Agent 有资格进入协调面，但不是 round-start 的隐式 CoordinationBinding。普通 coordinator Room round 仍从 conversation 开始，只开放 `get_execution`、`prepare_plan_execution` 与 `plan_execution`；读取或 seal proposal 都不建立协调 capability，只有 exact-fence materialization 成功后才建立或修订协调图。后端为成功转换 mint `(owner, session, agent, physical round, execution)` capability，其他 mutation 在 capability 缺失时返回 `conversation_only`，round 结束立即释放。Room `review_work` 接受精确 ReviewBinding、选定 self reviewer 的当前 WorkBinding，或当前 coordinator 的有效 CoordinationBinding；DM 单 Agent 中三种角色也可由同一 Agent 承担。
+- `get_execution` 在当前 scope 没有 Execution 时返回权威 `state=unmanaged`，不会凭一次读取创建 Execution 或 CoordinationBinding；`prepare_plan_execution` 也只写非权威 proposal。只有完整 proposal 被 `plan_execution` 成功 materialize 后，才建立首个 WorkGraph 并进入 coordination。
 - 实时 steering/guidance 只进入已经存在的 target round，并继承 target round 的 lane；它不能把 conversation round 升级为 work，也不能把一个 Assignment 的 capability 带到另一个 slot。
 - 携带 WorkBinding/ReviewBinding 的 queue item 必须保持 `delivery_policy=queue`、单一精确 target，并单独启动 round；它不能被改成 guidance、与相邻消息合并或在恢复时降级成普通 directed message。workspace write 与 realtime consume 两端都必须校验，坏的历史 envelope fail closed 后继续处理后续消息。
 - Goal continuation 以 Goal Lead/coordinator 身份和 Goal/Execution binding 进入 coordination lane；Goal revision 不能经普通聊天或旧 round 静默改变。
@@ -157,6 +158,12 @@ typed canonical output scope 是可选的精确冲突声明。Agent 认为重复
 ## 4. 核心对象与关系
 
 ```text
+ExecutionPlanProposal (durable, immutable, non-authoritative)
+├── canonical Nexus Plan Document v1
+├── owner/session/scope/coordinator + originating-round provenance
+├── exact Execution/version/base-Plan + Goal activation/reserved-successor/predecessor fence
+└── materialization receipt / Goal-confirmation recovery state
+
 Goal (0..1 current per session scope)
 └── Execution (1..n)
     ├── Work Item (stable logical identity)
@@ -199,7 +206,7 @@ Execution 是一次实际推进用户请求或 Goal objective 的执行实例。
 
 每个行动型请求可以创建一个 transient Execution；不是所有 Execution 都需要 Goal。
 
-通过 `plan_execution` 首次创建 transient Execution 必须同时给出明确 objective、至少一条归一化后非空的顶层 completion criterion 和完整 Plan；普通首次 `plan_execution` 在同一 SQL transaction 创建 Execution 与 active Plan，不能先留下无 Plan 的 transient Execution。Plan Mode 对同一 proposal 执行结构化校验但不持久化。objective 与顶层 completion criteria 是该 Execution 的 immutable fence：同一 outcome 和完成边界下改变路线、拆分、owner、dependency 或 evidence strategy，属于已有 Execution 的 replan；显式改为不同 transient objective，必须由 `plan_execution` 同时提交 `replace_current_execution=true`、`replacement_reason` 和完整 successor graph；只放弃而不继续时使用 `abandon_execution`。Plan revision 不得借普通 replan 改写这些边界。
+首次创建 transient Execution 必须先用 `prepare_plan_execution(plan_document)` 提交明确 objective、至少一条归一化后非空的顶层 completion criterion 和完整 Plan，再用返回的 `proposal_id + proposal_digest` 调用 `plan_execution`。commit 在同一 SQL transaction 创建 Execution 与 active Plan，不能先留下无 Plan 的 transient Execution。对历史或其他合法路径已经存在、但尚无 active Plan 的 Execution，`operation: replan` 可以在 exact Execution/version 且 empty base-Plan fence 下原子写入其第一个 Plan；该 document 不得复用不存在的旧 Work Item identity。Plan Mode 可以持久化前一步的 sealed proposal，但不能 materialize。objective 与顶层 completion criteria 是该 Execution 的 immutable fence：同一 outcome 和完成边界下改变路线、拆分、owner、dependency 或 evidence strategy，属于 `operation: replan`；显式改为不同 transient objective，必须 seal `operation: replace`、`replacement_reason` 和完整 successor graph；只放弃而不继续时使用 `abandon_execution`。Plan revision 不得借普通 replan 改写这些边界。
 
 Execution 负责：
 
@@ -210,6 +217,18 @@ Execution 负责：
 
 同一 Goal 可以经历多个 Execution，但一次 continuation 必须明确恢复或新建哪个 Execution，不能从自然语言猜测。
 当前 Plan 只由 `PlanRevision.status=active` 的唯一约束决定；Execution 不再保存第二个 active-plan 指针。
+
+### 4.2.1 Execution Plan Proposal
+
+Execution Plan Proposal 是完整 WorkGraph 从模型文本进入权威事务前的 durable、immutable、non-authoritative envelope。它解决 Provider 参数传输、Plan Mode 审阅、跨 round 恢复与权威 commit 之间的边界，但不属于 active Execution graph。
+
+- proposal 只由一次完整的 strict Nexus Plan Document v1 产生；canonical document 一次 seal，后续 commit 只引用该不可变结果。
+- canonical typed document、owner、session、scope、coordinator、originating-round provenance、target Execution/version、base Plan、Goal ID/revision/activation、Goal-reserved successor 与 typed predecessor 一起进入 digest；`proposal_id` 本身不是 capability。
+- 读取和 commit 每次都重新校验 owner/session/scope/coordinator；materialization 还必须验证 digest 与 exact target fence。`create` 在 prepare 与 commit 时都从 trusted Goal gateway 解析完整 activation/reservation；即使 actor 没有携带 Goal，seal 后新出现或消失的 ambient Goal 也不能被静默绑定。任一 target/version/base Plan/Goal activation/reserved successor/predecessor 漂移都 fail closed，要求重新 prepare 完整图。
+- proposal 在 round 结束、compact、runtime 重连和服务重启后仍可恢复。状态只沿 `sealed → materializing → materialized` 推进；永久 stale/authority 冲突进入 `blocked`，不允许改写原 document 后继续。`materializing` 恢复必须先用 expected proposal version 原子领取有界 lease，未过期的前台重放、后台 reconciler 或另一实例只返回 in-progress，不并发进入权威 materializer。
+- authoritative transaction 的归因只认该 proposal stable materialization command 写入的 exact `plan_activated` event receipt；另一 command 产生的语义相同 graph 不是它的 receipt。读到 exact receipt 后可以恢复原 Plan ID；当 active Plan 后续已前进时，reconciler 仍以原 command receipt 完成 proposal，不把当前 graph 的语义相等当作历史归因。
+- Goal-bound authoritative write 后的 confirmation 与 materialization receipt 分开持久化。confirmation 网关暂时失败，或当前 gateway 根本没有 confirmer，都保持 `materialized + confirmation=pending`；Goal completion/continuation 继续 fail closed，只由 reconciler 重试确认。
+- proposal SQL 写入不创建 Execution、Plan、Work Item、Assignment、Attempt、Goal mutation 或 Room dispatch，因此允许发生在 Plan Mode；只有非 Plan Mode 的 `plan_execution` 可以产生权威业务写入。
 
 ### 4.3 Plan Revision
 
@@ -242,9 +261,9 @@ Stable Work Item 保存不会随 revision 漂移的 `kind`；Work Item Spec 保�
 
 Work Item 不记录“模型说自己正在做什么”；真实运行由 Assignment 和 Attempt 表达。`ready`、`blocked-by-dependency`、`assigned`、`running`、`submitted` 和 `accepted` 是由当前 Plan、Acceptance、Assignment、Attempt 与 Submission 推导的 projection，不作为第二套可随意写入的 lifecycle state。
 
-所有会进入模型执行契约的单个集合统一以 protocol 常量限制为 32 项：Execution completion criteria、Work Item acceptance criteria、单个 Work Item 的直接 dependency、`input_refs`、`output_scopes`、Submission `result_refs` / evidence、Acceptance criteria results 及每条 result 的 evidence、Resume evidence。MCP schema 声明 `maxItems=32`，service 在 normalization 前以稳定 `projection_limit_exceeded` 拒绝第 33 项，storage 对直接 command 重复同一校验；Plan Mode 也执行完整限制校验但不写入。新写入受限后，动态 context 对异常历史数据只可用 `truncated="true" total="N"` 明示有界投影，structured WorkBinding 与 Dispatch contract 则 fail closed，禁止无标记 slice、假装完整或依赖模型猜遗漏项。
+所有会进入模型执行契约的单个集合统一以 protocol 常量限制为 32 项：Execution completion criteria、Work Item acceptance criteria、单个 Work Item 的直接 dependency、`input_refs`、`output_scopes`、Submission `result_refs` / evidence、Acceptance criteria results 及每条 result 的 evidence、Resume evidence。普通 MCP collection schema 声明 `maxItems=32`；Plan Document 则由 strict parser 在 seal 前执行同一限制。service 在 normalization 前以稳定 `projection_limit_exceeded` 拒绝第 33 项，storage 对直接 authoritative command 重复同一校验；Plan Mode 也执行完整限制校验，但只允许写 non-authoritative sealed proposal。新写入受限后，动态 context 对异常历史数据只可用 `truncated="true" total="N"` 明示有界投影，structured WorkBinding 与 Dispatch contract 则 fail closed，禁止无标记 slice、假装完整或依赖模型猜遗漏项。
 
-Plan Work Items 集合本身也使用同一个 32 项上限；schema 与 service normalization 必须在任何单项校验和持久化之前一致拒绝第 33 项。
+Plan Work Items 集合本身也使用同一个 32 项上限；Plan Document parser 与 service normalization 必须在任何单项校验和 proposal 持久化之前一致拒绝第 33 项。
 
 `file:` / `dir:` scope 的 canonical 展示和持久化保留用户原大小写，但冲突、同 Work Item 去重和 ancestor/equal 判断统一使用 Unicode NFC 后的 case-fold comparison key，以保守覆盖 macOS/Windows 等大小写不敏感 workspace；`semantic:` key 始终保持大小写敏感 exact comparison。comparison key 不是另一个持久化 scope。
 
@@ -502,7 +521,7 @@ Goal 延长 intent 的生命期，不扩大权限。遇到需要新授权、危�
 用户显式要求持续追求时走 `create_goal`，不伪造 adaptive signal。显式路径与 Execution 仍只有一条状态链：
 
 - scope 中已有兼容 transient Execution：`create_goal` 创建或复用 Goal 后，以 `user_explicit + persistence_requested` 绑定该 Execution，保留其 Plan 和全部执行历史。
-- 先有 Goal、后调用 `plan_execution`：Goal metadata 先 CAS 预留唯一 Execution ID，Ensure 用该 ID 创建已绑定 Execution；中途失败重试仍复用同一 identity。
+- 先有 Goal、后 prepare Plan：Goal metadata 先 CAS 预留唯一 Execution ID；`prepare_plan_execution` 把该 Goal ID/revision、activation provenance 与 reserved target seal 进 proposal，`plan_execution` materialize 时复用该 identity。任一阶段失败重试都不能创建第二个 Execution。
 - 重复调用只修复尚未落地的一侧，不创建第二个 Goal、Execution 或 Plan。
 - objective、scope 或已有 binding 不兼容时，分别返回稳定的 `goal_objective_conflict`、`goal_scope_conflict`、`goal_binding_conflict`，不能静默分叉。
 - Goal completion 必须找到 objective revision 一致的绑定 Execution，并通过同一 WorkGraph completion audit；缺 binding、binding 冲突或审计器不可用均 fail closed。
@@ -517,10 +536,10 @@ Goal 一旦绑定 managed Execution，objective 变化不再是 Goal row 的普�
 1. **prepare Goal transition。** 以 `(goal_id, old_objective_revision, normalized_requested_objective)` 生成稳定 transition、command 与 reserved successor Execution ID；CAS 写入 server-owned `objective_transition`，状态为 `prepared`。Transition 至少保存 old/new revision、old/reserved successor Execution ID、用户 requested objective、首次确定的 canonical target objective、reason 与 source。重试先匹配持久化 requested objective，不能因后台 objective rewriter 再次运行并产生不同措辞而分叉第二个 revision。此时 canonical Goal objective/revision 尚未改变。
 2. **supersede old WorkGraph。** 按精确 Goal ID 与 old objective revision CAS terminalize 旧 Execution：Execution/active Plan/未完成 Work Item 进入 `superseded`，current Assignment release，live Attempt 逻辑进入 `interrupted`，未送达 Assignment/Review outbox cancel；同一 SQL transaction 必须先为每个将被中断的 Attempt 写入 exact-target Cancellation dispatch，由独立 consumer 重试物理中断。Submission、Acceptance 与 event 历史保持 immutable。旧 Execution 的 `execution_superseded` event 必须保存 reserved successor ID 与 old/new Goal revision。
 3. **commit Goal revision。** 只有旧图完成 fencing 后，Goal 才 CAS 切换 target objective/new revision，把 reverse `execution_id` 指向 reserved successor，删除旧 completion criteria，并进入 `awaiting_plan`。这不是完成状态。
-4. **create successor graph。** 下一次非 Plan Mode `plan_execution` 必须复用 reserved successor ID，并在一个 SQL transaction 内创建 Goal-bound successor Execution、完整 WorkGraph 与第一版 active Plan。Successor 的 typed `replaces_execution_id` 必须指向 `superseded` predecessor，且 owner/session/scope/Goal/revision 必须连续；数据库还必须验证 predecessor supersede event 预留的就是该 successor，不能从任意 terminal Execution 伪造 revision chain。
-5. **confirm binding。** Successor Execution 与 Plan commit 后，Goal transition 从 `binding_reserved` 进入 `bound`，写入新 completion criteria。只有 `bound` 后 Goal completion 与自动 continuation 才重新开放。
+4. **seal successor proposal。** `prepare_plan_execution` 用 `operation: create` 提交完整 successor graph，读取 trusted Goal transition 并把 reserved successor ID、predecessor、owner/session/scope、Goal ID/revision 与 activation provenance seal 进 immutable digest。Plan Mode 可以保存该 non-authoritative proposal，但不能创建 Execution/Plan 或推进 Goal transition。
+5. **materialize and confirm。** 下一次非 Plan Mode `plan_execution(proposal_id, proposal_digest)` 必须命中同一 exact fence，并在一个 SQL transaction 内创建 Goal-bound successor Execution、完整 WorkGraph 与第一版 active Plan。Successor 的 typed `replaces_execution_id` 必须指向 `superseded` predecessor，且 owner/session/scope/Goal/revision 必须连续；数据库还必须验证 predecessor supersede event 预留的就是该 successor。Execution/Plan commit 后，Goal confirmation 作为 durable saga receipt 从 `pending` 重试到 `confirmed/bound`；进程在两者之间失败时，reconciler 只补 confirmation，不创建第二张图。只有 confirmation 完成后 Goal completion 与自动 continuation 才重新开放。
 
-`prepared | awaiting_plan | binding_reserved` 均视为 pending：Goal complete、自动 continuation、旧 revision mutation 与迟到 Room wake/child result 必须 fail closed；模型上下文在 `prepared` 明确要求用同一 target 重试 `retarget_goal`，在 `awaiting_plan | binding_reserved` 明确给出 `plan_execution` next action。相同 command 重试只修复未完成阶段并复用同一 identity；不同 target、revision 或 successor 冲突。首次 successor Plan 在 Plan Mode 只验证结构，不预留 binding、不创建 Execution/Plan，也不确认 transition。新 graph 默认不 carry 旧 Work Item、Assignment、Attempt、Submission 或 Acceptance；未来若支持 reuse，必须是独立、显式且重新验收的协议。
+`prepared | awaiting_plan | binding_reserved` 以及 materialized-but-confirmation-pending 都视为 pending：Goal complete、自动 continuation、旧 revision mutation 与迟到 Room wake/child result 必须 fail closed。模型上下文在 `prepared` 明确要求用同一 target 重试 `retarget_goal`，在 `awaiting_plan` 先给 `prepare_plan_execution`，sealed proposal 再给 `plan_execution`；相同 command/proposal 重试只修复未完成阶段并复用同一 identity，不同 target、revision、digest 或 successor 冲突。Plan Mode 可以产生 durable proposal SQL，但对 Goal metadata、Execution、Plan、outbox 与 Room ledger 零 mutation。新 graph 默认不 carry 旧 Work Item、Assignment、Attempt、Submission 或 Acceptance；未来若支持 reuse，必须是独立、显式且重新验收的协议。
 
 ## 7. 权限与角色
 
@@ -606,10 +625,10 @@ Plan Mode 仍禁止真实执行；错误 owner、stale WorkBinding、权限缺�
 
 模型在 substantial execution 前参考以下问题；它们是决策清单，不是要求每次逐项输出或固定流水线：
 
-1. 当前是 Plan Mode 吗？如果是，只验证 Proposed Plan、transient replacement 或 abandonment，不执行任何 mutation。
-2. 当前 round 是 conversation、coordination、work、review 还是 subagent？conversation 先正常回应；只有 Room coordinator 判断请求确需可追踪交付时，才显式调用 `get_execution` / `plan_execution` 进入 coordination。
+1. 当前是 Plan Mode 吗？如果是，可以用 `prepare_plan_execution` 校验并持久 seal 完整 proposal，也可以验证 abandonment；不得 materialize Execution/Plan、取消工作或自动续跑。
+2. 当前 round 是 conversation、coordination、work、review 还是 subagent？conversation 先正常回应；只有 Room coordinator 判断请求确需可追踪交付时，才显式调用 `get_execution`，或完成 `prepare_plan_execution → plan_execution` 进入 coordination。
 3. 若已进入 coordination/work/review，是否已有 Execution Context？如果有，先恢复而不是重建。
-4. 用户是在改变同一 objective 的执行路线、改为不同 transient objective，还是只放弃？前者普通 replan；第二种由 coordinator 用带 `replace_current_execution` 的完整 `plan_execution` 原子创建 successor graph；第三种用 `abandon_execution` 只取消旧 graph。Goal-bound Execution 对后两者返回 `goal_retarget_required`。
+4. 用户是在改变同一 objective 的执行路线、改为不同 transient objective，还是只放弃？前者 seal `operation: replan`；第二种由 coordinator seal 带 `operation: replace`、`replacement_reason` 的完整 successor graph，再用 proposal receipt 原子 materialize；第三种用 `abandon_execution` 只取消旧 graph。Goal-bound Execution 对后两者返回 `goal_retarget_required`。
 5. 用户是否明确要求持久追求，或当前 Execution 是否需要自适应 Goal？
 6. 请求是否是一个原子 deliverable？
 7. 如果图能明显改善并行、交接、恢复或可见性，创建或修订 Plan revision；否则直接执行。
@@ -730,6 +749,7 @@ Main、Base、Room 和 Goal continuation 不得各自复制并演化另一套相
     <action>block_work</action>
   </allowed_actions>
   <forbidden_actions>
+    <action>prepare_plan_execution</action>
     <action>plan_execution</action>
     <action>abandon_execution</action>
     <action>assign_work</action>
@@ -746,9 +766,9 @@ Main、Base、Room 和 Goal continuation 不得各自复制并演化另一套相
 </nexus_execution_context>
 ```
 
-动态上下文只包含当前 actor 做决定所需的有界状态，不转储完整事件日志。`graph_digest` 是从 typed WorkGraph 单向生成的确定性读模型：coordinator 得到完整当前 DAG，member/subagent 只得到自己的节点与所需上游切片。它帮助模型快速理解拓扑，但不是写入格式或真相源；`plan_execution.items` 的原生对象协议、服务端实体和校验器才是权威协议。UI/调试可以从同一读模型派生 Mermaid，不得把 Mermaid 文本反向解析成执行状态。
+动态上下文只包含当前 actor 做决定所需的有界状态，不转储完整事件日志。`graph_digest` 是从 typed WorkGraph 单向生成的确定性读模型：coordinator 得到完整当前 DAG，member/subagent 只得到自己的节点与所需上游切片。它帮助模型快速理解拓扑，但不是写入格式或真相源；`prepare_plan_execution` 的 strict Nexus Plan Document v1 经 parser 规范化后形成 sealed typed proposal，只有 `plan_execution` exact-fence materialization 后的服务端实体才是权威 Execution/Plan。UI/调试可以从同一读模型派生 Mermaid，不得把 Mermaid 文本反向解析成执行状态。
 
-`allowed_actions` 只能表达工具级 affordance，但 `plan_execution` 同时承载普通 replan 与 Execution replacement，因此动态上下文还必须投影 `execution_transition`。`replace_current_allowed` 控制 `replace_current_execution` flag，`abandon_allowed` 控制 `abandon_execution`，`validation_only` 标记 Plan Mode 的 write-free proposal。transient coordinator 为 true；Room member/subagent 为 false 并带 authority reason；Goal-bound coordinator 仍可拥有普通 `plan_execution` replan，但 replacement/abandonment 为 false 且稳定 `reason_code=goal_retarget_required`。
+`allowed_actions` 只能表达工具级 affordance，但 Plan Document 的 `operation` 同时表达 create、replan 与 transient replacement，因此动态上下文还必须投影 `execution_transition`。`replace_current_allowed` 控制是否可 prepare `operation: replace`，`abandon_allowed` 控制 `abandon_execution`；`validation_only` 表示 Plan Mode 只允许 seal non-authoritative proposal。transient coordinator 可 prepare replan/replace；Room member/subagent 为 false 并带 authority reason；Goal-bound coordinator 仍可 prepare 普通 replan，但 replacement/abandonment 为 false 且稳定 `reason_code=goal_retarget_required`。
 
 每个 Execution mutation 与 `get_execution` 也必须返回最新 actor-specific context。模型在同一 turn 内始终服从最高 `execution_version`：较新的 tool result 覆盖 round-start context；若返回 `context_status=refresh_required`，必须先调用 `get_execution`，不能拿旧的 forbidden/allowed 列表继续猜。
 
@@ -772,8 +792,8 @@ runtime 发出 `compact_boundary` 后，DM/Room 执行器先把该事实写入 S
 1. **先给定位，再给工具。** 每轮上下文明确 actor role、当前 Assignment、已声明的 dependency/deliverable/criteria、completion blocker 和当前可用能力；不能要求模型从聊天历史重建这些事实，也不能把建议伪装成 `allowed_actions` 权限。
 2. **模型只做语义决策。** 模型负责 Plan、分配、提交、验收、阻塞、接管和 promotion proposal；`running`、Attempt identity、outbox claim、event sequence、version increment 与恢复由工具适配器、Hook 和服务端自动维护。
 3. **原子任务零工具税。** 一个当前 boundary 内可完成的小交付可直接执行；不能为了展示“进度”强迫模型创建 Goal、Plan、Work Item 或手工 start/complete 状态。
-4. **一次提交完整意图。** `plan_execution` 通过一个原生 `items` 对象数组批量提交完整 WorkGraph；模型可见 schema 使用跨 Provider 的公共 function-calling 子集，服务端无条件严格解码、mint opaque IDs，并返回 logical key → ID 映射、Ready 项和下一动作。禁止让模型用多个低级 create/update 调用拼半成品 Plan，也禁止把 JSON 再编码进字符串。
-5. **不让模型维护并发控制。** MCP adapter 从当前 snapshot 注入 expected revision；优先用 `tool_use_id` 形成 idempotency command ID，bridge 未提供时使用 server session/round、工具名、canonical input 与 snapshot revision 的稳定 hash。应用服务再按具体 mutation 派生不同的 event command key，因此一次复合工具调用的 Ensure、Plan 或 Goal binding 子步骤不会互相冲突。底层内部 API 仍强制 CAS。发生 stale 时返回新的 revision、actor-specific context 和可重试动作，不让模型猜 version。
+4. **完整文档一次 seal，opaque receipt 一次 commit。** `prepare_plan_execution` 只接收一个包含完整 WorkGraph 的 strict Nexus Plan Document v1 YAML scalar；服务端严格解析、规范化并返回 `proposal_id + proposal_digest`。`plan_execution` 只接受这两个 opaque scalar；该 receipt 唯一引用已 seal 的 canonical typed document，不在 commit 时重传 Work Item 或 graph 字段。
+5. **不让模型维护并发控制。** prepare adapter 从 trusted current snapshot 捕获 Execution version、base Plan、scope/coordinator 与 round provenance，并从 trusted Goal gateway 捕获 Goal ID/revision/activation、reserved successor 及 predecessor，一起纳入 digest；commit 重新读取 authoritative Execution/Plan 与 Goal state 做 exact-fence CAS。优先用 `tool_use_id` 形成 idempotency command ID，bridge 未提供时使用 server session/round、工具名、canonical input 与 snapshot revision 的稳定 hash。应用服务再按具体 mutation 派生不同的 event command key，因此 materialization、Execution/Plan transaction 或 Goal confirmation 子步骤不会互相冲突。recovery 前使用 proposal version CAS 领取有界 lease；stale 时 proposal 进入 stable blocked/reprepare 路径，不让模型猜 version。
 6. **工具结果必须可恢复且不重复状态。** 每个 mutation 返回 `applied | no_op | rejected`、稳定 reason code、最新 snapshot revision、实际改变、有序 `next_actions` 与一份 actor-specific `execution_context`。完整 Snapshot 保留给同进程协调和 HTTP/UI 读模型，Execution MCP 不再把它与派生 context 同时发给模型。若任一 MCP 结果仍超过 runtime 上限，SDK 只保存原始结果并提示按 schema、搜索、`jq` 或 offset/limit 定向读取；只有用户明确要求 exhaustive whole-result audit，或正确性确实依赖每条记录时，才要求全文读取。
 7. **只用硬事实收窄 affordance。** dynamic context 的 `allowed_actions` 使用真实工具名，只按身份/权限、round binding、Plan Mode、当前状态和引用完整性收窄：没有 Ready Work 就不提供 `assign_work`，没有自己的 current Assignment 就不提供 `submit_work`；`review_work` 可由精确 ReviewBinding、选定 self reviewer 的 WorkBinding，或当前 coordinator 的有效 CoordinationBinding获得。conversation-only member 不挂载 Execution MCP；conversation-only coordinator 只可读取或显式建图。replacement、abandonment、Goal 冲突和用户禁用等仍是硬权限/状态边界。是否应调用某项合法工具、是否独立 review、是否再跑一轮由 Agent 决定，不能再用产品偏好做第二层隐藏白名单。该列表不限制研究、编码和浏览等普通 conversation/task 工具。
 8. **把下一动作所需语义放在动作旁。** `assigned_work`、`ready_work`、coordinator `active_assignments` 与 `pending_reviews` 投影 current Spec 的 logical key、objective、deliverable、acceptance criteria、`input_refs`、canonical `output_scopes` 与有序 `resolved_dependencies`；每条依赖给出 upstream Work Item/logical key/current Spec 与 kind，只有已经 Accepted 的 upstream 才携带 immutable Submission summary/refs/evidence 和 Acceptance criteria results，未验收依赖只暴露 status/blocker。structured Room WorkBinding 保留自身 mutation capability 以及这些直接上游的只读 WorkItem/Spec/PlanItem/dependency/output claim/accepted delivery 投影，继续过滤 sibling live Assignment/Attempt/Dispatch/state 和任何 unreviewed payload。若上次 Submission 被 rejected / changes requested，还必须携带 latest review decision、feedback 与逐条 criteria results。`resume_work` 记录的 resolution/evidence 同时进入后续 `ready_work` 和新 owner 的 `assigned_work`，避免模型依赖聊天历史猜返工要求或刚补齐的外部输入。任何带 `truncated=true` 的异常历史投影都表示上下文不完整，模型不得据此提交、验收或宣称 completion，应等待后端修复或改走 fail-closed 恢复。
@@ -789,7 +809,8 @@ OR Agent 自行组合 plan / assign / subagent / submit / review / alignment
    后端记录实际发生的 NodeRun/EdgeRun，并只拒绝不安全或不一致的动作
 
 用户明确换成 different transient objective
-→ plan_execution(replace_current_execution=true, complete successor graph)
+→ prepare_plan_execution(operation: replace, complete successor graph)
+→ plan_execution(proposal_id, proposal_digest)
 → backend atomically supersedes old Execution
   and creates successor Execution + active Plan
 
@@ -813,41 +834,68 @@ Execution Orchestration 提供产品级 MCP 工具：
 
 只读；模型在恢复、compact 后或状态冲突时使用。
 
-### 10.2 `plan_execution`
+### 10.2 `prepare_plan_execution` 与 `plan_execution`
 
-批量创建或修订 Plan 和 Work Item；带明确 replacement fields 时原子创建不同 objective 的 successor Execution + active Plan。
+Plan 创建、replan 与 transient replacement 共用固定两步协议：
 
-结构要求：
+1. `prepare_plan_execution(plan_document)` 接收一段完整 strict Nexus Plan Document v1 YAML text，严格解析、规范化和校验后持久 seal immutable non-authoritative proposal，返回 `proposal_id` 与 `proposal_digest`。
+2. `plan_execution(proposal_id, proposal_digest)` 不再接收 objective、items 或 revision flags；它重新读取 proposal 与 authoritative snapshot，验证 exact fence 后幂等、原子 materialize。
 
-- `items` 非空，每项提供 logical key、kind、subject、objective 与 deliverable。
-- 只声明真实 dependency；声明后必须引用完整且无环。
-- acceptance criteria、output scope、required/terminal 标记按任务需要选填。
-- adapter 从 snapshot 注入 base revision，防止模型手工维护并发版本。
+第一步承载完整语义，第二步只提交 opaque receipt。YAML string 是唯一模型传输格式；解析后的 canonical typed document 与 trusted authority/target envelope 共同计算 digest，只有 service/storage 生成的 typed 实体可以进入 domain validation 和权威 transaction。
 
-runtime Plan Mode 下，`plan_execution` 只做完整 normalize/validate 并返回 proposal 结果，不 mint Plan/Work Item/Spec ID、不写 SQL、不创建 Execution，也不启动任何工作；离开 Plan Mode 后重交同一完整 draft，才创建 Execution 并激活 immutable Plan revision。SQL 中的 `proposed` 状态保留给未来由用户或控制面显式保存的草案，不由当前模型工具暗中持久化。
-任何文字、Spec 或 dependency 修改都产生新的 immutable Plan revision；不得原地改写历史 revision。
+Nexus Plan Document v1 的形状如下：
 
-普通追加仍提交一张完整 successor graph，而不是发送若干“加节点”低级命令。服务端按 `logical_key` 复用旧 Work Item：新增 logical key 创建节点；旧节点可以作为新节点的上游，新边也可以连接新节点；任何新边都不能指向旧节点，因为那会改写旧节点的 Ready 条件。已有节点的 spec、parent、required/terminal 和入边保持一致时属于单调扩展。省略旧节点、修改旧节点或改变其入边属于 superseding replan，必须显式 reason/authority，并继续受 active work、未审 Submission 和 revision fence 保护。这样模型可以扩图，但一次不完整的 JSON 不会被解释成删除历史。
+```yaml
+nexus_plan: 1
+operation: create # create | replan | replace
+objective: "Produce and verify a small report"
+completion_criteria:
+  - "The verified report exists"
+revision_reason: ""          # replan 时必须非空
+supersede_active_work: false # replan 时按需填写
+replacement_reason: ""      # replace 时必须非空
+items:
+  - logical_key: produce
+    kind: produce
+    subject: "Produce the report"
+    objective: "Write the requested report"
+    deliverable: "report.md"
+    acceptance_criteria:
+      - "The report covers the requested scope"
+    required: true
+    terminal: false
+    parent_logical_key: ""
+    depends_on: []
+    soft_depends_on: []
+    input_refs: []
+    output_scopes:
+      - "file:report.md"
+    shared_output_scopes: []
+```
 
-当前持久层只在没有 current Assignment 和未审 Submission 的 quiescent boundary 激活 successor Plan revision。运行中热扩图不能只放宽这道校验：Assignment、Attempt、Dispatch、Room WorkBinding 都携带原 Plan identity，必须先定义“同一 Work Item/spec 在单调 successor revision 中如何被明确 carry”的持久协议和 admission 规则。该协议落地前，模型应等待当前责任链收束后再扩图；不得用 `supersede_active_work` 假装 carry，因为那会真实取消旧责任。
+`operation: create` 用于当前 scope 没有 current Execution；`replan` 必须命中 current Execution、提供非空 `revision_reason`，并保持其 immutable objective/completion boundary；当该 Execution 合法存在但尚无 active Plan 时，empty base-Plan fence 表示给它原子写入第一个 Plan，document 中所有 Work Item 都必须是新 identity。`replace` 只用于用户明确改成不同 transient objective，必须提供新的 objective、completion criteria、`replacement_reason` 与完整 successor graph。Goal-bound Execution 不允许 `replace`，必须进入 Goal retarget/rebase。
 
-模型输入使用本次 Plan 内唯一的 `logical_key` 表达 dependency；服务端生成 opaque Plan/WorkItem/Spec ID。一次调用必须原子成功或整体拒绝，不能留下半张工作图。
+`items` 必须非空；每项至少提供唯一 `logical_key`、`kind`、`subject`、`objective` 与 `deliverable`。dependency 只用本 document 内 logical key 表达；服务端生成 opaque Plan/WorkItem/Spec ID。acceptance criteria、parent、hard/soft dependency、input ref、exclusive/shared output scope、required/terminal 标记按任务需要声明。parser 只接受一个 UTF-8 YAML mapping，拒绝空文档、未知或重复 key、multi-document、null、隐式 timestamp、anchor/alias、merge key、自定义 tag、placeholder、资源上限超限和无效 graph，并返回稳定 path 与 line/column。随后 service 继续执行身份、核心字段、32 项集合上限、引用完整性、DAG、output scope 冲突、operation 与 authoritative state 校验。
 
-模型可见 schema 和 adapter 只接受一个原生 `items: array<object>` 协议，不保留 JSON-inside-JSON 字符串旁路。schema 只使用 `object/properties/required/additionalProperties/type/items/enum/description` 这组公共 function-calling 关键字，不用模型白名单或 Provider 私有字段决定工具是否可调用；bridge 与 SDK 必须无损传递同一份嵌套 schema 和 arguments。每项至少包含 `logical_key`、`kind`、`subject`、`objective` 和 `deliverable`；`required` / `terminal` 默认 false，criteria、dependency、input refs 和 output scopes 均可省略。adapter 使用 `DisallowUnknownFields` 解码整个参数对象，service 继续执行身份、非空核心字段、32 项上限、引用完整性、DAG 以及已声明 scope 冲突校验，因此模型生成不能替代领域契约或原子性。
+成功 prepare 后，proposal 持久保存 canonical document、originating-round provenance、owner/session/scope/coordinator、target Execution ID/version、base Plan ID、Goal ID/revision/activation provenance、Goal-reserved successor、typed predecessor 与覆盖这些 immutable 字段的 digest。proposal ID 不是 capability；每次读取/commit 仍须匹配 trusted access identity。document 一经 seal 不可编辑，模型若改变任何节点、边、文字或 operation，必须重新 prepare 得到新 proposal。对 `create` proposal，prepare 与 commit 都必须通过 trusted resolver 获得完整 Goal activation；一份 seal 时 Goal-free 的 proposal 不会在 commit 时自动吸附当时的 ambient Goal。
 
-默认情况下，current Assignment、live Attempt 或待投递 Dispatch 会阻止 ordinary Plan revision replacement。若同一 objective 的旧图已经不再有效，coordinator 必须显式提交 `supersede_active_work=true` 和非空 `revision_reason`；同一事务先捕获每个 live/pending Attempt 的 Cancellation dispatch，再释放旧 Assignment、终结 Attempt、取消 pending/claimed Assignment/Review Dispatch，最后激活新 revision。任何 unreviewed Submission 都继续阻止这种 replan，不能借改 Plan 擦除已交付但尚未验收的结果。与当前 active Plan 规范化后完全一致的 draft 返回 semantic no-op，即使 retry 使用了新的 tool-use ID 也不产生空 revision。
+Plan Mode 允许 `prepare_plan_execution` 写 proposal SQL，因为它不 mint Execution/Plan/WorkItem/Spec ID，不改变 Goal metadata，不激活 Assignment/Attempt，不写 Dispatch/Cancellation outbox，也不触发 Room reconciliation。`plan_execution` 在 Plan Mode 必须拒绝，并提示离开 Plan Mode 后重用同一 receipt；proposal 跨 round、compact、runtime 重连与进程重启保留，不需要重新生成 YAML。
 
-普通首次 planning 在同一 SQL transaction 创建 Execution、完整 WorkGraph 与 active Plan；若任一步失败则整体拒绝，不允许先创建无 Plan 的 transient Execution。
+materialization 执行以下不可分割的 fence：
 
-当用户明确把当前 transient objective 替换为不同 objective 时，coordinator 在同一 `plan_execution` 输入中额外提交 `replace_current_execution=true`、非空 `replacement_reason`、新 objective、至少一条非空顶层 completion criterion 和完整 successor WorkGraph；`supersede_active_work` / `revision_reason` 与 replacement fields 互斥。模型必须把语义上相同的 outcome/completion boundary 路由到普通 replan，不能靠改写措辞伪造新 objective；服务端至少拒绝归一化后相同的 objective，并返回普通 replan 作为 next action，不依赖 LLM 相似度猜测。Room member、subagent 与非 coordinator 调用必须拒绝；当前 Execution 绑定 Goal 时返回 `goal_retarget_required`，不能静默解绑或改写 Goal。
+- `proposal_id + proposal_digest` 必须成对匹配，且当前 owner/session/scope/coordinator 与 proposal access 一致；trusted Goal resolver 还必须取得非空 `owner_user_id` metadata 并与当前 owner 精确相等，不能仅凭可能碰撞的 session key 选择 Goal。
+- `create` 要求仍无 current Execution；`replan` / `replace` 要求 current Execution ID、version 与 base Plan 仍和 seal 时完全一致。`create` 还会重新解析 Goal ID/revision/activation、reserved successor 与 predecessor；任一字段出现、消失或变化都拒绝该 proposal。
+- proposal 以 CAS 从 `sealed` 进入 `materializing`，并取得由 proposal 派生的稳定 command 与 reserved Execution identity。首次尝试自带一段有界 lease；同一 reservation 的并发 replay 只能得到 `not due` 并重新读取状态，不能继承首个 caller 的 lease。恢复或前台重放必须在 deadline 到期后用 expected proposal version CAS claim 新 lease，未持有 lease 的调用不得进入 authoritative command。权威存储继续用已有的 create-with-plan、write-plan 或 replace-with-plan transaction，一次完整成功或整体拒绝。create/replace 不留下 planless Execution；已有 planless Execution 则可以通过 empty base-Plan fence 的 replan transaction 获得第一个 Plan。
+- 同一 receipt 的重复调用返回同一 materialization；服务在 commit 后、proposal row 回执前崩溃时，reconciler 只通过 `(reserved Execution ID, stable materialization command ID)` 查找该 command 写入的 exact authoritative `plan_activated` event 和 Plan ID。当前 graph 与 proposal 语义相同不足以证明归因，后续 active Plan 已前进也不会抹去原 command receipt。临时错误按 durable deadline 重试；永久 target drift/authority conflict 把 proposal 置为 `blocked`。若并发 worker 在 authoritative commit 可见前误赢得 blocked CAS，只有随后出现 exact command receipt 的 blocked proposal 才进入恢复并原子收敛为 `materialized`；真正没有 receipt 的 blocked proposal 保持终态，必须重新 prepare 当前完整图。
+- 若 Execution/Plan transaction 已提交而 Goal binding confirmation 失败，proposal 记录 `materialized + confirmation=pending`。未实现 confirmer 也是显式 confirmation failure，不能降级为已确认。Goal 仍 fail closed，不开放 completion/continuation；启动和周期 reconciler 只重试 confirmation，成功后记为 `confirmed`，不会重放出第二个 Execution 或 Plan。
 
-Execution replacement 是一个 SQL transaction：CAS current revision，先为旧图每个 pending/running Attempt 写入 exact-target Cancellation dispatch，再 supersede 旧 Execution/active Plan，收束旧 Work Item、Assignment、Attempt 与未送达 Assignment/Review Dispatch，创建带 typed predecessor `replaces_execution_id` 的 fresh successor Execution、完整 WorkGraph 与 active Plan，并追加旧 `execution_superseded` 和新 `execution_created` / `plan_revised` 事件。旧 Execution 的 supersede event payload 记录 `successor_execution_id`，反向关系由 successor 的 typed predecessor 查询；同一 `(owner_user_id, session_key)` 的 current 唯一约束始终成立，不能先 terminalize 后依赖第二个命令补 Plan。
+普通追加仍 prepare 一张完整 successor graph，而不是发送若干“加节点”命令。服务端按 `logical_key` 复用旧 Work Item：新增 logical key 创建节点；旧节点可以作为新节点的上游，新边也可以连接新节点；任何新边都不能指向旧节点，因为那会追溯改写旧节点的 Ready 条件。已有节点的 spec、parent、required/terminal 和入边保持一致时属于单调扩展。所有 replan 都必须解释非空 `revision_reason`；省略旧节点、修改旧节点或改变其入边还属于 superseding replan，必须具备 supersede authority，并继续受 active work、未审 Submission 和 revision fence 保护。任何文字、Spec 或 dependency 修改都产生新的 immutable Plan revision，不得原地改写历史。
 
-旧 Plan、Attempt、Submission、Acceptance 和 event 保持 immutable history。新 Execution 不继承 Work Item/Assignment，旧 Accepted 结果不计入 successor completion；当前协议没有 automatic carry，未来复用必须由独立显式 import/rebase 重新验证 objective fence、input 与 `spec_hash`。用户明确 replacement 时未审 Submission 留在旧历史，不进入 successor，也不能被原地改写。
+当前持久层只在没有 current Assignment 和未审 Submission 的 quiescent boundary 激活 ordinary successor Plan revision。运行中热扩图不能只放宽这道校验：Assignment、Attempt、Dispatch、Room WorkBinding 都携带原 Plan identity，必须先定义同一 Work Item/spec 如何显式 carry 的持久协议和 admission 规则。该协议落地前，模型应等待当前责任链收束；`supersede_active_work: true` 会真实捕获 Cancellation dispatch、释放旧 Assignment、终结 Attempt 并取消未送达 Dispatch，不能拿它伪装 carry。与当前 active Plan 规范化后完全一致的 document materialize 为 semantic no-op，不产生空 revision。
 
-Room handoff/queue/slot 属于 workspace ledger，不能和 SQL replacement 宣称一个跨存储 transaction。SQL commit 后由幂等 reconciliation 清理投影；在此之前，旧 Execution terminal status、superseded responsibility chain 与完整 WorkBinding admission fence 必须拒绝迟到 wake、queued slot、child launch 或 mutation result。
+transient replacement 仍是一个 SQL transaction：CAS current revision，先为旧图每个 pending/running Attempt 写入 exact-target Cancellation dispatch，再 supersede 旧 Execution/active Plan，收束旧 Work Item、Assignment、Attempt 与未送达 Assignment/Review Dispatch，创建带 typed `replaces_execution_id` 的 fresh successor Execution、完整 WorkGraph 与 active Plan，并追加旧 `execution_superseded` 和新 `execution_created` / `plan_revised` 事件。同一 `(owner_user_id, session_key)` 的 current 唯一约束始终成立，不能先 terminalize 后依赖第二个 command 补 Plan。
 
-Plan Mode 对普通首次 Plan、replan 和 replacement draft 都只 normalize/validate；包括 replacement flag 在内的输入不得 terminalize 当前 Execution、写新 Execution/Plan、取消 Dispatch 或触发 Room reconciliation。
+旧 Plan、Attempt、Submission、Acceptance 和 event 保持 immutable history。新 Execution 不继承 Work Item/Assignment，旧 Accepted 结果不计入 successor completion；未来复用必须由独立显式 import/rebase 重新验证 objective fence、input 与 `spec_hash`。Room handoff/queue/slot 仍属于 workspace ledger，不与 SQL transaction 伪装成跨存储原子提交；SQL commit 后由幂等 reconciliation 清理投影，在此之前旧 terminal fence 必须拒绝迟到 wake、queued slot、child launch 或 mutation result。
 
 ### 10.3 `assign_work`
 
@@ -1162,9 +1210,9 @@ Lead 在第一条消息同时 `@Researcher` 和 `@Analyst` 作为普通聊天完
 
 必须先区分四种语义，不能把它们都实现为“改 Plan”：
 
-1. **同一 objective 改路线。** outcome 与 completion boundary 不变，只改变步骤、文案、owner、dependency、工具或 evidence strategy，继续使用当前 Execution，并通过 `plan_execution` 创建 immutable Plan revision。必要时显式 `supersede_active_work`；不得改写 Execution objective。
-2. **Goal-bound objective revision。** 必须执行 6.5 的 durable rebase：先 prepare 并预留 successor，terminalize 整个旧 WorkGraph并在同一 orchestration transaction 写入 exact-target Cancellation outbox，再 commit Goal revision，最后由 `plan_execution` 原子创建 fresh successor graph 并确认 binding。旧 live Attempt 由独立 consumer 可靠重试物理中断，旧 revision 的完成事件不能写入新 revision，任何 Work/Acceptance 都不自动 carry。`plan_execution.replace_current_execution` 与 `abandon_execution` 都返回 `goal_retarget_required`，不能把 Goal continuity 退化为 transient replacement/cancellation。
-3. **不同 transient objective replacement。** 只有用户明确提供不同 non-Goal objective 时，coordinator 才能用 `plan_execution` 同时提交 `replace_current_execution=true`、`replacement_reason`、新 objective/completion criteria 和完整 successor graph。一个 SQL transaction supersede 旧 Execution 并创建 successor Execution + active Plan；成员和 subagent 禁止调用，Plan Mode 只验证不写入，旧 Accepted 结果不自动 carry。
+1. **同一 objective 改路线。** outcome 与 completion boundary 不变，只改变步骤、文案、owner、dependency、工具或 evidence strategy，继续使用当前 Execution；先 prepare `operation: replan` 的完整 document，再用 receipt 创建 immutable Plan revision。必要时声明 `supersede_active_work`；不得改写 Execution objective。
+2. **Goal-bound objective revision。** 必须执行 6.5 的 durable rebase：先 prepare Goal transition 并预留 successor，terminalize 整个旧 WorkGraph并在同一 orchestration transaction 写入 exact-target Cancellation outbox，再 commit Goal revision；随后 `prepare_plan_execution` seal 绑定该 reserved successor/Goal fence 的 fresh graph，`plan_execution` 原子 materialize，Goal confirmation 由 durable pending saga 收口。旧 live Attempt 由独立 consumer可靠重试物理中断，旧 revision 的完成事件不能写入新 revision，任何 Work/Acceptance 都不自动 carry。Plan Document 的 `operation: replace` 与 `abandon_execution` 对 Goal-bound Execution 都返回 `goal_retarget_required`，不能把 Goal continuity 退化为 transient replacement/cancellation。
+3. **不同 transient objective replacement。** 只有用户明确提供不同 non-Goal objective 时，coordinator 才能 prepare `operation: replace`、`replacement_reason`、新 objective/completion criteria 和完整 successor graph，再以 `proposal_id + proposal_digest` commit。一个 SQL transaction supersede 旧 Execution 并创建 successor Execution + active Plan；成员和 subagent 禁止调用。Plan Mode 可以保存 sealed proposal，但不能 materialize；旧 Accepted 结果不自动 carry。
 4. **只放弃 transient objective。** 用户明确不再继续且没有 successor 时，coordinator 调用 `abandon_execution(reason)`；一个 SQL transaction cancel 旧 graph，不创建新 Execution/Plan。Goal-bound、成员和 subagent 请求均拒绝，Plan Mode 只验证。
 
 Room handoff、durable input queue、slot 与 runtime 位于 SQL 事务之外，不与 replacement/abandonment 共享 transaction。SQL commit 后 workspace projection 通过 reconciliation 收敛，runtime 则通过 durable Cancellation outbox 收敛；任何 admission 都必须先读取 current Execution/Plan/Assignment/Attempt/Dispatch fence。旧 Execution terminal 后的迟到工作只能被拒绝或归入旧历史，旧 cancellation 也只能命中捕获时的 exact round，不能进入或中断 successor。
@@ -1184,6 +1232,7 @@ Room handoff、durable input queue、slot 与 runtime 位于 SQL 事务之外，
 
 | 数据 | 真相源 |
 | --- | --- |
+| immutable non-authoritative Execution Plan Proposal / materialization receipt / Goal confirmation state | SQL |
 | Execution | SQL |
 | immutable Plan revision / Plan item / dependency | SQL |
 | stable Work Item / immutable Work Item Spec | SQL |
@@ -1196,10 +1245,15 @@ Room handoff、durable input queue、slot 与 runtime 位于 SQL 事务之外，
 | runtime Task/Todo | SDK/runtime local projection |
 | Room handoff / queue | 现有 Room workspace ledger |
 
-所有 mutable aggregate 使用 optimistic version；每个 command 都携带调用方稳定的 idempotency command ID。普通首次 Plan 必须在一个 SQL transaction 内创建 Execution、完整 WorkGraph 与 active Plan；Room `submit_work` 必须在一个 SQL transaction 内创建 immutable Submission，并仅为跨 Agent review 同事务创建 review-return outbox；任何把 pending/running Attempt 置为 interrupted 的 mutation 必须先在同一 transaction 写入 per-Attempt Cancellation outbox；transient replacement 必须在一个 SQL transaction 内 terminalize 旧 Execution 并创建 successor Execution + active Plan；Goal revision rebase 必须先以 durable Goal transition 保留意图和 reserved successor，再分别幂等提交 old graph supersede、Goal revision commit、successor Execution+Plan 与 Goal binding confirmation；abandonment 在一个 SQL transaction 内只取消旧 graph。Room workspace ledger 只在 commit 后幂等 reconciliation，runtime physical interrupt 只在 commit 后由 cancellation consumer 投递；正确性由 SQL outbox、terminal state 与 admission fence 保证。
+所有 mutable aggregate 使用 optimistic version；每个 command 都携带调用方稳定的 idempotency command ID。Plan preparation 先写一条 immutable、non-authoritative proposal 及 exact digest fence；它与之后的 authoritative transaction 由 durable `sealed/materializing/materialized/blocked` receipt 连接。进入未完成 authoritative materializer 前还要通过 proposal version CAS 取得有界 claim lease；commit 后的恢复只认 stable materialization command 对应的 authoritative Plan event receipt，不用 graph 语义相等代替命令归因。普通首次 Plan 必须在一个 SQL transaction 内创建 Execution、完整 WorkGraph 与 active Plan；已有但尚无 active Plan 的 Execution 通过 exact empty base-Plan fence 的 replan transaction 原子写入首个 Plan。Room `submit_work` 必须在一个 SQL transaction 内创建 immutable Submission，并仅为跨 Agent review 同事务创建 review-return outbox；任何把 pending/running Attempt 置为 interrupted 的 mutation 必须先在同一 transaction 写入 per-Attempt Cancellation outbox；transient replacement 必须在一个 SQL transaction 内 terminalize 旧 Execution 并创建 successor Execution + active Plan；Goal revision rebase 必须先以 durable Goal transition 保留意图和 reserved successor，再分别幂等提交 old graph supersede、Goal revision commit、successor proposal/materialization 与 Goal binding confirmation。若 authoritative Execution/Plan commit 成功而 confirmation 失败，包括 gateway 没有 confirmer，proposal receipt 保存 pending 状态供 reconciler 重试。abandonment 在一个 SQL transaction 内只取消旧 graph。Room workspace ledger 只在 commit 后幂等 reconciliation，runtime physical interrupt 只在 commit 后由 cancellation consumer 投递；正确性由 proposal digest/target fence、SQL outbox、terminal state 与 admission fence 保证。
 
 数据库必须保证：
 
+- sealed Plan proposal 的 canonical document 不可变；同一 proposal 的 owner/session/scope/coordinator 与 Execution/version/base Plan/Goal ID/revision/activation/reserved successor/predecessor fence 必须 exact-match，materialization command 与 reserved identity 稳定，重复 recovery 不产生第二个 Execution/Plan。
+- Goal-free create proposal 也要在 seal 和 commit 时重新解析 trusted Goal state；ambient Goal 的出现、消失或变更只能使该 proposal stale，不能在 materializer 内临时绑定。
+- materializing proposal 每次恢复前必须用 expected version CAS claim 过期 lease；未到期或 CAS 失败的调用不进入 authoritative transaction。
+- proposal materialization receipt 必须来自它的 stable command 写入的 exact authoritative Plan event；语义相同的当前 Plan 不能代替该 receipt。materialization receipt 与 Goal confirmation state 分开持久化；`materialized + confirmation=pending` 可跨进程重试 confirmation，但不可回退为可编辑 proposal 或再次创建图。
+- 已有 planless Execution 的首个 Plan 必须以 empty base-Plan exact fence 原子激活，且不能声称复用任何旧 Work Item identity。
 - 同一个 `(owner_user_id, session_key)` 最多一个 `active | waiting | paused` Execution；读取 current Execution 不依赖“最近一条”猜测。
 - 一个 Execution 最多一个 active Plan；Execution 不保存重复 active-plan 指针。
 - dependency 两端必须属于同一个 Plan，Assignment 必须绑定该 Plan 中的精确 Work Item/Spec。
@@ -1349,7 +1403,7 @@ room realtime -> narrow handoff/attempt interface
 17. Goal completion 在 required Work Item 未 Accepted 时被拒绝。
 18. Goal completion 在 running subagent、pending handoff 或 usage 未结算时被拒绝。
 19. 服务重启后 pending Assignment/handoff 可幂等恢复。
-20. Plan Mode 只能验证 Proposed Plan、replacement 或 abandonment，不能写入、开始执行或自动续跑。
+20. Plan Mode 可以通过 `prepare_plan_execution` 写入 durable non-authoritative sealed proposal，也可以验证 abandonment；不能 materialize Execution/Plan、开始执行、改变 Goal/Dispatch/Room ledger 或自动续跑。
 21. 无论是否存在 managed Execution，裸 `@` 都只做 conversation transport，不创建、不激活 Work Item/Assignment，也不继承 source binding。
 22. 同一 command 或重复 Hook delivery 不产生第二个 Assignment、Attempt、Acceptance 或 event sequence。
 23. dependency、Assignment、Attempt、Submission 不能跨 Execution、Plan 或 Spec chain 写入。
@@ -1358,34 +1412,41 @@ room realtime -> narrow handoff/attempt interface
 26. Agent 可以根据跨轮、外部等待、Room dependency、恢复成本或任务复杂度自适应提出 Goal；这些是推荐证据，不是后端工作流白名单。
 27. Goal promotion 只在用户禁用、Plan Mode、身份/权限冲突、已有冲突 Goal、Execution 非 current/active，或需要新增授权时被后端拒绝。
 28. `SessionStart(source=compact)` 恢复同一 SQL snapshot；`PostCompact` 不被当成持久状态注入。
-29. 普通首次 `plan_execution` 原子创建 Execution、完整 WorkGraph 与 active Plan；失败时不留下 planless Execution。
-30. 同一 objective 只改变路线时使用普通 `plan_execution` replan；设置 `replace_current_execution` 被拒绝，不创建 successor Execution。
-31. coordinator 替换不同 transient objective 时，旧 Execution supersede 与 successor Execution + active Plan creation 在同一 SQL transaction 完成；旧 Accepted 结果不进入 successor。
+29. 普通首次 Plan 先 seal `operation: create` 的完整 document，再由 `plan_execution(proposal_id, proposal_digest)` 原子创建 Execution、完整 WorkGraph 与 active Plan；失败时不留下 planless Execution。
+30. 同一 objective 只改变路线时必须 prepare `operation: replan`；试图用 `operation: replace` 表达相同 boundary 被拒绝，不创建 successor Execution。
+31. coordinator seal 不同 transient objective 的 `operation: replace` proposal 后，commit 在同一 SQL transaction 完成旧 Execution supersede 与 successor Execution + active Plan creation；旧 Accepted 结果不进入 successor。
 32. `abandon_execution` 只取消当前 transient graph，不创建 successor；重复 command 幂等。
 33. Goal-bound Execution 的 replacement/abandonment 返回 `goal_retarget_required`，Room member 与 subagent 调用返回 authority rejection。
-34. Plan Mode 的 replacement/abandonment 只返回 validation proposal，SQL、Dispatch outbox 与 Room ledger 均不变化。
+34. Plan Mode 的 create/replan/replacement 可以新增 proposal SQL row，但 Execution、Plan、Goal、Dispatch outbox 与 Room ledger 均不变化；abandonment 仍只验证且不写 SQL。
 35. replacement/abandonment commit 后的迟到 Room handoff、queued slot、child launch 或 mutation result 被旧 Execution/WorkBinding fence 拒绝，即使 workspace reconciliation 尚未完成。
 36. MCP、HTTP 与 app-server 的 managed Goal objective mutation 都进入同一个 retarget coordinator；Room 模型非 Lead 被拒绝，HTTP metadata 不能覆盖 server-owned binding/lead/transition。
-37. Goal rebase 在 prepare、old graph supersede、Goal commit 或 binding confirmation 后失败时，使用同一 command 重试会复用同一 transition 与 successor，并只修复缺失阶段。
-38. `prepared | awaiting_plan | binding_reserved` Goal 不能 complete 或自动 continuation；模型在 `prepared` 获得 `retarget_goal` retry，在后两阶段获得 `plan_execution` next action。
+37. Goal rebase 在 transition prepare、old graph supersede、Goal commit、successor proposal/materialization 或 binding confirmation 后失败时，使用同一 command/receipt 重试会复用同一 transition 与 successor，并只修复缺失阶段；materialized-but-confirmation-pending 由 reconciler 收口。
+38. `prepared | awaiting_plan | binding_reserved` 或 Goal confirmation pending 时不能 complete 或自动 continuation；模型在 `prepared` 获得 `retarget_goal` retry，在 awaiting-plan 阶段先获得 `prepare_plan_execution`，sealed 后再获得 `plan_execution` next action。
 39. Goal revision successor 只有在 predecessor 已按同一 transition supersede、typed predecessor/revision/scope 连续且首 Plan 同事务创建时才接受；任意 terminal predecessor 或不同 reserved ID 被拒绝。
-40. Goal revision successor 的 Plan Mode proposal 对 Goal metadata、Execution、Plan 与 outbox 零写入；旧 Work/Submission/Acceptance 不自动 carry。
+40. Goal revision successor 的 Plan Mode preparation 只写 non-authoritative proposal SQL，对 Goal metadata、Execution、Plan、outbox 与 Room ledger 零 mutation；旧 Work/Submission/Acceptance 不自动 carry。
 41. Plan active-work supersede、block、takeover、transient replacement、abandonment 与 Goal supersede 在把 Attempt 写为 interrupted/cancelled 前，均在同一事务写入每个逻辑 Attempt 的 exact-target Cancellation dispatch。
 42. cancellation consumer 在 delivery 失败或进程崩溃后可回收 lease 并重试；同一 row 不产生第二个逻辑 cancellation。
 43. sole Room/DM runtime round 的 provider interrupt 保存 `provider_interrupted`；同 session 已有另一 running round时只取消 exact local context，保存 `local_round_cancelled` 与 limitation，不调用 shared provider/session interrupt。
 44. provider interrupt 的唯一性检查与调用之间禁止 successor admission；延迟的 Room/DM cancellation 只命中捕获时的 WorkBinding/runtime round，旧 target 已结束或 stale 时幂等收束，不中断同 session、同 Agent 的 successor。
-45. pending Attempt 不调用 runtime并落为 `not_required/not_started`；running Attempt 缺 exact identity 或 exact local/provider 能力时落为 `unsupported`，不伪报 physical interruption。
+45. pending Attempt 不调用 runtime 并落为 `not_required/not_started`；running Attempt 缺 exact identity 或 exact local/provider 能力时落为 `unsupported`，不伪报 physical interruption。
 46. 同一 Room 同时存在 active Execution 时，无 binding 的用户定向消息、裸 `@` 和 directed message 仍可正常聊天；non-coordinator member 不获得 Execution MCP，直接 mutation 返回 `conversation_only`。
 47. Room `review_work` 接受 review-return outbox 注入的 exact ReviewBinding、Assignment 选定 self reviewer 的 exact WorkBinding，或当前 coordinator 的有效 CoordinationBinding；其他成员不能越权验收。
 48. input queue/guidance 不改变 target round lane，普通消息链路不会复制 WorkBinding/ReviewBinding；跨 Agent Assignment 与 review lane 只能由各自 durable outbox 创建，自审沿当前 WorkBinding 完成。
-49. active Execution 存在时，普通 Room coordinator round 仍从 conversation 开始；跳过 `get_execution` / successful `plan_execution` 直接 `assign_work`、takeover、promotion 或 abandonment 返回 `conversation_only`。显式转换后同一物理 round 可协调，round 结束 capability 被释放。
+49. active Execution 存在时，普通 Room coordinator round 仍从 conversation 开始；读取或 prepare proposal 本身不 mint CoordinationBinding，跳过 `get_execution` / successful proposal materialization 直接 `assign_work`、takeover、promotion 或 abandonment 返回 `conversation_only`。显式转换后同一物理 round 可协调，round 结束 capability 被释放。
 50. internal Goal continuation 只有 exact Goal ID/revision/Execution ID 三元组与 SQL Execution/coordinator 全部匹配时直接进入 coordination；任一字段缺失会在 claim 前失败，ambient Goal、旧 revision、错误 Execution 和普通聊天不能获得 Goal mutation authority。
 51. 旧 parent round 的迟到 SubagentStart/Stop 不会路由给 successor callbacks；复用 SDK Agent identity 或缺少唯一 correlation 时 fail closed。
 52. Work Dispatch 命中 stale/terminal Execution、superseded Plan/Spec 或已释放责任时只取消旧 outbox，绝不 reopen old Work；只有 current active Plan/Spec 下、尚未启动且仍为 `assigned` 的永久 target/root Attempt failure 才同事务 release/cancel 并让当前 Work Item Ready；running Attempt不被 Dispatch consumer 中断，Room/runtime 暂时不可用仍 retry。
 53. 带 WorkBinding/ReviewBinding 的 queue item 不能通过 generic queue control 改成 guidance、删除、重排或合并；每条 durable directed message 独立 dispatch。
-54. `get_execution` 在没有 current Execution 时返回 unmanaged conversation context，不创建空 Execution；完整 `plan_execution` 成功后才进入 coordination。
+54. `get_execution` 在没有 current Execution 时返回 unmanaged conversation context，不创建空 Execution；prepare 只 seal proposal，完整 proposal 被 `plan_execution` 成功 materialize 后才进入 coordination。
 55. Goal-bound Work/Review round 的 Goal ID/revision 只由后端从 exact Execution binding 解析，消息正文和 binding payload 不能伪造或采用 ambient revision。
 56. 父 round结束时 runtime/service/storage 共同强校验并持久化精确 `T+30s` child grace deadline；迟到 Stop仍终结原 child Attempt，终态永久缺失时独立于 Room realtime 的启动/每秒恢复器跨进程将其置为 interrupted，后续 context投影 terminal `subagent_result` 而不自动 Submission/Acceptance。
+57. Plan Document 的空输入、`{}`/placeholder、未知或重复 key、multi-document、anchor/alias/tag/merge、资源超限或无效 DAG 在 seal 前被稳定拒绝；不会创建 proposal 或任何 authoritative graph state。
+58. sealed proposal 跨 round、compact 与进程重启仍可用同一 ID+digest commit；document、target Execution/version/base Plan、Goal activation、reserved successor 或 predecessor 任一改变都会 exact-fence 拒绝并要求重新 prepare。
+59. Goal-free create proposal 在 seal 后若出现 ambient Goal，或 sealed Goal 在 commit 前消失/改变，materialization 被拒绝且不产生 authoritative Execution/Plan 或 Goal binding mutation。
+60. 服务在 authoritative Plan transaction commit 后、proposal receipt 更新前崩溃时，reconciler 只有在 stable command 对应的 exact `plan_activated` event 存在时才恢复原 Plan ID；单纯语义相同的 Plan 不能证明归因。
+61. materializing proposal 的首次尝试持有有界 lease；前台重放、后台 reconciler 和多实例只有在 deadline 到期后成功完成 expected-version CAS claim 的一方能重入 authoritative command。
+62. 已有 planless Execution 可以用 `operation: replan` 和 empty base-Plan fence 原子创建首个 Plan；document 携带任何 `existing_work_item_id` 都被拒绝。
+63. Goal-bound Plan materialization 成功但 confirmation 暂时失败或 confirmer 未实现时，proposal 持久化 `materialized + confirmation=pending`；Goal completion/continuation fail closed，reconciler 只重试 confirmation。
 
 ## 21. 非目标
 

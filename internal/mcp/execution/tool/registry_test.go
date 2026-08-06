@@ -19,6 +19,7 @@ func TestBuildAllExposesOnlySemanticExecutionTools(t *testing.T) {
 	}
 	want := []string{
 		"get_execution",
+		"prepare_plan_execution",
 		"plan_execution",
 		"abandon_execution",
 		"assign_work",
@@ -35,6 +36,24 @@ func TestBuildAllExposesOnlySemanticExecutionTools(t *testing.T) {
 	}
 	if slices.Contains(names, "start_work") {
 		t.Fatal("machine bookkeeping leaked into the model tool registry")
+	}
+}
+
+func TestPlanPreparationIsDurableButNotReadOnly(t *testing.T) {
+	definitions := BuildAll(nil, contract.ServerContext{})
+	readOnlyByName := map[string]bool{}
+	for _, definition := range definitions {
+		readOnlyByName[definition.Name] = definition.Annotations != nil &&
+			(definition.Annotations.ReadOnly || definition.Annotations.ReadOnlyHint)
+	}
+	for name, wantReadOnly := range map[string]bool{
+		"get_execution":          true,
+		"prepare_plan_execution": false,
+		"plan_execution":         false,
+	} {
+		if got := readOnlyByName[name]; got != wantReadOnly {
+			t.Fatalf("%s read-only annotation = %t, want %t", name, got, wantReadOnly)
+		}
 	}
 }
 
@@ -85,62 +104,70 @@ func TestRoomAssignmentDescriptionKeepsOnlyAtomicOwnershipContract(t *testing.T)
 	}
 }
 
-func TestPlanExecutionSchemaExplainsInitialCriterionWithoutBurdeningReplan(t *testing.T) {
-	definition := planExecution(nil, contract.ServerContext{})
-	for _, requiredText := range []string{
-		"at least one nonblank completion criterion",
-		"same-objective replan may omit",
-		"cannot rewrite",
+func TestPlanToolSchemasExposeOnlyDocumentThenExactSealedReference(t *testing.T) {
+	prepare := preparePlanExecution(nil, contract.ServerContext{})
+	commit := planExecution(nil, contract.ServerContext{})
+
+	prepareProperties := prepare.InputSchema["properties"].(map[string]any)
+	prepareRequired := prepare.InputSchema["required"].([]string)
+	if len(prepareProperties) != 1 ||
+		prepareProperties["plan_document"].(map[string]any)["type"] != "string" ||
+		!slices.Equal(prepareRequired, []string{"plan_document"}) {
+		t.Fatalf("prepare schema = %#v", prepare.InputSchema)
+	}
+	commitProperties := commit.InputSchema["properties"].(map[string]any)
+	commitRequired := commit.InputSchema["required"].([]string)
+	if len(commitProperties) != 2 ||
+		commitProperties["proposal_id"].(map[string]any)["type"] != "string" ||
+		commitProperties["proposal_digest"].(map[string]any)["type"] != "string" ||
+		!slices.Equal(commitRequired, []string{"proposal_id", "proposal_digest"}) {
+		t.Fatalf("commit schema = %#v", commit.InputSchema)
+	}
+
+	for _, definition := range []struct {
+		name        string
+		description string
+		schema      map[string]any
+	}{
+		{name: prepare.Name, description: prepare.Description, schema: prepare.InputSchema},
+		{name: commit.Name, description: commit.Description, schema: commit.InputSchema},
 	} {
-		if !strings.Contains(strings.ToLower(definition.Description), strings.ToLower(requiredText)) {
-			t.Fatalf("description missing %q: %s", requiredText, definition.Description)
+		assertClosedObjectSchemas(t, definition.schema)
+		encoded, err := json.Marshal(definition.schema)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, forbidden := range []string{
+			`"items":`,
+			`"objective":`,
+			`"completion_criteria":`,
+			`"work_graph_json":`,
+			`"execution_id":`,
+		} {
+			if strings.Contains(string(encoded), forbidden) {
+				t.Fatalf("%s schema leaks old or trusted field %s: %s", definition.name, forbidden, encoded)
+			}
 		}
 	}
-	properties := definition.InputSchema["properties"].(map[string]any)
-	criteria := properties["completion_criteria"].(map[string]any)
-	criteriaItems := criteria["items"].(map[string]any)
-	if criteria["type"] != "array" || criteriaItems["type"] != "string" {
-		t.Fatalf("completion_criteria schema = %#v", criteria)
-	}
-	required := definition.InputSchema["required"].([]string)
-	if slices.Contains(required, "completion_criteria") ||
-		slices.Contains(required, "objective") {
-		t.Fatalf("context-dependent creation fields became mandatory for replan: %#v", required)
-	}
-	if !slices.Contains(required, "items") {
-		t.Fatalf("required = %#v, want items", required)
-	}
-	if _, exposesStringTransport := properties["work_graph_json"]; exposesStringTransport {
-		t.Fatalf("model schema still exposes JSON-inside-JSON transport: %#v", properties)
-	}
-	workGraph := properties["items"].(map[string]any)
-	itemSchema := workGraph["items"].(map[string]any)
-	itemProperties := itemSchema["properties"].(map[string]any)
-	itemRequired := itemSchema["required"].([]string)
-	if workGraph["type"] != "array" ||
-		itemSchema["type"] != "object" ||
-		itemProperties["logical_key"].(map[string]any)["type"] != "string" ||
-		!slices.Contains(itemRequired, "deliverable") {
-		t.Fatalf("items schema = %#v", workGraph)
-	}
-	encoded, err := json.Marshal(definition.InputSchema)
-	if err != nil {
-		t.Fatalf("marshal plan schema: %v", err)
-	}
-	for _, unsupported := range []string{`"pattern":`, `"minItems":`, `"maxItems":`} {
-		if strings.Contains(string(encoded), unsupported) {
-			t.Fatalf("portable plan schema contains provider-specific keyword %s: %s", unsupported, encoded)
+
+	for _, requiredText := range []string{
+		"complete nexus plan document",
+		"unknown keys",
+		"plan mode",
+		"plan_execution",
+	} {
+		if !strings.Contains(strings.ToLower(prepare.Description), requiredText) {
+			t.Fatalf("prepare description missing %q: %s", requiredText, prepare.Description)
 		}
 	}
-	assertPortableSchemaKeywords(t, definition.InputSchema)
-	assertClosedObjectSchemas(t, definition.InputSchema)
 	for _, requiredText := range []string{
-		"native items array",
-		"actual non-empty work item objects",
-		"never send {} or a placeholder",
+		"sealed immutable plan proposal",
+		"proposal_id",
+		"proposal_digest",
+		"do not resend",
 	} {
-		if !strings.Contains(strings.ToLower(definition.Description), strings.ToLower(requiredText)) {
-			t.Fatalf("description missing %q: %s", requiredText, definition.Description)
+		if !strings.Contains(strings.ToLower(commit.Description), requiredText) {
+			t.Fatalf("commit description missing %q: %s", requiredText, commit.Description)
 		}
 	}
 }

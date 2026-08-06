@@ -1,5 +1,5 @@
 // INPUT: 模型语义字段和 execution domain enums。
-// OUTPUT: Plan 使用可移植嵌套 schema，其余工具保留有界集合；全部隐藏 fencing/idempotency。
+// OUTPUT: Plan 两阶段工具只暴露 scalar string，其余工具保留有界集合；全部隐藏 fencing/idempotency。
 // POS: nexus_execution 工具的模型调用协议。
 package tool
 
@@ -50,30 +50,6 @@ func nonEmptyStringProperty(description string) map[string]any {
 	}
 }
 
-func nonEmptyStringArrayProperty(description string) map[string]any {
-	return map[string]any{
-		"type":        "array",
-		"description": description,
-		"minItems":    1,
-		"maxItems":    protocol.ExecutionProjectionCollectionLimit,
-		"items": map[string]any{
-			"type":    "string",
-			"pattern": `\S`,
-		},
-	}
-}
-
-// portableStringArrayProperty stays inside the common function-calling JSON
-// Schema subset. Cardinality and nonblank checks remain authoritative in the
-// service layer instead of relying on Provider-specific schema keywords.
-func portableStringArrayProperty(description string) map[string]any {
-	return map[string]any{
-		"type":        "array",
-		"description": description,
-		"items":       map[string]any{"type": "string"},
-	}
-}
-
 func executionReferenceProperties() map[string]any {
 	return map[string]any{
 		"execution_id": stringProperty("Optional opaque Execution id. Omit to use the current Execution in this scope."),
@@ -91,52 +67,23 @@ func getExecutionSchema() map[string]any {
 	return objectSchema(executionReferenceProperties())
 }
 
-func planExecutionSchema() map[string]any {
-	properties := executionReferenceProperties()
-	properties["objective"] = stringProperty("Execution objective. Required and nonblank when no current Execution exists; omit during replan because it cannot rewrite the existing objective.")
-	properties["completion_criteria"] = portableStringArrayProperty("Execution-level completion criteria. When no current Execution exists, provide at least one nonblank top-level criterion. Existing Execution replans may omit this field and never rewrite it.")
-	properties["revision_reason"] = stringProperty("Why this complete immutable Plan revision is needed.")
-	properties["supersede_active_work"] = booleanProperty("Authorize a non-monotonic replan that changes existing nodes or incoming dependencies. Requires revision_reason and an allowed quiescent boundary; omit for append-only extension.")
-	properties["replace_current_execution"] = booleanProperty("Replace the referenced current transient Execution with a successor because the user changed to a different objective. Requires explicit execution_id, replacement_reason, new objective, new completion_criteria, and the complete successor WorkGraph. Never use for a same-objective replan or Goal-bound Execution.")
-	properties["replacement_reason"] = stringProperty("Why the current transient objective is being replaced. Required and nonblank only with replace_current_execution.")
-	properties["items"] = map[string]any{
-		"type":        "array",
-		"description": "The complete WorkGraph as native Work Item objects. Submit every item in this one call; never send an empty placeholder call.",
-		"items":       planItemSchema(),
-	}
-	return objectSchema(properties, "items")
+func preparePlanExecutionSchema() map[string]any {
+	return objectSchema(map[string]any{
+		"plan_document": nonEmptyStringProperty(
+			"Complete strict Nexus Plan Document v1 as one YAML string. The document contains nexus_plan, operation, objective, completion_criteria and every WorkGraph item. Never send JSON objects, placeholders, fragments, or multiple documents.",
+		),
+	}, "plan_document")
 }
 
-func planItemSchema() map[string]any {
+func planExecutionSchema() map[string]any {
 	return objectSchema(map[string]any{
-		"logical_key":           stringProperty("Stable readable key used by dependencies and later tool calls."),
-		"existing_work_item_id": stringProperty("Optional opaque id when intentionally carrying a stable Work Item into a new Plan revision."),
-		"kind":                  enumProperty("produce creates a deliverable; review checks it; verify validates outcomes; integrate assembles the final result.", "produce", "review", "verify", "integrate"),
-		"subject":               stringProperty("Short Work Item subject."),
-		"objective":             stringProperty("What this Work Item must accomplish."),
-		"deliverable":           stringProperty("Concrete output the owner must submit."),
-		"acceptance_criteria":   portableStringArrayProperty("Optional observable criteria used by review_work when explicit checks help."),
-		"required":              booleanProperty("Whether Execution completion requires Acceptance for this item."),
-		"terminal":              booleanProperty("Whether this item should act as a completion gate. It need not be integrate or verify."),
-		"parent_logical_key":    stringProperty("Optional hierarchy parent within this Plan."),
-		"depends_on": map[string]any{
-			"type":        "array",
-			"description": "Dependencies within this Plan. Hard edges require upstream Acceptance.",
-			"items": objectSchema(map[string]any{
-				"logical_key": stringProperty("Upstream logical key."),
-				"kind":        enumProperty("Dependency kind.", "hard", "soft"),
-			}, "logical_key"),
-		},
-		"input_refs": portableStringArrayProperty("Known inputs, artifacts, URLs, or identifiers."),
-		"output_scopes": map[string]any{
-			"type":        "array",
-			"description": "Optional typed canonical output areas used when duplicate or overlapping production must be prevented. Use file:<workspace-relative-posix-path>, dir:<workspace-relative-posix-path>, or semantic:<nonempty-key>.",
-			"items": objectSchema(map[string]any{
-				"scope": stringProperty("Typed scope. File and directory scopes are workspace-relative; semantic scopes are exact keys."),
-				"mode":  enumProperty("exclusive rejects every overlapping scope; overlap is allowed only when both declarations are shared. Defaults to exclusive.", "exclusive", "shared"),
-			}, "scope"),
-		},
-	}, "logical_key", "kind", "subject", "objective", "deliverable")
+		"proposal_id": nonEmptyStringProperty(
+			"Opaque sealed proposal id returned by prepare_plan_execution.",
+		),
+		"proposal_digest": nonEmptyStringProperty(
+			"Exact digest returned with the same proposal_id. It binds the document and trusted target fence.",
+		),
+	}, "proposal_id", "proposal_digest")
 }
 
 func abandonExecutionSchema() map[string]any {

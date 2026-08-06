@@ -17,8 +17,8 @@ type fakeExecutionService struct {
 	current       func() *protocol.ExecutionSnapshot
 	currentReads  int
 	snapshotReads int
-	ensure        func(orchestration.EnsureInput) orchestration.MutationResult
-	plan          func(orchestration.PlanExecutionInput) orchestration.MutationResult
+	prepare       func(orchestration.ActorContext, orchestration.PreparePlanExecutionInput) (*protocol.ExecutionPlanProposal, error)
+	materialize   func(orchestration.ActorContext, orchestration.MaterializePlanExecutionInput) orchestration.MutationResult
 	abandon       func(orchestration.AbandonExecutionInput) orchestration.MutationResult
 	assign        func(orchestration.AssignWorkInput) orchestration.MutationResult
 	submit        func(orchestration.SubmitWorkInput) orchestration.MutationResult
@@ -34,13 +34,6 @@ type fakeExecutionService struct {
 		orchestration.ActorContext,
 		*protocol.ExecutionSnapshot,
 	) error
-}
-
-func (s *fakeExecutionService) Ensure(_ context.Context, _ orchestration.ActorContext, input orchestration.EnsureInput) (orchestration.MutationResult, error) {
-	if s.ensure != nil {
-		return s.ensure(input), nil
-	}
-	return orchestration.MutationResult{}, nil
 }
 
 func (s *fakeExecutionService) GetCurrent(_ context.Context, _ orchestration.ActorContext) (*protocol.ExecutionSnapshot, error) {
@@ -63,8 +56,26 @@ func (s *fakeExecutionService) GetSnapshot(_ context.Context, _ orchestration.Ac
 	return snapshot, nil
 }
 
-func (s *fakeExecutionService) PlanExecution(_ context.Context, _ orchestration.ActorContext, input orchestration.PlanExecutionInput) (orchestration.MutationResult, error) {
-	return s.plan(input), nil
+func (s *fakeExecutionService) PreparePlanExecution(
+	_ context.Context,
+	actor orchestration.ActorContext,
+	input orchestration.PreparePlanExecutionInput,
+) (*protocol.ExecutionPlanProposal, error) {
+	if s.prepare == nil {
+		return nil, errors.New("unexpected PreparePlanExecution call")
+	}
+	return s.prepare(actor, input)
+}
+
+func (s *fakeExecutionService) MaterializePlanExecution(
+	_ context.Context,
+	actor orchestration.ActorContext,
+	input orchestration.MaterializePlanExecutionInput,
+) (orchestration.MutationResult, error) {
+	if s.materialize == nil {
+		return orchestration.MutationResult{}, errors.New("unexpected MaterializePlanExecution call")
+	}
+	return s.materialize(actor, input), nil
 }
 
 func (s *fakeExecutionService) AbandonExecution(_ context.Context, _ orchestration.ActorContext, input orchestration.AbandonExecutionInput) (orchestration.MutationResult, error) {
@@ -290,28 +301,27 @@ func TestAssignWorkReloadsAndInjectsLatestRevision(t *testing.T) {
 	}
 }
 
-func TestPlanExecutionPassesAtomicInitialBoundaryWithoutEnsure(t *testing.T) {
-	readCount := 0
-	var planned orchestration.PlanExecutionInput
+func TestPreparePlanExecutionSealsCompleteDocumentAndTrustedFence(t *testing.T) {
+	var capturedActor orchestration.ActorContext
+	var capturedInput orchestration.PreparePlanExecutionInput
+	proposal := sealedPlanProposal()
 	svc := &fakeExecutionService{
-		current: func() *protocol.ExecutionSnapshot {
-			readCount++
-			return nil
-		},
-		ensure: func(input orchestration.EnsureInput) orchestration.MutationResult {
-			t.Fatal("plan_execution must not split initial Execution and Plan creation through Ensure")
-			return orchestration.MutationResult{}
-		},
-		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-			planned = input
-			return orchestration.NoOpResult(nil, "captured")
+		prepare: func(
+			actor orchestration.ActorContext,
+			input orchestration.PreparePlanExecutionInput,
+		) (*protocol.ExecutionPlanProposal, error) {
+			capturedActor = actor
+			capturedInput = input
+			return proposal, nil
 		},
 	}
-	definition := planExecution(svc, executionServerContext())
-	result, err := definition.ContextHandler(
+	sctx := executionServerContext()
+	sctx.GoalID = "goal-1"
+	sctx.GoalObjectiveRevision = 7
+	result, err := preparePlanExecution(svc, sctx).ContextHandler(
 		context.Background(),
-		validPlanToolInput(),
-		&sdktool.CallContext{},
+		validPreparePlanToolInput(),
+		&sdktool.CallContext{ToolUseID: "tool-prepare-plan"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -319,170 +329,162 @@ func TestPlanExecutionPassesAtomicInitialBoundaryWithoutEnsure(t *testing.T) {
 	if result.IsError {
 		t.Fatalf("result = %#v", result)
 	}
-	if readCount != 1 {
-		t.Fatalf("current snapshot reads = %d, want 1", readCount)
+	if capturedInput.CommandID != "tool-prepare-plan" ||
+		capturedInput.PlanDocument != validPlanDocument() {
+		t.Fatalf("prepare input = %#v", capturedInput)
 	}
-	if planned.ExecutionID != "" ||
-		planned.SnapshotRevision != 0 ||
-		planned.CommandID == "" ||
-		planned.Objective != "Deliver a verified report" ||
-		len(planned.CompletionCriteria) != 1 ||
-		len(planned.Draft.Items) != 2 ||
-		len(planned.Draft.Items[0].OutputScopes) != 1 ||
-		planned.Draft.Items[0].OutputScopes[0].Scope != "dir:report/research" ||
-		len(planned.Draft.Items[1].DependsOn) != 1 ||
-		planned.Draft.Items[1].DependsOn[0].LogicalKey != "research" ||
-		planned.Draft.Items[1].DependsOn[0].Kind != protocol.WorkDependencyHard {
-		t.Fatalf("planned input = %#v", planned)
+	if capturedActor.OwnerUserID != sctx.OwnerUserID ||
+		capturedActor.SessionKey != sctx.ScopeSessionKey ||
+		capturedActor.AgentID != sctx.AgentID ||
+		capturedActor.RootRoundID != sctx.RootRoundID ||
+		capturedActor.GoalID != sctx.GoalID ||
+		capturedActor.GoalObjectiveRevision != sctx.GoalObjectiveRevision {
+		t.Fatalf("trusted actor = %#v", capturedActor)
 	}
-}
-
-func TestPlanExecutionRejectsUnknownNestedItemFieldBeforeService(t *testing.T) {
-	planCalled := false
-	svc := &fakeExecutionService{
-		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-			planCalled = true
-			return orchestration.NoOpResult(nil, "unexpected")
-		},
+	if svc.currentReads != 0 || svc.snapshotReads != 0 {
+		t.Fatalf("MCP adapter read authoritative state outside service: current=%d snapshot=%d", svc.currentReads, svc.snapshotReads)
 	}
-	input := validPlanToolInput()
-	input["items"] = []any{map[string]any{
-		"logical_key": "research",
-		"unknown":     true,
-	}}
-	result, err := planExecution(svc, executionServerContext()).ContextHandler(
-		context.Background(),
-		input,
-		&sdktool.CallContext{ToolUseID: "tool-malformed-workgraph"},
-	)
-	if err != nil {
-		t.Fatal(err)
+	if result.StructuredContent["outcome"] != "prepared" ||
+		result.StructuredContent["proposal_id"] != proposal.ID ||
+		result.StructuredContent["proposal_digest"] != proposal.ContentDigest ||
+		result.StructuredContent["proposal_status"] != string(protocol.ExecutionPlanProposalStatusSealed) ||
+		result.StructuredContent["item_count"] != float64(2) {
+		t.Fatalf("prepared result = %#v", result.StructuredContent)
 	}
-	if planCalled || !result.IsError || len(result.Content) != 1 ||
-		!strings.Contains(result.Content[0]["text"].(string), `unknown field "unknown"`) {
-		t.Fatalf("unknown nested field result=%#v planCalled=%t", result, planCalled)
+	actions, ok := result.StructuredContent["next_actions"].([]any)
+	if !ok || len(actions) != 1 || actions[0].(map[string]any)["tool"] != "plan_execution" {
+		t.Fatalf("prepare next actions = %#v", result.StructuredContent["next_actions"])
 	}
 }
 
-func TestPlanExecutionRejectsLegacyStringTransportBeforeService(t *testing.T) {
-	planCalled := false
-	svc := &fakeExecutionService{
-		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-			planCalled = true
-			return orchestration.NoOpResult(nil, "unexpected")
-		},
-	}
-	input := validPlanToolInput()
-	delete(input, "items")
-	input["work_graph_json"] = `[{"logical_key":"legacy"}]`
-	result, err := planExecution(svc, executionServerContext()).ContextHandler(
-		context.Background(),
-		input,
-		&sdktool.CallContext{ToolUseID: "tool-legacy-string"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if planCalled || !result.IsError || len(result.Content) != 1 ||
-		!strings.Contains(result.Content[0]["text"].(string), `unknown field "work_graph_json"`) {
-		t.Fatalf("legacy string result=%#v planCalled=%t", result, planCalled)
-	}
-}
-
-func TestPlanExecutionRejectsEmptyItemsBeforeService(t *testing.T) {
+func TestPlanToolsStrictlyRejectUnknownTopLevelFieldsBeforeService(t *testing.T) {
 	for _, test := range []struct {
-		name  string
-		items any
+		name       string
+		definition func(contract.Service, contract.ServerContext) sdktool.Tool
+		input      map[string]any
 	}{
-		{name: "missing", items: nil},
-		{name: "empty", items: []any{}},
+		{
+			name: "prepare",
+			definition: func(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
+				return preparePlanExecution(svc, sctx)
+			},
+			input: map[string]any{
+				"plan_document": validPlanDocument(),
+				"items":         []any{},
+			},
+		},
+		{
+			name:       "commit",
+			definition: func(svc contract.Service, sctx contract.ServerContext) sdktool.Tool { return planExecution(svc, sctx) },
+			input: map[string]any{
+				"proposal_id":     "proposal-1",
+				"proposal_digest": strings.Repeat("a", 64),
+				"execution_id":    "model-forged-fence",
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			planCalled := false
+			called := false
 			svc := &fakeExecutionService{
-				plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-					planCalled = true
-					return orchestration.NoOpResult(nil, "unexpected")
+				prepare: func(orchestration.ActorContext, orchestration.PreparePlanExecutionInput) (*protocol.ExecutionPlanProposal, error) {
+					called = true
+					return sealedPlanProposal(), nil
+				},
+				materialize: func(orchestration.ActorContext, orchestration.MaterializePlanExecutionInput) orchestration.MutationResult {
+					called = true
+					return orchestration.MutationResult{}
 				},
 			}
-			input := validPlanToolInput()
-			if test.items == nil {
-				delete(input, "items")
-			} else {
-				input["items"] = test.items
-			}
-			result, err := planExecution(svc, executionServerContext()).ContextHandler(
+			result, err := test.definition(svc, executionServerContext()).ContextHandler(
 				context.Background(),
-				input,
-				&sdktool.CallContext{ToolUseID: "tool-empty-workgraph"},
+				test.input,
+				nil,
 			)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if planCalled || result.IsError ||
-				result.StructuredContent["outcome"] != "rejected" ||
-				result.StructuredContent["next_actions"] == nil {
-				t.Fatalf("empty items result=%#v planCalled=%t", result, planCalled)
+			if called || !result.IsError || len(result.Content) != 1 ||
+				!strings.Contains(result.Content[0]["text"].(string), "unknown field") {
+				t.Fatalf("strict decode result=%#v service_called=%t", result, called)
 			}
 		})
 	}
 }
 
-func TestPlanExecutionWithoutExplicitIDIgnoresSupersededRoundBinding(t *testing.T) {
-	var planned orchestration.PlanExecutionInput
-	svc := &fakeExecutionService{
-		current: func() *protocol.ExecutionSnapshot { return nil },
-		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-			planned = input
-			return orchestration.NoOpResult(nil, "captured successor proposal")
+func TestPlanTransportEmptyArgumentsOfferAtMostOneRetry(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		definition func(*planTransportGuard) sdktool.Tool
+		input      map[string]any
+	}{
+		{
+			name: "prepare",
+			definition: func(guard *planTransportGuard) sdktool.Tool {
+				return preparePlanExecution(&fakeExecutionService{}, executionServerContext(), guard)
+			},
+			input: map[string]any{"plan_document": ""},
 		},
-	}
-	sctx := executionServerContext()
-	sctx.ExecutionID = "execution-superseded"
-
-	result, err := planExecution(svc, sctx).ContextHandler(
-		context.Background(),
-		validPlanToolInput(),
-		&sdktool.CallContext{ToolUseID: "tool-plan-goal-successor"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.IsError || planned.ExecutionID != "" {
-		t.Fatalf("result=%#v planned=%#v", result, planned)
-	}
-	if svc.currentReads != 1 || svc.snapshotReads != 0 {
-		t.Fatalf(
-			"snapshot lookup used current=%d explicit=%d, want current=1 explicit=0",
-			svc.currentReads,
-			svc.snapshotReads,
-		)
+		{
+			name: "commit",
+			definition: func(guard *planTransportGuard) sdktool.Tool {
+				return planExecution(&fakeExecutionService{}, executionServerContext(), guard)
+			},
+			input: map[string]any{"proposal_id": "", "proposal_digest": ""},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			definition := test.definition(&planTransportGuard{})
+			first, err := definition.ContextHandler(context.Background(), test.input, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			second, err := definition.ContextHandler(context.Background(), test.input, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if first.IsError || second.IsError ||
+				first.StructuredContent["outcome"] != "rejected" ||
+				second.StructuredContent["outcome"] != "rejected" ||
+				first.StructuredContent["next_actions"] == nil ||
+				second.StructuredContent["next_actions"] != nil {
+				t.Fatalf("first=%#v second=%#v", first.StructuredContent, second.StructuredContent)
+			}
+			if !strings.Contains(second.StructuredContent["message"].(string), "stop retrying") {
+				t.Fatalf("second retry message = %#v", second.StructuredContent)
+			}
+		})
 	}
 }
 
-func TestPlanExecutionPassesExplicitActiveWorkSupersession(t *testing.T) {
+func TestPlanExecutionMaterializesExactSealedReference(t *testing.T) {
+	var capturedActor orchestration.ActorContext
+	var capturedInput orchestration.MaterializePlanExecutionInput
 	snapshot := executionSnapshot(4)
-	var planned orchestration.PlanExecutionInput
 	svc := &fakeExecutionService{
-		current: func() *protocol.ExecutionSnapshot { return snapshot },
-		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-			planned = input
-			return orchestration.NoOpResult(snapshot, "captured")
+		materialize: func(
+			actor orchestration.ActorContext,
+			input orchestration.MaterializePlanExecutionInput,
+		) orchestration.MutationResult {
+			capturedActor = actor
+			capturedInput = input
+			return orchestration.NoOpResult(snapshot, "sealed proposal already materialized")
 		},
 	}
-	input := validPlanToolInput()
-	input["supersede_active_work"] = true
-	definition := planExecution(svc, executionServerContext())
-	result, err := definition.ContextHandler(
-		context.Background(),
-		input,
-		&sdktool.CallContext{ToolUseID: "tool-replan"},
-	)
+	sctx := executionServerContext()
+	sctx.ExecutionID = snapshot.Execution.ID
+	input := validPlanCommitToolInput()
+	result, err := planExecution(svc, sctx).ContextHandler(context.Background(), input, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.IsError || !planned.SupersedeActiveWork {
-		t.Fatalf("result=%#v planned=%#v", result, planned)
+	if result.IsError ||
+		capturedInput.ProposalID != input["proposal_id"] ||
+		capturedInput.ProposalDigest != input["proposal_digest"] ||
+		capturedActor.ExecutionID != snapshot.Execution.ID {
+		t.Fatalf("result=%#v actor=%#v input=%#v", result, capturedActor, capturedInput)
+	}
+	if svc.currentReads != 0 || svc.snapshotReads != 0 {
+		t.Fatalf("commit must resolve the exact sealed fence inside the service: current=%d snapshot=%d", svc.currentReads, svc.snapshotReads)
 	}
 }
 
@@ -519,152 +521,68 @@ func TestResumeWorkPassesResolutionEvidenceAndLatestFence(t *testing.T) {
 	}
 }
 
-func TestPlanExecutionInPlanModeValidatesWithoutEnsuringExecution(t *testing.T) {
-	readCount := 0
-	var planned orchestration.PlanExecutionInput
+func TestPlanModeCanPrepareButCommitKeepsTheSealedReference(t *testing.T) {
+	var preparedActor orchestration.ActorContext
+	var committedActor orchestration.ActorContext
+	var committedInput orchestration.MaterializePlanExecutionInput
+	proposal := sealedPlanProposal()
 	svc := &fakeExecutionService{
-		current: func() *protocol.ExecutionSnapshot {
-			readCount++
-			return nil
+		prepare: func(
+			actor orchestration.ActorContext,
+			_ orchestration.PreparePlanExecutionInput,
+		) (*protocol.ExecutionPlanProposal, error) {
+			preparedActor = actor
+			return proposal, nil
 		},
-		ensure: func(input orchestration.EnsureInput) orchestration.MutationResult {
-			t.Fatal("Plan Mode must validate initial Execution and Plan in one service call")
-			return orchestration.MutationResult{}
-		},
-		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-			planned = input
-			return orchestration.NoOpResult(nil, "proposal validated")
+		materialize: func(
+			actor orchestration.ActorContext,
+			input orchestration.MaterializePlanExecutionInput,
+		) orchestration.MutationResult {
+			committedActor = actor
+			committedInput = input
+			return orchestration.RejectedResult(nil, &orchestration.DomainError{
+				Code:    orchestration.ErrorCodePlanMode,
+				Message: "leave Plan Mode before committing the sealed proposal",
+			}, []orchestration.NextAction{{
+				Tool:   "plan_execution",
+				Reason: "leave Plan Mode, then commit the same proposal references",
+			}})
 		},
 	}
 	sctx := executionServerContext()
 	sctx.PlanMode = true
-	definition := planExecution(svc, sctx)
-	result, err := definition.ContextHandler(
+	prepared, err := preparePlanExecution(svc, sctx).ContextHandler(
 		context.Background(),
-		validPlanToolInput(),
-		&sdktool.CallContext{ToolUseID: "tool-plan-proposal"},
+		validPreparePlanToolInput(),
+		&sdktool.CallContext{ToolUseID: "tool-plan-mode-prepare"},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.IsError {
-		t.Fatalf("result = %#v", result)
-	}
-	if readCount != 1 {
-		t.Fatalf("current snapshot reads = %d, want 1", readCount)
-	}
-	if planned.ExecutionID != "" ||
-		planned.SnapshotRevision != 0 ||
-		planned.CommandID != "tool-plan-proposal" {
-		t.Fatalf("planned input = %#v", planned)
-	}
-	if planned.Objective != "Deliver a verified report" ||
-		len(planned.CompletionCriteria) != 1 {
-		t.Fatalf("Execution proposal input = %#v", planned)
-	}
-}
-
-func TestPlanExecutionInPlanModeReturnsStructuredCriterionRejection(t *testing.T) {
-	planCalled := false
-	svc := &fakeExecutionService{
-		current: func() *protocol.ExecutionSnapshot { return nil },
-		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-			planCalled = true
-			if len(input.CompletionCriteria) != 0 {
-				t.Fatalf("completion criteria = %#v", input.CompletionCriteria)
-			}
-			return orchestration.RejectedResult(nil, &orchestration.DomainError{
-				Code:    orchestration.ErrorCodeCompletionCriteriaEmpty,
-				Message: "at least one non-empty top-level completion criterion is required when creating an Execution",
-			}, nil)
-		},
-	}
-	sctx := executionServerContext()
-	sctx.PlanMode = true
-	input := validPlanToolInput()
-	delete(input, "completion_criteria")
-	result, err := planExecution(svc, sctx).ContextHandler(
+	committed, err := planExecution(svc, sctx).ContextHandler(
 		context.Background(),
-		input,
-		&sdktool.CallContext{ToolUseID: "tool-plan-invalid-proposal"},
+		validPlanCommitToolInput(),
+		nil,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.IsError ||
-		result.StructuredContent["outcome"] != string(orchestration.MutationRejected) ||
-		result.StructuredContent["reason_code"] != string(orchestration.ErrorCodeCompletionCriteriaEmpty) ||
-		!planCalled {
-		t.Fatalf("result=%#v plan_called=%t", result, planCalled)
+	if prepared.IsError || prepared.StructuredContent["outcome"] != "prepared" || !preparedActor.PlanMode {
+		t.Fatalf("Plan Mode prepare = %#v actor=%#v", prepared, preparedActor)
+	}
+	if committed.IsError || committed.StructuredContent["outcome"] != "rejected" ||
+		committed.StructuredContent["reason_code"] != string(orchestration.ErrorCodePlanMode) ||
+		!committedActor.PlanMode ||
+		committedInput.ProposalID != proposal.ID ||
+		committedInput.ProposalDigest != proposal.ContentDigest {
+		t.Fatalf("Plan Mode commit=%#v actor=%#v input=%#v", committed, committedActor, committedInput)
+	}
+	if committed.StructuredContent["next_actions"] == nil {
+		t.Fatalf("Plan Mode commit lost same-proposal guidance: %#v", committed.StructuredContent)
 	}
 }
 
-func TestPlanExecutionInitialCreationReturnsStructuredCriterionRejection(t *testing.T) {
-	planCalled := false
-	svc := &fakeExecutionService{
-		current: func() *protocol.ExecutionSnapshot { return nil },
-		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-			planCalled = true
-			if len(input.CompletionCriteria) != 0 {
-				t.Fatalf("completion criteria = %#v", input.CompletionCriteria)
-			}
-			return orchestration.RejectedResult(nil, &orchestration.DomainError{
-				Code:    orchestration.ErrorCodeCompletionCriteriaEmpty,
-				Message: "at least one non-empty top-level completion criterion is required when creating an Execution",
-			}, nil)
-		},
-	}
-	input := validPlanToolInput()
-	delete(input, "completion_criteria")
-	result, err := planExecution(svc, executionServerContext()).ContextHandler(
-		context.Background(),
-		input,
-		&sdktool.CallContext{ToolUseID: "tool-plan-invalid-create"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.IsError ||
-		result.StructuredContent["outcome"] != string(orchestration.MutationRejected) ||
-		result.StructuredContent["reason_code"] != string(orchestration.ErrorCodeCompletionCriteriaEmpty) ||
-		!planCalled {
-		t.Fatalf("result=%#v plan_called=%t", result, planCalled)
-	}
-}
-
-func TestPlanExecutionExistingReplanMayOmitExecutionCriteria(t *testing.T) {
-	snapshot := executionSnapshot(6)
-	var planned orchestration.PlanExecutionInput
-	svc := &fakeExecutionService{
-		current: func() *protocol.ExecutionSnapshot { return snapshot },
-		ensure: func(orchestration.EnsureInput) orchestration.MutationResult {
-			t.Fatal("existing Execution replan must not call Ensure")
-			return orchestration.MutationResult{}
-		},
-		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-			planned = input
-			return orchestration.NoOpResult(snapshot, "replan validated")
-		},
-	}
-	input := validPlanToolInput()
-	delete(input, "objective")
-	delete(input, "completion_criteria")
-	result, err := planExecution(svc, executionServerContext()).ContextHandler(
-		context.Background(),
-		input,
-		&sdktool.CallContext{ToolUseID: "tool-replan-without-execution-criteria"},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.IsError ||
-		planned.ExecutionID != snapshot.Execution.ID ||
-		planned.SnapshotRevision != snapshot.Execution.Version {
-		t.Fatalf("result=%#v planned=%#v", result, planned)
-	}
-}
-
-func TestPlanExecutionReplacementInjectsOldFenceAndRefreshesSuccessorContext(t *testing.T) {
+func TestPlanExecutionRefreshesSuccessorContextWithoutOldBindings(t *testing.T) {
 	old := executionSnapshot(8)
 	old.Execution.Objective = "Old objective"
 	old.Execution.CompletionCriteria = []string{"old accepted"}
@@ -672,12 +590,14 @@ func TestPlanExecutionReplacementInjectsOldFenceAndRefreshesSuccessorContext(t *
 	successor.Execution.ID = "execution-successor"
 	successor.Execution.Objective = "New objective"
 	successor.Execution.ReplacesExecutionID = old.Execution.ID
-	var planned orchestration.PlanExecutionInput
+	var committed orchestration.MaterializePlanExecutionInput
 	var contextActor orchestration.ActorContext
 	svc := &fakeExecutionService{
-		current: func() *protocol.ExecutionSnapshot { return old },
-		plan: func(input orchestration.PlanExecutionInput) orchestration.MutationResult {
-			planned = input
+		materialize: func(
+			_ orchestration.ActorContext,
+			input orchestration.MaterializePlanExecutionInput,
+		) orchestration.MutationResult {
+			committed = input
 			return orchestration.AppliedResult(successor, []string{"execution:execution-successor"}, nil)
 		},
 		contextActor: func(actor orchestration.ActorContext) {
@@ -686,26 +606,21 @@ func TestPlanExecutionReplacementInjectsOldFenceAndRefreshesSuccessorContext(t *
 	}
 	sctx := executionServerContext()
 	sctx.ExecutionID = old.Execution.ID
-	input := validPlanToolInput()
-	input["execution_id"] = old.Execution.ID
-	input["objective"] = "New objective"
-	input["completion_criteria"] = []any{"new accepted"}
-	input["replace_current_execution"] = true
-	input["replacement_reason"] = "user changed objective"
+	sctx.WorkBinding = &protocol.ExecutionWorkBinding{ExecutionID: old.Execution.ID}
+	sctx.ReviewBinding = &protocol.ExecutionReviewBinding{ExecutionID: old.Execution.ID}
+	input := validPlanCommitToolInput()
 	result, err := planExecution(svc, sctx).ContextHandler(
 		context.Background(),
 		input,
-		&sdktool.CallContext{ToolUseID: "tool-replace"},
+		nil,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.IsError ||
-		!planned.ReplaceCurrentExecution ||
-		planned.ExecutionID != old.Execution.ID ||
-		planned.SnapshotRevision != old.Execution.Version ||
-		planned.ReplacementReason != "user changed objective" {
-		t.Fatalf("result=%#v planned=%#v", result, planned)
+		committed.ProposalID != input["proposal_id"] ||
+		committed.ProposalDigest != input["proposal_digest"] {
+		t.Fatalf("result=%#v commit=%#v", result, committed)
 	}
 	if contextActor.ExecutionID != successor.Execution.ID ||
 		contextActor.WorkBinding != nil ||
@@ -892,41 +807,72 @@ func executionServerContext() contract.ServerContext {
 	}
 }
 
-func validPlanToolInput() map[string]any {
-	items := []any{
-		map[string]any{
-			"logical_key":         "research",
-			"kind":                "produce",
-			"subject":             "Research",
-			"objective":           "Collect evidence",
-			"deliverable":         "Evidence set",
-			"acceptance_criteria": []any{"sources cited"},
-			"required":            true,
-			"terminal":            false,
-			"output_scopes": []any{map[string]any{
-				"scope": "dir:report/research",
-				"mode":  "exclusive",
-			}},
-		},
-		map[string]any{
-			"logical_key":         "verify",
-			"kind":                "verify",
-			"subject":             "Verify",
-			"objective":           "Verify evidence",
-			"deliverable":         "Verification",
-			"acceptance_criteria": []any{"all evidence checked"},
-			"required":            true,
-			"terminal":            true,
-			"depends_on": []any{map[string]any{
-				"logical_key": "research",
-				"kind":        "hard",
-			}},
-		},
-	}
+func validPreparePlanToolInput() map[string]any {
+	return map[string]any{"plan_document": validPlanDocument()}
+}
+
+func validPlanCommitToolInput() map[string]any {
+	proposal := sealedPlanProposal()
 	return map[string]any{
-		"objective":           "Deliver a verified report",
-		"completion_criteria": []any{"report accepted"},
-		"revision_reason":     "initial graph",
-		"items":               items,
+		"proposal_id":     proposal.ID,
+		"proposal_digest": proposal.ContentDigest,
+	}
+}
+
+func validPlanDocument() string {
+	return `nexus_plan: 1
+operation: create
+objective: Deliver a verified report
+completion_criteria:
+  - report accepted
+items:
+  - logical_key: research
+    kind: produce
+    subject: Research
+    objective: Collect evidence
+    deliverable: Evidence set
+    acceptance_criteria:
+      - sources cited
+    required: true
+    output_scopes:
+      - dir:report/research
+  - logical_key: verify
+    kind: verify
+    subject: Verify
+    objective: Verify evidence
+    deliverable: Verification
+    acceptance_criteria:
+      - all evidence checked
+    required: true
+    terminal: true
+    depends_on:
+      - research
+`
+}
+
+func sealedPlanProposal() *protocol.ExecutionPlanProposal {
+	return &protocol.ExecutionPlanProposal{
+		ID:                 "proposal-1",
+		OwnerUserID:        "owner-1",
+		SessionKey:         "scope-session",
+		ScopeKind:          protocol.ExecutionScopeRoom,
+		RoomID:             "room-1",
+		ConversationID:     "conversation-1",
+		CoordinatorAgentID: "agent-1",
+		RootRoundID:        "root-round",
+		RuntimeRoundID:     "runtime-round",
+		AgentRoundID:       "agent-round",
+		ContentDigest:      strings.Repeat("a", 64),
+		Status:             protocol.ExecutionPlanProposalStatusSealed,
+		Version:            1,
+		Document: protocol.ExecutionPlanProposalDocument{
+			Version:   protocol.ExecutionPlanProposalDocumentVersion,
+			Operation: protocol.ExecutionPlanProposalCreate,
+			Objective: "Deliver a verified report",
+			Items: []protocol.ExecutionPlanProposalItem{
+				{LogicalKey: "research", Kind: protocol.WorkItemKindProduce},
+				{LogicalKey: "verify", Kind: protocol.WorkItemKindVerify},
+			},
+		},
 	}
 }

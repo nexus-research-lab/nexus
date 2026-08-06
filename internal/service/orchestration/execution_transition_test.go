@@ -59,7 +59,7 @@ func TestServicePlanExecutionRequiresExplicitReplacementForBoundaryChange(t *tes
 	if result.Outcome != MutationRejected ||
 		result.ReasonCode != ErrorCodeObjectiveChangeReplace ||
 		len(result.NextActions) != 1 ||
-		result.NextActions[0].Tool != "plan_execution" {
+		result.NextActions[0].Tool != "prepare_plan_execution" {
 		t.Fatalf("boundary mismatch result = %#v", result)
 	}
 }
@@ -208,7 +208,13 @@ func snapshotFromInitialPlan(
 		result.WorkItemSpecs = append(result.WorkItemSpecs, item.Spec)
 		result.WorkItemStates = append(result.WorkItemStates, item.State)
 		result.PlanItems = append(result.PlanItems, item.Item)
-		result.OutputClaims = append(result.OutputClaims, item.OutputClaims...)
+		for _, claim := range item.OutputClaims {
+			claim.ExecutionID = execution.ID
+			claim.PlanID = plan.ID
+			claim.WorkItemID = item.WorkItem.ID
+			claim.SpecID = item.Spec.ID
+			result.OutputClaims = append(result.OutputClaims, claim)
+		}
 	}
 	return result
 }

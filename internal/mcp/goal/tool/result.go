@@ -163,8 +163,8 @@ func pendingObjectiveTransitionAction(item protocol.Goal) map[string]any {
 		}
 	}
 	return map[string]any{
-		"tool":   "plan_execution",
-		"reason": "create or confirm the complete successor WorkGraph for the current Goal objective revision",
+		"tool":   "prepare_plan_execution",
+		"reason": "prepare the complete successor WorkGraph for the current Goal objective revision, then commit its sealed proposal",
 	}
 }
 

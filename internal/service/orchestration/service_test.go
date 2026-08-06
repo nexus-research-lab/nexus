@@ -61,7 +61,7 @@ func TestServiceEnsureDoesNotSilentlyRewriteCurrentExecutionBoundary(t *testing.
 		{
 			name:       "transient requires explicit replacement",
 			reasonCode: ErrorCodeObjectiveChangeReplace,
-			nextTool:   "plan_execution",
+			nextTool:   "prepare_plan_execution",
 		},
 		{
 			name:       "Goal-bound requires retarget",
@@ -1435,7 +1435,8 @@ func TestServicePlanModeValidatesProposalWithoutWritingAndRuntimeContextMatches(
 	allowed := contextValue[:allowedEnd]
 	if !strings.Contains(contextValue, "<mode plan_only=") ||
 		!strings.Contains(contextValue, "true") ||
-		!strings.Contains(allowed, "<action>plan_execution</action>") ||
+		!strings.Contains(allowed, "<action>prepare_plan_execution</action>") ||
+		strings.Contains(allowed, "<action>plan_execution</action>") ||
 		strings.Contains(allowed, "<action>assign_work</action>") {
 		t.Fatalf("runtime context = %s", contextValue)
 	}
@@ -1468,7 +1469,7 @@ func TestServicePlanModeValidatesProposalWithoutCreatingExecution(t *testing.T) 
 	if result.Outcome != MutationNoOp || result.ExecutionID != "" || result.Snapshot != nil {
 		t.Fatalf("result = %#v", result)
 	}
-	if len(result.NextActions) != 1 || result.NextActions[0].Tool != "plan_execution" {
+	if len(result.NextActions) != 1 || result.NextActions[0].Tool != "prepare_plan_execution" {
 		t.Fatalf("next actions = %#v", result.NextActions)
 	}
 }

@@ -1,4 +1,4 @@
-// INPUT: 模型的 Plan、Assignment、Submission、Acceptance、Block/Resume、Takeover 与 complete 意图。
+// INPUT: sealed proposal materializer 的内部 Plan primitive，以及模型的 Assignment、Submission、Acceptance、Block/Resume、Takeover 与 complete 意图。
 // OUTPUT: 服务端 mint ID、logical-key 解析、单调 Plan 扩图、透明 Attempt 状态机、Acceptance 后同轮协调衔接、显式 Plan replacement 与统一 MutationResult。
 // POS: 模型语义 command 到 Repository 原子 command 的应用层适配；不暴露 start_work。
 package orchestration
@@ -17,11 +17,18 @@ import (
 	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
 
-// PlanExecutionInput 一次提交完整 immutable Plan revision。
+// PlanExecutionInput 是 proposal materializer 使用的内部权威 primitive，不是 MCP 模型参数。
 type PlanExecutionInput struct {
-	ExecutionID             string
-	SnapshotRevision        int64
-	CommandID               string
+	ExecutionID      string
+	SnapshotRevision int64
+	CommandID        string
+	// ReservedExecutionID 由 sealed proposal materializer 预留，用来保证
+	// create/replace 在进程崩溃后的重放仍指向同一个 successor identity。
+	// 普通进程内调用留空，由服务端照常生成 ID。
+	ReservedExecutionID string
+	// SealedGoalBinding 非 nil 时表示调用来自 immutable proposal：空 GoalID
+	// 也是必须保持 Goal-free 的 exact fence，不能在提交时重新选择 ambient Goal。
+	SealedGoalBinding       *ExplicitGoalBinding
 	Objective               string
 	CompletionCriteria      []string
 	ReplaceCurrentExecution bool
@@ -149,8 +156,8 @@ func (s *Service) PlanExecution(
 		if errors.As(validateErr, &domainErr) &&
 			domainErr.Code == ErrorCodePlanItemsEmpty {
 			return RejectedResult(nil, validateErr, []NextAction{{
-				Tool:   "plan_execution",
-				Reason: "rebuild items as a non-empty native array containing every intended Work Item",
+				Tool:   "prepare_plan_execution",
+				Reason: "submit one complete Nexus Plan Document with every intended Work Item",
 			}}), nil
 		}
 		return RejectedResult(nil, validateErr, nil), nil
@@ -173,7 +180,7 @@ func (s *Service) PlanExecution(
 		if input.ReplaceCurrentExecution {
 			return RejectedResult(nil, domainError(
 				ErrorCodeNoCurrentExecution,
-				"replace_current_execution requires an explicit current Execution",
+				"operation: replace requires an explicit current Execution",
 			), nil), nil
 		}
 		if input.SupersedeActiveWork {
@@ -198,8 +205,8 @@ func (s *Service) PlanExecution(
 				"Execution and Plan proposal is valid; Plan Mode created no authoritative state.",
 			)
 			result.NextActions = []NextAction{{
-				Tool:   "plan_execution",
-				Reason: "leave Plan Mode and resubmit to atomically create the Execution and first active Plan",
+				Tool:   "prepare_plan_execution",
+				Reason: "seal the complete Plan proposal, then leave Plan Mode to commit its exact receipt",
 			}}
 			return result, nil
 		}
@@ -209,6 +216,8 @@ func (s *Service) PlanExecution(
 			objective,
 			criteria,
 			"",
+			input.ReservedExecutionID,
+			input.SealedGoalBinding,
 			true,
 		)
 		if buildExecutionErr != nil {
@@ -231,10 +240,11 @@ func (s *Service) PlanExecution(
 			return s.storageMutationResult(nil, createErr, nil)
 		}
 		if confirmErr := s.confirmGoalExecutionBinding(ctx, updated); confirmErr != nil {
-			return MutationResult{}, fmt.Errorf(
-				"successor Execution and Plan are durable but Goal binding confirmation is pending; retry plan_execution: %w",
-				confirmErr,
-			)
+			return MutationResult{}, &GoalBindingConfirmationPendingError{
+				Snapshot:        updated,
+				DurableMutation: true,
+				Err:             confirmErr,
+			}
 		}
 		return s.activateRuntimeCoordinationResult(ctx, actor, AppliedResult(
 			updated,
@@ -244,14 +254,6 @@ func (s *Service) PlanExecution(
 	}
 	if authErr := requireCoordinator(actor, snapshot); authErr != nil {
 		return RejectedResult(snapshot, authErr, nil), nil
-	}
-	if !actor.PlanMode && isCurrentExecutionStatus(snapshot.Execution.Status) {
-		if confirmErr := s.confirmGoalExecutionBinding(ctx, snapshot); confirmErr != nil {
-			return MutationResult{}, fmt.Errorf(
-				"Goal binding confirmation is pending; retry plan_execution: %w",
-				confirmErr,
-			)
-		}
 	}
 	terminal := !isCurrentExecutionStatus(snapshot.Execution.Status)
 	if terminal && !input.ReplaceCurrentExecution {
@@ -281,10 +283,18 @@ func (s *Service) PlanExecution(
 				"Execution replacement proposal is valid; Plan Mode did not supersede or create authoritative state.",
 			)
 			result.NextActions = []NextAction{{
-				Tool:   "plan_execution",
-				Reason: "leave Plan Mode and resubmit the complete replacement to atomically create the successor Execution and Plan",
+				Tool:   "prepare_plan_execution",
+				Reason: "seal an operation: replace document, then leave Plan Mode to commit its exact receipt",
 			}}
 			return result, nil
+		}
+		if isCurrentExecutionStatus(snapshot.Execution.Status) {
+			if confirmErr := s.confirmGoalExecutionBinding(ctx, snapshot); confirmErr != nil {
+				return MutationResult{}, &GoalBindingConfirmationPendingError{
+					Snapshot: snapshot,
+					Err:      confirmErr,
+				}
+			}
 		}
 		successor, buildExecutionErr := s.buildExecutionForPlan(
 			ctx,
@@ -292,6 +302,8 @@ func (s *Service) PlanExecution(
 			objective,
 			criteria,
 			snapshot.Execution.ID,
+			input.ReservedExecutionID,
+			nil,
 			false,
 		)
 		if buildExecutionErr != nil {
@@ -349,8 +361,8 @@ func (s *Service) PlanExecution(
 		input.CompletionCriteria,
 	); boundaryErr != nil {
 		return RejectedResult(snapshot, boundaryErr, []NextAction{{
-			Tool:   "plan_execution",
-			Reason: "resubmit with replace_current_execution=true, replacement_reason, a new objective and criteria, and the complete replacement WorkGraph",
+			Tool:   "prepare_plan_execution",
+			Reason: "prepare an operation: replace document with replacement_reason, the new boundary, and the complete successor WorkGraph",
 		}}), nil
 	}
 	if actor.PlanMode {
@@ -359,10 +371,18 @@ func (s *Service) PlanExecution(
 			"Plan proposal is valid; no authoritative state changed in Plan Mode. Resubmit after leaving Plan Mode to activate it.",
 		)
 		result.NextActions = []NextAction{{
-			Tool:   "plan_execution",
-			Reason: "leave Plan Mode, then resubmit this complete proposal to activate an immutable Plan revision",
+			Tool:   "prepare_plan_execution",
+			Reason: "seal this complete replan document, then leave Plan Mode to commit its exact receipt",
 		}}
 		return result, nil
+	}
+	if isCurrentExecutionStatus(snapshot.Execution.Status) {
+		if confirmErr := s.confirmGoalExecutionBinding(ctx, snapshot); confirmErr != nil {
+			return MutationResult{}, &GoalBindingConfirmationPendingError{
+				Snapshot: snapshot,
+				Err:      confirmErr,
+			}
+		}
 	}
 	matches, matchErr := planDraftMatchesSnapshot(snapshot, draft)
 	if matchErr != nil {

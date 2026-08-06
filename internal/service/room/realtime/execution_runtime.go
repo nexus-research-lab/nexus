@@ -349,6 +349,7 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 		RoomID:                e.round.RoomID,
 		ConversationID:        e.round.ConversationID,
 		PermissionMode:        permissionMode,
+		GoalID:                e.slot.childGoalIDForUsage(),
 		GoalObjectiveRevision: e.slot.ensureGoalObjectiveRevision(0),
 	})
 	if len(overlay) > 0 && servers == nil {

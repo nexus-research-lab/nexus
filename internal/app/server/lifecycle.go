@@ -21,10 +21,12 @@ const (
 	httpWriteTimeout = 6 * time.Minute
 	httpIdleTimeout  = 60 * time.Second
 
-	executionDispatchInterval = time.Second
-	executionDispatchBatch    = 32
-	subagentReconcileInterval = time.Second
-	subagentReconcileBatch    = 32
+	executionDispatchInterval     = time.Second
+	executionDispatchBatch        = 32
+	subagentReconcileInterval     = time.Second
+	subagentReconcileBatch        = 32
+	planProposalReconcileInterval = 15 * time.Second
+	planProposalReconcileBatch    = 32
 )
 
 // ListenAndServe 启动后台服务与 HTTP 服务。
@@ -72,6 +74,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		s.startAutomation,
 		s.startRoomDelayedWakes,
 		s.startRoomPublicHandoffs,
+		s.startPlanProposalRecovery,
 		s.startSubagentReconciliation,
 		s.startExecutionDispatches,
 		s.startMemoryMaintenance,
@@ -99,6 +102,46 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	}
 
 	return stopAll, nil
+}
+
+func (s *Server) startPlanProposalRecovery(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Orchestration == nil {
+		return nil, nil
+	}
+	reconcile := func() {
+		result, err := s.services.Orchestration.ReconcilePlanProposals(
+			ctx,
+			planProposalReconcileBatch,
+		)
+		if err != nil {
+			s.api.BaseLogger().Warn("恢复 Execution Plan proposal 失败", "err", err)
+		}
+		if result.Scanned > 0 {
+			s.api.BaseLogger().Info(
+				"恢复 Execution Plan proposal",
+				"scanned", result.Scanned,
+				"materialized", result.Materialized,
+				"confirmed", result.Confirmed,
+				"blocked", result.Blocked,
+				"failed", result.Failed,
+			)
+		}
+	}
+	reconcile()
+	workerCtx, cancel := context.WithCancel(ctx)
+	go func() {
+		ticker := time.NewTicker(planProposalReconcileInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-workerCtx.Done():
+				return
+			case <-ticker.C:
+				reconcile()
+			}
+		}
+	}()
+	return cancel, nil
 }
 
 func (s *Server) startSubagentReconciliation(ctx context.Context) (func(), error) {

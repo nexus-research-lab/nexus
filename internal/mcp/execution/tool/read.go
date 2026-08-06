@@ -1,6 +1,6 @@
 // INPUT: 可选 explicit Execution id 与 session-bound actor identity。
 // OUTPUT: current/explicit 权威状态的紧凑 actor-specific context 及其 revision。
-// POS: 十工具集合中的只读恢复入口。
+// POS: 十二工具集合中的只读恢复入口。
 package tool
 
 import (

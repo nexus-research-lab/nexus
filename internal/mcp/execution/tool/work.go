@@ -132,7 +132,7 @@ func reviewWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 func blockWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	const toolName = "block_work"
 	return sdktool.Tool{
-		Name: toolName,
+		Name:        toolName,
 		Description: "Put one Work Item into waiting_input because a specific external input or authority is missing. Ordinary Plan dependencies are derived automatically and are not blockers.",
 		SearchHint:  "block work external input authority dependency",
 		InputSchema: blockWorkSchema(),
@@ -164,7 +164,7 @@ func blockWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 func resumeWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	const toolName = "resume_work"
 	return sdktool.Tool{
-		Name: toolName,
+		Name:        toolName,
 		Description: "Reopen one waiting_input Work Item after its exact external blocker is resolved. Provide resolution evidence; this creates no Assignment and never revives an old Attempt.",
 		SearchHint:  "resume unblock work resolved input evidence",
 		InputSchema: resumeWorkSchema(),
@@ -246,7 +246,7 @@ func mutationEnvelope(
 		return nil, "", &result
 	}
 	if snapshot == nil {
-		result := rejectedResult("no current Execution exists; use plan_execution with an objective and completion criteria first")
+		result := rejectedResult("no current Execution exists; use prepare_plan_execution with one complete Nexus Plan Document, then commit its sealed proposal")
 		return nil, "", &result
 	}
 	command, err := commandID(sctx, callContext, toolName, input, snapshot.Execution.Version)

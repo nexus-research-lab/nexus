@@ -3005,21 +3005,30 @@ test("semantic tool rejection stays distinct from transport completion in DM and
   const tool = {
     type: "tool_use",
     id: "tool-plan-rejected",
-    name: "mcp__nexus_execution__plan_execution",
-    input: { objective: "产出 LPL 本周看点简报" },
+    name: "mcp__nexus_execution__prepare_plan_execution",
+    input: {
+      plan_document: [
+        "nexus_plan: 1",
+        "operation: create",
+        "objective: 产出 LPL 本周看点简报",
+        "completion_criteria:",
+        "  - 简报可供发布",
+        "items: []",
+      ].join("\n"),
+    },
   };
   const result = {
     type: "tool_result",
     tool_use_id: tool.id,
     is_error: false,
     content: JSON.stringify({
-      message: "items is required and must contain at least one complete Work Item object",
+      message: "Plan Document items must contain at least one complete Work Item",
       next_actions: [{
-        reason: "send items as one non-empty native array",
-        tool: "plan_execution",
+        reason: "submit one complete Nexus Plan Document with every intended Work Item",
+        tool: "prepare_plan_execution",
       }],
       outcome: "rejected",
-      reason_code: "invalid_input",
+      reason_code: "plan_items_empty",
     }),
   };
   const projection = {
@@ -3086,7 +3095,7 @@ test("semantic tool rejection stays distinct from transport completion in DM and
     { content: [tool, result] },
   )));
   assert.match(roomHtml, /已拒绝/);
-  assert.match(roomHtml, /items is required/);
+  assert.match(roomHtml, /Plan Document items/);
   assert.doesNotMatch(roomHtml, /next_actions/);
 
   const detailHtml = renderToStaticMarkup(provider(React.createElement(
@@ -3094,8 +3103,8 @@ test("semantic tool rejection stays distinct from transport completion in DM and
     { toolResult: result },
   )));
   assert.match(detailHtml, /data-tool-result-semantic-outcome="rejected"/);
-  assert.match(detailHtml, /items is required/);
-  assert.match(detailHtml, /invalid_input/);
+  assert.match(detailHtml, /Plan Document items/);
+  assert.match(detailHtml, /plan_items_empty/);
   assert.doesNotMatch(detailHtml, /next_actions/);
 });
 

@@ -5,14 +5,14 @@ import "testing"
 func TestParseMutationResultEnvelopeAcceptsStructuredAndTextResults(t *testing.T) {
 	t.Parallel()
 
-	wantMessage := "items is required and must contain at least one complete Work Item object"
+	wantMessage := "Plan Document items must contain at least one complete Work Item"
 	for name, value := range map[string]any{
 		"structured": map[string]any{
-			"outcome": "rejected", "reason_code": "invalid_input", "message": wantMessage,
+			"outcome": "rejected", "reason_code": "plan_items_empty", "message": wantMessage,
 		},
-		"json text": `{"outcome":"rejected","reason_code":"invalid_input","message":"` + wantMessage + `"}`,
+		"json text": `{"outcome":"rejected","reason_code":"plan_items_empty","message":"` + wantMessage + `"}`,
 		"wrapped": map[string]any{"structuredContent": map[string]any{
-			"outcome": "rejected", "reason_code": "invalid_input", "message": wantMessage,
+			"outcome": "rejected", "reason_code": "plan_items_empty", "message": wantMessage,
 		}},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -21,7 +21,7 @@ func TestParseMutationResultEnvelopeAcceptsStructuredAndTextResults(t *testing.T
 			if !ok {
 				t.Fatal("ParseMutationResultEnvelope() did not recognize the envelope")
 			}
-			if got.Outcome != MutationResultRejected || got.ReasonCode != "invalid_input" || got.Message != wantMessage {
+			if got.Outcome != MutationResultRejected || got.ReasonCode != "plan_items_empty" || got.Message != wantMessage {
 				t.Fatalf("ParseMutationResultEnvelope() = %+v", got)
 			}
 		})

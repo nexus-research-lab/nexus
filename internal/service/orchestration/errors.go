@@ -14,6 +14,11 @@ type ErrorCode string
 
 const (
 	ErrorCodeInvalidInput            ErrorCode = "invalid_input"
+	ErrorCodePlanDocumentInvalid     ErrorCode = "plan_document_invalid"
+	ErrorCodePlanProposalNotFound    ErrorCode = "plan_proposal_not_found"
+	ErrorCodePlanProposalDigest      ErrorCode = "plan_proposal_digest_mismatch"
+	ErrorCodePlanProposalStale       ErrorCode = "plan_proposal_stale"
+	ErrorCodePlanProposalBlocked     ErrorCode = "plan_proposal_blocked"
 	ErrorCodePlanItemsEmpty          ErrorCode = "plan_items_empty"
 	ErrorCodeDuplicateLogicalKey     ErrorCode = "duplicate_logical_key"
 	ErrorCodeUnknownDependency       ErrorCode = "unknown_dependency"

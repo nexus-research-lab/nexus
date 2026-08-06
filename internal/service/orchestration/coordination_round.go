@@ -193,7 +193,7 @@ func (s *Service) requireRuntimeCoordination(
 	}
 	return domainError(
 		ErrorCodeConversationOnly,
-		"this Room round is conversational; call get_execution to inspect current responsibility or plan_execution to enter coordination before other Execution mutations",
+		"this Room round is conversational; call get_execution to inspect current responsibility, or prepare_plan_execution then plan_execution to enter coordination before other Execution mutations",
 	)
 }
 

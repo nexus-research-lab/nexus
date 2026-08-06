@@ -1091,12 +1091,19 @@ test("Execution MCP names render as semantic activity instead of raw transport n
     "/src/features/conversation/shared/message/tool-activity.ts",
   );
   assert.equal(
-    getToolTitle("mcp__nexus_execution__plan_execution"),
-    "建立执行计划",
+    getToolTitle("mcp__nexus_execution__prepare_plan_execution"),
+    "封存计划提案",
   );
   assert.equal(
-    getToolInputSummary({ objective: "完成前后端闭环" }),
-    "完成前后端闭环",
+    getToolTitle("mcp__nexus_execution__plan_execution"),
+    "提交计划提案",
+  );
+  assert.equal(
+    getToolInputSummary({
+      proposal_id: "proposal-secret",
+      proposal_digest: "digest-secret",
+    }),
+    null,
   );
 });
 

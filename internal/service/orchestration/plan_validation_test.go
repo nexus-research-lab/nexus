@@ -42,9 +42,9 @@ func TestPlanExecutionReturnsActionableRecoveryForEmptyWorkGraph(t *testing.T) {
 			if result.Outcome != MutationRejected ||
 				result.ReasonCode != ErrorCodePlanItemsEmpty ||
 				len(result.NextActions) != 1 ||
-				result.NextActions[0].Tool != "plan_execution" ||
-				!strings.Contains(result.NextActions[0].Reason, "items") ||
-				!strings.Contains(result.NextActions[0].Reason, "native array") {
+				result.NextActions[0].Tool != "prepare_plan_execution" ||
+				!strings.Contains(result.NextActions[0].Reason, "Plan Document") ||
+				!strings.Contains(result.NextActions[0].Reason, "Work Item") {
 				t.Fatalf("empty WorkGraph recovery = %#v", result)
 			}
 		})

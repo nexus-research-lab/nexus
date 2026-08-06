@@ -381,6 +381,84 @@ func (c *explicitGoalExecutionCoordinator) PrepareExplicitGoalBinding(
 	}, nil
 }
 
+func (c *explicitGoalExecutionCoordinator) ResolveExplicitGoalActivation(
+	ctx context.Context,
+	request orchestrationsvc.ExplicitGoalBindingRequest,
+) (*orchestrationsvc.ExplicitGoalActivation, error) {
+	if c == nil || c.goals == nil {
+		return nil, errors.New("explicit Goal activation resolver is unavailable")
+	}
+	current, err := c.goals.CurrentOptional(
+		goalsvc.WithActiveGoalContinuationSuppressed(ctx),
+		request.SessionKey,
+	)
+	if errors.Is(err, goalsvc.ErrGoalDisabled) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if current == nil {
+		if strings.TrimSpace(request.ExistingGoalID) == "" && request.GoalObjectiveRevision <= 0 {
+			return nil, nil
+		}
+		return nil, orchestrationsvc.ErrExplicitGoalBindingConflict
+	}
+	if err = validateGoalForExplicitBinding(*current, request); err != nil {
+		return nil, err
+	}
+	if expectedGoalID := strings.TrimSpace(request.ExistingGoalID); expectedGoalID != "" &&
+		strings.TrimSpace(current.ID) != expectedGoalID {
+		return nil, fmt.Errorf(
+			"%w: active Goal identity changed during proposal preparation",
+			orchestrationsvc.ErrExplicitGoalBindingConflict,
+		)
+	}
+	origin := protocol.GoalActivationOrigin(protocol.GoalMetadataString(
+		current.Metadata,
+		protocol.GoalMetadataActivationOrigin,
+	))
+	reason := protocol.GoalActivationReason(protocol.GoalMetadataString(
+		current.Metadata,
+		protocol.GoalMetadataActivationReason,
+	))
+	switch origin {
+	case protocol.GoalActivationOriginUserExplicit,
+		protocol.GoalActivationOriginAdaptiveInitial,
+		protocol.GoalActivationOriginAdaptivePromoted:
+	default:
+		return nil, fmt.Errorf(
+			"%w: active Goal has unsupported activation provenance",
+			orchestrationsvc.ErrExplicitGoalBindingConflict,
+		)
+	}
+	activation := &orchestrationsvc.ExplicitGoalActivation{
+		GoalID:                strings.TrimSpace(current.ID),
+		GoalObjectiveRevision: current.ObjectiveRevision(),
+		ActivationOrigin:      origin,
+		ActivationReason:      reason,
+		ReservedExecutionID: strings.TrimSpace(protocol.GoalMetadataString(
+			current.Metadata,
+			protocol.GoalMetadataExecutionID,
+		)),
+	}
+	if transition, transitioning := goalsvc.ObjectiveTransitionFromGoal(*current); transitioning &&
+		transition.SuccessorExecutionID == activation.ReservedExecutionID &&
+		!transition.OldExecutionFenced {
+		activation.ReplacesExecutionID = strings.TrimSpace(transition.OldExecutionID)
+	}
+	if activation.GoalObjectiveRevision <= 0 ||
+		(request.GoalObjectiveRevision > 0 &&
+			activation.GoalObjectiveRevision != request.GoalObjectiveRevision) ||
+		activation.ActivationOrigin == "" || activation.ActivationReason == "" {
+		return nil, fmt.Errorf(
+			"%w: active Goal revision or activation provenance changed",
+			orchestrationsvc.ErrExplicitGoalBindingConflict,
+		)
+	}
+	return activation, nil
+}
+
 func (c *explicitGoalExecutionCoordinator) ConfirmGoalExecutionBinding(
 	ctx context.Context,
 	confirmation orchestrationsvc.GoalExecutionBindingConfirmation,
@@ -661,6 +739,23 @@ func validateGoalForExplicitBinding(
 	goal protocol.Goal,
 	request orchestrationsvc.ExplicitGoalBindingRequest,
 ) error {
+	requestOwnerUserID := strings.TrimSpace(request.OwnerUserID)
+	if requestOwnerUserID == "" {
+		return fmt.Errorf(
+			"%w: current owner identity is required for Goal binding",
+			orchestrationsvc.ErrExplicitGoalBindingConflict,
+		)
+	}
+	storedOwnerUserID := protocol.GoalMetadataString(
+		goal.Metadata,
+		protocol.GoalMetadataOwnerUserID,
+	)
+	if storedOwnerUserID == "" || storedOwnerUserID != requestOwnerUserID {
+		return fmt.Errorf(
+			"%w: active Goal belongs to another owner",
+			orchestrationsvc.ErrExplicitGoalBindingConflict,
+		)
+	}
 	if protocol.NormalizeGoalStatus(goal.Status) != protocol.GoalStatusActive {
 		return fmt.Errorf(
 			"%w: Goal must be active before binding an Execution",

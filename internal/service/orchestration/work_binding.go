@@ -13,7 +13,7 @@ import (
 // scopeSnapshotToTrustedWorkBinding 把 structured Room slot 的 WorkBinding
 // 解释为后端能力边界。模型只能提供 tool input，不能扩大 actor 自带的绑定。
 //
-// Coordinator 可通过显式 get_execution / plan_execution 进入协调面；Room member
+// Coordinator 可通过显式 get_execution / prepare_plan_execution -> plan_execution 进入协调面；Room member
 // 必须由 WorkBinding 或 ReviewBinding 获得逐 round capability。裸 @ / 用户定向
 // 消息产生的无 binding round 只是 conversation transport，不能读取或修改 WorkGraph。
 func scopeSnapshotToTrustedWorkBinding(

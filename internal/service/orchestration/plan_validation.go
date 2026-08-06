@@ -1,6 +1,6 @@
 // INPUT: 模型一次性提交的完整 Plan draft。
 // OUTPUT: 规范化 WorkGraph 或带稳定 reason code 的拒绝。
-// POS: plan_execution 在生成持久 ID 和开启事务前的纯领域校验。
+// POS: Plan Document preparation/materialization 在生成持久 ID 和开启事务前的纯领域校验。
 package orchestration
 
 import (
@@ -93,7 +93,7 @@ func validateNormalizedPlanDraft(draft PlanDraft) error {
 	if len(draft.Items) == 0 {
 		return newDomainError(
 			ErrorCodePlanItemsEmpty,
-			"items must contain the complete WorkGraph; empty arrays and placeholder objects are invalid",
+			"Plan Document items must be a non-empty YAML sequence describing the complete WorkGraph; empty or placeholder entries are invalid",
 			"",
 			"",
 		)
@@ -103,7 +103,7 @@ func validateNormalizedPlanDraft(draft PlanDraft) error {
 		if planWorkItemDraftIsPlaceholder(item) {
 			return newDomainError(
 				ErrorCodePlanItemsEmpty,
-				"items must contain populated Work Item objects; placeholder objects such as {} are invalid",
+				"Plan Document items must contain populated Work Items; empty mappings are invalid",
 				"",
 				"",
 			)

@@ -42,6 +42,7 @@ var managedGoalAllowedTools = []string{
 
 var managedExecutionTools = []string{
 	"get_execution",
+	"prepare_plan_execution",
 	"plan_execution",
 	"abandon_execution",
 	"assign_work",
@@ -57,6 +58,7 @@ var managedExecutionTools = []string{
 var managedExecutionAllowedTools = []string{
 	"nexus_execution",
 	"mcp__nexus_execution__get_execution",
+	"mcp__nexus_execution__prepare_plan_execution",
 	"mcp__nexus_execution__plan_execution",
 	"mcp__nexus_execution__abandon_execution",
 	"mcp__nexus_execution__assign_work",
@@ -68,6 +70,7 @@ var managedExecutionAllowedTools = []string{
 	"mcp__nexus_execution__audit_execution_alignment",
 	"mcp__nexus_execution__promote_execution_to_goal",
 	"get_execution",
+	"prepare_plan_execution",
 	"plan_execution",
 	"abandon_execution",
 	"assign_work",

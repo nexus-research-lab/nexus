@@ -203,8 +203,7 @@ func TestGoalRevisionSuccessorPlanUsesReservedIdentityAndRepairsConfirmationOnRe
 	if err != nil {
 		t.Fatal(err)
 	}
-	if replayed.Outcome != MutationRejected ||
-		replayed.ReasonCode != ErrorCodeStaleExecution ||
+	if replayed.Outcome != MutationNoOp ||
 		createCalls != 1 ||
 		gateway.prepareCalls != 1 ||
 		gateway.confirmCalls != 2 ||
@@ -249,7 +248,7 @@ func TestGoalRevisionSuccessorPlanModeDoesNotReserveOrCreateState(t *testing.T) 
 	}
 	if result.Outcome != MutationNoOp || result.Snapshot != nil ||
 		len(result.NextActions) != 1 ||
-		result.NextActions[0].Tool != "plan_execution" {
+		result.NextActions[0].Tool != "prepare_plan_execution" {
 		t.Fatalf("Plan Mode result = %#v", result)
 	}
 }

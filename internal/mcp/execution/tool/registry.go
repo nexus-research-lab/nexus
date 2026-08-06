@@ -1,5 +1,5 @@
 // INPUT: Execution service 与 session-bound runtime context。
-// OUTPUT: 顺序稳定、固定十一个语义工具的 registry。
+// OUTPUT: 顺序稳定、固定十二个语义工具的 registry。
 // POS: nexus_execution 模型工具唯一注册入口。
 package tool
 
@@ -11,9 +11,11 @@ import (
 // BuildAll returns the complete semantic surface. There is deliberately no
 // start_work, attempt-state, command-id, or snapshot-revision tool.
 func BuildAll(svc contract.Service, sctx contract.ServerContext) []sdktool.Tool {
+	planGuard := &planTransportGuard{}
 	return []sdktool.Tool{
 		getExecution(svc, sctx),
-		planExecution(svc, sctx),
+		preparePlanExecution(svc, sctx, planGuard),
+		planExecution(svc, sctx, planGuard),
 		abandonExecution(svc, sctx),
 		assignWork(svc, sctx),
 		submitWork(svc, sctx),

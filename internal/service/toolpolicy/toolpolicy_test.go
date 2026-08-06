@@ -95,6 +95,8 @@ func TestManagedGoalPermissionOnlyApprovesGoalManagerSkill(t *testing.T) {
 
 func TestManagedExecutionToolMatchesWrappedNames(t *testing.T) {
 	for _, toolName := range []string{
+		"prepare_plan_execution",
+		"mcp__nexus_execution__prepare_plan_execution",
 		"plan_execution",
 		"mcp__nexus_execution__assign_work",
 		"nexus_execution.submit_work",
@@ -146,7 +148,10 @@ func TestManagedRuntimeAutoApprovalIncludesExecution(t *testing.T) {
 
 	decision, err := handler(context.Background(), sdkpermission.Request{
 		ToolName: "mcp__nexus_execution__plan_execution",
-		Input:    map[string]any{"objective": "ship the feature"},
+		Input: map[string]any{
+			"proposal_id":     "proposal-1",
+			"proposal_digest": "digest-1",
+		},
 	})
 	if err != nil {
 		t.Fatalf("Execution 权限处理失败: %v", err)
@@ -180,6 +185,7 @@ func TestWithManagedExecutionAllowedToolsAppendsSemanticSurface(t *testing.T) {
 	approved := NormalizeSet(tools)
 	for _, toolName := range []string{
 		"mcp__nexus_execution__get_execution",
+		"mcp__nexus_execution__prepare_plan_execution",
 		"mcp__nexus_execution__plan_execution",
 		"mcp__nexus_execution__assign_work",
 		"mcp__nexus_execution__submit_work",
@@ -218,6 +224,7 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 		"Agent",
 		"nexus_imagegen",
 		"mcp__nexus_goal__get_goal",
+		"mcp__nexus_execution__prepare_plan_execution",
 		"mcp__nexus_execution__plan_execution",
 		"mcp__nexus_imagegen__generate_image",
 		"mcp__nexus_imagegen__edit_image",

@@ -200,7 +200,7 @@ func TestRuntimeGraphTreatsRejectedMutationAsFailedControlReturn(t *testing.T) {
 			"role": "user",
 			"content": []any{map[string]any{
 				"type": "tool_result", "tool_use_id": "tool-plan", "is_error": false,
-				"content": `{"message":"items is required and must contain at least one complete Work Item object","outcome":"rejected","reason_code":"invalid_input"}`,
+				"content": `{"message":"Plan Document items must contain at least one complete Work Item","outcome":"rejected","reason_code":"plan_items_empty"}`,
 			}},
 		},
 	})
@@ -215,8 +215,8 @@ func TestRuntimeGraphTreatsRejectedMutationAsFailedControlReturn(t *testing.T) {
 	}
 	tool := repository.nodes[1]
 	if tool.Status != protocol.ExecutionRuntimeNodeFailed || !tool.Failed ||
-		tool.ErrorCode != "invalid_input" ||
-		tool.ErrorSummary != "items is required and must contain at least one complete Work Item object" ||
+		tool.ErrorCode != "plan_items_empty" ||
+		tool.ErrorSummary != "Plan Document items must contain at least one complete Work Item" ||
 		tool.ResultSummary != "" || tool.Metadata["mutation_outcome"] != "rejected" {
 		t.Fatalf("rejected mutation node = %+v", tool)
 	}

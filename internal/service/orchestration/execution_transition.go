@@ -104,14 +104,20 @@ func (s *Service) buildExecutionForPlan(
 	objective string,
 	completionCriteria []string,
 	replacesExecutionID string,
+	reservedExecutionID string,
+	sealedGoalBinding *ExplicitGoalBinding,
 	allowExplicitGoal bool,
 ) (protocol.Execution, error) {
 	scope := actor.ScopeKind
 	if scope == "" {
 		scope = protocol.ExecutionScopeDM
 	}
+	executionID := strings.TrimSpace(reservedExecutionID)
+	if executionID == "" {
+		executionID = s.id("execution")
+	}
 	execution := protocol.Execution{
-		ID:                  s.id("execution"),
+		ID:                  executionID,
 		OwnerUserID:         strings.TrimSpace(actor.OwnerUserID),
 		SessionKey:          strings.TrimSpace(actor.SessionKey),
 		ScopeKind:           scope,
@@ -130,15 +136,30 @@ func (s *Service) buildExecutionForPlan(
 	if !allowExplicitGoal {
 		return execution, nil
 	}
+	if sealedGoalBinding != nil && strings.TrimSpace(sealedGoalBinding.GoalID) == "" {
+		return execution, nil
+	}
 	binding, err := s.prepareExplicitGoalBinding(ctx, actor, execution, false)
 	if err != nil {
 		return protocol.Execution{}, mapExplicitGoalGatewayError(err)
 	}
 	if binding == nil {
+		if sealedGoalBinding != nil {
+			return protocol.Execution{}, domainError(
+				ErrorCodeGoalBindingConflict,
+				"sealed Goal binding is no longer available",
+			)
+		}
 		return execution, nil
 	}
 	if err = validateExplicitGoalBinding(*binding); err != nil {
 		return protocol.Execution{}, err
+	}
+	if sealedGoalBinding != nil && !explicitGoalBindingsEqual(*binding, *sealedGoalBinding) {
+		return protocol.Execution{}, domainError(
+			ErrorCodeGoalBindingConflict,
+			"Goal binding changed after the Plan proposal was sealed",
+		)
 	}
 	execution.ID = strings.TrimSpace(binding.ExecutionID)
 	execution.GoalID = strings.TrimSpace(binding.GoalID)
@@ -147,6 +168,15 @@ func (s *Service) buildExecutionForPlan(
 	execution.GoalActivationReason = binding.ActivationReason
 	execution.ReplacesExecutionID = strings.TrimSpace(binding.ReplacesExecutionID)
 	return execution, nil
+}
+
+func explicitGoalBindingsEqual(left, right ExplicitGoalBinding) bool {
+	return strings.TrimSpace(left.ExecutionID) == strings.TrimSpace(right.ExecutionID) &&
+		strings.TrimSpace(left.GoalID) == strings.TrimSpace(right.GoalID) &&
+		left.GoalObjectiveRevision == right.GoalObjectiveRevision &&
+		left.ActivationOrigin == right.ActivationOrigin &&
+		left.ActivationReason == right.ActivationReason &&
+		strings.TrimSpace(left.ReplacesExecutionID) == strings.TrimSpace(right.ReplacesExecutionID)
 }
 
 func validateExecutionBoundary(
@@ -194,7 +224,7 @@ func validateReplacementBoundary(
 	if strings.TrimSpace(input.ReplacementReason) == "" {
 		return "", nil, domainError(
 			ErrorCodeInvalidInput,
-			"replacement_reason is required when replace_current_execution is true",
+			"replacement_reason is required for operation: replace",
 		)
 	}
 	if input.SupersedeActiveWork {
@@ -210,7 +240,7 @@ func validateReplacementBoundary(
 	if objective == snapshot.Execution.Objective {
 		return "", nil, domainError(
 			ErrorCodeInvalidInput,
-			"replace_current_execution requires a different objective; use ordinary plan_execution for the same objective",
+			"operation: replace requires a different objective; prepare an operation: replan document for the same objective",
 		)
 	}
 	for _, item := range input.Draft.Items {
@@ -252,7 +282,7 @@ func terminalExecutionError() error {
 func objectiveReplacementRequiredError() error {
 	return domainError(
 		ErrorCodeObjectiveChangeReplace,
-		"an existing Execution objective or completion criteria cannot be rewritten by a Plan revision; use plan_execution with replace_current_execution=true and a complete replacement boundary",
+		"an existing Execution objective or completion criteria cannot be rewritten by a Plan revision; prepare an operation: replace document with a complete successor boundary",
 	)
 }
 

@@ -90,6 +90,7 @@ type EnsureInput struct {
 // Service 编排模型语义操作，并把机器状态转换交给 Repository。
 type Service struct {
 	repository             Repository
+	planProposals          PlanProposalRepository
 	goalPromotionGateway   GoalPromotionGateway
 	explicitGoalGateway    ExplicitGoalBindingGateway
 	assignmentTargets      AssignmentTargetAuthorizer
@@ -104,8 +105,10 @@ type Service struct {
 
 // NewService 创建 Execution Orchestration 应用服务。
 func NewService(repository Repository) *Service {
+	planProposals, _ := repository.(PlanProposalRepository)
 	return &Service{
 		repository:         repository,
+		planProposals:      planProposals,
 		coordinationRounds: make(map[string]string),
 		now:                time.Now,
 		newID:              newOrchestrationID,
@@ -141,8 +144,8 @@ func (s *Service) Ensure(
 			),
 		)
 		result.NextActions = []NextAction{{
-			Tool:   "plan_execution",
-			Reason: "validate the complete WorkGraph proposal, then leave Plan Mode and resubmit it to create authoritative state",
+			Tool:   "prepare_plan_execution",
+			Reason: "seal the complete WorkGraph proposal, then leave Plan Mode and commit its exact receipt",
 		}}
 		return result, nil
 	}
@@ -173,8 +176,8 @@ func (s *Service) Ensure(
 				}}), nil
 			}
 			return RejectedResult(snapshot, boundaryErr, []NextAction{{
-				Tool:   "plan_execution",
-				Reason: "replace the transient Execution explicitly with a complete successor boundary",
+				Tool:   "prepare_plan_execution",
+				Reason: "prepare an operation: replace document with a complete successor boundary",
 			}}), nil
 		}
 		binding, bindingErr := s.prepareExplicitGoalBinding(ctx, actor, snapshot.Execution, true)
@@ -293,8 +296,8 @@ func (s *Service) Ensure(
 		return s.storageMutationResult(nil, err, nil)
 	}
 	return AppliedResult(snapshot, []string{"execution:" + snapshot.Execution.ID}, []NextAction{{
-		Tool:   "plan_execution",
-		Reason: "define the work graph when coordinated delivery is required",
+		Tool:   "prepare_plan_execution",
+		Reason: "prepare and seal the complete WorkGraph when coordinated delivery is required",
 	}}), nil
 }
 
