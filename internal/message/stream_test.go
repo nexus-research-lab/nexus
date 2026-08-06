@@ -289,11 +289,15 @@ func TestProcessorRecoversInputJSONDeltaWithoutBlockStart(t *testing.T) {
 	}
 }
 
-func TestProcessorIgnoresMalformedAssistantEnvelope(t *testing.T) {
+func TestProcessorIgnoresDecodedEmptyAssistantEnvelope(t *testing.T) {
 	processor := NewProcessor(MessageContext{RoundID: "round-nil-assistant"}, "")
-	output := processor.Process(sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeAssistant})
+	decoded, err := sdkprotocol.DecodeMessage(map[string]any{"type": "assistant"})
+	if err != nil {
+		t.Fatalf("DecodeMessage() error = %v", err)
+	}
+	output := processor.Process(decoded)
 	if len(output.DurableMessages) != 0 || output.Err != nil {
-		t.Fatalf("malformed assistant envelope should be ignored safely: %+v", output)
+		t.Fatalf("empty assistant envelope should be ignored: %+v", output)
 	}
 }
 

@@ -1,4 +1,4 @@
-// INPUT: typed/legacy task runtime 消息与累计 task usage。
+// INPUT: bridge 已归一化的 task runtime 消息与累计 task usage。
 // OUTPUT: durable/ephemeral task 投影及可供 Goal 去重的 child token 快照。
 // POS: runtime 后台任务消息到 Nexus task 语义的统一投影层。
 package message
@@ -86,11 +86,7 @@ func SubagentTaskUsageSnapshot(message protocol.Message) (string, int64, bool) {
 	return snapshots[0].TaskID, snapshots[0].TotalTokens, true
 }
 
-func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if message.TaskProgress == nil {
-		return nil
-	}
-	progress := message.TaskProgress
+func (p *Processor) projectTaskProgress(progress sdkprotocol.TaskProgressMessage) *protocol.Message {
 	toolName := strings.TrimSpace(progress.LastToolName)
 	description := firstNonEmpty(progress.Summary, progress.Description)
 	if description == "" && toolName != "" {
@@ -113,11 +109,7 @@ func (p *Processor) processTaskProgressMessage(message sdkprotocol.ReceivedMessa
 	)
 }
 
-func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessage) (*protocol.Message, bool) {
-	if message.ToolProgress == nil {
-		return nil, false
-	}
-	progress := message.ToolProgress
+func (p *Processor) processToolProgressMessage(progress sdkprotocol.ToolProgressMessage) (*protocol.Message, bool) {
 	data := mapValue(progress.Additional["data"])
 	progressType := normalizeString(data["type"])
 	if shellType := resolveShellProgressType(progressType, progress.ToolName); shellType != "" {
@@ -175,17 +167,17 @@ func (p *Processor) processToolProgressMessage(message sdkprotocol.ReceivedMessa
 	), false
 }
 
-func (p *Processor) processSubagentAttachmentMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if message.Attachment == nil || !strings.EqualFold(strings.TrimSpace(message.Attachment.Type), "structured_output") {
+func (p *Processor) processSubagentAttachmentMessage(attachment sdkprotocol.AttachmentMessage) *protocol.Message {
+	if !strings.EqualFold(strings.TrimSpace(attachment.Type), "structured_output") {
 		return nil
 	}
-	data := mapValue(message.Attachment.Data)
+	data := mapValue(attachment.Data)
 	agentID := firstNonEmpty(
 		normalizeString(data["agent_id"]),
 		normalizeString(data["agentId"]),
 	)
 	toolUseID := firstNonEmpty(
-		strings.TrimSpace(message.Attachment.ToolUseID),
+		strings.TrimSpace(attachment.ToolUseID),
 		normalizeString(data["tool_use_id"]),
 		normalizeString(data["toolUseId"]),
 	)
@@ -272,11 +264,7 @@ func shellProgressToolName(progressType string) string {
 	return "Bash"
 }
 
-func (p *Processor) processTaskStartedMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if message.TaskStarted == nil {
-		return nil
-	}
-	started := message.TaskStarted
+func (p *Processor) projectTaskStarted(started sdkprotocol.TaskStartedMessage) *protocol.Message {
 	return p.buildTaskStartedMessage(
 		firstNonEmpty(started.TaskID, started.ToolUseID),
 		firstNonEmpty(started.Description, started.Prompt, "任务已开始"),
@@ -295,11 +283,7 @@ func (p *Processor) processTaskStartedMessage(message sdkprotocol.ReceivedMessag
 	)
 }
 
-func (p *Processor) processTaskNotificationMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if message.TaskNotification == nil {
-		return nil
-	}
-	notification := message.TaskNotification
+func (p *Processor) projectTaskNotification(notification sdkprotocol.TaskNotificationMessage) *protocol.Message {
 	return p.buildTaskNotificationMessage(
 		firstNonEmpty(notification.TaskID, notification.ToolUseID),
 		firstNonEmpty(notification.Summary, taskNotificationDefaultContent(notification.Status)),
@@ -318,27 +302,46 @@ func (p *Processor) processTaskNotificationMessage(message sdkprotocol.ReceivedM
 	)
 }
 
-func (p *Processor) buildTaskUpdatedMessage(taskID string, status string, patch map[string]any, additional map[string]any) *protocol.Message {
-	if strings.TrimSpace(taskID) == "" {
+func (p *Processor) projectTaskUpdated(updated sdkprotocol.TaskUpdatedMessage) *protocol.Message {
+	if strings.TrimSpace(updated.TaskID) == "" {
 		return nil
 	}
-	status = strings.TrimSpace(status)
+	taskID := strings.TrimSpace(updated.TaskID)
+	status := strings.TrimSpace(updated.Status)
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
-		fmt.Sprintf("system_task_updated_%s_%s_%s", p.ctx.RoundID, strings.TrimSpace(taskID), firstNonEmpty(status, "patch")),
+		fmt.Sprintf("system_task_updated_%s_%s_%s", p.ctx.RoundID, taskID, firstNonEmpty(status, "patch")),
 		"system",
 	)
 	payload["content"] = taskUpdatedContent(status)
 	payload["metadata"] = map[string]any{
 		"subtype": "task_updated",
-		"task_id": strings.TrimSpace(taskID),
+		"task_id": taskID,
 		"status":  emptyToNil(status),
-		"patch":   firstNonNilMap(patch, map[string]any{}),
+		"patch":   taskUpdatedPatchMap(updated.Patch),
 	}
-	copyTaskEventMetadata(payload["metadata"].(map[string]any), additional)
+	copyTaskEventMetadata(payload["metadata"].(map[string]any), updated.Additional)
 	messageValue := protocol.Message(payload)
 	return &messageValue
+}
+
+func taskUpdatedPatchMap(patch sdkprotocol.TaskUpdatedPatch) map[string]any {
+	values := mergeTaskEventMetadata(patch.Additional, map[string]string{
+		"description": patch.Description,
+		"error":       patch.Error,
+		"status":      patch.Status,
+	})
+	if patch.EndTime != 0 {
+		values["end_time"] = patch.EndTime
+	}
+	if patch.TotalPausedMS != 0 {
+		values["total_paused_ms"] = patch.TotalPausedMS
+	}
+	if _, present := values["is_backgrounded"]; present || patch.IsBackgrounded {
+		values["is_backgrounded"] = patch.IsBackgrounded
+	}
+	return values
 }
 
 func (p *Processor) buildTaskStartedMessage(taskID string, content string, taskType string, toolUseID string, additional map[string]any) *protocol.Message {
@@ -481,10 +484,7 @@ func copyTaskEventMetadata(metadata map[string]any, additional map[string]any) {
 }
 
 func mergeTaskEventMetadata(additional map[string]any, fields map[string]string) map[string]any {
-	metadata := cloneMap(additional)
-	if metadata == nil {
-		metadata = map[string]any{}
-	}
+	metadata := cloneMapOrEmpty(additional)
 	for key, value := range fields {
 		if normalized := strings.TrimSpace(value); normalized != "" {
 			metadata[key] = normalized
@@ -493,42 +493,8 @@ func mergeTaskEventMetadata(additional map[string]any, fields map[string]string)
 	return metadata
 }
 
-func firstTaskProgressTaskID(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskProgress == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskProgress.TaskID)
-}
-
-func firstTaskProgressDescription(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskProgress == nil {
-		return ""
-	}
-	return firstNonEmpty(message.TaskProgress.Summary, message.TaskProgress.Description)
-}
-
-func firstTaskProgressToolUseID(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskProgress == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskProgress.ToolUseID)
-}
-
-func firstTaskProgressToolName(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskProgress == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskProgress.LastToolName)
-}
-
-func firstTaskProgressUsage(message *sdkprotocol.SystemMessage) map[string]any {
-	if message == nil || message.TaskProgress == nil {
-		return nil
-	}
-	return taskUsageMap(message.TaskProgress.Usage, message.TaskProgress.Additional["usage"])
-}
-
-func taskUsageMap(usage sdkprotocol.TaskUsage, rawUsage ...any) map[string]any {
+// taskUsageMap 只借助 Additional 区分显式 0 与字段缺失；业务值以 typed usage 为主。
+func taskUsageMap(usage sdkprotocol.TaskUsage, rawUsage any) map[string]any {
 	values := map[string]any{}
 	if usage.TotalTokens > 0 {
 		values["total_tokens"] = usage.TotalTokens
@@ -539,10 +505,7 @@ func taskUsageMap(usage sdkprotocol.TaskUsage, rawUsage ...any) map[string]any {
 	if usage.DurationMS > 0 {
 		values["duration_ms"] = usage.DurationMS
 	}
-	if len(rawUsage) == 0 {
-		return values
-	}
-	raw := mapValue(rawUsage[0])
+	raw := mapValue(rawUsage)
 	for _, key := range []string{"total_tokens", "tool_uses", "duration_ms"} {
 		value, present := raw[key]
 		normalized, valid := normalizeInt64Value(value)
@@ -573,76 +536,6 @@ func agentProgressLastToolName(data map[string]any) string {
 		}
 	}
 	return ""
-}
-
-func firstTaskStartedDescription(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskStarted == nil {
-		return ""
-	}
-	return firstNonEmpty(message.TaskStarted.Description, message.TaskStarted.Prompt)
-}
-
-func firstTaskStartedTaskID(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskStarted == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskStarted.TaskID)
-}
-
-func firstTaskStartedTaskType(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskStarted == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskStarted.TaskType)
-}
-
-func firstTaskStartedToolUseID(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskStarted == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskStarted.ToolUseID)
-}
-
-func firstTaskNotificationTaskID(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskNotification == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskNotification.TaskID)
-}
-
-func firstTaskNotificationToolUseID(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskNotification == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskNotification.ToolUseID)
-}
-
-func firstTaskNotificationStatus(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskNotification == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskNotification.Status)
-}
-
-func firstTaskNotificationSummary(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskNotification == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskNotification.Summary)
-}
-
-func firstTaskNotificationOutputFile(message *sdkprotocol.SystemMessage) string {
-	if message == nil || message.TaskNotification == nil {
-		return ""
-	}
-	return strings.TrimSpace(message.TaskNotification.OutputFile)
-}
-
-func firstTaskNotificationUsage(message *sdkprotocol.SystemMessage) map[string]any {
-	if message == nil || message.TaskNotification == nil {
-		return nil
-	}
-	return taskUsageMap(message.TaskNotification.Usage, message.TaskNotification.Additional["usage"])
 }
 
 func taskNotificationDefaultContent(status string) string {

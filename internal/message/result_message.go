@@ -14,46 +14,41 @@ import (
 
 const hookStoppedDisplayError = "该操作被当前运行时规则拦截，本轮已停止。"
 
-func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subtype string) protocol.Message {
+func (p *Processor) buildResultMessage(
+	messageID string,
+	result sdkprotocol.ResultMessage,
+	subtype string,
+) protocol.Message {
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
-		firstNonEmpty(message.UUID, "result_"+p.ctx.RoundID),
+		firstNonEmpty(messageID, "result_"+p.ctx.RoundID),
 		"result",
 	)
-	if message.Result == nil {
-		// 外部 provider 的坏包不能把宿主 round 直接打崩；按 CC 的失败
-		// 终态语义生成可展示、可追踪的最小 result。
-		payload["subtype"] = "error"
-		payload["is_error"] = true
-		payload["errors"] = []string{"result payload missing"}
-		payload["result"] = "result payload missing"
-		return protocol.Message(payload)
-	}
 	payload["subtype"] = subtype
-	payload["duration_ms"] = message.Result.DurationMS
-	payload["duration_api_ms"] = message.Result.DurationAPIMS
-	payload["num_turns"] = message.Result.NumTurns
-	payload["total_cost_usd"] = message.Result.TotalCostUSD
-	payload["usage"] = firstNonNilMap(message.Result.Usage, map[string]any{})
-	if len(message.Result.ModelUsage) > 0 {
-		payload["model_usage"] = cloneMap(message.Result.ModelUsage)
+	payload["duration_ms"] = result.DurationMS
+	payload["duration_api_ms"] = result.DurationAPIMS
+	payload["num_turns"] = result.NumTurns
+	payload["total_cost_usd"] = result.TotalCostUSD
+	payload["usage"] = firstNonNilMap(result.Usage, map[string]any{})
+	if len(result.ModelUsage) > 0 {
+		payload["model_usage"] = cloneMap(result.ModelUsage)
 	}
 	payload["is_error"] = subtype == "error"
-	runtimeSubtype := strings.TrimSpace(message.Result.Subtype)
+	runtimeSubtype := strings.TrimSpace(result.Subtype)
 	if runtimeSubtype != "" && runtimeSubtype != subtype {
 		payload["runtime_subtype"] = runtimeSubtype
 	}
-	terminalReason := strings.TrimSpace(message.Result.TerminalReason)
-	errors := slices.Clone(message.Result.Errors)
-	resultText := message.Result.Result
-	stopReason := message.Result.StopReason
+	terminalReason := strings.TrimSpace(result.TerminalReason)
+	errors := slices.Clone(result.Errors)
+	resultText := result.Result
+	stopReason := result.StopReason
 	if subtype == "error" {
 		projection := normalizeProviderContentFilterError(
 			resultText,
 			terminalReason,
 			errors,
-			normalizeString(message.Result.StopReason),
+			normalizeString(result.StopReason),
 		)
 		resultText = projection.result
 		terminalReason = projection.terminalReason
@@ -73,33 +68,33 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 	if stopReason != nil {
 		payload["stop_reason"] = stopReason
 	}
-	if denials := projectPermissionDenials(message.Result.PermissionDenials); len(denials) > 0 {
+	if denials := projectPermissionDenials(result.PermissionDenials); len(denials) > 0 {
 		payload["permission_denials"] = denials
 	}
 	if len(errors) > 0 {
 		payload["errors"] = errors
 	}
-	if message.Result.StructuredOutput != nil {
-		payload["structured_output"] = message.Result.StructuredOutput
+	if result.StructuredOutput != nil {
+		payload["structured_output"] = result.StructuredOutput
 	}
-	if fastModeState := strings.TrimSpace(message.Result.FastModeState); fastModeState != "" {
+	if fastModeState := strings.TrimSpace(result.FastModeState); fastModeState != "" {
 		payload["fast_mode_state"] = fastModeState
 	}
 	return protocol.Message(payload)
 }
 
-func (p *Processor) processAssistantAPIError(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if message.Assistant == nil {
-		return nil
-	}
-	assistantError := strings.TrimSpace(message.Assistant.Error)
-	assistantAPIError := strings.TrimSpace(message.Assistant.APIError)
-	if !message.Assistant.IsAPIError && assistantError == "" && assistantAPIError == "" {
+func (p *Processor) processAssistantAPIError(
+	messageID string,
+	assistant sdkprotocol.AssistantMessage,
+) *protocol.Message {
+	assistantError := strings.TrimSpace(assistant.Error)
+	assistantAPIError := strings.TrimSpace(assistant.APIError)
+	if !assistant.IsAPIError && assistantError == "" && assistantAPIError == "" {
 		return nil
 	}
 	text := firstNonEmpty(
-		assistantTextFromEnvelope(message.Assistant.Message),
-		message.Assistant.ErrorDetails,
+		assistantTextFromEnvelope(assistant.Message),
+		assistant.ErrorDetails,
 		assistantAPIError,
 		assistantError,
 		"Runtime API request failed",
@@ -113,15 +108,15 @@ func (p *Processor) processAssistantAPIError(message sdkprotocol.ReceivedMessage
 		text,
 		reason,
 		errors,
-		message.Assistant.ErrorDetails,
+		assistant.ErrorDetails,
 		assistantAPIError,
 		assistantError,
-		normalizeString(message.Assistant.Message.StopReason),
+		normalizeString(assistant.Message.StopReason),
 	)
 	payload := baseMessageEnvelope(
 		p.ctx,
 		p.sessionID,
-		firstNonEmpty(message.UUID, "result_"+p.ctx.RoundID),
+		firstNonEmpty(messageID, "result_"+p.ctx.RoundID),
 		"result",
 	)
 	payload["subtype"] = "error"
@@ -181,9 +176,6 @@ func projectPermissionDenials(items []sdkprotocol.PermissionDenial) []map[string
 
 // NormalizeInterruptedOutput 统一把“用户主动停止后 SDK 仍返回 error”的结果收口成 interrupted。
 func NormalizeInterruptedOutput(output *Output, interruptReason string) {
-	if output == nil {
-		return
-	}
 	isError := output.ResultSubtype == "error" || output.TerminalStatus == "error"
 	isInterrupted := output.ResultSubtype == "interrupted" || output.TerminalStatus == "interrupted"
 	if !isError && !isInterrupted {
@@ -214,10 +206,7 @@ func NormalizeInterruptedOutput(output *Output, interruptReason string) {
 	}
 }
 
-func normalizeResultSubtype(result *sdkprotocol.ResultMessage) string {
-	if result == nil {
-		return "error"
-	}
+func normalizeResultSubtype(result sdkprotocol.ResultMessage) string {
 	subtype := strings.TrimSpace(result.Subtype)
 	if subtype == "interrupted" {
 		return "interrupted"

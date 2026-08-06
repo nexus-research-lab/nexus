@@ -247,17 +247,21 @@ func TestProcessorNormalizesHookStoppedResultError(t *testing.T) {
 	}
 }
 
-func TestProcessorProjectsMissingResultPayloadAsVisibleError(t *testing.T) {
-	processor := NewProcessor(MessageContext{RoundID: "round-missing-result"}, "session-missing-result")
-	output := processor.Process(sdkprotocol.ReceivedMessage{
-		Type: sdkprotocol.MessageTypeResult,
-		UUID: "result-missing-payload",
+func TestProcessorProjectsDecodedEmptyResultPayload(t *testing.T) {
+	processor := NewProcessor(MessageContext{RoundID: "round-empty-result"}, "session-empty-result")
+	decoded, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "result",
+		"uuid": "result-empty-payload",
 	})
-	if output.TerminalStatus != "error" || output.ResultSubtype != "error" {
-		t.Fatalf("missing result terminal state = %+v", output)
+	if err != nil {
+		t.Fatalf("DecodeMessage() error = %v", err)
 	}
-	if len(output.DurableMessages) != 1 || output.DurableMessages[0]["is_error"] != true {
-		t.Fatalf("missing result should produce visible error: %+v", output.DurableMessages)
+	output := processor.Process(decoded)
+	if output.TerminalStatus != "finished" || output.ResultSubtype != "success" {
+		t.Fatalf("empty result terminal state = %+v", output)
+	}
+	if len(output.DurableMessages) != 1 || output.DurableMessages[0]["is_error"] != false {
+		t.Fatalf("empty result should produce a successful terminal message: %+v", output.DurableMessages)
 	}
 }
 

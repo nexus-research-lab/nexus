@@ -12,11 +12,11 @@ var taskListToolNames = map[string]struct{}{
 	"TaskUpdate": {},
 }
 
-func (p *Processor) processToolResultMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if message.User == nil {
-		return nil
-	}
-	content := normalizeContentBlocks(message.User.Message.Content)
+func (p *Processor) processToolResultMessage(
+	user sdkprotocol.UserMessage,
+	raw map[string]any,
+) *protocol.Message {
+	content := normalizeContentBlocks(user.Message.Content)
 	if len(content) == 0 {
 		return nil
 	}
@@ -25,7 +25,7 @@ func (p *Processor) processToolResultMessage(message sdkprotocol.ReceivedMessage
 			return nil
 		}
 	}
-	structuredOutput := taskToolStructuredOutput(message, len(content))
+	structuredOutput := taskToolStructuredOutput(user, raw, len(content))
 	enrichedBlocks := make([]map[string]any, 0, len(content))
 	for _, block := range content {
 		if !p.shouldKeepToolResultBlock(block) {
@@ -42,7 +42,7 @@ func (p *Processor) processToolResultMessage(message sdkprotocol.ReceivedMessage
 	return p.buildAssistantDurableMessage(
 		true,
 		true,
-		firstNonEmpty(normalizePointerString(message.User.ParentToolUseID), p.parentToolUseID),
+		firstNonEmpty(normalizePointerString(user.ParentToolUseID), p.parentToolUseID),
 	)
 }
 
@@ -60,9 +60,6 @@ func (p *Processor) enrichToolResultBlock(
 	structuredOutput map[string]any,
 ) map[string]any {
 	enriched := cloneMap(block)
-	if len(enriched) == 0 {
-		enriched = map[string]any{"type": "tool_result"}
-	}
 	p.attachTaskToolStructuredOutput(enriched, structuredOutput)
 	return enriched
 }
@@ -84,15 +81,16 @@ func (p *Processor) attachTaskToolStructuredOutput(
 
 // taskToolStructuredOutput 兼容实时 stream-json 与 Claude Code transcript 的字段命名。
 func taskToolStructuredOutput(
-	message sdkprotocol.ReceivedMessage,
+	user sdkprotocol.UserMessage,
+	raw map[string]any,
 	blockCount int,
 ) map[string]any {
-	if message.User == nil || blockCount != 1 {
+	if blockCount != 1 {
 		return nil
 	}
-	value := message.User.ToolUseResult
+	value := user.ToolUseResult
 	if value == nil {
-		value = message.Raw["toolUseResult"]
+		value = raw["toolUseResult"]
 	}
 	return mapValue(value)
 }

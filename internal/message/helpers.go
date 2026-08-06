@@ -96,6 +96,12 @@ func cloneMap(source map[string]any) map[string]any {
 	return maps.Clone(source)
 }
 
+func cloneMapOrEmpty(source map[string]any) map[string]any {
+	result := make(map[string]any, len(source))
+	maps.Copy(result, source)
+	return result
+}
+
 func cloneBlockSlice(blocks []map[string]any) []map[string]any {
 	if len(blocks) == 0 {
 		return nil
@@ -146,10 +152,7 @@ func firstNonNilMap(values ...map[string]any) map[string]any {
 func normalizeContentBlocks(blocks []sdkprotocol.ContentBlock) []map[string]any {
 	result := make([]map[string]any, 0, len(blocks))
 	for _, block := range blocks {
-		payload := cloneMap(block.RawPayload())
-		if len(payload) == 0 {
-			payload = map[string]any{}
-		}
+		payload := cloneMapOrEmpty(block.RawPayload())
 		sourceType := string(block.Type())
 		payload["type"] = normalizeBlockType(sourceType)
 		if normalizedType := normalizeString(payload["type"]); sourceType != normalizedType {

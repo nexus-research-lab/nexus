@@ -269,15 +269,16 @@ func TestMessageMapperMapsTaskUpdated(t *testing.T) {
 		SessionID: "sdk-session-task",
 		System: &sdkprotocol.SystemMessage{
 			Subtype: "task_updated",
-			Data: map[string]any{
-				"subtype":    "task_updated",
-				"task_id":    "task-1",
-				"agent_id":   "agent-1",
-				"agent_type": "worker",
-				"patch": map[string]any{
-					"status":          "completed",
-					"description":     "子 Agent 完成排查",
-					"is_backgrounded": false,
+			TaskUpdated: &sdkprotocol.TaskUpdatedMessage{
+				TaskID: "task-1",
+				Status: "completed",
+				Patch: sdkprotocol.TaskUpdatedPatch{
+					Status:      "completed",
+					Description: "子 Agent 完成排查",
+				},
+				Additional: map[string]any{
+					"agent_id":   "agent-1",
+					"agent_type": "worker",
 				},
 			},
 		},

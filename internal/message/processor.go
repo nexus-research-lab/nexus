@@ -131,17 +131,17 @@ var streamEventHandlers = map[string]streamEventHandler{
 }
 
 func handleStreamEvent(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	return p.processStreamEvent(message, output)
+	return p.processStreamEvent(*message.Stream, message.ParentToolUseID, output)
 }
 
 func handleAssistant(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	if durable := p.processAssistantAPIError(message); durable != nil {
+	if durable := p.processAssistantAPIError(message.UUID, *message.Assistant); durable != nil {
 		output.DurableMessages = append(output.DurableMessages, *durable)
 		output.ResultSubtype = "error"
 		output.TerminalStatus = "error"
 		return output
 	}
-	durable := p.processAssistantMessage(message)
+	durable := p.processAssistantMessage(*message.Assistant)
 	if durable == nil {
 		return output
 	}
@@ -151,34 +151,35 @@ func handleAssistant(p *Processor, message sdkprotocol.ReceivedMessage, output O
 }
 
 func handleAttachment(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	return appendDurableMessage(output, p.processSubagentAttachmentMessage(message))
+	return appendDurableMessage(output, p.processSubagentAttachmentMessage(*message.Attachment))
 }
 
 func handleSystem(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	durable, ephemeral := p.processSystemMessage(message)
+	durable, ephemeral := p.processSystemMessage(*message.System)
 	output.DurableMessages = append(output.DurableMessages, durable...)
 	output.EphemeralMessages = append(output.EphemeralMessages, ephemeral...)
 	return output
 }
 
 func handleResult(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	subtype := normalizeResultSubtype(message.Result)
-	output.DurableMessages = append(output.DurableMessages, p.buildResultMessage(message, subtype))
+	result := *message.Result
+	subtype := normalizeResultSubtype(result)
+	output.DurableMessages = append(output.DurableMessages, p.buildResultMessage(message.UUID, result, subtype))
 	output.ResultSubtype = subtype
 	output.TerminalStatus = statusFromResultSubtype(subtype)
 	return output
 }
 
 func handleTaskStarted(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	return appendDurableMessage(output, p.processTaskStartedMessage(message))
+	return appendDurableMessage(output, p.projectTaskStarted(*message.TaskStarted))
 }
 
 func handleTaskProgress(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	return appendDurableMessage(output, p.processTaskProgressMessage(message))
+	return appendDurableMessage(output, p.projectTaskProgress(*message.TaskProgress))
 }
 
 func handleToolProgress(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	progress, ephemeral := p.processToolProgressMessage(message)
+	progress, ephemeral := p.processToolProgressMessage(*message.ToolProgress)
 	if progress == nil {
 		return output
 	}
@@ -190,11 +191,11 @@ func handleToolProgress(p *Processor, message sdkprotocol.ReceivedMessage, outpu
 }
 
 func handleTaskNotification(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	return appendDurableMessage(output, p.processTaskNotificationMessage(message))
+	return appendDurableMessage(output, p.projectTaskNotification(*message.TaskNotification))
 }
 
 func handleUser(p *Processor, message sdkprotocol.ReceivedMessage, output Output) Output {
-	durable := p.processToolResultMessage(message)
+	durable := p.processToolResultMessage(*message.User, message.Raw)
 	if durable == nil {
 		return output
 	}
@@ -210,17 +211,18 @@ func appendDurableMessage(output Output, message *protocol.Message) Output {
 	return output
 }
 
-func (p *Processor) processStreamEvent(message sdkprotocol.ReceivedMessage, output Output) Output {
-	if message.Stream == nil {
-		return output
-	}
-	payload, ok := message.Stream.Event.(map[string]any)
+func (p *Processor) processStreamEvent(
+	stream sdkprotocol.StreamEvent,
+	parentToolUseID *string,
+	output Output,
+) Output {
+	payload, ok := stream.Event.(map[string]any)
 	if !ok {
-		payload = message.Stream.Data
+		payload = stream.Data
 	}
 	eventType := normalizeString(payload["type"])
-	if message.ParentToolUseID != nil || eventType == "message_start" {
-		p.parentToolUseID = normalizePointerString(message.ParentToolUseID)
+	if parentToolUseID != nil || eventType == "message_start" {
+		p.parentToolUseID = normalizePointerString(parentToolUseID)
 	}
 	handler := streamEventHandlers[eventType]
 	if handler == nil {
@@ -308,21 +310,18 @@ func (p *Processor) buildMessageMetaStreamPayload(eventType string) StreamPayloa
 	return payload
 }
 
-func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage) *protocol.Message {
-	if message.Assistant == nil {
-		return nil
-	}
+func (p *Processor) processAssistantMessage(assistant sdkprotocol.AssistantMessage) *protocol.Message {
 	// 同一轮内 assistant 会分多段（不同 message id）。直播时靠 stream 的
 	// message_start 轮转段；历史投影没有 stream 事件，必须在快照 id 变化时
 	// 主动轮转，否则整轮坍缩进第一个 id、内容相互覆盖。
-	incomingID := strings.TrimSpace(message.Assistant.Message.ID)
+	incomingID := strings.TrimSpace(assistant.Message.ID)
 	isNewSegment := !p.segment.IsStarted() ||
 		(incomingID != "" && incomingID != p.segment.MessageID())
 	if isNewSegment {
 		p.segment.Start(
-			message.Assistant.Message.ID,
-			message.Assistant.Message.Model,
-			message.Assistant.Message.Usage,
+			assistant.Message.ID,
+			assistant.Message.Model,
+			assistant.Message.Usage,
 			time.Now().UnixMilli(),
 		)
 		p.streamStarted = false
@@ -330,17 +329,17 @@ func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage)
 		p.lastDurableAssistantSnapshot = nil
 		// 历史回放没有 message_start；新段必须以 assistant 自身的父工具
 		// 标识为真源，避免沿用上一段子 Agent 的 parent。
-		p.parentToolUseID = normalizePointerString(message.Assistant.ParentToolUseID)
-	} else if incomingParentID := normalizePointerString(message.Assistant.ParentToolUseID); incomingParentID != "" {
+		p.parentToolUseID = normalizePointerString(assistant.ParentToolUseID)
+	} else if incomingParentID := normalizePointerString(assistant.ParentToolUseID); incomingParentID != "" {
 		// 实时流先建立段、assistant 快照后到达时，用更完整的快照补齐 parent。
 		p.parentToolUseID = incomingParentID
 	}
-	content := normalizeContentBlocks(message.Assistant.Message.Content)
+	content := normalizeContentBlocks(assistant.Message.Content)
 	p.segment.ReplaceFromSnapshot(
 		content,
-		message.Assistant.Message.Model,
-		firstNonNilMap(message.Assistant.Message.Usage, p.segment.Usage()),
-		normalizeAnyString(message.Assistant.Message.StopReason),
+		assistant.Message.Model,
+		firstNonNilMap(assistant.Message.Usage, p.segment.Usage()),
+		normalizeAnyString(assistant.Message.StopReason),
 	)
 	if !hasPublicAssistantContent(p.segment.normalizedContent()) {
 		return nil
@@ -348,7 +347,7 @@ func (p *Processor) processAssistantMessage(message sdkprotocol.ReceivedMessage)
 	includeStopReason := !p.streamStarted || p.streamTerminalObserved
 	isComplete := includeStopReason && strings.TrimSpace(p.segment.StopReason()) != ""
 	parentID := firstNonEmpty(
-		normalizePointerString(message.Assistant.ParentToolUseID),
+		normalizePointerString(assistant.ParentToolUseID),
 		p.parentToolUseID,
 	)
 	durable := p.buildAssistantDurableMessage(isComplete, includeStopReason, parentID)
@@ -386,27 +385,21 @@ func (p *Processor) buildStreamPayload(streamType string) StreamPayload {
 
 func (p *Processor) registerSessionID(message sdkprotocol.ReceivedMessage) (string, error) {
 	currentSessionID := strings.TrimSpace(p.sessionID)
-	candidates := []string{strings.TrimSpace(message.SessionID)}
-	if message.Type == sdkprotocol.MessageTypeSystem && message.System != nil {
-		candidates = append(candidates, normalizeString(message.System.Data["session_id"]))
+	incomingSessionID := strings.TrimSpace(message.SessionID)
+	if incomingSessionID == "" {
+		return "", nil
 	}
-
-	for _, candidate := range candidates {
-		if candidate == "" {
-			continue
-		}
-		if currentSessionID == "" {
-			p.sessionID = candidate
-			return candidate, nil
-		}
-		if currentSessionID != candidate {
-			return "", fmt.Errorf(
-				"processor session_id changed: current=%s incoming=%s round_id=%s",
-				currentSessionID,
-				candidate,
-				p.ctx.RoundID,
-			)
-		}
+	if currentSessionID == "" {
+		p.sessionID = incomingSessionID
+		return incomingSessionID, nil
+	}
+	if currentSessionID != incomingSessionID {
+		return "", fmt.Errorf(
+			"processor session_id changed: current=%s incoming=%s round_id=%s",
+			currentSessionID,
+			incomingSessionID,
+			p.ctx.RoundID,
+		)
 	}
 	return "", nil
 }

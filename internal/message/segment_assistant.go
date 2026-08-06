@@ -95,10 +95,6 @@ func (s *AssistantSegment) ApplyDelta(index int, delta map[string]any) (int, boo
 		s.content = append(s.content, emptyAssistantBlock(blockType))
 	}
 	block := s.content[logicalIndex]
-	if block == nil {
-		block = map[string]any{}
-		s.content[logicalIndex] = block
-	}
 	blockType := normalizeString(block["type"])
 	deltaType := normalizeString(delta["type"])
 
@@ -396,9 +392,6 @@ func (s *AssistantSegment) resolveStreamBlockConflict(rawIndex int, logicalIndex
 	// 部分 SDK 会在同一段 assistant 中复用 raw index=0 输出多个 tool_use。
 	// 按 tool_use id 拆成独立逻辑块，避免后一个工具调用覆盖前一个。
 	nextIndex := len(s.content)
-	if s.streamSlot == nil {
-		s.streamSlot = make(map[int]int)
-	}
 	s.streamSlot[rawIndex] = nextIndex
 	return nextIndex
 }
