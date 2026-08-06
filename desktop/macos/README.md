@@ -140,7 +140,7 @@ shasum -a 256 -c Nexus-macos-<architecture>-<version>-<build>.dmg.sha256
 xattr -dr com.apple.quarantine /Applications/Nexus.app
 ```
 
-应用启动后会按 24 小时节流后台检测 GitHub Release 中的 macOS metadata；也可以从应用菜单选择“检查更新...”。更新器会先按当前 CPU 架构选择 `arm64` 或 `intel` 资产，不会在两个安装包之间取任意一个。只有匹配架构的 metadata 标记 macOS 包已 Developer ID 签名并公证时，Shell 才会提供自动下载安装：下载对应 dmg 或 zip 包及 sha256 到 `~/.nexus/app/cache/updates`，校验 sha256、Bundle Identifier、`codesign --verify --deep --strict` 与 `spctl --assess --type execute` 全部通过后，才提示退出、替换当前 `.app` 并自动重新打开。新版本首次启动成功后会清理旧的更新缓存目录；用户选择“稍后”时，当前版本的已下载包会保留。更新器不会自动移除 quarantine；如果当前 App 不在可替换位置，或者更新包未标记为可通过 Gatekeeper 自动安装，会退回打开下载页手动处理。
+应用启动后会检测一次 GitHub Release 中的 macOS metadata，并每 4 小时在后台复查；也可以从应用菜单选择“检查更新...”。仅桌面侧栏会在宿主确认有新版本时显示更新入口，点击后通过桌面桥直接启动原生下载流程。更新器会先按当前 CPU 架构选择 `arm64` 或 `intel` 资产，不会在两个安装包之间取任意一个。只有匹配架构的 metadata 标记 macOS 包已 Developer ID 签名并公证时，Shell 才会提供自动下载安装：下载对应 dmg 或 zip 包及 sha256 到 `~/.nexus/app/cache/updates`，校验 sha256、Bundle Identifier、`codesign --verify --deep --strict` 与 `spctl --assess --type execute` 全部通过后，才提示退出、替换当前 `.app` 并自动重新打开。新版本首次启动成功后会清理旧的更新缓存目录；用户选择“稍后”时，当前版本的已下载包会保留。更新器不会自动移除 quarantine；如果当前 App 不在可替换位置，或者更新包未标记为可通过 Gatekeeper 自动安装，会退回打开下载页手动处理。
 
 卸载或重置应用数据时，先退出 Nexus，再按需要删除：
 

@@ -159,6 +159,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         globalShortcutAcceleratorResetter: { [weak self] in
           self?.resetGlobalShortcutAccelerator() ?? [:]
         },
+        updateStarter: { [weak self] in
+          self?.updateChecker.startAvailableUpdate() ?? "unavailable"
+        },
         onMainWindowRevealed: { [weak self] in
           self?.updateChecker.checkOnLaunchIfNeeded()
         }

@@ -10,4 +10,4 @@
 - 底部操作分隔线必须跨过右侧舞台留边并与侧栏外边界相交；Footer 保持同一 DOM，通过高度和动作坐标过渡完成横排/单列切换，不得在设置入口上方留下短横线、断口或瞬时重排。
 - 与主画布相邻的桌面侧栏通过 `data-shell-split-edge` 绘制唯一外缘 hairline；该线必须越过桌面顶部 inset、覆盖 Header/Footer 但不拦截 resize 热区，移动端全宽目录不得绘制。
 - 消费接口由视图定义并保持窄小；新增状态先进入上层控制器投影。
-- `use-sidebar-update-version.ts` 只从桌面宿主持久化桥接读取可用版本，不在 Web 端重复请求 Release；`sidebar-update-indicator.tsx` 只渲染中性更新入口，`sidebar-utility-actions.tsx` 将存在的更新提示作为底部操作参与展开/折叠布局，展开时固定在右下角。
+- `use-sidebar-update-version.ts` 只在桌面运行时且桥接可用时读取宿主持久化的可用版本，Web 环境不得渲染更新入口；`sidebar-update-indicator.tsx` 通过 `app.start_update` 直接启动原生下载、校验与安装链路，不得退回普通 Release 外链；`sidebar-utility-actions.tsx` 将存在的更新提示作为底部操作参与展开/折叠布局，展开时固定在右下角。

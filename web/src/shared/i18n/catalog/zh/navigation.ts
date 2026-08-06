@@ -4,6 +4,8 @@ export const zhNavigationMessages = {
   "sidebar.settings": "设置",
   "sidebar.contacts": "联系人",
   "sidebar.logout": "退出登录",
+  "sidebar.update_available": "下载并更新 Nexus {version}",
+  "sidebar.update_starting": "正在启动更新",
   "sidebar.collapse_panel": "收起侧栏",
   "sidebar.expand_panel": "展开侧栏",
   "sidebar.tab_chat": "聊天",

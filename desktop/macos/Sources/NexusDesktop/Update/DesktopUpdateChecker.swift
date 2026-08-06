@@ -32,6 +32,8 @@ final class DesktopUpdateChecker {
   private var hasPerformedStartupCheck = false
   private var checkTask: Task<Void, Never>?
   private var automaticCheckTask: Task<Void, Never>?
+  private var availableRelease: DesktopReleaseInfo?
+  private var updateTask: Task<Void, Never>?
 
   init(
     startupTimeline: DesktopStartupTimeline,
@@ -67,6 +69,10 @@ final class DesktopUpdateChecker {
     }
 
     runCheck(reason: .manual, showsUpToDateAlert: true)
+  }
+
+  func startAvailableUpdate() -> String {
+    startUpdateOperation(preferredRelease: nil)
   }
 
   func clearStaleUpdateCacheIfNeeded() async {
@@ -126,6 +132,7 @@ final class DesktopUpdateChecker {
       defaults.removeObject(forKey: DefaultsKey.lastErrorMessage)
 
       let hasUpdate = latest.isNewer(than: currentVersion)
+      availableRelease = hasUpdate ? latest : nil
       defaults.set(hasUpdate ? "update_available" : "up_to_date", forKey: DefaultsKey.lastResult)
       startupTimeline.mark("update_check.result", metadata: [
         "reason": reason.rawValue,
@@ -278,9 +285,7 @@ final class DesktopUpdateChecker {
     if canInstall {
       switch response {
       case .alertFirstButtonReturn:
-        Task {
-          await self.downloadAndInstallUpdate(latest)
-        }
+        _ = startUpdateOperation(preferredRelease: latest)
       case .alertSecondButtonReturn:
         openReleasePage(latest, reason: "prompt")
       default:
@@ -289,6 +294,59 @@ final class DesktopUpdateChecker {
     } else if response == .alertFirstButtonReturn {
       openReleasePage(latest, reason: "prompt")
     }
+  }
+
+  private func startUpdateOperation(preferredRelease: DesktopReleaseInfo?) -> String {
+    guard !isDisabled else {
+      return "disabled"
+    }
+    guard updateTask == nil else {
+      return "in_progress"
+    }
+
+    startupTimeline.mark("update_check.update_requested", metadata: [
+      "source": preferredRelease == nil ? "sidebar" : "prompt",
+    ])
+    updateTask = Task { [weak self] in
+      guard let self else {
+        return
+      }
+      await self.performUpdateOperation(preferredRelease: preferredRelease)
+      self.updateTask = nil
+    }
+    return "started"
+  }
+
+  private func performUpdateOperation(preferredRelease: DesktopReleaseInfo?) async {
+    do {
+      let latest = try await resolveAvailableRelease(preferredRelease)
+      guard latest.isNewer(than: currentVersion) else {
+        availableRelease = nil
+        try? DesktopPersistentStateStore.remove("desktop.update.available")
+        showUpToDateAlert(latest)
+        return
+      }
+      availableRelease = latest
+      try? DesktopPersistentStateStore.set(latest.version, forKey: "desktop.update.available")
+      await downloadAndInstallUpdate(latest)
+    } catch {
+      startupTimeline.mark("update_check.update_request_failed", metadata: [
+        "error": error.localizedDescription,
+      ])
+      showCheckFailedAlert(error)
+    }
+  }
+
+  private func resolveAvailableRelease(
+    _ preferredRelease: DesktopReleaseInfo?
+  ) async throws -> DesktopReleaseInfo {
+    if let preferredRelease {
+      return preferredRelease
+    }
+    if let availableRelease {
+      return availableRelease
+    }
+    return try await fetchLatestRelease()
   }
 
   private func showUpToDateAlert(_ latest: DesktopReleaseInfo) {
@@ -313,12 +371,14 @@ final class DesktopUpdateChecker {
   }
 
   private func downloadAndInstallUpdate(_ latest: DesktopReleaseInfo) async {
-    guard latest.canAutoInstallPackage else {
+    let canInstallInPlace = currentInstallTargetURL() != nil
+    guard latest.canAutoInstallPackage && canInstallInPlace else {
       startupTimeline.mark("update_check.download_unavailable", metadata: [
         "latest_version": latest.version,
         "has_package": (latest.packageDownloadURL != nil) ? "true" : "false",
         "has_sha256": (latest.packageSHA256URL != nil) ? "true" : "false",
-        "reason": latest.automaticInstallUnavailableReason ?? "unknown",
+        "reason": latest.automaticInstallUnavailableReason
+          ?? (canInstallInPlace ? "unknown" : "unsupported_install_location"),
       ])
       showManualDownloadOnlyAlert(latest)
       return

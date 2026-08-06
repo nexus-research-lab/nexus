@@ -168,13 +168,54 @@ test("创建 Agent 弹窗切换栏目时保持稳定尺寸", async () => {
   assert.doesNotMatch(dialog, /max-h-\[min\(82dvh,760px\)\]/);
 });
 
-test("桌面更新入口进入侧边栏底部操作区", async () => {
-  const [panel, footer, indicator, resource] = await Promise.all([
-    "src/features/navigation/sidebar/view/sidebar-panel.tsx",
-    "src/features/navigation/sidebar/view/sidebar-utility-actions.tsx",
-    "src/features/navigation/sidebar/view/sidebar-update-indicator.tsx",
-    "src/features/navigation/sidebar/view/use-sidebar-update-version.ts",
-  ].map(readSource));
+test("桌面更新入口在侧边栏底部直接启动原生更新", async () => {
+  const [
+    panel,
+    footer,
+    indicator,
+    resource,
+    bridge,
+    macOSBridge,
+    macOSUpdater,
+    windowsBridge,
+    windowsUpdater,
+  ] = await Promise.all([
+    ...[
+      "src/features/navigation/sidebar/view/sidebar-panel.tsx",
+      "src/features/navigation/sidebar/view/sidebar-utility-actions.tsx",
+      "src/features/navigation/sidebar/view/sidebar-update-indicator.tsx",
+      "src/features/navigation/sidebar/view/use-sidebar-update-version.ts",
+      "src/lib/desktop-bridge/desktop-bridge.ts",
+    ].map(readSource),
+    readFile(
+      path.join(
+        webRoot,
+        "../desktop/macos/Sources/NexusDesktop/Bridge/DesktopBridgeHandler.swift",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(
+        webRoot,
+        "../desktop/macos/Sources/NexusDesktop/Update/DesktopUpdateChecker.swift",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(
+        webRoot,
+        "../desktop/windows/Nexus.Desktop/Bridge/DesktopBridgeHandler.cs",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(
+        webRoot,
+        "../desktop/windows/Nexus.Desktop/Update/DesktopUpdateChecker.cs",
+      ),
+      "utf8",
+    ),
+  ]);
 
   assert.doesNotMatch(panel, /SidebarUpdateIndicator/);
   assert.match(footer, /useSidebarUpdateVersion/);
@@ -182,9 +223,21 @@ test("桌面更新入口进入侧边栏底部操作区", async () => {
   assert.match(footer, /expandedRight: props\.showLogout/);
   assert.match(indicator, /sidebar-update-indicator relative/);
   assert.match(indicator, /className=\{cn\(/);
+  assert.match(indicator, /<button/);
+  assert.match(indicator, /startDesktopUpdate\(\)/);
+  assert.doesNotMatch(indicator, /href=|releases\/latest|target=/);
   assert.doesNotMatch(indicator, /bg-emerald|hover:bg-emerald/);
   assert.match(resource, /desktop\.update\.available/);
+  assert.match(resource, /isDesktopRuntime\(\)/);
+  assert.match(resource, /isDesktopBridgeAvailable\(\)/);
   assert.match(resource, /getDesktopPersistentState/);
+  assert.match(bridge, /"app\.start_update"/);
+  assert.match(macOSBridge, /case "app\.start_update"/);
+  assert.match(macOSUpdater, /startAvailableUpdate\(\)/);
+  assert.match(macOSUpdater, /await downloadAndInstallUpdate\(latest\)/);
+  assert.match(windowsBridge, /"app\.start_update"/);
+  assert.match(windowsUpdater, /StartAvailableUpdate\(System\.Windows\.Window owner\)/);
+  assert.match(windowsUpdater, /await DownloadAndOfferInstallAsync\(owner, latest\)/);
 });
 
 test("管理目录在桌面统一使用三列", async () => {

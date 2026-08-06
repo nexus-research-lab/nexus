@@ -7,6 +7,8 @@ export const enNavigationMessages = {
   "sidebar.settings": "Settings",
   "sidebar.contacts": "Contacts",
   "sidebar.logout": "Sign out",
+  "sidebar.update_available": "Download and update Nexus {version}",
+  "sidebar.update_starting": "Starting update",
   "sidebar.collapse_panel": "Collapse sidebar",
   "sidebar.expand_panel": "Expand sidebar",
   "sidebar.tab_chat": "Chats",

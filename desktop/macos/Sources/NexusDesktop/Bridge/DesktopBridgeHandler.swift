@@ -11,6 +11,7 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
   private let globalShortcutEnabledUpdater: (Bool) -> [String: Any]
   private let globalShortcutAcceleratorUpdater: (String) -> [String: Any]
   private let globalShortcutAcceleratorResetter: () -> [String: Any]
+  private let updateStarter: () -> String
 
   init(
     runtime: SidecarRuntimeConfig,
@@ -19,7 +20,8 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
     globalShortcutStatusProvider: @escaping () -> [String: Any],
     globalShortcutEnabledUpdater: @escaping (Bool) -> [String: Any],
     globalShortcutAcceleratorUpdater: @escaping (String) -> [String: Any],
-    globalShortcutAcceleratorResetter: @escaping () -> [String: Any]
+    globalShortcutAcceleratorResetter: @escaping () -> [String: Any],
+    updateStarter: @escaping () -> String
   ) {
     self.runtime = runtime
     self.startupTimeline = startupTimeline
@@ -28,6 +30,7 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
     self.globalShortcutEnabledUpdater = globalShortcutEnabledUpdater
     self.globalShortcutAcceleratorUpdater = globalShortcutAcceleratorUpdater
     self.globalShortcutAcceleratorResetter = globalShortcutAcceleratorResetter
+    self.updateStarter = updateStarter
   }
 
   func attach(webView: WKWebView) {
@@ -98,6 +101,8 @@ final class DesktopBridgeHandler: NSObject, WKScriptMessageHandler {
         self.openRoute(route)
       }
       return ["opened": true]
+    case "app.start_update":
+      return ["status": updateStarter()]
     case "app.get_persistent_state":
       let key = request.stringPayload("key")
       let value = try DesktopPersistentStateStore.get(key)

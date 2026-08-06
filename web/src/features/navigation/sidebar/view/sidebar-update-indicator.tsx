@@ -1,5 +1,8 @@
-import { Download } from "lucide-react";
+import { useState } from "react";
+import { Download, LoaderCircle } from "lucide-react";
 
+import { startDesktopUpdate } from "@/lib/desktop-bridge";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
 export function SidebarUpdateIndicator({
@@ -9,18 +12,43 @@ export function SidebarUpdateIndicator({
   className?: string;
   version: string;
 }) {
-  const label = `Nexus ${version} 可更新`;
+  const { t } = useI18n();
+  const [starting, setStarting] = useState(false);
+  const label = starting
+    ? t("sidebar.update_starting")
+    : t("sidebar.update_available", { version });
+
+  const startUpdate = async () => {
+    if (starting) return;
+    setStarting(true);
+    try {
+      const result = await startDesktopUpdate();
+      if (result.status === "disabled" || result.status === "unavailable") {
+        throw new Error(`Desktop update is ${result.status}`);
+      }
+    } catch (error) {
+      console.error("[DesktopUpdate] Failed to start native update:", error);
+    } finally {
+      setStarting(false);
+    }
+  };
+
   return (
-    <a
+    <button
       aria-label={label}
+      aria-busy={starting}
       className={cn("sidebar-update-indicator relative", className)}
-      href="https://github.com/nexus-research-lab/nexus/releases/latest"
-      rel="noreferrer"
-      target="_blank"
+      disabled={starting}
+      onClick={() => void startUpdate()}
       title={label}
+      type="button"
     >
-      <Download className="h-[18px] w-[18px]" />
+      {starting ? (
+        <LoaderCircle className="h-[18px] w-[18px] animate-spin" />
+      ) : (
+        <Download className="h-[18px] w-[18px]" />
+      )}
       <span className="absolute right-0 top-0 h-2 w-2 rounded-full border-2 border-(--surface-shell-directory-background) bg-(--primary)" />
-    </a>
+    </button>
   );
 }

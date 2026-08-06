@@ -65,6 +65,8 @@ internal sealed class DesktopUpdateChecker
     private readonly SemaphoreSlim checkLock = new(1, 1);
     private bool hasPerformedStartupCheck;
     private CancellationTokenSource? automaticCheckCancellation;
+    private DesktopReleaseInfo? availableRelease;
+    private int updateInProgress;
 
     public DesktopUpdateChecker(DesktopStartupTimeline startupTimeline, HttpClient? httpClient = null)
     {
@@ -112,6 +114,33 @@ internal sealed class DesktopUpdateChecker
         }
 
         return await CheckWithLockAsync(owner, "manual", showsUpToDateAlert: true);
+    }
+
+    public string StartAvailableUpdate(System.Windows.Window owner)
+    {
+        return StartAvailableUpdate(owner, preferredRelease: null, source: "sidebar");
+    }
+
+    private string StartAvailableUpdate(
+        System.Windows.Window owner,
+        DesktopReleaseInfo? preferredRelease,
+        string source)
+    {
+        if (isDisabled)
+        {
+            return "disabled";
+        }
+        if (Interlocked.CompareExchange(ref updateInProgress, 1, 0) != 0)
+        {
+            return "in_progress";
+        }
+
+        startupTimeline.Mark("update_check.update_requested", new Dictionary<string, string>
+        {
+            ["source"] = source,
+        });
+        _ = RunAvailableUpdateAsync(owner, preferredRelease);
+        return "started";
     }
 
     public Task ClearStaleUpdateCacheIfNeededAsync() =>
@@ -184,6 +213,7 @@ internal sealed class DesktopUpdateChecker
         {
             DesktopReleaseInfo latest = await FetchLatestReleaseAsync();
             bool hasUpdate = latest.IsNewerThan(currentVersion);
+            availableRelease = hasUpdate ? latest : null;
             UpdateCheckState previousState = LoadState();
             SaveState(new UpdateCheckState
             {
@@ -302,6 +332,62 @@ internal sealed class DesktopUpdateChecker
             "github_release");
     }
 
+    private async Task RunAvailableUpdateAsync(
+        System.Windows.Window owner,
+        DesktopReleaseInfo? preferredRelease)
+    {
+        try
+        {
+            DesktopReleaseInfo latest = await ResolveAvailableReleaseAsync(preferredRelease);
+            if (!latest.IsNewerThan(currentVersion))
+            {
+                availableRelease = null;
+                DesktopPersistentStateStore.Remove("desktop.update.available");
+                await ShowUpToDateAsync(owner, latest);
+                return;
+            }
+
+            availableRelease = latest;
+            DesktopPersistentStateStore.Set("desktop.update.available", latest.Version);
+            await DownloadAndOfferInstallAsync(owner, latest);
+        }
+        catch (Exception exception)
+        {
+            startupTimeline.Mark("update_check.update_request_failed", new Dictionary<string, string>
+            {
+                ["error"] = exception.Message,
+            });
+            await ShowCheckFailedAsync(owner, exception);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref updateInProgress, 0);
+        }
+    }
+
+    private async Task<DesktopReleaseInfo> ResolveAvailableReleaseAsync(
+        DesktopReleaseInfo? preferredRelease)
+    {
+        if (preferredRelease is not null)
+        {
+            return preferredRelease;
+        }
+        if (availableRelease is not null)
+        {
+            return availableRelease;
+        }
+
+        await checkLock.WaitAsync();
+        try
+        {
+            return availableRelease ?? await FetchLatestReleaseAsync();
+        }
+        finally
+        {
+            checkLock.Release();
+        }
+    }
+
     private async Task<T> FetchJsonAsync<T>(Uri url)
     {
         using HttpRequestMessage request = CreateGitHubRequest(HttpMethod.Get, url);
@@ -329,7 +415,11 @@ internal sealed class DesktopUpdateChecker
         UpdatePromptAction action = await owner.Dispatcher.InvokeAsync(() => PromptForUpdate(owner, latest));
         var handlers = new Dictionary<UpdatePromptAction, Func<Task>>
         {
-            [UpdatePromptAction.DownloadAndInstall] = () => DownloadAndOfferInstallAsync(owner, latest),
+            [UpdatePromptAction.DownloadAndInstall] = () =>
+            {
+                _ = StartAvailableUpdate(owner, latest, "prompt");
+                return Task.CompletedTask;
+            },
             [UpdatePromptAction.OpenReleasePage] = () =>
             {
                 OpenReleasePage(latest, "prompt");

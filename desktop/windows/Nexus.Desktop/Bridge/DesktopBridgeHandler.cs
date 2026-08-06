@@ -18,17 +18,20 @@ internal sealed class DesktopBridgeHandler
     private readonly SidecarRuntimeConfig runtime;
     private readonly DesktopStartupTimeline startupTimeline;
     private readonly Func<string, Task> openRoute;
+    private readonly Func<string> updateStarter;
 
     public DesktopBridgeHandler(
         CoreWebView2 webView,
         SidecarRuntimeConfig runtime,
         DesktopStartupTimeline startupTimeline,
-        Func<string, Task> openRoute)
+        Func<string, Task> openRoute,
+        Func<string> updateStarter)
     {
         this.webView = webView;
         this.runtime = runtime;
         this.startupTimeline = startupTimeline;
         this.openRoute = openRoute;
+        this.updateStarter = updateStarter;
     }
 
     public async Task HandleAsync(JsonElement payload)
@@ -57,6 +60,7 @@ internal sealed class DesktopBridgeHandler
                 "app.open_external_url" => OpenExternalUrl(payload),
                 "app.export_logs" => ExportLogs(),
                 "app.open_route" => await OpenRouteAsync(payload),
+                "app.start_update" => new { status = updateStarter() },
                 "app.get_persistent_state" => GetPersistentState(payload),
                 "app.set_persistent_state" => SetPersistentState(payload),
                 "app.remove_persistent_state" => RemovePersistentState(payload),

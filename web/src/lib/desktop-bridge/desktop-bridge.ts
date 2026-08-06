@@ -6,6 +6,7 @@ type DesktopBridgeKind =
   | "app.open_external_url"
   | "app.export_logs"
   | "app.open_route"
+  | "app.start_update"
   | "app.get_persistent_state"
   | "app.set_persistent_state"
   | "app.remove_persistent_state"
@@ -52,6 +53,10 @@ export interface DesktopStateRootSelectionResult {
 export interface DesktopPersistentStateResult {
   key: string;
   value?: string | null;
+}
+
+export interface DesktopUpdateStartResult {
+  status: "disabled" | "in_progress" | "started" | "unavailable";
 }
 
 interface NativeDesktopBridge {
@@ -110,6 +115,13 @@ export async function exportDesktopLogs(): Promise<DesktopExportLogsResult> {
 
 export async function openDesktopRoute(route: string): Promise<void> {
   await invokeDesktopBridge<{ route: string }, { opened: boolean }>("app.open_route", { route });
+}
+
+export async function startDesktopUpdate(): Promise<DesktopUpdateStartResult> {
+  return invokeDesktopBridge<Record<string, never>, DesktopUpdateStartResult>(
+    "app.start_update",
+    {},
+  );
 }
 
 export async function getDesktopPersistentState(key: string): Promise<DesktopPersistentStateResult> {

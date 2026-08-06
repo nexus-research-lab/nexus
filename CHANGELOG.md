@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Made the desktop-only sidebar update action start the native macOS and Windows download, verification, and installation flow instead of opening the GitHub release page.
+
 ## [0.1.34] - 2026-08-05
 
 ### Added

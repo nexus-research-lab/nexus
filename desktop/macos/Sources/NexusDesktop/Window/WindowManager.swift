@@ -13,6 +13,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private let globalShortcutEnabledUpdater: (Bool) -> [String: Any]
   private let globalShortcutAcceleratorUpdater: (String) -> [String: Any]
   private let globalShortcutAcceleratorResetter: () -> [String: Any]
+  private let updateStarter: () -> String
   private let onMainWindowRevealed: () -> Void
   private var mainWindow: NSWindow?
   private var mainWebViewHost: WebViewHost?
@@ -26,6 +27,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     globalShortcutEnabledUpdater: @escaping (Bool) -> [String: Any],
     globalShortcutAcceleratorUpdater: @escaping (String) -> [String: Any],
     globalShortcutAcceleratorResetter: @escaping () -> [String: Any],
+    updateStarter: @escaping () -> String,
     onMainWindowRevealed: @escaping () -> Void
   ) {
     self.runtime = runtime
@@ -34,6 +36,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     self.globalShortcutEnabledUpdater = globalShortcutEnabledUpdater
     self.globalShortcutAcceleratorUpdater = globalShortcutAcceleratorUpdater
     self.globalShortcutAcceleratorResetter = globalShortcutAcceleratorResetter
+    self.updateStarter = updateStarter
     self.onMainWindowRevealed = onMainWindowRevealed
     super.init()
   }
@@ -180,7 +183,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
         globalShortcutStatusProvider: globalShortcutStatusProvider,
         globalShortcutEnabledUpdater: globalShortcutEnabledUpdater,
         globalShortcutAcceleratorUpdater: globalShortcutAcceleratorUpdater,
-        globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter
+        globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter,
+        updateStarter: updateStarter
       )
       window.minSize = windowSizing.minimumSize
       window.isReleasedWhenClosed = false
