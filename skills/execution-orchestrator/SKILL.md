@@ -15,9 +15,10 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
 
 1. 先读取当前任务事实和 `<nexus_execution_context>`。存在 context 时，以其中的 lane、binding、snapshot revision、依赖和 `allowed_actions` 为准。
 2. substantial execution 前，每个 Agent 都先评估任务是否原子、哪些子问题可拆分，以及上下文隔离、专业视角、局部并行或独立验证是否有净收益；有收益时可在自己的责任内使用一个或多个 Subagent，并由父 Agent 整合、验证和交付。
-3. 只加入价值高于协调成本的结构；这些能力可以组合，也可以一个都不用。
-4. 根据当前决策只读取下面最相关的参考文件，并完整读完该文件再行动。
-5. 执行任务并持续消费真实结果。状态工具记录事实，图负责展示状态，最终回复优先交付内容而不是复述流程。
+3. 区分“拓扑上可并行”和“实际上并行”：独立责任要并发时分配给不同 Room Agent；同一 Agent 对整体交付负责时，用一个 Work Item 承载责任并在内部启动多个 Subagent。把多个并列 Work Item 分给同一 Agent 只会排队，不能宣称并行。
+4. 只加入价值高于协调成本的结构；这些能力可以组合，也可以一个都不用。
+5. 根据当前决策只读取下面最相关的参考文件，并完整读完该文件再行动。
+6. 执行任务并持续消费真实结果。状态工具记录事实，图负责展示状态，最终回复优先交付内容而不是复述流程。
 
 ## 最小选择表
 
@@ -45,5 +46,6 @@ description: 当 substantial task 需要在直接执行、Task/Todo、Subagent�
 - 普通聊天、brainstorm、投票和一次性帮助可以只走消息，不必建图。
 - 一旦 Lead 自己选择把不同交付交给持久 Room 成员，并声明依赖、并行、汇总或验收，责任边界已经成立；必须先建图并发布，再按刷新后的上下文 Assignment，不能用裸 `@` 代替。
 - Lead/创建者也是执行者，可以研究、整合、自审、接管和最终交付。
+- 无依赖只表示多个 Work Item 可以同时 Ready，不证明它们正在并行。实际并行必须来自不同 Room Agent slot，或同一父 Agent 启动的不同 Subagent；没有合适执行者时明确按串行推进。
 - 不为展示效果制造 Tool、Subagent、Gate 或审核节点；Bridge 和后端会投影真实运行。
 - 节点启动后继续推进到真实交付、具体外部阻塞或终态，不因一次 handoff 要求用户发送“继续”。

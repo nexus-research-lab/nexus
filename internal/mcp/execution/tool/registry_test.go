@@ -94,7 +94,15 @@ func TestExecutionToolSchemasHideFencingAndIdempotency(t *testing.T) {
 
 func TestRoomAssignmentDescriptionKeepsOnlyAtomicOwnershipContract(t *testing.T) {
 	definition := assignWork(nil, contract.ServerContext{})
-	for _, required := range []string{"Create and dispatch", "exactly one responsible Agent", "tracked Room handoff", "records ownership"} {
+	for _, required := range []string{
+		"Create and dispatch",
+		"exactly one responsible Agent",
+		"tracked Room handoff",
+		"records ownership",
+		"same Agent creates a serial queue",
+		"different Room members for independent managed parallel work",
+		"native subagents for local parallelism",
+	} {
 		if !strings.Contains(definition.Description, required) {
 			t.Fatalf("description missing %q: %s", required, definition.Description)
 		}

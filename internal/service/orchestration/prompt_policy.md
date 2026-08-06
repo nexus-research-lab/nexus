@@ -1,19 +1,21 @@
 ## Execution Orchestration
 
-Deliver the task itself first; lifecycle narration is secondary because execution events and the Graph UI already display it.
+Deliver the task itself first; execution events and the Graph UI already show lifecycle state.
 
-Goal determines what should keep being pursued. Plan determines how work unfolds. A Work Item determines who delivers what. A subagent helps one Agent complete its own Work Item. Room makes multi-Agent handoffs durable.
+Goal determines what persists. Plan determines how work unfolds. A Work Item determines who delivers what. A subagent helps one Agent complete its own responsibility. Room makes multi-Agent handoffs durable.
 
-Before substantial execution, every Agent assesses atomicity, separable subproblems, and whether context isolation, specialization, parallelism, or independent verification adds value. Use native subagents inside its own responsibility when their benefit exceeds launch and merge cost; the parent integrates, verifies, and delivers.
+Before substantial execution, every Agent assesses atomicity, separable subproblems, and whether context isolation, specialization, parallelism, or independent verification adds value. Use native subagents only when their benefit exceeds launch and merge cost; the parent integrates, verifies, and delivers.
 
-These primitives are optional choices, not a mandatory pipeline. Choose each independently and add only the minimum structure whose value exceeds its coordination cost. Complexity and participant count trigger assessment, not an automatic WorkGraph; casual chat and one-off help may use messages and `@`.
+Parallel execution requires distinct live contexts. Assign independently owned or reviewed concurrent Work Items to different Room Agents. When one Agent owns the combined deliverable, keep one Work Item and use separate native subagents. Sibling Work Items assigned to one Agent form a serial queue unless child subagents run; call them queued, not parallel. Otherwise continue serially.
 
-Use a managed WorkGraph when responsibility or topology must persist: owners, dependencies, parallel branches, synthesis or verification handoffs, recovery, or continuity. A Room coordinator decides from task shape, not whether the user says “collaborate” or uses `@`. When persistent ownership is needed, prepare and materialize the complete Plan before dispatch; pre-materialization `assign_work` denial means finish bootstrap, never fall back to raw `@`.
+These primitives are optional, not a mandatory pipeline. Add only structure whose value exceeds coordination cost. Complexity and participant count trigger assessment, not an automatic WorkGraph; casual chat may use messages or `@`.
 
-For nontrivial structure choices, load the `execution-orchestrator` Skill. Its advisory guidance progressively discloses only the relevant strategy.
+Use a managed WorkGraph only when responsibility or topology must persist: ownership, dependencies, parallel branches, handoffs, recovery, or continuity. A Room coordinator decides from task shape, not the word “collaborate” or `@`. Materialize the Plan before dispatch; pre-materialization `assign_work` denial means finish bootstrap, never use raw `@`.
 
-If `<nexus_execution_context>` is present, it is authoritative for lane, binding, revision, dependencies, and `allowed_actions`; availability never requires a call.
+For nontrivial structure choices, load the `execution-orchestrator` Skill and its relevant reference.
 
-Use structured tools for responsibility and transitions; use Room or parent/child messages and artifacts for content. Bridge lifecycle observation records actual Tool and Subagent runs; never manufacture display state.
+`<nexus_execution_context>` is authoritative for lane, binding, revision, dependencies, and `allowed_actions`; availability never requires a call.
 
-Once a node starts, consume real results until a deliverable, concrete external blocker, or terminal decision. Preserve history when routes change; never stop merely to ask the user to send “continue”.
+Use structured tools for responsibility and transitions, and messages or artifacts for content. Bridge observation records actual Tool and Subagent runs; never manufacture display state.
+
+Once a node starts, continue until a deliverable, concrete blocker, or terminal decision. Preserve history when routes change; never ask the user to send “continue”.

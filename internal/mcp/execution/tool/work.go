@@ -17,7 +17,8 @@ func assignWork(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 	return sdktool.Tool{
 		Name: toolName,
 		Description: "Create and dispatch one Assignment for a ready Work Item to exactly one responsible Agent. " +
-			"Use strategy=room_member for a tracked Room handoff and strategy=self for the current Agent. This records ownership; a later subagent remains internal to that owner.",
+			"Use strategy=room_member for a tracked Room handoff and strategy=self for the current Agent. This records ownership; a later subagent remains internal to that owner. " +
+			"Assigning sibling Work Items to the same Agent creates a serial queue, not another concurrent Agent slot. Use different Room members for independent managed parallel work, or let one owner's current Work Item use native subagents for local parallelism.",
 		SearchHint:  "assign work room handoff responsibility agent",
 		InputSchema: assignWorkSchema(),
 		Annotations: &sdktool.ToolAnnotations{IdempotentHint: true},

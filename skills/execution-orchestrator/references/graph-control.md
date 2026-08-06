@@ -15,9 +15,13 @@ Task 属于 Agent 节点内部的局部步骤；Subagent 和 Tool 属于实际�
 
 ## 并行与依赖
 
+- 区分三件事：无依赖表示“可同时 Ready”，不同执行上下文已经启动才表示“实际并行”，Attempt 时间重叠才是已经发生的并行事实。
 - 输入稳定、输出责任不冲突且没有真实前置依赖时才并行。
 - 如果 B 必须消费 A 的交付结果，就声明依赖并等待相应验收；不要为了提高并发率伪造独立分支。
 - 多个 Agent 可以并行承担不同 Work Item；一个 Agent 节点内部也可以并行启动多个 Subagent。
+- 希望多个独立 Work Item 真正并行时，把它们交给不同 Room Agent。若由同一 Agent 对整体交付负责，优先保留一个父 Work Item，并把局部分支交给不同 Subagent。
+- 多个并列 Work Item 分配给同一个 Agent 时，它们进入该 Agent 的串行队列；除非真实 child Subagent 已启动，否则状态与回复都不得称其为并行。
+- 没有合适的不同 Agent 或 Subagent 时允许串行执行；不要复制身份、伪造 Subagent 或用并列布局暗示不存在的并发。
 - 输出范围重叠时先明确唯一 owner 或共享规则，避免重复生产。
 
 ## 动态扩展与 replan
