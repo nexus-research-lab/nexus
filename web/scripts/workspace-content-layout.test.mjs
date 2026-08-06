@@ -197,6 +197,16 @@ test("创建 Agent 弹窗切换栏目时保持稳定尺寸", async () => {
   assert.doesNotMatch(dialog, /max-h-\[min\(82dvh,760px\)\]/);
 });
 
+test("新建定时任务弹窗切换计划时保持稳定尺寸", async () => {
+  const dialog = await readSource(
+    "src/features/capability/scheduled/dialog/scheduled-task-dialog.tsx",
+  );
+
+  assert.match(dialog, /h-\[min\(82dvh,760px\)\]/);
+  assert.match(dialog, /max-sm:h-\[calc\(100dvh-16px\)\]/);
+  assert.doesNotMatch(dialog, /max-h-\[90vh\]/);
+});
+
 test("桌面更新入口在侧边栏底部直接启动原生更新", async () => {
   const [
     panel,
