@@ -468,6 +468,45 @@ func TestReadSubagentTaskThreadUsesIndependentAgentTranscript(t *testing.T) {
 	}
 }
 
+func TestSubagentToolRunsFromMessagesKeepsOnlyLifecycleIdentity(t *testing.T) {
+	t.Parallel()
+
+	task := SubagentTask{
+		TaskID:    "agent-child-1",
+		AgentID:   "agent-child-1",
+		ToolUseID: "spawn-tool-1",
+	}
+	runs := subagentToolRunsFromMessages(task, []protocol.Message{
+		{
+			"timestamp": int64(1000),
+			"content": []any{
+				map[string]any{
+					"type": "tool_use", "id": "read-1", "name": "Read",
+					"input": map[string]any{"secret": "must not leave transcript"},
+				},
+				map[string]any{
+					"type": "tool_result", "tool_use_id": "read-1",
+					"content": "private output", "is_error": false,
+				},
+			},
+		},
+		{
+			"timestamp": int64(2000),
+			"content": []any{
+				map[string]any{"type": "tool_use", "id": "bash-1", "name": "Bash"},
+				map[string]any{"type": "tool_result", "tool_use_id": "bash-1", "is_error": true},
+			},
+		},
+	})
+	if len(runs) != 2 ||
+		runs[0].ParentToolUseID != "spawn-tool-1" ||
+		runs[0].ToolUseID != "read-1" || runs[0].Name != "Read" ||
+		runs[0].Status != "succeeded" || runs[0].StartedAt != 1000 || runs[0].FinishedAt != 1000 ||
+		runs[1].ToolUseID != "bash-1" || runs[1].Status != "failed" {
+		t.Fatalf("subagent Tool runs = %+v", runs)
+	}
+}
+
 func TestReadSubagentTaskThreadUsesCCOutputSymlinkAsTranscript(t *testing.T) {
 	root := t.TempDir()
 	transcriptPath := filepath.Join(root, "child.jsonl")

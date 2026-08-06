@@ -20,6 +20,20 @@ type runtimeGraphRepositoryFake struct {
 	graph          protocol.ExecutionRuntimeGraph
 }
 
+type runtimeGraphSubagentHistoryProviderFunc func(
+	context.Context,
+	string,
+	string,
+) ([]RuntimeGraphSubagentToolHistory, error)
+
+func (provider runtimeGraphSubagentHistoryProviderFunc) ListRuntimeGraphSubagentToolHistory(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKey string,
+) ([]RuntimeGraphSubagentToolHistory, error) {
+	return provider(ctx, ownerUserID, sessionKey)
+}
+
 func (f *runtimeGraphRepositoryFake) UpsertRuntimeGraphNode(
 	_ context.Context,
 	item protocol.ExecutionRuntimeNodeRun,
@@ -282,6 +296,91 @@ func TestRuntimeGraphRecordsOnlyExactlyCorrelatedRetry(t *testing.T) {
 	}
 }
 
+func TestRuntimeGraphDoesNotPersistUnstartedProgressFacetAsTool(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 9, 0, 0, 0, time.UTC)
+	repository := &runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}}
+	service := NewService(repository)
+	service.now = func() time.Time { return now }
+	actor := ActorContext{
+		OwnerUserID: "owner-1", SessionKey: "session-1", AgentID: "agent-1",
+		RootRoundID: "round-1", RuntimeRoundID: "round-1", AgentRoundID: "agent-round-1",
+	}
+	message := sdkprotocol.ReceivedMessage{
+		UUID: "progress-only-1",
+		RuntimeLifecycle: []sdkprotocol.RuntimeLifecycleEvent{{
+			EventID:   "runtime:tool:progress:agent_msg_1:running",
+			NodeKind:  sdkprotocol.RuntimeLifecycleNodeTool,
+			Phase:     sdkprotocol.RuntimeLifecycleProgress,
+			SubjectID: "agent_msg_1", ParentSubjectID: "spawn-tool-1",
+			Name: "Agent", Status: "running",
+		}},
+	}
+	if err := service.ObserveRuntimeMessage(context.Background(), actor, message); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.nodes) != 1 || repository.nodes[0].Kind != protocol.ExecutionRuntimeNodeAgent ||
+		len(repository.edges) != 0 {
+		t.Fatalf("progress facet invented a Tool node: nodes=%+v edges=%+v", repository.nodes, repository.edges)
+	}
+}
+
+func TestRuntimeGraphRecoversSubagentToolLifecycleFromAttachment(t *testing.T) {
+	t.Parallel()
+
+	message, err := sdkprotocol.DecodeMessage(map[string]any{
+		"type": "attachment",
+		"uuid": "subagent-result-1",
+		"attachment": map[string]any{
+			"type": "structured_output",
+			"data": map[string]any{
+				"toolUseId": "spawn-tool-1",
+				"messages": []any{
+					map[string]any{
+						"type": "assistant", "uuid": "child-assistant-1",
+						"message": map[string]any{
+							"role": "assistant",
+							"content": []any{map[string]any{
+								"type": "tool_use", "id": "child-tool-1", "name": "Read",
+								"input": map[string]any{"file_path": "/private/input"},
+							}},
+						},
+					},
+					map[string]any{
+						"type": "user", "uuid": "child-result-1",
+						"message": map[string]any{
+							"role": "user",
+							"content": []any{map[string]any{
+								"type": "tool_result", "tool_use_id": "child-tool-1",
+								"content": "private output",
+							}},
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := runtimeGraphLifecycleEvents(message)
+	if len(events) != 2 ||
+		events[0].NodeKind != sdkprotocol.RuntimeLifecycleNodeTool ||
+		events[0].Phase != sdkprotocol.RuntimeLifecycleStarted ||
+		events[0].SubjectID != "child-tool-1" ||
+		events[0].ParentSubjectID != "spawn-tool-1" ||
+		events[0].Name != "Read" ||
+		events[1].Phase != sdkprotocol.RuntimeLifecycleFinished ||
+		events[1].ParentSubjectID != "spawn-tool-1" ||
+		events[1].Status != "succeeded" {
+		t.Fatalf("subagent Tool lifecycle = %+v", events)
+	}
+	if events[0].Metadata != nil {
+		t.Fatalf("subagent Tool input leaked into metadata: %+v", events[0].Metadata)
+	}
+}
+
 func TestRuntimeGraphNestsChildToolsUnderExactSubagentIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -330,6 +429,400 @@ func TestRuntimeGraphNestsChildToolsUnderExactSubagentIdentity(t *testing.T) {
 		repository.edges[0].SourceNodeID != subagentNodeID ||
 		repository.edges[0].Kind != protocol.ExecutionRuntimeEdgeInvoke {
 		t.Fatalf("child tool edge = %+v", repository.edges)
+	}
+}
+
+func TestRuntimeGraphViewBindsLaunchToolsAndChildrenToSiblingSubagents(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 8, 10, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{
+		WorkItems: []protocol.ExecutionWorkItemView{{
+			ID:       "work-a",
+			Position: 0,
+			Status:   protocol.ExecutionWorkItemViewRunning,
+			Attempts: []protocol.ExecutionAttemptView{
+				{
+					ID:           "attempt-root",
+					ExecutorKind: protocol.AttemptExecutorAgent,
+					AgentRoundID: "agent-round-1",
+					Status:       protocol.WorkAttemptStatusRunning,
+					CreatedAt:    now,
+				},
+				{
+					ID:              "attempt-child-first",
+					ParentAttemptID: "attempt-root",
+					ExecutorKind:    protocol.AttemptExecutorSubagent,
+					ToolUseID:       "spawn-first",
+					Status:          protocol.WorkAttemptStatusRunning,
+					CreatedAt:       now.Add(time.Second),
+				},
+				{
+					ID:              "attempt-child-second",
+					ParentAttemptID: "attempt-root",
+					ExecutorKind:    protocol.AttemptExecutorSubagent,
+					ToolUseID:       "spawn-second",
+					Status:          protocol.WorkAttemptStatusRunning,
+					CreatedAt:       now.Add(2 * time.Second),
+				},
+			},
+		}},
+	}
+	view.Graph = projectExecutionGraphView(view.WorkItems)
+
+	rootRunID := "runtime-agent-root"
+	firstLaunchRunID := "runtime-launch-first"
+	secondLaunchRunID := "runtime-launch-second"
+	firstToolRunID := "runtime-tool-first"
+	secondToolRunID := "runtime-tool-second"
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{
+		Nodes: []protocol.ExecutionRuntimeNodeRun{
+			{
+				ID: rootRunID, Kind: protocol.ExecutionRuntimeNodeAgent,
+				SubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+				AgentID: "parent-agent", Status: protocol.ExecutionRuntimeNodeRunning,
+				StartedAt: now, UpdatedAt: now,
+			},
+			{
+				ID: firstLaunchRunID, Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "spawn-first", AgentRoundID: "agent-round-1",
+				AgentID: "parent-agent", Name: "Agent",
+				Status:    protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+			},
+			{
+				ID: firstToolRunID, Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "read-first", ParentSubjectID: "spawn-first",
+				AgentRoundID: "agent-round-1", AgentID: "parent-agent", Name: "Read",
+				Status:    protocol.ExecutionRuntimeNodeRunning,
+				StartedAt: now.Add(2 * time.Second), UpdatedAt: now.Add(2 * time.Second),
+			},
+			{
+				ID: secondLaunchRunID, Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "spawn-second", AgentRoundID: "agent-round-1",
+				AgentID: "parent-agent", Name: "Agent",
+				Status:    protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now.Add(3 * time.Second), UpdatedAt: now.Add(3 * time.Second),
+			},
+			{
+				ID: secondToolRunID, Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "read-second", ParentSubjectID: "spawn-second",
+				AgentRoundID: "agent-round-1", AgentID: "parent-agent", Name: "Read",
+				Status:    protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now.Add(4 * time.Second), UpdatedAt: now.Add(4 * time.Second),
+			},
+		},
+		Edges: []protocol.ExecutionRuntimeEdgeRun{
+			{
+				ID: "edge-root-first", SourceNodeID: rootRunID,
+				TargetNodeID: firstLaunchRunID, Kind: protocol.ExecutionRuntimeEdgeInvoke,
+				CreatedAt: now.Add(time.Second),
+			},
+			{
+				ID: "edge-stale-root-first-tool", SourceNodeID: rootRunID,
+				TargetNodeID: firstToolRunID, Kind: protocol.ExecutionRuntimeEdgeInvoke,
+				CreatedAt: now.Add(2 * time.Second),
+			},
+			{
+				ID: "edge-root-second", SourceNodeID: rootRunID,
+				TargetNodeID: secondLaunchRunID, Kind: protocol.ExecutionRuntimeEdgeInvoke,
+				CreatedAt: now.Add(3 * time.Second),
+			},
+			{
+				ID: "edge-second-tool", SourceNodeID: secondLaunchRunID,
+				TargetNodeID: secondToolRunID, Kind: protocol.ExecutionRuntimeEdgeInvoke,
+				CreatedAt: now.Add(4 * time.Second),
+			},
+		},
+	})
+
+	if len(view.Graph.Nodes) != 5 || len(view.Graph.Edges) != 4 {
+		t.Fatalf("runtime launch Tools were not merged into sibling Subagents: %+v", view.Graph)
+	}
+	if graphNodeByID(view.Graph.Nodes, firstLaunchRunID).ID != "" ||
+		graphNodeByID(view.Graph.Nodes, secondLaunchRunID).ID != "" {
+		t.Fatalf("launch Tool leaked as a duplicate Subagent node: %+v", view.Graph.Nodes)
+	}
+	firstSubagent := graphNodeByID(view.Graph.Nodes, "attempt-child-first")
+	secondSubagent := graphNodeByID(view.Graph.Nodes, "attempt-child-second")
+	firstTool := graphNodeByID(view.Graph.Nodes, firstToolRunID)
+	secondTool := graphNodeByID(view.Graph.Nodes, secondToolRunID)
+	if firstSubagent.ParentNodeID != "work-a" || secondSubagent.ParentNodeID != "work-a" ||
+		firstSubagent.AgentID != "" || secondSubagent.AgentID != "" ||
+		firstTool.ParentNodeID != firstSubagent.ID ||
+		secondTool.ParentNodeID != secondSubagent.ID ||
+		firstTool.Visibility != protocol.ExecutionGraphNodeNested ||
+		secondTool.Visibility != protocol.ExecutionGraphNodeNested {
+		t.Fatalf(
+			"runtime child ownership is incorrect: first=%+v first_tool=%+v second=%+v second_tool=%+v",
+			firstSubagent,
+			firstTool,
+			secondSubagent,
+			secondTool,
+		)
+	}
+	if !hasExecutionGraphEdge(
+		view.Graph.Edges,
+		protocol.ExecutionGraphEdgeInvoke,
+		firstSubagent.ID,
+		firstTool.ID,
+	) || !hasExecutionGraphEdge(
+		view.Graph.Edges,
+		protocol.ExecutionGraphEdgeInvoke,
+		secondSubagent.ID,
+		secondTool.ID,
+	) || hasExecutionGraphEdge(
+		view.Graph.Edges,
+		protocol.ExecutionGraphEdgeInvoke,
+		"work-a",
+		firstTool.ID,
+	) {
+		t.Fatalf("runtime Tool edges escaped their exact Subagent: %+v", view.Graph.Edges)
+	}
+}
+
+func TestRuntimeGraphRecoversHistoricalSubagentToolsWithoutPersistingContent(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 11, 0, 0, 0, time.UTC)
+	service := NewService(&runtimeGraphRepositoryFake{fakeRepository: &fakeRepository{}})
+	service.SetRuntimeGraphSubagentToolHistoryProvider(runtimeGraphSubagentHistoryProviderFunc(
+		func(_ context.Context, ownerUserID string, sessionKey string) ([]RuntimeGraphSubagentToolHistory, error) {
+			if ownerUserID != "owner-1" || sessionKey != "session-1" {
+				t.Fatalf("history scope = %q/%q", ownerUserID, sessionKey)
+			}
+			return []RuntimeGraphSubagentToolHistory{{
+				ParentToolUseID: "spawn-tool-1",
+				TaskID:          "task-1",
+				AgentID:         "child-1",
+				ToolUseID:       "read-1",
+				Name:            "Read",
+				Status:          "succeeded",
+				StartedAt:       now.Add(time.Second).UnixMilli(),
+				FinishedAt:      now.Add(2 * time.Second).UnixMilli(),
+			}}, nil
+		},
+	))
+	graph := service.mergeRuntimeGraphSubagentToolHistory(
+		context.Background(),
+		"owner-1",
+		"session-1",
+		protocol.ExecutionRuntimeGraph{
+			GraphID:   "graph-1",
+			NodeTotal: 1,
+			Nodes: []protocol.ExecutionRuntimeNodeRun{{
+				ID:             "launch-tool-1",
+				GraphID:        "graph-1",
+				OwnerUserID:    "owner-1",
+				SessionKey:     "session-1",
+				ExecutionID:    "execution-1",
+				Kind:           protocol.ExecutionRuntimeNodeTool,
+				SubjectID:      "spawn-tool-1",
+				RootRoundID:    "round-1",
+				RuntimeRoundID: "round-1",
+				AgentRoundID:   "agent-round-1",
+				AgentID:        "parent-1",
+				Name:           "Agent",
+				Status:         protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt:      now,
+				UpdatedAt:      now,
+			}},
+		},
+	)
+	if len(graph.Nodes) != 2 || len(graph.Edges) != 1 || graph.NodeTotal != 2 || graph.EdgeTotal != 1 {
+		t.Fatalf("history graph = %+v", graph)
+	}
+	tool := graph.Nodes[1]
+	if tool.Kind != protocol.ExecutionRuntimeNodeTool || tool.SubjectID != "read-1" ||
+		tool.ParentSubjectID != "spawn-tool-1" || tool.Name != "Read" ||
+		tool.Status != protocol.ExecutionRuntimeNodeSucceeded || tool.ResultSummary != "" ||
+		graph.Edges[0].SourceNodeID != "launch-tool-1" || graph.Edges[0].TargetNodeID != tool.ID {
+		t.Fatalf("recovered Tool lifecycle = %+v edge=%+v", tool, graph.Edges[0])
+	}
+}
+
+func TestRuntimeGraphReviewEdgesUseSuccessfulSubmissionAsControlAnchor(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 11, 30, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{Graph: protocol.ExecutionGraphView{
+		Nodes: []protocol.ExecutionGraphNodeView{
+			{ID: "work-1", Kind: protocol.ExecutionGraphNodeAgent},
+			{
+				ID: "submit-1", Kind: protocol.ExecutionGraphNodeTool,
+				ParentNodeID: "work-1", Name: "mcp__nexus_execution__submit_work",
+				LifecycleStatus: "succeeded", StartedAt: &now,
+			},
+			{ID: "gate-1", Kind: protocol.ExecutionGraphNodeGate},
+		},
+		Edges: []protocol.ExecutionGraphEdgeView{
+			{ID: "review-1", Kind: protocol.ExecutionGraphEdgeReview, SourceNodeID: "work-1", TargetNodeID: "gate-1"},
+			{ID: "return-1", Kind: protocol.ExecutionGraphEdgeLoopBack, SourceNodeID: "gate-1", TargetNodeID: "work-1"},
+		},
+	}}
+	reanchorExecutionReviewEdgesToSubmission(view, map[string]int{
+		"work-1": 0, "submit-1": 1, "gate-1": 2,
+	})
+	if view.Graph.Edges[0].SourceNodeID != "submit-1" ||
+		view.Graph.Edges[1].TargetNodeID != "submit-1" {
+		t.Fatalf("review control anchor = %+v", view.Graph.Edges)
+	}
+}
+
+func TestRuntimeGraphViewFiltersHistoricalProgressFacet(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 9, 10, 0, 0, time.UTC)
+	view := &protocol.ExecutionView{}
+	mergeExecutionRuntimeGraph(view, protocol.ExecutionRuntimeGraph{
+		NodeTotal: 2,
+		EdgeTotal: 1,
+		Nodes: []protocol.ExecutionRuntimeNodeRun{
+			{
+				ID: "runtime-agent", Kind: protocol.ExecutionRuntimeNodeAgent,
+				SubjectID: "agent-round-1", AgentRoundID: "agent-round-1",
+				Status:    protocol.ExecutionRuntimeNodeSucceeded,
+				StartedAt: now, UpdatedAt: now,
+			},
+			{
+				ID: "runtime-progress", Kind: protocol.ExecutionRuntimeNodeTool,
+				SubjectID: "agent_msg_1", ParentSubjectID: "spawn-tool-1",
+				AgentRoundID: "agent-round-1", Name: "Agent",
+				Status:    protocol.ExecutionRuntimeNodeInterrupted,
+				StartedAt: now.Add(time.Second), UpdatedAt: now.Add(2 * time.Second),
+				Metadata: map[string]any{
+					"bridge_event_id": "runtime:tool:progress:agent_msg_1:running",
+				},
+			},
+		},
+		Edges: []protocol.ExecutionRuntimeEdgeRun{{
+			ID: "progress-edge", SourceNodeID: "runtime-agent",
+			TargetNodeID: "runtime-progress", Kind: protocol.ExecutionRuntimeEdgeInvoke,
+			CreatedAt: now.Add(time.Second),
+		}},
+	})
+
+	if len(view.Graph.Nodes) != 1 || view.Graph.Nodes[0].ID != "runtime-agent" ||
+		len(view.Graph.Edges) != 0 || view.Graph.RuntimeNodeTotal != 2 {
+		t.Fatalf("historical progress facet leaked into graph: %+v", view.Graph)
+	}
+}
+
+func TestRuntimeGraphToolActionVisibilityUsesUserObservableSemantics(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		toolName string
+		kind     protocol.ExecutionRuntimeNodeKind
+		visible  bool
+	}{
+		{name: "web search", toolName: "WebSearch", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "wrapped web fetch", toolName: "browser.web-fetch", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "shell execution", toolName: "Bash", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "workspace mutation", toolName: "Edit", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "external mutation", toolName: "mcp__slack__send_message", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "browser action", toolName: "mcp__browser__navigate", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "local read", toolName: "Read", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
+		{name: "local search", toolName: "Grep", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
+		{name: "external query", toolName: "mcp__github__list_issues", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "workspace mcp read", toolName: "mcp__filesystem__read_file", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
+		{name: "unknown local query", toolName: "list_issues", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
+		{name: "tool discovery", toolName: "ToolSearch", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
+		{name: "submission control anchor", toolName: "mcp__nexus_execution__submit_work", kind: protocol.ExecutionRuntimeNodeTool, visible: true},
+		{name: "represented goal mutation", toolName: "mcp__nexus_goal__update_goal", kind: protocol.ExecutionRuntimeNodeTool, visible: false},
+		{name: "non tool", toolName: "WebFetch", kind: protocol.ExecutionRuntimeNodeAgent, visible: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			item := protocol.ExecutionRuntimeNodeRun{Kind: test.kind, Name: test.toolName}
+			if got := runtimeGraphToolActionVisible(item); got != test.visible {
+				t.Fatalf("runtimeGraphToolActionVisible(%q) = %t, want %t", test.toolName, got, test.visible)
+			}
+		})
+	}
+}
+
+func TestRuntimeGraphProjectsObservableActionsAndKeepsSupportingReadsInDetail(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 10, 0, 0, 0, time.UTC)
+	nodes := []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "runtime-web-fetch", Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: "tool-web-fetch", Name: "WebFetch",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+		},
+		{
+			ID: "runtime-read", Kind: protocol.ExecutionRuntimeNodeTool,
+			SubjectID: "tool-read", Name: "Read",
+			Status: protocol.ExecutionRuntimeNodeSucceeded, StartedAt: now, UpdatedAt: now,
+		},
+	}
+	promoted := runtimeGraphPromotedNodeIDs(protocol.ExecutionRuntimeGraph{Nodes: nodes})
+	for index, item := range nodes {
+		_, isPromoted := promoted[item.ID]
+		projected := projectRuntimeGraphNode(item, index, isPromoted)
+		want := protocol.ExecutionGraphNodeDetail
+		if item.Name == "WebFetch" {
+			want = protocol.ExecutionGraphNodeNested
+		}
+		if projected.Visibility != want {
+			t.Fatalf("%s visibility = %s, want %s", item.Name, projected.Visibility, want)
+		}
+	}
+}
+
+func TestRuntimeGraphSubagentRepresentativeSlotsKeepRecoveryVisibleAndBounded(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 10, 30, 0, 0, time.UTC)
+	graph := protocol.ExecutionRuntimeGraph{Nodes: []protocol.ExecutionRuntimeNodeRun{
+		{
+			ID: "runtime-subagent", Kind: protocol.ExecutionRuntimeNodeSubagent,
+			SubjectID: "spawn-tool", Status: protocol.ExecutionRuntimeNodeRunning,
+			StartedAt: now, UpdatedAt: now,
+		},
+		{
+			ID: "read-failed", Kind: protocol.ExecutionRuntimeNodeTool,
+			ParentSubjectID: "spawn-tool", Name: "Read",
+			Status:    protocol.ExecutionRuntimeNodeFailed,
+			StartedAt: now.Add(time.Second), UpdatedAt: now.Add(time.Second),
+		},
+		{
+			ID: "read-early", Kind: protocol.ExecutionRuntimeNodeTool,
+			ParentSubjectID: "spawn-tool", Name: "Read",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now.Add(2 * time.Second), UpdatedAt: now.Add(2 * time.Second),
+		},
+		{
+			ID: "read-recovered", Kind: protocol.ExecutionRuntimeNodeTool,
+			ParentSubjectID: "spawn-tool", Name: "Read",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now.Add(3 * time.Second), UpdatedAt: now.Add(3 * time.Second),
+		},
+		{
+			ID: "grep-latest", Kind: protocol.ExecutionRuntimeNodeTool,
+			ParentSubjectID: "spawn-tool", Name: "Grep",
+			Status:    protocol.ExecutionRuntimeNodeSucceeded,
+			StartedAt: now.Add(4 * time.Second), UpdatedAt: now.Add(4 * time.Second),
+		},
+	}}
+	promoted := runtimeGraphPromotedNodeIDs(graph)
+
+	wantVisibility := map[string]protocol.ExecutionGraphNodeVisibility{
+		"read-failed":    protocol.ExecutionGraphNodeNested,
+		"read-early":     protocol.ExecutionGraphNodeDetail,
+		"read-recovered": protocol.ExecutionGraphNodeNested,
+		"grep-latest":    protocol.ExecutionGraphNodeNested,
+	}
+	for index, node := range graph.Nodes[1:] {
+		_, isPromoted := promoted[node.ID]
+		projected := projectRuntimeGraphNode(node, index+1, isPromoted)
+		if projected.Visibility != wantVisibility[node.ID] {
+			t.Fatalf("%s visibility = %s, want %s", node.ID, projected.Visibility, wantVisibility[node.ID])
+		}
 	}
 }
 
@@ -713,7 +1206,8 @@ func TestRuntimeGraphArtifactsPersistBeforeToolRunByExactIdentity(t *testing.T) 
 		StartedAt: now, UpdatedAt: now,
 		Artifacts: []protocol.WorkspaceFileArtifactBlock{ref.Artifact},
 	}, 0, true)
-	if len(projected.Runs) != 1 || len(projected.Runs[0].Artifacts) != 1 {
+	if projected.Visibility != protocol.ExecutionGraphNodeNested ||
+		len(projected.Runs) != 1 || len(projected.Runs[0].Artifacts) != 1 {
 		t.Fatalf("projected runtime artifacts = %+v", projected.Runs)
 	}
 }
@@ -834,6 +1328,7 @@ func TestAuditExecutionAlignmentRecordsOptionalGateWithoutRoutingExecution(t *te
 	}
 	projectedGate := graphNodeByID(view.Graph.Nodes, gate.ID)
 	if projectedGate.Kind != protocol.ExecutionGraphNodeGate ||
+		projectedGate.Visibility != protocol.ExecutionGraphNodeNested ||
 		projectedGate.LifecycleStatus != "not_aligned" ||
 		!hasExecutionGraphEdge(
 			view.Graph.Edges,

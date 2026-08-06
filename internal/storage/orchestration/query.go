@@ -1,5 +1,5 @@
 // INPUT: Execution identity 与 active Plan SQL rows。
-// OUTPUT: 有界 ExecutionSnapshot 及各 aggregate 查询。
+// OUTPUT: 根/子 Attempt 独立压缩的有界 ExecutionSnapshot 及各 aggregate 查询。
 // POS: runtime/context 与 mutation 前置检查共用的一致读取投影。
 package orchestration
 
@@ -553,6 +553,11 @@ WHERE attempt.plan_id = `+r.bind(1)+`
       OR NOT EXISTS (
           SELECT 1 FROM execution_attempts newer
           WHERE newer.assignment_id = attempt.assignment_id
+            AND (
+                (attempt.parent_attempt_id IS NULL AND newer.parent_attempt_id IS NULL)
+                OR
+                (attempt.parent_attempt_id IS NOT NULL AND newer.parent_attempt_id IS NOT NULL)
+            )
             AND (
                 newer.created_at > attempt.created_at
                 OR (newer.created_at = attempt.created_at AND newer.attempt_id > attempt.attempt_id)

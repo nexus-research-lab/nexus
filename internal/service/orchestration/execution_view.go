@@ -82,6 +82,12 @@ func (s *Service) GetLatestView(
 		if graphErr != nil {
 			return nil, graphErr
 		}
+		runtimeGraph = s.mergeRuntimeGraphSubagentToolHistory(
+			ctx,
+			ownerUserID,
+			sessionKey,
+			runtimeGraph,
+		)
 		mergeExecutionRuntimeGraph(result, runtimeGraph)
 	}
 	return result, nil
@@ -181,8 +187,8 @@ func projectExecutionCoordinatorNode(view *protocol.ExecutionView) {
 }
 
 // projectExecutionGraphView 只从已经脱敏的 UI Work Item/Attempt 投影运行图。
-// Work Item parent 是 containment，不参与 dependency；历史 child run 保留为
-// detail，当前 parent 下最近一次 child run 才进入默认 nested 展开层。
+// Work Item parent 是 containment，不参与 dependency；每个已调用 child Attempt
+// 都保留为独立 nested Subagent，不能把同一 parent 下的 siblings 折叠成最后一个。
 func projectExecutionGraphView(
 	items []protocol.ExecutionWorkItemView,
 ) protocol.ExecutionGraphView {
@@ -192,7 +198,6 @@ func projectExecutionGraphView(
 	}
 	rootNodeByAttemptID := make(map[string]string)
 	childNodeByAttemptID := make(map[string]string)
-	latestChildByParentAttemptID := make(map[string]string)
 	gateNodeByWorkItemID := make(map[string]string)
 	for _, item := range items {
 		for _, attempt := range item.Attempts {
@@ -201,7 +206,6 @@ func projectExecutionGraphView(
 				continue
 			}
 			childNodeByAttemptID[attempt.ID] = attempt.ID
-			latestChildByParentAttemptID[attempt.ParentAttemptID] = attempt.ID
 		}
 	}
 
@@ -251,7 +255,7 @@ func projectExecutionGraphView(
 			}
 		}
 
-		for _, attempt := range item.Attempts {
+		for attemptPosition, attempt := range item.Attempts {
 			if attempt.ParentAttemptID == "" {
 				continue
 			}
@@ -262,14 +266,10 @@ func projectExecutionGraphView(
 			if parentNodeID == "" {
 				parentNodeID = item.ID
 			}
-			visibility := protocol.ExecutionGraphNodeDetail
-			if latestChildByParentAttemptID[attempt.ParentAttemptID] == attempt.ID {
-				visibility = protocol.ExecutionGraphNodeNested
-			}
 			result.Nodes = append(result.Nodes, protocol.ExecutionGraphNodeView{
 				ID:           attempt.ID,
 				Kind:         protocol.ExecutionGraphNodeSubagent,
-				Visibility:   visibility,
+				Visibility:   protocol.ExecutionGraphNodeNested,
 				WorkItemID:   item.ID,
 				AttemptID:    attempt.ID,
 				ParentNodeID: parentNodeID,
@@ -279,7 +279,7 @@ func projectExecutionGraphView(
 				Name:         "subagent",
 				RunStatus:    attempt.Status,
 				Runs:         []protocol.ExecutionGraphNodeRunView{executionAttemptRunView(attempt)},
-				Position:     item.Position,
+				Position:     attemptPosition,
 			})
 		}
 	}

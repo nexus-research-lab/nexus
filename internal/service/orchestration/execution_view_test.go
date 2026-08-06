@@ -176,6 +176,67 @@ func TestProjectExecutionViewPreservesResponsibilityAndAcceptanceFlow(t *testing
 	}
 }
 
+func TestProjectExecutionGraphViewKeepsSiblingSubagentsVisibleInLaunchOrder(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 6, 8, 0, 0, 0, time.UTC)
+	graph := projectExecutionGraphView([]protocol.ExecutionWorkItemView{{
+		ID:       "work-a",
+		Position: 0,
+		Status:   protocol.ExecutionWorkItemViewRunning,
+		Attempts: []protocol.ExecutionAttemptView{
+			{
+				ID:           "attempt-root",
+				ExecutorKind: protocol.AttemptExecutorAgent,
+				AgentRoundID: "agent-round-1",
+				Status:       protocol.WorkAttemptStatusRunning,
+				CreatedAt:    now,
+			},
+			{
+				ID:              "attempt-child-first",
+				ParentAttemptID: "attempt-root",
+				ExecutorKind:    protocol.AttemptExecutorSubagent,
+				ToolUseID:       "spawn-first",
+				Status:          protocol.WorkAttemptStatusRunning,
+				CreatedAt:       now.Add(time.Second),
+			},
+			{
+				ID:              "attempt-child-second",
+				ParentAttemptID: "attempt-root",
+				ExecutorKind:    protocol.AttemptExecutorSubagent,
+				ToolUseID:       "spawn-second",
+				Status:          protocol.WorkAttemptStatusRunning,
+				CreatedAt:       now.Add(2 * time.Second),
+			},
+		},
+	}})
+
+	if len(graph.Nodes) != 3 || len(graph.Edges) != 2 {
+		t.Fatalf("sibling Subagents were collapsed: %+v", graph)
+	}
+	first := graphNodeByID(graph.Nodes, "attempt-child-first")
+	second := graphNodeByID(graph.Nodes, "attempt-child-second")
+	if first.Visibility != protocol.ExecutionGraphNodeNested ||
+		second.Visibility != protocol.ExecutionGraphNodeNested ||
+		first.ParentNodeID != "work-a" || second.ParentNodeID != "work-a" ||
+		first.Position >= second.Position {
+		t.Fatalf("sibling Subagent projection lost visibility or launch order: first=%+v second=%+v", first, second)
+	}
+	if !hasExecutionGraphEdge(
+		graph.Edges,
+		protocol.ExecutionGraphEdgeSpawn,
+		"work-a",
+		first.ID,
+	) || !hasExecutionGraphEdge(
+		graph.Edges,
+		protocol.ExecutionGraphEdgeSpawn,
+		"work-a",
+		second.ID,
+	) {
+		t.Fatalf("sibling Subagent spawn edges are incomplete: %+v", graph.Edges)
+	}
+}
+
 func TestProjectExecutionGraphViewShowsChangesRequestedAsBoundedLoop(t *testing.T) {
 	t.Parallel()
 

@@ -1,7 +1,7 @@
 /**
  * INPUT: 权威 Execution Graph、Agent 目录、当前 Graph 节点与精确 Agent round Task run。
- * OUTPUT: 在工作板网格上显示精简图标与可解释方向边，并用悬浮检查器展示目标、结果、错误、子级运行与 exact control-return 事实。
- * POS: DM/Room 共用的 Execution Graph 主视图；子图只按结构化父身份分组，不从自由文本反推关系。
+ * OUTPUT: 在焦点稳定、全边界可达且不叠加伪主图底框的只读工作板上显示精简图标、可读的中性正交流程边与降饱和控制回连；空白点击关闭悬浮检查器，检查器展示目标、结果、错误、子级运行与 exact control-return 事实。
+ * POS: DM/Room 共用的 Execution Graph 主视图；一级运行树外框与内部方向边只按结构化父身份投影，不从自由文本反推关系。
  */
 "use client";
 
@@ -9,11 +9,16 @@ import {
   Fragment,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type TouchEvent as ReactTouchEvent,
 } from "react";
 import { ChevronsDownUp, ChevronsUpDown, X } from "lucide-react";
 
@@ -50,8 +55,11 @@ import {
   EXECUTION_GRAPH_ZOOM_STEP,
   nextExecutionGraphSearchResult,
   projectExecutionGraphCollapse,
+  resolveExecutionGraphAnchoredScroll,
   resolveExecutionGraphFitZoom,
   resolveExecutionGraphNodeAncestors,
+  resolveExecutionGraphPanPadding,
+  resolveExecutionGraphWheelZoom,
   searchExecutionGraphNodes,
 } from "./execution-workgraph-interaction-model";
 
@@ -95,6 +103,62 @@ const EDGE_KIND_DETAIL_KEY: Record<ExecutionGraphEdgeKind, TranslationKey> = {
 const NODE_INSPECTOR_WIDTH = 304;
 const NODE_INSPECTOR_GAP = 12;
 const NODE_INSPECTOR_EDGE_PADDING = 8;
+const EXECUTION_GRAPH_PAN_THRESHOLD = 4;
+const EXECUTION_GRAPH_INTERACTIVE_TARGET_SELECTOR = [
+  "button",
+  "a",
+  "input",
+  "textarea",
+  "select",
+  "label",
+  "[data-execution-edge-line-hit]",
+  "[data-execution-selected-node-detail]",
+  "[data-execution-selected-edge-detail]",
+  "[data-execution-workgraph-controls]",
+].join(",");
+
+interface ExecutionGraphPanGesture {
+  mode: "blank" | "middle" | "right" | "space";
+  moved: boolean;
+  pointerId: number;
+  scrollLeft: number;
+  scrollTop: number;
+  startX: number;
+  startY: number;
+}
+
+interface ExecutionGraphPinchGesture {
+  contentX: number;
+  contentY: number;
+  initialDistance: number;
+  initialZoom: number;
+}
+
+interface ExecutionGraphPendingZoom {
+  contentX: number;
+  contentY: number;
+  viewportX: number;
+  viewportY: number;
+  zoom: number;
+}
+
+interface ExecutionGraphViewportSize {
+  height: number;
+  width: number;
+}
+
+function isExecutionGraphInteractiveTarget(target: EventTarget | null): boolean {
+  return target instanceof Element
+    && target.closest(EXECUTION_GRAPH_INTERACTIVE_TARGET_SELECTOR) !== null;
+}
+
+function isExecutionGraphTypingTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement
+    && (
+      target.isContentEditable
+      || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)
+    );
+}
 
 export function ExecutionWorkGraphCanvas({
   currentId,
@@ -117,8 +181,17 @@ export function ExecutionWorkGraphCanvas({
   const loopMarkerId = `${markerId}-loop`;
   const retryMarkerId = `${markerId}-retry`;
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const nodeRefs = useRef(new Map<string, HTMLButtonElement>());
-  const [availableWidth, setAvailableWidth] = useState<number | null>(null);
+  const panGestureRef = useRef<ExecutionGraphPanGesture | null>(null);
+  const panPaddingRef = useRef<{ x: number; y: number } | null>(null);
+  const pinchGestureRef = useRef<ExecutionGraphPinchGesture | null>(null);
+  const pendingZoomRef = useRef<ExecutionGraphPendingZoom | null>(null);
+  const spacePanRef = useRef(false);
+  const suppressCanvasClickRef = useRef(false);
+  const zoomRef = useRef(1);
+  const [viewportSize, setViewportSize] = useState<ExecutionGraphViewportSize>({
+    height: 0,
+    width: 0,
+  });
   const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -126,10 +199,14 @@ export function ExecutionWorkGraphCanvas({
   const [query, setQuery] = useState("");
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [panning, setPanning] = useState(false);
+  const [spacePanReady, setSpacePanReady] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const toggleEdge = (edgeId: string) => {
+  const panPaddingX = resolveExecutionGraphPanPadding(viewportSize.width);
+  const panPaddingY = resolveExecutionGraphPanPadding(viewportSize.height);
+  const selectEdge = (edgeId: string) => {
     setSelectedId(null);
-    setSelectedEdgeId((current) => current === edgeId ? null : edgeId);
+    setSelectedEdgeId(edgeId);
   };
   const collapse = useMemo(
     () => projectExecutionGraphCollapse(execution, collapsedNodeIds),
@@ -138,10 +215,10 @@ export function ExecutionWorkGraphCanvas({
   const layout = useMemo(
     () => buildExecutionGraphLayout(
       execution,
-      availableWidth ?? undefined,
+      viewportSize.width || undefined,
       collapse.hiddenNodeIds,
     ),
-    [availableWidth, collapse.hiddenNodeIds, execution],
+    [collapse.hiddenNodeIds, execution, viewportSize.width],
   );
   const searchResultIds = useMemo(
     () => searchExecutionGraphNodes(execution, query),
@@ -171,6 +248,7 @@ export function ExecutionWorkGraphCanvas({
         selectedLayoutNode.x,
         selectedLayoutNode.y,
         selectedLayoutNode.size,
+        zoom,
       )
     : undefined;
   const selectedEdgeInspectorStyle = selectedLayoutEdge
@@ -179,6 +257,7 @@ export function ExecutionWorkGraphCanvas({
         selectedLayoutEdge.x,
         selectedLayoutEdge.y,
         0,
+        zoom,
       )
     : undefined;
 
@@ -196,6 +275,28 @@ export function ExecutionWorkGraphCanvas({
       setSelectedEdgeId(null);
     }
   }, [layout.edges, selectedEdgeId]);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    const releaseSpace = () => {
+      spacePanRef.current = false;
+      setSpacePanReady(false);
+    };
+    const handleWindowKeyUp = (event: KeyboardEvent) => {
+      if (event.code === "Space") {
+        releaseSpace();
+      }
+    };
+    window.addEventListener("blur", releaseSpace);
+    window.addEventListener("keyup", handleWindowKeyUp);
+    return () => {
+      window.removeEventListener("blur", releaseSpace);
+      window.removeEventListener("keyup", handleWindowKeyUp);
+    };
+  }, []);
 
   useEffect(() => {
     if (!query || searchResultIds.length === 0 || currentSearchResultIndex >= 0) {
@@ -216,38 +317,76 @@ export function ExecutionWorkGraphCanvas({
     if (!pendingFocusId || !layout.nodes.some((item) => item.node.id === pendingFocusId)) {
       return;
     }
+    const viewport = viewportRef.current;
+    const target = layout.nodes.find((item) => item.node.id === pendingFocusId);
+    if (!viewport || !target) {
+      return;
+    }
     const frame = window.requestAnimationFrame(() => {
-      nodeRefs.current.get(pendingFocusId)?.scrollIntoView({
+      viewport.scrollTo({
         behavior: "smooth",
-        block: "center",
-        inline: "center",
+        left: panPaddingX + target.x * zoomRef.current - viewport.clientWidth / 2,
+        top: panPaddingY + target.y * zoomRef.current - viewport.clientHeight / 2,
       });
       setPendingFocusId(null);
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [layout.nodes, pendingFocusId]);
+  }, [layout.nodes, panPaddingX, panPaddingY, pendingFocusId]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) {
       return;
     }
-    const updateWidth = () => {
+    const updateSize = () => {
       const style = window.getComputedStyle(viewport);
       const horizontalPadding = (Number.parseFloat(style.paddingLeft) || 0)
         + (Number.parseFloat(style.paddingRight) || 0);
-      const width = Math.max(0, viewport.clientWidth - horizontalPadding);
-      const nextWidth = Math.floor(width);
-      setAvailableWidth((current) => current === nextWidth ? current : nextWidth);
+      const verticalPadding = (Number.parseFloat(style.paddingTop) || 0)
+        + (Number.parseFloat(style.paddingBottom) || 0);
+      const nextSize = {
+        height: Math.floor(Math.max(0, viewport.clientHeight - verticalPadding)),
+        width: Math.floor(Math.max(0, viewport.clientWidth - horizontalPadding)),
+      };
+      setViewportSize((current) => (
+        current.height === nextSize.height && current.width === nextSize.width
+          ? current
+          : nextSize
+      ));
     };
-    updateWidth();
+    updateSize();
     if (typeof ResizeObserver === "undefined") {
       return;
     }
-    const observer = new ResizeObserver(updateWidth);
+    const observer = new ResizeObserver(updateSize);
     observer.observe(viewport);
     return () => observer.disconnect();
   }, []);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const pendingZoom = pendingZoomRef.current;
+    const previousPadding = panPaddingRef.current;
+    if (pendingZoom && pendingZoom.zoom === zoom) {
+      viewport.scrollLeft = panPaddingX
+        + pendingZoom.contentX * zoom
+        - pendingZoom.viewportX;
+      viewport.scrollTop = panPaddingY
+        + pendingZoom.contentY * zoom
+        - pendingZoom.viewportY;
+      pendingZoomRef.current = null;
+    } else if (previousPadding) {
+      viewport.scrollLeft += panPaddingX - previousPadding.x;
+      viewport.scrollTop += panPaddingY - previousPadding.y;
+    } else {
+      viewport.scrollLeft = panPaddingX;
+      viewport.scrollTop = panPaddingY;
+    }
+    panPaddingRef.current = { x: panPaddingX, y: panPaddingY };
+  }, [layout.height, layout.width, panPaddingX, panPaddingY, zoom]);
 
   const revealNode = (nodeId: string | null) => {
     if (!nodeId) {
@@ -267,21 +406,343 @@ export function ExecutionWorkGraphCanvas({
   };
   const collapsibleNodeIds = [...collapse.descendantCountByNodeId.keys()];
   const collapsedCount = collapsibleNodeIds.filter((id) => collapsedNodeIds.has(id)).length;
+  const requestZoomToContent = (
+    nextZoomValue: number,
+    contentX: number,
+    contentY: number,
+    viewportX: number,
+    viewportY: number,
+  ) => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const nextZoom = clampExecutionGraphZoom(nextZoomValue);
+    if (nextZoom === zoomRef.current) {
+      if (pendingZoomRef.current?.zoom === nextZoom) {
+        pendingZoomRef.current = {
+          contentX,
+          contentY,
+          viewportX,
+          viewportY,
+          zoom: nextZoom,
+        };
+      } else {
+        viewport.scrollLeft = panPaddingX + contentX * nextZoom - viewportX;
+        viewport.scrollTop = panPaddingY + contentY * nextZoom - viewportY;
+      }
+      return;
+    }
+    pendingZoomRef.current = {
+      contentX,
+      contentY,
+      viewportX,
+      viewportY,
+      zoom: nextZoom,
+    };
+    zoomRef.current = nextZoom;
+    setZoom(nextZoom);
+  };
+  const requestZoomAtViewportPoint = (
+    nextZoomValue: number,
+    viewportX: number,
+    viewportY: number,
+  ) => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const nextZoom = clampExecutionGraphZoom(nextZoomValue);
+    if (nextZoom === zoomRef.current) {
+      return;
+    }
+    const pendingZoom = pendingZoomRef.current;
+    const virtualScrollLeft = pendingZoom?.zoom === zoomRef.current
+      ? panPaddingX
+        + pendingZoom.contentX * pendingZoom.zoom
+        - pendingZoom.viewportX
+      : viewport.scrollLeft;
+    const virtualScrollTop = pendingZoom?.zoom === zoomRef.current
+      ? panPaddingY
+        + pendingZoom.contentY * pendingZoom.zoom
+        - pendingZoom.viewportY
+      : viewport.scrollTop;
+    const anchor = resolveExecutionGraphAnchoredScroll({
+      currentZoom: zoomRef.current,
+      nextZoom,
+      panPaddingX,
+      panPaddingY,
+      scrollLeft: virtualScrollLeft,
+      scrollTop: virtualScrollTop,
+      viewportX,
+      viewportY,
+    });
+    requestZoomToContent(
+      nextZoom,
+      anchor.contentX,
+      anchor.contentY,
+      viewportX,
+      viewportY,
+    );
+  };
+  const requestZoomAtViewportCenter = (nextZoom: number) => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    requestZoomAtViewportPoint(
+      nextZoom,
+      viewport.clientWidth / 2,
+      viewport.clientHeight / 2,
+    );
+  };
   const fitGraph = () => {
     const viewport = viewportRef.current;
     if (!viewport) {
       return;
     }
-    setZoom(resolveExecutionGraphFitZoom({
+    const nextZoom = resolveExecutionGraphFitZoom({
       contentHeight: layout.height,
       contentWidth: layout.width,
       viewportHeight: viewport.clientHeight,
       viewportWidth: viewport.clientWidth,
-    }));
+    });
+    requestZoomToContent(
+      nextZoom,
+      layout.width / 2,
+      layout.height / 2,
+      viewport.clientWidth / 2,
+      viewport.clientHeight / 2,
+    );
+  };
+  const closeGraphDetails = () => {
+    setSelectedId(null);
+    setSelectedEdgeId(null);
+  };
+  const handleGraphClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (suppressCanvasClickRef.current) {
+      suppressCanvasClickRef.current = false;
+      return;
+    }
+    if (isExecutionGraphInteractiveTarget(event.target)) {
+      return;
+    }
+    closeGraphDetails();
+  };
+  const suppressPanClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!suppressCanvasClickRef.current) {
+      return;
+    }
+    suppressCanvasClickRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const handlePanStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "touch") {
+      return;
+    }
+    const interactive = isExecutionGraphInteractiveTarget(event.target);
+    const mode = event.button === 1
+      ? "middle"
+      : event.button === 2
+      ? "right"
+      : event.button === 0 && spacePanRef.current
+      ? "space"
+      : event.button === 0 && !interactive
+      ? "blank"
+      : null;
+    if (!mode) {
+      return;
+    }
+    if (mode !== "blank") {
+      event.preventDefault();
+    }
+    event.currentTarget.focus({ preventScroll: true });
+    panGestureRef.current = {
+      mode,
+      moved: false,
+      pointerId: event.pointerId,
+      scrollLeft: event.currentTarget.scrollLeft,
+      scrollTop: event.currentTarget.scrollTop,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    suppressCanvasClickRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setPanning(true);
+  };
+  const handlePanMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = panGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return;
+    }
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    if (!gesture.moved && Math.hypot(deltaX, deltaY) >= EXECUTION_GRAPH_PAN_THRESHOLD) {
+      gesture.moved = true;
+    }
+    if (!gesture.moved) {
+      return;
+    }
+    event.preventDefault();
+    event.currentTarget.scrollLeft = gesture.scrollLeft - deltaX;
+    event.currentTarget.scrollTop = gesture.scrollTop - deltaY;
+  };
+  const finishPan = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    cancelled = false,
+  ) => {
+    const gesture = panGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return;
+    }
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    panGestureRef.current = null;
+    setPanning(false);
+    if (gesture.moved) {
+      suppressCanvasClickRef.current = true;
+      window.setTimeout(() => {
+        suppressCanvasClickRef.current = false;
+      }, 0);
+    } else if (gesture.mode !== "blank") {
+      suppressCanvasClickRef.current = true;
+      window.setTimeout(() => {
+        suppressCanvasClickRef.current = false;
+      }, 0);
+    } else if (!cancelled) {
+      closeGraphDetails();
+    }
+  };
+  const handleGraphKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (isExecutionGraphTypingTarget(event.target)) {
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeGraphDetails();
+      return;
+    }
+    if (event.code === "Space") {
+      if (event.target !== event.currentTarget) {
+        return;
+      }
+      event.preventDefault();
+      spacePanRef.current = true;
+      setSpacePanReady(true);
+      return;
+    }
+    const command = event.ctrlKey || event.metaKey;
+    if ((event.key === "+" || event.key === "=") && (command || !event.altKey)) {
+      event.preventDefault();
+      requestZoomAtViewportCenter(
+        zoomRef.current + EXECUTION_GRAPH_ZOOM_STEP,
+      );
+    } else if (event.key === "-" && (command || !event.altKey)) {
+      event.preventDefault();
+      requestZoomAtViewportCenter(
+        zoomRef.current - EXECUTION_GRAPH_ZOOM_STEP,
+      );
+    } else if (event.key === "0" && command) {
+      event.preventDefault();
+      requestZoomAtViewportCenter(1);
+    } else if (event.key === "1" && event.altKey) {
+      event.preventDefault();
+      fitGraph();
+    } else if (
+      ["ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUp"].includes(event.key)
+      && !command
+      && !event.altKey
+    ) {
+      event.preventDefault();
+      const viewport = event.currentTarget;
+      const distance = event.shiftKey ? 120 : 48;
+      viewport.scrollBy({
+        left: event.key === "ArrowLeft"
+          ? -distance
+          : event.key === "ArrowRight"
+          ? distance
+          : 0,
+        top: event.key === "ArrowUp"
+          ? -distance
+          : event.key === "ArrowDown"
+          ? distance
+          : 0,
+      });
+    }
+  };
+  const releaseSpacePan = () => {
+    spacePanRef.current = false;
+    setSpacePanReady(false);
+  };
+  const handleGraphKeyUp = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.code === "Space") {
+      releaseSpacePan();
+    }
+  };
+  const handlePinchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 2) {
+      return;
+    }
+    const viewport = event.currentTarget;
+    const bounds = viewport.getBoundingClientRect();
+    const [first, second] = [event.touches[0], event.touches[1]];
+    const viewportX = (first.clientX + second.clientX) / 2 - bounds.left;
+    const viewportY = (first.clientY + second.clientY) / 2 - bounds.top;
+    const anchor = resolveExecutionGraphAnchoredScroll({
+      currentZoom: zoomRef.current,
+      nextZoom: zoomRef.current,
+      panPaddingX,
+      panPaddingY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+      viewportX,
+      viewportY,
+    });
+    pinchGestureRef.current = {
+      contentX: anchor.contentX,
+      contentY: anchor.contentY,
+      initialDistance: Math.hypot(
+        first.clientX - second.clientX,
+        first.clientY - second.clientY,
+      ),
+      initialZoom: zoomRef.current,
+    };
+    event.preventDefault();
+  };
+  const handlePinchMove = (event: ReactTouchEvent<HTMLDivElement>) => {
+    const gesture = pinchGestureRef.current;
+    if (!gesture || event.touches.length !== 2 || gesture.initialDistance <= 0) {
+      return;
+    }
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const [first, second] = [event.touches[0], event.touches[1]];
+    requestZoomToContent(
+      gesture.initialZoom * (
+        Math.hypot(
+          first.clientX - second.clientX,
+          first.clientY - second.clientY,
+        ) / gesture.initialDistance
+      ),
+      gesture.contentX,
+      gesture.contentY,
+      (first.clientX + second.clientX) / 2 - bounds.left,
+      (first.clientY + second.clientY) / 2 - bounds.top,
+    );
+    event.preventDefault();
+  };
+  const finishPinch = (event: ReactTouchEvent<HTMLDivElement>) => {
+    if (event.touches.length < 2) {
+      pinchGestureRef.current = null;
+    }
   };
 
   return (
-    <div className="relative flex min-h-0 flex-1 overflow-hidden" data-execution-node-map>
+    <div
+      className="relative flex min-h-0 flex-1 overflow-hidden"
+      data-execution-node-map
+    >
       <ExecutionWorkGraphControls
         collapsibleCount={collapsibleNodeIds.length}
         collapsedCount={collapsedCount}
@@ -293,54 +754,120 @@ export function ExecutionWorkGraphCanvas({
         onNextResult={() => navigateSearch(1)}
         onPreviousResult={() => navigateSearch(-1)}
         onQueryChange={setQuery}
-        onResetZoom={() => setZoom(1)}
-        onZoomIn={() => setZoom((value) => clampExecutionGraphZoom(
-          value + EXECUTION_GRAPH_ZOOM_STEP,
-        ))}
-        onZoomOut={() => setZoom((value) => clampExecutionGraphZoom(
-          value - EXECUTION_GRAPH_ZOOM_STEP,
-        ))}
+        onResetZoom={() => requestZoomAtViewportCenter(1)}
+        onZoomIn={() => requestZoomAtViewportCenter(
+          zoomRef.current + EXECUTION_GRAPH_ZOOM_STEP,
+        )}
+        onZoomOut={() => requestZoomAtViewportCenter(
+          zoomRef.current - EXECUTION_GRAPH_ZOOM_STEP,
+        )}
         query={query}
         resultCount={searchResultIds.length}
         zoom={zoom}
       />
+      {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- The focusable ARIA application is the native interaction surface for this read-only whiteboard; no HTML element provides equivalent pan and zoom semantics. */}
       <div
+        aria-keyshortcuts="Control+= Meta+= Control+- Meta+- Control+0 Meta+0 Alt+1 Escape ArrowUp ArrowDown ArrowLeft ArrowRight"
+        aria-label={t("execution.label")}
         ref={viewportRef}
-        className="soft-scrollbar min-h-0 min-w-0 flex-1 overflow-auto p-2"
+        className={cn(
+          "soft-scrollbar min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain p-2 outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-(--primary)",
+          panning ? "cursor-grabbing select-none" : "cursor-grab",
+        )}
         data-execution-board-grid
-        onWheel={(event) => {
-          if (!event.ctrlKey && !event.metaKey) {
+        data-execution-board-panning={panning ? "true" : "false"}
+        data-execution-board-space-pan={spacePanReady ? "true" : "false"}
+        onAuxClick={(event) => {
+          if (event.button === 1) {
+            event.preventDefault();
+          }
+        }}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            releaseSpacePan();
+          }
+        }}
+        onClick={handleGraphClick}
+        onClickCapture={suppressPanClick}
+        onContextMenu={(event) => event.preventDefault()}
+        onDoubleClick={(event) => {
+          if (isExecutionGraphInteractiveTarget(event.target)) {
             return;
           }
           event.preventDefault();
-          setZoom((value) => clampExecutionGraphZoom(
-            value + (event.deltaY < 0
-              ? EXECUTION_GRAPH_ZOOM_STEP
-              : -EXECUTION_GRAPH_ZOOM_STEP),
-          ));
+          const bounds = event.currentTarget.getBoundingClientRect();
+          requestZoomAtViewportPoint(
+            zoomRef.current + EXECUTION_GRAPH_ZOOM_STEP * 2,
+            event.clientX - bounds.left,
+            event.clientY - bounds.top,
+          );
         }}
+        onPointerCancel={(event) => finishPan(event, true)}
+        onPointerDown={handlePanStart}
+        onLostPointerCapture={() => {
+          if (panGestureRef.current) {
+            panGestureRef.current = null;
+            setPanning(false);
+          }
+        }}
+        onPointerMove={handlePanMove}
+        onPointerUp={finishPan}
+        onKeyDown={handleGraphKeyDown}
+        onKeyUp={handleGraphKeyUp}
+        onTouchCancel={finishPinch}
+        onTouchEnd={finishPinch}
+        onTouchMove={handlePinchMove}
+        onTouchStart={handlePinchStart}
+        onWheel={(event) => {
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            const bounds = event.currentTarget.getBoundingClientRect();
+            const deltaY = event.deltaY * (event.deltaMode === 1
+              ? 16
+              : event.deltaMode === 2
+              ? event.currentTarget.clientHeight
+              : 1);
+            requestZoomAtViewportPoint(
+              resolveExecutionGraphWheelZoom(zoomRef.current, deltaY),
+              event.clientX - bounds.left,
+              event.clientY - bounds.top,
+            );
+            return;
+          }
+          if (event.shiftKey && Math.abs(event.deltaY) > Math.abs(event.deltaX)) {
+            event.preventDefault();
+            event.currentTarget.scrollLeft += event.deltaY;
+          }
+        }}
+        role="application"
         style={{
           backgroundImage: "linear-gradient(to right, color-mix(in srgb, var(--divider-subtle-color) 58%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--divider-subtle-color) 58%, transparent) 1px, transparent 1px)",
           backgroundPosition: "-1px -1px",
           backgroundSize: "24px 24px",
+          touchAction: "pan-x pan-y",
         }}
+        tabIndex={0}
       >
         <div
-          className="relative mx-auto"
+          className="relative shrink-0"
+          data-execution-pan-padding-x={panPaddingX}
+          data-execution-pan-padding-y={panPaddingY}
           data-execution-workgraph-scale={zoom}
           style={{
-            height: layout.height * zoom,
-            width: layout.width * zoom,
+            height: layout.height * zoom + panPaddingY * 2,
+            width: layout.width * zoom + panPaddingX * 2,
           }}
         >
         <div
           aria-label={t("execution.label")}
-          className="relative origin-top-left overflow-visible rounded-[12px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-[color:color-mix(in_srgb,var(--surface-panel-background)_42%,transparent)]"
+          className="absolute origin-top-left overflow-visible"
           data-execution-workgraph-canvas
           data-execution-node-detail-mode="popover"
           role="group"
           style={{
             height: layout.height,
+            left: panPaddingX,
+            top: panPaddingY,
             transform: `scale(${zoom})`,
             width: layout.width,
           }}
@@ -389,7 +916,10 @@ export function ExecutionWorkGraphCanvas({
                 refY="2.5"
                 viewBox="0 0 5 5"
               >
-                <path d="M 0 0 L 5 2.5 L 0 5 z" fill="var(--warning)" />
+                <path
+                  d="M 0 0 L 5 2.5 L 0 5 z"
+                  fill="color-mix(in srgb, var(--warning) 62%, var(--icon-muted))"
+                />
               </marker>
               <marker
                 id={retryMarkerId}
@@ -405,16 +935,19 @@ export function ExecutionWorkGraphCanvas({
               </marker>
             </defs>
             {layout.edges.map((edge) => {
-              const emphasized = edge.sourceId === selectedId
+              const selected = edge.id === selectedEdgeId;
+              const connected = edge.sourceId === selectedId
                 || edge.targetId === selectedId
-                || edge.targetId === currentId
-                || edge.id === selectedEdgeId;
+                || edge.targetId === currentId;
+              const control = edge.kind === "loop_back" || edge.kind === "retry";
+              const paired = edge.paired;
               return (
                 <Fragment key={edge.id}>
                   <path
                     aria-hidden="true"
                     d={edge.path}
                     data-execution-edge-kind={edge.kind}
+                    data-execution-edge-paired={paired ? "true" : undefined}
                     data-execution-edge-selected={edge.id === selectedEdgeId
                       ? "true"
                       : undefined}
@@ -426,19 +959,27 @@ export function ExecutionWorkGraphCanvas({
                       : edge.kind === "retry"
                       ? retryMarkerId
                       : markerId})`}
-                    opacity={emphasized ? 0.96 : 0.68}
+                    opacity={selected
+                      ? 0.98
+                      : control
+                      ? paired
+                        ? connected ? 0.76 : 0.66
+                        : connected ? 0.72 : 0.58
+                      : paired
+                      ? connected ? 0.72 : 0.6
+                      : connected ? 0.66 : 0.48}
                     stroke={edge.kind === "loop_back"
-                      ? "var(--warning)"
-                      : edge.kind === "retry" || emphasized
+                      ? "color-mix(in srgb, var(--warning) 62%, var(--icon-muted))"
+                      : edge.kind === "retry" || selected
                       ? "var(--primary)"
-                      : "var(--divider-subtle-color)"}
-                    strokeDasharray={edge.kind === "spawn" || edge.kind === "invoke"
-                      ? "3 3"
-                      : edge.kind === "loop_back" || edge.kind === "retry"
-                      ? "5 3"
+                      : "var(--icon-muted)"}
+                    strokeDasharray={!paired
+                      && (edge.kind === "spawn" || edge.kind === "invoke")
+                      ? "3 5"
                       : undefined}
                     strokeLinecap="round"
-                    strokeWidth={emphasized ? 1.7 : 1.4}
+                    strokeLinejoin="round"
+                    strokeWidth={selected ? 1.7 : control ? 1.15 : 1.1}
                   />
                   <path
                     aria-hidden="true"
@@ -448,7 +989,7 @@ export function ExecutionWorkGraphCanvas({
                     fill="none"
                     onClick={(event) => {
                       event.stopPropagation();
-                      toggleEdge(edge.id);
+                      selectEdge(edge.id);
                     }}
                     stroke="transparent"
                     strokeLinecap="round"
@@ -469,7 +1010,7 @@ export function ExecutionWorkGraphCanvas({
               key={`edge-control:${edge.id}`}
               onClick={(event) => {
                 event.stopPropagation();
-                toggleEdge(edge.id);
+                selectEdge(edge.id);
               }}
               onKeyDown={(event) => {
                 if (event.key !== "Enter" && event.key !== " ") {
@@ -477,7 +1018,7 @@ export function ExecutionWorkGraphCanvas({
                 }
                 event.preventDefault();
                 event.stopPropagation();
-                toggleEdge(edge.id);
+                selectEdge(edge.id);
               }}
               style={{ left: edge.x, top: edge.y }}
               title={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
@@ -506,14 +1047,7 @@ export function ExecutionWorkGraphCanvas({
                 data-execution-work-item-id={node.work_item_id || undefined}
                 onClick={() => {
                   setSelectedEdgeId(null);
-                  setSelectedId((value) => value === node.id ? null : node.id);
-                }}
-                ref={(element) => {
-                  if (element) {
-                    nodeRefs.current.set(node.id, element);
-                  } else {
-                    nodeRefs.current.delete(node.id);
-                  }
+                  setSelectedId(node.id);
                 }}
                 style={{
                   height: size + 8,
@@ -534,6 +1068,7 @@ export function ExecutionWorkGraphCanvas({
                     : "graph"}
                   status={status}
                   title={title}
+                  toolName={node.name}
                 />
               </button>
               {descendantCount > 0 ? (
@@ -597,6 +1132,7 @@ export function ExecutionWorkGraphCanvas({
           ) : null}
         </div>
       </div>
+      {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
       </div>
     </div>
   );
@@ -676,13 +1212,13 @@ function ExecutionNodeInspector({
     ));
   return (
     <aside
-      className="soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] overflow-auto rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) shadow-(--surface-control-shadow)"
+      className="soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] cursor-auto overflow-auto rounded-[14px] border border-(--surface-popover-border) bg-(--surface-popover-background) shadow-(--surface-popover-shadow)"
       aria-label={`${t("execution.details")}: ${heading}`}
       data-execution-selected-node-detail={node.id}
       data-execution-selected-node-detail-mode="popover"
       style={style}
     >
-      <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-panel-background) px-3 py-3">
+      <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-popover-background) px-3 py-3">
         <ExecutionNodeAvatar
           agent={owner}
           current={status === "running"}
@@ -690,6 +1226,7 @@ function ExecutionNodeInspector({
           size="graph"
           status={status}
           title={heading}
+          toolName={node.name}
         />
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-compact font-semibold text-(--text-strong)">
@@ -851,11 +1388,11 @@ function ExecutionEdgeInspector({
   return (
     <aside
       aria-label={`${t("execution.edge_details")}: ${t(EDGE_KIND_LABEL_KEY[edge.kind])}`}
-      className="soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] overflow-auto rounded-[14px] border border-(--surface-control-border) bg-(--surface-panel-background) shadow-(--surface-control-shadow)"
+      className="soft-scrollbar absolute z-30 max-h-[min(70vh,28rem)] w-[19rem] max-w-[calc(100%-1rem)] cursor-auto overflow-auto rounded-[14px] border border-(--surface-popover-border) bg-(--surface-popover-background) shadow-(--surface-popover-shadow)"
       data-execution-selected-edge-detail={edge.id}
       style={style}
     >
-      <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-panel-background) px-3 py-3">
+      <div className="sticky top-0 z-10 flex min-w-0 items-center gap-2 border-b dialog-divider bg-(--surface-popover-background) px-3 py-3">
         <span
           aria-hidden="true"
           className={cn(
@@ -977,6 +1514,7 @@ function ExecutionNodeRunList({
                 size="nested"
                 status={status}
                 title={graphNodeHeading(node, item, t)}
+                toolName={node.name}
               />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-1.5">
@@ -1015,24 +1553,34 @@ function resolveNodeInspectorStyle(
   x: number,
   y: number,
   nodeSize: number,
+  zoom: number,
 ): CSSProperties {
-  const width = Math.min(
+  const safeZoom = clampExecutionGraphZoom(zoom);
+  const visualWidth = Math.min(
     NODE_INSPECTOR_WIDTH,
-    Math.max(240, canvasWidth - NODE_INSPECTOR_EDGE_PADDING * 2),
+    Math.max(
+      240,
+      canvasWidth * safeZoom - NODE_INSPECTOR_EDGE_PADDING * 2,
+    ),
   );
-  const right = x + nodeSize / 2 + NODE_INSPECTOR_GAP;
-  const fitsRight = right + width
-    <= canvasWidth - NODE_INSPECTOR_EDGE_PADDING;
+  const localWidth = visualWidth / safeZoom;
+  const localGap = NODE_INSPECTOR_GAP / safeZoom;
+  const localEdgePadding = NODE_INSPECTOR_EDGE_PADDING / safeZoom;
+  const right = x + nodeSize / 2 + localGap;
+  const fitsRight = right + localWidth
+    <= canvasWidth - localEdgePadding;
   const left = fitsRight
     ? right
     : Math.max(
-        NODE_INSPECTOR_EDGE_PADDING,
-        x - nodeSize / 2 - NODE_INSPECTOR_GAP - width,
+        localEdgePadding,
+        x - nodeSize / 2 - localGap - localWidth,
       );
   return {
     left,
-    top: Math.max(NODE_INSPECTOR_EDGE_PADDING, y - 32),
-    width,
+    top: Math.max(localEdgePadding, y - 32 / safeZoom),
+    transform: `scale(${1 / safeZoom})`,
+    transformOrigin: "top left",
+    width: visualWidth,
   };
 }
 

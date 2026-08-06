@@ -324,6 +324,7 @@ Attempt 表示一次真实执行尝试。
 - `(runtime_session_key, runtime_round_id, agent_round_id)` 只在 root Attempt 之间唯一；同一物理 parent round 内启动的 child Attempt 合法共享该三元组，并以 `parent_attempt_id + tool_use_id` 区分。Room round identity 不能误当成整张 Attempt 树的唯一键。
 - `SubagentStart` 只能激活一个已经绑定 Assignment 的 Attempt。
 - `SubagentStop` 只结束 child Attempt，并把结果证据交还父 Agent；不能自动创建 Submission，更不能直接 Acceptance。
+- Snapshot 对 terminal Attempt 的有界压缩必须分别计算 root Agent 与 child Subagent 两条 evidence lane；child 不能因创建时间更新而遮蔽仍需完成 Submission 或幂等收口的 root Attempt。
 - child terminal evidence 以当前 Assignment 下最新的 `subagent_result` 重新投影，只包含 Attempt/status、是否有最后消息与 transcript ref；实际 Agent tool result 仍属于父 round。若父 round 已结束，迟到结果保留为 child Attempt evidence，后继父 round可以显式读取 transcript、重试或整合，但系统不自动唤醒、不自动 Submission，也不把它归给 successor Assignment。
 - parent physical round 退出时，runtime manager 用退出时刻 `T` 计算固定 30 秒 grace，并在释放 round callback 前通过冻结的 `tool_use_id → callbacks/parent round` binding 持久化 `parent_round_exited_at=T`、`reconcile_after=T+30s`。该 deadline 是 SQL truth，不是进程内 timer 或可配置的模型参数。
 - 独立于 Room realtime/dispatch 是否装配，backend 在启动时以及每 1 秒、每批最多 32 条扫描过期 running child；每次用 Execution/Attempt CAS 把它收束为 `interrupted`，CAS/数据库暂态失败留给下一轮无限重试，terminal/stale graph 则幂等跳过。runtime manager 同时保留进程内低延迟 fallback：按同一绝对 deadline 在 T+30s 第一次尝试，失败后分别等待 60s、120s，最多三次；durable callback 耗时不顺延第一次尝试，重启会丢失该 timer，但不会丢失 SQL deadline。

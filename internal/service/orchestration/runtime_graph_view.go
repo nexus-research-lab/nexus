@@ -1,6 +1,6 @@
 // INPUT: durable Runtime Graph 与可选 managed ExecutionView。
-// OUTPUT: planless 单智能体图，或合并到对应 WorkGraph 节点内部且父子边完整的运行层。
-// POS: Runtime NodeRun 到 icon-first Graph UI 的唯一展示投影；可从持久父身份修复历史缺边快照。
+// OUTPUT: planless 单智能体图，或按 exact launch ToolUse 合并到独立 Subagent、过滤纯 progress facet 且按结构事实分层可见性的 WorkGraph 运行层。
+// POS: Runtime NodeRun 到 icon-first Graph UI 的唯一展示投影；可从持久父身份修复历史缺边快照，并保持 primary 责任、nested runtime 与 detail 历史的边界。
 package orchestration
 
 import (
@@ -67,10 +67,19 @@ func mergeExecutionRuntimeGraph(
 	if len(runtimeGraph.Nodes) == 0 {
 		return
 	}
+	runtimeGraph.Nodes = slices.DeleteFunc(
+		slices.Clone(runtimeGraph.Nodes),
+		isRuntimeGraphProgressFacet,
+	)
+	if len(runtimeGraph.Nodes) == 0 {
+		return
+	}
 	agentNodeByRound := make(map[string]string)
 	agentNodeByWorkItem := make(map[string]string)
 	reviewNodeByWorkItem := make(map[string]string)
 	subagentNodeByTask := make(map[string]string)
+	subagentNodeByAttempt := make(map[string]string)
+	subagentNodeByToolUse := make(map[string]string)
 	graphNodeByID := make(map[string]int)
 	coordinatorNodeIDs := make([]string, 0)
 	for index, node := range view.Graph.Nodes {
@@ -87,13 +96,25 @@ func mergeExecutionRuntimeGraph(
 		if node.Kind == protocol.ExecutionGraphNodeSubagent && node.SubjectID != "" {
 			subagentNodeByTask[node.SubjectID] = node.ID
 		}
+		if node.Kind == protocol.ExecutionGraphNodeSubagent && node.AttemptID != "" {
+			subagentNodeByAttempt[node.AttemptID] = node.ID
+		}
 		if node.Kind == protocol.ExecutionGraphNodeAgent && node.WorkItemID == "" &&
 			node.AgentID != "" && node.AgentID == view.CoordinatorAgentID {
 			coordinatorNodeIDs = append(coordinatorNodeIDs, node.ID)
 		}
 	}
+	for _, item := range view.WorkItems {
+		for _, attempt := range item.Attempts {
+			if attempt.ParentAttemptID == "" || strings.TrimSpace(attempt.ToolUseID) == "" {
+				continue
+			}
+			if nodeID := subagentNodeByAttempt[attempt.ID]; nodeID != "" {
+				subagentNodeByToolUse[strings.TrimSpace(attempt.ToolUseID)] = nodeID
+			}
+		}
+	}
 
-	runtimeGraph.Nodes = slices.Clone(runtimeGraph.Nodes)
 	slices.SortFunc(runtimeGraph.Nodes, func(left, right protocol.ExecutionRuntimeNodeRun) int {
 		if order := left.StartedAt.Compare(right.StartedAt); order != 0 {
 			return order
@@ -123,6 +144,7 @@ func mergeExecutionRuntimeGraph(
 	}
 	runtimeNodeProjection := make(map[string]string, len(runtimeGraph.Nodes))
 	promotedRuntimeNodeIDs := runtimeGraphPromotedNodeIDs(runtimeGraph)
+	runtimeSubagentLaunchNodeIDs := make(map[string]struct{})
 	for _, runtimeNode := range runtimeGraph.Nodes {
 		if managedExecution {
 			if _, allowed := allowedAgentRound[runtimeNode.AgentRoundID]; !allowed {
@@ -158,6 +180,14 @@ func mergeExecutionRuntimeGraph(
 		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeSubagent {
 			if existingID := subagentNodeByTask[runtimeNode.SubjectID]; existingID != "" {
 				runtimeNodeProjection[runtimeNode.ID] = existingID
+				updateBoundExecutionGraphNode(view, graphNodeByID, existingID, runtimeNode)
+				continue
+			}
+		}
+		if runtimeNode.Kind == protocol.ExecutionRuntimeNodeTool {
+			if existingID := subagentNodeByToolUse[strings.TrimSpace(runtimeNode.SubjectID)]; existingID != "" {
+				runtimeNodeProjection[runtimeNode.ID] = existingID
+				runtimeSubagentLaunchNodeIDs[runtimeNode.ID] = struct{}{}
 				updateBoundExecutionGraphNode(view, graphNodeByID, existingID, runtimeNode)
 				continue
 			}
@@ -198,10 +228,21 @@ func mergeExecutionRuntimeGraph(
 			parentNodeBySubject[toolUseID] = runtimeNodeProjection[runtimeNode.ID]
 		}
 	}
+	runtimeNodeByID := make(map[string]protocol.ExecutionRuntimeNodeRun, len(runtimeGraph.Nodes))
+	for _, runtimeNode := range runtimeGraph.Nodes {
+		runtimeNodeByID[runtimeNode.ID] = runtimeNode
+	}
 	incomingRuntimeNode := make(map[string]struct{})
 	for _, runtimeEdge := range runtimeGraph.Edges {
 		sourceID := firstNonEmpty(runtimeNodeProjection[runtimeEdge.SourceNodeID], runtimeEdge.SourceNodeID)
 		targetID := firstNonEmpty(runtimeNodeProjection[runtimeEdge.TargetNodeID], runtimeEdge.TargetNodeID)
+		if runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeLoopBack &&
+			runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeRetry {
+			targetRuntimeNode := runtimeNodeByID[runtimeEdge.TargetNodeID]
+			if exactParentID := parentNodeBySubject[strings.TrimSpace(targetRuntimeNode.ParentSubjectID)]; exactParentID != "" && exactParentID != targetID {
+				sourceID = exactParentID
+			}
+		}
 		if sourceID == "" || targetID == "" || sourceID == targetID {
 			continue
 		}
@@ -221,6 +262,9 @@ func mergeExecutionRuntimeGraph(
 			kind = protocol.ExecutionGraphEdgeLoopBack
 		case protocol.ExecutionRuntimeEdgeRetry:
 			kind = protocol.ExecutionGraphEdgeRetry
+		}
+		if _, isSubagentLaunch := runtimeSubagentLaunchNodeIDs[runtimeEdge.TargetNodeID]; isSubagentLaunch {
+			kind = protocol.ExecutionGraphEdgeSpawn
 		}
 		if runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeLoopBack &&
 			runtimeEdge.Kind != protocol.ExecutionRuntimeEdgeRetry {
@@ -282,12 +326,80 @@ func mergeExecutionRuntimeGraph(
 		}
 		incomingRuntimeNode[targetID] = struct{}{}
 	}
+	reanchorExecutionReviewEdgesToSubmission(view, graphNodeByID)
 	appendCoordinatorCoordinationEdges(
 		view,
 		graphNodeByID,
 		existingEdges,
 		coordinatorNodeIDs,
 	)
+}
+
+// Review 的因果起点是成功 submit_work，而不是承载整轮工作的 Agent 头像。
+// changes_requested 的控制返回也落到同一个提交锚点，形成局部、可解释的闭环。
+func reanchorExecutionReviewEdgesToSubmission(
+	view *protocol.ExecutionView,
+	graphNodeByID map[string]int,
+) {
+	if view == nil {
+		return
+	}
+	submissionByOwnerNodeID := make(map[string]protocol.ExecutionGraphNodeView)
+	for _, node := range view.Graph.Nodes {
+		if node.Kind != protocol.ExecutionGraphNodeTool ||
+			!runtimeGraphIsSubmissionTool(node.Name) ||
+			!strings.EqualFold(strings.TrimSpace(node.LifecycleStatus), "succeeded") ||
+			strings.TrimSpace(node.ParentNodeID) == "" {
+			continue
+		}
+		ownerIndex, exists := graphNodeByID[node.ParentNodeID]
+		if !exists || view.Graph.Nodes[ownerIndex].Kind != protocol.ExecutionGraphNodeAgent {
+			continue
+		}
+		current, exists := submissionByOwnerNodeID[node.ParentNodeID]
+		if !exists || executionGraphNodeStartedBefore(current, node) {
+			submissionByOwnerNodeID[node.ParentNodeID] = node
+		}
+	}
+	submissionByGateNodeID := make(map[string]string)
+	for index := range view.Graph.Edges {
+		edge := &view.Graph.Edges[index]
+		if edge.Kind != protocol.ExecutionGraphEdgeReview {
+			continue
+		}
+		submission, exists := submissionByOwnerNodeID[edge.SourceNodeID]
+		if !exists {
+			continue
+		}
+		edge.SourceNodeID = submission.ID
+		submissionByGateNodeID[edge.TargetNodeID] = submission.ID
+	}
+	for index := range view.Graph.Edges {
+		edge := &view.Graph.Edges[index]
+		if edge.Kind != protocol.ExecutionGraphEdgeLoopBack {
+			continue
+		}
+		sourceIndex, exists := graphNodeByID[edge.SourceNodeID]
+		if !exists || view.Graph.Nodes[sourceIndex].Kind != protocol.ExecutionGraphNodeGate {
+			continue
+		}
+		if submissionID := submissionByGateNodeID[edge.SourceNodeID]; submissionID != "" {
+			edge.TargetNodeID = submissionID
+		}
+	}
+}
+
+func executionGraphNodeStartedBefore(
+	left protocol.ExecutionGraphNodeView,
+	right protocol.ExecutionGraphNodeView,
+) bool {
+	if left.StartedAt == nil {
+		return right.StartedAt != nil
+	}
+	if right.StartedAt == nil {
+		return false
+	}
+	return left.StartedAt.Before(*right.StartedAt)
 }
 
 func enrichExecutionGraphRuntimeEdge(
@@ -319,9 +431,11 @@ func updateBoundExecutionGraphNode(
 		return
 	}
 	node := &view.Graph.Nodes[index]
-	node.AgentRoundID = runtimeNode.AgentRoundID
-	if runtimeNode.AgentID != "" {
-		node.AgentID = runtimeNode.AgentID
+	if runtimeNode.Kind != protocol.ExecutionRuntimeNodeTool {
+		node.AgentRoundID = runtimeNode.AgentRoundID
+		if runtimeNode.AgentID != "" {
+			node.AgentID = runtimeNode.AgentID
+		}
 	}
 	node.LifecycleStatus = string(runtimeNode.Status)
 	node.ResultSummary = runtimeNode.ResultSummary
@@ -465,6 +579,7 @@ func projectRuntimeGraphNode(
 		}
 	case protocol.ExecutionRuntimeNodeGate:
 		kind = protocol.ExecutionGraphNodeGate
+		visibility = protocol.ExecutionGraphNodeNested
 	}
 	lifecycleStatus := string(item.Status)
 	if item.Kind == protocol.ExecutionRuntimeNodeGate {
@@ -499,6 +614,24 @@ func projectRuntimeGraphNode(
 		Runs:             []protocol.ExecutionGraphNodeRunView{runtimeGraphNodeRunView(item)},
 		Position:         position,
 	}
+}
+
+// isRuntimeGraphProgressFacet recognizes rows written by early observers that
+// persisted provider progress messages as child Tool nodes. They have no
+// independent start/finish/result fact, so exposing them invents work and
+// corrupts the visible ownership set. New observers avoid writing these rows;
+// this fallback keeps durable historical graphs readable.
+func isRuntimeGraphProgressFacet(item protocol.ExecutionRuntimeNodeRun) bool {
+	if strings.TrimSpace(item.ParentSubjectID) == "" ||
+		item.Status != protocol.ExecutionRuntimeNodeInterrupted ||
+		item.ResultSummary != "" || item.ErrorCode != "" || item.ErrorSummary != "" ||
+		len(item.Artifacts) > 0 {
+		return false
+	}
+	return strings.Contains(
+		strings.ToLower(runtimeGraphMetadataString(item, "bridge_event_id")),
+		":progress:",
+	)
 }
 
 func mergeExecutionGraphNodeRun(
@@ -608,7 +741,9 @@ func runtimeGraphPromotedNodeIDs(
 ) map[string]struct{} {
 	result := make(map[string]struct{})
 	for _, node := range graph.Nodes {
-		if len(node.Artifacts) > 0 || runtimeGraphVisibilityHint(node) {
+		if len(node.Artifacts) > 0 ||
+			runtimeGraphVisibilityHint(node) ||
+			runtimeGraphToolActionVisible(node) {
 			result[node.ID] = struct{}{}
 		}
 	}
@@ -620,7 +755,85 @@ func runtimeGraphPromotedNodeIDs(
 		result[edge.SourceNodeID] = struct{}{}
 		result[edge.TargetNodeID] = struct{}{}
 	}
+	promoteRuntimeGraphSubagentRepresentativeTools(graph, result)
 	return result
+}
+
+const runtimeGraphSubagentRepresentativeToolLimit = 3
+
+// Subagent 仍遵守全局 Tool 可见性规则；画布最多补足少量 direct supporting
+// Tool 作为代表。失败、外部动作等结构性可见节点先占槽位，再优先补最近的
+// 成功动作，因此失败后的恢复不会只在详情里出现；同时不会把普通 Read/Grep
+// 全量铺到主图。
+func promoteRuntimeGraphSubagentRepresentativeTools(
+	graph protocol.ExecutionRuntimeGraph,
+	promoted map[string]struct{},
+) {
+	childrenByParentSubject := make(map[string][]protocol.ExecutionRuntimeNodeRun)
+	subagentParentSubjects := make(map[string]struct{})
+	for _, node := range graph.Nodes {
+		if node.Kind == protocol.ExecutionRuntimeNodeSubagent {
+			for _, key := range []string{
+				strings.TrimSpace(node.SubjectID),
+				runtimeGraphMetadataString(node, "tool_use_id"),
+			} {
+				if key != "" {
+					subagentParentSubjects[key] = struct{}{}
+				}
+			}
+		}
+		// 旧运行图先保存 Agent launch Tool，读取时再把它合并进 durable
+		// Subagent Attempt；其 exact ToolUse subject 同样是 child Tool 的父键。
+		if node.Kind == protocol.ExecutionRuntimeNodeTool &&
+			runtimeGraphCanonicalToolLeaf(node.Name) == "agent" &&
+			strings.TrimSpace(node.SubjectID) != "" {
+			subagentParentSubjects[strings.TrimSpace(node.SubjectID)] = struct{}{}
+		}
+		if node.Kind == protocol.ExecutionRuntimeNodeTool {
+			parentSubjectID := strings.TrimSpace(node.ParentSubjectID)
+			if parentSubjectID == "" {
+				continue
+			}
+			childrenByParentSubject[parentSubjectID] = append(
+				childrenByParentSubject[parentSubjectID],
+				node,
+			)
+		}
+	}
+	for parentSubject := range subagentParentSubjects {
+		children := childrenByParentSubject[parentSubject]
+		if len(children) == 0 {
+			continue
+		}
+		visibleCount := 0
+		for _, child := range children {
+			_, explicitlyPromoted := promoted[child.ID]
+			if explicitlyPromoted || child.Status != protocol.ExecutionRuntimeNodeSucceeded {
+				visibleCount++
+			}
+		}
+		if visibleCount >= runtimeGraphSubagentRepresentativeToolLimit {
+			continue
+		}
+		slices.SortFunc(children, func(left, right protocol.ExecutionRuntimeNodeRun) int {
+			if order := left.StartedAt.Compare(right.StartedAt); order != 0 {
+				return order
+			}
+			return strings.Compare(left.ID, right.ID)
+		})
+		remaining := runtimeGraphSubagentRepresentativeToolLimit - visibleCount
+		for index := len(children) - 1; index >= 0 && remaining > 0; index-- {
+			child := children[index]
+			if child.Status != protocol.ExecutionRuntimeNodeSucceeded {
+				continue
+			}
+			if _, alreadyPromoted := promoted[child.ID]; alreadyPromoted {
+				continue
+			}
+			promoted[child.ID] = struct{}{}
+			remaining--
+		}
+	}
 }
 
 func runtimeGraphVisibilityHint(item protocol.ExecutionRuntimeNodeRun) bool {

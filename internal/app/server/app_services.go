@@ -112,6 +112,9 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
 	orchestrationService := orchestrationsvc.NewService(orchestrationstore.NewRepository(cfg, db))
+	orchestrationService.SetRuntimeGraphSubagentToolHistoryProvider(
+		executionSubagentToolHistory{sessions: core.Session},
+	)
 	explicitGoalCoordinator := newExplicitGoalExecutionCoordinator(goalService, orchestrationService)
 	goalService.SetObjectiveRetargetCoordinator(explicitGoalCoordinator)
 	orchestrationService.SetExplicitGoalBindingGateway(explicitGoalCoordinator)

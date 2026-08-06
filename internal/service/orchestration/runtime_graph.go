@@ -134,6 +134,15 @@ func (s *Service) ObserveRuntimeMessage(
 			status = protocol.ExecutionRuntimeNodeFailed
 		}
 		nodeID := runtimeGraphNodeID(identity, nodeKind, event.SubjectID)
+		previousNode := runtimeNodeByID[nodeID]
+		// Provider progress facets such as search-progress / agent_msg describe
+		// an existing Tool or Subagent. Without a started NodeRun of their own,
+		// they are detail evidence rather than independently executable nodes.
+		if event.Phase == sdkprotocol.RuntimeLifecycleProgress &&
+			previousNode.ID == "" &&
+			strings.TrimSpace(event.ParentSubjectID) != "" {
+			continue
+		}
 		sourceNodeID := rootNodeID
 		if parentNodeID := parentNodeBySubject[strings.TrimSpace(event.ParentSubjectID)]; parentNodeID != "" {
 			sourceNodeID = parentNodeID
@@ -142,7 +151,6 @@ func (s *Service) ObserveRuntimeMessage(
 		if event.Phase == sdkprotocol.RuntimeLifecycleFinished {
 			finishedAt = &now
 		}
-		previousNode := runtimeNodeByID[nodeID]
 		metadata := make(map[string]any, len(previousNode.Metadata)+len(event.Metadata)+1)
 		for key, value := range previousNode.Metadata {
 			metadata[key] = value

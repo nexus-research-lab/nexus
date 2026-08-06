@@ -1,11 +1,26 @@
 /**
  * INPUT: Graph 节点类型、状态、当前标记、展示语义与可选持久或 runtime Agent identity。
- * OUTPUT: 带生命周期或实时工作状态的 Agent/Subagent 头像与轻量 Tool/Gate 图标。
+ * OUTPUT: 带生命周期或实时工作状态的 Agent/Subagent 头像、动作语义 Tool 图标与 Gate 图标。
  * POS: Composer 节点轨迹与展开 Execution Graph 共用的节点视觉原语。
  */
 "use client";
 
-import { Bot, ShieldCheck, Wrench } from "lucide-react";
+import {
+  Bot,
+  FilePenLine,
+  FileSearch,
+  Globe2,
+  MousePointerClick,
+  Plug,
+  Search,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  Terminal,
+  Wrench,
+  Workflow,
+  type LucideIcon,
+} from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
@@ -15,6 +30,24 @@ import type {
 } from "@/types/conversation/execution";
 
 import type { ExecutionAgentIdentity } from "./execution-process-model";
+import {
+  resolveExecutionToolVisualKind,
+  type ExecutionToolVisualKind,
+} from "./execution-tool-visual";
+
+const EXECUTION_TOOL_ICON: Record<ExecutionToolVisualKind, LucideIcon> = {
+  browser: MousePointerClick,
+  external: Plug,
+  fetch: Globe2,
+  generate: Sparkles,
+  generic: Wrench,
+  inspect: FileSearch,
+  search: Search,
+  send: Send,
+  terminal: Terminal,
+  workflow: Workflow,
+  write: FilePenLine,
+};
 
 export function ExecutionNodeAvatar({
   agent,
@@ -25,6 +58,7 @@ export function ExecutionNodeAvatar({
   status,
   title,
   tone = "status",
+  toolName,
 }: {
   agent: ExecutionAgentIdentity | null;
   current?: boolean;
@@ -34,9 +68,12 @@ export function ExecutionNodeAvatar({
   status: ExecutionWorkItemStatus;
   title: string;
   tone?: "activity" | "status";
+  toolName?: string;
 }) {
   const graph = size === "graph";
   const nested = size === "nested";
+  const toolVisualKind = resolveExecutionToolVisualKind(toolName);
+  const ToolIcon = EXECUTION_TOOL_ICON[toolVisualKind];
   return (
     <span
       className={cn(
@@ -58,10 +95,11 @@ export function ExecutionNodeAvatar({
       data-execution-node-kind={kind}
       data-execution-node-status={status}
       data-execution-node-tone={tone}
+      data-execution-tool-visual={kind === "tool" ? toolVisualKind : undefined}
       title={title}
     >
       {kind === "tool" ? (
-        <Wrench
+        <ToolIcon
           aria-hidden="true"
           className={cn(
             "text-(--icon-default)",

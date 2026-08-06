@@ -91,6 +91,7 @@ type EnsureInput struct {
 type Service struct {
 	repository             Repository
 	planProposals          PlanProposalRepository
+	subagentToolHistory    RuntimeGraphSubagentToolHistoryProvider
 	goalPromotionGateway   GoalPromotionGateway
 	explicitGoalGateway    ExplicitGoalBindingGateway
 	assignmentTargets      AssignmentTargetAuthorizer

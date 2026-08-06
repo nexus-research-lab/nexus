@@ -49,6 +49,74 @@ async function renderWithI18n(element, locale = "zh") {
   );
 }
 
+function orthogonalPathPoints(pathValue) {
+  return Array.from(
+    pathValue.matchAll(/[ML]\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)/g),
+    (match) => ({ x: Number(match[1]), y: Number(match[2]) }),
+  );
+}
+
+function orthogonalPathSegments(pathValue) {
+  const points = orthogonalPathPoints(pathValue);
+  return points.slice(1).flatMap((point, index) => {
+    const previous = points[index];
+    if (Math.abs(previous.x - point.x) < 0.5) {
+      return [{
+        axis: "vertical",
+        fixed: previous.x,
+        start: Math.min(previous.y, point.y),
+        end: Math.max(previous.y, point.y),
+      }];
+    }
+    return [{
+      axis: "horizontal",
+      fixed: previous.y,
+      start: Math.min(previous.x, point.x),
+      end: Math.max(previous.x, point.x),
+    }];
+  });
+}
+
+function orthogonalPathsShareSegment(leftPath, rightPath) {
+  return orthogonalPathSegments(leftPath).some((left) => (
+    orthogonalPathSegments(rightPath).some((right) => (
+      left.axis === right.axis
+      && Math.abs(left.fixed - right.fixed) < 0.5
+      && Math.min(left.end, right.end) - Math.max(left.start, right.start) > 0.5
+    ))
+  ));
+}
+
+function orthogonalPathsShareNonTerminalSegment(leftPath, rightPath) {
+  const leftSegments = orthogonalPathSegments(leftPath).slice(0, -1);
+  const rightSegments = orthogonalPathSegments(rightPath).slice(0, -1);
+  return leftSegments.some((left) => (
+    rightSegments.some((right) => (
+      left.axis === right.axis
+      && Math.abs(left.fixed - right.fixed) < 0.5
+      && Math.min(left.end, right.end) - Math.max(left.start, right.start) > 0.5
+    ))
+  ));
+}
+
+function orthogonalPathCrossesNode(pathValue, node) {
+  const half = node.size / 2;
+  const left = node.x - half;
+  const right = node.x + half;
+  const top = node.y - half;
+  const bottom = node.y + half;
+  return orthogonalPathSegments(pathValue).some((segment) => {
+    if (segment.axis === "vertical") {
+      return segment.fixed > left
+        && segment.fixed < right
+        && Math.min(segment.end, bottom) - Math.max(segment.start, top) > 0.5;
+    }
+    return segment.fixed > top
+      && segment.fixed < bottom
+      && Math.min(segment.end, right) - Math.max(segment.start, left) > 0.5;
+  });
+}
+
 const execution = {
   id: "execution-1",
   session_key: "room:conversation-1",
@@ -390,13 +458,123 @@ test("WorkGraph layout reflows without treating containment as dependency", asyn
       "review->integrate",
     ],
   );
-  assert.equal(
+  assert.notEqual(
     addedLayout.nodes.find((node) => node.node.id === "build").x,
     addedLayout.nodes.find((node) => node.node.id === "review").x,
   );
-  assert.notEqual(
+  assert.equal(
     addedLayout.nodes.find((node) => node.node.id === "build").y,
     addedLayout.nodes.find((node) => node.node.id === "review").y,
+  );
+
+  const nestedOwnership = structuredClone(execution);
+  nestedOwnership.graph.nodes.push(
+    {
+      id: "attempt-child-second",
+      kind: "subagent",
+      visibility: "nested",
+      work_item_id: "build",
+      parent_node_id: "build",
+      subject_id: "sdk-task-child-second",
+      name: "Second helper",
+      lifecycle_status: "running",
+      position: 2,
+    },
+    {
+      id: "tool-first-child",
+      kind: "tool",
+      visibility: "nested",
+      work_item_id: "build",
+      parent_node_id: "attempt-child",
+      subject_id: "tool-first-child",
+      name: "Read",
+      lifecycle_status: "failed",
+      position: 3,
+    },
+    {
+      id: "tool-second-child",
+      kind: "tool",
+      visibility: "nested",
+      work_item_id: "build",
+      parent_node_id: "attempt-child-second",
+      subject_id: "tool-second-child",
+      name: "Bash",
+      lifecycle_status: "running",
+      position: 4,
+    },
+  );
+  nestedOwnership.graph.edges.push(
+    {
+      id: "spawn:build:attempt-child-second",
+      kind: "spawn",
+      source_node_id: "build",
+      target_node_id: "attempt-child-second",
+    },
+    {
+      id: "invoke:attempt-child:tool-first-child",
+      kind: "invoke",
+      source_node_id: "attempt-child",
+      target_node_id: "tool-first-child",
+    },
+    {
+      id: "invoke:attempt-child-second:tool-second-child",
+      kind: "invoke",
+      source_node_id: "attempt-child-second",
+      target_node_id: "tool-second-child",
+    },
+  );
+  const nestedLayout = buildExecutionGraphLayout(nestedOwnership);
+  assert.deepEqual(
+    nestedLayout.groups.map((group) => [group.id, group.nodeIds]),
+    [
+      [
+        "build",
+        [
+          "build",
+          "attempt-child",
+          "tool-first-child",
+          "attempt-child-second",
+          "tool-second-child",
+        ],
+      ],
+    ],
+    "one primary Agent frame contains the full runtime tree without nested Subagent frames",
+  );
+  const buildGroup = nestedLayout.groups.find((group) => group.id === "build");
+  const firstChildNode = nestedLayout.nodes.find(
+    (node) => node.node.id === "attempt-child",
+  );
+  const firstChildTool = nestedLayout.nodes.find(
+    (node) => node.node.id === "tool-first-child",
+  );
+  const secondChildNode = nestedLayout.nodes.find(
+    (node) => node.node.id === "attempt-child-second",
+  );
+  const secondChildTool = nestedLayout.nodes.find(
+    (node) => node.node.id === "tool-second-child",
+  );
+  assert.equal(
+    firstChildNode.x,
+    firstChildTool.x,
+    "a Subagent with one tool stays on one vertical tree lane",
+  );
+  assert.equal(
+    secondChildNode.x,
+    secondChildTool.x,
+    "each sibling Subagent keeps its own descendant lane",
+  );
+  assert.ok(
+    firstChildTool.y > firstChildNode.y,
+    "Subagent tools expand downward from their actual owner",
+  );
+  assert.ok(
+    nestedLayout.edges.every((edge) => !/[CQ]/.test(edge.path)),
+    "dense responsibility and ownership edges use orthogonal polylines instead of curves",
+  );
+  assert.ok(
+    buildGroup.y + buildGroup.height
+      > firstChildTool.y + firstChildTool.size / 2,
+    "the primary frame encloses the Subagent descendants",
   );
 
   const reduced = structuredClone(branched);
@@ -429,9 +607,14 @@ test("WorkGraph layout reflows without treating containment as dependency", asyn
 
   const constrainedLayout = buildExecutionGraphLayout(execution, 340);
   assert.equal(constrainedLayout.width, 340);
+  assert.equal(
+    constrainedLayout.nodes[1].x,
+    constrainedLayout.nodes[0].x,
+    "the main responsibility chain stays on one vertical spine",
+  );
   assert.ok(
-    constrainedLayout.nodes[1].x > constrainedLayout.nodes[0].x,
-    "the main responsibility chain remains left-to-right after clustering",
+    constrainedLayout.nodes[1].y > constrainedLayout.nodes[0].y,
+    "the main responsibility chain flows from top to bottom after clustering",
   );
 });
 
@@ -544,6 +727,7 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
   const layout = buildExecutionGraphLayout(runtimeExecution);
   assert.equal(layout.nodes.length, 2);
   assert.equal(layout.groups.length, 1);
+  assert.equal(layout.groups[0].id, "agent-run-1");
   assert.deepEqual(layout.groups[0].nodeIds, ["agent-run-1", "tool-run-1"]);
   assert.deepEqual(
     layout.edges.map((edge) => `${edge.kind}:${edge.sourceId}->${edge.targetId}`),
@@ -552,7 +736,7 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
   assert.ok(
     layout.nodes.find((node) => node.node.id === "tool-run-1").y
       > layout.nodes.find((node) => node.node.id === "agent-run-1").y,
-    "runtime children expand below their owning Agent",
+    "runtime child layers expand below their owning Agent",
   );
 
   const missingEdge = structuredClone(runtimeExecution);
@@ -607,11 +791,307 @@ test("Planless runtime graph promotes active tools and keeps ordinary tools in d
     retriedLayout.edges.map((edge) => edge.kind),
     ["invoke", "loop_back", "invoke", "retry"],
   );
+  assert.deepEqual(
+    retriedLayout.edges.map((edge) => edge.paired),
+    [true, true, false, false],
+    "a forward edge and its exact loop-back are exposed as one visual pair",
+  );
   assert.ok(
     retriedLayout.nodes.find((node) => node.node.id === "tool-run-retry").y
       > retriedLayout.nodes.find((node) => node.node.id === "agent-run-1").y,
-    "an Agent-chosen retry remains a downward runtime child",
+    "an Agent-chosen retry remains in the downward runtime child layer",
   );
+  assert.equal(
+    retriedLayout.nodes.find((node) => node.node.id === "tool-run-retry").y,
+    retriedLayout.nodes.find((node) => node.node.id === "tool-run-1").y,
+    "sibling runtime children share the same top-to-bottom depth",
+  );
+  assert.ok(
+    retriedLayout.nodes.find((node) => node.node.id === "tool-run-retry").x
+      > retriedLayout.nodes.find((node) => node.node.id === "tool-run-1").x,
+    "new sibling runtime children are appended from left to right",
+  );
+  const failedToolLayout = retriedLayout.nodes.find(
+    (node) => node.node.id === "tool-run-1",
+  );
+  const agentLayout = retriedLayout.nodes.find(
+    (node) => node.node.id === "agent-run-1",
+  );
+  const loopBackLayout = retriedLayout.edges.find(
+    (edge) => edge.kind === "loop_back",
+  );
+  const forwardLayout = retriedLayout.edges.find(
+    (edge) => edge.id === "invoke-1",
+  );
+  const retryLayout = retriedLayout.edges.find(
+    (edge) => edge.kind === "retry",
+  );
+  const loopBackPoints = orthogonalPathPoints(loopBackLayout.path);
+  assert.ok(
+    Math.abs(loopBackPoints[0].x - failedToolLayout.x) < 0.5
+      && Math.abs(
+        loopBackPoints[0].y
+          - (failedToolLayout.y + failedToolLayout.size / 2),
+      ) < 0.5,
+    "a return leaves downward from the child like a normal process edge",
+  );
+  assert.ok(
+    Math.abs(
+      Math.abs(loopBackPoints.at(-1).x - agentLayout.x)
+        - agentLayout.size / 2,
+    ) < 0.5
+      && Math.abs(loopBackPoints.at(-1).y - agentLayout.y) < 0.5,
+    "the outer U-shaped return enters through the parent side port",
+  );
+  assert.equal(
+    orthogonalPathsShareSegment(loopBackLayout.path, forwardLayout.path),
+    false,
+    "an exact forward/return pair may cross once but never shares a visible segment",
+  );
+  assert.doesNotMatch(loopBackLayout.path, /[CQ]/);
+  assert.match(loopBackLayout.path, / L .* L .* L /);
+  assert.ok(
+    retryLayout.path.startsWith(
+      `M ${failedToolLayout.x} ${failedToolLayout.y + failedToolLayout.size / 2}`,
+    ),
+    "a same-level retry uses a compact rail below its sibling nodes",
+  );
+  assert.doesNotMatch(retryLayout.path, /[CQ]/);
+  assert.match(retryLayout.path, / L .* L .* L /);
+
+  const downwardRetry = structuredClone(retriedExecution);
+  downwardRetry.graph.edges.push({
+    id: "retry-agent-child",
+    kind: "retry",
+    source_node_id: "agent-run-1",
+    target_node_id: "tool-run-1",
+  });
+  const downwardRetryLayout = buildExecutionGraphLayout(downwardRetry);
+  const downwardAgentLayout = downwardRetryLayout.nodes.find(
+    (node) => node.node.id === "agent-run-1",
+  );
+  const downwardRetryEdge = downwardRetryLayout.edges.find(
+    (edge) => edge.id === "retry-agent-child",
+  );
+  const downwardToolLayout = downwardRetryLayout.nodes.find(
+    (node) => node.node.id === "tool-run-1",
+  );
+  const downwardRetryPoints = orthogonalPathPoints(downwardRetryEdge.path);
+  const downwardForwardEdge = downwardRetryLayout.edges.find(
+    (edge) => edge.id === "invoke-1",
+  );
+  assert.ok(
+    Math.abs(downwardRetryPoints[0].x - downwardAgentLayout.x) < 0.5
+      && Math.abs(
+        downwardRetryPoints[0].y
+          - (downwardAgentLayout.y - downwardAgentLayout.size / 2),
+      ) < 0.5
+      && Math.abs(
+        Math.abs(downwardRetryPoints.at(-1).x - downwardToolLayout.x)
+          - downwardToolLayout.size / 2,
+      ) < 0.5,
+    "a downward retry first leaves above its source layer and returns through the target side",
+  );
+  assert.equal(
+    orthogonalPathsShareSegment(
+      downwardRetryEdge.path,
+      downwardForwardEdge.path,
+    ),
+    false,
+    "a downward retry stays off the normal invoke edge",
+  );
+
+  const wideReturn = structuredClone(runtimeExecution);
+  for (let index = 0; index < 7; index += 1) {
+    const id = `tool-wide-${index}`;
+    wideReturn.graph.nodes.push({
+      id,
+      kind: "tool",
+      visibility: "nested",
+      work_item_id: "",
+      parent_node_id: "agent-run-1",
+      subject_id: id,
+      name: "search",
+      lifecycle_status: "failed",
+      position: index + 3,
+    });
+    wideReturn.graph.edges.push({
+      id: `invoke:${id}`,
+      kind: "invoke",
+      source_node_id: "agent-run-1",
+      target_node_id: id,
+    });
+  }
+  wideReturn.graph.edges.push({
+    id: "wide-control-return",
+    kind: "loop_back",
+    source_node_id: "tool-run-1",
+    target_node_id: "agent-run-1",
+  });
+  const wideReturnLayout = buildExecutionGraphLayout(wideReturn);
+  const wideSourceLayout = wideReturnLayout.nodes.find(
+    (node) => node.node.id === "tool-run-1",
+  );
+  const wideTargetLayout = wideReturnLayout.nodes.find(
+    (node) => node.node.id === "agent-run-1",
+  );
+  const wideReturnEdge = wideReturnLayout.edges.find(
+    (edge) => edge.id === "wide-control-return",
+  );
+  const wideForwardEdge = wideReturnLayout.edges.find(
+    (edge) => edge.id === "invoke-1",
+  );
+  const wideReturnPoints = orthogonalPathPoints(wideReturnEdge.path);
+  assert.ok(
+    Math.abs(wideReturnPoints[0].x - wideSourceLayout.x) < 0.5
+      && Math.abs(
+        wideReturnPoints[0].y
+          - (wideSourceLayout.y + wideSourceLayout.size / 2),
+      ) < 0.5,
+    "a wide return first follows the normal downward flow out of its source",
+  );
+  assert.ok(
+    Math.abs(
+      Math.abs(wideReturnPoints.at(-1).x - wideTargetLayout.x)
+        - wideTargetLayout.size / 2,
+    ) < 0.5
+      && Math.abs(wideReturnPoints.at(-1).y - wideTargetLayout.y) < 0.5,
+    "a wide return enters the target from its dedicated outer corridor",
+  );
+  assert.equal(
+    orthogonalPathsShareSegment(wideReturnEdge.path, wideForwardEdge.path),
+    false,
+    "a dense ownership fan never forces the return back onto its forward edge",
+  );
+  assert.doesNotMatch(wideReturnEdge.path, /[CQ]/);
+
+  const crowdedReturns = structuredClone(wideReturn);
+  for (const index of [0, 1]) {
+    crowdedReturns.graph.edges.push({
+      id: `wide-control-return-${index}`,
+      kind: "loop_back",
+      source_node_id: `tool-wide-${index}`,
+      target_node_id: "agent-run-1",
+    });
+  }
+  const crowdedReturnLayout = buildExecutionGraphLayout(crowdedReturns);
+  const crowdedReturnEdges = crowdedReturnLayout.edges.filter(
+    (edge) => edge.kind === "loop_back",
+  );
+  const crowdedReturnGroup = crowdedReturnLayout.groups.find(
+    (group) => group.id === "agent-run-1",
+  );
+  assert.equal(crowdedReturnEdges.length, 3);
+  for (const returnEdge of crowdedReturnEdges) {
+    for (const point of orthogonalPathPoints(returnEdge.path)) {
+      assert.ok(
+        point.x >= 0
+          && point.x <= crowdedReturnLayout.width
+          && point.y >= 0
+          && point.y <= crowdedReturnLayout.height,
+        `return ${returnEdge.id} remains inside the interactive canvas`,
+      );
+      assert.ok(
+        point.x >= crowdedReturnGroup.x
+          && point.x <= crowdedReturnGroup.x + crowdedReturnGroup.width
+          && point.y >= crowdedReturnGroup.y
+          && point.y <= crowdedReturnGroup.y + crowdedReturnGroup.height,
+        `return ${returnEdge.id} remains inside its owning subgraph frame`,
+      );
+    }
+  }
+  for (let left = 0; left < crowdedReturnEdges.length; left += 1) {
+    const returnEdge = crowdedReturnEdges[left];
+    const sourceId = returnEdge.sourceId;
+    const matchingForward = crowdedReturnLayout.edges.find((edge) => (
+      edge.kind === "invoke"
+      && edge.sourceId === "agent-run-1"
+      && edge.targetId === sourceId
+    ));
+    assert.equal(
+      orthogonalPathsShareSegment(returnEdge.path, matchingForward.path),
+      false,
+      `return ${returnEdge.id} stays off its exact forward branch`,
+    );
+    for (const node of crowdedReturnLayout.nodes) {
+      if (node.node.id === returnEdge.sourceId
+        || node.node.id === returnEdge.targetId) {
+        continue;
+      }
+      assert.equal(
+        orthogonalPathCrossesNode(returnEdge.path, node),
+        false,
+        `return ${returnEdge.id} never crosses node ${node.node.id}`,
+      );
+    }
+    for (let right = left + 1; right < crowdedReturnEdges.length; right += 1) {
+      assert.equal(
+        orthogonalPathsShareNonTerminalSegment(
+          returnEdge.path,
+          crowdedReturnEdges[right].path,
+        ),
+        true,
+        "same-side returns merge onto one shared U-shaped flow bus",
+      );
+    }
+  }
+});
+
+test("WorkGraph Tool nodes use semantic action icon categories", async () => {
+  const { resolveExecutionToolVisualKind } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-tool-visual.ts",
+  );
+  const { ExecutionNodeAvatar } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/execution/execution-node-avatar.tsx",
+  );
+  assert.deepEqual(
+    [
+      "WebSearch",
+      "browser.web-fetch",
+      "mcp__browser__navigate",
+      "Bash",
+      "mcp__node_repl__js",
+      "mcp__filesystem__write_file",
+      "mcp__slack__send_message",
+      "mcp__imagegen__generate_image",
+      "mcp__github__list_issues",
+      "Read",
+      "mcp__nexus_execution__submit_work",
+    ].map((name) => resolveExecutionToolVisualKind(name)),
+    [
+      "search",
+      "fetch",
+      "browser",
+      "terminal",
+      "terminal",
+      "write",
+      "send",
+      "generate",
+      "external",
+      "inspect",
+      "workflow",
+    ],
+  );
+  const fetchIcon = renderToStaticMarkup(React.createElement(ExecutionNodeAvatar, {
+    agent: null,
+    kind: "tool",
+    size: "nested",
+    status: "accepted",
+    title: "WebFetch",
+    toolName: "WebFetch",
+  }));
+  const inspectIcon = renderToStaticMarkup(React.createElement(ExecutionNodeAvatar, {
+    agent: null,
+    kind: "tool",
+    size: "nested",
+    status: "accepted",
+    title: "Read",
+    toolName: "Read",
+  }));
+  assert.match(fetchIcon, /data-execution-tool-visual="fetch"/);
+  assert.doesNotMatch(fetchIcon, /lucide-wrench/);
+  assert.match(inspectIcon, /data-execution-tool-visual="inspect"/);
+  assert.doesNotMatch(inspectIcon, /lucide-wrench/);
 });
 
 test("Lead review gate is a visible node and changes-requested is a back edge", async () => {
@@ -655,8 +1135,8 @@ test("Lead review gate is a visible node and changes-requested is a back edge", 
   );
   assert.deepEqual(layout.edges.map((edge) => edge.kind), ["review", "loop_back"]);
   assert.ok(
-    layout.nodes.find((node) => node.node.kind === "gate").x
-      > layout.nodes.find((node) => node.node.kind === "agent").x,
+    layout.nodes.find((node) => node.node.kind === "gate").y
+      > layout.nodes.find((node) => node.node.kind === "agent").y,
   );
 });
 
@@ -716,8 +1196,8 @@ test("Objective alignment gate reports evidence without choosing the Agent route
   const layout = buildExecutionGraphLayout(alignment);
   assert.deepEqual(layout.edges.map((edge) => edge.kind), ["guard", "loop_back"]);
   assert.ok(
-    layout.nodes.find((node) => node.node.kind === "gate").x
-      > layout.nodes.find((node) => node.node.kind === "agent").x,
+    layout.nodes.find((node) => node.node.kind === "gate").y
+      > layout.nodes.find((node) => node.node.kind === "agent").y,
   );
 });
 
@@ -829,8 +1309,11 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
     clampExecutionGraphZoom,
     nextExecutionGraphSearchResult,
     projectExecutionGraphCollapse,
+    resolveExecutionGraphAnchoredScroll,
     resolveExecutionGraphFitZoom,
     resolveExecutionGraphNodeAncestors,
+    resolveExecutionGraphPanPadding,
+    resolveExecutionGraphWheelZoom,
     resolveExecutionWorkspaceReference,
     searchExecutionGraphNodes,
   } = await server.ssrLoadModule(
@@ -887,6 +1370,25 @@ test("WorkGraph interaction model collapses, searches, and fits large graphs wit
     viewportHeight: 400,
     viewportWidth: 600,
   }), 0.58);
+  assert.equal(resolveExecutionGraphPanPadding(1_000), 500);
+  assert.equal(resolveExecutionGraphPanPadding(0), 48);
+  assert.deepEqual(resolveExecutionGraphAnchoredScroll({
+    currentZoom: 1,
+    nextZoom: 1.5,
+    panPaddingX: 100,
+    panPaddingY: 80,
+    scrollLeft: 100,
+    scrollTop: 80,
+    viewportX: 300,
+    viewportY: 200,
+  }), {
+    contentX: 300,
+    contentY: 200,
+    scrollLeft: 250,
+    scrollTop: 180,
+  });
+  assert.equal(resolveExecutionGraphWheelZoom(1, -50), 1.1);
+  assert.equal(resolveExecutionGraphWheelZoom(1, 2), 0.99);
   assert.equal(resolveExecutionWorkspaceReference("reports/result.md"), "reports/result.md");
   assert.equal(resolveExecutionWorkspaceReference("../outside.txt"), null);
   assert.equal(resolveExecutionWorkspaceReference("https://example.com/result"), null);
@@ -906,7 +1408,15 @@ test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", 
   );
   assert.match(html, /data-execution-node-map/);
   assert.match(html, /data-execution-workgraph-canvas/);
+  assert.match(
+    html,
+    /class="absolute origin-top-left overflow-visible" data-execution-workgraph-canvas/,
+  );
   assert.match(html, /data-execution-board-grid/);
+  assert.match(html, /data-execution-board-panning="false"/);
+  assert.match(html, /data-execution-board-space-pan="false"/);
+  assert.match(html, /data-execution-pan-padding-x="48"/);
+  assert.match(html, /data-execution-pan-padding-y="48"/);
   assert.match(html, /data-execution-workgraph-controls/);
   assert.match(html, /data-execution-workgraph-scale="1"/);
   assert.match(html, /data-execution-collapse-node="build"/);
@@ -943,7 +1453,26 @@ test("Full WorkGraph is an interactive Agent-avatar DAG with a task inspector", 
   assert.match(canvasSource, /ExecutionNodeRunList/);
   assert.match(canvasSource, /ExecutionNodeRunHistory/);
   assert.match(canvasSource, /ExecutionWorkGraphControls/);
+  assert.match(canvasSource, /setPointerCapture/);
+  assert.match(canvasSource, /scrollLeft = gesture\.scrollLeft - deltaX/);
+  assert.match(canvasSource, /event\.button === 2/);
+  assert.match(canvasSource, /event\.code === "Space"/);
+  assert.match(canvasSource, /resolveExecutionGraphWheelZoom/);
+  assert.match(canvasSource, /handlePinchMove/);
+  assert.match(canvasSource, /onDoubleClick/);
+  assert.match(canvasSource, /viewport\.scrollBy/);
+  assert.match(canvasSource, /data-execution-edge-paired/);
+  assert.match(canvasSource, /strokeLinejoin="round"/);
+  assert.match(
+    canvasSource,
+    /color-mix\(in srgb, var\(--warning\) 62%, var\(--icon-muted\)\)/,
+  );
+  assert.match(canvasSource, /isExecutionGraphInteractiveTarget\(event\.target\)/);
+  assert.match(canvasSource, /closeGraphDetails\(\)/);
   assert.match(canvasSource, /data-execution-selected-node-detail-mode="popover"/);
+  assert.match(canvasSource, /bg-\(--surface-popover-background\)/);
+  assert.match(canvasSource, /border-\(--surface-popover-border\)/);
+  assert.match(canvasSource, /shadow-\(--surface-popover-shadow\)/);
   assert.match(canvasSource, /execution\.error_summary/);
   assert.match(canvasSource, /execution\.result_summary/);
   assert.match(canvasSource, /execution\.control_return_observed/);

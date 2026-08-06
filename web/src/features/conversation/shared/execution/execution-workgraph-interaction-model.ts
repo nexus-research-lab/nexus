@@ -1,6 +1,6 @@
 /**
- * INPUT: 权威 Execution Graph 与用户本地的折叠、搜索、缩放意图。
- * OUTPUT: 可隐藏节点、祖先路径、全文检索结果和有界 viewport 比例。
+ * INPUT: 权威 Execution Graph 与用户本地的折叠、搜索、平移、缩放及焦点意图。
+ * OUTPUT: 可隐藏节点、祖先路径、全文检索结果、有界 viewport 比例、对称平移留白与焦点稳定的缩放滚动位置。
  * POS: WorkGraph 画布的纯交互模型；不改变后端拓扑、节点状态或 Agent 路线。
  */
 import type {
@@ -15,6 +15,7 @@ import {
 
 const EXECUTION_GRAPH_MIN_ZOOM = 0.5;
 const EXECUTION_GRAPH_MAX_ZOOM = 1.5;
+const EXECUTION_GRAPH_MIN_PAN_PADDING = 48;
 export const EXECUTION_GRAPH_ZOOM_STEP = 0.1;
 
 interface ExecutionGraphCollapseProjection {
@@ -121,6 +122,79 @@ export function resolveExecutionGraphFitZoom({
   const horizontal = Math.max(0, viewportWidth - 24) / contentWidth;
   const vertical = Math.max(0, viewportHeight - 24) / contentHeight;
   return clampExecutionGraphZoom(Math.min(1, horizontal, vertical));
+}
+
+export function resolveExecutionGraphPanPadding(viewportExtent: number): number {
+  if (!Number.isFinite(viewportExtent) || viewportExtent <= 0) {
+    return EXECUTION_GRAPH_MIN_PAN_PADDING;
+  }
+  return Math.max(
+    EXECUTION_GRAPH_MIN_PAN_PADDING,
+    Math.floor(viewportExtent / 2),
+  );
+}
+
+export function resolveExecutionGraphAnchoredScroll({
+  currentZoom,
+  nextZoom,
+  panPaddingX,
+  panPaddingY,
+  scrollLeft,
+  scrollTop,
+  viewportX,
+  viewportY,
+}: {
+  currentZoom: number;
+  nextZoom: number;
+  panPaddingX: number;
+  panPaddingY: number;
+  scrollLeft: number;
+  scrollTop: number;
+  viewportX: number;
+  viewportY: number;
+}): {
+  contentX: number;
+  contentY: number;
+  scrollLeft: number;
+  scrollTop: number;
+} {
+  const safeCurrentZoom = clampExecutionGraphZoom(currentZoom);
+  const safeNextZoom = clampExecutionGraphZoom(nextZoom);
+  const safePaddingX = finiteOrZero(panPaddingX);
+  const safePaddingY = finiteOrZero(panPaddingY);
+  const safeViewportX = finiteOrZero(viewportX);
+  const safeViewportY = finiteOrZero(viewportY);
+  const contentX = (
+    finiteOrZero(scrollLeft)
+    + safeViewportX
+    - safePaddingX
+  ) / safeCurrentZoom;
+  const contentY = (
+    finiteOrZero(scrollTop)
+    + safeViewportY
+    - safePaddingY
+  ) / safeCurrentZoom;
+  return {
+    contentX,
+    contentY,
+    scrollLeft: safePaddingX + contentX * safeNextZoom - safeViewportX,
+    scrollTop: safePaddingY + contentY * safeNextZoom - safeViewportY,
+  };
+}
+
+export function resolveExecutionGraphWheelZoom(
+  currentZoom: number,
+  deltaY: number,
+): number {
+  if (!Number.isFinite(deltaY) || deltaY === 0) {
+    return clampExecutionGraphZoom(currentZoom);
+  }
+  const direction = deltaY < 0 ? 1 : -1;
+  const magnitude = Math.min(
+    EXECUTION_GRAPH_ZOOM_STEP,
+    Math.max(0.01, Math.abs(deltaY) * 0.002),
+  );
+  return clampExecutionGraphZoom(currentZoom + direction * magnitude);
 }
 
 export function resolveExecutionWorkspaceReference(value: string): string | null {
@@ -238,4 +312,8 @@ function executionGraphNodeSearchText(
 
 function normalizeSearchText(value: string): string {
   return value.trim().toLocaleLowerCase();
+}
+
+function finiteOrZero(value: number): number {
+  return Number.isFinite(value) ? value : 0;
 }

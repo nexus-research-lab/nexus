@@ -46,6 +46,7 @@ func runtimeGraphLifecycleEvents(
 		events = sdkprotocol.DeriveRuntimeLifecycleEvents(message)
 	}
 	result := append([]sdkprotocol.RuntimeLifecycleEvent(nil), events...)
+	result = append(result, runtimeGraphSubagentToolEvents(message)...)
 	if message.ToolUseSummary == nil || strings.TrimSpace(message.ToolUseSummary.Summary) == "" {
 		return result
 	}
@@ -63,6 +64,52 @@ func runtimeGraphLifecycleEvents(
 			Status:      "running",
 			Metadata:    map[string]string{"summary_kind": "provider"},
 		})
+	}
+	return result
+}
+
+// runtimeGraphSubagentToolEvents recovers exact child ToolUse / ToolResult
+// identities carried in the SDK's structured Agent attachment. The attachment
+// is already part of the observed parent stream; only low-sensitivity
+// lifecycle fields are projected, never the nested prompt, input, or output.
+func runtimeGraphSubagentToolEvents(
+	message sdkprotocol.ReceivedMessage,
+) []sdkprotocol.RuntimeLifecycleEvent {
+	if message.Attachment == nil {
+		return nil
+	}
+	data, ok := message.Attachment.Data.(map[string]any)
+	if !ok {
+		return nil
+	}
+	parentToolUseID := firstNonEmpty(
+		strings.TrimSpace(message.Attachment.ToolUseID),
+		mapString(data, "toolUseId"),
+		mapString(data, "tool_use_id"),
+	)
+	if parentToolUseID == "" {
+		return nil
+	}
+	rawMessages, ok := data["messages"].([]any)
+	if !ok || len(rawMessages) == 0 {
+		return nil
+	}
+	result := make([]sdkprotocol.RuntimeLifecycleEvent, 0)
+	for _, rawMessage := range rawMessages {
+		payload, ok := rawMessage.(map[string]any)
+		if !ok {
+			continue
+		}
+		nested, err := sdkprotocol.DecodeMessage(payload)
+		if err != nil {
+			continue
+		}
+		for _, event := range sdkprotocol.DeriveRuntimeLifecycleEvents(nested) {
+			if strings.TrimSpace(event.ParentSubjectID) == "" {
+				event.ParentSubjectID = parentToolUseID
+			}
+			result = append(result, event)
+		}
 	}
 	return result
 }

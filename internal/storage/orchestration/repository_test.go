@@ -225,7 +225,7 @@ func TestRepositoryRejectRetryAcceptTakeoverAndCompletion(t *testing.T) {
 	}
 }
 
-func TestRepositoryAllowsConcurrentChildAttemptsInSharedParentRound(t *testing.T) {
+func TestRepositoryKeepsRootAttemptAlongsideConcurrentChildren(t *testing.T) {
 	repository := newRepositoryTestStore(t)
 	ctx := context.Background()
 	snapshot, err := repository.Create(ctx, createTestCommand("child-parallel"))
@@ -300,6 +300,31 @@ func TestRepositoryAllowsConcurrentChildAttemptsInSharedParentRound(t *testing.T
 	}
 	if runningChildren != 2 {
 		t.Fatalf("running child Attempts = %d, want 2", runningChildren)
+	}
+
+	snapshot = finishTestAttempt(
+		t,
+		ctx,
+		repository,
+		snapshot,
+		parent.ID,
+		protocol.WorkAttemptStatusSucceeded,
+	)
+	if finishedParent := findAttempt(t, snapshot, parent.ID); finishedParent.Status != protocol.WorkAttemptStatusSucceeded {
+		t.Fatalf("root Attempt status = %q, want succeeded", finishedParent.Status)
+	}
+	snapshot = submitTestWork(
+		t,
+		ctx,
+		repository,
+		snapshot,
+		parentAssignment.ID,
+		parent.ID,
+		"submission-child-parent",
+		"agent-a",
+	)
+	if submission := findSubmission(t, snapshot, "submission-child-parent"); submission.AttemptID != parent.ID {
+		t.Fatalf("Submission Attempt = %q, want %q", submission.AttemptID, parent.ID)
 	}
 }
 
