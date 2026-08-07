@@ -65,6 +65,10 @@ interface BuildDmChatPanelViewModelOptions {
   goalScopeLabel: string;
   onEditLastUserMessage: (messageId: string, content: string) => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string) => void;
   session: DmChatSession;
@@ -82,6 +86,7 @@ export function buildDmChatPanelViewModel({
   goalScopeLabel,
   onEditLastUserMessage,
   onOpenAgentContact,
+  onOpenSubagentTask,
   onOpenWorkGraph,
   onOpenWorkspaceFile,
   session,
@@ -110,6 +115,7 @@ export function buildDmChatPanelViewModel({
       environment,
       onEditLastUserMessage,
       onOpenAgentContact,
+      onOpenSubagentTask,
       onOpenWorkspaceFile,
       session,
       workspaceAgentId,
@@ -180,6 +186,7 @@ function buildDmFeedModel({
   environment,
   onEditLastUserMessage,
   onOpenAgentContact,
+  onOpenSubagentTask,
   onOpenWorkspaceFile,
   session,
   workspaceAgentId,
@@ -190,6 +197,7 @@ function buildDmFeedModel({
   | "environment"
   | "onEditLastUserMessage"
   | "onOpenAgentContact"
+  | "onOpenSubagentTask"
   | "onOpenWorkspaceFile"
   | "session"
   | "workspaceAgentId"
@@ -209,6 +217,7 @@ function buildDmFeedModel({
       currentAgentName,
       onEditLastUserMessage,
       onOpenAgentContact,
+      onOpenSubagentTask,
       onOpenWorkspaceFile,
       onPermissionResponse: conversation.send_permission_response,
       workspaceAgentId,

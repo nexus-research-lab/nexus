@@ -8,6 +8,8 @@
 
 import { SubagentTaskSurface } from "@/features/conversation/shared/subagent/subagent-task-surface";
 import { subagentTaskSourceKey } from "@/features/conversation/shared/subagent/subagent-task-model";
+import { useEffect } from "react";
+
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Agent } from "@/types/agent/agent";
@@ -20,6 +22,9 @@ interface RoomSubagentTaskSurfaceProps {
   layout?: "desktop" | "mobile";
   onClose: () => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
+  requestKey?: number;
+  requestedHostAgentId?: string | null;
+  requestedTaskToolUseId?: string | null;
   roomMembers: Agent[];
   source: SubagentTaskSource;
 }
@@ -29,6 +34,9 @@ export function RoomSubagentTaskSurface({
   layout = "desktop",
   onClose,
   onOpenWorkspaceFile,
+  requestKey = 0,
+  requestedHostAgentId,
+  requestedTaskToolUseId,
   roomMembers,
   source,
 }: RoomSubagentTaskSurfaceProps) {
@@ -44,6 +52,22 @@ export function RoomSubagentTaskSurface({
     initialAgentId,
     resetKey,
   );
+  useEffect(() => {
+    const requestedAgentId = requestedHostAgentId?.trim() ?? "";
+    if (
+      requestKey > 0
+      && requestedTaskToolUseId
+      && memberIds.includes(requestedAgentId)
+    ) {
+      setSelectedAgentId(requestedAgentId);
+    }
+  }, [
+    memberIds,
+    requestKey,
+    requestedHostAgentId,
+    requestedTaskToolUseId,
+    setSelectedAgentId,
+  ]);
   const isRoomSource = source.kind === "room";
   const agentSwitcher = isRoomSource && roomMembers.length > 1 ? (
     <RoomAgentSwitcher
@@ -62,6 +86,8 @@ export function RoomSubagentTaskSurface({
       layout={layout}
       onClose={onClose}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
+      requestKey={requestKey}
+      requestedTaskToolUseId={requestedTaskToolUseId}
       source={source}
     />
   );

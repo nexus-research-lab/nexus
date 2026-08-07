@@ -30,17 +30,6 @@ const SUBAGENT_CAPABILITY_KEYS = [
   "resume",
 ] as const satisfies readonly (keyof SubagentTaskCapabilities)[];
 
-const SUBAGENT_AVATAR_PALETTE = [
-  "#9b87e8",
-  "#f5a24f",
-  "#f1c93e",
-  "#8bcf76",
-  "#58c4c9",
-  "#63a7db",
-  "#70d2b5",
-  "#b891ed",
-];
-
 const SUBAGENT_STATUS_BY_ALIAS: Readonly<Record<string, SubagentTaskViewStatus>> = {
   queued: "pending",
   created: "pending",
@@ -92,6 +81,27 @@ export function subagentTaskTitle(task: SubagentTask): string {
     task.agent_type?.trim() ||
     "Subagent"
   );
+}
+
+/** 子智能体头像优先沿用拉起工具身份，旧记录回退任务身份。 */
+export function subagentTaskAvatarSeed(
+  task: Pick<SubagentTask, "task_id" | "tool_use_id">,
+): string {
+  return task.tool_use_id?.trim() || task.task_id;
+}
+
+export function findSubagentTaskByToolUseId(
+  tasks: readonly SubagentTask[],
+  toolUseId?: string | null,
+): SubagentTask | null {
+  const normalizedToolUseId = toolUseId?.trim() ?? "";
+  if (!normalizedToolUseId) {
+    return null;
+  }
+  return tasks.find((task) => (
+    task.tool_use_id?.trim() === normalizedToolUseId
+    || task.task_id === normalizedToolUseId
+  )) ?? null;
 }
 
 export function subagentTaskSourceKey(source: SubagentTaskSource | null): string {
@@ -164,30 +174,11 @@ export function subagentTaskTimestamp(task: SubagentTask): number {
   return normalizeTimestamp(task.updated_at) ?? normalizeTimestamp(task.started_at) ?? 0;
 }
 
-export function subagentTaskAvatarColor(taskId: string): string {
-  return SUBAGENT_AVATAR_PALETTE[stableHash(taskId) % SUBAGENT_AVATAR_PALETTE.length];
-}
-
-/** 给 Thread 消息轨道提供与列表一致的稳定头像。 */
-export function subagentTaskAvatarDataUrl(taskId: string): string {
-  const color = subagentTaskAvatarColor(taskId);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="${color}"/><g fill="none" stroke="white" stroke-opacity=".72" stroke-width="5" stroke-linecap="round"><path d="M16 5v22"/><path d="M5 16h22"/><path d="m8.2 8.2 15.6 15.6"/><path d="m23.8 8.2-15.6 15.6"/></g><circle cx="16" cy="16" r="5" fill="${color}" fill-opacity=".82" stroke="white" stroke-opacity=".7"/></svg>`;
-  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
-}
-
 function normalizeTimestamp(value?: number): number | null {
   if (!value || value <= 0) {
     return null;
   }
   return value < 1_000_000_000_000 ? value * 1000 : value;
-}
-
-function stableHash(value: string): number {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
-  }
-  return hash;
 }
 
 function normalizeAlias(value?: string | null): string {

@@ -38,6 +38,11 @@ export function useRoomSurfaceLayoutController({
     tab: "identity",
     key: 0,
   });
+  const [subagentRequest, setSubagentRequest] = useState({
+    hostAgentId: null as string | null,
+    key: 0,
+    toolUseId: null as string | null,
+  });
   const isAuxiliaryPanelOpen = activeSurfaceTab !== "chat";
   const subagentTaskSource = useMemo(
     () => resolveRoomSubagentTaskSource({
@@ -62,12 +67,34 @@ export function useRoomSurfaceLayoutController({
     if (tab === "about") {
       requestAboutPanel(currentAgentId);
     }
+    if (tab === "subagents") {
+      setSubagentRequest((current) => ({
+        hostAgentId: null,
+        key: current.key + 1,
+        toolUseId: null,
+      }));
+    }
     onChangeSurfaceTab(tab);
   }, [currentAgentId, onChangeSurfaceTab, requestAboutPanel]);
   const handleOpenAgentContact = useCallback((agentId: string) => {
     requestAboutPanel(agentId);
     onChangeSurfaceTab("about");
   }, [onChangeSurfaceTab, requestAboutPanel]);
+  const handleOpenSubagentTask = useCallback((
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => {
+    const normalizedToolUseId = toolUseId.trim();
+    if (!normalizedToolUseId || !subagentTaskSource) {
+      return;
+    }
+    setSubagentRequest((current) => ({
+      hostAgentId: hostAgentId?.trim() || null,
+      key: current.key + 1,
+      toolUseId: normalizedToolUseId,
+    }));
+    onChangeSurfaceTab("subagents");
+  }, [onChangeSurfaceTab, subagentTaskSource]);
   const handleCloseAuxiliaryPanel = useCallback(() => {
     onChangeSurfaceTab("chat");
   }, [onChangeSurfaceTab]);
@@ -83,7 +110,9 @@ export function useRoomSurfaceLayoutController({
     handleChangeSurfaceTab,
     handleCloseAuxiliaryPanel,
     handleOpenAgentContact,
+    handleOpenSubagentTask,
     isAuxiliaryPanelOpen,
+    subagentRequest,
     subagentTaskSource,
   };
 }

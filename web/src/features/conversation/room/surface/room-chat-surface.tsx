@@ -35,6 +35,10 @@ interface RoomChatSurfaceProps {
   onCreateConversation: (title?: string) => Promise<string | null>;
   onExecutionTaskRunsChange: (runs: ConversationTaskRun[]) => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
@@ -60,6 +64,7 @@ export function RoomChatSurface({
   onCreateConversation: onCreateConversation,
   onExecutionTaskRunsChange,
   onOpenAgentContact: onOpenAgentContact,
+  onOpenSubagentTask,
   onOpenWorkGraph,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
   onRoomEvent: onRoomEvent,
@@ -87,6 +92,7 @@ export function RoomChatSurface({
           onConversationSnapshotChange={onConversationSnapshotChange}
           onExecutionTaskRunsChange={onExecutionTaskRunsChange}
           onOpenAgentContact={onOpenAgentContact}
+          onOpenSubagentTask={onOpenSubagentTask}
           onOpenWorkGraph={onOpenWorkGraph}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onRoomEvent={onRoomEvent}
@@ -109,6 +115,7 @@ export function RoomChatSurface({
           onCreateConversation={onCreateConversation}
           onExecutionTaskRunsChange={onExecutionTaskRunsChange}
           onOpenAgentContact={onOpenAgentContact}
+          onOpenSubagentTask={onOpenSubagentTask}
           onOpenWorkGraph={onOpenWorkGraph}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onRoomEvent={onRoomEvent}

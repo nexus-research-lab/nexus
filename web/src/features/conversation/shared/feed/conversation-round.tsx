@@ -59,6 +59,7 @@ export function ConversationRound({
               : undefined
           }
           onOpenAgentContact={renderer.onOpenAgentContact}
+          onOpenSubagentTask={renderer.onOpenSubagentTask}
           onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
           onPermissionResponse={renderer.onPermissionResponse}
           pendingPermissions={state.isLive ? source.pendingPermissions : []}

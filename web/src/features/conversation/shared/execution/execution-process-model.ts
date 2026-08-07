@@ -3,8 +3,8 @@
  * OUTPUT: 状态/类型文案键、当前节点、可展示摘要、稳定 Agent/Subagent 头像身份、一级 Agent 活动态、依赖深度与 WorkGraph 生命周期判定。
  * POS: WorkGraph 纯协议到轻量进程展示语义的无状态投影。
  */
-import { subagentTaskAvatarDataUrl } from "@/features/conversation/shared/subagent/subagent-task-model";
 import { stripRoomControlMarkers } from "@/features/conversation/shared/message/message-content-model";
+import { getSeededAvatarDataUrl } from "@/lib/seeded-avatar";
 import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
   ExecutionGraphNodeView,
@@ -375,7 +375,7 @@ export function resolveExecutionGraphNodeAgent(
       || node.agent_id?.trim()
       || node.id;
     return {
-      avatar: subagentTaskAvatarDataUrl(identity),
+      avatar: getSeededAvatarDataUrl(identity),
       id: `subagent:${identity}`,
       name: node.name?.trim() || node.agent_id?.trim() || "Subagent",
     };

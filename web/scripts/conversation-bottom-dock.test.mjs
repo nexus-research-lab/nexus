@@ -1022,7 +1022,7 @@ test("Session setting menus expose concrete choices and a separate reset action"
   );
 });
 
-test("Workspace Task uses a centered step-summary capsule and an absolute upward detail", async () => {
+test("Workspace Task uses a compact status anchor and a responsive upward detail", async () => {
   const { WorkspaceTaskPanel } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/surface/workspace-task-strip.tsx",
   );
@@ -1089,7 +1089,11 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
   assert.match(html, /data-workspace-task-agent-id="researcher"/);
   assert.match(html, /Researcher/);
   assert.match(html, /\bh-11\b/);
-  assert.match(html, /\brounded-full\b/);
+  assert.match(html, /data-workspace-task-visual="true"/);
+  assert.match(html, /\bh-8\b/);
+  assert.match(html, /rounded-\[9px\]/);
+  assert.doesNotMatch(html, /\brounded-full\b/);
+  assert.doesNotMatch(html, /surface-control-(?:background|border|shadow)/);
   assert.match(html, /第 2 \/ 3 步/);
   assert.match(html, /正在核对布局/);
   assert.match(html, /aria-controls="[^"]+"/);
@@ -1103,7 +1107,7 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
     "utf8",
   );
   assert.match(taskSource, /bottom-\[calc\(100%\+0\.5rem\)\]/);
-  assert.match(taskSource, /left-1\/2 -translate-x-1\/2/);
+  assert.match(taskSource, /bottom-\[calc\(100%\+0\.5rem\)\] left-1\/2 -translate-x-1\/2 sm:left-auto sm:right-0 sm:translate-x-0/);
   assert.match(taskSource, /data-placement="top"/);
   assert.match(taskSource, /<span className="sr-only">\{taskStatusLabel\(todo\.status\)\}<\/span>/);
   assert.ok(
@@ -1738,6 +1742,77 @@ test("Composer growth is capped and collapsed file tools show only the leaf name
       metrics: [{ count: 1, kind: "action" }],
     },
   );
+});
+
+test("Agent launches render as compact clickable task entries without redundant current-Agent text", async () => {
+  const { ContentRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
+  );
+  const content = [
+    {
+      id: "tool-agent-timeline",
+      input: {
+        description: "调研俄乌战争当前态势和时间线",
+        subagent_type: "research",
+      },
+      name: "Agent",
+      type: "tool_use",
+    },
+    {
+      description: "调研俄乌战争当前态势和时间线",
+      last_tool_name: "Agent",
+      task_id: "task-timeline",
+      tool_use_id: "tool-agent-timeline",
+      type: "task_progress",
+    },
+    {
+      id: "tool-agent-economy",
+      input: {
+        description: "调研俄乌战争经济影响与技术演变",
+        subagent_type: "research",
+      },
+      name: "Task",
+      type: "tool_use",
+    },
+    {
+      description: "调研俄乌战争经济影响与技术演变",
+      last_tool_name: "Agent",
+      task_id: "task-economy",
+      tool_use_id: "tool-agent-economy",
+      type: "task_progress",
+    },
+  ];
+  const html = await renderWithI18n(
+    React.createElement(ContentRenderer, {
+      content,
+      isStreaming: true,
+      onOpenSubagentTask: () => {},
+      workspaceAgentId: "agent-lucy",
+    }),
+  );
+
+  assert.equal(
+    (html.match(/data-subagent-task-tool-group="true"/g) ?? []).length,
+    1,
+  );
+  assert.equal(
+    (html.match(/data-subagent-task-tool-entry="true"/g) ?? []).length,
+    2,
+  );
+  assert.equal(
+    (html.match(/data-subagent-task-avatar="true"/g) ?? []).length,
+    2,
+  );
+  assert.equal(
+    (html.match(/data-subagent-task-status=/g) ?? []).length,
+    2,
+  );
+  assert.equal((html.match(/\bw-60\b/g) ?? []).length, 2);
+  assert.match(html, /调研俄乌战争当前态势和时间线/);
+  assert.match(html, /调研俄乌战争经济影响与技术演变/);
+  assert.match(html, /<button/);
+  assert.doesNotMatch(html, /当前 Agent/);
+  assert.doesNotMatch(html, /bg-primary\/5/);
 });
 
 test("questions and plan confirmations use the same Composer replacement owner", async () => {

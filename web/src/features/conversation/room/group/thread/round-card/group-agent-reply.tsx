@@ -17,6 +17,10 @@ interface GroupAgentReplyProps {
   isStopping?: boolean;
   onClickThread: () => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   onStopAgentRound?: () => void;
@@ -31,6 +35,7 @@ export function GroupAgentReply({
   isStopping = false,
   onClickThread,
   onOpenAgentContact,
+  onOpenSubagentTask,
   onOpenWorkspaceFile,
   onPermissionResponse,
   onStopAgentRound,
@@ -49,6 +54,7 @@ export function GroupAgentReply({
       messages={entry.assistant_messages}
       onClickThread={onClickThread}
       onOpenAgentContact={onOpenAgentContact}
+      onOpenSubagentTask={onOpenSubagentTask}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
       onPermissionResponse={onPermissionResponse}
       onStopAgentRound={onStopAgentRound}

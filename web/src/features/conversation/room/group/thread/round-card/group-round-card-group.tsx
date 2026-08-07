@@ -30,6 +30,10 @@ interface GroupRoundCardGroupProps {
   agentNameMap: Record<string, string>;
   messages: Message[];
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   onStopAgentRound: (agentRoundId: string) => void;
@@ -45,6 +49,7 @@ function GroupRoundCardGroupInner({
   agentNameMap,
   messages,
   onOpenAgentContact,
+  onOpenSubagentTask,
   onOpenWorkspaceFile,
   onPermissionResponse,
   onStopAgentRound,
@@ -133,6 +138,7 @@ function GroupRoundCardGroupInner({
               )}
               onClickThread={toggleEntryThread}
               onOpenAgentContact={onOpenAgentContact}
+              onOpenSubagentTask={onOpenSubagentTask}
               onOpenWorkspaceFile={onOpenWorkspaceFile}
               onPermissionResponse={onPermissionResponse}
               onStopAgentRound={

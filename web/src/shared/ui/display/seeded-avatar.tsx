@@ -5,7 +5,7 @@ import { type HTMLAttributes, useMemo } from "react";
 import { getSeededAvatarAppearance } from "@/lib/seeded-avatar";
 import { cn } from "@/shared/ui/class-name";
 
-type UiSeededAvatarSize = "xs" | "sm" | "md" | "lg";
+type UiSeededAvatarSize = "2xs" | "xs" | "sm" | "md" | "lg";
 
 interface UiSeededAvatarProps extends HTMLAttributes<HTMLSpanElement> {
   seed: string;
@@ -15,6 +15,7 @@ interface UiSeededAvatarProps extends HTMLAttributes<HTMLSpanElement> {
 const SEEDED_AVATAR_SIZE_CLASS_NAME: Readonly<
   Record<UiSeededAvatarSize, string>
 > = {
+  "2xs": "h-6 w-6",
   xs: "h-8 w-8",
   sm: "h-9 w-9",
   md: "h-10 w-10",
@@ -24,6 +25,7 @@ const SEEDED_AVATAR_SIZE_CLASS_NAME: Readonly<
 const SEEDED_AVATAR_RADIUS_CLASS_NAME: Readonly<
   Record<UiSeededAvatarSize, string>
 > = {
+  "2xs": "rounded-[6px]",
   xs: "rounded-[8px]",
   sm: "rounded-[9px]",
   md: "rounded-[10px]",

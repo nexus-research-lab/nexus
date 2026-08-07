@@ -103,6 +103,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced full-width Agent launch tool cards with equal-width task entries that use stable Skill-style subagent avatars, truncate long titles, keep status at the trailing edge, omit redundant live-tool text, and open the exact subagent thread in the shared desktop or mobile panel.
+- Reduced the conversation task summary to a compact flat status anchor with a responsive detail popover.
 - Reused Provider brand icons in the first-run model setup and prioritized domestic API-key services in its catalog.
 - Added WorkGraph Node Run history with bounded result/error detail and exact structured Artifact links, plus local-only collapse, full-text search, zoom, fit, and current-node navigation for large DM and Room graphs.
 - Added persistent Room member pause and resume controls that stop the member's current slots, preserve exact queued work, and gate Agent wake, Goal continuation, and WorkGraph dispatch until participation resumes.

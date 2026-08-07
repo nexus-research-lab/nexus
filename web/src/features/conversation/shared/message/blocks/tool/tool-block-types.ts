@@ -45,6 +45,10 @@ export interface ToolBlockProps {
   permissionRequest?: ToolPermissionRequest;
   interactionDisabled?: boolean;
   interactionDisabledReason?: string;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   workspaceAgentId?: string | null;
 }

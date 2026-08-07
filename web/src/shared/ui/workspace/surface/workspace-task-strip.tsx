@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前会话投影出的任务列表、来源 Agent 与可选来源控件。
- * OUTPUT: 带 Agent 来源、44px 局部热区、当前步骤摘要、顺序键盘导航与可读状态的居中任务胶囊及向上明细。
+ * OUTPUT: 带 Agent 来源、44px 局部热区、32px 平面状态锚点、顺序键盘导航与可读状态的任务摘要及向上明细。
  * POS: 锚在 Composer 顶边的 Workspace 会话级只读任务入口。
  */
 "use client";
@@ -39,9 +39,6 @@ export interface WorkspaceTaskSource {
   avatar: string | null;
   name: string;
 }
-
-const TASK_PANEL_TRIGGER_CLASS_NAME =
-  "border border-(--surface-control-border) bg-(--surface-control-background) shadow-(--surface-control-shadow)";
 
 export function WorkspaceTaskPanel({
   todos,
@@ -121,7 +118,7 @@ export function WorkspaceTaskPanel({
       aria-live="polite"
       data-workspace-task-panel
       className={cn(
-        "pointer-events-none relative flex min-w-0 max-w-[min(32rem,calc(100vw-4rem))] justify-center",
+        "pointer-events-none relative flex min-w-0 max-w-[min(30rem,calc(100vw-4rem))] justify-center",
         className,
       )}
     >
@@ -130,51 +127,46 @@ export function WorkspaceTaskPanel({
         aria-controls={panelId}
         aria-expanded={isExpanded}
         aria-label={isExpanded ? t("tasks.collapse_panel") : t("tasks.expand_panel")}
-        className={cn(
-          "pointer-events-auto inline-flex h-11 min-w-0 max-w-full items-center gap-2 rounded-full px-3.5 text-xs text-(--text-default) transition-[background,border-color,color,box-shadow] hover:border-(--surface-control-hover-border) hover:bg-(--surface-control-hover-background) hover:text-(--text-strong)",
-          TASK_PANEL_TRIGGER_CLASS_NAME,
-        )}
+        className="group pointer-events-auto flex h-11 min-w-0 max-w-full items-center focus-visible:outline-none"
         data-workspace-task-summary={summary}
         data-workspace-task-trigger
         onClick={() => setIsExpanded((current) => !current)}
         type="button"
       >
-        {source ? (
-          <>
+        <span
+          className="inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-[9px] px-2 text-xs text-(--text-default) transition-[background,color] duration-(--motion-duration-fast) group-hover:bg-(--surface-interactive-hover-background) group-hover:text-(--text-strong) group-focus-visible:bg-(--surface-interactive-hover-background) group-focus-visible:ring-2 group-focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_22%,transparent)]"
+          data-workspace-task-visual
+        >
+          {source ? (
             <WorkspaceTaskSourceIdentity source={source} />
-            <span
-              aria-hidden="true"
-              className="h-3.5 w-px shrink-0 bg-(--divider-subtle-color)"
-            />
-          </>
-        ) : null}
-        <span className="grid h-4 w-4 shrink-0 place-items-center">
-          {hasRunningTask ? (
-            <LoadingOrb />
-          ) : completedCount === totalCount ? (
-            <CircleCheck aria-hidden="true" className="h-4 w-4 text-(--success)" />
-          ) : (
-            <ListChecks aria-hidden="true" className="h-4 w-4 text-(--icon-muted)" />
-          )}
+          ) : null}
+          <span className="grid h-3.5 w-3.5 shrink-0 place-items-center">
+            {hasRunningTask ? (
+              <LoadingOrb />
+            ) : completedCount === totalCount ? (
+              <CircleCheck aria-hidden="true" className="h-3.5 w-3.5 text-(--success)" />
+            ) : (
+              <ListChecks aria-hidden="true" className="h-3.5 w-3.5 text-(--icon-muted)" />
+            )}
+          </span>
+          <span className="shrink-0 font-medium tabular-nums text-(--text-strong)">
+            {t("tasks.step_progress", {
+              current: currentStep,
+              total: totalCount,
+            })}
+          </span>
+          <span className="min-w-0 truncate text-(--text-muted)">{summary}</span>
+          <ChevronDown
+            className={cn(
+              "h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-200",
+              isExpanded && "rotate-180",
+            )}
+          />
         </span>
-        <span className="shrink-0 font-medium tabular-nums">
-          {t("tasks.step_progress", {
-            current: currentStep,
-            total: totalCount,
-          })}
-        </span>
-        <span aria-hidden="true" className="shrink-0 text-(--text-soft)">·</span>
-        <span className="min-w-0 truncate text-(--text-soft)">{summary}</span>
-        <ChevronDown
-          className={cn(
-            "h-3.5 w-3.5 shrink-0 text-(--icon-muted) transition-transform duration-200",
-            isExpanded && "rotate-180",
-          )}
-        />
       </button>
       {isExpanded ? (
         <div
-          className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2"
+          className="pointer-events-none absolute bottom-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 sm:left-auto sm:right-0 sm:translate-x-0"
         >
           <section
             aria-label={t("tasks.label")}
@@ -291,17 +283,18 @@ function WorkspaceTaskSourceIdentity({
 }) {
   return (
     <span
-      className="flex min-w-0 max-w-[8.5rem] items-center gap-1.5"
+      className="flex min-w-0 max-w-[7.5rem] items-center gap-1.5"
       data-workspace-task-agent-id={source.agentId}
       title={source.name}
     >
       <UiAgentAvatar
         avatar={source.avatar}
-        className="shrink-0"
+        className="h-5 w-5 shrink-0 rounded-[5px] shadow-none"
+        imageClassName="rounded-[5px]"
         name={source.name}
         size="xs"
       />
-      <span className="min-w-0 truncate text-compact font-semibold leading-none text-(--text-default)">
+      <span className="min-w-0 truncate text-xs font-medium leading-none text-(--text-default)">
         {source.name}
       </span>
     </span>

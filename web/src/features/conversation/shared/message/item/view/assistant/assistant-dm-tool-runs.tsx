@@ -311,6 +311,7 @@ function DmProcessSegmentContent({
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}
       isStreaming={streaming}
+      onOpenSubagentTask={environment.onOpenSubagentTask}
       onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
       onPermissionResponse={environment.onPermissionResponse}
       pendingInteractionOwner={permissions.owner}

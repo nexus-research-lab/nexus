@@ -27,6 +27,10 @@ import {
 
 interface ContentToolBlockContext {
   canRespondToPermissions: boolean;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   pendingInteractionOwner: PendingInteractionOwner;
@@ -69,6 +73,7 @@ function renderStandardToolBlock(
         interactionDisabled={!context.canRespondToPermissions}
         interactionDisabledReason={context.permissionReadOnlyReason}
         liveProgress={context.projection.taskProgressByToolUseId.get(block.id) ?? null}
+        onOpenSubagentTask={context.onOpenSubagentTask}
         onOpenWorkspaceFile={context.onOpenWorkspaceFile}
         permissionRequest={resolvePermissionRequest(context, state)}
         status={resolveToolBlockStatus(

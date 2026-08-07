@@ -33,6 +33,10 @@ import type { UnresolvedToolStatus } from "./content-renderer-contract";
 export interface ContentBlockRenderContext {
   canRespondToPermissions: boolean;
   hiddenToolNames: ReadonlySet<string>;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   pendingInteractionOwner: PendingInteractionOwner;
@@ -202,6 +206,7 @@ function renderToolUseBlock(
       block={block}
       context={{
         canRespondToPermissions: context.canRespondToPermissions,
+        onOpenSubagentTask: context.onOpenSubagentTask,
         onOpenWorkspaceFile: context.onOpenWorkspaceFile,
         onPermissionResponse: context.onPermissionResponse,
         pendingInteractionOwner: context.pendingInteractionOwner,

@@ -3,6 +3,7 @@
 import { cn } from "@/shared/ui/class-name";
 import type { ContentBlock } from "@/types/conversation/message/content";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
+import { isSubagentToolName } from "../../../message-tool-names";
 
 import { resolveContentActivityState } from "../../activity/message-content-activity";
 import type { MessageActivityState } from "../../activity/message-activity-state";
@@ -21,6 +22,15 @@ import {
 } from "./content-renderer-timeline";
 
 const EMPTY_HIDDEN_TOOL_NAMES: readonly string[] = [];
+const NON_RENDERING_CONTENT_BLOCK_TYPES = new Set<ContentBlock["type"]>([
+  "document",
+  "redacted_thinking",
+  "resource_link",
+  "search_result",
+  "task_progress",
+  "tool_result",
+  "unsupported",
+]);
 
 export function StructuredContentRenderer(
   props: StructuredContentRendererProps,
@@ -32,6 +42,7 @@ export function StructuredContentRenderer(
     fallbackActivityState,
     hiddenToolNames,
     isStreaming,
+    onOpenSubagentTask,
     onOpenWorkspaceFile,
     onPermissionResponse,
     pendingInteractionOwner,
@@ -59,6 +70,7 @@ export function StructuredContentRenderer(
   const renderContext: ContentBlockRenderContext = {
     canRespondToPermissions,
     hiddenToolNames: hiddenToolNameSet,
+    onOpenSubagentTask,
     onOpenWorkspaceFile,
     onPermissionResponse,
     pendingInteractionOwner,
@@ -71,6 +83,13 @@ export function StructuredContentRenderer(
     agentMentionDirectory,
     onOpenAgentContact,
   };
+  const renderGroups = buildStructuredContentRenderGroups({
+    content,
+    enableSubagentTaskGroup: Boolean(onOpenSubagentTask) && !showTimelineDots,
+    hiddenToolNames: hiddenToolNameSet,
+    pendingPermissionsByToolUseId,
+    projection,
+  });
 
   return (
     <div
@@ -80,22 +99,82 @@ export function StructuredContentRenderer(
         showTimelineDots && TIMELINE_LINE_CLASS_NAME,
       )}
     >
-      {content.map((block, index) => (
-        <StructuredContentBlock
-          block={block}
-          consumed={projection.consumedBlockIndexes.has(index)}
-          key={index}
-          renderContext={renderContext}
-          showTimelineDots={showTimelineDots}
-          streaming={streamingBlockIndexes?.has(index) ?? false}
-          blockIndex={index}
-        />
+      {renderGroups.map((group) => (
+        group.kind === "subagent_tasks" ? (
+          <div
+            className="flex min-w-0 flex-wrap gap-1.5 [&>div]:max-w-full"
+            data-subagent-task-tool-group
+            key={`subagent-tasks:${group.blockIndexes[0]}`}
+          >
+            {group.blockIndexes.map((blockIndex) => (
+              <StructuredContentBlock
+                block={content[blockIndex]}
+                blockIndex={blockIndex}
+                key={blockIndex}
+                renderContext={renderContext}
+                showTimelineDots={false}
+                streaming={streamingBlockIndexes?.has(blockIndex) ?? false}
+              />
+            ))}
+          </div>
+        ) : (
+          <StructuredContentBlock
+            block={content[group.blockIndex]}
+            blockIndex={group.blockIndex}
+            key={group.blockIndex}
+            renderContext={renderContext}
+            showTimelineDots={showTimelineDots}
+            streaming={streamingBlockIndexes?.has(group.blockIndex) ?? false}
+          />
+        )
       ))}
       {activityState ? (
         <LocalizedMessageActivityStatus className="pt-1" state={activityState} />
       ) : null}
     </div>
   );
+}
+
+type StructuredContentRenderGroup =
+  | { blockIndex: number; kind: "block" }
+  | { blockIndexes: number[]; kind: "subagent_tasks" };
+
+function buildStructuredContentRenderGroups({
+  content,
+  enableSubagentTaskGroup,
+  hiddenToolNames,
+  pendingPermissionsByToolUseId,
+  projection,
+}: {
+  content: readonly ContentBlock[];
+  enableSubagentTaskGroup: boolean;
+  hiddenToolNames: ReadonlySet<string>;
+  pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
+  projection: StructuredContentProjection;
+}): StructuredContentRenderGroup[] {
+  const groups: StructuredContentRenderGroup[] = [];
+  for (const [blockIndex, block] of content.entries()) {
+    if (
+      projection.consumedBlockIndexes.has(blockIndex)
+      || NON_RENDERING_CONTENT_BLOCK_TYPES.has(block.type)
+    ) {
+      continue;
+    }
+    const isSubagentTask = enableSubagentTaskGroup
+      && block.type === "tool_use"
+      && !hiddenToolNames.has(block.name)
+      && !pendingPermissionsByToolUseId?.has(block.id)
+      && isSubagentToolName(block.name);
+    const previousGroup = groups.at(-1);
+    if (isSubagentTask && previousGroup?.kind === "subagent_tasks") {
+      previousGroup.blockIndexes.push(blockIndex);
+      continue;
+    }
+    groups.push(isSubagentTask
+      ? { blockIndexes: [blockIndex], kind: "subagent_tasks" }
+      : { blockIndex, kind: "block" });
+  }
+  return groups;
 }
 
 function normalizeStructuredContentRendererProps(
@@ -115,21 +194,16 @@ function normalizeStructuredContentRendererProps(
 function StructuredContentBlock({
   block,
   blockIndex,
-  consumed,
   renderContext,
   showTimelineDots,
   streaming,
 }: {
   block: ContentBlock;
   blockIndex: number;
-  consumed: boolean;
   renderContext: ContentBlockRenderContext;
   showTimelineDots: boolean;
   streaming: boolean;
 }) {
-  if (consumed) {
-    return null;
-  }
   return (
     <ContentBlockView
       block={block}
