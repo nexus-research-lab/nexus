@@ -1,3 +1,6 @@
+// INPUT: automation 调用方、目标任务与当前会话信息。
+// OUTPUT: owner/Agent/外部会话三重收窄后的任务访问范围。
+// POS: nexus_automation 每个工具共享的授权真相源。
 package tool
 
 import (
@@ -100,6 +103,9 @@ func requireOwnedTaskHistoryScopeForJob(ctx context.Context, svc contract.Servic
 		if err = ensureTaskBelongsToCaller(sctx, normalizedJobID, strings.TrimSpace(job.AgentID)); err != nil {
 			return taskHistoryScope{}, err
 		}
+		if err = ensureTaskVisibleInReadContext(sctx, *job); err != nil {
+			return taskHistoryScope{}, err
+		}
 		return taskHistoryScope{Context: scopedCtx, JobID: normalizedJobID}, nil
 	}
 	events, eventErr := svc.ListTaskEvents(scopedCtx, normalizedJobID, 50)
@@ -113,7 +119,7 @@ func requireOwnedTaskHistoryScopeForJob(ctx context.Context, svc contract.Servic
 	if len(events) == 0 && len(runs) == 0 {
 		return taskHistoryScope{}, automationdomain.ErrJobNotFound
 	}
-	if !sctx.IsMainAgent {
+	if !hasMainAgentScopeAuthority(sctx) {
 		caller, err := callerAgentID(sctx)
 		if err != nil {
 			return taskHistoryScope{}, err
@@ -126,6 +132,9 @@ func requireOwnedTaskHistoryScopeForJob(ctx context.Context, svc contract.Servic
 				return taskHistoryScope{}, taskOwnershipError(normalizedJobID)
 			}
 		}
+	}
+	if err = ensureTaskHistoryVisibleInReadContext(sctx, normalizedJobID, events); err != nil {
+		return taskHistoryScope{}, err
 	}
 	return taskHistoryScope{Context: scopedCtx, JobID: normalizedJobID}, nil
 }
@@ -176,11 +185,14 @@ func ownedTaskInScope(ctx context.Context, svc contract.Service, sctx contract.S
 	if err = ensureTaskBelongsToCaller(sctx, jobID, strings.TrimSpace(job.AgentID)); err != nil {
 		return nil, err
 	}
+	if err = ensureTaskVisibleInReadContext(sctx, *job); err != nil {
+		return nil, err
+	}
 	return job, nil
 }
 
 func ensureTaskBelongsToCaller(sctx contract.ServerContext, jobID string, agentID string) error {
-	if sctx.IsMainAgent {
+	if hasMainAgentScopeAuthority(sctx) {
 		return nil
 	}
 	caller, err := callerAgentID(sctx)
@@ -202,7 +214,62 @@ func callerAgentID(sctx contract.ServerContext) (string, error) {
 }
 
 func taskOwnershipError(jobID string) error {
-	return fmt.Errorf("scheduled task %s belongs to another agent; only its owner or main agent can manage it", jobID)
+	return fmt.Errorf("scheduled task %s belongs to another agent; only its Agent or the main Agent in its trusted private Nexus DM can access it", jobID)
+}
+
+func hasMainAgentScopeAuthority(sctx contract.ServerContext) bool {
+	return sctx.IsMainAgent &&
+		strings.TrimSpace(sctx.SourceContextType) == "agent"
+}
+
+func ensureTaskVisibleInReadContext(sctx contract.ServerContext, job automationdomain.ScheduledTask) error {
+	current, ok := externalTaskReadContext(sctx)
+	if !ok || scheduledTaskMatchesCurrentContext(job, current) {
+		return nil
+	}
+	return fmt.Errorf("scheduled task %s is outside the current external conversation", strings.TrimSpace(job.JobID))
+}
+
+func ensureTaskHistoryVisibleInReadContext(
+	sctx contract.ServerContext,
+	jobID string,
+	events []automationdomain.ScheduledTaskEvent,
+) error {
+	current, ok := externalTaskReadContext(sctx)
+	if !ok {
+		return nil
+	}
+	for _, event := range events {
+		if taskEventMatchesCurrentContext(event, current) {
+			return nil
+		}
+	}
+	return fmt.Errorf("scheduled task %s history is outside the current external conversation", strings.TrimSpace(jobID))
+}
+
+func externalTaskReadContext(sctx contract.ServerContext) (currentTaskContext, bool) {
+	if isTrustedInteractiveSource(sctx) {
+		return currentTaskContext{}, false
+	}
+	current, ok := currentTaskContextFromServerContext(sctx)
+	if !ok || !current.external {
+		return currentTaskContext{}, false
+	}
+	return current, true
+}
+
+func requireTrustedInteractiveMutation(sctx contract.ServerContext) error {
+	if isTrustedInteractiveSource(sctx) {
+		return nil
+	}
+	return errors.New("scheduled task mutations require a trusted interactive Nexus DM or Room context")
+}
+
+func requireAgentExecutionTaskMutation(job automationdomain.ScheduledTask) error {
+	if automationdomain.NormalizeExecutionKind(job.ExecutionKind) != automationdomain.ExecutionKindScript {
+		return nil
+	}
+	return errors.New("script scheduled tasks are human-control-plane only and cannot be modified, deleted, repaired, or run through an Agent conversation")
 }
 
 func describeScheduledTaskCandidates(jobs []automationdomain.ScheduledTask, limit int) string {
@@ -266,11 +333,11 @@ func scopedToolContext(ctx context.Context, sctx contract.ServerContext) context
 }
 
 // resolveListAgentID 决定 find_scheduled_tasks 的过滤条件。
-// 主智能体支持显式过滤或全部列出；普通 agent 强制限定为自己。
+// owner main 仅在自己的可信私有 DM 支持显式过滤或全部列出；其他上下文限定为自己。
 func resolveListAgentID(sctx contract.ServerContext, requested string) (string, error) {
 	requested = strings.TrimSpace(requested)
 	caller := strings.TrimSpace(sctx.CurrentAgentID)
-	if sctx.IsMainAgent {
+	if hasMainAgentScopeAuthority(sctx) {
 		return requested, nil
 	}
 	if caller == "" {
@@ -283,11 +350,11 @@ func resolveListAgentID(sctx contract.ServerContext, requested string) (string, 
 }
 
 // resolveCreateAgentID 决定 create_scheduled_task 的归属 agent_id。
-// 主智能体可任意指定；普通 agent 强制为自己。
+// owner main 仅在自己的可信私有 DM 可指定；其他上下文强制为自己。
 func resolveCreateAgentID(sctx contract.ServerContext, requested string) (string, error) {
 	requested = strings.TrimSpace(requested)
 	caller := strings.TrimSpace(sctx.CurrentAgentID)
-	if sctx.IsMainAgent {
+	if hasMainAgentScopeAuthority(sctx) {
 		if requested != "" {
 			return requested, nil
 		}

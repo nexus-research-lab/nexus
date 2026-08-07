@@ -12,10 +12,39 @@ import (
 )
 
 func (s *Service) upsertConnection(ctx context.Context, record connectionRecord) error {
+	_, err := s.upsertConnectionAtVersion(ctx, record, nil)
+	return err
+}
+
+func (s *Service) upsertConnectionAtVersion(
+	ctx context.Context,
+	record connectionRecord,
+	expectedVersion *int64,
+) (int64, error) {
 	record.OwnerUserID = normalizeConnectorOwnerUserID(ctx, record.OwnerUserID)
 	if err := s.encryptConnectionCredentials(&record); err != nil {
-		return err
+		return 0, err
 	}
+	return s.mutateConnector(
+		ctx,
+		record.OwnerUserID,
+		record.ConnectorID,
+		expectedVersion,
+		func(tx *sql.Tx) error {
+			return s.writeConnection(ctx, tx, record)
+		},
+	)
+}
+
+type connectorExecer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func (s *Service) writeConnection(
+	ctx context.Context,
+	executor connectorExecer,
+	record connectionRecord,
+) error {
 	if s.driver == "pgx" {
 		query := `
 INSERT INTO connector_connections (
@@ -29,7 +58,7 @@ ON CONFLICT (owner_user_id, connector_id) DO UPDATE SET
     oauth_state = EXCLUDED.oauth_state,
     oauth_state_expires_at = EXCLUDED.oauth_state_expires_at,
     updated_at = CURRENT_TIMESTAMP`
-		_, err := s.db.ExecContext(
+		_, err := executor.ExecContext(
 			ctx,
 			query,
 			record.OwnerUserID,
@@ -55,7 +84,7 @@ ON CONFLICT(owner_user_id, connector_id) DO UPDATE SET
     oauth_state = excluded.oauth_state,
     oauth_state_expires_at = excluded.oauth_state_expires_at,
     updated_at = CURRENT_TIMESTAMP`
-	_, err := s.db.ExecContext(
+	_, err := executor.ExecContext(
 		ctx,
 		query,
 		record.OwnerUserID,

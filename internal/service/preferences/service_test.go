@@ -1,14 +1,18 @@
+// INPUT: 并发 owner 更新、陈旧 version、WebSearch credential 与回滚快照。
+// OUTPUT: Preferences 串行 RMW、CAS、条件回滚和唯一临时文件行为证明。
+// POS: Preferences 文件真相源 P0 一致性回归测试。
 package preferences
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -154,7 +158,7 @@ func TestServiceStoresWebSearchAPIKeySeparately(t *testing.T) {
 	root := t.TempDir()
 	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
 	apiKey := "secret-search-key"
-	_, err := service.Update(context.Background(), "user/1", UpdateRequest{
+	updated, err := service.Update(context.Background(), "user/1", UpdateRequest{
 		WebSearch: &WebSearchSettings{
 			Enabled:  true,
 			Provider: "brave",
@@ -191,10 +195,8 @@ func TestServiceStoresWebSearchAPIKeySeparately(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 WebSearch 凭据文件失败: %v", err)
 	}
-	var credential storedWebSearchCredential
-	if err = json.Unmarshal(credentialContent, &credential); err != nil {
-		t.Fatalf("WebSearch 凭据文件格式不正确: %v", err)
-	}
+	credential := decodeWebSearchCredentialBundle(credentialContent).
+		credentialForVersion(updated.Version)
 	if credential.Provider != "brave" || credential.APIKey != apiKey {
 		t.Fatalf("WebSearch 凭据未绑定 provider: %+v", credential)
 	}
@@ -209,6 +211,55 @@ func TestServiceStoresWebSearchAPIKeySeparately(t *testing.T) {
 	}
 	if loaded.WebSearch.APIKeyConfigured || loaded.WebSearchAPIKey() != "" {
 		t.Fatalf("WebSearch API key 未清除: %+v", loaded.WebSearch)
+	}
+}
+
+func TestServiceWebSearchCredentialCommitSurvivesEitherCrashPoint(t *testing.T) {
+	root := t.TempDir()
+	cfg := config.Config{WorkspacePath: filepath.Join(root, "workspace")}
+	service := NewService(cfg)
+	const ownerID = "owner-credential-crash"
+	oldKey := "old-brave-key"
+	current, err := service.Update(context.Background(), ownerID, UpdateRequest{
+		WebSearch:       &WebSearchSettings{Enabled: true, Provider: "brave"},
+		WebSearchAPIKey: &oldKey,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := current
+	next.Version++
+	next.UpdatedAt = nowRFC3339()
+	nextKey := "next-brave-key"
+	next.WebSearch = next.WebSearch.WithWebSearchAPIKey(nextKey)
+
+	// 模拟进程在凭据双代写入后、Preferences 发布前崩溃。
+	if err = service.writeWebSearchCredentialBundleConfined(
+		ownerID,
+		credentialBundleForTransition(current, next),
+	); err != nil {
+		t.Fatal(err)
+	}
+	beforePublish, err := NewService(cfg).Get(context.Background(), ownerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if beforePublish.Version != current.Version ||
+		beforePublish.WebSearchAPIKey() != oldKey {
+		t.Fatalf("Preferences 发布前必须继续读取旧代: %+v", beforePublish)
+	}
+
+	// 模拟 Preferences 已发布、旧凭据代尚未清理时再次崩溃。
+	if err = service.writePreferencesConfined(ownerID, next); err != nil {
+		t.Fatal(err)
+	}
+	afterPublish, err := NewService(cfg).Get(context.Background(), ownerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterPublish.Version != next.Version ||
+		afterPublish.WebSearchAPIKey() != nextKey {
+		t.Fatalf("Preferences 发布后必须只读取新代: %+v", afterPublish)
 	}
 }
 
@@ -395,6 +446,304 @@ func TestServiceUpdatePersistsInterruptDefaultDeliveryPolicy(t *testing.T) {
 	}
 	if prefs.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyInterrupt {
 		t.Fatalf("打断默认行为未持久化: %+v", prefs)
+	}
+}
+
+func TestServiceSerializesOwnerReadModifyWrite(t *testing.T) {
+	service := NewService(config.Config{WorkspacePath: t.TempDir()})
+	const ownerID = "owner-serialized-rmw"
+
+	firstEntered := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := service.UpdatePrepared(
+			context.Background(),
+			ownerID,
+			func(Preferences) (UpdateRequest, error) {
+				close(firstEntered)
+				<-releaseFirst
+				enabled := true
+				return UpdateRequest{AgentSDKDiagnosticsEnabled: &enabled}, nil
+			},
+		)
+		firstDone <- err
+	}()
+	<-firstEntered
+
+	secondStarted := make(chan struct{})
+	secondDone := make(chan error, 1)
+	go func() {
+		close(secondStarted)
+		policy := protocol.ChatDeliveryPolicyInterrupt
+		_, err := service.Update(
+			context.Background(),
+			ownerID,
+			UpdateRequest{ChatDefaultDeliveryPolicy: &policy},
+		)
+		secondDone <- err
+	}()
+	<-secondStarted
+	select {
+	case err := <-secondDone:
+		t.Fatalf("第二项 owner 更新未等待首个 RMW 完成: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(releaseFirst)
+	if err := <-firstDone; err != nil {
+		t.Fatalf("首项 owner 更新失败: %v", err)
+	}
+	if err := <-secondDone; err != nil {
+		t.Fatalf("第二项 owner 更新失败: %v", err)
+	}
+
+	stored, err := service.Get(context.Background(), ownerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stored.AgentSDKDiagnosticsEnabled ||
+		stored.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyInterrupt {
+		t.Fatalf("串行 RMW 丢失局部更新: %+v", stored)
+	}
+	if stored.Version != 3 {
+		t.Fatalf("串行写入后的 version = %d, want 3", stored.Version)
+	}
+}
+
+func TestServiceUpdateAtVersionRejectsStaleWrite(t *testing.T) {
+	cfg := config.Config{WorkspacePath: t.TempDir()}
+	service := NewService(cfg)
+	const ownerID = "owner-preferences-cas"
+
+	initial, err := service.Get(context.Background(), ownerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled := true
+	updated, err := service.UpdateAtVersion(
+		context.Background(),
+		ownerID,
+		UpdateRequest{AgentSDKDiagnosticsEnabled: &enabled},
+		initial.Version,
+	)
+	if err != nil {
+		t.Fatalf("首个 CAS 更新失败: %v", err)
+	}
+	if updated.Version != initial.Version+1 {
+		t.Fatalf("CAS version = %d, want %d", updated.Version, initial.Version+1)
+	}
+
+	policy := protocol.ChatDeliveryPolicyInterrupt
+	_, err = service.UpdateAtVersion(
+		context.Background(),
+		ownerID,
+		UpdateRequest{ChatDefaultDeliveryPolicy: &policy},
+		initial.Version,
+	)
+	if !errors.Is(err, ErrVersionConflict) {
+		t.Fatalf("陈旧 CAS error = %v, want ErrVersionConflict", err)
+	}
+	stored, err := service.Get(context.Background(), ownerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Version != updated.Version ||
+		!stored.AgentSDKDiagnosticsEnabled ||
+		stored.ChatDefaultDeliveryPolicy == protocol.ChatDeliveryPolicyInterrupt {
+		t.Fatalf("陈旧 CAS 覆盖了当前值: %+v", stored)
+	}
+	restarted, err := NewService(cfg).Get(context.Background(), ownerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restarted.Version != updated.Version {
+		t.Fatalf("Service 重建后 version = %d, want %d", restarted.Version, updated.Version)
+	}
+}
+
+func TestServicePreparedCASMergesFromLockedLatestValue(t *testing.T) {
+	service := NewService(config.Config{WorkspacePath: t.TempDir()})
+	const ownerID = "owner-prepared-cas"
+
+	enabled := true
+	latest, err := service.Update(
+		context.Background(),
+		ownerID,
+		UpdateRequest{AgentSDKDiagnosticsEnabled: &enabled},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := protocol.ChatDeliveryPolicyInterrupt
+	updated, err := service.UpdatePreparedAtVersion(
+		context.Background(),
+		ownerID,
+		latest.Version,
+		func(current Preferences) (UpdateRequest, error) {
+			if !current.AgentSDKDiagnosticsEnabled || current.Version != latest.Version {
+				t.Fatalf("builder 未读取锁内最新 Preferences: %+v", current)
+			}
+			return UpdateRequest{ChatDefaultDeliveryPolicy: &policy}, nil
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !updated.AgentSDKDiagnosticsEnabled ||
+		updated.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyInterrupt ||
+		updated.Version != latest.Version+1 {
+		t.Fatalf("锁内 merge 丢失最新字段: %+v", updated)
+	}
+}
+
+func TestServiceRestoreIfVersionPreservesLaterWriteAndCredential(t *testing.T) {
+	root := t.TempDir()
+	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+	const ownerID = "owner-conditional-restore"
+
+	initial, err := service.Get(context.Background(), ownerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apiKey := "rollback-brave-key"
+	webSearchUpdate, err := service.UpdateAtVersion(
+		context.Background(),
+		ownerID,
+		UpdateRequest{
+			WebSearch:       &WebSearchSettings{Enabled: true, Provider: "brave"},
+			WebSearchAPIKey: &apiKey,
+		},
+		initial.Version,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled := true
+	later, err := service.Update(
+		context.Background(),
+		ownerID,
+		UpdateRequest{AgentSDKDiagnosticsEnabled: &enabled},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	current, restored, err := service.RestoreIfVersion(
+		context.Background(),
+		ownerID,
+		webSearchUpdate.Version,
+		initial,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored {
+		t.Fatal("条件回滚不应覆盖后续写入")
+	}
+	if current.Version != later.Version ||
+		!current.AgentSDKDiagnosticsEnabled ||
+		current.WebSearchAPIKey() != apiKey {
+		t.Fatalf("跳过回滚后当前值被破坏: %+v", current)
+	}
+
+	restoredValue, restored, err := service.RestoreIfVersion(
+		context.Background(),
+		ownerID,
+		later.Version,
+		initial,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !restored || restoredValue.Version != later.Version+1 {
+		t.Fatalf("无后续写入时应恢复并推进 version: restored=%v value=%+v", restored, restoredValue)
+	}
+	if restoredValue.AgentSDKDiagnosticsEnabled ||
+		restoredValue.WebSearch.Provider != initial.WebSearch.Provider ||
+		restoredValue.WebSearchAPIKey() != "" {
+		t.Fatalf("恢复结果不等于旧配置: %+v", restoredValue)
+	}
+	keyPath := filepath.Join(root, "workspace", ownerID, ".settings", "web-search-api-key")
+	if _, err = os.Stat(keyPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("恢复旧 WebSearch 配置后 credential 仍存在: %v", err)
+	}
+}
+
+func TestServiceUsesUniqueTemporaryFiles(t *testing.T) {
+	root := t.TempDir()
+	service := NewService(config.Config{WorkspacePath: filepath.Join(root, "workspace")})
+	const ownerID = "owner-unique-temp"
+	settingsDir := filepath.Join(root, "workspace", ownerID, ".settings")
+	if err := os.MkdirAll(settingsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sentinels := []string{
+		filepath.Join(settingsDir, "preferences.json.tmp"),
+		filepath.Join(settingsDir, "web-search-api-key.tmp"),
+	}
+	for _, path := range sentinels {
+		if err := os.WriteFile(path, []byte("sentinel"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	apiKey := "unique-temp-key"
+	if _, err := service.Update(context.Background(), ownerID, UpdateRequest{
+		WebSearch:       &WebSearchSettings{Enabled: true, Provider: "brave"},
+		WebSearchAPIKey: &apiKey,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range sentinels {
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(content) != "sentinel" {
+			t.Fatalf("固定临时路径被覆盖: %s = %q", path, content)
+		}
+	}
+	matches, err := filepath.Glob(filepath.Join(settingsDir, ".*.tmp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(matches) != 0 {
+		t.Fatalf("唯一临时文件未清理: %v", matches)
+	}
+}
+
+func TestServiceConcurrentPartialUpdatesKeepMonotonicVersion(t *testing.T) {
+	service := NewService(config.Config{WorkspacePath: t.TempDir()})
+	const ownerID = "owner-concurrent-version"
+	const writes = 24
+
+	var wait sync.WaitGroup
+	errorsCh := make(chan error, writes)
+	for index := 0; index < writes; index++ {
+		wait.Add(1)
+		go func(index int) {
+			defer wait.Done()
+			enabled := index%2 == 0
+			_, err := service.Update(
+				context.Background(),
+				ownerID,
+				UpdateRequest{AgentSDKDiagnosticsEnabled: &enabled},
+			)
+			errorsCh <- err
+		}(index)
+	}
+	wait.Wait()
+	close(errorsCh)
+	for err := range errorsCh {
+		if err != nil {
+			t.Fatalf("并发 Preferences 写入失败: %v", err)
+		}
+	}
+	stored, err := service.Get(context.Background(), ownerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Version != writes+1 {
+		t.Fatalf("并发写入 version = %d, want %d", stored.Version, writes+1)
 	}
 }
 

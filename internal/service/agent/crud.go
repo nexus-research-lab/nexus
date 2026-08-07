@@ -1,8 +1,12 @@
+// INPUT: 可信 owner 上下文中的 Agent CRUD 请求与可选资源版本。
+// OUTPUT: Agent 持久状态、workspace 投影及跨域协调后的删除结果。
+// POS: Agent 业务 CRUD 主链，删除通过消费侧协调器进入关联能力域。
 package agent
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -283,13 +287,9 @@ func (s *Service) UpdateAgentSkillSelection(
 	if err := s.EnsureReady(ctx); err != nil {
 		return nil, err
 	}
-	scopedOwnerID, _ := scopedOwnerUserID(ctx)
-	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID), scopedOwnerID)
+	existing, err := s.loadAgentForSkillSelection(ctx, agentID)
 	if err != nil {
 		return nil, err
-	}
-	if existing == nil || existing.Status != "active" {
-		return nil, ErrAgentNotFound
 	}
 	updated, err := s.repository.UpdateAgentSkillSelection(
 		ctx,
@@ -298,6 +298,76 @@ func (s *Service) UpdateAgentSkillSelection(
 		mustJSONString(normalizeStringList(skillIDs)),
 		mustJSONString(normalizeStringList(disabledSkillIDs)),
 	)
+	return s.finalizeAgentSkillSelection(updated, err)
+}
+
+// UpdateAgentSkillIDsAtVersion 仅更新全局 Skill 绑定并拒绝过期 runtime_version。
+func (s *Service) UpdateAgentSkillIDsAtVersion(
+	ctx context.Context,
+	agentID string,
+	skillIDs []string,
+	expectedRuntimeVersion int64,
+) (*protocol.Agent, error) {
+	if err := s.EnsureReady(ctx); err != nil {
+		return nil, err
+	}
+	existing, err := s.loadAgentForSkillSelection(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := s.repository.UpdateAgentSkillIDsAtVersion(
+		ctx,
+		existing.AgentID,
+		existing.OwnerUserID,
+		mustJSONString(normalizeStringList(skillIDs)),
+		expectedRuntimeVersion,
+	)
+	return s.finalizeAgentSkillSelection(updated, err)
+}
+
+// UpdateAgentDisabledSkillIDsAtVersion 仅更新 workspace Skill 停用集合并拒绝过期版本。
+func (s *Service) UpdateAgentDisabledSkillIDsAtVersion(
+	ctx context.Context,
+	agentID string,
+	disabledSkillIDs []string,
+	expectedRuntimeVersion int64,
+) (*protocol.Agent, error) {
+	if err := s.EnsureReady(ctx); err != nil {
+		return nil, err
+	}
+	existing, err := s.loadAgentForSkillSelection(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := s.repository.UpdateAgentDisabledSkillIDsAtVersion(
+		ctx,
+		existing.AgentID,
+		existing.OwnerUserID,
+		mustJSONString(normalizeStringList(disabledSkillIDs)),
+		expectedRuntimeVersion,
+	)
+	return s.finalizeAgentSkillSelection(updated, err)
+}
+
+func (s *Service) loadAgentForSkillSelection(
+	ctx context.Context,
+	agentID string,
+) (*protocol.Agent, error) {
+	scopedOwnerID, _ := scopedOwnerUserID(ctx)
+	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID), scopedOwnerID)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil || existing.Status != "active" {
+		return nil, ErrAgentNotFound
+	}
+	return existing, nil
+}
+
+func (s *Service) finalizeAgentSkillSelection(
+	updated *protocol.Agent,
+	err error,
+) (*protocol.Agent, error) {
 	if err != nil {
 		return nil, err
 	}
@@ -386,24 +456,25 @@ func (u *agentUpdate) record() (agentrepo.UpdateRecord, error) {
 	}
 	options := u.updatedOptions()
 	return agentrepo.UpdateRecord{
-		AgentID:              u.existing.AgentID,
-		OwnerUserID:          u.ownerUserID,
-		Name:                 name,
-		WorkspacePath:        u.existing.WorkspacePath,
-		Avatar:               updatedAgentText(u.existing.Avatar, u.request.Avatar),
-		Description:          updatedAgentText(u.existing.Description, u.request.Description),
-		VibeTagsJSON:         mustJSONString(u.updatedVibeTags()),
-		Provider:             options.Provider,
-		Model:                options.Model,
-		PermissionMode:       options.PermissionMode,
-		AllowedToolsJSON:     mustJSONString(options.AllowedTools),
-		DisallowedToolsJSON:  mustJSONString(options.DisallowedTools),
-		MCPServersJSON:       mustJSONString(options.MCPServers),
-		SkillIDsJSON:         mustJSONString(options.SkillIDs),
-		DisabledSkillIDsJSON: mustJSONString(options.DisabledSkillIDs),
-		MaxTurns:             options.MaxTurns,
-		MaxThinkingTokens:    options.MaxThinkingTokens,
-		SettingSourcesJSON:   mustJSONString(options.SettingSources),
+		AgentID:                u.existing.AgentID,
+		OwnerUserID:            u.ownerUserID,
+		Name:                   name,
+		WorkspacePath:          u.existing.WorkspacePath,
+		Avatar:                 updatedAgentText(u.existing.Avatar, u.request.Avatar),
+		Description:            updatedAgentText(u.existing.Description, u.request.Description),
+		VibeTagsJSON:           mustJSONString(u.updatedVibeTags()),
+		Provider:               options.Provider,
+		Model:                  options.Model,
+		PermissionMode:         options.PermissionMode,
+		AllowedToolsJSON:       mustJSONString(options.AllowedTools),
+		DisallowedToolsJSON:    mustJSONString(options.DisallowedTools),
+		MCPServersJSON:         mustJSONString(options.MCPServers),
+		SkillIDsJSON:           mustJSONString(options.SkillIDs),
+		DisabledSkillIDsJSON:   mustJSONString(options.DisabledSkillIDs),
+		MaxTurns:               options.MaxTurns,
+		MaxThinkingTokens:      options.MaxThinkingTokens,
+		SettingSourcesJSON:     mustJSONString(options.SettingSources),
+		ExpectedRuntimeVersion: u.request.ExpectedRuntimeVersion,
 	}, nil
 }
 
@@ -462,6 +533,23 @@ func (u *agentUpdate) finalize(updated *protocol.Agent) error {
 
 // DeleteAgent 删除 Agent，并清理 workspace 目录与数据库记录。
 func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
+	return s.deleteAgent(ctx, agentID, nil)
+}
+
+// DeleteAgentAtVersion 仅在 runtime_version 仍等于计划版本时删除 Agent。
+func (s *Service) DeleteAgentAtVersion(
+	ctx context.Context,
+	agentID string,
+	expectedRuntimeVersion int64,
+) error {
+	return s.deleteAgent(ctx, agentID, &expectedRuntimeVersion)
+}
+
+func (s *Service) deleteAgent(
+	ctx context.Context,
+	agentID string,
+	expectedRuntimeVersion *int64,
+) error {
 	if err := s.EnsureReady(ctx); err != nil {
 		return err
 	}
@@ -477,22 +565,53 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 	if existing.IsMain {
 		return errors.New("主智能体不可删除")
 	}
-	if s.goals != nil {
-		if _, err = s.goals.DeleteGoalsForAgent(ctx, existing.AgentID); err != nil {
-			return err
-		}
+	if expectedRuntimeVersion != nil && existing.RuntimeVersion != *expectedRuntimeVersion {
+		return ErrRuntimeVersionConflict
 	}
-	if s.history != nil {
-		if _, err = s.history.ForOwner(existing.OwnerUserID).DeleteTranscriptProject(existing.WorkspacePath); err != nil {
-			return err
-		}
-	}
-	if err = s.cleanupAgentWorkspace(ctx, *existing); err != nil {
-		return err
-	}
+
+	// 先以数据库事务和 runtime_version CAS 提交身份撤销，再清理 Goal、
+	// transcript 与 workspace。这样任何提交前失败都不会先破坏 Agent 文件；
+	// 提交后的外围失败则明确返回 reconcile 状态。
 	deleteOwnerUserID := existing.OwnerUserID
 	if ownerUserID != "" {
 		deleteOwnerUserID = ownerUserID
 	}
-	return s.repository.DeleteAgent(ctx, existing.AgentID, deleteOwnerUserID)
+	persistenceErr := s.deleteAgentPersistenceAtVersion(
+		ctx,
+		deleteOwnerUserID,
+		existing.AgentID,
+		expectedRuntimeVersion,
+	)
+	if persistenceErr != nil && !AgentDeletionCommitted(persistenceErr) {
+		return persistenceErr
+	}
+
+	cleanupCtx := context.WithoutCancel(ctx)
+	cleanupErrs := make([]error, 0, 4)
+	if persistenceErr != nil {
+		var committed *DeletionReconcileError
+		if errors.As(persistenceErr, &committed) {
+			cleanupErrs = append(cleanupErrs, committed.cause)
+		} else {
+			cleanupErrs = append(cleanupErrs, persistenceErr)
+		}
+	}
+	if s.goals != nil {
+		if _, cleanupErr := s.goals.DeleteGoalsForAgent(cleanupCtx, existing.AgentID); cleanupErr != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("清理 Agent Goal: %w", cleanupErr))
+		}
+	}
+	if s.history != nil {
+		if _, cleanupErr := s.history.ForOwner(existing.OwnerUserID).
+			DeleteTranscriptProject(existing.WorkspacePath); cleanupErr != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("清理 Agent transcript: %w", cleanupErr))
+		}
+	}
+	if cleanupErr := s.cleanupAgentWorkspace(cleanupCtx, *existing); cleanupErr != nil {
+		cleanupErrs = append(cleanupErrs, fmt.Errorf("清理 Agent workspace: %w", cleanupErr))
+	}
+	if cleanupErr := errors.Join(cleanupErrs...); cleanupErr != nil {
+		return &DeletionReconcileError{cause: cleanupErr}
+	}
+	return nil
 }

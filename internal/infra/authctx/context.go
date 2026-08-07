@@ -7,6 +7,22 @@ import (
 
 type principalContextKey struct{}
 type stateContextKey struct{}
+type interactiveHumanContextKey struct{}
+type queuedHumanPrincipalContextKey struct{}
+
+// InteractiveHumanEvidence 是宿主 transport 已验证的人类交互凭据种类。
+type InteractiveHumanEvidence struct {
+	Source string
+}
+
+// QueuedHumanPrincipalBinding is the opaque host-auth identity restored from a
+// durable queue admission. SessionID is a database row ID, not a credential.
+// Roles are deliberately absent and must be resolved again at tool execution.
+type QueuedHumanPrincipalBinding struct {
+	UserID     string
+	AuthMethod string
+	SessionID  string
+}
 
 // WithPrincipal 把认证后的主体写入请求上下文。
 func WithPrincipal(ctx context.Context, principal *Principal) context.Context {
@@ -52,4 +68,81 @@ func WithState(ctx context.Context, state State) context.Context {
 func StateFromContext(ctx context.Context) (State, bool) {
 	state, ok := ctx.Value(stateContextKey{}).(State)
 	return state, ok
+}
+
+// WithInteractiveHumanEvidence 标记本次请求经过了不可由 Agent runtime
+// 取得的宿主交互凭据验证。
+func WithInteractiveHumanEvidence(ctx context.Context, source string) context.Context {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, interactiveHumanContextKey{}, InteractiveHumanEvidence{Source: source})
+}
+
+// InteractiveHumanEvidenceFromContext 返回宿主验证的人类交互证据。
+func InteractiveHumanEvidenceFromContext(ctx context.Context) (InteractiveHumanEvidence, bool) {
+	evidence, ok := ctx.Value(interactiveHumanContextKey{}).(InteractiveHumanEvidence)
+	return evidence, ok && strings.TrimSpace(evidence.Source) != ""
+}
+
+// WithQueuedHumanPrincipalBinding carries a claimed host-DB binding only
+// through the service call graph that constructs an in-process MCP server.
+// Invalid or runtime-derived identities are ignored.
+func WithQueuedHumanPrincipalBinding(
+	ctx context.Context,
+	binding QueuedHumanPrincipalBinding,
+) context.Context {
+	binding.UserID = strings.TrimSpace(binding.UserID)
+	binding.AuthMethod = strings.TrimSpace(binding.AuthMethod)
+	binding.SessionID = strings.TrimSpace(binding.SessionID)
+	if !validQueuedHumanPrincipalBinding(binding) {
+		return ctx
+	}
+	return context.WithValue(ctx, queuedHumanPrincipalContextKey{}, binding)
+}
+
+// QueuedHumanPrincipalBindingFromContext returns a previously validated,
+// database-backed queue principal binding.
+func QueuedHumanPrincipalBindingFromContext(
+	ctx context.Context,
+) (QueuedHumanPrincipalBinding, bool) {
+	binding, ok := ctx.Value(queuedHumanPrincipalContextKey{}).(QueuedHumanPrincipalBinding)
+	if !ok || !validQueuedHumanPrincipalBinding(binding) {
+		return QueuedHumanPrincipalBinding{}, false
+	}
+	return binding, true
+}
+
+func validQueuedHumanPrincipalBinding(binding QueuedHumanPrincipalBinding) bool {
+	if strings.TrimSpace(binding.UserID) == "" {
+		return false
+	}
+	switch strings.TrimSpace(binding.AuthMethod) {
+	case AuthMethodPassword:
+		return strings.TrimSpace(binding.SessionID) != ""
+	case AuthMethodLocal:
+		return binding.UserID == SystemUserID && strings.TrimSpace(binding.SessionID) == ""
+	case AuthMethodBearer:
+		return strings.TrimSpace(binding.SessionID) == ""
+	default:
+		return false
+	}
+}
+
+// IsLocalSingleUserControlPlane 只认可桌面本地免登录的 system owner。
+// 多用户 owner/admin 仍是人类管理角色，但不能因此让其 Agent runtime
+// 继承宿主进程身份或原始 nexusctl。
+func IsLocalSingleUserControlPlane(ctx context.Context, ownerUserID string) bool {
+	state, ok := StateFromContext(ctx)
+	if !ok || state.AuthRequired || strings.TrimSpace(ownerUserID) != SystemUserID {
+		return false
+	}
+	principal := PrincipalFromContext(ctx)
+	if principal == nil {
+		return true
+	}
+	return strings.TrimSpace(principal.UserID) == SystemUserID &&
+		strings.TrimSpace(principal.Role) == RoleOwner &&
+		strings.TrimSpace(principal.AuthMethod) == AuthMethodLocal
 }

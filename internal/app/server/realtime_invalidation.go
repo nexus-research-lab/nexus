@@ -1,3 +1,6 @@
+// INPUT: 已装配的核心/automation/configuration 服务与 websocket broadcaster。
+// OUTPUT: Session、定时任务、Agent 与 Room 配置变更的实时失效通知绑定。
+// POS: 各服务领域事件到前端实时刷新投影的统一应用装配点。
 package server
 
 import (
@@ -34,5 +37,8 @@ func configureRealtimeInvalidation(
 				broadcaster.BroadcastScheduledTaskChanged(ctx, event)
 			},
 		))
+	}
+	if services.Configuration != nil {
+		services.Configuration.SetNotifier(configurationRealtimeNotifier{broadcaster: broadcaster})
 	}
 }

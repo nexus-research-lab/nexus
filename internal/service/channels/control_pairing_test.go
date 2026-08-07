@@ -9,6 +9,66 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 )
 
+func TestControlServiceUpdatePairingPatchesOnlyRequestedFields(t *testing.T) {
+	db := newChannelTestDB(t)
+	defer db.Close()
+
+	service := NewControlService(config.Config{DatabaseDriver: "sqlite"}, db, nil, nil)
+	created, err := service.CreatePairing(context.Background(), "owner-a", CreatePairingRequest{
+		ChannelType: ChannelTypeTelegram,
+		ChatType:    "dm",
+		ExternalRef: "chat-a",
+		AgentID:     "agent-a",
+		Status:      PairingStatusActive,
+		Source:      PairingSourceIngress,
+	})
+	if err != nil {
+		t.Fatalf("创建配对失败: %v", err)
+	}
+	version, err := service.GetChannelControlVersion(context.Background(), "owner-a")
+	if err != nil || version != 2 {
+		t.Fatalf("创建 pairing 应推进 Channel version: version=%d err=%v", version, err)
+	}
+	const lastMessageAt = "2040-01-02 03:04:05"
+	if _, err = db.Exec(
+		"UPDATE im_pairings SET last_message_at = ? WHERE owner_user_id = ? AND pairing_id = ?",
+		lastMessageAt,
+		"owner-a",
+		created.PairingID,
+	); err != nil {
+		t.Fatalf("准备 ingress 时间失败: %v", err)
+	}
+
+	name := "Renamed chat"
+	status := PairingStatusPending
+	updated, err := service.UpdatePairing(context.Background(), "owner-a", created.PairingID, UpdatePairingRequest{
+		ExternalName: &name,
+		Status:       &status,
+	})
+	if err != nil {
+		t.Fatalf("字段 patch 失败: %v", err)
+	}
+	version, err = service.GetChannelControlVersion(context.Background(), "owner-a")
+	if err != nil || version != 3 {
+		t.Fatalf("更新 pairing 应推进 Channel version: version=%d err=%v", version, err)
+	}
+	if updated.ExternalName != name || updated.Status != status || updated.Source != PairingSourceIngress {
+		t.Fatalf("字段 patch 结果不正确: %+v", updated)
+	}
+	var storedLastMessageAt string
+	var storedSource string
+	if err = db.QueryRow(
+		"SELECT CAST(last_message_at AS TEXT), source FROM im_pairings WHERE owner_user_id = ? AND pairing_id = ?",
+		"owner-a",
+		created.PairingID,
+	).Scan(&storedLastMessageAt, &storedSource); err != nil {
+		t.Fatalf("读取字段 patch 结果失败: %v", err)
+	}
+	if storedLastMessageAt != lastMessageAt || storedSource != PairingSourceIngress {
+		t.Fatalf("人工更新不得覆盖 ingress 字段: last_message_at=%q source=%q", storedLastMessageAt, storedSource)
+	}
+}
+
 func TestControlServiceCreatesManualPairingForKnownTarget(t *testing.T) {
 	db := newChannelTestDB(t)
 	defer db.Close()

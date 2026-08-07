@@ -5,10 +5,12 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -23,8 +25,27 @@ func (m *Manager) StartRound(sessionKey string, roundID string, cancel context.C
 	if sessionKey == "" || roundID == "" {
 		return false
 	}
+	sessionKey = strings.TrimSpace(sessionKey)
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	ownerUserID := ""
+	agentID := runtimeSessionAgentID(sessionKey)
+	if current := m.sessions[sessionKey]; current != nil {
+		ownerUserID = strings.TrimSpace(current.OwnerUserID)
+		if strings.TrimSpace(current.AgentID) != "" {
+			agentID = strings.TrimSpace(current.AgentID)
+		}
+	}
+	if m.runtimeAgentAdmissionErrorLocked(
+		sessionKey,
+		ownerUserID,
+		agentID,
+	) != nil {
+		if cancel != nil {
+			cancel()
+		}
+		return false
+	}
 	state := m.ensureStateLocked(sessionKey)
 	if state.Closing || state.ProviderInterruptRoundID != "" {
 		if cancel != nil {
@@ -143,21 +164,33 @@ func (m *Manager) SetPermissionModeForAgent(ctx context.Context, agentID string,
 		return nil
 	}
 	prefix := "agent:" + agentID + ":"
-	clients := make([]Client, 0)
+	type permissionModeTarget struct {
+		sessionKey string
+		client     Client
+	}
+	targets := make([]permissionModeTarget, 0)
 	m.mu.RLock()
 	for sessionKey, state := range m.sessions {
 		if state == nil || state.Closing || state.Client == nil || !strings.HasPrefix(sessionKey, prefix) {
 			continue
 		}
-		clients = append(clients, state.Client)
+		targets = append(targets, permissionModeTarget{sessionKey: sessionKey, client: state.Client})
 	}
 	m.mu.RUnlock()
-	for _, client := range clients {
-		if err := client.SetPermissionMode(ctx, mode); err != nil {
-			return err
+	errs := make([]error, 0)
+	for _, target := range targets {
+		if err := target.client.SetPermissionMode(ctx, mode); err != nil {
+			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			closeErr := m.CloseSession(closeCtx, target.sessionKey)
+			cancel()
+			errs = append(errs, fmt.Errorf(
+				"session %s 权限热同步失败，已关闭旧 runtime: %w",
+				target.sessionKey,
+				errors.Join(err, closeErr),
+			))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 type environmentUpdater interface {
@@ -201,10 +234,11 @@ func (m *Manager) UpdateEnvironmentForAgent(ctx context.Context, agentID string,
 		}
 	}
 	m.mu.RUnlock()
+	errs := make([]error, 0)
 	for _, client := range clients {
 		if err := client.UpdateEnvironment(ctx, environment); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }

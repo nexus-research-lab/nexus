@@ -369,12 +369,21 @@ func explicitNXSProcessRuntimeEnv(runtimeKind string) map[string]string {
 	return env
 }
 
-func buildScopedRuntimeEnv(ctx context.Context, ownerUserID string) map[string]string {
+func buildScopedRuntimeEnv(
+	ctx context.Context,
+	ownerUserID string,
+	isMainAgent bool,
+) map[string]string {
 	state, hasState := authctx.StateFromContext(ctx)
 	ownerUserID = strings.TrimSpace(ownerUserID)
-	env := map[string]string{}
+	env := map[string]string{
+		// bridge 会继承宿主环境；未授予 CLI capability 时必须显式清空。
+		nexusctlUserIDEnvName: "",
+	}
 	if ownerUserID != "" {
-		env[nexusctlUserIDEnvName] = ownerUserID
+		if isMainAgent {
+			env[nexusctlUserIDEnvName] = ownerUserID
+		}
 		env[nexusRuntimeUserIDEnvName] = ownerUserID
 		if ownerUserID != authctx.SystemUserID || state.AuthRequired || authctx.PrincipalFromContext(ctx) != nil {
 			env[nexusRuntimeScopeModeEnvName] = "user_scoped"
@@ -384,12 +393,11 @@ func buildScopedRuntimeEnv(ctx context.Context, ownerUserID string) map[string]s
 		return env
 	}
 	if hasState && !state.AuthRequired {
-		return map[string]string{
-			nexusRuntimeScopeModeEnvName: "single_user",
-			nexusRuntimeUserIDEnvName:    authctx.SystemUserID,
-		}
+		env[nexusRuntimeScopeModeEnvName] = "single_user"
+		env[nexusRuntimeUserIDEnvName] = authctx.SystemUserID
+		return env
 	}
-	return nil
+	return env
 }
 
 // scrubInheritedRuntimeEnv 清空不应进入 runtime 子进程的宿主环境。
@@ -493,10 +501,9 @@ func managedUserRuntimeEnv(
 		nexusMemoryDirEnvName:              workspacePath,
 		nexusEnableRemoteMemoryEnvName:     "",
 		nexusRemoteMemoryDirEnvName:        "",
+		nexusctlCommandPathEnvName:         "",
+		nexusctlWorkspacePathEnvName:       "",
 	}
-	// workspaceRuntimeEnv 会从宿主环境读取已经校验过的 nexusctl 路径；
-	// 在 ExtraEnv 之后再次合并，确保请求不能把命令或 workspace 指向别处。
-	maps.Copy(env, workspaceRuntimeEnv(workspacePath))
 	env[workspacePathEnvName] = workspacePath
 	return env
 }

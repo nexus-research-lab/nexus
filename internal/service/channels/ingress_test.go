@@ -36,6 +36,10 @@ func TestIngressServiceDeduplicatesReqID(t *testing.T) {
 	if len(handler.requests) != 1 || second == nil || !second.Duplicate {
 		t.Fatalf("重复 req_id 应复用原结果: requests=%d result=%+v", len(handler.requests), second)
 	}
+	if handler.requests[0].ExecutionOrigin != "channel" ||
+		handler.requests[0].TrustedConfigurationContext {
+		t.Fatalf("Channel ingress must remain outside trusted configuration context: %+v", handler.requests[0])
+	}
 	if second.SessionKey != first.SessionKey || second.RoundID != first.RoundID || second.ReqID != first.ReqID {
 		t.Fatalf("重复消息返回的原始结果不一致: first=%+v second=%+v", first, second)
 	}

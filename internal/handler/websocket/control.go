@@ -55,7 +55,22 @@ func (h *Handler) handleControlMessage(
 	if !ok {
 		return
 	}
-	h.ensureSessionBinding(ctx, sender, sessionKey)
+	msgType := handlershared.StringValue(inbound["type"])
+	if msgType == "permission_response" {
+		if !h.permission.IsBound(sessionKey, sender) {
+			h.sendGatewayError(
+				ctx,
+				sender,
+				sessionKey,
+				"permission_request_not_found",
+				errors.New("当前连接未绑定该权限请求的会话"),
+				map[string]any{"type": msgType},
+			)
+			return
+		}
+	} else {
+		h.ensureSessionBinding(ctx, sender, sessionKey)
+	}
 	message := controlMessage{
 		handler:    h,
 		ctx:        ctx,
@@ -63,7 +78,7 @@ func (h *Handler) handleControlMessage(
 		inbound:    inbound,
 		sessionKey: sessionKey,
 		parsed:     parsed,
-		msgType:    handlershared.StringValue(inbound["type"]),
+		msgType:    msgType,
 	}
 	if dispatcher != nil {
 		dispatcher.enqueue(&message)
@@ -120,26 +135,28 @@ func (m *controlMessage) handleChat() {
 	var err error
 	if m.usesRoomRuntime() {
 		err = m.handler.roomRealtime.HandleChat(m.ctx, roomrealtime.ChatRequest{
-			SessionKey:        m.sessionKey,
-			RoomID:            m.stringValue("room_id"),
-			ConversationID:    m.stringValue("conversation_id"),
-			AttachmentAgentID: m.stringValue("agent_id"),
-			Content:           m.stringValue("content"),
-			TargetAgentIDs:    stringSliceValue(m.inbound["target_agent_ids"]),
-			Attachments:       attachments,
-			ClientRequestID:   clientRequestID,
-			ClientMessageID:   clientMessageID,
-			DeliveryPolicy:    m.deliveryPolicy(),
+			SessionKey:                  m.sessionKey,
+			RoomID:                      m.stringValue("room_id"),
+			ConversationID:              m.stringValue("conversation_id"),
+			AttachmentAgentID:           m.stringValue("agent_id"),
+			Content:                     m.stringValue("content"),
+			TargetAgentIDs:              stringSliceValue(m.inbound["target_agent_ids"]),
+			Attachments:                 attachments,
+			ClientRequestID:             clientRequestID,
+			ClientMessageID:             clientMessageID,
+			DeliveryPolicy:              m.deliveryPolicy(),
+			TrustedConfigurationContext: true,
 		})
 	} else {
 		err = m.handler.dm.HandleRealtimeChat(m.ctx, dmsvc.Request{
-			SessionKey:      m.sessionKey,
-			AgentID:         m.stringValue("agent_id"),
-			Content:         m.stringValue("content"),
-			Attachments:     attachments,
-			ClientRequestID: clientRequestID,
-			ClientMessageID: clientMessageID,
-			DeliveryPolicy:  m.deliveryPolicy(),
+			SessionKey:                  m.sessionKey,
+			AgentID:                     m.stringValue("agent_id"),
+			Content:                     m.stringValue("content"),
+			Attachments:                 attachments,
+			ClientRequestID:             clientRequestID,
+			ClientMessageID:             clientMessageID,
+			DeliveryPolicy:              m.deliveryPolicy(),
+			TrustedConfigurationContext: true,
 		})
 	}
 	m.reportChatFailure(clientRequestID, clientMessageID, err)
@@ -329,29 +346,31 @@ func (m *controlMessage) handleInputQueue() {
 	)
 	if m.usesRoomRuntime() {
 		result, err = m.handler.roomRealtime.HandleInputQueue(m.ctx, roomrealtime.InputQueueRequest{
-			SessionKey:      m.sessionKey,
-			RoomID:          m.stringValue("room_id"),
-			ConversationID:  m.stringValue("conversation_id"),
-			ClientMessageID: clientMessageID,
-			Action:          action,
-			ItemID:          itemID,
-			Content:         m.stringValue("content"),
-			Attachments:     m.attachments(),
-			TargetAgentIDs:  stringSliceValue(m.inbound["target_agent_ids"]),
-			OrderedIDs:      stringSliceValue(m.inbound["ordered_ids"]),
-			DeliveryPolicy:  m.deliveryPolicy(),
+			SessionKey:                  m.sessionKey,
+			RoomID:                      m.stringValue("room_id"),
+			ConversationID:              m.stringValue("conversation_id"),
+			ClientMessageID:             clientMessageID,
+			Action:                      action,
+			ItemID:                      itemID,
+			Content:                     m.stringValue("content"),
+			Attachments:                 m.attachments(),
+			TargetAgentIDs:              stringSliceValue(m.inbound["target_agent_ids"]),
+			OrderedIDs:                  stringSliceValue(m.inbound["ordered_ids"]),
+			DeliveryPolicy:              m.deliveryPolicy(),
+			TrustedConfigurationContext: true,
 		})
 	} else {
 		result, err = m.handler.dm.HandleInputQueue(m.ctx, dmsvc.InputQueueRequest{
-			SessionKey:      m.sessionKey,
-			AgentID:         m.stringValue("agent_id"),
-			ClientMessageID: clientMessageID,
-			Action:          action,
-			ItemID:          itemID,
-			Content:         m.stringValue("content"),
-			Attachments:     m.attachments(),
-			OrderedIDs:      stringSliceValue(m.inbound["ordered_ids"]),
-			DeliveryPolicy:  m.deliveryPolicy(),
+			SessionKey:                  m.sessionKey,
+			AgentID:                     m.stringValue("agent_id"),
+			ClientMessageID:             clientMessageID,
+			Action:                      action,
+			ItemID:                      itemID,
+			Content:                     m.stringValue("content"),
+			Attachments:                 m.attachments(),
+			OrderedIDs:                  stringSliceValue(m.inbound["ordered_ids"]),
+			DeliveryPolicy:              m.deliveryPolicy(),
+			TrustedConfigurationContext: true,
 		})
 	}
 	if err != nil {
@@ -380,7 +399,7 @@ func (m *controlMessage) handleInputQueue() {
 }
 
 func (m *controlMessage) handlePermissionResponse() {
-	if m.handler.permission.HandlePermissionResponse(m.inbound) {
+	if m.handler.permission.HandlePermissionResponse(m.ctx, m.sessionKey, m.inbound) {
 		return
 	}
 	_ = m.sender.SendEvent(m.ctx, m.handler.newGatewayErrorEvent(

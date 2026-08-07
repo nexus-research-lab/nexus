@@ -1,3 +1,6 @@
+// INPUT: Provider 端点、认证配置与远端模型目录响应。
+// OUTPUT: 已清洗的远端模型卡，以及是否允许自动选择默认模型的决策。
+// POS: Provider 外部模型发现的只读网络阶段；持久化由 model_mutation 负责。
 package provider
 
 import (
@@ -6,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
 )
@@ -82,59 +84,37 @@ func (s *Service) fetchRemoteModels(ctx context.Context, item providerstore.Enti
 	return models, nil
 }
 
-func (s *Service) autoDefaultDiscoveredModel(
+func (s *Service) shouldAutoDefaultDiscoveredModel(
 	ctx context.Context,
 	item providerstore.Entity,
-	remoteModels []remoteModel,
-) error {
+) (bool, error) {
 	if !item.Enabled {
-		return nil
+		return false, nil
 	}
 	switch item.ProviderKind {
 	case ProviderKindLLM:
 		if !isAgentRuntimeProvider(item) {
-			return nil
+			return false, nil
 		}
 		target, err := s.defaultRuntimeSelection(ctx)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if target != nil {
-			return nil
+			return false, nil
 		}
 	case ProviderKindImageGeneration:
 		target, err := s.defaultImageSelection(ctx)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if target != nil {
-			return nil
+			return false, nil
 		}
 	default:
-		return nil
+		return false, nil
 	}
-
-	modelID := ""
-	model, err := s.defaultOrFirstEnabledModel(ctx, item.ID)
-	if err != nil {
-		return err
-	}
-	if model != nil {
-		modelID = strings.TrimSpace(model.ModelID)
-	}
-	modelID = firstNonEmpty(modelID, firstRemoteModelID(remoteModels))
-	if modelID == "" {
-		return nil
-	}
-	if err := s.repository.UpdateDefaultModel(ctx, item.ID, modelID, s.now()); err != nil {
-		return err
-	}
-	s.loggerFor(ctx).Info(
-		"自动设置 Provider 默认模型",
-		"provider", item.Provider,
-		"model", modelID,
-	)
-	return nil
+	return true, nil
 }
 
 func parseModelList(body []byte) ([]remoteModel, error) {

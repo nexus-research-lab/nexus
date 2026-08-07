@@ -1,6 +1,6 @@
-// INPUT: 主智能体 Actor、配置域筛选与本地校验开关。
-// OUTPUT: 来自各真相源的脱敏配置值、域版本和健康检查。
-// POS: configuration 控制面的统一读取与变更后核对阶段。
+// INPUT: 动态解析后的 owner-main / agent-self / room-host / room-member、配置域筛选与校验开关。
+// OUTPUT: 当前权限可读的脱敏配置、资源 scope、状态版本、revision、能力目录与健康检查。
+// POS: configuration 控制面的作用域读取与变更后核对阶段。
 package configuration
 
 import (
@@ -14,24 +14,31 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
-	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
 )
 
-// Inspect 读取指定配置域；空列表表示全部域。
+// Inspect 读取当前可信 Actor 可见的配置域；空列表表示该 Actor 的全部可读域。
 func (s *Service) Inspect(ctx context.Context, actor Actor, domains []string, verify bool) (*Inspection, error) {
-	if err := requireMainActor(actor); err != nil {
-		return nil, err
-	}
-	requested, err := normalizeDomains(domains)
+	resolved, err := s.resolveActor(ctx, actor)
 	if err != nil {
 		return nil, err
 	}
-	result := &Inspection{GeneratedAt: time.Now().UTC(), Domains: make(map[string]DomainSnapshot, len(requested))}
+	requested, err := normalizeDomainsForActor(resolved, domains)
+	if err != nil {
+		return nil, err
+	}
+	result := &Inspection{
+		GeneratedAt: time.Now().UTC(),
+		Authority:   resolved.Authority,
+		Context:     resolved.Context,
+		Domains:     make(map[string]DomainSnapshot, len(requested)),
+	}
+	scoped := scopedContext(ctx, resolved.Actor)
 	for _, domain := range requested {
-		snapshot, snapshotErr := s.domainSnapshot(scopedContext(ctx, actor), actor, domain, verify)
+		snapshot, snapshotErr := s.domainSnapshot(scoped, resolved, domain, "", verify)
 		if snapshotErr != nil {
 			return nil, fmt.Errorf("读取配置域 %s: %w", domain, snapshotErr)
 		}
@@ -40,14 +47,14 @@ func (s *Service) Inspect(ctx context.Context, actor Actor, domains []string, ve
 	return result, nil
 }
 
-func normalizeDomains(domains []string) ([]string, error) {
+func normalizeDomainsForActor(actor *resolvedActor, domains []string) ([]string, error) {
 	if len(domains) == 0 {
-		return domainNames(), nil
+		return readableDomains(actor), nil
 	}
 	result := make([]string, 0, len(domains))
 	seen := map[string]struct{}{}
 	for _, domain := range domains {
-		definition, err := definitionFor(domain)
+		definition, _, err := definitionForActor(actor, domain)
 		if err != nil {
 			return nil, err
 		}
@@ -61,96 +68,231 @@ func normalizeDomains(domains []string) ([]string, error) {
 	return result, nil
 }
 
-func (s *Service) domainSnapshot(ctx context.Context, actor Actor, domain string, verify bool) (DomainSnapshot, error) {
-	definition, err := definitionFor(domain)
+func (s *Service) domainSnapshot(
+	ctx context.Context,
+	actor *resolvedActor,
+	domain string,
+	target string,
+	verify bool,
+) (DomainSnapshot, error) {
+	definition, access, err := definitionForActor(actor, domain)
 	if err != nil {
 		return DomainSnapshot{}, err
 	}
-	values, checks, err := s.domainValues(ctx, actor, definition.Name, verify)
+	values, checks, stateVersion, scope, err := s.domainValues(ctx, actor, definition.Name, target, verify)
 	if err != nil {
 		return DomainSnapshot{}, err
 	}
 	safeValues := sanitizeValue(values)
-	revision, err := revisionFor(safeValues)
+	key, err := s.integrityKeyBytes()
+	if err != nil {
+		return DomainSnapshot{}, fmt.Errorf("初始化配置 revision 密钥: %w", err)
+	}
+	revision, err := integrityRevisionFor(values, key)
 	if err != nil {
 		return DomainSnapshot{}, err
 	}
-	return DomainSnapshot{Definition: definition, Revision: revision, Values: safeValues, Checks: checks}, nil
+	return DomainSnapshot{
+		Definition:   definition,
+		Scope:        scope,
+		Access:       access,
+		Revision:     revision,
+		StateVersion: stateVersion,
+		Values:       safeValues,
+		Checks:       checks,
+	}, nil
 }
 
-func (s *Service) domainValues(ctx context.Context, actor Actor, domain string, verify bool) (any, []Check, error) {
+func (s *Service) domainValues(
+	ctx context.Context,
+	actor *resolvedActor,
+	domain string,
+	target string,
+	verify bool,
+) (any, []Check, int64, ScopeRef, error) {
+	target = strings.TrimSpace(target)
+	scope := actor.Context
+	if actor.isMain() {
+		scope = ScopeRef{Kind: ScopeKindOwner, ID: actor.OwnerUserID}
+	}
 	switch domain {
 	case DomainPreferences:
 		value, err := s.prefs.Get(ctx, actor.OwnerUserID)
-		return value, preferencesChecks(value, err), err
+		return value, preferencesChecks(value, err), value.Version, scope, err
 	case DomainProviders:
-		items, err := s.providers.List(ctx)
+		if actor.isSelfDM() {
+			preferences, preferencesErr := s.prefs.Get(ctx, actor.OwnerUserID)
+			if preferencesErr != nil {
+				return nil, nil, 0, ScopeRef{Kind: ScopeKindAgent, ID: actor.AgentID}, preferencesErr
+			}
+			options, optionsErr := s.providers.ListOptionsForRuntime(ctx, preferences.AgentRuntimeKind)
+			checks := []Check{okCheck(
+				DomainProviders,
+				"agent_runtime_model_catalog_readable",
+				"仅返回当前 Agent 可选择的已启用 runtime Provider 与模型；端点、凭据、测试错误和使用关系不可见",
+			)}
+			if optionsErr != nil {
+				checks = []Check{errorCheck(DomainProviders, "agent_runtime_model_catalog_readable", optionsErr)}
+			}
+			return map[string]any{
+					"runtime_kind": preferences.AgentRuntimeKind,
+					"catalog":      options,
+				},
+				checks,
+				0,
+				ScopeRef{Kind: ScopeKindAgent, ID: actor.AgentID},
+				optionsErr
+		}
+		if target != "" {
+			item, err := s.providers.GetPrivate(ctx, target)
+			values := providerDomainValues{}
+			if item != nil {
+				values.Items = []providersvc.Record{*item}
+			}
+			var version int64
+			if item != nil {
+				version = item.ConfigurationVersion
+			}
+			return item, providerChecks(values, err), version, scope, err
+		}
+		items, err := s.providers.ListPrivate(ctx)
 		if err != nil {
-			return nil, providerChecks(providerDomainValues{}, err), err
+			return nil, providerChecks(providerDomainValues{}, err), 0, scope, err
 		}
 		preferences, err := s.prefs.Get(ctx, actor.OwnerUserID)
 		if err != nil {
-			return nil, providerChecks(providerDomainValues{}, err), err
+			return nil, providerChecks(providerDomainValues{}, err), 0, scope, err
 		}
 		options, err := s.providers.ListOptionsForRuntime(ctx, preferences.AgentRuntimeKind)
 		values := providerDomainValues{
 			Items: items, Presets: s.providers.ListPresets(), RuntimeOptions: options,
 		}
-		return values, providerChecks(values, err), err
+		return values, providerChecks(values, err), 0, scope, err
 	case DomainAgents:
-		values, err := s.agents.ListAgentRecords(ctx)
+		agentID := target
+		if actor.isSelfDM() {
+			agentID = actor.AgentID
+		}
+		var values []protocol.Agent
+		var err error
+		if agentID != "" {
+			var item *protocol.Agent
+			item, err = s.agents.GetAgent(ctx, agentID)
+			if item != nil {
+				values = []protocol.Agent{*item}
+				scope = ScopeRef{Kind: ScopeKindAgent, ID: item.AgentID}
+			}
+		} else {
+			values, err = s.agents.ListAgentRecords(ctx)
+		}
 		if err != nil {
-			return nil, agentChecks(nil, nil, err), err
+			return nil, agentChecks(nil, nil, err), 0, scope, err
 		}
 		providers, providerErr := s.providers.List(ctx)
-		return values, agentChecks(values, providers, providerErr), providerErr
+		var version int64
+		if len(values) == 1 {
+			version = values[0].RuntimeVersion
+		}
+		return values, agentChecks(values, providers, providerErr), version, scope, providerErr
+	case DomainEmotion:
+		contextID, contextErr := trustedEmotionContextID(actor)
+		if contextErr != nil {
+			return nil, nil, 0, ScopeRef{Kind: ScopeKindAgent, ID: actor.AgentID}, contextErr
+		}
+		view, err := s.agents.GetAgentRuntimeEmotionView(
+			ctx,
+			actor.AgentID,
+			contextID,
+			time.Now(),
+		)
+		if err != nil {
+			return nil, []Check{errorCheck(DomainEmotion, "emotion_state_readable", err)}, 0,
+				ScopeRef{Kind: ScopeKindAgent, ID: actor.AgentID}, err
+		}
+		return safeEmotionView(view),
+			[]Check{okCheck(
+				DomainEmotion,
+				"emotion_state_readable",
+				"已核对当前 Agent 的版本化情绪状态；fatigue 为 runtime 只读，绝对 workspace 路径不对模型暴露",
+			)},
+			view.Version,
+			ScopeRef{Kind: ScopeKindAgent, ID: actor.AgentID},
+			nil
 	case DomainChannels:
+		version, err := s.channels.GetChannelControlVersion(ctx, actor.OwnerUserID)
+		if err != nil {
+			return nil, nil, 0, scope, err
+		}
 		values, err := s.channels.ListChannels(ctx, actor.OwnerUserID)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, scope, err
 		}
 		pairings, err := s.channels.ListPairings(ctx, actor.OwnerUserID, channels.PairingQuery{})
-		return map[string]any{"items": values, "pairings": pairings}, channelChecks(values, err), err
+		return map[string]any{
+			"configuration_version": version,
+			"items":                 values,
+			"pairings":              pairings,
+		}, channelChecks(values, err), version, scope, err
 	case DomainConnectors:
 		items, err := s.connectors.ListConnectors(ctx, actor.OwnerUserID, "", "", "")
 		if err != nil {
-			return nil, connectorChecks(connectorDomainValues{}, err), err
+			return nil, connectorChecks(connectorDomainValues{}, err), 0, scope, err
 		}
 		details := make(map[string]*connectorsvc.Detail, len(items))
 		for _, item := range items {
 			detail, detailErr := s.connectors.GetConnectorDetail(ctx, actor.OwnerUserID, item.ConnectorID)
 			if detailErr != nil {
-				return nil, connectorChecks(connectorDomainValues{Items: items}, detailErr), detailErr
+				return nil, connectorChecks(connectorDomainValues{Items: items}, detailErr), 0, scope, detailErr
 			}
 			details[item.ConnectorID] = detail
 		}
 		values := connectorDomainValues{Items: items, Details: details}
-		return values, connectorChecks(values, nil), nil
+		return values, connectorChecks(values, nil), 0, scope, nil
 	case DomainSkills:
-		sources, err := s.skills.ListExternalSkillSources(ctx)
-		if err != nil {
-			return nil, nil, err
-		}
-		items, err := s.skills.ListSkills(ctx, skillsvc.Query{AgentID: actor.AgentID})
-		return map[string]any{"sources": sources, "main_agent_items": items}, skillChecks(sources, err), err
+		values, catalogVersion, skillScope, err := s.skillDomainValues(ctx, actor)
+		return values, skillChecks(values, err), catalogVersion, skillScope, err
 	case DomainHost:
 		values := map[string]any{
 			"current_workspace_path": s.cfg.WorkspacePath,
-			"startup_configuration":  s.cfg,
+			"startup_configuration":  hostStartupConfigurationSnapshot(s.cfg),
 			"mutability": map[string]any{
 				"workspace_path":        "read_only; change deployment environment or use the native desktop state-root migration",
 				"startup_configuration": "read_only; change deployment environment and restart",
 			},
 		}
-		return values, s.hostChecks(verify), nil
-	case DomainAutomation, DomainRooms, DomainWorkspaces, DomainGoals:
+		return values, s.hostChecks(verify), 0, scope, nil
+	case DomainSessions:
+		return s.sessionDomainValues(ctx, actor, target)
+	case DomainRooms:
+		roomID := target
+		if actor.Context.Kind == ScopeKindRoom {
+			roomID = actor.RoomID
+		}
+		if roomID != "" {
+			value, err := s.rooms.GetRoom(ctx, roomID)
+			if err != nil {
+				return nil, nil, 0, ScopeRef{Kind: ScopeKindRoom, ID: roomID}, err
+			}
+			return value,
+				[]Check{okCheck(DomainRooms, "room_configuration_readable", "Room 共享配置、成员与当前群主已重新核对")},
+				value.Room.ConfigurationVersion,
+				ScopeRef{Kind: ScopeKindRoom, ID: roomID},
+				nil
+		}
+		values, err := s.rooms.ListRooms(ctx, 100)
+		return values,
+			[]Check{okCheck(DomainRooms, "rooms_readable", fmt.Sprintf("已核对 %d 个 Room", len(values)))},
+			0,
+			scope,
+			err
+	case DomainAutomation, DomainWorkspaces, DomainGoals:
 		definition, _ := definitionFor(domain)
 		return map[string]any{
 			"delegated": true, "managed_by": definition.ManagedBy,
 			"reason": "该域已有更强的专用对话工具；统一目录负责发现与边界说明，写入仍走专用领域服务",
-		}, []Check{okCheck(domain, "delegated_control", "专用配置控制入口可用")}, nil
+		}, []Check{okCheck(domain, "delegated_control", "专用配置控制入口可用")}, 0, scope, nil
 	default:
-		return nil, nil, fmt.Errorf("未实现配置域 %s", domain)
+		return nil, nil, 0, scope, fmt.Errorf("未实现配置域 %s", domain)
 	}
 }
 
@@ -233,6 +375,26 @@ func agentChecks(values []protocol.Agent, providers []providersvc.Record, err er
 		}
 	}
 	for _, item := range values {
+		if len(item.Options.MCPServers) > 0 {
+			names := make([]string, 0, len(item.Options.MCPServers))
+			for name := range item.Options.MCPServers {
+				names = append(names, name)
+			}
+			slices.Sort(names)
+			if _, validationErr := clientopts.MergeAgentMCPServers(nil, item.Options.MCPServers); validationErr != nil {
+				checks = append(checks, Check{
+					Code: "agent_mcp_servers_invalid", Status: "error",
+					Message: validationErr.Error(), Domain: DomainAgents, Target: item.AgentID,
+					Remedy: "由主智能体重新 plan/apply Agent options.mcp_servers", Verified: true,
+				})
+			} else {
+				checks = append(checks, Check{
+					Code: "agent_mcp_servers_valid", Status: "ok",
+					Message: fmt.Sprintf("已校验 %d 个自定义 MCP server: %s", len(names), strings.Join(names, ", ")),
+					Domain:  DomainAgents, Target: item.AgentID, Verified: true,
+				})
+			}
+		}
 		if strings.TrimSpace(item.Options.Provider) == "" != (strings.TrimSpace(item.Options.Model) == "") {
 			checks = append(checks, Check{
 				Code: "agent_model_selection_incomplete", Status: "warning",

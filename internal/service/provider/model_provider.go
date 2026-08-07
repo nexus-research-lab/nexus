@@ -1,3 +1,6 @@
+// INPUT: Provider、模型、测试、patch 与删除操作的领域数据。
+// OUTPUT: JSON 服务契约，包括 Provider configuration_version。
+// POS: Provider 服务模型真相源。
 package provider
 
 import (
@@ -55,6 +58,7 @@ type Record struct {
 	LastTestStatus        string        `json:"last_test_status"`
 	LastTestError         string        `json:"last_test_error"`
 	LastTestAt            *time.Time    `json:"last_test_at,omitempty"`
+	ConfigurationVersion  int64         `json:"configuration_version"`
 	CanManage             bool          `json:"can_manage"`
 	AgentRuntimeSupported bool          `json:"agent_runtime_supported"`
 	Models                []ModelRecord `json:"models"`
@@ -160,6 +164,18 @@ type UpdateInput struct {
 	BaseURL      string  `json:"base_url"`
 	ModelsPath   string  `json:"models_path"`
 	Enabled      bool    `json:"enabled"`
+}
+
+// PatchInput 表示不会展开或覆盖未声明字段的 Provider merge patch。
+type PatchInput struct {
+	ProviderKind *string `json:"provider_kind,omitempty"`
+	PresetKey    *string `json:"preset_key,omitempty"`
+	APIFormat    *string `json:"api_format,omitempty"`
+	DisplayName  *string `json:"display_name,omitempty"`
+	AuthToken    *string `json:"auth_token,omitempty"`
+	BaseURL      *string `json:"base_url,omitempty"`
+	ModelsPath   *string `json:"models_path,omitempty"`
+	Enabled      *bool   `json:"enabled,omitempty"`
 }
 
 // DeleteInput 表示删除 Provider 的行为选项。

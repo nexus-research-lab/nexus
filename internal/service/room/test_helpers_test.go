@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,6 +46,8 @@ func findConversationContext(
 type fakeRoomGoalCleaner struct {
 	conversationCalls [][]string
 	memberCalls       []fakeRoomGoalMemberCleanup
+	conversationErr   error
+	memberErr         error
 }
 
 type fakeRoomGoalMemberCleanup struct {
@@ -54,16 +57,65 @@ type fakeRoomGoalMemberCleanup struct {
 
 type fakeRoomRuntimeCloser struct {
 	keys []string
+	err  error
+}
+
+type roomSessionArtifactDeletionCall struct {
+	ownerUserID      string
+	workspacePath    string
+	sessionKey       string
+	cleanupSessionID string
+}
+
+type fakeRoomSessionArtifactDeletionCoordinator struct {
+	mu       sync.Mutex
+	calls    []roomSessionArtifactDeletionCall
+	err      error
+	deleteFn func(context.Context, roomSessionArtifactDeletionCall) error
+}
+
+func (f *fakeRoomSessionArtifactDeletionCoordinator) DeleteSessionArtifacts(
+	ctx context.Context,
+	ownerUserID string,
+	workspacePath string,
+	sessionKey string,
+	cleanupSessionID string,
+) error {
+	call := roomSessionArtifactDeletionCall{
+		ownerUserID:      ownerUserID,
+		workspacePath:    workspacePath,
+		sessionKey:       sessionKey,
+		cleanupSessionID: cleanupSessionID,
+	}
+	f.mu.Lock()
+	f.calls = append(f.calls, call)
+	deleteFn := f.deleteFn
+	err := f.err
+	f.mu.Unlock()
+	if deleteFn != nil {
+		if deleteErr := deleteFn(ctx, call); deleteErr != nil {
+			return deleteErr
+		}
+	}
+	return err
+}
+
+func (f *fakeRoomSessionArtifactDeletionCoordinator) Calls() []roomSessionArtifactDeletionCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	result := make([]roomSessionArtifactDeletionCall, len(f.calls))
+	copy(result, f.calls)
+	return result
 }
 
 func (f *fakeRoomRuntimeCloser) CloseSession(_ context.Context, sessionKey string) error {
 	f.keys = append(f.keys, sessionKey)
-	return nil
+	return f.err
 }
 
 func (f *fakeRoomGoalCleaner) DeleteGoalsForRoomConversations(_ context.Context, conversationIDs []string) (int, error) {
 	f.conversationCalls = append(f.conversationCalls, append([]string(nil), conversationIDs...))
-	return len(conversationIDs), nil
+	return len(conversationIDs), f.conversationErr
 }
 
 func (f *fakeRoomGoalCleaner) DeleteGoalsForRoomMember(_ context.Context, agentID string, conversationIDs []string) (int, error) {
@@ -71,7 +123,7 @@ func (f *fakeRoomGoalCleaner) DeleteGoalsForRoomMember(_ context.Context, agentI
 		agentID:         agentID,
 		conversationIDs: append([]string(nil), conversationIDs...),
 	})
-	return len(conversationIDs), nil
+	return len(conversationIDs), f.memberErr
 }
 
 func createTestAgent(

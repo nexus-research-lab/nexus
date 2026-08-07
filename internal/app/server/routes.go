@@ -190,6 +190,11 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/device/poll"), s.handlers.connector.HandleConnectorDeviceAuthPoll)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/connect"), s.handlers.connector.HandleConnectConnector)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/disconnect"), s.handlers.connector.HandleDisconnectConnector)
+	mountConnectorAuthorizationRoutes(
+		s.router,
+		s.prefixPath,
+		s.services.ConnectorAuthorization,
+	)
 
 	s.router.Post(s.prefixPath("/channels/messages"), s.handlers.channel.HandleChannelIngress)
 	s.router.Post(s.prefixPath("/channels/internal/messages"), s.handlers.channel.HandleInternalChannelIngress)

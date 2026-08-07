@@ -1,6 +1,6 @@
-// INPUT: configuration 服务与当前主智能体 runtime 上下文。
+// INPUT: configuration 服务与服务端注入的当前交互式 Agent/DM/Room runtime 上下文。
 // OUTPUT: nexus_config 进程内 MCP server。
-// POS: configuration MCP 顶层装配入口。
+// POS: 可信 runtime 身份进入 configuration MCP 的顶层装配入口。
 package configurationmcp
 
 import (

@@ -28,7 +28,7 @@ func changeRequest(args map[string]any, includeApplyFields bool) (configurations
 	if includeApplyFields {
 		request.RequestID = stringArg(args, "request_id")
 		request.ExpectedRevision = stringArg(args, "expected_revision")
-		request.Confirm = boolArg(args, "confirm")
+		request.PlanDigest = stringArg(args, "plan_digest")
 	}
 	return request, nil
 }

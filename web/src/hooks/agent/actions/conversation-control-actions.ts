@@ -1,4 +1,5 @@
 import { resolveAgentId } from "@/config/runtime-options";
+import { selectConfigurationSecrets } from "@/lib/conversation/configuration-secret-permission";
 import type { Message } from "@/types/conversation/message/entity";
 import type {
   PendingPermission,
@@ -93,8 +94,17 @@ function getPermissionValidationError(
 ): string | undefined {
   const requiresAnswers = pendingPermission.interaction_mode === "question"
     && payload.decision === "allow";
-  return requiresAnswers && !payload.user_answers?.length
-    ? "请先完成问题回答"
+  if (requiresAnswers && !payload.user_answers?.length) {
+    return "请先完成问题回答";
+  }
+  const secretSlots = pendingPermission.configuration_secret_slots ?? [];
+  const requiresSecrets = payload.decision === "allow"
+    && secretSlots.length > 0;
+  return requiresSecrets && !selectConfigurationSecrets(
+    secretSlots,
+    payload.configuration_secrets ?? {},
+  )
+    ? "请先填写全部必需的敏感配置"
     : undefined;
 }
 
@@ -104,6 +114,12 @@ function buildPermissionResponse(
   context: AgentConversationActionContext,
   sessionKey: string,
 ): WebSocketMessage {
+  const configurationSecrets = payload.decision === "allow"
+    ? selectConfigurationSecrets(
+      pendingPermission.configuration_secret_slots ?? [],
+      payload.configuration_secrets ?? {},
+    )
+    : undefined;
   const optionalFields = Object.fromEntries(
     [
       ["user_answers", payload.user_answers],
@@ -120,6 +136,9 @@ function buildPermissionResponse(
     decision: payload.decision,
     message: payload.message || PERMISSION_DECISION_MESSAGES[payload.decision],
     interrupt: payload.interrupt === true,
+    ...(configurationSecrets
+      ? { configuration_secrets: configurationSecrets }
+      : {}),
     ...optionalFields,
   };
 }

@@ -98,54 +98,7 @@ func (s *Store) RoomDirectedMessageWakesPath(ownerUserID string) string {
 }
 
 func encodeSessionDirName(value string) string {
-	parsed := protocol.ParseSessionKey(value)
-	switch parsed.Kind {
-	case protocol.SessionKeyKindRoom:
-		return joinSessionPathSegments("room", escapePathAtom(parsed.ConversationID))
-	case protocol.SessionKeyKindAgent:
-		switch strings.TrimSpace(parsed.ChatType) {
-		case "dm":
-			parts := []string{"dm"}
-			if channel := escapePathAtom(parsed.Channel); channel != "" {
-				parts = append(parts, channel)
-			}
-			if accountID := escapePathAtom(parsed.AccountID); accountID != "" {
-				parts = append(parts, "acct", accountID)
-			}
-			if ref := escapePathAtom(parsed.Ref); ref != "" {
-				parts = append(parts, ref)
-			}
-			if threadID := escapePathAtom(parsed.ThreadID); threadID != "" {
-				parts = append(parts, "topic", threadID)
-			}
-			return joinSessionPathSegments(parts...)
-		case "group":
-			parts := []string{"room"}
-			if channel := strings.TrimSpace(parsed.Channel); channel != "" && channel != protocol.SessionChannelWebSocketSegment {
-				parts = append(parts, escapePathAtom(channel))
-			}
-			if accountID := escapePathAtom(parsed.AccountID); accountID != "" {
-				parts = append(parts, "acct", accountID)
-			}
-			if ref := escapePathAtom(parsed.Ref); ref != "" {
-				parts = append(parts, ref)
-			}
-			if threadID := escapePathAtom(parsed.ThreadID); threadID != "" {
-				parts = append(parts, "topic", threadID)
-			}
-			return joinSessionPathSegments(parts...)
-		default:
-			return joinSessionPathSegments(
-				"session",
-				escapePathAtom(parsed.Channel),
-				escapePathAtom(parsed.AccountID),
-				escapePathAtom(parsed.Ref),
-				escapePathAtom(parsed.ThreadID),
-			)
-		}
-	default:
-		return joinSessionPathSegments("session", escapePathAtom(value))
-	}
+	return protocol.LegacySessionDirectoryIdentity(value)
 }
 
 func encodeConversationDirName(conversationID string) string {

@@ -4,6 +4,7 @@
 package configuration
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,6 +17,9 @@ var exactSensitiveKeys = map[string]struct{}{
 	"client_secret": {}, "password": {}, "passphrase": {}, "private_key": {},
 	"secret": {}, "token": {}, "authorization": {}, "cookie": {},
 	"credentials": {}, "credentials_encrypted": {},
+	"session_id": {}, "sdk_session_id": {}, "resume_id": {},
+	// 自定义 MCP / Provider options 允许自由形状，不能依赖子键名猜测秘密。
+	"mcp_servers": {}, "provider_options": {},
 	"base_system_prompt": {}, "main_agent_system_prompt": {},
 }
 
@@ -107,6 +111,14 @@ func isSensitiveKey(key string) bool {
 			return true
 		}
 	}
+	for _, suffix := range []string{
+		"sessiontoken", "bottoken", "credentialkey", "credentialskey",
+		"clientsecret", "privatekey", "systemprompt", "databaseurl",
+	} {
+		if strings.HasSuffix(compacted, suffix) {
+			return true
+		}
+	}
 	for _, suffix := range []string{"_token", "_secret", "_password", "_api_key", "_private_key"} {
 		if strings.HasSuffix(normalized, suffix) {
 			return true
@@ -135,6 +147,16 @@ func revisionFor(value any) (string, error) {
 	}
 	sum := sha256.Sum256(payload)
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func integrityRevisionFor(value any, key []byte) (string, error) {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write(payload)
+	return "hmac-sha256:" + hex.EncodeToString(mac.Sum(nil)), nil
 }
 
 func sanitizedJSON(value any) json.RawMessage {

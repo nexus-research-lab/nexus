@@ -92,6 +92,9 @@ func TestRoomServiceValidatesRoomHostSettings(t *testing.T) {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService.SetSessionArtifactDeletionCoordinator(
+		&fakeRoomSessionArtifactDeletionCoordinator{},
+	)
 
 	ctx := context.Background()
 	agentA := createTestAgent(t, agentService, ctx, "测试助手A")
@@ -130,6 +133,110 @@ func TestRoomServiceValidatesRoomHostSettings(t *testing.T) {
 	}
 	if updatedContext.Room.HostAgentID != "" || updatedContext.Room.HostAutoReplyEnabled {
 		t.Fatalf("移除群主成员后应清空群主接管设置: %+v", updatedContext.Room)
+	}
+}
+
+func TestRoomServiceTracksConfigurationVersionAndAuthorityEpoch(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	roomService.SetSessionArtifactDeletionCoordinator(
+		&fakeRoomSessionArtifactDeletionCoordinator{},
+	)
+
+	ctx := context.Background()
+	agentA := createTestAgent(t, agentService, ctx, "版本测试助手A")
+	agentB := createTestAgent(t, agentService, ctx, "版本测试助手B")
+	agentC := createTestAgent(t, agentService, ctx, "版本测试助手C")
+
+	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs:    []string{agentA.AgentID, agentB.AgentID},
+		Name:        "版本测试房间",
+		HostAgentID: agentA.AgentID,
+	})
+	if err != nil {
+		t.Fatalf("创建 room 失败: %v", err)
+	}
+	assertRoomVersions(t, roomContext.Room, 1, 1)
+
+	roomContext, err = roomService.UpdateRoom(ctx, roomContext.Room.ID, protocol.UpdateRoomRequest{
+		Description: stringPointer("更新共享配置"),
+	})
+	if err != nil {
+		t.Fatalf("更新 room 描述失败: %v", err)
+	}
+	assertRoomVersions(t, roomContext.Room, 2, 1)
+	staleVersion := int64(1)
+	if _, err = roomService.UpdateRoom(ctx, roomContext.Room.ID, protocol.UpdateRoomRequest{
+		Description:                  stringPointer("过期写入"),
+		ExpectedConfigurationVersion: &staleVersion,
+	}); err == nil {
+		t.Fatal("过期 configuration_version 不应覆盖 Room")
+	}
+	roomContext, err = roomService.GetConversationContext(ctx, roomContext.Conversation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roomContext.Room.Description != "更新共享配置" {
+		t.Fatalf("过期 CAS 发生部分写入: %+v", roomContext.Room)
+	}
+
+	roomContext, err = roomService.UpdateRoom(ctx, roomContext.Room.ID, protocol.UpdateRoomRequest{
+		Title: stringPointer("更新主对话标题"),
+	})
+	if err != nil {
+		t.Fatalf("更新 room 标题失败: %v", err)
+	}
+	assertRoomVersions(t, roomContext.Room, 3, 1)
+
+	roomContext, err = roomService.UpdateRoom(ctx, roomContext.Room.ID, protocol.UpdateRoomRequest{
+		HostAgentID: stringPointer(agentB.AgentID),
+	})
+	if err != nil {
+		t.Fatalf("转移 room 群主失败: %v", err)
+	}
+	assertRoomVersions(t, roomContext.Room, 4, 2)
+
+	roomContext, err = roomService.AddRoomMember(ctx, roomContext.Room.ID, protocol.AddRoomMemberRequest{
+		AgentID: agentC.AgentID,
+	})
+	if err != nil {
+		t.Fatalf("添加 room 成员失败: %v", err)
+	}
+	assertRoomVersions(t, roomContext.Room, 5, 2)
+
+	roomContext, err = roomService.RemoveRoomMember(ctx, roomContext.Room.ID, agentC.AgentID)
+	if err != nil {
+		t.Fatalf("移除普通 room 成员失败: %v", err)
+	}
+	assertRoomVersions(t, roomContext.Room, 6, 3)
+
+	roomContext, err = roomService.RemoveRoomMember(ctx, roomContext.Room.ID, agentB.AgentID)
+	if err != nil {
+		t.Fatalf("移除 room 群主失败: %v", err)
+	}
+	assertRoomVersions(t, roomContext.Room, 7, 4)
+	if roomContext.Room.HostAgentID != "" {
+		t.Fatalf("移除群主后 host_agent_id = %q, want empty", roomContext.Room.HostAgentID)
+	}
+}
+
+func assertRoomVersions(t *testing.T, roomValue protocol.RoomRecord, configurationVersion int64, authorityEpoch int64) {
+	t.Helper()
+
+	if roomValue.ConfigurationVersion != configurationVersion || roomValue.AuthorityEpoch != authorityEpoch {
+		t.Fatalf(
+			"room versions = configuration:%d authority:%d, want configuration:%d authority:%d",
+			roomValue.ConfigurationVersion,
+			roomValue.AuthorityEpoch,
+			configurationVersion,
+			authorityEpoch,
+		)
 	}
 }
 

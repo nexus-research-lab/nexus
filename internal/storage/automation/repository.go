@@ -10,16 +10,17 @@ import (
 
 // Repository 封装自动化任务与 heartbeat 的 SQL 读写。
 type Repository struct {
-	db                         *sql.DB
-	isPostgres                 bool
-	dialect                    storage.SQLDialect
-	upsertScheduledTaskQuery   string
-	insertRunPendingQuery      string
-	markRunRunningQuery        string
-	markRunFinishedQuery       string
-	upsertHeartbeatStateQuery  string
-	insertSystemEventQuery     string
-	markSystemEventStatusQuery string
+	db                           *sql.DB
+	isPostgres                   bool
+	dialect                      storage.SQLDialect
+	upsertScheduledTaskQuery     string
+	insertRunPendingQuery        string
+	markRunRunningQuery          string
+	markRunFinishedQuery         string
+	upsertHeartbeatStateQuery    string
+	persistHeartbeatRuntimeQuery string
+	insertSystemEventQuery       string
+	markSystemEventStatusQuery   string
 }
 
 const upsertScheduledTaskQueryTemplate = `
@@ -89,6 +90,7 @@ ON CONFLICT(job_id) DO UPDATE SET
     overlap_policy = EXCLUDED.overlap_policy,
     expires_at = EXCLUDED.expires_at,
     enabled = EXCLUDED.enabled,
+    configuration_version = automation_scheduled_tasks.configuration_version + 1,
     updated_at = CURRENT_TIMESTAMP`
 
 // NewRepository 创建自动化仓储。
@@ -167,6 +169,24 @@ ON CONFLICT(agent_id) DO UPDATE SET
     every_seconds = EXCLUDED.every_seconds,
     target_mode = EXCLUDED.target_mode,
     ack_max_chars = EXCLUDED.ack_max_chars,
+    configuration_version = automation_heartbeat_states.configuration_version + 1,
+    updated_at = CURRENT_TIMESTAMP`,
+		repository.bindList(8),
+	)
+	repository.persistHeartbeatRuntimeQuery = fmt.Sprintf(
+		`INSERT INTO automation_heartbeat_states (
+    state_id,
+    agent_id,
+    enabled,
+    every_seconds,
+    target_mode,
+    ack_max_chars,
+    last_heartbeat_at,
+    last_ack_at,
+    created_at,
+    updated_at
+) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+ON CONFLICT(agent_id) DO UPDATE SET
     last_heartbeat_at = EXCLUDED.last_heartbeat_at,
     last_ack_at = EXCLUDED.last_ack_at,
     updated_at = CURRENT_TIMESTAMP`,

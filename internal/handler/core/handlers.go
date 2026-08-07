@@ -1,3 +1,6 @@
+// INPUT: 核心 HTTP 请求、owner 身份、Preferences/Provider/runtime 服务。
+// OUTPUT: 健康、运行选项、偏好设置与主机设置响应。
+// POS: Web Preferences 写入口；RMW 委托 Service owner 锁，热同步失败仅做 version 条件回滚。
 package core
 
 import (
@@ -135,62 +138,88 @@ func (h *Handlers) HandleUpdatePreferences(writer http.ResponseWriter, request *
 	}
 	ownerUserID := currentOwnerUserID(request)
 	webSearchChanged := payload.WebSearch != nil || payload.WebSearchAPIKey != nil
-	previous, err := h.prefs.Get(request.Context(), ownerUserID)
+	var previous preferencessvc.Preferences
+	var defaultSelection providercfg.DefaultAgentSelection
+	var defaultSelectionChanged bool
+	var validationErr error
+	item, err := h.prefs.UpdatePrepared(
+		request.Context(),
+		ownerUserID,
+		func(current preferencessvc.Preferences) (preferencessvc.UpdateRequest, error) {
+			previous = current
+			prepared, prepareErr := h.prepareProviderPreferenceDefaults(request, current, payload)
+			if prepareErr != nil {
+				return preferencessvc.UpdateRequest{}, prepareErr
+			}
+			defaultSelection, defaultSelectionChanged = updatedDefaultAgentSelection(current, prepared)
+			if defaultSelectionChanged && h.providers != nil {
+				if validateErr := h.providers.ValidateDefaultAgentSelection(request.Context(), defaultSelection); validateErr != nil {
+					validationErr = validateErr
+					return preferencessvc.UpdateRequest{}, validateErr
+				}
+			}
+			return prepared, nil
+		},
+	)
 	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	defaultSelection, defaultSelectionChanged := updatedDefaultAgentSelection(previous, payload)
-	if defaultSelectionChanged && h.providers != nil {
-		if err = h.providers.ValidateDefaultAgentSelection(request.Context(), defaultSelection); err != nil {
-			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
-			return
+		status := http.StatusInternalServerError
+		if validationErr != nil {
+			status = http.StatusBadRequest
 		}
-	}
-	item, err := h.prefs.Update(request.Context(), ownerUserID, payload)
-	if err != nil {
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
-	}
-	item, err = h.persistProviderPreferenceDefaults(request, item)
-	if err != nil {
-		if webSearchChanged {
-			err = errors.Join(err, h.restoreWebSearchPreferences(request.Context(), ownerUserID, previous))
-		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		h.api.WriteFailure(writer, status, err.Error())
 		return
 	}
 	if defaultSelectionChanged && h.providers != nil {
 		if _, err = h.providers.ReconcileDefaultAgentBindings(request.Context(), defaultSelection); err != nil {
-			if webSearchChanged {
-				err = errors.Join(err, h.restoreWebSearchPreferences(request.Context(), ownerUserID, previous))
-			}
+			err = errors.Join(err, h.rollbackPreferencesMutation(
+				request.Context(), ownerUserID, item, previous, defaultSelectionChanged, false,
+			))
 			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
 			return
 		}
 	}
-	if err = h.syncWebSearchRuntime(request.Context(), item); err != nil {
-		if webSearchChanged {
-			err = errors.Join(
-				err,
-				h.syncWebSearchRuntime(request.Context(), previous),
-				h.restoreWebSearchPreferences(request.Context(), ownerUserID, previous),
-			)
+	if webSearchChanged {
+		if err = h.syncWebSearchRuntime(request.Context(), item); err != nil {
+			err = errors.Join(err, h.rollbackPreferencesMutation(
+				request.Context(), ownerUserID, item, previous, defaultSelectionChanged, true,
+			))
+			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+			return
 		}
-		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
-		return
 	}
 	h.api.WriteSuccess(writer, item)
 }
 
-// restoreWebSearchPreferences 恢复运行时同步失败前的用户配置与凭据。
-func (h *Handlers) restoreWebSearchPreferences(ctx context.Context, ownerUserID string, previous preferencessvc.Preferences) error {
-	apiKey := previous.WebSearchAPIKey()
-	_, err := h.prefs.Update(ctx, ownerUserID, preferencessvc.UpdateRequest{
-		WebSearch:       &previous.WebSearch,
-		WebSearchAPIKey: &apiKey,
-	})
-	return err
+func (h *Handlers) rollbackPreferencesMutation(
+	ctx context.Context,
+	ownerUserID string,
+	applied preferencessvc.Preferences,
+	previous preferencessvc.Preferences,
+	defaultSelectionChanged bool,
+	restoreRuntime bool,
+) error {
+	rollbackValue, restored, restoreErr := h.prefs.RestoreIfVersion(
+		ctx,
+		ownerUserID,
+		applied.Version,
+		previous,
+	)
+	if restoreErr != nil {
+		return restoreErr
+	}
+	if !restored {
+		return errors.New("Preferences 回滚已跳过：已有后续写入")
+	}
+	var reconcileErr error
+	if defaultSelectionChanged && h.providers != nil {
+		previousSelection, _ := updatedDefaultAgentSelection(previous, preferencessvc.UpdateRequest{})
+		_, reconcileErr = h.providers.ReconcileDefaultAgentBindings(ctx, previousSelection)
+	}
+	var runtimeRestoreErr error
+	if restoreRuntime {
+		runtimeRestoreErr = h.syncWebSearchRuntime(ctx, rollbackValue)
+	}
+	return errors.Join(reconcileErr, runtimeRestoreErr)
 }
 
 func (h *Handlers) syncWebSearchRuntime(ctx context.Context, preferences preferencessvc.Preferences) error {

@@ -2,6 +2,11 @@ package realtime
 
 import (
 	"context"
+	"errors"
+	"strings"
+	"testing"
+	"time"
+
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
@@ -11,8 +16,6 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
-	"testing"
-	"time"
 )
 
 type fakeTokenUsageRecorder struct {
@@ -26,6 +29,8 @@ func (r *fakeTokenUsageRecorder) RecordMessageUsage(_ context.Context, input usa
 
 type permissionModeTestClient struct {
 	modes           []sdkpermission.Mode
+	modeErr         error
+	interruptCalls  int
 	hookResponseAck bool
 }
 
@@ -53,7 +58,10 @@ func (c *permissionModeTestClient) ReceiveMessages(context.Context) <-chan sdkpr
 	return closed
 }
 
-func (c *permissionModeTestClient) Interrupt(context.Context) error { return nil }
+func (c *permissionModeTestClient) Interrupt(context.Context) error {
+	c.interruptCalls++
+	return nil
+}
 
 func (c *permissionModeTestClient) StopTask(context.Context, string) error { return nil }
 
@@ -65,7 +73,7 @@ func (c *permissionModeTestClient) RemoveMessages(context.Context, []string) err
 
 func (c *permissionModeTestClient) SetPermissionMode(_ context.Context, mode sdkpermission.Mode) error {
 	c.modes = append(c.modes, mode)
-	return nil
+	return c.modeErr
 }
 
 func (c *permissionModeTestClient) Retire() {}
@@ -238,6 +246,37 @@ func TestInterruptActiveSlotSeparatesControlAndDisplayReasons(t *testing.T) {
 				t.Fatal("等待 Room 权限取消决策失败")
 			}
 		})
+	}
+}
+
+func TestSetPermissionModeForAgentInterruptsFailedSlotAndContinues(t *testing.T) {
+	failed := &permissionModeTestClient{modeErr: errors.New("unsupported live update")}
+	succeeded := &permissionModeTestClient{}
+	failedSlot := &activeRoomSlot{AgentID: "agent-a", MsgID: "failed"}
+	failedSlot.setClient(failed)
+	failedSlot.setStatus("running")
+	succeededSlot := &activeRoomSlot{AgentID: "agent-a", MsgID: "succeeded"}
+	succeededSlot.setClient(succeeded)
+	succeededSlot.setStatus("running")
+	service := &Service{
+		permission: permissionctx.NewContext(),
+		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
+			"round-1": {
+				SessionKey: "room:session", RoomID: "room-1",
+				Slots: map[string]*activeRoomSlot{"failed": failedSlot, "succeeded": succeededSlot},
+			},
+		}),
+	}
+
+	err := service.SetPermissionModeForAgent(context.Background(), "agent-a", sdkpermission.ModePlan)
+	if err == nil || !strings.Contains(err.Error(), "已中断旧 slot") {
+		t.Fatalf("SetPermissionModeForAgent() error = %v", err)
+	}
+	if failed.interruptCalls != 1 || !failedSlot.isTerminal() {
+		t.Fatalf("failed slot was not interrupted: calls=%d status=%s", failed.interruptCalls, failedSlot.getStatus())
+	}
+	if len(succeeded.modes) != 1 || succeeded.modes[0] != sdkpermission.ModePlan {
+		t.Fatalf("later matching slot was not updated: %#v", succeeded.modes)
 	}
 }
 

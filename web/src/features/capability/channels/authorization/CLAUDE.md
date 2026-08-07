@@ -1,0 +1,8 @@
+# Channel Authorization Human UI
+
+- 本目录只消费 `channel_authorization` 原生 WebSocket 事件；二维码、展示 token 与验证码不得进入聊天消息、MCP 参数、持久 Store 或离线队列。
+- `channel-authorization-model.ts` 独占未知事件校验，视图只消费生成协议中的判别类型。
+- Presenter 状态只在认证应用壳层内存中存活，不写 localStorage；新展示替换旧展示，flow 不匹配的 ACK 不得关闭当前弹窗。
+- 验证码提交与取消只发送 `flow_id + presentation_token` 以及当前验证码；owner、Agent、business session、round 与 runtime lease 必须由服务端已认证 sender 路由恢复。
+- 二维码原文不以文本展示；验证码提交后立即清空输入，连接不可用时业务消息必须丢弃且明确提示用户重试。
+- 关闭弹窗只关闭本地视图；“取消授权”必须调用服务端控制动作并等待无敏感值 ACK。

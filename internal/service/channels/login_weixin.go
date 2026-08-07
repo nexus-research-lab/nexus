@@ -1,9 +1,13 @@
+// INPUT: 个人微信扫码登录状态、账号凭据和当前渠道配置。
+// OUTPUT: 串行持久化的账号配置与可观测的 runtime 热重载结果。
+// POS: 个人微信登录完成链路，必须与同 owner+channel 的增删改共享写锁。
 package channels
 
 import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -17,6 +21,7 @@ func (s *ControlService) runPersonalWeixinLoginSession(
 	row *channelConfigRow,
 ) {
 	defer cancel()
+	defer session.markDone()
 	defer s.finishChannelLoginSession(session)
 	flow := personalWeixinLoginFlow{service: s, ctx: ctx, session: session, row: row}
 	flow.run()
@@ -144,10 +149,39 @@ func (f *personalWeixinLoginFlow) handleConfirmed(
 		f.session.finish(ChannelLoginStatusError, "登录失败：微信服务未返回账号凭据")
 		return personalWeixinLoginStep{finished: true}
 	}
-	if err := f.service.savePersonalWeixinLoginCredentials(context.Background(), f.row, status); err != nil {
+	if f.session.expectedAccountID != "" &&
+		f.session.expectedAccountID != strings.TrimSpace(status.IlinkBotID) {
+		f.session.finish(
+			ChannelLoginStatusError,
+			"扫码返回账号与授权目标不匹配，未保存任何凭据",
+		)
+		return personalWeixinLoginStep{finished: true}
+	}
+	releaseCommit, err := f.service.acquireChannelLoginAuthorizationCommit(
+		f.ctx,
+		f.session,
+	)
+	if err != nil {
+		f.session.finish(ChannelLoginStatusError, err.Error())
+		return personalWeixinLoginStep{finished: true}
+	}
+	if !f.session.claimCompletion() {
+		releaseCommit()
+		return personalWeixinLoginStep{finished: true}
+	}
+	defer releaseCommit()
+	committedVersion, err := f.service.savePersonalWeixinLoginCredentials(
+		context.Background(),
+		f.row,
+		status,
+		f.session.snapshot().StartControlVersion,
+	)
+	if err != nil {
+		f.session.releaseCompletion()
 		f.session.finish(ChannelLoginStatusError, "保存微信账号失败: "+err.Error())
 		return personalWeixinLoginStep{finished: true}
 	}
+	f.session.setCommittedControlVersion(committedVersion)
 	f.session.setAccount(status.IlinkBotID, status.IlinkUserID)
 	f.session.finish(ChannelLoginStatusSucceeded, "")
 	f.session.appendOutput("微信已连接，Nexus 将自动接收和回投消息。\n")
@@ -170,18 +204,60 @@ func (s *ControlService) savePersonalWeixinLoginCredentials(
 	ctx context.Context,
 	row *channelConfigRow,
 	status channeladapters.PersonalWeixinQRStatusResponse,
-) error {
+	expectedVersion int64,
+) (int64, error) {
 	if row == nil {
-		return errors.New("channel config is required before login")
+		return 0, errors.New("channel config is required before login")
 	}
-	config, err := s.preparePersonalWeixinLoginStorage(ctx, row, status)
+	unlockControl := s.lockControlMutation(row.OwnerUserID)
+	defer unlockControl()
+	unlockChannel := s.lockChannelMutation(row.OwnerUserID, row.ChannelType)
+	defer unlockChannel()
+
+	reloadSnapshot, err := s.captureChannelReloadSnapshot(ctx, row.OwnerUserID, row.ChannelType)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if err = s.persistPersonalWeixinLoginStorage(ctx, row, status, config); err != nil {
-		return err
+	if reloadSnapshot.version != expectedVersion {
+		return 0, channelControlVersionError(
+			expectedVersion,
+			ErrChannelControlVersionConflict,
+		)
 	}
-	return s.refreshPersonalWeixinLoginRouter(ctx, row, config.configJSON)
+	var current *channelConfigRow
+	var config personalWeixinLoginStorage
+	committedVersion, err := s.withChannelControlMutation(ctx, row.OwnerUserID, expectedVersion, func(tx *sql.Tx) error {
+		var loadErr error
+		current, loadErr = s.getChannelConfigRowFrom(ctx, tx, row.OwnerUserID, row.ChannelType)
+		if loadErr != nil {
+			return loadErr
+		}
+		if current == nil {
+			return ErrChannelNotFound
+		}
+		config, loadErr = s.preparePersonalWeixinLoginStorage(ctx, tx, current, status)
+		if loadErr != nil {
+			return loadErr
+		}
+		return s.persistPersonalWeixinLoginStorage(ctx, tx, current, status, config)
+	})
+	if err != nil {
+		return 0, channelControlVersionError(expectedVersion, err)
+	}
+	if err = s.refreshPersonalWeixinLoginRouter(ctx, current, config.configJSON); err != nil {
+		if restoreErr := s.restoreChannelReloadSnapshot(ctx, reloadSnapshot, committedVersion); restoreErr != nil {
+			return 0, errors.Join(
+				fmt.Errorf("%w: %v", ErrChannelRuntimeReload, err),
+				fmt.Errorf("恢复授权前 Channel 配置失败: %w", restoreErr),
+			)
+		}
+		return 0, fmt.Errorf(
+			"%w: 候选 runtime 启动失败，上一份可运行配置已保留: %v",
+			ErrChannelRuntimeReload,
+			err,
+		)
+	}
+	return committedVersion, nil
 }
 
 type personalWeixinLoginStorage struct {
@@ -191,6 +267,7 @@ type personalWeixinLoginStorage struct {
 
 func (s *ControlService) preparePersonalWeixinLoginStorage(
 	ctx context.Context,
+	store channelStore,
 	row *channelConfigRow,
 	status channeladapters.PersonalWeixinQRStatusResponse,
 ) (personalWeixinLoginStorage, error) {
@@ -208,7 +285,7 @@ func (s *ControlService) preparePersonalWeixinLoginStorage(
 	if secrets == nil {
 		secrets = map[string]string{}
 	}
-	if err = s.saveLegacyPersonalWeixinAccount(ctx, row, publicConfig, secrets); err != nil {
+	if err = s.saveLegacyPersonalWeixinAccount(ctx, store, row, publicConfig, secrets); err != nil {
 		return personalWeixinLoginStorage{}, err
 	}
 	nextPublicConfig := normalizeStringMap(publicConfig)
@@ -227,14 +304,15 @@ func (s *ControlService) preparePersonalWeixinLoginStorage(
 
 func (s *ControlService) persistPersonalWeixinLoginStorage(
 	ctx context.Context,
+	store channelStore,
 	row *channelConfigRow,
 	status channeladapters.PersonalWeixinQRStatusResponse,
 	config personalWeixinLoginStorage,
 ) error {
-	if err := s.savePersonalWeixinAccount(ctx, row, config.publicConfig, status); err != nil {
+	if err := s.savePersonalWeixinAccount(ctx, store, row, config.publicConfig, status); err != nil {
 		return err
 	}
-	return s.upsertChannelConfigRow(ctx, channelConfigRow{
+	return s.upsertChannelConfigRowWith(ctx, store, channelConfigRow{
 		OwnerUserID:          row.OwnerUserID,
 		ChannelType:          row.ChannelType,
 		AgentID:              row.AgentID,
@@ -249,15 +327,7 @@ func (s *ControlService) refreshPersonalWeixinLoginRouter(
 	row *channelConfigRow,
 	configJSON string,
 ) error {
-	runtimeStatus := ChannelConfigStatusConfigured
-	runtimeError := ""
-	if err := s.configureRouterChannel(ctx, row.OwnerUserID, row.ChannelType, configJSON, sql.NullString{}); err != nil {
-		runtimeStatus = ChannelConfigStatusError
-		runtimeError = err.Error()
-	} else if s.router != nil && s.router.IsReadyForOwner(row.OwnerUserID, row.ChannelType) {
-		runtimeStatus = ChannelConfigStatusConnected
-	}
-	return s.updateChannelConfigRuntimeState(ctx, row.OwnerUserID, row.ChannelType, runtimeStatus, runtimeError)
+	return s.reloadChannelRuntime(ctx, row.OwnerUserID, row.ChannelType, configJSON, sql.NullString{})
 }
 
 func (s *ControlService) newPersonalWeixinLoginClient(baseURL string, publicConfig map[string]string) personalWeixinLoginClient {

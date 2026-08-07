@@ -143,7 +143,7 @@ func (s *Service) refreshSessionMetaAfterRoundMarkerForOwner(
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ForOwner(ownerUserID).UpsertSession(workspacePath, current)
+	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaAfterMessage(
@@ -175,7 +175,7 @@ func (s *Service) refreshSessionMetaAfterMessageForOwner(
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ForOwner(ownerUserID).UpsertSession(workspacePath, current)
+	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
 }
 
 func (s *Service) preferPersistableMessageSessionID(
@@ -235,7 +235,7 @@ func (s *Service) refreshSessionMetaRuntimeStateForOwner(
 	if err != nil {
 		return nil, err
 	}
-	return s.files.ForOwner(ownerUserID).UpsertSession(workspacePath, current)
+	return s.files.ForOwner(ownerUserID).PatchSessionRuntime(workspacePath, current)
 }
 
 func (s *Service) refreshSessionMetaRuntimeStateByKey(ctx context.Context, sessionKey string) error {
@@ -419,7 +419,7 @@ func (s *sdkSessionSync) persist() (protocol.Session, error) {
 	if err != nil {
 		return protocol.Session{}, err
 	}
-	updated, err := s.service.files.ForOwner(s.ownerUserID).UpsertSession(
+	updated, err := s.service.files.ForOwner(s.ownerUserID).PatchSessionRuntime(
 		s.workspacePath,
 		current,
 	)
@@ -494,7 +494,7 @@ func (s *Service) clearReusableSDKSessionID(
 	if err != nil {
 		return protocol.Session{}, err
 	}
-	updated, err := s.files.ForOwner(authctx.OwnerUserID(ctx)).UpsertSession(
+	updated, err := s.files.ForOwner(authctx.OwnerUserID(ctx)).PatchSessionRuntime(
 		workspacePath,
 		current,
 	)
@@ -549,5 +549,6 @@ func (s *Service) preservePersistedSessionTitleForOwner(
 		return current, nil
 	}
 	current.Title = persisted.Title
+	current.ConfigurationVersion = persisted.ConfigurationVersion
 	return current, nil
 }

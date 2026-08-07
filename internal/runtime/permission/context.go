@@ -41,13 +41,21 @@ type SessionRouteLease struct {
 
 // Context 保存 session 绑定与权限请求广播逻辑。
 type Context struct {
-	mu              sync.RWMutex
-	sessionBindings map[string]map[string]senderBinding
-	senderSessions  map[string]map[string]struct{}
-	sessionRoutes   map[string]sessionRouteBinding
-	nextRouteLease  uint64
-	pendingRequests map[string]*PendingRequest
-	requestTimeout  time.Duration
+	mu               sync.RWMutex
+	sessionBindings  map[string]map[string]senderBinding
+	senderSessions   map[string]map[string]struct{}
+	sessionRoutes    map[string]sessionRouteBinding
+	nextRouteLease   uint64
+	pendingRequests  map[string]*PendingRequest
+	requestTimeout   time.Duration
+	approvalRecorder HumanToolApprovalRecorder
+}
+
+// SetHumanToolApprovalRecorder 注入高风险业务写入的一次性人工批准记录器。
+func (c *Context) SetHumanToolApprovalRecorder(recorder HumanToolApprovalRecorder) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.approvalRecorder = recorder
 }
 
 // NewContext 创建权限运行时上下文。
@@ -285,7 +293,11 @@ func (c *Context) RequestPermission(
 }
 
 // HandlePermissionResponse 处理前端提交的权限决策。
-func (c *Context) HandlePermissionResponse(message map[string]any) bool {
+func (c *Context) HandlePermissionResponse(
+	ctx context.Context,
+	sessionKey string,
+	message map[string]any,
+) bool {
 	requestID := normalizeString(message["request_id"])
 	if requestID == "" {
 		return false
@@ -297,8 +309,11 @@ func (c *Context) HandlePermissionResponse(message map[string]any) bool {
 	if pending == nil {
 		return false
 	}
+	if pending.DispatchSessionKey != sessionKey {
+		return false
+	}
 
-	decision := c.buildPermissionDecision(pending, message)
+	decision := c.buildPermissionDecision(ctx, pending, message)
 	select {
 	case pending.ResponseCh <- decision:
 		c.finalizeRequest(pending, "answered")

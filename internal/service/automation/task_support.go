@@ -1,3 +1,6 @@
+// INPUT: owner-scoped Automation 任务、Agent workspace 与 Session artifact 删除协调器。
+// OUTPUT: 任务容量校验，以及 isolated Session 的统一 tombstone/runtime/transcript 清理。
+// POS: Automation CRUD 辅助阶段；禁止直接删除 Agent Session 目录。
 package automation
 
 import (
@@ -60,7 +63,8 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 	if strings.TrimSpace(job.SessionTarget.Kind) != automationdomain.SessionTargetIsolated {
 		return nil
 	}
-	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)
+	cleanupCtx := context.WithoutCancel(ctx)
+	workspacePath, err := s.resolveAutomationWorkspacePath(cleanupCtx, job.AgentID)
 	if err != nil {
 		return err
 	}
@@ -77,6 +81,7 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 	if err != nil {
 		return err
 	}
+	targets := make([]protocol.Session, 0)
 	for _, item := range sessions {
 		sessionKey := strings.TrimSpace(item.SessionKey)
 		if !strings.HasPrefix(sessionKey, prefix) {
@@ -86,14 +91,33 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 		if parsed.Kind != protocol.SessionKeyKindAgent || !parsed.IsStructured || parsed.Channel != "automation" {
 			continue
 		}
-		if _, deleteErr := files.DeleteSession(workspacePath, sessionKey); deleteErr != nil {
-			return deleteErr
+		targets = append(targets, item)
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	if s.sessionArtifacts == nil {
+		return ErrSessionArtifactDeletionCoordinatorUnavailable
+	}
+
+	errs := make([]error, 0)
+	for _, item := range targets {
+		sessionKey := strings.TrimSpace(item.SessionKey)
+		cleanupSessionID := ""
+		if item.SessionID != nil {
+			cleanupSessionID = strings.TrimSpace(*item.SessionID)
 		}
-		if s.sessionCloser != nil {
-			_ = s.sessionCloser.CloseSession(context.Background(), sessionKey)
+		if deleteErr := s.sessionArtifacts.DeleteSessionArtifacts(
+			cleanupCtx,
+			ownerUserID,
+			workspacePath,
+			sessionKey,
+			cleanupSessionID,
+		); deleteErr != nil {
+			errs = append(errs, deleteErr)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (s *Service) resolveAutomationWorkspacePath(ctx context.Context, agentID string) (string, error) {

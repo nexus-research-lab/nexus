@@ -1,3 +1,6 @@
+// INPUT: owner-scoped imported Skill entity 与 DB/transaction executor。
+// OUTPUT: 导入记录查询、upsert、删除及远端检查元数据写入。
+// POS: imported_skills SQL 的单一实现，Repository 与 CatalogMutation 共同复用。
 package skills
 
 import (
@@ -36,13 +39,22 @@ WHERE owner_user_id = `+r.bind(1)+` AND skill_name = `+r.bind(2),
 }
 
 func (r *Repository) UpsertImportedSkill(ctx context.Context, item ImportedSkillEntity) error {
+	return upsertImportedSkill(ctx, r.db, r.isPostgres, item)
+}
+
+func upsertImportedSkill(
+	ctx context.Context,
+	executor sqlExecutor,
+	isPostgres bool,
+	item ImportedSkillEntity,
+) error {
 	now := time.Now().UTC()
 	if item.LastImportedAt == nil {
 		item.LastImportedAt = &now
 	}
 	args := importedSkillArgs(item)
-	if r.isPostgres {
-		_, err := r.db.ExecContext(ctx, `
+	if isPostgres {
+		_, err := executor.ExecContext(ctx, `
 INSERT INTO imported_skills (
     owner_user_id, skill_name, title, description, scope, tags, category_key, category_name,
     recommendation, version, source_id, source_kind, source_ref, source_name, source_trust,
@@ -84,7 +96,7 @@ ON CONFLICT (owner_user_id, skill_name) DO UPDATE SET
 		)
 		return err
 	}
-	_, err := r.db.ExecContext(ctx, `
+	_, err := executor.ExecContext(ctx, `
 INSERT INTO imported_skills (
     owner_user_id, skill_name, title, description, scope, tags, category_key, category_name,
     recommendation, version, source_id, source_kind, source_ref, source_name, source_trust,
@@ -137,9 +149,31 @@ func (r *Repository) DeleteImportedSkill(ctx context.Context, ownerUserID string
 }
 
 func (r *Repository) RecordImportedSkillCheck(ctx context.Context, ownerUserID string, skillName string, updateAvailable bool, checkedAt time.Time, lastError string) error {
-	_, err := r.db.ExecContext(
+	return recordImportedSkillCheck(
 		ctx,
-		"UPDATE imported_skills SET update_available = "+r.bind(1)+", last_checked_at = "+r.bind(2)+", last_error = "+r.bind(3)+", updated_at = CURRENT_TIMESTAMP WHERE owner_user_id = "+r.bind(4)+" AND skill_name = "+r.bind(5),
+		r.db,
+		r.bind,
+		ownerUserID,
+		skillName,
+		updateAvailable,
+		checkedAt,
+		lastError,
+	)
+}
+
+func recordImportedSkillCheck(
+	ctx context.Context,
+	executor sqlExecutor,
+	bind func(int) string,
+	ownerUserID string,
+	skillName string,
+	updateAvailable bool,
+	checkedAt time.Time,
+	lastError string,
+) error {
+	_, err := executor.ExecContext(
+		ctx,
+		"UPDATE imported_skills SET update_available = "+bind(1)+", last_checked_at = "+bind(2)+", last_error = "+bind(3)+", updated_at = CURRENT_TIMESTAMP WHERE owner_user_id = "+bind(4)+" AND skill_name = "+bind(5),
 		updateAvailable,
 		checkedAt,
 		strings.TrimSpace(lastError),

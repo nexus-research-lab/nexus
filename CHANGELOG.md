@@ -7,10 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a complete conversational configuration control plane across owner, Agent-self, Room-host, and Room-member contexts, with database-backed scope enforcement, redacted inspect/plan/apply/history tools, native human approval and secret entry, resource-version CAS, durable audit/reconcile state, authorization flows, immediate revocation, and explicit hot-reload timing.
+- Added four independently selected built-in configuration Skills for progressive role guidance, so only the current trusted role is discoverable in each DM or Room runtime while the backend remains the authority for every operation.
+
 ### Fixed
 
-- Added a main-Agent-only conversational configuration control plane for preferences, Providers, Agents, Channels, Connectors, and Skills plus read-only host inspection, with redacted discovery, deterministic planning, optimistic revisions, idempotent apply, native human confirmation, post-write verification, hot-reload status, and owner-scoped audit history.
-- Routed Automation, Room, Workspace, and Goal configuration discovery to their existing specialized conversation tools, and taught the main Nexus Agent to use one inspect → plan → apply → verify workflow instead of editing product databases or config files directly.
+- Routed Automation, Workspace, and Goal operations to their specialized conversation tools while keeping Agent, Room, Session, Provider, Channel, Connector, Skill, preference, and emotion changes behind one inspect → plan → native approval → CAS apply → verify workflow instead of direct database or config-file edits.
 - Sequenced explicit Goal creation before its first WorkGraph proposal across the stable prompt, Goal/Execution Skills, and both MCP tool contracts, so Agents no longer launch `create_goal` and `prepare_plan_execution` in parallel while the backend continues to reject stale ambient-Goal races.
 - Repaired legacy databases that had already recorded Execution migration 61 before `goal_execution_identity_claims` was added, allowing startup proposal reconciliation and Goal-to-WorkGraph identity recovery to run instead of failing against a missing table.
 - Made Plan boundary authority explicit: a fresh `operation: create` under an active Goal now seals the exact server-owned Goal objective even when the provider omits or paraphrases the transport field, while Goal-free create/replace still require a document objective, replan still inherits the current Execution boundary, and true Goal-to-existing-Execution objective conflicts remain rejected.

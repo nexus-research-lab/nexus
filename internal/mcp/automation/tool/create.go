@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
@@ -18,8 +19,9 @@ const createDescription = "创建持久化定时任务（== UI「新建任务」
 	"必填：name / instruction / schedule。schedule.kind 支持 single|daily|interval|cron 四种：" +
 	"single+run_at / daily+daily_time(+weekdays) / interval+interval_value+interval_unit / cron+expr(标准 5 段 cron 表达式，会被翻译回 daily 形态以保证 UI 可编辑；只支持 minute/hour 为单整数 + dom/month=* 的表达式)。" +
 	"schedule.timezone 缺省按服务器默认时区（通常 Asia/Shanghai）。" +
-	"execution_kind=script 时 instruction 会作为 workspace 脚本直接执行，不占用 Agent 会话，输出会进入运行产物。" +
+	"对话入口只允许 execution_kind=agent；宿主脚本任务只能由人类控制面创建。" +
 	"可选：execution_mode(main|existing|temporary|dedicated) + reply_mode(none|execution|selected|agent|channel)。" +
+	"投递权限：普通 Agent 只能回到自身 Agent 会话/收件箱，Room 成员只能额外回到当前 Room，外部通道只能回到当前明确授权的同一会话（含账号与 thread）；只有主智能体自己的可信 Nexus 私有 DM 可在 owner scope 内指定其他 Agent 或任意已配置通道目标。任务实际投递前会按最新配置和当前主智能体/Room 成员身份再次校验。" +
 	"需要投递到某个智能体时，用 reply_mode=agent + reply_agent_id；缺省投递到任务目标智能体的定时任务收件箱。" +
 	"需要投递到 IM/外部通道时，用 reply_mode=channel + reply_channel/reply_to，或 reply_session_key（例如 agent:<agent_id>:fs:group:<chat_id> 或 agent:<agent_id>:weixin-personal:dm:<user_id>）；如果当前会话就是结构化外部 IM 群，可只传 reply_mode=channel，或只传匹配当前通道的 reply_channel，工具会默认投递回当前群；用户在当前群说“发到这个群/每天推送/每天发送/每天播报”时，工具也会默认 temporary+channel；但“不要推送/静默运行”不会触发该默认。" +
 	"当前 DM/Room 里，用户说“每天搜索新闻发给我/告诉我/通知我”这类独立重任务且不依赖当前聊天历史时，可省略 execution_mode/reply_mode，工具会默认 temporary+selected 回投当前会话；如果任务要总结当前对话/聊天记录，必须显式选择执行会话。" +
@@ -37,8 +39,15 @@ func create(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 		SearchHint:  searchHintCreateScheduledTask,
 		InputSchema: createSchema(),
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
+			if err := requireTrustedInteractiveMutation(sctx); err != nil {
+				return render.Error(err), nil
+			}
 			if args == nil {
 				args = map[string]any{}
+			}
+			requestID := strings.TrimSpace(argx.String(args, "request_id"))
+			if requestID == "" {
+				return render.Error(errors.New("request_id is required for idempotent scheduled task creation")), nil
 			}
 			semantic.ReassembleFlatSchedule(args)
 			semantic.ApplyDefaultTimezone(args, sctx)
@@ -50,11 +59,19 @@ func create(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 			if err != nil {
 				return render.Error(err), nil
 			}
+			if err = requireConversationDeliveryScope(sctx, input.AgentID, input.Delivery); err != nil {
+				return render.Error(err), nil
+			}
+			input.RequestID = requestID
 			job, err := svc.CreateTask(scopedToolContext(ctx, sctx), input)
 			if err != nil {
 				return render.Error(err), nil
 			}
-			return render.JSON(render.DecorateTimes(job, job.Schedule.Timezone)), nil
+			verified, err := verifyScheduledTaskPresent(ctx, svc, sctx, *job)
+			if err != nil {
+				return render.Error(err), nil
+			}
+			return render.JSON(render.DecorateTimes(verified, verified.Schedule.Timezone)), nil
 		},
 	}
 }
@@ -76,19 +93,7 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automat
 	}
 	executionKind := automationdomain.NormalizeExecutionKind(argx.String(args, "execution_kind"))
 	if executionKind == automationdomain.ExecutionKindScript {
-		return automationdomain.CreateJobInput{
-			Name:          argx.String(args, "name"),
-			AgentID:       agentID,
-			Schedule:      schedule,
-			Instruction:   argx.String(args, "instruction"),
-			ExecutionKind: automationdomain.ExecutionKindScript,
-			SessionTarget: automationdomain.SessionTarget{Kind: automationdomain.SessionTargetIsolated},
-			Delivery:      automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
-			Source:        semantic.Source(sctx, agentID),
-			OverlapPolicy: argx.String(args, "overlap_policy"),
-			ExpiresAt:     expiresAt,
-			Enabled:       argx.Bool(args, "enabled", true),
-		}, nil
+		return automationdomain.CreateJobInput{}, errors.New("execution_kind=script is human-control-plane only and cannot be created through an Agent conversation")
 	}
 	executionMode := strings.TrimSpace(argx.String(args, "execution_mode"))
 	replyMode := strings.TrimSpace(argx.String(args, "reply_mode"))
@@ -106,6 +111,7 @@ func buildCreateInput(args map[string]any, sctx contract.ServerContext) (automat
 		return automationdomain.CreateJobInput{}, err
 	}
 	return automationdomain.CreateJobInput{
+		RequestID:     strings.TrimSpace(argx.String(args, "request_id")),
 		Name:          argx.String(args, "name"),
 		AgentID:       agentID,
 		Schedule:      schedule,

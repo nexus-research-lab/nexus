@@ -189,6 +189,21 @@ func TestRuntimeDreamRunnerSkipsUnavailableSelection(t *testing.T) {
 	}
 }
 
+func TestDreamSessionCancellationForcesClose(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	closed := make(chan struct{})
+	stop := closeDreamSessionOnCancellation(ctx, func() {
+		close(closed)
+	})
+	cancel()
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("AutoDream admission 撤销后未强制关闭 bridge session")
+	}
+	stop()
+}
+
 func newDreamTestAgent(t *testing.T, agentID string, enabled bool) protocol.Agent {
 	t.Helper()
 	workspace := t.TempDir()

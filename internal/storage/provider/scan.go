@@ -1,3 +1,6 @@
+// INPUT: Provider/provider_models SQL 行。
+// OUTPUT: 完整规整实体，包括向后兼容的 configuration_version 默认值。
+// POS: Provider 仓储的唯一行扫描与空值归一层。
 package provider
 
 import (
@@ -29,6 +32,7 @@ func scanEntity(scanner interface {
 		&lastTestStatus,
 		&lastTestError,
 		&lastTestAt,
+		&item.ConfigurationVersion,
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)
@@ -70,9 +74,19 @@ func scanEntity(scanner interface {
 		value := lastTestAt.Time.UTC()
 		item.LastTestAt = &value
 	}
+	if item.ConfigurationVersion <= 0 {
+		item.ConfigurationVersion = 1
+	}
 	item.CreatedAt = item.CreatedAt.UTC()
 	item.UpdatedAt = item.UpdatedAt.UTC()
 	return item, nil
+}
+
+func normalizedConfigurationVersion(value int64) int64 {
+	if value <= 0 {
+		return 1
+	}
+	return value
 }
 
 func nullableOwnerUserID(item Entity) any {

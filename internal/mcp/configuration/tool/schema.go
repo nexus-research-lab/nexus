@@ -4,14 +4,14 @@
 package tool
 
 var domainEnum = []string{
-	"preferences", "providers", "agents", "channels", "connectors", "skills",
-	"host", "automation", "rooms", "workspaces", "goals",
+	"preferences", "providers", "agents", "emotion", "channels", "connectors", "skills",
+	"host", "automation", "sessions", "rooms", "workspaces", "goals",
 }
 
 var changeProperties = map[string]any{
 	"domain": map[string]any{
 		"type": "string", "enum": domainEnum,
-		"description": "配置域；automation/rooms/workspaces/goals 会指向专用工具，不接受通用写入",
+		"description": "配置域；实际可读域和操作由当前可信 owner/Agent/Room 权限动态过滤",
 	},
 	"operation": map[string]any{
 		"type":        "string",
@@ -23,7 +23,7 @@ var changeProperties = map[string]any{
 	},
 	"input": map[string]any{
 		"type":                 "object",
-		"description":          "领域服务原生 JSON 输入。敏感值只在此传入，结果与审计永不回显明文",
+		"description":          "领域服务 JSON 输入。敏感字段必须写成 {\"$secret\":\"8-64位opaque_slot_id\"}；真人只在 Nexus 批准卡的密码框填写，严禁把明文 secret/token/password 放进 tool input",
 		"additionalProperties": true,
 	},
 }
@@ -64,13 +64,13 @@ func applySchema() map[string]any {
 		"type":        "string",
 		"description": "必须等于 plan 返回的 current_revision；不同则拒绝覆盖新配置",
 	}
-	properties["confirm"] = map[string]any{
-		"type":        "boolean",
-		"description": "仅在 plan.requires_confirmation=true 且用户明确确认后传 true",
+	properties["plan_digest"] = map[string]any{
+		"type":        "string",
+		"description": "必须原样使用 plan 返回的 plan_digest；它绑定 actor、scope、输入和当前 revision",
 	}
 	return map[string]any{
 		"type": "object", "properties": properties,
-		"required": []string{"request_id", "domain", "operation", "input", "expected_revision"},
+		"required": []string{"request_id", "domain", "operation", "input", "expected_revision", "plan_digest"},
 	}
 }
 

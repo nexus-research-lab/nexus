@@ -45,6 +45,10 @@ func (h *Handler) dispatchWebSocketMessageWithControlDispatcher(
 		h.handleBindSession(ctx, sender, inbound)
 	case "unbind_session":
 		h.handleUnbindSession(ctx, sender, inbound)
+	case "submit_channel_authorization_code":
+		h.handleChannelAuthorizationCode(ctx, sender, inbound)
+	case "cancel_channel_authorization":
+		h.handleChannelAuthorizationCancel(ctx, sender, inbound)
 	case "chat", "chat_rewrite_last", "interrupt", "permission_response", "input_queue":
 		h.handleControlMessage(ctx, sender, inbound, dispatcher)
 	default:

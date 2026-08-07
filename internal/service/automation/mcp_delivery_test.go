@@ -89,8 +89,17 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 	ownerCtx := automationMCPTestOwnerContext(fixture.ServerContext.OwnerUserID)
 	now := time.Date(2026, 5, 22, 9, 0, 0, 0, time.UTC)
 	fixture.Service.nowFn = func() time.Time { return now }
+	sctx := fixture.ServerContext
+	sctx.CurrentSessionKey = protocol.BuildAgentSessionKey(
+		fixture.ServerContext.CurrentAgentID,
+		protocol.SessionChannelFeishuSegment,
+		"group",
+		"oc_missing_group",
+		"",
+	)
+	sctx.CurrentSessionLabel = "飞书群 oc_missing_group"
 
-	createResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "create_scheduled_task", map[string]any{
+	createResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "create_scheduled_task", map[string]any{
 		"name":              "飞书新闻投递",
 		"instruction":       "搜索新闻并投递到飞书群",
 		"execution_mode":    "dedicated",
@@ -109,7 +118,7 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 	}
 	created := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, createResult)
 
-	runResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "run_scheduled_task", map[string]any{
+	runResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "run_scheduled_task", map[string]any{
 		"query": "飞书新闻投递",
 	})
 	if isError {
@@ -137,7 +146,7 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 		t.Fatalf("飞书发送失败应记录投递尝试并安排重试: %+v", failedRun)
 	}
 
-	reportResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "get_scheduled_task_report", map[string]any{
+	reportResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "get_scheduled_task_report", map[string]any{
 		"query":    "飞书新闻投递",
 		"date":     "2026-05-22",
 		"timezone": "UTC",
@@ -157,25 +166,25 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 	}
 
 	inboxKey := protocol.BuildAgentSessionKey(
-		"agent-2",
+		"agent-1",
 		protocol.SessionChannelInternalSegment,
 		"dm",
 		protocol.AutomationInboxSessionRef,
 		"",
 	)
-	updateResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "update_scheduled_task", map[string]any{
+	updateResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "update_scheduled_task", map[string]any{
 		"query":          "飞书新闻投递",
-		"reply_agent_id": "agent-2",
+		"reply_agent_id": "agent-1",
 	})
 	if isError {
 		t.Fatalf("update_scheduled_task 修正投递目标不应失败: %s", automationMCPToolText(t, updateResult))
 	}
 	updated := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, updateResult)
 	if updated.Delivery.Channel != protocol.SessionChannelInternalSegment || updated.Delivery.To != inboxKey {
-		t.Fatalf("应把失败任务投递目标修正到 agent-2 收件箱: %+v", updated.Delivery)
+		t.Fatalf("应把失败任务投递目标修正到自身 Agent 收件箱: %+v", updated.Delivery)
 	}
 
-	retryResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "repair_scheduled_task", map[string]any{
+	retryResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "repair_scheduled_task", map[string]any{
 		"action": "retry_delivery",
 		"query":  "飞书新闻投递",
 		"run_id": runID,
@@ -204,7 +213,7 @@ func TestAutomationMCPReportAndRetryFailedDeliveryToAgentInbox(t *testing.T) {
 	}
 	assertDeliveredAgentMessage(t, fixture.WorkspacePath, *sessionValue, "今日新闻摘要", "重投递智能体收件箱")
 
-	statusResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "inspect_scheduled_task", map[string]any{
+	statusResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "inspect_scheduled_task", map[string]any{
 		"query":     "飞书新闻投递",
 		"run_limit": 3,
 	})
@@ -224,8 +233,17 @@ func TestAutomationMCPDeletedTaskReportDoesNotSuggestRedelivery(t *testing.T) {
 	ownerCtx := automationMCPTestOwnerContext(fixture.ServerContext.OwnerUserID)
 	now := time.Date(2026, 5, 22, 9, 0, 0, 0, time.UTC)
 	fixture.Service.nowFn = func() time.Time { return now }
+	sctx := fixture.ServerContext
+	sctx.CurrentSessionKey = protocol.BuildAgentSessionKey(
+		fixture.ServerContext.CurrentAgentID,
+		protocol.SessionChannelFeishuSegment,
+		"group",
+		"oc_missing_group",
+		"",
+	)
+	sctx.CurrentSessionLabel = "飞书群 oc_missing_group"
 
-	createResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "create_scheduled_task", map[string]any{
+	createResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "create_scheduled_task", map[string]any{
 		"name":              "已删飞书新闻投递",
 		"instruction":       "搜索新闻并投递到飞书群",
 		"execution_mode":    "dedicated",
@@ -244,7 +262,7 @@ func TestAutomationMCPDeletedTaskReportDoesNotSuggestRedelivery(t *testing.T) {
 	}
 	created := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, createResult)
 
-	runResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "run_scheduled_task", map[string]any{
+	runResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "run_scheduled_task", map[string]any{
 		"query": "已删飞书新闻投递",
 	})
 	if isError {
@@ -260,7 +278,7 @@ func TestAutomationMCPDeletedTaskReportDoesNotSuggestRedelivery(t *testing.T) {
 		return err == nil && len(runs) > 0 && runs[0].RunID == runID && runs[0].DeliveryStatus == automationdomain.DeliveryStatusFailed
 	})
 
-	deleteResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "delete_scheduled_task", map[string]any{
+	deleteResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "delete_scheduled_task", map[string]any{
 		"query": "已删飞书新闻投递",
 	})
 	if isError {
@@ -271,7 +289,7 @@ func TestAutomationMCPDeletedTaskReportDoesNotSuggestRedelivery(t *testing.T) {
 		t.Fatalf("delete_scheduled_task 应删除原任务: %+v", deleted)
 	}
 
-	reportResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "get_scheduled_task_report", map[string]any{
+	reportResult, isError := callAutomationMCPTool(t, fixture.Service, sctx, "get_scheduled_task_report", map[string]any{
 		"query":    "已删飞书新闻投递",
 		"date":     "2026-05-22",
 		"timezone": "UTC",

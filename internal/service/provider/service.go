@@ -1,3 +1,6 @@
+// INPUT: 数据库、运行配置、HTTP client 与日志依赖。
+// OUTPUT: Provider 管理服务及稳定导出的聚合 CAS 错误协议。
+// POS: Provider 服务装配入口。
 package provider
 
 import (
@@ -23,6 +26,15 @@ const (
 )
 
 var providerIDCounter atomic.Uint64
+
+var (
+	// ErrConfigurationVersionConflict 表示 Provider 聚合已被并发写入推进。
+	ErrConfigurationVersionConflict = providerstore.ErrConfigurationVersionConflict
+	// ErrProviderNotFound 表示 Provider 在条件写入前已不存在。
+	ErrProviderNotFound = providerstore.ErrProviderNotFound
+	// ErrModelNotFound 表示条件模型写入没有命中持久化模型卡。
+	ErrModelNotFound = providerstore.ErrModelNotFound
+)
 
 // Service 提供 Provider 配置管理与运行时解析。
 type Service struct {

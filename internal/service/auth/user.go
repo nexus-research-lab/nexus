@@ -1,3 +1,6 @@
+// INPUT: Owner 初始化/用户管理请求、认证存储与 runtime 安全转场协调器。
+// OUTPUT: 经校验的认证用户；server 首个 owner 仅在 pre-auth runtime 撤销后提交。
+// POS: 认证用户生命周期与首次启用认证的事务入口。
 package auth
 
 import (
@@ -10,6 +13,9 @@ import (
 
 // InitOwner 初始化第一个 owner 用户。
 func (s *Service) InitOwner(ctx context.Context, input InitOwnerInput) (*User, error) {
+	s.initOwnerMu.Lock()
+	defer s.initOwnerMu.Unlock()
+
 	state, err := s.GetState(ctx)
 	if err != nil {
 		return nil, err
@@ -53,7 +59,15 @@ func (s *Service) InitOwner(ctx context.Context, input InitOwnerInput) (*User, e
 		CreatedAt:         now,
 		UpdatedAt:         now,
 	}
-	if err = s.repository.CreateUserWithPassword(ctx, user, credential); err != nil {
+	commit := func(commitContext context.Context) error {
+		return s.repository.CreateUserWithPassword(commitContext, user, credential)
+	}
+	if s.runtimeTransition != nil && !s.desktopAuthBypassEnabled() {
+		err = s.runtimeTransition.EnableAuthentication(ctx, commit)
+	} else {
+		err = commit(ctx)
+	}
+	if err != nil {
 		return nil, err
 	}
 	return s.userByID(ctx, user.UserID)

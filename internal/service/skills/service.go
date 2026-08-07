@@ -1,3 +1,6 @@
+// INPUT: owner 隔离的 Agent、Skill 目录与可选 expected runtime_version。
+// OUTPUT: 安装/卸载结果，以及不会覆盖并发 Agent options 的版本化更新。
+// POS: Skills 目录变更与 Agent runtime 配置 CAS 的业务边界。
 package skills
 
 import (
@@ -5,9 +8,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -31,6 +36,7 @@ type Service struct {
 	workspaces    *workspacesvc.Service
 	skillStore    *skillstore.Repository
 	commandRunner commandRunnerFunc
+	mutationLocks sync.Map
 }
 
 // NewService 创建技能服务。
@@ -77,6 +83,7 @@ func (s *Service) ListSkills(ctx context.Context, query Query) ([]Info, error) {
 		if !skillVisibleForQuery(detail.Scope, query.Scope, query.AgentID, isMainAgent) {
 			continue
 		}
+		detail.Info = selectionInfo(record)
 		detail.EnabledForAgent = enabledNames[detail.Name]
 		if query.CategoryKey != "" && detail.CategoryKey != query.CategoryKey {
 			continue
@@ -143,6 +150,7 @@ func (s *Service) GetSkillDetail(ctx context.Context, skillName string, agentID 
 	if detail.Scope == scopeRoom && agentID != "" {
 		return nil, errors.New("skill not found")
 	}
+	detail.Info = selectionInfo(record)
 	detail.EnabledForAgent = enabledNames[detail.Name]
 	return &detail, nil
 }
@@ -218,6 +226,89 @@ func skillEnabledForAgent(agentValue *protocol.Agent, skillName string) bool {
 	return false
 }
 
+// GetAgentSkillState 在同一次 Agent 目录读取中返回 runtime_version 与目标 Skill 状态。
+func (s *Service) GetAgentSkillState(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+) (AgentSkillState, error) {
+	records, installedNames, agentValue, err := s.catalogWithAgentSnapshot(ctx, strings.TrimSpace(agentID))
+	if err != nil {
+		return AgentSkillState{}, err
+	}
+	if agentValue == nil {
+		return AgentSkillState{}, errors.New("agent 不能为空")
+	}
+	target := strings.TrimSpace(skillName)
+	state := AgentSkillState{
+		AgentID: agentValue.AgentID, RuntimeVersion: agentValue.RuntimeVersion, SkillName: target,
+	}
+	record, ok := findCatalogRecord(records, target)
+	if !ok || record.Detail.Scope == scopeRoom || (record.Detail.Scope == scopeMain && !agentValue.IsMain) {
+		return state, nil
+	}
+	info := selectionInfo(record)
+	state.Available = true
+	state.Installed = installedNames[record.Detail.Name]
+	state.TargetScope = info.TargetScope
+	state.SourceIdentity = info.SourceIdentity
+	state.Locked = info.Locked
+	state.Scope = info.Scope
+	state.SourceType = info.SourceType
+	state.SourceKind = info.SourceKind
+	state.SourceRef = info.SourceRef
+	state.StorageScope = info.StorageScope
+	state.OriginKind = info.OriginKind
+	state.Version = info.Version
+	return state, nil
+}
+
+// GetAgentSkillStateInScope 返回明确 global_library/agent_workspace 来源的状态。
+//
+// 对话控制面必须使用本入口，不能依赖同名 workspace Skill 对全局目录的显示覆盖。
+func (s *Service) GetAgentSkillStateInScope(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+	targetScope AgentSkillTargetScope,
+) (AgentSkillState, error) {
+	agentValue, err := s.ensureAgent(ctx, strings.TrimSpace(agentID))
+	if err != nil {
+		return AgentSkillState{}, err
+	}
+	state := AgentSkillState{
+		AgentID:        agentValue.AgentID,
+		RuntimeVersion: agentValue.RuntimeVersion,
+		SkillName:      strings.TrimSpace(skillName),
+		TargetScope:    targetScope,
+	}
+	record, err := s.resolveAgentSkillTarget(ctx, agentValue.AgentID, state.SkillName, targetScope)
+	if err != nil {
+		return state, err
+	}
+	info := selectionInfo(record)
+	state.SourceIdentity = info.SourceIdentity
+	state.Locked = info.Locked
+	state.Scope = info.Scope
+	state.SourceType = info.SourceType
+	state.SourceKind = info.SourceKind
+	state.SourceRef = info.SourceRef
+	state.StorageScope = info.StorageScope
+	state.OriginKind = info.OriginKind
+	state.Version = info.Version
+	if info.Scope == scopeRoom || (info.Scope == scopeMain && !agentValue.IsMain) {
+		return state, nil
+	}
+	state.Available = true
+	if targetScope == AgentSkillTargetWorkspace {
+		_, disabled := disabledSkillNames(agentValue)[strings.ToLower(strings.TrimSpace(info.Name))]
+		state.Installed = !disabled
+	} else {
+		state.Installed = skillEnabledForAgent(agentValue, info.Name)
+	}
+	return state, nil
+}
+
 func skillVisibleForQuery(scope string, queryScope string, agentID string, isMainAgent bool) bool {
 	normalizedScope := strings.TrimSpace(scope)
 	normalizedQueryScope := strings.TrimSpace(queryScope)
@@ -233,22 +324,96 @@ func skillVisibleForQuery(scope string, queryScope string, agentID string, isMai
 	return normalizedScope != scopeMain || isMainAgent
 }
 
-// InstallSkill 保留旧调用入口；语义等同于启用全局 Skill。
+// InstallSkill 启用全局 Skill；保留给不需要乐观并发控制的既有调用方。
 func (s *Service) InstallSkill(ctx context.Context, agentID string, skillName string) (*Info, error) {
-	return s.SetAgentSkillEnabledInScope(
+	return s.installSkill(ctx, agentID, skillName, nil)
+}
+
+// InstallSkillAtVersion 仅在 Agent runtime_version 匹配时启用全局 Skill。
+func (s *Service) InstallSkillAtVersion(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+	expectedRuntimeVersion int64,
+) (*Info, error) {
+	return s.installSkill(ctx, agentID, skillName, &expectedRuntimeVersion)
+}
+
+func (s *Service) installSkill(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+	expectedRuntimeVersion *int64,
+) (*Info, error) {
+	agentValue, err := s.ensureAgent(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	if err = validateExpectedRuntimeVersion(agentValue, expectedRuntimeVersion); err != nil {
+		return nil, err
+	}
+	record, err := s.resolveAgentSkillTarget(
 		ctx,
 		agentID,
 		skillName,
-		true,
 		AgentSkillTargetGlobalLibrary,
 	)
+	if err != nil {
+		return nil, err
+	}
+	if record.Detail.SourceType == sourceTypeSystem {
+		return nil, errors.New("系统托管 skill 不能手动安装")
+	}
+	if record.Detail.SourceType == sourceTypeWorkspace {
+		return nil, errors.New("智能体工作区内 skill 不能从技能市场安装")
+	}
+	if record.Detail.Scope == scopeMain && !agentValue.IsMain {
+		return nil, errors.New("该 skill 仅允许主智能体安装")
+	}
+	if record.Detail.Scope == scopeRoom {
+		return nil, errors.New("room scope skill 不能安装到 agent")
+	}
+	if err = s.setAgentSkillEnabled(
+		ctx,
+		agentValue,
+		skillReference(record),
+		true,
+		false,
+		expectedRuntimeVersion,
+	); err != nil {
+		return nil, err
+	}
+	info := record.Detail.Info
+	info.EnabledForAgent = true
+	return &info, nil
 }
 
-// UninstallSkill 保留旧 DELETE 入口；全局 Skill 只解除 Agent 绑定，
-// Agent 本地 Skill 才会在显式 DELETE 时删除 workspace 文件。
+// UninstallSkill 解除全局绑定，或显式删除当前 Agent 的本地 Skill。
 func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName string) error {
+	return s.uninstallSkill(ctx, agentID, skillName, nil)
+}
+
+// UninstallSkillAtVersion 仅在 Agent runtime_version 匹配时卸载 skill。
+func (s *Service) UninstallSkillAtVersion(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+	expectedRuntimeVersion int64,
+) error {
+	return s.uninstallSkill(ctx, agentID, skillName, &expectedRuntimeVersion)
+}
+
+func (s *Service) uninstallSkill(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+	expectedRuntimeVersion *int64,
+) error {
 	agentValue, err := s.ensureAgent(ctx, agentID)
 	if err != nil {
+		return err
+	}
+	if err = validateExpectedRuntimeVersion(agentValue, expectedRuntimeVersion); err != nil {
 		return err
 	}
 	records, _, _, err := s.catalogWithAgentState(ctx, agentID)
@@ -263,6 +428,22 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 		return errors.New("系统托管 skill 不能删除")
 	}
 	if record.Detail.SourceType == sourceTypeWorkspace {
+		disabled, disabledChanged := removeSkillReferences(
+			agentValue.Options.DisabledSkillIDs,
+			record.Detail.Name,
+		)
+		if expectedRuntimeVersion != nil {
+			if err = s.setAgentSkillEnabled(
+				ctx,
+				agentValue,
+				record.Detail.Name,
+				true,
+				true,
+				expectedRuntimeVersion,
+			); err != nil {
+				return err
+			}
+		}
 		workspaceRoot, openErr := s.openAgentWorkspace(agentValue)
 		if openErr != nil {
 			return openErr
@@ -275,13 +456,7 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 		); err != nil {
 			return err
 		}
-		// DELETE 代表移除本地文件；同步清掉仅针对该本地 Skill 的停用项，
-		// 避免文件删除后留下无法解释的 Agent 状态。
-		disabled, changed := removeSkillReferences(
-			agentValue.Options.DisabledSkillIDs,
-			record.Detail.Name,
-		)
-		if !changed {
+		if expectedRuntimeVersion != nil || !disabledChanged {
 			return nil
 		}
 		_, err = s.agents.UpdateAgentSkillSelection(
@@ -292,14 +467,14 @@ func (s *Service) UninstallSkill(ctx context.Context, agentID string, skillName 
 		)
 		return err
 	}
-	_, err = s.SetAgentSkillEnabledInScope(
+	return s.setAgentSkillEnabled(
 		ctx,
-		agentID,
-		record.Detail.Name,
+		agentValue,
+		skillReference(record),
 		false,
-		AgentSkillTargetGlobalLibrary,
+		false,
+		expectedRuntimeVersion,
 	)
-	return err
 }
 
 // SetAgentSkillEnabled 更新单个 Agent 的技能开关，不删除工作区文件。
@@ -323,13 +498,65 @@ func (s *Service) SetAgentSkillEnabledInScope(
 	enabled bool,
 	targetScope AgentSkillTargetScope,
 ) (*Info, error) {
+	return s.setAgentSkillEnabledInScope(
+		ctx,
+		agentID,
+		skillName,
+		enabled,
+		targetScope,
+		"",
+		nil,
+	)
+}
+
+// SetAgentSkillEnabledInScopeAtVersion 在来源身份及 runtime_version 均匹配时更新开关。
+//
+// 本入口只修改 Agent 选择状态：global_library 修改 skill_ids_json，
+// agent_workspace 修改 disabled_skill_ids_json；它绝不删除 workspace 文件。
+func (s *Service) SetAgentSkillEnabledInScopeAtVersion(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+	enabled bool,
+	targetScope AgentSkillTargetScope,
+	sourceIdentity string,
+	expectedRuntimeVersion int64,
+) (*Info, error) {
+	return s.setAgentSkillEnabledInScope(
+		ctx,
+		agentID,
+		skillName,
+		enabled,
+		targetScope,
+		sourceIdentity,
+		&expectedRuntimeVersion,
+	)
+}
+
+func (s *Service) setAgentSkillEnabledInScope(
+	ctx context.Context,
+	agentID string,
+	skillName string,
+	enabled bool,
+	targetScope AgentSkillTargetScope,
+	sourceIdentity string,
+	expectedRuntimeVersion *int64,
+) (*Info, error) {
 	agentValue, err := s.ensureAgent(ctx, agentID)
 	if err != nil {
+		return nil, err
+	}
+	if err = validateExpectedRuntimeVersion(agentValue, expectedRuntimeVersion); err != nil {
 		return nil, err
 	}
 	record, err := s.resolveAgentSkillTarget(ctx, agentID, skillName, targetScope)
 	if err != nil {
 		return nil, err
+	}
+	info := selectionInfo(record)
+	if expected := strings.TrimSpace(sourceIdentity); expected != "" &&
+		expected != info.SourceIdentity {
+		return nil, errors.New("skill source_identity 已变化；请重新 inspect/plan")
 	}
 	if record.Detail.SourceType == sourceTypeSystem {
 		return nil, errors.New("系统托管 skill 不能手动切换")
@@ -345,11 +572,17 @@ func (s *Service) SetAgentSkillEnabledInScope(
 	if !workspaceLocal {
 		reference = skillReference(record)
 	}
-	if err = s.setAgentSkillEnabled(ctx, agentValue, reference, enabled, workspaceLocal); err != nil {
+	if err = s.setAgentSkillEnabled(
+		ctx,
+		agentValue,
+		reference,
+		enabled,
+		workspaceLocal,
+		expectedRuntimeVersion,
+	); err != nil {
 		return nil, err
 	}
 	if targetScope == AgentSkillTargetGlobalLibrary {
-		info := record.Detail.Info
 		info.EnabledForAgent = enabled
 		return &info, nil
 	}
@@ -402,6 +635,7 @@ func (s *Service) setAgentSkillEnabled(
 	skillName string,
 	enabled bool,
 	workspaceLocal bool,
+	expectedRuntimeVersion *int64,
 ) error {
 	if agentValue == nil {
 		return errors.New("agent 不能为空")
@@ -464,8 +698,42 @@ func (s *Service) setAgentSkillEnabled(
 			disabled = append(disabled, canonicalName)
 		}
 	}
-	_, err := s.agents.UpdateAgentSkillSelection(ctx, agentValue.AgentID, selected, disabled)
+	if expectedRuntimeVersion == nil {
+		_, err := s.agents.UpdateAgentSkillSelection(
+			ctx,
+			agentValue.AgentID,
+			selected,
+			disabled,
+		)
+		return err
+	}
+	var err error
+	if workspaceLocal {
+		_, err = s.agents.UpdateAgentDisabledSkillIDsAtVersion(
+			ctx,
+			agentValue.AgentID,
+			disabled,
+			*expectedRuntimeVersion,
+		)
+	} else {
+		_, err = s.agents.UpdateAgentSkillIDsAtVersion(
+			ctx,
+			agentValue.AgentID,
+			selected,
+			*expectedRuntimeVersion,
+		)
+	}
 	return err
+}
+
+func validateExpectedRuntimeVersion(agentValue *protocol.Agent, expectedRuntimeVersion *int64) error {
+	if expectedRuntimeVersion == nil {
+		return nil
+	}
+	if agentValue == nil || agentValue.RuntimeVersion != *expectedRuntimeVersion {
+		return agentsvc.ErrRuntimeVersionConflict
+	}
+	return nil
 }
 
 // ImportLocalPath 从本地目录导入外部 skill。
@@ -491,6 +759,23 @@ func (s *Service) ImportLocalPath(ctx context.Context, localPath string) (*Detai
 
 // DeleteSkill 删除外部导入 skill。
 func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
+	return s.deleteSkill(ctx, skillName, nil)
+}
+
+// DeleteSkillAtVersion 仅在 owner catalog version 匹配时删除外部 Skill。
+func (s *Service) DeleteSkillAtVersion(
+	ctx context.Context,
+	skillName string,
+	expectedVersion int64,
+) error {
+	return s.deleteSkill(ctx, skillName, &expectedVersion)
+}
+
+func (s *Service) deleteSkill(
+	ctx context.Context,
+	skillName string,
+	expectedVersion *int64,
+) error {
 	records, _, _, err := s.catalogWithAgentState(ctx, "")
 	if err != nil {
 		return err
@@ -502,29 +787,10 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 	if record.Detail.SourceType != sourceTypeExternal || !record.Detail.Deletable {
 		return errors.New("该 skill 不允许删除")
 	}
-	agents, err := s.agents.ListAgentRecords(ctx)
-	if err != nil {
-		return err
-	}
-	for index := range agents {
-		agentValue := agents[index]
-		selected, selectedChanged := removeSkillReferences(
-			agentValue.Options.SkillIDs,
-			record.Detail.Name,
-		)
-		if selectedChanged {
-			if _, err = s.agents.UpdateAgentSkillSelection(
-				ctx,
-				agentValue.AgentID,
-				selected,
-				agentValue.Options.DisabledSkillIDs,
-			); err != nil {
-				return err
-			}
-		}
-	}
-	if s.skillStore != nil {
-		if err = s.skillStore.DeleteImportedSkill(ctx, authctx.OwnerUserID(ctx), record.Detail.Name); err != nil {
+	agents := []protocol.Agent{}
+	if s.agents != nil {
+		agents, err = s.agents.ListAgentRecords(ctx)
+		if err != nil {
 			return err
 		}
 	}
@@ -542,8 +808,63 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 	if err != nil {
 		return err
 	}
-	if err = boundaryFS.RemoveAll(relativePath); err != nil {
+	var publication *skillPublication
+	_, err = s.withCatalogMutation(
+		ctx,
+		expectedVersion,
+		true,
+		func(mutation *skillstore.CatalogMutation) error {
+			publication, err = stageSkillRemoval(boundaryFS, relativePath)
+			if err != nil {
+				return err
+			}
+			if mutation == nil {
+				return nil
+			}
+			return mutation.DeleteImportedSkill(ctx, record.Detail.Name)
+		},
+	)
+	if err != nil {
+		rollbackErr := publication.rollback()
+		if rollbackErr != nil {
+			return &CatalogReconcileError{
+				applied: false,
+				cause:   errors.Join(err, rollbackErr),
+			}
+		}
 		return err
 	}
-	return workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID)
+
+	var reconcileErr error
+	reconcileErr = errors.Join(reconcileErr, publication.finalize())
+	reconcileErr = errors.Join(
+		reconcileErr,
+		workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID),
+	)
+	for index := range agents {
+		agentValue := agents[index]
+		selected, selectedChanged := removeSkillReferences(
+			agentValue.Options.SkillIDs,
+			record.Detail.Name,
+		)
+		if !selectedChanged {
+			continue
+		}
+		_, updateErr := s.agents.UpdateAgentSkillIDsAtVersion(
+			ctx,
+			agentValue.AgentID,
+			selected,
+			agentValue.RuntimeVersion,
+		)
+		if updateErr != nil {
+			reconcileErr = errors.Join(
+				reconcileErr,
+				fmt.Errorf("清理 Agent %s Skill 引用: %w", agentValue.AgentID, updateErr),
+			)
+		}
+	}
+	if reconcileErr != nil {
+		return &CatalogReconcileError{applied: true, cause: reconcileErr}
+	}
+	return nil
 }

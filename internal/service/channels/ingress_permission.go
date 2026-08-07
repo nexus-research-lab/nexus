@@ -23,15 +23,18 @@ var defaultReadOnlyApprovedTools = map[string]struct{}{
 	"WebSearch": {},
 }
 
-var defaultScheduledTaskApprovedTools = map[string]struct{}{
-	"create_scheduled_task":     {},
-	"delete_scheduled_task":     {},
+var defaultScheduledTaskReadTools = map[string]struct{}{
 	"find_scheduled_tasks":      {},
 	"get_scheduled_task_report": {},
 	"inspect_scheduled_task":    {},
-	"repair_scheduled_task":     {},
-	"run_scheduled_task":        {},
-	"update_scheduled_task":     {},
+}
+
+var scheduledTaskMutationTools = map[string]struct{}{
+	"create_scheduled_task": {},
+	"delete_scheduled_task": {},
+	"repair_scheduled_task": {},
+	"run_scheduled_task":    {},
+	"update_scheduled_task": {},
 }
 
 var defaultGoalApprovedTools = map[string]struct{}{
@@ -45,7 +48,7 @@ var defaultManagedSupportTools = map[string]struct{}{
 	"Skill": {},
 }
 
-var defaultExternalApprovedTools = toolpolicy.MergeSets(defaultReadOnlyApprovedTools, defaultScheduledTaskApprovedTools, defaultGoalApprovedTools)
+var defaultExternalApprovedTools = toolpolicy.MergeSets(defaultReadOnlyApprovedTools, defaultScheduledTaskReadTools, defaultGoalApprovedTools)
 
 func (s *IngressService) resolveApprovedTools(channel string, explicit []string) map[string]struct{} {
 	if len(explicit) > 0 {
@@ -80,6 +83,12 @@ func (s *IngressService) buildPermissionHandler(
 		if toolName == "AskUserQuestion" {
 			return sdkpermission.Deny("当前通道不支持交互式问题确认", true), nil
 		}
+		// 外部 ingress 的内容并不等同于已认证的人类控制面请求。即使通道配置了
+		// autoApproveAll 或把整个 nexus_automation server 放入 allowlist，也只能
+		// 查询任务，不能创建、修改、删除、修复或立即运行持久化任务。
+		if isScheduledTaskMutationTool(toolName) {
+			return sdkpermission.Deny("外部通道只允许查询定时任务；持久化变更和立即执行必须在 Nexus 的可信 DM/Room 中发起", false), nil
+		}
 		if request.autoApproveAll {
 			return sdkpermission.Allow(permissionRequest.Input, nil), nil
 		}
@@ -99,7 +108,11 @@ func (s *IngressService) buildPermissionHandler(
 }
 
 func isManagedIngressTool(toolName string) bool {
-	return toolpolicy.Contains(defaultScheduledTaskApprovedTools, toolName) ||
+	return toolpolicy.Contains(defaultScheduledTaskReadTools, toolName) ||
 		toolpolicy.IsManagedGoalTool(toolName) ||
 		toolpolicy.Contains(defaultManagedSupportTools, toolName)
+}
+
+func isScheduledTaskMutationTool(toolName string) bool {
+	return toolpolicy.Contains(scheduledTaskMutationTools, toolName)
 }

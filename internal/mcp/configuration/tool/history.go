@@ -1,6 +1,6 @@
 // INPUT: 可选配置域与审计条数。
-// OUTPUT: 当前 owner 的脱敏变更审计。
-// POS: nexus_config 的追溯与幂等状态查询工具。
+// OUTPUT: 当前动态权限与资源 scope 内的脱敏变更审计。
+// POS: nexus_config 的作用域追溯与幂等状态查询工具。
 package tool
 
 import (

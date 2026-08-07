@@ -217,8 +217,10 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	if got := strings.TrimSpace(factory.LastOptions().Env["NEXUS_PROJECT_ROOT"]); got != "" {
 		t.Fatalf("Room runtime 不应再注入项目根目录: got=%q", got)
 	}
-	if got := strings.TrimSpace(factory.LastOptions().Env["NEXUSCTL_COMMAND_PATH"]); got == "" {
-		t.Fatalf("Room runtime 应注入明确 nexusctl 命令路径: %+v", factory.LastOptions().Env)
+	for _, key := range []string{"NEXUSCTL_COMMAND_PATH", "NEXUSCTL_USER_ID", "NEXUSCTL_WORKSPACE_PATH"} {
+		if got := strings.TrimSpace(factory.LastOptions().Env[key]); got != "" {
+			t.Fatalf("Room runtime 不得获得 owner-scoped CLI 环境 %s=%q: %+v", key, got, factory.LastOptions().Env)
+		}
 	}
 
 	privateSessionKey := protocol.BuildRoomAgentSessionKey(roomContext.Conversation.ID, memberAgent.AgentID, roomContext.Room.RoomType)

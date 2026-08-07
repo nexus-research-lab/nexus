@@ -52,6 +52,16 @@ func (s *Service) queueRunningInput(
 	request.RoundID = acceptedItem.ID
 	request.UserMessageID = acceptedItem.SourceMessageID
 	request.AgentRoundID = acceptedItem.AgentRoundID
+	if err = s.recordTrustedQueueAdmission(
+		ctx,
+		location,
+		acceptedItem,
+		request.TrustedConfigurationContext,
+	); err != nil {
+		_ = s.revokeQueueAdmission(ctx, location, acceptedItem)
+		_, _ = s.inputQueue.Delete(location, acceptedItem.ID)
+		return false, err
+	}
 	s.broadcastInputQueueSnapshot(ctx, sessionKey, items)
 	s.broadcastEventWithTimeout(ctx, sessionKey, protocol.NewChatAckEvent(
 		sessionKey,

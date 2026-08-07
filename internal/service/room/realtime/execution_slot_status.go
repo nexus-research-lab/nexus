@@ -1,5 +1,5 @@
 // INPUT: Room slot 的 runtime result、failure/interruption、WorkBinding 与消息 mapper。
-// OUTPUT: usage/handoff/cursor 收口、可见终态，以及 structured root Attempt 原子终态。
+// OUTPUT: 经最终权限 admission 的 usage/handoff/cursor、可见终态与 structured root Attempt 原子终态，或静默撤销旧 slot。
 // POS: 单 slot 所有终态路径的统一结算边界；不得隐式创建 Submission/Acceptance。
 package realtime
 
@@ -125,6 +125,9 @@ func (s *Service) broadcastAgentRoundStatus(ctx context.Context, roundValue *act
 }
 
 func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
+	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
+		return err
+	}
 	lastAssistant := e.mapper.LastAssistantMessage()
 	if result.CompletedByAssistant {
 		e.service.recordTerminalAssistantUsage(e.round, e.slot, lastAssistant)
@@ -139,8 +142,14 @@ func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
 	if e.slot.getStatus() == "running" {
 		e.slot.setStatus(terminalStatus)
 	}
+	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
+		return err
+	}
 	e.service.broadcastAgentRoundStatus(e.ctx, e.round, e.slot, e.slot.getStatus())
 	if err := e.persistCompletionOutput(lastAssistant); err != nil {
+		return err
+	}
+	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
 		return err
 	}
 	e.service.markPublicHandoffTerminal(e.ctx, e.round, e.slot, e.slot.getStatus())
@@ -159,6 +168,9 @@ func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
 }
 
 func (e *slotExecution) persistCompletionOutput(lastAssistant protocol.Message) error {
+	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
+		return err
+	}
 	if e.slot.shouldSuppressOutput() {
 		return nil
 	}
@@ -172,6 +184,9 @@ func (e *slotExecution) persistCompletionOutput(lastAssistant protocol.Message) 
 }
 
 func (e *slotExecution) commitCompletionCursors() error {
+	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
+		return err
+	}
 	publicCursorID, publicCursorTS := e.slot.publicCursor()
 	if err := e.service.recordRoomPublicCursor(e.slot, e.round, publicCursorID, publicCursorTS); err != nil {
 		return err
@@ -197,6 +212,13 @@ func (s *Service) handleSlotFailure(
 	result exec.RoundExecutionResult,
 	err error,
 ) {
+	if s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err) {
+		return
+	}
+	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+		return
+	}
 	fields := []any{
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
@@ -232,11 +254,19 @@ func (s *Service) handleSlotFailure(
 		TerminalStatus: "error",
 		ErrorMessage:   displayError,
 	}, lastAssistant)
+	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+		return
+	}
 	s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "error")
 	s.markPublicHandoffTerminal(ctx, roundValue, slot, "error")
 	slot.setErrorMessage(displayError)
 	// 原因先于终态发布，确保 root round 观察到 error 时一定能读取详情。
 	slot.setStatus("error")
+	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+		return
+	}
 	s.broadcastAgentRoundStatus(ctx, roundValue, slot, "error")
 	resultMessage := protocol.Message{
 		"message_id":      "result_" + slot.AgentRoundID,
@@ -256,9 +286,21 @@ func (s *Service) handleSlotFailure(
 		"is_error":        true,
 		"timestamp":       time.Now().UnixMilli(),
 	}
+	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+		return
+	}
 	_ = s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(resultMessage, slot.RuntimeSessionKey))
 	if roomSlotPublishesPublicOutput(slot) {
+		if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+			s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+			return
+		}
 		_ = s.persistSharedInlineMessage(roundValue.OwnerUserID, roundValue.ConversationID, resultMessage)
+		if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+			s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+			return
+		}
 		projectedMessage := message.ProjectResultMessage(nil, resultMessage)
 		if mapper != nil {
 			projectedMessage = mapper.ProjectResultMessage(resultMessage)
@@ -278,6 +320,10 @@ func (s *Service) handleSlotFailure(
 		} else {
 			s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", displayError, roundValue.RootRoundID))
 		}
+	}
+	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+		return
 	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
 		protocol.EventTypeStreamEnd,
@@ -343,6 +389,10 @@ func (s *Service) handleSlotCancelled(
 	if !s.markSlotCancelled(slot) {
 		return
 	}
+	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+		return
+	}
 	s.loggerFor(ctx).Warn("Room slot 已取消",
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
@@ -370,9 +420,21 @@ func (s *Service) handleSlotCancelled(
 	if mapper != nil {
 		s.finalizeGoalUsageForSlot(ctx, slot, result, slot.lastGoalAssistantMessage())
 	}
+	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+		return
+	}
 	s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "interrupted")
 	s.markPublicHandoffTerminal(ctx, roundValue, slot, "interrupted")
+	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+		return
+	}
 	s.emitInterruptedSlotResult(roundValue, slot, mapper, "")
+	if authorityErr := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); authorityErr != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, authorityErr)
+		return
+	}
 	s.broadcastSlotCancelled(ctx, roundValue, slot)
 }
 

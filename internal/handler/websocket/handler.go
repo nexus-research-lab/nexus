@@ -30,23 +30,24 @@ const (
 
 // Handler 封装 WebSocket 生命周期与控制消息分发。
 type Handler struct {
-	api                 *handlershared.API
-	roomService         *roompkg.Service
-	roomRealtime        roomRealtimeService
-	dm                  *dmsvc.Service
-	goals               *goalsvc.Service
-	permission          *permissionctx.Context
-	runtime             *runtimectx.Manager
-	contextUsage        contextUsageSnapshotProvider
-	channels            *channelspkg.Router
-	hostCommands        *slashcommandsvc.Registry
-	commandCatalog      *slashcommandsvc.Catalog
-	runtimeKindResolver func(context.Context, string) (agentclient.RuntimeKind, error)
-	roomSubs            *roomSubscriptionRegistry
-	workspaceSubs       *workspaceSubscriptionRegistry
-	appEventSubs        *appEventSubscriptionRegistry
-	goalRPCSubs         *appServerGoalRPCRegistry
-	allowedOrigins      []string
+	api                  *handlershared.API
+	roomService          *roompkg.Service
+	roomRealtime         roomRealtimeService
+	dm                   *dmsvc.Service
+	goals                *goalsvc.Service
+	permission           *permissionctx.Context
+	runtime              *runtimectx.Manager
+	contextUsage         contextUsageSnapshotProvider
+	channels             *channelspkg.Router
+	hostCommands         *slashcommandsvc.Registry
+	commandCatalog       *slashcommandsvc.Catalog
+	runtimeKindResolver  func(context.Context, string) (agentclient.RuntimeKind, error)
+	roomSubs             *roomSubscriptionRegistry
+	workspaceSubs        *workspaceSubscriptionRegistry
+	appEventSubs         *appEventSubscriptionRegistry
+	goalRPCSubs          *appServerGoalRPCRegistry
+	channelAuthorization *channelAuthorizationTransport
+	allowedOrigins       []string
 }
 
 // roomRealtimeService 是 WebSocket 控制面和 Room 订阅恢复实际需要的最小接口。
@@ -81,23 +82,24 @@ func NewHandler(
 		hostCommands = slashcommandsvc.NewRegistry()
 	}
 	handler := &Handler{
-		api:                 api,
-		roomService:         roomService,
-		roomRealtime:        roomRealtime,
-		dm:                  dm,
-		goals:               goals,
-		permission:          permission,
-		runtime:             runtime,
-		contextUsage:        contextUsage,
-		channels:            channels,
-		hostCommands:        hostCommands,
-		commandCatalog:      commandCatalog,
-		runtimeKindResolver: runtimeKindResolver,
-		roomSubs:            newRoomSubscriptionRegistry(128),
-		workspaceSubs:       newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
-		appEventSubs:        newAppEventSubscriptionRegistry(),
-		goalRPCSubs:         newAppServerGoalRPCRegistry(),
-		allowedOrigins:      allowedOrigins,
+		api:                  api,
+		roomService:          roomService,
+		roomRealtime:         roomRealtime,
+		dm:                   dm,
+		goals:                goals,
+		permission:           permission,
+		runtime:              runtime,
+		contextUsage:         contextUsage,
+		channels:             channels,
+		hostCommands:         hostCommands,
+		commandCatalog:       commandCatalog,
+		runtimeKindResolver:  runtimeKindResolver,
+		roomSubs:             newRoomSubscriptionRegistry(128),
+		workspaceSubs:        newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
+		appEventSubs:         newAppEventSubscriptionRegistry(),
+		goalRPCSubs:          newAppServerGoalRPCRegistry(),
+		channelAuthorization: newChannelAuthorizationTransport(),
+		allowedOrigins:       allowedOrigins,
 	}
 	if roomRealtime != nil {
 		roomRealtime.SetRoomBroadcaster(handler.roomSubs)
@@ -133,8 +135,13 @@ func (h *Handler) HandleWebSocket(writer http.ResponseWriter, request *http.Requ
 	}
 	connection.SetReadLimit(websocketReadLimit)
 	sender := handlershared.NewWebSocketSender(connection)
+	h.ensureChannelAuthorizationTransport().registerAuthenticatedSender(
+		request.Context(),
+		sender,
+	)
 	defer func() {
 		sender.MarkClosed()
+		h.ensureChannelAuthorizationTransport().unregisterSender(sender)
 		if h.workspaceSubs != nil {
 			h.workspaceSubs.UnregisterSender(sender)
 		}

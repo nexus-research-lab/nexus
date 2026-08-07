@@ -1,3 +1,6 @@
+// INPUT: 持久化任务定义、调度执行结果与并发运行态读写。
+// OUTPUT: 锁内维护的任务运行态、持久化快照与对外任务视图。
+// POS: scheduled task 配置与易变运行态之间的并发安全投影层。
 package automation
 
 import (
@@ -258,6 +261,17 @@ func jobRuntimeUpdateFromState(jobID string, state *automationexec.JobRuntimeSta
 	}
 }
 
+// jobRuntimeUpdateSnapshot 在状态锁内生成持久化副本，禁止把 jobStates
+// 中的可变指针交给锁外读取。
+func (s *Service) jobRuntimeUpdateSnapshot(
+	jobID string,
+	state *automationexec.JobRuntimeState,
+) automationstore.JobRuntimeUpdateInput {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return jobRuntimeUpdateFromState(jobID, state)
+}
+
 // scheduledTaskWithRuntime 将持久化定义与进程运行态合成唯一对外视图，避免各入口各自维护字段集合。
 func scheduledTaskWithRuntime(
 	job automationdomain.ScheduledTask,
@@ -276,6 +290,17 @@ func scheduledTaskWithRuntime(
 	job.LastError = cloneStringPointer(state.LastError)
 	job.LastDeliveryStatus = strings.TrimSpace(state.LastDeliveryStatus)
 	return job
+}
+
+// scheduledTaskRuntimeSnapshot 在状态锁内生成对外副本，避免任务完成写回与
+// 查询、CRUD 回包同时访问同一个 JobRuntimeState。
+func (s *Service) scheduledTaskRuntimeSnapshot(
+	job automationdomain.ScheduledTask,
+	state *automationexec.JobRuntimeState,
+) automationdomain.ScheduledTask {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return scheduledTaskWithRuntime(job, state)
 }
 
 func isSuccessfulRuntimeStatus(status string) bool {

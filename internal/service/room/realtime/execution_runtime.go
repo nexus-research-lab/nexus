@@ -1,6 +1,6 @@
 // INPUT: Room round/slot、稳定 execution contract、trusted WorkBinding/ReviewBinding、Agent 配置、Goal context 与 runtime provider。
-// OUTPUT: static/dynamic prompt 分层、producer/reviewer capability 绑定、revision 绑定且换代安全的 slot runtime client。
-// POS: Room slot 执行前不丢失 structured dispatch capability 的 runtime 装配边界。
+// OUTPUT: static/dynamic prompt 分层、producer/reviewer capability 绑定、真实 Agent slot lease、revision 绑定且换代安全的 runtime options/client。
+// POS: Room slot 执行前不丢失 structured dispatch capability，并在连接前后复核身份的 runtime 装配边界。
 package realtime
 
 import (
@@ -32,7 +32,6 @@ const (
 	nexusRoomIDEnvName             = "NEXUS_ROOM_ID"
 	nexusRoomConversationIDEnvName = "NEXUS_ROOM_CONVERSATION_ID"
 	nexusRoomAgentIDEnvName        = "NEXUS_ROOM_AGENT_ID"
-	nexusctlUserIDEnvName          = "NEXUSCTL_USER_ID"
 )
 
 type preparedSlotRuntime struct {
@@ -106,7 +105,9 @@ func (s *Service) resolveReusableRoomSDKSessionID(
 	return "", nil
 }
 
-func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
+func (e *slotExecution) prepareRuntimeClient(
+	runtimeIsolationRequired bool,
+) (runtimectx.Client, error) {
 	if e.round == nil {
 		return nil, errors.New("room round is required")
 	}
@@ -119,7 +120,7 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	if err := workspacepkg.EnsureInitializedForAgent(e.service.config, *e.agent); err != nil {
 		return nil, err
 	}
-	runtimeValue, err := e.prepareRuntime()
+	runtimeValue, err := e.prepareRuntime(runtimeIsolationRequired)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,9 @@ func (e *slotExecution) prepareRuntimeClient() (runtimectx.Client, error) {
 	return client, nil
 }
 
-func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
+func (e *slotExecution) prepareRuntime(
+	runtimeIsolationRequired bool,
+) (preparedSlotRuntime, error) {
 	prompt, permissionMode, err := e.buildRuntimePrompt()
 	if err != nil {
 		return preparedSlotRuntime{}, err
@@ -164,6 +167,15 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
+	configurationRoleSkill := workspacepkg.ConfigurationSkillRoomMember
+	if strings.TrimSpace(e.round.Context.Room.HostAgentID) == strings.TrimSpace(e.agent.AgentID) {
+		configurationRoleSkill = workspacepkg.ConfigurationSkillRoomHost
+	}
+	runtimeSkillNames, runtimeDisabledSkillNames = workspacepkg.WithRuntimeConfigurationRoleSkill(
+		runtimeSkillNames,
+		runtimeDisabledSkillNames,
+		configurationRoleSkill,
+	)
 	options, runtimeConfig, err := clientopts.BuildAgentClientOptionsWithConfig(e.ctx, e.service.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              e.agent.WorkspacePath,
 		OwnerUserID:                e.agent.OwnerUserID,
@@ -188,12 +200,14 @@ func (e *slotExecution) prepareRuntime() (preparedSlotRuntime, error) {
 		MaxThinkingTokens:          e.agent.Options.MaxThinkingTokens,
 		MaxTurns:                   e.agent.Options.MaxTurns,
 		MCPServers:                 e.runtimeMCPServers(permissionMode),
+		AgentMCPServers:            e.agent.Options.MCPServers,
 		ExtraEnv:                   e.service.roomRuntimeEnv(e.round, e.slot),
 		AgentSDKDiagnosticsEnabled: selection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          selection.ToolSearchEnabled,
 		WebSearch:                  selection.WebSearch,
 		RuntimeIsolationMode:       e.service.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        e.service.config.RuntimeLauncherPath,
+		RuntimeIsolationRequired:   runtimeIsolationRequired,
 	})
 	if err != nil {
 		return preparedSlotRuntime{}, err
@@ -310,12 +324,18 @@ func (e *slotExecution) buildRuntimePrompt() (roomRuntimePrompt, sdkpermission.M
 func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	var servers map[string]sdkmcp.ServerConfig
 	if e.service.mcpServers != nil {
-		servers = e.service.mcpServers(
+		sourceContextType := roomMCPSourceContextType(e.round)
+		mcpContext := runtimectx.WithMCPRoundLease(
 			e.ctx,
+			e.slot.RuntimeSessionKey,
+			e.slot.AgentRoundID,
+		)
+		servers = e.service.mcpServers(
+			mcpContext,
 			e.agent,
 			e.round.SessionKey,
 			e.round.RootRoundID,
-			"room",
+			sourceContextType,
 			e.round.RoomID,
 			roomSourceContextLabel(e.round),
 			e.slot.ensureGoalObjectiveRevision(0),
@@ -358,6 +378,26 @@ func (e *slotExecution) runtimeMCPServers(permissionMode sdkpermission.Mode) map
 	return servers
 }
 
+func roomMCPSourceContextType(round *activeRoomRound) string {
+	if round == nil {
+		return "room_untrusted"
+	}
+	if round.trustedQueuedConfigurationContext &&
+		strings.TrimSpace(round.ExecutionOrigin) == "queue" {
+		return "room"
+	}
+	switch {
+	case strings.TrimSpace(round.ExecutionOrigin) != "":
+		return "room_" + strings.ToLower(strings.TrimSpace(round.ExecutionOrigin))
+	case round.Internal:
+		return "room_internal"
+	case !round.TrustedConfigurationContext:
+		return "room_untrusted"
+	default:
+		return "room"
+	}
+}
+
 func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 	handler := e.round.PermissionHandler
 	if handler == nil {
@@ -367,7 +407,8 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 	}
 	handler = withRoomPermissionPolicy(handler, e.round.Context.Room.PrivateMessagesEnabled)
 	handler = toolpolicy.WithManagedRuntimeAutoApproval(handler)
-	return toolpolicy.WithMalformedInputDeny(handler)
+	handler = toolpolicy.WithMalformedInputDeny(handler)
+	return toolpolicy.WithNexusControlPlaneDeny(handler, !e.agent.IsMain)
 }
 
 func (e *slotExecution) applyRuntimeHooks(options agentclient.Options) agentclient.Options {
@@ -518,7 +559,6 @@ func (s *Service) roomRuntimeEnv(roundValue *activeRoomRound, slot *activeRoomSl
 		nexusRoomIDEnvName:             strings.TrimSpace(roundValue.RoomID),
 		nexusRoomConversationIDEnvName: strings.TrimSpace(roundValue.ConversationID),
 		nexusRoomAgentIDEnvName:        strings.TrimSpace(slot.AgentID),
-		nexusctlUserIDEnvName:          strings.TrimSpace(roundValue.OwnerUserID),
 	}
 	return env
 }

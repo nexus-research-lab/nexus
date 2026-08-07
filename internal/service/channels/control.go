@@ -1,3 +1,6 @@
+// INPUT: Nexus 配置、数据库、Agent 解析器与通道路由器。
+// OUTPUT: owner 隔离的消息渠道控制服务及其共享写入锁。
+// POS: Channels 业务服务的装配根，统一持有配置、持久化和进程内并发边界。
 package channels
 
 import (
@@ -31,6 +34,7 @@ type ControlService struct {
 	weixinLoginClientFactory  func(string, map[string]string) personalWeixinLoginClient
 	registrationClientFactory func(string) appregistration.Client
 	registrationPollInterval  time.Duration
+	authorizationCommitGuard  ChannelLoginAuthorizationCommitGuard
 	keyErr                    error
 }
 
@@ -58,6 +62,17 @@ func NewControlService(
 // SetHTTPClient 注入 IM 通道主动投递使用的 HTTP client，主要用于测试或统一出站链路配置。
 func (s *ControlService) SetHTTPClient(client *http.Client) {
 	s.httpClient = client
+}
+
+// SetChannelLoginAuthorizationCommitGuard wires the fail-closed lease used by
+// conversationally bound QR logins immediately before credential persistence.
+func (s *ControlService) SetChannelLoginAuthorizationCommitGuard(
+	guard ChannelLoginAuthorizationCommitGuard,
+) {
+	if s == nil {
+		return
+	}
+	s.authorizationCommitGuard = guard
 }
 
 func (s *ControlService) bind(index int) string {

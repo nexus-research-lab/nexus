@@ -1,4 +1,5 @@
 -- +goose Up
+-- Conversational configuration audit and idempotency ledger.
 CREATE TABLE configuration_changes (
     request_id TEXT NOT NULL,
     owner_user_id TEXT NOT NULL,

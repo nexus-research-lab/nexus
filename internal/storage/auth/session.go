@@ -130,6 +130,55 @@ WHERE session_id = `+r.bind(3),
 	return err
 }
 
+// GetActiveSessionIdentityByID 在批准高风险操作时重新核验 session、用户状态与角色。
+func (r *Repository) GetActiveSessionIdentityByID(
+	ctx context.Context,
+	sessionID string,
+	now time.Time,
+) (*ActiveSessionIdentity, error) {
+	row := r.db.QueryRowContext(
+		ctx,
+		`SELECT
+    s.session_id,
+    s.user_id,
+    s.auth_method,
+    u.username,
+    u.display_name,
+    u.role,
+    u.status,
+    u.avatar
+FROM auth_sessions s
+INNER JOIN users u ON u.user_id = s.user_id
+WHERE s.session_id = `+r.bind(1)+`
+  AND s.revoked_at IS NULL
+  AND s.expires_at > `+r.bind(2)+`
+LIMIT 1`,
+		sessionID,
+		now,
+	)
+	var (
+		identity ActiveSessionIdentity
+		avatar   sql.NullString
+	)
+	if err := row.Scan(
+		&identity.SessionID,
+		&identity.UserID,
+		&identity.AuthMethod,
+		&identity.Username,
+		&identity.DisplayName,
+		&identity.Role,
+		&identity.Status,
+		&avatar,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	identity.Avatar = nullStringValue(avatar)
+	return &identity, nil
+}
+
 func (r *Repository) RevokeSessionByTokenHash(ctx context.Context, tokenHash string, now time.Time) error {
 	_, err := r.db.ExecContext(
 		ctx,

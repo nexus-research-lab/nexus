@@ -10,7 +10,27 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
+
+// DeletionReconcileError 表示 session 目录已删除，但 transcript 清理未完成。
+type DeletionReconcileError struct {
+	cause error
+}
+
+func (e *DeletionReconcileError) Error() string {
+	return fmt.Sprintf("Session 数据已删除，但关联 transcript 清理需要 reconcile: %v", e.cause)
+}
+
+func (e *DeletionReconcileError) Unwrap() error {
+	return e.cause
+}
+
+// SessionDeletionCommitted 判断删除错误是否发生在 session 目录提交之后。
+func SessionDeletionCommitted(err error) bool {
+	var committed *DeletionReconcileError
+	return errors.As(err, &committed)
+}
 
 // CreateSession 创建或幂等返回普通 Agent 会话。
 func (s *Service) CreateSession(ctx context.Context, request CreateRequest) (*protocol.Session, error) {
@@ -38,7 +58,7 @@ func (s *Service) CreateSession(ctx context.Context, request CreateRequest) (*pr
 		return nil, err
 	}
 	now := time.Now().UTC()
-	created, err := s.ownerFiles(ctx).UpsertSession(agentValue.WorkspacePath, normalizeSession(protocol.Session{
+	initial := normalizeSession(protocol.Session{
 		SessionKey:   sessionKey,
 		AgentID:      parsed.AgentID,
 		ChannelType:  protocol.NormalizeStoredChannelType(parsed.Channel),
@@ -50,7 +70,12 @@ func (s *Service) CreateSession(ctx context.Context, request CreateRequest) (*pr
 		MessageCount: 0,
 		Options:      map[string]any{},
 		IsActive:     false,
-	}))
+	})
+	initial.ConfigurationVersion = 0
+	created, err := s.ownerFiles(ctx).UpsertSession(agentValue.WorkspacePath, initial)
+	if errors.Is(err, workspacestore.ErrSessionConfigurationVersionConflict) {
+		return s.GetMutableSession(ctx, sessionKey)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -74,9 +99,13 @@ func (s *Service) UpdateSession(ctx context.Context, rawSessionKey string, reque
 	if parsed.AgentID != "" {
 		next.AgentID = parsed.AgentID
 	}
-	updated, err := s.ownerFiles(ctx).UpsertSession(workspacePath, next)
+	updated, err := s.ownerFiles(ctx).UpsertSessionAtVersion(
+		workspacePath,
+		next,
+		item.ConfigurationVersion,
+	)
 	if err != nil {
-		return nil, err
+		return nil, mapSessionStorageError(err)
 	}
 	if updated == nil {
 		projected := s.applyRuntimeStateToSession(next)
@@ -93,8 +122,71 @@ func (s *Service) UpdateSessionTitle(ctx context.Context, rawSessionKey string, 
 	return s.UpdateSession(ctx, rawSessionKey, UpdateRequest{Title: &title})
 }
 
-// DeleteSession 删除普通 Agent 会话目录。
+// UpdateSessionTitleAtVersion 使用 session configuration_version CAS 更新标题。
+func (s *Service) UpdateSessionTitleAtVersion(
+	ctx context.Context,
+	rawSessionKey string,
+	title string,
+	expectedConfigurationVersion int64,
+) (*protocol.Session, error) {
+	if expectedConfigurationVersion < 1 {
+		return nil, errors.New("expected session configuration_version 必须大于 0")
+	}
+	item, workspacePath, parsed, err := s.loadMutableWorkspaceSession(ctx, rawSessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrSessionNotFound
+	}
+	if item.ConfigurationVersion != expectedConfigurationVersion {
+		return nil, fmt.Errorf(
+			"%w: expected=%d actual=%d",
+			ErrSessionConfigurationVersionConflict,
+			expectedConfigurationVersion,
+			item.ConfigurationVersion,
+		)
+	}
+	next := closePersistedSessionMeta(normalizeSession(*item))
+	next.Title = cmp.Or(strings.TrimSpace(title), "New Chat")
+	if parsed.AgentID != "" {
+		next.AgentID = parsed.AgentID
+	}
+	updated, err := s.ownerFiles(ctx).UpsertSessionAtVersion(
+		workspacePath,
+		next,
+		expectedConfigurationVersion,
+	)
+	if err != nil {
+		return nil, mapSessionStorageError(err)
+	}
+	projected := s.applyRuntimeStateToSession(*updated)
+	s.notifyDirectoryChanged(ctx, "session_updated", projected)
+	return &projected, nil
+}
+
+// DeleteSession 安全关闭运行态后删除普通 Agent 会话目录。
 func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error {
+	return s.deleteSession(ctx, rawSessionKey, nil)
+}
+
+// DeleteSessionAtVersion 安全关闭运行态，并用 session configuration_version CAS 删除。
+func (s *Service) DeleteSessionAtVersion(
+	ctx context.Context,
+	rawSessionKey string,
+	expectedConfigurationVersion int64,
+) error {
+	if expectedConfigurationVersion < 1 {
+		return errors.New("expected session configuration_version 必须大于 0")
+	}
+	return s.deleteSession(ctx, rawSessionKey, &expectedConfigurationVersion)
+}
+
+func (s *Service) deleteSession(
+	ctx context.Context,
+	rawSessionKey string,
+	expectedConfigurationVersion *int64,
+) (returnErr error) {
 	sessionKey, _, err := s.requireSessionKey(rawSessionKey)
 	if err != nil {
 		return err
@@ -106,25 +198,117 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 	if workspacePath == "" {
 		return ErrSessionNotFound
 	}
-	deleted, err := s.ownerFiles(ctx).DeleteSession(workspacePath, sessionKey)
+	if item == nil {
+		return ErrSessionNotFound
+	}
+	if expectedConfigurationVersion != nil &&
+		item.ConfigurationVersion != *expectedConfigurationVersion {
+		return fmt.Errorf(
+			"%w: expected=%d actual=%d",
+			ErrSessionConfigurationVersionConflict,
+			*expectedConfigurationVersion,
+			item.ConfigurationVersion,
+		)
+	}
+	if s.runtime == nil {
+		return errors.New("Session 删除缺少 runtime manager，不能安全确认热态已关闭")
+	}
+	deleteVersion := item.ConfigurationVersion
+	if expectedConfigurationVersion != nil {
+		deleteVersion = *expectedConfigurationVersion
+	}
+	files := s.ownerFiles(ctx)
+	cleanupSessionID := ""
+	if item.SessionID != nil {
+		cleanupSessionID = strings.TrimSpace(*item.SessionID)
+	}
+	storageLease, err := files.BeginSessionDeletion(
+		workspacePath,
+		sessionKey,
+		deleteVersion,
+		cleanupSessionID,
+	)
+	if err != nil {
+		return mapSessionStorageError(err)
+	}
+	runtimeLease, err := s.runtime.BeginSessionDeletion(sessionKey)
+	if err != nil {
+		abortErr := files.AbortSessionDeletion(storageLease)
+		return errors.Join(err, abortErr)
+	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		s.runtime.AbortSessionDeletion(runtimeLease)
+		if abortErr := files.AbortSessionDeletion(storageLease); abortErr != nil {
+			returnErr = errors.Join(
+				returnErr,
+				fmt.Errorf("撤销 Session 删除 tombstone: %w", abortErr),
+			)
+		}
+	}()
+	if err = s.runtime.CloseSession(ctx, sessionKey); err != nil {
+		return fmt.Errorf("关闭 Session 运行态失败，未删除持久数据: %w", err)
+	}
+	item, workspacePath, _, err = s.loadMutableWorkspaceSession(ctx, sessionKey)
 	if err != nil {
 		return err
+	}
+	if item == nil || workspacePath == "" {
+		return ErrSessionNotFound
+	}
+	if item.ConfigurationVersion != deleteVersion {
+		return fmt.Errorf(
+			"%w: runtime 已关闭但 session 未删除；expected=%d actual=%d",
+			ErrSessionConfigurationVersionConflict,
+			deleteVersion,
+			item.ConfigurationVersion,
+		)
+	}
+	deleted, err := files.CommitSessionDeletion(
+		storageLease,
+		deleteVersion,
+	)
+	if deleted {
+		committed = true
+	}
+	if err != nil {
+		if deleted {
+			return &DeletionReconcileError{cause: err}
+		}
+		return mapSessionStorageError(err)
 	}
 	if !deleted {
 		return ErrSessionNotFound
 	}
-	if item != nil && item.SessionID != nil {
+	committed = true
+	if cleanupSessionID != "" {
 		if _, err := s.ownerHistory(ctx).DeleteTranscriptSession(
 			workspacePath,
-			strings.TrimSpace(*item.SessionID),
+			cleanupSessionID,
 		); err != nil {
-			return err
+			return &DeletionReconcileError{cause: err}
 		}
+	}
+	if err = files.CompleteSessionDeletionCleanup(storageLease); err != nil {
+		return &DeletionReconcileError{cause: err}
 	}
 	if item != nil {
 		s.notifyDirectoryChanged(ctx, "session_deleted", *item)
 	}
 	return nil
+}
+
+func mapSessionStorageError(err error) error {
+	if errors.Is(err, workspacestore.ErrSessionConfigurationVersionConflict) {
+		return fmt.Errorf("%w: %v", ErrSessionConfigurationVersionConflict, err)
+	}
+	if errors.Is(err, workspacestore.ErrSessionDeleted) {
+		return fmt.Errorf("%w: %v", ErrSessionDeleted, err)
+	}
+	return err
 }
 
 func (s *Service) notifyDirectoryChanged(ctx context.Context, reason string, session protocol.Session) {

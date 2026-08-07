@@ -1,8 +1,12 @@
+// INPUT: Provider 聚合标识、模型卡与默认模型目标。
+// OUTPUT: 模型快照读取，以及统一进入 configuration_version CAS 事务的模型写入。
+// POS: Provider 模型持久化入口；禁止绕过 Mutation 直接改写 provider_models。
 package provider
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"time"
 )
@@ -76,116 +80,43 @@ func (r *Repository) GetModel(ctx context.Context, providerID string, modelID st
 }
 
 func (r *Repository) UpsertModels(ctx context.Context, items []ModelEntity) error {
-	for _, item := range items {
-		if err := r.upsertModel(ctx, item); err != nil {
-			return err
+	if len(items) == 0 {
+		return nil
+	}
+	providerID := strings.TrimSpace(items[0].ProviderID)
+	for _, item := range items[1:] {
+		if strings.TrimSpace(item.ProviderID) != providerID {
+			return errors.New("一次模型写入只能属于一个 Provider")
 		}
 	}
-	return nil
-}
-
-func (r *Repository) upsertModel(ctx context.Context, item ModelEntity) error {
-	_, err := r.db.ExecContext(ctx, `
-	INSERT INTO provider_models (
-		    id, provider_id, model_id, display_name, category, enabled,
-		    is_default, capabilities_auto_json, capabilities_override_json, context_window,
-		    max_output_tokens, provider_options_json, last_seen_at, created_at, updated_at
-		) VALUES (`+r.bind(1)+`, `+r.bind(2)+`, `+r.bind(3)+`, `+r.bind(4)+`, `+r.bind(5)+`, `+r.bind(6)+`, `+r.bind(7)+`, `+r.bind(8)+`, `+r.bind(9)+`, `+r.bind(10)+`, `+r.bind(11)+`, `+r.bind(12)+`, `+r.bind(13)+`, `+r.bind(14)+`, `+r.bind(15)+`)
-		ON CONFLICT (provider_id, model_id) DO UPDATE SET
-		    display_name = excluded.display_name,
-		    category = excluded.category,
-	    capabilities_auto_json = excluded.capabilities_auto_json,
-	    context_window = excluded.context_window,
-	    max_output_tokens = excluded.max_output_tokens,
-	    last_seen_at = excluded.last_seen_at,
-	    updated_at = excluded.updated_at`,
-		item.ID,
-		item.ProviderID,
-		item.ModelID,
-		item.DisplayName,
-		item.Category,
-		item.Enabled,
-		item.IsDefault,
-		item.CapabilitiesAutoJSON,
-		item.CapabilitiesOverrideJSON,
-		item.ContextWindow,
-		item.MaxOutputTokens,
-		item.ProviderOptionsJSON,
-		item.LastSeenAt.UTC(),
-		item.CreatedAt.UTC(),
-		item.UpdatedAt.UTC(),
-	)
+	version, err := r.configurationVersionByID(ctx, providerID)
+	if err != nil {
+		return err
+	}
+	_, err = r.WithProviderMutation(ctx, providerID, version, func(mutation *Mutation) error {
+		return mutation.UpsertModels(ctx, items)
+	})
 	return err
 }
 
 func (r *Repository) UpdateModel(ctx context.Context, item ModelEntity) error {
-	_, err := r.db.ExecContext(ctx, `
-	UPDATE provider_models
-	SET model_id = `+r.bind(1)+`,
-	    display_name = `+r.bind(2)+`,
-	    enabled = `+r.bind(3)+`,
-	    is_default = `+r.bind(4)+`,
-	    capabilities_override_json = `+r.bind(5)+`,
-	    context_window = `+r.bind(6)+`,
-	    max_output_tokens = `+r.bind(7)+`,
-	    provider_options_json = `+r.bind(8)+`,
-	    updated_at = `+r.bind(9)+`
-	WHERE id = `+r.bind(10),
-		item.ModelID,
-		item.DisplayName,
-		item.Enabled,
-		item.IsDefault,
-		item.CapabilitiesOverrideJSON,
-		item.ContextWindow,
-		item.MaxOutputTokens,
-		item.ProviderOptionsJSON,
-		item.UpdatedAt.UTC(),
-		item.ID,
-	)
+	version, err := r.configurationVersionByID(ctx, item.ProviderID)
+	if err != nil {
+		return err
+	}
+	_, err = r.WithProviderMutation(ctx, item.ProviderID, version, func(mutation *Mutation) error {
+		return mutation.UpdateModel(ctx, item)
+	})
 	return err
 }
 
 func (r *Repository) UpdateDefaultModel(ctx context.Context, providerID string, modelID string, updatedAt time.Time) error {
-	tx, err := r.db.BeginTx(ctx, nil)
+	version, err := r.configurationVersionByID(ctx, providerID)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
-	if _, err = tx.ExecContext(ctx, `
-	UPDATE provider_models
-	SET is_default = `+r.falseValue()+`,
-	    updated_at = `+r.bind(1)+`
-	WHERE is_default = `+r.trueValue()+`
-	  AND provider_id IN (
-	      SELECT candidate.id
-	      FROM provider candidate
-	      JOIN provider target ON target.id = `+r.bind(2)+`
-	      WHERE candidate.provider_kind = target.provider_kind
-	        AND (
-	            (target.visibility = 'public' AND candidate.visibility = 'public')
-	            OR (
-	                target.visibility = 'private'
-	                AND candidate.visibility = 'private'
-	                AND candidate.owner_user_id = target.owner_user_id
-	            )
-	        )
-	  )`,
-		updatedAt.UTC(),
-		strings.TrimSpace(providerID),
-	); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `
-	UPDATE provider_models
-	SET is_default = `+r.trueValue()+`,
-	    enabled = `+r.trueValue()+`,
-	    updated_at = `+r.bind(1)+`
-	WHERE provider_id = `+r.bind(2)+` AND model_id = `+r.bind(3),
-		updatedAt.UTC(),
-		strings.TrimSpace(providerID),
-		strings.TrimSpace(modelID),
-	); err != nil {
-		return err
-	}
-	return tx.Commit()
+	_, err = r.WithProviderMutation(ctx, providerID, version, func(mutation *Mutation) error {
+		return mutation.UpdateDefaultModel(ctx, modelID, updatedAt)
+	})
+	return err
 }

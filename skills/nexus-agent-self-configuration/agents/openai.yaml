@@ -1,0 +1,3 @@
+interface:
+  display_name: "Nexus Agent Self Configuration"
+  short_description: "Configure this Agent within self-service limits"

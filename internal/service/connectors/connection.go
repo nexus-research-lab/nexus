@@ -50,7 +50,15 @@ func (s *Service) ListActiveConnections(ctx context.Context, ownerUserID string)
 func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connectorID string) (*connectordomain.ConnectionSnapshot, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	query := fmt.Sprintf(
-		"SELECT owner_user_id, connector_id, credentials, credentials_encrypted, auth_type FROM connector_connections WHERE owner_user_id = %s AND connector_id = %s AND state = 'connected'",
+		`SELECT connection.owner_user_id, connection.connector_id, connection.credentials,
+		        connection.credentials_encrypted, connection.auth_type, COALESCE(version.version, 1)
+		   FROM connector_connections AS connection
+		   LEFT JOIN connector_configuration_versions AS version
+		     ON version.owner_user_id = connection.owner_user_id
+		    AND version.connector_id = connection.connector_id
+		  WHERE connection.owner_user_id = %s
+		    AND connection.connector_id = %s
+		    AND connection.state = 'connected'`,
 		s.bind(1),
 		s.bind(2),
 	)
@@ -61,6 +69,7 @@ func (s *Service) LoadActiveConnection(ctx context.Context, ownerUserID, connect
 		&record.Credentials,
 		&record.CredentialsEncrypted,
 		&record.AuthType,
+		&record.ConfigurationVersion,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -110,6 +119,27 @@ func (s *Service) connectionSnapshotFromRecord(record connectionRecord) (*connec
 
 // Connect 使用显式凭证直接连接。
 func (s *Service) Connect(ctx context.Context, ownerUserID string, connectorID string, credentials map[string]string) (*Info, error) {
+	return s.connect(ctx, ownerUserID, connectorID, credentials, nil)
+}
+
+// ConnectAtVersion 使用 Connector configuration version CAS 保存直接凭据。
+func (s *Service) ConnectAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+	credentials map[string]string,
+	expectedVersion int64,
+) (*Info, error) {
+	return s.connect(ctx, ownerUserID, connectorID, credentials, &expectedVersion)
+}
+
+func (s *Service) connect(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+	credentials map[string]string,
+	expectedVersion *int64,
+) (*Info, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	entry, ok := getConnector(connectorID)
 	if !ok {
@@ -129,13 +159,13 @@ func (s *Service) Connect(ctx context.Context, ownerUserID string, connectorID s
 	if err != nil {
 		return nil, err
 	}
-	if err = s.upsertConnection(ctx, connectionRecord{
+	if _, err = s.upsertConnectionAtVersion(ctx, connectionRecord{
 		OwnerUserID: ownerUserID,
 		ConnectorID: entry.ConnectorID,
 		State:       "connected",
 		Credentials: string(payload),
 		AuthType:    entry.AuthType,
-	}); err != nil {
+	}, expectedVersion); err != nil {
 		return nil, err
 	}
 	info := s.toInfo(ctx, ownerUserID, entry, "connected")
@@ -173,21 +203,45 @@ func normalizeDirectCredentials(entry CatalogEntry, raw map[string]string) (map[
 
 // Disconnect 断开连接器。
 func (s *Service) Disconnect(ctx context.Context, ownerUserID string, connectorID string) (*Info, error) {
+	return s.disconnect(ctx, ownerUserID, connectorID, nil)
+}
+
+// DisconnectAtVersion 使用 Connector configuration version CAS 撤销连接凭据。
+func (s *Service) DisconnectAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+	expectedVersion int64,
+) (*Info, error) {
+	return s.disconnect(ctx, ownerUserID, connectorID, &expectedVersion)
+}
+
+func (s *Service) disconnect(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+	expectedVersion *int64,
+) (*Info, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	entry, ok := getConnector(connectorID)
 	if !ok {
 		return nil, errors.New("未知连接器")
 	}
 	if entry.AutoOAuthClient && entry.UserOAuthClient {
-		return s.DeleteOAuthClientConfig(ctx, ownerUserID, entry.ConnectorID)
+		return s.deleteOAuthClientConfig(
+			ctx,
+			ownerUserID,
+			entry.ConnectorID,
+			expectedVersion,
+		)
 	}
-	if err := s.upsertConnection(ctx, connectionRecord{
+	if _, err := s.upsertConnectionAtVersion(ctx, connectionRecord{
 		OwnerUserID: ownerUserID,
 		ConnectorID: entry.ConnectorID,
 		State:       "disconnected",
 		Credentials: "",
 		AuthType:    entry.AuthType,
-	}); err != nil {
+	}, expectedVersion); err != nil {
 		return nil, err
 	}
 	info := s.toInfo(ctx, ownerUserID, entry, "disconnected")

@@ -1,3 +1,6 @@
+// INPUT: Agent/Profile/Runtime 联表查询行及其 JSON 列。
+// OUTPUT: 解码后的 protocol.Agent，包括当前 runtime_version。
+// POS: Agent SQL 查询结果到跨边界协议模型的唯一扫描投影。
 package agentrepo
 
 import (
@@ -55,6 +58,7 @@ func ScanAgent(scanner Scanner) (protocol.Agent, error) {
 		&maxTurns,
 		&maxThinkingTokens,
 		&settingSourcesJSON,
+		&item.RuntimeVersion,
 	)
 	if err != nil {
 		return protocol.Agent{}, err

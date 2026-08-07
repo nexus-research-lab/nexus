@@ -1,0 +1,3 @@
+interface:
+  display_name: "Nexus Room Member Configuration"
+  short_description: "Inspect Room settings and enforce member limits"

@@ -38,10 +38,11 @@ func createSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
+			"request_id":                 map[string]any{"type": "string", "description": "本次创建意图的稳定幂等键；同一工具调用重试必须复用，不能换值"},
 			"name":                       map[string]any{"type": "string", "description": "任务名称"},
-			"agent_id":                   map[string]any{"type": "string", "description": "目标智能体；缺省=当前智能体"},
+			"agent_id":                   map[string]any{"type": "string", "description": "目标智能体；缺省=当前智能体。普通 Agent/Room 成员只能创建自身任务，owner main 仅在自己的可信私有 DM 可指定其他 Agent"},
 			"instruction":                map[string]any{"type": "string", "description": "任务指令（Agent 到点要执行的内容）"},
-			"execution_kind":             map[string]any{"type": "string", "enum": []string{"agent", "script"}, "description": "agent=交给 Agent 会话执行；script=直接在目标 Agent workspace 中执行 instruction 脚本"},
+			"execution_kind":             map[string]any{"type": "string", "enum": []string{"agent"}, "description": "对话入口只允许交给 Agent 会话执行；宿主脚本任务是人类控制面能力"},
 			"schedule":                   scheduleSchema,
 			"execution_mode":             executionModeSchema,
 			"reply_mode":                 replyModeSchema,
@@ -49,16 +50,49 @@ func createSchema() map[string]any {
 			"expires_at":                 map[string]any{"type": "string", "description": "可选。任务生命周期截止时间，RFC3339；到期后停止后续触发，但不中断正在执行的任务"},
 			"selected_session_key":       map[string]any{"type": "string", "description": "execution_mode=existing 时填：要复用的会话 key"},
 			"named_session_key":          map[string]any{"type": "string", "description": "execution_mode=dedicated 时填：专用长期会话名称"},
-			"selected_reply_session_key": map[string]any{"type": "string", "description": "reply_mode=selected 时填：接收结果的会话 key"},
-			"reply_agent_id":             map[string]any{"type": "string", "description": "reply_mode=agent 时可填：接收结果的智能体；缺省=任务目标智能体"},
-			"reply_session_key":          map[string]any{"type": "string", "description": "reply_mode=channel 时可填：结构化 IM/session key，如 agent:<agent_id>:fs:group:<chat_id>；当前会话就是结构化外部 IM 群时可省略"},
-			"reply_channel":              map[string]any{"type": "string", "description": "reply_mode=channel 时填：websocket/internal/telegram/discord/dingtalk/wechat/weixin-personal/feishu 等通道"},
-			"reply_to":                   map[string]any{"type": "string", "description": "reply_mode=channel 时填：目标会话 key、外部群/频道 id 或 chat_id"},
-			"reply_account_id":           map[string]any{"type": "string", "description": "reply_mode=channel 时可填：多账号通道账号 id"},
-			"reply_thread_id":            map[string]any{"type": "string", "description": "reply_mode=channel 时可填：话题/线程 id"},
+			"selected_reply_session_key": map[string]any{"type": "string", "description": "reply_mode=selected 时填：接收结果的会话 key。普通 Agent 仅限自身 Agent 会话或当前 Room"},
+			"reply_agent_id":             map[string]any{"type": "string", "description": "reply_mode=agent 时可填：接收结果的智能体；缺省=任务目标智能体。普通 Agent 只能选择自身"},
+			"reply_session_key":          map[string]any{"type": "string", "description": "reply_mode=channel 时可填：结构化 IM/session key，如 agent:<agent_id>:fs:group:<chat_id>；普通 Agent 只能使用当前明确授权的同一外部会话"},
+			"reply_channel":              map[string]any{"type": "string", "description": "reply_mode=channel 时填：websocket/internal/telegram/discord/dingtalk/wechat/weixin-personal/feishu 等通道；普通 Agent 必须与当前授权会话一致"},
+			"reply_to":                   map[string]any{"type": "string", "description": "reply_mode=channel 时填：目标会话 key、外部群/频道 id 或 chat_id；普通 Agent 必须与当前授权会话一致"},
+			"reply_account_id":           map[string]any{"type": "string", "description": "reply_mode=channel 时可填：多账号通道账号 id；普通 Agent 必须与当前授权会话账号精确一致"},
+			"reply_thread_id":            map[string]any{"type": "string", "description": "reply_mode=channel 时可填：话题/线程 id；普通 Agent 必须与当前授权会话 thread 精确一致"},
 			"enabled":                    map[string]any{"type": "boolean", "description": "创建后立即启用，缺省 true"},
 		},
-		"required": []string{"name", "instruction", "schedule"},
+		"required": []string{"request_id", "name", "instruction", "schedule"},
+	}
+}
+
+func heartbeatGetSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"agent_id": map[string]any{"type": "string", "description": "主智能体仅在自己的可信 Nexus 私有 DM 可指定 owner scope 内 Agent；Room、外部与后台来源只能读取当前 Agent"},
+		},
+	}
+}
+
+func heartbeatUpdateSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"agent_id":      map[string]any{"type": "string", "description": "owner main 仅在自己的可信私有 DM 可指定目标 Agent；其他上下文只能修改自身"},
+			"enabled":       map[string]any{"type": "boolean"},
+			"every_seconds": map[string]any{"type": "integer", "minimum": 1},
+			"target_mode":   map[string]any{"type": "string", "enum": []string{"none", "last"}},
+			"ack_max_chars": map[string]any{"type": "integer", "minimum": 0},
+		},
+	}
+}
+
+func heartbeatWakeSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"agent_id": map[string]any{"type": "string", "description": "owner main 仅在自己的可信私有 DM 可指定目标 Agent；其他上下文只能唤醒自身"},
+			"mode":     map[string]any{"type": "string", "enum": []string{"now", "next-heartbeat"}, "description": "缺省 now"},
+			"text":     map[string]any{"type": "string", "description": "可选，随本次唤醒交付的上下文"},
+		},
 	}
 }
 
@@ -68,11 +102,11 @@ func updateSchema() map[string]any {
 		"properties": map[string]any{
 			"job_id":                     map[string]any{"type": "string", "description": "要修改的任务 id；也可改传 query 让工具在当前权限范围内定位唯一任务"},
 			"query":                      map[string]any{"type": "string", "description": "可选。没有 job_id 时按名称、内容、投递目标或状态定位唯一当前未删除任务；当前 DM/Room/IM 群里会优先当前会话匹配，写“这里/当前会话/这个群/当前频道”会强制限定；多候选时不会修改"},
-			"agent_id":                   map[string]any{"type": "string", "description": "主智能体可填：把 query 限定到某个智能体；普通 agent 会被强制限定为自己"},
+			"agent_id":                   map[string]any{"type": "string", "description": "owner main 仅在自己的可信私有 DM 可把 query 限定到其他 Agent；其余上下文强制限定为自己"},
 			"name":                       map[string]any{"type": "string"},
 			"instruction":                map[string]any{"type": "string", "description": "完整替换任务内容；用户只是说“再加一条要求/补充细节”时优先用 instruction_append"},
 			"instruction_append":         map[string]any{"type": "string", "description": "追加到当前任务内容末尾，适合“再加上/补充/以后也要”这类增量修改；不要和 instruction 同时传"},
-			"execution_kind":             map[string]any{"type": "string", "enum": []string{"agent", "script"}},
+			"execution_kind":             map[string]any{"type": "string", "enum": []string{"agent"}, "description": "对话入口不能把任务切换为宿主脚本"},
 			"schedule":                   scheduleSchema,
 			"execution_mode":             executionModeSchema,
 			"reply_mode":                 replyModeSchema,
@@ -81,13 +115,13 @@ func updateSchema() map[string]any {
 			"clear_expires_at":           map[string]any{"type": "boolean", "description": "清除任务生命周期截止时间；不要与 expires_at 同时使用"},
 			"selected_session_key":       map[string]any{"type": "string"},
 			"named_session_key":          map[string]any{"type": "string"},
-			"selected_reply_session_key": map[string]any{"type": "string"},
-			"reply_agent_id":             map[string]any{"type": "string"},
-			"reply_session_key":          map[string]any{"type": "string"},
-			"reply_channel":              map[string]any{"type": "string"},
-			"reply_to":                   map[string]any{"type": "string"},
-			"reply_account_id":           map[string]any{"type": "string"},
-			"reply_thread_id":            map[string]any{"type": "string"},
+			"selected_reply_session_key": map[string]any{"type": "string", "description": "普通 Agent 仅限自身 Agent 会话或当前 Room"},
+			"reply_agent_id":             map[string]any{"type": "string", "description": "普通 Agent 只能选择自身；owner main 仅在自己的可信私有 DM 可选择 owner scope 内其他 Agent"},
+			"reply_session_key":          map[string]any{"type": "string", "description": "普通 Agent 只能使用当前明确授权的同一外部会话"},
+			"reply_channel":              map[string]any{"type": "string", "description": "普通 Agent 必须与当前授权会话通道一致"},
+			"reply_to":                   map[string]any{"type": "string", "description": "普通 Agent 必须与当前授权会话目标一致"},
+			"reply_account_id":           map[string]any{"type": "string", "description": "普通 Agent 必须与当前授权会话账号精确一致"},
+			"reply_thread_id":            map[string]any{"type": "string", "description": "普通 Agent 必须与当前授权会话 thread 精确一致"},
 			"enabled":                    map[string]any{"type": "boolean"},
 			"cancel_active_run":          map[string]any{"type": "boolean", "description": "停用任务时是否同时中断当前 active run；true 会隐含 enabled=false"},
 			"run_id":                     map[string]any{"type": "string", "description": "配合 cancel_active_run 使用；传当前 running_run_id 可避免误取消旧 run"},
@@ -101,7 +135,7 @@ func jobIDSchema() map[string]any {
 		"properties": map[string]any{
 			"job_id":   map[string]any{"type": "string", "description": "任务 id；也可改传 query 让工具在当前权限范围内定位唯一当前未删除任务"},
 			"query":    map[string]any{"type": "string", "description": "可选。没有 job_id 时按名称、内容、投递目标或状态定位唯一当前未删除任务；当前 DM/Room/IM 群里会优先当前会话匹配，写“这里/当前会话/这个群/当前频道”会强制限定；多候选时不会执行"},
-			"agent_id": map[string]any{"type": "string", "description": "主智能体可填：把 query 限定到某个智能体；普通 agent 会被强制限定为自己"},
+			"agent_id": map[string]any{"type": "string", "description": "owner main 仅在自己的可信私有 DM 可把 query 限定到其他 Agent；其余上下文强制限定为自己"},
 		},
 	}
 }
@@ -111,7 +145,7 @@ func findSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"query":           map[string]any{"type": "string", "description": "按任务 id、名称、内容、投递目标、来源、状态或审计内容查询；当前会话中的查询优先匹配当前会话任务"},
-			"agent_id":        map[string]any{"type": "string", "description": "主智能体可限定目标智能体；普通 agent 始终限定为自己"},
+			"agent_id":        map[string]any{"type": "string", "description": "owner main 仅在自己的可信私有 DM 可限定其他 Agent；其余上下文始终限定为自己"},
 			"include_active":  map[string]any{"type": "boolean", "description": "是否包含当前任务，缺省 true"},
 			"include_deleted": map[string]any{"type": "boolean", "description": "是否包含已删除任务，缺省 false"},
 			"enabled":         map[string]any{"type": "boolean", "description": "可选，只返回匹配启用状态的当前任务；已删除任务会被排除"},
@@ -126,7 +160,7 @@ func inspectSchema() map[string]any {
 		"properties": map[string]any{
 			"job_id":      map[string]any{"type": "string", "description": "任务 id；也可改传 query 定位唯一任务"},
 			"query":       map[string]any{"type": "string", "description": "按名称、内容、投递目标或状态定位唯一任务；runs/events 可检查已删除任务"},
-			"agent_id":    map[string]any{"type": "string", "description": "主智能体可限定目标智能体；普通 agent 始终限定为自己"},
+			"agent_id":    map[string]any{"type": "string", "description": "owner main 仅在自己的可信私有 DM 可限定其他 Agent；其余上下文始终限定为自己"},
 			"view":        map[string]any{"type": "string", "enum": []string{"status", "runs", "events"}, "description": "status=配置与健康摘要；runs=运行历史；events=管理审计。缺省 status"},
 			"run_limit":   map[string]any{"type": "integer", "description": "status/runs 返回条数，缺省 10，最大 50"},
 			"event_limit": map[string]any{"type": "integer", "description": "status/events 返回条数，缺省 10，最大 50"},
@@ -140,7 +174,7 @@ func reportSchema() map[string]any {
 		"properties": map[string]any{
 			"date":     map[string]any{"type": "string", "description": "要查询的日期，YYYY-MM-DD；缺省=today。也接受 today / 今天"},
 			"timezone": map[string]any{"type": "string", "description": "IANA 时区，如 Asia/Shanghai；缺省使用当前上下文默认时区"},
-			"agent_id": map[string]any{"type": "string", "description": "主智能体可填：只看某个智能体的任务"},
+			"agent_id": map[string]any{"type": "string", "description": "owner main 仅在自己的可信私有 DM 可查看其他 Agent；其余上下文只能查看自身"},
 			"job_id":   map[string]any{"type": "string", "description": "可选：只看某个任务"},
 			"query":    map[string]any{"type": "string", "description": "可选：没有 job_id 时按自然语言定位唯一当前或已删除任务，再只看该任务；当前 DM/Room/IM 群里会优先当前会话匹配，写“这里/当前会话/这个群/当前频道”会强制限定；泛化的“当前会话/这个群定时任务发送情况”会聚合当前会话任务"},
 		},
@@ -154,7 +188,7 @@ func repairSchema() map[string]any {
 			"action":   map[string]any{"type": "string", "enum": []string{"recover", "retry_delivery"}, "description": "recover=释放卡住的执行；retry_delivery=只补发已完成 run 的失败投递"},
 			"job_id":   map[string]any{"type": "string", "description": "任务 id；也可改传 query 定位唯一当前任务"},
 			"query":    map[string]any{"type": "string", "description": "按名称、内容、投递目标或状态定位唯一当前任务"},
-			"agent_id": map[string]any{"type": "string", "description": "主智能体可限定目标智能体；普通 agent 始终限定为自己"},
+			"agent_id": map[string]any{"type": "string", "description": "owner main 仅在自己的可信私有 DM 可限定其他 Agent；其余上下文始终限定为自己"},
 			"run_id":   map[string]any{"type": "string", "description": "可选。recover 时用于避免误释放旧 run；retry_delivery 时指定要补投递的失败 run"},
 		},
 		"required": []string{"action"},

@@ -1,3 +1,6 @@
+// INPUT: Provider/model 标识与未脱敏仓储实体。
+// OUTPUT: 规范化模型记录、可运行 Provider，或稳定的 Provider 不存在错误。
+// POS: Provider/model 服务读取与模型身份归一层。
 package provider
 
 import (
@@ -47,7 +50,7 @@ func (s *Service) requireProvider(ctx context.Context, provider string) (*provid
 		return nil, err
 	}
 	if item == nil {
-		return nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
+		return nil, fmt.Errorf("%w: %s", ErrProviderNotFound, normalizedProvider)
 	}
 	normalizeBuiltinEndpoint(item)
 	if strings.TrimSpace(item.AuthToken) == "" {
@@ -72,7 +75,7 @@ func (s *Service) getPublicProvider(ctx context.Context, provider string) (strin
 		return "", nil, err
 	}
 	if item == nil {
-		return "", nil, fmt.Errorf("provider 不存在: %s", normalizedProvider)
+		return "", nil, fmt.Errorf("%w: %s", ErrProviderNotFound, normalizedProvider)
 	}
 	normalizeBuiltinEndpoint(item)
 	return normalizedProvider, item, nil

@@ -1,3 +1,6 @@
+// INPUT: owner 隔离的 DeliveryChannel 注册、生命周期与投递请求。
+// OUTPUT: generation 防护的热替换、就绪状态与统一消息投递。
+// POS: Channels 运行态路由核心，旧实例的异步完成不得覆盖新实例。
 package channels
 
 import (
@@ -24,12 +27,15 @@ type Router struct {
 	running        bool
 	runCtx         context.Context
 	logger         *slog.Logger
+	routeLocks     sync.Map
+	nextGeneration uint64
 }
 
 type registeredChannel struct {
 	ownerUserID string
 	channelType string
 	channel     DeliveryChannel
+	generation  uint64
 	started     bool
 	lastError   string
 }
@@ -97,17 +103,21 @@ func setChannelLogger(channel DeliveryChannel, logger *slog.Logger) {
 // SetIngress 为支持真实入口的通道注入统一 ingress 处理器。
 func (r *Router) SetIngress(ingress IngressAcceptor) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.ingress = ingress
+	entries := make([]*registeredChannel, 0, len(r.channels))
 	for _, entry := range r.channels {
 		if entry == nil || entry.channel == nil {
 			continue
 		}
+		entries = append(entries, entry)
+	}
+	r.mu.Unlock()
+	for _, entry := range entries {
 		aware, ok := entry.channel.(ingressAwareChannel)
 		if !ok {
 			continue
 		}
-		aware.SetIngress(ingress)
+		aware.SetIngress(r.ingressForRegisteredChannel(entry, ingress))
 	}
 }
 
@@ -123,7 +133,8 @@ func (r *Router) Start(ctx context.Context) error {
 			"channel", item.channelType,
 		)
 		if err := item.channel.Start(ctx); err != nil {
-			r.markChannelStartResult(item.ownerUserID, item.channelType, false, err)
+			r.markChannelStartResult(&item, false, err)
+			_ = item.channel.Stop(ctx)
 			r.loggerFor(ctx).Error("启动通道失败",
 				"owner_user_id", item.ownerUserID,
 				"channel", item.channelType,
@@ -131,7 +142,9 @@ func (r *Router) Start(ctx context.Context) error {
 			)
 			continue
 		}
-		r.markChannelStartResult(item.ownerUserID, item.channelType, true, nil)
+		if !r.markChannelStartResult(&item, true, nil) {
+			_ = item.channel.Stop(ctx)
+		}
 	}
 	return nil
 }
@@ -149,6 +162,6 @@ func (r *Router) Stop(ctx context.Context) {
 			"channel", items[index].channelType,
 		)
 		_ = items[index].channel.Stop(ctx)
-		r.markChannelStartResult(items[index].ownerUserID, items[index].channelType, false, nil)
+		r.markChannelStartResult(&items[index], false, nil)
 	}
 }

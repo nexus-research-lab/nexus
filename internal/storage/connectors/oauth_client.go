@@ -53,6 +53,26 @@ func (s *OAuthClientStore) Get(ctx context.Context, ownerUserID, connectorID str
 }
 
 func (s *OAuthClientStore) Upsert(ctx context.Context, record OAuthClient) error {
+	return s.upsert(ctx, s.db, record)
+}
+
+// UpsertTx 在调用方事务中保存 OAuth Client，供连接状态与版本原子推进。
+func (s *OAuthClientStore) UpsertTx(ctx context.Context, tx *sql.Tx, record OAuthClient) error {
+	if tx == nil {
+		return errors.New("OAuth Client transaction 不能为空")
+	}
+	return s.upsert(ctx, tx, record)
+}
+
+type oauthClientExecer interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func (s *OAuthClientStore) upsert(
+	ctx context.Context,
+	executor oauthClientExecer,
+	record OAuthClient,
+) error {
 	if len(s.key) == 0 {
 		return errors.New("CONNECTOR_CREDENTIALS_KEY 未配置，无法保存 OAuth 应用凭据")
 	}
@@ -69,7 +89,7 @@ ON CONFLICT (owner_user_id, connector_id) DO UPDATE SET
     client_id = EXCLUDED.client_id,
     client_secret_encrypted = EXCLUDED.client_secret_encrypted,
     updated_at = CURRENT_TIMESTAMP`
-		_, err = s.db.ExecContext(
+		_, err = executor.ExecContext(
 			ctx,
 			query,
 			strings.TrimSpace(record.OwnerUserID),
@@ -87,7 +107,7 @@ ON CONFLICT(owner_user_id, connector_id) DO UPDATE SET
     client_id = excluded.client_id,
     client_secret_encrypted = excluded.client_secret_encrypted,
     updated_at = CURRENT_TIMESTAMP`
-	_, err = s.db.ExecContext(
+	_, err = executor.ExecContext(
 		ctx,
 		query,
 		strings.TrimSpace(record.OwnerUserID),
@@ -99,12 +119,34 @@ ON CONFLICT(owner_user_id, connector_id) DO UPDATE SET
 }
 
 func (s *OAuthClientStore) Delete(ctx context.Context, ownerUserID, connectorID string) error {
+	return s.delete(ctx, s.db, ownerUserID, connectorID)
+}
+
+// DeleteTx 在调用方事务中删除 OAuth Client。
+func (s *OAuthClientStore) DeleteTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	ownerUserID string,
+	connectorID string,
+) error {
+	if tx == nil {
+		return errors.New("OAuth Client transaction 不能为空")
+	}
+	return s.delete(ctx, tx, ownerUserID, connectorID)
+}
+
+func (s *OAuthClientStore) delete(
+	ctx context.Context,
+	executor oauthClientExecer,
+	ownerUserID string,
+	connectorID string,
+) error {
 	query := fmt.Sprintf(
 		"DELETE FROM connector_oauth_clients WHERE owner_user_id = %s AND connector_id = %s",
 		s.bind(1),
 		s.bind(2),
 	)
-	_, err := s.db.ExecContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(connectorID))
+	_, err := executor.ExecContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(connectorID))
 	return err
 }
 

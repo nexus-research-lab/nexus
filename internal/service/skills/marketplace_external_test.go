@@ -616,7 +616,11 @@ func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 	if !ok || !checkedGitSkill.HasUpdate {
 		t.Fatalf("远端变化后应显示有更新: %+v", checkedGitSkill)
 	}
-	updateResult, err := service.UpdateImportedSkills(ctx)
+	catalogBeforeUpdate, err := service.GetCatalogState(ctx)
+	if err != nil {
+		t.Fatalf("读取批量更新前 catalog version 失败: %v", err)
+	}
+	updateResult, err := service.UpdateImportedSkillsAtVersion(ctx, catalogBeforeUpdate.Version)
 	if err != nil {
 		t.Fatalf("更新技能库失败: %v", err)
 	}
@@ -625,6 +629,18 @@ func TestGitImportAndUpdateImportedSkillsUseStoredMetadata(t *testing.T) {
 	}
 	if !stringSliceContains(updateResult.SkippedSkills, "local-skill") {
 		t.Fatalf("本地导入 skill 应被跳过: %+v", updateResult)
+	}
+	catalogAfterUpdate, err := service.GetCatalogState(ctx)
+	if err != nil || catalogAfterUpdate.Version != catalogBeforeUpdate.Version+1 {
+		t.Fatalf(
+			"批量更新应只为成功发布的 Skill 推进版本: before=%+v after=%+v err=%v",
+			catalogBeforeUpdate,
+			catalogAfterUpdate,
+			err,
+		)
+	}
+	if _, err = service.UpdateImportedSkillsAtVersion(ctx, catalogBeforeUpdate.Version); !errors.Is(err, ErrCatalogVersionConflict) {
+		t.Fatalf("批量更新必须拒绝过期 catalog version: %v", err)
 	}
 	updated, err := service.GetSkillDetail(ctx, "git-skill", "")
 	if err != nil {

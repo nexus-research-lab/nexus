@@ -19,6 +19,17 @@ func (s *Service) listAndNormalize(ctx context.Context) ([]providerstore.Entity,
 	return items, nil
 }
 
+func (s *Service) listPrivateAndNormalize(ctx context.Context) ([]providerstore.Entity, error) {
+	items, err := s.repository.ListPrivate(ctx, ownerUserIDFromContext(ctx))
+	if err != nil {
+		return nil, err
+	}
+	for index := range items {
+		normalizeBuiltinEndpoint(&items[index])
+	}
+	return items, nil
+}
+
 func (s *Service) listPublicAndNormalize(ctx context.Context) ([]providerstore.Entity, error) {
 	items, err := s.repository.ListPublic(ctx)
 	if err != nil {

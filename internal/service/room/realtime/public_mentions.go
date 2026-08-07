@@ -41,6 +41,9 @@ func (s *Service) collectPublicMentionWakes(
 	if roundValue == nil || roundValue.Context == nil || slot == nil {
 		return nil
 	}
+	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+		return err
+	}
 	if !roomdomain.IsFinalPublicAssistantMessage(message) {
 		return nil
 	}
@@ -59,6 +62,9 @@ func (s *Service) collectPublicMentionWakes(
 	// 但首条 transcript 引用仍是旧快照。追加同 message_id 的引用作为可压缩更新，
 	// 让历史回放与实时渲染保持同一份 agent_mentions。
 	if len(protocolAgentMentions(message["agent_mentions"])) > 0 {
+		if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+			return err
+		}
 		if err := s.persistSharedDurableMessage(
 			roundValue.OwnerUserID,
 			roundValue.ConversationID,
@@ -79,6 +85,9 @@ func (s *Service) collectPublicMentionWakes(
 		return nil
 	}
 	for _, wake := range wakes {
+		if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+			return err
+		}
 		if s.publicHandoffs != nil {
 			if err := s.publicHandoffs.MarkSourceFinished(
 				roundValue.OwnerUserID,
@@ -713,19 +722,30 @@ func (s *Service) logMissingPublicMentionSlots(
 func newPublicMentionRound(parentRound *activeRoomRound, sessionKey string, roundID string) *activeRoomRound {
 	contextValue := parentRound.Context
 	return &activeRoomRound{
-		SessionKey:         sessionKey,
-		RoomID:             contextValue.Room.ID,
-		ConversationID:     contextValue.Conversation.ID,
-		CoordinatorAgentID: parentRound.CoordinatorAgentID,
-		RoomType:           contextValue.Room.RoomType,
-		Context:            contextValue,
-		RoundID:            roundID,
-		RootRoundID:        cmp.Or(roomRootRoundID(parentRound), roundID),
-		HopIndex:           parentRound.HopIndex + 1,
-		OwnerUserID:        parentRound.OwnerUserID,
-		Slots:              make(map[string]*activeRoomSlot),
-		Done:               make(chan struct{}),
+		SessionKey:                        sessionKey,
+		RoomID:                            contextValue.Room.ID,
+		ConversationID:                    contextValue.Conversation.ID,
+		CoordinatorAgentID:                parentRound.CoordinatorAgentID,
+		RoomType:                          contextValue.Room.RoomType,
+		Context:                           contextValue,
+		RoundID:                           roundID,
+		RootRoundID:                       cmp.Or(roomRootRoundID(parentRound), roundID),
+		HopIndex:                          parentRound.HopIndex + 1,
+		OwnerUserID:                       parentRound.OwnerUserID,
+		AuthorityEpoch:                    contextValue.Room.AuthorityEpoch,
+		TrustedConfigurationContext:       parentRound.pendingTrustedQueueDispatch,
+		ExecutionOrigin:                   queueExecutionOrigin(parentRound.pendingTrustedQueueDispatch),
+		trustedQueuedConfigurationContext: parentRound.pendingTrustedQueueDispatch,
+		Slots:                             make(map[string]*activeRoomSlot),
+		Done:                              make(chan struct{}),
 	}
+}
+
+func queueExecutionOrigin(trusted bool) string {
+	if trusted {
+		return "queue"
+	}
+	return ""
 }
 
 func addPublicMentionSlots(

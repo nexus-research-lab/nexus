@@ -255,7 +255,11 @@ func handleContentBlockStartStream(p *Processor, payload map[string]any, output 
 		return output
 	}
 	logicalIndex := p.segment.ApplyBlock(normalizeInt(payload["index"]), block)
-	output.StreamEvents = append(output.StreamEvents, p.buildBlockStreamPayload("content_block_start", logicalIndex, block))
+	projectedBlock := p.segment.CurrentBlock(logicalIndex)
+	output.StreamEvents = append(
+		output.StreamEvents,
+		p.buildBlockStreamPayload("content_block_start", logicalIndex, projectedBlock),
+	)
 	return output
 }
 

@@ -47,9 +47,6 @@ func (p *Policy) validate(expected Input, requireTicket bool) error {
 	if !strings.EqualFold(strings.TrimSpace(p.RuntimeKind), strings.TrimSpace(expected.RuntimeKind)) {
 		return errors.New("launcher 返回了不匹配的 runtime")
 	}
-	if p.IsMainAgent != expected.IsMainAgent {
-		return errors.New("launcher 返回了不匹配的 Agent 身份")
-	}
 	expectedCWD, err := canonicalPolicyPath(expected.CWD)
 	if err != nil {
 		return fmt.Errorf("解析预期 workspace: %w", err)

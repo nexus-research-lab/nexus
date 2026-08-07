@@ -1,3 +1,6 @@
+// INPUT: 已提交删除的 Room/Conversation 上下文、成员过滤与 Session artifact 删除协调器。
+// OUTPUT: Room 公共 ledger 清理，以及逐成员安装 tombstone 后的 runtime/transcript/artifact 回收。
+// POS: Room 删除提交后的外围清理阶段；禁止直接删除 Agent Session 目录。
 package room
 
 import (
@@ -14,12 +17,17 @@ func (s *Service) cleanupConversationArtifacts(
 	deleteSharedLog bool,
 	agentFilter map[string]struct{},
 ) error {
+	if s.sessionArtifacts == nil &&
+		hasConversationSessionArtifacts(contexts, agentFilter) {
+		return ErrSessionArtifactDeletionCoordinatorUnavailable
+	}
+
 	errs := make([]error, 0)
 	workspaceByOwnerAgent := make(map[string]string)
+	cleanupCtx := context.WithoutCancel(ctx)
 	for _, contextValue := range contexts {
 		ownerUserID := strings.TrimSpace(contextValue.Room.OwnerUserID)
 		ownerFiles := s.files.ForOwner(ownerUserID)
-		ownerHistory := s.history.ForOwner(ownerUserID)
 		if deleteSharedLog {
 			if _, err := ownerFiles.DeleteRoomConversation(
 				ownerUserID,
@@ -51,7 +59,7 @@ func (s *Service) cleanupConversationArtifacts(
 			workspacePath := workspaceByOwnerAgent[workspaceKey]
 			if workspacePath == "" {
 				resolvedPath, err := s.resolveAgentWorkspacePath(
-					ctx,
+					cleanupCtx,
 					ownerUserID,
 					sessionValue.AgentID,
 				)
@@ -63,17 +71,35 @@ func (s *Service) cleanupConversationArtifacts(
 				workspaceByOwnerAgent[workspaceKey] = workspacePath
 			}
 
-			if _, err := ownerFiles.DeleteSession(workspacePath, sessionKey); err != nil {
+			if err := s.sessionArtifacts.DeleteSessionArtifacts(
+				cleanupCtx,
+				ownerUserID,
+				workspacePath,
+				sessionKey,
+				strings.TrimSpace(sessionValue.SDKSessionID),
+			); err != nil {
 				errs = append(errs, err)
-			}
-			if ownerHistory != nil && strings.TrimSpace(sessionValue.SDKSessionID) != "" {
-				if _, err := ownerHistory.DeleteTranscriptSession(workspacePath, sessionValue.SDKSessionID); err != nil {
-					errs = append(errs, err)
-				}
 			}
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func hasConversationSessionArtifacts(
+	contexts []protocol.ConversationContextAggregate,
+	agentFilter map[string]struct{},
+) bool {
+	for _, contextValue := range contexts {
+		for _, sessionValue := range contextValue.Sessions {
+			if len(agentFilter) > 0 {
+				if _, ok := agentFilter[sessionValue.AgentID]; !ok {
+					continue
+				}
+			}
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) cleanupGoalsForRoomContexts(ctx context.Context, contexts []protocol.ConversationContextAggregate) error {

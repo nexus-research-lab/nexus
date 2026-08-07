@@ -2,6 +2,7 @@ package connectors
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -22,6 +23,27 @@ func (s *Service) GetOAuthClientConfig(ctx context.Context, ownerUserID string, 
 
 // SaveOAuthClientConfig 保存用户自有 OAuth 应用配置。
 func (s *Service) SaveOAuthClientConfig(ctx context.Context, ownerUserID string, connectorID string, request OAuthClientConfigRequest) (*Info, error) {
+	return s.saveOAuthClientConfig(ctx, ownerUserID, connectorID, request, nil)
+}
+
+// SaveOAuthClientConfigAtVersion 使用 Connector configuration version CAS 保存 OAuth 应用。
+func (s *Service) SaveOAuthClientConfigAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+	request OAuthClientConfigRequest,
+	expectedVersion int64,
+) (*Info, error) {
+	return s.saveOAuthClientConfig(ctx, ownerUserID, connectorID, request, &expectedVersion)
+}
+
+func (s *Service) saveOAuthClientConfig(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+	request OAuthClientConfigRequest,
+	expectedVersion *int64,
+) (*Info, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	entry, ok := getConnector(connectorID)
 	if !ok {
@@ -39,12 +61,20 @@ func (s *Service) SaveOAuthClientConfig(ctx context.Context, ownerUserID string,
 	if err != nil {
 		return nil, err
 	}
-	if err = store.Upsert(ctx, connectorstore.OAuthClient{
-		OwnerUserID:  ownerUserID,
-		ConnectorID:  entry.ConnectorID,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-	}); err != nil {
+	if _, err = s.mutateConnector(
+		ctx,
+		ownerUserID,
+		entry.ConnectorID,
+		expectedVersion,
+		func(tx *sql.Tx) error {
+			return store.UpsertTx(ctx, tx, connectorstore.OAuthClient{
+				OwnerUserID:  ownerUserID,
+				ConnectorID:  entry.ConnectorID,
+				ClientID:     clientID,
+				ClientSecret: clientSecret,
+			})
+		},
+	); err != nil {
 		return nil, err
 	}
 	state, err := s.connectionState(ctx, ownerUserID, entry.ConnectorID)
@@ -57,6 +87,25 @@ func (s *Service) SaveOAuthClientConfig(ctx context.Context, ownerUserID string,
 
 // DeleteOAuthClientConfig 删除用户自有 OAuth 应用配置，并断开依赖该配置的连接。
 func (s *Service) DeleteOAuthClientConfig(ctx context.Context, ownerUserID string, connectorID string) (*Info, error) {
+	return s.deleteOAuthClientConfig(ctx, ownerUserID, connectorID, nil)
+}
+
+// DeleteOAuthClientConfigAtVersion 使用 Connector configuration version CAS 原子删除 OAuth 应用并断开连接。
+func (s *Service) DeleteOAuthClientConfigAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+	expectedVersion int64,
+) (*Info, error) {
+	return s.deleteOAuthClientConfig(ctx, ownerUserID, connectorID, &expectedVersion)
+}
+
+func (s *Service) deleteOAuthClientConfig(
+	ctx context.Context,
+	ownerUserID string,
+	connectorID string,
+	expectedVersion *int64,
+) (*Info, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	entry, ok := getConnector(connectorID)
 	if !ok {
@@ -69,16 +118,28 @@ func (s *Service) DeleteOAuthClientConfig(ctx context.Context, ownerUserID strin
 	if err != nil {
 		return nil, err
 	}
-	if err = store.Delete(ctx, ownerUserID, entry.ConnectorID); err != nil {
-		return nil, err
-	}
-	if err = s.upsertConnection(ctx, connectionRecord{
+	connection := connectionRecord{
 		OwnerUserID: ownerUserID,
 		ConnectorID: entry.ConnectorID,
 		State:       "disconnected",
 		Credentials: "",
 		AuthType:    entry.AuthType,
-	}); err != nil {
+	}
+	if err = s.encryptConnectionCredentials(&connection); err != nil {
+		return nil, err
+	}
+	if _, err = s.mutateConnector(
+		ctx,
+		ownerUserID,
+		entry.ConnectorID,
+		expectedVersion,
+		func(tx *sql.Tx) error {
+			if deleteErr := store.DeleteTx(ctx, tx, ownerUserID, entry.ConnectorID); deleteErr != nil {
+				return deleteErr
+			}
+			return s.writeConnection(ctx, tx, connection)
+		},
+	); err != nil {
 		return nil, err
 	}
 	info := s.toInfo(ctx, ownerUserID, entry, "disconnected")

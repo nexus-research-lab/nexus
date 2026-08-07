@@ -1,3 +1,6 @@
+// INPUT: owner-scoped Room session 查询与 SDK session ID 回写。
+// OUTPUT: Room session 视图及遵循 Room-first 锁顺序的 session mutation。
+// POS: Session service 的 Room SQL 投影仓储；写入不得先锁 session 再访问 Room。
 package sessionrepo
 
 import (
@@ -74,14 +77,41 @@ func (r *SQLRepository) UpdateRoomSessionSDKSessionID(
 	roomSessionID string,
 	sdkSessionID string,
 ) error {
-	_, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var roomID string
+	err = tx.QueryRowContext(ctx, `
+SELECT c.room_id
+FROM sessions s
+JOIN conversations c ON c.id = s.conversation_id
+WHERE s.id = `+r.dialect.Bind(1), roomSessionID).Scan(&roomID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err = storage.LockRoomForMutation(ctx, tx, r.dialect, "", roomID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `
 UPDATE sessions
 SET sdk_session_id = `+r.dialect.Bind(1)+`, updated_at = `+r.dialect.CurrentTimestamp()+`
-WHERE id = `+r.dialect.Bind(2),
+WHERE id = `+r.dialect.Bind(2)+`
+  AND conversation_id IN (
+      SELECT id FROM conversations WHERE room_id = `+r.dialect.Bind(3)+`
+  )`,
 		nullableStringValue(sdkSessionID),
 		roomSessionID,
-	)
-	return err
+		roomID,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // UpdateRoomConversationRuntimeSettings 更新目标 Agent 模型，并统一 Conversation 权限。

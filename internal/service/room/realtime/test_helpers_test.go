@@ -33,6 +33,18 @@ import (
 
 var NewServiceWithFactory = realtimesvc.NewServiceWithFactory
 
+type noopSessionArtifactDeletionCoordinator struct{}
+
+func (noopSessionArtifactDeletionCoordinator) DeleteSessionArtifacts(
+	context.Context,
+	string,
+	string,
+	string,
+	string,
+) error {
+	return nil
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(handlertest.RunWithMinimalAppRoot(m))
 }

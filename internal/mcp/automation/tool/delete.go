@@ -17,12 +17,25 @@ func del(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 		InputSchema: jobIDSchema(),
 		Annotations: &sdktool.ToolAnnotations{Destructive: true},
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {
+			if err := requireTrustedInteractiveMutation(sctx); err != nil {
+				return render.Error(err), nil
+			}
 			scope, err := requireOwnedTaskScope(ctx, svc, sctx, args)
 			if err != nil {
 				return render.Error(err), nil
 			}
-			result, err := svc.DeleteTask(scope.Context, scope.JobID)
+			if err = requireAgentExecutionTaskMutation(scope.Job); err != nil {
+				return render.Error(err), nil
+			}
+			result, err := svc.DeleteTaskAtVersion(
+				scope.Context,
+				scope.JobID,
+				scope.Job.ConfigurationVersion,
+			)
 			if err != nil {
+				return render.Error(err), nil
+			}
+			if err = verifyScheduledTaskDeleted(scope.Context, svc, scope.JobID); err != nil {
 				return render.Error(err), nil
 			}
 			return render.JSON(result), nil

@@ -76,6 +76,7 @@ func scanScheduledTask(scanner interface {
 		&failureStreak,
 		&lastError,
 		&lastDeliveryStatus,
+		&item.ConfigurationVersion,
 	)
 	if err != nil {
 		return automationdomain.ScheduledTask{}, err

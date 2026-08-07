@@ -5,6 +5,8 @@ package realtime
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -561,7 +563,12 @@ func (s *Service) SetPermissionModeForAgent(ctx context.Context, agentID string,
 	if agentID == "" {
 		return nil
 	}
-	clients := make([]runtimectx.Client, 0)
+	type permissionModeTarget struct {
+		round  *activeRoomRound
+		slot   *activeRoomSlot
+		client runtimectx.Client
+	}
+	targets := make([]permissionModeTarget, 0)
 	for _, roundValue := range s.rounds.snapshot() {
 		if roundValue == nil {
 			continue
@@ -574,15 +581,43 @@ func (s *Service) SetPermissionModeForAgent(ctx context.Context, agentID string,
 			if client == nil {
 				continue
 			}
-			clients = append(clients, client)
+			targets = append(targets, permissionModeTarget{
+				round: roundValue, slot: slot, client: client,
+			})
 		}
 	}
-	for _, client := range clients {
-		if err := client.SetPermissionMode(ctx, mode); err != nil {
-			return err
+	errs := make([]error, 0)
+	for _, target := range targets {
+		if err := target.client.SetPermissionMode(ctx, mode); err != nil {
+			interruptErr := s.failClosedPermissionReload(context.WithoutCancel(ctx), target.slot)
+			errs = append(errs, fmt.Errorf(
+				"Room session %s Agent %s 权限热同步失败，已中断旧 slot: %w",
+				target.round.SessionKey,
+				target.slot.AgentID,
+				errors.Join(err, interruptErr),
+			))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
+}
+
+func (s *Service) failClosedPermissionReload(ctx context.Context, slot *activeRoomSlot) error {
+	if slot == nil {
+		return nil
+	}
+	const reason = "Agent 权限模式已更新，旧 Room runtime 无法安全热同步"
+	slot.suppressOutput()
+	slot.setInterruptReason(reason)
+	slot.setStatus("cancelled")
+	var interruptErr error
+	if client := slot.getClient(); client != nil {
+		interruptErr = client.Interrupt(ctx)
+	}
+	slot.cancelRuntime()
+	if s.permission != nil {
+		s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, reason)
+	}
+	return interruptErr
 }
 
 // GetActiveRoundSnapshot 返回指定 conversation 的活跃 slot 快照。

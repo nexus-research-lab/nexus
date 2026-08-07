@@ -31,6 +31,8 @@ type InputQueueRequest struct {
 	TargetAgentIDs  []string
 	OrderedIDs      []string
 	DeliveryPolicy  protocol.ChatDeliveryPolicy
+	// TrustedConfigurationContext 仅由认证 WebSocket adapter 设置。
+	TrustedConfigurationContext bool
 }
 
 type roomInputQueueLocation struct {
@@ -162,6 +164,14 @@ func (s *Service) HandleInputQueue(
 			if !workspacestore.MatchesInputQueueEnqueueIntent(acceptedEntry.Item, candidate) {
 				return protocol.InputQueueMutationResult{}, workspacestore.ErrInputQueueIdempotencyConflict
 			}
+			if err = s.recordTrustedRoomQueueAdmission(
+				ctx,
+				acceptedEntry.Location,
+				acceptedEntry.Item,
+				request.TrustedConfigurationContext,
+			); err != nil {
+				return protocol.InputQueueMutationResult{}, err
+			}
 			return protocol.InputQueueMutationResult{
 				Action:    action,
 				ItemID:    acceptedEntry.Item.ID,
@@ -182,6 +192,16 @@ func (s *Service) HandleInputQueue(
 		candidate.TargetAgentIDs = targetAgentIDs
 		enqueueResult, err := s.inputQueue.EnqueueIdempotent(location, candidate, clientMessageID)
 		if err != nil {
+			return protocol.InputQueueMutationResult{}, err
+		}
+		if err = s.recordTrustedRoomQueueAdmission(
+			ctx,
+			location,
+			enqueueResult.Item,
+			request.TrustedConfigurationContext,
+		); err != nil {
+			_ = s.revokeRoomQueueAdmission(ctx, location, enqueueResult.Item)
+			_, _ = s.inputQueue.Delete(location, enqueueResult.Item.ID)
 			return protocol.InputQueueMutationResult{}, err
 		}
 		if !enqueueResult.Duplicate {
@@ -819,6 +839,9 @@ func (s *Service) deleteRoomInputQueueItem(ctx context.Context, contextValue *pr
 		return err
 	}
 	if err = rejectGenericControlForBoundQueueItem(entry.Item, "delete"); err != nil {
+		return err
+	}
+	if err = s.revokeRoomQueueAdmission(ctx, entry.Location, entry.Item); err != nil {
 		return err
 	}
 	_, err = s.inputQueue.Delete(entry.Location, itemID)

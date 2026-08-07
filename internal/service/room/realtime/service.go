@@ -22,6 +22,7 @@ import (
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"log/slog"
 	"strings"
@@ -88,10 +89,17 @@ type ChatRequest struct {
 	DeliveryPolicy        protocol.ChatDeliveryPolicy
 	BroadcastUserMessage  bool
 	Internal              bool
-	InputOptions          sdkprotocol.OutboundMessageOptions
-	PermissionMode        sdkpermission.Mode
-	PermissionHandler     sdkpermission.Handler
-	EventObserver         RoomEventObserver
+	// TrustedConfigurationContext 仅由 Nexus WebSocket 用户入口设置，后台/Agent wake/队列不得继承。
+	TrustedConfigurationContext bool
+	// ExecutionOrigin 由服务端调度器写入；非空值不会获得持久配置 capability。
+	ExecutionOrigin string
+	// trustedQueuedConfigurationContext 只能由本包在成功 claim 宿主 DB
+	// admission 后设置，外部 ChatRequest 构造者无法伪造。
+	trustedQueuedConfigurationContext bool
+	InputOptions                      sdkprotocol.OutboundMessageOptions
+	PermissionMode                    sdkpermission.Mode
+	PermissionHandler                 sdkpermission.Handler
+	EventObserver                     RoomEventObserver
 }
 
 // InterruptRequest 表示 Room 会话中断请求。按 root round + agent slot 定位执行对象。
@@ -132,6 +140,7 @@ type Service struct {
 	runtime             *runtimectx.Manager
 	permission          *permissionctx.Context
 	providers           clientopts.RuntimeConfigResolver
+	admission           clientopts.AgentRuntimeAdmissionResolver
 	prefs               roomRuntimePreferencesService
 	files               *workspacestore.SessionFileStore
 	history             *workspacestore.AgentHistoryStore
@@ -140,6 +149,7 @@ type Service struct {
 	directedWakes       *workspacestore.RoomDirectedMessageWakeStore
 	publicHandoffs      *workspacestore.RoomPublicHandoffStore
 	inputQueue          *workspacestore.InputQueueStore
+	queueTrust          queueAdmissionStore
 	usage               usageRecorder
 	quota               quotaChecker
 	goals               goalContextProvider
@@ -166,6 +176,14 @@ type roomTitleScheduler interface {
 
 type roomRuntimePreferencesService interface {
 	Get(context.Context, string) (preferencessvc.Preferences, error)
+}
+
+type queueAdmissionStore interface {
+	Record(context.Context, queueadmissionstore.Admission) error
+	Claim(context.Context, queueadmissionstore.Binding) (queueadmissionstore.Claim, bool, error)
+	Release(context.Context, queueadmissionstore.Claim) error
+	Consume(context.Context, queueadmissionstore.Claim) error
+	Revoke(context.Context, queueadmissionstore.Binding) error
 }
 
 type usageRecorder interface {
@@ -258,9 +276,21 @@ func (s *Service) SetProviderResolver(resolver clientopts.RuntimeConfigResolver)
 	s.providers = resolver
 }
 
+// SetRuntimeAdmissionResolver 注入认证转场与动态强隔离 admission。
+func (s *Service) SetRuntimeAdmissionResolver(
+	resolver clientopts.AgentRuntimeAdmissionResolver,
+) {
+	s.admission = resolver
+}
+
 // SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
 func (s *Service) SetPreferences(prefs roomRuntimePreferencesService) {
 	s.prefs = prefs
+}
+
+// SetQueueAdmissionStore 注入宿主 DB 中不可由 Agent workspace 伪造的队列信任根。
+func (s *Service) SetQueueAdmissionStore(store queueAdmissionStore) {
+	s.queueTrust = store
 }
 
 // SetUsageRecorder 注入 token usage 持久化 ledger。

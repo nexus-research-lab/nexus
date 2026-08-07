@@ -7,9 +7,11 @@ import { useResettableState } from "@/hooks/ui/use-resettable-state";
 export function UiQRCode({
   alt,
   payload,
+  showPayload = true,
 }: {
   alt: string;
   payload: string;
+  showPayload?: boolean;
 }) {
   const value = payload.trim();
   const [generatedImageUrl, setGeneratedImageUrl] = useResettableState("", value);
@@ -56,12 +58,14 @@ export function UiQRCode({
         />
       ) : (
         <div className="flex h-[220px] w-[220px] items-center justify-center rounded-[8px] bg-(--surface-paper-background) p-4 text-center text-compact leading-5 text-(--surface-paper-muted)">
-          二维码生成失败，请使用下方链接
+          {showPayload ? "二维码生成失败，请使用下方链接" : "二维码生成失败，请重新发起授权"}
         </div>
       )}
-      <code className="max-w-full truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-xs text-(--text-muted)">
-        {payload}
-      </code>
+      {showPayload ? (
+        <code className="max-w-full truncate rounded-[8px] border border-(--divider-subtle-color) px-2 py-1 text-xs text-(--text-muted)">
+          {payload}
+        </code>
+      ) : null}
     </div>
   );
 }

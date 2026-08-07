@@ -1,3 +1,6 @@
+// INPUT: Provider create/full update/merge patch 与当前未脱敏持久化记录。
+// OUTPUT: 经过端点策略、格式与凭据规则规整的完整 Provider 写入值。
+// POS: 对话 patch 在 CAS 前合并最新 Provider 真相的纯规整层。
 package provider
 
 import (
@@ -128,6 +131,41 @@ func normalizeUpdateInput(current providerstore.Entity, input UpdateInput) (prov
 	current.APIFormat = apiFormat
 	current.ProviderKind = providerKind
 	return current, nil
+}
+
+func updateInputFromPatch(current providerstore.Entity, patch PatchInput) UpdateInput {
+	input := UpdateInput{
+		ProviderKind: current.ProviderKind,
+		PresetKey:    current.PresetKey,
+		APIFormat:    current.APIFormat,
+		DisplayName:  current.DisplayName,
+		BaseURL:      current.BaseURL,
+		ModelsPath:   current.ModelsPath,
+		Enabled:      current.Enabled,
+		AuthToken:    patch.AuthToken,
+	}
+	if patch.ProviderKind != nil {
+		input.ProviderKind = *patch.ProviderKind
+	}
+	if patch.PresetKey != nil {
+		input.PresetKey = *patch.PresetKey
+	}
+	if patch.APIFormat != nil {
+		input.APIFormat = *patch.APIFormat
+	}
+	if patch.DisplayName != nil {
+		input.DisplayName = *patch.DisplayName
+	}
+	if patch.BaseURL != nil {
+		input.BaseURL = *patch.BaseURL
+	}
+	if patch.ModelsPath != nil {
+		input.ModelsPath = *patch.ModelsPath
+	}
+	if patch.Enabled != nil {
+		input.Enabled = *patch.Enabled
+	}
+	return input
 }
 
 func normalizePresetBaseURL(preset Preset, inputBaseURL string, fallbackBaseURL string) (string, error) {

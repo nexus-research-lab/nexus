@@ -111,15 +111,20 @@ func setTestDefaultAgentSelection(service *Service, selection DefaultAgentSelect
 type runtimeSelection struct {
 	provider string
 	model    string
+	version  int64
 }
 
 func runtimeSelectionsByAgent(t *testing.T, db *sql.DB, agentIDs ...string) map[string]runtimeSelection {
 	t.Helper()
 	result := map[string]runtimeSelection{}
 	for _, agentID := range agentIDs {
-		row := db.QueryRow(`SELECT COALESCE(provider, ''), COALESCE(model, '') FROM runtimes WHERE agent_id = ? LIMIT 1`, agentID)
+		row := db.QueryRow(
+			`SELECT COALESCE(provider, ''), COALESCE(model, ''), runtime_version
+			 FROM runtimes WHERE agent_id = ? LIMIT 1`,
+			agentID,
+		)
 		var item runtimeSelection
-		if err := row.Scan(&item.provider, &item.model); err != nil {
+		if err := row.Scan(&item.provider, &item.model, &item.version); err != nil {
 			t.Fatalf("读取 runtime provider/model 失败: %v", err)
 		}
 		result[agentID] = item

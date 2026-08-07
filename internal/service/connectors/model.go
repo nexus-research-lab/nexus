@@ -50,6 +50,20 @@ type OAuthClientConfig struct {
 	Configured  bool   `json:"configured"`
 }
 
+// ConfigurationState 是单个 Connector 的 owner-scoped 持久配置版本。
+// 它只暴露凭据是否存在，不返回可恢复的秘密。
+type ConfigurationState struct {
+	ConnectorID           string `json:"connector_id"`
+	ConfigurationVersion  int64  `json:"configuration_version"`
+	ConnectionExists      bool   `json:"connection_exists"`
+	ConnectionState       string `json:"connection_state,omitempty"`
+	ConnectionAuthType    string `json:"connection_auth_type,omitempty"`
+	ConnectionConfigured  bool   `json:"connection_credentials_configured"`
+	OAuthClientExists     bool   `json:"oauth_client_exists"`
+	OAuthClientID         string `json:"oauth_client_id,omitempty"`
+	OAuthClientConfigured bool   `json:"oauth_client_configured"`
+}
+
 // AuthURLResult 表示 OAuth 授权地址。
 type AuthURLResult struct {
 	AuthURL string `json:"auth_url"`
@@ -111,16 +125,18 @@ type connectionRecord struct {
 	AuthType             string
 	OAuthState           sql.NullString
 	OAuthStateExpiresAt  sql.NullTime
+	ConfigurationVersion int64
 }
 
 type stateRow struct {
-	OwnerUserID  string
-	State        string
-	ConnectorID  string
-	CodeVerifier string
-	RedirectURI  string
-	RedirectKind string
-	ShopDomain   string
-	ExtraJSON    string
-	ExpiresAt    time.Time
+	OwnerUserID   string
+	State         string
+	ConnectorID   string
+	CodeVerifier  string
+	RedirectURI   string
+	RedirectKind  string
+	ShopDomain    string
+	ExtraJSON     string
+	ControlFlowID string
+	ExpiresAt     time.Time
 }

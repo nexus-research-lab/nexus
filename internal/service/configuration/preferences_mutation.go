@@ -17,46 +17,79 @@ func (s *Service) updatePreferences(
 	actor Actor,
 	input preferencessvc.UpdateRequest,
 	rawInput json.RawMessage,
+	stateVersion int64,
 ) (preferencessvc.Preferences, error) {
-	previous, err := s.prefs.Get(ctx, actor.OwnerUserID)
+	webSearchChanged := inputContainsField(rawInput, "web_search") ||
+		inputContainsField(rawInput, "web_search_api_key")
+	var previous preferencessvc.Preferences
+	updated, err := s.prefs.UpdatePreparedAtVersion(
+		ctx,
+		actor.OwnerUserID,
+		stateVersion,
+		func(current preferencessvc.Preferences) (preferencessvc.UpdateRequest, error) {
+			previous = current
+			merged, mergeErr := mergedPreferencesUpdate(current, input, rawInput)
+			if mergeErr != nil {
+				return preferencessvc.UpdateRequest{}, mergeErr
+			}
+			return s.reconcileProviderPreferenceDefaults(ctx, merged)
+		},
+	)
 	if err != nil {
 		return preferencessvc.Preferences{}, err
 	}
-	input, err = mergedPreferencesUpdate(previous, input, rawInput)
-	if err != nil {
-		return preferencessvc.Preferences{}, err
-	}
-	updated, err := s.prefs.Update(ctx, actor.OwnerUserID, input)
-	if err != nil {
-		return preferencessvc.Preferences{}, err
-	}
-	updated, err = s.reconcileProviderPreferenceDefaults(ctx, actor.OwnerUserID, updated)
-	if err != nil {
-		restoreErr := s.restorePreferences(ctx, actor.OwnerUserID, previous)
-		return preferencessvc.Preferences{}, errors.Join(err, restoreErr)
-	}
-	if s.runtime == nil || s.agents == nil || (input.WebSearch == nil && input.WebSearchAPIKey == nil) {
+	if !webSearchChanged {
 		return updated, nil
+	}
+	if s.runtime == nil || s.agents == nil {
+		reconcileErr := errors.New("WebSearch 配置已写入，但活跃 runtime 同步依赖未装配")
+		_, _, restoreErr := s.prefs.RestoreIfVersion(
+			ctx,
+			actor.OwnerUserID,
+			updated.Version,
+			previous,
+		)
+		return preferencessvc.Preferences{}, errors.Join(reconcileErr, restoreErr)
 	}
 	if err = s.syncWebSearchRuntime(ctx, updated); err == nil {
 		return updated, nil
 	}
-	restoreErr := s.restorePreferences(ctx, actor.OwnerUserID, previous)
-	runtimeRestoreErr := s.syncWebSearchRuntime(ctx, previous)
-	return preferencessvc.Preferences{}, errors.Join(err, restoreErr, runtimeRestoreErr)
+	restoredValue, restored, restoreErr := s.prefs.RestoreIfVersion(
+		ctx,
+		actor.OwnerUserID,
+		updated.Version,
+		previous,
+	)
+	if restoreErr != nil {
+		return preferencessvc.Preferences{}, errors.Join(err, restoreErr)
+	}
+	var rollbackStateErr error
+	if !restored {
+		rollbackStateErr = errors.New("WebSearch runtime 同步失败后的回滚已跳过：Preferences 已有后续写入")
+	}
+	runtimeRestoreErr := s.syncWebSearchRuntime(ctx, restoredValue)
+	return preferencessvc.Preferences{}, errors.Join(err, rollbackStateErr, runtimeRestoreErr)
 }
 
 func (s *Service) reconcileProviderPreferenceDefaults(
 	ctx context.Context,
-	ownerUserID string,
-	preferences preferencessvc.Preferences,
-) (preferencessvc.Preferences, error) {
+	request preferencessvc.UpdateRequest,
+) (preferencessvc.UpdateRequest, error) {
 	if s.providers == nil {
-		return preferences, nil
+		return request, nil
 	}
-	options, err := s.providers.ListOptionsForRuntime(ctx, preferences.AgentRuntimeKind)
+	if request.AgentRuntimeKind == nil ||
+		request.DefaultAgentOptions == nil ||
+		request.DefaultImageModelSelection == nil {
+		return preferencessvc.UpdateRequest{}, errors.New("合并后的 Preferences 缺少默认 runtime 或模型字段")
+	}
+	options, err := s.providers.ListOptionsForRuntime(ctx, *request.AgentRuntimeKind)
 	if err != nil {
-		return preferencessvc.Preferences{}, err
+		return preferencessvc.UpdateRequest{}, err
+	}
+	preferences := preferencessvc.Preferences{
+		DefaultAgentOptions:        *request.DefaultAgentOptions,
+		DefaultImageModelSelection: *request.DefaultImageModelSelection,
 	}
 	adjusted, changed := preferencessvc.ReconcileImagegenDefaultTool(
 		preferences,
@@ -66,32 +99,10 @@ func (s *Service) reconcileProviderPreferenceDefaults(
 		),
 	)
 	if !changed {
-		return adjusted, nil
+		return request, nil
 	}
-	return s.prefs.Update(ctx, ownerUserID, preferencessvc.UpdateRequest{
-		DefaultAgentOptions: &adjusted.DefaultAgentOptions,
-	})
-}
-
-func (s *Service) restorePreferences(
-	ctx context.Context,
-	ownerUserID string,
-	previous preferencessvc.Preferences,
-) error {
-	webSearchAPIKey := previous.WebSearchAPIKey()
-	_, err := s.prefs.Update(ctx, ownerUserID, preferencessvc.UpdateRequest{
-		ChatDefaultDeliveryPolicy:       &previous.ChatDefaultDeliveryPolicy,
-		AgentRuntimeKind:                &previous.AgentRuntimeKind,
-		AgentSDKDiagnosticsEnabled:      &previous.AgentSDKDiagnosticsEnabled,
-		RuntimeSettings:                 &previous.RuntimeSettings,
-		WebSearch:                       &previous.WebSearch,
-		WebSearchAPIKey:                 &webSearchAPIKey,
-		DefaultAgentOptions:             &previous.DefaultAgentOptions,
-		DefaultImageModelSelection:      &previous.DefaultImageModelSelection,
-		DefaultVisionModelSelection:     &previous.DefaultVisionModelSelection,
-		DefaultBackgroundModelSelection: &previous.DefaultBackgroundModelSelection,
-	})
-	return err
+	request.DefaultAgentOptions = &adjusted.DefaultAgentOptions
+	return request, nil
 }
 
 func (s *Service) syncWebSearchRuntime(ctx context.Context, preferences preferencessvc.Preferences) error {
@@ -100,10 +111,11 @@ func (s *Service) syncWebSearchRuntime(ctx context.Context, preferences preferen
 		return err
 	}
 	environment := clientopts.BuildWebSearchRuntimeEnv("nxs", preferences.WebSearch)
+	errs := make([]error, 0)
 	for _, item := range agents {
 		if err = s.runtime.UpdateEnvironmentForAgent(ctx, item.AgentID, environment); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }

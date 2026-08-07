@@ -10,10 +10,30 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
 // AddRoomMember 向房间追加成员。
 func (s *Service) AddRoomMember(ctx context.Context, roomID string, request protocol.AddRoomMemberRequest) (*protocol.ConversationContextAggregate, error) {
+	return s.addRoomMember(ctx, roomID, request, nil)
+}
+
+// AddRoomMemberAtVersion 使用 Room 资源版本追加成员。
+func (s *Service) AddRoomMemberAtVersion(
+	ctx context.Context,
+	roomID string,
+	request protocol.AddRoomMemberRequest,
+	expectedVersion int64,
+) (*protocol.ConversationContextAggregate, error) {
+	return s.addRoomMember(ctx, roomID, request, &expectedVersion)
+}
+
+func (s *Service) addRoomMember(
+	ctx context.Context,
+	roomID string,
+	request protocol.AddRoomMemberRequest,
+	expectedVersion *int64,
+) (*protocol.ConversationContextAggregate, error) {
 	agentValue, err := s.ensureGroupMemberAgent(ctx, request.AgentID)
 	if err != nil {
 		return nil, err
@@ -24,7 +44,24 @@ func (s *Service) AddRoomMember(ctx context.Context, roomID string, request prot
 	if err != nil {
 		return nil, err
 	}
-	contextValue, err := s.repository.AddRoomMember(ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID), agentRefs[0])
+	var contextValue *protocol.ConversationContextAggregate
+	if expectedVersion == nil {
+		contextValue, err = s.repository.AddRoomMember(
+			ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID), agentRefs[0],
+		)
+	} else {
+		versioned, ok := s.repository.(interface {
+			AddRoomMemberAtVersion(
+				context.Context, string, string, roomrepo.AgentRuntimeRef, int64,
+			) (*protocol.ConversationContextAggregate, error)
+		})
+		if !ok {
+			return nil, errors.New("Room repository 不支持成员资源版本")
+		}
+		contextValue, err = versioned.AddRoomMemberAtVersion(
+			ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID), agentRefs[0], *expectedVersion,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -36,6 +73,25 @@ func (s *Service) AddRoomMember(ctx context.Context, roomID string, request prot
 
 // RemoveRoomMember 从房间移除成员。
 func (s *Service) RemoveRoomMember(ctx context.Context, roomID string, agentID string) (*protocol.ConversationContextAggregate, error) {
+	return s.removeRoomMember(ctx, roomID, agentID, nil)
+}
+
+// RemoveRoomMemberAtVersion 使用 Room 资源版本移除成员。
+func (s *Service) RemoveRoomMemberAtVersion(
+	ctx context.Context,
+	roomID string,
+	agentID string,
+	expectedVersion int64,
+) (*protocol.ConversationContextAggregate, error) {
+	return s.removeRoomMember(ctx, roomID, agentID, &expectedVersion)
+}
+
+func (s *Service) removeRoomMember(
+	ctx context.Context,
+	roomID string,
+	agentID string,
+	expectedVersion *int64,
+) (*protocol.ConversationContextAggregate, error) {
 	agentValue, err := s.ensureGroupMemberAgent(ctx, agentID)
 	if err != nil {
 		return nil, err
@@ -67,7 +123,24 @@ func (s *Service) RemoveRoomMember(ctx context.Context, roomID string, agentID s
 		return nil, errors.New("Room 至少保留一个 agent 成员")
 	}
 
-	contextValue, err := s.repository.RemoveRoomMember(ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID), normalizedAgentID)
+	var contextValue *protocol.ConversationContextAggregate
+	if expectedVersion == nil {
+		contextValue, err = s.repository.RemoveRoomMember(
+			ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID), normalizedAgentID,
+		)
+	} else {
+		versioned, ok := s.repository.(interface {
+			RemoveRoomMemberAtVersion(
+				context.Context, string, string, string, int64,
+			) (*protocol.ConversationContextAggregate, error)
+		})
+		if !ok {
+			return nil, errors.New("Room repository 不支持成员资源版本")
+		}
+		contextValue, err = versioned.RemoveRoomMemberAtVersion(
+			ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID), normalizedAgentID, *expectedVersion,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -1,3 +1,6 @@
+// INPUT: owner/Room/对话标识及 Room 仓储查询器。
+// OUTPUT: 含配置版本、权限世代、成员、对话和 session 的 Room 聚合。
+// POS: Room 持久化状态的 owner 隔离加载与聚合装配层。
 package roomrepo
 
 import (
@@ -27,7 +30,7 @@ func (r *SQLRepository) getRoomAggregate(ctx context.Context, querier roomQuerye
 
 func (r *SQLRepository) loadRoom(ctx context.Context, querier roomQueryer, ownerUserID string, roomID string) (*protocol.RoomRecord, error) {
 	query := `
-SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, COALESCE(host_agent_id, ''), host_auto_reply_enabled, private_messages_enabled, created_at, updated_at
+SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, COALESCE(host_agent_id, ''), host_auto_reply_enabled, private_messages_enabled, configuration_version, authority_epoch, created_at, updated_at
 FROM rooms
 WHERE id = ` + r.dialect.Bind(1)
 	args := []any{roomID}
@@ -109,7 +112,7 @@ func (r *SQLRepository) loadRoomsByIDs(
 		return map[string]protocol.RoomRecord{}, nil
 	}
 	query := fmt.Sprintf(`
-SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, COALESCE(host_agent_id, ''), host_auto_reply_enabled, private_messages_enabled, created_at, updated_at
+SELECT id, owner_user_id, room_type, COALESCE(name, ''), description, COALESCE(avatar, ''), skill_names, COALESCE(host_agent_id, ''), host_auto_reply_enabled, private_messages_enabled, configuration_version, authority_epoch, created_at, updated_at
 FROM rooms
 WHERE id IN (%s)`, r.dialect.BindList(len(roomIDs)))
 	args := make([]any, 0, len(roomIDs))

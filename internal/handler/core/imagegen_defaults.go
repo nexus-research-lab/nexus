@@ -23,24 +23,34 @@ func (h *Handlers) withProviderPreferenceDefaults(
 	return adjusted, nil
 }
 
-func (h *Handlers) persistProviderPreferenceDefaults(
+func (h *Handlers) prepareProviderPreferenceDefaults(
 	request *http.Request,
-	prefs preferencessvc.Preferences,
-) (preferencessvc.Preferences, error) {
-	if h.prefs == nil || h.providers == nil {
-		return prefs, nil
+	current preferencessvc.Preferences,
+	update preferencessvc.UpdateRequest,
+) (preferencessvc.UpdateRequest, error) {
+	if h.providers == nil {
+		return update, nil
 	}
-	providerOptions, err := h.providers.ListOptionsForRuntime(request.Context(), prefs.AgentRuntimeKind)
+	effective := current
+	if update.AgentRuntimeKind != nil {
+		effective.AgentRuntimeKind = *update.AgentRuntimeKind
+	}
+	if update.DefaultAgentOptions != nil {
+		effective.DefaultAgentOptions = *update.DefaultAgentOptions
+	}
+	if update.DefaultImageModelSelection != nil {
+		effective.DefaultImageModelSelection = *update.DefaultImageModelSelection
+	}
+	providerOptions, err := h.providers.ListOptionsForRuntime(request.Context(), effective.AgentRuntimeKind)
 	if err != nil {
-		return preferencessvc.Preferences{}, err
+		return preferencessvc.UpdateRequest{}, err
 	}
-	adjusted, changed := applyImagegenDefaultTool(prefs, providerOptions)
+	adjusted, changed := applyImagegenDefaultTool(effective, providerOptions)
 	if !changed {
-		return adjusted, nil
+		return update, nil
 	}
-	return h.prefs.Update(request.Context(), currentOwnerUserID(request), preferencessvc.UpdateRequest{
-		DefaultAgentOptions: &adjusted.DefaultAgentOptions,
-	})
+	update.DefaultAgentOptions = &adjusted.DefaultAgentOptions
+	return update, nil
 }
 
 func updatedDefaultAgentSelection(

@@ -1,4 +1,4 @@
-// INPUT: configuration 服务与可信主智能体上下文。
+// INPUT: configuration 服务与可信 Agent/DM/Room runtime 上下文。
 // OUTPUT: 配置发现、预检、应用与审计工具集合。
 // POS: nexus_config MCP 工具注册表。
 package tool

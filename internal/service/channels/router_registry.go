@@ -1,3 +1,6 @@
+// INPUT: owner+channel 维度的运行实例注册、热启动与注销请求。
+// OUTPUT: 每个路由键串行、候选先启动后发布且 generation 单调的注册表状态。
+// POS: Router 的实例替换边界，阻止失败或过期候选污染当前路由。
 package channels
 
 import (
@@ -5,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"sync"
 )
 
 // RegisterForOwner 按 owner 注册投递通道；同一 owner 的同类通道会替换旧实例。
@@ -12,12 +16,22 @@ func (r *Router) RegisterForOwner(ownerUserID string, channel DeliveryChannel) {
 	if channel == nil {
 		return
 	}
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	channelType := normalizeChannelType(channel.ChannelType())
+	unlock := r.lockRouteMutation(ownerUserID, channelType)
+	defer unlock()
+
 	entry := r.newRegisteredChannel(ownerUserID, channel)
+	key := channelRouteKey(entry.ownerUserID, entry.channelType)
 	r.mu.Lock()
-	replaced := r.channels[channelRouteKey(entry.ownerUserID, entry.channelType)]
-	r.channels[channelRouteKey(entry.ownerUserID, entry.channelType)] = entry
+	replaced := r.channels[key]
+	adopted := replaced != nil &&
+		replaced.channel != nil &&
+		replaced.channel != channel &&
+		adoptReplacedChannel(channel, replaced.channel)
+	r.channels[key] = entry
 	r.mu.Unlock()
-	if replaced != nil && replaced.channel != nil && replaced.channel != channel && !adoptReplacedChannel(channel, replaced.channel) {
+	if replaced != nil && replaced.channel != nil && replaced.channel != channel && !adopted {
 		_ = replaced.channel.Stop(context.Background())
 	}
 }
@@ -27,29 +41,60 @@ func (r *Router) RegisterAndStartForOwner(ctx context.Context, ownerUserID strin
 	if channel == nil {
 		return nil
 	}
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	channelType := normalizeChannelType(channel.ChannelType())
+	unlock := r.lockRouteMutation(ownerUserID, channelType)
+	defer unlock()
+
 	entry := r.newRegisteredChannel(ownerUserID, channel)
+	key := channelRouteKey(entry.ownerUserID, entry.channelType)
 
 	r.mu.Lock()
-	replaced := r.channels[channelRouteKey(entry.ownerUserID, entry.channelType)]
-	r.channels[channelRouteKey(entry.ownerUserID, entry.channelType)] = entry
+	replaced := r.channels[key]
 	running := r.running
 	runCtx := r.runCtx
-	r.mu.Unlock()
-	if replaced != nil && replaced.channel != nil && replaced.channel != channel && !adoptReplacedChannel(channel, replaced.channel) {
-		_ = replaced.channel.Stop(context.Background())
-	}
-
 	if !running {
+		adopted := replaced != nil &&
+			replaced.channel != nil &&
+			replaced.channel != channel &&
+			adoptReplacedChannel(channel, replaced.channel)
+		r.channels[key] = entry
+		r.mu.Unlock()
+		if replaced != nil && replaced.channel != nil && replaced.channel != channel && !adopted {
+			_ = replaced.channel.Stop(context.Background())
+		}
 		return nil
 	}
+	r.mu.Unlock()
+
 	if runCtx == nil {
 		runCtx = ctx
 	}
 	if err := channel.Start(runCtx); err != nil {
-		r.markChannelStartResult(entry.ownerUserID, entry.channelType, false, err)
+		_ = channel.Stop(context.Background())
 		return err
 	}
-	r.markChannelStartResult(entry.ownerUserID, entry.channelType, true, nil)
+
+	r.mu.Lock()
+	replaced = r.channels[key]
+	if !r.running {
+		entry.started = isAlwaysReadyChannel(entry.channelType)
+		r.channels[key] = entry
+		r.mu.Unlock()
+		_ = channel.Stop(context.Background())
+		return nil
+	}
+	adopted := replaced != nil &&
+		replaced.channel != nil &&
+		replaced.channel != channel &&
+		adoptReplacedChannel(channel, replaced.channel)
+	entry.started = true
+	entry.lastError = ""
+	r.channels[key] = entry
+	r.mu.Unlock()
+	if replaced != nil && replaced.channel != nil && replaced.channel != channel && !adopted {
+		_ = replaced.channel.Stop(context.Background())
+	}
 	return nil
 }
 
@@ -69,50 +114,75 @@ func adoptReplacedChannel(channel DeliveryChannel, replaced DeliveryChannel) boo
 }
 
 // UnregisterForOwner 停止并移除指定 owner 的通道实例。
-func (r *Router) UnregisterForOwner(ctx context.Context, ownerUserID string, channelType string) {
-	key := channelRouteKey(normalizeChannelOwnerUserID(ownerUserID), normalizeChannelType(channelType))
+func (r *Router) UnregisterForOwner(ctx context.Context, ownerUserID string, channelType string) error {
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	channelType = normalizeChannelType(channelType)
+	unlock := r.lockRouteMutation(ownerUserID, channelType)
+	defer unlock()
+
+	key := channelRouteKey(ownerUserID, channelType)
 	r.mu.Lock()
 	entry := r.channels[key]
 	delete(r.channels, key)
 	r.mu.Unlock()
 	if entry != nil && entry.channel != nil {
-		_ = entry.channel.Stop(ctx)
+		return entry.channel.Stop(ctx)
 	}
+	return nil
 }
 
 func (r *Router) newRegisteredChannel(ownerUserID string, channel DeliveryChannel) *registeredChannel {
-	r.mu.RLock()
+	r.mu.Lock()
 	logger := r.logger
 	ingress := r.ingress
-	r.mu.RUnlock()
+	r.nextGeneration++
+	generation := r.nextGeneration
+	r.mu.Unlock()
 
-	setChannelLogger(channel, logger)
-	if aware, ok := channel.(ingressAwareChannel); ok {
-		aware.SetIngress(ingress)
-	}
 	channelType := normalizeChannelType(channel.ChannelType())
-	return &registeredChannel{
+	entry := &registeredChannel{
 		ownerUserID: normalizeChannelOwnerUserID(ownerUserID),
 		channelType: channelType,
 		channel:     channel,
+		generation:  generation,
 		started:     isAlwaysReadyChannel(channelType),
 	}
+	setChannelLogger(channel, logger)
+	if aware, ok := channel.(ingressAwareChannel); ok {
+		aware.SetIngress(r.ingressForRegisteredChannel(entry, ingress))
+	}
+	return entry
 }
 
-func (r *Router) markChannelStartResult(ownerUserID string, channelType string, started bool, startErr error) {
-	key := channelRouteKey(normalizeChannelOwnerUserID(ownerUserID), normalizeChannelType(channelType))
+func (r *Router) markChannelStartResult(candidate *registeredChannel, started bool, startErr error) bool {
+	if candidate == nil {
+		return false
+	}
+	key := channelRouteKey(candidate.ownerUserID, candidate.channelType)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	entry := r.channels[key]
-	if entry == nil {
-		return
+	if entry == nil || entry.generation != candidate.generation {
+		return false
 	}
 	entry.started = started || isAlwaysReadyChannel(entry.channelType)
 	if startErr != nil {
 		entry.lastError = startErr.Error()
-		return
+		return true
 	}
 	entry.lastError = ""
+	return true
+}
+
+func (r *Router) lockRouteMutation(ownerUserID string, channelType string) func() {
+	key := channelRouteKey(
+		normalizeChannelOwnerUserID(ownerUserID),
+		normalizeChannelType(channelType),
+	)
+	value, _ := r.routeLocks.LoadOrStore(key, &sync.Mutex{})
+	lock := value.(*sync.Mutex)
+	lock.Lock()
+	return lock.Unlock
 }
 
 func channelRouteKey(ownerUserID string, channelType string) string {

@@ -524,7 +524,8 @@ func TestForceDeleteProviderPreservesExplicitBindingsForAutomaticRestore(t *test
 	}
 	insertProviderUsageAgent(t, db, "agent-force-a", "force-a", "Force A", "", true, target.Provider, "active")
 	insertProviderUsageAgent(t, db, "agent-force-b", "force-b", "Force B", "", false, target.Provider, "active")
-	if _, err = db.Exec(`UPDATE runtimes SET model = ? WHERE agent_id IN (?, ?)`, "target-model", "agent-force-a", "agent-force-b"); err != nil {
+	insertProviderUsageAgent(t, db, "agent-force-archived", "force-archived", "Force Archived", "", false, target.Provider, "archived")
+	if _, err = db.Exec(`UPDATE runtimes SET model = ? WHERE agent_id IN (?, ?, ?)`, "target-model", "agent-force-a", "agent-force-b", "agent-force-archived"); err != nil {
 		t.Fatalf("写入待删除模型绑定失败: %v", err)
 	}
 	if _, err = service.Delete(ctx, target.Provider, DeleteInput{}); err == nil {
@@ -534,17 +535,19 @@ func TestForceDeleteProviderPreservesExplicitBindingsForAutomaticRestore(t *test
 	if err != nil {
 		t.Fatalf("强制删除 provider 失败: %v", err)
 	}
-	if !result.FallbackToDefault || result.AffectedRuntimeCount != 2 {
+	if !result.FallbackToDefault || result.AffectedRuntimeCount != 3 {
 		t.Fatalf("强制删除结果不正确: %+v", result)
 	}
 	if _, err = service.Get(ctx, target.Provider); err == nil {
 		t.Fatalf("待删除 provider 应已移除")
 	}
-	runtimes := runtimeSelectionsByAgent(t, db, "agent-force-a", "agent-force-b")
+	runtimes := runtimeSelectionsByAgent(t, db, "agent-force-a", "agent-force-b", "agent-force-archived")
 	if runtimes["agent-force-a"].provider != target.Provider ||
 		runtimes["agent-force-a"].model != "target-model" ||
 		runtimes["agent-force-b"].provider != target.Provider ||
-		runtimes["agent-force-b"].model != "target-model" {
+		runtimes["agent-force-b"].model != "target-model" ||
+		runtimes["agent-force-archived"].provider != target.Provider ||
+		runtimes["agent-force-archived"].model != "target-model" {
 		t.Fatalf("runtime provider/model 应保留原选择，以便重新配置后自动恢复: %+v", runtimes)
 	}
 	options, err := service.ListOptions(ctx)

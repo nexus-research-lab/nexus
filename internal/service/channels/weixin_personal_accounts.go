@@ -1,3 +1,6 @@
+// INPUT: 个人微信账号公开配置、加密凭据与事务 runner。
+// OUTPUT: 多账号 runtime 构造和登录账号的事务持久化。
+// POS: 个人微信 account 映射层，登录 writer 与 Channel control version 同事务。
 package channels
 
 import (
@@ -50,6 +53,7 @@ func (s *ControlService) personalWeixinAccountChannels(
 
 func (s *ControlService) saveLegacyPersonalWeixinAccount(
 	ctx context.Context,
+	store channelStore,
 	row *channelConfigRow,
 	publicConfig map[string]string,
 	secrets map[string]string,
@@ -67,7 +71,7 @@ func (s *ControlService) saveLegacyPersonalWeixinAccount(
 	if err != nil {
 		return err
 	}
-	return s.upsertChannelAccountRow(ctx, channelAccountRow{
+	return s.upsertChannelAccountRowWith(ctx, store, channelAccountRow{
 		OwnerUserID: row.OwnerUserID,
 		ChannelType: row.ChannelType,
 		AccountID:   accountID,
@@ -83,6 +87,7 @@ func (s *ControlService) saveLegacyPersonalWeixinAccount(
 
 func (s *ControlService) savePersonalWeixinAccount(
 	ctx context.Context,
+	store channelStore,
 	row *channelConfigRow,
 	publicConfig map[string]string,
 	status channeladapters.PersonalWeixinQRStatusResponse,
@@ -100,7 +105,7 @@ func (s *ControlService) savePersonalWeixinAccount(
 	if err != nil {
 		return err
 	}
-	return s.upsertChannelAccountRow(ctx, channelAccountRow{
+	return s.upsertChannelAccountRowWith(ctx, store, channelAccountRow{
 		OwnerUserID: row.OwnerUserID,
 		ChannelType: row.ChannelType,
 		AccountID:   accountID,

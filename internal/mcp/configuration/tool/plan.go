@@ -14,8 +14,8 @@ import (
 func plan(svc contract.Service, sctx contract.ServerContext) sdktool.Tool {
 	return sdktool.Tool{
 		Name: "plan_nexus_configuration_change",
-		Description: "预检一项 Nexus 配置变更，不执行写入。返回 current_revision、风险、是否需要用户确认以及运行时生效时机。" +
-			"必须把完全相同的 domain/operation/target/input 和 current_revision 交给 apply；破坏性操作先向用户说明影响并确认。",
+		Description: "预检一项 Nexus 配置变更，不执行写入。返回 scope、current_revision、plan_digest、风险、确认要求与运行时生效时机。" +
+			"必须把完全相同的 domain/operation/target/input、current_revision 和 plan_digest 交给 apply；需确认的操作先向用户说明影响并取得明确确认。",
 		SearchHint:  "Nexus configuration plan change validate dry run settings",
 		InputSchema: planSchema(), Annotations: &sdktool.ToolAnnotations{ReadOnly: true},
 		Handler: func(ctx context.Context, args map[string]any) (sdktool.ToolResult, error) {

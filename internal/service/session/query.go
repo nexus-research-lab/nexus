@@ -21,6 +21,11 @@ func (s *Service) ListSessions(ctx context.Context) ([]protocol.Session, error) 
 	return mergeSessions(fileSessions, roomSessions), nil
 }
 
+// ListMutableSessions 只列出 owner workspace 中由 Session 域管理的 Agent 会话。
+func (s *Service) ListMutableSessions(ctx context.Context) ([]protocol.Session, error) {
+	return s.listMutableWorkspaceSessions(ctx)
+}
+
 // ListAgentSessions 列出指定 Agent 的全部会话。
 func (s *Service) ListAgentSessions(ctx context.Context, agentID string) ([]protocol.Session, error) {
 	agentValue, err := s.agentService.GetAgent(ctx, agentID)
@@ -97,5 +102,21 @@ func (s *Service) GetSession(ctx context.Context, rawSessionKey string) (*protoc
 	if err != nil {
 		return nil, err
 	}
+	return &normalized, nil
+}
+
+// GetMutableSession 读取 Session 域可变的 Agent workspace 会话。
+func (s *Service) GetMutableSession(
+	ctx context.Context,
+	rawSessionKey string,
+) (*protocol.Session, error) {
+	item, _, _, err := s.loadMutableWorkspaceSession(ctx, rawSessionKey)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, ErrSessionNotFound
+	}
+	normalized := s.applyRuntimeStateToSession(*item)
 	return &normalized, nil
 }

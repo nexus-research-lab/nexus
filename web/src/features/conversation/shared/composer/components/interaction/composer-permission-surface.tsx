@@ -14,7 +14,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getPrimaryToolInputDetail,
@@ -23,6 +23,13 @@ import {
 import {
   getToolInputSummary,
 } from "@/features/conversation/shared/message/tool-activity";
+import {
+  createConfigurationSecretDraft,
+  getConfigurationSecretDraftValues,
+  hasCompleteConfigurationSecrets,
+  selectConfigurationSecrets,
+  updateConfigurationSecretDraft,
+} from "@/lib/conversation/configuration-secret-permission";
 import {
   type I18nContextValue,
   useI18n,
@@ -80,12 +87,26 @@ export function ComposerPermissionSurface({
   const localization = useI18n();
   const { t } = localization;
   const [isScopeMenuOpen, setIsScopeMenuOpen] = useState(false);
+  const [secretDraft, setSecretDraft] = useState(() =>
+    createConfigurationSecretDraft(permission.request_id));
   const scopeMenuAnchorRef = useRef<HTMLButtonElement>(null);
   const presentation = buildPermissionPresentation(
     permission,
     kind,
     localization,
   );
+  const secretSlots = permission.configuration_secret_slots ?? [];
+  const secretValues = getConfigurationSecretDraftValues(
+    secretDraft,
+    permission.request_id,
+  );
+  const hasCompleteSecrets = hasCompleteConfigurationSecrets(
+    secretSlots,
+    secretValues,
+  );
+  useEffect(() => {
+    setSecretDraft(createConfigurationSecretDraft(permission.request_id));
+  }, [permission.request_id]);
   const scopeItems = useMemo(
     () => [
       {
@@ -145,16 +166,33 @@ export function ComposerPermissionSurface({
     decision: PermissionDecisionPayload["decision"],
     suggestionIndex?: number,
   ) => {
+    const configurationSecrets = decision === "allow"
+      ? selectConfigurationSecrets(secretSlots, secretValues)
+      : undefined;
+    if (
+      decision === "allow"
+      && secretSlots.length > 0
+      && !configurationSecrets
+    ) {
+      return false;
+    }
     const selectedSuggestion = suggestionIndex === undefined
       ? undefined
       : permission.suggestions?.[suggestionIndex];
-    return onResponse({
+    const accepted = onResponse({
       decision,
       request_id: permission.request_id,
+      ...(configurationSecrets
+        ? { configuration_secrets: configurationSecrets }
+        : {}),
       updated_permissions: selectedSuggestion
         ? [selectedSuggestion]
         : undefined,
     });
+    if (accepted) {
+      setSecretDraft(createConfigurationSecretDraft(permission.request_id));
+    }
+    return accepted;
   };
 
   return (
@@ -200,6 +238,52 @@ export function ComposerPermissionSurface({
         ) : null}
       </div>
 
+      {secretSlots.length > 0 ? (
+        <fieldset
+          className="space-y-3 rounded-2xl border border-(--divider-subtle-color) p-3"
+          disabled={interactionDisabled}
+        >
+          <legend className="px-1 text-sm font-medium text-(--text-strong)">
+            {t("composer.permission_configuration_secrets_title")}
+          </legend>
+          <p className="m-0 text-xs leading-5 text-(--text-muted)">
+            {t("composer.permission_configuration_secrets_description")}
+          </p>
+          <div className="space-y-3">
+            {secretSlots.map((slot) => (
+              <label
+                className="block space-y-1.5"
+                key={slot.id}
+              >
+                <span className="block break-all text-xs font-medium text-(--text-default)">
+                  {slot.path}
+                </span>
+                <input
+                  autoComplete="new-password"
+                  className="h-10 w-full rounded-xl border border-(--divider-subtle-color) bg-(--background) px-3 text-sm text-(--text-strong) outline-none transition-colors placeholder:text-(--text-soft) focus:border-(--text-muted)"
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setSecretDraft((current) =>
+                      updateConfigurationSecretDraft(
+                        current,
+                        permission.request_id,
+                        slot.id,
+                        value,
+                      ));
+                  }}
+                  placeholder={t(
+                    "composer.permission_configuration_secret_placeholder",
+                  )}
+                  spellCheck={false}
+                  type="password"
+                  value={secretValues[slot.id] ?? ""}
+                />
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
         <button
           className={cn(
@@ -207,6 +291,7 @@ export function ComposerPermissionSurface({
             decisionWidthClassName,
           )}
           data-composer-permission-action="deny"
+          data-composer-permission-decision="deny"
           disabled={interactionDisabled}
           onClick={() => respond("deny")}
           type="button"
@@ -222,7 +307,8 @@ export function ComposerPermissionSurface({
         >
           <button
             className="inline-flex h-full min-w-0 flex-1 items-center justify-center bg-(--text-strong) px-1.5 text-sm font-medium text-(--background) transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-            disabled={interactionDisabled}
+            data-composer-permission-decision="allow"
+            disabled={interactionDisabled || !hasCompleteSecrets}
             onClick={() => respond("allow")}
             type="button"
           >
@@ -235,7 +321,7 @@ export function ComposerPermissionSurface({
               aria-haspopup="menu"
               aria-label={t("composer.permission_choose_scope")}
               className="inline-flex h-full w-8 items-center justify-center border-l border-[color:color-mix(in_srgb,var(--background)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--text-strong)_82%,var(--background))] text-(--background) transition-[background-color,opacity] hover:bg-(--text-strong) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
-              disabled={interactionDisabled}
+              disabled={interactionDisabled || !hasCompleteSecrets}
               onClick={() => setIsScopeMenuOpen((current) => !current)}
               type="button"
             >

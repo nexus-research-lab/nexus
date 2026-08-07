@@ -267,6 +267,8 @@ func (m *Manager) getOrCreateWithFactory(
 	sessionKey = strings.TrimSpace(sessionKey)
 	runtimeKind := normalizedManagedRuntimeKind(options.Runtime.Kind)
 	ownerUserID := runtimeOwnerUserID(options)
+	agentID := runtimeSessionAgentID(sessionKey)
+	processPolicyFingerprint := managedRuntimeProcessPolicyFingerprint(options)
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
@@ -277,15 +279,16 @@ func (m *Manager) getOrCreateWithFactory(
 			m.mu.Unlock()
 			return nil, nil, err
 		}
+		if err := m.runtimeAgentAdmissionErrorLocked(sessionKey, ownerUserID, agentID); err != nil {
+			m.mu.Unlock()
+			return nil, nil, err
+		}
 		state := m.sessions[sessionKey]
 		if state != nil && state.Closing {
 			m.mu.Unlock()
 			return nil, state, errRuntimeSessionClosing
 		}
-		if state == nil {
-			state = m.ensureStateLocked(sessionKey)
-		}
-		if runtimeOwnerMismatch(state.OwnerUserID, ownerUserID) {
+		if state != nil && runtimeOwnerMismatch(state.OwnerUserID, ownerUserID) {
 			existingOwnerUserID := state.OwnerUserID
 			m.mu.Unlock()
 			return nil, state, fmt.Errorf(
@@ -294,25 +297,74 @@ func (m *Manager) getOrCreateWithFactory(
 				ownerUserID,
 			)
 		}
-		if state.Client == nil {
+		if state == nil || state.Client == nil {
+			expectedState := state
+			// Factory implementations may start processes or wait on external state.
+			// Keep that work outside Manager.mu so revocation can publish its tombstone
+			// before this startup performs the second ownership check.
+			m.mu.Unlock()
 			client := factory.New(options)
 			if client == nil {
-				m.mu.Unlock()
-				return nil, state, agentclient.ErrNotConnected
+				return nil, expectedState, agentclient.ErrNotConnected
 			}
-			state.Client = client
-			state.RuntimeKind = runtimeKind
-			state.OwnerUserID = ownerUserID
-			m.touchStateLocked(state)
+
+			m.mu.Lock()
+			current := m.sessions[sessionKey]
+			ownershipErr := startup.validateCloseEpochLocked()
+			if ownershipErr == nil {
+				ownershipErr = m.runtimeAgentAdmissionErrorLocked(
+					sessionKey,
+					ownerUserID,
+					agentID,
+				)
+			}
+			switch {
+			case ownershipErr != nil:
+			case expectedState != nil && current != expectedState:
+				ownershipErr = agentclient.ErrAborted
+			case current != nil && current.Closing:
+				ownershipErr = errRuntimeSessionClosing
+			case current != nil && runtimeOwnerMismatch(current.OwnerUserID, ownerUserID):
+				ownershipErr = fmt.Errorf(
+					"runtime session owner mismatch: existing=%s requested=%s",
+					current.OwnerUserID,
+					ownerUserID,
+				)
+			case current != nil && current.Client != nil:
+				ownershipErr = errRuntimeClientChanged
+			}
+			if ownershipErr != nil {
+				m.mu.Unlock()
+				retireUnusedRuntimeClient(client)
+				if errors.Is(ownershipErr, errRuntimeClientChanged) {
+					continue
+				}
+				return nil, current, ownershipErr
+			}
+			if current == nil {
+				current = m.ensureStateLocked(sessionKey)
+			}
+			current.Client = client
+			current.RuntimeKind = runtimeKind
+			current.OwnerUserID = ownerUserID
+			current.AgentID = agentID
+			current.ProcessPolicyFingerprint = processPolicyFingerprint
+			m.touchStateLocked(current)
 			m.mu.Unlock()
-			return client, state, nil
+			if err := m.runtimeAgentAdmissionError(sessionKey, ownerUserID, agentID); err != nil {
+				return nil, current, err
+			}
+			return client, current, nil
 		}
 
 		existing := state.Client
 		existingKind := state.RuntimeKind
+		existingProcessPolicyFingerprint := state.ProcessPolicyFingerprint
 		m.touchStateLocked(state)
 		m.mu.Unlock()
-		if existingKind != "" && existingKind != runtimeKind {
+		if (existingKind != "" && existingKind != runtimeKind) ||
+			(existingProcessPolicyFingerprint != "" &&
+				existingProcessPolicyFingerprint != processPolicyFingerprint) {
 			next, err := m.replaceRuntimeClient(ctx, startup, sessionKey, state, existing, options, factory)
 			if errors.Is(err, errRuntimeClientChanged) {
 				continue
@@ -323,6 +375,10 @@ func (m *Manager) getOrCreateWithFactory(
 		reconfigureErr := existing.Reconfigure(ctx, options)
 		m.mu.Lock()
 		if err := startup.validateCloseEpochLocked(); err != nil {
+			m.mu.Unlock()
+			return nil, state, err
+		}
+		if err := m.runtimeAgentAdmissionErrorLocked(sessionKey, ownerUserID, agentID); err != nil {
 			m.mu.Unlock()
 			return nil, state, err
 		}
@@ -342,8 +398,15 @@ func (m *Manager) getOrCreateWithFactory(
 			if ownerUserID != "" {
 				current.OwnerUserID = ownerUserID
 			}
+			if agentID != "" {
+				current.AgentID = agentID
+			}
+			current.ProcessPolicyFingerprint = processPolicyFingerprint
 			m.touchStateLocked(current)
 			m.mu.Unlock()
+			if err := m.runtimeAgentAdmissionError(sessionKey, ownerUserID, agentID); err != nil {
+				return nil, state, err
+			}
 			return existing, state, nil
 		default:
 			m.mu.Unlock()
@@ -372,6 +435,78 @@ func normalizedManagedRuntimeKind(kind agentclient.RuntimeKind) agentclient.Runt
 	}
 }
 
+func (m *Manager) runtimeAgentAdmissionError(
+	sessionKey string,
+	ownerUserID string,
+	agentID string,
+) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.runtimeAgentAdmissionErrorLocked(sessionKey, ownerUserID, agentID)
+}
+
+// Connect 只连接当前仍由 Manager 持有且未被删除墓碑撤销的 client。
+//
+// GetOrCreate 与 SDK Connect 之间存在锁外进程启动窗口，因此连接前后都要核验；
+// 删除若在 Connect 中间发生，后置核验会再次断开迟到启动的进程。
+func (m *Manager) Connect(ctx context.Context, sessionKey string, client Client) error {
+	if m == nil || client == nil {
+		return agentclient.ErrNotConnected
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	sessionKey = strings.TrimSpace(sessionKey)
+	m.mu.RLock()
+	admissionErr := m.runtimeClientAdmissionErrorLocked(sessionKey, client)
+	m.mu.RUnlock()
+	if admissionErr != nil {
+		return admissionErr
+	}
+
+	connectErr := client.Connect(ctx)
+	m.mu.RLock()
+	admissionErr = m.runtimeClientAdmissionErrorLocked(sessionKey, client)
+	m.mu.RUnlock()
+	if admissionErr == nil {
+		return connectErr
+	}
+	cleanupErr := disconnectRuntimeClientWithTimeout(client)
+	return errors.Join(admissionErr, connectErr, cleanupErr)
+}
+
+func (m *Manager) runtimeClientAdmissionErrorLocked(sessionKey string, client Client) error {
+	state := m.sessions[strings.TrimSpace(sessionKey)]
+	ownerUserID := ""
+	agentID := runtimeSessionAgentID(sessionKey)
+	if state != nil {
+		ownerUserID = strings.TrimSpace(state.OwnerUserID)
+		if strings.TrimSpace(state.AgentID) != "" {
+			agentID = strings.TrimSpace(state.AgentID)
+		}
+	}
+	if err := m.runtimeAgentAdmissionErrorLocked(sessionKey, ownerUserID, agentID); err != nil {
+		return err
+	}
+	if state == nil || state.Client == nil || state.Client != client {
+		return agentclient.ErrNotConnected
+	}
+	if state.Closing {
+		return errRuntimeSessionClosing
+	}
+	return nil
+}
+
+func disconnectRuntimeClientWithTimeout(client Client) error {
+	if client == nil {
+		return nil
+	}
+	disconnectCtx, cancel := context.WithTimeout(context.Background(), RoundIdleAbortTimeout)
+	err := client.Disconnect(disconnectCtx)
+	cancel()
+	return err
+}
+
 func runtimeOwnerUserID(options agentclient.Options) string {
 	return strings.TrimSpace(options.Env["NEXUS_RUNTIME_USER_ID"])
 }
@@ -396,6 +531,14 @@ func (m *Manager) replaceRuntimeClient(
 	options agentclient.Options,
 	factory Factory,
 ) (Client, error) {
+	ownerUserID := runtimeOwnerUserID(options)
+	agentID := runtimeSessionAgentID(sessionKey)
+	m.mu.RLock()
+	admissionErr := m.runtimeAgentAdmissionErrorLocked(sessionKey, ownerUserID, agentID)
+	m.mu.RUnlock()
+	if admissionErr != nil {
+		return nil, admissionErr
+	}
 	next := factory.New(options)
 	if next == nil {
 		return nil, agentclient.ErrNotConnected
@@ -409,6 +552,8 @@ func (m *Manager) replaceRuntimeClient(
 	ownershipErr := startup.validateCloseEpochLocked()
 	switch {
 	case ownershipErr != nil:
+	case m.runtimeAgentAdmissionErrorLocked(sessionKey, ownerUserID, agentID) != nil:
+		ownershipErr = m.runtimeAgentAdmissionErrorLocked(sessionKey, ownerUserID, agentID)
 	case state != expectedState:
 		ownershipErr = agentclient.ErrAborted
 	case state.Closing:
@@ -445,6 +590,8 @@ func (m *Manager) replaceRuntimeClient(
 	ownershipErr = startup.validateCloseEpochLocked()
 	switch {
 	case ownershipErr != nil:
+	case m.runtimeAgentAdmissionErrorLocked(sessionKey, ownerUserID, agentID) != nil:
+		ownershipErr = m.runtimeAgentAdmissionErrorLocked(sessionKey, ownerUserID, agentID)
 	case state != expectedState:
 		ownershipErr = agentclient.ErrAborted
 	case state.Closing:
@@ -461,12 +608,17 @@ func (m *Manager) replaceRuntimeClient(
 	}
 	state.Client = next
 	state.RuntimeKind = normalizedManagedRuntimeKind(options.Runtime.Kind)
-	state.OwnerUserID = runtimeOwnerUserID(options)
+	state.OwnerUserID = ownerUserID
+	state.AgentID = agentID
+	state.ProcessPolicyFingerprint = managedRuntimeProcessPolicyFingerprint(options)
 	state.ContextUsageByAgent = nil
 	// 新进程不持有旧 task/thread；只有再次观测到 task 事件后才允许保活。
 	state.HasSubagentHistory = false
 	m.touchStateLocked(state)
 	m.mu.Unlock()
+	if err := m.runtimeAgentAdmissionError(sessionKey, ownerUserID, agentID); err != nil {
+		return nil, err
+	}
 	return next, nil
 }
 
@@ -594,6 +746,9 @@ func (m *Manager) connectClient(
 		)
 	}
 	if ownershipErr == nil {
+		ownershipErr = m.runtimeClientAdmissionErrorLocked(sessionKey, expected)
+	}
+	if ownershipErr == nil {
 		m.touchStateLocked(state)
 	}
 	m.mu.Unlock()
@@ -613,9 +768,13 @@ func (m *Manager) connectClient(
 			expectedGeneration,
 		)
 	}
+	if ownershipErr == nil {
+		ownershipErr = m.runtimeClientAdmissionErrorLocked(sessionKey, expected)
+	}
 	if ownershipErr != nil {
 		m.mu.Unlock()
-		return ownershipErr
+		cleanupErr := disconnectRuntimeClientWithTimeout(expected)
+		return errors.Join(ownershipErr, connectErr, cleanupErr)
 	}
 	if connectErr != nil {
 		m.mu.Unlock()
@@ -854,6 +1013,8 @@ func (m *Manager) clearRetiredClient(
 	}
 	state.Client = nil
 	state.RuntimeKind = ""
+	state.AgentID = ""
+	state.ProcessPolicyFingerprint = ""
 	state.ContextUsageByAgent = nil
 	state.HasSubagentHistory = false
 	// 活动 startup 可能已经在锁外重配置刚退休的 client。此时保留同一

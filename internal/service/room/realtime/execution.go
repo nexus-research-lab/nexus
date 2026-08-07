@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
@@ -201,7 +202,18 @@ func (s *Service) runSlot(
 	})
 	defer s.permission.UnbindSessionRoute(routeLease)
 
-	client, err := execution.prepareRuntimeClient()
+	admission, runtimeIsolationRequired, err := clientopts.BeginAgentRuntimeAdmission(
+		execution.ctx,
+		s.admission,
+	)
+	if err != nil {
+		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
+		return
+	}
+	defer admission.Release()
+	execution.ctx = admission.Context()
+
+	client, err := execution.prepareRuntimeClient(runtimeIsolationRequired)
 	if err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, exec.RoundExecutionResult{}, err)
 		return
@@ -217,6 +229,9 @@ func (s *Service) runSlot(
 		)
 		return
 	}
+	// session 与 round 已同时进入 Manager；后续认证转场可由 owner 级关闭完整撤销。
+	execution.ctx = slotCtx
+	admission.Release()
 	defer func() {
 		s.runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
 	}()
@@ -254,6 +269,10 @@ func (s *Service) runSlot(
 
 	if err := execution.complete(result); err != nil {
 		s.handleSlotFailure(slotCtx, roundValue, slot, mapper, result, err)
+		return
+	}
+	if err := s.ensureSlotOutputAuthorized(slotCtx, roundValue, slot); err != nil {
+		s.retireSlotAfterOutputRevocation(slotCtx, roundValue, slot, err)
 		return
 	}
 	s.broadcastSharedEventWithTimeout(slotCtx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
@@ -432,6 +451,9 @@ func (e *slotExecution) observeIncomingMessage(incoming sdkprotocol.ReceivedMess
 }
 
 func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) error {
+	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
+		return err
+	}
 	messageRole := protocol.MessageRole(messageValue)
 	resultSubtype, _ := messageValue["subtype"].(string)
 	resultSubtype = strings.TrimSpace(resultSubtype)
@@ -481,9 +503,15 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 		}
 	}
 	if !protocol.IsTranscriptNativeMessage(messageValue) {
+		if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
+			return err
+		}
 		if err := e.service.persistPrivateOverlayMessage(e.slot, cloneMessageWithSessionKey(messageValue, e.slot.RuntimeSessionKey)); err != nil {
 			return err
 		}
+	}
+	if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
+		return err
 	}
 	e.service.observeExecutionRuntimeArtifacts(e.orchestrationActor(), messageValue)
 	e.service.recordGoalUsageFromSlotAssistantMessage(e.ctx, e.slot, messageValue)
@@ -493,6 +521,11 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 func (e *slotExecution) emitEvent(event protocol.EventMessage) error {
 	if roomSlotShouldDropPublicOutputEvent(e.slot, event) {
 		return nil
+	}
+	if event.EventType == protocol.EventTypeMessage {
+		if err := e.service.ensureSlotOutputAuthorized(e.ctx, e.round, e.slot); err != nil {
+			return err
+		}
 	}
 	for _, readyEvent := range e.slot.eventsReadyForEmission(event) {
 		e.service.broadcastSharedEventWithTimeout(e.ctx, e.round.SessionKey, e.round.RoomID, readyEvent)

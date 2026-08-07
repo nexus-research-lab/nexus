@@ -1,6 +1,6 @@
 // INPUT: Room round/slot 生命周期、structured WorkBinding/ReviewBinding、运行时消息与并发状态变更。
-// OUTPUT: 可并发读取的执行状态、不可变 producer/reviewer capability、稳定 owner/root usage scope、parent/child Goal 绑定、settlement barrier、游标与最终回复快照。
-// POS: Room 实时执行过程的内存状态与 trusted dispatch identity 模型。
+// OUTPUT: 固定权限世代、trusted dispatch identity、稳定 owner/root usage scope、Work/Goal 绑定、结算屏障、游标与最终回复快照。
+// POS: Room 实时执行过程的内存状态与权限能力模型。
 package realtime
 
 import (
@@ -191,32 +191,42 @@ func (s *activeRoomSlot) adoptGoalObjectiveRevision(revision int64) {
 }
 
 type activeRoomRound struct {
-	SessionKey            string
-	RoomID                string
-	ConversationID        string
-	CoordinatorAgentID    string
-	RoomType              string
-	Context               *protocol.ConversationContextAggregate
-	RoundID               string
-	RootRoundID           string
-	registrationSequence  uint64
-	HopIndex              int
-	OwnerUserID           string
-	Internal              bool
-	InputOptions          sdkprotocol.OutboundMessageOptions
-	Cancel                context.CancelFunc
-	PermissionMode        sdkpermission.Mode
-	PermissionHandler     sdkpermission.Handler
-	EventObserver         RoomEventObserver
-	GoalContext           string
-	GoalID                string
-	GoalObjectiveRevision int64
-	ExecutionID           string
-	Slots                 map[string]*activeRoomSlot
-	RunningSubagents      atomic.Bool
-	postRoundDispatched   atomic.Bool
-	Done                  chan struct{}
-	doneOnce              sync.Once
+	SessionKey                  string
+	RoomID                      string
+	ConversationID              string
+	CoordinatorAgentID          string
+	RoomType                    string
+	Context                     *protocol.ConversationContextAggregate
+	RoundID                     string
+	RootRoundID                 string
+	registrationSequence        uint64
+	HopIndex                    int
+	OwnerUserID                 string
+	Internal                    bool
+	AuthorityEpoch              int64
+	TrustedConfigurationContext bool
+	ExecutionOrigin             string
+	// trustedQueuedConfigurationContext marks only the runtime created from a
+	// successfully claimed direct-user queue admission.
+	trustedQueuedConfigurationContext bool
+	// pendingTrustedQueueDispatch is a one-hop scaffold used while turning a
+	// queued public user trigger into its runtime round. It is never inherited
+	// by later Agent-to-Agent public handoffs.
+	pendingTrustedQueueDispatch bool
+	InputOptions                sdkprotocol.OutboundMessageOptions
+	Cancel                      context.CancelFunc
+	PermissionMode              sdkpermission.Mode
+	PermissionHandler           sdkpermission.Handler
+	EventObserver               RoomEventObserver
+	GoalContext                 string
+	GoalID                      string
+	GoalObjectiveRevision       int64
+	ExecutionID                 string
+	Slots                       map[string]*activeRoomSlot
+	RunningSubagents            atomic.Bool
+	postRoundDispatched         atomic.Bool
+	Done                        chan struct{}
+	doneOnce                    sync.Once
 }
 
 type roomTrigger = roomdomain.Trigger

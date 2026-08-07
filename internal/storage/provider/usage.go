@@ -1,3 +1,6 @@
+// INPUT: owner/public 可见范围、Provider key 与 Agent runtime 绑定。
+// OUTPUT: Provider 使用计数及使用者摘要。
+// POS: Provider 删除保护与管理界面的只读用量投影；重分配写入只允许位于 Mutation。
 package provider
 
 import (
@@ -224,6 +227,52 @@ func uniqueNonEmptyStrings(values []string) []string {
 		result = append(result, normalized)
 	}
 	return result
+}
+
+// RuntimeBindingCountForOwner 统计 owner 下所有状态 Agent 的显式 Provider 绑定。
+func (r *Repository) RuntimeBindingCountForOwner(
+	ctx context.Context,
+	ownerUserID string,
+	provider string,
+) (int, error) {
+	row := r.db.QueryRowContext(ctx, `
+	SELECT COUNT(*)
+	FROM runtimes rt
+	JOIN agents a ON a.id = rt.agent_id
+	WHERE a.owner_user_id = `+r.bind(1)+`
+	  AND COALESCE(NULLIF(TRIM(rt.provider), ''), '') = `+r.bind(2),
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(provider),
+	)
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// RuntimeBindingCountForPublic 统计实际落到公共 Provider 的所有 Agent runtime 绑定。
+func (r *Repository) RuntimeBindingCountForPublic(ctx context.Context, provider string) (int, error) {
+	row := r.db.QueryRowContext(ctx, `
+	SELECT COUNT(*)
+	FROM runtimes rt
+	JOIN agents a ON a.id = rt.agent_id
+	WHERE COALESCE(NULLIF(TRIM(rt.provider), ''), '') = `+r.bind(1)+`
+	  AND NOT EXISTS (
+	      SELECT 1
+	      FROM provider private_provider
+	      WHERE private_provider.visibility = 'private'
+	        AND private_provider.owner_user_id = a.owner_user_id
+	        AND private_provider.provider = `+r.bind(2)+`
+	  )`,
+		strings.TrimSpace(provider),
+		strings.TrimSpace(provider),
+	)
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *Repository) ListUsageAgentsByOwner(ctx context.Context, ownerUserID string) (map[string][]UsageAgentEntity, error) {

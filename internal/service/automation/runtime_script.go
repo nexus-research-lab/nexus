@@ -1,3 +1,6 @@
+// INPUT: 人类控制面创建的 script 任务、owner workspace 与 runtime isolation 配置。
+// OUTPUT: 隔离执行结果及不继承宿主凭据的脚本进程环境。
+// POS: automation script 的宿主执行与凭据边界。
 package automation
 
 import (
@@ -194,11 +197,7 @@ func (s *Service) runScriptJob(ctx context.Context, job automationdomain.Schedul
 	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") {
 		command := scriptCommand(waitCtx, job.Instruction)
 		command.Dir = workspacePath
-		command.Env = append(os.Environ(),
-			"NEXUS_AUTOMATION_JOB_ID="+strings.TrimSpace(job.JobID),
-			"NEXUS_AUTOMATION_RUN_ID="+strings.TrimSpace(runID),
-			"NEXUS_AUTOMATION_AGENT_ID="+strings.TrimSpace(job.AgentID),
-		)
+		command.Env = scriptProcessEnvironment(workspacePath, job, runID)
 		command.Stdout = stdout
 		command.Stderr = stderr
 		runErr = command.Run()
@@ -285,7 +284,42 @@ func scriptCommand(ctx context.Context, script string) *exec.Cmd {
 	if runtime.GOOS == "windows" {
 		return exec.CommandContext(ctx, "cmd", "/C", script)
 	}
-	return exec.CommandContext(ctx, "/bin/sh", "-lc", script)
+	return exec.CommandContext(ctx, "/bin/sh", "-c", script)
+}
+
+func scriptProcessEnvironment(
+	workspacePath string,
+	job automationdomain.ScheduledTask,
+	runID string,
+) []string {
+	environment := make([]string, 0, 16)
+	for _, name := range []string{
+		"PATH",
+		"LANG",
+		"LC_ALL",
+		"LC_CTYPE",
+		"TZ",
+		"SystemRoot",
+		"ComSpec",
+		"PATHEXT",
+	} {
+		if value, ok := os.LookupEnv(name); ok && strings.TrimSpace(value) != "" {
+			environment = append(environment, name+"="+value)
+		}
+	}
+	tempDir := os.TempDir()
+	environment = append(environment,
+		"HOME="+strings.TrimSpace(workspacePath),
+		"USERPROFILE="+strings.TrimSpace(workspacePath),
+		"TMPDIR="+tempDir,
+		"TMP="+tempDir,
+		"TEMP="+tempDir,
+		"NEXUS_AUTOMATION_JOB_ID="+strings.TrimSpace(job.JobID),
+		"NEXUS_AUTOMATION_RUN_ID="+strings.TrimSpace(runID),
+		"NEXUS_AUTOMATION_AGENT_ID="+strings.TrimSpace(job.AgentID),
+		"NEXUS_AUTOMATION_EXECUTION=script",
+	)
+	return environment
 }
 
 func formatScriptOutput(stdout string, stderr string) string {

@@ -3,6 +3,7 @@ package connectors
 import (
 	"database/sql"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -17,6 +18,8 @@ type Service struct {
 	driver                    string
 	httpClient                *http.Client
 	registrationClientFactory func() appregistration.Client
+	authorizationControl      *AuthorizationControl
+	mutations                 sync.Map
 }
 
 // NewService 创建连接器服务。

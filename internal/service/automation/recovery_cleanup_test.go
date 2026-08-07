@@ -3,6 +3,7 @@ package automation
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -352,8 +353,6 @@ func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	runtimeCloser := &fakeRuntimeSessionCloser{}
-	service.SetRuntimeSessionCloser(runtimeCloser)
 	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
 		Name:        "cleanup-target",
 		AgentID:     "agent-1",
@@ -377,9 +376,11 @@ func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
 	matchingB := protocol.BuildAgentSessionKey("agent-1", "automation", "dm", "scheduled-task:"+task.JobID+":run-b", "")
 	unrelated := protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "keep", "")
 	for _, sessionKey := range []string{matchingA, matchingB, unrelated} {
+		cleanupSessionID := "sdk-" + sessionKey
 		if _, upsertErr := store.UpsertSession(workspacePath, protocol.Session{
 			SessionKey:   sessionKey,
 			AgentID:      "agent-1",
+			SessionID:    &cleanupSessionID,
 			ChannelType:  "automation",
 			ChatType:     "dm",
 			Status:       "active",
@@ -392,6 +393,16 @@ func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
 			t.Fatalf("准备测试会话失败: %v", upsertErr)
 		}
 	}
+	coordinator := &fakeSessionArtifactDeletionCoordinator{
+		deleteFn: func(_ context.Context, call sessionArtifactDeletionCall) error {
+			_, deleteErr := store.ForOwner(call.ownerUserID).DeleteSession(
+				call.workspacePath,
+				call.sessionKey,
+			)
+			return deleteErr
+		},
+	}
+	service.SetSessionArtifactDeletionCoordinator(coordinator)
 
 	if _, err = service.DeleteTask(context.Background(), task.JobID); err != nil {
 		t.Fatalf("DeleteTask 失败: %v", err)
@@ -407,9 +418,17 @@ func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
 			t.Fatalf("期望会话被清理: %s", removedKey)
 		}
 	}
-	closed := runtimeCloser.Calls()
-	if len(closed) != 2 {
-		t.Fatalf("期望关闭 2 个 isolated 会话，实际 %d", len(closed))
+	calls := coordinator.Calls()
+	if len(calls) != 2 {
+		t.Fatalf("期望统一清理 2 个 isolated 会话，实际 %+v", calls)
+	}
+	for _, call := range calls {
+		if call.ownerUserID != authctx.SystemUserID ||
+			call.workspacePath != workspacePath ||
+			(call.sessionKey != matchingA && call.sessionKey != matchingB) ||
+			call.cleanupSessionID != "sdk-"+call.sessionKey {
+			t.Fatalf("Session artifact 删除参数不完整: %+v", call)
+		}
 	}
 	item, _, findErr := store.FindSession(paths, unrelated)
 	if findErr != nil {
@@ -417,5 +436,120 @@ func TestDeleteTaskCleansIsolatedAutomationSessions(t *testing.T) {
 	}
 	if item == nil {
 		t.Fatalf("不应删除非 automation 会话")
+	}
+}
+
+func TestCleanupIsolatedAutomationSessionsFailsClosedWithoutCoordinator(t *testing.T) {
+	workspacePath := newAutomationOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		newAutomationTestDB(t),
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	job := automationdomain.ScheduledTask{
+		JobID:       "job-with-session",
+		AgentID:     "agent-1",
+		OwnerUserID: authctx.SystemUserID,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind: automationdomain.SessionTargetIsolated,
+		},
+	}
+	sessionKey := protocol.BuildAgentSessionKey(
+		job.AgentID,
+		"automation",
+		"dm",
+		"scheduled-task:"+job.JobID+":run-a",
+		"",
+	)
+	store := workspacestore.NewSessionFileStore(workspacePath)
+	now := time.Now().UTC()
+	if _, err := store.UpsertSession(workspacePath, protocol.Session{
+		SessionKey:   sessionKey,
+		AgentID:      job.AgentID,
+		ChannelType:  "automation",
+		ChatType:     "dm",
+		Status:       "active",
+		CreatedAt:    now,
+		LastActivity: now,
+		Title:        "session",
+		Options:      map[string]any{},
+		IsActive:     true,
+	}); err != nil {
+		t.Fatalf("准备测试会话失败: %v", err)
+	}
+
+	err := service.cleanupIsolatedAutomationSessions(context.Background(), job)
+	if err != ErrSessionArtifactDeletionCoordinatorUnavailable {
+		t.Fatalf("缺少协调器必须 fail closed，实际 err=%v", err)
+	}
+	item, _, findErr := store.FindSession([]string{workspacePath}, sessionKey)
+	if findErr != nil {
+		t.Fatalf("核对会话失败: %v", findErr)
+	}
+	if item == nil {
+		t.Fatal("缺少协调器时不得回退为直接删除")
+	}
+}
+
+func TestCleanupIsolatedAutomationSessionsAttemptsEveryTarget(t *testing.T) {
+	workspacePath := newAutomationOwnerWorkspace(t, authctx.SystemUserID, "agent-1")
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite", WorkspacePath: workspacePath},
+		newAutomationTestDB(t),
+		nil,
+		nil,
+		nil,
+		nil,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	job := automationdomain.ScheduledTask{
+		JobID:       "job-with-multiple-sessions",
+		AgentID:     "agent-1",
+		OwnerUserID: authctx.SystemUserID,
+		SessionTarget: automationdomain.SessionTarget{
+			Kind: automationdomain.SessionTargetIsolated,
+		},
+	}
+	store := workspacestore.NewSessionFileStore(workspacePath)
+	now := time.Now().UTC()
+	for _, suffix := range []string{"run-a", "run-b"} {
+		sessionKey := protocol.BuildAgentSessionKey(
+			job.AgentID,
+			"automation",
+			"dm",
+			"scheduled-task:"+job.JobID+":"+suffix,
+			"",
+		)
+		if _, err := store.UpsertSession(workspacePath, protocol.Session{
+			SessionKey:   sessionKey,
+			AgentID:      job.AgentID,
+			ChannelType:  "automation",
+			ChatType:     "dm",
+			Status:       "active",
+			CreatedAt:    now,
+			LastActivity: now,
+			Title:        "session",
+			Options:      map[string]any{},
+			IsActive:     true,
+		}); err != nil {
+			t.Fatalf("准备测试会话失败: %v", err)
+		}
+	}
+	deleteErr := errors.New("tombstone write failed")
+	coordinator := &fakeSessionArtifactDeletionCoordinator{err: deleteErr}
+	service.SetSessionArtifactDeletionCoordinator(coordinator)
+
+	err := service.cleanupIsolatedAutomationSessions(context.Background(), job)
+	if !errors.Is(err, deleteErr) {
+		t.Fatalf("应聚合协调器错误，实际 err=%v", err)
+	}
+	if calls := coordinator.Calls(); len(calls) != 2 {
+		t.Fatalf("首个目标失败后仍须尝试其余 tombstone，实际 calls=%+v", calls)
 	}
 }

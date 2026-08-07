@@ -1,3 +1,6 @@
+// INPUT: 规范化后的外部消息入口及其 owner/channel/chat 标识。
+// OUTPUT: 已授权 Agent，或可审批的 pending pairing 与消息时间更新。
+// POS: Pairing ingress writer，与人工 pairing 变更共享 owner 级写锁。
 package channels
 
 import (
@@ -171,7 +174,11 @@ func usesAccountlessPairingFallback(channelType string, accountID string) bool {
 }
 
 func (s *ControlService) touchPairing(ctx context.Context, ownerUserID string, pairingID string) error {
+	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
+	unlock := s.lockPairingMutation(ownerUserID)
+	defer unlock()
+
 	query := "UPDATE im_pairings SET last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE owner_user_id = " + s.bind(1) + " AND pairing_id = " + s.bind(2)
-	_, err := s.db.ExecContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(pairingID))
+	_, err := s.db.ExecContext(ctx, query, ownerUserID, strings.TrimSpace(pairingID))
 	return err
 }
