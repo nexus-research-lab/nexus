@@ -8,6 +8,7 @@ import (
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
@@ -245,19 +246,32 @@ func (b *roomUpdateBuilder) loadExisting() (*protocol.RoomAggregate, error) {
 
 // DeleteRoom 删除房间。
 func (s *Service) DeleteRoom(ctx context.Context, roomID string) error {
+	roomID = strings.TrimSpace(roomID)
+	if job, payload, err := s.loadRoomDeletionJob(
+		ctx,
+		deletionsvc.KindRoom,
+		roomID,
+	); err != nil {
+		return err
+	} else if job != nil {
+		return s.applyRoomDeletion(ctx, *job, payload)
+	}
 	roomContexts, err := s.GetRoomContexts(ctx, roomID)
 	if err != nil {
 		return err
 	}
-	deleted, err := s.repository.DeleteRoom(ctx, authctx.OwnerUserID(ctx), strings.TrimSpace(roomID))
+	transcriptReferences, err := s.captureRoomTranscriptReferences(roomContexts)
 	if err != nil {
 		return err
 	}
-	if !deleted {
-		return ErrRoomNotFound
+	payload := roomDeletionPayload{
+		Contexts:             roomContexts,
+		RoomID:               roomID,
+		TranscriptReferences: transcriptReferences,
 	}
-	runtimeErr := s.closeConversationRuntimeSessions(ctx, roomContexts, true, nil)
-	artifactErr := s.cleanupConversationArtifacts(ctx, roomContexts, true, nil)
-	goalErr := s.cleanupGoalsForRoomContexts(ctx, roomContexts)
-	return errors.Join(runtimeErr, artifactErr, goalErr)
+	job, err := s.ensureRoomDeletionJob(ctx, deletionsvc.KindRoom, roomID, payload)
+	if err != nil {
+		return err
+	}
+	return s.applyRoomDeletion(ctx, job, payload)
 }

@@ -420,6 +420,10 @@ func (s *Service) persistSDKSessionFingerprint(
 	model string,
 ) {
 	if clearSessionID {
+		sessionItem.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
+			sessionItem.TranscriptSessionIDs,
+			protocol.SessionTranscriptIDs(sessionItem),
+		)
 		sessionItem.SessionID = nil
 	}
 	if sessionItem.Options == nil {

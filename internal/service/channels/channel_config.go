@@ -188,15 +188,27 @@ func (s *ControlService) UpsertChannelConfig(
 func (s *ControlService) DeleteChannelConfig(ctx context.Context, ownerUserID string, channelType string) error {
 	ownerUserID = normalizeChannelOwnerUserID(ownerUserID)
 	channelType = normalizeIMChannelType(channelType)
-	query := "DELETE FROM im_channel_configs WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2)
-	_, err := s.db.ExecContext(ctx, query, ownerUserID, channelType)
-	if err == nil {
-		err = s.deleteChannelAccountRows(ctx, ownerUserID, channelType)
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
 	}
-	if err == nil && s.router != nil {
+	defer func() { _ = tx.Rollback() }()
+	for _, query := range []string{
+		"DELETE FROM im_pairings WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2),
+		"DELETE FROM im_channel_accounts WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2),
+		"DELETE FROM im_channel_configs WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2),
+	} {
+		if _, err = tx.ExecContext(ctx, query, ownerUserID, channelType); err != nil {
+			return err
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	if s.router != nil {
 		s.router.UnregisterForOwner(ctx, ownerUserID, channelType)
 	}
-	return err
+	return nil
 }
 
 func (s *ControlService) DeleteChannelAccount(ctx context.Context, ownerUserID string, channelType string, accountID string) (*ChannelConfigView, error) {
@@ -209,12 +221,41 @@ func (s *ControlService) DeleteChannelAccount(ctx context.Context, ownerUserID s
 	if accountID == "" {
 		return nil, ErrChannelAccountNotFound
 	}
-	deleted, err := s.deleteChannelAccountRow(ctx, ownerUserID, channelType, accountID)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	if !deleted {
+	defer func() { _ = tx.Rollback() }()
+	if _, err = tx.ExecContext(
+		ctx,
+		"DELETE FROM im_pairings WHERE owner_user_id = "+s.bind(1)+
+			" AND channel_type = "+s.bind(2)+" AND account_id = "+s.bind(3),
+		ownerUserID,
+		channelType,
+		accountID,
+	); err != nil {
+		return nil, err
+	}
+	result, err := tx.ExecContext(
+		ctx,
+		"DELETE FROM im_channel_accounts WHERE owner_user_id = "+s.bind(1)+
+			" AND channel_type = "+s.bind(2)+" AND account_id = "+s.bind(3),
+		ownerUserID,
+		channelType,
+		accountID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
 		return nil, ErrChannelAccountNotFound
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
 	}
 	row, err := s.getChannelConfigRow(ctx, ownerUserID, channelType)
 	if err != nil {

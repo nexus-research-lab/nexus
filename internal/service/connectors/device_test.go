@@ -241,6 +241,15 @@ func TestServiceFeishuDocxOfficialQRSelectsAppThenAuthorizes(t *testing.T) {
 	if err != nil || snapshot == nil || snapshot.AccessToken != "feishu-device-token" {
 		t.Fatalf("飞书云文档 token 未保存: snapshot=%+v err=%v", snapshot, err)
 	}
+	if _, err = db.Exec(`
+INSERT INTO connector_oauth_states (
+    state, owner_user_id, connector_id, code_verifier, redirect_uri, redirect_kind, expires_at
+) VALUES (
+    'stale-oauth-state', ?, 'feishu-docx', 'verifier', 'http://localhost/callback', 'web',
+    datetime('now', '+10 minutes')
+)`, ownerUserID); err != nil {
+		t.Fatalf("准备待清理 OAuth state 失败: %v", err)
+	}
 	disconnected, err := service.Disconnect(ctx, ownerUserID, "feishu-docx")
 	if err != nil {
 		t.Fatalf("断开飞书云文档失败: %v", err)
@@ -258,6 +267,19 @@ func TestServiceFeishuDocxOfficialQRSelectsAppThenAuthorizes(t *testing.T) {
 	}
 	if config == nil || config.Configured || config.ClientID != "" {
 		t.Fatalf("断开后不应保留固定 App ID / Secret: %+v", config)
+	}
+	for tableIndex, query := range []string{
+		"SELECT COUNT(*) FROM connector_oauth_states WHERE owner_user_id = ? AND connector_id = 'feishu-docx'",
+		"SELECT COUNT(*) FROM connector_connections WHERE owner_user_id = ? AND connector_id = 'feishu-docx'",
+		"SELECT COUNT(*) FROM connector_oauth_clients WHERE owner_user_id = ? AND connector_id = 'feishu-docx'",
+	} {
+		var count int
+		if err = db.QueryRow(query, ownerUserID).Scan(&count); err != nil {
+			t.Fatalf("读取连接器删除残留[%d]失败: %v", tableIndex, err)
+		}
+		if count != 0 {
+			t.Fatalf("连接器删除后仍残留表数据[%d]: %d", tableIndex, count)
+		}
 	}
 	if _, err = service.StartDeviceAuth(
 		ctx,

@@ -33,8 +33,15 @@ ORDER BY s.last_activity_at DESC`, ownerUserID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	return scanRoomSessions(rows)
+	items, scanErr := scanRoomSessions(rows)
+	closeErr := rows.Close()
+	if scanErr != nil {
+		return nil, scanErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	return r.attachTranscriptSessionIDs(ctx, items)
 }
 
 // ListRoomSessionsByAgent 列出指定 Agent 的 Room 成员会话视图。
@@ -45,8 +52,15 @@ ORDER BY s.last_activity_at DESC`, agentID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	return scanRoomSessions(rows)
+	items, scanErr := scanRoomSessions(rows)
+	closeErr := rows.Close()
+	if scanErr != nil {
+		return nil, scanErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	return r.attachTranscriptSessionIDs(ctx, items)
 }
 
 // GetRoomSessionByKey 按结构化 key 查找 Room 成员会话。
@@ -65,7 +79,11 @@ LIMIT 1`, ownerUserID, key.AgentID, key.Ref)
 	if err != nil {
 		return nil, err
 	}
-	return &item, nil
+	items, err := r.attachTranscriptSessionIDs(ctx, []protocol.Session{item})
+	if err != nil {
+		return nil, err
+	}
+	return &items[0], nil
 }
 
 // UpdateRoomSessionSDKSessionID 回写 Room 成员会话的 sdk_session_id。
@@ -74,14 +92,36 @@ func (r *SQLRepository) UpdateRoomSessionSDKSessionID(
 	roomSessionID string,
 	sdkSessionID string,
 ) error {
-	_, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var current sql.NullString
+	if err = tx.QueryRowContext(
+		ctx,
+		"SELECT sdk_session_id FROM sessions WHERE id = "+r.dialect.Bind(1),
+		roomSessionID,
+	).Scan(&current); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	if err = r.insertTranscriptSessionRefs(ctx, tx, roomSessionID, current.String, sdkSessionID); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
 UPDATE sessions
 SET sdk_session_id = `+r.dialect.Bind(1)+`, updated_at = `+r.dialect.CurrentTimestamp()+`
 WHERE id = `+r.dialect.Bind(2),
 		nullableStringValue(sdkSessionID),
 		roomSessionID,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // UpdateRoomConversationRuntimeSettings 更新目标 Agent 模型，并统一 Conversation 权限。
@@ -186,7 +226,7 @@ ORDER BY s.last_activity_at DESC`,
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return items, nil
+	return r.attachTranscriptSessionIDs(ctx, items)
 }
 
 func (r *SQLRepository) roomSessionSelect() string {

@@ -68,7 +68,7 @@ func shouldHideWorkspaceBrowserEntry(relativePath string) bool {
 
 func isProtectedWorkspacePath(relativePath string) bool {
 	normalizedPath := filepath.ToSlash(strings.TrimSpace(relativePath))
-	return hasWorkspacePathSegment(normalizedPath, ".agents", ".claude", ".git", "__pycache__")
+	return hasWorkspacePathSegment(normalizedPath, ".agents", ".claude", ".git", ".nexus", "__pycache__")
 }
 
 func hasWorkspacePathSegment(relativePath string, targets ...string) bool {

@@ -14,6 +14,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -31,6 +32,7 @@ type Service struct {
 	workspaces    *workspacesvc.Service
 	skillStore    *skillstore.Repository
 	commandRunner commandRunnerFunc
+	deletion      *deletionsvc.Coordinator
 }
 
 // NewService 创建技能服务。
@@ -47,8 +49,14 @@ func NewServiceWithDB(cfg config.Config, db *sql.DB, agents *agentsvc.Service, w
 	service := NewService(cfg, agents, workspaces)
 	if db != nil {
 		service.skillStore = skillstore.NewRepository(cfg, db)
+		service.deletion = deletionsvc.NewCoordinator(cfg, db)
 	}
 	return service
+}
+
+// SetDeletionCoordinator 注入外部 Skill 跨数据库与文件系统的持久删除协调器。
+func (s *Service) SetDeletionCoordinator(coordinator *deletionsvc.Coordinator) {
+	s.deletion = coordinator
 }
 
 func (s *Service) openAgentWorkspace(
@@ -491,6 +499,21 @@ func (s *Service) ImportLocalPath(ctx context.Context, localPath string) (*Detai
 
 // DeleteSkill 删除外部导入 skill。
 func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
+	skillName = strings.TrimSpace(skillName)
+	ownerUserID := authctx.OwnerUserID(ctx)
+	if s.deletion != nil {
+		job, err := s.deletion.Load(ctx, ownerUserID, deletionsvc.KindSkill, skillName)
+		if err != nil {
+			return err
+		}
+		if job != nil {
+			var payload skillDeletionPayload
+			if err = deletionsvc.DecodePayload(*job, &payload); err != nil {
+				return s.deletion.Fail(ctx, *job, err)
+			}
+			return s.applySkillDeletion(ctx, *job, payload)
+		}
+	}
 	records, _, _, err := s.catalogWithAgentState(ctx, "")
 	if err != nil {
 		return err
@@ -502,48 +525,22 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 	if record.Detail.SourceType != sourceTypeExternal || !record.Detail.Deletable {
 		return errors.New("该 skill 不允许删除")
 	}
-	agents, err := s.agents.ListAgentRecords(ctx)
-	if err != nil {
-		return err
+	payload := skillDeletionPayload{
+		Name:       record.Detail.Name,
+		SourcePath: record.SourcePath,
 	}
-	for index := range agents {
-		agentValue := agents[index]
-		selected, selectedChanged := removeSkillReferences(
-			agentValue.Options.SkillIDs,
+	job := deletionsvc.Job{}
+	if s.deletion != nil {
+		job, err = s.deletion.Ensure(
+			ctx,
+			ownerUserID,
+			deletionsvc.KindSkill,
 			record.Detail.Name,
+			payload,
 		)
-		if selectedChanged {
-			if _, err = s.agents.UpdateAgentSkillSelection(
-				ctx,
-				agentValue.AgentID,
-				selected,
-				agentValue.Options.DisabledSkillIDs,
-			); err != nil {
-				return err
-			}
-		}
-	}
-	if s.skillStore != nil {
-		if err = s.skillStore.DeleteImportedSkill(ctx, authctx.OwnerUserID(ctx), record.Detail.Name); err != nil {
+		if err != nil {
 			return err
 		}
 	}
-	ownerUserID := authctx.OwnerUserID(ctx)
-	boundaryFS, err := workspacestore.New(s.config.WorkspacePath).OpenOwnerWorkspacePath(
-		ownerUserID,
-		workspacesvc.UserSkillLibraryRoot(s.config, ownerUserID),
-		false,
-	)
-	if err != nil {
-		return err
-	}
-	defer boundaryFS.Close()
-	relativePath, err := relativeSkillPath(boundaryFS, record.SourcePath)
-	if err != nil {
-		return err
-	}
-	if err = boundaryFS.RemoveAll(relativePath); err != nil {
-		return err
-	}
-	return workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID)
+	return s.applySkillDeletion(ctx, job, payload)
 }

@@ -6,11 +6,13 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) cleanupConversationArtifacts(
 	ctx context.Context,
 	contexts []protocol.ConversationContextAggregate,
+	transcriptReferences []workspacestore.RoomTranscriptReference,
 	deleteSharedLog bool,
 	agentFilter map[string]struct{},
 ) error {
@@ -20,16 +22,7 @@ func (s *Service) cleanupConversationArtifacts(
 		ownerUserID := strings.TrimSpace(contextValue.Room.OwnerUserID)
 		ownerFiles := s.files.ForOwner(ownerUserID)
 		ownerHistory := s.history.ForOwner(ownerUserID)
-		if deleteSharedLog {
-			if _, err := ownerFiles.DeleteRoomConversation(
-				ownerUserID,
-				contextValue.Conversation.ID,
-			); err != nil {
-				errs = append(errs, err)
-			}
-		}
-
-		seenSessionKeys := make(map[string]struct{})
+		artifacts := make(map[string]*roomSessionArtifacts)
 		for _, sessionValue := range contextValue.Sessions {
 			if len(agentFilter) > 0 {
 				if _, ok := agentFilter[sessionValue.AgentID]; !ok {
@@ -42,11 +35,6 @@ func (s *Service) cleanupConversationArtifacts(
 				sessionValue.AgentID,
 				contextValue.Room.RoomType,
 			)
-			if _, exists := seenSessionKeys[sessionKey]; exists {
-				continue
-			}
-			seenSessionKeys[sessionKey] = struct{}{}
-
 			workspaceKey := ownerUserID + "\x00" + strings.TrimSpace(sessionValue.AgentID)
 			workspacePath := workspaceByOwnerAgent[workspaceKey]
 			if workspacePath == "" {
@@ -62,20 +50,79 @@ func (s *Service) cleanupConversationArtifacts(
 				workspacePath = resolvedPath
 				workspaceByOwnerAgent[workspaceKey] = workspacePath
 			}
-
-			if ownerHistory != nil && strings.TrimSpace(sessionValue.SDKSessionID) != "" {
-				if _, err := ownerHistory.DeleteTranscriptSession(workspacePath, sessionValue.SDKSessionID); err != nil {
-					errs = append(errs, err)
-					// 保留带 sdk_session_id 的 session meta，后续修复仍能精确重试。
+			artifact := ensureRoomSessionArtifacts(artifacts, workspacePath, sessionKey)
+			for _, transcriptSessionID := range protocol.RoomSessionTranscriptIDs(sessionValue) {
+				artifact.transcriptSessionIDs[transcriptSessionID] = struct{}{}
+			}
+		}
+		for _, reference := range transcriptReferences {
+			if reference.ConversationID != contextValue.Conversation.ID {
+				continue
+			}
+			if len(agentFilter) > 0 {
+				if _, ok := agentFilter[reference.AgentID]; !ok {
 					continue
 				}
 			}
-			if _, err := ownerFiles.DeleteSession(workspacePath, sessionKey); err != nil {
+			artifact := ensureRoomSessionArtifacts(
+				artifacts,
+				reference.WorkspacePath,
+				reference.PrivateSessionKey,
+			)
+			artifact.transcriptSessionIDs[reference.SessionID] = struct{}{}
+		}
+		for _, artifact := range artifacts {
+			transcriptFailed := false
+			for transcriptSessionID := range artifact.transcriptSessionIDs {
+				if _, err := ownerHistory.DeleteTranscriptSession(
+					artifact.workspacePath,
+					transcriptSessionID,
+				); err != nil {
+					errs = append(errs, err)
+					transcriptFailed = true
+				}
+			}
+			if transcriptFailed {
+				continue
+			}
+			if _, err := ownerFiles.DeleteSession(artifact.workspacePath, artifact.sessionKey); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		if deleteSharedLog && len(errs) == 0 {
+			if _, err := ownerFiles.DeleteRoomConversation(
+				ownerUserID,
+				contextValue.Conversation.ID,
+			); err != nil {
 				errs = append(errs, err)
 			}
 		}
 	}
 	return errors.Join(errs...)
+}
+
+type roomSessionArtifacts struct {
+	sessionKey           string
+	transcriptSessionIDs map[string]struct{}
+	workspacePath        string
+}
+
+func ensureRoomSessionArtifacts(
+	items map[string]*roomSessionArtifacts,
+	workspacePath string,
+	sessionKey string,
+) *roomSessionArtifacts {
+	workspacePath = strings.TrimSpace(workspacePath)
+	sessionKey = strings.TrimSpace(sessionKey)
+	key := workspacePath + "\x00" + sessionKey
+	if items[key] == nil {
+		items[key] = &roomSessionArtifacts{
+			sessionKey:           sessionKey,
+			transcriptSessionIDs: make(map[string]struct{}),
+			workspacePath:        workspacePath,
+		}
+	}
+	return items[key]
 }
 
 func (s *Service) cleanupGoalsForRoomContexts(ctx context.Context, contexts []protocol.ConversationContextAggregate) error {

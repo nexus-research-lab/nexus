@@ -8,6 +8,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -27,12 +28,18 @@ type Service struct {
 	history      *workspacestore.AgentHistoryStore
 	roomHistory  *workspacestore.RoomHistoryStore
 	runtime      *runtimectx.Manager
+	deletion     *deletionsvc.Coordinator
 	notifier     DirectoryNotifier
 }
 
 // SetRuntimeManager 注入运行时管理器，用于历史读取与删除前关闭活跃会话。
 func (s *Service) SetRuntimeManager(runtimeManager *runtimectx.Manager) {
 	s.runtime = runtimeManager
+}
+
+// SetDeletionCoordinator 注入跨数据库与文件系统的持久删除协调器。
+func (s *Service) SetDeletionCoordinator(coordinator *deletionsvc.Coordinator) {
+	s.deletion = coordinator
 }
 
 // SetDirectoryNotifier 注入目录变更通知器。

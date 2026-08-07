@@ -205,10 +205,9 @@ func (c *transcriptSessionArtifactCatalog) scanProject(
 	if err != nil {
 		return err
 	}
-	memoryNodeID := "session-memory-" + sessionID
 	for _, entry := range entries {
 		artifactName := entry.Name()
-		if artifactName == memoryNodeID || artifactName == memoryNodeID+".jsonl" {
+		if isTranscriptSessionMemoryArtifact(artifactName, sessionID) {
 			c.addMemoryArtifact(projectName, artifactName)
 		}
 
@@ -241,6 +240,12 @@ func (c *transcriptSessionArtifactCatalog) scanProject(
 		c.addEdges(nodeID, references)
 	}
 	return nil
+}
+
+func isTranscriptSessionMemoryArtifact(artifactName string, sessionID string) bool {
+	name := strings.TrimSuffix(strings.ToLower(strings.TrimSpace(artifactName)), ".jsonl")
+	suffix := "session-memory-" + strings.ToLower(strings.TrimSpace(sessionID))
+	return name == suffix || strings.HasSuffix(name, "-"+suffix)
 }
 
 func transcriptArtifactNodeID(artifactName string) (string, bool, bool) {

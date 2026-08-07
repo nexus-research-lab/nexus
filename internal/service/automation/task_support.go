@@ -10,8 +10,11 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
+
+const automationSessionCloseTimeout = 3 * time.Second
 
 func (s *Service) resolveTaskOwnerUserID(ctx context.Context, agentID string) (string, error) {
 	if s.agents != nil && strings.TrimSpace(agentID) != "" {
@@ -73,6 +76,7 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 	}
 	prefix := fmt.Sprintf("agent:%s:automation:dm:scheduled-task:%s:", strings.TrimSpace(job.AgentID), strings.TrimSpace(job.JobID))
 	files := workspacestore.NewSessionFileStore(s.config.WorkspacePath).ForOwner(ownerUserID)
+	history := workspacestore.NewAgentHistoryStore(s.config.WorkspacePath).ForOwner(ownerUserID)
 	sessions, err := files.ListSessions(workspacePath)
 	if err != nil {
 		return err
@@ -86,14 +90,93 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 		if parsed.Kind != protocol.SessionKeyKindAgent || !parsed.IsStructured || parsed.Channel != "automation" {
 			continue
 		}
+		if s.sessionCloser != nil {
+			closeCtx, cancel := context.WithTimeout(context.Background(), automationSessionCloseTimeout)
+			closeErr := s.sessionCloser.CloseSession(closeCtx, sessionKey)
+			cancel()
+			if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
+				return closeErr
+			}
+		}
+		for _, transcriptSessionID := range protocol.SessionTranscriptIDs(item) {
+			if _, deleteErr := history.DeleteTranscriptSession(workspacePath, transcriptSessionID); deleteErr != nil {
+				return deleteErr
+			}
+		}
 		if _, deleteErr := files.DeleteSession(workspacePath, sessionKey); deleteErr != nil {
 			return deleteErr
 		}
-		if s.sessionCloser != nil {
-			_ = s.sessionCloser.CloseSession(context.Background(), sessionKey)
+	}
+	return nil
+}
+
+// DeleteTasksForSessions 删除目标或来源精确绑定到 Session 的定时任务。
+func (s *Service) DeleteTasksForSessions(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKeys []string,
+) error {
+	keySet := make(map[string]struct{}, len(sessionKeys))
+	for _, sessionKey := range sessionKeys {
+		sessionKey = strings.TrimSpace(sessionKey)
+		if sessionKey != "" {
+			keySet[sessionKey] = struct{}{}
+		}
+	}
+	if len(keySet) == 0 {
+		return nil
+	}
+	items, err := s.repository.ListScheduledTasks(ctx, strings.TrimSpace(ownerUserID), "")
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if !scheduledTaskReferencesSession(item, keySet) {
+			continue
+		}
+		if _, err = s.DeleteTask(contextForJobOwner(ctx, item), item.JobID); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// DeleteTasksForAgent 删除属于指定 Agent 的所有定时任务。
+func (s *Service) DeleteTasksForAgent(
+	ctx context.Context,
+	ownerUserID string,
+	agentID string,
+) error {
+	items, err := s.repository.ListScheduledTasks(
+		ctx,
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(agentID),
+	)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if _, err = s.DeleteTask(contextForJobOwner(ctx, item), item.JobID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func scheduledTaskReferencesSession(
+	item automationdomain.ScheduledTask,
+	sessionKeys map[string]struct{},
+) bool {
+	for _, sessionKey := range []string{
+		item.SessionTarget.BoundSessionKey,
+		item.SessionTarget.NamedSessionKey,
+		item.Source.SessionKey,
+	} {
+		if _, exists := sessionKeys[strings.TrimSpace(sessionKey)]; exists {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) resolveAutomationWorkspacePath(ctx context.Context, agentID string) (string, error) {

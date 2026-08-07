@@ -69,19 +69,20 @@ type ConversationRecord struct {
 
 // SessionRecord 表示房间内的运行时会话索引。
 type SessionRecord struct {
-	ID             string         `json:"id"`
-	ConversationID string         `json:"conversation_id"`
-	AgentID        string         `json:"agent_id"`
-	RuntimeID      string         `json:"runtime_id"`
-	VersionNo      int            `json:"version_no"`
-	BranchKey      string         `json:"branch_key"`
-	IsPrimary      bool           `json:"is_primary"`
-	SDKSessionID   string         `json:"sdk_session_id,omitempty"`
-	Options        map[string]any `json:"options"`
-	Status         string         `json:"status"`
-	LastActivityAt time.Time      `json:"last_activity_at,omitempty"`
-	CreatedAt      time.Time      `json:"created_at,omitempty"`
-	UpdatedAt      time.Time      `json:"updated_at,omitempty"`
+	ID                   string         `json:"id"`
+	ConversationID       string         `json:"conversation_id"`
+	AgentID              string         `json:"agent_id"`
+	RuntimeID            string         `json:"runtime_id"`
+	VersionNo            int            `json:"version_no"`
+	BranchKey            string         `json:"branch_key"`
+	IsPrimary            bool           `json:"is_primary"`
+	SDKSessionID         string         `json:"sdk_session_id,omitempty"`
+	TranscriptSessionIDs []string       `json:"transcript_session_ids,omitempty"`
+	Options              map[string]any `json:"options"`
+	Status               string         `json:"status"`
+	LastActivityAt       time.Time      `json:"last_activity_at,omitempty"`
+	CreatedAt            time.Time      `json:"created_at,omitempty"`
+	UpdatedAt            time.Time      `json:"updated_at,omitempty"`
 }
 
 // ConversationContextAggregate 表示房间对话上下文聚合。

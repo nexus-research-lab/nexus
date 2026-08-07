@@ -7,11 +7,21 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 type goalCleaner interface {
 	DeleteGoalsForAgent(context.Context, string) (int, error)
+}
+
+type agentSessionLifecycle interface {
+	ListAgentSessions(context.Context, string) ([]protocol.Session, error)
+	DeleteAgentSessionArtifacts(context.Context, protocol.Agent, []protocol.Session) error
+}
+
+type agentTaskCleaner interface {
+	DeleteTasksForAgent(context.Context, string, string) error
 }
 
 // workspaceManager 管理显式 Agent 生命周期产生的 workspace 托管状态，不参与全局 readiness。
@@ -35,6 +45,9 @@ type Service struct {
 	prompts    *promptBuilder
 	goals      goalCleaner
 	workspace  workspaceManager
+	sessions   agentSessionLifecycle
+	tasks      agentTaskCleaner
+	deletion   *deletionsvc.Coordinator
 	readyMu    sync.Mutex
 }
 
@@ -51,6 +64,17 @@ func NewService(cfg config.Config, repository Repository) *Service {
 // SetGoalCleaner 注入 Agent 删除时的 Goal 级联清理器。
 func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
 	s.goals = cleaner
+}
+
+// SetDeletionLifecycle 注入 Agent 删除涉及的 Session、Task 与持久协调器。
+func (s *Service) SetDeletionLifecycle(
+	sessions agentSessionLifecycle,
+	tasks agentTaskCleaner,
+	coordinator *deletionsvc.Coordinator,
+) {
+	s.sessions = sessions
+	s.tasks = tasks
+	s.deletion = coordinator
 }
 
 // SetWorkspaceManager 注入显式 Agent 生命周期的 workspace 托管器。

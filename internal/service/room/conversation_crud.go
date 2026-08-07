@@ -9,6 +9,7 @@ import (
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
@@ -90,6 +91,17 @@ func (s *Service) UpdateConversationTitle(
 
 // DeleteConversation 删除 room 对话并返回回退上下文。
 func (s *Service) DeleteConversation(ctx context.Context, roomID string, conversationID string) (*protocol.ConversationContextAggregate, error) {
+	roomID = strings.TrimSpace(roomID)
+	conversationID = strings.TrimSpace(conversationID)
+	if job, payload, err := s.loadRoomDeletionJob(
+		ctx,
+		deletionsvc.KindConversation,
+		conversationID,
+	); err != nil {
+		return nil, err
+	} else if job != nil {
+		return s.applyConversationDeletion(ctx, *job, payload)
+	}
 	contexts, err := s.GetRoomContexts(ctx, roomID)
 	if err != nil {
 		return nil, err
@@ -101,29 +113,35 @@ func (s *Service) DeleteConversation(ctx context.Context, roomID string, convers
 	if !ok {
 		return nil, ErrConversationNotFound
 	}
-	contextValue, err := s.repository.DeleteConversation(
+	targetContexts := []protocol.ConversationContextAggregate{targetContext}
+	transcriptReferences, err := s.captureRoomTranscriptReferences(targetContexts)
+	if err != nil {
+		return nil, err
+	}
+	payload := roomDeletionPayload{
+		Contexts:             targetContexts,
+		ConversationID:       conversationID,
+		FallbackConversation: fallbackConversationID(contexts, conversationID),
+		RoomID:               roomID,
+		TranscriptReferences: transcriptReferences,
+	}
+	job, err := s.ensureRoomDeletionJob(
 		ctx,
-		authctx.OwnerUserID(ctx),
-		strings.TrimSpace(roomID),
-		strings.TrimSpace(conversationID),
+		deletionsvc.KindConversation,
+		conversationID,
+		payload,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if contextValue == nil {
-		return nil, ErrConversationNotFound
-	}
-	runtimeErr := s.closeConversationRuntimeSessions(ctx, []protocol.ConversationContextAggregate{targetContext}, true, nil)
-	artifactErr := s.cleanupConversationArtifacts(ctx, []protocol.ConversationContextAggregate{targetContext}, true, nil)
-	goalErr := s.cleanupGoalsForRoomContexts(ctx, []protocol.ConversationContextAggregate{targetContext})
-	return contextValue, errors.Join(runtimeErr, artifactErr, goalErr)
+	return s.applyConversationDeletion(ctx, job, payload)
 }
 
 // UpdateSessionSDKSessionID 更新房间会话记录中的 SDK session_id。
 func (s *Service) UpdateSessionSDKSessionID(ctx context.Context, sessionID string, sdkSessionID string) error {
 	sessionID = strings.TrimSpace(sessionID)
 	sdkSessionID = strings.TrimSpace(sdkSessionID)
-	if sessionID == "" || sdkSessionID == "" {
+	if sessionID == "" {
 		return nil
 	}
 	return s.repository.UpdateSessionSDKSessionID(ctx, sessionID, sdkSessionID)

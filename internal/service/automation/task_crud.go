@@ -8,7 +8,9 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
@@ -230,28 +232,87 @@ func (s *Service) DeleteTask(ctx context.Context, jobID string) (*automationdoma
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
+	jobID = strings.TrimSpace(jobID)
+	if s.deletion != nil {
+		job, err := s.deletion.Load(
+			ctx,
+			authctx.OwnerUserID(ctx),
+			deletionsvc.KindScheduledTask,
+			jobID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if job != nil {
+			var payload scheduledTaskDeletionPayload
+			if err = deletionsvc.DecodePayload(*job, &payload); err != nil {
+				return nil, s.deletion.Fail(ctx, *job, err)
+			}
+			bindScheduledTaskDeletionOwner(&payload, job.OwnerUserID)
+			return s.applyScheduledTaskDeletion(ctx, *job, payload)
+		}
+	}
 	current, err := s.loadRequiredScheduledTask(ctx, jobID)
 	if err != nil {
 		return nil, err
 	}
-	cancelledRunID, cancelledRun, err := s.cancelDeletedTaskActiveRun(ctx, *current)
-	if err != nil {
-		return nil, err
+	payload := scheduledTaskDeletionPayload{Task: *current}
+	job := deletionsvc.Job{}
+	if s.deletion != nil {
+		job, err = s.deletion.Ensure(
+			ctx,
+			current.OwnerUserID,
+			deletionsvc.KindScheduledTask,
+			current.JobID,
+			payload,
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
-	deadLetteredDeliveryRunIDs, err := s.deadLetterDeletedTaskPendingDeliveries(ctx, *current)
+	return s.applyScheduledTaskDeletion(ctx, job, payload)
+}
+
+type scheduledTaskDeletionPayload struct {
+	Task automationdomain.ScheduledTask `json:"task"`
+}
+
+func bindScheduledTaskDeletionOwner(payload *scheduledTaskDeletionPayload, ownerUserID string) {
+	if payload != nil {
+		payload.Task.OwnerUserID = strings.TrimSpace(ownerUserID)
+	}
+}
+
+func (s *Service) applyScheduledTaskDeletion(
+	ctx context.Context,
+	job deletionsvc.Job,
+	payload scheduledTaskDeletionPayload,
+) (*automationdomain.DeleteJobResult, error) {
+	current := payload.Task
+	fail := func(err error) (*automationdomain.DeleteJobResult, error) {
+		if s.deletion == nil || job.ID == "" {
+			return nil, err
+		}
+		return nil, s.deletion.Fail(ctx, job, err)
+	}
+	cancelledRunID, cancelledRun, err := s.cancelDeletedTaskActiveRun(ctx, current)
 	if err != nil {
-		return nil, err
+		return fail(err)
+	}
+	deadLetteredDeliveryRunIDs, err := s.deadLetterDeletedTaskPendingDeliveries(ctx, current)
+	if err != nil {
+		return fail(err)
 	}
 	if err = s.repository.DeleteScheduledTask(ctx, current.OwnerUserID, current.JobID); err != nil {
-		return nil, err
+		return fail(err)
 	}
-	if err = s.cleanupIsolatedAutomationSessions(ctx, *current); err != nil {
-		return nil, err
+	if err = s.cleanupIsolatedAutomationSessions(ctx, current); err != nil {
+		return fail(err)
 	}
 	s.mu.Lock()
 	delete(s.jobStates, current.JobID)
 	s.mu.Unlock()
-	s.recordTaskEvent(ctx, automationdomain.TaskEventActionDelete, *current, cancelledRunID, deleteTaskEventDetail(*current, cancelledRunID, cancelledRun, deadLetteredDeliveryRunIDs))
+	s.recordTaskEvent(ctx, automationdomain.TaskEventActionDelete, current, cancelledRunID, deleteTaskEventDetail(current, cancelledRunID, cancelledRun, deadLetteredDeliveryRunIDs))
 	result := &automationdomain.DeleteJobResult{
 		JobID:              current.JobID,
 		AgentID:            current.AgentID,
@@ -261,6 +322,11 @@ func (s *Service) DeleteTask(ctx context.Context, jobID string) (*automationdoma
 	}
 	if cancelledRun {
 		result.CancelledRunID = cancelledRunID
+	}
+	if s.deletion != nil && job.ID != "" {
+		if err = s.deletion.Complete(ctx, job); err != nil {
+			return nil, s.deletion.Fail(ctx, job, err)
+		}
 	}
 	return result, nil
 }

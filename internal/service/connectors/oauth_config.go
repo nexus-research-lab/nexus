@@ -65,20 +65,24 @@ func (s *Service) DeleteOAuthClientConfig(ctx context.Context, ownerUserID strin
 	if !entry.UserOAuthClient {
 		return nil, errors.New("当前连接器不支持用户自定义 OAuth 应用")
 	}
-	store, err := s.oauthClientStore()
+	if _, err := s.oauthClientStore(); err != nil {
+		return nil, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	if err = store.Delete(ctx, ownerUserID, entry.ConnectorID); err != nil {
-		return nil, err
+	defer func() { _ = tx.Rollback() }()
+	for _, query := range []string{
+		"DELETE FROM connector_oauth_states WHERE owner_user_id = " + s.bind(1) + " AND connector_id = " + s.bind(2),
+		"DELETE FROM connector_connections WHERE owner_user_id = " + s.bind(1) + " AND connector_id = " + s.bind(2),
+		"DELETE FROM connector_oauth_clients WHERE owner_user_id = " + s.bind(1) + " AND connector_id = " + s.bind(2),
+	} {
+		if _, err = tx.ExecContext(ctx, query, ownerUserID, entry.ConnectorID); err != nil {
+			return nil, err
+		}
 	}
-	if err = s.upsertConnection(ctx, connectionRecord{
-		OwnerUserID: ownerUserID,
-		ConnectorID: entry.ConnectorID,
-		State:       "disconnected",
-		Credentials: "",
-		AuthType:    entry.AuthType,
-	}); err != nil {
+	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
 	info := s.toInfo(ctx, ownerUserID, entry, "disconnected")

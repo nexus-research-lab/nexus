@@ -709,7 +709,32 @@ WHERE id = `+r.dialect.Bind(2)+` AND room_id = `+r.dialect.Bind(3)+` AND EXISTS 
 
 // UpdateSessionSDKSessionID 更新房间会话记录上的 SDK session_id。
 func (r *SQLRepository) UpdateSessionSDKSessionID(ctx context.Context, sessionID string, sdkSessionID string) error {
-	result, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	var currentSDKSessionID sql.NullString
+	err = tx.QueryRowContext(ctx, `
+SELECT sdk_session_id
+FROM sessions
+WHERE id = `+r.dialect.Bind(1), sessionID).Scan(&currentSDKSessionID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if err = r.insertTranscriptSessionRefs(
+		ctx,
+		tx,
+		sessionID,
+		currentSDKSessionID.String,
+		sdkSessionID,
+	); err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `
 UPDATE sessions
 SET sdk_session_id = `+r.dialect.Bind(1)+`, updated_at = `+r.dialect.CurrentTimestamp()+`
 WHERE id = `+r.dialect.Bind(2),
@@ -719,8 +744,10 @@ WHERE id = `+r.dialect.Bind(2),
 	if err != nil {
 		return err
 	}
-	_, err = result.RowsAffected()
-	return err
+	if _, err = result.RowsAffected(); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // TouchConversationActivity 更新 conversation 级最近活动时间。

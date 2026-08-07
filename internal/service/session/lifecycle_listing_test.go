@@ -52,6 +52,19 @@ func TestSessionServiceLifecycle(t *testing.T) {
 
 	dmSessionID := bindTranscriptSessionID(t, cfg, agentA.WorkspacePath, created)
 	seedWorkspaceSessionArtifacts(t, cfg, agentA.WorkspacePath, dmKey, dmSessionID)
+	previousDMSessionID := "650e8400-e29b-41d4-a716-446655440000"
+	created.TranscriptSessionIDs = []string{previousDMSessionID}
+	if _, err = workspacestore.NewSessionFileStore(cfg.WorkspacePath).UpsertSession(
+		agentA.WorkspacePath,
+		*created,
+	); err != nil {
+		t.Fatalf("回写 transcript lineage 失败: %v", err)
+	}
+	writeSessionTranscriptFixture(t, agentA.WorkspacePath, previousDMSessionID, []map[string]any{{
+		"type":      "assistant",
+		"uuid":      "previous-transcript",
+		"sessionId": previousDMSessionID,
+	}})
 
 	dmContext, err := roomService.EnsureDirectRoom(ctx, agentA.AgentID)
 	if err != nil {
@@ -172,6 +185,12 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if updated.Title != updatedTitle {
 		t.Fatalf("更新标题失败: got=%s want=%s", updated.Title, updatedTitle)
 	}
+	if _, err = db.Exec(`
+INSERT INTO automation_delivery_routes (
+    route_id, agent_id, session_key, mode, enabled
+) VALUES ('session-route', ?, ?, 'last', TRUE)`, agentA.AgentID, dmKey); err != nil {
+		t.Fatalf("准备 Session route 失败: %v", err)
+	}
 
 	if err = sessionService.DeleteSession(ctx, dmKey); err != nil {
 		t.Fatalf("删除 session 失败: %v", err)
@@ -182,8 +201,21 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	if _, err = os.Stat(sessionTranscriptFilePath(agentA.WorkspacePath, dmSessionID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("删除 session 后 transcript 仍残留: %v", err)
 	}
+	if _, err = os.Stat(sessionTranscriptFilePath(agentA.WorkspacePath, previousDMSessionID)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("删除 session 后历史 transcript 仍残留: %v", err)
+	}
 	if runtimeManager.HasSubagentHistory(dmKey) {
 		t.Fatal("删除 session 后 runtime state 仍残留")
+	}
+	var routeCount int
+	if err = db.QueryRow(
+		"SELECT COUNT(*) FROM automation_delivery_routes WHERE session_key = ?",
+		dmKey,
+	).Scan(&routeCount); err != nil {
+		t.Fatalf("读取 Session route 失败: %v", err)
+	}
+	if routeCount != 0 {
+		t.Fatalf("删除 Session 后仍残留 delivery route: %d", routeCount)
 	}
 }
 

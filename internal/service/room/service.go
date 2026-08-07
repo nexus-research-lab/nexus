@@ -8,6 +8,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -71,6 +72,7 @@ type Service struct {
 	goals       goalCleaner
 	goalReader  goalConversationInspector
 	runtime     runtimeSessionCloser
+	deletion    *deletionsvc.Coordinator
 }
 
 // NewService 创建 Room 服务。
@@ -94,4 +96,9 @@ func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
 // SetRuntimeManager 注入运行时管理器，用于关闭 Room conversation 对应的后台 client。
 func (s *Service) SetRuntimeManager(runtimeManager runtimeSessionCloser) {
 	s.runtime = runtimeManager
+}
+
+// SetDeletionCoordinator 注入跨数据库与文件系统的持久删除协调器。
+func (s *Service) SetDeletionCoordinator(coordinator *deletionsvc.Coordinator) {
+	s.deletion = coordinator
 }

@@ -84,6 +84,10 @@ func TestDeleteTranscriptSessionRemovesOwnedArtifactGraph(t *testing.T) {
 	writeTranscriptArtifactRows(t, filepath.Join(projectDir, memoryTranscriptName), []map[string]any{
 		{"type": "assistant", "uuid": "session-memory"},
 	})
+	internalMemoryTranscriptName := "session-memory-" + memoryTranscriptName
+	writeTranscriptArtifactRows(t, filepath.Join(projectDir, internalMemoryTranscriptName), []map[string]any{
+		{"type": "assistant", "uuid": "internal-session-memory"},
+	})
 	memoryWorkspacePath := filepath.Join(projectDir, sessionID, "session-memory")
 	memoryProjectDir := filepath.Join(
 		projectsRoot,
@@ -118,6 +122,7 @@ func TestDeleteTranscriptSessionRemovesOwnedArtifactGraph(t *testing.T) {
 		filepath.Join(projectDir, sessionID+".jsonl"),
 		sessionDir,
 		filepath.Join(projectDir, memoryTranscriptName),
+		filepath.Join(projectDir, internalMemoryTranscriptName),
 		filepath.Join(projectDir, ownedChild+".jsonl"),
 		filepath.Join(projectDir, ownedGrandchild+".jsonl"),
 		memoryProjectDir,

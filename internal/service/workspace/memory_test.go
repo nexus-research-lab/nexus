@@ -125,8 +125,17 @@ func TestDeleteMemoryDocumentRemovesFileAndIndexEntry(t *testing.T) {
 			t.Fatalf("DeleteMemoryDocument(%q) 应拒绝非正文记忆路径", invalidPath)
 		}
 	}
+	for _, protectedPath := range []string{"MEMORY.md", "memory", ".nexus/runtime.json"} {
+		if _, deleteErr := workspaceService.DeleteEntry(
+			context.Background(),
+			agentValue.AgentID,
+			protectedPath,
+		); deleteErr == nil {
+			t.Fatalf("DeleteEntry(%q) 应保护记忆索引或内部目录", protectedPath)
+		}
+	}
 
-	result, err := workspaceService.DeleteMemoryDocument(
+	result, err := workspaceService.DeleteEntry(
 		context.Background(),
 		agentValue.AgentID,
 		"memory/remove_me.md",

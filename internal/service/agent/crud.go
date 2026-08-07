@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
 
@@ -465,9 +466,25 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 	if err := s.EnsureReady(ctx); err != nil {
 		return err
 	}
+	agentID = strings.TrimSpace(agentID)
+	ownerScope := effectiveOwnerUserID(ctx)
+	if s.deletion != nil {
+		job, err := s.deletion.Load(ctx, ownerScope, deletionsvc.KindAgent, agentID)
+		if err != nil {
+			return err
+		}
+		if job != nil {
+			var payload agentDeletionPayload
+			if err = deletionsvc.DecodePayload(*job, &payload); err != nil {
+				return s.deletion.Fail(ctx, *job, err)
+			}
+			bindAgentDeletionOwner(&payload, job.OwnerUserID)
+			return s.applyAgentDeletion(ctx, *job, payload)
+		}
+	}
 
 	ownerUserID, _ := scopedOwnerUserID(ctx)
-	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID), ownerUserID)
+	existing, err := s.repository.GetAgent(ctx, agentID, ownerUserID)
 	if err != nil {
 		return err
 	}
@@ -477,22 +494,26 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 	if existing.IsMain {
 		return errors.New("主智能体不可删除")
 	}
-	if s.goals != nil {
-		if _, err = s.goals.DeleteGoalsForAgent(ctx, existing.AgentID); err != nil {
+	sessions := []protocol.Session{}
+	if s.sessions != nil {
+		sessions, err = s.sessions.ListAgentSessions(ctx, existing.AgentID)
+		if err != nil {
 			return err
 		}
 	}
-	if s.history != nil {
-		if _, err = s.history.ForOwner(existing.OwnerUserID).DeleteTranscriptProject(existing.WorkspacePath); err != nil {
+	payload := agentDeletionPayload{Agent: *existing, Sessions: sessions}
+	job := deletionsvc.Job{}
+	if s.deletion != nil {
+		job, err = s.deletion.Ensure(
+			ctx,
+			existing.OwnerUserID,
+			deletionsvc.KindAgent,
+			existing.AgentID,
+			payload,
+		)
+		if err != nil {
 			return err
 		}
 	}
-	if err = s.cleanupAgentWorkspace(ctx, *existing); err != nil {
-		return err
-	}
-	deleteOwnerUserID := existing.OwnerUserID
-	if ownerUserID != "" {
-		deleteOwnerUserID = ownerUserID
-	}
-	return s.repository.DeleteAgent(ctx, existing.AgentID, deleteOwnerUserID)
+	return s.applyAgentDeletion(ctx, job, payload)
 }

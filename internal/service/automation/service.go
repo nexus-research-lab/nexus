@@ -18,6 +18,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
+	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
@@ -87,6 +88,7 @@ type Service struct {
 	logger        *slog.Logger
 	sessionCloser runtimeSessionCloser
 	taskNotifier  TaskEventNotifier
+	deletion      *deletionsvc.Coordinator
 
 	nowFn     func() time.Time
 	idFactory func(string) string
@@ -102,6 +104,11 @@ type Service struct {
 	started               bool
 	cancel                context.CancelFunc
 	wg                    sync.WaitGroup
+}
+
+// SetDeletionCoordinator 注入定时任务跨数据库与文件系统的持久删除协调器。
+func (s *Service) SetDeletionCoordinator(coordinator *deletionsvc.Coordinator) {
+	s.deletion = coordinator
 }
 
 // NewService 创建自动化服务。

@@ -5,6 +5,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -27,6 +28,7 @@ const (
 	subagentReconcileBatch        = 32
 	planProposalReconcileInterval = 15 * time.Second
 	planProposalReconcileBatch    = 32
+	deletionReconcileInterval     = time.Minute
 )
 
 // ListenAndServe 启动后台服务与 HTTP 服务。
@@ -70,6 +72,7 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 		}
 	}
 	starters := []func(context.Context) (func(), error){
+		s.startDeletionRecovery,
 		s.startChannels,
 		s.startAutomation,
 		s.startRoomDelayedWakes,
@@ -102,6 +105,48 @@ func (s *Server) startBackgroundServices(ctx context.Context) (func(), error) {
 	}
 
 	return stopAll, nil
+}
+
+func (s *Server) startDeletionRecovery(ctx context.Context) (func(), error) {
+	if s.services == nil || s.services.Core == nil {
+		return nil, nil
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	reconcile := func() {
+		var errList []error
+		if s.services.Automation != nil {
+			errList = append(errList, s.services.Automation.ReconcilePendingDeletions(runCtx))
+		}
+		if s.services.Core.Agent != nil {
+			errList = append(errList, s.services.Core.Agent.ReconcilePendingDeletions(runCtx))
+		}
+		if s.services.Core.Session != nil {
+			errList = append(errList, s.services.Core.Session.ReconcilePendingDeletions(runCtx))
+		}
+		if s.services.Core.Room != nil {
+			errList = append(errList, s.services.Core.Room.ReconcilePendingDeletions(runCtx))
+		}
+		if s.services.Skills != nil {
+			errList = append(errList, s.services.Skills.ReconcilePendingDeletions(runCtx))
+		}
+		if err := errors.Join(errList...); err != nil {
+			s.api.BaseLogger().Warn("恢复未完成删除任务失败，稍后重试", "err", err)
+		}
+	}
+	reconcile()
+	go func() {
+		ticker := time.NewTicker(deletionReconcileInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-runCtx.Done():
+				return
+			case <-ticker.C:
+				reconcile()
+			}
+		}
+	}()
+	return cancel, nil
 }
 
 func (s *Server) startPlanProposalRecovery(ctx context.Context) (func(), error) {

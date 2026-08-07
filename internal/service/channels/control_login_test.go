@@ -403,6 +403,16 @@ func TestControlServiceDeletesSingleWeixinPersonalAccount(t *testing.T) {
 		}
 		waitChannelLoginStatus(t, service, "owner-a", ChannelTypeWeixinPersonal, started.LoginID, ChannelLoginStatusSucceeded)
 	}
+	if _, err = db.Exec(`
+INSERT INTO im_pairings (
+    pairing_id, owner_user_id, channel_type, account_id, chat_type,
+    external_ref, agent_id, status, source
+) VALUES
+    ('pairing-wx-1', 'owner-a', 'weixin-personal', 'wx-account-1', 'dm', 'chat-1', 'agent-a', 'active', 'manual'),
+    ('pairing-wx-2', 'owner-a', 'weixin-personal', 'wx-account-2', 'dm', 'chat-2', 'agent-a', 'active', 'manual')
+`); err != nil {
+		t.Fatalf("准备账号 pairing 失败: %v", err)
+	}
 
 	updated, err := service.DeleteChannelAccount(context.Background(), "owner-a", ChannelTypeWeixinPersonal, "wx-account-1")
 	if err != nil {
@@ -417,6 +427,17 @@ func TestControlServiceDeletesSingleWeixinPersonalAccount(t *testing.T) {
 	}
 	if len(accounts) != 1 || accounts[0].AccountID != "wx-account-2" {
 		t.Fatalf("账号表删除结果不正确: %+v", accounts)
+	}
+	var deletedPairings int
+	if err = db.QueryRow(`
+SELECT COUNT(*) FROM im_pairings
+WHERE owner_user_id = 'owner-a' AND channel_type = 'weixin-personal'
+  AND account_id = 'wx-account-1'
+`).Scan(&deletedPairings); err != nil {
+		t.Fatalf("读取已删账号 pairing 失败: %v", err)
+	}
+	if deletedPairings != 0 {
+		t.Fatalf("删除账号后仍残留 pairing: %d", deletedPairings)
 	}
 }
 
