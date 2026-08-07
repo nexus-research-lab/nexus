@@ -155,11 +155,11 @@ func TestRuntimeAuthTransitionCancelsActualManagerRoundBeforeCommit(t *testing.T
 		t.Fatal(err)
 	}
 	roundCanceled := make(chan struct{})
-	if !manager.StartRound(sessionKey, roundID, func() {
+	if err := manager.StartRound(t.Context(), sessionKey, roundID, func() {
 		close(roundCanceled)
 		manager.MarkRoundFinished(sessionKey, roundID)
-	}) {
-		t.Fatal("failed to start pre-auth runtime round")
+	}); err != nil {
+		t.Fatalf("failed to start pre-auth runtime round: %v", err)
 	}
 
 	committed := false

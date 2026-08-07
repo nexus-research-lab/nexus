@@ -49,15 +49,19 @@ type CatalogSkillState struct {
 
 // CatalogSourceState 是绑定 catalog version 的 marketplace 来源功能配置。
 type CatalogSourceState struct {
-	CatalogVersion int64  `json:"catalog_version"`
-	Exists         bool   `json:"exists"`
-	SourceID       string `json:"source_id,omitempty"`
-	Name           string `json:"name,omitempty"`
-	Kind           string `json:"kind,omitempty"`
-	URL            string `json:"url,omitempty"`
-	Trust          string `json:"trust,omitempty"`
-	Enabled        bool   `json:"enabled,omitempty"`
-	SortOrder      int    `json:"sort_order,omitempty"`
+	CatalogVersion       int64  `json:"catalog_version"`
+	Exists               bool   `json:"exists"`
+	SourceID             string `json:"source_id,omitempty"`
+	Name                 string `json:"name,omitempty"`
+	Kind                 string `json:"kind,omitempty"`
+	URL                  string `json:"url,omitempty"`
+	Trust                string `json:"trust,omitempty"`
+	Enabled              bool   `json:"enabled,omitempty"`
+	SortOrder            int    `json:"sort_order,omitempty"`
+	ManagedBy            string `json:"managed_by,omitempty"`
+	AuthType             string `json:"auth_type,omitempty"`
+	CredentialConfigured bool   `json:"credential_configured,omitempty"`
+	Deletable            bool   `json:"deletable,omitempty"`
 }
 
 // CatalogReconcileError 表示 catalog 已经提交或文件发布状态不确定，需要核对修复。
@@ -208,6 +212,10 @@ func (s *Service) GetCatalogSourceState(
 		state.Trust = target.Trust
 		state.Enabled = target.Enabled
 		state.SortOrder = target.SortOrder
+		state.ManagedBy = target.ManagedBy
+		state.AuthType = target.AuthType
+		state.CredentialConfigured = target.CredentialConfigured
+		state.Deletable = target.Deletable
 		return state, nil
 	}
 	return CatalogSourceState{}, ErrCatalogSnapshotUnstable

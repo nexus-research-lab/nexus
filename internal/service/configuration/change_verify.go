@@ -1,5 +1,5 @@
 // INPUT: 已执行的配置计划、规范化请求与写后真相源。
-// OUTPUT: 删除存在性（含 Agent/Provider/Room/channel 子资源）、精确资源版本推进与并发覆盖检查。
+// OUTPUT: 删除存在性（含 Agent/Provider/Room/channel 子资源）、Room participation 精确值、资源版本推进与并发覆盖检查。
 // POS: configuration apply 在宣告 success 前的资源级写后证明。
 package configuration
 
@@ -150,7 +150,63 @@ func (s *Service) verifySkillCatalogResult(
 	after DomainSnapshot,
 ) (*Check, error) {
 	switch request.Operation {
-	case "import_git", "import_url", "import_skills_sh", "update_single":
+	case "create_private_source":
+		created, ok := resultValue.(*skillsvc.ExternalSkillSourceInfo)
+		if !ok || created == nil || strings.TrimSpace(created.SourceID) == "" {
+			return nil, errors.New("私有 Skill 来源创建结果缺少可核验身份")
+		}
+		state, err := s.skills.GetCatalogSourceState(ctx, created.SourceID)
+		if err != nil {
+			return nil, fmt.Errorf("重新读取私有 Skill 来源: %w", err)
+		}
+		var input skillPrivateSourceCreateInput
+		if err = strictDecodeJSON(request.Input, &input); err != nil {
+			return nil, err
+		}
+		if !state.Exists || !state.Deletable ||
+			state.Name != strings.TrimSpace(input.Name) ||
+			!strings.EqualFold(state.AuthType, strings.TrimSpace(input.AuthType)) {
+			return nil, errors.New("私有 Skill 来源写后状态与创建计划不一致")
+		}
+		if strings.EqualFold(state.AuthType, "bearer") && !state.CredentialConfigured {
+			return nil, errors.New("私有 Skill 来源写后未记录 Bearer 凭据")
+		}
+		return &Check{
+			Code: "skill_private_source_creation_verified", Status: "ok",
+			Message: "已重新读取私有 Skill 来源并核对归属、认证元数据和加密凭据存在性",
+			Domain:  DomainSkills, Target: state.SourceID, Verified: true,
+		}, nil
+	case "update_source":
+		updated, ok := resultValue.(*skillsvc.ExternalSkillSourceInfo)
+		if !ok || updated == nil || strings.TrimSpace(updated.SourceID) != request.Target {
+			return nil, errors.New("Skill 来源更新结果缺少可核验身份")
+		}
+		state, err := s.skills.GetCatalogSourceState(ctx, request.Target)
+		if err != nil {
+			return nil, fmt.Errorf("重新读取更新后的 Skill 来源: %w", err)
+		}
+		if !state.Exists || state.SourceID != request.Target {
+			return nil, errors.New("Skill 来源更新后未出现在 catalog")
+		}
+		return &Check{
+			Code: "skill_source_configuration_verified", Status: "ok",
+			Message: "已重新读取 Skill 来源并核对功能配置与凭据存在性标记",
+			Domain:  DomainSkills, Target: state.SourceID, Verified: true,
+		}, nil
+	case "delete_private_source":
+		state, err := s.skills.GetCatalogSourceState(ctx, request.Target)
+		if err != nil {
+			return nil, fmt.Errorf("重新读取已删除私有 Skill 来源: %w", err)
+		}
+		if state.Exists {
+			return nil, errors.New("私有 Skill 来源删除后仍存在")
+		}
+		return &Check{
+			Code: "skill_private_source_deletion_verified", Status: "ok",
+			Message: "已重新读取 owner Skill 来源目录并核对目标不存在；既有导入 Skill 保留",
+			Domain:  DomainSkills, Target: request.Target, Verified: true,
+		}, nil
+	case "import_git", "import_url", "import_skills_sh", "import_private", "update_single":
 		detail, ok := resultValue.(*skillsvc.Detail)
 		if !ok || detail == nil || strings.TrimSpace(detail.Name) == "" {
 			return nil, errors.New("Skill catalog 变更结果缺少可核验的 Skill 身份")
@@ -311,6 +367,41 @@ func (s *Service) verifyRoomLifecycleChange(
 			Message: "已从当前真相源核对 conversation 不再存在",
 			Domain:  DomainRooms, Target: input.ConversationID, Verified: true,
 		}, nil
+	case "set_member_participation":
+		var input roomMemberParticipationInput
+		if err := strictDecodeJSON(request.Input, &input); err != nil {
+			return nil, err
+		}
+		if input.Paused == nil {
+			return nil, errors.New("核对 Room 成员参与状态缺少 paused")
+		}
+		roomValue, err := s.rooms.GetRoom(ctx, request.Target)
+		if err != nil {
+			return nil, fmt.Errorf("重新读取 Room 成员参与状态: %w", err)
+		}
+		if roomValue == nil {
+			return nil, errors.New("重新读取 Room 成员参与状态得到空结果")
+		}
+		memberID := strings.TrimSpace(input.AgentID)
+		for _, member := range roomValue.Members {
+			if member.MemberType != protocol.MemberTypeAgent ||
+				strings.TrimSpace(member.MemberAgentID) != memberID {
+				continue
+			}
+			if member.ParticipationPaused != *input.Paused {
+				return nil, fmt.Errorf(
+					"Room 成员参与状态写后不一致：expected=%t actual=%t",
+					*input.Paused,
+					member.ParticipationPaused,
+				)
+			}
+			return &Check{
+				Code: "room_member_participation_verified", Status: "ok",
+				Message: "已从 Room 真相源重新读取并核对成员参与状态",
+				Domain:  DomainRooms, Target: memberID, Verified: true,
+			}, nil
+		}
+		return nil, fmt.Errorf("Room 成员 %s 在写后核对时不存在", memberID)
 	default:
 		return nil, nil
 	}

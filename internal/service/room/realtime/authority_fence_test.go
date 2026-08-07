@@ -161,6 +161,21 @@ func TestRoomSlotOutputFenceRechecksMembership(t *testing.T) {
 	}
 }
 
+func TestRoomSlotOutputFenceRejectsPausedMember(t *testing.T) {
+	initialContext := newAuthorityFenceContext()
+	store := &authorityFenceRoomStore{contextValue: initialContext}
+	service := &Service{rooms: store}
+	roundValue := newAuthorityFenceRound(initialContext)
+	slot := &activeRoomSlot{AgentID: "agent-a"}
+
+	store.update(func(contextValue *protocol.ConversationContextAggregate) {
+		contextValue.Members[0].ParticipationPaused = true
+	})
+	if err := service.ensureSlotOutputAuthorized(t.Context(), roundValue, slot); !errors.Is(err, errRoomSlotAuthorityRevoked) {
+		t.Fatalf("paused member output was not fenced: %v", err)
+	}
+}
+
 func TestRoomSlotOutputFenceRechecksWithCancelledRuntimeContext(t *testing.T) {
 	initialContext := newAuthorityFenceContext()
 	store := &authorityFenceRoomStore{

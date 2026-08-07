@@ -44,8 +44,8 @@ func TestRequireActiveRoundUsesDMAndRoomRuntimeLease(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			manager := runtimectx.NewManager()
-			if !manager.StartRound(test.leaseSessionKey, test.leaseRoundID, nil) {
-				t.Fatal("start runtime lease")
+			if err := manager.StartRound(t.Context(), test.leaseSessionKey, test.leaseRoundID, nil); err != nil {
+				t.Fatalf("start runtime lease: %v", err)
 			}
 			service := &Service{runtime: manager}
 			actor := Actor{

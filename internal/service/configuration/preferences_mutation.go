@@ -10,6 +10,7 @@ import (
 
 	clientopts "github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
+	"github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 )
 
 func (s *Service) updatePreferences(
@@ -110,10 +111,11 @@ func (s *Service) syncWebSearchRuntime(ctx context.Context, preferences preferen
 	if err != nil {
 		return err
 	}
-	environment := clientopts.BuildWebSearchRuntimeEnv("nxs", preferences.WebSearch)
+	environment := runtimeselection.WebSearchConfigFromPreferences(preferences.WebSearch)
+	runtimeEnvironment := clientopts.BuildWebSearchRuntimeEnv("nxs", environment)
 	errs := make([]error, 0)
 	for _, item := range agents {
-		if err = s.runtime.UpdateEnvironmentForAgent(ctx, item.AgentID, environment); err != nil {
+		if err = s.runtime.UpdateEnvironmentForAgent(ctx, item.AgentID, runtimeEnvironment); err != nil {
 			errs = append(errs, err)
 		}
 	}

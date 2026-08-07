@@ -1,5 +1,5 @@
 // INPUT: owner 外部来源配置、来源健康结果与可选 expected catalog version。
-// OUTPUT: 默认来源初始化、版本化开关更新与不递增功能版本的健康元数据。
+// OUTPUT: 默认来源初始化、版本化系统/私有来源更新与不递增功能版本的健康元数据。
 // POS: Skill marketplace 来源配置的 owner mutation 边界。
 package skills
 
@@ -69,7 +69,7 @@ func (s *Service) UpdateExternalSkillSource(ctx context.Context, sourceID string
 	return s.updateExternalSkillSource(ctx, sourceID, request, nil)
 }
 
-// UpdateExternalSkillSourceAtVersion 仅在 owner catalog version 匹配时更新来源开关。
+// UpdateExternalSkillSourceAtVersion 仅在 owner catalog version 匹配时更新来源配置。
 func (s *Service) UpdateExternalSkillSourceAtVersion(
 	ctx context.Context,
 	sourceID string,
@@ -105,7 +105,7 @@ func (s *Service) updateExternalSkillSource(
 		if existing.Kind != externalSourceKindPrivateRegistry {
 			return nil, errors.New("不支持修改该用户来源类型")
 		}
-		return s.updatePrivateSkillSource(ctx, *existing, request)
+		return s.updatePrivateSkillSource(ctx, *existing, request, expectedVersion)
 	}
 	if _, ok := configuredExternalSourceIDs(configuredSources)[sourceID]; !ok {
 		return nil, errors.New("skill source not found")

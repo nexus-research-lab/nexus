@@ -39,13 +39,17 @@ type skillCatalogItemView struct {
 }
 
 type skillSourceView struct {
-	SourceID  string `json:"source_id"`
-	Name      string `json:"name"`
-	Kind      string `json:"kind"`
-	URL       string `json:"url"`
-	Trust     string `json:"trust"`
-	Enabled   bool   `json:"enabled"`
-	SortOrder int    `json:"sort_order"`
+	SourceID             string `json:"source_id"`
+	Name                 string `json:"name"`
+	Kind                 string `json:"kind"`
+	URL                  string `json:"url"`
+	Trust                string `json:"trust"`
+	Enabled              bool   `json:"enabled"`
+	SortOrder            int    `json:"sort_order"`
+	ManagedBy            string `json:"managed_by"`
+	AuthType             string `json:"auth_type"`
+	CredentialConfigured bool   `json:"credential_configured"`
+	Deletable            bool   `json:"deletable"`
 }
 
 func safeSkillCatalogItems(items []skillsvc.Info) []skillCatalogItemView {
@@ -73,7 +77,9 @@ func safeSkillSources(items []skillsvc.ExternalSkillSourceInfo) []skillSourceVie
 		result = append(result, skillSourceView{
 			SourceID: item.SourceID, Name: item.Name, Kind: item.Kind,
 			URL: item.URL, Trust: item.Trust, Enabled: item.Enabled,
-			SortOrder: item.SortOrder,
+			SortOrder: item.SortOrder, ManagedBy: item.ManagedBy,
+			AuthType: item.AuthType, CredentialConfigured: item.CredentialConfigured,
+			Deletable: item.Deletable,
 		})
 	}
 	return result
@@ -364,21 +370,60 @@ func (s *Service) augmentSkillCatalogChangeSnapshot(
 		version    int64
 	)
 	switch request.Operation {
-	case "update_source":
+	case "update_source", "delete_private_source", "import_private":
 		state, err := s.skills.GetCatalogSourceState(ctx, request.Target)
 		if err != nil {
 			return DomainSnapshot{}, fmt.Errorf("读取 Skill 来源状态: %w", err)
 		}
-		if !state.Exists {
+		if !state.Exists && !(verifyOutcome && request.Operation == "delete_private_source") {
 			return DomainSnapshot{}, errors.New("Skill 来源不存在")
 		}
-		if verifyOutcome {
-			var input skillsvc.ExternalSkillSourceRequest
+		switch request.Operation {
+		case "update_source":
+			var input skillSourceUpdateInput
 			if err = strictDecodeJSON(request.Input, &input); err != nil {
 				return DomainSnapshot{}, err
 			}
-			if input.Enabled != nil && state.Enabled != *input.Enabled {
-				return DomainSnapshot{}, errors.New("Skill 来源写后 enabled 与计划不一致")
+			if !state.Deletable &&
+				(input.Name != nil || input.AuthType != nil || jsonFieldProvided(input.Token)) {
+				return DomainSnapshot{}, errors.New("系统 Skill 来源只允许修改 enabled")
+			}
+			if jsonFieldProvided(input.Token) && input.AuthType == nil &&
+				!strings.EqualFold(state.AuthType, "bearer") {
+				return DomainSnapshot{}, errors.New("只有 bearer 私有来源可以轮换 token")
+			}
+			if verifyOutcome {
+				if input.Name != nil && state.Name != strings.TrimSpace(*input.Name) {
+					return DomainSnapshot{}, errors.New("Skill 来源写后 name 与计划不一致")
+				}
+				if input.Enabled != nil && state.Enabled != *input.Enabled {
+					return DomainSnapshot{}, errors.New("Skill 来源写后 enabled 与计划不一致")
+				}
+				if input.AuthType != nil && !strings.EqualFold(state.AuthType, strings.TrimSpace(*input.AuthType)) {
+					return DomainSnapshot{}, errors.New("Skill 来源写后 auth_type 与计划不一致")
+				}
+				if jsonFieldProvided(input.Token) && !state.CredentialConfigured {
+					return DomainSnapshot{}, errors.New("Skill 来源写后未记录已配置凭据")
+				}
+				if input.AuthType != nil && strings.EqualFold(strings.TrimSpace(*input.AuthType), "none") &&
+					state.CredentialConfigured {
+					return DomainSnapshot{}, errors.New("Skill 来源切换为无认证后仍残留凭据")
+				}
+			}
+		case "delete_private_source":
+			if verifyOutcome {
+				if state.Exists {
+					return DomainSnapshot{}, errors.New("私有 Skill 来源删除后仍存在")
+				}
+			} else if !state.Deletable {
+				return DomainSnapshot{}, errors.New("该 Skill 来源不是可删除的 owner 私有来源")
+			}
+		case "import_private":
+			if !state.Deletable {
+				return DomainSnapshot{}, errors.New("skills.import_private 要求 owner 私有来源")
+			}
+			if !state.Enabled {
+				return DomainSnapshot{}, errors.New("私有 Skill 来源已停用")
 			}
 		}
 		targetKind, target, version = "source", state, state.CatalogVersion

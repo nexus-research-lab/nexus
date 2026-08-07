@@ -405,7 +405,12 @@ func (e *slotExecution) runtimePermissionHandler() sdkpermission.Handler {
 			return e.service.permission.RequestPermission(ctx, e.slot.RuntimeSessionKey, request)
 		}
 	}
-	handler = withRoomPermissionPolicy(handler, e.round.Context.Room.PrivateMessagesEnabled)
+	handler = withRoomPermissionPolicy(
+		handler,
+		e.round.Context.Room.PrivateMessagesEnabled,
+		e.agent.Options.AllowedTools,
+		e.agent.Options.DisallowedTools,
+	)
 	handler = toolpolicy.WithManagedRuntimeAutoApproval(handler)
 	handler = toolpolicy.WithMalformedInputDeny(handler)
 	return toolpolicy.WithNexusControlPlaneDeny(handler, !e.agent.IsMain)

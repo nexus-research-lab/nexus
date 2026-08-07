@@ -1,5 +1,5 @@
-// INPUT: Room 成员增删与持久 participation_paused 变更请求。
-// OUTPUT: 经成员身份和 Room 类型校验后的最新主 conversation 上下文。
+// INPUT: Room 成员增删、持久 participation_paused 与可选 configuration_version 请求。
+// OUTPUT: 经成员身份、Room 类型与 CAS 校验后的最新主 conversation 上下文。
 // POS: Room 成员生命周期与参与状态的业务事务边界。
 package room
 
@@ -161,6 +161,37 @@ func (s *Service) SetRoomMemberParticipation(
 	agentID string,
 	paused bool,
 ) (*protocol.ConversationContextAggregate, error) {
+	return s.setRoomMemberParticipation(ctx, roomID, agentID, paused, nil)
+}
+
+// SetRoomMemberParticipationAtVersion 使用 Room configuration_version CAS
+// 持久化 group Room 成员参与状态。
+func (s *Service) SetRoomMemberParticipationAtVersion(
+	ctx context.Context,
+	roomID string,
+	agentID string,
+	paused bool,
+	expectedVersion int64,
+) (*protocol.ConversationContextAggregate, error) {
+	if expectedVersion < 1 {
+		return nil, errors.New("expected Room configuration_version 必须大于 0")
+	}
+	return s.setRoomMemberParticipation(
+		ctx,
+		roomID,
+		agentID,
+		paused,
+		&expectedVersion,
+	)
+}
+
+func (s *Service) setRoomMemberParticipation(
+	ctx context.Context,
+	roomID string,
+	agentID string,
+	paused bool,
+	expectedVersion *int64,
+) (*protocol.ConversationContextAggregate, error) {
 	normalizedRoomID := strings.TrimSpace(roomID)
 	normalizedAgentID := strings.TrimSpace(agentID)
 	if normalizedRoomID == "" || normalizedAgentID == "" {
@@ -187,13 +218,38 @@ func (s *Service) SetRoomMemberParticipation(
 	if !memberFound {
 		return nil, ErrRoomMemberNotFound
 	}
-	contextValue, err := s.repository.SetRoomMemberParticipation(
-		ctx,
-		authctx.OwnerUserID(ctx),
-		normalizedRoomID,
-		normalizedAgentID,
-		paused,
-	)
+	var contextValue *protocol.ConversationContextAggregate
+	if expectedVersion == nil {
+		contextValue, err = s.repository.SetRoomMemberParticipation(
+			ctx,
+			authctx.OwnerUserID(ctx),
+			normalizedRoomID,
+			normalizedAgentID,
+			paused,
+		)
+	} else {
+		versioned, ok := s.repository.(interface {
+			SetRoomMemberParticipationAtVersion(
+				context.Context,
+				string,
+				string,
+				string,
+				bool,
+				int64,
+			) (*protocol.ConversationContextAggregate, error)
+		})
+		if !ok {
+			return nil, errors.New("Room repository 不支持成员参与状态资源版本")
+		}
+		contextValue, err = versioned.SetRoomMemberParticipationAtVersion(
+			ctx,
+			authctx.OwnerUserID(ctx),
+			normalizedRoomID,
+			normalizedAgentID,
+			paused,
+			*expectedVersion,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}

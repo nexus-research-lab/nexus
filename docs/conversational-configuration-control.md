@@ -22,10 +22,10 @@ Nexus 的配置真相源并不只是一份 JSON。Provider、Agent、Room、Chan
 | `emotion` | 当前 Agent workspace 的版本化 `.agents/emotion.json` | `nexus_config` | 基础/上下文情绪下一轮投影；fatigue 只读 |
 | `channels` | 数据库 + 加密凭据 | `nexus_config`；扫码/验证码走 `nexus_channel_authorization` | 版本 CAS 后热重载，失败条件回滚 |
 | `connectors` | 数据库 + 加密凭据 | 直接凭据走 `nexus_config`；OAuth/Device 走 `nexus_connector_auth` | 下一会话或重新授权 |
-| `skills` | 数据库 + 用户 Skill 库 + owner catalog version + 目标 Agent `runtime_version` | `nexus_config` | 目录立即；单项/批量更新和 Agent 安装选择下一轮 |
+| `skills` | 数据库 + 加密私有来源凭据 + 用户 Skill 库 + owner catalog version + 目标 Agent `runtime_version` | `nexus_config` | 来源、目录和导入结果立即；Agent 在下一轮加载 Skill 内容与安装选择 |
 | `host` | 部署环境 + 原生桌面宿主 | `nexus_config` 脱敏检查；变更走对应人类控制面 | 外部变更后重启 |
 | `sessions` | owner-confined Agent workspace session meta + runtime 不可写的 host-only owner lifecycle ledger | `nexus_config` | 标题/目录立即；删除先持久封锁再关闭精确热态，启动和周期恢复未完成清理 |
-| `rooms` | 数据库 + Room runtime | `nexus_config` | 见 Room 热重载矩阵 |
+| `rooms` | 数据库 + Room runtime | `nexus_config` | 资料、成员参与闸门和权限即时；提示与路由见 Room 热重载矩阵 |
 | `automation` | 数据库 + scheduler runtime | Agent task 走 `nexus_automation`；script task 仅人类控制面 | 专用工具创建、检查和核对 |
 | `workspaces` | workspace 文件系统 | `nexus_manager` 只读检查 + 当前 Agent 原生文件工具 | 当前 workspace 文件写入立即 |
 | `goals` | 数据库 + Goal runtime | `nexus_goal` | 专用 Goal 生命周期 |
@@ -161,6 +161,7 @@ Room host 只能对当前 Room 执行：
 - `update_profile`：名称、描述、头像；
 - `set_collaboration_policy`：Room Skill、群主默认接管、私域消息开关；
 - `add_member`、`remove_member`；
+- `set_member_participation`：暂停或恢复指定成员的 Room 调度；
 - `transfer_host`；
 - `create_conversation`、`update_conversation`、`delete_conversation`。
 
@@ -190,7 +191,7 @@ owner defaults
 - owner defaults 为新 Agent 和未显式设置的 Agent 字段提供默认值。
 - Agent base 保存该 Agent 的模型、运行上限、工具、Skill 和 MCP 选择。
 - Room policy 只覆盖 Room 拥有的协作、安全和路由规则，不反向改写 Agent 持久记录。
-- member relationship 决定当前 Agent 是否仍有进入 Room、读取上下文和产生输出的资格。
+- member relationship 决定当前 Agent 是否仍是成员、是否暂停参与，以及能否进入 Room、读取上下文和产生输出。
 - round transient context 只对当前执行生效，不能被持久化成更高层权限。
 
 合并必须满足以下单调安全规则：
@@ -231,7 +232,7 @@ flowchart LR
 3. `plan_digest` 确定性绑定 owner、Agent、authority、交互上下文、业务 session/round、真实 runtime lease、资源 scope、domain、operation、target、规范化 input、revision 和 state version。改变其中任何一项都必须重新 plan。
 4. 对删除、权限变化、成员变化、群主转让、自我资料和秘密写入等操作，必须先向用户展示 plan 风险。批准由 Nexus 原生 permission 卡签发一次性 human approval；模型不能用 `confirm=true`、提示词或工具参数自我确认。
 5. `apply` 要求新的 `request_id`、原 plan 返回的 `plan_digest` 和 `expected_revision`；同一 scope 内串行，并在写入前再次解析 Actor。人工批准还绑定当前认证 principal/session、业务 session/root round、真实 runtime lease、domain/operation/target、digest、revision 和 secret slot，且该 auth-session lease 一直持有到领域写入、reload、写后核验和终态审计结束。
-6. Agent 使用 `runtime_version`，Provider、Room、Channel、Connector、Session 和 Automation 使用各自单调版本，Preferences 使用持久化单调 `version` 执行资源 CAS。任何有版本的 update/delete 分派缺少 `state_version` 都直接失败，不能降级调用无 CAS API。Preferences 的 Web/API 与对话写入都在同一个 owner 锁内读取最新值并合并；对话 apply 必须携带 plan 的 state version，不能用 plan 前的全量快照覆盖其间的 UI 修改。Skills 安装/卸载即使由 `owner_main` 发起，也锁定 `input.agent_id` 对应的 Agent scope，并把该 Agent 的 `runtime_version`、目标 Skill 的可见性、来源和 `installed` 状态同时写入 revision；写后还会直接核对 install 得到 `installed=true`、uninstall 得到 `installed=false`。批量更新从一个 owner catalog version 开始逐项推进，任意并发写或发布不确定会停止并进入 `reconcile_required`，不会把部分完成当作普通失败或全量成功。Room host/member 变化还推进 authority epoch，使旧权限立即过期。
+6. Agent 使用 `runtime_version`，Provider、Room、Channel、Connector、Session 和 Automation 使用各自单调版本，Preferences 使用持久化单调 `version` 执行资源 CAS。任何有版本的 update/delete 分派缺少 `state_version` 都直接失败，不能降级调用无 CAS API。Preferences 的 Web/API 与对话写入都在同一个 owner 锁内读取最新值并合并；对话 apply 必须携带 plan 的 state version，不能用 plan 前的全量快照覆盖其间的 UI 修改。Skills 安装/卸载即使由 `owner_main` 发起，也锁定 `input.agent_id` 对应的 Agent scope，并把该 Agent 的 `runtime_version`、目标 Skill 的可见性、来源和 `installed` 状态同时写入 revision；写后还会直接核对 install 得到 `installed=true`、uninstall 得到 `installed=false`。私有 Skill 来源的创建、更新、删除和导入与设置页/API 共用同一个 owner catalog version：远端 URL、认证和索引先在短事务外验证，提交时再以 plan 版本执行 CAS，并在同一事务推进一次 version；因此任一入口的并发功能写都会使旧对话计划失效。inspect 只返回 `auth_type`、`credential_configured` 等安全元数据，Bearer 值只从原生 secret slot 进入，写后重读精确来源状态或导入结果。健康检查元数据不改变功能 revision。批量更新从一个 owner catalog version 开始逐项推进，任意并发写或发布不确定会停止并进入 `reconcile_required`，不会把部分完成当作普通失败或全量成功。Room host/member/participation 变化还推进 authority epoch，使旧权限和暂停前输出立即过期。
 7. 写入后重新读取真相源和 checks。若领域服务产生了部分外部效果但最终核对失败，记录 `reconcile_required`，不会谎报成“什么都没发生”。
 
 `request_id` 是幂等键。同一意图的网络重试只重放原结果；拿同一个 request ID 换输入、target 或计划会被拒绝。
@@ -260,7 +261,7 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 | Channel QR/验证码授权 | 启动版本 CAS 后发布候选 runtime | QR/验证码只进入绑定的认证 UI；候选失败保留旧 runtime，旧 generation 不能迟到覆盖 |
 | Connector 凭据/连接 | 下一会话或重新授权 | 不把旧会话伪装成已换凭据 |
 | Connector OAuth/Device 授权 | 完成时按启动配置版本 CAS | OAuth URL 由受保护的 `flow_id` 跳转恢复；跨 owner/session、过期或并发变更拒绝 |
-| Skill 来源、导入、更新和安装选择 | 目录立即；目标 Agent 下一轮 | owner catalog 与目标 Agent runtime 分别版本化；发布失败原子恢复旧目录或进入明确 reconcile |
+| Skill 来源、导入、更新和安装选择 | 私有来源增删改、搜索、目录和导入结果立即；目标 Agent 下一轮加载内容与选择 | 所有设置页/API/对话功能写共用 owner catalog CAS，Bearer 仅走原生 secret slot；发布失败原子恢复旧目录或进入明确 reconcile |
 | Scheduled Agent task / Heartbeat | scheduler 读取持久新版本；wake 不改变配置版本 | 更新/删除用版本 CAS 并重读；同 `request_id` 创建只重放同一意图；script task 不开放对话写入 |
 | Agent session 标题 | 目录/UI 立即 | 同一 session 资源锁内单调推进版本；写后重读标题 |
 | 删除 Agent session | host-only lifecycle ledger 先封锁，meta 删除后保持 tombstone | admission fence 阻止新启动和晚到写回；关闭失败撤销未提交栅栏，提交后 transcript 清理失败保留私有重试引用，由启动/周期 recovery 继续 reconcile |
@@ -272,6 +273,7 @@ Provider 强制删除会统计所有状态（包括已归档）仍引用它的 A
 | `private_messages_enabled=true` | 服务层允许立即；工具/prompt 下一轮完整出现 | 当前 client 不动态改工具表 |
 | 添加 Room 成员 | 成员目录与后续路由立即 | 新成员从后续输入开始获得 slot |
 | 移除 Room 成员 | 权限立即撤销并中断活跃任务 | 最终输出前再验成员关系，旧 runtime 在途结果不能落库 |
+| 暂停/恢复 Room 成员参与 | Room CAS 与 authority epoch 立即推进；暂停中断活跃任务，恢复重启待办调度 | 最终输出前同时复核 epoch、成员关系和 participation gate |
 | 转让 Room host | authority 立即变化；下一条输入使用新 host 路由 | 旧 host 的 inspect/plan/apply 在下一次调用时失败 |
 | 创建/更新 conversation | Room 版本推进；目录立即 | 后续输入/下一轮读取新标题和上下文 |
 | 删除 conversation / Room | 数据库先提交删除与版本边界 | 随后关闭精确 runtime、清理 artifact/Goal；清理失败记录 reconcile，不伪装成未删除 |
@@ -315,8 +317,8 @@ lease、当前认证 principal/session、启动资源版本和过期时间：
 
 以下项目故意不进入通用 configuration MCP 写入面：用户/密码/角色、订阅与公共 Provider、
 项目 ACL、部署环境和认证开关、Automation script task、Goal 暂停/恢复/预算/清除、
-当前客户端的主题/语言/onboarding/tour 状态、任意本地路径或上传式 Skill 导入、其他
-Agent workspace 写入和直接 SQL。它们继续遵循各自已有的原生、宿主或认证管理面，
+当前客户端的主题/语言/onboarding/tour 状态、当前 Composer 发起的 Session 级模型/权限覆盖、
+任意本地路径或上传式 Skill 导入、其他 Agent workspace 写入和直接 SQL。它们继续遵循各自已有的原生、宿主或认证管理面，
 不能因为对话配置能力而获得一条绕过所有权、真人确认或秘密输入边界的通路。
 
 主智能体仍按宿主控制面契约保留注入的 owner-scoped `nexusctl` 兼容能力，但 owner、

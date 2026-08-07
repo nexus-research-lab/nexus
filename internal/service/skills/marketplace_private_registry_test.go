@@ -102,6 +102,10 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 	defer func() { _ = db.Close() }()
 	service := NewServiceWithDB(cfg, db, nil, nil)
 	ctx := context.Background()
+	beforeCreate, err := service.GetCatalogState(ctx)
+	if err != nil {
+		t.Fatalf("读取创建前 catalog version 失败: %v", err)
+	}
 
 	source, err := service.CreateExternalSkillSource(ctx, CreateExternalSkillSourceRequest{
 		Name:     "Internal Registry",
@@ -114,6 +118,13 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 	}
 	if source.ManagedBy != externalSourceManagedByUser || !source.CredentialConfigured || !source.Deletable {
 		t.Fatalf("私有来源公开状态不正确: %+v", source)
+	}
+	afterCreate, err := service.GetCatalogState(ctx)
+	if err != nil {
+		t.Fatalf("读取创建后 catalog version 失败: %v", err)
+	}
+	if afterCreate.Version != beforeCreate.Version+1 {
+		t.Fatalf("创建私有来源 catalog version = %d, want %d", afterCreate.Version, beforeCreate.Version+1)
 	}
 	storedSource, err := service.skillStore.GetSource(ctx, authctx.OwnerUserID(ctx), source.SourceID)
 	if err != nil {
@@ -154,6 +165,10 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 		t.Fatalf("定向私有搜索不应请求公共来源，实际请求 %d 次", publicSearchCalls.Load())
 	}
 
+	beforeImport, err := service.GetCatalogState(ctx)
+	if err != nil {
+		t.Fatalf("读取导入前 catalog version 失败: %v", err)
+	}
 	detail, err := service.ImportPrivateSkillFromSource(ctx, ImportPrivateSkillRequest{
 		SourceID: source.SourceID,
 		SkillID:  "internal-knowledge",
@@ -163,6 +178,13 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 	}
 	if detail.Name != "internal-knowledge" || detail.Title != "Internal Knowledge v1" {
 		t.Fatalf("私有 skill 详情不正确: %+v", detail.Info)
+	}
+	afterImport, err := service.GetCatalogState(ctx)
+	if err != nil {
+		t.Fatalf("读取导入后 catalog version 失败: %v", err)
+	}
+	if afterImport.Version != beforeImport.Version+1 {
+		t.Fatalf("导入私有 Skill catalog version = %d, want %d", afterImport.Version, beforeImport.Version+1)
 	}
 	record, err := service.skillStore.GetImportedSkill(ctx, authctx.OwnerUserID(ctx), detail.Name)
 	if err != nil {
@@ -181,12 +203,23 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 	)
 	version = "2.0.0"
 	stateMutex.Unlock()
+	beforeCheck, err := service.GetCatalogState(ctx)
+	if err != nil {
+		t.Fatalf("读取健康检查前 catalog version 失败: %v", err)
+	}
 	updates, err := service.CheckImportedSkillUpdates(ctx)
 	if err != nil {
 		t.Fatalf("检查私有 skill 更新失败: %v", err)
 	}
 	if len(updates.AvailableSkills) != 1 || updates.AvailableSkills[0] != "internal-knowledge" {
 		t.Fatalf("未发现私有 skill 更新: %+v", updates)
+	}
+	afterCheck, err := service.GetCatalogState(ctx)
+	if err != nil {
+		t.Fatalf("读取健康检查后 catalog version 失败: %v", err)
+	}
+	if afterCheck.Version != beforeCheck.Version {
+		t.Fatalf("非功能健康检查不应推进 catalog version: %d != %d", afterCheck.Version, beforeCheck.Version)
 	}
 	updated, err := service.UpdateSingleSkill(ctx, "internal-knowledge")
 	if err != nil {
@@ -209,8 +242,19 @@ func TestPrivateRegistrySourceSearchImportAndUpdate(t *testing.T) {
 	skillName = "internal-knowledge"
 	stateMutex.Unlock()
 
+	beforeDelete, err := service.GetCatalogState(ctx)
+	if err != nil {
+		t.Fatalf("读取删除前 catalog version 失败: %v", err)
+	}
 	if err = service.DeleteExternalSkillSource(ctx, source.SourceID); err != nil {
 		t.Fatalf("删除私有来源失败: %v", err)
+	}
+	afterDelete, err := service.GetCatalogState(ctx)
+	if err != nil {
+		t.Fatalf("读取删除后 catalog version 失败: %v", err)
+	}
+	if afterDelete.Version != beforeDelete.Version+1 {
+		t.Fatalf("删除私有来源 catalog version = %d, want %d", afterDelete.Version, beforeDelete.Version+1)
 	}
 	sources, err := service.ListExternalSkillSources(ctx)
 	if err != nil {

@@ -287,6 +287,18 @@ func validateChangeRequest(request ChangeRequest) error {
 			return errors.New("skills.preview_external 的 detail_url 不能为空")
 		}
 		return nil
+	case DomainSkills + ".create_private_source":
+		if strings.TrimSpace(request.Target) != "" {
+			return errors.New("skills.create_private_source 不接受 target")
+		}
+		var input skillPrivateSourceCreateInput
+		if err := decode(&input); err != nil {
+			return err
+		}
+		if strings.TrimSpace(input.Name) == "" || strings.TrimSpace(input.URL) == "" {
+			return errors.New("skills.create_private_source 要求 name 和 url")
+		}
+		return validatePrivateSkillSourceAuth(input.AuthType, input.Token)
 	case DomainSkills + ".import_git":
 		if strings.TrimSpace(request.Target) != "" {
 			return errors.New("skills.import_git 不接受 target")
@@ -328,12 +340,35 @@ func validateChangeRequest(request ChangeRequest) error {
 		if err := requireTarget(); err != nil {
 			return err
 		}
-		var input skillsvc.ExternalSkillSourceRequest
+		var input skillSourceUpdateInput
 		if err := decode(&input); err != nil {
 			return err
 		}
-		if input.Enabled == nil {
-			return errors.New("skills.update_source 要求 enabled")
+		if input.Name == nil && input.Enabled == nil && input.AuthType == nil && !jsonFieldProvided(input.Token) {
+			return errors.New("skills.update_source 至少要提供 name、enabled、auth_type 或 token")
+		}
+		if input.Name != nil && strings.TrimSpace(*input.Name) == "" {
+			return errors.New("skills.update_source 的 name 不能为空")
+		}
+		if input.AuthType != nil {
+			return validatePrivateSkillSourceAuth(*input.AuthType, input.Token)
+		}
+		return nil
+	case DomainSkills + ".delete_private_source":
+		if err := requireTarget(); err != nil {
+			return err
+		}
+		return decode(&struct{}{})
+	case DomainSkills + ".import_private":
+		if err := requireTarget(); err != nil {
+			return err
+		}
+		var input skillPrivateImportInput
+		if err := decode(&input); err != nil {
+			return err
+		}
+		if strings.TrimSpace(input.SkillID) == "" {
+			return errors.New("skills.import_private 要求 skill_id")
 		}
 		return nil
 	case DomainSkills + ".install", DomainSkills + ".uninstall":
@@ -428,6 +463,18 @@ func validateChangeRequest(request ChangeRequest) error {
 		}
 		if strings.TrimSpace(input.AgentID) == "" {
 			return errors.New("agent_id 不能为空")
+		}
+		return nil
+	case DomainRooms + ".set_member_participation":
+		var input roomMemberParticipationInput
+		if err := decode(&input); err != nil {
+			return err
+		}
+		if strings.TrimSpace(input.AgentID) == "" {
+			return errors.New("agent_id 不能为空")
+		}
+		if input.Paused == nil {
+			return errors.New("paused 必须显式提供")
 		}
 		return nil
 	case DomainRooms + ".create_conversation":
@@ -533,6 +580,27 @@ func validateSkillSelectionInput(input skillAgentTarget, requireAgentID bool) er
 	return nil
 }
 
+func validatePrivateSkillSourceAuth(authType string, token json.RawMessage) error {
+	switch strings.ToLower(strings.TrimSpace(authType)) {
+	case "none":
+		if jsonFieldProvided(token) {
+			return errors.New("auth_type=none 时不能提供 token")
+		}
+	case "bearer":
+		if !jsonFieldProvided(token) {
+			return errors.New("auth_type=bearer 时必须通过 secret slot 提供 token")
+		}
+	default:
+		return errors.New("auth_type 必须是 none 或 bearer")
+	}
+	return nil
+}
+
+func jsonFieldProvided(value json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(value)
+	return len(trimmed) > 0 && !bytes.Equal(trimmed, []byte("null"))
+}
+
 func requireNonEmptyJSONObject(input json.RawMessage, operation string) error {
 	var fields map[string]json.RawMessage
 	payload := input
@@ -588,6 +656,31 @@ func (s *Service) validateScopedChange(
 			}
 			if contextValue == nil || strings.TrimSpace(contextValue.Room.ID) != request.Target {
 				return errors.New("conversation_id 不属于目标 Room")
+			}
+		case "set_member_participation":
+			var input roomMemberParticipationInput
+			if err := strictDecodeJSON(request.Input, &input); err != nil {
+				return err
+			}
+			roomValue, err := s.rooms.GetRoom(ctx, request.Target)
+			if err != nil {
+				return fmt.Errorf("核对 Room 成员参与状态: %w", err)
+			}
+			memberID := strings.TrimSpace(input.AgentID)
+			memberFound := false
+			for _, member := range roomValue.Members {
+				if member.MemberType == protocol.MemberTypeAgent &&
+					strings.TrimSpace(member.MemberAgentID) == memberID {
+					memberFound = true
+					break
+				}
+			}
+			if !memberFound {
+				return errors.New("agent_id 不是当前 Room 成员")
+			}
+			if actor.Authority == AuthorityRoomHost && memberID == actor.AgentID &&
+				input.Paused != nil && *input.Paused {
+				return errors.New("群主不能在 Room 对话中暂停自己；请先转让群主或由主智能体管理")
 			}
 		}
 	}

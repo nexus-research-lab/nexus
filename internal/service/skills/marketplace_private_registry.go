@@ -1,3 +1,6 @@
+// INPUT: owner-scoped private registry requests、加密凭据服务与 owner catalog version。
+// OUTPUT: 经远端验证的私有来源 CRUD、搜索/导入与 reconcile-aware 结果。
+// POS: skills 私有 registry 边界；网络校验在短事务外完成，功能写入在 catalog CAS 事务内提交。
 package skills
 
 import (
@@ -49,7 +52,27 @@ type privateRegistryResponse struct {
 }
 
 // CreateExternalSkillSource 新增并验证一个用户私有来源。
-func (s *Service) CreateExternalSkillSource(ctx context.Context, request CreateExternalSkillSourceRequest) (*ExternalSkillSourceInfo, error) {
+func (s *Service) CreateExternalSkillSource(
+	ctx context.Context,
+	request CreateExternalSkillSourceRequest,
+) (*ExternalSkillSourceInfo, error) {
+	return s.createExternalSkillSource(ctx, request, nil)
+}
+
+// CreateExternalSkillSourceAtVersion 仅在 owner catalog version 匹配时新增私有来源。
+func (s *Service) CreateExternalSkillSourceAtVersion(
+	ctx context.Context,
+	request CreateExternalSkillSourceRequest,
+	expectedVersion int64,
+) (*ExternalSkillSourceInfo, error) {
+	return s.createExternalSkillSource(ctx, request, &expectedVersion)
+}
+
+func (s *Service) createExternalSkillSource(
+	ctx context.Context,
+	request CreateExternalSkillSourceRequest,
+	expectedVersion *int64,
+) (*ExternalSkillSourceInfo, error) {
 	if s.skillStore == nil {
 		return nil, errors.New("skill source store not configured")
 	}
@@ -78,14 +101,7 @@ func (s *Service) CreateExternalSkillSource(ctx context.Context, request CreateE
 	}
 	sourceID := buildSkillSourceID(externalSourceKindPrivateRegistry, baseURL)
 	ownerUserID := authctx.OwnerUserID(ctx)
-	existing, err := s.skillStore.GetSource(ctx, ownerUserID, sourceID)
-	if err != nil {
-		return nil, err
-	}
-	if existing != nil {
-		return nil, errors.New("该私有来源已存在")
-	}
-	source := externalSkillSource{
+	remoteSource := externalSkillSource{
 		Key:        sourceID,
 		Name:       name,
 		Kind:       externalSourceKindPrivateRegistry,
@@ -97,7 +113,7 @@ func (s *Service) CreateExternalSkillSource(ctx context.Context, request CreateE
 		AuthType:   authType,
 		Credential: token,
 	}
-	if _, err = s.queryPrivateRegistry(ctx, source, "", "", 1); err != nil {
+	if _, err = s.queryPrivateRegistry(ctx, remoteSource, "", "", 1); err != nil {
 		return nil, fmt.Errorf("验证私有来源失败: %w", err)
 	}
 	entity := skillstore.SourceEntity{
@@ -113,60 +129,45 @@ func (s *Service) CreateExternalSkillSource(ctx context.Context, request CreateE
 		Enabled:              true,
 		SortOrder:            1000,
 	}
-	if err = s.skillStore.UpsertSource(ctx, entity); err != nil {
+	checkedAt := time.Now().UTC()
+	_, err = s.withCatalogMutation(
+		ctx,
+		expectedVersion,
+		true,
+		func(mutation *skillstore.CatalogMutation) error {
+			existing, loadErr := mutation.GetSource(ctx, sourceID)
+			if loadErr != nil {
+				return loadErr
+			}
+			if existing != nil {
+				return errors.New("该私有来源已存在")
+			}
+			if upsertErr := mutation.UpsertSource(ctx, entity); upsertErr != nil {
+				return upsertErr
+			}
+			return mutation.RecordSourceCheck(ctx, sourceID, checkedAt, "")
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
-	_ = s.skillStore.RecordSourceCheck(ctx, ownerUserID, sourceID, time.Now().UTC(), "")
-	stored, err := s.skillStore.GetSource(ctx, ownerUserID, sourceID)
-	if err != nil || stored == nil {
-		if err == nil {
-			err = errors.New("skill source not found")
-		}
-		return nil, err
-	}
-	item := externalSkillSourceInfoFromEntity(*stored)
-	return &item, nil
+	return s.readPrivateSkillSourceAfterMutation(ctx, ownerUserID, sourceID)
 }
 
-func (s *Service) updatePrivateSkillSource(ctx context.Context, existing skillstore.SourceEntity, request ExternalSkillSourceRequest) (*ExternalSkillSourceInfo, error) {
-	entity := existing
-	if request.Name != nil {
-		entity.Name = strings.TrimSpace(*request.Name)
-		if entity.Name == "" {
-			return nil, errors.New("来源名称不能为空")
-		}
-		if len([]rune(entity.Name)) > 255 {
-			return nil, errors.New("来源名称过长")
-		}
+func (s *Service) updatePrivateSkillSource(
+	ctx context.Context,
+	existing skillstore.SourceEntity,
+	request ExternalSkillSourceRequest,
+	expectedVersion *int64,
+) (*ExternalSkillSourceInfo, error) {
+	if request.Name == nil && request.Enabled == nil && request.AuthType == nil && request.Token == nil {
+		return nil, errors.New("来源更新至少要提供一个字段")
 	}
-	if request.Enabled != nil {
-		entity.Enabled = *request.Enabled
-	}
-	authChanged := request.AuthType != nil || request.Token != nil
-	authType := firstNonEmpty(entity.AuthType, externalSourceAuthNone)
-	if request.AuthType != nil {
-		var err error
-		authType, err = normalizePrivateSourceAuthType(*request.AuthType)
-		if err != nil {
-			return nil, err
-		}
+	entity, token, authChanged, err := s.preparePrivateSkillSourceUpdate(existing, request)
+	if err != nil {
+		return nil, err
 	}
 	if authChanged {
-		token := ""
-		if authType == externalSourceAuthBearer {
-			if request.Token != nil && strings.TrimSpace(*request.Token) != "" {
-				token = strings.TrimSpace(*request.Token)
-			} else if strings.TrimSpace(entity.CredentialsEncrypted) != "" {
-				var err error
-				token, err = s.decryptPrivateSourceCredential(entity.CredentialsEncrypted)
-				if err != nil {
-					return nil, err
-				}
-			}
-			if token == "" {
-				return nil, errors.New("Bearer Token 不能为空")
-			}
-		}
 		source := externalSkillSource{
 			Key:        entity.SourceID,
 			Name:       entity.Name,
@@ -176,32 +177,130 @@ func (s *Service) updatePrivateSkillSource(ctx context.Context, existing skillst
 			Enabled:    entity.Enabled,
 			SortOrder:  entity.SortOrder,
 			ManagedBy:  externalSourceManagedByUser,
-			AuthType:   authType,
+			AuthType:   entity.AuthType,
 			Credential: token,
 		}
-		encrypted, err := s.encryptPrivateSourceCredential(authType, token)
-		if err != nil {
-			return nil, err
-		}
-		if _, err := s.queryPrivateRegistry(ctx, source, "", "", 1); err != nil {
+		if _, err = s.queryPrivateRegistry(ctx, source, "", "", 1); err != nil {
 			return nil, fmt.Errorf("验证私有来源失败: %w", err)
+		}
+	}
+	checkedAt := time.Now().UTC()
+	_, err = s.withCatalogMutation(
+		ctx,
+		expectedVersion,
+		true,
+		func(mutation *skillstore.CatalogMutation) error {
+			current, loadErr := mutation.GetSource(ctx, existing.SourceID)
+			if loadErr != nil {
+				return loadErr
+			}
+			if current == nil {
+				return errors.New("skill source not found")
+			}
+			if sourceManagedBy(*current) != externalSourceManagedByUser ||
+				current.Kind != externalSourceKindPrivateRegistry {
+				return errors.New("仅用户私有来源可修改")
+			}
+			if !samePrivateSkillSourceConfiguration(*current, existing) {
+				return ErrCatalogSnapshotUnstable
+			}
+			if upsertErr := mutation.UpsertSource(ctx, entity); upsertErr != nil {
+				return upsertErr
+			}
+			if authChanged {
+				return mutation.RecordSourceCheck(ctx, entity.SourceID, checkedAt, "")
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return s.readPrivateSkillSourceAfterMutation(
+		ctx,
+		entity.OwnerUserID,
+		entity.SourceID,
+	)
+}
+
+func (s *Service) preparePrivateSkillSourceUpdate(
+	existing skillstore.SourceEntity,
+	request ExternalSkillSourceRequest,
+) (skillstore.SourceEntity, string, bool, error) {
+	entity := existing
+	if request.Name != nil {
+		entity.Name = strings.TrimSpace(*request.Name)
+		if entity.Name == "" {
+			return skillstore.SourceEntity{}, "", false, errors.New("来源名称不能为空")
+		}
+		if len([]rune(entity.Name)) > 255 {
+			return skillstore.SourceEntity{}, "", false, errors.New("来源名称过长")
+		}
+	}
+	if request.Enabled != nil {
+		entity.Enabled = *request.Enabled
+	}
+	authChanged := request.AuthType != nil || request.Token != nil
+	authType := firstNonEmpty(entity.AuthType, externalSourceAuthNone)
+	if request.AuthType != nil {
+		var normalizeErr error
+		authType, normalizeErr = normalizePrivateSourceAuthType(*request.AuthType)
+		if normalizeErr != nil {
+			return skillstore.SourceEntity{}, "", false, normalizeErr
+		}
+	}
+	token := ""
+	if authChanged {
+		if authType == externalSourceAuthBearer {
+			if request.Token != nil && strings.TrimSpace(*request.Token) != "" {
+				token = strings.TrimSpace(*request.Token)
+			} else if strings.TrimSpace(entity.CredentialsEncrypted) != "" {
+				var decryptErr error
+				token, decryptErr = s.decryptPrivateSourceCredential(entity.CredentialsEncrypted)
+				if decryptErr != nil {
+					return skillstore.SourceEntity{}, "", false, decryptErr
+				}
+			}
+			if token == "" {
+				return skillstore.SourceEntity{}, "", false, errors.New("Bearer Token 不能为空")
+			}
+		}
+		encrypted, encryptErr := s.encryptPrivateSourceCredential(authType, token)
+		if encryptErr != nil {
+			return skillstore.SourceEntity{}, "", false, encryptErr
 		}
 		entity.AuthType = authType
 		entity.CredentialsEncrypted = encrypted
 		entity.LastError = ""
 	}
-	if err := s.skillStore.UpsertSource(ctx, entity); err != nil {
-		return nil, err
-	}
-	if authChanged {
-		_ = s.skillStore.RecordSourceCheck(ctx, entity.OwnerUserID, entity.SourceID, time.Now().UTC(), "")
-	}
-	stored, err := s.skillStore.GetSource(ctx, entity.OwnerUserID, entity.SourceID)
+	return entity, token, authChanged, nil
+}
+
+func samePrivateSkillSourceConfiguration(left skillstore.SourceEntity, right skillstore.SourceEntity) bool {
+	return strings.TrimSpace(left.OwnerUserID) == strings.TrimSpace(right.OwnerUserID) &&
+		strings.TrimSpace(left.SourceID) == strings.TrimSpace(right.SourceID) &&
+		strings.TrimSpace(left.Name) == strings.TrimSpace(right.Name) &&
+		strings.TrimSpace(left.Kind) == strings.TrimSpace(right.Kind) &&
+		strings.TrimSpace(left.URL) == strings.TrimSpace(right.URL) &&
+		strings.TrimSpace(left.Trust) == strings.TrimSpace(right.Trust) &&
+		strings.TrimSpace(left.ManagedBy) == strings.TrimSpace(right.ManagedBy) &&
+		strings.TrimSpace(left.AuthType) == strings.TrimSpace(right.AuthType) &&
+		strings.TrimSpace(left.CredentialsEncrypted) == strings.TrimSpace(right.CredentialsEncrypted) &&
+		left.Enabled == right.Enabled &&
+		left.SortOrder == right.SortOrder
+}
+
+func (s *Service) readPrivateSkillSourceAfterMutation(
+	ctx context.Context,
+	ownerUserID string,
+	sourceID string,
+) (*ExternalSkillSourceInfo, error) {
+	stored, err := s.skillStore.GetSource(ctx, ownerUserID, sourceID)
 	if err != nil || stored == nil {
 		if err == nil {
 			err = errors.New("skill source not found")
 		}
-		return nil, err
+		return nil, &CatalogReconcileError{applied: true, cause: err}
 	}
 	item := externalSkillSourceInfoFromEntity(*stored)
 	return &item, nil
@@ -209,21 +308,61 @@ func (s *Service) updatePrivateSkillSource(ctx context.Context, existing skillst
 
 // DeleteExternalSkillSource 删除一个用户私有来源，不删除已经导入的 Skill。
 func (s *Service) DeleteExternalSkillSource(ctx context.Context, sourceID string) error {
+	return s.deleteExternalSkillSource(ctx, sourceID, nil)
+}
+
+// DeleteExternalSkillSourceAtVersion 仅在 owner catalog version 匹配时删除私有来源。
+func (s *Service) DeleteExternalSkillSourceAtVersion(
+	ctx context.Context,
+	sourceID string,
+	expectedVersion int64,
+) error {
+	return s.deleteExternalSkillSource(ctx, sourceID, &expectedVersion)
+}
+
+func (s *Service) deleteExternalSkillSource(
+	ctx context.Context,
+	sourceID string,
+	expectedVersion *int64,
+) error {
 	if s.skillStore == nil {
 		return errors.New("skill source store not configured")
 	}
 	ownerUserID := authctx.OwnerUserID(ctx)
-	existing, err := s.skillStore.GetSource(ctx, ownerUserID, strings.TrimSpace(sourceID))
+	sourceID = strings.TrimSpace(sourceID)
+	_, err := s.withCatalogMutation(
+		ctx,
+		expectedVersion,
+		true,
+		func(mutation *skillstore.CatalogMutation) error {
+			existing, loadErr := mutation.GetSource(ctx, sourceID)
+			if loadErr != nil {
+				return loadErr
+			}
+			if existing == nil {
+				return errors.New("skill source not found")
+			}
+			if sourceManagedBy(*existing) != externalSourceManagedByUser ||
+				existing.Kind != externalSourceKindPrivateRegistry {
+				return errors.New("仅用户私有来源可删除")
+			}
+			return mutation.DeleteSource(ctx, sourceID)
+		},
+	)
 	if err != nil {
 		return err
 	}
-	if existing == nil {
-		return errors.New("skill source not found")
+	stored, readErr := s.skillStore.GetSource(ctx, ownerUserID, sourceID)
+	if readErr != nil {
+		return &CatalogReconcileError{applied: true, cause: readErr}
 	}
-	if sourceManagedBy(*existing) != externalSourceManagedByUser || existing.Kind != externalSourceKindPrivateRegistry {
-		return errors.New("仅用户私有来源可删除")
+	if stored != nil {
+		return &CatalogReconcileError{
+			applied: true,
+			cause:   errors.New("skill source remained after deletion"),
+		}
 	}
-	return s.skillStore.DeleteSource(ctx, ownerUserID, existing.SourceID)
+	return nil
 }
 
 func (s *Service) searchPrivateRegistrySource(ctx context.Context, source externalSkillSource, needle string) ([]ExternalSkillSearchItem, error) {
@@ -257,11 +396,28 @@ func privateRegistrySearchLimit(configured int) int {
 
 // ImportPrivateSkillFromSource 从服务端重新解析来源记录，避免信任浏览器提交的下载地址。
 func (s *Service) ImportPrivateSkillFromSource(ctx context.Context, request ImportPrivateSkillRequest) (*Detail, error) {
+	return s.importPrivateSkillFromSource(ctx, request, nil)
+}
+
+// ImportPrivateSkillFromSourceAtVersion 仅在 owner catalog version 匹配时发布私有 Skill。
+func (s *Service) ImportPrivateSkillFromSourceAtVersion(
+	ctx context.Context,
+	request ImportPrivateSkillRequest,
+	expectedVersion int64,
+) (*Detail, error) {
+	return s.importPrivateSkillFromSource(ctx, request, &expectedVersion)
+}
+
+func (s *Service) importPrivateSkillFromSource(
+	ctx context.Context,
+	request ImportPrivateSkillRequest,
+	expectedVersion *int64,
+) (*Detail, error) {
 	source, err := s.privateSkillSource(ctx, request.SourceID)
 	if err != nil {
 		return nil, err
 	}
-	return s.importPrivateRegistrySkill(ctx, source, request.SkillID, "")
+	return s.importPrivateRegistrySkill(ctx, source, request.SkillID, "", expectedVersion)
 }
 
 func (s *Service) importPrivateRegistrySkill(
@@ -269,6 +425,7 @@ func (s *Service) importPrivateRegistrySkill(
 	source externalSkillSource,
 	skillID string,
 	expectedName string,
+	expectedVersion *int64,
 ) (*Detail, error) {
 	row, err := s.privateRegistrySkillByID(ctx, source, skillID)
 	if err != nil {
@@ -296,7 +453,7 @@ func (s *Service) importPrivateRegistrySkill(
 	if err = validatePrivateRegistrySkillSource(tempDir, sourceDir, row.Name); err != nil {
 		return nil, err
 	}
-	return s.importSourceDir(ctx, sourceDir, externalManifest{
+	return s.importSourceDirAtVersion(ctx, sourceDir, externalManifest{
 		Name:           row.Name,
 		Title:          firstNonEmpty(row.Title, row.Name),
 		Description:    row.Description,
@@ -314,7 +471,7 @@ func (s *Service) importPrivateRegistrySkill(
 		Recommendation: firstNonEmpty(row.Description, "私有来源导入能力。"),
 		RawURL:         row.DownloadURL,
 		DetailURL:      source.URL,
-	})
+	}, expectedVersion)
 }
 
 func validatePrivateRegistrySkillSource(root string, sourceDir string, expectedName string) error {

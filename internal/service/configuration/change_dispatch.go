@@ -367,6 +367,23 @@ func (s *Service) executeChange(
 			return nil, err
 		}
 		return s.skills.GetExternalSkillPreview(ctx, input.DetailURL)
+	case DomainSkills + ".create_private_source":
+		var input skillsvc.CreateExternalSkillSourceRequest
+		if err := decode(&input); err != nil {
+			return nil, err
+		}
+		if stateVersion <= 0 {
+			return nil, errors.New("私有 Skill 来源创建缺少 catalog_version；请重新 plan")
+		}
+		result, err := s.skills.CreateExternalSkillSourceAtVersion(
+			ctx,
+			input,
+			stateVersion,
+		)
+		if err == nil || skillsvc.SkillMutationApplied(err) {
+			s.notifySkillCatalogChanged(ctx, actor.AgentID)
+		}
+		return result, err
 	case DomainSkills + ".import_git":
 		var input skillGitImportInput
 		if err := decode(&input); err != nil {
@@ -432,6 +449,43 @@ func (s *Service) executeChange(
 			stateVersion,
 		)
 		if err == nil {
+			s.notifySkillCatalogChanged(ctx, actor.AgentID)
+		}
+		return result, err
+	case DomainSkills + ".delete_private_source":
+		if stateVersion <= 0 {
+			return nil, errors.New("私有 Skill 来源删除缺少 catalog_version；请重新 plan")
+		}
+		err := s.skills.DeleteExternalSkillSourceAtVersion(
+			ctx,
+			request.Target,
+			stateVersion,
+		)
+		applied := err == nil || skillsvc.SkillMutationApplied(err)
+		if applied {
+			s.notifySkillCatalogChanged(ctx, actor.AgentID)
+		}
+		return map[string]any{
+			"source_id": request.Target,
+			"deleted":   applied,
+		}, err
+	case DomainSkills + ".import_private":
+		var input skillPrivateImportInput
+		if err := decode(&input); err != nil {
+			return nil, err
+		}
+		if stateVersion <= 0 {
+			return nil, errors.New("私有 Skill 导入缺少 catalog_version；请重新 plan")
+		}
+		result, err := s.skills.ImportPrivateSkillFromSourceAtVersion(
+			ctx,
+			skillsvc.ImportPrivateSkillRequest{
+				SourceID: request.Target,
+				SkillID:  input.SkillID,
+			},
+			stateVersion,
+		)
+		if err == nil || skillsvc.SkillMutationApplied(err) {
 			s.notifySkillCatalogChanged(ctx, actor.AgentID)
 		}
 		return result, err
@@ -723,6 +777,32 @@ func (s *Service) executeChange(
 				)
 				err = errors.Join(err, interruptErr)
 			}
+		}
+		return value, err
+	case DomainRooms + ".set_member_participation":
+		var input roomMemberParticipationInput
+		if err := decode(&input); err != nil {
+			return nil, err
+		}
+		if input.Paused == nil {
+			return nil, errors.New("Room 成员参与状态缺少 paused")
+		}
+		if stateVersion <= 0 {
+			return nil, errors.New("Room 成员参与状态更新缺少 configuration_version；请重新 plan")
+		}
+		controller, ok := s.roomRuntime.(roomParticipationController)
+		if !ok {
+			return nil, errors.New("Room 成员参与状态实时控制未装配")
+		}
+		value, err := controller.SetRoomMemberParticipationAtVersion(
+			ctx,
+			request.Target,
+			strings.TrimSpace(input.AgentID),
+			*input.Paused,
+			stateVersion,
+		)
+		if err == nil {
+			s.notifyRoomChanged(ctx, value, "room_member_participation_updated")
 		}
 		return value, err
 	case DomainRooms + ".transfer_host":

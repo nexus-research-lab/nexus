@@ -45,6 +45,16 @@ type roomRuntimeController interface {
 	InterruptAgentTasks(context.Context, string, string, string) error
 }
 
+type roomParticipationController interface {
+	SetRoomMemberParticipationAtVersion(
+		context.Context,
+		string,
+		string,
+		bool,
+		int64,
+	) (*protocol.ConversationContextAggregate, error)
+}
+
 type configurationNotifier interface {
 	AgentChanged(context.Context, string, string)
 	RoomChanged(context.Context, string, string, string)
@@ -122,8 +132,11 @@ func (s *Service) resolveActor(ctx context.Context, actor Actor) (*resolvedActor
 		resolved.Context = ScopeRef{Kind: ScopeKindAgent, ID: actor.AgentID}
 		return resolved, nil
 	case ContextKindRoom:
-		// main 身份只在自己的私有 DM 中投影为 owner_main；进入 Room 后与
-		// 其他 Agent 一样按当前成员/host 数据库关系降权。
+		// Group Room 的成员写入口本就拒绝主智能体；这里再次 fail closed，
+		// 防止历史坏数据或旁路写入把 owner control plane 投影成 Room 成员。
+		if agentValue.IsMain {
+			return nil, errors.New("主智能体不能作为 Group Room 成员使用配置能力")
+		}
 		return s.resolveRoomActor(scoped, resolved)
 	default:
 		return nil, errors.New("配置调用缺少可信 agent 或 room 上下文")

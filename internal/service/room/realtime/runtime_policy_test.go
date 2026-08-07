@@ -656,8 +656,8 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 		handledTools[0] != "Write" {
 		t.Fatalf("Room 私信工具默认应直接拒绝: decision=%+v tools=%+v", roomDecision, handledTools)
 	}
-	if roomTestStringSliceContains(options.Tools.Deny, "nexus_room") {
-		t.Fatalf("Room runtime 不应让 broad nexus_room deny 屏蔽公开通讯工具: %+v", options.Tools.Deny)
+	if !roomTestStringSliceContains(options.Tools.Deny, "nexus_room") {
+		t.Fatalf("Room runtime 必须保留 Agent broad nexus_room deny: %+v", options.Tools.Deny)
 	}
 	if !roomTestStringSliceContains(options.Tools.Deny, "mcp__nexus_room__send_directed_message") {
 		t.Fatalf("Room 私信工具 deny 配置应保留: %+v", options.Tools.Deny)

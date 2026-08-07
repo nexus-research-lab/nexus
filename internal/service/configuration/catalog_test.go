@@ -71,6 +71,52 @@ func TestSkillCatalogRequiresScopedSourceIdentityAndDisableConfirmation(t *testi
 	}
 }
 
+func TestSkillCatalogPublishesOwnerPrivateSourceContracts(t *testing.T) {
+	definition, err := definitionFor(DomainSkills)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, operationName := range []string{
+		"create_private_source",
+		"update_source",
+		"import_private",
+		"delete_private_source",
+	} {
+		operation, operationErr := operationFor(definition, operationName)
+		if operationErr != nil {
+			t.Fatal(operationErr)
+		}
+		if !operation.RequiresConfirmation {
+			t.Fatalf("%s 必须要求显式确认: %+v", operationName, operation)
+		}
+	}
+	for _, operationName := range []string{"create_private_source", "update_source"} {
+		operation, operationErr := operationFor(definition, operationName)
+		if operationErr != nil {
+			t.Fatal(operationErr)
+		}
+		shape, ok := operation.InputShape.(map[string]any)
+		if !ok {
+			t.Fatalf("%s input shape = %#v", operationName, operation.InputShape)
+		}
+		tokenShape, ok := shape["token"].(map[string]string)
+		if !ok || strings.TrimSpace(tokenShape["$secret"]) == "" {
+			t.Fatalf("%s token 必须是原生 secret slot: %#v", operationName, shape["token"])
+		}
+	}
+	selfAccess := accessFor(&resolvedActor{Authority: AuthorityAgentSelf}, definition)
+	for _, operationName := range []string{
+		"create_private_source",
+		"update_source",
+		"import_private",
+		"delete_private_source",
+	} {
+		if slices.Contains(selfAccess.AllowedOperations, operationName) {
+			t.Fatalf("agent_self 不得获得 owner 私有来源操作 %s", operationName)
+		}
+	}
+}
+
 func TestPlanRejectsNonMainAgentBeforeReadingState(t *testing.T) {
 	service := &Service{}
 	_, err := service.PlanChange(t.Context(), Actor{

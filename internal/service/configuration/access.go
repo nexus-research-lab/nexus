@@ -24,6 +24,7 @@ var (
 		"set_collaboration_policy",
 		"add_member",
 		"remove_member",
+		"set_member_participation",
 		"transfer_host",
 		"create_conversation",
 		"update_conversation",

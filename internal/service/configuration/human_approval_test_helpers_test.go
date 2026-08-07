@@ -100,8 +100,13 @@ func bindConfigurationTestRound(
 		actor.LeaseRoundID = actor.RoundID
 	}
 	actor.RoundLeaseRequired = true
-	if !services.Runtime.StartRound(actor.LeaseSessionKey, actor.LeaseRoundID, nil) {
-		t.Fatalf("start configuration test round %s", actor.LeaseRoundID)
+	if err := services.Runtime.StartRound(
+		t.Context(),
+		actor.LeaseSessionKey,
+		actor.LeaseRoundID,
+		nil,
+	); err != nil {
+		t.Fatalf("start configuration test round %s: %v", actor.LeaseRoundID, err)
 	}
 	t.Cleanup(func() {
 		services.Runtime.MarkRoundFinished(actor.LeaseSessionKey, actor.LeaseRoundID)

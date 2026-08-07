@@ -142,6 +142,11 @@ type roomAgentTarget struct {
 	AgentID string `json:"agent_id"`
 }
 
+type roomMemberParticipationInput struct {
+	AgentID string `json:"agent_id"`
+	Paused  *bool  `json:"paused"`
+}
+
 type roomConversationTarget struct {
 	ConversationID string `json:"conversation_id"`
 	Title          string `json:"title,omitempty"`
@@ -191,6 +196,24 @@ type skillURLImportInput struct {
 type skillSkillsShImportInput struct {
 	PackageSpec string `json:"package_spec"`
 	SkillSlug   string `json:"skill_slug"`
+}
+
+type skillPrivateSourceCreateInput struct {
+	Name     string          `json:"name"`
+	URL      string          `json:"url"`
+	AuthType string          `json:"auth_type"`
+	Token    json.RawMessage `json:"token,omitempty"`
+}
+
+type skillSourceUpdateInput struct {
+	Name     *string         `json:"name,omitempty"`
+	Enabled  *bool           `json:"enabled,omitempty"`
+	AuthType *string         `json:"auth_type,omitempty"`
+	Token    json.RawMessage `json:"token,omitempty"`
+}
+
+type skillPrivateImportInput struct {
+	SkillID string `json:"skill_id"`
 }
 
 func mergedPreferencesUpdate(

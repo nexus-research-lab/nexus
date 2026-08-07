@@ -249,6 +249,7 @@ func (s *Service) updateSingleSkillRecord(
 			source,
 			firstNonEmpty(manifest.SourceSkillID, manifest.SourceRef),
 			manifest.Name,
+			expectedVersion,
 		)
 	default:
 		return nil, errors.New("该 skill 来源不支持更新")

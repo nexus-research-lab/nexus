@@ -1,5 +1,5 @@
 // INPUT: Agent 工具白名单、黑名单与 Room 私信开关。
-// OUTPUT: Room 通讯工具策略与权限处理器。
+// OUTPUT: 不扩大 Agent allow、不移除 Agent deny 的 Room 通讯工具策略与权限处理器。
 // POS: Room slot runtime 装配使用的就近策略，不构成独立子包边界。
 package realtime
 
@@ -18,44 +18,47 @@ const (
 	roomPublishPublicMessageTool = "mcp__nexus_room__publish_public_message"
 )
 
-func roomAllowedTools(values []string, privateMessagesEnabled bool) []string {
-	if len(toolpolicy.NormalizeSet(values)) == 0 {
-		return values
-	}
-	var extra []string
-	if privateMessagesEnabled {
-		extra = append(extra, roomSendDirectedMessageTool, roomPublishPublicMessageTool)
-	}
-	return appendDistinctTools(values, extra...)
+func roomAllowedTools(values []string, _ bool) []string {
+	// Room policy is a lower layer: it may disable communication, but cannot
+	// widen an explicit Agent allowlist. An empty allowlist remains unrestricted.
+	return slices.Clone(values)
 }
 
 func roomDisallowedTools(values []string, privateMessagesEnabled bool) []string {
-	result := make([]string, 0, len(values)+2)
-	for _, value := range values {
-		if strings.TrimSpace(value) == "nexus_room" ||
-			(privateMessagesEnabled && isRoomCommunicationTool(value)) {
-			continue
-		}
-		result = append(result, value)
-	}
+	// Deny is monotonic across Agent -> Room. Enabling a Room feature never
+	// removes an Agent-level deny, including the broad nexus_room family.
+	result := slices.Clone(values)
 	if !privateMessagesEnabled {
 		result = appendDistinctTools(result, roomSendDirectedMessageTool, roomPublishPublicMessageTool)
 	}
 	return result
 }
 
-func withRoomPermissionPolicy(next sdkpermission.Handler, privateMessagesEnabled bool) sdkpermission.Handler {
+func withRoomPermissionPolicy(
+	next sdkpermission.Handler,
+	privateMessagesEnabled bool,
+	allowedTools []string,
+	disallowedTools []string,
+) sdkpermission.Handler {
+	allowed := toolpolicy.NormalizeSet(allowedTools)
+	denied := toolpolicy.NormalizeSet(disallowedTools)
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
-		if isRoomCommunicationTool(request.ToolName) && privateMessagesEnabled {
-			return sdkpermission.Allow(request.Input, nil), nil
+		if !isRoomCommunicationTool(request.ToolName) {
+			if next == nil {
+				return sdkpermission.Allow(request.Input, nil), nil
+			}
+			return next(ctx, request)
 		}
-		if isRoomCommunicationTool(request.ToolName) {
+		if !privateMessagesEnabled {
 			return sdkpermission.Deny("Room communication tools are disabled", false), nil
 		}
-		if next == nil {
-			return sdkpermission.Allow(request.Input, nil), nil
+		if toolpolicy.Contains(denied, request.ToolName) {
+			return sdkpermission.Deny("Room communication tool is denied by the Agent policy", false), nil
 		}
-		return next(ctx, request)
+		if len(allowed) > 0 && !toolpolicy.Contains(allowed, request.ToolName) {
+			return sdkpermission.Deny("Room communication tool is outside the Agent allowlist", false), nil
+		}
+		return sdkpermission.Allow(request.Input, nil), nil
 	}
 }
 

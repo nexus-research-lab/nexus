@@ -79,10 +79,13 @@ var domainCatalog = []DomainDefinition{
 		Operations: []OperationDefinition{
 			op("search_external", "搜索已启用的远端 Skill 来源；不修改目录", false, "immediate"),
 			op("preview_external", "读取远端 Skill 详情预览；不修改目录", false, "immediate"),
+			op("create_private_source", "新增并验证 owner 私有 Skill 来源；Bearer Token 只从原生批准卡取得", true, "immediate"),
 			op("import_git", "从 HTTPS Git 仓库的受控子目录导入 Skill", true, "next_round"),
 			op("import_url", "从受校验 HTTPS URL 导入 SKILL.md 或 zip", true, "next_round"),
 			op("import_skills_sh", "从 skills.sh 标识导入 Skill", true, "next_round"),
-			op("update_source", "启用或禁用外部 Skill 来源", true, "immediate"),
+			op("import_private", "用可信 source_id 和 skill_id 从私有来源导入 Skill", true, "next_round"),
+			op("update_source", "更新系统来源开关，或私有来源名称、开关与认证", true, "immediate"),
+			op("delete_private_source", "删除 owner 私有 Skill 来源；已导入 Skill 保留", true, "immediate"),
 			op("install", "为 Agent 安装 Skill", true, "next_round"),
 			op("uninstall", "从 Agent 非破坏性停用 Skill", true, "next_round"),
 			op("install_self", "普通 Agent 为自己安装 owner 可见目录中的 Skill", true, "next_round"),
@@ -118,6 +121,7 @@ var domainCatalog = []DomainDefinition{
 			op("set_collaboration_policy", "更新 Room Skill、群主自动接管和私聊协作策略", true, "security_immediate_runtime_next_round"),
 			op("add_member", "向当前 Room 添加一个普通 Agent", true, "immediate"),
 			op("remove_member", "立即撤销成员权限并中断其活跃 Room 任务", true, "immediate"),
+			op("set_member_participation", "暂停或恢复成员参与；暂停会立即封锁调度和旧输出", true, "immediate"),
 			op("transfer_host", "把群主转让给当前 Room 的现有 Agent 成员", true, "authority_immediate_routing_next_input"),
 			op("create_conversation", "在 Room 中创建新的 draft conversation", true, "ui_immediate_runtime_next_input"),
 			op("update_conversation", "更新 Room 内指定 conversation 标题", true, "ui_immediate_runtime_next_round"),
@@ -292,7 +296,25 @@ func operationContract(domain, operation string) (string, any, []string) {
 			"client_id": "string", "client_secret": secretSlotShape(),
 		}, []string{"client_id", "client_secret"}
 	case DomainSkills + ".update_source":
-		return "source_id from inspect", map[string]any{"enabled": "boolean"}, []string{"enabled"}
+		return "source_id from inspect", map[string]any{
+			"name":      "private source only; optional non-empty string",
+			"enabled":   "optional boolean",
+			"auth_type": "private source only; optional none|bearer",
+			"token":     secretSlotShape(),
+		}, nil
+	case DomainSkills + ".create_private_source":
+		return "omitted; Nexus derives source_id from the validated URL", map[string]any{
+			"name":      "non-empty display name",
+			"url":       "private registry HTTPS URL",
+			"auth_type": "none|bearer",
+			"token":     secretSlotShape(),
+		}, []string{"name", "url", "auth_type"}
+	case DomainSkills + ".delete_private_source":
+		return "deletable private source_id from inspect", map[string]any{}, nil
+	case DomainSkills + ".import_private":
+		return "private source_id from inspect", map[string]any{
+			"skill_id": "exact opaque skill_id returned by private source search",
+		}, []string{"skill_id"}
 	case DomainSkills + ".search_external":
 		return "", map[string]any{
 			"query":          "non-empty search query",
@@ -361,6 +383,11 @@ func operationContract(domain, operation string) (string, any, []string) {
 	case DomainRooms + ".add_member", DomainRooms + ".remove_member", DomainRooms + ".transfer_host":
 		return "owner-main: room_id; Room host: omitted/current room only",
 			map[string]any{"agent_id": "existing owner-scoped Agent id"}, []string{"agent_id"}
+	case DomainRooms + ".set_member_participation":
+		return "owner-main: room_id; Room host: omitted/current room only", map[string]any{
+			"agent_id": "current Room member agent_id",
+			"paused":   "boolean",
+		}, []string{"agent_id", "paused"}
 	case DomainRooms + ".create_conversation":
 		return "owner-main: room_id; Room host: omitted/current room only",
 			map[string]any{"title": "optional string"}, nil

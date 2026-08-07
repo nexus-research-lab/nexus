@@ -199,6 +199,40 @@ func TestConfigurationRejectsMissingOrForgedTrustedContext(t *testing.T) {
 	}
 }
 
+func TestMainAgentCannotAcquireRoomConfigurationAuthority(t *testing.T) {
+	fixture := newScopedConfigurationFixture(t)
+	member := fixture.createAgent(t, "Main Boundary Member")
+	roomContext, err := fixture.services.Core.Room.CreateRoom(
+		fixture.ownerCtx,
+		protocol.CreateRoomRequest{AgentIDs: []string{member.AgentID}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := configurationsvc.Actor{
+		OwnerUserID:    fixture.main.OwnerUserID,
+		AgentID:        fixture.main.AgentID,
+		ContextKind:    configurationsvc.ContextKindRoom,
+		ContextID:      roomContext.Room.ID,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		SessionKey:     protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID),
+		LeaseSessionKey: protocol.BuildRoomAgentSessionKey(
+			roomContext.Conversation.ID,
+			fixture.main.AgentID,
+			roomContext.Room.RoomType,
+		),
+	}
+	if _, err = fixture.services.Configuration.Inspect(
+		fixture.ownerCtx,
+		actor,
+		[]string{configurationsvc.DomainRooms},
+		false,
+	); err == nil || !strings.Contains(err.Error(), "主智能体不能作为 Group Room 成员") {
+		t.Fatalf("主智能体 Room 配置边界 error = %v", err)
+	}
+}
+
 func TestAgentSelfConfigurationBoundaryAndResourceCAS(t *testing.T) {
 	fixture := newScopedConfigurationFixture(t)
 	worker := fixture.createAgent(t, "Self Config Worker")
@@ -1030,6 +1064,109 @@ func TestRoomHostConfigurationBoundaryAndImmediateAuthorityRevocation(t *testing
 	if !current.Room.PrivateMessagesEnabled || !current.Room.HostAutoReplyEnabled ||
 		current.Room.ConfigurationVersion <= transferred.Room.ConfigurationVersion {
 		t.Fatalf("Room collaboration policy did not persist: %+v", current.Room)
+	}
+}
+
+func TestRoomHostParticipationChangeUsesCASAndImmediateAuthorityFence(t *testing.T) {
+	fixture := newScopedConfigurationFixture(t)
+	host := fixture.createAgent(t, "Participation Host")
+	member := fixture.createAgent(t, "Participation Member")
+	roomContext, err := fixture.services.Core.Room.CreateRoom(
+		fixture.ownerCtx,
+		protocol.CreateRoomRequest{
+			AgentIDs:    []string{host.AgentID, member.AgentID},
+			HostAgentID: host.AgentID,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := configurationsvc.Actor{
+		OwnerUserID:    host.OwnerUserID,
+		AgentID:        host.AgentID,
+		ContextKind:    configurationsvc.ContextKindRoom,
+		ContextID:      roomContext.Room.ID,
+		RoomID:         roomContext.Room.ID,
+		ConversationID: roomContext.Conversation.ID,
+		SessionKey:     protocol.BuildRoomSharedSessionKey(roomContext.Conversation.ID),
+		LeaseSessionKey: protocol.BuildRoomAgentSessionKey(
+			roomContext.Conversation.ID,
+			host.AgentID,
+			roomContext.Room.RoomType,
+		),
+	}
+	bindConfigurationTestRound(t, fixture.services, &actor)
+	input := json.RawMessage(`{"agent_id":"` + member.AgentID + `","paused":true}`)
+	plan, err := fixture.services.Configuration.PlanChange(
+		fixture.ownerCtx,
+		actor,
+		configurationsvc.ChangeRequest{
+			Domain:    configurationsvc.DomainRooms,
+			Operation: "set_member_participation",
+			Input:     input,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := configurationsvc.ChangeRequest{
+		RequestID:        "room-participation-001",
+		Domain:           configurationsvc.DomainRooms,
+		Operation:        "set_member_participation",
+		Input:            input,
+		ExpectedRevision: plan.CurrentRevision,
+		PlanDigest:       plan.PlanDigest,
+	}
+	approveConfigurationTestChange(
+		t,
+		fixture.services,
+		fixture.ownerCtx,
+		actor,
+		request,
+		plan,
+	)
+	result, err := fixture.services.Configuration.ApplyChange(
+		fixture.ownerCtx,
+		actor,
+		request,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Reload.CurrentRoundAffected ||
+		!hasConfigurationCheck(result.Checks, "configuration_resource_version_advanced") ||
+		!hasConfigurationCheck(result.Checks, "room_member_participation_verified") {
+		t.Fatalf("Room participation apply 缺少即时生效或 CAS 证明: %+v", result)
+	}
+	current, err := fixture.services.Core.Room.GetRoom(fixture.ownerCtx, roomContext.Room.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Room.ConfigurationVersion != roomContext.Room.ConfigurationVersion+1 ||
+		current.Room.AuthorityEpoch != roomContext.Room.AuthorityEpoch+1 {
+		t.Fatalf("Room participation 未推进配置版本和权限世代: before=%+v after=%+v", roomContext.Room, current.Room)
+	}
+	paused := false
+	for _, roomMember := range current.Members {
+		if roomMember.MemberAgentID == member.AgentID {
+			paused = roomMember.ParticipationPaused
+		}
+	}
+	if !paused {
+		t.Fatalf("Room member participation 未持久暂停: %+v", current.Members)
+	}
+
+	selfPauseInput := json.RawMessage(`{"agent_id":"` + host.AgentID + `","paused":true}`)
+	if _, err = fixture.services.Configuration.PlanChange(
+		fixture.ownerCtx,
+		actor,
+		configurationsvc.ChangeRequest{
+			Domain:    configurationsvc.DomainRooms,
+			Operation: "set_member_participation",
+			Input:     selfPauseInput,
+		},
+	); err == nil {
+		t.Fatal("Room host 不应通过自己的 Room round 暂停自己并造成对话控制锁死")
 	}
 }
 

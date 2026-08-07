@@ -64,6 +64,9 @@ func (s *Service) ensureSlotOutputAuthorized(
 	for _, member := range current.Members {
 		if member.MemberType == protocol.MemberTypeAgent &&
 			strings.TrimSpace(member.MemberAgentID) == strings.TrimSpace(slot.AgentID) {
+			if member.ParticipationPaused {
+				return fmt.Errorf("%w: member participation is paused", errRoomSlotAuthorityRevoked)
+			}
 			if roomSlotReplyRoute(slot).Mode == protocol.RoomReplyRoutePrivate &&
 				!current.Room.PrivateMessagesEnabled {
 				return fmt.Errorf("%w: private messaging is disabled", errRoomSlotAuthorityRevoked)

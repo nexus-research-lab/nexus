@@ -274,6 +274,18 @@ func (m *CatalogMutation) RecordSourceCheck(
 	)
 }
 
+// DeleteSource 在 mutation 内删除当前 owner 的来源。
+func (m *CatalogMutation) DeleteSource(ctx context.Context, sourceID string) error {
+	_, err := m.tx.ExecContext(
+		ctx,
+		"DELETE FROM skill_sources WHERE owner_user_id = "+m.repository.bind(1)+
+			" AND source_id = "+m.repository.bind(2),
+		m.ownerUserID,
+		strings.TrimSpace(sourceID),
+	)
+	return err
+}
+
 // UpsertImportedSkill 在 mutation 内写入导入记录。
 func (m *CatalogMutation) UpsertImportedSkill(
 	ctx context.Context,
