@@ -101,7 +101,7 @@ func ReadContextUsage(
 }
 
 // ContextUsage 读取底层 SDK session 的当前上下文占用。
-func (c *sdkClientAdapter) ContextUsage(
+func (c *agentClient) ContextUsage(
 	ctx context.Context,
 ) (agentclient.ContextUsageResponse, error) {
 	session, err := c.currentSession()

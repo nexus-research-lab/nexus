@@ -12,12 +12,12 @@ import (
 	"strings"
 	"sync"
 
-	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	bridge "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
-// Client 抽象出运行时需要的最小 SDK 能力，便于测试替身接入。
+// Client 抽象出宿主管理 Agent runtime 所需的最小能力，便于测试替身接入。
 type Client interface {
 	Connect(context.Context) error
 	Query(context.Context, string) error
@@ -31,91 +31,94 @@ type Client interface {
 	// 且不能等待进程退出或回调 Manager。
 	Retire()
 	Disconnect(context.Context) error
-	Reconfigure(context.Context, agentclient.Options) error
+	Reconfigure(context.Context, bridge.Options) error
 	SessionID() string
 }
 
-// Factory 负责创建 SDK client。
+// Factory 负责创建 Agent client。
 type Factory interface {
-	New(agentclient.Options) Client
+	New(bridge.Options) Client
 }
 
 type defaultFactory struct{}
 
-type sdkClientAdapter struct {
+// agentClient 将 bridge Session 包装成可并发复用的宿主 client。
+//
+// 状态不变量：
+//   - session 与 cleanup 互斥；重连必须等待旧进程完全退出。
+//   - lifecycleVersion 在 session 被隔离时递增，阻止旧 Connect 挂回过期进程。
+//   - configVersion 标记期望配置，启动途中配置变化时关闭旧产物并重试。
+type agentClient struct {
 	mu                       sync.Mutex
-	options                  agentclient.Options
+	options                  bridge.Options
 	configVersion            uint64
 	lifecycleVersion         uint64
-	session                  *agentclient.Session
+	session                  *bridge.Session
 	messages                 chan sdkprotocol.ReceivedMessage
 	cancel                   context.CancelFunc
-	connecting               *sdkClientConnectFlight
-	configuring              *sdkClientConfigFlight
-	cleanup                  *sdkClientSessionCleanup
+	connecting               *agentClientConnectFlight
+	configuring              *agentClientConfigFlight
+	cleanup                  *agentClientSessionCleanup
 	streamErr                error
 	retired                  bool
-	newSession               func(context.Context, agentclient.Options) (*agentclient.Session, error)
-	closeSession             func(*agentclient.Session) error
-	reconfigureSession       func(context.Context, *agentclient.Session, agentclient.Options) error
-	updateSessionEnvironment func(context.Context, *agentclient.Session, map[string]string) error
-	setSessionPermissionMode func(context.Context, *agentclient.Session, sdkpermission.Mode) error
+	newSession               func(context.Context, bridge.Options) (*bridge.Session, error)
+	closeSession             func(*bridge.Session) error
+	reconfigureSession       func(context.Context, *bridge.Session, bridge.Options) error
+	updateSessionEnvironment func(context.Context, *bridge.Session, map[string]string) error
+	setSessionPermissionMode func(context.Context, *bridge.Session, sdkpermission.Mode) error
 }
 
-type sdkClientConnectFlight struct {
-	done          chan struct{}
-	cancel        context.CancelCauseFunc
-	sharedFailure *sdkClientConnectFailure
+type agentClientConnectFlight struct {
+	done   chan struct{}
+	cancel context.CancelCauseFunc
+	// sharedFailure 只允许同一 lifecycle、同一配置的等待者复用启动错误。
+	sharedFailure *agentClientConnectFailure
 }
 
-type sdkClientConnectFailure struct {
+type agentClientConnectFailure struct {
 	err              error
 	configVersion    uint64
 	lifecycleVersion uint64
 }
 
-type sdkClientConfigFlight struct {
+type agentClientConfigFlight struct {
 	done   chan struct{}
 	ctx    context.Context
 	cancel context.CancelCauseFunc
 }
 
-type sdkClientSessionCleanup struct {
+type agentClientSessionCleanup struct {
 	done chan struct{}
 	err  error
 }
 
-func WrapSDKClient(options agentclient.Options) Client {
-	return &sdkClientAdapter{options: options}
+// NewAgentClient 创建负责并发连接、配置换代和进程回收的 Agent client。
+func NewAgentClient(options bridge.Options) Client {
+	return &agentClient{options: options}
 }
 
-func (c *sdkClientAdapter) Connect(ctx context.Context) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+func (c *agentClient) Connect(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	c.mu.Lock()
 	if c.retired {
 		c.mu.Unlock()
-		return agentclient.ErrAborted
+		return bridge.ErrAborted
 	}
 	requestLifecycleVersion := c.lifecycleVersion
 	c.mu.Unlock()
 
+	// 锁内只选择当前状态，等待和进程操作都在锁外执行：复用 session、
+	// 等待 cleanup、加入已有 Connect，或成为本轮唯一的启动者。
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
 		c.mu.Lock()
-		if c.retired {
-			c.mu.Unlock()
-			return agentclient.ErrAborted
-		}
 		if c.lifecycleVersion != requestLifecycleVersion {
 			c.mu.Unlock()
-			return agentclient.ErrAborted
+			return bridge.ErrAborted
 		}
 		if c.session != nil {
 			c.mu.Unlock()
@@ -124,17 +127,15 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 		cleanup := c.cleanup
 		if cleanup != nil {
 			c.mu.Unlock()
-			if err := waitSDKClientTransition(ctx, cleanup.done); err != nil {
+			if err := waitAgentClientTransition(ctx, cleanup.done); err != nil {
 				return err
 			}
-			if err := c.clearCompletedSDKClientCleanup(cleanup); err != nil {
-				return err
-			}
+			c.clearCompletedAgentClientCleanup(cleanup)
 			continue
 		}
 		if connecting := c.connecting; connecting != nil {
 			c.mu.Unlock()
-			if err := waitSDKClientTransition(ctx, connecting.done); err != nil {
+			if err := waitAgentClientTransition(ctx, connecting.done); err != nil {
 				return err
 			}
 			if err := ctx.Err(); err != nil {
@@ -146,7 +147,7 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 			continue
 		}
 		connectCtx, cancel := context.WithCancelCause(ctx)
-		connecting := &sdkClientConnectFlight{
+		connecting := &agentClientConnectFlight{
 			done:   make(chan struct{}),
 			cancel: cancel,
 		}
@@ -156,18 +157,18 @@ func (c *sdkClientAdapter) Connect(ctx context.Context) error {
 	}
 }
 
-func (c *sdkClientAdapter) runConnectFlight(
+func (c *agentClient) runConnectFlight(
 	ctx context.Context,
 	requestLifecycleVersion uint64,
-	connecting *sdkClientConnectFlight,
+	connecting *agentClientConnectFlight,
 ) error {
-	var sharedFailure *sdkClientConnectFailure
+	var sharedFailure *agentClientConnectFailure
 	defer func() { c.finishConnectFlight(connecting, sharedFailure) }()
 	for {
 		c.mu.Lock()
 		if c.lifecycleVersion != requestLifecycleVersion {
 			c.mu.Unlock()
-			return agentclient.ErrAborted
+			return bridge.ErrAborted
 		}
 		options := c.options
 		configVersion := c.configVersion
@@ -180,7 +181,7 @@ func (c *sdkClientAdapter) runConnectFlight(
 			invalidated := c.lifecycleVersion != requestLifecycleVersion
 			c.mu.Unlock()
 			if invalidated {
-				return agentclient.ErrAborted
+				return bridge.ErrAborted
 			}
 			if ownerErr := ctx.Err(); ownerErr != nil {
 				return ownerErr
@@ -188,7 +189,7 @@ func (c *sdkClientAdapter) runConnectFlight(
 			if configChanged {
 				continue
 			}
-			sharedFailure = &sdkClientConnectFailure{
+			sharedFailure = &agentClientConnectFailure{
 				err:              err,
 				configVersion:    configVersion,
 				lifecycleVersion: requestLifecycleVersion,
@@ -199,10 +200,12 @@ func (c *sdkClientAdapter) runConnectFlight(
 		pumpCtx, cancel := context.WithCancel(context.Background())
 		messages := make(chan sdkprotocol.ReceivedMessage, 64)
 
+		// 启动期间配置可能被热更新，lifecycle 也可能被 Disconnect 换代。
+		// 只有两个快照都仍有效时才能把新进程安装为当前 session。
 		c.mu.Lock()
 		configChanged := c.configVersion != configVersion
 		invalidated := c.lifecycleVersion != requestLifecycleVersion
-		if !configChanged && !invalidated && c.session == nil {
+		if !configChanged && !invalidated {
 			c.session = session
 			c.messages = messages
 			c.cancel = cancel
@@ -211,39 +214,34 @@ func (c *sdkClientAdapter) runConnectFlight(
 			go c.pumpMessages(pumpCtx, session, messages)
 			return nil
 		}
-		cleanup := &sdkClientSessionCleanup{done: make(chan struct{})}
+		cleanup := &agentClientSessionCleanup{done: make(chan struct{})}
 		c.cleanup = cleanup
 		c.mu.Unlock()
 
 		cancel()
-		c.startSDKSessionCleanup(session, nil, cleanup)
-		waitErr := waitSDKClientTransition(ctx, cleanup.done)
+		c.startBridgeSessionCleanup(session, nil, cleanup)
+		waitErr := waitAgentClientTransition(ctx, cleanup.done)
 		c.mu.Lock()
 		invalidated = invalidated || c.lifecycleVersion != requestLifecycleVersion
 		c.mu.Unlock()
 		if invalidated {
-			return agentclient.ErrAborted
+			return bridge.ErrAborted
 		}
 		if waitErr != nil {
 			return waitErr
 		}
-		if err := c.clearCompletedSDKClientCleanup(cleanup); err != nil {
-			return err
-		}
+		c.clearCompletedAgentClientCleanup(cleanup)
 	}
 }
 
-func (c *sdkClientAdapter) connectFlightWaitResult(
-	connecting *sdkClientConnectFlight,
+func (c *agentClient) connectFlightWaitResult(
+	connecting *agentClientConnectFlight,
 	requestLifecycleVersion uint64,
 ) (error, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.retired {
-		return agentclient.ErrAborted, true
-	}
 	if c.lifecycleVersion != requestLifecycleVersion {
-		return agentclient.ErrAborted, true
+		return bridge.ErrAborted, true
 	}
 	failure := connecting.sharedFailure
 	if failure == nil ||
@@ -254,9 +252,10 @@ func (c *sdkClientAdapter) connectFlightWaitResult(
 	return failure.err, true
 }
 
-func (c *sdkClientAdapter) finishConnectFlight(
-	connecting *sdkClientConnectFlight,
-	sharedFailure *sdkClientConnectFailure,
+// finishConnectFlight 在发布结果后才唤醒等待者，保证等待者看到完整状态。
+func (c *agentClient) finishConnectFlight(
+	connecting *agentClientConnectFlight,
+	sharedFailure *agentClientConnectFailure,
 ) {
 	connecting.cancel(context.Canceled)
 	c.mu.Lock()
@@ -266,29 +265,24 @@ func (c *sdkClientAdapter) finishConnectFlight(
 		sharedFailure = nil
 	}
 	connecting.sharedFailure = sharedFailure
-	if c.connecting == connecting {
-		c.connecting = nil
-	}
+	c.connecting = nil
 	close(connecting.done)
 	c.mu.Unlock()
 }
 
 // IsConnected 返回底层 SDK session 是否仍然存活。
 // Manager 用它区分可复用 runtime 与已经断开的旧 client。
-func (c *sdkClientAdapter) IsConnected() bool {
-	if c == nil {
-		return false
-	}
+func (c *agentClient) IsConnected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.session != nil
 }
 
-func (c *sdkClientAdapter) Query(ctx context.Context, prompt string) error {
+func (c *agentClient) Query(ctx context.Context, prompt string) error {
 	return c.QueryWithOptions(ctx, prompt, sdkprotocol.OutboundMessageOptions{})
 }
 
-func (c *sdkClientAdapter) QueryWithOptions(ctx context.Context, prompt string, options sdkprotocol.OutboundMessageOptions) error {
+func (c *agentClient) QueryWithOptions(ctx context.Context, prompt string, options sdkprotocol.OutboundMessageOptions) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
@@ -297,25 +291,25 @@ func (c *sdkClientAdapter) QueryWithOptions(ctx context.Context, prompt string, 
 	return err
 }
 
-func (c *sdkClientAdapter) QueryContent(ctx context.Context, content any) error {
+func (c *agentClient) QueryContent(ctx context.Context, content any) error {
 	return c.QueryContentWithOptions(ctx, content, sdkprotocol.OutboundMessageOptions{})
 }
 
-func (c *sdkClientAdapter) QueryContentWithOptions(ctx context.Context, content any, options sdkprotocol.OutboundMessageOptions) error {
+func (c *agentClient) QueryContentWithOptions(ctx context.Context, content any, options sdkprotocol.OutboundMessageOptions) error {
 	if prompt, ok := content.(string); ok {
 		return c.QueryWithOptions(ctx, prompt, options)
 	}
 	return c.SendContentWithOptions(ctx, content, nil, "", options)
 }
 
-func (c *sdkClientAdapter) SetNextTurnContext(ctx context.Context, blocks []ContextualInputBlock) error {
+func (c *agentClient) SetNextTurnContext(ctx context.Context, blocks []ContextualInputBlock) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
 	}
-	sdkBlocks := make([]agentclient.InternalContextBlock, 0, len(blocks))
+	sdkBlocks := make([]bridge.InternalContextBlock, 0, len(blocks))
 	for _, block := range normalizeContextualInputBlocks(blocks) {
-		sdkBlocks = append(sdkBlocks, agentclient.InternalContextBlock{
+		sdkBlocks = append(sdkBlocks, bridge.InternalContextBlock{
 			Name:     block.Name,
 			Content:  block.Content,
 			Priority: block.Priority,
@@ -329,7 +323,7 @@ func (c *sdkClientAdapter) SetNextTurnContext(ctx context.Context, blocks []Cont
 }
 
 // ClearNextTurnContext 清除 bridge 尚未消费的单轮隐藏上下文。
-func (c *sdkClientAdapter) ClearNextTurnContext(ctx context.Context) error {
+func (c *agentClient) ClearNextTurnContext(ctx context.Context) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
@@ -337,7 +331,7 @@ func (c *sdkClientAdapter) ClearNextTurnContext(ctx context.Context) error {
 	return session.Control().ClearNextTurnContext(ctx)
 }
 
-func (c *sdkClientAdapter) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
+func (c *agentClient) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.messages == nil {
@@ -348,7 +342,7 @@ func (c *sdkClientAdapter) ReceiveMessages(context.Context) <-chan sdkprotocol.R
 	return c.messages
 }
 
-func (c *sdkClientAdapter) Interrupt(ctx context.Context) error {
+func (c *agentClient) Interrupt(ctx context.Context) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
@@ -356,7 +350,7 @@ func (c *sdkClientAdapter) Interrupt(ctx context.Context) error {
 	return session.Interrupt(ctx)
 }
 
-func (c *sdkClientAdapter) InterruptWithReason(ctx context.Context, reason string) error {
+func (c *agentClient) InterruptWithReason(ctx context.Context, reason string) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
@@ -364,7 +358,7 @@ func (c *sdkClientAdapter) InterruptWithReason(ctx context.Context, reason strin
 	return session.InterruptWithReason(ctx, reason)
 }
 
-func (c *sdkClientAdapter) StopTask(ctx context.Context, taskID string) error {
+func (c *agentClient) StopTask(ctx context.Context, taskID string) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
@@ -372,7 +366,7 @@ func (c *sdkClientAdapter) StopTask(ctx context.Context, taskID string) error {
 	return session.Control().StopTask(ctx, taskID)
 }
 
-func (c *sdkClientAdapter) SendTaskMessage(ctx context.Context, taskID string, message string, summary string) error {
+func (c *agentClient) SendTaskMessage(ctx context.Context, taskID string, message string, summary string) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
@@ -380,7 +374,7 @@ func (c *sdkClientAdapter) SendTaskMessage(ctx context.Context, taskID string, m
 	return session.Control().SendTaskMessage(ctx, taskID, message, summary)
 }
 
-func (c *sdkClientAdapter) RemoveMessages(ctx context.Context, uuids []string) error {
+func (c *agentClient) RemoveMessages(ctx context.Context, uuids []string) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
@@ -388,19 +382,19 @@ func (c *sdkClientAdapter) RemoveMessages(ctx context.Context, uuids []string) e
 	return session.Control().RemoveMessages(ctx, uuids)
 }
 
-func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermission.Mode) error {
+func (c *agentClient) SetPermissionMode(ctx context.Context, mode sdkpermission.Mode) error {
 	normalized := normalizePermissionMode(mode)
-	configuring, err := c.beginSDKClientConfiguration(ctx)
+	configuring, err := c.beginAgentClientConfiguration(ctx)
 	if err != nil {
 		return err
 	}
-	defer c.finishSDKClientConfiguration(configuring)
+	defer c.finishAgentClientConfiguration(configuring)
 
 	c.mu.Lock()
 	currentOptions := c.options
 	if c.retired {
 		c.mu.Unlock()
-		return agentclient.ErrAborted
+		return bridge.ErrAborted
 	}
 	nextOptions := currentOptions
 	nextOptions.Runtime.PermissionMode = normalized
@@ -412,10 +406,10 @@ func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermis
 	if session == nil {
 		return c.ensureNotRetired()
 	}
-	if err := c.applySDKSessionPermissionMode(configuring.ctx, session, normalized); err != nil {
-		c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
+	if err := c.applyBridgeSessionPermissionMode(configuring.ctx, session, normalized); err != nil {
+		c.rollbackAgentClientConfiguration(session, configVersion, currentOptions)
 		if IsRuntimeTransportClosedError(err) {
-			c.cleanupSDKSession(session, err)
+			c.cleanupBridgeSession(session, err)
 		}
 		return configuring.normalizeError(err)
 	}
@@ -423,22 +417,22 @@ func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermis
 }
 
 // UpdateEnvironment 将运行期环境增量推送给 nxs，不重启当前会话。
-func (c *sdkClientAdapter) UpdateEnvironment(ctx context.Context, environment map[string]string) error {
+func (c *agentClient) UpdateEnvironment(ctx context.Context, environment map[string]string) error {
 	if len(environment) == 0 {
 		return nil
 	}
-	configuring, err := c.beginSDKClientConfiguration(ctx)
+	configuring, err := c.beginAgentClientConfiguration(ctx)
 	if err != nil {
 		return err
 	}
-	defer c.finishSDKClientConfiguration(configuring)
+	defer c.finishAgentClientConfiguration(configuring)
 
 	delta := maps.Clone(environment)
 	c.mu.Lock()
 	currentOptions := c.options
 	if c.retired {
 		c.mu.Unlock()
-		return agentclient.ErrAborted
+		return bridge.ErrAborted
 	}
 	nextOptions := currentOptions
 	if nextOptions.Env == nil {
@@ -455,10 +449,10 @@ func (c *sdkClientAdapter) UpdateEnvironment(ctx context.Context, environment ma
 	session := c.session
 	c.mu.Unlock()
 	if session != nil {
-		if err := c.applySDKSessionEnvironment(configuring.ctx, session, delta); err != nil {
-			c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
+		if err := c.applyBridgeSessionEnvironment(configuring.ctx, session, delta); err != nil {
+			c.rollbackAgentClientConfiguration(session, configVersion, currentOptions)
 			if IsRuntimeTransportClosedError(err) {
-				c.cleanupSDKSession(session, err)
+				c.cleanupBridgeSession(session, err)
 			}
 			return configuring.normalizeError(err)
 		}
@@ -475,10 +469,7 @@ func normalizePermissionMode(mode sdkpermission.Mode) sdkpermission.Mode {
 
 // 配置调用先按顺序提交期望状态，再触达当前 session。这样 Connect 只需比较
 // configVersion，就能拒绝用旧配置启动的 runtime，而不必和控制 RPC 共用锁。
-func (c *sdkClientAdapter) beginSDKClientConfiguration(ctx context.Context) (*sdkClientConfigFlight, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+func (c *agentClient) beginAgentClientConfiguration(ctx context.Context) (*agentClientConfigFlight, error) {
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -486,11 +477,11 @@ func (c *sdkClientAdapter) beginSDKClientConfiguration(ctx context.Context) (*sd
 		c.mu.Lock()
 		if c.retired {
 			c.mu.Unlock()
-			return nil, agentclient.ErrAborted
+			return nil, bridge.ErrAborted
 		}
 		if c.configuring == nil {
 			configCtx, cancel := context.WithCancelCause(ctx)
-			configuring := &sdkClientConfigFlight{
+			configuring := &agentClientConfigFlight{
 				done:   make(chan struct{}),
 				ctx:    configCtx,
 				cancel: cancel,
@@ -501,45 +492,41 @@ func (c *sdkClientAdapter) beginSDKClientConfiguration(ctx context.Context) (*sd
 		}
 		configuring := c.configuring
 		c.mu.Unlock()
-		if err := waitSDKClientTransition(ctx, configuring.done); err != nil {
+		if err := waitAgentClientTransition(ctx, configuring.done); err != nil {
 			return nil, err
 		}
 	}
 }
 
-func (f *sdkClientConfigFlight) normalizeError(err error) error {
-	if f == nil {
-		return err
-	}
+func (f *agentClientConfigFlight) normalizeError(err error) error {
+	// 配置 flight 的取消原因（包括 Retire）优先于底层 RPC 随后返回的 transport 错误。
 	if cause := context.Cause(f.ctx); cause != nil {
 		return cause
 	}
 	return err
 }
 
-func (c *sdkClientAdapter) ensureNotRetired() error {
+func (c *agentClient) ensureNotRetired() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.retired {
-		return agentclient.ErrAborted
+		return bridge.ErrAborted
 	}
 	return nil
 }
 
-func (c *sdkClientAdapter) finishSDKClientConfiguration(configuring *sdkClientConfigFlight) {
+func (c *agentClient) finishAgentClientConfiguration(configuring *agentClientConfigFlight) {
 	c.mu.Lock()
-	if c.configuring == configuring {
-		c.configuring = nil
-	}
+	c.configuring = nil
 	close(configuring.done)
 	c.mu.Unlock()
 	configuring.cancel(context.Canceled)
 }
 
-func (c *sdkClientAdapter) rollbackSDKClientConfiguration(
-	session *agentclient.Session,
+func (c *agentClient) rollbackAgentClientConfiguration(
+	session *bridge.Session,
 	configVersion uint64,
-	options agentclient.Options,
+	options bridge.Options,
 ) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -552,23 +539,25 @@ func (c *sdkClientAdapter) rollbackSDKClientConfiguration(
 	c.configVersion++
 }
 
-func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {
+// Disconnect 先在锁内隔离当前代，再在锁外取消启动并等待进程回收。
+// 调用方超时只结束等待，不会中止共享 cleanup。
+func (c *agentClient) Disconnect(ctx context.Context) error {
 	c.mu.Lock()
 	session, cancel, cleanup := c.detachCurrentSessionLocked(nil)
 	connecting := c.connecting
 	c.mu.Unlock()
 
 	if connecting != nil {
-		connecting.cancel(agentclient.ErrAborted)
+		connecting.cancel(bridge.ErrAborted)
 	}
 	if session != nil {
-		c.startSDKSessionCleanup(session, cancel, cleanup)
+		c.startBridgeSessionCleanup(session, cancel, cleanup)
 	}
-	if err := waitSDKClientCleanup(ctx, cleanup); err != nil {
+	if err := waitAgentClientCleanup(ctx, cleanup); err != nil {
 		return err
 	}
 	if connecting != nil {
-		if err := waitSDKClientTransition(ctx, connecting.done); err != nil {
+		if err := waitAgentClientTransition(ctx, connecting.done); err != nil {
 			return err
 		}
 	}
@@ -576,7 +565,7 @@ func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {
 	latestCleanup := c.cleanup
 	c.mu.Unlock()
 	if latestCleanup != cleanup {
-		if err := waitSDKClientCleanup(ctx, latestCleanup); err != nil {
+		if err := waitAgentClientCleanup(ctx, latestCleanup); err != nil {
 			return err
 		}
 		if latestCleanup != nil && latestCleanup.err != nil {
@@ -590,35 +579,33 @@ func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {
 }
 
 // Retire 先永久关闭 Manager 所有权，再异步隔离当前或正在连接的 SDK 会话。
-func (c *sdkClientAdapter) Retire() {
-	if c == nil {
-		return
-	}
+func (c *agentClient) Retire() {
 	c.mu.Lock()
 	if c.retired {
 		c.mu.Unlock()
 		return
 	}
 	c.retired = true
-	session, cancel, cleanup := c.detachCurrentSessionLocked(agentclient.ErrAborted)
+	session, cancel, cleanup := c.detachCurrentSessionLocked(bridge.ErrAborted)
 	connecting := c.connecting
 	configuring := c.configuring
 	c.mu.Unlock()
 
 	if connecting != nil {
-		connecting.cancel(agentclient.ErrAborted)
+		connecting.cancel(bridge.ErrAborted)
 	}
 	if configuring != nil {
-		configuring.cancel(agentclient.ErrAborted)
+		configuring.cancel(bridge.ErrAborted)
 	}
 	if session != nil {
-		c.startSDKSessionCleanup(session, cancel, cleanup)
+		c.startBridgeSessionCleanup(session, cancel, cleanup)
 	}
 }
 
-func (c *sdkClientAdapter) detachCurrentSessionLocked(
+func (c *agentClient) detachCurrentSessionLocked(
 	err error,
-) (*agentclient.Session, context.CancelFunc, *sdkClientSessionCleanup) {
+) (*bridge.Session, context.CancelFunc, *agentClientSessionCleanup) {
+	// 即使当前没有 session 也要换代，使尚未完成的 Connect 无法回挂。
 	c.lifecycleVersion++
 	if c.session == nil {
 		if err != nil {
@@ -629,7 +616,7 @@ func (c *sdkClientAdapter) detachCurrentSessionLocked(
 	c.streamErr = err
 	session := c.session
 	cancel := c.cancel
-	cleanup := &sdkClientSessionCleanup{done: make(chan struct{})}
+	cleanup := &agentClientSessionCleanup{done: make(chan struct{})}
 	c.session = nil
 	c.messages = nil
 	c.cancel = nil
@@ -640,17 +627,17 @@ func (c *sdkClientAdapter) detachCurrentSessionLocked(
 // DiscardUncleanSession 先原子隔离未收到 terminal result 的旧会话，再异步回收
 // 其进程；同一 adapter 的 Connect 会等待回收完成，避免新旧 runtime 并发写
 // 同一个 resume 会话。
-func (c *sdkClientAdapter) DiscardUncleanSession() {
+func (c *agentClient) DiscardUncleanSession() {
 	c.mu.Lock()
-	session, cancel, cleanup := c.detachCurrentSessionLocked(agentclient.ErrAborted)
+	session, cancel, cleanup := c.detachCurrentSessionLocked(bridge.ErrAborted)
 	connecting := c.connecting
 	c.mu.Unlock()
 
 	if connecting != nil {
-		connecting.cancel(agentclient.ErrAborted)
+		connecting.cancel(bridge.ErrAborted)
 	}
 	if session != nil {
-		c.startSDKSessionCleanup(session, cancel, cleanup)
+		c.startBridgeSessionCleanup(session, cancel, cleanup)
 	}
 }
 
@@ -664,13 +651,7 @@ func DiscardUncleanClientSession(client Client) bool {
 	return true
 }
 
-func waitSDKClientTransition(ctx context.Context, done <-chan struct{}) error {
-	if done == nil {
-		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
+func waitAgentClientTransition(ctx context.Context, done <-chan struct{}) error {
 	select {
 	case <-done:
 		return nil
@@ -679,27 +660,25 @@ func waitSDKClientTransition(ctx context.Context, done <-chan struct{}) error {
 	}
 }
 
-func waitSDKClientCleanup(ctx context.Context, cleanup *sdkClientSessionCleanup) error {
+func waitAgentClientCleanup(ctx context.Context, cleanup *agentClientSessionCleanup) error {
 	if cleanup == nil {
 		return nil
 	}
-	return waitSDKClientTransition(ctx, cleanup.done)
+	return waitAgentClientTransition(ctx, cleanup.done)
 }
 
-func (c *sdkClientAdapter) clearCompletedSDKClientCleanup(cleanup *sdkClientSessionCleanup) error {
-	if cleanup == nil {
-		return nil
-	}
+// clearCompletedAgentClientCleanup 只清除自己观察到的 cleanup，不能覆盖并发产生的新代。
+func (c *agentClient) clearCompletedAgentClientCleanup(cleanup *agentClientSessionCleanup) {
 	c.mu.Lock()
 	if c.cleanup == cleanup {
 		c.cleanup = nil
 	}
 	c.mu.Unlock()
-	return nil
 }
 
-func (c *sdkClientAdapter) cleanupSDKSession(session *agentclient.Session, err error) bool {
+func (c *agentClient) cleanupBridgeSession(session *bridge.Session, err error) bool {
 	c.mu.Lock()
+	// 旧 read loop 可能晚于新 session 退出，不能让它清理当前代。
 	if c.session != session {
 		c.mu.Unlock()
 		return false
@@ -708,47 +687,47 @@ func (c *sdkClientAdapter) cleanupSDKSession(session *agentclient.Session, err e
 	connecting := c.connecting
 	c.mu.Unlock()
 	if connecting != nil {
-		connecting.cancel(agentclient.ErrAborted)
+		connecting.cancel(bridge.ErrAborted)
 	}
-	c.startSDKSessionCleanup(detached, cancel, cleanup)
+	c.startBridgeSessionCleanup(detached, cancel, cleanup)
 	return true
 }
 
-func (c *sdkClientAdapter) startSDKSessionCleanup(
-	session *agentclient.Session,
+func (c *agentClient) startBridgeSessionCleanup(
+	session *bridge.Session,
 	cancel context.CancelFunc,
-	cleanup *sdkClientSessionCleanup,
+	cleanup *agentClientSessionCleanup,
 ) {
 	if cancel != nil {
 		cancel()
 	}
 	go func() {
-		cleanup.err = c.closeSDKSession(session)
+		cleanup.err = c.closeBridgeSession(session)
 		close(cleanup.done)
 	}()
 }
 
-func (c *sdkClientAdapter) openSession(
+func (c *agentClient) openSession(
 	ctx context.Context,
-	options agentclient.Options,
-) (*agentclient.Session, error) {
+	options bridge.Options,
+) (*bridge.Session, error) {
 	if c.newSession != nil {
 		return c.newSession(ctx, options)
 	}
-	return agentclient.NewSession(ctx, options)
+	return bridge.NewSession(ctx, options)
 }
 
-func (c *sdkClientAdapter) closeSDKSession(session *agentclient.Session) error {
+func (c *agentClient) closeBridgeSession(session *bridge.Session) error {
 	if c.closeSession != nil {
 		return c.closeSession(session)
 	}
-	return closeSDKSession(session)
+	return closeBridgeSession(session)
 }
 
-func (c *sdkClientAdapter) applySDKSessionReconfigure(
+func (c *agentClient) applyBridgeSessionReconfigure(
 	ctx context.Context,
-	session *agentclient.Session,
-	options agentclient.Options,
+	session *bridge.Session,
+	options bridge.Options,
 ) error {
 	if c.reconfigureSession != nil {
 		return c.reconfigureSession(ctx, session, options)
@@ -756,9 +735,9 @@ func (c *sdkClientAdapter) applySDKSessionReconfigure(
 	return session.Reconfigure(ctx, options)
 }
 
-func (c *sdkClientAdapter) applySDKSessionEnvironment(
+func (c *agentClient) applyBridgeSessionEnvironment(
 	ctx context.Context,
-	session *agentclient.Session,
+	session *bridge.Session,
 	environment map[string]string,
 ) error {
 	if c.updateSessionEnvironment != nil {
@@ -767,9 +746,9 @@ func (c *sdkClientAdapter) applySDKSessionEnvironment(
 	return session.Control().UpdateEnvironment(ctx, environment)
 }
 
-func (c *sdkClientAdapter) applySDKSessionPermissionMode(
+func (c *agentClient) applyBridgeSessionPermissionMode(
 	ctx context.Context,
-	session *agentclient.Session,
+	session *bridge.Session,
 	mode sdkpermission.Mode,
 ) error {
 	if c.setSessionPermissionMode != nil {
@@ -778,18 +757,18 @@ func (c *sdkClientAdapter) applySDKSessionPermissionMode(
 	return session.Control().SetPermissionMode(ctx, mode)
 }
 
-func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.Options) error {
-	configuring, err := c.beginSDKClientConfiguration(ctx)
+func (c *agentClient) Reconfigure(ctx context.Context, options bridge.Options) error {
+	configuring, err := c.beginAgentClientConfiguration(ctx)
 	if err != nil {
 		return err
 	}
-	defer c.finishSDKClientConfiguration(configuring)
+	defer c.finishAgentClientConfiguration(configuring)
 
 	c.mu.Lock()
 	currentOptions := c.options
 	if c.retired {
 		c.mu.Unlock()
-		return agentclient.ErrAborted
+		return bridge.ErrAborted
 	}
 	session := c.session
 	if session != nil && shouldRestartForManagedGoalMCPServerSetChange(currentOptions, options) {
@@ -803,17 +782,17 @@ func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.
 	if session == nil {
 		return c.ensureNotRetired()
 	}
-	if err := c.applySDKSessionReconfigure(configuring.ctx, session, options); err != nil {
-		c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
+	if err := c.applyBridgeSessionReconfigure(configuring.ctx, session, options); err != nil {
+		c.rollbackAgentClientConfiguration(session, configVersion, currentOptions)
 		if IsRuntimeTransportClosedError(err) {
-			c.cleanupSDKSession(session, err)
+			c.cleanupBridgeSession(session, err)
 		}
 		return configuring.normalizeError(err)
 	}
 	return c.ensureNotRetired()
 }
 
-func (c *sdkClientAdapter) SessionID() string {
+func (c *agentClient) SessionID() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.session == nil {
@@ -822,42 +801,46 @@ func (c *sdkClientAdapter) SessionID() string {
 	return c.session.ID()
 }
 
-func (c *sdkClientAdapter) Supports(capability agentclient.Capability) bool {
+func (c *agentClient) Supports(capability bridge.Capability) bool {
 	c.mu.Lock()
 	session := c.session
 	c.mu.Unlock()
 	return session != nil && session.Supports(capability)
 }
 
-func (c *sdkClientAdapter) SendContent(ctx context.Context, content any, parentToolUseID *string, sessionID string) error {
+func (c *agentClient) SendContent(ctx context.Context, content any, parentToolUseID *string, sessionID string) error {
 	return c.SendContentWithOptions(ctx, content, parentToolUseID, sessionID, sdkprotocol.OutboundMessageOptions{})
 }
 
-func (c *sdkClientAdapter) SendContentWithOptions(ctx context.Context, content any, parentToolUseID *string, sessionID string, options sdkprotocol.OutboundMessageOptions) error {
+func (c *agentClient) SendContentWithOptions(ctx context.Context, content any, parentToolUseID *string, sessionID string, options sdkprotocol.OutboundMessageOptions) error {
 	session, err := c.currentSession()
 	if err != nil {
 		return err
 	}
 	payload := map[string]any{
 		"type":               "user",
-		"session_id":         firstNonEmpty(strings.TrimSpace(sessionID), session.ID(), c.SessionID()),
 		"parent_tool_use_id": parentToolUseID,
 		"message": map[string]any{
 			"role":    "user",
 			"content": content,
 		},
 	}
+	// 未显式指定时必须省略字段，让 bridge 按 lifecycle、配置和 resume 状态解析；
+	// 空字符串会被视为已经指定，从而截断 bridge 的默认路径。
+	if sessionID = strings.TrimSpace(sessionID); sessionID != "" {
+		payload["session_id"] = sessionID
+	}
 	_, err = session.SendMessageWithOptions(ctx, sdkprotocol.NewRawMessage(payload), options)
 	return err
 }
 
-func (c *sdkClientAdapter) StreamError() error {
+func (c *agentClient) StreamError() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.streamErr
 }
 
-func (c *sdkClientAdapter) Wait() error {
+func (c *agentClient) Wait() error {
 	c.mu.Lock()
 	session := c.session
 	streamErr := c.streamErr
@@ -871,26 +854,27 @@ func (c *sdkClientAdapter) Wait() error {
 	return session.Wait()
 }
 
-func (c *sdkClientAdapter) currentSession() (*agentclient.Session, error) {
+func (c *agentClient) currentSession() (*bridge.Session, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.retired {
-		return nil, agentclient.ErrAborted
+		return nil, bridge.ErrAborted
 	}
 	if c.session == nil {
-		return nil, agentclient.ErrNotConnected
+		return nil, bridge.ErrNotConnected
 	}
 	return c.session, nil
 }
 
-func (c *sdkClientAdapter) pumpMessages(
+func (c *agentClient) pumpMessages(
 	ctx context.Context,
-	session *agentclient.Session,
+	session *bridge.Session,
 	messages chan<- sdkprotocol.ReceivedMessage,
 ) {
 	var readErr error
+	// read loop 独占消息通道的关闭；session 身份检查负责屏蔽过期 loop 的回收动作。
 	defer close(messages)
-	defer func() { c.cleanupSDKSession(session, readErr) }()
+	defer func() { c.cleanupBridgeSession(session, readErr) }()
 	for {
 		message, err := session.Recv(ctx)
 		if err != nil {
@@ -910,8 +894,8 @@ func (c *sdkClientAdapter) pumpMessages(
 	}
 }
 
-func (f defaultFactory) New(options agentclient.Options) Client {
-	return WrapSDKClient(options)
+func (f defaultFactory) New(options bridge.Options) Client {
+	return NewAgentClient(options)
 }
 
 // IsRuntimeTransportClosedError 判断底层 SDK transport 是否已经断开。
@@ -919,7 +903,7 @@ func IsRuntimeTransportClosedError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if errors.Is(err, agentclient.ErrNotConnected) ||
+	if errors.Is(err, bridge.ErrNotConnected) ||
 		errors.Is(err, io.ErrClosedPipe) ||
 		errors.Is(err, os.ErrClosed) {
 		return true
@@ -934,10 +918,7 @@ func IsRuntimeTransportClosedError(err error) bool {
 		strings.Contains(message, "client: not connected")
 }
 
-func closeSDKSession(session *agentclient.Session) error {
-	if session == nil {
-		return nil
-	}
+func closeBridgeSession(session *bridge.Session) error {
 	// cleanup 自身必须等到底层 transport 与 read loop 确认退出；调用方的
 	// deadline 只约束等待，不取消共享回收，否则无法判断何时可安全重连。
 	return session.Close(context.Background())
