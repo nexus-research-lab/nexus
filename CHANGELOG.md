@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Made Session, Room, Agent, scheduled-task, and imported-Skill deletion recoverable across runtime, SQL, and owner-scoped files; full transcript lineage and secondary references are now cleaned without leaving orphaned data.
+- Completed Session, Room, Agent, scheduled-task, and imported-Skill cleanup across runtime, SQL, and owner-scoped files; transcript lineage stays in existing Session metadata so deletion leaves no orphaned data.
 - Closed an Agent runtime before deleting its session and removed the complete owner-scoped transcript artifact graph, including summaries and unshared Subagent transcripts, so deleted sessions no longer leave runtime data behind.
 - Sequenced explicit Goal creation before its first WorkGraph proposal across the stable prompt, Goal/Execution Skills, and both MCP tool contracts, so Agents no longer launch `create_goal` and `prepare_plan_execution` in parallel while the backend continues to reject stale ambient-Goal races.
 - Repaired legacy databases that had already recorded Execution migration 61 before `goal_execution_identity_claims` was added, allowing startup proposal reconciliation and Goal-to-WorkGraph identity recovery to run instead of failing against a missing table.

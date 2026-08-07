@@ -10,7 +10,6 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 )
 
 // AddRoomMember 向房间追加成员。
@@ -39,16 +38,6 @@ func (s *Service) AddRoomMember(ctx context.Context, roomID string, request prot
 func (s *Service) RemoveRoomMember(ctx context.Context, roomID string, agentID string) (*protocol.ConversationContextAggregate, error) {
 	roomID = strings.TrimSpace(roomID)
 	agentID = strings.TrimSpace(agentID)
-	jobTargetID := roomID + ":" + agentID
-	if job, payload, err := s.loadRoomDeletionJob(
-		ctx,
-		deletionsvc.KindRoomMember,
-		jobTargetID,
-	); err != nil {
-		return nil, err
-	} else if job != nil {
-		return s.applyRoomMemberDeletion(ctx, *job, payload)
-	}
 	agentValue, err := s.ensureGroupMemberAgent(ctx, agentID)
 	if err != nil {
 		return nil, err
@@ -91,16 +80,7 @@ func (s *Service) RemoveRoomMember(ctx context.Context, roomID string, agentID s
 		RoomID:               roomID,
 		TranscriptReferences: transcriptReferences,
 	}
-	job, err := s.ensureRoomDeletionJob(
-		ctx,
-		deletionsvc.KindRoomMember,
-		jobTargetID,
-		payload,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return s.applyRoomMemberDeletion(ctx, job, payload)
+	return s.applyRoomMemberDeletion(ctx, payload)
 }
 
 // SetRoomMemberParticipation 持久化 group Room Agent 的参与暂停状态。

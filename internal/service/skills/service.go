@@ -14,7 +14,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
-	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -32,7 +31,6 @@ type Service struct {
 	workspaces    *workspacesvc.Service
 	skillStore    *skillstore.Repository
 	commandRunner commandRunnerFunc
-	deletion      *deletionsvc.Coordinator
 }
 
 // NewService 创建技能服务。
@@ -49,14 +47,8 @@ func NewServiceWithDB(cfg config.Config, db *sql.DB, agents *agentsvc.Service, w
 	service := NewService(cfg, agents, workspaces)
 	if db != nil {
 		service.skillStore = skillstore.NewRepository(cfg, db)
-		service.deletion = deletionsvc.NewCoordinator(cfg, db)
 	}
 	return service
-}
-
-// SetDeletionCoordinator 注入外部 Skill 跨数据库与文件系统的持久删除协调器。
-func (s *Service) SetDeletionCoordinator(coordinator *deletionsvc.Coordinator) {
-	s.deletion = coordinator
 }
 
 func (s *Service) openAgentWorkspace(
@@ -500,20 +492,6 @@ func (s *Service) ImportLocalPath(ctx context.Context, localPath string) (*Detai
 // DeleteSkill 删除外部导入 skill。
 func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 	skillName = strings.TrimSpace(skillName)
-	ownerUserID := authctx.OwnerUserID(ctx)
-	if s.deletion != nil {
-		job, err := s.deletion.Load(ctx, ownerUserID, deletionsvc.KindSkill, skillName)
-		if err != nil {
-			return err
-		}
-		if job != nil {
-			var payload skillDeletionPayload
-			if err = deletionsvc.DecodePayload(*job, &payload); err != nil {
-				return s.deletion.Fail(ctx, *job, err)
-			}
-			return s.applySkillDeletion(ctx, *job, payload)
-		}
-	}
 	records, _, _, err := s.catalogWithAgentState(ctx, "")
 	if err != nil {
 		return err
@@ -525,22 +503,5 @@ func (s *Service) DeleteSkill(ctx context.Context, skillName string) error {
 	if record.Detail.SourceType != sourceTypeExternal || !record.Detail.Deletable {
 		return errors.New("该 skill 不允许删除")
 	}
-	payload := skillDeletionPayload{
-		Name:       record.Detail.Name,
-		SourcePath: record.SourcePath,
-	}
-	job := deletionsvc.Job{}
-	if s.deletion != nil {
-		job, err = s.deletion.Ensure(
-			ctx,
-			ownerUserID,
-			deletionsvc.KindSkill,
-			record.Detail.Name,
-			payload,
-		)
-		if err != nil {
-			return err
-		}
-	}
-	return s.applySkillDeletion(ctx, job, payload)
+	return s.applySkillDeletion(ctx, record.Detail.Name, record.SourcePath)
 }

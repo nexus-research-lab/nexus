@@ -58,11 +58,10 @@ func TestRoomSessionKeepsTranscriptLineageAcrossSDKIdentityChanges(t *testing.T)
 	if err = roomService.DeleteRoom(ctx, created.Room.ID); err != nil {
 		t.Fatalf("删除 Room 失败: %v", err)
 	}
-	assertSQLCount(t, db, "SELECT COUNT(*) FROM session_transcript_refs WHERE room_session_id = ?", 0, roomSessionID)
-	assertSQLCount(t, db, "SELECT COUNT(*) FROM deletion_jobs", 0)
+	assertSQLCount(t, db, "SELECT COUNT(*) FROM sessions WHERE id = ?", 0, roomSessionID)
 }
 
-func TestRoomDeletionJobRetriesFromDurablePayload(t *testing.T) {
+func TestRoomDeletionCanRetryWhileSourceRecordRemains(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 	agentService, db, err := newRoomTestAgentService(t, cfg)
@@ -99,7 +98,6 @@ func TestRoomDeletionJobRetriesFromDurablePayload(t *testing.T) {
 	); !errors.Is(err, runtimeFailure) {
 		t.Fatalf("首次删除应保留 runtime 失败: %v", err)
 	}
-	assertSQLCount(t, db, "SELECT COUNT(*) FROM deletion_jobs", 1)
 	assertSQLCount(t, db, "SELECT COUNT(*) FROM conversations WHERE id = ?", 1, topicContext.Conversation.ID)
 
 	roomService.SetRuntimeManager(&fakeRoomRuntimeCloser{})
@@ -114,6 +112,5 @@ func TestRoomDeletionJobRetriesFromDurablePayload(t *testing.T) {
 	if fallback == nil || fallback.Conversation.ID != mainContext.Conversation.ID {
 		t.Fatalf("重试删除回退上下文错误: %+v", fallback)
 	}
-	assertSQLCount(t, db, "SELECT COUNT(*) FROM deletion_jobs", 0)
 	assertSQLCount(t, db, "SELECT COUNT(*) FROM conversations WHERE id = ?", 0, topicContext.Conversation.ID)
 }

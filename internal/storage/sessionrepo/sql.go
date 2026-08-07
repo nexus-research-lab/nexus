@@ -41,7 +41,7 @@ ORDER BY s.last_activity_at DESC`, ownerUserID)
 	if closeErr != nil {
 		return nil, closeErr
 	}
-	return r.attachTranscriptSessionIDs(ctx, items)
+	return items, nil
 }
 
 // ListRoomSessionsByAgent 列出指定 Agent 的 Room 成员会话视图。
@@ -60,7 +60,7 @@ ORDER BY s.last_activity_at DESC`, agentID)
 	if closeErr != nil {
 		return nil, closeErr
 	}
-	return r.attachTranscriptSessionIDs(ctx, items)
+	return items, nil
 }
 
 // GetRoomSessionByKey 按结构化 key 查找 Room 成员会话。
@@ -79,11 +79,7 @@ LIMIT 1`, ownerUserID, key.AgentID, key.Ref)
 	if err != nil {
 		return nil, err
 	}
-	items, err := r.attachTranscriptSessionIDs(ctx, []protocol.Session{item})
-	if err != nil {
-		return nil, err
-	}
-	return &items[0], nil
+	return &item, nil
 }
 
 // UpdateRoomSessionSDKSessionID 回写 Room 成员会话的 sdk_session_id。
@@ -98,24 +94,33 @@ func (r *SQLRepository) UpdateRoomSessionSDKSessionID(
 	}
 	defer func() { _ = tx.Rollback() }()
 	var current sql.NullString
+	var optionsJSON string
 	if err = tx.QueryRowContext(
 		ctx,
-		"SELECT sdk_session_id FROM sessions WHERE id = "+r.dialect.Bind(1),
+		"SELECT sdk_session_id, options_json FROM sessions WHERE id = "+r.dialect.Bind(1),
 		roomSessionID,
-	).Scan(&current); err != nil {
+	).Scan(&current, &optionsJSON); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
 		return err
 	}
-	if err = r.insertTranscriptSessionRefs(ctx, tx, roomSessionID, current.String, sdkSessionID); err != nil {
+	options := protocol.WithTranscriptSessionIDs(
+		jsoncodec.ParseMap(optionsJSON),
+		[]string{current.String, sdkSessionID},
+	)
+	optionsJSON, err = jsoncodec.MarshalMap(options)
+	if err != nil {
 		return err
 	}
 	_, err = tx.ExecContext(ctx, `
 UPDATE sessions
-SET sdk_session_id = `+r.dialect.Bind(1)+`, updated_at = `+r.dialect.CurrentTimestamp()+`
-WHERE id = `+r.dialect.Bind(2),
+SET sdk_session_id = `+r.dialect.Bind(1)+`,
+    options_json = `+r.dialect.Bind(2)+`,
+    updated_at = `+r.dialect.CurrentTimestamp()+`
+WHERE id = `+r.dialect.Bind(3),
 		nullableStringValue(sdkSessionID),
+		optionsJSON,
 		roomSessionID,
 	)
 	if err != nil {
@@ -226,7 +231,7 @@ ORDER BY s.last_activity_at DESC`,
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
-	return r.attachTranscriptSessionIDs(ctx, items)
+	return items, nil
 }
 
 func (r *SQLRepository) roomSessionSelect() string {
@@ -328,6 +333,7 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (protocol.Session,
 	if result.Options == nil {
 		result.Options = map[string]any{}
 	}
+	result.TranscriptSessionIDs = protocol.TranscriptSessionIDsFromOptions(result.Options)
 	return result, nil
 }
 

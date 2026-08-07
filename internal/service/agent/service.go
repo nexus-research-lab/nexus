@@ -7,7 +7,6 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -47,7 +46,6 @@ type Service struct {
 	workspace  workspaceManager
 	sessions   agentSessionLifecycle
 	tasks      agentTaskCleaner
-	deletion   *deletionsvc.Coordinator
 	readyMu    sync.Mutex
 }
 
@@ -66,15 +64,13 @@ func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
 	s.goals = cleaner
 }
 
-// SetDeletionLifecycle 注入 Agent 删除涉及的 Session、Task 与持久协调器。
+// SetDeletionLifecycle 注入 Agent 删除涉及的 Session 与 Task 清理器。
 func (s *Service) SetDeletionLifecycle(
 	sessions agentSessionLifecycle,
 	tasks agentTaskCleaner,
-	coordinator *deletionsvc.Coordinator,
 ) {
 	s.sessions = sessions
 	s.tasks = tasks
-	s.deletion = coordinator
 }
 
 // SetWorkspaceManager 注入显式 Agent 生命周期的 workspace 托管器。

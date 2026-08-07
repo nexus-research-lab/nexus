@@ -220,6 +220,7 @@ func ScanSessionRecord(scanner Scanner) (protocol.SessionRecord, error) {
 	if item.Options == nil {
 		item.Options = map[string]any{}
 	}
+	item.TranscriptSessionIDs = protocol.TranscriptSessionIDsFromOptions(item.Options)
 	item.LastActivityAt = lastActivityAt
 	item.CreatedAt = createdAt
 	item.UpdatedAt = updatedAt

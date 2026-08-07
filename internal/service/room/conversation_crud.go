@@ -9,7 +9,6 @@ import (
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 )
 
@@ -93,15 +92,6 @@ func (s *Service) UpdateConversationTitle(
 func (s *Service) DeleteConversation(ctx context.Context, roomID string, conversationID string) (*protocol.ConversationContextAggregate, error) {
 	roomID = strings.TrimSpace(roomID)
 	conversationID = strings.TrimSpace(conversationID)
-	if job, payload, err := s.loadRoomDeletionJob(
-		ctx,
-		deletionsvc.KindConversation,
-		conversationID,
-	); err != nil {
-		return nil, err
-	} else if job != nil {
-		return s.applyConversationDeletion(ctx, *job, payload)
-	}
 	contexts, err := s.GetRoomContexts(ctx, roomID)
 	if err != nil {
 		return nil, err
@@ -121,20 +111,10 @@ func (s *Service) DeleteConversation(ctx context.Context, roomID string, convers
 	payload := roomDeletionPayload{
 		Contexts:             targetContexts,
 		ConversationID:       conversationID,
-		FallbackConversation: fallbackConversationID(contexts, conversationID),
 		RoomID:               roomID,
 		TranscriptReferences: transcriptReferences,
 	}
-	job, err := s.ensureRoomDeletionJob(
-		ctx,
-		deletionsvc.KindConversation,
-		conversationID,
-		payload,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return s.applyConversationDeletion(ctx, job, payload)
+	return s.applyConversationDeletion(ctx, payload)
 }
 
 // UpdateSessionSDKSessionID 更新房间会话记录中的 SDK session_id。

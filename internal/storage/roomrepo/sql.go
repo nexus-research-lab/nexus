@@ -715,30 +715,33 @@ func (r *SQLRepository) UpdateSessionSDKSessionID(ctx context.Context, sessionID
 	}
 	defer func() { _ = tx.Rollback() }()
 	var currentSDKSessionID sql.NullString
+	var optionsJSON string
 	err = tx.QueryRowContext(ctx, `
-SELECT sdk_session_id
+SELECT sdk_session_id, options_json
 FROM sessions
-WHERE id = `+r.dialect.Bind(1), sessionID).Scan(&currentSDKSessionID)
+WHERE id = `+r.dialect.Bind(1), sessionID).Scan(&currentSDKSessionID, &optionsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	if err = r.insertTranscriptSessionRefs(
-		ctx,
-		tx,
-		sessionID,
-		currentSDKSessionID.String,
-		sdkSessionID,
-	); err != nil {
+	options := protocol.WithTranscriptSessionIDs(
+		jsoncodec.ParseMap(optionsJSON),
+		[]string{currentSDKSessionID.String, sdkSessionID},
+	)
+	optionsJSON, err = jsoncodec.MarshalMap(options)
+	if err != nil {
 		return err
 	}
 	result, err := tx.ExecContext(ctx, `
 UPDATE sessions
-SET sdk_session_id = `+r.dialect.Bind(1)+`, updated_at = `+r.dialect.CurrentTimestamp()+`
-WHERE id = `+r.dialect.Bind(2),
+SET sdk_session_id = `+r.dialect.Bind(1)+`,
+    options_json = `+r.dialect.Bind(2)+`,
+    updated_at = `+r.dialect.CurrentTimestamp()+`
+WHERE id = `+r.dialect.Bind(3),
 		NullIfEmpty(sdkSessionID),
+		optionsJSON,
 		sessionID,
 	)
 	if err != nil {

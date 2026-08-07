@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 )
 
@@ -467,22 +466,6 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 		return err
 	}
 	agentID = strings.TrimSpace(agentID)
-	ownerScope := effectiveOwnerUserID(ctx)
-	if s.deletion != nil {
-		job, err := s.deletion.Load(ctx, ownerScope, deletionsvc.KindAgent, agentID)
-		if err != nil {
-			return err
-		}
-		if job != nil {
-			var payload agentDeletionPayload
-			if err = deletionsvc.DecodePayload(*job, &payload); err != nil {
-				return s.deletion.Fail(ctx, *job, err)
-			}
-			bindAgentDeletionOwner(&payload, job.OwnerUserID)
-			return s.applyAgentDeletion(ctx, *job, payload)
-		}
-	}
-
 	ownerUserID, _ := scopedOwnerUserID(ctx)
 	existing, err := s.repository.GetAgent(ctx, agentID, ownerUserID)
 	if err != nil {
@@ -501,19 +484,5 @@ func (s *Service) DeleteAgent(ctx context.Context, agentID string) error {
 			return err
 		}
 	}
-	payload := agentDeletionPayload{Agent: *existing, Sessions: sessions}
-	job := deletionsvc.Job{}
-	if s.deletion != nil {
-		job, err = s.deletion.Ensure(
-			ctx,
-			existing.OwnerUserID,
-			deletionsvc.KindAgent,
-			existing.AgentID,
-			payload,
-		)
-		if err != nil {
-			return err
-		}
-	}
-	return s.applyAgentDeletion(ctx, job, payload)
+	return s.applyAgentDeletion(ctx, *existing, sessions)
 }

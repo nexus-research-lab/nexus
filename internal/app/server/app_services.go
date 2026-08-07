@@ -140,7 +140,6 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	workspaceService := workspacepkg.NewService(cfg, core.Agent)
 	projectPermissionService := projectpermissionsvc.NewService(cfg)
 	skillService := skillsvc.NewServiceWithDB(cfg, db, core.Agent, workspaceService)
-	skillService.SetDeletionCoordinator(core.Deletion)
 	core.Room.SetSkillCatalog(skillService)
 	connectorService := connectorsvc.NewService(cfg, db)
 	launcherService := launcher.NewService(cfg, core.Agent, core.Room, core.Session)
@@ -215,9 +214,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		channelRouter,
 	)
 	automationService.SetRuntimeSessionCloser(runtimeManager)
-	automationService.SetDeletionCoordinator(core.Deletion)
 	core.Deletion.SetTaskCleaner(automationService)
-	core.Agent.SetDeletionLifecycle(core.Session, automationService, core.Deletion)
+	core.Agent.SetDeletionLifecycle(core.Session, automationService)
 	automationService.SetProviderResolver(providerService)
 	automationService.SetLogger(logger.With("component", "automation"))
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService)

@@ -11,7 +11,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
-	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 )
 
 const sessionRuntimeCloseTimeout = 3 * time.Second
@@ -103,20 +102,6 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 	if err != nil {
 		return err
 	}
-	ownerUserID := authctx.OwnerUserID(ctx)
-	if s.deletion != nil {
-		job, loadErr := s.deletion.Load(ctx, ownerUserID, deletionsvc.KindSession, sessionKey)
-		if loadErr != nil {
-			return loadErr
-		}
-		if job != nil {
-			var payload sessionDeletionPayload
-			if err = deletionsvc.DecodePayload(*job, &payload); err != nil {
-				return s.deletion.Fail(ctx, *job, err)
-			}
-			return s.applySessionDeletion(ctx, *job, payload, false)
-		}
-	}
 	item, workspacePath, _, err := s.loadMutableWorkspaceSession(ctx, sessionKey)
 	if err != nil {
 		return err
@@ -124,83 +109,34 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 	if workspacePath == "" || item == nil {
 		return ErrSessionNotFound
 	}
-	payload := sessionDeletionPayload{
-		Session:              *item,
-		SessionKey:           sessionKey,
-		TranscriptSessionIDs: protocol.SessionTranscriptIDs(*item),
-		WorkspacePath:        workspacePath,
-	}
-	job := deletionsvc.Job{}
-	if s.deletion != nil {
-		job, err = s.deletion.Ensure(
-			ctx,
-			ownerUserID,
-			deletionsvc.KindSession,
-			sessionKey,
-			payload,
-		)
-		if err != nil {
-			return err
-		}
-	}
-	return s.applySessionDeletion(ctx, job, payload, true)
-}
-
-type sessionDeletionPayload struct {
-	Session              protocol.Session `json:"session"`
-	SessionKey           string           `json:"session_key"`
-	TranscriptSessionIDs []string         `json:"transcript_session_ids"`
-	WorkspacePath        string           `json:"workspace_path"`
-}
-
-func (s *Service) applySessionDeletion(
-	ctx context.Context,
-	job deletionsvc.Job,
-	payload sessionDeletionPayload,
-	requireSession bool,
-) error {
-	fail := func(err error) error {
-		if s.deletion == nil || job.ID == "" {
-			return err
-		}
-		return s.deletion.Fail(ctx, job, err)
-	}
-	if err := s.closeSessionRuntimeForDeletion(payload.SessionKey); err != nil {
-		return fail(err)
+	if err = s.closeSessionRuntimeForDeletion(sessionKey); err != nil {
+		return err
 	}
 	if s.deletion != nil {
 		if err := s.deletion.CleanupSessionReferences(
 			ctx,
 			authctx.OwnerUserID(ctx),
-			[]string{payload.SessionKey},
+			[]string{sessionKey},
 		); err != nil {
-			return fail(err)
+			return err
 		}
 	}
-	for _, transcriptSessionID := range protocol.MergeTranscriptSessionIDs(
-		payload.TranscriptSessionIDs,
-		protocol.SessionTranscriptIDs(payload.Session),
-	) {
+	for _, transcriptSessionID := range protocol.SessionTranscriptIDs(*item) {
 		if _, err := s.ownerHistory(ctx).DeleteTranscriptSession(
-			payload.WorkspacePath,
+			workspacePath,
 			transcriptSessionID,
 		); err != nil {
-			return fail(err)
+			return err
 		}
 	}
-	deleted, err := s.ownerFiles(ctx).DeleteSession(payload.WorkspacePath, payload.SessionKey)
+	deleted, err := s.ownerFiles(ctx).DeleteSession(workspacePath, sessionKey)
 	if err != nil {
-		return fail(err)
+		return err
 	}
-	if !deleted && requireSession {
-		return fail(ErrSessionNotFound)
+	if !deleted {
+		return ErrSessionNotFound
 	}
-	if s.deletion != nil && job.ID != "" {
-		if err = s.deletion.Complete(ctx, job); err != nil {
-			return s.deletion.Fail(ctx, job, err)
-		}
-	}
-	s.notifyDirectoryChanged(ctx, "session_deleted", payload.Session)
+	s.notifyDirectoryChanged(ctx, "session_deleted", *item)
 	return nil
 }
 

@@ -295,9 +295,6 @@ ORDER BY conversation_id ASC, last_activity_at DESC`, r.dialect.BindList(len(con
 	if err = rows.Close(); err != nil {
 		return nil, err
 	}
-	if err = r.attachRoomSessionTranscriptIDs(ctx, querier, result); err != nil {
-		return nil, err
-	}
 	return result, nil
 }
 

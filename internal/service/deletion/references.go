@@ -7,6 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+
+	"github.com/nexus-research-lab/nexus/internal/config"
+	"github.com/nexus-research-lab/nexus/internal/storage"
 )
 
 type sessionGoalCleaner interface {
@@ -15,6 +18,36 @@ type sessionGoalCleaner interface {
 
 type sessionTaskCleaner interface {
 	DeleteTasksForSessions(context.Context, string, []string) error
+}
+
+// Coordinator 统一清理 Session 作用域的次级数据。
+type Coordinator struct {
+	db      *sql.DB
+	dialect storage.SQLDialect
+	goals   sessionGoalCleaner
+	tasks   sessionTaskCleaner
+}
+
+// NewCoordinator 创建共享删除协调器。
+func NewCoordinator(cfg config.Config, db *sql.DB) *Coordinator {
+	return &Coordinator{
+		db:      db,
+		dialect: storage.NewSQLDialect(cfg.DatabaseDriver),
+	}
+}
+
+// SetGoalCleaner 注入 Session 作用域 Goal 清理器。
+func (c *Coordinator) SetGoalCleaner(cleaner sessionGoalCleaner) {
+	if c != nil {
+		c.goals = cleaner
+	}
+}
+
+// SetTaskCleaner 注入绑定到 Session 的定时任务清理器。
+func (c *Coordinator) SetTaskCleaner(cleaner sessionTaskCleaner) {
+	if c != nil {
+		c.tasks = cleaner
+	}
 }
 
 // CleanupSessionReferences 删除不属于历史审计的数据；token usage、task run/event

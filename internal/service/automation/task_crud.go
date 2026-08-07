@@ -8,9 +8,7 @@ import (
 	"time"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	automationstore "github.com/nexus-research-lab/nexus/internal/storage/automation"
@@ -232,82 +230,30 @@ func (s *Service) DeleteTask(ctx context.Context, jobID string) (*automationdoma
 	if err := s.ensureReady(ctx); err != nil {
 		return nil, err
 	}
-	jobID = strings.TrimSpace(jobID)
-	if s.deletion != nil {
-		job, err := s.deletion.Load(
-			ctx,
-			authctx.OwnerUserID(ctx),
-			deletionsvc.KindScheduledTask,
-			jobID,
-		)
-		if err != nil {
-			return nil, err
-		}
-		if job != nil {
-			var payload scheduledTaskDeletionPayload
-			if err = deletionsvc.DecodePayload(*job, &payload); err != nil {
-				return nil, s.deletion.Fail(ctx, *job, err)
-			}
-			bindScheduledTaskDeletionOwner(&payload, job.OwnerUserID)
-			return s.applyScheduledTaskDeletion(ctx, *job, payload)
-		}
-	}
-	current, err := s.loadRequiredScheduledTask(ctx, jobID)
+	current, err := s.loadRequiredScheduledTask(ctx, strings.TrimSpace(jobID))
 	if err != nil {
 		return nil, err
 	}
-	payload := scheduledTaskDeletionPayload{Task: *current}
-	job := deletionsvc.Job{}
-	if s.deletion != nil {
-		job, err = s.deletion.Ensure(
-			ctx,
-			current.OwnerUserID,
-			deletionsvc.KindScheduledTask,
-			current.JobID,
-			payload,
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return s.applyScheduledTaskDeletion(ctx, job, payload)
-}
-
-type scheduledTaskDeletionPayload struct {
-	Task automationdomain.ScheduledTask `json:"task"`
-}
-
-func bindScheduledTaskDeletionOwner(payload *scheduledTaskDeletionPayload, ownerUserID string) {
-	if payload != nil {
-		payload.Task.OwnerUserID = strings.TrimSpace(ownerUserID)
-	}
+	return s.applyScheduledTaskDeletion(ctx, *current)
 }
 
 func (s *Service) applyScheduledTaskDeletion(
 	ctx context.Context,
-	job deletionsvc.Job,
-	payload scheduledTaskDeletionPayload,
+	current automationdomain.ScheduledTask,
 ) (*automationdomain.DeleteJobResult, error) {
-	current := payload.Task
-	fail := func(err error) (*automationdomain.DeleteJobResult, error) {
-		if s.deletion == nil || job.ID == "" {
-			return nil, err
-		}
-		return nil, s.deletion.Fail(ctx, job, err)
-	}
 	cancelledRunID, cancelledRun, err := s.cancelDeletedTaskActiveRun(ctx, current)
 	if err != nil {
-		return fail(err)
+		return nil, err
 	}
 	deadLetteredDeliveryRunIDs, err := s.deadLetterDeletedTaskPendingDeliveries(ctx, current)
 	if err != nil {
-		return fail(err)
-	}
-	if err = s.repository.DeleteScheduledTask(ctx, current.OwnerUserID, current.JobID); err != nil {
-		return fail(err)
+		return nil, err
 	}
 	if err = s.cleanupIsolatedAutomationSessions(ctx, current); err != nil {
-		return fail(err)
+		return nil, err
+	}
+	if err = s.repository.DeleteScheduledTask(ctx, current.OwnerUserID, current.JobID); err != nil {
+		return nil, err
 	}
 	s.mu.Lock()
 	delete(s.jobStates, current.JobID)
@@ -322,11 +268,6 @@ func (s *Service) applyScheduledTaskDeletion(
 	}
 	if cancelledRun {
 		result.CancelledRunID = cancelledRunID
-	}
-	if s.deletion != nil && job.ID != "" {
-		if err = s.deletion.Complete(ctx, job); err != nil {
-			return nil, s.deletion.Fail(ctx, job, err)
-		}
 	}
 	return result, nil
 }
