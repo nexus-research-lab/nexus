@@ -11,12 +11,13 @@ func TestRuntimeInputOptionsForPurposeClearsContinuationControlFields(t *testing
 		Meta:           true,
 		HiddenFromUser: true,
 		Synthetic:      true,
+		RecallQuery:    "do not recall",
 		Purpose:        "goal_continuation",
 		Priority:       "internal",
 		Metadata:       map[string]string{"goal_id": "goal-1"},
 	}, "goal_continuation")
 
-	if options.Meta || options.HiddenFromUser || options.Synthetic || options.Purpose != "" || options.Priority != "" || options.Metadata != nil {
+	if options.Meta || options.HiddenFromUser || options.Synthetic || options.RecallQuery != "" || options.Purpose != "" || options.Priority != "" || options.Metadata != nil {
 		t.Fatalf("options = %#v, want continuation runtime input control fields cleared", options)
 	}
 }

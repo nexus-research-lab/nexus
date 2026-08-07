@@ -4,6 +4,7 @@ import {
   Settings2,
 } from "lucide-react";
 
+import { CAPABILITY_DIRECTORY_ROW_CLASS_NAME } from "@/features/capability/shared/capability-page-layout";
 import { ChannelConfigView } from "@/lib/api/capability/channel-api";
 import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
@@ -117,6 +118,7 @@ export function ChannelCard({
   return (
     <UiListRow
       className={cn(
+        CAPABILITY_DIRECTORY_ROW_CLASS_NAME,
         planned && "cursor-default opacity-70",
       )}
       leading={<ChannelIcon type={item.channel_type} />}

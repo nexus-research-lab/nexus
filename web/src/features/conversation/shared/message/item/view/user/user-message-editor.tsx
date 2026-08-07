@@ -1,5 +1,6 @@
 import type { KeyboardEvent, RefObject } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
 
@@ -22,6 +23,7 @@ export function UserMessageEditor({
   onSubmit,
   textareaRef,
 }: UserMessageEditorProps) {
+  const { t } = useI18n();
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -37,7 +39,7 @@ export function UserMessageEditor({
   return (
     <div className="input-shell workbench-input-shell ml-auto flex w-full max-w-full flex-col overflow-hidden rounded-[10px]">
       <textarea
-        aria-label="编辑消息内容"
+        aria-label={t("message.edit_content")}
         className={cn(
           "soft-scrollbar min-h-0 resize-none appearance-none border-0 bg-transparent px-3 text-left text-[14px] leading-6 text-(--text-strong)",
           compact ? "py-1.5" : "py-2",
@@ -56,7 +58,7 @@ export function UserMessageEditor({
           onClick={onCancel}
           type="button"
         >
-          取消
+          {t("common.cancel")}
         </button>
         <button
           className={getUiButtonClassName({ size: "xs", variant: "solid" })}
@@ -64,7 +66,7 @@ export function UserMessageEditor({
           onClick={onSubmit}
           type="button"
         >
-          发送
+          {t("composer.enter_send")}
         </button>
       </div>
     </div>

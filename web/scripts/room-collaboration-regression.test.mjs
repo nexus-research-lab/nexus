@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,36 @@ const server = await createServer({
 test.after(async () => {
   await server.close();
 });
+
+async function loadI18nValue(locale = "zh") {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  return {
+    locale,
+    setLocale: () => {},
+    t: (key, params = {}) => Object.entries(params).reduce(
+      (message, [name, value]) => message.replaceAll(
+        `{${name}}`,
+        String(value),
+      ),
+      MESSAGES[locale][key] ?? key,
+    ),
+  };
+}
+
+async function renderWithI18n(element, locale = "zh") {
+  const { I18N_CONTEXT } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-context.ts",
+  );
+  return renderToStaticMarkup(
+    React.createElement(
+      I18N_CONTEXT.Provider,
+      { value: await loadI18nValue(locale) },
+      element,
+    ),
+  );
+}
 
 test("Goal status shows one exact token total without budget progress", async () => {
   const {
@@ -294,6 +325,377 @@ test("工作区源码文件复用 Markdown 代码语义高亮语言", async () =
   assert.equal(getWorkspaceFileCodeLanguage("notes.txt"), null);
 });
 
+test("工作区预览 breadcrumb 投影工作区根目录与文件父目录", async () => {
+  const {
+    getWorkspaceFileLocationLabel,
+    getWorkspaceRootLabel,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/workspace/controller/workspace-path-model.ts",
+  );
+
+  assert.equal(
+    getWorkspaceRootLabel("/Users/leemysw/Projects/nexus/", "工作区"),
+    "nexus",
+  );
+  assert.equal(
+    getWorkspaceRootLabel("C:\\Users\\leemysw\\Projects\\nexus", "工作区"),
+    "nexus",
+  );
+  assert.equal(getWorkspaceRootLabel("", "工作区"), "工作区");
+  assert.equal(getWorkspaceFileLocationLabel("AGENTS.md", "nexus"), "nexus");
+  assert.equal(
+    getWorkspaceFileLocationLabel("memory/project_leemysw.md", "nexus"),
+    "memory",
+  );
+  assert.equal(
+    getWorkspaceFileLocationLabel("memory/output/report.md", "nexus"),
+    "memory/output",
+  );
+});
+
+test("工作区空预览跟随界面语言", async () => {
+  const { WorkspaceFilePreviewPanel } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/editor/workspace-file-preview-panel.tsx",
+  );
+  const element = React.createElement(WorkspaceFilePreviewPanel, {
+    agentId: "agent-a",
+    headerLocationLabel: "nexus",
+    isPreviewFocused: false,
+    onTogglePreviewFocus: () => {},
+    path: null,
+  });
+  const chinese = await renderWithI18n(element);
+  const english = await renderWithI18n(element, "en");
+
+  assert.match(chinese, /工作区预览/);
+  assert.match(chinese, /从文件列表选择一个文件/);
+  assert.match(english, /Workspace Preview/);
+  assert.match(english, /Select a file from the list to preview it here/);
+  assert.doesNotMatch(english, /工作区|从文件列表/);
+});
+
+test("工作区文件操作跟随界面语言", async () => {
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    __NEXUS_DESKTOP_RUNTIME__: { app_mode: "desktop" },
+  };
+  try {
+    const englishI18n = await loadI18nValue("en");
+    const chineseI18n = await loadI18nValue("zh");
+    const { getWorkspaceFileExternalActionCopy } = await server.ssrLoadModule(
+      "/src/lib/workspace-file-action.ts",
+    );
+    assert.deepEqual(
+      getWorkspaceFileExternalActionCopy(englishI18n.t, "MEMORY.md"),
+      {
+        ariaLabel: "Show MEMORY.md in folder",
+        label: "Open",
+        mode: "reveal",
+        title: "Show MEMORY.md in folder",
+      },
+    );
+    assert.equal(
+      getWorkspaceFileExternalActionCopy(chineseI18n.t, "MEMORY.md").title,
+      "在文件夹中显示 MEMORY.md",
+    );
+
+    const {
+      WorkspaceFileDownloadButton,
+      WorkspaceFilePreviewFocusButton,
+    } = await server.ssrLoadModule(
+      "/src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+    );
+    const chrome = React.createElement(React.Fragment, null,
+      React.createElement(WorkspaceFileDownloadButton, {
+        agentId: "agent-a",
+        fileName: "MEMORY.md",
+        path: "MEMORY.md",
+      }),
+      React.createElement(WorkspaceFilePreviewFocusButton, {
+        isPreviewFocused: false,
+        onTogglePreviewFocus: () => {},
+      }),
+      React.createElement(WorkspaceFilePreviewFocusButton, {
+        isPreviewFocused: true,
+        onTogglePreviewFocus: () => {},
+      }),
+    );
+    const englishChrome = await renderWithI18n(chrome, "en");
+    assert.match(englishChrome, /aria-label="Show MEMORY\.md in folder"/);
+    assert.match(englishChrome, /aria-label="Focus preview"/);
+    assert.match(englishChrome, /aria-label="Show file list"/);
+    assert.doesNotMatch(englishChrome, /文件夹|聚焦|文件列表/);
+
+    const { buildTextFileEditorPresentation } = await server.ssrLoadModule(
+      "/src/features/conversation/shared/editor/text/text-file-editor-model.ts",
+    );
+    const presentation = buildTextFileEditorPresentation({
+      fileType: "markdown",
+      isDirty: true,
+      isEditing: false,
+      isExternalWriting: false,
+      isSaving: false,
+      liveState: undefined,
+      translate: englishI18n.t,
+    });
+    assert.equal(presentation.editLabel, "Edit");
+    assert.equal(presentation.saveLabel, "Save");
+  } finally {
+    globalThis.window = originalWindow;
+  }
+});
+
+test("工作区文件 chrome 使用单行 breadcrumb 和一条内容边界", async () => {
+  const [
+    previewChromeSource,
+    previewPanelSource,
+    textHeaderSource,
+    workspaceSource,
+    fileBrowserSource,
+  ] = await Promise.all([
+    "src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+    "src/features/conversation/shared/editor/workspace-file-preview-panel.tsx",
+    "src/features/conversation/shared/editor/text/text-file-editor-header.tsx",
+    "src/features/conversation/room/workspace/room-workspace-view.tsx",
+    "src/features/conversation/room/workspace/view/workspace-file-browser.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+  const {
+    WorkspaceFilePreviewHeader,
+    WorkspaceFilePreviewHeaderProvider,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+  );
+  const breadcrumbHtml = renderToStaticMarkup(
+    React.createElement(
+      WorkspaceFilePreviewHeaderProvider,
+      {locationLabel: "nexus"},
+      React.createElement(WorkspaceFilePreviewHeader, {
+        actions: null,
+        title: "AGENTS.md",
+      }),
+    ),
+  );
+
+  const toolbarClasses = previewChromeSource.match(
+    /WORKSPACE_FILE_TOOLBAR_BUTTON_CLASS_NAME = cn\(([\s\S]*?)\);/,
+  )?.[1] ?? "";
+  assert.match(previewChromeSource, /createPortal\(header, headerPortalTarget\)/);
+  assert.match(breadcrumbHtml, /<header class="[^"]*border-b[^"]*h-11/);
+  assert.match(previewChromeSource, /<ChevronRight/);
+  assert.doesNotMatch(toolbarClasses, /\bborder\b|surface-panel-background/);
+  assert.doesNotMatch(previewChromeSource, /px-3 pt-0 pb-2|mt-1 flex min-w-0/);
+  assert.match(previewChromeSource, /aria-label=\{title\}/);
+  assert.match(previewChromeSource, /text-xs font-medium text-\(--text-strong\)/);
+  assert.match(breadcrumbHtml, />nexus<[\s\S]*>AGENTS\.md</);
+  assert.doesNotMatch(previewChromeSource, /visibleLabel|max-xl:hidden/);
+  assert.doesNotMatch(textHeaderSource, /presentation\.editAction === "preview"|max-xl:hidden/);
+  assert.match(textHeaderSource, /disabled=\{presentation\.saveDisabled\}/);
+  assert.match(workspaceSource, /variant="panel"/);
+  assert.match(workspaceSource, /headerLocationLabel=\{headerLocationLabel\}/);
+  assert.match(workspaceSource, /ref=\{setPreviewHeaderTarget\}/);
+  assert.match(workspaceSource, /headerPortalTarget=\{previewHeaderTarget\}/);
+  assert.match(workspaceSource, /<WorkspaceDirectoryToolbar controller=\{controller\.browser\}/);
+  assert.match(previewPanelSource, /locationLabel=\{headerLocationLabel\}/);
+  assert.match(previewPanelSource, /headerPortalTarget=\{headerPortalTarget\}/);
+  assert.match(fileBrowserSource, /flex-col border-l divider-subtle pl-4/);
+  assert.match(fileBrowserSource, /<WorkspaceFileToolbarButton/);
+  assert.match(fileBrowserSource, /<Upload className=\{WORKSPACE_PANEL_HEADER_ICON_CLASS\}/);
+  assert.match(fileBrowserSource, /<FolderPlus className=\{WORKSPACE_PANEL_HEADER_ICON_CLASS\}/);
+  assert.match(fileBrowserSource, /<FilePlus className=\{WORKSPACE_PANEL_HEADER_ICON_CLASS\}/);
+  assert.doesNotMatch(fileBrowserSource, /tone="primary"|WorkspaceSurfaceToolbarAction/);
+  assert.doesNotMatch(fileBrowserSource, /currentDirectoryLabel|<FolderOpen/);
+  assert.doesNotMatch(fileBrowserSource, /flex h-11 min-w-0 shrink-0/);
+  assert.doesNotMatch(fileBrowserSource, /radius-control-sm border/);
+});
+
+test("Room 辅助面板 header 共用高度、按钮和图标基线", async () => {
+  const [
+    layoutSource,
+    aboutSource,
+    workspaceSource,
+    subagentSource,
+    subagentListSource,
+    agentSwitcherSource,
+    threadSource,
+    previewChromeSource,
+  ] = await Promise.all([
+    "src/shared/ui/workspace/surface/workspace-header-layout.ts",
+    "src/features/conversation/room/surface/room-agent-about-surface.tsx",
+    "src/features/conversation/room/workspace/room-workspace-view.tsx",
+    "src/features/conversation/room/surface/room-subagent-task-surface.tsx",
+    "src/features/conversation/shared/subagent/subagent-task-list.tsx",
+    "src/features/conversation/room/surface/room-agent-switcher.tsx",
+    "src/features/conversation/shared/thread/conversation-thread-view.tsx",
+    "src/features/conversation/shared/editor/workspace-file-preview-chrome.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+
+  assert.match(layoutSource, /WORKSPACE_PANEL_HEADER_HEIGHT_CLASS = "h-11"/);
+  assert.match(layoutSource, /WORKSPACE_PANEL_HEADER_PADDING_CLASS = "px-3"/);
+  assert.match(layoutSource, /WORKSPACE_PANEL_HEADER_BUTTON_CLASS = "h-7 w-7"/);
+  assert.match(layoutSource, /WORKSPACE_PANEL_HEADER_ICON_CLASS = "h-3\.5 w-3\.5"/);
+  assert.match(aboutSource, /WORKSPACE_PANEL_HEADER_HEIGHT_CLASS/);
+  assert.match(aboutSource, /WORKSPACE_PANEL_HEADER_PADDING_CLASS/);
+  assert.doesNotMatch(aboutSource, /h-\[41px\]/);
+  assert.doesNotMatch(aboutSource, /dialog-divider px-6/);
+  assert.match(aboutSource, /<RoomAgentSwitcher[\s\S]*variant="panel"/);
+  assert.match(workspaceSource, /WORKSPACE_PANEL_HEADER_HEIGHT_CLASS/);
+  assert.match(workspaceSource, /WORKSPACE_PANEL_HEADER_PADDING_CLASS/);
+  assert.match(workspaceSource, /bodyClassName="px-0 py-0"/);
+  assert.match(subagentSource, /<RoomAgentSwitcher[\s\S]*variant="panel"/);
+  assert.match(subagentListSource, /isDesktopPanel = !showTitle/);
+  assert.match(subagentListSource, /WORKSPACE_PANEL_HEADER_HEIGHT_CLASS/);
+  assert.match(subagentListSource, /WORKSPACE_PANEL_HEADER_PADDING_CLASS/);
+  assert.match(agentSwitcherSource, /variant\?: "panel" \| "task"/);
+  assert.match(agentSwitcherSource, /variant === "panel" \? "w-28 shrink-0" : "w-full max-w-36"/);
+  assert.match(agentSwitcherSource, /className="h-4 w-4"/);
+  assert.match(agentSwitcherSource, /flex-1 truncate text-left text-compact/);
+  assert.match(
+    threadSource,
+    /isMobile \? "h-\[52px\]" : WORKSPACE_PANEL_HEADER_HEIGHT_CLASS/,
+  );
+  assert.match(threadSource, /<Icon className=\{WORKSPACE_PANEL_HEADER_ICON_CLASS\}/);
+  assert.match(previewChromeSource, /WORKSPACE_PANEL_HEADER_BUTTON_CLASS/);
+  assert.match(previewChromeSource, /WORKSPACE_PANEL_HEADER_ICON_CLASS/);
+});
+
+test("Room 辅助面板可访问名称跟随界面语言", async () => {
+  const [
+    auxiliarySource,
+    threadSource,
+    aboutSource,
+    workspaceSource,
+    fileBrowserSource,
+  ] = await Promise.all([
+    "src/features/conversation/room/surface/layout/room-surface-auxiliary-panel.tsx",
+    "src/features/conversation/room/surface/layout/room-thread-inline-panel.tsx",
+    "src/features/conversation/room/surface/room-agent-about-surface.tsx",
+    "src/features/conversation/room/workspace/room-workspace-view.tsx",
+    "src/features/conversation/room/workspace/view/workspace-file-browser.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+  const sources = [
+    auxiliarySource,
+    threadSource,
+    aboutSource,
+    workspaceSource,
+    fileBrowserSource,
+  ];
+
+  assert.match(auxiliarySource, /t\("room\.resize_auxiliary_panel"\)/);
+  assert.match(threadSource, /t\("room\.resize_thread_panel"\)/);
+  assert.match(aboutSource, /t\("room\.agent_panel_tabs"\)/);
+  assert.match(workspaceSource, /aria-label=\{t\("room\.workspace_action_upload"\)\}/);
+  assert.match(fileBrowserSource, /t\("room\.resize_workspace_file_list"\)/);
+  sources.forEach((source) => {
+    assert.doesNotMatch(
+      source,
+      /调整右侧面板宽度|调整 Thread 面板宽度|调整文件列表宽度|上传工作区文件|Agent 面板切换/,
+    );
+  });
+
+  const { RoomAgentSwitcher } = await server.ssrLoadModule(
+    "/src/features/conversation/room/surface/room-agent-switcher.tsx",
+  );
+  const html = await renderWithI18n(React.createElement(RoomAgentSwitcher, {
+    members: [{ agent_id: "amy", name: "Amy", avatar: null }],
+    onSelect: () => {},
+    selectedId: "amy",
+  }), "en");
+  assert.match(html, /aria-label="Switch Agent: Amy"/);
+  assert.doesNotMatch(html, /切换|：/);
+});
+
+test("Agent 详情导航共用纯文字栏目和低对比选中底色", async () => {
+  const [
+    roomAboutSource,
+    contactsSource,
+    contactsActionsMenuSource,
+    editorSource,
+    avatarPickerSource,
+    vibeTagsSource,
+    existingCommandsSource,
+    agentApiSource,
+    tabStylesSource,
+    workspaceHeaderSource,
+    workspaceHeaderStyles,
+  ] = await Promise.all([
+    "src/features/conversation/room/surface/room-agent-about-surface.tsx",
+    "src/features/contacts/contacts-agent-detail.tsx",
+    "src/features/contacts/contacts-agent-detail-actions-menu.tsx",
+    "src/features/agents/options/agent-options-editor.tsx",
+    "src/features/agents/options/components/identity/identity-avatar-picker.tsx",
+    "src/features/agents/options/components/identity/identity-vibe-tags.tsx",
+    "src/features/agents/options/use-existing-agent-options-commands.ts",
+    "src/lib/api/agent/agent-api.ts",
+    "src/shared/ui/navigation/tabs-styles.ts",
+    "src/shared/ui/workspace/surface/workspace-surface-header.tsx",
+    "src/shared/ui/workspace/surface/workspace-surface-header.css",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+  const { AGENT_DETAIL_TABS } = await server.ssrLoadModule(
+    "/src/features/agents/agent-detail-navigation.ts",
+  );
+
+  assert.deepEqual(
+    AGENT_DETAIL_TABS.map((tab) => tab.key),
+    ["identity", "skills", "memory", "advanced", "private_domain"],
+  );
+  assert.ok(AGENT_DETAIL_TABS.every((tab) => !("icon" in tab)));
+  assert.match(roomAboutSource, /AGENT_DETAIL_TABS\.map/);
+  assert.match(contactsSource, /AGENT_DETAIL_TABS\.map/);
+  assert.doesNotMatch(contactsSource, /UiAgentAvatar/);
+  assert.doesNotMatch(contactsSource, /title=\{agent\.name\}/);
+  assert.doesNotMatch(contactsSource, /leadingVariant="identity"/);
+  assert.match(contactsSource, /saveMode="automatic"/);
+  assert.match(contactsSource, /tone="danger"[\s\S]*?<Trash2/);
+  assert.doesNotMatch(contactsSource, /onDelete=\{onDeleteAgent\}|showDeleteButton/);
+  assert.match(contactsActionsMenuSource, /footerItems=\{footerItems\}/);
+  assert.match(contactsActionsMenuSource, /tone: "danger"/);
+  assert.match(editorSource, /saveMode === "explicit"/);
+  assert.match(avatarPickerSource, /variant === "inline" \? "items-start"/);
+  assert.match(vibeTagsSource, /h-7 min-w-0 overflow-x-auto/);
+  assert.doesNotMatch(vibeTagsSource, /flex-wrap/);
+  assert.match(existingCommandsSource, /validateAgentNameDraft/);
+  assert.doesNotMatch(existingCommandsSource, /validateAgentNameApi|agent-api/);
+  assert.doesNotMatch(agentApiSource, /validate\/name|validateAgentNameApi/);
+  assert.match(
+    workspaceHeaderSource,
+    /if \(!leading && !hasTitleContent\) return null;/,
+  );
+  assert.doesNotMatch(roomAboutSource, /UserPen|Handshake|Brain|ToolCase|Album/);
+  assert.doesNotMatch(contactsSource, /UserPen|Handshake|Brain|ToolCase|Album/);
+  assert.match(tabStylesSource, /ui-navigation-tab/);
+  assert.match(tabStylesSource, /text-\(--text-muted\)/);
+  assert.match(tabStylesSource, /bg-\(--surface-interactive-active-background\)/);
+  assert.match(
+    workspaceHeaderStyles,
+    /\.workspace-surface-header-tool-cluster-page-tabs\s*\{[\s\S]*?height:\s*40px;/,
+  );
+  assert.match(
+    workspaceHeaderStyles,
+    /\.workspace-surface-header-view-tab\[aria-pressed="true"\]\s*\{[\s\S]*?background:\s*var\(--surface-interactive-active-background\)/,
+  );
+});
+
+test("工作区文件树使用按文件名与扩展名区分的彩色图标", async () => {
+  const {
+    getWorkspaceDirectoryIcon,
+    getWorkspaceFileVisual,
+  } = await server.ssrLoadModule(
+    "/src/shared/ui/workspace/tree/workspace-file-tree-model.ts",
+  );
+  const iconSources = [
+    getWorkspaceFileVisual("components.json").iconSrc,
+    getWorkspaceFileVisual("index.html").iconSrc,
+    getWorkspaceFileVisual("package.json").iconSrc,
+    getWorkspaceFileVisual("pnpm-lock.yaml").iconSrc,
+    getWorkspaceFileVisual("tsconfig.json").iconSrc,
+    getWorkspaceFileVisual("vite.config.ts").iconSrc,
+  ];
+
+  assert.equal(new Set(iconSources).size, iconSources.length);
+  assert.notEqual(getWorkspaceDirectoryIcon(false), getWorkspaceDirectoryIcon(true));
+  iconSources.forEach((iconSource) => assert.match(iconSource, /svg/));
+});
+
 test("创建 Agent 时行为模板进入独立 API 字段", async () => {
   const { buildCreateAgentMutationParams } = await server.ssrLoadModule(
     "/src/features/agents/options/agent-options-mutation.ts",
@@ -313,11 +715,29 @@ test("创建 Agent 时行为模板进入独立 API 字段", async () => {
   assert.equal(params.description, "");
 });
 
+test("Agent 名称只做本地格式预检且允许重名语义", async () => {
+  const { validateAgentNameDraft } = await server.ssrLoadModule(
+    "/src/features/agents/options/editor/agent-name-validation.ts",
+  );
+
+  assert.deepEqual(await validateAgentNameDraft("  Amy   Agent  "), {
+    is_available: true,
+    is_valid: true,
+    name: "  Amy   Agent  ",
+    normalized_name: "Amy Agent",
+    reason: "",
+    workspace_path: null,
+  });
+  assert.equal((await validateAgentNameDraft("A")).is_valid, false);
+  assert.equal((await validateAgentNameDraft("Amy🙂")).is_valid, false);
+});
+
 test("Agent 首次保存接受服务端来源回写但拒绝更新的用户草稿", async () => {
   const {
     buildAgentEditorCommandScopeKey,
     buildAgentEditorScopeKey,
     createAgentOptionsDraft,
+    reconcileAgentOptionsDraft,
   } = await server.ssrLoadModule(
     "/src/features/agents/options/editor/agent-options-draft.ts",
   );
@@ -369,6 +789,26 @@ test("Agent 首次保存接受服务端来源回写但拒绝更新的用户草�
     id: 1,
     sourceScopeKey: beforeSourceScopeKey,
   };
+  const beforeDraft = createAgentOptionsDraft({
+    defaultTitle: "Agent",
+    initial: beforeSource.initial,
+  });
+  const afterDraft = createAgentOptionsDraft({
+    defaultTitle: "Agent",
+    initial: afterSource.initial,
+  });
+
+  assert.equal(
+    reconcileAgentOptionsDraft(beforeDraft, beforeDraft, afterDraft),
+    afterDraft,
+    "无本地修改时应接受服务端来源回写",
+  );
+  const newerLocalDraft = { ...beforeDraft, title: "Reviewer local" };
+  assert.equal(
+    reconcileAgentOptionsDraft(newerLocalDraft, beforeDraft, afterDraft),
+    newerLocalDraft,
+    "自动保存期间的新草稿不得被旧响应覆盖",
+  );
 
   assert.notEqual(afterSourceScopeKey, beforeSourceScopeKey);
   assert.equal(
@@ -394,6 +834,77 @@ test("Agent 首次保存接受服务端来源回写但拒绝更新的用户草�
     }, false),
     false,
     "保存过程中出现的新用户草稿不得收到旧成功反馈",
+  );
+});
+
+test("Agent 自动保存只调度新的有效草稿版本", async () => {
+  const { shouldScheduleAgentOptionsAutoSave } = await server.ssrLoadModule(
+    "/src/features/agents/options/editor/use-agent-options-auto-save.ts",
+  );
+  const ready = {
+    attempted: null,
+    canSave: true,
+    draftRevision: 3,
+    enabled: true,
+    isDirty: true,
+    isSaving: false,
+    scopeKey: "agent-1",
+  };
+
+  assert.equal(shouldScheduleAgentOptionsAutoSave(ready), true);
+  assert.equal(
+    shouldScheduleAgentOptionsAutoSave({
+      ...ready,
+      attempted: { draftRevision: 3, scopeKey: "agent-1" },
+    }),
+    false,
+    "同一草稿失败后不得无休止重试",
+  );
+  assert.equal(
+    shouldScheduleAgentOptionsAutoSave({ ...ready, draftRevision: 4 }),
+    true,
+    "用户继续编辑后应调度下一次保存",
+  );
+  assert.equal(
+    shouldScheduleAgentOptionsAutoSave({ ...ready, canSave: false }),
+    false,
+  );
+});
+
+test("Room Agent 面板用最新目录覆盖上下文中的旧模型快照", async () => {
+  const { resolveCurrentRoomMemberAgents } = await server.ssrLoadModule(
+    "/src/pages/room/controller/model/room-member-model.ts",
+  );
+  const staleAgent = {
+    agent_id: "agent-1",
+    name: "Nexus",
+    workspace_path: "/tmp/nexus",
+    options: {
+      provider: "glm-coding-plan",
+      model: "glm-5.2",
+    },
+    created_at: 0,
+    status: "active",
+    avatar: null,
+    description: null,
+    vibe_tags: [],
+    skills_count: null,
+  };
+  const currentAgent = {
+    ...staleAgent,
+    options: {
+      provider: "deepseek",
+      model: "deepseek-v4-flash",
+    },
+  };
+  const contexts = [{
+    member_agents: [staleAgent],
+    members: [],
+  }];
+
+  assert.deepEqual(
+    resolveCurrentRoomMemberAgents(contexts, [currentAgent])[0].options,
+    currentAgent.options,
   );
 });
 
@@ -913,6 +1424,30 @@ test("聊天行不读取持久化 Agent active 状态", async () => {
     Object.fromEntries(items.map((item) => [item.roomId, item.isWorking])),
     { "dm-room": false, "group-room": true, "idle-room": false },
   );
+
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(12, 0, 0, 0);
+  const localizedConversation = {
+    ...conversations[0],
+    last_activity: yesterday.toISOString(),
+  };
+  const englishItems = buildConversationItems({
+    agents,
+    conversations: [localizedConversation],
+    locale: "en",
+    rooms: [rooms[0]],
+    untitledRoomLabel: "Untitled room",
+  });
+  const chineseItems = buildConversationItems({
+    agents,
+    conversations: [localizedConversation],
+    locale: "zh",
+    rooms: [rooms[0]],
+    untitledRoomLabel: "未命名 Room",
+  });
+  assert.equal(englishItems[0].timeLabel, "Yesterday");
+  assert.equal(chineseItems[0].timeLabel, "昨天");
 });
 
 test("Room mention Markdown keeps the internal URL for the avatar chip", async () => {
@@ -1012,6 +1547,75 @@ test("real Room cancellation guidance is projected once into Amy Thread", async 
     amyThread[1].content[0].text,
     "收到，这个任务取消了。有需要再找我。",
     "Thread 直接内容必须剥离 Room 控制标记",
+  );
+});
+
+test("Room memory recall status is projected only into its Agent Thread", async () => {
+  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const { getRoomThreadMessages } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-thread-model.ts",
+  );
+  const { buildSystemEventBlocks } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/controller/projection/message-item-system-events.ts",
+  );
+  const recalled = {
+    agent_id: "367448a0264b",
+    content: "已加载 2 条长期记忆",
+    message_id: "memory-recalled-amy",
+    metadata: { subtype: "memory_recalled" },
+    role: "system",
+    timestamp: 1784083437370,
+  };
+  const saved = {
+    ...recalled,
+    content: "长期记忆已保存",
+    message_id: "memory-saved-amy",
+    metadata: { subtype: "memory_saved" },
+    timestamp: recalled.timestamp + 1,
+  };
+
+  assert.deepEqual(
+    getRoomThreadMessages([recalled], "367448a0264b")
+      .map((message) => message.message_id),
+    [recalled.message_id],
+  );
+  assert.deepEqual(
+    getRoomThreadMessages([recalled], "0ed5434a8c13"),
+    [],
+  );
+  assert.deepEqual(
+    getRoomThreadMessages([saved], "367448a0264b")
+      .map((message) => message.message_id),
+    [saved.message_id],
+  );
+  assert.deepEqual(
+    buildSystemEventBlocks([recalled], false).map((block) => ({
+      content: block.content,
+      label: block.label,
+    })),
+    [{ content: recalled.content, label: "长期记忆" }],
+  );
+  assert.deepEqual(
+    buildSystemEventBlocks([saved], false).map((block) => ({
+      content: block.content,
+      label: block.label,
+    })),
+    [{ content: saved.content, label: "长期记忆" }],
+  );
+  const publicTimeline = projectGroupAgentTimeline({
+    messageGroups: new Map([["round-memory", [recalled, saved]]]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map(),
+    roundIds: ["round-memory"],
+  });
+  assert.deepEqual(
+    publicTimeline.roundIds.flatMap(
+      (roundId) => publicTimeline.messageGroups.get(roundId) ?? [],
+    ),
+    [],
+    "长期记忆过程不能在 Room 公区生成独立消息节点",
   );
 });
 

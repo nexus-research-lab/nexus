@@ -14,9 +14,11 @@ import {
 } from "@/features/home/room-activity-resource";
 import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
+import { notifySessionRuntimeSettingsUpdated } from "@/lib/conversation/session-runtime-settings-events";
 import { readString } from "@/lib/unknown-value";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
+import { useAgentStore } from "@/store/agent";
 import type { AssistantMessage } from "@/types/conversation/message/entity";
 import type { EventMessage } from "@/types/generated/protocol";
 
@@ -56,6 +58,15 @@ export function useChatNotificationSocket({
       return;
     }
     if (event.event_type === "directory_changed") {
+      if (
+        readString(event.data, "reason")
+        === "session_runtime_settings_updated"
+      ) {
+        notifySessionRuntimeSettingsUpdated(
+          readString(event.data, "session_key") ?? "",
+        );
+      }
+      refreshAgentDirectory(event);
       notifyRoomDirectoryUpdated();
       return;
     }
@@ -66,7 +77,7 @@ export function useChatNotificationSocket({
       notifyRoomDirectoryUpdated();
       return;
     }
-    if (event.event_type !== "message" || event.delivery_mode === "ephemeral") {
+    if (event.event_type !== "message" || event.delivery_mode !== "durable") {
       return;
     }
     const message = parseConversationMessage(event.data, {
@@ -109,6 +120,14 @@ export function useChatNotificationSocket({
       }
     };
   }, [roomIdsKey, send, state]);
+}
+
+function refreshAgentDirectory(event: EventMessage): void {
+  const reason = readString(event.data, "reason") ?? "";
+  if (!reason.startsWith("agent_")) {
+    return;
+  }
+  void useAgentStore.getState().load_agents_from_server();
 }
 
 function syncRoomActivity(

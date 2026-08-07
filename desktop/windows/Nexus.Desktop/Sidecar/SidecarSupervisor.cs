@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using Nexus.Desktop.Diagnostics;
 using Nexus.Desktop.Runtime;
@@ -140,12 +141,22 @@ internal sealed class SidecarSupervisor : IDisposable
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             CreateNoWindow = true,
         };
 
         startInfo.Environment["NEXUS_APP_MODE"] = "desktop";
         startInfo.Environment["NEXUS_APP_ROOT"] = locator.AppRoot;
         startInfo.Environment["NEXUS_STATE_ROOT"] = DesktopPaths.RootDirectory;
+        if (DesktopStateRootStore.PreviousRootDirectory is string previousRoot)
+        {
+            startInfo.Environment["NEXUS_PREVIOUS_STATE_ROOT"] = previousRoot;
+        }
+        else
+        {
+            startInfo.Environment.Remove("NEXUS_PREVIOUS_STATE_ROOT");
+        }
         startInfo.Environment["NEXUS_CONFIG_DIR"] = DesktopPaths.RootDirectory;
         startInfo.Environment["CLAUDE_CONFIG_DIR"] = DesktopPaths.RootDirectory;
         startInfo.Environment["HOST"] = "127.0.0.1";

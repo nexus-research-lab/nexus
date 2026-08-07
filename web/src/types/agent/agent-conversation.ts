@@ -2,7 +2,7 @@
  * useAgentConversation Hook 类型定义
  *
  * [INPUT]: 依赖会话消息和权限协议
- * [OUTPUT]: 对外提供 UseAgentConversationOptions、UseAgentConversationReturn、Room execution/handoff 易失锚点与历史窗口解析状态
+ * [OUTPUT]: 对外提供 UseAgentConversationOptions、UseAgentConversationReturn、Room execution/handoff/精确停止易失锚点与历史窗口解析状态
  * [POS]: types 模块的对话交互类型
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -13,7 +13,10 @@ import type {
   Message,
 } from '@/types/conversation/message/entity';
 import { PendingPermission, PermissionDecisionPayload } from '@/types/conversation/interaction/permission';
-import type { CommandCatalogData } from '@/types/generated/protocol';
+import type {
+  CommandCatalogData,
+  ContextUsageData,
+} from '@/types/generated/protocol';
 import { WebSocketState } from '@/types/system/websocket';
 
 export type AgentConversationChatType = 'dm' | 'group';
@@ -40,10 +43,11 @@ export interface RoomPendingAgentSlotState {
 }
 
 /**
- * Room 单次 Agent 执行在当前 Session 内的首次可见顺序锚点。
+ * Room 单次 Agent 执行在当前 Session 内的展示顺序锚点。
  *
  * permission 决策成功后会先进入 acknowledged；在 slot / message / terminal
- * 证据接棒前，它只维持 execution shell，不再代表可响应权限。
+ * 证据接棒前，它只维持 execution shell，不再代表可响应权限。实时首见顺序
+ * 默认不可变，但持久 message 的显式 display_order 可在快照回填时纠正该锚点。
  */
 export interface RoomAgentExecutionState {
   agent_id: string;
@@ -88,9 +92,12 @@ export interface UseAgentConversationReturn {
   error: string | null;
   pending_agent_slots: RoomPendingAgentSlotState[];
   room_agent_execution_states: RoomAgentExecutionState[];
+  /** 已发送且尚未被 terminal event 或 interrupt_ack 收口的精确停止目标。 */
+  stopping_agent_round_ids: string[];
   input_queue_items: InputQueueItem[];
   command_catalog: CommandCatalogData;
-  refresh_command_catalog: () => void;
+  context_usage: ContextUsageData | null;
+  context_usage_by_agent: Readonly<Record<string, ContextUsageData>>;
   send_message: (
     content: string,
     options?: AgentConversationSendOptions,
@@ -142,6 +149,8 @@ export interface InputQueueItem {
   room_id?: string;
   conversation_id?: string;
   agent_id?: string;
+  agent_round_id?: string;
+  client_message_id?: string;
   source_agent_id?: string;
   source_message_id?: string;
   handoff_id?: string;
@@ -181,6 +190,7 @@ export interface RoomEventPayload {
   room_id?: string;
   conversation_id?: string;
   agent_id?: string;
+  paused?: boolean;
   agent_name?: string;
   message_id?: string;
   event_kind?: "created" | "wake_scheduled" | "wake_started" | "wake_queued";

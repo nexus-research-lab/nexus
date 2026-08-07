@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -38,6 +39,15 @@ func (s *Service) ensureReady(ctx context.Context) error {
 	}
 	if agent == nil {
 		record := BuildDefaultMainAgentRecord(s.config, ownerUserID)
+		workspaceAgent := protocol.Agent{
+			AgentID:       record.AgentID,
+			OwnerUserID:   record.OwnerUserID,
+			Name:          record.Name,
+			WorkspacePath: record.WorkspacePath,
+			Status:        record.Status,
+			IsMain:        record.IsMain,
+			CreatedAt:     time.Now().UTC(),
+		}
 		if err = ensureDirectoryWithinRoot(
 			workspaceBase,
 			record.WorkspacePath,
@@ -45,11 +55,7 @@ func (s *Service) ensureReady(ctx context.Context) error {
 		); err != nil {
 			return err
 		}
-		recordRoot, openErr := s.openAgentWorkspace(protocol.Agent{
-			AgentID:       record.AgentID,
-			OwnerUserID:   record.OwnerUserID,
-			WorkspacePath: record.WorkspacePath,
-		}, false)
+		recordRoot, openErr := s.openAgentWorkspace(workspaceAgent, false)
 		if openErr != nil {
 			return openErr
 		}
@@ -59,6 +65,11 @@ func (s *Service) ensureReady(ctx context.Context) error {
 			err = closeErr
 		}
 		if err != nil {
+			return err
+		}
+		// 主 Agent 与普通 Agent 共享同一显式创建生命周期。初始化必须先于
+		// 数据库记录提交，避免暴露一个缺少模板、shim 或托管状态的 Agent。
+		if err = s.initializeAgentWorkspace(ctx, workspaceAgent); err != nil {
 			return err
 		}
 		agent, err = s.repository.CreateAgent(ctx, record)

@@ -1,3 +1,8 @@
+/**
+ * INPUT: Room Composer 会话、精确 Agent execution/slot/stopping 状态与发送资源。
+ * OUTPUT: 带点击时精确目标快照“全部停止”的 Room Composer 模型。
+ * POS: Room 会话能力到共享 Composer Props 的唯一动作装配边界。
+ */
 import { useCallback } from "react";
 
 import { prepareRoomConversationAttachments } from "@/features/conversation/shared/composer/attachments/composer-attachments";
@@ -10,6 +15,7 @@ import {
   buildComposerHistoryScopeKey,
 } from "@/features/conversation/shared/composer/composer-draft-scope";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { buildRoomAgentSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
 import type { UseAgentConversationReturn } from "@/types/agent/agent-conversation";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
@@ -22,17 +28,23 @@ type ComposerConversation = Pick<
   UseAgentConversationReturn,
   | "delete_input_queue_message"
   | "command_catalog"
+  | "context_usage"
+  | "context_usage_by_agent"
   | "enqueue_input_queue_message"
   | "guide_input_queue_message"
   | "input_queue_items"
   | "is_loading"
-  | "refresh_command_catalog"
+  | "pending_agent_slots"
   | "reorder_input_queue_messages"
+  | "room_agent_execution_states"
   | "runtime_phase"
   | "send_message"
+  | "stop_generation"
+  | "stopping_agent_round_ids"
 >;
 
 interface UseGroupChatComposerModelOptions {
+  agentId: string | null;
   conversation: ComposerConversation;
   conversationId: string | null;
   goal: RoomGoalComposerModel;
@@ -46,6 +58,7 @@ interface UseGroupChatComposerModelOptions {
 }
 
 export function useGroupChatComposerModel({
+  agentId,
   conversation,
   conversationId,
   goal,
@@ -81,9 +94,42 @@ export function useGroupChatComposerModel({
     sendMessage: conversation.send_message,
     sessionKey,
   });
+  const {
+    pending_agent_slots: pendingAgentSlots,
+    room_agent_execution_states: roomAgentExecutionStates,
+    stop_generation: stopGeneration,
+    stopping_agent_round_ids: stoppingAgentRoundIds,
+  } = conversation;
+  const activeAgentRoundIds = collectActiveRoomAgentRoundIds({
+    pending_agent_slots: pendingAgentSlots,
+    room_agent_execution_states: roomAgentExecutionStates,
+    stopping_agent_round_ids: stoppingAgentRoundIds,
+  });
+  const stopAllAgentOutputs = useCallback(() => {
+    stopRoomAgentOutputs(
+      collectActiveRoomAgentRoundIds({
+        pending_agent_slots: pendingAgentSlots,
+        room_agent_execution_states: roomAgentExecutionStates,
+        stopping_agent_round_ids: stoppingAgentRoundIds,
+      }),
+      stopGeneration,
+    );
+  }, [
+    pendingAgentSlots,
+    roomAgentExecutionStates,
+    stopGeneration,
+    stoppingAgentRoundIds,
+  ]);
 
   return {
     commandCatalog: conversation.command_catalog,
+    contextUsage: conversation.context_usage,
+    contextUsageItems: roomMembers.map((member) => ({
+      agentId: member.agent_id,
+      avatar: member.avatar,
+      name: member.name,
+      usage: conversation.context_usage_by_agent[member.agent_id] ?? null,
+    })),
     defaultDeliveryPolicy,
     draftScopeKey,
     enableLoops: true,
@@ -100,13 +146,86 @@ export function useGroupChatComposerModel({
     onEnqueueMessage: conversation.enqueue_input_queue_message,
     onGuideQueuedMessage: conversation.guide_input_queue_message,
     onPrepareAttachments: handlers.handlePrepareAttachments,
-    onRefreshCommandCatalog: conversation.refresh_command_catalog,
     onReorderQueueMessages: conversation.reorder_input_queue_messages,
     onSendMessage: handlers.handleSendMessage,
+    onStop: activeAgentRoundIds.length > 0
+      ? stopAllAgentOutputs
+      : undefined,
     queueWhenSessionBusy: true,
     roomMembers,
     runtimePhase: conversation.runtime_phase,
     runtimeKind,
+    stopLabel: t("room.stop_all_outputs"),
+    sessionSettings: conversationId && roomMembers.length > 0
+      ? {
+          initialTargetId: agentId ?? roomMembers[0].agent_id,
+          runtimeKind,
+          targets: roomMembers.map((member) => ({
+            agentId: member.agent_id,
+            avatar: member.avatar,
+            defaultModel: member.options.model,
+            defaultPermissionMode: member.options.permission_mode,
+            defaultProvider: member.options.provider,
+            name: member.name,
+            sessionKey: buildRoomAgentSessionKey(
+              conversationId,
+              member.agent_id,
+            ),
+          })),
+        }
+      : undefined,
     tourAnchor: CONVERSATION_TOUR_ANCHORS.composer,
   };
+}
+
+type RoomStopConversation = Pick<
+  ComposerConversation,
+  | "pending_agent_slots"
+  | "room_agent_execution_states"
+  | "stopping_agent_round_ids"
+>;
+
+/** 按 execution 首见顺序冻结当前可停止目标，并用 slot 补齐 ACK 前空窗。 */
+export function collectActiveRoomAgentRoundIds(
+  conversation: RoomStopConversation,
+): string[] {
+  const stopping = new Set(
+    conversation.stopping_agent_round_ids.map((value) => value.trim()),
+  );
+  const result: string[] = [];
+  const seen = new Set<string>();
+  const append = (agentRoundId: string): void => {
+    const normalizedAgentRoundId = agentRoundId.trim();
+    if (
+      !normalizedAgentRoundId
+      || stopping.has(normalizedAgentRoundId)
+      || seen.has(normalizedAgentRoundId)
+    ) {
+      return;
+    }
+    seen.add(normalizedAgentRoundId);
+    result.push(normalizedAgentRoundId);
+  };
+  for (const state of conversation.room_agent_execution_states) {
+    if (state.phase !== "terminal") {
+      append(state.agent_round_id);
+    }
+  }
+  for (const slot of conversation.pending_agent_slots) {
+    if (slot.status === "pending" || slot.status === "streaming") {
+      append(slot.agent_round_id);
+    }
+  }
+  return result;
+}
+
+/** 点击后立即复制目标，某个同步停止回调不得改变本批后续成员。 */
+export function stopRoomAgentOutputs(
+  activeAgentRoundIds: readonly string[],
+  stopGeneration: (agentRoundId: string) => void,
+): void {
+  const targetSnapshot = [...activeAgentRoundIds];
+  for (const agentRoundId of targetSnapshot) {
+    stopGeneration(agentRoundId);
+  }
 }

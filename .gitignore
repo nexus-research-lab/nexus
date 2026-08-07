@@ -43,6 +43,8 @@ __pycache__/
 *.egg-info/
 dist/
 tests/
+!desktop/macos/Tests/
+!desktop/macos/Tests/**
 alembic/
 
 # docs

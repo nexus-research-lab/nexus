@@ -19,7 +19,22 @@ env:
 
 jobs:
   macos_app:
-    runs-on: macos-latest
+    name: macOS App (${{ matrix.display_name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - display_name: Apple Silicon
+            runner: macos-15
+            target_arch: arm64
+            goarch: arm64
+            artifact_arch: arm64
+          - display_name: Intel
+            runner: macos-15-intel
+            target_arch: x86_64
+            goarch: amd64
+            artifact_arch: intel
+    runs-on: ${{ matrix.runner }}
     env:
       NEXUS_DESKTOP_GITHUB_CLIENT_ID: ${{ vars.NEXUS_DESKTOP_GITHUB_CLIENT_ID }}
       NEXUS_DESKTOP_NXS_RELEASE: "nxs-stable"
@@ -72,25 +87,25 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ steps.macos-pnpm-store.outputs.path }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-${{ matrix.target_arch }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-
+            ${{ runner.os }}-${{ matrix.target_arch }}-pnpm-
 
       - name: Cache SwiftPM Build
         uses: actions/cache@v5
         with:
           path: desktop/macos/.build
-          key: ${{ runner.os }}-swiftpm-${{ hashFiles('desktop/macos/Package.swift', 'desktop/macos/Sources/**/*.swift') }}
+          key: ${{ runner.os }}-${{ matrix.target_arch }}-swiftpm-${{ hashFiles('desktop/macos/Package.swift', 'desktop/macos/Sources/**/*.swift') }}
           restore-keys: |
-            ${{ runner.os }}-swiftpm-
+            ${{ runner.os }}-${{ matrix.target_arch }}-swiftpm-
 
       - name: Resolve nxs Runtime
         env:
           NEXUS_DESKTOP_NXS_DOWNLOAD_TOKEN: ${{ secrets.NEXUS_NXS_RUNTIME_RELEASE_TOKEN }}
         run: |
           cache_dir="${RUNNER_TEMP}/macos-runtime-cache"
-          goarch="$(go env GOARCH)"
-          nxs_path="${cache_dir}/nxs-${goarch}"
+          goarch="${{ matrix.goarch }}"
+          nxs_path="${cache_dir}/nxs"
           ripgrep_path="${cache_dir}/rg"
           mkdir -p "${cache_dir}"
           node scripts/desktop/fetch-nxs-runtime.js \
@@ -138,6 +153,8 @@ jobs:
           NEXUS_DESKTOP_APP_BUILD_DIR: ${{ runner.temp }}/macos-app
           NEXUS_DESKTOP_PACKAGE_OUTPUT_DIR: ${{ runner.temp }}/macos-artifacts
           NEXUS_DESKTOP_PACKAGE_FORMAT: dmg
+          NEXUS_DESKTOP_TARGET_ARCH: ${{ matrix.target_arch }}
+          NEXUS_DESKTOP_NXS_GOARCH: ${{ matrix.goarch }}
           NEXUS_DESKTOP_VERSION: ${{ steps.tag.outputs.version }}
           NEXUS_DESKTOP_BUILD_NUMBER: ${{ github.run_number }}
           NEXUS_DESKTOP_SMOKE_ALLOW_FALLBACK: "1"
@@ -159,7 +176,7 @@ jobs:
       - name: Upload macOS App Assets
         uses: actions/upload-artifact@v7
         with:
-          name: nexus-${{ steps.tag.outputs.tag }}-macos-app
+          name: nexus-${{ steps.tag.outputs.tag }}-macos-${{ matrix.artifact_arch }}
           if-no-files-found: error
           path: |
             ${{ runner.temp }}/macos-artifacts/Nexus-macos-*.dmg
@@ -378,7 +395,8 @@ jobs:
       - name: Download macOS App Assets
         uses: actions/download-artifact@v7
         with:
-          name: nexus-${{ steps.tag.outputs.tag }}-macos-app
+          pattern: nexus-${{ steps.tag.outputs.tag }}-macos-*
+          merge-multiple: true
           path: ${{ runner.temp }}/artifacts
 
       - name: Download Windows App Assets
@@ -390,6 +408,8 @@ jobs:
       - name: Verify Bundled nxs Runtime Metadata
         run: |
           found_metadata=0
+          found_macos_arm64=0
+          found_macos_intel=0
           for metadata in "${RUNNER_TEMP}/artifacts/"*.metadata.json; do
             if [ ! -f "${metadata}" ]; then
               continue
@@ -403,7 +423,30 @@ jobs:
               exit 1
             fi
             case "$(basename "${metadata}")" in
+              Nexus-macos-arm64-*.metadata.json)
+                expected_architecture=arm64
+                found_macos_arm64=1
+                ;;
+              Nexus-macos-intel-*.metadata.json)
+                expected_architecture=x86_64
+                found_macos_intel=1
+                ;;
               Nexus-macos-*.metadata.json)
+                echo "macOS release metadata filename is missing a supported architecture: ${metadata}" >&2
+                exit 1
+                ;;
+              *)
+                continue
+                ;;
+            esac
+            case "$(basename "${metadata}")" in
+              Nexus-macos-*.metadata.json)
+                architecture="$(jq -r '.architecture // ""' "${metadata}")"
+                if [ "${architecture}" != "${expected_architecture}" ]; then
+                  echo "macOS release metadata architecture mismatch: ${metadata}" >&2
+                  cat "${metadata}" >&2
+                  exit 1
+                fi
                 developer_id="$(jq -r '.signing.developer_id // false' "${metadata}")"
                 notarized="$(jq -r '.signing.notarized // false' "${metadata}")"
                 if [ "${developer_id}" != "true" ] || [ "${notarized}" != "true" ]; then
@@ -416,6 +459,10 @@ jobs:
           done
           if [ "${found_metadata}" != "1" ]; then
             echo "No release metadata files were downloaded." >&2
+            exit 1
+          fi
+          if [ "${found_macos_arm64}" != "1" ] || [ "${found_macos_intel}" != "1" ]; then
+            echo "Release is missing Apple Silicon or Intel macOS metadata." >&2
             exit 1
           fi
 
@@ -457,7 +504,7 @@ jobs:
           jq -r --arg version "${VERSION}" '
             .assets[]
             | select(
-              (.name | test("^Nexus-macos-" + $version + "-[0-9]+\\.dmg(\\.sha256|\\.metadata\\.json)?$")) or
+              (.name | test("^Nexus-macos-(arm64-|intel-)?" + $version + "-[0-9]+\\.dmg(\\.sha256|\\.metadata\\.json)?$")) or
               (.name | test("^Nexus-windows-" + $version + "-[0-9]+\\.metadata\\.json$")) or
               (.name | test("^NexusSetup-" + $version + "-[0-9]+\\.exe(\\.sha256)?$"))
             )

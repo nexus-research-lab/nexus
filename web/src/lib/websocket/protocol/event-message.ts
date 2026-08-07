@@ -1,15 +1,36 @@
-import { asUnknownRecord } from "@/lib/unknown-value";
-import type { EventMessage } from "@/types/generated/protocol";
+import {
+  asUnknownRecord,
+  readStringFromSet,
+} from "@/lib/unknown-value";
+import type {
+  DeliveryMode,
+  EventMessage,
+} from "@/types/generated/protocol";
+
+const EVENT_DELIVERY_MODES = new Set<DeliveryMode>([
+  "durable",
+  "ephemeral",
+  "transient",
+]);
 
 /** WebSocket 边界只接纳完整信封，具体 data 由事件所有者继续解码。 */
 export function parseEventMessage(value: unknown): EventMessage | null {
   const record = asUnknownRecord(value);
+  if (!record) {
+    return null;
+  }
+  const invalidDeliveryMode = record.delivery_mode !== undefined
+    && readStringFromSet(
+      record,
+      "delivery_mode",
+      EVENT_DELIVERY_MODES,
+    ) === null;
   if (
-    !record
-    || typeof record.event_type !== "string"
+    typeof record.event_type !== "string"
     || typeof record.protocol_version !== "number"
     || typeof record.timestamp !== "number"
     || !asUnknownRecord(record.data)
+    || invalidDeliveryMode
   ) {
     return null;
   }

@@ -45,12 +45,18 @@ func (s *Service) RecordRoomGoalCollaborationEvidence(ctx context.Context, goalI
 
 func (s *Service) recordRoomGoalCollaborationRequiredForGoal(ctx context.Context, item *protocol.Goal, roundID string) (*protocol.Goal, error) {
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if err := rejectPendingObjectiveTransition(*current, "record Room collaboration requirement"); err != nil {
+			return nil, err
+		}
 		return s.recordRoomGoalCollaborationRequiredForLoadedGoal(ctx, current, roundID)
 	})
 }
 
 func (s *Service) recordRoomGoalCollaborationEvidenceForGoal(ctx context.Context, item *protocol.Goal, roundID string, agentID string, expectedRevision int64) (*protocol.Goal, error) {
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if err := rejectPendingObjectiveTransition(*current, "record Room collaboration evidence"); err != nil {
+			return nil, err
+		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
 		}

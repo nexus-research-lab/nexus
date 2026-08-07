@@ -13,6 +13,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private let globalShortcutEnabledUpdater: (Bool) -> [String: Any]
   private let globalShortcutAcceleratorUpdater: (String) -> [String: Any]
   private let globalShortcutAcceleratorResetter: () -> [String: Any]
+  private let updateStarter: () -> String
   private let onMainWindowRevealed: () -> Void
   private var mainWindow: NSWindow?
   private var mainWebViewHost: WebViewHost?
@@ -26,6 +27,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     globalShortcutEnabledUpdater: @escaping (Bool) -> [String: Any],
     globalShortcutAcceleratorUpdater: @escaping (String) -> [String: Any],
     globalShortcutAcceleratorResetter: @escaping () -> [String: Any],
+    updateStarter: @escaping () -> String,
     onMainWindowRevealed: @escaping () -> Void
   ) {
     self.runtime = runtime
@@ -34,6 +36,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     self.globalShortcutEnabledUpdater = globalShortcutEnabledUpdater
     self.globalShortcutAcceleratorUpdater = globalShortcutAcceleratorUpdater
     self.globalShortcutAcceleratorResetter = globalShortcutAcceleratorResetter
+    self.updateStarter = updateStarter
     self.onMainWindowRevealed = onMainWindowRevealed
     super.init()
   }
@@ -163,9 +166,12 @@ final class WindowManager: NSObject, NSWindowDelegate {
       window.contentView?.layoutSubtreeIfNeeded()
       let windowControlsLeadingInset =
         DesktopWindowMetrics.windowControlsLeadingInset(in: window)
+      let windowCloseButtonCenter =
+        DesktopWindowMetrics.windowCloseButtonCenter(in: window)
       let host = try WebViewHost(
         runtime: runtime,
         surfaceName: "main",
+        windowCloseButtonCenter: windowCloseButtonCenter,
         windowControlsLeadingInset: windowControlsLeadingInset,
         startupTimeline: startupTimeline,
         onWebReady: { [weak self] in
@@ -177,7 +183,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
         globalShortcutStatusProvider: globalShortcutStatusProvider,
         globalShortcutEnabledUpdater: globalShortcutEnabledUpdater,
         globalShortcutAcceleratorUpdater: globalShortcutAcceleratorUpdater,
-        globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter
+        globalShortcutAcceleratorResetter: globalShortcutAcceleratorResetter,
+        updateStarter: updateStarter
       )
       window.minSize = windowSizing.minimumSize
       window.isReleasedWhenClosed = false
@@ -200,6 +207,12 @@ final class WindowManager: NSObject, NSWindowDelegate {
         "min_height": Self.metadataDimension(windowSizing.minimumSize.height),
         "min_width": Self.metadataDimension(windowSizing.minimumSize.width),
         "width": Self.metadataDimension(windowSizing.frame.width),
+        "window_close_button_center_x": Self.metadataDimension(
+          windowCloseButtonCenter.x
+        ),
+        "window_close_button_center_y": Self.metadataDimension(
+          windowCloseButtonCenter.y
+        ),
         "window_controls_leading_inset": Self.metadataDimension(
           windowControlsLeadingInset
         ),

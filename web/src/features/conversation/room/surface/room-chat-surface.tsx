@@ -8,6 +8,8 @@
 
 import { DmChatPanel } from "@/features/conversation/room/dm/panel/dm-chat-panel";
 import { GroupChatPanel } from "@/features/conversation/room/group/chat/panel/group-chat-panel";
+import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { getAgentConversationIdentityKey } from "@/lib/conversation/agent-conversation-identity";
 import type { Agent } from "@/types/agent/agent";
 import type {
@@ -25,12 +27,15 @@ interface RoomChatSurfaceProps {
   currentRoomType: string;
   currentAgentSessionIdentity: AgentConversationIdentity | null;
   conversationId: string | null;
+  executionResource: ExecutionResource;
   initialDraft?: string | null;
   layout: "desktop" | "mobile";
   onInitialDraftConsumed?: () => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
+  onExecutionTaskRunsChange: (runs: ConversationTaskRun[]) => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onTodosChange: (todos: TodoItem[]) => void;
@@ -47,12 +52,15 @@ export function RoomChatSurface({
   currentRoomType: currentRoomType,
   currentAgentSessionIdentity: currentAgentSessionIdentity,
   conversationId: conversationId,
+  executionResource,
   initialDraft: initialDraft,
   layout: layout,
   onInitialDraftConsumed: onInitialDraftConsumed,
   onConversationSnapshotChange: onConversationSnapshotChange,
   onCreateConversation: onCreateConversation,
+  onExecutionTaskRunsChange,
   onOpenAgentContact: onOpenAgentContact,
+  onOpenWorkGraph,
   onOpenWorkspaceFile: onOpenWorkspaceFile,
   onRoomEvent: onRoomEvent,
   onTodosChange: onTodosChange,
@@ -71,14 +79,15 @@ export function RoomChatSurface({
     <RoomChatErrorBoundary resetKey={`${currentRoomType}:${identityKey}`}>
       {isDm ? (
         <DmChatPanel
-          currentAgentName={currentAgent.name}
-          currentAgentAvatar={currentAgent.avatar ?? null}
-          currentAgentPermissionMode={currentAgent.options.permission_mode ?? null}
+          currentAgent={currentAgent}
+          executionResource={executionResource}
           initialDraft={initialDraft}
           layout={layout}
           onInitialDraftConsumed={onInitialDraftConsumed}
           onConversationSnapshotChange={onConversationSnapshotChange}
+          onExecutionTaskRunsChange={onExecutionTaskRunsChange}
           onOpenAgentContact={onOpenAgentContact}
+          onOpenWorkGraph={onOpenWorkGraph}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onRoomEvent={onRoomEvent}
           onTodosChange={onTodosChange}
@@ -92,12 +101,15 @@ export function RoomChatSurface({
           conversationId={conversationId}
           currentAgentName={currentAgent.name}
           currentAgentAvatar={currentAgent.avatar ?? null}
+          executionResource={executionResource}
           initialDraft={initialDraft}
           layout={layout}
           onInitialDraftConsumed={onInitialDraftConsumed}
           onConversationSnapshotChange={onConversationSnapshotChange}
           onCreateConversation={onCreateConversation}
+          onExecutionTaskRunsChange={onExecutionTaskRunsChange}
           onOpenAgentContact={onOpenAgentContact}
+          onOpenWorkGraph={onOpenWorkGraph}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
           onRoomEvent={onRoomEvent}
           onTodosChange={onTodosChange}

@@ -4,7 +4,6 @@
  * POS: Composer 替换面与只读消息工具块共用的中立结构化输入适配器；后到 tool_use_id 只补上下文。
  */
 import { AskUserQuestionBlock } from "@/features/conversation/shared/message/blocks/question/ask-user-question-block";
-import { useI18n } from "@/shared/i18n/i18n-context";
 import type { UserQuestionAnswer } from "@/types/conversation/interaction/ask-user-question";
 import type {
   PendingPermission,
@@ -16,7 +15,6 @@ interface PendingHumanQuestionProps {
   canRespond: boolean;
   onResponse?: (payload: PermissionDecisionPayload) => boolean;
   permission: PendingPermission;
-  readOnlyReason?: string;
   toolUse?: ToolUseContent;
 }
 
@@ -24,10 +22,8 @@ export function PendingHumanQuestion({
   canRespond,
   onResponse,
   permission,
-  readOnlyReason,
   toolUse,
 }: PendingHumanQuestionProps) {
-  const { t } = useI18n();
   const interactionDisabled = !canRespond || !onResponse;
   const submitQuestion = (
     _toolUseId: string,
@@ -43,39 +39,18 @@ export function PendingHumanQuestion({
   });
 
   return (
-    <div className="space-y-2">
-      <AskUserQuestionBlock
-        interactionDisabled={interactionDisabled}
-        isReady={!interactionDisabled}
-        onSubmit={submitQuestion}
-        toolUse={toolUse ?? {
-          id: pendingQuestionToolUseId(permission),
-          input: permission.tool_input,
-          name: permission.tool_name,
-          type: "tool_use",
-        }}
-      />
-      {interactionDisabled ? (
-        readOnlyReason ? (
-          <div className="text-xs text-(--text-soft)">
-            {readOnlyReason}
-          </div>
-        ) : null
-      ) : (
-        <div className="flex justify-end">
-          <button
-            className="rounded-md border border-(--divider-subtle-color) bg-transparent px-2.5 py-1.5 text-xs font-medium text-(--text-default) transition-colors hover:bg-(--interaction-hover-background)"
-            onClick={(event) => {
-              event.stopPropagation();
-              denyQuestion();
-            }}
-            type="button"
-          >
-            {t("room.permission_deny")}
-          </button>
-        </div>
-      )}
-    </div>
+    <AskUserQuestionBlock
+      interactionDisabled={interactionDisabled}
+      isReady={!interactionDisabled}
+      onDeny={onResponse ? denyQuestion : undefined}
+      onSubmit={submitQuestion}
+      toolUse={toolUse ?? {
+        id: pendingQuestionToolUseId(permission),
+        input: permission.tool_input,
+        name: permission.tool_name,
+        type: "tool_use",
+      }}
+    />
   );
 }
 

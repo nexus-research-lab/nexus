@@ -2,6 +2,7 @@
 
 import { MessageSquareText, Users } from "lucide-react";
 
+import { AGENT_PERMISSION_MODES } from "@/lib/agent-options";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiAgentAvatar } from "@/shared/ui/display/avatar";
 import type { Agent } from "@/types/agent/agent";
@@ -40,8 +41,12 @@ export function ContactsAgentCard({
 }: ContactsAgentCardProps) {
   const { t } = useI18n();
 
-  const permissionMode = agent.options.permission_mode || "default";
-  const provider = formatProviderLabel(agent.options.provider);
+  const permissionMode = AGENT_PERMISSION_MODES.find(
+    (option) => option.value === agent.options.permission_mode,
+  ) ?? AGENT_PERMISSION_MODES[0];
+  const provider = agent.options.provider?.trim()
+    ? formatProviderLabel(agent.options.provider)
+    : t("agent_options.identity.follow_default_provider");
   const allowedToolsCount = agent.options.allowed_tools?.length || 0;
   const skillsCount = agent.skills_count || 0;
 
@@ -56,7 +61,7 @@ export function ContactsAgentCard({
         onCreateTeam={onCreateTeam}
         onOpenProfile={onOpenProfile}
         onOpenRoom={onOpenRoom}
-        permissionMode={permissionMode}
+        permissionMode={t(permissionMode.labelKey)}
         provider={provider}
         skillsCount={skillsCount}
       />
@@ -69,7 +74,7 @@ export function ContactsAgentCard({
         onCreateTeam={onCreateTeam}
         onOpenProfile={onOpenProfile}
         onOpenRoom={onOpenRoom}
-        permissionMode={permissionMode}
+        permissionMode={t(permissionMode.labelKey)}
         provider={provider}
         skillsCount={skillsCount}
       />
@@ -90,6 +95,8 @@ function ContactsAgentCompactCard({
   provider,
   skillsCount,
 }: ContactsAgentCardViewProps) {
+  const { t } = useI18n();
+
   return (
     <WorkspaceCatalogCard
       align="start"
@@ -128,12 +135,12 @@ function ContactsAgentCompactCard({
 
           <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-(--text-soft)">
             <span className="min-w-0 max-w-full truncate">
-              <span className="text-(--text-default)">Provider</span>
+              <span className="text-(--text-default)">{t("contacts.metadata.provider")}</span>
               {" · "}
               {provider}
             </span>
-            <span>工具 {allowedToolsCount}</span>
-            <span>技能 {skillsCount}</span>
+            <span>{t("contacts.metadata.tools")} {allowedToolsCount}</span>
+            <span>{t("contacts.metadata.skills")} {skillsCount}</span>
           </div>
         </div>
       </div>
@@ -168,6 +175,8 @@ function ContactsAgentComfortCard({
   provider,
   skillsCount,
 }: ContactsAgentCardViewProps) {
+  const { t } = useI18n();
+
   return (
     <WorkspaceCatalogCard
       align="center"
@@ -205,17 +214,17 @@ function ContactsAgentComfortCard({
 
           <div className="mt-2 flex flex-col items-center justify-center gap-1 text-center text-xs text-(--text-soft)">
             <div className="flex flex-wrap gap-1.5">
-              <span className="text-(--text-default)">权限:</span>
+              <span className="text-(--text-default)">{t("contacts.metadata.permission")}:</span>
               <span className="text-(--text-muted)">{permissionMode}</span>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-1.5">
-              <span className="text-(--text-default)">Provider:</span>
+              <span className="text-(--text-default)">{t("contacts.metadata.provider")}:</span>
               <span className="text-(--text-muted)">{provider}</span>
               <span className="mx-0.5">•</span>
-              <span className="text-(--text-default)">工具:</span>
+              <span className="text-(--text-default)">{t("contacts.metadata.tools")}:</span>
               <span className="text-(--text-muted)">{allowedToolsCount}</span>
               <span className="mx-0.5">•</span>
-              <span className="text-(--text-default)">Skill:</span>
+              <span className="text-(--text-default)">{t("contacts.metadata.skills")}:</span>
               <span className="text-(--text-muted)">{skillsCount}</span>
             </div>
           </div>

@@ -152,7 +152,7 @@ function commitSessionMessages(
   page: ConversationMessagePage,
   context: AgentConversationLifecycleContext,
   isReload: boolean,
-): void {
+): Message[] {
   const sortedMessages = sortMessages(page.items);
   let mergedMessages = sortedMessages;
   context.state.setMessages((currentMessages) => {
@@ -171,6 +171,7 @@ function commitSessionMessages(
     sessionKey,
   });
   context.refs.backgroundMessages.current.delete(sessionKey);
+  return sortedMessages;
 }
 
 /**
@@ -181,12 +182,12 @@ export async function loadAgentSession(
   sessionKey: string,
   context: AgentConversationLifecycleContext,
   isReload = false,
-): Promise<void> {
+): Promise<Message[] | null> {
   const requestId = prepareSessionLoad(sessionKey, context, isReload);
   try {
     const page = await fetchSessionMessages(context.identity, sessionKey);
     if (isCurrentLoad(context, requestId, sessionKey)) {
-      commitSessionMessages(sessionKey, page, context, isReload);
+      return commitSessionMessages(sessionKey, page, context, isReload);
     }
   } catch (error) {
     if (isCurrentLoad(context, requestId, sessionKey)) {
@@ -200,6 +201,7 @@ export async function loadAgentSession(
       context.state.setIsSessionLoading(false);
     }
   }
+  return null;
 }
 
 export function clearAgentSession(

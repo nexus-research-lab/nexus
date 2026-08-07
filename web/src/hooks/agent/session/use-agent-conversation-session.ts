@@ -66,7 +66,7 @@ export function useAgentConversationSession({
       if (activeSessionKeyRef.current !== sessionKey) {
         clearLiveSessionState();
       }
-      return loadAgentSession(sessionKey, lifecycleContext);
+      return loadAgentSession(sessionKey, lifecycleContext).then(() => undefined);
     },
     [activeSessionKeyRef, clearLiveSessionState, lifecycleContext],
   );

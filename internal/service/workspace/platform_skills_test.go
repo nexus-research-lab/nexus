@@ -4,6 +4,8 @@ package workspace
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -18,6 +20,33 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 		t.Fatalf("同步平台 Skill 库失败: %v", err)
 	}
 	for _, path := range []string{
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "execution-orchestrator", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "execution-orchestrator", "references", "structure-selection.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "execution-orchestrator", "references", "graph-control.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "execution-orchestrator", "references", "communication-and-continuity.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "references", "create-and-retarget.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "references", "complete-and-block.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "references", "room-goals.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "execution-orchestrator", "references", "graph-control.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "goal-manager", "references", "complete-and-block.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "SOURCE.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "LICENSE"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "references", "type-architecture.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "references", "primitive-icons.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "diagram-design", "assets", "icons", "tabler", "database.svg"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "diagram-design", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "diagram-design", "LICENSE"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "diagram-design", "assets", "template.html"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "diagram-design", "assets", "icons.html"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "kami", "SKILL.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "kami", "SOURCE.md"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "kami", "LICENSE"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "kami", "requirements.txt"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "kami", "scripts", "render_document.py"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "kami", "assets", "templates", "one-pager.html"),
+		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "kami", "references", "design.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "ima-skill", "SKILL.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "ima-skill", "SKILL.md"),
 		filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "wechat-article-search", "SKILL.md"),
@@ -29,21 +58,40 @@ func TestEnsurePlatformSkillLibrarySyncsNXSAndClaudeEntrypoints(t *testing.T) {
 			t.Fatalf("平台 Skill 入口缺失 %s: %v", path, err)
 		}
 	}
+	graphControlPath := filepath.Join(
+		appfs.PlatformSkillRoot(),
+		".agents", "skills", "execution-orchestrator", "references", "graph-control.md",
+	)
+	graphControl, err := os.ReadFile(graphControlPath)
+	if err != nil {
+		t.Fatalf("读取已同步图控制契约失败: %v", err)
+	}
+	for _, exactField := range []string{
+		"logical_key",
+		"subject",
+		"objective",
+		"deliverable",
+		"acceptance_criteria",
+		"depends_on",
+		"soft_depends_on",
+		"output_scopes",
+		"shared_output_scopes",
+	} {
+		if !strings.Contains(string(graphControl), exactField) {
+			t.Fatalf("已同步图控制契约缺少精确字段 %q", exactField)
+		}
+	}
+	if !strings.Contains(string(graphControl), "不要根据单个报错逐字段删改") {
+		t.Fatal("已同步图控制契约缺少一次性完整修复指引")
+	}
 	linkPath := filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills")
 	if target, err := os.Readlink(linkPath); err == nil {
 		if target != filepath.Join("..", ".agents", "skills") {
 			t.Fatalf("Claude Skill 入口链接目标不正确: %q", target)
 		}
 	}
-}
-
-func TestEnsurePlatformSkillLibraryPublishesRuntimeReadableTree(t *testing.T) {
-	configRoot := filepath.Join(t.TempDir(), ".nexus")
-	t.Setenv("NEXUS_STATE_ROOT", configRoot)
-	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
-
-	if err := EnsurePlatformSkillLibrary(); err != nil {
-		t.Fatalf("同步平台 Skill 库失败: %v", err)
+	if runtime.GOOS == "windows" {
+		return
 	}
 	if err := filepath.Walk(appfs.PlatformSkillRoot(), func(path string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
@@ -69,6 +117,9 @@ func TestEnsurePlatformSkillLibraryPublishesRuntimeReadableTree(t *testing.T) {
 }
 
 func TestEnsurePlatformSkillLibraryRepairsUnreadableExistingTree(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows FileMode cannot represent runtime readability")
+	}
 	configRoot := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_STATE_ROOT", configRoot)
 	t.Setenv("NEXUS_CONFIG_DIR", configRoot)
@@ -124,12 +175,16 @@ func TestReplacePlatformSkillLibraryCopiesReadOnlySource(t *testing.T) {
 	if err := replaceCompatibleSkillLibrary(sourceRoot, targetRoot, "test-fingerprint"); err != nil {
 		t.Fatalf("只读源 Skill 应可发布到暂存目录: %v", err)
 	}
-	publishedSkill := filepath.Join(targetRoot, ".agents", "skills", "goal-manager", "SKILL.md")
-	content, err := os.ReadFile(publishedSkill)
-	if err != nil {
-		t.Fatalf("读取已发布 Skill 失败: %v", err)
-	}
-	if string(content) != "goal\n" {
-		t.Fatalf("已发布 Skill 内容 = %q, want goal", content)
+	for _, publishedSkill := range []string{
+		filepath.Join(targetRoot, ".agents", "skills", "goal-manager", "SKILL.md"),
+		filepath.Join(targetRoot, ".claude", "skills", "goal-manager", "SKILL.md"),
+	} {
+		content, err := os.ReadFile(publishedSkill)
+		if err != nil {
+			t.Fatalf("读取已发布 Skill 失败 %q: %v", publishedSkill, err)
+		}
+		if string(content) != "goal\n" {
+			t.Fatalf("已发布 Skill 内容 = %q, want goal: %s", content, publishedSkill)
+		}
 	}
 }

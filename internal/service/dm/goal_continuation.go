@@ -1,5 +1,5 @@
 // INPUT: DM Goal continuation plan、显式输入队列与当前 runtime 状态。
-// OUTPUT: 用户输入优先约束下经最终校验、原子 claim 后启动的隐藏续跑。
+// OUTPUT: 用户输入优先约束下经最终校验、使用稳定或旧记录恢复的 Execution reservation、原子 claim 后启动的隐藏续跑。
 // POS: DM 与 Goal 状态机之间的续跑适配层。
 package dm
 
@@ -36,7 +36,11 @@ func (s *Service) ShouldDeferGoalContinuation(ctx context.Context, sessionKey st
 		return false
 	}
 	if len(items) == 0 {
-		return s.shouldDeferGoalContinuationForPlanMode(ctx, agentID)
+		return s.shouldDeferGoalContinuationForPlanMode(
+			ctx,
+			normalizedSessionKey,
+			agentID,
+		)
 	}
 	s.dispatchNextInputQueueItemAtLocation(ctx, normalizedSessionKey, agentID, location)
 	return true
@@ -66,9 +70,14 @@ func (s *Service) GoalContinuationTargetMissing(ctx context.Context, sessionKey 
 	return false, err
 }
 
-func (s *Service) shouldDeferGoalContinuationForPlanMode(ctx context.Context, agentID string) bool {
+func (s *Service) shouldDeferGoalContinuationForPlanMode(
+	ctx context.Context,
+	sessionKey string,
+	agentID string,
+) bool {
+	sessionKey = strings.TrimSpace(sessionKey)
 	agentID = strings.TrimSpace(agentID)
-	if s == nil || s.agents == nil || agentID == "" {
+	if s == nil || s.agents == nil || sessionKey == "" || agentID == "" {
 		return false
 	}
 	agentValue, err := s.agents.GetAgent(ctx, agentID)
@@ -76,7 +85,26 @@ func (s *Service) shouldDeferGoalContinuationForPlanMode(ctx context.Context, ag
 		s.loggerFor(ctx).Warn("读取 Goal 续跑 Agent plan mode 状态失败", "agent_id", agentID, "err", err)
 		return false
 	}
-	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(agentValue.Options.PermissionMode)
+	permissionMode := agentValue.Options.PermissionMode
+	sessionValue, sessionErr := s.ensureSession(
+		ctx,
+		agentValue,
+		protocol.ParseSessionKey(sessionKey),
+		sessionKey,
+	)
+	if sessionErr != nil {
+		s.loggerFor(ctx).Warn(
+			"读取 Goal 续跑 Session plan mode 状态失败",
+			"session_key", sessionKey,
+			"agent_id", agentID,
+			"err", sessionErr,
+		)
+	} else if override := protocol.SessionRuntimeSettingsFromOptions(
+		sessionValue.Options,
+	).PermissionMode; override != "" {
+		permissionMode = override
+	}
+	return goalsvc.ShouldIgnoreRuntimeForPermissionMode(permissionMode)
 }
 
 func (r *roundRunner) dispatchGoalContinuation(ctx context.Context) {
@@ -142,7 +170,9 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	}
 	ctx = contextWithExactOwner(ctx, agentValue.OwnerUserID)
 
-	s.inputQueueDispatchMu.Lock()
+	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+		return err
+	}
 	validated, err := goalsvc.ValidateContinuationForDispatch(
 		ctx,
 		s.goals,
@@ -151,6 +181,13 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 			return s.shouldDeferGoalContinuationWithoutQueueDispatch(ctx, sessionKey, agentID)
 		},
 	)
+	executionID := ""
+	if err == nil && validated != nil {
+		executionID = protocol.GoalReservedExecutionID(validated.Goal)
+		if strings.TrimSpace(executionID) == "" {
+			err = errors.New("dm goal continuation requires an exact execution binding")
+		}
+	}
 	if err == nil && validated != nil {
 		_, err = s.goals.ClaimContinuationPlan(ctx, *validated)
 	}
@@ -161,6 +198,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 			GoalContext:           validated.Prompt,
 			GoalID:                validated.Goal.ID,
 			GoalObjectiveRevision: validated.Goal.ObjectiveRevision(),
+			ExecutionID:           executionID,
 			RoundID:               validated.RoundID,
 			DeliveryPolicy:        protocol.ChatDeliveryPolicyQueue,
 			BroadcastUserMessage:  false,
@@ -173,7 +211,7 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 				Priority:       "internal",
 				Metadata:       validated.Metadata,
 			},
-		})
+		}, chatExecutionInline)
 	}
 	s.inputQueueDispatchMu.Unlock()
 	if err == nil && validated == nil {
@@ -198,7 +236,11 @@ func (s *Service) shouldDeferGoalContinuationWithoutQueueDispatch(ctx context.Co
 		s.loggerFor(ctx).Warn("读取 Goal 续跑最终队列失败", "session_key", sessionKey, "err", err)
 		return false
 	}
-	return len(items) > 0 || s.shouldDeferGoalContinuationForPlanMode(ctx, agentID)
+	return len(items) > 0 || s.shouldDeferGoalContinuationForPlanMode(
+		ctx,
+		sessionKey,
+		agentID,
+	)
 }
 
 func (r *roundRunner) recordGoalContinuationDispatchFailure(ctx context.Context, plan protocol.GoalContinuation, dispatchErr error) {

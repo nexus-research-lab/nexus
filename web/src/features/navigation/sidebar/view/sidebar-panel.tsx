@@ -15,7 +15,6 @@ import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/wor
 
 import { SidebarBrandLink } from "./sidebar-brand-link";
 import { SidebarPrimaryTabs } from "./sidebar-primary-tabs";
-import { SidebarUpdateIndicator } from "./sidebar-update-indicator";
 import {
   SidebarFooterActions,
   SidebarPanelToggleAction,
@@ -137,7 +136,6 @@ export function SidebarPanel({
         >
           <SidebarBrandLink collapsed={collapsed} label={launcherLabel} />
           <div aria-hidden="true" className="min-w-0 flex-1 self-stretch" />
-          <SidebarUpdateIndicator />
           {!collapsed ? (
             <div className="sidebar-panel-header-toggle shrink-0">
               <SidebarPanelToggleAction

@@ -53,7 +53,7 @@ func (p *observedDMGoalProvider) GoalContinuationStillCurrent(
 	return current, err
 }
 
-func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
+func TestServiceHandleChatDoesNotBindAmbientGoalOrScheduleContinuation(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
@@ -106,8 +106,11 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 		SessionKey: "agent:nexus:ws:dm:test-goal-continuation",
 		Objective:  "finish work",
 		Status:     protocol.GoalStatusActive,
+		Metadata: map[string]any{
+			protocol.GoalMetadataExecutionID: "execution-goal-1",
+		},
 	}
-	service.SetGoalContextProvider(&fakeGoalContextProvider{
+	goalProvider := &fakeGoalContextProvider{
 		runtimeContext: "finish work",
 		runtimeGoal:    &goal,
 		plan: &protocol.GoalContinuation{
@@ -116,6 +119,9 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 				SessionKey: "agent:nexus:ws:dm:test-goal-continuation",
 				Objective:  "finish work",
 				Status:     protocol.GoalStatusActive,
+				Metadata: map[string]any{
+					protocol.GoalMetadataExecutionID: "execution-goal-1",
+				},
 			},
 			RoundID:        "goal_continuation_1",
 			Prompt:         "hidden continuation prompt",
@@ -124,7 +130,8 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 			Purpose:        "goal_continuation",
 			Metadata:       map[string]string{"goal_id": "goal-1"},
 		},
-	})
+	}
+	service.SetGoalContextProvider(goalProvider)
 	sender := newDMTestSender("sender-goal-continuation")
 	sessionKey := "agent:nexus:ws:dm:test-goal-continuation"
 	t.Cleanup(func() {
@@ -140,72 +147,28 @@ func TestServiceHandleChatSchedulesHiddenGoalContinuation(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
-	events := collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
+	_ = collectEventsUntil(t, sender.events, func(event protocol.EventMessage) bool {
 		return event.EventType == protocol.EventTypeRoundStatus &&
-			event.Data["round_id"] == "goal_continuation_1" &&
+			event.Data["round_id"] == "round-1" &&
 			event.Data["status"] == "finished"
 	})
-	continuationRunning := false
-	continuationAssistantVisible := false
-	for _, event := range events {
-		if event.EventType == protocol.EventTypeChatAck && event.Data["round_id"] == "goal_continuation_1" {
-			t.Fatalf("隐藏 Goal continuation 不应广播 chat ack: %+v", events)
-		}
-		if event.EventType == protocol.EventTypeRoundStatus &&
-			event.Data["round_id"] == "goal_continuation_1" &&
-			event.Data["status"] == "running" {
-			continuationRunning = true
-		}
-		if event.EventType == protocol.EventTypeMessage &&
-			event.Data["round_id"] == "goal_continuation_1" &&
-			event.Data["role"] == "assistant" {
-			for _, block := range contentBlocksFromPayload(t, event.Data) {
-				if block["type"] == "text" && block["text"] == "继续推进 Goal" {
-					continuationAssistantVisible = true
-				}
-			}
-		}
-	}
-	if !continuationRunning {
-		t.Fatalf("隐藏 Goal continuation 应广播 running round，避免前端空白运行态: %+v", events)
-	}
-	if !continuationAssistantVisible {
-		t.Fatalf("隐藏 Goal continuation 的 assistant 输出应通过消息事件进入当前会话: %+v", events)
-	}
+	time.Sleep(50 * time.Millisecond)
 
 	client.mu.Lock()
 	queryOptions := append([]sdkprotocol.OutboundMessageOptions(nil), client.queryOptions...)
 	queryPrompts := append([]string(nil), client.queryPrompts...)
 	client.mu.Unlock()
-	if len(queryOptions) < 2 {
-		t.Fatalf("Goal continuation 应发送到 runtime: %+v", queryOptions)
+	if len(queryOptions) != 1 {
+		t.Fatalf("普通聊天不应因 ambient Goal 启动隐藏续跑: %+v", queryOptions)
 	}
-	runtimeOptions := queryOptions[1]
-	if runtimeOptions.Meta ||
-		runtimeOptions.HiddenFromUser ||
-		runtimeOptions.Synthetic ||
-		runtimeOptions.Purpose != "" ||
-		runtimeOptions.Priority != "" ||
-		runtimeOptions.Metadata != nil {
-		t.Fatalf("Goal continuation 发给 runtime 时应作为普通可执行输入: %+v", queryOptions)
+	if len(queryPrompts) != 1 || strings.Contains(queryPrompts[0], "finish work") {
+		t.Fatalf("普通聊天不应注入 ambient Goal context: %+v", queryPrompts)
 	}
-
-	rows := readDMSessionHistory(t, cfg, service, sessionKey)
-	assistantVisible := false
-	for _, row := range rows {
-		if row["role"] == "user" && row["round_id"] == "goal_continuation_1" {
-			t.Fatalf("隐藏 Goal continuation 不应成为可见用户历史: %+v", rows)
-		}
-		if row["role"] == "assistant" && row["round_id"] == "goal_continuation_1" {
-			assistantVisible = true
-		}
-	}
-	if !assistantVisible {
-		t.Fatalf("Goal continuation 的 assistant 输出应进入可见历史: %+v", rows)
-	}
-	if len(queryPrompts) < 2 ||
-		!strings.Contains(queryPrompts[1], "<internal_context source=\"goal\">\nhidden continuation prompt\n</internal_context>") {
-		t.Fatalf("Goal continuation 应作为 internal goal context 注入 runtime: %+v", queryPrompts)
+	goalProvider.mu.Lock()
+	planCalls := goalProvider.planCalls
+	goalProvider.mu.Unlock()
+	if planCalls != 0 {
+		t.Fatalf("普通聊天触发了 Goal continuation planning: %d", planCalls)
 	}
 }
 
@@ -241,6 +204,9 @@ func TestServiceGoalContinuationFinalDispatchDefersToConcurrentExplicitInput(t *
 				SessionKey: sessionKey,
 				Objective:  "finish after explicit input",
 				Status:     protocol.GoalStatusActive,
+				Metadata: map[string]any{
+					protocol.GoalMetadataExecutionID: "execution-final-dispatch-race",
+				},
 			},
 			RoundID:        "goal_continuation_race",
 			Prompt:         "hidden continuation must defer",
@@ -321,6 +287,26 @@ func TestServiceGoalContinuationFinalDispatchDefersToConcurrentExplicitInput(t *
 	waitForDMRuntimeIdle(t, runtimeManager, sessionKey)
 }
 
+func TestDMGoalContinuationRequestRequiresExecutionBinding(t *testing.T) {
+	request := Request{
+		SessionKey:            "agent:nexus:ws:dm:goal-binding",
+		GoalContext:           "continue",
+		GoalID:                "goal-dm",
+		GoalObjectiveRevision: 1,
+		Internal:              true,
+		InputOptions: sdkprotocol.OutboundMessageOptions{
+			Purpose: "goal_continuation",
+		},
+	}
+	if _, _, err := (&Service{}).validateRequest(request); err == nil {
+		t.Fatal("Goal continuation request without Execution identity was accepted")
+	}
+	request.ExecutionID = "execution-dm"
+	if _, _, err := (&Service{}).validateRequest(request); err != nil {
+		t.Fatalf("complete Goal continuation request rejected: %v", err)
+	}
+}
+
 func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
@@ -369,7 +355,7 @@ func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	}
 }
 
-func TestServiceEnsureClientKeepsBudgetLimitedGoalUsageTarget(t *testing.T) {
+func TestServiceEnsureClientDoesNotBindAmbientBudgetLimitedGoal(t *testing.T) {
 	cfg := newDMTestConfig(t)
 	migrateDMSQLite(t, cfg.DatabaseURL)
 
@@ -405,8 +391,11 @@ func TestServiceEnsureClientKeepsBudgetLimitedGoalUsageTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("构建 runtime client 失败: %v", err)
 	}
-	if goalID != "goal-budget-limited" || goalContext != "" {
-		t.Fatalf("budget_limited goal runtime = (%q, %q), want usage target without context", goalID, goalContext)
+	if goalID != "" || goalContext != "" {
+		t.Fatalf("ordinary round budget_limited Goal runtime = (%q, %q), want unbound", goalID, goalContext)
+	}
+	if calls := goalProvider.runtimeContextCallCount(); calls != 0 {
+		t.Fatalf("ordinary round should not read ambient Goal runtime context, calls=%d", calls)
 	}
 }
 
@@ -427,6 +416,9 @@ func TestServiceDuplicateGoalContinuationDispatchKeepsClaimedCount(t *testing.T)
 			ID:         "goal-duplicate-dispatch",
 			SessionKey: sessionKey,
 			Status:     protocol.GoalStatusActive,
+			Metadata: map[string]any{
+				protocol.GoalMetadataExecutionID: "execution-duplicate-dispatch",
+			},
 		},
 		RoundID:        "goal_continuation_duplicate",
 		Prompt:         "continue once",
@@ -495,7 +487,10 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 			SessionKey: sessionKey,
 			Objective:  "old objective",
 			Status:     protocol.GoalStatusActive,
-			Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(1)},
+			Metadata: map[string]any{
+				protocol.GoalMetadataObjectiveRevision: int64(1),
+				protocol.GoalMetadataExecutionID:       "execution-claim-before-launch",
+			},
 		},
 		RoundID:        "goal_continuation_claim_before_launch",
 		Prompt:         "continue the old objective",
@@ -512,7 +507,10 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 			SessionKey: sessionKey,
 			Objective:  plan.Goal.Objective,
 			Status:     protocol.GoalStatusActive,
-			Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(1)},
+			Metadata: map[string]any{
+				protocol.GoalMetadataObjectiveRevision: int64(1),
+				protocol.GoalMetadataExecutionID:       "execution-claim-before-launch",
+			},
 		},
 	}
 	service.SetGoalContextProvider(goalProvider)
@@ -526,6 +524,7 @@ func TestServiceGoalContinuationClaimsBeforeLaunchAndBindsPlanRevision(t *testin
 		_ string,
 		_ string,
 		revision *atomic.Int64,
+		_ sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
 		goalProvider.mu.Lock()
 		claimCalls := goalProvider.claimCalls
@@ -592,7 +591,10 @@ func TestServiceGoalContinuationRejectsRetargetAfterClaimBeforeRuntimeLaunch(t *
 			SessionKey: sessionKey,
 			Objective:  "old objective",
 			Status:     protocol.GoalStatusActive,
-			Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(1)},
+			Metadata: map[string]any{
+				protocol.GoalMetadataObjectiveRevision: int64(1),
+				protocol.GoalMetadataExecutionID:       "execution-retarget-after-claim",
+			},
 		},
 		RoundID:        "goal_continuation_retarget_after_claim",
 		Prompt:         "continue the old objective",
@@ -609,7 +611,10 @@ func TestServiceGoalContinuationRejectsRetargetAfterClaimBeforeRuntimeLaunch(t *
 			SessionKey: sessionKey,
 			Objective:  plan.Goal.Objective,
 			Status:     protocol.GoalStatusActive,
-			Metadata:   map[string]any{protocol.GoalMetadataObjectiveRevision: int64(1)},
+			Metadata: map[string]any{
+				protocol.GoalMetadataObjectiveRevision: int64(1),
+				protocol.GoalMetadataExecutionID:       "execution-retarget-after-claim",
+			},
 		},
 	}
 	goalProvider.onClaim = func() {
@@ -629,6 +634,7 @@ func TestServiceGoalContinuationRejectsRetargetAfterClaimBeforeRuntimeLaunch(t *
 		_ string,
 		_ string,
 		_ *atomic.Int64,
+		_ sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
 		mcpBuilt <- struct{}{}
 		return nil
@@ -744,5 +750,49 @@ func TestServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 
 	if !service.ShouldDeferGoalContinuation(context.Background(), sessionKey, cfg.DefaultAgentID) {
 		t.Fatal("Goal continuation should defer while the target agent is in plan mode")
+	}
+}
+
+func TestServiceGoalContinuationDefersForSessionPlanOverride(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	agentService := newDMAgentService(t, cfg)
+	service := NewService(
+		cfg,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+	)
+	sessionKey := "agent:nexus:ws:dm:test-goal-session-plan"
+	now := time.Now().UTC()
+	if _, err := service.files.UpsertSession(
+		dmMainWorkspacePath(cfg),
+		protocol.Session{
+			SessionKey:   sessionKey,
+			AgentID:      cfg.DefaultAgentID,
+			ChannelType:  protocol.SessionChannelWebSocket,
+			ChatType:     protocol.RoomTypeDM,
+			Status:       "closed",
+			CreatedAt:    now,
+			LastActivity: now,
+			Title:        "Session Plan",
+			Options: protocol.WithSessionRuntimeSettings(
+				nil,
+				protocol.SessionRuntimeSettings{
+					PermissionMode: string(sdkpermission.ModePlan),
+				},
+			),
+		},
+	); err != nil {
+		t.Fatalf("写入 Session plan override 失败: %v", err)
+	}
+
+	if !service.ShouldDeferGoalContinuation(
+		context.Background(),
+		sessionKey,
+		cfg.DefaultAgentID,
+	) {
+		t.Fatal("Session plan override 应阻止 Goal 自动续跑")
 	}
 }

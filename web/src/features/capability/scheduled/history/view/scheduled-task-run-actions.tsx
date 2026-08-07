@@ -11,6 +11,7 @@ import {
 
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
@@ -128,9 +129,12 @@ function ScheduledRunArtifactButton({
   agentId: string;
   artifactPath: string;
 }) {
-  const actionCopy = getWorkspaceFileExternalActionCopy(artifactFileName(artifactPath));
+  const { t } = useI18n();
+  const actionCopy = getWorkspaceFileExternalActionCopy(
+    t,
+    artifactFileName(artifactPath),
+  );
   const Icon = actionCopy.mode === "reveal" ? FolderOpen : Download;
-  const label = actionCopy.mode === "reveal" ? "打开产物" : "下载产物";
   const downloadArtifact = () => {
     void downloadWorkspaceFileApi(
       agentId,
@@ -149,7 +153,7 @@ function ScheduledRunArtifactButton({
       type="button"
     >
       <Icon className="h-3.5 w-3.5" />
-      {label}
+      {actionCopy.label}
     </button>
   );
 }

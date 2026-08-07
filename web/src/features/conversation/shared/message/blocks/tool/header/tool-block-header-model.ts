@@ -1,3 +1,6 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+
 import type {
   ToolBlockStatus,
   ToolBlockViewModel,
@@ -31,16 +34,22 @@ const HEADER_STATE_CLASS_BY_STATUS: Readonly<Record<ToolBlockStatus, string>> = 
   error: "",
   pending: "",
   running: "bg-primary/5",
+  rejected: "",
+  stopped: "bg-(--surface-muted-background)",
   success: "",
   waiting_permission: "bg-(--surface-muted-background)",
 };
 
-const DETAIL_FALLBACK_BY_STATUS: Readonly<Record<ToolBlockStatus, string>> = {
-  error: "处理中…",
-  pending: "处理中…",
-  running: "处理中…",
-  success: "处理中…",
-  waiting_permission: "等待确认",
+const DETAIL_FALLBACK_KEY_BY_STATUS: Readonly<
+  Record<ToolBlockStatus, TranslationKey>
+> = {
+  error: "message.tool_processing",
+  pending: "message.tool_processing",
+  running: "message.tool_processing",
+  rejected: "message.tool_rejection_without_detail",
+  stopped: "message.stopped",
+  success: "message.tool_processing",
+  waiting_permission: "message.tool_waiting_confirmation",
 };
 
 const META_TEXT_BY_STATUS: Readonly<Record<
@@ -50,6 +59,8 @@ const META_TEXT_BY_STATUS: Readonly<Record<
   error: (model) => model.durationText,
   pending: (model) => model.durationText,
   running: (model) => model.durationText,
+  rejected: (model) => model.durationText,
+  stopped: (model) => model.durationText,
   success: (model) => model.durationText,
   waiting_permission: (model) => model.waitingActionHint,
 };
@@ -61,6 +72,8 @@ const LIVE_STATUS_BY_STATUS: Readonly<Record<
   error: () => null,
   pending: () => null,
   running: (model) => model.liveStatusText,
+  rejected: () => null,
+  stopped: () => null,
   success: () => null,
   waiting_permission: () => null,
 };
@@ -68,6 +81,7 @@ const LIVE_STATUS_BY_STATUS: Readonly<Record<
 export function buildToolBlockHeaderProjection(
   model: ToolBlockViewModel,
   isExpanded: boolean,
+  t: I18nContextValue["t"],
 ): ToolBlockHeaderProjection {
   const expansionState = EXPANSION_STATE_BY_FLAG[String(isExpanded)];
   const detailByExpansion: Readonly<Record<ExpansionState, string | null>> = {
@@ -83,7 +97,7 @@ export function buildToolBlockHeaderProjection(
     detailClassName: DETAIL_CLASS_BY_EXPANSION[expansionState],
     detailText: firstText([
       detailByExpansion[expansionState],
-      DETAIL_FALLBACK_BY_STATUS[model.status],
+      t(DETAIL_FALLBACK_KEY_BY_STATUS[model.status]),
     ]),
     expansionState,
     liveStatusText: LIVE_STATUS_BY_STATUS[model.status](model),

@@ -1,0 +1,22 @@
+.agent-options-skills-container {
+  container-name: agent-options-skills;
+  container-type: inline-size;
+}
+
+.agent-options-skills-grid {
+  display: grid;
+  gap: 0.625rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container agent-options-skills (min-width: 560px) {
+  .agent-options-skills-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container agent-options-skills (min-width: 800px) {
+  .agent-options-skills-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

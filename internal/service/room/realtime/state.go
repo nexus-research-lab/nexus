@@ -1,6 +1,6 @@
-// INPUT: Room round/slot 生命周期、运行时消息与并发状态变更。
-// OUTPUT: 可并发读取的执行状态、稳定 owner/root usage scope、parent/child Goal 绑定、settlement barrier、游标与最终回复快照。
-// POS: Room 实时执行过程的内存状态模型。
+// INPUT: Room round/slot 生命周期、structured WorkBinding/ReviewBinding、运行时消息与并发状态变更。
+// OUTPUT: 可并发读取的执行状态、不可变 producer/reviewer capability、稳定 owner/root usage scope、parent/child Goal 绑定、settlement barrier、游标与最终回复快照。
+// POS: Room 实时执行过程的内存状态与 trusted dispatch identity 模型。
 package realtime
 
 import (
@@ -35,13 +35,43 @@ type roomSlotRuntimeState struct {
 	doneOnce         sync.Once
 }
 
-// roomSlotGoalState 负责 Goal accounting、objective fencing 与协作进度。
+type roomGoalAuthoritySource string
+
+const (
+	roomGoalAuthorityExplicitRound      roomGoalAuthoritySource = "explicit_round"
+	roomGoalAuthorityExecutionBinding   roomGoalAuthoritySource = "execution_binding"
+	roomGoalAuthorityModelCreate        roomGoalAuthoritySource = "model_create"
+	roomGoalAuthorityExternalActivation roomGoalAuthoritySource = "external_activation"
+)
+
+// roomGoalMutationAuthority is a fixed per-round capability. Goal steering may
+// update what the runtime can read, but it must never retarget a predecessor
+// round's semantic writes to a later objective revision.
+type roomGoalMutationAuthority struct {
+	SessionKey        string
+	GoalID            string
+	ObjectiveRevision int64
+	ExecutionID       string
+	RootRoundID       string
+	Source            roomGoalAuthoritySource
+}
+
+func (a roomGoalMutationAuthority) valid() bool {
+	return strings.TrimSpace(a.SessionKey) != "" &&
+		strings.TrimSpace(a.GoalID) != "" &&
+		strings.TrimSpace(a.ExecutionID) != "" &&
+		a.ObjectiveRevision > 0 &&
+		a.Source != ""
+}
+
+// roomSlotGoalState 负责 Goal accounting、固定 revision mutation capability 与协作进度。
 type roomSlotGoalState struct {
 	mu                   sync.RWMutex
 	sessionKey           string
 	context              string
 	idForUsage           string
 	childIDForUsage      string
+	mutationAuthority    roomGoalMutationAuthority
 	objectiveRevision    atomic.Int64
 	runtimeIgnored       bool
 	usage                *goalsvc.RuntimeUsageAccumulator
@@ -121,6 +151,8 @@ type activeRoomSlot struct {
 	TimestampMS           int64
 	Trigger               roomTrigger
 	TriggerAttachments    []protocol.ChatAttachment
+	WorkBinding           *protocol.ExecutionWorkBinding
+	ReviewBinding         *protocol.ExecutionReviewBinding
 	mutable               roomSlotMutableState
 }
 
@@ -162,6 +194,7 @@ type activeRoomRound struct {
 	SessionKey            string
 	RoomID                string
 	ConversationID        string
+	CoordinatorAgentID    string
 	RoomType              string
 	Context               *protocol.ConversationContextAggregate
 	RoundID               string
@@ -178,6 +211,7 @@ type activeRoomRound struct {
 	GoalContext           string
 	GoalID                string
 	GoalObjectiveRevision int64
+	ExecutionID           string
 	Slots                 map[string]*activeRoomSlot
 	RunningSubagents      atomic.Bool
 	postRoundDispatched   atomic.Bool
@@ -196,6 +230,8 @@ type publicMentionWake struct {
 	Content       string
 	MessageID     string
 	ReplyRoute    protocol.RoomReplyRoute
+	WorkBinding   *protocol.ExecutionWorkBinding
+	ReviewBinding *protocol.ExecutionReviewBinding
 }
 
 type roomQueuedInput struct {
@@ -641,6 +677,7 @@ func (slot *activeRoomSlot) clearGoalUsage() {
 	}
 	slot.mutable.goal.idForUsage = ""
 	slot.mutable.goal.childIDForUsage = ""
+	slot.mutable.goal.mutationAuthority = roomGoalMutationAuthority{}
 	slot.mutable.goal.usageClaimPending = false
 	slot.mutable.goal.terminalSettled = false
 	slot.mutable.goal.mu.Unlock()
@@ -780,6 +817,14 @@ func roomSlotInterruptReason(slot *activeRoomSlot) string {
 		return ""
 	}
 	return slot.getInterruptReason()
+}
+
+func roomInterruptDisplayReason(reason string) string {
+	return messagepkg.NormalizeInterruptDisplayText(reason)
+}
+
+func roomSlotInterruptDisplayReason(slot *activeRoomSlot) string {
+	return roomInterruptDisplayReason(roomSlotInterruptReason(slot))
 }
 
 func (slot *activeRoomSlot) beginNoReplyCandidate() {
@@ -1196,6 +1241,47 @@ func (slot *activeRoomSlot) setGoalBinding(sessionKey string, goalID string) {
 		slot.mutable.goal.usageScopeConsumed = true
 	}
 	slot.mutable.goal.mu.Unlock()
+}
+
+// grantGoalMutationAuthority binds one exact Goal objective revision to this
+// round. The binding is monotonic: a late retarget/guidance callback cannot
+// upgrade an old round to the successor revision.
+func (slot *activeRoomSlot) grantGoalMutationAuthority(
+	authority roomGoalMutationAuthority,
+) bool {
+	if slot == nil {
+		return false
+	}
+	authority.SessionKey = strings.TrimSpace(authority.SessionKey)
+	authority.GoalID = strings.TrimSpace(authority.GoalID)
+	authority.ExecutionID = strings.TrimSpace(authority.ExecutionID)
+	authority.RootRoundID = strings.TrimSpace(authority.RootRoundID)
+	if !authority.valid() {
+		return false
+	}
+	slot.mutable.goal.mu.Lock()
+	current := slot.mutable.goal.mutationAuthority
+	if current.valid() && current != authority {
+		slot.mutable.goal.mu.Unlock()
+		return false
+	}
+	slot.mutable.goal.mutationAuthority = authority
+	slot.mutable.goal.sessionKey = authority.SessionKey
+	slot.mutable.goal.idForUsage = authority.GoalID
+	slot.mutable.goal.childIDForUsage = authority.GoalID
+	slot.mutable.goal.usageScopeConsumed = true
+	slot.mutable.goal.mu.Unlock()
+	slot.ensureGoalObjectiveRevision(authority.ObjectiveRevision)
+	return true
+}
+
+func (slot *activeRoomSlot) goalMutationAuthority() roomGoalMutationAuthority {
+	if slot == nil {
+		return roomGoalMutationAuthority{}
+	}
+	slot.mutable.goal.mu.RLock()
+	defer slot.mutable.goal.mu.RUnlock()
+	return slot.mutable.goal.mutationAuthority
 }
 
 // goalUsageScopeConsumed 是 slot/root scope 生命周期内的单调事实。清理或

@@ -23,8 +23,12 @@ import { useMemoryDocument } from "./use-memory-document";
 
 interface MemoryDocumentPanelProps {
   agentId: string;
+  deleteBusy: boolean;
+  deleteError: string | null;
+  deleting: boolean;
   document: MemoryDocument | null;
   onBack: () => void;
+  onDelete: () => void;
   onSaved: () => void;
   onSelectPath: (path: string) => void;
 }
@@ -33,8 +37,12 @@ type MemoryDocumentController = ReturnType<typeof useMemoryDocument>;
 
 export function MemoryDocumentPanel({
   agentId,
+  deleteBusy,
+  deleteError,
+  deleting,
   document,
   onBack,
+  onDelete,
   onSaved,
   onSelectPath,
 }: MemoryDocumentPanelProps) {
@@ -55,15 +63,22 @@ export function MemoryDocumentPanel({
     return <MemoryDocumentEmpty />;
   }
   return (
-    <div className="nexus-memory-document flex min-h-0 min-w-0 flex-col bg-(--background)">
+    <div className="nexus-memory-document flex min-h-0 min-w-0 flex-col">
       <MemoryDocumentHeader
         controller={controller}
+        deleteBusy={deleteBusy}
+        deleting={deleting}
         document={document}
         locale={locale}
         onBack={onBack}
+        onDelete={onDelete}
         runtimeWriting={runtimeWriting}
       />
-      <MemoryDocumentAlerts controller={controller} document={document} />
+      <MemoryDocumentAlerts
+        controller={controller}
+        document={document}
+        externalError={deleteError}
+      />
       <div className="soft-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto">
         <MemoryDocumentBody
           agentId={agentId}
@@ -106,25 +121,32 @@ function MemoryDocumentEmpty() {
 function MemoryDocumentAlerts({
   controller,
   document,
+  externalError,
 }: {
   controller: MemoryDocumentController;
   document: MemoryDocument;
+  externalError: string | null;
 }) {
   const { t } = useI18n();
   const staleDays = memoryAgeDays(document.modified_at);
+  const stale = staleDays > MEMORY_STALE_AFTER_DAYS;
+  const commandError = controller.commandError || externalError;
+  if (!stale && !commandError) {
+    return null;
+  }
   return (
-    <>
-      {staleDays > MEMORY_STALE_AFTER_DAYS ? (
-        <div className="shrink-0 border-b border-[color:color-mix(in_srgb,var(--warning)_28%,var(--divider-subtle-color))] bg-[color:color-mix(in_srgb,var(--warning)_8%,transparent)] px-4 py-2 text-compact leading-5 text-(--warning)">
+    <div className="nexus-memory-document-content shrink-0 space-y-1 pb-2">
+      {stale ? (
+        <div className="rounded-[8px] bg-[color:color-mix(in_srgb,var(--warning)_7%,transparent)] px-3 py-2 text-compact leading-5 text-(--warning)">
           {t("capability.memory_stale", { count: staleDays })}
         </div>
       ) : null}
-      {controller.commandError ? (
-        <div className="shrink-0 border-b border-(--divider-subtle-color) px-4 py-2 text-compact leading-5 text-(--destructive)">
-          {controller.commandError}
+      {commandError ? (
+        <div className="rounded-[8px] bg-[color:color-mix(in_srgb,var(--destructive)_7%,transparent)] px-3 py-2 text-compact leading-5 text-(--destructive)">
+          {commandError}
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -166,7 +188,7 @@ function MemoryDocumentBody({
     return (
       <textarea
         aria-label={t("capability.memory_editor_aria")}
-        className="message-cjk-code-font min-h-0 w-full flex-1 resize-none overflow-y-auto bg-transparent px-5 py-4 text-sm leading-6 text-(--text-default) outline-none"
+        className="nexus-memory-document-content message-cjk-code-font min-h-0 flex-1 resize-none overflow-y-auto bg-transparent py-4 text-sm leading-6 text-(--text-default) outline-none"
         onChange={(event) => controller.setDraft(event.target.value)}
         spellCheck={false}
         value={controller.draft}
@@ -184,7 +206,7 @@ function MemoryDocumentBody({
   return (
     <UiMarkdownContent
       className={cn(
-        "mx-auto min-h-full w-full max-w-[860px] px-5 py-5",
+        "nexus-memory-document-content min-h-full py-5",
         document.kind === "daily_log" && "font-mono",
       )}
       content={stripMemoryFrontmatter(controller.content)}

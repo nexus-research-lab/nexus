@@ -75,11 +75,8 @@ var domainCatalog = []DomainDefinition{
 		},
 	},
 	{
-		Name: DomainHost, Description: "主机启动参数、环境策略与桌面可持久化 runtime settings",
-		Source: "environment + runtime-settings.json", ManagedBy: "nexus_config", Mutable: true,
-		Operations: []OperationDefinition{
-			op("update_runtime_settings", "更新桌面 workspace_path；服务重启后生效", true, "restart_required"),
-		},
+		Name: DomainHost, Description: "主机启动参数、环境策略与桌面状态根",
+		Source: "deployment environment + native desktop host", ManagedBy: "deployment/native desktop control plane", Mutable: false,
 	},
 	{
 		Name: DomainAutomation, Description: "定时任务、Heartbeat、交付与运行历史",
@@ -235,8 +232,6 @@ func operationContract(domain, operation string) (string, any, []string) {
 		return "imported skill name", map[string]any{}, nil
 	case DomainSkills + ".check_updates", DomainSkills + ".update_imported":
 		return "", map[string]any{}, nil
-	case DomainHost + ".update_runtime_settings":
-		return "", map[string]any{"workspace_path": "absolute or home-relative directory path; empty restores deployment default"}, nil
 	default:
 		return "", nil, nil
 	}

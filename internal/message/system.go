@@ -114,6 +114,16 @@ func (p *Processor) buildVisibleSystemMessage(message *sdkprotocol.SystemMessage
 		metadata["written_paths"] = append([]string(nil), message.MemorySaved.WrittenPaths...)
 		content = memorySavedContent(message.MemorySaved.Verb)
 		explicitMessageID = "system_memory_saved_" + p.ctx.RoundID
+	case "memory_recalled":
+		count := max(0, normalizeInt(message.Data["count"]))
+		mode := strings.TrimSpace(normalizeString(message.Data["mode"]))
+		metadata = map[string]any{
+			"subtype": "memory_recalled",
+			"count":   count,
+			"mode":    mode,
+		}
+		content = fmt.Sprintf("已加载 %d 条长期记忆", count)
+		explicitMessageID = "system_memory_recalled_" + p.ctx.RoundID + "_" + firstNonEmpty(mode, "default")
 	case "api_retry", "api_error":
 		metadata = normalizeAPIRetryMetadata(message.Data)
 		content = firstNonEmpty(normalizeString(metadata["message"]), apiRetryDefaultMessage(metadata))

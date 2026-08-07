@@ -8,7 +8,7 @@ tags: [image, asset, generation, design]
 
 # Image Generation Skill
 
-为当前 workspace 生成或编辑位图资产。默认使用内置 `nexus_imagegen` MCP 工具；Provider、鉴权、接口兼容和响应解析全部由 Go 服务负责。`nexusctl imagegen` 只作为显式 CLI 兜底和手工调试入口。
+为当前 workspace 生成或编辑位图资产。默认使用内置 `nexus_imagegen` MCP 工具；Provider、鉴权、接口兼容和响应解析全部由 Go 服务负责。`nexusctl imagegen generate` 与 `nexusctl imagegen edit` 只作为显式 CLI 兜底和手工调试入口。
 
 ## 快路径
 
@@ -37,7 +37,7 @@ tags: [image, asset, generation, design]
 如果用户明确要横幅、封面或宽图，使用 `size=1792x1024`，仍保持 `quality=low`。如果图片服务返回 429/过载，最多再调用 1 次工具，降低尺寸或保持 low 重试。
 
 工具返回的 `item.path` 和 `item.markdown` 是结果真相源。不要打开生成后的 PNG/JPG/WebP 文件验证，这会把二进制或 base64 塞回上下文。
-不要在工具入参里选择 Provider 或模型，让 Settings 里的默认生图模型决定；只有用户明确要求 CLI/provider/model 控制时，才使用 `nexusctl imagegen` 兜底。
+不要在工具入参里选择 Provider 或模型，让 Settings 里的默认生图模型决定；只有用户明确要求 CLI/provider/model 控制时，才使用 `nexusctl imagegen generate` 或 `nexusctl imagegen edit` 兜底。
 
 ## 判断
 
@@ -61,7 +61,7 @@ tags: [image, asset, generation, design]
 }
 ```
 
-只有用户明确选择 CLI 模式，或需要 provider/model 覆盖时，才参考 `references/cli.md` 使用 `nexusctl imagegen`。
+只有用户明确选择 CLI 模式，或需要 provider/model 覆盖时，才参考 `references/cli.md` 使用 `nexusctl imagegen generate` 或 `nexusctl imagegen edit`。
 
 ## 编辑
 

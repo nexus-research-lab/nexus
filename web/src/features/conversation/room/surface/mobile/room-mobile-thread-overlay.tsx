@@ -2,6 +2,7 @@ import { ConversationThreadPanel } from "@/features/conversation/shared/thread/c
 
 import { useGroupThread } from "../../group/thread/group-thread-state";
 import { useRoomThreadPanel } from "../../group/thread/live/use-room-thread-panel";
+import { RoomThreadEmptyState } from "../room-thread-empty-state";
 
 export function RoomMobileThreadOverlay() {
   const { activeThread, closeThread } = useGroupThread();
@@ -17,6 +18,10 @@ export function RoomMobileThreadOverlay() {
         agentAvatar={threadPanelData.agentAvatar}
         agentId={activeThread.agentId}
         agentName={threadPanelData.agentName}
+        emptyContent={(
+          <RoomThreadEmptyState isLoading={threadPanelData.isLoading} />
+        )}
+        headerSubtitle={null}
         isLoading={threadPanelData.isLoading}
         layout="mobile"
         messages={threadPanelData.messages}
@@ -24,8 +29,9 @@ export function RoomMobileThreadOverlay() {
         onOpenWorkspaceFile={threadPanelData.onOpenWorkspaceFile}
         onPermissionResponse={threadPanelData.onPermissionResponse}
         pendingPermissions={threadPanelData.pendingPermissions}
+        presentation="inspector"
         roundId={activeThread.roundId}
-        userAvatar={threadPanelData.userAvatar}
+        unresolvedToolStatus={threadPanelData.unresolvedToolStatus}
       />
     </div>
   );

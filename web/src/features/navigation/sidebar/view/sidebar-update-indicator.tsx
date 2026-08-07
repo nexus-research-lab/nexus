@@ -1,59 +1,54 @@
-import { Download } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { Download, LoaderCircle } from "lucide-react";
 
-import { isDesktopRuntime } from "@/config/desktop-runtime";
-import {
-  getDesktopPersistentState,
-  isDesktopBridgeAvailable,
-} from "@/lib/desktop-bridge";
+import { startDesktopUpdate } from "@/lib/desktop-bridge";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { cn } from "@/shared/ui/class-name";
 
-const UPDATE_STATE_KEY = "desktop.update.available";
-const UPDATE_STATE_POLL_INTERVAL_MS = 30_000;
+export function SidebarUpdateIndicator({
+  className,
+  version,
+}: {
+  className?: string;
+  version: string;
+}) {
+  const { t } = useI18n();
+  const [starting, setStarting] = useState(false);
+  const label = starting
+    ? t("sidebar.update_starting")
+    : t("sidebar.update_available", { version });
 
-export function SidebarUpdateIndicator() {
-  const [version, setVersion] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isDesktopRuntime() || !isDesktopBridgeAvailable()) {
-      return;
-    }
-
-    let active = true;
-    const refresh = async () => {
-      try {
-        const result = await getDesktopPersistentState(UPDATE_STATE_KEY);
-        if (active) {
-          setVersion(result.value?.trim() || null);
-        }
-      } catch {
-        // 更新提示是增强信息，不影响侧边栏主导航。
+  const startUpdate = async () => {
+    if (starting) return;
+    setStarting(true);
+    try {
+      const result = await startDesktopUpdate();
+      if (result.status === "disabled" || result.status === "unavailable") {
+        throw new Error(`Desktop update is ${result.status}`);
       }
-    };
+    } catch (error) {
+      console.error("[DesktopUpdate] Failed to start native update:", error);
+    } finally {
+      setStarting(false);
+    }
+  };
 
-    void refresh();
-    const timer = window.setInterval(refresh, UPDATE_STATE_POLL_INTERVAL_MS);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  if (!version) {
-    return null;
-  }
-
-  const label = `Nexus ${version} 可更新`;
   return (
-    <a
+    <button
       aria-label={label}
-      className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white transition-colors hover:bg-emerald-700"
-      href="https://github.com/nexus-research-lab/nexus/releases/latest"
-      rel="noreferrer"
-      target="_blank"
+      aria-busy={starting}
+      className={cn("sidebar-update-indicator relative", className)}
+      disabled={starting}
+      onClick={() => void startUpdate()}
       title={label}
+      type="button"
     >
-      <Download className="h-[17px] w-[17px]" />
-      <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-(--surface-sidebar-background) bg-amber-400" />
-    </a>
+      {starting ? (
+        <LoaderCircle className="h-[18px] w-[18px] animate-spin" />
+      ) : (
+        <Download className="h-[18px] w-[18px]" />
+      )}
+      <span className="absolute right-0 top-0 h-2 w-2 rounded-full border-2 border-(--surface-shell-directory-background) bg-(--primary)" />
+    </button>
   );
 }

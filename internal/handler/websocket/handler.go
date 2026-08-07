@@ -14,10 +14,12 @@ import (
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roompkg "github.com/nexus-research-lab/nexus/internal/service/room"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
+	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
 const (
@@ -28,19 +30,23 @@ const (
 
 // Handler 封装 WebSocket 生命周期与控制消息分发。
 type Handler struct {
-	api            *handlershared.API
-	roomService    *roompkg.Service
-	roomRealtime   roomRealtimeService
-	dm             *dmsvc.Service
-	goals          *goalsvc.Service
-	permission     *permissionctx.Context
-	runtime        *runtimectx.Manager
-	channels       *channelspkg.Router
-	roomSubs       *roomSubscriptionRegistry
-	workspaceSubs  *workspaceSubscriptionRegistry
-	appEventSubs   *appEventSubscriptionRegistry
-	goalRPCSubs    *appServerGoalRPCRegistry
-	allowedOrigins []string
+	api                 *handlershared.API
+	roomService         *roompkg.Service
+	roomRealtime        roomRealtimeService
+	dm                  *dmsvc.Service
+	goals               *goalsvc.Service
+	permission          *permissionctx.Context
+	runtime             *runtimectx.Manager
+	contextUsage        contextUsageSnapshotProvider
+	channels            *channelspkg.Router
+	hostCommands        *slashcommandsvc.Registry
+	commandCatalog      *slashcommandsvc.Catalog
+	runtimeKindResolver func(context.Context, string) (agentclient.RuntimeKind, error)
+	roomSubs            *roomSubscriptionRegistry
+	workspaceSubs       *workspaceSubscriptionRegistry
+	appEventSubs        *appEventSubscriptionRegistry
+	goalRPCSubs         *appServerGoalRPCRegistry
+	allowedOrigins      []string
 }
 
 // roomRealtimeService 是 WebSocket 控制面和 Room 订阅恢复实际需要的最小接口。
@@ -62,25 +68,36 @@ func NewHandler(
 	goals *goalsvc.Service,
 	permission *permissionctx.Context,
 	runtime *runtimectx.Manager,
+	contextUsage contextUsageSnapshotProvider,
 	channels *channelspkg.Router,
 	workspaceService *workspacepkg.Service,
 	runtimeProvider func(string) RuntimeSnapshot,
 	allowedOrigins []string,
+	hostCommands *slashcommandsvc.Registry,
+	commandCatalog *slashcommandsvc.Catalog,
+	runtimeKindResolver func(context.Context, string) (agentclient.RuntimeKind, error),
 ) *Handler {
+	if hostCommands == nil {
+		hostCommands = slashcommandsvc.NewRegistry()
+	}
 	handler := &Handler{
-		api:            api,
-		roomService:    roomService,
-		roomRealtime:   roomRealtime,
-		dm:             dm,
-		goals:          goals,
-		permission:     permission,
-		runtime:        runtime,
-		channels:       channels,
-		roomSubs:       newRoomSubscriptionRegistry(128),
-		workspaceSubs:  newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
-		appEventSubs:   newAppEventSubscriptionRegistry(),
-		goalRPCSubs:    newAppServerGoalRPCRegistry(),
-		allowedOrigins: allowedOrigins,
+		api:                 api,
+		roomService:         roomService,
+		roomRealtime:        roomRealtime,
+		dm:                  dm,
+		goals:               goals,
+		permission:          permission,
+		runtime:             runtime,
+		contextUsage:        contextUsage,
+		channels:            channels,
+		hostCommands:        hostCommands,
+		commandCatalog:      commandCatalog,
+		runtimeKindResolver: runtimeKindResolver,
+		roomSubs:            newRoomSubscriptionRegistry(128),
+		workspaceSubs:       newWorkspaceSubscriptionRegistry(workspaceService, runtimeProvider),
+		appEventSubs:        newAppEventSubscriptionRegistry(),
+		goalRPCSubs:         newAppServerGoalRPCRegistry(),
+		allowedOrigins:      allowedOrigins,
 	}
 	if roomRealtime != nil {
 		roomRealtime.SetRoomBroadcaster(handler.roomSubs)
@@ -89,6 +106,14 @@ func NewHandler(
 		goals.SetEventBroadcaster(newGoalEventBroadcaster(permission, handler.goalRPCSubs))
 	}
 	return handler
+}
+
+// contextUsageSnapshotProvider 是历史 Session 重绑定所需的最小持久化读取边界。
+type contextUsageSnapshotProvider interface {
+	GetPersistedContextUsageSnapshots(
+		context.Context,
+		string,
+	) (map[string]protocol.ContextUsageData, error)
 }
 
 // HandleWebSocket 处理 WebSocket 会话。

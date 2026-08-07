@@ -7,117 +7,226 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+### Fixed
 
-- Added a main-Agent-only conversational configuration control plane for preferences, Providers, Agents, Channels, Connectors, Skills, and host runtime settings, with redacted discovery, deterministic planning, optimistic revisions, idempotent apply, destructive confirmation, post-write verification, and owner-scoped audit history.
-- Added runtime-backed Slash command discovery to DM and Room Composer, with session-scoped completion and ordinary prompt dispatch.
-- Added exact first-unread Agent navigation to Room conversations: a compact batch-boundary marker stays attached to the first Agent reply of that unread batch, while a directional new-message pill above the Composer tracks the earliest still-unread reply even when parallel replies are inserted beneath older root turns or rendered through the virtual feed.
-- Added the internally bundled `slide-maker` Skill from `addsumtech/slides_maker` release 4.1.0, including its editable PPTX build helpers, design references, and independent review workflow.
-- Added fixed-height scrollable multi-select and confirmed batch deletion to Room conversation history, with the current conversation's available management actions kept visible. Selecting every local history item now clears all started conversations and leaves one fresh draft Session, which remains outside history until its first user message; new sessions use a localized placeholder until the existing title generator replaces it with a semantic title instead of exposing sequence numbers.
+- Added a main-Agent-only conversational configuration control plane for preferences, Providers, Agents, Channels, Connectors, and Skills plus read-only host inspection, with redacted discovery, deterministic planning, optimistic revisions, idempotent apply, native human confirmation, post-write verification, hot-reload status, and owner-scoped audit history.
+- Routed Automation, Room, Workspace, and Goal configuration discovery to their existing specialized conversation tools, and taught the main Nexus Agent to use one inspect → plan → apply → verify workflow instead of editing product databases or config files directly.
+- Sequenced explicit Goal creation before its first WorkGraph proposal across the stable prompt, Goal/Execution Skills, and both MCP tool contracts, so Agents no longer launch `create_goal` and `prepare_plan_execution` in parallel while the backend continues to reject stale ambient-Goal races.
+- Repaired legacy databases that had already recorded Execution migration 61 before `goal_execution_identity_claims` was added, allowing startup proposal reconciliation and Goal-to-WorkGraph identity recovery to run instead of failing against a missing table.
+- Made Plan boundary authority explicit: a fresh `operation: create` under an active Goal now seals the exact server-owned Goal objective even when the provider omits or paraphrases the transport field, while Goal-free create/replace still require a document objective, replan still inherits the current Execution boundary, and true Goal-to-existing-Execution objective conflicts remain rejected.
+- Let `create_goal` and WorkGraph planning converge in the same round by durably reserving one deterministic Execution identity before any Plan exists; sealed proposals, Goal continuations, and materialization now reuse that exact fence, while previously created explicit Goals with a missing `execution_id` recover the same reservation from their server-owned command instead of deadlocking on `goal_binding_conflict`.
+- Unified Nexus Plan Document v1 parser fields, MCP schema guidance, repair results, and the bundled orchestration Skill around one exact contract; invalid YAML now returns every allowed and required field, common alias corrections, and a parser-valid example so Agents rewrite the complete document once instead of discovering `subject`, `objective`, `deliverable`, `depends_on`, and `acceptance_criteria` through repeated rejected calls.
+- Restored every durable child Attempt as an independent Subagent WorkGraph node even when the operational Snapshot retains only its latest terminal child; native Agent task history now recovers exact task identity, avatar metadata, completion status, and child Tool ownership, while the launch Tool remains correlation evidence instead of overwriting the child lifecycle.
+- Preserved every Tool NodeRun as its own WorkGraph node instead of folding failed and successful calls into one aggregate; exact runtime retry identities now add only a retry edge, while an unlinked latest success after a same-owner failure is still promoted so recovery remains visible without inventing a relationship.
+- Kept the desktop Header WorkGraph entry permanently visible and pinned outside overflow menus; opening it now retains the session's latest completed managed graph until a newer managed WorkGraph is created, while later runtime-only conversation rounds remain excluded from the canvas.
+- Clarified orchestration guidance so independent managed parallel Work Items go to different Room Agents, while one Agent uses Subagents inside a single owned responsibility; assigning sibling Work Items to the same Agent is now described truthfully as a serial queue instead of parallel execution.
+- Matched Composer WorkGraph Dock Agent avatars to the chat message avatar's 32-pixel footprint and tightened the surrounding controls and spacing without changing full-graph node sizing.
+- Kept terminal root Agent Attempts visible in bounded Execution snapshots independently from newer child Subagent Attempts, so `submit_work` can record its Submission and the Room slot can settle idempotently after subagent-backed work.
+- Completed the WorkGraph's read-only whiteboard navigation with blank/Space/middle/right-button panning, two-dimensional trackpad scrolling, pointer-anchored wheel and pinch zoom, blank double-click zoom, keyboard pan/zoom/fit controls, resize-aware symmetric travel space, stable focus centering, screen-size detail inspectors, and blank-click or Escape dismissal without stealing graph interactions.
+- Removed the redundant rounded background and border from the WorkGraph's internal layout canvas so the whiteboard grid remains the single main surface while only real ownership subgraphs retain visible frames.
+- Moved WorkGraph node and edge inspectors onto the high-opacity popover reading surface so board grids, nodes, and edges no longer bleed through long-form detail text.
+- Replaced uniform WorkGraph wrench nodes with distinct icons for search, web fetch, local inspection, browser control, terminal/code execution, file mutation, messaging, generation, workflow control, and external capabilities while keeping lifecycle color semantics unchanged.
+- Replaced WorkGraph Bézier fans with orthogonal polylines, strengthened neutral forward edges, and muted loop-back saturation; return routing now treats node intersection as the hard conflict while allowing same-side returns to merge after their short source stems onto one shared U-shaped bus and arrow port inside the owning subgraph, with a stable inset safety gap from the rounded frame, reducing visual line count without covering nodes. Sibling retries share lower flow rails, while Subagent ownership stays inside one primary runtime frame without nested containers.
+- Preserved every invoked sibling Subagent as its own WorkGraph node, recovered exact child Tool lifecycle from structured Agent results or bounded read-only transcript history, and gave each Subagent a bounded set of representative activity slots: failures and other structurally significant actions take priority, then the latest successful supporting actions fill the remaining slots so recovery stays visible without flooding the canvas. Progress-only facets remain filtered, while one owner-scoped visibility policy surfaces user-observable research, mutation, execution, browser, Artifact, failure, and control actions and keeps older noisy supporting reads plus duplicate domain mutations in detail.
+- Anchored WorkGraph review dispatch and changes-requested returns to the exact successful `submit_work` ToolRun that caused the transition instead of drawing the control loop against the whole Agent node.
+- Reoriented the full WorkGraph around a top-to-bottom primary responsibility spine, with each Subagent reserving its own downward subtree lane, exact descendants staying aligned beneath their real owner, owner-plus-direct-child scope frames, and same-level Tool or Subagent siblings added from left to right.
+- Restored K3-compatible WorkGraph authoring through the proven scalar `plan_document` transport and exact sealed-proposal commit, removing the failed wide incremental-item protocol; substantial tasks now prompt every Agent to assess useful Subagent decomposition, while Room coordinators create a managed graph only when responsibility or topology must persist and never replace structured Assignment with raw `@` dispatch.
+- Kept exact Goal-bound Room workers and reviewers in their scoped capability lanes after adaptive promotion instead of rejecting their next wake as a stale coordinator binding.
+- Kept the mobile menu and Composer WorkGraph dock hidden until `plan_execution` has atomically persisted an active Plan with non-empty Work Items; ordinary runtime-only Agent and Tool observations never become WorkGraph canvas content.
+- Made WorkGraph completeness explicit and recovery-safe: runtime projection now keeps the root and latest runs in a dedicated 256-node/512-edge UI window, reports partial totals instead of silently dropping current work, and persists exact Tool Artifact references independently of message/NodeRun arrival order.
+- Kept the last successful WebSocket-refreshed graph visibly marked as stale after a read failure, and made typed edges reliably mouse/keyboard-accessible and inspectable with source/target nodes, exact runtime identities, observed timestamps, and autonomy-preserving retry/control-return explanations; completed retry targets now remain visible from structural edge facts instead of a hard-coded tool-name list, and Gate nodes retain their distinct visual identity.
+- Fed bounded, actor-scoped observed Tool/Subagent/Gate outcomes, errors, Artifacts, and exact control edges back into dynamic Agent context after resume or compaction without exposing another Agent's intermediate output or prescribing a route, retry, or next action.
+- Made runtime Graph projection converge under duplicate and out-of-order lifecycle events and Provider disconnects without downgrading terminal runs, replaying successful tools, or dropping completed siblings and Artifact evidence.
+- Replaced the 1.5-second conversation-wide WorkGraph polling loop with debounced WebSocket invalidation, visibility-aware refresh, and a 30-second active-execution fallback shared by Web and desktop clients.
+- Distinguished completed tool transport from rejected business mutations across DM, Room, Goal continuation, and WorkGraph: rejected calls now stay visible as recoverable failures with concise reason summaries and control-return edges instead of green success cards or raw JSON.
+- Preserved every visible Room user message while root messages are repartitioned into Agent-round nodes, and coalesced optimistic/canonical root identities without allowing a later map write to replace unrelated follow-up input.
+- Persisted bounded, redacted Tool/Subagent result and error summaries with duration evidence, suppressed internal runtime control sentinels, and rendered failed control returns plus only explicitly correlated Agent-chosen retries as distinct WorkGraph back edges.
+- Kept the Room creator/Lead visible as the stable coordinator root and ordered the conversation Agent rail from the same responsibility projection.
+- Scoped Room round identity uniqueness to root Attempts, allowing managed Subagents to share their parent Agent's physical round while remaining independently bound by `parent_attempt_id + tool_use_id`; this prevents Subagent admission and final Work submission from failing with an `execution_attempts` unique-key conflict.
+- Allowed native Subagents to run as runtime-only graph nodes when no exact managed Assignment binding exists, while preserving strict identity and state checks for durable child Attempts; WorkGraph nodes now show each Subagent's own stable avatar instead of the parent Agent identity.
+- Started SQLite transactions with an immediate writer reservation and retried transient admission conflicts from a fresh authoritative snapshot, so an authorized native Agent child starts instead of disappearing behind a generic PreToolUse failure; unexpected persistence failures now retain their internal diagnostic cause.
+- Kept every visible Tool and Subagent connected to its owning Agent, and grouped runtime children into compact nested subgraphs without disturbing the main responsibility chain.
+- Kept every active Room Agent's exact stop control available after its pending placeholder is replaced, added correlated interrupt acknowledgements and stopping feedback, and terminalized unresolved Feed, Thread, tool, and WorkGraph activity after interruption.
+- Decoded Windows sidecar stdout and stderr as UTF-8 so startup diagnostics preserve readable structured logs.
+- Relocated the complete macOS or Windows desktop state root after confirmation, then restarted directly and safely rebased stored paths with automatic rollback on startup failure.
+- Removed the unsafe host-workspace HTTP setting; server deployments now configure their workspace root only through the deployment environment.
+- Avoided duplicating a durable Agent failure as a second conversation system-error bubble.
+- Kept runtime stream diagnostics in structured logs while showing concise recovery guidance in DM and Room conversations.
+- Preserved chronological DM history when newer durable round indexes are merged with older runtime transcripts after a responsive remount.
+- Standardized the Chinese Subagent empty state on the same product terminology as its panel and navigation label.
+- Showed the inherited default model state on contact cards instead of a placeholder Provider value.
+- Presented contact-card permission modes with localized product labels instead of runtime protocol values.
+- Localized contact-card metadata labels consistently across Chinese and English interfaces.
+- Removed redundant Skill detail badges when category and source resolve to the same label.
+- Localized work-loop trigger types and usage counters instead of exposing protocol values and fixed English units.
+- Associated Git Skill import inputs with their visible labels for reliable screen-reader navigation.
+- Displayed one-time scheduled-task dates in an unambiguous year-first order.
+- Localized scheduled-task templates, creation controls, pickers, and validation feedback in English mode.
+- Used platform-appropriate workspace path examples in desktop settings.
+- Localized Launcher input and recent-chat accessibility labels across Chinese and English interfaces.
+- Localized message actions, activity states, attachments, and generated-file labels across Chinese and English interfaces.
+- Localized conversation process summaries, tool-run states, and cache statistics across Chinese and English interfaces.
+- Localized tool execution cards, permission details, and result actions across Chinese and English interfaces.
+- Localized conversation rulers, round previews, and view-switcher accessibility labels across Chinese and English interfaces.
+- Formatted chat-sidebar activity times in the active interface language.
+- Localized Room history activity times and row actions across Chinese and English interfaces.
+- Localized conversation return-to-latest and unread-jump controls across Chinese and English interfaces.
+- Localized Room auxiliary-panel navigation, upload, and resize accessibility labels.
+- Localized the earlier-message loading state across Chinese and English conversations.
+- Localized the workspace empty-preview title and guidance across Chinese and English interfaces.
+- Localized workspace file reveal, focus, edit, save, and sync controls across desktop and web interfaces.
+- Localized Agent contact records, message states, reply routes, and activity times across Chinese and English interfaces.
+- Localized Skill catalog categories, update states, and import or removal feedback while preserving user-defined category names.
+- Localized Skill detail navigation, metadata, availability controls, and action states without translating Skill-authored content.
+- Localized the default close-button accessibility label for shared dialogs.
+- Localized both Skill import modes, their authoring guidance, examples, controls, and downloaded Room guide.
+- Replaced host-language search clear controls with an app-localized clear action across shared search fields.
+- Localized community Skill results, previews, source filters, source management, and action feedback while preserving third-party content verbatim.
+- Forwarded required accessible names through every Liquid Glass switch so assistive technology identifies the actual setting being toggled.
+- Localized code-block actions and Mermaid loading, preview, source, error, and accessibility chrome across Chinese and English interfaces.
 
 ### Changed
 
-- Routed Automation, Room, Workspace, and Goal configuration discovery to their existing specialized conversation tools, and taught the main Nexus Agent to use one inspect → plan → apply → verify workflow instead of editing product databases or config files directly.
-- Made model-created Goals follow an execution-ready, result-first lifecycle: Agents now collect material missing requirements before creation, never activate a broad placeholder Goal and clarify afterward, carry confirmed constraints into the objective, and use the final response to fully deliver requested content, artifacts, outcomes, and verification instead of leading with a completion receipt.
-- Made Skill update checks distinguish current, update-available, and source-failure results without parsing display text; deleted Git branches now produce an actionable re-import explanation instead of the contradictory “no updates, cannot check” state.
-- Unified the DM and Room bottom work area into one Composer-based upward stack: active Goal and provider state now sit directly above the input as a narrower raised layer, while Task progress and return-to-latest controls float above that layer without an artificial runway or message-flow jump.
-- Split Room progress by the Agent that owns each Todo/Task process, labeled the active source in the compact capsule, and reused the existing member switcher in expanded details so parallel Agent processes can be inspected independently without merging their task state.
-- Softened the Room and DM reading edges with non-interactive component-edge fades: each header now dissolves into scrolling text without changing its 60px/52px geometry, while the Composer feathers only when it directly meets messages and yields cleanly to stacked Goal or warning surfaces.
-- Unified Room header view and member controls on a 36px height, 4px group rhythm, and matching horizontal padding so adjacent controls no longer visually collide.
-- Made Agent-to-Agent Room handoffs acknowledge immediately with one gently revealed execution shell that reuses the existing thinking state before reply output arrives.
-- Distinguished semantic Markdown rules from Room speaker changes: adjacent Agents now use a short identity-aligned cue instead of repeated full-width dividers, and hidden Room fanout/no-reply control markers are stripped from text, result, history, and copy projections.
-- Rebuilt the conversation bottom work area around a Composer-anchored, centered Task capsule that shows the current step and summary beside a local return-to-latest control, moved `Powered by Nexus` into the physically centered Composer footer, retained the 880px/20px input geometry, and made footer density respond to the chat canvas rather than the browser window.
-- Replaced the DM and Room Composer input in place whenever permissions, structured questions, or plan confirmations need a user response, preserving unsent drafts while one stable request queue advances. Room queues identify the requesting Agent with avatar and name and route each response back by request identity, while messages and Thread retain only read-only execution evidence. Permission cards now reduce to the requesting Agent, tool, one human summary, one necessary parameter, and a single decision row; runtime-provided persistent scopes stay behind the adjacent allow menu without fabricating broader rules. Consecutive DM tool calls now stay expanded as one live execution segment and collapse automatically when narrative output resumes.
-- Aligned conversation system error messages with ordinary Agent message spacing, typography, and neutral content presentation.
-- Added `/tmp` as an explicit shared Unix runtime compatibility root for app and web command execution; private temporary data continues to use each owner's `$TMPDIR`.
-- Added a bundled Python-based `wechat-article-search` Skill with documented Requests/Beautiful Soup dependencies, optional direct-link resolution, deterministic offline parsing tests, and WebSearch/WebFetch fallback guidance.
-- Added a three-step chat model setup flow that filters Providers for the active Agent Runtime, validates credentials, tests the model, and saves the working default selection; onboarding overlays now dismiss without swallowing the user's page interaction.
-- Unified capability pages around one title, description, filter, section, and catalog-row rhythm; aligned every directory to the same wider desktop gutter, reduced Loop and pairing list density, made scheduled-task boards responsive, and removed repeated mobile titles and back controls.
-- Added official QR registration alongside manual App ID / Secret setup for Feishu, DingTalk, and WeCom IM channels. Feishu QR pages allow users to select an existing application and grant the missing permissions or create a new one; Feishu Docs then chains user document authorization without requiring credentials to be pasted into Nexus.
-- Made the Nexus main Agent proactively delegate bounded, context-heavy or independently parallel work while retaining requirement understanding, dependency ordering, verification, and final synthesis in the main conversation. Tightly coupled or mismatched work stays with the main Agent, and parallel Subagents receive distinct user-facing names.
-- Grouped all Room Subagents in the current Session by the Agent that launched them and reused the Workspace member switcher so each caller's active and completed tasks can be inspected independently.
-- Improved Windows and macOS desktop updates with launch-time checks, automatic four-hour refreshes, sidebar availability indicators, and live installer download progress.
-- Added a small fixed gap between adjacent workspace view tabs so their individual interaction surfaces remain visually distinct.
-- Replaced the Home chat sidebar's ambiguous bare plus and the Room dialog's hash placeholder with one higher-contrast double-chat-bubble and accent-plus icon, while retaining the shared sidebar button interaction without adding persistent text.
-- Made Room hosts assess task complexity, separable work, and member fit before substantial execution, prefer meaningful collaboration, and avoid duplicating work after delegating while retaining direct handling for small, atomic, or unsuitable-for-delegation tasks.
-- Unified the Skill catalog as a user-global source inventory with source/origin metadata, Agent usage counts, and per-Agent atomic enable switches, while keeping workspace Skills private to their owning Agent, default-enabled, and safely disableable without deleting files.
+- Reused Provider brand icons in the first-run model setup and prioritized domestic API-key services in its catalog.
+- Added WorkGraph Node Run history with bounded result/error detail and exact structured Artifact links, plus local-only collapse, full-text search, zoom, fit, and current-node navigation for large DM and Room graphs.
+- Added persistent Room member pause and resume controls that stop the member's current slots, preserve exact queued work, and gate Agent wake, Goal continuation, and WorkGraph dispatch until participation resumes.
+- Added a Room Composer “Stop all” action that freezes the active Agent-round target set at click time and sends one exact acknowledged interrupt per member.
+- Simplified the macOS and Windows update-ready prompts and made download progress windows substantially more compact.
+- Added one authoritative DM/Room Execution Graph resource with two deliberately different views: a Composer Agent activity Dock for exact output jumps and an icon-first Header surface for inspecting the complete graph. The Dock contains only deduplicated primary Agents and uses green exclusively for live Agent work; Work Item responsibilities, nested Subagent identities, Tool/Gate nodes, typed direction edges, and exact Agent-round Task steps remain in the full graph. Runtime-only DM and single-Agent loops retain the same read model for context and diagnostics without being promoted to a managed Plan or rendered as WorkGraph canvas content.
+- Removed the duplicate expandable graph above the Composer and added a node-adjacent floating inspector for objectives, deliverables, acceptance criteria, blockers, submissions, reviews, bounded result/error summaries, duration, exact retries, node-local Tasks, and direct Tool/Subagent activity.
+- Added the built-in `execution-orchestrator` Skill and reduced the always-on orchestration prompt to stable capability boundaries: Agents independently evaluate local-state pressure, context-fork value, responsibility boundaries, topology value, persistent ownership, evidence branches, and continuity risk, then choose the minimum sufficient combination of direct work, Task, subagent, Work Item, WorkGraph, Gate/Loop, Room, and Goal. The backend keeps only identity, authorization, exact binding, idempotency, declared dependency/scope, immutable history, and state-consistency constraints; acceptance criteria, output scopes, terminal markers, reviewer separation, and Goal-promotion signals are no longer workflow admission requirements.
+- Split execution orchestration and Goal lifecycle guidance into progressively loaded Skill references, reduced the always-on orchestration prompt to stable boundaries, and kept MCP descriptions focused on atomic state contracts instead of repeating Room strategy, graph tutorials, use-case routing, or final-response policy.
+- Added a shared Objective Alignment contract, managed Goal audit, and optional Execution Gate: an Agent can record criterion-level `aligned`, `not_aligned`, or `inconclusive` evidence in the runtime graph without starting a Goal or letting the backend choose the next route; only an actually chosen rerun creates a new Node Run.
+- Added a deterministic actor-scoped graph digest to model Execution context: coordinators see the current DAG, members see only their responsibility slice and accepted upstream topology, and Mermaid remains a derived UI/debug view rather than an execution protocol.
+- Made ordinary Plan growth a monotonic successor revision: existing nodes and incoming dependencies must remain unchanged, new edges may target only new nodes, omissions or rewrites require explicit supersede authority, and activation waits for a quiescent responsibility boundary. Explicit Goal creation and evidence-backed adaptive Execution promotion now have separate model rules.
+- Aligned Slash command descriptions on a reserved command-name column while keeping argument hints anchored to the right edge.
+- Replaced the duplicate runtime version card with the desktop app's authoritative version, build number, and log export action in General settings.
+- Bounded every model-facing Execution contract collection to 32 items across MCP schema, Plan Mode, service normalization, and storage commands with typed overflow rejection; abnormal legacy context now marks truncation explicitly while WorkBinding/Dispatch fail closed, and file/directory output conflicts now use conservative Unicode NFC plus case-fold comparison without changing persisted display scopes.
+- Added explicit transient Execution replacement and abandonment boundaries: coordinators can replace a non-Goal objective only by atomically submitting its complete successor Plan, or cancel it without creating a successor; same-objective route changes remain replans, accepted work never carries automatically, and Goal-bound requests return a typed retarget requirement.
+- Unified Goal, Plan, Work Item, Assignment, subagent, and Room execution around one durable WorkGraph: Agents now receive state-derived actions, structured handoffs and trusted WorkBinding fences, explicit and adaptive Goals bind the same Execution, blocked work can resume with evidence, replans atomically supersede live responsibility chains, and duplicate production or Room wakeups are rejected by backend state. Every transition that interrupts live work now captures an exact Room slot or runtime round in a same-transaction durable cancellation outbox with lease recovery and retry, so delayed cleanup cannot stop successor work and missing physical identity is reported instead of guessed; provider-accepted interrupts are distinguished from Nexus-local round cancellation when a shared session makes provider interruption unsafe. Goal objective changes now advance through a recoverable revision rebase that terminalizes the old graph, reserves exactly one successor Execution, and blocks completion until its first Plan is durably bound. Cross-Agent Room reviews return through an independent durable review outbox and trusted ReviewBinding, while self-review remains inside the current WorkBinding and does not manufacture a second reviewer round.
+- Made subagent parent-round exit recovery durable with a cross-layer fixed grace deadline and a Room-independent startup/periodic reconciler, so a missing terminal SDK event cannot leave child work running after a restart; internal Goal continuation now requires an exact Goal/revision/Execution binding before claim and runtime launch; permanent Room Dispatch failures now reopen work only for the exact current unstarted responsibility, while stale graphs and real running Attempts remain untouched.
 
 ### Fixed
 
-- Fixed long virtualized Room conversations shaking at the bottom while an earlier Agent streamed; upstream height changes now stay anchored by the virtual list instead of competing with shared return-to-bottom writes.
-- Fixed return-to-latest controls flashing during live Room output and lagging behind a continuously growing bottom; the control now stays visually stable, and the first stream-height revision after a click hands the viewport back to synchronous FOLLOW.
-- Fixed stream-first Room Agent executions jumping above an already visible Lead reply; message, permission, slot, stream, and lifecycle evidence now share one canonical timestamp-scale display anchor, so active Analyst/Researcher cards stay in their original arrival order.
-- Fixed active Room Agent Threads going visually idle in the public feed after an intermediate Assistant turn completed; the same card now keeps showing its thinking/replying activity until the authoritative Agent execution lifecycle finishes.
-- Removed the remaining legacy structured-question option trees from DM/Room message context, Room Thread, restored history, and expanded process content; those surfaces now retain only neutral tool evidence while the Composer remains the sole actionable question surface.
-- Fixed Composer height measurement using estimated line geometry that omitted real textarea padding and could retain an oversized shell during IME input or width changes. Composer now measures the browser's actual layout, and locally dispatched messages clear from the input immediately instead of waiting for the WebSocket acknowledgement; failed sends restore the submitted draft only when no newer input would be overwritten.
-- Fixed DM history reloads losing user messages and misordering Agent replies when runtime memory events reused a self-referential UUID or Goal/Skill metadata interrupted transcript alignment; valid parent chains now win, injected runtime context is excluded from user matching, hidden Goal markers cannot positionally consume ordinary input, and durable visible markers recover users when a transcript remains incomplete.
-- Scoped the desktop conversation-header fade to the chat pane's own clipped reading edge, so opening Workspace, Agent details, or Subagents no longer washes out the neighboring panel; focus-mode mobile conversations retain the full-width fade.
-- Fixed startup for SQLite databases that had already recorded the former conversation-draft migration as version 56: Nexus now repairs the missing Agent disabled-Skill column, advances the legacy migration ledger safely, and retains an idempotent PostgreSQL forward repair.
-- Fixed Composer drafts retaining an oversized height after their available width changed; text and width now share one bounded measurement path, growth stops after roughly five lines, and longer drafts scroll internally. Collapsed file-tool activity now shows only the leaf filename while expanded details and permission confirmation retain the full path.
-- Fixed Room permission-first Agent shells using a local `0/1` order that could temporarily jump above an existing coordinator reply; permission, slot, stream, and terminal message evidence now share one canonical order scale, so parallel members stay in their first visible positions throughout confirmation and output.
-- Fixed Room handoffs disappearing when a model concatenates Chinese prose directly after an ASCII member name such as `@Agent1以上…`: the parser now accepts that cross-script boundary while preserving longest-alias and identifier-prefix safety, and every Room member receives an explicit public return-to-coordinator convention.
-- Kept one shared WebSocket while reference-counting each logical Session binding, so a stale Room/DM panel cleanup can no longer unbind the active Composer permission channel; reconnects now replay every still-leased Session and its pending approvals.
-- Fixed Room Agent replies with multiple valid `@member` assignments waking only the first target; every target now receives an independent handoff, reciprocal `A → B → A` follow-ups remain real handoffs instead of being rejected as business cycles, and same-target work stays serialized through durable guide/queue delivery while self, duplicate, hop, root-total, and fanout resource guards remain enforced.
-- Enabled SQLite foreign-key enforcement on every runtime connection, made Goal deletion remove its event history transactionally, added a repair migration for previously orphaned Goal events, and stopped Agent runtime workspace variables from being mistaken for the host workspace root.
-- Kept runtime Hook failures user-friendly by replacing internal English terminal errors with a concise security-rule explanation and a non-duplicated conversation error title.
-- Updated the pinned Agent SDK bridge revision so standalone and Docker builds include the disabled-Skill runtime contract used by Nexus.
-- Pinned Nexus-managed long-term memory to the current Agent workspace and rejected inherited or request-level remote-memory overrides, keeping runtime reads and writes aligned with the Web memory view.
-- Fixed `nexusctl` treating an owner's `runtime` directory and current Agent workspace as host-level state roots after the owner-scoped layout change.
-- Updated the bundled `nexus-manager` Skill with the owner-scoped directory layout, CLI root-resolution rules, and enforce-mode control-plane boundary.
-- Fixed Agent Skill bindings being overwritten by stale editor snapshots, and aligned nxs/Claude runtime discovery so project Skills remain dynamically discoverable while explicit Agent disables are enforced.
-- Fixed the Nexus main Agent's owner-scoped `nexusctl` calls being rejected by Linux runtime isolation; ordinary Agents remain confined to the existing control-plane boundary.
-- Kept Agent workspace Skills visible only in their owning Agent's settings with a clear local-source badge, while limiting desktop global discovery to the standard `~/.agents/skills` directory.
-- Allowed Room hosts to fan out intentionally separated parallel work to multiple Agents while retaining single-target behavior for candidate and first-responder mentions.
-- Closed Room Thread thinking indicators when an Agent intentionally returns no public reply, using the precise terminal Agent round status even though the final assistant output is suppressed.
-- Kept Room thinking blocks available in Thread while hiding them from public Agent cards and completed Room replies.
-- Kept no-reply Room Agents visible in the same completed MessageItem layout as public replies, with a clear terminal status and Thread entry instead of dropping the Agent entirely.
-- Fixed compact Launcher windows making recent chats, rooms, and the Nexus handoff action unclickable when the decorative Agent pile overlapped their hit area.
-- Fixed Safari drawing a native blue focus outline across the bottom of the programmatically focusable conversation viewport.
-- Fixed the Windows desktop update download progress build by explicitly selecting WPF controls and alignment values when both WPF and WinForms are enabled.
-- Fixed Agent identity and tool permission edits requiring a second save before success appeared; server-confirmed source refreshes now remain within the active save transaction, while editor switches and newer user drafts still reject stale results.
-- Fixed the Subagent workspace remaining empty for live `Agent` tool runs: task discovery now keeps polling across empty snapshots, runtime-injected progress is persisted instead of being mistaken for transcript-native content, structured Agent results are recovered from transcripts, matching tool results settle completed or failed tasks, and an opened task resolves its independent Agent transcript to show the same thinking, message, tool-call, and tool-result history as a normal conversation while hiding the parent Agent's task prompt. Model-provided task descriptions now name individual Subagents instead of every instance appearing as its generic `Explore` type. Task details remain a read-only execution thread without a second Composer or direct task-stop control.
-- Fixed desktop OAuth connector callbacks (Feishu Docs, Gmail, X/Twitter, LinkedIn, Shopify, Instagram) never completing: the provider redirect landed on a deep path where the callback page's relative assets resolved to HTML fallbacks and were rejected as module scripts, while both its route guard and root bootstrap required authentication unavailable to the system browser. The callback deep path now redirects to the root entry with the original path and query preserved via `desktop_route`, and the public callback entry skips both the session guard and protected runtime-options preflight before exchanging the code. The token-exchange endpoint was already token-bypassed and resolves the owner from the OAuth state.
-- Exposed the existing disconnect transaction directly on connected connector catalog rows, including Feishu Docs, while retaining the same action in connector details.
-- Reworked Feishu Docs connection into an explicit official-QR primary path and manual App ID / App Secret fallback. The Feishu QR page can choose an existing application or create a new one, while disconnect, cancellation, and terminal authorization failure clear locally persisted app credentials so later connections never silently reuse a fixed App ID.
-- Closed Feishu Docs authorization dialogs immediately after the server confirms the connection, without waiting for catalog or detail refreshes; a later page-refresh failure no longer leaves the QR dialog open or clears the successful authorization.
-- Kept QR scanning only for Feishu's official application selection/creation stage and changed the subsequent user Device Authorization stage to a direct link. Re-encoding that second-stage URL as a QR could remain pending when opened by Feishu's built-in scanner even though opening the same link completed immediately.
-- Opened the Feishu Docs user-authorization link only after QR-based application selection returns the App ID: desktop uses the native host, while Web attempts the popup at that stage and shows a clear primary continuation action if the browser blocks it. The application-selection QR stage no longer creates an early waiting window.
-- Reduced the Feishu Docs Web authorization popup to a compact resizable window and render an immediate Nexus loading surface before navigating to the external Feishu page, avoiding an oversized blank window while the provider loads.
-- Isolated Room overlays, directed-message state, public handoffs, and delayed wakes under each owner's host-managed `state/rooms` directory, moved runtime-readable Room attachments into the owner's `workspace/.rooms` asset tree, pinned Room ledger access to verified directory/file inodes, and added a restart-safe owner-validated migration from the former shared `app/rooms` layout.
-- Bound owner-aware InputQueue, Room transcript references, and attachment reads to no-symlink directory paths, with inode and hard-link checks before host file access.
-- Made the Room `+` action rely on one explicit server-side draft per Room instead of scanning message counts or pulling unrelated history into the tab bar, atomically reused that draft across repeated and cross-window requests, kept it out of history until real user input, and preserved one-click tab closing. Added a file-aware one-time desktop upgrade repair plus a dry-run-by-default `nexusctl conversation prune-empty` command to consolidate duplicate legacy Sessions that never received user input.
-- Made Composer up/down input recall effective across chat switches, remounts, page reloads, and desktop App restarts by persisting a bounded history per logical DM or Room inside each browser or App WebView without server or cross-device synchronization.
-- Moved every runtime-blocking Room interaction—including tool approvals, structured questions, plan confirmations, and unknown future approval tools—into the public conversation Composer as its only actionable surface. DM/Room messages and Thread now retain neutral, static waiting evidence instead of duplicating controls or competing with the Composer decision buttons, and multiple Agent requests advance in one stable first-arrival queue.
-- Replaced raw Provider content-safety errors such as GLM code 1301 with one stable, actionable conversation message across DM, Room, and Thread projections; the next real user turn now receives a hidden safe failure reason so the Agent can explain what happened and continue in context, without adding a retry control, automatically retrying, or switching the selected model.
-- Persisted each Room and DM conversation tab workspace across chat switches and app restarts, including the open count, stable order, closed tabs, and active item; first-time entry now opens only the selected conversation, while history remains available without being promoted into tabs automatically.
-- Prevented Room conversation tab switches from entering a React update loop when the history menu recalculates which conversations are eligible for batch selection.
-- Aligned and rounded the active Room Thread selection surface with the adjacent round dividers without shifting the message content.
-- Isolated the complete unsent Composer draft—text, image/file attachments, Message/Goal mode, Room Goal lead, and Mention targets—per Session within the same Room or DM, restored each Session's draft and caret when switching back, and revision-guarded delayed acknowledgements from clearing newer edits.
-- Replaced pasted-image filename chips in the Composer with compact visual thumbnails, added compact click-to-open image and pasted-text previews, and kept ordinary file attachments as labeled chips.
-- Reworked DM and Room growth around the real content bottom: new turns now enter beside the Composer and every reply or Agent-shell height delta immediately pushes history upward, with no terminal runway gap. Optimistic-to-canonical ACK replacement also preserves one stable DM node instead of remounting and replaying its entry animation.
-- Separated conversation scrolling into mutually exclusive FOLLOW and READING ownership. FOLLOW now lands on the real bottom in the layout transaction without a visible spring, READING restores only its visible round anchor, terminal/question revisions cannot silently change intent, and only an explicit return-to-latest action remains smoothly animated. Delayed stream patches can no longer shorten or revive a completed, cancelled, or failed Assistant snapshot.
-- Kept every Room Agent execution on one stable `agent_round` node and one shared `MessageItem` shell from permission-first pending state through questions, streaming text, and terminal output. The first visible permission, slot, stream, or message now fixes parallel Agent order, and a submitted permission becomes a non-interactive acknowledged shell until runtime evidence takes over. Composer-owned interactions no longer reserve duplicate Feed form height, visible Markdown uses a monotonic catch-up typewriter without remounting its block tree at completion, DM live and terminal projections retain the same final-response surface while only the process UI archives, Room terminal text corrections preserve structured non-text output, and public thinking/browsing/executing/replying indicators remain visible through the pause between text and tool work using the same animated activity surface. Agent-scoped interrupts now cancel only the targeted execution after a successful send, while tool-turn stops and late permission snapshots can no longer falsely finish, revive, or invisibly block another Room Agent.
-- Made Room pending-slot recovery authoritative even when empty and root-safe across concurrent roots by carrying `round_id` on each slot; server-created public-wake slots are now durable and replayable across the snapshot/subscription window, while ordinary client-correlated ACKs remain ephemeral.
-- Fixed Goal token accounting by separating provider/runtime actual usage—including cache—from the input-plus-output budget meter used only for internal control and audit. Provider terminal `total_tokens: 0` remains an exact value, while the current nxs child adapter's placeholder zero is treated as unavailable rather than fabricated usage; only a positive terminal child total becomes authoritative evidence, so positive progress followed by a missing terminal total still cannot finalize. Parent and child evidence is persisted and applied exactly once across retry, idle cleanup, handoff, and restart, and missing or unavailable evidence keeps `usage_finalized` false instead of producing a false zero.
-- Scoped DM Goals to the current round and Room Goals to every parent/child Agent slot in the same root round, including handoffs while excluding unrelated roots in the shared session. Model-created Goals account from the round/root start, while API/UI activation excludes earlier work; a child already running without an activation-time cumulative baseline now leaves usage unfinalized instead of guessing its contribution. The default UI shows only actual usage, marks estimates with `≈`, and hides tokens for completed Goals until finalization; budget, elapsed-time, and settlement details remain out of the default view. `update_goal` completion guidance no longer asks the final reply to repeat those details.
-- Fixed Docker startup crashing when legacy or runtime JSON settings were `null`; empty JSON values now normalize to an empty object while invalid non-object configuration remains rejected.
-- Fixed v0.1.27 Skill storage migration blocking startup on a same-name invalid Skill directory; the existing directory is now preserved in the host migration-backup area before the legacy external Skill is migrated.
-- Fixed Linux runtime-isolation Docker images leaving application directories group-writable, which caused the `enforce` startup permission check to reject the bundled read-only application root.
-- Fixed Linux runtime-isolation sessions failing to read platform Skills from a private synchronization staging directory; platform libraries now publish before ACL setup, normalize every published tree as runtime-readable, and can stage copies from the read-only bundled Skill directory.
-- Fixed migrated runtime transcript project directories retaining host ownership after the identity layout was marked current, which prevented isolated nxs/Claude processes from writing transcripts and persisting resumable sessions.
-- Fixed owner transcript reads failing after nxs recreated JSONL files with a 0600 ACL mask; the trusted launcher now repairs the owner runtime ACL and retries the confined read, while shell command substitution, literal regular-expression syntax, and dynamic paths rooted in `/proc` or the workspace no longer produce false path escape denials.
-- Removed completed legacy state-layout, workspace-layout, and v0.1.27 Skill migrations from the normal startup path; deployments now require the canonical `.nexus/app` and `.nexus/users` layout.
-- Fixed Docker Compose data mounts silently resolving relative to `deploy/` when the root `.env` was not passed explicitly; `HOST_DATA_DIR` is now required and missing configuration fails fast.
-- Fixed Docker restarts failing when the launcher-owned runtime settings file was writable through ACL but not chmod-able by the host agent; the entrypoint now leaves existing runtime file modes under launcher control.
-- Reordered the Docker runtime image so bundled nxs downloads and static isolation setup remain cached when Go code, Skills, or entrypoint scripts change.
-- Kept nxs release-selection arguments out of the Python, Claude, and base toolchain cache scope, so updating the bundled runtime does not reinstall the Docker toolchain.
-- Fixed the Docker Claude Code entrypoint resolving pnpm's relative launcher from the wrong directory; image builds now verify the stable wrapper before publishing.
-- Fixed Docker host-data preparation recursively overwriting launcher-managed owner UID/GID and ACL state on every restart; existing state permissions are now preserved and affected user trees are reconciled once.
-- Kept Go modules in the dependency layer so source-only Docker rebuilds do not download the module graph again.
-- Reconciled legacy project-level `.nexus` metadata directories into each runtime owner's private UID/GID so nxs can discover project commands after isolation is enabled.
-- Promoted verified launcher management commands to a complete root filesystem identity before ACL reconciliation, preventing setuid callers from failing on legacy private directories while runtime execution still drops directly into the owner UID/GID and Landlock.
-- Allowed the nxs session-memory worker to edit only its canonical owner-scoped `summary.md`, keeping all other runtime state outside ordinary tool write roots.
-- Moved protected-tree hard-link validation into the root launcher so restart checks can traverse runtime-created private session directories without widening app-process access.
+- Made narrow conversation workspaces responsive: the Composer hides its decorative `Powered by Nexus` label, while WorkGraph overlays and node spacing follow the local chat width instead of the full window.
+- Presented the expanded WorkGraph on a theme-aware low-contrast grid board so responsibility chains and nested Agent execution subgraphs keep their spatial context without competing with node status or direction edges.
+- Let a Room coordinator continue the managed WorkGraph immediately after accepting a selected review: the same physical round now upgrades from either a cross-Agent ReviewBinding or a self-review WorkBinding to coordination, exposes newly Ready work, and can create the next directed Assignment without asking the user to send “continue” between nodes.
+- Replaced fragile WorkGraph arguments with a durable two-step Plan protocol: `prepare_plan_execution` strictly parses one complete Nexus Plan Document v1 YAML string and seals an immutable, non-authoritative proposal even in Plan Mode; `plan_execution` accepts only its proposal ID and full-fence digest, then materializes the complete graph atomically and idempotently. The digest now seals exact Execution/version/base Plan authority plus Goal activation, reserved successor, and predecessor; commit re-resolves trusted Goal state so an ambient Goal cannot appear, disappear, or retarget after preparation.
+- Made Plan proposal recovery attributable and concurrency-safe: only the exact authoritative Plan event written by the proposal's stable command counts as its materialization receipt, while semantic graph equality alone does not; a CAS claim lease serializes foreground replay and background reconciliation, initial reservation replays cannot inherit the winner's lease, and a racing `blocked` row automatically converges only when that exact receipt exists. Recovery also supports the first Plan on an existing planless Execution; Goal resolution now requires exact non-empty owner metadata, and a missing Goal confirmer keeps the durable proposal at `confirmation=pending` so completion and continuation remain fail closed until confirmation succeeds.
+- Removed duplicate full Execution Snapshots from MCP results, keeping only revision, recovery actions and authoritative actor-specific context; Goal completion-tool fallback can no longer bypass the current-round Objective Alignment gate.
+- Removed full-screen blank gaps inside active Room Agent cards by scoping streaming height stabilization to the current Assistant turn, so tool continuations reset stale text height without reintroducing streaming jitter.
+- Restored canonical Room Agent reply order when live child events arrive before the initial history snapshot: durable `display_order` now backfills earlier executions without letting legacy timestamps or later volatile evidence reshuffle visible cards.
+- Reworked the Room unread boundary from a floating button-like badge into a centered horizontal reading divider, moved unread jumps to a contextual reading position, and made long virtualized conversations refine their initial index jump against the mounted message instead of stopping short of the real unread target.
+- Preserved explicit ordinary-Agent model selections when their Provider is temporarily unavailable: runtime now falls back to the user default and restores the original selection automatically when it becomes usable again, while the Nexus main Agent always follows the default model.
+### Changed
+
+- Made the desktop-only sidebar update action start the native macOS and Windows download, verification, and installation flow instead of opening the GitHub release page.
+
+## [0.1.34] - 2026-08-05
+
+### Added
+
+- Added native folder pickers to the desktop data-directory setting on macOS and Windows.
+- Added separately signed and notarized macOS installers for Apple Silicon and Intel, with architecture-aware automatic updates.
+- Added read-only CC Switch discovery and idempotent Provider/model import across onboarding and settings, with runtime compatibility guidance and default model setup.
+
+### Changed
+
+- Unified Composer send, stop, permission, question, status, and context surfaces into stable compact controls that preserve layout across pending and completed states.
+- Moved the desktop update shortcut into the sidebar footer and aligned macOS management headers, wordmark, sidebar toggle, and Dock axes with native window controls.
+
+### Fixed
+
+- Kept Agent configuration dialogs stable across tabs, preserved structured permission timeout reasons, and prevented malformed persisted tasks from crashing conversations.
+- Hardened direct desktop upgrades across quoted owner IDs, regenerable caches, historical summary ACLs, and launcher-owned Linux permissions without recursive mode rewrites.
+- Treated AutoDream Agents without an available provider and model as a deferred check instead of repeatedly logging runtime errors.
+- Made DM acceptance durable across slow runtime startup, WebSocket disconnects, and lost-ACK recovery without discarding uncertain messages.
+- Routed main Agent creation through versioned workspace initialization and made platform, host, owner, and Agent Skill discovery canonical, bounded, live-updating, and consistent with runtime projections.
+
+## [0.1.33] - 2026-08-04
+
+### Changed
+
+- Streamlined first-run Provider setup with direct model selection, a docked action bar for long catalogs, and in-dialog custom LLM connections.
+- Changed the default permission for new preferences and Agents to automatically accept file edits while retaining approval rules for other actions.
+
+### Fixed
+
+- Prevented persisted TodoWrite plans that use legacy task fields from crashing the conversation task panel.
+- Kept Agent Skill cards readable when the conversation detail panel is resized by adapting the grid to the panel's actual width and clamping long titles to two lines.
+- Repaired existing isolated Agent workspaces and prevented unreadable subtrees or subscription failures from breaking file access or appearing as conversation errors.
+- Prevented Windows upgrades from failing with access denied when Nexus was still running in the system tray.
+- Repaired direct upgrades from v0.1.27 and v0.1.28 so Agent workspaces, transcripts, and Room files migrate safely without changing launcher-owned permissions or causing isolated Linux restart loops.
+
+## [0.1.32] - 2026-08-03
+
+### Added
+
+- Added a conversational first-run Nexus experience that guides users through model setup, connection verification, and a concise product introduction before their first task.
+
+### Changed
+
+- Localized the remaining conversation, Room, workspace, Agent, Skill, automation, Launcher, Markdown, and accessibility controls across Chinese and English interfaces while preserving user-authored and third-party content.
+- Simplified the macOS and Windows update-ready prompts and made download progress windows substantially more compact.
+
+### Fixed
+
+- Decoded Windows sidecar stdout and stderr as UTF-8 so startup diagnostics preserve readable structured logs.
+- Relocated the complete desktop state root through an offline restart-safe migration with stored-path rebasing and rollback, while keeping server workspace roots environment-controlled.
+- Kept runtime diagnostics in structured logs, showed concise recovery guidance, and prevented durable Agent failures from producing duplicate conversation errors.
+- Preserved chronological DM history when newer durable round indexes are merged with older runtime transcripts after a responsive remount.
+- Corrected inherited model and permission labels, scheduled dates, platform-native workspace paths, Skill metadata duplication, and assistive names across shared controls.
+
+## [0.1.31] - 2026-08-01
+
+### Added
+
+- Added the MIT-licensed `diagram-design` and `Kami` built-in Skills for editorial diagrams, documents, slides, and landing pages, with pinned sources and explicit third-party provenance.
+- Added safe Agent Memory browsing, editing, and confirmed deletion for topic and daily-log documents while protecting the root `MEMORY.md` index.
+- Added per-Session model and permission overrides, authoritative context-window usage, native memory-recall indicators, and per-Agent Room projections.
+
+### Changed
+
+- Reworked Agent Tools, Skills, Contact, and Memory into compact responsive management surfaces with guarded auto-save, clearer permission guidance, and one consistent reading plane.
+- Unified installed, update, community, and Agent Skill cards with localized descriptions, deterministic mathematical avatars, responsive catalogs, and quieter status presentation.
+- Simplified Room threads, workspace panels, file navigation, resize gutters, member selection, and management-page headers while keeping final replies in the main conversation feed.
+- Moved model and permission selection into per-Session Composer controls with stable multi-Agent cascading, explicit reset actions, and clearer approval and full-access language.
+- Replaced the startup animation with a lightweight local indicator, suspended idle Home animation work, and smoothed visible workbench motion.
+- Made General settings show the authoritative desktop version, build number, and log export action instead of a duplicate runtime version.
+
+### Fixed
+
+- Fixed runtime startup, replacement, interruption, reconnect, and live configuration races so stale processes or delayed results cannot affect a later turn.
+- Kept internal interrupt markers out of conversations, permission results, persisted history, and diagnostic logs.
+- Closed application, CLI, handler, logging, Session, Agent, Room, and migration resources consistently, preventing Windows file and SQLite lock leaks.
+- Hardened Windows runtime paths, shell authorization, read-only bundled Skills, file permissions, and cross-platform tests.
+- Restored context-window snapshots after refresh or restart, decoded structured Session keys, and stabilized anchored overlays and action menus.
+- Restored macOS packaging on Node installations without Corepack and kept compact headers clear of native window controls.
+
+## [0.1.30] - 2026-07-31
+
+### Added
+
+- Added a complete Slash command workflow across DM and Room Composer, including autocomplete, `/model`, `/skills`, runtime-owned `/compact`, and native Skill dispatch.
+- Added exact Room unread navigation plus persistent conversation tabs, per-session drafts, input history, and safe batch history cleanup.
+- Added bundled slide-making and WeChat article-search Skills, alongside a unified Skill inventory with per-Agent enable controls.
+- Added guided Provider setup and official QR-based connection flows for Feishu, DingTalk, WeCom, and Feishu Docs.
+
+### Changed
+
+- Unified DM and Room interaction handling in the Composer, with one ordered queue for permissions, questions, plans, Goals, Tasks, and return-to-latest controls.
+- Refined multi-Agent Room collaboration with caller-scoped Subagent views, stable handoffs, controlled fanout, and per-Agent progress inspection.
+- Reworked conversation rendering, scrolling, message ordering, attachments, and responsive surfaces for more stable long-running sessions.
+- Improved Windows and macOS update checks, availability indicators, installer download progress, and desktop interaction details.
+- Strengthened owner-scoped state, workspace, memory, attachment, and runtime isolation while improving Docker build and runtime cache behavior.
+
+### Fixed
+
+- Fixed Slash command, model switch, Skill execution, hidden-context clearing, transcript restoration, and Claude headless runtime behavior.
+- Fixed DM and Room streaming, unread boundaries, Agent arrival order, WebSocket bindings, approval routing, drafts, history reloads, and scroll ownership.
+- Fixed Goal lifecycle and token accounting across parent/child Agents, retries, handoffs, restarts, and incomplete runtime evidence.
+- Fixed SQLite migrations, orphaned data, legacy layout upgrades, runtime ACL repair, Linux launcher permissions, Windows migration builds, and Docker startup failures.
+- Fixed desktop OAuth callbacks, Feishu authorization stages, Windows update builds, Safari rendering, compact Launcher hit testing, and stale editor saves.
 
 ## [0.1.29] - 2026-07-26
 

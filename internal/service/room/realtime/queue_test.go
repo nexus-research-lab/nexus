@@ -23,7 +23,7 @@ func TestRealtimeServiceDoesNotExecuteDMThroughRoomRecovery(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -141,11 +141,12 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	}
 
 	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManager()
 	service := NewServiceWithFactory(
 		cfg,
 		roomService,
 		agentService,
-		runtimectx.NewManager(),
+		runtimeManager,
 		permission,
 		&fakeRoomFactory{clients: []*fakeRoomClient{amyClient, devinClient}},
 	)
@@ -233,10 +234,15 @@ func TestRealtimeServiceDispatchesRoomUserQueueForIdleTargetWhileAnotherAgentRun
 	if !retryResult.Duplicate || retryResult.ItemID != queueResult.ItemID {
 		t.Fatalf("重试应确认原始 Room 队列受理结果: first=%+v retry=%+v", queueResult, retryResult)
 	}
+	waitContext, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err = runtimeManager.WaitBackgroundTasks(waitContext, sharedSessionKey); err != nil {
+		t.Fatalf("等待 Room 幂等重试后台任务收敛失败: %v", err)
+	}
 	select {
 	case prompt := <-devinPrompt:
 		t.Fatalf("相同 client_message_id 重试不应触发第二轮: %q", prompt)
-	case <-time.After(200 * time.Millisecond):
+	default:
 	}
 }
 
@@ -244,7 +250,7 @@ func TestRealtimeServiceRecoversOrphanedGuidanceOnQueueSnapshot(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +340,7 @@ func TestRealtimeServiceDispatchesLateRoomGuidanceAfterRoundFinishes(t *testing.
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -498,7 +504,7 @@ func TestRealtimeServiceNewMessageKeepsOtherAgentRoundRunning(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -591,7 +597,7 @@ func TestRealtimeServiceAppendsRunningTargetByDefault(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -724,7 +730,7 @@ func TestRealtimeServiceGuidesRunningRoomSlotAsLiveSystemContext(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}

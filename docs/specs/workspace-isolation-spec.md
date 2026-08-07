@@ -152,6 +152,8 @@ UserScope
 
 `nexus_state_root` 固定使用 `.nexus`。不再在里面重复创建 `.nexus` 子目录；宿主自己的控制面数据统一放在 `app/`，用户 runtime 放在 `users/<owner_user_id>/`。
 
+桌面端改变数据目录时迁移的是完整 `NEXUS_STATE_ROOT`，不拆分 `app/` 与 `users/`。原生宿主在确认后退出 sidecar，离线复制状态根，通过宿主外的启动指针切换到目标并直接重启；新实例完成数据库、transcript 与 Room 结构化绝对路径重映射后才清理旧根，启动失败则回滚指针。Linux 服务端和 `enforce` 部署的状态根仍由部署配置与权限模型管理，不提供应用内迁移。
+
 `NEXUS_CONFIG_DIR` 和 `CLAUDE_CONFIG_DIR` 会产生大量属于 runtime 用户的文件；这些文件不能写入 `app/`，而应写入当前用户的 `<user_root>`：
 
 ```text
@@ -184,7 +186,7 @@ UserScope
     <shared_workspace_id>/            # 项目 group/ACL 共享目录
 ```
 
-桌面端默认使用 `~/.nexus`；Docker 可以把宿主目录挂载到 `/home/agent/.nexus`；服务端也可以把整个状态根映射到 `/var/lib/nexus`。`app/` 与 `users/` 必须是不同权限子树，但可以共用同一个 `.nexus` volume。
+桌面端默认使用 `~/.nexus`，也可以整体迁移这个状态根；Docker 可以把宿主目录挂载到 `/home/agent/.nexus`；服务端也可以把整个状态根映射到 `/var/lib/nexus`。`app/` 与 `users/` 必须是不同权限子树，但始终属于同一个状态根。
 
 权限约束：
 
@@ -241,8 +243,16 @@ bridge 可以继续把 `CLAUDE_CONFIG_DIR` 与 `NEXUS_CONFIG_DIR` 保持同步�
 - `nexus/internal/infra/appfs/config_dir.go`
 
 当前版本只把 canonical `.nexus/app`、`.nexus/users/<owner>` 与
-`.nexus/shared-workspaces` 作为运行时读写布局。针对旧版曾将 Room 文件写入
-共享 `app/rooms` 的安全问题，启动期保留一个有完成标记的定向迁移：
+`.nexus/shared-workspaces` 作为运行时读写布局。启动期仍保留版本化的旧状态根与
+workspace 迁移，以允许用户跨多个发布版本直接升级；迁移只执行 rename、不覆盖式
+合并和 owner 数据库映射，不提供旧路径运行时回读。v0.1.30 首次启用最终的
+owner 目录布局时曾遗漏 v0.1.27 与 v0.1.28 的直接升级入口；若受影响版本已误建
+`app/data/nexus.db` 与 `users/` 数据，先把两个新分支隔离到
+`app/.migration-quarantine/skipped-state-layout-v1/`，恢复旧库、Agent workspace、
+transcript 与 Room 源文件后，再以旧数据优先、外键完整的单事务补入新库非冲突
+记录，并把不冲突的 owner 文件并回 canonical `users/`。文件冲突继续保留在隔离区。
+
+针对旧版曾将 Room 文件写入共享 `app/rooms` 的安全问题，启动期保留一个有完成标记的定向迁移：
 
 - 先从数据库按 `conversation_id` 确认 `owner_user_id`，再迁入对应
   `users/<owner>/state/rooms`，不能从目录名或文件内声明猜测 owner；
@@ -338,10 +348,10 @@ NEXUS_MEMORY_DIR=<agent_workspace>
   仍可运行，最终写入/删除/重命名由 OS DAC/ACL 与 Landlock 决定；
 - enforce Hook 对普通 Agent 的 `nexusctl` 管理命令做早期拒绝；打包部署额外把
   CLI executable 设为宿主组专用。Nexus 主智能体是宿主控制面主体，可使用
-  `NEXUSCTL_COMMAND_PATH` 的当前 owner scope，但 Hook 拒绝
-  `--global-scope`、`--scope-user-id` 和环境变量改写。现有 CLI 直接打开宿主
-  数据库，通用 scoped broker 尚未就绪，不能让普通 runtime 误操作空数据库或
-  继承宿主控制面；
+  `NEXUSCTL_COMMAND_PATH` 的当前 owner scope。宿主注入 owner 后，CLI 帮助隐藏
+  人工作用域选择参数，显式覆盖返回可重试的 usage 错误，Hook 对 shell 文本仍做
+  拒绝。现有 CLI 直接打开宿主数据库，通用 scoped broker 尚未就绪，不能让普通
+  runtime 误操作空数据库或继承宿主控制面；
 - 不返回 `updatedInput`，只允许放行或拒绝；
 - Hook 本身不返回 `allow` 决策，避免覆盖其他 hook 或用户权限处理；越界时返回
   `deny`。Hook 失效不构成安全放行，enforce 进程仍必须通过 launcher 的最终边界；

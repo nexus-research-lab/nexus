@@ -58,6 +58,13 @@
     flex: 0 0 var(--desktop-window-controls-inset, 84px);
   }
 
+  :root[data-desktop-platform="macos"] {
+    --workspace-header-height: calc(
+      var(--desktop-window-close-button-center-y, 26px)
+      + var(--desktop-window-close-button-center-y, 26px)
+    );
+  }
+
   /*
    * 系统保留宽度已经包含窗口按钮后的呼吸区；品牌栏自身的左 padding
    * 不应再重复计入，否则字标左侧会明显宽于右侧收起动作。
@@ -78,14 +85,6 @@
   :root[data-desktop-platform="macos"] .sidebar-panel-collapsed-toggle {
     top: 10px;
     left: calc(var(--desktop-window-controls-inset, 84px) + 8px);
-  }
-
-  /* 原生窗口按钮中心位于 60px Header 的几何中心上方 4px。 */
-  :root[data-desktop-platform="macos"] :is(
-    .sidebar-panel-header,
-    .workspace-surface-header-inner
-  ) {
-    padding-bottom: 8px;
   }
 
   .launcher-console-spotlights {
@@ -129,6 +128,36 @@
     flex: 0 0 var(--desktop-window-controls-inset, 84px);
   }
 
+  /*
+   * 管理页标题与 Surface Header 共处原生标题栏平面。侧栏折叠或页面没有侧栏时，
+   * 只增加横向安全区，避免 traffic lights 与展开按钮遮住标题，不推低正文。
+   */
+  .workspace-content-header-inner {
+    padding-inline-start: var(--workspace-content-header-leading-inset, 0px);
+    transition: padding-inline-start var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  /* 窄屏保留少量顶部呼吸；桌面管理页回收完整 20px 页面留白，让 60px 分隔线与侧栏贯通。 */
+  .workspace-content-header {
+    margin-block-start: -12px;
+  }
+
+  @media (width >= 40rem) {
+    .workspace-content-header {
+      margin-block-start: -20px;
+    }
+  }
+
+  :root[data-desktop-platform="macos"]
+    .sidebar-panel-shell[data-sidebar-collapsed="true"]
+    + .desktop-app-stage,
+  :root[data-desktop-platform="macos"] .desktop-entry-stage {
+    --workspace-content-header-leading-inset: var(
+      --desktop-window-controls-inset,
+      84px
+    );
+  }
+
   .home-desktop-drag-header {
     display: none;
   }
@@ -151,6 +180,13 @@
     container-name: sidebar-panel;
     container-type: inline-size;
     transition: width var(--motion-duration-layout) var(--motion-ease-layout);
+  }
+
+  :root[data-desktop-platform="macos"] .sidebar-panel-shell {
+    --sidebar-shell-leading-padding: max(
+      0px,
+      calc(var(--desktop-window-close-button-center-x, 28px) - 24px)
+    );
   }
 
   @container sidebar-panel (max-width: 320px) {
@@ -733,13 +769,30 @@
     grid-area: trailing;
   }
 
-  .nexus-chat-composer-submit-label {
-    display: none;
+  .nexus-chat-composer-submit {
+    width: 2rem;
+    padding-inline: 0;
+    border-radius: 999px;
   }
 
-  @container nexus-chat-composer (min-width: 640px) {
-    .nexus-chat-composer-submit-label {
-      display: inline;
+  /* 空输入仍保留中性圆形动作，避免发送入口在可用性变化时消失。 */
+  .nexus-chat-composer-submit:disabled {
+    opacity: 1;
+    border-color: transparent;
+    background: var(--text-soft);
+    color: #fff;
+    box-shadow: none;
+  }
+
+  /* 窄 Composer 优先保留功能控件，移除仅作品牌提示的中列。 */
+  @container nexus-chat-composer (max-width: 640px) {
+    .nexus-chat-composer-footer {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: "leading trailing";
+    }
+
+    .nexus-chat-composer-footer-brand {
+      display: none;
     }
   }
 
@@ -751,10 +804,7 @@
 
     .nexus-chat-composer-footer[data-goal-mode="true"] {
       grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-areas:
-        "leading trailing"
-        "brand brand";
-      row-gap: 0.25rem;
+      grid-template-areas: "leading trailing";
     }
 
     .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-leading {
@@ -771,6 +821,11 @@
       display: none;
     }
 
+    .nexus-chat-composer-footer:not([data-goal-mode="true"]) .nexus-chat-composer-footer-metadata,
+    .nexus-chat-composer-session-permission-label {
+      display: none;
+    }
+
     .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-runtime-status {
       flex-basis: 100%;
       padding-inline-start: 2.5rem;
@@ -778,10 +833,6 @@
   }
 
   @container nexus-chat-composer (max-width: 420px) {
-    .nexus-chat-composer-footer-brand-prefix {
-      display: none;
-    }
-
     .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-scope {
       display: none;
     }
@@ -883,7 +934,7 @@
   .dialog-input:focus-within {
     background: var(--modal-input-focus-background);
     border-color: color-mix(in srgb, var(--modal-input-focus-border) 96%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--modal-input-focus-border) 32%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--modal-input-focus-border) 28%, transparent);
   }
 
   .dialog-divider {

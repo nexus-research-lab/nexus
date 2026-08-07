@@ -12,6 +12,7 @@ func (s *Server) mountRoutes() {
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
 	s.mountGoalRoutes()
+	s.mountExecutionRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
 }
@@ -60,8 +61,6 @@ func (s *Server) mountCoreRoutes() {
 	s.router.Post(s.prefixPath("/settings/profile/password"), s.handlers.auth.HandleChangePassword)
 	s.router.Get(s.prefixPath("/settings/preferences"), s.handlers.core.HandleGetPreferences)
 	s.router.Patch(s.prefixPath("/settings/preferences"), s.handlers.core.HandleUpdatePreferences)
-	s.router.Get(s.prefixPath("/settings/runtime"), s.handlers.core.HandleGetRuntimeSettings)
-	s.router.Patch(s.prefixPath("/settings/runtime"), s.handlers.core.HandleUpdateRuntimeSettings)
 	s.router.Get(s.prefixPath("/settings/runtime/nxs/status"), s.handlers.core.HandleNXSRuntimeStatus)
 	s.router.Get(s.prefixPath("/chat/ws"), s.handlers.websocket.HandleWebSocket)
 }
@@ -71,6 +70,8 @@ func (s *Server) mountProviderRoutes() {
 	s.router.Get(s.prefixPath("/settings/provider-presets"), s.handlers.provider.HandleListProviderPresets)
 	s.router.Get(s.prefixPath("/settings/providers"), s.handlers.provider.HandleListProviderConfigs)
 	s.router.Get(s.prefixPath("/settings/providers/options"), s.handlers.provider.HandleListProviderOptions)
+	s.router.Post(s.prefixPath("/settings/provider-imports/cc-switch/preview"), s.handlers.provider.HandlePreviewCCSwitch)
+	s.router.Post(s.prefixPath("/settings/provider-imports/cc-switch/sync"), s.handlers.provider.HandleSyncCCSwitch)
 	s.router.Post(s.prefixPath("/settings/providers"), s.handlers.provider.HandleCreateProviderConfig)
 	s.router.Post(s.prefixPath("/settings/providers/{provider}/models/fetch"), s.handlers.provider.HandleFetchProviderModels)
 	s.router.Put(s.prefixPath("/settings/providers/{provider}/models/{model_id}"), s.handlers.provider.HandleUpdateProviderModel)
@@ -95,6 +96,7 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/agents/{agent_id}/private-domain/threads/{thread_id}/events"), s.handlers.room.HandleListAgentPrivateEvents)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/files"), s.handlers.workspace.HandleWorkspaceFiles)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/memory"), s.handlers.workspace.HandleWorkspaceMemory)
+	s.router.Delete(s.prefixPath("/agents/{agent_id}/workspace/memory"), s.handlers.workspace.HandleDeleteWorkspaceMemory)
 	s.router.Get(s.prefixPath("/agents/{agent_id}/workspace/file"), s.handlers.workspace.HandleWorkspaceFile)
 	s.router.Put(s.prefixPath("/agents/{agent_id}/workspace/file"), s.handlers.workspace.HandleUpdateWorkspaceFile)
 	s.router.Post(s.prefixPath("/agents/{agent_id}/workspace/upload"), s.handlers.workspace.HandleUploadWorkspaceFile)
@@ -116,6 +118,8 @@ func (s *Server) mountAgentRoutes() {
 	s.router.Get(s.prefixPath("/sessions/turn-index"), s.handlers.agent.HandleSessionTurnIndexByQuery)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/messages"), s.handlers.agent.HandleSessionMessages)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/turns"), s.handlers.agent.HandleSessionTurns)
+	s.router.Get(s.prefixPath("/sessions/{session_key}/runtime-settings"), s.handlers.agent.HandleSessionRuntimeSettings)
+	s.router.Put(s.prefixPath("/sessions/{session_key}/runtime-settings"), s.handlers.agent.HandleUpdateSessionRuntimeSettings)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/tasks"), s.handlers.agent.HandleSessionSubagentTasks)
 	s.router.Get(s.prefixPath("/sessions/{session_key}/tasks/{task_id}/messages"), s.handlers.agent.HandleSessionSubagentTaskMessages)
 	s.router.Post(s.prefixPath("/sessions/{session_key}/tasks/{task_id}/messages"), s.handlers.agent.HandleSendSessionSubagentTaskMessage)
@@ -135,6 +139,7 @@ func (s *Server) mountRoomRoutes() {
 	s.router.Get(s.prefixPath("/rooms/{room_id}/contexts"), s.handlers.room.HandleGetRoomContexts)
 	s.router.Post(s.prefixPath("/rooms/{room_id}/members"), s.handlers.room.HandleAddRoomMember)
 	s.router.Delete(s.prefixPath("/rooms/{room_id}/members/{agent_id}"), s.handlers.room.HandleRemoveRoomMember)
+	s.router.Patch(s.prefixPath("/rooms/{room_id}/members/{agent_id}/participation"), s.handlers.room.HandleSetRoomMemberParticipation)
 	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations"), s.handlers.room.HandleCreateConversation)
 	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/messages"), s.handlers.room.HandleConversationMessages)
 	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/turns"), s.handlers.room.HandleConversationTurns)
@@ -250,6 +255,14 @@ func (s *Server) mountGoalRoutes() {
 	s.router.Post(s.prefixPath("/app-server/thread/goal/set"), s.handlers.goal.HandleThreadGoalSet)
 	s.router.Post(s.prefixPath("/app-server/thread/goal/get"), s.handlers.goal.HandleThreadGoalGet)
 	s.router.Post(s.prefixPath("/app-server/thread/goal/clear"), s.handlers.goal.HandleThreadGoalClear)
+}
+
+// mountExecutionRoutes 挂载 WorkGraph 只读投影。
+func (s *Server) mountExecutionRoutes() {
+	s.router.Get(
+		s.prefixPath("/executions/latest"),
+		s.handlers.execution.HandleGetLatestExecution,
+	)
 }
 
 // mountPlaceholderRoutes 挂载保留占位路由。

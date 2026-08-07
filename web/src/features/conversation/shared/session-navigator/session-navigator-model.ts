@@ -1,4 +1,6 @@
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import type {
   AssistantMessage,
   Message,
@@ -27,10 +29,12 @@ export interface SessionNavigationItem {
   title: string;
 }
 
-const INDEXED_STATUS_LABELS: Readonly<Record<string, string>> = {
-  error: "失败",
-  interrupted: "已中断",
+const INDEXED_STATUS_LABEL_KEYS: Readonly<Record<string, TranslationKey>> = {
+  error: "room.session_navigator_status_error",
+  interrupted: "room.session_navigator_status_interrupted",
 };
+
+type SessionNavigatorLocalization = Pick<I18nContextValue, "locale" | "t">;
 
 interface NavigationItemSource {
   agentIds: string[];
@@ -175,14 +179,25 @@ function formatDuration(durationMs: number | null | undefined): string | null {
   return restMinutes > 0 ? `${hours}h ${restMinutes}m` : `${hours}h`;
 }
 
-function formatStatus(status: string | null, isLive: boolean): string {
-  return isLive ? "处理中" : INDEXED_STATUS_LABELS[status ?? ""] ?? "已处理";
+function formatStatus(
+  status: string | null,
+  isLive: boolean,
+  { t }: SessionNavigatorLocalization,
+): string {
+  if (isLive) {
+    return t("room.session_navigator_status_processing");
+  }
+  const statusKey = INDEXED_STATUS_LABEL_KEYS[status ?? ""];
+  return statusKey
+    ? t(statusKey)
+    : t("room.session_navigator_status_processed");
 }
 
 function resolveLoadedNavigationSource(
   roundId: string,
   messages: Message[],
   liveRoundIds: Set<string>,
+  localization: SessionNavigatorLocalization,
 ): NavigationItemSource {
   const user = projectUserRoundSnapshot(messages.find(isUserMessage));
   const assistant = projectAssistantRoundSnapshot(
@@ -195,9 +210,9 @@ function resolveLoadedNavigationSource(
     hasUserMessage: user.hasUserMessage,
     isLive,
     roundId,
-    status: formatStatus(assistant.status, isLive),
+    status: formatStatus(assistant.status, isLive, localization),
     summary: assistant.result || assistant.firstText,
-    summaryFallback: "尚无回复内容",
+    summaryFallback: localization.t("room.session_navigator_empty_reply"),
     timestamp: user.timestamp ?? assistant.timestamp,
     title: user.title,
   };
@@ -206,6 +221,7 @@ function resolveLoadedNavigationSource(
 function resolveIndexedNavigationSource(
   item: SessionRoundIndexItem,
   liveRoundIds: Set<string>,
+  localization: SessionNavigatorLocalization,
 ): NavigationItemSource {
   const isLive = item.isLive || liveRoundIds.has(item.roundId);
   return {
@@ -214,9 +230,9 @@ function resolveIndexedNavigationSource(
     hasUserMessage: item.hasUserMessage,
     isLive,
     roundId: item.roundId,
-    status: formatStatus(item.status, isLive),
+    status: formatStatus(item.status, isLive, localization),
     summary: "",
-    summaryFallback: "滚动加载后可查看详情",
+    summaryFallback: localization.t("room.session_navigator_load_detail"),
     timestamp: item.timestamp,
     title: item.title,
   };
@@ -225,6 +241,7 @@ function resolveIndexedNavigationSource(
 function projectNavigationItem(
   source: NavigationItemSource,
   index: number,
+  localization: SessionNavigatorLocalization,
 ): SessionNavigationItem {
   const duration = formatDuration(source.durationMs);
   return {
@@ -236,12 +253,15 @@ function projectNavigationItem(
     meta: [source.status, duration].filter(Boolean).join(" "),
     roundId: source.roundId,
     summary: source.isLive
-      ? "正在处理当前轮次"
+      ? localization.t("room.session_navigator_current_processing")
       : compactText(source.summary, source.summaryFallback),
     time: source.timestamp
-      ? formatRelativeTime(source.timestamp)
+      ? formatRelativeTime(source.timestamp, localization.locale)
       : formatMessageTime(null),
-    title: compactText(source.title, `第 ${index + 1} 轮`),
+    title: compactText(
+      source.title,
+      localization.t("room.session_navigator_round", { count: index + 1 }),
+    ),
   };
 }
 
@@ -263,6 +283,7 @@ function bindInputRoundIds(
 /** 将唯一时间线投影转换为导航条展示模型，不在组件中重新分组消息。 */
 export function buildSessionNavigationItems(
   timeline: ConversationTimeline,
+  localization: SessionNavigatorLocalization,
 ): SessionNavigationItem[] {
   const {
     live_round_ids: liveRoundIds,
@@ -278,9 +299,14 @@ export function buildSessionNavigationItems(
   const indexedItems = roundIndexItems.map((item, index) => {
     const messages = messageGroups.get(item.roundId) ?? [];
     const source = messages.length > 0
-      ? resolveLoadedNavigationSource(item.roundId, messages, liveRoundIdSet)
-      : resolveIndexedNavigationSource(item, liveRoundIdSet);
-    return projectNavigationItem(source, index);
+      ? resolveLoadedNavigationSource(
+        item.roundId,
+        messages,
+        liveRoundIdSet,
+        localization,
+      )
+      : resolveIndexedNavigationSource(item, liveRoundIdSet, localization);
+    return projectNavigationItem(source, index, localization);
   });
   const liveItems = missingLiveRoundIds.map((roundId, offset) => (
     projectNavigationItem(
@@ -288,8 +314,10 @@ export function buildSessionNavigationItems(
         roundId,
         messageGroups.get(roundId) ?? [],
         liveRoundIdSet,
+        localization,
       ),
       roundIndexItems.length + offset,
+      localization,
     )
   ));
   return bindInputRoundIds([...indexedItems, ...liveItems]);

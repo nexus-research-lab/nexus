@@ -1,4 +1,4 @@
-// Package core 封装核心 HTTP handlers（健康、偏好、默认配置等）。
+// Package core 封装核心 HTTP handlers（健康、偏好、默认配置等）；部署路径不由 HTTP 修改。
 //
 // L2 | 父级: internal/handler（L1 见 AGENTS.md）
 //

@@ -20,6 +20,8 @@ func normalizeInputQueueItem(
 	item.RoomID = strings.TrimSpace(firstNonEmpty(item.RoomID, location.RoomID))
 	item.ConversationID = strings.TrimSpace(firstNonEmpty(item.ConversationID, location.ConversationID))
 	item.AgentID = strings.TrimSpace(item.AgentID)
+	item.AgentRoundID = strings.TrimSpace(item.AgentRoundID)
+	item.ClientMessageID = strings.TrimSpace(item.ClientMessageID)
 	item.SourceAgentID = strings.TrimSpace(item.SourceAgentID)
 	item.SourceMessageID = strings.TrimSpace(item.SourceMessageID)
 	item.HandoffID = strings.TrimSpace(item.HandoffID)
@@ -37,6 +39,8 @@ func normalizeInputQueueItem(
 		item.OwnerUserID = strings.TrimSpace(item.OwnerUserID)
 	}
 	item.RootRoundID = strings.TrimSpace(item.RootRoundID)
+	item.WorkBinding = normalizeExecutionWorkBinding(item.WorkBinding)
+	item.ReviewBinding = normalizeExecutionReviewBinding(item.ReviewBinding)
 	if item.HopIndex < 0 {
 		item.HopIndex = 0
 	}
@@ -55,6 +59,21 @@ func normalizeInputQueueItem(
 	return item
 }
 
+func normalizeExecutionWorkBinding(source *protocol.ExecutionWorkBinding) *protocol.ExecutionWorkBinding {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.ExecutionID = strings.TrimSpace(result.ExecutionID)
+	result.PlanID = strings.TrimSpace(result.PlanID)
+	result.WorkItemID = strings.TrimSpace(result.WorkItemID)
+	result.SpecID = strings.TrimSpace(result.SpecID)
+	result.AssignmentID = strings.TrimSpace(result.AssignmentID)
+	result.AttemptID = strings.TrimSpace(result.AttemptID)
+	result.DispatchID = strings.TrimSpace(result.DispatchID)
+	return &result
+}
+
 func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 	switch typed := value.(type) {
 	case protocol.InputQueueItem:
@@ -67,6 +86,8 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 			RoomID:          stringFromAny(typed["room_id"]),
 			ConversationID:  stringFromAny(typed["conversation_id"]),
 			AgentID:         stringFromAny(typed["agent_id"]),
+			AgentRoundID:    stringFromAny(typed["agent_round_id"]),
+			ClientMessageID: stringFromAny(typed["client_message_id"]),
 			SourceAgentID:   stringFromAny(typed["source_agent_id"]),
 			SourceMessageID: stringFromAny(typed["source_message_id"]),
 			HandoffID:       stringFromAny(typed["handoff_id"]),
@@ -79,6 +100,8 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 			OwnerUserID:     stringFromAny(typed["owner_user_id"]),
 			RootRoundID:     stringFromAny(typed["root_round_id"]),
 			HopIndex:        intFromAny(typed["hop_index"]),
+			WorkBinding:     executionWorkBindingFromAny(typed["work_binding"]),
+			ReviewBinding:   executionReviewBindingFromAny(typed["review_binding"]),
 			QueueOrder:      protocol.Int64FromAny(typed["queue_order"]),
 			ExpiresAt:       protocol.Int64FromAny(typed["expires_at"]),
 			CreatedAt:       protocol.Int64FromAny(typed["created_at"]),
@@ -86,6 +109,77 @@ func inputQueueItemFromAny(value any) (protocol.InputQueueItem, bool) {
 		}, true
 	default:
 		return protocol.InputQueueItem{}, false
+	}
+}
+
+func executionWorkBindingFromAny(value any) *protocol.ExecutionWorkBinding {
+	switch typed := value.(type) {
+	case protocol.ExecutionWorkBinding:
+		result := typed
+		return &result
+	case *protocol.ExecutionWorkBinding:
+		if typed == nil {
+			return nil
+		}
+		result := *typed
+		return &result
+	case map[string]any:
+		return &protocol.ExecutionWorkBinding{
+			ExecutionID:  stringFromAny(typed["execution_id"]),
+			PlanID:       stringFromAny(typed["plan_id"]),
+			WorkItemID:   stringFromAny(typed["work_item_id"]),
+			SpecID:       stringFromAny(typed["spec_id"]),
+			AssignmentID: stringFromAny(typed["assignment_id"]),
+			AttemptID:    stringFromAny(typed["attempt_id"]),
+			DispatchID:   stringFromAny(typed["dispatch_id"]),
+		}
+	default:
+		return nil
+	}
+}
+
+func normalizeExecutionReviewBinding(
+	source *protocol.ExecutionReviewBinding,
+) *protocol.ExecutionReviewBinding {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.ExecutionID = strings.TrimSpace(result.ExecutionID)
+	result.PlanID = strings.TrimSpace(result.PlanID)
+	result.WorkItemID = strings.TrimSpace(result.WorkItemID)
+	result.SpecID = strings.TrimSpace(result.SpecID)
+	result.AssignmentID = strings.TrimSpace(result.AssignmentID)
+	result.SubmissionID = strings.TrimSpace(result.SubmissionID)
+	result.ReviewDispatchID = strings.TrimSpace(result.ReviewDispatchID)
+	result.TargetAgentID = strings.TrimSpace(result.TargetAgentID)
+	return &result
+}
+
+func executionReviewBindingFromAny(value any) *protocol.ExecutionReviewBinding {
+	switch typed := value.(type) {
+	case protocol.ExecutionReviewBinding:
+		result := typed
+		return &result
+	case *protocol.ExecutionReviewBinding:
+		if typed == nil {
+			return nil
+		}
+		result := *typed
+		return &result
+	case map[string]any:
+		return &protocol.ExecutionReviewBinding{
+			ExecutionID:      stringFromAny(typed["execution_id"]),
+			PlanID:           stringFromAny(typed["plan_id"]),
+			WorkItemID:       stringFromAny(typed["work_item_id"]),
+			SpecID:           stringFromAny(typed["spec_id"]),
+			AssignmentID:     stringFromAny(typed["assignment_id"]),
+			SubmissionID:     stringFromAny(typed["submission_id"]),
+			ReviewDispatchID: stringFromAny(typed["review_dispatch_id"]),
+			TargetAgentID:    stringFromAny(typed["target_agent_id"]),
+		}
+	default:
+		return nil
 	}
 }
 

@@ -8,11 +8,13 @@ export type EventType =
   | 'chat_ack'
   | 'input_queue'
   | 'input_queue_ack'
+  | 'interrupt_ack'
   | 'round_status'
   | 'agent_round_status'
   | 'session_status'
   | 'runtime_status'
   | 'command_catalog'
+  | 'context_usage'
   | 'goal_created'
   | 'goal_updated'
   | 'goal_status_changed'
@@ -27,6 +29,7 @@ export type EventType =
   | 'scheduled_task_changed'
   | 'room_member_added'
   | 'room_member_removed'
+  | 'room_member_participation_changed'
   | 'room_deleted'
   | 'room_directed_message'
   | 'room_directed_message_consumed'
@@ -38,10 +41,12 @@ export type EventType =
   | 'error'
   | 'pong';
 
+export type DeliveryMode = 'durable' | 'ephemeral' | 'transient';
+
 export interface EventMessage {
   envelope_id?: string;
   protocol_version: number;
-  delivery_mode?: string;
+  delivery_mode?: DeliveryMode;
   event_type: EventType;
   session_key?: string;
   session_seq?: number;
@@ -82,8 +87,8 @@ export interface RuntimeStatusData {
   status: 'compacting' | null;
 }
 
-export type CommandCatalogStatus = 'loading' | 'ready' | 'unavailable';
-export type CommandExecution = 'host' | 'runtime_prompt' | 'unsupported';
+export type CommandCatalogStatus = 'cold' | 'ready' | 'unavailable';
+export type CommandExecution = 'host' | 'runtime' | 'unsupported';
 
 export interface CommandDescriptor {
   name: string;
@@ -96,10 +101,18 @@ export interface CommandDescriptor {
 
 export interface CommandCatalogData {
   revision?: string;
+  generation?: number;
   runtime_kind?: string;
   status: CommandCatalogStatus;
   agent_id?: string;
   commands: CommandDescriptor[];
+}
+
+export interface ContextUsageData {
+  total_tokens: number;
+  max_tokens: number;
+  percentage: number;
+  model?: string;
 }
 
 export interface ChatAckPendingSlot {
@@ -119,6 +132,7 @@ export interface ChatAckData {
   round_id: string;
   user_message_id: string;
   user_message_committed: boolean;
+  user_message_delivery_mode?: DeliveryMode;
   pending: ChatAckPendingSlot[];
   pending_snapshot: boolean;
   ack_timeout_ms: number;
@@ -131,6 +145,14 @@ export interface InputQueueAckData {
   item_id: string;
   client_request_id: string;
   client_message_id: string;
+  ack_timeout_ms: number;
+}
+
+export interface InterruptAckData {
+  accepted: boolean;
+  client_request_id: string;
+  round_id?: string;
+  agent_round_id?: string;
   ack_timeout_ms: number;
 }
 

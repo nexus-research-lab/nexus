@@ -11,7 +11,7 @@ import type { AssistantMessage } from "@/types/conversation/message/entity";
 
 import {
   normalizeAssistantMessage,
-  resolveAssistantResultErrorMessage,
+  resolveAssistantResultErrorBannerMessage,
 } from "../../message/assistant-message-model";
 import { upsertRealtimeMessage } from "../../message/message-collection-model";
 import type {
@@ -43,8 +43,8 @@ const handleMessage: AgentEventHandler = (event, context) => {
     return;
   }
   if (!context.scope.isCurrentSessionEvent(messageSessionKey)) {
-    // 后台只缓存可恢复消息，瞬时消息不能跨会话继续展示。
-    if (event.delivery_mode !== "ephemeral") {
+    // 后台只缓存可恢复消息，round 临时态和当前界面通知都不能跨会话展示。
+    if (event.delivery_mode === "durable") {
       context.callbacks.onBackgroundMessage(messageSessionKey, message);
     }
     return;
@@ -60,12 +60,13 @@ const handleMessage: AgentEventHandler = (event, context) => {
     upsertRealtimeMessage(currentMessages, normalizedMessage)
   ));
   context.callbacks.settleLiveMessageSnapshot(normalizedMessage);
+  context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
   if (normalizedMessage.role === "assistant") {
     context.runtime.trackAssistantMessage(
       normalizedMessage as AssistantMessage,
     );
-    const resultError = resolveAssistantResultErrorMessage(
-      normalizedMessage.result_summary,
+    const resultError = resolveAssistantResultErrorBannerMessage(
+      normalizedMessage as AssistantMessage,
     );
     if (resultError) {
       context.state.setError(resultError);

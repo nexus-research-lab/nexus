@@ -308,7 +308,8 @@ func (r *roundRunner) recordGoalUsageFromAssistantMessage(message protocol.Messa
 	hasSuccessfulCreate := false
 	hasSuccessfulUpdate := false
 	for _, observation := range observations {
-		if observation.IsError {
+		if observation.IsError ||
+			observation.MutationOutcome == protocol.MutationResultRejected {
 			continue
 		}
 		switch messageutil.CanonicalToolName(observation.ToolName) {
@@ -402,6 +403,15 @@ func (r *roundRunner) currentGoalObjectiveRevision() int64 {
 		return 0
 	}
 	return r.goalObjectiveRevision.Load()
+}
+
+func (r *roundRunner) hasGoalRoundBinding() bool {
+	if r == nil || r.ignoreGoalRuntime() || r.currentGoalObjectiveRevision() <= 0 {
+		return false
+	}
+	r.goalUsageMu.Lock()
+	defer r.goalUsageMu.Unlock()
+	return strings.TrimSpace(r.goalIDForUsage) != ""
 }
 
 func (r *roundRunner) recordGoalMutation(logMessage string, mutation func() error, fields ...any) {

@@ -319,6 +319,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 ChangesAssociations=yes
 CloseApplications=yes
+RestartApplications=no
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
@@ -347,6 +348,13 @@ Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"
 Filename: "{app}\$escapedExecutableFileName"; Description: "Launch $escapedAppName"; Flags: nowait postinstall skipifsilent; Check: IsWebView2Installed
 
 [Code]
+const
+  NexusMutexName = 'Local\NexusDesktop';
+  NexusExitArgument = '--nexus-desktop-exit';
+  NexusExitWaitAttempts = 200;
+  NexusExitWaitDelayMilliseconds = 100;
+  NexusFileReleaseDelayMilliseconds = 500;
+
 function IsWebView2Installed(): Boolean;
 var
   Version: String;
@@ -357,9 +365,74 @@ begin
     RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'pv', Version);
 end;
 
-function InitializeSetup(): Boolean;
+function WaitForNexusExit(): Boolean;
+var
+  Attempt: Integer;
 begin
-  Result := True;
+  for Attempt := 1 to NexusExitWaitAttempts do
+  begin
+    if not CheckForMutexes(NexusMutexName) then
+    begin
+      { mutex 在进程退出末段释放，再留出短暂时间让 Windows 解除映像文件锁。 }
+      Sleep(NexusFileReleaseDelayMilliseconds);
+      Result := True;
+      Exit;
+    end;
+    Sleep(NexusExitWaitDelayMilliseconds);
+  end;
+
+  Result := not CheckForMutexes(NexusMutexName);
+end;
+
+function RequestNexusExit(): Boolean;
+var
+  NexusExecutablePath: String;
+  ResultCode: Integer;
+begin
+  if not CheckForMutexes(NexusMutexName) then
+  begin
+    Result := True;
+    Exit;
+  end;
+
+  NexusExecutablePath := ExpandConstant('{app}\$escapedExecutableFileName');
+  if not FileExists(NexusExecutablePath) then
+  begin
+    Log('Nexus mutex exists but the installed executable is missing: ' + NexusExecutablePath);
+    Result := False;
+    Exit;
+  end;
+
+  Log('Requesting the running Nexus instance to exit before installation.');
+  if not Exec(
+    NexusExecutablePath,
+    NexusExitArgument,
+    ExpandConstant('{app}'),
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode) then
+  begin
+    Log('Failed to launch the Nexus exit command.');
+    Result := False;
+    Exit;
+  end;
+
+  Log('Nexus exit command completed with code ' + IntToStr(ResultCode) + '.');
+  Result := WaitForNexusExit();
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  NeedsRestart := False;
+  if RequestNexusExit() then
+  begin
+    Result := '';
+    Exit;
+  end;
+
+  Result :=
+    'Nexus 仍在运行，安装程序无法安全替换文件。' + #13#10 +
+    '请从系统托盘退出 Nexus，或在任务管理器结束 Nexus.exe 后重试。';
 end;
 "@ | Set-Content -Encoding UTF8 -Path $Path
 }
@@ -623,6 +696,12 @@ Write-InnoSetupScript `
   -MetadataPath $metadataStagingPath `
   -IconPath $iconPath `
   -WebView2BootstrapperPath $resolvedWebView2BootstrapperPath
+
+& node (Join-Path $rootDir "scripts/desktop/verify-windows-installer-contract.mjs") `
+  --installer-script $installerScriptPath
+if ($LASTEXITCODE -ne 0) {
+  throw "Windows installer shutdown contract validation failed"
+}
 
 Write-Host "==> Building Windows installer"
 & $compilerPath "/Qp" $installerScriptPath

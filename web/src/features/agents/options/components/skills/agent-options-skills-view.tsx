@@ -1,6 +1,3 @@
-import { RefreshCw } from "lucide-react";
-
-import { UiIconButton } from "@/shared/ui/button/button";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
@@ -8,6 +5,7 @@ import type { AgentSkillEntry } from "@/types/capability/skill";
 
 import { AgentOptionsSkillsContent } from "./agent-options-skills-content";
 import type { AgentSkillsProjection } from "./agent-skills-model";
+import "./agent-options-skills.css";
 
 interface AgentOptionsSkillsViewProps {
   agentId: string | null;
@@ -19,47 +17,9 @@ interface AgentOptionsSkillsViewProps {
   loading: boolean;
   pendingDisableSkill: AgentSkillEntry | null;
   projection: AgentSkillsProjection;
-  refresh: () => void;
   requestSkillAction: (skill: AgentSkillEntry) => void;
   searchQuery: string;
   setSearchQuery: (value: string) => void;
-}
-
-function SkillsHeader({
-  agentId,
-  loading,
-  projection,
-  refresh,
-}: Pick<
-  AgentOptionsSkillsViewProps,
-  "agentId" | "loading" | "projection" | "refresh"
->) {
-  const { t } = useI18n();
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <h3 className="text-[16px] font-semibold tracking-tight text-(--text-strong)">
-        {t("agent_options.skills.summary", {
-          count: projection.enabled.length,
-        })}
-      </h3>
-      <div className="flex items-center gap-2">
-        <span className="text-compact text-(--text-soft)">
-          {t("agent_options.skills.total", { count: projection.totalCount })}
-        </span>
-        <UiIconButton
-          aria-label={t("capability.refresh")}
-          disabled={!agentId || loading}
-          onClick={refresh}
-          size="sm"
-          title={t("capability.refresh")}
-          tone="default"
-          variant="ghost"
-        >
-          <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
-        </UiIconButton>
-      </div>
-    </div>
-  );
 }
 
 function SkillsLoadError({
@@ -86,7 +46,6 @@ export function AgentOptionsSkillsView({
   loading,
   pendingDisableSkill,
   projection,
-  refresh,
   requestSkillAction,
   searchQuery,
   setSearchQuery,
@@ -94,13 +53,7 @@ export function AgentOptionsSkillsView({
   const { t } = useI18n();
 
   return (
-    <div className="space-y-5 animate-in slide-in-from-right-4 duration-300">
-      <SkillsHeader
-        agentId={agentId}
-        loading={loading}
-        projection={projection}
-        refresh={refresh}
-      />
+    <div className="agent-options-skills-container space-y-5 animate-in slide-in-from-right-4 duration-300">
       <SkillsLoadError errorMessage={errorMessage} />
       <AgentOptionsSkillsContent
         agentId={agentId}

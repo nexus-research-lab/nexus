@@ -30,8 +30,15 @@ import { useComposerController } from "./controller/use-composer-controller";
 
 const ComposerPanelView = memo((props: ComposerPanelProps) => {
   const { t } = useI18n();
-  const { actions, attachments, mention, refs, slashCommand, state } =
-    useComposerController(props);
+  const {
+    actions,
+    attachments,
+    mention,
+    refs,
+    sessionSettings,
+    slashCommand,
+    state,
+  } = useComposerController(props);
 
   return (
     <section
@@ -65,6 +72,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
         data-composer-edge="true"
       >
         <div
+          ref={refs.composerShellRef}
           className={COMPOSER_SHELL_CLASS_NAME}
           data-composer-surface={
             props.interactionSurface ? "interaction" : "input"
@@ -101,6 +109,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 layout={{
                   paddingClassName: state.composerInputRowPaddingClass,
                 }}
+                composerShellRef={refs.composerShellRef}
                 mention={{
                   active: mention.mentionActive,
                   filter: mention.mentionFilter,
@@ -112,7 +121,25 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   active: slashCommand.isOpen,
                   activeIndex: slashCommand.activeIndex,
                   commands: slashCommand.commands,
-                  onSelect: slashCommand.select,
+                  mode: slashCommand.mode,
+                  modelError: slashCommand.modelError,
+                  modelItems: slashCommand.modelItems,
+                  modelLoading: slashCommand.modelLoading,
+                  modelQuery: slashCommand.modelQuery,
+                  modelSearchRef: slashCommand.modelSearchRef,
+                  onModelQueryChange: slashCommand.onModelQueryChange,
+                  onModelQueryKeyDown: slashCommand.onModelQueryKeyDown,
+                  onClose: slashCommand.onClose,
+                  onSelectModel: slashCommand.onSelectModel,
+                  onSelectCommand: slashCommand.onSelectCommand,
+                  onSelectSkill: slashCommand.onSelectSkill,
+                  onSkillQueryChange: slashCommand.onSkillQueryChange,
+                  onSkillQueryKeyDown: slashCommand.onSkillQueryKeyDown,
+                  skillError: slashCommand.skillError,
+                  skillItems: slashCommand.skillItems,
+                  skillLoading: slashCommand.skillLoading,
+                  skillQuery: slashCommand.skillQuery,
+                  skillSearchRef: slashCommand.skillSearchRef,
                   status: slashCommand.status,
                 }}
                 textareaRef={refs.textareaRef}
@@ -124,6 +151,8 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 canCreateGoal={state.canCreateGoal}
                 canUseLoop={state.canUseLoop}
                 charCount={state.charCount}
+                contextUsage={props.contextUsage}
+                contextUsageItems={props.contextUsageItems}
                 goalModeExtra={props.goalModeExtra ?? null}
                 goalScopeLabel={props.goalScopeLabel}
                 historyIndex={state.historyIndex}
@@ -144,9 +173,12 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                 onGoalToggle={actions.toggleGoalInput}
                 onLoopSelect={actions.openLoopPicker}
                 runtimeActivity={state.runtimeActivity}
+                sessionSettingsController={sessionSettings}
+                sessionSettingsDisabled={
+                  props.isLoading || state.runtimeActivity !== null
+                }
                 showPoweredByNexus
                 submit={{
-                  enterLabel: state.inlineEnterLabel,
                   isDisabled: state.isSendDisabled,
                   isGoalCreating: state.isGoalCreating,
                   isGoalMode: state.isGoalMode,
@@ -155,7 +187,7 @@ const ComposerPanelView = memo((props: ComposerPanelProps) => {
                   onStop: props.onStop,
                   sendLabel: state.sendButtonLabel,
                   shouldStop: state.shouldShowStopButton,
-                  stopLabel: t("composer.stop_generation"),
+                  stopLabel: props.stopLabel ?? t("composer.stop_generation"),
                 }}
               />
             </>

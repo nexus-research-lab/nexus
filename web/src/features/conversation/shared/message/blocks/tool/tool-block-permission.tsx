@@ -1,3 +1,4 @@
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiChoiceClassName } from "@/shared/ui/form/choice-styles";
 
 import { ToolBlockDetailScroll } from "./tool-block-detail";
@@ -23,6 +24,7 @@ export function ToolBlockPermission({
   permissionRequest,
   selectedSuggestionIndex,
 }: ToolBlockPermissionProps) {
+  const { t } = useI18n();
   return (
     <div className="message-cjk-font ml-7 mt-2 space-y-2 border-t border-(--divider-subtle-color) pt-2">
       {model.primaryInputDetail?.value.trim() ? (
@@ -41,13 +43,13 @@ export function ToolBlockPermission({
       {model.readableSuggestions.length > 0 ? (
         <div className="space-y-1">
           <div className="text-2xs font-semibold uppercase tracking-[0.14em] text-(--text-soft)">
-            权限范围
+            {t("message.tool_permission_scope")}
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <PermissionChoice
               checked={selectedSuggestionIndex === -1}
               disabled={interactionDisabled}
-              label="仅这次"
+              label={t("message.tool_permission_once")}
               name={`permission-suggestion-${permissionRequest.request_id}`}
               onSelect={() => onSelectedSuggestionIndexChange(-1)}
             />

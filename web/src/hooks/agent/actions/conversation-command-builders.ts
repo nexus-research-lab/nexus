@@ -54,26 +54,6 @@ export function buildSessionBindMessage({
   };
 }
 
-export function buildCommandCatalogRequest({
-  session_key: sessionKey,
-  agent_id: agentId,
-  room_id: roomId,
-  conversation_id: conversationId,
-}: {
-  session_key: string;
-  agent_id?: string | null;
-  room_id?: string | null;
-  conversation_id?: string | null;
-}): WebSocketMessage {
-  return {
-    type: "get_command_catalog",
-    session_key: sessionKey,
-    ...(agentId ? { agent_id: agentId } : {}),
-    ...(roomId ? { room_id: roomId } : {}),
-    ...(conversationId ? { conversation_id: conversationId } : {}),
-  };
-}
-
 export function buildRoomSubscriptionMessage({
   type,
   room_id: roomId,

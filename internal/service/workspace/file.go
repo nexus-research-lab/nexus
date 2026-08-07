@@ -14,7 +14,7 @@ import (
 
 // ListFiles 返回 Agent workspace 的文件树。
 func (s *Service) ListFiles(ctx context.Context, agentID string) ([]FileEntry, error) {
-	agentValue, err := s.ensureAgentWorkspace(ctx, agentID)
+	agentValue, err := s.agents.GetAgent(ctx, strings.TrimSpace(agentID))
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +26,7 @@ func (s *Service) ListFiles(ctx context.Context, agentID string) ([]FileEntry, e
 	defer confinedRoot.Close()
 	if err = confinedRoot.Walk(".", func(path string, dirEntry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			return handleWorkspaceWalkError(path, dirEntry, walkErr)
 		}
 		if path == "." {
 			return nil
@@ -41,7 +41,7 @@ func (s *Service) ListFiles(ctx context.Context, agentID string) ([]FileEntry, e
 		}
 		info, err := dirEntry.Info()
 		if err != nil {
-			return err
+			return handleWorkspaceWalkError(path, dirEntry, err)
 		}
 		if !info.IsDir() && !info.Mode().IsRegular() {
 			return nil

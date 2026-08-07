@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -11,9 +12,49 @@ import (
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+func TestResolvePermissionModePrefersRequestThenSessionThenAgent(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestMode sdkpermission.Mode
+		sessionMode string
+		agentMode   string
+		want        sdkpermission.Mode
+	}{
+		{
+			name:        "request",
+			requestMode: sdkpermission.ModePlan,
+			sessionMode: string(sdkpermission.ModeAcceptEdits),
+			agentMode:   string(sdkpermission.ModeDefault),
+			want:        sdkpermission.ModePlan,
+		},
+		{
+			name:        "session",
+			sessionMode: string(sdkpermission.ModeAcceptEdits),
+			agentMode:   string(sdkpermission.ModeDefault),
+			want:        sdkpermission.ModeAcceptEdits,
+		},
+		{
+			name:      "agent",
+			agentMode: string(sdkpermission.ModeDontAsk),
+			want:      sdkpermission.ModeDontAsk,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got := resolvePermissionMode(
+				test.requestMode,
+				test.sessionMode,
+				test.agentMode,
+			)
+			if got != test.want {
+				t.Fatalf("resolvePermissionMode() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
 
 func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	cfg := newDMTestConfig(t)

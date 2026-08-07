@@ -1,6 +1,6 @@
 /**
  * INPUT: Room feed 节点、Agent 目录、权限与交互回调。
- * OUTPUT: 可附本批新消息边界的 Agent 执行卡或普通 root 轮次，并暴露稳定轮次身份与测量边界。
+ * OUTPUT: 可附本批新消息居中横线边界的 Agent 执行卡或普通 root 轮次，并暴露稳定轮次身份与测量边界。
  * POS: Group feed 单节点的唯一渲染分派入口。
  */
 import type { Ref } from "react";
@@ -64,7 +64,6 @@ export function GroupConversationRound({
         <GroupRoundCardGroup
           agentAvatarMap={renderer.agentAvatarMap}
           agentNameMap={renderer.agentNameMap}
-          currentUserAvatar={renderer.currentUserAvatar}
           messages={messages}
           onOpenAgentContact={renderer.onOpenAgentContact}
           onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
@@ -74,6 +73,7 @@ export function GroupConversationRound({
           pendingSlots={pendingSlots}
           roomAgentExecutionStates={roomAgentExecutionStates}
           roundId={rootRoundId}
+          stoppingAgentRoundIds={renderer.stoppingAgentRoundIds}
         />
       ) : (
         <StandaloneConversationRound renderer={renderer} state={state} />
@@ -93,7 +93,6 @@ function StandaloneConversationRound({
       compact={renderer.compact ?? false}
       currentAgentAvatar={agent.avatar}
       currentAgentName={agent.name}
-      currentUserAvatar={renderer.currentUserAvatar}
       agentMentionDirectory={{ avatars: renderer.agentAvatarMap, names: renderer.agentNameMap }}
       isLastRound={state.isLast}
       messages={state.messages}

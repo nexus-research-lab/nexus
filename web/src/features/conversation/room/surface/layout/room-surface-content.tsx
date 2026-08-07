@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 桌面 Room 会话、任务快照、右栏状态与页面命令。
- * OUTPUT: 将任务快照交给聊天 Bottom Dock，并组合带局部阅读羽化的主聊天与可调整右栏。
+ * OUTPUT: 将任务快照交给聊天 Bottom Dock，并提供常驻的工作图右栏入口与无图空态。
  * POS: Room 桌面 Surface 的主内容装配层；对话视觉效果必须裁剪在聊天栏内。
  */
 
@@ -15,6 +15,8 @@ import { RoomSurfaceHeader } from "./room-surface-header";
 import type { RoomSurfaceLayoutProps } from "./room-surface-layout-types";
 import { RoomThreadInlinePanel } from "./room-thread-inline-panel";
 import { useRoomSurfaceLayoutController } from "./use-room-surface-layout-controller";
+
+import "./room-surface-split.css";
 
 type RoomSurfaceContentProps = RoomSurfaceLayoutProps & {
   isThreadPanelOpen: boolean;
@@ -32,6 +34,8 @@ export function RoomSurfaceContent({
   currentRoomType,
   runtimeKind,
   currentTodos,
+  executionResource,
+  executionTaskRuns,
   sidePanelWidthPercent,
   initialDraft = null,
   isResizingSidePanel,
@@ -41,6 +45,7 @@ export function RoomSurfaceContent({
   onConversationSnapshotChange,
   onCreateConversation,
   onDeleteConversation,
+  onExecutionTaskRunsChange,
   onInitialDraftConsumed,
   onManageRoom,
   onOpenMemberManager,
@@ -114,8 +119,8 @@ export function RoomSurfaceContent({
             />
           )}
         >
-          <div className="flex h-full min-h-0 min-w-0">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <div className="nexus-room-surface-split flex h-full min-h-0 min-w-0">
+            <div className="nexus-room-surface-conversation flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               <div
                 className="nexus-room-conversation-reading-edge min-h-0 min-w-0 flex-1"
                 data-room-conversation-reading-edge="true"
@@ -126,12 +131,15 @@ export function RoomSurfaceContent({
                   currentAgent={currentAgent}
                   currentAgentSessionIdentity={currentAgentSessionIdentity}
                   currentRoomType={currentRoomType}
+                  executionResource={executionResource}
                   initialDraft={initialDraft}
                   layout="desktop"
                   onConversationSnapshotChange={onConversationSnapshotChange}
                   onCreateConversation={onCreateConversation}
+                  onExecutionTaskRunsChange={onExecutionTaskRunsChange}
                   onInitialDraftConsumed={onInitialDraftConsumed}
                   onOpenAgentContact={layout.handleOpenAgentContact}
+                  onOpenWorkGraph={() => layout.handleChangeSurfaceTab("workgraph")}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
                   onRoomEvent={onRoomEvent}
                   onTodosChange={onTodosChange}
@@ -152,6 +160,8 @@ export function RoomSurfaceContent({
                 activeWorkspacePath={activeWorkspacePath}
                 conversationId={conversationId}
                 currentAgent={currentAgent}
+                executionResource={executionResource}
+                executionTaskRuns={executionTaskRuns}
                 sidePanelWidthPercent={sidePanelWidthPercent}
                 isDm={isDm}
                 onClose={layout.handleCloseAuxiliaryPanel}

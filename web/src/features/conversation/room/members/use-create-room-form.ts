@@ -18,6 +18,7 @@ interface UseCreateRoomFormOptions {
   initialHostAgentId: string | null;
   initialHostAutoReplyEnabled: boolean;
   initialName: string;
+  initialPausedAgentIds: string[];
   initialPrivateMessagesEnabled: boolean;
   initialRoomSkillNames: string[];
   initialSelectedAgentIds: string[];
@@ -32,6 +33,10 @@ export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
   const selectedAgentIdSet = useMemo(
     () => new Set(state.selectedAgentIds),
     [state.selectedAgentIds],
+  );
+  const pausedAgentIdSet = useMemo(
+    () => new Set(state.pausedAgentIds),
+    [state.pausedAgentIds],
   );
   const selectedAgents = useMemo(
     () =>
@@ -66,11 +71,23 @@ export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
   const setHostAgentId = useCallback((agentId: string) => {
     dispatch((current) => ({ ...current, hostAgentId: agentId }));
   }, []);
+  const toggleParticipation = useCallback((agentId: string) => {
+    dispatch((current) => {
+      if (!current.selectedAgentIds.includes(agentId)) {
+        return current;
+      }
+      return {
+        ...current,
+        pausedAgentIds: toggleMemberId(current.pausedAgentIds, agentId),
+      };
+    });
+  }, []);
 
   return {
     canSubmit:
       state.selectedAgentIds.length > 0 && state.name.trim().length > 0,
     filteredAgents,
+    pausedAgentIdSet,
     selectedAgentIdSet,
     selectedAgents,
     setAvatar: (avatar: string) => update("avatar", avatar),
@@ -87,6 +104,7 @@ export function useCreateRoomForm(options: UseCreateRoomFormOptions) {
     state,
     submission: buildRoomDialogSubmission(state),
     toggleAgent,
+    toggleParticipation,
   };
 }
 
@@ -106,6 +124,7 @@ function createInitialRoomFormState(
     hostAutoReplyEnabled: options.initialHostAutoReplyEnabled,
     memberQuery: "",
     name: options.initialName,
+    pausedAgentIds: [...options.initialPausedAgentIds],
     privateMessagesEnabled: options.initialPrivateMessagesEnabled,
     selectedAgentIds: [...options.initialSelectedAgentIds],
     selectedSkillNames: [...options.initialRoomSkillNames],
@@ -114,13 +133,18 @@ function createInitialRoomFormState(
 }
 
 function normalizeRoomForm(state: RoomDialogFormState): RoomDialogFormState {
-  if (state.hostAgentId && state.selectedAgentIds.includes(state.hostAgentId)) {
-    return state;
+  const selectedAgentIds = new Set(state.selectedAgentIds);
+  const pausedAgentIds = state.pausedAgentIds.filter((agentId) => (
+    selectedAgentIds.has(agentId)
+  ));
+  if (state.hostAgentId && selectedAgentIds.has(state.hostAgentId)) {
+    return { ...state, pausedAgentIds };
   }
   return {
     ...state,
     hostAgentId: "",
     hostAutoReplyEnabled: false,
+    pausedAgentIds,
   };
 }
 
@@ -144,6 +168,7 @@ function buildRoomDialogSubmission(
     hostAutoReplyEnabled:
       state.hostAutoReplyEnabled && state.hostAgentId !== "",
     name: state.name.trim(),
+    pausedAgentIds: state.pausedAgentIds,
     privateMessagesEnabled: state.privateMessagesEnabled,
     skillNames: state.selectedSkillNames,
   };

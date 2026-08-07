@@ -14,13 +14,14 @@ import (
 
 // Tool 表示 Nexus 内部 MCP 工具定义。
 type Tool struct {
-	Name        string
-	Description string
-	SearchHint  string
-	AlwaysLoad  bool
-	InputSchema map[string]any
-	Annotations *ToolAnnotations
-	Handler     func(context.Context, map[string]any) (ToolResult, error)
+	Name           string
+	Description    string
+	SearchHint     string
+	AlwaysLoad     bool
+	InputSchema    map[string]any
+	Annotations    *ToolAnnotations
+	Handler        func(context.Context, map[string]any) (ToolResult, error)
+	ContextHandler func(context.Context, map[string]any, *CallContext) (ToolResult, error)
 }
 
 // ToolResult 表示 MCP 工具调用结果。
@@ -28,6 +29,10 @@ type ToolResult = sdktools.Result
 
 // ToolAnnotations 表示工具元数据。
 type ToolAnnotations = sdktools.Annotations
+
+// CallContext 承载 bridge 可提供的 tool_use、SDK session、round 与来源 identity。
+// 调用方必须允许字段为空，并使用 server context 的稳定 round identity 作为幂等回退。
+type CallContext = sdktools.Context
 
 // SimpleSDKMCPServer 表示 SDK 进程内 MCP server。
 type SimpleSDKMCPServer = sdktools.SimpleSDKMCPServer
@@ -51,7 +56,10 @@ func NewSimpleSDKMCPServer(name string, version string, definitions []Tool) *Sim
 			definition.Name,
 			definition.Description,
 			definition.InputSchema,
-			func(ctx context.Context, input map[string]any, _ *sdktools.Context) (sdktools.Result, error) {
+			func(ctx context.Context, input map[string]any, callContext *sdktools.Context) (sdktools.Result, error) {
+				if definition.ContextHandler != nil {
+					return definition.ContextHandler(ctx, input, callContext)
+				}
 				if definition.Handler == nil {
 					return sdktools.Result{}, errors.New("sdktool: tool handler is nil")
 				}

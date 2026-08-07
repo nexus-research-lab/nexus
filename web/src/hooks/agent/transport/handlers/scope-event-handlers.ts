@@ -84,6 +84,7 @@ export const AGENT_SCOPE_EVENT_HANDLERS: AgentEventHandlerMap = {
   room_directed_message: handleRoomEvent,
   room_directed_message_consumed: handleRoomEvent,
   room_member_added: handleRoomEvent,
+  room_member_participation_changed: handleRoomEvent,
   room_member_removed: handleRoomEvent,
   workspace_event: handleWorkspaceEvent,
 };

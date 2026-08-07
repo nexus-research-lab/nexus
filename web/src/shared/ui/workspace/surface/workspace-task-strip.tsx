@@ -10,6 +10,7 @@ import {
   type ReactNode,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -24,7 +25,7 @@ import {
 } from "@/shared/ui/overlay/overlay-styles";
 import type { TodoItem } from "@/types/conversation/todo";
 
-import { resolveWorkspaceTaskSummary } from "./workspace-task-strip-model";
+import { resolveWorkspaceTaskState } from "./workspace-task-strip-model";
 
 interface WorkspaceTaskPanelProps {
   todos: TodoItem[];
@@ -49,8 +50,12 @@ export function WorkspaceTaskPanel({
   sourceControl,
 }: WorkspaceTaskPanelProps) {
   const { t } = useI18n();
-  const taskSummary = resolveWorkspaceTaskSummary(todos);
-  const hasTasks = taskSummary !== null;
+  const taskState = useMemo(
+    () => resolveWorkspaceTaskState(todos),
+    [todos],
+  );
+  const normalizedTodos = taskState?.todos ?? [];
+  const hasTasks = taskState !== null;
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedTaskIndex, setExpandedTaskIndex] = useState<number | null>(null);
   const panelId = useId();
@@ -64,12 +69,15 @@ export function WorkspaceTaskPanel({
   }, [hasTasks]);
 
   useEffect(() => {
-    if (expandedTaskIndex !== null && expandedTaskIndex >= todos.length) {
+    if (
+      expandedTaskIndex !== null
+      && expandedTaskIndex >= normalizedTodos.length
+    ) {
       setExpandedTaskIndex(null);
     }
-  }, [expandedTaskIndex, todos.length]);
+  }, [expandedTaskIndex, normalizedTodos.length]);
 
-  if (!hasTasks) {
+  if (taskState === null) {
     return null;
   }
 
@@ -79,7 +87,7 @@ export function WorkspaceTaskPanel({
     hasRunningTask,
     summary,
     totalCount,
-  } = taskSummary;
+  } = taskState.summary;
 
   const taskStatusLabel = (status: TodoItem["status"]) => {
     if (status === "completed") {
@@ -218,7 +226,7 @@ export function WorkspaceTaskPanel({
             </div>
 
             <div className="soft-scrollbar min-h-0 overflow-y-auto pb-1.5">
-              {todos.map((todo, index) => {
+              {normalizedTodos.map((todo, index) => {
                 const detailText = todo.active_form?.trim() || "";
                 const hasDetail = detailText.length > 0 && detailText !== todo.content.trim();
                 const isDetailExpanded = expandedTaskIndex === index;

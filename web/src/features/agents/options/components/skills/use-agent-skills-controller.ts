@@ -12,6 +12,7 @@ import {
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { setAgentSkillEnabledApi } from "@/lib/api/capability/skill-api";
+import { getSkillDisplayDescription } from "@/lib/skill-description";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { AgentSkillEntry } from "@/types/capability/skill";
 
@@ -157,8 +158,12 @@ export function useAgentSkillsController({
     isVisible,
   });
   const projection = useMemo(
-    () => projectAgentSkills(items, deferredSearchQuery),
-    [deferredSearchQuery, items],
+    () => projectAgentSkills(
+      items,
+      deferredSearchQuery,
+      (skill) => getSkillDisplayDescription(skill, t),
+    ),
+    [deferredSearchQuery, items, t],
   );
   const commandProjection = projectAgentSkillCommandState(
     busyCommand,
@@ -210,11 +215,6 @@ export function useAgentSkillsController({
     void runSkillToggle(pendingDisableSkill);
   }, [pendingDisableSkill, runSkillToggle, setPendingDisableSkill]);
 
-  const refresh = useCallback((): void => {
-    setActionError(null);
-    void refreshResource();
-  }, [refreshResource, setActionError]);
-
   return {
     agentId: scopeAgentId,
     busySkillName: commandProjection.busySkillName,
@@ -225,7 +225,6 @@ export function useAgentSkillsController({
     loading,
     pendingDisableSkill,
     projection,
-    refresh,
     requestSkillAction,
     searchQuery,
     setSearchQuery,

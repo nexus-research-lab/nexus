@@ -10,9 +10,9 @@ import type {
 const ROOM_HEADER_TAB_COLLAPSE_QUERIES: Partial<
   Record<RoomSurfaceTabKey, string>
 > = {
-  about: "(max-width: 1239px)",
-  workspace: "(max-width: 1119px)",
-  subagents: "(max-width: 1039px)",
+  about: "(max-width: 1359px)",
+  workspace: "(max-width: 1239px)",
+  subagents: "(max-width: 1119px)",
 };
 
 export function useRoomHeaderOverflowTabs(

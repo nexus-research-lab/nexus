@@ -25,10 +25,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 	sessionService.SetRuntimeManager(runtimectx.NewManager())
@@ -185,14 +182,166 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	}
 }
 
+func TestSessionRuntimeSettingsPersistWithoutChangingAgentDefaults(t *testing.T) {
+	cfg := newSessionTestConfig(t)
+	migrateSessionSQLite(t, cfg.DatabaseURL)
+
+	agentService, db := newSessionTestAgentService(t, cfg)
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
+		Name: "Session 设置助手",
+		Options: &protocol.Options{
+			Provider:       "agent-provider",
+			Model:          "agent-model",
+			PermissionMode: "default",
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+
+	dmKey := protocol.BuildAgentSessionKey(
+		agentValue.AgentID,
+		"ws",
+		"dm",
+		"session-settings",
+		"",
+	)
+	if _, err = sessionService.CreateSession(ctx, sessionsvc.CreateRequest{
+		SessionKey: dmKey,
+	}); err != nil {
+		t.Fatalf("创建 DM Session 失败: %v", err)
+	}
+	want := protocol.SessionRuntimeSettings{
+		Provider:       "session-provider",
+		Model:          "session-model",
+		PermissionMode: "acceptEdits",
+	}
+	if _, err = sessionService.UpdateRuntimeSettings(ctx, dmKey, want); err != nil {
+		t.Fatalf("更新 DM Session 设置失败: %v", err)
+	}
+	if got, getErr := sessionService.GetRuntimeSettings(ctx, dmKey); getErr != nil {
+		t.Fatalf("读取 DM Session 设置失败: %v", getErr)
+	} else if got != want {
+		t.Fatalf("DM Session 设置 = %+v, want %+v", got, want)
+	}
+
+	roomContext, err := roomService.EnsureDirectRoom(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("创建 Room Session 失败: %v", err)
+	}
+	roomKey := protocol.BuildRoomAgentSessionKey(
+		roomContext.Conversation.ID,
+		agentValue.AgentID,
+		protocol.RoomTypeDM,
+	)
+	if _, err = sessionService.UpdateRuntimeSettings(ctx, roomKey, want); err != nil {
+		t.Fatalf("更新 Room Session 设置失败: %v", err)
+	}
+	if got, getErr := sessionService.GetRuntimeSettings(ctx, roomKey); getErr != nil {
+		t.Fatalf("读取 Room Session 设置失败: %v", getErr)
+	} else if got != want {
+		t.Fatalf("Room Session 设置 = %+v, want %+v", got, want)
+	}
+
+	agentPeer, err := agentService.CreateAgent(ctx, protocol.CreateRequest{
+		Name: "Session 设置协作者",
+		Options: &protocol.Options{
+			Provider:       "peer-provider",
+			Model:          "peer-default-model",
+			PermissionMode: "plan",
+		},
+	})
+	if err != nil {
+		t.Fatalf("创建协作 Agent 失败: %v", err)
+	}
+	groupContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentValue.AgentID, agentPeer.AgentID},
+		Name:     "Session 设置群聊",
+	})
+	if err != nil {
+		t.Fatalf("创建群聊 Session 失败: %v", err)
+	}
+	primaryRoomKey := protocol.BuildRoomAgentSessionKey(
+		groupContext.Conversation.ID,
+		agentValue.AgentID,
+		protocol.RoomTypeGroup,
+	)
+	peerRoomKey := protocol.BuildRoomAgentSessionKey(
+		groupContext.Conversation.ID,
+		agentPeer.AgentID,
+		protocol.RoomTypeGroup,
+	)
+	peerSettings := protocol.SessionRuntimeSettings{
+		Provider:       "peer-session-provider",
+		Model:          "peer-session-model",
+		PermissionMode: "plan",
+	}
+	if _, err = sessionService.UpdateRuntimeSettings(
+		ctx,
+		peerRoomKey,
+		peerSettings,
+	); err != nil {
+		t.Fatalf("更新协作 Agent Session 设置失败: %v", err)
+	}
+	if _, err = sessionService.UpdateRuntimeSettings(
+		ctx,
+		primaryRoomKey,
+		want,
+	); err != nil {
+		t.Fatalf("更新群聊统一权限失败: %v", err)
+	}
+	gotPeer, err := sessionService.GetRuntimeSettings(ctx, peerRoomKey)
+	if err != nil {
+		t.Fatalf("读取协作 Agent Session 设置失败: %v", err)
+	}
+	if gotPeer.Provider != peerSettings.Provider ||
+		gotPeer.Model != peerSettings.Model ||
+		gotPeer.PermissionMode != want.PermissionMode {
+		t.Fatalf(
+			"群聊权限应统一且模型应保持独立: got=%+v peer=%+v room=%+v",
+			gotPeer,
+			peerSettings,
+			want,
+		)
+	}
+	resetRoomPermission := want
+	resetRoomPermission.PermissionMode = ""
+	if _, err = sessionService.UpdateRuntimeSettings(
+		ctx,
+		primaryRoomKey,
+		resetRoomPermission,
+	); err != nil {
+		t.Fatalf("重置群聊统一权限失败: %v", err)
+	}
+	gotPeer, err = sessionService.GetRuntimeSettings(ctx, peerRoomKey)
+	if err != nil {
+		t.Fatalf("重置后读取协作 Agent Session 设置失败: %v", err)
+	}
+	if gotPeer.Provider != peerSettings.Provider ||
+		gotPeer.Model != peerSettings.Model ||
+		gotPeer.PermissionMode != "" {
+		t.Fatalf("群聊权限重置应统一清空且保持模型: %+v", gotPeer)
+	}
+
+	unchangedAgent, err := agentService.GetAgent(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取 Agent 失败: %v", err)
+	}
+	if unchangedAgent.Options.Provider != "agent-provider" ||
+		unchangedAgent.Options.Model != "agent-model" ||
+		unchangedAgent.Options.PermissionMode != "default" {
+		t.Fatalf("Session 设置不应修改 Agent 默认值: %+v", unchangedAgent.Options)
+	}
+}
+
 func TestSessionServiceListsExternalIMSessions(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 
 	ctx := context.Background()
@@ -253,10 +402,7 @@ func TestTitleGenerationUpdatesExternalIMWorkspaceSession(t *testing.T) {
 	cfg := newSessionTestConfig(t)
 	migrateSessionSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 agent service 失败: %v", err)
-	}
+	agentService, db := newSessionTestAgentService(t, cfg)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
 
 	agentValue, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{Name: "微信助手"})

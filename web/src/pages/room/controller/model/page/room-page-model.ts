@@ -14,7 +14,7 @@ import {
   resolveCurrentRoomContext,
   resolveSelectedConversationId,
 } from "../room-conversation-model";
-import { resolveRoomMemberAgents } from "../room-member-model";
+import { resolveCurrentRoomMemberAgents } from "../room-member-model";
 import { resolveCurrentAgentSessionIdentity } from "../room-session-model";
 
 export interface RoomPageBaseModel {
@@ -116,7 +116,10 @@ export function buildRoomPageBaseModel({
   const scopedRoomContexts = roomContexts.filter(
     (context) => context.room.id === roomId,
   );
-  const roomMemberAgents = resolveRoomMemberAgents(scopedRoomContexts);
+  const roomMemberAgents = resolveCurrentRoomMemberAgents(
+    scopedRoomContexts,
+    agents,
+  );
   const baseRoomConversations = buildRoomConversationViews(scopedRoomContexts);
   const selectedBaseConversationId = resolveSelectedConversationId(
     conversationId,

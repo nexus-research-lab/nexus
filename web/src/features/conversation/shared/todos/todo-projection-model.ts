@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前会话消息、session 与 Room Agent 身份。
- * OUTPUT: 单会话任务列表，以及按 Agent 隔离且带最近任务事件位置的进程集合。
+ * OUTPUT: 单会话任务列表、按 Agent 隔离的 legacy 进程，以及按 Agent round 精确隔离的节点局部 Task run。
  * POS: Conversation Todo/Task 工具到 DM/Room 进程 UI 的唯一纯投影入口。
  */
 import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
@@ -41,6 +41,13 @@ export interface ConversationTodoProcess {
   todos: TodoItem[];
 }
 
+export interface ConversationTaskRun {
+  agentId: string;
+  agentRoundId: string;
+  latestTaskEventIndex: number;
+  todos: TodoItem[];
+}
+
 interface ConversationTodoProjection {
   latestTaskEventIndex: number;
   todos: TodoItem[];
@@ -71,6 +78,61 @@ function isSameSessionMessage(message: Message, sessionKey: string): boolean {
   return !message.session_key || areEquivalentSessionKeys(message.session_key, sessionKey);
 }
 
+function todoWriteString(
+  todo: Record<string, unknown>,
+  keys: string[],
+): string | null {
+  for (const key of keys) {
+    const value = todo[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
+function todoWriteStatus(value: unknown): TodoItem["status"] | null {
+  switch (typeof value === "string" ? value.trim() : "") {
+    case "completed":
+      return "completed";
+    case "in_progress":
+      return "in_progress";
+    case "pending":
+      return "pending";
+    default:
+      return null;
+  }
+}
+
+function todoWriteItem(value: unknown): TodoItem | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  const todo = value as Record<string, unknown>;
+  // 早期 transcript 使用 task；外部载荷必须在进入 UI 前统一为 TodoItem。
+  const content = todoWriteString(todo, ["content", "task"]);
+  const status = todoWriteStatus(todo.status);
+  if (!content || !status) {
+    return null;
+  }
+  const activeForm = todoWriteString(todo, ["activeForm", "active_form"]);
+  return {
+    content,
+    status,
+    ...(activeForm ? {active_form: activeForm} : {}),
+  };
+}
+
+function todoWritePlan(value: unknown): TodoItem[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  return value.flatMap((item) => {
+    const todo = todoWriteItem(item);
+    return todo ? [todo] : [];
+  });
+}
+
 function extractTodoPlan(message: AssistantMessage): TodoItem[] | null {
   if (!Array.isArray(message.content)) {
     return null;
@@ -80,10 +142,11 @@ function extractTodoPlan(message: AssistantMessage): TodoItem[] | null {
     if (
       block?.type === "tool_use"
       && block.name === "TodoWrite"
-      && block.input
-      && Array.isArray(block.input.todos)
     ) {
-      plan = block.input.todos;
+      const nextPlan = todoWritePlan(block.input?.todos);
+      if (nextPlan) {
+        plan = nextPlan;
+      }
     }
   }
   return plan;
@@ -259,6 +322,64 @@ export function projectConversationTodoProcesses(
   return processes;
 }
 
+export function projectConversationTaskRuns(
+  messages: Message[],
+  sessionKey: string | null,
+): ConversationTaskRun[] {
+  if (!sessionKey || messages.length === 0) {
+    return [];
+  }
+
+  const groupsByAgent = new Map<string, Map<string, {
+    indexes: number[];
+    messages: Message[];
+  }>>();
+  messages.forEach((message, messageIndex) => {
+    if (!isSameSessionMessage(message, sessionKey)) {
+      return;
+    }
+    const agentId = message.agent_id.trim();
+    const agentRoundId = message.agent_round_id?.trim() ?? "";
+    if (!agentId || !agentRoundId) {
+      return;
+    }
+    const groupsByRound = groupsByAgent.get(agentId) ?? new Map();
+    const group = groupsByRound.get(agentRoundId) ?? {
+      indexes: [],
+      messages: [],
+    };
+    group.indexes.push(messageIndex);
+    group.messages.push(message);
+    groupsByRound.set(agentRoundId, group);
+    groupsByAgent.set(agentId, groupsByRound);
+  });
+
+  const runs: ConversationTaskRun[] = [];
+  for (const [agentId, groupsByRound] of groupsByAgent) {
+    for (const [agentRoundId, group] of groupsByRound) {
+      const projection = projectConversationTodoProjection(
+        group.messages,
+        sessionKey,
+      );
+      if (projection.todos.length === 0) {
+        continue;
+      }
+      runs.push({
+        agentId,
+        agentRoundId,
+        latestTaskEventIndex:
+          group.indexes[projection.latestTaskEventIndex] ?? -1,
+        todos: projection.todos,
+      });
+    }
+  }
+  return runs.sort((left, right) => (
+    left.latestTaskEventIndex - right.latestTaskEventIndex
+    || left.agentId.localeCompare(right.agentId)
+    || left.agentRoundId.localeCompare(right.agentRoundId)
+  ));
+}
+
 function projectConversationTodoProjection(
   messages: Message[],
   sessionKey: string | null,
@@ -328,6 +449,25 @@ export function areTodoProcessListsEqual(
         && process.agentId === other.agentId
         && process.latestTaskEventIndex === other.latestTaskEventIndex
         && areTodoListsEqual(process.todos, other.todos),
+      );
+    })
+  );
+}
+
+export function areTaskRunListsEqual(
+  left: ConversationTaskRun[],
+  right: ConversationTaskRun[],
+): boolean {
+  return left === right || (
+    left.length === right.length
+    && left.every((run, index) => {
+      const other = right[index];
+      return Boolean(
+        other
+        && run.agentId === other.agentId
+        && run.agentRoundId === other.agentRoundId
+        && run.latestTaskEventIndex === other.latestTaskEventIndex
+        && areTodoListsEqual(run.todos, other.todos),
       );
     })
   );

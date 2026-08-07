@@ -622,6 +622,7 @@ func TestDMExternalActivationBindConflictBeforeModelResultKeepsScopeUnconsumed(t
 		goalUsage:   goalsvc.NewRuntimeUsageAccumulator(false),
 		runtimeKind: "nxs",
 	}
+	accelerateDMGoalUsageRetry(runner)
 	runner.recordGoalUsageFromAssistantMessage(
 		goalToolResultAssistantMessage("tool-before-create", "read_file", false, 4, 1),
 	)

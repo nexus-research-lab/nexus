@@ -1,11 +1,21 @@
-import { Check, Loader2, Send } from "lucide-react";
+/**
+ * INPUT: 结构化问题草稿、交互状态与提交/拒绝动作。
+ * OUTPUT: 与 Composer 权限确认同层级的单面板问答视图。
+ * POS: AskUserQuestion 的纯视图编排入口。
+ */
+import {
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  MessageSquare,
+  type LucideIcon,
+} from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import type { UserQuestion } from "@/types/conversation/interaction/ask-user-question";
 
-import { MessageRail } from "../../ui/message-rail";
-import { AskUserQuestionCard } from "./card/ask-user-question-card";
-import { AskUserQuestionHeader } from "./ask-user-question-header";
+import { AskUserQuestionItem } from "./ask-user-question-item";
 import type {
   QuestionDraft,
   QuestionInteractionStatus,
@@ -20,7 +30,7 @@ interface AskUserQuestionViewProps {
   expanded: boolean;
   isReady: boolean;
   isSubmitting: boolean;
-  onExpandedChange: (expanded: boolean) => void;
+  onDeny?: () => void;
   onSubmit: () => void;
   onToggleOption: (questionIndex: number, optionLabel: string) => void;
   onUpdateCustomAnswer: (questionIndex: number, customAnswer: string) => void;
@@ -28,7 +38,6 @@ interface AskUserQuestionViewProps {
   readOnly: boolean;
   status: QuestionInteractionStatus;
   submitEnabled: boolean;
-  totalSelected: number;
 }
 
 export function AskUserQuestionView({
@@ -38,7 +47,7 @@ export function AskUserQuestionView({
   expanded,
   isReady,
   isSubmitting,
-  onExpandedChange,
+  onDeny,
   onSubmit,
   onToggleOption,
   onUpdateCustomAnswer,
@@ -46,74 +55,75 @@ export function AskUserQuestionView({
   readOnly,
   status,
   submitEnabled,
-  totalSelected,
 }: AskUserQuestionViewProps) {
   return (
-    <MessageRail className="ask-user-question my-1.5 pr-1 pb-1">
-      <AskUserQuestionHeader
-        answerSummary={answerSummary}
-        expanded={expanded}
-        onToggle={() => onExpandedChange(!expanded)}
-        questionCount={questions.length}
-        readOnly={readOnly}
-        status={status}
-        totalSelected={totalSelected}
-      />
-      <QuestionCardList
-        draft={draft}
-        expanded={expanded}
-        onToggleOption={onToggleOption}
-        onUpdateCustomAnswer={onUpdateCustomAnswer}
-        questions={questions}
-        readOnly={readOnly}
-      />
-      <QuestionSubmitSection
-        draftComplete={draftComplete}
-        expanded={expanded}
-        isReady={isReady}
-        isSubmitting={isSubmitting}
-        onSubmit={onSubmit}
-        readOnly={readOnly}
-        submitEnabled={submitEnabled}
-      />
-      <QuestionSubmittedNotice expanded={expanded} status={status} />
-    </MessageRail>
+    <div
+      aria-busy={isSubmitting}
+      className="ask-user-question min-w-0"
+    >
+      {expanded ? (
+        <QuestionList
+          draft={draft}
+          onToggleOption={onToggleOption}
+          onUpdateCustomAnswer={onUpdateCustomAnswer}
+          questions={questions}
+          readOnly={readOnly}
+        />
+      ) : (
+        <QuestionResolution
+          answerSummary={answerSummary}
+          status={status}
+        />
+      )}
+      {expanded ? (
+        <QuestionDecisionRow
+          draftComplete={draftComplete}
+          isReady={isReady}
+          isSubmitting={isSubmitting}
+          onDeny={onDeny}
+          onSubmit={onSubmit}
+          readOnly={readOnly}
+          submitEnabled={submitEnabled}
+        />
+      ) : null}
+    </div>
   );
 }
 
 const EMPTY_SELECTION = new Set<string>();
+const EMPTY_ANSWER = {
+  customAnswer: "",
+  selectedOptions: EMPTY_SELECTION,
+};
 
-function QuestionCardList({
+function QuestionList({
   draft,
-  expanded,
   onToggleOption,
   onUpdateCustomAnswer,
   questions,
   readOnly,
 }: {
   draft: QuestionDraft;
-  expanded: boolean;
   onToggleOption: (questionIndex: number, optionLabel: string) => void;
   onUpdateCustomAnswer: (questionIndex: number, customAnswer: string) => void;
   questions: UserQuestion[];
   readOnly: boolean;
 }) {
-  if (!expanded) {
-    return null;
-  }
   return (
-    <div className="mt-2 space-y-2.5">
+    <div className="ask-user-question-list">
       {questions.map((question, index) => {
         const answer = draft[index] ?? EMPTY_ANSWER;
         const keyPrefix = question.header || "question";
         return (
-          <AskUserQuestionCard
+          <AskUserQuestionItem
             customAnswer={answer.customAnswer}
-            initiallyExpanded={!readOnly}
             key={`${keyPrefix}:${question.question}`}
-            onCustomAnswerChange={onUpdateCustomAnswer}
-            onToggleOption={onToggleOption}
+            onCustomAnswerChange={(customAnswer) =>
+              onUpdateCustomAnswer(index, customAnswer)}
+            onToggleOption={(optionLabel) =>
+              onToggleOption(index, optionLabel)}
             question={question}
+            questionCount={questions.length}
             questionIndex={index}
             readOnly={readOnly}
             selectedOptions={answer.selectedOptions}
@@ -124,142 +134,171 @@ function QuestionCardList({
   );
 }
 
-const EMPTY_ANSWER = {
-  customAnswer: "",
-  selectedOptions: EMPTY_SELECTION,
-};
-
-function QuestionSubmitSection({
-  draftComplete,
-  expanded,
-  isReady,
-  isSubmitting,
-  onSubmit,
-  readOnly,
-  submitEnabled,
-}: QuestionSubmitActionProps & {
-  expanded: boolean;
-  readOnly: boolean;
-}) {
-  if (readOnly || !expanded) {
-    return null;
-  }
-  return (
-    <QuestionSubmitAction
-      draftComplete={draftComplete}
-      isReady={isReady}
-      isSubmitting={isSubmitting}
-      onSubmit={onSubmit}
-      submitEnabled={submitEnabled}
-    />
-  );
-}
-
-function QuestionSubmittedNotice({
-  expanded,
-  status,
-}: {
-  expanded: boolean;
-  status: QuestionInteractionStatus;
-}) {
-  if (!expanded || status !== "submitted") {
-    return null;
-  }
-  return (
-    <div className="ask-user-question-submitted message-cjk-font mt-2 flex items-center gap-2 px-3 py-2 text-xs font-semibold text-(--success)">
-      <Check className="h-3.5 w-3.5" />
-      <span className="text-xs font-medium">已收到你的回应</span>
-    </div>
-  );
-}
-
-interface QuestionSubmitActionProps {
+interface QuestionDecisionRowProps {
   draftComplete: boolean;
   isReady: boolean;
   isSubmitting: boolean;
+  onDeny?: () => void;
   onSubmit: () => void;
+  readOnly: boolean;
   submitEnabled: boolean;
 }
 
-function QuestionSubmitAction({
+function QuestionDecisionRow({
   draftComplete,
   isReady,
   isSubmitting,
+  onDeny,
   onSubmit,
+  readOnly,
   submitEnabled,
-}: QuestionSubmitActionProps) {
-  const hint = resolveSubmitHint({ draftComplete, isReady, isSubmitting });
-  const presentation = resolveSubmitPresentation(isSubmitting, submitEnabled);
-  const { Icon } = presentation;
+}: QuestionDecisionRowProps) {
+  const { t } = useI18n();
+  const hint = resolveSubmitHint({
+    draftComplete,
+    isReady,
+    isSubmitting,
+    readOnly,
+    t,
+  });
 
   return (
-    <div className="ask-user-question-submit message-cjk-font mt-2 flex min-h-0 items-center justify-between gap-3 px-3 py-2">
-      <span className="text-xs leading-none text-muted-foreground">
+    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2.5">
+      <span className="min-w-0 flex-1 text-xs leading-5 text-(--text-soft)">
         {hint}
       </span>
-      <button
-        className={cn(
-          "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[8px] border px-2.5 py-1 text-xs font-medium leading-none transition-colors",
-          presentation.buttonClassName,
-        )}
-        disabled={!submitEnabled}
-        onClick={(event) => {
-          event.stopPropagation();
-          onSubmit();
-        }}
-        type="button"
-      >
-        <Icon className={cn("h-3 w-3", presentation.iconClassName)} />
-        继续协作
-      </button>
+      <div className="flex shrink-0 items-center gap-2">
+        {onDeny ? (
+          <button
+            className="radius-control-sm inline-flex h-9 items-center justify-center border border-(--divider-subtle-color) bg-transparent px-3.5 text-sm font-medium text-(--text-default) transition-colors hover:bg-(--interaction-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/28 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) sm:h-8"
+            disabled={readOnly || isSubmitting}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeny();
+            }}
+            type="button"
+          >
+            {t("composer.permission_deny")}
+          </button>
+        ) : null}
+        <button
+          className="radius-control-sm inline-flex h-9 items-center justify-center gap-2 bg-(--text-strong) px-3.5 text-sm font-medium text-(--primary-foreground) transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/32 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity) sm:h-8"
+          disabled={!submitEnabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSubmit();
+          }}
+          type="button"
+        >
+          {isSubmitting ? (
+            <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+          ) : null}
+          {t("composer.question_submit")}
+        </button>
+      </div>
     </div>
   );
 }
 
-function resolveSubmitPresentation(
-  isSubmitting: boolean,
-  submitEnabled: boolean,
-) {
-  const candidates = [
-    { active: isSubmitting, state: "submitting" },
-    { active: submitEnabled, state: "enabled" },
-  ] as const;
-  const state = candidates.find((candidate) => candidate.active)?.state
-    ?? "disabled";
-  return SUBMIT_PRESENTATIONS[state];
-}
-
-const SUBMIT_PRESENTATIONS = {
-  disabled: {
-    Icon: Send,
-    buttonClassName:
-      "border-(--divider-subtle-color) bg-transparent text-(--text-soft)",
-    iconClassName: "",
-  },
-  enabled: {
-    Icon: Send,
-    buttonClassName:
-      "border-primary/24 bg-primary/8 text-primary hover:bg-primary/12",
-    iconClassName: "",
-  },
-  submitting: {
-    Icon: Loader2,
-    buttonClassName:
-      "border-(--divider-subtle-color) bg-transparent text-(--text-soft)",
-    iconClassName: "animate-spin",
-  },
-} as const;
+type Translate = ReturnType<typeof useI18n>["t"];
 
 function resolveSubmitHint({
   draftComplete,
   isReady,
   isSubmitting,
-}: Omit<QuestionSubmitActionProps, "onSubmit" | "submitEnabled">): string {
+  readOnly,
+  t,
+}: Omit<QuestionDecisionRowProps, "onDeny" | "onSubmit" | "submitEnabled"> & {
+  t: Translate;
+}): string {
   const candidates = [
-    { active: isSubmitting, label: "正在提交回应" },
-    { active: !isReady, label: "等待提问就绪" },
-    { active: draftComplete, label: "所有问题都已回应" },
+    {
+      active: isSubmitting,
+      label: t("composer.question_hint_submitting"),
+    },
+    {
+      active: readOnly,
+      label: t("composer.question_hint_read_only"),
+    },
+    {
+      active: !isReady,
+      label: t("composer.question_hint_waiting"),
+    },
+    {
+      active: draftComplete,
+      label: t("composer.question_hint_complete"),
+    },
   ];
   return candidates.find((candidate) => candidate.active)?.label
-    ?? "每个问题至少回应一次";
+    ?? t("composer.question_hint_required");
+}
+
+interface QuestionResolutionPresentation {
+  Icon: LucideIcon;
+  labelKey:
+    | "composer.question_status_active"
+    | "composer.question_status_failed"
+    | "composer.question_status_observer"
+    | "composer.question_status_submitted"
+    | "composer.question_status_timed_out";
+  toneClassName: string;
+}
+
+const QUESTION_RESOLUTION_PRESENTATIONS: Record<
+  QuestionInteractionStatus,
+  QuestionResolutionPresentation
+> = {
+  active: {
+    Icon: MessageSquare,
+    labelKey: "composer.question_status_active",
+    toneClassName: "text-(--text-muted)",
+  },
+  failed: {
+    Icon: AlertCircle,
+    labelKey: "composer.question_status_failed",
+    toneClassName: "text-(--warning)",
+  },
+  observer: {
+    Icon: MessageSquare,
+    labelKey: "composer.question_status_observer",
+    toneClassName: "text-(--text-muted)",
+  },
+  submitted: {
+    Icon: CheckCircle2,
+    labelKey: "composer.question_status_submitted",
+    toneClassName: "text-(--success)",
+  },
+  timed_out: {
+    Icon: AlertCircle,
+    labelKey: "composer.question_status_timed_out",
+    toneClassName: "text-(--warning)",
+  },
+};
+
+function QuestionResolution({
+  answerSummary,
+  status,
+}: {
+  answerSummary: string;
+  status: QuestionInteractionStatus;
+}) {
+  const { t } = useI18n();
+  const presentation = QUESTION_RESOLUTION_PRESENTATIONS[status];
+  const { Icon } = presentation;
+  return (
+    <div className="flex min-w-0 items-center gap-2 py-1 text-sm">
+      <Icon
+        aria-hidden
+        className={cn("h-4 w-4 shrink-0", presentation.toneClassName)}
+      />
+      <span className="shrink-0 font-medium text-(--text-default)">
+        {t(presentation.labelKey)}
+      </span>
+      {answerSummary ? (
+        <span className="truncate text-(--text-muted)">
+          {answerSummary}
+        </span>
+      ) : null}
+    </div>
+  );
 }

@@ -26,6 +26,7 @@ type roomRuntimeInterrupter interface {
 	InterruptRoom(context.Context, string, string) error
 	InterruptAgentTasks(context.Context, string, string, string) error
 	InterruptConversation(context.Context, string, string) error
+	SetRoomMemberParticipation(context.Context, string, string, bool) (*protocol.ConversationContextAggregate, error)
 }
 
 // Handlers 封装 room 域 HTTP handlers。
@@ -259,5 +260,60 @@ func (h *Handlers) HandleRemoveRoomMember(writer http.ResponseWriter, request *h
 		"room_id":  item.Room.ID,
 		"agent_id": agentID,
 	})
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleSetRoomMemberParticipation 持久暂停或恢复 Room Agent 参与。
+func (h *Handlers) HandleSetRoomMemberParticipation(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	var payload protocol.SetRoomMemberParticipationRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	roomID := chi.URLParam(request, "room_id")
+	agentID := chi.URLParam(request, "agent_id")
+	var (
+		item *protocol.ConversationContextAggregate
+		err  error
+	)
+	if h.roomRealtime != nil {
+		item, err = h.roomRealtime.SetRoomMemberParticipation(
+			request.Context(),
+			roomID,
+			agentID,
+			payload.Paused,
+		)
+	} else {
+		item, err = h.roomService.SetRoomMemberParticipation(
+			request.Context(),
+			roomID,
+			agentID,
+			payload.Paused,
+		)
+	}
+	if errors.Is(err, roompkg.ErrRoomNotFound) || errors.Is(err, roompkg.ErrRoomMemberNotFound) {
+		h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		return
+	}
+	if err != nil {
+		if handlershared.IsClientMessageError(err) {
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.broadcastRoomEvent(
+		request.Context(),
+		item.Room.ID,
+		protocol.EventTypeRoomMemberParticipation,
+		map[string]any{
+			"room_id":  item.Room.ID,
+			"agent_id": agentID,
+			"paused":   payload.Paused,
+		},
+	)
 	h.api.WriteSuccess(writer, item)
 }

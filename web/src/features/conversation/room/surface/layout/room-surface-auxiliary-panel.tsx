@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
 
+import { ExecutionWorkGraphSurface } from "@/features/conversation/shared/execution/execution-workgraph-surface";
+import { buildExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
+import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import type {
@@ -27,6 +32,8 @@ interface RoomSurfaceAuxiliaryPanelProps {
   activeWorkspacePath: string | null;
   conversationId: string | null;
   currentAgent: Agent;
+  executionResource: ExecutionResource;
+  executionTaskRuns: ConversationTaskRun[];
   sidePanelWidthPercent: number;
   isDm: boolean;
   onClose: () => void;
@@ -56,6 +63,8 @@ export function RoomSurfaceAuxiliaryPanel({
   activeWorkspacePath,
   conversationId,
   currentAgent,
+  executionResource,
+  executionTaskRuns,
   sidePanelWidthPercent,
   isDm,
   onClose,
@@ -67,10 +76,26 @@ export function RoomSurfaceAuxiliaryPanel({
   roomMembers,
   subagentTaskSource,
 }: RoomSurfaceAuxiliaryPanelProps) {
+  const { t } = useI18n();
+  const executionDirectory = buildExecutionAgentDirectory([
+    ...roomMembers.filter((agent) => agent.agent_id !== currentAgent.agent_id),
+    currentAgent,
+  ]);
   const persistentPanels: Array<{
     content: ReactNode;
-    key: "workspace" | "about";
+    key: "workgraph" | "workspace" | "about";
   }> = [
+    {
+      key: "workgraph",
+      content: (
+        <ExecutionWorkGraphSurface
+          directory={executionDirectory}
+          onOpenWorkspaceFile={onOpenWorkspaceFile}
+          resource={executionResource}
+          taskRuns={executionTaskRuns}
+        />
+      ),
+    },
     {
       key: "workspace",
       content: (
@@ -103,41 +128,44 @@ export function RoomSurfaceAuxiliaryPanel({
   ];
 
   return (
-    <section
-      className="relative ml-2 flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none"
-      style={{
-        width: `${sidePanelWidthPercent}%`,
-        ...AUXILIARY_PANEL_WIDTH_LIMITS,
-      }}
-    >
+    <>
       <PanelResizeHandle
-        ariaLabel="调整右侧面板宽度"
+        ariaLabel={t("room.resize_auxiliary_panel")}
         onResizeStart={onStartSidePanelResize}
+        variant="gutter"
       />
 
-      {persistentPanels.map((panel) => (
-        <div
-          key={panel.key}
-          className={cn(
-            "flex h-full min-h-0 min-w-0 flex-1 flex-col",
-            activeSurfaceTab !== panel.key && "hidden",
-          )}
-        >
-          {panel.content}
-        </div>
-      ))}
+      <section
+        className="nexus-room-surface-side-panel relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden"
+        style={{
+          width: `${sidePanelWidthPercent}%`,
+          ...AUXILIARY_PANEL_WIDTH_LIMITS,
+        }}
+      >
+        {persistentPanels.map((panel) => (
+          <div
+            key={panel.key}
+            className={cn(
+              "flex h-full min-h-0 min-w-0 flex-1 flex-col",
+              activeSurfaceTab !== panel.key && "hidden",
+            )}
+          >
+            {panel.content}
+          </div>
+        ))}
 
-      {activeSurfaceTab === "subagents" && subagentTaskSource ? (
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
-          <RoomSubagentTaskSurface
-            currentAgentId={currentAgent.agent_id}
-            onClose={onClose}
-            onOpenWorkspaceFile={onOpenWorkspaceFile}
-            roomMembers={roomMembers}
-            source={subagentTaskSource}
-          />
-        </div>
-      ) : null}
-    </section>
+        {activeSurfaceTab === "subagents" && subagentTaskSource ? (
+          <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+            <RoomSubagentTaskSurface
+              currentAgentId={currentAgent.agent_id}
+              onClose={onClose}
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              roomMembers={roomMembers}
+              source={subagentTaskSource}
+            />
+          </div>
+        ) : null}
+      </section>
+    </>
   );
 }

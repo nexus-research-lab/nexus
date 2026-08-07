@@ -37,6 +37,7 @@ func (r *roundRunner) startIdleSubagentNotificationDrain() {
 }
 
 func (r *roundRunner) handleIdleSubagentMessage(ctx context.Context, incoming sdkprotocol.ReceivedMessage) bool {
+	r.service.observeExecutionRuntimeGraph(r.orchestrationActor(), incoming)
 	events, durableMessages, _, _, err := r.mapper.Map(incoming)
 	if err != nil {
 		r.service.loggerFor(ctx).Warn("处理 DM idle subagent 通知失败",

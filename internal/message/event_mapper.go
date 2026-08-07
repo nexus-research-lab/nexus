@@ -1,23 +1,24 @@
+// INPUT: Processor 产出的流事件、durable/ephemeral 消息与 runtime 状态。
+// OUTPUT: 带完整会话身份的协议事件、持久消息和 round 终态。
+// POS: SDK 消息投影到 Nexus 事件协议的统一编排边界。
 package message
 
 import (
-	"time"
-
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+// MessageDecorator 为 durable 消息及其最终 assistant 投影补充场景字段。
+// 装饰器原地修改消息且必须非 nil，避免返回值表达含糊的丢弃语义。
+type MessageDecorator func(protocol.Message)
+
+func noopMessageDecorator(protocol.Message) {}
+
 // EventMapperOptions 描述 SDK 消息到 Nexus 事件的映射策略。
 type EventMapperOptions struct {
 	Context                MessageContext
-	InitialSessionID       string
 	IncludeStreamLifecycle bool
-	// TransformDurableMessage 在事件与持久化快照生成前补充场景化字段。
-	TransformDurableMessage func(protocol.Message) protocol.Message
-	// TransformProjectedMessage 在 result 投影成最终 assistant 后补充场景化字段。
-	// 这一步发生在最终事件广播前，适合依赖 result 终态才能计算的标注。
-	TransformProjectedMessage func(protocol.Message) protocol.Message
 }
 
 // EventMapResult 表示一次 SDK 消息映射后的事件与持久消息。
@@ -30,39 +31,26 @@ type EventMapResult struct {
 
 // EventMapper 基于统一 Processor 生成场景化 protocol event。
 type EventMapper struct {
-	ctx                       MessageContext
-	includeStreamLifecycle    bool
-	processor                 *Processor
-	lastAssistantMessage      protocol.Message
-	transformDurableMessage   func(protocol.Message) protocol.Message
-	transformProjectedMessage func(protocol.Message) protocol.Message
+	ctx                    MessageContext
+	includeStreamLifecycle bool
+	processor              *Processor
+	lastAssistantMessage   protocol.Message
+	decorateMessage        MessageDecorator
 }
 
 // NewEventMapper 创建通用 SDK 消息映射器。
 func NewEventMapper(options EventMapperOptions) *EventMapper {
 	return &EventMapper{
-		ctx:                       options.Context,
-		includeStreamLifecycle:    options.IncludeStreamLifecycle,
-		processor:                 NewProcessor(options.Context, options.InitialSessionID),
-		transformDurableMessage:   options.TransformDurableMessage,
-		transformProjectedMessage: options.TransformProjectedMessage,
+		ctx:                    options.Context,
+		includeStreamLifecycle: options.IncludeStreamLifecycle,
+		processor:              NewProcessor(options.Context, ""),
+		decorateMessage:        noopMessageDecorator,
 	}
 }
 
-// SetDurableMessageTransformer 设置场景化 durable 消息转换器。
-func (m *EventMapper) SetDurableMessageTransformer(transform func(protocol.Message) protocol.Message) {
-	if m == nil {
-		return
-	}
-	m.transformDurableMessage = transform
-}
-
-// SetProjectedMessageTransformer 设置最终 assistant 投影的场景化转换器。
-func (m *EventMapper) SetProjectedMessageTransformer(transform func(protocol.Message) protocol.Message) {
-	if m == nil {
-		return
-	}
-	m.transformProjectedMessage = transform
+// SetMessageDecorator 设置 durable 消息及其最终 assistant 投影的场景装饰器。
+func (m *EventMapper) SetMessageDecorator(decorator MessageDecorator) {
+	m.decorateMessage = decorator
 }
 
 // Map 将一条 SDK 消息映射为 protocol event 与 durable message。
@@ -73,66 +61,88 @@ func (m *EventMapper) Map(incoming sdkprotocol.ReceivedMessage, interruptReason 
 	}
 	NormalizeInterruptedOutput(&output, firstNonEmpty(interruptReason...))
 
-	events := make([]protocol.EventMessage, 0, len(output.StreamEvents)+len(output.DurableMessages)+len(output.EphemeralMessages)+2)
-	durableMessages := make([]protocol.Message, 0, len(output.DurableMessages))
-	if status, observed := projectRuntimeStatus(incoming.System); observed {
-		events = append(events, m.wrapEvent(
-			protocol.EventTypeRuntimeStatus,
-			runtimeStatusEventData(status),
-			"",
-		))
-	}
-	if m.includeStreamLifecycle && output.StreamStarted {
-		events = append(events, m.wrapEvent(protocol.EventTypeStreamStart, map[string]any{
-			"msg_id":   m.processor.CurrentMessageID(),
-			"round_id": m.ctx.RoundID,
-		}, m.processor.CurrentMessageID()))
-	}
-	for _, streamEvent := range output.StreamEvents {
-		events = append(events, m.wrapEvent(protocol.EventTypeStream, streamEvent.Data, streamEvent.MessageID))
-	}
-	for _, messageValue := range output.DurableMessages {
-		if m.transformDurableMessage != nil {
-			messageValue = m.transformDurableMessage(messageValue)
-		}
-		copyValue := protocol.Clone(messageValue)
-		durableMessages = append(durableMessages, copyValue)
-		projectedValue := m.projectDurableMessage(copyValue)
-		if projectedValue != nil && messageValue["role"] == "result" && m.transformProjectedMessage != nil {
-			if transformed := m.transformProjectedMessage(projectedValue); transformed != nil {
-				projectedValue = transformed
-				if projectedValue["role"] == "assistant" {
-					// completion 阶段读取同一份终态快照，避免再次丢失场景化字段。
-					m.lastAssistantMessage = protocol.Clone(projectedValue)
-				}
-			}
-		}
-		if projectedValue != nil {
-			events = append(events, m.wrapMessageEvent(projectedValue, true))
-		}
-		if m.includeStreamLifecycle && messageValue["role"] == "assistant" && messageValue["is_complete"] == true {
-			events = append(events, m.wrapEvent(protocol.EventTypeStreamEnd, map[string]any{
-				"msg_id":   messageValue["message_id"],
-				"round_id": m.ctx.RoundID,
-			}, normalizeString(messageValue["message_id"])))
-		}
-	}
-	for _, messageValue := range output.EphemeralMessages {
-		events = append(events, m.wrapMessageEvent(protocol.Clone(messageValue), false))
-	}
-	return EventMapResult{
-		Events:          events,
-		DurableMessages: durableMessages,
+	result := EventMapResult{
+		Events:          make([]protocol.EventMessage, 0, len(output.StreamEvents)+len(output.DurableMessages)+len(output.EphemeralMessages)+2),
+		DurableMessages: make([]protocol.Message, 0, len(output.DurableMessages)),
 		TerminalStatus:  output.TerminalStatus,
 		ResultSubtype:   output.ResultSubtype,
-	}, nil
+	}
+	m.appendRuntimeStatus(&result, incoming.System)
+	m.appendStreamEvents(&result, output)
+	m.appendDurableMessages(&result, output.DurableMessages)
+	m.appendEphemeralMessages(&result, output.EphemeralMessages)
+	return result, nil
+}
+
+func (m *EventMapper) appendRuntimeStatus(result *EventMapResult, message *sdkprotocol.SystemMessage) {
+	status, observed := projectRuntimeStatus(message)
+	if !observed {
+		return
+	}
+	result.Events = append(result.Events, m.wrapEvent(
+		protocol.EventTypeRuntimeStatus,
+		runtimeStatusEventData(status),
+		"",
+	))
+}
+
+func (m *EventMapper) appendStreamEvents(result *EventMapResult, output Output) {
+	if m.includeStreamLifecycle && output.StreamStarted {
+		messageID := m.processor.CurrentMessageID()
+		result.Events = append(result.Events, m.wrapStreamLifecycleEvent(protocol.EventTypeStreamStart, messageID))
+	}
+	for _, streamEvent := range output.StreamEvents {
+		result.Events = append(result.Events, m.wrapEvent(
+			protocol.EventTypeStream,
+			streamEvent.Data,
+			streamEvent.MessageID,
+		))
+	}
+}
+
+func (m *EventMapper) appendDurableMessages(result *EventMapResult, messages []protocol.Message) {
+	for _, messageValue := range messages {
+		m.appendDurableMessage(result, messageValue)
+	}
+}
+
+func (m *EventMapper) appendDurableMessage(result *EventMapResult, messageValue protocol.Message) {
+	durable := protocol.Clone(messageValue)
+	m.decorateMessage(durable)
+	result.DurableMessages = append(result.DurableMessages, durable)
+
+	projected := m.projectDurableMessage(durable)
+	if len(projected) > 0 {
+		result.Events = append(result.Events, m.wrapMessageEvent(projected, protocol.DeliveryModeDurable))
+	}
+	if m.includeStreamLifecycle && isCompletedAssistantMessage(durable) {
+		result.Events = append(result.Events, m.wrapStreamLifecycleEvent(
+			protocol.EventTypeStreamEnd,
+			normalizeString(durable["message_id"]),
+		))
+	}
+}
+
+func (m *EventMapper) appendEphemeralMessages(result *EventMapResult, messages []protocol.Message) {
+	for _, messageValue := range messages {
+		result.Events = append(result.Events, m.wrapMessageEvent(
+			protocol.Clone(messageValue),
+			protocol.DeliveryModeEphemeral,
+		))
+	}
+}
+
+func isCompletedAssistantMessage(message protocol.Message) bool {
+	return protocol.MessageRole(message) == "assistant" && message["is_complete"] == true
+}
+
+var runtimeStatusEventValues = map[protocol.RuntimeStatus]any{
+	"":                               nil,
+	protocol.RuntimeStatusCompacting: protocol.RuntimeStatusCompacting,
 }
 
 func runtimeStatusEventData(status protocol.RuntimeStatus) map[string]any {
-	if status == "" {
-		return map[string]any{"status": nil}
-	}
-	return map[string]any{"status": status}
+	return map[string]any{"status": runtimeStatusEventValues[status]}
 }
 
 // CurrentMessageID 返回当前 assistant message_id。
@@ -156,32 +166,50 @@ func (m *EventMapper) LastAssistantMessage() protocol.Message {
 // ProjectResultMessage 将 result 投影回最近一条 assistant 快照。
 func (m *EventMapper) ProjectResultMessage(message protocol.Message) protocol.Message {
 	projected := ProjectResultMessage(m.lastAssistantMessage, message)
-	if projected != nil {
-		m.lastAssistantMessage = protocol.Clone(projected)
+	if len(projected) == 0 {
+		return nil
 	}
-	return projected
+	m.decorateMessage(projected)
+	return m.rememberAssistantMessage(projected)
 }
 
 func (m *EventMapper) projectDurableMessage(message protocol.Message) protocol.Message {
-	if message["role"] == "assistant" {
-		m.lastAssistantMessage = protocol.Clone(message)
+	switch protocol.MessageRole(message) {
+	case "assistant":
+		return m.rememberAssistantMessage(message)
+	case "result":
+		return m.ProjectResultMessage(message)
+	default:
 		return message
 	}
-	if message["role"] != "result" {
-		return message
-	}
-	return m.ProjectResultMessage(message)
 }
 
-func (m *EventMapper) wrapMessageEvent(message protocol.Message, durable bool) protocol.EventMessage {
+func (m *EventMapper) rememberAssistantMessage(message protocol.Message) protocol.Message {
+	m.lastAssistantMessage = protocol.Clone(message)
+	return message
+}
+
+func (m *EventMapper) wrapStreamLifecycleEvent(eventType protocol.EventType, messageID string) protocol.EventMessage {
+	return m.wrapEvent(eventType, map[string]any{
+		"msg_id":   messageID,
+		"round_id": m.ctx.RoundID,
+	}, messageID)
+}
+
+func (m *EventMapper) wrapMessageEvent(
+	message protocol.Message,
+	deliveryMode string,
+) protocol.EventMessage {
 	event := m.wrapEvent(protocol.EventTypeMessage, message, normalizeString(message["message_id"]))
-	if durable {
-		event.DeliveryMode = "durable"
-	}
+	event.DeliveryMode = deliveryMode
 	return event
 }
 
-func (m *EventMapper) wrapEvent(eventType protocol.EventType, data map[string]any, messageID string) protocol.EventMessage {
+func (m *EventMapper) wrapEvent(
+	eventType protocol.EventType,
+	data map[string]any,
+	messageID string,
+) protocol.EventMessage {
 	event := protocol.NewEvent(eventType, data)
 	event.SessionKey = m.ctx.SessionKey
 	event.RoomID = m.ctx.RoomID
@@ -190,11 +218,6 @@ func (m *EventMapper) wrapEvent(eventType protocol.EventType, data map[string]an
 	event.MessageID = normalizeString(messageID)
 	event.RoundID = m.ctx.RoundID
 	event.AgentRoundID = m.ctx.AgentRoundID
-	if sessionID := normalizeString(data["session_id"]); sessionID != "" {
-		event.SessionID = sessionID
-	}
-	if event.Timestamp == 0 {
-		event.Timestamp = time.Now().UnixMilli()
-	}
+	event.SessionID = normalizeString(data["session_id"])
 	return event
 }

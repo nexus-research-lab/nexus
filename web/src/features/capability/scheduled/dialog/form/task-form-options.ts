@@ -1,3 +1,5 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+
 import type {
   ChoiceDef,
   ExecutionKind,
@@ -6,25 +8,70 @@ import type {
   TargetType,
 } from "../scheduled-task-dialog-types";
 
-export const TARGET_TYPE_OPTIONS: ChoiceDef<TargetType>[] = [
-  { key: "agent", label: "智能体" },
-  { key: "room", label: "Room" },
-];
+type Translate = I18nContextValue["t"];
 
-export const EXECUTION_KIND_OPTIONS: ChoiceDef<ExecutionKind>[] = [
-  { key: "agent", label: "Agent 执行" },
-  { key: "script", label: "脚本执行" },
-];
+export function buildTargetTypeOptions(t: Translate): ChoiceDef<TargetType>[] {
+  return [
+    { key: "agent", label: t("capability.scheduled_dialog_target_type_agent") },
+    { key: "room", label: t("capability.scheduled_dialog_target_type_room") },
+  ];
+}
 
-export const EXECUTION_MODE_OPTIONS: ChoiceDef<ExecutionMode>[] = [
-  { key: "main", label: "使用主会话" },
-  { key: "existing", label: "使用现有会话" },
-  { key: "temporary", label: "每次新建临时会话" },
-  { key: "dedicated", label: "使用专用长期会话" },
-];
+export function buildExecutionKindOptions(
+  t: Translate,
+): ChoiceDef<ExecutionKind>[] {
+  return [
+    { key: "agent", label: t("capability.scheduled_dialog_execution_kind_agent") },
+    { key: "script", label: t("capability.scheduled_dialog_execution_kind_script") },
+  ];
+}
 
-export const REPLY_MODE_OPTIONS: ChoiceDef<ReplyMode>[] = [
-  { key: "none", label: "不回传" },
-  { key: "execution", label: "回到执行会话" },
-  { key: "selected", label: "回到指定会话" },
-];
+export function buildExecutionModeOptions(
+  t: Translate,
+): ChoiceDef<ExecutionMode>[] {
+  return [
+    { key: "main", label: t("capability.scheduled_dialog_execution_mode_main") },
+    { key: "existing", label: t("capability.scheduled_dialog_execution_mode_existing") },
+    { key: "temporary", label: t("capability.scheduled_dialog_execution_mode_temporary") },
+    { key: "dedicated", label: t("capability.scheduled_dialog_execution_mode_dedicated") },
+  ];
+}
+
+export function buildReplyModeOptions(t: Translate): ChoiceDef<ReplyMode>[] {
+  return [
+    { key: "none", label: t("capability.scheduled_dialog_reply_none") },
+    { key: "execution", label: t("capability.scheduled_dialog_reply_execution") },
+    { key: "selected", label: t("capability.scheduled_dialog_reply_selected") },
+  ];
+}
+
+export function getExecutionKindHelp(
+  executionKind: ExecutionKind,
+  t: Translate,
+): string {
+  return t(executionKind === "agent"
+    ? "capability.scheduled_dialog_execution_kind_agent_help"
+    : "capability.scheduled_dialog_execution_kind_script_help");
+}
+
+export function getExecutionModeHelp(
+  executionMode: ExecutionMode,
+  t: Translate,
+): string {
+  const keys = {
+    dedicated: "capability.scheduled_dialog_execution_mode_dedicated_help",
+    existing: "capability.scheduled_dialog_execution_mode_existing_help",
+    main: "capability.scheduled_dialog_execution_mode_main_help",
+    temporary: "capability.scheduled_dialog_execution_mode_temporary_help",
+  } as const;
+  return t(keys[executionMode]);
+}
+
+export function getReplyModeHelp(replyMode: ReplyMode, t: Translate): string {
+  const keys = {
+    execution: "capability.scheduled_dialog_reply_execution_help",
+    none: "capability.scheduled_dialog_reply_none_help",
+    selected: "capability.scheduled_dialog_reply_selected_help",
+  } as const;
+  return t(keys[replyMode]);
+}

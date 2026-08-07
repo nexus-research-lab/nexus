@@ -1,13 +1,14 @@
 /**
  * INPUT: Group Chat props、共享 Session/Composer/Goal 资源与 Room Agent 时间线。
- * OUTPUT: 含首条未读 Agent 定位、Feed、Composer 和 Goal 的完整面板模型。
+ * OUTPUT: 含首条未读 Agent 定位、Feed、Composer、Goal 与 Agent 终态驱动的 WorkGraph 刷新模型。
  * POS: Group Chat 有状态装配入口；纯投影与未读队列分别下沉到专属模块。
  */
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
 import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { Agent } from "@/types/agent/agent";
+import type { RoomAgentExecutionState } from "@/types/agent/agent-conversation";
 
 import { projectGroupAgentTimeline } from "../../feed/group-agent-timeline-model";
 import { useGroupConversationUnread } from "../../feed/use-group-conversation-unread";
@@ -27,12 +28,15 @@ export function useGroupChatPanelModel({
   conversationId,
   currentAgentAvatar,
   currentAgentName,
+  executionResource,
   initialDraft,
   layout,
   onConversationSnapshotChange,
   onCreateConversation,
+  onExecutionTaskRunsChange,
   onInitialDraftConsumed,
   onOpenAgentContact,
+  onOpenWorkGraph,
   onOpenWorkspaceFile,
   onRoomEvent,
   onTodosChange,
@@ -62,6 +66,9 @@ export function useGroupChatPanelModel({
     roomId,
     sessionKey,
   });
+  useEffect(() => {
+    onExecutionTaskRunsChange?.(session.taskRuns);
+  }, [onExecutionTaskRunsChange, session.taskRuns]);
   const feedTimeline = useMemo(
     () => projectGroupAgentTimeline({
       messageGroups: session.timeline.message_groups,
@@ -85,6 +92,7 @@ export function useGroupChatPanelModel({
   });
   const directory = useRoomAgentDirectory(roomMembers);
   const composer = useGroupChatComposerModel({
+    agentId,
     conversation: session.conversation,
     conversationId,
     goal,
@@ -101,7 +109,6 @@ export function useGroupChatPanelModel({
     agentAvatarMap: directory.avatars,
     agentNameMap: directory.names,
     conversationId,
-    currentUserAvatar: environment.currentUserAvatar,
     messageGroups: session.timeline.message_groups,
     onOpenWorkspaceFile,
     pendingPermissionGroups: session.timeline.pending_permission_groups,
@@ -117,10 +124,12 @@ export function useGroupChatPanelModel({
     currentAgentName,
     directory,
     environment,
+    execution: executionResource,
     feedTimeline,
     goal,
     onCreateConversation,
     onOpenAgentContact,
+    onOpenWorkGraph,
     onOpenWorkspaceFile,
     roomHostAgentId,
     roomHostAutoReplyEnabled,
@@ -128,6 +137,20 @@ export function useGroupChatPanelModel({
     session,
     unread,
   });
+}
+
+export function buildRoomExecutionActivityKey(
+  messageCount: number,
+  isLoading: boolean,
+  states: readonly RoomAgentExecutionState[],
+): string {
+  return [
+    messageCount,
+    isLoading,
+    ...states.map((state) => (
+      `${state.agent_round_id}:${state.phase}:${state.status}`
+    )),
+  ].join("|");
 }
 
 function useRoomAgentDirectory(roomMembers: Agent[]): RoomAgentDirectory {

@@ -1,7 +1,7 @@
 type UiMenuItemTone = "default" | "primary" | "danger";
 
 export const MENU_ITEM_BASE_CLASS_NAME =
-  "w-full radius-control-sm text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
+  "w-full radius-control-lg text-left transition-[background-color,color] duration-(--motion-duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]";
 
 export function getMenuItemStateClassName({
   active = false,

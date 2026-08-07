@@ -38,7 +38,9 @@ func (s *Service) inputQueueGuidanceHook(
 		if input.EventName != "" && input.EventName != sdkhook.EventPostToolUse {
 			return sdkhook.Output{}, nil
 		}
-		s.inputQueueDispatchMu.Lock()
+		if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+			return sdkhook.Output{}, err
+		}
 		defer s.inputQueueDispatchMu.Unlock()
 		runningRoundIDs := s.runtime.GetRunningRoundIDs(sessionKey)
 		if len(runningRoundIDs) == 0 {
@@ -340,6 +342,12 @@ func (s *Service) persistConsumedGuidanceUserMessage(
 		protocol.ChatDeliveryPolicyGuide,
 		item.Attachments,
 	)
+	if clientMessageID := strings.TrimSpace(item.ClientMessageID); clientMessageID != "" {
+		messageValue["client_message_id"] = clientMessageID
+	}
+	if agentRoundID := strings.TrimSpace(item.AgentRoundID); agentRoundID != "" {
+		messageValue["agent_round_id"] = agentRoundID
+	}
 	if err := s.history.ForOwner(location.OwnerUserID).AppendOverlayMessage(
 		location.WorkspacePath,
 		sessionItem.SessionKey,

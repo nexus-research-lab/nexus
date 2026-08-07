@@ -1,5 +1,5 @@
 // INPUT: Nexus server 环境配置、数据库 migration 与进程生命周期信号。
-// OUTPUT: 完成 schema/宿主修复后启动的 HTTP/WebSocket 服务。
+// OUTPUT: 完成 schema/宿主修复后启动并完整收口的 HTTP/WebSocket 服务。
 // POS: nexus-server 可执行入口，只装配启动阶段，不承载领域规则。
 package main
 
@@ -75,6 +75,15 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 		version, err = goose.GetDBVersion(db)
 		if err != nil {
 			return fmt.Errorf("read migration version after compatibility repair: %w", err)
+		}
+		if err = migration.RepairLegacyExecutionIdentityClaimSchema(
+			context.Background(),
+			cfg.DatabaseDriver,
+			db,
+			version,
+			logger,
+		); err != nil {
+			return fmt.Errorf("repair legacy execution identity claim schema: %w", err)
 		}
 	}
 
@@ -181,9 +190,15 @@ func buildRootCommand() *cobra.Command {
 }
 
 func runServer() error {
-	// 先加载宿主环境，再读取数据库与日志默认路径。
+	// 先加载宿主环境并恢复显式版本化的旧布局，再读取 canonical 数据库与日志路径。
+	// 这一步必须早于 config.Load；否则 v0.1.30 迁移缺口会在 app/data 误建空数据库。
 	if err := config.LoadDotEnv(); err != nil {
 		return fmt.Errorf("加载环境配置失败: %w", err)
+	}
+	stateRoot := appfs.StateRoot()
+	if err := migration.RunStateLayout(stateRoot, slog.Default()); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
 	}
 
 	cfg := config.Load()
@@ -221,6 +236,26 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	// 受影响版本可能已在 canonical 路径积累少量新记录。旧库仍是历史真相，
+	// 新库只补入不冲突记录；合并失败时隔离副本保持完整，不能阻断旧数据恢复。
+	if err := migration.MergeSkippedStateLayoutDatabase(context.Background(), cfg, logger); err != nil {
+		logger.Warn("状态布局迁移缺口的隔离数据库未自动合并，已保留完整副本", "err", err)
+	}
+	// 桌面宿主先离线复制整个状态根；新实例在任何业务服务启动前提交绝对路径重映射。
+	// 这里失败会让宿主保留旧根并自动回退，不能带着一半迁移的数据继续启动。
+	if err := migration.RunDesktopStateRootRebase(context.Background(), cfg, logger); err != nil {
+		logger.Error("桌面状态根迁移提交失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
+	if err := migration.RunWorkspaceLayout(context.Background(), cfg, stateRoot, logger); err != nil {
+		logger.Error("workspace 布局迁移失败", "err", err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return err
+	}
+	if err := migration.MergeSkippedStateLayoutUsers(stateRoot, logger); err != nil {
+		logger.Warn("状态布局迁移缺口的用户文件未自动合并，已保留完整隔离数据", "err", err)
+	}
 	if err := migration.RunWorkspaceFiles(appfs.AppDir(), agentsvc.WorkspaceBasePath(cfg), logger); err != nil {
 		logger.Error("工作区文件迁移失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -237,6 +272,11 @@ func runServer() error {
 		logger.Error("平台 Skill 库初始化失败", "err", err)
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
+	}
+	// 宿主 Skill 是桌面可选来源。只在启动窗口创建稳定根，
+	// 内容校验与刷新交给后台 watcher，不应阻断服务健康。
+	if err := workspacepkg.PrepareHostSkillLibrary(cfg); err != nil {
+		logger.Warn("宿主 Skill 兼容根准备失败，继续启动服务", "err", err)
 	}
 	if err := migration.RunRuntimeIdentitySync(context.Background(), cfg, logger); err != nil {
 		logger.Error("runtime OS identity 同步失败", "err", err)
@@ -268,9 +308,19 @@ func runServer() error {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		return err
 	}
+	defer func() {
+		if closeErr := server.Close(context.Background()); closeErr != nil {
+			logger.Warn("服务资源关闭失败", "err", closeErr)
+		}
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	go workspacepkg.WatchHostSkillLibrary(
+		ctx,
+		cfg,
+		logger.With("component", "workspace.host_skills"),
+	)
 
 	logger.Info("服务启动中",
 		"addr", cfg.Address(),

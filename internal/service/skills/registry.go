@@ -63,15 +63,13 @@ func (s *Service) loadExternalRecordsFromDB(
 		return nil, err
 	}
 	result := map[string]catalogRecord{}
+	names := map[string]struct{}{}
 	for _, record := range records {
 		if validateSkillName(record.SkillName) != nil {
 			continue
 		}
 		item := s.buildExternalRecordFromEntity(root, ownerRoot, record)
-		if catalogHasSkillName(result, item.Detail.Name) {
-			continue
-		}
-		result[item.Detail.Name] = item
+		addCatalogRecord(result, names, item)
 	}
 	return result, nil
 }
@@ -235,10 +233,11 @@ func (s *Service) upsertImportedSkillRecordWithHash(
 	}
 	ownerUserID := authctx.OwnerUserID(ctx)
 	now := time.Now().UTC()
+	canonicalName := filepath.Base(filepath.Clean(skillDir))
 	entity := skillstore.ImportedSkillEntity{
 		OwnerUserID:    ownerUserID,
-		SkillName:      firstNonEmpty(manifest.Name, parsed.Name, filepath.Base(skillDir)),
-		Title:          firstNonEmpty(manifest.Title, parsed.Title, parsed.Name),
+		SkillName:      canonicalName,
+		Title:          firstNonEmpty(manifest.Title, parsed.Title, parsed.Name, canonicalName),
 		Description:    firstNonEmpty(manifest.Description, parsed.Description),
 		Scope:          defaultSkillScope(firstNonEmpty(manifest.Scope, parsed.Scope)),
 		TagsJSON:       jsoncodec.MarshalStringSlice(firstNonEmptySlice(manifest.Tags, parsed.Tags)),
@@ -322,6 +321,7 @@ func loadExternalRecordsFromRegistryRoot(
 	confinedRoot *confinedfs.Root,
 ) (map[string]catalogRecord, error) {
 	result := map[string]catalogRecord{}
+	names := map[string]struct{}{}
 	entries, err := fs.ReadDir(confinedRoot.FS(), ".")
 	if err != nil {
 		return nil, err
@@ -358,17 +358,17 @@ func loadExternalRecordsFromRegistryRoot(
 		content := string(contentBytes)
 		skillName := entry.Name()
 		parsed := parseSkillFrontmatter(content, skillName)
-		canonicalName := firstNonEmpty(manifest.Name, parsed.Name)
+		// owner 全局根与 runtime 一样以直接子目录作 canonical name。
+		// manifest/frontmatter 可以提供标题，不能让 Catalog 与真实发现名分叉。
+		canonicalName := skillName
 		if validateSkillName(canonicalName) != nil {
 			continue
 		}
-		if catalogHasSkillName(result, canonicalName) {
-			continue
-		}
+		manifest.Name = canonicalName
 		detail := Detail{
 			Info: Info{
 				Name:         canonicalName,
-				Title:        firstNonEmpty(manifest.Title, parsed.Title, skillName),
+				Title:        firstNonEmpty(manifest.Title, parsed.Title, parsed.Name, skillName),
 				Description:  firstNonEmpty(manifest.Description, parsed.Description),
 				Scope:        defaultSkillScope(firstNonEmpty(manifest.Scope, parsed.Scope)),
 				Tags:         firstNonEmptySlice(manifest.Tags, parsed.Tags),
@@ -386,7 +386,11 @@ func loadExternalRecordsFromRegistryRoot(
 			ReadmeMarkdown: parsed.ReadmeMarkdown,
 			Recommendation: firstNonEmpty(manifest.Recommendation, parsed.Recommendation, "外部导入能力。"),
 		}
-		result[detail.Name] = catalogRecord{Detail: detail, SourcePath: skillDir, Manifest: manifest}
+		addCatalogRecord(
+			result,
+			names,
+			catalogRecord{Detail: detail, SourcePath: skillDir, Manifest: manifest},
+		)
 	}
 	return result, nil
 }

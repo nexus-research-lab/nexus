@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -90,6 +91,74 @@ func TestGetMemorySnapshotReturnsEmptyLayoutBeforeRuntimeInitialization(t *testi
 	}
 	if snapshot.Layout != "empty" || snapshot.Index != nil || len(snapshot.Documents) != 0 {
 		t.Fatalf("空记忆投影不正确: %+v", snapshot)
+	}
+}
+
+func TestDeleteMemoryDocumentRemovesFileAndIndexEntry(t *testing.T) {
+	cfg := newWorkspaceTestConfig(t)
+	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := NewService(cfg, agentService)
+	agentValue, err := agentService.CreateAgent(context.Background(), protocol.CreateRequest{Name: "记忆删除测试"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+
+	indexContent := "# MEMORY.md\n\n保留用户自定义说明。\n\n## Index\n\n" +
+		"- [删除项](memory/remove_me.md) — 即将删除\n" +
+		"- [保留项](memory/keep_me.md) — 必须保留\n"
+	writeMemoryTestFile(t, agentValue.WorkspacePath, "MEMORY.md", indexContent)
+	writeMemoryTestFile(t, agentValue.WorkspacePath, "memory/remove_me.md", "待删除正文。\n")
+	writeMemoryTestFile(t, agentValue.WorkspacePath, "memory/keep_me.md", "保留正文。\n")
+
+	for _, invalidPath := range []string{"MEMORY.md", "notes.md", "memory"} {
+		if _, deleteErr := workspaceService.DeleteMemoryDocument(
+			context.Background(),
+			agentValue.AgentID,
+			invalidPath,
+		); deleteErr == nil {
+			t.Fatalf("DeleteMemoryDocument(%q) 应拒绝非正文记忆路径", invalidPath)
+		}
+	}
+
+	result, err := workspaceService.DeleteMemoryDocument(
+		context.Background(),
+		agentValue.AgentID,
+		"memory/remove_me.md",
+	)
+	if err != nil {
+		t.Fatalf("删除记忆失败: %v", err)
+	}
+	if result.Path != "memory/remove_me.md" {
+		t.Fatalf("删除路径 = %q, want memory/remove_me.md", result.Path)
+	}
+	if _, statErr := os.Stat(filepath.Join(agentValue.WorkspacePath, "memory", "remove_me.md")); !os.IsNotExist(statErr) {
+		t.Fatalf("删除后的文件状态错误: %v", statErr)
+	}
+	updatedIndex, err := os.ReadFile(filepath.Join(agentValue.WorkspacePath, "MEMORY.md"))
+	if err != nil {
+		t.Fatalf("读取更新后的索引失败: %v", err)
+	}
+	if strings.Contains(string(updatedIndex), "memory/remove_me.md") {
+		t.Fatalf("索引仍包含已删除记忆: %s", updatedIndex)
+	}
+	for _, expected := range []string{"保留用户自定义说明", "memory/keep_me.md"} {
+		if !strings.Contains(string(updatedIndex), expected) {
+			t.Fatalf("索引丢失 %q: %s", expected, updatedIndex)
+		}
+	}
+
+	snapshot, err := workspaceService.GetMemorySnapshot(context.Background(), agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("读取删除后的记忆投影失败: %v", err)
+	}
+	if len(snapshot.Documents) != 1 || snapshot.Documents[0].Path != "memory/keep_me.md" || !snapshot.Documents[0].Indexed {
+		t.Fatalf("删除后的记忆投影不正确: %+v", snapshot.Documents)
 	}
 }
 

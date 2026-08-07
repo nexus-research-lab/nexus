@@ -18,7 +18,9 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 	if agentRoundID := strings.TrimSpace(request.AgentRoundID); agentRoundID != "" {
 		roundValue, slot := s.findActiveSlotByAgentRoundID(sessionKey, agentRoundID)
 		if slot == nil {
-			return errors.New("target room slot not found")
+			// 精确停止与自然完成存在合法竞态。目标已经离开 active registry 时
+			// 按幂等成功收口，禁止客户端因迟到错误把已完成执行重新暴露为可停止。
+			return nil
 		}
 		return s.interruptActiveSlot(ctx, roundValue, slot, "")
 	}
@@ -225,6 +227,7 @@ func (s *Service) interruptActiveSlot(
 		return nil
 	}
 	interruptReason := normalizeRoomInterruptReason(message)
+	displayInterruptReason := roomInterruptDisplayReason(interruptReason)
 	markRoomSlotInterrupted(slot, interruptReason)
 	shouldBroadcast := !slot.isTerminal()
 	if client := slot.getClient(); client != nil {
@@ -240,7 +243,7 @@ func (s *Service) interruptActiveSlot(
 			)
 		}
 	}
-	s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, interruptReason)
+	s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, displayInterruptReason)
 	if shouldBroadcast {
 		s.loggerFor(ctx).Warn("请求中断 Room slot",
 			"session_key", roundValue.SessionKey,
@@ -249,7 +252,7 @@ func (s *Service) interruptActiveSlot(
 			"agent_id", slot.AgentID,
 			"round_id", slot.AgentRoundID,
 			"msg_id", slot.MsgID,
-			"reason", interruptReason,
+			"reason", displayInterruptReason,
 		)
 	}
 	select {
@@ -280,12 +283,13 @@ func (s *Service) interruptActiveRound(
 	// 持久化 queue 在稍后又把目标 Agent 唤醒。
 	s.cancelRootPublicHandoffs(ctx, roundValue, "interrupted")
 	interruptReason := normalizeRoomInterruptReason(message)
+	displayInterruptReason := roomInterruptDisplayReason(interruptReason)
 	s.loggerFor(ctx).Warn("请求中断 Room round",
 		"session_key", roundValue.SessionKey,
 		"room_id", roundValue.RoomID,
 		"conversation_id", roundValue.ConversationID,
 		"round_id", roundValue.RoundID,
-		"reason", interruptReason,
+		"reason", displayInterruptReason,
 	)
 	for _, slot := range roundValue.Slots {
 		markRoomSlotInterrupted(slot, interruptReason)
@@ -302,7 +306,7 @@ func (s *Service) interruptActiveRound(
 				)
 			}
 		}
-		s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, interruptReason)
+		s.permission.CancelRequestsForSession(slot.RuntimeSessionKey, displayInterruptReason)
 	}
 	select {
 	case <-roundValue.Done:

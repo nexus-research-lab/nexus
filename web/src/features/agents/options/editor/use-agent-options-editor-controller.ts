@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -9,6 +9,7 @@ import type {
   AgentOptionsControllerOptions,
   AgentOptionsEditorSource,
   AgentOptionsMode,
+  AgentOptionsPersistenceState,
   AgentOptionsTabKey,
   SaveFeedback,
 } from "../agent-options-editor-model";
@@ -18,6 +19,7 @@ import {
   createAgentOptionsDraft,
 } from "./agent-options-draft";
 import { useAgentNameValidation } from "./use-agent-name-validation";
+import { useAgentOptionsAutoSave } from "./use-agent-options-auto-save";
 import { useAgentOptionsDraft } from "./use-agent-options-draft";
 import { useAgentProfileTemplate } from "./use-agent-profile-template";
 import { useAgentOptionsSaveCommand } from "./use-agent-options-save-command";
@@ -30,6 +32,7 @@ export function useAgentOptionsEditorController({
   onSave,
   onSaveSuccess,
   onValidateName,
+  saveMode = "explicit",
   showDeleteButton = true,
   source,
   activeTab: controlledActiveTab,
@@ -37,10 +40,10 @@ export function useAgentOptionsEditorController({
 }: AgentOptionsControllerOptions) {
   const { t } = useI18n();
   const sourceOptions = source.initial.options;
-  const initialDraft = createAgentOptionsDraft({
+  const initialDraft = useMemo(() => createAgentOptionsDraft({
     defaultTitle: t("agent_options.default_name"),
     initial: source.initial,
-  });
+  }), [source.initial, t]);
   const sourceScopeKey = buildAgentEditorScopeKey({
     draft: initialDraft,
     isActive,
@@ -49,9 +52,10 @@ export function useAgentOptionsEditorController({
   const commandScopeKey = buildAgentEditorCommandScopeKey({ isActive, source });
   const feedback = useAgentSaveFeedback(commandScopeKey);
   const draftController = useAgentOptionsDraft({
+    editorScopeKey: commandScopeKey,
     initialDraft,
     onChange: feedback.clear,
-    scopeKey: sourceScopeKey,
+    sourceScopeKey,
   });
   const profileTemplate = useAgentProfileTemplate(
     source.kind === "create" && isActive,
@@ -103,7 +107,11 @@ export function useAgentOptionsEditorController({
     hasTitleChanged,
     labels: {
       failed: t("agent_options.save_failed"),
-      success: t("agent_options.save_success"),
+      success: t(
+        saveMode === "automatic"
+          ? "agent_options.auto_save_success"
+          : "agent_options.save_success",
+      ),
     },
     mode: source.kind,
     onSave,
@@ -112,6 +120,17 @@ export function useAgentOptionsEditorController({
     sourceScopeKey,
     sourceOptions,
     validation,
+  });
+  const saveEnabled = saveCommand.canSave && !profileTemplate.loading;
+  const automaticSaveEnabled = saveMode === "automatic" && source.kind === "edit";
+  useAgentOptionsAutoSave({
+    canSave: saveEnabled,
+    draftRevision: draftController.revision,
+    enabled: automaticSaveEnabled,
+    isDirty: draftController.isDirty,
+    isSaving: saveCommand.isSaving,
+    save: saveCommand.save,
+    scopeKey: commandScopeKey,
   });
   return {
     activeTab: tabs.activeTab,
@@ -137,12 +156,50 @@ export function useAgentOptionsEditorController({
       skills: buildSkillsProps(source, isActive, tabs.activeTab),
     },
     onTabChange: tabs.onTabChange,
+    persistence: buildPersistenceState({
+      automaticSaveEnabled,
+      feedback: feedback.feedback,
+      isDirty: draftController.isDirty,
+      isSaving: saveCommand.isSaving,
+      t,
+    }),
   };
 }
 
 type DraftController = ReturnType<typeof useAgentOptionsDraft>;
 type SaveCommand = ReturnType<typeof useAgentOptionsSaveCommand>;
 type Translate = ReturnType<typeof useI18n>["t"];
+
+function buildPersistenceState({
+  automaticSaveEnabled,
+  feedback,
+  isDirty,
+  isSaving,
+  t,
+}: {
+  automaticSaveEnabled: boolean;
+  feedback: SaveFeedback | null;
+  isDirty: boolean;
+  isSaving: boolean;
+  t: Translate;
+}): AgentOptionsPersistenceState {
+  if (!automaticSaveEnabled) {
+    return { message: "", phase: "idle" };
+  }
+  if (isSaving) {
+    return { message: t("common.saving"), phase: "saving" };
+  }
+  if (feedback?.tone === "error") {
+    return { message: feedback.message, phase: "error" };
+  }
+  if (feedback?.tone === "success") {
+    return { message: feedback.message, phase: "success" };
+  }
+  return {
+    message: t("agent_options.auto_save"),
+    phase: isDirty ? "pending" : "idle",
+  };
+}
 
 function useAgentOptionsTabs({
   controlledActiveTab,
@@ -264,6 +321,7 @@ function buildIdentityProps({
   source: AgentOptionsEditorSource;
   validation: ReturnType<typeof useAgentNameValidation>;
 }) {
+  const isMain = source.kind === "edit" && source.isMain;
   return {
     agentId: source.kind === "edit" ? source.agentId : undefined,
     avatar: draft.avatar,
@@ -271,8 +329,8 @@ function buildIdentityProps({
     defaultProvider: providerOptions.defaultProvider,
     description: draft.description,
     isValidatingName: validation.isValidating,
-    isMain: source.kind === "edit" && source.isMain,
-    model: draft.model,
+    isMain,
+    model: isMain ? "" : draft.model,
     nameValidation: validation.result,
     onAvatarChange: (value: string) => updateField("avatar", value),
     onDescriptionChange: (value: string) => updateField("description", value),
@@ -281,7 +339,7 @@ function buildIdentityProps({
     onProviderChange: (value: string) => updateField("provider", value),
     onTitleChange: (value: string) => updateField("title", value),
     onVibeTagsChange: (value: string[]) => updateField("vibeTags", value),
-    provider: draft.provider,
+    provider: isMain ? "" : draft.provider,
     providerOptions: providerOptions.items,
     providerOptionsError: providerOptions.error,
     providerOptionsLoading: providerOptions.loading,

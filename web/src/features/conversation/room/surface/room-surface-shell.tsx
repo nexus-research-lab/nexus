@@ -2,9 +2,12 @@
 
 import { useCallback, useState } from "react";
 
+import { useExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useDefaultAgentRuntimeKind } from "@/hooks/settings/use-default-agent-runtime-kind";
 import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
+import { buildRoomSharedSessionKey } from "@/lib/conversation/session-key";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { Agent, AgentIdentityDraft, AgentNameValidationResult, AgentOptions } from "@/types/agent/agent";
 import { AgentConversationIdentity } from "@/types/agent/agent-conversation";
@@ -102,10 +105,51 @@ export function RoomSurfaceShell({
   );
   const defaultRuntimeKind = useDefaultAgentRuntimeKind();
   const [activeSurfaceTab, setActiveSurfaceTab] = useState<RoomSurfaceTabKey>("chat");
+  const [executionEventRevision, setExecutionEventRevision] = useState(0);
+  const handleRoomEvent = useCallback<NonNullable<RoomSurfaceShellProps["onRoomEvent"]>>(
+    (eventType, data) => {
+      if (
+        eventType === "message"
+        || eventType === "round_status"
+        || eventType === "agent_round_status"
+        || eventType === "session_status"
+        || eventType.startsWith("goal_")
+        || eventType.endsWith("_resync_required")
+      ) {
+        setExecutionEventRevision((current) => current + 1);
+      }
+      onRoomEvent?.(eventType, data);
+    },
+    [onRoomEvent],
+  );
   const storedRuntimeKind = currentRoomConversation?.options.runtime_kind;
   const runtimeKind = typeof storedRuntimeKind === "string"
     ? normalizeAgentRuntimeKind(storedRuntimeKind)
     : defaultRuntimeKind;
+  const executionSessionKey = currentRoomType === "dm"
+    ? currentAgentSessionIdentity?.session_key ?? null
+    : conversationId
+    ? buildRoomSharedSessionKey(conversationId)
+    : null;
+  const [executionTaskRunState, setExecutionTaskRunState] = useState<{
+    sessionKey: string | null;
+    runs: ConversationTaskRun[];
+  }>({ sessionKey: null, runs: [] });
+  const executionTaskRuns = executionTaskRunState.sessionKey === executionSessionKey
+    ? executionTaskRunState.runs
+    : [];
+  const executionResource = useExecutionResource({
+    activityKey: [
+      currentRoomConversation?.message_count ?? 0,
+      currentRoomConversation?.last_activity_at ?? 0,
+      currentRoomConversation?.is_active ?? false,
+      executionEventRevision,
+    ].join(":"),
+    sessionKey: executionSessionKey,
+  });
+  const handleExecutionTaskRunsChange = useCallback((runs: ConversationTaskRun[]) => {
+    setExecutionTaskRunState({ sessionKey: executionSessionKey, runs });
+  }, [executionSessionKey]);
 
   const handleCreateConversationInShell = useCallback(async (title?: string) => {
     const nextConversationId = await onCreateConversation(title);
@@ -139,7 +183,10 @@ export function RoomSurfaceShell({
         currentRoomTitle={currentRoomTitle}
         runtimeKind={runtimeKind}
         currentTodos={currentTodos}
+        executionResource={executionResource}
+        executionTaskRuns={executionTaskRuns}
         initialDraft={initialDraft}
+        onExecutionTaskRunsChange={handleExecutionTaskRunsChange}
         onInitialDraftConsumed={onInitialDraftConsumed}
         onManageRoom={onManageRoom}
         onOpenMemberManager={onOpenMemberManager}
@@ -149,7 +196,7 @@ export function RoomSurfaceShell({
         onDeleteConversation={onDeleteConversation}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         onReplayTour={onReplayTour}
-        onRoomEvent={onRoomEvent}
+        onRoomEvent={handleRoomEvent}
         onSaveAgentOptions={onSaveAgentOptions}
         onSelectConversation={onSelectConversation}
         onTodosChange={onTodosChange}
@@ -181,7 +228,10 @@ export function RoomSurfaceShell({
       currentAgentSessionIdentity={currentAgentSessionIdentity}
       conversationId={conversationId}
       currentRoomConversations={currentRoomConversations}
+      executionResource={executionResource}
+      executionTaskRuns={executionTaskRuns}
       initialDraft={initialDraft}
+      onExecutionTaskRunsChange={handleExecutionTaskRunsChange}
       onInitialDraftConsumed={onInitialDraftConsumed}
       currentTodos={currentTodos}
       sidePanelWidthPercent={sidePanelWidthPercent}
@@ -202,7 +252,7 @@ export function RoomSurfaceShell({
       onStartSidePanelResize={onStartSidePanelResize}
       onTodosChange={onTodosChange}
       surfaceSplitRef={surfaceSplitRef}
-      onRoomEvent={onRoomEvent}
+      onRoomEvent={handleRoomEvent}
     />
   );
 }

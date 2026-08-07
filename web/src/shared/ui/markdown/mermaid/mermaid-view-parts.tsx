@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import type { KeyboardEvent, ReactNode } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 
 import {
@@ -80,12 +81,13 @@ export function MermaidRenderedPreview({
   onOpenPreview: () => void;
   svg: string;
 }) {
+  const { t } = useI18n();
   const minimumHeightClassName = compact ? "min-h-24" : "min-h-56";
   if (isRendering && !svg) {
     return (
       <div className={cn("flex items-center justify-center text-(--text-muted)", minimumHeightClassName)}>
         <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-        {isStreaming ? "等待完整图表" : "正在渲染图表"}
+        {t(isStreaming ? "markdown.mermaid.waiting" : "markdown.mermaid.rendering")}
       </div>
     );
   }
@@ -94,7 +96,7 @@ export function MermaidRenderedPreview({
       <div className="m-3 rounded-[8px] border border-destructive/20 bg-destructive/6 px-3 py-2 text-sm text-destructive">
         <div className="flex items-center gap-2 font-medium">
           <AlertTriangle className="h-4 w-4" />
-          Mermaid 渲染失败
+          {t("markdown.mermaid.render_failed")}
         </div>
         <pre className="mt-2 whitespace-pre-wrap break-words text-xs leading-5">{error}</pre>
       </div>
@@ -103,7 +105,7 @@ export function MermaidRenderedPreview({
   if (!svg) {
     return (
       <div className={cn("flex items-center justify-center text-(--text-muted)", minimumHeightClassName)}>
-        {isStreaming ? "等待完整图表" : "暂无图表预览"}
+        {t(isStreaming ? "markdown.mermaid.waiting" : "markdown.mermaid.no_preview")}
       </div>
     );
   }
@@ -119,7 +121,7 @@ export function MermaidRenderedPreview({
   return (
     <div className={cn("group relative min-h-0 w-full", !compact && "flex flex-1")}>
       <div
-        aria-label="放大预览 Mermaid 图表"
+        aria-label={t("markdown.mermaid.open_preview")}
         className={cn(
           "mermaid-view soft-scrollbar relative flex min-w-0 w-full cursor-zoom-in items-center justify-center overflow-auto bg-(--surface-paper-background) p-4 text-(--surface-paper-foreground) outline-none transition-[box-shadow] focus-visible:ring-2 focus-visible:ring-primary/28",
           getMermaidBodyClassName(compact, constrainHeight),
@@ -130,7 +132,7 @@ export function MermaidRenderedPreview({
         onKeyDown={handleKeyDown}
         role="button"
         tabIndex={0}
-        title="放大预览"
+        title={t("markdown.mermaid.open_preview")}
       />
       <div className="pointer-events-none absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_86%,transparent)] text-(--surface-paper-muted) opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
         <Maximize2 className="h-3.5 w-3.5" />
@@ -138,7 +140,7 @@ export function MermaidRenderedPreview({
       {isRendering ? (
         <div className="pointer-events-none absolute right-2 top-2 inline-flex items-center rounded-full border border-(--surface-paper-border) bg-[color:color-mix(in_srgb,var(--surface-paper-background)_86%,transparent)] px-2 py-1 text-xs text-(--surface-paper-muted) shadow-sm">
           <LoaderCircle className="mr-1.5 h-3 w-3 animate-spin" />
-          更新中
+          {t("markdown.mermaid.updating")}
         </div>
       ) : null}
     </div>

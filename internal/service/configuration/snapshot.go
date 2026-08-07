@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
@@ -135,20 +134,15 @@ func (s *Service) domainValues(ctx context.Context, actor Actor, domain string, 
 		items, err := s.skills.ListSkills(ctx, skillsvc.Query{AgentID: actor.AgentID})
 		return map[string]any{"sources": sources, "main_agent_items": items}, skillChecks(sources, err), err
 	case DomainHost:
-		settings, err := config.LoadRuntimeSettings()
-		if err != nil {
-			return nil, nil, err
-		}
 		values := map[string]any{
-			"runtime_settings":       settings,
 			"current_workspace_path": s.cfg.WorkspacePath,
 			"startup_configuration":  s.cfg,
 			"mutability": map[string]any{
-				"runtime_settings.workspace_path": "restart_required",
-				"startup_configuration":           "read_only; change deployment environment and restart",
+				"workspace_path":        "read_only; change deployment environment or use the native desktop state-root migration",
+				"startup_configuration": "read_only; change deployment environment and restart",
 			},
 		}
-		return values, s.hostChecks(settings, verify), nil
+		return values, s.hostChecks(verify), nil
 	case DomainAutomation, DomainRooms, DomainWorkspaces, DomainGoals:
 		definition, _ := definitionFor(domain)
 		return map[string]any{
@@ -332,19 +326,16 @@ func skillChecks(values any, err error) []Check {
 	return []Check{okCheck(DomainSkills, "skills_readable", "Skill 来源与主智能体安装状态可读取")}
 }
 
-func (s *Service) hostChecks(settings config.RuntimeSettings, verify bool) []Check {
+func (s *Service) hostChecks(verify bool) []Check {
 	checks := []Check{okCheck(DomainHost, "startup_config_loaded", "启动配置已读取；敏感项仅显示 configured 状态")}
 	if !verify {
 		return checks
 	}
-	path := strings.TrimSpace(settings.WorkspacePath)
-	if path == "" {
-		path = strings.TrimSpace(s.cfg.WorkspacePath)
-	}
+	path := strings.TrimSpace(s.cfg.WorkspacePath)
 	if path == "" {
 		return append(checks, Check{
 			Code: "workspace_path_default", Status: "warning", Message: "未显式配置 workspace_path",
-			Domain: DomainHost, Remedy: "设置 runtime_settings.workspace_path 后重启", Verified: true,
+			Domain: DomainHost, Remedy: "通过部署环境或原生桌面状态根迁移设置后重启", Verified: true,
 		})
 	}
 	resolved, err := filepath.Abs(path)

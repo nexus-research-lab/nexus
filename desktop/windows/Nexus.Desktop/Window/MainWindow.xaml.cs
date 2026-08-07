@@ -152,7 +152,8 @@ public partial class MainWindow : System.Windows.Window
             webView,
             runtime,
             startupTimeline,
-            RecreateWebViewAsync);
+            RecreateWebViewAsync,
+            () => updateChecker.StartAvailableUpdate(this));
     }
 
     private WebView2CompositionControl GetOrCreateWebViewControl()

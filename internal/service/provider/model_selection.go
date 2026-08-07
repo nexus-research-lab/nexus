@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	providerstore "github.com/nexus-research-lab/nexus/internal/storage/provider"
@@ -238,62 +237,4 @@ func (s *Service) resolveMissingExplicitModel(ctx context.Context, providerID st
 		return "", nil
 	}
 	return normalizeModelID(model.ModelID), nil
-}
-
-func (s *Service) replacementRuntimeSelectionForDelete(
-	ctx context.Context,
-	deleting providerstore.Entity,
-) (*providerModelTarget, error) {
-	var items []providerstore.Entity
-	var err error
-	if deleting.Visibility == providerstore.VisibilityPublic {
-		items, err = s.listPublicAndNormalize(ctx)
-	} else {
-		items, err = s.listAndNormalize(ctx)
-	}
-	if err != nil {
-		return nil, err
-	}
-	candidates, err := s.loadReplacementRuntimeCandidates(ctx, deleting.ID, items)
-	if err != nil {
-		return nil, err
-	}
-	for _, candidate := range candidates {
-		for _, model := range candidate.models {
-			if model.Enabled && model.IsDefault {
-				return &providerModelTarget{provider: candidate.provider, model: model}, nil
-			}
-		}
-	}
-	for _, candidate := range candidates {
-		model := preferredEnabledModel(candidate.models, nil)
-		if model != nil {
-			return &providerModelTarget{provider: candidate.provider, model: *model}, nil
-		}
-	}
-	return nil, fmt.Errorf("provider=%s 仍被 Agent 使用，但没有可替换的默认模型", deleting.Provider)
-}
-
-type replacementRuntimeCandidate struct {
-	provider providerstore.Entity
-	models   []providerstore.ModelEntity
-}
-
-func (s *Service) loadReplacementRuntimeCandidates(
-	ctx context.Context,
-	deletingProviderID string,
-	items []providerstore.Entity,
-) ([]replacementRuntimeCandidate, error) {
-	candidates := make([]replacementRuntimeCandidate, 0, len(items))
-	for _, item := range items {
-		if item.ID == deletingProviderID || !item.Enabled || !isAgentRuntimeProvider(item) {
-			continue
-		}
-		models, err := s.repository.ListModelsByProviderID(ctx, item.ID)
-		if err != nil {
-			return nil, err
-		}
-		candidates = append(candidates, replacementRuntimeCandidate{provider: item, models: models})
-	}
-	return candidates, nil
 }

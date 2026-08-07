@@ -41,6 +41,9 @@ func TestExecuteRoundUsesInternalContextWhenSupported(t *testing.T) {
 	if len(client.contextInput) != 1 || client.contextInput[0].Name != "goal" || client.contextInput[0].Content != "Continue." {
 		t.Fatalf("contextInput = %#v, want goal internal context", client.contextInput)
 	}
+	if client.clearCalls != 1 {
+		t.Fatalf("clearCalls = %d, want stale buffer cleared before setting context", client.clearCalls)
+	}
 	if len(client.queryPrompts) != 1 || client.queryPrompts[0] != "用户输入" {
 		t.Fatalf("queryPrompts = %#v, want unmodified user input", client.queryPrompts)
 	}
@@ -116,6 +119,13 @@ func TestExecuteRoundFallsBackToUserContextPrefixWhenInternalContextUnsupported(
 		!strings.HasPrefix(client.queryPrompts[0], "<internal_context source=\"goal\">\nContinue.\n</internal_context>\n\n") ||
 		!strings.Contains(client.queryPrompts[0], "用户输入") {
 		t.Fatalf("queryPrompts = %#v, want context-prefixed user input", client.queryPrompts)
+	}
+	if client.clearCalls != 1 || len(client.contextInput) != 0 {
+		t.Fatalf(
+			"unsupported buffer calls = clear:%d context:%#v, want inline fallback",
+			client.clearCalls,
+			client.contextInput,
+		)
 	}
 }
 

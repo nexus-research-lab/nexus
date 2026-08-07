@@ -27,8 +27,8 @@ func TestToolsListIncludesModelVisibleMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("tools not []map, got %T", result["tools"])
 	}
-	if len(tools) != 4 {
-		t.Fatalf("tools count = %d, want 4", len(tools))
+	if len(tools) != 5 {
+		t.Fatalf("tools count = %d, want 5", len(tools))
 	}
 	for _, tool := range tools {
 		name, _ := tool["name"].(string)

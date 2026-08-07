@@ -10,6 +10,7 @@ import { AppRouteBuilders } from "@/app/router/route-paths";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { getActiveChatTargetFromPath } from "@/features/home/notifications/chat-notification-target";
 import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { useSidebarStore } from "@/store/sidebar";
 
 import { useActiveRoomIds } from "../room-activity-resource";
@@ -33,6 +34,7 @@ interface ChatSidebarControllerOptions {
 export function useChatSidebarController({
   untitledRoomLabel,
 }: ChatSidebarControllerOptions) {
+  const { locale } = useI18n();
   const location = useLocation();
   const navigate = useNavigate();
   const activeItemId = useSidebarStore((state) => state.active_panel_item_id);
@@ -69,10 +71,18 @@ export function useChatSidebarController({
   const conversationItems = useMemo(() => buildConversationItems({
     agents,
     conversations,
+    locale,
     rooms,
     untitledRoomLabel,
     activeRoomIds,
-  }), [activeRoomIds, agents, conversations, rooms, untitledRoomLabel]);
+  }), [
+    activeRoomIds,
+    agents,
+    conversations,
+    locale,
+    rooms,
+    untitledRoomLabel,
+  ]);
   const items = useMemo(() => projectSidebarUnreadItems({
     activeTarget,
     chatUnreadAnchors,

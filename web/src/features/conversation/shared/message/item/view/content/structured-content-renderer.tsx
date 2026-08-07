@@ -6,7 +6,7 @@ import type { PendingPermission } from "@/types/conversation/interaction/permiss
 
 import { resolveContentActivityState } from "../../activity/message-content-activity";
 import type { MessageActivityState } from "../../activity/message-activity-state";
-import { MessageActivityStatus } from "../message-activity-status";
+import { LocalizedMessageActivityStatus } from "../message-activity-status";
 import {
   ContentBlockView,
   type ContentBlockRenderContext,
@@ -39,6 +39,7 @@ export function StructuredContentRenderer(
     permissionReadOnlyReason,
     showTimelineDots,
     streamingBlockIndexes,
+    unresolvedToolStatus,
     workspaceAgentId,
     agentMentions,
     agentMentionDirectory,
@@ -64,6 +65,7 @@ export function StructuredContentRenderer(
     pendingPermissionsByToolUseId,
     permissionReadOnlyReason,
     projection,
+    unresolvedToolStatus,
     workspaceAgentId,
     agentMentions,
     agentMentionDirectory,
@@ -90,7 +92,7 @@ export function StructuredContentRenderer(
         />
       ))}
       {activityState ? (
-        <MessageActivityStatus className="pt-1" state={activityState} />
+        <LocalizedMessageActivityStatus className="pt-1" state={activityState} />
       ) : null}
     </div>
   );

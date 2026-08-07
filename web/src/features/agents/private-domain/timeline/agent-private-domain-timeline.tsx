@@ -12,6 +12,7 @@ import type {
   AgentPrivateThread,
 } from "@/types/agent/private-domain";
 
+import type { PrivateDomainLocalization } from "../agent-private-domain-thread-model";
 import { PrivateEventBubble } from "./agent-private-domain-event";
 import {
   buildPrivateTimelineBody,
@@ -28,12 +29,14 @@ interface PrivateTimelineProps {
   error: string | null;
   events: AgentPrivateEvent[];
   isLoading: boolean;
+  localization: PrivateDomainLocalization;
   thread: AgentPrivateThread | null;
 }
 
 interface TimelineDensityStyle {
   body: string;
   header: string;
+  headerFrame: string;
   section: string;
   subtitle: string;
   title: string;
@@ -49,16 +52,18 @@ const TIMELINE_DENSITY_STYLES: Record<
   TimelineDensityStyle
 > = {
   compact: {
-    body: "px-3 py-3",
+    body: "min-h-full px-3 py-3",
     header: "h-10 px-3",
-    section: "surface-radius-md bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_30%,transparent)]",
+    headerFrame: "border-b border-(--divider-subtle-color)",
+    section: "surface-radius-md border border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_30%,transparent)]",
     subtitle: "text-2xs",
     title: "text-sm",
   },
   regular: {
-    body: "px-4 py-4",
-    header: "h-11 px-4",
-    section: "surface-radius-lg bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_42%,transparent)]",
+    body: "mx-auto min-h-full w-full max-w-[920px] px-6 py-4 max-sm:px-4",
+    header: "mx-auto min-h-[48px] w-full max-w-[920px] px-6 py-2 max-sm:px-4",
+    headerFrame: "",
+    section: "nexus-private-domain-reader",
     subtitle: "text-xs",
     title: "text-sm",
   },
@@ -100,7 +105,7 @@ function EventsTimelineBody({
   presentation,
 }: TimelineBodyViewProps) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {presentation.events.map((event) => (
         <PrivateEventBubble density={density} event={event} key={event.id} />
       ))}
@@ -133,50 +138,53 @@ export function PrivateEventTimeline({
   error,
   events,
   isLoading,
+  localization,
   thread,
 }: PrivateTimelineProps) {
   const density: PrivateTimelineDensity = compact ? "compact" : "regular";
   const style = TIMELINE_DENSITY_STYLES[density];
-  const header = buildPrivateTimelineHeader(thread, agentId);
+  const header = buildPrivateTimelineHeader(thread, agentId, localization);
   const body = buildPrivateTimelineBody({
     agentId,
     error,
     events,
     isLoading,
+    localization,
     thread,
   });
 
   return (
     <section
       className={cn(
-        "flex min-h-0 flex-col overflow-hidden border border-(--divider-subtle-color)",
+        "flex min-h-0 min-w-0 flex-col overflow-hidden",
         style.section,
         className,
       )}
     >
-      <div className={cn(
-        "flex items-center justify-between gap-3 border-b border-(--divider-subtle-color)",
-        style.header,
-      )}>
-        <div className="min-w-0">
-          <p className={cn("truncate font-semibold text-(--text-strong)", style.title)}>
-            {header.title}
-          </p>
-          {header.subtitle ? (
-            <p className={cn("mt-0.5 truncate font-semibold text-(--text-soft)", style.subtitle)}>
-              {header.subtitle}
+      <div className={style.headerFrame}>
+        <div className={cn(
+          "flex items-center justify-between gap-3",
+          style.header,
+        )}>
+          <div className="min-w-0">
+            <p className={cn("truncate font-semibold text-(--text-strong)", style.title)}>
+              {header.title}
             </p>
+            {header.subtitle ? (
+              <p className={cn("mt-0.5 truncate font-medium text-(--text-soft)", style.subtitle)}>
+                {header.subtitle}
+              </p>
+            ) : null}
+          </div>
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin text-(--text-soft)" />
           ) : null}
         </div>
-        {isLoading ? (
-          <Loader2 className="h-4 w-4 animate-spin text-(--text-soft)" />
-        ) : null}
       </div>
-      <div className={cn(
-        "soft-scrollbar min-h-0 flex-1 overflow-y-auto",
-        style.body,
-      )}>
-        <PrivateTimelineBody density={density} presentation={body} />
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto">
+        <div className={style.body}>
+          <PrivateTimelineBody density={density} presentation={body} />
+        </div>
       </div>
     </section>
   );

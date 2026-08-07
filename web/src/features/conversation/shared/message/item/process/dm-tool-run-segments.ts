@@ -9,9 +9,10 @@ import type {
 } from "@/types/conversation/message/content";
 
 import { ASK_USER_QUESTION_TOOL_NAME } from "../../message-tool-names";
+import { isRejectedToolResult } from "../../tool-result-semantic-model";
 import type { ContentProjection } from "../message-item-projection";
 
-export type DmToolRunPhase = "active" | "complete";
+export type DmToolRunPhase = "active" | "complete" | "error" | "rejected";
 
 export interface DmToolRunSegment {
   errorCount: number;
@@ -19,7 +20,7 @@ export interface DmToolRunSegment {
   kind: "tool_run";
   phase: DmToolRunPhase;
   projection: ContentProjection;
-  summary: string;
+  rejectedCount: number;
   toolUseIds: string[];
   unresolvedToolUseCount: number;
 }
@@ -132,24 +133,33 @@ function buildToolRunSegment({
 }): DmToolRunSegment {
   const toolUseIds = run.toolUses.map((block) => block.id);
   const errorCount = countToolRunErrors(run.indexes, projection.content);
+  const rejectedCount = countToolRunRejections(
+    run.indexes,
+    projection.content,
+  );
   const unresolvedToolUseCount = countUnresolvedToolUses(
     toolUseIds,
     run.indexes,
     projection.content,
   );
-  const phase: DmToolRunPhase = (
+  const terminal = (
     closed
     && (!live || unresolvedToolUseCount === 0)
-  )
-    ? "complete"
-    : "active";
+  );
+  const phase: DmToolRunPhase = !terminal
+    ? "active"
+    : errorCount > 0
+    ? "error"
+    : rejectedCount > 0
+    ? "rejected"
+    : "complete";
   return {
     errorCount,
     id: `tool-run:${toolUseIds[0]}`,
     kind: "tool_run",
     phase,
     projection: selectProjectionIndexes(projection, run.indexes),
-    summary: buildDmToolRunSummary(toolUseIds.length, errorCount, phase),
+    rejectedCount,
     toolUseIds,
     unresolvedToolUseCount,
   };
@@ -302,14 +312,18 @@ function countUnresolvedToolUses(
   ).length;
 }
 
-export function buildDmToolRunSummary(
-  toolUseCount: number,
-  errorCount: number,
-  phase: DmToolRunPhase,
-): string {
-  const status = phase === "active" ? "正在执行" : "已完成";
-  const errorSummary = errorCount > 0 ? ` · ${errorCount} 个异常` : "";
-  return `${toolUseCount} 次工具调用 · ${status}${errorSummary}`;
+function countToolRunRejections(
+  indexes: ReadonlySet<number>,
+  content: readonly ContentBlock[],
+): number {
+  let count = 0;
+  indexes.forEach((index) => {
+    const block = content[index];
+    if (block?.type === "tool_result" && isRejectedToolResult(block)) {
+      count += 1;
+    }
+  });
+  return count;
 }
 
 function contentSegmentId(block: ContentBlock, index: number): string {

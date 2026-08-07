@@ -14,6 +14,7 @@ func RuntimeInputOptionsForPurpose(options sdkprotocol.OutboundMessageOptions, p
 	options.Meta = false
 	options.Synthetic = false
 	options.HiddenFromUser = false
+	options.RecallQuery = ""
 	options.Priority = ""
 	options.Purpose = ""
 	options.Metadata = nil

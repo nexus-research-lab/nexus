@@ -1,0 +1,23 @@
+{
+  "_comment": "Kami Mermaid theme. Single source of truth for mapping beautiful-mermaid's color roles onto the Kami palette (references/tokens.json). Consumed by scripts/mermaid_normalize.py (Python). Keep hex values in sync with references/tokens.json.",
+  "colors": {
+    "bg": "#f5f4ed",
+    "fg": "#141413",
+    "line": "#504e49",
+    "accent": "#1B365D",
+    "muted": "#6b6a64",
+    "surface": "#faf9f5",
+    "border": "#e8e6dc"
+  },
+  "roles": {
+    "bg": "--parchment  · diagram canvas, edge-label masks",
+    "fg": "--near-black · node text, primary strokes",
+    "line": "--olive    · edge connectors (warm, not pure black)",
+    "accent": "--brand   · arrow heads / focal emphasis (the only chromatic color)",
+    "muted": "--stone   · secondary text, edge labels",
+    "surface": "--ivory  · node fill (lifted surface)",
+    "border": "--border  · node / group stroke"
+  },
+  "renderFont": "Charter",
+  "cssFontStack": "Charter, Georgia, \"TsangerJinKai02\", \"Source Han Serif SC\", \"Noto Serif CJK SC\", serif"
+}

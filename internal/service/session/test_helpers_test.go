@@ -2,6 +2,7 @@ package session_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -9,10 +10,12 @@ import (
 	"strings"
 	"testing"
 
+	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/handler/handlertest"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
+	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
@@ -131,6 +134,21 @@ func newSessionTestConfig(t *testing.T) config.Config {
 		DatabaseDriver: "sqlite",
 		DatabaseURL:    filepath.Join(root, "nexus.db"),
 	}
+}
+
+func newSessionTestAgentService(t *testing.T, cfg config.Config) (*agentsvc.Service, *sql.DB) {
+	t.Helper()
+
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("关闭测试数据库失败: %v", err)
+		}
+	})
+	return agentService, db
 }
 
 func writeSessionTranscriptFixture(t *testing.T, workspacePath string, sessionID string, rows []map[string]any) {

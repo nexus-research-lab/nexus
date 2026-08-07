@@ -3,12 +3,14 @@ package websocket
 import (
 	"context"
 	"errors"
+	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	dmsvc "github.com/nexus-research-lab/nexus/internal/service/dm"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 )
 
 // sendChatFailure 回报 chat 类请求受理失败。此时后端还没有 canonical round_id，
@@ -106,6 +108,15 @@ func (m *controlMessage) dispatch() {
 
 func (m *controlMessage) handleChat() {
 	clientRequestID, clientMessageID := m.clientIDs()
+	attachments := m.attachments()
+	if handled, err := m.executeHostCommand(
+		clientRequestID,
+		clientMessageID,
+		len(attachments),
+	); handled {
+		m.reportChatFailure(clientRequestID, clientMessageID, err)
+		return
+	}
 	var err error
 	if m.usesRoomRuntime() {
 		err = m.handler.roomRealtime.HandleChat(m.ctx, roomrealtime.ChatRequest{
@@ -115,23 +126,128 @@ func (m *controlMessage) handleChat() {
 			AttachmentAgentID: m.stringValue("agent_id"),
 			Content:           m.stringValue("content"),
 			TargetAgentIDs:    stringSliceValue(m.inbound["target_agent_ids"]),
-			Attachments:       m.attachments(),
+			Attachments:       attachments,
 			ClientRequestID:   clientRequestID,
 			ClientMessageID:   clientMessageID,
 			DeliveryPolicy:    m.deliveryPolicy(),
 		})
 	} else {
-		err = m.handler.dm.HandleChat(m.ctx, dmsvc.Request{
+		err = m.handler.dm.HandleRealtimeChat(m.ctx, dmsvc.Request{
 			SessionKey:      m.sessionKey,
 			AgentID:         m.stringValue("agent_id"),
 			Content:         m.stringValue("content"),
-			Attachments:     m.attachments(),
+			Attachments:     attachments,
 			ClientRequestID: clientRequestID,
 			ClientMessageID: clientMessageID,
 			DeliveryPolicy:  m.deliveryPolicy(),
 		})
 	}
 	m.reportChatFailure(clientRequestID, clientMessageID, err)
+}
+
+func (m *controlMessage) executeHostCommand(
+	clientRequestID string,
+	clientMessageID string,
+	attachmentCount int,
+) (bool, error) {
+	if m.handler.hostCommands == nil {
+		return false, nil
+	}
+	scope := slashcommandsvc.ScopeDM
+	if m.parsed.Kind == protocol.SessionKeyKindRoom {
+		scope = slashcommandsvc.ScopeRoom
+	}
+	roundID := protocol.NewRoundID()
+	invocation := slashcommandsvc.Invocation{
+		SessionKey:      m.sessionKey,
+		AgentID:         firstStringValue(m.inbound["agent_id"], m.parsed.AgentID),
+		RoundID:         roundID,
+		Content:         m.stringValue("content"),
+		AttachmentCount: attachmentCount,
+	}
+	result, matched, err := m.handler.hostCommands.ExecuteAuthorized(
+		m.ctx,
+		scope,
+		invocation,
+		func(ctx context.Context, authorizedInvocation slashcommandsvc.Invocation) error {
+			return m.handler.authorizeHostCommand(ctx, scope, authorizedInvocation)
+		},
+	)
+	if !matched || err != nil {
+		return matched, err
+	}
+	ack := protocol.NewTransientChatAckEvent(
+		m.sessionKey,
+		clientRequestID,
+		clientMessageID,
+		roundID,
+		protocol.NewUserMessageID(),
+	)
+	if err = m.sender.SendEvent(m.ctx, ack); err != nil {
+		return true, err
+	}
+	for _, event := range result.Events {
+		// host handler 只能向触发它的 session 回写事件，避免错误实现把事件投到别的会话。
+		event.SessionKey = m.sessionKey
+		if err = m.sender.SendEvent(m.ctx, event); err != nil {
+			return true, err
+		}
+	}
+	if invalidation := result.DirectoryInvalidation; invalidation != nil {
+		m.handler.BroadcastDirectoryChanged(
+			m.ctx,
+			invalidation.Reason,
+			invalidation.Data,
+		)
+	}
+	if err = m.sender.SendEvent(
+		m.ctx,
+		protocol.NewRoundStatusEvent(
+			m.sessionKey,
+			roundID,
+			protocol.RoundStatusFinished,
+			"success",
+		),
+	); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+func (h *Handler) authorizeHostCommand(
+	ctx context.Context,
+	scope slashcommandsvc.Scope,
+	invocation slashcommandsvc.Invocation,
+) error {
+	switch scope {
+	case slashcommandsvc.ScopeDM:
+		if h == nil || h.dm == nil {
+			return errors.New("DM service is unavailable")
+		}
+		return h.dm.AuthorizeHostCommand(ctx, invocation.SessionKey, invocation.AgentID)
+	case slashcommandsvc.ScopeRoom:
+		if h == nil || h.roomService == nil {
+			return errors.New("Room service is unavailable")
+		}
+		parsed := protocol.ParseSessionKey(invocation.SessionKey)
+		if parsed.Kind != protocol.SessionKeyKindRoom || !parsed.IsShared {
+			return errors.New("host Slash requires a shared Room session")
+		}
+		contextValue, err := h.roomService.GetConversationContext(ctx, parsed.ConversationID)
+		if err != nil {
+			return err
+		}
+		if contextValue == nil || contextValue.Room.RoomType != protocol.RoomTypeGroup {
+			return errors.New("host Slash requires a group Room")
+		}
+		if agentID := strings.TrimSpace(invocation.AgentID); agentID != "" &&
+			!roomHasAgent(contextValue.Members, agentID) {
+			return errors.New("agent_id is not a Room member")
+		}
+		return nil
+	default:
+		return errors.New("unsupported host Slash scope")
+	}
 }
 
 func (m *controlMessage) handleRewriteLast() {
@@ -153,20 +269,51 @@ func (m *controlMessage) handleRewriteLast() {
 }
 
 func (m *controlMessage) handleInterrupt() {
+	clientRequestID := m.stringValue("client_request_id")
+	roundID := m.stringValue("round_id")
+	agentRoundID := m.stringValue("agent_round_id")
 	var err error
 	if m.usesRoomRuntime() {
 		err = m.handler.roomRealtime.HandleInterrupt(m.ctx, roomrealtime.InterruptRequest{
 			SessionKey:   m.sessionKey,
-			RoundID:      m.stringValue("round_id"),
-			AgentRoundID: m.stringValue("agent_round_id"),
+			RoundID:      roundID,
+			AgentRoundID: agentRoundID,
 		})
 	} else {
 		err = m.handler.dm.HandleInterrupt(m.ctx, dmsvc.InterruptRequest{
 			SessionKey: m.sessionKey,
-			RoundID:    m.stringValue("round_id"),
+			RoundID:    roundID,
 		})
 	}
-	m.reportGatewayFailure("interrupt_error", err, map[string]any{"type": m.msgType})
+	if err != nil {
+		m.reportGatewayFailure("interrupt_error", err, map[string]any{
+			"type":              m.msgType,
+			"client_request_id": clientRequestID,
+			"round_id":          roundID,
+			"agent_round_id":    agentRoundID,
+		})
+		return
+	}
+	if clientRequestID == "" {
+		return
+	}
+	if ackErr := m.sender.SendEvent(
+		m.ctx,
+		protocol.NewInterruptAckEvent(
+			m.sessionKey,
+			clientRequestID,
+			roundID,
+			agentRoundID,
+		),
+	); ackErr != nil {
+		logx.Resolve(m.ctx, m.handler.api.BaseLogger()).Warn("WebSocket interrupt ACK 发送失败",
+			"session_key", m.sessionKey,
+			"client_request_id", clientRequestID,
+			"round_id", roundID,
+			"agent_round_id", agentRoundID,
+			"err", ackErr,
+		)
+	}
 }
 
 func (m *controlMessage) handleInputQueue() {

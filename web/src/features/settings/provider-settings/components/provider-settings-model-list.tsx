@@ -169,6 +169,9 @@ function DefaultModelToggle({
       title={t("settings.providers.default_model_disable_tooltip")}
     >
       <GlassSwitch
+        aria-label={t("settings.providers.toggle_model", {
+          name: model.display_name || model.model_id,
+        })}
         checked={model.enabled}
         disabled
         size="xs"
@@ -191,6 +194,7 @@ function ProviderModelToggle({
   | "pendingAction"
   | "selectedCanManage"
 > & { model: ProviderModelRecord }) {
+  const { t } = useI18n();
   const isPending = pendingAction?.kind === "toggle-model"
     && pendingAction.modelId === model.model_id;
   if (isPending) {
@@ -206,6 +210,9 @@ function ProviderModelToggle({
   }
   return (
     <GlassSwitch
+      aria-label={t("settings.providers.toggle_model", {
+        name: model.display_name || model.model_id,
+      })}
       checked={model.enabled}
       disabled={pendingAction !== null || !selectedCanManage}
       size="xs"

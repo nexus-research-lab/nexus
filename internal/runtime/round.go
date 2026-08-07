@@ -16,8 +16,9 @@ import (
 
 // StartRound 注册运行中的 round，并记录其取消函数。
 //
-// 返回 false 表示 session 已进入关闭流程，调用方不得再启动会写盘的
-// round；传入的 cancel 仍会被调用，避免调用方持有的执行上下文泄漏。
+// 返回 false 表示 session 已进入关闭流程，或唯一旧 round 正在执行
+// session-wide provider interrupt；调用方不得在该窗口启动 successor。
+// 传入的 cancel 仍会被调用，避免调用方持有的执行上下文泄漏。
 func (m *Manager) StartRound(sessionKey string, roundID string, cancel context.CancelFunc) bool {
 	if sessionKey == "" || roundID == "" {
 		return false
@@ -25,7 +26,7 @@ func (m *Manager) StartRound(sessionKey string, roundID string, cancel context.C
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.ensureStateLocked(sessionKey)
-	if state.Closing {
+	if state.Closing || state.ProviderInterruptRoundID != "" {
 		if cancel != nil {
 			cancel()
 		}
@@ -89,6 +90,7 @@ func (m *Manager) MarkRoundFinished(sessionKey string, roundID string) {
 		close(done)
 		delete(state.RoundDone, roundID)
 	}
+	m.removeClientlessSessionIfIdleLocked(sessionKey, state, nil)
 }
 
 func (m *Manager) markRoundTerminalLocked(state *sessionState, roundID string) {

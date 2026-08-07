@@ -2,6 +2,7 @@ package dm
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,136 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
+
+func TestServiceHandleChatStartupFailureDoesNotWaitForBackgroundDispatchInputGate(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	startupErr := errors.New("runtime startup failed")
+	client := newFakeDMClient()
+	client.connectErrors = []error{startupErr}
+	factory := &fakeDMFactory{client: client}
+	runtimeManager := runtimectx.NewManagerWithFactory(factory)
+	service := NewService(
+		cfg,
+		newDMAgentService(t, cfg),
+		runtimeManager,
+		permissionctx.NewContext(),
+	)
+	sessionKey := "agent:nexus:ws:dm:startup-background-gate"
+	waiterEntered := make(chan struct{})
+	waiterResult := make(chan error, 1)
+	client.onConnect = func(context.Context) {
+		if !runtimeManager.StartBackgroundTask(sessionKey, func(taskCtx context.Context) {
+			close(waiterEntered)
+			err := service.inputQueueDispatchMu.LockContext(taskCtx)
+			if err == nil {
+				service.inputQueueDispatchMu.Unlock()
+			}
+			waiterResult <- err
+		}) {
+			t.Error("启动失败前登记后台派发任务失败")
+			return
+		}
+		<-waiterEntered
+	}
+
+	handleCtx, cancelHandle := context.WithCancel(context.Background())
+	defer cancelHandle()
+	handleDone := make(chan error, 1)
+	go func() {
+		handleDone <- service.HandleChat(handleCtx, Request{
+			SessionKey: sessionKey,
+			Content:    "触发 runtime 启动失败",
+			RoundID:    "round-startup-background-gate",
+		})
+	}()
+
+	select {
+	case err := <-handleDone:
+		if !errors.Is(err, startupErr) {
+			t.Fatalf("HandleChat() error = %v, want %v", err, startupErr)
+		}
+	case <-time.After(3 * time.Second):
+		cancelHandle()
+		t.Fatal("HandleChat 清理启动失败的 runtime 时与后台派发锁死")
+	}
+	select {
+	case err := <-waiterResult:
+		if err != nil {
+			t.Fatalf("后台派发锁等待结果 = %v，期望前台释放后取得锁", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("前台启动失败返回后后台派发锁等待未退出")
+	}
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), time.Second)
+	defer cancelWait()
+	if err := runtimeManager.WaitBackgroundTasks(waitCtx, sessionKey); err != nil {
+		t.Fatalf("等待后台派发任务退出失败: %v", err)
+	}
+	if runtimeManager.HasSession(sessionKey) {
+		t.Fatal("启动失败的 runtime session 未清理")
+	}
+	client.mu.Lock()
+	connectCalls := client.connectCalls
+	disconnectCalls := client.disconnectCalls
+	client.mu.Unlock()
+	if connectCalls != 1 || disconnectCalls != 1 {
+		t.Fatalf("runtime 调用次数 = connect:%d disconnect:%d", connectCalls, disconnectCalls)
+	}
+}
+
+func TestServiceBackgroundHandleChatStartupFailureDoesNotWaitForItself(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	startupErr := errors.New("background runtime startup failed")
+	connectStarted := make(chan struct{})
+	client := newFakeDMClient()
+	client.connectErrors = []error{startupErr}
+	client.onConnect = func(context.Context) {
+		close(connectStarted)
+	}
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: client})
+	service := NewService(
+		cfg,
+		newDMAgentService(t, cfg),
+		runtimeManager,
+		permissionctx.NewContext(),
+	)
+	sessionKey := "agent:nexus:ws:dm:background-startup-self-cleanup"
+	handleResult := make(chan error, 1)
+	if !runtimeManager.StartBackgroundTask(sessionKey, func(taskCtx context.Context) {
+		handleResult <- service.HandleChat(taskCtx, Request{
+			SessionKey: sessionKey,
+			Content:    "后台派发触发 runtime 启动失败",
+			RoundID:    "round-background-startup-self-cleanup",
+		})
+	}) {
+		t.Fatal("登记后台 HandleChat 任务失败")
+	}
+	select {
+	case <-connectStarted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("后台 HandleChat 未进入 runtime Connect()")
+	}
+	select {
+	case err := <-handleResult:
+		if !errors.Is(err, startupErr) {
+			t.Fatalf("后台 HandleChat() error = %v, want %v", err, startupErr)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("后台 HandleChat 清理启动失败的 client 时等待自身退出")
+	}
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), time.Second)
+	defer cancelWait()
+	if err := runtimeManager.WaitBackgroundTasks(waitCtx, sessionKey); err != nil {
+		t.Fatalf("等待后台 HandleChat 任务退出失败: %v", err)
+	}
+	if runtimeManager.HasSession(sessionKey) {
+		t.Fatal("后台启动失败的 runtime session 未清理")
+	}
+}
 
 func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	cfg := newDMTestConfig(t)
@@ -65,7 +196,28 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 		t.Fatalf("构建 runtime client 失败: %v", err)
 	}
 
-	appendSystemPrompt := factory.LastOptions().System.Append
+	promptOptions := factory.LastOptions().System
+	appendSystemPrompt := promptOptions.Append
+	if !strings.Contains(promptOptions.AppendStatic, "## Execution Orchestration") {
+		t.Fatalf("DM static prompt 未注入 execution contract: %s", promptOptions.AppendStatic)
+	}
+	if strings.Count(promptOptions.AppendStatic, "## Execution Orchestration") != 1 ||
+		strings.Count(appendSystemPrompt, "## Execution Orchestration") != 1 {
+		t.Fatalf("DM execution contract 应只注入一次: static=%q combined=%q", promptOptions.AppendStatic, appendSystemPrompt)
+	}
+	if strings.Contains(promptOptions.AppendDynamic, "## Execution Orchestration") {
+		t.Fatalf("DM dynamic prompt 不应重复 execution contract: %s", promptOptions.AppendDynamic)
+	}
+	for _, expected := range []string{
+		"Before substantial execution, every Agent assesses atomicity",
+		"Use native subagents only when their benefit exceeds",
+		"When one Agent owns the combined deliverable, keep one Work Item and use separate native subagents",
+		"the parent integrates, verifies, and delivers",
+	} {
+		if !strings.Contains(promptOptions.AppendStatic, expected) {
+			t.Fatalf("DM 固定 execution contract 缺少全 Agent 自适应分解规则 %q: %s", expected, promptOptions.AppendStatic)
+		}
+	}
 	if !strings.Contains(appendSystemPrompt, "执行规则：必须先加载工作区规则") {
 		t.Fatalf("runtime prompt 未注入 AGENTS.md 内容: %s", appendSystemPrompt)
 	}
@@ -74,6 +226,18 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	}
 	if !strings.Contains(appendSystemPrompt, "Vibe Tags: 规则优先, 稳健") {
 		t.Fatalf("runtime prompt 未注入 Agent vibe_tags: %s", appendSystemPrompt)
+	}
+	for _, expected := range []string{
+		"执行规则：必须先加载工作区规则",
+		"Description: 负责执行工作区规则",
+		"Vibe Tags: 规则优先, 稳健",
+	} {
+		if !strings.Contains(promptOptions.AppendDynamic, expected) {
+			t.Fatalf("DM Agent surface prompt 应保留在 dynamic 段，缺少 %q: %s", expected, promptOptions.AppendDynamic)
+		}
+		if strings.Contains(promptOptions.AppendStatic, expected) {
+			t.Fatalf("DM static execution contract 不应混入 Agent surface 内容 %q: %s", expected, promptOptions.AppendStatic)
+		}
 	}
 }
 
@@ -128,10 +292,22 @@ func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
 	}
 
 	matchers := factory.LastOptions().Hooks.Matchers[sdkhook.EventPreToolUse]
-	if len(matchers) != 1 || len(matchers[0].Hooks) != 1 {
-		t.Fatalf("主智能体应保留 mandatory workspace hook: %#v", matchers)
+	var workspaceHook, agentHook sdkhook.Callback
+	for _, matcher := range matchers {
+		if len(matcher.Hooks) != 1 {
+			continue
+		}
+		switch matcher.Matcher {
+		case "":
+			workspaceHook = matcher.Hooks[0]
+		case "Agent":
+			agentHook = matcher.Hooks[0]
+		}
 	}
-	output, err := matchers[0].Hooks[0](context.Background(), sdkhook.Input{
+	if workspaceHook == nil || agentHook == nil {
+		t.Fatalf("主智能体应同时保留 workspace 与 Agent admission hooks: %#v", matchers)
+	}
+	output, err := workspaceHook(context.Background(), sdkhook.Input{
 		CWD:      agentValue.WorkspacePath,
 		ToolName: "Bash",
 		ToolInput: map[string]any{
@@ -143,6 +319,16 @@ func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
 	}
 	if output.SpecificOutput != nil {
 		t.Fatalf("DM runtime 丢失主智能体身份: %#v", output)
+	}
+	output, err = agentHook(context.Background(), sdkhook.Input{
+		ToolName: "Agent",
+	}, "agent-tool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput == nil ||
+		!strings.Contains(output.SpecificOutput.PermissionDecisionReason, "subagent_admission_unavailable") {
+		t.Fatalf("未注入 provider 时 Agent tool 必须 fail closed: %#v", output)
 	}
 }
 

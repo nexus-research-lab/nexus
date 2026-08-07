@@ -9,9 +9,186 @@ import (
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
 
+var errRuntimeClientChanged = errors.New("runtime client changed")
+
+// ClientStartup 串行化同一个 session key 的配置、连接与失败处置。
+// 调用方必须 Close；事务内可关闭并重建 session，而不会跨代释放互斥权。
+// 同一个事务由单一 goroutine 顺序使用，不支持方法之间或方法与 Close 并发。
+type ClientStartup struct {
+	manager            *Manager
+	sessionKey         string
+	gate               *sessionStartupGate
+	closeEpoch         uint64
+	release            func()
+	expectedState      *sessionState
+	expectedClient     Client
+	expectedGeneration uint64
+}
+
+// ClientLease 标识一次已经成功取得 client 的启动代次。
+// 它只用于条件关闭，防止旧操作误伤同一 adapter 上的新连接。
+type ClientLease struct {
+	manager    *Manager
+	sessionKey string
+	state      *sessionState
+	client     Client
+	generation uint64
+}
+
+// BeginClientStartup 获取 session key 级启动事务；等待过程响应 ctx 取消。
+func (m *Manager) BeginClientStartup(ctx context.Context, sessionKey string) (*ClientStartup, error) {
+	return m.beginClientStartup(ctx, sessionKey)
+}
+
+func (m *Manager) beginClientStartup(ctx context.Context, sessionKey string) (*ClientStartup, error) {
+	if m == nil {
+		return nil, agentclient.ErrNotConnected
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	sessionKey = strings.TrimSpace(sessionKey)
+
+	m.mu.Lock()
+	if m.startupGates == nil {
+		m.startupGates = make(map[string]*sessionStartupGate)
+	}
+	gate := m.startupGates[sessionKey]
+	if gate == nil {
+		gate = &sessionStartupGate{token: make(chan struct{}, 1)}
+		gate.token <- struct{}{}
+		m.startupGates[sessionKey] = gate
+	}
+	if gate.closeBlocks > 0 {
+		m.mu.Unlock()
+		return nil, errRuntimeSessionClosing
+	}
+	gate.refs++
+	closeEpoch := gate.closeEpoch
+	m.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		m.releaseClientStartup(sessionKey, gate, false)
+		return nil, ctx.Err()
+	case <-gate.token:
+	}
+	startup := &ClientStartup{
+		manager:    m,
+		sessionKey: sessionKey,
+		gate:       gate,
+		closeEpoch: closeEpoch,
+	}
+	m.mu.RLock()
+	valid := m.startupGates[sessionKey] == gate && gate.closeEpoch == closeEpoch
+	m.mu.RUnlock()
+	if !valid {
+		m.releaseClientStartup(sessionKey, gate, true)
+		return nil, agentclient.ErrAborted
+	}
+	startup.release = func() {
+		m.releaseClientStartup(sessionKey, gate, true)
+	}
+	return startup, nil
+}
+
+func (m *Manager) releaseClientStartup(sessionKey string, gate *sessionStartupGate, held bool) {
+	if m == nil || gate == nil {
+		return
+	}
+	m.mu.Lock()
+	if held && m.startupGates[sessionKey] == gate {
+		m.removeClientlessSessionIfIdleLocked(sessionKey, nil, gate)
+	}
+	gate.refs--
+	if gate.refs == 0 && m.startupGates[sessionKey] == gate {
+		delete(m.startupGates, sessionKey)
+	}
+	m.mu.Unlock()
+	if held {
+		// state 清理与 gate 引用更新必须先完成；否则等待者拿到 token 后
+		// 可能观察到即将被前任 startup 删除的空 state。
+		gate.token <- struct{}{}
+	}
+}
+
+func (m *Manager) beginSessionCloseGateLocked(sessionKey string) *sessionStartupGate {
+	if m.startupGates == nil {
+		m.startupGates = make(map[string]*sessionStartupGate)
+	}
+	gate := m.startupGates[sessionKey]
+	if gate == nil {
+		gate = &sessionStartupGate{token: make(chan struct{}, 1)}
+		gate.token <- struct{}{}
+		m.startupGates[sessionKey] = gate
+	}
+	gate.refs++
+	gate.closeBlocks++
+	gate.closeEpoch++
+	return gate
+}
+
+func (m *Manager) releaseSessionCloseGate(sessionKey string, gate *sessionStartupGate) {
+	if m == nil || gate == nil {
+		return
+	}
+	m.mu.Lock()
+	gate.closeBlocks--
+	gate.refs--
+	if gate.refs == 0 && m.startupGates[sessionKey] == gate {
+		delete(m.startupGates, sessionKey)
+	}
+	m.mu.Unlock()
+}
+
+// Close 释放启动事务。
+func (s *ClientStartup) Close() {
+	if s == nil || s.release == nil {
+		return
+	}
+	release := s.release
+	s.release = nil
+	release()
+}
+
+func (s *ClientStartup) active() error {
+	if s == nil || s.manager == nil || s.release == nil {
+		return agentclient.ErrAborted
+	}
+	return nil
+}
+
+func (s *ClientStartup) validateCloseEpochLocked() error {
+	if s == nil {
+		return nil
+	}
+	if s.manager == nil || s.release == nil ||
+		s.manager.startupGates[s.sessionKey] != s.gate ||
+		s.gate == nil || s.gate.closeEpoch != s.closeEpoch {
+		return agentclient.ErrAborted
+	}
+	return nil
+}
+
+// SessionKey 返回当前事务归一化后的 session key。
+func (s *ClientStartup) SessionKey() string {
+	if s == nil {
+		return ""
+	}
+	return s.sessionKey
+}
+
 // GetOrCreate 获取或创建 client，并在复用时应用最新运行时配置。
 func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options agentclient.Options) (Client, error) {
-	return m.GetOrCreateWithFactory(ctx, sessionKey, options, m.factory)
+	startup, err := m.BeginClientStartup(ctx, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	defer startup.Close()
+	return startup.GetOrCreateWithFactory(ctx, options, m.factory)
 }
 
 // GetOrCreateWithFactory 获取或创建 client，并允许上层为该 session 指定 factory。
@@ -24,81 +201,163 @@ func (m *Manager) GetOrCreateWithFactory(
 	options agentclient.Options,
 	factory Factory,
 ) (Client, error) {
+	startup, err := m.BeginClientStartup(ctx, sessionKey)
+	if err != nil {
+		return nil, err
+	}
+	defer startup.Close()
+	return startup.GetOrCreateWithFactory(ctx, options, factory)
+}
+
+// GetOrCreateWithFactory 在当前启动事务内获取或创建 client。
+func (s *ClientStartup) GetOrCreateWithFactory(
+	ctx context.Context,
+	options agentclient.Options,
+	factory Factory,
+) (Client, error) {
+	if err := s.active(); err != nil {
+		return nil, err
+	}
+	client, state, err := s.manager.getOrCreateWithFactory(
+		ctx,
+		s,
+		s.sessionKey,
+		options,
+		factory,
+	)
+	s.expectedState = state
+	s.expectedClient = client
+	s.expectedGeneration = 0
+	if state != nil && client != nil {
+		s.manager.mu.Lock()
+		ownershipErr := s.validateCloseEpochLocked()
+		if ownershipErr == nil {
+			ownershipErr = runtimeClientOwnershipError(
+				s.manager.sessions[s.sessionKey],
+				state,
+				client,
+			)
+		}
+		if ownershipErr == nil {
+			if err == nil {
+				state.StartupGeneration++
+			}
+			s.expectedGeneration = state.StartupGeneration
+		} else if err == nil {
+			err = ownershipErr
+		}
+		s.manager.mu.Unlock()
+	}
+	return client, err
+}
+
+func (m *Manager) getOrCreateWithFactory(
+	ctx context.Context,
+	startup *ClientStartup,
+	sessionKey string,
+	options agentclient.Options,
+	factory Factory,
+) (Client, *sessionState, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if factory == nil {
 		factory = m.factory
 	}
+	sessionKey = strings.TrimSpace(sessionKey)
 	runtimeKind := normalizedManagedRuntimeKind(options.Runtime.Kind)
 	ownerUserID := runtimeOwnerUserID(options)
-	m.mu.Lock()
-	state := m.sessions[sessionKey]
-	var existing Client
-	var existingKind agentclient.RuntimeKind
-	var existingOwnerUserID string
-	if state != nil && state.Closing {
-		m.mu.Unlock()
-		return nil, errRuntimeSessionClosing
-	}
-	if state != nil && state.Client != nil {
-		existing = state.Client
-		existingKind = state.RuntimeKind
-		existingOwnerUserID = state.OwnerUserID
-		m.touchStateLocked(state)
-	}
-	m.mu.Unlock()
-	if existing != nil {
-		if runtimeOwnerMismatch(existingOwnerUserID, ownerUserID) {
-			return nil, fmt.Errorf(
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+
+		m.mu.Lock()
+		if err := startup.validateCloseEpochLocked(); err != nil {
+			m.mu.Unlock()
+			return nil, nil, err
+		}
+		state := m.sessions[sessionKey]
+		if state != nil && state.Closing {
+			m.mu.Unlock()
+			return nil, state, errRuntimeSessionClosing
+		}
+		if state == nil {
+			state = m.ensureStateLocked(sessionKey)
+		}
+		if runtimeOwnerMismatch(state.OwnerUserID, ownerUserID) {
+			existingOwnerUserID := state.OwnerUserID
+			m.mu.Unlock()
+			return nil, state, fmt.Errorf(
 				"runtime session owner mismatch: existing=%s requested=%s",
 				existingOwnerUserID,
 				ownerUserID,
 			)
 		}
-		if existingKind != "" && existingKind != runtimeKind {
-			return m.replaceRuntimeClient(ctx, sessionKey, existing, options, factory)
-		}
-		if err := existing.Reconfigure(ctx, options); err != nil {
-			if shouldReplaceRuntimeClientAfterReconfigureError(err) {
-				return m.replaceRuntimeClient(ctx, sessionKey, existing, options, factory)
+		if state.Client == nil {
+			client := factory.New(options)
+			if client == nil {
+				m.mu.Unlock()
+				return nil, state, agentclient.ErrNotConnected
 			}
-			return nil, err
+			state.Client = client
+			state.RuntimeKind = runtimeKind
+			state.OwnerUserID = ownerUserID
+			m.touchStateLocked(state)
+			m.mu.Unlock()
+			return client, state, nil
 		}
-		m.setRuntimeMetadataIfCurrent(sessionKey, existing, runtimeKind, ownerUserID)
-		return existing, nil
-	}
 
-	m.mu.Lock()
-	state = m.ensureStateLocked(sessionKey)
-	if state.Closing {
-		m.mu.Unlock()
-		return nil, errRuntimeSessionClosing
-	}
-	if state.Client == nil {
-		state.Client = factory.New(options)
-		state.RuntimeKind = runtimeKind
-		state.OwnerUserID = ownerUserID
+		existing := state.Client
+		existingKind := state.RuntimeKind
 		m.touchStateLocked(state)
 		m.mu.Unlock()
-		return state.Client, nil
-	}
-	client := state.Client
-	existingOwnerUserID = state.OwnerUserID
-	m.touchStateLocked(state)
-	m.mu.Unlock()
-	if runtimeOwnerMismatch(existingOwnerUserID, ownerUserID) {
-		return nil, fmt.Errorf(
-			"runtime session owner mismatch: existing=%s requested=%s",
-			existingOwnerUserID,
-			ownerUserID,
-		)
-	}
-	if err := client.Reconfigure(ctx, options); err != nil {
-		if shouldReplaceRuntimeClientAfterReconfigureError(err) {
-			return m.replaceRuntimeClient(ctx, sessionKey, client, options, factory)
+		if existingKind != "" && existingKind != runtimeKind {
+			next, err := m.replaceRuntimeClient(ctx, startup, sessionKey, state, existing, options, factory)
+			if errors.Is(err, errRuntimeClientChanged) {
+				continue
+			}
+			return next, state, err
 		}
-		return nil, err
+
+		reconfigureErr := existing.Reconfigure(ctx, options)
+		m.mu.Lock()
+		if err := startup.validateCloseEpochLocked(); err != nil {
+			m.mu.Unlock()
+			return nil, state, err
+		}
+		current := m.sessions[sessionKey]
+		switch {
+		case current != state:
+			m.mu.Unlock()
+			return nil, state, agentclient.ErrAborted
+		case current.Closing:
+			m.mu.Unlock()
+			return nil, state, errRuntimeSessionClosing
+		case current.Client != existing:
+			m.mu.Unlock()
+			continue
+		case reconfigureErr == nil:
+			current.RuntimeKind = runtimeKind
+			if ownerUserID != "" {
+				current.OwnerUserID = ownerUserID
+			}
+			m.touchStateLocked(current)
+			m.mu.Unlock()
+			return existing, state, nil
+		default:
+			m.mu.Unlock()
+		}
+
+		if shouldReplaceRuntimeClientAfterReconfigureError(reconfigureErr) {
+			next, err := m.replaceRuntimeClient(ctx, startup, sessionKey, state, existing, options, factory)
+			if errors.Is(err, errRuntimeClientChanged) {
+				continue
+			}
+			return next, state, err
+		}
+		return existing, state, reconfigureErr
 	}
-	m.setRuntimeMetadataIfCurrent(sessionKey, client, runtimeKind, ownerUserID)
-	return client, nil
 }
 
 func normalizedManagedRuntimeKind(kind agentclient.RuntimeKind) agentclient.RuntimeKind {
@@ -110,23 +369,6 @@ func normalizedManagedRuntimeKind(kind agentclient.RuntimeKind) agentclient.Runt
 	default:
 		// 未知 runtime 不能继承 nxs 的管理能力，否则前端会开放无法兑现的续聊入口。
 		return ""
-	}
-}
-
-func (m *Manager) setRuntimeMetadataIfCurrent(
-	sessionKey string,
-	client Client,
-	kind agentclient.RuntimeKind,
-	ownerUserID string,
-) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if state := m.sessions[sessionKey]; state != nil && !state.Closing && state.Client == client {
-		state.RuntimeKind = kind
-		if ownerUserID != "" {
-			state.OwnerUserID = ownerUserID
-		}
-		m.touchStateLocked(state)
 	}
 }
 
@@ -147,46 +389,115 @@ func shouldReplaceRuntimeClientAfterReconfigureError(err error) bool {
 
 func (m *Manager) replaceRuntimeClient(
 	ctx context.Context,
+	startup *ClientStartup,
 	sessionKey string,
+	expectedState *sessionState,
 	stale Client,
 	options agentclient.Options,
 	factory Factory,
 ) (Client, error) {
 	next := factory.New(options)
-	m.mu.Lock()
-	state := m.ensureStateLocked(sessionKey)
-	if state.Closing {
-		m.mu.Unlock()
-		if next != nil {
-			_ = next.Disconnect(context.Background())
-		}
-		return nil, errRuntimeSessionClosing
+	if next == nil {
+		return nil, agentclient.ErrNotConnected
 	}
-	if state.Client != stale {
-		next = state.Client
+	if next == stale {
+		return nil, errors.New("runtime factory reused retired client")
+	}
+
+	m.mu.Lock()
+	state := m.sessions[sessionKey]
+	ownershipErr := startup.validateCloseEpochLocked()
+	switch {
+	case ownershipErr != nil:
+	case state != expectedState:
+		ownershipErr = agentclient.ErrAborted
+	case state.Closing:
+		ownershipErr = errRuntimeSessionClosing
+	case state.Client != stale:
+		ownershipErr = errRuntimeClientChanged
+	}
+	if ownershipErr != nil {
 		m.mu.Unlock()
-		if next == nil {
-			return nil, agentclient.ErrNotConnected
-		}
-		return next, nil
+		retireUnusedRuntimeClient(next)
+		return nil, ownershipErr
+	}
+	stale.Retire()
+	m.mu.Unlock()
+
+	disconnectCtx, cancel := context.WithTimeout(context.Background(), RoundIdleAbortTimeout)
+	disconnectErr := stale.Disconnect(disconnectCtx)
+	cancel()
+	if errors.Is(disconnectErr, context.Canceled) || errors.Is(disconnectErr, context.DeadlineExceeded) {
+		retireUnusedRuntimeClient(next)
+		m.finishRetiredSessionCloseWhenDone(sessionKey, expectedState, stale)
+		return nil, disconnectErr
+	}
+	if err := ctx.Err(); err != nil {
+		retireUnusedRuntimeClient(next)
+		m.finishRetiredSessionCloseWhenDone(sessionKey, expectedState, stale)
+		return nil, err
+	}
+
+	// 旧进程真正退出后才发布 next；启动事务 gate 会阻止同 key 的观察者
+	// 在清理窗口连接或重配置候选 client。
+	m.mu.Lock()
+	state = m.sessions[sessionKey]
+	ownershipErr = startup.validateCloseEpochLocked()
+	switch {
+	case ownershipErr != nil:
+	case state != expectedState:
+		ownershipErr = agentclient.ErrAborted
+	case state.Closing:
+		ownershipErr = errRuntimeSessionClosing
+	case state.Client != stale:
+		ownershipErr = errRuntimeClientChanged
+	default:
+		ownershipErr = nil
+	}
+	if ownershipErr != nil {
+		m.mu.Unlock()
+		retireUnusedRuntimeClient(next)
+		return nil, ownershipErr
 	}
 	state.Client = next
 	state.RuntimeKind = normalizedManagedRuntimeKind(options.Runtime.Kind)
 	state.OwnerUserID = runtimeOwnerUserID(options)
+	state.ContextUsageByAgent = nil
 	// 新进程不持有旧 task/thread；只有再次观测到 task 事件后才允许保活。
 	state.HasSubagentHistory = false
 	m.touchStateLocked(state)
 	m.mu.Unlock()
+	return next, nil
+}
 
+func (m *Manager) finishRetiredSessionCloseWhenDone(
+	sessionKey string,
+	expectedState *sessionState,
+	stale Client,
+) {
+	m.mu.Lock()
+	state := m.sessions[sessionKey]
+	if state != expectedState || state == nil || state.Client != stale {
+		m.mu.Unlock()
+		return
+	}
+	target, started, _ := m.beginSessionCloseLocked(sessionKey)
+	m.mu.Unlock()
+	if !started {
+		return
+	}
+	cancelSessionCloseTarget(target)
+	m.finishSessionCloseWhenDone(target, true)
+}
+
+func retireUnusedRuntimeClient(client Client) {
+	if client == nil {
+		return
+	}
+	client.Retire()
 	disconnectCtx, cancel := context.WithTimeout(context.Background(), RoundIdleAbortTimeout)
 	defer cancel()
-	// 新 client 已经成为 session 的唯一事实源；旧进程清理失败不能反向污染本次切换。
-	// Disconnect 会先解除 adapter 对旧 session 的引用，返回值只描述清理结果。
-	_ = stale.Disconnect(disconnectCtx)
-	if next == nil {
-		return nil, agentclient.ErrNotConnected
-	}
-	return next, nil
+	_ = client.Disconnect(disconnectCtx)
 }
 
 // RuntimeKind 返回当前 session 实际持有的 runtime 类型。
@@ -211,6 +522,10 @@ func (m *Manager) HasSession(sessionKey string) bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	state := m.sessions[strings.TrimSpace(sessionKey)]
+	return sessionStateHasConnectedClient(state)
+}
+
+func sessionStateHasConnectedClient(state *sessionState) bool {
 	if state == nil || state.Closing || state.Client == nil {
 		return false
 	}
@@ -231,6 +546,156 @@ func (m *Manager) SessionClient(sessionKey string) Client {
 		return state.Client
 	}
 	return nil
+}
+
+// Connect 连接事务内最近一次 GetOrCreate 返回的 client，并提交新的连接代次。
+func (s *ClientStartup) Connect(ctx context.Context) error {
+	if err := s.active(); err != nil {
+		return err
+	}
+	if s.expectedState == nil || s.expectedClient == nil {
+		return agentclient.ErrNotConnected
+	}
+	err := s.manager.connectClient(
+		ctx,
+		s,
+		s.sessionKey,
+		s.expectedState,
+		s.expectedClient,
+		s.expectedGeneration,
+	)
+	return err
+}
+
+func (m *Manager) connectClient(
+	ctx context.Context,
+	startup *ClientStartup,
+	sessionKey string,
+	expectedState *sessionState,
+	expected Client,
+	expectedGeneration uint64,
+) error {
+	if m == nil || expected == nil || expectedState == nil {
+		return agentclient.ErrNotConnected
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	m.mu.Lock()
+	state := m.sessions[sessionKey]
+	ownershipErr := startup.validateCloseEpochLocked()
+	if ownershipErr == nil {
+		ownershipErr = runtimeClientLeaseOwnershipError(
+			state,
+			expectedState,
+			expected,
+			expectedGeneration,
+		)
+	}
+	if ownershipErr == nil {
+		m.touchStateLocked(state)
+	}
+	m.mu.Unlock()
+	if ownershipErr != nil {
+		return ownershipErr
+	}
+
+	connectErr := expected.Connect(ctx)
+	m.mu.Lock()
+	state = m.sessions[sessionKey]
+	ownershipErr = startup.validateCloseEpochLocked()
+	if ownershipErr == nil {
+		ownershipErr = runtimeClientLeaseOwnershipError(
+			state,
+			expectedState,
+			expected,
+			expectedGeneration,
+		)
+	}
+	if ownershipErr != nil {
+		m.mu.Unlock()
+		return ownershipErr
+	}
+	if connectErr != nil {
+		m.mu.Unlock()
+		return connectErr
+	}
+	m.touchStateLocked(state)
+	m.mu.Unlock()
+	return nil
+}
+
+func runtimeClientOwnershipError(state *sessionState, expectedState *sessionState, expected Client) error {
+	switch {
+	case state != expectedState:
+		return agentclient.ErrAborted
+	case state == nil || state.Client != expected:
+		return errRuntimeClientChanged
+	case state.Closing:
+		return errRuntimeSessionClosing
+	default:
+		return nil
+	}
+}
+
+func runtimeClientLeaseOwnershipError(
+	state *sessionState,
+	expectedState *sessionState,
+	expected Client,
+	expectedGeneration uint64,
+) error {
+	if err := runtimeClientOwnershipError(state, expectedState, expected); err != nil {
+		return err
+	}
+	if state.StartupGeneration != expectedGeneration {
+		return agentclient.ErrAborted
+	}
+	return nil
+}
+
+// CaptureClientLease 捕获当前 client 代次，用于跨启动事务的失败清理。
+func (m *Manager) CaptureClientLease(sessionKey string, expected Client) (ClientLease, bool) {
+	if m == nil || expected == nil {
+		return ClientLease{}, false
+	}
+	sessionKey = strings.TrimSpace(sessionKey)
+	m.mu.RLock()
+	state := m.sessions[sessionKey]
+	if state == nil || state.Closing || state.Client != expected || state.StartupGeneration == 0 {
+		m.mu.RUnlock()
+		return ClientLease{}, false
+	}
+	lease := ClientLease{
+		manager:    m,
+		sessionKey: sessionKey,
+		state:      state,
+		client:     expected,
+		generation: state.StartupGeneration,
+	}
+	m.mu.RUnlock()
+	return lease, true
+}
+
+// CloseSessionIfLease 只关闭 lease 仍指向的 session state、client 与连接代次。
+func (m *Manager) CloseSessionIfLease(ctx context.Context, lease ClientLease) (bool, error) {
+	if m == nil || lease.manager != m || lease.client == nil || lease.state == nil {
+		return false, nil
+	}
+	startup, err := m.beginClientStartup(ctx, lease.sessionKey)
+	if err != nil {
+		return false, err
+	}
+	defer startup.Close()
+	return m.closeSession(
+		ctx,
+		lease.sessionKey,
+		lease.state,
+		lease.client,
+		lease.generation,
+		true,
+		false,
+	)
 }
 
 // MarkSubagentHistory 标记该 runtime 已承载过 subagent task。
@@ -262,23 +727,208 @@ func (m *Manager) HasSubagentHistory(sessionKey string) bool {
 
 // CloseSession 关闭指定 session。
 func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
+	if m == nil {
+		return nil
+	}
+	sessionKey = strings.TrimSpace(sessionKey)
+	_, err := m.closeSession(ctx, sessionKey, nil, nil, 0, false, true)
+	return err
+}
+
+// CloseCurrent 只关闭当前启动事务最近一次获取的 client 代次。
+func (s *ClientStartup) CloseCurrent(ctx context.Context) (bool, error) {
+	if err := s.active(); err != nil {
+		return false, err
+	}
+	if s.expectedState == nil || s.expectedClient == nil {
+		return false, nil
+	}
+	closed, err := s.manager.closeSession(
+		ctx,
+		s.sessionKey,
+		s.expectedState,
+		s.expectedClient,
+		s.expectedGeneration,
+		true,
+		false,
+	)
+	if closed {
+		s.expectedState = nil
+		s.expectedClient = nil
+		s.expectedGeneration = 0
+	}
+	return closed, err
+}
+
+// RetireCurrent 只永久撤销并移除当前启动事务的 client，不关闭同 session 的
+// round 与后台任务。启动失败后的无 resume 重试应走此入口，避免后台任务等待自己退出。
+func (s *ClientStartup) RetireCurrent(ctx context.Context) (bool, error) {
+	if err := s.active(); err != nil {
+		return false, err
+	}
+	if s.expectedState == nil || s.expectedClient == nil {
+		return false, nil
+	}
+	retired, err := s.manager.retireCurrentClient(
+		ctx,
+		s,
+		s.sessionKey,
+		s.expectedState,
+		s.expectedClient,
+		s.expectedGeneration,
+	)
+	if retired {
+		s.expectedState = nil
+		s.expectedClient = nil
+		s.expectedGeneration = 0
+	}
+	return retired, err
+}
+
+func (m *Manager) retireCurrentClient(
+	ctx context.Context,
+	startup *ClientStartup,
+	sessionKey string,
+	expectedState *sessionState,
+	expected Client,
+	expectedGeneration uint64,
+) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	m.mu.Lock()
+	ownershipErr := startup.validateCloseEpochLocked()
+	if ownershipErr == nil {
+		ownershipErr = runtimeClientLeaseOwnershipError(
+			m.sessions[sessionKey],
+			expectedState,
+			expected,
+			expectedGeneration,
+		)
+	}
+	if ownershipErr != nil {
+		m.mu.Unlock()
+		return false, ownershipErr
+	}
+	expected.Retire()
+	if expectedState.IdleMessageCancel != nil {
+		// idle drain 只读取旧 client；先取消，但由 drain defer 清字段，确保
+		// 空 state 只会在 goroutine 真正退出后回收。
+		expectedState.IdleMessageCancel()
+	}
+	m.mu.Unlock()
+
+	disconnectErr := expected.Disconnect(ctx)
+	if errors.Is(disconnectErr, context.Canceled) || errors.Is(disconnectErr, context.DeadlineExceeded) {
+		m.finishRetiredClientResetWhenDone(sessionKey, expectedState, expected, expectedGeneration)
+		return true, disconnectErr
+	}
+	m.clearRetiredClient(sessionKey, expectedState, expected, expectedGeneration)
+	return true, disconnectErr
+}
+
+func (m *Manager) finishRetiredClientResetWhenDone(
+	sessionKey string,
+	expectedState *sessionState,
+	expected Client,
+	expectedGeneration uint64,
+) {
+	go func() {
+		_ = expected.Disconnect(context.Background())
+		m.clearRetiredClient(sessionKey, expectedState, expected, expectedGeneration)
+	}()
+}
+
+func (m *Manager) clearRetiredClient(
+	sessionKey string,
+	expectedState *sessionState,
+	expected Client,
+	expectedGeneration uint64,
+) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	state := m.sessions[sessionKey]
+	if state != expectedState || state == nil || state.Closing || state.Client != expected ||
+		state.StartupGeneration != expectedGeneration {
+		return
+	}
+	state.Client = nil
+	state.RuntimeKind = ""
+	state.ContextUsageByAgent = nil
+	state.HasSubagentHistory = false
+	// 活动 startup 可能已经在锁外重配置刚退休的 client。此时保留同一
+	// state，让它回锁后看到 Client 已清空并沿统一路径创建新 client。
+	if m.removeClientlessSessionIfIdleLocked(sessionKey, expectedState, nil) {
+		return
+	}
+	m.touchStateLocked(state)
+}
+
+func (m *Manager) closeSession(
+	ctx context.Context,
+	sessionKey string,
+	expectedState *sessionState,
+	expected Client,
+	expectedGeneration uint64,
+	conditional bool,
+	blockStartups bool,
+) (bool, error) {
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
-		return nil
+		return false, nil
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	m.mu.Lock()
+	var closeGate *sessionStartupGate
+	if blockStartups {
+		// gate fence 与 session 的 closing 转换共享同一临界区，避免关闭与
+		// 新 BeginClientStartup 之间出现无 gate/state 的 ABA 窗口。
+		closeGate = m.beginSessionCloseGateLocked(sessionKey)
+		defer m.releaseSessionCloseGate(sessionKey, closeGate)
+	}
+	if conditional {
+		state := m.sessions[sessionKey]
+		if state != expectedState || state == nil || state.Client != expected ||
+			state.StartupGeneration != expectedGeneration {
+			m.mu.Unlock()
+			return false, nil
+		}
+	}
 	target, started, closeDone := m.beginSessionCloseLocked(sessionKey)
 	if !started {
 		m.mu.Unlock()
-		return waitSessionClose(ctx, closeDone)
+		return closeDone != nil, waitSessionClose(ctx, closeDone)
 	}
 	reaperErr := m.reapOwnerIfLastLocked(ctx, target.ownerUserID)
 	m.mu.Unlock()
 
+	cancelSessionCloseTarget(target)
+
+	var disconnectErr error
+	if target.client != nil {
+		disconnectErr = target.client.Disconnect(ctx)
+	}
+	waitBackgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
+	waitRoundErr := waitRoundDoneForClose(ctx, target.roundDone)
+	clientCleanupPending := errors.Is(disconnectErr, context.Canceled) ||
+		errors.Is(disconnectErr, context.DeadlineExceeded)
+	if clientCleanupPending || waitRoundErr != nil || waitBackgroundErr != nil {
+		// context 可能先于后台写盘任务结束；即使 round 已退出，也不能
+		// 删除 session 状态；client cleanup 也必须保留同一生命周期栅栏。
+		m.finishSessionCloseWhenDone(target, clientCleanupPending)
+	} else {
+		m.finishSessionClose(target)
+	}
+	return true, errors.Join(reaperErr, disconnectErr, waitBackgroundErr, waitRoundErr)
+}
+
+func cancelSessionCloseTarget(target *sessionCloseTarget) {
+	if target == nil {
+		return
+	}
 	if target.idleMessageCancel != nil {
 		target.idleMessageCancel()
 	}
@@ -292,25 +942,4 @@ func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
 			cancel()
 		}
 	}
-
-	var disconnectErr error
-	if target.client != nil {
-		disconnectErr = target.client.Disconnect(ctx)
-	}
-	waitBackgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
-	if waitBackgroundErr != nil {
-		disconnectErr = errors.Join(disconnectErr, waitBackgroundErr)
-	}
-	waitRoundErr := waitRoundDoneForClose(ctx, target.roundDone)
-	if waitRoundErr != nil {
-		disconnectErr = errors.Join(disconnectErr, waitRoundErr)
-		m.finishSessionCloseWhenDone(target)
-	} else if waitBackgroundErr != nil {
-		// context 可能先于后台写盘任务结束；即使 round 已退出，也不能
-		// 删除 session 状态，否则任务完成前仍可通过旧引用继续写 owner 目录。
-		m.finishSessionCloseWhenDone(target)
-	} else {
-		m.finishSessionClose(target)
-	}
-	return errors.Join(reaperErr, disconnectErr)
 }

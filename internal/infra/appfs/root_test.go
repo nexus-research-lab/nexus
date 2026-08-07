@@ -3,6 +3,7 @@ package appfs
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 )
@@ -70,6 +71,7 @@ func TestStateRootNormalizesLegacyNexusConfigSubdirectory(t *testing.T) {
 func TestConfigDirDefaultsToHomeNexus(t *testing.T) {
 	homeDir := filepath.Join(t.TempDir(), "home")
 	t.Setenv("HOME", homeDir)
+	t.Setenv("USERPROFILE", homeDir)
 	t.Setenv(nexusConfigDirEnvName, "")
 	t.Setenv(NexusStateRootEnvName, "")
 
@@ -118,7 +120,11 @@ func TestEnsureUserRuntimeLayoutCreatesPrivateDirectories(t *testing.T) {
 		if err != nil {
 			t.Fatalf("读取用户 runtime 目录失败 %q: %v", directory, err)
 		}
-		if info.Mode().Perm() != 0o700 {
+		if !info.IsDir() {
+			t.Fatalf("用户 runtime 路径不是目录: %q", directory)
+		}
+		// Windows 的 FileMode 不表达 ACL；目录隔离由父目录继承的 ACL 决定。
+		if runtime.GOOS != "windows" && info.Mode().Perm() != 0o700 {
 			t.Fatalf("用户 runtime 目录权限错误 %q: %o", directory, info.Mode().Perm())
 		}
 	}

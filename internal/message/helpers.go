@@ -50,14 +50,15 @@ func normalizeInt(value any) int {
 		return int(typed)
 	case float64:
 		return int(typed)
+	case json.Number:
+		result, err := typed.Int64()
+		if err == nil {
+			return int(result)
+		}
+		return 0
 	default:
 		return 0
 	}
-}
-
-func normalizeInt64(value any) int64 {
-	result, _ := normalizeInt64Value(value)
-	return result
 }
 
 func normalizeInt64Value(value any) (int64, bool) {
@@ -237,6 +238,9 @@ func mergeNormalizedBlockPayload(payload map[string]any, block sdkprotocol.Conte
 			payload["tool_use_id"] = value.ToolUseID
 			payload["content"] = decodeRawJSON(value.Content)
 			payload["is_error"] = value.IsError
+			if value.ErrorCode != "" {
+				payload["error_code"] = value.ErrorCode
+			}
 			payload["mime_type"] = emptyToNil(value.MimeType)
 		}
 	}

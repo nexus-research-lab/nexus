@@ -34,9 +34,14 @@ type nextTurnContextClient interface {
 	SetNextTurnContext(context.Context, []ContextualInputBlock) error
 }
 
+type nextTurnContextClearer interface {
+	ClearNextTurnContext(context.Context) error
+}
+
 const (
 	contextOnlyTurnTrigger           = "Continue."
 	ContextualInputNameRoundRecovery = "round_recovery"
+	ContextualInputNameExecution     = "execution"
 )
 
 func PrepareRoundContentWithContext(
@@ -52,14 +57,58 @@ func PrepareRoundContentWithContext(
 	if isContextOnlyContent(content) {
 		return prependContextualInputBlocks(content, blocks), nil
 	}
-	if setter, ok := client.(nextTurnContextClient); ok {
-		if err := setter.SetNextTurnContext(ctx, blocks); err == nil {
-			return contentWithContextTrigger(content), nil
-		} else if !errors.Is(err, agentclient.ErrUnsupportedCapability) {
-			return nil, err
-		}
+	buffered, err := prepareBufferedContext(ctx, client, blocks)
+	if err != nil {
+		return nil, err
+	}
+	if buffered {
+		return contentWithContextTrigger(content), nil
 	}
 	return prependContextualInputBlocks(content, blocks), nil
+}
+
+// prepareBufferedContext 只在 client 同时提供设置与逻辑清理时使用下一轮 buffer。
+// 缺少清理能力的自定义 client 直接内联，避免失败发送留下跨轮残留。
+func prepareBufferedContext(
+	ctx context.Context,
+	client Client,
+	blocks []ContextualInputBlock,
+) (bool, error) {
+	setter, canSet := client.(nextTurnContextClient)
+	clearer, canClear := client.(nextTurnContextClearer)
+	if !canSet || !canClear {
+		return false, nil
+	}
+	if err := clearer.ClearNextTurnContext(ctx); err != nil {
+		if errors.Is(err, agentclient.ErrUnsupportedCapability) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := setter.SetNextTurnContext(ctx, blocks); err != nil {
+		if errors.Is(err, agentclient.ErrUnsupportedCapability) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// PrepareAtomicRoundContent 清空 bridge 的一次性上下文后原样返回命令输入。
+func PrepareAtomicRoundContent(
+	ctx context.Context,
+	client Client,
+	content any,
+) (any, error) {
+	clearer, ok := client.(nextTurnContextClearer)
+	if !ok {
+		return content, nil
+	}
+	if err := clearer.ClearNextTurnContext(ctx); err != nil &&
+		!errors.Is(err, agentclient.ErrUnsupportedCapability) {
+		return nil, err
+	}
+	return content, nil
 }
 
 func isContextOnlyContent(content any) bool {
@@ -127,6 +176,8 @@ func internalContextSourceName(name string) string {
 	switch strings.TrimSpace(name) {
 	case "goal", "goal_context":
 		return "goal"
+	case ContextualInputNameExecution:
+		return ContextualInputNameExecution
 	case ContextualInputNameRoundRecovery:
 		return ContextualInputNameRoundRecovery
 	default:

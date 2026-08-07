@@ -63,6 +63,47 @@ func TestBuildSyntheticAssistantFromResultMapsStopReasonBySubtype(t *testing.T) 
 	}
 }
 
+func TestBuildSyntheticAssistantFromInterruptedResultNormalizesDisplayText(t *testing.T) {
+	tests := map[string]struct {
+		result      string
+		wantText    string
+		wantSummary bool
+	}{
+		"internal sentinel": {
+			result: InterruptWithoutMessage,
+		},
+		"custom reason": {
+			result:      "  收到新消息，上一轮已停止  ",
+			wantText:    "收到新消息，上一轮已停止",
+			wantSummary: true,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			synthetic := BuildSyntheticAssistantFromResult(protocol.Message{
+				"message_id":  "result-interrupted",
+				"session_key": "agent:nexus:ws:dm:test",
+				"agent_id":    "nexus",
+				"round_id":    "round-interrupted",
+				"role":        "result",
+				"subtype":     "interrupted",
+				"result":      test.result,
+			})
+			if got := ExtractAssistantDisplayText(synthetic); got != test.wantText {
+				t.Fatalf("assistant 展示文案=%q，期望=%q: %+v", got, test.wantText, synthetic)
+			}
+			summary, ok := synthetic["result_summary"].(map[string]any)
+			if !ok {
+				t.Fatalf("interrupted assistant 缺少 result_summary: %+v", synthetic)
+			}
+			resultText, hasResult := summary["result"]
+			if hasResult != test.wantSummary || (hasResult && resultText != test.wantText) {
+				t.Fatalf("result_summary 展示文案不正确: %+v", summary)
+			}
+		})
+	}
+}
+
 func TestProjectResultMessageSkipsEmptySuccessfulResult(t *testing.T) {
 	projected := ProjectResultMessage(nil, protocol.Message{
 		"message_id": "result-empty",
@@ -123,6 +164,23 @@ func TestIsInternalTranscriptContinuationPrompt(t *testing.T) {
 	}
 	if IsInternalTranscriptContinuationPrompt(prompt + " 请继续") {
 		t.Fatalf("带用户内容的续跑提示不应被误判为内部消息")
+	}
+}
+
+func TestIsInternalExplicitSkillPrompt(t *testing.T) {
+	const prompt = `<system-reminder>
+The following is runtime-internal context for the next turn.
+
+<internal_context source="explicit_skill">
+The user explicitly selected a Skill.
+</internal_context>
+</system-reminder>`
+
+	if !IsInternalExplicitSkillPrompt("  " + prompt + "\n") {
+		t.Fatalf("旧版显式 Skill 内部正文应被识别")
+	}
+	if IsInternalExplicitSkillPrompt(`<internal_context source="explicit_skill">普通用户引用</internal_context>`) {
+		t.Fatalf("缺少完整内部 wrapper 的用户内容不应被误判")
 	}
 }
 

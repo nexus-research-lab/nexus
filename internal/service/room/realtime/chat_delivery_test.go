@@ -22,7 +22,7 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -171,20 +171,30 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 
 	roomSystemPrompt := factory.LastOptions().System.Append
 	roomPromptOptions := factory.LastOptions().System
-	if !strings.Contains(roomPromptOptions.AppendStatic, "# Nexus Room") ||
+	if !strings.Contains(roomPromptOptions.AppendStatic, "## Execution Orchestration") ||
+		!strings.Contains(roomPromptOptions.AppendStatic, "# Nexus Room") ||
 		!strings.Contains(roomPromptOptions.AppendStatic, "<room_member_directory>") {
-		t.Fatalf("Room 稳定 prompt 应包含房间规则与成员目录: %q", roomPromptOptions.AppendStatic)
+		t.Fatalf("Room 稳定 prompt 应包含 execution contract、房间规则与成员目录: %q", roomPromptOptions.AppendStatic)
 	}
-	if strings.Contains(roomPromptOptions.AppendDynamic, "# Nexus Room") ||
+	if strings.Contains(roomPromptOptions.AppendDynamic, "## Execution Orchestration") ||
+		strings.Contains(roomPromptOptions.AppendDynamic, "# Nexus Room") ||
 		strings.Contains(roomPromptOptions.AppendDynamic, "<room_member_directory>") {
 		t.Fatalf("Room 动态 prompt 不应重复房间稳定段: %q", roomPromptOptions.AppendDynamic)
+	}
+	if strings.Count(roomPromptOptions.AppendStatic, "## Execution Orchestration") != 1 ||
+		strings.Count(roomSystemPrompt, "## Execution Orchestration") != 1 {
+		t.Fatalf("Room execution contract 应只注入一次: static=%q combined=%q", roomPromptOptions.AppendStatic, roomSystemPrompt)
 	}
 	for _, expected := range []string{
 		"# Nexus Room",
 		"You are a member in a multi-member Nexus Room",
 		"Each user turn includes <public_feed>",
+		"Before substantial execution, every Agent assesses atomicity",
+		"Before substantial execution, every Room member assesses atomicity",
 		"Private Room directed message sending is disabled",
 		`"room host default takeover"`,
+		"assign_work is intentionally forbidden",
+		"Never downgrade this bootstrap into raw @ dispatch",
 		"When a directed message wakes you, answer once in the final reply",
 		"The final reply may be persisted or projected verbatim",
 		"# Nexus Room Member Directory",
@@ -311,7 +321,7 @@ func TestRealtimeServiceRoutesUnmentionedGroupMessageToRoomHost(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -401,7 +411,7 @@ func TestRealtimeServiceAcksPublicMessageWithoutMention(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -458,7 +468,7 @@ func TestRealtimeServiceSuppressesNoReplyMarkerProjection(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -595,7 +605,7 @@ func TestRealtimeServiceHostConsumesQueuedInputAsSoonAsItsSlotFinishes(t *testin
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -758,7 +768,7 @@ func TestRealtimeServiceWakesMentionedAgentFromPublicAssistantReply(t *testing.T
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -951,7 +961,7 @@ func TestRealtimeServiceAllowsReciprocalPublicMentionHandoff(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -1054,7 +1064,7 @@ func TestRealtimeServiceSerializesSiblingPublicMentionReturnsToFinishedHost(t *t
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -1279,7 +1289,7 @@ func TestRealtimeServiceQueuesPublicMentionWhenTargetRunning(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}

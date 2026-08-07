@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// MaxClientMessageIDBytes 限制客户端关联 ID，避免历史和队列索引被异常输入撑大。
+const MaxClientMessageIDBytes = 512
+
 // randomIDSuffix 生成 12 字节随机 hex；随机源不可用时退化为纳秒时间戳。
 func randomIDSuffix() string {
 	buffer := make([]byte, 12)
@@ -24,6 +27,11 @@ func NewRoundID() string {
 // NewUserMessageID 生成 durable 用户消息 id。
 func NewUserMessageID() string {
 	return "msg_user_" + randomIDSuffix()
+}
+
+// NewAssistantMessageID 生成 assistant 消息 id。
+func NewAssistantMessageID() string {
+	return "msg_assistant_" + randomIDSuffix()
 }
 
 // NewAgentRoundID 生成 agent slot 执行轮次 id，与 round_id 相互独立。

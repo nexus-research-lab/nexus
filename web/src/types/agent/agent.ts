@@ -45,6 +45,8 @@ export interface Agent {
     description?: string | null;
     vibe_tags?: string[] | null;
     skills_count?: number | null;
+    /** 仅在 Room member 投影中存在；全局 Agent 本身不拥有此状态。 */
+    room_participation_paused?: boolean;
 }
 
 export interface AgentRuntimeStatus {

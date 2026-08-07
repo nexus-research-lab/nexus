@@ -45,7 +45,7 @@
   --radius-lg: 12px;
   --radius-md: 8px;
   --radius-sm: 4px;
-  --workspace-detail-max-width: 980px;
+  --workspace-content-gutter: clamp(20px, 2vw, 32px);
   --motion-duration-fast: 160ms;
   --motion-duration-normal: 220ms;
   --motion-duration-layout: 300ms;

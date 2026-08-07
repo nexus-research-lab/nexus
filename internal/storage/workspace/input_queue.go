@@ -243,6 +243,9 @@ func (s *InputQueueStore) Enqueue(
 
 	now := time.Now().UnixMilli()
 	item = normalizeInputQueueItem(location, item, now)
+	if err := protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
+		return nil, err
+	}
 	if item.ID == "" {
 		item.ID = NewInputQueueID()
 	}
@@ -260,8 +263,8 @@ func (s *InputQueueStore) Enqueue(
 	return s.snapshotLocked(location)
 }
 
-// FindAcceptedEnqueue 查找此前已持久接受的客户端入队请求。
-// 即使队列项已经派发，append-only enqueue 行仍会命中。
+// FindAcceptedEnqueue 按客户端消息 ID 查找已持久化的队列入队事实。
+// Room 批量派发需要先恢复 canonical item，不能把一次重试扩成第二批任务。
 func (s *InputQueueStore) FindAcceptedEnqueue(
 	location InputQueueLocation,
 	clientMessageID string,
@@ -291,6 +294,9 @@ func (s *InputQueueStore) EnqueueIdempotent(
 	if clientMessageID == "" {
 		return InputQueueEnqueueResult{}, errors.New("client_message_id is required")
 	}
+	if len(clientMessageID) > protocol.MaxClientMessageIDBytes {
+		return InputQueueEnqueueResult{}, errors.New("client_message_id is too long")
+	}
 	rows, err := s.inputQueueRowsLocked(location)
 	if err != nil {
 		return InputQueueEnqueueResult{}, err
@@ -298,6 +304,10 @@ func (s *InputQueueStore) EnqueueIdempotent(
 
 	now := time.Now().UnixMilli()
 	item = normalizeInputQueueItem(location, item, now)
+	item.ClientMessageID = clientMessageID
+	if err = protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
+		return InputQueueEnqueueResult{}, err
+	}
 	if existing, ok := findAcceptedInputQueueEnqueue(location, rows, clientMessageID); ok {
 		if !MatchesInputQueueEnqueueIntent(existing, item) {
 			return InputQueueEnqueueResult{}, fmt.Errorf(
@@ -360,6 +370,7 @@ func findAcceptedInputQueueEnqueue(
 			!inputQueueItemMatchesLocationOwner(location, item) {
 			continue
 		}
+		item.ClientMessageID = clientMessageID
 		return normalizeInputQueueItem(location, item, normalizeInputQueueTimestamp(row["timestamp"])), true
 	}
 	return protocol.InputQueueItem{}, false
@@ -381,6 +392,8 @@ type inputQueueEnqueueIntent struct {
 	TargetAgentIDs []string
 	Source         protocol.InputQueueSource
 	OwnerUserID    string
+	WorkBinding    *protocol.ExecutionWorkBinding
+	ReviewBinding  *protocol.ExecutionReviewBinding
 }
 
 func normalizeInputQueueEnqueueIntent(item protocol.InputQueueItem) inputQueueEnqueueIntent {
@@ -394,6 +407,8 @@ func normalizeInputQueueEnqueueIntent(item protocol.InputQueueItem) inputQueueEn
 		TargetAgentIDs: targetAgentIDs,
 		Source:         protocol.NormalizeInputQueueSource(string(item.Source)),
 		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
+		WorkBinding:    normalizeExecutionWorkBinding(item.WorkBinding),
+		ReviewBinding:  normalizeExecutionReviewBinding(item.ReviewBinding),
 	}
 }
 
@@ -408,6 +423,9 @@ func (s *InputQueueStore) EnqueueBounded(
 
 	now := time.Now().UnixMilli()
 	item = normalizeInputQueueItem(location, item, now)
+	if err := protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
+		return nil, false, err
+	}
 	items, err := s.snapshotLocked(location)
 	if err != nil {
 		return nil, false, err
@@ -457,6 +475,9 @@ func (s *InputQueueStore) EnqueueBatchWithItems(entries []InputQueueEnqueue) ([]
 			return nil, err
 		}
 		item := normalizeInputQueueItem(entry.Location, entry.Item, now)
+		if err = protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
+			return nil, err
+		}
 		if item.ID == "" {
 			item.ID = NewInputQueueID()
 		}
@@ -571,6 +592,9 @@ func (s *InputQueueStore) UpdateDeliveryPolicy(
 		selected.RootRoundID = ""
 	}
 	selected.UpdatedAt = now
+	if err = protocol.ValidateInputQueueCapabilityEnvelope(*selected); err != nil {
+		return nil, err
+	}
 	if err = s.appendActionLocked(location, map[string]any{
 		"action":    inputQueueActionUpdate,
 		"item":      *selected,
@@ -731,6 +755,9 @@ func (s *InputQueueStore) DispatchGuidance(
 func matchingGuidanceItems(items []protocol.InputQueueItem, rootRoundIDs []string) []protocol.InputQueueItem {
 	guidanceItems := make([]protocol.InputQueueItem, 0)
 	for _, item := range items {
+		if item.WorkBinding != nil || item.ReviewBinding != nil {
+			continue
+		}
 		if protocol.ShouldGuideRunningRound(item.DeliveryPolicy) && matchesInputQueueGuidanceTarget(item, rootRoundIDs) {
 			guidanceItems = append(guidanceItems, item)
 		}

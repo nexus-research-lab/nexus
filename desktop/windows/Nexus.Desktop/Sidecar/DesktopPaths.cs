@@ -4,8 +4,7 @@ namespace Nexus.Desktop.Sidecar;
 
 internal static class DesktopPaths
 {
-    public static string RootDirectory =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nexus");
+    public static string RootDirectory => DesktopStateRootStore.ActiveRootDirectory;
 
     public static string AppDirectory => Path.Combine(RootDirectory, "app");
 

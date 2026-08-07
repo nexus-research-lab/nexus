@@ -9,6 +9,7 @@
 - [消息处理规范](./message-processing-spec.md)：实时消息、历史投影和 round 分页。
 - [Session Key 规范](./session-key-spec.md)：共享会话键、Agent 私有会话键和恢复键。
 - [Room 协作协议](./room-collaboration-spec.md)：公区、私域、唤醒和回复投影。
+- [Execution Orchestration 协议](./execution-orchestration-spec.md)：Plan、Work Item、Assignment、验收与 Goal 持续性边界。
 - [Room Skill 编写指南](./room-collaboration-mechanism.md)：面向 Skill 作者的最小行为规则。
 
 本文描述 Room 的当前领域边界，以及已经确认的 P0 持久化、派发和投影约束；具体实现可以分阶段落地，但不得偏离这些边界。
@@ -27,6 +28,7 @@ Room 模块负责：
 以下内容不属于本规范：
 
 - Goal 的业务状态、预算和续跑规则。
+- Work Item、Assignment、依赖、交付和 Acceptance；这些属于 Execution Orchestration。
 - Agent runtime 内部的 provider、工具执行和 transcript 格式。
 - 通用消息归一化与前端时间线渲染。
 - Room Skill 的业务规则（例如投票、顺序、胜负和收口条件）。

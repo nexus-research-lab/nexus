@@ -29,20 +29,17 @@ func TestServiceListAgentsUsesSystemScopeWhenAuthIsDisabled(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 
 	singleUserContext := authctx.WithState(context.Background(), authctx.State{
 		AuthRequired: false,
 		UserCount:    2,
 	})
-	if _, err = service.ListAgents(singleUserContext); err != nil {
+	if _, err := service.ListAgents(singleUserContext); err != nil {
 		t.Fatalf("初始化 system agent 失败: %v", err)
 	}
 	userContext := authctx.WithPrincipal(context.Background(), &authctx.Principal{UserID: "user-b"})
-	if _, err = service.CreateAgent(userContext, protocol.CreateRequest{Name: "用户 B 助手"}); err != nil {
+	if _, err := service.CreateAgent(userContext, protocol.CreateRequest{Name: "用户 B 助手"}); err != nil {
 		t.Fatalf("创建用户 B agent 失败: %v", err)
 	}
 
@@ -58,10 +55,7 @@ func TestServiceListAgentsUsesSystemScopeWhenAuthIsDisabled(t *testing.T) {
 func TestServiceGetAgentRejectsOwnerWorkspaceSymlink(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 	ownerAContext := authctx.WithPrincipal(
 		context.Background(),
 		&authctx.Principal{UserID: "user-a"},
@@ -112,10 +106,7 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 
@@ -135,11 +126,20 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if items[0].Options.Provider != "" {
 		t.Fatalf("主智能体应跟随默认 provider，不应写死显式 provider: %+v", items[0].Options)
 	}
-	if items[0].Options.PermissionMode != "default" {
-		t.Fatalf("主智能体默认权限应为询问模式: %+v", items[0].Options)
+	if items[0].Options.PermissionMode != protocol.DefaultAgentPermissionMode {
+		t.Fatalf("主智能体默认权限应自动接受编辑: %+v", items[0].Options)
 	}
 	if len(items[0].Options.AllowedTools) != 0 {
 		t.Fatalf("主智能体默认不应预授权工具: %+v", items[0].Options.AllowedTools)
+	}
+	updatedMain, err := service.UpdateAgent(ctx, items[0].AgentID, protocol.UpdateRequest{
+		Options: &protocol.Options{Provider: "stale-provider", Model: "stale-model"},
+	})
+	if err != nil {
+		t.Fatalf("更新主智能体失败: %v", err)
+	}
+	if updatedMain.Options.Provider != "" || updatedMain.Options.Model != "" {
+		t.Fatalf("主智能体模型应始终跟随全局默认: %+v", updatedMain.Options)
 	}
 	assertRuntimeEmotionStateFile(t, items[0].WorkspacePath)
 
@@ -163,6 +163,9 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 	if created.Avatar == "" {
 		t.Fatal("创建 Agent 时应自动分配头像")
+	}
+	if created.Options.PermissionMode != protocol.DefaultAgentPermissionMode {
+		t.Fatalf("新 Agent 默认权限应自动接受编辑: %+v", created.Options)
 	}
 	if _, err = os.Stat(created.WorkspacePath); err != nil {
 		t.Fatalf("workspace 目录未创建: %v", err)
@@ -192,8 +195,8 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取 agent 失败: %v", err)
 	}
-	if loaded.SkillsCount != 4 {
-		t.Fatalf("skills_count 不正确: got=%d want=4", loaded.SkillsCount)
+	if loaded.SkillsCount != 5 {
+		t.Fatalf("skills_count 不正确: got=%d want=5", loaded.SkillsCount)
 	}
 
 	items, err = service.ListAgents(ctx)
@@ -204,8 +207,8 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 		t.Fatalf("agent 数量不正确: got=%d want=2", len(items))
 	}
 	for _, item := range items {
-		if item.AgentID == created.AgentID && item.SkillsCount != 4 {
-			t.Fatalf("list_agents skills_count 不正确: got=%d want=4", item.SkillsCount)
+		if item.AgentID == created.AgentID && item.SkillsCount != 5 {
+			t.Fatalf("list_agents skills_count 不正确: got=%d want=5", item.SkillsCount)
 		}
 	}
 
@@ -218,14 +221,55 @@ func TestServiceBootstrapsMainAgentAndCreatesAgent(t *testing.T) {
 	}
 }
 
+func TestServiceRetriesMainAgentWorkspaceLifecycleBeforePersisting(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, db := newAgentTestService(t, cfg)
+	manager := &recordingWorkspaceManager{initializeErr: errors.New("initialize failed")}
+	service.SetWorkspaceManager(manager)
+	ctx := context.Background()
+
+	if _, err := service.ListAgents(ctx); err == nil {
+		t.Fatal("workspace 初始化失败时不应提交主 Agent")
+	}
+	assertNoRowsForAgent(t, db, "agents", "id", cfg.DefaultAgentID)
+	if len(manager.initialized) != 1 || !manager.initialized[0].IsMain {
+		t.Fatalf("主 Agent 应进入 workspace 生命周期: %+v", manager.initialized)
+	}
+
+	manager.initializeErr = nil
+	items, err := service.ListAgents(ctx)
+	if err != nil {
+		t.Fatalf("重试主 Agent workspace 生命周期失败: %v", err)
+	}
+	if len(items) != 1 || items[0].AgentID != cfg.DefaultAgentID {
+		t.Fatalf("主 Agent 重试后未正确落库: %+v", items)
+	}
+	if len(manager.initialized) != 2 {
+		t.Fatalf("workspace 初始化调用次数 = %d, want 2", len(manager.initialized))
+	}
+	initialized := manager.initialized[1]
+	if initialized.AgentID != items[0].AgentID ||
+		initialized.OwnerUserID != items[0].OwnerUserID ||
+		initialized.WorkspacePath != items[0].WorkspacePath ||
+		!initialized.IsMain || initialized.CreatedAt.IsZero() {
+		t.Fatalf("workspace 生命周期收到的主 Agent 身份不完整: %+v", initialized)
+	}
+
+	if _, err = service.GetDefaultAgent(ctx); err != nil {
+		t.Fatalf("再次读取主 Agent 失败: %v", err)
+	}
+	if len(manager.initialized) != 2 {
+		t.Fatalf("普通读取不应重复初始化 workspace: calls=%d", len(manager.initialized))
+	}
+}
+
 func TestCreateAgentPersistsCustomizedProfileTemplate(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 	const customTemplate = "## Role\n\n- Purpose: 负责发布前质量审查\n"
 	created, err := service.CreateAgent(context.Background(), protocol.CreateRequest{
 		Name:            "质量审查助手",
@@ -247,17 +291,13 @@ func TestServiceProjectsNexusAvatarForLegacyMainAgent(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
-	defer db.Close()
+	service, db := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
-	if _, err = service.ListAgents(ctx); err != nil {
+	if _, err := service.ListAgents(ctx); err != nil {
 		t.Fatalf("初始化主智能体失败: %v", err)
 	}
-	if _, err = db.Exec(`UPDATE agents SET avatar = NULL WHERE id = ?`, cfg.DefaultAgentID); err != nil {
+	if _, err := db.Exec(`UPDATE agents SET avatar = NULL WHERE id = ?`, cfg.DefaultAgentID); err != nil {
 		t.Fatalf("模拟旧主智能体头像数据失败: %v", err)
 	}
 
@@ -274,10 +314,7 @@ func TestServicePersistsAgentRuntimeProviderModel(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 	maxTurns := 6
@@ -336,10 +373,7 @@ func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "sam"})
@@ -369,11 +403,7 @@ func TestServiceAllowsDuplicateAndSlugCollidingAgentNames(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
-	defer db.Close()
+	service, db := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 	first, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "a b"})
@@ -424,11 +454,7 @@ func TestServiceHardDeletesAgentAndAllowsNameReuse(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, db, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
-	defer db.Close()
+	service, db := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可重建助手"})
@@ -456,14 +482,33 @@ func TestServiceHardDeletesAgentAndAllowsNameReuse(t *testing.T) {
 	}
 }
 
+func TestServiceDeleteAgentIgnoresWorkspaceMarkerCleanupFailure(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, db := newAgentTestService(t, cfg)
+	ctx := context.Background()
+	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "可清理助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	cleaner := &failingWorkspaceStateCleaner{}
+	service.SetWorkspaceManager(cleaner)
+
+	if err = service.DeleteAgent(ctx, created.AgentID); err != nil {
+		t.Fatalf("可重建 marker 清理失败不应阻断 Agent 删除: %v", err)
+	}
+	if cleaner.removeCalls != 1 {
+		t.Fatalf("workspace marker 清理次数 = %d, want 1", cleaner.removeCalls)
+	}
+	assertNoRowsForAgent(t, db, "agents", "id", created.AgentID)
+}
+
 func TestServiceUsesAgentIDWorkspacePathAndRenameKeepsWorkspace(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 
 	ctx := context.Background()
 	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "chatbuddy"})
@@ -521,10 +566,7 @@ func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
 
-	service, _, err := serverapp.NewAgentService(cfg)
-	if err != nil {
-		t.Fatalf("创建 service 失败: %v", err)
-	}
+	service, _ := newAgentTestService(t, cfg)
 	goalCleaner := &fakeAgentGoalCleaner{}
 	service.SetGoalCleaner(goalCleaner)
 
@@ -569,6 +611,45 @@ func TestDeleteAgentRemovesTranscriptProject(t *testing.T) {
 
 type fakeAgentGoalCleaner struct {
 	agentIDs []string
+}
+
+type failingWorkspaceStateCleaner struct {
+	removeCalls int
+}
+
+type recordingWorkspaceManager struct {
+	initialized   []protocol.Agent
+	initializeErr error
+}
+
+func (r *recordingWorkspaceManager) InitializeAgentWorkspace(
+	_ context.Context,
+	agentValue protocol.Agent,
+) error {
+	r.initialized = append(r.initialized, agentValue)
+	return r.initializeErr
+}
+
+func (*recordingWorkspaceManager) RemoveAgentWorkspaceState(
+	context.Context,
+	protocol.Agent,
+) error {
+	return nil
+}
+
+func (*failingWorkspaceStateCleaner) InitializeAgentWorkspace(
+	context.Context,
+	protocol.Agent,
+) error {
+	return nil
+}
+
+func (f *failingWorkspaceStateCleaner) RemoveAgentWorkspaceState(
+	context.Context,
+	protocol.Agent,
+) error {
+	f.removeCalls++
+	return errors.New("marker cleanup failed")
 }
 
 func (f *fakeAgentGoalCleaner) DeleteGoalsForAgent(_ context.Context, agentID string) (int, error) {
@@ -695,6 +776,20 @@ func agentTranscriptHash(value string) string {
 func migrateSQLite(t *testing.T, databaseURL string) {
 	t.Helper()
 	handlertest.MigrateSQLiteFromDir(t, databaseURL, testMigrationDir(t))
+}
+
+func newAgentTestService(t *testing.T, cfg config.Config) (*agentpkg.Service, *sql.DB) {
+	t.Helper()
+	service, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Errorf("关闭 Agent 测试数据库失败: %v", err)
+		}
+	})
+	return service, db
 }
 
 func testMigrationDir(t *testing.T) string {

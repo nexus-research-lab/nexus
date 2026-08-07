@@ -2,10 +2,12 @@
 
 import { type RefObject } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
+
 import { PickerPopover } from "./picker-popover";
 import {
   HOUR_12_OPTIONS,
-  MERIDIEM_LABELS,
   MERIDIEM_OPTIONS,
   MINUTE_OPTIONS,
   SECOND_OPTIONS,
@@ -50,7 +52,18 @@ interface SingleRunPickerProps {
   visibleDays: CalendarDay[];
 }
 
+const CALENDAR_WEEKDAY_KEYS: TranslationKey[] = [
+  "capability.scheduled_dialog_weekday_sun",
+  "capability.scheduled_dialog_weekday_mon",
+  "capability.scheduled_dialog_weekday_tue",
+  "capability.scheduled_dialog_weekday_wed",
+  "capability.scheduled_dialog_weekday_thu",
+  "capability.scheduled_dialog_weekday_fri",
+  "capability.scheduled_dialog_weekday_sat",
+];
+
 export function SingleRunPicker(props: SingleRunPickerProps) {
+  const { t } = useI18n();
   const {
     anchorRef,
     display,
@@ -93,12 +106,16 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
         <div className="grid gap-4 md:grid-cols-[196px,minmax(0,1fr)]">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <button className="text-sm font-semibold text-(--text-default)" onClick={onPrevMonth} type="button">上月</button>
+              <button className="text-sm font-semibold text-(--text-default)" onClick={onPrevMonth} type="button">
+                {t("capability.scheduled_dialog_previous_month")}
+              </button>
               <span className="text-[14px] font-semibold text-(--text-strong)">{monthLabel}</span>
-              <button className="text-sm font-semibold text-(--text-default)" onClick={onNextMonth} type="button">下月</button>
+              <button className="text-sm font-semibold text-(--text-default)" onClick={onNextMonth} type="button">
+                {t("capability.scheduled_dialog_next_month")}
+              </button>
             </div>
             <div className="grid grid-cols-7 gap-1.5 text-center text-xs text-(--text-muted)">
-              {["日", "一", "二", "三", "四", "五", "六"].map((label) => <div key={label}>{label}</div>)}
+              {CALENDAR_WEEKDAY_KEYS.map((key) => <div key={key}>{t(key)}</div>)}
             </div>
             <div className="grid grid-cols-7 gap-1.5">
               {visibleDays.map((day) => {
@@ -123,7 +140,9 @@ export function SingleRunPicker(props: SingleRunPickerProps) {
           </div>
           <div className="grid grid-cols-4 gap-2">
             <TimePickerColumn
-              getLabel={(value) => MERIDIEM_LABELS[value]}
+              getLabel={(value) => t(value === "am"
+                ? "capability.scheduled_dialog_meridiem_am"
+                : "capability.scheduled_dialog_meridiem_pm")}
               isDisabled={isMeridiemDisabled}
               onSelect={onMeridiemSelect}
               options={MERIDIEM_OPTIONS}

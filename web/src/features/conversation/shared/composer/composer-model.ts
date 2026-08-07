@@ -9,12 +9,17 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
-import type { CommandCatalogData } from "@/types/generated/protocol";
+import type {
+  CommandCatalogData,
+  ContextUsageData,
+} from "@/types/generated/protocol";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface ComposerPanelProps {
   compact: boolean;
   commandCatalog: CommandCatalogData;
+  contextUsage: ContextUsageData | null;
+  contextUsageItems?: readonly ComposerContextUsageItem[];
   /**
    * DM/Room 等待用户回应时原位替换输入壳内容；草稿状态继续保留。
    */
@@ -28,13 +33,13 @@ export interface ComposerPanelProps {
   isLoading: boolean;
   runtimePhase: AgentConversationRuntimePhase | null;
   runtimeKind: AgentRuntimeKind;
+  sessionSettings?: ComposerSessionSettingsScope;
   onSendMessage: (
     content: string,
     deliveryPolicy: AgentConversationDeliveryPolicy,
     attachments?: MessageAttachment[],
     targetAgentIDs?: string[],
   ) => void | Promise<void>;
-  onRefreshCommandCatalog: () => void;
   inputQueueItems: InputQueueItem[];
   onEnqueueMessage: (
     content: string,
@@ -45,10 +50,10 @@ export interface ComposerPanelProps {
   onDeleteQueuedMessage: (itemId: string) => void | Promise<void>;
   onGuideQueuedMessage: (itemId: string) => void | Promise<void>;
   onReorderQueueMessages: (orderedIds: string[]) => void | Promise<void>;
-  /**
-   * DM 可在输入框停止当前会话；Room 的停止属于 Agent slot，不提供该能力。
-   */
+  /** DM 停止当前会话；Room 可把点击时的精确 Agent target 快照聚合到此入口。 */
   onStop?: () => void;
+  /** 默认沿用单会话“停止生成”，Room 可显式显示“全部停止”。 */
+  stopLabel?: string;
   defaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
   queueWhenSessionBusy?: boolean;
   roomMembers?: Agent[];
@@ -62,6 +67,30 @@ export interface ComposerPanelProps {
   goalModeExtra?: ReactNode;
   goalScopeLabel: string;
   tourAnchor: string;
+}
+
+/** Room 将同一共享会话内的上下文快照按 Agent 显式归属。 */
+export interface ComposerContextUsageItem {
+  agentId: string;
+  avatar?: string | null;
+  name: string;
+  usage: ContextUsageData | null;
+}
+
+export interface ComposerSessionSettingsTarget {
+  agentId: string;
+  avatar?: string | null;
+  defaultModel?: string;
+  defaultPermissionMode?: string;
+  defaultProvider?: string;
+  name: string;
+  sessionKey: string;
+}
+
+export interface ComposerSessionSettingsScope {
+  initialTargetId: string;
+  runtimeKind: AgentRuntimeKind;
+  targets: ComposerSessionSettingsTarget[];
 }
 
 export type ComposerInputMode = "message" | "goal";

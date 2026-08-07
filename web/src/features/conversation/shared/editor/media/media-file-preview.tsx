@@ -4,8 +4,6 @@ import { useState } from "react";
 import {
   Eye,
   EyeOff,
-  FileImage,
-  FileText,
   FileWarning,
   LoaderCircle,
 } from "lucide-react";
@@ -14,6 +12,7 @@ import {
   getWorkspaceFilePreviewUrl,
 } from "@/lib/api/agent/agent-api";
 import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import {
   WorkspaceFileDownloadButton,
   WorkspaceFilePreviewFocusButton,
@@ -44,23 +43,17 @@ export function PdfPreview({
           </>
         )}
         meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <FileText className="h-3 w-3" />
-              PDF 预览
+          isLoaded ? (
+            <span className="flex items-center gap-1 text-(--success)">
+              <Eye className="h-3 w-3" />
+              已加载
             </span>
-            {isLoaded ? (
-              <span className="flex items-center gap-1 text-(--success)">
-                <Eye className="h-3 w-3" />
-                已加载
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <LoaderCircle className="h-3 w-3 animate-spin" />
-                加载中
-              </span>
-            )}
-          </>
+          ) : (
+            <span className="flex items-center gap-1">
+              <LoaderCircle className="h-3 w-3 animate-spin" />
+              加载中
+            </span>
+          )
         )}
         title={fileName}
       />
@@ -85,9 +78,10 @@ export function ImagePreview({
   isPreviewFocused,
   onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
+  const { t } = useI18n();
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
   const previewUrl = getWorkspaceFilePreviewUrl(agentId, path);
 
   return (
@@ -103,28 +97,22 @@ export function ImagePreview({
           </>
         )}
         meta={(
-          <>
-            <span className="flex items-center gap-1">
-              <FileImage className="h-3 w-3" />
-              图片预览
+          hasError ? (
+            <span className="flex items-center gap-1 text-destructive">
+              <EyeOff className="h-3 w-3" />
+              加载失败
             </span>
-            {hasError ? (
-              <span className="flex items-center gap-1 text-destructive">
-                <EyeOff className="h-3 w-3" />
-                加载失败
-              </span>
-            ) : isLoaded ? (
-              <span className="flex items-center gap-1 text-(--success)">
-                <Eye className="h-3 w-3" />
-                已加载
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <LoaderCircle className="h-3 w-3 animate-spin" />
-                加载中
-              </span>
-            )}
-          </>
+          ) : isLoaded ? (
+            <span className="flex items-center gap-1 text-(--success)">
+              <Eye className="h-3 w-3" />
+              已加载
+            </span>
+          ) : (
+            <span className="flex items-center gap-1">
+              <LoaderCircle className="h-3 w-3 animate-spin" />
+              加载中
+            </span>
+          )
         )}
         title={fileName}
       />
@@ -162,7 +150,8 @@ export function BinaryFilePlaceholder({
   isPreviewFocused,
   onTogglePreviewFocus,
 }: WorkspaceFilePreviewProps) {
-  const fileActionCopy = getWorkspaceFileExternalActionCopy(fileName);
+  const { t } = useI18n();
+  const fileActionCopy = getWorkspaceFileExternalActionCopy(t, fileName);
   const actionDescription = fileActionCopy.mode === "reveal"
     ? "在文件夹中显示此文件"
     : "获取此文件";

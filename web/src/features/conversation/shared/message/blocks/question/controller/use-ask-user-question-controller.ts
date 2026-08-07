@@ -105,12 +105,10 @@ export function useAskUserQuestionController({
     isReady,
     isSubmitting: submission.isSubmitting,
     readOnly: interaction.readOnly,
-    setIsExpanded: setExpanded,
     status: interaction.status,
     submit: submission.submit,
     submitEnabled: submission.submitEnabled,
     toggleOption,
-    totalSelected: metrics.totalSelected,
     updateCustomAnswer,
   };
 }

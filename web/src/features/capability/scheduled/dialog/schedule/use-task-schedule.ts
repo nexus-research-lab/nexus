@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+
 import {
   buildCalendarDays,
   buildDatetimeLocalInput,
@@ -39,6 +41,7 @@ export function useTaskSchedule(
   initialDraft: TaskScheduleDraft,
   onChange: () => void,
 ) {
+  const { locale } = useI18n();
   const [draft, setDraft] = useState(initialDraft);
   const [picker, setPicker] = useState(() => createPickerState(
     initialDraft.runAt,
@@ -189,7 +192,7 @@ export function useTaskSchedule(
   }, []);
 
   const view = {
-    dailyDisplay: formatTimeDisplay(timeParts.hour, timeParts.minute),
+    dailyDisplay: formatTimeDisplay(timeParts.hour, timeParts.minute, locale),
     dailyMeridiemParts,
     isDailyPickerOpen: picker.dailyOpen,
     isSinglePickerOpen: picker.singleOpen,
@@ -198,6 +201,7 @@ export function useTaskSchedule(
       runAtParts.hour,
       runAtParts.minute,
       runAtParts.second,
+      locale,
     ),
     runAtParts,
     singleMeridiemParts,

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -18,11 +19,31 @@ test.after(async () => {
   await server.close();
 });
 
+test("slash command rows reserve one stable name column", async () => {
+  const source = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/composer/components/slash-command-popover.tsx",
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /className="w-20 shrink-0 truncate font-mono[^"]*">\s*\/\{command\.name\}/,
+  );
+});
+
 test("slash query only opens at the beginning of a message", async () => {
   const { findSlashCommandTextMatch } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/slash-command-model.ts",
   );
 
+  assert.deepEqual(findSlashCommandTextMatch("/", 1, true), {
+    end: 1,
+    query: "",
+    start: 0,
+  });
   assert.deepEqual(findSlashCommandTextMatch("/rev", 4, true), {
     end: 4,
     query: "rev",
@@ -33,7 +54,7 @@ test("slash query only opens at the beginning of a message", async () => {
   assert.equal(findSlashCommandTextMatch("/rev", 4, false), null);
 });
 
-test("slash selection inserts a normal runtime prompt", async () => {
+test("slash selection inserts a normal host or runtime message", async () => {
   const {
     filterSlashCommands,
     insertSlashCommand,
@@ -45,19 +66,19 @@ test("slash selection inserts a normal runtime prompt", async () => {
     {
       description: "Review code",
       enabled: true,
-      execution: "runtime_prompt",
+      execution: "runtime",
       name: "review",
     },
     {
       description: "Compact context",
       enabled: true,
-      execution: "runtime_prompt",
+      execution: "runtime",
       name: "compact",
     },
     {
       description: "Open the GitHub review prompt",
       enabled: true,
-      execution: "runtime_prompt",
+      execution: "runtime",
       name: "github:review (MCP)",
     },
   ];
@@ -66,13 +87,17 @@ test("slash selection inserts a normal runtime prompt", async () => {
     filterSlashCommands(commands, "code").map((command) => command.name),
     ["review"],
   );
+  assert.deepEqual(
+    filterSlashCommands(commands, "").map((command) => command.name),
+    ["review", "compact", "github:review (MCP)"],
+  );
   assert.equal(isSelectableSlashCommand(commands[0]), true);
   assert.equal(
     isSelectableSlashCommand({
       ...commands[0],
       execution: "host",
     }),
-    false,
+    true,
   );
   assert.deepEqual(
     insertSlashCommand("/rev", {
@@ -98,6 +123,200 @@ test("slash selection inserts a normal runtime prompt", async () => {
   );
 });
 
+test("slash model picker only exposes Nexus provider models", async () => {
+  const {
+    buildSlashModelOptions,
+    formatSlashModelInsertText,
+    insertSlashTextAtCursor,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/slash-command-model.ts",
+  );
+  const options = buildSlashModelOptions({
+    items: [{
+      display_name: "Anthropic",
+      models: [
+        {
+          display_name: "Sonnet custom label",
+          model_id: "sonnet",
+        },
+        {
+          display_name: "Claude Sonnet 4.6",
+          model_id: "claude-sonnet-4-6",
+        },
+      ],
+      provider: "anthropic",
+    }],
+  });
+
+  assert.equal(options[0].id, "sonnet");
+  assert.equal(
+    options.filter((option) => option.id === "sonnet").length,
+    1,
+  );
+  assert.equal(options.every((option) => Boolean(option.provider)), true);
+  assert.deepEqual(
+    options.find((option) => (
+      option.provider === "anthropic"
+      && option.id === "claude-sonnet-4-6"
+    )),
+    {
+      id: "claude-sonnet-4-6",
+      label: "Claude Sonnet 4.6",
+      provider: "anthropic",
+      providerLabel: "Anthropic",
+    },
+  );
+  assert.deepEqual(
+    insertSlashTextAtCursor(
+      "继续",
+      2,
+      formatSlashModelInsertText({
+        id: "claude-sonnet-4-6",
+        label: "Claude Sonnet 4.6",
+        provider: "anthropic",
+      }),
+    ),
+    {
+      cursorPosition: 37,
+      value: "继续/model anthropic/claude-sonnet-4-6 ",
+    },
+  );
+});
+
+test("Nexus model confirmation closes without runtime activity", async () => {
+  const { AgentConversationRuntimeMachine } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/agent-conversation-runtime-machine.ts",
+  );
+  const {
+    applyTerminalRoundMessageStatus,
+    replaceOptimisticUserMessage,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/conversation-runtime-reconciliation.ts",
+  );
+  const { parseConversationMessage } = await server.ssrLoadModule(
+    "/src/lib/conversation/message-protocol.ts",
+  );
+  const { parseEventMessage } = await server.ssrLoadModule(
+    "/src/lib/websocket/protocol/event-message.ts",
+  );
+  const { parseRoundStatusEventPayload } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-data.ts",
+  );
+  const machine = new AgentConversationRuntimeMachine("dm");
+  machine.trackOutboundRequest("request-model");
+  machine.trackChatAck({
+    ack_timeout_ms: 10_000,
+    client_message_id: "client-message-model",
+    client_request_id: "request-model",
+    pending: [],
+    pending_snapshot: false,
+    round_id: "round-model",
+    user_message_committed: false,
+    user_message_delivery_mode: "transient",
+    user_message_id: "user-model",
+  });
+  const optimisticUser = {
+    agent_id: "agent-model",
+    content: "/model deepseek/deepseek-v4-flash",
+    message_id: "client-message-model",
+    role: "user",
+    round_id: "client-message-model",
+    session_key: "agent:agent-model:ws:dm:session-model",
+    timestamp: 1,
+  };
+  assert.deepEqual(
+    replaceOptimisticUserMessage(
+      [optimisticUser],
+      "client-message-model",
+      "user-model",
+      "round-model",
+      false,
+      "transient",
+    ).map(({ delivery_mode, message_id, round_id }) => ({
+      delivery_mode,
+      message_id,
+      round_id,
+    })),
+    [{
+      delivery_mode: "transient",
+      message_id: "user-model",
+      round_id: "round-model",
+    }],
+    "host Slash ACK must retain the user command as a transient timeline item",
+  );
+  const noticeEvent = parseEventMessage({
+    data: {
+      agent_id: "agent-model",
+      content: [{
+        text: "Set model to DeepSeek / deepseek-v4-flash",
+        type: "text",
+      }],
+      message_id: "assistant-model",
+      role: "assistant",
+      round_id: "round-model",
+      stop_reason: "end_turn",
+      timestamp: 1,
+    },
+    delivery_mode: "transient",
+    event_type: "message",
+    protocol_version: 2,
+    session_key: "agent:agent-model:ws:dm:session-model",
+    timestamp: 1,
+  });
+  assert.ok(noticeEvent);
+  assert.equal(parseEventMessage({
+    ...noticeEvent,
+    delivery_mode: "unknown",
+  }), null);
+  const notice = parseConversationMessage(noticeEvent.data, {
+    deliveryMode: noticeEvent.delivery_mode,
+    sessionKey: noticeEvent.session_key,
+  });
+  assert.ok(notice);
+  machine.trackAssistantMessage(notice);
+
+  assert.equal(machine.snapshot().isLoading, false);
+  assert.deepEqual(machine.snapshot().liveRoundIds, []);
+
+  const terminal = parseRoundStatusEventPayload({
+    is_terminal: true,
+    result_subtype: "success",
+    round_id: "round-model",
+    status: "finished",
+  });
+  assert.deepEqual(terminal, {
+    is_terminal: true,
+    result_subtype: "success",
+    round_id: "round-model",
+    status: "finished",
+  });
+  machine.trackRoundStatus(terminal.round_id, terminal.status);
+  machine.emit();
+  assert.equal(machine.snapshot().isLoading, false);
+  assert.equal(machine.snapshot().terminalRoundIds.includes("round-model"), true);
+  const visibleNotices = applyTerminalRoundMessageStatus(
+    [notice],
+    terminal.round_id,
+    terminal.status,
+  );
+  assert.equal(visibleNotices.length, 1);
+  assert.equal(visibleNotices[0].delivery_mode, "transient");
+  assert.equal(visibleNotices[0].stream_status, "done");
+  assert.deepEqual(
+    applyTerminalRoundMessageStatus(
+      [{ ...notice, delivery_mode: "ephemeral" }],
+      terminal.round_id,
+      terminal.status,
+    ),
+    [],
+  );
+  assert.equal(parseRoundStatusEventPayload({
+    is_terminal: true,
+    round_id: "round-model",
+    status: "completed",
+  }), null);
+});
+
 test("command catalog parser accepts the public browser contract", async () => {
   const { parseCommandCatalogData } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-data.ts",
@@ -108,9 +327,10 @@ test("command catalog parser accepts the public browser contract", async () => {
       argument_hint: "<target>",
       description: "Review code",
       enabled: true,
-      execution: "runtime_prompt",
+      execution: "runtime",
       name: "review",
     }],
+    generation: 3,
     revision: "commands-1",
     runtime_kind: "cc",
     status: "ready",
@@ -126,18 +346,24 @@ test("command catalog parser accepts the public browser contract", async () => {
   );
 });
 
-test("Room command catalog events stay scoped to the selected Agent", async () => {
+test("Room host command catalog events stay scoped to the selected Agent", async () => {
   const { AGENT_SESSION_EVENT_HANDLERS } = await server.ssrLoadModule(
     "/src/hooks/agent/transport/handlers/session-event-handlers.ts",
   );
   const received = [];
+  let currentCatalog = { commands: [], status: "cold" };
   const context = {
     scope: {
       agentId: "agent-a",
       isCurrentSessionEvent: (sessionKey) => sessionKey === "room:shared",
     },
     state: {
-      setCommandCatalog: (catalog) => received.push(catalog),
+      setCommandCatalog: (next) => {
+        currentCatalog = typeof next === "function"
+          ? next(currentCatalog)
+          : next;
+        received.push(currentCatalog);
+      },
     },
   };
   const event = {
@@ -146,10 +372,10 @@ test("Room command catalog events stay scoped to the selected Agent", async () =
       agent_id: "agent-a",
       commands: [{
         enabled: true,
-        execution: "runtime_prompt",
-        name: "review",
+        execution: "host",
+        name: "goal",
       }],
-      status: "ready",
+      status: "unavailable",
     },
     event_type: "command_catalog",
     session_key: "room:shared",
@@ -166,21 +392,36 @@ test("Room command catalog events stay scoped to the selected Agent", async () =
   assert.equal(received[0].agent_id, "agent-a");
 });
 
-test("command catalog refresh carries the full Room address", async () => {
-  const { buildCommandCatalogRequest } = await server.ssrLoadModule(
-    "/src/hooks/agent/actions/conversation-command-builders.ts",
+test("authoritative snapshots ignore stale generations and status", async () => {
+  const { selectCommandCatalogSnapshot } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-data.ts",
   );
-
-  assert.deepEqual(buildCommandCatalogRequest({
-    agent_id: "agent-a",
-    conversation_id: "conversation-a",
-    room_id: "room-a",
-    session_key: "room:group:conversation-a",
+  const ready = {
+    commands: [{
+      enabled: true,
+      execution: "runtime",
+      name: "review",
+    }],
+    generation: 2,
+    status: "ready",
+  };
+  assert.equal(selectCommandCatalogSnapshot(ready, {
+    commands: [],
+    generation: 1,
+    status: "unavailable",
+  }), ready);
+  assert.equal(selectCommandCatalogSnapshot(ready, {
+    commands: [],
+    generation: 2,
+    status: "unavailable",
+  }), ready);
+  assert.deepEqual(selectCommandCatalogSnapshot(ready, {
+    commands: [],
+    generation: 3,
+    status: "unavailable",
   }), {
-    agent_id: "agent-a",
-    conversation_id: "conversation-a",
-    room_id: "room-a",
-    session_key: "room:group:conversation-a",
-    type: "get_command_catalog",
+    commands: [],
+    generation: 3,
+    status: "unavailable",
   });
 });

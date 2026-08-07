@@ -1,5 +1,5 @@
 // INPUT: create_goal 的 execution-ready objective/token budget 与当前 owner/agent/session/round。
-// OUTPUT: 向模型暴露创建前信息充分性契约，并创建带 durable usage scope owner 的新 Goal；仅 shared Room 描述创建 Agent 的 lead/协作责任，或返回指向 retarget_goal 的冲突提示。
+// OUTPUT: 向模型暴露创建前信息充分性与 Goal-before-Plan 顺序契约，并创建带 durable usage scope owner 的新 Goal，或返回指向 retarget_goal 的冲突提示。
 // POS: Goal MCP 创建入口与模型侧 readiness gate；已有 active Goal 不在此处改写。
 package tool
 
@@ -31,6 +31,9 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 			if err := decodeInput(input, &parsed); err != nil {
 				return errorResult(err), nil
 			}
+			if sctx.PlanMode {
+				return planModeGoalMutationResult("create_goal"), nil
+			}
 			item, err := svc.Create(ctx, protocol.CreateGoalRequest{
 				SessionKey:  sctx.CurrentSessionKey,
 				Objective:   parsed.Objective,
@@ -53,17 +56,11 @@ func createGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 }
 
 const (
-	createGoalBaseDescription = "Create a goal only when explicitly requested by the user or system/developer instructions; do not infer goals from ordinary tasks. Explicit Goal intent is necessary but not sufficient. Before calling this tool, the conversation must already contain enough information to state a concrete, execution-ready objective without material guessing. If missing details could change the deliverable, scope, audience or use, constraints, or acceptance criteria, ask the user and wait for the answer. Do not create a broad or placeholder Goal and clarify or retarget it afterward. Once ready, include the confirmed requirements in the objective.\n"
-	createGoalRoomDescription = "In a shared Room, the creating agent becomes the Goal lead and is responsible for coordination and later model-side retarget, complete, or blocked updates. Before substantial execution, assess task complexity, separable work, and member fit. Prefer meaningful delegation when another member can contribute independent work or review. After delegating, do not duplicate the assigned deliverable yourself; focus on coordination, unblocking, integration, and verification. Handle the whole task directly only when it is small or atomic, or delegation adds no meaningful value.\n"
-	createGoalTailDescription = "Set token_budget only when an explicit token budget is requested. Fails if a goal exists. If the user explicitly corrects the existing active objective, retarget that same goal; use the visible Goal update tool only for status."
+	createGoalBaseDescription = "Create one active Goal only after explicit user or system Goal intent and a complete execution-ready objective. Do not create a broad placeholder while material clarification is still required. Set token_budget only from an explicit budget. If a managed WorkGraph is also required, wait for this call to succeed before prepare_plan_execution; never launch them in parallel. The call fails when a current Goal exists; explicit objective correction uses retarget_goal on that same Goal."
 )
 
-func createGoalDescription(sessionKey string) string {
-	description := createGoalBaseDescription
-	if protocol.IsRoomSharedSessionKey(sessionKey) {
-		description += createGoalRoomDescription
-	}
-	return description + createGoalTailDescription
+func createGoalDescription(_ string) string {
+	return createGoalBaseDescription
 }
 
 const createGoalConflictMessage = "cannot create a new goal because this thread already has a goal; if the user explicitly corrected its objective, use retarget_goal on that same goal"

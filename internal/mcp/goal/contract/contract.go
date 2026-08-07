@@ -1,5 +1,5 @@
 // INPUT: Goal MCP 工具所需的服务能力与当前 owner/agent/session/round runtime 上下文。
-// OUTPUT: create/get/retarget/update 共用的窄服务契约与 durable usage scope owner。
+// OUTPUT: create/get/retarget/objective-alignment/update 共用的窄服务契约与 durable usage scope owner。
 // POS: Goal MCP 工具与 service/goal 之间的消费侧接口。
 package contract
 
@@ -18,6 +18,7 @@ type Service interface {
 	Current(context.Context, string) (*protocol.Goal, error)
 	CurrentOptional(context.Context, string) (*protocol.Goal, error)
 	RetargetByModel(context.Context, string, protocol.RetargetGoalRequest) (*protocol.Goal, error)
+	AuditObjectiveAlignmentByModel(context.Context, string, protocol.AuditGoalObjectiveAlignmentRequest) (*protocol.GoalObjectiveAlignmentRecord, error)
 	CompleteByModel(context.Context, string, protocol.CompleteGoalRequest) (*protocol.Goal, error)
 	BlockByModel(context.Context, string, protocol.BlockGoalRequest) (*protocol.Goal, error)
 }
@@ -29,6 +30,7 @@ type ServerContext struct {
 	CurrentRoundID        string
 	CurrentAgentID        string
 	GoalObjectiveRevision *atomic.Int64
+	PlanMode              bool
 }
 
 // NewGoalObjectiveRevision 创建可由同一 MCP server 内 retarget_goal 原子推进的 revision 状态。

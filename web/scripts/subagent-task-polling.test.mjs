@@ -19,6 +19,18 @@ test.after(async () => {
   await server.close();
 });
 
+test("Chinese subagent empty state uses the product term consistently", async () => {
+  const { zhConversationMessages } = await server.ssrLoadModule(
+    "/src/shared/i18n/catalog/zh/conversation.ts",
+  );
+
+  assert.equal(zhConversationMessages["subagents.label"], "子智能体");
+  assert.equal(
+    zhConversationMessages["subagents.no_active"],
+    "没有已开启的子智能体",
+  );
+});
+
 test("subagent polling discovers tasks after an initially empty response", async () => {
   const {
     shouldPollSubagentTaskList,

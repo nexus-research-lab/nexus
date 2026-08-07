@@ -88,6 +88,74 @@ func (p *Processor) buildResultMessage(message sdkprotocol.ReceivedMessage, subt
 	return protocol.Message(payload)
 }
 
+func (p *Processor) processAssistantAPIError(message sdkprotocol.ReceivedMessage) *protocol.Message {
+	if message.Assistant == nil {
+		return nil
+	}
+	assistantError := strings.TrimSpace(message.Assistant.Error)
+	assistantAPIError := strings.TrimSpace(message.Assistant.APIError)
+	if !message.Assistant.IsAPIError && assistantError == "" && assistantAPIError == "" {
+		return nil
+	}
+	text := firstNonEmpty(
+		assistantTextFromEnvelope(message.Assistant.Message),
+		message.Assistant.ErrorDetails,
+		assistantAPIError,
+		assistantError,
+		"Runtime API request failed",
+	)
+	reason := firstNonEmpty(assistantError, assistantAPIError)
+	errors := []string(nil)
+	if reason != "" {
+		errors = []string{reason}
+	}
+	projection := normalizeProviderContentFilterError(
+		text,
+		reason,
+		errors,
+		message.Assistant.ErrorDetails,
+		assistantAPIError,
+		assistantError,
+		normalizeString(message.Assistant.Message.StopReason),
+	)
+	payload := baseMessageEnvelope(
+		p.ctx,
+		p.sessionID,
+		firstNonEmpty(message.UUID, "result_"+p.ctx.RoundID),
+		"result",
+	)
+	payload["subtype"] = "error"
+	payload["duration_ms"] = 0
+	payload["duration_api_ms"] = 0
+	payload["num_turns"] = 0
+	payload["usage"] = map[string]any{}
+	payload["result"] = projection.result
+	payload["is_error"] = true
+	if projection.terminalReason != "" {
+		payload["terminal_reason"] = projection.terminalReason
+	}
+	if len(projection.errors) > 0 {
+		payload["errors"] = projection.errors
+	}
+	result := protocol.Message(payload)
+	return &result
+}
+
+func assistantTextFromEnvelope(envelope sdkprotocol.ConversationEnvelope) string {
+	blocks := normalizeContentBlocks(envelope.Content)
+	texts := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		if normalizeString(block["type"]) != "text" {
+			continue
+		}
+		text := normalizeString(block["text"])
+		if text != "" {
+			texts = append(texts, text)
+		}
+	}
+	return strings.TrimSpace(strings.Join(texts, "\n\n"))
+}
+
 func projectPermissionDenials(items []sdkprotocol.PermissionDenial) []map[string]any {
 	if len(items) == 0 {
 		return nil
@@ -116,17 +184,18 @@ func NormalizeInterruptedOutput(output *Output, interruptReason string) {
 	if output == nil {
 		return
 	}
-	if output.ResultSubtype != "error" && output.TerminalStatus != "error" {
+	isError := output.ResultSubtype == "error" || output.TerminalStatus == "error"
+	isInterrupted := output.ResultSubtype == "interrupted" || output.TerminalStatus == "interrupted"
+	if !isError && !isInterrupted {
 		return
 	}
 
-	resultText := strings.TrimSpace(interruptReason)
-	if resultText == "" {
+	if strings.TrimSpace(interruptReason) == "" {
 		return
 	}
-	if resultText == InterruptWithoutMessage {
-		resultText = ""
-	}
+	resultText := NormalizeInterruptDisplayText(interruptReason)
+	// SDK 可能直接返回 interrupted，也可能先返回 error。两条路径必须共用
+	// 同一展示边界，否则原生 interrupted 的 raw result 会绕过清理后落盘。
 	output.ResultSubtype = "interrupted"
 	output.TerminalStatus = "interrupted"
 	for index := range output.DurableMessages {

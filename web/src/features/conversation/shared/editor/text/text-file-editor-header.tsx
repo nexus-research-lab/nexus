@@ -1,5 +1,5 @@
 import { type ComponentType } from "react";
-import { Eye, FileText, LoaderCircle, Pencil, Save } from "lucide-react";
+import { Eye, LoaderCircle, Pencil, Save } from "lucide-react";
 
 import {
   WorkspaceFileDownloadButton,
@@ -7,10 +7,6 @@ import {
   WorkspaceFilePreviewHeader,
   WorkspaceFileToolbarButton,
 } from "../workspace-file-preview-chrome";
-import {
-  workspaceFileKindLabel,
-  type WorkspaceFilePreviewKind,
-} from "../workspace-file-preview-kind";
 import type {
   TextEditorEditAction,
   TextEditorSyncPresentation,
@@ -24,7 +20,6 @@ interface IconProps {
 interface TextFileEditorHeaderProps {
   agentId: string;
   fileName: string;
-  fileType: WorkspaceFilePreviewKind;
   isPreviewFocused: boolean;
   onSave: () => void;
   onToggleEditing: () => void;
@@ -82,7 +77,6 @@ function TextEditorSyncStatus({
 export function TextFileEditorHeader({
   agentId,
   fileName,
-  fileType,
   isPreviewFocused,
   onSave,
   onToggleEditing,
@@ -108,28 +102,20 @@ export function TextFileEditorHeader({
             onClick={onToggleEditing}
             title={presentation.editLabel}
           >
-            <EditIcon className="h-4 w-4" />
-            <span className="max-xl:hidden">{presentation.editLabel}</span>
+            <EditIcon className="h-3.5 w-3.5" />
           </WorkspaceFileToolbarButton>
           <WorkspaceFileToolbarButton
             disabled={presentation.saveDisabled}
             onClick={onSave}
             title={presentation.saveLabel}
           >
-            <Save className="h-4 w-4" />
-            <span className="max-xl:hidden">{presentation.saveLabel}</span>
+            <Save className="h-3.5 w-3.5" />
           </WorkspaceFileToolbarButton>
         </>
       )}
-      meta={(
-        <>
-          <span className="flex items-center gap-1">
-            <FileText className="h-3 w-3" />
-            {workspaceFileKindLabel(fileType)}
-          </span>
-          <TextEditorSyncStatus presentation={presentation.sync} />
-        </>
-      )}
+      meta={presentation.sync
+        ? <TextEditorSyncStatus presentation={presentation.sync} />
+        : undefined}
       title={fileName}
     />
   );

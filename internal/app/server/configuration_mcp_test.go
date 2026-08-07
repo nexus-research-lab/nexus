@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	configurationcontract "github.com/nexus-research-lab/nexus/internal/mcp/configuration/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	configurationsvc "github.com/nexus-research-lab/nexus/internal/service/configuration"
@@ -51,7 +52,12 @@ func TestConfigurationMCPBuilderOnlyInjectsMainAgent(t *testing.T) {
 			AgentID: "nexus", OwnerUserID: "owner", IsMain: true,
 		},
 	})
-	servers := mainBuilder("nexus", "agent:nexus:dm:main", "", "agent", "nexus", "", nil)
+	servers := mainBuilder(
+		context.Background(),
+		&protocol.Agent{AgentID: "nexus"},
+		"agent:nexus:dm:main", "", "agent", "nexus", "", nil,
+		sdkpermission.ModeDefault,
+	)
 	config, ok := servers[configurationcontract.ServerName].(sdkmcp.SDKServerConfig)
 	if !ok || config.Instance == nil {
 		t.Fatalf("main Agent must receive nexus_config SDK server: %+v", servers)
@@ -62,7 +68,12 @@ func TestConfigurationMCPBuilderOnlyInjectsMainAgent(t *testing.T) {
 			AgentID: "worker", OwnerUserID: "owner", IsMain: false,
 		},
 	})
-	if servers = workerBuilder("worker", "agent:worker:dm:main", "", "agent", "worker", "", nil); len(servers) != 0 {
+	if servers = workerBuilder(
+		context.Background(),
+		&protocol.Agent{AgentID: "worker"},
+		"agent:worker:dm:main", "", "agent", "worker", "", nil,
+		sdkpermission.ModeDefault,
+	); len(servers) != 0 {
 		t.Fatalf("non-main Agent must not receive global configuration tools: %+v", servers)
 	}
 }

@@ -27,3 +27,23 @@ func TestRoundRunnerContextualInputsCombinesGoalAndRecovery(t *testing.T) {
 		t.Fatalf("DM contextual inputs 未同时保留 Goal 与失败恢复上下文: %+v", inputs)
 	}
 }
+
+func TestRoundRunnerAtomicSlashInputOmitsGoalAndRecovery(t *testing.T) {
+	runner := &roundRunner{
+		atomicInput:    true,
+		sessionKey:     "dm:agent-a:session-a",
+		goalContext:    "goal context",
+		goalIDForUsage: "goal-a",
+		recoveryContext: []runtimectx.ContextualInputBlock{
+			runtimectx.NewContextualInputBlock(
+				runtimectx.ContextualInputNameRoundRecovery,
+				"private recovery",
+				0,
+				nil,
+			),
+		},
+	}
+	if inputs := runner.contextualInputs(); len(inputs) != 0 {
+		t.Fatalf("atomic Slash contextual inputs = %+v, want empty", inputs)
+	}
+}

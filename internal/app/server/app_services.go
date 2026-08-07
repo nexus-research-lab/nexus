@@ -1,11 +1,12 @@
 // INPUT: 应用配置、数据库与基础服务依赖。
-// OUTPUT: 完整 AppServices 依赖图及跨域 runtime 装配。
+// OUTPUT: 完整 AppServices 依赖图、跨域 runtime 装配及自有数据库生命周期。
 // POS: Nexus server 服务装配根。
 package server
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -26,15 +27,18 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
 	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
 	memorymaintenancesvc "github.com/nexus-research-lab/nexus/internal/service/memorymaintenance"
+	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	projectpermissionsvc "github.com/nexus-research-lab/nexus/internal/service/projectpermission"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	roomrealtime "github.com/nexus-research-lab/nexus/internal/service/room/realtime"
 	skillsvc "github.com/nexus-research-lab/nexus/internal/service/skills"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 	subscriptionsvc "github.com/nexus-research-lab/nexus/internal/service/subscription"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
+	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
 
 // AppServices 表示完整应用运行所需的核心依赖容器。
@@ -63,16 +67,27 @@ type AppServices struct {
 	Automation        *automationsvc.Service
 	Imagegen          *imagegensvc.Service
 	Goal              *goalsvc.Service
+	Orchestration     *orchestrationsvc.Service
 	Loops             *loopsvc.Service
 	MemoryMaintenance *memorymaintenancesvc.Coordinator
+	SlashCatalog      *slashcommandsvc.Catalog
+	SlashRegistry     *slashcommandsvc.Registry
+	ownsDB            bool
 }
 
-// Close 等待仍可能写入 workspace 的标题任务结束。
+// Close 等待仍可能写入 workspace 的标题任务结束，并释放容器自行打开的数据库。
 func (s *AppServices) Close(ctx context.Context) error {
-	if s == nil || s.Title == nil {
+	if s == nil {
 		return nil
 	}
-	return s.Title.Close(ctx)
+	var closeErrors []error
+	if s.Title != nil {
+		closeErrors = append(closeErrors, s.Title.Close(ctx))
+	}
+	if s.ownsDB && s.DB != nil {
+		closeErrors = append(closeErrors, s.DB.Close())
+	}
+	return errors.Join(closeErrors...)
 }
 
 // NewAppServices 创建完整应用依赖容器。
@@ -81,7 +96,9 @@ func NewAppServices(cfg config.Config, logger *slog.Logger) (*AppServices, error
 	if err != nil {
 		return nil, err
 	}
-	return NewAppServicesWithDB(cfg, db, logger), nil
+	services := NewAppServicesWithDB(cfg, db, logger)
+	services.ownsDB = true
+	return services, nil
 }
 
 // NewAppServicesWithDB 使用共享 DB 创建完整应用依赖容器。
@@ -96,7 +113,29 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	providerService.SetLogger(logger.With("component", "provider"))
 	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
+	orchestrationService := orchestrationsvc.NewService(orchestrationstore.NewRepository(cfg, db))
+	orchestrationService.SetRuntimeGraphSubagentToolHistoryProvider(
+		executionSubagentToolHistory{sessions: core.Session},
+	)
+	explicitGoalCoordinator := newExplicitGoalExecutionCoordinator(goalService, orchestrationService)
+	goalService.SetObjectiveRetargetCoordinator(explicitGoalCoordinator)
+	orchestrationService.SetExplicitGoalBindingGateway(explicitGoalCoordinator)
+	orchestrationService.SetGoalPromotionGateway(newExecutionGoalPromotionGateway(cfg, goalService))
+	goalService.SetExecutionGoalCompletionReadiness(executionGoalCompletionReadiness{
+		orchestration: orchestrationService,
+	})
 	preferencesService := preferencessvc.NewService(cfg)
+	providerService.SetDefaultAgentSelectionResolver(func(ctx context.Context, ownerUserID string) (providercfg.DefaultAgentSelection, error) {
+		prefs, err := preferencesService.Get(ctx, ownerUserID)
+		if err != nil {
+			return providercfg.DefaultAgentSelection{}, err
+		}
+		return providercfg.DefaultAgentSelection{
+			Provider:    prefs.DefaultAgentOptions.Provider,
+			Model:       prefs.DefaultAgentOptions.Model,
+			RuntimeKind: prefs.AgentRuntimeKind,
+		}, nil
+	})
 	imagegenService := imagegensvc.NewService(providerService, cfg.WorkspacePath)
 	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
@@ -135,6 +174,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetUsageRecorder(usageService)
 	dmService.SetQuotaChecker(subscriptionService)
 	dmService.SetGoalContextProvider(goalService)
+	dmService.SetExecutionContextProvider(orchestrationService)
+	dmService.SetSubagentAdmissionProvider(orchestrationService)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetRoomConversationActivityStore(core.Room)
 	dmService.SetTitleGenerator(titleService)
@@ -150,7 +191,16 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetUsageRecorder(usageService)
 	roomRealtime.SetQuotaChecker(subscriptionService)
 	roomRealtime.SetGoalContextProvider(goalService)
+	roomRealtime.SetExecutionContextProvider(orchestrationService)
+	roomRealtime.SetSubagentAdmissionProvider(orchestrationService)
 	roomRealtime.SetTitleGenerator(titleService)
+	orchestrationService.SetAssignmentTargetAuthorizer(roomRealtime)
+	orchestrationService.SetExecutionDispatchConsumer(roomRealtime)
+	orchestrationService.SetExecutionReviewDispatchConsumer(roomRealtime)
+	orchestrationService.SetExecutionCancellationConsumer(executionCancellationConsumer{
+		room:    roomRealtime,
+		runtime: runtimeManager,
+	})
 	goalService.SetRoomGoalCompletionReadiness(roomRealtime)
 	goalService.SetGuidanceDispatcher(goalGuidanceDispatcher{runtime: runtimeManager, room: roomRealtime})
 	goalService.SetRuntimeInterrupter(newGoalInterruptDispatcher(dmService, roomRealtime))
@@ -180,14 +230,29 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		skillService,
 		runtimeManager,
 	)
+	slashCommandCatalog := slashcommandsvc.NewCatalog()
+	slashCommandRegistry := slashcommandsvc.NewRegistry()
+	if err := slashcommandsvc.RegisterModelCommand(
+		slashCommandRegistry,
+		slashcommandsvc.ModelCommandDependencies{
+			Agents:      core.Agent,
+			Sessions:    core.Session,
+			Preferences: preferencesService,
+			Providers:   providerService,
+		},
+	); err != nil {
+		// 内置命令依赖由组合根静态装配；失败属于启动期编程错误。
+		panic(err)
+	}
 
 	// 把内置配置、自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	configurationBuilder := newConfigurationMCPBuilder(configurationService, core.Agent)
 	automationBuilder := newAutomationMCPBuilder(automationService, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService)
-	goalBuilder := newGoalMCPBuilder(cfg, goalService, roomRealtime)
+	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator, roomRealtime)
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
+	executionBuilder := newExecutionMCPBuilder(orchestrationService)
 	mcpBuilder := combinedMCPBuilder(
 		configurationBuilder,
 		automationBuilder,
@@ -198,6 +263,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	)
 	dmService.SetMCPServerBuilder(mcpBuilder)
 	roomRealtime.SetMCPServerBuilder(mcpBuilder)
+	dmService.SetExecutionMCPServerBuilder(executionBuilder)
+	roomRealtime.SetExecutionMCPServerBuilder(executionBuilder)
 
 	warnIfProviderMissing(providerService, logger)
 
@@ -226,8 +293,11 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Automation:        automationService,
 		Imagegen:          imagegenService,
 		Goal:              goalService,
+		Orchestration:     orchestrationService,
 		Loops:             loopService,
 		MemoryMaintenance: memoryMaintenance,
+		SlashCatalog:      slashCommandCatalog,
+		SlashRegistry:     slashCommandRegistry,
 	}
 }
 

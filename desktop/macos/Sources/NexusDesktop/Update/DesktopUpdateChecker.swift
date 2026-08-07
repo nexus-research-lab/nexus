@@ -32,6 +32,8 @@ final class DesktopUpdateChecker {
   private var hasPerformedStartupCheck = false
   private var checkTask: Task<Void, Never>?
   private var automaticCheckTask: Task<Void, Never>?
+  private var availableRelease: DesktopReleaseInfo?
+  private var updateTask: Task<Void, Never>?
 
   init(
     startupTimeline: DesktopStartupTimeline,
@@ -67,6 +69,10 @@ final class DesktopUpdateChecker {
     }
 
     runCheck(reason: .manual, showsUpToDateAlert: true)
+  }
+
+  func startAvailableUpdate() -> String {
+    startUpdateOperation(preferredRelease: nil)
   }
 
   func clearStaleUpdateCacheIfNeeded() async {
@@ -109,6 +115,7 @@ final class DesktopUpdateChecker {
       "reason": reason.rawValue,
       "current_version": currentVersion.version,
       "current_build": currentVersion.buildNumber,
+      "current_architecture": DesktopArchitecture.current,
     ])
 
     do {
@@ -125,6 +132,7 @@ final class DesktopUpdateChecker {
       defaults.removeObject(forKey: DefaultsKey.lastErrorMessage)
 
       let hasUpdate = latest.isNewer(than: currentVersion)
+      availableRelease = hasUpdate ? latest : nil
       defaults.set(hasUpdate ? "update_available" : "up_to_date", forKey: DefaultsKey.lastResult)
       startupTimeline.mark("update_check.result", metadata: [
         "reason": reason.rawValue,
@@ -164,13 +172,31 @@ final class DesktopUpdateChecker {
 
   private func fetchLatestRelease() async throws -> DesktopReleaseInfo {
     let release: GitHubRelease = try await fetchJSON(Self.latestReleaseURL)
-    let metadataAsset = Self.findMacOSMetadataAsset(release.assets)
-    let packageAsset = Self.findMacOSPackageAsset(release.assets)
-    let packageSHA256Asset = Self.findMacOSPackageSHA256Asset(release.assets, packageAsset: packageAsset)
+    let currentArchitecture = DesktopArchitecture.current
+    let metadataAsset = DesktopReleaseAssetSelector.macOSMetadataAsset(
+      in: release.assets,
+      architecture: currentArchitecture
+    )
+    let packageAsset = DesktopReleaseAssetSelector.macOSPackageAsset(
+      in: release.assets,
+      architecture: currentArchitecture
+    )
+    let packageSHA256Asset = DesktopReleaseAssetSelector.macOSPackageSHA256Asset(
+      in: release.assets,
+      packageAsset: packageAsset,
+      architecture: currentArchitecture
+    )
 
     if let metadataURL = metadataAsset?.browserDownloadURL {
       do {
         let metadata: DesktopPackageMetadata = try await fetchJSON(metadataURL)
+        if let packageArchitecture = metadata.architecture,
+           !DesktopArchitecture.matches(packageArchitecture, expected: currentArchitecture) {
+          throw DesktopUpdateError.packageArchitectureMismatch(
+            expected: currentArchitecture,
+            actual: packageArchitecture
+          )
+        }
         return DesktopReleaseInfo(
           version: metadata.version,
           buildNumber: metadata.buildNumber,
@@ -259,9 +285,7 @@ final class DesktopUpdateChecker {
     if canInstall {
       switch response {
       case .alertFirstButtonReturn:
-        Task {
-          await self.downloadAndInstallUpdate(latest)
-        }
+        _ = startUpdateOperation(preferredRelease: latest)
       case .alertSecondButtonReturn:
         openReleasePage(latest, reason: "prompt")
       default:
@@ -270,6 +294,59 @@ final class DesktopUpdateChecker {
     } else if response == .alertFirstButtonReturn {
       openReleasePage(latest, reason: "prompt")
     }
+  }
+
+  private func startUpdateOperation(preferredRelease: DesktopReleaseInfo?) -> String {
+    guard !isDisabled else {
+      return "disabled"
+    }
+    guard updateTask == nil else {
+      return "in_progress"
+    }
+
+    startupTimeline.mark("update_check.update_requested", metadata: [
+      "source": preferredRelease == nil ? "sidebar" : "prompt",
+    ])
+    updateTask = Task { [weak self] in
+      guard let self else {
+        return
+      }
+      await self.performUpdateOperation(preferredRelease: preferredRelease)
+      self.updateTask = nil
+    }
+    return "started"
+  }
+
+  private func performUpdateOperation(preferredRelease: DesktopReleaseInfo?) async {
+    do {
+      let latest = try await resolveAvailableRelease(preferredRelease)
+      guard latest.isNewer(than: currentVersion) else {
+        availableRelease = nil
+        try? DesktopPersistentStateStore.remove("desktop.update.available")
+        showUpToDateAlert(latest)
+        return
+      }
+      availableRelease = latest
+      try? DesktopPersistentStateStore.set(latest.version, forKey: "desktop.update.available")
+      await downloadAndInstallUpdate(latest)
+    } catch {
+      startupTimeline.mark("update_check.update_request_failed", metadata: [
+        "error": error.localizedDescription,
+      ])
+      showCheckFailedAlert(error)
+    }
+  }
+
+  private func resolveAvailableRelease(
+    _ preferredRelease: DesktopReleaseInfo?
+  ) async throws -> DesktopReleaseInfo {
+    if let preferredRelease {
+      return preferredRelease
+    }
+    if let availableRelease {
+      return availableRelease
+    }
+    return try await fetchLatestRelease()
   }
 
   private func showUpToDateAlert(_ latest: DesktopReleaseInfo) {
@@ -294,12 +371,14 @@ final class DesktopUpdateChecker {
   }
 
   private func downloadAndInstallUpdate(_ latest: DesktopReleaseInfo) async {
-    guard latest.canAutoInstallPackage else {
+    let canInstallInPlace = currentInstallTargetURL() != nil
+    guard latest.canAutoInstallPackage && canInstallInPlace else {
       startupTimeline.mark("update_check.download_unavailable", metadata: [
         "latest_version": latest.version,
         "has_package": (latest.packageDownloadURL != nil) ? "true" : "false",
         "has_sha256": (latest.packageSHA256URL != nil) ? "true" : "false",
-        "reason": latest.automaticInstallUnavailableReason ?? "unknown",
+        "reason": latest.automaticInstallUnavailableReason
+          ?? (canInstallInPlace ? "unknown" : "unsupported_install_location"),
       ])
       showManualDownloadOnlyAlert(latest)
       return
@@ -520,16 +599,10 @@ final class DesktopUpdateChecker {
 
   private func promptInstall(_ latest: DesktopReleaseInfo, downloadedUpdate: DesktopDownloadedUpdate) -> Bool {
     let alert = NSAlert()
-    alert.messageText = "Nexus 更新已就绪"
-    alert.informativeText = """
-    Nexus \(latest.displayText) 已下载并通过 sha256 校验。
-    更新包：\(downloadedUpdate.packageURL.lastPathComponent)
-    sha256：\(downloadedUpdate.sha256Hash)
-
-    更新包已通过 macOS 签名与 Gatekeeper 信任评估。继续后 Nexus 会退出，替换当前 App，并自动重新打开。
-    """
+    alert.messageText = "Nexus \(latest.version) 更新已就绪"
+    alert.informativeText = "更新已完成安全校验。继续后应用会短暂退出，并自动重新打开。"
     alert.alertStyle = .informational
-    alert.addButton(withTitle: "退出并更新")
+    alert.addButton(withTitle: "立即更新")
     alert.addButton(withTitle: "稍后")
 
     startupTimeline.mark("update_check.install_prompt_shown", metadata: [
@@ -773,40 +846,6 @@ private extension DesktopUpdateChecker {
     echo "Nexus update installer finished"
   } >> "${LOG_PATH}" 2>&1
   """
-
-  static func findMacOSMetadataAsset(_ assets: [GitHubReleaseAsset]) -> GitHubReleaseAsset? {
-    assets.first { asset in
-      let name = asset.name.lowercased()
-      return name.contains("macos") && name.hasSuffix(".metadata.json")
-    }
-  }
-
-  static func findMacOSPackageAsset(_ assets: [GitHubReleaseAsset]) -> GitHubReleaseAsset? {
-    assets.first { asset in
-      let name = asset.name.lowercased()
-      return name.contains("macos") && (name.hasSuffix(".dmg") || name.hasSuffix(".zip"))
-    }
-  }
-
-  static func findMacOSPackageSHA256Asset(
-    _ assets: [GitHubReleaseAsset],
-    packageAsset: GitHubReleaseAsset?
-  ) -> GitHubReleaseAsset? {
-    if let packageAsset {
-      let exactMatch = assets.first { asset in
-        asset.name.caseInsensitiveCompare("\(packageAsset.name).sha256") == .orderedSame
-      }
-      if let exactMatch {
-        return exactMatch
-      }
-    }
-
-    return assets.first { asset in
-      let name = asset.name.lowercased()
-      return name.contains("macos") &&
-        (name.hasSuffix(".dmg.sha256") || name.hasSuffix(".zip.sha256"))
-    }
-  }
 
   static func formatReleaseNotes(_ rawNotes: String?) -> String? {
     guard let rawNotes else {

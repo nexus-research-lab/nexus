@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import DOMPurify from "dompurify";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+
 import { postProcessMermaidSvg } from "./mermaid-svg-postprocess";
 
 const MERMAID_STREAM_RENDER_DELAY = 300;
@@ -34,6 +36,9 @@ export function useMermaidSvg(
   isStreaming: boolean,
   renderIdPrefix: string,
 ): MermaidRenderState {
+  const { t } = useI18n();
+  const invalidSyntaxMessage = t("markdown.mermaid.invalid_syntax");
+  const renderFailedMessage = t("markdown.mermaid.render_failed");
   const normalizedChart = chart.trim();
   const latestChartRef = useRef(normalizedChart);
   const renderIndexRef = useRef(0);
@@ -81,7 +86,7 @@ export function useMermaidSvg(
         mermaid.initialize(MERMAID_CONFIG);
         const parseResult = await mermaid.parse(normalizedChart, { suppressErrors: true });
         if (!parseResult) {
-          commitRenderError("Mermaid 源码语法无效");
+          commitRenderError(invalidSyntaxMessage);
           return;
         }
 
@@ -100,7 +105,7 @@ export function useMermaidSvg(
           }),
         });
       } catch (renderError) {
-        commitRenderError(renderError instanceof Error ? renderError.message : "Mermaid 渲染失败");
+        commitRenderError(renderError instanceof Error ? renderError.message : renderFailedMessage);
       }
     };
 
@@ -113,7 +118,7 @@ export function useMermaidSvg(
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [isStreaming, normalizedChart, renderIdPrefix]);
+  }, [invalidSyntaxMessage, isStreaming, normalizedChart, renderFailedMessage, renderIdPrefix]);
 
   return renderState;
 }

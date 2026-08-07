@@ -4,11 +4,13 @@ import {
   Clock,
   Loader,
   Sparkles,
+  Square,
   XCircle,
   type LucideIcon,
 } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type {
   ToolBlockStatus,
@@ -28,6 +30,8 @@ const TOOL_STATUS_ICON_MAP: Readonly<Record<
   error: { className: "", icon: XCircle },
   pending: { className: "", icon: Sparkles },
   running: { className: "animate-spin", icon: Loader },
+  rejected: { className: "", icon: XCircle },
+  stopped: { className: "", icon: Square },
   success: { className: "", icon: CheckCircle },
   waiting_permission: { className: "", icon: Clock },
 };
@@ -71,7 +75,8 @@ export function ToolBlockHeader({
   onDeny,
   onToggle,
 }: ToolBlockHeaderProps) {
-  const projection = buildToolBlockHeaderProjection(model, isExpanded);
+  const { t } = useI18n();
+  const projection = buildToolBlockHeaderProjection(model, isExpanded, t);
   const toggleProps = buildToggleProps(projection.canToggle, onToggle);
   return (
     <div

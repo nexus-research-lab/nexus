@@ -117,6 +117,11 @@ final class SidecarSupervisor {
     environment["NEXUS_APP_MODE"] = "desktop"
     environment["NEXUS_APP_ROOT"] = locator.appRootURL.path
     environment["NEXUS_STATE_ROOT"] = DesktopPaths.rootDirectory.path
+    if let previousRoot = DesktopStateRootStore.previousRootDirectory {
+      environment["NEXUS_PREVIOUS_STATE_ROOT"] = previousRoot.path
+    } else {
+      environment.removeValue(forKey: "NEXUS_PREVIOUS_STATE_ROOT")
+    }
     environment["NEXUS_CONFIG_DIR"] = DesktopPaths.rootDirectory.path
     environment["CLAUDE_CONFIG_DIR"] = DesktopPaths.rootDirectory.path
     environment["HOST"] = "127.0.0.1"

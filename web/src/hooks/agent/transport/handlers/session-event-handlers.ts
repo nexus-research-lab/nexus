@@ -3,7 +3,6 @@ import type { RoomEventPayload } from "@/types/agent/agent-conversation";
 import type { AssistantMessageStatus } from "@/types/conversation/message/entity";
 import type { EventMessage } from "@/types/generated/protocol";
 
-import { DEFAULT_ASSISTANT_ERROR_MESSAGE } from "../../message/assistant-message-model";
 import type {
   AgentEventHandler,
   AgentEventHandlerMap,
@@ -13,10 +12,13 @@ import {
   parseAgentRoundStatusEventPayload,
   parseChatAckData,
   parseCommandCatalogData,
+  parseContextUsageData,
   parseInputQueueAckData,
+  parseInterruptAckData,
   parseInputQueueEventPayload,
   parseRoundStatusEventPayload,
   parseRuntimeStatusData,
+  selectCommandCatalogSnapshot,
   parseSessionStatusData,
 } from "./session-event-data";
 
@@ -30,7 +32,16 @@ function getEventRoundId(event: EventMessage): string | null {
   return dataRoundId || envelopeRoundId || null;
 }
 
+function isWorkspaceSubscriptionError(event: EventMessage): boolean {
+  return readString(event.data, "type") === "subscribe_workspace"
+    || readString(event.data, "error_type") === "workspace_subscription_error"
+    || readString(event.data, "error_type") === "invalid_workspace_subscription";
+}
+
 const handleErrorEvent: AgentEventHandler = (event, context) => {
+  if (isWorkspaceSubscriptionError(event)) {
+    return;
+  }
   const incomingSessionKey = event.session_key || null;
   if (
     incomingSessionKey
@@ -59,6 +70,7 @@ const handleSessionStatus = withCurrentSessionEvent((event, context) => {
   if (payload) {
     context.runtime.syncSessionStatus(payload);
   }
+  context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
 });
 
 const handleRuntimeStatus = withCurrentSessionEvent((event, context) => {
@@ -82,8 +94,25 @@ const handleCommandCatalog: AgentEventHandler = (event, context) => {
     payload
     && (!payload.agent_id || payload.agent_id === currentAgentID)
   ) {
-    context.state.setCommandCatalog(payload);
+    context.state.setCommandCatalog((current) => (
+      selectCommandCatalogSnapshot(current, payload)
+    ));
   }
+};
+
+const handleContextUsage: AgentEventHandler = (event, context) => {
+  if (!context.scope.isCurrentSessionEvent(event.session_key || null)) {
+    return;
+  }
+  const incomingAgentID = event.agent_id?.trim() ?? "";
+  const payload = parseContextUsageData(event.data);
+  if (!incomingAgentID || !payload) {
+    return;
+  }
+  context.state.setContextUsageByAgent((current) => ({
+    ...current,
+    [incomingAgentID]: payload,
+  }));
 };
 
 const handleInputQueue = withCurrentSessionEvent((event, context) => {
@@ -100,6 +129,13 @@ const handleInputQueueAck = withCurrentSessionEvent((event, context) => {
   }
 });
 
+const handleInterruptAck = withCurrentSessionEvent((event, context) => {
+  const ack = parseInterruptAckData(event.data);
+  if (ack?.accepted) {
+    context.runtime.resolvePendingRequestAck(ack.client_request_id);
+  }
+});
+
 const handleGoalEvent = withCurrentSessionEvent((event, context) => {
   context.callbacks.onRoomEvent(
     event.event_type,
@@ -111,25 +147,16 @@ const handleRoundStatus = withCurrentSessionEvent((event, context) => {
   const payload = parseRoundStatusEventPayload(event.data);
   if (payload) {
     context.runtime.applyRoundStatus(payload.round_id, payload.status);
-    if (payload.status === "error") {
-      context.state.setError(
-        payload.error_message
-        ?? DEFAULT_ASSISTANT_ERROR_MESSAGE,
-      );
-    }
   }
+  context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
 });
 
 const handleAgentRoundStatus = withCurrentSessionEvent((event, context) => {
   const payload = parseAgentRoundStatusEventPayload(event.data);
   if (payload) {
     context.runtime.applyAgentRoundStatus(payload);
-    if (payload.status === "error") {
-      context.state.setError(
-        "Room 中的一个 Agent 执行失败，当前轮次已停止。请稍后重试。",
-      );
-    }
   }
+  context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
 });
 
 const handleChatAck = withCurrentSessionEvent((event, context) => {
@@ -158,6 +185,7 @@ export const AGENT_SESSION_EVENT_HANDLERS: AgentEventHandlerMap = {
   agent_round_status: handleAgentRoundStatus,
   chat_ack: handleChatAck,
   command_catalog: handleCommandCatalog,
+  context_usage: handleContextUsage,
   error: handleErrorEvent,
   goal_cleared: handleGoalEvent,
   goal_continuation: handleGoalEvent,
@@ -167,6 +195,7 @@ export const AGENT_SESSION_EVENT_HANDLERS: AgentEventHandlerMap = {
   goal_updated: handleGoalEvent,
   input_queue: handleInputQueue,
   input_queue_ack: handleInputQueueAck,
+  interrupt_ack: handleInterruptAck,
   round_status: handleRoundStatus,
   runtime_status: handleRuntimeStatus,
   session_status: handleSessionStatus,

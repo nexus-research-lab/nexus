@@ -1,10 +1,18 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type { SkillActionFailure } from "@/types/capability/skill";
 
 export type SkillUpdateCheckNoticeStatus = "current" | "failure" | "updates";
 
 export interface SkillUpdateCheckNotice {
-  message: string;
+  availableCount: number;
+  failure: SkillUpdateCheckFailure | null;
   status: SkillUpdateCheckNoticeStatus;
+}
+
+interface SkillUpdateCheckFailure {
+  additionalCount: number;
+  reason: string | null;
+  skillName: string;
 }
 
 export function buildSkillUpdateCheckNotice(
@@ -12,37 +20,75 @@ export function buildSkillUpdateCheckNotice(
   failures: SkillActionFailure[],
   manual: boolean,
 ): SkillUpdateCheckNotice | null {
-  const failure = buildFailureMessage(failures);
+  const failure = buildFailure(failures);
   if (availableCount > 0) {
     return {
-      message: failure
-        ? `发现 ${availableCount} 个可更新；${failure}`
-        : `发现 ${availableCount} 个可更新`,
+      availableCount,
+      failure,
       status: "updates",
     };
   }
   if (failure) {
     return {
-      message: failure,
+      availableCount,
+      failure,
       status: "failure",
     };
   }
   return manual
-    ? { message: "已是最新版本", status: "current" }
+    ? { availableCount, failure: null, status: "current" }
     : null;
 }
 
-function buildFailureMessage(failures: SkillActionFailure[]): string | null {
+function buildFailure(
+  failures: SkillActionFailure[],
+): SkillUpdateCheckFailure | null {
   if (failures.length === 0) {
     return null;
   }
   const failure = failures[0];
-  const skillName = failure?.skill_name.trim() || "Skill";
-  const reason = failure?.error.trim();
-  const message = reason
-    ? `${skillName} 检查失败：${reason}`
-    : `${skillName} 检查失败`;
-  return failures.length > 1
-    ? `${message}；另有 ${failures.length - 1} 个 Skill 检查失败`
+  return {
+    additionalCount: Math.max(0, failures.length - 1),
+    reason: failure?.error.trim() || null,
+    skillName: failure?.skill_name.trim() || "Skill",
+  };
+}
+
+export function formatSkillUpdateCheckNotice(
+  notice: SkillUpdateCheckNotice,
+  t: I18nContextValue["t"],
+): string {
+  const failure = notice.failure
+    ? formatFailure(notice.failure, t)
+    : null;
+  if (notice.availableCount > 0) {
+    const updates = t("capability.skills_updates_found", {
+      count: notice.availableCount,
+    });
+    return failure
+      ? t("capability.skills_updates_found_with_failure", {
+        failure,
+        updates,
+      })
+      : updates;
+  }
+  return failure || t("capability.skills_up_to_date");
+}
+
+function formatFailure(
+  failure: SkillUpdateCheckFailure,
+  t: I18nContextValue["t"],
+): string {
+  const message = failure.reason
+    ? t("capability.skills_check_failed_with_reason", {
+      name: failure.skillName,
+      reason: failure.reason,
+    })
+    : t("capability.skills_check_failed", { name: failure.skillName });
+  return failure.additionalCount > 0
+    ? t("capability.skills_check_failed_more", {
+      count: failure.additionalCount,
+      message,
+    })
     : message;
 }

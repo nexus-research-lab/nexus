@@ -1,6 +1,8 @@
 import { Download, FolderOpen } from "lucide-react";
 
 import { downloadWorkspaceFileApi } from "@/lib/api/agent/agent-api";
+import { getWorkspaceFileExternalActionCopy } from "@/lib/workspace-file-action";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { WorkspaceArtifactExternalAction } from "./workspace-artifact-action-model";
 
 const ACTION_ICON = {
@@ -17,20 +19,22 @@ export function WorkspaceArtifactExternalActionButton({
   className: string;
   iconClassName: string;
 }) {
+  const { t } = useI18n();
   if (!action) {
     return null;
   }
-  const ActionIcon = ACTION_ICON[action.copy.mode];
+  const copy = getWorkspaceFileExternalActionCopy(t, action.fileName);
+  const ActionIcon = ACTION_ICON[copy.mode];
   return (
     <button
-      aria-label={action.copy.ariaLabel}
+      aria-label={copy.ariaLabel}
       className={className}
       onClick={() => runWorkspaceArtifactExternalAction(action)}
-      title={action.copy.title}
+      title={copy.title}
       type="button"
     >
       <ActionIcon className={iconClassName} />
-      <span>{action.copy.label}</span>
+      <span>{copy.label}</span>
     </button>
   );
 }
@@ -44,7 +48,7 @@ function runWorkspaceArtifactExternalAction(
     action.fileName,
   ).catch((error) => {
     console.error(
-      `[WorkspaceArtifactAction] ${action.copy.label} workspace 文件失败:`,
+      "[WorkspaceArtifactAction] 处理 workspace 文件失败:",
       error,
     );
   });

@@ -131,6 +131,18 @@ export function removeRoomMember(
   );
 }
 
+export function setRoomMemberParticipation(
+  roomId: string,
+  agentId: string,
+  paused: boolean,
+): Promise<RoomContextAggregate> {
+  return mutateRoomContext(
+    `/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(agentId)}/participation`,
+    "PATCH",
+    { paused },
+  );
+}
+
 export async function deleteRoom(roomId: string): Promise<{ success: boolean }> {
   const result = await requestApi<{ success: boolean }>(
     `${AGENT_API_BASE_URL}/rooms/${encodeURIComponent(roomId)}`,

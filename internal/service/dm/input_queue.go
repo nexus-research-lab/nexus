@@ -1,5 +1,5 @@
 // INPUT: DM 待发送项、当前运行 round 与队列控制动作。
-// OUTPUT: 幂等受理结果、串行派发、round 锚定的 guide 或错过 hook 后的下一轮接力。
+// OUTPUT: 队列入队幂等结果、串行派发、round 锚定的 guide 或错过 hook 后的下一轮接力。
 // POS: DM 输入队列控制面与派发边界。
 package dm
 
@@ -37,7 +37,9 @@ func (s *Service) HandleInputQueue(
 	if err != nil {
 		return protocol.InputQueueMutationResult{}, err
 	}
-	s.inputQueueDispatchMu.Lock()
+	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+		return protocol.InputQueueMutationResult{}, err
+	}
 	defer s.inputQueueDispatchMu.Unlock()
 
 	action := strings.TrimSpace(request.Action)
@@ -54,7 +56,7 @@ func (s *Service) HandleInputQueue(
 		clientMessageID := strings.TrimSpace(request.ClientMessageID)
 		if clientMessageID == "" {
 			// 兼容尚未发送 ACK 关联字段的旧客户端；新客户端必须自行保持该 ID，
-			// 才能在受理状态未知时获得跨重试幂等。
+			// 才能让同一条队列草稿在传输重试时保持单一队列项。
 			clientMessageID = "legacy_" + workspacestore.NewInputQueueID()
 		}
 		ownerUserID := authctx.OwnerUserID(ctx)
@@ -209,7 +211,9 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 	agentID string,
 	location workspacestore.InputQueueLocation,
 ) bool {
-	s.inputQueueDispatchMu.Lock()
+	if err := s.inputQueueDispatchMu.LockContext(ctx); err != nil {
+		return false
+	}
 	defer s.inputQueueDispatchMu.Unlock()
 
 	if strings.TrimSpace(normalizedSessionKey) == "" || len(s.runtime.GetRunningRoundIDs(normalizedSessionKey)) > 0 {
@@ -229,11 +233,13 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		AgentID:              dmdomain.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
 		Content:              item.Content,
 		Attachments:          item.Attachments,
+		ClientMessageID:      item.ClientMessageID,
 		RoundID:              inputQueueItemRoundID(*item),
 		UserMessageID:        item.SourceMessageID,
+		AgentRoundID:         item.AgentRoundID,
 		DeliveryPolicy:       protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
 		BroadcastUserMessage: true,
-	})
+	}, chatExecutionInline)
 	if err == nil {
 		if len(s.runtime.GetRunningRoundIDs(normalizedSessionKey)) == 0 {
 			s.startSessionBackgroundTask(normalizedSessionKey, location.OwnerUserID, func(taskCtx context.Context) {

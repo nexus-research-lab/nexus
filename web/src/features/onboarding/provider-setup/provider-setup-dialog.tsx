@@ -1,20 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  ArrowDownToLine,
   Check,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
+  Clock3,
   ExternalLink,
   Loader2,
+  MessageSquare,
   PlugZap,
-  ShieldCheck,
+  Puzzle,
+  Settings2,
+  UsersRound,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 
-import { AppRouteBuilders } from "@/app/router/route-paths";
+import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getDefaultAgentRuntimeKind, setUserPreferences } from "@/config/runtime-options";
+import { ProviderIcon } from "@/features/settings/provider-settings/components/provider-settings-icon";
+import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/provider-ccswitch-dialog";
 import { invalidateProviderAvailability } from "@/hooks/capability/use-provider-availability";
 import {
   createProviderConfigApi,
@@ -30,23 +42,26 @@ import {
 } from "@/lib/api/settings/preferences-api";
 import { getErrorMessage } from "@/lib/error-message";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
-  UiDialogFooter,
   UiDialogHeader,
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
 import { getDialogNoteClassName } from "@/shared/ui/dialog/dialog-styles";
-import { UiButton } from "@/shared/ui/button/button";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type {
+  CCSwitchSyncResult,
+  ProviderApiFormat,
   ProviderConfigRecord,
 } from "@/types/capability/provider";
 
 import {
   findManageablePresetProvider,
+  listCustomProviderSetupFormats,
   listProviderSetupPresets,
   providerSetupModelIsRequired,
   selectInitialProviderSetupPreset,
@@ -56,31 +71,59 @@ import {
 interface ProviderSetupDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  onStart?: () => void;
 }
 
-type SetupStep = 1 | 2 | 3;
+type SetupScene = "provider" | "credentials" | "custom" | "verify" | "ready";
+type JourneyPhase = "connect" | "discover" | "start";
 
 interface SetupResult {
   model: string;
   provider: string;
 }
 
+interface ProviderConnectionDraft {
+  apiFormat: ProviderApiFormat;
+  apiKey: string;
+  baseURL: string;
+  displayName: string;
+  existingProvider: ProviderConfigRecord | null;
+  modelID: string;
+  modelRequired: boolean;
+  modelsPath: string;
+  presetKey: string;
+  providerKey: string;
+}
+
+const FEATURED_PROVIDER_COUNT = 4;
 const DIALOG_TITLE_ID = "provider-setup-dialog-title";
 const DIALOG_DESCRIPTION_ID = "provider-setup-dialog-description";
 
 export function ProviderSetupDialog({
   isOpen,
   onClose,
+  onStart,
 }: ProviderSetupDialogProps) {
   const { t } = useI18n();
   const runtimeKind = getDefaultAgentRuntimeKind();
-  const [step, setStep] = useState<SetupStep>(1);
+  const canImportFromCCSwitch = isDesktopRuntime();
+  const [scene, setScene] = useState<SetupScene>("provider");
+  const [ccSwitchOpen, setCCSwitchOpen] = useState(false);
   const [presets, setPresets] = useState<ProviderSetupPreset[]>([]);
+  const [customSetups, setCustomSetups] = useState<ProviderSetupPreset[]>([]);
   const [providers, setProviders] = useState<ProviderConfigRecord[]>([]);
   const [selectedPresetKey, setSelectedPresetKey] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [modelId, setModelId] = useState("");
+  const [customProviderKey, setCustomProviderKey] = useState("");
+  const [customProviderName, setCustomProviderName] = useState("");
+  const [customApiFormat, setCustomApiFormat] = useState<ProviderApiFormat | "">("");
+  const [customApiKey, setCustomApiKey] = useState("");
+  const [customBaseUrl, setCustomBaseUrl] = useState("");
+  const [customModelId, setCustomModelId] = useState("");
+  const [showAllProviders, setShowAllProviders] = useState(false);
+  const [verifyPhase, setVerifyPhase] = useState(0);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +139,20 @@ export function ProviderSetupDialog({
       : null,
     [providers, selected],
   );
+  const customSetup = useMemo(
+    () => customSetups.find(
+      (item) => item.format.api_format === customApiFormat,
+    ) ?? null,
+    [customApiFormat, customSetups],
+  );
+  const customExistingProvider = useMemo(
+    () => providers.find((provider) => (
+      provider.can_manage
+      && provider.provider === customProviderKey
+      && provider.preset_key === "custom"
+    )) ?? null,
+    [customProviderKey, providers],
+  );
   const modelRequired = selected
     ? providerSetupModelIsRequired(selected.format, existingProvider)
     : false;
@@ -107,14 +164,22 @@ export function ProviderSetupDialog({
       return undefined;
     }
     let cancelled = false;
-    setStep(1);
+    setScene("provider");
     setLoading(true);
     setBusy(false);
+    setCCSwitchOpen(false);
     setError(null);
     setResult(null);
     setApiKey("");
     setBaseUrl("");
     setModelId("");
+    setCustomProviderKey(createCustomProviderKey());
+    setCustomProviderName("");
+    setCustomApiFormat("");
+    setCustomApiKey("");
+    setCustomBaseUrl("");
+    setCustomModelId("");
+    setShowAllProviders(false);
     void Promise.all([
       listProviderPresetsApi(),
       listProviderConfigsApi(),
@@ -127,15 +192,25 @@ export function ProviderSetupDialog({
         runtimeKind,
         nextProviders,
       );
+      const nextCustomSetups = listCustomProviderSetupFormats(
+        nextPresets,
+        runtimeKind,
+      );
       setPresets(setupPresets);
+      setCustomSetups(nextCustomSetups);
       setProviders(nextProviders);
+      setCustomApiFormat(selectInitialCustomAPIFormat(nextCustomSetups));
       // 优先接续用户已经开始配置的供应商，避免每次都退回目录第一项。
       const first = selectInitialProviderSetupPreset(
         setupPresets,
         nextProviders,
       );
       if (first) {
+        const firstIndex = setupPresets.findIndex(
+          (item) => item.preset.preset_key === first.preset.preset_key,
+        );
         setSelectedPresetKey(first.preset.preset_key);
+        setShowAllProviders(firstIndex >= FEATURED_PROVIDER_COUNT);
         setBaseUrl(first.format.base_url);
         const configured = findManageablePresetProvider(
           nextProviders,
@@ -162,6 +237,19 @@ export function ProviderSetupDialog({
     };
   }, [isOpen, runtimeKind, t]);
 
+  useEffect(() => {
+    if (scene !== "verify" || !busy) {
+      return undefined;
+    }
+    setVerifyPhase(0);
+    const discoverTimer = window.setTimeout(() => setVerifyPhase(1), 650);
+    const defaultTimer = window.setTimeout(() => setVerifyPhase(2), 1350);
+    return () => {
+      window.clearTimeout(discoverTimer);
+      window.clearTimeout(defaultTimer);
+    };
+  }, [busy, scene]);
+
   if (!isOpen) {
     return null;
   }
@@ -183,28 +271,23 @@ export function ProviderSetupDialog({
     setModelId(defaultModelID(configured));
   };
 
-  const handleNext = () => {
-    if (step === 1 && selected) {
-      setError(null);
-      setStep(2);
-    }
-  };
-
   const handleBack = () => {
     setError(null);
-    setStep(step === 3 ? 2 : 1);
+    setScene("provider");
   };
 
-  const handleSubmit = () => {
-    if (!selected || busy) {
+  const submitConnection = (
+    draft: ProviderConnectionDraft,
+    failureScene: "credentials" | "custom",
+  ) => {
+    if (busy) {
       return;
     }
-    const normalizedApiKey = apiKey.trim();
-    const normalizedBaseURL = usesBuiltinEndpoint
-      ? selected.format.base_url.trim()
-      : baseUrl.trim();
-    const normalizedModelID = modelId.trim();
-    if (apiKeyRequired && !normalizedApiKey) {
+    const normalizedApiKey = draft.apiKey.trim();
+    const normalizedBaseURL = draft.baseURL.trim();
+    const normalizedModelID = draft.modelID.trim();
+    const requiresAPIKey = !draft.existingProvider?.auth_token_masked?.trim();
+    if (requiresAPIKey && !normalizedApiKey) {
       setError(t("onboarding.provider_setup_api_key_required"));
       return;
     }
@@ -212,54 +295,114 @@ export function ProviderSetupDialog({
       setError(t("onboarding.provider_setup_base_url_required"));
       return;
     }
-    if (modelRequired && !normalizedModelID) {
+    if (draft.modelRequired && !normalizedModelID) {
       setError(t("onboarding.provider_setup_model_required"));
       return;
     }
 
     setBusy(true);
-    setStep(3);
+    setScene("verify");
     setError(null);
     setResult(null);
     void persistAndTest({
       apiKey: normalizedApiKey,
       baseURL: normalizedBaseURL,
+      displayName: draft.displayName.trim(),
+      apiFormat: draft.apiFormat,
+      modelsPath: draft.modelsPath,
       modelID: normalizedModelID,
-      setup: selected,
-      existingProvider,
+      presetKey: draft.presetKey,
+      providerKey: draft.providerKey,
+      existingProvider: draft.existingProvider,
     }).then(async (testResult) => {
       const provider = testResult.provider.trim()
-        || existingProvider?.provider
-        || selected.preset.preset_key;
+        || draft.existingProvider?.provider
+        || draft.providerKey;
       const model = testResult.model?.trim() || normalizedModelID;
       if (!model) {
         throw new Error(t("onboarding.provider_setup_model_required"));
       }
-      const currentPreferences = await getUserPreferencesApi();
-      const savedPreferences = await updateUserPreferencesApi({
-        default_agent_options: {
-          ...currentPreferences.default_agent_options,
-          model,
-          provider,
-        },
-      });
-      setUserPreferences(savedPreferences);
-      invalidateProviderAvailability();
+      await persistDefaultModelSelections({ model, provider });
       setResult({
         model,
-        provider: selected.preset.display_name,
+        provider: draft.displayName.trim(),
       });
-    }).catch((setupError: unknown) => {
+      setScene("ready");
+    }).catch(async (setupError: unknown) => {
+      // 测试失败前 Provider 可能已经落库；刷新记录后允许用户原地修正并重试。
+      try {
+        setProviders(await listProviderConfigsApi());
+      } catch {
+        // 保留原错误作为主反馈，目录刷新失败不覆盖真实连接原因。
+      }
       setError(getErrorMessage(
         setupError,
         t("onboarding.provider_setup_test_failed", {
           message: t("settings.providers.retry_later"),
         }),
       ));
-      setStep(2);
+      setScene(failureScene);
     }).finally(() => {
       setBusy(false);
     });
+  };
+
+  const handleSubmit = () => {
+    if (!selected) {
+      return;
+    }
+    submitConnection({
+      apiFormat: selected.format.api_format,
+      apiKey,
+      baseURL: usesBuiltinEndpoint ? selected.format.base_url : baseUrl,
+      displayName: selected.preset.display_name,
+      existingProvider,
+      modelID: modelId,
+      modelRequired,
+      modelsPath: selected.format.models_path,
+      presetKey: selected.preset.preset_key,
+      providerKey: existingProvider?.provider ?? selected.preset.preset_key,
+    }, "credentials");
+  };
+
+  const handleCustomSubmit = () => {
+    const displayName = customProviderName.trim();
+    if (!displayName) {
+      setError(t("onboarding.provider_setup_custom_name_required"));
+      return;
+    }
+    if (!customSetup || !customApiFormat) {
+      setError(t("onboarding.provider_setup_custom_format_required"));
+      return;
+    }
+    submitConnection({
+      apiFormat: customApiFormat,
+      apiKey: customApiKey,
+      baseURL: customBaseUrl,
+      displayName,
+      existingProvider: customExistingProvider,
+      modelID: customModelId,
+      modelRequired: true,
+      modelsPath: customSetup.format.models_path,
+      presetKey: "custom",
+      providerKey: customExistingProvider?.provider ?? customProviderKey,
+    }, "custom");
+  };
+
+  const handleCCSwitchSynced = async (syncResult: CCSwitchSyncResult) => {
+    const selection = syncResult.default_selection;
+    if (!selection) {
+      throw new Error(t("onboarding.provider_setup_ccswitch_default_failed"));
+    }
+    await persistDefaultModelSelections({
+      model: selection.model,
+      provider: selection.provider,
+    });
+    setResult({
+      model: selection.model_display_name || selection.model,
+      provider: selection.provider_display_name || selection.provider,
+    });
+    setScene("ready");
   };
 
   const close = () => {
@@ -268,247 +411,362 @@ export function ProviderSetupDialog({
     }
   };
 
+  const start = () => {
+    if (busy) {
+      return;
+    }
+    onClose();
+    onStart?.();
+  };
+
   return (
-    <UiDialogPortal>
-      <UiDialogBackdrop
-        className="z-[11050]"
-        closeOnBackdrop={!busy}
-        describedBy={DIALOG_DESCRIPTION_ID}
-        labelledBy={DIALOG_TITLE_ID}
-        onClose={close}
-      >
-        <div className="w-full max-w-xl">
-          <UiDialogShell>
-            <UiDialogHeader
-              closeLabel={t("common.close")}
-              onClose={close}
-            >
-              <div className="min-w-0 flex-1">
-                <h2
-                  className="dialog-title"
-                  id={DIALOG_TITLE_ID}
-                >
+    <>
+      <UiDialogPortal>
+        <UiDialogBackdrop
+          className="z-[11050]"
+          closeOnBackdrop={!busy}
+          describedBy={DIALOG_DESCRIPTION_ID}
+          labelledBy={DIALOG_TITLE_ID}
+          onClose={close}
+        >
+          <div className="w-full max-w-[620px]">
+            <UiDialogShell className="h-[500px] max-h-[calc(100dvh-2rem)]" size="lg">
+            <UiDialogHeader className="!h-12 !border-b-0 !px-5 !py-0" closeLabel={t("common.close")} onClose={close}>
+              <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                <img alt="" className="h-6 w-6" src="/logo.webp" />
+                <h2 className="text-xs font-semibold text-(--text-strong)" id={DIALOG_TITLE_ID}>
                   {t("onboarding.provider_setup_title")}
                 </h2>
-                <p
-                  className="dialog-subtitle"
-                  id={DIALOG_DESCRIPTION_ID}
-                >
+                <p className="sr-only" id={DIALOG_DESCRIPTION_ID}>
                   {t("onboarding.provider_setup_description")}
                 </p>
               </div>
             </UiDialogHeader>
 
-            <SetupProgress step={step} />
-
-            <UiDialogBody className="!px-5 !py-4" scrollable>
-              {step === 1 ? (
-                <ProviderStep
-                  error={error}
-                  loading={loading}
-                  onSelect={selectPreset}
-                  presets={presets}
-                  selectedPresetKey={selectedPresetKey}
-                />
-              ) : null}
-              {step === 2 && selected ? (
-                <CredentialsStep
-                  apiKey={apiKey}
-                  apiKeyRequired={apiKeyRequired}
-                  baseUrl={baseUrl}
-                  error={error}
-                  existingProvider={existingProvider}
-                  modelId={modelId}
-                  modelRequired={modelRequired}
-                  onApiKeyChange={setApiKey}
-                  onBaseUrlChange={setBaseUrl}
-                  onModelIDChange={setModelId}
-                  setup={selected}
-                />
-              ) : null}
-              {step === 3 ? (
-                <VerifyStep
-                  busy={busy}
-                  result={result}
-                />
-              ) : null}
+            <UiDialogBody className="!min-h-0 !flex-1 !overflow-hidden !p-0">
+              <div className="grid h-full min-h-0 w-full md:grid-cols-[176px_minmax(0,1fr)]">
+                <NexusPresence ready={scene === "ready"} />
+                <div
+                  className="flex min-h-0 min-w-0 flex-col overflow-hidden px-5 pt-2 sm:px-7"
+                  key={scene}
+                >
+                  <JourneyProgress scene={scene} />
+                  <div
+                    className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden animate-in fade-in-0 slide-in-from-bottom-1 duration-(--motion-duration-layout)"
+                  >
+                    {scene === "provider" ? (
+                      <ProviderScene
+                        error={error}
+                        loading={loading}
+                        onContinue={() => {
+                          if (selected) {
+                            setError(null);
+                            setScene("credentials");
+                          }
+                        }}
+                        onCustom={() => {
+                          setError(null);
+                          setScene("custom");
+                        }}
+                        onImportCCSwitch={() => setCCSwitchOpen(true)}
+                        onSelect={selectPreset}
+                        onShowAllChange={setShowAllProviders}
+                        presets={presets}
+                        providers={providers}
+                        selectedPresetKey={selectedPresetKey}
+                        showAll={showAllProviders}
+                        supportsCCSwitch={canImportFromCCSwitch}
+                        supportsCustom={customSetups.length > 0}
+                      />
+                    ) : null}
+                    {scene === "credentials" && selected ? (
+                      <CredentialsScene
+                        apiKey={apiKey}
+                        apiKeyRequired={apiKeyRequired}
+                        baseUrl={baseUrl}
+                        error={error}
+                        existingProvider={existingProvider}
+                        modelId={modelId}
+                        modelRequired={modelRequired}
+                        onApiKeyChange={(value) => {
+                          setApiKey(value);
+                          setError(null);
+                        }}
+                        onBack={handleBack}
+                        onBaseUrlChange={(value) => {
+                          setBaseUrl(value);
+                          setError(null);
+                        }}
+                        onModelIDChange={(value) => {
+                          setModelId(value);
+                          setError(null);
+                        }}
+                        onSubmit={handleSubmit}
+                        setup={selected}
+                      />
+                    ) : null}
+                    {scene === "custom" ? (
+                      <CustomProviderScene
+                        apiFormat={customApiFormat}
+                        apiKey={customApiKey}
+                        baseUrl={customBaseUrl}
+                        error={error}
+                        existingProvider={customExistingProvider}
+                        formats={customSetups}
+                        modelId={customModelId}
+                        onApiFormatChange={(value) => {
+                          const nextSetup = customSetups.find(
+                            (item) => item.format.api_format === value,
+                          );
+                          if (nextSetup) {
+                            setCustomApiFormat(nextSetup.format.api_format);
+                            setError(null);
+                          }
+                        }}
+                        onApiKeyChange={(value) => {
+                          setCustomApiKey(value);
+                          setError(null);
+                        }}
+                        onBack={handleBack}
+                        onBaseUrlChange={(value) => {
+                          setCustomBaseUrl(value);
+                          setError(null);
+                        }}
+                        onModelIDChange={(value) => {
+                          setCustomModelId(value);
+                          setError(null);
+                        }}
+                        onNameChange={(value) => {
+                          setCustomProviderName(value);
+                          setError(null);
+                        }}
+                        onSubmit={handleCustomSubmit}
+                        providerName={customProviderName}
+                      />
+                    ) : null}
+                    {scene === "verify" ? <VerifyScene phase={verifyPhase} /> : null}
+                    {scene === "ready" && result ? (
+                      <ReadyScene
+                        onStart={start}
+                        result={result}
+                      />
+                    ) : null}
+                  </div>
+                </div>
+              </div>
             </UiDialogBody>
-
-            <UiDialogFooter className="!px-5 !py-3">
-              {step === 1 ? (
-                <Link
-                  className="mr-auto inline-flex items-center gap-1 text-xs font-medium text-(--text-muted) hover:text-(--text-strong) hover:underline"
-                  to={AppRouteBuilders.settings("providers")}
-                  onClick={close}
-                >
-                  {t("onboarding.provider_setup_advanced")}
-                  <ExternalLink className="h-3 w-3" />
-                </Link>
-              ) : (
-                <UiButton
-                  disabled={busy}
-                  onClick={handleBack}
-                  size="xs"
-                  variant="text"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                  {t("onboarding.provider_setup_back")}
-                </UiButton>
-              )}
-
-              {step === 1 ? (
-                <UiButton
-                  disabled={!selected || loading}
-                  onClick={handleNext}
-                  size="sm"
-                  tone="primary"
-                  variant="solid"
-                >
-                  {t("onboarding.provider_setup_next")}
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </UiButton>
-              ) : null}
-              {step === 2 ? (
-                <UiButton
-                  disabled={busy || !selected}
-                  onClick={handleSubmit}
-                  size="sm"
-                  tone="primary"
-                  variant="solid"
-                >
-                  <PlugZap className="h-3.5 w-3.5" />
-                  {t("onboarding.provider_setup_submit")}
-                </UiButton>
-              ) : null}
-              {step === 3 && result ? (
-                <UiButton
-                  onClick={close}
-                  size="sm"
-                  tone="primary"
-                  variant="solid"
-                >
-                  {t("onboarding.provider_setup_enter_chat")}
-                </UiButton>
-              ) : null}
-            </UiDialogFooter>
-          </UiDialogShell>
-        </div>
-      </UiDialogBackdrop>
-    </UiDialogPortal>
+            </UiDialogShell>
+          </div>
+        </UiDialogBackdrop>
+      </UiDialogPortal>
+      {canImportFromCCSwitch ? (
+        <ProviderCCSwitchDialog
+          isOpen={ccSwitchOpen}
+          onClose={() => setCCSwitchOpen(false)}
+          onSynced={handleCCSwitchSynced}
+          requireDefault
+        />
+      ) : null}
+    </>
   );
 }
 
-function SetupProgress({ step }: { step: SetupStep }) {
+function JourneyProgress({ scene }: { scene: SetupScene }) {
   const { t } = useI18n();
-  const steps = [
-    t("onboarding.provider_setup_step_provider"),
-    t("onboarding.provider_setup_step_credentials"),
-    t("onboarding.provider_setup_step_verify"),
+  const currentPhase = resolveJourneyPhase(scene);
+  const phases: Array<{ id: JourneyPhase; label: string }> = [
+    { id: "connect", label: t("onboarding.provider_setup_step_provider") },
+    { id: "discover", label: t("onboarding.provider_setup_step_credentials") },
+    { id: "start", label: t("onboarding.provider_setup_step_verify") },
   ];
+  const currentIndex = phases.findIndex((phase) => phase.id === currentPhase);
   return (
-    <div className="grid grid-cols-3 gap-2 border-b border-(--divider-subtle-color) px-5 py-3">
-      {steps.map((label, index) => {
-        const stepNumber = index + 1;
-        const active = stepNumber === step;
-        const completed = stepNumber < step;
-        return (
-          <div
-            aria-current={active ? "step" : undefined}
-            className="flex min-w-0 items-center gap-1.5"
-            key={label}
-          >
-            <span
-              className={[
-                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-2xs font-semibold",
-                active || completed
-                  ? "bg-(--brand-action) text-white"
-                  : "bg-(--surface-muted-background) text-(--text-muted)",
-              ].join(" ")}
-            >
-              {completed ? <Check className="h-3 w-3" /> : stepNumber}
-            </span>
-            <span
-              className={[
-                "min-w-0 truncate text-2xs font-medium",
-                active ? "text-(--text-strong)" : "text-(--text-muted)",
-              ].join(" ")}
-            >
-              {label}
-            </span>
-          </div>
-        );
-      })}
+    <div
+      aria-label={`${currentIndex + 1} / ${phases.length} · ${phases[currentIndex]?.label ?? ""}`}
+      className="flex h-5 items-center gap-4"
+    >
+      <div className="flex min-w-0 items-baseline gap-2">
+        <span className="text-2xs tabular-nums text-(--text-muted)">
+          {currentIndex + 1} / {phases.length}
+        </span>
+        <span className="truncate text-xs font-medium text-(--text-strong)">
+          {phases[currentIndex]?.label}
+        </span>
+      </div>
+      <div aria-hidden="true" className="ml-auto flex w-24 gap-1">
+        {phases.map((phase, index) => (
+          <span
+            className={[
+              "h-1 flex-1 rounded-full transition-colors duration-(--motion-duration-normal)",
+              index <= currentIndex ? "bg-(--brand-action)" : "bg-(--divider-subtle-color)",
+            ].join(" ")}
+            key={phase.id}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-function ProviderStep({
+function NexusPresence({ ready }: { ready: boolean }) {
+  return (
+    <aside
+      aria-hidden="true"
+      className="relative hidden min-h-0 items-center justify-center overflow-hidden border-r border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--brand)_5%,var(--modal-dialog-body-background))] md:flex"
+    >
+      <img
+        alt=""
+        className={[
+          "h-[286px] max-w-none translate-y-3 object-contain transition-[transform,filter] duration-500",
+          ready ? "-rotate-2 scale-[1.03] drop-shadow-[0_14px_22px_rgba(54,63,91,0.12)]" : "scale-100",
+        ].join(" ")}
+        src="/nexus/nexus-mascot-front-wave.png"
+      />
+    </aside>
+  );
+}
+
+function ProviderScene({
   error,
   loading,
+  onContinue,
+  onCustom,
+  onImportCCSwitch,
   onSelect,
+  onShowAllChange,
   presets,
+  providers,
   selectedPresetKey,
+  showAll,
+  supportsCCSwitch,
+  supportsCustom,
 }: {
   error: string | null;
   loading: boolean;
+  onContinue: () => void;
+  onCustom: () => void;
+  onImportCCSwitch: () => void;
   onSelect: (preset: ProviderSetupPreset) => void;
+  onShowAllChange: (showAll: boolean) => void;
   presets: ProviderSetupPreset[];
+  providers: ProviderConfigRecord[];
   selectedPresetKey: string;
+  showAll: boolean;
+  supportsCCSwitch: boolean;
+  supportsCustom: boolean;
 }) {
   const { t } = useI18n();
-  if (loading) {
-    return (
-      <div className="flex min-h-40 items-center justify-center text-(--text-muted)">
-        <Loader2 className="h-5 w-5 animate-spin" />
-      </div>
-    );
-  }
-  if (error || presets.length === 0) {
-    return (
-      <div className={getDialogNoteClassName("danger")} role="alert">
-        <div className="flex items-start gap-2">
-          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
-          <span>{error || t("onboarding.provider_setup_provider_empty")}</span>
-        </div>
-      </div>
-    );
-  }
+  const visiblePresets = resolveVisiblePresets(presets, selectedPresetKey, showAll);
   return (
-    <div className="space-y-3">
-      <p className="text-xs leading-5 text-(--text-muted)">
-        {t("onboarding.provider_setup_provider_hint")}
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {presets.map((item) => {
-          const selected = item.preset.preset_key === selectedPresetKey;
-          return (
-            <button
-              aria-pressed={selected}
-              className={[
-                "flex min-h-20 flex-col items-start gap-1 rounded-[12px] border px-3 py-2.5 text-left transition-[background,border-color,color] duration-(--motion-duration-fast)",
-                selected
-                  ? "border-(--brand-action) bg-[color:color-mix(in_srgb,var(--brand)_8%,transparent)] text-(--text-strong)"
-                  : "border-(--divider-subtle-color) text-(--text-default) hover:border-(--surface-interactive-active-border) hover:bg-(--surface-interactive-hover-background)",
-              ].join(" ")}
-              key={item.preset.preset_key}
-              onClick={() => onSelect(item)}
-              type="button"
-            >
-              <span className="text-sm font-semibold">
-                {item.preset.display_name}
-              </span>
-              <span className="line-clamp-2 text-xs leading-4 text-(--text-muted)">
-                {item.preset.description}
-              </span>
-            </button>
-          );
-        })}
+    <>
+      <SceneMessage
+        body={t("onboarding.provider_setup_provider_hint")}
+        title={t("onboarding.provider_setup_provider_title")}
+      />
+      <div className="soft-scrollbar mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+        {loading ? (
+          <div className="flex min-h-40 items-center justify-center text-(--text-muted)">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : null}
+        {!loading && (error || presets.length === 0) ? (
+          <div className={getDialogNoteClassName("danger")} role="alert">
+            <div className="flex items-start gap-2">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
+              <span>{error || t("onboarding.provider_setup_provider_empty")}</span>
+            </div>
+          </div>
+        ) : null}
+        {!loading && !error && presets.length > 0 ? (
+          <div className="border-y border-(--divider-subtle-color)">
+            {visiblePresets.map((item) => {
+              const presetKey = item.preset.preset_key;
+              const selected = presetKey === selectedPresetKey;
+              const configured = Boolean(findManageablePresetProvider(providers, presetKey));
+              return (
+                <button
+                  aria-pressed={selected}
+                  className="group flex w-full items-center gap-3 border-b border-(--divider-subtle-color) px-1 py-2.5 text-left last:border-b-0"
+                  key={presetKey}
+                  onClick={() => onSelect(item)}
+                  type="button"
+                >
+                  <ProviderIcon
+                    name={item.preset.display_name}
+                    presetKey={presetKey}
+                    size="sm"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-(--text-strong)">
+                      {item.preset.display_name}
+                    </span>
+                  </span>
+                  {configured ? (
+                    <span className="shrink-0 text-2xs font-medium text-(--success)">
+                      {t("onboarding.provider_setup_provider_configured")}
+                    </span>
+                  ) : null}
+                  <span className={selected ? "flex h-4 w-4 items-center justify-center rounded-full bg-(--brand-action) text-white" : "h-4 w-4 rounded-full border border-(--divider-strong-color)"}>
+                    {selected ? <Check className="h-2.5 w-2.5" /> : null}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        {!loading && presets.length > FEATURED_PROVIDER_COUNT ? (
+          <button
+            className="mt-3 text-xs font-medium text-(--text-muted) hover:text-(--text-strong)"
+            onClick={() => onShowAllChange(!showAll)}
+            type="button"
+          >
+            {showAll
+              ? t("onboarding.provider_setup_provider_show_less")
+              : t("onboarding.provider_setup_provider_show_more", {
+                count: Math.max(0, presets.length - FEATURED_PROVIDER_COUNT),
+              })}
+          </button>
+        ) : null}
       </div>
-    </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
+        <div className="mr-auto flex flex-wrap items-center gap-2">
+          <UiButton
+            disabled={!supportsCustom || loading}
+            onClick={onCustom}
+            size="sm"
+            variant="surface"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            {t("onboarding.provider_setup_custom_action")}
+          </UiButton>
+          {supportsCCSwitch ? (
+            <UiButton
+              disabled={loading}
+              onClick={onImportCCSwitch}
+              size="sm"
+              variant="surface"
+            >
+              <ArrowDownToLine className="h-3.5 w-3.5" />
+              {t("onboarding.provider_setup_ccswitch_action")}
+            </UiButton>
+          ) : null}
+        </div>
+        <UiButton
+          disabled={!selectedPresetKey || loading}
+          onClick={onContinue}
+          size="sm"
+          tone="primary"
+          variant="solid"
+        >
+          {t("onboarding.provider_setup_provider_continue")}
+          <ChevronRight className="h-3.5 w-3.5" />
+        </UiButton>
+      </div>
+    </>
   );
 }
 
-function CredentialsStep({
+function CredentialsScene({
   apiKey,
   apiKeyRequired,
   baseUrl,
@@ -517,8 +775,10 @@ function CredentialsStep({
   modelId,
   modelRequired,
   onApiKeyChange,
+  onBack,
   onBaseUrlChange,
   onModelIDChange,
+  onSubmit,
   setup,
 }: {
   apiKey: string;
@@ -529,99 +789,264 @@ function CredentialsStep({
   modelId: string;
   modelRequired: boolean;
   onApiKeyChange: (value: string) => void;
+  onBack: () => void;
   onBaseUrlChange: (value: string) => void;
   onModelIDChange: (value: string) => void;
+  onSubmit: () => void;
   setup: ProviderSetupPreset;
 }) {
   const { t } = useI18n();
+  const apiKeyInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // 场景切换不会重建模态框，主动把键盘焦点交给首要输入项。
+    apiKeyInputRef.current?.focus({ preventScroll: true });
+  }, []);
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="flex h-8 w-8 items-center justify-center radius-control-sm bg-(--surface-interactive-hover-background) text-(--brand-action)">
-          <ShieldCheck className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-(--text-strong)">
-            {setup.preset.display_name}
-          </h3>
-          <p className="text-xs text-(--text-muted)">
-            {existingProvider
-              ? t("onboarding.provider_setup_api_key_keep")
-              : t("onboarding.provider_setup_description")}
-          </p>
-        </div>
+    <>
+      <SceneMessage
+        body={existingProvider
+          ? t("onboarding.provider_setup_credentials_saved_description")
+          : t("onboarding.provider_setup_credentials_description")}
+        title={t("onboarding.provider_setup_credentials_title", {
+          provider: setup.preset.display_name,
+        })}
+      />
+
+      <div className="soft-scrollbar mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+        <UiField
+          description={existingProvider?.auth_token_masked && !apiKey
+            ? t("onboarding.provider_setup_api_key_keep")
+            : undefined}
+          htmlFor="provider-setup-api-key"
+          label={t("onboarding.provider_setup_api_key")}
+        >
+          <UiInput
+            ref={apiKeyInputRef}
+            autoCapitalize="off"
+            autoComplete="off"
+            autoCorrect="off"
+            controlSize="md"
+            data-form-type="other"
+            data-lpignore="true"
+            id="provider-setup-api-key"
+            name="provider-setup-api-key"
+            onChange={(event) => onApiKeyChange(event.target.value)}
+            placeholder={t("onboarding.provider_setup_api_key_placeholder")}
+            required={apiKeyRequired}
+            spellCheck={false}
+            type="password"
+            value={apiKey}
+          />
+          {setup.preset.key_url ? (
+            <a
+              className="mt-1 inline-flex items-center gap-1 text-2xs font-medium text-(--brand-action) hover:underline"
+              href={setup.preset.key_url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {t("onboarding.provider_setup_get_api_key")}
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          ) : null}
+        </UiField>
+
+        {setup.preset.endpoint_mode !== "fixed" ? (
+          <UiField htmlFor="provider-setup-base-url" label={t("onboarding.provider_setup_base_url")}>
+            <UiInput
+              autoCapitalize="off"
+              autoCorrect="off"
+              controlSize="md"
+              id="provider-setup-base-url"
+              onChange={(event) => onBaseUrlChange(event.target.value)}
+              placeholder={setup.format.base_url_placeholder || t("onboarding.provider_setup_base_url_placeholder")}
+              required
+              spellCheck={false}
+              type="url"
+              value={baseUrl}
+            />
+          </UiField>
+        ) : null}
+
+        {modelRequired ? (
+          <UiField
+            htmlFor="provider-setup-model-id"
+            label={t("onboarding.provider_setup_model")}
+          >
+            <UiInput
+              autoCapitalize="off"
+              autoCorrect="off"
+              controlSize="md"
+              id="provider-setup-model-id"
+              onChange={(event) => onModelIDChange(event.target.value)}
+              placeholder={t("onboarding.provider_setup_model_placeholder")}
+              required
+              spellCheck={false}
+              type="text"
+              value={modelId}
+            />
+          </UiField>
+        ) : null}
+
+        {error ? (
+          <div className={getDialogNoteClassName("danger")} role="alert">
+            <div className="flex items-start gap-2">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
+              <span>{error}</span>
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <UiField
-        description={existingProvider?.auth_token_masked && !apiKey
-          ? t("onboarding.provider_setup_api_key_keep")
-          : undefined}
-        htmlFor="provider-setup-api-key"
-        label={t("onboarding.provider_setup_api_key")}
-      >
-        <UiInput
-          autoCapitalize="off"
-          autoComplete="off"
-          autoCorrect="off"
-          controlSize="md"
-          data-form-type="other"
-          data-lpignore="true"
-          id="provider-setup-api-key"
-          name="provider-setup-api-key"
-          onChange={(event) => onApiKeyChange(event.target.value)}
-          placeholder={t("onboarding.provider_setup_api_key_placeholder")}
-          required={apiKeyRequired}
-          spellCheck={false}
-          type="password"
-          value={apiKey}
-        />
-        {setup.preset.key_url ? (
-          <a
-            className="mt-1 inline-flex items-center gap-1 text-2xs font-medium text-(--brand-action) hover:underline"
-            href={setup.preset.key_url}
-            rel="noreferrer"
-            target="_blank"
-          >
-            {t("onboarding.provider_setup_get_api_key")}
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        ) : null}
-      </UiField>
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
+        <UiButton onClick={onBack} size="sm" variant="text">
+          <ChevronLeft className="h-3.5 w-3.5" />
+          {t("onboarding.provider_setup_back")}
+        </UiButton>
+        <UiButton onClick={onSubmit} size="sm" tone="primary" variant="solid">
+          <PlugZap className="h-3.5 w-3.5" />
+          {t("onboarding.provider_setup_submit")}
+        </UiButton>
+      </div>
+    </>
+  );
+}
 
-      {setup.preset.endpoint_mode !== "fixed" ? (
+function CustomProviderScene({
+  apiFormat,
+  apiKey,
+  baseUrl,
+  error,
+  existingProvider,
+  formats,
+  modelId,
+  onApiFormatChange,
+  onApiKeyChange,
+  onBack,
+  onBaseUrlChange,
+  onModelIDChange,
+  onNameChange,
+  onSubmit,
+  providerName,
+}: {
+  apiFormat: ProviderApiFormat | "";
+  apiKey: string;
+  baseUrl: string;
+  error: string | null;
+  existingProvider: ProviderConfigRecord | null;
+  formats: ProviderSetupPreset[];
+  modelId: string;
+  onApiFormatChange: (value: string) => void;
+  onApiKeyChange: (value: string) => void;
+  onBack: () => void;
+  onBaseUrlChange: (value: string) => void;
+  onModelIDChange: (value: string) => void;
+  onNameChange: (value: string) => void;
+  onSubmit: () => void;
+  providerName: string;
+}) {
+  const { t } = useI18n();
+  const formatOptions = formats.map((setup) => ({
+    label: customAPIFormatLabel(setup.format.api_format),
+    value: setup.format.api_format,
+  }));
+  return (
+    <>
+      <SceneMessage
+        body={t("onboarding.provider_setup_custom_description")}
+        title={t("onboarding.provider_setup_custom_title")}
+      />
+
+      <div className="soft-scrollbar mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
+          <UiField
+            htmlFor="provider-setup-custom-name"
+            label={t("onboarding.provider_setup_custom_name")}
+          >
+            <UiInput
+              autoCapitalize="off"
+              autoCorrect="off"
+              controlSize="md"
+              id="provider-setup-custom-name"
+              onChange={(event) => onNameChange(event.target.value)}
+              placeholder={t("onboarding.provider_setup_custom_name_placeholder")}
+              required
+              spellCheck={false}
+              type="text"
+              value={providerName}
+            />
+          </UiField>
+          <UiField
+            htmlFor="provider-setup-custom-format"
+            label={t("onboarding.provider_setup_custom_format")}
+          >
+            <UiSelectMenu
+              ariaLabel={t("onboarding.provider_setup_custom_format")}
+              className="w-full"
+              id="provider-setup-custom-format"
+              onChange={onApiFormatChange}
+              options={formatOptions}
+              placeholder={t("onboarding.provider_setup_custom_format_placeholder")}
+              size="md"
+              surface="dialog"
+              value={apiFormat}
+            />
+          </UiField>
+        </div>
+
         <UiField
-          htmlFor="provider-setup-base-url"
+          description={existingProvider?.auth_token_masked && !apiKey
+            ? t("onboarding.provider_setup_api_key_keep")
+            : undefined}
+          htmlFor="provider-setup-custom-api-key"
+          label={t("onboarding.provider_setup_api_key")}
+        >
+          <UiInput
+            autoCapitalize="off"
+            autoComplete="off"
+            autoCorrect="off"
+            controlSize="md"
+            data-form-type="other"
+            data-lpignore="true"
+            id="provider-setup-custom-api-key"
+            name="provider-setup-custom-api-key"
+            onChange={(event) => onApiKeyChange(event.target.value)}
+            placeholder={t("onboarding.provider_setup_api_key_placeholder")}
+            required={!existingProvider?.auth_token_masked?.trim()}
+            spellCheck={false}
+            type="password"
+            value={apiKey}
+          />
+        </UiField>
+
+        <UiField
+          htmlFor="provider-setup-custom-base-url"
           label={t("onboarding.provider_setup_base_url")}
         >
           <UiInput
             autoCapitalize="off"
             autoCorrect="off"
             controlSize="md"
-            id="provider-setup-base-url"
+            id="provider-setup-custom-base-url"
             onChange={(event) => onBaseUrlChange(event.target.value)}
-            placeholder={
-              setup.format.base_url_placeholder
-              || t("onboarding.provider_setup_base_url_placeholder")
-            }
+            placeholder={t("onboarding.provider_setup_base_url_placeholder")}
             required
             spellCheck={false}
             type="url"
             value={baseUrl}
           />
         </UiField>
-      ) : null}
 
-      {modelRequired ? (
         <UiField
-          description={t("onboarding.provider_setup_model_hint")}
-          htmlFor="provider-setup-model-id"
+          htmlFor="provider-setup-custom-model-id"
           label={t("onboarding.provider_setup_model")}
         >
           <UiInput
             autoCapitalize="off"
             autoCorrect="off"
             controlSize="md"
-            id="provider-setup-model-id"
+            id="provider-setup-custom-model-id"
             onChange={(event) => onModelIDChange(event.target.value)}
             placeholder={t("onboarding.provider_setup_model_placeholder")}
             required
@@ -630,90 +1055,209 @@ function CredentialsStep({
             value={modelId}
           />
         </UiField>
-      ) : null}
 
-      {error ? (
-        <div className={getDialogNoteClassName("danger")} role="alert">
-          <div className="flex items-start gap-2">
-            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
-            <span>{error}</span>
+        {error ? (
+          <div className={getDialogNoteClassName("danger")} role="alert">
+            <div className="flex items-start gap-2">
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-(--destructive)" />
+              <span>{error}</span>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-(--divider-subtle-color) pb-5 pt-3">
+        <UiButton onClick={onBack} size="sm" variant="text">
+          <ChevronLeft className="h-3.5 w-3.5" />
+          {t("onboarding.provider_setup_back")}
+        </UiButton>
+        <UiButton onClick={onSubmit} size="sm" tone="primary" variant="solid">
+          <PlugZap className="h-3.5 w-3.5" />
+          {t("onboarding.provider_setup_submit")}
+        </UiButton>
+      </div>
+    </>
+  );
+}
+
+function VerifyScene({ phase }: { phase: number }) {
+  const { t } = useI18n();
+  const lines = [
+    t("onboarding.provider_setup_verify_identity"),
+    t("onboarding.provider_setup_verify_models"),
+    t("onboarding.provider_setup_verify_default"),
+  ];
+  return (
+    <>
+      <SceneMessage
+        body={t("onboarding.provider_setup_verify_description")}
+        title={t("onboarding.provider_setup_verify_title")}
+      />
+      <div
+        aria-live="polite"
+        className="my-auto flex items-center gap-3 border-y border-(--divider-subtle-color) py-4"
+        role="status"
+      >
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-(--surface-muted-background)">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-(--brand-action)" />
+        </span>
+        <span className="text-sm font-medium text-(--text-strong)">
+          {lines[phase] ?? lines[lines.length - 1]}
+        </span>
+        <span className="ml-auto text-2xs tabular-nums text-(--text-muted)">
+          {Math.min(phase + 1, lines.length)} / {lines.length}
+        </span>
+      </div>
+    </>
+  );
+}
+
+function ReadyScene({
+  onStart,
+  result,
+}: {
+  onStart: () => void;
+  result: SetupResult;
+}) {
+  const { t } = useI18n();
+  return (
+    <>
+      <SceneMessage
+        body={t("onboarding.provider_setup_success", {
+          model: result.model,
+          provider: result.provider,
+        })}
+        title={t("onboarding.provider_setup_success_title")}
+      />
+      <div className="flex flex-1 items-center py-5">
+        <div className="w-full">
+          <p className="mb-2 text-xs font-medium text-(--text-strong)">
+            {t("onboarding.provider_setup_features_title")}
+          </p>
+          <div className="grid grid-cols-2 border-y border-(--divider-subtle-color)">
+            <FeatureItem
+              className="border-b border-r border-(--divider-subtle-color) pr-3"
+              icon={<MessageSquare className="h-4 w-4" />}
+              title={t("onboarding.provider_setup_feature_agent_title")}
+            />
+            <FeatureItem
+              className="border-b border-(--divider-subtle-color) pl-3"
+              icon={<UsersRound className="h-4 w-4" />}
+              title={t("onboarding.provider_setup_feature_room_title")}
+            />
+            <FeatureItem
+              className="border-r border-(--divider-subtle-color) pr-3"
+              icon={<Puzzle className="h-4 w-4" />}
+              title={t("onboarding.provider_setup_feature_capability_title")}
+            />
+            <FeatureItem
+              className="pl-3"
+              icon={<Clock3 className="h-4 w-4" />}
+              title={t("onboarding.provider_setup_feature_context_title")}
+            />
           </div>
         </div>
-      ) : null}
+      </div>
+      <div className="flex shrink-0 justify-end pb-5">
+        <UiButton onClick={onStart} size="sm" tone="primary" variant="solid">
+          {t("onboarding.provider_setup_enter_chat")}
+          <ChevronRight className="h-3.5 w-3.5" />
+        </UiButton>
+      </div>
+    </>
+  );
+}
 
+function SceneMessage({
+  body,
+  title,
+}: {
+  body: string;
+  title: string;
+}) {
+  return (
+    <div>
+      <h3 className="text-[22px] font-semibold tracking-[-0.02em] text-(--text-strong)">
+        {title}
+      </h3>
+      <p className="mt-2 max-w-[42ch] text-sm leading-5 text-(--text-muted)">
+        {body}
+      </p>
     </div>
   );
 }
 
-function VerifyStep({
-  busy,
-  result,
+function FeatureItem({
+  className,
+  icon,
+  title,
 }: {
-  busy: boolean;
-  result: SetupResult | null;
+  className: string;
+  icon: ReactNode;
+  title: string;
 }) {
-  const { t } = useI18n();
-  if (busy) {
-    return (
-      <div
-        aria-live="polite"
-        className="flex min-h-40 flex-col items-center justify-center gap-3 text-center"
-        role="status"
-      >
-        <Loader2 className="h-6 w-6 animate-spin text-(--brand-action)" />
-        <p className="text-sm font-medium text-(--text-strong)">
-          {t("onboarding.provider_setup_testing")}
-        </p>
-      </div>
-    );
-  }
-  if (!result) {
-    return null;
-  }
   return (
-    <div
-      aria-live="polite"
-      className="flex min-h-40 flex-col items-center justify-center gap-3 text-center"
-      role="status"
-    >
-      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--success)_14%,transparent)] text-(--success)">
-        <Check className="h-5 w-5" />
-      </div>
-      <div>
-        <h3 className="text-sm font-semibold text-(--text-strong)">
-          {t("onboarding.provider_setup_success_title")}
-        </h3>
-        <p className="mt-1 text-xs leading-5 text-(--text-muted)">
-          {t("onboarding.provider_setup_success", {
-            model: result.model,
-            provider: result.provider,
-          })}
-        </p>
-      </div>
+    <div className={`flex min-w-0 items-center gap-2.5 py-3 ${className}`}>
+      <span className="shrink-0 text-(--brand-action)">{icon}</span>
+      <span className="truncate text-xs font-medium text-(--text-strong)">{title}</span>
     </div>
   );
+}
+
+function resolveJourneyPhase(scene: SetupScene): JourneyPhase {
+  if (scene === "ready") {
+    return "start";
+  }
+  if (scene === "credentials" || scene === "custom" || scene === "verify") {
+    return "discover";
+  }
+  return "connect";
+}
+
+function resolveVisiblePresets(
+  presets: ProviderSetupPreset[],
+  selectedPresetKey: string,
+  showAll: boolean,
+): ProviderSetupPreset[] {
+  if (showAll || presets.length <= FEATURED_PROVIDER_COUNT) {
+    return presets;
+  }
+  const featured = presets.slice(0, FEATURED_PROVIDER_COUNT);
+  const selected = presets.find((item) => item.preset.preset_key === selectedPresetKey);
+  if (!selected || featured.some((item) => item.preset.preset_key === selectedPresetKey)) {
+    return featured;
+  }
+  return [...featured.slice(0, FEATURED_PROVIDER_COUNT - 1), selected];
 }
 
 async function persistAndTest({
+  apiFormat,
   apiKey,
   baseURL,
+  displayName,
+  modelsPath,
   modelID,
-  setup,
+  presetKey,
+  providerKey,
   existingProvider,
 }: {
+  apiFormat: ProviderApiFormat;
   apiKey: string;
   baseURL: string;
+  displayName: string;
+  modelsPath: string;
   modelID: string;
-  setup: ProviderSetupPreset;
+  presetKey: string;
+  providerKey: string;
   existingProvider: ProviderConfigRecord | null;
 }) {
   const basePayload = {
-    api_format: setup.format.api_format,
+    api_format: apiFormat,
     base_url: baseURL,
-    display_name: setup.preset.display_name,
+    display_name: displayName,
     enabled: true,
-    models_path: setup.format.models_path,
-    preset_key: setup.preset.preset_key,
+    models_path: modelsPath,
+    preset_key: presetKey,
     provider_kind: "llm" as const,
   };
   const record = existingProvider
@@ -724,7 +1268,7 @@ async function persistAndTest({
     : await createProviderConfigApi({
       ...basePayload,
       auth_token: apiKey,
-      provider: setup.preset.preset_key,
+      provider: providerKey,
       visibility: "private",
     });
   const testResult = modelID
@@ -736,10 +1280,58 @@ async function persistAndTest({
   return testResult;
 }
 
-function defaultModelID(
-  provider: ProviderConfigRecord | null,
-): string {
+function defaultModelID(provider: ProviderConfigRecord | null): string {
   return provider?.models.find((model) => model.is_default)?.model_id
     ?? provider?.models.find((model) => model.enabled)?.model_id
     ?? "";
+}
+
+function selectInitialCustomAPIFormat(
+  setups: readonly ProviderSetupPreset[],
+): ProviderApiFormat | "" {
+  return setups.find(
+    (setup) => setup.format.api_format === "chat_completions",
+  )?.format.api_format
+    ?? setups[0]?.format.api_format
+    ?? "";
+}
+
+function customAPIFormatLabel(apiFormat: ProviderApiFormat): string {
+  switch (apiFormat) {
+    case "chat_completions":
+      return "OpenAI Chat";
+    case "responses":
+      return "OpenAI Responses";
+    case "anthropic_messages":
+      return "Anthropic Messages";
+    default:
+      return apiFormat;
+  }
+}
+
+function createCustomProviderKey(): string {
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).slice(2, 8);
+  return `custom-${timestamp}-${random}`;
+}
+
+async function persistDefaultModelSelections({
+  model,
+  provider,
+}: {
+  model: string;
+  provider: string;
+}): Promise<void> {
+  const currentPreferences = await getUserPreferencesApi();
+  const selection = { model, provider };
+  const savedPreferences = await updateUserPreferencesApi({
+    default_agent_options: {
+      ...currentPreferences.default_agent_options,
+      model,
+      provider,
+    },
+    default_background_model_selection: selection,
+  });
+  setUserPreferences(savedPreferences);
+  invalidateProviderAvailability();
 }

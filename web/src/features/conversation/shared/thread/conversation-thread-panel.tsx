@@ -18,11 +18,13 @@ import type {
   PermissionDecisionPayload,
 } from "@/types/conversation/interaction/permission";
 import type { Message } from "@/types/conversation/message/entity";
+import type { UnresolvedToolStatus } from "@/features/conversation/shared/message/item/view/content/content-renderer-contract";
 
 import {
   buildConversationThreadModel,
   type ConversationThreadLayout,
   type ConversationThreadNavigation,
+  type ConversationThreadPresentation,
   type ConversationThreadRound,
 } from "./conversation-thread-model";
 import {
@@ -35,7 +37,6 @@ interface ConversationThreadPanelProps {
   agentId: string;
   agentName: string;
   agentAvatar?: string | null;
-  userAvatar?: string | null;
   /** 已过滤好的 Thread 消息。 */
   messages: Message[];
   /** 子智能体可在同一个 Thread 中连续产生多轮消息。 */
@@ -50,6 +51,8 @@ interface ConversationThreadPanelProps {
   layout?: ConversationThreadLayout;
   /** 默认按布局选择返回或关闭，也可由复用方显式指定。 */
   navigation?: ConversationThreadNavigation;
+  /** transcript 展示完整记录；inspector 只保留执行过程。 */
+  presentation?: ConversationThreadPresentation;
   /** 覆盖默认头像，用于没有持久化头像的稳定视觉身份。 */
   headerAvatar?: ReactNode;
   /** undefined 使用 Thread，null 隐藏副标题。 */
@@ -60,6 +63,7 @@ interface ConversationThreadPanelProps {
   emptyContent?: ReactNode;
   sessionKey?: string;
   workspaceAgentId?: string | null;
+  unresolvedToolStatus?: UnresolvedToolStatus;
 }
 
 const EMPTY_PENDING_PERMISSIONS: PendingPermission[] = [];
@@ -72,7 +76,6 @@ export function ConversationThreadPanel({
   agentId,
   agentName,
   agentAvatar,
-  userAvatar,
   messages,
   rounds,
   pendingPermissions,
@@ -83,6 +86,7 @@ export function ConversationThreadPanel({
   isLoading,
   layout,
   navigation,
+  presentation,
   headerAvatar,
   headerSubtitle,
   headerAction,
@@ -91,9 +95,9 @@ export function ConversationThreadPanel({
   emptyContent,
   sessionKey,
   workspaceAgentId,
+  unresolvedToolStatus,
 }: ConversationThreadPanelProps) {
   const resolvedAgentAvatar = valueOrDefault(agentAvatar, null);
-  const resolvedUserAvatar = valueOrDefault(userAvatar, null);
   const resolvedPendingPermissions = valueOrDefault(
     pendingPermissions,
     EMPTY_PENDING_PERMISSIONS,
@@ -101,6 +105,7 @@ export function ConversationThreadPanel({
   const resolvedIsLoading = valueOrDefault(isLoading, false);
   const resolvedLayout = valueOrDefault(layout, "desktop");
   const resolvedNavigation = valueOrDefault(navigation, "auto");
+  const resolvedPresentation = valueOrDefault(presentation, "transcript");
   const model = useMemo(
     () =>
       buildConversationThreadModel({
@@ -110,6 +115,7 @@ export function ConversationThreadPanel({
         messages,
         navigation: resolvedNavigation,
         pendingPermissions: resolvedPendingPermissions,
+        presentation: resolvedPresentation,
         roundId,
         rounds,
         sessionKey,
@@ -122,6 +128,7 @@ export function ConversationThreadPanel({
       resolvedLayout,
       resolvedNavigation,
       resolvedPendingPermissions,
+      resolvedPresentation,
       roundId,
       rounds,
       sessionKey,
@@ -160,7 +167,7 @@ export function ConversationThreadPanel({
     onOpenWorkspaceFile,
     onPermissionResponse,
     onStopMessage,
-    userAvatar: resolvedUserAvatar,
+    unresolvedToolStatus,
     workspaceAgentId: model.workspaceAgentId,
   };
 

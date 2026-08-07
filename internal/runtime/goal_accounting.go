@@ -78,7 +78,7 @@ func (m *Manager) AdoptGoalObjectiveRevision(sessionKey string, revision int64) 
 
 	adopted := make([]string, 0, len(roundIDs))
 	for index, state := range revisions {
-		if state == nil {
+		if state == nil || state.Load() <= 0 {
 			continue
 		}
 		for {

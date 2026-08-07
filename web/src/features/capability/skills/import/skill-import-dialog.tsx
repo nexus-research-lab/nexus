@@ -10,6 +10,7 @@ import {
   UiDialogHeader,
   UiDialogPortal,
 } from "@/shared/ui/dialog/dialog";
+import { useI18n } from "@/shared/i18n/i18n-context";
 
 import type { SkillImportDialogMode } from "../controller/skill-marketplace-controller";
 import { SkillImportFooter } from "./skill-import-footer";
@@ -42,6 +43,7 @@ export function SkillImportDialog({
   onImportGit,
   onSelectMode,
 }: SkillImportDialogProps) {
+  const { t } = useI18n();
   const controller = useSkillImportDialog({
     importing,
     mode,
@@ -67,8 +69,8 @@ export function SkillImportDialog({
           <UiDialogHeader
             icon={<HeaderIcon className="h-4 w-4" />}
             onClose={controller.dismissAction}
-            subtitle="导入前请确认目录内包含合法的 SKILL.md，Room 技能需要显式声明 scope: room。"
-            title="导入 Skill"
+            subtitle={t("capability.skills_import_subtitle")}
+            title={t("capability.skills_import_title")}
           />
           <UiDialogBody
             className="grid min-h-0 gap-5 lg:grid-cols-[minmax(0,1fr)_340px]"

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useConversationPanelEnvironment } from "@/features/conversation/shared/use-conversation-panel-environment";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -11,14 +11,15 @@ import { useDmChatSessionController } from "./use-dm-chat-session-controller";
 import { useDmGoalController } from "./use-dm-goal-controller";
 
 export function useDmChatPanelModel({
-  currentAgentAvatar,
-  currentAgentName,
-  currentAgentPermissionMode,
+  currentAgent,
+  executionResource,
   initialDraft,
   layout,
   onConversationSnapshotChange,
+  onExecutionTaskRunsChange,
   onInitialDraftConsumed,
   onOpenAgentContact,
+  onOpenWorkGraph,
   onOpenWorkspaceFile,
   onRoomEvent,
   onTodosChange,
@@ -30,8 +31,8 @@ export function useDmChatPanelModel({
   const environment = useConversationPanelEnvironment(layout);
   const sessionKey = sessionIdentity?.session_key ?? null;
   const goal = useDmGoalController({
-    agentName: currentAgentName,
-    permissionMode: currentAgentPermissionMode,
+    agentName: currentAgent.name,
+    permissionMode: currentAgent.options.permission_mode ?? null,
     sessionKey,
   });
   const session = useDmChatSessionController({
@@ -41,9 +42,12 @@ export function useDmChatPanelModel({
     onRoomEvent,
     onTodosChange,
   });
+  useEffect(() => {
+    onExecutionTaskRunsChange?.(session.taskRuns);
+  }, [onExecutionTaskRunsChange, session.taskRuns]);
   const goalScopeLabel = t("dm.goal_scope");
   const composer = useDmChatComposerModel({
-    agentId: sessionIdentity?.agent_id ?? null,
+    agent: currentAgent,
     conversation: session.conversation,
     goalScopeLabel,
     initialDraft: initialDraft ?? null,
@@ -62,13 +66,15 @@ export function useDmChatPanelModel({
   );
   return buildDmChatPanelViewModel({
     composer,
-    currentAgentAvatar,
-    currentAgentName,
+    currentAgentAvatar: currentAgent.avatar ?? null,
+    currentAgentName: currentAgent.name,
     environment,
+    execution: executionResource,
     goal,
     goalScopeLabel,
     onEditLastUserMessage: handleEditLastUserMessage,
     onOpenAgentContact,
+    onOpenWorkGraph,
     onOpenWorkspaceFile,
     session,
     todos,

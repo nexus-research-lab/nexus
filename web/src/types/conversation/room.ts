@@ -6,6 +6,7 @@ export interface RoomMember {
   member_type: string;
   member_user_id?: string | null;
   member_agent_id?: string | null;
+  participation_paused: boolean;
   joined_at?: string | null;
 }
 
@@ -49,6 +50,7 @@ export interface RoomSessionRecord {
   branch_key: string;
   is_primary: boolean;
   sdk_session_id?: string | null;
+  options: Record<string, unknown>;
   status: string;
   last_activity_at?: string | null;
   created_at?: string | null;

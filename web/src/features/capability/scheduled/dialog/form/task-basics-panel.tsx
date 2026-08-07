@@ -2,6 +2,7 @@
 
 import { type RefObject } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 
@@ -29,7 +30,8 @@ export function TaskBasicsPanel({
   form,
   nameRef,
 }: TaskBasicsPanelProps) {
-  const target = buildTaskTargetPresentation(form, data);
+  const { t } = useI18n();
+  const target = buildTaskTargetPresentation(form, data, t);
   const targetActions: Record<TargetType, (value: string) => void> = {
     agent: actions.setSelectedAgentId,
     room: actions.setSelectedRoomId,
@@ -38,12 +40,15 @@ export function TaskBasicsPanel({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <UiField htmlFor="task-name" label="任务名称">
+      <UiField
+        htmlFor="task-name"
+        label={t("capability.scheduled_dialog_task_name")}
+      >
         <UiInput
           ref={nameRef}
           id="task-name"
           onChange={(event) => actions.setTaskName(event.target.value)}
-          placeholder="输入任务名称"
+          placeholder={t("capability.scheduled_dialog_task_name_placeholder")}
           value={form.taskName}
         />
       </UiField>

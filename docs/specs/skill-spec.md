@@ -21,6 +21,10 @@ Agent 的设置页才是启停 Skill 的入口；每个 Agent 可以有不同的
 | 用户导入 / 第三方市场 | `<workspace>/<owner>/workspace/.agents/skills/<name>/` | 可见 | 可按 Agent 启停 | 未绑定即停用 | 导入、更新、删除、启用、停用 |
 | Agent 工作区 Skill | `<agent workspace>/.agents/skills` 或 `.claude/skills` | 不可见 | 仅所属 Agent 可见 | 文件存在即启用 | 启用、停用、删除 |
 
+同名投影的优先级固定为：Agent 工作区 > 系统/平台 > 桌面宿主 > owner 导入。
+后一层不能用 frontmatter `name` 绕过前一层；若需要并存，必须在来源目录阶段使用
+不同的 canonical name。
+
 Room 不是一种文件来源，而是 `scope: room` 使用范围。Room Skill 仍来自平台、
 宿主或用户导入源，继续出现在全局技能库中，但不能绑定到单个 Agent，只能在
 Room 配置中选择。
@@ -46,6 +50,20 @@ Nexus **不会扫描** `~/.codex/skills`、`~/.claude/skills`、`~/.cc-switch/sk
 或其他外部 Skill 目录。`.claude/skills` 只是在受管兼容根中为 Claude Code 提供
 与 `.agents/skills` 相同内容的发现入口，不是第二个来源。
 
+每个发现根只接受一层 `skill-name/SKILL.md`，canonical name 始终是
+`skill-name` 目录名；frontmatter 或导入 manifest 中的 `name` 只作展示元数据，
+不改写绑定键。目录名不得包含首尾空白，也不得使用持久化引用保留前缀
+`external:`；绑定键按大小写不敏感去重。
+宿主根允许顶层目录链接表示一个 Skill，但目标必须位于当前用户 home 内、
+目标根直接包含真实 `SKILL.md`，且 Skill 内部不允许二次链接或特殊文件。
+嵌套的 bundle/collection 不是这一层的发现单元；未来如引入 connector 层，
+应在该层导入时展开并命名，不改变 canonical 根的直接子目录契约。
+
+Agent workspace 是独立的动态层：Nexus 会读取 nxs/Codex 原生的
+`.agents/skills/<name>` 以及 Claude Code 原生的 `.claude/skills/<name>`。
+这不等于扫描宿主 `~/.claude/skills`；也不支持无 `skills` 层级的
+`.agents/<name>` 伪根。
+
 平台源和宿主源会分别同步到：
 
 ```text
@@ -55,8 +73,14 @@ Nexus **不会扫描** `~/.codex/skills`、`~/.claude/skills`、`~/.cc-switch/sk
 <config>/host-skills/.claude/skills
 ```
 
-同步使用源内容指纹、临时目录和原子替换。Nexus 不把全局 Skill 复制到每个
-Agent workspace；workspace 中出现的文件一律按该 Agent 的本地来源处理。
+平台源使用内容指纹和整库分阶段发布。宿主源在服务启动时先创建稳定的
+`<config>/host-skills/.agents/skills` 目录，再由后台 watcher 有界校验并按
+Skill 分阶段替换。单个 Skill 更新失败时保留该项 last-known-good，不阻断同级
+Skill 刷新；源中明确删除的 Skill 则从投影删除。Catalog 与 runtime 都只读取
+这一受管投影，不各自重新扫描宿主 home。
+
+Nexus 不把全局 Skill 复制到每个 Agent workspace；workspace 中出现的文件
+一律按该 Agent 的本地来源处理。
 
 用户导入的 Skill 按 owner 隔离，目录为：
 
@@ -129,6 +153,10 @@ Agent 设置页负责管理“这个 Agent 使用什么”：
 - 本地 Skill 显示“Agent 本地”标记，只能在所属 Agent 设置页操作；
 - 每次切换只更新目标 Agent，不携带整个 Agent 草稿，避免旧快照覆盖其他设置。
 
+Composer 的 `/skills` 选择器同时展示上述两组。可启用但未绑定的 Skill 标记为
+“单次使用”：用户明确选择后只对当前轮加载，不自动打开 Agent 设置页，也不修改
+长期启用状态。
+
 ### 5.3 同名 Skill
 
 全局 Skill 与 Agent 本地 Skill 同名时：
@@ -173,7 +201,7 @@ Content-Type: application/json
 
 启动 runtime 前，宿主完成以下步骤：
 
-1. 同步平台、宿主和 owner 全局兼容根；
+1. 使用已发布的平台根、稳定宿主快照和当前 owner 全局根；
 2. 从 `skill_ids` 将 `external:<name>` 还原为 canonical name；
 3. 从 Agent workspace 动态发现本地 Skill；
 4. 将全局绑定名称与未停用的本地名称传给 nxs；
@@ -185,6 +213,13 @@ nxs 的显式白名单用于全局绑定，workspace Skill 按 CC 语义动态�
 出的拒绝列表可以包含未绑定的全局名称，但这只是本次运行时投影，不回写
 `disabled_skill_ids`。
 
+用户显式选择 Skill 时，Composer 只把原始 `/skill-name args` 作为普通 user
+message 发送。平台源和 owner 源已经通过 additional directories 暴露给 runtime：
+nxs 从完整 `user-invocable` 目录解析，Claude Code 沿用自身直接 Skill command
+解析；两者都在 runtime 内展开 `$ARGUMENTS`、位置参数和 Skill 目录变量。inline
+正文进入隐藏 meta user，`context: fork` 只回写隔离执行结果。显式调用不会改变
+后续轮次的发现、拒绝集合或 Agent 持久设置。
+
 ## 8. 生命周期语义
 
 | 动作 | 全局 Skill | Agent workspace Skill |
@@ -192,6 +227,7 @@ nxs 的显式白名单用于全局绑定，workspace Skill 按 CC 语义动态�
 | 导入 | 写入 owner 全局源和 manifest | 不适用 |
 | 启用 | 加入当前 Agent `skill_ids` | 清除当前 Agent 的停用项 |
 | 停用 | 从当前 Agent `skill_ids` 移除 | 写入当前 Agent `disabled_skill_ids`，保留文件 |
+| 显式单次使用 | runtime 展开当前轮，不改写 `skill_ids` | runtime 展开当前轮，不改写 `disabled_skill_ids` |
 | 更新 | 原子替换 owner 源，所有已绑定 Agent 自然读取新版本 | 修改所属 Agent 文件 |
 | 删除 | 仅用户导入源可删除；同时清理全局绑定 | 删除所属 Agent workspace 文件 |
 
@@ -205,6 +241,7 @@ nxs 的显式白名单用于全局绑定，workspace Skill 按 CC 语义动态�
 - 用 Skill 名称而不带 `target_scope` 修改同名来源；
 - 把路径写入 `skill_ids`；
 - 扫描 `~/.codex`、宿主 `~/.claude`、`.cc-switch` 或未声明的外部目录；
+- 把宿主 canonical 根中的嵌套 collection 递归展开为 Skill；
 - 把 Agent workspace Skill 放进全局技能库或其他 Agent 的设置页；
 - 把 internal Skill 混进公开第三方市场。
 
@@ -212,4 +249,5 @@ nxs 的显式白名单用于全局绑定，workspace Skill 按 CC 语义动态�
 
 全局技能库解决“用户有哪些 Skill”，Agent 设置解决“这个 Agent 用哪些 Skill”；
 全局绑定写 `skill_ids`，Agent 本地停用写 `disabled_skill_ids`，workspace-local
-Skill 默认只对自己的 Agent 可见，运行时再把三者投影为 nxs/Claude 的发现与权限。
+Skill 默认只对自己的 Agent 可见；长期状态投影为 nxs/Claude 的发现与权限，
+用户明确选择则由 runtime 的显式解析路径仅授权当前轮。

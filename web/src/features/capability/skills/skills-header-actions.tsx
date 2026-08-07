@@ -53,7 +53,9 @@ function SkillsHeaderCompactActions({
       icon: importing
         ? <Loader2 className="h-4 w-4 animate-spin text-(--icon-muted)" />
         : <Download className="h-4 w-4 text-(--icon-muted)" />,
-      label: importing ? "导入中" : t("capability.import_skill"),
+      label: importing
+        ? t("capability.skills_importing")
+        : t("capability.import_skill"),
       tone: "primary",
       value: "import",
     },
@@ -62,7 +64,9 @@ function SkillsHeaderCompactActions({
       icon: checkingUpdates
         ? <Loader2 className="h-4 w-4 animate-spin text-(--icon-muted)" />
         : <RefreshCw className="h-4 w-4 text-(--icon-muted)" />,
-      label: checkingUpdates ? "检查中" : t("capability.update_library"),
+      label: checkingUpdates
+        ? t("capability.skills_checking")
+        : t("capability.update_library"),
       value: "updates",
     },
     {
@@ -130,7 +134,9 @@ function SkillsHeaderDesktopActions({
           onClick={() => onOpenImport("local")}
         >
           <Download className="h-3.5 w-3.5" />
-          {importing ? "导入中" : t("capability.import_skill")}
+          {importing
+            ? t("capability.skills_importing")
+            : t("capability.import_skill")}
         </WorkspaceSurfaceToolbarAction>
       </div>
       <div className="flex items-center" data-tour-anchor={SKILLS_TOUR_ANCHORS.update_library}>
@@ -143,7 +149,9 @@ function SkillsHeaderDesktopActions({
           ) : (
             <RefreshCw className="h-3.5 w-3.5" />
           )}
-          {checkingUpdates ? "检查中" : t("capability.update_library")}
+          {checkingUpdates
+            ? t("capability.skills_checking")
+            : t("capability.update_library")}
         </WorkspaceSurfaceToolbarAction>
       </div>
       <WorkspaceSurfaceToolbarAction onClick={onOpenSources}>

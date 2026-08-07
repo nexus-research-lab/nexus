@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 成员目录、当前选择与业务外观语境。
- * OUTPUT: 复用共享菜单生命周期的成员身份切换器及默认/Task 紧凑触发器。
+ * OUTPUT: 复用共享菜单生命周期的成员身份切换器及 Panel/Task 紧凑触发器。
  * POS: Workspace、Subagent 与 Room 进程共用的成员切换视图。
  */
 "use client";
@@ -8,6 +8,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import {
   getIconAvatarSrc,
@@ -21,7 +22,7 @@ import type { Agent } from "@/types/agent/agent";
 
 interface RoomAgentSwitcherProps {
   ariaLabel?: string;
-  variant?: "default" | "task";
+  variant?: "panel" | "task";
   members: Agent[];
   selectedId: string;
   onSelect: (id: string) => void;
@@ -29,13 +30,14 @@ interface RoomAgentSwitcherProps {
 }
 
 export function RoomAgentSwitcher({
-  ariaLabel = "切换 Agent",
+  ariaLabel,
   members,
   selectedId,
   onSelect,
   className,
-  variant = "default",
+  variant = "panel",
 }: RoomAgentSwitcherProps) {
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeMenu = useCallback(() => setIsOpen(false), []);
@@ -47,6 +49,7 @@ export function RoomAgentSwitcher({
   if (!selectedMember) {
     return null;
   }
+  const accessibleLabel = ariaLabel ?? t("room.switch_agent");
 
   const menuItems: UiActionMenuItem[] = members.map((member) => {
     const isActive = member.agent_id === selectedId;
@@ -66,41 +69,33 @@ export function RoomAgentSwitcher({
 
   return (
     <div
-      className={cn("relative min-w-0", className)}
+      className={cn(
+        "relative min-w-0",
+        variant === "panel" ? "w-28 shrink-0" : "w-full max-w-36",
+        className,
+      )}
       data-room-agent-switcher-variant={variant}
     >
       <button
         ref={triggerRef}
         aria-expanded={isOpen}
         aria-haspopup="menu"
-        aria-label={`${ariaLabel}：${selectedMember.name}`}
+        aria-label={t("room.switch_agent_current", {
+          label: accessibleLabel,
+          name: selectedMember.name,
+        })}
         className={cn(
-          "flex min-w-0 items-center gap-1 text-compact transition-[background,border-color,color] duration-(--motion-duration-fast) focus-visible:outline-none",
-          variant === "task"
-            ? "h-7 w-full max-w-[9rem] rounded-[7px] px-1.5 font-semibold leading-none text-(--text-strong) hover:bg-(--surface-interactive-hover-background) focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
-            : "max-w-[168px] border-b px-0 pb-0.5 text-(--text-default)",
-          variant === "task"
-            && isOpen
-            && "bg-(--surface-interactive-active-background)",
+          "flex h-7 w-full min-w-0 items-center gap-1 rounded-[7px] px-1.5 text-compact font-semibold leading-none text-(--text-strong) transition-[background,color] duration-(--motion-duration-fast) hover:bg-(--surface-interactive-hover-background) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
+          isOpen && "bg-(--surface-interactive-active-background)",
         )}
-        style={variant === "default"
-          ? isOpen
-            ? { borderBottom: "1px solid var(--surface-popover-border)" }
-            : { borderBottom: "1px solid color-mix(in srgb, var(--divider-subtle-color) 82%, transparent)" }
-          : undefined}
         onClick={() => setIsOpen((prev) => !prev)}
         type="button"
       >
         <RoomAgentAvatar
-          className={variant === "task" ? "h-4 w-4" : "h-4.5 w-4.5"}
+          className="h-4 w-4"
           member={selectedMember}
         />
-        <span className={cn(
-          "truncate",
-          variant === "task"
-            ? "min-w-0 max-w-[104px] text-compact font-semibold leading-none"
-            : "max-w-[120px] font-medium",
-        )}>
+        <span className="min-w-0 flex-1 truncate text-left text-compact font-semibold leading-none">
           {selectedMember.name}
         </span>
         <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
@@ -112,10 +107,10 @@ export function RoomAgentSwitcher({
       </button>
       <UiActionMenu
         anchorRef={triggerRef}
-        ariaLabel={ariaLabel}
+        ariaLabel={accessibleLabel}
         isOpen={isOpen}
         items={menuItems}
-        minWidth={variant === "task" ? 220 : 296}
+        minWidth={220}
         onClose={closeMenu}
         onSelect={onSelect}
       />

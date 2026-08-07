@@ -8,6 +8,7 @@ import { getRoomThreadMessages } from "../../round/round-thread-model";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
 import type { ThreadTarget } from "../group-thread-state";
 import type { RoomThreadLiveSource } from "./room-thread-live-store";
+import type { UnresolvedToolStatus } from "@/features/conversation/shared/message/item/view/content/content-renderer-contract";
 
 export interface RoomThreadPanelModel {
   agentAvatar: string | null;
@@ -17,7 +18,7 @@ export interface RoomThreadPanelModel {
   onOpenWorkspaceFile?: RoomThreadLiveSource["onOpenWorkspaceFile"];
   onPermissionResponse: RoomThreadLiveSource["onPermissionResponse"];
   pendingPermissions: ReturnType<typeof getThreadPendingPermissions>;
-  userAvatar: string | null;
+  unresolvedToolStatus?: UnresolvedToolStatus;
 }
 
 export function buildRoomThreadPanelModel(
@@ -53,7 +54,9 @@ export function buildRoomThreadPanelModel(
       target.agentRoundId,
       source.pendingPermissionGroups.get(target.roundId) ?? [],
     ),
-    userAvatar: source.currentUserAvatar,
+    unresolvedToolStatus: entry?.status === "cancelled"
+      ? "stopped"
+      : entry?.status === "error" ? "error" : undefined,
   };
 }
 

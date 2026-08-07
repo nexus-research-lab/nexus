@@ -66,12 +66,25 @@ func newRoundExecution(ctx context.Context, request RoundExecutionRequest) (*rou
 }
 
 func (e *roundExecution) query() error {
-	queryContent, err := runtimectx.PrepareRoundContentWithContext(
-		e.ctx,
-		e.request.Client,
-		roundQueryContent(e.request),
-		e.request.ContextualInputs,
+	content := roundQueryContent(e.request)
+	var (
+		queryContent any
+		err          error
 	)
+	if e.request.AtomicInput {
+		queryContent, err = runtimectx.PrepareAtomicRoundContent(
+			e.ctx,
+			e.request.Client,
+			content,
+		)
+	} else {
+		queryContent, err = runtimectx.PrepareRoundContentWithContext(
+			e.ctx,
+			e.request.Client,
+			content,
+			e.request.ContextualInputs,
+		)
+	}
 	if err != nil {
 		return err
 	}
@@ -93,14 +106,33 @@ func (e *roundExecution) receive() (RoundExecutionResult, error) {
 		defer e.idleTimer.Stop()
 	}
 	for {
+		if e.interruptedDrainRequired() {
+			return e.receiveInterruptedTerminal(nil)
+		}
 		select {
 		case <-e.ctx.Done():
+			if e.explicitInterruptRequested() {
+				return e.receiveInterruptedTerminal(nil)
+			}
 			return RoundExecutionResult{}, ErrRoundInterrupted
 		case <-e.assistantTerminalTimer:
+			if e.explicitInterruptRequested() {
+				return e.receiveInterruptedTerminal(nil)
+			}
 			return roundResultWithElapsed(*e.assistantTerminalResult, e.startedAt), nil
 		case <-e.idleTimeoutCh:
+			if e.explicitInterruptRequested() {
+				return e.receiveInterruptedTerminal(nil)
+			}
 			return e.handleIdleTimeout()
 		case incoming, ok := <-e.messageCh:
+			if e.interruptedDrainRequired() {
+				if !ok {
+					disconnectUncleanRoundClient(e.request.Client)
+					return RoundExecutionResult{}, ErrRoundInterrupted
+				}
+				return e.receiveInterruptedTerminal(&incoming)
+			}
 			if !ok {
 				return e.handleStreamClosed()
 			}
@@ -113,6 +145,51 @@ func (e *roundExecution) receive() (RoundExecutionResult, error) {
 			}
 		}
 	}
+}
+
+// receiveInterruptedTerminal 在宿主强制取消 round 后继续占有当前消息流，直到
+// runtime 给出本 turn 的 terminal result 边界。若直接释放共享流，迟到的 result
+// 会被下一 round 当作自己的结果；超时则关闭 client，确保未收口的进程不再复用。
+func (e *roundExecution) receiveInterruptedTerminal(first *sdkprotocol.ReceivedMessage) (RoundExecutionResult, error) {
+	if result, done := e.consumeInterruptedMessage(first); done {
+		return result, ErrRoundInterrupted
+	}
+	timer := time.NewTimer(normalizeInterruptedTerminalTimeout(e.request.InterruptedTerminalTimeout))
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			disconnectUncleanRoundClient(e.request.Client)
+			return RoundExecutionResult{}, ErrRoundInterrupted
+		case incoming, ok := <-e.messageCh:
+			if !ok {
+				disconnectUncleanRoundClient(e.request.Client)
+				return RoundExecutionResult{}, ErrRoundInterrupted
+			}
+			if result, done := e.consumeInterruptedMessage(&incoming); done {
+				return result, ErrRoundInterrupted
+			}
+		}
+	}
+}
+
+func (e *roundExecution) interruptedDrainRequired() bool {
+	return e.ctx.Err() != nil && e.explicitInterruptRequested()
+}
+
+func (e *roundExecution) explicitInterruptRequested() bool {
+	return resolveInterruptReason(e.request.InterruptReason) != ""
+}
+
+func (e *roundExecution) consumeInterruptedMessage(incoming *sdkprotocol.ReceivedMessage) (RoundExecutionResult, bool) {
+	if incoming == nil {
+		return RoundExecutionResult{}, false
+	}
+	e.observeIncoming(*incoming)
+	if incoming.Type != sdkprotocol.MessageTypeResult {
+		return RoundExecutionResult{}, false
+	}
+	return observedResultMessage(incoming.Result, e.startedAt), true
 }
 
 func (e *roundExecution) startReceiving() {

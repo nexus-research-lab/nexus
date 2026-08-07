@@ -1,6 +1,6 @@
 # Group Chat Panel 控制器
 
-- `use-group-chat-panel-model.ts` 只编排业务阶段；用户头像、布局和 Provider 状态来自共享面板环境。
+- `use-group-chat-panel-model.ts` 只编排业务阶段；布局和 Provider 状态来自共享面板环境。
 - `use-group-chat-session-controller.ts` 独占会话身份、Room 事件和外部快照观察器。
 - `use-group-chat-composer-model.ts` 独占附件准备、初始草稿和输入区动作装配。
 - `use-room-goal-composer.ts` 独占负责人选择与 Goal 创建事务；未提交的负责人选择进入当前 Session 的 Room Composer 草稿胶囊，切回该 Session 时恢复。

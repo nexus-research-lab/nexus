@@ -1,16 +1,19 @@
 import { formatRelativeTime } from "@/lib/format/relative-time";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 import type { AgentPrivateThread } from "@/types/agent/private-domain";
+
+export type PrivateDomainLocalization = Pick<I18nContextValue, "locale" | "t">;
 
 export interface PrivateThreadListItemPresentation {
   buttonClassName: string;
-  metadata: string[];
-  metadataClassName: string;
   ownerAgentId: string;
   preview: string;
   scope: AgentPrivateThread["scope"];
   summaryClassName: string;
   thread: AgentPrivateThread;
+  timestampLabel: string;
   title: string;
   titleClassName: string;
   workspaceAgentId: string;
@@ -31,7 +34,6 @@ interface PrivateThreadDensityPresentation {
   buttonClassName: string;
   containerClassName: string;
   listClassName: string;
-  metadataClassName: string;
   summaryClassName: string;
   titleClassName: string;
 }
@@ -41,41 +43,40 @@ const THREAD_DENSITY_PRESENTATIONS: Record<
   PrivateThreadDensityPresentation
 > = {
   compact: {
-    activeClassName: "border-transparent bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)] shadow-[inset_2px_0_0_var(--primary)]",
-    buttonClassName: "gap-2 rounded-[10px] px-2 py-2",
+    activeClassName: SIDEBAR_SELECTION_CLASS_NAME,
+    buttonClassName: "gap-2 rounded-[8px] px-2 py-2",
     containerClassName: "p-1.5",
     listClassName: "space-y-0.5",
-    metadataClassName: "mt-1 text-2xs",
     summaryClassName: "line-clamp-1 text-compact leading-4",
-    titleClassName: "text-sm",
+    titleClassName: "text-compact",
   },
   regular: {
-    activeClassName: "border-[color:color-mix(in_srgb,var(--primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]",
-    buttonClassName: "gap-2.5 rounded-[12px] px-2.5 py-2.5",
+    activeClassName: SIDEBAR_SELECTION_CLASS_NAME,
+    buttonClassName: "gap-2.5 rounded-[8px] px-2.5 py-2.5",
     containerClassName: "p-2",
-    listClassName: "space-y-1",
-    metadataClassName: "mt-1.5 text-xs",
-    summaryClassName: "line-clamp-2 text-compact leading-4",
-    titleClassName: "text-sm",
+    listClassName: "space-y-0.5",
+    summaryClassName: "line-clamp-1 text-xs leading-4",
+    titleClassName: "text-compact",
   },
 };
 
 const IDLE_THREAD_CLASS_NAME =
-  "border-transparent hover:border-(--divider-subtle-color) hover:bg-(--surface-interactive-hover-background)";
+  "border-transparent hover:bg-(--surface-interactive-hover-background)";
 
 export function privateThreadTitle(
   thread: AgentPrivateThread,
   agentId: string,
+  localization: PrivateDomainLocalization,
 ): string {
   const peers = thread.participants.filter(
     (participant) => participant.agent_id !== agentId,
   );
   if (peers.length === 0) {
-    return "私有笔记";
+    return localization.t("agent_options.contact.private_note");
   }
   return peers
     .map((participant) => participant.name || participant.agent_id)
-    .join("、");
+    .join(localization.locale === "zh" ? "、" : ", ");
 }
 
 function buildPrivateThreadListItem(
@@ -83,11 +84,8 @@ function buildPrivateThreadListItem(
   agentId: string,
   selectedThreadId: string | null,
   density: PrivateThreadDensityPresentation,
+  localization: PrivateDomainLocalization,
 ): PrivateThreadListItemPresentation {
-  const metadata = [thread.room_name || "房间", String(thread.message_count)];
-  if (thread.last_timestamp) {
-    metadata.push(formatRelativeTime(thread.last_timestamp));
-  }
   const isActive = thread.thread_id === selectedThreadId;
   return {
     buttonClassName: cn(
@@ -95,22 +93,21 @@ function buildPrivateThreadListItem(
       density.buttonClassName,
       isActive ? density.activeClassName : IDLE_THREAD_CLASS_NAME,
     ),
-    metadata,
-    metadataClassName: cn(
-      "flex items-center font-semibold text-(--text-soft) [&>span+span]:before:mx-1.5 [&>span+span]:before:content-['·']",
-      density.metadataClassName,
-    ),
     ownerAgentId: agentId,
-    preview: thread.last_content_preview || "联络消息",
+    preview: thread.last_content_preview
+      || localization.t("agent_options.contact.messages_title"),
     scope: thread.scope,
     summaryClassName: cn(
       "mt-1 text-(--text-muted) [&_*]:leading-4",
       density.summaryClassName,
     ),
     thread,
-    title: privateThreadTitle(thread, agentId),
+    timestampLabel: thread.last_timestamp
+      ? formatRelativeTime(thread.last_timestamp, localization.locale)
+      : "",
+    title: privateThreadTitle(thread, agentId, localization),
     titleClassName: cn(
-      "truncate font-semibold text-(--text-strong)",
+      "min-w-0 flex-1 truncate font-semibold text-(--text-strong)",
       density.titleClassName,
     ),
     workspaceAgentId: thread.participant_agent_ids[0] ?? agentId,
@@ -122,6 +119,7 @@ export function getPrivateThreadListPresentation({
   className,
   compact,
   isLoading,
+  localization,
   selectedThreadId,
   threads,
 }: {
@@ -129,6 +127,7 @@ export function getPrivateThreadListPresentation({
   className?: string;
   compact: boolean;
   isLoading: boolean;
+  localization: PrivateDomainLocalization;
   selectedThreadId: string | null;
   threads: AgentPrivateThread[];
 }): PrivateThreadListPresentation {
@@ -160,6 +159,7 @@ export function getPrivateThreadListPresentation({
       agentId,
       selectedThreadId,
       density,
+      localization,
     )),
     kind: "ready",
     listClassName: density.listClassName,

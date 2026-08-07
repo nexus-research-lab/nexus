@@ -1,11 +1,5 @@
-import {
-  getWorkspaceFileExternalActionCopy,
-  type WorkspaceFileExternalActionCopy,
-} from "@/lib/workspace-file-action";
-
 export interface WorkspaceArtifactExternalAction {
   agentId: string;
-  copy: WorkspaceFileExternalActionCopy;
   fileName: string;
   path: string;
 }
@@ -26,7 +20,6 @@ export function buildWorkspaceArtifactExternalAction({
   }
   return {
     agentId: normalizedAgentId,
-    copy: getWorkspaceFileExternalActionCopy(fileName),
     fileName,
     path: normalizedPath,
   };

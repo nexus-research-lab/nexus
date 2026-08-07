@@ -28,7 +28,6 @@ import { useGroupThread } from "../group-thread-state";
 interface GroupRoundCardGroupProps {
   agentAvatarMap: Record<string, string | null>;
   agentNameMap: Record<string, string>;
-  currentUserAvatar: string | null;
   messages: Message[];
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
@@ -38,12 +37,12 @@ interface GroupRoundCardGroupProps {
   pendingSlots: RoomPendingAgentSlotState[];
   roomAgentExecutionStates: RoomAgentExecutionState[];
   roundId: string;
+  stoppingAgentRoundIds: string[];
 }
 
 function GroupRoundCardGroupInner({
   agentAvatarMap,
   agentNameMap,
-  currentUserAvatar,
   messages,
   onOpenAgentContact,
   onOpenWorkspaceFile,
@@ -53,6 +52,7 @@ function GroupRoundCardGroupInner({
   pendingSlots,
   roomAgentExecutionStates,
   roundId,
+  stoppingAgentRoundIds = [],
 }: GroupRoundCardGroupProps) {
   const { activeThread, closeThread, openThread } = useGroupThread();
   const model = useMemo(
@@ -94,7 +94,6 @@ function GroupRoundCardGroupInner({
         <GroupUserMessage
           agentAvatarMap={agentAvatarMap}
           agentNameMap={agentNameMap}
-          currentUserAvatar={currentUserAvatar}
           item={item}
           onOpenAgentContact={onOpenAgentContact}
           key={item.message.message_id}
@@ -118,7 +117,6 @@ function GroupRoundCardGroupInner({
               <GroupUserMessage
                 agentAvatarMap={agentAvatarMap}
                 agentNameMap={agentNameMap}
-                currentUserAvatar={currentUserAvatar}
                 item={item}
                 onOpenAgentContact={onOpenAgentContact}
                 key={item.message.message_id}
@@ -129,6 +127,10 @@ function GroupRoundCardGroupInner({
             <GroupAgentReply
               entry={entry}
               isThreadActive={isThreadActive}
+              isStopping={Boolean(
+                entry.agent_round_id
+                && stoppingAgentRoundIds.includes(entry.agent_round_id)
+              )}
               onClickThread={toggleEntryThread}
               onOpenAgentContact={onOpenAgentContact}
               onOpenWorkspaceFile={onOpenWorkspaceFile}
@@ -154,7 +156,6 @@ function GroupRoundCardGroupInner({
 function GroupUserMessage({
   agentAvatarMap,
   agentNameMap,
-  currentUserAvatar,
   item,
   onOpenAgentContact,
   onOpenWorkspaceFile,
@@ -162,7 +163,6 @@ function GroupUserMessage({
 }: {
   agentAvatarMap: Record<string, string | null>;
   agentNameMap: Record<string, string>;
-  currentUserAvatar: string | null;
   item: GroupRoundUserMessageModel;
   onOpenAgentContact?: (agentId: string) => void;
   onOpenWorkspaceFile?: (path: string) => void;
@@ -174,7 +174,6 @@ function GroupUserMessage({
       <MessageItem
         animateEntry={false}
         className="border-b-0"
-        currentUserAvatar={currentUserAvatar}
         agentMentionDirectory={{ avatars: agentAvatarMap, names: agentNameMap }}
         isLastRound={false}
         messages={[item.message]}

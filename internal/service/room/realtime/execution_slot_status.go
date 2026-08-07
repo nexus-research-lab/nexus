@@ -1,3 +1,6 @@
+// INPUT: Room slot 的 runtime result、failure/interruption、WorkBinding 与消息 mapper。
+// OUTPUT: usage/handoff/cursor 收口、可见终态，以及 structured root Attempt 原子终态。
+// POS: 单 slot 所有终态路径的统一结算边界；不得隐式创建 Submission/Acceptance。
 package realtime
 
 import (
@@ -141,10 +144,18 @@ func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
 		return err
 	}
 	e.service.markPublicHandoffTerminal(e.ctx, e.round, e.slot, e.slot.getStatus())
-	if e.slot.getStatus() != "finished" {
-		return nil
+	if e.slot.getStatus() == "finished" {
+		if err := e.commitCompletionCursors(); err != nil {
+			return err
+		}
 	}
-	return e.commitCompletionCursors()
+	return e.service.finishBoundRoomAttempt(
+		e.ctx,
+		e.round,
+		e.slot,
+		e.slot.getStatus(),
+		result.ErrorMessage,
+	)
 }
 
 func (e *slotExecution) persistCompletionOutput(lastAssistant protocol.Message) error {
@@ -197,17 +208,33 @@ func (s *Service) handleSlotFailure(
 	}
 	fields = append(fields, roomSlotFailureDiagnostics(err, slot, mapper)...)
 	s.loggerFor(ctx).Error("Room slot 执行失败", fields...)
+	displayError := exec.RoundErrorDisplayMessage(err)
+	if settleErr := s.finishBoundRoomAttempt(
+		ctx,
+		roundValue,
+		slot,
+		"error",
+		err.Error(),
+	); settleErr != nil {
+		s.loggerFor(ctx).Error(
+			"Room structured root Attempt 失败收口失败",
+			"dispatch_id",
+			executionDispatchID(slot.WorkBinding),
+			"err",
+			settleErr,
+		)
+	}
 	lastAssistant := slot.lastGoalAssistantMessage()
 	// durable assistant 已进入 slot 内存、但共享/私有历史持久化可能失败。
 	// failure 收口仍须用该快照结算并关闭 parent usage，不能只记录错误状态。
 	s.finalizeGoalUsageForSlot(ctx, slot, result, lastAssistant)
 	s.recordGoalContinuationProgressForSlot(ctx, slot, roundValue, exec.RoundExecutionResult{
 		TerminalStatus: "error",
-		ErrorMessage:   err.Error(),
+		ErrorMessage:   displayError,
 	}, lastAssistant)
 	s.cancelSourcePublicHandoffs(ctx, roundValue, slot, "error")
 	s.markPublicHandoffTerminal(ctx, roundValue, slot, "error")
-	slot.setErrorMessage(err.Error())
+	slot.setErrorMessage(displayError)
 	// 原因先于终态发布，确保 root round 观察到 error 时一定能读取详情。
 	slot.setStatus("error")
 	s.broadcastAgentRoundStatus(ctx, roundValue, slot, "error")
@@ -225,7 +252,7 @@ func (s *Service) handleSlotFailure(
 		"duration_ms":     0,
 		"duration_api_ms": 0,
 		"num_turns":       0,
-		"result":          err.Error(),
+		"result":          displayError,
 		"is_error":        true,
 		"timestamp":       time.Now().UnixMilli(),
 	}
@@ -248,8 +275,9 @@ func (s *Service) handleSlotFailure(
 					roundValue.RootRoundID,
 				),
 			)
+		} else {
+			s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", displayError, roundValue.RootRoundID))
 		}
-		s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.NewErrorEvent(roundValue.SessionKey, roundValue.RoomID, roundValue.ConversationID, "room_error", err.Error(), roundValue.RootRoundID))
 	}
 	s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, roomdomain.WrapLifecycleEvent(
 		protocol.EventTypeStreamEnd,
@@ -322,8 +350,23 @@ func (s *Service) handleSlotCancelled(
 		"agent_id", slot.AgentID,
 		"round_id", slot.AgentRoundID,
 		"msg_id", slot.MsgID,
-		"reason", roomSlotInterruptReason(slot),
+		"reason", roomSlotInterruptDisplayReason(slot),
 	)
+	if settleErr := s.finishBoundRoomAttempt(
+		ctx,
+		roundValue,
+		slot,
+		"interrupted",
+		roomSlotInterruptReason(slot),
+	); settleErr != nil {
+		s.loggerFor(ctx).Error(
+			"Room structured root Attempt 中断收口失败",
+			"dispatch_id",
+			executionDispatchID(slot.WorkBinding),
+			"err",
+			settleErr,
+		)
+	}
 	if mapper != nil {
 		s.finalizeGoalUsageForSlot(ctx, slot, result, slot.lastGoalAssistantMessage())
 	}

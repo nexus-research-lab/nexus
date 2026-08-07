@@ -115,13 +115,13 @@ func defaultMainAgentOptions() protocol.Options {
 }
 
 func defaultAgentOptions(isMain bool) protocol.Options {
-	skillIDs := []string{"imagegen", "goal-manager"}
+	skillIDs := []string{"imagegen", "goal-manager", "execution-orchestrator"}
 	if isMain {
 		skillIDs = append(skillIDs, "nexus-manager")
 	}
 	return protocol.Options{
 		AllowedTools:     []string{},
-		PermissionMode:   "default",
+		PermissionMode:   protocol.DefaultAgentPermissionMode,
 		SkillIDs:         skillIDs,
 		DisabledSkillIDs: []string{},
 		SettingSources:   []string{"project"},

@@ -11,7 +11,8 @@
  */
 const HOME_STAGE_BOTTOM_PADDING_CLASS = "pb-1.5";
 export const HOME_PAGE_PADDING_CLASS = `pr-1.5 ${HOME_STAGE_BOTTOM_PADDING_CLASS}`;
-export const HOME_SIDEBAR_PADDING_CLASS = `pl-1 pr-1.5 ${HOME_STAGE_BOTTOM_PADDING_CLASS}`;
+export const HOME_SIDEBAR_PADDING_CLASS =
+  `pl-[var(--sidebar-shell-leading-padding,4px)] pr-1.5 ${HOME_STAGE_BOTTOM_PADDING_CLASS}`;
 
 /** Room 在桌面侧栏开始挤压会话主画布前切换为单窗专注模式。 */
 export const CONVERSATION_FOCUS_MEDIA_QUERY = "(max-width: 1023px)";

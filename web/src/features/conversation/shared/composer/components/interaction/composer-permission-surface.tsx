@@ -77,10 +77,15 @@ export function ComposerPermissionSurface({
   requesterName,
   total,
 }: ComposerPermissionSurfaceProps) {
-  const { t } = useI18n();
+  const localization = useI18n();
+  const { t } = localization;
   const [isScopeMenuOpen, setIsScopeMenuOpen] = useState(false);
   const scopeMenuAnchorRef = useRef<HTMLButtonElement>(null);
-  const presentation = buildPermissionPresentation(permission, kind, t);
+  const presentation = buildPermissionPresentation(
+    permission,
+    kind,
+    localization,
+  );
   const scopeItems = useMemo(
     () => [
       {
@@ -133,6 +138,9 @@ export function ComposerPermissionSurface({
     ],
   );
   const ToolIcon = presentation.icon;
+  const decisionWidthClassName = presentation.suggestions.length > 0
+    ? "w-28"
+    : "w-24";
   const respond = (
     decision: PermissionDecisionPayload["decision"],
     suggestionIndex?: number,
@@ -194,21 +202,26 @@ export function ComposerPermissionSurface({
 
       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
         <button
-          className="inline-flex h-9 items-center justify-center rounded-full border border-(--divider-subtle-color) bg-transparent px-4 text-sm font-medium text-(--text-default) transition-colors hover:bg-(--interaction-hover-background) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+          className={cn(
+            "radius-control-sm inline-flex h-8 items-center justify-center border border-(--divider-subtle-color) bg-transparent px-3 text-sm font-medium text-(--text-default) transition-colors hover:bg-(--interaction-hover-background) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
+            decisionWidthClassName,
+          )}
+          data-composer-permission-action="deny"
           disabled={interactionDisabled}
           onClick={() => respond("deny")}
           type="button"
         >
           {t("composer.permission_deny")}
         </button>
-        <div className="flex h-9 items-stretch">
+        <div
+          className={cn(
+            "radius-control-sm flex h-11 items-stretch overflow-hidden sm:h-8",
+            decisionWidthClassName,
+          )}
+          data-composer-permission-action="allow"
+        >
           <button
-            className={cn(
-              "inline-flex items-center justify-center bg-(--text-strong) px-4 text-sm font-medium text-(--background) transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)",
-              presentation.suggestions.length > 0
-                ? "rounded-l-full"
-                : "rounded-full",
-            )}
+            className="inline-flex h-full min-w-0 flex-1 items-center justify-center bg-(--text-strong) px-1.5 text-sm font-medium text-(--background) transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
             disabled={interactionDisabled}
             onClick={() => respond("allow")}
             type="button"
@@ -221,7 +234,7 @@ export function ComposerPermissionSurface({
               aria-expanded={isScopeMenuOpen}
               aria-haspopup="menu"
               aria-label={t("composer.permission_choose_scope")}
-              className="inline-flex w-9 items-center justify-center rounded-r-full border-l border-[color:color-mix(in_srgb,var(--background)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--text-strong)_82%,var(--background))] text-(--background) transition-[background-color,opacity] hover:bg-(--text-strong) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
+              className="inline-flex h-full w-8 items-center justify-center border-l border-[color:color-mix(in_srgb,var(--background)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--text-strong)_82%,var(--background))] text-(--background) transition-[background-color,opacity] hover:bg-(--text-strong) disabled:cursor-not-allowed disabled:opacity-(--disabled-opacity)"
               disabled={interactionDisabled}
               onClick={() => setIsScopeMenuOpen((current) => !current)}
               type="button"
@@ -234,7 +247,7 @@ export function ComposerPermissionSurface({
           align="end"
           anchorRef={scopeMenuAnchorRef}
           ariaLabel={t("composer.permission_scope_menu")}
-          className="!rounded-[1.125rem] border-[color:color-mix(in_srgb,var(--divider-subtle-color)_86%,transparent)] p-2 [&_[role=menuitem]]:rounded-xl [&_[role=menuitem]]:px-3"
+          className="surface-radius-lg border-[color:color-mix(in_srgb,var(--divider-subtle-color)_86%,transparent)] p-2 [&_[role=menuitem]]:radius-control-sm [&_[role=menuitem]]:px-3"
           isOpen={isScopeMenuOpen}
           items={scopeItems}
           minWidth={228}
@@ -259,9 +272,13 @@ export function ComposerPermissionSurface({
 function buildPermissionPresentation(
   permission: PendingPermission,
   kind: Exclude<ComposerInteractionKind, "question">,
-  t: I18nContextValue["t"],
+  localization: I18nContextValue,
 ) {
-  const primaryDetail = getPrimaryToolInputDetail(permission.tool_input);
+  const { t } = localization;
+  const primaryDetail = getPrimaryToolInputDetail(
+    permission.tool_input,
+    localization,
+  );
   const planDetail = readStringField(permission.tool_input, "plan");
   const detail = firstDistinctText(
     [planDetail, primaryDetail?.value, getToolInputSummary(permission.tool_input)],
@@ -280,7 +297,10 @@ function buildPermissionPresentation(
     icon: kind === "plan"
       ? ListChecks
       : TOOL_ICON_BY_NAME[permission.tool_name] ?? Wrench,
-    suggestions: getReadablePermissionSuggestions(permission.suggestions),
+    suggestions: getReadablePermissionSuggestions(
+      permission.suggestions,
+      localization,
+    ),
     title,
   };
 }

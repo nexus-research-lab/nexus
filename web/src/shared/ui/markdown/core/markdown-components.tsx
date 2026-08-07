@@ -233,8 +233,15 @@ export function createMarkdownComponents(
     ul({ children }) {
       return <ul className="markdown-list markdown-list-unordered">{children}</ul>;
     },
-    ol({ children }) {
-      return <ol className="markdown-list markdown-list-ordered">{children}</ol>;
+    ol({ children, start }) {
+      return (
+        <ol
+          className="markdown-list markdown-list-ordered"
+          start={start}
+        >
+          {children}
+        </ol>
+      );
     },
     li({ children }) {
       return (

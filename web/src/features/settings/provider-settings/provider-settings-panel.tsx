@@ -1,12 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { Cable } from "lucide-react";
 
+import { isDesktopRuntime } from "@/config/desktop-runtime";
+import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/provider-ccswitch-dialog";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { ConfirmDialog } from "@/shared/ui/dialog/decision/decision-dialog";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ProviderConfigRecord } from "@/types/capability/provider";
@@ -24,22 +28,36 @@ import { useProviderSettingsController } from "./use-provider-settings-controlle
 
 interface ProviderSettingsPanelProps {
   embedded?: boolean;
+  layout?: "page" | "section";
   visibilityScope?: ProviderConfigRecord["visibility"];
 }
 
 export function ProviderSettingsPanel({
   embedded = false,
+  layout = "page",
   visibilityScope = "private",
 }: ProviderSettingsPanelProps) {
   const { t } = useI18n();
+  const [ccSwitchOpen, setCCSwitchOpen] = useState(false);
+  const canImportFromCCSwitch = visibilityScope === "private" && isDesktopRuntime();
   const { state, actions, modelActions } =
     useProviderSettingsController(visibilityScope);
 
   const panelContent = (
     <div className={cn(
-      "mx-auto flex h-full min-h-0 w-full flex-col px-1 py-3",
-      WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME,
+      layout === "page" ? WORKSPACE_CONTENT_PAGE_CLASS_NAME : undefined,
+      "flex h-full min-h-0 flex-col",
     )}>
+      {layout === "page" ? (
+        <WorkspaceContentHeader
+          description={t(visibilityScope === "public"
+            ? "settings.providers.public_section_description"
+            : "settings.providers.section_description")}
+          title={t(visibilityScope === "public"
+            ? "operations.tabs.subscription_providers"
+            : "settings.providers.section_title")}
+        />
+      ) : null}
       <div className="flex min-h-0 flex-1 items-stretch gap-5 overflow-hidden">
         <ProviderSettingsSidebar
           configuredByPreset={state.configuredByPreset}
@@ -49,11 +67,13 @@ export function ProviderSettingsPanel({
           isEditing={state.isEditing}
           loading={state.loading}
           onCreateFromPreset={actions.handleCreateFromPreset}
+          onOpenCCSwitchImport={() => setCCSwitchOpen(true)}
           onRequestDeleteProvider={actions.handleRequestDeleteProvider}
           onSelectProvider={actions.handleSelectProvider}
           pendingAction={state.pendingAction}
           presetSidebarItems={state.presetSidebarItems}
           selectedProvider={state.selectedProvider}
+          showCCSwitchImport={canImportFromCCSwitch}
         />
 
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -202,6 +222,14 @@ export function ProviderSettingsPanel({
         selectedCanManage={state.selectedCanManage}
         setModelOptions={modelActions.setModelOptions}
       />
+
+      {canImportFromCCSwitch ? (
+        <ProviderCCSwitchDialog
+          isOpen={ccSwitchOpen}
+          onClose={() => setCCSwitchOpen(false)}
+          onSynced={actions.handleCCSwitchSynced}
+        />
+      ) : null}
     </>
   );
 }

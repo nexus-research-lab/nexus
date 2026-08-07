@@ -30,7 +30,7 @@ func TestSharedRoomGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) {
 		),
 	}
 	slot.setRuntimeKind("nxs")
-	slot.setGoalBinding(sessionKey, goalID)
+	grantTestRoomGoalAuthority(slot, sessionKey, goalID)
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
 	slot.setStatus("finished")
 	roundValue := &activeRoomRound{
@@ -296,7 +296,7 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 		),
 	}
 	slot.setRuntimeKind("nxs")
-	slot.setGoalBinding(sessionKey, goalID)
+	grantTestRoomGoalAuthority(slot, sessionKey, goalID)
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
 	slot.setGoalUsageTerminalSettled(true)
 	slot.setStatus("finished")
@@ -424,7 +424,7 @@ func TestRoomSubagentUsageRetryDoesNotFinalizeWhileParentRuns(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("background Room usage retry did not persist running-parent child")
 	}
-	time.Sleep(30 * time.Millisecond)
+	waitForRoomGoalUsageRetryStopped(t, slot)
 	if calls := provider.finalizeCallCount(); calls != 0 {
 		t.Fatalf("child retry finalized shared Goal while parent was running: %d calls", calls)
 	}
@@ -448,7 +448,7 @@ func TestRoomParentUsageRetryRecoversWithoutChildOrRuntimeMessage(t *testing.T) 
 			protocol.RoomTypeGroup,
 		),
 	}
-	slot.setGoalBinding(sessionKey, goalID)
+	grantTestRoomGoalAuthority(slot, sessionKey, goalID)
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
 	slot.setStatus("finished")
 	roundValue := &activeRoomRound{
@@ -564,6 +564,7 @@ func TestRoomPostRoundDispatchRunsOnceUnderRace(t *testing.T) {
 		SessionKey: "room:group:post-round-once",
 		RoundID:    "round-post-round-once",
 	}
+	attachTestRoomGoalAuthority(roundValue, "goal-post-round-once")
 
 	var waitGroup sync.WaitGroup
 	for range 32 {
@@ -708,6 +709,21 @@ func (p *retryingRoomGoalUsageSourceProvider) lastPersistedTotal() int64 {
 	p.sourceMu.Lock()
 	defer p.sourceMu.Unlock()
 	return p.persistedTotal
+}
+
+func waitForRoomGoalUsageRetryStopped(t *testing.T, slot *activeRoomSlot) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		slot.mutable.goal.mu.RLock()
+		running := slot.mutable.goal.usageRetrying
+		slot.mutable.goal.mu.RUnlock()
+		if !running {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("timed out waiting for Room Goal usage retry worker")
 }
 
 func (p *retryingRoomGoalUsageSourceProvider) FinalizeUsageForGoal(

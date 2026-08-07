@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<!-- ==================================================================
+     CHANGELOG TEMPLATE (KO) · parchment design system
+     1-2 페이지 A4 버전 업데이트 로그 / Release Notes
+     구조: 버전 제목 -> Breaking -> Features -> Fixes -> 감사의 말
+     변경 후 실행: python3 -c "from weasyprint import HTML; HTML('changelog-ko.html').write_pdf('out.pdf')"
+     목표: 최대 2페이지
+     ================================================================== -->
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>{{프로젝트명}} · {{버전}} 업데이트 로그</title>
+<meta name="author" content="{{작성자}}">
+<meta name="description" content="{{요약}}">
+<meta name="keywords" content="{{키워드}}">
+<meta name="generator" content="Kami">
+<style>
+  /* Regular weight */
+  @font-face {
+    font-family: "Source Han Serif K";
+    src: url("../fonts/SourceHanSerifKR-Regular.otf") format("opentype"),
+       url("https://cdn.jsdelivr.net/gh/tw93/Kami@main/assets/fonts/SourceHanSerifKR-Regular.otf") format("opentype");
+    font-weight: 400;
+    font-style: normal;
+  }
+
+  /* Medium weight */
+  @font-face {
+    font-family: "Source Han Serif K";
+    src: url("../fonts/SourceHanSerifKR-Medium.otf") format("opentype"),
+       url("https://cdn.jsdelivr.net/gh/tw93/Kami@main/assets/fonts/SourceHanSerifKR-Medium.otf") format("opentype");
+    font-weight: 500;
+    font-style: normal;
+  }
+
+  @page {
+    size: A4;
+    margin: 20mm 22mm 22mm 22mm;
+    background: #f5f4ed;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --parchment: #f5f4ed;
+    --ivory:     #faf9f5;
+    --near-black:#141413;
+    --dark-warm: #3d3d3a;
+    --olive:     #504e49;
+    --stone:     #6b6a64;
+    --brand:     #1B365D;
+    --border:    #e8e6dc;
+    --border-soft:#e5e3d8;
+    --tag-bg:    #E4ECF5;
+    --breaking-bg:#f0e0d8;
+    --breaking-fg:#8b4513;
+    --serif: "Source Han Serif K", "Source Han Serif KR", "Noto Serif KR", "Apple SD Gothic Neo", "AppleMyungjo", Charter, Georgia, serif;
+    --sans: var(--serif);
+    --mono:  "JetBrains Mono", "D2Coding", "SF Mono", "Fira Code", Consolas, Monaco, "Source Han Serif K", "Source Han Serif KR", monospace;
+  }
+
+  html, body { background: var(--parchment); }
+
+  @media screen {
+    body { max-width: 210mm; margin: 0 auto; padding: 20mm 22mm; }
+  }
+
+  body {
+    color: var(--near-black);
+    font-family: var(--serif);
+    font-size: 10.5pt;
+    line-height: 1.55;
+    letter-spacing: 0.3pt;
+    widows: 3;
+    orphans: 3;
+    font-synthesis: none;
+  }
+
+  strong { font-weight: 500; }
+  .hl { color: var(--brand); font-weight: 500; }
+
+  /* ========== HEADER (left-aligned editorial, matches one-pager) ========== */
+  .header {
+    margin-bottom: 20pt;
+    padding-bottom: 13pt;
+    border-bottom: 0.5pt solid var(--border);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20pt;
+  }
+  .title-block { flex: 1; }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 7pt;
+    font-family: var(--sans);
+    font-size: 9pt;
+    color: var(--brand);
+    letter-spacing: 1.5pt;
+    font-weight: 500;
+    margin-bottom: 8pt;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 8pt;
+    height: 1.5pt;
+    border-radius: 0.75pt;
+    background: var(--brand);
+    flex-shrink: 0;
+  }
+  /* KO locale tuning: Source Han Serif K hangul reads optically smaller, so the
+     title sits at the CN baseline (26pt / 1.15). See references/design.md. */
+  h1 {
+    font-family: var(--serif);
+    font-size: 26pt;
+    font-weight: 500;
+    color: var(--near-black);
+    line-height: 1.15;
+    margin-bottom: 7pt;
+  }
+  .subtitle {
+    font-size: 11.5pt;
+    color: var(--olive);
+    line-height: 1.5;
+    max-width: 150mm;
+  }
+  .meta {
+    font-size: 10pt;
+    color: var(--stone);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ========== SECTION HEAD - brand left bar ========== */
+  h2 {
+    font-family: var(--serif);
+    font-size: 14pt;
+    font-weight: 500;
+    color: var(--near-black);
+    margin: 20pt 0 10pt 0;
+    border-left: 2.5pt solid var(--brand);
+    border-radius: 1.5pt;
+    padding-left: 9pt;
+    break-after: avoid;
+  }
+  h2:first-of-type { margin-top: 0; }
+
+  p { margin: 0 0 8pt 0; line-height: 1.55; widows: 2; orphans: 2; }
+  code { font-family: var(--mono); font-size: 0.92em; }
+
+  /* ========== CHANGE LIST - numbered, brand markers, bold lead-in ========== */
+  ol.changes { margin: 0; padding-left: 18pt; }
+  ol.changes li {
+    margin-bottom: 7pt;
+    padding-left: 3pt;
+    line-height: 1.55;
+    break-inside: avoid;
+  }
+  ol.changes li:last-child { margin-bottom: 0; }
+  ol.changes li::marker { color: var(--brand); font-weight: 500; }
+  ol.changes li strong { font-weight: 500; color: var(--near-black); }
+  ol.changes li .hl { color: var(--brand); font-weight: 500; }
+
+  /* ========== TAG ========== */
+  .tag {
+    display: inline-block;
+    background: var(--tag-bg);
+    color: var(--brand);
+    font-size: 9pt;
+    font-weight: 500;
+    padding: 1pt 6pt;
+    border-radius: 3pt;
+    margin-right: 3pt;
+  }
+  .tag.breaking {
+    background: var(--breaking-bg);
+    color: var(--breaking-fg);
+  }
+
+  /* ========== ACKNOWLEDGEMENTS - quiet labelled note, not a filled card ========== */
+  .thanks {
+    margin-top: 18pt;
+    font-size: 9.5pt;
+    line-height: 1.55;
+    color: var(--olive);
+    break-inside: avoid;
+  }
+  .thanks .hl { color: var(--brand); font-weight: 500; }
+  .thanks-label {
+    font-size: 9pt;
+    color: var(--brand);
+    letter-spacing: 0.5pt;
+    text-transform: uppercase;
+    margin-bottom: 4pt;
+  }
+
+  /* ========== FOOTER ========== */
+  .changelog-footer {
+    margin-top: 20pt;
+    padding-top: 8pt;
+    border-top: 0.3pt dotted var(--border);
+    font-size: 9pt;
+    color: var(--stone);
+    line-height: 1.5;
+    display: flex;
+    justify-content: space-between;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.3pt;
+  }
+</style>
+</head>
+<body>
+
+<!-- ========== 버전 헤더 ========== -->
+<!-- HEADER -->
+<div class="header">
+  <div class="title-block">
+    <div class="eyebrow">업데이트 로그</div>
+    <h1>{{프로젝트명}} {{버전}}</h1>
+    <div class="subtitle">{{이번 버전의 핵심 한 문장}}</div>
+  </div>
+  <div class="meta">{{출시 날짜}}</div>
+</div>
+
+<!-- 각 항목: 굵은 도입어 + 콜론 + 설명. 번호가 순서를 맡고 섹션마다 1부터 다시 시작합니다. 해당 없는 섹션은 삭제하세요. -->
+<h2>호환성 변경 사항</h2>
+<ol class="changes">
+  <li><span class="tag breaking">Breaking</span> <strong>{{변경된 점}}</strong>: {{사용자가 해야 할 조치.}}</li>
+</ol>
+
+<h2>신기능</h2>
+<ol class="changes">
+  <li><strong>{{기능}}</strong>: {{한 문장 설명.}}</li>
+  <li><strong>{{기능}}</strong>: {{한 문장 설명.}}</li>
+  <li><strong>{{기능}}</strong>: {{한 문장 설명.}}</li>
+</ol>
+
+<h2>수정 사항</h2>
+<ol class="changes">
+  <li><strong>{{영역}}</strong>: {{무엇을 고쳤는지.}}</li>
+  <li><strong>{{영역}}</strong>: {{무엇을 고쳤는지.}}</li>
+  <li><strong>{{영역}}</strong>: {{무엇을 고쳤는지.}}</li>
+</ol>
+
+<!-- 감사의 말 (선택) -->
+<div class="thanks">
+  <div class="thanks-label">감사의 말</div>
+  {{기여자에게 감사. 예: "기여해 주신 @user1, @user2 님께 감사드립니다."}}
+</div>
+
+<!-- FOOTER -->
+<div class="changelog-footer">
+  <span>{{프로젝트 한 줄 설명}}</span>
+  <span>{{프로젝트 URL}}</span>
+</div>
+
+</body>
+</html>

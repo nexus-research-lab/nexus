@@ -1,3 +1,5 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
+
 import {
   formatDatetimeLocalInput,
   formatTimeLocalInput,
@@ -10,17 +12,23 @@ import type {
   TaskScheduleDraft,
 } from "../scheduled-task-dialog-types";
 
-export const SCHEDULE_OPTIONS: ChoiceDef<ScheduleKind>[] = [
-  { key: "at", label: "单次" },
-  { key: "cron", label: "每天" },
-  { key: "every", label: "间隔" },
-];
+type Translate = I18nContextValue["t"];
 
-export const EVERY_UNIT_OPTIONS: ChoiceDef<EveryUnit>[] = [
-  { key: "seconds", label: "秒" },
-  { key: "minutes", label: "分钟" },
-  { key: "hours", label: "小时" },
-];
+export function buildScheduleOptions(t: Translate): ChoiceDef<ScheduleKind>[] {
+  return [
+    { key: "at", label: t("capability.scheduled_dialog_schedule_once") },
+    { key: "cron", label: t("capability.scheduled_dialog_schedule_daily") },
+    { key: "every", label: t("capability.scheduled_dialog_schedule_interval") },
+  ];
+}
+
+export function buildEveryUnitOptions(t: Translate): ChoiceDef<EveryUnit>[] {
+  return [
+    { key: "seconds", label: t("capability.scheduled_dialog_seconds") },
+    { key: "minutes", label: t("capability.scheduled_dialog_minutes") },
+    { key: "hours", label: t("capability.scheduled_dialog_hours") },
+  ];
+}
 
 export const TIMEZONE_OPTIONS = [
   "Asia/Shanghai",

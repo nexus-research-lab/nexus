@@ -48,7 +48,7 @@ func externalIndexRowItem(source externalSkillSource, row map[string]any) Extern
 	return ExternalSkillSearchItem{
 		Name:           name,
 		Title:          firstNonEmpty(anyString(row["title"]), name),
-		Description:    firstNonEmpty(anyString(row["description"]), anyString(row["summary"]), "来自外部来源的技能"),
+		Description:    firstNonEmpty(anyString(row["description"]), anyString(row["summary"])),
 		Source:         firstNonEmpty(anyString(row["source"]), source.URL),
 		PackageSpec:    packageSpec,
 		SkillSlug:      slug,
@@ -81,7 +81,7 @@ func hermesIndexRowItem(source externalSkillSource, row map[string]any) External
 	return ExternalSkillSearchItem{
 		Name:           name,
 		Title:          firstNonEmpty(anyString(row["title"]), name),
-		Description:    firstNonEmpty(anyString(row["description"]), "来自 Hermes Skills Index 的搜索结果"),
+		Description:    anyString(row["description"]),
 		Source:         identifier,
 		PackageSpec:    gitURL,
 		SkillSlug:      name,
@@ -111,7 +111,7 @@ func browseShRowItem(source externalSkillSource, row map[string]any) ExternalSki
 	return ExternalSkillSearchItem{
 		Name:           name,
 		Title:          title,
-		Description:    firstNonEmpty(anyString(row["description"]), "来自 browse.sh 的网站自动化技能"),
+		Description:    anyString(row["description"]),
 		Source:         firstNonEmpty(anyString(row["hostname"]), anyString(row["source"]), source.URL),
 		PackageSpec:    rawURL,
 		SkillSlug:      firstNonEmpty(slug, name),
@@ -134,7 +134,7 @@ func externalPointerSourceItem(source externalSkillSource) ExternalSkillSearchIt
 	item := ExternalSkillSearchItem{
 		Name:        name,
 		Title:       name,
-		Description: "来自 " + source.Name + " 的外部技能来源",
+		Description: "",
 		Source:      source.URL,
 		PackageSpec: source.URL,
 		SkillSlug:   name,

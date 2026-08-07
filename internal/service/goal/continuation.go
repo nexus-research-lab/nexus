@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/service/objectivealignment"
 )
 
 // ContinuationPlanProvider 提供续跑候选的规划与并发有效性校验。
@@ -125,6 +126,9 @@ func (s *Service) planContinuationForLoadedGoal(ctx context.Context, item *proto
 	if protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return nil, nil
 	}
+	if GoalObjectiveTransitionPending(*item) {
+		return nil, nil
+	}
 	if s.goalBudgetExhausted(*item) {
 		_, err := s.limitForSystem(ctx, *item, protocol.GoalStatusBudgetLimited, "budget_limited", previousRoundID, "Goal token budget exhausted")
 		return nil, err
@@ -223,6 +227,9 @@ func (s *Service) GoalContinuationStillCurrent(ctx context.Context, plan protoco
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return false, nil
 	}
+	if GoalObjectiveTransitionPending(*item) {
+		return false, nil
+	}
 	return item.ID == goalID &&
 		objectiveRevisionMatches(*item, plan.Goal.ObjectiveRevision()) &&
 		hasContinuationReservation(item.Metadata, plan.RoundID), nil
@@ -246,6 +253,9 @@ func (s *Service) ClaimContinuationPlan(ctx context.Context, plan protocol.GoalC
 	}
 	expectedRevision := plan.Goal.ObjectiveRevision()
 	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if pendingErr := rejectPendingObjectiveTransition(*current, "claim Goal continuation"); pendingErr != nil {
+			return nil, pendingErr
+		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
 		}
@@ -453,13 +463,34 @@ func buildContinuationPrompt(item protocol.Goal, previousRoundID string) string 
 		remainingTokens = fmt.Sprintf("%d", *remaining)
 	}
 	return renderGoalPromptTemplate(continuationPromptTemplate, map[string]string{
-		"objective":                  objective,
-		"room_goal_lead_note":        buildRoomGoalLeadNote(item),
-		"completion_tool_retry_note": buildCompletionToolRetryNote(item),
-		"tokens_used":                fmt.Sprintf("%d", item.Usage.BudgetTokens()),
-		"token_budget":               tokenBudget,
-		"remaining_tokens":           remainingTokens,
+		"objective":                    objective,
+		"room_goal_lead_note":          buildRoomGoalLeadNote(item),
+		"objective_alignment_criteria": buildObjectiveAlignmentCriteria(item),
+		"objective_alignment_contract": objectivealignment.PromptContract(),
+		"completion_tool_retry_note":   buildCompletionToolRetryNote(item),
+		"tokens_used":                  fmt.Sprintf("%d", item.Usage.BudgetTokens()),
+		"token_budget":                 tokenBudget,
+		"remaining_tokens":             remainingTokens,
 	})
+}
+
+func buildObjectiveAlignmentCriteria(item protocol.Goal) string {
+	target, err := objectivealignment.NormalizeTarget(goalObjectiveAlignmentTarget(item))
+	if err != nil {
+		return ""
+	}
+	var output strings.Builder
+	output.WriteString("<completion_criteria>")
+	for index, criterion := range target.Criteria {
+		fmt.Fprintf(
+			&output,
+			"\n%d. %s",
+			index+1,
+			escapeGoalPromptText(criterion),
+		)
+	}
+	output.WriteString("\n</completion_criteria>")
+	return output.String()
 }
 
 func buildRoomGoalLeadNote(item protocol.Goal) string {
@@ -495,8 +526,8 @@ func buildCompletionToolRetryNote(item protocol.Goal) string {
 	return strings.TrimSpace(
 		"Completion finalization retry:\n" +
 			"- A previous goal-continuation response stated that the objective was complete but did not call the Goal update tool.\n" +
-			"- In Nexus, the model-visible tool name is `mcp__nexus_goal__update_goal`. Do not conclude it is unavailable because bare `update_goal` is absent.\n" +
-			"- Redo the completion audit now. If the objective is complete, call `mcp__nexus_goal__update_goal` with status \"complete\" before any final response. If it is not complete, continue the remaining work.",
+			"- Redo the structured objective-alignment audit in this round through `mcp__nexus_goal__audit_objective_alignment`, or bare `audit_objective_alignment` when that is the visible name.\n" +
+			"- Only after that tool returns `aligned`, call `mcp__nexus_goal__update_goal` with status \"complete\" before any final response. If it returns `not_aligned` or `inconclusive`, continue the work or gather the missing evidence.",
 	)
 }
 

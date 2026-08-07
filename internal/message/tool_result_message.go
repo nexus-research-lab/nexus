@@ -1,3 +1,6 @@
+// INPUT: runtime user/tool_result 消息、同轮 tool_use 索引与可选 structured output。
+// OUTPUT: 保留原始结果、错误分类及显式 mutation 语义的 durable Assistant 快照。
+// POS: Provider 工具结果到 DM/Room/Goal/WorkGraph 消费面的统一消息投影边界。
 package message
 
 import (
@@ -64,17 +67,36 @@ func (p *Processor) enrichToolResultBlock(
 		enriched = map[string]any{"type": "tool_result"}
 	}
 	p.attachTaskToolStructuredOutput(enriched, structuredOutput)
-	if boolValue(enriched["is_error"]) {
-		toolUseID := normalizeString(enriched["tool_use_id"])
-		if toolUseID != "" {
-			toolName := p.segment.FindToolName(toolUseID)
-			errorCode := inferPermissionErrorCode(toolName, normalizeString(enriched["content"]))
-			if errorCode != "" {
-				enriched["error_code"] = errorCode
-			}
-		}
-	}
+	attachMutationResultMetadata(enriched, structuredOutput)
 	return enriched
+}
+
+// attachMutationResultMetadata 只缓存显式 mutation envelope 的紧凑语义。
+// 原始 provider content 保持不变，Agent 仍可依据完整结果自主修正或重试。
+func attachMutationResultMetadata(
+	block map[string]any,
+	structuredOutput map[string]any,
+) {
+	result, ok := protocol.ParseMutationResultEnvelope(
+		structuredOutput,
+		block["structured_output"],
+		block["content"],
+	)
+	if !ok {
+		return
+	}
+	metadata := mapValue(block["metadata"])
+	if metadata == nil {
+		metadata = make(map[string]any, 3)
+	}
+	metadata[protocol.MutationOutcomeMetadataKey] = string(result.Outcome)
+	if result.Message != "" {
+		metadata[protocol.MutationMessageMetadataKey] = result.Message
+	}
+	if result.ReasonCode != "" {
+		metadata[protocol.MutationReasonCodeMetadataKey] = result.ReasonCode
+	}
+	block["metadata"] = metadata
 }
 
 // attachTaskToolStructuredOutput 只保留任务列表工具的机器可读结果，避免前端解析展示文案。

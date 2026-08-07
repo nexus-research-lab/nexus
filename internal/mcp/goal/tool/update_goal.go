@@ -18,17 +18,9 @@ type updateGoalInput struct {
 }
 
 const updateGoalDescription = "Update the existing goal.\n" +
-	"Use this tool only to mark the goal achieved or genuinely blocked.\n" +
-	"For a shared Room Goal, only the assigned lead agent may update its status; other agents must report evidence or proposals to the lead.\n" +
-	"Do not use this tool to change the objective; use retarget_goal only when the user explicitly corrects the existing active goal.\n" +
-	"Set status to `complete` only when the objective has actually been achieved and no required work remains.\n" +
-	"Set status to `blocked` only when the same blocking condition has repeated for at least three consecutive goal turns, counting the original/user-triggered turn and any automatic continuations, and the agent cannot make meaningful progress without user input or an external-state change.\n" +
-	"If the user resumes a goal that was previously marked `blocked`, treat the resumed run as a fresh blocked audit. If the same blocking condition then repeats for at least three consecutive resumed goal turns, set status to `blocked` again.\n" +
-	"Once the blocked threshold is satisfied, do not keep reporting that you are still blocked while leaving the goal active; set status to `blocked`.\n" +
-	"Do not use `blocked` merely because the work is hard, slow, uncertain, incomplete, or would benefit from clarification.\n" +
-	"Do not mark a goal complete merely because its budget is nearly exhausted or because you are stopping work.\n" +
-	"You cannot use this tool to pause, resume, budget-limit, or usage-limit a goal; those status changes are controlled by the user or system.\n" +
-	"When marking a goal achieved with status `complete`, call this tool before the final response, then use the next final response as the complete user-facing delivery surface. The response must stand on its own and satisfy the objective: include the full requested content when content itself is the deliverable; for files or artifacts, provide exact links or paths; for implementation, research, or external-state work, present the key outcomes and relevant verification. Do not make `Goal complete` the headline or replace the result with a completion notice or brief summary; mention completion only secondarily if useful."
+	"Use it only to mark the Goal complete or blocked; objective correction uses retarget_goal, and pause, resume, budget and usage states belong to the user or system.\n" +
+	"Complete requires the objective to be achieved with no required work remaining. A managed Goal also requires an aligned Objective Alignment report for the current revision and round, plus backend WorkGraph and Room readiness.\n" +
+	"Blocked requires the same concrete blocker for at least three consecutive Goal turns with no meaningful progress possible without user input or external change. A shared Room Goal may be updated only by its assigned lead."
 
 const updateGoalStatusDescription = "Required. Set to complete only when the objective is achieved and no required work remains. Set to blocked only after the same blocker has repeated for at least three consecutive goal turns and progress is impossible without user input or external unblock."
 
@@ -49,6 +41,9 @@ func updateGoal(svc contract.Service, sctx contract.ServerContext) sdktool.Tool 
 			status := protocol.GoalStatus(strings.TrimSpace(parsed.Status))
 			if status != protocol.GoalStatusComplete && status != protocol.GoalStatusBlocked {
 				return errorResult(fmt.Errorf("the Goal update tool can only mark the existing goal complete or blocked; pause, resume, budget-limited, and usage-limited status changes are controlled by the user or system")), nil
+			}
+			if sctx.PlanMode {
+				return planModeGoalMutationResult("update_goal"), nil
 			}
 			current, err := svc.Current(ctx, sctx.CurrentSessionKey)
 			if err != nil {

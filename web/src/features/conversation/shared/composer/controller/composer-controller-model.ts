@@ -31,8 +31,8 @@ interface ComposerViewStateOptions {
   isLoading: boolean;
   isLoopPickerOpen: boolean;
   isPreparingAttachments: boolean;
+  isSessionSettingsSaving: boolean;
   queueItemCount: number;
-  queueWhenSessionBusy: boolean;
   runtimePhase: AgentConversationRuntimePhase | null;
 }
 
@@ -54,8 +54,6 @@ export function buildComposerViewState(
     goalCreateBlockedReason: options.goalCreateBlockedReason,
     goalError: options.goalError,
     inputMode: options.inputMode,
-    queueWhenSessionBusy: options.queueWhenSessionBusy,
-    sessionBusy: runtimeState.sessionBusy,
   });
   const actionState = projectComposerActions({
     canCreateGoal: options.canCreateGoal,
@@ -64,6 +62,7 @@ export function buildComposerViewState(
     isGoalCreating: options.isGoalCreating,
     isGoalMode: modeState.isGoalMode,
     isPreparingAttachments: options.isPreparingAttachments,
+    isSessionSettingsSaving: options.isSessionSettingsSaving,
     hasStopAction: options.hasStopAction,
     runtimeState,
   });
@@ -81,7 +80,6 @@ export function buildComposerViewState(
     historyIndex: options.historyIndex,
     input: options.input,
     inputHistoryLength: options.historyItemCount,
-    inlineEnterLabel: modeState.enterLabel,
     isActionMenuOpen: options.isActionMenuOpen,
     isGoalCreating: options.isGoalCreating,
     isGoalMode: modeState.isGoalMode,

@@ -26,32 +26,32 @@ const DIRECTION_STYLES: Record<
 > = {
   incoming: {
     alignment: "justify-start",
-    bubble: "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_62%,transparent)]",
+    bubble: "bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_62%,transparent)]",
   },
   outgoing: {
     alignment: "justify-end",
-    bubble: "border-[color:color-mix(in_srgb,var(--primary)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--primary)_8%,transparent)]",
+    bubble: "bg-[color:color-mix(in_srgb,var(--primary)_7%,transparent)]",
   },
   self: {
     alignment: "justify-center",
-    bubble: "border-(--divider-subtle-color) bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_72%,transparent)]",
+    bubble: "bg-[color:color-mix(in_srgb,var(--surface-elevated-background)_72%,transparent)]",
   },
 };
 
 const DENSITY_STYLES: Record<PrivateTimelineDensity, DensityStyle> = {
   compact: {
-    bubble: "max-w-[88%] radius-control-lg px-2.5 py-2 shadow-none",
+    bubble: "max-w-[88%] radius-control-lg px-2.5 py-2",
     content: "mt-1.5 text-sm leading-5",
     header: "gap-1.5",
     name: "text-compact",
     route: "mt-1.5 text-2xs",
   },
   regular: {
-    bubble: "max-w-[min(720px,78%)] surface-radius-lg px-3 py-2.5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]",
-    content: "mt-2 text-sm leading-5",
+    bubble: "max-w-[min(760px,82%)] rounded-[12px] px-3 py-2.5",
+    content: "mt-1.5 text-sm leading-5",
     header: "gap-2",
     name: "text-compact",
-    route: "mt-2 text-xs",
+    route: "mt-1.5 text-2xs",
   },
 };
 
@@ -66,16 +66,13 @@ export function PrivateEventBubble({
   const size = DENSITY_STYLES[density];
   return (
     <div className={cn("flex", direction.alignment)}>
-      <div className={cn("w-fit border", size.bubble, direction.bubble)}>
+      <div className={cn("w-fit", size.bubble, direction.bubble)}>
         <div className={cn("flex min-w-0 items-center", size.header)}>
           <PrivateParticipantAvatar participant={event.source} size="sm" />
           <span className={cn("truncate font-semibold text-(--text-strong)", size.name)}>
             {event.sourceName}
           </span>
-          <span className="rounded-full bg-[color:color-mix(in_srgb,var(--surface-interactive-hover-background)_68%,transparent)] px-1.5 py-0.5 text-2xs font-semibold text-(--text-soft)">
-            私信
-          </span>
-          <span className="ml-auto shrink-0 text-xs font-semibold text-(--text-soft)">
+          <span className="ml-auto shrink-0 text-2xs tabular-nums text-(--text-soft)">
             {event.timestampLabel}
           </span>
         </div>

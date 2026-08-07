@@ -3,9 +3,11 @@
 import { ChevronDown, X, type LucideIcon } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
+import { WORKSPACE_CONTENT_GUTTER_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiActionMenu } from "@/shared/ui/menu/action-menu";
-import { UiUnderlineTabs } from "@/shared/ui/navigation/tabs";
+import { UiTabs } from "@/shared/ui/navigation/tabs";
 import { WORKSPACE_HEADER_HEIGHT_CLASS } from "@/shared/ui/workspace/surface/workspace-header-layout";
 
 import "./workspace-surface-header.css";
@@ -75,7 +77,10 @@ export function WorkspaceSurfaceHeader<TTabKey extends string>({
       )}
       data-desktop-window-drag-region
     >
-      <div className="workspace-surface-header-inner flex h-full min-w-0 items-center justify-between px-5 xl:px-6">
+      <div className={cn(
+        WORKSPACE_CONTENT_GUTTER_CLASS_NAME,
+        "workspace-surface-header-inner flex h-full min-w-0 items-center justify-between",
+      )}>
         <WorkspaceSurfaceIdentity
           leading={leading}
           leadingClassName={leadingClassName}
@@ -117,6 +122,7 @@ function WorkspaceSurfaceIdentity({
   titleTrailing?: ReactNode;
 }) {
   const hasTitleContent = Boolean(title) || Boolean(titleTrailing);
+  if (!leading && !hasTitleContent) return null;
 
   return (
     <div className="workspace-surface-header-title flex min-w-0 shrink items-center gap-2.5">
@@ -262,13 +268,14 @@ function WorkspaceSurfaceTabs<TTabKey extends string>({
   tabs: WorkspaceSurfaceHeaderTab<TTabKey>[];
   tabsNavAnchor?: string;
 }) {
+  const { t } = useI18n();
   if (tabs.length === 0) return null;
 
   return (
     <>
-      <UiUnderlineTabs
+      <UiTabs
         activeValue={activeTab}
-        ariaLabel="视图切换"
+        ariaLabel={t("common.view_switcher")}
         className={cn(
           "workspace-surface-header-view-tabs min-w-0 overflow-visible",
           hasLeading ? "shrink-0" : "flex-1",

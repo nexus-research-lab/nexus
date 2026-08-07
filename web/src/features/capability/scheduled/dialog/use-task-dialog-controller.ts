@@ -6,6 +6,10 @@ import {
   createScheduledTaskApi,
   updateScheduledTaskApi,
 } from "@/lib/api/capability/scheduled-task-api";
+import {
+  type I18nContextValue,
+  useI18n,
+} from "@/shared/i18n/i18n-context";
 import type {
   ScheduledTaskItem,
   UpdateScheduledTaskParams,
@@ -43,6 +47,7 @@ interface SubmitTaskDialogOptions {
   initialTask: ScheduledTaskItem | null;
   onCreated?: (task: ScheduledTaskItem) => void | Promise<void>;
   onSaved?: (task: ScheduledTaskItem) => void | Promise<void>;
+  t: I18nContextValue["t"];
 }
 
 function buildUpdatePayload(
@@ -61,8 +66,9 @@ async function submitTaskDialog({
   initialTask,
   onCreated,
   onSaved,
+  t,
 }: SubmitTaskDialogOptions): Promise<void> {
-  const payload = buildScheduledTaskPayload(context, initialTask?.source);
+  const payload = buildScheduledTaskPayload(context, t, initialTask?.source);
   if (initialTask) {
     const updatePayload = buildUpdatePayload(
       payload,
@@ -81,11 +87,14 @@ async function submitTaskDialog({
 function getSubmitErrorMessage(
   error: unknown,
   initialTask: ScheduledTaskItem | null,
+  t: I18nContextValue["t"],
 ): string {
   if (error instanceof Error) {
     return error.message;
   }
-  return initialTask ? "保存任务失败" : "创建任务失败";
+  return initialTask
+    ? t("capability.scheduled_dialog_save_failed")
+    : t("capability.scheduled_dialog_create_failed");
 }
 
 export function useTaskDialogController({
@@ -97,6 +106,7 @@ export function useTaskDialogController({
   onCreated,
   onSaved,
 }: TaskDialogControllerOptions) {
+  const { t } = useI18n();
   const initialState = useMemo(
     () => initialTask
       ? buildTaskDialogInitialState(initialTask)
@@ -153,7 +163,7 @@ export function useTaskDialogController({
     if (submitInFlightRef.current) {
       return;
     }
-    const validationError = getTaskDialogValidationError(submitContext);
+    const validationError = getTaskDialogValidationError(submitContext, t);
     if (validationError) {
       setErrorMessage(validationError);
       return;
@@ -168,15 +178,16 @@ export function useTaskDialogController({
         initialTask,
         onCreated,
         onSaved,
+        t,
       });
       onClose();
     } catch (error) {
-      setErrorMessage(getSubmitErrorMessage(error, initialTask));
+      setErrorMessage(getSubmitErrorMessage(error, initialTask, t));
     } finally {
       submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
-  }, [initialTask, onClose, onCreated, onSaved, submitContext]);
+  }, [initialTask, onClose, onCreated, onSaved, submitContext, t]);
 
   useEffect(() => {
     if (!isOpen) {

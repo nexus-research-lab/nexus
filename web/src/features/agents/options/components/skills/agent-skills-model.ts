@@ -10,17 +10,25 @@ export interface AgentSkillsProjection {
   available: AgentSkillEntry[];
   availableEmptyState: AvailableSkillsEmptyState;
   enabled: AgentSkillEntry[];
-  totalCount: number;
   visibleAvailable: AgentSkillEntry[];
 }
 
+type SkillDescriptionResolver = (skill: AgentSkillEntry) => string;
+
 const SEARCH_FIELDS: Array<keyof Pick<
   AgentSkillEntry,
-  "category_name" | "description" | "name" | "title"
->> = ["name", "title", "description", "category_name"];
+  "category_name" | "name" | "title"
+>> = ["name", "title", "category_name"];
 
-function matchesSearch(skill: AgentSkillEntry, query: string): boolean {
+function matchesSearch(
+  skill: AgentSkillEntry,
+  query: string,
+  resolveDescription: SkillDescriptionResolver,
+): boolean {
   if (SEARCH_FIELDS.some((field) => skill[field].toLowerCase().includes(query))) {
+    return true;
+  }
+  if (resolveDescription(skill).toLowerCase().includes(query)) {
     return true;
   }
   return skill.tags.some((tag) => tag.toLowerCase().includes(query));
@@ -45,6 +53,7 @@ function resolveAvailableEmptyState(
 export function projectAgentSkills(
   skills: AgentSkillEntry[],
   searchQuery: string,
+  resolveDescription: SkillDescriptionResolver = (skill) => skill.description,
 ): AgentSkillsProjection {
   const enabled: AgentSkillEntry[] = [];
   const available: AgentSkillEntry[] = [];
@@ -59,7 +68,9 @@ export function projectAgentSkills(
 
   const query = searchQuery.trim().toLowerCase();
   const visibleAvailable = query
-    ? available.filter((skill) => matchesSearch(skill, query))
+    ? available.filter((skill) => (
+      matchesSearch(skill, query, resolveDescription)
+    ))
     : available;
   const availableEmptyState = resolveAvailableEmptyState(
     skills.length,
@@ -71,7 +82,6 @@ export function projectAgentSkills(
     available,
     availableEmptyState,
     enabled,
-    totalCount: skills.length,
     visibleAvailable,
   };
 }

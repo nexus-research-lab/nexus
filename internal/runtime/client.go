@@ -1,5 +1,5 @@
 // INPUT: SDK bridge client、会话控制请求与子进程关闭态错误。
-// OUTPUT: Nexus runtime 所需的最小 Client 能力和稳定的关闭语义。
+// OUTPUT: Nexus runtime 所需的最小 Client 能力和稳定的连接失败、换代、关闭语义。
 // POS: runtime Manager 与具体 SDK bridge 之间的适配边界。
 package runtime
 
@@ -27,14 +27,11 @@ type Client interface {
 	SendTaskMessage(context.Context, string, string, string) error
 	RemoveMessages(context.Context, []string) error
 	SetPermissionMode(context.Context, sdkpermission.Mode) error
+	// Retire 永久撤销 Manager 所有权；实现必须幂等、不能等待进程退出或回调 Manager。
+	Retire()
 	Disconnect(context.Context) error
 	Reconfigure(context.Context, agentclient.Options) error
 	SessionID() string
-}
-
-// SlashCommandProvider 是运行时可选的命令目录能力，不扩大所有测试替身必须实现的 Client 面。
-type SlashCommandProvider interface {
-	SupportedCommands(context.Context) ([]agentclient.SlashCommand, error)
 }
 
 // Factory 负责创建 SDK client。
@@ -45,12 +42,44 @@ type Factory interface {
 type defaultFactory struct{}
 
 type sdkClientAdapter struct {
-	mu        sync.Mutex
-	options   agentclient.Options
-	session   *agentclient.Session
-	messages  chan sdkprotocol.ReceivedMessage
-	cancel    context.CancelFunc
-	streamErr error
+	mu                       sync.Mutex
+	options                  agentclient.Options
+	configVersion            uint64
+	lifecycleVersion         uint64
+	session                  *agentclient.Session
+	messages                 chan sdkprotocol.ReceivedMessage
+	cancel                   context.CancelFunc
+	connecting               *sdkClientConnectFlight
+	configuring              *sdkClientConfigFlight
+	cleanup                  *sdkClientSessionCleanup
+	streamErr                error
+	retired                  bool
+	newSession               func(context.Context, agentclient.Options) (*agentclient.Session, error)
+	closeSession             func(*agentclient.Session) error
+	reconfigureSession       func(context.Context, *agentclient.Session, agentclient.Options) error
+	updateSessionEnvironment func(context.Context, *agentclient.Session, map[string]string) error
+	setSessionPermissionMode func(context.Context, *agentclient.Session, sdkpermission.Mode) error
+}
+
+type sdkClientConnectFlight struct {
+	done          chan struct{}
+	cancel        context.CancelCauseFunc
+	sharedFailure *sdkClientConnectFailure
+}
+
+type sdkClientConnectFailure struct {
+	err              error
+	configVersion    uint64
+	lifecycleVersion uint64
+}
+
+type sdkClientConfigFlight struct {
+	done chan struct{}
+}
+
+type sdkClientSessionCleanup struct {
+	done chan struct{}
+	err  error
 }
 
 func WrapSDKClient(options agentclient.Options) Client {
@@ -58,32 +87,187 @@ func WrapSDKClient(options agentclient.Options) Client {
 }
 
 func (c *sdkClientAdapter) Connect(ctx context.Context) error {
-	c.mu.Lock()
-	if c.session != nil {
-		c.mu.Unlock()
-		return nil
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	options := c.options
-	c.options = options
-	c.mu.Unlock()
-
-	session, err := agentclient.NewSession(ctx, options)
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
-
-	pumpCtx, cancel := context.WithCancel(context.Background())
-	messages := make(chan sdkprotocol.ReceivedMessage, 64)
-
 	c.mu.Lock()
-	c.session = session
-	c.messages = messages
-	c.cancel = cancel
-	c.streamErr = nil
+	if c.retired {
+		c.mu.Unlock()
+		return agentclient.ErrAborted
+	}
+	requestLifecycleVersion := c.lifecycleVersion
 	c.mu.Unlock()
 
-	go c.pumpMessages(pumpCtx, session, messages)
-	return nil
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		c.mu.Lock()
+		if c.retired {
+			c.mu.Unlock()
+			return agentclient.ErrAborted
+		}
+		if c.lifecycleVersion != requestLifecycleVersion {
+			c.mu.Unlock()
+			return agentclient.ErrAborted
+		}
+		if c.session != nil {
+			c.mu.Unlock()
+			return nil
+		}
+		cleanup := c.cleanup
+		if cleanup != nil {
+			c.mu.Unlock()
+			if err := waitSDKClientTransition(ctx, cleanup.done); err != nil {
+				return err
+			}
+			if err := c.clearCompletedSDKClientCleanup(cleanup); err != nil {
+				return err
+			}
+			continue
+		}
+		if connecting := c.connecting; connecting != nil {
+			c.mu.Unlock()
+			if err := waitSDKClientTransition(ctx, connecting.done); err != nil {
+				return err
+			}
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err, terminal := c.connectFlightWaitResult(connecting, requestLifecycleVersion); terminal {
+				return err
+			}
+			continue
+		}
+		connectCtx, cancel := context.WithCancelCause(ctx)
+		connecting := &sdkClientConnectFlight{
+			done:   make(chan struct{}),
+			cancel: cancel,
+		}
+		c.connecting = connecting
+		c.mu.Unlock()
+		return c.runConnectFlight(connectCtx, requestLifecycleVersion, connecting)
+	}
+}
+
+func (c *sdkClientAdapter) runConnectFlight(
+	ctx context.Context,
+	requestLifecycleVersion uint64,
+	connecting *sdkClientConnectFlight,
+) error {
+	var sharedFailure *sdkClientConnectFailure
+	defer func() { c.finishConnectFlight(connecting, sharedFailure) }()
+	for {
+		c.mu.Lock()
+		if c.lifecycleVersion != requestLifecycleVersion {
+			c.mu.Unlock()
+			return agentclient.ErrAborted
+		}
+		options := c.options
+		configVersion := c.configVersion
+		c.mu.Unlock()
+
+		session, err := c.openSession(ctx, options)
+		if err != nil {
+			c.mu.Lock()
+			configChanged := c.configVersion != configVersion
+			invalidated := c.lifecycleVersion != requestLifecycleVersion
+			c.mu.Unlock()
+			if invalidated {
+				return agentclient.ErrAborted
+			}
+			if ownerErr := ctx.Err(); ownerErr != nil {
+				return ownerErr
+			}
+			if configChanged {
+				continue
+			}
+			sharedFailure = &sdkClientConnectFailure{
+				err:              err,
+				configVersion:    configVersion,
+				lifecycleVersion: requestLifecycleVersion,
+			}
+			return err
+		}
+
+		pumpCtx, cancel := context.WithCancel(context.Background())
+		messages := make(chan sdkprotocol.ReceivedMessage, 64)
+
+		c.mu.Lock()
+		configChanged := c.configVersion != configVersion
+		invalidated := c.lifecycleVersion != requestLifecycleVersion
+		if !configChanged && !invalidated && c.session == nil {
+			c.session = session
+			c.messages = messages
+			c.cancel = cancel
+			c.streamErr = nil
+			c.mu.Unlock()
+			go c.pumpMessages(pumpCtx, session, messages)
+			return nil
+		}
+		cleanup := &sdkClientSessionCleanup{done: make(chan struct{})}
+		c.cleanup = cleanup
+		c.mu.Unlock()
+
+		cancel()
+		c.startSDKSessionCleanup(session, nil, cleanup)
+		waitErr := waitSDKClientTransition(ctx, cleanup.done)
+		c.mu.Lock()
+		invalidated = invalidated || c.lifecycleVersion != requestLifecycleVersion
+		c.mu.Unlock()
+		if invalidated {
+			return agentclient.ErrAborted
+		}
+		if waitErr != nil {
+			return waitErr
+		}
+		if err := c.clearCompletedSDKClientCleanup(cleanup); err != nil {
+			return err
+		}
+	}
+}
+
+func (c *sdkClientAdapter) connectFlightWaitResult(
+	connecting *sdkClientConnectFlight,
+	requestLifecycleVersion uint64,
+) (error, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.retired {
+		return agentclient.ErrAborted, true
+	}
+	if c.lifecycleVersion != requestLifecycleVersion {
+		return agentclient.ErrAborted, true
+	}
+	failure := connecting.sharedFailure
+	if failure == nil ||
+		failure.lifecycleVersion != requestLifecycleVersion ||
+		failure.configVersion != c.configVersion {
+		return nil, false
+	}
+	return failure.err, true
+}
+
+func (c *sdkClientAdapter) finishConnectFlight(
+	connecting *sdkClientConnectFlight,
+	sharedFailure *sdkClientConnectFailure,
+) {
+	connecting.cancel(context.Canceled)
+	c.mu.Lock()
+	if sharedFailure != nil &&
+		(sharedFailure.lifecycleVersion != c.lifecycleVersion ||
+			sharedFailure.configVersion != c.configVersion) {
+		sharedFailure = nil
+	}
+	connecting.sharedFailure = sharedFailure
+	if c.connecting == connecting {
+		c.connecting = nil
+	}
+	close(connecting.done)
+	c.mu.Unlock()
 }
 
 // IsConnected 返回底层 SDK session 是否仍然存活。
@@ -139,6 +323,24 @@ func (c *sdkClientAdapter) SetNextTurnContext(ctx context.Context, blocks []Cont
 		return nil
 	}
 	return session.Control().SetNextTurnContext(ctx, sdkBlocks)
+}
+
+// ClearNextTurnContext 清除 bridge 尚未消费的单轮隐藏上下文。
+func (c *sdkClientAdapter) ClearNextTurnContext(ctx context.Context) error {
+	session, err := c.currentSession()
+	if err != nil {
+		return err
+	}
+	control := session.Control()
+	// 新 bridge 提供显式清理；旧 bridge 的 SetNextTurnContext(nil) 也会清空
+	// 同一个 buffer，作为兼容回退，避免 Slash 等原子输入带入上一轮上下文。
+	clearer, ok := any(control).(interface {
+		ClearNextTurnContext(context.Context) error
+	})
+	if ok {
+		return clearer.ClearNextTurnContext(ctx)
+	}
+	return control.SetNextTurnContext(ctx, nil)
 }
 
 func (c *sdkClientAdapter) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
@@ -202,31 +404,36 @@ func (c *sdkClientAdapter) RemoveMessages(ctx context.Context, uuids []string) e
 
 func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermission.Mode) error {
 	normalized := normalizePermissionMode(mode)
+	configuring, err := c.beginSDKClientConfiguration(ctx)
+	if err != nil {
+		return err
+	}
+	defer c.finishSDKClientConfiguration(configuring)
+
 	c.mu.Lock()
-	options := c.options
-	options.Runtime.PermissionMode = normalized
-	c.options = options
+	currentOptions := c.options
+	if c.retired {
+		c.mu.Unlock()
+		return agentclient.ErrAborted
+	}
+	nextOptions := currentOptions
+	nextOptions.Runtime.PermissionMode = normalized
+	c.options = nextOptions
+	c.configVersion++
+	configVersion := c.configVersion
 	session := c.session
 	c.mu.Unlock()
 	if session == nil {
-		return nil
+		return c.ensureNotRetired()
 	}
-	if err := session.Control().SetPermissionMode(ctx, normalized); err != nil {
-		if IsRuntimeTransportClosedError(err) && c.markDisconnected(session, err) {
-			closeSDKSession(session)
+	if err := c.applySDKSessionPermissionMode(ctx, session, normalized); err != nil {
+		c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
+		if IsRuntimeTransportClosedError(err) {
+			c.cleanupSDKSession(session, err)
 		}
 		return err
 	}
-	return nil
-}
-
-// SupportedCommands 返回当前已连接运行时公开的用户命令目录。
-func (c *sdkClientAdapter) SupportedCommands(ctx context.Context) ([]agentclient.SlashCommand, error) {
-	session, err := c.currentSession()
-	if err != nil {
-		return nil, err
-	}
-	return session.Control().SupportedCommands(ctx)
+	return c.ensureNotRetired()
 }
 
 // UpdateEnvironment 将运行期环境增量推送给 nxs，不重启当前会话。
@@ -234,30 +441,43 @@ func (c *sdkClientAdapter) UpdateEnvironment(ctx context.Context, environment ma
 	if len(environment) == 0 {
 		return nil
 	}
+	configuring, err := c.beginSDKClientConfiguration(ctx)
+	if err != nil {
+		return err
+	}
+	defer c.finishSDKClientConfiguration(configuring)
+
+	delta := maps.Clone(environment)
 	c.mu.Lock()
-	options := c.options
-	if options.Env == nil {
-		options.Env = map[string]string{}
+	currentOptions := c.options
+	if c.retired {
+		c.mu.Unlock()
+		return agentclient.ErrAborted
+	}
+	nextOptions := currentOptions
+	if nextOptions.Env == nil {
+		nextOptions.Env = map[string]string{}
 	} else {
-		options.Env = maps.Clone(options.Env)
+		nextOptions.Env = maps.Clone(nextOptions.Env)
 	}
-	for key, value := range environment {
-		options.Env[key] = value
+	for key, value := range delta {
+		nextOptions.Env[key] = value
 	}
+	c.options = nextOptions
+	c.configVersion++
+	configVersion := c.configVersion
 	session := c.session
 	c.mu.Unlock()
 	if session != nil {
-		if err := session.Control().UpdateEnvironment(ctx, environment); err != nil {
-			if IsRuntimeTransportClosedError(err) && c.markDisconnected(session, err) {
-				closeSDKSession(session)
+		if err := c.applySDKSessionEnvironment(ctx, session, delta); err != nil {
+			c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
+			if IsRuntimeTransportClosedError(err) {
+				c.cleanupSDKSession(session, err)
 			}
 			return err
 		}
 	}
-	c.mu.Lock()
-	c.options = options
-	c.mu.Unlock()
-	return nil
+	return c.ensureNotRetired()
 }
 
 func normalizePermissionMode(mode sdkpermission.Mode) sdkpermission.Mode {
@@ -267,45 +487,324 @@ func normalizePermissionMode(mode sdkpermission.Mode) sdkpermission.Mode {
 	return mode
 }
 
-func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {
-	c.mu.Lock()
-	session := c.session
-	cancel := c.cancel
-	c.session = nil
-	c.messages = nil
-	c.cancel = nil
-	c.mu.Unlock()
-
-	if cancel != nil {
-		cancel()
+// 配置调用先按顺序提交期望状态，再触达当前 session。这样 Connect 只需比较
+// configVersion，就能拒绝用旧配置启动的 runtime，而不必和控制 RPC 共用锁。
+func (c *sdkClientAdapter) beginSDKClientConfiguration(ctx context.Context) (*sdkClientConfigFlight, error) {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if session == nil {
-		return nil
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		c.mu.Lock()
+		if c.retired {
+			c.mu.Unlock()
+			return nil, agentclient.ErrAborted
+		}
+		if c.configuring == nil {
+			configuring := &sdkClientConfigFlight{done: make(chan struct{})}
+			c.configuring = configuring
+			c.mu.Unlock()
+			return configuring, nil
+		}
+		configuring := c.configuring
+		c.mu.Unlock()
+		if err := waitSDKClientTransition(ctx, configuring.done); err != nil {
+			return nil, err
+		}
 	}
-	return session.Close(ctx)
 }
 
-func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.Options) error {
+func (c *sdkClientAdapter) ensureNotRetired() error {
 	c.mu.Lock()
-	currentOptions := c.options
-	session := c.session
+	defer c.mu.Unlock()
+	if c.retired {
+		return agentclient.ErrAborted
+	}
+	return nil
+}
+
+func (c *sdkClientAdapter) finishSDKClientConfiguration(configuring *sdkClientConfigFlight) {
+	c.mu.Lock()
+	if c.configuring == configuring {
+		c.configuring = nil
+	}
+	close(configuring.done)
 	c.mu.Unlock()
+}
+
+func (c *sdkClientAdapter) rollbackSDKClientConfiguration(
+	session *agentclient.Session,
+	configVersion uint64,
+	options agentclient.Options,
+) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.session != session || c.configVersion != configVersion {
+		// 旧 session 的 RPC 与生命周期换代重叠时，新代已经读取或即将读取
+		// desired options；不能再用旧代失败覆盖新代配置。
+		return
+	}
+	c.options = options
+	c.configVersion++
+}
+
+func (c *sdkClientAdapter) Disconnect(ctx context.Context) error {
+	c.mu.Lock()
+	session, cancel, cleanup := c.detachCurrentSessionLocked(nil)
+	connecting := c.connecting
+	c.mu.Unlock()
+
+	if connecting != nil {
+		connecting.cancel(agentclient.ErrAborted)
+	}
 	if session != nil {
-		if shouldRestartForManagedGoalMCPServerSetChange(currentOptions, options) {
-			return errManagedGoalMCPServerSetChanged
-		}
-		if err := session.Reconfigure(ctx, options); err != nil {
-			if IsRuntimeTransportClosedError(err) && c.markDisconnected(session, err) {
-				closeSDKSession(session)
-			}
+		c.startSDKSessionCleanup(session, cancel, cleanup)
+	}
+	if err := waitSDKClientCleanup(ctx, cleanup); err != nil {
+		return err
+	}
+	if connecting != nil {
+		if err := waitSDKClientTransition(ctx, connecting.done); err != nil {
 			return err
 		}
 	}
-
 	c.mu.Lock()
-	c.options = options
+	latestCleanup := c.cleanup
+	c.mu.Unlock()
+	if latestCleanup != cleanup {
+		if err := waitSDKClientCleanup(ctx, latestCleanup); err != nil {
+			return err
+		}
+		if latestCleanup != nil && latestCleanup.err != nil {
+			return latestCleanup.err
+		}
+	}
+	if cleanup != nil {
+		return cleanup.err
+	}
+	return nil
+}
+
+// Retire 先永久关闭 Manager 所有权，再异步隔离当前或正在连接的 SDK 会话。
+func (c *sdkClientAdapter) Retire() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	if c.retired {
+		c.mu.Unlock()
+		return
+	}
+	c.retired = true
+	session, cancel, cleanup := c.detachCurrentSessionLocked(agentclient.ErrAborted)
+	connecting := c.connecting
+	c.mu.Unlock()
+
+	if connecting != nil {
+		connecting.cancel(agentclient.ErrAborted)
+	}
+	if session != nil {
+		c.startSDKSessionCleanup(session, cancel, cleanup)
+	}
+}
+
+func (c *sdkClientAdapter) detachCurrentSessionLocked(
+	err error,
+) (*agentclient.Session, context.CancelFunc, *sdkClientSessionCleanup) {
+	c.lifecycleVersion++
+	if c.session == nil {
+		if err != nil {
+			c.streamErr = err
+		}
+		return nil, nil, c.cleanup
+	}
+	c.streamErr = err
+	session := c.session
+	cancel := c.cancel
+	cleanup := &sdkClientSessionCleanup{done: make(chan struct{})}
+	c.session = nil
+	c.messages = nil
+	c.cancel = nil
+	c.cleanup = cleanup
+	return session, cancel, cleanup
+}
+
+// DiscardUncleanSession 先原子隔离未收到 terminal result 的旧会话，再异步回收
+// 其进程；同一 adapter 的 Connect 会等待回收完成，避免新旧 runtime 并发写
+// 同一个 resume 会话。
+func (c *sdkClientAdapter) DiscardUncleanSession() {
+	c.mu.Lock()
+	session, cancel, cleanup := c.detachCurrentSessionLocked(agentclient.ErrAborted)
+	connecting := c.connecting
+	c.mu.Unlock()
+
+	if connecting != nil {
+		connecting.cancel(agentclient.ErrAborted)
+	}
+	if session != nil {
+		c.startSDKSessionCleanup(session, cancel, cleanup)
+	}
+}
+
+// DiscardUncleanClientSession 隔离无法证明消息边界干净的 SDK 会话。
+func DiscardUncleanClientSession(client Client) bool {
+	discarder, ok := client.(interface{ DiscardUncleanSession() })
+	if !ok {
+		return false
+	}
+	discarder.DiscardUncleanSession()
+	return true
+}
+
+func waitSDKClientTransition(ctx context.Context, done <-chan struct{}) error {
+	if done == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func waitSDKClientCleanup(ctx context.Context, cleanup *sdkClientSessionCleanup) error {
+	if cleanup == nil {
+		return nil
+	}
+	return waitSDKClientTransition(ctx, cleanup.done)
+}
+
+func (c *sdkClientAdapter) clearCompletedSDKClientCleanup(cleanup *sdkClientSessionCleanup) error {
+	if cleanup == nil {
+		return nil
+	}
+	c.mu.Lock()
+	if c.cleanup == cleanup {
+		c.cleanup = nil
+	}
 	c.mu.Unlock()
 	return nil
+}
+
+func (c *sdkClientAdapter) cleanupSDKSession(session *agentclient.Session, err error) bool {
+	c.mu.Lock()
+	if c.session != session {
+		c.mu.Unlock()
+		return false
+	}
+	detached, cancel, cleanup := c.detachCurrentSessionLocked(err)
+	connecting := c.connecting
+	c.mu.Unlock()
+	if connecting != nil {
+		connecting.cancel(agentclient.ErrAborted)
+	}
+	c.startSDKSessionCleanup(detached, cancel, cleanup)
+	return true
+}
+
+func (c *sdkClientAdapter) startSDKSessionCleanup(
+	session *agentclient.Session,
+	cancel context.CancelFunc,
+	cleanup *sdkClientSessionCleanup,
+) {
+	if cancel != nil {
+		cancel()
+	}
+	go func() {
+		cleanup.err = c.closeSDKSession(session)
+		close(cleanup.done)
+	}()
+}
+
+func (c *sdkClientAdapter) openSession(
+	ctx context.Context,
+	options agentclient.Options,
+) (*agentclient.Session, error) {
+	if c.newSession != nil {
+		return c.newSession(ctx, options)
+	}
+	return agentclient.NewSession(ctx, options)
+}
+
+func (c *sdkClientAdapter) closeSDKSession(session *agentclient.Session) error {
+	if c.closeSession != nil {
+		return c.closeSession(session)
+	}
+	return closeSDKSession(session)
+}
+
+func (c *sdkClientAdapter) applySDKSessionReconfigure(
+	ctx context.Context,
+	session *agentclient.Session,
+	options agentclient.Options,
+) error {
+	if c.reconfigureSession != nil {
+		return c.reconfigureSession(ctx, session, options)
+	}
+	return session.Reconfigure(ctx, options)
+}
+
+func (c *sdkClientAdapter) applySDKSessionEnvironment(
+	ctx context.Context,
+	session *agentclient.Session,
+	environment map[string]string,
+) error {
+	if c.updateSessionEnvironment != nil {
+		return c.updateSessionEnvironment(ctx, session, environment)
+	}
+	return session.Control().UpdateEnvironment(ctx, environment)
+}
+
+func (c *sdkClientAdapter) applySDKSessionPermissionMode(
+	ctx context.Context,
+	session *agentclient.Session,
+	mode sdkpermission.Mode,
+) error {
+	if c.setSessionPermissionMode != nil {
+		return c.setSessionPermissionMode(ctx, session, mode)
+	}
+	return session.Control().SetPermissionMode(ctx, mode)
+}
+
+func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.Options) error {
+	configuring, err := c.beginSDKClientConfiguration(ctx)
+	if err != nil {
+		return err
+	}
+	defer c.finishSDKClientConfiguration(configuring)
+
+	c.mu.Lock()
+	currentOptions := c.options
+	if c.retired {
+		c.mu.Unlock()
+		return agentclient.ErrAborted
+	}
+	session := c.session
+	if session != nil && shouldRestartForManagedGoalMCPServerSetChange(currentOptions, options) {
+		c.mu.Unlock()
+		return errManagedGoalMCPServerSetChanged
+	}
+	c.options = options
+	c.configVersion++
+	configVersion := c.configVersion
+	c.mu.Unlock()
+	if session == nil {
+		return c.ensureNotRetired()
+	}
+	if err := c.applySDKSessionReconfigure(ctx, session, options); err != nil {
+		c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
+		if IsRuntimeTransportClosedError(err) {
+			c.cleanupSDKSession(session, err)
+		}
+		return err
+	}
+	return c.ensureNotRetired()
 }
 
 func (c *sdkClientAdapter) SessionID() string {
@@ -366,22 +865,12 @@ func (c *sdkClientAdapter) Wait() error {
 	return session.Wait()
 }
 
-func (c *sdkClientAdapter) markDisconnected(session *agentclient.Session, err error) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.session != session {
-		return false
-	}
-	c.session = nil
-	c.messages = nil
-	c.cancel = nil
-	c.streamErr = err
-	return true
-}
-
 func (c *sdkClientAdapter) currentSession() (*agentclient.Session, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.retired {
+		return nil, agentclient.ErrAborted
+	}
 	if c.session == nil {
 		return nil, agentclient.ErrNotConnected
 	}
@@ -395,11 +884,7 @@ func (c *sdkClientAdapter) pumpMessages(
 ) {
 	var readErr error
 	defer close(messages)
-	defer func() {
-		if c.markDisconnected(session, readErr) {
-			closeSDKSession(session)
-		}
-	}()
+	defer func() { c.cleanupSDKSession(session, readErr) }()
 	for {
 		message, err := session.Recv(ctx)
 		if err != nil {
@@ -443,11 +928,11 @@ func IsRuntimeTransportClosedError(err error) bool {
 		strings.Contains(message, "client: not connected")
 }
 
-func closeSDKSession(session *agentclient.Session) {
+func closeSDKSession(session *agentclient.Session) error {
 	if session == nil {
-		return
+		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), RoundIdleAbortTimeout)
-	defer cancel()
-	_ = session.Close(ctx)
+	// cleanup 自身必须等到底层 transport 与 read loop 确认退出；调用方的
+	// deadline 只约束等待，不取消共享回收，否则无法判断何时可安全重连。
+	return session.Close(context.Background())
 }

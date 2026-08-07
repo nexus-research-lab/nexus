@@ -215,14 +215,13 @@ func assertNotContainsResultSubtype(t *testing.T, events []protocol.EventMessage
 	}
 }
 
-func assertContainsErrorEventForMessage(t *testing.T, events []protocol.EventMessage, messageID string) {
+func assertNotContainsErrorEventForMessage(t *testing.T, events []protocol.EventMessage, messageID string) {
 	t.Helper()
 	for _, event := range events {
 		if event.EventType == protocol.EventTypeError && event.MessageID == messageID {
-			return
+			t.Fatalf("durable 错误结果不应重复广播绑定消息 %s 的 error 事件: %+v", messageID, events)
 		}
 	}
-	t.Fatalf("未找到绑定消息 %s 的 error 事件: %+v", messageID, events)
 }
 
 func assertStreamBlockIndex(t *testing.T, events []protocol.EventMessage, blockType string, expectedIndex int) {

@@ -2,6 +2,7 @@ import { Loader2, Puzzle } from "lucide-react";
 
 import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { WORKSPACE_CATALOG_GRID_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import type { SkillInfo } from "@/types/capability/skill";
 
 import { SkillsCard } from "./skills-card";
@@ -57,12 +58,11 @@ export function SkillsCatalogGrid({
             count={t("capability.result_count", { count: items.length })}
             title={categoryName}
           />
-          <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
+          <div className={`${WORKSPACE_CATALOG_GRID_CLASS_NAME} gap-2.5`}>
             {items.map((skill: SkillInfo) => (
               <SkillsCard
                 key={skill.name}
                 busy={busySkillNames.has(skill.name)}
-                className="transition-opacity"
                 onDelete={() => onDeleteSkill(skill)}
                 onSelect={() => onOpenSkill(skill.name)}
                 skill={skill}

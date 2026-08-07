@@ -5,23 +5,23 @@ import {
   ChevronRight,
   ExternalLink,
   Loader2,
-  Lock,
-  Puzzle,
   RefreshCw,
   Trash2,
-  type LucideIcon,
 } from "lucide-react";
 
+import { getSkillDisplayDescription } from "@/lib/skill-description";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
-import { WORKSPACE_DETAIL_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiPanel } from "@/shared/ui/panel";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { SkillAgentBinding } from "@/types/capability/skill";
 
 import {
+  buildSkillAgentBindingPresentation,
   buildSkillDetailPresentation,
   getSkillDetailSnapshotTitle,
   type SkillDetailPresentation,
@@ -44,11 +44,6 @@ interface SkillDetailViewProps {
   snapshot: SkillDetailSnapshot;
 }
 
-const SKILL_ICON_MAP: Record<SkillDetailPresentation["icon"], LucideIcon> = {
-  lock: Lock,
-  puzzle: Puzzle,
-};
-
 export function SkillDetailView({
   activeAction,
   agentBindings,
@@ -62,7 +57,7 @@ export function SkillDetailView({
   snapshot,
 }: SkillDetailViewProps) {
   return (
-    <div className={WORKSPACE_DETAIL_PAGE_CLASS_NAME}>
+    <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
       <SkillDetailBreadcrumb
         onBack={onBack}
         title={getSkillDetailSnapshotTitle(snapshot)}
@@ -90,6 +85,7 @@ function SkillDetailBreadcrumb({
   onBack: () => void;
   title: string | null;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex items-center gap-2 text-sm text-(--text-muted) max-lg:hidden">
       <button
@@ -98,7 +94,7 @@ function SkillDetailBreadcrumb({
         type="button"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
-        技能
+        {t("capability.skills_detail_back")}
       </button>
       {title ? (
         <>
@@ -122,13 +118,14 @@ function SkillDetailContent({
   onUpdate,
   snapshot,
 }: SkillDetailViewProps) {
+  const { t } = useI18n();
   if (snapshot.status === "loading") {
     return (
       <UiStateBlock
         className="min-h-[420px]"
         icon={<Loader2 className="h-6 w-6 animate-spin" />}
         size="md"
-        title="加载技能详情中..."
+        title={t("capability.skills_detail_loading")}
         variant="plain"
       />
     );
@@ -138,13 +135,13 @@ function SkillDetailContent({
       <UiStateBlock
         actions={(
           <UiButton onClick={onBack} size="sm" type="button">
-            返回技能
+            {t("capability.skills_detail_back_action")}
           </UiButton>
         )}
         className="min-h-[420px]"
         description={snapshot.errorMessage}
         size="md"
-        title="技能不存在"
+        title={t("capability.skills_detail_not_found")}
         tone="danger"
         variant="plain"
       />
@@ -158,7 +155,11 @@ function SkillDetailContent({
       agentToggleError={agentToggleError}
       agentsLoading={agentsLoading}
       busyAgentId={busyAgentId}
-      model={buildSkillDetailPresentation(snapshot.skill)}
+      model={buildSkillDetailPresentation(
+        snapshot.skill,
+        getSkillDisplayDescription(snapshot.skill, t),
+        { t },
+      )}
       onAgentToggle={onAgentToggle}
       onDelete={onDelete}
       onUpdate={onUpdate}
@@ -187,6 +188,7 @@ function SkillDetailReady({
   onDelete: () => void;
   onUpdate: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="pt-6">
       <SkillDetailHero
@@ -205,13 +207,13 @@ function SkillDetailReady({
             errorMessage={agentToggleError}
             agentsLoading={agentsLoading}
             busyAgentId={busyAgentId}
-            locked={model.icon === "lock"}
+            locked={model.locked}
             onToggle={onAgentToggle}
           />
         )}
         <section>
           <h2 className="mb-3 text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
-            技能说明
+            {t("capability.skills_detail_description")}
           </h2>
           <UiPanel padding="md" radius="md" variant="inset">
             <SkillMarkdown
@@ -228,13 +230,14 @@ function SkillDetailReady({
 }
 
 function RoomSkillUsage() {
+  const { t } = useI18n();
   return (
     <section>
       <h2 className="text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
-        Room 使用范围
+        {t("capability.skills_detail_room_scope")}
       </h2>
       <p className="mt-1 text-sm text-(--text-muted)">
-        这是 Room 级技能，请在 Room 设置中选择；它不会绑定到单个 Agent。
+        {t("capability.skills_detail_room_scope_description")}
       </p>
     </section>
   );
@@ -255,20 +258,25 @@ function SkillAgentBindings({
   locked: boolean;
   onToggle: (binding: SkillAgentBinding) => void;
 }) {
+  const { t } = useI18n();
+  const enabledCount = agentBindings.filter((item) => item.enabled).length;
   return (
     <section>
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
           <h2 className="text-[16px] font-semibold tracking-[-0.025em] text-(--text-strong)">
-            Agent 使用范围
+            {t("capability.skills_detail_agent_scope")}
           </h2>
           <p className="mt-1 text-sm text-(--text-muted)">
-            技能库是全局的，是否启用由每个 Agent 单独决定。
+            {t("capability.skills_detail_agent_scope_description")}
           </p>
         </div>
         {!agentsLoading ? (
           <span className="text-xs text-(--text-soft)">
-            {agentBindings.filter((item) => item.enabled).length}/{agentBindings.length} 已启用
+            {t("capability.skills_detail_enabled_count", {
+              enabled: enabledCount,
+              total: agentBindings.length,
+            })}
           </span>
         ) : null}
       </div>
@@ -281,51 +289,52 @@ function SkillAgentBindings({
         {agentsLoading ? (
           <div className="flex items-center gap-2 px-3 py-3 text-sm text-(--text-muted)">
             <Loader2 className="h-4 w-4 animate-spin" />
-            正在读取 Agent 使用状态…
+            {t("capability.skills_detail_bindings_loading")}
           </div>
         ) : agentBindings.length === 0 ? (
-          <p className="px-3 py-3 text-sm text-(--text-muted)">暂无可配置的 Agent。</p>
+          <p className="px-3 py-3 text-sm text-(--text-muted)">
+            {t("capability.skills_detail_no_agents")}
+          </p>
         ) : (
           <div className="divide-y divide-(--divider-subtle-color)">
-            {agentBindings.map((binding) => (
-              <div
-                className="flex items-center justify-between gap-3 px-3 py-2.5"
-                key={binding.agent_id}
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-(--text-strong)">
-                    {binding.agent_name}
-                  </p>
-                  <p className="text-xs text-(--text-soft)">
-                    {locked
-                      ? "系统托管"
-                      : binding.available
-                      ? (binding.is_main ? "Main Agent" : "可独立启停")
-                      : "不适用于此 Agent"}
-                  </p>
+            {agentBindings.map((binding) => {
+              const presentation = buildSkillAgentBindingPresentation(
+                binding,
+                locked,
+                t,
+              );
+              return (
+                <div
+                  className="flex items-center justify-between gap-3 px-3 py-2.5"
+                  key={binding.agent_id}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-(--text-strong)">
+                      {binding.agent_name}
+                    </p>
+                    <p className="text-xs text-(--text-soft)">
+                      {presentation.description}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-xs text-(--text-muted)">
+                      {presentation.status}
+                    </span>
+                    <GlassSwitch
+                      aria-label={presentation.switchLabel}
+                      checked={binding.enabled}
+                      disabled={
+                        locked ||
+                        !binding.available ||
+                        busyAgentId !== null
+                      }
+                      onChange={() => onToggle(binding)}
+                      size="xs"
+                    />
+                  </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-xs text-(--text-muted)">
-                    {locked
-                      ? (binding.enabled ? "已启用" : "未启用")
-                      : binding.available
-                      ? (binding.enabled ? "已启用" : "启用")
-                      : "不可启用"}
-                  </span>
-                  <GlassSwitch
-                    aria-label={`${binding.agent_name} 技能开关`}
-                    checked={binding.enabled}
-                    disabled={
-                      locked ||
-                      !binding.available ||
-                      busyAgentId !== null
-                    }
-                    onChange={() => onToggle(binding)}
-                    size="xs"
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </UiPanel>
@@ -344,20 +353,11 @@ function SkillDetailHero({
   onDelete: () => void;
   onUpdate: () => void;
 }) {
-  const SkillIcon = SKILL_ICON_MAP[model.icon];
-
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-4">
-          <div
-            className={cn(
-              "flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] border border-(--divider-subtle-color) bg-(--surface-panel-background)",
-              model.iconClassName,
-            )}
-          >
-            <SkillIcon className="h-6 w-6" />
-          </div>
+          <UiSeededAvatar seed={model.avatarSeed} size="lg" />
           <h1 className="min-w-0 text-lg font-semibold tracking-[-0.025em] text-(--text-strong)">
             <span className="truncate">{model.displayName}</span>
           </h1>
@@ -415,6 +415,7 @@ function SkillUpdateButton({
   onUpdate: () => void;
   visible: boolean;
 }) {
+  const { t } = useI18n();
   if (!visible) return null;
   const updating = activeAction === "update";
 
@@ -430,7 +431,7 @@ function SkillUpdateButton({
       {updating
         ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
         : <RefreshCw className="h-3.5 w-3.5" />}
-      更新技能
+      {t("capability.skills_detail_update")}
     </UiButton>
   );
 }
@@ -444,6 +445,7 @@ function SkillDeleteButton({
   onDelete: () => void;
   visible: boolean;
 }) {
+  const { t } = useI18n();
   if (!visible) return null;
 
   return (
@@ -456,7 +458,9 @@ function SkillDeleteButton({
       variant="surface"
     >
       <Trash2 className="h-3.5 w-3.5" />
-      {activeAction === "delete" ? "删除中" : "删除"}
+      {activeAction === "delete"
+        ? t("capability.skills_detail_deleting")
+        : t("capability.skills_detail_delete")}
     </UiButton>
   );
 }
@@ -478,6 +482,7 @@ function SkillDetailBadges({
 }
 
 function SkillSourceLink({ sourceUrl }: { sourceUrl: string | null }) {
+  const { t } = useI18n();
   if (!sourceUrl) return null;
 
   return (
@@ -488,7 +493,7 @@ function SkillSourceLink({ sourceUrl }: { sourceUrl: string | null }) {
       target="_blank"
     >
       <ExternalLink className="h-3.5 w-3.5" />
-      查看来源
+      {t("capability.skills_detail_view_source")}
     </a>
   );
 }

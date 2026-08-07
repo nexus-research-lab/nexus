@@ -127,11 +127,12 @@ export function useAgentSessionController({
     setPendingPermissions,
     setSessionKey,
   });
-  const reloadCurrentSession = useCallback(async (): Promise<void> => {
+  const reloadCurrentSession = useCallback(async (): Promise<Message[] | null> => {
     const activeSessionKey = activeSessionKeyRef.current;
     if (activeSessionKey) {
-      await loadAgentSession(activeSessionKey, lifecycleContext, true);
+      return loadAgentSession(activeSessionKey, lifecycleContext, true);
     }
+    return null;
   }, [lifecycleContext]);
   const sessionActions = useAgentConversationSession({
     activeSessionKeyRef,

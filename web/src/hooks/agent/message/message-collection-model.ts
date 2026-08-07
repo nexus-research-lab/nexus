@@ -143,8 +143,8 @@ export function mergeLoadedMessages(
       && message.role === "user"
       && localMessage.client_message_id
     ) {
-      // client_message_id 不进历史，但当前页面仍需用它保持 optimistic
-      // 节点身份；快照刷新只能更新 durable 字段，不能重新挂载用户气泡。
+      // 旧历史可能缺少 client_message_id，当前页面仍需用它保持
+      // optimistic 节点身份；快照刷新只更新 durable 字段。
       return {
         ...message,
         client_message_id: localMessage.client_message_id,
@@ -155,8 +155,22 @@ export function mergeLoadedMessages(
   const loadedMessageIds = new Set(
     reconciledLoadedMessages.map((message) => message.message_id),
   );
+  const loadedClientMessageIds = new Set(
+    reconciledLoadedMessages.flatMap((message) => (
+      message.role === "user" && message.client_message_id
+        ? [message.client_message_id]
+        : []
+    )),
+  );
   const localOnlyMessages = uniqueLocalMessages.filter(
-    (message) => !loadedMessageIds.has(message.message_id),
+    (message) => (
+      !loadedMessageIds.has(message.message_id)
+      && !(
+        message.role === "user"
+        && message.client_message_id !== undefined
+        && loadedClientMessageIds.has(message.client_message_id)
+      )
+    ),
   );
   return sortMessages([...reconciledLoadedMessages, ...localOnlyMessages]);
 }

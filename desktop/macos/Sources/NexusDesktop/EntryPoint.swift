@@ -8,6 +8,9 @@ enum NexusDesktopMain {
 
   @MainActor
   static func main() {
+    if DesktopStateRootMigration.runHelperIfRequested() {
+      return
+    }
     let app = NSApplication.shared
     let delegate = AppDelegate()
     app.delegate = delegate

@@ -10,14 +10,16 @@ import "time"
 const (
 	registryVersion = 1
 
-	// v9 修复旧 Docker 宿主准备流程递归改回 host UID/GID 的用户树。
-	userLayoutVersion = 9
+	// v11 一次性归一 Agent workspace 内由旧 nxs 以 0700/0600 创建的
+	// AutoMemory 路径；v12 同样归一历史 session summary artifact。后续托管
+	// runtime 会在创建时保留宿主 ACL mask。
+	userLayoutVersion = 12
 
 	defaultTicketTTL   = 24 * time.Hour
 	defaultUIDMinimum  = 20000
 	defaultUIDMaximum  = 59999
 	defaultConfigPath  = "/etc/nexus/runtime-isolation.json"
-	launcherVersion    = "2.0.0"
+	launcherVersion    = "2.0.1"
 	projectAccessNone  = "none"
 	projectAccessRead  = "read"
 	projectAccessWrite = "write"

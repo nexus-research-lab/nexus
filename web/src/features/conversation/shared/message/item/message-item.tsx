@@ -1,6 +1,6 @@
 /**
  * INPUT: 一个根轮次的 durable 消息与运行态。
- * OUTPUT: 所有用户补充按时间排列，其后仅渲染一次 assistant 输出。
+ * OUTPUT: 按展示契约渲染用户补充与唯一 assistant 输出。
  * POS: DM / Room 共用轮次视图，用户消息数量不在调用方分支处理。
  */
 import { memo } from "react";
@@ -25,6 +25,7 @@ function MessageItemInner({
   isLoading,
   activityState,
   runtimePhase,
+  unresolvedToolStatus,
   pendingPermissions,
   onEditUserMessage,
   onOpenAgentContact,
@@ -38,6 +39,8 @@ function MessageItemInner({
   assistantHeaderAction,
   assistantEmptyState,
   assistantContentMode = "dm_archived",
+  showAssistantHeader = true,
+  showUserMessages = true,
   className,
   agentMentionDirectory,
 }: MessageItemProps) {
@@ -64,22 +67,24 @@ function MessageItemInner({
         className,
       )}
     >
-      {state.userMessages.map((message) => (
-        <MessageUserSection
-          compact={compact}
-          agentMentionDirectory={agentMentionDirectory}
-          key={message.client_message_id?.trim() || message.message_id}
-          message={message}
-          onEditUserMessage={
-            state.userMessages.length === 1
-              ? onEditUserMessage
-              : undefined
-          }
-          onOpenWorkspaceFile={onOpenWorkspaceFile}
-          onOpenAgentContact={onOpenAgentContact}
-          workspaceAgentId={workspaceAgentId}
-        />
-      ))}
+      {showUserMessages
+        ? state.userMessages.map((message) => (
+            <MessageUserSection
+              compact={compact}
+              agentMentionDirectory={agentMentionDirectory}
+              key={message.client_message_id?.trim() || message.message_id}
+              message={message}
+              onEditUserMessage={
+                state.userMessages.length === 1
+                  ? onEditUserMessage
+                  : undefined
+              }
+              onOpenWorkspaceFile={onOpenWorkspaceFile}
+              onOpenAgentContact={onOpenAgentContact}
+              workspaceAgentId={workspaceAgentId}
+            />
+          ))
+        : null}
 
       <MessageAssistantSection
         compact={compact}
@@ -91,10 +96,12 @@ function MessageItemInner({
         onOpenAgentContact={onOpenAgentContact}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         workspaceAgentId={workspaceAgentId}
+        unresolvedToolStatus={unresolvedToolStatus}
         hiddenToolNames={hiddenToolNames}
         assistantHeaderAction={assistantHeaderAction}
         assistantEmptyState={assistantEmptyState}
         assistantContentMode={assistantContentMode}
+        showHeader={showAssistantHeader}
         agentMentionDirectory={agentMentionDirectory}
         assistant={state.assistant}
       />

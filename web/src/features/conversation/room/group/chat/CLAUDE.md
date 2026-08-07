@@ -12,4 +12,4 @@
 - 面板不得自行实现消息轮次分支；轮次展示统一进入 `feed/`。
 - Chat 控制器只向 Thread 发布最小实时源，不读取 Thread 私有 Store。
 - 新增控制状态前先确认它属于会话、Feed、Goal 还是 Thread，不在入口组件堆叠。
-- Room 输入框只负责发送与队列；停止必须沿 `agent_round_id` 传到对应 Agent slot，不能复用 DM 的全局 Composer 停止动作。
+- Room 输入框提供“全部停止当前输出”聚合动作；点击时冻结 execution state 与 pending slot 中仍 active、且尚未 stopping 的精确 `agent_round_id` 集合，再逐个复用定向停止，不能发送无目标的 DM/session interrupt。

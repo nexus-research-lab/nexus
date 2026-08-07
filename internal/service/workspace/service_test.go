@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -18,6 +19,9 @@ import (
 func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	cfg := newWorkspaceTestConfig(t)
 	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
+	if err := EnsurePlatformSkillLibrary(); err != nil {
+		t.Fatalf("初始化测试平台 Skill 失败: %v", err)
+	}
 
 	db, err := sql.Open("sqlite", cfg.DatabaseURL)
 	if err != nil {
@@ -97,14 +101,16 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(appfs.PlatformSkillRoot(), ".claude", "skills", "imagegen", "SKILL.md")); err != nil {
 		t.Fatalf("Claude 兼容 imagegen skill 未同步: %v", err)
 	}
-	if !slices.Contains(agentValue.Options.SkillIDs, "imagegen") || !slices.Contains(agentValue.Options.SkillIDs, "goal-manager") {
+	if !slices.Contains(agentValue.Options.SkillIDs, "imagegen") ||
+		!slices.Contains(agentValue.Options.SkillIDs, "goal-manager") ||
+		!slices.Contains(agentValue.Options.SkillIDs, "execution-orchestrator") {
 		t.Fatalf("Agent 应只记录平台 Skill ID: %#v", agentValue.Options.SkillIDs)
 	}
 	sharedBinDir := filepath.Join(os.Getenv("NEXUS_CONFIG_DIR"), "app", ".agents", "bin")
 	nexusctlShim := filepath.Join(sharedBinDir, "nexusctl")
 	if info, statErr := os.Stat(nexusctlShim); statErr != nil {
 		t.Fatalf("共享 nexusctl shim 未生成: %v", statErr)
-	} else if info.Mode()&0o111 == 0 {
+	} else if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
 		t.Fatalf("nexusctl shim 应可执行: %s", nexusctlShim)
 	}
 	shimPayload, err := os.ReadFile(nexusctlShim)
@@ -155,34 +161,65 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			t.Fatalf("workspace 初始化后仍保留已退役定时任务 skill %s: %v", skillDir, statErr)
 		}
 	}
-	goalSkillPath := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills", "goal-manager", "SKILL.md")
-	if _, err = os.Stat(goalSkillPath); err != nil {
-		t.Fatalf("系统托管 goal-manager skill 未部署: %v", err)
+	platformAgentSkills := filepath.Join(appfs.PlatformSkillRoot(), ".agents", "skills")
+	managedSkillContracts := map[string][]string{
+		filepath.Join("goal-manager", "SKILL.md"): {
+			"mcp__nexus_goal__get_goal",
+			"Skill 只加载使用规则",
+			"references/create-and-retarget.md",
+			"execution-orchestrator",
+			"token_budget",
+		},
+		filepath.Join("goal-manager", "references", "create-and-retarget.md"): {
+			"promote_execution_to_goal",
+			"信息足够前禁止调用 `create_goal`",
+			"保留同一 Goal 身份和累计用量",
+		},
+		filepath.Join("goal-manager", "references", "complete-and-block.md"): {
+			"audit_objective_alignment",
+			"最终回复必须脱离过程消息",
+			"至少连续三个 Goal turns",
+		},
+		filepath.Join("goal-manager", "references", "room-goals.md"): {
+			"Lead 身份",
+			"Work Item + Assignment",
+			"可见协作完成条件",
+		},
+		filepath.Join("execution-orchestrator", "SKILL.md"): {
+			"Goal 决定持续追求什么",
+			"最小选择表",
+			"references/structure-selection.md",
+			"每个 Agent 都先评估任务是否原子",
+			"用户有没有说“协作”",
+			"不因一次 handoff",
+		},
+		filepath.Join("execution-orchestrator", "references", "structure-selection.md"): {
+			"独立判断信号",
+			"用例只是校验",
+			"加载 `goal-manager`",
+		},
+		filepath.Join("execution-orchestrator", "references", "graph-control.md"): {
+			"两层图",
+			"nexus_plan: 1",
+			"produce`、`review`、`verify` 或 `integrate",
+			"自审折叠在同一 Agent 节点",
+			"Goal 生命周期不是使用 Loop 的前提",
+		},
+		filepath.Join("execution-orchestrator", "references", "communication-and-continuity.md"): {
+			"四个平面",
+			"MCP 可以记录交付状态",
+			"不要要求用户发送“继续”",
+		},
 	}
-	goalSkill, err := os.ReadFile(goalSkillPath)
-	if err != nil {
-		t.Fatalf("读取 goal-manager skill 失败: %v", err)
-	}
-	for _, expected := range []string{
-		"nexus_goal",
-		"mcp__nexus_goal__get_goal",
-		"mcp__nexus_goal__create_goal",
-		"mcp__nexus_goal__retarget_goal",
-		"mcp__nexus_goal__update_goal",
-		"create_goal",
-		"get_goal",
-		"retarget_goal",
-		"update_goal",
-		"Skill 只负责加载这份使用说明",
-		"信息足够前禁止调用 `create_goal`",
-		"禁止先创建“写一篇作文”",
-		"最终回复是用户真正的交付面",
-		"直接完整展示正文",
-		"不要把“Goal 已完成”放在开头",
-		"不要用 /goal 文本命令",
-	} {
-		if !strings.Contains(string(goalSkill), expected) {
-			t.Fatalf("goal-manager skill 缺少 %q", expected)
+	for relativePath, expectedValues := range managedSkillContracts {
+		payload, readErr := os.ReadFile(filepath.Join(platformAgentSkills, relativePath))
+		if readErr != nil {
+			t.Fatalf("读取系统托管 Skill 文件 %s 失败: %v", relativePath, readErr)
+		}
+		for _, expected := range expectedValues {
+			if !strings.Contains(string(payload), expected) {
+				t.Fatalf("系统托管 Skill 文件 %s 缺少 %q", relativePath, expected)
+			}
 		}
 	}
 
@@ -225,5 +262,77 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 	}
 	if _, err = workspaceService.UpdateFile(ctx, agentValue.AgentID, "nested/.git/config", "x"); err == nil {
 		t.Fatal("不应允许写入嵌套仓库内部目录")
+	}
+}
+
+func TestServiceInitializesDefaultMainWorkspaceDuringBootstrap(t *testing.T) {
+	cfg := newWorkspaceTestConfig(t)
+	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := NewService(cfg, agentService)
+
+	mainAgent, err := agentService.GetDefaultAgent(context.Background())
+	if err != nil {
+		t.Fatalf("创建默认主 Agent 失败: %v", err)
+	}
+	root, err := workspaceService.openAgentWorkspace(mainAgent, false)
+	if err != nil {
+		t.Fatalf("打开默认主 Agent workspace 失败: %v", err)
+	}
+	defer root.Close()
+	if !workspaceManagedStateReady(root, true) {
+		t.Fatal("默认主 Agent 落库前应完成完整 workspace 初始化")
+	}
+
+	stateRoot, marker, err := openWorkspaceInitializationState(*mainAgent)
+	if err != nil {
+		t.Fatalf("打开默认主 Agent 初始化状态失败: %v", err)
+	}
+	defer stateRoot.Close()
+	payload, err := stateRoot.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("默认主 Agent 缺少初始化 marker: %v", err)
+	}
+	if strings.TrimSpace(string(payload)) != workspaceInitializationVersion(*mainAgent) {
+		t.Fatalf("默认主 Agent 初始化 marker 不匹配: %q", payload)
+	}
+}
+
+func TestListFilesDoesNotInitializeWorkspace(t *testing.T) {
+	cfg := newWorkspaceTestConfig(t)
+	migrateWorkspaceSQLite(t, cfg.DatabaseURL)
+
+	db, err := sql.Open("sqlite", cfg.DatabaseURL)
+	if err != nil {
+		t.Fatalf("打开测试数据库失败: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	agentService := agentsvc.NewService(cfg, agentrepo.NewSQLRepository("sqlite", db))
+	workspaceService := NewService(cfg, agentService)
+	ctx := context.Background()
+
+	agentValue, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "只读文件树助手"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	if err = os.Remove(filepath.Join(agentValue.WorkspacePath, "USER.md")); err != nil {
+		t.Fatalf("删除初始化产物 USER.md 失败: %v", err)
+	}
+
+	files, err := workspaceService.ListFiles(ctx, agentValue.AgentID)
+	if err != nil {
+		t.Fatalf("列出 workspace 文件失败: %v", err)
+	}
+	if containsWorkspacePath(files, "USER.md") {
+		t.Fatalf("文件列表不应补写缺失模板: %+v", files)
+	}
+	if _, statErr := os.Stat(filepath.Join(agentValue.WorkspacePath, "USER.md")); !os.IsNotExist(statErr) {
+		t.Fatalf("文件列表产生了初始化副作用 USER.md: %v", statErr)
 	}
 }

@@ -1,5 +1,5 @@
 // INPUT: 已规范化的 domain/operation/target/input。
-// OUTPUT: 严格字段、必填字段、目标与主机路径预检结果。
+// OUTPUT: 严格字段、必填字段与目标预检结果。
 // POS: configuration 写入前的纯校验阶段。
 package configuration
 
@@ -9,11 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
@@ -156,41 +153,8 @@ func validateChangeRequest(request ChangeRequest) error {
 		return requireTarget()
 	case DomainSkills + ".check_updates", DomainSkills + ".update_imported":
 		return nil
-	case DomainHost + ".update_runtime_settings":
-		var input config.RuntimeSettings
-		if err := decode(&input); err != nil {
-			return err
-		}
-		return validateRuntimeSettings(input)
 	default:
 		return fmt.Errorf("不支持配置操作 %s.%s", request.Domain, request.Operation)
-	}
-}
-
-func validateRuntimeSettings(settings config.RuntimeSettings) error {
-	value := strings.TrimSpace(settings.WorkspacePath)
-	if value == "" {
-		return nil
-	}
-	resolved := value
-	if value == "~" || strings.HasPrefix(value, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("解析 workspace_path: %w", err)
-		}
-		resolved = filepath.Join(home, strings.TrimPrefix(value, "~/"))
-	}
-	if !filepath.IsAbs(resolved) {
-		return errors.New("workspace_path 必须是绝对路径、~ 或 ~/ 开头的路径")
-	}
-	info, err := os.Stat(filepath.Clean(resolved))
-	switch {
-	case err == nil && !info.IsDir():
-		return errors.New("workspace_path 已存在但不是目录")
-	case err == nil, errors.Is(err, os.ErrNotExist):
-		return nil
-	default:
-		return fmt.Errorf("检查 workspace_path: %w", err)
 	}
 }
 

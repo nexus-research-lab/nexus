@@ -60,6 +60,8 @@ func projectTranscriptChainWithFilter(
 	var lastTimestamp int64
 	alignedMarkers := alignTranscriptRoundMarkersWithFilter(chain, roundMarkers, shouldSkip)
 	markerIndex := 0
+	lastVisibleUserContent := ""
+	var lastVisibleUserTimestamp int64
 
 	for _, entry := range chain {
 		if shouldSkip(entry.Data) {
@@ -103,10 +105,22 @@ func projectTranscriptChainWithFilter(
 				continue
 			}
 			marker := consumeTranscriptRoundMarker(alignedMarkers, &markerIndex)
+			userContent := transcriptUserContent(entry.Data)
+			if !transcriptRoundMarkerPresent(marker) &&
+				shouldSuppressUnmatchedTranscriptUserTurn(
+					entry.Data,
+					userContent,
+					entryTimestamp,
+					lastVisibleUserContent,
+					lastVisibleUserTimestamp,
+				) {
+				continue
+			}
 			currentRoundID = firstNonEmpty(marker.RoundID, buildTranscriptRoundID(decoded.UUID))
 			currentParentID := firstNonEmpty(strings.TrimSpace(marker.UserMessageID), "msg_user_"+currentRoundID)
 			processor = newTranscriptProcessor(workspacePath, sessionKey, agentID, currentRoundID, currentParentID, decoded.SessionID)
-			if marker.HiddenFromUser || isTranscriptGoalContextOnlyUserTurn(entry.Data) {
+			if marker.HiddenFromUser ||
+				isTranscriptGoalContextOnlyUserTurn(entry.Data) {
 				continue
 			}
 			userMessage := buildTranscriptUserMessage(
@@ -126,6 +140,8 @@ func projectTranscriptChainWithFilter(
 				continue
 			}
 			projected = append(projected, *userMessage)
+			lastVisibleUserContent = strings.TrimSpace(stringFromAny((*userMessage)["content"]))
+			lastVisibleUserTimestamp = entryTimestamp
 		case sdkprotocol.MessageTypeAssistant,
 			sdkprotocol.MessageTypeAttachment,
 			sdkprotocol.MessageTypeSystem,
@@ -212,6 +228,9 @@ func buildTranscriptUserMessage(
 }
 
 func transcriptUserContent(entry map[string]any) string {
+	if command := transcriptSlashCommandContent(entry); command != "" {
+		return command
+	}
 	return sanitizeTranscriptUserContent(transcriptRawUserContent(entry))
 }
 
@@ -238,7 +257,8 @@ func transcriptRawUserContent(entry map[string]any) string {
 func sanitizeTranscriptUserContent(content string) string {
 	trimmed := strings.TrimSpace(content)
 	if message.IsInternalTranscriptInterruptPrompt(trimmed) ||
-		message.IsInternalTranscriptContinuationPrompt(trimmed) {
+		message.IsInternalTranscriptContinuationPrompt(trimmed) ||
+		message.IsInternalExplicitSkillPrompt(trimmed) {
 		return ""
 	}
 	return stripTranscriptRuntimeContext(trimmed)
@@ -258,6 +278,60 @@ func stripTranscriptRuntimeContext(content string) string {
 		return trimmed
 	}
 	return strings.TrimSpace(trimmed[:openIndex])
+}
+
+func transcriptSlashCommandContent(entry map[string]any) string {
+	content := strings.TrimSpace(transcriptRawUserContent(entry))
+	name := transcriptTaggedValue(content, "command-name")
+	if name == "" {
+		return ""
+	}
+	if !strings.HasPrefix(name, "/") {
+		name = "/" + name
+	}
+	args := transcriptTaggedValue(content, "command-args")
+	return strings.TrimSpace(strings.TrimSpace(name) + " " + strings.TrimSpace(args))
+}
+
+func transcriptTaggedValue(content string, tag string) string {
+	openTag := "<" + tag + ">"
+	closeTag := "</" + tag + ">"
+	start := strings.Index(content, openTag)
+	if start < 0 {
+		return ""
+	}
+	start += len(openTag)
+	end := strings.Index(content[start:], closeTag)
+	if end < 0 {
+		return ""
+	}
+	return strings.TrimSpace(content[start : start+end])
+}
+
+func shouldSuppressUnmatchedTranscriptUserTurn(
+	entry map[string]any,
+	content string,
+	timestamp int64,
+	lastVisibleContent string,
+	lastVisibleTimestamp int64,
+) bool {
+	command := transcriptSlashCommandContent(entry)
+	if command == "" ||
+		strings.TrimSpace(content) != strings.TrimSpace(lastVisibleContent) {
+		return false
+	}
+	if timestamp <= 0 || lastVisibleTimestamp <= 0 {
+		return true
+	}
+	const duplicateCommandToleranceMS = 5 * 1000
+	distance := timestamp - lastVisibleTimestamp
+	return distance >= 0 && distance <= duplicateCommandToleranceMS
+}
+
+func isTranscriptLocalCommandResultUserTurn(entry map[string]any) bool {
+	content := strings.TrimSpace(transcriptRawUserContent(entry))
+	return strings.HasPrefix(content, "Unknown skill:") ||
+		strings.HasPrefix(content, "This skill can only be invoked by Nexus,")
 }
 
 func stampTranscriptDurableMessages(

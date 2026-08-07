@@ -1,10 +1,12 @@
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import { cn } from "@/shared/ui/class-name";
 import { PanelResizeHandle } from "@/shared/ui/layout/panel-resize-handle";
 import type { RoomSurfaceTabKey } from "@/features/conversation/room/surface/header/room-header-tabs";
 
 import { useGroupThread } from "../../group/thread/group-thread-state";
 import { useRoomThreadPanel } from "../../group/thread/live/use-room-thread-panel";
+import { RoomThreadEmptyState } from "../room-thread-empty-state";
 
 interface RoomThreadInlinePanelProps {
   activeSurfaceTab: RoomSurfaceTabKey;
@@ -19,6 +21,7 @@ export function RoomThreadInlinePanel({
   sidePanelWidthPercent,
   onStartSidePanelResize,
 }: RoomThreadInlinePanelProps) {
+  const { t } = useI18n();
   const { activeThread, closeThread } = useGroupThread();
   const threadPanelData = useRoomThreadPanel();
 
@@ -27,36 +30,44 @@ export function RoomThreadInlinePanel({
   }
 
   return (
-    <section
-      className={cn(
-        "relative ml-2 min-h-0 min-w-0 shrink-0 flex-col overflow-hidden border-l divider-subtle bg-transparent shadow-none",
-        className,
-      )}
-      style={{
-        width: `${sidePanelWidthPercent}%`,
-        minWidth: "360px",
-        maxWidth: "560px",
-      }}
-    >
+    <>
       <PanelResizeHandle
-        ariaLabel="调整 Thread 面板宽度"
+        ariaLabel={t("room.resize_thread_panel")}
         onResizeStart={onStartSidePanelResize}
+        variant="gutter"
       />
 
-      <ConversationThreadPanel
-        roundId={activeThread.roundId}
-        agentId={activeThread.agentId}
-        agentName={threadPanelData.agentName}
-        agentAvatar={threadPanelData.agentAvatar}
-        userAvatar={threadPanelData.userAvatar}
-        messages={threadPanelData.messages}
-        pendingPermissions={threadPanelData.pendingPermissions}
-        onPermissionResponse={threadPanelData.onPermissionResponse}
-        onClose={closeThread}
-        onOpenWorkspaceFile={threadPanelData.onOpenWorkspaceFile}
-        isLoading={threadPanelData.isLoading}
-        layout="desktop"
-      />
-    </section>
+      <section
+        className={cn(
+          "nexus-room-surface-side-panel relative min-h-0 min-w-0 shrink-0 flex-col overflow-hidden",
+          className,
+        )}
+        style={{
+          width: `${sidePanelWidthPercent}%`,
+          minWidth: "360px",
+          maxWidth: "560px",
+        }}
+      >
+        <ConversationThreadPanel
+          roundId={activeThread.roundId}
+          agentId={activeThread.agentId}
+          agentName={threadPanelData.agentName}
+          agentAvatar={threadPanelData.agentAvatar}
+          emptyContent={(
+            <RoomThreadEmptyState isLoading={threadPanelData.isLoading} />
+          )}
+          headerSubtitle={null}
+          messages={threadPanelData.messages}
+          pendingPermissions={threadPanelData.pendingPermissions}
+          onPermissionResponse={threadPanelData.onPermissionResponse}
+          onClose={closeThread}
+          onOpenWorkspaceFile={threadPanelData.onOpenWorkspaceFile}
+          isLoading={threadPanelData.isLoading}
+          layout="desktop"
+          presentation="inspector"
+          unresolvedToolStatus={threadPanelData.unresolvedToolStatus}
+        />
+      </section>
+    </>
   );
 }

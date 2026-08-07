@@ -29,6 +29,9 @@ test("request ACK registry handles ACK and error before waiter registration", as
   } = await server.ssrLoadModule(
     "/src/hooks/agent/actions/use-pending-request-acks.ts",
   );
+  const { RequestAcceptanceUnknownError } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-request-ack-failure.ts",
+  );
 
   const acknowledged = createPendingRequestAckRegistry();
   assert.equal(resolvePendingRequestAck(acknowledged, "req-ack-first"), false);
@@ -52,6 +55,154 @@ test("request ACK registry handles ACK and error before waiter registration", as
       10,
     ),
     /后端拒绝/,
+  );
+
+  const unknown = createPendingRequestAckRegistry();
+  const unknownError = new RequestAcceptanceUnknownError("受理状态未知");
+  assert.equal(
+    rejectPendingRequestAck(unknown, "req-unknown-first", unknownError),
+    false,
+  );
+  await assert.rejects(
+    waitForRequestAck(
+      unknown,
+      "req-unknown-first",
+      () => assert.fail("unknown ACK must not time out"),
+      10,
+    ),
+    (error) => error === unknownError,
+    "early rejection must preserve its typed recovery outcome",
+  );
+});
+
+test("chat ACK timeout recovery recognizes a durable client message identity", async () => {
+  const {
+    hasAcceptedClientMessage,
+    recoverRequestAckTimeout,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/actions/use-request-ack-failure.ts",
+  );
+  const messages = [{
+    agent_id: "nexus",
+    client_message_id: "local_msg_accepted",
+    content: "已持久化",
+    message_id: "msg_user_server",
+    role: "user",
+    round_id: "round_server",
+    session_key: "agent:nexus:ws:dm:session-1",
+    timestamp: 1,
+  }];
+
+  assert.equal(
+    hasAcceptedClientMessage(messages, "local_msg_accepted"),
+    true,
+  );
+  assert.equal(
+    hasAcceptedClientMessage(messages, "local_msg_missing"),
+    false,
+  );
+
+  const calls = [];
+  const accepted = await recoverRequestAckTimeout({
+    clientMessageId: "local_msg_accepted",
+    inputQueueItems: () => [],
+    reconnect: () => calls.push("reconnect"),
+    reload: async () => messages,
+    websocketState: () => "connected",
+  });
+  assert.equal(accepted, "accepted");
+  assert.deepEqual(calls, ["reconnect"]);
+
+  const failedTransportCalls = [];
+  const failedTransport = await recoverRequestAckTimeout({
+    clientMessageId: "local_msg_accepted",
+    inputQueueItems: () => [],
+    reconnect: () => failedTransportCalls.push("reconnect"),
+    reload: async () => messages,
+    websocketState: () => "failed",
+  });
+  assert.equal(failedTransport, "accepted");
+  assert.deepEqual(
+    failedTransportCalls,
+    ["reconnect"],
+    "ACK recovery must restart a transport that exhausted automatic retries",
+  );
+  const unknown = await recoverRequestAckTimeout({
+    clientMessageId: "local_msg_unknown",
+    inputQueueItems: () => [],
+    reconnect: () => {},
+    reload: async () => null,
+    websocketState: () => "reconnecting",
+  });
+  assert.equal(
+    unknown,
+    "unknown",
+    "a failed history load must not be treated as a rejected request",
+  );
+  const reloadError = await recoverRequestAckTimeout({
+    clientMessageId: "local_msg_unknown",
+    inputQueueItems: () => [],
+    reconnect: () => {},
+    reload: async () => {
+      throw new Error("history unavailable");
+    },
+    websocketState: () => "reconnecting",
+  });
+  assert.equal(
+    reloadError,
+    "unknown",
+    "a thrown history reload must preserve the optimistic message",
+  );
+  const queueEvidenceAfterReloadError = await recoverRequestAckTimeout({
+    clientMessageId: "local_msg_queued",
+    inputQueueItems: () => [{
+      client_message_id: "local_msg_queued",
+      content: "排队中",
+      created_at: 1,
+      delivery_policy: "queue",
+      id: "queue-1",
+      scope: "dm",
+      session_key: "agent:nexus:ws:dm:session-1",
+      source: "user",
+      updated_at: 1,
+    }],
+    reconnect: () => {},
+    reload: async () => {
+      throw new Error("history unavailable");
+    },
+    websocketState: () => "reconnecting",
+  });
+  assert.equal(
+    queueEvidenceAfterReloadError,
+    "accepted",
+    "durable queue evidence must remain authoritative when history reload fails",
+  );
+  const unconfirmed = await recoverRequestAckTimeout({
+    clientMessageId: "local_msg_missing",
+    inputQueueItems: () => [],
+    reconnect: () => {},
+    reload: async () => messages,
+    websocketState: () => "reconnecting",
+  });
+  assert.equal(
+    unconfirmed,
+    "unknown",
+    "absence from history and a possibly stale queue snapshot is not rejection evidence",
+  );
+  assert.equal(
+    hasAcceptedClientMessage([], "local_msg_queued", [{
+      client_message_id: "local_msg_queued",
+      content: "排队中",
+      created_at: 1,
+      delivery_policy: "queue",
+      id: "queue-1",
+      scope: "dm",
+      session_key: "agent:nexus:ws:dm:session-1",
+      source: "user",
+      updated_at: 1,
+    }]),
+    true,
+    "durable queue acceptance must survive a lost ACK before history projection",
   );
 });
 
@@ -519,6 +670,7 @@ test("Room durable user atomically replaces its optimistic feed node", async () 
   );
   const optimistic = {
     agent_id: "",
+    client_message_id: "local-message-1",
     content: "检查流式体验",
     message_id: "local-message-1",
     role: "user",
@@ -528,7 +680,6 @@ test("Room durable user atomically replaces its optimistic feed node", async () 
   };
   const canonical = {
     ...optimistic,
-    client_message_id: "local-message-1",
     message_id: "msg-user-1",
     round_id: "round-1",
     timestamp: 11,
@@ -599,6 +750,15 @@ test("Room durable user atomically replaces its optimistic feed node", async () 
     )?.client_message_id,
     "local-message-1",
     "a later history refresh must not remount the acknowledged user bubble",
+  );
+  const timeoutRecoveryMerged = mergeLoadedMessages(
+    [canonical],
+    [optimistic],
+  );
+  assert.deepEqual(
+    timeoutRecoveryMerged.map((message) => message.message_id),
+    ["msg-user-1"],
+    "durable client identity must reconcile an optimistic user after ACK loss",
   );
   const broadcastBeforeAck = replaceOptimisticUserMessage(
     [optimistic, canonicalWithoutClientIdentity],

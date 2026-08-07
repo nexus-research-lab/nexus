@@ -175,7 +175,7 @@ func walkTranscriptParentChain(leaf transcriptEntry, byUUID map[string]transcrip
 }
 
 func shouldSkipTranscriptEntry(entry map[string]any) bool {
-	if boolValueAny(entry["isSidechain"]) || boolValueAny(entry["isMeta"]) {
+	if boolValueAny(entry["isSidechain"]) || isMetaTranscriptEntry(entry) {
 		return true
 	}
 	if isInternalTranscriptContinuationEntry(entry) {
@@ -185,9 +185,13 @@ func shouldSkipTranscriptEntry(entry map[string]any) bool {
 }
 
 func shouldSkipExplicitTranscriptEntry(entry map[string]any) bool {
-	return boolValueAny(entry["isMeta"]) ||
+	return isMetaTranscriptEntry(entry) ||
 		isInternalTranscriptContinuationEntry(entry) ||
 		stringFromAny(entry["teamName"]) != ""
+}
+
+func isMetaTranscriptEntry(entry map[string]any) bool {
+	return boolValueAny(entry["isMeta"]) || boolValueAny(entry["is_meta"])
 }
 
 func isInternalTranscriptContinuationEntry(entry map[string]any) bool {

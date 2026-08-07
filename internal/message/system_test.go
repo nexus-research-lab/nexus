@@ -1,10 +1,10 @@
 package message
 
 import (
+	"encoding/json"
 	"testing"
 
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
-	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
 func TestProcessorPreservesMemorySavedSystemEvent(t *testing.T) {
@@ -35,6 +35,36 @@ func TestProcessorPreservesMemorySavedSystemEvent(t *testing.T) {
 	paths, ok := metadata["written_paths"].([]string)
 	if output.DurableMessages[0]["content"] != "长期记忆已保存" || !ok || len(paths) != 1 || paths[0] != "/memory/user.md" {
 		t.Fatalf("memory event = %#v", output.DurableMessages[0])
+	}
+}
+
+func TestProcessorProjectsMemoryRecallAsDurableStatus(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-memory-recall",
+	}, "sdk-session-memory")
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type:    sdkprotocol.MessageTypeSystem,
+		Subtype: "memory_recalled",
+		System: &sdkprotocol.SystemMessage{
+			Subtype: "memory_recalled",
+			Data: map[string]any{
+				"count": json.Number("2"),
+				"mode":  "local",
+			},
+		},
+	})
+	if len(output.DurableMessages) != 1 || len(output.EphemeralMessages) != 0 {
+		t.Fatalf("output = %#v, want one durable recall status", output)
+	}
+	message := output.DurableMessages[0]
+	if message["content"] != "已加载 2 条长期记忆" {
+		t.Fatalf("content = %#v", message["content"])
+	}
+	metadata, _ := message["metadata"].(map[string]any)
+	if metadata["subtype"] != "memory_recalled" || metadata["count"] != 2 || metadata["mode"] != "local" {
+		t.Fatalf("metadata = %#v", metadata)
 	}
 }
 
@@ -156,43 +186,5 @@ func TestProcessorPersistsCompactBoundarySystemMessage(t *testing.T) {
 	compactMetadata, ok := metadata["compact_metadata"].(map[string]any)
 	if !ok || compactMetadata["trigger"] != "auto" || compactMetadata["pre_tokens"] != 120000 {
 		t.Fatalf("compact_metadata 未保留: %+v", metadata)
-	}
-}
-
-func TestEventMapperProjectsCompactRuntimeStatusLifecycle(t *testing.T) {
-	mapper := NewEventMapper(EventMapperOptions{
-		Context: MessageContext{
-			SessionKey: "agent:nexus:ws:dm:test",
-			AgentID:    "nexus",
-			RoundID:    "round-compact",
-		},
-	})
-
-	statuses := []string{"compacting", ""}
-	for index, status := range statuses {
-		result, err := mapper.Map(sdkprotocol.ReceivedMessage{
-			Type:    sdkprotocol.MessageTypeSystem,
-			Subtype: "status",
-			System: &sdkprotocol.SystemMessage{
-				Subtype: "status",
-				Status:  &sdkprotocol.StatusSystemMessage{Status: status},
-			},
-		})
-		if err != nil {
-			t.Fatalf("Map(status=%q) error = %v", status, err)
-		}
-		if len(result.Events) != 1 || result.Events[0].EventType != protocol.EventTypeRuntimeStatus {
-			t.Fatalf("status[%d] events = %+v", index, result.Events)
-		}
-		got := result.Events[0].Data["status"]
-		if status == "" {
-			if got != nil {
-				t.Fatalf("结束状态 = %#v, want nil", got)
-			}
-			continue
-		}
-		if got != protocol.RuntimeStatusCompacting {
-			t.Fatalf("压缩状态 = %#v, want compacting", got)
-		}
 	}
 }

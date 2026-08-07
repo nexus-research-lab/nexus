@@ -23,6 +23,8 @@ import type {
   PendingInteractionOwner,
 } from "../../message-item-projection";
 import type { MessageActivityState } from "../../activity/message-activity-state";
+import type { ProcessSummaryProjection } from "../../process/message-process-summary";
+import type { UnresolvedToolStatus } from "../content/content-renderer-contract";
 
 export interface AssistantActivityState {
   emptyStreamStatus: "cancelled" | "error" | null;
@@ -52,7 +54,7 @@ export interface AssistantFooterState {
 }
 
 export interface AssistantFooterStats {
-  cacheHit: string | null;
+  cacheReadTokens: string | null;
   cost: string | null;
   duration: string | null;
   tokens: string | null;
@@ -82,7 +84,7 @@ export interface AssistantProcessState {
   anchorRef: RefObject<HTMLElement | null>;
   expanded: boolean;
   projection: ContentProjection;
-  summary: string;
+  summary: ProcessSummaryProjection;
   toggle: () => void;
   visible: boolean;
 }
@@ -108,6 +110,7 @@ export interface AssistantContentEnvironment {
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissionReadOnlyReason?: string;
 	workspaceAgentId?: string | null;
+	unresolvedToolStatus?: UnresolvedToolStatus;
 	agentMentionDirectory?: import("../../../agent-mention-chip").AgentMentionDirectory;
 	onOpenAgentContact?: (agentId: string) => void;
 }
@@ -126,7 +129,9 @@ export interface MessageAssistantSectionProps {
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissionReadOnlyReason?: string;
+  showHeader: boolean;
   workspaceAgentId?: string | null;
+  unresolvedToolStatus?: UnresolvedToolStatus;
   agentMentionDirectory?: import("../../../agent-mention-chip").AgentMentionDirectory;
 }
 

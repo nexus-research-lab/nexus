@@ -57,6 +57,7 @@ func ScanMemberRecord(scanner Scanner) (protocol.MemberRecord, error) {
 		&item.MemberType,
 		&item.MemberUserID,
 		&item.MemberAgentID,
+		&item.ParticipationPaused,
 		&joinedAt,
 	)
 	if err != nil {
@@ -192,6 +193,7 @@ func parseRoomTimeString(value string) (time.Time, bool) {
 func ScanSessionRecord(scanner Scanner) (protocol.SessionRecord, error) {
 	var (
 		item           protocol.SessionRecord
+		optionsJSON    string
 		lastActivityAt time.Time
 		createdAt      time.Time
 		updatedAt      time.Time
@@ -205,6 +207,7 @@ func ScanSessionRecord(scanner Scanner) (protocol.SessionRecord, error) {
 		&item.BranchKey,
 		&item.IsPrimary,
 		&item.SDKSessionID,
+		&optionsJSON,
 		&item.Status,
 		&lastActivityAt,
 		&createdAt,
@@ -212,6 +215,10 @@ func ScanSessionRecord(scanner Scanner) (protocol.SessionRecord, error) {
 	)
 	if err != nil {
 		return protocol.SessionRecord{}, err
+	}
+	item.Options = jsoncodec.ParseMap(optionsJSON)
+	if item.Options == nil {
+		item.Options = map[string]any{}
 	}
 	item.LastActivityAt = lastActivityAt
 	item.CreatedAt = createdAt

@@ -69,10 +69,9 @@ export function useProviderDelete({
         setFeedback({
           tone: "success",
           title: t("settings.providers.deleted_title"),
-          message: result.replacement_provider
-            ? t("settings.providers.delete_reassigned_message", {
-              count: result.reassigned_runtime_count ?? 0,
-              provider: result.replacement_provider,
+          message: result.fallback_to_default
+            ? t("settings.providers.delete_follow_default_message", {
+              count: result.affected_runtime_count ?? 0,
             })
             : t("settings.providers.delete_removed_message", {
               name: getProviderTitle(targetRecord),

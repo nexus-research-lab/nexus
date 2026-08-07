@@ -1,22 +1,18 @@
-import { Clock3, Link2, Search } from "lucide-react";
+import { RefreshCw, Search } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
+import { UiIconButton } from "@/shared/ui/button/button";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiSearchInput } from "@/shared/ui/form/form-control";
-
-import {
-  formatMemoryModifiedTime,
-  isIndexedMemoryTopic,
-  MEMORY_STALE_AFTER_DAYS,
-  memoryAgeDays,
-} from "../memory-utils";
+import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
+import { SIDEBAR_SELECTION_CLASS_NAME } from "@/shared/ui/sidebar/sidebar-selection";
 import {
   MEMORY_FILTER_OPTIONS,
   type MemoryCatalogRow,
   type MemoryCatalogSection,
   type MemoryFilter,
 } from "./memory-catalog-model";
-import { getMemoryDocumentPresentation } from "./memory-catalog-presentation";
+import { getMemoryDocumentIcon } from "./memory-catalog-presentation";
 
 interface AgentMemoryCatalogProps {
   emptyFilterVisible: boolean;
@@ -24,8 +20,10 @@ interface AgentMemoryCatalogProps {
   filter: MemoryFilter;
   onFilterChange: (filter: MemoryFilter) => void;
   onQueryChange: (query: string) => void;
+  onRefresh: () => void;
   onSelectDocument: (path: string) => void;
   query: string;
+  refreshing: boolean;
   sections: MemoryCatalogSection[];
   truncated: boolean;
 }
@@ -36,48 +34,58 @@ export function AgentMemoryCatalog({
   filter,
   onFilterChange,
   onQueryChange,
+  onRefresh,
   onSelectDocument,
   query,
+  refreshing,
   sections,
   truncated,
 }: AgentMemoryCatalogProps) {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
+  const filterOptions = MEMORY_FILTER_OPTIONS.map((option) => ({
+    label: t(option.labelKey),
+    value: option.value,
+  }));
   return (
-    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col border-r border-(--divider-subtle-color) bg-(--surface-raised-background)">
-      <div className="shrink-0 border-b border-(--divider-subtle-color) p-3">
+    <aside className="nexus-memory-catalog flex min-h-0 min-w-0 flex-col bg-(--surface-raised-background)">
+      <div className="flex shrink-0 items-center gap-2 px-3 py-3">
         <UiSearchInput
-          className="w-full"
+          action={(
+            <UiIconButton
+              aria-label={t("capability.refresh")}
+              className="-mr-1 shrink-0"
+              disabled={refreshing}
+              onClick={onRefresh}
+              size="xs"
+              title={t("capability.refresh")}
+              variant="ghost"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+            </UiIconButton>
+          )}
+          className="min-w-0 flex-1"
           inputClassName="text-compact"
           onChange={onQueryChange}
           placeholder={t("capability.memory_search_placeholder")}
           value={query}
         />
-        <div className="soft-scrollbar mt-2.5 flex gap-1 overflow-x-auto" role="tablist">
-          {MEMORY_FILTER_OPTIONS.map((option) => (
-            <button
-              aria-selected={filter === option.value}
-              className={cn(
-                "shrink-0 rounded-[6px] px-2 py-1 text-xs font-medium transition-colors",
-                filter === option.value
-                  ? "bg-(--surface-interactive-active-background) text-(--text-strong)"
-                  : "text-(--text-soft) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default)",
-              )}
-              key={option.value}
-              onClick={() => onFilterChange(option.value)}
-              role="tab"
-              type="button"
-            >
-              {t(option.labelKey)}
-            </button>
-          ))}
-        </div>
+        <UiSelectMenu
+          ariaLabel={t("capability.memory_filter_aria")}
+          buttonClassName="gap-1 px-2.5 shadow-none"
+          className="w-[86px] shrink-0"
+          menuMinWidth={120}
+          onChange={(value) => onFilterChange(value as MemoryFilter)}
+          options={filterOptions}
+          placement="bottom"
+          size="sm"
+          value={filter}
+        />
       </div>
 
-      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 py-2">
+      <div className="soft-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-3">
         {sections.map((section) => (
           <MemoryCatalogSectionView
             key={section.key}
-            locale={locale}
             onSelect={onSelectDocument}
             section={section}
           />
@@ -99,7 +107,7 @@ export function AgentMemoryCatalog({
       </div>
 
       {emptyMemoryVisible ? (
-        <div className="border-t border-(--divider-subtle-color) px-4 py-4">
+        <div className="px-4 py-4">
           <p className="text-compact font-semibold text-(--text-strong)">
             {t("capability.memory_empty_title")}
           </p>
@@ -113,26 +121,25 @@ export function AgentMemoryCatalog({
 }
 
 function MemoryCatalogSectionView({
-  locale,
   onSelect,
   section,
 }: {
-  locale: string;
   onSelect: (path: string) => void;
   section: MemoryCatalogSection;
 }) {
   const { t } = useI18n();
   return (
     <div className={section.key === "index" ? "mb-2" : undefined}>
-      <MemorySectionLabel
-        label={t(section.labelKey)}
-        value={section.countVisible ? String(section.rows.length) : undefined}
-      />
+      {section.countVisible ? (
+        <MemorySectionLabel
+          label={t(section.labelKey)}
+          value={String(section.rows.length)}
+        />
+      ) : null}
       <div className="space-y-0.5">
         {section.rows.map((row) => (
           <MemoryDocumentRow
             key={row.document.path}
-            locale={locale}
             onSelect={onSelect}
             row={row}
           />
@@ -152,59 +159,40 @@ function MemorySectionLabel({ label, value }: { label: string; value?: string })
 }
 
 function MemoryDocumentRow({
-  locale,
   onSelect,
   row,
 }: {
-  locale: string;
   onSelect: (path: string) => void;
   row: MemoryCatalogRow;
 }) {
-  const { t } = useI18n();
   const { document, isSelected } = row;
-  const presentation = getMemoryDocumentPresentation(document);
-  const Icon = presentation.icon;
-  const stale = memoryAgeDays(document.modified_at) > MEMORY_STALE_AFTER_DAYS;
+  const Icon = getMemoryDocumentIcon(document);
+  const description = document.description && document.description !== document.path
+    ? document.description
+    : "";
   return (
     <button
       className={cn(
-        "group relative flex w-full items-start gap-2.5 radius-control-sm px-2.5 py-2.5 text-left transition-colors",
+        "group flex w-full items-center gap-2.5 radius-control-sm border border-transparent px-2.5 py-2 text-left transition-colors",
         isSelected
-          ? "bg-(--surface-interactive-active-background)"
+          ? SIDEBAR_SELECTION_CLASS_NAME
           : "hover:bg-(--surface-interactive-hover-background)",
       )}
       onClick={() => onSelect(document.path)}
       type="button"
     >
-      {isSelected ? (
-        <span className="absolute bottom-2 left-0 top-2 w-[2px] rounded-full bg-(--primary)" />
-      ) : null}
-      <span className={cn(
-        "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px]",
-        presentation.tone,
-      )}>
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-(--surface-panel-subtle-background) text-(--icon-muted)">
         <Icon className="h-3.5 w-3.5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-compact font-semibold text-(--text-strong)">
-            {document.title}
+        <span className="block truncate text-compact font-semibold text-(--text-strong)">
+          {document.title}
+        </span>
+        {description ? (
+          <span className="mt-0.5 block truncate text-xs leading-4 text-(--text-muted)">
+            {description}
           </span>
-          {isIndexedMemoryTopic(document) ? (
-            <Link2 className="h-3 w-3 shrink-0 text-(--accent)" />
-          ) : null}
-        </span>
-        <span className="mt-0.5 line-clamp-2 block text-xs leading-4 text-(--text-muted)">
-          {document.description || document.path}
-        </span>
-        <span className="mt-1 flex items-center gap-1.5 text-2xs text-(--text-soft)">
-          <span>{t(presentation.labelKey)}</span>
-          <span aria-hidden="true">·</span>
-          <Clock3 className="h-2.5 w-2.5" />
-          <span className={stale ? "text-(--warning)" : undefined}>
-            {formatMemoryModifiedTime(document.modified_at, locale)}
-          </span>
-        </span>
+        ) : null}
       </span>
     </button>
   );

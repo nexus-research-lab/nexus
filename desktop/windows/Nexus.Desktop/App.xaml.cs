@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using Nexus.Desktop.Dialog;
 using Nexus.Desktop.Diagnostics;
@@ -35,6 +37,11 @@ public partial class App : System.Windows.Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        if (DesktopStateRootMigration.TryRunHelper(e.Args))
+        {
+            Shutdown(0);
+            return;
+        }
         base.OnStartup(e);
         startupTimeline.Mark("app.startup");
         singleInstance = new DesktopSingleInstanceCoordinator(startupTimeline);
@@ -62,6 +69,7 @@ public partial class App : System.Windows.Application
                 return;
             }
             startupTimeline.Mark("sidecar.ready");
+            CompletePendingStateRootMigration();
 
             updateChecker = new DesktopUpdateChecker(startupTimeline);
             await updateChecker.ClearStaleUpdateCacheIfNeededAsync();
@@ -76,6 +84,10 @@ public partial class App : System.Windows.Application
         catch (Exception exception)
         {
             if (exitRequested || Dispatcher.HasShutdownStarted)
+            {
+                return;
+            }
+            if (RollbackPendingStateRootMigration(exception))
             {
                 return;
             }
@@ -113,6 +125,70 @@ public partial class App : System.Windows.Application
             message,
             "退出");
         RequestApplicationExit(1);
+    }
+
+    private void CompletePendingStateRootMigration()
+    {
+        try
+        {
+            string? previousRoot = DesktopStateRootStore.CompleteMigration();
+            if (string.IsNullOrWhiteSpace(previousRoot))
+            {
+                return;
+            }
+            startupTimeline.Mark("state_root.migration_committed", new Dictionary<string, string>
+            {
+                ["previous_root"] = previousRoot,
+                ["state_root"] = DesktopPaths.RootDirectory,
+            });
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    Directory.Delete(previousRoot, recursive: true);
+                }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                {
+                    Trace.WriteLine($"[Nexus State Root] old root cleanup failed: {exception.Message}");
+                }
+            });
+        }
+        catch (Exception exception)
+        {
+            startupTimeline.Mark("state_root.migration_commit_failed", new Dictionary<string, string>
+            {
+                ["error"] = exception.Message,
+            });
+        }
+    }
+
+    private bool RollbackPendingStateRootMigration(Exception startupError)
+    {
+        string? previousRoot = DesktopStateRootStore.PreviousRootDirectory;
+        if (string.IsNullOrWhiteSpace(previousRoot))
+        {
+            return false;
+        }
+        try
+        {
+            DesktopStateRootStore.RollbackMigration(startupError.Message);
+            DesktopStateRootMigration.ScheduleRelaunchAfterExit(previousRoot);
+            startupTimeline.Mark("state_root.migration_rolled_back", new Dictionary<string, string>
+            {
+                ["error"] = startupError.Message,
+                ["state_root"] = previousRoot,
+            });
+            RequestApplicationExit(0);
+            return true;
+        }
+        catch (Exception rollbackError)
+        {
+            startupTimeline.Mark("state_root.migration_rollback_failed", new Dictionary<string, string>
+            {
+                ["error"] = rollbackError.Message,
+            });
+            return false;
+        }
     }
 
     private Task HandleActivationAsync(string message)

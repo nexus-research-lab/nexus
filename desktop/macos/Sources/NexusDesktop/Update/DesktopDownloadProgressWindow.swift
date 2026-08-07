@@ -8,39 +8,54 @@ import AppKit
 final class DesktopDownloadProgressWindow {
   private let panel: NSPanel
   private let progressIndicator = NSProgressIndicator()
-  private let progressLabel = NSTextField(labelWithString: "正在连接下载服务…")
+  private let progressLabel = NSTextField(labelWithString: "准备中…")
 
   init(release: DesktopReleaseInfo) {
     panel = NSPanel(
-      contentRect: NSRect(x: 0, y: 0, width: 520, height: 220),
+      contentRect: NSRect(x: 0, y: 0, width: 420, height: 112),
       styleMask: [.titled, .closable],
       backing: .buffered,
       defer: false
     )
-    panel.title = "Nexus 正在下载更新"
+    panel.title = "下载更新"
     panel.isReleasedWhenClosed = false
 
-    let titleLabel = NSTextField(labelWithString: "正在下载 Nexus \(release.displayText)")
-    titleLabel.font = .systemFont(ofSize: 20, weight: .semibold)
+    let titleLabel = NSTextField(labelWithString: "正在下载 Nexus \(release.version)")
+    titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
+    titleLabel.lineBreakMode = .byTruncatingTail
+    titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+    progressLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .regular)
+    progressLabel.textColor = .secondaryLabelColor
+    progressLabel.alignment = .right
+    progressLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
     progressIndicator.isIndeterminate = true
     progressIndicator.style = .bar
+    progressIndicator.controlSize = .small
     progressIndicator.minValue = 0
     progressIndicator.maxValue = 1
     progressIndicator.startAnimation(nil)
 
-    let stack = NSStackView(views: [titleLabel, progressLabel, progressIndicator])
+    let header = NSStackView(views: [titleLabel, progressLabel])
+    header.orientation = .horizontal
+    header.alignment = .centerY
+    header.spacing = 12
+    header.distribution = .fill
+
+    let stack = NSStackView(views: [header, progressIndicator])
     stack.orientation = .vertical
     stack.alignment = .leading
-    stack.spacing = 20
+    stack.spacing = 12
     stack.translatesAutoresizingMaskIntoConstraints = false
-    progressIndicator.widthAnchor.constraint(equalToConstant: 464).isActive = true
+    header.widthAnchor.constraint(equalToConstant: 380).isActive = true
+    progressIndicator.widthAnchor.constraint(equalTo: header.widthAnchor).isActive = true
 
     let contentView = NSView()
     contentView.addSubview(stack)
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 28),
-      stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -28),
+      stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+      stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -20),
       stack.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
     ])
     panel.contentView = contentView

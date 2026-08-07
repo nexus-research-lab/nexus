@@ -1,10 +1,12 @@
 // INPUT: 跨 HTTP/WS/runtime 的 Goal 状态、请求、最终 usage fence 与 continuation 数据。
-// OUTPUT: Goal 领域协议、按 ID 查询的 usage report、Room creator/lead 权限身份及归一化常量。
+// OUTPUT: Goal 领域协议、显式 Goal 的稳定 Execution 预留身份、按 ID 查询的 usage report、Room creator/lead 权限身份及归一化常量。
 // POS: Goal 前后端与运行时共享的协议真相源。
 package protocol
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"strings"
 	"time"
@@ -46,6 +48,20 @@ const (
 	GoalMetadataRoomGoalCollaborationObservedAt       = "room_goal_collaboration_observed_at"
 	GoalMetadataRoomGoalCollaborationRequirementRound = "room_goal_collaboration_requirement_round_id"
 	GoalMetadataObjectiveRevision                     = "objective_revision"
+	// GoalMetadataOwnerUserID is server-owned authorization provenance for
+	// owner-scoped Goal mutations. Request metadata cannot replace it.
+	GoalMetadataOwnerUserID        = "owner_user_id"
+	GoalMetadataExecutionID        = "execution_id"
+	GoalMetadataPromotionCommand   = "promotion_command"
+	GoalMetadataActivationOrigin   = "activation_origin"
+	GoalMetadataActivationReason   = "activation_reason"
+	GoalMetadataCompletionCriteria = "completion_criteria"
+	GoalMetadataObjectiveAlignment = "objective_alignment"
+	GoalMetadataExplicitCommand    = "explicit_goal_command"
+	// GoalMetadataObjectiveTransition is server-owned durable state for a
+	// Goal objective revision rebase. User metadata updates must never replace
+	// or remove it.
+	GoalMetadataObjectiveTransition = "objective_transition"
 )
 
 // GoalUsage 记录 Goal 长程执行累计用量。
@@ -222,6 +238,37 @@ func GoalMetadataString(metadata map[string]any, key string) string {
 	default:
 		return ""
 	}
+}
+
+// ExplicitGoalReservedExecutionID derives the one Execution identity owned by
+// an explicit create_goal command. The command is persisted before a WorkGraph
+// exists, so the same reservation survives proposal retries and process restarts.
+func ExplicitGoalReservedExecutionID(commandID string) string {
+	commandID = strings.TrimSpace(commandID)
+	if commandID == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte("explicit_goal_execution\x00" + commandID))
+	return "execution_" + hex.EncodeToString(sum[:12])
+}
+
+// GoalReservedExecutionID returns the persisted Goal -> Execution reservation.
+// Explicit Goals created before create_goal stored execution_id recover the same
+// identity from their server-owned command instead of minting a new state chain.
+func GoalReservedExecutionID(goal Goal) string {
+	if executionID := GoalMetadataString(goal.Metadata, GoalMetadataExecutionID); executionID != "" {
+		return executionID
+	}
+	if GoalActivationOrigin(GoalMetadataString(goal.Metadata, GoalMetadataActivationOrigin)) !=
+		GoalActivationOriginUserExplicit ||
+		GoalActivationReason(GoalMetadataString(goal.Metadata, GoalMetadataActivationReason)) !=
+			GoalActivationReasonPersistenceRequested {
+		return ""
+	}
+	return ExplicitGoalReservedExecutionID(GoalMetadataString(
+		goal.Metadata,
+		GoalMetadataExplicitCommand,
+	))
 }
 
 // GoalMetadataBool 从 Goal metadata 中读取布尔值。

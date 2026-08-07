@@ -6,6 +6,7 @@ import {
   setAgentSkillEnabledApi,
 } from "@/lib/api/capability/skill-api";
 import { getErrorMessage } from "@/lib/error-message";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
   SkillAgentBinding,
   SkillDetail,
@@ -31,6 +32,12 @@ export function useSkillDetailController({
   skillName,
   updateSkill,
 }: UseSkillDetailControllerOptions) {
+  const { t } = useI18n();
+  const detailLoadFailed = t("capability.skills_detail_load_failed");
+  const bindingsLoadFailed = t(
+    "capability.skills_detail_bindings_load_failed",
+  );
+  const toggleFailed = t("capability.skills_detail_toggle_failed");
   const [snapshot, setSnapshot] = useState<SkillDetailSnapshot>({
     errorMessage: null,
     skill: null,
@@ -61,7 +68,7 @@ export function useSkillDetailController({
     } catch (error) {
       if (generation !== requestGenerationRef.current) return;
       setSnapshot({
-        errorMessage: getErrorMessage(error, "加载 skill 详情失败"),
+        errorMessage: getErrorMessage(error, detailLoadFailed),
         skill: null,
         status: "error",
       });
@@ -74,13 +81,13 @@ export function useSkillDetailController({
       setAgentBindings(bindings);
     } catch (error) {
       if (generation !== requestGenerationRef.current) return;
-      setAgentToggleError(getErrorMessage(error, "加载 Agent 使用状态失败"));
+      setAgentToggleError(getErrorMessage(error, bindingsLoadFailed));
     } finally {
       if (generation === requestGenerationRef.current) {
         setAgentsLoading(false);
       }
     }
-  }, [skillName]);
+  }, [bindingsLoadFailed, detailLoadFailed, skillName]);
 
   useEffect(() => {
     void loadDetail();
@@ -138,12 +145,12 @@ export function useSkillDetailController({
       )));
       await Promise.resolve(onAgentBindingChanged());
     } catch (error) {
-      setAgentToggleError(getErrorMessage(error, "更新 Agent 技能状态失败"));
+      setAgentToggleError(getErrorMessage(error, toggleFailed));
     } finally {
       setBusyAgentId(null);
       setActiveAction(null);
     }
-  }, [activeAction, onAgentBindingChanged, snapshot]);
+  }, [activeAction, onAgentBindingChanged, snapshot, toggleFailed]);
 
   return {
     activeAction,

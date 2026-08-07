@@ -29,6 +29,7 @@ function buildOptimisticUserMessage(
   const attachments = options.attachments ?? [];
   return {
     message_id: request.client_message_id,
+    client_message_id: request.client_message_id,
     session_key: actionContext.sessionKey,
     round_id: request.client_message_id,
     agent_id: actionContext.agentId,

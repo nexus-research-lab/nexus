@@ -15,40 +15,57 @@ internal sealed class DesktopDownloadProgressWindow : System.Windows.Window
 
     internal DesktopDownloadProgressWindow(System.Windows.Window owner, DesktopReleaseInfo release)
     {
-        Title = "Nexus 正在下载更新";
+        Title = "下载更新";
         Owner = owner;
-        Width = 520;
-        Height = 230;
+        Width = 420;
+        Height = 150;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch;
+        VerticalContentAlignment = System.Windows.VerticalAlignment.Center;
 
         progressBar = new WpfProgressBar
         {
-            Height = 8,
+            Height = 6,
             Minimum = 0,
             Maximum = 1,
             IsIndeterminate = true,
         };
         progressText = new TextBlock
         {
-            Text = "正在连接下载服务…",
+            Text = "准备中…",
+            FontSize = 12,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            VerticalAlignment = System.Windows.VerticalAlignment.Center,
         };
+
+        var header = new Grid
+        {
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        header.ColumnDefinitions.Add(new ColumnDefinition());
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var title = new TextBlock
+        {
+            Text = $"正在下载 Nexus {release.Version}",
+            FontSize = 15,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = System.Windows.VerticalAlignment.Center,
+        };
+        progressText.Margin = new Thickness(16, 0, 0, 0);
+        Grid.SetColumn(progressText, 1);
+        header.Children.Add(title);
+        header.Children.Add(progressText);
 
         Content = new StackPanel
         {
-            Margin = new Thickness(28),
+            Margin = new Thickness(20),
             Children =
             {
-                new TextBlock
-                {
-                    Text = $"正在下载 Nexus {release.DisplayText}",
-                    FontSize = 20,
-                    FontWeight = FontWeights.SemiBold,
-                    Margin = new Thickness(0, 0, 0, 28),
-                },
-                progressText,
+                header,
                 progressBar,
             },
         };

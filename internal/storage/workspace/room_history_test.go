@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
@@ -41,12 +42,15 @@ func TestRoomHistoryStoreSeparatesSameConversationByOwner(t *testing.T) {
 	if len(ownerARows) != 1 || ownerARows[0]["message_id"] != "message-a" {
 		t.Fatalf("owner A Room 历史不完整: %+v", ownerARows)
 	}
-	ledgerInfo, err := os.Stat(history.paths.RoomConversationOverlayPath("user-a", conversationID))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ledgerInfo.Mode().Perm()&0o077 != 0 {
-		t.Fatalf("Room ledger 不能向 group/other 暴露: mode=%#o", ledgerInfo.Mode().Perm())
+	// Windows 的 FileMode 不表达继承 ACL，POSIX group/other 位只在其他平台校验。
+	if runtime.GOOS != "windows" {
+		ledgerInfo, err := os.Stat(history.paths.RoomConversationOverlayPath("user-a", conversationID))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ledgerInfo.Mode().Perm()&0o077 != 0 {
+			t.Fatalf("Room ledger 不能向 group/other 暴露: mode=%#o", ledgerInfo.Mode().Perm())
+		}
 	}
 }
 

@@ -22,6 +22,7 @@ RUN --mount=type=cache,target=/pnpm/store,sharing=locked \
     pnpm install --frozen-lockfile
 
 COPY web/ ./
+COPY docs/specs/room-collaboration-mechanism.en.md /app/docs/specs/room-collaboration-mechanism.en.md
 COPY docs/specs/room-collaboration-mechanism.md /app/docs/specs/room-collaboration-mechanism.md
 RUN pnpm run build
 

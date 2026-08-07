@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode, RefObject } from "react";
-import { Eye, FileText, FileWarning, LoaderCircle } from "lucide-react";
+import { Eye, FileWarning, LoaderCircle } from "lucide-react";
 
 import { cn } from "@/shared/ui/class-name";
 import {
@@ -121,15 +121,7 @@ function DocumentPreviewHeader({
           />
         </>
       )}
-      meta={(
-        <>
-          <span className="flex items-center gap-1">
-            <FileText className="h-3 w-3" />
-            docx 预览
-          </span>
-          <DocumentPreviewStatusMeta status={status} />
-        </>
-      )}
+      meta={<DocumentPreviewStatusMeta status={status} />}
       title={fileName}
     />
   );
@@ -154,7 +146,7 @@ function DocumentPreviewStatusMeta({
     loading: (
       <span className="flex items-center gap-1">
         <LoaderCircle className="h-3 w-3 animate-spin" />
-        {status.state === "loading" ? status.message : "加载中"}
+        加载中
       </span>
     ),
   } satisfies Record<DocumentPreviewStatus["state"], ReactNode>;

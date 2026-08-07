@@ -15,5 +15,10 @@ let package = Package(
       name: "NexusDesktop",
       path: "Sources/NexusDesktop"
     ),
+    .testTarget(
+      name: "NexusDesktopTests",
+      dependencies: ["NexusDesktop"],
+      path: "Tests/NexusDesktopTests"
+    ),
   ]
 )

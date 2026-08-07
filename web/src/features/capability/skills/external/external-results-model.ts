@@ -1,3 +1,4 @@
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 import type {
   ExternalSkillSearchItem,
   ExternalSkillSourceInfo,
@@ -25,6 +26,7 @@ export interface ExternalResultsModel {
 interface BuildExternalResultsModelOptions {
   activeSourceKey: string | null;
   items: ExternalSkillSearchItem[];
+  localization: Pick<I18nContextValue, "t">;
   loading: boolean;
   statuses: ExternalSkillSourceStatus[];
   sources: ExternalSkillSourceInfo[];
@@ -34,13 +36,14 @@ interface BuildExternalResultsModelOptions {
 export function buildExternalResultsModel({
   activeSourceKey,
   items,
+  localization,
   loading,
   statuses,
   sources,
   submittedQuery,
 }: BuildExternalResultsModelOptions): ExternalResultsModel {
   const groups = hasResultContext(items, submittedQuery)
-    ? groupExternalResultsBySource(items, statuses, sources)
+    ? groupExternalResultsBySource(items, statuses, sources, localization)
     : [];
   const selectedGroup = groups.find((group) => group.key === activeSourceKey) ?? null;
   const selectedSourceKey = selectedGroup?.key ?? null;
@@ -57,6 +60,7 @@ function groupExternalResultsBySource(
   items: ExternalSkillSearchItem[],
   statuses: ExternalSkillSourceStatus[],
   sources: ExternalSkillSourceInfo[],
+  localization: Pick<I18nContextValue, "t">,
 ): ExternalResultGroup[] {
   const groups = new Map<string, ExternalResultGroup>();
   const statusesByKey = new Map(statuses.map((status) => [status.key, status]));
@@ -90,7 +94,11 @@ function groupExternalResultsBySource(
 
   items.forEach((item) => {
     const key = externalItemSourceKey(item);
-    const group = groups.get(key) ?? createResultGroup(item, key);
+    const group = groups.get(key) ?? createResultGroup(
+      item,
+      key,
+      localization,
+    );
     group.items.push(item);
     groups.set(key, group);
   });
@@ -105,29 +113,44 @@ function groupExternalResultsBySource(
 function createResultGroup(
   item: ExternalSkillSearchItem,
   key: string,
+  localization: Pick<I18nContextValue, "t">,
 ): ExternalResultGroup {
   return {
     items: [],
     key,
-    label: item.source_name || item.source_kind || "社区",
+    label: item.source_name || item.source_kind || localization.t(
+      "capability.skills_external_source_community",
+    ),
     status: "ok",
   };
 }
 
-export function sourceGroupEmptyMessage(group: ExternalResultGroup): string {
+export function sourceGroupEmptyMessage(
+  group: ExternalResultGroup,
+  localization: Pick<I18nContextValue, "t">,
+): string {
   const messages: Record<string, string> = {
-    disabled: "该来源已停用，可在来源面板启用后参与搜索。",
-    error: group.error ? `搜索失败：${group.error}` : "该来源搜索失败。",
-    ok: "该来源没有匹配结果。",
+    disabled: localization.t("capability.skills_external_source_disabled_description"),
+    error: group.error
+      ? localization.t("capability.skills_external_source_failed_with_reason", {
+        reason: group.error,
+      })
+      : localization.t("capability.skills_external_source_failed_description"),
+    ok: localization.t("capability.skills_external_source_empty"),
   };
   return messages[group.status] ?? messages.ok;
 }
 
-export function sourceGroupSummaryLabel(group: ExternalResultGroup): string {
+export function sourceGroupSummaryLabel(
+  group: ExternalResultGroup,
+  localization: Pick<I18nContextValue, "t">,
+): string {
   const labels: Record<string, string> = {
-    disabled: "已停用",
-    error: "失败",
-    ok: `${group.items.length} 个`,
+    disabled: localization.t("capability.skills_external_source_disabled"),
+    error: localization.t("capability.skills_external_source_failed"),
+    ok: localization.t("capability.skills_external_source_result_count", {
+      count: group.items.length,
+    }),
   };
   return labels[group.status] ?? labels.ok;
 }

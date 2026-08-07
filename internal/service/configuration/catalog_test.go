@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providersvc "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -57,7 +56,6 @@ func TestValidateChangeRequestCoversSensitiveAndDestructiveOperations(t *testing
 		{Domain: DomainChannels, Operation: "upsert", Target: "feishu", Input: []byte(`{"agent_id":"nexus","credentials":{"app_secret":"secret"}}`)},
 		{Domain: DomainConnectors, Operation: "save_oauth_client", Target: "feishu-docx", Input: []byte(`{"client_id":"id","client_secret":"secret"}`)},
 		{Domain: DomainSkills, Operation: "install", Target: "planner", Input: []byte(`{"agent_id":"worker"}`)},
-		{Domain: DomainHost, Operation: "update_runtime_settings", Input: []byte(`{"workspace_path":"/tmp/nexus"}`)},
 	}
 	for _, request := range cases {
 		if err := validateChangeRequest(request); err != nil {
@@ -141,12 +139,5 @@ func TestMergePatchesNestedPreferenceAndAgentOptions(t *testing.T) {
 	}
 	if options.Provider != "openai" || options.Model != "gpt" || len(options.AllowedTools) != 2 {
 		t.Fatalf("Agent options patch reset model selection: %+v", options)
-	}
-}
-
-func TestValidateRuntimeSettingsRejectsRelativeWorkspace(t *testing.T) {
-	err := validateRuntimeSettings(config.RuntimeSettings{WorkspacePath: "relative/workspace"})
-	if err == nil {
-		t.Fatal("relative workspace_path must fail planning")
 	}
 }

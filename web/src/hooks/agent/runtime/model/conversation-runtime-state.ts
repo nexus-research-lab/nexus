@@ -16,6 +16,11 @@ export function isEphemeralMessage(message: Message): boolean {
   return message.delivery_mode === "ephemeral";
 }
 
+export function isRecoverableMessage(message: Message): boolean {
+  return message.delivery_mode !== "ephemeral"
+    && message.delivery_mode !== "transient";
+}
+
 function areStringArraysEqual(left: string[], right: string[]): boolean {
   return left.length === right.length
     && left.every((value, index) => value === right[index]);

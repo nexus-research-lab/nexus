@@ -27,18 +27,19 @@ type transcriptEntry struct {
 }
 
 type transcriptRoundMarker struct {
-	RoundID        string
-	SourceRoundID  string
-	UserMessageID  string
-	AgentRoundID   string
-	Content        string
-	Attachments    []protocol.ChatAttachment
-	Timestamp      int64
-	DeliveryPolicy string
-	HiddenFromUser bool
-	Synthetic      bool
-	Purpose        string
-	Metadata       map[string]string
+	RoundID         string
+	SourceRoundID   string
+	UserMessageID   string
+	AgentRoundID    string
+	ClientMessageID string
+	Content         string
+	Attachments     []protocol.ChatAttachment
+	Timestamp       int64
+	DeliveryPolicy  string
+	HiddenFromUser  bool
+	Synthetic       bool
+	Purpose         string
+	Metadata        map[string]string
 }
 
 type overlayHistoryState struct {
@@ -48,15 +49,16 @@ type overlayHistoryState struct {
 
 // RoundMarkerOptions 描述 Nexus overlay round marker 的展示和调度语义。
 type RoundMarkerOptions struct {
-	UserMessageID  string
-	AgentRoundID   string
-	SourceRoundID  string
-	DeliveryPolicy string
-	Attachments    []protocol.ChatAttachment
-	HiddenFromUser bool
-	Synthetic      bool
-	Purpose        string
-	Metadata       map[string]string
+	UserMessageID   string
+	AgentRoundID    string
+	ClientMessageID string
+	SourceRoundID   string
+	DeliveryPolicy  string
+	Attachments     []protocol.ChatAttachment
+	HiddenFromUser  bool
+	Synthetic       bool
+	Purpose         string
+	Metadata        map[string]string
 }
 
 // RoomPublicCursor 记录某个 Room agent 已消费到的公区消息位置。

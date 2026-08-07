@@ -12,6 +12,7 @@ import (
 
 const nexusConfigDirEnvName = "NEXUS_CONFIG_DIR"
 const NexusStateRootEnvName = "NEXUS_STATE_ROOT"
+const NexusPreviousStateRootEnvName = "NEXUS_PREVIOUS_STATE_ROOT"
 
 // StateRoot 返回 Nexus 的统一持久化状态根。
 //

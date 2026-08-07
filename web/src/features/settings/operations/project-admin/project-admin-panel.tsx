@@ -12,16 +12,12 @@ import { type FormEvent, useMemo } from "react";
 
 import {
   SETTINGS_CARD_CLASS_NAME,
-  SETTINGS_ITEM_DESCRIPTION_CLASS_NAME,
   SETTINGS_ITEM_TITLE_CLASS_NAME,
-  SETTINGS_SECTION_TITLE_CLASS_NAME,
 } from "@/features/settings/shared/settings-panel-ui";
 import { useAuth } from "@/shared/auth/auth-context";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { getUiButtonClassName } from "@/shared/ui/button/button-styles";
-import { cn } from "@/shared/ui/class-name";
 import { FeedbackBannerViewport } from "@/shared/ui/feedback/feedback-banner-viewport";
-import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { ProjectAccess, SharedProject } from "@/types/settings/project";
 
@@ -205,19 +201,7 @@ export function ProjectAdminPanel() {
 
   return (
     <>
-      <div className={cn(
-        "mx-auto grid w-full gap-4 px-4 py-4 sm:px-6",
-        WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME,
-      )}>
-        <section className="grid gap-1 px-1">
-          <p className={SETTINGS_SECTION_TITLE_CLASS_NAME}>
-            {t("settings.projects.title")}
-          </p>
-          <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
-            {t("settings.projects.description")}
-          </p>
-        </section>
-
+      <div className="grid gap-4">
         <section className={SETTINGS_CARD_CLASS_NAME}>
           <form
             className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end"

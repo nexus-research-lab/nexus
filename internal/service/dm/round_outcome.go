@@ -10,6 +10,7 @@ import (
 	"time"
 
 	dmdomain "github.com/nexus-research-lab/nexus/internal/chat/dm"
+	messagepkg "github.com/nexus-research-lab/nexus/internal/message"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 )
@@ -27,22 +28,20 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 	}
 	fields = append(fields, dmRoundFailureDiagnostics(err, r)...)
 	r.service.loggerFor(context.Background()).Error("DM round 执行失败", fields...)
+	displayError := exec.RoundErrorDisplayMessage(err)
 	r.finalizeGoalUsage(context.Background(), result, r.lastGoalAssistantMessage())
 	r.recordGoalContinuationProgress(exec.RoundExecutionResult{
 		TerminalStatus: "error",
-		ErrorMessage:   err.Error(),
+		ErrorMessage:   displayError,
 	})
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
-	persistedSessionID := ""
-	if r.session.SessionID != nil {
-		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
-	}
+	r.broadcastContextUsage()
 	resultMessage := protocol.Message{
 		"message_id":      "result_" + r.roundID,
 		"session_key":     r.sessionKey,
 		"agent_id":        r.agent.AgentID,
 		"round_id":        r.roundID,
-		"session_id":      dmdomain.FirstNonEmpty(r.client.SessionID(), persistedSessionID),
+		"session_id":      r.outcomeSessionID(),
 		"role":            "result",
 		"timestamp":       time.Now().UnixMilli(),
 		"subtype":         "error",
@@ -50,9 +49,10 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 		"duration_api_ms": 0,
 		"num_turns":       0,
 		"usage":           map[string]any{},
-		"result":          err.Error(),
+		"result":          displayError,
 		"is_error":        true,
 	}
+	durableErrorProjected := false
 	if persistErr := r.service.history.ForOwner(r.ownerUserID).AppendOverlayMessage(
 		r.workspacePath,
 		r.session.SessionKey,
@@ -87,18 +87,21 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 			event.MessageID = dmdomain.NormalizeString(event.Data["message_id"])
 			event.DeliveryMode = "durable"
 			r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, event)
+			durableErrorProjected = true
 		}
 	}
-	errorEvent := protocol.NewErrorEvent(r.sessionKey, err.Error())
 	r.refreshSessionMetaAfterRoundFinished()
-	errorEvent.AgentID = r.agent.AgentID
-	errorEvent.RoundID = r.roundID
-	errorEvent.AgentRoundID = r.agentRoundID
-	if messageID := strings.TrimSpace(r.mapper.CurrentMessageID()); messageID != "" {
-		errorEvent.MessageID = messageID
+	if !durableErrorProjected {
+		errorEvent := protocol.NewErrorEvent(r.sessionKey, displayError)
+		errorEvent.AgentID = r.agent.AgentID
+		errorEvent.RoundID = r.roundID
+		errorEvent.AgentRoundID = r.agentRoundID
+		if messageID := strings.TrimSpace(r.mapper.CurrentMessageID()); messageID != "" {
+			errorEvent.MessageID = messageID
+		}
+		r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, errorEvent)
 	}
-	r.service.broadcastEventWithTimeout(context.Background(), r.sessionKey, errorEvent)
-	roundStatus := protocol.NewRoundStatusErrorEvent(r.sessionKey, r.roundID, err.Error())
+	roundStatus := protocol.NewRoundStatusErrorEvent(r.sessionKey, r.roundID, displayError)
 	roundStatus.AgentID = r.agent.AgentID
 	roundStatus.RoundID = r.roundID
 	roundStatus.AgentRoundID = r.agentRoundID
@@ -112,6 +115,22 @@ func (r *roundRunner) failRound(result exec.RoundExecutionResult, err error) {
 		r.completeSubagentJoinAfterParentTerminal()
 	}
 	r.dispatchNextInputQueueItem()
+}
+
+func (r *roundRunner) failRuntimeStartup(err error) {
+	r.failRound(exec.RoundExecutionResult{}, err)
+}
+
+func (r *roundRunner) outcomeSessionID() string {
+	runtimeSessionID := ""
+	if r.client != nil {
+		runtimeSessionID = strings.TrimSpace(r.client.SessionID())
+	}
+	persistedSessionID := ""
+	if r.session.SessionID != nil {
+		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
+	}
+	return dmdomain.FirstNonEmpty(runtimeSessionID, persistedSessionID)
 }
 
 func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
@@ -147,6 +166,7 @@ func dmRoundFailureDiagnostics(err error, runner *roundRunner) []any {
 }
 
 func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, resultText string) {
+	resultText = messagepkg.NormalizeInterruptDisplayText(resultText)
 	r.service.loggerFor(context.Background()).Warn("DM round 以中断状态结束",
 		"session_key", r.sessionKey,
 		"agent_id", r.agent.AgentID,
@@ -155,16 +175,13 @@ func (r *roundRunner) finishInterrupted(result exec.RoundExecutionResult, result
 	)
 	r.finalizeGoalUsage(context.Background(), result, r.lastGoalAssistantMessage())
 	r.service.runtime.MarkRoundTerminal(r.sessionKey, r.roundID)
-	persistedSessionID := ""
-	if r.session.SessionID != nil {
-		persistedSessionID = strings.TrimSpace(*r.session.SessionID)
-	}
+	r.broadcastContextUsage()
 	resultMessage := protocol.Message{
 		"message_id":      "result_" + r.roundID,
 		"session_key":     r.sessionKey,
 		"agent_id":        r.agent.AgentID,
 		"round_id":        r.roundID,
-		"session_id":      dmdomain.FirstNonEmpty(r.client.SessionID(), persistedSessionID),
+		"session_id":      r.outcomeSessionID(),
 		"role":            "result",
 		"timestamp":       time.Now().UnixMilli(),
 		"subtype":         "interrupted",

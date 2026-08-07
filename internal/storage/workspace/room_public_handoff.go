@@ -30,24 +30,26 @@ const (
 // RoomPublicHandoff 表示一条从 source slot 指向 target Agent 的公区协作边。
 // 状态迁移通过同一 handoff_id 追加事件，重放后得到最后一个有效状态。
 type RoomPublicHandoff struct {
-	HandoffID          string                  `json:"handoff_id"`
-	OwnerUserID        string                  `json:"owner_user_id,omitempty"`
-	ConversationID     string                  `json:"conversation_id"`
-	RoomID             string                  `json:"room_id,omitempty"`
-	RootRoundID        string                  `json:"root_round_id,omitempty"`
-	SourceAgentRoundID string                  `json:"source_agent_round_id,omitempty"`
-	SourceMessageID    string                  `json:"source_message_id"`
-	SourceAgentID      string                  `json:"source_agent_id"`
-	TargetAgentID      string                  `json:"target_agent_id"`
-	Content            string                  `json:"content"`
-	ReplyRoute         protocol.RoomReplyRoute `json:"reply_route,omitempty"`
-	HopIndex           int                     `json:"hop_index,omitempty"`
-	QueueItemID        string                  `json:"queue_item_id,omitempty"`
-	TargetRoundID      string                  `json:"target_round_id,omitempty"`
-	Status             string                  `json:"status"`
-	ClaimedAt          int64                   `json:"claimed_at,omitempty"`
-	CreatedAt          int64                   `json:"created_at"`
-	UpdatedAt          int64                   `json:"updated_at"`
+	HandoffID          string                           `json:"handoff_id"`
+	OwnerUserID        string                           `json:"owner_user_id,omitempty"`
+	ConversationID     string                           `json:"conversation_id"`
+	RoomID             string                           `json:"room_id,omitempty"`
+	RootRoundID        string                           `json:"root_round_id,omitempty"`
+	SourceAgentRoundID string                           `json:"source_agent_round_id,omitempty"`
+	SourceMessageID    string                           `json:"source_message_id"`
+	SourceAgentID      string                           `json:"source_agent_id"`
+	TargetAgentID      string                           `json:"target_agent_id"`
+	Content            string                           `json:"content"`
+	ReplyRoute         protocol.RoomReplyRoute          `json:"reply_route,omitempty"`
+	WorkBinding        *protocol.ExecutionWorkBinding   `json:"work_binding,omitempty"`
+	ReviewBinding      *protocol.ExecutionReviewBinding `json:"review_binding,omitempty"`
+	HopIndex           int                              `json:"hop_index,omitempty"`
+	QueueItemID        string                           `json:"queue_item_id,omitempty"`
+	TargetRoundID      string                           `json:"target_round_id,omitempty"`
+	Status             string                           `json:"status"`
+	ClaimedAt          int64                            `json:"claimed_at,omitempty"`
+	CreatedAt          int64                            `json:"created_at"`
+	UpdatedAt          int64                            `json:"updated_at"`
 }
 
 // RoomPublicHandoffStore 负责 Room 公区 handoff ledger 的并发追加与重放。
@@ -99,7 +101,10 @@ func (s *RoomPublicHandoffStore) MarkSourceFinished(ownerUserID string, conversa
 		value.Status = roomPublicHandoffActionSourceFinished
 		value.ClaimedAt = 0
 	}, func(value RoomPublicHandoff) bool {
-		return value.Status == roomPublicHandoffActionDetected || value.Status == roomPublicHandoffActionQueued
+		return value.Status == roomPublicHandoffActionDetected ||
+			value.Status == roomPublicHandoffActionQueued ||
+			(value.Status == roomPublicHandoffActionStarted &&
+				(value.WorkBinding != nil || value.ReviewBinding != nil))
 	})
 }
 
@@ -392,6 +397,11 @@ func roomPublicHandoffIsPending(value RoomPublicHandoff, now int64) bool {
 		return true
 	case roomPublicHandoffActionClaimed:
 		return now-value.ClaimedAt > roomPublicHandoffClaimTTL.Milliseconds()
+	case roomPublicHandoffActionStarted:
+		// Structured Execution dispatches carry a durable binding and can be
+		// safely re-admitted after process restart. Legacy public mentions keep
+		// their historical non-replay behavior.
+		return value.WorkBinding != nil || value.ReviewBinding != nil
 	default:
 		return false
 	}
@@ -493,6 +503,22 @@ func validateRoomPublicHandoff(value RoomPublicHandoff) error {
 	} {
 		if strings.TrimSpace(field) == "" {
 			return errors.New(name + " is required")
+		}
+	}
+	if value.WorkBinding != nil && value.ReviewBinding != nil {
+		return errors.New("work_binding and review_binding are mutually exclusive")
+	}
+	if value.WorkBinding != nil || value.ReviewBinding != nil {
+		if err := protocol.ValidateInputQueueCapabilityEnvelope(protocol.InputQueueItem{
+			Scope:           protocol.InputQueueScopeRoom,
+			AgentID:         value.TargetAgentID,
+			TargetAgentIDs:  []string{value.TargetAgentID},
+			Source:          protocol.InputQueueSourceAgentRoomMessage,
+			DeliveryPolicy:  protocol.ChatDeliveryPolicyQueue,
+			WorkBinding:     value.WorkBinding,
+			ReviewBinding:   value.ReviewBinding,
+		}); err != nil {
+			return err
 		}
 	}
 	return nil

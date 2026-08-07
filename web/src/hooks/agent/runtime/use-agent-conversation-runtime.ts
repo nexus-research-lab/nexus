@@ -1,6 +1,6 @@
 /**
- * INPUT: 会话 runtime 事件、消息集合与易失 Room slot/权限/execution 状态。
- * OUTPUT: 单调运行快照、消息状态、首次展示锚点与由权限/slot 平滑接棒到结果消息的协调动作。
+ * INPUT: 会话 runtime/interrupt ACK 事件、消息集合与易失 Room slot/权限/execution/stopping 状态。
+ * OUTPUT: 单调运行快照、消息状态、首次展示锚点与由 stopping/权限/slot 平滑接棒到终态结果的协调动作。
  * POS: transport 事件和纯 reconciliation 模型之间的 React 编排边界。
  */
 import { useCallback, type Dispatch, type SetStateAction } from "react";
@@ -39,6 +39,7 @@ import { filterPendingPermissionsFromSnapshot } from "./model/pending-permission
 import {
   applyRoomAgentExecutionStatus,
   applyRoomExecutionRootStatus,
+  confirmRoomAgentExecutionStop,
   removeRoomAgentExecutionRound,
   syncRoomAgentExecutionFromLiveMessage,
   stopRoomAgentExecutions,
@@ -93,15 +94,19 @@ export function useAgentConversationRuntime({
   } = useConversationRuntimeMachine(chatType);
   const {
     acknowledgePermissionRequest,
+    beginAgentRoundStop,
     clearLiveState: clearLiveRuntimeState,
     pendingAgentSlots,
     pendingPermissions,
     roomAgentExecutionStates,
     readPendingAgentSlots,
     readPendingPermissions,
+    readStoppingAgentRoundIds,
     setPendingAgentSlots,
     setPendingPermissions,
     setRoomAgentExecutionStates,
+    settleAgentRoundStop,
+    stoppingAgentRoundIds,
   } = useConversationVolatileState({
     onPendingPermissionCountChange: setPendingPermissionCount,
     trackRoomAgentExecutions: chatType === "group",
@@ -237,6 +242,7 @@ export function useAgentConversationRuntime({
         ack.user_message_id,
         ack.round_id,
         ack.user_message_committed,
+        ack.user_message_delivery_mode,
       ));
     }
     setPendingAgentSlots((slots) => mergeChatAckPendingSlots(slots, ack));
@@ -314,6 +320,7 @@ export function useAgentConversationRuntime({
       if (!payload.is_terminal) {
         return;
       }
+      settleAgentRoundStop(payload.agent_round_id);
       setMessages((messages) => applyTerminalAgentRoundMessageStatus(
         messages,
         payload.agent_round_id,
@@ -328,17 +335,51 @@ export function useAgentConversationRuntime({
       setPendingAgentSlots,
       setPendingPermissions,
       setRoomAgentExecutionStates,
+      settleAgentRoundStop,
     ],
   );
+
+  const confirmAgentRoundStop = useCallback((agentRoundId: string): void => {
+    const normalizedAgentRoundId = agentRoundId.trim();
+    if (!normalizedAgentRoundId) {
+      return;
+    }
+    setRoomAgentExecutionStates((states) => (
+      confirmRoomAgentExecutionStop(states, normalizedAgentRoundId)
+    ));
+    setPendingAgentSlots((slots) => reconcileAgentRoundPendingSlots(
+      slots,
+      normalizedAgentRoundId,
+      "interrupted",
+    ));
+    setMessages((messages) => applyTerminalAgentRoundMessageStatus(
+      messages,
+      normalizedAgentRoundId,
+      "interrupted",
+    ));
+    setPendingPermissions((permissions) => permissions.filter(
+      (permission) => permission.agent_round_id !== normalizedAgentRoundId,
+    ));
+    settleAgentRoundStop(normalizedAgentRoundId);
+  }, [
+    setMessages,
+    setPendingAgentSlots,
+    setPendingPermissions,
+    setRoomAgentExecutionStates,
+    settleAgentRoundStop,
+  ]);
 
   return {
     acknowledgePermissionRequest,
     applyAgentRoundStatus,
     applyRoundStatus,
+    beginAgentRoundStop,
     clearLiveRuntimeState,
     clearOutboundRequest,
+    confirmAgentRoundStop,
     pendingAgentSlots,
     pendingPermissions,
+    readStoppingAgentRoundIds,
     roomAgentExecutionStates,
     reconcileRuntimeStateFromSnapshot,
     removeRewrittenRound,
@@ -347,6 +388,8 @@ export function useAgentConversationRuntime({
     setPendingAgentSlots,
     setPendingPermissions,
     setRuntimeStatus,
+    settleAgentRoundStop,
+    stoppingAgentRoundIds,
     syncSessionStatus,
     trackAssistantMessage,
     trackChatAck,

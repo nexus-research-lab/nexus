@@ -1,3 +1,5 @@
+import type { Locale } from "@/shared/i18n/messages";
+
 import type { Meridiem } from "./picker-types";
 
 export function formatTimeLocalInput(date: Date): string {
@@ -66,15 +68,33 @@ export function fromMeridiemParts(meridiem: Meridiem, hour12: string, minute: st
   };
 }
 
-export function formatTimeDisplay(hour24: string, minute: string): string {
+export function formatTimeDisplay(
+  hour24: string,
+  minute: string,
+  locale: Locale = "zh",
+): string {
   const parts = toMeridiemParts(hour24, minute);
-  return `${parts.meridiem === "am" ? "上午" : "下午"} ${parts.hour12}:${parts.minute}`;
+  const time = `${parts.hour12}:${parts.minute}`;
+  if (locale === "en") {
+    return `${time} ${parts.meridiem.toUpperCase()}`;
+  }
+  return `${parts.meridiem === "am" ? "上午" : "下午"} ${time}`;
 }
 
-export function formatDatetimeDisplay(dateValue: string, hour24: string, minute: string, second: string = "00"): string {
+export function formatDatetimeDisplay(
+  dateValue: string,
+  hour24: string,
+  minute: string,
+  second: string = "00",
+  locale: Locale = "zh",
+): string {
   const [year, month, day] = dateValue.split("-");
   const parts = toMeridiemParts(hour24, minute, second);
-  return `${day}/${month}/${year} ${parts.meridiem === "am" ? "上午" : "下午"} ${parts.hour12}:${parts.minute}:${parts.second}`;
+  const time = `${parts.hour12}:${parts.minute}:${parts.second}`;
+  if (locale === "en") {
+    return `${year}/${month}/${day} ${time} ${parts.meridiem.toUpperCase()}`;
+  }
+  return `${year}/${month}/${day} ${parts.meridiem === "am" ? "上午" : "下午"} ${time}`;
 }
 
 export function splitDatetimeLocalInput(value: string): { date: string; hour: string; minute: string; second: string } {

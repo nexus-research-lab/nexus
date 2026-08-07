@@ -51,6 +51,7 @@ export function RoomSubagentTaskSurface({
       members={roomMembers}
       onSelect={setSelectedAgentId}
       selectedId={selectedAgentId}
+      variant="panel"
     />
   ) : null;
 

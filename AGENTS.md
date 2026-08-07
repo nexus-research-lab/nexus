@@ -2,9 +2,14 @@
 
 ## Build & Validation Commands
 - `make dev`：同时启动 Go 后端（8010）和前端（3000）
-- `make check`：运行 `go test ./...`、前端 lint、前端时间线行为测试、前端 typecheck
-- `make check-backend`：Go 后端校验，等价于 `make check-go`
+- `make check-go`：默认 Go 门禁，只检查相对上游及当前工作树中发生变化的 Go 包
+- `make check-go-fresh`：对上述变化包禁用测试结果缓存
+- `make check-go-full`：显式运行 Go 全量 vet 与无缓存测试，仅用于发布、跨包基础设施变更或用户明确要求
+- `make check`：运行增量 Go 门禁、前端 lint、前端时间线行为测试、前端 typecheck
+- `make check-backend`：Go 后端增量校验，等价于 `make check-go`
 - `make install`：执行 `go mod tidy` 并安装前端依赖
+
+日常修改先跑目标包测试或 `make check-go`。Agent 不得默认执行 `go test ./...` 或 `make check-go-full`；只有发布、共享协议/基础设施变更、增量范围无法可靠判断，或用户明确要求全量时才执行。
 
 ## Commit Style
 Use English commit messages with an emoji prefix, for example `:sparkles: Switch to the Go default runtime path`. Keep user-visible changes reflected in `CHANGELOG.md`.
@@ -21,11 +26,13 @@ Use English commit messages with an emoji prefix, for example `:sparkles: Switch
 <directory>
 cmd/        - 可执行入口（nexus-server 服务 + 自动迁移；nexusctl；Linux runtime launcher）
 web/        - React 前端（features / store / shared / lib，见 web/CLAUDE.md）
-desktop/    - macOS AppKit/WKWebView 与 Windows WPF/WebView2 宿主（窗口 chrome、bridge、sidecar 生命周期；Windows 用独立原生标题/菜单栏承载全部拖窗与系统命令，WebView 始终保持客户区，Theme/Dialog 将 Nexus token 投影到原生菜单与反馈窗）
+desktop/    - macOS AppKit/WKWebView 与 Windows WPF/WebView2 宿主（窗口 chrome、bridge、sidecar 生命周期、状态根整体迁移与重启；Windows 用独立原生标题/菜单栏承载全部拖窗与系统命令，WebView 始终保持客户区，Theme/Dialog 将 Nexus token 投影到原生菜单与反馈窗）
+skills/     - 随产品发布的平台内置 Skill（每个目录自含 SKILL.md、元数据、脚本与按需加载的参考资料）
 internal/   - 后端核心（各子包 L2 见其 doc.go）:
-  protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal 模型与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
+  protocol/   - 跨 HTTP/WS/前端/运行时的协议真相源（会话/房间/Goal/Execution Graph 模型、NodeRun 历史/可恢复结构化产物/显式 partial/total/控制回连事实与 Room creator/lead 身份、事件、枚举、TS codegen 输入）
   runtime/    - nxs/Claude Code 共用宿主主链（bridge client、manager 生命周期、workspace isolation Hook）
   service/    - 业务服务（agent / dm / room / room/realtime / session / workspace / skills / connectors / automation / llm ...）
+  service/objectivealignment/ - Goal completion 与 Execution loop guard 共用的无状态目标对齐审计契约
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
@@ -44,10 +51,11 @@ docs/       - 跨切面设计文档
 ## 状态根契约
 
 - `.nexus` 是统一 `NEXUS_STATE_ROOT`；宿主数据位于 `.nexus/app`。
+- 桌面端只迁移完整 `NEXUS_STATE_ROOT`：原生宿主退出 sidecar 后离线复制 `app/`、`users/` 与其余状态，切换宿主外的启动指针并直接重启；业务进程不支持拆分或在线迁移局部子树。
 - 用户数据位于 `.nexus/users/<owner>/`：`workspace/` 保存 Agent 工作目录与 runtime 可读的 `.rooms/` 公共附件，`runtime/` 同时作为该 owner 的 `NEXUS_CONFIG_DIR` 与 `CLAUDE_CONFIG_DIR`，宿主托管的 Room ledger 固定写入 `state/rooms/`。
 - nxs 长期记忆固定写入当前 Agent workspace 的 `MEMORY.md` 与 `memory/`；Nexus 管理的 runtime 不接受宿主环境、请求环境或远端记忆配置改写该根目录。会话摘要仍独立位于 owner 的 `runtime/projects/`。
 - Unix runtime 额外获得 `/tmp` 共享兼容读写根，以保持 App/Web 命令行为一致；敏感临时数据仍必须写入该 owner 的 `$TMPDIR`。
-- 启动只把当前 canonical 布局作为运行时读写路径；新增宿主或 runtime 文件必须直接落在对应的 `app/` 或用户根目录。历史数据只能通过明确版本化、可重试且不提供旧路径回读的安全迁移进入 canonical 布局。
+- 启动只把当前 canonical 布局作为运行时读写路径；新增宿主或 runtime 文件必须直接落在对应的 `app/` 或用户根目录。历史数据只能通过 `internal/migration/state_layout.go` 与 `workspace_layout.go` 这类明确版本化、可重试且不提供旧路径回读的安全迁移进入 canonical 布局；迁移不能因版本发布而提前移除，必须允许用户跨版本直接升级。
 - Linux 多用户强隔离由 root-owned `nexus-runtime-launcher` 执行；产品 server 保持 `nexus-host` 普通用户，普通 Agent runtime 只获得自己的私有 GID 和当前项目组。Nexus 主智能体属于宿主控制面主体，保留 host identity 以调用当前 owner scope 的 `nexusctl`。
 - 宿主代 runtime 操作 workspace、transcript、artifact、用户 Skill 或 Room 状态时必须使用 `internal/infra/confinedfs`；owner 校验后不得重新把用户可控绝对路径直接交给 `os.*`。
 

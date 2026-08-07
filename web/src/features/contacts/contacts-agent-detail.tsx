@@ -2,29 +2,35 @@
 
 import { useCallback, useMemo } from "react";
 import {
-  Album,
-  Brain,
-  Handshake,
+  Check,
+  CircleAlert,
+  LoaderCircle,
   MessageSquareText,
-  ToolCase,
-  UserPen,
+  Trash2,
   Users,
 } from "lucide-react";
 
+import {
+  AGENT_DETAIL_TABS,
+  type AgentDetailTabKey,
+} from "@/features/agents/agent-detail-navigation";
 import { AgentPrivateDomainView } from "@/features/agents/private-domain/agent-private-domain-view";
 import { AgentOptionsInlineEditor } from "@/features/agents/options/agent-options-editor";
 import {
-  type AgentOptionsTabKey,
   buildAgentOptionsEditSource,
+} from "@/features/agents/options/agent-options-editor-model";
+import type {
+  AgentOptionsPersistenceState,
+  AgentOptionsTabKey,
 } from "@/features/agents/options/agent-options-editor-model";
 import { AgentMemoryView } from "@/features/memory/agent-memory-view";
 import { useMediaQuery } from "@/hooks/ui/use-media-query";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { CONVERSATION_FOCUS_MEDIA_QUERY } from "@/lib/layout/home-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
-import { UiButton } from "@/shared/ui/button/button";
-import { UiAgentAvatar } from "@/shared/ui/display/avatar";
-import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
+import { WORKSPACE_CONTENT_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { WorkspaceSurfaceHeader } from "@/shared/ui/workspace/surface/workspace-surface-header";
 import type {
   Agent,
@@ -52,8 +58,6 @@ interface ContactsAgentDetailProps {
   ) => Promise<AgentNameValidationResult>;
 }
 
-type ContactDetailTabKey = AgentOptionsTabKey | "private_domain" | "memory";
-
 /** 侧边栏联系人进入的内嵌 Agent 页面。 */
 export function ContactsAgentDetail({
   agent,
@@ -65,27 +69,24 @@ export function ContactsAgentDetail({
 }: ContactsAgentDetailProps) {
   const { t } = useI18n();
   const isCompactLayout = useMediaQuery(CONVERSATION_FOCUS_MEDIA_QUERY);
-  const [activeTab, setActiveTab] = useResettableState<ContactDetailTabKey>(
+  const [activeTab, setActiveTab] = useResettableState<AgentDetailTabKey>(
     "identity",
     agent.agent_id,
   );
+  const [persistenceState, setPersistenceState] =
+    useResettableState<AgentOptionsPersistenceState>({
+      message: t("agent_options.auto_save"),
+      phase: "idle",
+    }, agent.agent_id);
+  const isEditorTab = isAgentOptionsTab(activeTab);
 
   const configTabs = useMemo(
-    () => [
-      { key: "identity" as AgentOptionsTabKey, label: t("agent_options.nav.identity"), icon: UserPen },
-      { key: "private_domain" as ContactDetailTabKey, label: "联络", icon: Handshake },
-      { key: "memory" as ContactDetailTabKey, label: t("capability.memory"), icon: Brain },
-      { key: "advanced" as AgentOptionsTabKey, label: t("agent_options.nav.tools"), icon: ToolCase },
-      { key: "skills" as AgentOptionsTabKey, label: t("agent_options.nav.skills"), icon: Album },
-    ],
+    () => AGENT_DETAIL_TABS.map((tab) => ({
+      key: tab.key,
+      label: t(tab.labelKey),
+    })),
     [t],
   );
-
-  const tagLabels = useMemo(() => {
-    return (agent.vibe_tags ?? [])
-      .map((tag) => tag.trim())
-      .filter(Boolean);
-  }, [agent.vibe_tags]);
 
   const editorSource = useMemo(
     () => buildAgentOptionsEditSource(agent),
@@ -108,13 +109,14 @@ export function ContactsAgentDetail({
     [agent.agent_id, onValidateAgentName],
   );
 
-  const trailing = isCompactLayout ? (
+  const actionControls = isCompactLayout ? (
     <ContactsAgentDetailActionsMenu
       onCreateTeam={() => onCreateTeam(agent.agent_id)}
+      onDelete={() => onDeleteAgent(agent.agent_id)}
       onOpenDirectRoom={() => onOpenDirectRoom(agent.agent_id)}
     />
   ) : (
-    <div className="flex shrink-0 items-center justify-end gap-0.5">
+    <>
       <UiButton
         onClick={() => onOpenDirectRoom(agent.agent_id)}
         size="sm"
@@ -131,62 +133,98 @@ export function ContactsAgentDetail({
         <Users className="h-4 w-4" />
         {t("contacts.create_team")}
       </UiButton>
+      <UiIconButton
+        aria-label={t("agent_options.delete_agent")}
+        onClick={() => onDeleteAgent(agent.agent_id)}
+        size="md"
+        title={t("agent_options.delete_agent")}
+        tone="danger"
+        variant="ghost"
+      >
+        <Trash2 className="h-4 w-4" />
+      </UiIconButton>
+    </>
+  );
+  const trailing = (
+    <div className="flex shrink-0 items-center justify-end gap-0.5">
+      {isEditorTab ? (
+        <AgentOptionsPersistenceStatus state={persistenceState} />
+      ) : null}
+      {actionControls}
     </div>
   );
-
-  const titleTrailing = tagLabels.length ? (
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-      {tagLabels.map((tag) => (
-        <span
-          key={tag}
-          className="max-w-[120px] truncate rounded-[6px] border border-[color:color-mix(in_srgb,var(--divider-subtle-color)_72%,transparent)] bg-transparent px-2 py-0.5 text-xs font-medium text-(--text-muted)"
-          title={tag}
-        >
-          {tag}
-        </span>
-      ))}
-    </div>
-  ) : null;
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <WorkspaceSurfaceHeader
         activeTab={activeTab}
         compactTabsLabel={t("contacts.title")}
-        leading={
-          <UiAgentAvatar
-            avatar={agent.avatar}
-            className="h-full w-full border-0 shadow-none"
-            name={agent.name}
-            size="sm"
-          />
-        }
-        leadingClassName="h-10 w-10"
-        leadingVariant="identity"
         onChangeTab={setActiveTab}
         tabs={configTabs}
-        title={agent.name}
-        titleTrailing={titleTrailing}
         trailing={trailing}
       />
+
+      <div className={cn(
+        "min-h-0 flex-1 flex-col",
+        isEditorTab ? "flex" : "hidden",
+      )}>
+        <AgentOptionsInlineEditor
+          activeTab={isEditorTab ? activeTab : "identity"}
+          contentMaxWidthClassName={WORKSPACE_CONTENT_MAX_WIDTH_CLASS_NAME}
+          isActive
+          onPersistenceStateChange={setPersistenceState}
+          onSave={handleSave}
+          onTabChange={setActiveTab}
+          onValidateName={handleValidateName}
+          saveMode="automatic"
+          source={editorSource}
+        />
+      </div>
 
       {activeTab === "private_domain" ? (
         <AgentPrivateDomainView agent={agent} />
       ) : activeTab === "memory" ? (
         <AgentMemoryView agent={agent} />
-      ) : (
-        <AgentOptionsInlineEditor
-          activeTab={activeTab}
-          contentMaxWidthClassName={WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME}
-          isActive
-          onDelete={onDeleteAgent}
-          onSave={handleSave}
-          onTabChange={setActiveTab}
-          onValidateName={handleValidateName}
-          showDeleteButton
-          source={editorSource}
-        />
-      )}
+      ) : null}
     </div>
+  );
+}
+
+function isAgentOptionsTab(tab: AgentDetailTabKey): tab is AgentOptionsTabKey {
+  return tab === "identity" || tab === "skills" || tab === "advanced";
+}
+
+function AgentOptionsPersistenceStatus({
+  state,
+}: {
+  state: AgentOptionsPersistenceState;
+}) {
+  const StatusIcon = state.phase === "saving"
+    ? LoaderCircle
+    : state.phase === "success"
+      ? Check
+      : state.phase === "error"
+        ? CircleAlert
+        : null;
+  return (
+    <span
+      aria-live="polite"
+      className={cn(
+        "mr-1 inline-flex h-8 shrink-0 items-center gap-1 text-xs text-(--text-soft)",
+        state.phase === "success" && "text-(--success)",
+        state.phase === "error" && "text-(--destructive)",
+      )}
+      title={state.message}
+    >
+      {StatusIcon ? (
+        <StatusIcon
+          className={cn(
+            "h-3.5 w-3.5",
+            state.phase === "saving" && "animate-spin",
+          )}
+        />
+      ) : null}
+      <span className="max-sm:hidden">{state.message}</span>
+    </span>
   );
 }

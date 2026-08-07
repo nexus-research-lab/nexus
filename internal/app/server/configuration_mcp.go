@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	configurationmcp "github.com/nexus-research-lab/nexus/internal/mcp/configuration"
 	configurationcontract "github.com/nexus-research-lab/nexus/internal/mcp/configuration/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -21,20 +22,22 @@ type configurationAgentResolver interface {
 func newConfigurationMCPBuilder(
 	svc configurationcontract.Service,
 	agents configurationAgentResolver,
-) func(string, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
-		agentID string,
+		ctx context.Context,
+		agentValue *protocol.Agent,
 		sessionKey string,
 		_ string,
 		sourceContextType string,
 		sourceContextID string,
 		_ string,
 		_ *atomic.Int64,
+		_ sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
-		if svc == nil || agents == nil || strings.TrimSpace(agentID) == "" {
+		if svc == nil || agents == nil || agentValue == nil || strings.TrimSpace(agentValue.AgentID) == "" {
 			return nil
 		}
-		record, err := agents.GetAgent(context.Background(), agentID)
+		record, err := agents.GetAgent(ctx, agentValue.AgentID)
 		if err != nil || record == nil || !record.IsMain || strings.TrimSpace(record.OwnerUserID) == "" {
 			return nil
 		}

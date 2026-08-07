@@ -78,6 +78,11 @@
 
 `interaction_mode` 只决定共享 Composer 使用批准控件还是结构化输入控件，不决定请求是否属于人工介入。未知工具和未知批准类请求必须回退到可批准/拒绝的通用控件。
 
+拒绝结果需要稳定分类时，权限决策必须在源头携带 `ErrorCode`。bridge 对原生
+`nxs` 使用 `control_response.errorCode`，最终统一投影为
+`tool_result.error_code`；不原生回传扩展字段的 runtime 由 bridge 按
+`tool_use_id` 补齐。消息层和前端不得通过匹配 `Message` 展示文案推断错误类型。
+
 持久权限范围由 runtime 的 `suggestions` 唯一决定。Composer 在存在建议时，把 Nexus 的真实规则动作收进“允许本次”旁的下拉：动作行说明新增或修改什么权限规则，次级说明展示匹配内容与 runtime 指定的 Agent/项目/用户/会话范围；选择后在允许响应中原样回传对应 `updated_permissions`。`suggestions` 为空时只能允许本次，前端和宿主不得推断或合成永久规则。
 
 ## 5. 重连规则

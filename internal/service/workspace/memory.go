@@ -3,6 +3,7 @@ package workspace
 import (
 	"bufio"
 	"context"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -74,6 +75,143 @@ func (s *Service) GetMemorySnapshot(ctx context.Context, agentID string) (*Memor
 	snapshot.Truncated = total > len(documents)
 	snapshot.Layout = memoryLayout(snapshot.Index != nil, documents)
 	return snapshot, nil
+}
+
+// DeleteMemoryDocument 删除一份正文记忆，并让短索引与文件系统保持一致。
+func (s *Service) DeleteMemoryDocument(
+	ctx context.Context,
+	agentID string,
+	relativePath string,
+) (*EntryMutationResponse, error) {
+	agentValue, err := s.ensureAgentWorkspace(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	_, normalizedPath, err := resolveWorkspacePath(agentValue.WorkspacePath, relativePath)
+	if err != nil {
+		return nil, err
+	}
+	if !isDeletableMemoryDocumentPath(normalizedPath) {
+		return nil, errors.New("不支持删除 memory/ 之外的记忆文件")
+	}
+
+	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
+	if err != nil {
+		return nil, err
+	}
+	defer confinedRoot.Close()
+	info, err := confinedRoot.Lstat(normalizedPath)
+	if os.IsNotExist(err) {
+		return nil, ErrFileNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("不支持删除非普通记忆文件")
+	}
+
+	indexContent, indexChanged, err := memoryIndexWithoutDocument(confinedRoot, normalizedPath)
+	if err != nil {
+		return nil, err
+	}
+	if indexChanged {
+		if s.live != nil {
+			s.live.SuppressWatcher(agentValue.AgentID, memoryEntrypointName)
+		}
+		if err = confinedRoot.WriteFileAtomic(
+			memoryEntrypointName,
+			indexContent.updated,
+			workspaceFileMode(),
+		); err != nil {
+			return nil, err
+		}
+		s.emitMemoryIndexWrite(agentValue.AgentID, indexContent.updated)
+	}
+	if s.live != nil {
+		s.live.SuppressWatcher(agentValue.AgentID, normalizedPath)
+	}
+	if err = confinedRoot.Remove(normalizedPath); err != nil {
+		if indexChanged {
+			if s.live != nil {
+				s.live.SuppressWatcher(agentValue.AgentID, memoryEntrypointName)
+			}
+			rollbackErr := confinedRoot.WriteFileAtomic(
+				memoryEntrypointName,
+				indexContent.original,
+				workspaceFileMode(),
+			)
+			if rollbackErr == nil {
+				s.emitMemoryIndexWrite(agentValue.AgentID, indexContent.original)
+			}
+			return nil, errors.Join(err, rollbackErr)
+		}
+		return nil, err
+	}
+	if s.live != nil {
+		s.live.EmitAPIDelete(agentValue.AgentID, normalizedPath)
+	}
+	return &EntryMutationResponse{Path: normalizedPath}, nil
+}
+
+type memoryIndexContent struct {
+	original []byte
+	updated  []byte
+}
+
+func memoryIndexWithoutDocument(
+	root *confinedfs.Root,
+	targetPath string,
+) (memoryIndexContent, bool, error) {
+	original, err := root.ReadFile(memoryEntrypointName)
+	if os.IsNotExist(err) {
+		return memoryIndexContent{}, false, nil
+	}
+	if err != nil {
+		return memoryIndexContent{}, false, err
+	}
+	updated, changed := removeMemoryIndexLines(string(original), targetPath)
+	content := memoryIndexContent{original: original, updated: []byte(updated)}
+	if !changed {
+		return content, false, nil
+	}
+	return content, true, nil
+}
+
+func (s *Service) emitMemoryIndexWrite(agentID string, content []byte) {
+	if s.live == nil {
+		return
+	}
+	s.live.EmitAPIWrite(agentID, memoryEntrypointName, string(content))
+}
+
+func isDeletableMemoryDocumentPath(path string) bool {
+	normalizedPath := filepath.ToSlash(filepath.Clean(path))
+	return strings.HasPrefix(normalizedPath, memoryDirectoryName+"/") &&
+		strings.EqualFold(filepath.Ext(normalizedPath), ".md")
+}
+
+func removeMemoryIndexLines(content string, targetPath string) (string, bool) {
+	lines := strings.SplitAfter(content, "\n")
+	kept := make([]string, 0, len(lines))
+	removed := false
+	for _, line := range lines {
+		if memoryIndexLineTargetsPath(line, targetPath) {
+			removed = true
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, ""), removed
+}
+
+func memoryIndexLineTargetsPath(line string, targetPath string) bool {
+	for _, match := range memoryIndexLinkPattern.FindAllStringSubmatch(line, -1) {
+		if len(match) >= 2 && normalizeMemoryIndexPath(match[1]) == targetPath {
+			return true
+		}
+	}
+	return false
 }
 
 func readMemoryIndex(root *confinedfs.Root) (MemoryDocument, string, bool) {
@@ -185,14 +323,20 @@ func memoryIndexedPaths(content string) map[string]struct{} {
 		if len(match) < 2 {
 			continue
 		}
-		path := strings.Trim(strings.TrimSpace(match[1]), "<>")
-		path = strings.TrimPrefix(filepath.ToSlash(filepath.Clean(path)), "./")
-		if path == memoryDirectoryName || !strings.HasPrefix(path, memoryDirectoryName+"/") {
-			continue
+		if path := normalizeMemoryIndexPath(match[1]); path != "" {
+			result[path] = struct{}{}
 		}
-		result[path] = struct{}{}
 	}
 	return result
+}
+
+func normalizeMemoryIndexPath(value string) string {
+	path := strings.Trim(strings.TrimSpace(value), "<>")
+	path = strings.TrimPrefix(filepath.ToSlash(filepath.Clean(path)), "./")
+	if path == memoryDirectoryName || !strings.HasPrefix(path, memoryDirectoryName+"/") {
+		return ""
+	}
+	return path
 }
 
 func memoryDocumentKind(path string) string {

@@ -9,9 +9,9 @@
 //   - runtime_repair.go：enforce 模式下 owner runtime 权限修复与受限重试。
 //   - transcript_*.go：transcript cache、重复 UUID/自指链修复、reader、path、session、project、
 //     可见性安全的 marker 对齐、guidance 与 root/source round 投影。
-//   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、跨派发持久幂等入队、可返回规范化提交的原子批量登记、预检版本一致的整批 guidance 认领、按执行 scope 隔离的编解码与事件重放。
+//   - input_queue.go / input_queue_codec.go / input_queue_replay.go：输入队列存取、携带完整 Execution WorkBinding 或独立 ReviewBinding 的跨派发持久幂等入队、责任项禁止 guide/合并的 capability envelope fence、可返回规范化提交的原子批量登记、预检版本一致的整批 conversation guidance 认领、按执行 scope 隔离的编解码与事件重放。
 //   - room_history.go / room_directed_message.go / room_directed_message_wake.go / session_file.go / artifact_probe.go / jsonl.go：
-//     保留 Agent 执行身份的房间历史、定向消息、延迟唤醒、会话文件、只读目录证据探测与 JSONL。
+//     保留 Agent 执行身份的房间历史、定向消息、延迟唤醒、带最后一次上下文占用快照的会话文件、只读目录证据探测与 JSONL。
 //   - permissions.go / confined_path.go / transcript_confined.go：enforce 新建权限、
 //     owner/workspace 根绑定和 transcript confined-fd 访问。
 //   - paths.go / transcript_path.go / transcript_project_hash.go / value_coerce.go：

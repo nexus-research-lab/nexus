@@ -43,6 +43,9 @@ func (m *Manager) beginSessionCloseLocked(sessionKey string) (*sessionCloseTarge
 
 	state.Closing = true
 	state.CloseDone = make(chan struct{})
+	if state.Client != nil {
+		state.Client.Retire()
+	}
 	return &sessionCloseTarget{
 		sessionKey:        strings.TrimSpace(sessionKey),
 		state:             state,
@@ -72,17 +75,20 @@ func (m *Manager) finishSessionClose(target *sessionCloseTarget) {
 	m.mu.Unlock()
 }
 
-// finishSessionCloseWhenDone 延迟移除仍有 round 的 session，防止关闭返回后
-// 迟到的 round 回调重新创建后台写盘任务。
-func (m *Manager) finishSessionCloseWhenDone(target *sessionCloseTarget) {
+// finishSessionCloseWhenDone 延迟移除仍有 client cleanup、round 或后台任务的
+// session，防止关闭返回后新 runtime 绕过旧进程与迟到写盘的生命周期栅栏。
+func (m *Manager) finishSessionCloseWhenDone(target *sessionCloseTarget, waitClient bool) {
 	if m == nil || target == nil {
 		return
 	}
-	if len(target.roundDone) == 0 && target.backgroundDone == nil {
+	if !waitClient && len(target.roundDone) == 0 && target.backgroundDone == nil {
 		m.finishSessionClose(target)
 		return
 	}
 	go func() {
+		if waitClient && target.client != nil {
+			_ = target.client.Disconnect(context.Background())
+		}
 		_ = waitRoundDoneSignals(context.Background(), target.roundDone, nil)
 		_ = waitBackgroundTasks(context.Background(), target.backgroundDone)
 		m.finishSessionClose(target)

@@ -7,20 +7,19 @@ import (
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
-	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 )
 
 func TestEnsureUserSkillLibrarySharesNXSAndClaudeRoots(t *testing.T) {
 	cfg := testSkillConfig(t)
-	if err := EnsureUserSkillLibrary(cfg, "owner-a"); err != nil {
-		t.Fatalf("创建用户级 Skill 源失败: %v", err)
-	}
 	sourcePath := filepath.Join(UserSkillDiscoveryRoot(cfg, "owner-a"), "demo-skill", "SKILL.md")
 	if err := os.MkdirAll(filepath.Dir(sourcePath), 0o755); err != nil {
 		t.Fatalf("创建用户级 Skill 目录失败: %v", err)
 	}
 	if err := os.WriteFile(sourcePath, []byte("demo"), 0o644); err != nil {
 		t.Fatalf("写入用户级 Skill 失败: %v", err)
+	}
+	if err := EnsureUserSkillLibrary(cfg, "owner-a"); err != nil {
+		t.Fatalf("创建用户级 Skill 源失败: %v", err)
 	}
 	claudePath := filepath.Join(UserSkillLibraryRoot(cfg, "owner-a"), ".claude", "skills", "demo-skill", "SKILL.md")
 	if payload, err := os.ReadFile(claudePath); err != nil {
@@ -44,49 +43,12 @@ func TestUserSkillRootsFollowAgentWorkspaceLayout(t *testing.T) {
 	}
 }
 
-func TestEnsureHostSkillLibraryPublishesStandardAgentsRoot(t *testing.T) {
+func TestSkillLibraryRootsSkipUnpreparedOptionalHostRoot(t *testing.T) {
 	cfg := testSkillConfig(t)
 	cfg.AppMode = "desktop"
-	home := filepath.Join(t.TempDir(), "home")
-	t.Setenv("HOME", home)
-	sourceRoot := filepath.Join(home, ".agents", "skills", "host-skill")
-	if err := os.MkdirAll(sourceRoot, 0o755); err != nil {
-		t.Fatalf("创建宿主 Skill 源失败: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(sourceRoot, "SKILL.md"), []byte("host-v1"), 0o644); err != nil {
-		t.Fatalf("写入宿主 Skill 源失败: %v", err)
-	}
-
-	if err := EnsureHostSkillLibrary(cfg); err != nil {
-		t.Fatalf("同步宿主 Skill 兼容根失败: %v", err)
-	}
-	for _, path := range []string{
-		filepath.Join(appfs.HostSkillRoot(), ".agents", "skills", "host-skill", "SKILL.md"),
-		filepath.Join(appfs.HostSkillRoot(), ".claude", "skills", "host-skill", "SKILL.md"),
-	} {
-		if payload, err := os.ReadFile(path); err != nil {
-			t.Fatalf("宿主 Skill 兼容入口缺失 %s: %v", path, err)
-		} else if string(payload) != "host-v1" {
-			t.Fatalf("宿主 Skill 兼容入口内容 = %q, want host-v1", payload)
-		}
-	}
 	roots := SkillLibraryRoots(cfg, "owner-a")
-	if len(roots) != 3 || roots[1] != appfs.HostSkillRoot() {
-		t.Fatalf("桌面 runtime Skill 根 = %#v, want platform + host + owner", roots)
-	}
-
-	if err := os.WriteFile(filepath.Join(sourceRoot, "SKILL.md"), []byte("host-v2"), 0o644); err != nil {
-		t.Fatalf("更新宿主 Skill 源失败: %v", err)
-	}
-	if err := EnsureHostSkillLibrary(cfg); err != nil {
-		t.Fatalf("刷新宿主 Skill 兼容根失败: %v", err)
-	}
-	payload, err := os.ReadFile(filepath.Join(appfs.HostSkillRoot(), ".agents", "skills", "host-skill", "SKILL.md"))
-	if err != nil {
-		t.Fatalf("读取刷新后的宿主 Skill 失败: %v", err)
-	}
-	if string(payload) != "host-v2" {
-		t.Fatalf("刷新后的宿主 Skill 内容 = %q, want host-v2", payload)
+	if len(roots) != 2 {
+		t.Fatalf("未准备的可选宿主根不应传给 runtime: %#v", roots)
 	}
 }
 
@@ -112,14 +74,8 @@ func TestRefreshUserSkillLibraryUpdatesClaudeMirror(t *testing.T) {
 		t.Fatalf("写入用户 Skill 源失败: %v", err)
 	}
 	claudePath := filepath.Join(UserSkillLibraryRoot(cfg, "owner-a"), ".claude", "skills", "demo-skill", "SKILL.md")
-	if err := EnsureUserSkillLibrary(cfg, "owner-a"); err != nil {
-		t.Fatalf("重复确保用户 Skill fallback 镜像失败: %v", err)
-	}
-	if _, err := os.Stat(claudePath); !os.IsNotExist(err) {
-		t.Fatalf("普通初始化不应重建 Claude fallback 镜像: %v", err)
-	}
 	if err := RefreshUserSkillLibrary(cfg, "owner-a"); err != nil {
-		t.Fatalf("刷新 Claude Skill fallback 镜像失败: %v", err)
+		t.Fatalf("刷新用户 Skill fallback 镜像失败: %v", err)
 	}
 	if payload, err := os.ReadFile(claudePath); err != nil {
 		t.Fatalf("读取 Claude Skill fallback 镜像失败: %v", err)
@@ -135,6 +91,89 @@ func TestRefreshUserSkillLibraryUpdatesClaudeMirror(t *testing.T) {
 	}
 	if _, err := os.Stat(claudePath); !os.IsNotExist(err) {
 		t.Fatalf("删除后的 Skill 仍残留在 Claude fallback 镜像: %v", err)
+	}
+}
+
+func TestRefreshUserSkillLibraryRepairsDamagedClaudeMirror(t *testing.T) {
+	cfg := testSkillConfig(t)
+	originalCreateSymlink := createSymlink
+	createSymlink = func(string, string) error {
+		return errors.New("symlink unavailable")
+	}
+	t.Cleanup(func() {
+		createSymlink = originalCreateSymlink
+	})
+
+	sourcePath := filepath.Join(UserSkillDiscoveryRoot(cfg, "owner-a"), "demo-skill", "SKILL.md")
+	if err := os.MkdirAll(filepath.Dir(sourcePath), 0o755); err != nil {
+		t.Fatalf("创建用户 Skill 源失败: %v", err)
+	}
+	if err := os.WriteFile(sourcePath, []byte("demo"), 0o644); err != nil {
+		t.Fatalf("写入用户 Skill 源失败: %v", err)
+	}
+	if err := EnsureUserSkillLibrary(cfg, "owner-a"); err != nil {
+		t.Fatalf("创建用户 Skill fallback 镜像失败: %v", err)
+	}
+
+	claudePath := filepath.Join(UserSkillLibraryRoot(cfg, "owner-a"), ".claude", "skills", "demo-skill", "SKILL.md")
+	if err := os.Remove(claudePath); err != nil {
+		t.Fatalf("破坏 Claude Skill fallback 镜像失败: %v", err)
+	}
+	if err := EnsureUserSkillLibrary(cfg, "owner-a"); err != nil {
+		t.Fatalf("检查已就绪的用户 Skill fallback 镜像失败: %v", err)
+	}
+	if _, err := os.Stat(claudePath); !os.IsNotExist(err) {
+		t.Fatalf("普通 readiness 检查不应递归扫描并修复镜像内容: %v", err)
+	}
+	if err := RefreshUserSkillLibrary(cfg, "owner-a"); err != nil {
+		t.Fatalf("修复 Claude Skill fallback 镜像失败: %v", err)
+	}
+	if payload, err := os.ReadFile(claudePath); err != nil {
+		t.Fatalf("读取修复后的 Claude Skill fallback 镜像失败: %v", err)
+	} else if string(payload) != "demo" {
+		t.Fatalf("修复后的 Claude Skill fallback 镜像内容不正确: %q", payload)
+	}
+}
+
+func TestRefreshUserSkillLibraryKeepsLastGoodClaudeMirrorOnCopyFailure(t *testing.T) {
+	cfg := testSkillConfig(t)
+	originalCreateSymlink := createSymlink
+	createSymlink = func(string, string) error {
+		return errors.New("symlink unavailable")
+	}
+	t.Cleanup(func() {
+		createSymlink = originalCreateSymlink
+	})
+
+	sourceRoot := filepath.Join(UserSkillDiscoveryRoot(cfg, "owner-a"), "demo-skill")
+	sourcePath := filepath.Join(sourceRoot, "SKILL.md")
+	if err := os.MkdirAll(sourceRoot, 0o755); err != nil {
+		t.Fatalf("创建用户 Skill 源失败: %v", err)
+	}
+	if err := os.WriteFile(sourcePath, []byte("last-good"), 0o644); err != nil {
+		t.Fatalf("写入用户 Skill 源失败: %v", err)
+	}
+	if err := EnsureUserSkillLibrary(cfg, "owner-a"); err != nil {
+		t.Fatalf("创建用户 Skill fallback 镜像失败: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(sourceRoot, "missing"), filepath.Join(sourceRoot, "broken-link")); err != nil {
+		t.Skipf("当前平台无法创建测试符号链接: %v", err)
+	}
+	if err := RefreshUserSkillLibrary(cfg, "owner-a"); err == nil {
+		t.Fatal("包含内部链接的用户 Skill 镜像刷新应失败")
+	}
+
+	claudePath := filepath.Join(
+		UserSkillLibraryRoot(cfg, "owner-a"),
+		".claude",
+		"skills",
+		"demo-skill",
+		"SKILL.md",
+	)
+	if payload, err := os.ReadFile(claudePath); err != nil {
+		t.Fatalf("刷新失败后用户 Skill last-good 镜像丢失: %v", err)
+	} else if string(payload) != "last-good" {
+		t.Fatalf("刷新失败后用户 Skill last-good 被改写: %q", payload)
 	}
 }
 

@@ -41,3 +41,27 @@ export function resolveRoomMemberAgents(roomContexts: RoomContextAggregate[]): A
     buildFallbackRoomMemberAgent(agentId, roomContexts)
   ));
 }
+
+export function resolveCurrentRoomMemberAgents(
+  roomContexts: RoomContextAggregate[],
+  agentDirectory: Agent[],
+): Agent[] {
+  const directoryByID = new Map(
+    agentDirectory.map((agent) => [agent.agent_id, agent]),
+  );
+  const participationByID = new Map(
+    (roomContexts[0]?.members ?? [])
+      .filter((member) => member.member_type === "agent")
+      .map((member) => [
+        member.member_agent_id,
+        member.participation_paused,
+      ]),
+  );
+  return resolveRoomMemberAgents(roomContexts).map(
+    (agent) => ({
+      ...(directoryByID.get(agent.agent_id) ?? agent),
+      room_participation_paused:
+        participationByID.get(agent.agent_id) ?? false,
+    }),
+  );
+}

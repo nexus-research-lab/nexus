@@ -21,36 +21,243 @@ test.after(async () => {
   await server.close();
 });
 
+async function loadI18nValue(locale = "zh") {
+  const { MESSAGES } = await server.ssrLoadModule(
+    "/src/shared/i18n/messages.ts",
+  );
+  return {
+    locale,
+    setLocale: () => {},
+    t: (key, params = {}) => Object.entries(params).reduce(
+      (message, [name, value]) => message.replaceAll(
+        `{${name}}`,
+        String(value),
+      ),
+      MESSAGES[locale][key] ?? key,
+    ),
+  };
+}
+
 async function renderWithI18n(element, locale = "zh") {
   const { I18N_CONTEXT } = await server.ssrLoadModule(
     "/src/shared/i18n/i18n-context.ts",
   );
-  const { MESSAGES } = await server.ssrLoadModule(
-    "/src/shared/i18n/messages.ts",
-  );
+  const value = await loadI18nValue(locale);
   return renderToStaticMarkup(
     React.createElement(
       I18N_CONTEXT.Provider,
-      {
-        value: {
-          locale,
-          setLocale: () => {},
-          t: (key, params = {}) => Object.entries(params).reduce(
-            (message, [name, value]) => message.replaceAll(
-              `{${name}}`,
-              String(value),
-            ),
-            MESSAGES[locale][key] ?? key,
-          ),
-        },
-      },
+      { value },
       element,
     ),
   );
 }
 
+test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的最近值", async () => {
+  const {
+    ComposerContextUsage,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-context-usage.tsx",
+  );
+  const {
+    projectComposerContextUsage,
+    projectContextUsage,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-context-usage-model.ts",
+  );
+  const { AGENT_SESSION_EVENT_HANDLERS } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-handlers.ts",
+  );
+  const usage = {
+    max_tokens: 258_000,
+    percentage: 75.96,
+    total_tokens: 196_000,
+  };
+
+  assert.deepEqual(projectContextUsage(usage), {
+    maxTokens: 258_000,
+    percentage: 76,
+    toneClassName: "text-(--text-soft)",
+    totalTokens: 196_000,
+  });
+  assert.equal(projectContextUsage(null), null);
+  const emptyHtml = await renderWithI18n(
+    React.createElement(ComposerContextUsage, { usage: null }),
+  );
+  assert.match(emptyHtml, /data-context-usage-slot="empty"/);
+  assert.doesNotMatch(emptyHtml, /<button/);
+  const html = await renderWithI18n(
+    React.createElement(ComposerContextUsage, { usage }),
+  );
+  assert.match(html, /data-context-usage-slot="ready"/);
+  assert.match(html, /data-context-usage="76"/);
+  assert.match(html, /上下文窗口已用 76%/);
+  assert.match(html, /196\.0K/);
+  assert.match(html, /258\.0K/);
+  assert.equal(
+    (html.match(/stroke-width="2"/g) ?? []).length,
+    2,
+    "context track and progress use the same restrained 2px stroke",
+  );
+
+  const groupedProjection = projectComposerContextUsage({
+    items: [
+      { agentId: "amy", name: "Amy", usage },
+      {
+        agentId: "devin",
+        name: "Devin",
+        usage: { ...usage, percentage: 88, total_tokens: 227_040 },
+      },
+    ],
+    usage: null,
+  });
+  assert.equal(groupedProjection.grouped, true);
+  assert.equal(groupedProjection.summary.percentage, 88);
+  assert.deepEqual(
+    groupedProjection.items.map((item) => item.name),
+    ["Amy", "Devin"],
+  );
+  const groupedHtml = await renderWithI18n(
+    React.createElement(ComposerContextUsage, {
+      items: [
+        { agentId: "amy", name: "Amy", usage },
+        { agentId: "devin", name: "Devin", usage: null },
+      ],
+      usage: null,
+    }),
+  );
+  assert.match(groupedHtml, /Room 上下文窗口，2 个 Agent，最高已用 76%/);
+
+  let usageByAgent = {};
+  const context = {
+    scope: {
+      isCurrentSessionEvent: (sessionKey) => sessionKey === "room-session",
+    },
+    state: {
+      setContextUsageByAgent: (update) => {
+        usageByAgent = typeof update === "function"
+          ? update(usageByAgent)
+          : update;
+      },
+    },
+  };
+  for (const agentId of ["amy", "devin"]) {
+    AGENT_SESSION_EVENT_HANDLERS.context_usage({
+      agent_id: agentId,
+      data: usage,
+      event_type: "context_usage",
+      protocol_version: 2,
+      session_key: "room-session",
+      timestamp: 1,
+    }, context);
+  }
+  assert.deepEqual(Object.keys(usageByAgent), ["amy", "devin"]);
+});
+
+test("round 结束前后 Composer 提交动作保持稳定几何", async () => {
+  const { ComposerSubmitButton } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/composer-submit-button.tsx",
+  );
+  const props = {
+    isDisabled: true,
+    isGoalCreating: false,
+    isGoalMode: false,
+    isPreparingAttachments: false,
+    onSend: () => {},
+    onStop: () => {},
+    sendLabel: "发送消息",
+    stopLabel: "停止生成",
+  };
+  const sendHtml = renderToStaticMarkup(
+    React.createElement(ComposerSubmitButton, {
+      ...props,
+      shouldStop: false,
+    }),
+  );
+  const stopHtml = renderToStaticMarkup(
+    React.createElement(ComposerSubmitButton, {
+      ...props,
+      shouldStop: true,
+    }),
+  );
+  for (const actionHtml of [sendHtml, stopHtml]) {
+    assert.match(actionHtml, /\bnexus-chat-composer-submit\b/);
+    assert.match(actionHtml, /\bmin-h-8\b/);
+    assert.doesNotMatch(actionHtml, /nexus-chat-composer-submit-slot/);
+  }
+  assert.doesNotMatch(sendHtml, /\bnexus-chat-composer-submit-stop\b/);
+  assert.match(stopHtml, /\bnexus-chat-composer-submit-stop\b/);
+
+  const recipeSource = await readFile(
+    path.join(webRoot, "src/app/styles/theme-recipes.css"),
+    "utf8",
+  );
+  assert.match(
+    recipeSource,
+    /\.nexus-chat-composer-submit \{[\s\S]*?width: 2rem;[\s\S]*?padding-inline: 0;[\s\S]*?border-radius: 999px;/,
+  );
+  assert.match(
+    recipeSource,
+    /\.nexus-chat-composer-submit:disabled \{[\s\S]*?opacity: 1;[\s\S]*?background: var\(--text-soft\);[\s\S]*?color: #fff;/,
+  );
+  assert.doesNotMatch(recipeSource, /nexus-chat-composer-submit-slot/);
+});
+
+test("Composer 回复阶段只保留停止快捷键提示", async () => {
+  const { projectComposerFooterStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-footer-model.ts",
+  );
+  const projection = projectComposerFooterStatus({
+    activeError: null,
+    copy: {
+      compacting: "正在压缩上下文",
+      goalCreating: "正在创建 Goal",
+      preparingAttachments: "正在准备附件",
+      replying: "回复中",
+      sending: "发送中",
+      stopHint: "[ESC 停止]",
+    },
+    isGoalCreating: false,
+    isPreparingAttachments: false,
+    runtimeActivity: "replying",
+  });
+
+  assert.equal(projection.message, null);
+  assert.equal(projection.frames, null);
+  assert.equal(projection.hint, "[ESC 停止]");
+});
+
+test("Action Menu 的空 footer 使用稳定引用，避免定位状态自循环", async () => {
+  const source = await readFile(
+    path.join(webRoot, "src/shared/ui/menu/action-menu.tsx"),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /const EMPTY_ACTION_MENU_ITEMS: UiActionMenuItem\[\] = \[\];/,
+  );
+  assert.equal(
+    (source.match(/footerItems = EMPTY_ACTION_MENU_ITEMS/g) ?? []).length,
+    2,
+  );
+  assert.doesNotMatch(source, /footerItems = \[\]/);
+});
+
+test("anchored overlay style clears the unused vertical axis", async () => {
+  const source = await readFile(
+    path.join(webRoot, "src/shared/ui/overlay/anchored-overlay-layer.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /bottom: position\.bottom \?\? "auto"/);
+  assert.match(source, /top: position\.top \?\? "auto"/);
+});
+
 test("anchored overlay end alignment follows the trigger without leaving the viewport", async () => {
-  const { resolveAnchoredOverlayPosition } = await server.ssrLoadModule(
+  const {
+    areAnchoredOverlayPositionsEqual,
+    resolveAnchoredOverlayPosition,
+  } = await server.ssrLoadModule(
     "/src/shared/ui/overlay/anchored-overlay-model.ts",
   );
   const originalWindow = globalThis.window;
@@ -80,6 +287,17 @@ test("anchored overlay end alignment follows the trigger without leaving the vie
     assert.equal(position.left, 452);
     assert.equal(position.width, 248);
     assert.equal(position.placement, "top");
+    assert.equal(
+      areAnchoredOverlayPositionsEqual(position, { ...position }),
+      true,
+    );
+    assert.equal(
+      areAnchoredOverlayPositionsEqual(position, {
+        ...position,
+        left: position.left + 1,
+      }),
+      false,
+    );
 
     globalThis.window.innerWidth = 240;
     const narrowPosition = resolveAnchoredOverlayPosition({
@@ -111,14 +329,14 @@ test("回到底部入口隐藏时零标记，显示时只有局部热区且没�
   const { ScrollToLatestButton } = await server.ssrLoadModule(
     "/src/features/conversation/shared/scroll-to-latest-button.tsx",
   );
-  const hidden = renderToStaticMarkup(
+  const hidden = await renderWithI18n(
     React.createElement(ScrollToLatestButton, {
       isLoading: false,
       onClick: () => {},
       visible: false,
     }),
   );
-  const visible = renderToStaticMarkup(
+  const visible = await renderWithI18n(
     React.createElement(ScrollToLatestButton, {
       isLoading: false,
       onClick: () => {},
@@ -149,14 +367,14 @@ test("消息尾部只为真实可见的浮动 Dock 保留避让", async () => {
     onWheel: () => {},
     scrollRef: { current: null },
   };
-  const hidden = renderToStaticMarkup(
+  const hidden = await renderWithI18n(
     React.createElement(
       ConversationPanelViewport,
       { floatingDockOccupied: false, isMobileLayout: false, viewport },
       React.createElement("div", null, "message"),
     ),
   );
-  const occupied = renderToStaticMarkup(
+  const occupied = await renderWithI18n(
     React.createElement(
       ConversationPanelViewport,
       { floatingDockOccupied: true, isMobileLayout: false, viewport },
@@ -167,6 +385,28 @@ test("消息尾部只为真实可见的浮动 Dock 保留避让", async () => {
   assert.doesNotMatch(hidden, /data-conversation-dock-clearance/);
   assert.match(occupied, /data-conversation-dock-clearance/);
   assert.match(occupied, /\bh-14\b/);
+});
+
+test("加载更早消息的状态跟随界面语言", async () => {
+  const { ConversationPanelViewport } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/conversation-panel-layout.tsx",
+  );
+  const viewport = {
+    error: null,
+    isHistoryLoading: true,
+    scrollRef: { current: null },
+  };
+  const element = React.createElement(
+    ConversationPanelViewport,
+    { floatingDockOccupied: false, isMobileLayout: false, viewport },
+    React.createElement("div", null, "message"),
+  );
+  const chinese = await renderWithI18n(element);
+  const english = await renderWithI18n(element, "en");
+
+  assert.match(chinese, /正在加载更早消息\.\.\./);
+  assert.match(english, /Loading earlier messages\.\.\./);
+  assert.doesNotMatch(english, /正在加载/);
 });
 
 test("标题栏与 Composer 自身边缘羽化且不改变滚动几何", async () => {
@@ -272,6 +512,52 @@ test("标题栏与 Composer 自身边缘羽化且不改变滚动几何", async (
   );
 });
 
+test("Room 右侧上下文面使用软分栏而不是硬竖线", async () => {
+  const [
+    resizeHandleSource,
+    splitStyles,
+    surfaceSource,
+    threadPanelSource,
+    auxiliaryPanelSource,
+  ] = await Promise.all([
+    "src/shared/ui/layout/panel-resize-handle.tsx",
+    "src/features/conversation/room/surface/layout/room-surface-split.css",
+    "src/features/conversation/room/surface/layout/room-surface-content.tsx",
+    "src/features/conversation/room/surface/layout/room-thread-inline-panel.tsx",
+    "src/features/conversation/room/surface/layout/room-surface-auxiliary-panel.tsx",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+
+  assert.match(surfaceSource, /nexus-room-surface-split/);
+  assert.match(surfaceSource, /nexus-room-surface-conversation/);
+  for (const panelSource of [threadPanelSource, auxiliaryPanelSource]) {
+    assert.match(panelSource, /nexus-room-surface-side-panel/);
+    assert.match(panelSource, /variant="gutter"/);
+    assert.doesNotMatch(panelSource, /\bborder-l\b|\bdivider-subtle\b/);
+  }
+  assert.match(resizeHandleSource, /relative w-2 shrink-0 self-stretch/);
+  assert.match(resizeHandleSource, /cursor-col-resize/);
+  assert.doesNotMatch(
+    resizeHandleSource,
+    /<span|border-l-\[6px\]|border-y-\[5px\]|group-hover\/resize/,
+  );
+  const sidePanelRule = splitStyles.match(
+    /\.nexus-room-surface-side-panel\s*\{([\s\S]*?)\}/,
+  )?.[1] ?? "";
+  assert.match(
+    sidePanelRule,
+    /background:\s*color-mix\([\s\S]*?var\(--surface-panel-background\) 72%[\s\S]*?box-shadow:\s*-8px 0 20px -18px color-mix\([\s\S]*?var\(--shadow-color\) 14%/,
+  );
+  assert.match(
+    splitStyles,
+    /\.nexus-room-surface-split\s*\{[\s\S]*?background:\s*var\(--surface-canvas-background\)/,
+  );
+  assert.match(
+    splitStyles,
+    /\.nexus-room-surface-conversation\s*\{[\s\S]*?background:\s*transparent/,
+  );
+  assert.doesNotMatch(sidePanelRule, /border(?:-left)?:|margin-left:/);
+});
+
 test("Room header keeps view and member controls on one spacing rhythm", async () => {
   const headerStyles = await readFile(
     path.join(
@@ -354,7 +640,7 @@ test("shared WebSocket session leases keep a live Room bound until its last cons
   );
 });
 
-test("Composer Footer keeps Powered by Nexus in its physical center column", async () => {
+test("Composer Footer centers its brand only while the input shell has room", async () => {
   const { ComposerFooter } = await server.ssrLoadModule(
     "/src/features/conversation/shared/composer/components/footer/composer-footer.tsx",
   );
@@ -383,9 +669,92 @@ test("Composer Footer keeps Powered by Nexus in its physical center column", asy
       onGoalToggle: () => {},
       onLoopSelect: () => {},
       runtimeActivity: null,
+      sessionSettingsController: {
+        busy: false,
+        ensureTargetsLoaded: () => {},
+        error: null,
+        hasModelOverride: false,
+        hasPermissionOverride: false,
+        inheritedModel: "agent-model",
+        inheritedPermissionMode: "default",
+        inheritedProvider: "agent-provider",
+        isDangerousPermission: false,
+        modelBusy: false,
+        modelLabel: "agent-model",
+        permissionLabel: "默认",
+        providerOptions: null,
+        resetModel: () => {},
+        resetPermission: () => {},
+        resetTarget: () => {},
+        saving: false,
+        scope: {
+          initialTargetId: "agent-1",
+          runtimeKind: "nxs",
+          targets: [
+            {
+              agentId: "agent-1",
+              defaultModel: "agent-model",
+              defaultPermissionMode: "default",
+              defaultProvider: "agent-provider",
+              name: "Nexus",
+              sessionKey: "agent:agent-1:ws:group:conversation-1",
+            },
+            {
+              agentId: "agent-2",
+              defaultModel: "",
+              defaultPermissionMode: "acceptEdits",
+              defaultProvider: "",
+              name: "Amy",
+              sessionKey: "agent:agent-2:ws:group:conversation-1",
+            },
+          ],
+        },
+        selectTarget: () => {},
+        settings: {
+          model: "",
+          permission_mode: "",
+          provider: "",
+        },
+        target: {
+          agentId: "agent-1",
+          defaultModel: "agent-model",
+          defaultPermissionMode: "default",
+          defaultProvider: "agent-provider",
+          name: "Nexus",
+          sessionKey: "agent:agent-1:ws:group:conversation-1",
+        },
+        targetViews: [
+          {
+            busy: false,
+            modelLabel: "agent-model",
+            target: {
+              agentId: "agent-1",
+              defaultModel: "agent-model",
+              defaultPermissionMode: "default",
+              defaultProvider: "agent-provider",
+              name: "Nexus",
+              sessionKey: "agent:agent-1:ws:group:conversation-1",
+            },
+          },
+          {
+            busy: false,
+            modelLabel: "global-model",
+            target: {
+              agentId: "agent-2",
+              defaultModel: "",
+              defaultPermissionMode: "acceptEdits",
+              defaultProvider: "",
+              name: "Amy",
+              sessionKey: "agent:agent-2:ws:group:conversation-1",
+            },
+          },
+        ],
+        updateModel: () => {},
+        updatePermission: () => {},
+      },
+      sessionSettingsDisabled: false,
       showPoweredByNexus: true,
       submit: {
-        enterLabel: "发送",
         isDisabled: true,
         isGoalCreating: false,
         isGoalMode: false,
@@ -400,7 +769,16 @@ test("Composer Footer keeps Powered by Nexus in its physical center column", asy
 
   assert.match(html, /\bnexus-chat-composer-footer\b/);
   assert.match(html, /data-composer-powered-by="true"/);
-  assert.match(html, /Powered by\s*<\/span>Nexus/);
+  assert.match(html, />Powered by Nexus<\/span>/);
+  assert.match(html, /aria-label="当前 Session 权限"/);
+  assert.match(html, /aria-label="当前 Session 模型"/);
+  assert.doesNotMatch(html, /aria-label="Agent 设置"/);
+  assert.doesNotMatch(html, />agent-model</);
+  assert.match(
+    html,
+    /nexus-chat-composer-footer-trailing[^"]*\bgap-2\b/,
+    "Composer controls keep the same 8px rhythm on both sides",
+  );
   const recipeSource = await readFile(
     path.join(webRoot, "src/app/styles/theme-recipes.css"),
     "utf8",
@@ -411,7 +789,8 @@ test("Composer Footer keeps Powered by Nexus in its physical center column", asy
   );
   assert.match(
     recipeSource,
-    /@container nexus-chat-composer \(max-width: 420px\)/,
+    /@container nexus-chat-composer \(max-width: 640px\)[\s\S]*?grid-template-areas: "leading trailing";[\s\S]*?\.nexus-chat-composer-footer-brand\s*\{[\s\S]*?display: none;/,
+    "compact composers remove the decorative center column",
   );
   assert.match(
     recipeSource,
@@ -420,11 +799,232 @@ test("Composer Footer keeps Powered by Nexus in its physical center column", asy
   );
 });
 
+test("DM Composer keeps direct Session permission and model controls", async () => {
+  const { ComposerSessionControls } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-session-controls.tsx",
+  );
+  const target = {
+    agentId: "agent-1",
+    defaultModel: "agent-model",
+    defaultPermissionMode: "default",
+    defaultProvider: "agent-provider",
+    name: "Nexus",
+    sessionKey: "agent:agent-1:session-1",
+  };
+  const controller = {
+    busy: false,
+    ensureTargetsLoaded: () => {},
+    error: null,
+    hasModelOverride: false,
+    hasPermissionOverride: false,
+    inheritedModel: "agent-model",
+    inheritedPermissionMode: "default",
+    inheritedProvider: "agent-provider",
+    isDangerousPermission: false,
+    modelBusy: false,
+    modelLabel: "agent-model",
+    permissionLabel: "默认",
+    providerOptions: null,
+    resetModel: () => {},
+    resetPermission: () => {},
+    resetTarget: () => {},
+    saving: false,
+    scope: {
+      initialTargetId: target.agentId,
+      runtimeKind: "nxs",
+      targets: [target],
+    },
+    selectTarget: () => {},
+    settings: {
+      model: "",
+      permission_mode: "",
+      provider: "",
+    },
+    target,
+    targetViews: [{
+      busy: false,
+      modelLabel: "agent-model",
+      target,
+    }],
+    updateModel: () => {},
+    updatePermission: () => {},
+  };
+  const html = await renderWithI18n(
+    React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(ComposerSessionControls, {
+        controller,
+        disabled: false,
+        slot: "leading",
+      }),
+      React.createElement(ComposerSessionControls, {
+        controller,
+        disabled: false,
+        slot: "trailing",
+      }),
+    ),
+  );
+
+  assert.match(html, /aria-label="当前 Session 权限"/);
+  assert.match(html, /aria-label="当前 Session 模型"/);
+  assert.match(html, />agent-model</);
+  assert.doesNotMatch(html, /aria-label="Agent 设置"/);
+});
+
+test("新 Agent 与新 Session 默认自动接受编辑", async () => {
+  const [agentOptionsSource, runtimeOptionsSource] = await Promise.all([
+    readFile(path.join(webRoot, "src/lib/agent-options.ts"), "utf8"),
+    readFile(path.join(webRoot, "src/config/runtime-options.ts"), "utf8"),
+  ]);
+
+  assert.match(
+    agentOptionsSource,
+    /DEFAULT_AGENT_PERMISSION_MODE = "acceptEdits"/,
+  );
+  assert.match(
+    runtimeOptionsSource,
+    /permission_mode: DEFAULT_AGENT_PERMISSION_MODE/,
+  );
+});
+
+test("Session setting menus expose concrete choices and a separate reset action", async () => {
+  const {
+    buildResetSessionSettingItem,
+    buildSessionModelItems,
+    buildSessionPermissionItems,
+    RESET_SESSION_SETTING_VALUE,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/composer/components/footer/composer-session-control-options.tsx",
+  );
+  const controller = {
+    inheritedModel: "model-a",
+    inheritedPermissionMode: "default",
+    inheritedProvider: "provider-a",
+    providerOptions: {
+      items: [{
+        display_name: "Provider A",
+        models: [{
+          display_name: "Model A",
+          model_id: "model-a",
+        }],
+        provider: "provider-a",
+      }],
+    },
+    settings: {
+      model: "",
+      permission_mode: "",
+      provider: "",
+    },
+  };
+  const translate = (key) => key;
+  const modelItems = buildSessionModelItems(controller);
+  const permissionItems = buildSessionPermissionItems(controller, translate);
+  const resetItem = buildResetSessionSettingItem(true, translate);
+
+  assert.equal(modelItems.length, 1);
+  assert.equal(modelItems[0].active, true);
+  assert.equal(permissionItems.length, 5);
+  assert.equal(permissionItems[0].active, true);
+  assert.equal(
+    permissionItems.every((item) => item.description),
+    true,
+    "permission choices retain a concise second line",
+  );
+  assert.equal(
+    permissionItems.every((item) => item.icon),
+    true,
+    "permission choices retain a semantic leading icon",
+  );
+  assert.equal(resetItem.value, RESET_SESSION_SETTING_VALUE);
+  assert.equal(resetItem.disabled, true);
+  assert.equal(
+    permissionItems.some((item) => item.value === RESET_SESSION_SETTING_VALUE),
+    false,
+    "reset remains below the concrete choices",
+  );
+
+  const menuStyleSource = await readFile(
+    path.join(webRoot, "src/shared/ui/menu/menu-styles.ts"),
+    "utf8",
+  );
+  assert.match(
+    menuStyleSource,
+    /radius-control-lg/,
+    "4px inset menu rows stay concentric with the 16px popover",
+  );
+
+  const roomModelSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/composer/components/footer/composer-room-model-control.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(
+    roomModelSource,
+    /canHoverSelect[\s\S]*onPointerEnter/,
+    "hovering a Room Agent opens its model choices without another detail page",
+  );
+  assert.doesNotMatch(
+    roomModelSource,
+    /RoomAgentSettingsDetail|RoomSettingsDetailRow/,
+    "Room model selection no longer carries the obsolete Agent detail layer",
+  );
+  const sessionControlsSource = await readFile(
+    path.join(
+      webRoot,
+      "src/features/conversation/shared/composer/components/footer/composer-session-controls.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(
+    sessionControlsSource,
+    /SESSION_PERMISSION_MENU_WIDTH = 288/,
+    "permission menus retain their readable width",
+  );
+  assert.match(
+    sessionControlsSource,
+    /SESSION_MODEL_MENU_WIDTH = 256/,
+    "DM model choices use the compact menu width",
+  );
+  assert.match(
+    sessionControlsSource,
+    /ariaLabel=\{t\("composer\.session_model"\)\}[\s\S]*density="compact"/,
+    "DM model choices use compact Action Menu rows",
+  );
+  assert.match(
+    roomModelSource,
+    /ROOM_MODEL_MENU_WIDTH = 256/,
+    "Room model choices use the compact model width",
+  );
+  assert.match(
+    roomModelSource,
+    /ROOM_MODEL_AGENT_MENU_WIDTH = 224/,
+    "Room Agent selection stays narrower than the model choices",
+  );
+  assert.match(
+    roomModelSource,
+    /UiActionMenuContent[\s\S]*density="compact"/,
+    "Room model choices reuse compact Action Menu rows",
+  );
+  assert.match(
+    roomModelSource,
+    /function RoomModelPanel[\s\S]*OVERLAY_SURFACE_CLASS_NAME/,
+    "Room cascade surfaces stay on stable child panels instead of the resizing root",
+  );
+  assert.match(
+    roomModelSource,
+    /Math\.max\(agentHeight, modelHeight\)/,
+    "Room cascade reserves a stable height before the first Agent hover",
+  );
+});
+
 test("Workspace Task uses a centered step-summary capsule and an absolute upward detail", async () => {
   const { WorkspaceTaskPanel } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/surface/workspace-task-strip.tsx",
   );
-  const { resolveWorkspaceTaskSummary } = await server.ssrLoadModule(
+  const { resolveWorkspaceTaskState } = await server.ssrLoadModule(
     "/src/shared/ui/workspace/surface/workspace-task-strip-model.ts",
   );
   const todos = [
@@ -442,13 +1042,34 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
       status: "pending",
     },
   ];
-  assert.deepEqual(resolveWorkspaceTaskSummary(todos), {
-    completedCount: 1,
-    currentStep: 2,
-    hasRunningTask: true,
-    summary: "正在核对布局",
-    totalCount: 3,
+  assert.deepEqual(resolveWorkspaceTaskState(todos), {
+    summary: {
+      completedCount: 1,
+      currentStep: 2,
+      hasRunningTask: true,
+      summary: "正在核对布局",
+      totalCount: 3,
+    },
+    todos,
   });
+  assert.deepEqual(resolveWorkspaceTaskState([
+    { status: "pending" },
+    { task: "兼容旧任务字段", status: "in_progress" },
+    { content: null, status: "completed" },
+  ]), {
+    summary: {
+      completedCount: 0,
+      currentStep: 1,
+      hasRunningTask: true,
+      summary: "兼容旧任务字段",
+      totalCount: 1,
+    },
+    todos: [{
+      content: "兼容旧任务字段",
+      status: "in_progress",
+    }],
+  });
+  assert.equal(resolveWorkspaceTaskState(null), null);
   const html = await renderWithI18n(
     React.createElement(WorkspaceTaskPanel, {
       source: {
@@ -496,7 +1117,10 @@ test("Workspace Task uses a centered step-summary capsule and an absolute upward
 });
 
 test("Room progress stays isolated by Agent and selection follows the latest process until chosen", async () => {
-  const { projectConversationTodoProcesses } = await server.ssrLoadModule(
+  const {
+    projectConversationTaskRuns,
+    projectConversationTodoProcesses,
+  } = await server.ssrLoadModule(
     "/src/features/conversation/shared/todos/todo-projection-model.ts",
   );
   const { resolveRoomTaskSelection } = await server.ssrLoadModule(
@@ -505,11 +1129,13 @@ test("Room progress stays isolated by Agent and selection follows the latest pro
   const sessionKey = "room:conversation";
   const assistantMessage = ({
     agentId,
+    agentRoundId,
     content,
     index,
     roundId,
   }) => ({
     agent_id: agentId,
+    agent_round_id: agentRoundId,
     content: [{
       id: `todo-${index}`,
       input: { todos: content },
@@ -574,6 +1200,48 @@ test("Room progress stays isolated by Agent and selection follows the latest pro
     "lead",
   );
 
+  const taskRuns = projectConversationTaskRuns([
+    assistantMessage({
+      agentId: "researcher",
+      agentRoundId: "agent-round-1",
+      content: [{ content: "收集来源", status: "completed" }],
+      index: 3,
+      roundId: "round-shared-1",
+    }),
+    assistantMessage({
+      agentId: "researcher",
+      agentRoundId: "agent-round-2",
+      content: [{ content: "补充来源", status: "in_progress" }],
+      index: 4,
+      roundId: "round-shared-2",
+    }),
+    assistantMessage({
+      agentId: "researcher",
+      content: [{ content: "不可归属", status: "in_progress" }],
+      index: 5,
+      roundId: "round-without-agent-round",
+    }),
+  ], sessionKey);
+  assert.deepEqual(taskRuns.map((run) => ({
+    agentId: run.agentId,
+    agentRoundId: run.agentRoundId,
+    latestTaskEventIndex: run.latestTaskEventIndex,
+    todos: run.todos,
+  })), [
+    {
+      agentId: "researcher",
+      agentRoundId: "agent-round-1",
+      latestTaskEventIndex: 0,
+      todos: [{ content: "收集来源", status: "completed" }],
+    },
+    {
+      agentId: "researcher",
+      agentRoundId: "agent-round-2",
+      latestTaskEventIndex: 1,
+      todos: [{ content: "补充来源", status: "in_progress" }],
+    },
+  ]);
+
   const roomTaskPanelSource = await readFile(
     path.join(
       webRoot,
@@ -593,15 +1261,66 @@ test("Room progress stays isolated by Agent and selection follows the latest pro
   );
   assert.match(
     roomAgentSwitcherSource,
-    /variant === "task"[\s\S]*h-7 w-full max-w-\[9rem\][\s\S]*text-compact font-semibold/,
+    /variant === "panel" \? "w-28 shrink-0" : "w-full max-w-36"/,
   );
+  assert.match(roomAgentSwitcherSource, /flex h-7 w-full min-w-0/);
+});
+
+test("TodoWrite normalizes persisted task aliases and rejects malformed items", async () => {
+  const { projectConversationTodos } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/todos/todo-projection-model.ts",
+  );
+  const sessionKey = "agent:finance:ws:dm:legacy";
+  const todos = projectConversationTodos([{
+    agent_id: "finance",
+    content: [{
+      id: "legacy-todo-write",
+      input: {
+        todos: [
+          {
+            activeForm: " Analyzing account propagation ",
+            status: "completed",
+            task: " 分析压测科目变动传导至完整三张报表的解决方案 ",
+          },
+          {
+            active_form: "编写新版需求文档",
+            content: "编写新版需求文档并做好版本管理",
+            status: "in_progress",
+          },
+          null,
+          {status: "pending", task: ""},
+          {status: "blocked", task: "无效状态"},
+        ],
+      },
+      name: "TodoWrite",
+      type: "tool_use",
+    }],
+    message_id: "legacy-assistant",
+    role: "assistant",
+    round_id: "legacy-round",
+    session_key: sessionKey,
+    timestamp: 1,
+  }], sessionKey);
+
+  assert.deepEqual(todos, [
+    {
+      active_form: "Analyzing account propagation",
+      content: "分析压测科目变动传导至完整三张报表的解决方案",
+      status: "completed",
+    },
+    {
+      active_form: "编写新版需求文档",
+      content: "编写新版需求文档并做好版本管理",
+      status: "in_progress",
+    },
+  ]);
 });
 
 test("Room and DM stack Goal, Task, and scroll controls upward from the Composer", async () => {
   const { ConversationPanelBottomArea } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
   );
-  const stackedHtml = renderToStaticMarkup(
+  const stackedHtml = await renderWithI18n(
     React.createElement(
       ConversationPanelBottomArea,
       {
@@ -707,7 +1426,7 @@ test("Task and scroll controls share a centered dock while retaining local point
   const { ConversationPanelFloatingControls } = await server.ssrLoadModule(
     "/src/features/conversation/shared/conversation-panel-layout.tsx",
   );
-  const html = renderToStaticMarkup(
+  const html = await renderWithI18n(
     React.createElement(ConversationPanelFloatingControls, {
       activity: React.createElement(
         "button",
@@ -728,6 +1447,10 @@ test("Task and scroll controls share a centered dock while retaining local point
   assert.match(html, /data-conversation-dock-scroll="true"/);
   assert.match(html, /\bjustify-center\b/);
   assert.match(html, /\bgap-1\b/);
+  assert.match(
+    html,
+    /class="[^"]*\bflex-1\b[^"]*" data-conversation-dock-activity/,
+  );
   assert.match(html, /data-test-task-control="true"/);
   assert.match(html, /data-scroll-to-latest="true"/);
 
@@ -804,8 +1527,12 @@ test("DM and Room pending interactions replace the Composer input in one stable 
   pending = upsertPendingPermission(pending, latest);
   assert.deepEqual(pending, [latest, second]);
   assert.deepEqual(removePendingPermission(pending, first.request_id), [second]);
+  const localization = await loadI18nValue();
   assert.deepEqual(
-    getReadablePermissionSuggestions(latest.suggestions).map(({ label }) => label),
+    getReadablePermissionSuggestions(
+      latest.suggestions,
+      localization,
+    ).map(({ label }) => label),
     ["写入本地设置"],
   );
   assert.equal(
@@ -851,6 +1578,18 @@ test("DM and Room pending interactions replace the Composer input in one stable 
   assert.match(interactionHtml, />允许本次</);
   assert.match(interactionHtml, /aria-label="选择允许范围"/);
   assert.match(interactionHtml, />拒绝</);
+  assert.match(
+    interactionHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-28\b[^"]*" data-composer-permission-action="deny"/,
+  );
+  assert.match(
+    interactionHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-28\b[^"]*" data-composer-permission-action="allow"/,
+  );
+  assert.doesNotMatch(
+    interactionHtml,
+    /rounded-(?:full|l-full|r-full)/,
+  );
   const interactionEnglishHtml = await renderWithI18n(interaction, "en");
   assert.match(interactionEnglishHtml, />Allow once</);
   assert.match(interactionEnglishHtml, />Deny</);
@@ -961,7 +1700,13 @@ test("Composer growth is capped and collapsed file tools show only the leaf name
     type: "tool_use",
   };
   const model = buildToolBlockViewModel({
+    localization: await loadI18nValue(),
     status: "running",
+    toolUse,
+  });
+  const englishModel = buildToolBlockViewModel({
+    localization: await loadI18nValue("en"),
+    status: "success",
     toolUse,
   });
 
@@ -974,12 +1719,22 @@ test("Composer growth is capped and collapsed file tools show only the leaf name
   assert.equal(getToolInputSummary(toolInput), absolutePath);
   assert.equal(model.collapsedDetailText, "permission_test.txt");
   assert.equal(model.expandedDetailText, absolutePath);
-  assert.equal(
+  assert.equal(englishModel.statusText, "Completed");
+  assert.equal(englishModel.toolTitle, "Write content");
+  assert.deepEqual(
     buildProcessSummary({
       pendingPermissionCount: 0,
       processContent: [toolUse],
     }),
-    "1 次动作 · 最近：写入内容：permission_test.txt",
+    {
+      kind: "details",
+      latestDetail: {
+        detail: "permission_test.txt",
+        kind: "tool",
+        toolName: "Write",
+      },
+      metrics: [{ count: 1, kind: "action" }],
+    },
   );
 });
 
@@ -1022,8 +1777,30 @@ test("questions and plan confirmations use the same Composer replacement owner",
     }),
   );
   assert.match(questionHtml, /data-composer-interaction-kind="question"/);
+  assert.match(questionHtml, /需要你的回应/);
   assert.match(questionHtml, /这次分析采用哪种研究口径？/);
+  assert.match(questionHtml, /ask-user-question-option/);
+  assert.match(questionHtml, /type="radio"/);
+  assert.match(questionHtml, /没有合适选项？直接输入回答…/);
+  assert.match(questionHtml, />拒绝</);
   assert.match(questionHtml, /继续协作/);
+  assert.doesNotMatch(
+    questionHtml,
+    /ask-user-question-card|ask-user-question-submit|border-l-2/,
+    "structured questions should stay inside one Composer surface",
+  );
+
+  const englishQuestionHtml = await renderWithI18n(
+    React.createElement(ComposerInteractionSurface, {
+      onResponse: () => true,
+      permissions: [question],
+    }),
+    "en",
+  );
+  assert.match(englishQuestionHtml, /Needs your response/);
+  assert.match(englishQuestionHtml, /No suitable option\? Type your answer…/);
+  assert.match(englishQuestionHtml, />Deny</);
+  assert.match(englishQuestionHtml, />Continue</);
 
   const planHtml = await renderWithI18n(
     React.createElement(ComposerInteractionSurface, {
@@ -1035,6 +1812,14 @@ test("questions and plan confirmations use the same Composer replacement owner",
   assert.match(planHtml, /先验证数据源，再生成最终报告/);
   assert.match(planHtml, />允许本次</);
   assert.match(planHtml, />拒绝</);
+  assert.match(
+    planHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="deny"/,
+  );
+  assert.match(
+    planHtml,
+    /class="[^"]*\bradius-control-sm\b[^"]*\bw-24\b[^"]*" data-composer-permission-action="allow"/,
+  );
 });
 
 test("DM and Room messages never remount interaction options outside the Composer", async () => {
@@ -1060,24 +1845,27 @@ test("DM and Room messages never remount interaction options outside the Compose
   assert.equal(resolvePendingInteractionOwner("dm_archived"), "composer");
   assert.equal(resolvePendingInteractionOwner("room_result"), "composer");
   assert.equal(resolvePendingInteractionOwner("room_thread"), "composer");
-
-  const toolHtml = await renderWithI18n(
-    React.createElement(ContentRenderer, {
-      canRespondToPermissions: true,
-      content: [{
-        id: "tool-read-only",
-        input: permission.tool_input,
-        name: permission.tool_name,
-        type: "tool_use",
-      }],
-      isStreaming: false,
-      onPermissionResponse: () => true,
-      pendingInteractionOwner: "composer",
-      pendingPermissionsByToolUseId: new Map([
-        [permission.tool_use_id, permission],
-      ]),
-    }),
+  assert.equal(
+    resolvePendingInteractionOwner("room_thread_process"),
+    "composer",
   );
+
+  const toolElement = React.createElement(ContentRenderer, {
+    canRespondToPermissions: true,
+    content: [{
+      id: "tool-read-only",
+      input: permission.tool_input,
+      name: permission.tool_name,
+      type: "tool_use",
+    }],
+    isStreaming: false,
+    onPermissionResponse: () => true,
+    pendingInteractionOwner: "composer",
+    pendingPermissionsByToolUseId: new Map([
+      [permission.tool_use_id, permission],
+    ]),
+  });
+  const toolHtml = await renderWithI18n(toolElement);
   assert.match(toolHtml, /待确认/);
   assert.match(toolHtml, /echo protected/);
   assert.match(toolHtml, /surface-muted-background/);
@@ -1085,6 +1873,10 @@ test("DM and Room messages never remount interaction options outside the Compose
   assert.doesNotMatch(toolHtml, />允许</);
   assert.doesNotMatch(toolHtml, />拒绝</);
   assert.doesNotMatch(toolHtml, /data-human-interaction-surface/);
+  const englishToolHtml = await renderWithI18n(toolElement, "en");
+  assert.match(englishToolHtml, /Run command/);
+  assert.match(englishToolHtml, /Waiting for approval/);
+  assert.doesNotMatch(englishToolHtml, /执行命令|待确认/);
 
   const questionTool = {
     id: "tool-question-evidence",
@@ -1158,7 +1950,7 @@ test("DM and Room messages never remount interaction options outside the Compose
 
   const activityHtml = renderToStaticMarkup(React.createElement(
     MessageActivityStatus,
-    { state: "waiting_permission" },
+    { label: "等待确认", state: "waiting_permission" },
   ));
   assert.match(activityHtml, /等待确认/);
   assert.match(activityHtml, /--text-muted/);

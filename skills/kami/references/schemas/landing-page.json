@@ -1,0 +1,236 @@
+{
+  "$comment": "Landing page content contract. A conversion surface, not a brochure: every element either builds trust or wastes attention. Name the real product category in the first viewport.",
+  "type": "object",
+  "required": [
+    "category",
+    "product_name",
+    "tagline",
+    "facts",
+    "cta",
+    "gallery",
+    "features",
+    "faq"
+  ],
+  "properties": {
+    "category": {
+      "$comment": "The real product category: app, CLI, terminal, utility, skill, template system, or a user-provided label.",
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 60
+    },
+    "product_name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40
+    },
+    "tagline": {
+      "$comment": "One sentence. If it needs a comma, it is too long.",
+      "type": "string",
+      "minLength": 6,
+      "maxLength": 80
+    },
+    "facts": {
+      "$comment": "Scannable proof tokens: price, platform, refund policy, compatibility. No adjectives. '$9 lifetime' beats 'Affordable pricing'.",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 6,
+      "items": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 40
+      }
+    },
+    "cta": {
+      "$comment": "Secondary (try, ghost button) + primary (buy, filled button). Never three buttons.",
+      "type": "object",
+      "required": [
+        "primary",
+        "secondary"
+      ],
+      "properties": {
+        "primary": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 30
+        },
+        "secondary": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 30
+        }
+      }
+    },
+    "gallery": {
+      "$comment": "3-6 panels, each a real screenshot of one shipped tool, workflow, or reachable state. Captions are poetic, not marketing copy.",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "required": [
+          "image",
+          "caption"
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
+          },
+          "caption": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 100
+          }
+        }
+      }
+    },
+    "features": {
+      "$comment": "Name is the tool, subtitle is the metaphor, description answers so-what in 2-3 sentences.",
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "subtitle",
+          "description"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40
+          },
+          "subtitle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 60
+          },
+          "description": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 400
+          }
+        }
+      }
+    },
+    "principles": {
+      "$comment": "4-6 items. Title is the commitment, description is the proof.",
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "description"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 4,
+            "maxLength": 60
+          },
+          "description": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 260
+          }
+        }
+      }
+    },
+    "pricing": {
+      "$comment": "Benefits are the headline, not the price. 4-6 one-line benefit points lead; the price states itself once at medium weight; CTA carries the action, never the price. Compare honestly against named competitors; terms are factual, not promotional.",
+      "type": "object",
+      "required": [
+        "price",
+        "benefits"
+      ],
+      "properties": {
+        "benefits": {
+          "$comment": "What the buyer gets. One line each at desktop width, similar lengths, no wrapping.",
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 6,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          }
+        },
+        "price": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30
+        },
+        "comparisons": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "their_price"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "their_price": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 30
+              }
+            }
+          }
+        },
+        "terms": {
+          "type": "string",
+          "maxLength": 240
+        }
+      }
+    },
+    "faq": {
+      "$comment": "6-8 questions. The first is the positioning question against tools the user already knows. Answers in 1-2 sentences. llms-full.txt must mirror these answers.",
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": [
+          "q",
+          "a"
+        ],
+        "properties": {
+          "q": {
+            "type": "string",
+            "minLength": 6,
+            "maxLength": 120
+          },
+          "a": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 400
+          }
+        }
+      }
+    },
+    "footer": {
+      "type": "object",
+      "required": [
+        "ethos"
+      ],
+      "properties": {
+        "ethos": {
+          "type": "string",
+          "minLength": 4,
+          "maxLength": 120
+        }
+      }
+    }
+  }
+}

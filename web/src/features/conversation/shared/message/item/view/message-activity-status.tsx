@@ -18,13 +18,15 @@ import {
 import type { CSSProperties } from "react";
 import spinners, { type BrailleSpinnerName } from "unicode-animations";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 
 import type { MessageActivityState } from "../activity/message-activity-state";
 
 interface MessageActivityPresentation {
   icon: LucideIcon;
-  label: string;
+  labelKey: TranslationKey;
   spinner: BrailleSpinnerName | null;
   toneClassName: string;
 }
@@ -35,59 +37,78 @@ const ACTIVITY_PRESENTATION: Record<
 > = {
   compacting: {
     icon: RefreshCw,
-    label: "正在压缩上下文",
+    labelKey: "message.activity_compacting",
     spinner: "braille",
     toneClassName: "text-(--text-muted)",
   },
   sending: {
     icon: MessageSquareText,
-    label: "正在发送",
+    labelKey: "message.activity_sending",
     spinner: "braille",
     toneClassName: "text-(--text-muted)",
   },
   thinking: {
     icon: Brain,
-    label: "正在思考",
+    labelKey: "message.activity_thinking",
     spinner: "braille",
     toneClassName: "text-(--text-muted)",
   },
   replying: {
     icon: MessageSquareText,
-    label: "正在回复",
+    labelKey: "message.activity_replying",
     spinner: "braille",
     toneClassName: "text-(--text-default)",
   },
   browsing: {
     icon: Globe,
-    label: "正在浏览",
+    labelKey: "message.activity_browsing",
     spinner: "braille",
     toneClassName: "text-[color:color-mix(in_srgb,var(--primary)_76%,var(--accent)_24%)]",
   },
   executing: {
     icon: Wrench,
-    label: "正在执行",
+    labelKey: "message.activity_executing",
     spinner: "dna",
     toneClassName: "text-(--primary)",
   },
   waiting_permission: {
     icon: Shield,
-    label: "等待确认",
+    labelKey: "message.activity_waiting_permission",
     spinner: null,
     toneClassName: "text-(--text-muted)",
   },
   waiting_input: {
     icon: MessageCircleMore,
-    label: "等待输入",
+    labelKey: "message.activity_waiting_input",
     spinner: "dna",
     toneClassName: "text-[color:color-mix(in_srgb,var(--primary)_72%,var(--text-strong)_28%)]",
   },
 };
 
-export function MessageActivityStatus({
+export function LocalizedMessageActivityStatus({
   className,
   state,
 }: {
   className?: string;
+  state: MessageActivityState;
+}) {
+  const { t } = useI18n();
+  return (
+    <MessageActivityStatus
+      className={className}
+      label={t(ACTIVITY_PRESENTATION[state].labelKey)}
+      state={state}
+    />
+  );
+}
+
+export function MessageActivityStatus({
+  className,
+  label,
+  state,
+}: {
+  className?: string;
+  label: string;
   state: MessageActivityState;
 }) {
   const presentation = ACTIVITY_PRESENTATION[state];
@@ -101,7 +122,7 @@ export function MessageActivityStatus({
         <span className="shrink-0 opacity-75">
           <ActivityIcon className="h-3.5 w-3.5" />
         </span>
-        <MessageActivityLabel label={presentation.label} />
+        <MessageActivityLabel label={label} />
         {presentation.spinner ? (
           <MessageLoadingDots
             className="shrink-0 opacity-70"

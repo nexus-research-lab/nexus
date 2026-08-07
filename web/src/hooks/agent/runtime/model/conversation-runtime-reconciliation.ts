@@ -188,8 +188,12 @@ export function replaceOptimisticUserMessage(
   userMessageId: string,
   roundId: string,
   userMessageCommitted: boolean,
+  userMessageDeliveryMode?: Message["delivery_mode"],
 ): Message[] {
-  if (!userMessageCommitted) {
+  if (
+    !userMessageCommitted
+    && userMessageDeliveryMode !== "transient"
+  ) {
     const next = messages.filter(
       (message) => message.message_id !== clientMessageId,
     );
@@ -213,7 +217,13 @@ export function replaceOptimisticUserMessage(
         && message.client_message_id !== clientMessageId
       ) {
         hasChanges = true;
-        return [{ ...message, client_message_id: clientMessageId }];
+        return [{
+          ...message,
+          client_message_id: clientMessageId,
+          ...(userMessageDeliveryMode
+            ? { delivery_mode: userMessageDeliveryMode }
+            : {}),
+        }];
       }
       return [message];
     });
@@ -231,6 +241,9 @@ export function replaceOptimisticUserMessage(
       client_message_id: clientMessageId,
       message_id: userMessageId,
       round_id: roundId,
+      ...(userMessageDeliveryMode
+        ? { delivery_mode: userMessageDeliveryMode }
+        : {}),
     };
   });
   return hasChanges ? next : messages;

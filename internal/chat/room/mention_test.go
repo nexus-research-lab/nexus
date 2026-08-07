@@ -114,16 +114,76 @@ func TestResolveMentionMatchesAcceptsHanTextAfterASCIIAliasWithoutSplittingLonge
 	}
 }
 
+func TestResolveMentionMatchesAcceptsHanTextAfterHanAliasUsingLongestKnownName(t *testing.T) {
+	aliases := map[string]string{
+		"研究":  "agent-research",
+		"研究员": "agent-researcher",
+		"分析师": "agent-analyst",
+	}
+	content := "@研究员请先收集资料，@分析师随后复核。"
+	matches := ResolveMentionMatches(content, aliases)
+	if len(matches) != 2 {
+		t.Fatalf("中文成员名紧跟中文正文应稳定解析: %#v", matches)
+	}
+	if matches[0].AgentID != "agent-researcher" || matches[1].AgentID != "agent-analyst" {
+		t.Fatalf("应优先采用最长已知别名并保持文本顺序: %#v", matches)
+	}
+	runes := []rune(content)
+	if got := string(runes[matches[0].StartRune:matches[0].EndRune]); got != "@研究员" {
+		t.Fatalf("最长中文 mention span 不正确: got=%q span=%+v", got, matches[0])
+	}
+	if got := string(runes[matches[1].StartRune:matches[1].EndRune]); got != "@分析师" {
+		t.Fatalf("第二处无空格 mention span 不正确: got=%q span=%+v", got, matches[1])
+	}
+}
+
+func TestResolveMentionMatchesAcceptsCJKProseAroundKnownAliasesWithoutSpaces(t *testing.T) {
+	aliases := map[string]string{
+		"Researcher": "agent-researcher",
+		"分析师":        "agent-analyst",
+	}
+	content := "请@Researcher继续收集，随后@分析师复核。"
+	matches := ResolveMentionMatches(content, aliases)
+	if len(matches) != 2 ||
+		matches[0].AgentID != "agent-researcher" ||
+		matches[1].AgentID != "agent-analyst" {
+		t.Fatalf("@ 前后都没有空格时仍应按已知成员稳定解析: %#v", matches)
+	}
+}
+
+func TestResolveMentionMatchesAcceptsAdjacentKnownAliases(t *testing.T) {
+	aliases := map[string]string{
+		"Amy":   "agent-amy",
+		"Devin": "agent-devin",
+	}
+	matches := ResolveMentionMatches("@Amy@Devin请分别检查。", aliases)
+	if len(matches) != 2 ||
+		matches[0].AgentID != "agent-amy" ||
+		matches[1].AgentID != "agent-devin" {
+		t.Fatalf("相邻已知 mention 应按顺序解析: %#v", matches)
+	}
+}
+
 func TestResolveMentionMatchesDoesNotTreatASCIIIdentifierContinuationAsHanBoundary(t *testing.T) {
 	aliases := map[string]string{"Agent1": "agent-1"}
 	for _, content := range []string{
 		"@Agent10 不应命中",
 		"@Agent1analysis 不应命中",
 		"@Agent1_name 不应命中",
+		"@Agent1-review 不应命中",
 	} {
 		if matches := ResolveMentionMatches(content, aliases); len(matches) != 0 {
 			t.Fatalf("ASCII 标识符后缀不应截断成 mention: content=%q matches=%#v", content, matches)
 		}
+	}
+}
+
+func TestResolveMentionMatchesIgnoresEscapedMentionsBareURLsAndEmails(t *testing.T) {
+	aliases := map[string]string{"Amy": "agent-amy", "Devin": "agent-devin"}
+	content := `\@Amy https://example.test/@Devin www.example.test/@Amy mailto:ops@Amy.test foo@Amy.test 正文 @Amy`
+	matches := ResolveMentionMatches(content, aliases)
+	if len(matches) != 1 || matches[0].AgentID != "agent-amy" {
+		t.Fatalf("转义 mention、URL 与 email 不应触发 handoff: %#v", matches)
 	}
 }
 

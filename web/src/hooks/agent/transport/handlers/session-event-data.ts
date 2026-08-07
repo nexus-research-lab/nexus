@@ -1,6 +1,6 @@
 /**
- * INPUT: Session/runtime/queue/round/chat ACK 的未知 WebSocket 载荷。
- * OUTPUT: 经字段级校验且保留 public handoff 关联的窄事件数据。
+ * INPUT: Session/runtime/queue/round/chat/interrupt ACK 的未知 WebSocket 载荷。
+ * OUTPUT: 经字段级校验且保留 public handoff 与精确停止关联的窄事件数据。
  * POS: Agent Session 事件副作用前的协议解码边界。
  */
 import {
@@ -29,7 +29,9 @@ import type {
   CommandCatalogStatus,
   CommandDescriptor,
   CommandExecution,
+  ContextUsageData,
   InputQueueAckData,
+  InterruptAckData,
   RuntimeStatusData,
   SessionStatusData,
 } from "@/types/generated/protocol";
@@ -44,13 +46,13 @@ const RUNTIME_STATUSES = new Set<Exclude<AgentConversationRuntimeStatus, null>>(
   "compacting",
 ]);
 const COMMAND_CATALOG_STATUSES = new Set<CommandCatalogStatus>([
-  "loading",
+  "cold",
   "ready",
   "unavailable",
 ]);
 const COMMAND_EXECUTIONS = new Set<CommandExecution>([
   "host",
-  "runtime_prompt",
+  "runtime",
   "unsupported",
 ]);
 const INPUT_QUEUE_SCOPES = new Set<InputQueueItem["scope"]>(["dm", "room"]);
@@ -65,6 +67,9 @@ const DELIVERY_POLICIES = new Set<InputQueueItem["delivery_policy"]>([
   "interrupt",
   "queue",
 ]);
+const CHAT_ACK_USER_MESSAGE_DELIVERY_MODES = new Set<
+  NonNullable<ChatAckData["user_message_delivery_mode"]>
+>(["durable", "ephemeral", "transient"]);
 const ASSISTANT_MESSAGE_STATUSES = new Set<
   ChatAckData["pending"][number]["status"]
 >(["cancelled", "done", "error", "pending", "streaming"]);
@@ -160,15 +165,67 @@ export function parseCommandCatalogData(
     return null;
   }
   const revision = readString(data, "revision");
+  const generation = readNumber(data, "generation");
   const runtimeKind = readString(data, "runtime_kind");
   const agentId = readString(data, "agent_id");
   return {
     status,
     commands: data.commands,
     ...(revision ? { revision } : {}),
+    ...(generation !== null && generation >= 0 ? { generation } : {}),
     ...(runtimeKind ? { runtime_kind: runtimeKind } : {}),
     ...(agentId ? { agent_id: agentId } : {}),
   };
+}
+
+export function parseContextUsageData(
+  data: UnknownRecord,
+): ContextUsageData | null {
+  const totalTokens = readNumber(data, "total_tokens");
+  const maxTokens = readNumber(data, "max_tokens");
+  const percentage = readNumber(data, "percentage");
+  if (
+    totalTokens === null
+    || totalTokens < 0
+    || maxTokens === null
+    || maxTokens <= 0
+    || percentage === null
+    || percentage < 0
+  ) {
+    return null;
+  }
+  const model = readString(data, "model");
+  return {
+    total_tokens: totalTokens,
+    max_tokens: maxTokens,
+    percentage,
+    ...(model ? { model } : {}),
+  };
+}
+
+const COMMAND_CATALOG_STATUS_RANK: Record<CommandCatalogStatus, number> = {
+  cold: 0,
+  unavailable: 1,
+  ready: 2,
+};
+
+export function selectCommandCatalogSnapshot(
+  current: CommandCatalogData,
+  incoming: CommandCatalogData,
+): CommandCatalogData {
+  const currentGeneration = current.generation ?? 0;
+  const incomingGeneration = incoming.generation ?? 0;
+  if (incomingGeneration < currentGeneration) {
+    return current;
+  }
+  if (
+    incomingGeneration === currentGeneration
+    && COMMAND_CATALOG_STATUS_RANK[incoming.status]
+      < COMMAND_CATALOG_STATUS_RANK[current.status]
+  ) {
+    return current;
+  }
+  return incoming;
 }
 
 function isInputQueueItem(value: unknown): value is InputQueueItem {
@@ -283,12 +340,21 @@ function isChatAckPendingSlot(
 }
 
 export function parseChatAckData(data: UnknownRecord): ChatAckData | null {
+  const invalidUserMessageDeliveryMode = (
+    data.user_message_delivery_mode !== undefined
+    && readStringFromSet(
+      data,
+      "user_message_delivery_mode",
+      CHAT_ACK_USER_MESSAGE_DELIVERY_MODES,
+    ) === null
+  );
   if (
     typeof data.user_message_committed !== "boolean"
     || typeof data.pending_snapshot !== "boolean"
     || !Array.isArray(data.pending)
     || !data.pending.every(isChatAckPendingSlot)
     || readNumber(data, "ack_timeout_ms") === null
+    || invalidUserMessageDeliveryMode
   ) {
     return null;
   }
@@ -347,4 +413,27 @@ export function parseInputQueueAckData(
     return null;
   }
   return data as unknown as InputQueueAckData;
+}
+
+export function parseInterruptAckData(
+  data: UnknownRecord,
+): InterruptAckData | null {
+  if (
+    !readString(data, "client_request_id")
+    || typeof data.accepted !== "boolean"
+    || readNumber(data, "ack_timeout_ms") === null
+    || (
+      data.round_id !== undefined
+      && data.round_id !== ""
+      && !readString(data, "round_id")
+    )
+    || (
+      data.agent_round_id !== undefined
+      && data.agent_round_id !== ""
+      && !readString(data, "agent_round_id")
+    )
+  ) {
+    return null;
+  }
+  return data as unknown as InterruptAckData;
 }

@@ -2,21 +2,25 @@ import type {
   AgentConversationIdentity,
   RoomEventPayload,
 } from "@/types/agent/agent-conversation";
+import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
+import type { Agent } from "@/types/agent/agent";
 import type { SessionSnapshotPayload } from "@/types/conversation/conversation";
 import type { TodoItem } from "@/types/conversation/todo";
 import type { AgentRuntimeKind } from "@/types/settings/preferences";
 
 export interface DmChatPanelProps {
-  currentAgentName: string | null;
-  currentAgentAvatar: string | null;
-  currentAgentPermissionMode: string | null;
+  currentAgent: Agent;
+  executionResource: ExecutionResource;
   sessionIdentity: AgentConversationIdentity | null;
   runtimeKind: AgentRuntimeKind;
   todos: TodoItem[];
   layout: "desktop" | "mobile";
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;
+  onExecutionTaskRunsChange?: (runs: ConversationTaskRun[]) => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onTodosChange?: (todos: TodoItem[]) => void;
   onConversationSnapshotChange?: (snapshot: SessionSnapshotPayload) => void;

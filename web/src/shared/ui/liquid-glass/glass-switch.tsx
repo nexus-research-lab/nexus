@@ -10,6 +10,7 @@ import {
 } from "./use-liquid-glass-support";
 
 interface GlassSwitchProps {
+  "aria-label": string;
   checked: boolean;
   disabled?: boolean;
   onChange: (checked: boolean) => void;
@@ -107,6 +108,7 @@ function getGlassSwitchPresentation({
 
 /** 开关保留专用折射几何，避免通用面板材质抹平 thumb 的曲面和高光。 */
 export function GlassSwitch({
+  "aria-label": ariaLabel,
   checked,
   disabled = false,
   onChange,
@@ -129,6 +131,7 @@ export function GlassSwitch({
     <button
       {...interaction.buttonHandlers}
       aria-checked={checked}
+      aria-label={ariaLabel}
       className={cn(
         "relative inline-flex shrink-0 items-center overflow-visible rounded-full transition-[background-color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
         disabled && "cursor-not-allowed opacity-(--disabled-opacity)",

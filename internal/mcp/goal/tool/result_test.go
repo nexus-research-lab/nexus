@@ -186,6 +186,70 @@ func TestGoalPayloadIncludesNullTokenBudgetWhenUnset(t *testing.T) {
 	}
 }
 
+func TestGoalPayloadDirectsPendingObjectiveTransitionToSuccessorPlan(t *testing.T) {
+	payload := goalPayload(&protocol.Goal{
+		ID:         "goal-rebase",
+		Status:     protocol.GoalStatusActive,
+		SessionKey: "agent:nexus:ws:dm:goal-rebase",
+		Objective:  "Revised objective",
+		Metadata: map[string]any{
+			protocol.GoalMetadataObjectiveRevision: int64(2),
+			protocol.GoalMetadataExecutionID:       "execution-successor",
+			protocol.GoalMetadataObjectiveTransition: map[string]any{
+				"transition_id":          "transition-1",
+				"command_id":             "command-1",
+				"phase":                  "awaiting_plan",
+				"old_revision":           int64(1),
+				"new_revision":           int64(2),
+				"old_execution_id":       "execution-old",
+				"successor_execution_id": "execution-successor",
+				"target_objective":       "Revised objective",
+				"reason":                 "user changed scope",
+				"source":                 "model",
+			},
+		},
+	})
+	action, ok := payload["nextAction"].(map[string]any)
+	if !ok || action["tool"] != "prepare_plan_execution" ||
+		!strings.Contains(action["reason"].(string), "successor WorkGraph") {
+		t.Fatalf("nextAction = %#v", payload["nextAction"])
+	}
+	textResult := structuredResult("goal retargeted", payload)
+	text, _ := textResult.Content[0]["text"].(string)
+	if !strings.Contains(text, `"nextAction"`) ||
+		!strings.Contains(text, `"prepare_plan_execution"`) {
+		t.Fatalf("structured result omitted next action: %s", text)
+	}
+}
+
+func TestGoalPayloadDirectsPreparedObjectiveTransitionBackToRetarget(t *testing.T) {
+	payload := goalPayload(&protocol.Goal{
+		ID:         "goal-rebase",
+		Status:     protocol.GoalStatusActive,
+		SessionKey: "agent:nexus:ws:dm:goal-rebase",
+		Objective:  "Original objective",
+		Metadata: map[string]any{
+			protocol.GoalMetadataObjectiveTransition: map[string]any{
+				"transition_id":          "transition-1",
+				"command_id":             "command-1",
+				"phase":                  "prepared",
+				"old_revision":           int64(1),
+				"new_revision":           int64(2),
+				"old_execution_id":       "execution-old",
+				"successor_execution_id": "execution-successor",
+				"target_objective":       "Revised objective",
+				"reason":                 "user changed scope",
+				"source":                 "model",
+			},
+		},
+	})
+	action, ok := payload["nextAction"].(map[string]any)
+	if !ok || action["tool"] != "retarget_goal" ||
+		action["targetObjective"] != "Revised objective" {
+		t.Fatalf("nextAction = %#v", payload["nextAction"])
+	}
+}
+
 func TestStructuredResultTextIncludesNullTokenBudget(t *testing.T) {
 	result := structuredResult("current goal loaded", goalPayload(&protocol.Goal{
 		Status:     protocol.GoalStatusActive,

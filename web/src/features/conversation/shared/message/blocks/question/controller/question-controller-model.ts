@@ -12,7 +12,6 @@ import {
   summarizeQuestionAnswers,
   toggleQuestionOption,
   updateQuestionCustomAnswer,
-  countQuestionAnswers,
   type QuestionDraft,
   type QuestionInteractionStatus,
 } from "../ask-user-question-model";
@@ -28,7 +27,6 @@ export interface QuestionInteractionProjection {
 export interface QuestionDraftMetrics {
   answerSummary: string;
   complete: boolean;
-  totalSelected: number;
 }
 
 export function projectQuestionInteraction({
@@ -148,7 +146,6 @@ export function projectQuestionDraftMetrics(
   return {
     answerSummary: submitted ? summarizeQuestionAnswers(draft) : "",
     complete: isQuestionDraftComplete(questions, draft),
-    totalSelected: countQuestionAnswers(draft),
   };
 }
 

@@ -24,13 +24,13 @@ import { useComposerDraft } from "./use-composer-draft";
 import { useComposerGoalActions } from "./use-composer-goal-actions";
 import { useComposerKeyboard } from "./use-composer-keyboard";
 import { useComposerMessageSubmit } from "./use-composer-message-submit";
+import { useComposerSessionSettings } from "./use-composer-session-settings";
 
 const EMPTY_ROOM_MEMBERS: Agent[] = [];
 const EMPTY_COMMAND_CATALOG: CommandCatalogData = {
   commands: [],
   status: "unavailable",
 };
-const IGNORE_COMMAND_CATALOG_REFRESH = () => {};
 
 export function useComposerController({
   commandCatalog = EMPTY_COMMAND_CATALOG,
@@ -47,14 +47,18 @@ export function useComposerController({
   onCreateLoopGoal,
   onEnqueueMessage,
   onPrepareAttachments,
-  onRefreshCommandCatalog = IGNORE_COMMAND_CATALOG_REFRESH,
   onSendMessage,
   onStop,
   queueWhenSessionBusy = true,
   roomMembers = EMPTY_ROOM_MEMBERS,
+  runtimeKind,
   runtimePhase,
+  sessionSettings,
 }: ComposerPanelProps) {
   const { t } = useI18n();
+  const sessionSettingsController = useComposerSessionSettings(
+    sessionSettings,
+  );
   const draft = useComposerDraft(draftScopeKey);
   const {
     setAttachments,
@@ -68,6 +72,7 @@ export function useComposerController({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const actionButtonRef = useRef<HTMLButtonElement>(null);
+  const composerShellRef = useRef<HTMLDivElement>(null);
   const focusTextareaAtEnd = useCallback(() => {
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
@@ -101,7 +106,7 @@ export function useComposerController({
     catalog: commandCatalog,
     input: draftState.input,
     isGoalMode,
-    onRefresh: onRefreshCommandCatalog,
+    runtimeKind,
     setInput,
     textareaRef,
   });
@@ -184,18 +189,26 @@ export function useComposerController({
   });
   const { submitGoal } = goal;
   const handleSend = useCallback(async () => {
+    if (sessionSettingsController.saving) {
+      return;
+    }
     if (isGoalMode) {
       await submitGoal();
     } else {
       await submitMessage();
     }
-  }, [isGoalMode, submitGoal, submitMessage]);
+  }, [
+    isGoalMode,
+    sessionSettingsController.saving,
+    submitGoal,
+    submitMessage,
+  ]);
   const keyboard = useComposerKeyboard({
     historyIndex: history.index,
     historyItemCount: history.itemCount,
     isLoading,
     mentionActive: mention.mentionActive,
-    onSlashCommandKeyDown: slashCommand.handleKeyDown,
+    onSlashCommandKeyDown: slashCommand.handleCommandKeyDown,
     onSend: handleSend,
     onStop,
     recallNext: history.recallNext,
@@ -235,10 +248,7 @@ export function useComposerController({
     compact,
     copy: {
       defaultPlaceholder: t("composer.default_placeholder"),
-      enterQueue: t("composer.enter_queue"),
-      enterSend: t("composer.enter_send"),
       goalConfirm: t("composer.goal_confirm"),
-      goalEnterStart: t("composer.goal_enter_start"),
       goalPlaceholder: t("composer.goal_placeholder"),
       sendMessage: t("composer.send_message"),
     },
@@ -253,14 +263,20 @@ export function useComposerController({
     isLoading,
     isLoopPickerOpen: draftState.isLoopPickerOpen,
     isPreparingAttachments: attachments.isPreparingAttachments,
+    isSessionSettingsSaving: sessionSettingsController.saving,
     hasStopAction: Boolean(onStop),
     queueItemCount: inputQueueItems.length,
-    queueWhenSessionBusy,
     runtimePhase,
   });
 
   return {
-    refs: { actionButtonRef, fileInputRef, textareaRef },
+    refs: {
+      actionButtonRef,
+      composerShellRef,
+      fileInputRef,
+      textareaRef,
+    },
+    sessionSettings: sessionSettingsController,
     state,
     attachments: {
       attachments: attachments.attachments,
@@ -276,10 +292,29 @@ export function useComposerController({
       selectMentionItem: mention.selectMentionItem,
     },
     slashCommand: {
+      active: slashCommand.isOpen,
       activeIndex: slashCommand.activeIndex,
       commands: slashCommand.commands,
+      mode: slashCommand.mode,
       isOpen: slashCommand.isOpen,
-      select: slashCommand.select,
+      modelError: slashCommand.modelError,
+      modelItems: slashCommand.modelItems,
+      modelLoading: slashCommand.modelLoading,
+      modelQuery: slashCommand.modelQuery,
+      modelSearchRef: slashCommand.modelSearchRef,
+      onModelQueryChange: slashCommand.setModelQuery,
+      onModelQueryKeyDown: slashCommand.handleModelSearchKeyDown,
+      onClose: slashCommand.close,
+      onSelectModel: slashCommand.selectModel,
+      onSelectCommand: slashCommand.selectCommand,
+      onSelectSkill: slashCommand.selectSkill,
+      onSkillQueryChange: slashCommand.setSkillQuery,
+      onSkillQueryKeyDown: slashCommand.handleSkillSearchKeyDown,
+      skillError: slashCommand.skillError,
+      skillItems: slashCommand.skillItems,
+      skillLoading: slashCommand.skillLoading,
+      skillQuery: slashCommand.skillQuery,
+      skillSearchRef: slashCommand.skillSearchRef,
       status: slashCommand.status,
     },
     actions: {

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 	connectorsvc "github.com/nexus-research-lab/nexus/internal/service/connectors"
@@ -169,12 +168,6 @@ func (s *Service) executeChange(ctx context.Context, actor Actor, request Change
 		return s.skills.CheckImportedSkillUpdates(ctx)
 	case DomainSkills + ".update_imported":
 		return s.skills.UpdateImportedSkills(ctx)
-	case DomainHost + ".update_runtime_settings":
-		var input config.RuntimeSettings
-		if err := decode(&input); err != nil {
-			return nil, err
-		}
-		return config.SaveRuntimeSettings(input)
 	default:
 		return nil, fmt.Errorf("不支持配置操作 %s.%s", request.Domain, request.Operation)
 	}

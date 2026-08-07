@@ -71,8 +71,10 @@ func TestContainsDoesNotBroadenUnrelatedTools(t *testing.T) {
 func TestManagedGoalToolMatchesWrappedNames(t *testing.T) {
 	for _, toolName := range []string{
 		"create_goal",
+		"audit_objective_alignment",
 		"mcp__nexus_goal__get_goal",
 		"mcp__nexus_goal__retarget_goal",
+		"mcp__nexus_goal__audit_objective_alignment",
 		"nexus_goal.update_goal",
 		"nexus_goal/update_goal",
 	} {
@@ -88,6 +90,22 @@ func TestManagedGoalPermissionOnlyApprovesGoalManagerSkill(t *testing.T) {
 	}
 	if IsManagedGoalSkillRequest("Skill", map[string]any{"name": "imagegen"}) {
 		t.Fatal("did not expect unrelated Skill request to be managed")
+	}
+}
+
+func TestManagedExecutionToolMatchesWrappedNames(t *testing.T) {
+	for _, toolName := range []string{
+		"prepare_plan_execution",
+		"mcp__nexus_execution__prepare_plan_execution",
+		"plan_execution",
+		"mcp__nexus_execution__assign_work",
+		"nexus_execution.submit_work",
+		"nexus_execution/review_work",
+		"mcp__nexus_execution__audit_execution_alignment",
+	} {
+		if !IsManagedExecutionTool(toolName) {
+			t.Fatalf("expected managed Execution tool to match %q", toolName)
+		}
 	}
 }
 
@@ -121,10 +139,32 @@ func TestManagedGoalAutoApprovalFallsBackForOtherTools(t *testing.T) {
 	}
 }
 
+func TestManagedRuntimeAutoApprovalIncludesExecution(t *testing.T) {
+	fallbackCalled := false
+	handler := WithManagedRuntimeAutoApproval(func(_ context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		fallbackCalled = true
+		return sdkpermission.Deny(request.ToolName, false), nil
+	})
+
+	decision, err := handler(context.Background(), sdkpermission.Request{
+		ToolName: "mcp__nexus_execution__plan_execution",
+		Input: map[string]any{
+			"proposal_id":     "proposal-1",
+			"proposal_digest": "digest-1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Execution 权限处理失败: %v", err)
+	}
+	if decision.Behavior != sdkpermission.BehaviorAllow || fallbackCalled {
+		t.Fatalf("Execution 权限应由托管策略放行: %+v fallback=%v", decision, fallbackCalled)
+	}
+}
+
 func TestWithManagedGoalAllowedToolsAppendsDistinctTools(t *testing.T) {
 	tools := WithManagedGoalAllowedTools([]string{"Read", "create_goal"})
 	approved := NormalizeSet(tools)
-	for _, toolName := range []string{"Read", "create_goal", "get_goal", "retarget_goal", "update_goal", "mcp__nexus_goal__get_goal", "mcp__nexus_goal__create_goal", "mcp__nexus_goal__retarget_goal", "mcp__nexus_goal__update_goal", "Skill"} {
+	for _, toolName := range []string{"Read", "create_goal", "get_goal", "retarget_goal", "audit_objective_alignment", "update_goal", "mcp__nexus_goal__get_goal", "mcp__nexus_goal__create_goal", "mcp__nexus_goal__retarget_goal", "mcp__nexus_goal__audit_objective_alignment", "mcp__nexus_goal__update_goal", "Skill"} {
 		if !Contains(approved, toolName) {
 			t.Fatalf("expected allowed tools to include %q: %+v", toolName, tools)
 		}
@@ -137,6 +177,25 @@ func TestWithManagedGoalAllowedToolsPreservesEmptyPolicy(t *testing.T) {
 	}
 	if tools := WithManagedGoalAllowedTools([]string{}); len(tools) != 0 {
 		t.Fatalf("empty allow policy should stay empty, got %+v", tools)
+	}
+}
+
+func TestWithManagedExecutionAllowedToolsAppendsSemanticSurface(t *testing.T) {
+	tools := WithManagedExecutionAllowedTools([]string{"Read"})
+	approved := NormalizeSet(tools)
+	for _, toolName := range []string{
+		"mcp__nexus_execution__get_execution",
+		"mcp__nexus_execution__prepare_plan_execution",
+		"mcp__nexus_execution__plan_execution",
+		"mcp__nexus_execution__assign_work",
+		"mcp__nexus_execution__submit_work",
+		"mcp__nexus_execution__review_work",
+		"mcp__nexus_execution__audit_execution_alignment",
+		"mcp__nexus_execution__promote_execution_to_goal",
+	} {
+		if !Contains(approved, toolName) {
+			t.Fatalf("expected allowed tools to include %q: %+v", toolName, tools)
+		}
 	}
 }
 
@@ -165,6 +224,8 @@ func TestWithManagedRuntimeAllowedToolsIncludesGoalAndSelectedImagegen(t *testin
 		"Agent",
 		"nexus_imagegen",
 		"mcp__nexus_goal__get_goal",
+		"mcp__nexus_execution__prepare_plan_execution",
+		"mcp__nexus_execution__plan_execution",
 		"mcp__nexus_imagegen__generate_image",
 		"mcp__nexus_imagegen__edit_image",
 	} {

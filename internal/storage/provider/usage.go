@@ -74,6 +74,17 @@ func (r *Repository) ReplaceRuntimeProviderForPublic(
 	return int(count), nil
 }
 
+func rowsAffected(result interface{ RowsAffected() (int64, error) }, err error) (int, error) {
+	if err != nil {
+		return 0, err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
+}
+
 func (r *Repository) UsageCountForOwner(ctx context.Context, ownerUserID string, provider string) (int, error) {
 	row := r.db.QueryRowContext(ctx, `
 	SELECT COUNT(*)
@@ -108,6 +119,111 @@ WHERE a.status = 'active'
 		return 0, err
 	}
 	return count, nil
+}
+
+// ListActiveOwnerUserIDs 返回所有仍有可运行 Agent 的用户，用于公共 Provider 失效前的默认模型校验。
+func (r *Repository) ListActiveOwnerUserIDs(ctx context.Context) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT DISTINCT owner_user_id
+		FROM agents
+		WHERE status = 'active'
+		ORDER BY owner_user_id ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	owners := make([]string, 0)
+	for rows.Next() {
+		var ownerUserID string
+		if scanErr := rows.Scan(&ownerUserID); scanErr != nil {
+			return nil, scanErr
+		}
+		if ownerUserID = strings.TrimSpace(ownerUserID); ownerUserID != "" {
+			owners = append(owners, ownerUserID)
+		}
+	}
+	return owners, rows.Err()
+}
+
+// ListRuntimeBindingsByOwner 返回当前用户活跃 Agent 的显式模型绑定快照。
+func (r *Repository) ListRuntimeBindingsByOwner(ctx context.Context, ownerUserID string) ([]RuntimeBindingEntity, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT
+		    a.id,
+		    COALESCE(NULLIF(TRIM(rt.provider), ''), ''),
+		    COALESCE(NULLIF(TRIM(rt.model), ''), ''),
+		    a.is_main
+		FROM agents a
+		JOIN runtimes rt ON rt.agent_id = a.id
+		WHERE a.status = 'active'
+		  AND a.owner_user_id = `+r.bind(1)+`
+		ORDER BY a.is_main DESC, a.id ASC`, strings.TrimSpace(ownerUserID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]RuntimeBindingEntity, 0)
+	for rows.Next() {
+		var item RuntimeBindingEntity
+		if scanErr := rows.Scan(&item.AgentID, &item.Provider, &item.Model, &item.IsMain); scanErr != nil {
+			return nil, scanErr
+		}
+		item.AgentID = strings.TrimSpace(item.AgentID)
+		item.Provider = strings.TrimSpace(item.Provider)
+		item.Model = strings.TrimSpace(item.Model)
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+// ClearRuntimeSelectionsByOwner 将指定 Agent 的显式模型绑定清空为“跟随默认模型”。
+func (r *Repository) ClearRuntimeSelectionsByOwner(
+	ctx context.Context,
+	ownerUserID string,
+	agentIDs []string,
+) (int, error) {
+	uniqueAgentIDs := uniqueNonEmptyStrings(agentIDs)
+	if len(uniqueAgentIDs) == 0 {
+		return 0, nil
+	}
+	placeholders := make([]string, 0, len(uniqueAgentIDs))
+	args := make([]any, 0, len(uniqueAgentIDs)+1)
+	args = append(args, strings.TrimSpace(ownerUserID))
+	for index, agentID := range uniqueAgentIDs {
+		placeholders = append(placeholders, r.bind(index+2))
+		args = append(args, agentID)
+	}
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE runtimes
+		SET provider = NULL,
+		    model = NULL,
+		    updated_at = `+r.currentTimestamp()+`
+		WHERE agent_id IN (
+		    SELECT id
+		    FROM agents
+		    WHERE owner_user_id = `+r.bind(1)+`
+		      AND id IN (`+strings.Join(placeholders, ", ")+`)
+		)`, args...)
+	return rowsAffected(result, err)
+}
+
+func uniqueNonEmptyStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" {
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
 }
 
 func (r *Repository) ListUsageAgentsByOwner(ctx context.Context, ownerUserID string) (map[string][]UsageAgentEntity, error) {

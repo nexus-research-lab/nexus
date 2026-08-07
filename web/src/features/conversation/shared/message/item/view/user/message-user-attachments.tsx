@@ -5,16 +5,18 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { useI18n } from "@/shared/i18n/i18n-context";
+import type { TranslationKey } from "@/shared/i18n/messages";
 import { cn } from "@/shared/ui/class-name";
 import type { MessageAttachment } from "@/types/conversation/message/attachment";
 
 const ATTACHMENT_PRESENTATION: Record<
   MessageAttachment["kind"],
-  { icon: LucideIcon; label: string }
+  { icon: LucideIcon; labelKey: TranslationKey }
 > = {
-  file: { icon: File, label: "文件" },
-  image: { icon: ImageIcon, label: "图片" },
-  text: { icon: FileText, label: "文本" },
+  file: { icon: File, labelKey: "message.attachment_file" },
+  image: { icon: ImageIcon, labelKey: "message.attachment_image" },
+  text: { icon: FileText, labelKey: "message.attachment_text" },
 };
 
 interface MessageUserAttachmentsProps {
@@ -55,6 +57,7 @@ function MessageUserAttachment({
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
   workspaceAgentId?: string | null;
 }) {
+  const { t } = useI18n();
   const presentation = ATTACHMENT_PRESENTATION[attachment.kind];
   const Icon = presentation.icon;
   const attachmentView = projectMessageUserAttachment(
@@ -69,7 +72,7 @@ function MessageUserAttachment({
         {attachmentView.displayName}
       </span>
       <span className="shrink-0 text-2xs text-(--text-faint)">
-        {presentation.label}
+        {t(presentation.labelKey)}
       </span>
     </>
   );

@@ -2,14 +2,14 @@ import { cn } from "@/shared/ui/class-name";
 
 export type UiTabsDensity = "default" | "compact";
 
-interface UiUnderlineTabStyleOptions {
+interface UiTabStyleOptions {
   active?: boolean;
   density?: UiTabsDensity;
 }
 
-export function getUiUnderlineTabsNavClassName(className?: string): string {
+export function getUiTabsNavClassName(className?: string): string {
   return cn(
-    "soft-scrollbar scrollbar-hide flex min-w-0 items-center gap-4 overflow-x-auto",
+    "soft-scrollbar scrollbar-hide flex min-w-0 items-center gap-1 overflow-x-auto",
     className,
   );
 }
@@ -21,8 +21,8 @@ export function getUiTabDismissClassName(className?: string): string {
   );
 }
 
-export function getUiUnderlineTabClassName(
-  options: UiUnderlineTabStyleOptions = {},
+export function getUiTabClassName(
+  options: UiTabStyleOptions = {},
   className?: string,
 ): string {
   const {
@@ -31,11 +31,11 @@ export function getUiUnderlineTabClassName(
   } = options;
 
   return cn(
-    "inline-flex shrink-0 items-center gap-1.5 border-b-2 border-transparent px-0 py-0 font-semibold transition-[color,border-color] duration-(--motion-duration-fast) ease-out",
+    "ui-navigation-tab inline-flex shrink-0 items-center gap-1.5 radius-control-sm border-0 px-2.5 py-0 font-medium transition-[background,color] duration-(--motion-duration-fast) ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]",
     density === "compact" ? "h-8 text-xs" : "h-9 text-xs",
     active
-      ? "border-[color:color-mix(in_srgb,var(--text-strong)_72%,transparent)] text-(--text-strong)"
-      : "text-(--text-default) hover:text-(--text-strong)",
+      ? "bg-(--surface-interactive-active-background) font-semibold text-(--text-strong)"
+      : "text-(--text-muted) hover:bg-(--surface-interactive-hover-background) hover:text-(--text-default)",
     className,
   );
 }

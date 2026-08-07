@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { useScrollAnchoredState } from "@/features/conversation/shared/timeline/scroll/use-scroll-anchored-state";
 import { useCopyToClipboard } from "@/hooks/ui/use-copy-to-clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
+import { useI18n } from "@/shared/i18n/i18n-context";
 import type { PermissionUpdate } from "@/types/conversation/interaction/permission";
 import type { ToolResultContent } from "@/types/conversation/message/content";
 
@@ -33,6 +34,7 @@ export function useToolBlockController({
   | "toolResult"
   | "toolUse"
 >) {
+  const localization = useI18n();
   const expansion = useScrollAnchoredState(false);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] =
     useResettableState(-1, permissionRequest?.request_id ?? null);
@@ -41,6 +43,7 @@ export function useToolBlockController({
     endTime,
     interactionDisabled,
     interactionDisabledReason,
+    localization,
     liveProgress,
     permissionRequest,
     startTime,

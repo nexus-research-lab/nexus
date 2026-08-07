@@ -20,7 +20,8 @@ import {
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
-import { WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME } from "@/shared/ui/layout/workspace-detail-layout";
+import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
+import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import {
   DEFAULT_WEB_SEARCH_PROVIDER,
@@ -107,10 +108,14 @@ export function SettingsRuntimeSection() {
   return (
     <div
       className={cn(
-        "mx-auto flex w-full flex-col gap-5 px-1 py-3",
-        WORKSPACE_DETAIL_MAX_WIDTH_CLASS_NAME,
+        WORKSPACE_CONTENT_PAGE_CLASS_NAME,
+        "flex flex-col",
       )}
     >
+      <WorkspaceContentHeader
+        description={t("settings.runtime.section_description")}
+        title={t("settings.runtime.section_title")}
+      />
       <section className="space-y-2.5">
         <div className={SETTINGS_CARD_CLASS_NAME}>
           <div className={SETTINGS_ROW_CLASS_NAME}>
@@ -763,6 +768,7 @@ function ToolSearchRow({
           {t("settings.runtime.tool_search_label")}
         </span>
         <GlassSwitch
+          aria-label={t("settings.runtime.tool_search_label")}
           checked={checked}
           disabled={disabled}
           onChange={onChange}

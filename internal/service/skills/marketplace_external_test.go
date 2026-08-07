@@ -258,6 +258,9 @@ func TestSkillsShSearchBuildsPreviewURLFromSourceAndSkillID(t *testing.T) {
 	if items[0].PackageSpec != "membranedev/application-skills/pdfco" || items[0].SkillSlug != "pdfco" {
 		t.Fatalf("skills.sh 导入元数据不正确: %+v", items[0])
 	}
+	if items[0].Description != "" {
+		t.Fatalf("后端不得注入固定语言的占位说明: %q", items[0].Description)
+	}
 }
 
 func TestImportSkillsShClonesRepositoryAndSelectsRequestedSkill(t *testing.T) {

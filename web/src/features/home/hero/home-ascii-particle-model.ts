@@ -33,6 +33,7 @@ interface UpdateParticleOptions {
   height: number;
   influenceForce: number;
   influenceRadius: number;
+  motionScale: number;
   pointer: HomeAsciiPointer | null;
   width: number;
 }
@@ -69,19 +70,31 @@ export function updateHomeAsciiParticle(
     return 0.02;
   }
 
-  particle.vx += (particle.tx - particle.x) * 0.038;
-  particle.vy += (particle.ty - particle.y) * 0.038;
-  applyPointerForce(particle, options);
-  particle.vx *= 0.87;
-  particle.vy *= 0.87;
-  particle.x += particle.vx;
-  particle.y += particle.vy;
-  particle.alpha += (particle.targetAlpha - particle.alpha) * 0.04;
+  const stepCount = Math.max(1, Math.ceil(options.motionScale));
+  const stepScale = options.motionScale / stepCount;
+  for (let step = 0; step < stepCount; step += 1) {
+    particle.vx += (particle.tx - particle.x) * 0.038 * stepScale;
+    particle.vy += (particle.ty - particle.y) * 0.038 * stepScale;
+    applyPointerForce(particle, options, stepScale);
+    const damping = 0.87 ** stepScale;
+    particle.vx *= damping;
+    particle.vy *= damping;
+    particle.x += particle.vx * stepScale;
+    particle.y += particle.vy * stepScale;
+    particle.alpha += (particle.targetAlpha - particle.alpha)
+      * (1 - 0.96 ** stepScale);
+  }
 
   if (particle.isText) {
     updateTextParticle(particle, options.charset, options.elapsed, progress);
   } else {
-    updateAmbientParticle(particle, options.charset, options.width, options.height);
+    updateAmbientParticle(
+      particle,
+      options.charset,
+      options.width,
+      options.height,
+      options.motionScale,
+    );
   }
   return Math.max(0, particle.alpha);
 }
@@ -145,6 +158,7 @@ function createAmbientParticle(
 function applyPointerForce(
   particle: HomeAsciiParticle,
   { influenceForce, influenceRadius, pointer }: UpdateParticleOptions,
+  motionScale: number,
 ): void {
   if (!pointer) {
     return;
@@ -156,7 +170,9 @@ function applyPointerForce(
     return;
   }
   const distance = Math.sqrt(distanceSq);
-  const force = ((1 - distance / influenceRadius) ** 2) * influenceForce;
+  const force = ((1 - distance / influenceRadius) ** 2)
+    * influenceForce
+    * motionScale;
   particle.vx += (dx / distance) * force;
   particle.vy += (dy / distance) * force;
 }
@@ -179,14 +195,20 @@ function updateAmbientParticle(
   charset: string,
   width: number,
   height: number,
+  motionScale: number,
 ): void {
-  particle.tx += (Math.random() - 0.5) * 0.18;
-  particle.ty += (Math.random() - 0.5) * 0.18;
+  const driftScale = Math.sqrt(motionScale);
+  particle.tx += (Math.random() - 0.5) * 0.18 * driftScale;
+  particle.ty += (Math.random() - 0.5) * 0.18 * driftScale;
   [particle.x, particle.tx] = wrapCoordinate(particle.x, particle.tx, width);
   [particle.y, particle.ty] = wrapCoordinate(particle.y, particle.ty, height);
-  if (Math.random() < 0.003) {
+  if (Math.random() < scaleFrameProbability(0.003, motionScale)) {
     particle.char = pickCharacter(charset);
   }
+}
+
+function scaleFrameProbability(probability: number, motionScale: number): number {
+  return 1 - (1 - probability) ** motionScale;
 }
 
 function wrapCoordinate(

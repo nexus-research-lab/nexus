@@ -3,6 +3,8 @@ package message
 import (
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
+
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -119,6 +121,92 @@ func TestProcessorNormalizesProviderContentFilterResultError(t *testing.T) {
 	}
 }
 
+func TestProcessorTreatsAssistantAPIErrorAsTerminalErrorResult(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-api-error",
+	}, "sdk-session-api-error")
+
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Error:      "authentication_failed",
+			IsAPIError: true,
+			Message: sdkprotocol.ConversationEnvelope{
+				ID:         "assistant-api-error",
+				Model:      "<synthetic>",
+				StopReason: "stop_sequence",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.TextBlock{Text: "Failed to authenticate. API Error: 401 invalid key"},
+				},
+			},
+		},
+	})
+
+	if output.TerminalStatus != "error" || output.ResultSubtype != "error" {
+		t.Fatalf("API error assistant should terminate as error: %+v", output)
+	}
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("expected one durable result message, got %+v", output.DurableMessages)
+	}
+	result := output.DurableMessages[0]
+	if protocol.MessageRole(result) != "result" || result["is_error"] != true {
+		t.Fatalf("API error should be projected as result error: %+v", result)
+	}
+	if result["result"] != "Failed to authenticate. API Error: 401 invalid key" {
+		t.Fatalf("unexpected API error text: %+v", result)
+	}
+	if result["terminal_reason"] != "authentication_failed" {
+		t.Fatalf("missing terminal reason: %+v", result)
+	}
+}
+
+func TestProcessorNormalizesProviderContentFilterAssistantError(t *testing.T) {
+	processor := NewProcessor(MessageContext{
+		SessionKey: "agent:nexus:ws:dm:test",
+		AgentID:    "nexus",
+		RoundID:    "round-content-filtered",
+	}, "sdk-session-content-filtered")
+
+	const providerMessage = "[1301][系统检测到输入或生成内容可能包含不安全或敏感内容，请您避免输入易产生敏感内容的提示语]"
+	output := processor.Process(sdkprotocol.ReceivedMessage{
+		Type: sdkprotocol.MessageTypeAssistant,
+		Assistant: &sdkprotocol.AssistantMessage{
+			Error:      "invalid_request",
+			IsAPIError: true,
+			Message: sdkprotocol.ConversationEnvelope{
+				ID: "assistant-content-filtered",
+				Content: []sdkprotocol.ContentBlock{
+					sdkprotocol.TextBlock{Text: providerMessage},
+				},
+			},
+		},
+	})
+
+	if output.TerminalStatus != "error" || output.ResultSubtype != "error" {
+		t.Fatalf("content filter should remain a terminal error: %+v", output)
+	}
+	if len(output.DurableMessages) != 1 {
+		t.Fatalf("expected one durable result message, got %+v", output.DurableMessages)
+	}
+	result := output.DurableMessages[0]
+	if result["result"] != contentFilteredDisplayText {
+		t.Fatalf("raw Provider error leaked into visible result: %+v", result)
+	}
+	if result["terminal_reason"] != contentFilteredTerminalReason {
+		t.Fatalf("terminal reason was not normalized: %+v", result)
+	}
+	errors, ok := result["errors"].([]string)
+	if !ok || len(errors) != 1 || errors[0] != contentFilteredTerminalReason {
+		t.Fatalf("error details were not normalized: %+v", result)
+	}
+	projected := ProjectResultMessage(nil, result)
+	if projected == nil || ExtractAssistantDisplayText(projected) != contentFilteredDisplayText {
+		t.Fatalf("fallback copy was not projected into the conversation: %+v", projected)
+	}
+}
+
 func TestProcessorNormalizesClaudeCodeErrorSubtype(t *testing.T) {
 	processor := NewProcessor(MessageContext{RoundID: "round-error-subtype"}, "")
 	output := processor.Process(sdkprotocol.ReceivedMessage{
@@ -170,5 +258,88 @@ func TestProcessorProjectsMissingResultPayloadAsVisibleError(t *testing.T) {
 	}
 	if len(output.DurableMessages) != 1 || output.DurableMessages[0]["is_error"] != true {
 		t.Fatalf("missing result should produce visible error: %+v", output.DurableMessages)
+	}
+}
+
+func TestNormalizeInterruptedOutputHidesInternalInterruptSentinel(t *testing.T) {
+	output := Output{
+		ResultSubtype:  "error",
+		TerminalStatus: "error",
+		DurableMessages: []protocol.Message{{
+			"role":     "result",
+			"subtype":  "error",
+			"is_error": true,
+			"result":   "runtime canceled",
+		}},
+	}
+
+	NormalizeInterruptedOutput(&output, InterruptWithoutMessage)
+
+	if output.ResultSubtype != "interrupted" || output.TerminalStatus != "interrupted" {
+		t.Fatalf("内部中断应收口为 interrupted: %+v", output)
+	}
+	result := output.DurableMessages[0]
+	if result["is_error"] != false || result["subtype"] != "interrupted" {
+		t.Fatalf("中断 result 语义不正确: %+v", result)
+	}
+	if _, exists := result["result"]; exists {
+		t.Fatalf("内部中断哨兵不应投影为 result: %+v", result)
+	}
+}
+
+func TestNormalizeInterruptedOutputNormalizesNativeInterruptedResult(t *testing.T) {
+	tests := map[string]struct {
+		interruptReason string
+		wantResult      string
+		wantResultField bool
+	}{
+		"internal sentinel": {
+			interruptReason: InterruptWithoutMessage,
+		},
+		"custom reason": {
+			interruptReason: "  收到新的用户消息，上一轮已停止  ",
+			wantResult:      "收到新的用户消息，上一轮已停止",
+			wantResultField: true,
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			output := Output{
+				ResultSubtype:  "interrupted",
+				TerminalStatus: "interrupted",
+				DurableMessages: []protocol.Message{{
+					"role":     "result",
+					"subtype":  "interrupted",
+					"is_error": false,
+					"result":   InterruptWithoutMessage,
+				}},
+			}
+
+			NormalizeInterruptedOutput(&output, test.interruptReason)
+
+			result := output.DurableMessages[0]
+			resultText, hasResult := result["result"]
+			if hasResult != test.wantResultField || (hasResult && resultText != test.wantResult) {
+				t.Fatalf("原生 interrupted result 未归一化: %+v", result)
+			}
+		})
+	}
+}
+
+func TestNormalizeInterruptDisplayTextPreservesCustomReason(t *testing.T) {
+	tests := map[string]struct {
+		input string
+		want  string
+	}{
+		"internal sentinel": {input: "  " + InterruptWithoutMessage + "  ", want: ""},
+		"custom reason":     {input: "  收到新消息，上一轮已停止  ", want: "收到新消息，上一轮已停止"},
+		"empty":             {input: "  ", want: ""},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := NormalizeInterruptDisplayText(test.input); got != test.want {
+				t.Fatalf("NormalizeInterruptDisplayText(%q)=%q, want=%q", test.input, got, test.want)
+			}
+		})
 	}
 }

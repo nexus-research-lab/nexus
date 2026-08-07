@@ -10,7 +10,7 @@ import {
 } from "../../message/message-collection-model";
 import { latestAssistantResultErrorMessage } from "../../message/assistant-message-model";
 import {
-  isEphemeralMessage,
+  isRecoverableMessage,
   type AgentConversationRuntimeSnapshot,
 } from "../../runtime/model/conversation-runtime-state";
 import {
@@ -54,7 +54,7 @@ export function useAgentSessionSnapshots({
     targetSessionKey: string,
     message: Message,
   ): void => {
-    if (isEphemeralMessage(message)) {
+    if (!isRecoverableMessage(message)) {
       return;
     }
     const currentMessages = backgroundMessagesRef.current.get(targetSessionKey)

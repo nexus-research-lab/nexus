@@ -1,6 +1,6 @@
 /**
  * INPUT: Room 根轮次 feed、消息、slot、权限与 execution 首见锚点投影。
- * OUTPUT: 以稳定 agent_round 节点展开、按 parent slot 精确消费 legacy terminal 且从启动到完成保持原位的 feed。
+ * OUTPUT: 以稳定 agent_round 节点展开、按 parent slot 精确消费 legacy terminal，并守恒每条可见 user 消息的 feed。
  * POS: Room feed 专属时间线投影；canonical root 数据仍由 shared timeline 保存给 Thread。
  */
 import type {
@@ -9,6 +9,7 @@ import type {
 } from "@/types/agent/agent-conversation";
 import type { Message } from "@/types/conversation/message/entity";
 import type { PendingPermission } from "@/types/conversation/interaction/permission";
+import { isAutomationTriggerUserMessage } from "@/types/conversation/automation-message";
 import {
   filterPendingPermissionsForTerminalRoomExecutions,
 } from "@/lib/conversation/pending-permission-match";
@@ -44,6 +45,10 @@ interface TimelineNode {
 }
 
 const ROOM_AGENT_NODE_PREFIX = "room-agent-round:";
+const ROOM_THREAD_ONLY_SYSTEM_SUBTYPES = new Set([
+  "memory_recalled",
+  "memory_saved",
+]);
 
 /** 每次 agent_round 从 pending 到 terminal 都保持同一个 feed node identity。 */
 export function buildGroupAgentTimelineNodeId(
@@ -60,7 +65,7 @@ export function projectGroupAgentTimeline({
   roomAgentExecutionStateGroups = new Map<string, RoomAgentExecutionState[]>(),
   roundIds,
 }: ProjectGroupAgentTimelineOptions): GroupAgentTimelineProjection {
-  const nodes = roundIds.flatMap((rootRoundId) => (
+  const nodes = coalesceTimelineNodes(roundIds.flatMap((rootRoundId) => (
     buildRootTimelineNodes({
       messageGroups,
       pendingPermissionGroups,
@@ -68,7 +73,7 @@ export function projectGroupAgentTimeline({
       roomAgentExecutionStateGroups,
       rootRoundId,
     })
-  ));
+  )));
 
   const projectedMessages = new Map<string, Message[]>();
   const projectedPermissions = new Map<string, PendingPermission[]>();
@@ -105,7 +110,8 @@ function buildRootTimelineNodes({
   roomAgentExecutionStateGroups: Map<string, RoomAgentExecutionState[]>;
   rootRoundId: string;
 }): TimelineNode[] {
-  const messages = messageGroups.get(rootRoundId) ?? [];
+  const messages = (messageGroups.get(rootRoundId) ?? [])
+    .filter(isRoomMainFeedMessage);
   const pendingPermissions =
     filterPendingPermissionsForTerminalRoomExecutions(
     pendingPermissionGroups.get(rootRoundId) ?? [],
@@ -203,7 +209,125 @@ function buildRootTimelineNodes({
     )),
     rootRoundId,
   })));
-  return nodes;
+  return restoreMissingVisibleUserMessages(rootRoundId, messages, nodes);
+}
+
+/**
+ * 分组规则即使面对不完整 legacy 关联，也不得让用户输入从公区消失；
+ * 无法精确归属的消息回到 root，Agent 卡片归属仍只使用既有结构化身份。
+ */
+function restoreMissingVisibleUserMessages(
+  rootRoundId: string,
+  sourceMessages: readonly Message[],
+  nodes: TimelineNode[],
+): TimelineNode[] {
+  const presented = new Set(nodes.flatMap((node) => (
+    node.messages
+      .filter(isConservedUserMessage)
+      .map(resolveMessageIdentity)
+  )));
+  const missing = sourceMessages.filter((message) => (
+    isConservedUserMessage(message)
+    && !presented.has(resolveMessageIdentity(message))
+  ));
+  if (missing.length === 0) {
+    return nodes;
+  }
+  const rootIndex = nodes.findIndex((node) => (
+    !node.nodeId.startsWith(ROOM_AGENT_NODE_PREFIX)
+  ));
+  if (rootIndex < 0) {
+    return [buildRootNode(rootRoundId, missing, [], [], []), ...nodes];
+  }
+  const root = nodes[rootIndex]!;
+  return nodes.map((node, index) => index === rootIndex
+    ? {
+        ...root,
+        messages: mergeMessages(root.messages, missing),
+      }
+    : node);
+}
+
+/** ACK 过渡可能暂时同时含 optimistic 与 canonical root；同一视觉身份合并而不是后写覆盖。 */
+function coalesceTimelineNodes(nodes: TimelineNode[]): TimelineNode[] {
+  const ordered: TimelineNode[] = [];
+  const indexes = new Map<string, number>();
+  for (const node of nodes) {
+    const existingIndex = indexes.get(node.nodeId);
+    if (existingIndex === undefined) {
+      indexes.set(node.nodeId, ordered.length);
+      ordered.push(node);
+      continue;
+    }
+    const existing = ordered[existingIndex]!;
+    ordered[existingIndex] = {
+      ...existing,
+      messages: mergeMessages(existing.messages, node.messages),
+      pendingPermissions: mergeByIdentity(
+        existing.pendingPermissions,
+        node.pendingPermissions,
+        (permission) => permission.request_id,
+      ),
+      pendingSlots: mergeByIdentity(
+        existing.pendingSlots,
+        node.pendingSlots,
+        (slot) => buildSlotKey(slot.agent_id, slot.agent_round_id),
+      ),
+      roomAgentExecutionStates: mergeByIdentity(
+        existing.roomAgentExecutionStates,
+        node.roomAgentExecutionStates,
+        (state) => buildSlotKey(state.agent_id, state.agent_round_id),
+      ),
+      rootRoundId: node.rootRoundId,
+    };
+  }
+  return ordered;
+}
+
+function mergeMessages(
+  current: readonly Message[],
+  incoming: readonly Message[],
+): Message[] {
+  return mergeByIdentity(current, incoming, resolveMessageIdentity)
+    .sort((left, right) => left.timestamp - right.timestamp);
+}
+
+function mergeByIdentity<T>(
+  current: readonly T[],
+  incoming: readonly T[],
+  identify: (value: T) => string,
+): T[] {
+  const merged = [...current];
+  const indexes = new Map(merged.map((value, index) => [identify(value), index]));
+  for (const value of incoming) {
+    const identity = identify(value);
+    const existingIndex = indexes.get(identity);
+    if (existingIndex === undefined) {
+      indexes.set(identity, merged.length);
+      merged.push(value);
+      continue;
+    }
+    merged[existingIndex] = value;
+  }
+  return merged;
+}
+
+function resolveMessageIdentity(message: Message): string {
+  return message.role === "user"
+    ? message.client_message_id?.trim() || message.message_id
+    : message.message_id;
+}
+
+function isConservedUserMessage(message: Message): boolean {
+  return message.role === "user" && !isAutomationTriggerUserMessage(message);
+}
+
+/** 记忆加载属于单个 Agent 的执行上下文，只在对应 Thread 展示。 */
+function isRoomMainFeedMessage(message: Message): boolean {
+  return message.role !== "system"
+    || !ROOM_THREAD_ONLY_SYSTEM_SUBTYPES.has(
+      message.metadata?.subtype ?? "",
+    );
 }
 
 function buildRootNode(

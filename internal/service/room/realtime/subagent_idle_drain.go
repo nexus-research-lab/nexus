@@ -32,11 +32,8 @@ func (s *Service) startIdleSubagentNotificationDrains(ctx context.Context, round
 			slot.AgentRoundID,
 			slot.WorkspacePath,
 		)
-		mapper.SetDurableMessageTransformer(func(message protocol.Message) protocol.Message {
-			return s.transformRoomDurableMessage(roundValue, slot, message)
-		})
-		mapper.SetProjectedMessageTransformer(func(message protocol.Message) protocol.Message {
-			return s.transformRoomDurableMessage(roundValue, slot, message)
+		mapper.SetMessageDecorator(func(message protocol.Message) {
+			s.decorateRoomMessage(roundValue, slot, message)
 		})
 		s.runtime.StartIdleMessageDrain(
 			slot.RuntimeSessionKey,
@@ -60,6 +57,7 @@ func (s *Service) handleIdleSubagentMessage(
 	mapper *roomdomain.SlotMessageMapper,
 	incoming sdkprotocol.ReceivedMessage,
 ) bool {
+	s.observeExecutionRuntimeGraph(roomOrchestrationActor(roundValue, slot), incoming)
 	events, durableMessages, _, err := mapper.Map(incoming)
 	if err != nil {
 		s.loggerFor(ctx).Warn("处理 Room idle subagent 通知失败",
@@ -130,6 +128,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 				return err
 			}
 		}
+		s.observeExecutionRuntimeArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 		s.recordGoalUsageFromSlotAssistantMessage(ctx, slot, messageValue)
 		return nil
 	}
@@ -146,6 +145,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 			return err
 		}
 	}
+	s.observeExecutionRuntimeArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 	s.recordGoalUsageFromSlotAssistantMessage(ctx, slot, messageValue)
 	return nil
 }

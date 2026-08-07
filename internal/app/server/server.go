@@ -47,7 +47,7 @@ func NewWithLogger(cfg config.Config, logger *slog.Logger) (*Server, error) {
 		api:      api,
 		router:   chi.NewRouter(),
 		services: appServices,
-		handlers: newHandlerSet(api, appServices, websocketHandler, cfg),
+		handlers: newHandlerSet(api, appServices, websocketHandler),
 	}
 
 	server.mountMiddleware(logger)
@@ -60,9 +60,12 @@ func (s *Server) Router() http.Handler {
 	return s.router
 }
 
-// Close 收口服务创建的后台文件任务。
+// Close 收口后台文件任务与 Server 自行创建的共享资源。
 func (s *Server) Close(ctx context.Context) error {
-	if s == nil || s.services == nil {
+	if s == nil {
+		return nil
+	}
+	if s.services == nil {
 		return nil
 	}
 	return s.services.Close(ctx)

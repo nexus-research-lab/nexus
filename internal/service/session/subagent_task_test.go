@@ -6,7 +6,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -21,6 +23,24 @@ import (
 
 func buildSubagentTasks(sessionKey string, messages []protocol.Message) []SubagentTask {
 	return buildSubagentTasksWithRuntime(sessionKey, messages, string(agentclient.RuntimeNXS))
+}
+
+// syscall 只在 Windows 构建导出该名称；数值来自 ERROR_PRIVILEGE_NOT_HELD。
+const windowsSymlinkPrivilegeNotHeld syscall.Errno = 1314
+
+func createSubagentTestSymlink(t *testing.T, target string, link string) {
+	t.Helper()
+
+	err := os.Symlink(target, link)
+	if err == nil {
+		return
+	}
+	if runtime.GOOS == "windows" && (errors.Is(err, windowsSymlinkPrivilegeNotHeld) ||
+		errors.Is(err, os.ErrPermission) ||
+		errors.Is(err, errors.ErrUnsupported)) {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	t.Fatalf("创建测试符号链接失败: %v", err)
 }
 
 func TestBuildSubagentTasksMergesStartedAndNotification(t *testing.T) {
@@ -448,6 +468,45 @@ func TestReadSubagentTaskThreadUsesIndependentAgentTranscript(t *testing.T) {
 	}
 }
 
+func TestSubagentToolRunsFromMessagesKeepsOnlyLifecycleIdentity(t *testing.T) {
+	t.Parallel()
+
+	task := SubagentTask{
+		TaskID:    "agent-child-1",
+		AgentID:   "agent-child-1",
+		ToolUseID: "spawn-tool-1",
+	}
+	runs := subagentToolRunsFromMessages(task, []protocol.Message{
+		{
+			"timestamp": int64(1000),
+			"content": []any{
+				map[string]any{
+					"type": "tool_use", "id": "read-1", "name": "Read",
+					"input": map[string]any{"secret": "must not leave transcript"},
+				},
+				map[string]any{
+					"type": "tool_result", "tool_use_id": "read-1",
+					"content": "private output", "is_error": false,
+				},
+			},
+		},
+		{
+			"timestamp": int64(2000),
+			"content": []any{
+				map[string]any{"type": "tool_use", "id": "bash-1", "name": "Bash"},
+				map[string]any{"type": "tool_result", "tool_use_id": "bash-1", "is_error": true},
+			},
+		},
+	})
+	if len(runs) != 2 ||
+		runs[0].ParentToolUseID != "spawn-tool-1" ||
+		runs[0].ToolUseID != "read-1" || runs[0].Name != "Read" ||
+		runs[0].Status != "succeeded" || runs[0].StartedAt != 1000 || runs[0].FinishedAt != 1000 ||
+		runs[1].ToolUseID != "bash-1" || runs[1].Status != "failed" {
+		t.Fatalf("subagent Tool runs = %+v", runs)
+	}
+}
+
 func TestReadSubagentTaskThreadUsesCCOutputSymlinkAsTranscript(t *testing.T) {
 	root := t.TempDir()
 	transcriptPath := filepath.Join(root, "child.jsonl")
@@ -460,9 +519,7 @@ func TestReadSubagentTaskThreadUsesCCOutputSymlinkAsTranscript(t *testing.T) {
 		t.Fatalf("写入 child transcript 失败: %v", err)
 	}
 	outputPath := filepath.Join(root, "task-output")
-	if err := os.Symlink(transcriptPath, outputPath); err != nil {
-		t.Fatalf("创建 output_file 符号链接失败: %v", err)
-	}
+	createSubagentTestSymlink(t, transcriptPath, outputPath)
 
 	service := &Service{history: workspacestore.NewAgentHistoryStore(root)}
 	messages, outputIsTranscript, err := service.readSubagentTaskThread(SubagentTask{
@@ -501,9 +558,7 @@ func TestReadSubagentTaskThreadRejectsCCOutputSymlinkOutsideWorkspace(t *testing
 		t.Fatalf("写入 workspace 外 transcript 失败: %v", err)
 	}
 	outputPath := filepath.Join(root, "task-output")
-	if err := os.Symlink(transcriptPath, outputPath); err != nil {
-		t.Fatalf("创建越界 output_file 符号链接失败: %v", err)
-	}
+	createSubagentTestSymlink(t, transcriptPath, outputPath)
 
 	service := &Service{history: workspacestore.NewAgentHistoryStore(root)}
 	messages, outputIsTranscript, err := service.readSubagentTaskThread(SubagentTask{
@@ -564,9 +619,7 @@ func TestReadSubagentOutputFileRejectsCrossOwnerWorkspaceSymlink(t *testing.T) {
 	if err := os.WriteFile(outputPath, []byte("owner-b-secret"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(ownerBWorkspace, ownerAWorkspace); err != nil {
-		t.Skipf("symlink unavailable: %v", err)
-	}
+	createSubagentTestSymlink(t, ownerBWorkspace, ownerAWorkspace)
 
 	service := &Service{config: config.Config{WorkspacePath: appfs.UsersRoot()}}
 	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{

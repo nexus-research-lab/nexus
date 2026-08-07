@@ -41,6 +41,23 @@ function conversation(id, {
   };
 }
 
+function historyItemCopy(locale = "zh") {
+  const isEnglish = locale === "en";
+  return {
+    actionLabels: {
+      delete: isEnglish ? "Delete conversation" : "删除对话",
+      rename: isEnglish ? "Rename" : "重命名",
+    },
+    editorLabels: {
+      cancel: isEnglish ? "Cancel" : "取消",
+      confirm: isEnglish ? "Confirm rename" : "确认重命名",
+      input: isEnglish ? "Edit conversation title" : "编辑对话标题",
+    },
+    locale,
+    untitled: isEnglish ? "Untitled conversation" : "未命名会话",
+  };
+}
+
 test("滚动历史批量选择包含当前会话但排除外部 Session", async () => {
   const { buildRoomHistoryEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/surface/history/room-history-model.ts",
@@ -184,11 +201,34 @@ test("当前会话在仍有其他会话时常驻提供单项删除动作", async
       isSelected: false,
       isSelecting: false,
     },
-    {untitled: "未命名会话"},
+    historyItemCopy(),
   );
 
   assert.equal(presentation.actionsPersistent, true);
   assert.deepEqual(presentation.actions, ["rename", "delete"]);
+
+  const oneDayAgo = Date.now() - 25 * 60 * 60 * 1000;
+  const englishPresentation = buildRoomHistoryItemPresentation(
+    {
+      ...entry,
+      conversation: {
+        ...entry.conversation,
+        last_activity_at: oneDayAgo,
+      },
+    },
+    {
+      isEditing: false,
+      isSelected: false,
+      isSelecting: false,
+    },
+    historyItemCopy("en"),
+  );
+  assert.equal(englishPresentation.activityLabel, "1 day ago");
+  assert.equal(englishPresentation.actionLabels.rename, "Rename");
+  assert.equal(
+    englishPresentation.editorLabels.input,
+    "Edit conversation title",
+  );
 
   const lastEntry = buildRoomHistoryEntries({
     canManageConversations: true,
@@ -203,7 +243,7 @@ test("当前会话在仍有其他会话时常驻提供单项删除动作", async
       isSelected: false,
       isSelecting: false,
     },
-    {untitled: "未命名会话"},
+    historyItemCopy(),
   );
 
   assert.equal(lastPresentation.actions.includes("delete"), false);
@@ -214,7 +254,7 @@ test("当前会话在仍有其他会话时常驻提供单项删除动作", async
       isSelected: true,
       isSelecting: true,
     },
-    {untitled: "未命名会话"},
+    historyItemCopy(),
   );
   assert.equal(
     lastSelectionPresentation.selection?.disabled,

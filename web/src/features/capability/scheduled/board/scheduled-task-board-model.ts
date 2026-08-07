@@ -1,4 +1,5 @@
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
+import type { I18nContextValue } from "@/shared/i18n/i18n-context";
 
 import type { TaskDialogCreatePreset } from "../dialog/scheduled-task-dialog-types";
 import type { Weekday } from "../pickers/picker-types";
@@ -59,44 +60,53 @@ export interface ScheduledTaskCardPresentation {
 
 const WORKDAYS: Weekday[] = ["mo", "tu", "we", "th", "fr"];
 
-export const SCHEDULED_TASK_SUGGESTIONS: ScheduledTaskSuggestion[] = [
-  {
-    description: "汇总最近会话、待办和工作区变化，整理今天最值得优先处理的事项。",
-    icon: "briefing",
-    preset: {
-      dailyTime: "08:30",
-      instruction: "汇总最近会话、待办和工作区变化，整理今天最值得优先处理的事项，并给出清晰的行动顺序。",
-      selectedWeekdays: WORKDAYS,
-      taskName: "每日工作简报",
+type Translate = I18nContextValue["t"];
+
+export function buildScheduledTaskSuggestions(
+  t: Translate,
+): ScheduledTaskSuggestion[] {
+  const dailyTitle = t("capability.scheduled_suggestion_daily_title");
+  const weeklyTitle = t("capability.scheduled_suggestion_weekly_title");
+  const progressTitle = t("capability.scheduled_suggestion_progress_title");
+  return [
+    {
+      description: t("capability.scheduled_suggestion_daily_description"),
+      icon: "briefing",
+      preset: {
+        dailyTime: "08:30",
+        instruction: t("capability.scheduled_suggestion_daily_instruction"),
+        selectedWeekdays: WORKDAYS,
+        taskName: dailyTitle,
+      },
+      scheduleLabel: t("capability.scheduled_suggestion_daily_schedule"),
+      title: dailyTitle,
     },
-    scheduleLabel: "工作日 08:30",
-    title: "每日工作简报",
-  },
-  {
-    description: "回顾本周完成事项、遗留问题和下周重点，输出一份简短周报。",
-    icon: "review",
-    preset: {
-      dailyTime: "17:00",
-      instruction: "回顾本周完成的工作、尚未解决的问题和下一周优先事项，输出一份可以直接使用的简短周报。",
-      selectedWeekdays: ["fr"],
-      taskName: "每周工作回顾",
+    {
+      description: t("capability.scheduled_suggestion_weekly_description"),
+      icon: "review",
+      preset: {
+        dailyTime: "17:00",
+        instruction: t("capability.scheduled_suggestion_weekly_instruction"),
+        selectedWeekdays: ["fr"],
+        taskName: weeklyTitle,
+      },
+      scheduleLabel: t("capability.scheduled_suggestion_weekly_schedule"),
+      title: weeklyTitle,
     },
-    scheduleLabel: "每周五 17:00",
-    title: "每周工作回顾",
-  },
-  {
-    description: "检查近期进展和阻塞项，提醒遗漏并给出下一步行动。",
-    icon: "monitor",
-    preset: {
-      dailyTime: "18:00",
-      instruction: "检查当前工作区和最近会话的进展，列出阻塞项、可能遗漏的事项和下一步行动。",
-      selectedWeekdays: WORKDAYS,
-      taskName: "项目进展检查",
+    {
+      description: t("capability.scheduled_suggestion_progress_description"),
+      icon: "monitor",
+      preset: {
+        dailyTime: "18:00",
+        instruction: t("capability.scheduled_suggestion_progress_instruction"),
+        selectedWeekdays: WORKDAYS,
+        taskName: progressTitle,
+      },
+      scheduleLabel: t("capability.scheduled_suggestion_progress_schedule"),
+      title: progressTitle,
     },
-    scheduleLabel: "工作日 18:00",
-    title: "项目进展检查",
-  },
-];
+  ];
+}
 
 export const SCHEDULED_TASK_BOARD_COLUMNS: ScheduledTaskBoardColumnDefinition[] = [
   {

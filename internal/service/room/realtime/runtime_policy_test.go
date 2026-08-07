@@ -26,7 +26,7 @@ func TestRealtimeServiceForwardsProviderModelOption(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestRealtimeServiceBypassPermissionsKeepsQuestionChannel(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
@@ -233,11 +233,10 @@ func TestRealtimeServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "计划模式助手")
@@ -265,15 +264,67 @@ func TestRealtimeServiceGoalContinuationDefersInPlanMode(t *testing.T) {
 	}
 }
 
+func TestRealtimeServiceGoalContinuationDefersForSessionPlanOverride(
+	t *testing.T,
+) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+
+	agentService, db, err := newRoomTestAgentService(t, cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	memberAgent := createTestAgent(t, agentService, ctx, "Session 计划模式助手")
+	roomContext, err := createSingleAgentGroupRoom(
+		ctx,
+		roomService,
+		memberAgent.AgentID,
+	)
+	if err != nil {
+		t.Fatalf("创建单成员 room 失败: %v", err)
+	}
+	memberSessionKey := protocol.BuildRoomAgentSessionKey(
+		roomContext.Conversation.ID,
+		memberAgent.AgentID,
+		protocol.RoomTypeGroup,
+	)
+	if _, err = sessionService.UpdateRuntimeSettings(
+		ctx,
+		memberSessionKey,
+		protocol.SessionRuntimeSettings{
+			PermissionMode: string(sdkpermission.ModePlan),
+		},
+	); err != nil {
+		t.Fatalf("更新 Room Session plan override 失败: %v", err)
+	}
+
+	service := NewServiceWithFactory(
+		cfg,
+		roomService,
+		agentService,
+		runtimectx.NewManager(),
+		permissionctx.NewContext(),
+		&fakeRoomFactory{},
+	)
+	sharedSessionKey := protocol.BuildRoomSharedSessionKey(
+		roomContext.Conversation.ID,
+	)
+	if !service.ShouldDeferGoalContinuation(ctx, sharedSessionKey) {
+		t.Fatal("Room Session plan override 应阻止 Goal 自动续跑")
+	}
+}
+
 func TestRealtimeServiceGoalContinuationDefersBehindPendingUserGuidance(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "用户输入优先助手")
@@ -322,11 +373,10 @@ func TestRealtimeServiceRoomGoalTargetMissingUsesRoomOwnerForBackgroundContext(t
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ownerCtx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
 		UserID:     "owner-1",
@@ -367,11 +417,10 @@ func TestRealtimeServiceGoalContinuationDefersWhenRoomHasNoDefaultTarget(t *test
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	amy := createTestAgent(t, agentService, ctx, "Amy")
@@ -418,11 +467,10 @@ func TestRealtimeServiceGoalContinuationDefersForBusyNonLeadMember(t *testing.T)
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	host := createTestAgent(t, agentService, ctx, "Host")
@@ -483,11 +531,10 @@ func TestRealtimeServiceChatRequestCanOverridePermissionHandler(t *testing.T) {
 	cfg := newRoomTestConfig(t)
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatalf("创建 agent service 失败: %v", err)
 	}
-	t.Cleanup(func() { _ = db.Close() })
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	ctx := context.Background()
 	memberAgent := createTestAgent(t, agentService, ctx, "非交互助手")
@@ -639,7 +686,7 @@ func TestRoomExplicitInputWinsGoalContinuationDispatchRace(t *testing.T) {
 	cfg.GoalEnabled = true
 	migrateRoomSQLite(t, cfg.DatabaseURL)
 
-	agentService, db, err := serverapp.NewAgentService(cfg)
+	agentService, db, err := newRoomTestAgentService(t, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,6 @@
-// INPUT: 已绑定 WebSocket session、当前 Agent 身份与 runtime 命令快照。
-// OUTPUT: 仅含安全元数据的 session-scoped command_catalog 事件。
-// POS: runtime 控制面到浏览器命令补全协议的投影边界。
+// INPUT: WebSocket session 请求、Nexus host command 与内置 runtime 指令快照。
+// OUTPUT: 合并且仅含安全元数据的 session-scoped command_catalog 权威事件。
+// POS: Nexus 版本化命令目录到浏览器补全协议的唯一投影边界。
 package websocket
 
 import (
@@ -14,9 +14,8 @@ import (
 	"strings"
 
 	handlershared "github.com/nexus-research-lab/nexus/internal/handler/shared"
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	slashcommandsvc "github.com/nexus-research-lab/nexus/internal/service/slashcommand"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
 )
@@ -27,89 +26,101 @@ const (
 	commandArgumentHintMaxRunes = 256
 )
 
-func (h *Handler) handleGetCommandCatalog(
+func (h *Handler) commandCatalogEvent(
 	ctx context.Context,
-	sender *handlershared.WebSocketSender,
-	inbound map[string]any,
-) {
-	sessionKey, parsed, ok := h.validateSessionKey(ctx, sender, inbound)
-	if !ok || parsed.Kind == protocol.SessionKeyKindUnknown {
-		return
-	}
-	h.ensureSessionBinding(ctx, sender, sessionKey)
-	if err := h.sendCommandCatalog(ctx, sender, sessionKey, parsed, inbound); err != nil {
-		h.sendGatewayError(ctx, sender, sessionKey, "command_catalog_error", err, map[string]any{
-			"type": handlershared.StringValue(inbound["type"]),
-		})
-	}
-}
-
-func (h *Handler) sendCommandCatalog(
-	ctx context.Context,
-	sender *handlershared.WebSocketSender,
 	sessionKey string,
 	parsed protocol.SessionKey,
 	inbound map[string]any,
-) error {
-	runtimeSessionKey, agentID, err := h.resolveCommandCatalogTarget(ctx, parsed, inbound)
+) (protocol.EventMessage, error) {
+	agentID, err := h.resolveCommandCatalogAgent(ctx, parsed, inbound)
 	if err != nil {
-		return err
+		return protocol.EventMessage{}, err
 	}
-	snapshot, err := h.runtime.CommandCatalog(
-		ctx,
-		runtimeSessionKey,
-		authctx.OwnerUserID(ctx),
-	)
+	data, err := h.commandCatalogData(ctx, parsed, agentID)
 	if err != nil {
-		if errors.Is(err, runtimectx.ErrCommandCatalogOwnerMismatch) {
-			return errors.New("command catalog is not available for this session")
-		}
-		return err
+		return protocol.EventMessage{}, err
 	}
-	data := projectCommandCatalog(snapshot, agentID)
-	return sender.SendEvent(ctx, protocol.NewCommandCatalogEvent(sessionKey, data))
+	return protocol.NewCommandCatalogEvent(sessionKey, data), nil
 }
 
-func (h *Handler) resolveCommandCatalogTarget(
+func (h *Handler) commandCatalogData(
+	ctx context.Context,
+	parsed protocol.SessionKey,
+	agentID string,
+) (protocol.CommandCatalogData, error) {
+	switch parsed.Kind {
+	case protocol.SessionKeyKindAgent:
+		snapshot, err := h.commandCatalogSnapshot(ctx, agentID)
+		if err != nil {
+			return protocol.CommandCatalogData{}, err
+		}
+		return projectCommandCatalog(
+			snapshot,
+			agentID,
+			h.hostCommandDescriptors(slashcommandsvc.ScopeDM),
+		), nil
+	case protocol.SessionKeyKindRoom:
+		return projectCommandCatalog(
+			slashcommandsvc.RuntimeCatalogSnapshot{
+				Status: protocol.CommandCatalogStatusUnavailable,
+			},
+			agentID,
+			h.hostCommandDescriptors(slashcommandsvc.ScopeRoom),
+		), nil
+	default:
+		return protocol.CommandCatalogData{}, errors.New("command catalog requires an agent or Room session")
+	}
+}
+
+func (h *Handler) resolveCommandCatalogAgent(
 	ctx context.Context,
 	parsed protocol.SessionKey,
 	inbound map[string]any,
-) (string, string, error) {
+) (string, error) {
 	if parsed.Kind == protocol.SessionKeyKindAgent {
-		return parsed.Raw, parsed.AgentID, nil
+		if h == nil || h.dm == nil {
+			return "", errors.New("DM service is unavailable")
+		}
+		if requestedAgentID := handlershared.StringValue(inbound["agent_id"]); requestedAgentID != "" &&
+			requestedAgentID != parsed.AgentID {
+			return "", errors.New("agent_id does not match session_key")
+		}
+		if err := h.dm.AuthorizeHostCommand(ctx, parsed.Raw, parsed.AgentID); err != nil {
+			return "", err
+		}
+		return parsed.AgentID, nil
 	}
 	if parsed.Kind != protocol.SessionKeyKindRoom || !parsed.IsShared {
-		return "", "", errors.New("command catalog requires an agent or shared Room session")
+		return "", errors.New("command catalog requires an agent or shared Room session")
 	}
 
 	conversationID := parsed.ConversationID
 	if requested := handlershared.StringValue(inbound["conversation_id"]); requested != "" &&
 		requested != conversationID {
-		return "", "", errors.New("conversation_id does not match session_key")
+		return "", errors.New("conversation_id does not match session_key")
 	}
 	agentID := handlershared.StringValue(inbound["agent_id"])
 	if agentID == "" {
-		return "", "", errors.New("agent_id is required for a Room command catalog")
+		return "", errors.New("agent_id is required for a Room command catalog")
 	}
 	if h.roomService == nil {
-		return "", "", errors.New("Room service is unavailable")
+		return "", errors.New("Room service is unavailable")
 	}
 	contextValue, err := h.roomService.GetConversationContext(ctx, conversationID)
 	if err != nil {
-		return "", "", err
+		return "", err
+	}
+	if contextValue == nil || contextValue.Room.RoomType != protocol.RoomTypeGroup {
+		return "", errors.New("Room command catalog requires a group Room")
 	}
 	if roomID := handlershared.StringValue(inbound["room_id"]); roomID != "" &&
 		roomID != contextValue.Room.ID {
-		return "", "", errors.New("room_id does not match conversation")
+		return "", errors.New("room_id does not match conversation")
 	}
 	if !roomHasAgent(contextValue.Members, agentID) {
-		return "", "", errors.New("agent_id is not a Room member")
+		return "", errors.New("agent_id is not a Room member")
 	}
-	return protocol.BuildRoomAgentSessionKey(
-		conversationID,
-		agentID,
-		contextValue.Room.RoomType,
-	), agentID, nil
+	return agentID, nil
 }
 
 func roomHasAgent(members []protocol.MemberRecord, agentID string) bool {
@@ -122,36 +133,81 @@ func roomHasAgent(members []protocol.MemberRecord, agentID string) bool {
 	return false
 }
 
-func projectCommandCatalog(
-	snapshot runtimectx.CommandCatalogSnapshot,
+func (h *Handler) hostCommandDescriptors(scope slashcommandsvc.Scope) []protocol.CommandDescriptor {
+	if h == nil || h.hostCommands == nil {
+		return nil
+	}
+	return h.hostCommands.Descriptors(scope)
+}
+
+func (h *Handler) commandCatalogSnapshot(
+	ctx context.Context,
 	agentID string,
+) (slashcommandsvc.RuntimeCatalogSnapshot, error) {
+	if h == nil || h.commandCatalog == nil {
+		return slashcommandsvc.RuntimeCatalogSnapshot{
+			Status: protocol.CommandCatalogStatusUnavailable,
+		}, nil
+	}
+	kind := agentclient.RuntimeNXS
+	if h.runtimeKindResolver != nil {
+		resolvedKind, err := h.runtimeKindResolver(ctx, agentID)
+		if err != nil {
+			return slashcommandsvc.RuntimeCatalogSnapshot{}, err
+		}
+		kind = resolvedKind
+	}
+	return h.commandCatalog.Snapshot(kind), nil
+}
+
+func projectCommandCatalog(
+	snapshot slashcommandsvc.RuntimeCatalogSnapshot,
+	agentID string,
+	hostCommands []protocol.CommandDescriptor,
 ) protocol.CommandCatalogData {
-	status := protocol.CommandCatalogStatus(snapshot.Status)
-	commands := make([]protocol.CommandDescriptor, 0, len(snapshot.Commands))
-	if snapshot.Status == runtimectx.CommandCatalogStatusReady {
+	commands := projectHostCommands(hostCommands)
+	if snapshot.Status == protocol.CommandCatalogStatusReady {
 		for _, command := range snapshot.Commands {
 			if descriptor, ok := projectRuntimeCommand(command); ok {
 				commands = append(commands, descriptor)
 			}
 		}
-		sort.Slice(commands, func(left int, right int) bool {
-			return commands[left].Name < commands[right].Name
-		})
 	}
+	commands = mergeCommandDescriptors(commands)
 	data := protocol.CommandCatalogData{
+		Generation:  snapshot.Generation,
 		RuntimeKind: string(snapshot.RuntimeKind),
-		Status:      status,
+		Status:      protocol.CommandCatalogStatus(snapshot.Status),
 		AgentID:     strings.TrimSpace(agentID),
 		Commands:    commands,
 	}
-	if status == protocol.CommandCatalogStatusReady {
-		data.Revision = commandCatalogRevision(data)
-	}
+	data.Revision = commandCatalogRevision(data)
 	return data
 }
 
+func projectHostCommands(commands []protocol.CommandDescriptor) []protocol.CommandDescriptor {
+	result := make([]protocol.CommandDescriptor, 0, len(commands))
+	for _, command := range commands {
+		name := strings.TrimSpace(strings.TrimPrefix(command.Name, "/"))
+		if name == "" ||
+			len([]rune(name)) > commandNameMaxRunes ||
+			!isPublicRuntimeCommandName(name) {
+			continue
+		}
+		result = append(result, protocol.CommandDescriptor{
+			Name:           name,
+			Description:    limitCommandText(command.Description, commandDescriptionMaxRunes),
+			ArgumentHint:   limitCommandText(command.ArgumentHint, commandArgumentHintMaxRunes),
+			Execution:      protocol.CommandExecutionHost,
+			Enabled:        command.Enabled,
+			DisabledReason: limitCommandText(command.DisabledReason, commandDescriptionMaxRunes),
+		})
+	}
+	return result
+}
+
 func projectRuntimeCommand(
-	command agentclient.SlashCommand,
+	command protocol.CommandDescriptor,
 ) (protocol.CommandDescriptor, bool) {
 	name := strings.TrimSpace(strings.TrimPrefix(command.Name, "/"))
 	if name == "" ||
@@ -163,9 +219,34 @@ func projectRuntimeCommand(
 		Name:         name,
 		Description:  limitCommandText(command.Description, commandDescriptionMaxRunes),
 		ArgumentHint: limitCommandText(command.ArgumentHint, commandArgumentHintMaxRunes),
-		Execution:    protocol.CommandExecutionRuntimePrompt,
-		Enabled:      true,
+		Execution:    protocol.CommandExecutionRuntime,
+		Enabled:      command.Enabled,
+		DisabledReason: limitCommandText(
+			command.DisabledReason,
+			commandDescriptionMaxRunes,
+		),
 	}, true
+}
+
+func mergeCommandDescriptors(commands []protocol.CommandDescriptor) []protocol.CommandDescriptor {
+	result := make([]protocol.CommandDescriptor, 0, len(commands))
+	seen := map[string]struct{}{}
+	// Host command 总是在 runtime command 之前传入，因此名称冲突时由 Nexus 保留。
+	for _, command := range commands {
+		key := strings.ToLower(strings.TrimSpace(command.Name))
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, command)
+	}
+	sort.Slice(result, func(left int, right int) bool {
+		return result[left].Name < result[right].Name
+	})
+	return result
 }
 
 func isPublicRuntimeCommandName(name string) bool {
@@ -189,10 +270,14 @@ func limitCommandText(value string, maxRunes int) string {
 
 func commandCatalogRevision(data protocol.CommandCatalogData) string {
 	payload, err := json.Marshal(struct {
-		RuntimeKind string                       `json:"runtime_kind"`
-		AgentID     string                       `json:"agent_id"`
-		Commands    []protocol.CommandDescriptor `json:"commands"`
+		Status      protocol.CommandCatalogStatus `json:"status"`
+		Generation  uint64                        `json:"generation"`
+		RuntimeKind string                        `json:"runtime_kind"`
+		AgentID     string                        `json:"agent_id"`
+		Commands    []protocol.CommandDescriptor  `json:"commands"`
 	}{
+		Status:      data.Status,
+		Generation:  data.Generation,
 		RuntimeKind: data.RuntimeKind,
 		AgentID:     data.AgentID,
 		Commands:    data.Commands,

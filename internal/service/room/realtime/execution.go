@@ -1,6 +1,6 @@
-// INPUT: Room slot、运行时消息流、实时插话确认与 Goal 执行上下文。
-// OUTPUT: 单个 Room Agent round 的 ACK 门控事件、持久化快照、usage barrier 与终态。
-// POS: Room 实时编排中把 runtime 输出投影为产品语义的执行主链。
+// INPUT: Room slot、trusted WorkBinding/ReviewBinding、运行时消息流、实时插话确认与 Goal 执行上下文。
+// OUTPUT: 单个 Room Agent round 的 ACK 门控事件、持久化快照、usage barrier 与 producer root Attempt 终态。
+// POS: Room 实时编排中把 runtime 输出投影为产品语义及结构化工作终态的执行主链。
 
 package realtime
 
@@ -8,6 +8,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
@@ -16,6 +17,8 @@ import (
 	exec "github.com/nexus-research-lab/nexus/internal/runtime/exec"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
+	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 	"log/slog"
@@ -123,6 +126,21 @@ func (s *Service) runSlot(
 	if agentValue == nil {
 		slot.setErrorMessage("Room slot 缺少 agent 配置")
 		slot.setStatus("error")
+		if settleErr := s.finishBoundRoomAttempt(
+			ctx,
+			roundValue,
+			slot,
+			"error",
+			"Room slot 缺少 agent 配置",
+		); settleErr != nil {
+			s.loggerFor(ctx).Error(
+				"Room structured root Attempt 缺少 Agent 配置时收口失败",
+				"dispatch_id",
+				executionDispatchID(slot.WorkBinding),
+				"err",
+				settleErr,
+			)
+		}
 		s.loggerFor(ctx).Error("Room slot 缺少 agent 配置",
 			"s", roundValue.SessionKey,
 			"r", roundValue.RoomID,
@@ -152,11 +170,8 @@ func (s *Service) runSlot(
 		slot.AgentRoundID,
 		agentValue.WorkspacePath,
 	)
-	mapper.SetDurableMessageTransformer(func(message protocol.Message) protocol.Message {
-		return s.transformRoomDurableMessage(roundValue, slot, message)
-	})
-	mapper.SetProjectedMessageTransformer(func(message protocol.Message) protocol.Message {
-		return s.transformRoomDurableMessage(roundValue, slot, message)
+	mapper.SetMessageDecorator(func(message protocol.Message) {
+		s.decorateRoomMessage(roundValue, slot, message)
 	})
 	execution := &slotExecution{
 		service:       s,
@@ -205,6 +220,7 @@ func (s *Service) runSlot(
 	defer func() {
 		s.runtime.MarkRoundFinished(slot.RuntimeSessionKey, slot.AgentRoundID)
 	}()
+	defer execution.broadcastContextUsage(client)
 	cleanupGoalRuntime := s.registerSlotGoalRuntime(slot)
 	defer cleanupGoalRuntime()
 
@@ -257,16 +273,79 @@ func (s *Service) runSlot(
 	)
 }
 
+func (e *slotExecution) orchestrationActor() orchestration.ActorContext {
+	return roomOrchestrationActor(e.round, e.slot)
+}
+
+func roomOrchestrationActor(
+	roundValue *activeRoomRound,
+	slot *activeRoomSlot,
+) orchestration.ActorContext {
+	goalAuthority := slot.goalMutationAuthority()
+	actor := orchestration.ActorContext{
+		OwnerUserID: roundValue.OwnerUserID,
+		SessionKey:  roundValue.SessionKey,
+		ExecutionID: firstNonEmptyString(
+			executionIDFromRoomBindings(
+				slot.WorkBinding,
+				slot.ReviewBinding,
+			),
+			roundValue.ExecutionID,
+		),
+		WorkBinding:           cloneExecutionWorkBinding(slot.WorkBinding),
+		ReviewBinding:         cloneExecutionReviewBinding(slot.ReviewBinding),
+		GoalID:                strings.TrimSpace(goalAuthority.GoalID),
+		GoalObjectiveRevision: goalAuthority.ObjectiveRevision,
+		AgentID:               slot.AgentID,
+		ActorKind:             protocol.ExecutionActorAgent,
+		ScopeKind:             protocol.ExecutionScopeRoom,
+		RoomID:                roundValue.RoomID,
+		ConversationID:        roundValue.ConversationID,
+		RootRoundID:           roundValue.RootRoundID,
+		RuntimeRoundID:        slot.AgentRoundID,
+		AgentRoundID:          slot.AgentRoundID,
+		PlanMode:              roundValue.PermissionMode == sdkpermission.ModePlan,
+	}
+	actor.Role = roomExecutionActorRole(roundValue.CoordinatorAgentID, slot.AgentID)
+	return actor
+}
+
 func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecutionResult, error) {
 	payload, err := e.prepareDispatchPayload()
 	if err != nil {
 		return exec.RoundExecutionResult{}, err
 	}
+	actor := e.orchestrationActor()
+	defer e.service.releaseExecutionCoordination(actor)
+	executionInputs, err := e.service.executionContextualInputs(e.ctx, actor)
+	if err != nil {
+		return exec.RoundExecutionResult{}, err
+	}
+	if e.service.subagentAdmission != nil {
+		e.service.runtime.SetSubagentHookCallbacks(
+			e.slot.RuntimeSessionKey,
+			e.slot.AgentRoundID,
+			orchestrationruntimehook.Callbacks(
+				e.service.subagentAdmission,
+				orchestrationruntimehook.Context{
+					Actor:             actor,
+					RuntimeSessionKey: e.slot.RuntimeSessionKey,
+					RoomSessionID:     e.slot.RoomSessionID,
+					Logger:            e.service.loggerFor(e.ctx),
+				},
+			),
+		)
+		defer e.service.runtime.ClearSubagentHookCallbacks(
+			e.slot.RuntimeSessionKey,
+			e.slot.AgentRoundID,
+		)
+	}
 	e.slot.beginNoReplyCandidate()
-	return exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
+	e.service.beginExecutionRuntimeGraph(actor)
+	result, executeErr := exec.ExecuteRound(e.ctx, exec.RoundExecutionRequest{
 		Content:          payload,
-		ContextualInputs: e.contextualInputs(),
-		InputOptions:     runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(e.round), "goal_continuation"),
+		ContextualInputs: append(executionInputs, e.contextualInputs()...),
+		InputOptions:     roomSlotRuntimeInputOptions(e.round, e.slot),
 		Client:           client,
 		Mapper:           roomRoundMapperAdapter{mapper: e.mapper},
 		IdleTimeout:      e.service.config.RuntimeRoundIdleTimeout(),
@@ -274,15 +353,32 @@ func (e *slotExecution) executeRound(client runtimectx.Client) (exec.RoundExecut
 			return roomSlotInterruptReason(e.slot)
 		},
 		AfterQuery: func() error {
+			if err := e.activateBoundRoomAttempt(actor); err != nil {
+				return err
+			}
 			return e.sendQueuedInputs(client)
 		},
-		ObserveIncomingMessage: e.observeIncomingMessage,
+		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
+			e.service.observeExecutionRuntimeGraph(actor, incoming)
+			e.observeExecutionPersistenceEvidence(actor, incoming)
+			e.observeIncomingMessage(incoming)
+		},
 		SyncSessionID: func(sessionID string) error {
 			return e.service.syncSlotSDKSessionID(e.ctx, e.slot, sessionID)
 		},
 		HandleDurableMessage: e.handleDurableMessage,
 		EmitEvent:            e.emitEvent,
 	})
+	failureReason := ""
+	if executeErr != nil {
+		failureReason = executeErr.Error()
+	}
+	e.service.finishExecutionRuntimeGraph(
+		actor,
+		result.TerminalStatus,
+		failureReason,
+	)
+	return result, executeErr
 }
 
 func (e *slotExecution) prepareDispatchPayload() (any, error) {
@@ -389,6 +485,7 @@ func (e *slotExecution) handleDurableMessage(messageValue protocol.Message) erro
 			return err
 		}
 	}
+	e.service.observeExecutionRuntimeArtifacts(e.orchestrationActor(), messageValue)
 	e.service.recordGoalUsageFromSlotAssistantMessage(e.ctx, e.slot, messageValue)
 	return nil
 }
@@ -574,6 +671,18 @@ func roomRoundInputOptions(roundValue *activeRoomRound) sdkprotocol.OutboundMess
 			options.Priority = "internal"
 		}
 	}
+	return options
+}
+
+// roomSlotRuntimeInputOptions 让 Recall 只搜索直接唤醒该 slot 的原始语义。
+func roomSlotRuntimeInputOptions(roundValue *activeRoomRound, slot *activeRoomSlot) sdkprotocol.OutboundMessageOptions {
+	options := runtimectx.RuntimeInputOptionsForPurpose(roomRoundInputOptions(roundValue), "goal_continuation")
+	options.RecallQuery = ""
+	if roundValue == nil || slot == nil || roundValue.Internal ||
+		options.Meta || options.Synthetic || options.HiddenFromUser {
+		return options
+	}
+	options.RecallQuery = strings.TrimSpace(slot.Trigger.Content)
 	return options
 }
 
