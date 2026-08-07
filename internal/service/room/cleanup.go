@@ -63,13 +63,15 @@ func (s *Service) cleanupConversationArtifacts(
 				workspaceByOwnerAgent[workspaceKey] = workspacePath
 			}
 
-			if _, err := ownerFiles.DeleteSession(workspacePath, sessionKey); err != nil {
-				errs = append(errs, err)
-			}
 			if ownerHistory != nil && strings.TrimSpace(sessionValue.SDKSessionID) != "" {
 				if _, err := ownerHistory.DeleteTranscriptSession(workspacePath, sessionValue.SDKSessionID); err != nil {
 					errs = append(errs, err)
+					// 保留带 sdk_session_id 的 session meta，后续修复仍能精确重试。
+					continue
 				}
+			}
+			if _, err := ownerFiles.DeleteSession(workspacePath, sessionKey); err != nil {
+				errs = append(errs, err)
 			}
 		}
 	}

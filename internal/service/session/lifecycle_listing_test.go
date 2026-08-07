@@ -28,7 +28,8 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	agentService, db := newSessionTestAgentService(t, cfg)
 	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
 	sessionService := serverapp.NewSessionServiceWithDB(cfg, db, agentService)
-	sessionService.SetRuntimeManager(runtimectx.NewManager())
+	runtimeManager := runtimectx.NewManager()
+	sessionService.SetRuntimeManager(runtimeManager)
 
 	ctx := context.Background()
 	agentA, err := agentService.CreateAgent(ctx, protocol.CreateRequest{Name: "测试会话助手"})
@@ -37,6 +38,7 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	}
 
 	dmKey := protocol.BuildAgentSessionKey(agentA.AgentID, "ws", "dm", "launcher-app-"+agentA.AgentID, "")
+	runtimeManager.MarkSubagentHistory(dmKey)
 	created, err := sessionService.CreateSession(ctx, sessionsvc.CreateRequest{
 		SessionKey: dmKey,
 		Title:      "Launcher App",
@@ -179,6 +181,9 @@ func TestSessionServiceLifecycle(t *testing.T) {
 	}
 	if _, err = os.Stat(sessionTranscriptFilePath(agentA.WorkspacePath, dmSessionID)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("删除 session 后 transcript 仍残留: %v", err)
+	}
+	if runtimeManager.HasSubagentHistory(dmKey) {
+		t.Fatal("删除 session 后 runtime state 仍残留")
 	}
 }
 

@@ -10,7 +10,10 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
+
+const sessionRuntimeCloseTimeout = 3 * time.Second
 
 // CreateSession 创建或幂等返回普通 Agent 会话。
 func (s *Service) CreateSession(ctx context.Context, request CreateRequest) (*protocol.Session, error) {
@@ -93,7 +96,7 @@ func (s *Service) UpdateSessionTitle(ctx context.Context, rawSessionKey string, 
 	return s.UpdateSession(ctx, rawSessionKey, UpdateRequest{Title: &title})
 }
 
-// DeleteSession 删除普通 Agent 会话目录。
+// DeleteSession 关闭普通 Agent runtime，并删除会话及其 runtime 产物。
 func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error {
 	sessionKey, _, err := s.requireSessionKey(rawSessionKey)
 	if err != nil {
@@ -106,12 +109,8 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 	if workspacePath == "" {
 		return ErrSessionNotFound
 	}
-	deleted, err := s.ownerFiles(ctx).DeleteSession(workspacePath, sessionKey)
-	if err != nil {
+	if err = s.closeSessionRuntimeForDeletion(sessionKey); err != nil {
 		return err
-	}
-	if !deleted {
-		return ErrSessionNotFound
 	}
 	if item != nil && item.SessionID != nil {
 		if _, err := s.ownerHistory(ctx).DeleteTranscriptSession(
@@ -121,10 +120,30 @@ func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error
 			return err
 		}
 	}
+	deleted, err := s.ownerFiles(ctx).DeleteSession(workspacePath, sessionKey)
+	if err != nil {
+		return err
+	}
+	if !deleted {
+		return ErrSessionNotFound
+	}
 	if item != nil {
 		s.notifyDirectoryChanged(ctx, "session_deleted", *item)
 	}
 	return nil
+}
+
+func (s *Service) closeSessionRuntimeForDeletion(sessionKey string) error {
+	if s.runtime == nil {
+		return nil
+	}
+	closeCtx, cancel := context.WithTimeout(context.Background(), sessionRuntimeCloseTimeout)
+	err := s.runtime.CloseSession(closeCtx, sessionKey)
+	cancel()
+	if runtimectx.IsRuntimeTransportClosedError(err) {
+		return nil
+	}
+	return err
 }
 
 func (s *Service) notifyDirectoryChanged(ctx context.Context, reason string, session protocol.Session) {

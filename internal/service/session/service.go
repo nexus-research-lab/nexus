@@ -30,7 +30,7 @@ type Service struct {
 	notifier     DirectoryNotifier
 }
 
-// SetRuntimeManager 注入运行时管理器，用于历史读取时识别活跃轮次。
+// SetRuntimeManager 注入运行时管理器，用于历史读取与删除前关闭活跃会话。
 func (s *Service) SetRuntimeManager(runtimeManager *runtimectx.Manager) {
 	s.runtime = runtimeManager
 }

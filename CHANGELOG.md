@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Closed an Agent runtime before deleting its session and removed the complete owner-scoped transcript artifact graph, including summaries and unshared Subagent transcripts, so deleted sessions no longer leave runtime data behind.
 - Sequenced explicit Goal creation before its first WorkGraph proposal across the stable prompt, Goal/Execution Skills, and both MCP tool contracts, so Agents no longer launch `create_goal` and `prepare_plan_execution` in parallel while the backend continues to reject stale ambient-Goal races.
 - Repaired legacy databases that had already recorded Execution migration 61 before `goal_execution_identity_claims` was added, allowing startup proposal reconciliation and Goal-to-WorkGraph identity recovery to run instead of failing against a missing table.
 - Made Plan boundary authority explicit: a fresh `operation: create` under an active Goal now seals the exact server-owned Goal objective even when the provider omits or paraphrases the transport field, while Goal-free create/replace still require a document objective, replan still inherits the current Execution boundary, and true Goal-to-existing-Execution objective conflicts remain rejected.
