@@ -1229,6 +1229,12 @@
     font-synthesis: style;
   }
 
+  /* 中文正文字体只有常规字重；仅为语义加粗补齐 600，避免普通正文整体变厚。 */
+  .nexus-chat-feed .nexus-chat-markdown strong .message-cjk-text {
+    font-synthesis: weight style;
+    font-weight: 600;
+  }
+
   /* User 与 Assistant 共用正文首尾节奏，避免无气泡用户消息一端贴头像、一端又骤然收紧。 */
   .nexus-chat-message-body-rhythm {
     padding-top: 0.25rem;

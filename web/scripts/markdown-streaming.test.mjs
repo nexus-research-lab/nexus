@@ -66,6 +66,69 @@ test("Markdown 有序列表透传非默认起始序号", async () => {
   assert.match(html, />第四项</);
 });
 
+test("Markdown 中文语义加粗使用可辨识的 600 字重", async () => {
+  const {
+    MARKDOWN_PLUGINS,
+    MARKDOWN_SUMMARY_CLASS_NAME,
+  } = await server.ssrLoadModule(
+    "/src/shared/ui/markdown/core/markdown-renderer-shared.tsx",
+  );
+  const html = renderToStaticMarkup(
+    React.createElement(
+      ReactMarkdown,
+      { remarkPlugins: MARKDOWN_PLUGINS },
+      "普通 **重点** 正文",
+    ),
+  );
+  const styles = await readFile(
+    path.join(webRoot, "src/app/styles/theme-recipes.css"),
+    "utf8",
+  );
+
+  assert.match(
+    html,
+    /<strong><span class="message-cjk-text">重点<\/span><\/strong>/,
+  );
+  assert.match(MARKDOWN_SUMMARY_CLASS_NAME, /\[&_strong\]:font-semibold/);
+  assert.match(
+    styles,
+    /\.nexus-chat-feed \.nexus-chat-markdown strong \.message-cjk-text\s*\{[^}]*font-synthesis: weight style;[^}]*font-weight: 600;/,
+  );
+});
+
+test("流式 Markdown 只平滑内容节奏，不叠加正文视觉动画", async () => {
+  const [sharedEntry, messageEntry, rendererSource] = await Promise.all([
+    readFile(
+      path.join(
+        webRoot,
+        "src/shared/ui/markdown/markdown-content.tsx",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(
+        webRoot,
+        "src/features/conversation/shared/message/markdown-renderer.tsx",
+      ),
+      "utf8",
+    ),
+    readFile(
+      path.join(
+        webRoot,
+        "src/shared/ui/markdown/streaming/markdown-streaming.tsx",
+      ),
+      "utf8",
+    ),
+  ]);
+  const sources = [sharedEntry, messageEntry, rendererSource].join("\n");
+  assert.doesNotMatch(
+    sources,
+    /nexus-streaming-response|streaming-word-fade|fade-in-0|streaming-content-tail/,
+    "正文不得叠加透明度淡入、尾光标或相关生命周期",
+  );
+  assert.match(rendererSource, /useDeferredValue\(nextBlocks\)/);
+});
+
 test("共享 Markdown 操作与 Mermaid 状态跟随界面语言", async () => {
   const { MESSAGES } = await server.ssrLoadModule("/src/shared/i18n/messages.ts");
   assert.equal(MESSAGES.zh["markdown.code.copy"], "复制 {language} 代码");

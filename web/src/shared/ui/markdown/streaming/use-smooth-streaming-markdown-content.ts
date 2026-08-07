@@ -5,16 +5,17 @@
  * OUTPUT: 单调追赶真实快照、终态继续排空 backlog 的平滑显示内容与渲染态。
  * POS: 统一 DM/Room 打字机节奏；首帧标记只影响 hook 初始化，历史/恢复正文立即显示。
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { usePrefersReducedMotion } from "@/hooks/ui/use-prefers-reduced-motion";
+import { AdaptiveStreamClock } from "./adaptive-stream-clock";
 
-const STREAM_ACTIVE_INPUT_WINDOW_MS = 150;
-const STREAM_TARGET_LAG_CHARS = 4;
-const STREAM_ACTIVE_CPS = 84;
-const STREAM_FLUSH_CPS = 300;
-const STREAM_PRESSURE_THRESHOLD_CHARS = 48;
-const STREAM_MAX_PRESSURE_REVEAL_CHARS = 10;
+const LARGE_APPEND_CHARS = 500;
 
 export interface SmoothStreamingMarkdownState {
   content: string;
@@ -36,39 +37,6 @@ function appendCharsInPlace(target: string[], value: string): number {
     appendedCount += 1;
   }
   return appendedCount;
-}
-
-export function resolveSmoothStreamingRevealCount({
-  backlog,
-  frameIntervalMs,
-  inputActive,
-}: {
-  backlog: number;
-  frameIntervalMs: number;
-  inputActive: boolean;
-}): number {
-  const targetLagChars = inputActive ? STREAM_TARGET_LAG_CHARS : 0;
-  const revealableBacklog = Math.max(0, backlog - targetLagChars);
-  if (revealableBacklog === 0) {
-    return 0;
-  }
-
-  const cps = inputActive ? STREAM_ACTIVE_CPS : STREAM_FLUSH_CPS;
-  const timedReveal = Math.max(
-    inputActive ? 1 : 2,
-    Math.round((cps * Math.max(1, Math.min(frameIntervalMs, 50))) / 1000),
-  );
-  const pressureReveal = backlog > STREAM_PRESSURE_THRESHOLD_CHARS
-    ? Math.min(
-      STREAM_MAX_PRESSURE_REVEAL_CHARS,
-      Math.ceil(backlog / 24),
-    )
-    : 0;
-
-  return Math.min(
-    revealableBacklog,
-    Math.max(timedReveal, pressureReveal),
-  );
 }
 
 export function useSmoothStreamingMarkdownState(
@@ -100,12 +68,14 @@ export function useSmoothStreamingMarkdownState(
   const targetContentRef = useRef(content);
   const targetCharsRef = useRef(targetInitialCharsRef.current);
   const targetCountRef = useRef(targetCharsRef.current.length);
-  const lastInputTsRef = useRef(getNow());
   const lastFrameTsRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
-  const wakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enabledRef = useRef(enabled);
   const isAnimatingRef = useRef(shouldInitializeEmpty);
+  const streamClockRef = useRef<AdaptiveStreamClock | null>(null);
+  if (streamClockRef.current === null) {
+    streamClockRef.current = new AdaptiveStreamClock(getNow());
+  }
 
   const setIsAnimating = useCallback((next: boolean) => {
     if (isAnimatingRef.current === next) {
@@ -113,13 +83,6 @@ export function useSmoothStreamingMarkdownState(
     }
     isAnimatingRef.current = next;
     setIsAnimatingState(next);
-  }, []);
-
-  const clearWakeTimer = useCallback(() => {
-    if (wakeTimerRef.current !== null) {
-      clearTimeout(wakeTimerRef.current);
-      wakeTimerRef.current = null;
-    }
   }, []);
 
   const stopFrameLoop = useCallback(() => {
@@ -130,27 +93,9 @@ export function useSmoothStreamingMarkdownState(
     lastFrameTsRef.current = null;
   }, []);
 
-  const stopScheduling = useCallback(() => {
-    stopFrameLoop();
-    clearWakeTimer();
-  }, [clearWakeTimer, stopFrameLoop]);
-
-  const startFrameLoopRef = useRef<() => void>(() => {});
-
-  const scheduleWake = useCallback(
-    (delayMs: number) => {
-      clearWakeTimer();
-      wakeTimerRef.current = setTimeout(() => {
-        wakeTimerRef.current = null;
-        startFrameLoopRef.current();
-      }, Math.max(1, Math.ceil(delayMs)));
-    },
-    [clearWakeTimer],
-  );
-
   const syncImmediate = useCallback(
     (nextContent: string) => {
-      stopScheduling();
+      stopFrameLoop();
 
       const chars = toChars(nextContent);
       targetContentRef.current = nextContent;
@@ -158,17 +103,18 @@ export function useSmoothStreamingMarkdownState(
       targetCountRef.current = chars.length;
       displayedContentRef.current = nextContent;
       displayedCountRef.current = chars.length;
-      lastInputTsRef.current = getNow();
+      streamClockRef.current?.reset(getNow());
       setIsAnimating(false);
       setDisplayedContent(nextContent);
     },
-    [setIsAnimating, stopScheduling],
+    [setIsAnimating, stopFrameLoop],
   );
 
   const startFrameLoop = useCallback(() => {
-    clearWakeTimer();
     if (displayedCountRef.current >= targetCountRef.current) {
-      setIsAnimating(false);
+      if (!enabledRef.current) {
+        setIsAnimating(false);
+      }
       return;
     }
     setIsAnimating(true);
@@ -180,35 +126,38 @@ export function useSmoothStreamingMarkdownState(
       const previousFrameTs = lastFrameTsRef.current;
       const frameIntervalMs = previousFrameTs === null
         ? 16
-        : Math.max(1, Math.min(timestamp - previousFrameTs, 50));
+        : timestamp - previousFrameTs;
       lastFrameTsRef.current = timestamp;
 
       const targetCount = targetCountRef.current;
       const displayedCount = displayedCountRef.current;
       const backlog = targetCount - displayedCount;
       if (backlog <= 0) {
-        stopFrameLoop();
-        setIsAnimating(false);
+        if (enabledRef.current) {
+          rafRef.current = requestAnimationFrame(tick);
+        } else {
+          stopFrameLoop();
+          setIsAnimating(false);
+        }
         return;
       }
 
-      const idleMs = getNow() - lastInputTsRef.current;
-      const inputActive = (
-        enabledRef.current
-        && idleMs <= STREAM_ACTIVE_INPUT_WINDOW_MS
-      );
-      const revealCount = resolveSmoothStreamingRevealCount({
+      const frame = streamClockRef.current?.resolveFrame({
         backlog,
         frameIntervalMs,
-        inputActive,
+        streaming: enabledRef.current,
+        timestamp,
       });
-      if (revealCount === 0) {
+      if (!frame) {
         stopFrameLoop();
-        scheduleWake(STREAM_ACTIVE_INPUT_WINDOW_MS - idleMs + 8);
+        return;
+      }
+      if (frame.revealCount === 0) {
+        rafRef.current = requestAnimationFrame(tick);
         return;
       }
 
-      const nextCount = displayedCount + revealCount;
+      const nextCount = displayedCount + frame.revealCount;
       const segment = targetCharsRef.current
         .slice(displayedCount, nextCount)
         .join("");
@@ -218,18 +167,24 @@ export function useSmoothStreamingMarkdownState(
       displayedCountRef.current = nextCount;
       setDisplayedContent(nextDisplayed);
 
+      if (nextCount >= targetCountRef.current) {
+        if (enabledRef.current) {
+          rafRef.current = requestAnimationFrame(tick);
+        } else {
+          stopFrameLoop();
+          setIsAnimating(false);
+        }
+        return;
+      }
+
       rafRef.current = requestAnimationFrame(tick);
     };
 
     rafRef.current = requestAnimationFrame(tick);
   }, [
-    clearWakeTimer,
-    scheduleWake,
     setIsAnimating,
     stopFrameLoop,
   ]);
-
-  startFrameLoopRef.current = startFrameLoop;
 
   useEffect(() => {
     const wasEnabled = enabledRef.current;
@@ -252,16 +207,22 @@ export function useSmoothStreamingMarkdownState(
 
       const appended = content.slice(previousTarget.length);
       if (appended) {
+        if (toChars(appended).length > LARGE_APPEND_CHARS) {
+          syncImmediate(content);
+          return;
+        }
         targetContentRef.current = content;
-        targetCountRef.current += appendCharsInPlace(
+        const appendedCount = appendCharsInPlace(
           targetCharsRef.current,
           appended,
         );
+        targetCountRef.current += appendedCount;
+        streamClockRef.current?.observeAppend(getNow(), appendedCount);
       }
       if (displayedCountRef.current < targetCountRef.current) {
         startFrameLoop();
       } else {
-        stopScheduling();
+        stopFrameLoop();
         setIsAnimating(false);
       }
       return;
@@ -285,11 +246,16 @@ export function useSmoothStreamingMarkdownState(
     }
 
     targetContentRef.current = content;
-    targetCountRef.current += appendCharsInPlace(
+    if (toChars(appended).length > LARGE_APPEND_CHARS) {
+      syncImmediate(content);
+      return;
+    }
+    const appendedCount = appendCharsInPlace(
       targetCharsRef.current,
       appended,
     );
-    lastInputTsRef.current = getNow();
+    targetCountRef.current += appendedCount;
+    streamClockRef.current?.observeAppend(getNow(), appendedCount);
     startFrameLoop();
   }, [
     content,
@@ -297,15 +263,33 @@ export function useSmoothStreamingMarkdownState(
     prefersReducedMotion,
     setIsAnimating,
     startFrameLoop,
-    stopScheduling,
+    stopFrameLoop,
     syncImmediate,
   ]);
 
   useEffect(() => {
     return () => {
-      stopScheduling();
+      stopFrameLoop();
     };
-  }, [stopScheduling]);
+  }, [stopFrameLoop]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible"
+        && displayedCountRef.current < targetCountRef.current
+      ) {
+        syncImmediate(targetContentRef.current);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [syncImmediate]);
 
   const willDrainTerminalAppend = (
     !enabled

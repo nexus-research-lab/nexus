@@ -96,7 +96,6 @@ export function UiMarkdownContent({
     <div
       className={cn(
         variant === "summary" ? MARKDOWN_SUMMARY_CLASS_NAME : MARKDOWN_BODY_CLASS_NAME,
-        shouldRenderStreaming && "animate-in fade-in-0",
         className,
       )}
     >

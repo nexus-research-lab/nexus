@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -3002,43 +3003,135 @@ test("thinking and replying indicators render a real stepped frame track", async
   }
 });
 
-test("smooth streaming reveal stays incremental under normal and pressured backlogs", async () => {
-  const { resolveSmoothStreamingRevealCount } = await server.ssrLoadModule(
-    "/src/shared/ui/markdown/streaming/use-smooth-streaming-markdown-content.ts",
+test("smooth streaming buffers startup jitter and keeps one continuous live clock", async () => {
+  const { AdaptiveStreamClock } = await server.ssrLoadModule(
+    "/src/shared/ui/markdown/streaming/adaptive-stream-clock.ts",
   );
 
-  assert.equal(
-    resolveSmoothStreamingRevealCount({
-      backlog: 4,
-      frameIntervalMs: 16,
-      inputActive: true,
-    }),
-    0,
-    "an active stream keeps a tiny target lag instead of flashing every transport chunk",
-  );
-  assert.equal(
-    resolveSmoothStreamingRevealCount({
-      backlog: 10,
-      frameIntervalMs: 16,
-      inputActive: true,
-    }),
-    1,
-    "ordinary input reveals a readable character-scale increment",
-  );
-  const pressuredReveal = resolveSmoothStreamingRevealCount({
-    backlog: 240,
-    frameIntervalMs: 16,
-    inputActive: true,
+  const startupClock = new AdaptiveStreamClock(0);
+  startupClock.observeAppend(100, 12);
+  const heldFrame = startupClock.resolveFrame({
+    backlog: 12,
+    frameIntervalMs: 32,
+    streaming: true,
+    timestamp: 200,
   });
-  assert.ok(pressuredReveal > 1 && pressuredReveal <= 10);
+  assert.equal(heldFrame.revealCount, 0);
   assert.equal(
-    resolveSmoothStreamingRevealCount({
-      backlog: 3,
-      frameIntervalMs: 16,
-      inputActive: false,
-    }),
-    3,
-    "an idle stream flushes its final characters without leaving a permanent lag",
+    heldFrame.phase,
+    "buffering",
+    "the first transport fragment is buffered instead of flashing immediately",
+  );
+
+  let startupBacklog = 12;
+  for (let frameIndex = 0; frameIndex < 4 && startupBacklog === 12; frameIndex += 1) {
+    startupBacklog -= startupClock.resolveFrame({
+      backlog: startupBacklog,
+      frameIntervalMs: 32,
+      streaming: true,
+      timestamp: 1001 + frameIndex * 32,
+    }).revealCount;
+  }
+  assert.ok(
+    startupBacklog < 12,
+    "the startup buffer has a bounded wait even when the response stays short",
+  );
+
+  const steadyClock = new AdaptiveStreamClock(0);
+  steadyClock.observeAppend(100, 12);
+  steadyClock.observeAppend(260, 12);
+  steadyClock.observeAppend(340, 8);
+  const normalFrame = steadyClock.resolveFrame({
+    backlog: 32,
+    frameIntervalMs: 32,
+    streaming: true,
+    timestamp: 340,
+  });
+  assert.ok(
+    normalFrame.revealCount >= 1 && normalFrame.revealCount <= 2,
+    "ordinary input advances in small readable increments",
+  );
+
+  const pressureClock = new AdaptiveStreamClock(0);
+  pressureClock.observeAppend(100, 12);
+  pressureClock.observeAppend(260, 12);
+  pressureClock.observeAppend(340, 8);
+  const pressuredFrame = pressureClock.resolveFrame({
+    backlog: 240,
+    frameIntervalMs: 32,
+    streaming: true,
+    timestamp: 340,
+  });
+  assert.ok(
+    pressuredFrame.revealCount > normalFrame.revealCount
+    && pressuredFrame.revealCount <= 6,
+    "a large backlog catches up without becoming one visible jump",
+  );
+
+  const flushClock = new AdaptiveStreamClock(0);
+  flushClock.observeAppend(100, 8);
+  let terminalBacklog = 3;
+  for (let frameIndex = 0; frameIndex < 8 && terminalBacklog > 0; frameIndex += 1) {
+    terminalBacklog -= flushClock.resolveFrame({
+      backlog: terminalBacklog,
+      frameIntervalMs: 32,
+      streaming: false,
+      timestamp: 200 + frameIndex * 32,
+    }).revealCount;
+  }
+  assert.equal(
+    terminalBacklog,
+    0,
+    "the terminal phase drains its final characters smoothly and completely",
+  );
+
+  const slowClock = new AdaptiveStreamClock(0);
+  slowClock.observeAppend(100, 8);
+  slowClock.observeAppend(900, 8);
+  const fastClock = new AdaptiveStreamClock(0);
+  fastClock.observeAppend(100, 8);
+  fastClock.observeAppend(132, 12);
+  assert.ok(
+    fastClock.resolveFrame({
+      backlog: 60,
+      frameIntervalMs: 32,
+      streaming: true,
+      timestamp: 340,
+    }).cps
+    > slowClock.resolveFrame({
+      backlog: 60,
+      frameIntervalMs: 32,
+      streaming: true,
+      timestamp: 1000,
+    }).cps,
+    "render speed follows measured arrival cadence instead of one fixed rate",
+  );
+
+  const streamingHookSource = await readFile(
+    path.join(
+      webRoot,
+      "src/shared/ui/markdown/streaming/use-smooth-streaming-markdown-content.ts",
+    ),
+      "utf8",
+  );
+  const markdownStreamingSource = await readFile(
+    path.join(
+      webRoot,
+      "src/shared/ui/markdown/streaming/markdown-streaming.tsx",
+    ),
+    "utf8",
+  );
+  assert.match(
+    streamingHookSource,
+    /if \(enabledRef\.current\) \{\s+rafRef\.current = requestAnimationFrame\(tick\)/,
+    "an empty live buffer keeps the existing frame loop alive",
+  );
+  assert.doesNotMatch(streamingHookSource, /startTransition/);
+  assert.match(markdownStreamingSource, /useDeferredValue\(nextBlocks\)/);
+  assert.doesNotMatch(
+    streamingHookSource,
+    /STREAM_ACTIVE_INPUT_WINDOW_MS|inputActive/,
+    "a short transport pause must not switch a live stream to terminal flush speed",
   );
 });
 

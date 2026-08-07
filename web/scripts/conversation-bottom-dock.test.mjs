@@ -90,6 +90,8 @@ test("上下文圆环只显示 runtime 快照，并保留 Room 每个 Agent 的�
   );
   assert.match(html, /data-context-usage-slot="ready"/);
   assert.match(html, /data-context-usage="76"/);
+  assert.match(html, /class="h-4 w-4 -rotate-90"/);
+  assert.doesNotMatch(html, /class="h-5 w-5 -rotate-90"/);
   assert.match(html, /上下文窗口已用 76%/);
   assert.match(html, /196\.0K/);
   assert.match(html, /258\.0K/);

@@ -10,9 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added owner-scoped private Skill sources with server-side JSON search, encrypted Bearer credentials, checksum-verified ZIP imports, and online update checks.
+- Added adaptive buffered Markdown streaming with stable frame-paced rendering while preserving conversation scroll ownership.
 
 ### Changed
 
+- Made semantic bold text clearly distinguishable in Chinese Markdown while preserving the regular prose weight.
+- Reduced the Composer context-usage ring while preserving its interaction target and footer spacing.
 - Kept Room headers fully navigable at medium widths, with progressively compact view and member controls, click-to-toggle active panels, a tighter trailing gutter, and no redundant guide menu.
 - Made the desktop-only sidebar update action start the native macOS and Windows download, verification, and installation flow instead of opening the GitHub release page.
 - Kept permission confirmations and user questions pending until answered or explicitly cancelled, including across WebSocket reconnects; paused the round idle watchdog while waiting and projected the needs-response state into the chat sidebar.
