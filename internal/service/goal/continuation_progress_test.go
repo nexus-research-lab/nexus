@@ -204,6 +204,96 @@ func TestServiceCompletionToolMissCompletesAfterRetry(t *testing.T) {
 	}
 }
 
+func TestServiceCompletionToolMissCannotBypassRoomReadiness(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	readiness := &fakeRoomGoalCompletionReadiness{blocker: "work item W2 is not accepted"}
+	service.SetRoomGoalCompletionReadiness(readiness)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: protocol.BuildRoomSharedSessionKey("completion-bypass"),
+		Objective:  "Finish all assigned Room work",
+		CreatedBy:  "model",
+		AgentID:    "agent-lead",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordRoomGoalCollaborationRequired(ctx, created.ID, "round-required"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordRoomGoalCollaborationEvidence(ctx, created.ID, "round-peer", "agent-peer"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-1", "first miss"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-2", "second miss"); err != nil {
+		t.Fatal(err)
+	}
+
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != protocol.GoalStatusActive {
+		t.Fatalf("Goal status = %q, want active while Room work is outstanding", current.Status)
+	}
+	if readiness.callCount != 1 ||
+		readiness.goalID != created.ID ||
+		readiness.agentID != "agent-lead" ||
+		readiness.roundID != "round-miss-2" {
+		t.Fatalf(
+			"readiness call = count:%d goal:%q agent:%q round:%q",
+			readiness.callCount,
+			readiness.goalID,
+			readiness.agentID,
+			readiness.roundID,
+		)
+	}
+}
+
+func TestServiceCompletionToolMissCannotBypassExecutionReadiness(t *testing.T) {
+	repo := newMemoryRepository()
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+	readiness := &fakeExecutionGoalCompletionReadiness{blocker: "terminal Work Item is not accepted"}
+	service.SetExecutionGoalCompletionReadiness(readiness)
+	ctx := context.Background()
+
+	created, err := service.Create(ctx, protocol.CreateGoalRequest{
+		SessionKey: "agent:nexus:ws:dm:completion-bypass",
+		Objective:  "Finish the accepted WorkGraph",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-1", "first miss"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.RecordCompletionToolMiss(ctx, created.ID, "round-miss-2", "second miss"); err != nil {
+		t.Fatal(err)
+	}
+
+	current, err := service.Current(ctx, created.SessionKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != protocol.GoalStatusActive || readiness.callCount != 1 || readiness.goalID != created.ID {
+		t.Fatalf("current = %#v readiness = %#v", current, readiness)
+	}
+}
+
 func TestServicePlanContinuationCompletesStaleCompletionToolMissSuppression(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{

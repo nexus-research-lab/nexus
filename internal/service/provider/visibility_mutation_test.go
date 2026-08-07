@@ -283,9 +283,30 @@ func TestProviderPublicMutationRequiresAdminAndDeleteProtectsGlobalUsage(t *test
 	}
 }
 
-func TestProviderDisableClearsTokenAndAllowsExistingUsage(t *testing.T) {
+func TestProviderDisablePreservesExplicitBindingsForAutomaticRestore(t *testing.T) {
 	service, db := newTestService(t)
 	ctx := providerTestContext("owner-user", authctx.RoleMember)
+	fallback, err := service.Create(ctx, CreateInput{
+		Provider:    "fallback-provider",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "fallback-token",
+		BaseURL:     "https://fallback.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Fallback",
+	})
+	if err != nil {
+		t.Fatalf("创建 fallback provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, fallback.Provider, "fallback-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置 fallback 默认模型失败: %v", err)
+	}
+	setTestDefaultAgentSelection(service, DefaultAgentSelection{
+		Provider:    fallback.Provider,
+		Model:       "fallback-model",
+		RuntimeKind: "claude",
+	})
 	record, err := service.Create(ctx, CreateInput{
 		Provider:    "used-private",
 		PresetKey:   presetCustom,
@@ -299,7 +320,11 @@ func TestProviderDisableClearsTokenAndAllowsExistingUsage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建私有 provider 失败: %v", err)
 	}
+	insertProviderUsageAgentForOwner(t, db, "owner-user", "agent-main", "main", "Nexus", "", true, record.Provider, "active")
 	insertProviderUsageAgentForOwner(t, db, "owner-user", "agent-used-private", "used-private", "Used Private Agent", "", false, record.Provider, "active")
+	if _, err = db.Exec(`UPDATE runtimes SET model = ? WHERE agent_id IN (?, ?)`, "target-model", "agent-main", "agent-used-private"); err != nil {
+		t.Fatalf("写入显式模型绑定失败: %v", err)
+	}
 
 	updated, err := service.Update(ctx, record.Provider, UpdateInput{
 		PresetKey:    record.PresetKey,
@@ -324,9 +349,134 @@ func TestProviderDisableClearsTokenAndAllowsExistingUsage(t *testing.T) {
 	if entity == nil || entity.AuthToken != "" {
 		t.Fatalf("关闭 provider 应清空 token: %+v", entity)
 	}
+	runtimes := runtimeSelectionsByAgent(t, db, "agent-main", "agent-used-private")
+	if runtimes["agent-main"].provider != record.Provider || runtimes["agent-main"].model != "target-model" ||
+		runtimes["agent-used-private"].provider != record.Provider || runtimes["agent-used-private"].model != "target-model" {
+		t.Fatalf("失效 provider 的显式绑定应保留，以便恢复后自动切回: %+v", runtimes)
+	}
 }
 
-func TestForceDeleteProviderReassignsRuntimeProviders(t *testing.T) {
+func TestProviderDisableRejectsCurrentDefaultModel(t *testing.T) {
+	service, db := newTestService(t)
+	ctx := providerTestContext("owner-user", authctx.RoleMember)
+	record, err := service.Create(ctx, CreateInput{
+		Provider:    "current-default",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "current-token",
+		BaseURL:     "https://current.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Current Default",
+	})
+	if err != nil {
+		t.Fatalf("创建 provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, record.Provider, "current-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置默认模型失败: %v", err)
+	}
+	setTestDefaultAgentSelection(service, DefaultAgentSelection{
+		Provider:    record.Provider,
+		Model:       "current-model",
+		RuntimeKind: "claude",
+	})
+	insertProviderUsageAgentForOwner(t, db, "owner-user", "agent-current", "current", "Current", "", false, record.Provider, "active")
+
+	if _, err = service.Update(ctx, record.Provider, UpdateInput{
+		ProviderKind: record.ProviderKind,
+		PresetKey:    record.PresetKey,
+		APIFormat:    record.APIFormat,
+		DisplayName:  record.DisplayName,
+		AuthToken:    stringPointer(""),
+		BaseURL:      record.BaseURL,
+		ModelsPath:   record.ModelsPath,
+		Enabled:      false,
+	}); err == nil || !strings.Contains(err.Error(), "默认模型仍使用") {
+		t.Fatalf("删除当前默认模型凭据应被拒绝: %v", err)
+	}
+	entity, err := service.repository.GetVisibleByProvider(ctx, "owner-user", record.Provider)
+	if err != nil {
+		t.Fatalf("读取 provider 失败: %v", err)
+	}
+	if entity == nil || !entity.Enabled || entity.AuthToken != "current-token" {
+		t.Fatalf("被拒绝后 provider 不应变更: %+v", entity)
+	}
+	runtimes := runtimeSelectionsByAgent(t, db, "agent-current")
+	if runtimes["agent-current"].provider != record.Provider {
+		t.Fatalf("被拒绝后显式绑定不应变更: %+v", runtimes)
+	}
+}
+
+func TestReconcileDefaultAgentBindingsOnlyClearsMainBinding(t *testing.T) {
+	service, db := newTestService(t)
+	ctx := providerTestContext("owner-user", authctx.RoleMember)
+	fallback, err := service.Create(ctx, CreateInput{
+		Provider:    "fallback-provider",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "fallback-token",
+		BaseURL:     "https://fallback.example.com",
+		ModelsPath:  "/models",
+		Enabled:     true,
+		DisplayName: "Fallback",
+	})
+	if err != nil {
+		t.Fatalf("创建 fallback provider 失败: %v", err)
+	}
+	if _, err = service.UpdateModel(ctx, fallback.Provider, "fallback-model", UpdateModelInput{Enabled: true, IsDefault: true}); err != nil {
+		t.Fatalf("设置 fallback 默认模型失败: %v", err)
+	}
+	stale, err := service.Create(ctx, CreateInput{
+		Provider:    "stale-provider",
+		PresetKey:   presetCustom,
+		APIFormat:   APIFormatAnthropicMessages,
+		AuthToken:   "stale-token",
+		BaseURL:     "https://stale.example.com",
+		ModelsPath:  "/models",
+		Enabled:     false,
+		DisplayName: "Stale",
+	})
+	if err != nil {
+		t.Fatalf("创建失效 provider 失败: %v", err)
+	}
+	insertProviderUsageAgentForOwner(t, db, "owner-user", "agent-main", "main", "Nexus", "", true, fallback.Provider, "active")
+	insertProviderUsageAgentForOwner(t, db, "owner-user", "agent-stale", "stale", "Stale", "", false, stale.Provider, "active")
+	insertProviderUsageAgentForOwner(t, db, "owner-user", "agent-valid", "valid", "Valid", "", false, fallback.Provider, "active")
+	if _, err = db.Exec(`
+		UPDATE runtimes
+		SET model = CASE agent_id
+			WHEN 'agent-main' THEN 'legacy-main-model'
+			WHEN 'agent-stale' THEN 'stale-model'
+			WHEN 'agent-valid' THEN 'fallback-model'
+		END
+		WHERE agent_id IN ('agent-main', 'agent-stale', 'agent-valid')`); err != nil {
+		t.Fatalf("写入显式模型绑定失败: %v", err)
+	}
+
+	repaired, err := service.ReconcileDefaultAgentBindings(ctx, DefaultAgentSelection{
+		Provider:    fallback.Provider,
+		Model:       "fallback-model",
+		RuntimeKind: "claude",
+	})
+	if err != nil {
+		t.Fatalf("修复历史绑定失败: %v", err)
+	}
+	if repaired != 1 {
+		t.Fatalf("只应清理 Nexus 主智能体的历史显式绑定: got=%d", repaired)
+	}
+	runtimes := runtimeSelectionsByAgent(t, db, "agent-main", "agent-stale", "agent-valid")
+	if runtimes["agent-main"].provider != "" || runtimes["agent-main"].model != "" {
+		t.Fatalf("主智能体应改为跟随默认模型: %+v", runtimes)
+	}
+	if runtimes["agent-stale"].provider != stale.Provider || runtimes["agent-stale"].model != "stale-model" {
+		t.Fatalf("普通 Agent 的失效绑定应保留，以便 Provider 恢复后自动切回: %+v", runtimes)
+	}
+	if runtimes["agent-valid"].provider != fallback.Provider || runtimes["agent-valid"].model != "fallback-model" {
+		t.Fatalf("可用的显式绑定不应被改写: %+v", runtimes)
+	}
+}
+
+func TestForceDeleteProviderPreservesExplicitBindingsForAutomaticRestore(t *testing.T) {
 	ctx := context.Background()
 	service, db := newTestService(t)
 	fallback, err := service.Create(ctx, CreateInput{
@@ -348,6 +498,11 @@ func TestForceDeleteProviderReassignsRuntimeProviders(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("设置 fallback 默认模型失败: %v", err)
 	}
+	setTestDefaultAgentSelection(service, DefaultAgentSelection{
+		Provider:    fallback.Provider,
+		Model:       "fallback-model",
+		RuntimeKind: "claude",
+	})
 	target, err := service.Create(ctx, CreateInput{
 		Provider:    "delete-target",
 		PresetKey:   presetCustom,
@@ -361,8 +516,17 @@ func TestForceDeleteProviderReassignsRuntimeProviders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建待删除 provider 失败: %v", err)
 	}
-	insertProviderUsageAgent(t, db, "agent-force-a", "force-a", "Force A", "", false, target.Provider, "active")
+	if _, err = service.UpdateModel(ctx, target.Provider, "target-model", UpdateModelInput{
+		Enabled:   true,
+		IsDefault: true,
+	}); err != nil {
+		t.Fatalf("设置待删除模型失败: %v", err)
+	}
+	insertProviderUsageAgent(t, db, "agent-force-a", "force-a", "Force A", "", true, target.Provider, "active")
 	insertProviderUsageAgent(t, db, "agent-force-b", "force-b", "Force B", "", false, target.Provider, "active")
+	if _, err = db.Exec(`UPDATE runtimes SET model = ? WHERE agent_id IN (?, ?)`, "target-model", "agent-force-a", "agent-force-b"); err != nil {
+		t.Fatalf("写入待删除模型绑定失败: %v", err)
+	}
 	if _, err = service.Delete(ctx, target.Provider, DeleteInput{}); err == nil {
 		t.Fatalf("普通删除应被正在使用的 provider 阻止")
 	}
@@ -370,25 +534,24 @@ func TestForceDeleteProviderReassignsRuntimeProviders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("强制删除 provider 失败: %v", err)
 	}
-	if result.ReplacementProvider != fallback.Provider || result.ReplacementModel != "fallback-model" || result.ReassignedRuntimeCount != 2 {
+	if !result.FallbackToDefault || result.AffectedRuntimeCount != 2 {
 		t.Fatalf("强制删除结果不正确: %+v", result)
 	}
 	if _, err = service.Get(ctx, target.Provider); err == nil {
 		t.Fatalf("待删除 provider 应已移除")
 	}
 	runtimes := runtimeSelectionsByAgent(t, db, "agent-force-a", "agent-force-b")
-	if runtimes["agent-force-a"].provider != fallback.Provider ||
-		runtimes["agent-force-a"].model != "fallback-model" ||
-		runtimes["agent-force-b"].provider != fallback.Provider ||
-		runtimes["agent-force-b"].model != "fallback-model" {
-		t.Fatalf("runtime provider/model 未切换到默认模型: %+v", runtimes)
+	if runtimes["agent-force-a"].provider != target.Provider ||
+		runtimes["agent-force-a"].model != "target-model" ||
+		runtimes["agent-force-b"].provider != target.Provider ||
+		runtimes["agent-force-b"].model != "target-model" {
+		t.Fatalf("runtime provider/model 应保留原选择，以便重新配置后自动恢复: %+v", runtimes)
 	}
 	options, err := service.ListOptions(ctx)
 	if err != nil {
 		t.Fatalf("读取 provider options 失败: %v", err)
 	}
-	if options.DefaultProvider == nil || *options.DefaultProvider != fallback.Provider ||
-		options.DefaultModel == nil || *options.DefaultModel != "fallback-model" {
-		t.Fatalf("默认 provider 不正确: %+v", options)
+	if optionByProvider(options.Items, fallback.Provider) == nil {
+		t.Fatalf("回退 Provider 不应随目标 Provider 一起删除: %+v", options)
 	}
 }

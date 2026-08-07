@@ -224,6 +224,7 @@ function ExpandedProcessContent({
         permissionReadOnlyReason={environment.permissionReadOnlyReason}
         showTimelineDots={shouldShowAssistantTimeline(environment.mode)}
         streamingBlockIndexes={process.projection.streamingIndexes}
+        unresolvedToolStatus={environment.unresolvedToolStatus}
         workspaceAgentId={environment.workspaceAgentId}
       />
     </div>

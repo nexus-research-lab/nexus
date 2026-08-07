@@ -1,3 +1,8 @@
+/**
+ * INPUT: ToolBlock 的工具、结果、权限与运行时状态。
+ * OUTPUT: DM/Room 工具卡片共用属性及展示状态契约。
+ * POS: ToolBlock 视图层协议，不承载 Provider 或 Agent 决策。
+ */
 import type {
   TaskProgressContent,
   ToolResultContent,
@@ -12,7 +17,9 @@ export type ToolBlockStatus =
   | "pending"
   | "running"
   | "success"
+  | "rejected"
   | "error"
+  | "stopped"
   | "waiting_permission";
 
 export interface ToolPermissionRequest {

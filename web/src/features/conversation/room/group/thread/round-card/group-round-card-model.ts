@@ -197,10 +197,10 @@ function resolveAgentName(
 }
 
 function resolveStopAgentRoundId(entry: RoomAgentRoundEntry): string | null {
-  if (!entry.pending_slot || !isAgentRoundActive(entry.status)) {
+  if (!isAgentRoundActive(entry.status)) {
     return null;
   }
-  return entry.pending_slot.agent_round_id;
+  return entry.agent_round_id?.trim() || null;
 }
 
 function resolveUserWorkspaceAgentId(

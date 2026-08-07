@@ -24,6 +24,7 @@ import type {
 } from "../../message-item-projection";
 import type { MessageActivityState } from "../../activity/message-activity-state";
 import type { ProcessSummaryProjection } from "../../process/message-process-summary";
+import type { UnresolvedToolStatus } from "../content/content-renderer-contract";
 
 export interface AssistantActivityState {
   emptyStreamStatus: "cancelled" | "error" | null;
@@ -109,6 +110,7 @@ export interface AssistantContentEnvironment {
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissionReadOnlyReason?: string;
 	workspaceAgentId?: string | null;
+	unresolvedToolStatus?: UnresolvedToolStatus;
 	agentMentionDirectory?: import("../../../agent-mention-chip").AgentMentionDirectory;
 	onOpenAgentContact?: (agentId: string) => void;
 }
@@ -129,6 +131,7 @@ export interface MessageAssistantSectionProps {
   permissionReadOnlyReason?: string;
   showHeader: boolean;
   workspaceAgentId?: string | null;
+  unresolvedToolStatus?: UnresolvedToolStatus;
   agentMentionDirectory?: import("../../../agent-mention-chip").AgentMentionDirectory;
 }
 

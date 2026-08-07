@@ -114,6 +114,11 @@ func (c *modelCommand) execute(
 	if err != nil {
 		return Result{}, err
 	}
+	if agentValue.IsMain {
+		return Result{}, commandInputError{
+			message: "Nexus 主智能体始终跟随设置中的默认模型，请在设置中修改默认模型。",
+		}
+	}
 	runtimeSelection, err := runtimeselectionsvc.NewService(
 		c.preferences,
 	).Resolve(ctx, runtimeselectionsvc.Request{Agent: agentValue})

@@ -30,6 +30,11 @@ type AddRoomMemberRequest struct {
 	AgentID string `json:"agent_id"`
 }
 
+// SetRoomMemberParticipationRequest 表示暂停或恢复 Room 成员参与。
+type SetRoomMemberParticipationRequest struct {
+	Paused bool `json:"paused"`
+}
+
 // CreateConversationRequest 表示创建话题请求。
 type CreateConversationRequest struct {
 	Title string `json:"title,omitempty"`

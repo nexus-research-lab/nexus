@@ -9,6 +9,7 @@ import (
 
 	sdktool "github.com/nexus-research-lab/nexus/internal/mcp/sdktool"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 )
 
 func structuredResult(_ string, content map[string]any) sdktool.ToolResult {
@@ -26,8 +27,10 @@ func structuredResult(_ string, content map[string]any) sdktool.ToolResult {
 }
 
 type goalToolTextPayload struct {
-	Goal            any `json:"goal"`
-	RemainingTokens any `json:"remainingTokens"`
+	Goal               any `json:"goal"`
+	RemainingTokens    any `json:"remainingTokens"`
+	ObjectiveAlignment any `json:"objectiveAlignment,omitempty"`
+	NextAction         any `json:"nextAction,omitempty"`
 	// CompletionBudgetReport 保持 Codex 兼容的模型可见完成指引。
 	CompletionBudgetReport any `json:"completionBudgetReport"`
 }
@@ -47,6 +50,8 @@ func goalToolTextPayloadFrom(content map[string]any) goalToolTextPayload {
 	return goalToolTextPayload{
 		Goal:                   goalTextValueFromAny(content["goal"]),
 		RemainingTokens:        content["remainingTokens"],
+		ObjectiveAlignment:     content["objectiveAlignment"],
+		NextAction:             content["nextAction"],
 		CompletionBudgetReport: content["completionBudgetReport"],
 	}
 }
@@ -86,6 +91,12 @@ func errorResultText(text string) sdktool.ToolResult {
 	}
 }
 
+func planModeGoalMutationResult(toolName string) sdktool.ToolResult {
+	return errorResultText(
+		toolName + " is validation-only in Plan Mode and did not change Goal, Execution, Plan, or cancellation state; leave Plan Mode and retry to persist it",
+	)
+}
+
 func decodeInput(input map[string]any, target any) error {
 	payload, err := json.Marshal(input)
 	if err != nil {
@@ -123,6 +134,9 @@ func goalPayloadWithOptions(item *protocol.Goal, options goalPayloadOptions) map
 	}
 	remainingTokens := item.RemainingTokens()
 	payload["remainingTokens"] = int64PointerValue(remainingTokens)
+	if nextAction := pendingObjectiveTransitionAction(*item); nextAction != nil {
+		payload["nextAction"] = nextAction
+	}
 	if options.completionBudgetReport {
 		if report := completionUsageCheckpointReport(item); report != "" {
 			if item.ID != "" {
@@ -134,6 +148,24 @@ func goalPayloadWithOptions(item *protocol.Goal, options goalPayloadOptions) map
 		}
 	}
 	return payload
+}
+
+func pendingObjectiveTransitionAction(item protocol.Goal) map[string]any {
+	transition, ok := goalsvc.ObjectiveTransitionFromGoal(item)
+	if !ok || transition.Phase == goalsvc.ObjectiveTransitionBound {
+		return nil
+	}
+	if transition.Phase == goalsvc.ObjectiveTransitionPrepared {
+		return map[string]any{
+			"tool":            "retarget_goal",
+			"targetObjective": transition.TargetObjective,
+			"reason":          "retry the prepared Goal objective transition so the old WorkGraph is fenced and the new objective revision is committed",
+		}
+	}
+	return map[string]any{
+		"tool":   "prepare_plan_execution",
+		"reason": "prepare the complete successor WorkGraph for the current Goal objective revision, then commit its sealed proposal",
+	}
 }
 
 func toolGoalValue(item *protocol.Goal) any {

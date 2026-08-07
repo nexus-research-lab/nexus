@@ -19,6 +19,7 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	"github.com/nexus-research-lab/nexus/internal/service/conversation/titlegen"
+	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -86,6 +87,7 @@ type Request struct {
 	GoalContext               string
 	GoalID                    string
 	GoalObjectiveRevision     int64
+	ExecutionID               string
 	Attachments               []protocol.ChatAttachment
 	ClientRequestID           string
 	ClientMessageID           string
@@ -133,6 +135,7 @@ type MCPServerBuilder func(
 	sourceContextID string,
 	sourceContextLabel string,
 	goalObjectiveRevision *atomic.Int64,
+	permissionMode sdkpermission.Mode,
 ) map[string]sdkmcp.ServerConfig
 
 // Service 负责编排 DM 实时链路。
@@ -156,8 +159,11 @@ type Service struct {
 	usage                     usageRecorder
 	quota                     quotaChecker
 	goals                     goalContextProvider
+	executionContext          executionContextProvider
+	subagentAdmission         orchestrationruntimehook.Provider
 	logger                    *slog.Logger
 	mcpServers                MCPServerBuilder
+	executionMCPServers       runtimectx.ExecutionMCPServerBuilder
 	titles                    titleScheduler
 	replies                   ExternalReplyDispatcher
 }
@@ -254,6 +260,16 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 // 由 server app 在构造定时任务服务后注入，避免 dm 包反向依赖 automation 子包。
 func (s *Service) SetMCPServerBuilder(builder MCPServerBuilder) {
 	s.mcpServers = builder
+}
+
+// SetExecutionMCPServerBuilder 注入需要完整 round identity 的 Execution MCP overlay。
+func (s *Service) SetExecutionMCPServerBuilder(builder runtimectx.ExecutionMCPServerBuilder) {
+	s.executionMCPServers = builder
+}
+
+// SetSubagentAdmissionProvider 注入 Agent tool 的权威 WorkGraph 准入与 Attempt lifecycle。
+func (s *Service) SetSubagentAdmissionProvider(provider orchestrationruntimehook.Provider) {
+	s.subagentAdmission = provider
 }
 
 // SetProviderResolver 注入 Provider 运行时解析器。

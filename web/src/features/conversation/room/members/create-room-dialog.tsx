@@ -47,6 +47,7 @@ function CreateRoomDialogContent({
   initialHostAgentId,
   initialHostAutoReplyEnabled,
   initialName,
+  initialPausedAgentIds,
   initialPrivateMessagesEnabled,
   initialRoomSkillNames,
   initialSelectedAgentIds,
@@ -62,6 +63,7 @@ function CreateRoomDialogContent({
     initialHostAgentId,
     initialHostAutoReplyEnabled,
     initialName,
+    initialPausedAgentIds,
     initialPrivateMessagesEnabled,
     initialRoomSkillNames,
     initialSelectedAgentIds,
@@ -114,8 +116,11 @@ function CreateRoomDialogContent({
               />
               <RoomMemberSelector
                 agents={form.filteredAgents}
+                canManageParticipation={mode === "manage"}
                 onQueryChange={form.setMemberQuery}
                 onToggleAgent={form.toggleAgent}
+                onToggleParticipation={form.toggleParticipation}
+                pausedAgentIds={form.pausedAgentIdSet}
                 query={form.state.memberQuery}
                 selectedAgentIds={form.selectedAgentIdSet}
               />

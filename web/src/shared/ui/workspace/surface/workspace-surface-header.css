@@ -59,6 +59,26 @@
   padding-inline: 10px;
 }
 
+.workspace-surface-header-with-session-tabs
+  .workspace-surface-header-view-tab {
+  --workspace-header-control-height: 32px;
+  gap: 5px;
+  padding-inline: 8px;
+  font-size: 12px;
+}
+
+.workspace-surface-header-with-session-tabs
+  .workspace-surface-header-view-tab[aria-pressed="true"] {
+  padding-inline: 8px;
+}
+
+.workspace-surface-header-with-session-tabs
+  .workspace-surface-header-view-tab
+  svg {
+  width: 15px;
+  height: 15px;
+}
+
 .workspace-surface-header-title {
   max-width: 260px;
 }

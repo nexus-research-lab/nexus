@@ -11,6 +11,22 @@ const AGENT_API_FORMATS = new Set([
   "responses",
 ]);
 
+// 初始化时优先展示国内可直接获取 API Key 的服务；未列入的预设保持服务端目录顺序。
+const DOMESTIC_PROVIDER_ORDER = [
+  "deepseek",
+  "qwen-token-plan",
+  "minimax-token-plan",
+  "glm-coding-plan",
+  "kimi-code",
+  "volcengine-coding-plan",
+  "doubao",
+  "dashscope",
+  "modelscope",
+] as const;
+const DOMESTIC_PROVIDER_RANK = new Map<string, number>(
+  DOMESTIC_PROVIDER_ORDER.map((presetKey, index) => [presetKey, index]),
+);
+
 export interface ProviderSetupPreset {
   format: ProviderPresetFormat;
   preset: ProviderPreset;
@@ -39,7 +55,26 @@ export function listProviderSetupPresets(
       );
       return format ? { format, preset } : null;
     })
-    .filter((item): item is ProviderSetupPreset => item !== null);
+    .filter((item): item is ProviderSetupPreset => item !== null)
+    .sort(compareProviderSetupPresets);
+}
+
+function compareProviderSetupPresets(
+  left: ProviderSetupPreset,
+  right: ProviderSetupPreset,
+): number {
+  const leftRank = DOMESTIC_PROVIDER_RANK.get(left.preset.preset_key);
+  const rightRank = DOMESTIC_PROVIDER_RANK.get(right.preset.preset_key);
+  if (leftRank === undefined && rightRank === undefined) {
+    return 0;
+  }
+  if (leftRank === undefined) {
+    return 1;
+  }
+  if (rightRank === undefined) {
+    return -1;
+  }
+  return leftRank - rightRank;
 }
 
 /** 初始化向导只暴露当前 Agent runtime 可直接使用的自定义 LLM 协议。 */

@@ -18,7 +18,9 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 	if agentRoundID := strings.TrimSpace(request.AgentRoundID); agentRoundID != "" {
 		roundValue, slot := s.findActiveSlotByAgentRoundID(sessionKey, agentRoundID)
 		if slot == nil {
-			return errors.New("target room slot not found")
+			// 精确停止与自然完成存在合法竞态。目标已经离开 active registry 时
+			// 按幂等成功收口，禁止客户端因迟到错误把已完成执行重新暴露为可停止。
+			return nil
 		}
 		return s.interruptActiveSlot(ctx, roundValue, slot, "")
 	}

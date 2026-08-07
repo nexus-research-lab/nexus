@@ -1,5 +1,5 @@
 // INPUT: Room Goal 状态/lead、成员目录、协作者 active slot、显式输入队列与上一轮执行结果。
-// OUTPUT: 启动 slot 前对齐的有效 lead，以及按复杂度和成员适配分工、在同 Goal 工作收敛后原子 claim 的隐藏 continuation。
+// OUTPUT: 启动 slot 前对齐的有效 lead，以及使用稳定或旧记录恢复的 Execution reservation、按复杂度和成员适配分工、在同 Goal 工作收敛后原子 claim 的隐藏 continuation。
 // POS: Room 与 Goal 权限/状态机之间的续跑适配层。
 package realtime
 
@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
@@ -64,7 +65,12 @@ func (s *Service) shouldDeferGoalContinuationLocked(
 	if len(entries) == 0 {
 		return s.shouldDeferGoalContinuationForTargetStateLocked(ctx, sessionKey, contextValue)
 	}
-	entry, ok := s.findDispatchableInputQueueEntry(sessionKey, conversationID, entries)
+	entry, ok := s.findDispatchableInputQueueEntry(
+		sessionKey,
+		conversationID,
+		contextValue.Members,
+		entries,
+	)
 	if !ok {
 		return true
 	}
@@ -104,6 +110,16 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 	if activeBlocker != "" {
 		return true
 	}
+	currentGoal := s.currentRoomGoalForSession(ctx, sessionKey)
+	if targetAgentID := goalContinuationMemberTargetAgentID(
+		contextValue,
+		currentGoal,
+	); targetAgentID != "" && roomdomain.IsMemberParticipationPaused(
+		contextValue.Members,
+		targetAgentID,
+	) {
+		return true
+	}
 	if s.agents == nil {
 		return false
 	}
@@ -112,8 +128,14 @@ func (s *Service) shouldDeferGoalContinuationForTargetStateLocked(
 		s.loggerFor(ctx).Warn("读取 Room Goal 续跑 Agent plan mode 状态失败", "conversation_id", contextValue.Conversation.ID, "err", err)
 		return false
 	}
-	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, s.currentRoomGoalForSession(ctx, sessionKey))
+	targetAgentID := goalContinuationTargetAgentID(contextValue, agentNameByID, currentGoal)
 	if targetAgentID == "" {
+		return true
+	}
+	if roomdomain.IsMemberParticipationPaused(
+		contextValue.Members,
+		targetAgentID,
+	) {
 		return true
 	}
 	if len(s.findActiveDeliverySlotsByAgent(
@@ -167,6 +189,43 @@ func (s *Service) GoalContinuationConversationMissing(ctx context.Context, conve
 		return false, err
 	}
 	return contextValue == nil, nil
+}
+
+// goalContinuationMemberTargetAgentID 只用 Room 持久成员身份定位续跑责任人，
+// 让 participation gate 不依赖易失的 Agent 目录加载结果。
+func goalContinuationMemberTargetAgentID(
+	contextValue *protocol.ConversationContextAggregate,
+	goal *protocol.Goal,
+) string {
+	if contextValue == nil {
+		return ""
+	}
+	memberAgentIDs := make(map[string]struct{}, len(contextValue.Members))
+	for _, member := range contextValue.Members {
+		if member.MemberType != protocol.MemberTypeAgent {
+			continue
+		}
+		agentID := strings.TrimSpace(member.MemberAgentID)
+		if agentID != "" {
+			memberAgentIDs[agentID] = struct{}{}
+		}
+	}
+	if goal != nil {
+		leadAgentID := goalsvc.RoomLeadAgentID(*goal)
+		if _, ok := memberAgentIDs[leadAgentID]; ok {
+			return leadAgentID
+		}
+	}
+	hostAgentID := strings.TrimSpace(contextValue.Room.HostAgentID)
+	if _, ok := memberAgentIDs[hostAgentID]; ok {
+		return hostAgentID
+	}
+	if len(memberAgentIDs) == 1 {
+		for agentID := range memberAgentIDs {
+			return agentID
+		}
+	}
+	return ""
 }
 
 func goalContinuationTargetAgentID(
@@ -259,10 +318,25 @@ func (s *Service) dispatchPostRoundWork(ctx context.Context, roundValue *activeR
 	if roundValue.RunningSubagents.Load() {
 		return
 	}
+	if !roomRoundHasGoalAuthority(roundValue) {
+		return
+	}
 	if s.ShouldDeferGoalContinuation(ctx, roundValue.SessionKey) {
 		return
 	}
 	s.dispatchGoalContinuation(ctx, roundValue)
+}
+
+func roomRoundHasGoalAuthority(roundValue *activeRoomRound) bool {
+	if roundValue == nil {
+		return false
+	}
+	for _, slot := range roundValue.Slots {
+		if slot != nil && slot.goalMutationAuthority().valid() {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) dispatchGoalContinuation(ctx context.Context, roundValue *activeRoomRound) {
@@ -356,6 +430,9 @@ func (s *Service) DispatchGoalContinuation(ctx context.Context, plan protocol.Go
 	if err != nil || validated == nil {
 		return err
 	}
+	if _, err = exactGoalContinuationExecutionID(*validated); err != nil {
+		return err
+	}
 	if _, err = planner.ClaimContinuationPlan(ctx, *validated); err != nil {
 		return err
 	}
@@ -372,6 +449,10 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, pl
 	if parsed.Kind != protocol.SessionKeyKindRoom || strings.TrimSpace(parsed.ConversationID) == "" {
 		return errors.New("room goal continuation requires a room session key")
 	}
+	executionID, err := exactGoalContinuationExecutionID(plan)
+	if err != nil {
+		return err
+	}
 	targetAgentIDs, collaborationContext := s.goalContinuationDispatchTarget(ctx, parsed.ConversationID, plan.Goal)
 	goalContext := appendPromptSection(plan.Prompt, collaborationContext)
 	if collaborationContext != "" {
@@ -383,12 +464,22 @@ func (s *Service) dispatchPreparedGoalContinuationLocked(ctx context.Context, pl
 		GoalContext:           goalContext,
 		GoalID:                plan.Goal.ID,
 		GoalObjectiveRevision: plan.Goal.ObjectiveRevision(),
+		ExecutionID:           executionID,
 		TargetAgentIDs:        targetAgentIDs,
+		CoordinatorAgentID:    firstRoomTargetAgentID(targetAgentIDs),
 		RoundID:               plan.RoundID,
 		DeliveryPolicy:        protocol.ChatDeliveryPolicyQueue,
 		Internal:              true,
 		InputOptions:          goalContinuationInputOptions(plan),
 	})
+}
+
+func exactGoalContinuationExecutionID(plan protocol.GoalContinuation) (string, error) {
+	executionID := protocol.GoalReservedExecutionID(plan.Goal)
+	if strings.TrimSpace(executionID) == "" {
+		return "", errors.New("room goal continuation requires an exact execution binding")
+	}
+	return strings.TrimSpace(executionID), nil
 }
 
 func (s *Service) goalContinuationDispatchTarget(

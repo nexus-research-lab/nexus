@@ -30,7 +30,7 @@ func TestSharedRoomGoalWaitsForFailedUsageClaimThenFinalizesOnce(t *testing.T) {
 		),
 	}
 	slot.setRuntimeKind("nxs")
-	slot.setGoalBinding(sessionKey, goalID)
+	grantTestRoomGoalAuthority(slot, sessionKey, goalID)
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
 	slot.setStatus("finished")
 	roundValue := &activeRoomRound{
@@ -296,7 +296,7 @@ func TestRoomSubagentUsageRetryRecoversWithoutAnotherRuntimeMessage(t *testing.T
 		),
 	}
 	slot.setRuntimeKind("nxs")
-	slot.setGoalBinding(sessionKey, goalID)
+	grantTestRoomGoalAuthority(slot, sessionKey, goalID)
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
 	slot.setGoalUsageTerminalSettled(true)
 	slot.setStatus("finished")
@@ -448,7 +448,7 @@ func TestRoomParentUsageRetryRecoversWithoutChildOrRuntimeMessage(t *testing.T) 
 			protocol.RoomTypeGroup,
 		),
 	}
-	slot.setGoalBinding(sessionKey, goalID)
+	grantTestRoomGoalAuthority(slot, sessionKey, goalID)
 	slot.setGoalUsageAccumulator(goalsvc.NewRuntimeUsageAccumulator(true))
 	slot.setStatus("finished")
 	roundValue := &activeRoomRound{
@@ -564,6 +564,7 @@ func TestRoomPostRoundDispatchRunsOnceUnderRace(t *testing.T) {
 		SessionKey: "room:group:post-round-once",
 		RoundID:    "round-post-round-once",
 	}
+	attachTestRoomGoalAuthority(roundValue, "goal-post-round-once")
 
 	var waitGroup sync.WaitGroup
 	for range 32 {

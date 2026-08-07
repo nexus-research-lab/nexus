@@ -43,6 +43,28 @@ func (h *Handlers) persistProviderPreferenceDefaults(
 	})
 }
 
+func updatedDefaultAgentSelection(
+	previous preferencessvc.Preferences,
+	payload preferencessvc.UpdateRequest,
+) (providercfg.DefaultAgentSelection, bool) {
+	selection := providercfg.DefaultAgentSelection{
+		Provider:    strings.TrimSpace(previous.DefaultAgentOptions.Provider),
+		Model:       strings.TrimSpace(previous.DefaultAgentOptions.Model),
+		RuntimeKind: strings.TrimSpace(previous.AgentRuntimeKind),
+	}
+	if payload.DefaultAgentOptions != nil {
+		selection.Provider = strings.TrimSpace(payload.DefaultAgentOptions.Provider)
+		selection.Model = strings.TrimSpace(payload.DefaultAgentOptions.Model)
+	}
+	if payload.AgentRuntimeKind != nil {
+		selection.RuntimeKind = strings.TrimSpace(*payload.AgentRuntimeKind)
+	}
+	changed := selection.Provider != strings.TrimSpace(previous.DefaultAgentOptions.Provider) ||
+		selection.Model != strings.TrimSpace(previous.DefaultAgentOptions.Model) ||
+		selection.RuntimeKind != strings.TrimSpace(previous.AgentRuntimeKind)
+	return selection, changed
+}
+
 func applyImagegenDefaultTool(
 	prefs preferencessvc.Preferences,
 	providerOptions *providercfg.OptionsResponse,

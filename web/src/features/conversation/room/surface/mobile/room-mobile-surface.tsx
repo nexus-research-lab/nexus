@@ -2,12 +2,15 @@
 
 /**
  * INPUT: 移动端 Room 会话、任务快照、导航与 Overlay 命令。
- * OUTPUT: 将任务快照交给聊天 Bottom Dock，并组合移动端头部与全屏辅助面。
+ * OUTPUT: 将任务快照交给聊天 Bottom Dock，并仅在托管 Plan 成功创建后暴露移动端工作图。
  * POS: Room 移动端 Surface 的主装配层。
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { hasManagedExecutionGraph } from "@/features/conversation/shared/execution/execution-process-model";
+import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import { RoomMemberManagerDialog } from "@/features/conversation/room/members/room-member-manager-dialog";
@@ -54,11 +57,14 @@ interface RoomMobileSurfaceProps {
   currentRoomTitle: string;
   currentRoomType: string;
   currentTodos: TodoItem[];
+  executionResource: ExecutionResource;
+  executionTaskRuns: ConversationTaskRun[];
   initialDraft?: string | null;
   onBackToDirectory: () => void;
   onConversationSnapshotChange: (snapshot: ConversationSnapshotPayload) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
+  onExecutionTaskRunsChange: (runs: ConversationTaskRun[]) => void;
   onInitialDraftConsumed?: () => void;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
@@ -104,11 +110,14 @@ export function RoomMobileSurface({
   currentRoomTitle,
   currentRoomType,
   currentTodos,
+  executionResource,
+  executionTaskRuns,
   initialDraft = null,
   onBackToDirectory,
   onConversationSnapshotChange,
   onCreateConversation,
   onDeleteConversation,
+  onExecutionTaskRunsChange,
   onInitialDraftConsumed,
   onManageRoom,
   onOpenMemberManager,
@@ -134,6 +143,9 @@ export function RoomMobileSurface({
   const [memberDialogRoomId, setMemberDialogRoomId] = useState<string | null>(null);
   const [openSubagentSource, setOpenSubagentSource] = useState<SubagentTaskSource | null>(null);
   const isDm = currentRoomType === "dm";
+  const workgraphAvailable = hasManagedExecutionGraph(
+    executionResource.execution,
+  );
   const subagentTaskSource = useMemo(
     () => resolveRoomSubagentTaskSource({
       conversationId,
@@ -154,7 +166,7 @@ export function RoomMobileSurface({
     setMemberDialogRoomId(scopeRoomId);
   };
   const handleOpenAuxiliaryTab = (
-    tab: "about" | "subagents" | "workspace",
+    tab: "about" | "subagents" | "workgraph" | "workspace",
   ) => {
     if (tab === "subagents") {
       setActiveAuxiliaryTab(null);
@@ -174,17 +186,25 @@ export function RoomMobileSurface({
       setActiveAuxiliaryTab("workspace");
     }
   };
+  useEffect(() => {
+    if (activeAuxiliaryTab === "workgraph" && !workgraphAvailable) {
+      setActiveAuxiliaryTab(null);
+    }
+  }, [activeAuxiliaryTab, workgraphAvailable]);
   const chatSurface = (
     <RoomChatSurface
       conversationId={conversationId}
       currentAgent={currentAgent}
       currentAgentSessionIdentity={currentAgentSessionIdentity}
       currentRoomType={currentRoomType}
+      executionResource={executionResource}
       initialDraft={initialDraft}
       layout="mobile"
       onConversationSnapshotChange={onConversationSnapshotChange}
       onCreateConversation={onCreateConversation}
+      onExecutionTaskRunsChange={onExecutionTaskRunsChange}
       onInitialDraftConsumed={onInitialDraftConsumed}
+      onOpenWorkGraph={() => handleOpenAuxiliaryTab("workgraph")}
       onOpenWorkspaceFile={handleOpenWorkspaceFile}
       onRoomEvent={onRoomEvent}
       onTodosChange={onTodosChange}
@@ -219,6 +239,7 @@ export function RoomMobileSurface({
               triggerVariant="history"
             />
             <RoomMobileActionsMenu
+              canOpenWorkgraph={workgraphAvailable}
               canOpenSubagents={subagentTaskSource !== null}
               onCreateConversation={onCreateConversation}
               onManageMembers={!isDm && roomId
@@ -264,6 +285,8 @@ export function RoomMobileSurface({
         activeWorkspacePath={activeWorkspacePath}
         conversationId={conversationId}
         currentAgent={currentAgent}
+        executionResource={executionResource}
+        executionTaskRuns={executionTaskRuns}
         isDm={isDm}
         onClose={() => setActiveAuxiliaryTab(null)}
         onOpenWorkspaceFile={handleOpenWorkspaceFile}

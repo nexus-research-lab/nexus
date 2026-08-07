@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 
 import { useI18n } from "@/shared/i18n/i18n-context";
+import { UiButton } from "@/shared/ui/button/button";
 import { UiSelectMenu } from "@/shared/ui/menu/select-menu";
 import type { AgentProvider } from "@/types/agent/agent";
 import {
@@ -42,6 +43,7 @@ interface IdentityModelSelectorProps {
   defaultModel: string;
   defaultProvider: AgentProvider;
   error: string | null;
+  lockedToDefault?: boolean;
   loading: boolean;
   model: string;
   onModelChange: (value: string) => void;
@@ -62,6 +64,7 @@ export function IdentityModelSelector({
   defaultModel,
   defaultProvider,
   error,
+  lockedToDefault = false,
   loading,
   model,
   onModelChange,
@@ -79,8 +82,20 @@ export function IdentityModelSelector({
       name: `${formatProviderLabel(defaultProvider)} / ${defaultModel}`,
     })
     : t("agent_options.identity.follow_default_provider");
+  const selectedUnavailable = !lockedToDefault
+    && Boolean(provider.trim() && model.trim())
+    && !options.some((providerOption) => (
+      providerOption.provider.trim() === provider.trim()
+      && providerOption.models.some((modelOption) => modelOption.model_id.trim() === model.trim())
+    ));
   const selectOptions = useMemo(() => [
     { label: defaultLabel, value: "" },
+    ...(selectedUnavailable ? [{
+      label: t("agent_options.identity.model_temporarily_unavailable_option", {
+        name: `${formatProviderLabel(provider)} / ${model}`,
+      }),
+      value: selectedValue,
+    }] : []),
     ...options.flatMap((providerOption) => {
       const providerLabel = formatProviderOptionLabel(
         providerOption,
@@ -94,7 +109,7 @@ export function IdentityModelSelector({
         }),
       }));
     }),
-  ], [defaultLabel, options, t]);
+  ], [defaultLabel, model, options, provider, selectedUnavailable, selectedValue, t]);
 
   const handleChange = useCallback((value: string) => {
     const selection = decodeModelSelection(value);
@@ -103,6 +118,11 @@ export function IdentityModelSelector({
     }
     onProviderChange(selection.provider);
     onModelChange(selection.model);
+  }, [onModelChange, onProviderChange]);
+
+  const followDefault = useCallback(() => {
+    onProviderChange(DEFAULT_MODEL_SELECTION.provider);
+    onModelChange(DEFAULT_MODEL_SELECTION.model);
   }, [onModelChange, onProviderChange]);
 
   return (
@@ -115,7 +135,7 @@ export function IdentityModelSelector({
         ariaLabel={t("agent_options.identity.model")}
         buttonClassName={layout.buttonClassName}
         className={layout.className}
-        disabled={loading && options.length === 0}
+        disabled={lockedToDefault || (loading && options.length === 0)}
         menuMinWidth={460}
         onChange={handleChange}
         options={selectOptions}
@@ -123,7 +143,26 @@ export function IdentityModelSelector({
         surface="dialog"
         value={selectedValue}
       />
-      {error ? <p className={layout.errorClassName}>{error}</p> : null}
+      {lockedToDefault ? (
+        <p className="text-xs text-(--text-soft)">
+          {t("agent_options.identity.main_model_hint")}
+        </p>
+      ) : selectedUnavailable ? (
+        <div className="surface-radius-md flex flex-wrap items-center justify-between gap-2 border border-[color:color-mix(in_srgb,var(--warning)_20%,transparent)] bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-3 py-2">
+          <p className="text-xs leading-5 text-(--warning)">
+            {t("agent_options.identity.model_temporarily_unavailable")}
+          </p>
+          <UiButton
+            className="shrink-0"
+            onClick={followDefault}
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            {t("agent_options.identity.use_default_model")}
+          </UiButton>
+        </div>
+      ) : error ? <p className={layout.errorClassName}>{error}</p> : null}
     </div>
   );
 }

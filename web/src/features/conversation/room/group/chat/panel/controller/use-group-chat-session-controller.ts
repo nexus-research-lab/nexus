@@ -6,7 +6,10 @@
 import { useCallback, useEffect, useMemo } from "react";
 
 import { useConversationSession } from "@/features/conversation/shared/session/use-conversation-session";
-import { useConversationTodoProcesses } from "@/features/conversation/shared/todos/use-conversation-todos";
+import {
+  useConversationTaskRuns,
+  useConversationTodoProcesses,
+} from "@/features/conversation/shared/todos/use-conversation-todos";
 import {
   buildConversationActivityPatch,
   useConversationSnapshotReporter,
@@ -71,7 +74,7 @@ export function useGroupChatSessionController({
     onRoomEvent: handleRoomEvent,
   });
 
-  const taskProcesses = useGroupConversationObservers({
+  const taskProjection = useGroupConversationObservers({
     conversationId,
     messages: session.conversation.messages,
     onConversationSnapshotChange,
@@ -81,7 +84,7 @@ export function useGroupChatSessionController({
 
   return {
     ...session,
-    taskProcesses,
+    ...taskProjection,
   };
 }
 
@@ -101,6 +104,7 @@ function useGroupConversationObservers({
   sessionKey: string | null;
 }) {
   const taskProcesses = useConversationTodoProcesses(messages, sessionKey);
+  const taskRuns = useConversationTaskRuns(messages, sessionKey);
   const latestTodos = useMemo(() => (
     taskProcesses.reduce<{
       latestTaskEventIndex: number;
@@ -121,7 +125,10 @@ function useGroupConversationObservers({
     on_snapshot_change: onConversationSnapshotChange,
     scope_key: conversationId,
   });
-  return taskProcesses;
+  return {
+    taskProcesses,
+    taskRuns,
+  };
 }
 
 function buildRoomSnapshot(

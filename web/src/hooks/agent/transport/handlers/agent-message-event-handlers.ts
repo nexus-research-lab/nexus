@@ -60,6 +60,7 @@ const handleMessage: AgentEventHandler = (event, context) => {
     upsertRealtimeMessage(currentMessages, normalizedMessage)
   ));
   context.callbacks.settleLiveMessageSnapshot(normalizedMessage);
+  context.callbacks?.onRoomEvent?.(event.event_type, event.data ?? {});
   if (normalizedMessage.role === "assistant") {
     context.runtime.trackAssistantMessage(
       normalizedMessage as AssistantMessage,

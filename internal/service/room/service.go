@@ -34,6 +34,7 @@ type Repository interface {
 	UpdateRoom(context.Context, string, string, roomrepo.UpdateRoomPatch) (*protocol.ConversationContextAggregate, error)
 	AddRoomMember(context.Context, string, string, roomrepo.AgentRuntimeRef) (*protocol.ConversationContextAggregate, error)
 	RemoveRoomMember(context.Context, string, string, string) (*protocol.ConversationContextAggregate, error)
+	SetRoomMemberParticipation(context.Context, string, string, string, bool) (*protocol.ConversationContextAggregate, error)
 	DeleteRoom(context.Context, string, string) (bool, error)
 	CreateConversation(context.Context, roomrepo.CreateConversationBundle) (*protocol.ConversationContextAggregate, error)
 	UpdateConversation(context.Context, string, string, string, string) (*protocol.ConversationContextAggregate, error)

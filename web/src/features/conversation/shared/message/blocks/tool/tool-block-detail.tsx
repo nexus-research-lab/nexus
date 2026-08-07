@@ -1,3 +1,8 @@
+/**
+ * INPUT: Provider 原生工具结果与可选工作区文件打开能力。
+ * OUTPUT: 普通结果明细，或有界的 mutation 拒绝原因与稳定 reason code。
+ * POS: ToolBlock 展开内容；完整原始结果仍由复制动作保留。
+ */
 import type { PropsWithChildren } from "react";
 
 import type {
@@ -7,6 +12,8 @@ import type {
 
 import { ImageBlock } from "../artifact/image/image-block";
 import { CodeBlock } from "@/shared/ui/markdown/code/code-block";
+import { useI18n } from "@/shared/i18n/i18n-context";
+import { projectToolResultMutation } from "../../tool-result-semantic-model";
 
 const TOOL_DETAIL_SCROLL_CLASS_NAME =
   "min-w-0 max-h-[18rem] overflow-auto overscroll-contain custom-scrollbar";
@@ -26,8 +33,8 @@ export function ToolBlockResult({
     <div className="message-cjk-font ml-7 mt-2 min-w-0">
       <ToolBlockDetailScroll>
         <ToolResultContentView
-          content={toolResult.content}
           onOpenWorkspaceFile={onOpenWorkspaceFile}
+          toolResult={toolResult}
           workspaceAgentId={workspaceAgentId}
         />
       </ToolBlockDetailScroll>
@@ -40,14 +47,35 @@ export function ToolBlockDetailScroll({ children }: PropsWithChildren) {
 }
 
 function ToolResultContentView({
-  content,
   onOpenWorkspaceFile,
+  toolResult,
   workspaceAgentId,
 }: {
-  content: ToolResultContent["content"];
   onOpenWorkspaceFile?: (path: string) => void;
+  toolResult: ToolResultContent;
   workspaceAgentId?: string | null;
 }) {
+  const { t } = useI18n();
+  const mutation = projectToolResultMutation(toolResult);
+  if (mutation?.outcome === "rejected") {
+    return (
+      <div
+        className="rounded-[10px] border border-[color:color-mix(in_srgb,var(--destructive)_24%,transparent)] bg-[color:color-mix(in_srgb,var(--destructive)_6%,transparent)] px-3 py-2"
+        data-tool-result-semantic-outcome="rejected"
+      >
+        <p className="text-xs leading-5 text-(--destructive)">
+          {mutation.message || t("message.tool_rejection_without_detail")}
+        </p>
+        {mutation.reasonCode ? (
+          <p className="mt-1 font-mono text-[10px] text-(--text-soft)">
+            {mutation.reasonCode}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  const content = toolResult.content;
   if (typeof content === "string") {
     return (
       <pre className="message-cjk-font px-0 py-0 text-xs whitespace-pre-wrap break-all text-(--text-strong)">

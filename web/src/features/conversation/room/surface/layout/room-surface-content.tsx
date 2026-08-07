@@ -2,7 +2,7 @@
 
 /**
  * INPUT: 桌面 Room 会话、任务快照、右栏状态与页面命令。
- * OUTPUT: 将任务快照交给聊天 Bottom Dock，并组合带局部阅读羽化的主聊天与可调整右栏。
+ * OUTPUT: 将任务快照交给聊天 Bottom Dock，并提供常驻的工作图右栏入口与无图空态。
  * POS: Room 桌面 Surface 的主内容装配层；对话视觉效果必须裁剪在聊天栏内。
  */
 
@@ -34,6 +34,8 @@ export function RoomSurfaceContent({
   currentRoomType,
   runtimeKind,
   currentTodos,
+  executionResource,
+  executionTaskRuns,
   sidePanelWidthPercent,
   initialDraft = null,
   isResizingSidePanel,
@@ -43,6 +45,7 @@ export function RoomSurfaceContent({
   onConversationSnapshotChange,
   onCreateConversation,
   onDeleteConversation,
+  onExecutionTaskRunsChange,
   onInitialDraftConsumed,
   onManageRoom,
   onOpenMemberManager,
@@ -126,12 +129,15 @@ export function RoomSurfaceContent({
                   currentAgent={currentAgent}
                   currentAgentSessionIdentity={currentAgentSessionIdentity}
                   currentRoomType={currentRoomType}
+                  executionResource={executionResource}
                   initialDraft={initialDraft}
                   layout="desktop"
                   onConversationSnapshotChange={onConversationSnapshotChange}
                   onCreateConversation={onCreateConversation}
+                  onExecutionTaskRunsChange={onExecutionTaskRunsChange}
                   onInitialDraftConsumed={onInitialDraftConsumed}
                   onOpenAgentContact={layout.handleOpenAgentContact}
+                  onOpenWorkGraph={() => layout.handleChangeSurfaceTab("workgraph")}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
                   onRoomEvent={onRoomEvent}
                   onTodosChange={onTodosChange}
@@ -152,6 +158,8 @@ export function RoomSurfaceContent({
                 activeWorkspacePath={activeWorkspacePath}
                 conversationId={conversationId}
                 currentAgent={currentAgent}
+                executionResource={executionResource}
+                executionTaskRuns={executionTaskRuns}
                 sidePanelWidthPercent={sidePanelWidthPercent}
                 isDm={isDm}
                 onClose={layout.handleCloseAuxiliaryPanel}

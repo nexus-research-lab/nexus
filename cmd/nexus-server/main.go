@@ -59,6 +59,7 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 	}
 	defer db.Close()
 
+	allowMissing := false
 	version, err := goose.GetDBVersion(db)
 	if err != nil {
 		logger.Info("无法获取当前 migration 版本，尝试初始化", "err", err)
@@ -76,14 +77,54 @@ func runMigrations(cfg config.Config, logger *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("read migration version after compatibility repair: %w", err)
 		}
+		allowMissing, err = migration.RepairLegacyPrivateSkillMigrationCollision(
+			context.Background(), cfg.DatabaseDriver, db, version, logger,
+		)
+		if err != nil {
+			return fmt.Errorf("repair private Skill migration version collision: %w", err)
+		}
+		version, err = goose.GetDBVersion(db)
+		if err != nil {
+			return fmt.Errorf("read migration version after private Skill repair: %w", err)
+		}
+		if !allowMissing {
+			if err = migration.RepairLegacyExecutionIdentityClaimSchema(
+				context.Background(),
+				cfg.DatabaseDriver,
+				db,
+				version,
+				logger,
+			); err != nil {
+				return fmt.Errorf("repair legacy execution identity claim schema: %w", err)
+			}
+		}
 	}
 
 	logger.Info("执行数据库迁移", "current_version", version, "dir", dir)
 	if version > 0 {
 		logger.Info("数据库迁移版本就绪", "current_version", version)
 	}
-	if err = goose.Up(db, dir); err != nil {
+	var options []goose.OptionsFunc
+	if allowMissing {
+		options = append(options, goose.WithAllowMissing())
+	}
+	if err = goose.Up(db, dir, options...); err != nil {
 		return fmt.Errorf("run goose up: %w", err)
+	}
+	if allowMissing {
+		version, err = goose.GetDBVersion(db)
+		if err != nil {
+			return fmt.Errorf("read migration version after Execution replay: %w", err)
+		}
+		pending, repairErr := migration.RepairLegacyPrivateSkillMigrationCollision(
+			context.Background(), cfg.DatabaseDriver, db, version, logger,
+		)
+		if repairErr != nil {
+			return fmt.Errorf("finalize private Skill migration collision repair: %w", repairErr)
+		}
+		if pending {
+			return errors.New("private Skill migration collision repair remains incomplete")
+		}
 	}
 	return nil
 }

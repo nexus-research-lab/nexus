@@ -24,7 +24,7 @@ func (d goalGuidanceDispatcher) QueueContextualGuidanceInput(ctx context.Context
 	if protocol.IsRoomSharedSessionKey(sessionKey) && d.room != nil {
 		return d.room.QueueRoomContextualGuidanceInput(ctx, sessionKey, roundID, contextName, content, "", objectiveRevision)
 	}
-	return d.runtime.QueueContextualGuidanceInputOnConsumed(ctx, sessionKey, roundID, contextName, content, func() {
+	return d.runtime.QueueGoalContextualGuidanceInputOnConsumed(ctx, sessionKey, roundID, contextName, content, func() {
 		d.runtime.AdoptGoalObjectiveRevision(sessionKey, objectiveRevision)
 	})
 }

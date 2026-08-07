@@ -1,6 +1,6 @@
 /**
  * INPUT: 当前会话消息、session 与 Room Agent 身份。
- * OUTPUT: 单会话任务列表，以及按 Agent 隔离且带最近任务事件位置的进程集合。
+ * OUTPUT: 单会话任务列表、按 Agent 隔离的 legacy 进程，以及按 Agent round 精确隔离的节点局部 Task run。
  * POS: Conversation Todo/Task 工具到 DM/Room 进程 UI 的唯一纯投影入口。
  */
 import { areEquivalentSessionKeys } from "@/lib/conversation/session-key";
@@ -37,6 +37,13 @@ interface TodoRoundProjection {
 
 export interface ConversationTodoProcess {
   agentId: string;
+  latestTaskEventIndex: number;
+  todos: TodoItem[];
+}
+
+export interface ConversationTaskRun {
+  agentId: string;
+  agentRoundId: string;
   latestTaskEventIndex: number;
   todos: TodoItem[];
 }
@@ -315,6 +322,64 @@ export function projectConversationTodoProcesses(
   return processes;
 }
 
+export function projectConversationTaskRuns(
+  messages: Message[],
+  sessionKey: string | null,
+): ConversationTaskRun[] {
+  if (!sessionKey || messages.length === 0) {
+    return [];
+  }
+
+  const groupsByAgent = new Map<string, Map<string, {
+    indexes: number[];
+    messages: Message[];
+  }>>();
+  messages.forEach((message, messageIndex) => {
+    if (!isSameSessionMessage(message, sessionKey)) {
+      return;
+    }
+    const agentId = message.agent_id.trim();
+    const agentRoundId = message.agent_round_id?.trim() ?? "";
+    if (!agentId || !agentRoundId) {
+      return;
+    }
+    const groupsByRound = groupsByAgent.get(agentId) ?? new Map();
+    const group = groupsByRound.get(agentRoundId) ?? {
+      indexes: [],
+      messages: [],
+    };
+    group.indexes.push(messageIndex);
+    group.messages.push(message);
+    groupsByRound.set(agentRoundId, group);
+    groupsByAgent.set(agentId, groupsByRound);
+  });
+
+  const runs: ConversationTaskRun[] = [];
+  for (const [agentId, groupsByRound] of groupsByAgent) {
+    for (const [agentRoundId, group] of groupsByRound) {
+      const projection = projectConversationTodoProjection(
+        group.messages,
+        sessionKey,
+      );
+      if (projection.todos.length === 0) {
+        continue;
+      }
+      runs.push({
+        agentId,
+        agentRoundId,
+        latestTaskEventIndex:
+          group.indexes[projection.latestTaskEventIndex] ?? -1,
+        todos: projection.todos,
+      });
+    }
+  }
+  return runs.sort((left, right) => (
+    left.latestTaskEventIndex - right.latestTaskEventIndex
+    || left.agentId.localeCompare(right.agentId)
+    || left.agentRoundId.localeCompare(right.agentRoundId)
+  ));
+}
+
 function projectConversationTodoProjection(
   messages: Message[],
   sessionKey: string | null,
@@ -384,6 +449,25 @@ export function areTodoProcessListsEqual(
         && process.agentId === other.agentId
         && process.latestTaskEventIndex === other.latestTaskEventIndex
         && areTodoListsEqual(process.todos, other.todos),
+      );
+    })
+  );
+}
+
+export function areTaskRunListsEqual(
+  left: ConversationTaskRun[],
+  right: ConversationTaskRun[],
+): boolean {
+  return left === right || (
+    left.length === right.length
+    && left.every((run, index) => {
+      const other = right[index];
+      return Boolean(
+        other
+        && run.agentId === other.agentId
+        && run.agentRoundId === other.agentRoundId
+        && run.latestTaskEventIndex === other.latestTaskEventIndex
+        && areTodoListsEqual(run.todos, other.todos),
       );
     })
   );

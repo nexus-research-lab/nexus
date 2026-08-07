@@ -2768,7 +2768,7 @@ test("DM tool segments split on narrative and preserve interactions and errors",
       {
         id: "tool-run:tool-failed",
         kind: "tool_run",
-        phase: "complete",
+        phase: "error",
       },
       { id: "content:thinking:5", kind: "content", phase: undefined },
       {
@@ -2979,6 +2979,134 @@ test("DM tool run view expands only the active segment and leaves Room direct co
   );
   assert.doesNotMatch(roomHtml, /data-dm-tool-run-list/);
   assert.match(roomHtml, /读取内容/);
+});
+
+test("semantic tool rejection stays distinct from transport completion in DM and Room", async () => {
+  const { AssistantDmToolRuns } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/assistant/assistant-dm-tool-runs.tsx",
+  );
+  const { ContentRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
+  );
+  const { resolveToolBlockStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer-model.ts",
+  );
+  const { ToolBlockResult } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/blocks/tool/tool-block-detail.tsx",
+  );
+  const { projectDmToolRunSegments } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/dm-tool-run-segments.ts",
+  );
+  const { buildProcessSummary } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/process/message-process-summary.ts",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const tool = {
+    type: "tool_use",
+    id: "tool-plan-rejected",
+    name: "mcp__nexus_execution__prepare_plan_execution",
+    input: {
+      plan_document: [
+        "nexus_plan: 1",
+        "operation: create",
+        "objective: 产出 LPL 本周看点简报",
+        "completion_criteria:",
+        "  - 简报可供发布",
+        "items: []",
+      ].join("\n"),
+    },
+  };
+  const result = {
+    type: "tool_result",
+    tool_use_id: tool.id,
+    is_error: false,
+    content: JSON.stringify({
+      message: "Plan Document items must contain at least one complete Work Item",
+      next_actions: [{
+        reason: "submit one complete Nexus Plan Document with every intended Work Item",
+        tool: "prepare_plan_execution",
+      }],
+      outcome: "rejected",
+      reason_code: "plan_items_empty",
+    }),
+  };
+  const projection = {
+    content: [tool, result],
+    streamingIndexes: new Set(),
+  };
+  const [segment] = projectDmToolRunSegments({
+    interactiveToolUseIds: new Set(),
+    live: true,
+    projection,
+    responseResumed: true,
+  });
+  assert.equal(segment.phase, "rejected");
+  assert.equal(segment.rejectedCount, 1);
+  assert.equal(segment.errorCount, 0);
+  assert.equal(
+    resolveToolBlockStatus({ result }, false),
+    "rejected",
+    "a completed transport must not turn a rejected mutation green",
+  );
+  assert.deepEqual(
+    buildProcessSummary({
+      pendingPermissionCount: 0,
+      processContent: [tool, result],
+    }).metrics,
+    [
+      { count: 1, kind: "action" },
+      { count: 1, kind: "error" },
+    ],
+  );
+
+  const provider = (child) => React.createElement(I18nProvider, null, child);
+  const dmHtml = renderToStaticMarkup(provider(React.createElement(
+    AssistantDmToolRuns,
+    {
+      activity: {
+        emptyStreamStatus: null,
+        showCursor: true,
+        standalone: false,
+        state: "executing",
+      },
+      environment: {
+        canRespondToPermissions: true,
+        hiddenToolNames: [],
+        mode: "dm_live",
+      },
+      generatedFilesLabel: "生成文件",
+      permissions: {
+        all: [],
+        matchedByToolUseId: new Map(),
+        owner: "content",
+        unmatched: [],
+      },
+      projection,
+      responseResumed: true,
+    },
+  )));
+  assert.match(dmHtml, /data-dm-tool-run-phase="rejected"/);
+  assert.match(dmHtml, /已拒绝/);
+  assert.doesNotMatch(dmHtml, />完成</);
+
+  const roomHtml = renderToStaticMarkup(provider(React.createElement(
+    ContentRenderer,
+    { content: [tool, result] },
+  )));
+  assert.match(roomHtml, /已拒绝/);
+  assert.match(roomHtml, /Plan Document items/);
+  assert.doesNotMatch(roomHtml, /next_actions/);
+
+  const detailHtml = renderToStaticMarkup(provider(React.createElement(
+    ToolBlockResult,
+    { toolResult: result },
+  )));
+  assert.match(detailHtml, /data-tool-result-semantic-outcome="rejected"/);
+  assert.match(detailHtml, /Plan Document items/);
+  assert.match(detailHtml, /plan_items_empty/);
+  assert.doesNotMatch(detailHtml, /next_actions/);
 });
 
 test("thinking and replying indicators render a real stepped frame track", async () => {
@@ -3259,6 +3387,53 @@ test("same-RAF live text starts empty while history and recovery snapshots stay 
     new Set([base.message_id]),
   );
   assert.equal(hasLiveStreamRevealMarker(cleared[0]?.content[0]), false);
+});
+
+test("active MessageItem streaming height resets between Assistant turns", async () => {
+  const { resolveMessageItemStreamingLayoutState } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/message-item-streaming-layout.ts",
+  );
+  const tallTurn = {
+    active: true,
+    assistantTurnKey: "assistant-long-response",
+    minHeight: 960,
+  };
+
+  assert.strictEqual(
+    resolveMessageItemStreamingLayoutState(
+      tallTurn,
+      "assistant-long-response",
+      true,
+    ),
+    tallTurn,
+    "streaming revisions within one Assistant turn retain the monotonic height",
+  );
+  assert.deepEqual(
+    resolveMessageItemStreamingLayoutState(
+      tallTurn,
+      "assistant-tool-continuation",
+      true,
+    ),
+    {
+      active: true,
+      assistantTurnKey: "assistant-tool-continuation",
+      minHeight: 60,
+    },
+    "a later tool or response turn cannot inherit the preceding long response height",
+  );
+  assert.deepEqual(
+    resolveMessageItemStreamingLayoutState(
+      tallTurn,
+      "assistant-long-response",
+      false,
+    ),
+    {
+      active: false,
+      assistantTurnKey: "assistant-long-response",
+      minHeight: 60,
+    },
+    "terminal layout clears the streaming height before the same turn can resume",
+  );
 });
 
 test("DM live and terminal keep the final response on one content surface", async () => {
@@ -4031,6 +4206,48 @@ test("Room Composer hides the global stop action when no stop capability is supp
     }).isSendDisabled,
     true,
     "model and permission changes must persist before the next turn starts",
+  );
+});
+
+test("Room Composer stop-all freezes exact active multi-Agent targets at click time", async () => {
+  const {
+    collectActiveRoomAgentRoundIds,
+    stopRoomAgentOutputs,
+  } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/panel/controller/use-group-chat-composer-model.ts",
+  );
+  const conversation = {
+    room_agent_execution_states: [
+      { agent_round_id: "round-agent-a", phase: "active" },
+      { agent_round_id: "round-agent-b", phase: "pending_permission" },
+      { agent_round_id: "round-agent-finished", phase: "terminal" },
+    ],
+    pending_agent_slots: [
+      { agent_round_id: "round-agent-a", status: "streaming" },
+      { agent_round_id: "round-agent-c", status: "pending" },
+      { agent_round_id: "round-agent-finished", status: "completed" },
+    ],
+    stopping_agent_round_ids: ["round-agent-b"],
+  };
+  const targets = collectActiveRoomAgentRoundIds(conversation);
+
+  assert.deepEqual(
+    targets,
+    ["round-agent-a", "round-agent-c"],
+    "terminal, duplicate, and already-stopping rounds must not enter the batch",
+  );
+
+  const stopped = [];
+  stopRoomAgentOutputs(targets, (agentRoundId) => {
+    stopped.push(agentRoundId);
+    if (agentRoundId === "round-agent-a") {
+      targets.push("round-agent-late");
+    }
+  });
+  assert.deepEqual(
+    stopped,
+    ["round-agent-a", "round-agent-c"],
+    "the first synchronous stop response must not mutate the click-time batch",
   );
 });
 
@@ -5450,6 +5667,123 @@ test("Room stream-first children append after a visible legacy Lead reply", asyn
   );
 });
 
+test("Room durable snapshot backfills an earlier Lead after a live child", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    syncRoomAgentExecutionFromStream,
+    syncRoomAgentExecutionsFromMessages,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-live-child-before-history";
+  const lead = assistantMessage({
+    agentId: "agent-lead",
+    agentRoundId: "agent-round-lead",
+    displayOrder: 10_000,
+    isComplete: true,
+    messageId: "assistant-history-lead",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "我先完成分工，Researcher 继续执行。",
+    timestamp: 30,
+  });
+  const researcher = assistantMessage({
+    agentId: "agent-researcher",
+    agentRoundId: "agent-round-researcher",
+    displayOrder: 20_000,
+    messageId: "assistant-live-researcher",
+    roundId,
+    status: "streaming",
+    text: "Researcher 正在调研",
+    timestamp: 31,
+  });
+  const streamFirst = syncRoomAgentExecutionFromStream([], {
+    agent_id: "agent-researcher",
+    agent_round_id: "agent-round-researcher",
+    message_id: "assistant-live-researcher",
+    round_id: roundId,
+    session_key: "room:group:conversation-live-before-history",
+    timestamp: 21,
+    type: "message_start",
+  });
+  const reconciled = syncRoomAgentExecutionsFromMessages(
+    streamFirst,
+    [lead, researcher],
+  );
+  const statesByAgent = new Map(
+    reconciled.map((state) => [state.agent_id, state]),
+  );
+
+  assert.deepEqual(
+    buildRoomAgentRoundEntries(
+      [lead, researcher],
+      [],
+      [],
+      reconciled,
+    ).map((entry) => entry.agent_id),
+    ["agent-lead", "agent-researcher"],
+    "a live child observed during history loading must not stay above its earlier durable Lead",
+  );
+  assert.equal(statesByAgent.get("agent-lead")?.display_order, 10_000);
+  assert.equal(statesByAgent.get("agent-researcher")?.display_order, 20_000);
+  assert.equal(
+    statesByAgent.get("agent-researcher")?.first_seen_at,
+    21,
+    "canonical order reconciliation must preserve the original live first-seen timestamp",
+  );
+});
+
+test("Room legacy snapshot fallback cannot speculate ahead of a live execution", async () => {
+  const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/round/round-agent-model.ts",
+  );
+  const {
+    syncRoomAgentExecutionFromStream,
+    syncRoomAgentExecutionsFromMessages,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const roundId = "round-legacy-history-after-live";
+  const legacyLead = assistantMessage({
+    agentId: "agent-lead",
+    agentRoundId: "agent-round-legacy-lead",
+    isComplete: true,
+    messageId: "assistant-legacy-lead",
+    roundId,
+    status: "done",
+    stopReason: "end_turn",
+    text: "缺少持久展示顺序的旧 Lead 回复",
+    timestamp: 10,
+  });
+  const liveResearcher = syncRoomAgentExecutionFromStream([], {
+    agent_id: "agent-researcher",
+    agent_round_id: "agent-round-live-researcher",
+    message_id: "assistant-live-researcher",
+    round_id: roundId,
+    session_key: "room:group:conversation-legacy-history",
+    timestamp: 20,
+    type: "message_start",
+  });
+  const reconciled = syncRoomAgentExecutionsFromMessages(
+    liveResearcher,
+    [legacyLead],
+  );
+
+  assert.deepEqual(
+    buildRoomAgentRoundEntries(
+      [legacyLead],
+      [],
+      [],
+      reconciled,
+    ).map((entry) => entry.agent_id),
+    ["agent-researcher", "agent-lead"],
+    "a legacy completion timestamp is not authoritative enough to move an unseen reply above a visible execution",
+  );
+});
+
 test("Room late permission enriches an observed slot without moving its Agent", async () => {
   const { buildRoomAgentRoundEntries } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/round/round-agent-model.ts",
@@ -6025,13 +6359,18 @@ test("targeted stop mutates only its execution after the interrupt is sent", asy
   };
 
   const sent = createContext("sent");
-  assert.equal(
-    stopSessionGeneration(sent.context, permissionA.agent_round_id),
-    true,
+  const request = stopSessionGeneration(
+    sent.context,
+    permissionA.agent_round_id,
   );
+  assert.ok(request);
   assert.equal(
     sent.read().sentCommand.agent_round_id,
     permissionA.agent_round_id,
+  );
+  assert.equal(
+    sent.read().sentCommand.client_request_id,
+    request.client_request_id,
   );
   assert.deepEqual(
     sent.read().permissions.map((permission) => permission.request_id),
@@ -6043,7 +6382,7 @@ test("targeted stop mutates only its execution after the interrupt is sent", asy
   const dropped = createContext("dropped");
   assert.equal(
     stopSessionGeneration(dropped.context, permissionA.agent_round_id),
-    false,
+    null,
   );
   assert.deepEqual(
     dropped.read().permissions.map((permission) => permission.request_id),
@@ -6055,6 +6394,187 @@ test("targeted stop mutates only its execution after the interrupt is sent", asy
     "a failed interrupt must leave runtime-facing interaction state retryable",
   );
   assert.equal(dropped.read().error, "中断请求发送失败，请稍后重试");
+});
+
+test("Room exact stop survives slot cleanup and settles ACK/terminal races per Agent", async () => {
+  const { buildGroupRoundCardModel } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-round-card-model.ts",
+  );
+  const { confirmRoomAgentExecutionStop } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/model/room-agent-execution-state.ts",
+  );
+  const {
+    addStoppingAgentRoundId,
+    removeStoppingAgentRoundId,
+  } = await server.ssrLoadModule(
+    "/src/hooks/agent/runtime/state/use-conversation-volatile-state.ts",
+  );
+  const { buildRoomExecutionActivityKey } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/panel/controller/use-group-chat-panel-model.ts",
+  );
+  const { parseInterruptAckData } = await server.ssrLoadModule(
+    "/src/hooks/agent/transport/handlers/session-event-data.ts",
+  );
+  const roundId = "round-stop-race";
+  const stateA = {
+    agent_id: "agent-a",
+    agent_round_id: "agent-round-a",
+    display_order: 1,
+    first_seen_at: 1,
+    phase: "active",
+    round_id: roundId,
+    status: "streaming",
+  };
+  const stateB = {
+    ...stateA,
+    agent_id: "agent-b",
+    agent_round_id: "agent-round-b",
+    display_order: 2,
+  };
+  const completedTurn = assistantMessage({
+    agentId: stateA.agent_id,
+    agentRoundId: stateA.agent_round_id,
+    isComplete: true,
+    messageId: "assistant-a-tool-boundary",
+    roundId,
+    status: "done",
+    stopReason: "tool_use",
+    text: "先完成一段输出",
+    timestamp: 2,
+  });
+  const model = buildGroupRoundCardModel({
+    agentAvatarMap: {},
+    agentNameMap: {},
+    executionStates: [stateA, stateB],
+    messages: [completedTurn],
+    pendingPermissions: [],
+    pendingSlots: [],
+  });
+  assert.equal(
+    model.entries.find((entry) => entry.agent_id === stateA.agent_id)
+      ?.stopAgentRoundId,
+    stateA.agent_round_id,
+    "the exact stop target must come from execution identity after pending slot cleanup",
+  );
+
+  let stopping = addStoppingAgentRoundId([], stateA.agent_round_id);
+  assert.strictEqual(
+    addStoppingAgentRoundId(stopping, stateA.agent_round_id),
+    stopping,
+    "a double click must not register the same exact target twice",
+  );
+  stopping = addStoppingAgentRoundId(stopping, stateB.agent_round_id);
+  stopping = removeStoppingAgentRoundId(stopping, stateA.agent_round_id);
+  const terminalBeforeAck = removeStoppingAgentRoundId(
+    stopping,
+    stateA.agent_round_id,
+  );
+  assert.deepEqual(
+    terminalBeforeAck,
+    [stateB.agent_round_id],
+    "terminal-before-ACK settlement must be idempotent and preserve Agent B",
+  );
+
+  const stoppedStates = confirmRoomAgentExecutionStop(
+    [stateA, stateB],
+    stateA.agent_round_id,
+  );
+  assert.equal(stoppedStates[0].phase, "terminal");
+  assert.equal(stoppedStates[0].status, "cancelled");
+  assert.strictEqual(stoppedStates[1], stateB);
+  assert.strictEqual(
+    confirmRoomAgentExecutionStop(stoppedStates, stateA.agent_round_id),
+    stoppedStates,
+    "ACK-before-terminal and terminal-before-ACK must converge idempotently",
+  );
+  assert.notEqual(
+    buildRoomExecutionActivityKey(1, true, [stateA, stateB]),
+    buildRoomExecutionActivityKey(1, true, stoppedStates),
+    "the WorkGraph resource must refresh when one Agent reaches interrupted terminal",
+  );
+  assert.deepEqual(
+    parseInterruptAckData({
+      accepted: true,
+      ack_timeout_ms: 10_000,
+      agent_round_id: stateA.agent_round_id,
+      client_request_id: "request-stop-a",
+      round_id: roundId,
+    }),
+    {
+      accepted: true,
+      ack_timeout_ms: 10_000,
+      agent_round_id: stateA.agent_round_id,
+      client_request_id: "request-stop-a",
+      round_id: roundId,
+    },
+  );
+});
+
+test("Room stopping controls and unresolved tools share the interrupted terminal state", async () => {
+  const { ContentRenderer } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer.tsx",
+  );
+  const { GroupAgentExecutionShell } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/thread/round-card/group-agent-execution-shell.tsx",
+  );
+  const { resolveToolBlockStatus } = await server.ssrLoadModule(
+    "/src/features/conversation/shared/message/item/view/content/content-renderer-model.ts",
+  );
+  const { I18nProvider } = await server.ssrLoadModule(
+    "/src/shared/i18n/i18n-provider.tsx",
+  );
+  const provider = (child) => React.createElement(I18nProvider, null, child);
+  const shellHtml = renderToStaticMarkup(provider(React.createElement(
+    GroupAgentExecutionShell,
+    {
+      agentAvatar: null,
+      agentId: "agent-stopping",
+      agentName: "Researcher",
+      isStopping: true,
+      isThreadActive: false,
+      messages: [assistantMessage({
+        agentId: "agent-stopping",
+        agentRoundId: "agent-round-stopping",
+        messageId: "assistant-stopping",
+        status: "done",
+        stopReason: "tool_use",
+        text: "准备调用工具",
+        timestamp: 1,
+      })],
+      onClickThread: () => {},
+      onPermissionResponse: () => true,
+      onStopAgentRound: () => {},
+      pendingPermissions: [],
+      roundId: "round-stopping:agent-stopping",
+      status: "streaming",
+      timestamp: 1,
+    },
+  )));
+  assert.match(shellHtml, /停止中…/);
+  assert.match(shellHtml, /disabled=""/);
+
+  const toolUse = {
+    id: "tool-interrupted",
+    input: { file_path: "report.md" },
+    name: "Write",
+    type: "tool_use",
+  };
+  const toolHtml = renderToStaticMarkup(provider(React.createElement(
+    ContentRenderer,
+    {
+      content: [toolUse],
+      unresolvedToolStatus: "stopped",
+    },
+  )));
+  assert.match(toolHtml, /已停止/);
+  assert.doesNotMatch(toolHtml, />执行中</);
+  assert.doesNotMatch(toolHtml, /处理中…/);
+  assert.equal(resolveToolBlockStatus(undefined, false, "stopped"), "stopped");
+  assert.equal(
+    resolveToolBlockStatus({ result: { content: "ok", is_error: false } }, false, "stopped"),
+    "success",
+    "a real provider result must outrank the terminal fallback",
+  );
 });
 
 test("Room virtual height keeps Composer interactions out of the feed estimate", async () => {
@@ -6500,6 +7020,57 @@ test("Room projects every agent_round as a stable root-local feed node", async (
     terminalProjection.roundIds.includes(agent1NodeId),
     true,
     "pending -> terminal must not change the visual node identity",
+  );
+});
+
+test("Room timeline conserves user messages while optimistic roots become canonical", async () => {
+  const { projectGroupAgentTimeline } = await server.ssrLoadModule(
+    "/src/features/conversation/room/group/chat/feed/group-agent-timeline-model.ts",
+  );
+  const clientMessageId = "client-room-conservation";
+  const optimistic = {
+    ...userMessage({
+      content: "先分析这件事",
+      messageId: clientMessageId,
+      roundId: "optimistic-room-round",
+      timestamp: 1,
+    }),
+    client_message_id: clientMessageId,
+  };
+  const canonical = {
+    ...optimistic,
+    content: "先分析这件事（已确认）",
+    message_id: "canonical-room-message",
+    round_id: "canonical-room-round",
+    timestamp: 2,
+  };
+  const followUp = userMessage({
+    content: "再补充可靠性维度",
+    messageId: "room-follow-up",
+    roundId: "canonical-room-round",
+    timestamp: 3,
+  });
+  const projection = projectGroupAgentTimeline({
+    messageGroups: new Map([
+      ["optimistic-room-round", [optimistic]],
+      ["canonical-room-round", [canonical, followUp]],
+    ]),
+    pendingPermissionGroups: new Map(),
+    pendingSlotGroups: new Map(),
+    roundIds: ["optimistic-room-round", "canonical-room-round"],
+  });
+
+  assert.deepEqual(projection.roundIds, [clientMessageId]);
+  assert.equal(
+    projection.rootRoundIds.get(clientMessageId),
+    "canonical-room-round",
+  );
+  assert.deepEqual(
+    projection.messageGroups.get(clientMessageId)?.map(
+      (message) => message.message_id,
+    ),
+    ["canonical-room-message", "room-follow-up"],
+    "canonical ACK replacement must not overwrite another visible user message",
   );
 });
 

@@ -597,7 +597,7 @@ test("Room sidebar keeps other conversations unread and opens the earliest seque
   assert.equal(item.unreadTargetKey, firstKey);
 });
 
-test("Room Feed renders one node-local overlay marker without changing virtual height", async () => {
+test("Room Feed renders one passive node-local unread divider without changing virtual height", async () => {
   const { GroupConversationFeed } = await server.ssrLoadModule(
     "/src/features/conversation/room/group/chat/feed/group-conversation-feed.tsx",
   );
@@ -632,10 +632,15 @@ test("Room Feed renders one node-local overlay marker without changing virtual h
       unreadMarkerRoundId: "node-b",
     },
   }));
-  assert.equal(html.match(/data-room-unread-marker/g)?.length, 1);
+  assert.equal(html.match(/data-room-unread-marker=/g)?.length, 1);
+  assert.equal(html.match(/data-room-unread-marker-line/g)?.length, 2);
+  assert.match(html, /未读消息从这里开始/);
   assert.match(html, />新消息</);
   assert.doesNotMatch(html, /role="separator"/);
   assert.match(html, /\babsolute\b/);
+  assert.match(html, /\bflex-1\b/);
+  assert.doesNotMatch(html, /\bshadow(?:-|")/);
+  assert.doesNotMatch(html, /\bborder(?:-|")/);
   const virtualHtml = renderToStaticMarkup(React.createElement(
     GroupConversationFeed,
     {

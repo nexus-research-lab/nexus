@@ -8,6 +8,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"reflect"
+
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
@@ -487,6 +489,21 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 		}
 		handoff.Status = "source_finished"
 	}
+	if handoff.Status == "started" &&
+		(handoff.WorkBinding != nil || handoff.ReviewBinding != nil) {
+		// A process crash can happen after the target round is registered but
+		// before its runtime query activates the bound Attempt. Re-open only
+		// structured Execution handoffs; the exact binding keeps admission
+		// idempotent and stale-safe.
+		if err := s.publicHandoffs.MarkSourceFinished(
+			contextValue.Room.OwnerUserID,
+			conversationID,
+			handoff.HandoffID,
+		); err != nil {
+			return err
+		}
+		handoff.Status = "source_finished"
+	}
 	if handoff.Status == "detected" {
 		if s.roomHistory == nil {
 			return nil
@@ -518,29 +535,60 @@ func (s *Service) reconcilePublicHandoff(ctx context.Context, handoff workspaces
 	if rootRoundID == "" {
 		rootRoundID = sourceRoundID
 	}
+	coordinatorAgentID := roomCoordinatorAgentID(
+		handoff.SourceAgentID,
+		contextValue,
+	)
+	if handoff.ReviewBinding != nil {
+		coordinatorAgentID = strings.TrimSpace(
+			handoff.ReviewBinding.TargetAgentID,
+		)
+	}
 	parentRound := &activeRoomRound{
-		SessionKey:     protocol.BuildRoomSharedSessionKey(conversationID),
-		RoomID:         contextValue.Room.ID,
-		ConversationID: conversationID,
-		RoomType:       contextValue.Room.RoomType,
-		Context:        contextValue,
-		RoundID:        sourceRoundID,
-		RootRoundID:    rootRoundID,
-		HopIndex:       handoff.HopIndex,
-		OwnerUserID:    ownerUserID,
-		Slots:          make(map[string]*activeRoomSlot),
+		SessionKey:         protocol.BuildRoomSharedSessionKey(conversationID),
+		RoomID:             contextValue.Room.ID,
+		ConversationID:     conversationID,
+		CoordinatorAgentID: coordinatorAgentID,
+		RoomType:           contextValue.Room.RoomType,
+		Context:            contextValue,
+		RoundID:            sourceRoundID,
+		RootRoundID:        rootRoundID,
+		HopIndex:           handoff.HopIndex,
+		OwnerUserID:        ownerUserID,
+		Slots:              make(map[string]*activeRoomSlot),
+	}
+	triggerType := "public_mention"
+	queueSource := protocol.InputQueueSourceAgentPublicMention
+	if handoff.WorkBinding != nil {
+		triggerType = "execution_dispatch"
+		queueSource = protocol.InputQueueSourceAgentRoomMessage
+	} else if handoff.ReviewBinding != nil {
+		triggerType = "execution_review_return"
+		queueSource = protocol.InputQueueSourceAgentRoomMessage
 	}
 	wake := publicMentionWake{
 		HandoffID:     handoff.HandoffID,
-		TriggerType:   "public_mention",
-		QueueSource:   protocol.InputQueueSourceAgentPublicMention,
+		TriggerType:   triggerType,
+		QueueSource:   queueSource,
 		SourceAgentID: handoff.SourceAgentID,
 		TargetAgentID: handoff.TargetAgentID,
 		Content:       handoff.Content,
 		MessageID:     handoff.SourceMessageID,
 		ReplyRoute:    handoff.ReplyRoute,
+		WorkBinding:   cloneExecutionWorkBinding(handoff.WorkBinding),
+		ReviewBinding: cloneExecutionReviewBinding(handoff.ReviewBinding),
 	}
-	return s.startPublicMentionRound(ctx, parentRound, []publicMentionWake{wake})
+	lease := s.lockRoomDispatch(parentRound.SessionKey, parentRound.ConversationID)
+	defer lease.Unlock()
+	// internalConversationContext above already loaded the persistent Room state
+	// under the same reconciliation turn. Avoid a duplicate system lookup while
+	// still entering the common participation-aware wake path.
+	return s.startPublicMentionRoundLocked(
+		ctx,
+		parentRound,
+		[]publicMentionWake{wake},
+		false,
+	)
 }
 
 func (s *Service) publicHandoffQueueItemPresent(
@@ -563,13 +611,56 @@ func (s *Service) publicHandoffQueueItemPresent(
 	if err != nil {
 		return false, err
 	}
+	structured := handoff.WorkBinding != nil || handoff.ReviewBinding != nil
+	present := false
 	for _, item := range items {
-		if strings.TrimSpace(item.HandoffID) == strings.TrimSpace(handoff.HandoffID) ||
-			(strings.TrimSpace(handoff.QueueItemID) != "" && item.ID == handoff.QueueItemID) {
-			return true, nil
+		if strings.TrimSpace(item.HandoffID) != strings.TrimSpace(handoff.HandoffID) &&
+			(strings.TrimSpace(handoff.QueueItemID) == "" || item.ID != handoff.QueueItemID) {
+			continue
+		}
+		if !structured || inputQueueItemMatchesStructuredHandoff(item, handoff) {
+			present = true
+			continue
+		}
+		// The durable structured handoff owns this reserved identity. A row
+		// with the same ID but a different capability must not suppress
+		// recovery or be delivered as ordinary conversation.
+		if _, deleteErr := s.inputQueue.Delete(location.Location, item.ID); deleteErr != nil {
+			return false, deleteErr
 		}
 	}
-	return false, nil
+	return present, nil
+}
+
+func inputQueueItemMatchesStructuredHandoff(
+	item protocol.InputQueueItem,
+	handoff workspacestore.RoomPublicHandoff,
+) bool {
+	targetAgentID := strings.TrimSpace(handoff.TargetAgentID)
+	targets := inputQueueTargetAgentIDs(item)
+	if protocol.NormalizeInputQueueScope(string(item.Scope)) != protocol.InputQueueScopeRoom ||
+		protocol.NormalizeInputQueueSource(string(item.Source)) != protocol.InputQueueSourceAgentRoomMessage ||
+		protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)) != protocol.ChatDeliveryPolicyQueue ||
+		strings.TrimSpace(item.AgentID) != targetAgentID ||
+		len(targets) != 1 ||
+		strings.TrimSpace(targets[0]) != targetAgentID ||
+		strings.TrimSpace(item.RoomID) != strings.TrimSpace(handoff.RoomID) ||
+		strings.TrimSpace(item.ConversationID) != strings.TrimSpace(handoff.ConversationID) ||
+		strings.TrimSpace(item.OwnerUserID) != strings.TrimSpace(handoff.OwnerUserID) ||
+		strings.TrimSpace(item.SourceAgentID) != strings.TrimSpace(handoff.SourceAgentID) ||
+		strings.TrimSpace(item.SourceMessageID) != strings.TrimSpace(handoff.SourceMessageID) ||
+		strings.TrimSpace(item.HandoffID) != strings.TrimSpace(handoff.HandoffID) ||
+		strings.TrimSpace(item.RootRoundID) != strings.TrimSpace(handoff.RootRoundID) ||
+		strings.TrimSpace(item.Content) != strings.TrimSpace(handoff.Content) ||
+		!reflect.DeepEqual(item.ReplyRoute, handoff.ReplyRoute) {
+		return false
+	}
+	if handoff.WorkBinding != nil {
+		return item.ReviewBinding == nil &&
+			executionWorkBindingEqual(item.WorkBinding, handoff.WorkBinding)
+	}
+	return item.WorkBinding == nil &&
+		executionReviewBindingEqual(item.ReviewBinding, handoff.ReviewBinding)
 }
 
 func roomHistoryContainsMessage(messages []protocol.Message, messageID string) bool {

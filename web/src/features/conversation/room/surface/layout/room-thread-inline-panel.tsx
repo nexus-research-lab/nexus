@@ -65,6 +65,7 @@ export function RoomThreadInlinePanel({
           isLoading={threadPanelData.isLoading}
           layout="desktop"
           presentation="inspector"
+          unresolvedToolStatus={threadPanelData.unresolvedToolStatus}
         />
       </section>
     </>

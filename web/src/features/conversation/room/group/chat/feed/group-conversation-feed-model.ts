@@ -49,6 +49,7 @@ export interface GroupConversationRoundRenderer {
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   onStopAgentRound: (agentRoundId: string) => void;
   runtimePhase: AgentConversationRuntimePhase | null;
+  stoppingAgentRoundIds: string[];
 }
 
 export interface GroupConversationFeedProps {

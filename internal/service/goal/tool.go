@@ -1,5 +1,5 @@
-// INPUT: 模型 complete/blocked 请求、Room lead 身份、usage、objective revision 与 Room completion readiness。
-// OUTPUT: 受负责人权限、状态机、revision fence 和未完成 Room 工作保护的 Goal 工具结果。
+// INPUT: 模型 complete/blocked 请求、Room lead 身份、usage、objective revision、Objective Alignment 与 Room completion readiness。
+// OUTPUT: 受负责人权限、状态机、revision/alignment fence 和未完成 Room 工作保护的 Goal 工具结果。
 // POS: Goal 模型生命周期工具的服务层入口。
 package goal
 
@@ -74,10 +74,23 @@ func (s *Service) changeStatusByModel(
 		if authErr := authorizeRoomGoalModelMutation(*current, agentID); authErr != nil {
 			return nil, authErr
 		}
+		if pendingErr := rejectPendingObjectiveTransition(*current, "change Goal status"); pendingErr != nil {
+			return nil, pendingErr
+		}
 		if !objectiveRevisionMatches(*current, expectedRevision) {
 			return nil, ErrGoalRevisionStale
 		}
 		if requireRoomCollaboration {
+			if alignmentErr := s.ensureGoalObjectiveAlignmentReady(
+				*current,
+				agentID,
+				roundID,
+			); alignmentErr != nil {
+				return nil, alignmentErr
+			}
+			if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, *current); readinessErr != nil {
+				return nil, readinessErr
+			}
 			if readinessErr := s.ensureRoomGoalCompletionReady(ctx, *current, agentID, roundID); readinessErr != nil {
 				return nil, readinessErr
 			}

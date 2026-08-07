@@ -26,6 +26,7 @@ import {
   WORKSPACE_PANEL_HEADER_PADDING_CLASS,
 } from "@/shared/ui/workspace/surface/workspace-header-layout";
 import type { PermissionDecisionPayload } from "@/types/conversation/interaction/permission";
+import type { UnresolvedToolStatus } from "@/features/conversation/shared/message/item/view/content/content-renderer-contract";
 
 import type {
   ConversationThreadModel,
@@ -40,6 +41,7 @@ export interface ConversationThreadMessageContext {
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   onStopMessage?: (msgId: string) => void;
+  unresolvedToolStatus?: UnresolvedToolStatus;
   workspaceAgentId: string;
 }
 
@@ -386,6 +388,7 @@ function ThreadRound({
         roundId={round.roundId}
         showAssistantHeader={!isInspector}
         showUserMessages={!isInspector}
+        unresolvedToolStatus={messageContext.unresolvedToolStatus}
         workspaceAgentId={messageContext.workspaceAgentId}
       />
       {round.showDivider && !isInspector ? (

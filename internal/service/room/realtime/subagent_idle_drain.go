@@ -57,6 +57,7 @@ func (s *Service) handleIdleSubagentMessage(
 	mapper *roomdomain.SlotMessageMapper,
 	incoming sdkprotocol.ReceivedMessage,
 ) bool {
+	s.observeExecutionRuntimeGraph(roomOrchestrationActor(roundValue, slot), incoming)
 	events, durableMessages, _, err := mapper.Map(incoming)
 	if err != nil {
 		s.loggerFor(ctx).Warn("处理 Room idle subagent 通知失败",
@@ -127,6 +128,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 				return err
 			}
 		}
+		s.observeExecutionRuntimeArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 		s.recordGoalUsageFromSlotAssistantMessage(ctx, slot, messageValue)
 		return nil
 	}
@@ -143,6 +145,7 @@ func (s *Service) handleIdleSubagentDurableMessage(
 			return err
 		}
 	}
+	s.observeExecutionRuntimeArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 	s.recordGoalUsageFromSlotAssistantMessage(ctx, slot, messageValue)
 	return nil
 }

@@ -69,6 +69,7 @@ interface AgentConversationPublicRuntime {
   pendingPermissions: PendingPermission[];
   roomAgentExecutionStates: RoomAgentExecutionState[];
   snapshot: AgentConversationRuntimeSnapshot;
+  stoppingAgentRoundIds: string[];
 }
 
 interface AgentConversationPublicSession {
@@ -145,6 +146,7 @@ export function buildAgentConversationResult({
     session_key: session.sessionKey,
     start_session: session.startSession,
     stop_generation: actions.stopGeneration,
+    stopping_agent_round_ids: runtime.stoppingAgentRoundIds,
     ws_state: wsState,
   };
 }

@@ -53,8 +53,11 @@ func TestServiceCreateGoalFallsBackWhenRewriteFails(t *testing.T) {
 	if created.Objective != "保留原始目标" {
 		t.Fatalf("objective = %q, want fallback original", created.Objective)
 	}
-	if len(created.Metadata) != 0 {
-		t.Fatalf("metadata = %#v, want no rewrite metadata", created.Metadata)
+	if got := protocol.GoalMetadataString(
+		created.Metadata,
+		protocol.GoalMetadataOwnerUserID,
+	); got != "__system__" || len(created.Metadata) != 1 {
+		t.Fatalf("metadata = %#v, want only server-owned system owner", created.Metadata)
 	}
 }
 
@@ -76,8 +79,11 @@ func TestServiceCreateGoalKeepsModelObjective(t *testing.T) {
 	if created.Objective != "模型已经整理后的目标" {
 		t.Fatalf("objective = %q, want model objective unchanged", created.Objective)
 	}
-	if len(created.Metadata) != 0 {
-		t.Fatalf("metadata = %#v, want no rewrite metadata", created.Metadata)
+	if got := protocol.GoalMetadataString(
+		created.Metadata,
+		protocol.GoalMetadataOwnerUserID,
+	); got != "__system__" || len(created.Metadata) != 1 {
+		t.Fatalf("metadata = %#v, want only server-owned system owner", created.Metadata)
 	}
 }
 
@@ -88,8 +94,9 @@ func TestServiceUpdateGoalRewritesObjectiveByDefault(t *testing.T) {
 	service.idFactory = sequentialID()
 
 	created, err := service.Create(context.Background(), protocol.CreateGoalRequest{
-		SessionKey: "agent:nexus:ws:dm:chat",
-		Objective:  "初始目标",
+		SessionKey:  "agent:nexus:ws:dm:chat",
+		Objective:   "初始目标",
+		OwnerUserID: "owner-1",
 	})
 	if err != nil {
 		t.Fatal(err)

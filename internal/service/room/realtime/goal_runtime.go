@@ -71,6 +71,12 @@ func (s *Service) QueueRoomContextualGuidanceInput(
 			if slot == nil || (excludedAgentID != "" && strings.TrimSpace(slot.AgentID) == excludedAgentID) {
 				continue
 			}
+			// Session affinity is not Goal authority. Only a round that already
+			// carries an immutable Goal mutation capability may receive retarget
+			// steering; ordinary chat/raw @ slots remain untouched.
+			if !slot.goalMutationAuthority().valid() {
+				continue
+			}
 			if runtimeSessionKey := strings.TrimSpace(slot.RuntimeSessionKey); runtimeSessionKey != "" {
 				targets[runtimeSessionKey] = slot
 			}
@@ -244,10 +250,14 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 	result exec.RoundExecutionResult,
 	finalAssistant protocol.Message,
 ) {
-	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() || strings.TrimSpace(slot.goalIDForUsage()) == "" {
+	if s.goals == nil || slot == nil || slot.goalRuntimeIgnored() {
 		return
 	}
-	goalID := slot.goalIDForUsage()
+	authority := slot.goalMutationAuthority()
+	if !authority.valid() {
+		return
+	}
+	goalID := authority.GoalID
 	s.recordRoomGoalCollaborationEvidenceForSlot(ctx, slot, finalAssistant)
 	purpose := ""
 	if roundValue != nil {
@@ -260,14 +270,14 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 			"Goal continuation runtime failed",
 		)
 		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 续跑失败原因失败", func() error {
-			_, err := s.goals.RecordContinuationFailure(ctx, goalID, slot.AgentRoundID, reason, slot.currentGoalObjectiveRevision())
+			_, err := s.goals.RecordContinuationFailure(ctx, goalID, slot.AgentRoundID, reason, authority.ObjectiveRevision)
 			return err
 		})
 		return
 	}
 	if purpose != "goal_continuation" {
 		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 显式活动失败", func() error {
-			_, err := s.goals.RecordGoalActivity(ctx, goalID, slot.AgentRoundID, slot.currentGoalObjectiveRevision())
+			_, err := s.goals.RecordGoalActivity(ctx, goalID, slot.AgentRoundID, authority.ObjectiveRevision)
 			return err
 		})
 		return
@@ -275,7 +285,7 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 	if messageutil.AssistantMissedGoalCompletionTool(finalAssistant) {
 		reason := "assistant claimed goal completion but did not call mcp__nexus_goal__update_goal"
 		s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 完成工具漏调用失败", func() error {
-			_, err := s.goals.RecordCompletionToolMiss(ctx, goalID, slot.AgentRoundID, reason, slot.currentGoalObjectiveRevision())
+			_, err := s.goals.RecordCompletionToolMiss(ctx, goalID, slot.AgentRoundID, reason, authority.ObjectiveRevision)
 			return err
 		})
 		return
@@ -285,7 +295,7 @@ func (s *Service) recordGoalContinuationProgressForSlot(
 		return
 	}
 	s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 续跑进展失败", func() error {
-		_, err := s.goals.RecordContinuationProgress(ctx, goalID, slot.AgentRoundID, hasProgress, slot.currentGoalObjectiveRevision())
+		_, err := s.goals.RecordContinuationProgress(ctx, goalID, slot.AgentRoundID, hasProgress, authority.ObjectiveRevision)
 		return err
 	}, "progressed", hasProgress)
 }
@@ -319,6 +329,10 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
 	if s == nil || s.goals == nil || slot == nil || !protocol.IsRoomSharedSessionKey(goalSessionKeyForSlot(slot)) {
 		return
 	}
+	authority := slot.goalMutationAuthority()
+	if !authority.valid() {
+		return
+	}
 	if roomdomain.IsNoReplyAssistantMessage(finalAssistant) {
 		return
 	}
@@ -326,7 +340,7 @@ func (s *Service) recordRoomGoalCollaborationEvidenceForSlot(
 		return
 	}
 	s.recordSlotGoalMutation(ctx, slot, "记录 Room Goal 协作证据失败", func() error {
-		_, err := s.goals.RecordRoomGoalCollaborationEvidence(ctx, slot.goalIDForUsage(), slot.AgentRoundID, slot.AgentID, slot.currentGoalObjectiveRevision())
+		_, err := s.goals.RecordRoomGoalCollaborationEvidence(ctx, authority.GoalID, slot.AgentRoundID, slot.AgentID, authority.ObjectiveRevision)
 		return err
 	}, "agent_id", slot.AgentID)
 }
@@ -582,7 +596,8 @@ func (s *Service) recordGoalUsageFromSlotAssistantMessage(
 	hasSuccessfulCreate := false
 	hasSuccessfulUpdate := false
 	for _, observation := range observations {
-		if observation.IsError {
+		if observation.IsError ||
+			observation.MutationOutcome == protocol.MutationResultRejected {
 			continue
 		}
 		switch messageutil.CanonicalToolName(observation.ToolName) {
@@ -1178,7 +1193,49 @@ func (s *Service) ensureModelCreatedRoomGoalBinding(
 	goalID = strings.TrimSpace(goal.ID)
 	goalSessionKey = strings.TrimSpace(goal.SessionKey)
 	s.bindRoomGoalUsageForScope(slot, goalSessionKey, goalID)
+	s.grantRoomGoalMutationAuthorityForScope(
+		slot,
+		goalSessionKey,
+		goalID,
+		goal.ObjectiveRevision(),
+		protocol.GoalReservedExecutionID(*goal),
+		roomGoalAuthorityModelCreate,
+	)
 	return goalID, goalSessionKey
+}
+
+func (s *Service) grantRoomGoalMutationAuthorityForScope(
+	origin *activeRoomSlot,
+	goalSessionKey string,
+	goalID string,
+	objectiveRevision int64,
+	executionID string,
+	source roomGoalAuthoritySource,
+) {
+	if s == nil || origin == nil {
+		return
+	}
+	goalSessionKey = goalUsageSessionKeyForRoomSlot(origin, goalSessionKey)
+	goalID = strings.TrimSpace(goalID)
+	if goalSessionKey == "" || goalID == "" || objectiveRevision <= 0 {
+		return
+	}
+	for _, candidate := range s.roomGoalUsageSlotsForScope(origin, goalSessionKey) {
+		candidate.grantGoalMutationAuthority(roomGoalMutationAuthority{
+			SessionKey:        goalSessionKey,
+			GoalID:            goalID,
+			ObjectiveRevision: objectiveRevision,
+			ExecutionID: firstNonEmptyString(
+				executionIDFromRoomBindings(
+					candidate.WorkBinding,
+					candidate.ReviewBinding,
+				),
+				executionID,
+			),
+			RootRoundID: goalUsageScopeRoundIDForRoomSlot(candidate),
+			Source:      source,
+		})
+	}
 }
 
 func (s *Service) claimSubagentGoalUsageForRoomScope(

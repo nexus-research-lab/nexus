@@ -13,21 +13,24 @@ import (
 )
 
 type sessionState struct {
-	Client               Client
-	StartupGeneration    uint64
-	ContextUsageByAgent  map[string]protocol.ContextUsageData
-	Rounds               roundRegistry
-	BackgroundTasks      map[uint64]context.CancelFunc
-	BackgroundDone       chan struct{}
-	NextBackgroundTaskID uint64
-	Closing              bool
-	CloseDone            chan struct{}
-	GuidedInputs         []GuidedInput
-	IdleMessageDrain     *idleMessageDrain
-	RuntimeKind          agentclient.RuntimeKind
-	OwnerUserID          string
-	HasSubagentHistory   bool
-	LastUsedAt           time.Time
+	Client                 Client
+	StartupGeneration      uint64
+	ContextUsageByAgent    map[string]protocol.ContextUsageData
+	Rounds                 roundRegistry
+	BackgroundTasks        map[uint64]context.CancelFunc
+	BackgroundDone         chan struct{}
+	NextBackgroundTaskID   uint64
+	Closing                bool
+	CloseDone              chan struct{}
+	GuidedInputs           []GuidedInput
+	SubagentHooks          map[string]SubagentHookCallbacks
+	SubagentHookBindings   map[string]subagentHookBinding
+	NextSubagentBindingSeq uint64
+	IdleMessageDrain       *idleMessageDrain
+	RuntimeKind            agentclient.RuntimeKind
+	OwnerUserID            string
+	HasSubagentHistory     bool
+	LastUsedAt             time.Time
 }
 
 type sessionStartupGate struct {
@@ -90,9 +93,11 @@ func (m *Manager) ensureStateLocked(sessionKey string) *sessionState {
 	state := m.sessions[sessionKey]
 	if state == nil {
 		state = &sessionState{
-			ContextUsageByAgent: make(map[string]protocol.ContextUsageData),
-			BackgroundTasks:     make(map[uint64]context.CancelFunc),
-			BackgroundDone:      closedSignal(),
+			ContextUsageByAgent:  make(map[string]protocol.ContextUsageData),
+			BackgroundTasks:      make(map[uint64]context.CancelFunc),
+			BackgroundDone:       closedSignal(),
+			SubagentHooks:        make(map[string]SubagentHookCallbacks),
+			SubagentHookBindings: make(map[string]subagentHookBinding),
 		}
 		m.sessions[sessionKey] = state
 	}
@@ -121,6 +126,8 @@ func (m *Manager) removeClientlessSessionIfIdleLocked(
 		len(state.BackgroundTasks) > 0 ||
 		!state.Rounds.empty() ||
 		len(state.GuidedInputs) > 0 ||
+		len(state.SubagentHooks) > 0 ||
+		len(state.SubagentHookBindings) > 0 ||
 		state.HasSubagentHistory ||
 		state.IdleMessageDrain != nil {
 		return false

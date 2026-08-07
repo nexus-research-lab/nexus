@@ -15,6 +15,7 @@ export type EventType =
   | 'chat_ack'
   | 'input_queue'
   | 'input_queue_ack'
+  | 'interrupt_ack'
   | 'round_status'
   | 'agent_round_status'
   | 'session_status'
@@ -35,6 +36,7 @@ export type EventType =
   | 'scheduled_task_changed'
   | 'room_member_added'
   | 'room_member_removed'
+  | 'room_member_participation_changed'
   | 'room_deleted'
   | 'room_directed_message'
   | 'room_directed_message_consumed'
@@ -150,6 +152,14 @@ export interface InputQueueAckData {
   item_id: string;
   client_request_id: string;
   client_message_id: string;
+  ack_timeout_ms: number;
+}
+
+export interface InterruptAckData {
+  accepted: boolean;
+  client_request_id: string;
+  round_id?: string;
+  agent_round_id?: string;
   ack_timeout_ms: number;
 }
 

@@ -8,6 +8,12 @@ import type {
 import type { MessageActivityState } from "../../activity/message-activity-state";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 import type { PendingInteractionOwner } from "../../message-item-projection";
+import type { ToolBlockStatus } from "../../../blocks/tool/tool-block-types";
+
+export type UnresolvedToolStatus = Extract<
+  ToolBlockStatus,
+  "error" | "stopped"
+>;
 
 export interface ContentRendererProps {
   canRespondToPermissions?: boolean;
@@ -23,6 +29,8 @@ export interface ContentRendererProps {
   permissionReadOnlyReason?: string;
   showTimelineDots?: boolean;
   streamingBlockIndexes?: ReadonlySet<number>;
+  /** 执行已终止但 provider 未返回 tool_result 时的权威消息级收口。 */
+  unresolvedToolStatus?: UnresolvedToolStatus;
   workspaceAgentId?: string | null;
   agentMentions?: AgentMention[];
   agentMentionDirectory?: AgentMentionDirectory;

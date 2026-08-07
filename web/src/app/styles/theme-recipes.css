@@ -784,6 +784,18 @@
     box-shadow: none;
   }
 
+  /* 窄 Composer 优先保留功能控件，移除仅作品牌提示的中列。 */
+  @container nexus-chat-composer (max-width: 640px) {
+    .nexus-chat-composer-footer {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: "leading trailing";
+    }
+
+    .nexus-chat-composer-footer-brand {
+      display: none;
+    }
+  }
+
   @container nexus-chat-composer (max-width: 520px) {
     .nexus-chat-composer-footer {
       column-gap: 0.5rem;
@@ -792,10 +804,7 @@
 
     .nexus-chat-composer-footer[data-goal-mode="true"] {
       grid-template-columns: minmax(0, 1fr) auto;
-      grid-template-areas:
-        "leading trailing"
-        "brand brand";
-      row-gap: 0.25rem;
+      grid-template-areas: "leading trailing";
     }
 
     .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-footer-leading {
@@ -824,10 +833,6 @@
   }
 
   @container nexus-chat-composer (max-width: 420px) {
-    .nexus-chat-composer-footer-brand-prefix {
-      display: none;
-    }
-
     .nexus-chat-composer-footer[data-goal-mode="true"] .nexus-chat-composer-goal-scope {
       display: none;
     }

@@ -2283,16 +2283,22 @@ func TestManagerAdoptGoalObjectiveRevision(t *testing.T) {
 	manager.RegisterGoalObjectiveRevision(sessionKey, "round-a", &revisionA)
 
 	roundIDs := manager.AdoptGoalObjectiveRevision(sessionKey, 5)
-	if strings.Join(roundIDs, ",") != "round-a,round-b" {
-		t.Fatalf("roundIDs = %#v, want sorted round-a/round-b", roundIDs)
+	if strings.Join(roundIDs, ",") != "round-a" {
+		t.Fatalf("roundIDs = %#v, want only authorized round-a", roundIDs)
 	}
-	if revisionA.Load() != 5 || revisionB.Load() != 5 {
-		t.Fatalf("revisions = (%d, %d), want both 5", revisionA.Load(), revisionB.Load())
+	if revisionA.Load() != 5 || revisionB.Load() != 0 {
+		t.Fatalf("revisions = (%d, %d), want authorized 5 and unbound 0", revisionA.Load(), revisionB.Load())
+	}
+
+	revisionB.Store(1)
+	roundIDs = manager.AdoptGoalObjectiveRevision(sessionKey, 6)
+	if strings.Join(roundIDs, ",") != "round-a,round-b" || revisionA.Load() != 6 || revisionB.Load() != 6 {
+		t.Fatalf("authorized adoption roundIDs=%#v revisions=(%d, %d), want both 6", roundIDs, revisionA.Load(), revisionB.Load())
 	}
 
 	manager.RegisterGoalObjectiveRevision(sessionKey, "round-a", nil)
 	manager.MarkRoundFinished(sessionKey, "round-b")
-	if roundIDs = manager.AdoptGoalObjectiveRevision(sessionKey, 6); len(roundIDs) != 0 {
+	if roundIDs = manager.AdoptGoalObjectiveRevision(sessionKey, 7); len(roundIDs) != 0 {
 		t.Fatalf("after unregister/finish roundIDs=%#v, want empty", roundIDs)
 	}
 }

@@ -26,6 +26,7 @@ const (
 	EventTypeChatAck                     EventType = "chat_ack"
 	EventTypeInputQueue                  EventType = "input_queue"
 	EventTypeInputQueueAck               EventType = "input_queue_ack"
+	EventTypeInterruptAck                EventType = "interrupt_ack"
 	EventTypeRoundStatus                 EventType = "round_status"
 	EventTypeAgentRoundStatus            EventType = "agent_round_status"
 	EventTypeSessionStatus               EventType = "session_status"
@@ -46,6 +47,7 @@ const (
 	EventTypeScheduledTaskChanged        EventType = "scheduled_task_changed"
 	EventTypeRoomMemberAdded             EventType = "room_member_added"
 	EventTypeRoomMemberRemoved           EventType = "room_member_removed"
+	EventTypeRoomMemberParticipation     EventType = "room_member_participation_changed"
 	EventTypeRoomDeleted                 EventType = "room_deleted"
 	EventTypeRoomDirectedMessage         EventType = "room_directed_message"
 	EventTypeRoomDirectedMessageConsumed EventType = "room_directed_message_consumed"
@@ -345,6 +347,27 @@ func NewTransientChatAckEvent(
 		nil,
 	)
 	event.Data["user_message_delivery_mode"] = DeliveryModeTransient
+	return event
+}
+
+// NewInterruptAckEvent 确认一个精确停止请求已完成。ACK 只回显客户端请求身份
+// 与停止目标；agent_round_status 仍是 Room slot 生命周期的权威事件。
+func NewInterruptAckEvent(
+	sessionKey string,
+	clientRequestID string,
+	roundID string,
+	agentRoundID string,
+) EventMessage {
+	event := NewEvent(EventTypeInterruptAck, map[string]any{
+		"accepted":          true,
+		"client_request_id": strings.TrimSpace(clientRequestID),
+		"round_id":          strings.TrimSpace(roundID),
+		"agent_round_id":    strings.TrimSpace(agentRoundID),
+		"ack_timeout_ms":    RequestAckTimeoutMS,
+	})
+	event.SessionKey = sessionKey
+	event.RoundID = strings.TrimSpace(roundID)
+	event.AgentRoundID = strings.TrimSpace(agentRoundID)
 	return event
 }
 

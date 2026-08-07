@@ -453,3 +453,106 @@ func TestServiceHandleChatAfterInterruptKeepsSameClientAndConsumesExplicitStop(t
 		}
 	}
 }
+
+func TestServiceHandleInterruptExactOldRoundKeepsSuccessorRunning(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
+	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	sessionKey := "agent:nexus:ws:dm:test-exact-old-round"
+	oldCancelled := false
+	successorCancelled := false
+
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-old", func() {
+		oldCancelled = true
+		runtimeManager.MarkRoundFinished(sessionKey, "round-old")
+	}); err != nil {
+		t.Fatalf("注册旧 round 失败: %v", err)
+	}
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-successor", func() {
+		successorCancelled = true
+		runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
+	}); err != nil {
+		t.Fatalf("注册 successor round 失败: %v", err)
+	}
+
+	if err := service.HandleInterrupt(context.Background(), InterruptRequest{
+		SessionKey: sessionKey,
+		RoundID:    "round-old",
+	}); err != nil {
+		t.Fatalf("精确中断旧 round 失败: %v", err)
+	}
+	if !oldCancelled {
+		t.Fatal("旧 round 应被精确取消")
+	}
+	if successorCancelled {
+		t.Fatal("旧 round 的迟到停止不得取消 successor")
+	}
+	if running := runtimeManager.GetRunningRoundIDs(sessionKey); len(running) != 1 || running[0] != "round-successor" {
+		t.Fatalf("successor 运行态被破坏: %+v", running)
+	}
+	runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
+}
+
+func TestServiceHandleInterruptStaleRoundNeverFallsBackToSession(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
+	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	sessionKey := "agent:nexus:ws:dm:test-stale-round-stop"
+	successorCancelled := false
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-successor", func() {
+		successorCancelled = true
+		runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
+	}); err != nil {
+		t.Fatalf("注册 successor round 失败: %v", err)
+	}
+
+	err := service.HandleInterrupt(context.Background(), InterruptRequest{
+		SessionKey: sessionKey,
+		RoundID:    "round-ended",
+	})
+	if !errors.Is(err, ErrTargetDMRoundNotRunning) {
+		t.Fatalf("迟到 round 停止错误 = %v, want ErrTargetDMRoundNotRunning", err)
+	}
+	if successorCancelled {
+		t.Fatal("找不到 exact target 时不得退化为 session 中断")
+	}
+	if running := runtimeManager.GetRunningRoundIDs(sessionKey); len(running) != 1 || running[0] != "round-successor" {
+		t.Fatalf("迟到停止改变了 successor 运行态: %+v", running)
+	}
+	runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
+}
+
+func TestServiceHandleInterruptExactUnsupportedFailsClosed(t *testing.T) {
+	cfg := newDMTestConfig(t)
+	migrateDMSQLite(t, cfg.DatabaseURL)
+
+	permission := permissionctx.NewContext()
+	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
+	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
+	sessionKey := "agent:nexus:ws:dm:test-exact-unsupported"
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-without-cancel", nil); err != nil {
+		t.Fatalf("注册无 exact cancel 的 round 失败: %v", err)
+	}
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-successor", func() {}); err != nil {
+		t.Fatalf("注册 successor round 失败: %v", err)
+	}
+
+	err := service.HandleInterrupt(context.Background(), InterruptRequest{
+		SessionKey: sessionKey,
+		RoundID:    "round-without-cancel",
+	})
+	if !errors.Is(err, ErrExactDMRoundInterruptUnsupported) {
+		t.Fatalf("不支持 exact stop 时错误 = %v", err)
+	}
+	if running := runtimeManager.GetRunningRoundIDs(sessionKey); len(running) != 2 {
+		t.Fatalf("不支持 exact stop 时必须 fail closed: %+v", running)
+	}
+	runtimeManager.MarkRoundFinished(sessionKey, "round-without-cancel")
+	runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
+}

@@ -155,6 +155,7 @@ function AssistantDirectContent({
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
       showTimelineDots={shouldShowAssistantTimeline(environment.mode)}
       streamingBlockIndexes={direct.projection.streamingIndexes}
+      unresolvedToolStatus={environment.unresolvedToolStatus}
       workspaceAgentId={environment.workspaceAgentId}
       agentMentionDirectory={environment.agentMentionDirectory}
       onOpenAgentContact={environment.onOpenAgentContact}
@@ -188,6 +189,7 @@ function AssistantFinalContent({
       pendingPermissionsByToolUseId={permissions.matchedByToolUseId}
       permissionReadOnlyReason={environment.permissionReadOnlyReason}
       streamingBlockIndexes={final.streamingIndexes}
+      unresolvedToolStatus={environment.unresolvedToolStatus}
       workspaceAgentId={environment.workspaceAgentId}
       agentMentions={final.mentions}
       agentMentionDirectory={environment.agentMentionDirectory}

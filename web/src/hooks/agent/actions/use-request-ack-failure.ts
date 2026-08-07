@@ -107,6 +107,7 @@ export function useRequestAckFailure({
   const handleRequestAckTimeout = useCallback((
     clientRequestId: string,
     clientMessageId: string,
+    unknownMessage = "连接超时，暂时无法确认消息是否已受理；已保留消息并重新连接",
   ): void => {
     void recoverRequestAckTimeout({
       clientMessageId,
@@ -126,9 +127,7 @@ export function useRequestAckFailure({
       }
       rejectPendingRequestAck(
         clientRequestId,
-        new RequestAcceptanceUnknownError(
-          "连接超时，暂时无法确认消息是否已受理；已保留消息并重新连接",
-        ),
+        new RequestAcceptanceUnknownError(unknownMessage),
       );
     });
   }, [

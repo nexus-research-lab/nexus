@@ -19,6 +19,7 @@ import {
 } from "@/features/conversation/shared/conversation-panel-layout";
 import type { ConversationPanelFrameModel } from "@/features/conversation/shared/conversation-panel-model";
 import { ConversationFeed } from "@/features/conversation/shared/feed/conversation-feed";
+import { ExecutionProcessPanel } from "@/features/conversation/shared/execution/execution-process-panel";
 import { GoalPanel } from "@/features/conversation/shared/goal/goal-panel";
 import { ConversationSessionNavigator } from "@/features/conversation/shared/session-navigator/conversation-session-navigator";
 import { CONVERSATION_TOUR_ANCHORS } from "@/features/onboarding/tours/conversation-tour";
@@ -40,6 +41,7 @@ export interface DmChatPanelViewModel extends ConversationPanelFrameModel {
   composerInteraction: ComposerInteractionSurfaceProps;
   feed: FeedModel;
   goalPanel: GoalPanelModel;
+  executionPanel: ComponentProps<typeof ExecutionProcessPanel> | null;
   taskSource?: WorkspaceTaskSource;
   todos: TodoItem[];
 }
@@ -66,7 +68,9 @@ export function DmChatPanelView({
       >
         <ConversationPanelViewport
           floatingDockOccupied={
-            model.todos.length > 0 || model.scrollToLatest.visible
+            model.executionPanel !== null
+            || model.todos.length > 0
+            || model.scrollToLatest.visible
           }
           isMobileLayout={isMobileLayout}
           tourAnchor={CONVERSATION_TOUR_ANCHORS.feed}
@@ -77,7 +81,9 @@ export function DmChatPanelView({
       </ConversationPanelViewportArea>
       <ConversationPanelBottomArea
         activity={
-          model.todos.length > 0
+          model.executionPanel
+            ? <ExecutionProcessPanel {...model.executionPanel} />
+            : model.todos.length > 0
             ? (
                 <WorkspaceTaskPanel
                   source={model.taskSource}

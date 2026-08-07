@@ -20,6 +20,11 @@ type MentionMatch struct {
 	EndRune   int
 }
 
+type mentionCandidate struct {
+	match     MentionMatch
+	startByte int
+}
+
 // ResolveMentionAgentIDs 解析消息中的 @mention，并按文本顺序返回去重后的 agent_id。
 func ResolveMentionAgentIDs(content string, agentNameToID map[string]string) []string {
 	matches := ResolveMentionMatches(content, agentNameToID)
@@ -37,7 +42,8 @@ func ResolveMentionAgentIDs(content string, agentNameToID map[string]string) []s
 
 // ResolveMentionMatches 返回所有可用于 UI 标注与 handoff 的 mention span。
 // 代码区和链接/标识符中的模糊 @ 不会被解析；重叠别名只保留最长匹配。
-// 纯 ASCII 别名允许直接衔接汉字正文，兼容模型常见的「@Agent1以上」输出。
+// 已知别名允许直接衔接汉字正文，兼容模型常见的「@Agent1以上」和
+// 「@研究员请继续」输出；最长别名优先，ASCII 标识符后缀仍不会被截断。
 func ResolveMentionMatches(content string, agentNameToID map[string]string) []MentionMatch {
 	if strings.TrimSpace(content) == "" || len(agentNameToID) == 0 {
 		return nil
@@ -77,14 +83,15 @@ func ResolveMentionMatches(content string, agentNameToID map[string]string) []Me
 		return cmp.Compare(left.name, right.name)
 	})
 
-	all := make([]MentionMatch, 0, len(aliases))
+	all := make([]mentionCandidate, 0, len(aliases))
 	for _, alias := range aliases {
 		pattern, err := regexp.Compile(`(?i)@` + regexp.QuoteMeta(alias.name))
 		if err != nil {
 			continue
 		}
 		for _, location := range pattern.FindAllStringIndex(masked, -1) {
-			if len(location) < 2 || !isMentionBoundary(content, location[0]) ||
+			if len(location) < 2 ||
+				isEscapedMentionStart(content, location[0]) ||
 				!isMentionSuffixBoundary(alias.name, masked, location[1]) {
 				continue
 			}
@@ -95,24 +102,36 @@ func ResolveMentionMatches(content string, agentNameToID map[string]string) []Me
 			startRune := utf8.RuneCountInString(content[:location[0]])
 			endRune := startRune + utf8.RuneCountInString(content[location[0]:matchEnd])
 			label := strings.TrimPrefix(content[location[0]:matchEnd], "@")
-			all = append(all, MentionMatch{
-				AgentID:   alias.agentID,
-				Label:     label,
-				StartRune: startRune,
-				EndRune:   endRune,
+			all = append(all, mentionCandidate{
+				startByte: location[0],
+				match: MentionMatch{
+					AgentID:   alias.agentID,
+					Label:     label,
+					StartRune: startRune,
+					EndRune:   endRune,
+				},
 			})
 		}
 	}
-	slices.SortStableFunc(all, func(left MentionMatch, right MentionMatch) int {
-		if result := cmp.Compare(left.StartRune, right.StartRune); result != 0 {
+	slices.SortStableFunc(all, func(left mentionCandidate, right mentionCandidate) int {
+		if result := cmp.Compare(left.match.StartRune, right.match.StartRune); result != 0 {
 			return result
 		}
-		return cmp.Compare(right.EndRune-right.StartRune, left.EndRune-left.StartRune)
+		return cmp.Compare(
+			right.match.EndRune-right.match.StartRune,
+			left.match.EndRune-left.match.StartRune,
+		)
 	})
 	result := make([]MentionMatch, 0, len(all))
 	lastEnd := -1
-	for _, match := range all {
+	for _, candidate := range all {
+		match := candidate.match
 		if match.StartRune < lastEnd {
+			continue
+		}
+		// 相邻的两个已知 mention（@Amy@Devin）共享前一 mention 的
+		// 结束边界；除此之外仍要求 @ 不是 ASCII identifier/email 的一部分。
+		if match.StartRune != lastEnd && !isMentionBoundary(content, candidate.startByte) {
 			continue
 		}
 		result = append(result, match)
@@ -121,7 +140,7 @@ func ResolveMentionMatches(content string, agentNameToID map[string]string) []Me
 	return result
 }
 
-func isMentionSuffixBoundary(alias string, content string, byteIndex int) bool {
+func isMentionSuffixBoundary(_ string, content string, byteIndex int) bool {
 	if byteIndex < 0 || byteIndex > len(content) {
 		return false
 	}
@@ -129,28 +148,24 @@ func isMentionSuffixBoundary(alias string, content string, byteIndex int) bool {
 		return true
 	}
 	next, _ := utf8.DecodeRuneInString(content[byteIndex:])
-	if unicode.IsSpace(next) || unicode.IsPunct(next) || unicode.IsSymbol(next) {
-		// 下划线等连接符仍属于标识符的一部分，不能把
-		// @Amy_name 错当成 @Amy。
-		return !unicode.Is(unicode.Pc, next)
-	}
-	// 模型在中文回复里经常省略英文/数字成员名后的空格，例如
-	// 「@Agent1以上为调研结果」。只容忍纯 ASCII 别名到汉字正文的
-	// 跨文字边界；ASCII 字母、数字等后缀仍属于同一标识符，因此
-	// @Agent10 不会被较短的 Agent1 命中。
-	return isASCIIAlias(alias) && unicode.Is(unicode.Han, next)
-}
-
-func isASCIIAlias(alias string) bool {
-	if alias == "" {
+	if isASCIIMentionIdentifierContinuation(next) {
 		return false
 	}
-	for _, value := range alias {
-		if value > unicode.MaxASCII {
-			return false
-		}
+	if unicode.IsMark(next) {
+		return false
 	}
-	return true
+	if unicode.IsSpace(next) || unicode.IsPunct(next) || unicode.IsSymbol(next) {
+		return true
+	}
+	// 成员目录已经提供全部合法别名并按最长匹配排序，因此汉字可以安全地
+	// 作为正文直接跟在已知中文或 ASCII 别名后面。ASCII 字母、数字、
+	// 下划线和连字符仍由上面的 identifier continuation 拒绝。
+	return next > unicode.MaxASCII
+}
+
+func isASCIIMentionIdentifierContinuation(value rune) bool {
+	return value <= unicode.MaxASCII &&
+		(unicode.IsLetter(value) || unicode.IsDigit(value) || value == '_' || value == '-')
 }
 
 func isMentionBoundary(content string, byteIndex int) bool {
@@ -158,11 +173,41 @@ func isMentionBoundary(content string, byteIndex int) bool {
 		return byteIndex == 0
 	}
 	previous, _ := utf8.DecodeLastRuneInString(content[:byteIndex])
-	return !unicode.IsLetter(previous) && !unicode.IsDigit(previous) && previous != '_' && previous != '@'
+	return previous != '@' &&
+		!(previous <= unicode.MaxASCII &&
+			(unicode.IsLetter(previous) || unicode.IsDigit(previous) || previous == '_'))
+}
+
+func isEscapedMentionStart(content string, byteIndex int) bool {
+	if byteIndex <= 0 || byteIndex > len(content) {
+		return false
+	}
+	backslashes := 0
+	for cursor := byteIndex - 1; cursor >= 0 && content[cursor] == '\\'; cursor-- {
+		backslashes++
+	}
+	return backslashes%2 == 1
 }
 
 func maskMentionExcludedRegions(content string) string {
-	return maskMarkdownLinkDestinations(maskBacktickCodeRegions(content))
+	return maskBareURLsAndEmails(maskMarkdownLinkDestinations(maskBacktickCodeRegions(content)))
+}
+
+var excludedMentionLinkPattern = regexp.MustCompile(
+	`(?i)(?:https?://|www\.|mailto:)[^\s<]+|[\p{L}\p{N}._%+\-]+@[\p{L}\p{N}.\-]+\.[\p{L}]{2,}`,
+)
+
+func maskBareURLsAndEmails(content string) string {
+	if !strings.Contains(content, "@") {
+		return content
+	}
+	masked := []byte(content)
+	for _, location := range excludedMentionLinkPattern.FindAllStringIndex(content, -1) {
+		for cursor := location[0]; cursor < location[1]; cursor++ {
+			masked[cursor] = ' '
+		}
+	}
+	return string(masked)
 }
 
 // maskBacktickCodeRegions 保留原始字节位置，把反引号代码区替换为空格，避免示例里的 @ 触发执行。

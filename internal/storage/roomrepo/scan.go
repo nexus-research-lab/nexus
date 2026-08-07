@@ -57,6 +57,7 @@ func ScanMemberRecord(scanner Scanner) (protocol.MemberRecord, error) {
 		&item.MemberType,
 		&item.MemberUserID,
 		&item.MemberAgentID,
+		&item.ParticipationPaused,
 		&joinedAt,
 	)
 	if err != nil {

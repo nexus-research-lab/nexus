@@ -182,6 +182,50 @@ func (s *Service) updateFromThreadGoalParams(
 	hasStatus bool,
 	request goalappserver.ThreadGoalSetParams,
 ) (*protocol.Goal, error) {
+	if request.Objective != nil &&
+		(s.objectiveRetarget != nil || goalHasManagedExecutionBinding(item)) {
+		requestedObjective, err := normalizeObjective(*request.Objective)
+		if err != nil {
+			return nil, err
+		}
+		if objectiveRetargetRequestAlreadyApplied(item, requestedObjective) {
+			request.Objective = nil
+			if !request.TokenBudget.Present && !hasStatus {
+				return &item, nil
+			}
+		} else {
+			objective, _ := s.rewriteUpdateObjective(
+				ctx,
+				protocol.UpdateGoalRequest{Objective: &requestedObjective},
+				item.SessionKey,
+				requestedObjective,
+				nil,
+			)
+			if item.Objective != objective && s.objectiveRetarget != nil {
+				retargeted, retargetErr := s.objectiveRetarget.RetargetGoalObjective(ctx, ObjectiveRetargetCommand{
+					Goal:                      item,
+					RequestedObjective:        requestedObjective,
+					Objective:                 objective,
+					Reason:                    "app-server updated the Goal objective",
+					ExpectedObjectiveRevision: item.ObjectiveRevision(),
+					Source:                    protocol.GoalUpdateSourceExternal,
+				})
+				if retargetErr != nil {
+					return nil, retargetErr
+				}
+				item = *retargeted
+				request.Objective = nil
+				if !request.TokenBudget.Present && !hasStatus {
+					return &item, nil
+				}
+			} else if item.Objective != objective && goalHasManagedExecutionBinding(item) {
+				return nil, fmt.Errorf(
+					"%w: Goal objective retarget coordinator is unavailable for a managed Execution",
+					ErrGoalInvalidState,
+				)
+			}
+		}
+	}
 	hasUpdateFields := false
 	valueChanged := false
 	payload := map[string]any{}
@@ -221,6 +265,12 @@ func (s *Service) updateFromThreadGoalParams(
 		nextStatus = targetStatus
 	}
 	nextStatus = statusAfterThreadGoalBudget(item, nextStatus, hasStatus)
+	if nextStatus == protocol.GoalStatusComplete &&
+		currentStatus != protocol.GoalStatusComplete {
+		if readinessErr := s.ensureExecutionGoalCompletionReady(ctx, item); readinessErr != nil {
+			return nil, readinessErr
+		}
+	}
 	if !hasUpdateFields {
 		return &item, nil
 	}

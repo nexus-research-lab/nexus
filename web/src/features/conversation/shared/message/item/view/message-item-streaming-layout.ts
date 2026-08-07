@@ -1,6 +1,6 @@
 /**
- * INPUT: Assistant 正文 surface、当前可见文本与流式游标状态。
- * OUTPUT: 流式阶段只增不减的正文最小高度与测量节点。
+ * INPUT: Assistant 正文 surface、当前 Assistant turn、可见文本与流式游标状态。
+ * OUTPUT: 同一 turn 内只增不减、跨 turn 立即复位的正文最小高度与测量节点。
  * POS: MessageItem 视图层的流式排版稳定器。
  */
 import { prepare, layout } from "@chenglou/pretext";
@@ -21,6 +21,7 @@ const STREAMING_PROSE_FONT =
 const STREAMING_LINE_HEIGHT = 28;
 
 type MessageItemStreamingLayoutOptions = {
+  assistantTurnKey: string | null;
   assistantContentMode: AssistantContentMode;
   directContent: ContentBlock[];
   finalAssistantText: string;
@@ -32,19 +33,59 @@ type MessageItemStreamingLayout = {
   contentAreaStyle: CSSProperties | undefined;
 };
 
+type MessageItemStreamingLayoutState = {
+  active: boolean;
+  assistantTurnKey: string | null;
+  minHeight: number;
+};
+
+export function resolveMessageItemStreamingLayoutState(
+  current: MessageItemStreamingLayoutState,
+  assistantTurnKey: string | null,
+  showCursor: boolean,
+): MessageItemStreamingLayoutState {
+  if (
+    !showCursor
+    || !current.active
+    || current.assistantTurnKey !== assistantTurnKey
+  ) {
+    return {
+      active: showCursor,
+      assistantTurnKey,
+      minHeight: STREAMING_MIN_HEIGHT,
+    };
+  }
+  return current;
+}
+
 export function useMessageItemStreamingLayout({
+  assistantTurnKey,
   assistantContentMode,
   directContent,
   finalAssistantText,
   showCursor,
 }: MessageItemStreamingLayoutOptions): MessageItemStreamingLayout {
   const contentAreaRef = useRef<HTMLDivElement>(null);
-  const streamingMinHeight = useRef(STREAMING_MIN_HEIGHT);
+  const streamingLayoutState = useRef<MessageItemStreamingLayoutState>({
+    active: showCursor,
+    assistantTurnKey,
+    minHeight: STREAMING_MIN_HEIGHT,
+  });
+  const renderedLayoutState = resolveMessageItemStreamingLayoutState(
+    streamingLayoutState.current,
+    assistantTurnKey,
+    showCursor,
+  );
   const layoutThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
 
   useEffect(() => {
+    streamingLayoutState.current = resolveMessageItemStreamingLayoutState(
+      streamingLayoutState.current,
+      assistantTurnKey,
+      showCursor,
+    );
     const layoutText = resolveAssistantResponseSurface(assistantContentMode)
       === "direct"
       ? extractTextFromContentBlocks(directContent)
@@ -60,17 +101,22 @@ export function useMessageItemStreamingLayout({
     layoutThrottleRef.current = setTimeout(() => {
       layoutThrottleRef.current = null;
       const element = contentAreaRef.current;
-      if (!element) {
+      const currentLayoutState = streamingLayoutState.current;
+      if (
+        !element
+        || !currentLayoutState.active
+        || currentLayoutState.assistantTurnKey !== assistantTurnKey
+      ) {
         return;
       }
       try {
         const width = element.offsetWidth || 640;
         const prepared = prepare(layoutText, STREAMING_PROSE_FONT);
         const result = layout(prepared, width, STREAMING_LINE_HEIGHT);
-        streamingMinHeight.current = Math.max(
-          streamingMinHeight.current,
-          result.height,
-        );
+        streamingLayoutState.current = {
+          ...currentLayoutState,
+          minHeight: Math.max(currentLayoutState.minHeight, result.height),
+        };
       } catch {
         // 这里只保留上一次可用高度，避免流式阶段因为排版测量失败产生闪动。
       }
@@ -84,25 +130,16 @@ export function useMessageItemStreamingLayout({
     };
   }, [
     assistantContentMode,
+    assistantTurnKey,
     directContent,
     finalAssistantText,
     showCursor,
   ]);
 
-  useEffect(() => {
-    if (!showCursor) {
-      streamingMinHeight.current = STREAMING_MIN_HEIGHT;
-      if (layoutThrottleRef.current !== null) {
-        clearTimeout(layoutThrottleRef.current);
-        layoutThrottleRef.current = null;
-      }
-    }
-  }, [showCursor]);
-
   return {
     contentAreaRef,
     contentAreaStyle: showCursor
-      ? { minHeight: streamingMinHeight.current }
+      ? { minHeight: renderedLayoutState.minHeight }
       : undefined,
   };
 }

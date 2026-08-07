@@ -196,7 +196,28 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 		t.Fatalf("构建 runtime client 失败: %v", err)
 	}
 
-	appendSystemPrompt := factory.LastOptions().System.Append
+	promptOptions := factory.LastOptions().System
+	appendSystemPrompt := promptOptions.Append
+	if !strings.Contains(promptOptions.AppendStatic, "## Execution Orchestration") {
+		t.Fatalf("DM static prompt 未注入 execution contract: %s", promptOptions.AppendStatic)
+	}
+	if strings.Count(promptOptions.AppendStatic, "## Execution Orchestration") != 1 ||
+		strings.Count(appendSystemPrompt, "## Execution Orchestration") != 1 {
+		t.Fatalf("DM execution contract 应只注入一次: static=%q combined=%q", promptOptions.AppendStatic, appendSystemPrompt)
+	}
+	if strings.Contains(promptOptions.AppendDynamic, "## Execution Orchestration") {
+		t.Fatalf("DM dynamic prompt 不应重复 execution contract: %s", promptOptions.AppendDynamic)
+	}
+	for _, expected := range []string{
+		"Before substantial execution, every Agent assesses atomicity",
+		"Use native subagents only when their benefit exceeds",
+		"When one Agent owns the combined deliverable, keep one Work Item and use separate native subagents",
+		"the parent integrates, verifies, and delivers",
+	} {
+		if !strings.Contains(promptOptions.AppendStatic, expected) {
+			t.Fatalf("DM 固定 execution contract 缺少全 Agent 自适应分解规则 %q: %s", expected, promptOptions.AppendStatic)
+		}
+	}
 	if !strings.Contains(appendSystemPrompt, "执行规则：必须先加载工作区规则") {
 		t.Fatalf("runtime prompt 未注入 AGENTS.md 内容: %s", appendSystemPrompt)
 	}
@@ -205,6 +226,18 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	}
 	if !strings.Contains(appendSystemPrompt, "Vibe Tags: 规则优先, 稳健") {
 		t.Fatalf("runtime prompt 未注入 Agent vibe_tags: %s", appendSystemPrompt)
+	}
+	for _, expected := range []string{
+		"执行规则：必须先加载工作区规则",
+		"Description: 负责执行工作区规则",
+		"Vibe Tags: 规则优先, 稳健",
+	} {
+		if !strings.Contains(promptOptions.AppendDynamic, expected) {
+			t.Fatalf("DM Agent surface prompt 应保留在 dynamic 段，缺少 %q: %s", expected, promptOptions.AppendDynamic)
+		}
+		if strings.Contains(promptOptions.AppendStatic, expected) {
+			t.Fatalf("DM static execution contract 不应混入 Agent surface 内容 %q: %s", expected, promptOptions.AppendStatic)
+		}
 	}
 }
 
@@ -259,10 +292,22 @@ func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
 	}
 
 	matchers := factory.LastOptions().Hooks.Matchers[sdkhook.EventPreToolUse]
-	if len(matchers) != 1 || len(matchers[0].Hooks) != 1 {
-		t.Fatalf("主智能体应保留 mandatory workspace hook: %#v", matchers)
+	var workspaceHook, agentHook sdkhook.Callback
+	for _, matcher := range matchers {
+		if len(matcher.Hooks) != 1 {
+			continue
+		}
+		switch matcher.Matcher {
+		case "":
+			workspaceHook = matcher.Hooks[0]
+		case "Agent":
+			agentHook = matcher.Hooks[0]
+		}
 	}
-	output, err := matchers[0].Hooks[0](context.Background(), sdkhook.Input{
+	if workspaceHook == nil || agentHook == nil {
+		t.Fatalf("主智能体应同时保留 workspace 与 Agent admission hooks: %#v", matchers)
+	}
+	output, err := workspaceHook(context.Background(), sdkhook.Input{
 		CWD:      agentValue.WorkspacePath,
 		ToolName: "Bash",
 		ToolInput: map[string]any{
@@ -274,6 +319,16 @@ func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
 	}
 	if output.SpecificOutput != nil {
 		t.Fatalf("DM runtime 丢失主智能体身份: %#v", output)
+	}
+	output, err = agentHook(context.Background(), sdkhook.Input{
+		ToolName: "Agent",
+	}, "agent-tool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.SpecificOutput == nil ||
+		!strings.Contains(output.SpecificOutput.PermissionDecisionReason, "subagent_admission_unavailable") {
+		t.Fatalf("未注入 provider 时 Agent tool 必须 fail closed: %#v", output)
 	}
 }
 

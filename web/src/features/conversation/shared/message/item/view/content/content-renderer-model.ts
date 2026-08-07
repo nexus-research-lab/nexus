@@ -12,6 +12,7 @@ import type {
 } from "@/types/conversation/message/content";
 
 import type { ToolBlockStatus } from "../../../blocks/tool/tool-block-types";
+import { isRejectedToolResult } from "../../../tool-result-semantic-model";
 
 const API_RETRY_VISIBLE_ATTEMPT = 4;
 
@@ -78,14 +79,18 @@ export function shouldMountTextContentBlock(
 export function resolveToolBlockStatus(
   toolUse: ToolUseProjection | undefined,
   waitingForPermission: boolean,
+  unresolvedToolStatus?: Extract<ToolBlockStatus, "error" | "stopped">,
 ): ToolBlockStatus {
-  if (waitingForPermission) {
-    return "waiting_permission";
+  if (toolUse?.result) {
+    if (toolUse.result.is_error) {
+      return "error";
+    }
+    return isRejectedToolResult(toolUse.result) ? "rejected" : "success";
   }
-  if (!toolUse?.result) {
-    return "running";
+  if (unresolvedToolStatus) {
+    return unresolvedToolStatus;
   }
-  return toolUse.result.is_error ? "error" : "success";
+  return waitingForPermission ? "waiting_permission" : "running";
 }
 
 export function isHiddenSystemEvent(block: SystemEventContent): boolean {

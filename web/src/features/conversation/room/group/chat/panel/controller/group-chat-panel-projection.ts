@@ -6,11 +6,18 @@
 import type { RefObject } from "react";
 
 import {
+  buildExecutionAgentDirectory,
+  isExecutionActivityVisible,
+} from "@/features/conversation/shared/execution/execution-process-model";
+import {
   buildConversationPanelFrameModel,
   type ConversationPanelEnvironment,
   type ConversationPanelSessionSource,
 } from "@/features/conversation/shared/conversation-panel-model";
-import type { ConversationTodoProcess } from "@/features/conversation/shared/todos/todo-projection-model";
+import type {
+  ConversationTaskRun,
+  ConversationTodoProcess,
+} from "@/features/conversation/shared/todos/todo-projection-model";
 import { buildGoalActivityKey } from "@/features/conversation/shared/goal/goal-model";
 import { coalescePendingPermissions } from "@/lib/conversation/pending-permission-match";
 import type { Agent } from "@/types/agent/agent";
@@ -19,6 +26,7 @@ import type {
   UseAgentConversationReturn,
 } from "@/types/agent/agent-conversation";
 import type { SessionRoundIndexItem } from "@/types/conversation/history";
+import type { ExecutionView } from "@/types/conversation/execution";
 
 import type {
   GroupChatComposerModel,
@@ -59,9 +67,11 @@ type GroupChatSession = Omit<
     | "runtime_phase"
     | "send_permission_response"
     | "stop_generation"
+    | "stopping_agent_round_ids"
   >;
   roundIndexItems: SessionRoundIndexItem[];
   taskProcesses: ConversationTodoProcess[];
+  taskRuns: ConversationTaskRun[];
   scroll: ConversationPanelSessionSource["scroll"] & {
     bottomAnchorRef: RefObject<HTMLDivElement | null>;
     feedRef: RefObject<HTMLDivElement | null>;
@@ -74,12 +84,17 @@ interface BuildGroupChatPanelViewModelOptions {
   currentAgentName: string | null;
   directory: RoomAgentDirectory;
   environment: ConversationPanelEnvironment;
+  execution: {
+    dismiss: () => void;
+    execution: ExecutionView | null;
+  };
   feedTimeline: GroupAgentTimelineProjection;
   goal: RoomGoalComposerModel;
   onCreateConversation: (
     title?: string,
   ) => void | Promise<string | null>;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string) => void;
   roomHostAgentId: string | null;
   roomHostAutoReplyEnabled: boolean;
@@ -94,10 +109,12 @@ export function buildGroupChatPanelViewModel({
   currentAgentName,
   directory,
   environment,
+  execution,
   feedTimeline,
   goal,
   onCreateConversation,
   onOpenAgentContact,
+  onOpenWorkGraph,
   onOpenWorkspaceFile,
   roomHostAgentId,
   roomHostAutoReplyEnabled,
@@ -135,6 +152,20 @@ export function buildGroupChatPanelViewModel({
       session,
       unread,
     }),
+    executionPanel: isExecutionActivityVisible(execution.execution)
+      ? {
+          directory: buildExecutionAgentDirectory(roomMembers),
+          execution: execution.execution,
+          onNavigateToRound: (roundId: string) => {
+            session.roundScrollRef.current?.scrollToRoundId(roundId, {
+              align: "focus",
+              behavior: "smooth",
+              target: "round",
+            });
+          },
+          onOpenGraph: onOpenWorkGraph,
+        }
+      : null,
     goalLead: buildGoalLeadModel({ goal, roomMembers, session }),
     goalPanel: buildGoalPanelModel({
       goal,
@@ -200,6 +231,7 @@ function buildFeedModel({
       onPermissionResponse: conversation.send_permission_response,
       onStopAgentRound: conversation.stop_generation,
       runtimePhase: conversation.runtime_phase,
+      stoppingAgentRoundIds: conversation.stopping_agent_round_ids,
     },
     source: {
       liveRoundIds: conversation.live_round_ids,

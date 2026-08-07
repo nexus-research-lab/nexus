@@ -121,9 +121,18 @@ export function useProviderPersistence({
       const result = await persistProvider({ showError: false });
       if (result?.changed) {
         await refreshAll(result.record.provider);
+        reportProviderAvailabilityChange(selectedRecord, result.record, setFeedback, t);
       }
     });
-  }, [canSave, persistProvider, refreshAll, runCommand]);
+  }, [
+    canSave,
+    persistProvider,
+    refreshAll,
+    runCommand,
+    selectedRecord,
+    setFeedback,
+    t,
+  ]);
 
   const handleEnabledChange = useCallback((checked: boolean) => {
     if (!selectedCanManage || !selectedRecord) {
@@ -141,6 +150,7 @@ export function useProviderPersistence({
           ),
         );
         await refreshAll(result.provider);
+        reportProviderAvailabilityChange(selectedRecord, result, setFeedback, t);
       } catch (error) {
         updateDraft({ enabled: !checked });
         setFeedback(buildProviderErrorFeedback(
@@ -167,6 +177,32 @@ export function useProviderPersistence({
     handleProviderFieldBlur,
     persistProvider,
   };
+}
+
+function reportProviderAvailabilityChange(
+  previous: ProviderConfigRecord | null,
+  next: ProviderConfigRecord,
+  setFeedback: Dispatch<SetStateAction<FeedbackState | null>>,
+  t: I18nContextValue["t"],
+): void {
+  if (!previous || previous.usage_count <= 0 || previous.enabled === next.enabled) {
+    return;
+  }
+  if (!next.enabled) {
+    setFeedback({
+      tone: "success",
+      title: t("settings.providers.disabled_title"),
+      message: t("settings.providers.disabled_follow_default_message", {
+        count: previous.usage_count,
+      }),
+    });
+    return;
+  }
+  setFeedback({
+    tone: "success",
+    title: t("settings.providers.restored_title"),
+    message: t("settings.providers.restored_model_message"),
+  });
 }
 
 function resolvePersistenceStop(

@@ -1,5 +1,5 @@
-// INPUT: DM session、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: 可复用、换代安全且带诊断、权限和 PostToolUse hooks 的 runtime client。
+// INPUT: DM session、稳定 execution contract、Agent runtime 配置与 guidance 队列位置。
+// OUTPUT: static/dynamic prompt 分层、换代安全且带诊断、权限和 PostToolUse hooks 的可复用 runtime client。
 // POS: DM 服务的 runtime client 装配边界。
 package dm
 
@@ -17,6 +17,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	"github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
 	runtimeselectionsvc "github.com/nexus-research-lab/nexus/internal/service/runtimeselection"
 	sessionresumesvc "github.com/nexus-research-lab/nexus/internal/service/sessionresume"
@@ -63,7 +64,7 @@ func (s *Service) ensureClient(
 			return s.permission.RequestPermission(permissionCtx, sessionKey, permissionRequest)
 		}
 	}
-	permissionHandler = toolpolicy.WithManagedGoalAutoApproval(permissionHandler)
+	permissionHandler = toolpolicy.WithManagedRuntimeAutoApproval(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
@@ -82,24 +83,22 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
-	appendSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
+	dynamicSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
+	staticSystemPrompt := orchestration.StablePrompt()
 	goalContext, goalIDForUsage, objectiveRevision := "", "", int64(0)
-	if !goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode)) {
+	explicitGoalID := strings.TrimSpace(request.GoalID)
+	explicitGoalRevision := request.GoalObjectiveRevision
+	goalBoundRequest := request.Internal && explicitGoalID != "" && explicitGoalRevision > 0
+	if !goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode)) && goalBoundRequest {
 		goalContext, goalIDForUsage, objectiveRevision = s.goalRuntimeContext(ctx, sessionKey)
-	}
-	if request.Internal && request.GoalObjectiveRevision > 0 {
-		boundGoalID := strings.TrimSpace(request.GoalID)
-		boundObjectiveRevision := request.GoalObjectiveRevision
-		if strings.TrimSpace(goalIDForUsage) != boundGoalID || objectiveRevision != boundObjectiveRevision {
+		if strings.TrimSpace(goalIDForUsage) != explicitGoalID || objectiveRevision != explicitGoalRevision {
 			return nil, "", "", "", "", "", nil, permissionMode, goalsvc.ErrGoalRevisionStale
 		}
-		if boundGoalID != "" {
-			goalIDForUsage = boundGoalID
-		}
-		objectiveRevision = boundObjectiveRevision
+		goalIDForUsage = explicitGoalID
+		objectiveRevision = explicitGoalRevision
 	}
 	goalObjectiveRevision := &atomic.Int64{}
 	goalObjectiveRevision.Store(objectiveRevision)
@@ -114,7 +113,30 @@ func (s *Service) ensureClient(
 			agentValue.AgentID,
 			agentValue.Name,
 			goalObjectiveRevision,
+			permissionMode,
 		)
+	}
+	if s.executionMCPServers != nil {
+		overlay := s.executionMCPServers(ctx, runtimectx.ExecutionToolContext{
+			Agent:                 agentValue,
+			ScopeSessionKey:       sessionKey,
+			RuntimeSessionKey:     sessionKey,
+			ExecutionID:           strings.TrimSpace(request.ExecutionID),
+			CoordinatorAgentID:    agentValue.AgentID,
+			RootRoundID:           request.RoundID,
+			AgentRoundID:          request.AgentRoundID,
+			SourceContextType:     "agent",
+			SourceContextID:       agentValue.AgentID,
+			PermissionMode:        permissionMode,
+			GoalID:                goalIDForUsage,
+			GoalObjectiveRevision: goalObjectiveRevision,
+		})
+		if len(overlay) > 0 && mcpServers == nil {
+			mcpServers = make(map[string]sdkmcp.ServerConfig, len(overlay))
+		}
+		for name, server := range overlay {
+			mcpServers[name] = server
+		}
 	}
 	runtimeSelection, err := s.resolveAgentRuntimeSelection(
 		ctx,
@@ -148,7 +170,9 @@ func (s *Service) ensureClient(
 		DisabledSkillIDs:           runtimeDisabledSkillNames,
 		SkillDirectories:           workspacepkg.SkillLibraryRoots(s.config, agentValue.OwnerUserID),
 		SettingSources:             agentValue.Options.SettingSources,
-		AppendSystemPrompt:         appendSystemPrompt,
+		AppendSystemPrompt:         joinDMRuntimePrompts(staticSystemPrompt, dynamicSystemPrompt),
+		AppendSystemPromptStatic:   staticSystemPrompt,
+		AppendSystemPromptDynamic:  dynamicSystemPrompt,
 		ResumeSessionID:            dmdomain.StringPointerValue(sessionItem.SessionID),
 		MaxThinkingTokens:          agentValue.Options.MaxThinkingTokens,
 		MaxTurns:                   agentValue.Options.MaxTurns,
@@ -163,6 +187,7 @@ func (s *Service) ensureClient(
 		return nil, "", "", "", "", "", nil, permissionMode, err
 	}
 	options = s.runtime.WithGuidanceHook(options, sessionKey)
+	options = s.runtime.WithSubagentAdmissionHooks(options, sessionKey)
 	options = s.withInputQueueGuidanceHook(options, sessionKey, workspacestore.InputQueueLocation{
 		OwnerUserID:   agentValue.OwnerUserID,
 		Scope:         protocol.InputQueueScopeDM,
@@ -229,6 +254,16 @@ func (s *Service) ensureClient(
 	return client, strings.TrimSpace(string(options.Runtime.Kind)), runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, goalObjectiveRevision, permissionMode, nil
 }
 
+func joinDMRuntimePrompts(stable string, dynamic string) string {
+	parts := make([]string, 0, 2)
+	for _, prompt := range []string{stable, dynamic} {
+		if prompt = strings.TrimSpace(prompt); prompt != "" {
+			parts = append(parts, prompt)
+		}
+	}
+	return strings.Join(parts, "\n\n---\n\n")
+}
+
 func retireDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartup) (bool, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -284,7 +319,7 @@ func (s *Service) resolveAgentRuntimeSelection(
 	agentValue *protocol.Agent,
 	sessionOptions map[string]any,
 ) (runtimeselectionsvc.Selection, error) {
-	return runtimeselectionsvc.NewService(s.prefs).Resolve(ctx, runtimeselectionsvc.Request{
+	return runtimeselectionsvc.NewServiceWithRuntimeConfigResolver(s.prefs, s.providers).Resolve(ctx, runtimeselectionsvc.Request{
 		Agent:          agentValue,
 		SessionOptions: sessionOptions,
 	})

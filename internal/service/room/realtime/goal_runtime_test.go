@@ -914,6 +914,8 @@ func TestQueueRoomContextualGuidanceTargetsEveryActiveSlotExceptCaller(t *testin
 	}
 	_ = manager.StartRound(context.Background(), lead.RuntimeSessionKey, lead.AgentRoundID, nil)
 	_ = manager.StartRound(context.Background(), caller.RuntimeSessionKey, caller.AgentRoundID, nil)
+	grantTestRoomGoalAuthority(lead, sessionKey, "goal-room")
+	grantTestRoomGoalAuthority(caller, sessionKey, "goal-room")
 	service := &Service{
 		runtime: manager,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
@@ -988,6 +990,8 @@ func TestQueueRoomContextualGuidanceContinuesAfterUnavailableTarget(t *testing.T
 		RuntimeSessionKey: "agent:b-active:ws:group:conversation-best-effort",
 	}
 	_ = manager.StartRound(context.Background(), active.RuntimeSessionKey, active.AgentRoundID, nil)
+	grantTestRoomGoalAuthority(unavailable, sessionKey, "goal-room")
+	grantTestRoomGoalAuthority(active, sessionKey, "goal-room")
 	service := &Service{
 		runtime: manager,
 		rounds: newRoomRoundRegistryFromRounds(map[string]*activeRoomRound{
@@ -1705,8 +1709,8 @@ func TestRealRoomCancellationClearsGoalBeforeContinuation(t *testing.T) {
 		SessionKey: realRoomSessionKey,
 		RoundID:    "round_after_cancel",
 	})
-	if provider.planCall != 1 {
-		t.Fatalf("取消后应只检查一次续跑且不生成计划: planCall=%d", provider.planCall)
+	if provider.planCall != 0 {
+		t.Fatalf("取消后的普通 round 不应再检查 Goal 续跑: planCall=%d", provider.planCall)
 	}
 }
 

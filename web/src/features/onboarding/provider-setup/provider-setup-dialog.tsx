@@ -25,6 +25,7 @@ import {
 
 import { isDesktopRuntime } from "@/config/desktop-runtime";
 import { getDefaultAgentRuntimeKind, setUserPreferences } from "@/config/runtime-options";
+import { ProviderIcon } from "@/features/settings/provider-settings/components/provider-settings-icon";
 import { ProviderCCSwitchDialog } from "@/features/provider-imports/cc-switch/provider-ccswitch-dialog";
 import { invalidateProviderAvailability } from "@/hooks/capability/use-provider-availability";
 import {
@@ -690,14 +691,11 @@ function ProviderScene({
                   onClick={() => onSelect(item)}
                   type="button"
                 >
-                  <span className={[
-                    "flex h-8 w-8 shrink-0 items-center justify-center radius-control-sm border text-xs font-semibold transition-[background,border-color,color] duration-(--motion-duration-fast)",
-                    selected
-                      ? "border-(--brand-action) bg-(--brand-action) text-white"
-                      : "border-(--divider-subtle-color) bg-(--surface-muted-background) text-(--text-muted) group-hover:text-(--text-strong)",
-                  ].join(" ")}>
-                    {providerInitials(item.preset.display_name)}
-                  </span>
+                  <ProviderIcon
+                    name={item.preset.display_name}
+                    presetKey={presetKey}
+                    size="sm"
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-(--text-strong)">
                       {item.preset.display_name}
@@ -1230,14 +1228,6 @@ function resolveVisiblePresets(
     return featured;
   }
   return [...featured.slice(0, FEATURED_PROVIDER_COUNT - 1), selected];
-}
-
-function providerInitials(displayName: string): string {
-  const words = displayName.trim().split(/[^a-zA-Z0-9]+/).filter(Boolean);
-  if (words.length >= 2) {
-    return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase();
-  }
-  return (words[0] || "AI").slice(0, 2).toUpperCase();
 }
 
 async function persistAndTest({

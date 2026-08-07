@@ -26,6 +26,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/service/launcher"
 	loopsvc "github.com/nexus-research-lab/nexus/internal/service/loops"
 	memorymaintenancesvc "github.com/nexus-research-lab/nexus/internal/service/memorymaintenance"
+	orchestrationsvc "github.com/nexus-research-lab/nexus/internal/service/orchestration"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	projectpermissionsvc "github.com/nexus-research-lab/nexus/internal/service/projectpermission"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
@@ -36,6 +37,7 @@ import (
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	goalstore "github.com/nexus-research-lab/nexus/internal/storage/goal"
+	orchestrationstore "github.com/nexus-research-lab/nexus/internal/storage/orchestration"
 )
 
 // AppServices 表示完整应用运行所需的核心依赖容器。
@@ -63,6 +65,7 @@ type AppServices struct {
 	Automation        *automationsvc.Service
 	Imagegen          *imagegensvc.Service
 	Goal              *goalsvc.Service
+	Orchestration     *orchestrationsvc.Service
 	Loops             *loopsvc.Service
 	MemoryMaintenance *memorymaintenancesvc.Coordinator
 	SlashCatalog      *slashcommandsvc.Catalog
@@ -108,7 +111,29 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	providerService.SetLogger(logger.With("component", "provider"))
 	subscriptionService := subscriptionsvc.NewServiceWithDB(cfg, db)
 	goalService := goalsvc.NewService(cfg, goalstore.NewRepository(cfg, db))
+	orchestrationService := orchestrationsvc.NewService(orchestrationstore.NewRepository(cfg, db))
+	orchestrationService.SetRuntimeGraphSubagentToolHistoryProvider(
+		executionSubagentToolHistory{sessions: core.Session},
+	)
+	explicitGoalCoordinator := newExplicitGoalExecutionCoordinator(goalService, orchestrationService)
+	goalService.SetObjectiveRetargetCoordinator(explicitGoalCoordinator)
+	orchestrationService.SetExplicitGoalBindingGateway(explicitGoalCoordinator)
+	orchestrationService.SetGoalPromotionGateway(newExecutionGoalPromotionGateway(cfg, goalService))
+	goalService.SetExecutionGoalCompletionReadiness(executionGoalCompletionReadiness{
+		orchestration: orchestrationService,
+	})
 	preferencesService := preferencessvc.NewService(cfg)
+	providerService.SetDefaultAgentSelectionResolver(func(ctx context.Context, ownerUserID string) (providercfg.DefaultAgentSelection, error) {
+		prefs, err := preferencesService.Get(ctx, ownerUserID)
+		if err != nil {
+			return providercfg.DefaultAgentSelection{}, err
+		}
+		return providercfg.DefaultAgentSelection{
+			Provider:    prefs.DefaultAgentOptions.Provider,
+			Model:       prefs.DefaultAgentOptions.Model,
+			RuntimeKind: prefs.AgentRuntimeKind,
+		}, nil
+	})
 	imagegenService := imagegensvc.NewService(providerService, cfg.WorkspacePath)
 	loopService := loopsvc.NewService()
 	imagegenService.SetPreferences(preferencesService)
@@ -147,6 +172,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	dmService.SetUsageRecorder(usageService)
 	dmService.SetQuotaChecker(subscriptionService)
 	dmService.SetGoalContextProvider(goalService)
+	dmService.SetExecutionContextProvider(orchestrationService)
+	dmService.SetSubagentAdmissionProvider(orchestrationService)
 	dmService.SetRoomSessionStore(newSessionRepository(cfg, db))
 	dmService.SetRoomConversationActivityStore(core.Room)
 	dmService.SetTitleGenerator(titleService)
@@ -162,7 +189,16 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	roomRealtime.SetUsageRecorder(usageService)
 	roomRealtime.SetQuotaChecker(subscriptionService)
 	roomRealtime.SetGoalContextProvider(goalService)
+	roomRealtime.SetExecutionContextProvider(orchestrationService)
+	roomRealtime.SetSubagentAdmissionProvider(orchestrationService)
 	roomRealtime.SetTitleGenerator(titleService)
+	orchestrationService.SetAssignmentTargetAuthorizer(roomRealtime)
+	orchestrationService.SetExecutionDispatchConsumer(roomRealtime)
+	orchestrationService.SetExecutionReviewDispatchConsumer(roomRealtime)
+	orchestrationService.SetExecutionCancellationConsumer(executionCancellationConsumer{
+		room:    roomRealtime,
+		runtime: runtimeManager,
+	})
 	goalService.SetRoomGoalCompletionReadiness(roomRealtime)
 	goalService.SetGuidanceDispatcher(goalGuidanceDispatcher{runtime: runtimeManager, room: roomRealtime})
 	goalService.SetRuntimeInterrupter(newGoalInterruptDispatcher(dmService, roomRealtime))
@@ -199,9 +235,10 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	// 把内置自动化、连接器、图片生成和 Room 通讯 MCP server 注入 DM/Room runtime。
 	automationBuilder := newAutomationMCPBuilder(automationService, cfg.DefaultTimezone)
 	connectorBuilder := newConnectorMCPBuilder(connectorService)
-	goalBuilder := newGoalMCPBuilder(cfg, goalService, roomRealtime)
+	goalBuilder := newGoalMCPBuilder(cfg, explicitGoalCoordinator, roomRealtime)
 	imagegenBuilder := newImagegenMCPBuilder(imagegenService)
 	roomBuilder := newRoomMCPBuilder(roomRealtime, core.Room.GetRoom)
+	executionBuilder := newExecutionMCPBuilder(orchestrationService)
 	mcpBuilder := combinedMCPBuilder(
 		automationBuilder,
 		connectorBuilder,
@@ -211,6 +248,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	)
 	dmService.SetMCPServerBuilder(mcpBuilder)
 	roomRealtime.SetMCPServerBuilder(mcpBuilder)
+	dmService.SetExecutionMCPServerBuilder(executionBuilder)
+	roomRealtime.SetExecutionMCPServerBuilder(executionBuilder)
 
 	warnIfProviderMissing(providerService, logger)
 
@@ -238,6 +277,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		Automation:        automationService,
 		Imagegen:          imagegenService,
 		Goal:              goalService,
+		Orchestration:     orchestrationService,
 		Loops:             loopService,
 		MemoryMaintenance: memoryMaintenance,
 		SlashCatalog:      slashCommandCatalog,

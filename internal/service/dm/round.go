@@ -20,6 +20,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/runtime/trace"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
+	orchestration "github.com/nexus-research-lab/nexus/internal/service/orchestration"
+	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
@@ -75,6 +77,7 @@ type roundRunner struct {
 	internal                    bool
 	externalReplyTarget         *ExternalReplyTarget
 	goalContext                 string
+	executionID                 string
 	goalIDForUsage              string
 	childGoalIDForUsage         string
 	goalObjectiveRevision       *atomic.Int64
@@ -196,10 +199,31 @@ func (r *roundRunner) executeRound(
 	ctx context.Context,
 	logger *slog.Logger,
 ) (exec.RoundExecutionResult, error) {
-	return exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
+	actor := r.orchestrationActor()
+	executionInputs, err := r.service.executionContextualInputs(ctx, actor)
+	if err != nil {
+		return exec.RoundExecutionResult{}, err
+	}
+	if r.service.subagentAdmission != nil {
+		r.service.runtime.SetSubagentHookCallbacks(
+			r.sessionKey,
+			r.roundID,
+			orchestrationruntimehook.Callbacks(
+				r.service.subagentAdmission,
+				orchestrationruntimehook.Context{
+					Actor:             actor,
+					RuntimeSessionKey: r.sessionKey,
+					Logger:            r.service.loggerFor(ctx),
+				},
+			),
+		)
+		defer r.service.runtime.ClearSubagentHookCallbacks(r.sessionKey, r.roundID)
+	}
+	r.service.beginExecutionRuntimeGraph(actor)
+	result, executeErr := exec.ExecuteRound(ctx, exec.RoundExecutionRequest{
 		Content:          r.runtimeContent.Payload(),
 		AtomicInput:      r.atomicInput,
-		ContextualInputs: r.contextualInputs(),
+		ContextualInputs: append(executionInputs, r.contextualInputs()...),
 		InputOptions:     r.runtimeInputOptions(),
 		Client:           r.client,
 		Mapper:           dmRoundMapperAdapter{mapper: r.mapper},
@@ -211,6 +235,8 @@ func (r *roundRunner) executeRound(
 			return r.service.runtime.GetInterruptReason(r.sessionKey, r.roundID)
 		},
 		ObserveIncomingMessage: func(incoming sdkprotocol.ReceivedMessage) {
+			r.service.observeExecutionRuntimeGraph(actor, incoming)
+			r.observeExecutionPersistenceEvidence(actor, incoming)
 			if incoming.Type == sdkprotocol.MessageTypeStreamEvent && !r.service.config.MessageDebugStreamEvent {
 				return
 			}
@@ -251,6 +277,34 @@ func (r *roundRunner) executeRound(
 			return nil
 		},
 	})
+	failureReason := ""
+	if executeErr != nil {
+		failureReason = executeErr.Error()
+	}
+	r.service.finishExecutionRuntimeGraph(
+		actor,
+		result.TerminalStatus,
+		failureReason,
+	)
+	return result, executeErr
+}
+
+func (r *roundRunner) orchestrationActor() orchestration.ActorContext {
+	return orchestration.ActorContext{
+		OwnerUserID:           r.ownerUserID,
+		SessionKey:            r.sessionKey,
+		ExecutionID:           strings.TrimSpace(r.executionID),
+		GoalID:                strings.TrimSpace(r.goalIDForUsage),
+		GoalObjectiveRevision: r.currentGoalObjectiveRevision(),
+		AgentID:               r.agent.AgentID,
+		Role:                  orchestration.ExecutionActorCoordinator,
+		ActorKind:             protocol.ExecutionActorAgent,
+		ScopeKind:             protocol.ExecutionScopeDM,
+		RootRoundID:           r.roundID,
+		RuntimeRoundID:        r.roundID,
+		AgentRoundID:          r.agentRoundID,
+		PlanMode:              r.permissionMode == sdkpermission.ModePlan,
+	}
 }
 
 // runtimeInputOptions 把产品包装前的真实用户文本单独交给原生 Recall。
@@ -276,6 +330,7 @@ func (r *roundRunner) handleDurableMessage(message protocol.Message) error {
 	if err := r.persistMessage(message); err != nil {
 		return err
 	}
+	r.service.observeExecutionRuntimeArtifacts(r.orchestrationActor(), message)
 	settledSubagentUsage := r.recordSubagentGoalUsage(context.Background(), message)
 	r.rememberSubagentTaskMessage(message)
 	for _, settled := range settledSubagentUsage {
@@ -343,7 +398,9 @@ func (r *roundRunner) dispatchPostRoundWork() {
 		if r.service.dispatchNextInputQueueItemAtLocation(ctx, r.sessionKey, r.agent.AgentID, location) {
 			return
 		}
-		r.dispatchGoalContinuation(ctx)
+		if r.hasGoalRoundBinding() {
+			r.dispatchGoalContinuation(ctx)
+		}
 	})
 }
 

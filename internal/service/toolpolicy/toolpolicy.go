@@ -21,6 +21,7 @@ var managedGoalTools = []string{
 	"get_goal",
 	"create_goal",
 	"retarget_goal",
+	"audit_objective_alignment",
 	"update_goal",
 }
 
@@ -29,12 +30,57 @@ var managedGoalAllowedTools = []string{
 	"mcp__nexus_goal__get_goal",
 	"mcp__nexus_goal__create_goal",
 	"mcp__nexus_goal__retarget_goal",
+	"mcp__nexus_goal__audit_objective_alignment",
 	"mcp__nexus_goal__update_goal",
 	"get_goal",
 	"create_goal",
 	"retarget_goal",
+	"audit_objective_alignment",
 	"update_goal",
 	"Skill",
+}
+
+var managedExecutionTools = []string{
+	"get_execution",
+	"prepare_plan_execution",
+	"plan_execution",
+	"abandon_execution",
+	"assign_work",
+	"submit_work",
+	"review_work",
+	"block_work",
+	"resume_work",
+	"take_over_work",
+	"audit_execution_alignment",
+	"promote_execution_to_goal",
+}
+
+var managedExecutionAllowedTools = []string{
+	"nexus_execution",
+	"mcp__nexus_execution__get_execution",
+	"mcp__nexus_execution__prepare_plan_execution",
+	"mcp__nexus_execution__plan_execution",
+	"mcp__nexus_execution__abandon_execution",
+	"mcp__nexus_execution__assign_work",
+	"mcp__nexus_execution__submit_work",
+	"mcp__nexus_execution__review_work",
+	"mcp__nexus_execution__block_work",
+	"mcp__nexus_execution__resume_work",
+	"mcp__nexus_execution__take_over_work",
+	"mcp__nexus_execution__audit_execution_alignment",
+	"mcp__nexus_execution__promote_execution_to_goal",
+	"get_execution",
+	"prepare_plan_execution",
+	"plan_execution",
+	"abandon_execution",
+	"assign_work",
+	"submit_work",
+	"review_work",
+	"block_work",
+	"resume_work",
+	"take_over_work",
+	"audit_execution_alignment",
+	"promote_execution_to_goal",
 }
 
 var managedImagegenAllowedTools = []string{
@@ -119,6 +165,7 @@ var toolNameMatchers = []toolNameMatcher{
 
 var managedToolFamilyPrefixes = map[string][]string{
 	"nexus_automation": {"mcp__nexus_automation__", "nexus_automation__", "nexus_automation."},
+	"nexus_execution":  {"mcp__nexus_execution__", "nexus_execution__", "nexus_execution."},
 	"nexus_goal":       {"mcp__nexus_goal__", "nexus_goal__", "nexus_goal."},
 	"nexus_room":       {"mcp__nexus_room__", "nexus_room__", "nexus_room."},
 	"nexus_imagegen":   {"mcp__nexus_imagegen__", "nexus_imagegen__", "nexus_imagegen."},
@@ -195,6 +242,16 @@ func IsManagedGoalPermission(toolName string, input map[string]any) bool {
 	return IsManagedGoalTool(toolName) || IsManagedGoalSkillRequest(toolName, input)
 }
 
+// IsManagedExecutionTool 判断请求是否命中 Nexus 托管的 Execution MCP 工具。
+func IsManagedExecutionTool(toolName string) bool {
+	for _, item := range managedExecutionTools {
+		if MatchesItem(toolName, item) {
+			return true
+		}
+	}
+	return false
+}
+
 // WithManagedGoalAutoApproval 让隐藏续跑和模型自启动 Goal 时不被内置 Goal 工具确认卡住。
 func WithManagedGoalAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
 	if handler == nil {
@@ -202,6 +259,21 @@ func WithManagedGoalAutoApproval(handler sdkpermission.Handler) sdkpermission.Ha
 	}
 	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
 		if IsManagedGoalPermission(request.ToolName, request.Input) {
+			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
+		}
+		return handler(ctx, request)
+	}
+}
+
+// WithManagedRuntimeAutoApproval 放行后端仍会按 WorkBinding、actor role 与
+// allowed_actions 二次授权的 Nexus 语义工具，避免内部状态机被通用权限卡中断。
+func WithManagedRuntimeAutoApproval(handler sdkpermission.Handler) sdkpermission.Handler {
+	handler = WithManagedGoalAutoApproval(handler)
+	if handler == nil {
+		return nil
+	}
+	return func(ctx context.Context, request sdkpermission.Request) (sdkpermission.Decision, error) {
+		if IsManagedExecutionTool(request.ToolName) {
 			return sdkpermission.Allow(cloneInput(request.Input), nil), nil
 		}
 		return handler(ctx, request)
@@ -244,6 +316,14 @@ func WithManagedGoalAllowedTools(tools []string) []string {
 	return appendDistinctTools(tools, managedGoalAllowedTools...)
 }
 
+// WithManagedExecutionAllowedTools 预授权 Nexus 托管的语义编排工具。
+func WithManagedExecutionAllowedTools(tools []string) []string {
+	if len(NormalizeSet(tools)) == 0 {
+		return tools
+	}
+	return appendDistinctTools(tools, managedExecutionAllowedTools...)
+}
+
 // WithManagedImagegenAllowedTools 预授权图片生成 MCP 工具，保留用户原有工具设置。
 func WithManagedImagegenAllowedTools(tools []string) []string {
 	approved := NormalizeSet(tools)
@@ -263,6 +343,7 @@ func WithManagedRuntimeAllowedTools(tools []string, imagegenDefaultEnabled bool)
 	if len(NormalizeSet(result)) == 0 {
 		return result
 	}
+	result = WithManagedExecutionAllowedTools(result)
 	result = appendDistinctTools(result, managedMainThreadAllowedTools...)
 	if !imagegenDefaultEnabled {
 		return withoutManagedImagegenAllowedTools(result)

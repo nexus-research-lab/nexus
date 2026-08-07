@@ -9,11 +9,13 @@ import (
 	"sync/atomic"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	goalmcp "github.com/nexus-research-lab/nexus/internal/mcp/goal"
 	goalmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/goal/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 )
 
 type goalObjectiveRevisionStateProvider interface {
@@ -24,7 +26,7 @@ func newGoalMCPBuilder(
 	cfg config.Config,
 	svc goalmcpcontract.Service,
 	revisions goalObjectiveRevisionStateProvider,
-) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64) map[string]sdkmcp.ServerConfig {
+) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
 		ctx context.Context,
 		agentValue *protocol.Agent,
@@ -34,6 +36,7 @@ func newGoalMCPBuilder(
 		sourceContextID string,
 		sourceContextLabel string,
 		goalObjectiveRevision *atomic.Int64,
+		permissionMode sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
 		goalSessionKey := resolveGoalMCPSessionKey(sessionKey, sourceContextType)
 		if !cfg.GoalEnabled || svc == nil || goalSessionKey == "" {
@@ -42,6 +45,8 @@ func newGoalMCPBuilder(
 		sctx := goalmcpcontract.ServerContext{
 			CurrentSessionKey: goalSessionKey,
 			CurrentRoundID:    strings.TrimSpace(roundID),
+			PlanMode: runtimepermission.NormalizeMode(permissionMode) ==
+				sdkpermission.ModePlan,
 		}
 		if agentValue != nil {
 			sctx.CurrentAgentID = strings.TrimSpace(agentValue.AgentID)

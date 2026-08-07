@@ -2,12 +2,54 @@ package goal
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+func TestRenderPendingObjectiveTransitionContextSurvivesRoundRestart(t *testing.T) {
+	item := protocol.Goal{
+		ID:        "goal-transition",
+		Objective: "Canonical successor objective",
+		Metadata: map[string]any{
+			protocol.GoalMetadataObjectiveRevision: int64(2),
+			protocol.GoalMetadataObjectiveTransition: map[string]any{
+				"transition_id":          "transition-1",
+				"command_id":             "command-1",
+				"phase":                  string(ObjectiveTransitionAwaitingPlan),
+				"old_revision":           int64(1),
+				"new_revision":           int64(2),
+				"successor_execution_id": "execution-successor",
+				"requested_objective":    "User successor objective",
+				"target_objective":       "Canonical successor objective",
+				"reason":                 "user changed the objective",
+				"source":                 string(protocol.GoalUpdateSourceModel),
+			},
+		},
+	}
+
+	rendered := renderPendingObjectiveTransitionContext(item)
+	for _, expected := range []string{
+		`phase="awaiting_plan"`,
+		`tool="prepare_plan_execution"`,
+		`successor_execution_id="execution-successor"`,
+		`requested_objective="User successor objective"`,
+	} {
+		if !strings.Contains(rendered, expected) {
+			t.Fatalf("pending transition context %q does not contain %q", rendered, expected)
+		}
+	}
+
+	item.Metadata[protocol.GoalMetadataObjectiveTransition].(map[string]any)["phase"] =
+		string(ObjectiveTransitionPrepared)
+	rendered = renderPendingObjectiveTransitionContext(item)
+	if !strings.Contains(rendered, `tool="retarget_goal"`) {
+		t.Fatalf("prepared transition context = %q", rendered)
+	}
+}
 
 func TestServiceRuntimeContextSkipsStoppedGoals(t *testing.T) {
 	for _, tc := range []struct {

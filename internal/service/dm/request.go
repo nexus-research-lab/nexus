@@ -388,6 +388,7 @@ func (e *dmChatExecution) newRoundRunner() *roundRunner {
 		inputOptions:          e.request.InputOptions,
 		internal:              e.request.Internal,
 		externalReplyTarget:   e.request.ExternalReplyTarget,
+		executionID:           strings.TrimSpace(e.request.ExecutionID),
 		goalObjectiveRevision: &atomic.Int64{},
 		goalUsage:             goalsvc.NewRuntimeUsageAccumulator(false),
 		goalUsageStarted:      time.Now(),
@@ -744,6 +745,15 @@ func (s *Service) validateRequest(request Request) (string, protocol.SessionKey,
 	}
 	if len(strings.TrimSpace(request.ClientMessageID)) > protocol.MaxClientMessageIDBytes {
 		return "", protocol.SessionKey{}, errors.New("client_message_id 过长")
+	}
+	if request.Internal &&
+		strings.TrimSpace(request.InputOptions.Purpose) == "goal_continuation" &&
+		(strings.TrimSpace(request.GoalID) == "" ||
+			request.GoalObjectiveRevision <= 0 ||
+			strings.TrimSpace(request.ExecutionID) == "") {
+		return "", protocol.SessionKey{}, errors.New(
+			"goal continuation requires exact goal, objective revision, and execution binding",
+		)
 	}
 
 	parsed := protocol.ParseSessionKey(sessionKey)

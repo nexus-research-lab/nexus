@@ -87,6 +87,7 @@ export function AgentOptionsIdentityTab({
       defaultModel={defaultModel}
       defaultProvider={defaultProvider}
       error={providerOptionsError}
+      lockedToDefault={isMain}
       loading={providerOptionsLoading}
       model={model}
       onModelChange={onModelChange}

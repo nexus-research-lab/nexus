@@ -12,6 +12,7 @@ func (s *Server) mountRoutes() {
 	s.mountRoomRoutes()
 	s.mountCapabilityRoutes()
 	s.mountGoalRoutes()
+	s.mountExecutionRoutes()
 	s.mountPlaceholderRoutes()
 	s.mountWebAppRoutes()
 }
@@ -138,6 +139,7 @@ func (s *Server) mountRoomRoutes() {
 	s.router.Get(s.prefixPath("/rooms/{room_id}/contexts"), s.handlers.room.HandleGetRoomContexts)
 	s.router.Post(s.prefixPath("/rooms/{room_id}/members"), s.handlers.room.HandleAddRoomMember)
 	s.router.Delete(s.prefixPath("/rooms/{room_id}/members/{agent_id}"), s.handlers.room.HandleRemoveRoomMember)
+	s.router.Patch(s.prefixPath("/rooms/{room_id}/members/{agent_id}/participation"), s.handlers.room.HandleSetRoomMemberParticipation)
 	s.router.Post(s.prefixPath("/rooms/{room_id}/conversations"), s.handlers.room.HandleCreateConversation)
 	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/messages"), s.handlers.room.HandleConversationMessages)
 	s.router.Get(s.prefixPath("/rooms/{room_id}/conversations/{conversation_id}/turns"), s.handlers.room.HandleConversationTurns)
@@ -256,6 +258,14 @@ func (s *Server) mountGoalRoutes() {
 	s.router.Post(s.prefixPath("/app-server/thread/goal/set"), s.handlers.goal.HandleThreadGoalSet)
 	s.router.Post(s.prefixPath("/app-server/thread/goal/get"), s.handlers.goal.HandleThreadGoalGet)
 	s.router.Post(s.prefixPath("/app-server/thread/goal/clear"), s.handlers.goal.HandleThreadGoalClear)
+}
+
+// mountExecutionRoutes 挂载 WorkGraph 只读投影。
+func (s *Server) mountExecutionRoutes() {
+	s.router.Get(
+		s.prefixPath("/executions/latest"),
+		s.handlers.execution.HandleGetLatestExecution,
+	)
 }
 
 // mountPlaceholderRoutes 挂载保留占位路由。

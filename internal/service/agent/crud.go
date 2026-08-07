@@ -426,10 +426,16 @@ func (u *agentUpdate) normalizedName() (string, error) {
 }
 
 func (u *agentUpdate) updatedOptions() protocol.Options {
-	if u.request.Options == nil {
-		return u.existing.Options
+	options := u.existing.Options
+	if u.request.Options != nil {
+		options = mergeOptions(u.existing.Options, *u.request.Options)
 	}
-	return mergeOptions(u.existing.Options, *u.request.Options)
+	// Nexus 主智能体是全局默认模型的执行主体，不能留存单独的 Provider/Model 覆盖。
+	if u.existing.IsMain {
+		options.Provider = ""
+		options.Model = ""
+	}
+	return options
 }
 
 func (u *agentUpdate) updatedVibeTags() []string {

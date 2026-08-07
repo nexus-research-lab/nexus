@@ -1,3 +1,6 @@
+// INPUT: Room slot 的 runtime result、failure/interruption、WorkBinding 与消息 mapper。
+// OUTPUT: usage/handoff/cursor 收口、可见终态，以及 structured root Attempt 原子终态。
+// POS: 单 slot 所有终态路径的统一结算边界；不得隐式创建 Submission/Acceptance。
 package realtime
 
 import (
@@ -141,10 +144,18 @@ func (e *slotExecution) complete(result exec.RoundExecutionResult) error {
 		return err
 	}
 	e.service.markPublicHandoffTerminal(e.ctx, e.round, e.slot, e.slot.getStatus())
-	if e.slot.getStatus() != "finished" {
-		return nil
+	if e.slot.getStatus() == "finished" {
+		if err := e.commitCompletionCursors(); err != nil {
+			return err
+		}
 	}
-	return e.commitCompletionCursors()
+	return e.service.finishBoundRoomAttempt(
+		e.ctx,
+		e.round,
+		e.slot,
+		e.slot.getStatus(),
+		result.ErrorMessage,
+	)
 }
 
 func (e *slotExecution) persistCompletionOutput(lastAssistant protocol.Message) error {
@@ -198,6 +209,21 @@ func (s *Service) handleSlotFailure(
 	fields = append(fields, roomSlotFailureDiagnostics(err, slot, mapper)...)
 	s.loggerFor(ctx).Error("Room slot 执行失败", fields...)
 	displayError := exec.RoundErrorDisplayMessage(err)
+	if settleErr := s.finishBoundRoomAttempt(
+		ctx,
+		roundValue,
+		slot,
+		"error",
+		err.Error(),
+	); settleErr != nil {
+		s.loggerFor(ctx).Error(
+			"Room structured root Attempt 失败收口失败",
+			"dispatch_id",
+			executionDispatchID(slot.WorkBinding),
+			"err",
+			settleErr,
+		)
+	}
 	lastAssistant := slot.lastGoalAssistantMessage()
 	// durable assistant 已进入 slot 内存、但共享/私有历史持久化可能失败。
 	// failure 收口仍须用该快照结算并关闭 parent usage，不能只记录错误状态。
@@ -326,6 +352,21 @@ func (s *Service) handleSlotCancelled(
 		"msg_id", slot.MsgID,
 		"reason", roomSlotInterruptDisplayReason(slot),
 	)
+	if settleErr := s.finishBoundRoomAttempt(
+		ctx,
+		roundValue,
+		slot,
+		"interrupted",
+		roomSlotInterruptReason(slot),
+	); settleErr != nil {
+		s.loggerFor(ctx).Error(
+			"Room structured root Attempt 中断收口失败",
+			"dispatch_id",
+			executionDispatchID(slot.WorkBinding),
+			"err",
+			settleErr,
+		)
+	}
 	if mapper != nil {
 		s.finalizeGoalUsageForSlot(ctx, slot, result, slot.lastGoalAssistantMessage())
 	}

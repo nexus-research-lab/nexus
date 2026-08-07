@@ -37,6 +37,7 @@ interface GroupRoundCardGroupProps {
   pendingSlots: RoomPendingAgentSlotState[];
   roomAgentExecutionStates: RoomAgentExecutionState[];
   roundId: string;
+  stoppingAgentRoundIds: string[];
 }
 
 function GroupRoundCardGroupInner({
@@ -51,6 +52,7 @@ function GroupRoundCardGroupInner({
   pendingSlots,
   roomAgentExecutionStates,
   roundId,
+  stoppingAgentRoundIds = [],
 }: GroupRoundCardGroupProps) {
   const { activeThread, closeThread, openThread } = useGroupThread();
   const model = useMemo(
@@ -125,6 +127,10 @@ function GroupRoundCardGroupInner({
             <GroupAgentReply
               entry={entry}
               isThreadActive={isThreadActive}
+              isStopping={Boolean(
+                entry.agent_round_id
+                && stoppingAgentRoundIds.includes(entry.agent_round_id)
+              )}
               onClickThread={toggleEntryThread}
               onOpenAgentContact={onOpenAgentContact}
               onOpenWorkspaceFile={onOpenWorkspaceFile}

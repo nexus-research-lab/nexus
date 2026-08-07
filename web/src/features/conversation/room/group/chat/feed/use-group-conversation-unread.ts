@@ -12,8 +12,6 @@ import {
 } from "react";
 
 import {
-  findConversationRoundElement,
-  scrollToConversationRoundElement,
   type ConversationRoundScrollHandleRef,
 } from "@/features/conversation/shared/timeline/scroll/round-scroll";
 import { buildChatNotificationTargetKey } from "@/features/home/notifications/chat-notification-target";
@@ -29,6 +27,7 @@ import {
   resolveStoredUnreadMessages,
   type GroupUnreadNodePosition,
 } from "./group-conversation-unread-model";
+import { useGroupConversationUnreadScroll } from "./use-group-conversation-unread-scroll";
 
 export interface GroupConversationUnreadModel {
   direction: Exclude<GroupUnreadNodePosition, "visible"> | null;
@@ -106,6 +105,16 @@ export function useGroupConversationUnread({
   const roundIdsKey = source.roundIds.join("\u001f");
   const headMessage = unreadMessages[0] ?? null;
   const headRoundId = headMessage?.nodeId ?? null;
+  const {
+    cancelPendingPosition,
+    scrollToUnreadNode,
+  } = useGroupConversationUnreadScroll({
+    pauseFollowLatest,
+    roundIds: source.roundIds,
+    roundScrollRef,
+    scopeKey,
+    scrollRef,
+  });
 
   const resolveHeadPosition = useCallback((): GroupUnreadNodePosition | null => {
     const nodeId = unreadMessagesRef.current[0]?.nodeId;
@@ -163,43 +172,6 @@ export function useGroupConversationUnread({
     resolveHeadPosition,
     setHeadPosition,
     setMarkerRoundId,
-  ]);
-
-  const scrollToUnreadNode = useCallback((
-    nodeId: string,
-    behavior: ScrollBehavior,
-  ): boolean => {
-    if (!source.roundIds.includes(nodeId)) {
-      return false;
-    }
-    const handle = roundScrollRef.current;
-    if (handle) {
-      pauseFollowLatest();
-      return handle.scrollToRoundId(nodeId, {
-        align: "start",
-        behavior,
-        target: "round",
-      });
-    }
-    const scrollElement = scrollRef.current;
-    const target = scrollElement
-      ? findConversationRoundElement(scrollElement, nodeId)
-      : null;
-    if (!scrollElement || !target) {
-      return false;
-    }
-    pauseFollowLatest();
-    scrollToConversationRoundElement(scrollElement, target, {
-      align: "start",
-      behavior,
-      target: "round",
-    });
-    return true;
-  }, [
-    pauseFollowLatest,
-    roundScrollRef,
-    scrollRef,
-    source.roundIds,
   ]);
 
   useEffect(() => {
@@ -303,6 +275,7 @@ export function useGroupConversationUnread({
     }
     const cancelInitialPosition = () => {
       initialUnreadMessageIdRef.current = null;
+      cancelPendingPosition();
     };
     scrollElement.addEventListener("pointerdown", cancelInitialPosition, {
       passive: true,
@@ -318,7 +291,11 @@ export function useGroupConversationUnread({
       scrollElement.removeEventListener("touchstart", cancelInitialPosition);
       scrollElement.removeEventListener("wheel", cancelInitialPosition);
     };
-  }, [scrollRef, scopeKey]);
+  }, [
+    cancelPendingPosition,
+    scrollRef,
+    scopeKey,
+  ]);
 
   useLayoutEffect(syncUnreadState, [
     headRoundId,

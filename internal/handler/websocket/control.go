@@ -269,20 +269,51 @@ func (m *controlMessage) handleRewriteLast() {
 }
 
 func (m *controlMessage) handleInterrupt() {
+	clientRequestID := m.stringValue("client_request_id")
+	roundID := m.stringValue("round_id")
+	agentRoundID := m.stringValue("agent_round_id")
 	var err error
 	if m.usesRoomRuntime() {
 		err = m.handler.roomRealtime.HandleInterrupt(m.ctx, roomrealtime.InterruptRequest{
 			SessionKey:   m.sessionKey,
-			RoundID:      m.stringValue("round_id"),
-			AgentRoundID: m.stringValue("agent_round_id"),
+			RoundID:      roundID,
+			AgentRoundID: agentRoundID,
 		})
 	} else {
 		err = m.handler.dm.HandleInterrupt(m.ctx, dmsvc.InterruptRequest{
 			SessionKey: m.sessionKey,
-			RoundID:    m.stringValue("round_id"),
+			RoundID:    roundID,
 		})
 	}
-	m.reportGatewayFailure("interrupt_error", err, map[string]any{"type": m.msgType})
+	if err != nil {
+		m.reportGatewayFailure("interrupt_error", err, map[string]any{
+			"type":              m.msgType,
+			"client_request_id": clientRequestID,
+			"round_id":          roundID,
+			"agent_round_id":    agentRoundID,
+		})
+		return
+	}
+	if clientRequestID == "" {
+		return
+	}
+	if ackErr := m.sender.SendEvent(
+		m.ctx,
+		protocol.NewInterruptAckEvent(
+			m.sessionKey,
+			clientRequestID,
+			roundID,
+			agentRoundID,
+		),
+	); ackErr != nil {
+		logx.Resolve(m.ctx, m.handler.api.BaseLogger()).Warn("WebSocket interrupt ACK 发送失败",
+			"session_key", m.sessionKey,
+			"client_request_id", clientRequestID,
+			"round_id", roundID,
+			"agent_round_id", agentRoundID,
+			"err", ackErr,
+		)
+	}
 }
 
 func (m *controlMessage) handleInputQueue() {

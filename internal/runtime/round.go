@@ -18,6 +18,10 @@ import (
 // ErrRuntimeRoundAlreadyRunning 表示同一 round 已经登记为运行中。
 var ErrRuntimeRoundAlreadyRunning = errors.New("runtime round is already running")
 
+// ErrRuntimeProviderInterruptInProgress 表示 session-wide provider interrupt
+// 正占用当前 client，successor 必须等待该窗口结束后再登记。
+var ErrRuntimeProviderInterruptInProgress = errors.New("runtime provider interrupt is in progress")
+
 var errRuntimeRoundInvalid = errors.New("runtime round requires session key and round id")
 
 // goalAccountingHooks 聚合一个 round 的 Goal 计量回调与 revision fence。
@@ -58,7 +62,8 @@ func (s *roundState) empty() bool {
 
 // roundRegistry 以 round ID 为唯一键管理执行、退出和 Goal accounting 状态。
 type roundRegistry struct {
-	items map[string]*roundState
+	items                    map[string]*roundState
+	providerInterruptRoundID string
 }
 
 func (r *roundRegistry) ensure(roundID string) *roundState {
@@ -178,8 +183,24 @@ func (r *roundRegistry) cleanup(roundID string) {
 	}
 }
 
+func (r *roundRegistry) beginProviderInterrupt(roundID string) {
+	r.providerInterruptRoundID = roundID
+}
+
+func (r *roundRegistry) providerInterrupting() bool {
+	return r != nil && r.providerInterruptRoundID != ""
+}
+
+func (r *roundRegistry) finishProviderInterrupt(roundID string) bool {
+	if r == nil || r.providerInterruptRoundID != roundID {
+		return false
+	}
+	r.providerInterruptRoundID = ""
+	return true
+}
+
 func (r *roundRegistry) empty() bool {
-	return r == nil || len(r.items) == 0
+	return r == nil || len(r.items) == 0 && !r.providerInterrupting()
 }
 
 // StartRound 注册运行中的 round，并记录其取消函数。
@@ -214,6 +235,10 @@ func (m *Manager) StartRound(
 		if state.Closing {
 			m.mu.Unlock()
 			return fail(ErrRuntimeSessionClosing)
+		}
+		if state.Rounds.providerInterrupting() {
+			m.mu.Unlock()
+			return fail(ErrRuntimeProviderInterruptInProgress)
 		}
 		if drain := state.IdleMessageDrain; drain != nil {
 			drain.cancel()

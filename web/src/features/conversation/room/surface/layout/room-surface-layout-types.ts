@@ -1,5 +1,7 @@
 import type { RefObject } from "react";
 
+import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import type { RoomDialogSubmission } from "@/features/conversation/room/members/create-room-dialog";
 import type {
   Agent,
@@ -39,10 +41,13 @@ export interface RoomSurfaceLayoutProps {
   activeSurfaceTab: RoomSurfaceTabKey;
   initialDraft?: string | null;
   onInitialDraftConsumed?: () => void;
+  executionResource: ExecutionResource;
+  executionTaskRuns: ConversationTaskRun[];
   sidePanelWidthPercent: number;
   isResizingSidePanel: boolean;
   currentTodos: TodoItem[];
   surfaceSplitRef: RefObject<HTMLElement | null>;
+  onExecutionTaskRunsChange: (runs: ConversationTaskRun[]) => void;
   onChangeSurfaceTab: (tab: RoomSurfaceTabKey) => void;
   onCreateConversation: (title?: string) => Promise<string | null>;
   onSelectConversation: (conversationId: string) => void;

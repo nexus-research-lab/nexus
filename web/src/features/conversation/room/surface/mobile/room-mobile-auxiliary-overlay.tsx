@@ -1,5 +1,9 @@
 import { ArrowLeft } from "lucide-react";
 
+import { buildExecutionAgentDirectory } from "@/features/conversation/shared/execution/execution-process-model";
+import { ExecutionWorkGraphSurface } from "@/features/conversation/shared/execution/execution-workgraph-surface";
+import type { ExecutionResource } from "@/features/conversation/shared/execution/use-execution-resource";
+import type { ConversationTaskRun } from "@/features/conversation/shared/todos/todo-projection-model";
 import { RoomWorkspaceView } from "@/features/conversation/room/workspace/room-workspace-view";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type {
@@ -11,13 +15,15 @@ import type {
 
 import { RoomAgentAboutSurface } from "../room-agent-about-surface";
 
-export type RoomMobileAuxiliaryTab = "about" | "workspace";
+export type RoomMobileAuxiliaryTab = "about" | "workgraph" | "workspace";
 
 interface RoomMobileAuxiliaryOverlayProps {
   activeTab: RoomMobileAuxiliaryTab | null;
   activeWorkspacePath: string | null;
   conversationId: string | null;
   currentAgent: Agent;
+  executionResource: ExecutionResource;
+  executionTaskRuns: ConversationTaskRun[];
   isDm: boolean;
   onClose: () => void;
   onOpenWorkspaceFile: (
@@ -43,6 +49,8 @@ export function RoomMobileAuxiliaryOverlay({
   activeWorkspacePath,
   conversationId,
   currentAgent,
+  executionResource,
+  executionTaskRuns,
   isDm,
   onClose,
   onOpenWorkspaceFile,
@@ -58,6 +66,8 @@ export function RoomMobileAuxiliaryOverlay({
 
   const title = activeTab === "workspace"
     ? t("room.workspace")
+    : activeTab === "workgraph"
+    ? t("room.workgraph")
     : t("room.about");
 
   return (
@@ -77,7 +87,19 @@ export function RoomMobileAuxiliaryOverlay({
       </header>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {activeTab === "workspace" ? (
+        {activeTab === "workgraph" ? (
+          <ExecutionWorkGraphSurface
+            directory={buildExecutionAgentDirectory([
+              ...roomMembers.filter((agent) => (
+                agent.agent_id !== currentAgent.agent_id
+              )),
+              currentAgent,
+            ])}
+            onOpenWorkspaceFile={onOpenWorkspaceFile}
+            resource={executionResource}
+            taskRuns={executionTaskRuns}
+          />
+        ) : activeTab === "workspace" ? (
           <RoomWorkspaceView
             activeWorkspacePath={activeWorkspacePath}
             agentId={currentAgent.agent_id}

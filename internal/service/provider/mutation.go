@@ -85,6 +85,11 @@ func (s *Service) Update(ctx context.Context, provider string, input UpdateInput
 		return nil, err
 	}
 	updated.UpdatedAt = s.now()
+	if providerBecameUnavailable(*current, updated) {
+		if err = s.validateProviderInvalidationFallback(ctx, *current); err != nil {
+			return nil, err
+		}
+	}
 	if err = s.repository.Update(ctx, updated); err != nil {
 		return nil, err
 	}
@@ -102,13 +107,18 @@ func (s *Service) UpdatePublic(ctx context.Context, provider string, input Updat
 		return nil, err
 	}
 	updated.UpdatedAt = s.now()
+	if providerBecameUnavailable(*current, updated) {
+		if err = s.validateProviderInvalidationFallback(ctx, *current); err != nil {
+			return nil, err
+		}
+	}
 	if err = s.repository.Update(ctx, updated); err != nil {
 		return nil, err
 	}
 	return s.GetPublic(ctx, normalizedProvider)
 }
 
-// Delete 删除 Provider 配置；强制删除会先把显式绑定切到平台默认 Provider。
+// Delete 删除 Provider 配置；强制删除会保留显式绑定，并让运行时暂时回退到用户默认模型。
 func (s *Service) Delete(ctx context.Context, provider string, input DeleteInput) (*DeleteResult, error) {
 	normalizedProvider, err := NormalizeProvider(provider, false)
 	if err != nil {
@@ -129,21 +139,15 @@ func (s *Service) Delete(ctx context.Context, provider string, input DeleteInput
 		return nil, err
 	}
 	result := &DeleteResult{Provider: normalizedProvider}
-	if current.ProviderKind == ProviderKindLLM && usageCount > 0 {
-		if !input.Force {
+	if current.ProviderKind == ProviderKindLLM {
+		if usageCount > 0 && !input.Force {
 			return nil, fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能删除", normalizedProvider, usageCount)
 		}
-		replacement, replacementErr := s.replacementRuntimeSelectionForDelete(ctx, *current)
-		if replacementErr != nil {
-			return nil, replacementErr
+		if err = s.validateProviderInvalidationFallback(ctx, *current); err != nil {
+			return nil, err
 		}
-		reassigned, replaceErr := s.replaceRuntimeProviderForDelete(ctx, *current, replacement.provider.Provider, replacement.model.ModelID)
-		if replaceErr != nil {
-			return nil, replaceErr
-		}
-		result.ReplacementProvider = replacement.provider.Provider
-		result.ReplacementModel = replacement.model.ModelID
-		result.ReassignedRuntimeCount = reassigned
+		result.AffectedRuntimeCount = usageCount
+		result.FallbackToDefault = usageCount > 0
 	}
 	if err = s.repository.Delete(ctx, current.ID); err != nil {
 		return nil, err
@@ -162,26 +166,24 @@ func (s *Service) DeletePublic(ctx context.Context, provider string, input Delet
 		return nil, err
 	}
 	result := &DeleteResult{Provider: normalizedProvider}
-	if current.ProviderKind == ProviderKindLLM && usageCount > 0 {
-		if !input.Force {
+	if current.ProviderKind == ProviderKindLLM {
+		if usageCount > 0 && !input.Force {
 			return nil, fmt.Errorf("provider=%s 仍被 %d 个 Agent 使用，不能删除", normalizedProvider, usageCount)
 		}
-		replacement, replacementErr := s.replacementRuntimeSelectionForDelete(ctx, *current)
-		if replacementErr != nil {
-			return nil, replacementErr
+		if err = s.validateProviderInvalidationFallback(ctx, *current); err != nil {
+			return nil, err
 		}
-		reassigned, replaceErr := s.replaceRuntimeProviderForDelete(ctx, *current, replacement.provider.Provider, replacement.model.ModelID)
-		if replaceErr != nil {
-			return nil, replaceErr
-		}
-		result.ReplacementProvider = replacement.provider.Provider
-		result.ReplacementModel = replacement.model.ModelID
-		result.ReassignedRuntimeCount = reassigned
+		result.AffectedRuntimeCount = usageCount
+		result.FallbackToDefault = usageCount > 0
 	}
 	if err = s.repository.Delete(ctx, current.ID); err != nil {
 		return nil, err
 	}
 	return result, nil
+}
+
+func providerBecameUnavailable(current providerstore.Entity, updated providerstore.Entity) bool {
+	return current.ProviderKind == ProviderKindLLM && current.Enabled && !updated.Enabled
 }
 
 // Get 读取单个 Provider 配置。

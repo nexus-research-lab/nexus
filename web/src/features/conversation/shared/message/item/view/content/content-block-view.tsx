@@ -28,6 +28,7 @@ import { ContentToolBlock } from "./content-tool-block";
 import { TimelineBlock } from "./content-renderer-timeline";
 import type { AgentMentionDirectory } from "../../../agent-mention-chip";
 import type { PendingInteractionOwner } from "../../message-item-projection";
+import type { UnresolvedToolStatus } from "./content-renderer-contract";
 
 export interface ContentBlockRenderContext {
   canRespondToPermissions: boolean;
@@ -38,6 +39,7 @@ export interface ContentBlockRenderContext {
   pendingPermissionsByToolUseId?: ReadonlyMap<string, PendingPermission>;
   permissionReadOnlyReason?: string;
   projection: StructuredContentProjection;
+  unresolvedToolStatus?: UnresolvedToolStatus;
   workspaceAgentId?: string | null;
   agentMentions?: AgentMention[];
   agentMentionDirectory?: AgentMentionDirectory;
@@ -206,6 +208,7 @@ function renderToolUseBlock(
         pendingPermission: context.pendingPermissionsByToolUseId?.get(block.id),
         permissionReadOnlyReason: context.permissionReadOnlyReason,
         projection: context.projection,
+        unresolvedToolStatus: context.unresolvedToolStatus,
         workspaceAgentId: context.workspaceAgentId,
       }}
     />

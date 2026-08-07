@@ -97,6 +97,11 @@ func (m *Manager) AdoptGoalObjectiveRevision(sessionKey string, revision int64) 
 
 	adopted := make([]string, 0, len(roundIDs))
 	for index, objectiveRevision := range revisions {
+		// revision=0 表示该 round 尚未获得 exact Goal authority，不能被
+		// session 级 steering 顺带提升为已授权状态。
+		if objectiveRevision == nil || objectiveRevision.Load() <= 0 {
+			continue
+		}
 		for {
 			current := objectiveRevision.Load()
 			if revision <= current || objectiveRevision.CompareAndSwap(current, revision) {
