@@ -1,5 +1,5 @@
 // [INPUT]: 依赖会话/运行时跨边界状态与时间戳。
-// [OUTPUT]: 对外提供统一事件类型、消息恢复边界、请求 ACK 与携带 handoff 关联的权威 pending slot 快照事件。
+// [OUTPUT]: 对外提供统一事件类型、消息恢复边界、请求 ACK 与执行/待确认活动快照事件。
 // [POS]: protocol 包的 WebSocket 事件真相源。
 package protocol
 
@@ -436,11 +436,33 @@ func NewInterruptAckEvent(
 	return event
 }
 
-// NewChatPendingSnapshotEvent 构造订阅恢复时的权威 Room slot 快照。
-// 前端必须用 pending 整体替换本地恢复值；空数组同样有意义，用于清除陈旧占位。
-func NewChatPendingSnapshotEvent(sessionKey string, roundID string, pending []ChatAckPendingSlot) EventMessage {
+// NewChatPendingSnapshotEvent 构造订阅恢复时的权威 Room 执行与人工交互快照。
+// 前端必须整体替换本地恢复值；空数组同样有意义，用于清除陈旧状态。
+func NewChatPendingSnapshotEvent(
+	sessionKey string,
+	roundID string,
+	pending []ChatAckPendingSlot,
+	pendingInteractionRequestIDs []string,
+) EventMessage {
 	event := NewChatAckEvent(sessionKey, "", "", roundID, "", false, pending)
 	event.Data["pending_snapshot"] = true
+	if pendingInteractionRequestIDs == nil {
+		pendingInteractionRequestIDs = []string{}
+	}
+	event.Data["pending_interaction_request_ids"] = pendingInteractionRequestIDs
+	return event
+}
+
+// NewChatPendingInteractionSnapshotEvent 构造 Room 全局订阅恢复所需的人工交互快照。
+// 它不声称拥有任何具体 conversation 的执行 slot，避免误清其他会话的工作态。
+func NewChatPendingInteractionSnapshotEvent(pendingInteractionRequestIDs []string) EventMessage {
+	if pendingInteractionRequestIDs == nil {
+		pendingInteractionRequestIDs = []string{}
+	}
+	event := NewEvent(EventTypeChatAck, map[string]any{
+		"pending_interaction_snapshot":    true,
+		"pending_interaction_request_ids": pendingInteractionRequestIDs,
+	})
 	return event
 }
 

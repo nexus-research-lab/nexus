@@ -1591,7 +1591,6 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
     desktopSurfaceSource,
     mobileSurfaceSource,
     headerSource,
-    headerOverflowSource,
     desktopLayoutControllerSource,
     headerCss,
   ] =
@@ -1630,10 +1629,6 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
       ), "utf8"),
       readFile(path.join(
         webRoot,
-        "src/features/conversation/room/surface/header/use-room-header-overflow-tabs.ts",
-      ), "utf8"),
-      readFile(path.join(
-        webRoot,
         "src/features/conversation/room/surface/layout/use-room-surface-layout-controller.ts",
       ), "utf8"),
       readFile(path.join(
@@ -1659,7 +1654,7 @@ test("Room WorkGraph surface reuses the chat resource and keeps the bottom rail"
   assert.match(shellSource, /executionResource=\{executionResource\}/);
   assert.match(headerSource, /key: "workgraph"/);
   assert.doesNotMatch(headerSource, /workgraphAvailable/);
-  assert.doesNotMatch(headerOverflowSource, /workgraph:/);
+  assert.doesNotMatch(shellSource, /useRoomHeaderOverflowTabs/);
   assert.doesNotMatch(
     desktopLayoutControllerSource,
     /activeSurfaceTab === "workgraph"/,

@@ -12,6 +12,11 @@ interface WorkspaceContentHeaderProps {
   title: ReactNode;
 }
 
+interface WorkspaceContentDetailHeaderProps {
+  children: ReactNode;
+  className?: string;
+}
+
 /** 管理页只保留一层正文标题，标题、说明与动作始终共享同一垂直基线。 */
 export function WorkspaceContentHeader({
   actions,
@@ -45,6 +50,26 @@ export function WorkspaceContentHeader({
             {actions}
           </div>
         ) : null}
+      </div>
+    </header>
+  );
+}
+
+/** 二级页导航占用与管理页标题相同的顶栏高度，统一对齐原生窗口控件中线。 */
+export function WorkspaceContentDetailHeader({
+  children,
+  className,
+}: WorkspaceContentDetailHeaderProps) {
+  return (
+    <header
+      className={cn(
+        "workspace-content-header hidden h-[var(--workspace-header-height,60px)] shrink-0 lg:block",
+        className,
+      )}
+      data-desktop-window-drag-region
+    >
+      <div className="workspace-content-header-inner flex h-full min-w-0 items-center">
+        {children}
       </div>
     </header>
   );

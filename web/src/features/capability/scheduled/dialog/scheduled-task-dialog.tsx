@@ -63,7 +63,7 @@ export function ScheduledTaskDialog({
   return (
     <UiDialogPortal>
       <UiDialogBackdrop
-        className="z-[9999]"
+        className="z-[9999] max-sm:p-2"
         initialFocusRef={controller.refs.nameRef}
         labelledBy="create-task-dialog-title"
         onClose={onClose}
@@ -71,7 +71,10 @@ export function ScheduledTaskDialog({
         onPointerMove={(event) => event.stopPropagation()}
         onPointerUp={(event) => event.stopPropagation()}
       >
-        <UiDialogShell className="max-h-[90vh] max-w-[960px]" size="wide">
+        <UiDialogShell
+          className="h-[min(82dvh,760px)] max-w-[960px] max-sm:h-[calc(100dvh-16px)]"
+          size="wide"
+        >
           <UiDialogHeader
             onClose={onClose}
             subtitle={initialTask

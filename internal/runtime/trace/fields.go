@@ -286,9 +286,6 @@ func buildSystemMessageFields(message sdkprotocol.ReceivedMessage) []any {
 				"system_permission_mode", strings.TrimSpace(string(message.System.Status.PermissionMode)),
 			)
 		}
-	case "task_started":
-	case "task_progress":
-	case "task_notification":
 	}
 	return fields
 }

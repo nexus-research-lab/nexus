@@ -8,7 +8,7 @@
 - `chat-notification-directory.ts` 只建立共享目录索引并提供目标查询。
 - `chat-notification-model.ts` 只做完成事件判定、目标和通知内容纯投影。
 - `browser-notification.ts` 封装浏览器可见性、权限和系统通知副作用。
-- `use-chat-notification-socket.ts` 处理 Room/DM 事件订阅、序列游标和事件分类，并把生命周期写入 `../room-activity-resource.ts`。
+- `use-chat-notification-socket.ts` 处理 Room/DM 事件订阅、序列游标和事件分类，并把执行与人工交互生命周期写入 `../room-activity-resource.ts`。
 - `use-chat-completion-notifications.ts` 编排当前页面、未读 Store 与通知策略。
 
 ## 不变量
@@ -18,4 +18,4 @@
 - WebSocket 重放依靠消息 ID 在 Store 中去重；活动窗口内的当前目标只清除未读，不弹系统通知。
 - 通知目标优先级固定为 Room Conversation、Room、Session；Session 活动目标不得回退匹配同 Room 的其他通知。
 - 浏览器权限失败不得影响站内未读记录。
-- 聊天执行态只按 `roomId` 保存；root round 终态负责清理，单个 Agent slot 终态不得熄灭仍在执行的 Room。
+- 聊天执行态与待确认状态只按 `roomId` 保存；root round 终态负责清理执行槽，单个 Agent slot 终态不得熄灭仍在执行的 Room，权限 resolved 只清理对应请求。

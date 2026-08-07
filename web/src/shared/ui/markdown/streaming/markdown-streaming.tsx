@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * INPUT: 已平滑显示的 Markdown 正文、当前流式态与静态/流式组件集。
- * OUTPUT: 组件身份稳定的 Markdown 子树；本次挂载一旦流式过，终态继续保留原分块。
- * POS: 防止打字机排空后重挂载 Markdown 块，同时让初次加载的历史消息直接走静态单块。
+ * INPUT: 已平滑显示的 Markdown 正文、流式状态与静态/流式组件集。
+ * OUTPUT: 组件身份稳定且可中断更新的 Markdown 子树。
+ * POS: 防止打字机排空后重挂载 Markdown 块；不改变正文节奏、块高度或滚动所有权。
  */
 import {
   memo,
+  useDeferredValue,
   useMemo,
   useRef,
   type ComponentProps,
@@ -75,7 +76,7 @@ export function MarkdownText({
     hasEverStreamedRef.current = true;
   }
   const shouldKeepStreamBlocks = hasEverStreamedRef.current;
-  const blocks = useMemo(
+  const nextBlocks = useMemo(
     () => shouldKeepStreamBlocks
       ? splitStreamingMarkdownBlocks(content)
       : [{
@@ -85,6 +86,8 @@ export function MarkdownText({
       }],
     [content, shouldKeepStreamBlocks],
   );
+  const deferredBlocks = useDeferredValue(nextBlocks);
+  const blocks = isStreaming ? deferredBlocks : nextBlocks;
 
   return (
     <>

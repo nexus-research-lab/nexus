@@ -148,6 +148,7 @@ function AssistantDirectContent({
       fallbackActivityState={activity.state}
       hiddenToolNames={environment.hiddenToolNames}
       isStreaming={activity.showCursor && !responseStreaming}
+      onOpenSubagentTask={environment.onOpenSubagentTask}
       onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
       onPermissionResponse={environment.onPermissionResponse}
       pendingInteractionOwner={permissions.owner}
@@ -183,6 +184,7 @@ function AssistantFinalContent({
       content={final.content ?? []}
       fallbackActivityState={activityState}
       isStreaming={final.isStreaming}
+      onOpenSubagentTask={environment.onOpenSubagentTask}
       onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
       onPermissionResponse={environment.onPermissionResponse}
       pendingInteractionOwner={permissions.owner}

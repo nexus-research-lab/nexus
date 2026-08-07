@@ -751,7 +751,7 @@ func (e *roomChatExecution) startRound(activeRound *activeRoomRound, pending []p
 	roundCtx, cancel := context.WithCancel(context.WithoutCancel(e.ctx))
 	activeRound.Cancel = cancel
 	e.service.registerRound(activeRound)
-	if !e.service.runtime.StartRound(e.sessionKey, e.request.RoundID, cancel) {
+	if err := e.service.runtime.StartRound(roundCtx, e.sessionKey, e.request.RoundID, cancel); err != nil {
 		e.service.finishRound(activeRound)
 		return false
 	}

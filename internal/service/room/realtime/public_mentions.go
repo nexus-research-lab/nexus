@@ -802,7 +802,7 @@ func (s *Service) launchPublicMentionRound(
 	roundCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	activeRound.Cancel = cancel
 	s.registerRound(activeRound)
-	if !s.runtime.StartRound(sessionKey, roundID, cancel) {
+	if err := s.runtime.StartRound(roundCtx, sessionKey, roundID, cancel); err != nil {
 		s.finishRound(activeRound)
 		return false
 	}

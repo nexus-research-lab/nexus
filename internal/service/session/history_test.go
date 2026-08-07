@@ -36,7 +36,7 @@ func TestSessionServiceGetSessionMessagesSkipsActiveRoundMaterialization(t *test
 	}
 	dmSessionID := bindTranscriptSessionID(t, cfg, agentA.WorkspacePath, sessionValue)
 	seedWorkspaceSessionArtifacts(t, cfg, agentA.WorkspacePath, dmKey, dmSessionID)
-	runtimeManager.StartRound(dmKey, "round_1", nil)
+	_ = runtimeManager.StartRound(context.Background(), dmKey, "round_1", nil)
 	defer runtimeManager.MarkRoundFinished(dmKey, "round_1")
 
 	messages, err := sessionService.GetSessionMessages(ctx, dmKey)
@@ -96,7 +96,7 @@ func TestSessionServiceReconcilesStaleActiveWorkspaceMeta(t *testing.T) {
 		t.Fatalf("残留 active meta 未持久化纠正: %+v", persisted)
 	}
 
-	runtimeManager.StartRound(dmKey, "round_running", nil)
+	_ = runtimeManager.StartRound(context.Background(), dmKey, "round_running", nil)
 	active, err := sessionService.GetSession(ctx, dmKey)
 	if err != nil {
 		t.Fatalf("读取运行中 session 失败: %v", err)

@@ -45,6 +45,10 @@ export interface GroupConversationRoundRenderer {
   currentAgentName: string | null;
   isLastRoundPendingPermissions: PendingPermission[];
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   onStopAgentRound: (agentRoundId: string) => void;

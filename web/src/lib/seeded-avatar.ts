@@ -33,6 +33,8 @@ type SeededRandom = () => number;
 
 const CURVE_STEP_COUNT = 192;
 const CURVE_TARGET_RADIUS = 34;
+const SEEDED_AVATAR_DATA_URL_CACHE_LIMIT = 256;
+const seededAvatarDataUrlCache = new Map<string, string>();
 const LISSAJOUS_FREQUENCY_PAIRS = [
   [2, 3],
   [2, 5],
@@ -42,6 +44,10 @@ const LISSAJOUS_FREQUENCY_PAIRS = [
   [5, 6],
 ] as const;
 const TAU = Math.PI * 2;
+
+function normalizeAvatarSeed(seed: string): string {
+  return seed.trim().toLowerCase() || "nexus";
+}
 
 /** 中文注释：使用稳定散列代替随机数，确保同一标识在所有页面保持同一头像。 */
 function hashSeed(value: string): number {
@@ -266,7 +272,7 @@ function buildCurvePath(seed: string): string {
 export function getSeededAvatarAppearance(
   seed: string,
 ): SeededAvatarAppearance {
-  const normalizedSeed = seed.trim().toLowerCase() || "nexus";
+  const normalizedSeed = normalizeAvatarSeed(seed);
   const palette = SEEDED_AVATAR_PALETTES[
     hashSeed(`palette:${normalizedSeed}`) % SEEDED_AVATAR_PALETTES.length
   ];
@@ -275,4 +281,29 @@ export function getSeededAvatarAppearance(
     foregroundColor: palette.foregroundColor,
     pathData: buildCurvePath(normalizedSeed),
   };
+}
+
+/** 为只能接收图片地址的消息头像生成同源静态资源。 */
+export function getSeededAvatarDataUrl(seed: string): string {
+  const normalizedSeed = normalizeAvatarSeed(seed);
+  const cachedDataUrl = seededAvatarDataUrlCache.get(normalizedSeed);
+  if (cachedDataUrl) {
+    return cachedDataUrl;
+  }
+  const appearance = getSeededAvatarAppearance(normalizedSeed);
+  const svg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">',
+    `<rect width="100" height="100" fill="${appearance.backgroundColor}"/>`,
+    `<path d="${appearance.pathData}" fill="none" stroke="${appearance.foregroundColor}" stroke-linecap="round" stroke-linejoin="round" stroke-width="3.75"/>`,
+    "</svg>",
+  ].join("");
+  const dataUrl = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  if (seededAvatarDataUrlCache.size >= SEEDED_AVATAR_DATA_URL_CACHE_LIMIT) {
+    const oldestSeed = seededAvatarDataUrlCache.keys().next().value;
+    if (oldestSeed) {
+      seededAvatarDataUrlCache.delete(oldestSeed);
+    }
+  }
+  seededAvatarDataUrlCache.set(normalizedSeed, dataUrl);
+  return dataUrl;
 }

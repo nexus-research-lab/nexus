@@ -8,7 +8,10 @@ import { writeTextToClipboard } from "@/hooks/ui/clipboard";
 import { useResettableState } from "@/hooks/ui/use-resettable-state";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { UiButton } from "@/shared/ui/button/button";
-import { WorkspaceContentHeader } from "@/shared/ui/layout/workspace-content-header";
+import {
+  WorkspaceContentDetailHeader,
+  WorkspaceContentHeader,
+} from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import type { LoopCatalogItem } from "@/types/capability/loop";
 
@@ -71,10 +74,12 @@ export function LoopDetailView({ slug, onBack: onBack }: LoopDetailViewProps) {
 
   return (
     <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
-      <UiButton className="max-lg:hidden" size="sm" variant="text" onClick={onBack}>
-        <ArrowLeft className="h-4 w-4" />
-        {t("common.back")}
-      </UiButton>
+      <WorkspaceContentDetailHeader>
+        <UiButton size="sm" variant="text" onClick={onBack}>
+          <ArrowLeft className="h-4 w-4" />
+          {t("common.back")}
+        </UiButton>
+      </WorkspaceContentDetailHeader>
 
       {loading ? (
         <div className="py-10 text-sm text-(--text-muted)">{t("capability.connectors_loading")}</div>

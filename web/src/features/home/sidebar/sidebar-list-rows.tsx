@@ -41,10 +41,10 @@ interface ConversationRowProps {
 }
 
 function ConversationRowLeading({
-  isWorking,
+  isActive,
   item,
 }: {
-  isWorking: boolean;
+  isActive: boolean;
   item: SidebarConversationItem;
 }) {
   if (item.kind === "room") {
@@ -55,14 +55,14 @@ function ConversationRowLeading({
         roomId={item.roomId}
         size="md"
         title={item.title}
-        isWorking={isWorking}
+        isWorking={isActive}
       />
     );
   }
   return (
     <UiAgentAvatar
       avatar={(item.members[0]?.avatar ?? item.avatar) ?? undefined}
-      isWorking={isWorking}
+      isWorking={isActive}
       name={item.members[0]?.name ?? item.title}
       size="md"
     />
@@ -114,19 +114,21 @@ function ConversationRowMeta({
 }
 
 function ConversationRowStatus({
-  isWorking,
+  activityStatus,
   unreadCount,
-  workingLabel,
 }: {
-  isWorking: boolean;
+  activityStatus: SidebarConversationItem["activityStatus"];
   unreadCount: number;
-  workingLabel: string;
 }) {
+  const { t } = useI18n();
+  const presentation = activityStatus
+    ? ACTIVITY_PRESENTATION[activityStatus]
+    : null;
   return (
     <>
-      {isWorking ? (
-        <UiBadge size="xs" tone="running">
-          {workingLabel}
+      {presentation ? (
+        <UiBadge size="xs" tone={presentation.tone}>
+          {t(presentation.labelKey)}
         </UiBadge>
       ) : null}
       <UiCounterBadge count={unreadCount} />
@@ -150,12 +152,12 @@ function ConversationRowSummary({ item }: { item: SidebarConversationItem }) {
 
 export function ConversationRow({
   item,
-  isActive: isActive,
+  isActive,
   onClick: onClick,
   onDelete: onDelete,
 }: ConversationRowProps) {
   const { t } = useI18n();
-  const isWorking = item.isWorking;
+  const hasActivity = item.activityStatus !== null;
 
   return (
     <UiListRow
@@ -164,7 +166,7 @@ export function ConversationRow({
       className="min-h-[60px] gap-2.5 rounded-[10px] px-2 py-2 max-lg:min-h-[80px] max-lg:gap-3 max-lg:rounded-[12px] max-lg:px-3 max-lg:py-3"
       description={item.summary ? <ConversationRowSummary item={item} /> : undefined}
       inactiveTone="muted"
-      leading={<ConversationRowLeading isWorking={isWorking} item={item} />}
+      leading={<ConversationRowLeading isActive={hasActivity} item={item} />}
       meta={item.timeLabel || onDelete ? (
         <ConversationRowMeta
           deleteLabel={t("common.delete")}
@@ -175,15 +177,25 @@ export function ConversationRow({
       onClick={onClick}
       subtitleTrailing={(
         <ConversationRowStatus
-          isWorking={isWorking}
+          activityStatus={item.activityStatus}
           unreadCount={item.unreadCount ?? 0}
-          workingLabel={t("status.working")}
         />
       )}
       title={item.title}
     />
   );
 }
+
+const ACTIVITY_PRESENTATION = {
+  waiting: {
+    labelKey: "status.needs_response",
+    tone: "warning",
+  },
+  working: {
+    labelKey: "status.working",
+    tone: "running",
+  },
+} as const;
 
 export function ContactRow({
   agent,

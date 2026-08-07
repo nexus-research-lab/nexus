@@ -6,7 +6,6 @@ package runtime
 import (
 	"context"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -64,17 +63,14 @@ func (m *Manager) QueueGoalContextualGuidanceInputOnConsumed(
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || len(state.RunningRounds) == 0 {
+	if !ok || state == nil {
 		return nil, ErrNoRunningRound
 	}
-	roundIDs := make([]string, 0, len(state.RunningRounds))
-	for _, candidate := range slices.Sorted(maps.Keys(state.RunningRounds)) {
-		revision := state.GoalObjectiveRevisions[candidate]
-		if revision == nil || revision.Load() <= 0 {
-			continue
-		}
-		roundIDs = append(roundIDs, candidate)
-	}
+	roundIDs := state.Rounds.matchingIDs(func(round *roundState) bool {
+		return round.running &&
+			round.goal.objectiveRevision != nil &&
+			round.goal.objectiveRevision.Load() > 0
+	})
 	if len(roundIDs) == 0 {
 		return nil, ErrNoRunningRound
 	}
@@ -97,11 +93,11 @@ func (m *Manager) queueGuidanceInput(sessionKey string, roundID string, content 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || len(state.RunningRounds) == 0 {
+	if !ok || state == nil || !state.Rounds.active() {
 		return nil, ErrNoRunningRound
 	}
 
-	roundIDs := slices.Sorted(maps.Keys(state.RunningRounds))
+	roundIDs := state.Rounds.runningIDs()
 	state.GuidedInputs = append(state.GuidedInputs, GuidedInput{
 		RoundID:     strings.TrimSpace(roundID),
 		Content:     content,

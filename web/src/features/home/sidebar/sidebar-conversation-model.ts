@@ -8,6 +8,8 @@ import type {
   LauncherRoomSummary,
 } from "@/types/app/launcher";
 
+import type { RoomActivityStatus } from "../room-activity-resource";
+
 export interface SidebarConversationItem {
   id: string;
   isPinned: boolean;
@@ -25,7 +27,7 @@ export interface SidebarConversationItem {
   lastActivityAt: number;
   messageCount: number;
   notificationKey?: string | null;
-  isWorking: boolean;
+  activityStatus: RoomActivityStatus | null;
   unreadConversationId?: string | null;
   unreadCount?: number;
   unreadTargetKey?: string | null;
@@ -33,7 +35,7 @@ export interface SidebarConversationItem {
 }
 
 interface ConversationProjectionContext {
-  activeRoomIds: ReadonlySet<string>;
+  roomActivity: ReadonlyMap<string, RoomActivityStatus>;
   agentById: Map<string, LauncherAgentSummary>;
   latestByRoomId: Map<string, LauncherConversationSummary>;
   locale: Locale;
@@ -50,17 +52,17 @@ export function buildConversationItems({
   locale = "zh",
   rooms,
   untitledRoomLabel,
-  activeRoomIds = EMPTY_ACTIVE_ROOM_IDS,
+  roomActivity = EMPTY_ROOM_ACTIVITY,
 }: {
   agents: LauncherAgentSummary[];
   conversations: LauncherConversationSummary[];
   locale?: Locale;
   rooms: LauncherRoomSummary[];
   untitledRoomLabel: string;
-  activeRoomIds?: ReadonlySet<string>;
+  roomActivity?: ReadonlyMap<string, RoomActivityStatus>;
 }): SidebarConversationItem[] {
   const context: ConversationProjectionContext = {
-    activeRoomIds,
+    roomActivity,
     agentById: new Map(agents.map((agent) => [agent.id, agent])),
     latestByRoomId: buildLatestConversationByRoomId(conversations),
     locale,
@@ -115,7 +117,7 @@ function projectConversationItem(
     messageCount: latest.message_count ?? 0,
     roomId: room.id,
     routeRoomId: room.id,
-    isWorking: context.activeRoomIds.has(room.id),
+    activityStatus: context.roomActivity.get(room.id) ?? null,
     sessionKey: latest.session_key,
     summary: latest.last_reply_preview?.trim() ?? "",
     timeLabel: formatSidebarTime(lastActivityAt, context.locale),
@@ -217,4 +219,4 @@ function capitalizeFirst(value: string, locale: string): string {
     : value;
 }
 
-const EMPTY_ACTIVE_ROOM_IDS: ReadonlySet<string> = new Set();
+const EMPTY_ROOM_ACTIVITY: ReadonlyMap<string, RoomActivityStatus> = new Map();

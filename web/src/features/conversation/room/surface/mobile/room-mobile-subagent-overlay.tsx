@@ -7,6 +7,9 @@ interface RoomMobileSubagentOverlayProps {
   currentAgentId: string;
   onClose: () => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
+  requestKey?: number;
+  requestedHostAgentId?: string | null;
+  requestedTaskToolUseId?: string | null;
   roomMembers: Agent[];
   source: SubagentTaskSource | null;
 }
@@ -15,6 +18,9 @@ export function RoomMobileSubagentOverlay({
   currentAgentId,
   onClose,
   onOpenWorkspaceFile,
+  requestKey,
+  requestedHostAgentId,
+  requestedTaskToolUseId,
   roomMembers,
   source,
 }: RoomMobileSubagentOverlayProps) {
@@ -29,6 +35,9 @@ export function RoomMobileSubagentOverlay({
         layout="mobile"
         onClose={onClose}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
+        requestKey={requestKey}
+        requestedHostAgentId={requestedHostAgentId}
+        requestedTaskToolUseId={requestedTaskToolUseId}
         roomMembers={roomMembers}
         source={source}
       />

@@ -2,7 +2,9 @@ package runtimeselection
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -273,5 +275,51 @@ func TestResolveKeepsPartialAgentModelWithoutPreferences(t *testing.T) {
 	}
 	if selection.RuntimeKind != "" || selection.Provider != "openai" || selection.Model != "" {
 		t.Fatalf("没有偏好时应保持原有部分显式选择行为: %+v", selection)
+	}
+}
+
+func TestWebSearchConfigFromPreferencesCopiesRuntimeSettings(t *testing.T) {
+	settings := preferencessvc.WebSearchSettings{
+		Enabled:             true,
+		Provider:            "brave",
+		BaseURL:             "https://search.example.com",
+		AllowPrivateNetwork: true,
+		UseProviderExtract:  true,
+		DefaultCount:        8,
+		TimeoutSeconds:      20,
+		CacheTTLSeconds:     120,
+		Country:             "CN",
+		Language:            "zh-CN",
+		SearchLanguage:      "zh",
+		Freshness:           "week",
+		SearchDepth:         "advanced",
+		ExtractDepth:        "deep",
+		AnySearch: preferencessvc.AnySearchSettings{
+			Domain:       "example.com",
+			Tag:          "docs",
+			ContentTypes: []string{"article"},
+			Params:       map[string]any{"limit": 4},
+		},
+	}.WithWebSearchAPIKey("search-key")
+
+	config := WebSearchConfigFromPreferences(settings)
+	settings.AnySearch.ContentTypes[0] = "changed"
+	settings.AnySearch.Params["limit"] = 9
+
+	if !config.Enabled || config.Provider != "brave" {
+		t.Fatalf("WebSearch 主配置投影错误: %+v", config)
+	}
+	if env := clientopts.BuildWebSearchRuntimeEnv("nxs", config); env["NEXUS_WEBSEARCH_API_KEY"] != "search-key" {
+		t.Fatalf("WebSearch 密钥投影错误: %+v", env)
+	}
+	rawConfig, err := json.Marshal(config)
+	if err != nil {
+		t.Fatalf("序列化 WebSearch runtime 配置失败: %v", err)
+	}
+	if strings.Contains(string(rawConfig), "search-key") {
+		t.Fatalf("WebSearch runtime 配置泄漏了原始密钥: %s", rawConfig)
+	}
+	if config.AnySearch.ContentTypes[0] != "article" || config.AnySearch.Params["limit"] != 4 {
+		t.Fatalf("AnySearch 配置必须与持久化对象隔离: %+v", config.AnySearch)
 	}
 }

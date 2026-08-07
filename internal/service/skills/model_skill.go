@@ -159,6 +159,8 @@ type externalManifest struct {
 	SourceKey      string   `json:"source_key"`
 	SourceName     string   `json:"source_name"`
 	SourceTrust    string   `json:"source_trust"`
+	SourceSkillID  string   `json:"source_skill_id"`
+	ArtifactSHA256 string   `json:"artifact_sha256"`
 	ImportMode     string   `json:"import_mode"`
 	Recommendation string   `json:"recommendation"`
 	GitURL         string   `json:"git_url"`

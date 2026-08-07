@@ -2,7 +2,7 @@
 
 -- 00061 was applied to some local databases before the cancellation outbox
 -- table was present in the migration file. Keep this repair idempotent so it
--- is harmless for databases where 00060 already created the table.
+-- is harmless for databases where 00061 already created the table.
 CREATE TABLE IF NOT EXISTS execution_cancellation_dispatches (
     cancellation_dispatch_id VARCHAR(64) NOT NULL PRIMARY KEY,
     execution_id VARCHAR(64) NOT NULL,

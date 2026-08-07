@@ -27,6 +27,10 @@ export interface ConversationRoundRenderer {
   currentAgentName: string | null;
   onEditLastUserMessage?: (messageId: string, newContent: string) => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   workspaceAgentId?: string | null;

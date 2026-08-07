@@ -34,14 +34,18 @@ type RoundMapper interface {
 
 // RoundExecutionRequest 表示执行单轮查询所需的回调与依赖。
 type RoundExecutionRequest struct {
-	Query                      string
-	Content                    any
-	AtomicInput                bool
-	ContextualInputs           []ContextualInputBlock
-	InputOptions               sdkprotocol.OutboundMessageOptions
-	Client                     Client
-	Mapper                     RoundMapper
-	IdleTimeout                time.Duration
+	Query            string
+	Content          any
+	AtomicInput      bool
+	ContextualInputs []ContextualInputBlock
+	InputOptions     sdkprotocol.OutboundMessageOptions
+	Client           Client
+	Mapper           RoundMapper
+	IdleTimeout      time.Duration
+
+	// IdlePauseState 把人工交互等已知阻塞阶段从消息流空闲检测中剔除。
+	// changed 关闭后调用方会重新读取状态，状态恢复时重新获得完整 IdleTimeout。
+	IdlePauseState             func() (paused bool, changed <-chan struct{})
 	InterruptReason            func() string
 	InterruptedTerminalTimeout time.Duration
 	AssistantTerminalGrace     time.Duration

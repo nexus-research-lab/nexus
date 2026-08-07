@@ -94,6 +94,10 @@ interface BuildGroupChatPanelViewModelOptions {
     title?: string,
   ) => void | Promise<string | null>;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkGraph?: () => void;
   onOpenWorkspaceFile?: (path: string) => void;
   roomHostAgentId: string | null;
@@ -114,6 +118,7 @@ export function buildGroupChatPanelViewModel({
   goal,
   onCreateConversation,
   onOpenAgentContact,
+  onOpenSubagentTask,
   onOpenWorkGraph,
   onOpenWorkspaceFile,
   roomHostAgentId,
@@ -148,6 +153,7 @@ export function buildGroupChatPanelViewModel({
       environment,
       feedTimeline,
       onOpenAgentContact,
+      onOpenSubagentTask,
       onOpenWorkspaceFile,
       session,
       unread,
@@ -196,6 +202,7 @@ function buildFeedModel({
   environment,
   feedTimeline,
   onOpenAgentContact,
+  onOpenSubagentTask,
   onOpenWorkspaceFile,
   session,
   unread,
@@ -207,6 +214,7 @@ function buildFeedModel({
   | "environment"
   | "feedTimeline"
   | "onOpenAgentContact"
+  | "onOpenSubagentTask"
   | "onOpenWorkspaceFile"
   | "session"
   | "unread"
@@ -227,6 +235,7 @@ function buildFeedModel({
       currentAgentName,
       isLastRoundPendingPermissions: conversation.pending_permissions,
       onOpenAgentContact,
+      onOpenSubagentTask,
       onOpenWorkspaceFile,
       onPermissionResponse: conversation.send_permission_response,
       onStopAgentRound: conversation.stop_generation,

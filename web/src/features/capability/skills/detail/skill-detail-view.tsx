@@ -15,6 +15,7 @@ import { UiButton } from "@/shared/ui/button/button";
 import { UiBadge } from "@/shared/ui/display/badge";
 import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import { UiStateBlock } from "@/shared/ui/display/state-block";
+import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
 import { WORKSPACE_CONTENT_PAGE_CLASS_NAME } from "@/shared/ui/layout/workspace-content-layout";
 import { UiPanel } from "@/shared/ui/panel";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
@@ -87,22 +88,24 @@ function SkillDetailBreadcrumb({
 }) {
   const { t } = useI18n();
   return (
-    <div className="flex items-center gap-2 text-sm text-(--text-muted) max-lg:hidden">
-      <button
-        className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
-        onClick={onBack}
-        type="button"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        {t("capability.skills_detail_back")}
-      </button>
-      {title ? (
-        <>
-          <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-          <span className="truncate font-medium text-(--text-strong)">{title}</span>
-        </>
-      ) : null}
-    </div>
+    <WorkspaceContentDetailHeader>
+      <div className="flex min-w-0 items-center gap-2 text-sm text-(--text-muted)">
+        <button
+          className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
+          onClick={onBack}
+          type="button"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          {t("capability.skills_detail_back")}
+        </button>
+        {title ? (
+          <>
+            <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
+            <span className="truncate font-medium text-(--text-strong)">{title}</span>
+          </>
+        ) : null}
+      </div>
+    </WorkspaceContentDetailHeader>
   );
 }
 
@@ -190,7 +193,7 @@ function SkillDetailReady({
 }) {
   const { t } = useI18n();
   return (
-    <div className="pt-6">
+    <div className="pt-5">
       <SkillDetailHero
         activeAction={activeAction}
         model={model}

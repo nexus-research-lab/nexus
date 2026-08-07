@@ -139,7 +139,7 @@ export function ComposerContextUsage({
       >
         <svg
           aria-hidden="true"
-          className="h-5 w-5 -rotate-90"
+          className="h-4 w-4 -rotate-90"
           viewBox="0 0 20 20"
         >
           <circle

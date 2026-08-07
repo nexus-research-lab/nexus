@@ -63,7 +63,7 @@ src/
 - Room 主 Feed 与 Thread 共用 `room/group/round/round-agent-model.ts` 的 Agent 聚合状态；状态优先级不得在视图中重复推导
 - Room 创建与管理弹窗只通过 `members/use-create-room-form.ts` 管理不变量，并以 `RoomDialogSubmission` 对象提交；视图组件不得在渲染期修正表单状态
 - Room 成员的 `participation_paused` 是 Room 级持久调度状态：管理弹窗只维护成员草稿，页面命令只提交真实差异；后端暂停时收口该成员当前 slot 并闸住 queue、Agent wake、Goal continuation 与 WorkGraph dispatch，恢复后继续原样保留的工作，前端不得把它降格为一次性停止输出
-- Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；聊天完成订阅固定挂在 `AppLayout`，不得依赖宽屏侧栏是否渲染；bootstrap 请求、刷新排队和全局目录事件不得在消费者中重复实现；聊天执行态统一由 `home/room-activity-resource.ts` 按 `roomId` 短期投影，DM 与群组共用规则，聊天和联系人侧栏均不订阅 Agent runtime
+- Home 侧栏与聊天通知只消费 `home-directory-resource.ts` 的共享目录快照；聊天完成订阅固定挂在 `AppLayout`，不得依赖宽屏侧栏是否渲染；bootstrap 请求、刷新排队和全局目录事件不得在消费者中重复实现；聊天执行态与待确认人工交互统一由 `home/room-activity-resource.ts` 按 `roomId` 短期投影，DM 与群组共用规则，聊天和联系人侧栏均不订阅 Agent runtime
 - Home 侧栏只通过 `home/sidebar/` 组合聊天和联系人入口；Room/DM 基础投影与未读叠加必须独立缓存，视图不得直接调用 Room API 或拼通知键
 - Group Room 完成事件须同时记录精确消息锚点与未读计数；Room 导航不得预先清除它们，只有对应 Feed 证明消息已进入视口后才逐条消费。DM 仍在进入会话时清理自身未读，未读计数和最后更新时间不能推断第一条未读 Agent 回复
 - Home ASCII Hero 的 Canvas 资源只归 `home/hero/home-ascii-scene.ts`；异步字体与尺寸重建必须绑定代次，过期任务不得启动动画循环

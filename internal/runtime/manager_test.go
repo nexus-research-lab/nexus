@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,6 +41,8 @@ type fakeRuntimeClient struct {
 	reconfigureErr     error
 	disconnectCalls    int
 	disconnectErr      error
+	interruptCalls     int
+	interruptHook      func()
 	stoppedTasks       []string
 	taskMessages       []fakeTaskMessage
 	stopTaskErr        error
@@ -54,13 +57,34 @@ type fakeRuntimeClient struct {
 }
 
 type fakeOwnerProcessReaper struct {
-	owners []string
-	err    error
+	mu      sync.Mutex
+	owners  []string
+	err     error
+	started chan string
+	release <-chan struct{}
 }
 
-func (r *fakeOwnerProcessReaper) ReapOwnerProcesses(_ context.Context, ownerUserID string) error {
+func (r *fakeOwnerProcessReaper) ReapOwnerProcesses(ctx context.Context, ownerUserID string) error {
+	r.mu.Lock()
 	r.owners = append(r.owners, ownerUserID)
+	r.mu.Unlock()
+	if r.started != nil {
+		r.started <- ownerUserID
+	}
+	if r.release != nil {
+		select {
+		case <-r.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	return r.err
+}
+
+func (r *fakeOwnerProcessReaper) ownerCalls() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.owners)
 }
 
 type fakeTaskMessage struct {
@@ -122,7 +146,13 @@ func (c *fakeRuntimeClient) SendContent(_ context.Context, content any, _ *strin
 	return nil
 }
 
-func (c *fakeRuntimeClient) Interrupt(context.Context) error { return nil }
+func (c *fakeRuntimeClient) Interrupt(context.Context) error {
+	c.interruptCalls++
+	if c.interruptHook != nil {
+		c.interruptHook()
+	}
+	return nil
+}
 
 func (c *fakeRuntimeClient) StopTask(_ context.Context, taskID string) error {
 	c.stoppedTasks = append(c.stoppedTasks, taskID)
@@ -205,6 +235,80 @@ func TestSDKClientAdapterRetirePermanentlyPreventsReconnect(t *testing.T) {
 	}
 }
 
+func TestSDKClientAdapterRetireCancelsConfigurationFlights(t *testing.T) {
+	tests := []struct {
+		name      string
+		configure func(*sdkClientAdapter, func(context.Context) error)
+		call      func(*sdkClientAdapter) error
+	}{
+		{
+			name: "reconfigure",
+			configure: func(client *sdkClientAdapter, block func(context.Context) error) {
+				client.reconfigureSession = func(ctx context.Context, _ *agentclient.Session, _ agentclient.Options) error {
+					return block(ctx)
+				}
+			},
+			call: func(client *sdkClientAdapter) error {
+				return client.Reconfigure(context.Background(), agentclient.Options{})
+			},
+		},
+		{
+			name: "permission mode",
+			configure: func(client *sdkClientAdapter, block func(context.Context) error) {
+				client.setSessionPermissionMode = func(ctx context.Context, _ *agentclient.Session, _ sdkpermission.Mode) error {
+					return block(ctx)
+				}
+			},
+			call: func(client *sdkClientAdapter) error {
+				return client.SetPermissionMode(context.Background(), sdkpermission.ModeDefault)
+			},
+		},
+		{
+			name: "environment",
+			configure: func(client *sdkClientAdapter, block func(context.Context) error) {
+				client.updateSessionEnvironment = func(ctx context.Context, _ *agentclient.Session, _ map[string]string) error {
+					return block(ctx)
+				}
+			},
+			call: func(client *sdkClientAdapter) error {
+				return client.UpdateEnvironment(context.Background(), map[string]string{"KEY": "value"})
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			started := make(chan struct{})
+			client := &sdkClientAdapter{
+				session:      &agentclient.Session{},
+				closeSession: func(*agentclient.Session) error { return nil },
+			}
+			test.configure(client, func(ctx context.Context) error {
+				close(started)
+				<-ctx.Done()
+				return ctx.Err()
+			})
+
+			results := make(chan error, 2)
+			go func() { results <- test.call(client) }()
+			<-started
+			go func() { results <- test.call(client) }()
+			client.Retire()
+
+			for range 2 {
+				select {
+				case err := <-results:
+					if !errors.Is(err, agentclient.ErrAborted) {
+						t.Fatalf("配置调用 error = %v, want ErrAborted", err)
+					}
+				case <-time.After(time.Second):
+					t.Fatal("Retire 未唤醒配置调用")
+				}
+			}
+		})
+	}
+}
+
 type fakeSDKMCPServer struct{}
 
 func (fakeSDKMCPServer) HandleMessage(context.Context, map[string]any) (map[string]any, error) {
@@ -232,6 +336,8 @@ type ownershipFenceClient struct {
 	retired            bool
 	retireCalls        int
 	connectCalls       int
+	connectStarted     chan struct{}
+	connectRelease     <-chan struct{}
 	disconnectCalls    int
 	reconfigureCalls   int
 	reconfigureStarted chan struct{}
@@ -240,13 +346,29 @@ type ownershipFenceClient struct {
 	disconnectRelease  <-chan struct{}
 }
 
-func (c *ownershipFenceClient) Connect(context.Context) error {
+func (c *ownershipFenceClient) Connect(ctx context.Context) error {
+	c.mu.Lock()
+	if c.retired {
+		c.mu.Unlock()
+		return agentclient.ErrAborted
+	}
+	c.connectCalls++
+	started := c.connectStarted
+	release := c.connectRelease
+	c.mu.Unlock()
+	notifyRuntimeFence(started)
+	if release != nil {
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.retired {
 		return agentclient.ErrAborted
 	}
-	c.connectCalls++
 	return nil
 }
 
@@ -537,7 +659,7 @@ func TestManagerDisconnectsCandidateThatLosesConcurrentReplacement(t *testing.T)
 	sessionKey := "agent:nexus:ws:dm:concurrent-replacement"
 	expectedState := &sessionState{Client: stale}
 	manager.sessions[sessionKey] = expectedState
-	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -749,6 +871,62 @@ func TestManagerTaskControlsRefreshIdleDeadline(t *testing.T) {
 	}
 }
 
+func TestManagerInterruptSessionPublishesReasonBeforeInterruptingClient(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:nexus:ws:dm:interrupt"
+	roundID := "round-1"
+	reasonObserved := ""
+	client := &fakeRuntimeClient{}
+	client.interruptHook = func() {
+		reasonObserved = manager.GetInterruptReason(sessionKey, roundID)
+		manager.MarkRoundFinished(sessionKey, roundID)
+	}
+
+	manager.mu.Lock()
+	state := manager.ensureStateLocked(sessionKey)
+	state.Client = client
+	manager.mu.Unlock()
+	if err := manager.StartRound(context.Background(), sessionKey, roundID, nil); err != nil {
+		t.Fatalf("StartRound() error = %v", err)
+	}
+
+	roundIDs, err := manager.InterruptSession(context.Background(), sessionKey, "  stop now  ")
+	if err != nil {
+		t.Fatalf("InterruptSession() error = %v", err)
+	}
+	if !slices.Equal(roundIDs, []string{roundID}) {
+		t.Fatalf("InterruptSession() roundIDs = %v, want [%s]", roundIDs, roundID)
+	}
+	if reasonObserved != "stop now" {
+		t.Fatalf("client interrupt 观察到 reason = %q, want %q", reasonObserved, "stop now")
+	}
+	if client.interruptCalls != 1 {
+		t.Fatalf("Interrupt() calls = %d, want 1", client.interruptCalls)
+	}
+}
+
+func TestManagerInterruptSessionWithoutRunningRoundDoesNotTouchClient(t *testing.T) {
+	manager := NewManager()
+	sessionKey := "agent:nexus:ws:dm:interrupt-idle"
+	client := &fakeRuntimeClient{}
+
+	manager.mu.Lock()
+	state := manager.ensureStateLocked(sessionKey)
+	state.Client = client
+	manager.mu.Unlock()
+
+	roundIDs, err := manager.InterruptSession(context.Background(), sessionKey, "stop")
+	if err != nil {
+		t.Fatalf("InterruptSession() error = %v", err)
+	}
+	if len(roundIDs) != 0 {
+		t.Fatalf("InterruptSession() roundIDs = %v, want empty", roundIDs)
+	}
+	if client.interruptCalls != 0 {
+		t.Fatalf("Interrupt() calls = %d, want 0", client.interruptCalls)
+	}
+}
+
 func TestManagerIdleMessageDrainHandlesMessages(t *testing.T) {
 	messages := make(chan sdkprotocol.ReceivedMessage, 1)
 	client := &fakeRuntimeClient{messages: messages}
@@ -786,7 +964,7 @@ func TestManagerStartRoundCancelsIdleMessageDrain(t *testing.T) {
 		handled <- struct{}{}
 		return true
 	})
-	manager.StartRound(sessionKey, "round-1", nil)
+	_ = manager.StartRound(context.Background(), sessionKey, "round-1", nil)
 	messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeTaskNotification}
 
 	select {
@@ -796,28 +974,163 @@ func TestManagerStartRoundCancelsIdleMessageDrain(t *testing.T) {
 	}
 }
 
-func TestManagedGoalMCPCheckResolvesLegacySDKServers(t *testing.T) {
-	options := agentclient.Options{
-		MCP: agentclient.MCPOptions{
-			Servers: map[string]sdkmcp.ServerConfig{
-				"nexus_goal": sdkmcp.HTTPServerConfig{URL: "https://example.test/mcp"},
-			},
-			SDKServers: map[string]sdkmcp.SDKMCPServer{
-				"nexus_goal":       fakeSDKMCPServer{},
-				"nexus_automation": fakeSDKMCPServer{},
-			},
-		},
+func TestManagerStartRoundWaitsForIdleHandlerExit(t *testing.T) {
+	messages := make(chan sdkprotocol.ReceivedMessage, 1)
+	client := &fakeRuntimeClient{messages: messages}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	sessionKey := "agent:nexus:ws:dm:idle-handoff"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 runtime client 失败: %v", err)
 	}
 
-	servers := resolvedMCPServersForManagedGoalCheck(options)
-	if len(servers) != 2 {
-		t.Fatalf("resolved servers = %+v, want 2", servers)
+	handlerStarted := make(chan struct{})
+	handlerCanceled := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	manager.StartIdleMessageDrain(sessionKey, func(ctx context.Context, _ sdkprotocol.ReceivedMessage) bool {
+		close(handlerStarted)
+		<-ctx.Done()
+		close(handlerCanceled)
+		<-releaseHandler
+		return true
+	})
+	messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeTaskNotification}
+	<-handlerStarted
+
+	startResult := make(chan error, 1)
+	go func() {
+		startResult <- manager.StartRound(context.Background(), sessionKey, "round-1", nil)
+	}()
+	<-handlerCanceled
+	select {
+	case err := <-startResult:
+		t.Fatalf("idle handler 退出前 StartRound() 提前返回: %v", err)
+	default:
 	}
-	if _, ok := servers["nexus_goal"].(sdkmcp.HTTPServerConfig); !ok {
-		t.Fatalf("显式 MCP.Servers 应优先于旧式 SDKServers: %+v", servers["nexus_goal"])
+
+	close(releaseHandler)
+	if err := <-startResult; err != nil {
+		t.Fatalf("StartRound() error = %v", err)
 	}
-	if _, ok := servers["nexus_automation"].(sdkmcp.SDKServerConfig); !ok {
-		t.Fatalf("旧式 SDKServers 应合并为 SDKServerConfig: %+v", servers["nexus_automation"])
+	manager.MarkRoundFinished(sessionKey, "round-1")
+}
+
+func TestManagerStartRoundCancellationWhileWaitingForIdleDrain(t *testing.T) {
+	messages := make(chan sdkprotocol.ReceivedMessage, 1)
+	client := &fakeRuntimeClient{messages: messages}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	sessionKey := "agent:nexus:ws:dm:idle-handoff-cancel"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 runtime client 失败: %v", err)
+	}
+
+	handlerStarted := make(chan struct{})
+	handlerCanceled := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	manager.StartIdleMessageDrain(sessionKey, func(ctx context.Context, _ sdkprotocol.ReceivedMessage) bool {
+		close(handlerStarted)
+		<-ctx.Done()
+		close(handlerCanceled)
+		<-releaseHandler
+		return true
+	})
+	messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeTaskNotification}
+	<-handlerStarted
+
+	startCtx, cancelStart := context.WithCancel(context.Background())
+	roundCanceled := make(chan struct{}, 1)
+	startResult := make(chan error, 1)
+	go func() {
+		startResult <- manager.StartRound(startCtx, sessionKey, "round-1", func() {
+			roundCanceled <- struct{}{}
+		})
+	}()
+	<-handlerCanceled
+	cancelStart()
+	if err := <-startResult; !errors.Is(err, context.Canceled) {
+		t.Fatalf("StartRound() error = %v, want context canceled", err)
+	}
+	select {
+	case <-roundCanceled:
+	default:
+		t.Fatal("等待 idle drain 期间取消时未释放 round context")
+	}
+	if running := manager.GetRunningRoundIDs(sessionKey); len(running) != 0 {
+		t.Fatalf("取消的 round 被错误登记: %v", running)
+	}
+
+	close(releaseHandler)
+	if err := manager.CloseSession(context.Background(), sessionKey); err != nil {
+		t.Fatalf("CloseSession() error = %v", err)
+	}
+}
+
+func TestManagerCloseSessionWaitsForIdleHandlerExit(t *testing.T) {
+	messages := make(chan sdkprotocol.ReceivedMessage, 1)
+	client := &fakeRuntimeClient{messages: messages}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: client})
+	sessionKey := "agent:nexus:ws:dm:idle-close"
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
+		t.Fatalf("创建 runtime client 失败: %v", err)
+	}
+
+	handlerStarted := make(chan struct{})
+	handlerCanceled := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	manager.StartIdleMessageDrain(sessionKey, func(ctx context.Context, _ sdkprotocol.ReceivedMessage) bool {
+		close(handlerStarted)
+		<-ctx.Done()
+		close(handlerCanceled)
+		<-releaseHandler
+		return true
+	})
+	messages <- sdkprotocol.ReceivedMessage{Type: sdkprotocol.MessageTypeTaskNotification}
+	<-handlerStarted
+
+	closeResult := make(chan error, 1)
+	go func() {
+		closeResult <- manager.CloseSession(context.Background(), sessionKey)
+	}()
+	<-handlerCanceled
+	select {
+	case err := <-closeResult:
+		t.Fatalf("idle handler 退出前 CloseSession() 提前返回: %v", err)
+	default:
+	}
+
+	close(releaseHandler)
+	if err := <-closeResult; err != nil {
+		t.Fatalf("CloseSession() error = %v", err)
+	}
+}
+
+func TestHasMCPServerChecksBothServerMaps(t *testing.T) {
+	tests := []struct {
+		name    string
+		options agentclient.Options
+		want    bool
+	}{
+		{
+			name: "server config",
+			options: agentclient.Options{MCP: agentclient.MCPOptions{Servers: map[string]sdkmcp.ServerConfig{
+				managedGoalMCPServerName: sdkmcp.HTTPServerConfig{URL: "https://example.test/mcp"},
+			}}},
+			want: true,
+		},
+		{
+			name: "legacy sdk server",
+			options: agentclient.Options{MCP: agentclient.MCPOptions{SDKServers: map[string]sdkmcp.SDKMCPServer{
+				managedGoalMCPServerName: fakeSDKMCPServer{},
+			}}},
+			want: true,
+		},
+		{name: "missing", options: agentclient.Options{}, want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := hasMCPServer(test.options, managedGoalMCPServerName); got != test.want {
+				t.Fatalf("hasMCPServer() = %v, want %v", got, test.want)
+			}
+		})
 	}
 }
 
@@ -937,7 +1250,7 @@ func TestManagerReconfigureLostOwnershipRetriesCurrentClient(t *testing.T) {
 	})
 	options := agentclient.Options{CWD: "/tmp/runtime-owner"}
 
-	initialStartup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	initialStartup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatalf("开始首次启动事务失败: %v", err)
 	}
@@ -1072,7 +1385,7 @@ func TestManagerReplacementDoesNotReturnNextAfterConcurrentClose(t *testing.T) {
 		if result.client != nil {
 			t.Fatalf("并发关闭后替换流程仍返回 client: %#v", result.client)
 		}
-		if !errors.Is(result.err, agentclient.ErrAborted) && !errors.Is(result.err, errRuntimeSessionClosing) {
+		if !errors.Is(result.err, agentclient.ErrAborted) && !errors.Is(result.err, ErrRuntimeSessionClosing) {
 			t.Fatalf("并发关闭后替换流程 error = %v，期望 ownership 中止", result.err)
 		}
 	case <-time.After(time.Second):
@@ -1123,7 +1436,7 @@ func TestManagerStartupWaitsForRetiredClientCleanupBeforePublishingNext(t *testi
 
 	observerCh := make(chan runtimeClientResult, 1)
 	go func() {
-		startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+		startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 		if err != nil {
 			observerCh <- runtimeClientResult{err: err}
 			return
@@ -1216,7 +1529,7 @@ func TestManagerCloseDeadlineKeepsLifecycleFenceUntilClientCleanupFinishes(t *te
 		t.Fatal("CloseSession() 未在后台继续等待 client cleanup")
 	}
 
-	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); !errors.Is(err, errRuntimeSessionClosing) {
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); !errors.Is(err, ErrRuntimeSessionClosing) {
 		t.Fatalf("client cleanup 未完成时 GetOrCreate() error = %v，期望 session closing", err)
 	}
 	factory.mu.Lock()
@@ -1239,7 +1552,7 @@ func TestManagerOldClientLeaseCannotCloseNewConnectionGeneration(t *testing.T) {
 		_ = manager.CloseSession(context.Background(), sessionKey)
 	})
 
-	firstStartup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	firstStartup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatalf("开始首次启动事务失败: %v", err)
 	}
@@ -1255,7 +1568,7 @@ func TestManagerOldClientLeaseCannotCloseNewConnectionGeneration(t *testing.T) {
 		t.Fatal("未捕获首次连接 lease")
 	}
 
-	secondStartup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	secondStartup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatalf("开始第二次启动事务失败: %v", err)
 	}
@@ -1294,7 +1607,7 @@ func TestManagerCloseInvalidatesStartupThatHasNotCreatedState(t *testing.T) {
 	factory := &runtimeClientSequenceFactory{clients: []Client{client}}
 	manager := NewManagerWithFactory(factory)
 	sessionKey := "agent:nexus:ws:dm:close-before-state"
-	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatalf("开始启动事务失败: %v", err)
 	}
@@ -1337,7 +1650,7 @@ func TestManagerExternalCloseInvalidatesRetryAfterStartupCleanup(t *testing.T) {
 	factory := &runtimeClientSequenceFactory{clients: []Client{stale, fresh}}
 	manager := NewManagerWithFactory(factory)
 	sessionKey := "agent:nexus:ws:dm:close-during-startup-cleanup"
-	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatalf("开始启动事务失败: %v", err)
 	}
@@ -1407,7 +1720,7 @@ func TestManagerRetireCurrentPreservesBackgroundTaskForStartupRetry(t *testing.T
 	}
 	<-taskStarted
 
-	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatalf("开始启动事务失败: %v", err)
 	}
@@ -1470,7 +1783,7 @@ func TestManagerRetireCurrentTimeoutDoesNotAbortInFlightStartupRetry(t *testing.
 	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale, fresh}})
 	sessionKey := "agent:nexus:ws:dm:retire-current-timeout-retry"
 
-	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatalf("开始首次启动事务失败: %v", err)
 	}
@@ -1499,7 +1812,7 @@ func TestManagerRetireCurrentTimeoutDoesNotAbortInFlightStartupRetry(t *testing.
 	}
 	startup.Close()
 
-	retryStartup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	retryStartup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatalf("开始 retry 启动事务失败: %v", err)
 	}
@@ -1569,9 +1882,9 @@ func TestManagerRetiredClientlessStateRemovedAfterLastLifecycleExits(t *testing.
 		manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{stale}})
 		sessionKey := "agent:nexus:ws:dm:retired-round-exit"
 		startup := connectRuntimeStartupForTest(t, manager, sessionKey)
-		if !manager.StartRound(sessionKey, "round-1", nil) {
+		if err := manager.StartRound(context.Background(), sessionKey, "round-1", nil); err != nil {
 			startup.Close()
-			t.Fatal("登记 round 失败")
+			t.Fatalf("登记 round 失败: %v", err)
 		}
 		if retired, err := startup.RetireCurrent(context.Background()); err != nil || !retired {
 			startup.Close()
@@ -1666,11 +1979,16 @@ func TestManagerRetireCurrentImmediateRetryKeepsNewIdleDrain(t *testing.T) {
 		startup.Close()
 		t.Fatal("retry 后 session state 不存在")
 	}
+	newDrain := state.IdleMessageDrain
 	staleCtx, cancelStale := context.WithCancel(context.Background())
 	cancelStale()
+	staleDrain := &idleMessageDrain{
+		cancel: func() {},
+		done:   make(chan struct{}),
+	}
 	staleDrainDone := make(chan struct{})
 	go func() {
-		manager.runIdleMessageDrain(staleCtx, sessionKey, state, 1, stale, func(context.Context, sdkprotocol.ReceivedMessage) bool {
+		manager.runIdleMessageDrain(staleCtx, sessionKey, state, staleDrain, nil, stale, func(context.Context, sdkprotocol.ReceivedMessage) bool {
 			return true
 		})
 		close(staleDrainDone)
@@ -1683,8 +2001,7 @@ func TestManagerRetireCurrentImmediateRetryKeepsNewIdleDrain(t *testing.T) {
 	}
 	manager.mu.RLock()
 	current := manager.sessions[sessionKey]
-	newDrainKept := current == state && current.Client == fresh && current.IdleMessageDrainID == 2 &&
-		current.IdleMessageCancel != nil
+	newDrainKept := current == state && current.Client == fresh && current.IdleMessageDrain == newDrain
 	manager.mu.RUnlock()
 	if !newDrainKept {
 		startup.Close()
@@ -1712,7 +2029,7 @@ func TestManagerRetireCurrentPreservesClientlessStateOwner(t *testing.T) {
 	}
 	<-taskStarted
 
-	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "owner-a")
 	if err != nil {
 		t.Fatalf("开始启动事务失败: %v", err)
 	}
@@ -1791,7 +2108,7 @@ func TestManagerConcurrentCloseFencesDrainAfterOneCallerTimesOut(t *testing.T) {
 	if err := <-firstResult; !errors.Is(err, context.Canceled) {
 		t.Fatalf("首次 CloseSession() error = %v，期望 context.Canceled", err)
 	}
-	if _, err := manager.BeginClientStartup(context.Background(), sessionKey); !errors.Is(err, ErrRuntimeSessionClosing) {
+	if _, err := manager.BeginClientStartup(context.Background(), sessionKey, ""); !errors.Is(err, ErrRuntimeSessionClosing) {
 		t.Fatalf("并发关闭未完成时 BeginClientStartup() error = %v，期望 session closing", err)
 	}
 	close(disconnectRelease)
@@ -1804,7 +2121,7 @@ func TestManagerConcurrentCloseFencesDrainAfterOneCallerTimesOut(t *testing.T) {
 		t.Fatal("client cleanup 完成后第二次 CloseSession() 未返回")
 	}
 
-	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatalf("关闭栅栏 drain 后 BeginClientStartup() error = %v", err)
 	}
@@ -1820,7 +2137,7 @@ func TestManagerConcurrentCloseFencesDrainAfterOneCallerTimesOut(t *testing.T) {
 
 func connectRuntimeStartupForTest(t *testing.T, manager *Manager, sessionKey string) *ClientStartup {
 	t.Helper()
-	startup, err := manager.BeginClientStartup(context.Background(), sessionKey)
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "")
 	if err != nil {
 		t.Fatalf("开始启动事务失败: %v", err)
 	}
@@ -2083,7 +2400,7 @@ func TestManagerSendContentToRunningRound(t *testing.T) {
 	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
 		t.Fatalf("创建 client 失败: %v", err)
 	}
-	manager.StartRound(sessionKey, "round-queue", func() {})
+	_ = manager.StartRound(context.Background(), sessionKey, "round-queue", func() {})
 
 	roundIDs, err := manager.SendContentToRunningRound(context.Background(), sessionKey, "补充信息")
 	if err != nil {
@@ -2137,6 +2454,36 @@ func TestManagerFlushGoalAccounting(t *testing.T) {
 	}
 	if strings.Join(roundIDs, ",") != "round-b" || strings.Join(calls, ",") != "round-b" {
 		t.Fatalf("after unregister roundIDs=%#v calls=%#v, want only round-b", roundIDs, calls)
+	}
+}
+
+func TestManagerAdoptGoalObjectiveRevision(t *testing.T) {
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	sessionKey := "agent:nexus:ws:dm:test-goal-revision"
+	var revisionA atomic.Int64
+	var revisionB atomic.Int64
+	revisionA.Store(2)
+	manager.RegisterGoalObjectiveRevision(sessionKey, "round-b", &revisionB)
+	manager.RegisterGoalObjectiveRevision(sessionKey, "round-a", &revisionA)
+
+	roundIDs := manager.AdoptGoalObjectiveRevision(sessionKey, 5)
+	if strings.Join(roundIDs, ",") != "round-a" {
+		t.Fatalf("roundIDs = %#v, want only authorized round-a", roundIDs)
+	}
+	if revisionA.Load() != 5 || revisionB.Load() != 0 {
+		t.Fatalf("revisions = (%d, %d), want authorized 5 and unbound 0", revisionA.Load(), revisionB.Load())
+	}
+
+	revisionB.Store(1)
+	roundIDs = manager.AdoptGoalObjectiveRevision(sessionKey, 6)
+	if strings.Join(roundIDs, ",") != "round-a,round-b" || revisionA.Load() != 6 || revisionB.Load() != 6 {
+		t.Fatalf("authorized adoption roundIDs=%#v revisions=(%d, %d), want both 6", roundIDs, revisionA.Load(), revisionB.Load())
+	}
+
+	manager.RegisterGoalObjectiveRevision(sessionKey, "round-a", nil)
+	manager.MarkRoundFinished(sessionKey, "round-b")
+	if roundIDs = manager.AdoptGoalObjectiveRevision(sessionKey, 7); len(roundIDs) != 0 {
+		t.Fatalf("after unregister/finish roundIDs=%#v, want empty", roundIDs)
 	}
 }
 
@@ -2324,7 +2671,7 @@ func TestManagerGuidanceHookInjectsPostToolUseAdditionalContext(t *testing.T) {
 	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
 		t.Fatalf("创建 client 失败: %v", err)
 	}
-	manager.StartRound(sessionKey, "round-guide", func() {})
+	_ = manager.StartRound(context.Background(), sessionKey, "round-guide", func() {})
 
 	roundIDs, err := manager.QueueGuidanceInput(context.Background(), sessionKey, "round-guide-msg", "请优先检查日志")
 	if err != nil {
@@ -2363,7 +2710,7 @@ func TestManagerGuidanceHookInjectsContextualAdditionalContext(t *testing.T) {
 	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
 		t.Fatalf("创建 client 失败: %v", err)
 	}
-	manager.StartRound(sessionKey, "round-guide", func() {})
+	_ = manager.StartRound(context.Background(), sessionKey, "round-guide", func() {})
 
 	if _, err := manager.QueueContextualGuidanceInput(context.Background(), sessionKey, "goal-event-1", "goal", "Budget reached."); err != nil {
 		t.Fatalf("登记 Goal 上下文失败: %v", err)
@@ -2393,7 +2740,7 @@ func TestManagerContextualGuidanceRunsConsumedCallbackOnlyAtPostToolUse(t *testi
 	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
 		t.Fatal(err)
 	}
-	manager.StartRound(sessionKey, "round-recipient", func() {})
+	_ = manager.StartRound(context.Background(), sessionKey, "round-recipient", func() {})
 	consumed := false
 	if _, err := manager.QueueContextualGuidanceInputOnConsumed(
 		context.Background(),
@@ -2432,7 +2779,7 @@ func TestManagerContextualGuidanceWaitsForRuntimeAppliedAck(t *testing.T) {
 	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
 		t.Fatal(err)
 	}
-	manager.StartRound(sessionKey, "round-recipient", func() {})
+	_ = manager.StartRound(context.Background(), sessionKey, "round-recipient", func() {})
 	consumed := false
 	if _, err := manager.QueueContextualGuidanceInputOnConsumed(
 		context.Background(), sessionKey, "goal-event-retarget", "goal", "The objective changed.", func() { consumed = true },
@@ -2480,7 +2827,7 @@ func TestManagerCloseIdleSessionsClosesOnlyIdleClients(t *testing.T) {
 	if _, err := manager.GetOrCreate(context.Background(), recentKey, agentclient.Options{}); err != nil {
 		t.Fatalf("创建 recent client 失败: %v", err)
 	}
-	manager.StartRound(activeKey, "round-active", nil)
+	_ = manager.StartRound(context.Background(), activeKey, "round-active", nil)
 
 	manager.mu.Lock()
 	manager.sessions[idleKey].LastUsedAt = now.Add(-20 * time.Minute)
@@ -2542,7 +2889,7 @@ func TestManagerCloseOwnerSessionsClosesOnlyMatchingOwner(t *testing.T) {
 		}
 	}
 	roundCanceled := false
-	manager.StartRound("session-a-1", "round-a", func() {
+	_ = manager.StartRound(context.Background(), "session-a-1", "round-a", func() {
 		roundCanceled = true
 		manager.MarkRoundFinished("session-a-1", "round-a")
 	})
@@ -2571,8 +2918,8 @@ func TestManagerCloseOwnerSessionsClosesOnlyMatchingOwner(t *testing.T) {
 			manager.HasSession("session-b"),
 		)
 	}
-	if !slices.Equal(reaper.owners, []string{"owner-a"}) {
-		t.Fatalf("owner cgroup 回收调用=%v，want [owner-a]", reaper.owners)
+	if calls := reaper.ownerCalls(); !slices.Equal(calls, []string{"owner-a"}) {
+		t.Fatalf("owner cgroup 回收调用=%v，want [owner-a]", calls)
 	}
 }
 
@@ -2588,8 +2935,392 @@ func TestManagerCloseOwnerSessionsReapsOwnerWithoutTrackedSession(t *testing.T) 
 	if closed != 0 {
 		t.Fatalf("没有 tracked session 时 closed=%d，want 0", closed)
 	}
-	if !slices.Equal(reaper.owners, []string{"owner-orphan"}) {
-		t.Fatalf("owner cgroup 回收调用=%v，want [owner-orphan]", reaper.owners)
+	if calls := reaper.ownerCalls(); !slices.Equal(calls, []string{"owner-orphan"}) {
+		t.Fatalf("owner cgroup 回收调用=%v，want [owner-orphan]", calls)
+	}
+}
+
+func TestManagerOwnerReaperDoesNotBlockOtherOwners(t *testing.T) {
+	reaperStarted := make(chan string, 1)
+	releaseReaper := make(chan struct{})
+	reaper := &fakeOwnerProcessReaper{
+		started: reaperStarted,
+		release: releaseReaper,
+	}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	manager.SetOwnerProcessReaper(reaper)
+	ownerOptions := agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"},
+	}
+	if _, err := manager.GetOrCreate(context.Background(), "session-a", ownerOptions); err != nil {
+		t.Fatalf("创建 owner-a runtime 失败: %v", err)
+	}
+
+	closeResult := make(chan error, 1)
+	go func() {
+		_, err := manager.CloseOwnerSessions(context.Background(), "owner-a")
+		closeResult <- err
+	}()
+	if owner := <-reaperStarted; owner != "owner-a" {
+		t.Fatalf("reaper owner = %q, want owner-a", owner)
+	}
+
+	if _, err := manager.BeginClientStartup(context.Background(), "session-a-new", "owner-a"); !errors.Is(err, ErrRuntimeSessionClosing) {
+		t.Fatalf("owner-a fence 期间 BeginClientStartup() error = %v", err)
+	}
+	ownerBStartup := make(chan *ClientStartup, 1)
+	ownerBError := make(chan error, 1)
+	go func() {
+		startup, err := manager.BeginClientStartup(context.Background(), "session-b", "owner-b")
+		ownerBStartup <- startup
+		ownerBError <- err
+	}()
+	select {
+	case err := <-ownerBError:
+		startup := <-ownerBStartup
+		if err != nil {
+			t.Fatalf("owner-b startup 被 owner-a reaper 阻塞: %v", err)
+		}
+		startup.Close()
+	case <-time.After(time.Second):
+		t.Fatal("owner-a reaper 持有了全局 Manager 锁")
+	}
+	if manager.StartBackgroundTaskForOwner("session-a-background", "owner-a", func(context.Context) {}) {
+		t.Fatal("owner-a fence 期间不应登记后台任务")
+	}
+	ownerBTaskDone := make(chan struct{})
+	if !manager.StartBackgroundTaskForOwner("session-b-background", "owner-b", func(context.Context) {
+		close(ownerBTaskDone)
+	}) {
+		t.Fatal("owner-b 后台任务不应受 owner-a fence 影响")
+	}
+	<-ownerBTaskDone
+
+	close(releaseReaper)
+	if err := <-closeResult; err != nil {
+		t.Fatalf("CloseOwnerSessions() error = %v", err)
+	}
+	startup, err := manager.BeginClientStartup(context.Background(), "session-a-new", "owner-a")
+	if err != nil {
+		t.Fatalf("reaper 完成后 owner-a startup 仍被拒绝: %v", err)
+	}
+	startup.Close()
+}
+
+func TestManagerOwnerReaperWaitsForStaleStartup(t *testing.T) {
+	reaperStarted := make(chan string, 1)
+	releaseReaper := make(chan struct{})
+	reaper := &fakeOwnerProcessReaper{
+		started: reaperStarted,
+		release: releaseReaper,
+	}
+	factory := &fakeRuntimeFactory{clients: []*fakeRuntimeClient{{}}}
+	manager := NewManagerWithFactory(factory)
+	manager.SetOwnerProcessReaper(reaper)
+	startup, err := manager.BeginClientStartup(context.Background(), "session-a", "owner-a")
+	if err != nil {
+		t.Fatalf("BeginClientStartup() error = %v", err)
+	}
+
+	closeResult := make(chan error, 1)
+	go func() {
+		_, closeErr := manager.CloseOwnerSessions(context.Background(), "owner-a")
+		closeResult <- closeErr
+	}()
+	waitOwnerReapFence(t, manager, "owner-a")
+	select {
+	case owner := <-reaperStarted:
+		t.Fatalf("旧 startup 退出前 reaper 提前执行: %s", owner)
+	default:
+	}
+	options := agentclient.Options{Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"}}
+	if client, createErr := startup.GetOrCreateWithFactory(context.Background(), options, factory); !errors.Is(createErr, agentclient.ErrAborted) || client != nil {
+		t.Fatalf("旧 startup 未失效: client=%#v err=%v", client, createErr)
+	}
+	startup.Close()
+	if owner := <-reaperStarted; owner != "owner-a" {
+		t.Fatalf("reaper owner = %q, want owner-a", owner)
+	}
+	if factory.index != 0 {
+		t.Fatalf("失效 startup 调用了 factory: %d", factory.index)
+	}
+	close(releaseReaper)
+	if err := <-closeResult; err != nil {
+		t.Fatalf("CloseOwnerSessions() error = %v", err)
+	}
+}
+
+func TestManagerOwnerReaperWaitsForInflightConnect(t *testing.T) {
+	connectStarted := make(chan struct{}, 1)
+	releaseConnect := make(chan struct{})
+	client := &ownershipFenceClient{
+		connectStarted: connectStarted,
+		connectRelease: releaseConnect,
+	}
+	reaperStarted := make(chan string, 1)
+	reaper := &fakeOwnerProcessReaper{started: reaperStarted}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{client}})
+	manager.SetOwnerProcessReaper(reaper)
+	startup, err := manager.BeginClientStartup(context.Background(), "session-a", "owner-a")
+	if err != nil {
+		t.Fatalf("BeginClientStartup() error = %v", err)
+	}
+	options := agentclient.Options{Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"}}
+	if _, err = startup.GetOrCreateWithFactory(context.Background(), options, nil); err != nil {
+		startup.Close()
+		t.Fatalf("GetOrCreateWithFactory() error = %v", err)
+	}
+	connectResult := make(chan error, 1)
+	go func() {
+		connectResult <- startup.Connect(context.Background())
+	}()
+	<-connectStarted
+
+	closeResult := make(chan error, 1)
+	go func() {
+		_, closeErr := manager.CloseOwnerSessions(context.Background(), "owner-a")
+		closeResult <- closeErr
+	}()
+	waitOwnerReapFence(t, manager, "owner-a")
+	select {
+	case owner := <-reaperStarted:
+		t.Fatalf("in-flight Connect 退出前 reaper 提前执行: %s", owner)
+	default:
+	}
+
+	close(releaseConnect)
+	if err = <-connectResult; !errors.Is(err, agentclient.ErrAborted) {
+		startup.Close()
+		t.Fatalf("Connect() error = %v, want aborted", err)
+	}
+	startup.Close()
+	if owner := <-reaperStarted; owner != "owner-a" {
+		t.Fatalf("reaper owner = %q, want owner-a", owner)
+	}
+	if err = <-closeResult; err != nil {
+		t.Fatalf("CloseOwnerSessions() error = %v", err)
+	}
+}
+
+func TestManagerOwnerReaperCancelsInflightReconfigure(t *testing.T) {
+	reconfigureStarted := make(chan struct{})
+	client := &sdkClientAdapter{
+		session: &agentclient.Session{},
+		reconfigureSession: func(ctx context.Context, _ *agentclient.Session, _ agentclient.Options) error {
+			close(reconfigureStarted)
+			<-ctx.Done()
+			return ctx.Err()
+		},
+		closeSession: func(*agentclient.Session) error { return nil },
+	}
+	reaperStarted := make(chan string, 1)
+	manager := NewManager()
+	manager.SetOwnerProcessReaper(&fakeOwnerProcessReaper{started: reaperStarted})
+	const sessionKey = "session-a-reconfigure"
+	const ownerUserID = "owner-a"
+	ownerOptions := agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": ownerUserID},
+	}
+	manager.mu.Lock()
+	state := manager.ensureStateLocked(sessionKey)
+	state.Client = client
+	state.OwnerUserID = ownerUserID
+	state.RuntimeKind = agentclient.RuntimeNXS
+	manager.mu.Unlock()
+
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, ownerUserID)
+	if err != nil {
+		t.Fatalf("BeginClientStartup() error = %v", err)
+	}
+	reconfigureResult := make(chan error, 1)
+	go func() {
+		defer startup.Close()
+		_, configureErr := startup.GetOrCreateWithFactory(context.Background(), ownerOptions, nil)
+		reconfigureResult <- configureErr
+	}()
+	<-reconfigureStarted
+
+	closeResult := make(chan error, 1)
+	go func() {
+		_, closeErr := manager.CloseOwnerSessions(context.Background(), ownerUserID)
+		closeResult <- closeErr
+	}()
+	select {
+	case err := <-reconfigureResult:
+		if !errors.Is(err, agentclient.ErrAborted) {
+			t.Fatalf("Reconfigure() error = %v, want ErrAborted", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("owner Retire 未取消 in-flight Reconfigure")
+	}
+	select {
+	case owner := <-reaperStarted:
+		if owner != ownerUserID {
+			t.Fatalf("reaper owner = %q, want %q", owner, ownerUserID)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("startup 退出后 owner reaper 未启动")
+	}
+	if err := <-closeResult; err != nil {
+		t.Fatalf("CloseOwnerSessions() error = %v", err)
+	}
+}
+
+func TestManagerOwnerReaperWaitsForAllClosingSessions(t *testing.T) {
+	firstDisconnectStarted := make(chan struct{}, 1)
+	releaseFirstDisconnect := make(chan struct{})
+	firstClient := &ownershipFenceClient{
+		disconnectStarted: firstDisconnectStarted,
+		disconnectRelease: releaseFirstDisconnect,
+	}
+	secondClient := &ownershipFenceClient{}
+	reaperStarted := make(chan string, 1)
+	reaper := &fakeOwnerProcessReaper{started: reaperStarted}
+	manager := NewManagerWithFactory(&runtimeClientSequenceFactory{clients: []Client{
+		firstClient,
+		secondClient,
+	}})
+	manager.SetOwnerProcessReaper(reaper)
+	ownerOptions := agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"},
+	}
+	const firstSessionKey = "session-a-first-closing"
+	const secondSessionKey = "session-a-last-closing"
+	for _, sessionKey := range []string{firstSessionKey, secondSessionKey} {
+		if _, err := manager.GetOrCreate(context.Background(), sessionKey, ownerOptions); err != nil {
+			t.Fatalf("创建 %s runtime 失败: %v", sessionKey, err)
+		}
+	}
+
+	firstCloseResult := make(chan error, 1)
+	go func() {
+		firstCloseResult <- manager.CloseSession(context.Background(), firstSessionKey)
+	}()
+	<-firstDisconnectStarted
+
+	secondCloseResult := make(chan error, 1)
+	go func() {
+		secondCloseResult <- manager.CloseSession(context.Background(), secondSessionKey)
+	}()
+	if owner := <-reaperStarted; owner != "owner-a" {
+		t.Fatalf("reaper owner = %q, want owner-a", owner)
+	}
+	waitRuntimeSessionRemoved(t, manager, secondSessionKey)
+	if _, err := manager.BeginClientStartup(
+		context.Background(),
+		"session-a-after-close",
+		"owner-a",
+	); !errors.Is(err, ErrRuntimeSessionClosing) {
+		t.Fatalf("首个 closing session 未退出时 owner fence 提前释放: %v", err)
+	}
+	select {
+	case err := <-secondCloseResult:
+		t.Fatalf("首个 closing session 未退出时最后关闭提前返回: %v", err)
+	default:
+	}
+
+	close(releaseFirstDisconnect)
+	if err := <-firstCloseResult; err != nil {
+		t.Fatalf("首次 CloseSession() error = %v", err)
+	}
+	if err := <-secondCloseResult; err != nil {
+		t.Fatalf("末次 CloseSession() error = %v", err)
+	}
+	startup, err := manager.BeginClientStartup(
+		context.Background(),
+		"session-a-after-close",
+		"owner-a",
+	)
+	if err != nil {
+		t.Fatalf("全部 closing session 退出后 startup 仍被拒绝: %v", err)
+	}
+	startup.Close()
+}
+
+func TestManagerOwnerReaperDrainsStartupForClosingSession(t *testing.T) {
+	reaperStarted := make(chan string, 1)
+	reaper := &fakeOwnerProcessReaper{started: reaperStarted}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	manager.SetOwnerProcessReaper(reaper)
+	const sessionKey = "session-a-closing-startup"
+	ownerOptions := agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"},
+	}
+	if _, err := manager.GetOrCreate(context.Background(), sessionKey, ownerOptions); err != nil {
+		t.Fatalf("创建 owner runtime 失败: %v", err)
+	}
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "owner-a")
+	if err != nil {
+		t.Fatalf("BeginClientStartup() error = %v", err)
+	}
+
+	closeResult := make(chan error, 1)
+	go func() {
+		closeResult <- manager.CloseSession(context.Background(), sessionKey)
+	}()
+	waitOwnerReapFence(t, manager, "owner-a")
+	select {
+	case owner := <-reaperStarted:
+		startup.Close()
+		t.Fatalf("同 session 旧 startup drain 前 reaper 提前执行: %s", owner)
+	default:
+	}
+	if client, createErr := startup.GetOrCreateWithFactory(
+		context.Background(),
+		ownerOptions,
+		nil,
+	); !errors.Is(createErr, agentclient.ErrAborted) || client != nil {
+		startup.Close()
+		t.Fatalf("closing session 的旧 startup 未失效: client=%#v err=%v", client, createErr)
+	}
+	startup.Close()
+	if owner := <-reaperStarted; owner != "owner-a" {
+		t.Fatalf("reaper owner = %q, want owner-a", owner)
+	}
+	if err := <-closeResult; err != nil {
+		t.Fatalf("CloseSession() error = %v", err)
+	}
+}
+
+func TestManagerOwnerReaperCloseCurrentDoesNotWaitForCallingStartup(t *testing.T) {
+	reaper := &fakeOwnerProcessReaper{}
+	manager := NewManagerWithFactory(&fakeRuntimeFactory{client: &fakeRuntimeClient{}})
+	manager.SetOwnerProcessReaper(reaper)
+	const sessionKey = "session-a-close-current"
+	ownerOptions := agentclient.Options{
+		Env: map[string]string{"NEXUS_RUNTIME_USER_ID": "owner-a"},
+	}
+	startup, err := manager.BeginClientStartup(context.Background(), sessionKey, "owner-a")
+	if err != nil {
+		t.Fatalf("BeginClientStartup() error = %v", err)
+	}
+	defer startup.Close()
+	if _, err = startup.GetOrCreateWithFactory(context.Background(), ownerOptions, nil); err != nil {
+		t.Fatalf("GetOrCreateWithFactory() error = %v", err)
+	}
+	closed, err := startup.CloseCurrent(context.Background())
+	if err != nil || !closed {
+		t.Fatalf("CloseCurrent() closed=%v err=%v", closed, err)
+	}
+	if calls := reaper.ownerCalls(); !slices.Equal(calls, []string{"owner-a"}) {
+		t.Fatalf("owner cgroup 回收调用=%v，want [owner-a]", calls)
+	}
+}
+
+func waitOwnerReapFence(t *testing.T, manager *Manager, ownerUserID string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		manager.mu.RLock()
+		active := manager.ownerReapActiveLocked(ownerUserID)
+		manager.mu.RUnlock()
+		if active {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("owner %s reaper fence 未建立", ownerUserID)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 
@@ -2636,7 +3367,7 @@ func TestManagerCloseIdleSessionsCountsIdleFromRoundFinish(t *testing.T) {
 	if _, err := manager.GetOrCreate(context.Background(), sessionKey, agentclient.Options{}); err != nil {
 		t.Fatalf("创建 client 失败: %v", err)
 	}
-	manager.StartRound(sessionKey, "round-finish", nil)
+	_ = manager.StartRound(context.Background(), sessionKey, "round-finish", nil)
 
 	now = now.Add(20 * time.Minute)
 	manager.MarkRoundFinished(sessionKey, "round-finish")

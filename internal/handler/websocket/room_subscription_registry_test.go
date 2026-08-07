@@ -53,6 +53,50 @@ func TestRoomSubscriptionRegistryReplaysDurableEvents(t *testing.T) {
 	}
 }
 
+func TestRoomSubscriptionRegistryReplaysPendingInteractionAndDeliversResolution(t *testing.T) {
+	registry := newRoomSubscriptionRegistry(8)
+	ctx := context.Background()
+	requestID := "permission-reconnect"
+	request := protocol.NewEvent(protocol.EventTypePermissionRequest, map[string]any{
+		"request_id": requestID,
+	})
+	request.ConversationID = "conv-1"
+	request.DeliveryMode = protocol.DeliveryModeDurable
+	registry.Broadcast(ctx, "room-1", request)
+
+	reconnected := newFakeRoomRegistrySender("sender-reconnected")
+	lastSeenRoomSeq := int64(0)
+	if err := registry.SubscribeRoom(
+		ctx,
+		reconnected,
+		"room-1",
+		"",
+		&lastSeenRoomSeq,
+	); err != nil {
+		t.Fatalf("侧栏重连 subscribe_room 失败: %v", err)
+	}
+	replayed := readRoomRegistryEvent(t, reconnected.events)
+	if replayed.EventType != protocol.EventTypePermissionRequest || replayed.Data["request_id"] != requestID {
+		t.Fatalf("重连未重放待确认请求: %+v", replayed)
+	}
+	if replayed.RoomSeq == nil || *replayed.RoomSeq != 1 {
+		t.Fatalf("待确认重放 room_seq 不正确: %+v", replayed)
+	}
+
+	resolved := protocol.NewPermissionRequestResolvedEvent("room:group:conv-1", requestID, "answered")
+	resolved.ConversationID = "conv-1"
+	resolved.DeliveryMode = protocol.DeliveryModeDurable
+	registry.Broadcast(ctx, "room-1", resolved)
+	receivedResolution := readRoomRegistryEvent(t, reconnected.events)
+	if receivedResolution.EventType != protocol.EventTypePermissionRequestResolved ||
+		receivedResolution.Data["request_id"] != requestID {
+		t.Fatalf("重连后未收到待确认结束事件: %+v", receivedResolution)
+	}
+	if receivedResolution.RoomSeq == nil || *receivedResolution.RoomSeq != 2 {
+		t.Fatalf("待确认结束 room_seq 不正确: %+v", receivedResolution)
+	}
+}
+
 func TestRoomSubscriptionRegistryReplaysFromSnapshotBoundaryZero(t *testing.T) {
 	registry := newRoomSubscriptionRegistry(8)
 	ctx := context.Background()

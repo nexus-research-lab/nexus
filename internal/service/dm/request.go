@@ -510,17 +510,28 @@ func (e *dmChatExecution) applyHistoryRewrite(client runtimectx.Client) error {
 func (e *dmChatExecution) startRound() bool {
 	roundBase := contextWithExactOwner(context.WithoutCancel(e.ctx), e.agent.OwnerUserID)
 	roundCtx, cancel := context.WithCancel(roundBase)
-	if !e.service.runtime.StartRound(e.sessionKey, e.request.RoundID, cancel) {
+	if err := e.service.runtime.StartRound(roundCtx, e.sessionKey, e.request.RoundID, cancel); err != nil {
 		return false
 	}
 	e.roundCtx = roundCtx
+	roomID, conversationID := dmRoomPermissionRoute(e.sessionKey, e.session)
 	e.service.permission.BindSessionRoute(e.sessionKey, permissionctx.RouteContext{
 		DispatchSessionKey: e.sessionKey,
+		RoomID:             roomID,
+		ConversationID:     conversationID,
 		AgentID:            e.agent.AgentID,
 		RoundID:            e.request.RoundID,
 		AgentRoundID:       e.request.AgentRoundID,
 	})
 	return true
+}
+
+func dmRoomPermissionRoute(sessionKey string, session protocol.Session) (string, string) {
+	if dmRoomConversationID(protocol.ParseSessionKey(sessionKey)) == "" {
+		return "", ""
+	}
+	return strings.TrimSpace(dmdomain.StringPointerValue(session.RoomID)),
+		strings.TrimSpace(dmdomain.StringPointerValue(session.ConversationID))
 }
 
 func (e *dmChatExecution) registerRunner() {

@@ -25,7 +25,10 @@ function parsePathPoints(pathData) {
 }
 
 test("种子头像对同一 Skill 标识保持稳定", async () => {
-  const { getSeededAvatarAppearance } = await server.ssrLoadModule(
+  const {
+    getSeededAvatarAppearance,
+    getSeededAvatarDataUrl,
+  } = await server.ssrLoadModule(
     "/src/lib/seeded-avatar.ts",
   );
 
@@ -35,6 +38,40 @@ test("种子头像对同一 Skill 标识保持稳定", async () => {
   assert.match(first.backgroundColor, /^#[0-9A-F]{6}$/);
   assert.match(first.foregroundColor, /^#[0-9A-F]{6}$/);
   assert.match(first.pathData, /^M\d+\.\d{2} \d+\.\d{2}( L\d+\.\d{2} \d+\.\d{2})+$/);
+  assert.equal(
+    getSeededAvatarDataUrl("Image Generation"),
+    getSeededAvatarDataUrl(" image generation "),
+  );
+  assert.match(
+    getSeededAvatarDataUrl("Image Generation"),
+    /^data:image\/svg\+xml,/,
+  );
+});
+
+test("子智能体入口与详情复用 Skill 曲线头像身份", async () => {
+  const [entry, list, thread, execution] = await Promise.all([
+    "src/features/conversation/shared/message/blocks/tool/subagent-task-tool-entry.tsx",
+    "src/features/conversation/shared/subagent/subagent-task-list.tsx",
+    "src/features/conversation/shared/subagent/thread/subagent-task-thread-view.tsx",
+    "src/features/conversation/shared/execution/execution-process-model.ts",
+  ].map((file) => readFile(path.join(webRoot, file), "utf8")));
+
+  assert.match(entry, /h-9 w-60 max-w-full/);
+  assert.match(entry, /UiSeededAvatar/);
+  assert.match(entry, /seed=\{toolUse\.id\}/);
+  assert.match(entry, /size="2xs"/);
+  assert.match(
+    entry,
+    /<UiSeededAvatar[\s\S]*?<span className="min-w-0 flex-1 truncate">[\s\S]*?data-subagent-task-status/,
+  );
+  assert.match(list, /UiSeededAvatar/);
+  assert.match(list, /seed=\{subagentTaskAvatarSeed\(task\)\}/);
+  assert.doesNotMatch(list, /rounded-full|SUBAGENT_AVATAR_PALETTE/);
+  assert.match(
+    thread,
+    /getSeededAvatarDataUrl\(subagentTaskAvatarSeed\(model\.task\)\)/,
+  );
+  assert.match(execution, /getSeededAvatarDataUrl\(identity\)/);
 });
 
 test("常见 Skill 名称能生成各自独立且非运行时随机的曲线", async () => {

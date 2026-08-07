@@ -10,7 +10,7 @@
 //   - catalog_mutation.go / catalog_publish.go：owner catalog 持久单调 version/CAS、
 //     typed reconcile、旧目录备份与 DB/FS 原子发布补偿。
 //   - marketplace_*.go：外部 marketplace 检索、预览、来源配置、staging 导入与单项/批量更新；
-//     Git / URL / skills.sh 提供 expected version 对话入口，批量写按项推进 version 并检测部分完成，
+//     Git / URL / skills.sh / 私有 JSON 注册表提供 expected version 对话入口，私有 Bearer 凭据保持加密，批量写按项推进 version 并检测部分完成，
 //     upload/local path 保持 human-only。
 //   - frontmatter.go / model_skill.go：frontmatter 解析、正文投影、技能模型、AgentSkillState，
 //     以及不进入用户目录/手动绑定的内部角色配置 Skill 名单。

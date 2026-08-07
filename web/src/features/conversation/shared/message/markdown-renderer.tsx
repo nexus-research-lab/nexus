@@ -102,7 +102,6 @@ export function MarkdownRenderer({
     <div
       className={cn(
         MARKDOWN_BODY_CLASS_NAME,
-        shouldRenderStreaming && "animate-in fade-in-0",
         className,
       )}
     >

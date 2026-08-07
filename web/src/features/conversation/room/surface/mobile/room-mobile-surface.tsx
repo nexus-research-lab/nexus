@@ -72,7 +72,6 @@ interface RoomMobileSurfaceProps {
     path: string | null,
     workspaceAgentId?: string | null,
   ) => void;
-  onReplayTour?: () => void;
   onRoomEvent?: (eventType: string, data: RoomEventPayload) => void;
   onSaveAgentOptions: (
     agentId: string,
@@ -123,7 +122,6 @@ export function RoomMobileSurface({
   onManageRoom,
   onOpenMemberManager,
   onOpenWorkspaceFile,
-  onReplayTour,
   onRoomEvent,
   onSaveAgentOptions,
   onSelectConversation,
@@ -144,6 +142,11 @@ export function RoomMobileSurface({
   const [isConversationSwitcherOpen, setIsConversationSwitcherOpen] = useState(false);
   const [memberDialogRoomId, setMemberDialogRoomId] = useState<string | null>(null);
   const [openSubagentSource, setOpenSubagentSource] = useState<SubagentTaskSource | null>(null);
+  const [subagentRequest, setSubagentRequest] = useState({
+    hostAgentId: null as string | null,
+    key: 0,
+    toolUseId: null as string | null,
+  });
   const isDm = currentRoomType === "dm";
   const workgraphAvailable = hasManagedExecutionGraph(
     executionResource.execution,
@@ -172,11 +175,32 @@ export function RoomMobileSurface({
   ) => {
     if (tab === "subagents") {
       setActiveAuxiliaryTab(null);
+      setSubagentRequest((current) => ({
+        hostAgentId: null,
+        key: current.key + 1,
+        toolUseId: null,
+      }));
       setOpenSubagentSource(subagentTaskSource);
       return;
     }
     setOpenSubagentSource(null);
     setActiveAuxiliaryTab(tab);
+  };
+  const handleOpenSubagentTask = (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => {
+    const normalizedToolUseId = toolUseId.trim();
+    if (!normalizedToolUseId || !subagentTaskSource) {
+      return;
+    }
+    setActiveAuxiliaryTab(null);
+    setSubagentRequest((current) => ({
+      hostAgentId: hostAgentId?.trim() || null,
+      key: current.key + 1,
+      toolUseId: normalizedToolUseId,
+    }));
+    setOpenSubagentSource(subagentTaskSource);
   };
   const handleOpenWorkspaceFile = (
     path: string | null,
@@ -206,6 +230,9 @@ export function RoomMobileSurface({
       onCreateConversation={onCreateConversation}
       onExecutionTaskRunsChange={onExecutionTaskRunsChange}
       onInitialDraftConsumed={onInitialDraftConsumed}
+      onOpenSubagentTask={subagentTaskSource
+        ? handleOpenSubagentTask
+        : undefined}
       onOpenWorkGraph={() => handleOpenAuxiliaryTab("workgraph")}
       onOpenWorkspaceFile={handleOpenWorkspaceFile}
       onRoomEvent={onRoomEvent}
@@ -248,7 +275,6 @@ export function RoomMobileSurface({
                 ? () => void handleOpenMemberList()
                 : undefined}
               onOpenAuxiliaryTab={handleOpenAuxiliaryTab}
-              onReplayTour={onReplayTour}
             />
           </>
         )}
@@ -277,6 +303,9 @@ export function RoomMobileSurface({
         currentAgentId={currentAgent.agent_id}
         onClose={() => setOpenSubagentSource(null)}
         onOpenWorkspaceFile={handleOpenWorkspaceFile}
+        requestKey={subagentRequest.key}
+        requestedHostAgentId={subagentRequest.hostAgentId}
+        requestedTaskToolUseId={subagentRequest.toolUseId}
         roomMembers={roomMembers}
         source={openSubagentSource === subagentTaskSource
           ? openSubagentSource

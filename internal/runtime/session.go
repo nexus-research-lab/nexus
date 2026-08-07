@@ -18,6 +18,7 @@ type ClientStartup struct {
 	manager            *Manager
 	sessionKey         string
 	gate               *sessionStartupGate
+	ownerLease         *ownerStartupLease
 	closeEpoch         uint64
 	release            func()
 	expectedState      *sessionState
@@ -28,19 +29,28 @@ type ClientStartup struct {
 // ClientLease 标识一次已经成功取得 client 的启动代次。
 // 它只用于条件关闭，防止旧操作误伤同一 adapter 上的新连接。
 type ClientLease struct {
-	manager    *Manager
-	sessionKey string
-	state      *sessionState
-	client     Client
-	generation uint64
+	manager     *Manager
+	sessionKey  string
+	state       *sessionState
+	client      Client
+	generation  uint64
+	ownerUserID string
 }
 
 // BeginClientStartup 获取 session key 级启动事务；等待过程响应 ctx 取消。
-func (m *Manager) BeginClientStartup(ctx context.Context, sessionKey string) (*ClientStartup, error) {
-	return m.beginClientStartup(ctx, sessionKey)
+func (m *Manager) BeginClientStartup(
+	ctx context.Context,
+	sessionKey string,
+	ownerUserID string,
+) (*ClientStartup, error) {
+	return m.beginClientStartup(ctx, sessionKey, ownerUserID)
 }
 
-func (m *Manager) beginClientStartup(ctx context.Context, sessionKey string) (*ClientStartup, error) {
+func (m *Manager) beginClientStartup(
+	ctx context.Context,
+	sessionKey string,
+	ownerUserID string,
+) (*ClientStartup, error) {
 	if m == nil {
 		return nil, agentclient.ErrNotConnected
 	}
@@ -51,8 +61,14 @@ func (m *Manager) beginClientStartup(ctx context.Context, sessionKey string) (*C
 		return nil, err
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
+	ownerUserID = strings.TrimSpace(ownerUserID)
 
 	m.mu.Lock()
+	ownerLease, err := m.beginOwnerStartupLocked(ownerUserID, sessionKey)
+	if err != nil {
+		m.mu.Unlock()
+		return nil, err
+	}
 	if m.startupGates == nil {
 		m.startupGates = make(map[string]*sessionStartupGate)
 	}
@@ -63,8 +79,9 @@ func (m *Manager) beginClientStartup(ctx context.Context, sessionKey string) (*C
 		m.startupGates[sessionKey] = gate
 	}
 	if gate.closeBlocks > 0 {
+		m.releaseOwnerStartupLocked(ownerLease)
 		m.mu.Unlock()
-		return nil, errRuntimeSessionClosing
+		return nil, ErrRuntimeSessionClosing
 	}
 	gate.refs++
 	closeEpoch := gate.closeEpoch
@@ -72,7 +89,7 @@ func (m *Manager) beginClientStartup(ctx context.Context, sessionKey string) (*C
 
 	select {
 	case <-ctx.Done():
-		m.releaseClientStartup(sessionKey, gate, false)
+		m.releaseClientStartup(sessionKey, gate, ownerLease, false)
 		return nil, ctx.Err()
 	case <-gate.token:
 	}
@@ -80,22 +97,29 @@ func (m *Manager) beginClientStartup(ctx context.Context, sessionKey string) (*C
 		manager:    m,
 		sessionKey: sessionKey,
 		gate:       gate,
+		ownerLease: ownerLease,
 		closeEpoch: closeEpoch,
 	}
 	m.mu.RLock()
-	valid := m.startupGates[sessionKey] == gate && gate.closeEpoch == closeEpoch
+	valid := m.startupGates[sessionKey] == gate && gate.closeEpoch == closeEpoch &&
+		m.validateOwnerStartupLocked(ownerLease) == nil
 	m.mu.RUnlock()
 	if !valid {
-		m.releaseClientStartup(sessionKey, gate, true)
+		m.releaseClientStartup(sessionKey, gate, ownerLease, true)
 		return nil, agentclient.ErrAborted
 	}
 	startup.release = func() {
-		m.releaseClientStartup(sessionKey, gate, true)
+		m.releaseClientStartup(sessionKey, gate, ownerLease, true)
 	}
 	return startup, nil
 }
 
-func (m *Manager) releaseClientStartup(sessionKey string, gate *sessionStartupGate, held bool) {
+func (m *Manager) releaseClientStartup(
+	sessionKey string,
+	gate *sessionStartupGate,
+	ownerLease *ownerStartupLease,
+	held bool,
+) {
 	if m == nil || gate == nil {
 		return
 	}
@@ -103,6 +127,7 @@ func (m *Manager) releaseClientStartup(sessionKey string, gate *sessionStartupGa
 	if held && m.startupGates[sessionKey] == gate {
 		m.removeClientlessSessionIfIdleLocked(sessionKey, nil, gate)
 	}
+	m.releaseOwnerStartupLocked(ownerLease)
 	gate.refs--
 	if gate.refs == 0 && m.startupGates[sessionKey] == gate {
 		delete(m.startupGates, sessionKey)
@@ -170,7 +195,7 @@ func (s *ClientStartup) validateCloseEpochLocked() error {
 		s.gate == nil || s.gate.closeEpoch != s.closeEpoch {
 		return agentclient.ErrAborted
 	}
-	return nil
+	return s.manager.validateOwnerStartupLocked(s.ownerLease)
 }
 
 // SessionKey 返回当前事务归一化后的 session key。
@@ -183,7 +208,7 @@ func (s *ClientStartup) SessionKey() string {
 
 // GetOrCreate 获取或创建 client，并在复用时应用最新运行时配置。
 func (m *Manager) GetOrCreate(ctx context.Context, sessionKey string, options agentclient.Options) (Client, error) {
-	startup, err := m.BeginClientStartup(ctx, sessionKey)
+	startup, err := m.BeginClientStartup(ctx, sessionKey, runtimeOwnerUserID(options))
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +226,7 @@ func (m *Manager) GetOrCreateWithFactory(
 	options agentclient.Options,
 	factory Factory,
 ) (Client, error) {
-	startup, err := m.BeginClientStartup(ctx, sessionKey)
+	startup, err := m.BeginClientStartup(ctx, sessionKey, runtimeOwnerUserID(options))
 	if err != nil {
 		return nil, err
 	}
@@ -269,6 +294,17 @@ func (m *Manager) getOrCreateWithFactory(
 	ownerUserID := runtimeOwnerUserID(options)
 	agentID := runtimeSessionAgentID(sessionKey)
 	processPolicyFingerprint := managedRuntimeProcessPolicyFingerprint(options)
+	startupOwnerUserID := ""
+	if startup.ownerLease != nil {
+		startupOwnerUserID = startup.ownerLease.ownerUserID
+	}
+	if startupOwnerUserID != ownerUserID {
+		return nil, nil, fmt.Errorf(
+			"runtime startup owner mismatch: startup=%s requested=%s",
+			startupOwnerUserID,
+			ownerUserID,
+		)
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
@@ -286,7 +322,7 @@ func (m *Manager) getOrCreateWithFactory(
 		state := m.sessions[sessionKey]
 		if state != nil && state.Closing {
 			m.mu.Unlock()
-			return nil, state, errRuntimeSessionClosing
+			return nil, state, ErrRuntimeSessionClosing
 		}
 		if state != nil && runtimeOwnerMismatch(state.OwnerUserID, ownerUserID) {
 			existingOwnerUserID := state.OwnerUserID
@@ -323,7 +359,7 @@ func (m *Manager) getOrCreateWithFactory(
 			case expectedState != nil && current != expectedState:
 				ownershipErr = agentclient.ErrAborted
 			case current != nil && current.Closing:
-				ownershipErr = errRuntimeSessionClosing
+				ownershipErr = ErrRuntimeSessionClosing
 			case current != nil && runtimeOwnerMismatch(current.OwnerUserID, ownerUserID):
 				ownershipErr = fmt.Errorf(
 					"runtime session owner mismatch: existing=%s requested=%s",
@@ -389,7 +425,7 @@ func (m *Manager) getOrCreateWithFactory(
 			return nil, state, agentclient.ErrAborted
 		case current.Closing:
 			m.mu.Unlock()
-			return nil, state, errRuntimeSessionClosing
+			return nil, state, ErrRuntimeSessionClosing
 		case current.Client != existing:
 			m.mu.Unlock()
 			continue
@@ -492,7 +528,7 @@ func (m *Manager) runtimeClientAdmissionErrorLocked(sessionKey string, client Cl
 		return agentclient.ErrNotConnected
 	}
 	if state.Closing {
-		return errRuntimeSessionClosing
+		return ErrRuntimeSessionClosing
 	}
 	return nil
 }
@@ -557,7 +593,7 @@ func (m *Manager) replaceRuntimeClient(
 	case state != expectedState:
 		ownershipErr = agentclient.ErrAborted
 	case state.Closing:
-		ownershipErr = errRuntimeSessionClosing
+		ownershipErr = ErrRuntimeSessionClosing
 	case state.Client != stale:
 		ownershipErr = errRuntimeClientChanged
 	}
@@ -567,15 +603,21 @@ func (m *Manager) replaceRuntimeClient(
 		return nil, ownershipErr
 	}
 	stale.Retire()
+	drain := state.IdleMessageDrain
+	if drain != nil {
+		drain.cancel()
+	}
 	m.mu.Unlock()
 
 	disconnectCtx, cancel := context.WithTimeout(context.Background(), RoundIdleAbortTimeout)
 	disconnectErr := stale.Disconnect(disconnectCtx)
 	cancel()
-	if errors.Is(disconnectErr, context.Canceled) || errors.Is(disconnectErr, context.DeadlineExceeded) {
+	idleDrainErr := waitIdleMessageDrain(ctx, drain)
+	if errors.Is(disconnectErr, context.Canceled) || errors.Is(disconnectErr, context.DeadlineExceeded) ||
+		idleDrainErr != nil {
 		retireUnusedRuntimeClient(next)
 		m.finishRetiredSessionCloseWhenDone(sessionKey, expectedState, stale)
-		return nil, disconnectErr
+		return nil, errors.Join(disconnectErr, idleDrainErr)
 	}
 	if err := ctx.Err(); err != nil {
 		retireUnusedRuntimeClient(next)
@@ -595,7 +637,7 @@ func (m *Manager) replaceRuntimeClient(
 	case state != expectedState:
 		ownershipErr = agentclient.ErrAborted
 	case state.Closing:
-		ownershipErr = errRuntimeSessionClosing
+		ownershipErr = ErrRuntimeSessionClosing
 	case state.Client != stale:
 		ownershipErr = errRuntimeClientChanged
 	default:
@@ -792,7 +834,7 @@ func runtimeClientOwnershipError(state *sessionState, expectedState *sessionStat
 	case state == nil || state.Client != expected:
 		return errRuntimeClientChanged
 	case state.Closing:
-		return errRuntimeSessionClosing
+		return ErrRuntimeSessionClosing
 	default:
 		return nil
 	}
@@ -826,11 +868,12 @@ func (m *Manager) CaptureClientLease(sessionKey string, expected Client) (Client
 		return ClientLease{}, false
 	}
 	lease := ClientLease{
-		manager:    m,
-		sessionKey: sessionKey,
-		state:      state,
-		client:     expected,
-		generation: state.StartupGeneration,
+		manager:     m,
+		sessionKey:  sessionKey,
+		state:       state,
+		client:      expected,
+		generation:  state.StartupGeneration,
+		ownerUserID: state.OwnerUserID,
 	}
 	m.mu.RUnlock()
 	return lease, true
@@ -841,7 +884,7 @@ func (m *Manager) CloseSessionIfLease(ctx context.Context, lease ClientLease) (b
 	if m == nil || lease.manager != m || lease.client == nil || lease.state == nil {
 		return false, nil
 	}
-	startup, err := m.beginClientStartup(ctx, lease.sessionKey)
+	startup, err := m.beginClientStartup(ctx, lease.sessionKey, lease.ownerUserID)
 	if err != nil {
 		return false, err
 	}
@@ -854,6 +897,7 @@ func (m *Manager) CloseSessionIfLease(ctx context.Context, lease ClientLease) (b
 		lease.generation,
 		true,
 		false,
+		startup.ownerLease,
 	)
 }
 
@@ -890,7 +934,7 @@ func (m *Manager) CloseSession(ctx context.Context, sessionKey string) error {
 		return nil
 	}
 	sessionKey = strings.TrimSpace(sessionKey)
-	_, err := m.closeSession(ctx, sessionKey, nil, nil, 0, false, true)
+	_, err := m.closeSession(ctx, sessionKey, nil, nil, 0, false, true, nil)
 	return err
 }
 
@@ -910,6 +954,7 @@ func (s *ClientStartup) CloseCurrent(ctx context.Context) (bool, error) {
 		s.expectedGeneration,
 		true,
 		false,
+		s.ownerLease,
 	)
 	if closed {
 		s.expectedState = nil
@@ -970,20 +1015,23 @@ func (m *Manager) retireCurrentClient(
 		return false, ownershipErr
 	}
 	expected.Retire()
-	if expectedState.IdleMessageCancel != nil {
+	drain := expectedState.IdleMessageDrain
+	if drain != nil {
 		// idle drain 只读取旧 client；先取消，但由 drain defer 清字段，确保
 		// 空 state 只会在 goroutine 真正退出后回收。
-		expectedState.IdleMessageCancel()
+		drain.cancel()
 	}
 	m.mu.Unlock()
 
 	disconnectErr := expected.Disconnect(ctx)
-	if errors.Is(disconnectErr, context.Canceled) || errors.Is(disconnectErr, context.DeadlineExceeded) {
-		m.finishRetiredClientResetWhenDone(sessionKey, expectedState, expected, expectedGeneration)
-		return true, disconnectErr
+	idleDrainErr := waitIdleMessageDrain(ctx, drain)
+	if errors.Is(disconnectErr, context.Canceled) || errors.Is(disconnectErr, context.DeadlineExceeded) ||
+		idleDrainErr != nil {
+		m.finishRetiredClientResetWhenDone(sessionKey, expectedState, expected, expectedGeneration, drain)
+		return true, errors.Join(disconnectErr, idleDrainErr)
 	}
 	m.clearRetiredClient(sessionKey, expectedState, expected, expectedGeneration)
-	return true, disconnectErr
+	return true, errors.Join(disconnectErr, idleDrainErr)
 }
 
 func (m *Manager) finishRetiredClientResetWhenDone(
@@ -991,9 +1039,11 @@ func (m *Manager) finishRetiredClientResetWhenDone(
 	expectedState *sessionState,
 	expected Client,
 	expectedGeneration uint64,
+	drain *idleMessageDrain,
 ) {
 	go func() {
 		_ = expected.Disconnect(context.Background())
+		_ = waitIdleMessageDrain(context.Background(), drain)
 		m.clearRetiredClient(sessionKey, expectedState, expected, expectedGeneration)
 	}()
 }
@@ -1033,6 +1083,7 @@ func (m *Manager) closeSession(
 	expectedGeneration uint64,
 	conditional bool,
 	blockStartups bool,
+	excludedOwnerStartup *ownerStartupLease,
 ) (bool, error) {
 	sessionKey = strings.TrimSpace(sessionKey)
 	if sessionKey == "" {
@@ -1063,35 +1114,42 @@ func (m *Manager) closeSession(
 		m.mu.Unlock()
 		return closeDone != nil, waitSessionClose(ctx, closeDone)
 	}
-	reaperErr := m.reapOwnerIfLastLocked(ctx, target.ownerUserID)
+	reapPlan, reapFlight := m.beginOwnerReapLocked(
+		target.ownerUserID,
+		excludedOwnerStartup,
+		false,
+	)
 	m.mu.Unlock()
 
 	cancelSessionCloseTarget(target)
+	m.startOwnerReap(reapPlan)
 
 	var disconnectErr error
 	if target.client != nil {
 		disconnectErr = target.client.Disconnect(ctx)
 	}
+	idleDrainErr := waitIdleMessageDrain(ctx, target.idleMessageDrain)
 	waitBackgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
 	waitRoundErr := waitRoundDoneForClose(ctx, target.roundDone)
 	clientCleanupPending := errors.Is(disconnectErr, context.Canceled) ||
 		errors.Is(disconnectErr, context.DeadlineExceeded)
-	if clientCleanupPending || waitRoundErr != nil || waitBackgroundErr != nil {
+	if clientCleanupPending || idleDrainErr != nil || waitRoundErr != nil || waitBackgroundErr != nil {
 		// context 可能先于后台写盘任务结束；即使 round 已退出，也不能
 		// 删除 session 状态；client cleanup 也必须保留同一生命周期栅栏。
 		m.finishSessionCloseWhenDone(target, clientCleanupPending)
 	} else {
 		m.finishSessionClose(target)
 	}
-	return true, errors.Join(reaperErr, disconnectErr, waitBackgroundErr, waitRoundErr)
+	reaperErr := waitOwnerReap(ctx, reapFlight)
+	return true, errors.Join(reaperErr, disconnectErr, idleDrainErr, waitBackgroundErr, waitRoundErr)
 }
 
 func cancelSessionCloseTarget(target *sessionCloseTarget) {
 	if target == nil {
 		return
 	}
-	if target.idleMessageCancel != nil {
-		target.idleMessageCancel()
+	if target.idleMessageDrain != nil {
+		target.idleMessageDrain.cancel()
 	}
 	for _, cancel := range target.roundCancels {
 		if cancel != nil {

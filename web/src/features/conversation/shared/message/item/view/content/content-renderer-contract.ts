@@ -22,6 +22,10 @@ export interface ContentRendererProps {
   fallbackActivityState?: MessageActivityState | null;
   hiddenToolNames?: readonly string[];
   isStreaming?: boolean;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   pendingInteractionOwner?: PendingInteractionOwner;

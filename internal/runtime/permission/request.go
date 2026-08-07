@@ -1,5 +1,5 @@
 // INPUT: runtime 权限请求、session route 与当前 pending 集合。
-// OUTPUT: 可阻塞等待响应，并按过期时间和请求身份稳定重放的 pending 生命周期。
+// OUTPUT: 可阻塞等待响应，向 round/Room 投影状态并按请求身份稳定重放的 pending 生命周期。
 // POS: runtime permission 的请求登记、重连恢复与响应收口入口。
 package permission
 
@@ -39,6 +39,7 @@ type PendingRequest struct {
 	ConfigurationSecretSlots []secretinput.Slot
 	ToolUseID                string
 	Suggestions              []sdkpermission.Update
+	CreatedAt                time.Time
 	ExpiresAt                time.Time
 	Route                    RouteContext
 	ResponseCh               chan sdkpermission.Decision
@@ -62,6 +63,7 @@ func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Req
 		),
 		ToolUseID:   strings.TrimSpace(request.ToolUseID),
 		Suggestions: slices.Clone(request.PermissionSuggestions),
+		CreatedAt:   now,
 		ExpiresAt:   now.Add(c.requestTimeout),
 		Route:       route,
 		ResponseCh:  make(chan sdkpermission.Decision, 1),
@@ -92,15 +94,47 @@ func (c *Context) replayPendingRequestsToSender(sessionKey string, sender Sender
 	}
 	c.mu.RUnlock()
 
-	slices.SortFunc(requests, func(left, right *PendingRequest) int {
-		if order := left.ExpiresAt.Compare(right.ExpiresAt); order != 0 {
-			return order
-		}
-		return strings.Compare(left.RequestID, right.RequestID)
-	})
+	slices.SortFunc(requests, comparePendingRequests)
 	for _, pending := range requests {
 		c.dispatchPendingRequestToSender(pending, sender)
 	}
+}
+
+// PendingRequestIDsForRoom 返回 Room 订阅恢复所需的权威人工交互快照。
+// conversationID 为空时覆盖整个 Room，否则只返回指定会话。
+func (c *Context) PendingRequestIDsForRoom(roomID string, conversationID string) []string {
+	roomID = strings.TrimSpace(roomID)
+	conversationID = strings.TrimSpace(conversationID)
+	if roomID == "" {
+		return []string{}
+	}
+
+	c.mu.RLock()
+	requests := make([]*PendingRequest, 0)
+	for _, pending := range c.pendingRequests {
+		if strings.TrimSpace(pending.Route.RoomID) != roomID {
+			continue
+		}
+		if conversationID != "" && strings.TrimSpace(pending.Route.ConversationID) != conversationID {
+			continue
+		}
+		requests = append(requests, pending)
+	}
+	c.mu.RUnlock()
+
+	slices.SortFunc(requests, comparePendingRequests)
+	requestIDs := make([]string, 0, len(requests))
+	for _, pending := range requests {
+		requestIDs = append(requestIDs, pending.RequestID)
+	}
+	return requestIDs
+}
+
+func comparePendingRequests(left *PendingRequest, right *PendingRequest) int {
+	if order := left.CreatedAt.Compare(right.CreatedAt); order != 0 {
+		return order
+	}
+	return strings.Compare(left.RequestID, right.RequestID)
 }
 
 func (c *Context) dispatchPendingRequest(pending *PendingRequest) {
@@ -110,7 +144,7 @@ func (c *Context) dispatchPendingRequest(pending *PendingRequest) {
 	event := buildPermissionEvent(pending)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = c.BroadcastEvent(ctx, pending.DispatchSessionKey, event)
+	c.broadcastPermissionEvent(ctx, pending, event)
 }
 
 func (c *Context) dispatchPendingRequestToSender(pending *PendingRequest, sender Sender) {
@@ -125,7 +159,10 @@ func (c *Context) dispatchPendingRequestToSender(pending *PendingRequest, sender
 
 func (c *Context) cleanupRequest(requestID string) {
 	c.mu.Lock()
-	delete(c.pendingRequests, requestID)
+	if _, ok := c.pendingRequests[requestID]; ok {
+		delete(c.pendingRequests, requestID)
+		c.notifyPendingRequestsChangedLocked()
+	}
 	c.mu.Unlock()
 }
 
@@ -259,6 +296,22 @@ func (c *Context) dispatchPermissionResolution(pending *PendingRequest, status s
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	c.broadcastPermissionEvent(ctx, pending, event)
+}
+
+func (c *Context) broadcastPermissionEvent(
+	ctx context.Context,
+	pending *PendingRequest,
+	event protocol.EventMessage,
+) {
+	c.mu.RLock()
+	broadcaster := c.roomBroadcaster
+	c.mu.RUnlock()
+	if broadcaster != nil && strings.TrimSpace(pending.Route.RoomID) != "" {
+		roomEvent := event
+		roomEvent.DeliveryMode = protocol.DeliveryModeDurable
+		_ = broadcaster.Broadcast(ctx, pending.Route.RoomID, roomEvent)
+	}
 	_ = c.BroadcastEvent(ctx, pending.DispatchSessionKey, event)
 }
 

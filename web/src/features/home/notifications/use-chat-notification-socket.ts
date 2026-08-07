@@ -10,12 +10,14 @@ import { getAgentWsUrl } from "@/config/runtime-endpoints";
 import {
   pruneRoomActivity,
   replaceRoomActivitySnapshot,
+  replaceRoomInteractionSnapshot,
   updateRoomActivity,
+  updateRoomInteraction,
 } from "@/features/home/room-activity-resource";
 import { parseConversationMessage } from "@/lib/conversation/message-protocol";
 import { notifyRoomDirectoryUpdated } from "@/lib/conversation/room-directory-events";
 import { notifySessionRuntimeSettingsUpdated } from "@/lib/conversation/session-runtime-settings-events";
-import { readString } from "@/lib/unknown-value";
+import { isStringArray, readString } from "@/lib/unknown-value";
 import { useAppEventSubscription, useWebSocket } from "@/lib/websocket";
 import { parseEventMessage } from "@/lib/websocket/protocol/event-message";
 import { useAgentStore } from "@/store/agent";
@@ -139,6 +141,24 @@ function syncRoomActivity(
     return;
   }
 
+  if (event.event_type === "permission_request") {
+    updateRoomInteraction(
+      roomId,
+      readString(event.data, "request_id"),
+      true,
+    );
+    return;
+  }
+
+  if (event.event_type === "permission_request_resolved") {
+    updateRoomInteraction(
+      roomId,
+      readString(event.data, "request_id"),
+      false,
+    );
+    return;
+  }
+
   if (event.event_type === "round_status") {
     const roundId = readString(event.data, "round_id") ?? event.round_id;
     updateRoomActivity(roomId, roundId, readString(event.data, "status"));
@@ -156,6 +176,19 @@ function syncRoomActivity(
     return;
   }
 
+  if (
+    event.event_type === "chat_ack"
+    && event.data.pending_interaction_snapshot === true
+  ) {
+    replaceRoomInteractionSnapshot(
+      roomId,
+      isStringArray(event.data.pending_interaction_request_ids)
+        ? event.data.pending_interaction_request_ids
+        : [],
+    );
+    return;
+  }
+
   if (event.event_type !== "chat_ack" || event.data.pending_snapshot !== true) {
     return;
   }
@@ -164,6 +197,9 @@ function syncRoomActivity(
     roomId,
     readString(event.data, "round_id") ?? event.round_id,
     pending.length > 0,
+    isStringArray(event.data.pending_interaction_request_ids)
+      ? event.data.pending_interaction_request_ids
+      : [],
   );
 }
 

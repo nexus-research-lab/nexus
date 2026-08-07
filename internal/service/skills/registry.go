@@ -49,7 +49,8 @@ func externalOriginKind(sourceKind string) string {
 		externalSourceKindClawhub,
 		externalSourceKindHermesIndex,
 		externalSourceKindBrowseSh,
-		externalSourceKindWellKnown:
+		externalSourceKindWellKnown,
+		externalSourceKindPrivateRegistry:
 		return originKindMarketplace
 	default:
 		return originKindUserImport
@@ -107,6 +108,8 @@ func (s *Service) buildExternalRecordFromEntity(
 		SourceKey:      record.SourceID,
 		SourceName:     record.SourceName,
 		SourceTrust:    record.SourceTrust,
+		SourceSkillID:  record.SourceSkillID,
+		ArtifactSHA256: record.ArtifactSHA256,
 		ImportMode:     record.ImportMode,
 		Recommendation: record.Recommendation,
 		GitURL:         record.GitURL,
@@ -238,6 +241,8 @@ func (s *Service) importedSkillEntity(
 		SourceRef:      manifest.SourceRef,
 		SourceName:     manifest.SourceName,
 		SourceTrust:    firstNonEmpty(manifest.SourceTrust, externalSourceTrustCommunity),
+		SourceSkillID:  manifest.SourceSkillID,
+		ArtifactSHA256: manifest.ArtifactSHA256,
 		ImportMode:     manifest.ImportMode,
 		GitURL:         manifest.GitURL,
 		GitBranch:      manifest.GitBranch,

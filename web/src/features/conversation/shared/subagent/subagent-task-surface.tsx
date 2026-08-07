@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import type { SubagentTaskSource } from "@/types/conversation/subagent-task";
 
 import { SubagentTaskList } from "./subagent-task-list";
 import { filterSubagentTasksByHostAgent } from "./subagent-task-list-model";
-import { subagentTaskSourceKey } from "./subagent-task-model";
+import {
+  findSubagentTaskByToolUseId,
+  subagentTaskSourceKey,
+} from "./subagent-task-model";
 import { SubagentTaskThread } from "./thread/subagent-task-thread";
 import { useSubagentTasks } from "./use-subagent-tasks";
 
@@ -16,6 +25,8 @@ interface SubagentTaskSurfaceProps {
   layout?: "desktop" | "mobile";
   onClose: () => void;
   onOpenWorkspaceFile?: (path: string, workspaceAgentId?: string | null) => void;
+  requestKey?: number;
+  requestedTaskToolUseId?: string | null;
   source: SubagentTaskSource;
 }
 
@@ -25,6 +36,8 @@ export function SubagentTaskSurface({
   layout = "desktop",
   onClose,
   onOpenWorkspaceFile,
+  requestKey = 0,
+  requestedTaskToolUseId,
   source,
 }: SubagentTaskSurfaceProps) {
   const sourceKey = subagentTaskSourceKey(source);
@@ -36,6 +49,8 @@ export function SubagentTaskSurface({
       layout={layout}
       onClose={onClose}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
+      requestKey={requestKey}
+      requestedTaskToolUseId={requestedTaskToolUseId}
       source={source}
     />
   );
@@ -47,9 +62,12 @@ function SubagentTaskSourceSurface({
   layout = "desktop",
   onClose,
   onOpenWorkspaceFile,
+  requestKey = 0,
+  requestedTaskToolUseId,
   source,
 }: SubagentTaskSurfaceProps) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const handledRequestKeyRef = useRef(0);
   const {
     data,
     error,
@@ -64,6 +82,26 @@ function SubagentTaskSourceSurface({
   const selectedTask = visibleTasks.find(
     (task) => task.task_id === selectedTaskId,
   ) ?? null;
+
+  useEffect(() => {
+    const requestedToolUseId = requestedTaskToolUseId?.trim() ?? "";
+    if (
+      requestKey <= 0
+      || !requestedToolUseId
+      || handledRequestKeyRef.current === requestKey
+    ) {
+      return;
+    }
+    const requestedTask = findSubagentTaskByToolUseId(
+      visibleTasks,
+      requestedToolUseId,
+    );
+    if (!requestedTask) {
+      return;
+    }
+    handledRequestKeyRef.current = requestKey;
+    setSelectedTaskId(requestedTask.task_id);
+  }, [requestKey, requestedTaskToolUseId, visibleTasks]);
 
   useEffect(() => {
     if (selectedTaskId && data && !selectedTask) {

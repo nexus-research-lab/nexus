@@ -7,6 +7,98 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+func TestProcessorProjectsSystemTasksFromTypedPayload(t *testing.T) {
+	systemTaskID := func(message map[string]any) string {
+		metadata := mapValue(message["metadata"])
+		return normalizeString(metadata["task_id"])
+	}
+	assistantTaskID := func(message map[string]any) string {
+		blocks, _ := message["content"].([]map[string]any)
+		if len(blocks) == 0 {
+			return ""
+		}
+		return normalizeString(blocks[len(blocks)-1]["task_id"])
+	}
+	tests := []struct {
+		name       string
+		system     *sdkprotocol.SystemMessage
+		wantRole   string
+		taskIDFrom func(map[string]any) string
+	}{
+		{
+			name: "started",
+			system: &sdkprotocol.SystemMessage{
+				Subtype:     "task_started",
+				Data:        map[string]any{"task_id": "raw-task"},
+				TaskStarted: &sdkprotocol.TaskStartedMessage{TaskID: "typed-task", Description: "开始执行"},
+			},
+			wantRole:   "system",
+			taskIDFrom: systemTaskID,
+		},
+		{
+			name: "progress",
+			system: &sdkprotocol.SystemMessage{
+				Subtype:      "task_progress",
+				Data:         map[string]any{"task_id": "raw-task"},
+				TaskProgress: &sdkprotocol.TaskProgressMessage{TaskID: "typed-task", Summary: "正在执行"},
+			},
+			wantRole:   "assistant",
+			taskIDFrom: assistantTaskID,
+		},
+		{
+			name: "notification",
+			system: &sdkprotocol.SystemMessage{
+				Subtype:          "task_notification",
+				Data:             map[string]any{"task_id": "raw-task"},
+				TaskNotification: &sdkprotocol.TaskNotificationMessage{TaskID: "typed-task", Status: "completed"},
+			},
+			wantRole:   "system",
+			taskIDFrom: systemTaskID,
+		},
+		{
+			name: "updated",
+			system: &sdkprotocol.SystemMessage{
+				Subtype: "task_updated",
+				Data: map[string]any{
+					"task_id": "raw-task",
+					"patch":   map[string]any{"status": "failed"},
+				},
+				TaskUpdated: &sdkprotocol.TaskUpdatedMessage{
+					TaskID: "typed-task",
+					Status: "completed",
+					Patch:  sdkprotocol.TaskUpdatedPatch{Status: "completed"},
+				},
+			},
+			wantRole:   "system",
+			taskIDFrom: systemTaskID,
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			processor := NewProcessor(MessageContext{
+				SessionKey: "agent:nexus:ws:dm:test",
+				AgentID:    "nexus",
+				RoundID:    "round-system-task-" + testCase.name,
+			}, "sdk-session-task")
+			output := processor.Process(sdkprotocol.ReceivedMessage{
+				Type:   sdkprotocol.MessageTypeSystem,
+				System: testCase.system,
+			})
+			if len(output.DurableMessages) != 1 || len(output.EphemeralMessages) != 0 {
+				t.Fatalf("output = %#v, want one durable task message", output)
+			}
+			message := output.DurableMessages[0]
+			if message["role"] != testCase.wantRole {
+				t.Fatalf("role = %#v, want %q", message["role"], testCase.wantRole)
+			}
+			if taskID := testCase.taskIDFrom(message); taskID != "typed-task" {
+				t.Fatalf("task_id = %q, want typed-task; message=%+v", taskID, message)
+			}
+		})
+	}
+}
+
 func TestProcessorPreservesMemorySavedSystemEvent(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",
@@ -97,33 +189,31 @@ func TestProcessorDoesNotPersistApiRetrySystemMessage(t *testing.T) {
 	}
 }
 
-func TestProcessorNormalizesSystemAPIErrorMessage(t *testing.T) {
+func TestProcessorProjectsCanonicalAPIRetryMessage(t *testing.T) {
 	processor := NewProcessor(MessageContext{
 		SessionKey: "agent:nexus:ws:dm:test",
 		AgentID:    "nexus",
-		RoundID:    "round-api-error",
-		ParentID:   "round-api-error",
-	}, "sdk-session-api-error")
+		RoundID:    "round-api-retry-canonical",
+		ParentID:   "round-api-retry-canonical",
+	}, "sdk-session-api-retry-canonical")
 
 	output := processor.Process(sdkprotocol.ReceivedMessage{
 		Type:    sdkprotocol.MessageTypeSystem,
-		Subtype: "api_error",
+		Subtype: "api_retry",
 		System: &sdkprotocol.SystemMessage{
-			Subtype: "api_error",
+			Subtype: "api_retry",
 			Data: map[string]any{
-				"retryAttempt": 4,
-				"maxRetries":   11,
-				"retryInMs":    3000,
-				"error": map[string]any{
-					"status": 529,
-					"type":   "overloaded_error",
-				},
+				"attempt":        4,
+				"max_retries":    11,
+				"retry_delay_ms": 3000,
+				"error_status":   529,
+				"error":          "rate_limit",
 			},
 		},
 	})
 
 	if len(output.DurableMessages) != 0 || len(output.EphemeralMessages) != 1 {
-		t.Fatalf("api_error 应只生成 ephemeral 消息: %+v", output)
+		t.Fatalf("api_retry 应只生成 ephemeral 消息: %+v", output)
 	}
 	message := output.EphemeralMessages[0]
 	if message["content"] != "模型请求暂时受限，正在自动重试。" {

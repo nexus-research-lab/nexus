@@ -221,6 +221,9 @@ func (s *Service) importExternalSkill(
 	item ExternalSkillSearchItem,
 	expectedVersion *int64,
 ) (*Detail, error) {
+	if strings.TrimSpace(item.SourceKind) == externalSourceKindPrivateRegistry {
+		return nil, errors.New("私有来源必须通过 source_id 和 skill_id 导入")
+	}
 	mode := normalizeImportMode(firstNonEmpty(item.ImportMode, inferExternalImportMode(item)))
 	manifest := externalManifest{
 		Name:           externalItemSkillName(item),

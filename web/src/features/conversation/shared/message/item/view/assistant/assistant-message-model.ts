@@ -106,6 +106,10 @@ export interface AssistantContentEnvironment {
   canRespondToPermissions: boolean;
   hiddenToolNames: string[];
   mode: AssistantContentMode;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissionReadOnlyReason?: string;
@@ -126,6 +130,10 @@ export interface MessageAssistantSectionProps {
   currentAgentName?: string | null;
   hiddenToolNames: string[];
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse?: (payload: PermissionDecisionPayload) => boolean;
   permissionReadOnlyReason?: string;

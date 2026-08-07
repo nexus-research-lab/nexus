@@ -18,7 +18,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	runtimepermission "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/runtime/workspaceisolation"
-	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 )
 
 var agentSessionDeniedTools = []string{
@@ -75,7 +74,7 @@ type AgentClientOptionsInput struct {
 	ExtraEnv                   map[string]string
 	AgentSDKDiagnosticsEnabled bool
 	ToolSearchEnabled          bool
-	WebSearch                  preferencessvc.WebSearchSettings
+	WebSearch                  WebSearchConfig
 	RuntimeIsolationMode       string
 	RuntimeLauncherPath        string
 	// RuntimeIsolationRequired 是认证服务动态确认的部署边界；
@@ -133,7 +132,7 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, err
 	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, webSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 	// 身份与作用域是宿主授权事实，不能交给调用方的 ExtraEnv 覆盖。
 	// 必须在所有可配置环境合并后再次写入，确保 session metadata 和下游
@@ -220,6 +219,15 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, fmt.Errorf("装配 runtime workspace isolation: %w", err)
 	}
 	return options, runtimeConfig, nil
+}
+
+func cloneMCPServers(
+	current map[string]sdkmcp.ServerConfig,
+) map[string]sdkmcp.ServerConfig {
+	if len(current) == 0 {
+		return nil
+	}
+	return maps.Clone(current)
 }
 
 // resolveVisionRuntimeConfig 只为 nxs 解析用户明确选择的辅助视觉模型。
@@ -316,13 +324,4 @@ func resolveProviderRuntimeConfig(
 func runtimeSupportsAPIFormat(runtimeKind string, apiFormat string) bool {
 	profile := resolveRuntimeProfile(runtimeKind, os.Getenv)
 	return profile.supportsAPIFormat(apiFormat)
-}
-
-func cloneMCPServers(
-	current map[string]sdkmcp.ServerConfig,
-) map[string]sdkmcp.ServerConfig {
-	if len(current) == 0 {
-		return nil
-	}
-	return maps.Clone(current)
 }

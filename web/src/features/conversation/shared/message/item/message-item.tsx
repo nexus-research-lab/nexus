@@ -29,6 +29,7 @@ function MessageItemInner({
   pendingPermissions,
   onEditUserMessage,
   onOpenAgentContact,
+  onOpenSubagentTask,
   onOpenWorkspaceFile,
   onPermissionResponse,
   canRespondToPermissions = true,
@@ -94,6 +95,7 @@ function MessageItemInner({
         permissionReadOnlyReason={permissionReadOnlyReason}
         onPermissionResponse={onPermissionResponse}
         onOpenAgentContact={onOpenAgentContact}
+        onOpenSubagentTask={onOpenSubagentTask}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         workspaceAgentId={workspaceAgentId}
         unresolvedToolStatus={unresolvedToolStatus}

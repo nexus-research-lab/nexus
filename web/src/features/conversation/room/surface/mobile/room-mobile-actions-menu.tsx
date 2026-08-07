@@ -2,7 +2,6 @@
 
 import {
   Bot,
-  Compass,
   FolderTree,
   Info,
   MoreHorizontal,
@@ -27,7 +26,6 @@ interface RoomMobileActionsMenuProps {
   onCreateConversation: () => Promise<string | null>;
   onManageMembers?: () => void;
   onOpenAuxiliaryTab: (tab: RoomMobileAuxiliaryTab) => void;
-  onReplayTour?: () => void;
 }
 
 export function RoomMobileActionsMenu({
@@ -36,7 +34,6 @@ export function RoomMobileActionsMenu({
   onCreateConversation,
   onManageMembers,
   onOpenAuxiliaryTab,
-  onReplayTour,
 }: RoomMobileActionsMenuProps) {
   const { t } = useI18n();
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -74,11 +71,6 @@ export function RoomMobileActionsMenu({
       label: t("room.about"),
       value: "about",
     },
-    ...(onReplayTour ? [{
-      icon: <Compass className="h-4 w-4 text-(--icon-muted)" />,
-      label: t("common.view_guide"),
-      value: "guide",
-    }] : []),
   ];
 
   return (
@@ -109,10 +101,6 @@ export function RoomMobileActionsMenu({
           }
           if (value === "members") {
             onManageMembers?.();
-            return;
-          }
-          if (value === "guide") {
-            onReplayTour?.();
             return;
           }
           onOpenAuxiliaryTab(value as RoomMobileAuxiliaryTab);

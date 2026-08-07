@@ -10,7 +10,7 @@
 - `ui/` 只保留跨消息表面的头像、动作、轨道和统计；消息项私有视图不得上提到共享聚合文件。
 - `markdown-renderer.tsx` 只把消息文件产物协议适配到共享 Markdown；通用渲染能力归 `shared/ui/markdown/`。
 - `agent-handoff-status-context.tsx` 只桥接按 `handoff_id` 投影的 mention 阶段；状态真相仍属于 Room 面板，mention chip 只原位展示，不建立第二张 Agent 卡。
-- DM/Room pending interaction 的唯一操作 owner 都是 Composer：消息内容与 Thread 只保留中性、静态的等待确认过程证据，不得再次挂载权限、问答或计划确认组件，也不得用 warning 色或持续动画压过 Composer 决策按钮。
+- DM/Room pending interaction 的唯一操作 owner 都是 Composer：消息内容与 Thread 只保留中性的等待确认过程证据，不得再次挂载权限、问答或计划确认组件，也不得用 warning 色或容器动画压过 Composer 决策按钮；消息活动文案共用低对比流光提示，但必须在系统减少动态效果时静态回退。
 - 单消费者逻辑留在拥有它的 controller/view；禁止重新建立聚合 helper 或通过根 barrel 暴露内部模型。
 - `MessageItem` 由 `item/message-item.tsx` 直接公开，消费者不得绕回消息目录聚合出口。
 - 消息项控制器只返回按 User/Assistant 和视觉职责分组的具体状态；各视图在消费侧声明所需结构，不共享宽状态接口。

@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 
 import { ConversationThreadPanel } from "@/features/conversation/shared/thread/conversation-thread-panel";
 import type { ConversationThreadRound } from "@/features/conversation/shared/thread/conversation-thread-model";
+import { getSeededAvatarDataUrl } from "@/lib/seeded-avatar";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { Message } from "@/types/conversation/message/entity";
 import type {
@@ -14,7 +15,7 @@ import type {
 import { SubagentTaskAvatar } from "../subagent-task-list";
 import {
   isSubagentTaskActive,
-  subagentTaskAvatarDataUrl,
+  subagentTaskAvatarSeed,
   subagentTaskTitle,
 } from "../subagent-task-model";
 import type { SubagentTaskThreadError } from "./subagent-task-thread-model";
@@ -50,7 +51,7 @@ export function SubagentTaskThreadView({
 
   return (
     <ConversationThreadPanel
-      agentAvatar={subagentTaskAvatarDataUrl(model.task.task_id)}
+      agentAvatar={getSeededAvatarDataUrl(subagentTaskAvatarSeed(model.task))}
       agentId={model.task.agent_id ?? model.task.task_id}
       agentName={taskTitle}
       emptyContent={(
@@ -66,7 +67,7 @@ export function SubagentTaskThreadView({
           className="mt-0 h-7 w-7"
           isActive={isSubagentTaskActive(model.task)}
           name={taskTitle}
-          taskId={model.task.task_id}
+          seed={subagentTaskAvatarSeed(model.task)}
         />
       )}
       headerSubtitle={null}

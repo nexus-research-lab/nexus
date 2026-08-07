@@ -51,9 +51,18 @@ export interface ExternalSkillSearchController {
   query: string;
   results: ExternalSkillSearchItem[];
   setQuery: (query: string) => void;
+  setSourceId: (sourceId: string) => void;
+  sourceId: string;
   sourceStatuses: ExternalSkillSourceStatus[];
   submit: () => void;
   submittedQuery: string;
+}
+
+export interface PrivateSkillSourceDraft {
+  authType: "none" | "bearer";
+  name: string;
+  token: string;
+  url: string;
 }
 
 export interface ExternalSkillSourcesController {
@@ -63,6 +72,11 @@ export interface ExternalSkillSourcesController {
   managerOpen: boolean;
   openManager: () => void;
   revision: number;
+  remove: (source: ExternalSkillSourceInfo) => Promise<void>;
+  save: (
+    source: ExternalSkillSourceInfo | null,
+    draft: PrivateSkillSourceDraft,
+  ) => Promise<boolean>;
   toggle: (source: ExternalSkillSourceInfo, enabled: boolean) => Promise<void>;
 }
 

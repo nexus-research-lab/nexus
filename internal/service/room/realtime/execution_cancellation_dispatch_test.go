@@ -113,10 +113,10 @@ func TestExecutionCancellationUsesProviderForExactSoleRoomSlot(t *testing.T) {
 	client.onInterrupt = func() {
 		runtimeManager.MarkRoundFinished(runtimeSessionKey, agentRoundID)
 	}
-	if !runtimeManager.StartRound(runtimeSessionKey, agentRoundID, func() {
+	if err := runtimeManager.StartRound(context.Background(), runtimeSessionKey, agentRoundID, func() {
 		runtimeManager.MarkRoundFinished(runtimeSessionKey, agentRoundID)
-	}) {
-		t.Fatal("failed to register exact Room runtime round")
+	}); err != nil {
+		t.Fatalf("failed to register exact Room runtime round: %v", err)
 	}
 	service := &Service{
 		rounds:     newRoomRoundRegistry(),
@@ -251,19 +251,21 @@ func TestExecutionCancellationInterruptsExactOldRoomBindingOnly(t *testing.T) {
 	}
 	oldSlot.setCancel(oldCancel)
 	successorSlot.setCancel(successorCancel)
-	if !service.runtime.StartRound(
+	if err := service.runtime.StartRound(
+		context.Background(),
 		oldSlot.RuntimeSessionKey,
 		oldSlot.AgentRoundID,
 		oldCancel,
-	) {
-		t.Fatal("failed to register old runtime round")
+	); err != nil {
+		t.Fatalf("failed to register old runtime round: %v", err)
 	}
-	if !service.runtime.StartRound(
+	if err := service.runtime.StartRound(
+		context.Background(),
 		successorSlot.RuntimeSessionKey,
 		successorSlot.AgentRoundID,
 		successorCancel,
-	) {
-		t.Fatal("failed to register successor runtime round")
+	); err != nil {
+		t.Fatalf("failed to register successor runtime round: %v", err)
 	}
 	roundValue := &activeRoomRound{
 		SessionKey:     "room:group:conversation-1",

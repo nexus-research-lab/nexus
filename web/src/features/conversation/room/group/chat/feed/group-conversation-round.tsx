@@ -66,6 +66,7 @@ export function GroupConversationRound({
           agentNameMap={renderer.agentNameMap}
           messages={messages}
           onOpenAgentContact={renderer.onOpenAgentContact}
+          onOpenSubagentTask={renderer.onOpenSubagentTask}
           onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
           onPermissionResponse={renderer.onPermissionResponse}
           onStopAgentRound={renderer.onStopAgentRound}
@@ -97,6 +98,7 @@ function StandaloneConversationRound({
       isLastRound={state.isLast}
       messages={state.messages}
       onOpenAgentContact={renderer.onOpenAgentContact}
+      onOpenSubagentTask={renderer.onOpenSubagentTask}
       onOpenWorkspaceFile={renderer.onOpenWorkspaceFile}
       onPermissionResponse={renderer.onPermissionResponse}
       pendingPermissions={state.pendingPermissions}

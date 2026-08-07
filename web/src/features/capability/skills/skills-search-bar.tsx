@@ -27,10 +27,13 @@ interface SkillsSearchBarProps {
   discoveryMode: DiscoveryMode;
   externalLoading: boolean;
   externalQuery: string;
+  externalSourceId: string;
+  externalSources: Array<{ disabled?: boolean; label: string; value: string }>;
   onChangeCategory: (category: string) => void;
   onChangeCatalogQuery: (query: string) => void;
   onChangeDiscoveryMode: (mode: DiscoveryMode) => void;
   onChangeExternalQuery: (query: string) => void;
+  onChangeExternalSource: (sourceId: string) => void;
   onSubmitExternalSearch: () => void;
 }
 
@@ -41,10 +44,13 @@ export function SkillsSearchBar({
   discoveryMode,
   externalLoading,
   externalQuery,
+  externalSourceId,
+  externalSources,
   onChangeCategory,
   onChangeCatalogQuery,
   onChangeDiscoveryMode,
   onChangeExternalQuery,
+  onChangeExternalSource,
   onSubmitExternalSearch,
 }: SkillsSearchBarProps) {
   const { t } = useI18n();
@@ -144,7 +150,16 @@ export function SkillsSearchBar({
             tourAnchor={SKILLS_TOUR_ANCHORS.categories}
             value={activeCategory}
           />
-        ) : null}
+        ) : (
+          <CapabilityFilterSelect
+            ariaLabel={t("capability.skill_source_search_scope")}
+            className="sm:w-[176px]"
+            label={t("capability.skill_sources")}
+            onChange={onChangeExternalSource}
+            options={externalSources}
+            value={externalSourceId}
+          />
+        )}
       </div>
     </CapabilityFilterBar>
   );

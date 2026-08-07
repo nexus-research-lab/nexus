@@ -119,10 +119,23 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
                 discoveryMode={discoveryMode}
                 externalLoading={external.loading}
                 externalQuery={external.query}
+                externalSourceId={external.sourceId}
+                externalSources={[
+                  {
+                    label: t("capability.skills_external_all_sources"),
+                    value: "",
+                  },
+                  ...sources.items.map((source) => ({
+                    disabled: !source.enabled,
+                    label: source.name,
+                    value: source.source_id,
+                  })),
+                ]}
                 onChangeCategory={catalog.setActiveCategory}
                 onChangeCatalogQuery={catalog.setQuery}
                 onChangeDiscoveryMode={setDiscoveryMode}
                 onChangeExternalQuery={external.setQuery}
+                onChangeExternalSource={external.setSourceId}
                 onSubmitExternalSearch={external.submit}
               />
             </div>
@@ -135,7 +148,9 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
                   loading={external.loading}
                   onImport={(item) => void operations.importExternal(item)}
                   onPreview={(item) => void external.preview(item)}
+                  onSelectSource={(sourceId) => external.setSourceId(sourceId || "")}
                   results={external.results}
+                  selectedSourceKey={external.sourceId || null}
                   sourceStatuses={external.sourceStatuses}
                   sources={sources.items}
                   submittedQuery={external.submittedQuery}
@@ -188,6 +203,8 @@ export function SkillsDirectory({ onReplayTour }: SkillsDirectoryProps) {
         isOpen={sources.managerOpen}
         loading={sources.loading}
         onClose={sources.closeManager}
+        onDelete={(source) => void sources.remove(source)}
+        onSave={sources.save}
         onToggle={(source, enabled) => void sources.toggle(source, enabled)}
         sources={sources.items}
       />

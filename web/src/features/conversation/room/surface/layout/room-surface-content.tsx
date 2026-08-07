@@ -50,7 +50,6 @@ export function RoomSurfaceContent({
   onManageRoom,
   onOpenMemberManager,
   onOpenWorkspaceFile,
-  onReplayTour,
   onRoomEvent,
   onSaveAgentOptions,
   onSelectConversation,
@@ -106,7 +105,6 @@ export function RoomSurfaceContent({
               onDeleteConversation={onDeleteConversation}
               onManageRoom={onManageRoom}
               onOpenMemberManager={onOpenMemberManager}
-              onReplayTour={onReplayTour}
               onSelectConversation={onSelectConversation}
               onUpdateConversationTitle={onUpdateConversationTitle}
               roomAvatar={roomAvatar}
@@ -139,6 +137,9 @@ export function RoomSurfaceContent({
                   onExecutionTaskRunsChange={onExecutionTaskRunsChange}
                   onInitialDraftConsumed={onInitialDraftConsumed}
                   onOpenAgentContact={layout.handleOpenAgentContact}
+                  onOpenSubagentTask={layout.subagentTaskSource
+                    ? layout.handleOpenSubagentTask
+                    : undefined}
                   onOpenWorkGraph={() => layout.handleChangeSurfaceTab("workgraph")}
                   onOpenWorkspaceFile={onOpenWorkspaceFile}
                   onRoomEvent={onRoomEvent}
@@ -171,6 +172,7 @@ export function RoomSurfaceContent({
                 onValidateAgentName={onValidateAgentName}
                 roomId={roomId}
                 roomMembers={roomMembers}
+                subagentRequest={layout.subagentRequest}
                 subagentTaskSource={layout.subagentTaskSource}
               />
             ) : !isDm ? (

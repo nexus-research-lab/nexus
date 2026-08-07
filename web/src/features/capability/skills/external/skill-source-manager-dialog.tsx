@@ -1,23 +1,27 @@
 "use client";
 
-import { Database, Loader2 } from "lucide-react";
+import { Database, Loader2, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
 
-import { cn } from "@/shared/ui/class-name";
+import type { PrivateSkillSourceDraft } from "@/features/capability/skills/controller/skill-marketplace-controller";
 import {
   useI18n,
   type I18nContextValue,
 } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiButton, UiIconButton } from "@/shared/ui/button/button";
+import { cn } from "@/shared/ui/class-name";
 import { UiBadge } from "@/shared/ui/display/badge";
-import { UiButton } from "@/shared/ui/button/button";
 import {
   UiDialogBackdrop,
   UiDialogBody,
   UiDialogFooter,
+  UiDialogFormShell,
   UiDialogHeader,
   UiDialogPortal,
   UiDialogShell,
 } from "@/shared/ui/dialog/dialog";
+import { UiField, UiInput } from "@/shared/ui/form/form-control";
 import { GlassSwitch } from "@/shared/ui/liquid-glass/glass-switch";
 import type { ExternalSkillSourceInfo } from "@/types/capability/skill";
 
@@ -25,6 +29,11 @@ interface SkillSourceManagerDialogProps {
   isOpen: boolean;
   loading: boolean;
   onClose: () => void;
+  onDelete: (source: ExternalSkillSourceInfo) => void;
+  onSave: (
+    source: ExternalSkillSourceInfo | null,
+    draft: PrivateSkillSourceDraft,
+  ) => Promise<boolean>;
   onToggle: (source: ExternalSkillSourceInfo, enabled: boolean) => void;
   sources: ExternalSkillSourceInfo[];
 }
@@ -35,6 +44,7 @@ const SOURCE_KIND_LABELS: Record<string, string> = {
   clawhub: "clawhub.ai",
   git: "Git",
   hermes_index: "Hermes Index",
+  private_registry: "Private Registry",
   skills_sh: "skills.sh",
   url: "URL",
   well_known: "Well-known",
@@ -45,11 +55,22 @@ const SOURCE_KIND_DESCRIPTION_KEYS: Record<string, TranslationKey> = {
   claude_plugins: "capability.skill_source_description.claude_plugins",
   clawhub: "capability.skill_source_description.clawhub",
   hermes_index: "capability.skill_source_description.hermes_index",
+  private_registry: "capability.skill_source_description.private_registry",
   skills_sh: "capability.skill_source_description.skills_sh",
   well_known: "capability.skill_source_description.well_known",
 };
 
-function sourceKindLabel(kind: string): string {
+const EMPTY_PRIVATE_SOURCE_DRAFT: PrivateSkillSourceDraft = {
+  authType: "none",
+  name: "",
+  token: "",
+  url: "",
+};
+
+function sourceKindLabel(kind: string, t: I18nContextValue["t"]): string {
+  if (kind === "private_registry") {
+    return t("capability.skill_source_private");
+  }
   return SOURCE_KIND_LABELS[kind] || kind;
 }
 
@@ -67,20 +88,76 @@ export function SkillSourceManagerDialog({
   isOpen,
   loading,
   onClose,
+  onDelete,
+  onSave,
   onToggle,
   sources,
 }: SkillSourceManagerDialogProps) {
   const { t } = useI18n();
+  const [editingSource, setEditingSource] = useState<ExternalSkillSourceInfo | null>(null);
+  const [draft, setDraft] = useState<PrivateSkillSourceDraft>(EMPTY_PRIVATE_SOURCE_DRAFT);
+  const [editorOpen, setEditorOpen] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) return;
+    setEditingSource(null);
+    setDraft(EMPTY_PRIVATE_SOURCE_DRAFT);
+    setEditorOpen(false);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const sortedSources = [...sources].sort(
     (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name),
   );
+  const closeEditor = () => {
+    setEditingSource(null);
+    setDraft(EMPTY_PRIVATE_SOURCE_DRAFT);
+    setEditorOpen(false);
+  };
+  const openCreateEditor = () => {
+    setEditingSource(null);
+    setDraft(EMPTY_PRIVATE_SOURCE_DRAFT);
+    setEditorOpen(true);
+  };
+  const openEditEditor = (source: ExternalSkillSourceInfo) => {
+    setEditingSource(source);
+    setDraft({
+      authType: source.auth_type === "bearer" ? "bearer" : "none",
+      name: source.name,
+      token: "",
+      url: source.url,
+    });
+    setEditorOpen(true);
+  };
+  const submitForm = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!draft.name.trim() || !draft.url.trim()) return;
+    if (
+      draft.authType === "bearer"
+      && !draft.token.trim()
+      && !editingSource?.credential_configured
+    ) return;
+    if (await onSave(editingSource, draft)) closeEditor();
+  };
+
+  if (editorOpen) {
+    return (
+      <PrivateSourceEditorDialog
+        draft={draft}
+        editingSource={editingSource}
+        loading={loading}
+        onCancel={closeEditor}
+        onChange={setDraft}
+        onSubmit={submitForm}
+      />
+    );
+  }
 
   return (
     <UiDialogPortal>
       <UiDialogBackdrop className="z-[9999]" onClose={onClose}>
-        <UiDialogShell className="h-[76vh]" size="lg">
+        <UiDialogShell className="max-h-[min(68dvh,560px)]" size="lg">
           <UiDialogHeader
             icon={<Database className="h-4 w-4" />}
             onClose={onClose}
@@ -98,6 +175,13 @@ export function SkillSourceManagerDialog({
                 <SourceRow
                   key={source.source_id}
                   disabled={loading}
+                  onDelete={() => {
+                    if (window.confirm(t(
+                      "capability.skill_source_delete_confirm",
+                      { name: source.name },
+                    ))) onDelete(source);
+                  }}
+                  onEdit={() => openEditEditor(source)}
                   onToggle={(enabled) => onToggle(source, enabled)}
                   source={source}
                 />
@@ -110,6 +194,17 @@ export function SkillSourceManagerDialog({
           </UiDialogBody>
 
           <UiDialogFooter className="gap-2">
+            <UiButton
+              className="mr-auto"
+              disabled={loading}
+              onClick={openCreateEditor}
+              size="sm"
+              tone="primary"
+              variant="solid"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t("capability.skill_source_add")}
+            </UiButton>
             <UiButton
               disabled={loading}
               onClick={onClose}
@@ -127,11 +222,19 @@ export function SkillSourceManagerDialog({
 
 interface SourceRowProps {
   disabled: boolean;
+  onDelete: () => void;
+  onEdit: () => void;
   onToggle: (enabled: boolean) => void;
   source: ExternalSkillSourceInfo;
 }
 
-function SourceRow({ disabled, onToggle, source }: SourceRowProps) {
+function SourceRow({
+  disabled,
+  onDelete,
+  onEdit,
+  onToggle,
+  source,
+}: SourceRowProps) {
   const { t } = useI18n();
   return (
     <div
@@ -147,7 +250,14 @@ function SourceRow({ disabled, onToggle, source }: SourceRowProps) {
           <span className="truncate text-sm font-medium text-(--text-strong)">
             {source.name}
           </span>
-          <UiBadge size="xs">{sourceKindLabel(source.kind)}</UiBadge>
+          <UiBadge size="xs">{sourceKindLabel(source.kind, t)}</UiBadge>
+          {source.deletable ? (
+            <UiBadge size="xs">
+              {source.credential_configured
+                ? t("capability.skill_source_credential_configured")
+                : t("capability.skill_source_auth_none")}
+            </UiBadge>
+          ) : null}
           <UiBadge size="xs" tone={source.enabled ? "success" : "idle"}>
             {source.enabled
               ? t("capability.skill_source_state_enabled")
@@ -166,7 +276,30 @@ function SourceRow({ disabled, onToggle, source }: SourceRowProps) {
           </div>
         ) : null}
       </div>
-      <div className="shrink-0">
+      <div className="flex shrink-0 items-center gap-1">
+        {source.deletable ? (
+          <>
+            <UiIconButton
+              disabled={disabled}
+              onClick={onEdit}
+              size="sm"
+              title={t("capability.skill_source_edit")}
+              variant="ghost"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </UiIconButton>
+            <UiIconButton
+              disabled={disabled}
+              onClick={onDelete}
+              size="sm"
+              title={t("capability.skill_source_delete")}
+              tone="danger"
+              variant="ghost"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </UiIconButton>
+          </>
+        ) : null}
         <GlassSwitch
           aria-label={t("capability.skill_source_toggle", {
             name: source.name,
@@ -178,5 +311,159 @@ function SourceRow({ disabled, onToggle, source }: SourceRowProps) {
         />
       </div>
     </div>
+  );
+}
+
+interface PrivateSourceEditorDialogProps {
+  draft: PrivateSkillSourceDraft;
+  editingSource: ExternalSkillSourceInfo | null;
+  loading: boolean;
+  onCancel: () => void;
+  onChange: (draft: PrivateSkillSourceDraft) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}
+
+function PrivateSourceEditorDialog({
+  draft,
+  editingSource,
+  loading,
+  onCancel,
+  onChange,
+  onSubmit,
+}: PrivateSourceEditorDialogProps) {
+  const { t } = useI18n();
+  const updateDraft = <K extends keyof PrivateSkillSourceDraft>(
+    key: K,
+    value: PrivateSkillSourceDraft[K],
+  ) => onChange({ ...draft, [key]: value });
+  const canSubmit = Boolean(
+    draft.name.trim()
+    && draft.url.trim()
+    && (
+      draft.authType === "none"
+      || draft.token.trim()
+      || editingSource?.credential_configured
+    ),
+  );
+
+  return (
+    <UiDialogPortal>
+      <UiDialogBackdrop
+        className="z-[9999]"
+        closeOnBackdrop={!loading}
+        onClose={loading ? undefined : onCancel}
+      >
+        <UiDialogFormShell
+          className="max-h-[calc(100dvh-2rem)]"
+          onSubmit={onSubmit}
+          size="md"
+        >
+          <UiDialogHeader
+            icon={editingSource
+              ? <Pencil className="h-4 w-4" />
+              : <Plus className="h-4 w-4" />}
+            onClose={loading ? undefined : onCancel}
+            title={t(editingSource
+              ? "capability.skill_source_edit_title"
+              : "capability.skill_source_add_title")}
+          />
+          <UiDialogBody className="space-y-4" scrollable>
+            <UiField
+              htmlFor="private-skill-source-name"
+              label={t("capability.skill_source_name")}
+            >
+              <UiInput
+                data-autofocus="true"
+                disabled={loading}
+                id="private-skill-source-name"
+                onChange={(event) => updateDraft("name", event.target.value)}
+                placeholder={t("capability.skill_source_name_placeholder")}
+                required
+                value={draft.name}
+              />
+            </UiField>
+            <UiField
+              description={editingSource
+                ? t("capability.skill_source_url_immutable")
+                : t("capability.skill_source_url_description")}
+              htmlFor="private-skill-source-url"
+              label={t("capability.skill_source_url")}
+            >
+              <UiInput
+                disabled={loading || Boolean(editingSource)}
+                id="private-skill-source-url"
+                onChange={(event) => updateDraft("url", event.target.value)}
+                placeholder="https://skills.example.com/registry"
+                required
+                type="url"
+                value={draft.url}
+              />
+            </UiField>
+            <UiField label={t("capability.skill_source_auth_type")}>
+              <div className="flex flex-wrap gap-1.5">
+                {(["none", "bearer"] as const).map((authType) => (
+                  <UiButton
+                    disabled={loading}
+                    key={authType}
+                    onClick={() => updateDraft("authType", authType)}
+                    size="sm"
+                    tone={draft.authType === authType ? "primary" : undefined}
+                    variant={draft.authType === authType ? "solid" : "surface"}
+                  >
+                    {t(authType === "none"
+                      ? "capability.skill_source_auth_none"
+                      : "capability.skill_source_auth_bearer")}
+                  </UiButton>
+                ))}
+              </div>
+            </UiField>
+            {draft.authType === "bearer" ? (
+              <UiField
+                description={editingSource?.credential_configured
+                  ? t("capability.skill_source_token_keep")
+                  : t("capability.skill_source_token_description")}
+                htmlFor="private-skill-source-token"
+                label={t("capability.skill_source_token")}
+              >
+                <UiInput
+                  autoComplete="new-password"
+                  disabled={loading}
+                  id="private-skill-source-token"
+                  onChange={(event) => updateDraft("token", event.target.value)}
+                  placeholder={editingSource?.credential_configured ? "••••••••" : "token"}
+                  required={!editingSource?.credential_configured}
+                  type="password"
+                  value={draft.token}
+                />
+              </UiField>
+            ) : null}
+          </UiDialogBody>
+          <UiDialogFooter className="gap-2">
+            <UiButton
+              disabled={loading}
+              onClick={onCancel}
+              size="sm"
+              variant="surface"
+            >
+              {t("common.cancel")}
+            </UiButton>
+            <UiButton
+              disabled={loading || !canSubmit}
+              size="sm"
+              tone="primary"
+              type="submit"
+              variant="solid"
+            >
+              {loading
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Save className="h-3.5 w-3.5" />}
+              {t(editingSource
+                ? "capability.skill_source_validate_and_save"
+                : "capability.skill_source_validate_and_add")}
+            </UiButton>
+          </UiDialogFooter>
+        </UiDialogFormShell>
+      </UiDialogBackdrop>
+    </UiDialogPortal>
   );
 }

@@ -42,6 +42,7 @@ type Config struct {
 	SkillsSourceURLs                 string
 	SkillsDefaultSourcesEnabled      bool
 	SkillsAPISearchLimit             int
+	SkillsPrivateSourceAllowedHosts  []string
 	DatabaseDriver                   string
 	DatabaseURL                      string
 	AccessToken                      string
@@ -165,7 +166,10 @@ func Load() Config {
 		SkillsSourceURLs:            getEnv("SKILLS_SOURCE_URLS", ""),
 		SkillsDefaultSourcesEnabled: mustBool(getEnv("SKILLS_DEFAULT_SOURCES_ENABLED", "true")),
 		SkillsAPISearchLimit:        parseIntEnv(getEnv("SKILLS_API_SEARCH_LIMIT", "20"), 20),
-		DatabaseDriver:              getEnv("DATABASE_DRIVER", "sqlite"),
+		SkillsPrivateSourceAllowedHosts: mustStringList(
+			getEnv("SKILLS_PRIVATE_SOURCE_ALLOWED_HOSTS", ""),
+		),
+		DatabaseDriver: getEnv("DATABASE_DRIVER", "sqlite"),
 		DatabaseURL: normalizeLegacyDatabaseURL(
 			getEnv("DATABASE_URL", filepath.Join(appRoot, "data", "nexus.db")),
 			stateRoot,

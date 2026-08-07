@@ -46,17 +46,17 @@ func TestManagerInterruptRoundCancelsOnlyExactOldRound(t *testing.T) {
 	attachExactInterruptClient(manager, sessionKey, client)
 	oldCancelled := false
 	successorCancelled := false
-	if !manager.StartRound(sessionKey, "round-old", func() {
+	if err := manager.StartRound(context.Background(), sessionKey, "round-old", func() {
 		oldCancelled = true
 		manager.MarkRoundFinished(sessionKey, "round-old")
-	}) {
-		t.Fatal("failed to start old round")
+	}); err != nil {
+		t.Fatalf("failed to start old round: %v", err)
 	}
-	if !manager.StartRound(sessionKey, "round-successor", func() {
+	if err := manager.StartRound(context.Background(), sessionKey, "round-successor", func() {
 		successorCancelled = true
 		manager.MarkRoundFinished(sessionKey, "round-successor")
-	}) {
-		t.Fatal("failed to start successor round")
+	}); err != nil {
+		t.Fatalf("failed to start successor round: %v", err)
 	}
 
 	result, err := manager.InterruptRound(
@@ -100,11 +100,11 @@ func TestManagerInterruptRoundUsesProviderOnlyForSoleRunningRound(t *testing.T) 
 	manager := NewManager()
 	sessionKey := "agent:worker:ws:dm:cancel-provider"
 	localCancelled := false
-	if !manager.StartRound(sessionKey, "round-old", func() {
+	if err := manager.StartRound(context.Background(), sessionKey, "round-old", func() {
 		localCancelled = true
 		manager.MarkRoundFinished(sessionKey, "round-old")
-	}) {
-		t.Fatal("failed to start target")
+	}); err != nil {
+		t.Fatalf("failed to start target: %v", err)
 	}
 	client := &exactInterruptTestClient{fakeRuntimeClient: &fakeRuntimeClient{}}
 	client.onInterrupt = func() {
@@ -134,11 +134,11 @@ func TestManagerInterruptRoundRecordsLocalFallbackAfterProviderFailure(t *testin
 	manager := NewManager()
 	sessionKey := "agent:worker:ws:dm:cancel-provider-failure"
 	localCancelled := false
-	if !manager.StartRound(sessionKey, "round-old", func() {
+	if err := manager.StartRound(context.Background(), sessionKey, "round-old", func() {
 		localCancelled = true
 		manager.MarkRoundFinished(sessionKey, "round-old")
-	}) {
-		t.Fatal("failed to start target")
+	}); err != nil {
+		t.Fatalf("failed to start target: %v", err)
 	}
 	client := &exactInterruptTestClient{
 		fakeRuntimeClient: &fakeRuntimeClient{},
@@ -171,13 +171,13 @@ func TestManagerInterruptRoundRefusesUnsafeProviderFallbackWithoutLocalCancel(t 
 	sessionKey := "agent:worker:ws:dm:cancel-no-local-target"
 	client := &exactInterruptTestClient{fakeRuntimeClient: &fakeRuntimeClient{}}
 	attachExactInterruptClient(manager, sessionKey, client)
-	if !manager.StartRound(sessionKey, "round-without-cancel", nil) {
-		t.Fatal("failed to start target")
+	if err := manager.StartRound(context.Background(), sessionKey, "round-without-cancel", nil); err != nil {
+		t.Fatalf("failed to start target: %v", err)
 	}
-	if !manager.StartRound(sessionKey, "round-successor", func() {
+	if err := manager.StartRound(context.Background(), sessionKey, "round-successor", func() {
 		manager.MarkRoundFinished(sessionKey, "round-successor")
-	}) {
-		t.Fatal("failed to start successor")
+	}); err != nil {
+		t.Fatalf("failed to start successor: %v", err)
 	}
 	result, err := manager.InterruptRound(
 		context.Background(),
@@ -203,10 +203,10 @@ func TestManagerInterruptRoundRefusesUnsafeProviderFallbackWithoutLocalCancel(t 
 func TestManagerInterruptRoundFencesConcurrentSuccessorStart(t *testing.T) {
 	manager := NewManager()
 	sessionKey := "agent:worker:ws:dm:cancel-provider-race"
-	if !manager.StartRound(sessionKey, "round-old", func() {
+	if err := manager.StartRound(context.Background(), sessionKey, "round-old", func() {
 		manager.MarkRoundFinished(sessionKey, "round-old")
-	}) {
-		t.Fatal("failed to start target")
+	}); err != nil {
+		t.Fatalf("failed to start target: %v", err)
 	}
 	client := &exactInterruptTestClient{
 		fakeRuntimeClient: &fakeRuntimeClient{},
@@ -231,10 +231,12 @@ func TestManagerInterruptRoundFencesConcurrentSuccessorStart(t *testing.T) {
 	}()
 	<-client.entered
 	successorRejected := false
-	if manager.StartRound(sessionKey, "round-successor", func() {
+	if err := manager.StartRound(context.Background(), sessionKey, "round-successor", func() {
 		successorRejected = true
-	}) {
+	}); err == nil {
 		t.Fatal("successor started during provider interrupt fence")
+	} else if !errors.Is(err, ErrRuntimeProviderInterruptInProgress) {
+		t.Fatalf("successor rejected with unexpected error: %v", err)
 	}
 	close(client.release)
 	result := <-resultCh

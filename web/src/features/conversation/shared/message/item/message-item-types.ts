@@ -33,6 +33,10 @@ export interface MessageItemProps {
   hiddenToolNames?: string[];
   onEditUserMessage?: (messageId: string, newContent: string) => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onStopMessage?: (msgId: string) => void;
   defaultProcessExpanded?: boolean;

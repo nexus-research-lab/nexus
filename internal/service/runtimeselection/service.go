@@ -1,9 +1,13 @@
+// INPUT: Agent、session 覆盖项与用户 runtime 偏好。
+// OUTPUT: 已归一化的 runtime、模型和能力启动配置。
+// POS: handler/业务编排与底层 runtime clientopts 之间的选择和投影边界。
 package runtimeselection
 
 import (
 	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
@@ -34,7 +38,7 @@ type Selection struct {
 	VisionModel                string
 	AgentSDKDiagnosticsEnabled bool
 	ToolSearchEnabled          bool
-	WebSearch                  preferencessvc.WebSearchSettings
+	WebSearch                  clientopts.WebSearchConfig
 }
 
 // Request 表示一次 Agent runtime 选择请求。
@@ -81,7 +85,7 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 		selection.RuntimeKind = runtimeprovider.NormalizeRuntimeKind(prefs.AgentRuntimeKind)
 		selection.AgentSDKDiagnosticsEnabled = prefs.AgentSDKDiagnosticsEnabled
 		selection.ToolSearchEnabled = prefs.ToolSearchEnabledForRuntime(selection.RuntimeKind)
-		selection.WebSearch = prefs.WebSearch
+		selection.WebSearch = WebSearchConfigFromPreferences(prefs.WebSearch)
 		selection.VisionProvider = strings.TrimSpace(prefs.DefaultVisionModelSelection.Provider)
 		selection.VisionModel = strings.TrimSpace(prefs.DefaultVisionModelSelection.Model)
 		if selection.Provider == "" || selection.Model == "" {
@@ -125,6 +129,33 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 	selection.Model = strings.TrimSpace(fallback.Model)
 	selection.FallbackFromExplicit = true
 	return selection, nil
+}
+
+// WebSearchConfigFromPreferences 将持久化偏好投影为 runtime 启动配置。
+func WebSearchConfigFromPreferences(settings preferencessvc.WebSearchSettings) clientopts.WebSearchConfig {
+	config := clientopts.WebSearchConfig{
+		Enabled:             settings.Enabled,
+		Provider:            settings.Provider,
+		BaseURL:             settings.BaseURL,
+		AllowPrivateNetwork: settings.AllowPrivateNetwork,
+		UseProviderExtract:  settings.UseProviderExtract,
+		DefaultCount:        settings.DefaultCount,
+		TimeoutSeconds:      settings.TimeoutSeconds,
+		CacheTTLSeconds:     settings.CacheTTLSeconds,
+		Country:             settings.Country,
+		Language:            settings.Language,
+		SearchLanguage:      settings.SearchLanguage,
+		Freshness:           settings.Freshness,
+		SearchDepth:         settings.SearchDepth,
+		ExtractDepth:        settings.ExtractDepth,
+		AnySearch: clientopts.AnySearchConfig{
+			Domain:       settings.AnySearch.Domain,
+			Tag:          settings.AnySearch.Tag,
+			ContentTypes: append([]string(nil), settings.AnySearch.ContentTypes...),
+			Params:       maps.Clone(settings.AnySearch.Params),
+		},
+	}
+	return config.WithAPIKey(settings.WebSearchAPIKey())
 }
 
 func (s *Service) resolveRuntimeConfig(

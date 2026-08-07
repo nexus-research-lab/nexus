@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import { UiButton } from "@/shared/ui/button/button";
+import { WorkspaceContentDetailHeader } from "@/shared/ui/layout/workspace-content-header";
 import type { ConnectorDetail } from "@/types/capability/connector";
 
 import { ConnectorIcon } from "../connector-icon";
@@ -141,24 +142,26 @@ export function ConnectorDetailBreadcrumb({
   onBack: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2 text-[14px] text-(--text-muted) max-lg:hidden">
-      <button
-        className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
-        onClick={onBack}
-        type="button"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        连接器
-      </button>
-      {detail ? (
-        <>
-          <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
-          <span className="truncate font-medium text-(--text-strong)">
-            {detail.title}
-          </span>
-        </>
-      ) : null}
-    </div>
+    <WorkspaceContentDetailHeader>
+      <div className="flex min-w-0 items-center gap-2 text-[14px] text-(--text-muted)">
+        <button
+          className="inline-flex items-center gap-1 rounded-[8px] px-1.5 py-1 font-medium transition-colors hover:bg-(--surface-interactive-hover-background) hover:text-(--text-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:color-mix(in_srgb,var(--primary)_28%,transparent)]"
+          onClick={onBack}
+          type="button"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          连接器
+        </button>
+        {detail ? (
+          <>
+            <ChevronRight className="h-3.5 w-3.5 text-(--icon-muted)" />
+            <span className="truncate font-medium text-(--text-strong)">
+              {detail.title}
+            </span>
+          </>
+        ) : null}
+      </div>
+    </WorkspaceContentDetailHeader>
   );
 }
 

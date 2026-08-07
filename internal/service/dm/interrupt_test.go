@@ -465,17 +465,17 @@ func TestServiceHandleInterruptExactOldRoundKeepsSuccessorRunning(t *testing.T) 
 	oldCancelled := false
 	successorCancelled := false
 
-	if !runtimeManager.StartRound(sessionKey, "round-old", func() {
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-old", func() {
 		oldCancelled = true
 		runtimeManager.MarkRoundFinished(sessionKey, "round-old")
-	}) {
-		t.Fatal("注册旧 round 失败")
+	}); err != nil {
+		t.Fatalf("注册旧 round 失败: %v", err)
 	}
-	if !runtimeManager.StartRound(sessionKey, "round-successor", func() {
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-successor", func() {
 		successorCancelled = true
 		runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
-	}) {
-		t.Fatal("注册 successor round 失败")
+	}); err != nil {
+		t.Fatalf("注册 successor round 失败: %v", err)
 	}
 
 	if err := service.HandleInterrupt(context.Background(), InterruptRequest{
@@ -505,11 +505,11 @@ func TestServiceHandleInterruptStaleRoundNeverFallsBackToSession(t *testing.T) {
 	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
 	sessionKey := "agent:nexus:ws:dm:test-stale-round-stop"
 	successorCancelled := false
-	if !runtimeManager.StartRound(sessionKey, "round-successor", func() {
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-successor", func() {
 		successorCancelled = true
 		runtimeManager.MarkRoundFinished(sessionKey, "round-successor")
-	}) {
-		t.Fatal("注册 successor round 失败")
+	}); err != nil {
+		t.Fatalf("注册 successor round 失败: %v", err)
 	}
 
 	err := service.HandleInterrupt(context.Background(), InterruptRequest{
@@ -536,11 +536,11 @@ func TestServiceHandleInterruptExactUnsupportedFailsClosed(t *testing.T) {
 	runtimeManager := runtimectx.NewManagerWithFactory(&fakeDMFactory{client: newFakeDMClient()})
 	service := NewService(cfg, newDMAgentService(t, cfg), runtimeManager, permission)
 	sessionKey := "agent:nexus:ws:dm:test-exact-unsupported"
-	if !runtimeManager.StartRound(sessionKey, "round-without-cancel", nil) {
-		t.Fatal("注册无 exact cancel 的 round 失败")
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-without-cancel", nil); err != nil {
+		t.Fatalf("注册无 exact cancel 的 round 失败: %v", err)
 	}
-	if !runtimeManager.StartRound(sessionKey, "round-successor", func() {}) {
-		t.Fatal("注册 successor round 失败")
+	if err := runtimeManager.StartRound(context.Background(), sessionKey, "round-successor", func() {}); err != nil {
+		t.Fatalf("注册 successor round 失败: %v", err)
 	}
 
 	err := service.HandleInterrupt(context.Background(), InterruptRequest{

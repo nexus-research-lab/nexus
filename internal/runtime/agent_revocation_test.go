@@ -55,11 +55,11 @@ func TestManagerRevokeAgentSessionsClosesOnlyMatchingAgentAndTombstones(t *testi
 		}
 	}
 	roundCanceled := make(chan struct{})
-	if !manager.StartRound(deletedRoomKey, "room-round", func() {
+	if err := manager.StartRound(t.Context(), deletedRoomKey, "room-round", func() {
 		close(roundCanceled)
 		manager.MarkRoundFinished(deletedRoomKey, "room-round")
-	}) {
-		t.Fatal("启动待删除 Agent Room round 失败")
+	}); err != nil {
+		t.Fatalf("启动待删除 Agent Room round: %v", err)
 	}
 
 	closed, err := manager.RevokeAgentSessions(
@@ -107,8 +107,8 @@ func TestManagerRevokeAgentSessionsClosesOnlyMatchingAgentAndTombstones(t *testi
 		t.Fatalf("删除墓碑未阻止新 session: %v", err)
 	}
 	lateRoundCanceled := false
-	if manager.StartRound(deletedDMKey, "late-round", func() { lateRoundCanceled = true }) {
-		t.Fatal("删除后旧 session_key 不得重新启动 round")
+	if err := manager.StartRound(t.Context(), deletedDMKey, "late-round", func() { lateRoundCanceled = true }); !errors.Is(err, ErrRuntimeAgentRevoked) {
+		t.Fatalf("删除后旧 session_key 启动错误=%v，期望 Agent 已撤销", err)
 	}
 	if !lateRoundCanceled {
 		t.Fatal("拒绝删除后 round 时必须取消调用方 context")

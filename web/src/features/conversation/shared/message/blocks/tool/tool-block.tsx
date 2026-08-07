@@ -11,6 +11,8 @@ import type {
   ToolPermissionRequest,
 } from "./tool-block-types";
 import { useToolBlockController } from "./use-tool-block-controller";
+import { isSubagentToolName } from "../../message-tool-names";
+import { SubagentTaskToolEntry } from "./subagent-task-tool-entry";
 
 export function ToolBlock({
   toolUse,
@@ -22,6 +24,7 @@ export function ToolBlock({
   permissionRequest,
   interactionDisabled = false,
   interactionDisabledReason,
+  onOpenSubagentTask,
   onOpenWorkspaceFile,
   workspaceAgentId,
 }: ToolBlockProps) {
@@ -36,6 +39,24 @@ export function ToolBlock({
     toolResult,
     toolUse,
   });
+  if (
+    isSubagentToolName(toolUse.name)
+    && onOpenSubagentTask
+    && controller.model.status !== "waiting_permission"
+  ) {
+    return (
+      <div
+        className="message-cjk-font min-w-0"
+        ref={controller.anchorRef as RefObject<HTMLDivElement>}
+      >
+        <SubagentTaskToolEntry
+          model={controller.model}
+          onOpen={() => onOpenSubagentTask(toolUse.id, workspaceAgentId)}
+          toolUse={toolUse}
+        />
+      </div>
+    );
+  }
   return (
     <div
       className="message-cjk-font group/tool-block min-w-0"

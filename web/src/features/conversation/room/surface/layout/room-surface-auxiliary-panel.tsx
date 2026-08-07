@@ -54,6 +54,11 @@ interface RoomSurfaceAuxiliaryPanelProps {
   ) => Promise<AgentNameValidationResult>;
   roomId: string | null;
   roomMembers: Agent[];
+  subagentRequest: {
+    hostAgentId: string | null;
+    key: number;
+    toolUseId: string | null;
+  };
   subagentTaskSource: SubagentTaskSource | null;
 }
 
@@ -74,6 +79,7 @@ export function RoomSurfaceAuxiliaryPanel({
   onValidateAgentName,
   roomId,
   roomMembers,
+  subagentRequest,
   subagentTaskSource,
 }: RoomSurfaceAuxiliaryPanelProps) {
   const { t } = useI18n();
@@ -160,6 +166,9 @@ export function RoomSurfaceAuxiliaryPanel({
               currentAgentId={currentAgent.agent_id}
               onClose={onClose}
               onOpenWorkspaceFile={onOpenWorkspaceFile}
+              requestKey={subagentRequest.key}
+              requestedHostAgentId={subagentRequest.hostAgentId}
+              requestedTaskToolUseId={subagentRequest.toolUseId}
               roomMembers={roomMembers}
               source={subagentTaskSource}
             />

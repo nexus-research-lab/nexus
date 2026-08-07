@@ -13,11 +13,21 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	maxSkillArchiveEntries        = 4096
+	maxSkillArchiveExtractedBytes = 128 * 1024 * 1024
+	maxSkillArchiveFileBytes      = 64 * 1024 * 1024
+)
+
 func unzipArchive(payload []byte, targetDir string) error {
 	reader, err := zip.NewReader(bytes.NewReader(payload), int64(len(payload)))
 	if err != nil {
 		return errors.New("上传文件不是合法 zip 包")
 	}
+	if len(reader.File) > maxSkillArchiveEntries {
+		return errors.New("zip 包文件数量超过限制")
+	}
+	var extractedBytes int64
 	for _, file := range reader.File {
 		entryName, cleanErr := cleanZipEntryName(file.Name)
 		if cleanErr != nil {
@@ -34,6 +44,13 @@ func unzipArchive(payload []byte, targetDir string) error {
 			}
 			continue
 		}
+		if !file.Mode().IsRegular() {
+			return errors.New("zip 包不能包含符号链接或特殊文件")
+		}
+		if file.UncompressedSize64 > maxSkillArchiveFileBytes ||
+			extractedBytes+int64(file.UncompressedSize64) > maxSkillArchiveExtractedBytes {
+			return errors.New("zip 包解压后内容超过大小限制")
+		}
 		if err = os.MkdirAll(filepath.Dir(cleanTarget), 0o755); err != nil {
 			return err
 		}
@@ -46,10 +63,25 @@ func unzipArchive(payload []byte, targetDir string) error {
 			_ = readerHandle.Close()
 			return createErr
 		}
-		if _, err = io.Copy(writer, readerHandle); err != nil {
+		remainingBytes := int64(maxSkillArchiveExtractedBytes) - extractedBytes
+		fileLimit := int64(maxSkillArchiveFileBytes)
+		if remainingBytes < fileLimit {
+			fileLimit = remainingBytes
+		}
+		written, copyErr := io.Copy(
+			writer,
+			io.LimitReader(readerHandle, fileLimit+1),
+		)
+		extractedBytes += written
+		if copyErr != nil {
 			_ = readerHandle.Close()
 			_ = writer.Close()
-			return err
+			return copyErr
+		}
+		if written > maxSkillArchiveFileBytes || extractedBytes > maxSkillArchiveExtractedBytes {
+			_ = readerHandle.Close()
+			_ = writer.Close()
+			return errors.New("zip 包解压后内容超过大小限制")
 		}
 		if err = readerHandle.Close(); err != nil {
 			_ = writer.Close()

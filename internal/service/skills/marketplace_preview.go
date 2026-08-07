@@ -67,7 +67,9 @@ func (s *Service) attachExternalReadmes(ctx context.Context, items []ExternalSki
 	var wg sync.WaitGroup
 	for index := range items {
 		index := index
-		if items[index].SourceKind == externalSourceKindSkillsSh || items[index].ImportMode == externalSourceKindSkillsSh {
+		if items[index].SourceKind == externalSourceKindSkillsSh ||
+			items[index].ImportMode == externalSourceKindSkillsSh ||
+			items[index].SourceKind == externalSourceKindPrivateRegistry {
 			continue
 		}
 		if strings.TrimSpace(items[index].DetailURL) == "" {

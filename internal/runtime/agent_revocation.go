@@ -97,7 +97,6 @@ func (m *Manager) RevokeAgentSessions(
 
 	targets := make([]*sessionCloseTarget, 0)
 	waiting := make([]<-chan struct{}, 0)
-	var reaperErr error
 
 	m.mu.Lock()
 	if m.revokedAgents == nil {
@@ -126,42 +125,29 @@ func (m *Manager) RevokeAgentSessions(
 			waiting = append(waiting, closeDone)
 		}
 	}
-	// 只有 owner 已无其他 Agent runtime 时才允许执行 owner 级进程树回收。
-	// 持锁执行与 CloseOwnerSessions 一致，避免回收和新 admission 交错。
-	reaperErr = m.reapOwnerIfLastLocked(ctx, identity.ownerUserID)
+	// 只有 owner 已无其他 Agent runtime 时才执行 owner 级进程树回收；
+	// owner lifecycle fence 同时阻止新 startup 与当前撤销交错。
+	reapPlan, reapFlight := m.beginOwnerReapLocked(identity.ownerUserID, nil, false)
 	m.mu.Unlock()
 
 	for _, target := range targets {
-		if target.idleMessageCancel != nil {
-			target.idleMessageCancel()
-		}
-		for _, cancel := range target.roundCancels {
-			if cancel != nil {
-				cancel()
-			}
-		}
-		for _, cancel := range target.backgroundCancels {
-			if cancel != nil {
-				cancel()
-			}
-		}
+		cancelSessionCloseTarget(target)
 	}
+	m.startOwnerReap(reapPlan)
 
 	errs := make([]error, 0, len(targets)+len(waiting)+1)
-	if reaperErr != nil {
-		errs = append(errs, fmt.Errorf("reap deleted Agent runtime processes: %w", reaperErr))
-	}
 	for _, target := range targets {
 		var closeErr error
 		if target.client != nil {
 			closeErr = target.client.Disconnect(ctx)
 		}
+		idleDrainErr := waitIdleMessageDrain(ctx, target.idleMessageDrain)
 		backgroundErr := waitBackgroundTasks(ctx, target.backgroundDone)
 		roundErr := waitRoundDoneForClose(ctx, target.roundDone)
-		closeErr = errors.Join(closeErr, backgroundErr, roundErr)
+		closeErr = errors.Join(closeErr, idleDrainErr, backgroundErr, roundErr)
 		clientCleanupPending := errors.Is(closeErr, context.Canceled) ||
 			errors.Is(closeErr, context.DeadlineExceeded)
-		if clientCleanupPending || backgroundErr != nil || roundErr != nil {
+		if clientCleanupPending || idleDrainErr != nil || backgroundErr != nil || roundErr != nil {
 			m.finishSessionCloseWhenDone(target, clientCleanupPending)
 		} else {
 			m.finishSessionClose(target)
@@ -178,6 +164,9 @@ func (m *Manager) RevokeAgentSessions(
 		if err := waitSessionClose(ctx, closeDone); err != nil {
 			errs = append(errs, fmt.Errorf("wait deleted Agent runtime session close: %w", err))
 		}
+	}
+	if reaperErr := waitOwnerReap(ctx, reapFlight); reaperErr != nil {
+		errs = append(errs, fmt.Errorf("reap deleted Agent runtime processes: %w", reaperErr))
 	}
 	return len(targets) + len(waiting), errors.Join(errs...)
 }

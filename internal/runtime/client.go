@@ -27,7 +27,8 @@ type Client interface {
 	SendTaskMessage(context.Context, string, string, string) error
 	RemoveMessages(context.Context, []string) error
 	SetPermissionMode(context.Context, sdkpermission.Mode) error
-	// Retire 永久撤销 Manager 所有权；实现必须幂等、不能等待进程退出或回调 Manager。
+	// Retire 永久撤销 Manager 所有权；实现必须幂等、立即取消连接与配置 RPC，
+	// 且不能等待进程退出或回调 Manager。
 	Retire()
 	Disconnect(context.Context) error
 	Reconfigure(context.Context, agentclient.Options) error
@@ -74,7 +75,9 @@ type sdkClientConnectFailure struct {
 }
 
 type sdkClientConfigFlight struct {
-	done chan struct{}
+	done   chan struct{}
+	ctx    context.Context
+	cancel context.CancelCauseFunc
 }
 
 type sdkClientSessionCleanup struct {
@@ -331,16 +334,7 @@ func (c *sdkClientAdapter) ClearNextTurnContext(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	control := session.Control()
-	// 新 bridge 提供显式清理；旧 bridge 的 SetNextTurnContext(nil) 也会清空
-	// 同一个 buffer，作为兼容回退，避免 Slash 等原子输入带入上一轮上下文。
-	clearer, ok := any(control).(interface {
-		ClearNextTurnContext(context.Context) error
-	})
-	if ok {
-		return clearer.ClearNextTurnContext(ctx)
-	}
-	return control.SetNextTurnContext(ctx, nil)
+	return session.Control().ClearNextTurnContext(ctx)
 }
 
 func (c *sdkClientAdapter) ReceiveMessages(context.Context) <-chan sdkprotocol.ReceivedMessage {
@@ -391,15 +385,7 @@ func (c *sdkClientAdapter) RemoveMessages(ctx context.Context, uuids []string) e
 	if err != nil {
 		return err
 	}
-	// v0.1.18 尚未暴露 remove_messages；用能力接口兼容已发布 bridge，
-	// 同时让 go.work 下的新 bridge 继续走原生控制面。
-	remover, ok := any(session.Control()).(interface {
-		RemoveMessages(context.Context, []string) error
-	})
-	if !ok {
-		return agentclient.ErrUnsupportedCapability
-	}
-	return remover.RemoveMessages(ctx, uuids)
+	return session.Control().RemoveMessages(ctx, uuids)
 }
 
 func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermission.Mode) error {
@@ -426,12 +412,12 @@ func (c *sdkClientAdapter) SetPermissionMode(ctx context.Context, mode sdkpermis
 	if session == nil {
 		return c.ensureNotRetired()
 	}
-	if err := c.applySDKSessionPermissionMode(ctx, session, normalized); err != nil {
+	if err := c.applySDKSessionPermissionMode(configuring.ctx, session, normalized); err != nil {
 		c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
 		if IsRuntimeTransportClosedError(err) {
 			c.cleanupSDKSession(session, err)
 		}
-		return err
+		return configuring.normalizeError(err)
 	}
 	return c.ensureNotRetired()
 }
@@ -469,12 +455,12 @@ func (c *sdkClientAdapter) UpdateEnvironment(ctx context.Context, environment ma
 	session := c.session
 	c.mu.Unlock()
 	if session != nil {
-		if err := c.applySDKSessionEnvironment(ctx, session, delta); err != nil {
+		if err := c.applySDKSessionEnvironment(configuring.ctx, session, delta); err != nil {
 			c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
 			if IsRuntimeTransportClosedError(err) {
 				c.cleanupSDKSession(session, err)
 			}
-			return err
+			return configuring.normalizeError(err)
 		}
 	}
 	return c.ensureNotRetired()
@@ -503,7 +489,12 @@ func (c *sdkClientAdapter) beginSDKClientConfiguration(ctx context.Context) (*sd
 			return nil, agentclient.ErrAborted
 		}
 		if c.configuring == nil {
-			configuring := &sdkClientConfigFlight{done: make(chan struct{})}
+			configCtx, cancel := context.WithCancelCause(ctx)
+			configuring := &sdkClientConfigFlight{
+				done:   make(chan struct{}),
+				ctx:    configCtx,
+				cancel: cancel,
+			}
 			c.configuring = configuring
 			c.mu.Unlock()
 			return configuring, nil
@@ -514,6 +505,16 @@ func (c *sdkClientAdapter) beginSDKClientConfiguration(ctx context.Context) (*sd
 			return nil, err
 		}
 	}
+}
+
+func (f *sdkClientConfigFlight) normalizeError(err error) error {
+	if f == nil {
+		return err
+	}
+	if cause := context.Cause(f.ctx); cause != nil {
+		return cause
+	}
+	return err
 }
 
 func (c *sdkClientAdapter) ensureNotRetired() error {
@@ -532,6 +533,7 @@ func (c *sdkClientAdapter) finishSDKClientConfiguration(configuring *sdkClientCo
 	}
 	close(configuring.done)
 	c.mu.Unlock()
+	configuring.cancel(context.Canceled)
 }
 
 func (c *sdkClientAdapter) rollbackSDKClientConfiguration(
@@ -600,10 +602,14 @@ func (c *sdkClientAdapter) Retire() {
 	c.retired = true
 	session, cancel, cleanup := c.detachCurrentSessionLocked(agentclient.ErrAborted)
 	connecting := c.connecting
+	configuring := c.configuring
 	c.mu.Unlock()
 
 	if connecting != nil {
 		connecting.cancel(agentclient.ErrAborted)
+	}
+	if configuring != nil {
+		configuring.cancel(agentclient.ErrAborted)
 	}
 	if session != nil {
 		c.startSDKSessionCleanup(session, cancel, cleanup)
@@ -797,12 +803,12 @@ func (c *sdkClientAdapter) Reconfigure(ctx context.Context, options agentclient.
 	if session == nil {
 		return c.ensureNotRetired()
 	}
-	if err := c.applySDKSessionReconfigure(ctx, session, options); err != nil {
+	if err := c.applySDKSessionReconfigure(configuring.ctx, session, options); err != nil {
 		c.rollbackSDKClientConfiguration(session, configVersion, currentOptions)
 		if IsRuntimeTransportClosedError(err) {
 			c.cleanupSDKSession(session, err)
 		}
-		return err
+		return configuring.normalizeError(err)
 	}
 	return c.ensureNotRetired()
 }

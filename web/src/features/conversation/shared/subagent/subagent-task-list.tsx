@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { cn } from "@/shared/ui/class-name";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import type { TranslationKey } from "@/shared/i18n/messages";
+import { UiSeededAvatar } from "@/shared/ui/display/seeded-avatar";
 import {
   WORKSPACE_PANEL_HEADER_HEIGHT_CLASS,
   WORKSPACE_PANEL_HEADER_PADDING_CLASS,
@@ -19,7 +20,7 @@ import type {
 
 import {
   isSubagentTaskActive,
-  subagentTaskAvatarColor,
+  subagentTaskAvatarSeed,
   subagentTaskTimestamp,
   subagentTaskTitle,
 } from "./subagent-task-model";
@@ -236,7 +237,7 @@ function SubagentTaskRow({
       <SubagentTaskAvatar
         isActive={isSubagentTaskActive(task)}
         name={title}
-        taskId={task.task_id}
+        seed={subagentTaskAvatarSeed(task)}
       />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-baseline gap-3">
@@ -261,32 +262,24 @@ export function SubagentTaskAvatar({
   className,
   isActive = false,
   name,
-  taskId,
+  seed,
 }: {
   className?: string;
   isActive?: boolean;
   name: string;
-  taskId: string;
+  seed: string;
 }) {
-  const color = subagentTaskAvatarColor(taskId);
-
   return (
-    <span
-      aria-label={name}
+    <UiSeededAvatar
       className={cn(
-        "relative mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[inset_0_0_0_1px_rgba(255,255,255,0.26)]",
+        "mt-0.5",
         isActive && "ring-1 ring-[color:color-mix(in_srgb,var(--primary)_18%,transparent)] ring-offset-1 ring-offset-(--background)",
         className,
       )}
-      style={{ backgroundColor: color }}
+      seed={seed}
+      size="2xs"
       title={name}
-    >
-      <span className="absolute h-[19px] w-1 rounded-full bg-white/72" />
-      <span className="absolute h-[19px] w-1 rotate-45 rounded-full bg-white/72" />
-      <span className="absolute h-[19px] w-1 rotate-90 rounded-full bg-white/72" />
-      <span className="absolute h-[19px] w-1 -rotate-45 rounded-full bg-white/72" />
-      <span className="absolute h-2 w-2 rounded-full border border-white/70 bg-white/18" />
-    </span>
+    />
   );
 }
 

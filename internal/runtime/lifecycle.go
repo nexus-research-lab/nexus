@@ -1,3 +1,6 @@
+// INPUT: 待关闭 session 的 client、round、idle drain 与后台任务状态。
+// OUTPUT: 一次性关闭快照、取消动作和可等待的最终清理。
+// POS: owner、idle 与显式 session 关闭共用的生命周期原语。
 package runtime
 
 import (
@@ -9,8 +12,6 @@ import (
 // ErrRuntimeSessionClosing 表示 session 正在退出，不能再注册新的运行任务。
 var ErrRuntimeSessionClosing = errors.New("runtime session is closing")
 
-var errRuntimeSessionClosing = ErrRuntimeSessionClosing
-
 // sessionCloseTarget 保存关闭期间需要取消、等待和最终移除的 session 状态。
 type sessionCloseTarget struct {
 	sessionKey        string
@@ -19,7 +20,7 @@ type sessionCloseTarget struct {
 	client            Client
 	roundCancels      []context.CancelFunc
 	roundDone         []chan struct{}
-	idleMessageCancel context.CancelFunc
+	idleMessageDrain  *idleMessageDrain
 	backgroundCancels []context.CancelFunc
 	backgroundDone    <-chan struct{}
 	closeDone         chan struct{}
@@ -51,9 +52,9 @@ func (m *Manager) beginSessionCloseLocked(sessionKey string) (*sessionCloseTarge
 		state:             state,
 		ownerUserID:       state.OwnerUserID,
 		client:            state.Client,
-		roundCancels:      copyRoundCancels(state.RoundCancels),
-		roundDone:         copyRoundDoneSignals(state.RoundDone),
-		idleMessageCancel: state.IdleMessageCancel,
+		roundCancels:      state.Rounds.cancelFuncs(),
+		roundDone:         state.Rounds.doneSignals(),
+		idleMessageDrain:  state.IdleMessageDrain,
 		backgroundCancels: copyBackgroundCancels(state.BackgroundTasks),
 		backgroundDone:    state.BackgroundDone,
 		closeDone:         state.CloseDone,
@@ -81,7 +82,7 @@ func (m *Manager) finishSessionCloseWhenDone(target *sessionCloseTarget, waitCli
 	if m == nil || target == nil {
 		return
 	}
-	if !waitClient && len(target.roundDone) == 0 && target.backgroundDone == nil {
+	if !waitClient && target.idleMessageDrain == nil && len(target.roundDone) == 0 && target.backgroundDone == nil {
 		m.finishSessionClose(target)
 		return
 	}
@@ -89,6 +90,7 @@ func (m *Manager) finishSessionCloseWhenDone(target *sessionCloseTarget, waitCli
 		if waitClient && target.client != nil {
 			_ = target.client.Disconnect(context.Background())
 		}
+		_ = waitIdleMessageDrain(context.Background(), target.idleMessageDrain)
 		_ = waitRoundDoneSignals(context.Background(), target.roundDone, nil)
 		_ = waitBackgroundTasks(context.Background(), target.backgroundDone)
 		m.finishSessionClose(target)
@@ -125,19 +127,6 @@ func waitSessionClose(ctx context.Context, done <-chan struct{}) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-}
-
-func copyRoundDoneSignals(input map[string]chan struct{}) []chan struct{} {
-	if len(input) == 0 {
-		return nil
-	}
-	output := make([]chan struct{}, 0, len(input))
-	for _, done := range input {
-		if done != nil {
-			output = append(output, done)
-		}
-	}
-	return output
 }
 
 func copyBackgroundCancels(input map[uint64]context.CancelFunc) []context.CancelFunc {

@@ -29,8 +29,8 @@ func TestManagerSessionDeletionFenceBlocksAdmissionAndCanAbort(t *testing.T) {
 		t.Fatalf("new runtime admission was not blocked: %v", err)
 	}
 	canceled := false
-	if manager.StartRound(sessionKey, "late-round", func() { canceled = true }) {
-		t.Fatal("late round started through deletion fence")
+	if err := manager.StartRound(t.Context(), sessionKey, "late-round", func() { canceled = true }); !errors.Is(err, ErrRuntimeSessionDeleted) {
+		t.Fatalf("late round error = %v, want session deleted", err)
 	}
 	if !canceled {
 		t.Fatal("rejected round must cancel its context")

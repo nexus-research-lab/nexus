@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { CapabilitySectionHeader } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
@@ -27,8 +27,10 @@ interface SkillsExternalResultsProps {
   loading: boolean;
   onImport: (item: ExternalSkillSearchItem) => void;
   onPreview: (item: ExternalSkillSearchItem) => void;
+  onSelectSource: (key: string | null) => void;
   results: ExternalSkillSearchItem[];
   sourceStatuses: ExternalSkillSourceStatus[];
+  selectedSourceKey: string | null;
   sources: ExternalSkillSourceInfo[];
   submittedQuery: string;
 }
@@ -39,16 +41,17 @@ export function SkillsExternalResults({
   loading,
   onImport,
   onPreview,
+  onSelectSource,
   results,
   sourceStatuses,
+  selectedSourceKey,
   sources,
   submittedQuery,
 }: SkillsExternalResultsProps) {
   const { t } = useI18n();
-  const [activeSourceKey, setActiveSourceKey] = useState<string | null>(null);
   const model = useMemo(
     () => buildExternalResultsModel({
-      activeSourceKey,
+      activeSourceKey: selectedSourceKey,
       items: results,
       localization: { t },
       loading,
@@ -56,7 +59,7 @@ export function SkillsExternalResults({
       statuses: sourceStatuses,
       submittedQuery,
     }),
-    [activeSourceKey, loading, results, sourceStatuses, sources, submittedQuery, t],
+    [loading, results, selectedSourceKey, sourceStatuses, sources, submittedQuery, t],
   );
 
   return (
@@ -66,7 +69,7 @@ export function SkillsExternalResults({
       model={model}
       onImport={onImport}
       onPreview={onPreview}
-      onSelectSource={setActiveSourceKey}
+      onSelectSource={onSelectSource}
       totalCount={results.length}
     />
   );
@@ -180,6 +183,7 @@ function ExternalSourceFilters({
           key={group.key}
           label={group.label}
           onClick={() => onSelect(selectedSourceKey === group.key ? null : group.key)}
+          disabled={group.status === "disabled"}
           selected={selectedSourceKey === group.key}
           summary={sourceGroupSummaryLabel(group, { t })}
           title={group.error || group.label}
@@ -190,6 +194,7 @@ function ExternalSourceFilters({
 }
 
 interface ExternalSourceFilterProps {
+  disabled?: boolean;
   label: string;
   onClick: () => void;
   selected: boolean;
@@ -198,6 +203,7 @@ interface ExternalSourceFilterProps {
 }
 
 function ExternalSourceFilter({
+  disabled = false,
   label,
   onClick,
   selected,
@@ -208,10 +214,12 @@ function ExternalSourceFilter({
     <button
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-[6px] border px-2 py-0.5 text-left text-2xs transition",
+        disabled && "cursor-not-allowed opacity-50",
         selected
           ? "border-(--primary) bg-[color:color-mix(in_srgb,var(--primary)_12%,transparent)] text-(--primary)"
           : "border-(--divider-subtle-color) bg-transparent text-(--text-muted) hover:border-(--primary)",
       )}
+      disabled={disabled}
       onClick={onClick}
       title={title}
       type="button"

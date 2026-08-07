@@ -12,20 +12,27 @@ const (
 	maxExternalPreviewConcurrency = 4
 	gitCloneMaxAttempts           = 3
 
-	externalSourceKindClaudePlugins = "claude_plugins"
-	externalSourceKindSkillsSh      = "skills_sh"
-	externalSourceKindClawhub       = "clawhub"
-	externalSourceKindHermesIndex   = "hermes_index"
-	externalSourceKindBrowseSh      = "browse_sh"
-	externalSourceKindWellKnown     = "well_known"
-	externalSourceKindGit           = "git"
-	externalSourceKindURL           = "url"
-	externalSourceKindUploaded      = "uploaded_zip"
-	externalSourceKindLocalPath     = "local_path"
+	externalSourceKindClaudePlugins   = "claude_plugins"
+	externalSourceKindSkillsSh        = "skills_sh"
+	externalSourceKindClawhub         = "clawhub"
+	externalSourceKindHermesIndex     = "hermes_index"
+	externalSourceKindBrowseSh        = "browse_sh"
+	externalSourceKindWellKnown       = "well_known"
+	externalSourceKindPrivateRegistry = "private_registry"
+	externalSourceKindGit             = "git"
+	externalSourceKindURL             = "url"
+	externalSourceKindUploaded        = "uploaded_zip"
+	externalSourceKindLocalPath       = "local_path"
 
 	externalSourceTrustOfficial  = "official"
 	externalSourceTrustCommunity = "community"
 	externalSourceTrustPrivate   = "private"
+
+	externalSourceManagedBySystem = "system"
+	externalSourceManagedByUser   = "user"
+
+	externalSourceAuthNone   = "none"
+	externalSourceAuthBearer = "bearer"
 
 	defaultClaudePluginsSearchURL = "https://claude-plugins.dev/api/skills"
 	defaultSkillsShURL            = "https://skills.sh"
@@ -79,6 +86,8 @@ type ExternalSkillSearchItem struct {
 	RawURL         string   `json:"raw_url"`
 	Tags           []string `json:"tags"`
 	Version        string   `json:"version"`
+	ArtifactSHA256 string   `json:"artifact_sha256"`
+	ArtifactSize   int64    `json:"artifact_size"`
 }
 
 // ExternalSkillSourceStatus 表示一次外部来源搜索状态。
@@ -93,20 +102,41 @@ type ExternalSkillSourceStatus struct {
 
 // ExternalSkillSourceInfo 表示可管理的外部 skill 来源配置。
 type ExternalSkillSourceInfo struct {
-	SourceID      string     `json:"source_id"`
-	Name          string     `json:"name"`
-	Kind          string     `json:"kind"`
-	URL           string     `json:"url"`
-	Trust         string     `json:"trust"`
-	Enabled       bool       `json:"enabled"`
-	SortOrder     int        `json:"sort_order"`
-	LastCheckedAt *time.Time `json:"last_checked_at,omitempty"`
-	LastError     string     `json:"last_error,omitempty"`
+	SourceID             string     `json:"source_id"`
+	Name                 string     `json:"name"`
+	Kind                 string     `json:"kind"`
+	URL                  string     `json:"url"`
+	Trust                string     `json:"trust"`
+	Enabled              bool       `json:"enabled"`
+	SortOrder            int        `json:"sort_order"`
+	LastCheckedAt        *time.Time `json:"last_checked_at,omitempty"`
+	LastError            string     `json:"last_error,omitempty"`
+	ManagedBy            string     `json:"managed_by"`
+	AuthType             string     `json:"auth_type"`
+	CredentialConfigured bool       `json:"credential_configured"`
+	Deletable            bool       `json:"deletable"`
 }
 
-// ExternalSkillSourceRequest 表示外部 skill 来源开关请求。
+// CreateExternalSkillSourceRequest 表示新增私有 skill 来源请求。
+type CreateExternalSkillSourceRequest struct {
+	Name     string `json:"name"`
+	URL      string `json:"url"`
+	AuthType string `json:"auth_type"`
+	Token    string `json:"token"`
+}
+
+// ExternalSkillSourceRequest 表示外部 skill 来源更新请求。
 type ExternalSkillSourceRequest struct {
-	Enabled *bool `json:"enabled"`
+	Name     *string `json:"name"`
+	Enabled  *bool   `json:"enabled"`
+	AuthType *string `json:"auth_type"`
+	Token    *string `json:"token"`
+}
+
+// ImportPrivateSkillRequest 表示从私有来源导入指定 skill 的请求。
+type ImportPrivateSkillRequest struct {
+	SourceID string `json:"source_id"`
+	SkillID  string `json:"skill_id"`
 }
 
 // SearchExternalSkillsResponse 表示外部技能搜索响应。
@@ -123,13 +153,17 @@ type ExternalSkillPreviewResponse struct {
 }
 
 type externalSkillSource struct {
-	Key       string
-	Name      string
-	Kind      string
-	URL       string
-	Trust     string
-	Enabled   bool
-	SortOrder int
+	Key             string
+	Name            string
+	Kind            string
+	URL             string
+	Trust           string
+	Enabled         bool
+	SortOrder       int
+	ManagedBy       string
+	AuthType        string
+	Credential      string
+	CredentialError string
 }
 
 // SkillActionFailure 表示单个技能动作失败结果。

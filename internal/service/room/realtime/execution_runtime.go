@@ -429,7 +429,7 @@ func (e *slotExecution) applyRuntimeHooks(options agentclient.Options) agentclie
 }
 
 func (e *slotExecution) connectRuntime(runtimeValue *preparedSlotRuntime) (runtimectx.Client, error) {
-	startup, err := e.service.runtime.BeginClientStartup(e.ctx, e.slot.RuntimeSessionKey)
+	startup, err := e.service.runtime.BeginClientStartup(e.ctx, e.slot.RuntimeSessionKey, e.round.OwnerUserID)
 	if err != nil {
 		return nil, err
 	}

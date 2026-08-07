@@ -217,6 +217,7 @@ function ExpandedProcessContent({
         fallbackActivityState={activity.state}
         hiddenToolNames={environment.hiddenToolNames}
         isStreaming={activity.showCursor}
+        onOpenSubagentTask={environment.onOpenSubagentTask}
         onOpenWorkspaceFile={environment.onOpenWorkspaceFile}
         onPermissionResponse={environment.onPermissionResponse}
         pendingInteractionOwner={permissions.owner}

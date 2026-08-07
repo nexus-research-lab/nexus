@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  createExternalSkillSourceApi,
+  deleteExternalSkillSourceApi,
   listExternalSkillSourcesApi,
   updateExternalSkillSourceApi,
 } from "@/lib/api/capability/skill-api";
@@ -10,6 +12,7 @@ import type { ExternalSkillSourceInfo } from "@/types/capability/skill";
 
 import type {
   ExternalSkillSourcesController,
+  PrivateSkillSourceDraft,
   SkillMarketplaceFeedbackActions,
 } from "./skill-marketplace-controller";
 
@@ -87,6 +90,67 @@ export function useExternalSkillSources({
     }
   }, [feedback, refresh, t]);
 
+  const save = useCallback(async (
+    source: ExternalSkillSourceInfo | null,
+    draft: PrivateSkillSourceDraft,
+  ): Promise<boolean> => {
+    feedback.clear();
+    setLoading(true);
+    try {
+      if (source) {
+        await updateExternalSkillSourceApi(source.source_id, {
+          auth_type: draft.authType,
+          name: draft.name.trim(),
+          token: draft.token.trim() || undefined,
+        });
+      } else {
+        await createExternalSkillSourceApi({
+          auth_type: draft.authType,
+          name: draft.name.trim(),
+          token: draft.token.trim() || undefined,
+          url: draft.url.trim(),
+        });
+      }
+      setRevision((value) => value + 1);
+      await refresh();
+      feedback.success(t(
+        source
+          ? "capability.skill_source_updated_success"
+          : "capability.skill_source_created_success",
+        { name: draft.name.trim() },
+      ));
+      return true;
+    } catch (error) {
+      feedback.error(getErrorMessage(
+        error,
+        t("capability.skill_sources_update_failed"),
+      ));
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [feedback, refresh, t]);
+
+  const remove = useCallback(async (source: ExternalSkillSourceInfo) => {
+    feedback.clear();
+    setLoading(true);
+    try {
+      await deleteExternalSkillSourceApi(source.source_id);
+      setRevision((value) => value + 1);
+      await refresh();
+      feedback.success(t("capability.skill_source_deleted_success", {
+        name: source.name,
+      }));
+    } catch (error) {
+      feedback.error(getErrorMessage(
+        error,
+        t("capability.skill_source_delete_failed"),
+      ));
+    } finally {
+      setLoading(false);
+    }
+  }, [feedback, refresh, t]);
+
   return {
     closeManager: () => setManagerOpen(false),
     items,
@@ -94,6 +158,8 @@ export function useExternalSkillSources({
     managerOpen,
     openManager: () => setManagerOpen(true),
     revision,
+    remove,
+    save,
     toggle,
   };
 }

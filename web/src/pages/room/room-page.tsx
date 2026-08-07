@@ -22,7 +22,6 @@ interface RoomPageContentProps {
   controller: RoomPageController;
   handleRoomEvent: (eventType: string, data: RoomEventPayload) => void;
   navigation: RoomPageNavigation;
-  onReplayTour?: () => void;
   routeConversationId?: string;
   routeRoomId?: string;
 }
@@ -38,7 +37,6 @@ function ActiveRoomPage({
   currentRoom,
   handleRoomEvent,
   navigation,
-  onReplayTour,
 }: ActiveRoomPageProps) {
   const { actions, agent, conversation, room, workspace } = controller;
   return (
@@ -64,7 +62,6 @@ function ActiveRoomPage({
         sidePanelWidthPercent={workspace.sidePanelWidthPercent}
         initialDraft={navigation.initialDraft}
         isResizingSidePanel={workspace.isResizingSidePanel}
-        onReplayTour={onReplayTour}
         onManageRoom={actions.manageRoom}
         onOpenMemberManager={actions.prepareAgentCatalog}
         onBackToDirectory={navigation.backToChatDirectory}
@@ -170,7 +167,7 @@ export function RoomPage() {
     createConversation: actions.createConversation,
     deleteConversation: actions.deleteConversation,
   });
-  const { startCurrentTour } = useRoomPageTour({
+  useRoomPageTour({
     roomType: getCurrentRoomType(controller),
     hasConversation: Boolean(conversation.current),
     enabled: status.isHydrated && Boolean(room.current),
@@ -186,7 +183,6 @@ export function RoomPage() {
       controller={controller}
       handleRoomEvent={handleRoomEvent}
       navigation={navigation}
-      onReplayTour={startCurrentTour}
       routeConversationId={params.conversationId}
       routeRoomId={params.roomId}
     />

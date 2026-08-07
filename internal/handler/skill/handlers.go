@@ -244,10 +244,11 @@ func (h *Handlers) HandleImportGitSkill(writer http.ResponseWriter, request *htt
 
 // HandleSearchExternalSkills 搜索外部技能。
 func (h *Handlers) HandleSearchExternalSkills(writer http.ResponseWriter, request *http.Request) {
-	item, err := h.skills.SearchExternalSkills(
+	item, err := h.skills.SearchExternalSkillsFromSource(
 		request.Context(),
 		request.URL.Query().Get("q"),
 		strings.EqualFold(request.URL.Query().Get("include_readme"), "true"),
+		request.URL.Query().Get("source_id"),
 	)
 	if err != nil {
 		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
@@ -280,7 +281,21 @@ func (h *Handlers) HandleImportSkillsShSkill(writer http.ResponseWriter, request
 	h.api.WriteSuccess(writer, item)
 }
 
-// HandleListExternalSkillSources 返回社区 skill 来源。
+// HandleImportPrivateSkill 从私有来源安全导入指定 Skill。
+func (h *Handlers) HandleImportPrivateSkill(writer http.ResponseWriter, request *http.Request) {
+	var payload skillspkg.ImportPrivateSkillRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	item, err := h.skills.ImportPrivateSkillFromSource(request.Context(), payload)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleListExternalSkillSources 返回社区与私有 skill 来源。
 func (h *Handlers) HandleListExternalSkillSources(writer http.ResponseWriter, request *http.Request) {
 	items, err := h.skills.ListExternalSkillSources(request.Context())
 	if err != nil {
@@ -290,7 +305,21 @@ func (h *Handlers) HandleListExternalSkillSources(writer http.ResponseWriter, re
 	h.api.WriteSuccess(writer, items)
 }
 
-// HandleUpdateExternalSkillSource 更新社区 skill 来源开关。
+// HandleCreateExternalSkillSource 新增一个私有 skill 来源。
+func (h *Handlers) HandleCreateExternalSkillSource(writer http.ResponseWriter, request *http.Request) {
+	var payload skillspkg.CreateExternalSkillSourceRequest
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	item, err := h.skills.CreateExternalSkillSource(request.Context(), payload)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, item)
+}
+
+// HandleUpdateExternalSkillSource 更新 skill 来源配置。
 func (h *Handlers) HandleUpdateExternalSkillSource(writer http.ResponseWriter, request *http.Request) {
 	var payload skillspkg.ExternalSkillSourceRequest
 	if !h.api.BindJSON(writer, request, &payload) {
@@ -306,6 +335,20 @@ func (h *Handlers) HandleUpdateExternalSkillSource(writer http.ResponseWriter, r
 		return
 	}
 	h.api.WriteSuccess(writer, item)
+}
+
+// HandleDeleteExternalSkillSource 删除一个用户私有 skill 来源。
+func (h *Handlers) HandleDeleteExternalSkillSource(writer http.ResponseWriter, request *http.Request) {
+	err := h.skills.DeleteExternalSkillSource(request.Context(), chi.URLParam(request, "source_id"))
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "not found") {
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+			return
+		}
+		h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, map[string]any{"success": true})
 }
 
 // HandleCheckSkillUpdates 检查外部导入技能是否有更新。

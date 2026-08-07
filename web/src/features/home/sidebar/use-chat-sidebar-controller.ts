@@ -13,7 +13,7 @@ import { createRoom, deleteRoom } from "@/lib/api/conversation/room-command-api"
 import { useI18n } from "@/shared/i18n/i18n-context";
 import { useSidebarStore } from "@/store/sidebar";
 
-import { useActiveRoomIds } from "../room-activity-resource";
+import { useRoomActivity } from "../room-activity-resource";
 import {
   buildConversationItems,
   normalizeSidebarQuery,
@@ -52,7 +52,7 @@ export function useChatSidebarController({
   const discardRoomChatState = useSidebarStore(
     (state) => state.discard_chat_state_for_room,
   );
-  const activeRoomIds = useActiveRoomIds();
+  const roomActivity = useRoomActivity();
   const {
     agents,
     conversations,
@@ -74,12 +74,12 @@ export function useChatSidebarController({
     locale,
     rooms,
     untitledRoomLabel,
-    activeRoomIds,
+    roomActivity,
   }), [
-    activeRoomIds,
     agents,
     conversations,
     locale,
+    roomActivity,
     rooms,
     untitledRoomLabel,
   ]);

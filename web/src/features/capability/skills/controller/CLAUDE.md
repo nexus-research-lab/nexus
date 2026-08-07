@@ -4,8 +4,8 @@
 
 - `use-skill-marketplace.ts` 只装配各状态域和发现模式。
 - `use-skill-catalog.ts` 独占目录查询、分类归一化和目录派生数据。
-- `use-external-skill-search.ts` 独占外部搜索、预览和请求竞态。
-- `use-external-skill-sources.ts` 独占来源清单、开关动作和搜索修订号。
+- `use-external-skill-search.ts` 独占外部搜索、服务端来源作用域、预览和请求竞态。
+- `use-external-skill-sources.ts` 独占来源清单、私有来源增删改、开关动作和搜索修订号。
 - `use-skill-operations.ts` 独占导入、更新、删除和定时更新检查。
 - `skill-update-check-model.ts` 把批量检查结果投影为明确的 current / updates / failure 通知；视图不得通过匹配文案推断状态，部分失败不得伪装成“暂无更新”。
 - `use-skill-marketplace-feedback.ts` 用单一反馈状态表达处理中、成功、部分完成和失败。

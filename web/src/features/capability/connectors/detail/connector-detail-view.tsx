@@ -106,7 +106,7 @@ export function ConnectorDetailView({
   return (
     <div className={WORKSPACE_CONTENT_PAGE_CLASS_NAME}>
       <ConnectorDetailBreadcrumb detail={detail} onBack={onBack} />
-      <div className="pt-6">
+      <div className="pt-5">
         <ConnectorDetailHeader
           busy={busy}
           detail={detail}

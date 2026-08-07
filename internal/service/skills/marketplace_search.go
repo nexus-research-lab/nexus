@@ -12,11 +12,29 @@ import (
 
 // SearchExternalSkills 聚合搜索配置化的外部技能来源。
 func (s *Service) SearchExternalSkills(ctx context.Context, query string, includeReadme bool) (*SearchExternalSkillsResponse, error) {
+	return s.SearchExternalSkillsFromSource(ctx, query, includeReadme, "")
+}
+
+// SearchExternalSkillsFromSource 搜索全部来源或一个明确选中的来源。
+func (s *Service) SearchExternalSkillsFromSource(ctx context.Context, query string, includeReadme bool, sourceID string) (*SearchExternalSkillsResponse, error) {
 	needle := strings.TrimSpace(query)
 	if needle == "" {
 		return &SearchExternalSkillsResponse{Query: "", Results: []ExternalSkillSearchItem{}, Sources: []ExternalSkillSourceStatus{}}, nil
 	}
 	sources := s.externalSkillSources(ctx)
+	if selectedSourceID := strings.TrimSpace(sourceID); selectedSourceID != "" {
+		selected := make([]externalSkillSource, 0, 1)
+		for _, source := range sources {
+			if source.Key == selectedSourceID {
+				selected = append(selected, source)
+				break
+			}
+		}
+		if len(selected) == 0 {
+			return nil, errors.New("指定的 skill 来源不存在或已停用")
+		}
+		sources = selected
+	}
 	if len(sources) == 0 {
 		return nil, errors.New("未配置可搜索的 skill 来源")
 	}
@@ -43,6 +61,7 @@ func (s *Service) SearchExternalSkills(ctx context.Context, query string, includ
 	items := make([]ExternalSkillSearchItem, 0)
 	statuses := make([]ExternalSkillSourceStatus, len(sources))
 	failedSources := 0
+	var firstSearchError error
 	for range sources {
 		result := <-resultCh
 		source := result.source
@@ -55,6 +74,9 @@ func (s *Service) SearchExternalSkills(ctx context.Context, query string, includ
 		}
 		if result.err != nil {
 			failedSources++
+			if firstSearchError == nil {
+				firstSearchError = result.err
+			}
 			status.Status = "error"
 			status.Error = result.err.Error()
 			s.recordExternalSourceCheck(ctx, source, result.err.Error())
@@ -67,6 +89,9 @@ func (s *Service) SearchExternalSkills(ctx context.Context, query string, includ
 		statuses[result.index] = status
 	}
 	if failedSources == len(sources) {
+		if len(sources) == 1 && firstSearchError != nil {
+			return nil, firstSearchError
+		}
 		return nil, errors.New("所有外部 skill 来源搜索失败")
 	}
 	slices.SortFunc(items, func(left ExternalSkillSearchItem, right ExternalSkillSearchItem) int {
@@ -99,6 +124,8 @@ func (s *Service) searchExternalSkillSource(ctx context.Context, source external
 		return s.searchBrowseShSource(ctx, source, needle)
 	case externalSourceKindWellKnown:
 		return s.searchWellKnownSource(ctx, source, needle)
+	case externalSourceKindPrivateRegistry:
+		return s.searchPrivateRegistrySource(ctx, source, needle)
 	case externalSourceKindGit, externalSourceKindURL:
 		item := externalPointerSourceItem(source)
 		if !externalItemMatchesQuery(item, needle) {

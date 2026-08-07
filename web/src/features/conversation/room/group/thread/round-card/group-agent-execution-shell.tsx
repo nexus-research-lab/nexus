@@ -41,6 +41,10 @@ interface GroupAgentExecutionShellProps {
   messages: AssistantMessage[];
   onClickThread: () => void;
   onOpenAgentContact?: (agentId: string) => void;
+  onOpenSubagentTask?: (
+    toolUseId: string,
+    hostAgentId?: string | null,
+  ) => void;
   onOpenWorkspaceFile?: (path: string) => void;
   onPermissionResponse: (payload: PermissionDecisionPayload) => boolean;
   onStopAgentRound?: () => void;
@@ -62,6 +66,7 @@ function GroupAgentExecutionShellInner({
   messages,
   onClickThread,
   onOpenAgentContact,
+  onOpenSubagentTask,
   onOpenWorkspaceFile,
   onPermissionResponse,
   onStopAgentRound,
@@ -175,6 +180,7 @@ function GroupAgentExecutionShellInner({
         isLoading={isLoading}
         messages={projectedMessages}
         onOpenAgentContact={onOpenAgentContact}
+        onOpenSubagentTask={onOpenSubagentTask}
         onOpenWorkspaceFile={onOpenWorkspaceFile}
         onPermissionResponse={onPermissionResponse}
         pendingPermissions={pendingPermissions}

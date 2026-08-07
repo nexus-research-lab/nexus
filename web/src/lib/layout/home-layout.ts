@@ -14,8 +14,8 @@ export const HOME_PAGE_PADDING_CLASS = `pr-1.5 ${HOME_STAGE_BOTTOM_PADDING_CLASS
 export const HOME_SIDEBAR_PADDING_CLASS =
   `pl-[var(--sidebar-shell-leading-padding,4px)] pr-1.5 ${HOME_STAGE_BOTTOM_PADDING_CLASS}`;
 
-/** Room 在桌面侧栏开始挤压会话主画布前切换为单窗专注模式。 */
-export const CONVERSATION_FOCUS_MEDIA_QUERY = "(max-width: 1023px)";
+/** 仅在真正窄屏切换单窗专注模式；中等宽度继续使用可渐进压缩的桌面工具栏。 */
+export const CONVERSATION_FOCUS_MEDIA_QUERY = "(max-width: 559px)";
 
 export const HOME_SIDE_PANEL_DEFAULT_WIDTH_PERCENT = 56;
 const HOME_SIDE_PANEL_MIN_WIDTH_PERCENT = 30;

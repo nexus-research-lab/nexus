@@ -25,14 +25,17 @@ func TestRepositoryStoresSourcesAndImportedSkills(t *testing.T) {
 	repository := NewRepository(config.Config{DatabaseDriver: "sqlite"}, db)
 	ctx := context.Background()
 	source := SourceEntity{
-		OwnerUserID: "owner-a",
-		SourceID:    "skill_src_test",
-		Name:        "Test Hub",
-		Kind:        "well_known",
-		URL:         "https://example.com/agentskills.json",
-		Trust:       "community",
-		Enabled:     true,
-		SortOrder:   10,
+		OwnerUserID:          "owner-a",
+		SourceID:             "skill_src_test",
+		Name:                 "Test Hub",
+		Kind:                 "well_known",
+		URL:                  "https://example.com/agentskills.json",
+		Trust:                "community",
+		ManagedBy:            "user",
+		AuthType:             "bearer",
+		CredentialsEncrypted: "v1:test",
+		Enabled:              true,
+		SortOrder:            10,
 	}
 	if err = repository.EnsureSource(ctx, source); err != nil {
 		t.Fatalf("写入来源失败: %v", err)
@@ -57,7 +60,8 @@ func TestRepositoryStoresSourcesAndImportedSkills(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取来源详情失败: %v", err)
 	}
-	if storedSource == nil || storedSource.LastCheckedAt == nil || storedSource.LastError != "boom" {
+	if storedSource == nil || storedSource.LastCheckedAt == nil || storedSource.LastError != "boom" ||
+		storedSource.ManagedBy != "user" || storedSource.AuthType != "bearer" || storedSource.CredentialsEncrypted != "v1:test" {
 		t.Fatalf("来源检查状态未写入: %+v", storedSource)
 	}
 
@@ -76,6 +80,8 @@ func TestRepositoryStoresSourcesAndImportedSkills(t *testing.T) {
 		SourceRef:      source.URL,
 		SourceName:     "Test Hub",
 		SourceTrust:    "community",
+		SourceSkillID:  "demo-id",
+		ArtifactSHA256: "artifact-a",
 		ImportMode:     "url",
 		RawURL:         "https://example.com/SKILL.md",
 		ContentHash:    "hash-a",
@@ -92,7 +98,8 @@ func TestRepositoryStoresSourcesAndImportedSkills(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取导入 skill 失败: %v", err)
 	}
-	if len(items) != 1 || items[0].Version != "v2" || items[0].ContentHash != "hash-b" {
+	if len(items) != 1 || items[0].Version != "v2" || items[0].ContentHash != "hash-b" ||
+		items[0].SourceSkillID != "demo-id" || items[0].ArtifactSHA256 != "artifact-a" {
 		t.Fatalf("导入 skill upsert 不正确: %+v", items)
 	}
 	if err = repository.RecordImportedSkillCheck(ctx, "owner-a", "demo-skill", true, checkedAt, ""); err != nil {
@@ -253,6 +260,9 @@ func createSkillRepositoryTestSchema(t *testing.T, db *sql.DB) {
 			kind VARCHAR(32) NOT NULL,
 			url TEXT NOT NULL,
 			trust VARCHAR(32) NOT NULL DEFAULT 'community',
+			managed_by VARCHAR(32) NOT NULL DEFAULT 'system',
+			auth_type VARCHAR(32) NOT NULL DEFAULT 'none',
+			credentials_encrypted TEXT NOT NULL DEFAULT '',
 			enabled BOOLEAN NOT NULL DEFAULT 1,
 			sort_order INTEGER NOT NULL DEFAULT 100,
 			last_checked_at DATETIME,
@@ -278,6 +288,8 @@ func createSkillRepositoryTestSchema(t *testing.T, db *sql.DB) {
 			source_ref TEXT NOT NULL DEFAULT '',
 			source_name VARCHAR(255) NOT NULL DEFAULT '',
 			source_trust VARCHAR(32) NOT NULL DEFAULT 'community',
+			source_skill_id VARCHAR(255) NOT NULL DEFAULT '',
+			artifact_sha256 VARCHAR(64) NOT NULL DEFAULT '',
 			import_mode VARCHAR(32) NOT NULL DEFAULT '',
 			git_url TEXT NOT NULL DEFAULT '',
 			git_branch VARCHAR(255) NOT NULL DEFAULT '',

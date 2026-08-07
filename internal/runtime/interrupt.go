@@ -1,12 +1,10 @@
-// INPUT: Exact runtime session/round identity, cancellation reason, and Manager-owned round/client state.
-// OUTPUT: An honest provider-interrupted, local-round-cancelled, already-ended, or unsupported result.
-// POS: Runtime boundary for cancelling one physical round without interrupting a successor in the same session.
+// INPUT: exact runtime session/round identity、中断原因与 Manager 持有的 round/client 状态。
+// OUTPUT: provider interrupt、本地 round cancel、已结束或不支持的真实结果。
+// POS: 不误伤同 session successor 的物理 round 中断边界。
 package runtime
 
 import (
 	"context"
-	"maps"
-	"slices"
 	"strings"
 	"time"
 )
@@ -64,16 +62,17 @@ func (m *Manager) InterruptRound(
 		m.mu.Unlock()
 		return ExactRoundInterruptResult{Outcome: ExactRoundAlreadyEnded}, nil
 	}
-	if _, running := state.RunningRounds[roundID]; !running {
+	round := state.Rounds.get(roundID)
+	if round == nil || !round.running {
 		m.mu.Unlock()
 		return ExactRoundInterruptResult{Outcome: ExactRoundAlreadyEnded}, nil
 	}
-	cancel := state.RoundCancels[roundID]
-	done := state.RoundDone[roundID]
+	cancel := round.cancel
+	done := round.done
 	client := state.Client
-	providerSafe := len(state.RunningRounds) == 1 && client != nil
+	providerSafe := state.Rounds.runningCount() == 1 && client != nil
 	if providerSafe {
-		state.ProviderInterruptRoundID = roundID
+		state.Rounds.beginProviderInterrupt(roundID)
 	}
 	if cancel == nil && !providerSafe {
 		m.mu.Unlock()
@@ -83,7 +82,7 @@ func (m *Manager) InterruptRound(
 			Detail:         exactRoundCancellationUnavailableDetail,
 		}, nil
 	}
-	state.Interruptions[roundID] = strings.TrimSpace(reason)
+	round.interruption = strings.TrimSpace(reason)
 	m.touchStateLocked(state)
 	m.mu.Unlock()
 
@@ -150,52 +149,38 @@ func (m *Manager) clearProviderInterruptFence(sessionKey string, roundID string)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	state := m.sessions[sessionKey]
-	if state != nil && state.ProviderInterruptRoundID == roundID {
-		state.ProviderInterruptRoundID = ""
+	if state != nil && state.Rounds.finishProviderInterrupt(roundID) {
 		m.touchStateLocked(state)
+		m.removeClientlessSessionIfIdleLocked(sessionKey, state, nil)
 	}
 }
 
 // InterruptSession 中断当前 session 的全部运行中 round。
 func (m *Manager) InterruptSession(ctx context.Context, sessionKey string, reason string) ([]string, error) {
-	m.mu.RLock()
-	state, ok := m.sessions[sessionKey]
-	if !ok || state == nil || state.Closing {
-		m.mu.RUnlock()
-		return nil, nil
-	}
-
-	roundIDs := slices.Sorted(maps.Keys(state.RunningRounds))
-	doneSignals := make([]chan struct{}, 0, len(state.RoundDone))
-	cancels := make([]context.CancelFunc, 0, len(state.RoundCancels))
-	for _, roundID := range roundIDs {
-		if done, ok := state.RoundDone[roundID]; ok && done != nil {
-			doneSignals = append(doneSignals, done)
-		}
-		if cancel, ok := state.RoundCancels[roundID]; ok && cancel != nil {
-			cancels = append(cancels, cancel)
-		}
-	}
-	client := state.Client
-	m.mu.RUnlock()
-
-	if len(roundIDs) == 0 {
-		return nil, nil
-	}
-
 	interruptReason := strings.TrimSpace(reason)
 
 	m.mu.Lock()
-	state = m.sessions[sessionKey]
-	if state == nil || state.Closing {
+	state, ok := m.sessions[sessionKey]
+	if !ok || state == nil || state.Closing {
 		m.mu.Unlock()
 		return nil, nil
 	}
-	m.touchStateLocked(state)
-	for _, roundID := range roundIDs {
-		state.Interruptions[roundID] = interruptReason
+
+	roundIDs := state.Rounds.runningIDs()
+	if len(roundIDs) == 0 {
+		m.mu.Unlock()
+		return nil, nil
 	}
-	client = state.Client
+
+	doneSignals := state.Rounds.doneSignals(roundIDs...)
+	cancels := state.Rounds.cancelFuncs(roundIDs...)
+	for _, roundID := range roundIDs {
+		if round := state.Rounds.get(roundID); round != nil {
+			round.interruption = interruptReason
+		}
+	}
+	client := state.Client
+	m.touchStateLocked(state)
 	m.mu.Unlock()
 
 	if client == nil {
@@ -249,7 +234,11 @@ func (m *Manager) GetInterruptReason(sessionKey string, roundID string) string {
 	if !ok || state == nil {
 		return ""
 	}
-	return strings.TrimSpace(state.Interruptions[roundID])
+	round := state.Rounds.get(roundID)
+	if round == nil {
+		return ""
+	}
+	return strings.TrimSpace(round.interruption)
 }
 
 func waitRoundDoneSignals(

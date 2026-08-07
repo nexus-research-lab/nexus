@@ -238,7 +238,8 @@ func (m *CatalogMutation) GetSource(
 	sourceID string,
 ) (*SourceEntity, error) {
 	row := m.tx.QueryRowContext(ctx, `
-SELECT owner_user_id, source_id, name, kind, url, trust, enabled, sort_order,
+SELECT owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
+       credentials_encrypted, enabled, sort_order,
        last_checked_at, last_error, created_at, updated_at
 FROM skill_sources
 WHERE owner_user_id = `+m.repository.bind(1)+` AND source_id = `+m.repository.bind(2),

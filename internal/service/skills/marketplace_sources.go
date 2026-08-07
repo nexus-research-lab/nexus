@@ -36,7 +36,7 @@ func (s *Service) recordExternalSourceCheck(ctx context.Context, source external
 	}
 }
 
-// ListExternalSkillSources 返回当前用户的社区 skill 来源配置。
+// ListExternalSkillSources 返回当前用户可见的社区与私有 skill 来源配置。
 func (s *Service) ListExternalSkillSources(ctx context.Context) ([]ExternalSkillSourceInfo, error) {
 	configuredSources := s.configuredExternalSkillSources()
 	if s.skillStore == nil {
@@ -56,7 +56,7 @@ func (s *Service) ListExternalSkillSources(ctx context.Context) ([]ExternalSkill
 	configuredIDs := configuredExternalSourceIDs(configuredSources)
 	items := make([]ExternalSkillSourceInfo, 0, len(rows))
 	for _, row := range rows {
-		if _, ok := configuredIDs[row.SourceID]; !ok {
+		if !externalSourceVisible(row, configuredIDs) {
 			continue
 		}
 		items = append(items, externalSkillSourceInfoFromEntity(row))
@@ -64,7 +64,7 @@ func (s *Service) ListExternalSkillSources(ctx context.Context) ([]ExternalSkill
 	return items, nil
 }
 
-// UpdateExternalSkillSource 更新当前用户的社区 skill 来源开关。
+// UpdateExternalSkillSource 更新当前用户的 skill 来源配置。
 func (s *Service) UpdateExternalSkillSource(ctx context.Context, sourceID string, request ExternalSkillSourceRequest) (*ExternalSkillSourceInfo, error) {
 	return s.updateExternalSkillSource(ctx, sourceID, request, nil)
 }
@@ -93,29 +93,46 @@ func (s *Service) updateExternalSkillSource(
 	if err := s.ensureConfiguredSkillSources(ctx, configuredSources); err != nil {
 		return nil, err
 	}
+	ownerUserID := authctx.OwnerUserID(ctx)
+	existing, err := s.skillStore.GetSource(ctx, ownerUserID, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		return nil, errors.New("skill source not found")
+	}
+	if sourceManagedBy(*existing) == externalSourceManagedByUser {
+		if existing.Kind != externalSourceKindPrivateRegistry {
+			return nil, errors.New("不支持修改该用户来源类型")
+		}
+		return s.updatePrivateSkillSource(ctx, *existing, request)
+	}
 	if _, ok := configuredExternalSourceIDs(configuredSources)[sourceID]; !ok {
 		return nil, errors.New("skill source not found")
 	}
+	if request.Name != nil || request.AuthType != nil || request.Token != nil {
+		return nil, errors.New("系统来源只允许修改启用状态")
+	}
 	var row *skillstore.SourceEntity
-	_, err := s.withCatalogMutation(
+	_, err = s.withCatalogMutation(
 		ctx,
 		expectedVersion,
 		true,
 		func(mutation *skillstore.CatalogMutation) error {
-			existing, loadErr := mutation.GetSource(ctx, sourceID)
+			current, loadErr := mutation.GetSource(ctx, sourceID)
 			if loadErr != nil {
 				return loadErr
 			}
-			if existing == nil {
+			if current == nil || sourceManagedBy(*current) != externalSourceManagedBySystem {
 				return errors.New("skill source not found")
 			}
 			if request.Enabled != nil {
-				existing.Enabled = *request.Enabled
+				current.Enabled = *request.Enabled
 			}
-			if updateErr := mutation.UpsertSource(ctx, *existing); updateErr != nil {
+			if updateErr := mutation.UpsertSource(ctx, *current); updateErr != nil {
 				return updateErr
 			}
-			row = existing
+			row = current
 			return nil
 		},
 	)
@@ -141,6 +158,14 @@ func configuredExternalSourceIDs(sources []externalSkillSource) map[string]struc
 	return result
 }
 
+func externalSourceVisible(row skillstore.SourceEntity, configuredIDs map[string]struct{}) bool {
+	if sourceManagedBy(row) == externalSourceManagedByUser {
+		return true
+	}
+	_, ok := configuredIDs[row.SourceID]
+	return ok
+}
+
 func (s *Service) externalSkillSources(ctx context.Context) []externalSkillSource {
 	configuredSources := s.configuredExternalSkillSources()
 	if s.skillStore == nil {
@@ -158,18 +183,10 @@ func (s *Service) externalSkillSources(ctx context.Context) []externalSkillSourc
 	configuredIDs := configuredExternalSourceIDs(configuredSources)
 	sources := make([]externalSkillSource, 0, len(rows))
 	for _, row := range rows {
-		if _, ok := configuredIDs[row.SourceID]; !ok {
+		if !externalSourceVisible(row, configuredIDs) {
 			continue
 		}
-		sources = append(sources, externalSkillSource{
-			Key:       row.SourceID,
-			Name:      row.Name,
-			Kind:      row.Kind,
-			URL:       row.URL,
-			Trust:     row.Trust,
-			Enabled:   row.Enabled,
-			SortOrder: row.SortOrder,
-		})
+		sources = append(sources, s.externalSkillSourceFromEntity(row))
 	}
 	return sources
 }
@@ -192,6 +209,8 @@ func (s *Service) ensureConfiguredSkillSources(ctx context.Context, sources []ex
 					Kind:        source.Kind,
 					URL:         source.URL,
 					Trust:       firstNonEmpty(source.Trust, externalSourceTrustCommunity),
+					ManagedBy:   externalSourceManagedBySystem,
+					AuthType:    externalSourceAuthNone,
 					Enabled:     source.Enabled,
 					SortOrder:   source.SortOrder,
 				}); ensureErr != nil {
@@ -213,19 +232,58 @@ func externalSkillSourceInfoFromSource(source externalSkillSource) ExternalSkill
 		Trust:     source.Trust,
 		Enabled:   source.Enabled,
 		SortOrder: source.SortOrder,
+		ManagedBy: externalSourceManagedBySystem,
+		AuthType:  externalSourceAuthNone,
+		Deletable: false,
 	}
 }
 
 func externalSkillSourceInfoFromEntity(entity skillstore.SourceEntity) ExternalSkillSourceInfo {
+	managedBy := sourceManagedBy(entity)
 	return ExternalSkillSourceInfo{
-		SourceID:      entity.SourceID,
-		Name:          entity.Name,
-		Kind:          entity.Kind,
-		URL:           entity.URL,
-		Trust:         entity.Trust,
-		Enabled:       entity.Enabled,
-		SortOrder:     entity.SortOrder,
-		LastCheckedAt: entity.LastCheckedAt,
-		LastError:     entity.LastError,
+		SourceID:             entity.SourceID,
+		Name:                 entity.Name,
+		Kind:                 entity.Kind,
+		URL:                  entity.URL,
+		Trust:                entity.Trust,
+		Enabled:              entity.Enabled,
+		SortOrder:            entity.SortOrder,
+		LastCheckedAt:        entity.LastCheckedAt,
+		LastError:            entity.LastError,
+		ManagedBy:            managedBy,
+		AuthType:             firstNonEmpty(entity.AuthType, externalSourceAuthNone),
+		CredentialConfigured: strings.TrimSpace(entity.CredentialsEncrypted) != "",
+		Deletable:            managedBy == externalSourceManagedByUser && entity.Kind == externalSourceKindPrivateRegistry,
 	}
+}
+
+func sourceManagedBy(entity skillstore.SourceEntity) string {
+	if strings.TrimSpace(entity.ManagedBy) == externalSourceManagedByUser {
+		return externalSourceManagedByUser
+	}
+	return externalSourceManagedBySystem
+}
+
+func (s *Service) externalSkillSourceFromEntity(entity skillstore.SourceEntity) externalSkillSource {
+	source := externalSkillSource{
+		Key:       entity.SourceID,
+		Name:      entity.Name,
+		Kind:      entity.Kind,
+		URL:       entity.URL,
+		Trust:     entity.Trust,
+		Enabled:   entity.Enabled,
+		SortOrder: entity.SortOrder,
+		ManagedBy: sourceManagedBy(entity),
+		AuthType:  firstNonEmpty(entity.AuthType, externalSourceAuthNone),
+	}
+	if strings.TrimSpace(entity.CredentialsEncrypted) == "" {
+		return source
+	}
+	credential, err := s.decryptPrivateSourceCredential(entity.CredentialsEncrypted)
+	if err != nil {
+		source.CredentialError = err.Error()
+		return source
+	}
+	source.Credential = credential
+	return source
 }

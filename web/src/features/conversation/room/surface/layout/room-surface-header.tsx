@@ -29,7 +29,6 @@ interface RoomSurfaceHeaderProps {
   onDeleteConversation: (conversationId: string) => Promise<string | null>;
   onManageRoom: (submission: RoomDialogSubmission) => Promise<void>;
   onOpenMemberManager: () => Promise<void>;
-  onReplayTour?: () => void;
   onSelectConversation: (conversationId: string) => void;
   onUpdateConversationTitle?: (conversationId: string, title: string) => Promise<void>;
   roomAvatar?: string | null;
@@ -56,7 +55,6 @@ export function RoomSurfaceHeader({
   onDeleteConversation,
   onManageRoom,
   onOpenMemberManager,
-  onReplayTour,
   onSelectConversation,
   onUpdateConversationTitle,
   roomAvatar,
@@ -67,6 +65,13 @@ export function RoomSurfaceHeader({
   roomPrivateMessagesEnabled,
   roomSkillNames,
 }: RoomSurfaceHeaderProps) {
+  const handleToggleSurfaceTab = (tab: RoomSurfaceTabKey) => {
+    if (tab === activeSurfaceTab) {
+      onCloseAuxiliaryPanel();
+      return;
+    }
+    onChangeSurfaceTab(tab);
+  };
   const header = isDm ? (
     <DmConversationHeader
       activeTab={activeSurfaceTab}
@@ -74,12 +79,10 @@ export function RoomSurfaceHeader({
       conversations={conversations}
       currentAgentName={currentAgent.name}
       currentAgentAvatar={currentAgent.avatar ?? null}
-      onChangeTab={onChangeSurfaceTab}
-      onCloseActiveTab={onCloseAuxiliaryPanel}
+      onChangeTab={handleToggleSurfaceTab}
       onCloseConversation={onCloseConversation}
       onCreateConversation={onCreateConversation}
       onDeleteConversation={onDeleteConversation}
-      onReplayTour={onReplayTour}
       onSelectConversation={onSelectConversation}
       onUpdateConversationTitle={onUpdateConversationTitle}
     />
@@ -91,14 +94,12 @@ export function RoomSurfaceHeader({
       conversationId={conversationId}
       conversations={conversations}
       currentRoomTitle={currentRoomTitle}
-      onChangeTab={onChangeSurfaceTab}
-      onCloseActiveTab={onCloseAuxiliaryPanel}
+      onChangeTab={handleToggleSurfaceTab}
       onCloseConversation={onCloseConversation}
       onCreateConversation={onCreateConversation}
       onDeleteConversation={onDeleteConversation}
       onManageRoom={onManageRoom}
       onOpenMemberManager={onOpenMemberManager}
-      onReplayTour={onReplayTour}
       onSelectConversation={onSelectConversation}
       onUpdateConversationTitle={onUpdateConversationTitle}
       roomAvatar={roomAvatar}
