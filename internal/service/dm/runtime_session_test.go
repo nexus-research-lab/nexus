@@ -189,7 +189,7 @@ func TestServiceEnsureClientInjectsRuntimePrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	if _, _, _, _, _, _, _, _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	if _, err = service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModeDefault,
 	}); err != nil {
@@ -278,7 +278,7 @@ func TestServiceEnsureClientPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化主智能体 session 失败: %v", err)
 	}
-	if _, _, _, _, _, _, _, _, err = service.ensureClient(
+	if _, err = service.ensureClient(
 		context.Background(),
 		sessionKey,
 		agentValue,

@@ -337,18 +337,18 @@ func TestServiceEnsureClientSkipsGoalRuntimeContextInPlanMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	_, _, _, _, goalID, goalContext, _, permissionMode, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	preparation, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModePlan,
 	})
 	if err != nil {
 		t.Fatalf("构建 plan mode runtime client 失败: %v", err)
 	}
-	if permissionMode != sdkpermission.ModePlan {
-		t.Fatalf("permissionMode = %q, want plan", permissionMode)
+	if preparation.permissionMode != sdkpermission.ModePlan {
+		t.Fatalf("permissionMode = %q, want plan", preparation.permissionMode)
 	}
-	if goalID != "" || goalContext != "" {
-		t.Fatalf("plan mode goal runtime context = (%q, %q), want empty", goalID, goalContext)
+	if preparation.goalIDForUsage != "" || preparation.goalContext != "" {
+		t.Fatalf("plan mode goal runtime context = (%q, %q), want empty", preparation.goalIDForUsage, preparation.goalContext)
 	}
 	if calls := goalProvider.runtimeContextCallCount(); calls != 0 {
 		t.Fatalf("plan mode should not read Goal runtime context, calls = %d", calls)
@@ -384,15 +384,15 @@ func TestServiceEnsureClientDoesNotBindAmbientBudgetLimitedGoal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("初始化 session 失败: %v", err)
 	}
-	_, _, _, _, goalID, goalContext, _, _, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
+	preparation, err := service.ensureClient(context.Background(), sessionKey, agentValue, sessionItem, Request{
 		SessionKey:     sessionKey,
 		PermissionMode: sdkpermission.ModeDefault,
 	})
 	if err != nil {
 		t.Fatalf("构建 runtime client 失败: %v", err)
 	}
-	if goalID != "" || goalContext != "" {
-		t.Fatalf("ordinary round budget_limited Goal runtime = (%q, %q), want unbound", goalID, goalContext)
+	if preparation.goalIDForUsage != "" || preparation.goalContext != "" {
+		t.Fatalf("ordinary round budget_limited Goal runtime = (%q, %q), want unbound", preparation.goalIDForUsage, preparation.goalContext)
 	}
 	if calls := goalProvider.runtimeContextCallCount(); calls != 0 {
 		t.Fatalf("ordinary round should not read ambient Goal runtime context, calls=%d", calls)

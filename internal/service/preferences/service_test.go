@@ -29,6 +29,9 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	if prefs.AgentSDKDiagnosticsEnabled {
 		t.Fatalf("Agent SDK diagnostics 默认应关闭: %+v", prefs)
 	}
+	if prefs.EmotionEnabled {
+		t.Fatalf("情绪系统默认应关闭: %+v", prefs)
+	}
 	if prefs.ToolSearchEnabledForRuntime("nxs") {
 		t.Fatalf("nxs ToolSearch 默认应关闭: %+v", prefs)
 	}
@@ -46,6 +49,9 @@ func TestDefaultPreferencesAcceptEditsByDefault(t *testing.T) {
 	if normalized.AgentSDKDiagnosticsEnabled {
 		t.Fatalf("空偏好归一化后 Agent SDK diagnostics 应关闭: %+v", normalized)
 	}
+	if normalized.EmotionEnabled {
+		t.Fatalf("空偏好归一化后情绪系统应关闭: %+v", normalized)
+	}
 	if normalized.ToolSearchEnabledForRuntime("nxs") {
 		t.Fatalf("空偏好归一化后 nxs ToolSearch 应关闭: %+v", normalized)
 	}
@@ -62,6 +68,7 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 		ChatDefaultDeliveryPolicy:  policyPointer(protocol.ChatDeliveryPolicyQueue),
 		AgentRuntimeKind:           stringPointer("nxs"),
 		AgentSDKDiagnosticsEnabled: boolPointer(true),
+		EmotionEnabled:             boolPointer(true),
 		RuntimeSettings: &RuntimeSettings{
 			"nxs":    {ToolSearch: true},
 			"claude": {ToolSearch: true},
@@ -97,6 +104,9 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if !prefs.AgentSDKDiagnosticsEnabled {
 		t.Fatalf("Agent SDK diagnostics 偏好未持久化: %+v", prefs)
 	}
+	if !prefs.EmotionEnabled {
+		t.Fatalf("情绪系统偏好未持久化: %+v", prefs)
+	}
 	if !prefs.ToolSearchEnabledForRuntime("nxs") || prefs.ToolSearchEnabledForRuntime("claude") {
 		t.Fatalf("ToolSearch 应只在 nxs runtime 生效: %+v", prefs.RuntimeSettings)
 	}
@@ -126,12 +136,30 @@ func TestServiceUpdatePersistsUserPreferences(t *testing.T) {
 	if loaded.ChatDefaultDeliveryPolicy != protocol.ChatDeliveryPolicyQueue ||
 		loaded.AgentRuntimeKind != "nxs" ||
 		!loaded.AgentSDKDiagnosticsEnabled ||
+		!loaded.EmotionEnabled ||
 		!loaded.ToolSearchEnabledForRuntime("nxs") ||
 		loaded.DefaultAgentOptions.PermissionMode != "default" {
 		t.Fatalf("读取结果不正确: %+v", loaded)
 	}
 	if loaded.DefaultImageModelSelection.Model != "image-model" || loaded.DefaultVisionModelSelection.Model != "vision-model" || loaded.DefaultBackgroundModelSelection.Model != "background-model" {
 		t.Fatalf("读取默认模型选择不正确: %+v", loaded)
+	}
+	emotionDisabled := false
+	disabled, err := service.Update(context.Background(), "user/1", UpdateRequest{
+		EmotionEnabled: &emotionDisabled,
+	})
+	if err != nil {
+		t.Fatalf("关闭情绪系统失败: %v", err)
+	}
+	if disabled.EmotionEnabled {
+		t.Fatalf("情绪系统关闭状态未生效: %+v", disabled)
+	}
+	reloaded, err := service.Get(context.Background(), "user/1")
+	if err != nil {
+		t.Fatalf("重新读取关闭后的偏好失败: %v", err)
+	}
+	if reloaded.EmotionEnabled {
+		t.Fatalf("情绪系统关闭状态未持久化: %+v", reloaded)
 	}
 	preferencesPath := testUserSettingsPath(root, "user/1", "preferences.json")
 	info, statErr := os.Stat(preferencesPath)

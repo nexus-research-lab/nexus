@@ -14,9 +14,14 @@ func (s *Service) BuildRuntimePrompt(ctx context.Context, agentValue *protocol.A
 	return s.prompts.Build(ctx, agentValue)
 }
 
-// BuildRuntimeUserMessageSuffixForContext 构建指定情绪上下文的动态上下文。
-func (s *Service) BuildRuntimeUserMessageSuffixForContext(ctx context.Context, agentValue *protocol.Agent, emotionContextID string) string {
-	if s == nil || s.prompts == nil {
+// BuildRuntimeUserMessageSuffixForContext 按用户偏好构建指定情绪上下文的动态上下文。
+func (s *Service) BuildRuntimeUserMessageSuffixForContext(
+	ctx context.Context,
+	agentValue *protocol.Agent,
+	emotionContextID string,
+	emotionEnabled bool,
+) string {
+	if s == nil || s.prompts == nil || !emotionEnabled {
 		return ""
 	}
 	return s.prompts.BuildUserMessageSuffix(ctx, agentValue, emotionContextID)

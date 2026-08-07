@@ -45,6 +45,7 @@ func TestResolveUsesExplicitAgentModelAndPreferenceRuntimeKind(t *testing.T) {
 		"owner-1": {
 			AgentRuntimeKind:           "nxs",
 			AgentSDKDiagnosticsEnabled: true,
+			EmotionEnabled:             true,
 			RuntimeSettings: preferencessvc.RuntimeSettings{
 				"nxs": {ToolSearch: true},
 			},
@@ -71,6 +72,9 @@ func TestResolveUsesExplicitAgentModelAndPreferenceRuntimeKind(t *testing.T) {
 	}
 	if !selection.AgentSDKDiagnosticsEnabled {
 		t.Fatalf("Agent SDK diagnostics 偏好应透传: %+v", selection)
+	}
+	if !selection.EmotionEnabled {
+		t.Fatalf("情绪系统偏好应透传: %+v", selection)
 	}
 	if !selection.ToolSearchEnabled {
 		t.Fatalf("nxs ToolSearch 偏好应透传: %+v", selection)

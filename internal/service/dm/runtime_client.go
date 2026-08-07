@@ -30,16 +30,29 @@ import (
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
+// dmClientPreparation 收拢 runtime client 启动后的配置快照，避免扩展返回值参数组。
+type dmClientPreparation struct {
+	client                runtimectx.Client
+	runtimeKind           string
+	runtimeProvider       string
+	runtimeModel          string
+	emotionEnabled        bool
+	goalIDForUsage        string
+	goalContext           string
+	goalObjectiveRevision *atomic.Int64
+	permissionMode        sdkpermission.Mode
+}
+
 func (s *Service) ensureClient(
 	ctx context.Context,
 	sessionKey string,
 	agentValue *protocol.Agent,
 	sessionItem protocol.Session,
 	request Request,
-) (runtimectx.Client, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode, error) {
+) (dmClientPreparation, error) {
 	startup, err := s.runtime.BeginClientStartup(ctx, sessionKey, agentValue.OwnerUserID)
 	if err != nil {
-		return nil, "", "", "", "", "", nil, sdkpermission.ModeDefault, err
+		return dmClientPreparation{}, err
 	}
 	defer startup.Close()
 	latestSession, _, err := s.files.ForOwner(agentValue.OwnerUserID).FindSession(
@@ -47,7 +60,7 @@ func (s *Service) ensureClient(
 		sessionKey,
 	)
 	if err != nil {
-		return nil, "", "", "", "", "", nil, sdkpermission.ModeDefault, err
+		return dmClientPreparation{}, err
 	}
 	if latestSession != nil {
 		sessionItem = *latestSession
@@ -67,25 +80,25 @@ func (s *Service) ensureClient(
 	permissionHandler = toolpolicy.WithManagedRuntimeAutoApproval(permissionHandler)
 	permissionHandler = toolpolicy.WithMalformedInputDeny(permissionHandler)
 	if err := workspacepkg.EnsureUserSkillLibrary(s.config, agentValue.OwnerUserID); err != nil {
-		return nil, "", "", "", "", "", nil, permissionMode, err
+		return dmClientPreparation{}, err
 	}
 	if err := workspacepkg.EnsureInitializedForAgent(s.config, *agentValue); err != nil {
-		return nil, "", "", "", "", "", nil, permissionMode, err
+		return dmClientPreparation{}, err
 	}
 	runtimeSkillNames, err := workspacepkg.RuntimeSkillNamesForAgent(s.config, *agentValue)
 	if err != nil {
-		return nil, "", "", "", "", "", nil, permissionMode, err
+		return dmClientPreparation{}, err
 	}
 	runtimeDisabledSkillNames, err := workspacepkg.RuntimeDisabledSkillNamesForAgent(
 		s.config,
 		*agentValue,
 	)
 	if err != nil {
-		return nil, "", "", "", "", "", nil, permissionMode, err
+		return dmClientPreparation{}, err
 	}
 	dynamicSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
-		return nil, "", "", "", "", "", nil, permissionMode, err
+		return dmClientPreparation{}, err
 	}
 	staticSystemPrompt := orchestration.StablePrompt()
 	goalContext, goalIDForUsage, objectiveRevision := "", "", int64(0)
@@ -95,7 +108,7 @@ func (s *Service) ensureClient(
 	if !goalsvc.ShouldIgnoreRuntimeForPermissionMode(string(permissionMode)) && goalBoundRequest {
 		goalContext, goalIDForUsage, objectiveRevision = s.goalRuntimeContext(ctx, sessionKey)
 		if strings.TrimSpace(goalIDForUsage) != explicitGoalID || objectiveRevision != explicitGoalRevision {
-			return nil, "", "", "", "", "", nil, permissionMode, goalsvc.ErrGoalRevisionStale
+			return dmClientPreparation{}, goalsvc.ErrGoalRevisionStale
 		}
 		goalIDForUsage = explicitGoalID
 		objectiveRevision = explicitGoalRevision
@@ -144,14 +157,14 @@ func (s *Service) ensureClient(
 		sessionItem.Options,
 	)
 	if err != nil {
-		return nil, "", "", "", "", "", nil, permissionMode, err
+		return dmClientPreparation{}, err
 	}
 	if err = s.agents.EnsureRuntimeVisionSettingsProjection(
 		*agentValue,
 		runtimeSelection.VisionProvider,
 		runtimeSelection.VisionModel,
 	); err != nil {
-		return nil, "", "", "", "", "", nil, permissionMode, err
+		return dmClientPreparation{}, err
 	}
 	options, err := clientopts.BuildAgentClientOptions(ctx, s.providers, clientopts.AgentClientOptionsInput{
 		WorkspacePath:              agentValue.WorkspacePath,
@@ -184,7 +197,7 @@ func (s *Service) ensureClient(
 		RuntimeLauncherPath:        s.config.RuntimeLauncherPath,
 	})
 	if err != nil {
-		return nil, "", "", "", "", "", nil, permissionMode, err
+		return dmClientPreparation{}, err
 	}
 	options = s.runtime.WithGuidanceHook(options, sessionKey)
 	options = s.runtime.WithSubagentAdmissionHooks(options, sessionKey)
@@ -219,7 +232,7 @@ func (s *Service) ensureClient(
 			)
 		}
 		if strings.TrimSpace(options.Session.ResumeID) == "" || !runtimectx.IsRuntimeTransportClosedError(err) {
-			return nil, "", "", "", "", "", nil, permissionMode, err
+			return dmClientPreparation{}, err
 		}
 		s.loggerFor(ctx).Warn("DM SDK session resume 失效，清除后重试",
 			"session_key", sessionKey,
@@ -228,14 +241,14 @@ func (s *Service) ensureClient(
 			"err", err,
 		)
 		if !retired {
-			return nil, "", "", "", "", "", nil, permissionMode, err
+			return dmClientPreparation{}, err
 		}
 		if _, clearErr := s.clearReusableSDKSessionID(ctx, agentValue.WorkspacePath, sessionItem); clearErr != nil {
-			return nil, "", "", "", "", "", nil, permissionMode, clearErr
+			return dmClientPreparation{}, clearErr
 		}
 		options.Session.ResumeID = ""
 		if errors.Is(closeErr, context.Canceled) || errors.Is(closeErr, context.DeadlineExceeded) {
-			return nil, "", "", "", "", "", nil, permissionMode, err
+			return dmClientPreparation{}, err
 		}
 		client, err = s.acquireRuntimeClient(ctx, startup, options)
 		if err != nil {
@@ -248,10 +261,20 @@ func (s *Service) ensureClient(
 					"cleanup_err", cleanupErr,
 				)
 			}
-			return nil, "", "", "", "", "", nil, permissionMode, err
+			return dmClientPreparation{}, err
 		}
 	}
-	return client, strings.TrimSpace(string(options.Runtime.Kind)), runtimeProvider, strings.TrimSpace(options.Model), goalIDForUsage, goalContext, goalObjectiveRevision, permissionMode, nil
+	return dmClientPreparation{
+		client:                client,
+		runtimeKind:           strings.TrimSpace(string(options.Runtime.Kind)),
+		runtimeProvider:       runtimeProvider,
+		runtimeModel:          strings.TrimSpace(options.Model),
+		emotionEnabled:        runtimeSelection.EmotionEnabled,
+		goalIDForUsage:        goalIDForUsage,
+		goalContext:           goalContext,
+		goalObjectiveRevision: goalObjectiveRevision,
+		permissionMode:        permissionMode,
+	}, nil
 }
 
 func joinDMRuntimePrompts(stable string, dynamic string) string {

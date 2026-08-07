@@ -50,6 +50,15 @@ export function useGeneralSettingsController() {
     },
     [updatePreferences],
   );
+  const handleEmotionEnabledChange = useCallback(
+    (checked: boolean) => {
+      updatePreferences((current) => ({
+        ...current,
+        emotion_enabled: checked,
+      }));
+    },
+    [updatePreferences],
+  );
   const handlePermissionModeChange = useCallback((value: string) => {
     updatePreferences((current) => ({
       ...current,
@@ -65,6 +74,7 @@ export function useGeneralSettingsController() {
       agentSdkDiagnosticsEnabled:
         preferences.agent_sdk_diagnostics_enabled === true,
       chatDefaultDeliveryPolicy: preferences.chat_default_delivery_policy,
+      emotionEnabled: preferences.emotion_enabled === true,
       defaultBackgroundModelOptions: defaultModels.options.background,
       defaultBackgroundModelValue: defaultModels.values.background,
       defaultImageModelOptions: defaultModels.options.image,
@@ -76,6 +86,7 @@ export function useGeneralSettingsController() {
       defaultModelSavingRole: defaultModels.savingRole,
       defaultModelValue: defaultModels.values.agent,
       onAgentSdkDiagnosticsChange: handleAgentSdkDiagnosticsChange,
+      onEmotionEnabledChange: handleEmotionEnabledChange,
       onDefaultDeliveryPolicyChange: handleDeliveryPolicyChange,
       onDefaultModelChange: defaultModels.handleChange,
       onResetTours: resetAllTours,

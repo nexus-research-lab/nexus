@@ -43,16 +43,17 @@ func appendPromptSection(base string, section string) string {
 
 // slotExecution 收拢单个 Room slot 的执行态，避免业务阶段之间传递成组参数。
 type slotExecution struct {
-	service       *Service
-	ctx           context.Context
-	round         *activeRoomRound
-	slot          *activeRoomSlot
-	history       []protocol.Message
-	agentNameByID map[string]string
-	agent         *protocol.Agent
-	logger        *slog.Logger
-	streamLogger  *slog.Logger
-	mapper        *roomdomain.SlotMessageMapper
+	service        *Service
+	ctx            context.Context
+	round          *activeRoomRound
+	slot           *activeRoomSlot
+	history        []protocol.Message
+	agentNameByID  map[string]string
+	agent          *protocol.Agent
+	logger         *slog.Logger
+	streamLogger   *slog.Logger
+	mapper         *roomdomain.SlotMessageMapper
+	emotionEnabled bool
 }
 
 type roomRoundMapperAdapter struct {
@@ -396,7 +397,13 @@ func (e *slotExecution) prepareDispatchPayload() (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	runtimeContent = e.service.appendRuntimeUserContext(e.ctx, e.round.ConversationID, e.agent, runtimeContent)
+	runtimeContent = e.service.appendRuntimeUserContext(
+		e.ctx,
+		e.round.ConversationID,
+		e.agent,
+		runtimeContent,
+		e.emotionEnabled,
+	)
 	return runtimeContent.Payload(), nil
 }
 
