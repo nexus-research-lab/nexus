@@ -23,14 +23,16 @@ type ServerContext struct {
 	OwnerUserID         string
 	CurrentSessionKey   string
 	CurrentSessionLabel string
-	// SourceContextType 取值 "agent" 或 "room"，影响 reply_mode=execution 的解析。
+	// SourceContextType 只有精确的 "agent"/"room" 表示可信交互上下文；带
+	// channel/external/automation/queue/internal 等后缀的来源只能获得只读工具。
+	// 该字段也影响 reply_mode=execution 的解析。
 	SourceContextType string
 	// SourceContextID/Label 对齐前端任务来源快照，用于让 Agent 创建的 Room 任务
 	// 后续仍能在任务管理 UI 里按 Room 维度编辑。
 	SourceContextID    string
 	SourceContextLabel string
-	// IsMainAgent 标识当前调用方是否为主智能体。主智能体豁免 agent_id scope 限制，
-	// 可以查看/管理任意智能体的定时任务；普通 Agent 只能 CRUD 自己的任务。
+	// IsMainAgent 只由应用层为主智能体自己的可信私有 DM 签发。该上下文可在
+	// owner scope 内跨 Agent 管理；Room、外部和后台来源即使运行主智能体也必须为 false。
 	IsMainAgent bool
 	// DefaultTimezone 是用户未显式指定 schedule.timezone 时使用的回退时区（IANA）。
 	DefaultTimezone string
@@ -42,7 +44,9 @@ type Service interface {
 	GetTask(ctx context.Context, jobID string) (*automationdomain.ScheduledTask, error)
 	CreateTask(ctx context.Context, input automationdomain.CreateJobInput) (*automationdomain.ScheduledTask, error)
 	UpdateTask(ctx context.Context, jobID string, input automationdomain.UpdateJobInput) (*automationdomain.ScheduledTask, error)
+	UpdateTaskAtVersion(ctx context.Context, jobID string, expectedVersion int64, input automationdomain.UpdateJobInput) (*automationdomain.ScheduledTask, error)
 	DeleteTask(ctx context.Context, jobID string) (*automationdomain.DeleteJobResult, error)
+	DeleteTaskAtVersion(ctx context.Context, jobID string, expectedVersion int64) (*automationdomain.DeleteJobResult, error)
 	RunTaskNow(ctx context.Context, jobID string) (*automationdomain.ExecutionResult, error)
 	ListTaskRuns(ctx context.Context, jobID string) ([]automationdomain.ScheduledTaskRun, error)
 	ListTaskEvents(ctx context.Context, jobID string, limit int) ([]automationdomain.ScheduledTaskEvent, error)
@@ -51,4 +55,7 @@ type Service interface {
 	GetDailyReport(ctx context.Context, input automationdomain.ScheduledTaskDailyReportInput) (*automationdomain.ScheduledTaskDailyReport, error)
 	RetryRunDelivery(ctx context.Context, jobID string, runID string) (*automationdomain.ScheduledTaskRun, error)
 	RecoverTaskRunningRun(ctx context.Context, jobID string, runID string) (*automationdomain.ScheduledTask, error)
+	GetHeartbeatStatus(ctx context.Context, agentID string) (*automationdomain.HeartbeatStatus, error)
+	UpdateHeartbeatAtVersion(ctx context.Context, agentID string, expectedVersion int64, input automationdomain.HeartbeatUpdateInput) (*automationdomain.HeartbeatStatus, error)
+	WakeHeartbeat(ctx context.Context, agentID string, input automationdomain.HeartbeatWakeInput) (*automationdomain.HeartbeatWakeResult, error)
 }

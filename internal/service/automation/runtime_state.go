@@ -1,3 +1,6 @@
+// INPUT: 持久化任务定义、调度执行结果与并发运行态读写。
+// OUTPUT: 锁内维护的任务运行态、持久化快照与对外任务视图。
+// POS: scheduled task 配置与易变运行态之间的并发安全投影层。
 package automation
 
 import (
@@ -244,6 +247,47 @@ func (s *Service) persistJobRuntime(ctx context.Context, input automationstore.J
 	}
 }
 
+func (s *Service) setJobPermissionState(jobID string, permissionState string, requestID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state := s.jobStates[strings.TrimSpace(jobID)]
+	if state == nil {
+		return
+	}
+	state.Job.PermissionState = strings.TrimSpace(permissionState)
+	state.Job.PendingPermissionRequestID = strings.TrimSpace(requestID)
+}
+
+func (s *Service) pauseJobRuntimeForPermission(
+	job automationdomain.ScheduledTask,
+	runID string,
+	permissionState string,
+	reason *string,
+) {
+	s.mu.Lock()
+	state := s.jobStates[strings.TrimSpace(job.JobID)]
+	if state == nil {
+		state = &automationexec.JobRuntimeState{Job: job}
+		s.jobStates[job.JobID] = state
+	}
+	if strings.TrimSpace(state.RunningRunID) == strings.TrimSpace(runID) {
+		if state.RunningCount > 0 {
+			state.RunningCount--
+		}
+		state.Running = state.RunningCount > 0
+		if !state.Running {
+			state.RunningRunID = ""
+			state.RunningStartedAt = nil
+		}
+	}
+	state.LastRunStatus = strings.TrimSpace(permissionState)
+	state.LastError = cloneStringPointer(reason)
+	state.Job.PermissionState = strings.TrimSpace(permissionState)
+	runtimeSnapshot := jobRuntimeUpdateFromState(job.JobID, state)
+	s.mu.Unlock()
+	s.persistJobRuntime(context.Background(), runtimeSnapshot)
+}
+
 func jobRuntimeUpdateFromState(jobID string, state *automationexec.JobRuntimeState) automationstore.JobRuntimeUpdateInput {
 	return automationstore.JobRuntimeUpdateInput{
 		JobID:              jobID,
@@ -256,6 +300,17 @@ func jobRuntimeUpdateFromState(jobID string, state *automationexec.JobRuntimeSta
 		LastError:          cloneStringPointer(state.LastError),
 		LastDeliveryStatus: strings.TrimSpace(state.LastDeliveryStatus),
 	}
+}
+
+// jobRuntimeUpdateSnapshot 在状态锁内生成持久化副本，禁止把 jobStates
+// 中的可变指针交给锁外读取。
+func (s *Service) jobRuntimeUpdateSnapshot(
+	jobID string,
+	state *automationexec.JobRuntimeState,
+) automationstore.JobRuntimeUpdateInput {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return jobRuntimeUpdateFromState(jobID, state)
 }
 
 // scheduledTaskWithRuntime 将持久化定义与进程运行态合成唯一对外视图，避免各入口各自维护字段集合。
@@ -278,9 +333,20 @@ func scheduledTaskWithRuntime(
 	return job
 }
 
+// scheduledTaskRuntimeSnapshot 在状态锁内生成对外副本，避免任务完成写回与
+// 查询、CRUD 回包同时访问同一个 JobRuntimeState。
+func (s *Service) scheduledTaskRuntimeSnapshot(
+	job automationdomain.ScheduledTask,
+	state *automationexec.JobRuntimeState,
+) automationdomain.ScheduledTask {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return scheduledTaskWithRuntime(job, state)
+}
+
 func isSuccessfulRuntimeStatus(status string) bool {
 	switch strings.TrimSpace(status) {
-	case automationdomain.RunStatusSucceeded, automationdomain.RunStatusQueuedToMain:
+	case automationdomain.RunStatusSucceeded:
 		return true
 	default:
 		return false

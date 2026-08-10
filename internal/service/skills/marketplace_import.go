@@ -1,7 +1,12 @@
+// INPUT: human-only 上传/本地路径或受控 Git、URL、skills.sh 远端来源及可选 catalog version。
+// OUTPUT: 完整 staging 校验、版本 CAS、原子目录发布与可补偿的导入结果。
+// POS: 外部 Skill 内容进入 owner 全局 catalog 的唯一发布边界。
 package skills
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +22,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
 	workspacesvc "github.com/nexus-research-lab/nexus/internal/service/workspace"
+	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -52,10 +58,35 @@ func (s *Service) ImportUploadedArchive(ctx context.Context, filename string, pa
 
 // ImportGitPath 从 Git 仓库的指定子目录导入技能。
 func (s *Service) ImportGitPath(ctx context.Context, repositoryURL string, branch string, skillPath string) (*Detail, error) {
-	return s.importGit(ctx, repositoryURL, branch, skillPath, externalManifest{})
+	return s.importGit(ctx, repositoryURL, branch, skillPath, externalManifest{}, nil)
 }
 
-func (s *Service) importGit(ctx context.Context, repositoryURL string, branch string, skillPath string, manifest externalManifest) (*Detail, error) {
+// ImportGitPathAtVersion 仅在 owner catalog version 匹配时从 HTTPS Git 来源发布 Skill。
+func (s *Service) ImportGitPathAtVersion(
+	ctx context.Context,
+	repositoryURL string,
+	branch string,
+	skillPath string,
+	expectedVersion int64,
+) (*Detail, error) {
+	return s.importGit(
+		ctx,
+		repositoryURL,
+		branch,
+		skillPath,
+		externalManifest{},
+		&expectedVersion,
+	)
+}
+
+func (s *Service) importGit(
+	ctx context.Context,
+	repositoryURL string,
+	branch string,
+	skillPath string,
+	manifest externalManifest,
+	expectedVersion *int64,
+) (*Detail, error) {
 	repositoryURL = strings.TrimSpace(repositoryURL)
 	if repositoryURL == "" {
 		return nil, errors.New("url 不能为空")
@@ -103,11 +134,30 @@ func (s *Service) importGit(ctx context.Context, repositoryURL string, branch st
 	manifest.GitPath = filepath.ToSlash(cleanSkillPath)
 	manifest.GitCommit = strings.TrimSpace(commitOutput)
 	manifest.Version = firstNonEmpty(commitOutput, manifest.Version, "git")
-	return s.importSourceDir(ctx, sourceDir, manifest)
+	return s.importSourceDirAtVersion(ctx, sourceDir, manifest, expectedVersion)
 }
 
 // ImportSkillsSh 从 skills.sh 搜索结果导入技能。
 func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillSlug string) (*Detail, error) {
+	return s.importSkillsSh(ctx, packageSpec, skillSlug, nil)
+}
+
+// ImportSkillsShAtVersion 仅在 owner catalog version 匹配时发布 skills.sh Skill。
+func (s *Service) ImportSkillsShAtVersion(
+	ctx context.Context,
+	packageSpec string,
+	skillSlug string,
+	expectedVersion int64,
+) (*Detail, error) {
+	return s.importSkillsSh(ctx, packageSpec, skillSlug, &expectedVersion)
+}
+
+func (s *Service) importSkillsSh(
+	ctx context.Context,
+	packageSpec string,
+	skillSlug string,
+	expectedVersion *int64,
+) (*Detail, error) {
 	target, err := parseSkillsShImportTarget(packageSpec, skillSlug)
 	if err != nil {
 		return nil, err
@@ -135,7 +185,7 @@ func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillS
 	if revErr != nil {
 		slog.WarnContext(ctx, "skills.sh git rev-parse HEAD 失败", "repository_url", target.RepositoryURL, "err", revErr)
 	}
-	return s.importSourceDir(ctx, sourceDir, externalManifest{
+	return s.importSourceDirAtVersion(ctx, sourceDir, externalManifest{
 		SourceType:  sourceTypeExternal,
 		SourceRef:   target.Identifier,
 		SourceKind:  externalSourceKindSkillsSh,
@@ -148,11 +198,29 @@ func (s *Service) ImportSkillsSh(ctx context.Context, packageSpec string, skillS
 		GitCommit:   strings.TrimSpace(commitOutput),
 		DetailURL:   skillsShDetailURL(firstNonEmpty(s.config.SkillsAPIURL, defaultSkillsShURL), target.SourceRef, target.SkillSlug),
 		Version:     firstNonEmpty(commitOutput, target.Identifier),
-	})
+	}, expectedVersion)
 }
 
 // ImportExternalSkill 按搜索结果携带的来源信息导入技能。
 func (s *Service) ImportExternalSkill(ctx context.Context, item ExternalSkillSearchItem) (*Detail, error) {
+	return s.importExternalSkill(ctx, item, nil)
+}
+
+// ImportExternalSkillAtVersion 只接受 search/preview 可表达的远端 Git、URL 或
+// skills.sh 来源，并在发布前执行 owner catalog CAS。上传字节与宿主路径没有本入口。
+func (s *Service) ImportExternalSkillAtVersion(
+	ctx context.Context,
+	item ExternalSkillSearchItem,
+	expectedVersion int64,
+) (*Detail, error) {
+	return s.importExternalSkill(ctx, item, &expectedVersion)
+}
+
+func (s *Service) importExternalSkill(
+	ctx context.Context,
+	item ExternalSkillSearchItem,
+	expectedVersion *int64,
+) (*Detail, error) {
 	if strings.TrimSpace(item.SourceKind) == externalSourceKindPrivateRegistry {
 		return nil, errors.New("私有来源必须通过 source_id 和 skill_id 导入")
 	}
@@ -179,13 +247,13 @@ func (s *Service) ImportExternalSkill(ctx context.Context, item ExternalSkillSea
 	}
 	switch mode {
 	case externalSourceKindSkillsSh:
-		return s.ImportSkillsSh(ctx, item.PackageSpec, item.SkillSlug)
+		return s.importSkillsSh(ctx, item.PackageSpec, item.SkillSlug, expectedVersion)
 	case externalSourceKindGit:
 		repositoryURL := firstNonEmpty(item.GitURL, item.PackageSpec, item.Source)
-		return s.importGit(ctx, repositoryURL, item.GitBranch, item.GitPath, manifest)
+		return s.importGit(ctx, repositoryURL, item.GitBranch, item.GitPath, manifest, expectedVersion)
 	case externalSourceKindURL:
 		sourceURL := firstNonEmpty(item.RawURL, item.DetailURL, item.PackageSpec, item.Source)
-		return s.ImportSkillURL(ctx, sourceURL, manifest)
+		return s.importSkillURL(ctx, sourceURL, manifest, expectedVersion)
 	default:
 		return nil, errors.New("不支持的外部 skill 来源")
 	}
@@ -228,6 +296,26 @@ func normalizeSkillNameFallback(value string) string {
 
 // ImportSkillURL 从可信外部 URL 导入 SKILL.md 或 zip 归档。
 func (s *Service) ImportSkillURL(ctx context.Context, sourceURL string, manifest externalManifest) (*Detail, error) {
+	return s.importSkillURL(ctx, sourceURL, manifest, nil)
+}
+
+// ImportSkillURLAtVersion 仅在 owner catalog version 匹配时发布 URL Skill。
+//
+// 对话调用只提供 URL，不接收本地路径或上传字节。
+func (s *Service) ImportSkillURLAtVersion(
+	ctx context.Context,
+	sourceURL string,
+	expectedVersion int64,
+) (*Detail, error) {
+	return s.importSkillURL(ctx, sourceURL, externalManifest{}, &expectedVersion)
+}
+
+func (s *Service) importSkillURL(
+	ctx context.Context,
+	sourceURL string,
+	manifest externalManifest,
+	expectedVersion *int64,
+) (*Detail, error) {
 	targetURL, err := s.validateExternalURL(ctx, sourceURL)
 	if err != nil {
 		return nil, err
@@ -280,10 +368,19 @@ func (s *Service) ImportSkillURL(ctx context.Context, sourceURL string, manifest
 	manifest.ImportMode = externalSourceKindURL
 	manifest.RawURL = targetURL
 	manifest.Version = firstNonEmpty(manifest.Version, targetURL)
-	return s.importSourceDir(ctx, sourceDir, manifest)
+	return s.importSourceDirAtVersion(ctx, sourceDir, manifest, expectedVersion)
 }
 
 func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifest externalManifest) (*Detail, error) {
+	return s.importSourceDirAtVersion(ctx, sourceDir, manifest, nil)
+}
+
+func (s *Service) importSourceDirAtVersion(
+	ctx context.Context,
+	sourceDir string,
+	manifest externalManifest,
+	expectedVersion *int64,
+) (*Detail, error) {
 	content, skillMDPath, skillName, err := readSkillSource(sourceDir)
 	if err != nil {
 		return nil, err
@@ -341,22 +438,69 @@ func (s *Service) importSourceDir(ctx context.Context, sourceDir string, manifes
 	if err = writeSkillDirectoryFileAt(boundaryFS, stagingRelative, ".nexus-skill.json", payload, 0o644); err != nil {
 		return nil, err
 	}
+	if err = validateStagedSkill(boundaryFS, stagingRelative, parsed.Name); err != nil {
+		return nil, err
+	}
+	stagingRoot, err := boundaryFS.OpenRootNoSymlink(stagingRelative)
+	if err != nil {
+		return nil, err
+	}
+	stagedSkillPayload, readErr := readConfinedRegularFile(stagingRoot, "SKILL.md")
+	closeErr := stagingRoot.Close()
+	if readErr != nil || closeErr != nil {
+		return nil, errors.Join(readErr, closeErr)
+	}
+	contentSum := sha256.Sum256(stagedSkillPayload)
 	targetRelative, err := relativeSkillPath(boundaryFS, targetDir)
 	if err != nil {
 		return nil, err
 	}
-	if err = workspacesvc.ReplaceDirectoryAt(boundaryFS, stagingRelative, targetRelative); err != nil {
+	entity := s.importedSkillEntity(
+		ctx,
+		targetDir,
+		manifest,
+		parsed,
+		hex.EncodeToString(contentSum[:]),
+	)
+	var publication *skillPublication
+	_, err = s.withCatalogMutation(
+		ctx,
+		expectedVersion,
+		true,
+		func(mutation *skillstore.CatalogMutation) error {
+			publication, err = publishStagedSkill(boundaryFS, stagingRelative, targetRelative)
+			if err != nil {
+				return err
+			}
+			if mutation == nil {
+				return nil
+			}
+			return mutation.UpsertImportedSkill(ctx, entity)
+		},
+	)
+	if err != nil {
+		rollbackErr := publication.rollback()
+		if rollbackErr != nil {
+			return nil, &CatalogReconcileError{
+				applied: false,
+				cause:   errors.Join(err, rollbackErr),
+			}
+		}
 		return nil, err
 	}
-	if err = workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID); err != nil {
-		return nil, err
+	finalizeErr := publication.finalize()
+	refreshErr := workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID)
+	if finalizeErr != nil || refreshErr != nil {
+		return nil, &CatalogReconcileError{
+			applied: true,
+			cause:   errors.Join(finalizeErr, refreshErr),
+		}
 	}
-	if err = s.upsertImportedSkillRecordAt(ctx, boundaryFS, targetDir, manifest, parsed); err != nil {
-		removeErr := boundaryFS.RemoveAll(targetRelative)
-		refreshErr := workspacesvc.RefreshUserSkillLibrary(s.config, ownerUserID)
-		return nil, errors.Join(err, removeErr, refreshErr)
+	detail, err := s.GetSkillDetail(ctx, parsed.Name, "")
+	if err != nil {
+		return nil, &CatalogReconcileError{applied: true, cause: err}
 	}
-	return s.GetSkillDetail(ctx, parsed.Name, "")
+	return detail, nil
 }
 
 func (s *Service) ensureExternalSkillNameAvailable(ctx context.Context, name string) error {

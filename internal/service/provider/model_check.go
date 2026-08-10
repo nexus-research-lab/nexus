@@ -1,3 +1,6 @@
+// INPUT: Provider/model 测试目标、网络响应与期望 configuration_version。
+// OUTPUT: 脱敏测试结果，以及与模型启用/默认选择同事务的测试状态。
+// POS: Provider 连通性测试到持久化配置聚合的提交边界。
 package provider
 
 import (
@@ -21,7 +24,23 @@ func (s *Service) TestProvider(ctx context.Context, provider string) (*TestResul
 	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
-	return s.testProviderForItem(ctx, *item)
+	return s.testProviderForItem(ctx, *item, item.ConfigurationVersion)
+}
+
+// TestProviderAtVersion 只把测试结果写回被测试的 Provider 版本。
+func (s *Service) TestProviderAtVersion(
+	ctx context.Context,
+	provider string,
+	expectedVersion int64,
+) (*TestResult, error) {
+	item, err := s.requireProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
+	return s.testProviderForItem(ctx, *item, expectedVersion)
 }
 
 // TestPublicProvider 测试公共 Provider 的模型列表端点和最小生成请求。
@@ -30,29 +49,28 @@ func (s *Service) TestPublicProvider(ctx context.Context, provider string) (*Tes
 	if err != nil {
 		return nil, err
 	}
-	return s.testProviderForItem(ctx, *item)
+	return s.testProviderForItem(ctx, *item, item.ConfigurationVersion)
 }
 
-func (s *Service) testProviderForItem(ctx context.Context, item providerstore.Entity) (*TestResult, error) {
+func (s *Service) testProviderForItem(
+	ctx context.Context,
+	item providerstore.Entity,
+	expectedVersion int64,
+) (*TestResult, error) {
 	var models []remoteModel
 	if strings.TrimSpace(item.ModelsPath) != "" {
 		var err error
 		models, err = s.fetchRemoteModels(ctx, item)
 		if err != nil {
-			return s.persistTestResult(ctx, item, "", err)
+			return s.persistTestResult(ctx, item, "", err, expectedVersion)
 		}
 	}
 	modelID := s.pickTestModel(ctx, item, models)
 	if modelID == "" {
-		return s.persistTestResult(ctx, item, "", errors.New("未找到可测试模型"))
+		return s.persistTestResult(ctx, item, "", errors.New("未找到可测试模型"), expectedVersion)
 	}
 	testErr := s.sendMinimalModelRequest(ctx, item, modelID)
-	if testErr == nil {
-		if readyErr := s.ensureTestedModelReady(ctx, item, modelID); readyErr != nil {
-			return nil, readyErr
-		}
-	}
-	return s.persistTestResult(ctx, item, modelID, testErr)
+	return s.persistTestResult(ctx, item, modelID, testErr, expectedVersion)
 }
 
 // TestModel 测试指定模型的最小生成请求。
@@ -64,7 +82,24 @@ func (s *Service) TestModel(ctx context.Context, provider string, modelID string
 	if err = s.requireProviderManagement(ctx, *item); err != nil {
 		return nil, err
 	}
-	return s.testModelForItem(ctx, *item, modelID)
+	return s.testModelForItem(ctx, *item, modelID, item.ConfigurationVersion)
+}
+
+// TestModelAtVersion 只把模型测试结果写回被测试的 Provider 版本。
+func (s *Service) TestModelAtVersion(
+	ctx context.Context,
+	provider string,
+	modelID string,
+	expectedVersion int64,
+) (*TestResult, error) {
+	item, err := s.requireProvider(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	if err = s.requireProviderManagement(ctx, *item); err != nil {
+		return nil, err
+	}
+	return s.testModelForItem(ctx, *item, modelID, expectedVersion)
 }
 
 // TestPublicModel 测试公共 Provider 指定模型的最小生成请求。
@@ -73,33 +108,35 @@ func (s *Service) TestPublicModel(ctx context.Context, provider string, modelID 
 	if err != nil {
 		return nil, err
 	}
-	return s.testModelForItem(ctx, *item, modelID)
+	return s.testModelForItem(ctx, *item, modelID, item.ConfigurationVersion)
 }
 
-func (s *Service) testModelForItem(ctx context.Context, item providerstore.Entity, modelID string) (*TestResult, error) {
+func (s *Service) testModelForItem(
+	ctx context.Context,
+	item providerstore.Entity,
+	modelID string,
+	expectedVersion int64,
+) (*TestResult, error) {
 	modelID = normalizeModelID(modelID)
 	if modelID == "" {
 		return nil, errors.New("model_id 不能为空")
 	}
 	testErr := s.sendMinimalModelRequest(ctx, item, modelID)
-	if testErr == nil {
-		if readyErr := s.ensureTestedModelReady(ctx, item, modelID); readyErr != nil {
-			return nil, readyErr
-		}
-	}
-	return s.persistTestResult(ctx, item, modelID, testErr)
+	return s.persistTestResult(ctx, item, modelID, testErr, expectedVersion)
 }
 
-func (s *Service) ensureTestedModelReady(
+func (s *Service) ensureTestedModelReadyInMutation(
 	ctx context.Context,
 	item providerstore.Entity,
 	modelID string,
+	mutation *providerstore.Mutation,
+	shouldAutoDefault bool,
 ) error {
 	modelID = normalizeModelID(modelID)
 	if modelID == "" {
 		return nil
 	}
-	model, err := s.getModelByID(ctx, item.ID, modelID)
+	model, err := mutation.GetModel(ctx, modelID)
 	if err != nil {
 		return err
 	}
@@ -123,7 +160,7 @@ func (s *Service) ensureTestedModelReady(
 			CreatedAt:                now,
 			UpdatedAt:                now,
 		}
-		if err = s.repository.UpsertModels(ctx, []providerstore.ModelEntity{*model}); err != nil {
+		if err = mutation.UpsertModels(ctx, []providerstore.ModelEntity{*model}); err != nil {
 			return err
 		}
 	} else {
@@ -134,12 +171,19 @@ func (s *Service) ensureTestedModelReady(
 		}
 		if identityChanged || enabledChanged {
 			model.UpdatedAt = s.now()
-			if err = s.repository.UpdateModel(ctx, *model); err != nil {
+			if err = mutation.UpdateModel(ctx, *model); err != nil {
 				return err
 			}
 		}
 	}
-	return s.autoDefaultDiscoveredModel(ctx, item, []remoteModel{{ID: modelID}})
+	if !shouldAutoDefault {
+		return nil
+	}
+	hasDefault, err := mutation.HasDefaultModelInScope(ctx)
+	if err != nil || hasDefault {
+		return err
+	}
+	return mutation.UpdateDefaultModel(ctx, modelID, s.now())
 }
 
 func (s *Service) sendMinimalModelRequest(ctx context.Context, item providerstore.Entity, modelID string) error {
@@ -191,7 +235,13 @@ func (s *Service) pickTestModel(ctx context.Context, item providerstore.Entity, 
 	return ""
 }
 
-func (s *Service) persistTestResult(ctx context.Context, item providerstore.Entity, modelID string, testErr error) (*TestResult, error) {
+func (s *Service) persistTestResult(
+	ctx context.Context,
+	item providerstore.Entity,
+	modelID string,
+	testErr error,
+	expectedVersion int64,
+) (*TestResult, error) {
 	now := s.now()
 	item.LastTestAt = &now
 	item.LastTestError = ""
@@ -202,7 +252,34 @@ func (s *Service) persistTestResult(ctx context.Context, item providerstore.Enti
 		item.LastTestStatus = TestStatusFailed
 		item.LastTestError = sanitizeErrorMessage(testErr.Error(), item.AuthToken)
 	}
-	if err := s.repository.UpdateTestState(ctx, item); err != nil {
+	shouldAutoDefault := false
+	var err error
+	if testErr == nil {
+		shouldAutoDefault, err = s.shouldAutoDefaultDiscoveredModel(ctx, item)
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, err = s.repository.WithProviderMutation(
+		ctx,
+		item.ID,
+		expectedVersion,
+		func(mutation *providerstore.Mutation) error {
+			if testErr == nil {
+				if readyErr := s.ensureTestedModelReadyInMutation(
+					ctx,
+					item,
+					modelID,
+					mutation,
+					shouldAutoDefault,
+				); readyErr != nil {
+					return readyErr
+				}
+			}
+			return mutation.UpdateTestState(ctx, item)
+		},
+	)
+	if err != nil {
 		return nil, err
 	}
 	return &TestResult{

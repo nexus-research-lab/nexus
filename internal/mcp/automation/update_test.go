@@ -38,8 +38,13 @@ func TestUpdateCanRetargetDeliveryToChannel(t *testing.T) {
 	}{
 		{
 			name: "explicit mode",
-			sctx: contract.ServerContext{IsMainAgent: true},
-			svc:  &stubService{},
+			sctx: contract.ServerContext{
+				CurrentAgentID:    "main",
+				CurrentSessionKey: "agent:main:ws:dm:current",
+				SourceContextType: "agent",
+				IsMainAgent:       true,
+			},
+			svc: &stubService{},
 			input: map[string]any{
 				"job_id":        "job-1",
 				"reply_mode":    "channel",
@@ -49,7 +54,12 @@ func TestUpdateCanRetargetDeliveryToChannel(t *testing.T) {
 		},
 		{
 			name: "inferred mode",
-			sctx: contract.ServerContext{CurrentAgentID: "agent-1"},
+			sctx: contract.ServerContext{
+				CurrentAgentID:    "agent-1",
+				CurrentSessionKey: "agent:agent-1:ws:dm:current",
+				SourceContextType: "agent",
+				IsMainAgent:       true,
+			},
 			svc: &stubService{
 				jobs: []automationdomain.ScheduledTask{{
 					JobID:    "job-1",
@@ -91,7 +101,12 @@ func TestUpdateInfersAgentReplyModeFromReplyAgentID(t *testing.T) {
 			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
 		}},
 	}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "update_scheduled_task", map[string]any{
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: "agent:agent-1:ws:dm:current",
+		SourceContextType: "agent",
+		IsMainAgent:       true,
+	}, "update_scheduled_task", map[string]any{
 		"job_id":         "job-1",
 		"reply_agent_id": "agent-2",
 	})
@@ -109,6 +124,29 @@ func TestUpdateInfersAgentReplyModeFromReplyAgentID(t *testing.T) {
 		svc.updateInput.Delivery.Channel != protocol.SessionChannelInternalSegment ||
 		svc.updateInput.Delivery.To != expectedSessionKey {
 		t.Fatalf("expected agent inbox delivery inferred from reply_agent_id, got %+v", svc.updateInput.Delivery)
+	}
+}
+
+func TestUpdateOrdinaryAgentRejectsOtherAgentInbox(t *testing.T) {
+	svc := &stubService{
+		jobs: []automationdomain.ScheduledTask{{
+			JobID: "job-1", AgentID: "agent-1",
+			Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"},
+		}},
+	}
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: "agent:agent-1:ws:dm:current",
+		SourceContextType: "agent",
+	}, "update_scheduled_task", map[string]any{
+		"job_id":         "job-1",
+		"reply_agent_id": "agent-2",
+	})
+	if !isError {
+		t.Fatalf("ordinary Agent cross-Agent delivery should fail: %+v", result)
+	}
+	if svc.updateJobID != "" {
+		t.Fatalf("rejected delivery reached service: %q", svc.updateJobID)
 	}
 }
 
@@ -149,8 +187,15 @@ func TestUpdateCanFillPartialChannelTargetFromCurrentExternalSession(t *testing.
 		}},
 	}
 	result, isError := callTool(t, svc, contract.ServerContext{
-		CurrentAgentID:    "agent-1",
-		CurrentSessionKey: "agent:agent-1:fs:group:oc_group_123",
+		CurrentAgentID: "agent-1",
+		CurrentSessionKey: protocol.BuildAgentAccountSessionKey(
+			"agent-1",
+			protocol.SessionChannelFeishu,
+			"group",
+			"chat_id",
+			"oc_group_123",
+			"",
+		),
 	}, "update_scheduled_task", map[string]any{
 		"job_id":           "job-1",
 		"reply_channel":    "feishu",

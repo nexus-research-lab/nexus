@@ -18,7 +18,7 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 		"execution_mode":    "dedicated",
 		"named_session_key": "news-search",
 		"reply_mode":        "agent",
-		"reply_agent_id":    "agent-2",
+		"reply_agent_id":    "agent-1",
 		"schedule": map[string]any{
 			"kind":       "daily",
 			"daily_time": "09:00",
@@ -30,8 +30,8 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	}
 	created := decodeAutomationMCPJSON[automationdomain.ScheduledTask](t, createResult)
 
-	agent3InboxKey := protocol.BuildAgentSessionKey(
-		"agent-3",
+	ownInboxKey := protocol.BuildAgentSessionKey(
+		"agent-1",
 		protocol.SessionChannelInternalSegment,
 		"dm",
 		protocol.AutomationInboxSessionRef,
@@ -41,7 +41,7 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 		"query":          "新闻投递到智能体",
 		"name":           "AI 新闻投递到智能体",
 		"instruction":    "每天搜索 AI 新闻并输出三条摘要",
-		"reply_agent_id": "agent-3",
+		"reply_agent_id": "agent-1",
 		"schedule": map[string]any{
 			"kind":       "daily",
 			"daily_time": "10:30",
@@ -61,8 +61,8 @@ func TestAutomationMCPManageTaskLifecycleByQuery(t *testing.T) {
 	if updated.Schedule.CronExpression == nil || *updated.Schedule.CronExpression != "30 10 * * *" {
 		t.Fatalf("update 未写入新的 daily 调度: %+v", updated.Schedule)
 	}
-	if updated.Delivery.Channel != protocol.SessionChannelInternalSegment || updated.Delivery.To != agent3InboxKey {
-		t.Fatalf("update 未把投递目标切到 agent-3 收件箱: %+v", updated.Delivery)
+	if updated.Delivery.Channel != protocol.SessionChannelInternalSegment || updated.Delivery.To != ownInboxKey {
+		t.Fatalf("update 未保留自身 Agent 收件箱投递目标: %+v", updated.Delivery)
 	}
 
 	disableResult, isError := callAutomationMCPTool(t, fixture.Service, fixture.ServerContext, "update_scheduled_task", map[string]any{

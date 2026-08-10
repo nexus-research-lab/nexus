@@ -1,6 +1,6 @@
-// INPUT: automation 服务、Agent 身份与 runtime source context。
-// OUTPUT: DM/Room 共用的 nexus_automation MCP builder。
-// POS: automation MCP 的应用装配入口。
+// INPUT: automation 服务、fresh Agent resolver、业务 source context 与真实 runtime lease。
+// OUTPUT: 可信 DM/Room 的写能力或后台/外部来源的当前 Agent 只读能力。
+// POS: automation MCP 的应用鉴权与装配入口。
 package server
 
 import (
@@ -8,25 +8,26 @@ import (
 	"strings"
 	"sync/atomic"
 
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
+	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 	automationmcp "github.com/nexus-research-lab/nexus/internal/mcp/automation"
 	automationmcpcontract "github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-
-	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 )
 
 // newAutomationMCPBuilder 返回 DM/Room 实时链路所需的 MCPServerBuilder。
 //
-// 每次新建会话时按当前 (agentID, sessionKey, sourceContextType) 构造一个
-// nexus_automation 进程内 MCP server，让主智能体可以通过工具自助管理定时任务。
-// 在 dm 与 chat 包外部完成绑定，避免它们反向依赖 automation 子包导致 import cycle。
+// 每次构造都从数据库重新读取 Agent。只有带同 owner 认证主体、结构化业务路由
+// 和当前 runtime lease 的精确 agent/room 来源获得写工具；其他来源只保留当前
+// Agent 的只读诊断工具。跨 Agent authority 只签发给主智能体自己的私有 DM。
 func newAutomationMCPBuilder(
 	svc automationmcpcontract.Service,
+	agents configurationAgentResolver,
 	defaultTimezone string,
 ) func(context.Context, *protocol.Agent, string, string, string, string, string, *atomic.Int64, sdkpermission.Mode) map[string]sdkmcp.ServerConfig {
 	return func(
-		_ context.Context,
+		ctx context.Context,
 		agentValue *protocol.Agent,
 		sessionKey string,
 		roundID string,
@@ -36,19 +37,66 @@ func newAutomationMCPBuilder(
 		_ *atomic.Int64,
 		_ sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
+		if svc == nil || agents == nil || agentValue == nil ||
+			strings.TrimSpace(agentValue.AgentID) == "" {
+			return nil
+		}
+		requestedAgentID := strings.TrimSpace(agentValue.AgentID)
+		record, err := agents.GetAgent(ctx, requestedAgentID)
+		if err != nil || record == nil ||
+			strings.TrimSpace(record.AgentID) != requestedAgentID ||
+			strings.TrimSpace(record.OwnerUserID) == "" {
+			return nil
+		}
+		sessionKey = strings.TrimSpace(sessionKey)
+		roundID = strings.TrimSpace(roundID)
+		sourceContextType = strings.ToLower(strings.TrimSpace(sourceContextType))
+		sourceContextID = strings.TrimSpace(sourceContextID)
 		sctx := automationmcpcontract.ServerContext{
-			CurrentSessionKey:   sessionKey,
+			CurrentAgentID:      strings.TrimSpace(record.AgentID),
+			CurrentAgentName:    strings.TrimSpace(record.Name),
+			OwnerUserID:         strings.TrimSpace(record.OwnerUserID),
+			CurrentSessionKey:   strings.TrimSpace(sessionKey),
 			CurrentSessionLabel: strings.TrimSpace(sourceContextLabel),
 			SourceContextType:   sourceContextType,
 			SourceContextID:     sourceContextID,
-			SourceContextLabel:  sourceContextLabel,
+			SourceContextLabel:  strings.TrimSpace(sourceContextLabel),
 			DefaultTimezone:     strings.TrimSpace(defaultTimezone),
 		}
-		if agentValue != nil {
-			sctx.CurrentAgentID = agentValue.AgentID
-			sctx.CurrentAgentName = agentValue.Name
-			sctx.OwnerUserID = agentValue.OwnerUserID
-			sctx.IsMainAgent = agentValue.IsMain
+
+		// 精确 agent/room 来源会暴露 mutation 工具，因此必须同时验证
+		// fresh Agent、owner principal、结构化业务路由和当前 runtime lease。
+		if sourceContextType == "agent" || sourceContextType == "room" {
+			if _, _, _, ok := trustedConfigurationPrincipal(ctx, record.OwnerUserID); !ok {
+				return nil
+			}
+			lease, ok := runtimectx.MCPRoundLeaseFromContext(ctx)
+			if !ok {
+				return nil
+			}
+			switch sourceContextType {
+			case "agent":
+				if sourceContextID != record.AgentID {
+					return nil
+				}
+			case "room":
+				if sourceContextID == "" {
+					return nil
+				}
+			}
+			if _, ok = trustedConfigurationRuntimeRoute(
+				record.AgentID,
+				sourceContextType,
+				sessionKey,
+				roundID,
+				lease.SessionKey,
+				lease.RoundID,
+			); !ok {
+				return nil
+			}
+			// Room 中即使运行的是主智能体，也只能管理自身 Automation。
+			// owner scope 的跨 Agent 能力只存在于主智能体自己的私有 DM。
+			sctx.IsMainAgent = record.IsMain && sourceContextType == "agent"
 		}
 		return map[string]sdkmcp.ServerConfig{
 			automationmcpcontract.ServerName: sdkmcp.SDKServerConfig{

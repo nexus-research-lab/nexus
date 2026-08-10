@@ -1,6 +1,6 @@
-// INPUT: 已结束 Room round 的后台子 Agent runtime 消息。
-// OUTPUT: durable history、Goal child actual usage 与 post-round 释放信号。
-// POS: Room slot 终态后的 idle task 消息消费链。
+// INPUT: 已结束 Room round 的后台子 Agent runtime 消息与捕获的 Room authority epoch。
+// OUTPUT: 经即时撤权检查的 durable history、Goal child actual usage、事件投影与 post-round 释放信号。
+// POS: Room slot 终态后 idle task 消息与后台输出的最终权限边界。
 package realtime
 
 import (
@@ -57,6 +57,10 @@ func (s *Service) handleIdleSubagentMessage(
 	mapper *roomdomain.SlotMessageMapper,
 	incoming sdkprotocol.ReceivedMessage,
 ) bool {
+	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err)
+		return false
+	}
 	s.observeExecutionRuntimeGraph(roomOrchestrationActor(roundValue, slot), incoming)
 	events, durableMessages, _, err := mapper.Map(incoming)
 	if err != nil {
@@ -73,6 +77,9 @@ func (s *Service) handleIdleSubagentMessage(
 			continue
 		}
 		if err := s.handleIdleSubagentDurableMessage(ctx, roundValue, slot, messageValue); err != nil {
+			if s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err) {
+				return false
+			}
 			s.loggerFor(ctx).Warn("写入 Room idle subagent 通知失败",
 				"session_key", roundValue.SessionKey,
 				"round_id", roundValue.RoundID,
@@ -86,9 +93,17 @@ func (s *Service) handleIdleSubagentMessage(
 		if roomSlotShouldDropPublicOutputEvent(slot, event) {
 			continue
 		}
+		if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+			s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err)
+			return false
+		}
 		for _, readyEvent := range slot.eventsReadyForEmission(event) {
 			s.broadcastSharedEventWithTimeout(ctx, roundValue.SessionKey, roundValue.RoomID, readyEvent)
 		}
+	}
+	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+		s.retireSlotAfterOutputRevocation(ctx, roundValue, slot, err)
+		return false
 	}
 	if slot.hasRunningSubagentTask() {
 		return true
@@ -113,6 +128,9 @@ func (s *Service) handleIdleSubagentDurableMessage(
 	slot *activeRoomSlot,
 	messageValue protocol.Message,
 ) error {
+	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+		return err
+	}
 	settledSubagentUsage := s.recordSubagentGoalUsageForSlot(ctx, slot, messageValue)
 	slot.rememberSubagentTaskMessage(messageValue)
 	for _, settlement := range settledSubagentUsage {
@@ -124,13 +142,22 @@ func (s *Service) handleIdleSubagentDurableMessage(
 	}
 	if !roomSlotPublishesPublicOutput(slot) {
 		if !protocol.IsTranscriptNativeMessage(messageValue) {
+			if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+				return err
+			}
 			if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {
 				return err
 			}
 		}
+		if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+			return err
+		}
 		s.observeExecutionRuntimeArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 		s.recordGoalUsageFromSlotAssistantMessage(ctx, slot, messageValue)
 		return nil
+	}
+	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+		return err
 	}
 	if err := s.persistSharedDurableMessage(
 		roundValue.OwnerUserID,
@@ -141,9 +168,15 @@ func (s *Service) handleIdleSubagentDurableMessage(
 		return err
 	}
 	if !protocol.IsTranscriptNativeMessage(messageValue) {
+		if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+			return err
+		}
 		if err := s.persistPrivateOverlayMessage(slot, cloneMessageWithSessionKey(messageValue, slot.RuntimeSessionKey)); err != nil {
 			return err
 		}
+	}
+	if err := s.ensureSlotOutputAuthorized(ctx, roundValue, slot); err != nil {
+		return err
 	}
 	s.observeExecutionRuntimeArtifacts(roomOrchestrationActor(roundValue, slot), messageValue)
 	s.recordGoalUsageFromSlotAssistantMessage(ctx, slot, messageValue)

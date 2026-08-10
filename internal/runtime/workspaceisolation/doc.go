@@ -1,6 +1,7 @@
-// Package workspaceisolation 把 owner 路径策略统一投影到 nxs/Claude Hook，
-// 并在 Linux enforce 模式把普通 Agent 的 bridge 进程入口切到 root-owned
-// launcher；主智能体保留宿主控制面身份，以使用 owner-scoped nexusctl。
+// Package workspaceisolation 把 owner 路径策略统一投影到 nxs/Claude Hook。
+// Linux enforce 模式只把普通 Agent 的 bridge 进程入口切到 root-owned launcher；
+// 主智能体保留宿主身份与 owner-scoped nexusctl，Hook 拒绝 owner/workspace
+// 作用域覆盖，普通 Agent 在所有模式都不能调用原始 nexusctl。
 //
 // L2 | 父级: internal/runtime（L1 见 AGENTS.md）
 //

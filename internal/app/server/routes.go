@@ -193,6 +193,11 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/device/poll"), s.handlers.connector.HandleConnectorDeviceAuthPoll)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/connect"), s.handlers.connector.HandleConnectConnector)
 	s.router.Post(s.prefixPath("/connectors/{connector_id}/disconnect"), s.handlers.connector.HandleDisconnectConnector)
+	mountConnectorAuthorizationRoutes(
+		s.router,
+		s.prefixPath,
+		s.services.ConnectorAuthorization,
+	)
 
 	s.router.Post(s.prefixPath("/channels/messages"), s.handlers.channel.HandleChannelIngress)
 	s.router.Post(s.prefixPath("/channels/internal/messages"), s.handlers.channel.HandleInternalChannelIngress)
@@ -215,6 +220,8 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Delete(s.prefixPath("/capability/pairings/{pairing_id}"), s.handlers.channel.HandleDeletePairing)
 
 	s.router.Get(s.prefixPath("/capability/scheduled/reports/daily"), s.handlers.automation.HandleGetScheduledTaskDailyReport)
+	s.router.Get(s.prefixPath("/capability/scheduled/permission-requests"), s.handlers.automation.HandleListPermissionRequests)
+	s.router.Post(s.prefixPath("/capability/scheduled/permission-requests/{request_id}/decision"), s.handlers.automation.HandleResolvePermissionRequest)
 	s.router.Get(s.prefixPath("/capability/scheduled/tasks"), s.handlers.automation.HandleListScheduledTasks)
 	s.router.Post(s.prefixPath("/capability/scheduled/tasks"), s.handlers.automation.HandleCreateScheduledTask)
 	s.router.Patch(s.prefixPath("/capability/scheduled/tasks/{job_id}"), s.handlers.automation.HandleUpdateScheduledTask)
@@ -226,8 +233,11 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/capability/scheduled/tasks/{job_id}/runs"), s.handlers.automation.HandleListScheduledTaskRuns)
 	s.router.Get(s.prefixPath("/capability/scheduled/tasks/{job_id}/events"), s.handlers.automation.HandleListScheduledTaskEvents)
 	s.router.Post(s.prefixPath("/capability/scheduled/tasks/{job_id}/runs/{run_id}/delivery/retry"), s.handlers.automation.HandleRetryScheduledTaskRunDelivery)
+	s.router.Post(s.prefixPath("/capability/scheduled/tasks/{job_id}/runs/{run_id}/permission/resume"), s.handlers.automation.HandleResumePermissionRun)
 
 	s.router.Get(s.prefixPath("/scheduled/reports/daily"), s.handlers.automation.HandleGetScheduledTaskDailyReport)
+	s.router.Get(s.prefixPath("/scheduled/permission-requests"), s.handlers.automation.HandleListPermissionRequests)
+	s.router.Post(s.prefixPath("/scheduled/permission-requests/{request_id}/decision"), s.handlers.automation.HandleResolvePermissionRequest)
 	s.router.Get(s.prefixPath("/scheduled/tasks"), s.handlers.automation.HandleListScheduledTasks)
 	s.router.Post(s.prefixPath("/scheduled/tasks"), s.handlers.automation.HandleCreateScheduledTask)
 	s.router.Patch(s.prefixPath("/scheduled/tasks/{job_id}"), s.handlers.automation.HandleUpdateScheduledTask)
@@ -239,6 +249,7 @@ func (s *Server) mountCapabilityRoutes() {
 	s.router.Get(s.prefixPath("/scheduled/tasks/{job_id}/runs"), s.handlers.automation.HandleListScheduledTaskRuns)
 	s.router.Get(s.prefixPath("/scheduled/tasks/{job_id}/events"), s.handlers.automation.HandleListScheduledTaskEvents)
 	s.router.Post(s.prefixPath("/scheduled/tasks/{job_id}/runs/{run_id}/delivery/retry"), s.handlers.automation.HandleRetryScheduledTaskRunDelivery)
+	s.router.Post(s.prefixPath("/scheduled/tasks/{job_id}/runs/{run_id}/permission/resume"), s.handlers.automation.HandleResumePermissionRun)
 
 	s.router.Get(s.prefixPath("/automation/heartbeat/{agent_id}"), s.handlers.automation.HandleGetHeartbeat)
 	s.router.Put(s.prefixPath("/automation/heartbeat/{agent_id}"), s.handlers.automation.HandleUpdateHeartbeat)

@@ -1,3 +1,6 @@
+// INPUT: 当前 runtime session 与任务来源/执行/投递快照。
+// OUTPUT: 当前 DM/Room/外部群对应的任务匹配结果。
+// POS: 对话级任务查询的稳定上下文投影。
 package tool
 
 import (
@@ -13,6 +16,7 @@ import (
 type currentTaskContext struct {
 	sessionKey string
 	channel    string
+	accountID  string
 	ref        string
 	threadID   string
 	external   bool
@@ -35,7 +39,8 @@ func bestMatchingScheduledTasksForToolQuery(
 ) []automationdomain.ScheduledTask {
 	matches, hasCurrent := bestMatchingCurrentScheduledTasksForToolQuery(jobs, query, sctx)
 	if hasCurrent {
-		if queryMentionsCurrentConversation(query) || len(matches) > 0 {
+		current, _ := currentTaskContextFromServerContext(sctx)
+		if current.external || queryMentionsCurrentConversation(query) || len(matches) > 0 {
 			return matches
 		}
 	}
@@ -126,14 +131,16 @@ func currentTaskContextFromServerContext(sctx contract.ServerContext) (currentTa
 	current := currentTaskContext{
 		sessionKey: sessionKey,
 		channel:    protocol.NormalizeStoredChannelType(parsed.Channel),
+		accountID:  strings.TrimSpace(parsed.AccountID),
 		ref:        strings.TrimSpace(parsed.Ref),
 		threadID:   strings.TrimSpace(parsed.ThreadID),
 	}
-	if parsed.Kind == protocol.SessionKeyKindAgent {
-		switch current.channel {
-		case protocol.SessionChannelDiscord, protocol.SessionChannelTelegram, protocol.SessionChannelDingTalk, protocol.SessionChannelWeChat, protocol.SessionChannelFeishu:
-			current.external = current.ref != ""
-		}
+	if parsed.Kind == protocol.SessionKeyKindAgent &&
+		current.channel != protocol.SessionChannelWebSocket &&
+		current.channel != protocol.SessionChannelInternalSegment {
+		// 未知的新通道也按 external 处理，避免后续增加 adapter 时因为漏补枚举而
+		// 把群聊只读查询静默放大到整个 owner scope。
+		current.external = current.ref != ""
 	}
 	return current, true
 }
@@ -206,11 +213,24 @@ func deliveryTargetMatchesCurrentContext(target automationdomain.DeliveryTarget,
 	if protocol.NormalizeStoredChannelType(target.Channel) != current.channel {
 		return false
 	}
-	if to == current.ref || to == current.sessionKey {
+	if to == current.sessionKey {
 		return true
 	}
-	accountID := strings.TrimSpace(target.AccountID)
-	if accountID != "" && accountID+":"+to == current.ref {
+	targetAccountID := strings.TrimSpace(target.AccountID)
+	if current.accountID != "" && targetAccountID != current.accountID {
+		return false
+	}
+	if current.accountID == "" && targetAccountID != "" && targetAccountID+":"+to != current.ref {
+		return false
+	}
+	targetThreadID := strings.TrimSpace(target.ThreadID)
+	if targetThreadID != "" && targetThreadID != current.threadID {
+		return false
+	}
+	if to == current.ref {
+		return true
+	}
+	if targetAccountID != "" && targetAccountID+":"+to == current.ref {
 		return true
 	}
 	if strings.Contains(current.ref, ":") && strings.HasSuffix(current.ref, ":"+to) {

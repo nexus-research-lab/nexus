@@ -33,8 +33,9 @@ func TestRoomServiceProjectsAgentPrivateDomain(t *testing.T) {
 	devin := createTestAgent(t, agentService, ctx, "Devin")
 	sam := createTestAgent(t, agentService, ctx, "Sam")
 	roomContext, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
-		AgentIDs: []string{amy.AgentID, devin.AgentID, sam.AgentID},
-		Name:     "狼人杀调试房",
+		AgentIDs:               []string{amy.AgentID, devin.AgentID, sam.AgentID},
+		Name:                   "狼人杀调试房",
+		PrivateMessagesEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf("创建 room 失败: %v", err)

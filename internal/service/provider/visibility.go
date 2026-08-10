@@ -68,11 +68,11 @@ func (s *Service) requireProviderManagement(ctx context.Context, item providerst
 	return requirePublicProviderManagement(ctx)
 }
 
-func (s *Service) usageCountForMutation(ctx context.Context, item providerstore.Entity) (int, error) {
+func (s *Service) runtimeBindingCountForMutation(ctx context.Context, item providerstore.Entity) (int, error) {
 	if item.Visibility == providerstore.VisibilityPublic {
-		return s.repository.UsageCountForPublic(ctx, item.Provider)
+		return s.repository.RuntimeBindingCountForPublic(ctx, item.Provider)
 	}
-	return s.repository.UsageCountForOwner(ctx, item.OwnerUserID, item.Provider)
+	return s.repository.RuntimeBindingCountForOwner(ctx, item.OwnerUserID, item.Provider)
 }
 
 // ValidateDefaultAgentSelection 确认用户选择的默认模型能够被当前 runtime 使用。

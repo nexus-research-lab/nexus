@@ -1,3 +1,6 @@
+// INPUT: owner+channel 作用域的账号行查询及事务内写入。
+// OUTPUT: 加密账号配置的跨方言持久化与精确删除结果。
+// POS: Channel account 存储层，只允许控制版本事务调用写入口。
 package channels
 
 import (
@@ -25,6 +28,15 @@ func (s *ControlService) listChannelAccountRows(
 	ownerUserID string,
 	channelType string,
 ) ([]channelAccountRow, error) {
+	return s.listChannelAccountRowsFrom(ctx, s.db, ownerUserID, channelType)
+}
+
+func (s *ControlService) listChannelAccountRowsFrom(
+	ctx context.Context,
+	store channelStore,
+	ownerUserID string,
+	channelType string,
+) ([]channelAccountRow, error) {
 	query := `
 SELECT owner_user_id, channel_type, account_id, user_id, status, config_json,
        credentials_encrypted, last_error, created_at, updated_at
@@ -32,7 +44,7 @@ FROM im_channel_accounts
 WHERE owner_user_id = ` + s.bind(1) + `
   AND channel_type = ` + s.bind(2) + `
 ORDER BY updated_at DESC, account_id DESC`
-	rows, err := s.db.QueryContext(
+	rows, err := store.QueryContext(
 		ctx,
 		query,
 		normalizeChannelOwnerUserID(ownerUserID),
@@ -78,7 +90,7 @@ ORDER BY channel_type ASC, updated_at DESC, account_id DESC`
 	return result, rows.Err()
 }
 
-func (s *ControlService) upsertChannelAccountRow(ctx context.Context, row channelAccountRow) error {
+func (s *ControlService) upsertChannelAccountRowWith(ctx context.Context, store channelStore, row channelAccountRow) error {
 	if s.driver == "pgx" {
 		query := `
 INSERT INTO im_channel_accounts (
@@ -92,7 +104,7 @@ ON CONFLICT (owner_user_id, channel_type, account_id) DO UPDATE SET
     credentials_encrypted = EXCLUDED.credentials_encrypted,
     last_error = EXCLUDED.last_error,
     updated_at = CURRENT_TIMESTAMP`
-		_, err := s.db.ExecContext(
+		_, err := store.ExecContext(
 			ctx,
 			query,
 			strings.TrimSpace(row.OwnerUserID),
@@ -118,7 +130,7 @@ ON CONFLICT(owner_user_id, channel_type, account_id) DO UPDATE SET
     credentials_encrypted = excluded.credentials_encrypted,
     last_error = excluded.last_error,
     updated_at = CURRENT_TIMESTAMP`
-	_, err := s.db.ExecContext(
+	_, err := store.ExecContext(
 		ctx,
 		query,
 		strings.TrimSpace(row.OwnerUserID),
@@ -133,20 +145,26 @@ ON CONFLICT(owner_user_id, channel_type, account_id) DO UPDATE SET
 	return err
 }
 
-func (s *ControlService) deleteChannelAccountRows(ctx context.Context, ownerUserID string, channelType string) error {
+func (s *ControlService) deleteChannelAccountRowsWith(
+	ctx context.Context,
+	store channelStore,
+	ownerUserID string,
+	channelType string,
+) error {
 	query := "DELETE FROM im_channel_accounts WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2)
-	_, err := s.db.ExecContext(ctx, query, normalizeChannelOwnerUserID(ownerUserID), normalizeIMChannelType(channelType))
+	_, err := store.ExecContext(ctx, query, normalizeChannelOwnerUserID(ownerUserID), normalizeIMChannelType(channelType))
 	return err
 }
 
-func (s *ControlService) deleteChannelAccountRow(
+func (s *ControlService) deleteChannelAccountRowWith(
 	ctx context.Context,
+	store channelStore,
 	ownerUserID string,
 	channelType string,
 	accountID string,
 ) (bool, error) {
 	query := "DELETE FROM im_channel_accounts WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2) + " AND account_id = " + s.bind(3)
-	result, err := s.db.ExecContext(
+	result, err := store.ExecContext(
 		ctx,
 		query,
 		normalizeChannelOwnerUserID(ownerUserID),

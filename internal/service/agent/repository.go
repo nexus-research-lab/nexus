@@ -16,5 +16,8 @@ type Repository interface {
 	CreateAgent(context.Context, agentrepo.CreateRecord) (*protocol.Agent, error)
 	UpdateAgent(context.Context, agentrepo.UpdateRecord) (*protocol.Agent, error)
 	UpdateAgentSkillSelection(context.Context, string, string, string, string) (*protocol.Agent, error)
+	UpdateAgentSkillIDsAtVersion(context.Context, string, string, string, int64) (*protocol.Agent, error)
+	UpdateAgentDisabledSkillIDsAtVersion(context.Context, string, string, string, int64) (*protocol.Agent, error)
 	DeleteAgent(context.Context, string, string) error
+	DeleteAgentAtVersion(context.Context, string, string, int64) error
 }

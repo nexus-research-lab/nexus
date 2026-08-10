@@ -238,7 +238,7 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 			return nil, err
 		}
 	}
-	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
+	deliveryPolicy := safeRoomDeliveryPolicy(request)
 	if !request.Internal {
 		targetAgentIDs, targetResolution = s.resolveActiveRoomTargets(
 			sessionKey,
@@ -291,6 +291,14 @@ func (s *Service) prepareRoomChat(ctx context.Context, request ChatRequest) (*ro
 		history:            history,
 		userMessage:        userMessage,
 	}, nil
+}
+
+func safeRoomDeliveryPolicy(request ChatRequest) protocol.ChatDeliveryPolicy {
+	policy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
+	if !request.TrustedConfigurationContext && policy == protocol.ChatDeliveryPolicyGuide {
+		return protocol.ChatDeliveryPolicyQueue
+	}
+	return policy
 }
 
 func ensureRoomChatIDs(request *ChatRequest) {
@@ -579,7 +587,7 @@ func (e *roomChatExecution) queuePausedTargets() (map[string]struct{}, error) {
 }
 
 func (e *roomChatExecution) queueActiveSlots() (map[string]struct{}, error) {
-	handledAgentIDs, err := e.service.enqueueForActiveAgentSlots(
+	handledAgentIDs, err := e.service.enqueueForActiveAgentSlotsWithTrust(
 		e.ctx,
 		e.sessionKey,
 		e.roomID,
@@ -590,6 +598,7 @@ func (e *roomChatExecution) queueActiveSlots() (map[string]struct{}, error) {
 		e.request.RoundID,
 		e.request.UserMessageID,
 		authctx.OwnerUserID(e.ctx),
+		e.request.TrustedConfigurationContext,
 	)
 	if err != nil || len(handledAgentIDs) == 0 {
 		return handledAgentIDs, err
@@ -637,26 +646,30 @@ func (e *roomChatExecution) buildRound() (*activeRoomRound, []protocol.ChatAckPe
 		MessageID:   e.request.UserMessageID,
 	}
 	activeRound := &activeRoomRound{
-		SessionKey:            e.sessionKey,
-		RoomID:                e.roomID,
-		ConversationID:        e.conversationID,
-		CoordinatorAgentID:    roomCoordinatorAgentID(e.request.CoordinatorAgentID, e.contextValue),
-		RoomType:              e.contextValue.Room.RoomType,
-		Context:               e.contextValue,
-		RoundID:               e.request.RoundID,
-		RootRoundID:           e.request.RoundID,
-		OwnerUserID:           authctx.OwnerUserID(e.ctx),
-		Internal:              e.request.Internal,
-		InputOptions:          e.request.InputOptions,
-		PermissionMode:        e.request.PermissionMode,
-		PermissionHandler:     e.request.PermissionHandler,
-		EventObserver:         e.request.EventObserver,
-		GoalContext:           strings.TrimSpace(e.request.GoalContext),
-		GoalID:                strings.TrimSpace(e.request.GoalID),
-		GoalObjectiveRevision: e.request.GoalObjectiveRevision,
-		ExecutionID:           strings.TrimSpace(e.request.ExecutionID),
-		Slots:                 make(map[string]*activeRoomSlot),
-		Done:                  make(chan struct{}),
+		SessionKey:                        e.sessionKey,
+		RoomID:                            e.roomID,
+		ConversationID:                    e.conversationID,
+		CoordinatorAgentID:                roomCoordinatorAgentID(e.request.CoordinatorAgentID, e.contextValue),
+		RoomType:                          e.contextValue.Room.RoomType,
+		Context:                           e.contextValue,
+		RoundID:                           e.request.RoundID,
+		RootRoundID:                       e.request.RoundID,
+		OwnerUserID:                       authctx.OwnerUserID(e.ctx),
+		Internal:                          e.request.Internal,
+		AuthorityEpoch:                    e.contextValue.Room.AuthorityEpoch,
+		TrustedConfigurationContext:       e.request.TrustedConfigurationContext,
+		ExecutionOrigin:                   strings.TrimSpace(e.request.ExecutionOrigin),
+		trustedQueuedConfigurationContext: e.request.trustedQueuedConfigurationContext,
+		InputOptions:                      e.request.InputOptions,
+		PermissionMode:                    e.request.PermissionMode,
+		PermissionHandler:                 e.request.PermissionHandler,
+		EventObserver:                     e.request.EventObserver,
+		GoalContext:                       strings.TrimSpace(e.request.GoalContext),
+		GoalID:                            strings.TrimSpace(e.request.GoalID),
+		GoalObjectiveRevision:             e.request.GoalObjectiveRevision,
+		ExecutionID:                       strings.TrimSpace(e.request.ExecutionID),
+		Slots:                             make(map[string]*activeRoomSlot),
+		Done:                              make(chan struct{}),
 	}
 
 	pending := make([]protocol.ChatAckPendingSlot, 0, len(e.targetAgentIDs))
@@ -1130,6 +1143,34 @@ func (s *Service) enqueueForActiveAgentSlots(
 	userMessageID string,
 	ownerUserID string,
 ) (map[string]struct{}, error) {
+	return s.enqueueForActiveAgentSlotsWithTrust(
+		ctx,
+		sessionKey,
+		roomID,
+		conversationID,
+		targetAgentIDs,
+		content,
+		attachments,
+		roundID,
+		userMessageID,
+		ownerUserID,
+		false,
+	)
+}
+
+func (s *Service) enqueueForActiveAgentSlotsWithTrust(
+	ctx context.Context,
+	sessionKey string,
+	roomID string,
+	conversationID string,
+	targetAgentIDs []string,
+	content string,
+	attachments []protocol.ChatAttachment,
+	roundID string,
+	userMessageID string,
+	ownerUserID string,
+	trustedConfigurationContext bool,
+) (map[string]struct{}, error) {
 	slotsByAgentID := s.findActiveDeliverySlotsByAgent(sessionKey, conversationID, targetAgentIDs)
 	queuedAgentIDs := make(map[string]struct{}, len(slotsByAgentID))
 	entries := make([]workspacestore.InputQueueEnqueue, 0, len(slotsByAgentID))
@@ -1149,7 +1190,17 @@ func (s *Service) enqueueForActiveAgentSlots(
 			RootRoundID:     strings.TrimSpace(roundID),
 		}))
 	}
-	if err := s.inputQueue.EnqueueBatch(entries); err != nil {
+	committedItems, err := s.inputQueue.EnqueueBatchWithItems(entries)
+	if err != nil {
+		return queuedAgentIDs, err
+	}
+	if err = s.recordTrustedRoomQueueAdmissions(
+		ctx,
+		entries,
+		committedItems,
+		trustedConfigurationContext,
+	); err != nil {
+		s.rollbackRoomQueueAdmissions(ctx, entries, committedItems)
 		return queuedAgentIDs, err
 	}
 	for _, entry := range entries {

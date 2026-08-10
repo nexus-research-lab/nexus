@@ -15,7 +15,6 @@
   },
   "read_only_roots": [
     "/opt/nexus",
-    "/var/lib/nexus/app/.agents/bin",
     "/var/lib/nexus/app/platform-skills"
   ]
 }

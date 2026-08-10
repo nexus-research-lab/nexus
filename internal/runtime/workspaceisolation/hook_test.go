@@ -457,24 +457,27 @@ func TestWorkspacePolicyHookAllowsMainAgentNexusctl(t *testing.T) {
 
 func TestWorkspacePolicyHookTerminatesForbiddenNexusctl(t *testing.T) {
 	workspace := t.TempDir()
-	callback := workspacePolicyCallback(ModeEnforce, testPolicy(t, workspace))
-
-	output, err := callback(context.Background(), sdkhook.Input{
-		CWD:      workspace,
-		ToolName: "Bash",
-		ToolInput: map[string]any{
-			"command": "nexusctl --json agent list",
-		},
-	}, "ordinary-tool")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if output.SpecificOutput == nil ||
-		output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny {
-		t.Fatalf("普通 Agent nexusctl 应被拒绝: %#v", output)
-	}
-	if output.Continue == nil || *output.Continue || output.StopReason == "" {
-		t.Fatalf("控制面越界应终止当前 runtime turn: %#v", output)
+	for _, mode := range []Mode{ModeAudit, ModeEnforce} {
+		t.Run(string(mode), func(t *testing.T) {
+			callback := workspacePolicyCallback(mode, testPolicy(t, workspace))
+			output, err := callback(context.Background(), sdkhook.Input{
+				CWD:      workspace,
+				ToolName: "Bash",
+				ToolInput: map[string]any{
+					"command": "nexusctl --json agent list",
+				},
+			}, "ordinary-tool")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if output.SpecificOutput == nil ||
+				output.SpecificOutput.PermissionDecision != sdkpermission.BehaviorDeny {
+				t.Fatalf("普通 Agent nexusctl 应被拒绝: %#v", output)
+			}
+			if output.Continue == nil || *output.Continue || output.StopReason == "" {
+				t.Fatalf("控制面越界应终止当前 runtime turn: %#v", output)
+			}
+		})
 	}
 }
 

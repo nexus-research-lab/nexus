@@ -15,6 +15,29 @@ import (
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
+func newFailureSettlementAuthority(
+	roomID string,
+	conversationID string,
+	agentID string,
+) (*authorityFenceRoomStore, *protocol.ConversationContextAggregate) {
+	contextValue := &protocol.ConversationContextAggregate{
+		Room: protocol.RoomRecord{
+			ID:             roomID,
+			RoomType:       protocol.RoomTypeGroup,
+			AuthorityEpoch: 1,
+		},
+		Conversation: protocol.ConversationRecord{
+			ID:     conversationID,
+			RoomID: roomID,
+		},
+		Members: []protocol.MemberRecord{{
+			MemberType:    protocol.MemberTypeAgent,
+			MemberAgentID: agentID,
+		}},
+	}
+	return &authorityFenceRoomStore{contextValue: contextValue}, contextValue
+}
+
 func TestHandleSlotFailureFinalizesRememberedAssistantAfterDurablePersistenceFailure(t *testing.T) {
 	blockedRoot := filepath.Join(t.TempDir(), "not-a-directory")
 	if err := os.WriteFile(blockedRoot, []byte("block room history"), 0o600); err != nil {
@@ -23,7 +46,13 @@ func TestHandleSlotFailureFinalizesRememberedAssistantAfterDurablePersistenceFai
 	t.Setenv("NEXUS_STATE_ROOT", blockedRoot)
 
 	goalProvider := &fakeRoomGoalContextProvider{}
+	rooms, authority := newFailureSettlementAuthority(
+		"room-persist-failure",
+		"conversation-persist-failure",
+		"agent-persist-failure",
+	)
 	service := &Service{
+		rooms:       rooms,
 		goals:       goalProvider,
 		permission:  permissionctx.NewContext(),
 		roomHistory: workspacestore.NewRoomHistoryStore(blockedRoot),
@@ -33,6 +62,8 @@ func TestHandleSlotFailureFinalizesRememberedAssistantAfterDurablePersistenceFai
 		RoomID:         "room-persist-failure",
 		ConversationID: "conversation-persist-failure",
 		RootRoundID:    "round-persist-failure",
+		Context:        cloneAuthorityFenceContext(authority),
+		AuthorityEpoch: authority.Room.AuthorityEpoch,
 	}
 	slot := &activeRoomSlot{
 		AgentID:           "agent-persist-failure",
@@ -112,7 +143,13 @@ func TestHandleSlotFailureKeepsProviderUsageReturnedBeforeLocalFailure(t *testin
 			t.Setenv("NEXUS_STATE_ROOT", blockedRoot)
 
 			goalProvider := &fakeRoomGoalContextProvider{}
+			rooms, authority := newFailureSettlementAuthority(
+				"room-terminal-local-failure",
+				"conversation-terminal-local-failure",
+				"agent-terminal-local-failure",
+			)
 			service := &Service{
+				rooms:       rooms,
 				goals:       goalProvider,
 				permission:  permissionctx.NewContext(),
 				roomHistory: workspacestore.NewRoomHistoryStore(blockedRoot),
@@ -122,6 +159,8 @@ func TestHandleSlotFailureKeepsProviderUsageReturnedBeforeLocalFailure(t *testin
 				RoomID:         "room-terminal-local-failure",
 				ConversationID: "conversation-terminal-local-failure",
 				RootRoundID:    "round-terminal-local-failure",
+				Context:        cloneAuthorityFenceContext(authority),
+				AuthorityEpoch: authority.Room.AuthorityEpoch,
 			}
 			slot := &activeRoomSlot{
 				AgentID:           "agent-terminal-local-failure",

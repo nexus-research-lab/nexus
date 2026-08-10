@@ -16,6 +16,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
+	"github.com/nexus-research-lab/nexus/internal/runtime/clientopts"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
@@ -128,7 +129,10 @@ func (s *Service) prepareChatExecution(
 		return nil, err
 	}
 	request.Attachments = s.normalizeChatAttachments(request.Attachments, agentValue.AgentID)
-	deliveryPolicy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
+	deliveryPolicy := safeDMDeliveryPolicy(request)
+	if !request.TrustedConfigurationContext && deliveryPolicy == protocol.ChatDeliveryPolicyGuide {
+		deliveryPolicy = protocol.ChatDeliveryPolicyQueue
+	}
 	if conversationsvc.IsSlashCommandInput(request.Content) &&
 		protocol.ShouldGuideRunningRound(deliveryPolicy) {
 		deliveryPolicy = protocol.ChatDeliveryPolicyQueue
@@ -144,6 +148,14 @@ func (s *Service) prepareChatExecution(
 		initialMessageCount: sessionItem.MessageCount,
 		deliveryPolicy:      deliveryPolicy,
 	}, nil
+}
+
+func safeDMDeliveryPolicy(request Request) protocol.ChatDeliveryPolicy {
+	policy := protocol.NormalizeChatDeliveryPolicy(string(request.DeliveryPolicy))
+	if !request.TrustedConfigurationContext && policy == protocol.ChatDeliveryPolicyGuide {
+		return protocol.ChatDeliveryPolicyQueue
+	}
+	return policy
 }
 
 func (s *Service) resolveDMSession(
@@ -217,13 +229,27 @@ func (e *dmChatExecution) prepareRunner() error {
 	if err := e.prepareRoundStart(); err != nil {
 		return err
 	}
-	preparation, err := e.prepareRuntime()
+	admissionBaseContext := e.ctx
+	admission, runtimeIsolationRequired, err := clientopts.BeginAgentRuntimeAdmission(
+		admissionBaseContext,
+		e.service.admission,
+	)
+	if err != nil {
+		return err
+	}
+	defer admission.Release()
+	e.ctx = admission.Context()
+
+	preparation, err := e.prepareRuntime(runtimeIsolationRequired)
 	if err != nil {
 		return err
 	}
 	if !e.startRound() {
 		return runtimectx.ErrRuntimeSessionClosing
 	}
+	// session 与 round 已同时进入 Manager；后续认证转场可由 owner 级关闭完整撤销。
+	e.ctx = admissionBaseContext
+	admission.Release()
 	e.runner = e.newRoundRunner()
 	e.runner.bindRuntime(preparation)
 	e.registerRunner()
@@ -261,7 +287,20 @@ func (e *dmChatExecution) acceptAndLaunch() error {
 }
 
 func (e *dmChatExecution) runAcceptedRound() {
-	preparation, err := e.prepareRuntime()
+	admissionBaseContext := e.ctx
+	admission, runtimeIsolationRequired, err := clientopts.BeginAgentRuntimeAdmission(
+		admissionBaseContext,
+		e.service.admission,
+	)
+	if err != nil {
+		defer e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
+		e.runner.failRuntimeStartup(err)
+		return
+	}
+	e.ctx = admission.Context()
+	preparation, err := e.prepareRuntime(runtimeIsolationRequired)
+	e.ctx = admissionBaseContext
+	admission.Release()
 	if err != nil {
 		defer e.service.runtime.MarkRoundFinished(e.sessionKey, e.request.RoundID)
 		e.runner.failRuntimeStartup(err)
@@ -288,7 +327,7 @@ func (e *dmChatExecution) interruptRunningRound() error {
 	return e.service.interruptSession(e.ctx, e.sessionKey, "收到新的用户消息，上一轮已停止")
 }
 
-func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
+func (e *dmChatExecution) prepareRuntime(runtimeIsolationRequired bool) (dmRuntimePreparation, error) {
 	runtimeCtx := e.runtimeContext()
 	slashInput := conversationsvc.IsSlashCommandInput(e.request.Content)
 	if slashInput && len(e.request.Attachments) > 0 {
@@ -308,6 +347,7 @@ func (e *dmChatExecution) prepareRuntime() (dmRuntimePreparation, error) {
 		e.agent,
 		e.session,
 		e.request,
+		runtimeIsolationRequired,
 	)
 	if err != nil {
 		e.service.loggerFor(runtimeCtx).Error("DM runtime client 初始化失败",

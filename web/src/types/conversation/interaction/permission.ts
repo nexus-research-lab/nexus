@@ -32,10 +32,18 @@ export interface PermissionUpdate {
   destination?: PermissionDestination;
 }
 
+export interface ConfigurationSecretSlot {
+  id: string;
+  path: string;
+}
+
+export type ConfigurationSecrets = Record<string, string>;
+
 export interface PendingPermission {
   request_id: string;
   tool_name: string;
   tool_input: ToolInput;
+  configuration_secret_slots?: ConfigurationSecretSlot[];
   session_key?: string | null;
   agent_id?: string | null;
   message_id?: string | null;
@@ -53,6 +61,7 @@ export interface PendingPermission {
 export interface PermissionDecisionPayload {
   request_id: string;
   decision: PermissionDecision;
+  configuration_secrets?: ConfigurationSecrets;
   user_answers?: UserQuestionAnswer[];
   updated_permissions?: PermissionUpdate[];
   message?: string;

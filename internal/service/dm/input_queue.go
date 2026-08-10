@@ -26,6 +26,8 @@ type InputQueueRequest struct {
 	Attachments     []protocol.ChatAttachment
 	OrderedIDs      []string
 	DeliveryPolicy  protocol.ChatDeliveryPolicy
+	// TrustedConfigurationContext 仅由认证 WebSocket adapter 设置。
+	TrustedConfigurationContext bool
 }
 
 // HandleInputQueue 处理 DM 待发送队列控制消息。
@@ -73,6 +75,16 @@ func (s *Service) HandleInputQueue(
 		if err != nil {
 			return protocol.InputQueueMutationResult{}, err
 		}
+		if err = s.recordTrustedQueueAdmission(
+			ctx,
+			location,
+			enqueueResult.Item,
+			request.TrustedConfigurationContext,
+		); err != nil {
+			_ = s.revokeQueueAdmission(ctx, location, enqueueResult.Item)
+			_, _ = s.inputQueue.Delete(location, enqueueResult.Item.ID)
+			return protocol.InputQueueMutationResult{}, err
+		}
 		if !enqueueResult.Duplicate {
 			s.broadcastInputQueueSnapshot(ctx, sessionKey, enqueueResult.Items)
 			s.startSessionBackgroundTask(sessionKey, ownerUserID, func(taskCtx context.Context) {
@@ -87,6 +99,15 @@ func (s *Service) HandleInputQueue(
 	case "delete":
 		if s.hasInFlightInputQueueGuidance(request.ItemID) {
 			return protocol.InputQueueMutationResult{}, errors.New("该引导已发送给智能体，不能再删除")
+		}
+		currentItems, snapshotErr := s.inputQueue.Snapshot(location)
+		if snapshotErr != nil {
+			return protocol.InputQueueMutationResult{}, snapshotErr
+		}
+		if selected, ok := inputQueueItemByID(currentItems, request.ItemID); ok {
+			if err = s.revokeQueueAdmission(ctx, location, selected); err != nil {
+				return protocol.InputQueueMutationResult{}, err
+			}
 		}
 		items, err := s.inputQueue.Delete(location, request.ItemID)
 		if err != nil {
@@ -228,19 +249,51 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		return false
 	}
 	s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, items)
-	err = s.handleChat(contextWithQueueOwner(ctx, item.OwnerUserID), Request{
-		SessionKey:           normalizedSessionKey,
-		AgentID:              dmdomain.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
-		Content:              item.Content,
-		Attachments:          item.Attachments,
-		ClientMessageID:      item.ClientMessageID,
-		RoundID:              inputQueueItemRoundID(*item),
-		UserMessageID:        item.SourceMessageID,
-		AgentRoundID:         item.AgentRoundID,
-		DeliveryPolicy:       protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
-		BroadcastUserMessage: true,
+	dispatchCtx := contextWithQueueOwner(ctx, item.OwnerUserID)
+	claim, trustedQueue, err := s.claimTrustedQueueAdmission(
+		dispatchCtx,
+		normalizedSessionKey,
+		location,
+		*item,
+	)
+	if err != nil {
+		s.restoreFailedInputQueueDispatch(ctx, normalizedSessionKey, location, *item, err)
+		return false
+	}
+	if trustedQueue {
+		dispatchCtx = authctx.WithQueuedHumanPrincipalBinding(
+			dispatchCtx,
+			authctx.QueuedHumanPrincipalBinding{
+				UserID:     claim.Principal.UserID,
+				AuthMethod: claim.Principal.AuthMethod,
+				SessionID:  claim.Principal.SessionID,
+			},
+		)
+	}
+	err = s.handleChat(dispatchCtx, Request{
+		SessionKey:                        normalizedSessionKey,
+		AgentID:                           dmdomain.FirstNonEmpty(item.AgentID, inputQueueLocationAgentID(location)),
+		Content:                           item.Content,
+		Attachments:                       item.Attachments,
+		ClientMessageID:                   item.ClientMessageID,
+		RoundID:                           inputQueueItemRoundID(*item),
+		UserMessageID:                     item.SourceMessageID,
+		AgentRoundID:                      item.AgentRoundID,
+		DeliveryPolicy:                    protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
+		BroadcastUserMessage:              true,
+		ExecutionOrigin:                   "queue",
+		trustedQueuedConfigurationContext: trustedQueue,
 	}, chatExecutionInline)
 	if err == nil {
+		if trustedQueue {
+			if consumeErr := s.queueTrust.Consume(dispatchCtx, claim); consumeErr != nil {
+				s.loggerFor(ctx).Error("收口 DM queue configuration admission 失败",
+					"session_key", normalizedSessionKey,
+					"item_id", item.ID,
+					"err", consumeErr,
+				)
+			}
+		}
 		if len(s.runtime.GetRunningRoundIDs(normalizedSessionKey)) == 0 {
 			s.startSessionBackgroundTask(normalizedSessionKey, location.OwnerUserID, func(taskCtx context.Context) {
 				s.dispatchNextInputQueueItemAtLocation(
@@ -253,12 +306,32 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		}
 		return true
 	}
+	if trustedQueue {
+		if releaseErr := s.queueTrust.Release(dispatchCtx, claim); releaseErr != nil {
+			s.loggerFor(ctx).Error("释放 DM queue configuration admission 失败",
+				"session_key", normalizedSessionKey,
+				"item_id", item.ID,
+				"err", releaseErr,
+			)
+		}
+	}
+	s.restoreFailedInputQueueDispatch(ctx, normalizedSessionKey, location, *item, err)
+	return false
+}
+
+func (s *Service) restoreFailedInputQueueDispatch(
+	ctx context.Context,
+	normalizedSessionKey string,
+	location workspacestore.InputQueueLocation,
+	item protocol.InputQueueItem,
+	dispatchErr error,
+) {
 	s.loggerFor(ctx).Error("派发 DM 待发送队列失败",
 		"session_key", normalizedSessionKey,
 		"item_id", item.ID,
-		"err", err,
+		"err", dispatchErr,
 	)
-	if restored, restoreErr := s.inputQueue.Enqueue(location, *item); restoreErr != nil {
+	if restored, restoreErr := s.inputQueue.Enqueue(location, item); restoreErr != nil {
 		s.loggerFor(ctx).Error("恢复 DM 待发送队列项失败",
 			"session_key", normalizedSessionKey,
 			"item_id", item.ID,
@@ -268,11 +341,10 @@ func (s *Service) dispatchNextInputQueueItemAtLocation(
 		s.broadcastInputQueueSnapshot(ctx, normalizedSessionKey, restored)
 	}
 	message := "待发送消息派发失败"
-	if clientMessage, ok := protocol.ClientErrorMessage(err); ok {
+	if clientMessage, ok := protocol.ClientErrorMessage(dispatchErr); ok {
 		message = clientMessage
 	}
 	s.broadcastEventWithTimeout(ctx, normalizedSessionKey, protocol.NewErrorEvent(normalizedSessionKey, message))
-	return false
 }
 
 func inputQueueItemRoundID(item protocol.InputQueueItem) string {

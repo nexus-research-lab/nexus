@@ -280,6 +280,12 @@ func TestServiceBuildRuntimePromptIncludesMainAgentDefaultPolicy(t *testing.T) {
 	assertPromptContains(t, prompt, "You coordinate from the main chat, but you are not a Room member")
 	assertPromptContains(t, prompt, "Before creating durable structure, check for an existing Room, DM, member, file, or scheduled task")
 	assertPromptContains(t, prompt, "Use `nexus-manager` for Nexus user accounts, members, Rooms, DMs, workspaces, and skills")
+	assertPromptContains(t, prompt, "Use `nexus_config` for Nexus settings")
+	assertPromptContains(t, prompt, "Configuration changes follow one workflow")
+	assertPromptContains(t, prompt, "account registration, user listing, and password resets")
+	assertPromptContains(t, prompt, "the host-injected current owner and workspace are authoritative")
+	assertPromptContains(t, prompt, "do not prepend environment assignments or add scope-selection arguments")
+	assertPromptContains(t, prompt, "Treat account passwords as write-only input")
 	for _, staleInstruction := range []string{"--global-scope", "--scope-user-id", "NEXUS_PROJECT_ROOT=/opt/app"} {
 		if strings.Contains(prompt, staleInstruction) {
 			t.Fatalf("主智能体默认提示词不应注入历史 CLI 指令 %q: %s", staleInstruction, prompt)

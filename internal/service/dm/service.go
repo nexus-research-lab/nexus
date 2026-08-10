@@ -22,6 +22,7 @@ import (
 	orchestrationruntimehook "github.com/nexus-research-lab/nexus/internal/service/orchestration/runtimehook"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	usagesvc "github.com/nexus-research-lab/nexus/internal/service/usage"
+	queueadmissionstore "github.com/nexus-research-lab/nexus/internal/storage/queueadmission"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
@@ -101,10 +102,17 @@ type Request struct {
 	RewriteRemoveRoundIDs     []string
 	RewriteRemoveMessageCount int
 	Internal                  bool
-	InputOptions              sdkprotocol.OutboundMessageOptions
-	PermissionMode            sdkpermission.Mode
-	PermissionHandler         sdkpermission.Handler
-	ExternalReplyTarget       *ExternalReplyTarget
+	// TrustedConfigurationContext 仅由 Nexus WebSocket 用户入口设置，后台/外部/队列不得继承。
+	TrustedConfigurationContext bool
+	// ExecutionOrigin 由服务端调度器写入；非空值不会获得持久配置 capability。
+	ExecutionOrigin string
+	// trustedQueuedConfigurationContext 只能由本包在成功 claim 宿主 DB
+	// admission 后设置，外部 Request 构造者无法伪造。
+	trustedQueuedConfigurationContext bool
+	InputOptions                      sdkprotocol.OutboundMessageOptions
+	PermissionMode                    sdkpermission.Mode
+	PermissionHandler                 sdkpermission.Handler
+	ExternalReplyTarget               *ExternalReplyTarget
 }
 
 // RewriteRequest 表示一次 DM 最后一条用户消息重写请求。replacement round_id 由后端 mint。
@@ -147,10 +155,12 @@ type Service struct {
 	roomStore    roomSessionStore
 	roomActivity roomConversationActivityStore
 	providers    clientopts.RuntimeConfigResolver
+	admission    clientopts.AgentRuntimeAdmissionResolver
 	prefs        runtimePreferencesService
 	files        *workspacestore.SessionFileStore
 	history      *workspacestore.AgentHistoryStore
 	inputQueue   *workspacestore.InputQueueStore
+	queueTrust   queueAdmissionStore
 	// inputQueueDispatchMu serializes explicit input, queue handoff, and Goal continuation at the active-check/start boundary.
 	inputQueueDispatchMu contextMutex
 	// ponytail: one lock is enough for low-volume DM hooks; split per session only if contention is measured.
@@ -208,6 +218,14 @@ type titleScheduler interface {
 
 type runtimePreferencesService interface {
 	Get(context.Context, string) (preferencessvc.Preferences, error)
+}
+
+type queueAdmissionStore interface {
+	Record(context.Context, queueadmissionstore.Admission) error
+	Claim(context.Context, queueadmissionstore.Binding) (queueadmissionstore.Claim, bool, error)
+	Release(context.Context, queueadmissionstore.Claim) error
+	Consume(context.Context, queueadmissionstore.Claim) error
+	Revoke(context.Context, queueadmissionstore.Binding) error
 }
 
 type usageRecorder interface {
@@ -277,6 +295,13 @@ func (s *Service) SetProviderResolver(resolver clientopts.RuntimeConfigResolver)
 	s.providers = resolver
 }
 
+// SetRuntimeAdmissionResolver 注入认证转场与动态强隔离 admission。
+func (s *Service) SetRuntimeAdmissionResolver(
+	resolver clientopts.AgentRuntimeAdmissionResolver,
+) {
+	s.admission = resolver
+}
+
 // SetPreferences 注入用户偏好服务，用于 Agent 未显式选模型时读取默认对话模型。
 func (s *Service) SetPreferences(prefs runtimePreferencesService) {
 	s.prefs = prefs
@@ -300,6 +325,11 @@ func (s *Service) SetRoomSessionStore(store roomSessionStore) {
 // SetRoomConversationActivityStore 注入 Room conversation 草稿消费与活动时间写入能力。
 func (s *Service) SetRoomConversationActivityStore(store roomConversationActivityStore) {
 	s.roomActivity = store
+}
+
+// SetQueueAdmissionStore 注入宿主 DB 中不可由 Agent workspace 伪造的队列信任根。
+func (s *Service) SetQueueAdmissionStore(store queueAdmissionStore) {
+	s.queueTrust = store
 }
 
 // SetTitleGenerator 注入会话标题生成器。

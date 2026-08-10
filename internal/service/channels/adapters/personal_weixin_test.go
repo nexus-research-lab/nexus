@@ -261,6 +261,22 @@ func TestPersonalWeixinMultiAccountChannelAdoptsRunningReplacedAccount(t *testin
 	}
 }
 
+func TestPersonalWeixinMultiAccountChannelDoesNotRestoreRemovedAccount(t *testing.T) {
+	removed := NewPersonalWeixinChannel(PersonalWeixinClientConfig{
+		BaseURL:   "https://weixin.test",
+		Token:     "token-removed",
+		AccountID: "account-removed",
+	}, nil)
+	replacement := NewPersonalWeixinMultiAccountChannel(nil)
+
+	if replacement.AdoptReplacedChannel(removed) {
+		t.Fatal("新配置中已不存在的账号不得从旧 runtime 接管回来")
+	}
+	if accounts := replacement.snapshotAccounts(); len(accounts) != 0 {
+		t.Fatalf("删除账号热重载后不得复活旧账号: %+v", accounts)
+	}
+}
+
 func TestPersonalWeixinChannelSendDeliveryTyping(t *testing.T) {
 	var getConfigCalls int
 	statuses := make([]float64, 0, 2)

@@ -1,3 +1,6 @@
+// INPUT: owner+channel 配置行、事务 runner 与 runtime 派生状态。
+// OUTPUT: Channel 配置的跨方言查询、事务 upsert 与运行态投影更新。
+// POS: Channel config SQL 真相源，控制字段写入受 channel_control_versions 事务保护。
 package channels
 
 import (
@@ -32,11 +35,20 @@ FROM im_channel_configs`)
 }
 
 func (s *ControlService) getChannelConfigRow(ctx context.Context, ownerUserID string, channelType string) (*channelConfigRow, error) {
+	return s.getChannelConfigRowFrom(ctx, s.db, ownerUserID, channelType)
+}
+
+func (s *ControlService) getChannelConfigRowFrom(
+	ctx context.Context,
+	store channelStore,
+	ownerUserID string,
+	channelType string,
+) (*channelConfigRow, error) {
 	query := `
 SELECT owner_user_id, channel_type, agent_id, status, config_json, credentials_encrypted, last_error, created_at, updated_at
 FROM im_channel_configs
 WHERE owner_user_id = ` + s.bind(1) + " AND channel_type = " + s.bind(2)
-	row := s.db.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(channelType))
+	row := store.QueryRowContext(ctx, query, strings.TrimSpace(ownerUserID), strings.TrimSpace(channelType))
 	item, err := scanChannelConfigScanner(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -44,7 +56,7 @@ WHERE owner_user_id = ` + s.bind(1) + " AND channel_type = " + s.bind(2)
 	return item, err
 }
 
-func (s *ControlService) upsertChannelConfigRow(ctx context.Context, row channelConfigRow) error {
+func (s *ControlService) upsertChannelConfigRowWith(ctx context.Context, store channelStore, row channelConfigRow) error {
 	if s.driver == "pgx" {
 		query := `
 INSERT INTO im_channel_configs (
@@ -57,7 +69,7 @@ ON CONFLICT (owner_user_id, channel_type) DO UPDATE SET
     credentials_encrypted = EXCLUDED.credentials_encrypted,
     last_error = NULL,
     updated_at = CURRENT_TIMESTAMP`
-		_, err := s.db.ExecContext(ctx, query, row.OwnerUserID, row.ChannelType, row.AgentID, row.Status, row.ConfigJSON, nullableString(row.CredentialsEncrypted.String))
+		_, err := store.ExecContext(ctx, query, row.OwnerUserID, row.ChannelType, row.AgentID, row.Status, row.ConfigJSON, nullableString(row.CredentialsEncrypted.String))
 		return err
 	}
 	query := `
@@ -71,7 +83,7 @@ ON CONFLICT(owner_user_id, channel_type) DO UPDATE SET
     credentials_encrypted = excluded.credentials_encrypted,
     last_error = NULL,
     updated_at = CURRENT_TIMESTAMP`
-	_, err := s.db.ExecContext(ctx, query, row.OwnerUserID, row.ChannelType, row.AgentID, row.Status, row.ConfigJSON, nullableString(row.CredentialsEncrypted.String))
+	_, err := store.ExecContext(ctx, query, row.OwnerUserID, row.ChannelType, row.AgentID, row.Status, row.ConfigJSON, nullableString(row.CredentialsEncrypted.String))
 	return err
 }
 

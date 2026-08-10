@@ -5,11 +5,13 @@ package room_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 
 	_ "modernc.org/sqlite"
 )
@@ -47,6 +49,10 @@ func TestRoomServicePersistsMemberParticipationAcrossConversations(t *testing.T)
 	); err != nil {
 		t.Fatalf("创建第二 conversation 失败: %v", err)
 	}
+	beforeParticipation, err := roomService.GetRoom(ctx, mainContext.Room.ID)
+	if err != nil {
+		t.Fatalf("读取暂停前 Room 版本失败: %v", err)
+	}
 
 	updated, err := roomService.SetRoomMemberParticipation(
 		ctx,
@@ -59,6 +65,29 @@ func TestRoomServicePersistsMemberParticipationAcrossConversations(t *testing.T)
 	}
 	assertRoomMemberParticipation(t, updated.Members, agentA.AgentID, true)
 	assertRoomMemberParticipation(t, updated.Members, agentB.AgentID, false)
+	if updated.Room.ConfigurationVersion != beforeParticipation.Room.ConfigurationVersion+1 {
+		t.Fatalf(
+			"暂停成员 configuration_version = %d, want %d",
+			updated.Room.ConfigurationVersion,
+			beforeParticipation.Room.ConfigurationVersion+1,
+		)
+	}
+	if updated.Room.AuthorityEpoch != beforeParticipation.Room.AuthorityEpoch+1 {
+		t.Fatalf(
+			"暂停成员 authority_epoch = %d, want %d",
+			updated.Room.AuthorityEpoch,
+			beforeParticipation.Room.AuthorityEpoch+1,
+		)
+	}
+	if _, staleErr := roomService.SetRoomMemberParticipationAtVersion(
+		ctx,
+		mainContext.Room.ID,
+		agentA.AgentID,
+		false,
+		beforeParticipation.Room.ConfigurationVersion,
+	); !errors.Is(staleErr, roomrepo.ErrConfigurationVersionConflict) {
+		t.Fatalf("过期成员参与状态写入 error = %v, want version conflict", staleErr)
+	}
 
 	contexts, err := roomService.GetRoomContexts(ctx, mainContext.Room.ID)
 	if err != nil {
@@ -72,13 +101,19 @@ func TestRoomServicePersistsMemberParticipationAcrossConversations(t *testing.T)
 		assertRoomMemberParticipation(t, contextValue.Members, agentB.AgentID, false)
 	}
 
-	if _, err = roomService.SetRoomMemberParticipation(
+	resumed, err := roomService.SetRoomMemberParticipationAtVersion(
 		ctx,
 		mainContext.Room.ID,
 		agentA.AgentID,
 		false,
-	); err != nil {
+		updated.Room.ConfigurationVersion,
+	)
+	if err != nil {
 		t.Fatalf("恢复 Room 成员失败: %v", err)
+	}
+	if resumed.Room.ConfigurationVersion != updated.Room.ConfigurationVersion+1 ||
+		resumed.Room.AuthorityEpoch != updated.Room.AuthorityEpoch+1 {
+		t.Fatalf("恢复成员未推进版本和权限世代: before=%+v after=%+v", updated.Room, resumed.Room)
 	}
 	contexts, err = roomService.GetRoomContexts(ctx, mainContext.Room.ID)
 	if err != nil {

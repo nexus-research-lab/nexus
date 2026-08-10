@@ -3,10 +3,11 @@
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - repository.go：仓储入口与共享事务边界。
-//   - provider.go / model.go / usage.go：Provider、模型与用量读写。
+//   - repository.go / errors.go：仓储入口与稳定的 CAS/不存在错误协议。
+//   - mutation.go：Provider/model/default/test/delete/reassign 的共享 configuration_version 事务。
+//   - provider.go / model.go / usage.go：可见/owner-private/公共 Provider、模型与只读用量入口；现有聚合写入统一委托 Mutation。
 //   - dialect.go / scan.go：方言适配与行扫描。
-//   - model_provider.go：Entity 等持久化模型。
+//   - model_provider.go：包含 configuration_version 的持久化模型。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package provider

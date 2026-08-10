@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
 func (s *Service) dispatchNextInputQueueItem(ctx context.Context, sessionKey string, roomID string, conversationID string) {
@@ -62,7 +64,14 @@ func (s *Service) dispatchNextInputQueueItemLocked(ctx context.Context, sessionK
 	if err = s.broadcastRoomInputQueueSnapshot(ctx, sessionKey, contextValue); err != nil {
 		s.loggerFor(ctx).Warn("广播 Room 待发送队列快照失败", "session_key", sessionKey, "err", err)
 	}
-	err = s.dispatchInputQueueItemLocked(ctx, sessionKey, roomID, conversationID, dispatchedItem)
+	err = s.dispatchInputQueueItemLocked(
+		ctx,
+		sessionKey,
+		roomID,
+		conversationID,
+		entry.Location,
+		dispatchedItem,
+	)
 	if err == nil {
 		if s.canDispatchMoreInputQueueItems(ctx, sessionKey, conversationID) {
 			s.startSessionBackgroundTask(
@@ -185,15 +194,76 @@ func (s *Service) dispatchInputQueueItemLocked(
 	sessionKey string,
 	roomID string,
 	conversationID string,
+	location workspacestore.InputQueueLocation,
 	item protocol.InputQueueItem,
 ) error {
 	if err := protocol.ValidateInputQueueCapabilityEnvelope(item); err != nil {
 		return err
 	}
+	dispatchCtx := contextWithExactQueueOwner(ctx, item.OwnerUserID)
+	claim, trustedQueue, err := s.claimTrustedRoomQueueAdmission(
+		dispatchCtx,
+		sessionKey,
+		location,
+		item,
+	)
+	if err != nil {
+		return err
+	}
+	if trustedQueue {
+		dispatchCtx = authctx.WithQueuedHumanPrincipalBinding(
+			dispatchCtx,
+			authctx.QueuedHumanPrincipalBinding{
+				UserID:     claim.Principal.UserID,
+				AuthMethod: claim.Principal.AuthMethod,
+				SessionID:  claim.Principal.SessionID,
+			},
+		)
+	}
+	err = s.dispatchClaimedInputQueueItemLocked(
+		dispatchCtx,
+		sessionKey,
+		roomID,
+		conversationID,
+		item,
+		trustedQueue,
+	)
+	if err != nil {
+		if trustedQueue {
+			if releaseErr := s.queueTrust.Release(dispatchCtx, claim); releaseErr != nil {
+				s.loggerFor(ctx).Error("释放 Room queue configuration admission 失败",
+					"session_key", sessionKey,
+					"item_id", item.ID,
+					"err", releaseErr,
+				)
+			}
+		}
+		return err
+	}
+	if trustedQueue {
+		if consumeErr := s.queueTrust.Consume(dispatchCtx, claim); consumeErr != nil {
+			s.loggerFor(ctx).Error("收口 Room queue configuration admission 失败",
+				"session_key", sessionKey,
+				"item_id", item.ID,
+				"err", consumeErr,
+			)
+		}
+	}
+	return nil
+}
+
+func (s *Service) dispatchClaimedInputQueueItemLocked(
+	ctx context.Context,
+	sessionKey string,
+	roomID string,
+	conversationID string,
+	item protocol.InputQueueItem,
+	trustedQueue bool,
+) error {
 	if item.Source == protocol.InputQueueSourceAgentPublicMention ||
 		item.Source == protocol.InputQueueSourceAgentRoomMessage {
 		return s.dispatchAgentWakeQueueItem(
-			contextWithExactQueueOwner(ctx, item.OwnerUserID),
+			ctx,
 			sessionKey,
 			roomID,
 			conversationID,
@@ -203,23 +273,26 @@ func (s *Service) dispatchInputQueueItemLocked(
 	}
 	if strings.TrimSpace(item.SourceMessageID) != "" && len(inputQueueTargetAgentIDs(item)) > 0 {
 		return s.dispatchRoomPublicTriggerQueueItem(
-			contextWithExactQueueOwner(ctx, item.OwnerUserID),
+			ctx,
 			sessionKey,
 			roomID,
 			conversationID,
 			item,
+			trustedQueue,
 		)
 	}
 	// dispatchNextInputQueueItemLocked 已持有 conversation 派发闸门。
-	return s.handleChatLocked(contextWithExactQueueOwner(ctx, item.OwnerUserID), ChatRequest{
-		SessionKey:     sessionKey,
-		RoomID:         roomID,
-		ConversationID: conversationID,
-		Content:        item.Content,
-		Attachments:    item.Attachments,
-		TargetAgentIDs: inputQueueTargetAgentIDs(item),
-		RoundID:        "queue_" + item.ID,
-		DeliveryPolicy: protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
+	return s.handleChatLocked(ctx, ChatRequest{
+		SessionKey:                        sessionKey,
+		RoomID:                            roomID,
+		ConversationID:                    conversationID,
+		Content:                           item.Content,
+		Attachments:                       item.Attachments,
+		TargetAgentIDs:                    inputQueueTargetAgentIDs(item),
+		RoundID:                           "queue_" + item.ID,
+		DeliveryPolicy:                    protocol.NormalizeChatDeliveryPolicy(string(item.DeliveryPolicy)),
+		ExecutionOrigin:                   "queue",
+		trustedQueuedConfigurationContext: trustedQueue,
 	})
 }
 
@@ -229,6 +302,7 @@ func (s *Service) dispatchRoomPublicTriggerQueueItem(
 	roomID string,
 	conversationID string,
 	item protocol.InputQueueItem,
+	trustedQueue bool,
 ) error {
 	targetAgentIDs := inputQueueTargetAgentIDs(item)
 	if len(targetAgentIDs) == 0 {
@@ -257,15 +331,16 @@ func (s *Service) dispatchRoomPublicTriggerQueueItem(
 		})
 	}
 	parentRound := &activeRoomRound{
-		SessionKey:     sessionKey,
-		RoomID:         cmp.Or(strings.TrimSpace(roomID), contextValue.Room.ID),
-		ConversationID: conversationID,
-		RoomType:       contextValue.Room.RoomType,
-		Context:        contextValue,
-		RoundID:        sourceRoundID,
-		RootRoundID:    cmp.Or(strings.TrimSpace(item.RootRoundID), sourceRoundID),
-		HopIndex:       item.HopIndex,
-		OwnerUserID:    strings.TrimSpace(item.OwnerUserID),
+		SessionKey:                  sessionKey,
+		RoomID:                      cmp.Or(strings.TrimSpace(roomID), contextValue.Room.ID),
+		ConversationID:              conversationID,
+		RoomType:                    contextValue.Room.RoomType,
+		Context:                     contextValue,
+		RoundID:                     sourceRoundID,
+		RootRoundID:                 cmp.Or(strings.TrimSpace(item.RootRoundID), sourceRoundID),
+		HopIndex:                    item.HopIndex,
+		OwnerUserID:                 strings.TrimSpace(item.OwnerUserID),
+		pendingTrustedQueueDispatch: trustedQueue,
 	}
 	return s.startPublicMentionRoundLocked(ctx, parentRound, wakes)
 }

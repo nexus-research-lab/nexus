@@ -8,6 +8,8 @@ import (
 
 // CreateJobInput 表示创建请求。
 type CreateJobInput struct {
+	// RequestID 是对话工具签发的幂等键；HTTP/CLI 留空时保持原有每次创建语义。
+	RequestID     string         `json:"request_id,omitempty"`
 	Name          string         `json:"name"`
 	AgentID       string         `json:"agent_id"`
 	Schedule      Schedule       `json:"schedule"`
@@ -23,6 +25,9 @@ type CreateJobInput struct {
 
 // Validate 校验创建请求。
 func (i CreateJobInput) Validate() error {
+	if len(strings.TrimSpace(i.RequestID)) > 128 {
+		return errors.New("request_id must not exceed 128 characters")
+	}
 	if strings.TrimSpace(i.Name) == "" {
 		return errors.New("name is required")
 	}
@@ -56,6 +61,7 @@ func (i CreateJobInput) Validate() error {
 // Normalized 返回标准化副本。
 func (i CreateJobInput) Normalized() CreateJobInput {
 	result := i
+	result.RequestID = strings.TrimSpace(result.RequestID)
 	result.Name = strings.TrimSpace(result.Name)
 	result.AgentID = strings.TrimSpace(result.AgentID)
 	result.Instruction = strings.TrimSpace(result.Instruction)

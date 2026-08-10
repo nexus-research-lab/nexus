@@ -1,3 +1,6 @@
+// INPUT: 人类控制面创建的 script 任务、owner workspace 与 runtime isolation 配置。
+// OUTPUT: 隔离执行结果及不继承宿主凭据的脚本进程环境。
+// POS: automation script 的宿主执行与凭据边界。
 package automation
 
 import (
@@ -75,19 +78,51 @@ func (s *Service) startScriptJobExecution(ctx context.Context, job automationdom
 	s.mu.Unlock()
 
 	if err := s.repository.InsertRunPending(ctx, automationstore.RunPendingInput{
-		RunID:        runID,
-		JobID:        job.JobID,
-		OwnerUserID:  job.OwnerUserID,
-		ScheduledFor: &scheduledFor,
-		TriggerKind:  triggerKind,
-		DeliveryMode: strings.TrimSpace(job.Delivery.Mode),
-		DeliveryTo:   deliveryTargetSummary(job.Delivery),
+		RunID:                    runID,
+		JobID:                    job.JobID,
+		OwnerUserID:              job.OwnerUserID,
+		ScheduledFor:             &scheduledFor,
+		TriggerKind:              triggerKind,
+		DeliveryMode:             strings.TrimSpace(job.Delivery.Mode),
+		DeliveryTo:               deliveryTargetSummary(job.Delivery),
+		PermissionPolicyRevision: job.PermissionPolicy.Revision,
 	}); err != nil {
 		s.finishJobRuntime(job.JobID, nil, automationdomain.RunStatusFailed, errorPointer(err))
 		return nil, err
 	}
 	if err := s.repository.MarkRunRunning(ctx, runID, startedAt); err != nil {
 		s.finishJobRuntime(job.JobID, nil, automationdomain.RunStatusFailed, errorPointer(err))
+		return nil, err
+	}
+	allowed, err := s.ensureScriptRunPermission(ctx, job, runID)
+	if err != nil {
+		finishedAt := s.nowFn()
+		_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
+			RunID:        runID,
+			Status:       automationdomain.RunStatusFailed,
+			FinishedAt:   finishedAt,
+			ErrorMessage: errorPointer(err),
+		})
+		s.finishJobRuntime(job.JobID, &finishedAt, automationdomain.RunStatusFailed, errorPointer(err))
+		return nil, err
+	}
+	if !allowed {
+		return &automationdomain.ExecutionResult{
+			JobID:        job.JobID,
+			RunID:        &runID,
+			Status:       automationdomain.RunStatusPending,
+			ScheduledFor: cloneTimePointer(&scheduledFor),
+		}, nil
+	}
+	if err = s.repository.MarkRunEffectStarted(ctx, job.OwnerUserID, runID); err != nil {
+		finishedAt := s.nowFn()
+		_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
+			RunID:        runID,
+			Status:       automationdomain.RunStatusFailed,
+			FinishedAt:   finishedAt,
+			ErrorMessage: errorPointer(err),
+		})
+		s.finishJobRuntime(job.JobID, &finishedAt, automationdomain.RunStatusFailed, errorPointer(err))
 		return nil, err
 	}
 
@@ -99,6 +134,59 @@ func (s *Service) startScriptJobExecution(ctx context.Context, job automationdom
 		ScheduledFor: cloneTimePointer(&scheduledFor),
 		MessageCount: 0,
 	}, nil
+}
+
+func (s *Service) ensureScriptRunPermission(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+	runID string,
+) (bool, error) {
+	capability := buildScriptPermissionCapability(job)
+	allowed, hardDenied, err := s.taskPolicyAllowsCapability(ctx, job, capability)
+	if err != nil {
+		return false, err
+	}
+	if hardDenied {
+		return false, errors.New("当前 Agent 已明确禁用 host script 执行")
+	}
+	if allowed {
+		return true, nil
+	}
+	request, created, err := s.repository.CreatePermissionRequestAndBlockRun(
+		ctx,
+		automationstore.PermissionRequestCreateInput{
+			Request: automationdomain.AutomationPermissionRequest{
+				RequestID:      s.idFactory("permission"),
+				OwnerUserID:    job.OwnerUserID,
+				JobID:          job.JobID,
+				RunID:          runID,
+				PolicyRevision: job.PermissionPolicy.Revision,
+				Kind:           automationdomain.PermissionRequestKindScript,
+				Capability:     capability,
+				InputSummary:   map[string]any{"script_sha256": capability.ResourceScope},
+				Title:          "定时任务请求执行工作区脚本",
+				Description:    "脚本会在目标 Agent workspace 中执行；授权与当前脚本内容哈希绑定，脚本修改后自动失效。",
+				Reason:         "需要 owner 确认工作区脚本执行",
+				ResumeSafe:     true,
+			},
+			TaskState:  automationdomain.TaskPermissionStateAwaitingApproval,
+			BlockState: automationdomain.RunBlockStateAwaitingApproval,
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+	s.setJobPermissionState(job.JobID, automationdomain.TaskPermissionStateAwaitingApproval, request.RequestID)
+	s.pauseJobRuntimeForPermission(job, runID, automationdomain.TaskPermissionStateAwaitingApproval, &request.Reason)
+	if created {
+		s.recordTaskEvent(ctx, automationdomain.TaskEventActionPermissionRequested, job, runID, map[string]any{
+			"request_id":   request.RequestID,
+			"request_kind": request.Kind,
+			"effect":       request.Capability.Effect,
+			"resume_safe":  request.ResumeSafe,
+		})
+	}
+	return false, nil
 }
 
 func (s *Service) observeScriptJob(job automationdomain.ScheduledTask, runID string, scheduledFor time.Time) {
@@ -194,11 +282,7 @@ func (s *Service) runScriptJob(ctx context.Context, job automationdomain.Schedul
 	if strings.EqualFold(strings.TrimSpace(s.config.AppMode), "desktop") {
 		command := scriptCommand(waitCtx, job.Instruction)
 		command.Dir = workspacePath
-		command.Env = append(os.Environ(),
-			"NEXUS_AUTOMATION_JOB_ID="+strings.TrimSpace(job.JobID),
-			"NEXUS_AUTOMATION_RUN_ID="+strings.TrimSpace(runID),
-			"NEXUS_AUTOMATION_AGENT_ID="+strings.TrimSpace(job.AgentID),
-		)
+		command.Env = scriptProcessEnvironment(workspacePath, job, runID)
 		command.Stdout = stdout
 		command.Stderr = stderr
 		runErr = command.Run()
@@ -285,7 +369,42 @@ func scriptCommand(ctx context.Context, script string) *exec.Cmd {
 	if runtime.GOOS == "windows" {
 		return exec.CommandContext(ctx, "cmd", "/C", script)
 	}
-	return exec.CommandContext(ctx, "/bin/sh", "-lc", script)
+	return exec.CommandContext(ctx, "/bin/sh", "-c", script)
+}
+
+func scriptProcessEnvironment(
+	workspacePath string,
+	job automationdomain.ScheduledTask,
+	runID string,
+) []string {
+	environment := make([]string, 0, 16)
+	for _, name := range []string{
+		"PATH",
+		"LANG",
+		"LC_ALL",
+		"LC_CTYPE",
+		"TZ",
+		"SystemRoot",
+		"ComSpec",
+		"PATHEXT",
+	} {
+		if value, ok := os.LookupEnv(name); ok && strings.TrimSpace(value) != "" {
+			environment = append(environment, name+"="+value)
+		}
+	}
+	tempDir := os.TempDir()
+	environment = append(environment,
+		"HOME="+strings.TrimSpace(workspacePath),
+		"USERPROFILE="+strings.TrimSpace(workspacePath),
+		"TMPDIR="+tempDir,
+		"TMP="+tempDir,
+		"TEMP="+tempDir,
+		"NEXUS_AUTOMATION_JOB_ID="+strings.TrimSpace(job.JobID),
+		"NEXUS_AUTOMATION_RUN_ID="+strings.TrimSpace(runID),
+		"NEXUS_AUTOMATION_AGENT_ID="+strings.TrimSpace(job.AgentID),
+		"NEXUS_AUTOMATION_EXECUTION=script",
+	)
+	return environment
 }
 
 func formatScriptOutput(stdout string, stderr string) string {

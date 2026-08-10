@@ -1,13 +1,18 @@
+// INPUT: owner-scoped Preferences 读取、局部更新、CAS 更新与条件回滚。
+// OUTPUT: 进程内按 owner 串行、version 单调且以原子文件替换持久化的偏好和凭据。
+// POS: Preferences 文件真相源的唯一读写事务边界；调用方不得自行拼接 RMW 流程。
 package preferences
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"math"
 	"os"
-	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/infra/confinedfs"
@@ -17,15 +22,16 @@ import (
 
 // Service 负责读写用户级偏好 JSON。
 type Service struct {
-	config config.Config
+	config     config.Config
+	ownerLocks sync.Map
 }
 
-// storedWebSearchCredential 是 WebSearch 凭据文件的唯一存储格式。
-// provider 与 api_key 必须成对存在，避免不同 provider 复用同一份密钥。
-type storedWebSearchCredential struct {
-	Provider string `json:"provider"`
-	APIKey   string `json:"api_key"`
-}
+// ErrVersionConflict 表示 Preferences 已被另一条 UI 或对话写流程更新。
+var ErrVersionConflict = errors.New("preferences version conflict")
+
+// UpdateBuilder 在 owner 锁内基于最新 Preferences 构造局部更新。
+// Builder 不得重入同一 Service 的 Get/Update 方法。
+type UpdateBuilder func(Preferences) (UpdateRequest, error)
 
 // NewService 创建偏好服务。
 func NewService(cfg config.Config) *Service {
@@ -34,9 +40,15 @@ func NewService(cfg config.Config) *Service {
 
 // Get 读取用户偏好，不存在时返回默认值。
 func (s *Service) Get(_ context.Context, ownerUserID string) (Preferences, error) {
+	unlock := s.lockOwner(ownerUserID)
+	defer unlock()
+	return s.getLocked(ownerUserID)
+}
+
+func (s *Service) getLocked(ownerUserID string) (Preferences, error) {
 	root, err := s.openOwnerRoot(ownerUserID, false)
 	if errors.Is(err, os.ErrNotExist) {
-		return s.withWebSearchAPIKey(ownerUserID, DefaultPreferences()), nil
+		return s.withWebSearchAPIKeyConfined(ownerUserID, DefaultPreferences()), nil
 	}
 	if err != nil {
 		return Preferences{}, err
@@ -44,7 +56,7 @@ func (s *Service) Get(_ context.Context, ownerUserID string) (Preferences, error
 	defer root.Close()
 	content, err := root.ReadFile(".settings/preferences.json")
 	if errors.Is(err, os.ErrNotExist) {
-		return s.withWebSearchAPIKey(ownerUserID, DefaultPreferences()), nil
+		return s.withWebSearchAPIKeyConfined(ownerUserID, DefaultPreferences()), nil
 	}
 	if err != nil {
 		return Preferences{}, err
@@ -53,16 +65,87 @@ func (s *Service) Get(_ context.Context, ownerUserID string) (Preferences, error
 	if err != nil {
 		return Preferences{}, err
 	}
-	return s.withWebSearchAPIKey(ownerUserID, item), nil
+	return s.withWebSearchAPIKeyConfined(ownerUserID, item), nil
 }
 
 // Update 合并并写入用户偏好。
 func (s *Service) Update(ctx context.Context, ownerUserID string, request UpdateRequest) (Preferences, error) {
-	current, err := s.Get(ctx, ownerUserID)
+	return s.update(ctx, ownerUserID, nil, func(Preferences) (UpdateRequest, error) {
+		return request, nil
+	})
+}
+
+// UpdateAtVersion 仅在当前持久化 version 等于 expectedVersion 时合并并写入偏好。
+func (s *Service) UpdateAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	request UpdateRequest,
+	expectedVersion int64,
+) (Preferences, error) {
+	return s.update(ctx, ownerUserID, &expectedVersion, func(Preferences) (UpdateRequest, error) {
+		return request, nil
+	})
+}
+
+// UpdatePrepared 在 owner 锁内基于最新值构造普通非 CAS 更新。
+func (s *Service) UpdatePrepared(
+	ctx context.Context,
+	ownerUserID string,
+	builder UpdateBuilder,
+) (Preferences, error) {
+	if builder == nil {
+		return Preferences{}, errors.New("preferences update builder 不能为空")
+	}
+	return s.update(ctx, ownerUserID, nil, builder)
+}
+
+// UpdatePreparedAtVersion 在 owner 锁和 version CAS 边界内，让调用方基于最新值构造更新。
+func (s *Service) UpdatePreparedAtVersion(
+	ctx context.Context,
+	ownerUserID string,
+	expectedVersion int64,
+	builder UpdateBuilder,
+) (Preferences, error) {
+	if builder == nil {
+		return Preferences{}, errors.New("preferences update builder 不能为空")
+	}
+	return s.update(ctx, ownerUserID, &expectedVersion, builder)
+}
+
+func (s *Service) update(
+	_ context.Context,
+	ownerUserID string,
+	expectedVersion *int64,
+	builder UpdateBuilder,
+) (Preferences, error) {
+	unlock := s.lockOwner(ownerUserID)
+	defer unlock()
+
+	current, err := s.getLocked(ownerUserID)
 	if err != nil {
 		return Preferences{}, err
 	}
-	webSearchAPIKeyChanged := request.WebSearchAPIKey != nil
+	if expectedVersion != nil && current.Version != *expectedVersion {
+		return Preferences{}, fmt.Errorf(
+			"%w: expected=%d current=%d",
+			ErrVersionConflict,
+			*expectedVersion,
+			current.Version,
+		)
+	}
+	request, err := builder(current)
+	if err != nil {
+		return Preferences{}, err
+	}
+	return s.updateLocked(ownerUserID, current, request)
+}
+
+func (s *Service) updateLocked(
+	ownerUserID string,
+	current Preferences,
+	request UpdateRequest,
+) (Preferences, error) {
+	previous := current
 	if request.ChatDefaultDeliveryPolicy != nil {
 		current.ChatDefaultDeliveryPolicy = *request.ChatDefaultDeliveryPolicy
 	}
@@ -85,7 +168,6 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 		current.WebSearch = normalizeWebSearchSettings(current.WebSearch)
 		if current.WebSearch.Provider != previousProvider || !webSearchProviderAcceptsAPIKey(current.WebSearch.Provider) {
 			apiKey = ""
-			webSearchAPIKeyChanged = true
 		}
 		current.WebSearch = current.WebSearch.WithWebSearchAPIKey(apiKey)
 	}
@@ -108,27 +190,88 @@ func (s *Service) Update(ctx context.Context, ownerUserID string, request Update
 	if request.DefaultBackgroundModelSelection != nil {
 		current.DefaultBackgroundModelSelection = *request.DefaultBackgroundModelSelection
 	}
+	if current.Version == math.MaxInt64 {
+		return Preferences{}, errors.New("preferences version 已达到上限")
+	}
+	current.Version++
 	current.UpdatedAt = nowRFC3339()
 	current = normalizePreferences(current)
-	if err = validateWebSearchSettings(current.WebSearch); err != nil {
+	if err := validateWebSearchSettings(current.WebSearch); err != nil {
 		return Preferences{}, err
 	}
-	if err = s.write(ownerUserID, current); err != nil {
+	if err := s.commitPreferencesLocked(ownerUserID, previous, current); err != nil {
 		return Preferences{}, err
-	}
-	if webSearchAPIKeyChanged {
-		if err = s.writeWebSearchCredential(
-			ownerUserID,
-			current.WebSearch.Provider,
-			current.WebSearchAPIKey(),
-		); err != nil {
-			return Preferences{}, err
-		}
 	}
 	return current, nil
 }
 
-func (s *Service) write(ownerUserID string, item Preferences) error {
+// RestoreIfVersion 在没有后续写入时恢复旧值；恢复本身仍推进 version。
+func (s *Service) RestoreIfVersion(
+	_ context.Context,
+	ownerUserID string,
+	expectedVersion int64,
+	previous Preferences,
+) (Preferences, bool, error) {
+	unlock := s.lockOwner(ownerUserID)
+	defer unlock()
+
+	current, err := s.getLocked(ownerUserID)
+	if err != nil {
+		return Preferences{}, false, err
+	}
+	if current.Version != expectedVersion {
+		return current, false, nil
+	}
+	if current.Version == math.MaxInt64 {
+		return Preferences{}, false, errors.New("preferences version 已达到上限")
+	}
+	restored := previous
+	restored.Version = current.Version + 1
+	restored.UpdatedAt = nowRFC3339()
+	restored = normalizePreferences(restored)
+	if err = validateWebSearchSettings(restored.WebSearch); err != nil {
+		return Preferences{}, false, err
+	}
+	if err = s.commitPreferencesLocked(ownerUserID, current, restored); err != nil {
+		return Preferences{}, false, err
+	}
+	return restored, true, nil
+}
+
+// commitPreferencesLocked 用 version 作为两个原子文件之间的发布指针：
+// 先持久化旧、新双代凭据，再发布 Preferences，最后清理旧代。任一崩溃点
+// 都只会让读取方看到与已发布 Preferences.version 精确匹配的凭据。
+func (s *Service) commitPreferencesLocked(
+	ownerUserID string,
+	previous Preferences,
+	next Preferences,
+) error {
+	before := s.readWebSearchCredentialBundleConfined(ownerUserID)
+	staged := credentialBundleForTransition(previous, next)
+	if err := s.writeWebSearchCredentialBundleConfined(ownerUserID, staged); err != nil {
+		return fmt.Errorf("暂存 Preferences 凭据版本: %w", err)
+	}
+	if err := s.writePreferencesConfined(ownerUserID, next); err != nil {
+		restoreErr := s.writeWebSearchCredentialBundleConfined(ownerUserID, before)
+		if restoreErr != nil {
+			restoreErr = fmt.Errorf("恢复 Preferences 凭据版本: %w", restoreErr)
+		}
+		return errors.Join(err, restoreErr)
+	}
+	if err := s.writeWebSearchCredentialBundleConfined(
+		ownerUserID,
+		credentialBundleForCurrent(next),
+	); err != nil {
+		return fmt.Errorf(
+			"Preferences version=%d 已发布，但旧凭据代清理失败: %w",
+			next.Version,
+			err,
+		)
+	}
+	return nil
+}
+
+func (s *Service) writePreferencesConfined(ownerUserID string, item Preferences) error {
 	root, err := s.openOwnerRoot(ownerUserID, true)
 	if err != nil {
 		return err
@@ -139,37 +282,22 @@ func (s *Service) write(ownerUserID string, item Preferences) error {
 		return err
 	}
 	payload = append(payload, '\n')
-	if err = root.MkdirAll(".settings", 0o700); err != nil {
+	if err := root.MkdirAll(".settings", 0o700); err != nil {
 		return err
 	}
-	if err = root.WriteFileAtomic(".settings/preferences.json", payload, 0o600); err != nil {
-		return err
-	}
-	return nil
+	return root.WriteFileAtomic(".settings/preferences.json", payload, 0o600)
 }
 
-func (s *Service) preferencesPath(ownerUserID string) string {
-	return filepath.Join(
-		agentpkg.UserWorkspaceBasePath(s.config, ownerUserID),
-		".settings",
-		"preferences.json",
-	)
-}
-
-func (s *Service) webSearchCredentialPath(ownerUserID string) string {
-	return filepath.Join(
-		agentpkg.UserWorkspaceBasePath(s.config, ownerUserID),
-		".settings",
-		"web-search-api-key",
-	)
-}
-
-func (s *Service) withWebSearchAPIKey(ownerUserID string, item Preferences) Preferences {
+func (s *Service) withWebSearchAPIKeyConfined(
+	ownerUserID string,
+	item Preferences,
+) Preferences {
 	if !webSearchProviderAcceptsAPIKey(item.WebSearch.Provider) {
 		return item
 	}
-	credential, ok := s.readWebSearchCredential(ownerUserID)
-	if !ok || credential.Provider != strings.ToLower(strings.TrimSpace(item.WebSearch.Provider)) {
+	credential := s.readWebSearchCredentialBundleConfined(ownerUserID).
+		credentialForVersion(item.Version)
+	if credential.Provider != strings.ToLower(strings.TrimSpace(item.WebSearch.Provider)) {
 		return item
 	}
 	item.WebSearch = item.WebSearch.WithWebSearchAPIKey(credential.APIKey)
@@ -179,67 +307,56 @@ func (s *Service) withWebSearchAPIKey(ownerUserID string, item Preferences) Pref
 	return item
 }
 
-func (s *Service) readWebSearchCredential(ownerUserID string) (storedWebSearchCredential, bool) {
+func (s *Service) readWebSearchCredentialBundleConfined(
+	ownerUserID string,
+) storedWebSearchCredentialBundle {
 	root, err := s.openOwnerRoot(ownerUserID, false)
 	if err != nil {
-		return storedWebSearchCredential{}, false
+		return storedWebSearchCredentialBundle{}
 	}
 	defer root.Close()
 	settingsRoot, err := root.OpenRootNoSymlink(".settings")
 	if err != nil {
-		return storedWebSearchCredential{}, false
+		return storedWebSearchCredentialBundle{}
 	}
 	defer settingsRoot.Close()
 	file, err := settingsRoot.OpenFileNoSymlink("web-search-api-key", os.O_RDONLY, 0)
 	if err != nil {
-		return storedWebSearchCredential{}, false
+		return storedWebSearchCredentialBundle{}
 	}
 	content, err := io.ReadAll(file)
-	file.Close()
+	_ = file.Close()
 	if err != nil {
-		return storedWebSearchCredential{}, false
+		return storedWebSearchCredentialBundle{}
 	}
-	// 旧版裸 key 没有 provider 归属，无法安全推断，按无效凭据处理。
-	var credential storedWebSearchCredential
-	if err = json.Unmarshal(content, &credential); err != nil {
-		return storedWebSearchCredential{}, false
-	}
-	credential.Provider = strings.ToLower(strings.TrimSpace(credential.Provider))
-	credential.APIKey = strings.TrimSpace(credential.APIKey)
-	if credential.Provider == "" || credential.APIKey == "" {
-		return storedWebSearchCredential{}, false
-	}
-	return credential, true
+	return decodeWebSearchCredentialBundle(content)
 }
 
-func (s *Service) writeWebSearchCredential(ownerUserID string, provider string, apiKey string) error {
+func (s *Service) writeWebSearchCredentialBundleConfined(
+	ownerUserID string,
+	bundle storedWebSearchCredentialBundle,
+) error {
 	root, err := s.openOwnerRoot(ownerUserID, true)
 	if err != nil {
 		return err
 	}
 	defer root.Close()
-	provider = strings.ToLower(strings.TrimSpace(provider))
-	apiKey = strings.TrimSpace(apiKey)
-	if apiKey == "" {
-		if err := root.Remove(".settings/web-search-api-key"); err != nil && !errors.Is(err, os.ErrNotExist) {
+	bundle = normalizeWebSearchCredentialBundle(bundle)
+	if credentialBundleEmpty(bundle) {
+		if err = root.Remove(".settings/web-search-api-key"); err != nil &&
+			!errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 		return nil
 	}
-	if err := root.MkdirAll(".settings", 0o700); err != nil {
+	if err = root.MkdirAll(".settings", 0o700); err != nil {
 		return err
 	}
-	payload, err := json.Marshal(storedWebSearchCredential{
-		APIKey:   apiKey,
-		Provider: provider,
-	})
+	payload, err := json.Marshal(bundle)
 	if err != nil {
 		return err
 	}
-	if err = root.WriteFileAtomic(".settings/web-search-api-key", append(payload, '\n'), 0o600); err != nil {
-		return err
-	}
-	return nil
+	return root.WriteFileAtomic(".settings/web-search-api-key", append(payload, '\n'), 0o600)
 }
 
 func (s *Service) openOwnerRoot(ownerUserID string, create bool) (*confinedfs.Root, error) {
@@ -251,14 +368,10 @@ func (s *Service) openOwnerRoot(ownerUserID string, create bool) (*confinedfs.Ro
 	)
 }
 
-func decodePreferences(content []byte) (Preferences, error) {
-	var item Preferences
-	if err := json.Unmarshal(content, &item); err != nil {
-		return Preferences{}, err
-	}
-	normalized := normalizePreferences(item)
-	if normalized.UpdatedAt == "" {
-		normalized.UpdatedAt = nowRFC3339()
-	}
-	return normalized, nil
+func (s *Service) lockOwner(ownerUserID string) func() {
+	key := strings.TrimSpace(ownerUserID)
+	value, _ := s.ownerLocks.LoadOrStore(key, &sync.Mutex{})
+	mutex := value.(*sync.Mutex)
+	mutex.Lock()
+	return mutex.Unlock
 }

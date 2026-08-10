@@ -1,3 +1,6 @@
+// INPUT: 已持久化远端来源元数据、可选 expected catalog version 与更新检查请求。
+// OUTPUT: 单 Skill 版本化原子更新、批量兼容结果及串行健康元数据写入。
+// POS: 外部 Skill 更新检查与重新发布的业务边界。
 package skills
 
 import (
@@ -15,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
+	skillstore "github.com/nexus-research-lab/nexus/internal/storage/skills"
 )
 
 var errSkillUpdateCheckUnsupported = errors.New("该 skill 来源不支持检查更新")
@@ -62,6 +65,34 @@ func (s *Service) CheckImportedSkillUpdates(ctx context.Context) (*CheckSkillUpd
 
 // UpdateImportedSkills 更新所有已导入的外部技能。
 func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSkillsResponse, error) {
+	return s.updateImportedSkills(ctx, nil)
+}
+
+// UpdateImportedSkillsAtVersion 从一个 owner catalog version 开始串行更新全部远端 Skill。
+//
+// 每个成功发布的 Skill 都会产生一个新 catalog version；任意并发写一旦插入批次，
+// 后续项会停止并返回 typed reconcile，避免把部分完成误报为普通成功。
+func (s *Service) UpdateImportedSkillsAtVersion(
+	ctx context.Context,
+	expectedVersion int64,
+) (*UpdateInstalledSkillsResponse, error) {
+	state, err := s.GetCatalogState(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if state.Version != expectedVersion {
+		return nil, &skillstore.CatalogVersionConflictError{
+			Expected: expectedVersion,
+			Current:  state.Version,
+		}
+	}
+	return s.updateImportedSkills(ctx, &expectedVersion)
+}
+
+func (s *Service) updateImportedSkills(
+	ctx context.Context,
+	expectedVersion *int64,
+) (*UpdateInstalledSkillsResponse, error) {
 	records, err := s.loadExternalRecords(ctx)
 	if err != nil {
 		return nil, err
@@ -74,8 +105,23 @@ func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSki
 	}
 	names := slices.Sorted(maps.Keys(records))
 	for _, name := range names {
-		detail, updateErr := s.updateSingleSkillRecord(ctx, records[name])
+		previousVersion := int64(0)
+		if expectedVersion != nil {
+			previousVersion = *expectedVersion
+		}
+		detail, updateErr := s.updateSingleSkillRecord(ctx, records[name], expectedVersion)
 		if updateErr != nil {
+			if errors.Is(updateErr, ErrCatalogVersionConflict) ||
+				SkillMutationNeedsReconcile(updateErr) {
+				if len(result.UpdatedSkills) > 0 &&
+					!SkillMutationApplied(updateErr) {
+					updateErr = &CatalogReconcileError{
+						applied: true,
+						cause:   updateErr,
+					}
+				}
+				return result, updateErr
+			}
 			if strings.Contains(updateErr.Error(), "不支持更新") {
 				result.SkippedSkills = append(result.SkippedSkills, name)
 				continue
@@ -87,6 +133,26 @@ func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSki
 			continue
 		}
 		result.UpdatedSkills = append(result.UpdatedSkills, name)
+		if expectedVersion != nil {
+			state, stateErr := s.GetCatalogState(ctx)
+			if stateErr != nil {
+				return result, &CatalogReconcileError{
+					applied: true,
+					cause:   stateErr,
+				}
+			}
+			if state.Version != previousVersion+1 {
+				return result, &CatalogReconcileError{
+					applied: true,
+					cause: fmt.Errorf(
+						"批量更新期间 catalog version 非预期变化: expected=%d actual=%d",
+						previousVersion+1,
+						state.Version,
+					),
+				}
+			}
+			*expectedVersion = state.Version
+		}
 		affectedAgents, listErr := s.agentsReferencingSkill(ctx, detail.Name)
 		if listErr != nil {
 			result.Failures = append(result.Failures, SkillActionFailure{
@@ -108,6 +174,23 @@ func (s *Service) UpdateImportedSkills(ctx context.Context) (*UpdateInstalledSki
 
 // UpdateSingleSkill 更新单个已导入技能。
 func (s *Service) UpdateSingleSkill(ctx context.Context, skillName string) (*Detail, error) {
+	return s.updateSingleSkill(ctx, skillName, nil)
+}
+
+// UpdateSingleSkillAtVersion 仅在 owner catalog version 匹配时更新一个远端 Skill。
+func (s *Service) UpdateSingleSkillAtVersion(
+	ctx context.Context,
+	skillName string,
+	expectedVersion int64,
+) (*Detail, error) {
+	return s.updateSingleSkill(ctx, skillName, &expectedVersion)
+}
+
+func (s *Service) updateSingleSkill(
+	ctx context.Context,
+	skillName string,
+	expectedVersion *int64,
+) (*Detail, error) {
 	records, err := s.loadExternalRecords(ctx)
 	if err != nil {
 		return nil, err
@@ -116,30 +199,46 @@ func (s *Service) UpdateSingleSkill(ctx context.Context, skillName string) (*Det
 	if !ok {
 		return nil, errors.New("skill not found")
 	}
-	detail, err := s.updateSingleSkillRecord(ctx, record)
+	detail, err := s.updateSingleSkillRecord(ctx, record, expectedVersion)
 	if err != nil {
 		return nil, err
 	}
 	affectedAgents, err := s.agentsReferencingSkill(ctx, detail.Name)
 	if err != nil {
-		return nil, err
+		return nil, &CatalogReconcileError{applied: true, cause: err}
 	}
 	detail.DeploySuccesses = affectedAgents
 	return detail, nil
 }
 
-func (s *Service) updateSingleSkillRecord(ctx context.Context, record catalogRecord) (*Detail, error) {
+func (s *Service) updateSingleSkillRecord(
+	ctx context.Context,
+	record catalogRecord,
+	expectedVersion *int64,
+) (*Detail, error) {
 	manifest, err := s.manifestForRecord(ctx, record)
 	if err != nil {
 		return nil, err
 	}
 	switch manifest.ImportMode {
 	case "git":
-		return s.importGit(ctx, manifest.GitURL, manifest.GitBranch, manifest.GitPath, manifest)
+		return s.importGit(
+			ctx,
+			manifest.GitURL,
+			manifest.GitBranch,
+			manifest.GitPath,
+			manifest,
+			expectedVersion,
+		)
 	case "skills_sh":
-		return s.ImportSkillsSh(ctx, manifest.SourceRef, manifest.Name)
+		return s.importSkillsSh(ctx, manifest.SourceRef, manifest.Name, expectedVersion)
 	case "url":
-		return s.ImportSkillURL(ctx, firstNonEmpty(manifest.RawURL, manifest.SourceRef, manifest.DetailURL), manifest)
+		return s.importSkillURL(
+			ctx,
+			firstNonEmpty(manifest.RawURL, manifest.SourceRef, manifest.DetailURL),
+			manifest,
+			expectedVersion,
+		)
 	case externalSourceKindPrivateRegistry:
 		source, sourceErr := s.privateSkillSource(ctx, manifest.SourceKey)
 		if sourceErr != nil {
@@ -150,6 +249,7 @@ func (s *Service) updateSingleSkillRecord(ctx context.Context, record catalogRec
 			source,
 			firstNonEmpty(manifest.SourceSkillID, manifest.SourceRef),
 			manifest.Name,
+			expectedVersion,
 		)
 	default:
 		return nil, errors.New("该 skill 来源不支持更新")
@@ -302,5 +402,19 @@ func (s *Service) recordImportedSkillCheck(ctx context.Context, skillName string
 	if s.skillStore == nil {
 		return nil
 	}
-	return s.skillStore.RecordImportedSkillCheck(ctx, authctx.OwnerUserID(ctx), skillName, updateAvailable, time.Now().UTC(), lastError)
+	_, err := s.withCatalogMutation(
+		ctx,
+		nil,
+		false,
+		func(mutation *skillstore.CatalogMutation) error {
+			return mutation.RecordImportedSkillCheck(
+				ctx,
+				skillName,
+				updateAvailable,
+				time.Now().UTC(),
+				lastError,
+			)
+		},
+	)
+	return err
 }

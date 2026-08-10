@@ -265,6 +265,28 @@ func TestServiceRetriesMainAgentWorkspaceLifecycleBeforePersisting(t *testing.T)
 	}
 }
 
+func TestServiceRejectsMainAgentDeletionBeforeCoordinator(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	ctx := context.Background()
+	if _, err = service.ListAgents(ctx); err != nil {
+		t.Fatalf("初始化主智能体失败: %v", err)
+	}
+	if err = service.DeleteAgent(ctx, cfg.DefaultAgentID); err == nil ||
+		!strings.Contains(err.Error(), "主智能体不可删除") {
+		t.Fatalf("主智能体删除必须在协调前拒绝: %v", err)
+	}
+	mainAgent, err := service.GetAgent(ctx, cfg.DefaultAgentID)
+	if err != nil || mainAgent == nil || !mainAgent.IsMain {
+		t.Fatalf("拒绝删除后主智能体必须保留: agent=%+v err=%v", mainAgent, err)
+	}
+}
+
 func TestCreateAgentPersistsCustomizedProfileTemplate(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
@@ -369,6 +391,123 @@ func TestServicePersistsAgentRuntimeProviderModel(t *testing.T) {
 	}
 }
 
+func TestServiceUsesRuntimeVersionForCompareAndSwap(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+
+	ctx := context.Background()
+	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "versioned-agent"})
+	if err != nil {
+		t.Fatalf("创建 agent 失败: %v", err)
+	}
+	if created.RuntimeVersion != 1 {
+		t.Fatalf("初始 runtime_version = %d, want 1", created.RuntimeVersion)
+	}
+
+	expectedVersion := created.RuntimeVersion
+	options := created.Options
+	options.PermissionMode = "plan"
+	updated, err := service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{
+		Options:                &options,
+		ExpectedRuntimeVersion: &expectedVersion,
+	})
+	if err != nil {
+		t.Fatalf("使用当前版本更新 agent 失败: %v", err)
+	}
+	if updated.RuntimeVersion != 2 {
+		t.Fatalf("更新后 runtime_version = %d, want 2", updated.RuntimeVersion)
+	}
+
+	staleName := "stale-name"
+	staleOptions := updated.Options
+	staleOptions.PermissionMode = "bypassPermissions"
+	if _, err = service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{
+		Name:                   &staleName,
+		Options:                &staleOptions,
+		ExpectedRuntimeVersion: &expectedVersion,
+	}); !errors.Is(err, agentpkg.ErrRuntimeVersionConflict) {
+		t.Fatalf("使用过期版本更新 error = %v, want ErrRuntimeVersionConflict", err)
+	}
+
+	current, err := service.GetAgent(ctx, created.AgentID)
+	if err != nil {
+		t.Fatalf("重新读取 agent 失败: %v", err)
+	}
+	if current.RuntimeVersion != 2 || current.Name != created.Name || current.Options.PermissionMode != "plan" {
+		t.Fatalf("过期更新未整体回滚: %+v", current)
+	}
+
+	unconditionalOptions := current.Options
+	unconditionalOptions.PermissionMode = "default"
+	unconditional, err := service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{
+		Options: &unconditionalOptions,
+	})
+	if err != nil {
+		t.Fatalf("无 expected version 更新失败: %v", err)
+	}
+	if unconditional.RuntimeVersion != 3 {
+		t.Fatalf("无条件更新后 runtime_version = %d, want 3", unconditional.RuntimeVersion)
+	}
+}
+
+func TestServiceDeleteAtVersionRejectsStalePlanBeforeWorkspaceCleanup(t *testing.T) {
+	cfg := newTestConfig(t)
+	migrateSQLite(t, cfg.DatabaseURL)
+
+	service, _, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 service 失败: %v", err)
+	}
+	ctx := context.Background()
+	created, err := service.CreateAgent(ctx, protocol.CreateRequest{Name: "versioned-delete-agent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	markerPath := filepath.Join(created.WorkspacePath, "must-survive-stale-delete.txt")
+	if err = os.WriteFile(markerPath, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	nextName := "versioned-delete-agent-updated"
+	updated, err := service.UpdateAgent(ctx, created.AgentID, protocol.UpdateRequest{Name: &nextName})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = service.DeleteAgentAtVersion(
+		ctx,
+		created.AgentID,
+		created.RuntimeVersion,
+	); !errors.Is(err, agentpkg.ErrRuntimeVersionConflict) {
+		t.Fatalf("陈旧删除 error = %v, want ErrRuntimeVersionConflict", err)
+	}
+	current, err := service.GetAgent(ctx, created.AgentID)
+	if err != nil {
+		t.Fatalf("陈旧删除后 Agent 不应消失: %v", err)
+	}
+	if current.RuntimeVersion != updated.RuntimeVersion || current.Name != nextName {
+		t.Fatalf("陈旧删除改变了 Agent: %+v", current)
+	}
+	if content, readErr := os.ReadFile(markerPath); readErr != nil || string(content) != "keep" {
+		t.Fatalf("陈旧删除先破坏了 workspace: content=%q err=%v", content, readErr)
+	}
+
+	if err = service.DeleteAgentAtVersion(
+		ctx,
+		created.AgentID,
+		updated.RuntimeVersion,
+	); err != nil {
+		t.Fatalf("当前版本删除失败: %v", err)
+	}
+	if _, statErr := os.Stat(created.WorkspacePath); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("成功删除后 workspace 仍存在: %v", statErr)
+	}
+}
+
 func TestServiceAllowsSelfNameValidationAndCaseOnlyRename(t *testing.T) {
 	cfg := newTestConfig(t)
 	migrateSQLite(t, cfg.DatabaseURL)
@@ -461,6 +600,22 @@ func TestServiceHardDeletesAgentAndAllowsNameReuse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("创建 agent 失败: %v", err)
 	}
+	if _, err = db.Exec(`
+INSERT INTO im_channel_configs (owner_user_id, channel_type, agent_id, status, config_json)
+VALUES (?, 'telegram', ?, 'configured', '{}');
+INSERT INTO im_channel_accounts (owner_user_id, channel_type, account_id, status, config_json)
+VALUES (?, 'telegram', 'account-a', 'connected', '{}');
+INSERT INTO im_pairings (
+    pairing_id, owner_user_id, channel_type, chat_type, external_ref, agent_id, status, source
+) VALUES ('pair-agent-delete', ?, 'telegram', 'dm', 'chat-a', ?, 'active', 'manual');`,
+		created.OwnerUserID,
+		created.AgentID,
+		created.OwnerUserID,
+		created.OwnerUserID,
+		created.AgentID,
+	); err != nil {
+		t.Fatalf("准备 Agent Channel 级联数据失败: %v", err)
+	}
 	if err = service.DeleteAgent(ctx, created.AgentID); err != nil {
 		t.Fatalf("删除 agent 失败: %v", err)
 	}
@@ -468,6 +623,16 @@ func TestServiceHardDeletesAgentAndAllowsNameReuse(t *testing.T) {
 	assertNoRowsForAgent(t, db, "agents", "id", created.AgentID)
 	assertNoRowsForAgent(t, db, "profiles", "agent_id", created.AgentID)
 	assertNoRowsForAgent(t, db, "runtimes", "agent_id", created.AgentID)
+	assertNoRowsForAgent(t, db, "im_channel_configs", "agent_id", created.AgentID)
+	assertNoRowsForAgent(t, db, "im_pairings", "agent_id", created.AgentID)
+	assertNoRowsForAgent(t, db, "im_channel_accounts", "account_id", "account-a")
+	var channelVersion int64
+	if err = db.QueryRow(
+		"SELECT version FROM channel_control_versions WHERE owner_user_id = ?",
+		created.OwnerUserID,
+	).Scan(&channelVersion); err != nil || channelVersion != 2 {
+		t.Fatalf("Agent 删除应在同一事务推进 Channel version: version=%d err=%v", channelVersion, err)
+	}
 
 	if _, err = service.GetAgent(ctx, created.AgentID); !errors.Is(err, agentpkg.ErrAgentNotFound) {
 		t.Fatalf("硬删除后读取 agent 应返回不存在: %v", err)

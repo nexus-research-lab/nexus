@@ -2,11 +2,13 @@ package room_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	serverapp "github.com/nexus-research-lab/nexus/internal/app/server"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	roomsvc "github.com/nexus-research-lab/nexus/internal/service/room"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 
 	_ "modernc.org/sqlite"
@@ -64,6 +66,16 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 
 	files := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
 	paths := workspacestore.New(cfg.WorkspacePath)
+	coordinator := &fakeRoomSessionArtifactDeletionCoordinator{
+		deleteFn: func(_ context.Context, call roomSessionArtifactDeletionCall) error {
+			_, deleteErr := files.ForOwner(call.ownerUserID).DeleteSession(
+				call.workspacePath,
+				call.sessionKey,
+			)
+			return deleteErr
+		},
+	}
+	roomService.SetSessionArtifactDeletionCoordinator(coordinator)
 
 	mainAgentASession := seedRoomPrivateSession(t, files, agentA.WorkspacePath, mainContextAfterAdd.Room.RoomType, mainContextAfterAdd.Conversation.ID, agentA.AgentID)
 	mainAgentBSession := seedRoomPrivateSession(t, files, agentB.WorkspacePath, mainContextAfterAdd.Room.RoomType, mainContextAfterAdd.Conversation.ID, agentB.AgentID)
@@ -90,6 +102,13 @@ func TestRoomServiceCleansRoomArtifacts(t *testing.T) {
 		"delete-room",
 	)
 	topicAgentADBSessionID := findRoomSessionID(t, topicContextAfterAdd, agentA.AgentID)
+	if err = roomService.UpdateSessionSDKSessionID(
+		ctx,
+		topicAgentADBSessionID,
+		"sdk-topic-agent-a",
+	); err != nil {
+		t.Fatalf("写入待清理 SDK session_id 失败: %v", err)
+	}
 	_, topicRoundID := seedRoomDatabaseMessageRound(
 		t,
 		db,
@@ -137,7 +156,15 @@ WHERE conversation_id = ? AND agent_id = ?`, 0, mainContextAfterAdd.Conversation
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM rounds WHERE round_id = ?`, 0, topicRoundID)
 	assertRoomGoalConversationCleanup(t, goalCleaner, 0, []string{topicContextAfterAdd.Conversation.ID})
 
-	if err = roomService.DeleteRoom(ctx, mainContext.Room.ID); err != nil {
+	currentRoom, err := roomService.GetRoom(ctx, mainContext.Room.ID)
+	if err != nil {
+		t.Fatalf("读取待删除 Room 当前版本失败: %v", err)
+	}
+	if err = roomService.DeleteRoomAtVersion(
+		ctx,
+		mainContext.Room.ID,
+		currentRoom.Room.ConfigurationVersion,
+	); err != nil {
 		t.Fatalf("删除 room 失败: %v", err)
 	}
 	assertPathRemoved(t, paths.RoomConversationDir(
@@ -153,4 +180,65 @@ WHERE conversation_id = ? AND agent_id = ?`, 0, mainContextAfterAdd.Conversation
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM messages WHERE conversation_id = ?`, 0, mainContextAfterAdd.Conversation.ID)
 	assertSQLCount(t, db, `SELECT COUNT(*) FROM rounds WHERE round_id = ?`, 0, mainRoundID)
 	assertRoomGoalConversationCleanup(t, goalCleaner, 1, []string{mainContextAfterAdd.Conversation.ID})
+
+	calls := coordinator.Calls()
+	if len(calls) != 6 {
+		t.Fatalf("应通过统一协调器清理 6 个 Room 成员 Session，实际 %+v", calls)
+	}
+	var foundSDKCleanup bool
+	for _, call := range calls {
+		if call.ownerUserID != mainContextAfterAdd.Room.OwnerUserID ||
+			call.workspacePath == "" ||
+			call.sessionKey == "" {
+			t.Fatalf("Room Session artifact 删除参数不完整: %+v", call)
+		}
+		if call.sessionKey == topicAgentASession {
+			foundSDKCleanup = call.cleanupSessionID == "sdk-topic-agent-a"
+		}
+	}
+	if !foundSDKCleanup {
+		t.Fatalf("Room 未把 SQL SDK session_id 交给统一协调器: %+v", calls)
+	}
+}
+
+func TestRoomSessionArtifactCleanupFailsClosedWithoutCoordinator(t *testing.T) {
+	cfg := newRoomTestConfig(t)
+	migrateRoomSQLite(t, cfg.DatabaseURL)
+	agentService, db, err := serverapp.NewAgentService(cfg)
+	if err != nil {
+		t.Fatalf("创建 agent service 失败: %v", err)
+	}
+	roomService := serverapp.NewRoomServiceWithDB(cfg, db, agentService)
+	ctx := context.Background()
+	agentA := createTestAgent(t, agentService, ctx, "保留助手A")
+	agentB := createTestAgent(t, agentService, ctx, "保留助手B")
+	agentC := createTestAgent(t, agentService, ctx, "待移除助手")
+	contextValue, err := roomService.CreateRoom(ctx, protocol.CreateRoomRequest{
+		AgentIDs: []string{agentA.AgentID, agentB.AgentID, agentC.AgentID},
+		Name:     "缺失协调器测试",
+	})
+	if err != nil {
+		t.Fatalf("创建 Room 失败: %v", err)
+	}
+	files := workspacestore.NewSessionFileStore(cfg.WorkspacePath)
+	sessionKey := seedRoomPrivateSession(
+		t,
+		files,
+		agentC.WorkspacePath,
+		contextValue.Room.RoomType,
+		contextValue.Conversation.ID,
+		agentC.AgentID,
+	)
+
+	_, err = roomService.RemoveRoomMember(ctx, contextValue.Room.ID, agentC.AgentID)
+	if !errors.Is(err, roomsvc.ErrSessionArtifactDeletionCoordinatorUnavailable) {
+		t.Fatalf("缺少协调器必须 fail closed，实际 err=%v", err)
+	}
+	item, _, findErr := files.FindSession([]string{agentC.WorkspacePath}, sessionKey)
+	if findErr != nil {
+		t.Fatalf("核对 Session artifact 失败: %v", findErr)
+	}
+	if item == nil {
+		t.Fatal("缺少协调器时不得回退为直接删除")
+	}
 }

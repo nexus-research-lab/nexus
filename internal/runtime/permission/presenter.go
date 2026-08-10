@@ -28,7 +28,7 @@ const (
 
 func buildPermissionPayload(pending *PendingRequest) map[string]any {
 	riskLevel, riskLabel := resolveRisk(pending.ToolName)
-	return map[string]any{
+	payload := map[string]any{
 		"request_id":       pending.RequestID,
 		"round_id":         strings.TrimSpace(pending.Route.RoundID),
 		"agent_round_id":   strings.TrimSpace(pending.Route.AgentRoundID),
@@ -43,6 +43,10 @@ func buildPermissionPayload(pending *PendingRequest) map[string]any {
 		"summary":          summarizeInput(pending.ToolName, pending.ToolInput),
 		"suggestions":      serializePermissionUpdates(pending.Suggestions),
 	}
+	if len(pending.ConfigurationSecretSlots) > 0 {
+		payload["configuration_secret_slots"] = pending.ConfigurationSecretSlots
+	}
+	return payload
 }
 
 func resolveRisk(toolName string) (string, string) {

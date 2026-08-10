@@ -16,34 +16,6 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
-func TestEnsureNexusctlShimUsesExplicitCommandPath(t *testing.T) {
-	root := t.TempDir()
-	binDir := filepath.Join(root, "shared-bin")
-	commandPath := filepath.Join(root, "tools", "nexusctl")
-	if err := os.MkdirAll(filepath.Dir(commandPath), 0o755); err != nil {
-		t.Fatalf("创建 nexusctl 目录失败: %v", err)
-	}
-	if err := os.WriteFile(commandPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatalf("写入 nexusctl 可执行文件失败: %v", err)
-	}
-	t.Setenv("NEXUSCTL_COMMAND_PATH", commandPath)
-
-	if err := ensureNexusctlShim(binDir, map[string]string{"project_root": filepath.Join(root, "project")}); err != nil {
-		t.Fatalf("生成 nexusctl shim 失败: %v", err)
-	}
-	payload, err := os.ReadFile(filepath.Join(binDir, "nexusctl"))
-	if err != nil {
-		t.Fatalf("读取 nexusctl shim 失败: %v", err)
-	}
-	content := string(payload)
-	if !strings.Contains(content, shellSingleQuote(commandPath)) {
-		t.Fatalf("nexusctl shim 未绑定显式命令路径: %s", content)
-	}
-	if strings.Contains(content, "go run ./cmd/nexusctl") || strings.Contains(content, "bin/nexusctl") {
-		t.Fatalf("显式 nexusctl shim 不应包含源码或打包 fallback: %s", content)
-	}
-}
-
 func TestWorkspaceHiddenEntryMatchesNestedHeavyDirs(t *testing.T) {
 	testCases := []string{
 		".git/config",

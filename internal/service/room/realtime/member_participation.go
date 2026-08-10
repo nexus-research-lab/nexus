@@ -1,5 +1,5 @@
-// INPUT: Room Agent member 的暂停/恢复请求、持久 Room contexts 与活跃 slots。
-// OUTPUT: 在全部 conversation 派发锁内持久化并中断，或恢复 queue/Goal/WorkGraph 调度。
+// INPUT: Room Agent member 的暂停/恢复请求、可选 configuration_version、持久 Room contexts 与活跃 slots。
+// OUTPUT: 在全部 conversation 派发锁内以 CAS/authority epoch 持久化并中断，或恢复 queue/Goal/WorkGraph 调度。
 // POS: 持久成员参与状态与 Room realtime 调度之间的唯一控制面。
 package realtime
 
@@ -19,6 +19,16 @@ const roomMemberParticipationInterruptTimeout = 10 * time.Second
 type roomMemberParticipationStore interface {
 	GetRoomContexts(context.Context, string) ([]protocol.ConversationContextAggregate, error)
 	SetRoomMemberParticipation(context.Context, string, string, bool) (*protocol.ConversationContextAggregate, error)
+}
+
+type roomMemberParticipationVersionedStore interface {
+	SetRoomMemberParticipationAtVersion(
+		context.Context,
+		string,
+		string,
+		bool,
+		int64,
+	) (*protocol.ConversationContextAggregate, error)
 }
 
 type activeRoomGoalContinuationProvider interface {
@@ -57,6 +67,37 @@ func (s *Service) SetRoomMemberParticipation(
 	agentID string,
 	paused bool,
 ) (*protocol.ConversationContextAggregate, error) {
+	return s.setRoomMemberParticipation(ctx, roomID, agentID, paused, nil)
+}
+
+// SetRoomMemberParticipationAtVersion 在 conversation 派发锁内使用 Room
+// configuration_version CAS 更新参与状态。
+func (s *Service) SetRoomMemberParticipationAtVersion(
+	ctx context.Context,
+	roomID string,
+	agentID string,
+	paused bool,
+	expectedVersion int64,
+) (*protocol.ConversationContextAggregate, error) {
+	if expectedVersion < 1 {
+		return nil, errors.New("expected Room configuration_version 必须大于 0")
+	}
+	return s.setRoomMemberParticipation(
+		ctx,
+		roomID,
+		agentID,
+		paused,
+		&expectedVersion,
+	)
+}
+
+func (s *Service) setRoomMemberParticipation(
+	ctx context.Context,
+	roomID string,
+	agentID string,
+	paused bool,
+	expectedVersion *int64,
+) (*protocol.ConversationContextAggregate, error) {
 	if s == nil || s.rooms == nil {
 		return nil, errors.New("Room participation store is unavailable")
 	}
@@ -91,12 +132,27 @@ func (s *Service) SetRoomMemberParticipation(
 	}
 	defer unlock()
 
-	updated, err := store.SetRoomMemberParticipation(
-		ctx,
-		normalizedRoomID,
-		normalizedAgentID,
-		paused,
-	)
+	var updated *protocol.ConversationContextAggregate
+	if expectedVersion == nil {
+		updated, err = store.SetRoomMemberParticipation(
+			ctx,
+			normalizedRoomID,
+			normalizedAgentID,
+			paused,
+		)
+	} else {
+		versioned, ok := s.rooms.(roomMemberParticipationVersionedStore)
+		if !ok {
+			return nil, errors.New("Room participation store does not support configuration version CAS")
+		}
+		updated, err = versioned.SetRoomMemberParticipationAtVersion(
+			ctx,
+			normalizedRoomID,
+			normalizedAgentID,
+			paused,
+			*expectedVersion,
+		)
+	}
 	if err != nil {
 		return nil, err
 	}

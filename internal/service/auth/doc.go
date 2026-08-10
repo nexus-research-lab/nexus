@@ -7,6 +7,7 @@
 //     session.go / token.go / user.go / validate.go：Service 各切面。
 //   - password.go：密码校验/哈希。
 //   - model_auth.go / context.go：认证模型与请求上下文（含客户端 IP 解析）。
+//   - runtime_admission.go：认证启用转场与 Agent runtime admission/强隔离的动态边界。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package auth

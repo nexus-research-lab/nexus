@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { resolveAgentId } from "@/config/runtime-options";
-import { listScheduledTasksApi } from "@/lib/api/capability/scheduled-task-api";
+import {
+  listAutomationPermissionRequestsApi,
+  listScheduledTasksApi,
+} from "@/lib/api/capability/scheduled-task-api";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 interface RefreshScheduledTasksOptions {
@@ -42,9 +45,20 @@ export function useScheduledTasksResource() {
       setErrorMessage(null);
     }
     try {
-      const result = await listScheduledTasksApi();
+      const [result, permissionRequests] = await Promise.all([
+        listScheduledTasksApi(),
+        listAutomationPermissionRequestsApi({ status: "actionable" }),
+      ]);
       if (isCurrentRequest(version)) {
-        setItems(result);
+        const requestsById = new Map(
+          permissionRequests.map((item) => [item.request_id, item]),
+        );
+        setItems(result.map((task) => ({
+          ...task,
+          pending_permission_request: task.pending_permission_request_id
+            ? requestsById.get(task.pending_permission_request_id) ?? null
+            : null,
+        })));
       }
     } catch (error) {
       if (isCurrentRequest(version) && !options.silent) {

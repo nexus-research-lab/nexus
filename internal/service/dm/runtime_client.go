@@ -1,5 +1,5 @@
 // INPUT: DM session、稳定 execution contract、Agent runtime 配置与 guidance 队列位置。
-// OUTPUT: static/dynamic prompt 分层、换代安全且带诊断、权限和 PostToolUse hooks 的可复用 runtime client。
+// OUTPUT: static/dynamic prompt 分层，并经 Manager 身份复核、带真实 MCP round lease、诊断、权限和 PostToolUse hooks 的换代安全 runtime client。
 // POS: DM 服务的 runtime client 装配边界。
 package dm
 
@@ -49,6 +49,7 @@ func (s *Service) ensureClient(
 	agentValue *protocol.Agent,
 	sessionItem protocol.Session,
 	request Request,
+	runtimeIsolationRequired bool,
 ) (dmClientPreparation, error) {
 	startup, err := s.runtime.BeginClientStartup(ctx, sessionKey, agentValue.OwnerUserID)
 	if err != nil {
@@ -96,6 +97,15 @@ func (s *Service) ensureClient(
 	if err != nil {
 		return dmClientPreparation{}, err
 	}
+	configurationRoleSkill := workspacepkg.ConfigurationSkillAgentSelf
+	if agentValue.IsMain {
+		configurationRoleSkill = workspacepkg.ConfigurationSkillOwnerMain
+	}
+	runtimeSkillNames, runtimeDisabledSkillNames = workspacepkg.WithRuntimeConfigurationRoleSkill(
+		runtimeSkillNames,
+		runtimeDisabledSkillNames,
+		configurationRoleSkill,
+	)
 	dynamicSystemPrompt, err := s.agents.BuildRuntimePrompt(ctx, agentValue)
 	if err != nil {
 		return dmClientPreparation{}, err
@@ -115,14 +125,17 @@ func (s *Service) ensureClient(
 	}
 	goalObjectiveRevision := &atomic.Int64{}
 	goalObjectiveRevision.Store(objectiveRevision)
+	sourceContextType := dmMCPSourceContextType(sessionKey, agentValue.AgentID, request)
+	permissionHandler = toolpolicy.WithNexusControlPlaneDeny(permissionHandler, !agentValue.IsMain)
 	mcpServers := map[string]sdkmcp.ServerConfig(nil)
 	if s.mcpServers != nil {
+		mcpContext := runtimectx.WithMCPRoundLease(ctx, sessionKey, request.RoundID)
 		mcpServers = s.mcpServers(
-			ctx,
+			mcpContext,
 			agentValue,
 			sessionKey,
 			request.RoundID,
-			"agent",
+			sourceContextType,
 			agentValue.AgentID,
 			agentValue.Name,
 			goalObjectiveRevision,
@@ -190,11 +203,13 @@ func (s *Service) ensureClient(
 		MaxThinkingTokens:          agentValue.Options.MaxThinkingTokens,
 		MaxTurns:                   agentValue.Options.MaxTurns,
 		MCPServers:                 mcpServers,
+		AgentMCPServers:            agentValue.Options.MCPServers,
 		AgentSDKDiagnosticsEnabled: runtimeSelection.AgentSDKDiagnosticsEnabled,
 		ToolSearchEnabled:          runtimeSelection.ToolSearchEnabled,
 		WebSearch:                  runtimeSelection.WebSearch,
 		RuntimeIsolationMode:       s.config.RuntimeIsolationMode,
 		RuntimeLauncherPath:        s.config.RuntimeLauncherPath,
+		RuntimeIsolationRequired:   runtimeIsolationRequired,
 	})
 	if err != nil {
 		return dmClientPreparation{}, err
@@ -294,6 +309,37 @@ func retireDMRuntimeClient(ctx context.Context, startup *runtimectx.ClientStartu
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtimectx.RoundIdleAbortTimeout)
 	defer cancel()
 	return startup.RetireCurrent(closeCtx)
+}
+
+func dmMCPSourceContextType(sessionKey string, agentID string, request Request) string {
+	if request.trustedQueuedConfigurationContext &&
+		strings.TrimSpace(request.ExecutionOrigin) == "queue" &&
+		trustedDMWebSocketSession(sessionKey, agentID) {
+		return "agent"
+	}
+	switch {
+	case strings.TrimSpace(request.ExecutionOrigin) != "":
+		return "agent_" + strings.ToLower(strings.TrimSpace(request.ExecutionOrigin))
+	case request.Internal:
+		return "agent_internal"
+	case request.ExternalReplyTarget != nil:
+		return "agent_external"
+	case !request.TrustedConfigurationContext:
+		return "agent_untrusted"
+	}
+	if !trustedDMWebSocketSession(sessionKey, agentID) {
+		return "agent_untrusted"
+	}
+	return "agent"
+}
+
+func trustedDMWebSocketSession(sessionKey string, agentID string) bool {
+	parsed := protocol.ParseSessionKey(sessionKey)
+	return parsed.IsStructured &&
+		parsed.Kind == protocol.SessionKeyKindAgent &&
+		parsed.Channel == protocol.SessionChannelWebSocketSegment &&
+		parsed.ChatType == protocol.RoomTypeDM &&
+		strings.TrimSpace(parsed.AgentID) == strings.TrimSpace(agentID)
 }
 
 func resolvePermissionMode(
@@ -468,7 +514,7 @@ func (s *Service) persistSDKSessionFingerprint(
 		)
 		return
 	}
-	if _, err := s.files.ForOwner(authctx.OwnerUserID(ctx)).UpsertSession(
+	if _, err := s.files.ForOwner(authctx.OwnerUserID(ctx)).PatchSessionRuntime(
 		workspacePath,
 		sessionItem,
 	); err != nil {

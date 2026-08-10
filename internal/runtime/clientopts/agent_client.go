@@ -1,3 +1,6 @@
+// INPUT: Agent runtime/provider/权限/工具/Skill、内建 MCP 与持久化 MCP 配置。
+// OUTPUT: 经统一校验、环境投影与 MCP 名称隔离后的 SDK client options。
+// POS: Agent 数据库配置进入 DM/Room runtime 前的统一启动选项装配边界。
 package clientopts
 
 import (
@@ -40,10 +43,7 @@ type AgentClientOptionsInput struct {
 	WorkspacePath string
 	OwnerUserID   string
 	// IsMainAgent 表示当前 runtime 是否属于 Nexus 主智能体。
-	//
-	// 主智能体是宿主控制面的受信调用方，在 enforce 模式下仍保留
-	// workspace policy Hook，但不切换到普通 Agent 的隔离 launcher，
-	// 以便使用 owner-scoped nexusctl。
+	// 只有该宿主事实可启用 owner-scoped nexusctl 控制面能力。
 	IsMainAgent       bool
 	RuntimeKind       string
 	Provider          string
@@ -70,12 +70,16 @@ type AgentClientOptionsInput struct {
 	MaxThinkingTokens          *int
 	MaxTurns                   *int
 	MCPServers                 map[string]sdkmcp.ServerConfig
+	AgentMCPServers            map[string]any
 	ExtraEnv                   map[string]string
 	AgentSDKDiagnosticsEnabled bool
 	ToolSearchEnabled          bool
 	WebSearch                  WebSearchConfig
 	RuntimeIsolationMode       string
 	RuntimeLauncherPath        string
+	// RuntimeIsolationRequired 是认证服务动态确认的部署边界；
+	// true 时 workspace isolation 必须真正进入 Linux enforce。
+	RuntimeIsolationRequired bool
 }
 
 // BuildAgentClientOptions 构建统一的 SDK client options。
@@ -105,6 +109,10 @@ func BuildAgentClientOptionsWithConfig(
 		// 配置目录、环境变量和 workspace policy 必须使用同一个 owner。
 		ownerUserID = strings.TrimSpace(authctx.OwnerUserID(ctx))
 	}
+	mcpServers, err := MergeAgentMCPServers(input.MCPServers, input.AgentMCPServers)
+	if err != nil {
+		return agentclient.Options{}, nil, err
+	}
 	effectiveRuntimeKind := resolveRuntimeKind(input.RuntimeKind, os.Getenv)
 	runtimeConfig, err := resolveRuntimeConfig(ctx, resolver, input.Provider, input.Model, effectiveRuntimeKind)
 	if err != nil {
@@ -124,17 +132,20 @@ func BuildAgentClientOptionsWithConfig(
 		return agentclient.Options{}, nil, err
 	}
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, visionRuntimeEnvFromConfig(visionConfig))
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, BuildWebSearchRuntimeEnv(effectiveRuntimeKind, input.WebSearch))
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, input.ExtraEnv)
 	// 身份与作用域是宿主授权事实，不能交给调用方的 ExtraEnv 覆盖。
-	// 必须在所有可配置环境合并后再次写入，确保 runtime 内的 nexusctl、
-	// session metadata 和下游 hook 始终绑定同一个 owner。
-	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx, ownerUserID))
+	// 必须在所有可配置环境合并后再次写入，确保 session metadata 和下游
+	// hook 始终绑定同一个 owner；普通 Agent 保持清空，主智能体随后只恢复
+	// 宿主注入且锁定 owner/workspace 的 nexusctl capability。
+	runtimeEnv = mergeRuntimeEnv(runtimeEnv, buildScopedRuntimeEnv(ctx, ownerUserID, input.IsMainAgent))
 	runtimeEnv = mergeRuntimeEnv(
 		runtimeEnv,
 		managedUserRuntimeEnv(ownerUserID, input.WorkspacePath, effectiveRuntimeKind),
 	)
+	if input.IsMainAgent {
+		runtimeEnv = mergeRuntimeEnv(runtimeEnv, workspaceRuntimeEnv(input.WorkspacePath))
+	}
 	// Claude 仍内置 Cron，调用方不得通过 ExtraEnv 重新开启第二套调度器。
 	runtimeEnv = mergeRuntimeEnv(runtimeEnv, hostManagedScheduleRuntimeEnv(effectiveRuntimeKind))
 
@@ -185,8 +196,8 @@ func BuildAgentClientOptionsWithConfig(
 	if input.MaxTurns != nil && *input.MaxTurns > 0 {
 		options.Runtime.MaxTurns = *input.MaxTurns
 	}
-	if len(input.MCPServers) > 0 {
-		options.MCP.Servers = maps.Clone(input.MCPServers)
+	if len(mcpServers) > 0 {
+		options.MCP.Servers = cloneMCPServers(mcpServers)
 	}
 	options, err = workspaceisolation.Apply(
 		ctx,
@@ -196,17 +207,27 @@ func BuildAgentClientOptionsWithConfig(
 			LauncherPath: input.RuntimeLauncherPath,
 		},
 		workspaceisolation.Input{
-			OwnerUserID: ownerUserID,
-			IsMainAgent: input.IsMainAgent,
-			RuntimeKind: effectiveRuntimeKind,
-			CWD:         input.WorkspacePath,
-			ReadRoots:   input.SkillDirectories,
+			OwnerUserID:    ownerUserID,
+			IsMainAgent:    input.IsMainAgent,
+			RuntimeKind:    effectiveRuntimeKind,
+			CWD:            input.WorkspacePath,
+			ReadRoots:      input.SkillDirectories,
+			RequireEnforce: input.RuntimeIsolationRequired,
 		},
 	)
 	if err != nil {
 		return agentclient.Options{}, nil, fmt.Errorf("装配 runtime workspace isolation: %w", err)
 	}
 	return options, runtimeConfig, nil
+}
+
+func cloneMCPServers(
+	current map[string]sdkmcp.ServerConfig,
+) map[string]sdkmcp.ServerConfig {
+	if len(current) == 0 {
+		return nil
+	}
+	return maps.Clone(current)
 }
 
 // resolveVisionRuntimeConfig 只为 nxs 解析用户明确选择的辅助视觉模型。

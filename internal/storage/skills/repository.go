@@ -1,6 +1,10 @@
+// INPUT: SQL driver、数据库连接与 owner-scoped Skill catalog 操作。
+// OUTPUT: 方言绑定、Repository 入口及 DB/transaction 共用 executor 契约。
+// POS: Skill storage 的装配与 SQL 方言边界。
 package skills
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -44,4 +48,9 @@ func (r *Repository) boolLiteral(value bool) string {
 
 type rowScanner interface {
 	Scan(dest ...any) error
+}
+
+type sqlExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
 }

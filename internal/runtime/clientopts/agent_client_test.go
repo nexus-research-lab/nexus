@@ -13,7 +13,6 @@ import (
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
-	sdkhook "github.com/nexus-research-lab/nexus-agent-sdk-bridge/hook"
 	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
@@ -665,11 +664,13 @@ func TestBuildAgentClientOptionsDisablesClaudeKernelScheduler(t *testing.T) {
 	}
 }
 
-func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
+func TestBuildAgentClientOptionsNeverInjectsRawNexusCLI(t *testing.T) {
 	configDir := filepath.Join(t.TempDir(), ".nexus")
 	t.Setenv("NEXUS_CONFIG_DIR", configDir)
 	t.Setenv("NEXUS_STATE_ROOT", "")
-	t.Setenv(nexusctlCommandPathEnvName, "")
+	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
+	t.Setenv(nexusctlUserIDEnvName, "ambient-owner")
+	t.Setenv(nexusctlWorkspacePathEnvName, "/ambient/workspace")
 	workspacePath := filepath.Join(os.TempDir(), "nexus-owner", "agent-1")
 	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: workspacePath,
@@ -677,32 +678,14 @@ func TestBuildAgentClientOptionsInjectsWorkspaceBinEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	pathItems := strings.Split(options.Env["PATH"], string(os.PathListSeparator))
-	expectedBinDir := filepath.Join(configDir, "app", ".agents", "bin")
-	if len(pathItems) == 0 || pathItems[0] != expectedBinDir {
-		t.Fatalf("运行时 PATH 未优先注入共享 runtime bin: %q", options.Env["PATH"])
-	}
-	if options.Env[nexusctlCommandPathEnvName] != nexusctlShimPath(expectedBinDir) {
-		t.Fatalf("运行时未注入明确 nexusctl 命令路径: %+v", options.Env)
-	}
-	if options.Env[nexusctlWorkspacePathEnvName] != workspacePath {
-		t.Fatalf("运行时未注入 nexusctl workspace 路径: %+v", options.Env)
-	}
-}
-
-func TestBuildAgentClientOptionsPreservesExplicitNexusctlCommandPath(t *testing.T) {
-	configDir := filepath.Join(t.TempDir(), ".nexus")
-	t.Setenv("NEXUS_CONFIG_DIR", configDir)
-	t.Setenv("NEXUS_STATE_ROOT", "")
-	t.Setenv(nexusctlCommandPathEnvName, "/opt/nexus/bin/nexusctl")
-	options, err := BuildAgentClientOptions(context.Background(), fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
-		WorkspacePath: "/tmp/workspace",
-	})
-	if err != nil {
-		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
-	}
-	if options.Env[nexusctlCommandPathEnvName] != "/opt/nexus/bin/nexusctl" {
-		t.Fatalf("显式 nexusctl 命令路径不应被共享 shim 覆盖: %+v", options.Env)
+	for _, key := range []string{
+		nexusctlCommandPathEnvName,
+		nexusctlUserIDEnvName,
+		nexusctlWorkspacePathEnvName,
+	} {
+		if value := strings.TrimSpace(options.Env[key]); value != "" {
+			t.Fatalf("Agent runtime 泄漏原始 CLI 环境 %s=%q: %+v", key, value, options.Env)
+		}
 	}
 }
 
@@ -740,12 +723,13 @@ func TestBuildAgentClientOptionsInjectsScopedUserEnv(t *testing.T) {
 
 	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
 		WorkspacePath: "/tmp/workspace",
+		OwnerUserID:   "user-123",
 	})
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env[nexusctlUserIDEnvName] != "user-123" {
-		t.Fatalf("未把当前 user_id 注入运行时环境: %+v", options.Env)
+	if options.Env[nexusctlUserIDEnvName] != "" {
+		t.Fatalf("多用户 runtime 不应获得 nexusctl user scope: %+v", options.Env)
 	}
 	if options.Env[nexusRuntimeUserIDEnvName] != "user-123" {
 		t.Fatalf("未把通用运行时 user_id 注入环境: %+v", options.Env)
@@ -779,6 +763,30 @@ func TestBuildAgentClientOptionsRejectsOwnerContextMismatch(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "runtime owner 与认证上下文不一致") {
 		t.Fatalf("owner/context 不一致应拒绝 runtime 启动，err=%v", err)
+	}
+}
+
+func TestBuildAgentClientOptionsDoesNotExposeNexusCLIWithoutCapability(t *testing.T) {
+	ctx := authctx.WithPrincipal(context.Background(), &authctx.Principal{
+		UserID: "ordinary-owner",
+	})
+	options, err := BuildAgentClientOptions(ctx, fakeRuntimeConfigResolver{}, AgentClientOptionsInput{
+		WorkspacePath: "/tmp/ordinary-agent",
+	})
+	if err != nil {
+		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
+	}
+	for _, key := range []string{
+		nexusctlUserIDEnvName,
+		nexusctlCommandPathEnvName,
+		nexusctlWorkspacePathEnvName,
+	} {
+		if value := strings.TrimSpace(options.Env[key]); value != "" {
+			t.Fatalf("未授权 runtime 泄漏 %s=%q: %+v", key, value, options.Env)
+		}
+	}
+	if options.Env[nexusRuntimeUserIDEnvName] != "ordinary-owner" {
+		t.Fatalf("通用 runtime user scope 不应随 CLI capability 一起删除: %+v", options.Env)
 	}
 }
 
@@ -859,7 +867,7 @@ func TestBuildAgentClientOptionsProtectsManagedUserDirectories(t *testing.T) {
 		options.Env[nexusEnableRemoteMemoryEnvName] != "" ||
 		options.Env[nexusRemoteMemoryDirEnvName] != "" ||
 		options.Env[workspacePathEnvName] != "/tmp/workspace" ||
-		options.Env[nexusctlWorkspacePathEnvName] != "/tmp/workspace" {
+		options.Env[nexusctlWorkspacePathEnvName] != "" {
 		t.Fatalf("ExtraEnv 覆盖了宿主管理的用户目录: %+v", options.Env)
 	}
 }
@@ -886,7 +894,7 @@ func TestBuildAgentClientOptionsProtectsScopedIdentityFromExtraEnv(t *testing.T)
 	if err != nil {
 		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
 	}
-	if options.Env[nexusctlUserIDEnvName] != "user-a" ||
+	if options.Env[nexusctlUserIDEnvName] != "" ||
 		options.Env[nexusRuntimeUserIDEnvName] != "user-a" ||
 		options.Env[nexusRuntimeScopeModeEnvName] != "user_scoped" {
 		t.Fatalf("ExtraEnv 覆盖了 runtime 身份作用域: %+v", options.Env)
@@ -936,40 +944,6 @@ func TestBuildAgentClientOptionsBypassKeepsPermissionHandler(t *testing.T) {
 		t.Fatalf("AskUserQuestion 未保留用户答案: %+v", questionDecision)
 	}
 
-}
-
-func TestBuildAgentClientOptionsPropagatesMainAgentWorkspaceIdentity(t *testing.T) {
-	workspace := t.TempDir()
-	options, err := BuildAgentClientOptions(
-		context.Background(),
-		fakeRuntimeConfigResolver{},
-		AgentClientOptionsInput{
-			WorkspacePath:        workspace,
-			OwnerUserID:          "owner-a",
-			IsMainAgent:          true,
-			RuntimeIsolationMode: "audit",
-		},
-	)
-	if err != nil {
-		t.Fatalf("BuildAgentClientOptions 失败: %v", err)
-	}
-	matchers := options.Hooks.Matchers[sdkhook.EventPreToolUse]
-	if len(matchers) != 1 || len(matchers[0].Hooks) != 1 {
-		t.Fatalf("主智能体应注入 workspace policy hook: %#v", options.Hooks.Matchers)
-	}
-	output, err := matchers[0].Hooks[0](context.Background(), sdkhook.Input{
-		CWD:      workspace,
-		ToolName: "Bash",
-		ToolInput: map[string]any{
-			"command": `"$NEXUSCTL_COMMAND_PATH" --json agent list`,
-		},
-	}, "main-tool")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if output.SpecificOutput != nil {
-		t.Fatalf("主智能体身份未传递到 workspace policy: %#v", output)
-	}
 }
 
 func containsTool(tools []string, expected string) bool {

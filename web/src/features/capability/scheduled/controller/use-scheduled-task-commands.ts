@@ -3,13 +3,19 @@
 import { useCallback, useRef, useState } from "react";
 
 import {
+  decideAutomationPermissionRequestApi,
   deleteScheduledTaskApi,
   recoverScheduledTaskRunApi,
+  resumeAutomationPermissionRunApi,
   retryScheduledTaskRunDeliveryApi,
   runScheduledTaskApi,
   updateScheduledTaskStatusApi,
 } from "@/lib/api/capability/scheduled-task-api";
 import { getErrorMessage } from "@/lib/error-message";
+import type {
+  AutomationPermissionDecision,
+  AutomationPermissionDecisionResult,
+} from "@/types/capability/scheduled-task/permission";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 import type {
   ScheduledTaskRunItem,
@@ -42,6 +48,32 @@ interface MutationFeedback {
 interface CommandFailureFeedback {
   fallbackMessage: string;
   title: string;
+}
+
+function taskFromPermissionResult(
+  result: AutomationPermissionDecisionResult,
+): ScheduledTaskItem {
+  const request = result.request;
+  return {
+    ...result.task,
+    pending_permission_request: result.task.pending_permission_request_id &&
+      request?.request_id === result.task.pending_permission_request_id
+      ? request
+      : null,
+  };
+}
+
+function permissionDecisionMessage(decision: AutomationPermissionDecision): string {
+  switch (decision) {
+    case "allow_once":
+      return "已仅授权本次运行";
+    case "allow_task":
+      return "已授权该任务后续使用此能力";
+    case "retry":
+      return "已重新检查连接并继续运行";
+    default:
+      return "已拒绝本次权限请求";
+  }
 }
 
 export function useScheduledTaskCommands(resource: ScheduledTaskCommandResource) {
@@ -175,6 +207,69 @@ export function useScheduledTaskCommands(resource: ScheduledTaskCommandResource)
     }),
   ), [executeCommand, runPending, synchronizeMutation, upsertTask]);
 
+  const decidePermission = useCallback(async (
+    task: ScheduledTaskItem,
+    decision: AutomationPermissionDecision,
+  ): Promise<AutomationPermissionDecisionResult> => runPending(
+    "permission",
+    task.job_id,
+    () => executeCommand(async () => {
+      const request = task.pending_permission_request;
+      if (!request) {
+        throw new Error("权限请求已变化，请刷新任务后重试");
+      }
+      const result = await decideAutomationPermissionRequestApi(
+        request.request_id,
+        {
+          decision,
+          job_id: request.job_id,
+          policy_revision: request.policy_revision,
+          run_id: request.run_id ?? "",
+        },
+      );
+      const updatedTask = taskFromPermissionResult(result);
+      upsertTask(updatedTask);
+      await synchronizeMutation(updatedTask.agent_id, {
+        message: `${task.name}：${permissionDecisionMessage(decision)}`,
+        refreshWarning: "任务权限状态刷新失败，稍后会自动同步",
+        title: decision === "deny" ? "权限已拒绝" : "权限已更新",
+      });
+      return result;
+    }, {
+      fallbackMessage: "处理任务权限失败",
+      title: "权限操作失败",
+    }),
+  ), [executeCommand, runPending, synchronizeMutation, upsertTask]);
+
+  const resumePermissionRun = useCallback(async (
+    task: ScheduledTaskItem,
+  ): Promise<AutomationPermissionDecisionResult> => runPending(
+    "permission",
+    task.job_id,
+    () => executeCommand(async () => {
+      const request = task.pending_permission_request;
+      const runId = request?.run_id;
+      if (!request || request.status !== "approved" || !runId) {
+        throw new Error("待重试的运行记录已变化，请刷新后重试");
+      }
+      const result = await resumeAutomationPermissionRunApi(task.job_id, runId, {
+        policy_revision: request.policy_revision,
+        request_id: request.request_id,
+      });
+      const updatedTask = taskFromPermissionResult(result);
+      upsertTask(updatedTask);
+      await synchronizeMutation(updatedTask.agent_id, {
+        message: `${task.name} 已确认重试同一次运行`,
+        refreshWarning: "任务运行状态刷新失败，稍后会自动同步",
+        title: "任务已继续",
+      });
+      return result;
+    }, {
+      fallbackMessage: "继续任务运行失败",
+      title: "任务重试失败",
+    }),
+  ), [executeCommand, runPending, synchronizeMutation, upsertTask]);
+
   const deleteTask = useCallback(async (task: ScheduledTaskItem): Promise<void> => (
     runPending(
       "delete",
@@ -238,11 +333,13 @@ export function useScheduledTaskCommands(resource: ScheduledTaskCommandResource)
   return {
     acceptCreatedTask,
     acceptSavedTask,
+    decidePermission,
     deleteTask,
     dismissFeedback,
     feedback,
     pending,
     recoverRun,
+    resumePermissionRun,
     retryDelivery,
     runTask,
     toggleTask,

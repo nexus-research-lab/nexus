@@ -165,7 +165,7 @@ func (s *Service) recoverStaleRunningJob(ctx context.Context, job automationdoma
 	message := fmt.Sprintf("自动化任务运行超过 %s 未完成，调度器已自动释放运行占用", timeout)
 	recovered := s.recoverJobRuntimeAsCancelled(ctx, job, message)
 	state := s.replaceJobRuntimeState(recovered)
-	result := scheduledTaskWithRuntime(recovered, state)
+	result := s.scheduledTaskRuntimeSnapshot(recovered, state)
 	s.recordTaskEvent(ctx, automationdomain.TaskEventActionRecover, result, runID, map[string]any{
 		"recovered_run_id": runID,
 		"reason":           "timeout",
@@ -192,6 +192,10 @@ func (s *Service) bootstrapRuntime(ctx context.Context) error {
 		return err
 	}
 	for _, item := range jobs {
+		item, err = s.ensureTaskPermissionPolicy(ctx, item)
+		if err != nil {
+			return err
+		}
 		s.ensureJobState(item)
 	}
 
@@ -284,6 +288,10 @@ func (s *Service) collectScheduledTaskWorkLocked(
 }
 
 func isRunnableScheduledTaskState(state *automationexec.JobRuntimeState, now time.Time) bool {
+	permissionState := strings.TrimSpace(state.Job.PermissionState)
+	if permissionState != "" && permissionState != automationdomain.TaskPermissionStateReady {
+		return false
+	}
 	if state.NextRunAt == nil {
 		return false
 	}

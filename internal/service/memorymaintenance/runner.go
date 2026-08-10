@@ -1,11 +1,13 @@
+// INPUT: Agent owner/provider/background model、workspace settings 与 runtime admission。
+// OUTPUT: 可被认证转场强制取消并关闭的一次性 nxs AutoDream 结果。
+// POS: Nexus 托管 AutoDream 的 runtime 启动与生命周期边界。
 package memorymaintenance
-
-// 本文件负责用 Agent 当前 owner/provider/background model 启动一次性 nxs。
 
 import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
@@ -36,6 +38,7 @@ type runtimeDreamRunner struct {
 	preferences preferencesService
 	providers   clientopts.RuntimeConfigResolver
 	selector    *runtimeselectionsvc.Service
+	admission   clientopts.AgentRuntimeAdmissionResolver
 }
 
 // NewCoordinator 构建 Nexus 托管 AutoDream 协调器。
@@ -44,12 +47,14 @@ func NewCoordinator(
 	agents agentCatalog,
 	providers clientopts.RuntimeConfigResolver,
 	preferences preferencesService,
+	admission clientopts.AgentRuntimeAdmissionResolver,
 ) *Coordinator {
 	runner := &runtimeDreamRunner{
 		config:      cfg,
 		preferences: preferences,
 		providers:   providers,
 		selector:    runtimeselectionsvc.NewService(preferences),
+		admission:   admission,
 	}
 	return newCoordinator(cfg.MemoryMaintenance, agents, runner)
 }
@@ -83,6 +88,15 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 			Reason: "runtime_not_nxs",
 		}, nil
 	}
+	admission, runtimeIsolationRequired, err := clientopts.BeginAgentRuntimeAdmission(
+		ownerContext,
+		r.admission,
+	)
+	if err != nil {
+		return agentclient.AutoDreamResult{}, err
+	}
+	defer admission.Release()
+	ownerContext = admission.Context()
 	provider, model, available, err := r.backgroundSelection(ownerContext, agentValue.OwnerUserID, selection)
 	if err != nil {
 		return agentclient.AutoDreamResult{}, err
@@ -94,21 +108,22 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 		}, nil
 	}
 	options, err := clientopts.BuildAgentClientOptions(ownerContext, r.providers, clientopts.AgentClientOptionsInput{
-		WorkspacePath:        agentValue.WorkspacePath,
-		OwnerUserID:          agentValue.OwnerUserID,
-		IsMainAgent:          agentValue.IsMain,
-		RuntimeKind:          selection.RuntimeKind,
-		Provider:             provider,
-		Model:                model,
-		PermissionMode:       sdkpermission.ModeAcceptEdits,
-		SkillIDs:             runtimeSkillNames,
-		DisabledSkillIDs:     runtimeDisabledSkillNames,
-		SkillDirectories:     workspacepkg.SkillLibraryRoots(r.config, agentValue.OwnerUserID),
-		SettingSources:       ensureProjectSettingsSource(agentValue.Options.SettingSources),
-		ToolSearchEnabled:    selection.ToolSearchEnabled,
-		WebSearch:            selection.WebSearch,
-		RuntimeIsolationMode: r.config.RuntimeIsolationMode,
-		RuntimeLauncherPath:  r.config.RuntimeLauncherPath,
+		WorkspacePath:            agentValue.WorkspacePath,
+		OwnerUserID:              agentValue.OwnerUserID,
+		IsMainAgent:              agentValue.IsMain,
+		RuntimeKind:              selection.RuntimeKind,
+		Provider:                 provider,
+		Model:                    model,
+		PermissionMode:           sdkpermission.ModeAcceptEdits,
+		SkillIDs:                 runtimeSkillNames,
+		DisabledSkillIDs:         runtimeDisabledSkillNames,
+		SkillDirectories:         workspacepkg.SkillLibraryRoots(r.config, agentValue.OwnerUserID),
+		SettingSources:           ensureProjectSettingsSource(agentValue.Options.SettingSources),
+		ToolSearchEnabled:        selection.ToolSearchEnabled,
+		WebSearch:                selection.WebSearch,
+		RuntimeIsolationMode:     r.config.RuntimeIsolationMode,
+		RuntimeLauncherPath:      r.config.RuntimeLauncherPath,
+		RuntimeIsolationRequired: runtimeIsolationRequired,
 		ExtraEnv: map[string]string{
 			autoDreamWakeModeEnv:     autoDreamWakeModeHost,
 			providerManagedByHostEnv: "1",
@@ -122,7 +137,15 @@ func (r *runtimeDreamRunner) tryAutoDream(ctx context.Context, agentValue protoc
 	if err != nil {
 		return agentclient.AutoDreamResult{}, err
 	}
-	defer closeDreamSession(session)
+	var closeOnce sync.Once
+	closeSession := func() {
+		closeOnce.Do(func() {
+			closeDreamSession(session)
+		})
+	}
+	defer closeSession()
+	stopForcedClose := closeDreamSessionOnCancellation(ownerContext, closeSession)
+	defer stopForcedClose()
 	stopDrain := drainDreamSession(ownerContext, session)
 	defer stopDrain()
 	if !session.Supports(agentclient.CapabilityAutoDream) {
@@ -194,6 +217,33 @@ func closeDreamSession(session *agentclient.Session) {
 	ctx, cancel := context.WithTimeout(context.Background(), internalRuntimeCloseTimeout)
 	defer cancel()
 	_ = session.Close(ctx)
+}
+
+// closeDreamSessionOnCancellation 确保 admission 撤销不只依赖 control RPC
+// 主动观察 context；即使 RPC 未及时返回，也会并发关闭 bridge session。
+func closeDreamSessionOnCancellation(ctx context.Context, closeSession func()) func() {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	var stopOnce sync.Once
+	go func() {
+		defer close(done)
+		select {
+		case <-ctx.Done():
+			if closeSession != nil {
+				closeSession()
+			}
+		case <-stop:
+		}
+	}()
+	return func() {
+		stopOnce.Do(func() {
+			close(stop)
+		})
+		<-done
+	}
 }
 
 // drainDreamSession 消费维护过程事件，避免无人读取的 bridge 消息队列反压 control response。

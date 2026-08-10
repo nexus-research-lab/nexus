@@ -139,6 +139,7 @@ type roomUpdateBuilder struct {
 }
 
 func (b *roomUpdateBuilder) build() (roomrepo.UpdateRoomPatch, error) {
+	b.patch.ExpectedConfigurationVersion = b.request.ExpectedConfigurationVersion
 	stages := []func() error{
 		b.applyTextFields,
 		b.applySkillNames,
@@ -154,25 +155,29 @@ func (b *roomUpdateBuilder) build() (roomrepo.UpdateRoomPatch, error) {
 }
 
 func (b *roomUpdateBuilder) applyTextFields() error {
-	b.patch.Name = normalizedRoomTextPatch(b.request.Name)
-	b.patch.Description = normalizedRoomTextPatch(b.request.Description)
-	b.patch.Title = normalizedRoomTextPatch(b.request.Title)
-	if b.patch.Title != nil && *b.patch.Title == "" {
-		return errors.New("对话标题不能为空")
+	if b.request.Name != nil {
+		name := roomdomain.NormalizeOptionalText(*b.request.Name)
+		if name == "" {
+			return errors.New("Room 名称不能为空")
+		}
+		b.patch.Name = &name
+	}
+	if b.request.Description != nil {
+		description := roomdomain.NormalizeOptionalText(*b.request.Description)
+		b.patch.Description = &description
+	}
+	if b.request.Title != nil {
+		title := roomdomain.NormalizeOptionalText(*b.request.Title)
+		if title == "" {
+			return errors.New("对话标题不能为空")
+		}
+		b.patch.Title = &title
 	}
 	if b.request.Avatar != nil {
 		avatar := roomdomain.NormalizeOptionalText(*b.request.Avatar)
 		b.patch.Avatar = &avatar
 	}
 	return nil
-}
-
-func normalizedRoomTextPatch(value string) *string {
-	normalized, present := roomdomain.NormalizeOptionalPatch(value)
-	if !present {
-		return nil
-	}
-	return &normalized
 }
 
 func (b *roomUpdateBuilder) applySkillNames() error {
@@ -241,23 +246,4 @@ func (b *roomUpdateBuilder) loadExisting() (*protocol.RoomAggregate, error) {
 	}
 	b.existing = existing
 	return existing, nil
-}
-
-// DeleteRoom 删除房间。
-func (s *Service) DeleteRoom(ctx context.Context, roomID string) error {
-	roomID = strings.TrimSpace(roomID)
-	roomContexts, err := s.GetRoomContexts(ctx, roomID)
-	if err != nil {
-		return err
-	}
-	transcriptReferences, err := s.captureRoomTranscriptReferences(roomContexts)
-	if err != nil {
-		return err
-	}
-	payload := roomDeletionPayload{
-		Contexts:             roomContexts,
-		RoomID:               roomID,
-		TranscriptReferences: transcriptReferences,
-	}
-	return s.applyRoomDeletion(ctx, payload)
 }

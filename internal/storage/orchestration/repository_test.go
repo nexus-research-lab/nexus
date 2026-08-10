@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -1442,6 +1443,15 @@ func newRepositoryTestStore(t *testing.T) *Repository {
 		return current
 	}
 	return repository
+}
+
+func orchestrationMigrationDir(t *testing.T, dialect string) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("locate orchestration repository test")
+	}
+	return filepath.Join(filepath.Dir(file), "..", "..", "..", "db", "migrations", dialect)
 }
 
 func createTestCommand(suffix string) CreateCommand {

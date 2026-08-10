@@ -3,7 +3,8 @@
 // L2 | 父级: internal/storage（L1 见 AGENTS.md）
 //
 // 成员清单：
-//   - sql.go：SQLRepository Session 视图查询。
+//   - sql.go：只读 Room Session 视图查询与遵循 Room-first 锁协议的 SDK session ID 回写；
+//     Room conversation 生命周期和版本仍归 roomrepo，不得并入 workspace Session CAS。
 //
 // SQLRepository 根据 driver 选择 SQLDialect，不在上层复制 SQLite/PostgreSQL 门面。
 //

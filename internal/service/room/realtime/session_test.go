@@ -68,10 +68,12 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 		sourceContextType  string
 		sourceContextID    string
 		sourceContextLabel string
+		leaseSessionKey    string
+		leaseRoundID       string
 	}
 	calls := make(chan builderCall, 1)
 	service.SetMCPServerBuilder(func(
-		_ context.Context,
+		builderContext context.Context,
 		agentValue *protocol.Agent,
 		sessionKey string,
 		roundID string,
@@ -81,6 +83,7 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 		_ *atomic.Int64,
 		_ sdkpermission.Mode,
 	) map[string]sdkmcp.ServerConfig {
+		lease, _ := runtimectx.MCPRoundLeaseFromContext(builderContext)
 		calls <- builderCall{
 			agentID:            agentValue.AgentID,
 			sessionKey:         sessionKey,
@@ -88,6 +91,8 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 			sourceContextType:  sourceContextType,
 			sourceContextID:    sourceContextID,
 			sourceContextLabel: sourceContextLabel,
+			leaseSessionKey:    lease.SessionKey,
+			leaseRoundID:       lease.RoundID,
 		}
 		return nil
 	})
@@ -97,11 +102,12 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 	permission.BindSession(sharedSessionKey, sender)
 
 	if err = service.HandleChat(ctx, realtimesvc.ChatRequest{
-		SessionKey:     sharedSessionKey,
-		RoomID:         roomContext.Room.ID,
-		ConversationID: roomContext.Conversation.ID,
-		Content:        "@助手甲 每天 9 点检查新闻并发回这个房间",
-		RoundID:        "room-round-mcp-context",
+		SessionKey:                  sharedSessionKey,
+		RoomID:                      roomContext.Room.ID,
+		ConversationID:              roomContext.Conversation.ID,
+		Content:                     "@助手甲 每天 9 点检查新闻并发回这个房间",
+		RoundID:                     "room-round-mcp-context",
+		TrustedConfigurationContext: true,
 	}); err != nil {
 		t.Fatalf("HandleChat 失败: %v", err)
 	}
@@ -120,6 +126,16 @@ func TestRealtimeServiceMCPBuilderUsesSharedRoomSessionContext(t *testing.T) {
 	}
 	if call.roundID != "room-round-mcp-context" {
 		t.Fatalf("Room MCP 上下文 roundID 不正确: %+v", call)
+	}
+	expectedLeaseSession := protocol.BuildRoomAgentSessionKey(
+		roomContext.Conversation.ID,
+		agentValue.AgentID,
+		roomContext.Room.RoomType,
+	)
+	if call.leaseSessionKey != expectedLeaseSession ||
+		call.leaseRoundID == "" ||
+		call.leaseRoundID == call.roundID {
+		t.Fatalf("Room MCP 必须同时携带真实 slot lease 和独立共享 root context: %+v", call)
 	}
 	if call.sourceContextType != "room" ||
 		call.sourceContextID != roomContext.Room.ID ||

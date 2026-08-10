@@ -414,14 +414,15 @@ func TestServiceHandleChatGuidePolicyQueuesHookGuidance(t *testing.T) {
 	}
 
 	if err := service.HandleChat(context.Background(), Request{
-		SessionKey:           sessionKey,
-		Content:              "等工具结果回来后优先看错误日志",
-		ClientMessageID:      "client-message-guide-2",
-		RoundID:              "round-guide-2",
-		UserMessageID:        "msg-user-guide-2",
-		AgentRoundID:         "agent-round-guide-2",
-		DeliveryPolicy:       protocol.ChatDeliveryPolicyGuide,
-		BroadcastUserMessage: true,
+		SessionKey:                  sessionKey,
+		Content:                     "等工具结果回来后优先看错误日志",
+		ClientMessageID:             "client-message-guide-2",
+		RoundID:                     "round-guide-2",
+		UserMessageID:               "msg-user-guide-2",
+		AgentRoundID:                "agent-round-guide-2",
+		DeliveryPolicy:              protocol.ChatDeliveryPolicyGuide,
+		BroadcastUserMessage:        true,
+		TrustedConfigurationContext: true,
 	}); err != nil {
 		t.Fatalf("引导消息 HandleChat 失败: %v", err)
 	}
@@ -600,11 +601,12 @@ func TestServiceAckRuntimeGuidanceWaitsForAppliedAckAcrossAssistantAndTerminal(t
 	}
 	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
 	if err := service.HandleChat(context.Background(), Request{
-		SessionKey:     sessionKey,
-		Content:        "ACK 后才能消费",
-		RoundID:        "round-ack-guidance-2",
-		UserMessageID:  "msg-user-ack-guidance-2",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+		SessionKey:                  sessionKey,
+		Content:                     "ACK 后才能消费",
+		RoundID:                     "round-ack-guidance-2",
+		UserMessageID:               "msg-user-ack-guidance-2",
+		DeliveryPolicy:              protocol.ChatDeliveryPolicyGuide,
+		TrustedConfigurationContext: true,
 	}); err != nil {
 		t.Fatalf("写入 DM 引导失败: %v", err)
 	}
@@ -743,11 +745,12 @@ func TestServiceGuidancePreflightFailureKeepsQueuedInput(t *testing.T) {
 	})
 
 	if err := service.HandleChat(context.Background(), Request{
-		SessionKey:     sessionKey,
-		Content:        "补充一个失效附件",
-		RoundID:        "round-guide-preflight-2",
-		UserMessageID:  "msg-user-guide-preflight-2",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+		SessionKey:                  sessionKey,
+		Content:                     "补充一个失效附件",
+		RoundID:                     "round-guide-preflight-2",
+		UserMessageID:               "msg-user-guide-preflight-2",
+		DeliveryPolicy:              protocol.ChatDeliveryPolicyGuide,
+		TrustedConfigurationContext: true,
 		Attachments: []protocol.ChatAttachment{{
 			FileName:         "missing.txt",
 			WorkspacePath:    "missing.txt",
@@ -846,11 +849,12 @@ func TestServiceGuidanceErrorResultFallsBackToNextTurn(t *testing.T) {
 	}
 	waitForEvent(t, sender.events, protocol.EventTypeRoundStatus, "running")
 	if err := service.HandleChat(context.Background(), Request{
-		SessionKey:     sessionKey,
-		Content:        "失败后作为下一轮继续",
-		RoundID:        "round-guide-error-2",
-		UserMessageID:  "msg-user-guide-error-2",
-		DeliveryPolicy: protocol.ChatDeliveryPolicyGuide,
+		SessionKey:                  sessionKey,
+		Content:                     "失败后作为下一轮继续",
+		RoundID:                     "round-guide-error-2",
+		UserMessageID:               "msg-user-guide-error-2",
+		DeliveryPolicy:              protocol.ChatDeliveryPolicyGuide,
+		TrustedConfigurationContext: true,
 	}); err != nil {
 		t.Fatalf("写入 DM 引导失败: %v", err)
 	}

@@ -66,11 +66,30 @@ func (s *Service) applyScheduledTaskStateHealth(
 		}
 		addTaskHealthSuggestedTool(health, "repair_scheduled_task")
 	}
-	if stringPointerHasText(job.LastError) || job.FailureStreak > 0 || isFailedRunStatus(job.LastRunStatus) {
+	permissionAttention := taskPermissionNeedsUserAction(job.PermissionState)
+	if permissionAttention {
+		addTaskHealthSignal(health, "permission_required")
+		setFirstStringPointer(&health.LatestExecutionError, job.LastError)
+		markScheduledTaskHealthAttention(health)
+	}
+	if !permissionAttention && (stringPointerHasText(job.LastError) || job.FailureStreak > 0 || isFailedRunStatus(job.LastRunStatus)) {
 		addTaskHealthSignal(health, "execution_attention")
 		addExecutionRepairSuggestedTools(&health.SuggestedTools)
 		setFirstStringPointer(&health.LatestExecutionError, job.LastError)
 		markScheduledTaskHealthAttention(health)
+	}
+}
+
+func taskPermissionNeedsUserAction(state string) bool {
+	switch strings.TrimSpace(state) {
+	case automationdomain.TaskPermissionStateAwaitingApproval,
+		automationdomain.TaskPermissionStateAwaitingInput,
+		automationdomain.TaskPermissionStateAwaitingReauth,
+		automationdomain.TaskPermissionStateReadyToRetry,
+		automationdomain.TaskPermissionStateDenied:
+		return true
+	default:
+		return false
 	}
 }
 

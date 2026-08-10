@@ -16,9 +16,9 @@ func deriveTaskRunDeliveryStatus(run automationdomain.ScheduledTaskRun) string {
 		return automationdomain.DeliveryStatusNotRequired
 	}
 	switch strings.TrimSpace(run.Status) {
-	case automationdomain.RunStatusPending, automationdomain.RunStatusRunning:
+	case automationdomain.RunStatusPending, automationdomain.RunStatusRunning, automationdomain.RunStatusQueuedToMain:
 		return automationdomain.DeliveryStatusPending
-	case automationdomain.RunStatusSucceeded, automationdomain.RunStatusQueuedToMain:
+	case automationdomain.RunStatusSucceeded:
 		return automationdomain.DeliveryStatusSucceeded
 	case automationdomain.RunStatusFailed:
 		if looksLikeDeliveryRuntimeError(run.ErrorMessage) {

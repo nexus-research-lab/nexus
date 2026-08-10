@@ -2,12 +2,17 @@ package automationmcp
 
 import (
 	"context"
+	"fmt"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	automationexec "github.com/nexus-research-lab/nexus/internal/automation"
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/mcp/automation/contract"
 )
+
+var automationToolRequestSequence atomic.Uint64
 
 type stubService struct {
 	createInput       automationdomain.CreateJobInput
@@ -22,6 +27,7 @@ type stubService struct {
 	recoverRunID      string
 	redeliverJobID    string
 	redeliverRunID    string
+	listErr           error
 	updateErr         error
 	jobs              []automationdomain.ScheduledTask
 	missingJobs       map[string]bool
@@ -35,26 +41,33 @@ type stubService struct {
 	dailyReportsByJob map[string]*automationdomain.ScheduledTaskDailyReport
 	dailyInput        automationdomain.ScheduledTaskDailyReportInput
 	dailyInputs       []automationdomain.ScheduledTaskDailyReportInput
+	heartbeatStatus   *automationdomain.HeartbeatStatus
 }
 
 func (s *stubService) ListTasks(_ context.Context, agentID string) ([]automationdomain.ScheduledTask, error) {
 	s.listAgentID = agentID
-	return s.jobs, nil
+	for index := range s.jobs {
+		if s.jobs[index].ConfigurationVersion < 1 {
+			s.jobs[index].ConfigurationVersion = 1
+		}
+	}
+	return s.jobs, s.listErr
 }
 
 func (s *stubService) CreateTask(_ context.Context, input automationdomain.CreateJobInput) (*automationdomain.ScheduledTask, error) {
 	s.createInput = input
 	if s.created == nil {
 		s.created = &automationdomain.ScheduledTask{
-			JobID:         "job-1",
-			Name:          input.Name,
-			AgentID:       input.AgentID,
-			Schedule:      input.Schedule,
-			Instruction:   input.Instruction,
-			SessionTarget: input.SessionTarget,
-			Delivery:      input.Delivery,
-			Source:        input.Source,
-			Enabled:       input.Enabled,
+			JobID:                "job-1",
+			Name:                 input.Name,
+			AgentID:              input.AgentID,
+			Schedule:             input.Schedule,
+			Instruction:          input.Instruction,
+			SessionTarget:        input.SessionTarget,
+			Delivery:             input.Delivery,
+			Source:               input.Source,
+			Enabled:              input.Enabled,
+			ConfigurationVersion: 1,
 		}
 	}
 	return s.created, nil
@@ -85,7 +98,36 @@ func (s *stubService) UpdateTask(_ context.Context, jobID string, input automati
 	if input.Delivery != nil {
 		job.Delivery = *input.Delivery
 	}
+	found := false
+	for index := range s.jobs {
+		if s.jobs[index].JobID == jobID {
+			s.jobs[index] = job
+			found = true
+		}
+	}
+	if !found {
+		s.jobs = append(s.jobs, job)
+	}
 	return &job, nil
+}
+
+func (s *stubService) UpdateTaskAtVersion(
+	ctx context.Context,
+	jobID string,
+	expectedVersion int64,
+	input automationdomain.UpdateJobInput,
+) (*automationdomain.ScheduledTask, error) {
+	job, err := s.UpdateTask(ctx, jobID, input)
+	if err != nil {
+		return nil, err
+	}
+	job.ConfigurationVersion = expectedVersion + 1
+	for index := range s.jobs {
+		if s.jobs[index].JobID == jobID {
+			s.jobs[index] = *job
+		}
+	}
+	return job, nil
 }
 
 func (s *stubService) DeleteTask(_ context.Context, jobID string) (*automationdomain.DeleteJobResult, error) {
@@ -104,6 +146,21 @@ func (s *stubService) DeleteTask(_ context.Context, jobID string) (*automationdo
 		break
 	}
 	return result, nil
+}
+
+func (s *stubService) DeleteTaskAtVersion(
+	ctx context.Context,
+	jobID string,
+	_ int64,
+) (*automationdomain.DeleteJobResult, error) {
+	result, err := s.DeleteTask(ctx, jobID)
+	if err == nil {
+		if s.missingJobs == nil {
+			s.missingJobs = make(map[string]bool)
+		}
+		s.missingJobs[jobID] = true
+	}
+	return result, err
 }
 
 func (s *stubService) RunTaskNow(_ context.Context, jobID string) (*automationdomain.ExecutionResult, error) {
@@ -217,7 +274,57 @@ func (s *stubService) RetryRunDelivery(_ context.Context, jobID string, runID st
 func (s *stubService) RecoverTaskRunningRun(_ context.Context, jobID string, runID string) (*automationdomain.ScheduledTask, error) {
 	s.recoverJobID = jobID
 	s.recoverRunID = runID
-	return &automationdomain.ScheduledTask{JobID: jobID, AgentID: "agent-1", Schedule: automationdomain.Schedule{Timezone: "Asia/Shanghai"}}, nil
+	job, err := s.GetTask(context.Background(), jobID)
+	if err != nil {
+		return nil, err
+	}
+	job.Running = false
+	job.RunningRunID = ""
+	return job, nil
+}
+
+func (s *stubService) GetHeartbeatStatus(_ context.Context, agentID string) (*automationdomain.HeartbeatStatus, error) {
+	if s.heartbeatStatus != nil && s.heartbeatStatus.AgentID == agentID {
+		result := *s.heartbeatStatus
+		return &result, nil
+	}
+	result := &automationdomain.HeartbeatStatus{
+		AgentID:              agentID,
+		EverySeconds:         1800,
+		TargetMode:           automationdomain.HeartbeatTargetNone,
+		AckMaxChars:          300,
+		ConfigurationVersion: 1,
+	}
+	s.heartbeatStatus = result
+	copyValue := *result
+	return &copyValue, nil
+}
+
+func (s *stubService) UpdateHeartbeatAtVersion(
+	_ context.Context,
+	agentID string,
+	expectedVersion int64,
+	input automationdomain.HeartbeatUpdateInput,
+) (*automationdomain.HeartbeatStatus, error) {
+	result := &automationdomain.HeartbeatStatus{
+		AgentID:              agentID,
+		Enabled:              input.Enabled,
+		EverySeconds:         input.EverySeconds,
+		TargetMode:           input.TargetMode,
+		AckMaxChars:          input.AckMaxChars,
+		ConfigurationVersion: expectedVersion + 1,
+	}
+	s.heartbeatStatus = result
+	copyValue := *result
+	return &copyValue, nil
+}
+
+func (s *stubService) WakeHeartbeat(_ context.Context, agentID string, input automationdomain.HeartbeatWakeInput) (*automationdomain.HeartbeatWakeResult, error) {
+	return &automationdomain.HeartbeatWakeResult{
+		AgentID:   agentID,
+		Mode:      input.Mode,
+		Scheduled: true,
+	}, nil
 }
 
 func (s *stubService) GetTask(_ context.Context, jobID string) (*automationdomain.ScheduledTask, error) {
@@ -226,19 +333,38 @@ func (s *stubService) GetTask(_ context.Context, jobID string) (*automationdomai
 	}
 	for i := range s.jobs {
 		if s.jobs[i].JobID == jobID {
+			if s.jobs[i].ConfigurationVersion < 1 {
+				s.jobs[i].ConfigurationVersion = 1
+			}
 			return &s.jobs[i], nil
 		}
 	}
 	if s.created != nil && s.created.JobID == jobID {
 		return s.created, nil
 	}
-	return &automationdomain.ScheduledTask{JobID: jobID}, nil
+	return &automationdomain.ScheduledTask{JobID: jobID, ConfigurationVersion: 1}, nil
 }
 
 func newInterval(v int) *int { return &v }
 
 func callTool(t *testing.T, svc contract.Service, sctx contract.ServerContext, name string, args map[string]any) (map[string]any, bool) {
 	t.Helper()
+	if strings.TrimSpace(sctx.SourceContextType) == "" {
+		sctx.SourceContextType = "agent"
+	}
+	if name == "create_scheduled_task" {
+		if args == nil {
+			args = map[string]any{}
+		}
+		requestID, hasRequestID := args["request_id"]
+		if !hasRequestID || strings.TrimSpace(fmt.Sprint(requestID)) == "" {
+			args["request_id"] = fmt.Sprintf(
+				"test-%s-%d",
+				strings.ReplaceAll(t.Name(), "/", "-"),
+				automationToolRequestSequence.Add(1),
+			)
+		}
+	}
 	server := NewServer(svc, sctx)
 	resp, err := server.HandleMessage(context.Background(), map[string]any{
 		"jsonrpc": "2.0",
@@ -255,6 +381,31 @@ func callTool(t *testing.T, svc contract.Service, sctx contract.ServerContext, n
 	}
 	isError, _ := result["isError"].(bool)
 	return result, isError
+}
+
+func listTools(t *testing.T, svc contract.Service, sctx contract.ServerContext) []map[string]any {
+	t.Helper()
+	if strings.TrimSpace(sctx.SourceContextType) == "" {
+		sctx.SourceContextType = "agent"
+	}
+	server := NewServer(svc, sctx)
+	resp, err := server.HandleMessage(context.Background(), map[string]any{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "tools/list",
+	})
+	if err != nil {
+		t.Fatalf("HandleMessage error: %v", err)
+	}
+	result, ok := resp["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("missing result, got %+v", resp)
+	}
+	tools, ok := result["tools"].([]map[string]any)
+	if !ok {
+		t.Fatalf("tools not []map, got %T", result["tools"])
+	}
+	return tools
 }
 
 func extractText(t *testing.T, result map[string]any) string {
@@ -309,5 +460,26 @@ func dailySchedule(hhmm string) map[string]any {
 		"kind":       "daily",
 		"daily_time": hhmm,
 		"timezone":   "Asia/Shanghai",
+	}
+}
+
+func TestToolsListIncludesSearchHints(t *testing.T) {
+	tools := listTools(t, &stubService{}, contract.ServerContext{})
+	if len(tools) == 0 {
+		t.Fatal("tools/list 返回空列表")
+	}
+	for _, tool := range tools {
+		name, _ := tool["name"].(string)
+		meta, ok := tool["_meta"].(map[string]any)
+		if !ok {
+			t.Fatalf("%s missing _meta", name)
+		}
+		hint, _ := meta["anthropic/searchHint"].(string)
+		if strings.TrimSpace(hint) == "" {
+			t.Fatalf("%s missing anthropic/searchHint", name)
+		}
+		if _, ok := meta["anthropic/alwaysLoad"]; ok {
+			t.Fatalf("%s should stay deferred", name)
+		}
 	}
 }

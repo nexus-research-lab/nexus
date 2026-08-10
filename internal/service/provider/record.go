@@ -1,3 +1,6 @@
+// INPUT: Provider 未脱敏持久化实体、模型卡与使用关系。
+// OUTPUT: 权限感知、凭据脱敏且携带 configuration_version 的服务记录。
+// POS: Provider 存储模型到 API/配置控制面模型的唯一投影层。
 package provider
 
 import (
@@ -65,6 +68,7 @@ func toRecord(
 		LastTestStatus:        item.LastTestStatus,
 		LastTestError:         item.LastTestError,
 		LastTestAt:            item.LastTestAt,
+		ConfigurationVersion:  item.ConfigurationVersion,
 		CanManage:             canManage,
 		AgentRuntimeSupported: isAgentRuntimeProvider(item),
 		Models:                models,

@@ -8,11 +8,12 @@ import (
 
 // HeartbeatConfig 表示持久化 heartbeat 配置。
 type HeartbeatConfig struct {
-	AgentID      string `json:"agent_id"`
-	Enabled      bool   `json:"enabled"`
-	EverySeconds int    `json:"every_seconds"`
-	TargetMode   string `json:"target_mode"`
-	AckMaxChars  int    `json:"ack_max_chars"`
+	AgentID              string `json:"agent_id"`
+	Enabled              bool   `json:"enabled"`
+	EverySeconds         int    `json:"every_seconds"`
+	TargetMode           string `json:"target_mode"`
+	AckMaxChars          int    `json:"ack_max_chars"`
+	ConfigurationVersion int64  `json:"configuration_version"`
 }
 
 // Validate 校验配置。
@@ -54,27 +55,29 @@ func (c HeartbeatConfig) Normalized() HeartbeatConfig {
 // DefaultHeartbeatConfig 返回默认 heartbeat 配置。
 func DefaultHeartbeatConfig(agentID string) HeartbeatConfig {
 	return HeartbeatConfig{
-		AgentID:      strings.TrimSpace(agentID),
-		Enabled:      false,
-		EverySeconds: 1800,
-		TargetMode:   HeartbeatTargetNone,
-		AckMaxChars:  300,
+		AgentID:              strings.TrimSpace(agentID),
+		Enabled:              false,
+		EverySeconds:         1800,
+		TargetMode:           HeartbeatTargetNone,
+		AckMaxChars:          300,
+		ConfigurationVersion: 0,
 	}
 }
 
 // HeartbeatStatus 表示运行态和配置快照。
 type HeartbeatStatus struct {
-	AgentID         string     `json:"agent_id"`
-	Enabled         bool       `json:"enabled"`
-	EverySeconds    int        `json:"every_seconds"`
-	TargetMode      string     `json:"target_mode"`
-	AckMaxChars     int        `json:"ack_max_chars"`
-	Running         bool       `json:"running"`
-	PendingWake     bool       `json:"pending_wake"`
-	NextRunAt       *time.Time `json:"next_run_at,omitempty"`
-	LastHeartbeatAt *time.Time `json:"last_heartbeat_at,omitempty"`
-	LastAckAt       *time.Time `json:"last_ack_at,omitempty"`
-	DeliveryError   *string    `json:"delivery_error,omitempty"`
+	AgentID              string     `json:"agent_id"`
+	Enabled              bool       `json:"enabled"`
+	EverySeconds         int        `json:"every_seconds"`
+	TargetMode           string     `json:"target_mode"`
+	AckMaxChars          int        `json:"ack_max_chars"`
+	Running              bool       `json:"running"`
+	PendingWake          bool       `json:"pending_wake"`
+	NextRunAt            *time.Time `json:"next_run_at,omitempty"`
+	LastHeartbeatAt      *time.Time `json:"last_heartbeat_at,omitempty"`
+	LastAckAt            *time.Time `json:"last_ack_at,omitempty"`
+	DeliveryError        *string    `json:"delivery_error,omitempty"`
+	ConfigurationVersion int64      `json:"configuration_version"`
 }
 
 // HeartbeatWakeResult 表示手动唤醒返回。

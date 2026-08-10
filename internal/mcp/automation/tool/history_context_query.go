@@ -1,3 +1,6 @@
+// INPUT: 当前会话、任务事件与历史搜索条件。
+// OUTPUT: 限定到当前外部会话的活动/已删除任务候选。
+// POS: 外部只读任务历史的防越权边界。
 package tool
 
 import (
@@ -56,7 +59,7 @@ func searchTaskHistoryForToolQuery(
 			}
 		}
 	}
-	if len(items) > 0 || mentionsCurrent {
+	if len(items) > 0 || mentionsCurrent || current.external {
 		return items, nil
 	}
 	return svc.SearchTaskHistory(ctx, input)
@@ -121,7 +124,7 @@ func requireDeletedCurrentConversationTaskHistoryScopeForQuery(
 	if err != nil {
 		return taskHistoryScope{}, true, err
 	}
-	if len(matches) == 0 && !queryMentionsCurrentConversation(query) {
+	if len(matches) == 0 && !queryMentionsCurrentConversation(query) && !current.external {
 		return taskHistoryScope{}, false, nil
 	}
 	switch len(matches) {

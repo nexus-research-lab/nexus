@@ -56,7 +56,7 @@ func TestCreateResolvesDeliveryFromReplyModeSelected(t *testing.T) {
 	}
 }
 
-func TestCreateCanDeliverToChannel(t *testing.T) {
+func TestCreateOwnerMainCanDeliverToArbitraryChannel(t *testing.T) {
 	tests := []struct {
 		name  string
 		input map[string]any
@@ -94,6 +94,7 @@ func TestCreateCanDeliverToChannel(t *testing.T) {
 				CurrentAgentID:    "agent-1",
 				CurrentSessionKey: "agent:agent-1:ws:dm:current",
 				SourceContextType: "agent",
+				IsMainAgent:       true,
 			}, "create_scheduled_task", input)
 			if isError {
 				t.Fatalf("unexpected error: %s", extractText(t, result))
@@ -104,6 +105,29 @@ func TestCreateCanDeliverToChannel(t *testing.T) {
 				t.Fatalf("expected explicit feishu delivery, got %+v", svc.createInput.Delivery)
 			}
 		})
+	}
+}
+
+func TestCreateOrdinaryAgentRejectsArbitraryChannel(t *testing.T) {
+	svc := &stubService{}
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: "agent:agent-1:ws:dm:current",
+		SourceContextType: "agent",
+	}, "create_scheduled_task", map[string]any{
+		"name":           "越界投递",
+		"instruction":    "把结果发到任意群",
+		"execution_mode": "temporary",
+		"reply_mode":     "channel",
+		"reply_channel":  "feishu",
+		"reply_to":       "oc_other_group",
+		"schedule":       dailySchedule("09:00"),
+	})
+	if !isError {
+		t.Fatalf("ordinary Agent arbitrary Channel delivery should fail: %+v", result)
+	}
+	if svc.createInput.AgentID != "" {
+		t.Fatalf("rejected delivery reached service: %+v", svc.createInput)
 	}
 }
 
@@ -167,12 +191,17 @@ func TestCreateCanDeliverToAgentInbox(t *testing.T) {
 
 func TestCreateCanDeriveDeliveryFromExternalSessionKey(t *testing.T) {
 	svc := &stubService{}
-	result, isError := callTool(t, svc, contract.ServerContext{CurrentAgentID: "agent-1"}, "create_scheduled_task", map[string]any{
+	sessionKey := "agent:agent-1:fs:group:oc_group_123"
+	result, isError := callTool(t, svc, contract.ServerContext{
+		CurrentAgentID:    "agent-1",
+		CurrentSessionKey: sessionKey,
+		SourceContextType: "agent",
+	}, "create_scheduled_task", map[string]any{
 		"name":                       "飞书群播报",
 		"instruction":                "搜索今天的重要新闻并整理摘要",
 		"execution_mode":             "temporary",
 		"reply_mode":                 "selected",
-		"selected_reply_session_key": "agent:agent-1:fs:group:oc_group_123",
+		"selected_reply_session_key": sessionKey,
 		"schedule":                   dailySchedule("09:00"),
 	})
 	if isError {
@@ -234,7 +263,14 @@ func TestCreateChannelReplyDefaultsMissingExecutionModeToTemporary(t *testing.T)
 
 func TestCreateChannelReplyFillsMissingTargetFromCurrentExternalSession(t *testing.T) {
 	svc := &stubService{}
-	sessionKey := "agent:agent-1:fs:group:oc_group_123"
+	sessionKey := protocol.BuildAgentAccountSessionKey(
+		"agent-1",
+		protocol.SessionChannelFeishu,
+		"group",
+		"chat_id",
+		"oc_group_123",
+		"",
+	)
 	result, isError := callTool(t, svc, contract.ServerContext{
 		CurrentAgentID:    "agent-1",
 		CurrentSessionKey: sessionKey,

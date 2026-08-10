@@ -1,3 +1,6 @@
+// INPUT: automation 配置、持久化连接、Agent/Room/投递依赖与 Session artifact 删除协调器。
+// OUTPUT: 调度、任务控制、heartbeat、运行态编排与 isolated Session tombstone 清理服务。
+// POS: automation 服务的依赖装配与进程内状态根。
 package automation
 
 import (
@@ -13,6 +16,7 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -50,12 +54,27 @@ type deliveryRouter interface {
 	DeliverMessage(context.Context, string, string, channels.DeliveryTarget) (channels.DeliveryResult, error)
 }
 
-type runtimeSessionCloser interface {
-	CloseSession(context.Context, string) error
-}
-
 type imagegenDefaultResolver interface {
 	ResolveImageConfig(context.Context, string) (*providercfg.ImageConfig, error)
+}
+
+type agentAuthority interface {
+	EnsureReady(context.Context) error
+	GetAgent(context.Context, string) (*protocol.Agent, error)
+}
+
+type connectorConnectionResolver interface {
+	LoadActiveConnection(context.Context, string, string) (*connectordomain.ConnectionSnapshot, error)
+}
+
+// ErrSessionArtifactDeletionCoordinatorUnavailable 表示 isolated Session 清理缺少统一协调器。
+var ErrSessionArtifactDeletionCoordinatorUnavailable = errors.New(
+	"Automation Session artifact 删除协调器未装配",
+)
+
+// SessionArtifactDeletionCoordinator 统一撤销 isolated Automation Session 的 runtime 与持久 artifact。
+type SessionArtifactDeletionCoordinator interface {
+	DeleteSessionArtifacts(context.Context, string, string, string, string) error
 }
 
 // TaskEventNotifier 接收定时任务变更事件。
@@ -75,26 +94,34 @@ func (fn TaskEventNotifierFunc) NotifyTaskEvent(ctx context.Context, event autom
 
 // Service 提供 scheduled tasks 与 heartbeat 的真实业务能力。
 type Service struct {
-	config        config.Config
-	repository    *automationstore.Repository
-	agents        *agentsvc.Service
-	dm            dmRunner
-	room          roomRunner
-	permission    *permissionctx.Context
-	providers     imagegenDefaultResolver
-	workspace     workspaceReader
-	delivery      deliveryRouter
-	logger        *slog.Logger
-	sessionCloser runtimeSessionCloser
-	taskNotifier  TaskEventNotifier
+	config           config.Config
+	repository       *automationstore.Repository
+	agents           agentAuthority
+	dm               dmRunner
+	room             roomRunner
+	permission       *permissionctx.Context
+	providers        imagegenDefaultResolver
+	connectors       connectorConnectionResolver
+	workspace        workspaceReader
+	delivery         deliveryRouter
+	logger           *slog.Logger
+	sessionArtifacts SessionArtifactDeletionCoordinator
+	taskNotifier     TaskEventNotifier
 
 	nowFn     func() time.Time
 	idFactory func(string) string
 
+	// taskControlMu serializes human-control-plane changes with Agent-initiated
+	// task mutations/runs so the script capability check and the real action
+	// observe one process-local task-control order.
+	taskControlMu         sync.Mutex
+	heartbeatControlMu    sync.Mutex
 	mu                    sync.Mutex
 	jobStates             map[string]*automationexec.JobRuntimeState
 	heartbeatState        map[string]*automationexec.HeartbeatRuntimeState
 	wakeRequests          map[string][]automationexec.HeartbeatWakeRequest
+	attemptMu             sync.Mutex
+	physicalAttempts      map[physicalAttemptKey]*physicalAttempt
 	deliveryRetryRunning  bool
 	schedulerOwnerID      string
 	schedulerLeaseHeld    bool
@@ -115,10 +142,14 @@ func NewService(
 	workspace workspaceReader,
 	delivery deliveryRouter,
 ) *Service {
+	var authority agentAuthority
+	if agents != nil {
+		authority = agents
+	}
 	return &Service{
 		config:           cfg,
 		repository:       automationstore.NewRepository(cfg, db),
-		agents:           agents,
+		agents:           authority,
 		dm:               dm,
 		room:             room,
 		permission:       permission,
@@ -143,14 +174,21 @@ func (s *Service) SetLogger(logger *slog.Logger) {
 	s.logger = logger
 }
 
-// SetRuntimeSessionCloser 注入运行时会话关闭器，用于清理 isolated 自动化会话。
-func (s *Service) SetRuntimeSessionCloser(sessionCloser runtimeSessionCloser) {
-	s.sessionCloser = sessionCloser
+// SetSessionArtifactDeletionCoordinator 注入 isolated Session 的统一删除协调器。
+func (s *Service) SetSessionArtifactDeletionCoordinator(
+	coordinator SessionArtifactDeletionCoordinator,
+) {
+	s.sessionArtifacts = coordinator
 }
 
 // SetProviderResolver 注入 Provider 解析器，用于判断后台运行时是否可默认开放图片生成工具。
 func (s *Service) SetProviderResolver(resolver imagegenDefaultResolver) {
 	s.providers = resolver
+}
+
+// SetConnectorResolver 注入 connector 连接检查器；授权和 OAuth readiness 保持独立判定。
+func (s *Service) SetConnectorResolver(resolver connectorConnectionResolver) {
+	s.connectors = resolver
 }
 
 func (s *Service) runtimeImagegenDefaultEnabled(ctx context.Context) bool {

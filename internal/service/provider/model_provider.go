@@ -1,6 +1,10 @@
+// INPUT: Provider、模型、测试、patch 与删除操作的领域数据。
+// OUTPUT: JSON 服务契约，包括 Provider configuration_version。
+// POS: Provider 服务模型真相源。
 package provider
 
 import (
+	"strings"
 	"time"
 )
 
@@ -54,6 +58,7 @@ type Record struct {
 	LastTestStatus        string        `json:"last_test_status"`
 	LastTestError         string        `json:"last_test_error"`
 	LastTestAt            *time.Time    `json:"last_test_at,omitempty"`
+	ConfigurationVersion  int64         `json:"configuration_version"`
 	CanManage             bool          `json:"can_manage"`
 	AgentRuntimeSupported bool          `json:"agent_runtime_supported"`
 	Models                []ModelRecord `json:"models"`
@@ -107,6 +112,34 @@ type OptionsResponse struct {
 	ImageItems            []Option        `json:"image_items"`
 }
 
+// HasConfiguredImageSelection 判断默认或用户选择的图片模型是否仍在当前可用目录中。
+func (r *OptionsResponse) HasConfiguredImageSelection(provider string, model string) bool {
+	if r == nil {
+		return false
+	}
+	if r.DefaultImageProvider != nil && r.DefaultImageModel != nil &&
+		strings.TrimSpace(*r.DefaultImageProvider) != "" &&
+		strings.TrimSpace(*r.DefaultImageModel) != "" {
+		return true
+	}
+	targetProvider := strings.TrimSpace(provider)
+	targetModel := strings.TrimSpace(model)
+	if targetProvider == "" || targetModel == "" {
+		return false
+	}
+	for _, item := range r.ImageItems {
+		if strings.TrimSpace(item.Provider) != targetProvider {
+			continue
+		}
+		for _, option := range item.Models {
+			if strings.TrimSpace(option.ModelID) == targetModel {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // CreateInput 表示新增 Provider 配置的输入。
 type CreateInput struct {
 	ProviderKind string `json:"provider_kind"`
@@ -131,6 +164,18 @@ type UpdateInput struct {
 	BaseURL      string  `json:"base_url"`
 	ModelsPath   string  `json:"models_path"`
 	Enabled      bool    `json:"enabled"`
+}
+
+// PatchInput 表示不会展开或覆盖未声明字段的 Provider merge patch。
+type PatchInput struct {
+	ProviderKind *string `json:"provider_kind,omitempty"`
+	PresetKey    *string `json:"preset_key,omitempty"`
+	APIFormat    *string `json:"api_format,omitempty"`
+	DisplayName  *string `json:"display_name,omitempty"`
+	AuthToken    *string `json:"auth_token,omitempty"`
+	BaseURL      *string `json:"base_url,omitempty"`
+	ModelsPath   *string `json:"models_path,omitempty"`
+	Enabled      *bool   `json:"enabled,omitempty"`
 }
 
 // DeleteInput 表示删除 Provider 的行为选项。

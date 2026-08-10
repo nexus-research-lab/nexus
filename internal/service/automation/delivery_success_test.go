@@ -151,7 +151,7 @@ func TestServiceRunTaskNowDeliversToAgentAutomationInbox(t *testing.T) {
 	)
 
 	inboxKey := protocol.BuildAgentSessionKey(
-		"agent-2",
+		"agent-1",
 		protocol.SessionChannelInternalSegment,
 		"dm",
 		protocol.AutomationInboxSessionRef,
@@ -200,7 +200,7 @@ func TestServiceRunTaskNowDeliversToAgentAutomationInbox(t *testing.T) {
 	if sessionValue == nil {
 		t.Fatal("投递到智能体时应自动创建定时任务收件箱")
 	}
-	if sessionValue.AgentID != "agent-2" {
+	if sessionValue.AgentID != "agent-1" {
 		t.Fatalf("收件箱应归属目标智能体，实际 %+v", sessionValue)
 	}
 	if sessionValue.Title != "定时任务收件箱" || sessionValue.ChannelType != protocol.SessionChannelInternalSegment {
@@ -247,7 +247,7 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 		DefaultTimezone:     "Asia/Shanghai",
 	}
 	inboxKey := protocol.BuildAgentSessionKey(
-		"agent-2",
+		"agent-1",
 		protocol.SessionChannelInternalSegment,
 		"dm",
 		protocol.AutomationInboxSessionRef,
@@ -260,7 +260,7 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 		"execution_mode":    "dedicated",
 		"named_session_key": "news-search",
 		"reply_mode":        "agent",
-		"reply_agent_id":    "agent-2",
+		"reply_agent_id":    "agent-1",
 		"schedule": map[string]any{
 			"kind":       "daily",
 			"daily_time": "09:00",
@@ -311,7 +311,7 @@ func TestAutomationMCPCreateRunAndInspectDeliversToAgentInbox(t *testing.T) {
 	if sessionValue == nil {
 		t.Fatal("MCP 创建并运行后应自动创建目标智能体收件箱")
 	}
-	if sessionValue.AgentID != "agent-2" {
+	if sessionValue.AgentID != "agent-1" {
 		t.Fatalf("MCP 投递收件箱应归属目标智能体，实际 %+v", sessionValue)
 	}
 	assertDeliveredAgentMessage(t, workspacePath, *sessionValue, "今日新闻摘要", "MCP 智能体收件箱")

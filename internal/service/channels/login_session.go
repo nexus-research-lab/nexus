@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 )
@@ -9,12 +10,19 @@ import (
 func (s *channelLoginSession) snapshot() ChannelLoginView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	view := s.view
-	if s.view.FinishedAt != nil {
-		finishedAt := *s.view.FinishedAt
-		view.FinishedAt = &finishedAt
+	return cloneChannelLoginView(s.view)
+}
+
+func (s *channelLoginSession) authorizationCommitRequest() ChannelLoginAuthorizationCommit {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return ChannelLoginAuthorizationCommit{
+		OwnerUserID:          s.ownerUserID,
+		ChannelType:          s.channelType,
+		LoginID:              s.view.LoginID,
+		AuthorizationBinding: s.authorizationBinding,
+		StartControlVersion:  s.view.StartControlVersion,
 	}
-	return view
 }
 
 func (s *channelLoginSession) appendOutput(output string) {
@@ -31,6 +39,9 @@ func (s *channelLoginSession) finish(status string, errorMessage string) {
 	now := time.Now()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if !channelLoginIsActive(s.view.Status) {
+		return
+	}
 	s.view.Status = status
 	s.view.Error = strings.TrimSpace(errorMessage)
 	if s.view.Error != "" && !strings.Contains(s.view.Output, s.view.Error) {
@@ -38,10 +49,16 @@ func (s *channelLoginSession) finish(status string, errorMessage string) {
 	}
 	s.view.UpdatedAt = now
 	s.view.FinishedAt = &now
+	s.committing = false
+	s.verifyCode = ""
 }
 
 func (s *channelLoginSession) waitVerifyCode(ctx context.Context) (string, error) {
 	s.mu.Lock()
+	if s.cancelRequested || !channelLoginIsActive(s.view.Status) {
+		s.mu.Unlock()
+		return "", context.Canceled
+	}
 	s.view.Status = ChannelLoginStatusVerifyCodeRequired
 	s.view.VerifyCodeHint = "输入手机微信显示的数字，以继续连接"
 	s.view.UpdatedAt = time.Now()
@@ -55,8 +72,12 @@ func (s *channelLoginSession) waitVerifyCode(ctx context.Context) (string, error
 	}
 }
 
-func (s *channelLoginSession) submitVerifyCode(code string) {
+func (s *channelLoginSession) submitVerifyCode(code string) error {
 	s.mu.Lock()
+	if s.cancelRequested || s.view.Status != ChannelLoginStatusVerifyCodeRequired {
+		s.mu.Unlock()
+		return ErrChannelLoginState
+	}
 	s.verifyCode = strings.TrimSpace(code)
 	s.view.Status = ChannelLoginStatusRunning
 	s.view.VerifyCodeHint = ""
@@ -67,6 +88,7 @@ func (s *channelLoginSession) submitVerifyCode(code string) {
 	case s.verifyCh <- struct{}{}:
 	default:
 	}
+	return nil
 }
 
 func (s *channelLoginSession) setVerifyCode(code string) {
@@ -88,6 +110,98 @@ func (s *channelLoginSession) setAccount(accountID string, userID string) {
 	defer s.mu.Unlock()
 	s.view.AccountID = strings.TrimSpace(accountID)
 	s.view.UserID = strings.TrimSpace(userID)
+}
+
+func (s *channelLoginSession) setCommittedControlVersion(version int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.view.CommittedControlVersion = version
+}
+
+func (s *channelLoginSession) claimCompletion() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cancelRequested || s.committing || !channelLoginIsActive(s.view.Status) {
+		return false
+	}
+	s.committing = true
+	return true
+}
+
+func (s *channelLoginSession) releaseCompletion() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.committing = false
+}
+
+func (s *channelLoginSession) setCancel(cancel context.CancelFunc) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cancel = cancel
+}
+
+func (s *channelLoginSession) cancelLogin() (ChannelLoginView, error) {
+	s.mu.Lock()
+	if !channelLoginIsActive(s.view.Status) {
+		view := cloneChannelLoginView(s.view)
+		s.mu.Unlock()
+		return view, nil
+	}
+	if s.committing {
+		view := cloneChannelLoginView(s.view)
+		s.mu.Unlock()
+		return view, errors.New("channel login completion is already committing")
+	}
+	s.cancelRequested = true
+	cancel := s.cancel
+	now := time.Now()
+	s.view.Status = ChannelLoginStatusCancelled
+	s.view.Error = ""
+	s.view.Output = trimChannelLoginOutput(s.view.Output + "扫码授权已取消。\n")
+	s.view.UpdatedAt = now
+	s.view.FinishedAt = &now
+	s.verifyCode = ""
+	view := cloneChannelLoginView(s.view)
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	return view, nil
+}
+
+func (s *channelLoginSession) markDone() {
+	if s == nil {
+		return
+	}
+	s.doneOnce.Do(func() {
+		if s.done != nil {
+			close(s.done)
+		}
+	})
+}
+
+func (s *channelLoginSession) waitDone(ctx context.Context) error {
+	if s == nil || s.done == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.done:
+		return nil
+	}
+}
+
+func cloneChannelLoginView(value ChannelLoginView) ChannelLoginView {
+	result := value
+	if value.FinishedAt != nil {
+		finishedAt := *value.FinishedAt
+		result.FinishedAt = &finishedAt
+	}
+	return result
 }
 
 func trimChannelLoginOutput(output string) string {

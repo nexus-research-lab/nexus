@@ -4,6 +4,7 @@ import {
   type UnknownRecord,
 } from "@/lib/unknown-value";
 import type {
+  ConfigurationSecretSlot,
   PendingPermission,
   PermissionInteractionMode,
   PermissionRiskLevel,
@@ -41,6 +42,9 @@ export function decodePermissionRequest(
     request_id: requestId,
     tool_name: toolName,
     tool_input: readToolInput(event.data.tool_input),
+    configuration_secret_slots: readConfigurationSecretSlots(
+      event.data.configuration_secret_slots,
+    ),
     session_key: readEventSessionKey(event),
     agent_id: readEventScope(event, "agent_id"),
     message_id: readEventScope(event, "message_id"),
@@ -114,6 +118,26 @@ function readToolInput(value: unknown): UnknownRecord {
 function readPermissionSuggestions(value: unknown): PermissionUpdate[] {
   const suggestions = Array.isArray(value) ? value : [];
   return suggestions.filter(isPermissionUpdate);
+}
+
+function readConfigurationSecretSlots(
+  value: unknown,
+): ConfigurationSecretSlot[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const seen = new Set<string>();
+  const slots = value.flatMap((candidate) => {
+    const record = asUnknownRecord(candidate);
+    const id = record ? readString(record, "id")?.trim() : "";
+    const path = record ? readString(record, "path")?.trim() : "";
+    if (!id || !path || seen.has(id)) {
+      return [];
+    }
+    seen.add(id);
+    return [{ id, path }];
+  });
+  return slots.length > 0 ? slots : undefined;
 }
 
 function isPermissionUpdate(value: unknown): value is PermissionUpdate {

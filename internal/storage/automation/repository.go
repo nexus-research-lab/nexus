@@ -10,16 +10,17 @@ import (
 
 // Repository 封装自动化任务与 heartbeat 的 SQL 读写。
 type Repository struct {
-	db                         *sql.DB
-	isPostgres                 bool
-	dialect                    storage.SQLDialect
-	upsertScheduledTaskQuery   string
-	insertRunPendingQuery      string
-	markRunRunningQuery        string
-	markRunFinishedQuery       string
-	upsertHeartbeatStateQuery  string
-	insertSystemEventQuery     string
-	markSystemEventStatusQuery string
+	db                           *sql.DB
+	isPostgres                   bool
+	dialect                      storage.SQLDialect
+	upsertScheduledTaskQuery     string
+	insertRunPendingQuery        string
+	markRunRunningQuery          string
+	markRunFinishedQuery         string
+	upsertHeartbeatStateQuery    string
+	persistHeartbeatRuntimeQuery string
+	insertSystemEventQuery       string
+	markSystemEventStatusQuery   string
 }
 
 const upsertScheduledTaskQueryTemplate = `
@@ -54,6 +55,10 @@ INSERT INTO automation_scheduled_tasks (
     overlap_policy,
     expires_at,
     enabled,
+    permission_policy_json,
+    permission_policy_revision,
+    permission_state,
+    pending_permission_request_id,
     created_at,
     updated_at
 ) VALUES (
@@ -89,6 +94,11 @@ ON CONFLICT(job_id) DO UPDATE SET
     overlap_policy = EXCLUDED.overlap_policy,
     expires_at = EXCLUDED.expires_at,
     enabled = EXCLUDED.enabled,
+    configuration_version = automation_scheduled_tasks.configuration_version + 1,
+    permission_policy_json = EXCLUDED.permission_policy_json,
+    permission_policy_revision = EXCLUDED.permission_policy_revision,
+    permission_state = EXCLUDED.permission_state,
+    pending_permission_request_id = EXCLUDED.pending_permission_request_id,
     updated_at = CURRENT_TIMESTAMP`
 
 // NewRepository 创建自动化仓储。
@@ -98,7 +108,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 		dialect:    storage.NewSQLDialect(cfg.DatabaseDriver),
 	}
-	repository.upsertScheduledTaskQuery = fmt.Sprintf(upsertScheduledTaskQueryTemplate, repository.bindList(30))
+	repository.upsertScheduledTaskQuery = fmt.Sprintf(upsertScheduledTaskQueryTemplate, repository.bindList(34))
 	repository.insertRunPendingQuery = fmt.Sprintf(
 		`INSERT INTO automation_task_runs (
     run_id,
@@ -113,16 +123,21 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
     delivery_status,
     scheduled_for,
     attempts,
+    permission_policy_revision,
     created_at,
     updated_at
 ) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-		repository.bindList(12),
+		repository.bindList(13),
 	)
 	repository.markRunRunningQuery = fmt.Sprintf(
 		`UPDATE automation_task_runs
 SET status = %s,
     started_at = %s,
     attempts = attempts + 1,
+    block_state = '',
+    blocked_request_id = NULL,
+    finished_at = NULL,
+    error_message = NULL,
     updated_at = CURRENT_TIMESTAMP
 WHERE run_id = %s`,
 		repository.bind(1), repository.bind(2), repository.bind(3),
@@ -145,6 +160,8 @@ SET status = %s,
     delivery_attempts = delivery_attempts + CASE WHEN %s THEN 1 ELSE 0 END,
     delivery_next_attempt_at = %s,
     delivery_dead_letter_at = %s,
+    block_state = '',
+    blocked_request_id = NULL,
     updated_at = CURRENT_TIMESTAMP
 WHERE run_id = %s`,
 		repository.bind(1), repository.bind(2), repository.bind(3), repository.bind(4), repository.bind(5), repository.bind(6), repository.bind(7), repository.bind(8), repository.bind(9), repository.bind(10), repository.bind(11), repository.bind(12), repository.bind(13), repository.bind(14), repository.bind(15), repository.bind(16), repository.bind(17),
@@ -167,6 +184,24 @@ ON CONFLICT(agent_id) DO UPDATE SET
     every_seconds = EXCLUDED.every_seconds,
     target_mode = EXCLUDED.target_mode,
     ack_max_chars = EXCLUDED.ack_max_chars,
+    configuration_version = automation_heartbeat_states.configuration_version + 1,
+    updated_at = CURRENT_TIMESTAMP`,
+		repository.bindList(8),
+	)
+	repository.persistHeartbeatRuntimeQuery = fmt.Sprintf(
+		`INSERT INTO automation_heartbeat_states (
+    state_id,
+    agent_id,
+    enabled,
+    every_seconds,
+    target_mode,
+    ack_max_chars,
+    last_heartbeat_at,
+    last_ack_at,
+    created_at,
+    updated_at
+) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+ON CONFLICT(agent_id) DO UPDATE SET
     last_heartbeat_at = EXCLUDED.last_heartbeat_at,
     last_ack_at = EXCLUDED.last_ack_at,
     updated_at = CURRENT_TIMESTAMP`,

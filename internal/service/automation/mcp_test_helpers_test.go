@@ -3,7 +3,9 @@ package automation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/nexus-research-lab/nexus/internal/config"
@@ -14,6 +16,8 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	"github.com/nexus-research-lab/nexus/internal/service/channels"
 )
+
+var automationMCPRequestSequence atomic.Uint64
 
 type automationMCPFixture struct {
 	WorkspacePath string
@@ -77,6 +81,19 @@ func callAutomationMCPTool(
 	args map[string]any,
 ) (map[string]any, bool) {
 	t.Helper()
+	if name == "create_scheduled_task" {
+		if args == nil {
+			args = map[string]any{}
+		}
+		requestID, hasRequestID := args["request_id"]
+		if !hasRequestID || strings.TrimSpace(fmt.Sprint(requestID)) == "" {
+			args["request_id"] = fmt.Sprintf(
+				"test-%s-%d",
+				strings.ReplaceAll(t.Name(), "/", "-"),
+				automationMCPRequestSequence.Add(1),
+			)
+		}
+	}
 	server := automationmcp.NewServer(service, sctx)
 	resp, err := server.HandleMessage(context.Background(), map[string]any{
 		"jsonrpc": "2.0",

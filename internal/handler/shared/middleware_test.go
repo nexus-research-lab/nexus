@@ -80,6 +80,77 @@ func TestAccessLogMiddlewareRedactsSensitiveQueryValues(t *testing.T) {
 	}
 }
 
+func TestAccessLogMiddlewareNeverLogsOAuthCallbackSecrets(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		keys []string
+	}{
+		{
+			name: "provider callback",
+			path: "/capability/connectors/oauth/callback?" +
+				"code=oauth-code-plain&state=oauth-state-plain&limit=10",
+			keys: []string{"code", "state"},
+		},
+		{
+			name: "desktop callback entry",
+			path: "/oauth-callback.html?" +
+				"desktop_route=%2Fcapability%2Fconnectors%2Foauth%2Fcallback" +
+				"%3Fcode%3Dnested-oauth-code%26state%3Dnested-oauth-state",
+			keys: []string{"desktop_route"},
+		},
+		{
+			name: "case insensitive callback keys",
+			path: "/capability/connectors/oauth/callback?" +
+				"Code=upper-oauth-code&STATE=upper-oauth-state",
+			keys: []string{"Code", "STATE"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var buffer bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(
+				&buffer,
+				&slog.HandlerOptions{Level: slog.LevelDebug},
+			))
+			handler := RequestContextMiddleware(logger)(
+				AccessLogMiddleware()(http.HandlerFunc(
+					func(writer http.ResponseWriter, request *http.Request) {
+						writer.WriteHeader(http.StatusFound)
+					},
+				)),
+			)
+
+			request := httptest.NewRequest(http.MethodGet, test.path, nil)
+			handler.ServeHTTP(httptest.NewRecorder(), request)
+
+			output := buffer.String()
+			for _, secret := range []string{
+				"oauth-code-plain",
+				"oauth-state-plain",
+				"nested-oauth-code",
+				"nested-oauth-state",
+				"upper-oauth-code",
+				"upper-oauth-state",
+			} {
+				if strings.Contains(output, secret) {
+					t.Fatalf("access log 泄露 OAuth callback secret %q: %s", secret, output)
+				}
+			}
+			for _, key := range test.keys {
+				if !strings.Contains(output, key+"=%5Bredacted%5D") {
+					t.Fatalf("access log 未脱敏 callback 参数 %s: %s", key, output)
+				}
+			}
+			if strings.Contains(test.path, "limit=10") &&
+				!strings.Contains(output, "limit=10") {
+				t.Fatalf("access log 不应移除非敏感 callback 参数: %s", output)
+			}
+		})
+	}
+}
+
 func TestAccessLogMiddlewareDemotesSuccessfulGetAtInfoLevel(t *testing.T) {
 	var buffer bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{Level: slog.LevelInfo}))

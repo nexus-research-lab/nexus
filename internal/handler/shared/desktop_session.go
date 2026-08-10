@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 )
 
@@ -54,7 +55,11 @@ func DesktopSessionTokenMiddleware(api *API, token string, apiPrefix string) fun
 				api.WriteFailure(writer, http.StatusUnauthorized, "桌面会话 token 无效")
 				return
 			}
-			next.ServeHTTP(writer, request)
+			ctx := authctx.WithInteractiveHumanEvidence(
+				request.Context(),
+				"desktop_session_token",
+			)
+			next.ServeHTTP(writer, request.WithContext(ctx))
 		})
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -30,33 +31,42 @@ type RouteContext struct {
 
 // PendingRequest 表示一个会阻塞 runtime、等待用户响应的请求。
 type PendingRequest struct {
-	RequestID          string
-	SessionKey         string
-	DispatchSessionKey string
-	ToolName           string
-	ToolInput          map[string]any
-	ToolUseID          string
-	Suggestions        []sdkpermission.Update
-	CreatedAt          time.Time
-	Route              RouteContext
-	ResponseCh         chan sdkpermission.Decision
-	finalizeOnce       sync.Once
+	RequestID                string
+	SessionKey               string
+	DispatchSessionKey       string
+	ToolName                 string
+	ToolInput                map[string]any
+	ConfigurationSecretSlots []secretinput.Slot
+	ToolUseID                string
+	Suggestions              []sdkpermission.Update
+	CreatedAt                time.Time
+	ExpiresAt                time.Time
+	Route                    RouteContext
+	ResponseCh               chan sdkpermission.Decision
+	finalizeOnce             sync.Once
 }
 
 func (c *Context) newPendingRequest(sessionKey string, request sdkpermission.Request) *PendingRequest {
 	route := c.resolveRouteContext(sessionKey)
 	now := time.Now()
+	toolName := strings.TrimSpace(request.ToolName)
+	toolInput := secretinput.RedactConfigurationToolInput(toolName, request.Input)
 	return &PendingRequest{
 		RequestID:          fmt.Sprintf("perm_%d", now.UnixNano()),
 		SessionKey:         sessionKey,
 		DispatchSessionKey: firstNonEmpty(route.DispatchSessionKey, sessionKey),
-		ToolName:           strings.TrimSpace(request.ToolName),
-		ToolInput:          cloneMap(request.Input),
-		ToolUseID:          strings.TrimSpace(request.ToolUseID),
-		Suggestions:        slices.Clone(request.PermissionSuggestions),
-		CreatedAt:          now,
-		Route:              route,
-		ResponseCh:         make(chan sdkpermission.Decision, 1),
+		ToolName:           toolName,
+		ToolInput:          toolInput,
+		ConfigurationSecretSlots: secretinput.SlotsFromToolInput(
+			toolName,
+			toolInput,
+		),
+		ToolUseID:   strings.TrimSpace(request.ToolUseID),
+		Suggestions: slices.Clone(request.PermissionSuggestions),
+		CreatedAt:   now,
+		ExpiresAt:   now.Add(c.requestTimeout),
+		Route:       route,
+		ResponseCh:  make(chan sdkpermission.Decision, 1),
 	}
 }
 
@@ -167,11 +177,50 @@ func (c *Context) finalizeRequest(pending *PendingRequest, status string) {
 }
 
 func (c *Context) buildPermissionDecision(
+	ctx context.Context,
 	pending *PendingRequest,
 	message map[string]any,
 ) sdkpermission.Decision {
 	decision := strings.TrimSpace(normalizeString(message["decision"]))
+	configurationSecrets := normalizeConfigurationSecrets(message["configuration_secrets"])
+	delete(message, "configuration_secrets")
+	defer clear(configurationSecrets)
 	if decision == "allow" {
+		if isRecordedHumanApprovalTool(pending.ToolName) {
+			c.mu.RLock()
+			recorder := c.approvalRecorder
+			c.mu.RUnlock()
+			if recorder == nil {
+				return sdkpermission.Deny(
+					"高风险控制面未装配人工批准记录器；本次操作已拒绝",
+					false,
+				)
+			}
+			err := recorder.RecordHumanToolApproval(ctx, HumanToolApproval{
+				PermissionRequestID:  pending.RequestID,
+				ToolName:             pending.ToolName,
+				ToolInput:            cloneMap(pending.ToolInput),
+				ConfigurationSecrets: configurationSecrets,
+				ConfigurationSecretSlots: slices.Clone(
+					pending.ConfigurationSecretSlots,
+				),
+				RuntimeSessionKey:  pending.SessionKey,
+				DispatchSessionKey: pending.DispatchSessionKey,
+				Route:              pending.Route,
+				ExpiresAt:          pending.ExpiresAt,
+			})
+			if err != nil {
+				return sdkpermission.Deny(
+					"批准意图、权限或版本已经变化；请重新检查后再确认",
+					false,
+				)
+			}
+		} else if len(configurationSecrets) != 0 {
+			return sdkpermission.Deny(
+				"该操作未声明安全配置输入；已拒绝额外 secret",
+				false,
+			)
+		}
 		updatedInput := cloneMap(pending.ToolInput)
 		if pending.ToolName == "AskUserQuestion" {
 			if answers := buildQuestionAnswers(
@@ -190,6 +239,30 @@ func (c *Context) buildPermissionDecision(
 		firstNonEmpty(normalizeString(message["message"]), "User denied permission"),
 		normalizeBool(message["interrupt"]),
 	)
+}
+
+func normalizeConfigurationSecrets(value any) map[string]string {
+	raw, ok := value.(map[string]any)
+	if !ok || len(raw) == 0 || len(raw) > 32 {
+		return nil
+	}
+	result := make(map[string]string, len(raw))
+	total := 0
+	for key, item := range raw {
+		key = strings.TrimSpace(key)
+		text, textOK := item.(string)
+		if !textOK || key == "" || len(key) > 64 || len(text) > 64<<10 {
+			clear(result)
+			return nil
+		}
+		total += len(text)
+		if total > 256<<10 {
+			clear(result)
+			return nil
+		}
+		result[key] = text
+	}
+	return result
 }
 
 func buildPermissionEvent(pending *PendingRequest) protocol.EventMessage {

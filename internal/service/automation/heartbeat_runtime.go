@@ -47,8 +47,49 @@ func (s *Service) ensureHeartbeatState(ctx context.Context, agentID string) (*au
 	}
 
 	s.mu.Lock()
+	if existing := s.heartbeatState[state.Config.AgentID]; existing != nil {
+		s.mu.Unlock()
+		return existing, nil
+	}
 	s.heartbeatState[state.Config.AgentID] = state
 	s.mu.Unlock()
+	return state, nil
+}
+
+func (s *Service) refreshHeartbeatState(ctx context.Context, agentID string) (*automationexec.HeartbeatRuntimeState, error) {
+	agentID = strings.TrimSpace(agentID)
+	configValue, lastHeartbeatAt, lastAckAt, err := s.repository.GetHeartbeatState(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+	if configValue == nil {
+		return s.ensureHeartbeatState(ctx, agentID)
+	}
+	normalized, deliveryError := sanitizeHeartbeatConfig(configValue.Normalized())
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state := s.heartbeatState[agentID]
+	if state == nil {
+		state = &automationexec.HeartbeatRuntimeState{
+			Config:          normalized,
+			NextRunAt:       s.computeHeartbeatNext(normalized, s.nowFn()),
+			LastHeartbeatAt: cloneTimePointer(lastHeartbeatAt),
+			LastAckAt:       cloneTimePointer(lastAckAt),
+			DeliveryError:   cloneStringPointer(deliveryError),
+		}
+		s.heartbeatState[agentID] = state
+		return state, nil
+	}
+	if normalized.ConfigurationVersion > state.Config.ConfigurationVersion {
+		state.Config = normalized
+		state.NextRunAt = s.computeHeartbeatNext(normalized, s.nowFn())
+		state.LastHeartbeatAt = cloneTimePointer(lastHeartbeatAt)
+		state.LastAckAt = cloneTimePointer(lastAckAt)
+		state.DeliveryError = cloneStringPointer(deliveryError)
+		if !normalized.Enabled {
+			state.PendingWake = false
+		}
+	}
 	return state, nil
 }
 
@@ -85,7 +126,7 @@ func (s *Service) finishHeartbeatRuntime(agentID string, startedAt *time.Time, a
 	s.mu.Unlock()
 
 	if configValue.AgentID != "" {
-		_ = s.repository.UpsertHeartbeatState(context.Background(), s.idFactory("hb"), configValue, lastHeartbeatAt, lastAckAt)
+		_ = s.repository.PersistHeartbeatRuntimeState(context.Background(), s.idFactory("hb"), configValue, lastHeartbeatAt, lastAckAt)
 	}
 }
 
@@ -116,7 +157,7 @@ func (s *Service) persistHeartbeatTimes(ctx context.Context, agentID string, las
 	if !ok {
 		return errors.New("heartbeat state not found")
 	}
-	return s.repository.UpsertHeartbeatState(ctx, s.idFactory("hb"), snapshot.Config, lastHeartbeatAt, lastAckAt)
+	return s.repository.PersistHeartbeatRuntimeState(ctx, s.idFactory("hb"), snapshot.Config, lastHeartbeatAt, lastAckAt)
 }
 
 func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode string, text *string) {
@@ -133,6 +174,26 @@ func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode 
 	if state := s.heartbeatState[request.AgentID]; state != nil {
 		state.PendingWake = true
 	}
+}
+
+// wakeHeartbeatForSystemEvent 只唤醒事件消费者，不额外生成一条通用 wake request。
+func (s *Service) wakeHeartbeatForSystemEvent(ctx context.Context, agentID string, mode string) error {
+	state, err := s.ensureHeartbeatState(ctx, strings.TrimSpace(agentID))
+	if err != nil {
+		return err
+	}
+	mode = normalizedWakeMode(mode)
+	if mode != automationdomain.WakeModeNow && mode != automationdomain.WakeModeNextHeartbeat {
+		return errors.New("mode must be one of now, next-heartbeat")
+	}
+	s.mu.Lock()
+	running := state.Running
+	state.PendingWake = true
+	s.mu.Unlock()
+	if mode == automationdomain.WakeModeNow && !running {
+		s.dispatchHeartbeat(state.Config.AgentID, "system-event")
+	}
+	return nil
 }
 
 func (s *Service) hasImmediateWakeRequestLocked(agentID string) bool {

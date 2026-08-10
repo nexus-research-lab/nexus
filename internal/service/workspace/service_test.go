@@ -128,14 +128,6 @@ func TestServiceManagesWorkspaceFiles(t *testing.T) {
 			t.Fatalf("nexusctl shim 不应再运行期多路径 fallback: %s", shimPayload)
 		}
 	}
-	nexusctlCmdShim := filepath.Join(sharedBinDir, "nexusctl.cmd")
-	cmdPayload, err := os.ReadFile(nexusctlCmdShim)
-	if err != nil {
-		t.Fatalf("Windows nexusctl shim 未生成: %v", err)
-	}
-	if !strings.Contains(string(cmdPayload), "go run ./cmd/nexusctl") {
-		t.Fatalf("Windows nexusctl shim 应固定到源码入口: %s", cmdPayload)
-	}
 	if _, err = os.Stat(filepath.Join(agentValue.WorkspacePath, ".agents", "bin", "nexusctl")); !os.IsNotExist(err) {
 		t.Fatalf("agent workspace 不应生成独立 nexusctl shim: %v", err)
 	}

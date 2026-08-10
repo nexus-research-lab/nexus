@@ -176,15 +176,15 @@ func removeWorkspaceBinShim(root *confinedfs.Root) error {
 		if statErr != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			continue
 		}
-		file, err := binRoot.OpenFileNoSymlink(fileName, os.O_RDONLY, 0)
-		if os.IsNotExist(err) {
+		file, openErr := binRoot.OpenFileNoSymlink(fileName, os.O_RDONLY, 0)
+		if os.IsNotExist(openErr) {
 			continue
 		}
-		if err != nil {
-			if errors.Is(err, confinedfs.ErrSymlink) || errors.Is(err, confinedfs.ErrHardlink) {
+		if openErr != nil {
+			if errors.Is(openErr, confinedfs.ErrSymlink) || errors.Is(openErr, confinedfs.ErrHardlink) {
 				continue
 			}
-			return err
+			return openErr
 		}
 		content, readErr := io.ReadAll(file)
 		closeErr := file.Close()

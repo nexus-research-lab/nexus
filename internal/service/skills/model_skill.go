@@ -1,3 +1,6 @@
+// INPUT: Skill frontmatter、来源元数据与目标 Agent 的目录状态。
+// OUTPUT: 列表/详情模型以及绑定 runtime_version 的 AgentSkillState。
+// POS: Skills 服务跨目录、HTTP 与配置控制面共享的协议模型。
 package skills
 
 import (
@@ -40,7 +43,13 @@ const (
 
 var (
 	systemSkillNames   = map[string]struct{}{"imagegen": {}, "goal-manager": {}}
-	internalSkillNames = map[string]struct{}{"nexus-manager": {}}
+	internalSkillNames = map[string]struct{}{
+		"nexus-manager":                   {},
+		"nexus-owner-configuration":       {},
+		"nexus-agent-self-configuration":  {},
+		"nexus-room-host-configuration":   {},
+		"nexus-room-member-configuration": {},
+	}
 	curatedEntriesOnce sync.Once
 	curatedEntriesData map[string]map[string]string
 	curatedEntriesErr  error
@@ -53,28 +62,30 @@ var curatedCatalogPayload []byte
 
 // Info 表示 skill 列表项。
 type Info struct {
-	Name              string   `json:"name"`
-	Title             string   `json:"title"`
-	Description       string   `json:"description"`
-	Scope             string   `json:"scope"`
-	Tags              []string `json:"tags"`
-	CategoryKey       string   `json:"category_key"`
-	CategoryName      string   `json:"category_name"`
-	SourceType        string   `json:"source_type"`
-	SourceRef         string   `json:"source_ref"`
-	Version           string   `json:"version"`
-	Locked            bool     `json:"locked"`
-	HasUpdate         bool     `json:"has_update"`
-	Deletable         bool     `json:"deletable"`
-	SourceKind        string   `json:"source_kind,omitempty"`
-	SourceName        string   `json:"source_name,omitempty"`
-	SourceTrust       string   `json:"source_trust,omitempty"`
-	ImportMode        string   `json:"import_mode,omitempty"`
-	LastError         string   `json:"last_error,omitempty"`
-	StorageScope      string   `json:"storage_scope,omitempty"`
-	OriginKind        string   `json:"origin_kind,omitempty"`
-	EnabledForAgent   bool     `json:"enabled_for_agent"`
-	EnabledAgentCount int      `json:"enabled_agent_count,omitempty"`
+	Name              string                `json:"name"`
+	Title             string                `json:"title"`
+	Description       string                `json:"description"`
+	Scope             string                `json:"scope"`
+	Tags              []string              `json:"tags"`
+	CategoryKey       string                `json:"category_key"`
+	CategoryName      string                `json:"category_name"`
+	SourceType        string                `json:"source_type"`
+	SourceRef         string                `json:"source_ref"`
+	Version           string                `json:"version"`
+	Locked            bool                  `json:"locked"`
+	HasUpdate         bool                  `json:"has_update"`
+	Deletable         bool                  `json:"deletable"`
+	SourceKind        string                `json:"source_kind,omitempty"`
+	SourceName        string                `json:"source_name,omitempty"`
+	SourceTrust       string                `json:"source_trust,omitempty"`
+	ImportMode        string                `json:"import_mode,omitempty"`
+	LastError         string                `json:"last_error,omitempty"`
+	StorageScope      string                `json:"storage_scope,omitempty"`
+	OriginKind        string                `json:"origin_kind,omitempty"`
+	TargetScope       AgentSkillTargetScope `json:"target_scope,omitempty"`
+	SourceIdentity    string                `json:"source_identity,omitempty"`
+	EnabledForAgent   bool                  `json:"enabled_for_agent"`
+	EnabledAgentCount int                   `json:"enabled_agent_count,omitempty"`
 }
 
 // Detail 表示 skill 详情。
@@ -103,6 +114,25 @@ type Query struct {
 	SourceType  string
 	Scope       string
 	Q           string
+}
+
+// AgentSkillState 是一次目录读取中绑定的 Agent 版本与目标 Skill 安装状态。
+type AgentSkillState struct {
+	AgentID        string                `json:"agent_id"`
+	RuntimeVersion int64                 `json:"runtime_version"`
+	SkillName      string                `json:"skill_name"`
+	TargetScope    AgentSkillTargetScope `json:"target_scope,omitempty"`
+	SourceIdentity string                `json:"source_identity,omitempty"`
+	Available      bool                  `json:"available"`
+	Installed      bool                  `json:"installed"`
+	Locked         bool                  `json:"locked,omitempty"`
+	Scope          string                `json:"scope,omitempty"`
+	SourceType     string                `json:"source_type,omitempty"`
+	SourceKind     string                `json:"source_kind,omitempty"`
+	SourceRef      string                `json:"source_ref,omitempty"`
+	StorageScope   string                `json:"storage_scope,omitempty"`
+	OriginKind     string                `json:"origin_kind,omitempty"`
+	Version        string                `json:"version,omitempty"`
 }
 
 type curatedCatalog struct {

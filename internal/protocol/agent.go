@@ -1,3 +1,6 @@
+// INPUT: Agent 资料、runtime 选项以及带可选期望版本的创建/更新请求。
+// OUTPUT: 跨 HTTP/服务/运行时共享的 Agent 模型与 runtime_version CAS 协议。
+// POS: Agent 配置资源及其乐观并发令牌的协议真相源。
 package protocol
 
 import "time"
@@ -30,21 +33,23 @@ type Options struct {
 
 // Agent 表示对外 Agent 模型。
 type Agent struct {
-	AgentID         string    `json:"agent_id"`
-	Name            string    `json:"name"`
-	WorkspacePath   string    `json:"workspace_path"`
-	IsMain          bool      `json:"is_main,omitempty"`
-	DisplayName     string    `json:"display_name,omitempty"`
-	Headline        string    `json:"headline,omitempty"`
-	ProfileMarkdown string    `json:"profile_markdown,omitempty"`
-	Options         Options   `json:"options"`
-	CreatedAt       time.Time `json:"created_at"`
-	Status          string    `json:"status"`
-	Avatar          string    `json:"avatar,omitempty"`
-	Description     string    `json:"description,omitempty"`
-	VibeTags        []string  `json:"vibe_tags,omitempty"`
-	SkillsCount     int       `json:"skills_count"`
-	OwnerUserID     string    `json:"-"`
+	AgentID         string  `json:"agent_id"`
+	Name            string  `json:"name"`
+	WorkspacePath   string  `json:"workspace_path"`
+	IsMain          bool    `json:"is_main,omitempty"`
+	DisplayName     string  `json:"display_name,omitempty"`
+	Headline        string  `json:"headline,omitempty"`
+	ProfileMarkdown string  `json:"profile_markdown,omitempty"`
+	Options         Options `json:"options"`
+	// RuntimeVersion 是只读的运行时配置版本。
+	RuntimeVersion int64     `json:"runtime_version"`
+	CreatedAt      time.Time `json:"created_at"`
+	Status         string    `json:"status"`
+	Avatar         string    `json:"avatar,omitempty"`
+	Description    string    `json:"description,omitempty"`
+	VibeTags       []string  `json:"vibe_tags,omitempty"`
+	SkillsCount    int       `json:"skills_count"`
+	OwnerUserID    string    `json:"-"`
 }
 
 // CreateRequest 表示创建 Agent 请求。
@@ -64,6 +69,8 @@ type UpdateRequest struct {
 	Avatar      *string  `json:"avatar,omitempty"`
 	Description *string  `json:"description,omitempty"`
 	VibeTags    []string `json:"vibe_tags,omitempty"`
+	// ExpectedRuntimeVersion 可选；设置后仅在当前版本匹配时更新 Agent。
+	ExpectedRuntimeVersion *int64 `json:"expected_runtime_version,omitempty"`
 }
 
 // ValidateNameResponse 对齐当前校验协议。

@@ -89,6 +89,8 @@ func (s *Service) Logout(ctx context.Context, sessionToken string) error {
 	if normalizedToken == "" {
 		return nil
 	}
+	s.humanSessionMu.Lock()
+	defer s.humanSessionMu.Unlock()
 	return s.repository.RevokeSessionByTokenHash(ctx, hashSessionToken(normalizedToken), s.now())
 }
 

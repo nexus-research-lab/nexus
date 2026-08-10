@@ -176,7 +176,6 @@ RUN test -x /usr/local/bin/claude && \
     '  },' \
     '  "read_only_roots": [' \
     '    "/opt/app",' \
-    '    "/home/agent/.nexus/app/.agents/bin",' \
     '    "/home/agent/.nexus/app/platform-skills"' \
     '  ]' \
     '}' \

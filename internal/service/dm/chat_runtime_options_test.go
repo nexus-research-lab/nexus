@@ -2,6 +2,7 @@ package dm
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
@@ -10,8 +11,10 @@ import (
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
 	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 	providercfg "github.com/nexus-research-lab/nexus/internal/service/provider"
+	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 
 	agentclient "github.com/nexus-research-lab/nexus-agent-sdk-bridge/client"
+	sdkmcp "github.com/nexus-research-lab/nexus-agent-sdk-bridge/mcp"
 	sdkprotocol "github.com/nexus-research-lab/nexus-agent-sdk-bridge/protocol"
 )
 
@@ -76,6 +79,9 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 			MaxThinkingTokens: &maxThinkingTokens,
 			MaxTurns:          &maxTurns,
 			SettingSources:    []string{"user"},
+			MCPServers: map[string]any{
+				"custom_dm": map[string]any{"command": "dm-custom-mcp"},
+			},
 		},
 	})
 	if err != nil {
@@ -152,8 +158,18 @@ func TestServiceHandleChatForwardsRuntimeOptions(t *testing.T) {
 	if len(options.SettingSources) != 1 || options.SettingSources[0] != "user" {
 		t.Fatalf("runtime 未向 SDK 透传 setting_sources: %+v", options)
 	}
+	customMCP, ok := options.MCP.Servers["custom_dm"].(sdkmcp.StdioServerConfig)
+	if !ok || customMCP.Command != "dm-custom-mcp" {
+		t.Fatalf("runtime 未向 SDK 透传 Agent MCP server: %+v", options.MCP.Servers)
+	}
 	if !options.IncludePartialMessages {
 		t.Fatalf("runtime 未开启 partial messages: %+v", options)
+	}
+	if slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillOwnerMain) ||
+		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillAgentSelf) ||
+		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillRoomHost) ||
+		!slices.Contains(options.Skills.DisabledNames, workspacepkg.ConfigurationSkillRoomMember) {
+		t.Fatalf("main DM 未只启用 owner 配置 Skill: %#v", options.Skills)
 	}
 	if len(options.Tools.Allow) != 0 {
 		t.Fatalf("runtime 不应在无显式白名单时为了 Goal 收窄 allowed tools: %+v", options.Tools.Allow)

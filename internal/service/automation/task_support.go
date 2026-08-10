@@ -1,3 +1,6 @@
+// INPUT: owner-scoped Automation 任务、Agent workspace 与 Session artifact 删除协调器。
+// OUTPUT: 任务容量校验，以及 isolated Session 的统一 tombstone/runtime/transcript 清理。
+// POS: Automation CRUD 辅助阶段；禁止直接删除 Agent Session 目录。
 package automation
 
 import (
@@ -10,11 +13,19 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
-	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
-const automationSessionCloseTimeout = 3 * time.Second
+type skipIsolatedAutomationSessionCleanupKey struct{}
+
+func withSkippedIsolatedAutomationSessionCleanup(ctx context.Context) context.Context {
+	return context.WithValue(ctx, skipIsolatedAutomationSessionCleanupKey{}, true)
+}
+
+func skipIsolatedAutomationSessionCleanup(ctx context.Context) bool {
+	value, _ := ctx.Value(skipIsolatedAutomationSessionCleanupKey{}).(bool)
+	return value
+}
 
 func (s *Service) resolveTaskOwnerUserID(ctx context.Context, agentID string) (string, error) {
 	if s.agents != nil && strings.TrimSpace(agentID) != "" {
@@ -63,7 +74,8 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 	if strings.TrimSpace(job.SessionTarget.Kind) != automationdomain.SessionTargetIsolated {
 		return nil
 	}
-	workspacePath, err := s.resolveAutomationWorkspacePath(ctx, job.AgentID)
+	cleanupCtx := context.WithoutCancel(ctx)
+	workspacePath, err := s.resolveAutomationWorkspacePath(cleanupCtx, job.AgentID)
 	if err != nil {
 		return err
 	}
@@ -76,11 +88,11 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 	}
 	prefix := fmt.Sprintf("agent:%s:automation:dm:scheduled-task:%s:", strings.TrimSpace(job.AgentID), strings.TrimSpace(job.JobID))
 	files := workspacestore.NewSessionFileStore(s.config.WorkspacePath).ForOwner(ownerUserID)
-	history := workspacestore.NewAgentHistoryStore(s.config.WorkspacePath).ForOwner(ownerUserID)
 	sessions, err := files.ListSessions(workspacePath)
 	if err != nil {
 		return err
 	}
+	targets := make([]protocol.Session, 0)
 	for _, item := range sessions {
 		sessionKey := strings.TrimSpace(item.SessionKey)
 		if !strings.HasPrefix(sessionKey, prefix) {
@@ -90,24 +102,33 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 		if parsed.Kind != protocol.SessionKeyKindAgent || !parsed.IsStructured || parsed.Channel != "automation" {
 			continue
 		}
-		if s.sessionCloser != nil {
-			closeCtx, cancel := context.WithTimeout(context.Background(), automationSessionCloseTimeout)
-			closeErr := s.sessionCloser.CloseSession(closeCtx, sessionKey)
-			cancel()
-			if closeErr != nil && !runtimectx.IsRuntimeTransportClosedError(closeErr) {
-				return closeErr
-			}
+		targets = append(targets, item)
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	if s.sessionArtifacts == nil {
+		return ErrSessionArtifactDeletionCoordinatorUnavailable
+	}
+
+	errs := make([]error, 0)
+	for _, item := range targets {
+		sessionKey := strings.TrimSpace(item.SessionKey)
+		cleanupSessionID := ""
+		if item.SessionID != nil {
+			cleanupSessionID = strings.TrimSpace(*item.SessionID)
 		}
-		for _, transcriptSessionID := range protocol.SessionTranscriptIDs(item) {
-			if _, deleteErr := history.DeleteTranscriptSession(workspacePath, transcriptSessionID); deleteErr != nil {
-				return deleteErr
-			}
-		}
-		if _, deleteErr := files.DeleteSession(workspacePath, sessionKey); deleteErr != nil {
-			return deleteErr
+		if deleteErr := s.sessionArtifacts.DeleteSessionArtifacts(
+			cleanupCtx,
+			ownerUserID,
+			workspacePath,
+			sessionKey,
+			cleanupSessionID,
+		); deleteErr != nil {
+			errs = append(errs, deleteErr)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // DeleteTasksForSessions 删除目标或来源精确绑定到 Session 的定时任务。
@@ -156,7 +177,8 @@ func (s *Service) DeleteTasksForAgent(
 		return err
 	}
 	for _, item := range items {
-		if _, err = s.DeleteTask(contextForJobOwner(ctx, item), item.JobID); err != nil {
+		deleteCtx := withSkippedIsolatedAutomationSessionCleanup(contextForJobOwner(ctx, item))
+		if _, err = s.DeleteTask(deleteCtx, item.JobID); err != nil {
 			return err
 		}
 	}

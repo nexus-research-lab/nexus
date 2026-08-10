@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"io"
 	"log/slog"
 	"os"
@@ -13,6 +14,8 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	authsvc "github.com/nexus-research-lab/nexus/internal/service/auth"
 	"github.com/nexus-research-lab/nexus/internal/storage"
+
+	"github.com/pressly/goose/v3"
 )
 
 func TestBuildRootCommandHelpDoesNotRunServer(t *testing.T) {
@@ -81,6 +84,113 @@ func TestEnsureOwnerFromEnvRequiresPasswordWhenProfileProvided(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), authInitOwnerPasswordEnvName) {
 		t.Fatalf("缺少密码时应返回明确错误: %v", err)
 	}
+}
+
+func TestRunMigrationsRepairsLegacyAutomationPermissionVersionCollision(t *testing.T) {
+	cfg := testServerConfig(t)
+	db, migrationDir, err := openMigrationDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = goose.UpTo(db, migrationDir, 70); err != nil {
+		t.Fatal(err)
+	}
+	applyLegacyAutomationPermissionSchema(t, db, migrationDir)
+	if err = goose.UpTo(db, migrationDir, 85); err != nil {
+		t.Fatalf("apply later migrations around legacy collision: %v", err)
+	}
+	if _, err = db.Exec(`
+INSERT INTO automation_permission_requests (
+    request_id, owner_user_id, job_id, policy_revision, kind, status,
+    tool_name, effect, input_fingerprint, capability_json
+) VALUES (
+    'request-legacy', 'owner-legacy', 'task-legacy', 1, 'tool', 'pending',
+    'mcp__nexus_connectors__feishu_docx_read', 'read', 'fingerprint-legacy', '{}'
+)
+`); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err = runMigrations(cfg, discardLogger()); err != nil {
+		t.Fatalf("repair legacy automation permission collision: %v", err)
+	}
+	verified, err := storage.OpenDB(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer verified.Close()
+	version, err := goose.GetDBVersion(verified)
+	if err != nil || version != 86 {
+		t.Fatalf("migration version after repair = %d, err=%v", version, err)
+	}
+	for _, migrationVersion := range []int64{71, 86} {
+		var count int
+		if err = verified.QueryRow(
+			"SELECT COUNT(*) FROM goose_db_version WHERE version_id = ? AND is_applied = TRUE",
+			migrationVersion,
+		).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("migration %d marker count = %d, err=%v", migrationVersion, count, err)
+		}
+	}
+	if !sqliteTestColumnExists(t, verified, "skill_sources", "managed_by") {
+		t.Fatal("official private Skill migration 71 was not replayed")
+	}
+	var status string
+	if err = verified.QueryRow(`
+SELECT status
+FROM automation_permission_requests
+WHERE request_id = 'request-legacy'
+`).Scan(&status); err != nil || status != "pending" {
+		t.Fatalf("legacy permission request changed: status=%q err=%v", status, err)
+	}
+}
+
+func applyLegacyAutomationPermissionSchema(t *testing.T, db *sql.DB, migrationDir string) {
+	t.Helper()
+	contents, err := os.ReadFile(filepath.Join(migrationDir, "00086_automation_permission_pipeline.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	upSQL, _, found := strings.Cut(string(contents), "-- +goose Down")
+	if !found {
+		t.Fatal("automation permission migration has no Goose Down boundary")
+	}
+	if _, err = db.Exec(upSQL); err != nil {
+		t.Fatalf("apply legacy automation permission schema: %v", err)
+	}
+	if _, err = db.Exec(
+		"INSERT INTO goose_db_version (version_id, is_applied) VALUES (71, TRUE)",
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func sqliteTestColumnExists(t *testing.T, db *sql.DB, table string, column string) bool {
+	t.Helper()
+	rows, err := db.Query("PRAGMA table_info(" + table + ")")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, columnType string
+		var notNull, primaryKey int
+		var defaultValue any
+		if err = rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			t.Fatal(err)
+		}
+		if name == column {
+			return true
+		}
+	}
+	if err = rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return false
 }
 
 func testServerConfig(t *testing.T) config.Config {

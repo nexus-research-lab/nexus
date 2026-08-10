@@ -242,8 +242,6 @@ func TestBuildHeartbeatInstructionFallsBackToEventTypeWhenTextMissing(t *testing
 		&fakeWorkspaceReader{},
 		nil,
 	)
-	runtimeCloser := &fakeRuntimeSessionCloser{}
-	service.SetRuntimeSessionCloser(runtimeCloser)
 	payload, err := json.Marshal(map[string]any{"instruction": "do not read this"})
 	if err != nil {
 		t.Fatalf("构造事件 payload 失败: %v", err)

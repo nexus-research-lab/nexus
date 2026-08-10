@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nexus-research-lab/nexus/internal/infra/secretinput"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
 
@@ -253,7 +254,7 @@ func (s *AssistantSegment) CurrentBlock(index int) map[string]any {
 	if logicalIndex < 0 || logicalIndex >= len(s.content) {
 		return nil
 	}
-	return cloneMap(s.content[logicalIndex])
+	return redactConfigurationToolBlock(cloneMap(s.content[logicalIndex]))
 }
 
 // BuildAssistantMessage 构建 assistant 消息。
@@ -275,6 +276,9 @@ func (s *AssistantSegment) BuildAssistantMessage(ctx MessageContext, sessionID s
 
 func (s *AssistantSegment) normalizedContent() []map[string]any {
 	content := cloneBlockSlice(s.content)
+	for index := range content {
+		content[index] = redactConfigurationToolBlock(content[index])
+	}
 	if len(content) <= 1 {
 		return content
 	}
@@ -296,6 +300,21 @@ func (s *AssistantSegment) normalizedContent() []map[string]any {
 	copy(content[1:thinkingIndex+1], content[0:thinkingIndex])
 	content[0] = thinkingBlock
 	return content
+}
+
+func redactConfigurationToolBlock(block map[string]any) map[string]any {
+	if normalizeString(block["type"]) != "tool_use" {
+		return block
+	}
+	input, ok := block["input"].(map[string]any)
+	if !ok {
+		return block
+	}
+	block["input"] = secretinput.RedactConfigurationToolInput(
+		normalizeString(block["name"]),
+		input,
+	)
+	return block
 }
 
 type assistantBlockMatcher func(map[string]any, map[string]any) bool

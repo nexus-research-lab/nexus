@@ -1,3 +1,6 @@
+// INPUT: owner-scoped source entity 与 DB/transaction executor。
+// OUTPUT: 来源列表、详情、幂等初始化、upsert 与健康元数据写入。
+// POS: Skill source SQL 的单一实现，Repository 与 CatalogMutation 共同复用。
 package skills
 
 import (
@@ -59,8 +62,18 @@ WHERE owner_user_id = `+r.bind(1)+` AND source_id = `+r.bind(2),
 }
 
 func (r *Repository) EnsureSource(ctx context.Context, item SourceEntity) error {
-	if r.isPostgres {
-		_, err := r.db.ExecContext(ctx, `
+	return ensureSource(ctx, r.db, r.isPostgres, r.bind, item)
+}
+
+func ensureSource(
+	ctx context.Context,
+	executor sqlExecutor,
+	isPostgres bool,
+	bind func(int) string,
+	item SourceEntity,
+) error {
+	if isPostgres {
+		_, err := executor.ExecContext(ctx, `
 INSERT INTO skill_sources (
     owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
     credentials_encrypted, enabled, sort_order, created_at, updated_at
@@ -80,11 +93,11 @@ ON CONFLICT (owner_user_id, kind, url) DO NOTHING`,
 		)
 		return err
 	}
-	_, err := r.db.ExecContext(ctx, `
+	_, err := executor.ExecContext(ctx, `
 INSERT INTO skill_sources (
     owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
     credentials_encrypted, enabled, sort_order, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+) VALUES (`+bind(1)+`, `+bind(2)+`, `+bind(3)+`, `+bind(4)+`, `+bind(5)+`, `+bind(6)+`, `+bind(7)+`, `+bind(8)+`, `+bind(9)+`, `+bind(10)+`, `+bind(11)+`, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT(owner_user_id, kind, url) DO NOTHING`,
 		strings.TrimSpace(item.OwnerUserID),
 		strings.TrimSpace(item.SourceID),
@@ -102,8 +115,17 @@ ON CONFLICT(owner_user_id, kind, url) DO NOTHING`,
 }
 
 func (r *Repository) UpsertSource(ctx context.Context, item SourceEntity) error {
-	if r.isPostgres {
-		_, err := r.db.ExecContext(ctx, `
+	return upsertSource(ctx, r.db, r.isPostgres, item)
+}
+
+func upsertSource(
+	ctx context.Context,
+	executor sqlExecutor,
+	isPostgres bool,
+	item SourceEntity,
+) error {
+	if isPostgres {
+		_, err := executor.ExecContext(ctx, `
 INSERT INTO skill_sources (
     owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
     credentials_encrypted, enabled, sort_order, last_error, created_at, updated_at
@@ -124,7 +146,7 @@ ON CONFLICT (owner_user_id, source_id) DO UPDATE SET
 		)
 		return err
 	}
-	_, err := r.db.ExecContext(ctx, `
+	_, err := executor.ExecContext(ctx, `
 INSERT INTO skill_sources (
     owner_user_id, source_id, name, kind, url, trust, managed_by, auth_type,
     credentials_encrypted, enabled, sort_order, last_error, created_at, updated_at
@@ -147,8 +169,28 @@ ON CONFLICT(owner_user_id, source_id) DO UPDATE SET
 }
 
 func (r *Repository) RecordSourceCheck(ctx context.Context, ownerUserID string, sourceID string, checkedAt time.Time, lastError string) error {
-	if r.isPostgres {
-		_, err := r.db.ExecContext(
+	return recordSourceCheck(
+		ctx,
+		r.db,
+		r.isPostgres,
+		ownerUserID,
+		sourceID,
+		checkedAt,
+		lastError,
+	)
+}
+
+func recordSourceCheck(
+	ctx context.Context,
+	executor sqlExecutor,
+	isPostgres bool,
+	ownerUserID string,
+	sourceID string,
+	checkedAt time.Time,
+	lastError string,
+) error {
+	if isPostgres {
+		_, err := executor.ExecContext(
 			ctx,
 			"UPDATE skill_sources SET last_checked_at = $3, last_error = $4, updated_at = CURRENT_TIMESTAMP WHERE owner_user_id = $1 AND source_id = $2",
 			strings.TrimSpace(ownerUserID),
@@ -158,7 +200,7 @@ func (r *Repository) RecordSourceCheck(ctx context.Context, ownerUserID string, 
 		)
 		return err
 	}
-	_, err := r.db.ExecContext(
+	_, err := executor.ExecContext(
 		ctx,
 		"UPDATE skill_sources SET last_checked_at = ?, last_error = ?, updated_at = CURRENT_TIMESTAMP WHERE owner_user_id = ? AND source_id = ?",
 		checkedAt.UTC(),

@@ -1,3 +1,6 @@
+// INPUT: Agent 仓储、主机配置及可选 Goal/删除协调依赖。
+// OUTPUT: 可装配的 Agent 业务服务。
+// POS: Agent 服务依赖根，只声明消费侧窄接口而不反向依赖其他业务域。
 package agent
 
 import (
@@ -7,6 +10,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -34,19 +38,22 @@ var (
 	ErrAgentNotFound = errors.New("agent not found")
 	// ErrAgentNameInvalid 表示 Agent 名称格式不合法。
 	ErrAgentNameInvalid = errors.New("agent name invalid")
+	// ErrRuntimeVersionConflict 表示 Agent 已被其他写入更新。
+	ErrRuntimeVersionConflict = agentrepo.ErrRuntimeVersionConflict
 )
 
 // Service 提供 Agent 业务能力。
 type Service struct {
-	config     config.Config
-	repository Repository
-	history    *workspacestore.AgentHistoryStore
-	prompts    *promptBuilder
-	goals      goalCleaner
-	workspace  workspaceManager
-	sessions   agentSessionLifecycle
-	tasks      agentTaskCleaner
-	readyMu    sync.Mutex
+	config              config.Config
+	repository          Repository
+	history             *workspacestore.AgentHistoryStore
+	prompts             *promptBuilder
+	goals               goalCleaner
+	workspace           workspaceManager
+	sessions            agentSessionLifecycle
+	tasks               agentTaskCleaner
+	deletionCoordinator deletionCoordinator
+	readyMu             sync.Mutex
 }
 
 // NewService 创建 Agent 服务。
@@ -93,4 +100,9 @@ func (s *Service) initializeAgentWorkspace(ctx context.Context, agentValue proto
 		return nil
 	}
 	return s.workspace.InitializeAgentWorkspace(ctx, agentValue)
+}
+
+// SetDeletionCoordinator 注入其他能力域在 Agent 持久删除前后的锁定、核验和运行态撤销。
+func (s *Service) SetDeletionCoordinator(coordinator deletionCoordinator) {
+	s.deletionCoordinator = coordinator
 }

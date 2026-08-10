@@ -163,7 +163,9 @@ func resolveDefaultConfigDir() string {
 	return filepath.Join(home, ".nexus")
 }
 
-// AgentRuntimeBinDir 返回所有 agent 共享的运行时工具目录。
+// AgentRuntimeBinDir 返回旧版本曾写入 nexusctl shim 的共享目录。
+//
+// 新 runtime 不再读取该目录；保留路径函数只用于幂等清理历史托管文件。
 func AgentRuntimeBinDir() string {
 	return filepath.Join(AppDir(), ".agents", "bin")
 }

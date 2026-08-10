@@ -19,6 +19,9 @@ func (s *ControlService) startRegisteredChannelLogin(
 	row *channelConfigRow,
 	activeKey string,
 	now time.Time,
+	expectedAccountID string,
+	authorizationBinding string,
+	expectedVersion int64,
 ) (*ChannelLoginView, error) {
 	client := s.newChannelRegistrationClient(row.ChannelType)
 	if client == nil {
@@ -32,25 +35,37 @@ func (s *ControlService) startRegisteredChannelLogin(
 	if strings.TrimSpace(started.DeviceCode) == "" || qrPayload == "" {
 		return nil, errors.New("扫码注册未返回完整的二维码信息")
 	}
+	timeout := s.loginTimeout
+	if started.ExpiresIn > 0 {
+		timeout = time.Duration(started.ExpiresIn) * time.Second
+	}
+	if timeout <= 0 {
+		timeout = 8 * time.Minute
+	}
 	loginID := s.idFactory("channel_login")
 	session := &channelLoginSession{
-		ownerUserID:        row.OwnerUserID,
-		channelType:        row.ChannelType,
-		activeKey:          activeKey,
-		verifyCh:           make(chan struct{}, 1),
-		registrationClient: client,
-		deviceCode:         started.DeviceCode,
-		pollInterval:       time.Duration(started.Interval) * time.Second,
+		ownerUserID:          row.OwnerUserID,
+		channelType:          row.ChannelType,
+		activeKey:            activeKey,
+		expectedAccountID:    strings.TrimSpace(expectedAccountID),
+		authorizationBinding: strings.TrimSpace(authorizationBinding),
+		verifyCh:             make(chan struct{}, 1),
+		done:                 make(chan struct{}),
+		registrationClient:   client,
+		deviceCode:           started.DeviceCode,
+		pollInterval:         time.Duration(started.Interval) * time.Second,
 		view: ChannelLoginView{
-			LoginID:       loginID,
-			ChannelType:   row.ChannelType,
-			Status:        ChannelLoginStatusRunning,
-			Command:       "Nexus official QR registration",
-			QRPayload:     qrPayload,
-			QRPayloadType: "text",
-			Output:        channelRegistrationPrompt(row.ChannelType),
-			StartedAt:     now,
-			UpdatedAt:     now,
+			LoginID:             loginID,
+			ChannelType:         row.ChannelType,
+			Status:              ChannelLoginStatusRunning,
+			Command:             "Nexus official QR registration",
+			QRPayload:           qrPayload,
+			QRPayloadType:       "text",
+			Output:              channelRegistrationPrompt(row.ChannelType),
+			StartControlVersion: expectedVersion,
+			StartedAt:           now,
+			UpdatedAt:           now,
+			ExpiresAt:           now.Add(timeout),
 		},
 	}
 	if s.registrationPollInterval > 0 {
@@ -62,15 +77,8 @@ func (s *ControlService) startRegisteredChannelLogin(
 	store.active[activeKey] = loginID
 	store.mu.Unlock()
 
-	timeout := s.loginTimeout
-	if started.ExpiresIn > 0 {
-		timeout = time.Duration(started.ExpiresIn) * time.Second
-	}
-	if timeout <= 0 {
-		timeout = 8 * time.Minute
-	}
 	runCtx, cancel := context.WithTimeout(context.Background(), timeout)
-	session.cancel = cancel
+	session.setCancel(cancel)
 	view := session.snapshot()
 	go s.runRegisteredChannelLogin(runCtx, cancel, session, row)
 	return &view, nil
@@ -83,6 +91,7 @@ func (s *ControlService) runRegisteredChannelLogin(
 	row *channelConfigRow,
 ) {
 	defer cancel()
+	defer session.markDone()
 	defer s.finishChannelLoginSession(session)
 	interval := session.pollInterval
 	if interval <= 0 {
@@ -110,11 +119,42 @@ func (s *ControlService) runRegisteredChannelLogin(
 			session.finish(ChannelLoginStatusError, firstNonEmpty(result.Message, "扫码注册失败"))
 			return
 		case appregistration.StatusSucceeded:
-			if err = s.saveRegisteredChannelCredentials(context.Background(), row, result.Credentials); err != nil {
+			accountID := channelRegistrationAccountID(row.ChannelType, result.Credentials)
+			if session.expectedAccountID != "" &&
+				session.expectedAccountID != strings.TrimSpace(accountID) {
+				session.finish(
+					ChannelLoginStatusError,
+					"扫码返回账号与授权目标不匹配，未保存任何凭据",
+				)
+				return
+			}
+			releaseCommit, acquireErr := s.acquireChannelLoginAuthorizationCommit(
+				ctx,
+				session,
+			)
+			if acquireErr != nil {
+				session.finish(ChannelLoginStatusError, acquireErr.Error())
+				return
+			}
+			if !session.claimCompletion() {
+				releaseCommit()
+				return
+			}
+			defer releaseCommit()
+			var committedVersion int64
+			committedVersion, err = s.saveRegisteredChannelCredentials(
+				context.Background(),
+				row,
+				result.Credentials,
+				session.snapshot().StartControlVersion,
+			)
+			if err != nil {
+				session.releaseCompletion()
 				session.finish(ChannelLoginStatusError, "保存扫码凭据失败: "+err.Error())
 				return
 			}
-			session.setAccount(channelRegistrationAccountID(row.ChannelType, result.Credentials), result.UserID)
+			session.setCommittedControlVersion(committedVersion)
+			session.setAccount(accountID, result.UserID)
 			session.appendOutput(channelRegistrationSuccessMessage(row.ChannelType))
 			session.finish(ChannelLoginStatusSucceeded, "")
 			return
@@ -134,55 +174,99 @@ func (s *ControlService) saveRegisteredChannelCredentials(
 	ctx context.Context,
 	row *channelConfigRow,
 	registered map[string]string,
-) error {
-	publicConfig, err := decodeStringMap(row.ConfigJSON)
+	expectedVersion int64,
+) (int64, error) {
+	if row == nil {
+		return 0, ErrChannelNotFound
+	}
+	ownerUserID := normalizeChannelOwnerUserID(row.OwnerUserID)
+	channelType := normalizeIMChannelType(row.ChannelType)
+	unlockControl := s.lockControlMutation(ownerUserID)
+	defer unlockControl()
+	unlockChannel := s.lockChannelMutation(ownerUserID, channelType)
+	defer unlockChannel()
+
+	reloadSnapshot, err := s.captureChannelReloadSnapshot(ctx, ownerUserID, channelType)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	secrets, err := s.decryptCredentials(row.CredentialsEncrypted)
+	if reloadSnapshot.version != expectedVersion {
+		return 0, channelControlVersionError(
+			expectedVersion,
+			ErrChannelControlVersionConflict,
+		)
+	}
+	var configJSON string
+	var credentials sql.NullString
+	committedVersion, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
+		current, loadErr := s.getChannelConfigRowFrom(ctx, tx, ownerUserID, channelType)
+		if loadErr != nil {
+			return loadErr
+		}
+		if current == nil {
+			return ErrChannelNotFound
+		}
+		publicConfig, decodeErr := decodeStringMap(current.ConfigJSON)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		secrets, decryptErr := s.decryptCredentials(current.CredentialsEncrypted)
+		if decryptErr != nil {
+			return decryptErr
+		}
+		if secrets == nil {
+			secrets = map[string]string{}
+		}
+		switch channelType {
+		case ChannelTypeFeishu:
+			publicConfig["app_id"] = registered["client_id"]
+			secrets["app_secret"] = registered["client_secret"]
+		case ChannelTypeDingTalk:
+			publicConfig["client_id"] = registered["client_id"]
+			secrets["client_secret"] = registered["client_secret"]
+		case ChannelTypeWeChat:
+			publicConfig["bot_id"] = registered["bot_id"]
+			secrets["secret"] = registered["secret"]
+		default:
+			return ErrChannelLoginUnsupported
+		}
+		publicKey, secretKey, _ := channelManualCredentialPair(channelType)
+		if strings.TrimSpace(publicConfig[publicKey]) == "" ||
+			strings.TrimSpace(secrets[secretKey]) == "" {
+			return errors.New("扫码成功但平台未返回完整的应用凭据")
+		}
+		configJSON, decodeErr = encodeStringMap(publicConfig)
+		if decodeErr != nil {
+			return decodeErr
+		}
+		encrypted, encryptErr := s.encryptCredentials(secrets)
+		if encryptErr != nil {
+			return encryptErr
+		}
+		credentials = sql.NullString{String: encrypted, Valid: encrypted != ""}
+		return s.upsertChannelConfigRowWith(ctx, tx, channelConfigRow{
+			OwnerUserID: ownerUserID, ChannelType: channelType,
+			AgentID: current.AgentID, Status: ChannelConfigStatusConfigured,
+			ConfigJSON: configJSON, CredentialsEncrypted: credentials,
+		})
+	})
 	if err != nil {
-		return err
+		return 0, channelControlVersionError(expectedVersion, err)
 	}
-	if secrets == nil {
-		secrets = map[string]string{}
+	if err = s.reloadChannelRuntime(ctx, ownerUserID, channelType, configJSON, credentials); err != nil {
+		if restoreErr := s.restoreChannelReloadSnapshot(ctx, reloadSnapshot, committedVersion); restoreErr != nil {
+			return 0, errors.Join(
+				fmt.Errorf("%w: %v", ErrChannelRuntimeReload, err),
+				fmt.Errorf("恢复授权前 Channel 配置失败: %w", restoreErr),
+			)
+		}
+		return 0, fmt.Errorf(
+			"%w: 候选 runtime 启动失败，上一份可运行配置已保留: %v",
+			ErrChannelRuntimeReload,
+			err,
+		)
 	}
-	switch row.ChannelType {
-	case ChannelTypeFeishu:
-		publicConfig["app_id"] = registered["client_id"]
-		secrets["app_secret"] = registered["client_secret"]
-	case ChannelTypeDingTalk:
-		publicConfig["client_id"] = registered["client_id"]
-		secrets["client_secret"] = registered["client_secret"]
-	case ChannelTypeWeChat:
-		publicConfig["bot_id"] = registered["bot_id"]
-		secrets["secret"] = registered["secret"]
-	default:
-		return ErrChannelLoginUnsupported
-	}
-	publicKey, secretKey, _ := channelManualCredentialPair(row.ChannelType)
-	if strings.TrimSpace(publicConfig[publicKey]) == "" || strings.TrimSpace(secrets[secretKey]) == "" {
-		return errors.New("扫码成功但平台未返回完整的应用凭据")
-	}
-	configJSON, err := encodeStringMap(publicConfig)
-	if err != nil {
-		return err
-	}
-	encrypted, err := s.encryptCredentials(secrets)
-	if err != nil {
-		return err
-	}
-	credentials := sql.NullString{String: encrypted, Valid: encrypted != ""}
-	if err = s.upsertChannelConfigRow(ctx, channelConfigRow{
-		OwnerUserID:          row.OwnerUserID,
-		ChannelType:          row.ChannelType,
-		AgentID:              row.AgentID,
-		Status:               ChannelConfigStatusConfigured,
-		ConfigJSON:           configJSON,
-		CredentialsEncrypted: credentials,
-	}); err != nil {
-		return err
-	}
-	return s.reloadChannelRuntime(ctx, row.OwnerUserID, row.ChannelType, configJSON, credentials)
+	return committedVersion, nil
 }
 
 func (s *ControlService) newChannelRegistrationClient(channelType string) appregistration.Client {

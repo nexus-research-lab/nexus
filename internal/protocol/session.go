@@ -1,3 +1,6 @@
+// INPUT: Agent workspace meta 或 Room SQL 投影中的会话身份、展示状态与资源版本。
+// OUTPUT: 对外统一 Session 视图；workspace session 的 configuration_version 用于 CAS。
+// POS: Session HTTP、目录与 nexus_config 之间的协议模型；Room 生命周期版本仍归 rooms 域。
 package protocol
 
 import "time"
@@ -29,4 +32,5 @@ type Session struct {
 	Options              map[string]any    `json:"options"`
 	ContextUsage         *ContextUsageData `json:"context_usage,omitempty"`
 	IsActive             bool              `json:"is_active"`
+	ConfigurationVersion int64             `json:"configuration_version"`
 }

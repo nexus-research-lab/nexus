@@ -22,6 +22,7 @@ import {
   WORKSPACE_CONTENT_BLEED_CLASS_NAME,
 } from "@/shared/ui/layout/workspace-content-layout";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
+import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
 
 import type { ScheduledTaskPendingCommands } from "../controller/scheduled-task-directory-model";
 import type { TaskDialogCreatePreset } from "../dialog/scheduled-task-dialog-types";
@@ -42,6 +43,12 @@ interface ScheduledTaskBoardProps {
   onDelete: (task: ScheduledTaskItem) => void;
   onEdit: (task: ScheduledTaskItem) => void;
   onOpenHistory: (task: ScheduledTaskItem) => void;
+  onOpenConnector: (connectorId: string) => void;
+  onPermissionDecision: (
+    task: ScheduledTaskItem,
+    decision: AutomationPermissionDecision,
+  ) => void;
+  onPermissionResume: (task: ScheduledTaskItem) => void;
   onRefresh: () => void;
   onRunNow: (task: ScheduledTaskItem) => void;
   onToggleEnabled: (task: ScheduledTaskItem) => void;
@@ -214,6 +221,9 @@ function ScheduledTaskBoardColumnView({
   onDelete,
   onEdit,
   onOpenHistory,
+  onOpenConnector,
+  onPermissionDecision,
+  onPermissionResume,
   onRunNow,
   onToggleEnabled,
   pending,
@@ -222,6 +232,9 @@ function ScheduledTaskBoardColumnView({
   onDelete: ScheduledTaskBoardProps["onDelete"];
   onEdit: ScheduledTaskBoardProps["onEdit"];
   onOpenHistory: ScheduledTaskBoardProps["onOpenHistory"];
+  onOpenConnector: ScheduledTaskBoardProps["onOpenConnector"];
+  onPermissionDecision: ScheduledTaskBoardProps["onPermissionDecision"];
+  onPermissionResume: ScheduledTaskBoardProps["onPermissionResume"];
   onRunNow: ScheduledTaskBoardProps["onRunNow"];
   onToggleEnabled: ScheduledTaskBoardProps["onToggleEnabled"];
   pending: ScheduledTaskPendingCommands;
@@ -254,12 +267,16 @@ function ScheduledTaskBoardColumnView({
           {column.items.map((task) => (
             <ScheduledTaskCard
               isDeleting={pending.get("delete")?.has(task.job_id) ?? false}
+              isPermissionPending={pending.get("permission")?.has(task.job_id) ?? false}
               isRunning={pending.get("run")?.has(task.job_id) ?? false}
               isToggling={pending.get("toggle")?.has(task.job_id) ?? false}
               key={task.job_id}
               onDelete={onDelete}
               onEdit={onEdit}
               onOpenHistory={onOpenHistory}
+              onOpenConnector={onOpenConnector}
+              onPermissionDecision={onPermissionDecision}
+              onPermissionResume={onPermissionResume}
               onRunNow={onRunNow}
               onToggleEnabled={onToggleEnabled}
               task={task}
@@ -298,6 +315,9 @@ function ScheduledTaskReadyBoard({
               onDelete={props.onDelete}
               onEdit={props.onEdit}
               onOpenHistory={props.onOpenHistory}
+              onOpenConnector={props.onOpenConnector}
+              onPermissionDecision={props.onPermissionDecision}
+              onPermissionResume={props.onPermissionResume}
               onRunNow={props.onRunNow}
               onToggleEnabled={props.onToggleEnabled}
               pending={props.pending}
