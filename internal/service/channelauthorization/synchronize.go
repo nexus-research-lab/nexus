@@ -21,6 +21,10 @@ func (s *Service) synchronize(
 	ctx context.Context,
 	flow authorizationstore.Flow,
 ) (*authorizationstore.Flow, error) {
+	// 串行化监控与前台查询，避免状态更新后安全输入卡尚未展示的中间态。
+	s.synchronizeMu.Lock()
+	defer s.synchronizeMu.Unlock()
+
 	current, err := s.repository.Get(ctx, flow.OwnerUserID, flow.FlowID)
 	if err != nil {
 		return nil, err

@@ -66,15 +66,16 @@ type Service struct {
 	monitorInterval   time.Duration
 	idFactory         func(string) (string, error)
 
-	initializeMu sync.Mutex
-	initialized  bool
-	lifecycleMu  sync.RWMutex
-	closing      bool
-	closeOnce    sync.Once
-	closeErr     error
-	monitorMu    sync.Mutex
-	monitors     map[string]context.CancelFunc
-	monitorWG    sync.WaitGroup
+	initializeMu  sync.Mutex
+	initialized   bool
+	synchronizeMu sync.Mutex
+	lifecycleMu   sync.RWMutex
+	closing       bool
+	closeOnce     sync.Once
+	closeErr      error
+	monitorMu     sync.Mutex
+	monitors      map[string]context.CancelFunc
+	monitorWG     sync.WaitGroup
 }
 
 func NewService(
