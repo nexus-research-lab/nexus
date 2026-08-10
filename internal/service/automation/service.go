@@ -16,6 +16,7 @@ import (
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	roomdomain "github.com/nexus-research-lab/nexus/internal/chat/room"
 	"github.com/nexus-research-lab/nexus/internal/config"
+	connectordomain "github.com/nexus-research-lab/nexus/internal/connectors"
 	"github.com/nexus-research-lab/nexus/internal/infra/logx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
@@ -62,6 +63,10 @@ type agentAuthority interface {
 	GetAgent(context.Context, string) (*protocol.Agent, error)
 }
 
+type connectorConnectionResolver interface {
+	LoadActiveConnection(context.Context, string, string) (*connectordomain.ConnectionSnapshot, error)
+}
+
 // ErrSessionArtifactDeletionCoordinatorUnavailable 表示 isolated Session 清理缺少统一协调器。
 var ErrSessionArtifactDeletionCoordinatorUnavailable = errors.New(
 	"Automation Session artifact 删除协调器未装配",
@@ -96,6 +101,7 @@ type Service struct {
 	room             roomRunner
 	permission       *permissionctx.Context
 	providers        imagegenDefaultResolver
+	connectors       connectorConnectionResolver
 	workspace        workspaceReader
 	delivery         deliveryRouter
 	logger           *slog.Logger
@@ -114,6 +120,8 @@ type Service struct {
 	jobStates             map[string]*automationexec.JobRuntimeState
 	heartbeatState        map[string]*automationexec.HeartbeatRuntimeState
 	wakeRequests          map[string][]automationexec.HeartbeatWakeRequest
+	attemptMu             sync.Mutex
+	physicalAttempts      map[physicalAttemptKey]*physicalAttempt
 	deliveryRetryRunning  bool
 	schedulerOwnerID      string
 	schedulerLeaseHeld    bool
@@ -176,6 +184,11 @@ func (s *Service) SetSessionArtifactDeletionCoordinator(
 // SetProviderResolver 注入 Provider 解析器，用于判断后台运行时是否可默认开放图片生成工具。
 func (s *Service) SetProviderResolver(resolver imagegenDefaultResolver) {
 	s.providers = resolver
+}
+
+// SetConnectorResolver 注入 connector 连接检查器；授权和 OAuth readiness 保持独立判定。
+func (s *Service) SetConnectorResolver(resolver connectorConnectionResolver) {
+	s.connectors = resolver
 }
 
 func (s *Service) runtimeImagegenDefaultEnabled(ctx context.Context) bool {

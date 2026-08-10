@@ -176,6 +176,26 @@ func (s *Service) recordWakeRequest(agentID string, sessionKey string, wakeMode 
 	}
 }
 
+// wakeHeartbeatForSystemEvent 只唤醒事件消费者，不额外生成一条通用 wake request。
+func (s *Service) wakeHeartbeatForSystemEvent(ctx context.Context, agentID string, mode string) error {
+	state, err := s.ensureHeartbeatState(ctx, strings.TrimSpace(agentID))
+	if err != nil {
+		return err
+	}
+	mode = normalizedWakeMode(mode)
+	if mode != automationdomain.WakeModeNow && mode != automationdomain.WakeModeNextHeartbeat {
+		return errors.New("mode must be one of now, next-heartbeat")
+	}
+	s.mu.Lock()
+	running := state.Running
+	state.PendingWake = true
+	s.mu.Unlock()
+	if mode == automationdomain.WakeModeNow && !running {
+		s.dispatchHeartbeat(state.Config.AgentID, "system-event")
+	}
+	return nil
+}
+
 func (s *Service) hasImmediateWakeRequestLocked(agentID string) bool {
 	sessionKey := automationexec.BuildMainSessionKey(agentID)
 	for _, item := range s.wakeRequests[sessionKey] {

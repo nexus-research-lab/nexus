@@ -378,12 +378,21 @@ func TestRunTaskNowForMainTargetEnqueuesScheduledTaskTextPayload(t *testing.T) {
 	if _, exists := payload["instruction"]; exists {
 		t.Fatalf("scheduled_task.trigger 不应写 instruction 字段: %v", payload)
 	}
-	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
-	if err != nil {
-		t.Fatalf("ListTaskRuns 失败: %v", err)
+	if anyString(payload["run_id"]) != *result.RunID ||
+		anyString(payload["owner_user_id"]) != task.OwnerUserID ||
+		int(payload["policy_revision"].(float64)) != task.PermissionPolicy.Revision {
+		t.Fatalf("scheduled_task.trigger 未保留 task/run/revision/owner 上下文: %v", payload)
 	}
-	if len(runs) != 1 || runs[0].Status != automationdomain.RunStatusQueuedToMain || runs[0].SessionKey == "" {
-		t.Fatalf("main target run ledger 不正确: %+v", runs)
+	waitFor(t, 2*time.Second, func() bool {
+		runs, listErr := service.ListTaskRuns(context.Background(), task.JobID)
+		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusSucceeded
+	})
+	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("ListTaskRuns 失败: runs=%+v err=%v", runs, err)
+	}
+	if runs[0].RunID != *result.RunID || runs[0].SessionKey == "" || runs[0].RoundID == "" || runs[0].Attempts != 1 {
+		t.Fatalf("main target 应在原 logical run 上完成真实执行: %+v", runs[0])
 	}
 }
 

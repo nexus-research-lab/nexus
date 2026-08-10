@@ -55,14 +55,17 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		s.finishHeartbeatRuntime(agentID, nil, nil, errorPointer(err))
 		return
 	}
-	immediateWakeRequests, deferredWakeRequests := s.takeWakeRequests(agentID, sessionKey)
-
 	events, err := s.claimSystemEvents(ctx, agentID)
 	if err != nil {
 		logger.Error("heartbeat 拉取系统事件失败", "err", err)
 		s.finishHeartbeatRuntime(agentID, nil, nil, errorPointer(err))
 		return
 	}
+	if event, ok := scheduledMainSessionEvent(events); ok {
+		s.dispatchScheduledMainSessionEvent(ctx, agentID, sessionKey, event)
+		return
+	}
+	immediateWakeRequests, deferredWakeRequests := s.takeWakeRequests(agentID, sessionKey)
 
 	instruction, err := s.buildHeartbeatInstruction(ctx, agentID, events, immediateWakeRequests, deferredWakeRequests)
 	if err != nil {
@@ -75,6 +78,7 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 		logger.Info("heartbeat 无可执行内容", "event_count", len(events))
 		s.markEventsProcessed(events)
 		s.finishHeartbeatRuntime(agentID, nil, nil, nil)
+		s.continuePendingSystemEvents(agentID)
 		return
 	}
 
@@ -133,6 +137,7 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 				)
 			}
 			s.finishHeartbeatRuntime(agentID, &startedAt, &finishedAt, deliveryError)
+			s.continuePendingSystemEvents(agentID)
 			return
 		}
 		s.failEvents(events)
@@ -149,6 +154,7 @@ func (s *Service) dispatchHeartbeat(agentID string, reason string) {
 			)
 		}
 		s.finishHeartbeatRuntime(agentID, &startedAt, nil, observation.ErrorMessage)
+		s.continuePendingSystemEvents(agentID)
 	}()
 
 	_ = reason
@@ -269,6 +275,7 @@ func (s *Service) claimSystemEvents(ctx context.Context, agentID string) ([]auto
 	if err != nil {
 		return nil, err
 	}
+	items = selectHeartbeatSystemEvents(items)
 	for _, item := range items {
 		if markErr := s.repository.MarkSystemEventStatus(ctx, item.EventID, "processing"); markErr != nil {
 			return nil, markErr

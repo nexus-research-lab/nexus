@@ -36,7 +36,7 @@ internal/   - 后端核心（各子包 L2 见其 doc.go）:
   chat/       - 对话领域（dm / room）
   handler/    - HTTP / WebSocket 处理器
   message/    - runtime/SDK 消息 → Nexus 事件与 assistant 快照的映射投影
-  automation/ - 定时任务 / heartbeat 调度域
+  automation/ - 定时任务 / heartbeat 调度域（任务级 capability grant、持久审批、run 阻塞与安全恢复）
   service/memorymaintenance/ - Nexus 唤醒 nxs 后台记忆维护的宿主协调器
   cli/        - nexusctl 命令装配（按领域文件组织）
   app/        - HTTP 服务装配与生命周期

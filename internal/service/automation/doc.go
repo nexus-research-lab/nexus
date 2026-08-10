@@ -11,13 +11,14 @@
 //   - script_control_boundary.go：Agent actor 对 script 任务的 service 级最终拒绝与并发控制。
 //   - delivery_authority.go：Agent-origin create/update 与实际投递时的 owner-main/self/Room 动态权限复核。
 //   - scheduler.go：到期工作扫描、阶段分发、数据库租约与超时恢复。
-//   - execution*.go：脚本、主会话、独立会话的分阶段执行、非交互来源标记 / 观测 / 重叠与 misfire 处理。
+//   - execution*.go / main_session_execution.go：脚本、主会话、独立会话的分阶段执行、非交互来源标记、物理 attempt 收尾屏障、权限续跑证据、观测、重叠与 misfire 处理。
 //   - heartbeat_*.go：heartbeat 输入分段、分发、运行时与状态。
 //   - observability_health.go / observability_util.go / daily_report.go：状态查询、健康计算与日报。
 //   - delivery_retry.go：投递重试；重试同样通过最新任务与动态权限复核。
 //   - runtime_*.go：执行工件 / 投递 / 脚本 / 进程运行态；desktop 脚本只继承
 //     必要系统环境并把 HOME/TEMP 收窄到任务 workspace/临时目录。
-//   - permission_scheduled.go / summary_heartbeat_tasks.go：定时权限、heartbeat 汇总。
+//   - permission_policy.go / permission_scheduled.go / permission_decision.go：任务授权策略、运行时拦截、持久决策与安全恢复。
+//   - summary_heartbeat_tasks.go：heartbeat 汇总。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package automation

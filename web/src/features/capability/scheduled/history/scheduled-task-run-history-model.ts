@@ -14,7 +14,7 @@ const RUN_STATUS_META: Record<ScheduledTaskRunLedgerStatus, RunStatusMeta> = {
   cancelled: { label: "已取消", tone: "idle" },
   failed: { label: "失败", tone: "default" },
   pending: { label: "等待中", tone: "default" },
-  queued_to_main_session: { label: "已入主会话", tone: "default" },
+  queued_to_main_session: { label: "主会话排队中", tone: "running" },
   running: { label: "运行中", tone: "running" },
   skipped: { label: "已跳过", tone: "idle" },
   succeeded: { label: "成功", tone: "success" },
@@ -136,7 +136,7 @@ function buildRecoverAction({
   run,
   task,
 }: ScheduledTaskRunActionContext): ScheduledTaskRunActionPresentation | null {
-  if (run.status !== "running" || !task.running) {
+  if (!["queued_to_main_session", "running"].includes(run.status) || !task.running) {
     return null;
   }
   return {

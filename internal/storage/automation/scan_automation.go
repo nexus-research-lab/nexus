@@ -2,6 +2,8 @@ package automation
 
 import (
 	"database/sql"
+	"encoding/json"
+	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 )
@@ -10,32 +12,34 @@ func scanScheduledTask(scanner interface {
 	Scan(dest ...any) error
 }) (automationdomain.ScheduledTask, error) {
 	var (
-		item               automationdomain.ScheduledTask
-		runAt              sql.NullString
-		intervalSeconds    sql.NullInt64
-		cronExpression     sql.NullString
-		boundSessionKey    sql.NullString
-		namedSessionKey    sql.NullString
-		deliveryChannel    sql.NullString
-		deliveryTo         sql.NullString
-		deliveryAccountID  sql.NullString
-		deliveryThreadID   sql.NullString
-		sourceKind         sql.NullString
-		sourceCreatorID    sql.NullString
-		sourceContextType  sql.NullString
-		sourceContextID    sql.NullString
-		sourceContextLabel sql.NullString
-		sourceSessionKey   sql.NullString
-		sourceSessionLabel sql.NullString
-		expiresAt          sql.NullTime
-		nextRunAt          sql.NullTime
-		runningRunID       sql.NullString
-		runningStartedAt   sql.NullTime
-		lastRunAt          sql.NullTime
-		lastRunStatus      sql.NullString
-		failureStreak      sql.NullInt64
-		lastError          sql.NullString
-		lastDeliveryStatus sql.NullString
+		item                       automationdomain.ScheduledTask
+		runAt                      sql.NullString
+		intervalSeconds            sql.NullInt64
+		cronExpression             sql.NullString
+		boundSessionKey            sql.NullString
+		namedSessionKey            sql.NullString
+		deliveryChannel            sql.NullString
+		deliveryTo                 sql.NullString
+		deliveryAccountID          sql.NullString
+		deliveryThreadID           sql.NullString
+		sourceKind                 sql.NullString
+		sourceCreatorID            sql.NullString
+		sourceContextType          sql.NullString
+		sourceContextID            sql.NullString
+		sourceContextLabel         sql.NullString
+		sourceSessionKey           sql.NullString
+		sourceSessionLabel         sql.NullString
+		expiresAt                  sql.NullTime
+		nextRunAt                  sql.NullTime
+		runningRunID               sql.NullString
+		runningStartedAt           sql.NullTime
+		lastRunAt                  sql.NullTime
+		lastRunStatus              sql.NullString
+		failureStreak              sql.NullInt64
+		lastError                  sql.NullString
+		lastDeliveryStatus         sql.NullString
+		permissionPolicyJSON       sql.NullString
+		pendingPermissionRequestID sql.NullString
 	)
 	err := scanner.Scan(
 		&item.JobID,
@@ -77,6 +81,10 @@ func scanScheduledTask(scanner interface {
 		&lastError,
 		&lastDeliveryStatus,
 		&item.ConfigurationVersion,
+		&permissionPolicyJSON,
+		&item.PermissionPolicy.Revision,
+		&item.PermissionState,
+		&pendingPermissionRequestID,
 	)
 	if err != nil {
 		return automationdomain.ScheduledTask{}, err
@@ -112,6 +120,14 @@ func scanScheduledTask(scanner interface {
 	}
 	item.LastError = nullStringToPointer(lastError)
 	item.LastDeliveryStatus = nullStringValue(lastDeliveryStatus)
+	if raw := strings.TrimSpace(nullStringValue(permissionPolicyJSON)); raw != "" && raw != "{}" {
+		storedRevision := item.PermissionPolicy.Revision
+		if decodeErr := json.Unmarshal([]byte(raw), &item.PermissionPolicy); decodeErr != nil {
+			return automationdomain.ScheduledTask{}, decodeErr
+		}
+		item.PermissionPolicy.Revision = storedRevision
+	}
+	item.PendingPermissionRequestID = nullStringValue(pendingPermissionRequestID)
 	return item, nil
 }
 
@@ -146,6 +162,8 @@ func scanScheduledTaskRun(scanner interface {
 		assistantText         sql.NullString
 		resultText            sql.NullString
 		artifactPath          sql.NullString
+		blockState            sql.NullString
+		blockedRequestID      sql.NullString
 	)
 	err := scanner.Scan(
 		&item.RunID,
@@ -174,6 +192,10 @@ func scanScheduledTaskRun(scanner interface {
 		&assistantText,
 		&resultText,
 		&artifactPath,
+		&item.PermissionPolicyRevision,
+		&blockState,
+		&blockedRequestID,
+		&item.EffectStarted,
 		&item.CreatedAt,
 		&item.UpdatedAt,
 	)
@@ -198,5 +220,7 @@ func scanScheduledTaskRun(scanner interface {
 	item.AssistantText = nullStringToPointer(assistantText)
 	item.ResultText = nullStringToPointer(resultText)
 	item.ArtifactPath = nullStringToPointer(artifactPath)
+	item.BlockState = nullStringValue(blockState)
+	item.BlockedRequestID = nullStringValue(blockedRequestID)
 	return item, nil
 }

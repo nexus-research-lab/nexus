@@ -52,6 +52,18 @@ type scheduledTaskRecoverPayload struct {
 
 type scheduledTaskRetryDeliveryPayload struct{}
 
+type automationPermissionDecisionPayload struct {
+	Decision       string `json:"decision"`
+	JobID          string `json:"job_id"`
+	RunID          string `json:"run_id"`
+	PolicyRevision int    `json:"policy_revision"`
+}
+
+type automationPermissionResumePayload struct {
+	RequestID      string `json:"request_id"`
+	PolicyRevision int    `json:"policy_revision"`
+}
+
 // Handlers 封装自动化域 HTTP handlers。
 type Handlers struct {
 	api        *handlershared.API
@@ -73,6 +85,91 @@ func (h *Handlers) HandleListScheduledTasks(writer http.ResponseWriter, request 
 		return
 	}
 	h.api.WriteSuccess(writer, items)
+}
+
+// HandleListPermissionRequests 返回当前 owner 的持久自动化交互请求。
+func (h *Handlers) HandleListPermissionRequests(writer http.ResponseWriter, request *http.Request) {
+	items, err := h.automation.ListPermissionRequests(
+		request.Context(),
+		strings.TrimSpace(request.URL.Query().Get("status")),
+		strings.TrimSpace(request.URL.Query().Get("job_id")),
+	)
+	if err != nil {
+		h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+	h.api.WriteSuccess(writer, items)
+}
+
+// HandleResolvePermissionRequest 原子提交 allow-once / allow-task / deny / retry。
+func (h *Handlers) HandleResolvePermissionRequest(writer http.ResponseWriter, request *http.Request) {
+	var payload automationPermissionDecisionPayload
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	result, err := h.automation.ResolvePermissionRequest(
+		request.Context(),
+		chi.URLParam(request, "request_id"),
+		automationdomain.PermissionDecisionInput{
+			Decision:       payload.Decision,
+			JobID:          payload.JobID,
+			RunID:          payload.RunID,
+			PolicyRevision: payload.PolicyRevision,
+		},
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, automationdomain.ErrPermissionRequestNotFound):
+			h.api.WriteFailure(writer, http.StatusNotFound, "审批请求不存在")
+		case errors.Is(err, automationdomain.ErrPermissionRequestResolved),
+			errors.Is(err, automationdomain.ErrPermissionRequestStale):
+			h.api.WriteFailure(writer, http.StatusConflict, err.Error())
+		case errors.Is(err, automationdomain.ErrPermissionDecisionInvalid):
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		case errors.Is(err, automationdomain.ErrPermissionConnectorNotReady):
+			h.api.WriteFailure(writer, http.StatusConflict, err.Error())
+		case handlershared.IsClientMessageError(err):
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		default:
+			h.api.WriteFailure(writer, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	h.api.WriteSuccess(writer, result)
+}
+
+// HandleResumePermissionRun 明确确认重放 ready_to_retry 的 logical run。
+func (h *Handlers) HandleResumePermissionRun(writer http.ResponseWriter, request *http.Request) {
+	var payload automationPermissionResumePayload
+	if !h.api.BindJSON(writer, request, &payload) {
+		return
+	}
+	result, err := h.automation.ResumePermissionRun(
+		request.Context(),
+		chi.URLParam(request, "job_id"),
+		chi.URLParam(request, "run_id"),
+		automationdomain.PermissionResumeInput{
+			RequestID:      payload.RequestID,
+			PolicyRevision: payload.PolicyRevision,
+		},
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, automationdomain.ErrJobNotFound), errors.Is(err, automationdomain.ErrRunNotFound):
+			h.api.WriteFailure(writer, http.StatusNotFound, "资源不存在")
+		case errors.Is(err, automationdomain.ErrPermissionRunNotResumable),
+			errors.Is(err, automationdomain.ErrPermissionRequestStale):
+			h.api.WriteFailure(writer, http.StatusConflict, err.Error())
+		case errors.Is(err, automationdomain.ErrPermissionDecisionInvalid):
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		case handlershared.IsClientMessageError(err):
+			h.api.WriteFailure(writer, http.StatusBadRequest, err.Error())
+		default:
+			h.api.WriteFailure(writer, http.StatusConflict, err.Error())
+		}
+		return
+	}
+	h.api.WriteSuccess(writer, result)
 }
 
 func (h *Handlers) HandleCreateScheduledTask(writer http.ResponseWriter, request *http.Request) {

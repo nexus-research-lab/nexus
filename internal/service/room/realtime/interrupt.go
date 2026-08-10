@@ -1,3 +1,6 @@
+// INPUT: Room session、root round 或 agent slot 的精确中断目标。
+// OUTPUT: 幂等精确停止、整轮停止，以及可识别的目标已结束结果。
+// POS: Room runtime 取消边界；精确目标不得扩大为整个共享 session 中断。
 package realtime
 
 import (
@@ -8,6 +11,9 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 )
+
+// ErrTargetRoomRoundNotRunning 表示精确 root round 已自然结束或从未运行。
+var ErrTargetRoomRoundNotRunning = errors.New("target room round not found or already ended")
 
 // HandleInterrupt 处理中断请求。带 agent_round_id 时只停对应 slot，否则停整个 round。
 func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest) error {
@@ -27,7 +33,7 @@ func (s *Service) HandleInterrupt(ctx context.Context, request InterruptRequest)
 	if roundID := strings.TrimSpace(request.RoundID); roundID != "" {
 		roundValue := s.findActiveRoundByRoundID(sessionKey, roundID)
 		if roundValue == nil {
-			return errors.New("target room round not found")
+			return ErrTargetRoomRoundNotRunning
 		}
 		return s.interruptActiveRound(ctx, roundValue, "")
 	}

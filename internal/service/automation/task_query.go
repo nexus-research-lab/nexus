@@ -32,6 +32,10 @@ func (s *Service) ListTasks(ctx context.Context, agentID string) ([]automationdo
 	}
 	result := make([]automationdomain.ScheduledTask, 0, len(items))
 	for _, item := range items {
+		item, err = s.ensureTaskPermissionPolicy(ctx, item)
+		if err != nil {
+			return nil, err
+		}
 		state := s.ensureJobState(item)
 		result = append(result, s.scheduledTaskRuntimeSnapshot(item, state))
 	}
@@ -60,6 +64,11 @@ func (s *Service) GetTask(ctx context.Context, jobID string) (*automationdomain.
 	if job == nil {
 		return nil, nil
 	}
+	ensured, err := s.ensureTaskPermissionPolicy(ctx, *job)
+	if err != nil {
+		return nil, err
+	}
+	job = &ensured
 	state := s.ensureJobState(*job)
 	enriched := s.scheduledTaskRuntimeSnapshot(*job, state)
 	return &enriched, nil

@@ -55,6 +55,10 @@ INSERT INTO automation_scheduled_tasks (
     overlap_policy,
     expires_at,
     enabled,
+    permission_policy_json,
+    permission_policy_revision,
+    permission_state,
+    pending_permission_request_id,
     created_at,
     updated_at
 ) VALUES (
@@ -91,6 +95,10 @@ ON CONFLICT(job_id) DO UPDATE SET
     expires_at = EXCLUDED.expires_at,
     enabled = EXCLUDED.enabled,
     configuration_version = automation_scheduled_tasks.configuration_version + 1,
+    permission_policy_json = EXCLUDED.permission_policy_json,
+    permission_policy_revision = EXCLUDED.permission_policy_revision,
+    permission_state = EXCLUDED.permission_state,
+    pending_permission_request_id = EXCLUDED.pending_permission_request_id,
     updated_at = CURRENT_TIMESTAMP`
 
 // NewRepository 创建自动化仓储。
@@ -100,7 +108,7 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
 		isPostgres: storage.NormalizeSQLDriver(cfg.DatabaseDriver) == "pgx",
 		dialect:    storage.NewSQLDialect(cfg.DatabaseDriver),
 	}
-	repository.upsertScheduledTaskQuery = fmt.Sprintf(upsertScheduledTaskQueryTemplate, repository.bindList(30))
+	repository.upsertScheduledTaskQuery = fmt.Sprintf(upsertScheduledTaskQueryTemplate, repository.bindList(34))
 	repository.insertRunPendingQuery = fmt.Sprintf(
 		`INSERT INTO automation_task_runs (
     run_id,
@@ -115,16 +123,21 @@ func NewRepository(cfg config.Config, db *sql.DB) *Repository {
     delivery_status,
     scheduled_for,
     attempts,
+    permission_policy_revision,
     created_at,
     updated_at
 ) VALUES (%s,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
-		repository.bindList(12),
+		repository.bindList(13),
 	)
 	repository.markRunRunningQuery = fmt.Sprintf(
 		`UPDATE automation_task_runs
 SET status = %s,
     started_at = %s,
     attempts = attempts + 1,
+    block_state = '',
+    blocked_request_id = NULL,
+    finished_at = NULL,
+    error_message = NULL,
     updated_at = CURRENT_TIMESTAMP
 WHERE run_id = %s`,
 		repository.bind(1), repository.bind(2), repository.bind(3),
@@ -147,6 +160,8 @@ SET status = %s,
     delivery_attempts = delivery_attempts + CASE WHEN %s THEN 1 ELSE 0 END,
     delivery_next_attempt_at = %s,
     delivery_dead_letter_at = %s,
+    block_state = '',
+    blocked_request_id = NULL,
     updated_at = CURRENT_TIMESTAMP
 WHERE run_id = %s`,
 		repository.bind(1), repository.bind(2), repository.bind(3), repository.bind(4), repository.bind(5), repository.bind(6), repository.bind(7), repository.bind(8), repository.bind(9), repository.bind(10), repository.bind(11), repository.bind(12), repository.bind(13), repository.bind(14), repository.bind(15), repository.bind(16), repository.bind(17),

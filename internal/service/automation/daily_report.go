@@ -240,7 +240,7 @@ func taskRunReportTime(run automationdomain.ScheduledTaskRun) time.Time {
 func addDailyReportRun(totals *automationdomain.ScheduledTaskDailyReportTotals, run automationdomain.ScheduledTaskRun) {
 	totals.RunCount++
 	switch strings.TrimSpace(run.Status) {
-	case automationdomain.RunStatusSucceeded, automationdomain.RunStatusQueuedToMain:
+	case automationdomain.RunStatusSucceeded:
 		totals.SucceededRunCount++
 	case automationdomain.RunStatusFailed:
 		totals.FailedRunCount++

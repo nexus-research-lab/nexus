@@ -107,6 +107,14 @@ const (
 	TaskEventActionExpire = "expire"
 	// TaskEventActionAutoRetryDelivery 表示系统自动重试投递。
 	TaskEventActionAutoRetryDelivery = "auto_retry_delivery"
+	// TaskEventActionPermissionRequested 表示后台 run 已持久化用户交互请求。
+	TaskEventActionPermissionRequested = "permission_requested"
+	// TaskEventActionPermissionApproved 表示 owner 已批准能力并允许继续。
+	TaskEventActionPermissionApproved = "permission_approved"
+	// TaskEventActionPermissionDenied 表示 owner 已拒绝能力请求。
+	TaskEventActionPermissionDenied = "permission_denied"
+	// TaskEventActionPermissionRetry 表示 connector 恢复或 owner 确认后重试被阻塞 run。
+	TaskEventActionPermissionRetry = "permission_retry"
 
 	// HeartbeatTargetNone 表示不投递。
 	HeartbeatTargetNone = "none"
@@ -125,6 +133,18 @@ var (
 	ErrConfigurationVersionConflict = errors.New("automation configuration version conflict")
 	// ErrCreateRequestConflict 表示同一个创建幂等键被用于不同意图。
 	ErrCreateRequestConflict = errors.New("scheduled task create request conflicts with an existing intent")
+	// ErrPermissionRequestNotFound 表示审批请求不存在或不属于当前 owner。
+	ErrPermissionRequestNotFound = errors.New("automation permission request not found")
+	// ErrPermissionRequestResolved 表示审批请求已由其他决策处理。
+	ErrPermissionRequestResolved = errors.New("automation permission request already resolved")
+	// ErrPermissionRequestStale 表示任务修订已使审批请求失效。
+	ErrPermissionRequestStale = errors.New("automation permission request is stale")
+	// ErrPermissionDecisionInvalid 表示决策不适用于当前请求类型。
+	ErrPermissionDecisionInvalid = errors.New("automation permission decision is invalid")
+	// ErrPermissionRunNotResumable 表示 run 不在可显式重试状态。
+	ErrPermissionRunNotResumable = errors.New("automation permission run is not resumable")
+	// ErrPermissionConnectorNotReady 表示 connector 尚未恢复可用连接。
+	ErrPermissionConnectorNotReady = errors.New("automation permission connector is not ready")
 	// ErrHeartbeatConfigInvalid 表示 heartbeat 配置非法。
 	ErrHeartbeatConfigInvalid = errors.New("heartbeat config is invalid")
 )

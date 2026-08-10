@@ -247,6 +247,47 @@ func (s *Service) persistJobRuntime(ctx context.Context, input automationstore.J
 	}
 }
 
+func (s *Service) setJobPermissionState(jobID string, permissionState string, requestID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	state := s.jobStates[strings.TrimSpace(jobID)]
+	if state == nil {
+		return
+	}
+	state.Job.PermissionState = strings.TrimSpace(permissionState)
+	state.Job.PendingPermissionRequestID = strings.TrimSpace(requestID)
+}
+
+func (s *Service) pauseJobRuntimeForPermission(
+	job automationdomain.ScheduledTask,
+	runID string,
+	permissionState string,
+	reason *string,
+) {
+	s.mu.Lock()
+	state := s.jobStates[strings.TrimSpace(job.JobID)]
+	if state == nil {
+		state = &automationexec.JobRuntimeState{Job: job}
+		s.jobStates[job.JobID] = state
+	}
+	if strings.TrimSpace(state.RunningRunID) == strings.TrimSpace(runID) {
+		if state.RunningCount > 0 {
+			state.RunningCount--
+		}
+		state.Running = state.RunningCount > 0
+		if !state.Running {
+			state.RunningRunID = ""
+			state.RunningStartedAt = nil
+		}
+	}
+	state.LastRunStatus = strings.TrimSpace(permissionState)
+	state.LastError = cloneStringPointer(reason)
+	state.Job.PermissionState = strings.TrimSpace(permissionState)
+	runtimeSnapshot := jobRuntimeUpdateFromState(job.JobID, state)
+	s.mu.Unlock()
+	s.persistJobRuntime(context.Background(), runtimeSnapshot)
+}
+
 func jobRuntimeUpdateFromState(jobID string, state *automationexec.JobRuntimeState) automationstore.JobRuntimeUpdateInput {
 	return automationstore.JobRuntimeUpdateInput{
 		JobID:              jobID,
@@ -305,7 +346,7 @@ func (s *Service) scheduledTaskRuntimeSnapshot(
 
 func isSuccessfulRuntimeStatus(status string) bool {
 	switch strings.TrimSpace(status) {
-	case automationdomain.RunStatusSucceeded, automationdomain.RunStatusQueuedToMain:
+	case automationdomain.RunStatusSucceeded:
 		return true
 	default:
 		return false

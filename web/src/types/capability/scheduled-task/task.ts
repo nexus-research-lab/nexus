@@ -4,6 +4,8 @@
  * 这里只描述任务本身；运行记录和执行结果由 `run.ts` 持有。
  */
 
+import type { AutomationPermissionRequest } from "./permission";
+
 export type ScheduledTaskWakeMode = "now" | "next-heartbeat";
 export type ScheduledTaskDeliveryMode = "none" | "last" | "explicit";
 export type ScheduledTaskSourceKind = "user_page" | "agent" | "cli" | "system";
@@ -100,6 +102,31 @@ export interface ApiScheduledTask {
   failure_streak?: number | null;
   last_error?: string | null;
   last_delivery_status?: string | null;
+  permission_policy?: {
+    version: number;
+    revision: number;
+    grants: Array<{
+      grant_id: string;
+      capability: {
+        tool_name: string;
+        connector_id?: string | null;
+        effect: string;
+        resource_scope?: string | null;
+      };
+      source: string;
+      approved_at?: string | null;
+    }>;
+  } | null;
+  permission_state?:
+    | "uninitialized"
+    | "ready"
+    | "awaiting_approval"
+    | "awaiting_reauth"
+    | "awaiting_input"
+    | "ready_to_retry"
+    | "denied"
+    | string;
+  pending_permission_request_id?: string | null;
 }
 
 export interface ScheduledTaskItem extends Omit<
@@ -111,6 +138,7 @@ export interface ScheduledTaskItem extends Omit<
   running_started_at: number | null;
   last_run_at: number | null;
   failure_streak: number;
+  pending_permission_request?: AutomationPermissionRequest | null;
 }
 
 export interface ListScheduledTasksParams {

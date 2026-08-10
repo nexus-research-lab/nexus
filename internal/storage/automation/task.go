@@ -3,6 +3,7 @@ package automation
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -53,7 +54,11 @@ SELECT
     failure_streak,
     last_error,
     last_delivery_status,
-    configuration_version
+    configuration_version,
+    permission_policy_json,
+    permission_policy_revision,
+    permission_state,
+    pending_permission_request_id
 FROM automation_scheduled_tasks`
 	args := []any{}
 	conditions := make([]string, 0, 2)
@@ -148,7 +153,11 @@ SELECT
     failure_streak,
     last_error,
     last_delivery_status,
-    configuration_version
+    configuration_version,
+    permission_policy_json,
+    permission_policy_revision,
+    permission_state,
+    pending_permission_request_id
 FROM automation_scheduled_tasks
 WHERE job_id = ` + r.bind(1)
 
@@ -171,10 +180,14 @@ WHERE job_id = ` + r.bind(1)
 
 // UpsertScheduledTask 创建或更新任务。
 func (r *Repository) UpsertScheduledTask(ctx context.Context, job automationdomain.ScheduledTask) (*automationdomain.ScheduledTask, error) {
-	_, err := r.execWithRetry(
+	args, err := scheduledTaskUpsertArgs(job)
+	if err != nil {
+		return nil, err
+	}
+	_, err = r.execWithRetry(
 		ctx,
 		r.upsertScheduledTaskQuery,
-		scheduledTaskUpsertArgs(job)...,
+		args...,
 	)
 	if err != nil {
 		return nil, err
@@ -225,6 +238,10 @@ func (r *Repository) createScheduledTaskIdempotentOnce(
 	intentDigest = strings.TrimSpace(intentDigest)
 	if requestID == "" || intentDigest == "" {
 		return nil, false, errors.New("request_id and intent_digest are required")
+	}
+	upsertArgs, err := scheduledTaskUpsertArgs(job)
+	if err != nil {
+		return nil, false, err
 	}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -278,7 +295,7 @@ WHERE owner_user_id = %s AND request_id = %s`,
 			return nil, false, automationdomain.ErrCreateRequestConflict
 		}
 	} else {
-		if _, err = tx.ExecContext(ctx, r.upsertScheduledTaskQuery, scheduledTaskUpsertArgs(job)...); err != nil {
+		if _, err = tx.ExecContext(ctx, r.upsertScheduledTaskQuery, upsertArgs...); err != nil {
 			return nil, false, err
 		}
 	}
@@ -383,6 +400,10 @@ func (r *Repository) UpdateScheduledTaskAtVersion(
 		"overlap_policy",
 		"expires_at",
 		"enabled",
+		"permission_policy_json",
+		"permission_policy_revision",
+		"permission_state",
+		"pending_permission_request_id",
 	}
 	assignments := make([]string, 0, len(columns)+2)
 	for index, column := range columns {
@@ -392,7 +413,10 @@ func (r *Repository) UpdateScheduledTaskAtVersion(
 		"configuration_version = configuration_version + 1",
 		"updated_at = CURRENT_TIMESTAMP",
 	)
-	args := scheduledTaskDefinitionArgs(job)
+	args, err := scheduledTaskDefinitionArgs(job)
+	if err != nil {
+		return nil, err
+	}
 	args = append(args, strings.TrimSpace(job.JobID), strings.TrimSpace(job.OwnerUserID), expectedVersion)
 	result, err := r.execWithRetry(
 		ctx,
@@ -459,11 +483,19 @@ func (r *Repository) DeleteScheduledTaskAtVersion(
 	return nil
 }
 
-func scheduledTaskUpsertArgs(job automationdomain.ScheduledTask) []any {
-	return append([]any{strings.TrimSpace(job.JobID)}, scheduledTaskDefinitionArgs(job)...)
+func scheduledTaskUpsertArgs(job automationdomain.ScheduledTask) ([]any, error) {
+	definitionArgs, err := scheduledTaskDefinitionArgs(job)
+	if err != nil {
+		return nil, err
+	}
+	return append([]any{strings.TrimSpace(job.JobID)}, definitionArgs...), nil
 }
 
-func scheduledTaskDefinitionArgs(job automationdomain.ScheduledTask) []any {
+func scheduledTaskDefinitionArgs(job automationdomain.ScheduledTask) ([]any, error) {
+	permissionPolicyJSON, err := json.Marshal(job.PermissionPolicy)
+	if err != nil {
+		return nil, err
+	}
 	return []any{
 		strings.TrimSpace(job.OwnerUserID),
 		job.Name,
@@ -494,5 +526,9 @@ func scheduledTaskDefinitionArgs(job automationdomain.ScheduledTask) []any {
 		automationdomain.NormalizeOverlapPolicy(job.OverlapPolicy),
 		nullableTime(job.ExpiresAt),
 		job.Enabled,
-	}
+		string(permissionPolicyJSON),
+		job.PermissionPolicy.Revision,
+		strings.TrimSpace(job.PermissionState),
+		nullString(strings.TrimSpace(job.PendingPermissionRequestID)),
+	}, nil
 }

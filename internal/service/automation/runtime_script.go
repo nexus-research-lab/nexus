@@ -78,19 +78,51 @@ func (s *Service) startScriptJobExecution(ctx context.Context, job automationdom
 	s.mu.Unlock()
 
 	if err := s.repository.InsertRunPending(ctx, automationstore.RunPendingInput{
-		RunID:        runID,
-		JobID:        job.JobID,
-		OwnerUserID:  job.OwnerUserID,
-		ScheduledFor: &scheduledFor,
-		TriggerKind:  triggerKind,
-		DeliveryMode: strings.TrimSpace(job.Delivery.Mode),
-		DeliveryTo:   deliveryTargetSummary(job.Delivery),
+		RunID:                    runID,
+		JobID:                    job.JobID,
+		OwnerUserID:              job.OwnerUserID,
+		ScheduledFor:             &scheduledFor,
+		TriggerKind:              triggerKind,
+		DeliveryMode:             strings.TrimSpace(job.Delivery.Mode),
+		DeliveryTo:               deliveryTargetSummary(job.Delivery),
+		PermissionPolicyRevision: job.PermissionPolicy.Revision,
 	}); err != nil {
 		s.finishJobRuntime(job.JobID, nil, automationdomain.RunStatusFailed, errorPointer(err))
 		return nil, err
 	}
 	if err := s.repository.MarkRunRunning(ctx, runID, startedAt); err != nil {
 		s.finishJobRuntime(job.JobID, nil, automationdomain.RunStatusFailed, errorPointer(err))
+		return nil, err
+	}
+	allowed, err := s.ensureScriptRunPermission(ctx, job, runID)
+	if err != nil {
+		finishedAt := s.nowFn()
+		_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
+			RunID:        runID,
+			Status:       automationdomain.RunStatusFailed,
+			FinishedAt:   finishedAt,
+			ErrorMessage: errorPointer(err),
+		})
+		s.finishJobRuntime(job.JobID, &finishedAt, automationdomain.RunStatusFailed, errorPointer(err))
+		return nil, err
+	}
+	if !allowed {
+		return &automationdomain.ExecutionResult{
+			JobID:        job.JobID,
+			RunID:        &runID,
+			Status:       automationdomain.RunStatusPending,
+			ScheduledFor: cloneTimePointer(&scheduledFor),
+		}, nil
+	}
+	if err = s.repository.MarkRunEffectStarted(ctx, job.OwnerUserID, runID); err != nil {
+		finishedAt := s.nowFn()
+		_ = s.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
+			RunID:        runID,
+			Status:       automationdomain.RunStatusFailed,
+			FinishedAt:   finishedAt,
+			ErrorMessage: errorPointer(err),
+		})
+		s.finishJobRuntime(job.JobID, &finishedAt, automationdomain.RunStatusFailed, errorPointer(err))
 		return nil, err
 	}
 
@@ -102,6 +134,59 @@ func (s *Service) startScriptJobExecution(ctx context.Context, job automationdom
 		ScheduledFor: cloneTimePointer(&scheduledFor),
 		MessageCount: 0,
 	}, nil
+}
+
+func (s *Service) ensureScriptRunPermission(
+	ctx context.Context,
+	job automationdomain.ScheduledTask,
+	runID string,
+) (bool, error) {
+	capability := buildScriptPermissionCapability(job)
+	allowed, hardDenied, err := s.taskPolicyAllowsCapability(ctx, job, capability)
+	if err != nil {
+		return false, err
+	}
+	if hardDenied {
+		return false, errors.New("当前 Agent 已明确禁用 host script 执行")
+	}
+	if allowed {
+		return true, nil
+	}
+	request, created, err := s.repository.CreatePermissionRequestAndBlockRun(
+		ctx,
+		automationstore.PermissionRequestCreateInput{
+			Request: automationdomain.AutomationPermissionRequest{
+				RequestID:      s.idFactory("permission"),
+				OwnerUserID:    job.OwnerUserID,
+				JobID:          job.JobID,
+				RunID:          runID,
+				PolicyRevision: job.PermissionPolicy.Revision,
+				Kind:           automationdomain.PermissionRequestKindScript,
+				Capability:     capability,
+				InputSummary:   map[string]any{"script_sha256": capability.ResourceScope},
+				Title:          "定时任务请求执行工作区脚本",
+				Description:    "脚本会在目标 Agent workspace 中执行；授权与当前脚本内容哈希绑定，脚本修改后自动失效。",
+				Reason:         "需要 owner 确认工作区脚本执行",
+				ResumeSafe:     true,
+			},
+			TaskState:  automationdomain.TaskPermissionStateAwaitingApproval,
+			BlockState: automationdomain.RunBlockStateAwaitingApproval,
+		},
+	)
+	if err != nil {
+		return false, err
+	}
+	s.setJobPermissionState(job.JobID, automationdomain.TaskPermissionStateAwaitingApproval, request.RequestID)
+	s.pauseJobRuntimeForPermission(job, runID, automationdomain.TaskPermissionStateAwaitingApproval, &request.Reason)
+	if created {
+		s.recordTaskEvent(ctx, automationdomain.TaskEventActionPermissionRequested, job, runID, map[string]any{
+			"request_id":   request.RequestID,
+			"request_kind": request.Kind,
+			"effect":       request.Capability.Effect,
+			"resume_safe":  request.ResumeSafe,
+		})
+	}
+	return false, nil
 }
 
 func (s *Service) observeScriptJob(job automationdomain.ScheduledTask, runID string, scheduledFor time.Time) {
