@@ -84,6 +84,43 @@ func TestServiceCreateAndCurrentGoal(t *testing.T) {
 	}
 }
 
+func TestServicePlanContinuationRepairsLegacyExternalGoalReservation(t *testing.T) {
+	repo := newMemoryRepository()
+	legacy := protocol.Goal{
+		ID:         "goal_legacy_external",
+		SessionKey: "room:group:legacy-reservation",
+		Objective:  "Resume an existing Room Goal",
+		Status:     protocol.GoalStatusActive,
+		Version:    1,
+	}
+	repo.goals[legacy.ID] = legacy
+	service := NewService(config.Config{
+		GoalEnabled:             true,
+		GoalAutoContinueEnabled: true,
+	}, repo)
+	service.nowFn = fixedClock()
+	service.idFactory = sequentialID()
+
+	plan, err := service.PlanContinuationForSession(context.Background(), legacy.SessionKey, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan == nil {
+		t.Fatal("plan = nil, want repaired continuation")
+	}
+	wantExecutionID := protocol.ExplicitGoalReservedExecutionID("external_goal_" + legacy.ID)
+	if got := protocol.GoalReservedExecutionID(plan.Goal); got != wantExecutionID {
+		t.Fatalf("plan execution = %q, want %q", got, wantExecutionID)
+	}
+	stored, err := repo.GetGoal(context.Background(), legacy.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored == nil || protocol.GoalReservedExecutionID(*stored) != wantExecutionID {
+		t.Fatalf("stored = %#v, want persisted execution reservation", stored)
+	}
+}
+
 func TestServiceCreateReplacesCurrentGoalWhenExplicitlyRequested(t *testing.T) {
 	repo := newMemoryRepository()
 	service := NewService(config.Config{GoalEnabled: true}, repo)

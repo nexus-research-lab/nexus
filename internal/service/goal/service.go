@@ -5,6 +5,8 @@ package goal
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -152,6 +154,51 @@ func (s *Service) Create(ctx context.Context, request protocol.CreateGoalRequest
 	}
 	s.maybeDispatchActiveGoalContinuation(ctx, *created)
 	return created, nil
+}
+
+// reserveExternalGoalExecution 为外部 Room Goal 预留稳定 Execution。
+func reserveExternalGoalExecution(metadata map[string]any, goalID string) map[string]any {
+	metadata = cloneMap(metadata)
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	commandID := "external_goal_" + strings.TrimSpace(goalID)
+	metadata[protocol.GoalMetadataExplicitCommand] = commandID
+	metadata[protocol.GoalMetadataExecutionID] = protocol.ExplicitGoalReservedExecutionID(commandID)
+	metadata[protocol.GoalMetadataActivationOrigin] = string(protocol.GoalActivationOriginUserExplicit)
+	metadata[protocol.GoalMetadataActivationReason] = string(protocol.GoalActivationReasonPersistenceRequested)
+	return metadata
+}
+
+// ensureExternalGoalExecutionReservation 为历史外部 Room Goal 补齐缺失的稳定 reservation。
+func (s *Service) ensureExternalGoalExecutionReservation(
+	ctx context.Context,
+	item *protocol.Goal,
+) (*protocol.Goal, error) {
+	if item == nil || !protocol.IsRoomSharedSessionKey(item.SessionKey) ||
+		strings.TrimSpace(item.CreatedBy) == "model" ||
+		protocol.GoalReservedExecutionID(*item) != "" {
+		return item, nil
+	}
+	return s.retryGoalMutation(ctx, item, func(current *protocol.Goal) (*protocol.Goal, error) {
+		if !protocol.IsRoomSharedSessionKey(current.SessionKey) ||
+			strings.TrimSpace(current.CreatedBy) == "model" ||
+			protocol.GoalReservedExecutionID(*current) != "" {
+			return current, nil
+		}
+		expectedVersion := current.Version
+		current.Metadata = reserveExternalGoalExecution(current.Metadata, current.ID)
+		current.Version++
+		current.UpdatedAt = s.nowFn()
+		updated, err := s.repo.UpdateGoal(ctx, *current, expectedVersion)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrGoalVersionStale
+		}
+		if err != nil {
+			return nil, err
+		}
+		return updated, nil
+	})
 }
 
 func (s *Service) createGoalWithUsageScope(
