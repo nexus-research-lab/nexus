@@ -192,6 +192,10 @@ func (s *Service) bootstrapRuntime(ctx context.Context) error {
 		return err
 	}
 	for _, item := range jobs {
+		item, err = s.ensureTaskPermissionPolicy(ctx, item)
+		if err != nil {
+			return err
+		}
 		s.ensureJobState(item)
 	}
 
@@ -284,6 +288,10 @@ func (s *Service) collectScheduledTaskWorkLocked(
 }
 
 func isRunnableScheduledTaskState(state *automationexec.JobRuntimeState, now time.Time) bool {
+	permissionState := strings.TrimSpace(state.Job.PermissionState)
+	if permissionState != "" && permissionState != automationdomain.TaskPermissionStateReady {
+		return false
+	}
 	if state.NextRunAt == nil {
 		return false
 	}

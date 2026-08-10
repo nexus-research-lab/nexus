@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -205,7 +206,7 @@ func TestServiceRunTaskNowCanRunDisabledTaskWithoutReenabling(t *testing.T) {
 	}
 }
 
-func TestServiceRunTaskNowRecordsPermissionDeniedToolAsFailedRun(t *testing.T) {
+func TestServiceRunTaskNowPersistsPermissionRequestAndResumesSameRun(t *testing.T) {
 	db := newAutomationTestDB(t)
 	permission := permissionctx.NewContext()
 	dm := &fakeDMRunner{
@@ -253,7 +254,9 @@ func TestServiceRunTaskNowRecordsPermissionDeniedToolAsFailedRun(t *testing.T) {
 
 	waitFor(t, 2*time.Second, func() bool {
 		runs, listErr := service.ListTaskRuns(context.Background(), task.JobID)
-		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusFailed
+		return listErr == nil && len(runs) == 1 &&
+			runs[0].Status == automationdomain.RunStatusPending &&
+			runs[0].BlockState == automationdomain.RunBlockStateAwaitingApproval
 	})
 	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
 	if err != nil {
@@ -263,57 +266,149 @@ func TestServiceRunTaskNowRecordsPermissionDeniedToolAsFailedRun(t *testing.T) {
 		t.Fatalf("期望 1 条 run，实际 %d", len(runs))
 	}
 	run := runs[0]
-	if run.ErrorMessage == nil || !strings.Contains(*run.ErrorMessage, "WebSearch") {
-		t.Fatalf("权限拒绝应写入 run error_message: %+v", run)
-	}
-	if run.ResultText == nil || !strings.Contains(*run.ResultText, "WebSearch") {
-		t.Fatalf("权限拒绝仍应保留 runtime 结果文本: %+v", run)
+	if run.BlockedRequestID == "" || run.FinishedAt != nil || run.EffectStarted {
+		t.Fatalf("权限等待应保留可恢复 run 且尚未越过副作用边界: %+v", run)
 	}
 
 	updatedTask, err := service.GetTask(context.Background(), task.JobID)
 	if err != nil {
 		t.Fatalf("GetTask 失败: %v", err)
 	}
-	if updatedTask == nil || updatedTask.LastRunStatus != automationdomain.RunStatusFailed || updatedTask.FailureStreak != 1 {
-		t.Fatalf("任务运行态未记录权限失败: %+v", updatedTask)
-	}
-	if updatedTask.LastError == nil || !strings.Contains(*updatedTask.LastError, "WebSearch") {
-		t.Fatalf("任务 last_error 应包含权限失败原因: %+v", updatedTask)
+	if updatedTask == nil || updatedTask.PermissionState != automationdomain.TaskPermissionStateAwaitingApproval ||
+		updatedTask.PendingPermissionRequestID != run.BlockedRequestID || updatedTask.FailureStreak != 0 {
+		t.Fatalf("任务应进入待审批状态且不累计执行失败: %+v", updatedTask)
 	}
 
-	status, err := service.GetTaskStatus(context.Background(), task.JobID, 10, 10)
+	ownerCtx := contextForOwner(context.Background(), task.OwnerUserID)
+	requests, err := service.ListPermissionRequests(ownerCtx, automationdomain.PermissionRequestStatusPending, task.JobID)
 	if err != nil {
-		t.Fatalf("GetTaskStatus 失败: %v", err)
+		t.Fatalf("ListPermissionRequests 失败: %v", err)
 	}
-	if status.Health.State != "attention" || status.Health.LatestExecutionError == nil ||
-		!strings.Contains(*status.Health.LatestExecutionError, "WebSearch") {
-		t.Fatalf("任务健康摘要应暴露权限失败: %+v", status.Health)
+	if len(requests) != 1 || requests[0].RequestID != run.BlockedRequestID ||
+		requests[0].Capability.ToolName != "WebSearch" || !requests[0].ResumeSafe {
+		t.Fatalf("持久审批请求不完整: %+v", requests)
 	}
-	if !containsString(status.Health.Signals, "recent_execution_failed") ||
-		!containsString(status.Health.ExecutionFailedRunIDs, run.RunID) {
-		t.Fatalf("任务健康摘要缺少失败信号或 run_id: %+v", status.Health)
+	decision, err := service.ResolvePermissionRequest(
+		ownerCtx,
+		requests[0].RequestID,
+		permissionDecisionInputForRequest(requests[0], automationdomain.PermissionDecisionAllowTask),
+	)
+	if err != nil {
+		t.Fatalf("ResolvePermissionRequest 失败: %v", err)
 	}
-	if !containsString(status.Health.SuggestedTools, "update_scheduled_task") ||
-		!containsString(status.Health.SuggestedTools, "run_scheduled_task") {
-		t.Fatalf("任务健康摘要缺少执行失败补救工具: %+v", status.Health)
+	if !decision.ResumeStarted || decision.Request == nil ||
+		decision.Request.Status != automationdomain.PermissionRequestStatusApproved {
+		t.Fatalf("allow_task 应自动恢复同一 logical run: %+v", decision)
+	}
+	dispatched := dm.Requests()
+	if len(dispatched) != 2 ||
+		!strings.Contains(dispatched[1].Content, "[权限续跑]") ||
+		!strings.Contains(dispatched[1].Content, "`WebSearch`") ||
+		!strings.Contains(dispatched[1].Content, "不得仅引用上一轮失败直接结束") {
+		t.Fatalf("审批后的新 attempt 必须显式要求重试原工具: %+v", dispatched)
 	}
 
-	report, err := service.GetDailyReport(context.Background(), automationdomain.ScheduledTaskDailyReportInput{
-		Date:     "today",
-		Timezone: "Asia/Shanghai",
-		JobID:    task.JobID,
+	waitFor(t, 2*time.Second, func() bool {
+		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
+		return listErr == nil && len(items) == 1 && items[0].Status == automationdomain.RunStatusSucceeded
+	})
+	runs, err = service.ListTaskRuns(context.Background(), task.JobID)
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("读取恢复后的 run 失败: runs=%+v err=%v", runs, err)
+	}
+	if runs[0].RunID != run.RunID || runs[0].Attempts != 2 || runs[0].Status != automationdomain.RunStatusSucceeded {
+		t.Fatalf("审批恢复必须复用 logical run_id 并创建新 attempt: %+v", runs[0])
+	}
+	updatedTask, err = service.GetTask(context.Background(), task.JobID)
+	if err != nil || updatedTask == nil || updatedTask.PermissionState != automationdomain.TaskPermissionStateReady ||
+		updatedTask.FailureStreak != 0 {
+		t.Fatalf("审批恢复成功后任务状态不正确: task=%+v err=%v", updatedTask, err)
+	}
+	if !slices.ContainsFunc(updatedTask.PermissionPolicy.Grants, func(grant automationdomain.TaskPermissionGrant) bool {
+		return grant.Source == automationdomain.PermissionGrantSourceUserApproval &&
+			grant.Capability.ToolName == "WebSearch"
+	}) {
+		t.Fatalf("allow_task 未写入任务级 capability grant: %+v", updatedTask.PermissionPolicy)
+	}
+	second, err := service.RunTaskNow(context.Background(), task.JobID)
+	if err != nil || second.RunID == nil {
+		t.Fatalf("持久授权后的第二次运行启动失败: result=%+v err=%v", second, err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		items, listErr := service.ListTaskRuns(context.Background(), task.JobID)
+		return listErr == nil && len(items) == 2 && items[0].Status == automationdomain.RunStatusSucceeded
+	})
+	pendingRequests, err := service.ListPermissionRequests(ownerCtx, automationdomain.PermissionRequestStatusPending, task.JobID)
+	if err != nil || len(pendingRequests) != 0 {
+		t.Fatalf("任务级授权后不应重复请求相同 capability: requests=%+v err=%v", pendingRequests, err)
+	}
+}
+
+func TestPermissionResumeFailsWhenAgentDoesNotRetryApprovedTool(t *testing.T) {
+	db := newAutomationTestDB(t)
+	permission := permissionctx.NewContext()
+	dm := &fakeDMRunner{
+		permission:               permission,
+		requiredTool:             "WebSearch",
+		skipPermissionAfterFirst: true,
+	}
+	service := NewService(
+		config.Config{DatabaseDriver: "sqlite"},
+		db,
+		nil,
+		dm,
+		nil,
+		permission,
+		&fakeWorkspaceReader{},
+		nil,
+	)
+	task, err := service.CreateTask(context.Background(), automationdomain.CreateJobInput{
+		Name:        "权限续跑证据校验",
+		AgentID:     "agent-1",
+		Instruction: "搜索今天的 AI 新闻",
+		Schedule: automationdomain.Schedule{
+			Kind:            automationdomain.ScheduleKindEvery,
+			IntervalSeconds: intRef(3600),
+			Timezone:        "Asia/Shanghai",
+		},
+		SessionTarget: automationdomain.SessionTarget{
+			Kind:            automationdomain.SessionTargetBound,
+			BoundSessionKey: protocol.BuildAgentSessionKey("agent-1", "ws", "dm", "permission-resume-evidence", ""),
+		},
+		Delivery: automationdomain.DeliveryTarget{Mode: automationdomain.DeliveryModeNone},
+		Enabled:  true,
 	})
 	if err != nil {
-		t.Fatalf("GetDailyReport 失败: %v", err)
+		t.Fatalf("CreateTask 失败: %v", err)
 	}
-	if report.Totals.FailedRunCount != 1 || len(report.Tasks) != 1 ||
-		report.Tasks[0].LatestExecutionError == nil ||
-		!strings.Contains(*report.Tasks[0].LatestExecutionError, "WebSearch") {
-		t.Fatalf("日报应暴露权限失败: %+v", report)
+	if _, err = service.RunTaskNow(context.Background(), task.JobID); err != nil {
+		t.Fatalf("RunTaskNow 失败: %v", err)
 	}
-	if !containsString(report.Tasks[0].SuggestedTools, "update_scheduled_task") ||
-		!containsString(report.Tasks[0].SuggestedTools, "run_scheduled_task") {
-		t.Fatalf("日报应提示执行失败补救工具: %+v", report.Tasks[0])
+	ownerCtx := contextForOwner(context.Background(), task.OwnerUserID)
+	waitFor(t, 2*time.Second, func() bool {
+		requests, listErr := service.ListPermissionRequests(ownerCtx, automationdomain.PermissionRequestStatusPending, task.JobID)
+		return listErr == nil && len(requests) == 1
+	})
+	requests, err := service.ListPermissionRequests(ownerCtx, automationdomain.PermissionRequestStatusPending, task.JobID)
+	if err != nil || len(requests) != 1 {
+		t.Fatalf("读取审批请求失败: requests=%+v err=%v", requests, err)
+	}
+	decision, err := service.ResolvePermissionRequest(
+		ownerCtx,
+		requests[0].RequestID,
+		permissionDecisionInputForRequest(requests[0], automationdomain.PermissionDecisionAllowTask),
+	)
+	if err != nil || decision == nil || !decision.ResumeStarted {
+		t.Fatalf("审批续跑启动失败: decision=%+v err=%v", decision, err)
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		runs, listErr := service.ListTaskRuns(context.Background(), task.JobID)
+		return listErr == nil && len(runs) == 1 && runs[0].Status == automationdomain.RunStatusFailed
+	})
+	runs, err := service.ListTaskRuns(context.Background(), task.JobID)
+	if err != nil || len(runs) != 1 || runs[0].ErrorMessage == nil ||
+		!strings.Contains(*runs[0].ErrorMessage, "没有重新调用已授权工具 WebSearch") {
+		t.Fatalf("未重试工具的续跑不能记录为成功: runs=%+v err=%v", runs, err)
 	}
 }
 

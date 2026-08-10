@@ -85,6 +85,17 @@ func (s *Service) CreateTask(ctx context.Context, input automationdomain.CreateJ
 		ExpiresAt:     cloneTimePointer(normalized.ExpiresAt),
 		Enabled:       normalized.Enabled,
 	}
+	policy, err := s.buildInitialTaskPermissionPolicy(
+		ctx,
+		job,
+		taskPermissionMutationIsDirectUser(ctx, job.Source.Kind),
+		false,
+	)
+	if err != nil {
+		return nil, err
+	}
+	job.PermissionPolicy = policy
+	job.PermissionState = automationdomain.TaskPermissionStateReady
 	created, err := s.repository.UpsertScheduledTask(ctx, job)
 	if err != nil {
 		return nil, err
@@ -105,6 +116,11 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input automation
 	if err != nil {
 		return nil, err
 	}
+	ensuredCurrent, err := s.ensureTaskPermissionPolicy(ctx, *current)
+	if err != nil {
+		return nil, err
+	}
+	current = &ensuredCurrent
 	next, err := s.applyTaskUpdate(*current, input)
 	if err != nil {
 		return nil, err
@@ -112,9 +128,29 @@ func (s *Service) UpdateTask(ctx context.Context, jobID string, input automation
 	if err = s.validateTaskUpdate(ctx, *current, next); err != nil {
 		return nil, err
 	}
+	next.PermissionPolicy = s.taskPolicyForDefinitionUpdate(ctx, *current, next)
+	permissionBoundaryChanged := next.PermissionPolicy.Revision != current.PermissionPolicy.Revision
+	if permissionBoundaryChanged {
+		next.PermissionState = automationdomain.TaskPermissionStateReady
+		next.PendingPermissionRequestID = ""
+	}
 	updated, err := s.repository.UpsertScheduledTask(ctx, next)
 	if err != nil {
 		return nil, err
+	}
+	if permissionBoundaryChanged {
+		if err = s.repository.SupersedePendingPermissionRequests(ctx, updated.OwnerUserID, updated.JobID); err != nil {
+			return nil, err
+		}
+		if err = s.repository.CancelBlockedRunsForTaskRevision(
+			ctx,
+			updated.OwnerUserID,
+			updated.JobID,
+			updated.PermissionPolicy.Revision,
+			"任务配置已修改，旧审批请求和被阻塞运行已失效",
+		); err != nil {
+			return nil, err
+		}
 	}
 	state := s.ensureJobState(*updated)
 	s.persistJobRuntime(ctx, jobRuntimeUpdateFromState(updated.JobID, state))
@@ -295,7 +331,8 @@ func shouldDeadLetterDeletedTaskDelivery(run automationdomain.ScheduledTaskRun) 
 		return false
 	}
 	if strings.TrimSpace(run.Status) == automationdomain.RunStatusPending ||
-		strings.TrimSpace(run.Status) == automationdomain.RunStatusRunning {
+		strings.TrimSpace(run.Status) == automationdomain.RunStatusRunning ||
+		strings.TrimSpace(run.Status) == automationdomain.RunStatusQueuedToMain {
 		return false
 	}
 	return deriveTaskRunDeliveryStatus(run) == automationdomain.DeliveryStatusFailed

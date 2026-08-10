@@ -2,7 +2,7 @@ import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import type { PendingCommandState } from "./pending-command-model";
 
-export const SCHEDULED_TASK_COMMAND_KINDS = ["delete", "run", "toggle"] as const;
+export const SCHEDULED_TASK_COMMAND_KINDS = ["delete", "permission", "run", "toggle"] as const;
 export type ScheduledTaskCommandKind = typeof SCHEDULED_TASK_COMMAND_KINDS[number];
 
 export interface ScheduledTaskFeedback {

@@ -11,6 +11,7 @@
 // 成员清单：
 //   - automation.go：调度/目标/唤醒/投递/执行/来源/运行状态等枚举常量。
 //   - task.go / report.go：ScheduledTask、ScheduledTaskRun、日报等对外视图。
+//   - permission.go：任务 grant、run 阻塞、持久审批请求与决策协议。
 //   - input.go：CreateJobInput / UpdateJobInput 及校验、归一。
 //   - schedule.go / target.go：Schedule / SessionTarget / DeliveryTarget / Source 及 Validate/Normalized。
 //   - heartbeat.go：HeartbeatConfig / HeartbeatWakeInput 等 heartbeat 协议。

@@ -2,6 +2,7 @@ package automation
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -13,6 +14,22 @@ import (
 
 func (s *Service) startJobExecution(ctx context.Context, job automationdomain.ScheduledTask, triggerKind string, scheduledFor time.Time) (*automationdomain.ExecutionResult, error) {
 	ctx = contextForJobOwner(ctx, job)
+	job, err := s.ensureTaskPermissionPolicy(ctx, job)
+	if err != nil {
+		return nil, err
+	}
+	if state := strings.TrimSpace(job.PermissionState); state != "" && state != automationdomain.TaskPermissionStateReady {
+		if triggerKind == automationdomain.TriggerKindManual && state == automationdomain.TaskPermissionStateDenied {
+			if err = s.repository.SetTaskPermissionState(ctx, job.OwnerUserID, job.JobID, automationdomain.TaskPermissionStateReady, ""); err != nil {
+				return nil, err
+			}
+			job.PermissionState = automationdomain.TaskPermissionStateReady
+			job.PendingPermissionRequestID = ""
+			s.setJobPermissionState(job.JobID, job.PermissionState, "")
+		} else {
+			return nil, fmt.Errorf("scheduled task permission state is %s", state)
+		}
+	}
 	starter := jobExecutionStarter{
 		service:      s,
 		ctx:          ctx,
@@ -59,26 +76,38 @@ func (s *jobExecutionStarter) start() (*automationdomain.ExecutionResult, error)
 }
 
 func (s *jobExecutionStarter) startMainSession() (*automationdomain.ExecutionResult, error) {
-	if err := s.prepareMainRun(); err != nil {
+	if err := s.prepareMainIdentity(); err != nil {
 		return nil, err
 	}
-	eventID, err := s.service.enqueueMainSessionEvent(s.ctx, s.job, s.triggerKind)
+	result, handled, err := s.claimRuntime()
+	if handled || err != nil {
+		return result, err
+	}
+	if err = s.persistQueuedMainRun(); err != nil {
+		s.service.finishJobRuntime(s.job.JobID, nil, automationdomain.RunStatusFailed, errorPointer(err))
+		return nil, err
+	}
+	eventID, err := s.service.enqueueMainSessionEvent(s.ctx, s.job, s.runID, s.triggerKind, "", 0)
 	if err != nil {
 		s.failPendingRun(err)
 		return nil, err
 	}
 	mode := normalizedWakeMode(s.job.SessionTarget.WakeMode)
-	if _, err = s.service.WakeHeartbeat(s.ctx, s.job.AgentID, automationdomain.HeartbeatWakeInput{Mode: mode}); err != nil {
+	if err = s.service.wakeHeartbeatForSystemEvent(s.ctx, s.job.AgentID, mode); err != nil {
 		_ = s.service.repository.MarkSystemEventStatus(context.Background(), eventID, "failed")
 		s.failPendingRun(err)
 		s.logger.Error("自动化任务唤醒主会话 heartbeat 失败", "err", err)
 		return nil, err
 	}
-	s.finishMainRun(mode)
+	s.logger.Info("自动化任务已排入主会话",
+		"run_id", s.runID,
+		"session_key", s.sessionKey,
+		"wake_mode", mode,
+	)
 	return s.queuedMainResult(), nil
 }
 
-func (s *jobExecutionStarter) prepareMainRun() error {
+func (s *jobExecutionStarter) prepareMainIdentity() error {
 	s.runID = s.service.idFactory("run")
 	sessionKey, err := automationexec.ResolveSessionKey(s.job, nil)
 	if err != nil {
@@ -87,19 +116,21 @@ func (s *jobExecutionStarter) prepareMainRun() error {
 		return err
 	}
 	s.sessionKey = sessionKey
-	err = s.service.repository.InsertRunPending(s.ctx, automationstore.RunPendingInput{
-		RunID:        s.runID,
-		JobID:        s.job.JobID,
-		OwnerUserID:  s.job.OwnerUserID,
-		ScheduledFor: &s.scheduledFor,
-		TriggerKind:  s.triggerKind,
-		SessionKey:   s.sessionKey,
-		DeliveryMode: automationdomain.DeliveryModeNone,
+	return nil
+}
+
+func (s *jobExecutionStarter) persistQueuedMainRun() error {
+	return s.service.repository.InsertRunPending(s.ctx, automationstore.RunPendingInput{
+		RunID:                    s.runID,
+		JobID:                    s.job.JobID,
+		OwnerUserID:              s.job.OwnerUserID,
+		ScheduledFor:             &s.scheduledFor,
+		TriggerKind:              s.triggerKind,
+		SessionKey:               s.sessionKey,
+		DeliveryMode:             automationdomain.DeliveryModeNone,
+		Status:                   automationdomain.RunStatusQueuedToMain,
+		PermissionPolicyRevision: s.job.PermissionPolicy.Revision,
 	})
-	if err != nil {
-		s.failRuntime(err, s.service.nowFn())
-	}
-	return err
 }
 
 func normalizedWakeMode(mode string) string {
@@ -107,21 +138,6 @@ func normalizedWakeMode(mode string) string {
 		return automationdomain.WakeModeNextHeartbeat
 	}
 	return mode
-}
-
-func (s *jobExecutionStarter) finishMainRun(mode string) {
-	finishedAt := s.service.nowFn()
-	_ = s.service.repository.MarkRunFinished(context.Background(), automationstore.RunFinishInput{
-		RunID:      s.runID,
-		Status:     automationdomain.RunStatusQueuedToMain,
-		FinishedAt: finishedAt,
-	})
-	s.service.finishJobRuntime(s.job.JobID, &finishedAt, automationdomain.RunStatusQueuedToMain, nil)
-	s.logger.Info("自动化任务已排入主会话",
-		"run_id", s.runID,
-		"session_key", s.sessionKey,
-		"wake_mode", mode,
-	)
 }
 
 func (s *jobExecutionStarter) queuedMainResult() *automationdomain.ExecutionResult {
@@ -230,15 +246,16 @@ func (s *jobExecutionStarter) registerRunningState() {
 
 func (s *jobExecutionStarter) persistRunningRun() error {
 	if err := s.service.repository.InsertRunPending(s.ctx, automationstore.RunPendingInput{
-		RunID:        s.runID,
-		JobID:        s.job.JobID,
-		OwnerUserID:  s.job.OwnerUserID,
-		ScheduledFor: &s.scheduledFor,
-		TriggerKind:  s.triggerKind,
-		SessionKey:   s.sessionKey,
-		RoundID:      s.roundID,
-		DeliveryMode: strings.TrimSpace(s.job.Delivery.Mode),
-		DeliveryTo:   deliveryTargetSummary(s.job.Delivery),
+		RunID:                    s.runID,
+		JobID:                    s.job.JobID,
+		OwnerUserID:              s.job.OwnerUserID,
+		ScheduledFor:             &s.scheduledFor,
+		TriggerKind:              s.triggerKind,
+		SessionKey:               s.sessionKey,
+		RoundID:                  s.roundID,
+		DeliveryMode:             strings.TrimSpace(s.job.Delivery.Mode),
+		DeliveryTo:               deliveryTargetSummary(s.job.Delivery),
+		PermissionPolicyRevision: s.job.PermissionPolicy.Revision,
 	}); err != nil {
 		return err
 	}
@@ -253,10 +270,12 @@ func (s *jobExecutionStarter) dispatchRuntime() error {
 	)
 	sink := automationexec.NewExecutionSink("automation:" + s.runID)
 	cleanup := s.service.bindSink(s.sessionKey, sink)
+	completeAttempt := s.service.registerPhysicalAttempt(s.runID, s.roundID)
 	dispatchJob := s.job
 	dispatchJob.Instruction = buildScheduledTaskInstruction(s.job)
-	err := s.service.dispatchJobToSession(s.ctx, dispatchJob, s.sessionKey, s.roundID, roomEventObserverForSink(sink))
+	err := s.service.dispatchJobToSession(s.ctx, dispatchJob, s.runID, s.sessionKey, s.roundID, roomEventObserverForSink(sink), nil)
 	if err != nil {
+		completeAttempt()
 		cleanup()
 		sink.Close()
 		s.failPendingRun(err)
@@ -268,7 +287,16 @@ func (s *jobExecutionStarter) dispatchRuntime() error {
 		)
 		return err
 	}
-	go s.service.observeJobRun(s.job, s.runID, s.roundID, s.sessionKey, sink, cleanup)
+	go s.service.observeJobRunWithCompletion(
+		s.job,
+		s.runID,
+		s.roundID,
+		s.sessionKey,
+		sink,
+		cleanup,
+		completeAttempt,
+		nil,
+	)
 	return nil
 }
 

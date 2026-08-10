@@ -47,6 +47,10 @@ export interface ApiScheduledTaskRun {
   assistant_text?: string | null;
   result_text?: string | null;
   artifact_path?: string | null;
+  permission_policy_revision?: number | null;
+  block_state?: string | null;
+  blocked_request_id?: string | null;
+  effect_started?: boolean | null;
 }
 
 export interface ScheduledTaskRunItem extends Omit<

@@ -214,6 +214,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	)
 	automationService.SetRuntimeSessionCloser(runtimeManager)
 	automationService.SetProviderResolver(providerService)
+	automationService.SetConnectorResolver(connectorService)
 	automationService.SetLogger(logger.With("component", "automation"))
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService)
 	memoryMaintenance.SetLogger(logger.With("component", "memory.maintenance"))

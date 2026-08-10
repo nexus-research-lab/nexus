@@ -23,9 +23,17 @@ import type {
   ScheduledTaskRunItem,
   ScheduledTaskRunNowResponse,
 } from "@/types/capability/scheduled-task/run";
+import type {
+  ApiAutomationPermissionDecisionResult,
+  AutomationPermissionDecisionInput,
+  AutomationPermissionDecisionResult,
+  AutomationPermissionResumeInput,
+  AutomationPermissionRequest,
+} from "@/types/capability/scheduled-task/permission";
 
 const AGENT_API_BASE_URL = getAgentApiBaseUrl();
 const SCHEDULED_TASKS_API_BASE_URL = `${AGENT_API_BASE_URL}/capability/scheduled/tasks`;
+const AUTOMATION_PERMISSION_REQUESTS_API_BASE_URL = `${AGENT_API_BASE_URL}/capability/scheduled/permission-requests`;
 
 function transformTask(apiTask: ApiScheduledTask): ScheduledTaskItem {
   return {
@@ -194,4 +202,52 @@ export async function retryScheduledTaskRunDeliveryApi(
   );
 
   return transformRun(result);
+}
+
+export async function listAutomationPermissionRequestsApi(
+  params: { job_id?: string; status?: string } = {},
+): Promise<AutomationPermissionRequest[]> {
+  return requestApi<AutomationPermissionRequest[]>(
+    `${AUTOMATION_PERMISSION_REQUESTS_API_BASE_URL}${buildQuery(params)}`,
+    { method: "GET" },
+  );
+}
+
+function transformPermissionDecisionResult(
+  result: ApiAutomationPermissionDecisionResult,
+): AutomationPermissionDecisionResult {
+  return {
+    ...result,
+    task: transformTask(result.task),
+    run: result.run ? transformRun(result.run) : null,
+  };
+}
+
+export async function decideAutomationPermissionRequestApi(
+  requestId: string,
+  input: AutomationPermissionDecisionInput,
+): Promise<AutomationPermissionDecisionResult> {
+  const result = await requestApi<ApiAutomationPermissionDecisionResult>(
+    `${AUTOMATION_PERMISSION_REQUESTS_API_BASE_URL}/${encodeURIComponent(requestId)}/decision`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+  return transformPermissionDecisionResult(result);
+}
+
+export async function resumeAutomationPermissionRunApi(
+  jobId: string,
+  runId: string,
+  input: AutomationPermissionResumeInput,
+): Promise<AutomationPermissionDecisionResult> {
+  const result = await requestApi<ApiAutomationPermissionDecisionResult>(
+    `${SCHEDULED_TASKS_API_BASE_URL}/${encodeURIComponent(jobId)}/runs/${encodeURIComponent(runId)}/permission/resume`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+  return transformPermissionDecisionResult(result);
 }

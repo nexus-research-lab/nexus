@@ -11,17 +11,18 @@ import (
 
 // RunPendingInput 表示创建 run ledger 的输入。
 type RunPendingInput struct {
-	RunID          string
-	JobID          string
-	OwnerUserID    string
-	ScheduledFor   *time.Time
-	TriggerKind    string
-	SessionKey     string
-	RoundID        string
-	DeliveryMode   string
-	DeliveryTo     string
-	DeliveryStatus string
-	Status         string
+	RunID                    string
+	JobID                    string
+	OwnerUserID              string
+	ScheduledFor             *time.Time
+	TriggerKind              string
+	SessionKey               string
+	RoundID                  string
+	DeliveryMode             string
+	DeliveryTo               string
+	DeliveryStatus           string
+	Status                   string
+	PermissionPolicyRevision int
 }
 
 // RunFinishInput 表示结束 run ledger 的输入。
@@ -75,6 +76,10 @@ SELECT
     assistant_text,
     result_text,
     artifact_path,
+    permission_policy_revision,
+    block_state,
+    blocked_request_id,
+    effect_started,
     created_at,
     updated_at
 FROM automation_task_runs
@@ -133,6 +138,10 @@ SELECT
     assistant_text,
     result_text,
     artifact_path,
+    permission_policy_revision,
+    block_state,
+    blocked_request_id,
+    effect_started,
     created_at,
     updated_at
 FROM automation_task_runs
@@ -171,6 +180,7 @@ func (r *Repository) InsertRunPending(ctx context.Context, input RunPendingInput
 		nullString(initialRunDeliveryStatus(input)),
 		input.ScheduledFor,
 		0,
+		input.PermissionPolicyRevision,
 	)
 	return err
 }
@@ -178,6 +188,119 @@ func (r *Repository) InsertRunPending(ctx context.Context, input RunPendingInput
 // MarkRunRunning 标记 run 开始执行。
 func (r *Repository) MarkRunRunning(ctx context.Context, runID string, startedAt time.Time) error {
 	_, err := r.execWithRetry(ctx, r.markRunRunningQuery, automationdomain.RunStatusRunning, startedAt.UTC(), runID)
+	return err
+}
+
+// StartQueuedMainRun 把已进入主会话队列的 run 原子切换为实际执行 attempt。
+func (r *Repository) StartQueuedMainRun(
+	ctx context.Context,
+	ownerUserID string,
+	runID string,
+	roundID string,
+	startedAt time.Time,
+) (bool, error) {
+	query := fmt.Sprintf(
+		`UPDATE automation_task_runs
+SET status = %s,
+    round_id = %s,
+    started_at = %s,
+    attempts = attempts + 1,
+    finished_at = NULL,
+    error_message = NULL,
+    block_state = '',
+    blocked_request_id = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE run_id = %s
+  AND owner_user_id = %s
+  AND status = %s
+  AND block_state = ''`,
+		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
+	)
+	result, err := r.execWithRetry(
+		ctx,
+		query,
+		automationdomain.RunStatusRunning,
+		nullString(strings.TrimSpace(roundID)),
+		startedAt.UTC(),
+		strings.TrimSpace(runID),
+		strings.TrimSpace(ownerUserID),
+		automationdomain.RunStatusQueuedToMain,
+	)
+	if err != nil {
+		return false, err
+	}
+	count, err := result.RowsAffected()
+	return count > 0, err
+}
+
+// QueuePermissionRunForMain 把已授权的阻塞 run 放回主会话队列，实际 attempt 在消费事件时开始。
+func (r *Repository) QueuePermissionRunForMain(ctx context.Context, input RunResumeInput) (bool, error) {
+	query := fmt.Sprintf(
+		`UPDATE automation_task_runs
+SET status = %s,
+    session_key = %s,
+    round_id = NULL,
+    started_at = NULL,
+    finished_at = NULL,
+    error_message = NULL,
+    block_state = '',
+    blocked_request_id = NULL,
+    permission_policy_revision = %s,
+    updated_at = CURRENT_TIMESTAMP
+WHERE run_id = %s
+  AND owner_user_id = %s
+  AND status = %s
+  AND block_state IN (%s, %s)`,
+		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6), r.bind(7), r.bind(8),
+	)
+	result, err := r.execWithRetry(
+		ctx,
+		query,
+		automationdomain.RunStatusQueuedToMain,
+		nullString(strings.TrimSpace(input.SessionKey)),
+		input.PermissionPolicyRevision,
+		strings.TrimSpace(input.RunID),
+		strings.TrimSpace(input.OwnerUserID),
+		automationdomain.RunStatusPending,
+		automationdomain.RunBlockStateNone,
+		automationdomain.RunBlockStateReadyToRetry,
+	)
+	if err != nil {
+		return false, err
+	}
+	count, err := result.RowsAffected()
+	return count > 0, err
+}
+
+// RestoreRunReadyToRetry 在主会话重新入队失败时恢复显式重试边界。
+func (r *Repository) RestoreRunReadyToRetry(
+	ctx context.Context,
+	ownerUserID string,
+	runID string,
+	errorMessage *string,
+) error {
+	query := fmt.Sprintf(
+		`UPDATE automation_task_runs
+SET status = %s,
+    block_state = %s,
+    error_message = %s,
+    finished_at = NULL,
+    updated_at = CURRENT_TIMESTAMP
+WHERE run_id = %s
+  AND owner_user_id = %s
+  AND status = %s`,
+		r.bind(1), r.bind(2), r.bind(3), r.bind(4), r.bind(5), r.bind(6),
+	)
+	_, err := r.execWithRetry(
+		ctx,
+		query,
+		automationdomain.RunStatusPending,
+		automationdomain.RunBlockStateReadyToRetry,
+		nullableString(errorMessage),
+		strings.TrimSpace(runID),
+		strings.TrimSpace(ownerUserID),
+		automationdomain.RunStatusQueuedToMain,
+	)
 	return err
 }
 
@@ -227,9 +350,11 @@ SET status = %s,
     delivery_attempts = delivery_attempts + CASE WHEN %s THEN 1 ELSE 0 END,
     delivery_next_attempt_at = %s,
     delivery_dead_letter_at = %s,
+    block_state = '',
+    blocked_request_id = NULL,
     updated_at = CURRENT_TIMESTAMP
 WHERE run_id = %s
-  AND status IN (%s, %s)`,
+  AND status IN (%s, %s, %s)`,
 		r.bind(1),
 		r.bind(2),
 		r.bind(3),
@@ -249,6 +374,7 @@ WHERE run_id = %s
 		r.bind(17),
 		r.bind(18),
 		r.bind(19),
+		r.bind(20),
 	)
 	result, err := r.execWithRetry(
 		ctx,
@@ -272,6 +398,7 @@ WHERE run_id = %s
 		strings.TrimSpace(input.RunID),
 		automationdomain.RunStatusPending,
 		automationdomain.RunStatusRunning,
+		automationdomain.RunStatusQueuedToMain,
 	)
 	if err != nil {
 		return false, err

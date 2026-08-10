@@ -369,6 +369,88 @@ test("英文定时任务的模板、日期和校验提示保持同一语言", as
   );
 });
 
+test("定时任务恢复运行后不把上一段权限错误当成当前异常", async () => {
+  const boardModel = await server.ssrLoadModule(
+    "/src/features/capability/scheduled/board/scheduled-task-board-model.ts",
+  );
+  const task = {
+    agent_id: "agent-1",
+    delivery: { mode: "none" },
+    enabled: true,
+    execution_kind: "agent",
+    failure_streak: 1,
+    instruction: "读取飞书文档",
+    job_id: "task-1",
+    last_error: "任务需要使用 mcp__nexus_connectors__feishu_docx_read。",
+    last_run_status: "awaiting_approval",
+    name: "飞书权限回归测试",
+    permission_state: "ready",
+    running: true,
+    running_started_at: Date.now(),
+    schedule: {
+      interval_seconds: 3600,
+      kind: "every",
+      timezone: "Asia/Shanghai",
+    },
+    session_target: { kind: "isolated", wake_mode: "next-heartbeat" },
+    source: {
+      context_id: "agent-1",
+      context_label: "Kevin",
+      context_type: "agent",
+      kind: "agent",
+    },
+  };
+  const pending = {
+    isDeleting: false,
+    isPermissionPending: false,
+    isRunning: false,
+    isToggling: false,
+  };
+
+  const resumed = boardModel.getScheduledTaskCardPresentation(task, pending);
+  assert.equal(resumed.columnId, "running");
+  assert.equal(resumed.lastError, null);
+
+  const failed = boardModel.getScheduledTaskCardPresentation({
+    ...task,
+    last_run_status: "failed",
+    running: false,
+    running_started_at: null,
+  }, pending);
+  assert.equal(failed.columnId, "attention");
+  assert.match(failed.lastError ?? "", /feishu_docx_read/);
+
+  const awaitingApproval = boardModel.getScheduledTaskCardPresentation({
+    ...task,
+    failure_streak: 0,
+    last_error: null,
+    pending_permission_request: {
+      capability: {
+        connector_id: "feishu-docx",
+        effect: "read",
+        tool_name: "mcp__nexus_connectors__feishu_docx_read",
+      },
+      created_at: "2026-08-10T08:30:00Z",
+      job_id: "task-1",
+      kind: "tool",
+      policy_revision: 1,
+      request_id: "permission-1",
+      resume_safe: true,
+      status: "pending",
+      updated_at: "2026-08-10T08:30:00Z",
+    },
+    permission_state: "awaiting_approval",
+    running: false,
+    running_started_at: null,
+  }, pending);
+  assert.equal(awaitingApproval.permission?.title, "飞书文档读取需要确认");
+  assert.match(awaitingApproval.timingSummary, /^请求于 /);
+  assert.notEqual(
+    awaitingApproval.timingSummary,
+    awaitingApproval.permission?.title,
+  );
+});
+
 test("桌面数据根示例跟随平台", async () => {
   const [model, messagesModule] = await Promise.all([
     server.ssrLoadModule(

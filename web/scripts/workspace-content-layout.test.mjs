@@ -300,6 +300,11 @@ test("能力目录条目共用可见边框并补齐身份图标", async () => {
   assert.doesNotMatch(loop, /<CapabilityItemIcon>/);
   assert.match(scheduled, /TASK_IDENTITY_ICONS/);
   assert.match(scheduled, /<CapabilityItemIcon/);
+  assert.match(
+    scheduled,
+    /presentation\.columnId === "running"[\s\S]*motion-safe:animate-spin/,
+  );
+  assert.match(scheduled, /<ScheduledTaskPermissionActions[\s\S]*compact/);
   assert.match(pairing, /<UiPanel/);
   assert.match(pairing, /<ChannelIcon type=\{item\.channel_type\}/);
 });

@@ -7,12 +7,13 @@
 // 成员清单：
 //   - task_crud.go / task_*.go / runtime_state.go：任务 CRUD、到期停用、查询、运行与统一运行态投影。
 //   - scheduler.go：到期工作扫描、阶段分发、数据库租约与超时恢复。
-//   - execution*.go：脚本、主会话、独立会话的分阶段执行 / 观测 / 重叠与 misfire 处理。
+//   - execution*.go / main_session_execution.go：脚本、主会话、独立会话的分阶段执行、物理 attempt 收尾屏障、权限续跑证据、观测、重叠与 misfire 处理。
 //   - heartbeat_*.go：heartbeat 输入分段、分发、运行时与状态。
 //   - observability_health.go / observability_util.go / daily_report.go：状态查询、健康计算与日报。
 //   - delivery_retry.go：投递重试。
 //   - runtime_*.go：执行工件 / 投递 / 脚本 / 进程运行态。
-//   - permission_scheduled.go / summary_heartbeat_tasks.go：定时权限、heartbeat 汇总。
+//   - permission_policy.go / permission_scheduled.go / permission_decision.go：任务授权策略、运行时拦截、持久决策与安全恢复。
+//   - summary_heartbeat_tasks.go：heartbeat 汇总。
 //
 // [PROTOCOL]: 变更时更新此头部，然后检查父级入口 AGENTS.md（L1）
 package automation

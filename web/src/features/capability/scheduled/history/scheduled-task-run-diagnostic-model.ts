@@ -2,6 +2,7 @@ import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
 
 import { formatScheduledDatetime } from "../scheduled-formatters";
+import { getScheduledTaskErrorCopy } from "../scheduled-task-error-copy";
 import { formatDuration } from "./scheduled-task-run-history-model";
 
 export interface RunDiagnosticRow {
@@ -79,7 +80,10 @@ const RUN_DIAGNOSTIC_ROW_DEFINITIONS: readonly RunDiagnosticRowDefinition[] = [
 ];
 
 const RUN_OUTPUT_SECTION_DEFINITIONS: readonly RunOutputSectionDefinition[] = [
-  { content: (run) => optionalText(run.error_message), tone: "danger" },
+  {
+    content: (run) => getScheduledTaskErrorCopy(run.error_message)?.detail ?? null,
+    tone: "danger",
+  },
   {
     content: (run) => run.delivery_error ? `投递失败：${run.delivery_error}` : null,
     tone: "danger",

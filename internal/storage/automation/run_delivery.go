@@ -98,6 +98,10 @@ SELECT
     assistant_text,
     result_text,
     artifact_path,
+    permission_policy_revision,
+    block_state,
+    blocked_request_id,
+    effect_started,
     created_at,
     updated_at
 FROM automation_task_runs
@@ -140,9 +144,9 @@ func finishedRunDeliveryStatus(input RunFinishInput) string {
 		return deliveryStatus
 	}
 	switch strings.TrimSpace(input.Status) {
-	case automationdomain.RunStatusPending, automationdomain.RunStatusRunning:
+	case automationdomain.RunStatusPending, automationdomain.RunStatusRunning, automationdomain.RunStatusQueuedToMain:
 		return automationdomain.DeliveryStatusPending
-	case automationdomain.RunStatusSucceeded, automationdomain.RunStatusQueuedToMain:
+	case automationdomain.RunStatusSucceeded:
 		return automationdomain.DeliveryStatusNotRequired
 	case automationdomain.RunStatusFailed, automationdomain.RunStatusCancelled, automationdomain.RunStatusSkipped:
 		return automationdomain.DeliveryStatusNotAttempted

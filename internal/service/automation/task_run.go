@@ -118,7 +118,9 @@ func (s *Service) loadDeliveryRetry(ctx context.Context, ownerUserID string, job
 
 func validateDeliveryRetry(run automationdomain.ScheduledTaskRun) error {
 	runStatus := strings.TrimSpace(run.Status)
-	if runStatus == automationdomain.RunStatusPending || runStatus == automationdomain.RunStatusRunning {
+	if runStatus == automationdomain.RunStatusPending ||
+		runStatus == automationdomain.RunStatusRunning ||
+		runStatus == automationdomain.RunStatusQueuedToMain {
 		return errors.New("run is not finished")
 	}
 	deliveryStatus := strings.TrimSpace(run.DeliveryStatus)

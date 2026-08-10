@@ -3,6 +3,7 @@ package automation
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 
 	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
@@ -49,7 +50,11 @@ SELECT
     last_run_status,
     failure_streak,
     last_error,
-    last_delivery_status
+    last_delivery_status,
+    permission_policy_json,
+    permission_policy_revision,
+    permission_state,
+    pending_permission_request_id
 FROM automation_scheduled_tasks`
 	args := []any{}
 	conditions := make([]string, 0, 2)
@@ -143,7 +148,11 @@ SELECT
     last_run_status,
     failure_streak,
     last_error,
-    last_delivery_status
+    last_delivery_status,
+    permission_policy_json,
+    permission_policy_revision,
+    permission_state,
+    pending_permission_request_id
 FROM automation_scheduled_tasks
 WHERE job_id = ` + r.bind(1)
 
@@ -166,7 +175,11 @@ WHERE job_id = ` + r.bind(1)
 
 // UpsertScheduledTask 创建或更新任务。
 func (r *Repository) UpsertScheduledTask(ctx context.Context, job automationdomain.ScheduledTask) (*automationdomain.ScheduledTask, error) {
-	_, err := r.execWithRetry(
+	permissionPolicyJSON, err := json.Marshal(job.PermissionPolicy)
+	if err != nil {
+		return nil, err
+	}
+	_, err = r.execWithRetry(
 		ctx,
 		r.upsertScheduledTaskQuery,
 		job.JobID,
@@ -199,6 +212,10 @@ func (r *Repository) UpsertScheduledTask(ctx context.Context, job automationdoma
 		automationdomain.NormalizeOverlapPolicy(job.OverlapPolicy),
 		nullableTime(job.ExpiresAt),
 		job.Enabled,
+		string(permissionPolicyJSON),
+		job.PermissionPolicy.Revision,
+		strings.TrimSpace(job.PermissionState),
+		nullString(strings.TrimSpace(job.PendingPermissionRequestID)),
 	)
 	if err != nil {
 		return nil, err

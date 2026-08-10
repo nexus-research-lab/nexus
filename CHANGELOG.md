@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added task-owned scheduled-automation permissions with global Agent-default seeding, owner-scoped persistent approval cards, one-run and task-level grants, connector reauthorization, side-effect-aware explicit retry, script hash binding, and Main Session run/revision continuity without weakening existing task behavior.
+
 ### Fixed
 
+- Drained the exact blocked DM or Room attempt before resuming an approved scheduled task, denied every later tool from that blocked attempt, bound approval and explicit retry to the rendered job/run/request/policy snapshot, and carried the same evidence boundary through Main Session events; task cards now keep permission state as the primary attention reason, expose actions only with a matching actionable request, move technical detail behind one entry, hide the prior permission error while the resumed attempt is active, and animate the running identity without overriding reduced-motion preferences.
 - Sequenced explicit Goal creation before its first WorkGraph proposal across the stable prompt, Goal/Execution Skills, and both MCP tool contracts, so Agents no longer launch `create_goal` and `prepare_plan_execution` in parallel while the backend continues to reject stale ambient-Goal races.
 - Repaired legacy databases that had already recorded Execution migration 61 before `goal_execution_identity_claims` was added, allowing startup proposal reconciliation and Goal-to-WorkGraph identity recovery to run instead of failing against a missing table.
 - Made Plan boundary authority explicit: a fresh `operation: create` under an active Goal now seals the exact server-owned Goal objective even when the provider omits or paraphrases the transport field, while Goal-free create/replace still require a document objective, replan still inherits the current Execution boundary, and true Goal-to-existing-Execution objective conflicts remain rejected.

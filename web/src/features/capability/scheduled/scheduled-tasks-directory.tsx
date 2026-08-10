@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { Plus, RefreshCw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
+import { AppRouteBuilders } from "@/app/router/route-paths";
 import { CapabilityPageLayout } from "@/features/capability/shared/capability-page-layout";
 import { useI18n } from "@/shared/i18n/i18n-context";
 import {
@@ -13,6 +15,7 @@ import { WorkspaceSurfaceToolbarAction } from "@/shared/ui/workspace/surface/wor
 import { WorkspaceSurfaceScaffold } from "@/shared/ui/workspace/surface/workspace-surface-scaffold";
 import type { ScheduledTaskRunItem } from "@/types/capability/scheduled-task/run";
 import type { ScheduledTaskItem } from "@/types/capability/scheduled-task/task";
+import type { AutomationPermissionDecision } from "@/types/capability/scheduled-task/permission";
 
 import { ScheduledTaskBoard } from "./board/scheduled-task-board";
 import { getScheduledTaskMetrics } from "./controller/scheduled-task-directory-model";
@@ -30,6 +33,7 @@ type TaskDialogState =
 
 export function ScheduledTasksDirectory() {
   const { t } = useI18n();
+  const navigate = useNavigate();
   const [dialog, setDialog] = useState<TaskDialogState>({ kind: "closed" });
   const [historyTask, setHistoryTask] = useState<ScheduledTaskItem | null>(null);
   const resource = useScheduledTasksResource();
@@ -78,6 +82,15 @@ export function ScheduledTasksDirectory() {
       ));
     }).catch(() => undefined);
   };
+  const decidePermission = (
+    task: ScheduledTaskItem,
+    decision: AutomationPermissionDecision,
+  ) => {
+    void commands.decidePermission(task, decision).catch(() => undefined);
+  };
+  const resumePermissionRun = (task: ScheduledTaskItem) => {
+    void commands.resumePermissionRun(task).catch(() => undefined);
+  };
   const recoverRun = async (
     task: ScheduledTaskItem,
     run: ScheduledTaskRunItem,
@@ -120,6 +133,9 @@ export function ScheduledTasksDirectory() {
             onDelete={deleteTask}
             onEdit={(task) => setDialog({ kind: "edit", task })}
             onOpenHistory={setHistoryTask}
+            onOpenConnector={(connectorId) => navigate(AppRouteBuilders.connectorDetail(connectorId))}
+            onPermissionDecision={decidePermission}
+            onPermissionResume={resumePermissionRun}
             onRefresh={refreshTasks}
             onRunNow={runTask}
             onToggleEnabled={toggleTask}

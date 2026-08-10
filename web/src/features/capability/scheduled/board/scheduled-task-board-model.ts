@@ -7,6 +7,10 @@ import {
   formatScheduledDatetime,
   formatScheduledTaskSchedule,
 } from "../scheduled-formatters";
+import {
+  getScheduledPermissionDisplayDescription,
+  getScheduledPermissionDisplayTitle,
+} from "./scheduled-task-attention-model";
 
 export type ScheduledTaskBoardColumnId =
   | "running"
@@ -35,8 +39,15 @@ export interface ScheduledTaskSuggestion {
 
 interface ScheduledTaskCardPendingState {
   isDeleting: boolean;
+  isPermissionPending: boolean;
   isRunning: boolean;
   isToggling: boolean;
+}
+
+export interface ScheduledTaskPermissionPresentation {
+  description: string;
+  state: string;
+  title: string;
 }
 
 export interface ScheduledTaskCardPresentation {
@@ -45,6 +56,7 @@ export interface ScheduledTaskCardPresentation {
   deleteDisabled: boolean;
   historyDisabled: boolean;
   lastError: string | null;
+  permission: ScheduledTaskPermissionPresentation | null;
   runAction: {
     disabled: boolean;
     title: string;
@@ -136,6 +148,9 @@ export const SCHEDULED_TASK_BOARD_COLUMNS: ScheduledTaskBoardColumnDefinition[] 
 ];
 
 function getTaskColumnId(task: ScheduledTaskItem): ScheduledTaskBoardColumnId {
+  if (isActionablePermissionState(task.permission_state)) {
+    return "attention";
+  }
   if (task.running) {
     return "running";
   }
@@ -143,6 +158,60 @@ function getTaskColumnId(task: ScheduledTaskItem): ScheduledTaskBoardColumnId {
     return "attention";
   }
   return task.enabled ? "scheduled" : "stopped";
+}
+
+function isActionablePermissionState(state: string | null | undefined): boolean {
+  return [
+    "awaiting_approval",
+    "awaiting_input",
+    "awaiting_reauth",
+    "denied",
+    "ready_to_retry",
+  ].includes(state?.trim() ?? "");
+}
+
+function getPermissionPresentation(
+  task: ScheduledTaskItem,
+): ScheduledTaskPermissionPresentation | null {
+  const state = task.permission_state?.trim() ?? "";
+  if (!isActionablePermissionState(state)) {
+    return null;
+  }
+  const request = task.pending_permission_request;
+  const defaults: Record<string, { description: string; title: string }> = {
+    awaiting_approval: {
+      description: "确认后才能继续使用本次运行需要的能力。",
+      title: "等待权限确认",
+    },
+    awaiting_input: {
+      description: "请编辑任务，把后台运行所需的信息写入任务配置。",
+      title: "需要补充任务信息",
+    },
+    awaiting_reauth: {
+      description: "任务授权仍有效，但连接器需要重新连接。",
+      title: "连接已失效",
+    },
+    denied: {
+      description: "本次运行已结束；可修改任务或重新手动运行。",
+      title: "权限请求已拒绝",
+    },
+    ready_to_retry: {
+      description: "此前运行可能已产生副作用，需要确认后才会重试。",
+      title: "等待确认重试",
+    },
+  };
+  const fallback = defaults[state];
+  const title = request?.title?.trim() || fallback.title;
+  const description = request?.description?.trim() || fallback.description;
+  return {
+    description: request
+      ? getScheduledPermissionDisplayDescription(request, description)
+      : description,
+    state,
+    title: request
+      ? getScheduledPermissionDisplayTitle(request, title)
+      : title,
+  };
 }
 
 function getRunStatusLabel(status: string | null | undefined): string {
@@ -192,6 +261,13 @@ function getTimingSummary(
     return `下次 ${formatScheduledDatetime(task.next_run_at, { emptyLabel: "等待安排" })}`;
   }
   if (columnId === "attention") {
+    const permission = getPermissionPresentation(task);
+    if (permission) {
+      const requestedAt = Date.parse(task.pending_permission_request?.created_at ?? "");
+      return Number.isFinite(requestedAt)
+        ? `请求于 ${formatScheduledDatetime(requestedAt)}`
+        : "等待处理";
+    }
     return `${task.failure_streak} 次失败 · ${formatScheduledDatetime(task.last_run_at, {
       emptyLabel: "时间未知",
     })}`;
@@ -204,15 +280,25 @@ export function getScheduledTaskCardPresentation(
   pending: ScheduledTaskCardPendingState,
 ): ScheduledTaskCardPresentation {
   const columnId = getTaskColumnId(task);
+  const permission = getPermissionPresentation(task);
+  const permissionBlocksRun = permission !== null && permission.state !== "denied";
+  // last_error 描述上一段已经结束的执行；新 attempt 运行期间只呈现当前状态，
+  // 若本次仍失败，完成快照会再带回新的诊断。
+  const lastError = task.running ? null : task.last_error?.trim() || null;
   return {
     columnId,
     contextLabel: getContextLabel(task),
     deleteDisabled: pending.isDeleting,
-    historyDisabled: task.session_target.kind === "main",
-    lastError: task.last_error?.trim() || null,
+    historyDisabled: false,
+    lastError,
+    permission,
     runAction: {
-      disabled: pending.isRunning || task.running,
-      title: task.running ? "任务当前正在运行" : "立即运行一次",
+      disabled: pending.isRunning || pending.isPermissionPending || task.running || permissionBlocksRun,
+      title: permissionBlocksRun
+        ? "请先处理任务权限"
+        : task.running
+          ? "任务当前正在运行"
+          : "立即运行一次",
     },
     scheduleSummary: formatScheduledTaskSchedule(task.schedule),
     timingSummary: getTimingSummary(task, columnId),

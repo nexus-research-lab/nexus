@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	automationdomain "github.com/nexus-research-lab/nexus/internal/automation/types"
 	"github.com/nexus-research-lab/nexus/internal/infra/appfs"
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
@@ -25,11 +26,13 @@ import (
 )
 
 type fakeDMRunner struct {
-	permission    *permissionctx.Context
-	resultText    string
-	assistantText string
-	delay         time.Duration
-	requiredTool  string
+	permission               *permissionctx.Context
+	resultText               string
+	assistantText            string
+	delay                    time.Duration
+	requiredTool             string
+	requiredTools            []string
+	skipPermissionAfterFirst bool
 
 	mu         sync.Mutex
 	requests   []dmsvc.Request
@@ -38,6 +41,7 @@ type fakeDMRunner struct {
 
 func (f *fakeDMRunner) HandleChat(_ context.Context, request dmsvc.Request) error {
 	f.mu.Lock()
+	requestIndex := len(f.requests)
 	f.requests = append(f.requests, request)
 	f.mu.Unlock()
 
@@ -50,7 +54,8 @@ func (f *fakeDMRunner) HandleChat(_ context.Context, request dmsvc.Request) erro
 		emit := func(event protocol.EventMessage) {
 			f.permission.BroadcastEvent(context.Background(), request.SessionKey, event)
 		}
-		if f.emitPermissionDeniedResult(context.Background(), request, emit) {
+		if !(f.skipPermissionAfterFirst && requestIndex > 0) &&
+			f.emitPermissionDeniedResult(context.Background(), request, emit) {
 			return
 		}
 		emit(protocol.EventMessage{
@@ -102,17 +107,34 @@ func (f *fakeDMRunner) emitPermissionDeniedResult(
 	request dmsvc.Request,
 	emit func(protocol.EventMessage),
 ) bool {
-	toolName := strings.TrimSpace(f.requiredTool)
-	if toolName == "" || request.PermissionHandler == nil {
+	toolNames := slices.Clone(f.requiredTools)
+	if len(toolNames) == 0 && strings.TrimSpace(f.requiredTool) != "" {
+		toolNames = []string{f.requiredTool}
+	}
+	if len(toolNames) == 0 || request.PermissionHandler == nil {
 		return false
 	}
-	decision, err := request.PermissionHandler(ctx, sdkpermission.Request{ToolName: toolName})
-	if err != nil {
-		decision = sdkpermission.Deny(err.Error(), false)
+	for _, toolName := range toolNames {
+		toolName = strings.TrimSpace(toolName)
+		decision, err := request.PermissionHandler(ctx, sdkpermission.Request{ToolName: toolName})
+		if err != nil {
+			decision = sdkpermission.Deny(err.Error(), false)
+		}
+		if decision.Behavior == sdkpermission.BehaviorAllow {
+			continue
+		}
+		f.emitPermissionDenial(request, emit, toolName, decision)
+		return true
 	}
-	if decision.Behavior == sdkpermission.BehaviorAllow {
-		return false
-	}
+	return false
+}
+
+func (f *fakeDMRunner) emitPermissionDenial(
+	request dmsvc.Request,
+	emit func(protocol.EventMessage),
+	toolName string,
+	decision sdkpermission.Decision,
+) {
 	message := firstNonEmptyString(
 		decision.Message,
 		"当前 Agent 未授权工具 "+toolName+"；请先在 Agent 允许工具中配置该工具，或把任务改为无需该工具",
@@ -141,7 +163,6 @@ func (f *fakeDMRunner) emitPermissionDeniedResult(
 		"finished",
 		"success",
 	))
-	return true
 }
 
 func (f *fakeDMRunner) Requests() []dmsvc.Request {
@@ -423,6 +444,10 @@ CREATE TABLE automation_scheduled_tasks (
     failure_streak INTEGER NOT NULL DEFAULT 0,
     last_error TEXT,
     last_delivery_status VARCHAR(32),
+    permission_policy_json TEXT NOT NULL DEFAULT '{}',
+    permission_policy_revision INTEGER NOT NULL DEFAULT 0,
+    permission_state VARCHAR(32) NOT NULL DEFAULT 'uninitialized',
+    pending_permission_request_id VARCHAR(64),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -453,9 +478,44 @@ CREATE TABLE automation_task_runs (
     assistant_text TEXT,
     result_text TEXT,
     artifact_path VARCHAR(512),
+    permission_policy_revision INTEGER NOT NULL DEFAULT 0,
+    block_state VARCHAR(32) NOT NULL DEFAULT '',
+    blocked_request_id VARCHAR(64),
+    effect_started BOOLEAN NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
+CREATE TABLE automation_permission_requests (
+    request_id VARCHAR(64) NOT NULL PRIMARY KEY,
+    owner_user_id VARCHAR(64) NOT NULL,
+    job_id VARCHAR(64) NOT NULL,
+    run_id VARCHAR(64),
+    policy_revision INTEGER NOT NULL,
+    kind VARCHAR(32) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    decision VARCHAR(32),
+    tool_name VARCHAR(255) NOT NULL,
+    connector_id VARCHAR(64),
+    effect VARCHAR(32) NOT NULL,
+    resource_scope TEXT,
+    input_fingerprint VARCHAR(64) NOT NULL,
+    capability_json TEXT NOT NULL,
+    input_summary_json TEXT NOT NULL DEFAULT '{}',
+    title VARCHAR(255),
+    description TEXT,
+    reason TEXT,
+    session_key VARCHAR(255),
+    round_id VARCHAR(64),
+    tool_use_id VARCHAR(255),
+    resume_safe BOOLEAN NOT NULL DEFAULT 1,
+    resolved_by_user_id VARCHAR(64),
+    resolved_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+CREATE UNIQUE INDEX uq_automation_permission_requests_pending_capability
+    ON automation_permission_requests (owner_user_id, job_id, run_id, kind, input_fingerprint)
+    WHERE status = 'pending';
 CREATE TABLE automation_scheduler_leases (
     lease_name VARCHAR(64) NOT NULL PRIMARY KEY,
     owner_id VARCHAR(64) NOT NULL,
@@ -538,6 +598,27 @@ func intRef(value int) *int {
 func stringRef(value string) *string {
 	result := value
 	return &result
+}
+
+func permissionDecisionInputForRequest(
+	request automationdomain.AutomationPermissionRequest,
+	decision string,
+) automationdomain.PermissionDecisionInput {
+	return automationdomain.PermissionDecisionInput{
+		Decision:       decision,
+		JobID:          request.JobID,
+		RunID:          request.RunID,
+		PolicyRevision: request.PolicyRevision,
+	}
+}
+
+func permissionResumeInputForRequest(
+	request automationdomain.AutomationPermissionRequest,
+) automationdomain.PermissionResumeInput {
+	return automationdomain.PermissionResumeInput{
+		RequestID:      request.RequestID,
+		PolicyRevision: request.PolicyRevision,
+	}
 }
 
 func firstNonEmptyString(values ...string) string {
