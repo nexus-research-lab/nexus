@@ -270,6 +270,10 @@ func (s *ControlService) deleteChannelConfig(
 	defer unlockChannel()
 
 	_, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
+		pairingQuery := "DELETE FROM im_pairings WHERE owner_user_id = " + s.bind(1) + " AND channel_type = " + s.bind(2)
+		if _, deleteErr := tx.ExecContext(ctx, pairingQuery, ownerUserID, channelType); deleteErr != nil {
+			return deleteErr
+		}
 		if err := s.deleteChannelAccountRowsWith(ctx, tx, ownerUserID, channelType); err != nil {
 			return err
 		}
@@ -332,6 +336,11 @@ func (s *ControlService) deleteChannelAccount(
 	}
 	var row *channelConfigRow
 	committedVersion, err := s.withChannelControlMutation(ctx, ownerUserID, expectedVersion, func(tx *sql.Tx) error {
+		pairingQuery := "DELETE FROM im_pairings WHERE owner_user_id = " + s.bind(1) +
+			" AND channel_type = " + s.bind(2) + " AND account_id = " + s.bind(3)
+		if _, deleteErr := tx.ExecContext(ctx, pairingQuery, ownerUserID, channelType, accountID); deleteErr != nil {
+			return deleteErr
+		}
 		deleted, deleteErr := s.deleteChannelAccountRowWith(ctx, tx, ownerUserID, channelType, accountID)
 		if deleteErr != nil {
 			return deleteErr

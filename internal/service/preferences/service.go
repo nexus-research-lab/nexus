@@ -155,6 +155,9 @@ func (s *Service) updateLocked(
 	if request.AgentSDKDiagnosticsEnabled != nil {
 		current.AgentSDKDiagnosticsEnabled = *request.AgentSDKDiagnosticsEnabled
 	}
+	if request.EmotionEnabled != nil {
+		current.EmotionEnabled = *request.EmotionEnabled
+	}
 	if request.RuntimeSettings != nil {
 		current.RuntimeSettings = *request.RuntimeSettings
 	}

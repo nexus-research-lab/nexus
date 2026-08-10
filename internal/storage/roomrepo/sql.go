@@ -923,8 +923,7 @@ func (r *SQLRepository) UpdateSessionSDKSessionID(ctx context.Context, sessionID
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
-
+	defer func() { _ = tx.Rollback() }()
 	roomID, err := r.lookupSessionRoomID(ctx, tx, sessionID)
 	if err != nil || roomID == "" {
 		return err
@@ -933,14 +932,40 @@ func (r *SQLRepository) UpdateSessionSDKSessionID(ctx context.Context, sessionID
 	if err != nil || roomValue == nil {
 		return err
 	}
+	var currentSDKSessionID sql.NullString
+	var optionsJSON string
+	err = tx.QueryRowContext(ctx, `
+SELECT sdk_session_id, options_json
+FROM sessions
+WHERE id = `+r.dialect.Bind(1)+`
+  AND conversation_id IN (
+      SELECT id FROM conversations WHERE room_id = `+r.dialect.Bind(2)+`
+  )`, sessionID, roomID).Scan(&currentSDKSessionID, &optionsJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	options := protocol.WithTranscriptSessionIDs(
+		jsoncodec.ParseMap(optionsJSON),
+		[]string{currentSDKSessionID.String, sdkSessionID},
+	)
+	optionsJSON, err = jsoncodec.MarshalMap(options)
+	if err != nil {
+		return err
+	}
 	result, err := tx.ExecContext(ctx, `
 UPDATE sessions
-SET sdk_session_id = `+r.dialect.Bind(1)+`, updated_at = `+r.dialect.CurrentTimestamp()+`
-WHERE id = `+r.dialect.Bind(2)+`
+SET sdk_session_id = `+r.dialect.Bind(1)+`,
+    options_json = `+r.dialect.Bind(2)+`,
+    updated_at = `+r.dialect.CurrentTimestamp()+`
+WHERE id = `+r.dialect.Bind(3)+`
   AND conversation_id IN (
-      SELECT id FROM conversations WHERE room_id = `+r.dialect.Bind(3)+`
+      SELECT id FROM conversations WHERE room_id = `+r.dialect.Bind(4)+`
   )`,
 		NullIfEmpty(sdkSessionID),
+		optionsJSON,
 		sessionID,
 		roomID,
 	)

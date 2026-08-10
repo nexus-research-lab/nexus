@@ -160,13 +160,23 @@ func (s *Service) refreshSessionMetaAfterMessageForOwner(
 	current protocol.Session,
 	message protocol.Message,
 ) (*protocol.Session, error) {
-	current.SessionID = s.preferPersistableMessageSessionIDForOwner(
+	nextSessionID := s.preferPersistableMessageSessionIDForOwner(
 		ownerUserID,
 		context.Background(),
 		workspacePath,
 		current,
 		dmdomain.NormalizeString(message["session_id"]),
 	)
+	nextSessionIDValue := ""
+	if nextSessionID != nil {
+		nextSessionIDValue = *nextSessionID
+	}
+	current.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
+		current.TranscriptSessionIDs,
+		protocol.SessionTranscriptIDs(current),
+		[]string{nextSessionIDValue},
+	)
+	current.SessionID = nextSessionID
 	current = closePersistedSessionMeta(current)
 	current.LastActivity = time.Now().UTC()
 	current.MessageCount++
@@ -402,6 +412,11 @@ func (s *sdkSessionSync) decideSessionPersistence() {
 
 func (s *sdkSessionSync) apply() {
 	if s.canPersistSession {
+		currentSessionID := strings.TrimSpace(dmdomain.StringPointerValue(s.current.SessionID))
+		s.current.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
+			s.current.TranscriptSessionIDs,
+			[]string{currentSessionID, s.nextSessionID},
+		)
 		s.current.SessionID = &s.nextSessionID
 	}
 	if s.current.Options == nil {
@@ -483,6 +498,10 @@ func (s *Service) clearReusableSDKSessionID(
 	workspacePath string,
 	current protocol.Session,
 ) (protocol.Session, error) {
+	current.TranscriptSessionIDs = protocol.MergeTranscriptSessionIDs(
+		current.TranscriptSessionIDs,
+		protocol.SessionTranscriptIDs(current),
+	)
 	current.SessionID = nil
 	current = closePersistedSessionMeta(current)
 	var err error

@@ -198,18 +198,18 @@ func (c *fakeRuntimeClient) Supports(capability agentclient.Capability) bool {
 
 func (c *fakeRuntimeClient) SessionID() string { return "" }
 
-func TestSDKClientAdapterWaitReturnsStreamError(t *testing.T) {
+func TestAgentClientWaitReturnsStreamError(t *testing.T) {
 	processErr := errors.New("process: command exited with error: exit status 2")
-	client := &sdkClientAdapter{streamErr: processErr}
+	client := &agentClient{streamErr: processErr}
 
 	if err := client.Wait(); !errors.Is(err, processErr) {
 		t.Fatalf("Wait() error = %v，期望返回 stream error", err)
 	}
 }
 
-func TestSDKClientAdapterRetirePermanentlyPreventsReconnect(t *testing.T) {
+func TestAgentClientRetirePermanentlyPreventsReconnect(t *testing.T) {
 	newSessionCalls := 0
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
 			newSessionCalls++
 			return nil, errors.New("retired client should not create a session")
@@ -235,42 +235,42 @@ func TestSDKClientAdapterRetirePermanentlyPreventsReconnect(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterRetireCancelsConfigurationFlights(t *testing.T) {
+func TestAgentClientRetireCancelsConfigurationFlights(t *testing.T) {
 	tests := []struct {
 		name      string
-		configure func(*sdkClientAdapter, func(context.Context) error)
-		call      func(*sdkClientAdapter) error
+		configure func(*agentClient, func(context.Context) error)
+		call      func(*agentClient) error
 	}{
 		{
 			name: "reconfigure",
-			configure: func(client *sdkClientAdapter, block func(context.Context) error) {
+			configure: func(client *agentClient, block func(context.Context) error) {
 				client.reconfigureSession = func(ctx context.Context, _ *agentclient.Session, _ agentclient.Options) error {
 					return block(ctx)
 				}
 			},
-			call: func(client *sdkClientAdapter) error {
+			call: func(client *agentClient) error {
 				return client.Reconfigure(context.Background(), agentclient.Options{})
 			},
 		},
 		{
 			name: "permission mode",
-			configure: func(client *sdkClientAdapter, block func(context.Context) error) {
+			configure: func(client *agentClient, block func(context.Context) error) {
 				client.setSessionPermissionMode = func(ctx context.Context, _ *agentclient.Session, _ sdkpermission.Mode) error {
 					return block(ctx)
 				}
 			},
-			call: func(client *sdkClientAdapter) error {
+			call: func(client *agentClient) error {
 				return client.SetPermissionMode(context.Background(), sdkpermission.ModeDefault)
 			},
 		},
 		{
 			name: "environment",
-			configure: func(client *sdkClientAdapter, block func(context.Context) error) {
+			configure: func(client *agentClient, block func(context.Context) error) {
 				client.updateSessionEnvironment = func(ctx context.Context, _ *agentclient.Session, _ map[string]string) error {
 					return block(ctx)
 				}
 			},
-			call: func(client *sdkClientAdapter) error {
+			call: func(client *agentClient) error {
 				return client.UpdateEnvironment(context.Background(), map[string]string{"KEY": "value"})
 			},
 		},
@@ -279,7 +279,7 @@ func TestSDKClientAdapterRetireCancelsConfigurationFlights(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			started := make(chan struct{})
-			client := &sdkClientAdapter{
+			client := &agentClient{
 				session:      &agentclient.Session{},
 				closeSession: func(*agentclient.Session) error { return nil },
 			}
@@ -3104,7 +3104,7 @@ func TestManagerOwnerReaperWaitsForInflightConnect(t *testing.T) {
 
 func TestManagerOwnerReaperCancelsInflightReconfigure(t *testing.T) {
 	reconfigureStarted := make(chan struct{})
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		session: &agentclient.Session{},
 		reconfigureSession: func(ctx context.Context, _ *agentclient.Session, _ agentclient.Options) error {
 			close(reconfigureStarted)
@@ -3392,29 +3392,29 @@ func TestManagerCloseIdleSessionsCountsIdleFromRoundFinish(t *testing.T) {
 	}
 }
 
-func TestWaitSDKClientTransitionReturnsWhenCleanupCompletes(t *testing.T) {
+func TestWaitAgentClientTransitionReturnsWhenCleanupCompletes(t *testing.T) {
 	done := make(chan struct{})
 	close(done)
-	if err := waitSDKClientTransition(context.Background(), done); err != nil {
+	if err := waitAgentClientTransition(context.Background(), done); err != nil {
 		t.Fatalf("已完成 cleanup 不应报错: %v", err)
 	}
 }
 
-func TestWaitSDKClientTransitionHonorsContext(t *testing.T) {
+func TestWaitAgentClientTransitionHonorsContext(t *testing.T) {
 	done := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := waitSDKClientTransition(ctx, done); !errors.Is(err, context.Canceled) {
+	if err := waitAgentClientTransition(ctx, done); !errors.Is(err, context.Canceled) {
 		t.Fatalf("等待 cleanup 应遵守调用方 context: %v", err)
 	}
 }
 
-func TestSDKClientAdapterCleanupFenceBlocksReconnect(t *testing.T) {
+func TestAgentClientCleanupFenceBlocksReconnect(t *testing.T) {
 	cleanupStarted := make(chan struct{})
 	cleanupRelease := make(chan struct{})
 	newSessionCalled := make(chan struct{}, 1)
 	var cleanupGate sync.Once
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		session:  &agentclient.Session{},
 		messages: make(chan sdkprotocol.ReceivedMessage),
 		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
@@ -3463,12 +3463,12 @@ func TestSDKClientAdapterCleanupFenceBlocksReconnect(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterDisconnectDeadlineDoesNotCancelSharedCleanup(t *testing.T) {
+func TestAgentClientDisconnectDeadlineDoesNotCancelSharedCleanup(t *testing.T) {
 	cleanupStarted := make(chan struct{})
 	cleanupRelease := make(chan struct{})
 	newSessionCalled := make(chan struct{}, 1)
 	var cleanupGate sync.Once
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		session: &agentclient.Session{},
 		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
 			newSessionCalled <- struct{}{}
@@ -3518,11 +3518,11 @@ func TestSDKClientAdapterDisconnectDeadlineDoesNotCancelSharedCleanup(t *testing
 	}
 }
 
-func TestSDKClientAdapterDisconnectInvalidatesInFlightConnect(t *testing.T) {
+func TestAgentClientDisconnectInvalidatesInFlightConnect(t *testing.T) {
 	connectStarted := make(chan struct{})
 	connectRelease := make(chan struct{})
 	staleSessionClosed := make(chan struct{}, 1)
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
 			close(connectStarted)
 			<-connectRelease
@@ -3565,10 +3565,10 @@ func TestSDKClientAdapterDisconnectInvalidatesInFlightConnect(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterConnectRetriesWithLatestConfiguration(t *testing.T) {
+func TestAgentClientConnectRetriesWithLatestConfiguration(t *testing.T) {
 	firstAttemptRelease := make(chan struct{})
 	attempts := make(chan agentclient.Options, 2)
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		options: agentclient.Options{Model: "old-model"},
 		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
 			attempts <- options
@@ -3612,13 +3612,13 @@ func TestSDKClientAdapterConnectRetriesWithLatestConfiguration(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterConnectFailureRetriesWithLatestConfiguration(t *testing.T) {
+func TestAgentClientConnectFailureRetriesWithLatestConfiguration(t *testing.T) {
 	staleStartErr := errors.New("old runtime configuration rejected")
 	latestStartErr := errors.New("new runtime executable unavailable")
 	firstAttemptStarted := make(chan struct{})
 	firstAttemptRelease := make(chan struct{})
 	attempts := make(chan agentclient.Options, 2)
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		options: agentclient.Options{Model: "old-model"},
 		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
 			attempts <- options
@@ -3680,9 +3680,9 @@ func TestSDKClientAdapterConnectFailureRetriesWithLatestConfiguration(t *testing
 	}
 }
 
-func TestSDKClientAdapterDiscardCancelsInFlightConnect(t *testing.T) {
+func TestAgentClientDiscardCancelsInFlightConnect(t *testing.T) {
 	connectStarted := make(chan struct{})
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		newSession: func(ctx context.Context, _ agentclient.Options) (*agentclient.Session, error) {
 			close(connectStarted)
 			<-ctx.Done()
@@ -3708,10 +3708,10 @@ func TestSDKClientAdapterDiscardCancelsInFlightConnect(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterConcurrentConnectWaiterHonorsContext(t *testing.T) {
+func TestAgentClientConcurrentConnectWaiterHonorsContext(t *testing.T) {
 	connectStarted := make(chan struct{})
 	connectRelease := make(chan struct{})
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
 			close(connectStarted)
 			<-connectRelease
@@ -3743,14 +3743,14 @@ func TestSDKClientAdapterConcurrentConnectWaiterHonorsContext(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterConcurrentConnectSharesStableFailure(t *testing.T) {
+func TestAgentClientConcurrentConnectSharesStableFailure(t *testing.T) {
 	const callerCount = 8
 	startErr := errors.New("runtime executable is unavailable")
 	firstStarted := make(chan struct{})
 	firstRelease := make(chan struct{})
 	var attemptsMu sync.Mutex
 	attempts := 0
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
 			attemptsMu.Lock()
 			attempts++
@@ -3809,13 +3809,13 @@ func TestSDKClientAdapterConcurrentConnectSharesStableFailure(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterConnectOwnerCancellationDoesNotPoisonWaiter(t *testing.T) {
+func TestAgentClientConnectOwnerCancellationDoesNotPoisonWaiter(t *testing.T) {
 	startErr := errors.New("runtime startup failed after cancellation")
 	firstOpenStarted := make(chan struct{})
 	firstOpenRelease := make(chan struct{})
 	var attemptsMu sync.Mutex
 	attempts := 0
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
 			attemptsMu.Lock()
 			attempts++
@@ -3872,13 +3872,13 @@ func TestSDKClientAdapterConnectOwnerCancellationDoesNotPoisonWaiter(t *testing.
 	}
 }
 
-func TestSDKClientAdapterConnectFailureDoesNotCrossLifecycle(t *testing.T) {
+func TestAgentClientConnectFailureDoesNotCrossLifecycle(t *testing.T) {
 	startErr := errors.New("stale runtime failed to initialize")
 	firstStarted := make(chan struct{})
 	firstRelease := make(chan struct{})
 	var attemptsMu sync.Mutex
 	attempts := 0
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
 			attemptsMu.Lock()
 			attempts++
@@ -3935,12 +3935,12 @@ func TestSDKClientAdapterConnectFailureDoesNotCrossLifecycle(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterDisconnectDuringConfigRetryCannotReviveSession(t *testing.T) {
+func TestAgentClientDisconnectDuringConfigRetryCannotReviveSession(t *testing.T) {
 	firstOpenRelease := make(chan struct{})
 	staleCloseStarted := make(chan struct{})
 	staleCloseRelease := make(chan struct{})
 	attempts := make(chan agentclient.Options, 2)
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		options: agentclient.Options{Model: "old-model"},
 		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
 			attempts <- options
@@ -3992,10 +3992,10 @@ func TestSDKClientAdapterDisconnectDuringConfigRetryCannotReviveSession(t *testi
 	}
 }
 
-func TestSDKClientAdapterDisconnectReturnsCleanupErrorAndAllowsReconnect(t *testing.T) {
+func TestAgentClientDisconnectReturnsCleanupErrorAndAllowsReconnect(t *testing.T) {
 	closeErr := errors.New("runtime close failed")
 	newSessionCalled := false
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		session: &agentclient.Session{},
 		newSession: func(context.Context, agentclient.Options) (*agentclient.Session, error) {
 			newSessionCalled = true
@@ -4016,13 +4016,13 @@ func TestSDKClientAdapterDisconnectReturnsCleanupErrorAndAllowsReconnect(t *test
 	}
 }
 
-func TestSDKClientAdapterRejectedSessionCleanupBlocksRetryUntilCompletion(t *testing.T) {
+func TestAgentClientRejectedSessionCleanupBlocksRetryUntilCompletion(t *testing.T) {
 	firstOpenRelease := make(chan struct{})
 	cleanupStarted := make(chan struct{})
 	cleanupRelease := make(chan struct{})
 	attempts := make(chan agentclient.Options, 2)
 	var cleanupGate sync.Once
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		options: agentclient.Options{Model: "old-model"},
 		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
 			attempts <- options
@@ -4082,10 +4082,10 @@ func TestSDKClientAdapterRejectedSessionCleanupBlocksRetryUntilCompletion(t *tes
 	}
 }
 
-func TestSDKClientAdapterRejectedSessionDiagnosticAllowsRetry(t *testing.T) {
+func TestAgentClientRejectedSessionDiagnosticAllowsRetry(t *testing.T) {
 	firstOpenRelease := make(chan struct{})
 	attempts := make(chan agentclient.Options, 2)
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		options: agentclient.Options{Model: "old-model"},
 		newSession: func(_ context.Context, options agentclient.Options) (*agentclient.Session, error) {
 			attempts <- options
@@ -4127,11 +4127,11 @@ func TestSDKClientAdapterRejectedSessionDiagnosticAllowsRetry(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterReconfigurePublishesAndSerializesDesiredState(t *testing.T) {
+func TestAgentClientReconfigurePublishesAndSerializesDesiredState(t *testing.T) {
 	firstStarted := make(chan struct{})
 	firstRelease := make(chan struct{})
 	secondStarted := make(chan struct{})
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		options: agentclient.Options{Model: "old-model"},
 		session: &agentclient.Session{},
 		reconfigureSession: func(_ context.Context, _ *agentclient.Session, options agentclient.Options) error {
@@ -4197,10 +4197,10 @@ func TestSDKClientAdapterReconfigurePublishesAndSerializesDesiredState(t *testin
 	}
 }
 
-func TestSDKClientAdapterUpdateEnvironmentPublishesDesiredBeforeRPC(t *testing.T) {
+func TestAgentClientUpdateEnvironmentPublishesDesiredBeforeRPC(t *testing.T) {
 	updateStarted := make(chan struct{})
 	updateRelease := make(chan struct{})
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		options: agentclient.Options{Env: map[string]string{"EXISTING": "1"}},
 		session: &agentclient.Session{},
 		updateSessionEnvironment: func(_ context.Context, _ *agentclient.Session, environment map[string]string) error {
@@ -4238,9 +4238,9 @@ func TestSDKClientAdapterUpdateEnvironmentPublishesDesiredBeforeRPC(t *testing.T
 	}
 }
 
-func TestSDKClientAdapterReconfigureRollsBackRejectedDesiredState(t *testing.T) {
+func TestAgentClientReconfigureRollsBackRejectedDesiredState(t *testing.T) {
 	reconfigureErr := errors.New("invalid model")
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		options: agentclient.Options{Model: "old-model"},
 		session: &agentclient.Session{},
 		reconfigureSession: func(context.Context, *agentclient.Session, agentclient.Options) error {
@@ -4262,9 +4262,9 @@ func TestSDKClientAdapterReconfigureRollsBackRejectedDesiredState(t *testing.T) 
 	}
 }
 
-func TestSDKClientAdapterConfigurationWaiterHonorsContext(t *testing.T) {
-	configuring := &sdkClientConfigFlight{done: make(chan struct{})}
-	client := &sdkClientAdapter{
+func TestAgentClientConfigurationWaiterHonorsContext(t *testing.T) {
+	configuring := &agentClientConfigFlight{done: make(chan struct{})}
+	client := &agentClient{
 		options:     agentclient.Options{Model: "old-model"},
 		configuring: configuring,
 	}
@@ -4278,21 +4278,21 @@ func TestSDKClientAdapterConfigurationWaiterHonorsContext(t *testing.T) {
 	}
 }
 
-func TestSDKClientAdapterPreCanceledConfigurationDoesNotMutateDesiredState(t *testing.T) {
-	tests := map[string]func(*sdkClientAdapter, context.Context) error{
-		"reconfigure": func(client *sdkClientAdapter, ctx context.Context) error {
+func TestAgentClientPreCanceledConfigurationDoesNotMutateDesiredState(t *testing.T) {
+	tests := map[string]func(*agentClient, context.Context) error{
+		"reconfigure": func(client *agentClient, ctx context.Context) error {
 			return client.Reconfigure(ctx, agentclient.Options{Model: "new-model"})
 		},
-		"environment": func(client *sdkClientAdapter, ctx context.Context) error {
+		"environment": func(client *agentClient, ctx context.Context) error {
 			return client.UpdateEnvironment(ctx, map[string]string{"NEW": "2"})
 		},
-		"permission": func(client *sdkClientAdapter, ctx context.Context) error {
+		"permission": func(client *agentClient, ctx context.Context) error {
 			return client.SetPermissionMode(ctx, sdkpermission.ModeAcceptEdits)
 		},
 	}
 	for name, apply := range tests {
 		t.Run(name, func(t *testing.T) {
-			client := &sdkClientAdapter{options: agentclient.Options{
+			client := &agentClient{options: agentclient.Options{
 				Model: "old-model",
 				Env:   map[string]string{"EXISTING": "1"},
 				Runtime: agentclient.RuntimeOptions{
@@ -4316,11 +4316,11 @@ func TestSDKClientAdapterPreCanceledConfigurationDoesNotMutateDesiredState(t *te
 	}
 }
 
-func TestSDKClientAdapterConfigFailureAfterGenerationChangeKeepsDesiredState(t *testing.T) {
+func TestAgentClientConfigFailureAfterGenerationChangeKeepsDesiredState(t *testing.T) {
 	rpcStarted := make(chan struct{})
 	rpcRelease := make(chan struct{})
 	reconfigureErr := errors.New("old runtime rejected configuration")
-	client := &sdkClientAdapter{
+	client := &agentClient{
 		options:  agentclient.Options{Model: "old-model"},
 		session:  &agentclient.Session{},
 		messages: make(chan sdkprotocol.ReceivedMessage),

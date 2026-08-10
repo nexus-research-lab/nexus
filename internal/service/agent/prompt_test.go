@@ -165,7 +165,7 @@ func TestServiceBuildRuntimePromptIncludesUserFile(t *testing.T) {
 	}
 }
 
-func TestServiceBuildRuntimeUserMessageSuffixIncludesDateAndEmotion(t *testing.T) {
+func TestServiceBuildRuntimeUserMessageSuffixIncludesEmotionWhenEnabled(t *testing.T) {
 	service := agentsvc.NewService(config.Config{
 		DefaultAgentID:   "nexus",
 		DefaultTimezone:  "Asia/Shanghai",
@@ -176,7 +176,7 @@ func TestServiceBuildRuntimeUserMessageSuffixIncludesDateAndEmotion(t *testing.T
 		AgentID:     "agent-1",
 		Name:        "planner",
 		DisplayName: "规划助手",
-	}, "")
+	}, "", true)
 
 	// 时间不再由本层注入（交给 runtime 基础提示），避免秒级时间戳污染前缀缓存。
 	assertPromptContains(t, suffix, "<nexus_runtime_context>")
@@ -184,6 +184,19 @@ func TestServiceBuildRuntimeUserMessageSuffixIncludesDateAndEmotion(t *testing.T
 	assertPromptContains(t, suffix, "Base: focused (energy 6/10, valence 6/10) - clear, proactive, concise")
 	assertPromptContains(t, suffix, "Composite: focused (energy 6/10, valence 6/10) - clear, proactive, concise")
 	assertPromptContains(t, suffix, "</nexus_runtime_context>")
+}
+
+func TestServiceBuildRuntimeUserMessageSuffixOmitsEmotionWhenDisabled(t *testing.T) {
+	service := agentsvc.NewService(config.Config{DefaultAgentID: "nexus"}, nil)
+
+	suffix := service.BuildRuntimeUserMessageSuffixForContext(context.Background(), &protocol.Agent{
+		AgentID: "agent-1",
+		Name:    "planner",
+	}, "", false)
+
+	if suffix != "" {
+		t.Fatalf("关闭情绪系统后不应注入动态上下文: %q", suffix)
+	}
 }
 
 func TestServiceBuildRuntimeUserMessageSuffixReadsAgentEmotionState(t *testing.T) {
@@ -225,7 +238,7 @@ func TestServiceBuildRuntimeUserMessageSuffixReadsAgentEmotionState(t *testing.T
 		AgentID:       "agent-1",
 		Name:          "runner",
 		WorkspacePath: workspacePath,
-	}, "dm:test")
+	}, "dm:test", true)
 
 	assertPromptContains(t, suffix, "Base: playful (energy 8/10, valence 8/10) - curious and warm")
 	assertPromptContains(t, suffix, "Context: annoyed (valence 4/10) - user said the draft feels wrong")

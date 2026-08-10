@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +21,16 @@ type emptyGoalRepository struct{}
 type staticGoalRepository struct {
 	emptyGoalRepository
 	item protocol.Goal
+}
+
+type createdGoalRepository struct {
+	emptyGoalRepository
+	created *protocol.Goal
+}
+
+func (r *createdGoalRepository) CreateGoal(_ context.Context, item protocol.Goal) (*protocol.Goal, error) {
+	r.created = &item
+	return &item, nil
 }
 
 func (emptyGoalRepository) CreateGoal(context.Context, protocol.Goal) (*protocol.Goal, error) {
@@ -100,6 +111,31 @@ func TestHandleGetCurrentGoalMissingReturnsSuccessNull(t *testing.T) {
 	}
 	if payload.Data != nil {
 		t.Fatalf("data = %#v, want nil", payload.Data)
+	}
+}
+
+func TestHandleCreateGoalTreatsRequestAsUserInput(t *testing.T) {
+	repo := &createdGoalRepository{}
+	service := goalsvc.NewService(config.Config{GoalEnabled: true}, repo)
+	handler := New(handlershared.NewAPI(nil), service)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/nexus/v1/goals",
+		strings.NewReader(`{"session_key":"room:group:goal-create","objective":"Start the Room Goal","created_by":"model","metadata":{"execution_id":"execution-client-selected","explicit_goal_command":"spoofed-command"}}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	handler.HandleCreateGoal(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", response.Code, http.StatusOK, response.Body.String())
+	}
+	if repo.created == nil || repo.created.CreatedBy != "user" {
+		t.Fatalf("created = %#v, want user-created Goal", repo.created)
+	}
+	if protocol.GoalReservedExecutionID(*repo.created) != "" {
+		t.Fatalf("created = %#v, want no client-selected Execution", repo.created)
 	}
 }
 

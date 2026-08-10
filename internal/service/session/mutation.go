@@ -10,6 +10,7 @@ import (
 
 	"github.com/nexus-research-lab/nexus/internal/infra/authctx"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
+	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
@@ -31,6 +32,8 @@ func SessionDeletionCommitted(err error) bool {
 	var committed *DeletionReconcileError
 	return errors.As(err, &committed)
 }
+
+const sessionRuntimeCloseTimeout = 3 * time.Second
 
 // CreateSession 创建或幂等返回普通 Agent 会话。
 func (s *Service) CreateSession(ctx context.Context, request CreateRequest) (*protocol.Session, error) {
@@ -165,7 +168,7 @@ func (s *Service) UpdateSessionTitleAtVersion(
 	return &projected, nil
 }
 
-// DeleteSession 安全关闭运行态后删除普通 Agent 会话目录。
+// DeleteSession 安全关闭运行态后删除普通 Agent 会话目录及其引用产物。
 func (s *Service) DeleteSession(ctx context.Context, rawSessionKey string) error {
 	return s.deleteSession(ctx, rawSessionKey, nil)
 }
@@ -195,10 +198,7 @@ func (s *Service) deleteSession(
 	if err != nil {
 		return err
 	}
-	if workspacePath == "" {
-		return ErrSessionNotFound
-	}
-	if item == nil {
+	if workspacePath == "" || item == nil {
 		return ErrSessionNotFound
 	}
 	if expectedConfigurationVersion != nil &&
@@ -218,15 +218,12 @@ func (s *Service) deleteSession(
 		deleteVersion = *expectedConfigurationVersion
 	}
 	files := s.ownerFiles(ctx)
-	cleanupSessionID := ""
-	if item.SessionID != nil {
-		cleanupSessionID = strings.TrimSpace(*item.SessionID)
-	}
-	storageLease, err := files.BeginSessionDeletion(
+	cleanupSessionIDs := protocol.SessionTranscriptIDs(*item)
+	storageLease, err := files.BeginSessionDeletionWithTranscriptIDs(
 		workspacePath,
 		sessionKey,
 		deleteVersion,
-		cleanupSessionID,
+		cleanupSessionIDs,
 	)
 	if err != nil {
 		return mapSessionStorageError(err)
@@ -249,7 +246,8 @@ func (s *Service) deleteSession(
 			)
 		}
 	}()
-	if err = s.runtime.CloseSession(ctx, sessionKey); err != nil {
+	if err = s.runtime.CloseSession(ctx, sessionKey); err != nil &&
+		!runtimectx.IsRuntimeTransportClosedError(err) {
 		return fmt.Errorf("关闭 Session 运行态失败，未删除持久数据: %w", err)
 	}
 	item, workspacePath, _, err = s.loadMutableWorkspaceSession(ctx, sessionKey)
@@ -284,16 +282,30 @@ func (s *Service) deleteSession(
 		return ErrSessionNotFound
 	}
 	committed = true
-	if cleanupSessionID != "" {
-		if _, err := s.ownerHistory(ctx).DeleteTranscriptSession(
-			workspacePath,
-			cleanupSessionID,
-		); err != nil {
-			return &DeletionReconcileError{cause: err}
+	cleanupCtx := context.WithoutCancel(ctx)
+	cleanupErrs := make([]error, 0)
+	if s.deletion != nil {
+		if cleanupErr := s.deletion.CleanupSessionReferences(
+			cleanupCtx,
+			authctx.OwnerUserID(ctx),
+			[]string{sessionKey},
+		); cleanupErr != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("清理 Session 引用: %w", cleanupErr))
 		}
 	}
-	if err = files.CompleteSessionDeletionCleanup(storageLease); err != nil {
-		return &DeletionReconcileError{cause: err}
+	for _, transcriptSessionID := range protocol.SessionTranscriptIDs(*item) {
+		if _, cleanupErr := s.ownerHistory(ctx).DeleteTranscriptSession(
+			workspacePath,
+			transcriptSessionID,
+		); cleanupErr != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("清理 transcript %s: %w", transcriptSessionID, cleanupErr))
+		}
+	}
+	if cleanupErr := files.CompleteSessionDeletionCleanup(storageLease); cleanupErr != nil {
+		cleanupErrs = append(cleanupErrs, cleanupErr)
+	}
+	if cleanupErr := errors.Join(cleanupErrs...); cleanupErr != nil {
+		return &DeletionReconcileError{cause: cleanupErr}
 	}
 	if item != nil {
 		s.notifyDirectoryChanged(ctx, "session_deleted", *item)
@@ -307,6 +319,19 @@ func mapSessionStorageError(err error) error {
 	}
 	if errors.Is(err, workspacestore.ErrSessionDeleted) {
 		return fmt.Errorf("%w: %v", ErrSessionDeleted, err)
+	}
+	return err
+}
+
+func (s *Service) closeSessionRuntimeForDeletion(sessionKey string) error {
+	if s.runtime == nil {
+		return nil
+	}
+	closeCtx, cancel := context.WithTimeout(context.Background(), sessionRuntimeCloseTimeout)
+	err := s.runtime.CloseSession(closeCtx, sessionKey)
+	cancel()
+	if runtimectx.IsRuntimeTransportClosedError(err) {
+		return nil
 	}
 	return err
 }

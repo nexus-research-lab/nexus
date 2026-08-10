@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/config"
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
+	deletionsvc "github.com/nexus-research-lab/nexus/internal/service/deletion"
 	"github.com/nexus-research-lab/nexus/internal/storage/roomrepo"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
@@ -88,6 +89,7 @@ type Service struct {
 	goalReader       goalConversationInspector
 	runtime          runtimeSessionCloser
 	sessionArtifacts SessionArtifactDeletionCoordinator
+	deletion         *deletionsvc.Coordinator
 }
 
 // NewService 创建 Room 服务。
@@ -118,4 +120,9 @@ func (s *Service) SetSessionArtifactDeletionCoordinator(
 	coordinator SessionArtifactDeletionCoordinator,
 ) {
 	s.sessionArtifacts = coordinator
+}
+
+// SetDeletionCoordinator 注入跨数据库与文件系统的持久删除协调器。
+func (s *Service) SetDeletionCoordinator(coordinator *deletionsvc.Coordinator) {
+	s.deletion = coordinator
 }

@@ -20,6 +20,7 @@ type Preferences struct {
 	ChatDefaultDeliveryPolicy       protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy"`
 	AgentRuntimeKind                string                      `json:"agent_runtime_kind,omitempty"`
 	AgentSDKDiagnosticsEnabled      bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
+	EmotionEnabled                  bool                        `json:"emotion_enabled,omitempty"`
 	RuntimeSettings                 RuntimeSettings             `json:"runtime_settings"`
 	WebSearch                       WebSearchSettings           `json:"web_search"`
 	DefaultAgentOptions             protocol.Options            `json:"default_agent_options"`
@@ -34,6 +35,7 @@ type UpdateRequest struct {
 	ChatDefaultDeliveryPolicy       *protocol.ChatDeliveryPolicy `json:"chat_default_delivery_policy,omitempty"`
 	AgentRuntimeKind                *string                      `json:"agent_runtime_kind,omitempty"`
 	AgentSDKDiagnosticsEnabled      *bool                        `json:"agent_sdk_diagnostics_enabled,omitempty"`
+	EmotionEnabled                  *bool                        `json:"emotion_enabled,omitempty"`
 	RuntimeSettings                 *RuntimeSettings             `json:"runtime_settings,omitempty"`
 	WebSearch                       *WebSearchSettings           `json:"web_search,omitempty"`
 	WebSearchAPIKey                 *string                      `json:"web_search_api_key,omitempty"`
@@ -198,6 +200,7 @@ func normalizePreferences(item Preferences) Preferences {
 		ChatDefaultDeliveryPolicy:       policy,
 		AgentRuntimeKind:                runtimeKind,
 		AgentSDKDiagnosticsEnabled:      item.AgentSDKDiagnosticsEnabled,
+		EmotionEnabled:                  item.EmotionEnabled,
 		RuntimeSettings:                 normalizeRuntimeSettings(item.RuntimeSettings),
 		WebSearch:                       webSearch,
 		DefaultAgentOptions:             options,

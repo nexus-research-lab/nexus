@@ -63,7 +63,7 @@ type RoomEventObserver func(context.Context, protocol.EventMessage)
 type defaultRoomClientFactory struct{}
 
 func (f defaultRoomClientFactory) New(options agentclient.Options) runtimectx.Client {
-	return runtimectx.WrapSDKClient(options)
+	return runtimectx.NewAgentClient(options)
 }
 
 // ChatRequest 表示 Room 共享会话的一次聊天请求。

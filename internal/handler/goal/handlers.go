@@ -49,6 +49,15 @@ func (h *Handlers) HandleCreateGoal(writer http.ResponseWriter, request *http.Re
 	if !h.api.BindJSON(writer, request, &input) {
 		return
 	}
+	input.CreatedBy = "user"
+	for _, key := range []string{
+		protocol.GoalMetadataExecutionID,
+		protocol.GoalMetadataExplicitCommand,
+		protocol.GoalMetadataActivationOrigin,
+		protocol.GoalMetadataActivationReason,
+	} {
+		delete(input.Metadata, key)
+	}
 	input.OwnerUserID = authsvc.OwnerUserID(request.Context())
 	goal, err := h.goals.Create(request.Context(), input)
 	if err != nil {

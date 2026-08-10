@@ -172,6 +172,7 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 	goalService.SetExternalMutationAccountant(runtimeManager)
 	core.Agent.SetGoalCleaner(goalService)
 	core.Room.SetGoalCleaner(goalService)
+	core.Deletion.SetGoalCleaner(goalService)
 	core.Room.SetRuntimeManager(runtimeManager)
 	core.Session.SetRuntimeManager(runtimeManager)
 	channelRouter := channels.NewRouter(cfg, db, core.Agent, permission)
@@ -232,6 +233,8 @@ func NewAppServicesWithDB(cfg config.Config, db *sql.DB, logger *slog.Logger) *A
 		channelRouter,
 	)
 	automationService.SetSessionArtifactDeletionCoordinator(core.Session)
+	core.Deletion.SetTaskCleaner(automationService)
+	core.Agent.SetDeletionLifecycle(core.Session, automationService)
 	automationService.SetProviderResolver(providerService)
 	automationService.SetLogger(logger.With("component", "automation"))
 	memoryMaintenance := memorymaintenancesvc.NewCoordinator(cfg, core.Agent, providerService, preferencesService, authService)

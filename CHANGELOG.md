@@ -14,11 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added owner-scoped private Skill sources with server-side JSON search, encrypted Bearer credentials, checksum-verified ZIP imports, online update checks, and owner-only conversational create/update/delete/import through native secret slots, shared catalog-version CAS, and write-after-read verification.
 - Added adaptive buffered Markdown streaming with stable frame-paced rendering while preserving conversation scroll ownership.
 - Added conversational Room member pause/resume control with Room-version CAS, authority-epoch fencing, active-task interruption, pending-work recovery, and write-after-read verification for owner-main and current-host contexts.
+- Added an opt-in emotion system preference, disabled by default, that controls whether per-round emotion context is sent to Agents.
 
 ### Fixed
 
 - Routed Automation, Workspace, and Goal operations to their specialized conversation tools while keeping Agent, Room, Session, Provider, Channel, Connector, Skill, preference, and emotion changes behind one inspect → plan → native approval → CAS apply → verify workflow instead of direct database or config-file edits.
 - Closed the main-Agent-in-Group-Room configuration bypass and made Room tool inheritance monotonic: a Room policy can no longer remove an Agent deny or expand an explicit Agent allowlist.
+- Recovered a stable Execution identity when an external Room Goal continues, allowing it to start instead of failing before runtime launch.
+- Completed Session, Room, Agent, scheduled-task, and imported-Skill cleanup across runtime, SQL, and owner-scoped files; transcript lineage stays in existing Session metadata so deletion leaves no orphaned data.
+- Closed an Agent runtime before deleting its session and removed the complete owner-scoped transcript artifact graph, including summaries and unshared Subagent transcripts, so deleted sessions no longer leave runtime data behind.
 - Sequenced explicit Goal creation before its first WorkGraph proposal across the stable prompt, Goal/Execution Skills, and both MCP tool contracts, so Agents no longer launch `create_goal` and `prepare_plan_execution` in parallel while the backend continues to reject stale ambient-Goal races.
 - Repaired legacy databases that had already recorded Execution migration 61 before `goal_execution_identity_claims` was added, allowing startup proposal reconciliation and Goal-to-WorkGraph identity recovery to run instead of failing against a missing table.
 - Made Plan boundary authority explicit: a fresh `operation: create` under an active Goal now seals the exact server-owned Goal objective even when the provider omits or paraphrases the transport field, while Goal-free create/replace still require a document objective, replan still inherits the current Execution boundary, and true Goal-to-existing-Execution objective conflicts remain rejected.

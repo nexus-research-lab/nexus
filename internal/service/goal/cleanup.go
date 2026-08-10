@@ -51,6 +51,24 @@ func (s *Service) DeleteGoalsForAgent(ctx context.Context, agentID string) (int,
 	})
 }
 
+// DeleteGoalsForSessions 删除与规范化 Session key 精确绑定的 Goal。
+func (s *Service) DeleteGoalsForSessions(ctx context.Context, sessionKeys []string) (int, error) {
+	sessionKeySet := make(map[string]struct{}, len(sessionKeys))
+	for _, sessionKey := range sessionKeys {
+		sessionKey = strings.TrimSpace(sessionKey)
+		if sessionKey != "" {
+			sessionKeySet[sessionKey] = struct{}{}
+		}
+	}
+	if len(sessionKeySet) == 0 {
+		return 0, nil
+	}
+	return s.deleteGoalsMatching(ctx, func(goal protocol.Goal, _ protocol.SessionKey) bool {
+		_, exists := sessionKeySet[strings.TrimSpace(goal.SessionKey)]
+		return exists
+	})
+}
+
 // DeleteGoalsForRoomConversations 删除 Room conversation 关联的共享与成员侧 Goal。
 func (s *Service) DeleteGoalsForRoomConversations(ctx context.Context, conversationIDs []string) (int, error) {
 	conversationIDSet := normalizeConversationIDSet(conversationIDs)
@@ -90,7 +108,7 @@ func (s *Service) deleteGoalsMatching(
 	ctx context.Context,
 	matches func(protocol.Goal, protocol.SessionKey) bool,
 ) (int, error) {
-	if matches == nil || s == nil || s.repo == nil || !s.config.GoalEnabled {
+	if matches == nil || s == nil || s.repo == nil {
 		return 0, nil
 	}
 	items, err := s.repo.ListGoals(ctx)

@@ -206,6 +206,8 @@ func (s *Service) deleteConversation(
 	conversationID string,
 	expectedConfigurationVersion *int64,
 ) (*protocol.ConversationContextAggregate, error) {
+	roomID = strings.TrimSpace(roomID)
+	conversationID = strings.TrimSpace(conversationID)
 	contexts, err := s.GetRoomContexts(ctx, roomID)
 	if err != nil {
 		return nil, err
@@ -216,6 +218,22 @@ func (s *Service) deleteConversation(
 	targetContext, ok := roomdomain.FindConversationContext(contexts, conversationID)
 	if !ok {
 		return nil, ErrConversationNotFound
+	}
+	targetContexts := []protocol.ConversationContextAggregate{targetContext}
+	transcriptReferences, err := s.captureRoomTranscriptReferences(targetContexts)
+	if err != nil {
+		return nil, err
+	}
+	payload := roomDeletionPayload{
+		Contexts:             targetContexts,
+		ConversationID:       conversationID,
+		RoomID:               roomID,
+		TranscriptReferences: transcriptReferences,
+	}
+	if expectedConfigurationVersion == nil {
+		if cleanupErr := s.cleanupCommittedRoomDeletion(ctx, payload, true); cleanupErr != nil {
+			return nil, cleanupErr
+		}
 	}
 	var contextValue *protocol.ConversationContextAggregate
 	if expectedConfigurationVersion != nil {
@@ -240,36 +258,10 @@ func (s *Service) deleteConversation(
 	if contextValue == nil {
 		return nil, ErrConversationNotFound
 	}
-	cleanupCtx := context.WithoutCancel(ctx)
-	cleanupErr := errors.Join(
-		wrapRoomDeletionCleanup(
-			"关闭 Conversation runtime session",
-			s.closeConversationRuntimeSessions(
-				cleanupCtx,
-				[]protocol.ConversationContextAggregate{targetContext},
-				true,
-				nil,
-			),
-		),
-		wrapRoomDeletionCleanup(
-			"清理 Conversation artifact",
-			s.cleanupConversationArtifacts(
-				cleanupCtx,
-				[]protocol.ConversationContextAggregate{targetContext},
-				true,
-				nil,
-			),
-		),
-		wrapRoomDeletionCleanup(
-			"清理 Conversation Goal",
-			s.cleanupGoalsForRoomContexts(
-				cleanupCtx,
-				[]protocol.ConversationContextAggregate{targetContext},
-			),
-		),
-	)
-	if cleanupErr != nil {
-		return contextValue, &ConversationDeletionReconcileError{cause: cleanupErr}
+	if expectedConfigurationVersion != nil {
+		if cleanupErr := s.cleanupCommittedRoomDeletion(ctx, payload, true); cleanupErr != nil {
+			return contextValue, &ConversationDeletionReconcileError{cause: cleanupErr}
+		}
 	}
 	return contextValue, nil
 }
@@ -278,7 +270,7 @@ func (s *Service) deleteConversation(
 func (s *Service) UpdateSessionSDKSessionID(ctx context.Context, sessionID string, sdkSessionID string) error {
 	sessionID = strings.TrimSpace(sessionID)
 	sdkSessionID = strings.TrimSpace(sdkSessionID)
-	if sessionID == "" || sdkSessionID == "" {
+	if sessionID == "" {
 		return nil
 	}
 	return s.repository.UpdateSessionSDKSessionID(ctx, sessionID, sdkSessionID)

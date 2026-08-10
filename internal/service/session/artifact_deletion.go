@@ -22,6 +22,24 @@ func (s *Service) DeleteSessionArtifacts(
 	rawSessionKey string,
 	cleanupSessionID string,
 ) (returnErr error) {
+	return s.DeleteSessionArtifactsWithTranscripts(
+		ctx,
+		ownerUserID,
+		workspacePath,
+		rawSessionKey,
+		[]string{cleanupSessionID},
+	)
+}
+
+// DeleteSessionArtifactsWithTranscripts 删除 artifact 并把完整 transcript lineage
+// 固化进 host-only tombstone，使崩溃恢复不会遗漏历史 SDK session。
+func (s *Service) DeleteSessionArtifactsWithTranscripts(
+	ctx context.Context,
+	ownerUserID string,
+	workspacePath string,
+	rawSessionKey string,
+	cleanupSessionIDs []string,
+) (returnErr error) {
 	if s == nil || s.files == nil {
 		return errors.New("Session artifact 删除协调器未初始化")
 	}
@@ -42,10 +60,10 @@ func (s *Service) DeleteSessionArtifacts(
 	}
 
 	files := s.files.ForOwner(ownerUserID)
-	storageLease, configurationVersion, err := files.BeginSessionArtifactDeletion(
+	storageLease, configurationVersion, err := files.BeginSessionArtifactDeletionWithTranscriptIDs(
 		workspacePath,
 		sessionKey,
-		strings.TrimSpace(cleanupSessionID),
+		cleanupSessionIDs,
 	)
 	if errors.Is(err, workspacestore.ErrSessionDeleted) {
 		// 已有 host-only tombstone 的删除是幂等成功；启动/周期恢复器会继续
@@ -93,8 +111,11 @@ func (s *Service) DeleteSessionArtifacts(
 	}
 	committed = true
 
-	cleanupSessionID = strings.TrimSpace(cleanupSessionID)
-	if cleanupSessionID != "" {
+	for _, cleanupSessionID := range cleanupSessionIDs {
+		cleanupSessionID = strings.TrimSpace(cleanupSessionID)
+		if cleanupSessionID == "" {
+			continue
+		}
 		if _, err = s.history.ForOwner(ownerUserID).DeleteTranscriptSession(
 			workspacePath,
 			cleanupSessionID,
@@ -110,4 +131,8 @@ func (s *Service) DeleteSessionArtifacts(
 
 var _ interface {
 	DeleteSessionArtifacts(context.Context, string, string, string, string) error
+} = (*Service)(nil)
+
+var _ interface {
+	DeleteSessionArtifactsWithTranscripts(context.Context, string, string, string, []string) error
 } = (*Service)(nil)

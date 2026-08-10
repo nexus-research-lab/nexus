@@ -36,6 +36,7 @@ type sessionLifecycleRecord struct {
 	ConfigurationVersion int64     `json:"configuration_version,omitempty"`
 	DeleteToken          string    `json:"delete_token,omitempty"`
 	CleanupSessionID     string    `json:"cleanup_session_id,omitempty"`
+	CleanupSessionIDs    []string  `json:"cleanup_session_ids,omitempty"`
 	UpdatedAt            time.Time `json:"updated_at"`
 }
 
@@ -55,6 +56,7 @@ type PendingSessionDeletion struct {
 	SessionKey           string
 	ConfigurationVersion int64
 	CleanupSessionID     string
+	CleanupSessionIDs    []string
 	Committed            bool
 	CleanupComplete      bool
 	Lease                SessionDeletionLease
@@ -67,6 +69,21 @@ func (s *SessionFileStore) BeginSessionDeletion(
 	expectedConfigurationVersion int64,
 	cleanupSessionID string,
 ) (SessionDeletionLease, error) {
+	return s.BeginSessionDeletionWithTranscriptIDs(
+		workspacePath,
+		sessionKey,
+		expectedConfigurationVersion,
+		[]string{cleanupSessionID},
+	)
+}
+
+// BeginSessionDeletionWithTranscriptIDs 持久保存删除所需的完整 transcript lineage。
+func (s *SessionFileStore) BeginSessionDeletionWithTranscriptIDs(
+	workspacePath string,
+	sessionKey string,
+	expectedConfigurationVersion int64,
+	cleanupSessionIDs []string,
+) (SessionDeletionLease, error) {
 	if expectedConfigurationVersion < 1 {
 		return SessionDeletionLease{}, errors.New("expected session configuration_version 必须大于 0")
 	}
@@ -74,7 +91,7 @@ func (s *SessionFileStore) BeginSessionDeletion(
 		workspacePath,
 		sessionKey,
 		&expectedConfigurationVersion,
-		cleanupSessionID,
+		cleanupSessionIDs,
 		false,
 	)
 	return lease, err
@@ -88,11 +105,24 @@ func (s *SessionFileStore) BeginSessionArtifactDeletion(
 	sessionKey string,
 	cleanupSessionID string,
 ) (SessionDeletionLease, int64, error) {
+	return s.BeginSessionArtifactDeletionWithTranscriptIDs(
+		workspacePath,
+		sessionKey,
+		[]string{cleanupSessionID},
+	)
+}
+
+// BeginSessionArtifactDeletionWithTranscriptIDs 为内部 artifact 删除固化完整 lineage。
+func (s *SessionFileStore) BeginSessionArtifactDeletionWithTranscriptIDs(
+	workspacePath string,
+	sessionKey string,
+	cleanupSessionIDs []string,
+) (SessionDeletionLease, int64, error) {
 	return s.beginSessionDeletion(
 		workspacePath,
 		sessionKey,
 		nil,
-		cleanupSessionID,
+		cleanupSessionIDs,
 		true,
 	)
 }
@@ -101,7 +131,7 @@ func (s *SessionFileStore) beginSessionDeletion(
 	workspacePath string,
 	sessionKey string,
 	expectedConfigurationVersion *int64,
-	cleanupSessionID string,
+	cleanupSessionIDs []string,
 	allowMissing bool,
 ) (SessionDeletionLease, int64, error) {
 	sessionKey = strings.TrimSpace(sessionKey)
@@ -145,6 +175,11 @@ func (s *SessionFileStore) beginSessionDeletion(
 	if previous != nil && previous.Generation >= generation {
 		generation = previous.Generation + 1
 	}
+	cleanupSessionIDs = normalizedCleanupSessionIDs(cleanupSessionIDs)
+	cleanupSessionID := ""
+	if len(cleanupSessionIDs) > 0 {
+		cleanupSessionID = cleanupSessionIDs[0]
+	}
 	record := sessionLifecycleRecord{
 		SessionKey:           sessionKey,
 		OwnerUserID:          strings.TrimSpace(s.ownerUserID),
@@ -154,6 +189,7 @@ func (s *SessionFileStore) beginSessionDeletion(
 		ConfigurationVersion: configurationVersion,
 		DeleteToken:          token,
 		CleanupSessionID:     strings.TrimSpace(cleanupSessionID),
+		CleanupSessionIDs:    cleanupSessionIDs,
 		UpdatedAt:            time.Now().UTC(),
 	}
 	if err = s.writeSessionLifecycle(workspacePath, record); err != nil {
@@ -239,6 +275,7 @@ func (s *SessionFileStore) CompleteSessionDeletionCleanup(lease SessionDeletionL
 	}
 	record.DeleteToken = ""
 	record.CleanupSessionID = ""
+	record.CleanupSessionIDs = nil
 	record.UpdatedAt = time.Now().UTC()
 	return s.writeSessionLifecycle(lease.workspacePath, *record)
 }
@@ -477,9 +514,13 @@ func (s *SessionFileStore) listSessionDeletionRecords() ([]PendingSessionDeletio
 				record.State != sessionLifecycleStateDeleted {
 				continue
 			}
+			cleanupSessionIDs := normalizedCleanupSessionIDs(append(
+				record.CleanupSessionIDs,
+				record.CleanupSessionID,
+			))
 			cleanupComplete := record.State == sessionLifecycleStateDeleted &&
 				strings.TrimSpace(record.DeleteToken) == "" &&
-				strings.TrimSpace(record.CleanupSessionID) == ""
+				len(cleanupSessionIDs) == 0
 			if !cleanupComplete && strings.TrimSpace(record.DeleteToken) == "" {
 				lifecycleRoot.Close()
 				return nil, errors.New("pending session deletion is missing delete_token")
@@ -490,6 +531,7 @@ func (s *SessionFileStore) listSessionDeletionRecords() ([]PendingSessionDeletio
 				SessionKey:           strings.TrimSpace(record.SessionKey),
 				ConfigurationVersion: record.ConfigurationVersion,
 				CleanupSessionID:     strings.TrimSpace(record.CleanupSessionID),
+				CleanupSessionIDs:    cleanupSessionIDs,
 				Committed:            record.State == sessionLifecycleStateDeleted,
 				CleanupComplete:      cleanupComplete,
 				Lease: SessionDeletionLease{
@@ -510,6 +552,23 @@ func (s *SessionFileStore) listSessionDeletionRecords() ([]PendingSessionDeletio
 		return result[left].SessionKey < result[right].SessionKey
 	})
 	return result, nil
+}
+
+func normalizedCleanupSessionIDs(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 func newSessionDeletionToken() (string, error) {

@@ -104,12 +104,16 @@ func (s *Service) reconcilePendingDeletion(
 			return fmt.Errorf("提交残留目录删除: %w", err)
 		}
 	}
-	if item.CleanupSessionID != "" {
+	cleanupSessionIDs := item.CleanupSessionIDs
+	if len(cleanupSessionIDs) == 0 && item.CleanupSessionID != "" {
+		cleanupSessionIDs = []string{item.CleanupSessionID}
+	}
+	for _, cleanupSessionID := range cleanupSessionIDs {
 		if _, err := s.history.ForOwner(item.OwnerUserID).DeleteTranscriptSession(
 			item.WorkspacePath,
-			item.CleanupSessionID,
+			cleanupSessionID,
 		); err != nil {
-			return fmt.Errorf("清理残留 transcript: %w", err)
+			return fmt.Errorf("清理残留 transcript %s: %w", cleanupSessionID, err)
 		}
 	}
 	if err := files.CompleteSessionDeletionCleanup(item.Lease); err != nil {

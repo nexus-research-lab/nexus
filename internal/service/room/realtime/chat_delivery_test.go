@@ -136,13 +136,13 @@ func TestRealtimeServiceHandleChatWithSingleAgentRoomFallbackTarget(t *testing.T
 		"<public_anchor>",
 		"<public_feed>",
 		"<latest_trigger>",
-		"<nexus_runtime_context>",
-		"## Emotion State",
-		"Base: focused",
 	} {
 		if !strings.Contains(queryPrompts[0], expected) {
 			t.Fatalf("Room runtime query 缺少动态上下文 %q:\n%s", expected, queryPrompts[0])
 		}
+	}
+	if strings.Contains(queryPrompts[0], "<nexus_runtime_context>") {
+		t.Fatalf("默认关闭情绪系统时不应注入动态上下文:\n%s", queryPrompts[0])
 	}
 
 	pendingMsgID := ""

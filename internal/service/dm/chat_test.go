@@ -11,6 +11,7 @@ import (
 	"github.com/nexus-research-lab/nexus/internal/protocol"
 	runtimectx "github.com/nexus-research-lab/nexus/internal/runtime"
 	permissionctx "github.com/nexus-research-lab/nexus/internal/runtime/permission"
+	preferencessvc "github.com/nexus-research-lab/nexus/internal/service/preferences"
 
 	_ "modernc.org/sqlite"
 
@@ -140,6 +141,9 @@ func TestServiceHandleChatPersistsMessages(t *testing.T) {
 	factory := &fakeDMFactory{client: client}
 	runtimeManager := runtimectx.NewManagerWithFactory(factory)
 	service := NewService(cfg, agentService, runtimeManager, permission)
+	prefs := preferencessvc.DefaultPreferences()
+	prefs.EmotionEnabled = true
+	service.SetPreferences(fakeDMPreferencesService{prefs: prefs})
 	sender := newDMTestSender("sender-1")
 	sessionKey := "agent:nexus:ws:dm:test-chat"
 	permission.BindSession(sessionKey, sender)

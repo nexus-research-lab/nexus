@@ -3,8 +3,10 @@ package skills
 import (
 	"database/sql"
 	"path/filepath"
+	"slices"
 	"testing"
 
+	"github.com/nexus-research-lab/nexus/internal/protocol"
 	agentsvc "github.com/nexus-research-lab/nexus/internal/service/agent"
 	workspacepkg "github.com/nexus-research-lab/nexus/internal/service/workspace"
 	"github.com/nexus-research-lab/nexus/internal/storage/agentrepo"
@@ -35,6 +37,18 @@ func TestServiceExternalSkillRegistryIsPrivatePerOwner(t *testing.T) {
 	}
 	if _, err = service.ImportLocalPath(ctxB, sourceB); err != nil {
 		t.Fatalf("owner-b 导入 skill 失败: %v", err)
+	}
+	agentA, err := agentService.CreateAgent(ctxA, protocol.CreateRequest{Name: "Owner A Agent"})
+	if err != nil {
+		t.Fatalf("创建 owner-a Agent 失败: %v", err)
+	}
+	if _, err = agentService.UpdateAgentSkillSelection(
+		ctxA,
+		agentA.AgentID,
+		[]string{"private-skill"},
+		[]string{"private-skill"},
+	); err != nil {
+		t.Fatalf("准备 skill 引用失败: %v", err)
 	}
 
 	itemsA, err := service.ListSkills(ctxA, Query{SourceType: sourceTypeExternal})
@@ -70,5 +84,13 @@ func TestServiceExternalSkillRegistryIsPrivatePerOwner(t *testing.T) {
 	}
 	if skillB, ok = findSkill(itemsB, "private-skill"); !ok || skillB.Title != "Owner B Skill" {
 		t.Fatalf("owner-a 删除不应影响 owner-b: %+v", itemsB)
+	}
+	reloadedAgent, err := agentService.GetAgent(ctxA, agentA.AgentID)
+	if err != nil {
+		t.Fatalf("读取删除 skill 后的 Agent 失败: %v", err)
+	}
+	if slices.Contains(reloadedAgent.Options.SkillIDs, "private-skill") ||
+		slices.Contains(reloadedAgent.Options.DisabledSkillIDs, "private-skill") {
+		t.Fatalf("删除 skill 后仍残留 Agent 引用: %+v", reloadedAgent.Options)
 	}
 }

@@ -21,6 +21,7 @@ export function buildPreferencesUpdatePayload(
     chat_default_delivery_policy: preferences.chat_default_delivery_policy,
     agent_runtime_kind: preferences.agent_runtime_kind,
     agent_sdk_diagnostics_enabled: preferences.agent_sdk_diagnostics_enabled,
+    emotion_enabled: preferences.emotion_enabled,
     runtime_settings: preferences.runtime_settings,
     web_search: preferences.web_search,
     web_search_api_key: preferences.web_search_api_key,
@@ -47,6 +48,7 @@ export function normalizePreferences(preferences: UserPreferences | null): UserP
       preferences,
       fallback,
     ),
+    emotion_enabled: resolveEmotionEnabled(preferences, fallback),
     runtime_settings: normalizeRuntimeSettings(
       source.runtime_settings,
       fallback.runtime_settings,
@@ -123,4 +125,14 @@ function resolveDiagnosticsEnabled(
     return fallback.agent_sdk_diagnostics_enabled === true;
   }
   return preferences.agent_sdk_diagnostics_enabled === true;
+}
+
+function resolveEmotionEnabled(
+  preferences: UserPreferences | null,
+  fallback: UserPreferences,
+): boolean {
+  if (preferences === null) {
+    return fallback.emotion_enabled === true;
+  }
+  return preferences.emotion_enabled === true;
 }

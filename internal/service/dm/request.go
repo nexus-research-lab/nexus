@@ -21,8 +21,6 @@ import (
 	conversationsvc "github.com/nexus-research-lab/nexus/internal/service/conversation"
 	goalsvc "github.com/nexus-research-lab/nexus/internal/service/goal"
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
-
-	sdkpermission "github.com/nexus-research-lab/nexus-agent-sdk-bridge/permission"
 )
 
 // HandleChat 处理一条 DM 写请求。显式输入与队列交接、Goal 续跑共享同一个启动边界。
@@ -97,17 +95,10 @@ type dmChatExecution struct {
 }
 
 type dmRuntimePreparation struct {
-	content               conversationsvc.RuntimeContent
-	atomicInput           bool
-	recoveryContext       []runtimectx.ContextualInputBlock
-	client                runtimectx.Client
-	runtimeKind           string
-	runtimeProvider       string
-	runtimeModel          string
-	goalIDForUsage        string
-	goalContext           string
-	goalObjectiveRevision *atomic.Int64
-	permissionMode        sdkpermission.Mode
+	dmClientPreparation
+	content         conversationsvc.RuntimeContent
+	atomicInput     bool
+	recoveryContext []runtimectx.ContextualInputBlock
 }
 
 func (s *Service) prepareChatExecution(
@@ -350,14 +341,7 @@ func (e *dmChatExecution) prepareRuntime(runtimeIsolationRequired bool) (dmRunti
 	if err != nil {
 		return dmRuntimePreparation{}, err
 	}
-	if !runtimeContent.IsEmpty() && !slashInput {
-		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
-			runtimeCtx,
-			e.agent,
-			"dm:"+strings.TrimSpace(e.sessionKey),
-		))
-	}
-	client, runtimeKind, runtimeProvider, runtimeModel, goalIDForUsage, goalContext, goalObjectiveRevision, permissionMode, err := e.service.ensureClient(
+	clientPreparation, err := e.service.ensureClient(
 		runtimeCtx,
 		e.sessionKey,
 		e.agent,
@@ -374,33 +358,34 @@ func (e *dmChatExecution) prepareRuntime(runtimeIsolationRequired bool) (dmRunti
 		)
 		return dmRuntimePreparation{}, err
 	}
+	if !runtimeContent.IsEmpty() && !slashInput {
+		runtimeContent = runtimeContent.AppendText(e.service.agents.BuildRuntimeUserMessageSuffixForContext(
+			runtimeCtx,
+			e.agent,
+			"dm:"+strings.TrimSpace(e.sessionKey),
+			clientPreparation.emotionEnabled,
+		))
+	}
 	if override := strings.TrimSpace(e.request.GoalContext); e.request.Internal && override != "" {
-		goalContext = override
+		clientPreparation.goalContext = override
 		if goalID := strings.TrimSpace(e.request.GoalID); goalID != "" {
-			goalIDForUsage = goalID
+			clientPreparation.goalIDForUsage = goalID
 		}
 	}
-	if err = e.applyHistoryRewrite(client); err != nil {
+	if err = e.applyHistoryRewrite(clientPreparation.client); err != nil {
 		return dmRuntimePreparation{}, err
 	}
 	recoveryContext := e.recoveryContextualInputs()
 	atomicInput := slashInput
 	if slashInput {
-		goalContext = ""
+		clientPreparation.goalContext = ""
 		recoveryContext = nil
 	}
 	return dmRuntimePreparation{
-		content:               runtimeContent,
-		atomicInput:           atomicInput,
-		recoveryContext:       recoveryContext,
-		client:                client,
-		runtimeKind:           runtimeKind,
-		runtimeProvider:       runtimeProvider,
-		runtimeModel:          runtimeModel,
-		goalIDForUsage:        goalIDForUsage,
-		goalContext:           goalContext,
-		goalObjectiveRevision: goalObjectiveRevision,
-		permissionMode:        permissionMode,
+		dmClientPreparation: clientPreparation,
+		content:             runtimeContent,
+		atomicInput:         atomicInput,
+		recoveryContext:     recoveryContext,
 	}, nil
 }
 

@@ -36,8 +36,15 @@ ORDER BY s.last_activity_at DESC`, ownerUserID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	return scanRoomSessions(rows)
+	items, scanErr := scanRoomSessions(rows)
+	closeErr := rows.Close()
+	if scanErr != nil {
+		return nil, scanErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	return items, nil
 }
 
 // ListRoomSessionsByAgent 列出指定 Agent 的 Room 成员会话视图。
@@ -48,8 +55,15 @@ ORDER BY s.last_activity_at DESC`, agentID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	return scanRoomSessions(rows)
+	items, scanErr := scanRoomSessions(rows)
+	closeErr := rows.Close()
+	if scanErr != nil {
+		return nil, scanErr
+	}
+	if closeErr != nil {
+		return nil, closeErr
+	}
+	return items, nil
 }
 
 // GetRoomSessionByKey 按结构化 key 查找 Room 成员会话。
@@ -81,8 +95,7 @@ func (r *SQLRepository) UpdateRoomSessionSDKSessionID(
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
-
+	defer func() { _ = tx.Rollback() }()
 	var roomID string
 	err = tx.QueryRowContext(ctx, `
 SELECT c.room_id
@@ -98,17 +111,41 @@ WHERE s.id = `+r.dialect.Bind(1), roomSessionID).Scan(&roomID)
 	if err = storage.LockRoomForMutation(ctx, tx, r.dialect, "", roomID); err != nil {
 		return err
 	}
-	if _, err = tx.ExecContext(ctx, `
+	var current sql.NullString
+	var optionsJSON string
+	if err = tx.QueryRowContext(
+		ctx,
+		"SELECT sdk_session_id, options_json FROM sessions WHERE id = "+r.dialect.Bind(1),
+		roomSessionID,
+	).Scan(&current, &optionsJSON); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	}
+	options := protocol.WithTranscriptSessionIDs(
+		jsoncodec.ParseMap(optionsJSON),
+		[]string{current.String, sdkSessionID},
+	)
+	optionsJSON, err = jsoncodec.MarshalMap(options)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `
 UPDATE sessions
-SET sdk_session_id = `+r.dialect.Bind(1)+`, updated_at = `+r.dialect.CurrentTimestamp()+`
-WHERE id = `+r.dialect.Bind(2)+`
+SET sdk_session_id = `+r.dialect.Bind(1)+`,
+    options_json = `+r.dialect.Bind(2)+`,
+    updated_at = `+r.dialect.CurrentTimestamp()+`
+WHERE id = `+r.dialect.Bind(3)+`
   AND conversation_id IN (
-      SELECT id FROM conversations WHERE room_id = `+r.dialect.Bind(3)+`
+      SELECT id FROM conversations WHERE room_id = `+r.dialect.Bind(4)+`
   )`,
 		nullableStringValue(sdkSessionID),
+		optionsJSON,
 		roomSessionID,
 		roomID,
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -318,6 +355,7 @@ func scanRoomSession(scanner interface{ Scan(...any) error }) (protocol.Session,
 	if result.Options == nil {
 		result.Options = map[string]any{}
 	}
+	result.TranscriptSessionIDs = protocol.TranscriptSessionIDsFromOptions(result.Options)
 	return result, nil
 }
 

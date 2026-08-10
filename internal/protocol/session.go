@@ -18,6 +18,7 @@ type Session struct {
 	SessionKey           string            `json:"session_key"`
 	AgentID              string            `json:"agent_id"`
 	SessionID            *string           `json:"session_id"`
+	TranscriptSessionIDs []string          `json:"transcript_session_ids,omitempty"`
 	RoomSessionID        *string           `json:"room_session_id"`
 	RoomID               *string           `json:"room_id"`
 	ConversationID       *string           `json:"conversation_id"`

@@ -149,6 +149,7 @@ func (e *slotExecution) prepareRuntime(
 	if err != nil {
 		return preparedSlotRuntime{}, err
 	}
+	e.emotionEnabled = selection.EmotionEnabled
 	if err = e.service.agents.EnsureRuntimeVisionSettingsProjection(
 		*e.agent,
 		selection.VisionProvider,

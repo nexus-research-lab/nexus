@@ -22,6 +22,7 @@ export const USER_PREFERENCES_CHANGED_EVENT = "nexus:user-preferences-changed";
 let DEFAULT_CHAT_DELIVERY_POLICY: AgentConversationDefaultDeliveryPolicy = "queue";
 let DEFAULT_AGENT_RUNTIME_KIND: AgentRuntimeKind = "nxs";
 let DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED = false;
+let DEFAULT_EMOTION_ENABLED = false;
 let DEFAULT_RUNTIME_SETTINGS: UserPreferences["runtime_settings"] = {
   nxs: { tool_search: false },
 };
@@ -75,6 +76,7 @@ export function getUserPreferences(): UserPreferences {
     chat_default_delivery_policy: DEFAULT_CHAT_DELIVERY_POLICY,
     agent_runtime_kind: DEFAULT_AGENT_RUNTIME_KIND,
     agent_sdk_diagnostics_enabled: DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED,
+    emotion_enabled: DEFAULT_EMOTION_ENABLED,
     runtime_settings: cloneRuntimeSettings(DEFAULT_RUNTIME_SETTINGS),
     web_search: DEFAULT_WEB_SEARCH ? { ...DEFAULT_WEB_SEARCH } : undefined,
     default_agent_options: getInitialAgentOptions(),
@@ -88,6 +90,7 @@ export function setUserPreferences(preferences?: Partial<UserPreferences> | null
   applyDeliveryPolicy(preferences);
   applyRuntimeKind(preferences);
   applyDiagnosticsPreference(preferences);
+  applyEmotionPreference(preferences);
   applyRuntimeSettings(preferences);
   applyWebSearch(preferences);
   applyModelSelections(preferences);
@@ -122,6 +125,15 @@ function applyDiagnosticsPreference(
   }
   DEFAULT_AGENT_SDK_DIAGNOSTICS_ENABLED =
     preferences.agent_sdk_diagnostics_enabled === true;
+}
+
+function applyEmotionPreference(
+  preferences?: Partial<UserPreferences> | null,
+): void {
+  if (preferences == null) {
+    return;
+  }
+  DEFAULT_EMOTION_ENABLED = preferences.emotion_enabled === true;
 }
 
 function applyRuntimeSettings(

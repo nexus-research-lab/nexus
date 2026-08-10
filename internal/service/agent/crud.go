@@ -6,7 +6,6 @@ package agent
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -553,9 +552,9 @@ func (s *Service) deleteAgent(
 	if err := s.EnsureReady(ctx); err != nil {
 		return err
 	}
-
+	agentID = strings.TrimSpace(agentID)
 	ownerUserID, _ := scopedOwnerUserID(ctx)
-	existing, err := s.repository.GetAgent(ctx, strings.TrimSpace(agentID), ownerUserID)
+	existing, err := s.repository.GetAgent(ctx, agentID, ownerUserID)
 	if err != nil {
 		return err
 	}
@@ -568,50 +567,12 @@ func (s *Service) deleteAgent(
 	if expectedRuntimeVersion != nil && existing.RuntimeVersion != *expectedRuntimeVersion {
 		return ErrRuntimeVersionConflict
 	}
-
-	// 先以数据库事务和 runtime_version CAS 提交身份撤销，再清理 Goal、
-	// transcript 与 workspace。这样任何提交前失败都不会先破坏 Agent 文件；
-	// 提交后的外围失败则明确返回 reconcile 状态。
-	deleteOwnerUserID := existing.OwnerUserID
-	if ownerUserID != "" {
-		deleteOwnerUserID = ownerUserID
-	}
-	persistenceErr := s.deleteAgentPersistenceAtVersion(
-		ctx,
-		deleteOwnerUserID,
-		existing.AgentID,
-		expectedRuntimeVersion,
-	)
-	if persistenceErr != nil && !AgentDeletionCommitted(persistenceErr) {
-		return persistenceErr
-	}
-
-	cleanupCtx := context.WithoutCancel(ctx)
-	cleanupErrs := make([]error, 0, 4)
-	if persistenceErr != nil {
-		var committed *DeletionReconcileError
-		if errors.As(persistenceErr, &committed) {
-			cleanupErrs = append(cleanupErrs, committed.cause)
-		} else {
-			cleanupErrs = append(cleanupErrs, persistenceErr)
+	sessions := []protocol.Session{}
+	if s.sessions != nil {
+		sessions, err = s.sessions.ListAgentSessions(ctx, existing.AgentID)
+		if err != nil {
+			return err
 		}
 	}
-	if s.goals != nil {
-		if _, cleanupErr := s.goals.DeleteGoalsForAgent(cleanupCtx, existing.AgentID); cleanupErr != nil {
-			cleanupErrs = append(cleanupErrs, fmt.Errorf("清理 Agent Goal: %w", cleanupErr))
-		}
-	}
-	if s.history != nil {
-		if _, cleanupErr := s.history.ForOwner(existing.OwnerUserID).
-			DeleteTranscriptProject(existing.WorkspacePath); cleanupErr != nil {
-			cleanupErrs = append(cleanupErrs, fmt.Errorf("清理 Agent transcript: %w", cleanupErr))
-		}
-	}
-	if cleanupErr := s.cleanupAgentWorkspace(cleanupCtx, *existing); cleanupErr != nil {
-		cleanupErrs = append(cleanupErrs, fmt.Errorf("清理 Agent workspace: %w", cleanupErr))
-	}
-	if cleanupErr := errors.Join(cleanupErrs...); cleanupErr != nil {
-		return &DeletionReconcileError{cause: cleanupErr}
-	}
-	return nil
+	return s.applyAgentDeletion(ctx, *existing, sessions, expectedRuntimeVersion)
 }

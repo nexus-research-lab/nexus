@@ -118,26 +118,26 @@ func (s *Service) deleteOAuthClientConfig(
 	if err != nil {
 		return nil, err
 	}
-	connection := connectionRecord{
-		OwnerUserID: ownerUserID,
-		ConnectorID: entry.ConnectorID,
-		State:       "disconnected",
-		Credentials: "",
-		AuthType:    entry.AuthType,
-	}
-	if err = s.encryptConnectionCredentials(&connection); err != nil {
-		return nil, err
-	}
 	if _, err = s.mutateConnector(
 		ctx,
 		ownerUserID,
 		entry.ConnectorID,
 		expectedVersion,
 		func(tx *sql.Tx) error {
+			stateQuery := "DELETE FROM connector_oauth_states WHERE owner_user_id = " + s.bind(1) +
+				" AND connector_id = " + s.bind(2)
+			if _, deleteErr := tx.ExecContext(ctx, stateQuery, ownerUserID, entry.ConnectorID); deleteErr != nil {
+				return deleteErr
+			}
+			connectionQuery := "DELETE FROM connector_connections WHERE owner_user_id = " + s.bind(1) +
+				" AND connector_id = " + s.bind(2)
+			if _, deleteErr := tx.ExecContext(ctx, connectionQuery, ownerUserID, entry.ConnectorID); deleteErr != nil {
+				return deleteErr
+			}
 			if deleteErr := store.DeleteTx(ctx, tx, ownerUserID, entry.ConnectorID); deleteErr != nil {
 				return deleteErr
 			}
-			return s.writeConnection(ctx, tx, connection)
+			return nil
 		},
 	); err != nil {
 		return nil, err

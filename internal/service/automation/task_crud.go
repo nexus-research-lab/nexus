@@ -342,7 +342,7 @@ func (s *Service) deleteTask(
 	s.taskControlMu.Lock()
 	defer s.taskControlMu.Unlock()
 
-	current, err := s.loadRequiredScheduledTask(ctx, jobID)
+	current, err := s.loadRequiredScheduledTask(ctx, strings.TrimSpace(jobID))
 	if err != nil {
 		return nil, err
 	}
@@ -363,26 +363,43 @@ func (s *Service) deleteTask(
 			return nil, err
 		}
 	}
-	cancelledRunID, cancelledRun, err := s.cancelDeletedTaskActiveRun(ctx, *current)
+	result, err := s.applyScheduledTaskDeletion(ctx, *current, expectedVersion != nil)
+	if err != nil && expectedVersion != nil {
+		s.mu.Lock()
+		delete(s.jobStates, current.JobID)
+		s.mu.Unlock()
+		return nil, &TaskDeletionReconcileError{cause: err}
+	}
+	return result, err
+}
+
+func (s *Service) applyScheduledTaskDeletion(
+	ctx context.Context,
+	current automationdomain.ScheduledTask,
+	persistenceCommitted bool,
+) (*automationdomain.DeleteJobResult, error) {
+	cancelledRunID, cancelledRun, err := s.cancelDeletedTaskActiveRun(ctx, current)
 	if err != nil {
 		return nil, err
 	}
-	deadLetteredDeliveryRunIDs, err := s.deadLetterDeletedTaskPendingDeliveries(ctx, *current)
+	deadLetteredDeliveryRunIDs, err := s.deadLetterDeletedTaskPendingDeliveries(ctx, current)
 	if err != nil {
 		return nil, err
 	}
-	if expectedVersion == nil {
+	if !skipIsolatedAutomationSessionCleanup(ctx) {
+		if err = s.cleanupIsolatedAutomationSessions(ctx, current); err != nil {
+			return nil, err
+		}
+	}
+	if !persistenceCommitted {
 		if err = s.repository.DeleteScheduledTask(ctx, current.OwnerUserID, current.JobID); err != nil {
 			return nil, err
 		}
 	}
-	if err = s.cleanupIsolatedAutomationSessions(ctx, *current); err != nil {
-		return nil, err
-	}
 	s.mu.Lock()
 	delete(s.jobStates, current.JobID)
 	s.mu.Unlock()
-	s.recordTaskEvent(ctx, automationdomain.TaskEventActionDelete, *current, cancelledRunID, deleteTaskEventDetail(*current, cancelledRunID, cancelledRun, deadLetteredDeliveryRunIDs))
+	s.recordTaskEvent(ctx, automationdomain.TaskEventActionDelete, current, cancelledRunID, deleteTaskEventDetail(current, cancelledRunID, cancelledRun, deadLetteredDeliveryRunIDs))
 	result := &automationdomain.DeleteJobResult{
 		JobID:              current.JobID,
 		AgentID:            current.AgentID,
@@ -394,6 +411,25 @@ func (s *Service) deleteTask(
 		result.CancelledRunID = cancelledRunID
 	}
 	return result, nil
+}
+
+// TaskDeletionReconcileError 表示版本化删除已提交，但外围清理仍需重试。
+type TaskDeletionReconcileError struct {
+	cause error
+}
+
+func (e *TaskDeletionReconcileError) Error() string {
+	return "定时任务已删除，但关联运行态清理需要 reconcile: " + e.cause.Error()
+}
+
+func (e *TaskDeletionReconcileError) Unwrap() error {
+	return e.cause
+}
+
+// TaskDeletionCommitted 判断删除错误是否发生在持久化提交之后。
+func TaskDeletionCommitted(err error) bool {
+	var committed *TaskDeletionReconcileError
+	return errors.As(err, &committed)
 }
 
 func (s *Service) deadLetterDeletedTaskPendingDeliveries(ctx context.Context, job automationdomain.ScheduledTask) ([]string, error) {

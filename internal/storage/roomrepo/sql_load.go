@@ -283,16 +283,22 @@ ORDER BY conversation_id ASC, last_activity_at DESC`, r.dialect.BindList(len(con
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
 	for rows.Next() {
 		item, scanErr := ScanSessionRecord(rows)
 		if scanErr != nil {
+			_ = rows.Close()
 			return nil, scanErr
 		}
 		result[item.ConversationID] = append(result[item.ConversationID], item)
 	}
-	return result, rows.Err()
+	if err = rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *SQLRepository) pickMainConversation(ctx context.Context, querier roomQueryer, roomID string) (*protocol.ConversationRecord, error) {

@@ -81,6 +81,7 @@ export interface UserPreferences {
   chat_default_delivery_policy: AgentConversationDefaultDeliveryPolicy;
   agent_runtime_kind?: AgentRuntimeKind;
   agent_sdk_diagnostics_enabled?: boolean;
+  emotion_enabled?: boolean;
   runtime_settings?: RuntimeSettings;
   web_search?: WebSearchSettings;
   web_search_api_key?: string;
@@ -95,6 +96,7 @@ export interface UpdateUserPreferencesParams {
   chat_default_delivery_policy?: AgentConversationDefaultDeliveryPolicy;
   agent_runtime_kind?: AgentRuntimeKind;
   agent_sdk_diagnostics_enabled?: boolean;
+  emotion_enabled?: boolean;
   runtime_settings?: RuntimeSettings;
   web_search?: WebSearchSettings;
   web_search_api_key?: string;

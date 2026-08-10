@@ -13,6 +13,15 @@ import (
 
 const overlayKindTranscriptRef = "transcript_ref"
 
+// RoomTranscriptReference 是删除 Room 产物所需的稳定 transcript 引用。
+type RoomTranscriptReference struct {
+	AgentID           string `json:"agent_id"`
+	ConversationID    string `json:"conversation_id"`
+	PrivateSessionKey string `json:"private_session_key"`
+	SessionID         string `json:"session_id"`
+	WorkspacePath     string `json:"workspace_path"`
+}
+
 // RoomHistoryStore 负责 Room 共享历史读写。
 // 共享层只保存两类数据：
 // 1. Room 自己的 inline overlay（用户消息、synthetic result 等）。
@@ -80,6 +89,56 @@ func (s *RoomHistoryStore) ReadMessages(
 		return nil, err
 	}
 	return normalizeHistoryRows(rows, normalizeActiveRoundIDs(activeRoundIDs)), nil
+}
+
+// ListTranscriptReferences 在共享 overlay 删除前抽取所有历史 transcript 引用。
+func (s *RoomHistoryStore) ListTranscriptReferences(
+	ownerUserID string,
+	conversationID string,
+) ([]RoomTranscriptReference, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	conversationID = strings.TrimSpace(conversationID)
+	rows, err := s.files.readRoomJSONL(
+		ownerUserID,
+		s.paths.RoomConversationOverlayPath(ownerUserID, conversationID),
+	)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{})
+	result := make([]RoomTranscriptReference, 0)
+	for _, row := range rows {
+		if stringFromAny(row[overlayKindField]) != overlayKindTranscriptRef {
+			continue
+		}
+		item := RoomTranscriptReference{
+			AgentID:           stringFromAny(row["agent_id"]),
+			ConversationID:    conversationID,
+			PrivateSessionKey: stringFromAny(row["private_session_key"]),
+			SessionID:         strings.ToLower(stringFromAny(row["session_id"])),
+			WorkspacePath:     stringFromAny(row["workspace_path"]),
+		}
+		if item.AgentID == "" || item.PrivateSessionKey == "" ||
+			!IsTranscriptSessionID(item.SessionID) ||
+			!s.paths.workspacePathIsConfinedForOwner(ownerUserID, item.WorkspacePath) {
+			continue
+		}
+		key := strings.Join([]string{
+			item.AgentID,
+			item.PrivateSessionKey,
+			item.SessionID,
+			item.WorkspacePath,
+		}, "\x00")
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, item)
+	}
+	return result, nil
 }
 
 // ReadMessagesPage 按 round 读取 Room 共享历史分页。

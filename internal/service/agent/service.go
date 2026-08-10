@@ -18,6 +18,15 @@ type goalCleaner interface {
 	DeleteGoalsForAgent(context.Context, string) (int, error)
 }
 
+type agentSessionLifecycle interface {
+	ListAgentSessions(context.Context, string) ([]protocol.Session, error)
+	DeleteAgentSessionArtifacts(context.Context, protocol.Agent, []protocol.Session) error
+}
+
+type agentTaskCleaner interface {
+	DeleteTasksForAgent(context.Context, string, string) error
+}
+
 // workspaceManager 管理显式 Agent 生命周期产生的 workspace 托管状态，不参与全局 readiness。
 type workspaceManager interface {
 	InitializeAgentWorkspace(context.Context, protocol.Agent) error
@@ -41,6 +50,8 @@ type Service struct {
 	prompts             *promptBuilder
 	goals               goalCleaner
 	workspace           workspaceManager
+	sessions            agentSessionLifecycle
+	tasks               agentTaskCleaner
 	deletionCoordinator deletionCoordinator
 	readyMu             sync.Mutex
 }
@@ -58,6 +69,15 @@ func NewService(cfg config.Config, repository Repository) *Service {
 // SetGoalCleaner 注入 Agent 删除时的 Goal 级联清理器。
 func (s *Service) SetGoalCleaner(cleaner goalCleaner) {
 	s.goals = cleaner
+}
+
+// SetDeletionLifecycle 注入 Agent 删除涉及的 Session 与 Task 清理器。
+func (s *Service) SetDeletionLifecycle(
+	sessions agentSessionLifecycle,
+	tasks agentTaskCleaner,
+) {
+	s.sessions = sessions
+	s.tasks = tasks
 }
 
 // SetWorkspaceManager 注入显式 Agent 生命周期的 workspace 托管器。

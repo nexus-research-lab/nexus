@@ -221,6 +221,9 @@ func (s *Service) DeleteEntry(ctx context.Context, agentID string, relativePath 
 	if err != nil {
 		return nil, err
 	}
+	if strings.EqualFold(normalizedPath, memoryEntrypointName) {
+		return nil, errors.New("MEMORY.md 是记忆索引，不能通过通用文件接口删除")
+	}
 	confinedRoot, err := s.openAgentWorkspace(agentValue, false)
 	if err != nil {
 		return nil, err
@@ -232,6 +235,15 @@ func (s *Service) DeleteEntry(ctx context.Context, agentID string, relativePath 
 	}
 	if err != nil {
 		return nil, err
+	}
+	if strings.EqualFold(normalizedPath, memoryDirectoryName) {
+		return nil, errors.New("记忆目录不能整体删除，请逐个删除记忆正文")
+	}
+	if strings.HasPrefix(strings.ToLower(normalizedPath), memoryDirectoryName+"/") {
+		if info.IsDir() {
+			return nil, errors.New("记忆目录不能整体删除，请逐个删除记忆正文")
+		}
+		return s.DeleteMemoryDocument(ctx, agentID, normalizedPath)
 	}
 	if s.live != nil && info != nil && !info.IsDir() {
 		s.live.SuppressWatcher(agentValue.AgentID, normalizedPath)

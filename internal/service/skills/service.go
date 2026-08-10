@@ -776,6 +776,7 @@ func (s *Service) deleteSkill(
 	skillName string,
 	expectedVersion *int64,
 ) error {
+	skillName = strings.TrimSpace(skillName)
 	records, _, _, err := s.catalogWithAgentState(ctx, "")
 	if err != nil {
 		return err
@@ -847,15 +848,35 @@ func (s *Service) deleteSkill(
 			agentValue.Options.SkillIDs,
 			record.Detail.Name,
 		)
-		if !selectedChanged {
+		disabled, disabledChanged := removeSkillReferences(
+			agentValue.Options.DisabledSkillIDs,
+			record.Detail.Name,
+		)
+		if !selectedChanged && !disabledChanged {
 			continue
 		}
-		_, updateErr := s.agents.UpdateAgentSkillIDsAtVersion(
-			ctx,
-			agentValue.AgentID,
-			selected,
-			agentValue.RuntimeVersion,
-		)
+		currentVersion := agentValue.RuntimeVersion
+		var updateErr error
+		if selectedChanged {
+			var updated *protocol.Agent
+			updated, updateErr = s.agents.UpdateAgentSkillIDsAtVersion(
+				ctx,
+				agentValue.AgentID,
+				selected,
+				currentVersion,
+			)
+			if updateErr == nil {
+				currentVersion = updated.RuntimeVersion
+			}
+		}
+		if updateErr == nil && disabledChanged {
+			_, updateErr = s.agents.UpdateAgentDisabledSkillIDsAtVersion(
+				ctx,
+				agentValue.AgentID,
+				disabled,
+				currentVersion,
+			)
+		}
 		if updateErr != nil {
 			reconcileErr = errors.Join(
 				reconcileErr,

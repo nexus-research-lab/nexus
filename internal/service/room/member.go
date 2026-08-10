@@ -92,6 +92,8 @@ func (s *Service) removeRoomMember(
 	agentID string,
 	expectedVersion *int64,
 ) (*protocol.ConversationContextAggregate, error) {
+	roomID = strings.TrimSpace(roomID)
+	agentID = strings.TrimSpace(agentID)
 	agentValue, err := s.ensureGroupMemberAgent(ctx, agentID)
 	if err != nil {
 		return nil, err
@@ -123,6 +125,22 @@ func (s *Service) removeRoomMember(
 		return nil, errors.New("Room 至少保留一个 agent 成员")
 	}
 
+	transcriptReferences, err := s.captureRoomTranscriptReferences(roomContexts)
+	if err != nil {
+		return nil, err
+	}
+	payload := roomDeletionPayload{
+		AgentID:              normalizedAgentID,
+		AgentIDs:             []string{normalizedAgentID},
+		Contexts:             roomContexts,
+		RoomID:               roomID,
+		TranscriptReferences: transcriptReferences,
+	}
+	if expectedVersion == nil {
+		if cleanupErr := s.cleanupCommittedRoomDeletion(ctx, payload, false); cleanupErr != nil {
+			return nil, cleanupErr
+		}
+	}
 	var contextValue *protocol.ConversationContextAggregate
 	if expectedVersion == nil {
 		contextValue, err = s.repository.RemoveRoomMember(
@@ -147,10 +165,12 @@ func (s *Service) removeRoomMember(
 	if contextValue == nil {
 		return nil, ErrRoomNotFound
 	}
-	runtimeErr := s.closeConversationRuntimeSessions(ctx, roomContexts, false, map[string]struct{}{normalizedAgentID: {}})
-	artifactErr := s.cleanupConversationArtifacts(ctx, roomContexts, false, map[string]struct{}{normalizedAgentID: {}})
-	goalErr := s.cleanupGoalsForRoomMemberContexts(ctx, roomContexts, normalizedAgentID)
-	return contextValue, errors.Join(runtimeErr, artifactErr, goalErr)
+	if expectedVersion != nil {
+		if cleanupErr := s.cleanupCommittedRoomDeletion(ctx, payload, false); cleanupErr != nil {
+			return contextValue, &RoomMemberDeletionReconcileError{cause: cleanupErr}
+		}
+	}
+	return contextValue, nil
 }
 
 // SetRoomMemberParticipation 持久化 group Room Agent 的参与暂停状态。

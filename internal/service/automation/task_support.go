@@ -16,6 +16,17 @@ import (
 	workspacestore "github.com/nexus-research-lab/nexus/internal/storage/workspace"
 )
 
+type skipIsolatedAutomationSessionCleanupKey struct{}
+
+func withSkippedIsolatedAutomationSessionCleanup(ctx context.Context) context.Context {
+	return context.WithValue(ctx, skipIsolatedAutomationSessionCleanupKey{}, true)
+}
+
+func skipIsolatedAutomationSessionCleanup(ctx context.Context) bool {
+	value, _ := ctx.Value(skipIsolatedAutomationSessionCleanupKey{}).(bool)
+	return value
+}
+
 func (s *Service) resolveTaskOwnerUserID(ctx context.Context, agentID string) (string, error) {
 	if s.agents != nil && strings.TrimSpace(agentID) != "" {
 		agentValue, err := s.requireAgent(ctx, agentID)
@@ -118,6 +129,76 @@ func (s *Service) cleanupIsolatedAutomationSessions(ctx context.Context, job aut
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// DeleteTasksForSessions 删除目标或来源精确绑定到 Session 的定时任务。
+func (s *Service) DeleteTasksForSessions(
+	ctx context.Context,
+	ownerUserID string,
+	sessionKeys []string,
+) error {
+	keySet := make(map[string]struct{}, len(sessionKeys))
+	for _, sessionKey := range sessionKeys {
+		sessionKey = strings.TrimSpace(sessionKey)
+		if sessionKey != "" {
+			keySet[sessionKey] = struct{}{}
+		}
+	}
+	if len(keySet) == 0 {
+		return nil
+	}
+	items, err := s.repository.ListScheduledTasks(ctx, strings.TrimSpace(ownerUserID), "")
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		if !scheduledTaskReferencesSession(item, keySet) {
+			continue
+		}
+		if _, err = s.DeleteTask(contextForJobOwner(ctx, item), item.JobID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DeleteTasksForAgent 删除属于指定 Agent 的所有定时任务。
+func (s *Service) DeleteTasksForAgent(
+	ctx context.Context,
+	ownerUserID string,
+	agentID string,
+) error {
+	items, err := s.repository.ListScheduledTasks(
+		ctx,
+		strings.TrimSpace(ownerUserID),
+		strings.TrimSpace(agentID),
+	)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		deleteCtx := withSkippedIsolatedAutomationSessionCleanup(contextForJobOwner(ctx, item))
+		if _, err = s.DeleteTask(deleteCtx, item.JobID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func scheduledTaskReferencesSession(
+	item automationdomain.ScheduledTask,
+	sessionKeys map[string]struct{},
+) bool {
+	for _, sessionKey := range []string{
+		item.SessionTarget.BoundSessionKey,
+		item.SessionTarget.NamedSessionKey,
+		item.Source.SessionKey,
+	} {
+		if _, exists := sessionKeys[strings.TrimSpace(sessionKey)]; exists {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) resolveAutomationWorkspacePath(ctx context.Context, agentID string) (string, error) {

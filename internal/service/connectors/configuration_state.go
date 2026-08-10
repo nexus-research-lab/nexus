@@ -18,7 +18,8 @@ func (s *Service) GetConfigurationState(
 ) (*ConfigurationState, error) {
 	ownerUserID = normalizeConnectorOwnerUserID(ctx, ownerUserID)
 	connectorID = strings.TrimSpace(connectorID)
-	if _, ok := getConnector(connectorID); !ok {
+	entry, ok := getConnector(connectorID)
+	if !ok {
 		return nil, errors.New("未知连接器")
 	}
 
@@ -90,6 +91,10 @@ LEFT JOIN connector_oauth_clients AS oauth_client
 	state.ConnectionExists = connectionID.Valid
 	state.ConnectionState = connectionState.String
 	state.ConnectionAuthType = connectionAuthType.String
+	if !state.ConnectionExists {
+		state.ConnectionState = "disconnected"
+		state.ConnectionAuthType = entry.AuthType
+	}
 	state.ConnectionConfigured = connectionConfigured
 	state.OAuthClientExists = oauthClientConnectorID.Valid
 	state.OAuthClientID = oauthClientID.String

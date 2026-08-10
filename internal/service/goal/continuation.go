@@ -100,6 +100,13 @@ func (s *Service) PlanContinuationForSession(ctx context.Context, sessionKey str
 	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
 		return nil, nil
 	}
+	item, err = s.ensureExternalGoalExecutionReservation(ctx, item)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil || protocol.NormalizeGoalStatus(item.Status) != protocol.GoalStatusActive {
+		return nil, nil
+	}
 	return s.planContinuationForGoal(ctx, item, strings.TrimSpace(previousRoundID))
 }
 

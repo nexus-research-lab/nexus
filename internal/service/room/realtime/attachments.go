@@ -54,14 +54,16 @@ func (s *Service) appendRuntimeUserContext(
 	conversationID string,
 	agentValue *protocol.Agent,
 	runtimeContent conversationsvc.RuntimeContent,
+	emotionEnabled bool,
 ) conversationsvc.RuntimeContent {
-	if agentValue == nil || runtimeContent.IsEmpty() || s.agents == nil {
+	if agentValue == nil || runtimeContent.IsEmpty() || s.agents == nil || !emotionEnabled {
 		return runtimeContent
 	}
 	return runtimeContent.AppendText(s.agents.BuildRuntimeUserMessageSuffixForContext(
 		ctx,
 		agentValue,
 		"room:"+strings.TrimSpace(conversationID),
+		emotionEnabled,
 	))
 }
 

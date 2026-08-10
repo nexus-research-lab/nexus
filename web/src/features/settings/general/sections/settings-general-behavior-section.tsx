@@ -2,6 +2,7 @@
 
 import {
   Bug,
+  HeartPulse,
   Image,
   MessageSquareText,
   MonitorCog,
@@ -32,6 +33,7 @@ import { SettingsOnboardingRow } from "../components/settings-onboarding-row";
 interface SettingsGeneralBehaviorSectionProps {
   agentSdkDiagnosticsEnabled: boolean;
   chatDefaultDeliveryPolicy: AgentConversationDefaultDeliveryPolicy;
+  emotionEnabled: boolean;
   defaultBackgroundModelOptions: UiSelectMenuOption[];
   defaultBackgroundModelValue: string;
   defaultImageModelOptions: UiSelectMenuOption[];
@@ -43,6 +45,7 @@ interface SettingsGeneralBehaviorSectionProps {
   defaultModelSavingRole: DefaultModelPreferenceRole | null;
   defaultModelValue: string;
   onAgentSdkDiagnosticsChange: (checked: boolean) => void;
+  onEmotionEnabledChange: (checked: boolean) => void;
   onDefaultDeliveryPolicyChange: (
     value: AgentConversationDefaultDeliveryPolicy,
   ) => void;
@@ -59,6 +62,7 @@ interface SettingsGeneralBehaviorSectionProps {
 export function SettingsGeneralBehaviorSection({
   agentSdkDiagnosticsEnabled,
   chatDefaultDeliveryPolicy,
+  emotionEnabled,
   defaultBackgroundModelOptions,
   defaultBackgroundModelValue,
   defaultImageModelOptions,
@@ -70,6 +74,7 @@ export function SettingsGeneralBehaviorSection({
   defaultModelSavingRole,
   defaultModelValue,
   onAgentSdkDiagnosticsChange,
+  onEmotionEnabledChange,
   onDefaultDeliveryPolicyChange,
   onDefaultModelChange,
   onResetTours,
@@ -105,6 +110,36 @@ export function SettingsGeneralBehaviorSection({
               checked={agentSdkDiagnosticsEnabled}
               disabled={preferencesLoading || preferencesSaving}
               onChange={onAgentSdkDiagnosticsChange}
+              size="sm"
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-(--divider-subtle-color)" />
+
+        <div className={SETTINGS_ROW_CLASS_NAME}>
+          <div className={SETTINGS_TEXT_ROW_CLASS_NAME}>
+            <div className={SETTINGS_ICON_CLASS_NAME}>
+              <HeartPulse className="h-3.5 w-3.5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className={SETTINGS_ITEM_TITLE_CLASS_NAME}>
+                {t("settings.general.emotion_title")}
+              </h3>
+              <p className={SETTINGS_ITEM_DESCRIPTION_CLASS_NAME}>
+                {t("settings.general.emotion_description")}
+              </p>
+            </div>
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
+            <span className={SETTINGS_CONTROL_LABEL_CLASS_NAME}>
+              {t("settings.general.emotion_label")}
+            </span>
+            <GlassSwitch
+              aria-label={t("settings.general.emotion_label")}
+              checked={emotionEnabled}
+              disabled={preferencesLoading || preferencesSaving}
+              onChange={onEmotionEnabledChange}
               size="sm"
             />
           </div>

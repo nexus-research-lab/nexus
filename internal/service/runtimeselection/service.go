@@ -37,6 +37,7 @@ type Selection struct {
 	VisionProvider             string
 	VisionModel                string
 	AgentSDKDiagnosticsEnabled bool
+	EmotionEnabled             bool
 	ToolSearchEnabled          bool
 	WebSearch                  clientopts.WebSearchConfig
 }
@@ -84,6 +85,7 @@ func (s *Service) Resolve(ctx context.Context, request Request) (Selection, erro
 	if ok {
 		selection.RuntimeKind = runtimeprovider.NormalizeRuntimeKind(prefs.AgentRuntimeKind)
 		selection.AgentSDKDiagnosticsEnabled = prefs.AgentSDKDiagnosticsEnabled
+		selection.EmotionEnabled = prefs.EmotionEnabled
 		selection.ToolSearchEnabled = prefs.ToolSearchEnabledForRuntime(selection.RuntimeKind)
 		selection.WebSearch = WebSearchConfigFromPreferences(prefs.WebSearch)
 		selection.VisionProvider = strings.TrimSpace(prefs.DefaultVisionModelSelection.Provider)
